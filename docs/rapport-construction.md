@@ -90,19 +90,19 @@ Chaque critère de la section 13.1 a au moins un test dont le nom commence par s
 
 1. **Pousser le dépôt sur GitHub** (je n'avais pas d'accès à GitHub : le dépôt Git complet, avec les branches `main` et `v1`, est dans `chevalier-ia-os-v1.zip`). Dans le Terminal :
    ```sh
-   cd ~/Downloads
-   unzip chevalier-ia-os-v1.zip
+   mkdir -p ~/Projets && cd ~/Projets
+   unzip "$HOME/Library/CloudStorage/GoogleDrive-jerome.chevalier@gmail.com/Mon Drive/Chevalier-AI/Projets/crm-chevalier-ia/chevalier-ia-os-v1.zip"
    cd chevalier-ia-os
    git remote add origin https://github.com/jeromechevalier-wq/chevalier-ia-os.git
    git push -u origin main
    git push -u origin v1
    ```
-   (Adapter le premier `cd` au dossier où se trouve le zip.)
+   Le zip est dans le dossier Google Drive `crm-chevalier-ia` ; on le décompresse hors de Google Drive (dans `~/Projets`) pour que le dossier Git ne soit pas synchronisé. Les fichiers de l'appli y sont aussi copiés, en clair, pour les consulter.
 2. **Une seule fois** : installer Node.js LTS depuis https://nodejs.org, puis :
    ```sh
    npm install -g firebase-tools
    firebase login
-   cd ~/Downloads/chevalier-ia-os
+   cd ~/Projets/chevalier-ia-os
    firebase init hosting:github
    ```
    Répondre : dépôt `jeromechevalier-wq/chevalier-ia-os`, pas de script de build (No), déploiement automatique à chaque fusion sur `main` (Yes, branche `main`). La commande crée le compte de service et le secret GitHub `FIREBASE_SERVICE_ACCOUNT_CHEVALIER_IA_OS`. Si elle propose d'écraser `.github/workflows/firebase-hosting.yml` ou `firebase.json`, répondre **non**.
@@ -113,7 +113,7 @@ Chaque critère de la section 13.1 a au moins un test dont le nom commence par s
    ```sh
    brew install openjdk@21
    export PATH="$(brew --prefix openjdk@21)/bin:$PATH"
-   cd ~/Downloads/chevalier-ia-os/tests
+   cd ~/Projets/chevalier-ia-os/tests
    npm install
    npx playwright install chromium
    npm test
