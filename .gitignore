@@ -1,0 +1,12 @@
+# Installations et fichiers générés (jamais commités)
+node_modules/
+tests/node_modules/
+tests/test-results/
+tests/playwright-report/
+tests/.cache/
+*.log
+firebase-debug*.log
+firestore-debug*.log
+ui-debug*.log
+.firebase/
+.DS_Store

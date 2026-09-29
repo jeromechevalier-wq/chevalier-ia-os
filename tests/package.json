@@ -1,0 +1,22 @@
+{
+  "name": "chevalier-ia-os-tests",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Tests de Chevalier IA OS (émulateurs Firebase, jamais les données réelles)",
+  "type": "module",
+  "scripts": {
+    "test": "firebase emulators:exec --config ../firebase.json --project demo-chevalier-ia-os --only auth,firestore \"npm run tous\"",
+    "tous": "npm run test:regles && npm run test:logique && npm run test:statique && npm run test:e2e",
+    "test:regles": "node --test regles.test.js",
+    "test:logique": "node --test logique.test.js",
+    "test:statique": "node --test statique.test.js",
+    "test:e2e": "playwright test",
+    "installer-navigateur": "playwright install chromium"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "5.0.2",
+    "@playwright/test": "1.56.1",
+    "firebase": "12.19.0",
+    "firebase-tools": "15.32.0"
+  }
+}
