@@ -296,3 +296,18 @@ body.fiche-ouverte { overflow: hidden; }
   .suggestion { right: 16px; bottom: 16px; }
   .suggestion-champs { grid-template-columns: 1fr; }
 }
+
+/* Objectifs compacts sur téléphone : deux par ligne */
+@media (max-width: 767px) {
+  .grille-objectifs { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .objectif { padding: 12px; gap: 8px; }
+  .objectif-libelle { font-size: 13px; line-height: 1.3; }
+  .objectif-tete { align-items: flex-start; }
+  .objectif-tete .pastille-couleur { margin-top: 4px; }
+  .objectif-valeur { font-size: 22px; }
+  .objectif-cible { font-size: 12px; }
+  .objectif-pct { font-size: 12px; }
+  .objectif-actions { flex-wrap: wrap; gap: 6px; }
+  .objectif-actions .bouton-petit { padding: 4px 10px; }
+  .champ-saisie { margin-left: 0; width: 100%; }
+}
