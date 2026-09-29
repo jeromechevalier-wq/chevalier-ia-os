@@ -115,6 +115,13 @@ function ajouter(el, enfants) {
   }
 }
 
+/** Vide un élément puis y ajoute des enfants (les valeurs nulles sont ignorées). */
+export function remplir(el, ...enfants) {
+  vider(el);
+  ajouter(el, enfants);
+  return el;
+}
+
 export function vider(el) {
   while (el.firstChild) el.firstChild.remove();
   return el;

@@ -1,5 +1,5 @@
 // Accueil : objectifs du mois, À faire (En retard, Aujourd'hui, Sans action prévue), statistiques, rappel d'export.
-import { h, icone, vider, toast } from '../../os/ui.js';
+import { h, icone, vider, remplir, toast } from '../../os/ui.js';
 import { naviguer } from '../../os/router.js';
 import { rendreObjectifs, surObjectifs, moisCourantParis } from '../../os/objectifs.js';
 import { animerCompteur } from '../../os/celebrations.js';
@@ -67,7 +67,7 @@ export function rendreAccueil(conteneur, { compte }) {
 
   function rafraichir() {
     if (!D.estPret()) {
-      vider(zoneAFaire).append(h('div', { class: 'chargement-bloc' }, h('span', { class: 'rond-chargement' })));
+      remplir(zoneAFaire, h('div', { class: 'chargement-bloc' }, h('span', { class: 'rond-chargement' })));
       return;
     }
     majObjectifs ? majObjectifs() : monterObjectifs();
@@ -131,34 +131,43 @@ function rendreAFaire(zone) {
 
 let derniersNombres = new Map();
 
+/** Statistiques : le DOM est construit une fois, puis seules les valeurs changent (barres animées). */
 function rendreStats(zone) {
   const parEtape = L.compterParEtape(D.etat.fiches);
   const max = Math.max(1, ...parEtape.map((e) => e.nombre));
   const ca = L.caParMois(D.etat.fiches, moisCourantParis(), 6);
   const maxCa = Math.max(1, ...ca.map((m) => m.montant));
-  vider(zone);
-  const barres = h('div', { class: 'stats-etapes' },
-    h('h3', {}, 'Fiches par étape'),
-    h('ul', { class: 'barres-horizontales' }, parEtape.map((e) => {
-      const remplie = h('span', { class: 'barre-remplie', style: { width: '0%', background: e.couleur } });
-      const nombre = h('span', { class: 'barre-nombre' }, '0');
-      animerCompteur(nombre, derniersNombres.get(e.id) || 0, e.nombre);
-      derniersNombres.set(e.id, e.nombre);
-      requestAnimationFrame(() => requestAnimationFrame(() => { remplie.style.width = `${(e.nombre / max) * 100}%`; }));
-      return h('li', { dataset: { etape: e.id } }, h('span', { class: 'barre-libelle' }, e.libelle), h('span', { class: 'barre' }, remplie), nombre);
-    })));
-  const colonnes = h('div', { class: 'stats-ca' },
-    h('h3', {}, "Chiffre d'affaires encaissé, 6 derniers mois"),
-    h('div', { class: 'barres-verticales', role: 'img', 'aria-label': ca.map((m) => `${L.libelleMois(m.mois)} : ${L.formatEuros(m.montant)}`).join(', ') },
-      ca.map((m) => {
-        const col = h('span', { class: 'colonne-remplie', style: { height: '0%' } });
-        requestAnimationFrame(() => requestAnimationFrame(() => { col.style.height = `${Math.max(m.montant ? 4 : 0, (m.montant / maxCa) * 100)}%`; }));
-        return h('div', { class: 'colonne', dataset: { mois: m.mois } },
-          h('span', { class: 'colonne-valeur' }, m.montant ? L.formatEuros(m.montant) : ''),
-          h('span', { class: 'colonne-piste' }, col),
-          h('span', { class: 'colonne-libelle' }, m.libelle));
-      })));
-  zone.append(barres, colonnes);
+  const signature = ca.map((m) => m.mois).join('|');
+  if (zone.dataset.signature !== signature) {
+    zone.dataset.signature = signature;
+    remplir(zone,
+      h('div', { class: 'stats-etapes' },
+        h('h3', {}, 'Fiches par étape'),
+        h('ul', { class: 'barres-horizontales' }, parEtape.map((e) => h('li', { dataset: { etape: e.id } },
+          h('span', { class: 'barre-libelle' }, e.libelle),
+          h('span', { class: 'barre' }, h('span', { class: 'barre-remplie', style: { width: '0%', background: e.couleur } })),
+          h('span', { class: 'barre-nombre' }, '0'))))),
+      h('div', { class: 'stats-ca' },
+        h('h3', {}, "Chiffre d'affaires encaissé, 6 derniers mois"),
+        h('div', { class: 'barres-verticales', role: 'img' }, ca.map((m) => h('div', { class: 'colonne', dataset: { mois: m.mois } },
+          h('span', { class: 'colonne-valeur' }, ''),
+          h('span', { class: 'colonne-piste' }, h('span', { class: 'colonne-remplie', style: { height: '0%' } })),
+          h('span', { class: 'colonne-libelle' }, m.libelle))))));
+  }
+  for (const e of parEtape) {
+    const li = zone.querySelector(`li[data-etape="${e.id}"]`);
+    animerCompteur(li.querySelector('.barre-nombre'), derniersNombres.get(e.id) || 0, e.nombre);
+    derniersNombres.set(e.id, e.nombre);
+    const remplie = li.querySelector('.barre-remplie');
+    requestAnimationFrame(() => requestAnimationFrame(() => { remplie.style.width = `${(e.nombre / max) * 100}%`; }));
+  }
+  zone.querySelector('.barres-verticales').setAttribute('aria-label', ca.map((m) => `${L.libelleMois(m.mois)} : ${L.formatEuros(m.montant)}`).join(', '));
+  for (const m of ca) {
+    const col = zone.querySelector(`.colonne[data-mois="${m.mois}"]`);
+    col.querySelector('.colonne-valeur').textContent = m.montant ? L.formatEuros(m.montant) : '';
+    const remplie = col.querySelector('.colonne-remplie');
+    requestAnimationFrame(() => requestAnimationFrame(() => { remplie.style.height = `${Math.max(m.montant ? 4 : 0, (m.montant / maxCa) * 100)}%`; }));
+  }
 }
 
 function formulaireAjoutRapide() {
@@ -166,13 +175,13 @@ function formulaireAjoutRapide() {
   const entreprise = h('input', { type: 'text', class: 'champ', placeholder: 'Entreprise', 'aria-label': 'Entreprise' });
   const source = h('select', { class: 'champ', 'aria-label': 'Source' });
   const erreur = h('p', { class: 'erreur', role: 'alert' });
-  const remplir = () => {
+  const remplirSources = () => {
     const v = source.value;
-    vider(source).append(h('option', { value: '' }, 'Source…'), ...D.etat.sources.map((s) => h('option', { value: s }, s)));
+    remplir(source, h('option', { value: '' }, 'Source…'), ...D.etat.sources.map((s) => h('option', { value: s }, s)));
     source.value = v;
   };
-  remplir();
-  source.addEventListener('focus', remplir);
+  remplirSources();
+  source.addEventListener('focus', remplirSources);
   return h('form', { class: 'ajout-rapide', onsubmit: async (e) => {
     e.preventDefault();
     const valeurs = { nom: nom.value.trim(), entreprise: entreprise.value.trim(), source: source.value };

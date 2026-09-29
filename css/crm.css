@@ -157,16 +157,19 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 
 /* ---------------------------------------------------------------- Kanban */
 
-.kanban { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 12px; align-items: flex-start; min-height: 60vh; scroll-snap-type: x proximity; }
+.page-kanban { max-width: none; padding-left: 24px; padding-right: 24px; }
+.kanban { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 12px; align-items: flex-start; min-height: 60vh; scroll-snap-type: x proximity; }
 .colonne-kanban {
-  flex: 0 0 272px; display: flex; flex-direction: column; max-height: calc(100vh - 230px);
+  flex: 1 1 0; min-width: 184px; max-width: 320px; display: flex; flex-direction: column; max-height: calc(100vh - 230px);
   background: var(--panneau2); border: 1px solid var(--bordure); border-radius: var(--rayon);
   border-top: 3px solid var(--c); scroll-snap-align: start;
   transition: background var(--transition), box-shadow var(--transition);
 }
 .colonne-kanban.survol-depot { background: color-mix(in srgb, var(--c) 14%, var(--panneau2)); box-shadow: 0 0 0 2px var(--c); }
 .colonne-tete { display: flex; align-items: center; gap: 8px; padding: 12px 12px 8px; }
-.colonne-tete h2 { font-size: 14px; font-family: var(--police-texte); font-weight: 600; letter-spacing: 0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.colonne-tete { align-items: flex-start; }
+.colonne-tete .point { margin-top: 5px; }
+.colonne-tete h2 { font-size: 14px; font-family: var(--police-texte); font-weight: 600; letter-spacing: 0; flex: 1; line-height: 1.35; overflow-wrap: anywhere; }
 .colonne-tete .compteur { margin-left: 0; }
 .point { width: 10px; height: 10px; border-radius: 50%; background: var(--c); flex: none; }
 .colonne-corps { display: flex; flex-direction: column; gap: 8px; padding: 4px 10px 12px; overflow-y: auto; min-height: 80px; }
@@ -174,8 +177,9 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 .colonne-payees { text-align: center; padding: 14px 8px; display: flex; flex-direction: column; gap: 6px; }
 .payees-nombre { font-weight: 600; }
 .payees-total { font: 700 26px/1.1 var(--police-titre); color: var(--succes); letter-spacing: -.03em; }
-.colonne-sortie.repliee { flex: 0 0 52px; max-height: none; min-height: 240px; }
-.colonne-sortie.repliee .colonne-tete { flex-direction: column; padding: 10px 6px; gap: 10px; }
+.colonne-sortie.repliee { flex: 0 0 48px; min-width: 48px; max-height: none; min-height: 240px; }
+.colonne-sortie.repliee .colonne-tete { flex-direction: column; align-items: center; padding: 10px 6px; gap: 10px; }
+.colonne-sortie.repliee .colonne-tete .point { margin-top: 0; }
 .colonne-sortie.repliee .colonne-tete h2 { writing-mode: vertical-rl; transform: rotate(180deg); overflow: visible; }
 .bouton-replier { display: grid; place-items: center; width: 28px; height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--texte2); cursor: pointer; }
 .bouton-replier:hover { background: var(--survol); color: var(--texte); }
@@ -211,9 +215,10 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 .menu-deplacer .point { background: var(--c, currentColor); }
 
 @media (max-width: 767px) {
-  .kanban { margin: 0 -16px; padding: 0 16px 12px; }
-  .colonne-kanban { flex-basis: 82vw; max-height: none; }
-  .colonne-sortie.repliee { flex-basis: 52px; }
+  .filtres-enregistres { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+  .page-kanban { padding-left: 16px; padding-right: 16px; }
+  .colonne-kanban { flex: 0 0 82vw; max-width: none; max-height: none; }
+  .colonne-sortie.repliee { flex-basis: 48px; }
 }
 
 /* ---------------------------------------------------------------- fiche (panneau latéral / plein écran) */

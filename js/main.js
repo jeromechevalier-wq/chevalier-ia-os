@@ -5,7 +5,7 @@ import { surveillerCompte, connecter, deconnecter, MESSAGE_REFUS } from './os/au
 import { routeCourante, segments, surChangementRoute, naviguer, ROUTE_DEFAUT } from './os/router.js';
 import { MODULES } from './os/modules.js';
 import { demarrerObjectifs, arreterObjectifs, rendreReglagesObjectifs } from './os/objectifs.js';
-import { h, icone, lirePreference, vider, toast } from './os/ui.js';
+import { h, icone, lirePreference, vider, remplir, toast } from './os/ui.js';
 
 appliquerTheme(lirePreference('theme', 'sombre'));
 demarrerPwa();
@@ -38,7 +38,7 @@ async function lancerConnexion() {
 }
 
 function afficherChargement() {
-  vider(racine).append(h('div', { class: 'chargement', role: 'status' }, h('span', { class: 'rond-chargement' }), h('span', { class: 'sr-only' }, 'Chargement')));
+  remplir(racine, h('div', { class: 'chargement', role: 'status' }, h('span', { class: 'rond-chargement' }), h('span', { class: 'sr-only' }, 'Chargement')));
 }
 
 async function ouvrirSession(compte) {

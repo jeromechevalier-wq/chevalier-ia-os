@@ -1,5 +1,5 @@
 // Liste : tableau triable (cartes sur téléphone), barre de filtres partagée avec le Kanban, export CSV.
-import { h, icone, vider, toast, demanderTexte } from '../../os/ui.js';
+import { h, icone, vider, remplir, toast, demanderTexte } from '../../os/ui.js';
 import { naviguer } from '../../os/router.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
@@ -118,7 +118,7 @@ export function rendreBarreFiltres(conteneur, { avecExport = false } = {}) {
   function rendrePanneau() {
     if (panneau.hidden) return;
     const villes = [...new Map(D.etat.fiches.filter((f) => f.ville).map((f) => [L.normaliser(f.ville), f.ville.trim()])).values()].sort((a, b) => a.localeCompare(b, 'fr'));
-    vider(panneau).append(
+    remplir(panneau, 
       groupe('Étape', 'etapes', L.TOUTES_ETAPES.map((e) => ({ valeur: e.id, libelle: e.libelle }))),
       groupe('Rôle', 'roles', L.ROLES.map((r) => ({ valeur: r.id, libelle: r.libelle }))),
       groupe('Priorité', 'priorites', L.PRIORITES.map((p) => ({ valeur: p.id, libelle: p.libelle }))),
@@ -214,7 +214,7 @@ export function rendreListe(conteneur) {
 
   function rafraichir() {
     if (!D.estPret()) {
-      vider(zoneTable).append(h('div', { class: 'chargement-bloc' }, h('span', { class: 'rond-chargement' })));
+      remplir(zoneTable, h('div', { class: 'chargement-bloc' }, h('span', { class: 'rond-chargement' })));
       return;
     }
     const fiches = L.trierFiches(fichesFiltrees(), tri.colonne, tri.sens);
@@ -228,7 +228,7 @@ export function rendreListe(conteneur) {
       zoneTable.append(etatVideListe('Aucune fiche ne correspond à ces filtres.'));
       return;
     }
-    vider(table).append(entete(), h('tbody', {}, fiches.map(ligne)));
+    remplir(table, entete(), h('tbody', {}, fiches.map(ligne)));
     zoneTable.append(table);
   }
   rafraichir();

@@ -1,5 +1,5 @@
 // Réglages du CRM : offres, secteurs, sources, filtres enregistrés, délai de paiement.
-import { h, icone, vider, toast, confirmer, demanderTexte } from '../../os/ui.js';
+import { h, icone, vider, remplir, toast, confirmer, demanderTexte } from '../../os/ui.js';
 import * as D from './donnees.js';
 
 function section(id, titre, nomIcone, aide) {
@@ -122,10 +122,10 @@ export function rendreReglagesCrm(page) {
 
   function rafraichir() {
     if (page.contains(document.activeElement) && document.activeElement.matches('.liste-reglages input')) return;
-    vider(listeOffres).append(...D.etat.offres.map((o, i, l) => ligneOffre(o, i, l)));
-    vider(listeSecteurs).append(...D.etat.secteurs.map((v, i, l) => ligneValeur('secteurs', v, i, l)));
-    vider(listeSources).append(...D.etat.sources.map((v, i, l) => ligneValeur('sources', v, i, l)));
-    vider(listeFiltres).append(...D.etat.filtres.map(ligneFiltre));
+    remplir(listeOffres, ...D.etat.offres.map((o, i, l) => ligneOffre(o, i, l)));
+    remplir(listeSecteurs, ...D.etat.secteurs.map((v, i, l) => ligneValeur('secteurs', v, i, l)));
+    remplir(listeSources, ...D.etat.sources.map((v, i, l) => ligneValeur('sources', v, i, l)));
+    remplir(listeFiltres, ...D.etat.filtres.map(ligneFiltre));
     if (!D.etat.filtres.length) listeFiltres.append(h('p', { class: 'vide-discret' }, 'Aucun filtre enregistré.'));
     if (document.activeElement !== delai) delai.value = String(D.etat.reglages.delaiPaiementJours ?? 30);
   }

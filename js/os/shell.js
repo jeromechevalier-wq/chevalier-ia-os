@@ -1,5 +1,5 @@
 // Coquille de l'OS : menu latéral repliable, thèmes sombre et clair, profil, écran de connexion.
-import { h, icone, vider, lirePreference, ecrirePreference, estTelephone } from './ui.js';
+import { h, icone, vider, remplir, lirePreference, ecrirePreference, estTelephone } from './ui.js';
 import { MODULES } from './modules.js';
 
 // ---------------------------------------------------------------- thème
@@ -24,7 +24,7 @@ export function basculerTheme() {
 function majBoutonTheme(bouton) {
   const sombre = themeCourant() === 'sombre';
   const libelle = sombre ? 'Thème clair' : 'Thème sombre';
-  vider(bouton).append(icone(sombre ? 'sun' : 'moon'), h('span', { class: 'menu-texte' }, libelle));
+  remplir(bouton, icone(sombre ? 'sun' : 'moon'), h('span', { class: 'menu-texte' }, libelle));
   bouton.setAttribute('aria-label', libelle);
   bouton.dataset.infobulle = libelle;
 }
@@ -129,7 +129,7 @@ export function monterCoquille(racine, compte, { surDeconnexion }) {
   function majRepli() {
     const v = coquille.dataset.menu === 'elargi';
     const libelle = v ? 'Replier le menu' : 'Élargir le menu';
-    vider(boutonRepli).append(icone(v ? 'panel-left-close' : 'panel-left-open'), h('span', { class: 'menu-texte' }, libelle));
+    remplir(boutonRepli, icone(v ? 'panel-left-close' : 'panel-left-open'), h('span', { class: 'menu-texte' }, libelle));
     boutonRepli.setAttribute('aria-label', libelle);
     boutonRepli.setAttribute('aria-expanded', String(v));
     boutonRepli.dataset.infobulle = libelle;

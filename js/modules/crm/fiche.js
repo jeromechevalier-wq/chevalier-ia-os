@@ -1,5 +1,5 @@
 // Fiche prospect : panneau latéral (plein écran sur téléphone), création, changements d'étape, prochaine action.
-import { h, icone, vider, dialogue, toast } from '../../os/ui.js';
+import { h, icone, vider, remplir, dialogue, toast } from '../../os/ui.js';
 import { naviguer } from '../../os/router.js';
 import { COMPTES_AUTORISES } from '../../os/firebase-config.js';
 import { celebrerGagne, celebrerPaiement, charlesContent } from '../../os/celebrations.js';
@@ -596,9 +596,9 @@ function rendreFiche(panneau, id, surFermer) {
     }
     titre.textContent = f.nom || 'Sans nom';
     sousTitre.textContent = f.entreprise || '';
-    vider(badges).append(pastilleEtape(f.etape), pastillePriorite(f.priorite),
+    remplir(badges, ...[pastilleEtape(f.etape), pastillePriorite(f.priorite),
       f.archive ? h('span', { class: 'badge' }, 'Archivée') : null,
-      f.oppositionProspection ? h('span', { class: 'badge badge-opposition' }, 'Opposition') : null);
+      f.oppositionProspection ? h('span', { class: 'badge badge-opposition' }, 'Opposition') : null].filter(Boolean));
     for (const r of rafraichissements) r(f);
     for (const l of liaisons) l.ecrire(f);
   }
@@ -610,7 +610,7 @@ function rendreFiche(panneau, id, surFermer) {
 function remplirSelect(el, options, valeur) {
   const signature = options.map((o) => `${o.valeur}=${o.libelle}`).join('|');
   if (el.dataset.signature !== signature) {
-    vider(el).append(...options.map((o) => h('option', { value: o.valeur }, o.libelle)));
+    remplir(el, ...options.map((o) => h('option', { value: o.valeur }, o.libelle)));
     el.dataset.signature = signature;
   }
   if (document.activeElement !== el) el.value = valeur ?? '';

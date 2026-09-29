@@ -1,11 +1,21 @@
 // Kanban : 6 étapes + colonnes repliées Perdu et Pas maintenant, glisser déposer, menu "Déplacer vers…".
-import { h, icone, vider } from '../../os/ui.js';
+import { h, icone, vider, remplir } from '../../os/ui.js';
 import { naviguer } from '../../os/router.js';
 import { moisCourantParis } from '../../os/objectifs.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
 import { changerEtape, pastillePriorite } from './fiche.js';
 import { rendreBarreFiltres, fichesFiltrees, surFiltres } from './liste.js';
+
+let rafraichirApresGlisser = null; // rendu différé pendant un glisser déposer
+function finGlisser() {
+  document.body.classList.remove('glisser-en-cours');
+  const f = rafraichirApresGlisser;
+  rafraichirApresGlisser = null;
+  if (f) setTimeout(f);
+}
+document.addEventListener('dragend', finGlisser);
+document.addEventListener('drop', () => setTimeout(finGlisser));
 
 const deplies = new Set(); // colonnes de sortie dépliées pendant la session
 let colonnesPrecedentes = new Map(); // id fiche → étape au rendu précédent (animation des cartes qui bougent)
@@ -51,7 +61,7 @@ function carte(f, aujourdhui, animer) {
       el.classList.add('glisse');
       document.body.classList.add('glisser-en-cours');
     },
-    ondragend: () => { el.classList.remove('glisse'); document.body.classList.remove('glisser-en-cours'); },
+    ondragend: () => { el.classList.remove('glisse'); finGlisser(); },
   },
   h('div', { class: 'carte-haut' },
     h('span', { class: 'carte-nom' }, f.nom),
@@ -94,8 +104,10 @@ export function rendreKanban(conteneur) {
   const arretBarre = rendreBarreFiltres(zoneBarre);
 
   function rafraichir() {
+    // Pas de nouveau rendu pendant un glisser déposer : la carte tenue serait détruite.
+    if (document.body.classList.contains('glisser-en-cours')) { rafraichirApresGlisser = rafraichir; return; }
     if (!D.estPret()) {
-      vider(tableau).append(h('div', { class: 'chargement-bloc' }, h('span', { class: 'rond-chargement' })));
+      remplir(tableau, h('div', { class: 'chargement-bloc' }, h('span', { class: 'rond-chargement' })));
       return;
     }
     const defilement = tableau.scrollLeft;
