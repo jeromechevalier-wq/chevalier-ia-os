@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#281f32">
+<title>Merci — Chevalier-IA</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="assets/logo/favicon.svg" type="image/svg+xml">
+<link rel="preload" href="assets/fonts/poppins-500.woff2" as="font" type="font/woff2" crossorigin>
+<style>
+@font-face{font-family:Poppins;src:url('assets/fonts/poppins-500.woff2') format('woff2');font-style:normal;font-weight:500;font-display:swap}
+@font-face{font-family:Poppins;src:url('assets/fonts/poppins-700.woff2') format('woff2');font-style:normal;font-weight:700;font-display:swap}
+@font-face{font-family:Vietnam;src:url('assets/fonts/be-vietnam-pro-400.woff2') format('woff2');font-style:normal;font-weight:400;font-display:swap}
+@font-face{font-family:Vietnam;src:url('assets/fonts/be-vietnam-pro-600.woff2') format('woff2');font-style:normal;font-weight:600;font-display:swap}
+
+:root{--ink:#29292c;--paper:#f5f5f3;--yellow:#ecbc06;--purple:#341363;--lilac:#e3cdee;--muted:#c3c1c1;--font:Poppins,'Trebuchet MS',sans-serif;--body:Vietnam,Arial,sans-serif}
+*,*::before,*::after{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:radial-gradient(circle at 50% 38%,#5a3c72 0%,#3c2850 40%,#281f32 78%,#221a2b 100%);color:#fff;font:400 16px/1.6 var(--body);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+a{color:inherit}
+h1{margin:0;font-family:var(--font);font-weight:500;letter-spacing:-.03em}
+
+canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:1}
+
+.wrap{position:relative;z-index:2;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 20px;text-align:center}
+
+.brand{display:inline-flex;align-items:center;gap:9px;font:700 18px/1 var(--font);letter-spacing:-.02em;margin-bottom:44px;opacity:.9}
+.brand svg{width:28px;height:28px}
+.brand-accent{background:linear-gradient(135deg,#ffd35c 0%,#f0a93a 48%,#c9720f 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
+
+.stage{position:relative;width:220px;height:220px;margin:0 auto 8px}
+.orbit{position:absolute;inset:0;border:1px solid #ecbc0655;border-radius:50%;transform:rotate(-20deg) scaleY(.6)}
+.orbit.o2{inset:-34px;border-color:#e3cdee33;transform:rotate(55deg) scaleY(.56)}
+.orbit::before{content:'';position:absolute;top:47%;left:-4px;width:7px;height:7px;background:var(--yellow);border-radius:50%;box-shadow:0 0 10px 2px #ecbc0690}
+.orbit.o2::before{background:var(--lilac);box-shadow:0 0 10px 2px #e3cdee80}
+
+.charles{position:absolute;inset:0;display:grid;place-items:center;animation:float 3.4s ease-in-out infinite}
+.charles img{width:190px;height:auto;border-radius:22px;transform:rotate(-3deg);box-shadow:0 22px 45px #00000060,0 0 0 1px #ffffff1f,0 0 40px #ecbc0625}
+
+h1{font-size:clamp(36px,6vw,54px);margin:22px 0 0}
+h1 em{font-style:normal;color:var(--yellow)}
+.lead{max-width:460px;margin:20px auto 0;color:#ded8e1;font-size:16px;line-height:1.7}
+.lead strong{color:#fff;font-weight:600}
+
+.actions{display:flex;flex-wrap:wrap;gap:14px;justify-content:center;margin-top:38px}
+.button{display:inline-flex;align-items:center;gap:12px;padding:15px 24px;min-height:52px;border-radius:6px;font-size:14px;font-weight:600;transition:transform .22s,background .22s,color .22s;text-decoration:none}
+.button:hover{transform:translateY(-3px)}
+.button-yellow{background:var(--yellow);color:#fff}
+.button-yellow:hover{background:var(--ink);color:#fff}
+.button-ghost{background:transparent;color:#fff;border:1px solid #ffffff40}
+.button-ghost:hover{border-color:var(--yellow);color:var(--yellow)}
+
+.foot{position:relative;z-index:2;padding:26px 20px 34px;text-align:center;color:#a79cae;font-size:11px;letter-spacing:.03em}
+.foot a{text-decoration:underline;text-underline-offset:3px}
+.foot a:hover{color:var(--yellow)}
+
+@keyframes float{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-10px) rotate(2deg)}}
+
+@media(max-width:540px){.stage{width:180px;height:180px}.charles img{width:140px}.orbit.o2{inset:-24px}}
+
+@media(prefers-reduced-motion:reduce){.charles{animation:none}}
+</style>
+</head>
+<body>
+
+<canvas id="fx" aria-hidden="true"></canvas>
+
+<div class="wrap">
+  <a class="brand" href="index.html" aria-label="Chevalier-IA, accueil">
+    <svg viewBox="0 0 40 40" aria-hidden="true"><line x1="7" y1="33" x2="24" y2="16" stroke="currentColor" stroke-width="5.2" stroke-linecap="round"/><polygon points="29.5,3 31.04,7.3 35.36,5.82 32.96,9.71 36.81,12.17 32.28,12.71 32.75,17.26 29.5,14.05 26.25,17.26 26.72,12.71 22.19,12.17 26.04,9.71 23.64,5.82 27.96,7.3" fill="#ecbc06"/></svg>
+    <span class="brand-accent">Chevalier-IA</span>
+  </a>
+
+  <div class="stage">
+    <div class="orbit o1"></div>
+    <div class="orbit o2"></div>
+    <div class="charles"><img src="assets/charles-portrait.png" alt="Charles, l'assistant IA, vous salue" width="1536" height="1024"></div>
+  </div>
+
+  <h1>Merci pour votre temps<em>.</em></h1>
+  <p class="lead">Votre message vient d'arriver chez Charles. Il le transmet dès maintenant à <strong>Jérôme</strong>, qui le lira personnellement et vous recontactera très vite.</p>
+
+  <div class="actions">
+    <a class="button button-yellow" href="index.html">Retour au site <span aria-hidden="true">→</span></a>
+    <a class="button button-ghost" href="index.html#equipe">Découvrir l'équipe</a>
+  </div>
+</div>
+
+<footer class="foot">
+  <p>Chevalier-IA &bull; Tous droits réservés. &copy; <span id="year">2026</span> &bull; <a href="mentions-legales.html">Mentions légales</a></p>
+</footer>
+
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+
+var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+var canvas = document.getElementById('fx');
+
+if (!reduceMotion && canvas.getContext) {
+  var ctx = canvas.getContext('2d');
+  var W, H, dpr = Math.min(window.devicePixelRatio || 1, 2);
+  var particles = [];
+  var colors = ['#ecbc06', '#ffe56c', '#e3cdee', '#ffffff', '#b98ee0'];
+
+  function resize() {
+    W = canvas.width = window.innerWidth * dpr;
+    H = canvas.height = window.innerHeight * dpr;
+    canvas.style.width = window.innerWidth + 'px';
+    canvas.style.height = window.innerHeight + 'px';
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  function burst(x, y, count) {
+    for (var i = 0; i < count; i++) {
+      var angle = Math.random() * Math.PI * 2;
+      var speed = (Math.random() * 3.2 + 1.4) * dpr;
+      particles.push({
+        x: x, y: y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        g: 0.045 * dpr,
+        size: (Math.random() * 2.6 + 1.4) * dpr,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        life: 1,
+        decay: Math.random() * 0.012 + 0.009
+      });
+    }
+  }
+
+  function step() {
+    ctx.clearRect(0, 0, W, H);
+    for (var i = particles.length - 1; i >= 0; i--) {
+      var p = particles[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += p.g;
+      p.vx *= 0.992;
+      p.life -= p.decay;
+      if (p.life <= 0) { particles.splice(i, 1); continue; }
+      ctx.globalAlpha = Math.max(p.life, 0);
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    requestAnimationFrame(step);
+  }
+  step();
+
+  function randomBurst() {
+    var x = (window.innerWidth * (0.22 + Math.random() * 0.56)) * dpr;
+    var y = (window.innerHeight * (0.18 + Math.random() * 0.24)) * dpr;
+    burst(x, y, 70);
+  }
+
+  setTimeout(function () { randomBurst(); }, 250);
+  setTimeout(function () { randomBurst(); }, 700);
+  setTimeout(function () { randomBurst(); }, 1200);
+
+  var ambientTimer = setInterval(function () {
+    var x = Math.random() * window.innerWidth * dpr;
+    var y = Math.random() * window.innerHeight * 0.5 * dpr;
+    burst(x, y, 3);
+  }, 2600);
+}
+</script>
+</body>
+</html>
