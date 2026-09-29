@@ -1,0 +1,97 @@
+/* Chevalier IA OS : polices, couleurs de marque et thèmes (sombre par défaut, clair). */
+
+@font-face { font-family: Poppins; src: url('../assets/fonts/poppins-500.woff2') format('woff2'); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: Poppins; src: url('../assets/fonts/poppins-700.woff2') format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Be Vietnam Pro'; src: url('../assets/fonts/be-vietnam-pro-400.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Be Vietnam Pro'; src: url('../assets/fonts/be-vietnam-pro-500.woff2') format('woff2'); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Be Vietnam Pro'; src: url('../assets/fonts/be-vietnam-pro-600.woff2') format('woff2'); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Be Vietnam Pro'; src: url('../assets/fonts/be-vietnam-pro-700.woff2') format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
+
+:root {
+  /* Marque (chevalier-ia.fr) */
+  --jaune: #ecbc06;
+  --jaune-clair: #ffe56c;
+  --violet: #341363;
+  --violet-clair: #b98ee0;
+  --lilas: #e3cdee;
+  --ink: #29292c;
+  --ink2: #36353a;
+  --papier: #f5f5f3;
+  --warm: #efeee9;
+  --ligne: #dcdcd6;
+  --gris: #69696d;
+  --corail: #fd6455; /* couleur de Charles, relevée sur charles-portrait.png */
+  --vert: #3fbf7f;
+  --gris-lilas: #b9adc9;
+
+  /* Étapes du pipeline */
+  --etape-premier_contact: var(--gris-lilas);
+  --etape-rdv_fixe: var(--lilas);
+  --etape-proposition_envoyee: var(--violet-clair);
+  --etape-gagne: var(--jaune);
+  --etape-facture_envoyee: var(--corail);
+  --etape-facture_payee: var(--vert);
+  --etape-perdu: #8d8993;
+  --etape-pas_maintenant: #8a9bb4;
+
+  /* Priorités */
+  --prio-chaud: var(--corail);
+  --prio-tiede: var(--jaune);
+  --prio-froid: #9a98a0;
+
+  --police-titre: Poppins, 'Trebuchet MS', sans-serif;
+  --police-texte: 'Be Vietnam Pro', Arial, sans-serif;
+
+  --rayon: 10px;
+  --rayon-petit: 6px;
+  --menu-replie: 64px;
+  --menu-elargi: 240px;
+  --transition: 200ms ease;
+}
+
+/* Thème sombre (défaut) */
+:root,
+:root[data-theme='sombre'] {
+  color-scheme: dark;
+  --fond: #1b1a1e;
+  --panneau: #29292c;
+  --panneau2: #232226;
+  --survol: #36353a;
+  --texte: #ffffff;
+  --texte2: #c3c1c1;
+  --bordure: #ffffff1a;
+  --bordure-forte: #ffffff33;
+  --accent: var(--jaune);
+  --sur-accent: #29292c;
+  --lien: var(--jaune);
+  --retard: #ff8f86;
+  --retard-fond: #ff8f8622;
+  --succes: #6ddba0;
+  --ombre: 0 18px 40px #00000066;
+  --halo: radial-gradient(ellipse 70% 45% at 50% -8%, #5a3c7266 0%, #3c285033 45%, transparent 75%);
+  --voile: #0c0b0fb3;
+  --barre-fond: #ffffff14;
+}
+
+/* Thème clair (ambiance du site) */
+:root[data-theme='clair'] {
+  color-scheme: light;
+  --fond: #f5f5f3;
+  --panneau: #ffffff;
+  --panneau2: #efeee9;
+  --survol: #efeee9;
+  --texte: #29292c;
+  --texte2: #69696d;
+  --bordure: #dcdcd6;
+  --bordure-forte: #c4c4bd;
+  --accent: var(--jaune);
+  --sur-accent: #29292c;
+  --lien: #7a5f00;
+  --retard: #b3261e;
+  --retard-fond: #b3261e14;
+  --succes: #1d7a4b;
+  --ombre: 0 18px 40px #29292c26;
+  --halo: radial-gradient(ellipse 70% 45% at 50% -8%, #e3cdee88 0%, #e3cdee33 45%, transparent 75%);
+  --voile: #29292c66;
+  --barre-fond: #29292c12;
+}

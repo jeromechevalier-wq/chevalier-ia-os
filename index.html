@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="fr" data-theme="sombre">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Chevalier IA OS</title>
+<meta name="description" content="Espace de travail de Chevalier IA.">
+<meta name="theme-color" content="#1b1a1e">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="assets/logo/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Chevalier OS">
+<link rel="preload" href="assets/fonts/poppins-500.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fonts/be-vietnam-pro-400.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="css/tokens.css">
+<link rel="stylesheet" href="css/os.css">
+<link rel="stylesheet" href="css/crm.css">
+<script>
+  // Thème appliqué avant l'affichage (évite un flash du mauvais thème).
+  try { if (localStorage.getItem('chevalier-os.theme') === 'clair') document.documentElement.dataset.theme = 'clair'; } catch (e) {}
+</script>
+<script type="module" src="js/main.js"></script>
+</head>
+<body>
+<div id="app"></div>
+<noscript>Chevalier IA OS a besoin de JavaScript.</noscript>
+</body>
+</html>
