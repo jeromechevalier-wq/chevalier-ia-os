@@ -8,10 +8,13 @@ Légende : **décidé** = validé par Jérôme ; **piste** = à trancher avant l
 
 - **Décidé** : c'est **indispensable**. Chevalier IA OS devient le CRM de Jérôme (aujourd'hui Notion), Claude Code sur son ordinateur est son outil principal, et des agents IA automatiseront ensuite. Ils doivent pouvoir interroger la base et y écrire, comme avec Notion.
 - **Décidé** : on est en phase de développement, donc **lecture et écriture d'emblée**, sans phase en lecture seule. Les pièces jointes par lien **et** par téléversement Drive font partie du même chantier.
-- **Décidé** : un seul serveur MCP pour tous les clients : Claude Code et les agents hébergés utilisent les mêmes outils. Pas de chantier séparé « agents hébergés » : c'est le même serveur, servi aussi à distance.
+- **Décidé** : un seul code de serveur MCP pour tous les clients, lancé de deux façons :
+  - **en local sur le Mac** pour Claude Code (il peut lire les fichiers du Mac, par exemple un devis à joindre) ;
+  - **hébergé sur le VPS de Jérôme** pour les agents qui travaillent sans le Mac. Premier agent prévu : un **agent bibliothécaire** sur Hermes Agent (déjà installé sur le VPS), qui a besoin d'accéder à Chevalier IA OS. Hermes Agent sait se connecter à un serveur MCP distant (adresse + jeton, filtrage des outils).
+- Chaque instance a **son propre compte de service Google** (révocables séparément) ; le bibliothécaire n'expose que les outils dont il a besoin (filtrage d'outils côté Hermes **et** liste d'outils autorisés côté serveur).
 - **Piste recommandée** : une couche de fonctions métier (qui réutilise `logique.js`, déjà testé, pour que les écritures suivent exactement les règles de l'écran : fil d'activité, dates, doublons, objectifs), et le serveur MCP comme façade mince par-dessus. Dossier `mcp/` dans le dépôt.
   - Outils prévus : chercher personnes, organisations et affaires ; lire une affaire et son fil ; créer personne, organisation, affaire ; ajouter note ou activité ; changer l'étape ; joindre un document (par lien ou par téléversement dans Drive).
-  - Le code est écrit pour fonctionner en local (Claude Code sur le Mac) **et** à distance (HTTP, avec authentification) ; on héberge le serveur quand le premier agent hébergé en a besoin.
+  - Instance VPS : transport HTTP, écoute sur l'adresse locale du VPS si Hermes et le serveur sont sur la même machine (aucune exposition publique), jeton obligatoire, HTTPS si l'accès est externe.
   - Connexion à Firestore par un compte de service Google. Cette clé contourne les règles de sécurité : jamais dans le dépôt, jamais dans le dossier Google Drive.
 - **Piste, plus tard** : une façade API REST sur la même couche de fonctions, si un outil qui ne parle pas MCP en a besoin (webhooks, n8n, formulaires).
 - **À étudier** : migration des fiches Notion existantes (l'import CSV est hors périmètre de la 2.0).
