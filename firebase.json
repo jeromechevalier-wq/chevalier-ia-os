@@ -12,6 +12,8 @@
       "tests/**",
       "docs/**",
       "ressources/**",
+      "outils/**",
+      "scripts/**",
       "README.md",
       "PROMPT-CONSTRUCTION.md",
       "firestore.rules",
