@@ -1,11 +1,12 @@
 // Tests C : parcours dans le navigateur (Playwright + émulateurs), formats 1440 × 900 et 390 × 844.
+import { readFile } from 'node:fs/promises';
 import {
   test, expect, connecter, allerA, creerPersonne, creerOrganisation, creerAffaire, creerActivite, lireDocument, listerDocuments, ecrireDocument,
   jour, estTelephone, valeurObjectif, JEROME, CHARLES,
 } from './outils.js';
 
 const dialogue = (page) => page.getByRole('dialog');
-const suggestions = (page, nom = 'Organisation') => dialogue(page).locator(`ul.suggestions[aria-label="${nom}"]`);
+const suggestions = (page, nom = 'Organisation') => dialogue(page).locator(`ul.suggestions[aria-label="Suggestions : ${nom}"]`);
 
 async function ouvrirCreation(page, quoi) {
   const liste = { personne: ['Personnes', 'nouvelle-personne'], organisation: ['Organisations', 'nouvelle-organisation'], affaire: ['Affaires', 'nouvelle-affaire'] }[quoi];
@@ -166,4 +167,919 @@ test('C5 doublon : « Cette personne existe déjà » avec lien, « Créer quand
   await dialogue(page).getByLabel('Nom', { exact: true }).fill('Quelqu’un d’autre');
   await dialogue(page).getByRole('textbox', { name: 'Email 1' }).fill(' MARIE@exemple.fr ');
   await expect(dialogue(page).locator('.bandeau-doublon')).toBeVisible();
+});
+
+// ---------------------------------------------------------------- organisations, affaires, étapes
+
+const LIBELLES_ETAPES = {
+  premier_contact: 'Premier contact', rdv_fixe: 'Rendez vous fixé', proposition_envoyee: 'Proposition envoyée',
+  gagne: 'Gagné', facture_envoyee: 'Facture envoyée', facture_payee: 'Facture payée',
+};
+
+async function aller(page, hash) {
+  await page.evaluate((h) => { location.hash = h; }, hash);
+}
+
+/** Change l'étape d'une carte : glisser déposer sur ordinateur, menu « Déplacer vers… » sur téléphone. */
+async function deplacer(page, id, etape) {
+  const carte = page.locator(`.carte-affaire[data-affaire="${id}"]`);
+  await expect(carte).toBeVisible();
+  if (estTelephone(page)) {
+    await carte.locator('.carte-menu').click();
+    await page.locator('.menu-pop').getByRole('menuitem', { name: `Déplacer vers : ${LIBELLES_ETAPES[etape]}` }).click();
+  } else {
+    // Vrai glisser déposer à la souris. Chromium sans écran ignore parfois un second glisser lancé juste après un
+    // premier (la souris n'a pas fini la session précédente) : dans ce cas seulement, on rejoue les mêmes événements
+    // (dragstart, dragover, drop, dragend) avec un DataTransfer, ce qui exerce les mêmes gestionnaires de l'appli.
+    const avant = (await lireDocument(`crm_affaires/${id}`)).etape;
+    await page.mouse.move(700, 700);
+    await carte.dragTo(page.locator(`.colonne[data-colonne="${etape}"]`));
+    try {
+      // Réussi si l'étape a changé, ou si une boîte de dialogue attend une réponse (Facture payée demande le montant).
+      await expect.poll(async () => (await lireDocument(`crm_affaires/${id}`)).etape !== avant || (await page.locator('.voile-dialogue').count()) > 0, { timeout: 2500 }).toBe(true);
+    } catch {
+      await page.evaluate(([affaire, colonne]) => {
+        const dt = new DataTransfer();
+        const c = document.querySelector(`.carte-affaire[data-affaire="${affaire}"]`);
+        const k = document.querySelector(`.colonne[data-colonne="${colonne}"]`);
+        c.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: dt }));
+        k.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt }));
+        k.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
+        c.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer: dt }));
+      }, [id, etape]);
+    }
+  }
+}
+
+async function fermerSuggestion(page) {
+  await expect(dialogue(page)).toContainText('Une suggestion');
+  await dialogue(page).getByRole('button', { name: 'Fermer', exact: true }).last().click();
+  await expect(dialogue(page)).toHaveCount(0);
+}
+
+async function champDoc(collection, id, cle, attendu) {
+  await expect.poll(async () => (await lireDocument(`${collection}/${id}`))?.[cle], { timeout: 10_000 }).toEqual(attendu);
+}
+
+test('C6 organisation : la créer, la lier à une personne depuis sa fiche, la retrouver dans la fiche de l’organisation', async ({ page }) => {
+  await creerPersonne('p1', { nom: 'Marie Durand' });
+  await connecter(page);
+  await ouvrirCreation(page, 'organisation');
+  await expect(dialogue(page).locator('.obligatoire')).toHaveCount(0);
+  await dialogue(page).getByLabel('Nom', { exact: true }).fill('Fleurs de Provence');
+  await dialogue(page).getByLabel('Adresse', { exact: true }).fill('3 rue des Lilas');
+  await enregistrer(page);
+  const org = await attendre(page, 'crm_organisations', (d) => d.nom === 'Fleurs de Provence');
+  expect(org).toMatchObject({ adresse: '3 rue des Lilas', archive: false, proprietaire: JEROME });
+  await aller(page, '#/crm/personnes/p1');
+  await expect(page.locator('.fiche-tete .titre-editable')).toHaveValue('Marie Durand');
+  await page.locator('[data-action="ajouter-organisation"]').click();
+  const champ = page.locator('.fiche').getByRole('combobox', { name: 'Organisation' });
+  await champ.fill('fleu');
+  await page.locator('.fiche ul.suggestions[aria-label="Suggestions : Organisation"] .suggestion', { hasText: 'Fleurs de Provence' }).click();
+  await champDoc('crm_personnes', 'p1', 'organisationId', org.id);
+  await aller(page, `#/crm/organisations/${org.id}`);
+  await expect(page.locator('.fiche-tete .titre-editable')).toHaveValue('Fleurs de Provence');
+  await expect(page.locator('.ligne-simple[data-personne="p1"]')).toContainText('Marie Durand');
+});
+
+test('C7 « + Affaire » depuis la fiche d’une personne : titre prérempli, enregistrer sans rien taper', async ({ page }) => {
+  await creerOrganisation('o1', { nom: 'Fleurs de Provence' });
+  await creerPersonne('p1', { nom: 'Marie Durand', organisationId: 'o1' });
+  await connecter(page);
+  await aller(page, '#/crm/personnes/p1');
+  await page.locator('.fiche-tete [data-action="nouvelle-affaire"]').click();
+  await expect(dialogue(page)).toContainText('Ajouter une affaire');
+  await expect(dialogue(page).getByLabel('Titre', { exact: true })).toHaveAttribute('placeholder', 'Fleurs de Provence');
+  await enregistrer(page);
+  const a = await attendre(page, 'crm_affaires', (d) => d.titre === 'Fleurs de Provence');
+  expect(a).toMatchObject({ personneId: 'p1', organisationId: 'o1', etape: 'premier_contact', statut: 'ouverte', priorite: 'tiede', archive: false, encaissements: [] });
+  await expect(page.locator('.section[data-section="personne-affaires"] .carte-affaire-mini')).toContainText('Fleurs de Provence');
+  await allerA(page, 'Affaires');
+  await expect(page.locator(`.colonne[data-colonne="premier_contact"] .carte-affaire[data-affaire="${a.id}"]`)).toBeVisible();
+});
+
+test('C8 glisser une carte de Premier contact à Rendez vous fixé puis revenir : datesEtapes et événements à jour', async ({ page }) => {
+  await creerAffaire('a1', { titre: 'Atelier IA' });
+  await connecter(page);
+  await allerA(page, 'Affaires');
+  await deplacer(page, 'a1', 'rdv_fixe');
+  await champDoc('crm_affaires', 'a1', 'etape', 'rdv_fixe');
+  const a = await lireDocument('crm_affaires/a1');
+  expect(a.statut).toBe('ouverte');
+  expect(Object.keys(a.datesEtapes).sort()).toEqual(['premier_contact', 'rdv_fixe']);
+  await expect(page.locator('.colonne[data-colonne="rdv_fixe"] .carte-affaire[data-affaire="a1"]')).toBeVisible();
+  await deplacer(page, 'a1', 'premier_contact');
+  await champDoc('crm_affaires', 'a1', 'etape', 'premier_contact');
+  expect(Object.keys((await lireDocument('crm_affaires/a1')).datesEtapes)).toContain('rdv_fixe');
+  const evenements = (await listerDocuments('crm_evenements')).filter((e) => e.type === 'etape_changee').map((e) => e.texte).sort();
+  expect(evenements).toEqual(['Étape : Premier contact → Rendez vous fixé', 'Étape : Rendez vous fixé → Premier contact']);
+});
+
+test('C9 passage en Proposition envoyée : suggestion affichée ; la fermer ne change rien, la valider crée l’activité', async ({ page }) => {
+  await creerAffaire('a1', { titre: 'Première', etape: 'rdv_fixe' });
+  await creerAffaire('a2', { titre: 'Seconde', etape: 'rdv_fixe' });
+  await connecter(page);
+  await allerA(page, 'Affaires');
+  await deplacer(page, 'a1', 'proposition_envoyee');
+  await expect(dialogue(page)).toContainText('Une suggestion');
+  await expect(dialogue(page).getByLabel('Titre de l’activité')).toHaveValue('Relancer la proposition');
+  await expect(dialogue(page).getByLabel('Date', { exact: true })).toHaveValue(jour(3));
+  await fermerSuggestion(page);
+  await champDoc('crm_affaires', 'a1', 'etape', 'proposition_envoyee');
+  expect(await listerDocuments('crm_activites')).toHaveLength(0);
+  await deplacer(page, 'a2', 'proposition_envoyee');
+  await expect(dialogue(page)).toContainText('Une suggestion');
+  await dialogue(page).getByRole('button', { name: 'Planifier' }).click();
+  const act = await attendre(page, 'crm_activites', (d) => d.affaireId === 'a2');
+  expect(act).toMatchObject({ titre: 'Relancer la proposition', type: 'tache', date: jour(3), fait: false });
+});
+
+test('C10 Gagné : célébration ; Facture payée : encaissement, archivage, objectif chiffre d’affaires augmenté', async ({ page }) => {
+  await creerPersonne('p1', { nom: 'Marie Durand' });
+  await creerAffaire('a1', { titre: 'Atelier IA', etape: 'proposition_envoyee', montant: 1200, personneId: 'p1', offreId: 'audit' });
+  await connecter(page);
+  await allerA(page, 'Affaires');
+  await deplacer(page, 'a1', 'gagne');
+  await fermerCelebration(page);
+  await expect(dialogue(page).getByLabel('Titre de l’activité')).toHaveValue('Envoyer la facture');
+  await fermerSuggestion(page);
+  await champDoc('crm_affaires', 'a1', 'statut', 'gagnee');
+  await deplacer(page, 'a1', 'facture_payee');
+  await expect(dialogue(page)).toContainText('Facture payée');
+  await expect(dialogue(page).getByLabel('Montant en euros')).toHaveValue('1200');
+  await dialogue(page).getByRole('button', { name: 'Encaisser' }).click();
+  await fermerCelebration(page);
+  await champDoc('crm_affaires', 'a1', 'archive', true);
+  const a = await lireDocument('crm_affaires/a1');
+  expect(a.encaissements).toHaveLength(1);
+  expect(a.encaissements[0]).toMatchObject({ montant: 1200, offreId: 'audit' });
+  expect(a.statut).toBe('gagnee');
+  // Archives : l'affaire s'y retrouve
+  await page.locator('.bascule-vue[data-vue="archives"]').click();
+  await expect(page.locator('.tableau-affaires')).toContainText('Atelier IA');
+  // Objectif chiffre d'affaires
+  await allerA(page, 'Accueil');
+  await expect.poll(() => valeurObjectif(page, 'ca_encaisse')).toBe(1200);
+});
+
+test('C11 Perdue (raison obligatoire), En pause (date de réveil), Rouvrir', async ({ page }) => {
+  await creerAffaire('a1', { titre: 'À perdre', etape: 'rdv_fixe' });
+  await creerAffaire('a2', { titre: 'À mettre en pause', etape: 'rdv_fixe' });
+  await connecter(page);
+  await allerA(page, 'Affaires');
+  await page.locator('.carte-affaire[data-affaire="a1"] .carte-menu').click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Perdue…' }).click();
+  await dialogue(page).getByRole('button', { name: 'Marquer comme perdue' }).click();
+  await expect(dialogue(page)).toContainText('La raison est obligatoire.');
+  await dialogue(page).getByLabel('Raison', { exact: true }).selectOption('Prix');
+  await dialogue(page).getByRole('button', { name: 'Marquer comme perdue' }).click();
+  await expect(dialogue(page)).toHaveCount(0);
+  await champDoc('crm_affaires', 'a1', 'statut', 'perdue');
+  expect(await lireDocument('crm_affaires/a1')).toMatchObject({ etape: 'rdv_fixe', raisonPerdue: 'Prix' });
+  await page.locator('.colonne[data-colonne="perdue"] .colonne-bascule').click();
+  const carte = page.locator('.colonne[data-colonne="perdue"] .carte-affaire[data-affaire="a1"]');
+  await expect(carte).toBeVisible();
+  await carte.locator('.carte-menu').click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Rouvrir' }).click();
+  await champDoc('crm_affaires', 'a1', 'statut', 'ouverte');
+  expect((await lireDocument('crm_affaires/a1')).raisonPerdue).toBe('');
+  // En pause
+  await page.locator('.carte-affaire[data-affaire="a2"] .carte-menu').click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: 'En pause…' }).click();
+  const date = dialogue(page).getByLabel('Date de réveil');
+  await expect(date).toHaveValue(/^\d{4}-\d{2}-\d{2}$/);
+  await dialogue(page).getByRole('button', { name: 'Mettre en pause' }).click();
+  await expect(dialogue(page)).toHaveCount(0);
+  await champDoc('crm_affaires', 'a2', 'statut', 'en_pause');
+  const a2 = await lireDocument('crm_affaires/a2');
+  expect(a2.etape).toBe('rdv_fixe');
+  expect(a2.dateReveil > jour(80)).toBe(true);
+});
+
+// ---------------------------------------------------------------- activités, notes, historique, Points clés
+
+test('C12 « Fait » sur une activité du jour : elle disparaît des Points clés, entre dans l’historique, la boîte « Prochaine activité » s’ouvre', async ({ page }) => {
+  await creerPersonne('p1', { nom: 'Marie Durand' });
+  await creerActivite('a1', { titre: 'Appeler Marie', type: 'appel', date: jour(0), personneId: 'p1' });
+  await connecter(page);
+  await aller(page, '#/crm/personnes/p1');
+  const ligne = page.locator('.points-cles .activite[data-activite="a1"]');
+  await expect(ligne).toContainText('Appeler Marie');
+  await ligne.getByRole('button', { name: /Marquer comme fait/ }).click();
+  await expect(dialogue(page)).toContainText('Prochaine activité ?');
+  await dialogue(page).getByRole('button', { name: 'Plus tard' }).click();
+  await expect(ligne).toHaveCount(0);
+  await champDoc('crm_activites', 'a1', 'fait', true);
+  await expect(page.locator('.historique .fil-ligne[data-genre="activite"]')).toContainText('Appeler Marie');
+  expect((await listerDocuments('crm_evenements')).some((e) => e.type === 'activite_faite')).toBe(true);
+});
+
+test('C12 « Fait » ouvre la prochaine activité : la planifier crée une nouvelle activité', async ({ page }) => {
+  await creerPersonne('p1', { nom: 'Marie Durand' });
+  await creerActivite('a1', { titre: 'Appeler Marie', type: 'appel', date: jour(0), personneId: 'p1' });
+  await connecter(page);
+  await aller(page, '#/crm/personnes/p1');
+  await page.locator('.points-cles .activite[data-activite="a1"]').getByRole('button', { name: /Marquer comme fait/ }).click();
+  await dialogue(page).locator('[data-date-rapide="1sem"]').click();
+  await dialogue(page).getByRole('button', { name: 'Planifier' }).click();
+  const suite = await attendre(page, 'crm_activites', (d) => d.id !== 'a1');
+  expect(suite).toMatchObject({ titre: 'Relancer', date: jour(7), fait: false, personneId: 'p1' });
+});
+
+test('C12 Accueil : les Points clés regroupent En retard, Aujourd’hui et Sans action prévue', async ({ page }) => {
+  await creerPersonne('p1', { nom: 'Marie Durand' });
+  await creerAffaire('a1', { titre: 'Atelier IA', personneId: 'p1', etape: 'rdv_fixe' });
+  await creerAffaire('a2', { titre: 'Sans suite', etape: 'rdv_fixe' });
+  await creerActivite('x1', { titre: 'Envoyer le devis', date: jour(-3), affaireId: 'a1', personneId: 'p1' });
+  await creerActivite('x2', { titre: 'Appeler le client', date: jour(0), affaireId: 'a1', personneId: 'p1' });
+  await connecter(page);
+  await expect(page.locator('.groupe-a-faire[data-groupe="retard"]')).toContainText('Envoyer le devis');
+  await expect(page.locator('.groupe-a-faire[data-groupe="aujourdhui"]')).toContainText('Appeler le client');
+  await expect(page.locator('.groupe-a-faire[data-groupe="sans-action"]')).toContainText('Sans suite');
+  await expect(page.locator('.groupe-a-faire[data-groupe="sans-action"]')).not.toContainText('Atelier IA');
+  // « Planifier » sur une affaire sans action
+  await page.locator('.groupe-a-faire[data-groupe="sans-action"] [data-action="planifier"]').click();
+  await dialogue(page).locator('[data-date-rapide="1sem"]').click();
+  await dialogue(page).getByRole('button', { name: 'Planifier' }).click();
+  await attendre(page, 'crm_activites', (d) => d.affaireId === 'a2');
+  await expect(page.locator('.groupe-a-faire[data-groupe="sans-action"]')).not.toContainText('Sans suite');
+  // Tout faire : Charles félicite
+  for (const id of ['x1', 'x2']) {
+    await page.locator(`.activite[data-activite="${id}"]`).getByRole('button', { name: /Marquer comme fait/ }).click();
+    await dialogue(page).getByRole('button', { name: 'Plus tard' }).click();
+  }
+  await expect(page.locator('.zone-a-faire .etat-vide')).toContainText('Charles veille');
+});
+
+test('C12 un rendez vous marqué fait augmente l’objectif « Rendez vous tenus »', async ({ page }) => {
+  await creerPersonne('p1', { nom: 'Marie Durand' });
+  await creerActivite('r1', { titre: 'Café avec Marie', type: 'rendez_vous', date: jour(0), personneId: 'p1' });
+  await connecter(page);
+  expect(await valeurObjectif(page, 'rdv_tenus')).toBe(0);
+  await aller(page, '#/crm/personnes/p1');
+  await page.locator('.points-cles .activite[data-activite="r1"]').getByRole('button', { name: /Marquer comme fait/ }).click();
+  await dialogue(page).getByRole('button', { name: 'Plus tard' }).click();
+  await allerA(page, 'Accueil');
+  await expect.poll(() => valeurObjectif(page, 'rdv_tenus')).toBe(1);
+});
+
+test('C12 activité créée depuis une fiche : type, titre prérempli, boutons de date rapide', async ({ page }) => {
+  await creerPersonne('p1', { nom: 'Marie Durand' });
+  await connecter(page);
+  await aller(page, '#/crm/personnes/p1');
+  const panneau = page.locator('.panneau-activite');
+  await panneau.getByRole('button', { name: 'Appel', exact: true }).click();
+  await panneau.locator('[data-date-rapide="3j"]').click();
+  await panneau.getByRole('button', { name: 'Enregistrer l’activité' }).click();
+  const a = await attendre(page, 'crm_activites', (d) => d.personneId === 'p1');
+  expect(a).toMatchObject({ type: 'appel', titre: 'Appel', date: jour(3), fait: false });
+  await expect(page.locator('.points-cles')).toContainText('Appel');
+});
+
+test('C13 notes : ajouter, modifier, supprimer ; une note d’affaire apparaît aussi dans l’historique de la personne et de l’organisation', async ({ page }) => {
+  await creerOrganisation('o1', { nom: 'Fleurs de Provence' });
+  await creerPersonne('p1', { nom: 'Marie Durand', organisationId: 'o1' });
+  await creerAffaire('a1', { titre: 'Atelier IA', personneId: 'p1', organisationId: 'o1' });
+  await connecter(page);
+  await aller(page, '#/crm/affaires/a1');
+  const panneau = page.locator('.panneau-activite');
+  await panneau.getByRole('tab', { name: 'Notes' }).click();
+  await panneau.getByLabel('Nouvelle note').fill('Rappeler jeudi\navec le devis');
+  await panneau.locator('[data-action="ajouter-note"]').click();
+  const note = await attendre(page, 'crm_notes', (d) => d.affaireId === 'a1');
+  expect(note).toMatchObject({ texte: 'Rappeler jeudi\navec le devis', personneId: 'p1', organisationId: 'o1', auteur: JEROME });
+  await expect(panneau.locator('.fil-note')).toContainText('Rappeler jeudi');
+  // Modifier
+  await panneau.locator('[data-action="modifier-note"]').click();
+  await panneau.getByLabel('Modifier la note').fill('Rappeler vendredi');
+  await panneau.locator('.fil-note').getByRole('button', { name: 'Enregistrer' }).click();
+  await champDoc('crm_notes', note.id, 'texte', 'Rappeler vendredi');
+  // Visible aussi côté personne et organisation
+  await aller(page, '#/crm/personnes/p1');
+  await expect(page.locator('.historique .fil-note')).toContainText('Rappeler vendredi');
+  await aller(page, '#/crm/organisations/o1');
+  await expect(page.locator('.historique .fil-note')).toContainText('Rappeler vendredi');
+  // Supprimer
+  await page.locator('[data-action="supprimer-note"]').click();
+  await dialogue(page).getByRole('button', { name: 'Supprimer' }).click();
+  await expect.poll(async () => (await listerDocuments('crm_notes')).length).toBe(0);
+  await expect(page.locator('.historique .fil-note')).toHaveCount(0);
+});
+
+test('C14 historique : les cinq filtres', async ({ page }) => {
+  await creerPersonne('p1', { nom: 'Marie Durand' });
+  await creerActivite('f1', { titre: 'Appel fait', type: 'appel', date: jour(-1), fait: true, dateFait: new Date(), personneId: 'p1' });
+  await ecrireDocument('crm_notes/n1', { texte: 'Une note', personneId: 'p1', organisationId: null, affaireId: null, auteur: JEROME, creeLe: new Date(), modifieLe: new Date() });
+  await ecrireDocument('crm_evenements/e1', { type: 'affaire_creee', texte: 'Affaire créée : Atelier', personneId: 'p1', organisationId: null, affaireId: null, auteur: JEROME, date: new Date() });
+  await ecrireDocument('crm_evenements/e2', { type: 'email_envoye', texte: 'Email envoyé à Marie', personneId: 'p1', organisationId: null, affaireId: null, auteur: JEROME, date: new Date() });
+  await connecter(page);
+  await aller(page, '#/crm/personnes/p1');
+  const lignes = page.locator('.historique .fil-ligne');
+  await expect(lignes).toHaveCount(4);
+  const filtre = async (id) => page.locator(`.historique [data-filtre="${id}"]`).click();
+  await filtre('activites');
+  await expect(lignes).toHaveCount(1);
+  await filtre('notes');
+  await expect(lignes).toHaveCount(1);
+  await expect(lignes).toContainText('Une note');
+  await filtre('affaires');
+  await expect(lignes).toHaveCount(1);
+  await expect(lignes).toContainText('Affaire créée');
+  await filtre('evenements');
+  await expect(lignes).toHaveCount(2);
+  await filtre('tous');
+  await expect(lignes).toHaveCount(4);
+});
+
+test('C15 objectif flyers : « +10 » met à jour la barre et persiste après rechargement', async ({ page }) => {
+  await connecter(page);
+  const carte = page.locator('.objectif[data-objectif="flyers"]');
+  await carte.getByRole('button', { name: 'Ajouter 10 à Flyers distribués' }).click();
+  await expect.poll(() => valeurObjectif(page, 'flyers')).toBe(10);
+  await expect(carte.locator('.objectif-pct')).toHaveText('10 %');
+  await expect.poll(async () => (await listerDocuments('os_objectifs_saisies'))[0]?.valeur).toBe(10);
+  await page.reload();
+  await expect(page.locator('.objectif[data-objectif="flyers"] .objectif-pct')).toHaveText('10 %');
+  const saisies = await listerDocuments('os_objectifs_saisies');
+  expect(saisies).toHaveLength(1);
+  expect(saisies[0].id).toMatch(/^flyers_\d{4}-\d{2}$/);
+});
+
+test('C15 les objectifs calculés suivent les nouveaux contacts, interviews et propositions', async ({ page }) => {
+  await creerPersonne('p1', { nom: 'Marie Durand', dateInterviewJtbd: jour(0) });
+  await creerPersonne('p2', { nom: 'Paul Martin' });
+  await creerAffaire('a1', { titre: 'Proposée', etape: 'proposition_envoyee', datesEtapes: { proposition_envoyee: new Date() } });
+  await connecter(page);
+  await expect.poll(() => valeurObjectif(page, 'nouveaux_contacts')).toBe(2);
+  await expect.poll(() => valeurObjectif(page, 'interviews_jtbd')).toBe(1);
+  await expect.poll(() => valeurObjectif(page, 'propositions_envoyees')).toBe(1);
+});
+
+// ---------------------------------------------------------------- recherche, filtres, réglages, export
+
+test('C16 recherche globale : résultats groupés, Entrée ouvre le premier ; raccourcis « / », « n » et Échap sur ordinateur', async ({ page }) => {
+  await creerOrganisation('o1', { nom: 'Fleurs de Provence' });
+  await creerPersonne('p1', { nom: 'Marie Durand', organisationId: 'o1', emails: [{ valeur: 'marie@fleurs.fr', type: 'travail' }] });
+  await creerPersonne('p2', { nom: 'Paul Martin' });
+  await creerAffaire('a1', { titre: 'Atelier pour Marie', personneId: 'p1' });
+  await connecter(page);
+  if (estTelephone(page)) await page.getByRole('button', { name: 'Rechercher' }).click();
+  const champ = page.locator('[data-role="recherche-globale"]');
+  await champ.fill('mar');
+  const liste = page.locator('ul.suggestions[aria-label="Suggestions : Rechercher"]');
+  await expect(liste.locator('.suggestion-groupe')).toHaveText(['Personnes', 'Affaires']);
+  await expect(liste).toContainText('Marie Durand');
+  await expect(liste).toContainText('Paul Martin');
+  await expect(liste).toContainText('Atelier pour Marie');
+  await champ.fill('provence');
+  await expect(liste.locator('.suggestion-groupe').first()).toContainText(/Personnes|Organisations/);
+  await champ.fill('marie dur');
+  await champ.press('Enter'); // sans flèche : ouvre le premier résultat
+  await expect(page).toHaveURL(/#\/crm\/personnes\/p1$/);
+  await expect(page.locator('.fiche-tete .titre-editable')).toHaveValue('Marie Durand');
+  await expect(champ).toHaveValue('');
+  // Choix par clic sur une affaire
+  if (estTelephone(page)) await page.getByRole('button', { name: 'Rechercher' }).click();
+  await champ.fill('atelier');
+  await liste.locator('.suggestion', { hasText: 'Atelier pour Marie' }).click();
+  await expect(page).toHaveURL(/#\/crm\/affaires\/a1$/);
+});
+
+test('C16 raccourcis clavier : « / » cherche, « n » ouvre « Ajouter une personne », Échap ferme', async ({ page }) => {
+  test.skip(estTelephone(page), 'raccourcis clavier : ordinateur');
+  await connecter(page);
+  await page.keyboard.press('/');
+  await expect(page.locator('[data-role="recherche-globale"]')).toBeFocused();
+  await page.keyboard.press('Tab');
+  await page.locator('body').click({ position: { x: 700, y: 500 } });
+  await page.keyboard.press('n');
+  await expect(dialogue(page)).toContainText('Ajouter une personne');
+  await expect(dialogue(page).getByLabel('Nom', { exact: true })).toBeFocused();
+  await page.keyboard.type('nnn'); // « n » dans un champ de texte ne rouvre rien
+  await expect(dialogue(page).getByLabel('Nom', { exact: true })).toHaveValue('nnn');
+  await page.keyboard.press('Escape');
+  await expect(dialogue(page)).toHaveCount(0);
+});
+
+test('C16 le bouton « + » propose Personne, Organisation et Affaire', async ({ page }) => {
+  await connecter(page);
+  const plus = page.locator(estTelephone(page) ? '.bouton-plus-mobile' : '.bouton-plus:not(.bouton-plus-mobile)');
+  await plus.click();
+  await expect(page.locator('.menu-pop').getByRole('menuitem')).toHaveText(['Personne', 'Organisation', 'Affaire']);
+  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Organisation' }).click();
+  await expect(dialogue(page)).toContainText('Ajouter une organisation');
+  await page.keyboard.press('Escape');
+  await plus.click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Affaire' }).click();
+  await expect(dialogue(page)).toContainText('Ajouter une affaire');
+});
+
+test('C17 filtres : combiner deux filtres, enregistrer, appliquer, renommer et supprimer un filtre enregistré', async ({ page }) => {
+  await creerPersonne('p1', { nom: 'Marie Durand', ville: 'Manosque', roles: ['prospect'] });
+  await creerPersonne('p2', { nom: 'Paul Martin', ville: 'Digne', roles: ['prospect'] });
+  await creerPersonne('p3', { nom: 'Éric Léon', ville: 'Manosque', roles: ['interview_jtbd'] });
+  await connecter(page);
+  await allerA(page, 'Personnes');
+  await expect(page.locator('.tableau-personnes tbody tr')).toHaveCount(3);
+  await page.locator('[data-action="filtres"]').click();
+  await dialogue(page).locator('input[data-cle="villes"][data-valeur="Manosque"]').check();
+  await dialogue(page).locator('input[data-role="prospect"], input[data-cle="roles"][data-valeur="prospect"]').check();
+  await dialogue(page).getByRole('button', { name: 'Appliquer' }).click();
+  await expect(page.locator('.tableau-personnes tbody tr')).toHaveCount(1);
+  await expect(page.locator('.tableau-personnes')).toContainText('Marie Durand');
+  await expect(page.locator('.pastille-filtre')).toHaveCount(2);
+  // Enregistrer
+  await page.locator('[data-action="filtres-enregistres"]').click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Enregistrer ce filtre…' }).click();
+  await dialogue(page).getByLabel('Nom du filtre').fill('Prospects de Manosque');
+  await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
+  await expect.poll(async () => ((await lireDocument('crm_parametres/filtres'))?.items ?? []).some((f) => f.nom === 'Prospects de Manosque' && f.liste === 'personnes')).toBe(true);
+  // Effacer puis réappliquer le filtre enregistré
+  await page.getByRole('button', { name: 'Tout effacer' }).click();
+  await expect(page.locator('.tableau-personnes tbody tr')).toHaveCount(3);
+  await page.locator('[data-action="filtres-enregistres"]').click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Prospects de Manosque' }).click();
+  await expect(page.locator('.tableau-personnes tbody tr')).toHaveCount(1);
+  // Filtre de départ : Interviews JTBD à faire
+  await page.locator('[data-action="filtres-enregistres"]').click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Interviews JTBD à faire' }).click();
+  await expect(page.locator('.tableau-personnes tbody tr')).toHaveCount(1);
+  await expect(page.locator('.tableau-personnes')).toContainText('Éric Léon');
+  // Réglages : renommer puis supprimer
+  await allerA(page, 'Réglages');
+  const ligne = page.locator('.ligne-reglage', { hasText: 'Prospects de Manosque' });
+  await ligne.locator('[data-action="renommer-filtre"]').click();
+  await dialogue(page).getByLabel('Nom du filtre').fill('Prospects Manosque');
+  await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(page.locator('.ligne-reglage', { hasText: 'Prospects Manosque' })).toBeVisible();
+  await page.locator('.ligne-reglage', { hasText: 'Prospects Manosque' }).locator('[data-action="supprimer-filtre"]').click();
+  await dialogue(page).getByRole('button', { name: 'Supprimer' }).click();
+  await expect(page.locator('.ligne-reglage', { hasText: 'Prospects Manosque' })).toHaveCount(0);
+});
+
+test('C17 filtres d’affaires : Chaudes, en retard ; recherche d’une liste insensible aux accents', async ({ page }) => {
+  await creerPersonne('p1', { nom: 'Éric Léon' });
+  await creerAffaire('a1', { titre: 'Chaude', priorite: 'chaud', personneId: 'p1' });
+  await creerAffaire('a2', { titre: 'Tiède' });
+  await creerActivite('x1', { titre: 'Relance', date: jour(-2), affaireId: 'a2' });
+  await connecter(page);
+  await allerA(page, 'Affaires');
+  await page.locator('.bascule-vue[data-vue="liste"]').click();
+  await expect(page.locator('.tableau-affaires tbody tr')).toHaveCount(2);
+  await page.locator('[data-action="filtres-enregistres"]').click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Chaudes' }).click();
+  await expect(page.locator('.tableau-affaires tbody tr')).toHaveCount(1);
+  await expect(page.locator('.tableau-affaires')).toContainText('Chaude');
+  await page.getByRole('button', { name: /Retirer le filtre : Priorité/ }).click();
+  await expect(page.locator('.tableau-affaires tbody tr')).toHaveCount(2);
+  await page.getByRole('searchbox', { name: 'Rechercher une affaire' }).fill('eric');
+  await expect(page.locator('.tableau-affaires tbody tr')).toHaveCount(1);
+  await page.getByRole('searchbox', { name: 'Rechercher une affaire' }).fill('');
+  await page.locator('[data-action="filtres"]').click();
+  await dialogue(page).locator('input[data-cle="enRetard"]').check();
+  await dialogue(page).getByRole('button', { name: 'Appliquer' }).click();
+  await expect(page.locator('.tableau-affaires tbody tr')).toHaveCount(1);
+  await expect(page.locator('.tableau-affaires')).toContainText('Tiède');
+});
+
+test('C18 réglages : étiquette, offre, source ; changer le début d’activité change le graphique', async ({ page }) => {
+  await creerAffaire('a1', { titre: 'Payée en octobre', etape: 'facture_payee', statut: 'gagnee', archive: true, encaissements: [{ date: new Date(), montant: 500, offreId: null }] });
+  await connecter(page);
+  await allerA(page, 'Réglages');
+  await page.getByPlaceholder('Nouvelle étiquette').fill('Très motivée');
+  await page.getByPlaceholder('Nouvelle étiquette').press('Enter');
+  await expect(page.locator('.ligne-reglage[data-etiquette] input[type="text"]').last()).toHaveValue('Très motivée');
+  await page.getByPlaceholder('Nom de la nouvelle offre').fill('Atelier IA');
+  await page.getByRole('button', { name: 'Ajouter une offre' }).click();
+  await expect.poll(async () => ((await lireDocument('crm_parametres/offres'))?.items ?? []).map((o) => o.nom)).toContain('Atelier IA');
+  await page.getByPlaceholder('Nouvelle source').fill('Salon du livre');
+  await page.getByPlaceholder('Nouvelle source').press('Enter');
+  await expect.poll(async () => (await lireDocument('crm_parametres/listes'))?.sources ?? []).toContain('Salon du livre');
+  await expect.poll(async () => ((await lireDocument('crm_parametres/etiquettes'))?.items ?? []).map((e) => e.nom)).toContain('Très motivée');
+  // Début d'activité
+  await page.getByLabel('Mois de début d’activité').fill('2026-12');
+  await page.getByLabel('Mois de début d’activité').press('Enter');
+  await page.getByLabel('Mois de début d’activité').blur();
+  await expect.poll(async () => (await lireDocument('crm_parametres/reglages'))?.debutActivite).toBe('2026-12');
+  await allerA(page, 'Accueil');
+  const mois = await page.locator('.colonne-ca').evaluateAll((els) => els.map((e) => e.dataset.mois));
+  expect(mois.every((m) => m >= '2026-12')).toBe(true);
+});
+
+test('C19 export : JSON complet de toutes les collections, CSV d’une liste ; le rappel d’export disparaît', async ({ page }) => {
+  await creerOrganisation('o1', { nom: 'Fleurs; "de" Provence' });
+  await creerPersonne('p1', { nom: 'Marie Durand', organisationId: 'o1' });
+  await creerPersonne('p2', { nom: 'Paul Martin' });
+  await creerAffaire('a1', { titre: 'Atelier', personneId: 'p1', organisationId: 'o1' });
+  await ecrireDocument('crm_notes/n1', { texte: 'Une note', personneId: 'p1', organisationId: 'o1', affaireId: 'a1', auteur: JEROME, creeLe: new Date(), modifieLe: new Date() });
+  await connecter(page);
+  await expect(page.locator('.rappel-export')).toBeVisible();
+  const [telechargement] = await Promise.all([page.waitForEvent('download'), page.locator('.rappel-export [data-action="exporter-tout"]').click()]);
+  expect(telechargement.suggestedFilename()).toMatch(/^chevalier-ia-os-\d{4}-\d{2}-\d{2}\.json$/);
+  const json = JSON.parse(await readFile(await telechargement.path(), 'utf8'));
+  expect(json.version).toBe('2.0.0');
+  expect(Object.keys(json.collections).sort()).toEqual(['crm_activites', 'crm_affaires', 'crm_evenements', 'crm_notes', 'crm_organisations', 'crm_parametres', 'crm_personnes']);
+  expect(json.collections.crm_personnes.map((p) => p.id).sort()).toEqual(['p1', 'p2']);
+  expect(json.collections.crm_notes).toHaveLength(1);
+  expect(json.collections.crm_affaires[0].id).toBe('a1');
+  await expect(page.locator('.rappel-export')).toHaveCount(0);
+  await expect.poll(async () => (await lireDocument('crm_parametres/reglages'))?.dernierExport ?? null).not.toBeNull();
+  // CSV d'une liste
+  await allerA(page, 'Personnes');
+  const [csv] = await Promise.all([page.waitForEvent('download'), page.locator('[data-action="exporter-personnes"]').click()]);
+  expect(csv.suggestedFilename()).toMatch(/^chevalier-ia-personnes-\d{4}-\d{2}-\d{2}\.csv$/);
+  const texte = await readFile(await csv.path(), 'utf8');
+  expect(texte.charCodeAt(0)).toBe(0xfeff);
+  expect(texte.trimEnd().split('\r\n')).toHaveLength(3); // en-tête + 2 personnes
+  expect(texte).toContain('"Fleurs; ""de"" Provence"');
+});
+
+test('C19 le rappel d’export réapparaît quand le dernier export date de plus de 30 jours', async ({ page }) => {
+  await ecrireDocument('crm_parametres/reglages', { delaiPaiementJours: 30, debutActivite: '2026-10', dernierExport: new Date(Date.now() - 40 * 86400000) });
+  await connecter(page);
+  await expect(page.locator('.rappel-export')).toBeVisible();
+  await ecrireDocument('crm_parametres/reglages', { delaiPaiementJours: 30, debutActivite: '2026-10', dernierExport: new Date(Date.now() - 5 * 86400000) });
+  await expect(page.locator('.rappel-export')).toHaveCount(0);
+});
+
+// ---------------------------------------------------------------- opposition, suppression, intégrité
+
+test('C20 opposition à la prospection : boutons email désactivés, badge affiché', async ({ page }) => {
+  await creerPersonne('p1', { nom: 'Marie Durand', emails: [{ valeur: 'marie@exemple.fr', type: 'travail' }] });
+  await connecter(page);
+  await aller(page, '#/crm/personnes/p1');
+  await expect(page.locator('a[data-action="ecrire-email"]')).toHaveAttribute('href', 'mailto:marie@exemple.fr');
+  await expect(page.locator('[data-action="email-envoye"]')).toBeEnabled();
+  await page.locator('input[data-role="opposition"]').check();
+  await champDoc('crm_personnes', 'p1', 'oppositionProspection', true);
+  await expect(page.locator('button[data-action="ecrire-email"]')).toBeDisabled();
+  await expect(page.locator('[data-action="email-envoye"]')).toBeDisabled();
+  await expect(page.locator('.fiche-tete .badge-opposition')).toBeVisible();
+  await allerA(page, 'Personnes');
+  await expect(page.locator('.tableau-personnes .badge-opposition')).toBeVisible();
+});
+
+test('C20 « Email envoyé » ajoute un événement à l’historique', async ({ page }) => {
+  await creerPersonne('p1', { nom: 'Marie Durand', emails: [{ valeur: 'marie@exemple.fr', type: 'travail' }] });
+  await connecter(page);
+  await aller(page, '#/crm/personnes/p1');
+  await page.locator('[data-action="email-envoye"]').click();
+  await attendre(page, 'crm_evenements', (d) => d.type === 'email_envoye' && d.personneId === 'p1');
+  await expect(page.locator('.historique')).toContainText('Email envoyé à Marie Durand');
+});
+
+test('C20 supprimer définitivement une personne : nom exigé, sort de ses affaires choisi', async ({ page }) => {
+  await creerPersonne('p1', { nom: 'Éric Léon' });
+  await creerAffaire('a1', { titre: 'À conserver', personneId: 'p1', organisationId: 'o9' });
+  await creerActivite('x1', { titre: 'Activité liée à la personne seule', personneId: 'p1' });
+  await connecter(page);
+  await aller(page, '#/crm/personnes/p1');
+  await page.locator('[data-action="menu-fiche"]').click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: /Supprimer définitivement/ }).click();
+  await expect(dialogue(page)).toContainText('Ses 1 affaire');
+  await dialogue(page).getByRole('button', { name: 'Supprimer' }).click(); // nom non tapé : refusé
+  await expect(dialogue(page)).toBeVisible();
+  await dialogue(page).getByLabel(/Tape « Éric Léon »/).fill('eric  LEON');
+  await dialogue(page).getByRole('button', { name: 'Supprimer' }).click();
+  await expect(dialogue(page)).toHaveCount(0);
+  await expect.poll(async () => await lireDocument('crm_personnes/p1')).toBeNull();
+  const a = await lireDocument('crm_affaires/a1');
+  expect(a.personneId).toBeNull(); // « Conserver » : l'affaire reste, rattachée à son organisation seule
+  expect(a.organisationId).toBe('o9');
+  await expect.poll(async () => (await listerDocuments('crm_activites')).length).toBe(0);
+  await expect(page).toHaveURL(/#\/crm\/personnes$/);
+});
+
+test('C20 supprimer une personne avec « supprimer aussi ses affaires »', async ({ page }) => {
+  await creerPersonne('p1', { nom: 'Éric Léon' });
+  await creerAffaire('a1', { titre: 'À supprimer', personneId: 'p1' });
+  await creerActivite('x1', { titre: 'Activité de l’affaire', affaireId: 'a1', personneId: 'p1' });
+  await connecter(page);
+  await aller(page, '#/crm/personnes/p1');
+  await page.locator('[data-action="menu-fiche"]').click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: /Supprimer définitivement/ }).click();
+  await dialogue(page).getByLabel('Les supprimer aussi, avec leurs activités et notes').check();
+  await dialogue(page).getByLabel(/Tape « Éric Léon »/).fill('Éric Léon');
+  await dialogue(page).getByRole('button', { name: 'Supprimer' }).click();
+  await expect.poll(async () => (await listerDocuments('crm_affaires')).length).toBe(0);
+  await expect.poll(async () => (await listerDocuments('crm_activites')).length).toBe(0);
+  await expect.poll(async () => (await listerDocuments('crm_personnes')).length).toBe(0);
+});
+
+test('C20 supprimer une organisation qui a des personnes est refusé (archivage proposé) ; une organisation vide se supprime', async ({ page }) => {
+  await creerOrganisation('o1', { nom: 'Fleurs de Provence' });
+  await creerOrganisation('o2', { nom: 'Vide SARL' });
+  await creerPersonne('p1', { nom: 'Marie Durand', organisationId: 'o1' });
+  await connecter(page);
+  await aller(page, '#/crm/organisations/o1');
+  await page.locator('[data-action="menu-fiche"]').click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: /Supprimer définitivement/ }).click();
+  await expect(dialogue(page)).toContainText('Suppression impossible');
+  await expect(dialogue(page)).toContainText('1 personne');
+  await dialogue(page).getByRole('button', { name: 'Archiver' }).click();
+  await champDoc('crm_organisations', 'o1', 'archive', true);
+  expect(await lireDocument('crm_organisations/o1')).not.toBeNull();
+  await aller(page, '#/crm/organisations/o2');
+  await page.locator('[data-action="menu-fiche"]').click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: /Supprimer définitivement/ }).click();
+  await dialogue(page).getByLabel(/Tape « Vide SARL »/).fill('vide sarl');
+  await dialogue(page).getByRole('button', { name: 'Supprimer' }).click();
+  await expect.poll(async () => await lireDocument('crm_organisations/o2')).toBeNull();
+  await expect(page).toHaveURL(/#\/crm\/organisations$/);
+});
+
+test('C20 supprimer définitivement une affaire : titre exigé ; annuler conserve l’affaire', async ({ page }) => {
+  await creerAffaire('a1', { titre: 'Atelier IA' });
+  await connecter(page);
+  await aller(page, '#/crm/affaires/a1');
+  await page.locator('[data-action="menu-fiche"]').click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: /Supprimer définitivement/ }).click();
+  await dialogue(page).getByRole('button', { name: 'Annuler' }).click();
+  expect(await lireDocument('crm_affaires/a1')).not.toBeNull();
+  await page.locator('[data-action="menu-fiche"]').click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: /Supprimer définitivement/ }).click();
+  await dialogue(page).getByLabel(/Tape « Atelier IA »/).fill('atelier ia');
+  await dialogue(page).getByRole('button', { name: 'Supprimer' }).click();
+  await expect.poll(async () => await lireDocument('crm_affaires/a1')).toBeNull();
+});
+
+// ---------------------------------------------------------------- fiches : champs à compléter
+
+test('C21 fiche personne : « + Ajouter » à la demande, enregistrement en quittant le champ, détails et rôles', async ({ page }) => {
+  await creerPersonne('p1', { nom: 'Marie Durand' });
+  await connecter(page);
+  await aller(page, '#/crm/personnes/p1');
+  const details = page.locator('.section[data-section="personne-details"]');
+  await expect(details.locator('.prop', { hasText: 'Ville' }).locator('.prop-vide')).toBeVisible();
+  await details.locator('.prop', { hasText: 'Ville' }).locator('.prop-vide').click();
+  await details.getByLabel('Ville', { exact: true }).fill('Manosque');
+  await details.getByLabel('Ville', { exact: true }).press('Enter');
+  await champDoc('crm_personnes', 'p1', 'ville', 'Manosque');
+  await expect(details.locator('.prop', { hasText: 'Ville' })).toContainText('Manosque');
+  // Prénom et nom de famille séparés
+  await expect(details.locator('.prop', { hasText: 'Prénom' })).toContainText('Marie');
+  await expect(details.locator('.prop', { hasText: 'Nom de famille' })).toContainText('Durand');
+  await details.locator('.prop', { hasText: 'Prénom' }).locator('.prop-modifier').click();
+  await details.getByLabel('Prénom', { exact: true }).fill('Marie-Claire');
+  await details.getByLabel('Prénom', { exact: true }).press('Enter');
+  await champDoc('crm_personnes', 'p1', 'nom', 'Marie-Claire Durand');
+  await expect(page.locator('.fiche-tete .titre-editable')).toHaveValue('Marie-Claire Durand');
+  // Rôles
+  await details.locator('input[data-role="interview_jtbd"]').check();
+  await champDoc('crm_personnes', 'p1', 'roles', ['prospect', 'interview_jtbd']);
+  // Titre modifiable en place
+  const titre = page.locator('.fiche-tete .titre-editable');
+  await titre.fill('Marie Dupont');
+  await titre.press('Enter');
+  await champDoc('crm_personnes', 'p1', 'nom', 'Marie Dupont');
+  expect(await lireDocument('crm_personnes/p1')).toMatchObject({ prenom: 'Marie', nomFamille: 'Dupont' });
+});
+
+test('C21 fiche personne : emails et téléphones avec leur type, étiquettes créées à la volée', async ({ page }) => {
+  await creerPersonne('p1', { nom: 'Marie Durand' });
+  await connecter(page);
+  await aller(page, '#/crm/personnes/p1');
+  await page.locator('[data-action="modifier-contacts"]').click();
+  await dialogue(page).getByRole('textbox', { name: 'Email 1' }).fill('Marie@Exemple.fr');
+  await dialogue(page).getByLabel('Type de email 1').selectOption('perso');
+  await dialogue(page).getByRole('textbox', { name: 'Téléphone 1' }).fill('06 12 34 56 78');
+  await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
+  await champDoc('crm_personnes', 'p1', 'emailsNormalises', ['marie@exemple.fr']);
+  const p = await lireDocument('crm_personnes/p1');
+  expect(p.emails).toEqual([{ valeur: 'Marie@Exemple.fr', type: 'perso' }]);
+  expect(p.telephones).toEqual([{ valeur: '06 12 34 56 78', type: 'travail' }]);
+  await expect(page.locator('.resume')).toContainText('Marie@Exemple.fr');
+  await expect(page.locator('.resume')).toContainText('(Perso)');
+  // Étiquette créée à la volée depuis la fiche
+  const champ = page.locator('.resume').getByRole('combobox', { name: 'Étiquettes' });
+  await champ.fill('Très motivée');
+  await page.locator('.resume ul.suggestions .suggestion-creer').click();
+  await expect.poll(async () => ((await lireDocument('crm_parametres/etiquettes'))?.items ?? []).map((e) => e.nom)).toContain('Très motivée');
+  await expect.poll(async () => (await lireDocument('crm_personnes/p1'))?.etiquettes?.length).toBe(1);
+  await expect(page.locator('.resume .pastille-choix')).toContainText('Très motivée');
+});
+
+test('C21 fiche affaire : barre des étapes, Gagnée, montant modifiable, documents, encaissement manuel', async ({ page }) => {
+  await creerPersonne('p1', { nom: 'Marie Durand' });
+  await creerAffaire('a1', { titre: 'Atelier IA', personneId: 'p1', etape: 'proposition_envoyee', montant: 900 });
+  await connecter(page);
+  await aller(page, '#/crm/affaires/a1');
+  await expect(page.locator('.barre-etapes-fiche .etape.courante')).toHaveText('Proposition envoyée');
+  await expect(page.locator('.fiche-montant')).toContainText('900');
+  await page.locator('.fiche-montant .prop-modifier').click();
+  await page.getByLabel('Montant', { exact: true }).fill('1500.5');
+  await page.getByLabel('Montant', { exact: true }).press('Enter');
+  await champDoc('crm_affaires', 'a1', 'montant', 1500.5);
+  // Gagnée
+  await page.locator('[data-action="gagnee"]').click();
+  await fermerCelebration(page);
+  await fermerSuggestion(page);
+  await expect(page.locator('.barre-etapes-fiche .etape.courante')).toHaveText('Gagné');
+  await champDoc('crm_affaires', 'a1', 'statut', 'gagnee');
+  // Document
+  await page.getByLabel('Libellé du document').fill('Devis');
+  await page.getByLabel('Adresse du document (lien Google Drive)').fill('https://drive.google.com/devis');
+  await page.locator('[data-action="ajouter-document"]').click();
+  await champDoc('crm_affaires', 'a1', 'documents', [{ libelle: 'Devis', url: 'https://drive.google.com/devis' }]);
+  // Encaissement manuel
+  await page.locator('[data-action="ajouter-encaissement"]').click();
+  await dialogue(page).getByLabel('Montant en euros').fill('300');
+  await dialogue(page).getByRole('button', { name: 'Ajouter' }).click();
+  await expect.poll(async () => (await lireDocument('crm_affaires/a1'))?.encaissements?.length).toBe(1);
+  expect((await lireDocument('crm_affaires/a1')).encaissements[0].montant).toBe(300);
+  // Rouvrir après perdue
+  await page.locator('[data-action="perdue"]').click();
+  await dialogue(page).getByLabel('Raison', { exact: true }).selectOption('Concurrent');
+  await dialogue(page).getByRole('button', { name: 'Marquer comme perdue' }).click();
+  await champDoc('crm_affaires', 'a1', 'statut', 'perdue');
+  await page.locator('[data-action="rouvrir"]').click();
+  await champDoc('crm_affaires', 'a1', 'statut', 'gagnee');
+});
+
+// ---------------------------------------------------------------- mise en page, menu, thème, version
+
+test('C22 fiche personne : deux colonnes sur ordinateur, une seule colonne sur téléphone, dans l’ordre prévu', async ({ page }) => {
+  await creerPersonne('p1', { nom: 'Marie Durand' });
+  await connecter(page);
+  await aller(page, '#/crm/personnes/p1');
+  const gauche = await page.locator('.fiche-gauche').boundingBox();
+  const droite = await page.locator('.fiche-droite').boundingBox();
+  if (estTelephone(page)) {
+    expect(Math.abs(gauche.x - droite.x)).toBeLessThan(2); // même colonne
+    expect(droite.y).toBeGreaterThan(gauche.y); // empilées : Résumé… puis activité et historique
+    const sections = await page.locator('.fiche-gauche > .section').evaluateAll((els) => els.map((e) => e.dataset.section));
+    expect(sections).toEqual(['personne-resume', 'personne-details', 'personne-organisation', 'personne-affaires']);
+  } else {
+    expect(droite.x).toBeGreaterThan(gauche.x + gauche.width - 2); // côte à côte
+    expect(Math.abs(droite.y - gauche.y)).toBeLessThan(4);
+  }
+  for (const section of ['personne-resume', 'personne-details', 'personne-organisation', 'personne-affaires']) {
+    await expect(page.locator(`.section[data-section="${section}"]`)).toBeVisible();
+  }
+  await expect(page.locator('.panneau-activite .onglet')).toHaveText(['Activité', 'Notes']);
+  // Section repliable : l'état est mémorisé
+  await page.locator('.section[data-section="personne-details"] .section-bascule').click();
+  await expect(page.locator('.section[data-section="personne-details"] .section-corps')).toBeHidden();
+  await page.reload();
+  await expect(page.locator('.section[data-section="personne-details"] .section-corps')).toBeHidden();
+});
+
+test('C22 liste des personnes : tableau dense sur ordinateur, cartes sur téléphone ; tri et colonnes au choix', async ({ page }) => {
+  await creerOrganisation('o1', { nom: 'Fleurs de Provence' });
+  await creerPersonne('p1', { nom: 'Zoé Lemaire', organisationId: 'o1', ville: 'Digne' });
+  await creerPersonne('p2', { nom: 'Adam Roux', ville: 'Manosque' });
+  await connecter(page);
+  await allerA(page, 'Personnes');
+  const lignes = page.locator('.tableau-personnes tbody tr');
+  await expect(lignes).toHaveCount(2);
+  await expect(lignes.first()).toContainText('Adam Roux'); // tri par nom croissant
+  if (!estTelephone(page)) {
+    await expect(page.locator('.tableau-personnes thead')).toBeVisible();
+    await page.locator('.tableau-personnes th button.tri', { hasText: 'Nom' }).click();
+    await expect(lignes.first()).toContainText('Zoé Lemaire');
+    await page.locator('[data-action="colonnes"]').click();
+    await page.locator('.menu-pop').getByRole('menuitem', { name: /Ville/ }).click();
+    await expect(page.locator('.tableau-personnes th', { hasText: 'Ville' })).toBeVisible();
+    await expect(lignes.first()).toContainText('Digne');
+  } else {
+    const carte = await lignes.first().evaluate((el) => getComputedStyle(el).display);
+    expect(carte).toBe('grid');
+  }
+  await expect(page.locator('.compteur-liste')).toHaveText('2 contacts');
+});
+
+test('C22 Kanban des affaires : colonnes avec total en € et nombre d’affaires ; carte avec organisation, personne, montant, pastille', async ({ page }) => {
+  await creerOrganisation('o1', { nom: 'Fleurs de Provence' });
+  await creerPersonne('p1', { nom: 'Marie Durand' });
+  await creerAffaire('a1', { titre: 'Atelier IA', organisationId: 'o1', personneId: 'p1', montant: 1200, etape: 'rdv_fixe' });
+  await creerAffaire('a2', { titre: 'Audit', montant: 800, etape: 'rdv_fixe' });
+  await creerActivite('x1', { titre: 'Relance', date: jour(-2), affaireId: 'a1' });
+  await connecter(page);
+  await allerA(page, 'Affaires');
+  const colonne = page.locator('.colonne[data-colonne="rdv_fixe"]');
+  await expect(colonne.locator('.colonne-totaux')).toHaveText('2 000 € · 2 affaires');
+  const carte = colonne.locator('.carte-affaire[data-affaire="a1"]');
+  await expect(carte).toContainText('Fleurs de Provence');
+  await expect(carte).toContainText('Marie Durand');
+  await expect(carte).toContainText('1 200 €');
+  await expect(carte).toContainText('En retard');
+  await expect(carte.locator('.pastille-activite.rouge')).toBeVisible();
+  await expect(colonne.locator('.carte-affaire[data-affaire="a2"] .pastille-activite.grise')).toBeVisible();
+  // Tri par activité suivante : les retards d'abord
+  await expect(colonne.locator('.carte-affaire').first()).toHaveAttribute('data-affaire', 'a1');
+  // Colonnes repliées Perdues et En pause
+  await expect(page.locator('.colonne[data-colonne="perdue"]')).toHaveClass(/repliee/);
+  await expect(page.locator('.colonne[data-colonne="en_pause"]')).toHaveClass(/repliee/);
+});
+
+test('C23 menu : replié par défaut, élargi au clic, état conservé ; sur 390 px, panneau par dessus le contenu', async ({ page }) => {
+  await connecter(page);
+  const menu = page.locator('aside.menu');
+  if (estTelephone(page)) {
+    const contenuAvant = await page.locator('main.contenu').boundingBox();
+    expect(contenuAvant.x).toBe(0);
+    expect(contenuAvant.width).toBeGreaterThanOrEqual(389);
+    await expect.poll(async () => (await menu.boundingBox()).x).toBeLessThan(-100);
+    await page.getByRole('button', { name: 'Ouvrir le menu' }).click();
+    await expect.poll(async () => (await menu.boundingBox()).x).toBe(0);
+    expect((await page.locator('main.contenu').boundingBox()).x).toBe(0);
+    expect(await menu.evaluate((el) => getComputedStyle(el).position)).toBe('fixed');
+    await expect(page.locator('.voile-menu')).toBeVisible();
+    await menu.getByRole('link', { name: 'Affaires' }).click();
+    await expect(page).toHaveURL(/#\/crm\/affaires$/);
+    await expect.poll(async () => (await menu.boundingBox()).x).toBeLessThan(-100);
+  } else {
+    await expect(page.locator('.coquille')).toHaveAttribute('data-menu', 'replie');
+    await expect.poll(async () => Math.round((await menu.boundingBox()).width)).toBe(64);
+    await expect(menu.locator('.menu-entree[data-chemin="crm/accueil"]')).toHaveAttribute('data-infobulle', 'Accueil');
+    await page.getByRole('button', { name: 'Élargir le menu' }).click();
+    await expect(page.locator('.coquille')).toHaveAttribute('data-menu', 'elargi');
+    await expect.poll(async () => Math.round((await menu.boundingBox()).width)).toBe(240);
+    for (const libelle of ['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Réglages']) await expect(menu.getByText(libelle, { exact: true })).toBeVisible();
+    await page.reload();
+    await expect(page.locator('.coquille')).toHaveAttribute('data-menu', 'elargi');
+    await page.getByRole('button', { name: 'Replier le menu' }).click();
+    await page.reload();
+    await expect(page.locator('.coquille')).toHaveAttribute('data-menu', 'replie');
+  }
+});
+
+test('C23 thème : bascule sombre / clair conservée après rechargement', async ({ page }) => {
+  await connecter(page);
+  const html = page.locator('html');
+  await expect(html).toHaveAttribute('data-theme', 'sombre');
+  const fondSombre = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  if (estTelephone(page)) await page.getByRole('button', { name: 'Ouvrir le menu' }).click();
+  await page.locator('.menu').getByRole('button', { name: 'Thème clair' }).click();
+  await expect(html).toHaveAttribute('data-theme', 'clair');
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).not.toBe(fondSombre);
+  await page.reload();
+  await expect(html).toHaveAttribute('data-theme', 'clair');
+  await expect(page.locator('.grille-objectifs .objectif')).toHaveCount(6);
+});
+
+test('C23 nouvelle version : bandeau au retour sur l’onglet ; hors réseau, bandeau « Hors ligne »', async ({ page, context, erreursConsole }) => {
+  await connecter(page);
+  await expect(page.locator('#bandeau-version')).toHaveCount(0);
+  await page.route('**/version.json*', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '{"version": "9.9.9"}' }));
+  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  const bandeau = page.locator('#bandeau-version');
+  await expect(bandeau).toContainText('Nouvelle version disponible');
+  await expect(bandeau.getByRole('button', { name: 'Recharger' })).toBeVisible();
+  await context.setOffline(true);
+  await expect(page.locator('#bandeau-hors-ligne')).toContainText('Hors ligne : reconnecte toi pour continuer');
+  await context.setOffline(false);
+  await expect(page.locator('#bandeau-hors-ligne')).toHaveCount(0);
+  const inattendues = erreursConsole.filter((e) => !/ERR_INTERNET_DISCONNECTED|ERR_NETWORK_CHANGED|Could not reach Cloud Firestore|WebChannelConnection|net::ERR_/.test(e));
+  erreursConsole.length = 0;
+  erreursConsole.push(...inattendues);
+});
+
+test('C23 aucun défilement horizontal de la page sur les écrans principaux et les fiches, même avec des textes très longs', async ({ page }) => {
+  await creerOrganisation('o1', { nom: 'Une organisation au nom particulièrement long pour tester le débordement des cartes et des tableaux' });
+  await creerPersonne('p1', { nom: 'Raphaëlle de La Tour-Vieille-Montmorency', organisationId: 'o1', emails: [{ valeur: 'une.adresse.extremement.longue.pour.tester@un-domaine-vraiment-tres-long-exemple.fr', type: 'travail' }], ville: 'Saint-Étienne-de-Tinée-les-Bains' });
+  await creerAffaire('a1', { titre: 'Une affaire dont le titre est vraiment très long pour vérifier le comportement', personneId: 'p1', organisationId: 'o1', montant: 12500, priorite: 'chaud', etape: 'rdv_fixe' });
+  await ecrireDocument('crm_notes/n1', { texte: 'Unmotextrêmementlongsansespacepourvérifierlecomportementdurendu', personneId: 'p1', organisationId: 'o1', affaireId: 'a1', auteur: JEROME, creeLe: new Date(), modifieLe: new Date() });
+  await creerActivite('x1', { titre: 'Envoyer une proposition détaillée avec plusieurs options tarifaires', date: jour(-3), affaireId: 'a1', personneId: 'p1' });
+  await connecter(page);
+  const sansDebordement = async (nom) => expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), nom).toBeLessThanOrEqual(0);
+  await sansDebordement('accueil');
+  for (const [vue, nom] of [['Personnes', 'personnes'], ['Organisations', 'organisations'], ['Affaires', 'affaires'], ['Réglages', 'réglages'], ['Accueil', 'accueil']]) {
+    await allerA(page, vue);
+    await expect(page.locator('.page')).toBeVisible();
+    await sansDebordement(nom);
+  }
+  await allerA(page, 'Affaires');
+  await page.locator('.bascule-vue[data-vue="liste"]').click();
+  await sansDebordement('affaires (liste)');
+  for (const hash of ['#/crm/personnes/p1', '#/crm/organisations/o1', '#/crm/affaires/a1']) {
+    await aller(page, hash);
+    await expect(page.locator('.fiche')).toBeVisible();
+    await sansDebordement(hash);
+  }
+  await allerA(page, 'Personnes');
+  await page.locator('[data-action="filtres"]').click();
+  await expect(dialogue(page)).toBeVisible();
+  await sansDebordement('filtres');
+  await page.keyboard.press('Escape');
+  await expect(dialogue(page)).toHaveCount(0);
+  await page.locator('[data-action="nouvelle-personne"]').click();
+  await sansDebordement('création');
+});
+
+test('C23 navigation : lien direct vers une fiche, route inconnue, déconnexion', async ({ page }) => {
+  await creerPersonne('p1', { nom: 'Sophie Lien' });
+  await connecter(page, JEROME, { route: 'crm/personnes/p1', attendreAccueil: false });
+  await expect(page.locator('.fiche-tete .titre-editable')).toHaveValue('Sophie Lien');
+  await aller(page, '#/inconnue');
+  await expect(page).toHaveURL(/#\/crm\/accueil$/);
+  await aller(page, '#/crm/personnes/inexistante');
+  await expect(page.locator('.etat-vide')).toContainText('n’existe plus');
+  // Premier lancement : on laisse l'initialisation des réglages et des objectifs se terminer avant de se déconnecter
+  await expect.poll(async () => (await listerDocuments('crm_parametres')).length).toBe(5);
+  await expect.poll(async () => (await listerDocuments('os_objectifs')).length).toBe(6);
+  if (estTelephone(page)) await page.getByRole('button', { name: 'Ouvrir le menu' }).click();
+  await page.getByRole('button', { name: 'Se déconnecter' }).click();
+  await expect(page.getByRole('button', { name: 'Se connecter avec Google' })).toBeVisible();
 });

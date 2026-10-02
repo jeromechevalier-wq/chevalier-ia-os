@@ -242,12 +242,15 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 .prop:hover .prop-modifier, .prop-modifier:focus-visible { opacity: 1; }
 .prop-lien { color: var(--lien); }
 .resume { gap: 10px; }
-.contact-ligne { display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
+.contact-ligne { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
+.contact-ligne a { min-width: 0; overflow-wrap: anywhere; }
+.contact-ligne .icone { margin-top: 3px; }
 .contact-ligne .icone { color: var(--texte2); flex: none; }
 .contact-type { color: var(--texte2); font-size: 13px; }
 .actions-email { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
 .liste-simple { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.ligne-simple { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.ligne-simple { display: flex; align-items: center; gap: 4px 10px; min-width: 0; flex-wrap: wrap; }
+.ligne-simple > * { min-width: 0; overflow-wrap: anywhere; }
 .liste-cartes-mini { display: flex; flex-direction: column; gap: 8px; }
 .carte-affaire-mini { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border: 1px solid var(--bordure); border-radius: 8px; background: var(--panneau2); color: var(--texte); text-decoration: none; }
 .carte-affaire-mini:hover { border-color: var(--bordure-forte); }

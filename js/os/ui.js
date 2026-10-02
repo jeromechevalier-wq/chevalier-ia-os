@@ -191,15 +191,19 @@ export function dialogue({ titre, contenu, boutons = [{ libelle: 'OK', valeur: t
     });
     voile.append(boite);
     document.body.append(voile);
+    // Échap ferme la fenêtre du dessus, où que soit le focus (un champ intelligent qui ferme sa liste garde l'événement).
     function surTouche(e) {
-      if (e.key === 'Escape') { e.stopPropagation(); fermer(null); }
+      if (e.key !== 'Escape' || voile !== [...document.querySelectorAll('.voile-dialogue')].at(-1)) return;
+      e.stopPropagation();
+      fermer(null);
     }
-    voile.addEventListener('keydown', surTouche);
+    document.addEventListener('keydown', surTouche);
     voile.addEventListener('mousedown', (e) => { if (e.target === voile) fermer(null); });
     let ferme = false;
     function fermer(valeur) {
       if (ferme) return;
       ferme = true;
+      document.removeEventListener('keydown', surTouche);
       voile.remove();
       if (precedent && precedent.isConnected) precedent.focus?.();
       resoudre(valeur);
@@ -329,7 +333,7 @@ export function champIntelligent({
     'aria-label': etiquette || placeholder, 'aria-autocomplete': 'list', 'aria-expanded': 'false', 'aria-controls': idListe,
     'aria-describedby': ariaDescription, placeholder, id, autofocus: autofocus || null,
   });
-  const liste = h('ul', { class: 'suggestions', id: idListe, role: 'listbox', 'aria-label': etiquette || 'Suggestions', hidden: true });
+  const liste = h('ul', { class: 'suggestions', id: idListe, role: 'listbox', 'aria-label': `Suggestions : ${etiquette || placeholder || 'liste'}`, hidden: true });
   const pastilles = h('span', { class: 'champ-intelligent-pastilles' });
   const effacer = h('button', { type: 'button', class: 'champ-intelligent-effacer', 'aria-label': 'Effacer', hidden: true, tabindex: '-1',
     onclick: () => { definir(null); entree.focus(); } }, icone('x', { taille: 14 }));
@@ -433,7 +437,9 @@ export function champIntelligent({
     surChoix(choix);
   }
 
+  entree.addEventListener('focus', () => clearTimeout(minuteurBlur));
   entree.addEventListener('input', () => {
+    clearTimeout(minuteurBlur);
     if (!multiple && choix && entree.value !== choix.libelle) { choix = null; effacer.hidden = true; racine.classList.remove('a-un-choix'); surChoix(null); }
     surSaisie(entree.value);
     ouvrir();
@@ -458,7 +464,10 @@ export function champIntelligent({
       surChoix(choix);
     }
   });
-  entree.addEventListener('blur', () => setTimeout(fermerListe, 120));
+  // La liste se ferme un instant après la perte du focus (le clic sur une suggestion a le temps d'aboutir) ;
+  // si on revient dans le champ entre temps, cette fermeture différée est annulée.
+  let minuteurBlur = null;
+  entree.addEventListener('blur', () => { minuteurBlur = setTimeout(fermerListe, 120); });
 
   if (texteInitial) entree.value = texteInitial;
   synchroniser();

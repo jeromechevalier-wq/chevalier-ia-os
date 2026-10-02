@@ -77,16 +77,30 @@ export function activitesDe(lien) {
   return etat.activites.filter((a) => a[cle] === id);
 }
 
+const signatures = {};
+const CHAMPS_VOLATILS = new Set(['modifieLe', 'modifiePar', 'creeLe']);
+
+/** Empreinte des données affichables : sans les horodatages serveur qui se précisent après coup. */
+function signature(docs) {
+  return JSON.stringify(docs, (cle, valeur) => (CHAMPS_VOLATILS.has(cle) ? undefined : valeur));
+}
+
 function lireDocs(snap) {
   return snap.docs.map((d) => ({ ...d.data({ serverTimestamps: 'estimate' }), id: d.id }));
 }
 
 export function demarrer(compteConnecte) {
   compte = compteConnecte;
+  // Quand seul un horodatage serveur se précise (modifieLe, creeLe), les données affichées ne changent pas :
+  // on met l'état à jour sans prévenir les écrans (pas de nouveau rendu, donc pas de glisser déposer interrompu).
   const ecouter = (nom, cle) => desabonnements.push(onSnapshot(collection(db, nom), (snap) => {
-    etat[cle] = lireDocs(snap);
+    const docs = lireDocs(snap);
+    const sig = signature(docs);
+    const inchange = etat.pret[cle] && signatures[cle] === sig;
+    etat[cle] = docs;
+    signatures[cle] = sig;
     etat.pret[cle] = true;
-    notifier();
+    if (!inchange) notifier();
   }, (e) => console.warn(`${nom} indisponible`, e.code)));
   ecouter('crm_personnes', 'personnes');
   ecouter('crm_organisations', 'organisations');
@@ -113,6 +127,7 @@ export function arreter() {
   desabonnements = [];
   for (const cle of ['personnes', 'organisations', 'affaires', 'activites']) etat[cle] = [];
   for (const cle of Object.keys(etat.pret)) etat.pret[cle] = false;
+  for (const cle of Object.keys(signatures)) delete signatures[cle];
   initialisation = false;
   compte = null;
 }

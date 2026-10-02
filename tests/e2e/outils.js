@@ -79,8 +79,10 @@ export function jour(n = 0) {
 export async function creerPersonne(id, valeurs = {}) {
   const maintenant = new Date();
   const emails = valeurs.emails || [];
+  const nom = (valeurs.nom || 'Personne test').trim();
+  const espace = nom.indexOf(' ');
   const doc = {
-    nom: 'Personne test', prenom: '', nomFamille: 'Personne test', organisationId: null, telephones: [], emails,
+    nom, prenom: espace === -1 ? '' : nom.slice(0, espace), nomFamille: espace === -1 ? nom : nom.slice(espace + 1), organisationId: null, telephones: [], emails,
     emailsNormalises: emails.map((e) => e.valeur.toLowerCase()), etiquettes: [], roles: ['prospect'], dateInterviewJtbd: null,
     ville: '', linkedin: '', siteWeb: '', source: '', oppositionProspection: false, dateOpposition: null, archive: false,
     proprietaire: JEROME, creeLe: maintenant, modifieLe: maintenant, creePar: JEROME, modifiePar: JEROME, ...valeurs,
@@ -172,7 +174,7 @@ export const test = base.extend({
     await context.route(/https:\/\/(unpkg\.com|fonts\.googleapis\.com|fonts\.gstatic\.com)\/.*/, (route) =>
       route.fulfill({ status: 200, body: '', headers: { 'Content-Type': route.request().url().endsWith('.js') ? 'text/javascript' : 'text/css' } }));
     const erreurs = [];
-    page.on('console', (m) => { if (m.type() === 'error') erreurs.push(m.text()); });
+    page.on('console', (m) => { if (m.type() === 'error') erreurs.push(`${m.text()}${m.location()?.url ? ` (${m.location().url})` : ''}`); });
     page.on('pageerror', (e) => erreurs.push(`pageerror: ${e.message}`));
     await reinitialiser();
     await use(erreurs);
