@@ -16,10 +16,13 @@ Pas encore fait (étapes suivantes) : limites de débit (étape 4, avec l'écrit
 
 ## Ce que tu fais, dans cet ordre
 
-Ne **fusionne la PR qu'après les points 1 à 4** : la fusion lance le déploiement.
+Ne **fusionne la PR qu'après les points 0 à 3** : la fusion lance le déploiement.
+
+### 0. Relier le projet à un compte de facturation (forfait Blaze)
+Sans cela, Google refuse de déployer des fonctions. Page : https://console.cloud.google.com/billing/linkedaccount?project=chevalier-ia-os → **Associer un compte de facturation** → « Paiement de Firebase » (le compte déjà utilisé pour un autre projet) → **Définir le compte**. *(Fait le 02/10/2026 : le projet n'avait aucun compte associé, contrairement à ce que le plan supposait.)* Blaze n'a plus de plafond automatique : seules les alertes du point 1 et nos limites (3 instances, plafonds par jeton) protègent.
 
 ### 1. Budget de 5 € avec trois alertes
-Console → Facturation → **Budgets et alertes** : https://console.cloud.google.com/billing/budgets (choisis ton compte de facturation). **Créer un budget** : nom `Chevalier IA OS`, projet `chevalier-ia-os`, montant 5 €, seuils 50 %, 90 % et 100 %, e-mails vers `jerome.chevalier@gmail.com`. Une alerte ne coupe rien : elle prévient seulement.
+Console → Facturation → **Budgets et alertes** : https://console.cloud.google.com/billing/budgets (compte « Paiement de Firebase » ; **ne modifie pas** le budget existant d'un autre projet). **Créer un budget** (dans « Projets », coche **seulement** `chevalier-ia-os`) : nom `Chevalier IA OS`, projet `chevalier-ia-os`, montant 5 €, seuils 50 %, 90 % et 100 %, e-mails vers `jerome.chevalier@gmail.com`. Une alerte ne coupe rien : elle prévient seulement.
 
 ### 2. Activer cinq API (gratuites tant qu'on ne s'en sert pas)
 Ouvre chaque lien (projet `chevalier-ia-os`) et clique sur **Activer** (si tu vois « Gérer », c'est déjà fait) :
@@ -30,9 +33,9 @@ Ouvre chaque lien (projet `chevalier-ia-os`) et clique sur **Activer** (si tu vo
 - Secret Manager : https://console.cloud.google.com/apis/library/secretmanager.googleapis.com?project=chevalier-ia-os
 
 ### 3. Créer ton premier jeton et le secret `MCP_JETONS`
-1. Sur ton Mac, dans le dossier du dépôt (après `git pull`) : `node outils/creer-jeton.js claude-code-jerome claude-code`. Le terminal affiche **une fois** le jeton (`cia_…`) et une ligne JSON. **Range le jeton tout de suite** (gestionnaire de mots de passe) ; il n'est enregistré nulle part ailleurs. Ne le colle jamais dans un fichier du dossier synchronisé avec Drive, ni dans une conversation.
+1. Sur ton Mac, deux façons équivalentes : soit dans le dossier du dépôt (branche `mcp` à jour) `node outils/creer-jeton.js claude-code-jerome claude-code`, soit **sans le dépôt**, la commande d'une ligne `node -e '…'` que Claude donne dans la conversation (même jeton, même ligne). Le terminal affiche **une fois** le jeton (`cia_…`) et une ligne JSON. **Range le jeton tout de suite** (gestionnaire de mots de passe) ; il n'est enregistré nulle part ailleurs. Ne le colle jamais dans un fichier du dossier synchronisé avec Drive, ni dans une conversation.
 2. Console → Sécurité → **Secret Manager** : https://console.cloud.google.com/security/secret-manager?project=chevalier-ia-os → **Créer un secret** : nom exactement `MCP_JETONS`, valeur = **la ligne JSON** (pas le jeton), le reste par défaut.
-3. Dans ce secret, onglet **Autorisations** → **Accorder l'accès** : compte principal = le compte d'exécution des fonctions (en général `NUMÉRO-compute@developer.gserviceaccount.com`, que tu vois dans https://console.cloud.google.com/iam-admin/iam?project=chevalier-ia-os ; **[à confirmer au premier déploiement]**), rôle **Accesseur de secrets Secret Manager**.
+3. **À faire après le premier déploiement** (le compte d'exécution réel n'est connu qu'alors ; d'ici là, `/mcp` répond 503, c'est normal). Dans ce secret, onglet **Autorisations** → **Accorder l'accès** : compte principal = le compte d'exécution des fonctions (en général `NUMÉRO-compute@developer.gserviceaccount.com`, que tu vois dans https://console.cloud.google.com/iam-admin/iam?project=chevalier-ia-os ; **[à confirmer au premier déploiement]**), rôle **Accesseur de secrets Secret Manager**.
 Pour ajouter un client plus tard : relancer `creer-jeton.js`, puis ajouter la nouvelle ligne dans une **nouvelle version** du secret. Pour révoquer : passer `"actif": true` à `false` dans une nouvelle version (effet en moins d'une minute).
 
 ### 4. Rôles du compte de service du déploiement (un à la fois)
