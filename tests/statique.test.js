@@ -296,7 +296,7 @@ describe('D5 Serveur MCP (étape 2) : déploiement, versions figées, sécurité
   });
   test('D5 le guide sécurité et pannes existe et couvre les interrupteurs d’urgence, les secrets et les versions figées', () => {
     const t = lire('docs/securite-et-pannes.md');
-    for (const mot of ['Interrupteurs d’urgence', 'Où sont les secrets', 'Versions figées', 'MCP_JETONS', 'porte dérobée', 'Contrôle trimestriel']) assert.ok(t.includes(mot), mot);
+    for (const mot of ["Interrupteurs d'urgence", 'Où sont les secrets', 'Versions figées', 'MCP_JETONS', 'porte dérobée', 'Contrôle trimestriel']) assert.ok(t.includes(mot), mot);
   });
   test('D5 outils/creer-jeton.js existe et ne contient aucun jeton', () => {
     assert.ok(existsSync(join(RACINE, 'outils/creer-jeton.js')));
