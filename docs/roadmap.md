@@ -4,6 +4,18 @@ Tenue à jour à chaque discussion sur l'évolution de l'appli. Dernière mise �
 
 Légende : **décidé** = validé par Jérôme ; **piste** = à trancher avant le cahier des charges.
 
+## Priorité : Claude Code et les agents lisent et écrivent dans la base
+
+- **Décidé** : c'est **indispensable**. Chevalier IA OS devient le CRM de Jérôme (aujourd'hui Notion), Claude Code sur son ordinateur est son outil principal, et des agents IA automatiseront ensuite. Claude Code doit pouvoir interroger la base et y écrire, comme il le fait avec Notion.
+- **Piste recommandée** : un petit serveur MCP local, dans le dépôt (dossier `mcp/`), qui donne à Claude Code des outils précis : chercher une personne ou une organisation, lire une affaire et son fil, créer une personne, ajouter une note ou une activité, changer l'étape d'une affaire, joindre un document par lien.
+  - Il réutilise le code métier de l'appli (`logique.js`, déjà testé) pour que les écritures de Claude Code suivent exactement les mêmes règles que l'écran : fil d'activité, dates, doublons, objectifs.
+  - Il se connecte à Firestore avec un compte de service Google. Cette clé est un secret : jamais dans le dépôt, jamais dans le dossier Google Drive.
+  - Ordre : d'abord la **lecture seule**, puis l'écriture, sans outil de suppression au départ, avec un export complet avant d'ouvrir l'écriture.
+- **Piste, plus tard** : pour les agents hébergés (qui ne tournent pas sur le Mac), exposer les mêmes outils depuis un serveur hébergé (relais n8n ou Cloud Run), avec une authentification solide.
+- **Reprend** « joindre un fichier depuis Claude Code » : « attache ce devis à l'affaire dépannage Carrel » devient un outil de ce serveur (le fichier va dans Drive, le lien dans l'affaire).
+- **À étudier** : migration des fiches Notion existantes (l'import CSV est hors périmètre de la 2.0).
+- **Risques à garder en tête** : la clé du compte de service contourne les règles de sécurité Firestore (sa protection est donc essentielle) ; une erreur d'agent peut écrire de mauvaises données (d'où lecture seule d'abord, pas de suppression, export avant).
+
 ## Version 2.1
 
 ### Déjà prévu
@@ -33,9 +45,6 @@ Légende : **décidé** = validé par Jérôme ; **piste** = à trancher avant l
 
 ### Libellé des documents non synchronisé
 - En 2.0, le libellé d'un document est saisi à la main : renommer le fichier dans Drive ne le met pas à jour. Avec un accès Drive, le nom pourrait se synchroniser.
-
-## Plus tard, à étudier
-- **Joindre un fichier depuis Claude Code** (« attache ce devis à l'affaire dépannage Carrel »). Impossible aujourd'hui : l'appli n'a pas d'interface pour cela. Piste : un relais n8n (adresse protégée) qui reçoit le fichier, le range dans Drive et crée la pièce sur l'affaire.
 
 ## Hors périmètre de la 2.0 (rappel)
 Import CSV, fusion de doublons, prévisions en euros, envoi d'e-mails depuis la fiche, mode hors ligne.
