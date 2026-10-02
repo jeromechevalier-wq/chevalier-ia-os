@@ -24,13 +24,15 @@ Sans cela, Google refuse de déployer des fonctions. Page : https://console.clou
 ### 1. Budget de 5 € avec trois alertes
 Console → Facturation → **Budgets et alertes** : https://console.cloud.google.com/billing/budgets (compte « Paiement de Firebase » ; **ne modifie pas** le budget existant d'un autre projet). **Créer un budget** (dans « Projets », coche **seulement** `chevalier-ia-os`) : nom `Chevalier IA OS`, projet `chevalier-ia-os`, montant 5 €, seuils 50 %, 90 % et 100 %, e-mails vers `jerome.chevalier@gmail.com`. Une alerte ne coupe rien : elle prévient seulement.
 
-### 2. Activer cinq API (gratuites tant qu'on ne s'en sert pas)
+### 2. Activer sept API (gratuites tant qu'on ne s'en sert pas)
 Ouvre chaque lien (projet `chevalier-ia-os`) et clique sur **Activer** (si tu vois « Gérer », c'est déjà fait) :
 - Cloud Functions : https://console.cloud.google.com/apis/library/cloudfunctions.googleapis.com?project=chevalier-ia-os
 - Cloud Run : https://console.cloud.google.com/apis/library/run.googleapis.com?project=chevalier-ia-os
 - Cloud Build : https://console.cloud.google.com/apis/library/cloudbuild.googleapis.com?project=chevalier-ia-os
 - Artifact Registry : https://console.cloud.google.com/apis/library/artifactregistry.googleapis.com?project=chevalier-ia-os
 - Secret Manager : https://console.cloud.google.com/apis/library/secretmanager.googleapis.com?project=chevalier-ia-os
+- Eventarc (le déploiement l'exige, même pour une fonction HTTP ; trouvé au premier déploiement, 02/10/2026) : https://console.cloud.google.com/apis/library/eventarc.googleapis.com?project=chevalier-ia-os
+- Firebase Extensions (réclamée par l'outil de déploiement ; sans gravité si elle manque) : https://console.cloud.google.com/apis/library/firebaseextensions.googleapis.com?project=chevalier-ia-os
 
 ### 3. Créer ton premier jeton et le secret `MCP_JETONS`
 1. Sur ton Mac, deux façons équivalentes : soit dans le dossier du dépôt (branche `mcp` à jour) `node outils/creer-jeton.js claude-code-jerome claude-code`, soit **sans le dépôt**, la commande d'une ligne `node -e '…'` que Claude donne dans la conversation (même jeton, même ligne). Le terminal affiche **une fois** le jeton (`cia_…`) et une ligne JSON. **Range le jeton tout de suite** (gestionnaire de mots de passe) ; il n'est enregistré nulle part ailleurs. Ne le colle jamais dans un fichier du dossier synchronisé avec Drive, ni dans une conversation.
