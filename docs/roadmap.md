@@ -6,15 +6,16 @@ Légende : **décidé** = validé par Jérôme ; **piste** = à trancher avant l
 
 ## Priorité : Claude Code et les agents lisent et écrivent dans la base
 
-- **Décidé** : c'est **indispensable**. Chevalier IA OS devient le CRM de Jérôme (aujourd'hui Notion), Claude Code sur son ordinateur est son outil principal, et des agents IA automatiseront ensuite. Claude Code doit pouvoir interroger la base et y écrire, comme il le fait avec Notion.
-- **Piste recommandée** : un petit serveur MCP local, dans le dépôt (dossier `mcp/`), qui donne à Claude Code des outils précis : chercher une personne ou une organisation, lire une affaire et son fil, créer une personne, ajouter une note ou une activité, changer l'étape d'une affaire, joindre un document par lien.
-  - Il réutilise le code métier de l'appli (`logique.js`, déjà testé) pour que les écritures de Claude Code suivent exactement les mêmes règles que l'écran : fil d'activité, dates, doublons, objectifs.
-  - Il se connecte à Firestore avec un compte de service Google. Cette clé est un secret : jamais dans le dépôt, jamais dans le dossier Google Drive.
-  - Ordre : d'abord la **lecture seule**, puis l'écriture, sans outil de suppression au départ, avec un export complet avant d'ouvrir l'écriture.
-- **Piste, plus tard** : pour les agents hébergés (qui ne tournent pas sur le Mac), exposer les mêmes outils depuis un serveur hébergé (relais n8n ou Cloud Run), avec une authentification solide.
-- **Reprend** « joindre un fichier depuis Claude Code » : « attache ce devis à l'affaire dépannage Carrel » devient un outil de ce serveur (le fichier va dans Drive, le lien dans l'affaire).
+- **Décidé** : c'est **indispensable**. Chevalier IA OS devient le CRM de Jérôme (aujourd'hui Notion), Claude Code sur son ordinateur est son outil principal, et des agents IA automatiseront ensuite. Ils doivent pouvoir interroger la base et y écrire, comme avec Notion.
+- **Décidé** : on est en phase de développement, donc **lecture et écriture d'emblée**, sans phase en lecture seule. Les pièces jointes par lien **et** par téléversement Drive font partie du même chantier.
+- **Décidé** : un seul serveur MCP pour tous les clients : Claude Code et les agents hébergés utilisent les mêmes outils. Pas de chantier séparé « agents hébergés » : c'est le même serveur, servi aussi à distance.
+- **Piste recommandée** : une couche de fonctions métier (qui réutilise `logique.js`, déjà testé, pour que les écritures suivent exactement les règles de l'écran : fil d'activité, dates, doublons, objectifs), et le serveur MCP comme façade mince par-dessus. Dossier `mcp/` dans le dépôt.
+  - Outils prévus : chercher personnes, organisations et affaires ; lire une affaire et son fil ; créer personne, organisation, affaire ; ajouter note ou activité ; changer l'étape ; joindre un document (par lien ou par téléversement dans Drive).
+  - Le code est écrit pour fonctionner en local (Claude Code sur le Mac) **et** à distance (HTTP, avec authentification) ; on héberge le serveur quand le premier agent hébergé en a besoin.
+  - Connexion à Firestore par un compte de service Google. Cette clé contourne les règles de sécurité : jamais dans le dépôt, jamais dans le dossier Google Drive.
+- **Piste, plus tard** : une façade API REST sur la même couche de fonctions, si un outil qui ne parle pas MCP en a besoin (webhooks, n8n, formulaires).
 - **À étudier** : migration des fiches Notion existantes (l'import CSV est hors périmètre de la 2.0).
-- **Risques à garder en tête** : la clé du compte de service contourne les règles de sécurité Firestore (sa protection est donc essentielle) ; une erreur d'agent peut écrire de mauvaises données (d'où lecture seule d'abord, pas de suppression, export avant).
+- **Précautions retenues** : export complet avant les premières écritures ; pas d'outil de suppression au départ (ajout trivial plus tard, mais une suppression est irréversible).
 
 ## Version 2.1
 
