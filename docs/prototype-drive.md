@@ -2,6 +2,20 @@
 
 Référence : `plan-mcp.md`, section 5.8. Durée : environ 30 minutes, plus un contrôle 8 jours plus tard.
 
+## Résultats du 02/10/2026 (option B, session cloud)
+
+| Test | Résultat |
+|---|---|
+| A1 à A3 : jeton, portée `drive.file` seule, aucune échéance annoncée | OUI |
+| B1 à B3 : dossier et fichier créés côté serveur, fichier privé | OUI |
+| C1 à C4 : second jeton retrouve, renomme et relit le fichier ; isolation du reste du Drive | OUI |
+| D1 à D3 : session reprenable, morceaux acceptés sans en-tête d'autorisation | OUI |
+| E1 à E3 : 50 Mo en 7 morceaux depuis un navigateur (12,9 Mo/s), 52 428 800 octets dans Drive | OUI |
+| F, écran de consentement « En production » | OUI (confirmé par Jérôme) |
+| F, contrôle à 8 jours (A1 et A3) | à faire sur le Mac |
+
+Conséquence : aucun repli du tableau « Critères de réussite et replis » ne s'applique. Les fichiers de test ont été mis à la corbeille du Drive (récupérables 30 jours).
+
 ## À quoi ça sert
 
 Avant de construire le serveur MCP et le téléversement depuis le téléphone, on vérifie sur ton vrai Drive cinq choses dont le plan dépend :

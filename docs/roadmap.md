@@ -8,7 +8,7 @@ Légende : **décidé** = validé par Jérôme ; **piste** = à trancher avant l
 
 Cahier des charges détaillé : `cahier-mcp.md` (brouillon du 02/10/2026). **Plan détaillé approuvé le 02/10/2026 : `plan-mcp.md`** (architecture, outils, audit, sauvegardes, pièces jointes, tests, déploiement par étapes, risques). En cas de contradiction, `plan-mcp.md` prévaut sur `cahier-mcp.md`.
 
-État : étape 0 (le plan) faite sur la branche `mcp` ; aucune étape de code commencée. Prochaine étape : le prototype Drive (étape 1 du plan, scripts que Jérôme lance sur son Mac).
+État : étapes 0 (le plan) et 1 (prototype Drive) faites. **Prototype Drive, résultats du 02/10/2026 (option B, session cloud, vrai Drive de Jérôme) : A, B, C, D, E : OUI** (E : 50 Mo en 7 morceaux depuis Chromium, 12,9 Mo/s, 52 428 800 octets retrouvés dans Drive ; D : les morceaux sont acceptés sans en-tête d'autorisation). **F, partie console : confirmé par Jérôme (écran de consentement « En production »).** Aucun repli du plan ne se déclenche. Reste le test F, partie 8 jours (autorisation à refaire sur le Mac, contrôle A1 et A3 à J+8). Prochaine étape : étape 2 du plan (squelette des fonctions).
 
 ### Décisions de la session de planification du 02/10/2026
 - **Décidé** : fonctions à **Paris (europe-west9)**, Node 22 (Node 20 s'arrête côté Google le 30/10/2026), adresse `https://chevalier-ia-os.web.app/mcp` par réécriture Hosting (repli : adresse directe de la fonction, si la réécriture vers une fonction à Paris n'est pas prise en charge).
