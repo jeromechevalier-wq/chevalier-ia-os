@@ -60,6 +60,10 @@ tests/      tests (non publiés)
 
 Ajouter un module : créer `js/modules/<nom>/index.js` (fonctions `demarrer`, `arreter`, `afficher`, `reglages`, et facultativement `actionsRapides` et `rechercher` pour le bouton « + » et la recherche globale) et ajouter une entrée dans `js/os/modules.js`. Les collections du module sont préfixées (`<nom>_…`), les éléments communs par `os_`.
 
+## Outils hors site (`outils/`)
+
+Scripts lancés à la main sur le Mac, jamais publiés avec le site (exclus par `firebase.json`) : `autoriser-drive.js` et `prototype-drive.js` (prototype Google Drive du chantier MCP, voir `docs/prototype-drive.md` et `docs/plan-mcp.md`). Ils n'ont aucune dépendance (Node 20 ou plus) et gardent leurs secrets dans `~/.config/chevalier-ia-os/`, jamais dans le dépôt.
+
 ## Raccourcis clavier (ordinateur)
 
 `/` place le curseur dans la recherche globale, `n` ouvre « Ajouter une personne », `Échap` ferme une fenêtre ou une liste de suggestions, les flèches et Entrée pilotent les champs intelligents.

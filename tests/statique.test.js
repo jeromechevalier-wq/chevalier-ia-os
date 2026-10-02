@@ -13,7 +13,7 @@ const json = (chemin) => JSON.parse(lire(chemin));
 function fichiersAppli(dossier = '', liste = []) {
   for (const nom of readdirSync(join(RACINE, dossier))) {
     const rel = join(dossier, nom);
-    if (/^(\.|node_modules$|tests$|docs$|ressources$)/.test(nom)) continue;
+    if (/^(\.|node_modules$|tests$|docs$|ressources$|outils$|scripts$)/.test(nom)) continue;
     if (statSync(join(RACINE, rel)).isDirectory()) fichiersAppli(rel, liste);
     else liste.push(rel);
   }
@@ -102,9 +102,9 @@ describe('D2 Aucune ressource externe hors Google', () => {
 
 describe('D3 firebase.json, en têtes, indexation', () => {
   const fb = json('firebase.json');
-  test('D3 tests/, docs/, README.md (et ressources/) non publiés', () => {
+  test('D3 tests/, docs/, outils/, scripts/, README.md (et ressources/) non publiés', () => {
     const ignore = fb.hosting.ignore;
-    for (const x of ['tests/**', 'docs/**', 'README.md', 'ressources/**', '**/node_modules/**', '**/.*']) assert.ok(ignore.includes(x), x);
+    for (const x of ['tests/**', 'docs/**', 'README.md', 'ressources/**', 'outils/**', 'scripts/**', '**/node_modules/**', '**/.*']) assert.ok(ignore.includes(x), x);
   });
   test('D3 en têtes de sécurité présents', () => {
     const tous = fb.hosting.headers.find((h) => h.source === '**').headers;
@@ -205,6 +205,23 @@ describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
     assert.match(r, /email_verified == true/);
     assert.match(r, /jerome\.chevalier@gmail\.com/);
     assert.match(r, /jeromebot\.chevalierbot@gmail\.com/);
+  });
+
+  test('D4 aucun secret dans le dépôt (secret OAuth Google, jeton de rafraîchissement ou d’accès, jeton MCP, clé privée)', () => {
+    const motifs = [/GOCSPX-[A-Za-z0-9_-]{20,}/, /\b1\/\/0[A-Za-z0-9_-]{30,}/, /ya29\.[A-Za-z0-9_-]{20,}/, /\bcia_[A-Za-z0-9_-]{40,}/, /-----BEGIN (RSA |EC )?PRIVATE KEY-----/];
+    const parcourir = (dossier = '', liste = []) => {
+      for (const nom of readdirSync(join(RACINE, dossier))) {
+        if (nom === 'node_modules' || nom === '.git') continue;
+        const rel = join(dossier, nom);
+        if (statSync(join(RACINE, rel)).isDirectory()) parcourir(rel, liste);
+        else if (/\.(js|html|css|json|md|yml|yaml|rules|webmanifest|txt)$/.test(nom)) liste.push(rel);
+      }
+      return liste;
+    };
+    for (const f of parcourir()) {
+      const t = lire(f);
+      for (const m of motifs) assert.doesNotMatch(t, m, `${f} contient un secret (${m})`);
+    }
   });
 
   test('D4 pas de Cloud Function ni de Cloud Storage', () => {

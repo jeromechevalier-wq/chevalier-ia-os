@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Prototype Drive : envoi depuis le navigateur</title>
+<style>
+  body { font: 18px/1.5 system-ui, sans-serif; max-width: 34em; margin: 3em auto; padding: 0 1em; }
+  button { font: inherit; padding: .6em 1em; margin: .3em .3em .3em 0; }
+  progress { width: 100%; height: 1.4em; }
+  pre { background: #f3f3f3; padding: .8em; overflow: auto; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<h1>Envoi vers Drive depuis le navigateur</h1>
+<p>Cette page est servie par ton Mac (adresse locale) et envoie le fichier <strong>directement à Google Drive</strong>, avec un jeton d'une heure, comme le fera l'appli sur ton téléphone. Elle ne sert qu'à l'essai.</p>
+<p>
+  <button id="gros" type="button">Envoyer 50 Mo de test</button>
+  <label>ou un vrai fichier : <input id="fichier" type="file"></label>
+</p>
+<progress id="barre" value="0" max="100" hidden></progress>
+<pre id="journal">En attente.</pre>
+
+<script>
+const API = '__URL_API__'; // remplacé par le script (https://www.googleapis.com en vrai)
+const MORCEAU = 8 * 1024 * 1024; // multiple de 256 Kio, comme Drive l'exige
+const journal = document.getElementById('journal');
+const barre = document.getElementById('barre');
+const lignes = [];
+const ecrire = (t) => { lignes.push(t); journal.textContent = lignes.join('\n'); };
+
+async function envoyer(blob, nomFichier) {
+  const bilan = { ok: false, locationLisible: false, tailleOctets: blob.size, morceaux: 0 };
+  try {
+    ecrire('1. Demande d’un jeton d’une heure à ton Mac…');
+    const { accessToken, dossierId, jour } = await (await fetch('jeton')).json();
+    const nom = nomFichier || `${jour} - prototype - gros fichier.bin`;
+
+    ecrire('2. Ouverture de la session de téléversement chez Google…');
+    const init = await fetch(API + '/upload/drive/v3/files?uploadType=resumable&fields=id,name,size', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer ' + accessToken,
+        'Content-Type': 'application/json; charset=UTF-8',
+        'X-Upload-Content-Type': blob.type || 'application/octet-stream',
+        'X-Upload-Content-Length': String(blob.size),
+      },
+      body: JSON.stringify({ name: nom, parents: [dossierId] }),
+    });
+    const session = init.headers.get('Location');
+    bilan.locationLisible = !!session;
+    if (!init.ok || !session) throw new Error('session refusée ou adresse illisible (HTTP ' + init.status + ', Location ' + (session ? 'lisible' : 'illisible') + ')');
+
+    ecrire('3. Envoi par morceaux de 8 Mo, directement à Drive…');
+    barre.hidden = false;
+    const debut = performance.now();
+    let position = 0;
+    let reponse = null;
+    while (position < blob.size) {
+      const fin = Math.min(position + MORCEAU, blob.size);
+      const r = await fetch(session, {
+        method: 'PUT',
+        headers: { Authorization: 'Bearer ' + accessToken, 'Content-Range': `bytes ${position}-${fin - 1}/${blob.size}` },
+        body: blob.slice(position, fin),
+      });
+      bilan.morceaux++;
+      if (r.status === 308) {
+        // morceau reçu, la suite est attendue
+      } else if (r.status === 200 || r.status === 201) {
+        reponse = await r.json();
+      } else {
+        throw new Error('morceau refusé (HTTP ' + r.status + ')');
+      }
+      position = fin;
+      barre.value = Math.round((position / blob.size) * 100);
+    }
+    if (!reponse?.id) throw new Error('Drive n’a pas renvoyé d’identifiant de fichier');
+    const secondes = (performance.now() - debut) / 1000;
+    bilan.ok = true;
+    bilan.fichierId = reponse.id;
+    bilan.debitMoParSeconde = Math.round((blob.size / 1048576 / secondes) * 10) / 10;
+    ecrire(`✓ Terminé : ${bilan.morceaux} morceaux, ${bilan.debitMoParSeconde} Mo/s. Retourne au terminal.`);
+  } catch (e) {
+    bilan.erreur = String(e && e.message || e);
+    ecrire('✗ ' + bilan.erreur + (e instanceof TypeError ? ' (probablement bloqué par le navigateur : CORS)' : ''));
+  }
+  await fetch('resultat', { method: 'POST', body: JSON.stringify(bilan) });
+}
+
+document.getElementById('gros').addEventListener('click', () => {
+  const unMio = new Uint8Array(1024 * 1024).fill(97);
+  envoyer(new Blob(Array.from({ length: 50 }, () => unMio), { type: 'application/octet-stream' }));
+});
+document.getElementById('fichier').addEventListener('change', (e) => {
+  const f = e.target.files[0];
+  if (f) envoyer(f, f.name);
+});
+</script>
+</body>
+</html>
