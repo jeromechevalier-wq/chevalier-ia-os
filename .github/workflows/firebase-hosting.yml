@@ -16,6 +16,13 @@ jobs:
           node-version: 22
       - name: Installer les dépendances des fonctions (versions figées par package-lock.json)
         run: npm ci --prefix functions
+      - name: Afficher le compte de déploiement (son adresse seulement, jamais la clé)
+        env:
+          COMPTE_DE_SERVICE: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CHEVALIER_IA_OS }}
+        # Aide au diagnostic des erreurs de droits (« quel compte faut-il autoriser ? »). L'adresse n'est pas un secret ; le « arobase »
+        # évite seulement que GitHub la masque par erreur dans le journal.
+        run: |
+          node -e 'try { console.log("Compte de déploiement :", JSON.parse(process.env.COMPTE_DE_SERVICE).client_email.replace("@", " arobase ")); } catch { console.log("Compte de déploiement : illisible"); }'
       - name: Déployer les fonctions
         env:
           COMPTE_DE_SERVICE: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CHEVALIER_IA_OS }}

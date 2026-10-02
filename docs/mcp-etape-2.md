@@ -60,6 +60,8 @@ curl -s -X POST https://chevalier-ia-os.web.app/mcp \
 
 Résultat attendu : une réponse JSON contenant `claude-code-jerome`, le profil `claude-code` et la liste `["qui_suis_je"]`. Sans l'en-tête `Authorization` (ou avec un jeton faux) : `{"error":"non_autorise"}`. Avec `-X GET` : `{"error":"methode_refusee"}`.
 
+Sécurité, pannes, interrupteurs d'urgence : voir `securite-et-pannes.md` (à relire en cas de problème).
+
 ## Ce que j'ai vérifié, et ce que je n'ai pas pu vérifier
 
 Vérifié (dans ma session, sans Google) : les tests (jetons, protocole avec un vrai client MCP, droits par profil, journaux sans secret) et le chargement de la fonction `mcp` (région Paris) dans l'émulateur Firebase 15.32.0, où elle répond 405 à un `GET` et **refuse tout (503)** quand le secret est introuvable.
