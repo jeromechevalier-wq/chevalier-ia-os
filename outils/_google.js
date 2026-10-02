@@ -9,6 +9,7 @@ export const DOSSIER_CONFIG = process.env.CHEVALIER_CONFIG_DIR || join(homedir()
 export const FICHIER_CLIENT = join(DOSSIER_CONFIG, 'oauth-client.json');
 export const FICHIER_JETON = join(DOSSIER_CONFIG, 'drive-refresh-token.json');
 export const FICHIER_ETAT = join(DOSSIER_CONFIG, 'prototype-drive-etat.json');
+export const FICHIER_AUTORISATION_EN_COURS = join(DOSSIER_CONFIG, 'autorisation-en-cours.json');
 
 // Les adresses ne changent qu'en test (faux serveur local) ; en vrai, ce sont celles de Google.
 export const URL_AUTORISATION = 'https://accounts.google.com/o/oauth2/v2/auth';
@@ -30,13 +31,16 @@ export async function ecrireSecret(chemin, objet) {
   await chmod(chemin, 0o600);
 }
 
-/** Lit le fichier téléchargé depuis la console Google (identifiant OAuth « application Web »). */
+/**
+ * Lit l'identifiant OAuth « application Web » téléchargé depuis la console Google : dans la variable d'environnement
+ * CHEVALIER_OAUTH_CLIENT_JSON (session cloud : le contenu du fichier JSON, sur une ligne), sinon dans le fichier privé.
+ */
 export async function lireClient() {
   let brut;
   try {
-    brut = await lireJson(FICHIER_CLIENT);
+    brut = process.env.CHEVALIER_OAUTH_CLIENT_JSON ? JSON.parse(process.env.CHEVALIER_OAUTH_CLIENT_JSON) : await lireJson(FICHIER_CLIENT);
   } catch {
-    throw new Error(`Fichier introuvable ou illisible : ${FICHIER_CLIENT}\nRelis l'étape 3 du guide (docs/prototype-drive.md).`);
+    throw new Error(`Identifiant OAuth introuvable ou illisible (variable CHEVALIER_OAUTH_CLIENT_JSON ou fichier ${FICHIER_CLIENT}).\nRelis l'étape 3 du guide (docs/prototype-drive.md).`);
   }
   const c = brut.web || brut.installed;
   if (!c?.client_id || !c?.client_secret) throw new Error(`${FICHIER_CLIENT} ne contient pas client_id et client_secret.`);

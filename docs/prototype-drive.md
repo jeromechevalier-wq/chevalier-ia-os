@@ -21,6 +21,11 @@ Tout se passe dans un dossier de test, **`ZZ prototype Chevalier IA OS`**, que l
 
 Les scripts ont été **testés contre un faux serveur Google** (mon environnement n'a pas accès à Google) : leur logique est validée, pas leur comportement avec le vrai Google. C'est précisément le but de ce prototype. De même, les noms exacts des menus de la console Google ci-dessous viennent de ma connaissance et pas de la documentation officielle (le proxy de ma session la bloque) : s'ils ont un peu changé, cherche le mot en gras ou dis-moi ce que tu vois.
 
+## Deux façons de faire
+
+- **Option A, tout sur ton Mac** : suis les étapes 0 à 10 ci-dessous.
+- **Option B, Claude lance les tests depuis une session cloud** (choisie le 02/10/2026) : tu fais **seulement les étapes 1, 2 et 3** (la console Google ne peut pas être pilotée par Claude), puis la section « Option B » plus bas. Claude fait l'autorisation (par copier-coller) et les tests A à E, y compris les 50 Mo dans un vrai navigateur sans écran. Le test F (8 jours) se fait ensuite sur ton Mac.
+
 ## Étape 0 : récupérer les scripts sur ton Mac
 
 Prérequis : Node.js 20 ou plus. Cette commande affiche la version installée (tu dois voir `v20` ou plus) :
@@ -151,6 +156,24 @@ Ton autorisation (le jeton de rafraîchissement) est conservée pour la suite.
 ## Étape 10 : contrôle à 8 jours (test F)
 
 Dans 8 jours, relance l'étape 6 : si A1 et A3 sont encore ✓, l'autorisation n'a pas expiré, donc l'écran de consentement est bien en production. Puis refais l'étape 9. (Pendant ce temps, on peut continuer le chantier : la suite ne dépend pas de ce délai, seule la clôture en dépend.)
+
+## Option B : Claude lance les tests depuis une session cloud
+
+À faire par toi, après les étapes 1, 2 et 3 :
+
+1. **Ranger l'identifiant dans l'environnement cloud**, jamais dans le chat : dans l'application Claude, ouvre le menu de l'environnement cloud (dans la barre de titre de la session), clique sur **Modifier**, puis ajoute une **variable d'environnement** nommée exactement `CHEVALIER_OAUTH_CLIENT_JSON` dont la valeur est **tout le contenu** du fichier `client_secret_….json` téléchargé à l'étape 3 (il tient sur une ligne : ouvre le fichier avec un éditeur de texte, sélectionne tout, copie, colle). Si une rubrique « Identifiants API » est proposée, utilise-la ; sinon la variable suffit. Cette valeur est lisible par les personnes qui peuvent modifier cet environnement : tu la supprimeras à la fin du prototype (et tu pourras supprimer l'identifiant dans la console).
+2. **Ouvrir une nouvelle session** sur le dépôt `chevalier-ia-os` (une session déjà ouverte ne voit pas la nouvelle variable) et lui dire, par exemple : « Reprends le prototype Drive (docs/prototype-drive.md, option B). Branche `mcp`. L'identifiant OAuth est dans CHEVALIER_OAUTH_CLIENT_JSON. »
+
+Ce que fait ensuite Claude :
+
+1. Il lance `NODE_USE_ENV_PROXY=1 node outils/autoriser-drive.js --manuel` et te donne une adresse Google.
+2. **Toi** : tu l'ouvres dans ton navigateur (connecté à `jerome.chevalier@gmail.com`), tu autorises ; Google te renvoie vers `http://localhost:8085/?state=…&code=…` et le navigateur affiche une erreur « connexion impossible » : **c'est normal**. Tu copies l'adresse complète de la barre d'adresse et tu la colles dans le chat (elle contient un code à usage unique, de quelques minutes, qui ne vaut rien sans le secret de l'identifiant).
+3. Claude lance `--terminer "<adresse>"`, puis `node outils/prototype-drive.js` (tests A à D) et le test E avec `outils/prototype-drive-pilote-cloud.mjs`, puis `--nettoyer`.
+4. Il te donne le tableau des résultats et propose la suite du plan.
+
+Particularités de la session cloud : Node n'y passe par le proxy qu'avec `NODE_USE_ENV_PROXY=1` ; le jeton de rafraîchissement n'y survit pas à la fin de la session (il est rangé dans le conteneur, jamais affiché) ; le navigateur sans écran ne fait confiance qu'à la clé de l'autorité du proxy de la session (jamais de désactivation générale de la vérification TLS).
+
+**Test F (8 jours)** : une fois le prototype terminé, tu fais l'étape 4 (ranger le fichier) et l'étape 5 (autorisation) **une fois sur ton Mac**, comme il le faudra de toute façon pour le vrai serveur ; dans 8 jours, tu relances l'étape 6 et tu me donnes le résultat de A1 et A3.
 
 ## Critères de réussite et replis
 
