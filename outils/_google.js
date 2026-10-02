@@ -32,19 +32,42 @@ export async function ecrireSecret(chemin, objet) {
 }
 
 /**
- * Lit l'identifiant OAuth « application Web » téléchargé depuis la console Google : dans la variable d'environnement
- * CHEVALIER_OAUTH_CLIENT_JSON (session cloud : le contenu du fichier JSON, sur une ligne), sinon dans le fichier privé.
+ * Identifiant OAuth « application Web ». Trois sources, dans cet ordre :
+ *  1. CHEVALIER_OAUTH_CLIENT_ID (session cloud) : l'identifiant public seul. Le secret n'est jamais vu par les scripts :
+ *     le proxy de la session l'ajoute lui-même (en-tête Authorization Basic) aux appels vers oauth2.googleapis.com/token.
+ *  2. CHEVALIER_OAUTH_CLIENT_JSON : le contenu du fichier téléchargé dans la console (secret compris).
+ *  3. Le fichier privé ~/.config/chevalier-ia-os/oauth-client.json (sur le Mac).
+ * `secret` vaut null dans le cas 1.
  */
 export async function lireClient() {
+  if (process.env.CHEVALIER_OAUTH_CLIENT_ID) {
+    return { id: process.env.CHEVALIER_OAUTH_CLIENT_ID.trim(), secret: null, redirections: [REDIRECTION] };
+  }
   let brut;
   try {
     brut = process.env.CHEVALIER_OAUTH_CLIENT_JSON ? JSON.parse(process.env.CHEVALIER_OAUTH_CLIENT_JSON) : await lireJson(FICHIER_CLIENT);
   } catch {
-    throw new Error(`Identifiant OAuth introuvable ou illisible (variable CHEVALIER_OAUTH_CLIENT_JSON ou fichier ${FICHIER_CLIENT}).\nRelis l'étape 3 du guide (docs/prototype-drive.md).`);
+    throw new Error(`Identifiant OAuth introuvable ou illisible (variable CHEVALIER_OAUTH_CLIENT_ID, variable CHEVALIER_OAUTH_CLIENT_JSON ou fichier ${FICHIER_CLIENT}).\nRelis l'étape 3 du guide (docs/prototype-drive.md).`);
   }
   const c = brut.web || brut.installed;
   if (!c?.client_id || !c?.client_secret) throw new Error(`${FICHIER_CLIENT} ne contient pas client_id et client_secret.`);
   return { id: c.client_id, secret: c.client_secret, redirections: c.redirect_uris || [] };
+}
+
+/**
+ * Appelle le point d'échange de jetons de Google. Le secret ne passe jamais dans le corps de la requête :
+ * - session cloud (client.secret nul) : aucun en-tête Authorization, le proxy injecte « Basic » ;
+ * - sinon (Mac) : en-tête Authorization Basic fabriqué ici (client_secret_basic, RFC 6749 §2.3.1).
+ * Renvoie { r, j } : la réponse HTTP et son corps JSON (ou { brut } si ce n'est pas du JSON).
+ */
+export async function appelJeton(client, parametres) {
+  const entetes = { 'Content-Type': 'application/x-www-form-urlencoded' };
+  if (client.secret) {
+    const basic = (x) => encodeURIComponent(x).replace(/%20/g, '+');
+    entetes.Authorization = `Basic ${Buffer.from(`${basic(client.id)}:${basic(client.secret)}`).toString('base64')}`;
+  }
+  const r = await fetch(URL_JETON, { method: 'POST', headers: entetes, body: new URLSearchParams({ client_id: client.id, ...parametres }) });
+  return { r, j: await lireReponseJson(r) };
 }
 
 async function lireReponseJson(reponse) {
@@ -61,14 +84,7 @@ export async function nouveauJetonAcces() {
   } catch {
     throw new Error(`Pas de jeton de rafraîchissement (${FICHIER_JETON}). Lance d'abord : node outils/autoriser-drive.js`);
   }
-  const r = await fetch(URL_JETON, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      client_id: client.id, client_secret: client.secret, refresh_token: jeton.refresh_token, grant_type: 'refresh_token',
-    }),
-  });
-  const j = await lireReponseJson(r);
+  const { r, j } = await appelJeton(client, { refresh_token: jeton.refresh_token, grant_type: 'refresh_token' });
   if (!r.ok || !j.access_token) {
     throw new Error(`Jeton refusé par Google (HTTP ${r.status}) : ${j.error || ''} ${j.error_description || j.brut || ''}`.trim());
   }

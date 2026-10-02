@@ -161,8 +161,11 @@ Dans 8 jours, relance l'étape 6 : si A1 et A3 sont encore ✓, l'autorisation n
 
 À faire par toi, après les étapes 1, 2 et 3 :
 
-1. **Ranger l'identifiant dans l'environnement cloud**, jamais dans le chat : dans l'application Claude, ouvre le menu de l'environnement cloud (dans la barre de titre de la session), clique sur **Modifier**, puis ajoute une **variable d'environnement** nommée exactement `CHEVALIER_OAUTH_CLIENT_JSON` dont la valeur est **tout le contenu** du fichier `client_secret_….json` téléchargé à l'étape 3 (il tient sur une ligne : ouvre le fichier avec un éditeur de texte, sélectionne tout, copie, colle). Si une rubrique « Identifiants API » est proposée, utilise-la ; sinon la variable suffit. Cette valeur est lisible par les personnes qui peuvent modifier cet environnement : tu la supprimeras à la fin du prototype (et tu pourras supprimer l'identifiant dans la console).
-2. **Ouvrir une nouvelle session** sur le dépôt `chevalier-ia-os` (une session déjà ouverte ne voit pas la nouvelle variable) et lui dire, par exemple : « Reprends le prototype Drive (docs/prototype-drive.md, option B). Branche `mcp`. L'identifiant OAuth est dans CHEVALIER_OAUTH_CLIENT_JSON. »
+1. **Ranger l'identifiant dans l'environnement cloud**, jamais dans le chat : dans l'application Claude, ouvre le menu de l'environnement cloud (dans la barre de titre de la session), clique sur **Modifier**, puis :
+   - ajoute une **variable d'environnement** `CHEVALIER_OAUTH_CLIENT_ID` : l'ID client (public, `…apps.googleusercontent.com`) ;
+   - ajoute le **secret** comme **identifiant API** de l'environnement, en-tête `Authorization` de type Basic, pour l'hôte `oauth2.googleapis.com` (chemin `/token`) : le proxy de la session l'ajoute lui-même aux échanges de jetons, **les scripts ne voient jamais le secret** et ne l'envoient pas dans le corps de la requête.
+   Tu supprimeras ces deux éléments à la fin du prototype (et tu pourras supprimer l'identifiant dans la console). *(Ancien mode, toujours accepté : variable `CHEVALIER_OAUTH_CLIENT_JSON` avec tout le fichier téléchargé ; le script envoie alors le secret en en-tête Basic, jamais dans le corps.)*
+2. **Ouvrir une nouvelle session** sur le dépôt `chevalier-ia-os` (une session déjà ouverte ne voit pas les nouveaux réglages) et lui dire, par exemple : « Reprends le prototype Drive (docs/prototype-drive.md, option B). Branche `mcp`. L'ID client OAuth est dans CHEVALIER_OAUTH_CLIENT_ID ; le secret est un identifiant API de l'environnement (en-tête Basic pour oauth2.googleapis.com/token). »
 
 Ce que fait ensuite Claude :
 
@@ -189,7 +192,7 @@ Particularités de la session cloud : Node n'y passe par le proxy qu'avec `NODE_
 ## Ce que font (et ne font pas) les scripts
 
 - Ils ne parlent qu'à Google (`accounts.google.com`, `oauth2.googleapis.com`, `www.googleapis.com`) et à ton propre Mac (`localhost`).
-- Ils n'affichent **jamais** un jeton ni le secret de l'identifiant ; l'autorisation est écrite dans `~/.config/chevalier-ia-os/` (droits 600), hors du dépôt et hors de Google Drive.
+- Ils n'affichent **jamais** un jeton ni le secret de l'identifiant, et ne l'envoient jamais dans le corps d'une requête (en-tête Basic, fabriqué par le script sur le Mac, ajouté par le proxy dans la session cloud) ; l'autorisation est écrite dans `~/.config/chevalier-ia-os/` (droits 600), hors du dépôt et hors de Google Drive.
 - Ils ne publient rien, ne touchent ni à Firebase, ni à la base, ni au site. Le dossier `outils/` est exclu de la publication (`firebase.json`).
 - Aucun fichier n'est supprimé définitivement : le nettoyage met à la corbeille.
 

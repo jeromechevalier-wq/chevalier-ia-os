@@ -9,8 +9,8 @@ import { createHash, randomBytes } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { rm } from 'node:fs/promises';
 import {
-  FICHIER_CLIENT, FICHIER_JETON, FICHIER_AUTORISATION_EN_COURS, URL_AUTORISATION, URL_JETON, PORTEE, PORT_REDIRECTION, REDIRECTION,
-  lireClient, lireJson, ecrireSecret,
+  FICHIER_CLIENT, FICHIER_JETON, FICHIER_AUTORISATION_EN_COURS, URL_AUTORISATION, PORTEE, PORT_REDIRECTION, REDIRECTION,
+  lireClient, appelJeton, lireJson, ecrireSecret,
 } from './_google.js';
 
 const MAIL = 'jerome.chevalier@gmail.com';
@@ -78,15 +78,9 @@ function attendreCode(etat) {
 
 /** Échange le code contre les jetons et enregistre le jeton de rafraîchissement (sans jamais l'afficher). */
 async function echangerEtEnregistrer(code, verifieur) {
-  const r = await fetch(URL_JETON, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      code, client_id: client.id, client_secret: client.secret, redirect_uri: REDIRECTION,
-      grant_type: 'authorization_code', code_verifier: verifieur,
-    }),
+  const { r, j } = await appelJeton(client, {
+    code, redirect_uri: REDIRECTION, grant_type: 'authorization_code', code_verifier: verifieur,
   });
-  const j = await r.json().catch(() => ({}));
   if (!r.ok) {
     console.error(`✗ Google a refusé l'échange (HTTP ${r.status}) : ${j.error || ''} ${j.error_description || ''}`);
     process.exit(1);
