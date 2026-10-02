@@ -10,14 +10,11 @@ Cahier des charges détaillé : `cahier-mcp.md` (brouillon du 02/10/2026).
 
 - **Décidé** : c'est **indispensable**. Chevalier IA OS devient le CRM de Jérôme (aujourd'hui Notion), Claude Code sur son ordinateur est son outil principal, et des agents IA automatiseront ensuite. Ils doivent pouvoir interroger la base et y écrire, comme avec Notion.
 - **Décidé** : on est en phase de développement, donc **lecture et écriture d'emblée**, sans phase en lecture seule. Les pièces jointes par lien **et** par téléversement Drive font partie du même chantier.
-- **Décidé** : un seul code de serveur MCP pour tous les clients, lancé de deux façons :
-  - **en local sur le Mac** pour Claude Code (il peut lire les fichiers du Mac, par exemple un devis à joindre) ;
-  - **hébergé sur le VPS de Jérôme** pour les agents qui travaillent sans le Mac. Premier agent prévu : un **agent bibliothécaire** sur Hermes Agent (déjà installé sur le VPS), qui a besoin d'accéder à Chevalier IA OS. Hermes Agent sait se connecter à un serveur MCP distant (adresse + jeton, filtrage des outils).
-- Chaque instance a **son propre compte de service Google** (révocables séparément) ; le bibliothécaire n'expose que les outils dont il a besoin (filtrage d'outils côté Hermes **et** liste d'outils autorisés côté serveur).
+- **Décidé** : **un seul code, un seul déploiement, au même endroit que l'appli** : le serveur MCP est hébergé sur Firebase (Cloud Functions, forfait Blaze déjà activé), dans le même dépôt, publié par la même fusion sur `main`. Tous les clients (Hermes Agent sur son VPS, Claude Code, tout autre outil, un futur utilisateur) se connectent à la même adresse avec un **jeton par client**, relié à un nom d'acteur tracé dans le fil et dans l'audit.
+- Premier agent : **agent bibliothécaire** sur Hermes Agent (VPS de Jérôme, machine distincte). Hermes Agent sait se connecter à un serveur MCP distant (adresse + jeton, filtrage des outils).
 - **Piste recommandée** : une couche de fonctions métier (qui réutilise `logique.js`, déjà testé, pour que les écritures suivent exactement les règles de l'écran : fil d'activité, dates, doublons, objectifs), et le serveur MCP comme façade mince par-dessus. Dossier `mcp/` dans le dépôt.
   - Outils prévus : chercher personnes, organisations et affaires ; lire une affaire et son fil ; créer personne, organisation, affaire ; ajouter note ou activité ; changer l'étape ; joindre un document (par lien ou par téléversement dans Drive).
-  - Instance VPS : transport HTTP, écoute sur l'adresse locale du VPS si Hermes et le serveur sont sur la même machine (aucune exposition publique), jeton obligatoire, HTTPS si l'accès est externe.
-  - Connexion à Firestore par un compte de service Google. Cette clé contourne les règles de sécurité : jamais dans le dépôt, jamais dans le dossier Google Drive.
+  - Aucune clé secrète sur le Mac ni sur le VPS : la fonction tourne avec l'identité du projet Google.
 - **Piste, plus tard** : une façade API REST sur la même couche de fonctions, si un outil qui ne parle pas MCP en a besoin (webhooks, n8n, formulaires).
 - **À étudier** : migration des fiches Notion existantes (l'import CSV est hors périmètre de la 2.0).
 - **Décidé** : tous les droits pour les agents, suppression comprise, avec un journal d'audit (collection `crm_audit`, copie de l'état avant chaque modification) pour tout tracer et pouvoir restaurer. L'agent bibliothécaire fait aussi les sauvegardes.
