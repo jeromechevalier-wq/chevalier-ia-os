@@ -4,419 +4,769 @@ import assert from 'node:assert/strict';
 import * as L from '../js/modules/crm/logique.js';
 
 const JEROME = 'jerome.chevalier@gmail.com';
-const ctx = (iso = '2026-10-15T08:00:00Z') => ({ maintenant: new Date(iso), auteur: JEROME });
+const ctx = (iso = '2026-10-15T08:00:00Z', extra = {}) => ({ maintenant: new Date(iso), auteur: JEROME, ...extra });
 
-function fiche(p = {}) {
-  return {
-    ...L.nouvelleFiche({ nom: 'Test', source: 'Flyer' }, ctx('2026-10-01T08:00:00Z')),
-    id: p.id || 'f',
-    creeLe: new Date('2026-10-01T08:00:00Z'),
-    ...p,
-  };
+function personne(p = {}) {
+  return { ...L.nouvellePersonne({ nom: 'Test Personne' }, ctx('2026-10-01T08:00:00Z')), id: p.id || 'p', creeLe: new Date('2026-10-01T08:00:00Z'), ...p };
+}
+function organisation(o = {}) {
+  return { ...L.nouvelleOrganisation({ nom: 'Test Org' }, ctx('2026-10-01T08:00:00Z')), id: o.id || 'o', creeLe: new Date('2026-10-01T08:00:00Z'), ...o };
+}
+function affaire(a = {}) {
+  return { ...L.nouvelleAffaire({ titre: 'Test affaire' }, ctx('2026-10-01T08:00:00Z')), id: a.id || 'a', creeLe: new Date('2026-10-01T08:00:00Z'), ...a };
+}
+function activite(a = {}) {
+  return { ...L.nouvelleActivite({ type: 'tache', date: '2026-10-15', affaireId: 'a' }, ctx()), id: a.id || 'x', ...a };
 }
 
-describe('B1 En retard', () => {
+describe('B1 Nom : prénom et nom de famille', () => {
+  test('B1 deux mots : premier espace', () => {
+    assert.deepEqual(L.decouperNom('Marie Durand'), { prenom: 'Marie', nomFamille: 'Durand' });
+  });
+  test('B1 plusieurs mots : tout le reste va au nom de famille', () => {
+    assert.deepEqual(L.decouperNom('Jean Pierre Martin'), { prenom: 'Jean', nomFamille: 'Pierre Martin' });
+  });
+  test('B1 un seul mot : nom de famille seul', () => {
+    assert.deepEqual(L.decouperNom('Madonna'), { prenom: '', nomFamille: 'Madonna' });
+  });
+  test('B1 espaces en trop ignorés ; vide reste vide', () => {
+    assert.deepEqual(L.decouperNom('   Marie    Durand  '), { prenom: 'Marie', nomFamille: 'Durand' });
+    assert.deepEqual(L.decouperNom('   '), { prenom: '', nomFamille: '' });
+  });
+  test('B1 le nom affiché est recalculé après modification du détail', () => {
+    assert.deepEqual(L.patchNomDetaille('Marie ', ' Dupont'), { prenom: 'Marie', nomFamille: 'Dupont', nom: 'Marie Dupont' });
+    assert.equal(L.patchNomDetaille('', 'Madonna').nom, 'Madonna');
+  });
+  test('B1 modifier le nom affiché redécoupe prénom et nom de famille', () => {
+    assert.deepEqual(L.patchNomAffiche('Paul  Martin'), { nom: 'Paul Martin', prenom: 'Paul', nomFamille: 'Martin' });
+  });
+  test('B1 le nom est le seul champ obligatoire d’une personne', () => {
+    assert.deepEqual(L.validerPersonne({ nom: '' }), { nom: 'Le nom est obligatoire.' });
+    assert.deepEqual(L.validerPersonne({ nom: 'Léa' }), {});
+    const p = L.nouvellePersonne({ nom: 'Léa' }, ctx());
+    assert.deepEqual(p.roles, ['prospect']);
+    assert.equal(p.organisationId, null);
+    assert.equal(p.proprietaire, JEROME);
+    assert.equal(p.archive, false);
+  });
+  test("B1 l'organisation et l'affaire n'exigent que le nom ou le titre", () => {
+    assert.deepEqual(L.validerOrganisation({ nom: ' ' }), { nom: 'Le nom est obligatoire.' });
+    assert.deepEqual(L.validerOrganisation({ nom: 'Fleurs' }), {});
+    assert.deepEqual(L.validerAffaire({ titre: '' }), { titre: 'Le titre est obligatoire.' });
+    assert.deepEqual(L.validerAffaire({ titre: 'x' }), {});
+  });
+  test("B1 un email invalide est signalé, pas un email vide", () => {
+    assert.ok(L.validerPersonne({ nom: 'A', emails: [{ valeur: 'pas-un-email', type: 'travail' }] }).emails);
+    assert.deepEqual(L.validerPersonne({ nom: 'A', emails: [{ valeur: '', type: 'travail' }] }), {});
+  });
+});
+
+describe('B2 Doublons', () => {
+  const liste = [
+    personne({ id: '1', nom: 'Marie Durand', emails: [{ valeur: 'Marie@Exemple.fr ', type: 'travail' }], emailsNormalises: ['marie@exemple.fr'] }),
+    personne({ id: '2', nom: 'Éric Léon', emails: [], emailsNormalises: [] }),
+    personne({ id: '3', nom: 'Marie Durand', archive: true }),
+  ];
+  test('B2 même email (casse et espaces ignorés)', () => {
+    const r = L.trouverDoublonsPersonne(liste, { nom: 'Autre Nom', emails: [{ valeur: ' marie@exemple.FR' }] });
+    assert.deepEqual(r.map((p) => p.id), ['1']);
+  });
+  test('B2 même nom (accents, casse, espaces ignorés)', () => {
+    assert.deepEqual(L.trouverDoublonsPersonne(liste, { nom: 'eric  LEON' }).map((p) => p.id), ['2']);
+  });
+  test('B2 aucune alerte pour deux personnes différentes ni pour une personne archivée', () => {
+    assert.deepEqual(L.trouverDoublonsPersonne(liste, { nom: 'Paul Martin', emails: [{ valeur: 'paul@x.fr' }] }), []);
+    assert.equal(L.trouverDoublonsPersonne(liste, { nom: 'Marie Durand' }).some((p) => p.id === '3'), false);
+  });
+  test('B2 la personne en cours de modification est exclue', () => {
+    assert.deepEqual(L.trouverDoublonsPersonne(liste, { nom: 'Marie Durand' }, { sauf: '1' }), []);
+  });
+  test('B2 doublon d’organisation par nom', () => {
+    const orgs = [organisation({ id: 'o1', nom: 'Fleurs de Provence' })];
+    assert.equal(L.trouverDoublonsOrganisation(orgs, ' fleurs  de provence ').length, 1);
+    assert.equal(L.trouverDoublonsOrganisation(orgs, 'Autre').length, 0);
+  });
+  test('B2 la liste des emails normalisés est dédoublonnée', () => {
+    assert.deepEqual(L.emailsNormalises([{ valeur: 'A@b.fr' }, { valeur: ' a@B.fr' }, { valeur: '' }]), ['a@b.fr']);
+    assert.deepEqual(L.patchEmails([{ valeur: 'X@y.fr', type: 'perso' }]).emailsNormalises, ['x@y.fr']);
+  });
+});
+
+describe('B3 Recherche intelligente', () => {
+  const el = [
+    { id: '1', libelle: 'Marie Durand', sousTitre: 'Fleurs de Provence' },
+    { id: '2', libelle: 'Charles Martin' },
+    { id: '3', libelle: 'Bar des Arts' },
+    { id: '4', libelle: 'Éloïse Parent' },
+    { id: '5', libelle: 'Zoé Lemaire', extra: ['Boulangerie Arnaud'] },
+  ];
+  test('B3 moins de 2 lettres : aucune suggestion', () => {
+    assert.deepEqual(L.rechercherSuggestions('a', el).resultats, []);
+    assert.deepEqual(L.rechercherSuggestions(' ', el).resultats, []);
+  });
+  test('B3 la saisie peut se trouver n’importe où dans le texte', () => {
+    const ids = L.rechercherSuggestions('ar', el).resultats.map((r) => r.id);
+    assert.deepEqual([...ids].sort(), ['1', '2', '3', '4', '5']);
+  });
+  test('B3 accents et casse ignorés', () => {
+    assert.deepEqual(L.rechercherSuggestions('ELOI', el).resultats.map((r) => r.id), ['4']);
+    assert.deepEqual(L.rechercherSuggestions('éloïse', el).resultats.map((r) => r.id), ['4']);
+  });
+  test('B3 les débuts de mot passent avant les autres', () => {
+    const r = L.rechercherSuggestions('ar', el).resultats.map((r) => r.id);
+    // "Arts" (début de mot) avant "Marie" (au milieu d'un mot)
+    assert.ok(r.indexOf('3') < r.indexOf('1'));
+    assert.equal(L.rechercherSuggestions('mar', el).resultats[0].libelle.startsWith('Mar'), true);
+  });
+  test('B3 8 résultats au plus', () => {
+    const beaucoup = Array.from({ length: 20 }, (_, i) => ({ id: String(i), libelle: `Marc ${i}` }));
+    const r = L.rechercherSuggestions('marc', beaucoup);
+    assert.equal(r.resultats.length, 8);
+    assert.equal(r.total, 20);
+  });
+  test('B3 recherche aussi dans les informations liées (organisation, email)', () => {
+    assert.deepEqual(L.rechercherSuggestions('boulang', el).resultats.map((r) => r.id), ['5']);
+  });
+  test('B3 plusieurs mots : tous doivent être présents', () => {
+    assert.deepEqual(L.rechercherSuggestions('marie dur', el).resultats.map((r) => r.id), ['1']);
+    assert.deepEqual(L.rechercherSuggestions('marie zzz', el).resultats, []);
+  });
+  test('B3 option "Créer" seulement si aucune valeur identique', () => {
+    assert.equal(L.rechercherSuggestions('Nouvelle Org', el, { creer: true }).creer, 'Nouvelle Org');
+    assert.equal(L.rechercherSuggestions('bar des arts', el, { creer: true }).creer, null);
+    assert.equal(L.rechercherSuggestions('Nouvelle Org', el).creer, null);
+    assert.equal(L.rechercherSuggestions('n', el, { creer: true }).creer, null);
+  });
+  test('B3 lettres trouvées en gras', () => {
+    const segs = L.surligner('Marie Durand', 'dur');
+    assert.deepEqual(segs, [{ texte: 'Marie ', fort: false }, { texte: 'Dur', fort: true }, { texte: 'and', fort: false }]);
+    assert.deepEqual(L.surligner('Éloïse', 'eloi'), [{ texte: 'Éloï', fort: true }, { texte: 'se', fort: false }]);
+  });
+});
+
+describe('B4 Statut dérivé de l’étape', () => {
+  test('B4 étapes 1 à 3 : ouverte ; 4 à 6 : gagnée', () => {
+    for (const e of ['premier_contact', 'rdv_fixe', 'proposition_envoyee']) assert.equal(L.statutPourEtape(e), 'ouverte');
+    for (const e of ['gagne', 'facture_envoyee', 'facture_payee']) assert.equal(L.statutPourEtape(e), 'gagnee');
+  });
+  test('B4 nouvelle affaire : valeurs automatiques', () => {
+    const a = L.nouvelleAffaire({ titre: ' Atelier ', montant: '1200' }, ctx());
+    assert.equal(a.etape, 'premier_contact');
+    assert.equal(a.statut, 'ouverte');
+    assert.equal(a.priorite, 'tiede');
+    assert.equal(a.montant, 1200);
+    assert.equal(a.titre, 'Atelier');
+    assert.deepEqual(a.encaissements, []);
+    assert.equal(a.projetId, null);
+    assert.ok(a.datesEtapes.premier_contact);
+  });
+  test('B4 le titre est prérempli : organisation, sinon personne', () => {
+    assert.equal(L.titreParDefaut({ organisation: { nom: 'Fleurs' }, personne: { nom: 'Marie' } }), 'Fleurs');
+    assert.equal(L.titreParDefaut({ personne: { nom: 'Marie' } }), 'Marie');
+    assert.equal(L.titreParDefaut({}), '');
+  });
+  test('B4 changement d’étape : statut dérivé, dates d’étapes conservées', () => {
+    const a = affaire();
+    const r = L.changementEtape(a, 'rdv_fixe', ctx('2026-10-16T08:00:00Z'));
+    assert.equal(r.patch.etape, 'rdv_fixe');
+    assert.equal(r.patch.statut, 'ouverte');
+    assert.ok(r.patch.datesEtapes.premier_contact);
+    assert.ok(r.patch.datesEtapes.rdv_fixe);
+    assert.equal(r.evenements[0].type, 'etape_changee');
+    const retour = L.changementEtape({ ...a, ...r.patch }, 'premier_contact', ctx('2026-10-17T08:00:00Z'));
+    assert.equal(retour.patch.datesEtapes.rdv_fixe.getTime(), r.patch.datesEtapes.rdv_fixe.getTime());
+  });
+  test('B4 passer en Gagné : statut gagnée et événement', () => {
+    const r = L.changementEtape(affaire({ etape: 'proposition_envoyee' }), 'gagne', ctx());
+    assert.equal(r.patch.statut, 'gagnee');
+    assert.ok(r.evenements.some((e) => e.type === 'affaire_gagnee'));
+  });
+  test('B4 même étape : rien à faire', () => {
+    const r = L.changementEtape(affaire(), 'premier_contact', ctx());
+    assert.deepEqual(r.patch, {});
+    assert.deepEqual(r.evenements, []);
+  });
+  test('B4 étape inconnue refusée', () => {
+    assert.ok(L.changementEtape(affaire(), 'nimporte', ctx()).erreurs.etape);
+  });
+});
+
+describe('B5 Perdue, en pause, réouverture', () => {
+  test('B5 perdue : raison obligatoire, étape conservée', () => {
+    const a = affaire({ etape: 'proposition_envoyee' });
+    assert.ok(L.marquerPerdue(a, { raison: '' }, ctx()).erreurs.raison);
+    const r = L.marquerPerdue(a, { raison: 'Prix', detail: ' trop cher ' }, ctx());
+    assert.equal(r.patch.statut, 'perdue');
+    assert.equal(r.patch.raisonPerdue, 'Prix');
+    assert.equal(r.patch.raisonPerdueDetail, 'trop cher');
+    assert.equal('etape' in r.patch, false);
+    assert.equal(r.evenements[0].type, 'affaire_perdue');
+  });
+  test('B5 en pause : date de réveil obligatoire, étape conservée', () => {
+    const a = affaire({ etape: 'rdv_fixe' });
+    assert.ok(L.mettreEnPause(a, { dateReveil: '' }, ctx()).erreurs.dateReveil);
+    const r = L.mettreEnPause(a, { dateReveil: '2027-01-15' }, ctx());
+    assert.equal(r.patch.statut, 'en_pause');
+    assert.equal(r.patch.dateReveil, '2027-01-15');
+    assert.equal('etape' in r.patch, false);
+  });
+  test('B5 date de réveil proposée : +3 mois, fin de mois respectée', () => {
+    assert.equal(L.dateReveilParDefaut('2026-10-15'), '2027-01-15');
+    assert.equal(L.dateReveilParDefaut('2026-11-30'), '2027-02-28');
+    assert.equal(L.dateReveilParDefaut('2026-11-30').slice(0, 7), '2027-02');
+  });
+  test('B5 rouvrir : statut redérivé de l’étape, raison et réveil effacés', () => {
+    const perdue = affaire({ etape: 'gagne', statut: 'perdue', raisonPerdue: 'Prix', raisonPerdueDetail: 'x' });
+    const r = L.rouvrirAffaire(perdue, ctx());
+    assert.equal(r.patch.statut, 'gagnee');
+    assert.equal(r.patch.raisonPerdue, '');
+    assert.equal(r.evenements[0].type, 'affaire_rouverte');
+    assert.deepEqual(L.rouvrirAffaire(affaire(), ctx()).patch, {});
+  });
+  test('B5 déplacer une affaire perdue la rouvre à la nouvelle étape', () => {
+    const perdue = affaire({ etape: 'rdv_fixe', statut: 'perdue', raisonPerdue: 'Prix' });
+    const r = L.changementEtape(perdue, 'rdv_fixe', ctx());
+    assert.equal(r.patch.statut, 'ouverte');
+    assert.equal(r.evenements[0].type, 'affaire_rouverte');
+  });
+});
+
+describe('B6 Facture payée et encaissements', () => {
+  test('B6 ajoute un encaissement du bon montant et archive', () => {
+    const a = affaire({ etape: 'facture_envoyee', statut: 'gagnee', montant: 1200, offreId: 'audit' });
+    const r = L.changementEtape(a, 'facture_payee', ctx('2026-10-20T10:00:00Z'));
+    assert.equal(r.patch.archive, true);
+    assert.equal(r.patch.encaissements.length, 1);
+    assert.equal(r.patch.encaissements[0].montant, 1200);
+    assert.equal(r.patch.encaissements[0].offreId, 'audit');
+    assert.ok(r.evenements.some((e) => e.type === 'encaissement'));
+  });
+  test('B6 le montant de l’encaissement est modifiable', () => {
+    const a = affaire({ etape: 'facture_envoyee', statut: 'gagnee', montant: 1200 });
+    const r = L.changementEtape(a, 'facture_payee', ctx(), { montantEncaisse: 900 });
+    assert.equal(r.patch.encaissements[0].montant, 900);
+  });
+  test('B6 sans montant : encaissement de 0 €', () => {
+    const r = L.changementEtape(affaire({ etape: 'gagne', statut: 'gagnee' }), 'facture_payee', ctx());
+    assert.equal(r.patch.encaissements[0].montant, 0);
+  });
+  test('B6 revenir en arrière désarchive sans effacer les encaissements', () => {
+    const payee = affaire({ etape: 'facture_payee', statut: 'gagnee', archive: true, encaissements: [{ date: new Date(), montant: 100 }] });
+    const r = L.changementEtape(payee, 'facture_envoyee', ctx());
+    assert.equal(r.patch.archive, false);
+    assert.equal('encaissements' in r.patch, false);
+  });
+  test('B6 encaissement manuel : montant positif exigé', () => {
+    const a = affaire({ etape: 'gagne', statut: 'gagnee' });
+    assert.ok(L.ajouterEncaissement(a, { montant: 0 }, ctx()).erreurs.montant);
+    const r = L.ajouterEncaissement(a, { montant: '250', date: '2026-10-21' }, ctx());
+    assert.equal(r.patch.encaissements[0].montant, 250);
+  });
+  test('B6 une nouvelle affaire ne supprime rien : les anciennes restent', () => {
+    const ancienne = affaire({ id: 'a1', etape: 'facture_payee', archive: true, personneId: 'p' });
+    const nouvelle = L.nouvelleAffaire({ titre: 'Suite', personneId: 'p' }, ctx());
+    assert.equal(nouvelle.personneId, 'p');
+    assert.equal(L.affairesDeLaPersonne([ancienne, { ...nouvelle, id: 'a2' }], 'p').length, 2);
+  });
+  test('B6 documents : adresse http obligatoire', () => {
+    assert.ok(L.ajouterDocument(affaire(), 'Devis', 'devis.pdf').erreurs.url);
+    const r = L.ajouterDocument(affaire(), 'Devis', 'https://drive.google.com/x');
+    assert.equal(r.patch.documents[0].libelle, 'Devis');
+    assert.deepEqual(L.supprimerDocument({ documents: [{ a: 1 }, { b: 2 }] }, 0).documents, [{ b: 2 }]);
+  });
+});
+
+describe('B7 Retard, sans action, pastille', () => {
   const auj = '2026-10-15';
-  test('B1 vrai si la date de prochaine action est passée', () => {
-    assert.equal(L.estEnRetard(fiche({ dateProchaineAction: '2026-10-14' }), auj), true);
+  test('B7 activité en retard : date passée, pas faite', () => {
+    assert.equal(L.estActiviteEnRetard(activite({ date: '2026-10-14' }), auj), true);
+    assert.equal(L.estActiviteEnRetard(activite({ date: '2026-10-15' }), auj), false);
+    assert.equal(L.estActiviteEnRetard(activite({ date: '2026-10-16' }), auj), false);
   });
-  test("B1 faux si la date est aujourd'hui", () => {
-    assert.equal(L.estEnRetard(fiche({ dateProchaineAction: '2026-10-15' }), auj), false);
+  test('B7 une activité faite n’est jamais en retard', () => {
+    assert.equal(L.estActiviteEnRetard(activite({ date: '2026-10-01', fait: true }), auj), false);
   });
-  test('B1 faux si la date est à venir ou absente', () => {
-    assert.equal(L.estEnRetard(fiche({ dateProchaineAction: '2026-10-16' }), auj), false);
-    assert.equal(L.estEnRetard(fiche({ dateProchaineAction: null }), auj), false);
+  test('B7 pastille : rouge, verte, grise', () => {
+    assert.equal(L.pastilleActivite([activite({ date: '2026-10-14' })], auj), 'rouge');
+    assert.equal(L.pastilleActivite([activite({ date: '2026-10-15' })], auj), 'verte');
+    assert.equal(L.pastilleActivite([activite({ date: '2026-10-20' }), activite({ id: 'y', date: '2026-10-01' })], auj), 'rouge');
+    assert.equal(L.pastilleActivite([], auj), 'grise');
+    assert.equal(L.pastilleActivite([activite({ date: '2026-10-01', fait: true })], auj), 'grise');
   });
-  test('B1 faux pour une fiche archivée', () => {
-    assert.equal(L.estEnRetard(fiche({ dateProchaineAction: '2026-10-01', archive: true, etape: 'facture_payee' }), auj), false);
+  test('B7 sans action prévue : affaire active sans activité à venir', () => {
+    const a = affaire();
+    assert.equal(L.estSansAction(a, []), true);
+    assert.equal(L.estSansAction(a, [activite({ affaireId: 'a' })]), false);
+    assert.equal(L.estSansAction(a, [activite({ affaireId: 'a', fait: true })]), true);
+    assert.equal(L.estSansAction(a, [activite({ affaireId: 'autre' })]), true);
   });
-  test('B1 faux pour une fiche perdue', () => {
-    assert.equal(L.estEnRetard(fiche({ dateProchaineAction: '2026-10-01', etape: 'perdu' }), auj), false);
+  test('B7 sans action : perdue, en pause et archivée exclues', () => {
+    assert.equal(L.estSansAction(affaire({ statut: 'perdue' }), []), false);
+    assert.equal(L.estSansAction(affaire({ statut: 'en_pause' }), []), false);
+    assert.equal(L.estSansAction(affaire({ archive: true, statut: 'gagnee' }), []), false);
   });
-});
-
-describe('B2 Sans action prévue', () => {
-  test('B2 fiche active sans date de prochaine action détectée', () => {
-    assert.equal(L.estSansAction(fiche({ dateProchaineAction: null })), true);
-    assert.equal(L.estSansAction(fiche({ dateProchaineAction: '2026-10-20' })), false);
-  });
-  test('B2 fiches Pas maintenant, perdues et archivées exclues', () => {
-    assert.equal(L.estSansAction(fiche({ etape: 'pas_maintenant', dateReveil: '2027-01-01' })), false);
-    assert.equal(L.estSansAction(fiche({ etape: 'perdu', raisonPerdu: 'Prix' })), false);
-    assert.equal(L.estSansAction(fiche({ etape: 'facture_payee', archive: true })), false);
-  });
-  test("B2 bloc À faire : retard, aujourd'hui, sans action, réveil", () => {
-    const auj = '2026-10-15';
-    const fiches = [
-      fiche({ id: 'r', nom: 'Retard', dateProchaineAction: '2026-10-10', prochaineAction: 'Relancer' }),
-      fiche({ id: 'a', nom: 'Aujourdhui', dateProchaineAction: auj, prochaineAction: 'Appeler' }),
-      fiche({ id: 's', nom: 'Sans', dateProchaineAction: null }),
-      fiche({ id: 'p', nom: 'Reveil', etape: 'pas_maintenant', dateReveil: auj }),
-      fiche({ id: 'q', nom: 'Dort', etape: 'pas_maintenant', dateReveil: '2026-12-01' }),
-      fiche({ id: 'x', nom: 'Perdu', etape: 'perdu', dateProchaineAction: '2026-10-01' }),
+  test('B7 points clés : retard, aujourd’hui, réveil, sans action', () => {
+    const affaires = [
+      affaire({ id: 'a', titre: 'A' }),
+      affaire({ id: 'b', titre: 'B' }),
+      affaire({ id: 'c', statut: 'en_pause', dateReveil: '2026-10-15' }),
+      affaire({ id: 'd', statut: 'en_pause', dateReveil: '2026-12-01' }),
+      affaire({ id: 'e', statut: 'perdue' }),
     ];
-    const r = L.aFaire(fiches, auj);
-    assert.deepEqual(r.enRetard.map((x) => x.fiche.id), ['r']);
-    assert.deepEqual(r.aujourdhui.map((x) => x.fiche.id).sort(), ['a', 'p']);
-    assert.equal(r.aujourdhui.find((x) => x.fiche.id === 'p').action, 'Reprendre contact');
-    assert.deepEqual(r.sansAction.map((x) => x.id), ['s']);
+    const activites = [
+      activite({ id: '1', affaireId: 'a', date: '2026-10-10' }),
+      activite({ id: '2', affaireId: 'a', date: '2026-10-15' }),
+      activite({ id: '3', affaireId: 'a', date: '2026-10-30' }),
+      activite({ id: '4', affaireId: 'e', date: '2026-10-01' }),
+      activite({ id: '5', affaireId: null, personneId: 'p', date: '2026-10-14' }),
+      activite({ id: '6', affaireId: 'a', date: '2026-10-01', fait: true }),
+    ];
+    const pc = L.pointsCles({ activites, affaires }, auj);
+    assert.deepEqual(pc.enRetard.map((x) => x.id), ['1', '5']);
+    assert.deepEqual(pc.aujourdhui.map((x) => x.id), ['2']);
+    assert.deepEqual(pc.reveils.map((x) => x.id), ['c']);
+    assert.deepEqual(pc.sansAction.map((x) => x.id), ['b']);
+  });
+  test('B7 points clés d’une fiche : états et tri', () => {
+    const r = L.pointsClesFiche([activite({ id: '1', date: '2026-10-20' }), activite({ id: '2', date: '2026-10-10' }), activite({ id: '3', date: '2026-10-15' })], auj);
+    assert.deepEqual(r.map((x) => [x.id, x.etat]), [['2', 'retard'], ['3', 'aujourdhui'], ['1', 'avenir']]);
+  });
+  test('B7 prochaine activité : la plus proche, heure comprise', () => {
+    const p = L.prochaineActivite([activite({ id: '1', date: '2026-10-20' }), activite({ id: '2', date: '2026-10-18', heure: '16:00' }), activite({ id: '3', date: '2026-10-18', heure: '09:00' })]);
+    assert.equal(p.id, '3');
+    assert.equal(L.prochaineActivite([]), null);
   });
 });
 
-describe('B3 Boutons de date', () => {
-  test('B3 Demain, +3 jours, +1 semaine, +2 semaines', () => {
+describe('B8 Boutons de date', () => {
+  test('B8 Demain, +3 jours, +1 semaine, +2 semaines', () => {
     assert.equal(L.dateRapide('demain', '2026-10-15'), '2026-10-16');
     assert.equal(L.dateRapide('3j', '2026-10-15'), '2026-10-18');
     assert.equal(L.dateRapide('1sem', '2026-10-15'), '2026-10-22');
     assert.equal(L.dateRapide('2sem', '2026-10-15'), '2026-10-29');
   });
-  test('B3 changement de mois et d’année', () => {
-    assert.equal(L.dateRapide('demain', '2026-10-31'), '2026-11-01');
-    assert.equal(L.dateRapide('3j', '2026-02-27'), '2026-03-02');
+  test('B8 changement de mois et d’année', () => {
+    assert.equal(L.dateRapide('3j', '2026-10-30'), '2026-11-02');
     assert.equal(L.dateRapide('2sem', '2026-12-25'), '2027-01-08');
     assert.equal(L.dateRapide('demain', '2028-02-28'), '2028-02-29');
   });
-  test("B3 passage à l'heure d'hiver et d'été (Europe/Paris)", () => {
-    // Nuit du 24 au 25 octobre 2026 : 23 h 30 UTC le 24 = 1 h 30 à Paris le 25.
-    const auj = L.aujourdhuiParis(new Date('2026-10-24T23:30:00Z'));
-    assert.equal(auj, '2026-10-25');
-    assert.equal(L.dateRapide('demain', auj), '2026-10-26');
-    assert.equal(L.dateRapide('1sem', '2026-10-22'), '2026-10-29');
-    // Passage à l'heure d'été le 29 mars 2026.
-    assert.equal(L.aujourdhuiParis(new Date('2026-03-28T23:30:00Z')), '2026-03-29');
-    assert.equal(L.dateRapide('demain', '2026-03-28'), '2026-03-29');
-    assert.equal(L.dateRapide('3j', '2026-03-27'), '2026-03-30');
-    // 22 h 30 UTC le 31 décembre = 23 h 30 à Paris, encore le 31.
-    assert.equal(L.aujourdhuiParis(new Date('2026-12-31T22:30:00Z')), '2026-12-31');
+  test("B8 passage à l'heure d'hiver et d'été (Europe/Paris)", () => {
+    assert.equal(L.aujourdhuiParis(new Date('2026-10-24T22:30:00Z')), '2026-10-25');
+    assert.equal(L.dateRapide('demain', '2026-10-24'), '2026-10-25');
+    assert.equal(L.dateRapide('3j', '2026-10-24'), '2026-10-27');
+    assert.equal(L.dateRapide('3j', '2027-03-27'), '2027-03-30');
+    assert.equal(L.aujourdhuiParis(new Date('2026-12-31T23:30:00Z')), '2027-01-01');
   });
-  test('B3 heure de rendez vous interprétée à Paris, été comme hiver', () => {
-    assert.equal(L.dateHeureParisVersDate('2026-07-10T14:30').toISOString(), '2026-07-10T12:30:00.000Z');
-    assert.equal(L.dateHeureParisVersDate('2026-12-10T14:30').toISOString(), '2026-12-10T13:30:00.000Z');
-  });
-});
-
-describe('B4 Suggestions douces', () => {
-  const auj = '2026-10-15';
-  test('B4 Proposition envoyée : Relancer la proposition à +3 jours', () => {
-    assert.deepEqual(L.suggestionPourEtape('proposition_envoyee', auj, 30), { action: 'Relancer la proposition', date: '2026-10-18' });
-  });
-  test("B4 Gagné : Envoyer la facture aujourd'hui", () => {
-    assert.deepEqual(L.suggestionPourEtape('gagne', auj, 30), { action: 'Envoyer la facture', date: auj });
-  });
-  test('B4 Facture envoyée : Vérifier le paiement au délai réglable', () => {
-    assert.deepEqual(L.suggestionPourEtape('facture_envoyee', auj, 30), { action: 'Vérifier le paiement', date: '2026-11-14' });
-    assert.deepEqual(L.suggestionPourEtape('facture_envoyee', auj, 45), { action: 'Vérifier le paiement', date: '2026-11-29' });
-  });
-  test('B4 aucune suggestion pour les autres étapes', () => {
-    for (const e of ['premier_contact', 'rdv_fixe', 'facture_payee', 'perdu', 'pas_maintenant']) {
-      assert.equal(L.suggestionPourEtape(e, auj, 30), null);
-    }
-  });
-});
-
-describe('B5 Objectifs du mois', () => {
-  const mois = '2026-10';
-  // Fiches créées en août, sauf mention contraire.
-  const f5 = (p) => fiche({ creeLe: new Date('2026-08-01T10:00:00Z'), ...p });
-  const fiches = [
-    f5({ id: '1', dateInterviewJtbd: '2026-10-02', creeLe: new Date('2026-09-30T21:30:00Z') }), // 23 h 30 à Paris le 30/09 : septembre
-    f5({ id: '2', dateInterviewJtbd: '2026-10-31', creeLe: new Date('2026-09-30T22:30:00Z') }), // 0 h 30 à Paris le 01/10 : octobre
-    f5({ id: '3', dateInterviewJtbd: '2026-09-30', creeLe: new Date('2026-10-31T22:59:00Z') }), // 23 h 59 à Paris le 31/10 : octobre
-    f5({ id: '4', creeLe: new Date('2026-10-31T23:30:00Z') }), // 0 h 30 le 1er novembre à Paris
-    f5({ id: '5', rdvTenu: true, dateRdvTenu: new Date('2026-10-10T09:00:00Z') }),
-    f5({ id: '6', rdvTenu: true, dateRdvTenu: new Date('2026-09-30T22:15:00Z') }), // 0 h 15 le 1er octobre
-    f5({ id: '7', rdvTenu: false, dateRdvTenu: new Date('2026-10-10T09:00:00Z') }),
-    f5({ id: '8', datesEtapes: { proposition_envoyee: new Date('2026-10-05T10:00:00Z') } }),
-    f5({ id: '9', datesEtapes: { proposition_envoyee: new Date('2026-09-05T10:00:00Z') } }),
-    f5({ id: '10', encaissements: [
-      { date: new Date('2026-10-03T10:00:00Z'), montant: 600 },
-      { date: new Date('2026-09-20T10:00:00Z'), montant: 900 },
-    ] }),
-    f5({ id: '11', encaissements: [{ date: new Date('2026-10-31T22:00:00Z'), montant: 450.5 }] }),
-  ];
-  const obj = (id) => L.OBJECTIFS_DEPART.find((o) => o.id === id);
-
-  test('B5 six objectifs de départ avec les bonnes cibles', () => {
-    assert.deepEqual(L.OBJECTIFS_DEPART.map((o) => [o.id, o.type, o.cible]), [
-      ['interviews_jtbd', 'calcule', 10], ['nouveaux_contacts', 'calcule', 10], ['rdv_tenus', 'calcule', 4],
-      ['propositions_envoyees', 'calcule', 3], ['ca_encaisse', 'calcule', 1000], ['flyers', 'manuel', 100],
-    ]);
-  });
-  test('B5 Interviews JTBD réalisées dans le mois', () => {
-    assert.equal(L.valeurObjectif(obj('interviews_jtbd'), { fiches, mois }), 2);
-  });
-  test('B5 Nouveaux contacts (bornes du mois à Paris)', () => {
-    assert.equal(L.valeurObjectif(obj('nouveaux_contacts'), { fiches, mois }), 2);
-    assert.equal(L.valeurObjectif(obj('nouveaux_contacts'), { fiches, mois: '2026-11' }), 1);
-  });
-  test('B5 Rendez vous tenus', () => {
-    assert.equal(L.valeurObjectif(obj('rdv_tenus'), { fiches, mois }), 2);
-  });
-  test('B5 Propositions envoyées', () => {
-    assert.equal(L.valeurObjectif(obj('propositions_envoyees'), { fiches, mois }), 1);
-  });
-  test("B5 Chiffre d'affaires encaissé", () => {
-    assert.equal(L.valeurObjectif(obj('ca_encaisse'), { fiches, mois }), 1050.5);
-    assert.equal(L.valeurObjectif(obj('ca_encaisse'), { fiches, mois: '2026-09' }), 900);
-  });
-  test('B5 Flyers distribués (saisie manuelle du mois)', () => {
-    const saisies = [
-      { objectifId: 'flyers', mois: '2026-10', valeur: 40 },
-      { objectifId: 'flyers', mois: '2026-09', valeur: 90 },
-    ];
-    assert.equal(L.valeurObjectif(obj('flyers'), { fiches, saisies, mois }), 40);
-    assert.equal(L.valeurObjectif(obj('flyers'), { fiches, saisies, mois: '2026-08' }), 0);
-    assert.equal(L.idSaisie('flyers', '2026-10'), 'flyers_2026-10');
-  });
-  test('B5 mois courant, navigation et objectif franchi', () => {
-    assert.equal(L.moisCourant(new Date('2026-10-31T23:30:00Z')), '2026-11');
-    assert.equal(L.decalerMois('2026-01', -1), '2025-12');
-    assert.equal(L.decalerMois('2026-12', 1), '2027-01');
-    assert.equal(L.progression(50, 100), 50);
-    const o = [obj('flyers')];
-    assert.deepEqual(L.objectifsFranchis({ flyers: 95 }, { flyers: 105 }, o).map((x) => x.id), ['flyers']);
-    assert.deepEqual(L.objectifsFranchis({ flyers: 100 }, { flyers: 110 }, o), []);
-  });
-});
-
-describe('B6 Encaissements', () => {
-  test('B6 passage en Facture payée ajoute un encaissement et archive', () => {
-    const f = fiche({ etape: 'facture_envoyee', montant: 1200, offreId: 'audit' });
-    const p = L.changementEtape(f, 'facture_payee', ctx());
-    assert.equal(p.archive, true);
-    assert.equal(p.encaissements.length, 1);
-    assert.equal(p.encaissements[0].montant, 1200);
-    assert.equal(p.encaissements[0].offreId, 'audit');
-    assert.ok(p.historique.some((h) => h.type === 'encaissement'));
-  });
-  test('B6 montant modifiable dans la boîte de dialogue', () => {
-    const f = fiche({ etape: 'facture_envoyee', montant: 1200 });
-    const p = L.changementEtape(f, 'facture_payee', ctx(), { montantEncaisse: 1100 });
-    assert.equal(p.encaissements[0].montant, 1100);
-  });
-  test('B6 "Nouvelle affaire" conserve encaissements, notes et historique', () => {
-    const f = fiche({ etape: 'facture_envoyee', montant: 1200, offreId: 'audit', notes: 'Compte rendu', dateRdv: '2026-10-10T10:00', prochaineAction: 'X', dateProchaineAction: '2026-10-20' });
-    const payee = { ...f, ...L.changementEtape(f, 'facture_payee', ctx()) };
-    const p = L.nouvelleAffaire(payee, ctx('2026-11-01T08:00:00Z'));
-    const apres = { ...payee, ...p };
-    assert.equal(apres.etape, 'premier_contact');
-    assert.equal(apres.archive, false);
-    assert.equal(apres.encaissements.length, 1);
-    assert.equal(apres.notes, 'Compte rendu');
-    assert.equal(apres.offreId, null);
-    assert.equal(apres.montant, null);
-    assert.equal(apres.dureeJours, null);
-    assert.equal(apres.prochaineAction, '');
-    assert.equal(apres.dateProchaineAction, null);
-    assert.equal(apres.dateRdv, null);
-    assert.ok(apres.historique.length >= payee.historique.length + 1);
-    assert.ok(L.peutDemarrerNouvelleAffaire(payee));
-  });
-  test('B6 changement d’étape : datesEtapes renseignée une seule fois, historique limité à 200', () => {
-    let f = fiche();
-    f = { ...f, ...L.changementEtape(f, 'rdv_fixe', ctx('2026-10-02T08:00:00Z')) };
-    f = { ...f, ...L.changementEtape(f, 'premier_contact', ctx('2026-10-03T08:00:00Z')) };
-    f = { ...f, ...L.changementEtape(f, 'rdv_fixe', ctx('2026-10-04T08:00:00Z')) };
-    assert.equal(f.datesEtapes.rdv_fixe.toISOString(), '2026-10-02T08:00:00.000Z');
-    assert.equal(f.dateEntreeEtape.toISOString(), '2026-10-04T08:00:00.000Z');
-    assert.equal(f.historique.length, 3);
-    const longue = Array.from({ length: 250 }, (_, i) => ({ texte: String(i) }));
-    const h = L.ajouterHistorique(longue, { texte: 'fin' });
-    assert.equal(h.length, 200);
-    assert.equal(h.at(-1).texte, 'fin');
-  });
-  test('B6 raison obligatoire pour Perdu, date de réveil pour Pas maintenant', () => {
-    const f = fiche();
-    assert.throws(() => L.changementEtape(f, 'perdu', ctx()));
-    assert.throws(() => L.changementEtape(f, 'pas_maintenant', ctx()));
-    assert.equal(L.changementEtape(f, 'perdu', ctx(), { raisonPerdu: 'Prix' }).raisonPerdu, 'Prix');
-    assert.equal(L.changementEtape(f, 'pas_maintenant', ctx(), { dateReveil: '2027-01-10' }).dateReveil, '2027-01-10');
-  });
-});
-
-describe('B7 Filtres et recherche', () => {
-  const auj = '2026-10-15'; // jeudi
-  const base = [
-    fiche({ id: 'a', nom: 'Marie Durand', entreprise: 'Fleurs de Provence', ville: 'Manosque', etape: 'rdv_fixe', roles: ['prospect'], source: 'Réseau entrepreneuses', secteur: 'Commerce local', priorite: 'chaud', offreId: 'audit', dateProchaineAction: '2026-10-12' }),
-    fiche({ id: 'b', nom: 'Hélène Martin', entreprise: 'Éco Services', ville: 'Forcalquier', etape: 'premier_contact', roles: ['interview_jtbd'], source: 'LinkedIn', secteur: 'Services', priorite: 'froid', dateInterviewJtbd: null }),
-    fiche({ id: 'c', nom: 'Paul Roux', ville: 'manosque', etape: 'proposition_envoyee', roles: ['prospect', 'interview_jtbd'], source: 'Flyer', secteur: 'Artisanat', priorite: 'tiede', offreId: 'accompagnement', dateInterviewJtbd: '2026-10-01', dateProchaineAction: '2026-10-18', notes: 'Très intéressé par l’atelier', notesRapides: [{ id: 'n', texte: 'Rappeler après les vacances' }] }),
-    fiche({ id: 'd', nom: 'Zoé Blanc', etape: 'facture_payee', archive: true, priorite: 'chaud', source: 'Réseau entrepreneuses' }),
-    fiche({ id: 'e', nom: 'Luc Noir', etape: 'pas_maintenant', dateReveil: '2027-01-05', priorite: 'chaud', source: 'Flyer', dateProchaineAction: '2026-10-25' }),
-  ];
-  const ids = (c) => L.filtrer(base, c, { aujourdhui: auj }).map((f) => f.id).sort();
-
-  test('B7 sans filtre : les archivés sont masqués', () => {
-    assert.deepEqual(ids({}), ['a', 'b', 'c', 'e']);
-  });
-  test('B7 chaque filtre seul', () => {
-    assert.deepEqual(ids({ etapes: ['rdv_fixe'] }), ['a']);
-    assert.deepEqual(ids({ roles: ['interview_jtbd'] }), ['b', 'c']);
-    assert.deepEqual(ids({ sources: ['Flyer'] }), ['c', 'e']);
-    assert.deepEqual(ids({ secteurs: ['Services'] }), ['b']);
-    assert.deepEqual(ids({ villes: ['Manosque'] }), ['a', 'c']);
-    assert.deepEqual(ids({ priorites: ['chaud'] }), ['a', 'e']);
-    assert.deepEqual(ids({ offres: ['accompagnement'] }), ['c']);
-    assert.deepEqual(ids({ enRetard: true }), ['a']);
-    assert.deepEqual(ids({ sansAction: true }), ['b']);
-    assert.deepEqual(ids({ jtbd: 'faite' }), ['c']);
-    assert.deepEqual(ids({ jtbd: 'non_faite' }), ['a', 'b', 'e']);
-    assert.deepEqual(ids({ archives: true }), ['d']);
-  });
-  test('B7 filtres combinés (ET entre critères, OU dans un critère)', () => {
-    assert.deepEqual(ids({ priorites: ['chaud'], sources: ['Réseau entrepreneuses'] }), ['a']);
-    assert.deepEqual(ids({ etapes: ['rdv_fixe', 'premier_contact'], villes: ['Forcalquier'] }), ['b']);
-    assert.deepEqual(ids({ roles: ['interview_jtbd'], jtbd: 'non_faite' }), ['b']);
-    assert.deepEqual(ids({ archives: true, priorites: ['chaud'] }), ['d']);
-  });
-  test('B7 recherche insensible aux accents et à la casse', () => {
-    assert.deepEqual(ids({ recherche: 'helene' }), ['b']);
-    assert.deepEqual(ids({ recherche: 'ECO services' }), ['b']);
-    assert.deepEqual(ids({ recherche: 'fleurs' }), ['a']);
-    assert.deepEqual(ids({ recherche: 'MANOSQUE' }), ['a', 'c']);
-    assert.deepEqual(ids({ recherche: 'atelier' }), ['c']); // notes
-    assert.deepEqual(ids({ recherche: 'vacances' }), ['c']); // notes rapides
-    assert.deepEqual(ids({ recherche: 'introuvable' }), []);
-  });
-  test('B7 les 4 filtres enregistrés de départ', () => {
-    const f = Object.fromEntries(L.FILTRES_DEPART.map((x) => [x.id, x.criteres]));
-    assert.equal(L.FILTRES_DEPART.length, 4);
-    // Dimanche de la semaine du jeudi 15/10 : 18/10 ; retard du 12/10 inclus ; 25/10 exclu.
-    assert.equal(L.dimancheDeLaSemaine(auj), '2026-10-18');
+  test('B8 dimanche de la semaine', () => {
+    assert.equal(L.dimancheDeLaSemaine('2026-10-15'), '2026-10-18');
     assert.equal(L.dimancheDeLaSemaine('2026-10-18'), '2026-10-18');
-    assert.deepEqual(ids(f.relancer_semaine), ['a', 'c']);
-    assert.deepEqual(ids(f.chauds), ['a', 'e']);
-    assert.deepEqual(ids(f.reseau_entrepreneuses), ['a']);
-    assert.deepEqual(ids(f.jtbd_a_faire), ['b']);
+    assert.equal(L.dimancheDeLaSemaine('2026-10-19'), '2026-10-25');
   });
-  test('B7 pastilles et suppression d’un critère', () => {
-    const c = { priorites: ['chaud'], enRetard: true, recherche: 'x' };
-    const p = L.pastillesFiltres(c);
-    assert.deepEqual(p.map((x) => x.libelle), ['Priorité : Chaud', 'En retard', 'Recherche : x']);
-    const c2 = L.retirerCritere(c, 'priorites', 'chaud');
-    assert.deepEqual(c2.priorites, []);
-    assert.equal(L.filtreEstVide(L.retirerCritere(L.retirerCritere(c2, 'enRetard', true), 'recherche', 'x')), true);
-    assert.deepEqual(L.criteresAEnregistrer({ priorites: ['chaud'], recherche: 'x' }), { priorites: ['chaud'] });
-  });
-  test('B7 tri de la Liste', () => {
-    const t = L.trierFiches(base, 'nom', 'asc').map((f) => f.id);
-    assert.deepEqual(t, ['b', 'e', 'a', 'c', 'd']);
-    assert.deepEqual(L.trierFiches(base, 'nom', 'desc').map((f) => f.id), ['d', 'c', 'a', 'e', 'b']);
+  test('B8 heure interprétée à Paris, été comme hiver', () => {
+    assert.equal(L.dateHeureParisVersDate('2026-07-01T10:00').toISOString(), '2026-07-01T08:00:00.000Z');
+    assert.equal(L.dateHeureParisVersDate('2026-12-01T10:00').toISOString(), '2026-12-01T09:00:00.000Z');
   });
 });
 
-describe('B8 Statistiques', () => {
-  const fiches = [
-    fiche({ etape: 'premier_contact' }), fiche({ etape: 'premier_contact' }),
-    fiche({ etape: 'gagne' }), fiche({ etape: 'perdu', raisonPerdu: 'Prix' }),
-    fiche({ etape: 'facture_payee', archive: true, encaissements: [{ date: new Date('2026-10-02T10:00:00Z'), montant: 500 }] }),
-    fiche({ etape: 'facture_payee', archive: true, encaissements: [{ date: new Date('2026-05-02T10:00:00Z'), montant: 300 }, { date: new Date('2026-08-02T10:00:00Z'), montant: 200 }] }),
-  ];
-  test('B8 comptage des fiches par étape', () => {
-    const c = Object.fromEntries(L.compterParEtape(fiches).map((e) => [e.id, e.nombre]));
-    assert.deepEqual(c, { premier_contact: 2, rdv_fixe: 0, proposition_envoyee: 0, gagne: 1, facture_envoyee: 0, facture_payee: 2, perdu: 1, pas_maintenant: 0 });
+describe('B9 Suggestions douces', () => {
+  const auj = '2026-10-15';
+  test('B9 Proposition envoyée : Relancer la proposition à +3 jours', () => {
+    assert.deepEqual(L.suggestionPourEtape('proposition_envoyee', auj), { type: 'tache', titre: 'Relancer la proposition', date: '2026-10-18' });
   });
-  test("B8 chiffre d'affaires par mois sur 6 mois", () => {
-    const ca = L.caParMois(fiches, '2026-10', 6);
-    assert.deepEqual(ca.map((m) => m.mois), ['2026-05', '2026-06', '2026-07', '2026-08', '2026-09', '2026-10']);
-    assert.deepEqual(ca.map((m) => m.montant), [300, 0, 0, 200, 0, 500]);
+  test("B9 Gagné : Envoyer la facture aujourd'hui", () => {
+    assert.deepEqual(L.suggestionPourEtape('gagne', auj), { type: 'tache', titre: 'Envoyer la facture', date: auj });
   });
-  test('B8 payées du mois pour la colonne du Kanban', () => {
-    const f = [fiche({ etape: 'facture_payee', archive: true, dateEntreeEtape: new Date('2026-10-05T10:00:00Z') }), fiche({ etape: 'facture_payee', archive: true, dateEntreeEtape: new Date('2026-09-05T10:00:00Z') })];
-    assert.equal(L.payeesDuMois(f, '2026-10').length, 1);
+  test('B9 Facture envoyée : Vérifier le paiement au délai réglable', () => {
+    assert.equal(L.suggestionPourEtape('facture_envoyee', auj).date, '2026-11-14');
+    assert.equal(L.suggestionPourEtape('facture_envoyee', auj, 45).date, '2026-11-29');
+    assert.equal(L.suggestionPourEtape('facture_envoyee', auj, 0).date, '2026-11-14');
+  });
+  test('B9 aucune suggestion pour les autres étapes', () => {
+    for (const e of ['premier_contact', 'rdv_fixe', 'facture_payee']) assert.equal(L.suggestionPourEtape(e, auj), null);
+  });
+  test('B9 le changement d’étape fournit la suggestion avec le délai du contexte', () => {
+    const r = L.changementEtape(affaire({ etape: 'gagne', statut: 'gagnee' }), 'facture_envoyee', ctx('2026-10-15T08:00:00Z', { delaiPaiementJours: 15 }));
+    assert.equal(r.suggestion.date, '2026-10-30');
   });
 });
 
-describe('B9 Export CSV et rappel', () => {
-  const fiches = [
-    fiche({ id: 'x1', nom: 'Marie "la fleuriste" Durand', entreprise: 'Fleurs; Provence', notes: 'Ligne 1\nLigne 2', montant: 1200.5, roles: ['prospect', 'interview_jtbd'], etape: 'rdv_fixe', offreId: 'audit' }),
-    fiche({ id: 'x2', nom: 'Paul', entreprise: 'Simple' }),
-  ];
-  const csv = L.versCsv(fiches, { offres: L.OFFRES_DEPART });
-  test('B9 BOM UTF 8 et séparateur point virgule', () => {
-    assert.equal(csv.charCodeAt(0), 0xfeff);
-    const entete = csv.slice(1).split('\r\n')[0];
-    assert.ok(entete.startsWith('Identifiant;Prénom et nom;Entreprise;Rôles;'));
-    assert.equal(entete.split(';').length, L.COLONNES_CSV.length);
+describe('B10 Activités, notes, historique', () => {
+  test('B10 activité : titre prérempli, date du jour par défaut', () => {
+    const a = L.nouvelleActivite({ type: 'appel' }, ctx());
+    assert.equal(a.titre, 'Appel');
+    assert.equal(a.date, '2026-10-15');
+    assert.equal(a.fait, false);
+    assert.equal(L.nouvelleActivite({ type: 'rendez_vous', titre: ' Café ' }, ctx()).titre, 'Café');
+    assert.equal(L.nouvelleActivite({ type: 'inconnu' }, ctx()).type, 'tache');
   });
-  test('B9 en têtes complets', () => {
-    const entete = csv.slice(1).split('\r\n')[0].split(';');
-    for (const libelle of ['Prénom et nom', 'Étape', 'Source', 'Priorité', 'Montant (€)', 'Notes', 'Notes rapides', 'Historique', 'Encaissements', 'Opposition à la prospection']) {
-      assert.ok(entete.includes(libelle), libelle);
+  test('B10 "Fait" : enregistre la date et crée l’événement', () => {
+    const r = L.activiteFaite(activite({ type: 'rendez_vous', titre: 'Café', personneId: 'p', affaireId: 'a' }), ctx('2026-10-15T09:00:00Z'));
+    assert.equal(r.patch.fait, true);
+    assert.equal(r.patch.dateFait.toISOString(), '2026-10-15T09:00:00.000Z');
+    assert.equal(r.evenements[0].type, 'activite_faite');
+    assert.equal(r.evenements[0].personneId, 'p');
+    assert.deepEqual(L.activiteFaite(activite({ fait: true }), ctx()).patch, {});
+  });
+  test('B10 une note sur une affaire porte aussi la personne et l’organisation', () => {
+    const a = affaire({ id: 'a9', personneId: 'p1', organisationId: 'o1' });
+    const n = L.nouvelleNote('  Rappeler jeudi ', L.liensAffaire(a), ctx());
+    assert.deepEqual([n.personneId, n.organisationId, n.affaireId], ['p1', 'o1', 'a9']);
+    assert.equal(n.texte, 'Rappeler jeudi');
+    assert.deepEqual(L.validerNote('   '), { texte: 'La note est vide.' });
+  });
+  test('B10 historique : mêle activités faites, notes, événements, du plus récent au plus ancien', () => {
+    const entrees = L.entreesHistorique({
+      activites: [activite({ id: 'f', fait: true, dateFait: new Date('2026-10-12T10:00:00Z') }), activite({ id: 'nf', fait: false })],
+      notes: [{ id: 'n', texte: 'x', creeLe: new Date('2026-10-14T10:00:00Z') }],
+      evenements: [{ id: 'e', type: 'etape_changee', texte: 'y', date: new Date('2026-10-13T10:00:00Z') }, { id: 'e2', type: 'email_envoye', texte: 'z', date: new Date('2026-10-15T10:00:00Z') }],
+    });
+    assert.deepEqual(entrees.map((e) => e.element.id), ['e2', 'n', 'e', 'f']);
+  });
+  test('B10 historique : les cinq filtres', () => {
+    const donnees = {
+      activites: [activite({ id: 'f', fait: true, dateFait: new Date('2026-10-12T10:00:00Z') })],
+      notes: [{ id: 'n', texte: 'x', creeLe: new Date('2026-10-14T10:00:00Z') }],
+      evenements: [
+        { id: 'e', type: 'etape_changee', date: new Date('2026-10-13T10:00:00Z') },
+        { id: 'e2', type: 'email_envoye', date: new Date('2026-10-15T10:00:00Z') },
+      ],
+    };
+    const ids = (f) => L.entreesHistorique(donnees, f).map((x) => x.element.id).sort();
+    assert.deepEqual(ids('tous'), ['e', 'e2', 'f', 'n']);
+    assert.deepEqual(ids('activites'), ['f']);
+    assert.deepEqual(ids('notes'), ['n']);
+    assert.deepEqual(ids('affaires'), ['e']);
+    assert.deepEqual(ids('evenements'), ['e', 'e2']);
+  });
+  test('B10 historique limité aux 500 lignes les plus récentes', () => {
+    const notes = Array.from({ length: 600 }, (_, i) => ({ id: `n${i}`, texte: '', creeLe: new Date(2026, 0, 1, 0, i) }));
+    const r = L.entreesHistorique({ notes });
+    assert.equal(r.length, 500);
+    assert.equal(r[0].element.id, 'n599');
+  });
+  test('B10 email : actif sauf opposition ou adresse absente', () => {
+    assert.equal(L.emailActif(personne({ emails: [{ valeur: 'a@b.fr', type: 'travail' }] })), true);
+    assert.equal(L.emailActif(personne({ emails: [{ valeur: 'a@b.fr', type: 'travail' }], oppositionProspection: true })), false);
+    assert.equal(L.emailActif(personne({ emails: [] })), false);
+    assert.equal(L.premierEmail(personne({ emails: [{ valeur: 'x', type: 'travail' }, { valeur: 'a@b.fr', type: 'perso' }] })), 'a@b.fr');
+    assert.equal(L.marquerOpposition(true, ctx()).oppositionProspection, true);
+    assert.equal(L.marquerOpposition(false, ctx()).dateOpposition, null);
+  });
+});
+
+describe('B11 Objectifs', () => {
+  const mois = '2026-10';
+  test('B11 interviews JTBD : date de la personne dans le mois', () => {
+    const personnes = [personne({ id: '1', dateInterviewJtbd: '2026-10-05' }), personne({ id: '2', dateInterviewJtbd: '2026-09-30' }), personne({ id: '3', dateInterviewJtbd: null })];
+    assert.equal(L.CALCULS.interviews_jtbd.calculer({ personnes }, mois), 1);
+  });
+  test('B11 nouveaux contacts : personnes créées dans le mois (fuseau Paris)', () => {
+    const personnes = [
+      personne({ id: '1', creeLe: new Date('2026-10-01T08:00:00Z') }),
+      personne({ id: '2', creeLe: new Date('2026-09-30T22:30:00Z') }), // 1er octobre 00:30 à Paris
+      personne({ id: '3', creeLe: new Date('2026-10-31T22:30:00Z') }), // 31 octobre 23:30 à Paris
+      personne({ id: '4', creeLe: new Date('2026-10-31T23:30:00Z') }), // 1er novembre à Paris
+    ];
+    assert.equal(L.CALCULS.nouveaux_contacts.calculer({ personnes }, mois), 3);
+  });
+  test('B11 rendez vous tenus : activités rendez vous faites dans le mois', () => {
+    const activites = [
+      activite({ id: '1', type: 'rendez_vous', fait: true, dateFait: new Date('2026-10-10T10:00:00Z') }),
+      activite({ id: '2', type: 'rendez_vous', fait: false }),
+      activite({ id: '3', type: 'appel', fait: true, dateFait: new Date('2026-10-10T10:00:00Z') }),
+      activite({ id: '4', type: 'rendez_vous', fait: true, dateFait: new Date('2026-11-02T10:00:00Z') }),
+    ];
+    assert.equal(L.CALCULS.rdv_tenus.calculer({ activites }, mois), 1);
+  });
+  test('B11 propositions envoyées : première date de l’étape dans le mois', () => {
+    const affaires = [
+      affaire({ id: '1', datesEtapes: { proposition_envoyee: new Date('2026-10-12T10:00:00Z') } }),
+      affaire({ id: '2', datesEtapes: { proposition_envoyee: new Date('2026-09-12T10:00:00Z') } }),
+      affaire({ id: '3', datesEtapes: {} }),
+    ];
+    assert.equal(L.CALCULS.propositions_envoyees.calculer({ affaires }, mois), 1);
+  });
+  test('B11 chiffre d’affaires : somme des encaissements du mois', () => {
+    const affaires = [
+      affaire({ id: '1', encaissements: [{ date: new Date('2026-10-12T10:00:00Z'), montant: 500 }, { date: new Date('2026-09-12T10:00:00Z'), montant: 300 }] }),
+      affaire({ id: '2', encaissements: [{ date: new Date('2026-10-20T10:00:00Z'), montant: 250.5 }] }),
+    ];
+    assert.equal(L.CALCULS.ca_encaisse.calculer({ affaires }, mois), 750.5);
+    assert.equal(L.CALCULS.ca_encaisse.calculer({ affaires }, '2026-09'), 300);
+  });
+  test('B11 les six objectifs de départ et leurs cibles', () => {
+    assert.deepEqual(L.OBJECTIFS_DEPART.map((o) => [o.id, o.cible]), [
+      ['interviews_jtbd', 10], ['nouveaux_contacts', 10], ['rdv_tenus', 4], ['propositions_envoyees', 3], ['ca_encaisse', 1000], ['flyers', 100],
+    ]);
+    const flyers = L.OBJECTIFS_DEPART.find((o) => o.id === 'flyers');
+    assert.equal(L.valeurObjectif(flyers, { saisies: [{ objectifId: 'flyers', mois, valeur: 40 }], mois }), 40);
+    assert.equal(L.valeurObjectif(flyers, { saisies: [], mois }), 0);
+  });
+  test('B11 progression et objectifs franchis', () => {
+    assert.equal(L.progression(5, 10), 50);
+    assert.equal(L.progression(12, 10), 120);
+    const o = [{ id: 'a', cible: 10 }, { id: 'b', cible: 10 }];
+    assert.deepEqual(L.objectifsFranchis({ a: 9, b: 12 }, { a: 10, b: 13 }, o).map((x) => x.id), ['a']);
+  });
+});
+
+describe('B12 Graphique du chiffre d’affaires depuis le début d’activité', () => {
+  const debut = '2026-10';
+  test('B12 en octobre 2026 : un seul mois', () => {
+    assert.deepEqual(L.fenetreCa(debut, '2026-10'), ['2026-10']);
+  });
+  test('B12 en décembre 2026 : trois mois', () => {
+    assert.deepEqual(L.fenetreCa(debut, '2026-12'), ['2026-10', '2026-11', '2026-12']);
+  });
+  test('B12 en mars 2027 : six mois', () => {
+    assert.deepEqual(L.fenetreCa(debut, '2027-03'), ['2026-10', '2026-11', '2026-12', '2027-01', '2027-02', '2027-03']);
+  });
+  test('B12 en avril 2027 : la fenêtre de six mois glisse', () => {
+    assert.deepEqual(L.fenetreCa(debut, '2027-04'), ['2026-11', '2026-12', '2027-01', '2027-02', '2027-03', '2027-04']);
+  });
+  test('B12 aucun mois antérieur au début n’apparaît jamais', () => {
+    for (const m of ['2026-10', '2026-11', '2027-01', '2027-06', '2028-01']) {
+      assert.ok(L.fenetreCa(debut, m).every((x) => x >= debut), m);
     }
   });
-  test('B9 guillemets, points virgules et retours à la ligne échappés', () => {
-    assert.equal(L.echapperCsv('a"b'), '"a""b"');
-    assert.equal(L.echapperCsv('a;b'), '"a;b"');
-    assert.equal(L.echapperCsv('a\nb'), '"a\nb"');
-    assert.equal(L.echapperCsv('simple'), 'simple');
-    assert.ok(csv.includes('"Marie ""la fleuriste"" Durand"'));
-    assert.ok(csv.includes('"Fleurs; Provence"'));
-    assert.ok(csv.includes('"Ligne 1\nLigne 2"'));
-    assert.ok(csv.includes(';1200,5;'));
-    assert.ok(csv.includes(';Rendez vous fixé;'));
-    assert.ok(csv.includes('Prospect, Interviewé JTBD'));
-    assert.ok(csv.includes(';Audit;'));
+  test('B12 avant le début, un seul mois (le début) ; début invalide : mois courant', () => {
+    assert.deepEqual(L.fenetreCa(debut, '2026-08'), ['2026-10']);
+    assert.deepEqual(L.fenetreCa('n’importe quoi', '2026-12'), ['2026-12']);
   });
-  test('B9 une ligne par fiche', () => {
-    // Les retours à la ligne internes sont entre guillemets : on compte les enregistrements.
-    const enregistrements = csv.slice(1).trimEnd().split(/\r\n(?=(?:[^"]*"[^"]*")*[^"]*$)/);
-    assert.equal(enregistrements.length, 1 + fiches.length);
+  test('B12 changer le début d’activité change la fenêtre', () => {
+    assert.deepEqual(L.fenetreCa('2026-12', '2027-01'), ['2026-12', '2027-01']);
   });
-  test("B9 rappel d'export affiché sans export ou après 30 jours, masqué sinon", () => {
-    const maintenant = new Date('2026-10-15T10:00:00Z');
-    assert.equal(L.rappelExportVisible(null, maintenant), true);
-    assert.equal(L.rappelExportVisible(undefined, maintenant), true);
-    assert.equal(L.rappelExportVisible(new Date('2026-09-10T10:00:00Z'), maintenant), true);
-    assert.equal(L.rappelExportVisible(new Date('2026-09-20T10:00:00Z'), maintenant), false);
-    assert.equal(L.rappelExportVisible({ seconds: Date.parse('2026-10-14T10:00:00Z') / 1000, nanoseconds: 0 }, maintenant), false);
+  test('B12 chiffre d’affaires par mois', () => {
+    const affaires = [affaire({ encaissements: [{ date: new Date('2026-11-12T10:00:00Z'), montant: 400 }] })];
+    const r = L.caParMois(affaires, ['2026-10', '2026-11']);
+    assert.deepEqual(r.map((x) => x.montant), [0, 400]);
+    assert.equal(r[0].libelle, 'oct.');
+  });
+  test('B12 colonne Facture payée : seulement le mois courant ; totaux de colonne', () => {
+    const affaires = [
+      affaire({ id: '1', etape: 'facture_payee', datesEtapes: { facture_payee: new Date('2026-10-12T10:00:00Z') }, montant: 100 }),
+      affaire({ id: '2', etape: 'facture_payee', datesEtapes: { facture_payee: new Date('2026-09-12T10:00:00Z') }, montant: 50 }),
+      affaire({ id: '3', etape: 'gagne', montant: 70 }),
+    ];
+    assert.deepEqual(L.payeesDuMois(affaires, '2026-10').map((a) => a.id), ['1']);
+    assert.deepEqual(L.totauxColonne([affaires[0], affaires[2]]), { nombre: 2, montant: 170 });
+    assert.equal(L.compterParEtape(affaires).find((e) => e.id === 'facture_payee').nombre, 2);
   });
 });
 
-describe('Autres règles de la fiche', () => {
-  test('validation des champs obligatoires', () => {
-    const e = L.validerFiche({ nom: '', roles: [], source: '', etape: 'premier_contact', priorite: 'tiede', datePremierContact: '2026-10-01', email: 'pas-un-email' });
-    assert.deepEqual(Object.keys(e).sort(), ['email', 'nom', 'roles', 'source']);
-    assert.deepEqual(L.validerFiche(L.nouvelleFiche({ nom: 'Ok', source: 'Flyer' }, ctx())), {});
+describe('B13 Filtres', () => {
+  const orgs = [organisation({ id: 'o1', nom: 'Fleurs de Provence', secteur: 'Commerce local', ville: 'Manosque', etiquettes: ['commercant_local'] }), organisation({ id: 'o2', nom: 'Atelier Bois', ville: 'Digne', archive: true })];
+  const pers = [
+    personne({ id: '1', nom: 'Marie Durand', organisationId: 'o1', roles: ['prospect'], etiquettes: ['prospect_chaud'], ville: 'Manosque', source: 'Flyer', emails: [{ valeur: 'marie@fleurs.fr', type: 'travail' }] }),
+    personne({ id: '2', nom: 'Éric Léon', roles: ['interview_jtbd'], dateInterviewJtbd: '2026-10-02', ville: 'Digne' }),
+    personne({ id: '3', nom: 'Paul Martin', roles: ['interview_jtbd', 'partenaire'], dateInterviewJtbd: null }),
+    personne({ id: '4', nom: 'Vieux Contact', archive: true }),
+  ];
+  const ids = (l) => l.map((x) => x.id);
+  test('B13 personnes : les archivées sont masquées sauf avec le filtre Archivés', () => {
+    assert.deepEqual(ids(L.filtrerPersonnes(pers, {}, { organisations: orgs })), ['1', '2', '3']);
+    assert.deepEqual(ids(L.filtrerPersonnes(pers, { archives: true })), ['4']);
   });
-  test('Fait : vide l’action, historise, met à jour le dernier échange', () => {
-    const f = fiche({ prochaineAction: 'Appeler', dateProchaineAction: '2026-10-15' });
-    const p = L.actionFaite(f, ctx('2026-10-15T09:00:00Z'));
-    assert.equal(p.prochaineAction, '');
-    assert.equal(p.dateProchaineAction, null);
-    assert.equal(p.historique.at(-1).texte, 'Action faite : Appeler');
-    assert.equal(p.dateDernierEchange.toISOString(), '2026-10-15T09:00:00.000Z');
+  test('B13 personnes : chaque filtre seul', () => {
+    const f = (c) => ids(L.filtrerPersonnes(pers, c, { organisations: orgs }));
+    assert.deepEqual(f({ etiquettes: ['prospect_chaud'] }), ['1']);
+    assert.deepEqual(f({ organisations: ['o1'] }), ['1']);
+    assert.deepEqual(f({ roles: ['interview_jtbd'] }), ['2', '3']);
+    assert.deepEqual(f({ sources: ['Flyer'] }), ['1']);
+    assert.deepEqual(f({ villes: ['Digne'] }), ['2']);
+    assert.deepEqual(f({ jtbd: 'faite' }), ['2']);
+    assert.deepEqual(f({ jtbd: 'non_faite' }), ['1', '3']);
   });
-  test('Fait sur un réveil : la fiche reprend en Premier contact', () => {
-    const f = fiche({ etape: 'pas_maintenant', dateReveil: '2026-10-15' });
-    const p = L.actionFaite(f, ctx(), { reprise: true });
-    assert.equal(p.etape, 'premier_contact');
-    assert.equal(p.dateReveil, null);
+  test('B13 personnes : recherche insensible aux accents, dans nom, organisation, email', () => {
+    const f = (r) => ids(L.filtrerPersonnes(pers, { recherche: r }, { organisations: orgs }));
+    assert.deepEqual(f('eric'), ['2']);
+    assert.deepEqual(f('provence'), ['1']);
+    assert.deepEqual(f('marie@fleurs'), ['1']);
+    assert.deepEqual(f('marie zzz'), []);
   });
-  test('Rendez vous tenu : date du rendez vous si renseignée, sinon maintenant', () => {
-    const f = fiche({ dateRdv: '2026-10-12T14:30' });
-    assert.equal(L.marquerRdvTenu(f, true, ctx()).dateRdvTenu.toISOString(), '2026-10-12T12:30:00.000Z');
-    assert.equal(L.marquerRdvTenu(fiche(), true, ctx()).dateRdvTenu.toISOString(), '2026-10-15T08:00:00.000Z');
-    assert.deepEqual(L.marquerRdvTenu(f, false, ctx()), { rdvTenu: false, dateRdvTenu: null });
+  test('B13 personnes : filtres combinés', () => {
+    assert.deepEqual(ids(L.filtrerPersonnes(pers, { roles: ['interview_jtbd'], jtbd: 'non_faite' }, { organisations: orgs })), ['3']);
   });
-  test('Notes : jamais modifiées par une action automatique, seulement par "Copier dans Notes"', () => {
-    const f = fiche({ notes: 'Texte libre', prochaineAction: 'A', dateProchaineAction: '2026-10-10', etape: 'proposition_envoyee', montant: 100 });
-    const patchs = [
-      L.actionFaite(f, ctx()), L.emailEnvoye(f, ctx()), L.marquerRdvTenu(f, true, ctx()),
-      L.changementEtape(f, 'gagne', ctx()), L.changementEtape(f, 'facture_payee', ctx()),
-      L.nouvelleAffaire(f, ctx()), L.ajouterNoteRapide(f, 'dictée', { ...ctx(), id: 'n1' }),
-      L.marquerOpposition(true, ctx()),
-    ];
-    for (const p of patchs) assert.equal('notes' in p, false);
-    const avecNote = { ...f, ...L.ajouterNoteRapide(f, 'dictée', { ...ctx(), id: 'n1' }) };
-    assert.equal(L.copierNoteDansNotes(avecNote, 'n1').notes, 'Texte libre\n\ndictée');
-    assert.deepEqual(L.supprimerNoteRapide(avecNote, 'n1').notesRapides, []);
+  test('B13 organisations : filtres seuls et combinés', () => {
+    assert.deepEqual(ids(L.filtrerOrganisations(orgs, {})), ['o1']);
+    assert.deepEqual(ids(L.filtrerOrganisations(orgs, { archives: true })), ['o2']);
+    assert.deepEqual(ids(L.filtrerOrganisations(orgs, { secteurs: ['Commerce local'], villes: ['Manosque'] })), ['o1']);
+    assert.deepEqual(ids(L.filtrerOrganisations(orgs, { etiquettes: ['commercant_local'] })), ['o1']);
+    assert.deepEqual(ids(L.filtrerOrganisations(orgs, { recherche: 'fleurs' })), ['o1']);
   });
-  test('Opposition à la prospection : bouton email désactivé', () => {
-    assert.equal(L.emailActif(fiche({ email: 'a@b.fr' })), true);
-    assert.equal(L.emailActif(fiche({ email: '' })), false);
-    assert.equal(L.emailActif(fiche({ email: 'a@b.fr', oppositionProspection: true })), false);
-    const p = L.marquerOpposition(true, ctx());
-    assert.equal(p.oppositionProspection, true);
-    assert.ok(p.dateOpposition instanceof Date);
+  const auj = '2026-10-15';
+  const affs = [
+    affaire({ id: 'a', titre: 'Atelier IA', personneId: '1', organisationId: 'o1', etape: 'rdv_fixe', priorite: 'chaud', source: 'Flyer', offreId: 'audit' }),
+    affaire({ id: 'b', titre: 'Audit', etape: 'gagne', statut: 'gagnee' }),
+    affaire({ id: 'c', titre: 'Vieille', statut: 'perdue' }),
+    affaire({ id: 'd', titre: 'Payée', etape: 'facture_payee', statut: 'gagnee', archive: true }),
+  ];
+  const acts = [activite({ id: '1', affaireId: 'a', date: '2026-10-10' }), activite({ id: '2', affaireId: 'b', date: '2026-10-30' })];
+  const fa = (c) => ids(L.filtrerAffaires(affs, c, { activites: acts, personnes: pers, organisations: orgs, aujourdhui: auj }));
+  test('B13 affaires : archivées masquées sauf avec le filtre', () => {
+    assert.deepEqual(fa({}), ['a', 'b', 'c']);
+    assert.deepEqual(fa({ archives: true }), ['d']);
+  });
+  test('B13 affaires : chaque filtre seul', () => {
+    assert.deepEqual(fa({ etapes: ['rdv_fixe'] }), ['a']);
+    assert.deepEqual(fa({ statuts: ['perdue'] }), ['c']);
+    assert.deepEqual(fa({ priorites: ['chaud'] }), ['a']);
+    assert.deepEqual(fa({ offres: ['audit'] }), ['a']);
+    assert.deepEqual(fa({ sources: ['Flyer'] }), ['a']);
+    assert.deepEqual(fa({ personnes: ['1'] }), ['a']);
+    assert.deepEqual(fa({ organisations: ['o1'] }), ['a']);
+    assert.deepEqual(fa({ recherche: 'marie' }), ['a']);
+    assert.deepEqual(fa({ enRetard: true }), ['a']);
+    assert.deepEqual(fa({ sansAction: true }), []);
+  });
+  test('B13 affaires : sans action prévue', () => {
+    assert.deepEqual(ids(L.filtrerAffaires([affaire({ id: 'z' })], { sansAction: true }, { activites: [], aujourdhui: auj })), ['z']);
+  });
+  test('B13 affaires : à relancer cette semaine (retards inclus, jusqu’à dimanche)', () => {
+    assert.deepEqual(fa({ semaine: true }), ['a']); // 'b' est le 30 octobre : hors semaine
+    assert.deepEqual(ids(L.filtrerAffaires(affs, { semaine: true }, { activites: [...acts, activite({ id: '9', affaireId: 'b', date: '2026-10-18' })], aujourdhui: auj })), ['a', 'b']);
+  });
+  test('B13 affaires : filtres combinés', () => {
+    assert.deepEqual(fa({ etapes: ['rdv_fixe', 'gagne'], enRetard: true }), ['a']);
+  });
+  test('B13 filtres enregistrés de départ', () => {
+    assert.deepEqual(L.FILTRES_DEPART.map((f) => [f.id, f.liste]), [
+      ['relancer_semaine', 'affaires'], ['chaudes', 'affaires'], ['reseau_entrepreneuses', 'affaires'], ['jtbd_a_faire', 'personnes'],
+    ]);
+    const chaudes = L.FILTRES_DEPART.find((f) => f.id === 'chaudes').criteres;
+    assert.deepEqual(fa(chaudes), ['a']);
+    const jtbd = L.FILTRES_DEPART.find((f) => f.id === 'jtbd_a_faire').criteres;
+    assert.deepEqual(ids(L.filtrerPersonnes(pers, jtbd, { organisations: orgs })), ['3']);
+    const reseau = L.FILTRES_DEPART.find((f) => f.id === 'reseau_entrepreneuses').criteres;
+    assert.deepEqual(fa(reseau), []);
+  });
+  test('B13 pastilles supprimables', () => {
+    const c = { etapes: ['rdv_fixe'], enRetard: true };
+    const p = L.pastillesFiltres('affaires', c);
+    assert.deepEqual(p.map((x) => x.libelle), ['Étape : Rendez vous fixé', 'En retard']);
+    const sans = L.retirerCritere('affaires', c, 'etapes', 'rdv_fixe');
+    assert.deepEqual(sans.etapes, []);
+    assert.equal(L.retirerCritere('affaires', c, 'enRetard').enRetard, false);
+    assert.equal(L.criteresActifs('affaires', c), true);
+    assert.equal(L.criteresActifs('affaires', {}), false);
+  });
+  test('B13 tri : valeurs vides en dernier, accents au tri français', () => {
+    const l = [{ n: 'zoé' }, { n: '' }, { n: 'Éric' }, { n: 'adam' }];
+    assert.deepEqual(L.trier(l, (x) => x.n).map((x) => x.n), ['adam', 'Éric', 'zoé', '']);
+    assert.deepEqual(L.trier(l, (x) => x.n, 'desc').map((x) => x.n), ['zoé', 'Éric', 'adam', '']);
+  });
+});
+
+describe('B14 Intégrité des liens', () => {
+  const personnes = [personne({ id: 'p1', organisationId: 'o1' }), personne({ id: 'p2', organisationId: 'o2' })];
+  const affaires = [affaire({ id: 'a1', personneId: 'p1', organisationId: 'o1' }), affaire({ id: 'a2', personneId: 'p1' }), affaire({ id: 'a3', personneId: 'p2', organisationId: 'o3' })];
+  test('B14 suppression d’une organisation refusée si elle a des personnes ou des affaires', () => {
+    const r = L.verifierSuppressionOrganisation('o1', { personnes, affaires });
+    assert.equal(r.ok, false);
+    assert.equal(r.personnes, 1);
+    assert.equal(r.affaires, 1);
+    assert.match(r.raison, /1 personne et 1 affaire/);
+    assert.equal(L.verifierSuppressionOrganisation('o3', { personnes, affaires }).ok, false);
+  });
+  test('B14 suppression d’une organisation vide autorisée', () => {
+    assert.equal(L.verifierSuppressionOrganisation('o9', { personnes, affaires }).ok, true);
+  });
+  test('B14 suppression d’une personne : choisir le sort de ses affaires', () => {
+    assert.deepEqual(L.planSuppressionPersonne('p1', affaires, 'affaires'), { supprimerAffaires: ['a1', 'a2'], detacherAffaires: [] });
+    assert.deepEqual(L.planSuppressionPersonne('p1', affaires, 'conserver'), { supprimerAffaires: [], detacherAffaires: ['a1', 'a2'] });
+    assert.throws(() => L.planSuppressionPersonne('p1', affaires, undefined));
+    assert.deepEqual(L.planSuppressionPersonne('inconnu', affaires, undefined), { supprimerAffaires: [], detacherAffaires: [] });
+  });
+  test('B14 confirmation par le nom : sans accents ni casse', () => {
+    assert.equal(L.confirmationValide('eric  leon', 'Éric Léon'), true);
+    assert.equal(L.confirmationValide('eric', 'Éric Léon'), false);
+    assert.equal(L.confirmationValide('', ''), false);
+  });
+  test('B14 les liens du fil suivent l’affaire', () => {
+    assert.deepEqual(L.liensAffaire(affaire({ id: 'z', personneId: 'p', organisationId: 'o' })), { personneId: 'p', organisationId: 'o', affaireId: 'z' });
+  });
+});
+
+describe('B15 Export JSON et CSV', () => {
+  const orgs = [organisation({ id: 'o1', nom: 'Fleurs; "de" Provence' })];
+  const pers = [personne({ id: 'p1', nom: 'Marie Durand', organisationId: 'o1', emails: [{ valeur: 'marie@x.fr', type: 'perso' }], etiquettes: ['partenaire'], roles: ['prospect', 'partenaire'] })];
+  const affs = [affaire({ id: 'a1', titre: 'Atelier\nIA', personneId: 'p1', organisationId: 'o1', montant: 1200.5, offreId: 'audit' })];
+  test('B15 JSON complet : toutes les collections, identifiants présents, dates en ISO', () => {
+    const texte = L.exportJson({
+      crm_personnes: pers, crm_organisations: orgs, crm_affaires: affs,
+      crm_activites: [], crm_notes: [], crm_evenements: [{ id: 'e', date: { seconds: 1760000000, nanoseconds: 0 } }],
+      crm_parametres: [{ id: 'general', delaiPaiementJours: 30 }],
+    }, new Date('2026-10-20T10:00:00Z'));
+    const j = JSON.parse(texte);
+    assert.equal(j.version, '2.0.0');
+    assert.equal(j.exporteLe, '2026-10-20T10:00:00.000Z');
+    assert.deepEqual(Object.keys(j.collections).sort(), ['crm_activites', 'crm_affaires', 'crm_evenements', 'crm_notes', 'crm_organisations', 'crm_parametres', 'crm_personnes']);
+    assert.equal(j.collections.crm_personnes[0].id, 'p1');
+    assert.equal(j.collections.crm_personnes[0].creeLe, '2026-10-01T08:00:00.000Z');
+    assert.equal(j.collections.crm_evenements[0].date, '2025-10-09T08:53:20.000Z');
+  });
+  test('B15 CSV : BOM, point virgule, CRLF, guillemets et retours à la ligne échappés', () => {
+    const csv = L.csvAffaires(affs, { personnes: pers, organisations: orgs, offres: L.OFFRES_DEPART });
+    assert.equal(csv.charCodeAt(0), 0xfeff);
+    assert.ok(csv.includes('\r\n'));
+    const [entete, ...lignes] = csv.slice(1).split('\r\n');
+    assert.equal(entete.split(';')[0], 'Identifiant');
+    assert.match(csv, /"Atelier\nIA"/);
+    assert.match(csv, /"Fleurs; ""de"" Provence"/);
+    assert.match(csv, /1200,5/);
+    assert.ok(lignes.length >= 1);
+  });
+  test('B15 CSV : le nom de l’organisation, pas son identifiant', () => {
+    const csv = L.csvPersonnes(pers, { organisations: orgs, etiquettes: L.ETIQUETTES_DEPART });
+    assert.ok(csv.includes('"Fleurs; ""de"" Provence"'));
+    assert.ok(!csv.includes(';o1;'));
+    assert.ok(csv.includes('marie@x.fr (Perso)'));
+    assert.ok(csv.includes('Partenaire'));
+    assert.ok(csv.includes('Prospect, Partenaire'));
+    const orgCsv = L.csvOrganisations(orgs, { personnes: pers });
+    assert.ok(orgCsv.includes(';1;')); // une personne
+    assert.ok(L.csvAffaires(affs, { personnes: pers, organisations: orgs, offres: L.OFFRES_DEPART }).includes('Audit'));
+  });
+  test('B15 noms de fichiers datés (jour de Paris)', () => {
+    assert.equal(L.nomFichierExport(new Date('2026-10-20T10:00:00Z')), 'chevalier-ia-os-2026-10-20.json');
+    assert.equal(L.nomFichierExport(new Date('2026-10-20T10:00:00Z'), 'personnes'), 'chevalier-ia-personnes-2026-10-20.csv');
+    assert.equal(L.nomFichierExport(new Date('2026-10-20T22:30:00Z'), 'affaires'), 'chevalier-ia-affaires-2026-10-21.csv');
+  });
+  test('B15 rappel d’export : affiché sans export ou après plus de 30 jours', () => {
+    const maintenant = new Date('2026-11-20T10:00:00Z');
+    assert.equal(L.rappelExportVisible(null, maintenant), true);
+    assert.equal(L.rappelExportVisible(new Date('2026-11-10T10:00:00Z'), maintenant), false);
+    assert.equal(L.rappelExportVisible(new Date('2026-10-20T10:00:00Z'), maintenant), true);
+    assert.equal(L.rappelExportVisible({ seconds: Math.floor(new Date('2026-11-15T10:00:00Z').getTime() / 1000), nanoseconds: 0 }, maintenant), false);
+  });
+});
+
+describe('B16 Formats et réglages de départ', () => {
+  test('B16 euros et nombres à la française', () => {
+    assert.equal(L.formatEuros(1000), '1 000 €');
+    assert.equal(L.formatEuros(1234.5), '1 234,50 €');
+    assert.equal(L.formatNombre(12.5), '12,5');
+  });
+  test('B16 jours et mois', () => {
+    assert.equal(L.formatJour('2026-10-05'), '05/10/2026');
+    assert.equal(L.formatJourCourt('2026-10-16', '2026-10-15'), 'Demain');
+    assert.equal(L.formatJourCourt('2026-10-14', '2026-10-15'), 'Hier');
+    assert.equal(L.formatJourCourt('2026-10-20', '2026-10-15'), '20 oct.');
+    assert.equal(L.libelleMois('2026-10'), 'octobre 2026');
+    assert.equal(L.decalerMois('2026-12', 1), '2027-01');
+  });
+  test('B16 réglages de départ : 30 jours, octobre 2026', () => {
+    assert.deepEqual(L.REGLAGES_DEPART, { delaiPaiementJours: 30, debutActivite: '2026-10', dernierExport: null });
+  });
+  test('B16 étiquettes, offres, secteurs et sources de départ', () => {
+    assert.deepEqual(L.ETIQUETTES_DEPART.map((e) => e.nom), ['Prospect chaud', 'Réseau entrepreneuses', 'Commerçant local', 'Partenaire']);
+    assert.deepEqual(L.OFFRES_DEPART.map((o) => o.nom), ['Audit', 'Accompagnement']);
+    assert.equal(L.SECTEURS_DEPART.length, 7);
+    assert.equal(L.SOURCES_DEPART.length, 8);
+  });
+  test('B16 six étapes, couleurs de la charte', () => {
+    assert.deepEqual(L.ETAPES.map((e) => e.id), ['premier_contact', 'rdv_fixe', 'proposition_envoyee', 'gagne', 'facture_envoyee', 'facture_payee']);
+    assert.equal(L.couleurEtape('gagne'), '#ecbc06');
+    assert.equal(L.libelleEtape('rdv_fixe'), 'Rendez vous fixé');
   });
 });

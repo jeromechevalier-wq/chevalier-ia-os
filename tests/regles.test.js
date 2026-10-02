@@ -15,7 +15,10 @@ const PROJET = 'demo-chevalier-ia-os';
 const REGLES = readFileSync(fileURLToPath(new URL('../firestore.rules', import.meta.url)), 'utf8');
 const [hote, port] = (process.env.FIRESTORE_EMULATOR_HOST || '127.0.0.1:8080').split(':');
 
-const COLLECTIONS = ['crm_prospects', 'crm_parametres', 'os_objectifs', 'os_objectifs_saisies'];
+const COLLECTIONS = [
+  'crm_personnes', 'crm_organisations', 'crm_affaires', 'crm_activites', 'crm_notes', 'crm_evenements',
+  'crm_parametres', 'os_objectifs', 'os_objectifs_saisies',
+];
 
 let env;
 
