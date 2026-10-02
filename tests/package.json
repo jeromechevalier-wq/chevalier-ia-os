@@ -6,10 +6,12 @@
   "type": "module",
   "scripts": {
     "test": "firebase emulators:exec --config ../firebase.json --project demo-chevalier-ia-os --only auth,firestore \"npm run tous\"",
-    "tous": "npm run test:regles && npm run test:logique && npm run test:statique && npm run test:e2e",
+    "tous": "npm run test:regles && npm run test:logique && npm run test:statique && npm run test:fonctions && npm run test:e2e",
     "test:regles": "node --test regles.test.js",
     "test:logique": "node --test logique.test.js",
     "test:statique": "node --test statique.test.js",
+    "installer-fonctions": "npm ci --prefix ../functions",
+    "test:fonctions": "node --test jetons.test.js mcp.test.js",
     "test:e2e": "playwright test",
     "installer-navigateur": "playwright install chromium"
   },

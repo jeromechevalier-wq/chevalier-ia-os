@@ -1,0 +1,135 @@
+// Tests du point d'entrée HTTP du serveur MCP (étape 2) : origine, méthode, jeton, droits par profil, journaux sans secret.
+// Un vrai client MCP (SDK officiel) appelle le gestionnaire sur un serveur HTTP local ; aucun service Google n'est touché.
+import { test, describe, before, after } from 'node:test';
+import assert from 'node:assert/strict';
+import { createServer } from 'node:http';
+import { Client } from '../functions/node_modules/@modelcontextprotocol/sdk/dist/esm/client/index.js';
+import { StreamableHTTPClientTransport } from '../functions/node_modules/@modelcontextprotocol/sdk/dist/esm/client/streamableHttp.js';
+import { creerGestionnaire } from '../functions/src/mcp/gestionnaire.js';
+import { OUTILS } from '../functions/src/mcp/outils/index.js';
+import { empreinte, creerMagasin } from '../functions/src/securite/jetons.js';
+
+const JETON = { lecteur: `cia_${'L'.repeat(43)}`, biblio: `cia_${'H'.repeat(43)}`, code: `cia_${'C'.repeat(43)}`, revoque: `cia_${'R'.repeat(43)}` };
+const entree = (jeton, nom, profil, actif = true) => ({ jeton: nom, acteur: nom, profil, empreinte: empreinte(jeton), actif });
+const SECRET = JSON.stringify([
+  entree(JETON.lecteur, 'lecteur-essai', 'lecteur'),
+  entree(JETON.biblio, 'hermes-bibliothecaire', 'bibliothecaire'),
+  entree(JETON.code, 'claude-code-jerome', 'claude-code'),
+  entree(JETON.revoque, 'ancien-client', 'claude-code', false),
+]);
+
+// Un outil réservé à Claude Code, pour prouver le refus côté serveur (le plan n'en a pas encore à l'étape 2).
+const OUTIL_RESERVE = {
+  nom: 'outil_reserve', profils: ['claude-code'], description: 'Réservé à Claude Code (essai).',
+  async executer() { return { ok: true }; },
+};
+
+let serveur, base, lignesJournal, panneSecret;
+before(async () => {
+  lignesJournal = [];
+  panneSecret = false;
+  const magasin = creerMagasin({ lire: async () => { if (panneSecret) throw new Error('secret illisible : détail interne'); return SECRET; }, dureeCacheMs: 0 });
+  const gestionnaire = creerGestionnaire({ magasin, outils: [...OUTILS, OUTIL_RESERVE], journal: (e) => { lignesJournal.push(e); } });
+  serveur = createServer((req, res) => {
+    const morceaux = [];
+    req.on('data', (m) => morceaux.push(m));
+    req.on('end', () => {
+      const texte = Buffer.concat(morceaux).toString('utf8');
+      try { req.body = texte ? JSON.parse(texte) : undefined; } catch { req.body = undefined; }
+      gestionnaire(req, res);
+    });
+  });
+  await new Promise((ok) => serveur.listen(0, '127.0.0.1', ok));
+  base = `http://127.0.0.1:${serveur.address().port}/mcp`;
+});
+after(() => serveur.close());
+
+const brut = (jeton, { methode = 'POST', entetes = {}, corps } = {}) => fetch(base, {
+  method: methode,
+  headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', ...(jeton ? { Authorization: `Bearer ${jeton}` } : {}), ...entetes },
+  body: methode === 'POST' ? JSON.stringify(corps ?? { jsonrpc: '2.0', id: 1, method: 'tools/list' }) : undefined,
+});
+async function client(jeton) {
+  const c = new Client({ name: 'essai', version: '1.0.0' });
+  await c.connect(new StreamableHTTPClientTransport(new URL(base), { requestInit: { headers: { Authorization: `Bearer ${jeton}` } } }));
+  return c;
+}
+
+describe('Accès : origine, méthode, jeton', () => {
+  test('sans jeton, avec un jeton inconnu ou révoqué : 401, même réponse, aucun détail', async () => {
+    const reponses = [];
+    for (const j of [undefined, `cia_${'Z'.repeat(43)}`, JETON.revoque, 'nimporte quoi']) {
+      const r = await brut(j);
+      assert.equal(r.status, 401);
+      assert.equal(r.headers.get('www-authenticate'), 'Bearer');
+      reponses.push(await r.text());
+    }
+    assert.equal(new Set(reponses).size, 1);
+    assert.equal(reponses[0], '{"error":"non_autorise"}');
+  });
+  test('GET, DELETE et PUT sont refusés (405) ; un en-tête Origin inconnu est refusé (403), même avec un bon jeton', async () => {
+    for (const methode of ['GET', 'DELETE', 'PUT']) assert.equal((await brut(JETON.code, { methode })).status, 405, methode);
+    assert.equal((await brut(JETON.code, { entetes: { Origin: 'https://exemple.test' } })).status, 403);
+    assert.equal((await brut(JETON.code, { entetes: { Origin: 'https://chevalier-ia-os.web.app' } })).status, 200);
+  });
+  test('secret illisible : 503 sans détail, jamais d’accès accordé', async () => {
+    panneSecret = true;
+    const r = await brut(JETON.code);
+    panneSecret = false;
+    assert.equal(r.status, 503);
+    assert.equal(await r.text(), '{"error":"indisponible"}');
+  });
+});
+
+describe('Protocole MCP et droits par profil', () => {
+  test('qui_suis_je : acteur, profil, outils autorisés et version', async () => {
+    const c = await client(JETON.biblio);
+    const r = await c.callTool({ name: 'qui_suis_je', arguments: {} });
+    const donnees = JSON.parse(r.content[0].text);
+    assert.equal(donnees.acteur, 'hermes-bibliothecaire');
+    assert.equal(donnees.profil, 'bibliothecaire');
+    assert.deepEqual(donnees.outils, ['qui_suis_je']);
+    assert.equal(donnees.serveur.nom, 'chevalier-ia-os');
+    assert.match(donnees.serveur.version, /^\d+\.\d+\.\d+$/);
+    await c.close();
+  });
+  test('droits par profil : un outil hors profil n’est ni listé ni exécutable, même si l’appel arrive', async () => {
+    const biblio = await client(JETON.biblio);
+    assert.deepEqual((await biblio.listTools()).tools.map((t) => t.name), ['qui_suis_je']);
+    const refus = await biblio.callTool({ name: 'outil_reserve', arguments: {} }).catch((e) => ({ erreur: e }));
+    assert.ok(refus.erreur || refus.isError, 'appel refusé');
+    await biblio.close();
+    const code = await client(JETON.code);
+    assert.deepEqual((await code.listTools()).tools.map((t) => t.name).sort(), ['outil_reserve', 'qui_suis_je']);
+    assert.equal(JSON.parse((await code.callTool({ name: 'outil_reserve', arguments: {} })).content[0].text).ok, true);
+    await code.close();
+  });
+});
+
+describe('Journaux sans secret', () => {
+  test('aucun jeton, en-tête, paramètre ni contenu dans les lignes de journal, y compris en cas d’erreur', async () => {
+    lignesJournal.length = 0;
+    const c = await client(JETON.code);
+    await c.callTool({ name: 'qui_suis_je', arguments: {} });
+    await c.close();
+    await brut(JETON.code, { corps: { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'OUTIL_INVENTE_PAR_LE_CLIENT', arguments: { email: 'secret@exemple.test' } } } });
+    await brut(JETON.revoque);
+    panneSecret = true;
+    await brut(JETON.code);
+    panneSecret = false;
+    assert.ok(lignesJournal.length >= 4);
+    const tout = JSON.stringify(lignesJournal);
+    for (const secret of Object.values(JETON)) assert.equal(tout.includes(secret), false, 'jeton en clair');
+    for (const interdit of ['Bearer', 'secret@exemple.test', 'OUTIL_INVENTE_PAR_LE_CLIENT', 'détail interne', 'arguments']) assert.equal(tout.includes(interdit), false, interdit);
+    const champs = new Set(lignesJournal.flatMap((l) => Object.keys(l)));
+    for (const c of champs) assert.ok(['jeton', 'acteur', 'profil', 'methodeMcp', 'outil', 'operationId', 'dureeMs', 'statut', 'code'].includes(c), `champ hors liste blanche : ${c}`);
+  });
+  test('la ligne écrite pour Cloud Logging est du JSON avec une sévérité', async () => {
+    const { journaliser } = await import('../functions/src/securite/journaux.js');
+    const sorties = [];
+    journaliser({ jeton: 'x', statut: 500, code: 'erreur_interne', intrus: 'ne doit pas sortir' }, (l) => sorties.push(l));
+    const ligne = JSON.parse(sorties[0]);
+    assert.equal(ligne.severity, 'ERROR');
+    assert.equal(ligne.intrus, undefined);
+  });
+});

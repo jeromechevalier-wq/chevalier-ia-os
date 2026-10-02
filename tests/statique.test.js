@@ -13,7 +13,7 @@ const json = (chemin) => JSON.parse(lire(chemin));
 function fichiersAppli(dossier = '', liste = []) {
   for (const nom of readdirSync(join(RACINE, dossier))) {
     const rel = join(dossier, nom);
-    if (/^(\.|node_modules$|tests$|docs$|ressources$|outils$|scripts$)/.test(nom)) continue;
+    if (/^(\.|node_modules$|tests$|docs$|ressources$|outils$|scripts$|functions$)/.test(nom)) continue;
     if (statSync(join(RACINE, rel)).isDirectory()) fichiersAppli(rel, liste);
     else liste.push(rel);
   }
@@ -102,9 +102,9 @@ describe('D2 Aucune ressource externe hors Google', () => {
 
 describe('D3 firebase.json, en têtes, indexation', () => {
   const fb = json('firebase.json');
-  test('D3 tests/, docs/, outils/, scripts/, README.md (et ressources/) non publiés', () => {
+  test('D3 tests/, docs/, outils/, scripts/, functions/, README.md (et ressources/) non publiés', () => {
     const ignore = fb.hosting.ignore;
-    for (const x of ['tests/**', 'docs/**', 'README.md', 'ressources/**', 'outils/**', 'scripts/**', '**/node_modules/**', '**/.*']) assert.ok(ignore.includes(x), x);
+    for (const x of ['tests/**', 'docs/**', 'README.md', 'ressources/**', 'outils/**', 'scripts/**', 'functions/**', '**/node_modules/**', '**/.*']) assert.ok(ignore.includes(x), x);
   });
   test('D3 en têtes de sécurité présents', () => {
     const tous = fb.hosting.headers.find((h) => h.source === '**').headers;
@@ -166,8 +166,9 @@ describe('D3 firebase.json, en têtes, indexation', () => {
     assert.match(yml, /secrets\.FIREBASE_SERVICE_ACCOUNT_CHEVALIER_IA_OS/);
     assert.match(yml, /branches:\s*\n\s*- main/);
   });
-  test('D3 package.json uniquement dans tests/', () => {
+  test('D3 package.json uniquement dans tests/ et functions/ (aucun à la racine)', () => {
     assert.ok(!existsSync(join(RACINE, 'package.json')));
+    assert.ok(existsSync(join(RACINE, 'functions/package.json')));
   });
 });
 
@@ -224,8 +225,71 @@ describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
     }
   });
 
-  test('D4 pas de Cloud Function ni de Cloud Storage', () => {
+  test('D4 le code publié (appli) n’utilise ni Cloud Function ni Cloud Storage : le serveur MCP vit dans functions/, jamais publié', () => {
     for (const f of fichiersAppli().filter((x) => /\.js$/.test(x))) assert.doesNotMatch(lire(f), /firebase-functions|firebase-storage|getStorage|httpsCallable/, f);
-    assert.ok(!existsSync(join(RACINE, 'functions')));
+  });
+});
+
+describe('D5 Serveur MCP (étape 2) : déploiement, versions figées, sécurité', () => {
+  const fb = json('firebase.json');
+  const pkg = json('functions/package.json');
+  const fichiersFonctions = (dossier = 'functions/src', liste = []) => {
+    for (const nom of readdirSync(join(RACINE, dossier))) {
+      const rel = join(dossier, nom);
+      if (statSync(join(RACINE, rel)).isDirectory()) fichiersFonctions(rel, liste);
+      else if (nom.endsWith('.js')) liste.push(rel);
+    }
+    return liste;
+  };
+
+  test('D5 Node 22, modules ES, dépendances figées (aucun ^ ni ~) et package-lock.json présent', () => {
+    assert.equal(pkg.engines.node, '22');
+    assert.equal(pkg.type, 'module');
+    assert.ok(existsSync(join(RACINE, 'functions/package-lock.json')));
+    for (const [nom, v] of Object.entries(pkg.dependencies)) assert.match(v, /^\d+\.\d+\.\d+$/, `${nom} : ${v}`);
+    assert.equal(fb.functions[0].runtime, 'nodejs22');
+    assert.equal(fb.functions[0].source, 'functions');
+  });
+  test('D5 la fonction mcp : Paris, 3 instances au plus, invocation publique, pas de CORS', () => {
+    const t = lire('functions/src/index.js');
+    assert.match(t, /export const mcp = onRequest/);
+    assert.match(t, /region: 'europe-west9'/);
+    assert.match(t, /maxInstances: 3/);
+    assert.match(t, /invoker: 'public'/);
+    assert.match(t, /cors: false/);
+  });
+  test('D5 /mcp est réécrit vers le service Cloud Run « mcp » de Paris, et functions/ n’est pas publié', () => {
+    assert.deepEqual(fb.hosting.rewrites, [{ source: '/mcp', run: { serviceId: 'mcp', region: 'europe-west9' } }]);
+    assert.ok(fb.hosting.ignore.includes('functions/**'));
+    assert.equal(fb.emulators.functions.port, 5001);
+  });
+  test('D5 workflow : Node 22, dépendances installées avec npm ci, fonctions déployées AVANT Hosting, identifiants dans un fichier temporaire supprimé', () => {
+    const yml = lire('.github/workflows/firebase-hosting.yml');
+    assert.match(yml, /node-version: 22/);
+    assert.match(yml, /npm ci --prefix functions/);
+    assert.match(yml, /firebase-tools@15\.32\.0 deploy --only functions --project chevalier-ia-os --non-interactive/);
+    assert.ok(yml.indexOf('deploy --only functions') < yml.indexOf('FirebaseExtended/action-hosting-deploy@v0'), 'fonctions avant Hosting');
+    assert.match(yml, /GOOGLE_APPLICATION_CREDENTIALS/);
+    assert.match(yml, /trap 'rm -f "\$fichier"' EXIT/);
+    assert.match(yml, /umask 077/);
+  });
+  test('D5 le jeton n’est jamais lu ailleurs que dans l’en-tête Authorization (ni adresse, ni corps) et seules des empreintes sont comparées', () => {
+    const g = lire('functions/src/mcp/gestionnaire.js');
+    assert.match(g, /req\.headers\.authorization/);
+    assert.doesNotMatch(g, /req\.query|req\.url|searchParams/);
+    assert.match(lire('functions/src/securite/jetons.js'), /timingSafeEqual/);
+  });
+  test('D5 le code des fonctions n’enregistre jamais de jeton, d’en-tête ni de paramètre (aucun console.log direct, journal à liste blanche)', () => {
+    for (const f of fichiersFonctions()) {
+      if (f.endsWith('journaux.js')) continue;
+      assert.doesNotMatch(lire(f), /console\.(log|info|error|warn|debug)|logger\./, f);
+    }
+  });
+  test('D5 le code des fonctions ne référence pas l’ancienne collection crm_prospects', () => {
+    for (const f of fichiersFonctions()) assert.doesNotMatch(lire(f), /crm_prospects/, f);
+  });
+  test('D5 outils/creer-jeton.js existe et ne contient aucun jeton', () => {
+    assert.ok(existsSync(join(RACINE, 'outils/creer-jeton.js')));
+    assert.doesNotMatch(lire('outils/creer-jeton.js'), /cia_[A-Za-z0-9_-]{40,}/);
   });
 });

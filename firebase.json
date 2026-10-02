@@ -2,6 +2,9 @@
   "firestore": {
     "rules": "firestore.rules"
   },
+  "functions": [
+    { "source": "functions", "codebase": "default", "runtime": "nodejs22" }
+  ],
   "hosting": {
     "public": ".",
     "cleanUrls": false,
@@ -14,10 +17,14 @@
       "ressources/**",
       "outils/**",
       "scripts/**",
+      "functions/**",
       "README.md",
       "PROMPT-CONSTRUCTION.md",
       "firestore.rules",
       "*.log"
+    ],
+    "rewrites": [
+      { "source": "/mcp", "run": { "serviceId": "mcp", "region": "europe-west9" } }
     ],
     "headers": [
       {
@@ -53,6 +60,7 @@
     "singleProjectMode": true,
     "auth": { "host": "127.0.0.1", "port": 9099 },
     "firestore": { "host": "127.0.0.1", "port": 8080 },
+    "functions": { "host": "127.0.0.1", "port": 5001 },
     "ui": { "enabled": false }
   }
 }

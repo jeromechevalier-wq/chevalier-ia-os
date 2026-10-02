@@ -1,4 +1,6 @@
-# Déploiement automatique sur Firebase Hosting (canal live) à chaque push sur main.
+# Déploiement automatique à chaque push sur main : d'abord les fonctions (serveur MCP, Paris), puis Firebase Hosting (canal live).
+# Si les fonctions échouent, Hosting n'est pas déployé (la réécriture /mcp pointe vers la fonction, qui doit exister).
+# Les règles Firestore restent hors déploiement (publiées à la main dans la console).
 name: Déploiement Firebase Hosting
 on:
   push:
@@ -9,6 +11,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Installer les dépendances des fonctions (versions figées par package-lock.json)
+        run: npm ci --prefix functions
+      - name: Déployer les fonctions
+        env:
+          COMPTE_DE_SERVICE: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CHEVALIER_IA_OS }}
+        run: |
+          fichier="$RUNNER_TEMP/compte-de-service.json"
+          (umask 077; printf '%s' "$COMPTE_DE_SERVICE" > "$fichier")
+          trap 'rm -f "$fichier"' EXIT
+          GOOGLE_APPLICATION_CREDENTIALS="$fichier" npx --yes firebase-tools@15.32.0 deploy --only functions --project chevalier-ia-os --non-interactive
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}

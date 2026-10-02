@@ -239,6 +239,8 @@ Script local (`outils/prototype-drive.js`) que **tu** lances sur ton Mac, avec u
 
 **Résultat (02/10/2026) : A, B, C, D, E vrais, F (console) confirmé ; aucun repli déclenché.** Détail dans `prototype-drive.md`. Reste le contrôle F à 8 jours.
 
+**Étape 2, écarts de réalisation (02/10/2026)** : SDK MCP figé en **1.32.0** (avec `firebase-functions` 7.4.0, `firebase-admin` 14.5.0, `@google-cloud/secret-manager` 7.1.1, `zod` 4.6.5) ; format du secret `MCP_JETONS` : une entrée JSON par ligne (un tableau JSON est aussi accepté) ; `predeploy` et `scripts/preparer-fonctions.js` sont reportés à l'étape 3 (premier besoin de `logique.js` côté serveur) ; les limites de débit arrivent avec l'écriture (étape 4). Guide : `mcp-etape-2.md`.
+
 ### 5.9 Tests (émulateurs Auth, Firestore, Functions ; `cd tests && npm test`)
 
 Nouveaux fichiers : `tests/fonctions.test.js` (couche métier, audit, outils), `tests/jetons.test.js`, `tests/logique-partagee.test.js` (importe la copie de `functions/partage/` et rejoue des cas de `logique.js` sous Node 22), `tests/regles.test.js` étendu. Un test nommé par comportement :
