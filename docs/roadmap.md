@@ -6,6 +6,8 @@ Légende : **décidé** = validé par Jérôme ; **piste** = à trancher avant l
 
 ## Priorité : Claude Code et les agents lisent et écrivent dans la base
 
+Cahier des charges détaillé : `cahier-mcp.md` (brouillon du 02/10/2026).
+
 - **Décidé** : c'est **indispensable**. Chevalier IA OS devient le CRM de Jérôme (aujourd'hui Notion), Claude Code sur son ordinateur est son outil principal, et des agents IA automatiseront ensuite. Ils doivent pouvoir interroger la base et y écrire, comme avec Notion.
 - **Décidé** : on est en phase de développement, donc **lecture et écriture d'emblée**, sans phase en lecture seule. Les pièces jointes par lien **et** par téléversement Drive font partie du même chantier.
 - **Décidé** : un seul code de serveur MCP pour tous les clients, lancé de deux façons :
@@ -18,7 +20,7 @@ Légende : **décidé** = validé par Jérôme ; **piste** = à trancher avant l
   - Connexion à Firestore par un compte de service Google. Cette clé contourne les règles de sécurité : jamais dans le dépôt, jamais dans le dossier Google Drive.
 - **Piste, plus tard** : une façade API REST sur la même couche de fonctions, si un outil qui ne parle pas MCP en a besoin (webhooks, n8n, formulaires).
 - **À étudier** : migration des fiches Notion existantes (l'import CSV est hors périmètre de la 2.0).
-- **Précautions retenues** : export complet avant les premières écritures ; pas d'outil de suppression au départ (ajout trivial plus tard, mais une suppression est irréversible).
+- **Décidé** : tous les droits pour les agents, suppression comprise, avec un journal d'audit (collection `crm_audit`, copie de l'état avant chaque modification) pour tout tracer et pouvoir restaurer. L'agent bibliothécaire fait aussi les sauvegardes.
 
 ## Version 2.1
 
