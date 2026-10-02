@@ -1,14 +1,17 @@
-// Règles métier pures du module CRM : aucune dépendance à Firebase ni au navigateur.
+// Règles métier pures du module CRM (version 2.0) : aucune dépendance à Firebase ni au navigateur.
 // Conventions :
-//  - les champs "date" (datePremierContact, dateProchaineAction, dateInterviewJtbd, dateReveil)
-//    sont des chaînes "AAAA-MM-JJ" (jour civil, sans fuseau) ;
-//  - dateRdv est une chaîne "AAAA-MM-JJTHH:MM" (heure de Paris) ;
-//  - les champs "timestamp" sont des Timestamp Firestore (ou des Date côté tests) :
-//    versDate() sait lire les deux.
+//  - les champs "date" (date d'une activité, dateInterviewJtbd, dateReveil) sont des chaînes "AAAA-MM-JJ"
+//    (jour civil, sans fuseau) ; les heures sont "HH:MM" ; les mois "AAAA-MM" ;
+//  - les champs "timestamp" sont des Timestamp Firestore (ou des Date côté tests) : versDate() lit les deux ;
+//  - les fonctions qui modifient un document renvoient un "patch" (champs à écrire) et, quand il y a lieu,
+//    la liste des événements du journal à ajouter ; c'est donnees.js qui écrit.
 
 export const FUSEAU = 'Europe/Paris';
-export const MAX_HISTORIQUE = 200;
 export const JOURS_RAPPEL_EXPORT = 30;
+export const MAX_HISTORIQUE = 500;
+export const MAX_SUGGESTIONS = 8;
+export const MIN_LETTRES = 2;
+export const VERSION_EXPORT = '2.0.0';
 
 // ---------------------------------------------------------------- référentiels
 
@@ -21,17 +24,33 @@ export const ETAPES = [
   { id: 'facture_payee', libelle: 'Facture payée', couleur: '#3fbf7f' },
 ];
 
-export const SORTIES = [
-  { id: 'perdu', libelle: 'Perdu', couleur: '#8d8993' },
-  { id: 'pas_maintenant', libelle: 'Pas maintenant', couleur: '#8a9bb4' },
-];
+/** Étapes dont le statut dérivé est "gagnée" (la 4e, 5e et 6e). */
+export const ETAPES_GAGNEES = ['gagne', 'facture_envoyee', 'facture_payee'];
 
-export const TOUTES_ETAPES = [...ETAPES, ...SORTIES];
+export const STATUTS = [
+  { id: 'ouverte', libelle: 'Ouverte', couleur: '#b98ee0' },
+  { id: 'gagnee', libelle: 'Gagnée', couleur: '#ecbc06' },
+  { id: 'perdue', libelle: 'Perdue', couleur: '#8d8993' },
+  { id: 'en_pause', libelle: 'En pause', couleur: '#8a9bb4' },
+];
 
 export const ROLES = [
   { id: 'prospect', libelle: 'Prospect' },
   { id: 'partenaire', libelle: 'Partenaire' },
   { id: 'interview_jtbd', libelle: 'Interviewé JTBD' },
+];
+
+export const TYPES_CONTACT = [
+  { id: 'travail', libelle: 'Travail' },
+  { id: 'perso', libelle: 'Perso' },
+  { id: 'autre', libelle: 'Autre' },
+];
+
+export const TYPES_ACTIVITE = [
+  { id: 'appel', libelle: 'Appel', titre: 'Appel' },
+  { id: 'rendez_vous', libelle: 'Rendez vous', titre: 'Rendez vous' },
+  { id: 'email', libelle: 'Email', titre: 'Email' },
+  { id: 'tache', libelle: 'Tâche', titre: 'Tâche' },
 ];
 
 export const TAILLES = ['Solo', '2 à 10', '11 à 50', 'Plus de 50'];
@@ -42,7 +61,7 @@ export const PRIORITES = [
   { id: 'froid', libelle: 'Froid' },
 ];
 
-export const RAISONS_PERDU = ['Prix', 'Pas le moment', 'Pas de besoin', 'Concurrent', 'Sans réponse', 'Autre'];
+export const RAISONS_PERDUE = ['Prix', 'Pas le moment', 'Pas de besoin', 'Concurrent', 'Sans réponse', 'Autre'];
 
 export const SECTEURS_DEPART = ['Commerce local', 'Artisanat', 'Services', 'Bien être', 'Conseil', 'Associatif', 'Autre'];
 export const SOURCES_DEPART = [
@@ -53,13 +72,19 @@ export const OFFRES_DEPART = [
   { id: 'audit', nom: 'Audit', actif: true, ordre: 1 },
   { id: 'accompagnement', nom: 'Accompagnement', actif: true, ordre: 2 },
 ];
-export const REGLAGES_DEPART = { delaiPaiementJours: 30, dernierExport: null };
+export const ETIQUETTES_DEPART = [
+  { id: 'prospect_chaud', nom: 'Prospect chaud', couleur: '#fd6455', ordre: 1 },
+  { id: 'reseau_entrepreneuses', nom: 'Réseau entrepreneuses', couleur: '#b98ee0', ordre: 2 },
+  { id: 'commercant_local', nom: 'Commerçant local', couleur: '#ecbc06', ordre: 3 },
+  { id: 'partenaire', nom: 'Partenaire', couleur: '#3fbf7f', ordre: 4 },
+];
+export const REGLAGES_DEPART = { delaiPaiementJours: 30, debutActivite: '2026-10', dernierExport: null };
 
 export const FILTRES_DEPART = [
-  { id: 'relancer_semaine', nom: 'À relancer cette semaine', criteres: { semaine: true }, ordre: 1 },
-  { id: 'chauds', nom: 'Chauds', criteres: { priorites: ['chaud'] }, ordre: 2 },
-  { id: 'reseau_entrepreneuses', nom: 'Réseau entrepreneuses', criteres: { sources: ['Réseau entrepreneuses'] }, ordre: 3 },
-  { id: 'jtbd_a_faire', nom: 'Interviews JTBD à faire', criteres: { roles: ['interview_jtbd'], jtbd: 'non_faite' }, ordre: 4 },
+  { id: 'relancer_semaine', nom: 'À relancer cette semaine', liste: 'affaires', criteres: { semaine: true }, ordre: 1 },
+  { id: 'chaudes', nom: 'Chaudes', liste: 'affaires', criteres: { priorites: ['chaud'] }, ordre: 2 },
+  { id: 'reseau_entrepreneuses', nom: 'Réseau entrepreneuses', liste: 'affaires', criteres: { sources: ['Réseau entrepreneuses'] }, ordre: 3 },
+  { id: 'jtbd_a_faire', nom: 'Interviews JTBD à faire', liste: 'personnes', criteres: { roles: ['interview_jtbd'], jtbd: 'non_faite' }, ordre: 4 },
 ];
 
 export const DATES_RAPIDES = [
@@ -70,10 +95,13 @@ export const DATES_RAPIDES = [
 ];
 
 export function libelleEtape(id) {
-  return TOUTES_ETAPES.find((e) => e.id === id)?.libelle ?? id ?? '';
+  return ETAPES.find((e) => e.id === id)?.libelle ?? id ?? '';
 }
 export function couleurEtape(id) {
-  return TOUTES_ETAPES.find((e) => e.id === id)?.couleur ?? '#8d8993';
+  return ETAPES.find((e) => e.id === id)?.couleur ?? '#8d8993';
+}
+export function libelleStatut(id) {
+  return STATUTS.find((s) => s.id === id)?.libelle ?? id ?? '';
 }
 export function libelleRole(id) {
   return ROLES.find((r) => r.id === id)?.libelle ?? id;
@@ -81,10 +109,20 @@ export function libelleRole(id) {
 export function libellePriorite(id) {
   return PRIORITES.find((p) => p.id === id)?.libelle ?? id ?? '';
 }
+export function libelleTypeActivite(id) {
+  return TYPES_ACTIVITE.find((t) => t.id === id)?.libelle ?? id ?? '';
+}
+export function libelleTypeContact(id) {
+  return TYPES_CONTACT.find((t) => t.id === id)?.libelle ?? id ?? '';
+}
 export function libelleOffre(offres, id) {
   if (!id) return '';
   const o = (offres || []).find((x) => x.id === id);
   return o ? o.nom : id;
+}
+export function libelleEtiquette(etiquettes, id) {
+  const e = (etiquettes || []).find((x) => x.id === id);
+  return e ? e.nom : id;
 }
 
 // ---------------------------------------------------------------- dates
@@ -225,359 +263,645 @@ export function formatDateHeure(v) {
   return `${p.day}/${p.month}/${p.year} ${p.hour}:${p.minute}`;
 }
 
-export function formatRdv(texte) {
-  if (!texte) return '';
-  const [jour, heure] = texte.split('T');
-  return heure ? `${formatJour(jour)} à ${heure.replace(':', ' h ')}` : formatJour(jour);
-}
-
 export function formatEuros(n) {
   const v = Number(n) || 0;
   return new Intl.NumberFormat('fr-FR', {
     style: 'currency', currency: 'EUR',
     maximumFractionDigits: Number.isInteger(v) ? 0 : 2,
     minimumFractionDigits: Number.isInteger(v) ? 0 : 2,
-  }).format(v).replace(/ | /g, ' ');
+  }).format(v).replace(/[\u00a0\u202f]/g, ' ');
 }
 
 export function formatNombre(n) {
-  return new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 }).format(Number(n) || 0).replace(/ | /g, ' ');
+  return new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 }).format(Number(n) || 0).replace(/[\u00a0\u202f]/g, ' ');
 }
 
-// ---------------------------------------------------------------- statuts et alertes
-
-export function estArchivee(f) {
-  return f.archive === true;
+export function idAleatoire() {
+  return Math.random().toString(36).slice(2, 10);
 }
 
-/** Ni archivée, ni perdue, ni pas maintenant. */
-export function estActive(f) {
-  return !estArchivee(f) && f.etape !== 'perdu' && f.etape !== 'pas_maintenant';
+// ---------------------------------------------------------------- texte : normalisation, noms, emails
+
+/** Minuscules, sans accents, sans espaces aux bords. */
+export function normaliser(texte) {
+  return String(texte ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
 }
 
-/** En retard : date de prochaine action passée, fiche ni archivée ni perdue. */
-export function estEnRetard(f, aujourdhui) {
-  if (!f.dateProchaineAction) return false;
-  if (estArchivee(f) || f.etape === 'perdu') return false;
-  return f.dateProchaineAction < aujourdhui;
+/** Comme normaliser, mais les espaces multiples deviennent un seul espace (comparaison de noms). */
+export function normaliserNom(texte) {
+  return normaliser(texte).replace(/\s+/g, ' ');
 }
 
-/** Sans action prévue : fiche active sans date de prochaine action. */
-export function estSansAction(f) {
-  return estActive(f) && !f.dateProchaineAction;
+/** Espaces en trop retirés, casse conservée. */
+export function nettoyerEspaces(texte) {
+  return String(texte ?? '').replace(/\s+/g, ' ').trim();
 }
 
-export function estAReveiller(f, aujourdhui) {
-  return f.etape === 'pas_maintenant' && !estArchivee(f) && !!f.dateReveil && f.dateReveil <= aujourdhui;
+/** "Marie Durand" -> { prenom: "Marie", nomFamille: "Durand" } ; un seul mot -> nom de famille seul. */
+export function decouperNom(nom) {
+  const t = nettoyerEspaces(nom);
+  if (!t) return { prenom: '', nomFamille: '' };
+  const i = t.indexOf(' ');
+  if (i === -1) return { prenom: '', nomFamille: t };
+  return { prenom: t.slice(0, i), nomFamille: t.slice(i + 1) };
 }
 
-export function emailActif(f) {
-  return !!(f.email && String(f.email).trim()) && !f.oppositionProspection;
+export function assemblerNom(prenom, nomFamille) {
+  return nettoyerEspaces(`${prenom ?? ''} ${nomFamille ?? ''}`);
 }
 
-function trierParDateEtNom(a, b) {
-  return (a.date || '').localeCompare(b.date || '') || (a.fiche.nom || '').localeCompare(b.fiche.nom || '', 'fr');
+export function normaliserEmail(email) {
+  return String(email ?? '').replace(/\s+/g, '').toLowerCase();
 }
 
-/** Bloc "À faire" de l'Accueil : En retard, Aujourd'hui, Sans action prévue. */
-export function aFaire(fiches, aujourdhui) {
-  const enRetard = [];
-  const duJour = [];
-  const sansAction = [];
-  for (const f of fiches) {
-    if (estEnRetard(f, aujourdhui)) {
-      enRetard.push({ fiche: f, action: f.prochaineAction || 'Action sans intitulé', date: f.dateProchaineAction, type: 'action' });
-    } else if (f.dateProchaineAction === aujourdhui && !estArchivee(f) && f.etape !== 'perdu') {
-      duJour.push({ fiche: f, action: f.prochaineAction || 'Action sans intitulé', date: f.dateProchaineAction, type: 'action' });
-    }
-    if (estAReveiller(f, aujourdhui) && !estEnRetard(f, aujourdhui) && f.dateProchaineAction !== aujourdhui) {
-      duJour.push({ fiche: f, action: 'Reprendre contact', date: f.dateReveil, type: 'reveil' });
-    }
-    if (estSansAction(f)) sansAction.push(f);
+export function emailValide(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(email ?? '').trim());
+}
+
+/** Liste des emails normalisés, sans doublon ni valeur vide. */
+export function emailsNormalises(emails) {
+  const vus = new Set();
+  for (const e of emails || []) {
+    const v = normaliserEmail(typeof e === 'string' ? e : e?.valeur);
+    if (v) vus.add(v);
   }
-  enRetard.sort(trierParDateEtNom);
-  duJour.sort(trierParDateEtNom);
-  sansAction.sort((a, b) => (a.nom || '').localeCompare(b.nom || '', 'fr'));
-  return { enRetard, aujourdhui: duJour, sansAction };
+  return [...vus];
 }
 
-// ---------------------------------------------------------------- suggestions douces
+// ---------------------------------------------------------------- recherche intelligente et doublons
 
-/** Suggestion proposée à l'entrée dans une étape, ou null. */
+function normaliserAvecIndex(texte) {
+  let norm = '';
+  const index = [];
+  const s = String(texte ?? '');
+  for (let i = 0; i < s.length; i++) {
+    const n = s[i].normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    for (const c of n) { norm += c; index.push(i); }
+  }
+  return { norm, index };
+}
+
+/** Découpe un libellé en segments { texte, fort } : les lettres trouvées sont "fort". */
+export function surligner(libelle, saisie) {
+  const original = String(libelle ?? '');
+  const mots = normaliser(saisie).split(/\s+/).filter(Boolean);
+  const { norm, index } = normaliserAvecIndex(original);
+  let plages = [];
+  for (const mot of mots) {
+    const pos = norm.indexOf(mot);
+    if (pos === -1) continue;
+    plages.push([index[pos], index[pos + mot.length - 1] + 1]);
+  }
+  plages.sort((a, b) => a[0] - b[0]);
+  const fusion = [];
+  for (const p of plages) {
+    const dernier = fusion[fusion.length - 1];
+    if (dernier && p[0] <= dernier[1]) dernier[1] = Math.max(dernier[1], p[1]);
+    else fusion.push([...p]);
+  }
+  const segments = [];
+  let curseur = 0;
+  for (const [debut, fin] of fusion) {
+    if (debut > curseur) segments.push({ texte: original.slice(curseur, debut), fort: false });
+    segments.push({ texte: original.slice(debut, fin), fort: true });
+    curseur = fin;
+  }
+  if (curseur < original.length) segments.push({ texte: original.slice(curseur), fort: false });
+  return segments.length ? segments : [{ texte: original, fort: false }];
+}
+
+/**
+ * Suggestions d'un champ intelligent.
+ * elements : [{ id, libelle, sousTitre?, extra?: [string] }]
+ * Dès `min` lettres : valeurs qui CONTIENNENT la saisie (accents et casse ignorés), débuts de mot d'abord,
+ * `max` résultats au plus. `creer` : texte à créer ("Créer « … »") s'il n'existe pas de valeur identique.
+ */
+export function rechercherSuggestions(saisie, elements, { min = MIN_LETTRES, max = MAX_SUGGESTIONS, creer = false } = {}) {
+  const q = normaliserNom(saisie);
+  if (q.length < min) return { resultats: [], creer: null, total: 0 };
+  const mots = q.split(' ');
+  const classes = [];
+  for (const el of elements || []) {
+    const lib = normaliserNom(el.libelle);
+    const botte = normaliserNom([el.libelle, ...(el.extra || [])].join(' '));
+    if (!mots.every((m) => botte.includes(m))) continue;
+    let score;
+    if (lib.startsWith(q)) score = 0;
+    else if (lib.split(/[\s'’\-]+/).some((w) => w.startsWith(mots[0])) && mots.every((m) => lib.includes(m))) score = 1;
+    else if (mots.every((m) => lib.includes(m))) score = 2;
+    else score = 3;
+    classes.push({ el, score });
+  }
+  classes.sort((a, b) => a.score - b.score || String(a.el.libelle).localeCompare(String(b.el.libelle), 'fr'));
+  const resultats = classes.slice(0, max).map(({ el }) => ({ ...el, segments: surligner(el.libelle, saisie) }));
+  const identique = (elements || []).some((el) => normaliserNom(el.libelle) === q);
+  return { resultats, creer: creer && !identique ? nettoyerEspaces(saisie) : null, total: classes.length };
+}
+
+/** Personnes qui ressemblent à la saisie : même nom (accents, casse, espaces ignorés) ou email partagé. */
+export function trouverDoublonsPersonne(personnes, { nom, emails = [] }, { sauf = null } = {}) {
+  const n = normaliserNom(nom);
+  const mails = new Set(emailsNormalises(emails));
+  return (personnes || []).filter((p) => {
+    if (sauf && p.id === sauf) return false;
+    if (p.archive) return false;
+    if (n && normaliserNom(p.nom) === n) return true;
+    const siens = p.emailsNormalises?.length ? p.emailsNormalises : emailsNormalises(p.emails);
+    return siens.some((m) => mails.has(m));
+  });
+}
+
+export function trouverDoublonsOrganisation(organisations, nom, { sauf = null } = {}) {
+  const n = normaliserNom(nom);
+  if (!n) return [];
+  return (organisations || []).filter((o) => o.id !== sauf && !o.archive && normaliserNom(o.nom) === n);
+}
+
+// ---------------------------------------------------------------- personnes et organisations
+
+export function validerPersonne(v) {
+  const erreurs = {};
+  if (!nettoyerEspaces(v.nom)) erreurs.nom = 'Le nom est obligatoire.';
+  for (const e of v.emails || []) {
+    if (e.valeur && !emailValide(e.valeur)) erreurs.emails = "Cette adresse email n'est pas valide.";
+  }
+  return erreurs;
+}
+
+export function validerOrganisation(v) {
+  return nettoyerEspaces(v.nom) ? {} : { nom: 'Le nom est obligatoire.' };
+}
+
+function contactsNettoyes(liste) {
+  return (liste || [])
+    .map((c) => ({ valeur: nettoyerEspaces(c.valeur), type: TYPES_CONTACT.some((t) => t.id === c.type) ? c.type : 'travail' }))
+    .filter((c) => c.valeur);
+}
+
+/** Document d'une nouvelle personne. Seul le nom est requis. */
+export function nouvellePersonne(valeurs, ctx) {
+  const nom = nettoyerEspaces(valeurs.nom);
+  const { prenom, nomFamille } = decouperNom(nom);
+  const emails = contactsNettoyes(valeurs.emails);
+  return {
+    nom,
+    prenom,
+    nomFamille,
+    organisationId: valeurs.organisationId || null,
+    telephones: contactsNettoyes(valeurs.telephones),
+    emails,
+    emailsNormalises: emailsNormalises(emails),
+    etiquettes: [...(valeurs.etiquettes || [])],
+    roles: valeurs.roles?.length ? [...valeurs.roles] : ['prospect'],
+    dateInterviewJtbd: null,
+    ville: nettoyerEspaces(valeurs.ville),
+    linkedin: '',
+    siteWeb: '',
+    source: valeurs.source || '',
+    oppositionProspection: false,
+    dateOpposition: null,
+    archive: false,
+    proprietaire: ctx?.auteur ?? '',
+  };
+}
+
+export function nouvelleOrganisation(valeurs, ctx) {
+  return {
+    nom: nettoyerEspaces(valeurs.nom),
+    adresse: nettoyerEspaces(valeurs.adresse),
+    ville: nettoyerEspaces(valeurs.ville),
+    siteWeb: '',
+    secteur: valeurs.secteur || '',
+    taille: '',
+    etiquettes: [...(valeurs.etiquettes || [])],
+    archive: false,
+    proprietaire: ctx?.auteur ?? '',
+  };
+}
+
+/** Patch après modification du prénom ou du nom de famille : `nom` est recalculé. */
+export function patchNomDetaille(prenom, nomFamille) {
+  const p = nettoyerEspaces(prenom);
+  const f = nettoyerEspaces(nomFamille);
+  return { prenom: p, nomFamille: f, nom: assemblerNom(p, f) };
+}
+
+/** Patch après modification du nom affiché : prénom et nom de famille sont redécoupés. */
+export function patchNomAffiche(nom) {
+  const n = nettoyerEspaces(nom);
+  return { nom: n, ...decouperNom(n) };
+}
+
+/** Patch après modification des emails : la liste normalisée suit. */
+export function patchEmails(emails) {
+  const propres = contactsNettoyes(emails);
+  return { emails: propres, emailsNormalises: emailsNormalises(propres) };
+}
+
+export function emailActif(personne) {
+  return !personne.oppositionProspection && (personne.emails || []).some((e) => emailValide(e.valeur));
+}
+
+export function premierEmail(personne) {
+  return (personne.emails || []).find((e) => emailValide(e.valeur))?.valeur ?? '';
+}
+
+export function marquerOpposition(coche, ctx) {
+  return coche
+    ? { oppositionProspection: true, dateOpposition: ctx.maintenant }
+    : { oppositionProspection: false, dateOpposition: null };
+}
+
+// ---------------------------------------------------------------- affaires : création, statut, étapes
+
+/** Titre proposé quand on n'en tape pas : organisation, sinon personne. */
+export function titreParDefaut({ organisation, personne } = {}) {
+  return nettoyerEspaces(organisation?.nom) || nettoyerEspaces(personne?.nom) || '';
+}
+
+export function validerAffaire(v) {
+  return nettoyerEspaces(v.titre) ? {} : { titre: 'Le titre est obligatoire.' };
+}
+
+export function statutPourEtape(etape) {
+  return ETAPES_GAGNEES.includes(etape) ? 'gagnee' : 'ouverte';
+}
+
+/** Document d'une nouvelle affaire (étape, priorité et statut posés automatiquement). */
+export function nouvelleAffaire(valeurs, ctx) {
+  const etape = valeurs.etape && ETAPES.some((e) => e.id === valeurs.etape) ? valeurs.etape : 'premier_contact';
+  const montant = valeurs.montant === '' || valeurs.montant === null || valeurs.montant === undefined ? null : Number(valeurs.montant);
+  return {
+    titre: nettoyerEspaces(valeurs.titre),
+    personneId: valeurs.personneId || null,
+    organisationId: valeurs.organisationId || null,
+    etape,
+    statut: statutPourEtape(etape),
+    priorite: PRIORITES.some((p) => p.id === valeurs.priorite) ? valeurs.priorite : 'tiede',
+    montant: Number.isFinite(montant) ? montant : null,
+    offreId: valeurs.offreId || null,
+    dureeJours: valeurs.dureeJours ?? null,
+    source: valeurs.source || '',
+    besoin: valeurs.besoin || '',
+    dateEntreeEtape: ctx.maintenant,
+    datesEtapes: { [etape]: ctx.maintenant },
+    raisonPerdue: '',
+    raisonPerdueDetail: '',
+    dateReveil: null,
+    encaissements: [],
+    documents: [],
+    projetId: null,
+    archive: etape === 'facture_payee',
+    proprietaire: ctx.auteur ?? '',
+  };
+}
+
+export function validerChangementEtape(etape) {
+  return ETAPES.some((e) => e.id === etape) ? {} : { etape: 'Étape inconnue.' };
+}
+
+/** Suggestion douce créée comme activité planifiée : { titre, type, date } ou null. */
 export function suggestionPourEtape(etape, aujourdhui, delaiPaiementJours = 30) {
   switch (etape) {
     case 'proposition_envoyee':
-      return { action: 'Relancer la proposition', date: ajouterJours(aujourdhui, 3) };
+      return { type: 'tache', titre: 'Relancer la proposition', date: ajouterJours(aujourdhui, 3) };
     case 'gagne':
-      return { action: 'Envoyer la facture', date: aujourdhui };
+      return { type: 'tache', titre: 'Envoyer la facture', date: aujourdhui };
     case 'facture_envoyee':
-      return { action: 'Vérifier le paiement', date: ajouterJours(aujourdhui, Number(delaiPaiementJours) || 30) };
+      return { type: 'tache', titre: 'Vérifier le paiement', date: ajouterJours(aujourdhui, Number(delaiPaiementJours) || 30) };
     default:
       return null;
   }
 }
 
-// ---------------------------------------------------------------- écritures (patchs purs)
-
-export function ajouterHistorique(historique, entree) {
-  const h = [...(historique || []), entree];
-  return h.length > MAX_HISTORIQUE ? h.slice(h.length - MAX_HISTORIQUE) : h;
-}
-
-function entree(ctx, type, texte) {
-  return { date: ctx.maintenant, auteur: ctx.auteur || '', type, texte };
-}
-
-export function idAleatoire() {
-  return Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
-}
-
-/** Document complet d'une nouvelle fiche (sans creeLe/modifieLe, posés par la couche données). */
-export function nouvelleFiche(valeurs, ctx) {
-  const aujourdhui = ctx.aujourdhui || aujourdhuiParis(ctx.maintenant);
-  const etape = valeurs.etape || 'premier_contact';
+function evenement(type, texte, liens, ctx) {
   return {
-    nom: (valeurs.nom || '').trim(),
-    entreprise: valeurs.entreprise || '',
-    roles: valeurs.roles && valeurs.roles.length ? [...valeurs.roles] : ['prospect'],
-    dateInterviewJtbd: valeurs.dateInterviewJtbd || null,
-    secteur: valeurs.secteur || '',
-    taille: valeurs.taille || '',
-    ville: valeurs.ville || '',
-    telephone: valeurs.telephone || '',
-    email: (valeurs.email || '').trim(),
-    siteWeb: valeurs.siteWeb || '',
-    linkedin: valeurs.linkedin || '',
-    source: valeurs.source || '',
-    etape,
-    dateEntreeEtape: ctx.maintenant,
-    datesEtapes: { [etape]: ctx.maintenant },
-    priorite: valeurs.priorite || 'tiede',
-    besoin: valeurs.besoin || '',
-    offreId: valeurs.offreId || null,
-    dureeJours: valeurs.dureeJours ?? null,
-    montant: valeurs.montant ?? null,
-    datePremierContact: valeurs.datePremierContact || aujourdhui,
-    dateDernierEchange: ctx.maintenant,
-    prochaineAction: valeurs.prochaineAction || '',
-    dateProchaineAction: valeurs.dateProchaineAction || null,
-    dateRdv: valeurs.dateRdv || null,
-    rdvTenu: false,
-    dateRdvTenu: null,
-    notes: valeurs.notes || '',
-    notesRapides: [],
-    historique: [],
-    documents: [],
-    raisonPerdu: null,
-    raisonPerduDetail: null,
-    dateReveil: null,
-    encaissements: [],
-    oppositionProspection: false,
-    dateOpposition: null,
-    archive: false,
-    creePar: ctx.auteur || '',
-    modifiePar: ctx.auteur || '',
+    type,
+    texte,
+    personneId: liens?.personneId ?? null,
+    organisationId: liens?.organisationId ?? null,
+    affaireId: liens?.affaireId ?? null,
+    auteur: ctx.auteur ?? '',
+    date: ctx.maintenant,
   };
 }
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-export function emailValide(email) {
-  return !email || EMAIL_RE.test(String(email).trim());
-}
-
-/** Contrôle des champs obligatoires. Renvoie { champ: message } (vide si tout va bien). */
-export function validerFiche(v) {
-  const erreurs = {};
-  if (!v.nom || !String(v.nom).trim()) erreurs.nom = 'Le prénom et le nom sont obligatoires.';
-  if (!v.roles || v.roles.length === 0) erreurs.roles = 'Choisis au moins un rôle.';
-  if (!v.source) erreurs.source = 'La source est obligatoire.';
-  if (!v.etape) erreurs.etape = "L'étape est obligatoire.";
-  if (!v.priorite) erreurs.priorite = 'La priorité est obligatoire.';
-  if (!v.datePremierContact) erreurs.datePremierContact = 'La date du premier contact est obligatoire.';
-  if (!emailValide(v.email)) erreurs.email = "L'adresse email n'est pas valide.";
-  if (v.etape === 'perdu' && !v.raisonPerdu) erreurs.raisonPerdu = 'Indique la raison de la perte.';
-  if (v.etape === 'pas_maintenant' && !v.dateReveil) erreurs.dateReveil = 'Indique une date de réveil.';
-  return erreurs;
-}
-
-/** Contrôle avant changement d'étape (raison si perdu, date de réveil si pas maintenant). */
-export function validerChangementEtape(etape, options = {}) {
-  if (!TOUTES_ETAPES.some((e) => e.id === etape)) return 'Étape inconnue.';
-  if (etape === 'perdu' && !options.raisonPerdu) return 'Indique la raison de la perte.';
-  if (etape === 'pas_maintenant' && !options.dateReveil) return 'Indique une date de réveil.';
-  return null;
+/** Liens à poser sur un élément du fil (activité, note, événement) rattaché à une affaire. */
+export function liensAffaire(affaire) {
+  return {
+    personneId: affaire.personneId ?? null,
+    organisationId: affaire.organisationId ?? null,
+    affaireId: affaire.id ?? null,
+  };
 }
 
 /**
- * Patch appliqué lors d'un changement d'étape.
- * options : raisonPerdu, raisonPerduDetail, dateReveil, montantEncaisse.
+ * Changement d'étape : renvoie { patch, evenements, suggestion }.
+ * options : montantEncaisse (étape Facture payée).
+ * Changer d'étape rouvre une affaire perdue ou en pause (raison et date de réveil effacées).
  */
-export function changementEtape(fiche, etape, ctx, options = {}) {
-  if (!fiche || fiche.etape === etape) return null;
-  const erreur = validerChangementEtape(etape, options);
-  if (erreur) throw new Error(erreur);
-  const datesEtapes = { ...(fiche.datesEtapes || {}) };
+export function changementEtape(affaire, etape, ctx, options = {}) {
+  const erreurs = validerChangementEtape(etape);
+  if (Object.keys(erreurs).length) return { erreurs, patch: {}, evenements: [], suggestion: null };
+  const liens = liensAffaire(affaire);
+  const rouvre = affaire.statut === 'perdue' || affaire.statut === 'en_pause';
+  if (etape === affaire.etape && !rouvre) return { erreurs: {}, patch: {}, evenements: [], suggestion: null };
+
+  const datesEtapes = { ...(affaire.datesEtapes || {}) };
   if (!datesEtapes[etape]) datesEtapes[etape] = ctx.maintenant;
-  let historique = ajouterHistorique(
-    fiche.historique,
-    entree(ctx, 'etape', `Étape : ${libelleEtape(fiche.etape)} → ${libelleEtape(etape)}`),
-  );
   const patch = {
     etape,
+    statut: statutPourEtape(etape),
     dateEntreeEtape: ctx.maintenant,
     datesEtapes,
-    dateDernierEchange: ctx.maintenant,
+    raisonPerdue: '',
+    raisonPerdueDetail: '',
+    dateReveil: null,
     archive: etape === 'facture_payee',
   };
-  if (etape === 'perdu') {
-    patch.raisonPerdu = options.raisonPerdu;
-    patch.raisonPerduDetail = options.raisonPerduDetail || null;
+  const evenements = [];
+  if (rouvre) evenements.push(evenement('affaire_rouverte', `Affaire rouverte : ${affaire.titre}`, liens, ctx));
+  if (etape !== affaire.etape) {
+    evenements.push(evenement('etape_changee', `Étape : ${libelleEtape(affaire.etape)} → ${libelleEtape(etape)}`, liens, ctx));
   }
-  if (etape === 'pas_maintenant') patch.dateReveil = options.dateReveil;
-  if (etape === 'facture_payee') {
-    const montant = Number(options.montantEncaisse ?? fiche.montant ?? 0) || 0;
-    patch.encaissements = [
-      ...(fiche.encaissements || []),
-      { date: ctx.maintenant, montant, offreId: fiche.offreId || null },
-    ];
-    historique = ajouterHistorique(historique, entree(ctx, 'encaissement', `Encaissement : ${formatEuros(montant)}`));
+  if (etape === 'gagne' && affaire.etape !== 'gagne' && !affaire.datesEtapes?.gagne) {
+    evenements.push(evenement('affaire_gagnee', `Affaire gagnée : ${affaire.titre}`, liens, ctx));
   }
-  patch.historique = historique;
-  return patch;
-}
-
-/** "Nouvelle affaire" sur une fiche archivée ou perdue. */
-export function nouvelleAffaire(fiche, ctx) {
-  return {
-    etape: 'premier_contact',
-    dateEntreeEtape: ctx.maintenant,
-    datesEtapes: { premier_contact: ctx.maintenant },
-    archive: false,
-    offreId: null,
-    dureeJours: null,
-    montant: null,
-    prochaineAction: '',
-    dateProchaineAction: null,
-    dateRdv: null,
-    rdvTenu: false,
-    dateRdvTenu: null,
-    raisonPerdu: null,
-    raisonPerduDetail: null,
-    dateReveil: null,
-    dateDernierEchange: ctx.maintenant,
-    historique: ajouterHistorique(fiche.historique, entree(ctx, 'nouvelle_affaire', 'Nouvelle affaire')),
-    // notes, notesRapides, encaissements : conservés (non modifiés).
-  };
-}
-
-export function peutDemarrerNouvelleAffaire(fiche) {
-  return estArchivee(fiche) || fiche.etape === 'perdu';
-}
-
-export function fixerAction(texte, date) {
-  return { prochaineAction: (texte || '').trim(), dateProchaineAction: date || null };
-}
-
-/** Bouton "Fait" : vide l'action, historise, met à jour le dernier échange. */
-export function actionFaite(fiche, ctx, { reprise = false } = {}) {
-  const texte = reprise ? 'Reprendre contact' : (fiche.prochaineAction || 'Action');
-  const patch = {
-    prochaineAction: '',
-    dateProchaineAction: null,
-    dateDernierEchange: ctx.maintenant,
-  };
-  let historique = ajouterHistorique(fiche.historique, entree(ctx, 'action_faite', `Action faite : ${texte}`));
-  if (reprise && fiche.etape === 'pas_maintenant') {
-    const p = changementEtape({ ...fiche, historique }, 'premier_contact', ctx);
-    Object.assign(patch, p, { dateReveil: null });
-    historique = p.historique;
+  if (etape === 'facture_payee' && affaire.etape !== 'facture_payee') {
+    const montant = Number(options.montantEncaisse ?? affaire.montant ?? 0) || 0;
+    patch.encaissements = [...(affaire.encaissements || []), { date: ctx.maintenant, montant, offreId: affaire.offreId ?? null }];
+    evenements.push(evenement('encaissement', `Encaissement : ${formatEuros(montant)}`, liens, ctx));
   }
-  patch.historique = historique;
-  return patch;
+  const suggestion = etape !== affaire.etape ? suggestionPourEtape(etape, aujourdhuiParis(ctx.maintenant), ctx.delaiPaiementJours) : null;
+  return { erreurs: {}, patch, evenements, suggestion };
 }
 
-export function emailEnvoye(fiche, ctx) {
+export function validerPerdue(raison) {
+  return RAISONS_PERDUE.includes(raison) ? {} : { raison: 'La raison est obligatoire.' };
+}
+
+export function marquerPerdue(affaire, { raison, detail = '' }, ctx) {
+  const erreurs = validerPerdue(raison);
+  if (Object.keys(erreurs).length) return { erreurs, patch: {}, evenements: [] };
   return {
-    dateDernierEchange: ctx.maintenant,
-    historique: ajouterHistorique(fiche.historique, entree(ctx, 'email', 'Email envoyé')),
+    erreurs: {},
+    patch: { statut: 'perdue', raisonPerdue: raison, raisonPerdueDetail: nettoyerEspaces(detail), dateReveil: null },
+    evenements: [evenement('affaire_perdue', `Affaire perdue (${raison}) : ${affaire.titre}`, liensAffaire(affaire), ctx)],
   };
 }
 
-export function marquerRdvTenu(fiche, coche, ctx) {
-  if (!coche) return { rdvTenu: false, dateRdvTenu: null };
-  const dateRdv = fiche.dateRdv ? dateHeureParisVersDate(fiche.dateRdv) || versDate(fiche.dateRdv) : null;
+/** Date de réveil proposée pour une affaire en pause : +3 mois, au même jour du mois. */
+export function dateReveilParDefaut(aujourdhui) {
+  const [a, m, j] = aujourdhui.split('-').map(Number);
+  const cible = new Date(Date.UTC(a, m - 1 + 3, 1));
+  const dernier = new Date(Date.UTC(cible.getUTCFullYear(), cible.getUTCMonth() + 1, 0)).getUTCDate();
+  cible.setUTCDate(Math.min(j, dernier));
+  return cible.toISOString().slice(0, 10);
+}
+
+export function mettreEnPause(affaire, { dateReveil }, ctx) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateReveil || '')) return { erreurs: { dateReveil: 'La date de réveil est obligatoire.' }, patch: {}, evenements: [] };
   return {
-    rdvTenu: true,
-    dateRdvTenu: dateRdv || ctx.maintenant,
-    dateDernierEchange: ctx.maintenant,
-    historique: ajouterHistorique(fiche.historique, entree(ctx, 'rdv', 'Rendez vous tenu')),
+    erreurs: {},
+    patch: { statut: 'en_pause', dateReveil, raisonPerdue: '', raisonPerdueDetail: '' },
+    evenements: [evenement('affaire_en_pause', `Affaire en pause jusqu'au ${formatJour(dateReveil)} : ${affaire.titre}`, liensAffaire(affaire), ctx)],
   };
 }
 
-export function ajouterNoteRapide(fiche, texte, ctx) {
-  const t = (texte || '').trim();
-  if (!t) return null;
+export function rouvrirAffaire(affaire, ctx) {
+  if (affaire.statut !== 'perdue' && affaire.statut !== 'en_pause') return { patch: {}, evenements: [] };
   return {
-    notesRapides: [...(fiche.notesRapides || []), { id: ctx.id || idAleatoire(), texte: t, date: ctx.maintenant, auteur: ctx.auteur || '' }],
-    dateDernierEchange: ctx.maintenant,
+    patch: { statut: statutPourEtape(affaire.etape), raisonPerdue: '', raisonPerdueDetail: '', dateReveil: null },
+    evenements: [evenement('affaire_rouverte', `Affaire rouverte : ${affaire.titre}`, liensAffaire(affaire), ctx)],
   };
 }
 
-export function supprimerNoteRapide(fiche, id) {
-  return { notesRapides: (fiche.notesRapides || []).filter((n) => n.id !== id) };
+export function estArchivee(x) {
+  return x.archive === true;
 }
 
-/** "Copier dans Notes" : action explicite de l'utilisateur, ajoute la note à la fin des Notes. */
-export function copierNoteDansNotes(fiche, id) {
-  const n = (fiche.notesRapides || []).find((x) => x.id === id);
-  if (!n) return null;
-  const notes = fiche.notes || '';
-  return { notes: notes ? `${notes.replace(/\s+$/, '')}\n\n${n.texte}` : n.texte };
+/** Affaire "vivante" : ni archivée, ni perdue, ni en pause. */
+export function estAffaireActive(a) {
+  return !estArchivee(a) && (a.statut === 'ouverte' || a.statut === 'gagnee');
 }
 
-export function ajouterDocument(fiche, libelle, url) {
-  const u = (url || '').trim();
-  if (!u) return null;
-  return { documents: [...(fiche.documents || []), { libelle: (libelle || '').trim() || u, url: u }] };
+export function ajouterEncaissement(affaire, { montant, date }, ctx) {
+  const m = Number(montant);
+  if (!Number.isFinite(m) || m <= 0) return { erreurs: { montant: 'Le montant doit être positif.' }, patch: {}, evenements: [] };
+  const jour = date || aujourdhuiParis(ctx.maintenant);
+  return {
+    erreurs: {},
+    patch: { encaissements: [...(affaire.encaissements || []), { date: versDate(jour), montant: m, offreId: affaire.offreId ?? null }] },
+    evenements: [evenement('encaissement', `Encaissement : ${formatEuros(m)}`, liensAffaire(affaire), ctx)],
+  };
 }
 
-export function supprimerDocument(fiche, index) {
-  return { documents: (fiche.documents || []).filter((_, i) => i !== index) };
+export function ajouterDocument(affaire, libelle, url) {
+  const u = nettoyerEspaces(url);
+  if (!/^https?:\/\//i.test(u)) return { erreurs: { url: "L'adresse doit commencer par http." }, patch: {} };
+  return { erreurs: {}, patch: { documents: [...(affaire.documents || []), { libelle: nettoyerEspaces(libelle) || u, url: u }] } };
 }
 
-export function marquerOpposition(coche, ctx) {
-  return { oppositionProspection: !!coche, dateOpposition: coche ? ctx.maintenant : null };
+export function supprimerDocument(affaire, index) {
+  return { documents: (affaire.documents || []).filter((_, i) => i !== index) };
 }
 
-// ---------------------------------------------------------------- objectifs
+// ---------------------------------------------------------------- activités
 
+export function titreActiviteParDefaut(type) {
+  return TYPES_ACTIVITE.find((t) => t.id === type)?.titre ?? 'Tâche';
+}
+
+export function validerActivite(v) {
+  const erreurs = {};
+  if (!TYPES_ACTIVITE.some((t) => t.id === v.type)) erreurs.type = 'Le type est obligatoire.';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v.date || '')) erreurs.date = 'La date est obligatoire.';
+  return erreurs;
+}
+
+export function nouvelleActivite(valeurs, ctx) {
+  const type = TYPES_ACTIVITE.some((t) => t.id === valeurs.type) ? valeurs.type : 'tache';
+  return {
+    type,
+    titre: nettoyerEspaces(valeurs.titre) || titreActiviteParDefaut(type),
+    date: valeurs.date || aujourdhuiParis(ctx.maintenant),
+    heure: valeurs.heure || '',
+    fait: false,
+    dateFait: null,
+    personneId: valeurs.personneId ?? null,
+    organisationId: valeurs.organisationId ?? null,
+    affaireId: valeurs.affaireId ?? null,
+    auteur: ctx.auteur ?? '',
+  };
+}
+
+export function activiteFaite(activite, ctx) {
+  if (activite.fait) return { patch: {}, evenements: [] };
+  return {
+    patch: { fait: true, dateFait: ctx.maintenant },
+    evenements: [evenement('activite_faite', `${libelleTypeActivite(activite.type)} fait : ${activite.titre}`, activite, ctx)],
+  };
+}
+
+export function activiteNonFaite(activite) {
+  return { fait: false, dateFait: null };
+}
+
+export function estActiviteEnRetard(a, aujourdhui) {
+  return !a.fait && !!a.date && a.date < aujourdhui;
+}
+
+export function activitesAVenir(activites) {
+  return (activites || []).filter((a) => !a.fait);
+}
+
+function cleTri(a) {
+  return `${a.date || '9999-99-99'}T${a.heure || '00:00'}`;
+}
+
+export function trierActivites(activites) {
+  return [...activites].sort((a, b) => cleTri(a).localeCompare(cleTri(b)));
+}
+
+export function prochaineActivite(activites) {
+  return trierActivites(activitesAVenir(activites))[0] ?? null;
+}
+
+/** Pastille d'une affaire : rouge (activité en retard), verte (activité prévue), grise (aucune). */
+export function pastilleActivite(activitesDeLAffaire, aujourdhui) {
+  const prevues = activitesAVenir(activitesDeLAffaire);
+  if (!prevues.length) return 'grise';
+  return prevues.some((a) => estActiviteEnRetard(a, aujourdhui)) ? 'rouge' : 'verte';
+}
+
+export function activitesDeAffaire(activites, affaireId) {
+  return (activites || []).filter((a) => a.affaireId === affaireId);
+}
+
+/** Affaire active sans aucune activité à venir. */
+export function estSansAction(affaire, activites) {
+  return estAffaireActive(affaire) && !activitesDeAffaire(activitesAVenir(activites), affaire.id).length;
+}
+
+export function estAReveiller(affaire, aujourdhui) {
+  return affaire.statut === 'en_pause' && !!affaire.dateReveil && affaire.dateReveil <= aujourdhui && !estArchivee(affaire);
+}
+
+/**
+ * Points clés : activités non faites (en retard, aujourd'hui), affaires à réveiller, affaires sans action.
+ * Les activités rattachées à une affaire perdue, en pause ou archivée sont ignorées.
+ */
+export function pointsCles({ activites = [], affaires = [] }, aujourdhui) {
+  const vivantes = new Set(affaires.filter(estAffaireActive).map((a) => a.id));
+  const garde = (a) => !a.affaireId || vivantes.has(a.affaireId);
+  const ouvertes = trierActivites(activitesAVenir(activites).filter(garde));
+  return {
+    enRetard: ouvertes.filter((a) => estActiviteEnRetard(a, aujourdhui)),
+    aujourdhui: ouvertes.filter((a) => a.date === aujourdhui),
+    reveils: affaires.filter((a) => estAReveiller(a, aujourdhui)),
+    sansAction: affaires.filter((a) => estSansAction(a, activites)),
+  };
+}
+
+/** Points clés d'une fiche : ses activités non faites, les plus proches d'abord. */
+export function pointsClesFiche(activites, aujourdhui) {
+  return trierActivites(activitesAVenir(activites)).map((a) => ({
+    ...a,
+    etat: estActiviteEnRetard(a, aujourdhui) ? 'retard' : a.date === aujourdhui ? 'aujourdhui' : 'avenir',
+  }));
+}
+
+// ---------------------------------------------------------------- notes et historique
+
+export function validerNote(texte) {
+  return nettoyerEspaces(texte) ? {} : { texte: 'La note est vide.' };
+}
+
+export function nouvelleNote(texte, liens, ctx) {
+  return {
+    texte: String(texte ?? '').trim(),
+    personneId: liens?.personneId ?? null,
+    organisationId: liens?.organisationId ?? null,
+    affaireId: liens?.affaireId ?? null,
+    auteur: ctx.auteur ?? '',
+  };
+}
+
+export const FILTRES_HISTORIQUE = [
+  { id: 'tous', libelle: 'Tous' },
+  { id: 'activites', libelle: 'Activités' },
+  { id: 'notes', libelle: 'Notes' },
+  { id: 'affaires', libelle: 'Affaires' },
+  { id: 'evenements', libelle: 'Événements' },
+];
+
+const TYPES_EVENEMENT_AFFAIRE = new Set([
+  'affaire_creee', 'etape_changee', 'affaire_gagnee', 'affaire_perdue', 'affaire_en_pause', 'affaire_rouverte', 'encaissement',
+]);
+
+/** Fil d'historique : activités faites, notes et événements, du plus récent au plus ancien. */
+export function entreesHistorique({ activites = [], notes = [], evenements = [] }, filtre = 'tous') {
+  const entrees = [
+    ...activites.filter((a) => a.fait).map((a) => ({ genre: 'activite', date: versDate(a.dateFait) ?? versDate(a.date), element: a })),
+    ...notes.map((n) => ({ genre: 'note', date: versDate(n.creeLe), element: n })),
+    ...evenements.map((e) => ({ genre: 'evenement', date: versDate(e.date), element: e })),
+  ];
+  const gardees = entrees.filter((e) => {
+    if (filtre === 'activites') return e.genre === 'activite';
+    if (filtre === 'notes') return e.genre === 'note';
+    if (filtre === 'affaires') return e.genre === 'evenement' && TYPES_EVENEMENT_AFFAIRE.has(e.element.type);
+    if (filtre === 'evenements') return e.genre === 'evenement';
+    return true;
+  });
+  gardees.sort((a, b) => (b.date?.getTime() ?? 0) - (a.date?.getTime() ?? 0));
+  return gardees.slice(0, MAX_HISTORIQUE);
+}
+
+export function evenementCreation(type, texte, liens, ctx) {
+  return evenement(type, texte, liens, ctx);
+}
+
+export function evenementEmailEnvoye(personne, ctx) {
+  return evenement('email_envoye', `Email envoyé à ${personne.nom}`, { personneId: personne.id, organisationId: personne.organisationId }, ctx);
+}
+
+// ---------------------------------------------------------------- objectifs mensuels
+
+function dansLeMois(valeur, mois) {
+  return !!valeur && moisParis(valeur) === mois;
+}
+
+/** Chaque calcul reçoit { personnes, affaires, activites } et un mois "AAAA-MM". */
 export const CALCULS = {
   interviews_jtbd: {
     libelle: 'Interviews JTBD réalisées',
     unite: '',
-    calculer: (fiches, mois) => fiches.filter((f) => f.dateInterviewJtbd && moisParis(f.dateInterviewJtbd) === mois).length,
+    calculer: ({ personnes = [] }, mois) => personnes.filter((p) => dansLeMois(p.dateInterviewJtbd, mois)).length,
   },
   nouveaux_contacts: {
     libelle: 'Nouveaux contacts',
     unite: '',
-    calculer: (fiches, mois) => fiches.filter((f) => f.creeLe && moisParis(f.creeLe) === mois).length,
+    calculer: ({ personnes = [] }, mois) => personnes.filter((p) => dansLeMois(p.creeLe, mois)).length,
   },
   rdv_tenus: {
     libelle: 'Rendez vous tenus',
     unite: '',
-    calculer: (fiches, mois) => fiches.filter((f) => f.rdvTenu && f.dateRdvTenu && moisParis(f.dateRdvTenu) === mois).length,
+    calculer: ({ activites = [] }, mois) => activites.filter((a) => a.type === 'rendez_vous' && a.fait && dansLeMois(a.dateFait, mois)).length,
   },
   propositions_envoyees: {
     libelle: 'Propositions envoyées',
     unite: '',
-    calculer: (fiches, mois) => fiches.filter((f) => f.datesEtapes?.proposition_envoyee && moisParis(f.datesEtapes.proposition_envoyee) === mois).length,
+    calculer: ({ affaires = [] }, mois) => affaires.filter((a) => dansLeMois(a.datesEtapes?.proposition_envoyee, mois)).length,
   },
   ca_encaisse: {
     libelle: "Chiffre d'affaires encaissé",
     unite: '€',
-    calculer: (fiches, mois) => fiches.reduce(
-      (s, f) => s + (f.encaissements || []).filter((e) => moisParis(e.date) === mois).reduce((t, e) => t + (Number(e.montant) || 0), 0),
+    calculer: ({ affaires = [] }, mois) => affaires.reduce(
+      (s, a) => s + (a.encaissements || []).filter((e) => dansLeMois(e.date, mois)).reduce((t, e) => t + (Number(e.montant) || 0), 0),
       0,
     ),
   },
@@ -596,13 +920,13 @@ export function idSaisie(objectifId, mois) {
   return `${objectifId}_${mois}`;
 }
 
-export function valeurObjectif(objectif, { fiches = [], saisies = [], mois }) {
+export function valeurObjectif(objectif, { donnees = {}, saisies = [], mois }) {
   if (objectif.type === 'manuel') {
     const s = saisies.find((x) => x.objectifId === objectif.id && x.mois === mois);
     return Number(s?.valeur) || 0;
   }
   const c = CALCULS[objectif.calcul];
-  return c ? c.calculer(fiches, mois) : 0;
+  return c ? c.calculer(donnees, mois) : 0;
 }
 
 export function progression(valeur, cible) {
@@ -623,161 +947,180 @@ export function objectifsActifsTries(objectifs) {
   return [...(objectifs || [])].filter((o) => o.actif !== false).sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
 }
 
-// ---------------------------------------------------------------- statistiques
+// ---------------------------------------------------------------- statistiques et graphique
 
-export function compterParEtape(fiches) {
-  return TOUTES_ETAPES.map((e) => ({ ...e, nombre: fiches.filter((f) => f.etape === e.id).length }));
+export function compterParEtape(affaires) {
+  return ETAPES.map((e) => ({ ...e, nombre: affaires.filter((a) => a.etape === e.id).length }));
 }
 
-export function caParMois(fiches, moisFin, n = 6) {
-  const liste = [];
-  for (let i = n - 1; i >= 0; i--) {
-    const mois = decalerMois(moisFin, -i);
-    liste.push({ mois, libelle: libelleMois(mois, true), montant: CALCULS.ca_encaisse.calculer(fiches, mois) });
+/**
+ * Mois du graphique du chiffre d'affaires : de max(début d'activité, mois courant - (n-1)) au mois courant.
+ * Aucun mois antérieur au début d'activité n'apparaît jamais ; avant le début, un seul mois (le début).
+ */
+export function fenetreCa(debutActivite, moisActuel, n = 6) {
+  const debut = /^\d{4}-\d{2}$/.test(debutActivite || '') ? debutActivite : moisActuel;
+  const fin = moisActuel < debut ? debut : moisActuel;
+  const plancher = decalerMois(fin, -(n - 1));
+  let depart = debut > plancher ? debut : plancher;
+  const mois = [];
+  while (depart <= fin) {
+    mois.push(depart);
+    depart = decalerMois(depart, 1);
   }
-  return liste;
+  return mois;
 }
 
-/** Fiches passées en Facture payée pendant le mois (colonne du Kanban). */
-export function payeesDuMois(fiches, mois) {
-  return fiches.filter((f) => f.etape === 'facture_payee' && moisParis(f.dateEntreeEtape) === mois);
+export function caParMois(affaires, moisListe) {
+  return moisListe.map((mois) => ({
+    mois,
+    libelle: libelleMois(mois, true),
+    montant: CALCULS.ca_encaisse.calculer({ affaires }, mois),
+  }));
 }
 
-// ---------------------------------------------------------------- recherche et filtres
-
-export function normaliser(texte) {
-  return String(texte ?? '')
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .trim();
+/** Affaires passées en Facture payée pendant le mois (colonne du Kanban). */
+export function payeesDuMois(affaires, mois) {
+  return affaires.filter((a) => a.etape === 'facture_payee' && dansLeMois(a.datesEtapes?.facture_payee ?? a.dateEntreeEtape, mois));
 }
 
-export function correspondRecherche(f, recherche) {
-  const q = normaliser(recherche);
-  if (!q) return true;
-  const botte = normaliser([
-    f.nom, f.entreprise, f.ville, f.notes,
-    ...(f.notesRapides || []).map((n) => n.texte),
-  ].join(' \u0001 '));
-  return q.split(/\s+/).every((mot) => botte.includes(mot));
+export function totauxColonne(affaires) {
+  return { nombre: affaires.length, montant: affaires.reduce((s, a) => s + (Number(a.montant) || 0), 0) };
 }
 
-export const CRITERES_VIDES = Object.freeze({
-  recherche: '',
-  etapes: [], roles: [], sources: [], secteurs: [], villes: [], priorites: [], offres: [],
-  enRetard: false, sansAction: false, jtbd: null, archives: false, semaine: false,
+// ---------------------------------------------------------------- filtres
+
+export const CRITERES_PERSONNES_VIDES = Object.freeze({
+  recherche: '', etiquettes: [], organisations: [], roles: [], sources: [], villes: [], jtbd: '', archives: false,
+});
+export const CRITERES_ORGANISATIONS_VIDES = Object.freeze({
+  recherche: '', etiquettes: [], secteurs: [], villes: [], archives: false,
+});
+export const CRITERES_AFFAIRES_VIDES = Object.freeze({
+  recherche: '', etapes: [], statuts: [], priorites: [], offres: [], sources: [], personnes: [], organisations: [],
+  enRetard: false, sansAction: false, semaine: false, archives: false,
 });
 
-export function criteresComplets(c = {}) {
-  return {
-    ...CRITERES_VIDES,
-    ...c,
-    etapes: [...(c.etapes || [])],
-    roles: [...(c.roles || [])],
-    sources: [...(c.sources || [])],
-    secteurs: [...(c.secteurs || [])],
-    villes: [...(c.villes || [])],
-    priorites: [...(c.priorites || [])],
-    offres: [...(c.offres || [])],
-  };
-}
+const VIDES = { personnes: CRITERES_PERSONNES_VIDES, organisations: CRITERES_ORGANISATIONS_VIDES, affaires: CRITERES_AFFAIRES_VIDES };
 
-/** Critères enregistrables (sans la recherche, sans les valeurs vides). */
-export function criteresAEnregistrer(c) {
-  const complet = criteresComplets(c);
-  const res = {};
-  for (const [cle, valeur] of Object.entries(complet)) {
-    if (cle === 'recherche') continue;
-    if (Array.isArray(valeur) ? valeur.length : valeur) res[cle] = valeur;
+export function criteresComplets(liste, c = {}) {
+  const base = VIDES[liste];
+  const complet = {};
+  for (const [cle, valeur] of Object.entries(base)) {
+    complet[cle] = Array.isArray(valeur) ? [...(c[cle] || [])] : (c[cle] ?? valeur);
   }
-  return res;
+  return complet;
 }
 
-export function filtreEstVide(c) {
-  return Object.keys(criteresAEnregistrer(c)).length === 0 && !normaliser(c?.recherche);
+export function criteresActifs(liste, c) {
+  const complet = criteresComplets(liste, c);
+  return Object.entries(complet).some(([, v]) => (Array.isArray(v) ? v.length : !!v));
 }
 
-/** Applique des critères combinables (ET entre critères, OU entre valeurs d'un même critère). */
-export function filtrer(fiches, criteres, { aujourdhui }) {
-  const c = criteresComplets(criteres);
-  const dimanche = aujourdhui ? dimancheDeLaSemaine(aujourdhui) : null;
-  const villes = c.villes.map(normaliser);
-  return fiches.filter((f) => {
-    if (c.archives ? !estArchivee(f) : estArchivee(f)) return false;
-    if (c.etapes.length && !c.etapes.includes(f.etape)) return false;
-    if (c.roles.length && !(f.roles || []).some((r) => c.roles.includes(r))) return false;
-    if (c.sources.length && !c.sources.includes(f.source)) return false;
-    if (c.secteurs.length && !c.secteurs.includes(f.secteur)) return false;
-    if (villes.length && !villes.includes(normaliser(f.ville))) return false;
-    if (c.priorites.length && !c.priorites.includes(f.priorite)) return false;
-    if (c.offres.length && !c.offres.includes(f.offreId)) return false;
-    if (c.enRetard && !estEnRetard(f, aujourdhui)) return false;
-    if (c.sansAction && !estSansAction(f)) return false;
-    if (c.jtbd === 'faite' && !f.dateInterviewJtbd) return false;
-    if (c.jtbd === 'non_faite' && f.dateInterviewJtbd) return false;
-    if (c.semaine) {
-      if (!f.dateProchaineAction || f.etape === 'perdu') return false;
-      if (f.dateProchaineAction > dimanche) return false;
-    }
-    return correspondRecherche(f, c.recherche);
+const inter = (liste, valeur) => !liste.length || liste.includes(valeur);
+const interAvec = (liste, valeurs) => !liste.length || (valeurs || []).some((v) => liste.includes(v));
+
+function recherchePersonne(p, orgNom) {
+  return normaliser([p.nom, orgNom, p.ville, ...(p.emails || []).map((e) => e.valeur), ...(p.telephones || []).map((t) => t.valeur)].join(' \u0001 '));
+}
+
+function correspond(botte, recherche) {
+  const q = normaliser(recherche);
+  return !q || q.split(/\s+/).every((mot) => botte.includes(mot));
+}
+
+export function filtrerPersonnes(personnes, criteres, { organisations = [] } = {}) {
+  const c = criteresComplets('personnes', criteres);
+  const orgs = new Map(organisations.map((o) => [o.id, o]));
+  return personnes.filter((p) => {
+    if (c.archives ? !estArchivee(p) : estArchivee(p)) return false;
+    if (!correspond(recherchePersonne(p, orgs.get(p.organisationId)?.nom), c.recherche)) return false;
+    if (!interAvec(c.etiquettes, p.etiquettes)) return false;
+    if (!inter(c.organisations, p.organisationId)) return false;
+    if (!interAvec(c.roles, p.roles)) return false;
+    if (!inter(c.sources, p.source)) return false;
+    if (!inter(c.villes, p.ville)) return false;
+    if (c.jtbd === 'faite' && !p.dateInterviewJtbd) return false;
+    if (c.jtbd === 'non_faite' && p.dateInterviewJtbd) return false;
+    return true;
   });
 }
 
-/** Pastilles des filtres actifs : [{ cle, valeur, libelle }]. */
-export function pastillesFiltres(criteres, { offres = [] } = {}) {
-  const c = criteresComplets(criteres);
+export function filtrerOrganisations(organisations, criteres) {
+  const c = criteresComplets('organisations', criteres);
+  return organisations.filter((o) => {
+    if (c.archives ? !estArchivee(o) : estArchivee(o)) return false;
+    if (!correspond(normaliser([o.nom, o.ville, o.adresse].join(' \u0001 ')), c.recherche)) return false;
+    if (!interAvec(c.etiquettes, o.etiquettes)) return false;
+    if (!inter(c.secteurs, o.secteur)) return false;
+    if (!inter(c.villes, o.ville)) return false;
+    return true;
+  });
+}
+
+/** contexte : { activites, personnes, organisations, aujourdhui } */
+export function filtrerAffaires(affaires, criteres, { activites = [], personnes = [], organisations = [], aujourdhui } = {}) {
+  const c = criteresComplets('affaires', criteres);
+  const pers = new Map(personnes.map((p) => [p.id, p]));
+  const orgs = new Map(organisations.map((o) => [o.id, o]));
+  const dimanche = aujourdhui ? dimancheDeLaSemaine(aujourdhui) : null;
+  return affaires.filter((a) => {
+    if (c.archives ? !estArchivee(a) : estArchivee(a)) return false;
+    const botte = normaliser([a.titre, pers.get(a.personneId)?.nom, orgs.get(a.organisationId)?.nom].join(' \u0001 '));
+    if (!correspond(botte, c.recherche)) return false;
+    if (!inter(c.etapes, a.etape)) return false;
+    if (!inter(c.statuts, a.statut)) return false;
+    if (!inter(c.priorites, a.priorite)) return false;
+    if (!inter(c.offres, a.offreId)) return false;
+    if (!inter(c.sources, a.source)) return false;
+    if (!inter(c.personnes, a.personneId)) return false;
+    if (!inter(c.organisations, a.organisationId)) return false;
+    const siennes = activitesAVenir(activitesDeAffaire(activites, a.id));
+    if (c.enRetard && !(aujourdhui && siennes.some((x) => estActiviteEnRetard(x, aujourdhui)))) return false;
+    if (c.sansAction && !(estAffaireActive(a) && !siennes.length)) return false;
+    if (c.semaine && !(dimanche && estAffaireActive(a) && siennes.some((x) => x.date <= dimanche))) return false;
+    return true;
+  });
+}
+
+export function pastillesFiltres(liste, criteres, { offres = [], etiquettes = [], personnes = [], organisations = [] } = {}) {
+  const c = criteresComplets(liste, criteres);
   const p = [];
-  c.etapes.forEach((v) => p.push({ cle: 'etapes', valeur: v, libelle: `Étape : ${libelleEtape(v)}` }));
-  c.roles.forEach((v) => p.push({ cle: 'roles', valeur: v, libelle: `Rôle : ${libelleRole(v)}` }));
-  c.sources.forEach((v) => p.push({ cle: 'sources', valeur: v, libelle: `Source : ${v}` }));
-  c.secteurs.forEach((v) => p.push({ cle: 'secteurs', valeur: v, libelle: `Secteur : ${v}` }));
-  c.villes.forEach((v) => p.push({ cle: 'villes', valeur: v, libelle: `Ville : ${v}` }));
-  c.priorites.forEach((v) => p.push({ cle: 'priorites', valeur: v, libelle: `Priorité : ${libellePriorite(v)}` }));
-  c.offres.forEach((v) => p.push({ cle: 'offres', valeur: v, libelle: `Offre : ${libelleOffre(offres, v)}` }));
+  const nomPersonne = (id) => personnes.find((x) => x.id === id)?.nom ?? id;
+  const nomOrg = (id) => organisations.find((x) => x.id === id)?.nom ?? id;
+  if (c.recherche) p.push({ cle: 'recherche', valeur: c.recherche, libelle: `Recherche : ${c.recherche}` });
+  (c.etiquettes || []).forEach((v) => p.push({ cle: 'etiquettes', valeur: v, libelle: `Étiquette : ${libelleEtiquette(etiquettes, v)}` }));
+  (c.organisations || []).forEach((v) => p.push({ cle: 'organisations', valeur: v, libelle: `Organisation : ${nomOrg(v)}` }));
+  (c.roles || []).forEach((v) => p.push({ cle: 'roles', valeur: v, libelle: `Rôle : ${libelleRole(v)}` }));
+  (c.sources || []).forEach((v) => p.push({ cle: 'sources', valeur: v, libelle: `Source : ${v}` }));
+  (c.secteurs || []).forEach((v) => p.push({ cle: 'secteurs', valeur: v, libelle: `Secteur : ${v}` }));
+  (c.villes || []).forEach((v) => p.push({ cle: 'villes', valeur: v, libelle: `Ville : ${v}` }));
+  (c.etapes || []).forEach((v) => p.push({ cle: 'etapes', valeur: v, libelle: `Étape : ${libelleEtape(v)}` }));
+  (c.statuts || []).forEach((v) => p.push({ cle: 'statuts', valeur: v, libelle: `Statut : ${libelleStatut(v)}` }));
+  (c.priorites || []).forEach((v) => p.push({ cle: 'priorites', valeur: v, libelle: `Priorité : ${libellePriorite(v)}` }));
+  (c.offres || []).forEach((v) => p.push({ cle: 'offres', valeur: v, libelle: `Offre : ${libelleOffre(offres, v)}` }));
+  (c.personnes || []).forEach((v) => p.push({ cle: 'personnes', valeur: v, libelle: `Personne : ${nomPersonne(v)}` }));
+  if (c.jtbd === 'faite') p.push({ cle: 'jtbd', valeur: 'faite', libelle: 'Interview JTBD faite' });
+  if (c.jtbd === 'non_faite') p.push({ cle: 'jtbd', valeur: 'non_faite', libelle: 'Interview JTBD à faire' });
   if (c.enRetard) p.push({ cle: 'enRetard', valeur: true, libelle: 'En retard' });
   if (c.sansAction) p.push({ cle: 'sansAction', valeur: true, libelle: 'Sans action prévue' });
-  if (c.jtbd === 'faite') p.push({ cle: 'jtbd', valeur: 'faite', libelle: 'Interview JTBD faite' });
-  if (c.jtbd === 'non_faite') p.push({ cle: 'jtbd', valeur: 'non_faite', libelle: 'Interview JTBD non faite' });
-  if (c.archives) p.push({ cle: 'archives', valeur: true, libelle: 'Archivés' });
   if (c.semaine) p.push({ cle: 'semaine', valeur: true, libelle: 'À relancer cette semaine' });
-  if (normaliser(c.recherche)) p.push({ cle: 'recherche', valeur: c.recherche, libelle: `Recherche : ${c.recherche}` });
+  if (c.archives) p.push({ cle: 'archives', valeur: true, libelle: 'Archivées' });
   return p;
 }
 
-export function retirerCritere(criteres, cle, valeur) {
-  const c = criteresComplets(criteres);
+/** Retire une pastille des critères. */
+export function retirerCritere(liste, criteres, cle, valeur) {
+  const c = criteresComplets(liste, criteres);
   if (Array.isArray(c[cle])) c[cle] = c[cle].filter((v) => v !== valeur);
-  else if (cle === 'jtbd') c.jtbd = null;
-  else if (cle === 'recherche') c.recherche = '';
-  else c[cle] = false;
+  else c[cle] = VIDES[liste][cle];
   return c;
 }
 
-export function basculerValeur(criteres, cle, valeur) {
-  const c = criteresComplets(criteres);
-  c[cle] = c[cle].includes(valeur) ? c[cle].filter((v) => v !== valeur) : [...c[cle], valeur];
-  return c;
-}
+// ---------------------------------------------------------------- tri des listes
 
-// ---------------------------------------------------------------- tri de la Liste
-
-const CLES_TRI = {
-  nom: (f) => normaliser(f.nom),
-  entreprise: (f) => normaliser(f.entreprise),
-  ville: (f) => normaliser(f.ville),
-  etape: (f) => TOUTES_ETAPES.findIndex((e) => e.id === f.etape),
-  priorite: (f) => PRIORITES.findIndex((p) => p.id === f.priorite),
-  source: (f) => normaliser(f.source),
-  prochaineAction: (f) => f.dateProchaineAction || '',
-  montant: (f) => (f.montant === null || f.montant === undefined || f.montant === '' ? null : Number(f.montant)),
-  dateDernierEchange: (f) => versDate(f.dateDernierEchange)?.getTime() ?? null,
-};
-
-export function trierFiches(fiches, colonne = 'nom', sens = 'asc') {
-  const cle = CLES_TRI[colonne] || CLES_TRI.nom;
+export function trier(lignes, cle, sens = 'asc') {
   const s = sens === 'desc' ? -1 : 1;
-  return [...fiches].sort((a, b) => {
+  return [...lignes].sort((a, b) => {
     const va = cle(a);
     const vb = cle(b);
     const videA = va === null || va === '' || va === undefined;
@@ -790,67 +1133,172 @@ export function trierFiches(fiches, colonne = 'nom', sens = 'asc') {
   });
 }
 
-// ---------------------------------------------------------------- export CSV et rappel
+// ---------------------------------------------------------------- intégrité des liens
 
-export const COLONNES_CSV = [
-  ['id', 'Identifiant'], ['nom', 'Prénom et nom'], ['entreprise', 'Entreprise'], ['roles', 'Rôles'],
-  ['dateInterviewJtbd', "Date de l'interview JTBD"], ['secteur', 'Secteur'], ['taille', 'Taille'],
-  ['ville', 'Ville'], ['telephone', 'Téléphone'], ['email', 'Email'], ['siteWeb', 'Site web'],
-  ['linkedin', 'LinkedIn'], ['source', 'Source'], ['etape', 'Étape'], ['dateEntreeEtape', "Entrée dans l'étape"],
-  ['priorite', 'Priorité'], ['besoin', 'Besoin identifié'], ['offreId', 'Offre envisagée'],
-  ['dureeJours', 'Durée (jours)'], ['montant', 'Montant (€)'], ['datePremierContact', 'Premier contact'],
-  ['dateDernierEchange', 'Dernier échange'], ['prochaineAction', 'Prochaine action'],
-  ['dateProchaineAction', 'Date prochaine action'], ['dateRdv', 'Date du rendez vous'],
-  ['rdvTenu', 'Rendez vous tenu'], ['dateRdvTenu', 'Date du rendez vous tenu'], ['notes', 'Notes'],
-  ['notesRapides', 'Notes rapides'], ['documents', 'Documents'], ['raisonPerdu', 'Raison si perdu'],
-  ['raisonPerduDetail', 'Détail de la raison'], ['dateReveil', 'Date de réveil'], ['encaissements', 'Encaissements'],
-  ['oppositionProspection', 'Opposition à la prospection'], ['dateOpposition', "Date de l'opposition"],
-  ['archive', 'Archivé'], ['historique', 'Historique'], ['creeLe', 'Créé le'], ['creePar', 'Créé par'],
-  ['modifieLe', 'Modifié le'], ['modifiePar', 'Modifié par'],
-];
-
-const CHAMPS_TIMESTAMP = new Set(['dateEntreeEtape', 'dateDernierEchange', 'dateRdvTenu', 'dateOpposition', 'creeLe', 'modifieLe']);
-
-function nombreFr(n) {
-  if (n === null || n === undefined || n === '') return '';
-  return String(n).replace('.', ',');
+export function affairesDeLaPersonne(affaires, personneId) {
+  return (affaires || []).filter((a) => a.personneId === personneId);
 }
 
-function valeurCsv(f, champ, offres) {
-  const v = f[champ];
-  if (CHAMPS_TIMESTAMP.has(champ)) return formatDateHeure(v);
-  switch (champ) {
-    case 'roles': return (v || []).map(libelleRole).join(', ');
-    case 'etape': return libelleEtape(v);
-    case 'priorite': return libellePriorite(v);
-    case 'offreId': return libelleOffre(offres, v);
-    case 'dureeJours': case 'montant': return nombreFr(v);
-    case 'dateRdv': return v ? v.replace('T', ' ') : '';
-    case 'rdvTenu': case 'oppositionProspection': case 'archive': return v ? 'Oui' : 'Non';
-    case 'notesRapides': return (v || []).map((n) => `${formatDateHeure(n.date)} : ${n.texte}`).join('\n');
-    case 'documents': return (v || []).map((d) => `${d.libelle} : ${d.url}`).join('\n');
-    case 'encaissements': return (v || []).map((e) => `${formatDateHeure(e.date)} : ${nombreFr(e.montant)} €${e.offreId ? ` (${libelleOffre(offres, e.offreId)})` : ''}`).join('\n');
-    case 'historique': return (v || []).map((h) => `${formatDateHeure(h.date)} : ${h.texte}`).join('\n');
-    default: return v === null || v === undefined ? '' : String(v);
-  }
+export function personnesDeLOrganisation(personnes, organisationId) {
+  return (personnes || []).filter((p) => p.organisationId === organisationId);
 }
+
+/** Suppression d'une organisation : refusée tant qu'elle a des personnes ou des affaires. */
+export function verifierSuppressionOrganisation(organisationId, { personnes = [], affaires = [] }) {
+  const np = personnesDeLOrganisation(personnes, organisationId).length;
+  const na = (affaires || []).filter((a) => a.organisationId === organisationId).length;
+  if (!np && !na) return { ok: true, personnes: 0, affaires: 0, raison: '' };
+  const morceaux = [];
+  if (np) morceaux.push(`${np} personne${np > 1 ? 's' : ''}`);
+  if (na) morceaux.push(`${na} affaire${na > 1 ? 's' : ''}`);
+  return {
+    ok: false,
+    personnes: np,
+    affaires: na,
+    raison: `Cette organisation a encore ${morceaux.join(' et ')}. Archive-la, ou détache d'abord ses personnes et ses affaires.`,
+  };
+}
+
+/**
+ * Suppression d'une personne. choix : "affaires" (supprime aussi ses affaires et leurs activités, notes
+ * et événements) ou "conserver" (les affaires restent, rattachées à leur organisation seule).
+ * Renvoie ce que donnees.js doit faire : { supprimerAffaires, detacherAffaires }.
+ */
+export function planSuppressionPersonne(personneId, affaires, choix) {
+  const siennes = affairesDeLaPersonne(affaires, personneId);
+  if (!siennes.length) return { supprimerAffaires: [], detacherAffaires: [] };
+  if (choix === 'affaires') return { supprimerAffaires: siennes.map((a) => a.id), detacherAffaires: [] };
+  if (choix === 'conserver') return { supprimerAffaires: [], detacherAffaires: siennes.map((a) => a.id) };
+  throw new Error('Choisis ce que deviennent ses affaires.');
+}
+
+/** Confirmation de suppression définitive : le nom tapé est comparé sans accents ni casse. */
+export function confirmationValide(saisie, nom) {
+  const n = normaliserNom(nom);
+  return n !== '' && normaliserNom(saisie) === n;
+}
+
+// ---------------------------------------------------------------- export JSON et CSV
 
 export function echapperCsv(valeur) {
   const s = String(valeur ?? '');
   return /[";\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-/** Export CSV : UTF 8 avec BOM, séparateur point virgule, fins de ligne CRLF. */
-export function versCsv(fiches, { offres = [] } = {}) {
-  const lignes = [COLONNES_CSV.map(([, libelle]) => echapperCsv(libelle)).join(';')];
-  for (const f of fiches) {
-    lignes.push(COLONNES_CSV.map(([champ]) => echapperCsv(valeurCsv(f, champ, offres))).join(';'));
-  }
-  return `﻿${lignes.join('\r\n')}\r\n`;
+/** colonnes : [[libelle, (ligne) => valeur]]. UTF 8 avec BOM, séparateur point virgule, fins de ligne CRLF. */
+export function versCsv(colonnes, lignes) {
+  const sortie = [colonnes.map(([libelle]) => echapperCsv(libelle)).join(';')];
+  for (const l of lignes) sortie.push(colonnes.map(([, f]) => echapperCsv(f(l))).join(';'));
+  return `\ufeff${sortie.join('\r\n')}\r\n`;
 }
 
-export function nomFichierCsv(maintenant = new Date(), complet = true) {
-  return `chevalier-ia-prospects${complet ? '' : '-filtre'}-${aujourdhuiParis(maintenant)}.csv`;
+function nombreFr(n) {
+  if (n === null || n === undefined || n === '') return '';
+  return String(n).replace('.', ',');
+}
+
+const oui = (v) => (v ? 'Oui' : 'Non');
+
+export function csvPersonnes(personnes, { organisations = [], etiquettes = [] } = {}) {
+  const orgs = new Map(organisations.map((o) => [o.id, o.nom]));
+  return versCsv([
+    ['Identifiant', (p) => p.id],
+    ['Nom', (p) => p.nom],
+    ['Prénom', (p) => p.prenom],
+    ['Nom de famille', (p) => p.nomFamille],
+    ['Organisation', (p) => orgs.get(p.organisationId) ?? ''],
+    ['Emails', (p) => (p.emails || []).map((e) => `${e.valeur} (${libelleTypeContact(e.type)})`).join('\n')],
+    ['Téléphones', (p) => (p.telephones || []).map((t) => `${t.valeur} (${libelleTypeContact(t.type)})`).join('\n')],
+    ['Étiquettes', (p) => (p.etiquettes || []).map((id) => libelleEtiquette(etiquettes, id)).join(', ')],
+    ['Rôles', (p) => (p.roles || []).map(libelleRole).join(', ')],
+    ["Interview JTBD faite le", (p) => formatJour(p.dateInterviewJtbd)],
+    ['Ville', (p) => p.ville],
+    ['LinkedIn', (p) => p.linkedin],
+    ['Site web', (p) => p.siteWeb],
+    ['Source', (p) => p.source],
+    ['Opposition à la prospection', (p) => oui(p.oppositionProspection)],
+    ['Archivé', (p) => oui(p.archive)],
+    ['Propriétaire', (p) => p.proprietaire],
+    ['Créé le', (p) => formatDateHeure(p.creeLe)],
+  ], personnes);
+}
+
+export function csvOrganisations(organisations, { etiquettes = [], personnes = [] } = {}) {
+  return versCsv([
+    ['Identifiant', (o) => o.id],
+    ['Nom', (o) => o.nom],
+    ['Adresse', (o) => o.adresse],
+    ['Ville', (o) => o.ville],
+    ['Site web', (o) => o.siteWeb],
+    ['Secteur', (o) => o.secteur],
+    ['Taille', (o) => o.taille],
+    ['Étiquettes', (o) => (o.etiquettes || []).map((id) => libelleEtiquette(etiquettes, id)).join(', ')],
+    ['Personnes', (o) => personnesDeLOrganisation(personnes, o.id).length],
+    ['Archivé', (o) => oui(o.archive)],
+    ['Propriétaire', (o) => o.proprietaire],
+    ['Créé le', (o) => formatDateHeure(o.creeLe)],
+  ], organisations);
+}
+
+export function csvAffaires(affaires, { personnes = [], organisations = [], offres = [] } = {}) {
+  const pers = new Map(personnes.map((p) => [p.id, p.nom]));
+  const orgs = new Map(organisations.map((o) => [o.id, o.nom]));
+  return versCsv([
+    ['Identifiant', (a) => a.id],
+    ['Titre', (a) => a.titre],
+    ['Personne', (a) => pers.get(a.personneId) ?? ''],
+    ['Organisation', (a) => orgs.get(a.organisationId) ?? ''],
+    ['Étape', (a) => libelleEtape(a.etape)],
+    ['Statut', (a) => libelleStatut(a.statut)],
+    ['Priorité', (a) => libellePriorite(a.priorite)],
+    ['Montant (€)', (a) => nombreFr(a.montant)],
+    ['Offre', (a) => libelleOffre(offres, a.offreId)],
+    ['Durée (jours)', (a) => nombreFr(a.dureeJours)],
+    ['Source', (a) => a.source],
+    ['Besoin identifié', (a) => a.besoin],
+    ['Raison si perdue', (a) => a.raisonPerdue],
+    ['Date de réveil', (a) => formatJour(a.dateReveil)],
+    ['Encaissements', (a) => (a.encaissements || []).map((e) => `${formatDateHeure(e.date)} : ${nombreFr(e.montant)} €`).join('\n')],
+    ['Documents', (a) => (a.documents || []).map((d) => `${d.libelle} : ${d.url}`).join('\n')],
+    ['Archivé', (a) => oui(a.archive)],
+    ['Propriétaire', (a) => a.proprietaire],
+    ['Créé le', (a) => formatDateHeure(a.creeLe)],
+  ], affaires);
+}
+
+function versSerialisable(v) {
+  if (v === null || v === undefined) return null;
+  const d = typeof v === 'object' && !Array.isArray(v) ? versDateStricte(v) : null;
+  if (d) return d.toISOString();
+  if (Array.isArray(v)) return v.map(versSerialisable);
+  if (typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, versSerialisable(x)]));
+  return v;
+}
+
+function versDateStricte(v) {
+  if (v instanceof Date) return v;
+  if (typeof v.toDate === 'function') return v.toDate();
+  if (typeof v.seconds === 'number' && 'nanoseconds' in v) return versDate(v);
+  return null;
+}
+
+/** Sauvegarde complète : { version, exporteLe, collections: { nom: [documents avec id] } }, en texte JSON. */
+export function exportJson(collections, maintenant = new Date()) {
+  const sortie = {};
+  for (const [nom, docs] of Object.entries(collections)) sortie[nom] = (docs || []).map((d) => versSerialisable(d));
+  return JSON.stringify({ version: VERSION_EXPORT, exporteLe: maintenant.toISOString(), collections: sortie }, null, 2);
+}
+
+export function nomFichierExport(maintenant = new Date(), type = 'complet') {
+  const jour = aujourdhuiParis(maintenant);
+  const bases = {
+    complet: ['chevalier-ia-os', 'json'],
+    personnes: ['chevalier-ia-personnes', 'csv'],
+    organisations: ['chevalier-ia-organisations', 'csv'],
+    affaires: ['chevalier-ia-affaires', 'csv'],
+  };
+  const [base, ext] = bases[type] || bases.complet;
+  return `${base}-${jour}.${ext}`;
 }
 
 /** Rappel d'export : affiché si aucun export, ou si le dernier date de plus de 30 jours. */

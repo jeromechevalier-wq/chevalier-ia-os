@@ -1,30 +1,28 @@
 # Chevalier IA OS
 
-Espace de travail en ligne de Chevalier IA (Jérôme et Charles). Version 1 : la coquille (connexion Google, menu, thèmes) et le module **CRM de prospection** (Accueil avec objectifs et À faire, Kanban, Liste, fiche, Réglages).
+Espace de travail en ligne de Chevalier IA (Jérôme et Charles). **Version 2.0.0** : la coquille (connexion Google, menu, thèmes, recherche globale) et le module **CRM** refondu autour de trois tables : **Personnes**, **Organisations** et **Affaires** (Accueil avec objectifs et Points clés, Kanban des affaires, fiches, activités, notes, historique, Réglages, export).
 
-La référence unique est [`docs/cahier-des-charges.md`](docs/cahier-des-charges.md). Les choix faits pendant la construction sont dans [`docs/decisions-construction.md`](docs/decisions-construction.md).
+La référence unique est [`docs/cahier-des-charges-v2.0.md`](docs/cahier-des-charges-v2.0.md) (le cahier de la version 1 reste dans [`docs/cahier-des-charges.md`](docs/cahier-des-charges.md), pour mémoire). Les choix faits pendant la construction sont dans [`docs/decisions-construction-v2.md`](docs/decisions-construction-v2.md) ; le rapport de la construction est dans [`docs/rapport-construction-v2.md`](docs/rapport-construction-v2.md).
 
 * Adresse : https://chevalier-ia-os.web.app
 * Hébergement : Firebase Hosting (plan gratuit Spark), base Firestore `europe-west9` (Paris)
 * Code : HTML, CSS et modules JavaScript, **sans étape de compilation** ; SDK Firebase 12.19.0 chargé depuis gstatic ; aucun service worker
 
-## Mise en ligne (une seule fois, sur le Mac)
+## Mise en ligne de la version 2.0.0
 
-1. Installer Node.js LTS (https://nodejs.org), puis dans le Terminal :
-   ```sh
-   npm install -g firebase-tools
-   firebase login
-   cd ~/chemin/vers/chevalier-ia-os
-   firebase init hosting:github
-   ```
-   Répondre : dépôt `jeromechevalier-wq/chevalier-ia-os`, pas de script de build, déploiement automatique sur `main`. Si la commande propose d'écraser `.github/workflows/firebase-hosting.yml` ou `firebase.json`, répondre **non** (garder les fichiers fournis).
-2. Google Cloud Console, projet `chevalier-ia-os`, Identifiants, client OAuth "Web client (auto created by Google Service)" : ajouter l'URI de redirection autorisée `https://chevalier-ia-os.web.app/__/auth/handler`.
-3. Fusionner la branche `v1` dans `main` sur GitHub : l'action publie le site automatiquement.
+L'hébergement et le déploiement automatique sont déjà en place (version 1.0.0 en ligne). Pour publier la version 2.0.0 :
+
+1. Sur GitHub, ouvrir la Pull request de la branche `v2` vers `main`, relire, puis **fusionner** : l'action publie le site automatiquement.
+2. Les appareils déjà ouverts affichent « Nouvelle version disponible » avec un bouton « Recharger ».
+3. Faire la recette manuelle de la section 15.2 du cahier (10 minutes).
+4. Quand tu le souhaites, supprimer la collection `crm_prospects` de la version 1.0.0 dans la console Firebase (Firestore Database) : la version 2.0 ne l'utilise pas et ne la touche pas.
+
+Rien à changer côté authentification ni règles Firestore (`firestore.rules` est identique à celui de la version 1.0.0 : les jokers couvrent les nouvelles collections).
 
 ## Mettre à jour
 
 1. Modifier le code, lancer les tests (ci dessous).
-2. **Augmenter la version** dans les deux fichiers : `version.json` et `js/os/version.js` (par exemple `1.0.1`).
+2. **Augmenter la version** dans les deux fichiers : `version.json` et `js/os/version.js` (par exemple `2.0.1`).
 3. Pousser sur `main` : le déploiement est automatique. Les appareils déjà ouverts affichent "Nouvelle version disponible" avec un bouton "Recharger".
 
 Les règles Firestore (`firestore.rules`) sont identiques à celles publiées dans la console ; elles ne sont pas déployées par l'action.
@@ -44,7 +42,7 @@ npx playwright install chromium
 npm test
 ```
 
-`npm test` démarre les émulateurs Auth (9099) et Firestore (8080), lance les tests A (règles de sécurité), B (logique métier), D (contrôles statiques) puis C et D (parcours Playwright en 1440 × 900 et 390 × 844), et arrête les émulateurs.
+`npm test` démarre les émulateurs Auth (9099) et Firestore (8080), lance les tests A (règles de sécurité des neuf collections), B (logique métier), D (contrôles statiques) puis C et D (parcours Playwright, chacun rejoué en 1440 × 900 pour l'ordinateur et 390 × 844 pour le téléphone), et arrête les émulateurs.
 
 Pour ouvrir l'appli sur les émulateurs à la main : lancer `npx firebase emulators:start --config ../firebase.json --project demo-chevalier-ia-os --only auth,firestore` depuis `tests/`, servir la racine du dépôt (`node tests/e2e/serveur.js`) puis ouvrir http://localhost:5050/?emulateurs=1.
 
@@ -55,9 +53,13 @@ index.html, manifest.webmanifest, version.json, robots.txt
 css/        tokens.css (couleurs, thèmes, polices), os.css (coquille), crm.css (module CRM)
 js/main.js  démarrage
 js/os/      coquille : Firebase, connexion, routage, menu, objectifs communs, célébrations, version, composants
-js/modules/crm/  module CRM ; logique.js contient toutes les règles métier pures (testées sans navigateur)
+js/modules/crm/  module CRM : donnees.js (Firestore), logique.js (toutes les règles métier pures, testées sans navigateur), personnes, organisations, affaires, fiches, activites, accueil, reglages, export
 assets/     portraits, logo et baguette, polices du site, icônes PWA
 tests/      tests (non publiés)
 ```
 
-Ajouter un module : créer `js/modules/<nom>/index.js` (fonctions `demarrer`, `arreter`, `afficher`, `reglages`) et ajouter une entrée dans `js/os/modules.js`. Les collections du module sont préfixées (`<nom>_…`), les éléments communs par `os_`.
+Ajouter un module : créer `js/modules/<nom>/index.js` (fonctions `demarrer`, `arreter`, `afficher`, `reglages`, et facultativement `actionsRapides` et `rechercher` pour le bouton « + » et la recherche globale) et ajouter une entrée dans `js/os/modules.js`. Les collections du module sont préfixées (`<nom>_…`), les éléments communs par `os_`.
+
+## Raccourcis clavier (ordinateur)
+
+`/` place le curseur dans la recherche globale, `n` ouvre « Ajouter une personne », `Échap` ferme une fenêtre ou une liste de suggestions, les flèches et Entrée pilotent les champs intelligents.

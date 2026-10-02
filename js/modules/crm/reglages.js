@@ -1,6 +1,8 @@
-// Réglages du CRM : offres, secteurs, sources, filtres enregistrés, délai de paiement.
+// Réglages du CRM : offres, secteurs, sources, étiquettes, filtres enregistrés, délai de paiement, début d'activité, export.
 import { h, icone, vider, remplir, toast, confirmer, demanderTexte } from '../../os/ui.js';
 import * as D from './donnees.js';
+import * as L from './logique.js';
+import { exporterToutesLesDonnees } from './export.js';
 
 function section(id, titre, nomIcone, aide) {
   return h('section', { class: 'carte-section', id },
@@ -49,7 +51,7 @@ export function rendreReglagesCrm(page) {
     await D.enregistrerListes({ sources: [...D.etat.sources, v] });
   }));
 
-  const sFiltres = section('reglages-filtres', 'Filtres enregistrés', 'bookmark', 'Crée un filtre depuis la Liste ou le Kanban avec "Enregistrer ce filtre".');
+  const sFiltres = section('reglages-filtres', 'Filtres enregistrés', 'bookmark', 'Crée un filtre depuis une liste (Personnes, Affaires) avec le bouton « Filtres enregistrés ».');
   const listeFiltres = h('div', { class: 'liste-reglages' });
   sFiltres.append(listeFiltres);
 
@@ -62,7 +64,24 @@ export function rendreReglagesCrm(page) {
     } });
   sDelai.append(h('label', { class: 'ligne-champ' }, delai, h('span', {}, 'jours')));
 
-  page.append(sOffres, sSecteurs, sSources, sFiltres, sDelai);
+  const sEtiquettes = section('reglages-etiquettes', 'Étiquettes', 'tag', 'Elles se créent aussi à la volée depuis n’importe quel champ « Étiquettes ».');
+  const listeEtiquettes = h('div', { class: 'liste-reglages' });
+  sEtiquettes.append(listeEtiquettes, formulaireAjout('Nouvelle étiquette', 'Ajouter', async (v) => { await D.creerEtiquette(v); }));
+
+  const sDebut = section('reglages-debut', 'Début d’activité', 'calendar', 'Le graphique du chiffre d’affaires part de ce mois et ne montre jamais les mois d’avant.');
+  const debut = h('input', { type: 'month', class: 'champ champ-court', 'aria-label': 'Mois de début d’activité',
+    onchange: async (e) => {
+      if (!/^\d{4}-\d{2}$/.test(e.target.value)) { e.target.value = D.etat.reglages.debutActivite; return; }
+      await D.enregistrerReglages({ debutActivite: e.target.value });
+      toast('Début d’activité enregistré');
+    } });
+  sDebut.append(debut);
+
+  const sExport = section('reglages-export', 'Sauvegarde', 'download', 'Télécharge toutes tes données (personnes, organisations, affaires, activités, notes, historique) dans un fichier.');
+  const infoExport = h('p', { class: 'aide', 'data-role': 'dernier-export' });
+  sExport.append(h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'exporter-tout', onclick: () => exporterToutesLesDonnees() }, icone('download', { taille: 16 }), 'Exporter mes données'), infoExport);
+
+  page.append(sOffres, sSecteurs, sSources, sEtiquettes, sFiltres, sDelai, sDebut, sExport);
 
   function ligneOffre(o, i, liste) {
     const nom = h('input', { type: 'text', class: 'champ', value: o.nom, 'aria-label': `Nom de l'offre ${o.nom}`,
@@ -103,9 +122,27 @@ export function rendreReglagesCrm(page) {
         })));
   }
 
+  function ligneEtiquette(e, i, liste) {
+    const nom = h('input', { type: 'text', class: 'champ', value: e.nom, 'aria-label': `Renommer l'étiquette ${e.nom}`,
+      onchange: (ev) => {
+        const v = ev.target.value.trim();
+        if (!v) { ev.target.value = e.nom; return; }
+        D.enregistrerEtiquettes(liste.map((x) => (x.id === e.id ? { ...x, nom: v } : x)));
+      } });
+    const couleur = h('input', { type: 'color', class: 'champ-couleur', value: e.couleur || '#b98ee0', 'aria-label': `Couleur de l'étiquette ${e.nom}`,
+      onchange: (ev) => D.enregistrerEtiquettes(liste.map((x) => (x.id === e.id ? { ...x, couleur: ev.target.value } : x))) });
+    return h('div', { class: 'ligne-reglage', dataset: { etiquette: e.id } }, couleur, nom,
+      h('div', { class: 'groupe-boutons' },
+        boutonIcone('trash-2', `Retirer ${e.nom}`, async () => {
+          if (await confirmer('Retirer l’étiquette', `« ${e.nom} » sera retirée de la liste. Les fiches qui l’utilisent n’affichent plus cette étiquette.`, { libelleOk: 'Retirer' })) {
+            D.enregistrerEtiquettes(liste.filter((x) => x.id !== e.id));
+          }
+        })));
+  }
+
   function ligneFiltre(f) {
     return h('div', { class: 'ligne-reglage', dataset: { filtre: f.id } },
-      h('span', { class: 'nom-filtre' }, icone('bookmark', { taille: 14 }), f.nom),
+      h('span', { class: 'nom-filtre' }, icone('bookmark', { taille: 14 }), f.nom, h('span', { class: 'aide' }, ` · ${f.liste === 'personnes' ? 'Personnes' : f.liste === 'organisations' ? 'Organisations' : 'Affaires'}`)),
       h('div', { class: 'groupe-boutons' },
         h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', dataset: { action: 'renommer-filtre' }, onclick: async () => {
           const nom = await demanderTexte('Renommer le filtre', { libelle: 'Nom du filtre', valeur: f.nom });
@@ -125,9 +162,12 @@ export function rendreReglagesCrm(page) {
     remplir(listeOffres, ...D.etat.offres.map((o, i, l) => ligneOffre(o, i, l)));
     remplir(listeSecteurs, ...D.etat.secteurs.map((v, i, l) => ligneValeur('secteurs', v, i, l)));
     remplir(listeSources, ...D.etat.sources.map((v, i, l) => ligneValeur('sources', v, i, l)));
+    remplir(listeEtiquettes, ...D.etat.etiquettes.map((e, i, l) => ligneEtiquette(e, i, l)));
     remplir(listeFiltres, ...D.etat.filtres.map(ligneFiltre));
     if (!D.etat.filtres.length) listeFiltres.append(h('p', { class: 'vide-discret' }, 'Aucun filtre enregistré.'));
     if (document.activeElement !== delai) delai.value = String(D.etat.reglages.delaiPaiementJours ?? 30);
+    if (document.activeElement !== debut) debut.value = D.etat.reglages.debutActivite || '';
+    infoExport.textContent = D.etat.reglages.dernierExport ? `Dernier export : ${L.formatDateHeure(D.etat.reglages.dernierExport)}` : 'Aucun export pour le moment.';
   }
   rafraichir();
   return D.surChangement(rafraichir);

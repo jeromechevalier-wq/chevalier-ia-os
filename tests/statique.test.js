@@ -60,10 +60,10 @@ describe('D1 Manifeste, icônes, service worker, versions', () => {
     }
     assert.ok(!existsSync(join(RACINE, 'sw.js')) && !existsSync(join(RACINE, 'service-worker.js')));
   });
-  test('D1 versions identiques dans version.json et js/os/version.js (1.0.0)', () => {
+  test('D1 versions identiques dans version.json et js/os/version.js (2.0.0)', () => {
     const v = json('version.json').version;
     const m = /VERSION = '([^']+)'/.exec(lire('js/os/version.js'));
-    assert.equal(v, '1.0.0');
+    assert.equal(v, '2.0.0');
     assert.equal(m[1], v);
   });
   test('D1 portraits réduits (512 px de large au plus)', () => {
@@ -131,28 +131,30 @@ describe('D3 firebase.json, en têtes, indexation', () => {
     assert.match(lire('robots.txt'), /User-agent: \*\s+Disallow: \//);
     assert.match(lire('index.html'), /<meta name="robots" content="noindex">/);
   });
-  test('D3 firestore.rules identiques à la section 8.4 du cahier des charges', () => {
-    const cahier = lire('docs/cahier-des-charges.md');
+  test('D3 firestore.rules identiques à la section 11.4 du cahier des charges 2.0 (et inchangées depuis la version 1.0.0)', () => {
+    const cahier = lire('docs/cahier-des-charges-v2.0.md');
     const bloc = /\*\*Règles Firestore\*\*[\s\S]*?```\n([\s\S]*?)```/.exec(cahier)[1];
     const norm = (t) => t.replace(/\s+/g, ' ').trim();
     assert.equal(norm(lire('firestore.rules')), norm(bloc));
+    assert.match(lire('firestore.rules'), /match \/\{document=\*\*\}/); // jokers : couvrent les nouvelles collections
   });
-  test('D3 configuration Firebase et comptes autorisés conformes à la section 8.3', () => {
-    const cahier = lire('docs/cahier-des-charges.md');
+  test('D3 configuration Firebase et comptes autorisés conformes à la section 11.3', () => {
+    const cahier = lire('docs/cahier-des-charges-v2.0.md');
     const bloc = /\(`js\/os\/firebase-config\.js`\) :\n\s*```js\n([\s\S]*?)```/.exec(cahier)[1];
     const norm = (t) => t.replace(/\s+/g, ' ').trim();
     assert.equal(norm(lire('js/os/firebase-config.js')), norm(bloc));
   });
-  test('D3 arborescence de la section 10 respectée', () => {
+  test('D3 arborescence de la section 13 respectée ; fichiers du module CRM de la version 1.0.0 retirés', () => {
     const attendus = [
       'index.html', 'manifest.webmanifest', 'version.json', 'robots.txt', 'firebase.json', '.firebaserc', 'firestore.rules', '.gitignore', 'README.md',
       'css/tokens.css', 'css/os.css', 'css/crm.css', 'js/main.js',
       ...['firebase-config', 'firebase', 'auth', 'router', 'shell', 'modules', 'objectifs', 'celebrations', 'version', 'pwa', 'ui'].map((f) => `js/os/${f}.js`),
-      ...['index', 'donnees', 'logique', 'accueil', 'kanban', 'liste', 'fiche', 'reglages'].map((f) => `js/modules/crm/${f}.js`),
-      'assets/charles-portrait.png', 'assets/jerome-portrait.png', 'docs/cahier-des-charges.md',
+      ...['index', 'donnees', 'logique', 'accueil', 'personnes', 'organisations', 'affaires', 'fiche-personne', 'fiche-organisation', 'fiche-affaire', 'activites', 'reglages', 'export'].map((f) => `js/modules/crm/${f}.js`),
+      'assets/charles-portrait.png', 'assets/jerome-portrait.png', 'docs/cahier-des-charges-v2.0.md', 'docs/pipedrive-reference.md',
       'tests/package.json', 'tests/regles.test.js', 'tests/logique.test.js', '.github/workflows/firebase-hosting.yml',
     ];
     for (const f of attendus) assert.ok(existsSync(join(RACINE, f)), f);
+    for (const f of ['fiche', 'kanban', 'liste']) assert.ok(!existsSync(join(RACINE, `js/modules/crm/${f}.js`)), `js/modules/crm/${f}.js (version 1.0.0) doit avoir disparu`);
     assert.ok(readdirSync(join(RACINE, 'assets/fonts')).length >= 6);
     assert.ok(readdirSync(join(RACINE, 'tests/e2e')).some((f) => f.endsWith('.spec.js')));
   });
@@ -166,5 +168,47 @@ describe('D3 firebase.json, en têtes, indexation', () => {
   });
   test('D3 package.json uniquement dans tests/', () => {
     assert.ok(!existsSync(join(RACINE, 'package.json')));
+  });
+});
+
+describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
+  const sources = () => fichiersAppli().filter((x) => /^js\/.*\.js$/.test(x));
+
+  test('D4 aucune requête composite : pas de orderBy, une seule condition where par requête, jamais de plage', () => {
+    for (const f of sources()) {
+      const t = lire(f);
+      assert.doesNotMatch(t, /\borderBy\s*\(/, `${f} : orderBy`);
+      assert.doesNotMatch(t, /\blimit\s*\(/, `${f} : limit`);
+      for (const [requete] of t.matchAll(/query\s*\([^;]*?\)\s*,/gs)) {
+        const nombre = (requete.match(/\bwhere\s*\(/g) || []).length;
+        assert.ok(nombre <= 1, `${f} : requête avec ${nombre} conditions : ${requete.slice(0, 80)}`);
+      }
+      for (const [, op] of t.matchAll(/where\s*\([^,]+,\s*['"]([^'"]+)['"]/g)) assert.equal(op, '==', `${f} : opérateur ${op}`);
+    }
+  });
+
+  test('D4 aucun appel à la collection crm_prospects de la version 1.0.0 dans le code publié', () => {
+    for (const f of sources()) assert.doesNotMatch(lire(f), /crm_prospects/, f);
+  });
+
+  test('D4 les collections lues ou écrites sont celles du cahier', () => {
+    const attendues = new Set(['crm_personnes', 'crm_organisations', 'crm_affaires', 'crm_activites', 'crm_notes', 'crm_evenements', 'crm_parametres', 'os_objectifs', 'os_objectifs_saisies']);
+    const trouvees = new Set();
+    for (const f of sources()) for (const [, nom] of lire(f).matchAll(/['"`]((?:crm|os)_[a-z_]+)['"`]/g)) trouvees.add(nom);
+    for (const nom of trouvees) assert.ok(attendues.has(nom), `collection inattendue : ${nom}`);
+    for (const nom of attendues) assert.ok(trouvees.has(nom), `collection jamais utilisée : ${nom}`);
+  });
+
+  test('D4 firestore.rules : un seul bloc joker réservé aux deux comptes vérifiés (aucune modification en 2.0)', () => {
+    const r = lire('firestore.rules');
+    assert.equal((r.match(/match /g) || []).length, 2);
+    assert.match(r, /email_verified == true/);
+    assert.match(r, /jerome\.chevalier@gmail\.com/);
+    assert.match(r, /jeromebot\.chevalierbot@gmail\.com/);
+  });
+
+  test('D4 pas de Cloud Function ni de Cloud Storage', () => {
+    for (const f of fichiersAppli().filter((x) => /\.js$/.test(x))) assert.doesNotMatch(lire(f), /firebase-functions|firebase-storage|getStorage|httpsCallable/, f);
+    assert.ok(!existsSync(join(RACINE, 'functions')));
   });
 });
