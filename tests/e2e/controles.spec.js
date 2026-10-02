@@ -1,5 +1,5 @@
 // Tests D exécutés dans le navigateur : aucun service worker, manifeste servi, domaines chargés.
-import { test, expect, connecter, allerA, creerFiche } from './outils.js';
+import { test, expect, connecter, allerA, creerPersonne, creerOrganisation, creerAffaire } from './outils.js';
 
 const HOTES_AUTORISES = [
   /^localhost$/, /^127\.0\.0\.1$/, // appli et émulateurs pendant les tests
@@ -30,9 +30,11 @@ test('D2 aucune ressource chargée hors de gstatic.com, googleapis.com et des do
     if (u.protocol === 'data:' || u.protocol === 'blob:') return;
     hotes.add(u.hostname);
   });
-  await creerFiche('d2', { nom: 'Contrôle Domaines' });
+  await creerOrganisation('o1', { nom: 'Contrôle Domaines SARL' });
+  await creerPersonne('p1', { nom: 'Contrôle Domaines', organisationId: 'o1' });
+  await creerAffaire('a1', { titre: 'Contrôle', personneId: 'p1', organisationId: 'o1' });
   await connecter(page);
-  for (const vue of ['Kanban', 'Liste', 'Réglages', 'Accueil']) {
+  for (const vue of ['Personnes', 'Organisations', 'Affaires', 'Réglages', 'Accueil']) {
     await allerA(page, vue);
     await expect(page.locator('.page')).toBeVisible();
   }

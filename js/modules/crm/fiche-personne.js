@@ -144,8 +144,8 @@ export function rendreFichePersonne(conteneur, id) {
     let contenuOrg;
     if (org && !editionOrganisation) {
       contenuOrg = h('div', { class: 'contact-ligne' }, icone('building-2', { taille: 15 }), lienOrganisation(org),
-        h('button', { type: 'button', class: 'bouton-discret bouton-petit', 'data-action': 'detacher-organisation', onclick: () => D.lierPersonneOrganisation(p.id, null) }, 'Détacher'),
-        h('button', { type: 'button', class: 'bouton-discret bouton-petit', onclick: () => { editionOrganisation = true; reconstruire(); } }, 'Changer'));
+        h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', 'data-action': 'detacher-organisation', onclick: () => D.lierPersonneOrganisation(p.id, null) }, 'Détacher'),
+        h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', onclick: () => { editionOrganisation = true; reconstruire(); } }, 'Changer'));
     } else {
       const sel = selecteurOrganisation({ valeurId: org?.id || null, surChoix: async (el) => { if (el) { editionOrganisation = false; await D.lierPersonneOrganisation(p.id, el.id); } } });
       contenuOrg = h('div', { class: 'pile' }, org ? null : h('p', { class: 'aide' }, 'Aucune organisation n’est associée à cette personne.'), sel.element);

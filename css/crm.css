@@ -283,9 +283,24 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 .fiche-grille { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 28px; align-items: start; }
 .fiche-gauche, .fiche-droite { min-width: 0; }
 .fiche-gauche { background: var(--panneau); border: 1px solid var(--bordure); border-radius: var(--rayon); padding: 6px 18px; }
-@media (max-width: 1023px) { .fiche-grille { grid-template-columns: 1fr; } }
+@media (max-width: 1023px) {
+  /* Une seule colonne : les blocs sont remis dans l'ordre voulu, quelle que soit leur colonne d'origine.
+     Personne : Résumé, Activité et Notes, Points clés, Affaires, Organisation, Détails, Historique. */
+  .fiche-grille { display: flex; flex-direction: column; gap: 14px; }
+  .fiche-grille .fiche-gauche, .fiche-grille .fiche-droite, .fiche-grille .panneau-activite { display: contents; }
+  .section { background: var(--panneau); border: 1px solid var(--bordure); border-radius: var(--rayon); padding: 6px 14px; }
+  .section[data-section$='-resume'] { order: 1; }
+  .compositeur { order: 2; }
+  .points-cles { order: 3; }
+  .section[data-section='affaire-encaissements'], .section[data-section='organisation-personnes'] { order: 4; }
+  .section[data-section='affaire-documents'], .section[data-section$='-affaires'] { order: 5; }
+  .section[data-section='personne-organisation'] { order: 6; }
+  .section[data-section$='-details'] { order: 7; }
+  .historique { order: 8; }
+  .points-cles, .historique { padding: 0 2px; }
+  .fiche-grille .section, .fiche-grille .compositeur { width: 100%; box-sizing: border-box; min-width: 0; align-self: stretch; }
+}
 @media (max-width: 767px) {
-  .fiche-gauche { padding: 4px 14px; }
   .prop { grid-template-columns: 1fr; gap: 2px; padding: 4px 0; }
   .titre-editable { font-size: 24px; }
   .fiche-actions { width: 100%; }
@@ -338,4 +353,14 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
   .objectif-actions { flex-wrap: wrap; gap: 6px; }
   .objectif-actions .bouton-petit { padding: 4px 10px; }
   .champ-saisie { margin-left: 0; width: 100%; }
+}
+
+/* Téléphone : barres de recherche et de filtres sur toute la largeur */
+@media (max-width: 767px) {
+  .barre-filtres-ligne .champ-avec-icone { flex: 1 1 100%; }
+  .barre-affaires { flex-direction: column; align-items: stretch; }
+  .champ-tri { width: 100%; }
+  .page-actions { width: 100%; }
+  .page-actions .bouton { flex: 1 1 auto; justify-content: center; }
+  .page-tete > div:first-child { min-width: 0; }
 }

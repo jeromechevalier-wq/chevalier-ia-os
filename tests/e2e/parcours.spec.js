@@ -906,10 +906,19 @@ test('C22 fiche personne : deux colonnes sur ordinateur, une seule colonne sur t
   const gauche = await page.locator('.fiche-gauche').boundingBox();
   const droite = await page.locator('.fiche-droite').boundingBox();
   if (estTelephone(page)) {
-    expect(Math.abs(gauche.x - droite.x)).toBeLessThan(2); // même colonne
-    expect(droite.y).toBeGreaterThan(gauche.y); // empilées : Résumé… puis activité et historique
-    const sections = await page.locator('.fiche-gauche > .section').evaluateAll((els) => els.map((e) => e.dataset.section));
-    expect(sections).toEqual(['personne-resume', 'personne-details', 'personne-organisation', 'personne-affaires']);
+    // Une seule colonne, dans l'ordre du cahier : Résumé, Activité et Notes, Points clés, Affaires, Organisation, Détails, Historique
+    const ordre = await page.evaluate(() => {
+      const blocs = [
+        ['résumé', '.section[data-section="personne-resume"]'], ['activité', '.compositeur'], ['points clés', '.points-cles'],
+        ['affaires', '.section[data-section="personne-affaires"]'], ['organisation', '.section[data-section="personne-organisation"]'],
+        ['détails', '.section[data-section="personne-details"]'], ['historique', '.historique'],
+      ];
+      return blocs.map(([nom, sel]) => { const r = document.querySelector(sel).getBoundingClientRect(); return { nom, x: Math.round(r.x), y: r.y }; })
+        .sort((a, b) => a.y - b.y);
+    });
+    expect(ordre.map((b) => b.nom)).toEqual(['résumé', 'activité', 'points clés', 'affaires', 'organisation', 'détails', 'historique']);
+    expect(new Set(ordre.map((b) => b.x)).size).toBeLessThanOrEqual(2); // même colonne (au pixel près)
+    void gauche; void droite;
   } else {
     expect(droite.x).toBeGreaterThan(gauche.x + gauche.width - 2); // côte à côte
     expect(Math.abs(droite.y - gauche.y)).toBeLessThan(4);

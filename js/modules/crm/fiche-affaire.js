@@ -99,7 +99,7 @@ export function rendreFicheAffaire(conteneur, id) {
 
     // ---- Documents
     const champLibelle = h('input', { class: 'champ', type: 'text', 'aria-label': 'Libellé du document', placeholder: 'Libellé (ex. Devis)' });
-    const champUrl = h('input', { class: 'champ', type: 'url', 'aria-label': 'Adresse du document (lien Google Drive)', placeholder: 'https://drive.google.com/…' });
+    const champUrl = h('input', { class: 'champ', type: 'url', 'aria-label': 'Adresse du document (lien Google Drive)', placeholder: 'Lien Google Drive' });
     const documents = a.documents || [];
     const sectionDocuments = sectionRepliable({
       id: 'affaire-documents', titre: 'Documents', compteur: documents.length,

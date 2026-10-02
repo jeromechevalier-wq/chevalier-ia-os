@@ -224,8 +224,8 @@ export function panneauActivite({ lien, liensCreation }) {
     const carte = h('li', { class: 'fil-ligne fil-note', dataset: { genre: 'note', note: n.id } }, h('span', { class: 'fil-puce' }, icone('sticky-note', { taille: 14 })),
       h('div', { class: 'fil-texte note-carte' }, texte, meta,
         h('div', { class: 'note-actions' },
-          h('button', { type: 'button', class: 'bouton-discret bouton-petit', 'data-action': 'modifier-note', onclick: () => modifier() }, icone('pencil', { taille: 14 }), 'Modifier'),
-          h('button', { type: 'button', class: 'bouton-discret bouton-petit', 'data-action': 'supprimer-note', onclick: async () => { if (await confirmer('Supprimer cette note ?', '', { libelleOk: 'Supprimer', danger: true })) await D.supprimerNote(n.id); } }, icone('trash-2', { taille: 14 }), 'Supprimer'))));
+          h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', 'data-action': 'modifier-note', onclick: () => modifier() }, icone('pencil', { taille: 14 }), 'Modifier'),
+          h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', 'data-action': 'supprimer-note', onclick: async () => { if (await confirmer('Supprimer cette note ?', '', { libelleOk: 'Supprimer', danger: true })) await D.supprimerNote(n.id); } }, icone('trash-2', { taille: 14 }), 'Supprimer'))));
     function modifier() {
       const zone = h('textarea', { class: 'champ', rows: 4, 'aria-label': 'Modifier la note', value: n.texte });
       const corps = carte.querySelector('.fil-texte');

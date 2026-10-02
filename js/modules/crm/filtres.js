@@ -122,7 +122,7 @@ export function barreFiltres({ liste, lireCriteres, ecrireCriteres, contexte = (
     remplir(zonePastilles,
       actifs.map((p) => h('span', { class: 'pastille-filtre' }, p.libelle,
         h('button', { type: 'button', class: 'pastille-retrait', 'aria-label': `Retirer le filtre : ${p.libelle}`, onclick: () => ecrireCriteres(L.retirerCritere(liste, c, p.cle, p.valeur)) }, icone('x', { taille: 12 })))),
-      actifs.length > 1 || (actifs.length && c.recherche) ? h('button', { type: 'button', class: 'bouton-discret bouton-petit', onclick: () => ecrireCriteres(L.criteresComplets(liste, {})) }, 'Tout effacer') : null);
+      actifs.length > 1 || (actifs.length && c.recherche) ? h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', onclick: () => ecrireCriteres(L.criteresComplets(liste, {})) }, 'Tout effacer') : null);
   }
   const element = h('div', { class: 'barre-filtres' },
     h('div', { class: 'barre-filtres-ligne' }, h('div', { class: 'champ-avec-icone' }, icone('search', { taille: 16 }), champRecherche), boutonFiltres, boutonEnregistres),

@@ -343,6 +343,7 @@ export function champIntelligent({
     multiple ? null : effacer, liste);
 
   function rendrePastilles() {
+    entree.placeholder = choix.length ? '' : placeholder;
     remplir(pastilles, ...choix.map((el) => h('span', { class: 'pastille-choix', style: el.couleur ? { '--couleur': el.couleur } : null },
       el.libelle,
       h('button', { type: 'button', class: 'pastille-retrait', 'aria-label': `Retirer ${el.libelle}`, tabindex: '-1',
