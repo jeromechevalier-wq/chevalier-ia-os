@@ -1,6 +1,7 @@
 // Coquille de l'OS : menu latéral repliable, thèmes sombre et clair, profil, écran de connexion.
-import { h, icone, vider, remplir, lirePreference, ecrirePreference, estTelephone } from './ui.js';
+import { h, icone, vider, remplir, lirePreference, ecrirePreference, estTelephone, champIntelligent, ouvrirMenu } from './ui.js';
 import { MODULES } from './modules.js';
+import { naviguer } from './router.js';
 
 // ---------------------------------------------------------------- thème
 
@@ -72,7 +73,7 @@ export function afficherConnexion(racine, { message = '', surConnexion, enCours 
  * Monte la coquille pour le compte connecté.
  * Renvoie { contenu, activer(route) }.
  */
-export function monterCoquille(racine, compte, { surDeconnexion }) {
+export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map() }) {
   vider(racine);
   document.body.classList.remove('page-connexion');
   const elargi = lirePreference('menu', 'replie') === 'elargi';
@@ -112,13 +113,46 @@ export function monterCoquille(racine, compte, { surDeconnexion }) {
 
   const boutonMobile = h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Ouvrir le menu', 'aria-controls': 'menu', 'aria-expanded': 'false', dataset: { role: 'ouvrir-menu' },
     onclick: () => ouvrirMobile(!coquille.classList.contains('menu-ouvert')) }, icone('menu', { taille: 22 }));
+  const actions = [...apis.values()].flatMap((api) => api.actionsRapides || []);
+  const ouvrirPlus = (e) => ouvrirMenu(e.currentTarget, actions.map((a) => ({ libelle: a.libelle, icone: a.icone, action: a.action })));
+  const boutonPlus = h('button', { type: 'button', class: 'bouton-plus', 'aria-label': 'Ajouter', 'aria-haspopup': 'menu', dataset: { role: 'bouton-plus' }, onclick: ouvrirPlus }, icone('plus', { taille: 20 }));
+  const boutonPlusMobile = h('button', { type: 'button', class: 'bouton-plus bouton-plus-mobile', 'aria-label': 'Ajouter', 'aria-haspopup': 'menu', onclick: ouvrirPlus }, icone('plus', { taille: 20 }));
+  const boutonRecherche = h('button', { type: 'button', class: 'bouton-icone bouton-recherche-mobile', 'aria-label': 'Rechercher', dataset: { role: 'ouvrir-recherche' },
+    onclick: () => { coquille.classList.toggle('recherche-ouverte'); if (coquille.classList.contains('recherche-ouverte')) setTimeout(() => recherche.focus(), 0); } }, icone('search', { taille: 20 }));
+
+  // Recherche globale : résultats groupés (Personnes, Organisations, Affaires) fournis par les modules.
+  const recherche = champIntelligent({
+    etiquette: 'Rechercher', placeholder: 'Rechercher (/)', icone: 'search', classe: 'recherche-globale',
+    fournir: (saisie) => {
+      const groupes = [];
+      for (const api of apis.values()) groupes.push(...(api.rechercher?.(saisie)?.groupes || []));
+      return { groupes };
+    },
+    surChoix: (el) => {
+      if (!el?.chemin) return;
+      naviguer(el.chemin);
+      coquille.classList.remove('recherche-ouverte');
+      setTimeout(() => { recherche.effacer(); recherche.entree.blur(); }, 0);
+    },
+  });
+  recherche.entree.dataset.role = 'recherche-globale';
+  // Entrée sans flèche : ouvre le premier résultat.
+  recherche.entree.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || recherche.entree.getAttribute('aria-activedescendant')) return;
+    recherche.element.querySelector('.suggestion')?.click();
+  });
+  const barreOutils = h('div', { class: 'barre-outils' }, recherche.element, boutonPlus);
+
   const barreHaut = h('header', { class: 'barre-haut' },
     boutonMobile,
     h('a', { class: 'barre-haut-marque', href: '#/crm/accueil' }, baguette(22), h('span', {}, 'Chevalier IA ', h('b', {}, 'OS'))),
+    boutonRecherche,
+    boutonPlusMobile,
     h('img', { class: `avatar avatar-${compte.nom === 'Charles' ? 'charles' : 'jerome'}`, src: compte.avatar, alt: compte.nom, width: '30', height: '30' }));
   const voile = h('div', { class: 'voile-menu', onclick: () => ouvrirMobile(false) });
   const contenu = h('main', { class: 'contenu', id: 'contenu', tabindex: '-1' });
-  const coquille = h('div', { class: 'coquille', dataset: { menu: elargi ? 'elargi' : 'replie' } }, barreHaut, menu, voile, contenu);
+  const zone = h('div', { class: 'zone' }, barreOutils, contenu);
+  const coquille = h('div', { class: 'coquille', dataset: { menu: elargi ? 'elargi' : 'replie' } }, barreHaut, menu, voile, zone);
   racine.append(coquille);
 
   function definirElargi(v) {
@@ -141,12 +175,26 @@ export function monterCoquille(racine, compte, { surDeconnexion }) {
   majRepli();
   nav.addEventListener('click', (e) => { if (e.target.closest('a') && estTelephone()) ouvrirMobile(false); });
 
+  // Raccourcis (ordinateur) : "n" ouvre « Ajouter une personne », "/" place le curseur dans la recherche.
+  function surTouche(e) {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const cible = e.target;
+    if (cible && (['INPUT', 'TEXTAREA', 'SELECT'].includes(cible.tagName) || cible.isContentEditable)) return;
+    if (document.querySelector('.voile-dialogue')) return;
+    if (e.key === '/') { e.preventDefault(); recherche.focus(); }
+    else if (e.key === 'n') {
+      const a = actions.find((x) => x.raccourci === 'n');
+      if (a) { e.preventDefault(); a.action(); }
+    }
+  }
+  document.addEventListener('keydown', surTouche);
+
   function activer(route) {
     for (const a of entrees) {
-      const actif = route === a.dataset.chemin || (a.dataset.chemin === 'crm/liste' && route.startsWith('crm/fiche') && false);
+      const actif = route === a.dataset.chemin || route.startsWith(`${a.dataset.chemin}/`);
       a.classList.toggle('actif', actif);
       if (actif) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
     }
   }
-  return { contenu, activer };
+  return { contenu, activer, arreter: () => document.removeEventListener('keydown', surTouche) };
 }

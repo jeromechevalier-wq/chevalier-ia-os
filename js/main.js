@@ -53,6 +53,7 @@ async function ouvrirSession(compte) {
   demarrerObjectifs(compte, objectifsDepart);
   for (const api of apis.values()) api.demarrer({ compte });
   const coquille = monterCoquille(racine, compte, {
+    apis,
     surDeconnexion: async () => {
       fermerSession();
       await deconnecter();
@@ -68,6 +69,7 @@ function fermerSession() {
   arretRoute?.();
   arretRoute = null;
   session.vue?.quitter?.();
+  session.coquille?.arreter?.();
   for (const api of session.apis.values()) api.arreter();
   arreterObjectifs();
   session = null;

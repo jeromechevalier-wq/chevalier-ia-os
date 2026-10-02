@@ -65,6 +65,14 @@ export const ICONES = {
   "circle-check": '<circle cx="12" cy="12" r="10"/> <path d="m16 9-5.5 5.5L8 12"/>',
   "undo-2": '<path d="M9 14 4 9l5-5"/> <path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11"/>',
   "minus": '<path d="M5 12h14"/>',
+  "building-2": '<path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/> <path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/> <path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/> <path d="M10 6h4"/> <path d="M10 10h4"/> <path d="M10 14h4"/> <path d="M10 18h4"/>',
+  "tag": '<path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/> <circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/>',
+  "map-pin": '<path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/> <circle cx="12" cy="10" r="3"/>',
+  "user-plus": '<path d="M2 21a8 8 0 0 1 10.434-7.62"/> <circle cx="10" cy="8" r="5"/> <path d="M19 16v6"/> <path d="M22 19h-6"/>',
+  "chevron-up": '<path d="m18 15-6-6-6 6"/>',
+  "columns-3": '<rect width="18" height="18" x="3" y="3" rx="2"/> <path d="M9 3v18"/> <path d="M15 3v18"/>',
+  "handshake": '<path d="m11 17 2 2a1 1 0 1 0 3-3"/> <path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4"/> <path d="m21 3 1 11h-2"/> <path d="M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3"/> <path d="M3 4h8"/>',
+  "circle": '<circle cx="12" cy="12" r="10"/>',
 };
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -129,13 +137,15 @@ export function vider(el) {
 
 // ---------------------------------------------------------------- toasts
 
-export function toast(message, { type = 'info', duree = 3200 } = {}) {
+/** lien : { libelle, href } ajoute un lien cliquable dans le message (ex. "Ouvrir la fiche"). */
+export function toast(message, { type = 'info', duree = 3200, lien = null } = {}) {
   let zone = document.getElementById('toasts');
   if (!zone) {
     zone = h('div', { id: 'toasts', class: 'toasts', role: 'status', 'aria-live': 'polite' });
     document.body.append(zone);
   }
-  const t = h('div', { class: `toast toast-${type}` }, icone(type === 'erreur' ? 'triangle-alert' : 'circle-check', { taille: 16 }), h('span', {}, message));
+  const t = h('div', { class: `toast toast-${type}${lien ? ' avec-lien' : ''}` }, icone(type === 'erreur' ? 'triangle-alert' : 'circle-check', { taille: 16 }), h('span', {}, message),
+    lien ? h('a', { class: 'toast-lien', href: lien.href }, lien.libelle) : null);
   zone.append(t);
   setTimeout(() => {
     t.classList.add('sortie');
@@ -246,4 +256,221 @@ export function reduireAnimations() {
 
 export function estTelephone() {
   return window.matchMedia('(max-width: 767px)').matches;
+}
+
+// ---------------------------------------------------------------- menu contextuel ("⋯")
+
+/**
+ * Petit menu flottant sous un élément. items : [{ libelle, icone, action, danger, desactive }].
+ * Se ferme au clic extérieur, à Échap et au choix d'une entrée. Renvoie la fonction de fermeture.
+ */
+export function ouvrirMenu(ancre, items) {
+  document.querySelector('.menu-pop')?.remove();
+  const menu = h('div', { class: 'menu-pop', role: 'menu' });
+  const fermer = () => {
+    menu.remove();
+    document.removeEventListener('mousedown', surClicExterieur, true);
+    document.removeEventListener('keydown', surTouche, true);
+    ancre.focus?.();
+  };
+  function surClicExterieur(e) { if (!menu.contains(e.target) && !ancre.contains(e.target)) fermer(); }
+  function surTouche(e) {
+    if (e.key === 'Escape') { e.stopPropagation(); fermer(); }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const liste = [...menu.querySelectorAll('button:not(:disabled)')];
+      const i = liste.indexOf(document.activeElement);
+      liste[(i + (e.key === 'ArrowDown' ? 1 : -1) + liste.length) % liste.length]?.focus();
+    }
+  }
+  for (const it of items) {
+    menu.append(h('button', {
+      type: 'button', role: 'menuitem', class: `menu-pop-entree${it.danger ? ' danger' : ''}`, disabled: !!it.desactive,
+      onclick: () => { fermer(); it.action?.(); },
+    }, it.icone ? icone(it.icone, { taille: 16 }) : null, it.libelle));
+  }
+  document.body.append(menu);
+  const r = ancre.getBoundingClientRect();
+  const l = menu.offsetWidth;
+  menu.style.top = `${Math.min(r.bottom + 6, window.innerHeight - menu.offsetHeight - 8)}px`;
+  menu.style.left = `${Math.max(8, Math.min(r.right - l, window.innerWidth - l - 8))}px`;
+  document.addEventListener('mousedown', surClicExterieur, true);
+  document.addEventListener('keydown', surTouche, true);
+  menu.querySelector('button:not(:disabled)')?.focus();
+  return fermer;
+}
+
+// ---------------------------------------------------------------- champ de saisie intelligent
+
+/**
+ * Champ intelligent : on tape, il propose les valeurs existantes (voir logique.js : rechercherSuggestions).
+ * options :
+ *  - fournir(saisie) : { resultats: [{ id, libelle, sousTitre?, segments }], creer?: texte } ou
+ *                      { groupes: [{ titre, resultats }], creer?: texte }
+ *  - surChoix(element) : appelé quand on choisit un résultat (null quand le choix est effacé)
+ *  - surCreation(texte) : (async) crée la valeur et renvoie un élément { id, libelle } (ou null)
+ *  - multiple : plusieurs valeurs, affichées en pastilles ; valeur : élément initial (ou liste si multiple)
+ *  - libre : le texte tapé est la valeur (ville) ; texteInitial
+ * Clavier : flèches, Entrée sur la ligne active, Échap ; la souris et le toucher choisissent directement.
+ */
+export function champIntelligent({
+  etiquette = '', placeholder = '', icone: nomIcone = null, multiple = false, fournir, surChoix = () => {},
+  surCreation = null, valeur = null, texteInitial = '', libre = false, surSaisie = () => {}, autofocus = false, id = null,
+  classe = '', ariaDescription = null,
+} = {}) {
+  const idListe = `sug-${Math.random().toString(36).slice(2, 8)}`;
+  let choix = multiple ? [...(valeur || [])] : (valeur || null);
+  let actif = -1;
+  let options = []; // éléments <li role=option> actuels
+  let donnees = []; // résultats correspondants (ou { creer })
+
+  const entree = h('input', {
+    type: 'text', class: 'champ champ-intelligent-saisie', role: 'combobox', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false',
+    'aria-label': etiquette || placeholder, 'aria-autocomplete': 'list', 'aria-expanded': 'false', 'aria-controls': idListe,
+    'aria-describedby': ariaDescription, placeholder, id, autofocus: autofocus || null,
+  });
+  const liste = h('ul', { class: 'suggestions', id: idListe, role: 'listbox', 'aria-label': etiquette || 'Suggestions', hidden: true });
+  const pastilles = h('span', { class: 'champ-intelligent-pastilles' });
+  const effacer = h('button', { type: 'button', class: 'champ-intelligent-effacer', 'aria-label': 'Effacer', hidden: true, tabindex: '-1',
+    onclick: () => { definir(null); entree.focus(); } }, icone('x', { taille: 14 }));
+  const racine = h('div', { class: `champ-intelligent${multiple ? ' multiple' : ''} ${classe}` },
+    nomIcone ? icone(nomIcone, { taille: 16, classe: 'champ-intelligent-icone' }) : null,
+    multiple ? h('div', { class: 'champ-intelligent-zone champ' }, pastilles, entree) : entree,
+    multiple ? null : effacer, liste);
+
+  function rendrePastilles() {
+    remplir(pastilles, ...choix.map((el) => h('span', { class: 'pastille-choix', style: el.couleur ? { '--couleur': el.couleur } : null },
+      el.libelle,
+      h('button', { type: 'button', class: 'pastille-retrait', 'aria-label': `Retirer ${el.libelle}`, tabindex: '-1',
+        onclick: (e) => { e.stopPropagation(); choix = choix.filter((x) => x.id !== el.id); rendrePastilles(); surChoix(choix); } }, icone('x', { taille: 12 })))));
+  }
+  function synchroniser() {
+    if (multiple) rendrePastilles();
+    else {
+      entree.value = choix ? choix.libelle : (libre ? entree.value : '');
+      effacer.hidden = !choix;
+      racine.classList.toggle('a-un-choix', !!choix);
+    }
+  }
+  function fermerListe() {
+    liste.hidden = true;
+    entree.setAttribute('aria-expanded', 'false');
+    entree.removeAttribute('aria-activedescendant');
+    actif = -1;
+  }
+  function activer(i) {
+    actif = i;
+    options.forEach((o, k) => { o.classList.toggle('actif', k === i); o.setAttribute('aria-selected', String(k === i)); });
+    if (i >= 0 && options[i]) { entree.setAttribute('aria-activedescendant', options[i].id); options[i].scrollIntoView?.({ block: 'nearest' }); }
+    else entree.removeAttribute('aria-activedescendant');
+  }
+  function ligne(el, k) {
+    const lib = el.segments ? el.segments.map((s) => (s.fort ? h('strong', {}, s.texte) : s.texte)) : el.libelle;
+    return h('li', { class: 'suggestion', role: 'option', id: `${idListe}-${k}`, 'aria-selected': 'false',
+      onmousedown: (e) => e.preventDefault(), onclick: () => choisir(k) },
+      el.couleur ? h('span', { class: 'puce-couleur', style: { background: el.couleur } }) : null,
+      h('span', { class: 'suggestion-texte' }, h('span', { class: 'suggestion-libelle' }, lib), el.sousTitre ? h('span', { class: 'suggestion-sous' }, el.sousTitre) : null));
+  }
+  function ouvrir() {
+    const saisie = entree.value;
+    const r = fournir(saisie) || {};
+    const groupes = r.groupes || [{ titre: null, resultats: r.resultats || [] }];
+    remplir(liste);
+    options = [];
+    donnees = [];
+    for (const g of groupes) {
+      if (!g.resultats.length) continue;
+      if (g.titre) liste.append(h('li', { class: 'suggestion-groupe', role: 'presentation' }, g.titre));
+      for (const el of g.resultats) {
+        const k = donnees.length;
+        donnees.push(el);
+        const li = ligne(el, k);
+        options.push(li);
+        liste.append(li);
+      }
+    }
+    if (r.creer && surCreation) {
+      const k = donnees.length;
+      donnees.push({ creer: r.creer });
+      const li = h('li', { class: 'suggestion suggestion-creer', role: 'option', id: `${idListe}-${k}`, 'aria-selected': 'false',
+        onmousedown: (e) => e.preventDefault(), onclick: () => choisir(k) },
+      icone('plus', { taille: 14 }), h('span', { class: 'suggestion-texte' }, `Créer « ${r.creer} »`));
+      options.push(li);
+      liste.append(li);
+    }
+    const aucun = !options.length;
+    liste.hidden = aucun;
+    entree.setAttribute('aria-expanded', String(!aucun));
+    actif = -1;
+    entree.removeAttribute('aria-activedescendant');
+  }
+  async function choisir(k) {
+    const d = donnees[k];
+    if (!d) return;
+    let el = d;
+    if (d.creer !== undefined) {
+      el = await surCreation(d.creer);
+      if (!el) return;
+    }
+    if (multiple) {
+      if (!choix.some((x) => x.id === el.id)) choix = [...choix, el];
+      entree.value = '';
+      rendrePastilles();
+      fermerListe();
+      surChoix(choix);
+      entree.focus();
+    } else {
+      choix = el;
+      synchroniser();
+      fermerListe();
+      surChoix(el);
+    }
+  }
+  function definir(el) {
+    choix = multiple ? (el || []) : el;
+    if (!multiple && !el) entree.value = '';
+    synchroniser();
+    surChoix(choix);
+  }
+
+  entree.addEventListener('input', () => {
+    if (!multiple && choix && entree.value !== choix.libelle) { choix = null; effacer.hidden = true; racine.classList.remove('a-un-choix'); surChoix(null); }
+    surSaisie(entree.value);
+    ouvrir();
+  });
+  entree.addEventListener('focus', () => { if (entree.value && !choix && !multiple) ouvrir(); });
+  entree.addEventListener('keydown', (e) => {
+    const ouverte = !liste.hidden;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      if (!ouverte) ouvrir();
+      if (!options.length) return;
+      e.preventDefault();
+      activer((actif + (e.key === 'ArrowDown' ? 1 : -1) + options.length) % options.length);
+    } else if (e.key === 'Enter' && ouverte && actif >= 0) {
+      e.preventDefault();
+      choisir(actif);
+    } else if (e.key === 'Escape' && ouverte) {
+      e.stopPropagation();
+      fermerListe();
+    } else if (e.key === 'Backspace' && multiple && !entree.value && choix.length) {
+      choix = choix.slice(0, -1);
+      rendrePastilles();
+      surChoix(choix);
+    }
+  });
+  entree.addEventListener('blur', () => setTimeout(fermerListe, 120));
+
+  if (texteInitial) entree.value = texteInitial;
+  synchroniser();
+  return {
+    element: racine,
+    entree,
+    /** Choix courant : élément (ou liste si multiple), null si aucun. */
+    choix: () => choix,
+    texte: () => entree.value.trim(),
+    definir,
+    effacer: () => definir(multiple ? [] : null),
+    focus: () => entree.focus(),
+    fermer: fermerListe,
+  };
 }

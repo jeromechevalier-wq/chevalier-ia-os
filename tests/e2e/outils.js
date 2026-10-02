@@ -75,22 +75,51 @@ export function jour(n = 0) {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
 }
 
-/** Crée une fiche complète directement dans l'émulateur. */
-export async function creerFiche(id, valeurs = {}) {
+/** Crée une personne directement dans l'émulateur (contourne l'interface). */
+export async function creerPersonne(id, valeurs = {}) {
   const maintenant = new Date();
-  const fiche = {
-    nom: 'Fiche test', entreprise: '', roles: ['prospect'], dateInterviewJtbd: null, secteur: '', taille: '', ville: '',
-    telephone: '', email: '', siteWeb: '', linkedin: '', source: 'Flyer', etape: 'premier_contact',
-    dateEntreeEtape: maintenant, datesEtapes: { premier_contact: maintenant }, priorite: 'tiede', besoin: '',
-    offreId: null, dureeJours: null, montant: null, datePremierContact: jour(0), dateDernierEchange: maintenant,
-    prochaineAction: '', dateProchaineAction: null, dateRdv: null, rdvTenu: false, dateRdvTenu: null, notes: '',
-    notesRapides: [], historique: [], documents: [], raisonPerdu: null, raisonPerduDetail: null, dateReveil: null,
-    encaissements: [], oppositionProspection: false, dateOpposition: null, archive: false,
-    creeLe: maintenant, modifieLe: maintenant, creePar: JEROME, modifiePar: JEROME,
-    ...valeurs,
+  const emails = valeurs.emails || [];
+  const doc = {
+    nom: 'Personne test', prenom: '', nomFamille: 'Personne test', organisationId: null, telephones: [], emails,
+    emailsNormalises: emails.map((e) => e.valeur.toLowerCase()), etiquettes: [], roles: ['prospect'], dateInterviewJtbd: null,
+    ville: '', linkedin: '', siteWeb: '', source: '', oppositionProspection: false, dateOpposition: null, archive: false,
+    proprietaire: JEROME, creeLe: maintenant, modifieLe: maintenant, creePar: JEROME, modifiePar: JEROME, ...valeurs,
   };
-  await ecrireDocument(`crm_prospects/${id}`, fiche);
-  return fiche;
+  await ecrireDocument(`crm_personnes/${id}`, doc);
+  return doc;
+}
+
+export async function creerOrganisation(id, valeurs = {}) {
+  const maintenant = new Date();
+  const doc = {
+    nom: 'Organisation test', adresse: '', ville: '', siteWeb: '', secteur: '', taille: '', etiquettes: [], archive: false,
+    proprietaire: JEROME, creeLe: maintenant, modifieLe: maintenant, creePar: JEROME, modifiePar: JEROME, ...valeurs,
+  };
+  await ecrireDocument(`crm_organisations/${id}`, doc);
+  return doc;
+}
+
+export async function creerAffaire(id, valeurs = {}) {
+  const maintenant = new Date();
+  const etape = valeurs.etape || 'premier_contact';
+  const doc = {
+    titre: 'Affaire test', personneId: null, organisationId: null, etape,
+    statut: ['gagne', 'facture_envoyee', 'facture_payee'].includes(etape) ? 'gagnee' : 'ouverte', priorite: 'tiede', montant: null, offreId: null,
+    dureeJours: null, source: '', besoin: '', dateEntreeEtape: maintenant, datesEtapes: { [etape]: maintenant }, raisonPerdue: '',
+    raisonPerdueDetail: '', dateReveil: null, encaissements: [], documents: [], projetId: null, archive: false,
+    proprietaire: JEROME, creeLe: maintenant, modifieLe: maintenant, creePar: JEROME, modifiePar: JEROME, ...valeurs,
+  };
+  await ecrireDocument(`crm_affaires/${id}`, doc);
+  return doc;
+}
+
+export async function creerActivite(id, valeurs = {}) {
+  const doc = {
+    type: 'tache', titre: 'Activité test', date: jour(0), heure: '', fait: false, dateFait: null,
+    personneId: null, organisationId: null, affaireId: null, auteur: JEROME, creeLe: new Date(), ...valeurs,
+  };
+  await ecrireDocument(`crm_activites/${id}`, doc);
+  return doc;
 }
 
 // ---------------------------------------------------------------- connexion (vrai parcours Google via l'émulateur Auth)
