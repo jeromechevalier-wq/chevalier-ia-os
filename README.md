@@ -43,7 +43,7 @@ npx playwright install chromium
 npm test
 ```
 
-`npm test` démarre les émulateurs Auth (9099) et Firestore (8080), lance les tests A (règles de sécurité des neuf collections), B (logique métier), D (contrôles statiques, dont D5 : serveur MCP), les tests des jetons et du serveur MCP (`jetons.test.js`, `mcp.test.js`) puis C et D (parcours Playwright, chacun rejoué en 1440 × 900 pour l'ordinateur et 390 × 844 pour le téléphone), et arrête les émulateurs.
+`npm test` démarre les émulateurs Auth (9099) et Firestore (8080), lance les tests A (règles de sécurité des neuf collections), B (logique métier), D (contrôles statiques, dont D5 : serveur MCP), les tests des jetons, du serveur MCP et de la lecture du CRM (`jetons.test.js`, `mcp.test.js`, `lecture.test.js`, `lecture-firestore.test.js`) puis C et D (parcours Playwright, chacun rejoué en 1440 × 900 pour l'ordinateur et 390 × 844 pour le téléphone), et arrête les émulateurs.
 
 Pour ouvrir l'appli sur les émulateurs à la main : lancer `npx firebase emulators:start --config ../firebase.json --project demo-chevalier-ia-os --only auth,firestore` depuis `tests/`, servir la racine du dépôt (`node tests/e2e/serveur.js`) puis ouvrir http://localhost:5050/?emulateurs=1.
 

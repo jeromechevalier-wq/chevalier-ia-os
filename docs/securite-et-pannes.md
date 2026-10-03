@@ -31,11 +31,14 @@ GitHub (fusion sur main) ──► déploie d'abord la fonction, puis le site
 | Droits par profil | Le serveur n'expose et n'exécute que les outils du profil du jeton, même si le client est mal configuré | **[en place]** (un seul outil pour l'instant) |
 | Origine et méthode | En-tête `Origin` étranger refusé (403) ; tout sauf `POST` refusé (405) | **[en place]** |
 | Journaux sans secret | On ne note que : nom du jeton, acteur, profil, outil, durée, statut, code ; jamais jeton, en-tête, paramètres, contenus de fiches | **[en place]**, testé |
+| Lecture seule des outils d'étape 3 | Aucune écriture dans le code de lecture ni dans l'interface d'accès aux données (contrôlé par test) ; l'écriture arrivera à l'étape 4 avec l'audit | **[en place]** |
 | 3 instances au plus | Borne le coût et l'emballement | **[en place]** |
 | Budget 5 €/mois avec alertes 50, 90 et 100 % | Prévient, **ne coupe rien** | **[en place]** (console) |
 | Plafonds par jeton (débit, écritures, suppressions) | Freine un agent qui boucle ou un jeton volé | **[prévu]** étape 4 |
 | Journal d'audit et restauration | Chaque écriture tracée, copie « avant » gardée 90 jours | **[prévu]** étape 4 |
 | Sauvegardes (copies Google quotidiennes, récupération à la minute, export JSON hebdomadaire) | Retour en arrière si des données sont abîmées | **[prévu]** étape 5 |
+
+**À resserrer (amélioration prévue)** : la fonction tourne avec le « Default compute service account », qui a le rôle « Éditeur » sur tout le projet, donc bien plus que nécessaire (lire et écrire Firestore suffirait). Un compte de service dédié au MCP avec les seuls rôles « Utilisateur Cloud Datastore » et « Accesseur de secrets » (sur `MCP_JETONS`) limiterait les dégâts en cas de faille dans la fonction. À faire avant l'étape 4 (écriture), car l'écriture rend ce point plus important.
 
 ## 3. Où sont les secrets
 
@@ -95,6 +98,9 @@ Page de suivi : https://github.com/jeromechevalier-wq/chevalier-ia-os/actions. U
 | `405 {"error":"methode_refusee"}` | Un client essaie `GET` | Les clients MCP doivent utiliser `POST` (transport « Streamable HTTP » sans session) |
 | `503 {"error":"indisponible"}` | Le secret `MCP_JETONS` est illisible (secret absent, version désactivée, **compte d'exécution non autorisé à le lire**, API Secret Manager coupée) | Voir le journal Cloud Run (ligne `code: secret_illisible`) ; vérifier que le secret existe, qu'une version est active et que **le compte réellement utilisé par la fonction** a le rôle « Accesseur de secrets » : le lire dans Cloud Run → service `mcp` → onglet Sécurité → Compte de service (c'est le « Default compute service account » à ce jour ; ne pas se fier au compte `…@appspot…`). *(Cause du 503 rencontré le 03/10/2026.)* |
 | `429` | **[prévu]** étape 4 : plafond de débit atteint | Attendre ou relever le plafond du jeton |
+| Erreur d'outil `PERMISSION_DENIED` (ou `Missing or insufficient permissions`) sur une lecture | Le compte d'exécution n'a pas le droit de lire Firestore (rôle « Éditeur » retiré, ou compte d'exécution changé) | Donner au compte lu dans Cloud Run → Sécurité le rôle « Utilisateur Cloud Datastore » (`roles/datastore.user`) |
+| Erreur d'outil `Cloud Firestore API has not been used` | API Firestore désactivée sur le projet | La réactiver : https://console.cloud.google.com/apis/library/firestore.googleapis.com?project=chevalier-ia-os |
+| Réponse d'outil tronquée (`tronque: true`) | Plus de 200 lignes | Affiner les filtres ; ce plafond protège le client |
 | Réponse lente (1 à 3 s la première fois) | Départ à froid de la fonction | Normal ; le client Hermes est réglé avec un délai de 120 s |
 
 ### Côté clients
