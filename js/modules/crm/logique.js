@@ -465,7 +465,7 @@ export function nouvellePersonne(valeurs, ctx) {
     oppositionProspection: false,
     dateOpposition: null,
     archive: false,
-    proprietaire: ctx?.auteur ?? '',
+    proprietaire: ctx?.proprietaire ?? ctx?.auteur ?? '',
   };
 }
 
@@ -479,7 +479,7 @@ export function nouvelleOrganisation(valeurs, ctx) {
     taille: '',
     etiquettes: [...(valeurs.etiquettes || [])],
     archive: false,
-    proprietaire: ctx?.auteur ?? '',
+    proprietaire: ctx?.proprietaire ?? ctx?.auteur ?? '',
   };
 }
 
@@ -556,7 +556,7 @@ export function nouvelleAffaire(valeurs, ctx) {
     documents: [],
     projetId: null,
     archive: etape === 'facture_payee',
-    proprietaire: ctx.auteur ?? '',
+    proprietaire: ctx.proprietaire ?? ctx.auteur ?? '',
   };
 }
 
@@ -1177,6 +1177,172 @@ export function confirmationValide(saisie, nom) {
   const n = normaliserNom(nom);
   return n !== '' && normaliserNom(saisie) === n;
 }
+
+// ---------------------------------------------------------------- enchaînements d'écriture (écran ET serveur MCP)
+//
+// Chaque « plan » calcule, sans rien écrire, la liste des écritures d'une action (documents créés, champs changés, documents supprimés,
+// événements du fil). L'écran (donnees.js) et le serveur MCP (functions/) exécutent EXACTEMENT les mêmes plans : une règle ne s'écrit
+// qu'ici. Les lectures (liens à supprimer, étape actuelle…) restent à la charge de l'appelant, qui passe ce qu'il a lu.
+// Une écriture : { type: 'creer' | 'modifier' | 'supprimer', collection, id, donnees | patch, horodater?: [champs], signer?: [champs] }.
+// `horodater` : champs qui reçoivent l'heure du serveur ; `signer` : champs qui reçoivent l'acteur (e-mail à l'écran, nom du jeton côté MCP).
+// ctx : le contexte habituel + `nouvelId(collection)` (identifiant frais) ; `proprietaire` (facultatif) remplace `auteur` comme propriétaire d'une fiche créée.
+
+export const COLLECTIONS_PLAN = {
+  personnes: 'crm_personnes',
+  organisations: 'crm_organisations',
+  affaires: 'crm_affaires',
+  activites: 'crm_activites',
+  notes: 'crm_notes',
+  evenements: 'crm_evenements',
+};
+const C = COLLECTIONS_PLAN;
+const MARQUES_CREATION = { horodater: ['creeLe', 'modifieLe'], signer: ['creePar', 'modifiePar'] };
+const MARQUES_MODIFICATION = { horodater: ['modifieLe'], signer: ['modifiePar'] };
+
+const ecritureCreer = (collection, id, donnees, marques = {}) => ({ type: 'creer', collection, id, donnees, ...marques });
+const ecritureModifier = (collection, id, patch, marques = {}) => ({ type: 'modifier', collection, id, patch, ...marques });
+const ecritureSupprimer = (collection, id) => ({ type: 'supprimer', collection, id });
+const evenements = (liste, ctx) => (liste || []).map((e) => ecritureCreer(C.evenements, ctx.nouvelId(C.evenements), e));
+const modifierSiPatch = (collection, id, patch, marques) => (Object.keys(patch || {}).length ? [ecritureModifier(collection, id, patch, marques)] : []);
+
+// ---- personnes
+
+export function planCreerPersonne(valeurs, ctx) {
+  const id = ctx.nouvelId(C.personnes);
+  return {
+    id,
+    ecritures: [
+      ecritureCreer(C.personnes, id, nouvellePersonne(valeurs, ctx), MARQUES_CREATION),
+      ...evenements([evenementCreation('personne_creee', `Personne créée : ${nettoyerEspaces(valeurs.nom)}`, { personneId: id, organisationId: valeurs.organisationId || null }, ctx)], ctx),
+    ],
+  };
+}
+
+export const planMajPersonne = (id, patch) => ({ ecritures: modifierSiPatch(C.personnes, id, patch, MARQUES_MODIFICATION) });
+
+export function planEmailEnvoye(personne, ctx) {
+  return { ecritures: evenements([evenementEmailEnvoye(personne, ctx)], ctx) };
+}
+
+export function planOppositionPersonne(personne, coche, ctx) {
+  const liens = { personneId: personne.id, organisationId: personne.organisationId ?? null };
+  return {
+    ecritures: [
+      ecritureModifier(C.personnes, personne.id, marquerOpposition(coche, ctx), MARQUES_MODIFICATION),
+      ...(coche ? evenements([evenementCreation('opposition', 'Opposition à la prospection enregistrée', liens, ctx)], ctx) : []),
+    ],
+  };
+}
+
+/**
+ * Suppression définitive d'une personne (voir planSuppressionPersonne pour `choix`). `liens` : les activités, notes et événements
+ * lus par l'appelant qui portent un lien vers la personne OU vers l'une de ses affaires : [{ collection, id, personneId, affaireId }].
+ * D'abord les détachements, puis les suppressions (affaires supprimées avec leur fil, fil de la personne, la personne).
+ */
+export function planSupprimerPersonne({ personneId, choix, affaires, liens = [] }) {
+  const plan = planSuppressionPersonne(personneId, affaires, choix);
+  const supprimees = new Set(plan.supprimerAffaires);
+  const gardees = new Set(plan.detacherAffaires);
+  const uniques = [...new Map(liens.map((l) => [`${l.collection}/${l.id}`, l])).values()];
+  const detachements = [];
+  const suppressions = [];
+  for (const aid of gardees) detachements.push(ecritureModifier(C.affaires, aid, { personneId: null }, MARQUES_MODIFICATION));
+  for (const l of uniques) {
+    if (supprimees.has(l.affaireId)) suppressions.push(ecritureSupprimer(l.collection, l.id)); // fil d'une affaire supprimée
+    else if (l.personneId === personneId && gardees.has(l.affaireId)) detachements.push(ecritureModifier(l.collection, l.id, { personneId: null }));
+    else if (l.personneId === personneId) suppressions.push(ecritureSupprimer(l.collection, l.id));
+  }
+  for (const aid of supprimees) suppressions.push(ecritureSupprimer(C.affaires, aid));
+  suppressions.push(ecritureSupprimer(C.personnes, personneId));
+  return { ...plan, ecritures: [...detachements, ...suppressions] };
+}
+
+// ---- organisations
+
+export function planCreerOrganisation(valeurs, ctx) {
+  const id = ctx.nouvelId(C.organisations);
+  return {
+    id,
+    ecritures: [
+      ecritureCreer(C.organisations, id, nouvelleOrganisation(valeurs, ctx), MARQUES_CREATION),
+      ...evenements([evenementCreation('organisation_creee', `Organisation créée : ${nettoyerEspaces(valeurs.nom)}`, { organisationId: id }, ctx)], ctx),
+    ],
+  };
+}
+
+export const planMajOrganisation = (id, patch) => ({ ecritures: modifierSiPatch(C.organisations, id, patch, MARQUES_MODIFICATION) });
+
+/** Refus (`refus` = message) tant que l'organisation a des personnes ou des affaires. `liens` : documents portant son organisationId. */
+export function planSupprimerOrganisation({ organisationId, personnes, affaires, liens = [] }) {
+  const verif = verifierSuppressionOrganisation(organisationId, { personnes, affaires });
+  if (!verif.ok) return { refus: verif.raison, ecritures: [] };
+  const siens = liens.filter((l) => l.organisationId === organisationId).map((l) => ecritureSupprimer(l.collection, l.id));
+  return { ecritures: [...siens, ecritureSupprimer(C.organisations, organisationId)] };
+}
+
+// ---- affaires
+
+/** `personnes` et `organisations` : les fiches connues de l'appelant (l'organisation de la personne est héritée si aucune n'est donnée). */
+export function planCreerAffaire(valeurs, { personnes = [], organisations = [] }, ctx) {
+  const p = valeurs.personneId ? personnes.find((x) => x.id === valeurs.personneId) || null : null;
+  const organisationId = valeurs.organisationId || p?.organisationId || null;
+  const org = organisationId ? organisations.find((x) => x.id === organisationId) || null : null;
+  const titre = nettoyerEspaces(valeurs.titre) || titreParDefaut({ organisation: org, personne: p });
+  const fiche = nouvelleAffaire({ ...valeurs, titre, organisationId }, ctx);
+  const id = ctx.nouvelId(C.affaires);
+  return {
+    id,
+    titre,
+    ecritures: [
+      ecritureCreer(C.affaires, id, fiche, MARQUES_CREATION),
+      ...evenements([evenementCreation('affaire_creee', `Affaire créée : ${titre}`, { personneId: fiche.personneId, organisationId, affaireId: id }, ctx)], ctx),
+    ],
+  };
+}
+
+export const planMajAffaire = (id, patch) => ({ ecritures: modifierSiPatch(C.affaires, id, patch, MARQUES_MODIFICATION) });
+
+/** Applique le résultat d'une règle d'affaire ({ erreurs?, patch, evenements }) : le patch sur l'affaire puis les événements du fil. */
+export function planResultatAffaire(affaireId, resultat, ctx) {
+  if (resultat.erreurs && Object.keys(resultat.erreurs).length) return { ...resultat, ecritures: [] };
+  return { ...resultat, ecritures: [...modifierSiPatch(C.affaires, affaireId, resultat.patch, MARQUES_MODIFICATION), ...evenements(resultat.evenements, ctx)] };
+}
+export const planChangerEtape = (affaire, etape, ctx, options = {}) => planResultatAffaire(affaire.id, changementEtape(affaire, etape, ctx, options), ctx);
+export const planMarquerPerdue = (affaire, saisie, ctx) => planResultatAffaire(affaire.id, marquerPerdue(affaire, saisie, ctx), ctx);
+export const planMettreEnPause = (affaire, saisie, ctx) => planResultatAffaire(affaire.id, mettreEnPause(affaire, saisie, ctx), ctx);
+export const planRouvrirAffaire = (affaire, ctx) => planResultatAffaire(affaire.id, rouvrirAffaire(affaire, ctx), ctx);
+export const planEncaisser = (affaire, saisie, ctx) => planResultatAffaire(affaire.id, ajouterEncaissement(affaire, saisie, ctx), ctx);
+
+/** Suppression définitive d'une affaire et de son fil. `liens` : documents portant son affaireId. */
+export function planSupprimerAffaire({ affaireId, liens = [] }) {
+  const siens = [...new Map(liens.filter((l) => l.affaireId === affaireId).map((l) => [`${l.collection}/${l.id}`, l])).values()];
+  return { ecritures: [...siens.map((l) => ecritureSupprimer(l.collection, l.id)), ecritureSupprimer(C.affaires, affaireId)] };
+}
+
+// ---- activités
+
+export function planCreerActivite(valeurs, ctx) {
+  const id = ctx.nouvelId(C.activites);
+  return { id, ecritures: [ecritureCreer(C.activites, id, nouvelleActivite(valeurs, ctx), { horodater: ['creeLe'] })] };
+}
+
+export function planActiviteFaite(activite, ctx) {
+  const r = activiteFaite(activite, ctx);
+  return { ...r, ecritures: [...modifierSiPatch(C.activites, activite.id, r.patch), ...evenements(r.evenements, ctx)] };
+}
+
+export const planMajActivite = (id, patch) => ({ ecritures: modifierSiPatch(C.activites, id, patch) });
+export const planSupprimerActivite = (id) => ({ ecritures: [ecritureSupprimer(C.activites, id)] });
+
+// ---- notes
+
+export function planCreerNote(texte, liens, ctx) {
+  const id = ctx.nouvelId(C.notes);
+  return { id, ecritures: [ecritureCreer(C.notes, id, nouvelleNote(texte, liens, ctx), { horodater: ['creeLe', 'modifieLe'] })] };
+}
+
+export const planMajNote = (id, texte) => ({ ecritures: [ecritureModifier(C.notes, id, { texte: String(texte).trim() }, { horodater: ['modifieLe'] })] });
+export const planSupprimerNote = (id) => ({ ecritures: [ecritureSupprimer(C.notes, id)] });
 
 // ---------------------------------------------------------------- export JSON et CSV
 

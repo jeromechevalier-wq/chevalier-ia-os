@@ -11,7 +11,8 @@ import * as lecture from '../functions/src/coeur/lecture.js';
 import { collections, MAINTENANT } from './_donnees-essai.js';
 
 const emulateur = process.env.FIRESTORE_EMULATOR_HOST;
-const PROJET = 'demo-chevalier-ia-os';
+// Projet propre à ce fichier : les fichiers de test tournent en parallèle sur le même émulateur et ne doivent pas se vider l'un l'autre.
+const PROJET = 'demo-chevalier-ecriture';
 const enTimestamps = (x) => (x instanceof Date ? Timestamp.fromDate(x) : Array.isArray(x) ? x.map(enTimestamps) : x && typeof x === 'object' ? Object.fromEntries(Object.entries(x).map(([k, v]) => [k, enTimestamps(v)])) : x);
 const ctx = (extra = {}) => ({ acteur: 'hermes-bibliothecaire', jeton: 'hermes-bibliothecaire', via: 'mcp', maintenant: MAINTENANT, ...extra });
 const panne = () => Object.assign(new Error('panne simulée'), { code: 14 });
