@@ -321,7 +321,7 @@ describe('D5 Serveur MCP (étape 2) : déploiement, versions figées, sécurité
   });
   test('D5 étapes 3 et 4 : les tests des fonctions préparent la copie, puis lancent jetons, protocole, lecture, écriture avec audit et Firestore (émulateur)', () => {
     const scripts = json('tests/package.json').scripts;
-    assert.match(scripts['test:fonctions'], /^npm run preparer && node --test .*jetons\.test\.js.*mcp\.test\.js.*lecture\.test\.js.*lecture-firestore\.test\.js.*ecriture\.test\.js.*ecriture-firestore\.test\.js.*ecriture-outils\.test\.js/);
+    assert.match(scripts['test:fonctions'], /^npm run preparer && node --test .*jetons\.test\.js.*mcp\.test\.js.*lecture\.test\.js.*lecture-firestore\.test\.js.*ecriture\.test\.js.*ecriture-firestore\.test\.js.*ecriture-outils\.test\.js.*essai-ecriture\.test\.js/);
     assert.match(scripts.tous, /test:fonctions/);
   });
   test('D5 outils/creer-jeton.js existe et ne contient aucun jeton', () => {
