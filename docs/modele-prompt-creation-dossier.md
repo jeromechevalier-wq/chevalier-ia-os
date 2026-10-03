@@ -64,17 +64,40 @@ Créée le : {AAAA-MM-JJ}
 
 Le prompt renvoie à une fiche **qui n'existe pas encore** : `mon-second-cerveau/wiki/Concepts/Convention de dossiers de projets.md`. Elle reprendrait `convention-dossiers.md` (préfixes, nommage, règles) et y ajouterait la structure à créer. **Je ne l'ai pas créée** : ta règle exige ta confirmation avant de créer un fichier dans `_JEROME_OS`, et elle demande aussi de proposer l'intégration au wiki (index, journal).
 
-**Structure à la création, par préfixe : proposition à valider.** Elle reprend « Kit marketing par projet » pour les produits et les sites, et reste minimale ailleurs, pour ne pas ajouter de complexité.
+**Structure à la création : décidée par Jérôme le 03/10/2026** (il refuse les dossiers `devis`, `echanges`, `livrables`). La même pour tous les projets `client-`, `produit-`, `site-` et `interne-` :
 
-| Préfixe | Contenu créé |
-|---|---|
-| `client-` | `PROJET.md`, `devis/`, `echanges/`, `livrables/` |
-| `produit-` | `PROJET.md`, `app/`, `marketing/` (avec `presentation/`, `demo/`, `animation/`, `social/`, `DA-projet.md`), `publier.conf` si le produit est publié sur app.chevalier-ia.fr |
-| `site-` | `PROJET.md` seulement : le reste vient du dépôt |
-| `interne-` | `PROJET.md` seulement |
-| `perso-` | `PROJET.md` seulement |
+```
+<nom-du-dossier>/
+├── PROJET.md     la fiche, déjà remplie (dont l'adresse du dépôt GitHub)
+├── app/          le code (le dépôt GitHub)
+└── marketing/    la documentation marketing de ce projet
+```
 
-**`PROJET.md`** (même nom que dans ta convention du kit marketing) : nom, préfixe, objectif en une phrase (à compléter), liens de la fiche dans l'OS, du dépôt GitHub et de l'organisation, date de création. Les liens utilisent les identifiants et adresses de l'OS, pas de crochets `[[…]]` (même raison que pour la fiche compagnon des documents).
+Pour un projet `perso-` : `PROJET.md` seulement.
+
+**Pourquoi `marketing/` à part.** Le but de Jérôme est de créer de la documentation marketing à partir de chaque projet. Ces documents (images, vidéos, PDF, maquettes) ne peuvent pas vivre dans `app/` : `app/` est le dépôt GitHub, et GitHub ne garde proprement que du texte. Ils vivent donc à côté, dans `marketing/`, qui est synchronisé par Google Drive. Ce que ce dossier contiendra suit la fiche « Kit marketing par projet » du vault : fiche de présentation, démo, animation, visuels pour les réseaux. Question 1 : créés d'avance ou au fur et à mesure.
+
+**Pourquoi `PROJET.md` à la racine et non dans `app/`.** `app/` est le dépôt GitHub : tout ce qu'on y met peut partir sur GitHub, et certains dépôts sont publics (par exemple `site_massagesensoriel`). La fiche contient des noms de clients et des liens. À la racine, elle reste à Drive, et elle existe même avant la première ligne de code. Si Jérôme préfère la mettre dans `app/`, c'est possible ; il faut alors la protéger (fichier ignoré par Git).
+
+**Les devis** ne vont pas dans le dossier du projet : ils se joignent à l'affaire dans l'OS (pièces jointes et fiche compagnon, voir `modele-fiche-document.md`).
+
+**`app/`** est créé vide : le dépôt et son clonage restent à l'initiative de Jérôme (le clonage dans un dossier synchronisé par Drive pose déjà question dans son wiki).
+
+**`PROJET.md`** (même nom que dans la convention du kit marketing), rempli par Claude Code à partir des données du prompt. Exemple pour l'affaire d'Elliot :
+
+```markdown
+# client-depannage-carrel-appli-devis
+
+Client · créé le 2026-10-03
+
+Objectif : (à compléter en une phrase)
+
+- Dépôt GitHub : https://github.com/jeromechevalier-wq/eliot-devis-depannage
+- Fiche dans l'OS : https://chevalier-ia-os.web.app/#/crm/affaires/<identifiant>
+- Client : dépannage Carrel · Eliot
+```
+
+Pas de crochets `[[…]]` : adresses et identifiants de l'OS (même raison que pour la fiche compagnon des documents).
 
 ## 6. Points d'attention
 
@@ -86,5 +109,5 @@ Le prompt renvoie à une fiche **qui n'existe pas encore** : `mon-second-cerveau
 
 ## 7. Questions pour Jérôme
 
-1. **La structure par préfixe** (section 5) te convient-elle ?
+1. **`marketing/`** : vide au départ, ou avec les quatre sous-dossiers de ton kit (`presentation`, `demo`, `animation`, `social`) déjà créés ? Ma proposition : **vide au départ**, les sous-dossiers se créent quand tu fabriques le document correspondant.
 2. **Veux-tu que je crée la fiche** `Convention de dossiers de projets.md` dans le vault, avec mise à jour de l'index et du journal du wiki ? Je ne le fais qu'avec ton accord.
