@@ -131,12 +131,12 @@ describe('D3 firebase.json, en têtes, indexation', () => {
     assert.match(lire('robots.txt'), /User-agent: \*\s+Disallow: \//);
     assert.match(lire('index.html'), /<meta name="robots" content="noindex">/);
   });
-  test('D3 firestore.rules identiques à la section 11.4 du cahier des charges 2.0 (et inchangées depuis la version 1.0.0)', () => {
+  test('D3 firestore.rules identiques à la section 11.4 du cahier des charges 2.0 (étendues à l’étape 4 du serveur MCP)', () => {
     const cahier = lire('docs/cahier-des-charges-v2.0.md');
     const bloc = /\*\*Règles Firestore\*\*[\s\S]*?```\n([\s\S]*?)```/.exec(cahier)[1];
     const norm = (t) => t.replace(/\s+/g, ' ').trim();
     assert.equal(norm(lire('firestore.rules')), norm(bloc));
-    assert.match(lire('firestore.rules'), /match \/\{document=\*\*\}/); // jokers : couvrent les nouvelles collections
+    assert.match(lire('firestore.rules'), /match \/\{collection\}\/\{document=\*\*\}/); // joker : couvre les collections de l'appli, hors celles du serveur
   });
   test('D3 configuration Firebase et comptes autorisés conformes à la section 11.3', () => {
     const cahier = lire('docs/cahier-des-charges-v2.0.md');
@@ -200,12 +200,18 @@ describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
     for (const nom of attendues) assert.ok(trouvees.has(nom), `collection jamais utilisée : ${nom}`);
   });
 
-  test('D4 firestore.rules : un seul bloc joker réservé aux deux comptes vérifiés (aucune modification en 2.0)', () => {
+  test('D4 firestore.rules : un seul joker, réservé aux deux comptes vérifiés, qui exclut explicitement les trois collections du serveur (le journal est lisible, jamais modifiable)', () => {
     const r = lire('firestore.rules');
-    assert.equal((r.match(/match /g) || []).length, 2);
+    assert.equal((r.match(/match \/\{collection\}\/\{document=\*\*\}/g) || []).length, 1);
+    assert.doesNotMatch(r, /match \/\{document=\*\*\}/, 'plus de joker nu : il couvrirait aussi les collections du serveur');
+    assert.equal((r.match(/function compteAutorise/g) || []).length, 1);
     assert.match(r, /email_verified == true/);
     assert.match(r, /jerome\.chevalier@gmail\.com/);
     assert.match(r, /jeromebot\.chevalierbot@gmail\.com/);
+    assert.match(r, /!\(collection in \['crm_audit', 'crm_audit_avant', 'mcp_limites'\]\)/);
+    assert.match(r, /match \/crm_audit\/\{id\} \{\s+allow read: if compteAutorise\(\);\s+allow write: if false;/);
+    assert.match(r, /match \/crm_audit_avant\/\{id\} \{\s+allow read, write: if false;/);
+    assert.match(r, /match \/mcp_limites\/\{id\} \{\s+allow read, write: if false;/);
   });
 
   test('D4 aucun secret dans le dépôt (secret OAuth Google, jeton de rafraîchissement ou d’accès, jeton MCP, clé privée)', () => {

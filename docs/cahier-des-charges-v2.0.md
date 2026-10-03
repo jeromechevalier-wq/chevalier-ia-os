@@ -350,7 +350,7 @@ Source : le site chevalier-ia.fr (`styles.css`, `tally-merci.html`, dossier `ass
 ## 11. Architecture et sécurité
 
 1. **Code** : HTML, CSS et JavaScript en modules ES, **sans étape de compilation** pour l'appli. SDK Firebase **12.19.0** chargé depuis `https://www.gstatic.com/firebasejs/12.19.0/…` (version figée).
-2. **Hébergement** : Firebase Hosting, projet `chevalier-ia-os`, adresse `https://chevalier-ia-os.web.app`. Dépôt GitHub privé `jeromechevalier-wq/chevalier-ia-os`, branche `main` ; action GitHub officielle `FirebaseExtended/action-hosting-deploy` à chaque push sur `main` (canal `live`, secret `FIREBASE_SERVICE_ACCOUNT_CHEVALIER_IA_OS`). Plan gratuit Spark : aucune Cloud Function, aucun Cloud Storage.
+2. **Hébergement** : Firebase Hosting, projet `chevalier-ia-os`, adresse `https://chevalier-ia-os.web.app`. Dépôt GitHub privé `jeromechevalier-wq/chevalier-ia-os`, branche `main` ; action GitHub officielle `FirebaseExtended/action-hosting-deploy` à chaque push sur `main` (canal `live`, secret `FIREBASE_SERVICE_ACCOUNT_CHEVALIER_IA_OS`). Version 2.0 sur plan gratuit Spark (aucune Cloud Function, aucun Cloud Storage) ; **depuis l'étape 2 du serveur MCP (03/10/2026), forfait Blaze avec budget d'alerte de 5 € par mois et une Cloud Function `mcp`** (dossier `functions/`, jamais publié avec le site ; voir `plan-mcp.md`). L'appli elle-même n'utilise toujours ni Cloud Function ni Cloud Storage.
 3. **Configuration Firebase** (`js/os/firebase-config.js`) :
    ```js
    export const firebaseConfig = {
@@ -367,18 +367,39 @@ Source : le site chevalier-ia.fr (`styles.css`, `tally-merci.html`, dossier `ass
    };
    ```
    `authDomain` est volontairement le domaine d'hébergement (au lieu de `firebaseapp.com`) pour que la connexion par redirection fonctionne sur iPhone. Connexion par fenêtre surgissante sur ordinateur, par redirection sur téléphone et en mode appli installée.
-4. **Règles Firestore** (`firestore.rules`, déjà publiées, **inchangées en version 2.0**) :
+4. **Règles Firestore** (`firestore.rules`). Inchangées de la version 1.0.0 à la version 2.0 ; **étendues le 03/10/2026 (étape 4 du serveur MCP, `plan-mcp.md` 5.5)** : les trois collections du serveur (`crm_audit`, `crm_audit_avant`, `mcp_limites`) sont sorties du joker, et `crm_audit` devient lisible mais jamais modifiable depuis l'appli. Pour toutes les autres collections, le comportement est identique à celui d'avant. Le serveur écrit avec le SDK d'administration, qui contourne les règles : il n'en dépend pas. Un nouvel utilisateur s'ajoute à `compteAutorise()` ici **et** dans `COMPTES_AUTORISES` (section suivante), puis les règles sont republiées par Jérôme dans la console (elles ne se déploient pas avec la fusion).
    ```
    rules_version = '2';
    service cloud.firestore {
      match /databases/{database}/documents {
-       match /{document=**} {
-         allow read, write: if request.auth != null
+
+       function compteAutorise() {
+         return request.auth != null
            && request.auth.token.email_verified == true
            && request.auth.token.email in [
                 "jerome.chevalier@gmail.com",
                 "jeromebot.chevalierbot@gmail.com"
               ];
+       }
+
+       // Journal d'audit : lisible depuis l'appli, jamais modifiable depuis l'appli.
+       match /crm_audit/{id} {
+         allow read: if compteAutorise();
+         allow write: if false;
+       }
+
+       // Copies « avant » et compteurs de débit : réservés aux fonctions (qui contournent les règles).
+       match /crm_audit_avant/{id} {
+         allow read, write: if false;
+       }
+       match /mcp_limites/{id} {
+         allow read, write: if false;
+       }
+
+       // Tout le reste : comme avant (les deux comptes autorisés), sauf les collections ci-dessus.
+       match /{collection}/{document=**} {
+         allow read, write: if compteAutorise()
+           && !(collection in ['crm_audit', 'crm_audit_avant', 'mcp_limites']);
        }
      }
    }
