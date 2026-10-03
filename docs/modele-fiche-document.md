@@ -49,9 +49,10 @@ Fichier de référence que le code remplit. Les parties `{…}` sont automatique
 - Fichier : {nom du fichier}
 - Lien Drive : {url}
 - Déposé le : {AAAA-MM-JJ}, par {auteur} {via MCP le cas échéant}
-- Affaire : {titre de l'affaire} ({chemin de la fiche dans l'appli})
-- Client : {personne} · {organisation}
-- Projet : {titre du projet, s'il existe}
+- Affaire : {titre} · identifiant {affaireId} · {adresse de la fiche dans l'appli}
+- Organisation : {nom} · identifiant {organisationId} · {adresse de la fiche}
+- Personne : {nom} · identifiant {personneId} · {adresse de la fiche}
+- Projet : {titre} · identifiant {projetId} · {adresse de la fiche} (s'il existe)
 
 ## Résumé
 
@@ -74,18 +75,30 @@ Fichier de référence que le code remplit. Les parties `{…}` sont automatique
 Fiche créée automatiquement le {AAAA-MM-JJ}. {Résumé rédigé par {agent} le {date} | Résumé en attente.} {Mention obligatoire si le document n'a pas pu être lu en entier : « Le document n'a pas pu être lu (raison). Les champs ci-dessus viennent seulement des métadonnées. »}
 ```
 
-**Règles de rédaction** (reprises de tes fiches) : français, phrases courtes, une idée par ligne ; aucun chiffre qui ne soit pas dans le document ; dire ce qui n'a pas pu être lu ; pas de lien `[[…]]` : la fiche vit hors du vault, donc les liens utiles sont le lien Drive et le chemin de l'affaire dans l'appli ; **le modèle ne change pas d'une fiche à l'autre** (les sections vides restent présentes, sauf « Questions ouvertes » et « Liens connexes »).
+**Règles de rédaction** (reprises de tes fiches) : français, phrases courtes, une idée par ligne ; aucun chiffre qui ne soit pas dans le document ; dire ce qui n'a pas pu être lu ; pas de lien `[[…]]` (voir « Liens vers l'affaire, l'organisation et la personne » ci-dessous) ; **le modèle ne change pas d'une fiche à l'autre** (les sections vides restent présentes, sauf « Questions ouvertes » et « Liens connexes »).
+
+### Liens vers l'affaire, l'organisation et la personne (décidé le 03/10/2026)
+
+Question de Jérôme : sans crochets, perd-on l'information quand l'OS ou un agent lit un devis ? **Non, à condition de garder la relation, qui est ce qui compte. Les crochets n'en sont que l'écriture, et elle ne marche pas ici.**
+
+1. **Ce que la relation doit apporter** : qu'un agent qui lit la fiche sache **à quelle affaire, quelle organisation et quelle personne** le document se rattache, et puisse aller les chercher.
+2. **Pourquoi pas `[[…]]`** : un lien à crochets ne se résout que dans un vault Obsidian, et seulement si une fiche de ce nom existe. Or la fiche vit dans `Jerome IA OS Attachments`, hors du vault, et les clients du CRM (« depannage Carrel ») **n'ont pas de fiche dans le vault**. Le lien serait mort. Si la fiche était un jour copiée dans le vault, le lint de ton wiki (qui cherche les liens cassés) la signalerait. Ta propre règle des liens (« la cible est traitée dans la source **et** lire l'une aide à comprendre l'autre ») est remplie par un devis et son client, mais **il faut une cible qui existe**.
+3. **Ce qu'il faut à la place, et qui est plus fort** : les **identifiants stables** (`affaireId`, `organisationId`, `personneId`, `projetId`) **et** l'adresse de la fiche dans l'appli, ensemble, dans la section « Fiche du document ». Un nom seul est ambigu (deux « Eliot », une organisation renommée) ; l'identifiant ne l'est jamais et permet à un agent d'appeler `lire_affaire` ou `lire_organisation` du MCP en un appel. L'adresse est **absolue** (`https://chevalier-ia-os.web.app/#/crm/affaires/<id>`) : elle s'ouvre d'un clic depuis Drive, un mail ou un agent.
+4. **Les noms restent écrits en clair** dans le résumé (« devis pour dépannage Carrel, Eliot ») : un agent comprend le contexte sans rien appeler.
+5. **L'index** reprend la même logique : titres de client et d'affaire cliquables vers l'appli.
+6. **Si le bibliothécaire copie un jour une fiche dans le vault** (compilation), les crochets deviennent légitimes **pour les cibles qui existent dans le vault** (une entité déjà fichée) et seulement celles-là, selon ta règle. Rien à faire maintenant.
+7. **Pendant la migration** (CRM à la fois dans Notion et dans l'OS) : une pièce ne se joint qu'à une affaire de l'OS, donc les identifiants sont ceux de l'OS. Une affaire encore seulement dans Notion doit d'abord être créée dans l'OS.
 
 ## 4. Qui rédige le résumé (décidé le 03/10/2026 : au moment de l'attachement)
 
 | Chemin | Qui écrit le résumé | Comment |
 |---|---|---|
 | **Agent** (bibliothécaire, ou Claude Code) | l'agent | `joindre_fichier_drive` gagne deux paramètres : **`resume`** (une ligne, obligatoire : c'est la ligne de l'index) et **`fiche`** (facultatif : type, résumé détaillé, points clés, questions ouvertes). L'agent écrit à partir de ce qu'il connaît du document ou de ce que Jérôme lui a donné. **Aucun essai de lecture n'est nécessaire** pour ce chemin : je retire la proposition précédente. |
-| **Appli** (téléphone ou Mac) | **à trancher** (question 1) | le formulaire « Téléverser un fichier » demande déjà « contenu » ; il gagnerait un champ « Résumé en une phrase » |
+| **Appli** (téléphone ou Mac) | **Jérôme** (décidé le 03/10/2026) | le formulaire « Téléverser un fichier » demande déjà « contenu » ; il gagne un champ **« Résumé en une phrase »**, que l'on tape ou que l'on dicte au clavier du téléphone. Obligatoire, puisque c'est la ligne de l'index |
 
 Ce que fait le code dans les deux cas, de façon fiable : titre, date, auteur, fiche du document (type, fichier, lien, affaire, client, projet), section « À propos », création du `.md`, mise à jour de l'index. L'entrée du document dans l'affaire gagne : `resume` (la ligne), `ficheDriveId`, `ficheUrl`, `typeDocument`.
 
-**Pourquoi la question 1** : l'OS n'a **aucune IA intégrée**. Pour qu'il écrive seul le résumé, la fonction devrait appeler un modèle d'IA avec le contenu du fichier. C'est possible, mais c'est une dépendance nouvelle : une clé d'API gardée dans Secret Manager, le contenu du document (devis, noms de clients) envoyé au fournisseur du modèle (point RGPD à valider par Jérôme), un coût par document à mesurer (le budget de 5 € par mois du plan reste un plafond), et une lecture directe seulement pour certains formats (PDF et images ; Word et Excel demanderaient une conversion). Les fichiers audio ne sont pas lisibles ainsi.
+**Écarté** : un résumé écrit par une IA appelée par la fonction (clé d'API, contenu des devis envoyé à un fournisseur, formats limités). Jérôme n'en veut pas ; l'OS reste sans IA. À rouvrir seulement si le champ n'est pas rempli à l'usage.
 
 ## 5. L'index à la racine du dossier
 
@@ -99,9 +112,9 @@ Ce que fait le code dans les deux cas, de façon fiable : titre, date, auteur, f
 
 Catalogue des documents joints aux affaires, avec un résumé d'une ligne. Fichier généré automatiquement par Chevalier IA OS : ne pas le modifier à la main, il serait réécrit. Dernière mise à jour : 2026-10-03 16:40.
 
-## depannage Carrel (Eliot)
+## [depannage Carrel](adresse de la fiche organisation) · Eliot
 
-### création appli devis dépannage
+### [création appli devis dépannage](adresse de la fiche affaire)
 - [2026-10-02 - depannage Carrel - devis 008](lien du document) · devis · 2026-10-02 — {résumé d'une ligne}. [Fiche](lien du .md)
 ```
 
@@ -116,9 +129,9 @@ Catalogue des documents joints aux affaires, avec un résumé d'une ligne. Fichi
 
 1. **Document remplacé ou renommé hors de l'OS** : la fiche et l'index ne le savent pas. Sans objet tant que rien n'est déposé à la main, comme tu le prévois.
 2. **Confidentialité** : la fiche et l'index reprennent des montants et des noms de clients. Ils restent dans le dossier privé ; l'appli ne les envoie ni vers GitHub ni vers le vault.
-3. **Coût** : aucun côté Firebase (deux petits fichiers texte écrits par document). Un éventuel résumé par IA (question 1) a son propre coût.
+3. **Coût** : aucun côté Firebase (deux petits fichiers texte écrits par document). Pas de résumé par IA : aucun coût de modèle.
 4. **Contradiction à régler dans ton wiki** : `wiki/index.md` indique encore, au 02/10/2026, que « le CRM vit dans Notion » et que l'OS est un « agrégateur » (décision du 30/09/2026), alors que la roadmap du dépôt (02/10/2026) fait de Chevalier IA OS ton CRM. Le bibliothécaire lit ce wiki : il vaut mieux le mettre à jour pour qu'il ne reçoive pas deux versions. Je ne l'ai pas modifié.
 
-## 7. Question pour Jérôme
+## 7. Ce qu'il reste à trancher
 
-1. **Résumé depuis l'appli** : (a) tu le tapes toi-même dans un champ « Résumé en une phrase » (ou tu le dictes au clavier du téléphone), ou (b) la fonction l'écrit en appelant un modèle d'IA (clé d'API, contenu envoyé au fournisseur, PDF et images seulement au départ) ? Ma recommandation : **(a) d'abord**, parce qu'il n'a aucune dépendance et que ton résumé est le plus fiable ; **(b) plus tard** si tu constates que tu ne le tapes pas. Le reste (fiche, index, chemin agent) ne change pas.
+Rien de bloquant sur la fiche et l'index. Le chantier des pièces jointes reste « en réflexion » (Jérôme, 03/10/2026) : ce document est prêt à être intégré à `plan-mcp.md` (section 5.7 et liste des outils) quand il démarrera.
