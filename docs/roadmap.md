@@ -38,7 +38,7 @@ Cahier des charges détaillé : `cahier-mcp.md` (brouillon du 02/10/2026). **Pla
 ## Version 2.1
 
 ### Déjà prévu
-- Écran Projets (Kanban de phases, lien `projetId` depuis une affaire gagnée).
+- Écran Projets (Kanban de phases, lien `projetId` depuis une affaire gagnée). **Cadrage du 03/10/2026 : `cadrage-projets.md`** (brouillon, huit questions à trancher par Jérôme avant toute construction).
 - Copie quotidienne vers Google Sheet par n8n.
 (voir `rapport-construction-v2.md`)
 
