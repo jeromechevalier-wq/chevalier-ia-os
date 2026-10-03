@@ -41,7 +41,8 @@ Depuis l'étape 4 : la fonction lit et **écrit** la base (créer, modifier ; su
 | 3 instances au plus | Borne le coût et l'emballement | **[en place]** |
 | Budget 5 €/mois avec alertes 50, 90 et 100 % | Prévient, **ne coupe rien** | **[en place]** (console) |
 | Plafonds par jeton | 120 requêtes/min (mémoire de chaque instance : au pire 3 × 120), **500 écritures/heure** et **20 suppressions/jour** (compteurs exacts dans `mcp_limites`) ; réglables par jeton dans `MCP_JETONS` (`"limites"`) | **[en place]** (étape 4) |
-| Sauvegardes (copies Google quotidiennes, récupération à la minute, export JSON hebdomadaire) | Retour en arrière si des données sont abîmées | **[prévu]** étape 5 |
+| Sauvegardes Google : copie complète **quotidienne gardée 98 jours** et **récupération à la minute sur 7 jours** | Retour en arrière si des données sont abîmées, indépendamment du code du serveur ; une restauration crée une **nouvelle** base, jamais d'écrasement | **[en place]** (activées le 03/10/2026 par Jérôme) ; **première sauvegarde à constater** ; **aucun essai de restauration fait** |
+| Export JSON hebdomadaire dans le Drive par le bibliothécaire | Copie lisible hors de Google, 12 semaines | **[prévu]** étape 5 (reportée) |
 
 **Compte d'exécution dédié [en place, 03/10/2026]** : la fonction tourne avec `mcp-serveur@chevalier-ia-os.iam.gserviceaccount.com`, qui n'a que deux droits : « Utilisateur Cloud Datastore » (lire et écrire Firestore, sur le projet) et « Accesseur de secrets » (sur `MCP_JETONS` seulement). Elle ne tourne plus avec le « Default compute service account » (rôle « Éditeur » sur tout le projet). En cas de faille dans la fonction, les dégâts se limitent à ce que le CRM fait déjà. Le compte de déploiement GitHub peut agir en son nom grâce au rôle « Utilisateur du compte de service », accordé au niveau du projet (plus large que nécessaire : à resserrer au seul compte `mcp-serveur` quand on voudra).
 
@@ -74,7 +75,7 @@ Idée évoquée le 02/10/2026 : prévoir un accès caché, éteint, qu'on active
 - **L'appli** : indépendante du MCP **[en place]**.
 - **La console Firebase / Google Cloud** : tu peux lire et corriger des documents à la main (Firestore → Données) **[en place]**.
 - **Un script de secours sur ton Mac** qui lit et écrit dans la base avec **ton compte Google** (connexion `gcloud auth application-default login`), sans clé à conserver et sans code de plus sur le serveur **[prévu]**. Il sera écrit et testé avant la clôture du chantier.
-- **Les sauvegardes** : copies Google quotidiennes, récupération à la minute, export JSON **[prévu]** étape 5.
+- **Les sauvegardes** : copies Google quotidiennes (98 jours) et récupération à la minute (7 jours) **[en place]** ; export JSON dans le Drive **[prévu]** étape 5. Où les voir : console Google Cloud, Firestore, **Reprise après sinistre** : https://console.cloud.google.com/firestore/databases/-default-/disaster-recovery?project=chevalier-ia-os . Pour restaurer une sauvegarde, le menu d'actions de sa ligne propose « Restaurer avec Cloud Shell » (crée une nouvelle base) ; la récupération à un moment précis se demande depuis la même page ou par `gcloud` **[à confirmer au premier essai : non testé]**. Une restauration est facturée selon la taille de la base.
 
 ## 6. Pannes : symptôme, cause probable, vérification, réparation
 
@@ -162,7 +163,8 @@ Procédure de mise à jour : changer **une** version à la fois sur une branche,
 - Les journaux Cloud Run (service `mcp`) montrent-ils des `401` répétés (tentatives) ?
 - https://myaccount.google.com/permissions : seules les applications attendues ont accès.
 - Dates à surveiller : **19/10/2026** (`ubuntu-latest` passe à Ubuntu 26), **fin de support des actions GitHub sur Node 20**, **2028** (Node 22 chez Google).
-- Un test de restauration (étape 5 et suivantes) : une copie récente se restaure-t-elle ?
+- Un test de restauration (étape 5 et suivantes) : une copie récente se restaure-t-elle ? **Jamais fait à ce jour.**
+- Sauvegardes Google : la page « Reprise après sinistre » montre-t-elle une sauvegarde de moins de 24 heures, et les deux réglages (récupération à un moment précis, sauvegardes quotidiennes) sont-ils toujours « activés » ?
 - Journal (étape 4) : `lire_audit` avec `incompletes: true` (lignes restées « en_cours »), et le nombre de lignes `echec` récentes ; la stratégie TTL de `crm_audit_avant` est-elle toujours active (console Firestore → Time-to-live) ? Les règles publiées sont-elles toujours celles de `firestore.rules` ?
 
 ## 9. Journal des incidents et constats
