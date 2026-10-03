@@ -123,7 +123,7 @@ read -s CHEVALIER_MCP_TOKEN; export CHEVALIER_MCP_TOKEN     # colle ton jeton Cl
 node outils/essai-ecriture.mjs
 ```
 
-Résultat attendu : une quinzaine de lignes ✓ puis « ESSAI RÉUSSI ». Au premier ✗, le script s'arrête et dit ce qu'il resterait à nettoyer. Avec un jeton de bibliothécaire, il s'arrête dès la première étape.
+Résultat attendu : une quinzaine de lignes ✓ puis « ESSAI RÉUSSI ». **Avant de lancer le script**, vérifie que le jeton est bien enregistré, sans l'afficher : `[ -n "$CHEVALIER_MCP_TOKEN" ] && echo "jeton : ${#CHEVALIER_MCP_TOKEN} caractères" || echo "jeton : VIDE"` doit répondre **47 caractères** (un jeton fait `cia_` + 43 caractères ; un autre nombre veut dire que ce qui a été collé n'est pas le jeton, par exemple le mauvais champ de KeePassXC : refaire `unset CHEVALIER_MCP_TOKEN` puis `read -s …`). Une fois fini, `unset CHEVALIER_MCP_TOKEN` retire le jeton de la fenêtre. Au premier ✗, le script s'arrête et dit ce qu'il resterait à nettoyer. Avec un jeton de bibliothécaire, il s'arrête dès la première étape.
 
 Ensuite, dans l'écran de l'appli, rien ne doit rester : l'organisation de test a été supprimée. Dans la console Firestore, la collection `crm_audit_avant` existe maintenant : fais alors le point 2 (TTL).
 
@@ -149,6 +149,15 @@ Voir `securite-et-pannes.md`, sections « Écrire : pannes » et « Interrupteur
 `npm test` complet, sur les émulateurs : règles **55** (les 45 d'avant + 10 nouveaux, dont 7 qui échouent bien si on garde l'ancien joker), logique **131** (dont 19 sur les plans d’écriture et le fil), contrôles statiques **42**, fonctions **111** (moteur d'écriture et audit en mémoire et sur Firestore avec pannes injectées, restauration, 29 scénarios d'outils par le vrai protocole MCP, plafonds, journaux sans contenu), parcours navigateur **98 sur 98** (l'écran n'a pas régressé après l'extraction). Chargement de la fonction `mcp` dans l'émulateur Firebase : réussi.
 
 **Non vérifié** (impossible depuis ma session) : la publication réelle des règles et leur effet sur ton appli, l'activation du TTL, les écritures depuis la fonction déployée sur ta vraie base (droits, latence), l'affichage des nouveaux outils dans ta session Claude Code, le comportement des compteurs de débit sous charge réelle. Le jeton bibliothécaire n'existe pas encore (étape 6) : son profil n'est testé que par les tests.
+
+## Résultat de l'essai en réel (03/10/2026)
+
+**Réussi.** Lancé par Jérôme depuis le Terminal de son Mac (Node 24.21.0), contre le serveur déployé `https://chevalier-ia-os.web.app/mcp`, avec le jeton `claude-code-jerome` : les 15 vérifications du script sont passées (connexion avec 33 outils ; organisation « ZZ Essai MCP » créée ; journal : 2 lignes « succes », acteur `claude-code-jerome`, canal `mcp`, sans le nom saisi ; doublon refusé ; suppression mal confirmée refusée ; suppression ; aperçu de restauration sans écriture ; restauration ; fiche revenue avec le **même identifiant** et son événement « Organisation créée » ; suppression de nettoyage ; plus aucune trace dans les fiches). Les nouvelles règles Firestore étaient publiées à ce moment-là et l'appli fonctionnait normalement.
+
+- **Règles Firestore** : publiées par Jérôme le 03/10/2026 (jeu actif vérifié dans la console Google Cloud, page Sécurité, en lecture seule), appli vérifiée ensuite.
+- **TTL de 90 jours** sur `crm_audit_avant`, champ `expireAt` : créé par Jérôme dans la console le 03/10/2026, **après** l'essai (la liste des groupes de collections ne propose que celles qui existent). L'**effacement lui-même** n'a pas pu être observé (il faudra attendre 90 jours après une écriture) : à contrôler à la première échéance, en regardant dans la console Firestore que les copies de plus de 90 jours ont disparu.
+- **Non couvert par cet essai** : le profil bibliothécaire (pas encore de jeton ; testé seulement par les tests automatiques), les plafonds de débit en charge réelle, une écriture simultanée depuis l'écran, Claude Code branché sur le serveur (étape 6).
+- Défaut d'affichage du script découvert à cette occasion (nombre d'écritures affiché « [object Object] »), corrigé après l'essai.
 
 ## Retour arrière
 
