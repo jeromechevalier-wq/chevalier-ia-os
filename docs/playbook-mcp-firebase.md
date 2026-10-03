@@ -53,7 +53,7 @@ Un jeton par client (nom + profil + 256 bits) ; seules les empreintes SHA-256 da
 
 ## 5. Ce qui n'est pas encore validé (à vérifier sur la prochaine appli, ou aux étapes suivantes ici)
 
-Lecture et écriture de Firestore par la fonction (étape 3 et suivantes : droits Firestore du compte d'exécution), audit et restauration, plafonds de débit, Drive côté serveur (étape 5), connexion réelle de Claude Code et de Hermes (étape 6 : syntaxe `claude mcp add`, configuration `mcp_servers`).
+Lecture de Firestore par la fonction : **validée en réel** (étape 3, avec le compte `mcp-serveur`). Écriture, audit, restauration et plafonds de débit : **code et émulateurs validés** (étape 4), validation en réel à consigner ici après la recette de `mcp-etape-4.md`. Drive côté serveur (étape 5), connexion réelle de Claude Code et de Hermes (étape 6 : syntaxe `claude mcp add`, configuration `mcp_servers`) : à venir.
 
 ## 6. Liste de contrôle « prêt à déployer »
 
@@ -66,3 +66,14 @@ Lecture et écriture de Firestore par la fonction (étape 3 et suivantes : droit
 - [ ] `--force`, Node 22, `npm ci`, `functions/**` ignoré par Hosting, réécriture `/mcp` dans le dépôt
 - [ ] Tests verts, fonction chargée dans l'émulateur
 - [ ] Après le déploiement : lire le compte d'exécution dans Cloud Run → Sécurité, lui donner l'accès au secret, tester `qui_suis_je` avec `curl`
+
+## 7. Ajouter l'écriture à un serveur MCP (acquis de l'étape 4)
+
+- **Droits Google** : le rôle « Utilisateur Cloud Datastore » du compte d'exécution suffit pour écrire **et** pour les transactions (`beginTransaction` ne demande que `datastore.databases.get`). Rien à ajouter dans IAM.
+- **Un seul chemin d'écriture** : un moteur unique (trace avant, données, trace après, restauration) que tous les outils appellent ; un test interdit qu'un outil écrive directement. Les règles métier sont des fonctions pures partagées avec l'appli (ici `logique.js`), pour qu'un agent ne contourne jamais les règles de l'écran.
+- **Le journal ne doit pas garder de contenu de personnes** : les valeurs reçues vont dans une copie à durée limitée (stratégie TTL de Firestore sur un champ `expireAt`, à créer une fois dans la console ou par `gcloud firestore fields ttls update`), le journal durable ne garde que des noms de champs.
+- **Règles Firestore** : une règle plus précise ne l'emporte pas sur un joker qui autorise ; il faut **exclure** les collections du serveur du joker. Écrire des tests qui **échouent** avec l'ancien fichier de règles prouve que les nouveaux tests mordent.
+- **Tests en parallèle sur un même émulateur** : `node --test fichier1 fichier2` lance les fichiers en parallèle ; un fichier qui vide la base fait échouer les autres. Donner à chaque fichier d'essai son propre identifiant de projet de démonstration (`demo-…`).
+- **Plafonds** : un compteur Firestore par jeton coûte une transaction par appel ; réserver cela aux limites rares (écritures par heure, suppressions par jour) et garder le débit par minute en mémoire de l'instance.
+- **Tester les outils de bout en bout, par le vrai protocole** : les tests du moteur seul ne montrent pas tout ; ici, un test d'outil a trouvé un `forcer: true` ignoré (la vérification de doublon s'exécutait toujours).
+

@@ -1,6 +1,6 @@
 # Sécurité et pannes du serveur MCP
 
-Ce guide dit **comment la connexion est protégée**, **ce qui peut la casser** et **quoi faire quand elle casse**. Il est mis à jour à chaque étape du chantier (`plan-mcp.md`). Version du 02/10/2026, écrite à l'étape 2 : chaque point est marqué **[en place]** (déjà dans le code ou la console), **[prévu]** (planifié dans une étape précise) ou **[à vérifier]** (je ne l'ai pas pu confirmer depuis ma session).
+Ce guide dit **comment la connexion est protégée**, **ce qui peut la casser** et **quoi faire quand elle casse**. Il est mis à jour à chaque étape du chantier (`plan-mcp.md`). Version du 02/10/2026, écrite à l'étape 2 et **mise à jour le 03/10/2026 à l'étape 4 (écriture, audit, plafonds, règles)** : chaque point est marqué **[en place]** (déjà dans le code ou la console), **[prévu]** (planifié dans une étape précise) ou **[à vérifier]** (je ne l'ai pas pu confirmer depuis ma session).
 
 Règle d'or : **l'appli Chevalier IA OS ne dépend pas du serveur MCP.** Si la connexion MCP tombe, l'écran continue de fonctionner exactement comme avant. Le MCP n'est qu'une porte supplémentaire vers la même base.
 
@@ -17,7 +17,7 @@ Toi, dans l'appli ──────► Firebase Hosting + Firestore (comme avan
 GitHub (fusion sur main) ──► déploie d'abord la fonction, puis le site
 ```
 
-À l'étape 2 : la fonction ne fait que répondre à `qui_suis_je`. Elle ne lit ni n'écrit encore la base.
+Depuis l'étape 4 : la fonction lit et **écrit** la base (créer, modifier ; supprimer et restaurer réservés à Claude Code), toujours en passant par le même moteur, qui laisse une trace dans `crm_audit` (et la copie « avant/après » dans `crm_audit_avant`). L'appli, elle, écrit comme avant, directement.
 
 ## 2. Les couches de protection
 
@@ -28,14 +28,19 @@ GitHub (fusion sur main) ──► déploie d'abord la fonction, puis le site
 | Comparaison à temps constant | Impossible de deviner un jeton en mesurant les temps de réponse | **[en place]** |
 | Réponse unique au refus | Jeton absent, faux, mal formé ou révoqué : exactement la même réponse 401, sans détail | **[en place]** |
 | Échec fermé | Si le coffre est illisible : 503, jamais d'accès accordé, jamais de copie périmée | **[en place]** |
-| Droits par profil | Le serveur n'expose et n'exécute que les outils du profil du jeton, même si le client est mal configuré | **[en place]** (un seul outil pour l'instant) |
+| Droits par profil | Le serveur n'expose et n'exécute que les outils du profil du jeton, même si le client est mal configuré : lecteur = lecture ; bibliothécaire = + créer et modifier ; **Claude Code seul = supprimer et restaurer** | **[en place]** (étape 4), testé |
 | Origine et méthode | En-tête `Origin` étranger refusé (403) ; tout sauf `POST` refusé (405) | **[en place]** |
 | Journaux sans secret | On ne note que : nom du jeton, acteur, profil, outil, durée, statut, code ; jamais jeton, en-tête, paramètres, contenus de fiches | **[en place]**, testé |
-| Lecture seule des outils d'étape 3 | Aucune écriture dans le code de lecture ni dans l'interface d'accès aux données (contrôlé par test) ; l'écriture arrivera à l'étape 4 avec l'audit | **[en place]** |
+| Un seul chemin d'écriture | Aucun outil n'écrit directement : tout passe par le moteur d'écriture, qui n'écrit que dans les 6 collections de données du CRM (jamais l'audit, les compteurs ni les paramètres). Contrôlé par test | **[en place]** (étape 4) |
+| Audit en trois temps | Avant d'écrire : trace « en_cours » + copie avant/après (si le journal est en panne, **rien n'est écrit**) ; puis les données ; puis la trace passe à « succes » ou « echec » | **[en place]** (étape 4), pannes simulées en test |
+| Contrôle de concurrence | Une écriture est refusée (« recommencer ») si le document a changé depuis sa lecture, pour ne pas écraser une modification faite sur l'écran | **[en place]** (étape 4) |
+| Restauration | `restaurer_depuis_audit` (Claude Code seul) défait une opération, avec aperçu ; refuse si un document a changé depuis | **[en place]** (étape 4) |
+| Confirmation des suppressions | Le nom exact de la fiche est exigé (comme l'écran) ; une organisation non vide ne se supprime pas | **[en place]** (étape 4) |
+| Journal sans contenu | `crm_audit` (conservé sans limite) ne contient aucune valeur de fiche, seulement qui, quoi, quand, quel document, quels champs ; les valeurs sont dans `crm_audit_avant`, effacé après 90 jours | **[en place]** (étape 4) ; l'effacement est **à activer par toi** (TTL, `mcp-etape-4.md` point 2) |
+| Règles Firestore | `crm_audit` lisible mais jamais modifiable depuis l'appli ; `crm_audit_avant` et `mcp_limites` fermés | **[prêt, à publier par toi]** (`mcp-etape-4.md` point 1) |
 | 3 instances au plus | Borne le coût et l'emballement | **[en place]** |
 | Budget 5 €/mois avec alertes 50, 90 et 100 % | Prévient, **ne coupe rien** | **[en place]** (console) |
-| Plafonds par jeton (débit, écritures, suppressions) | Freine un agent qui boucle ou un jeton volé | **[prévu]** étape 4 |
-| Journal d'audit et restauration | Chaque écriture tracée, copie « avant » gardée 90 jours | **[prévu]** étape 4 |
+| Plafonds par jeton | 120 requêtes/min (mémoire de chaque instance : au pire 3 × 120), **500 écritures/heure** et **20 suppressions/jour** (compteurs exacts dans `mcp_limites`) ; réglables par jeton dans `MCP_JETONS` (`"limites"`) | **[en place]** (étape 4) |
 | Sauvegardes (copies Google quotidiennes, récupération à la minute, export JSON hebdomadaire) | Retour en arrière si des données sont abîmées | **[prévu]** étape 5 |
 
 **Compte d'exécution dédié [en place, 03/10/2026]** : la fonction tourne avec `mcp-serveur@chevalier-ia-os.iam.gserviceaccount.com`, qui n'a que deux droits : « Utilisateur Cloud Datastore » (lire et écrire Firestore, sur le projet) et « Accesseur de secrets » (sur `MCP_JETONS` seulement). Elle ne tourne plus avec le « Default compute service account » (rôle « Éditeur » sur tout le projet). En cas de faille dans la fonction, les dégâts se limitent à ce que le CRM fait déjà. Le compte de déploiement GitHub peut agir en son nom grâce au rôle « Utilisateur du compte de service », accordé au niveau du projet (plus large que nécessaire : à resserrer au seul compte `mcp-serveur` quand on voudra).
@@ -56,7 +61,8 @@ Ne jamais mettre un jeton ou une clé : dans le dépôt, dans un dossier synchro
 1. **Couper tout le MCP en moins d'une minute, sans rien déployer** : console Google → Secret Manager → `MCP_JETONS` → désactiver la version active. Toute requête est alors refusée. Pour rétablir : réactiver la version. https://console.cloud.google.com/security/secret-manager?project=chevalier-ia-os
 2. **Couper un seul client** : nouvelle version du secret avec `"actif": false` sur sa ligne.
 3. **Retirer l'accès public du service** : console Google → Cloud Run → service `mcp` → Sécurité → retirer l'invocation publique. https://console.cloud.google.com/run?project=chevalier-ia-os
-4. **Retirer le code** : `git revert -m 1 <commit de fusion>` sur `main` ; le workflow redéploie avec `--force`, ce qui **supprime aussi la fonction** retirée du code. Vérifier ensuite dans Cloud Run que le service `mcp` a disparu (sinon le supprimer à la main).
+4. **Passer un client en lecture seule, sans le couper** : dans une **nouvelle version** du secret `MCP_JETONS`, changer `"profil"` de sa ligne en `"lecteur"` (effet en moins d'une minute). Utile si un agent écrit n'importe quoi : il peut encore lire, plus rien écrire.
+5. **Retirer le code** : `git revert -m 1 <commit de fusion>` sur `main` ; le workflow redéploie avec `--force`, ce qui **supprime aussi la fonction** retirée du code. Vérifier ensuite dans Cloud Run que le service `mcp` a disparu (sinon le supprimer à la main).
 
 ## 5. Pourquoi il n'y a pas de « porte dérobée » dans le code
 
@@ -97,11 +103,29 @@ Page de suivi : https://github.com/jeromechevalier-wq/chevalier-ia-os/actions. U
 | `403 {"error":"origine_refusee"}` | Un navigateur (en-tête `Origin` étranger) appelle le serveur | Normal pour Hermes et Claude Code (ils n'envoient pas d'`Origin`). Si l'un d'eux en envoie un : le signaler, on adapte la liste |
 | `405 {"error":"methode_refusee"}` | Un client essaie `GET` | Les clients MCP doivent utiliser `POST` (transport « Streamable HTTP » sans session) |
 | `503 {"error":"indisponible"}` | Le secret `MCP_JETONS` est illisible (secret absent, version désactivée, **compte d'exécution non autorisé à le lire**, API Secret Manager coupée) | Voir le journal Cloud Run (ligne `code: secret_illisible`) ; vérifier que le secret existe, qu'une version est active et que **le compte réellement utilisé par la fonction** a le rôle « Accesseur de secrets » : le lire dans Cloud Run → service `mcp` → onglet Sécurité → Compte de service (c'est `mcp-serveur@…` depuis le 03/10/2026 ; ne pas se fier au compte `…@appspot…`). *(Cause du 503 rencontré le 03/10/2026.)* |
-| `429` | **[prévu]** étape 4 : plafond de débit atteint | Attendre ou relever le plafond du jeton |
+| `429 {"error":"limite_depassee"}` (avec `Retry-After`) | Plus de 120 requêtes en une minute pour ce jeton (souvent un client qui boucle) | Attendre la durée indiquée ; chercher pourquoi le client boucle ; si c'est légitime, relever `requetesParMinute` dans la ligne du jeton |
 | Erreur d'outil `PERMISSION_DENIED` (ou `Missing or insufficient permissions`) sur une lecture | Le compte d'exécution n'a pas le droit de lire Firestore (rôle « Utilisateur Cloud Datastore » retiré, ou compte d'exécution changé) | Donner au compte lu dans Cloud Run → Sécurité (`mcp-serveur@…`) le rôle « Utilisateur Cloud Datastore » (`roles/datastore.user`) sur le projet |
 | Erreur d'outil `Cloud Firestore API has not been used` | API Firestore désactivée sur le projet | La réactiver : https://console.cloud.google.com/apis/library/firestore.googleapis.com?project=chevalier-ia-os |
 | Réponse d'outil tronquée (`tronque: true`) | Plus de 200 lignes | Affiner les filtres ; ce plafond protège le client |
 | Réponse lente (1 à 3 s la première fois) | Départ à froid de la fonction | Normal ; le client Hermes est réglé avec un délai de 120 s |
+
+### Écrire : pannes et récupération (étape 4)
+
+Ces messages arrivent comme **erreur d'outil** (réponse 200 avec `isError`), jamais comme erreur HTTP.
+
+| Message (début) | Sens | Ce qu'il faut faire |
+|---|---|---|
+| `Plafond atteint pour ce jeton : … écritures par heure` / `… suppressions par jour` | Un compteur de `mcp_limites` est plein ; **rien n'a été écrit** | Attendre le délai indiqué ; si un agent boucle, révoquer ou passer son jeton en lecture seule (section 4) ; relever la limite du jeton si c'est légitime |
+| `Le journal d'audit est indisponible : rien n'a été écrit.` | Impossible d'écrire dans `crm_audit` / `crm_audit_avant` (Firestore en panne, droit retiré) | Rien à nettoyer. Vérifier https://status.cloud.google.com et le rôle « Utilisateur Cloud Datastore » du compte `mcp-serveur` ; réessayer |
+| `Écriture refusée, rien n'a été écrit (un document a été modifié entre-temps : recommencer)` | Quelqu'un (toi, sur l'écran) a modifié le même document entre la lecture et l'écriture | Relire la fiche et recommencer |
+| `Écriture interrompue : N document(s) sur M écrits. Opération XXX…` | Panne au milieu d'une grosse opération (plusieurs paquets de 400) | `restaurer_depuis_audit` avec cet identifiant d'opération (aperçu d'abord) remet les documents déjà écrits dans l'état d'avant |
+| `Écriture faite, mais le journal n'a pas pu être complété…` (champ `auditIncomplet`) | Les données sont écrites, mais la ligne d'audit est restée « en_cours » | Rien à défaire. `lire_audit` avec `incompletes: true` montre ces lignes ; elles restent restaurables |
+| `Les copies « avant » de cette opération n'existent plus (gardées 90 jours)` | La restauration est demandée trop tard | Passer par une sauvegarde (copie Google, étape 5) |
+| `N document(s) ont changé depuis cette opération : rien n'a été restauré` | Quelqu'un a modifié depuis ; la restauration n'écrase pas | Lire l'aperçu ; si l'écrasement est voulu, `forcer: true` |
+| `PERMISSION_DENIED` à l'écriture alors que la lecture marche | Rôle « Utilisateur Cloud Datastore » retiré ou compte d'exécution changé | Voir la ligne `PERMISSION_DENIED` plus haut |
+| Une fiche a un contenu inattendu après le passage d'un agent | Un agent a écrit autre chose que prévu | `lire_audit` (par `acteur` ou `docId`), puis `restaurer_depuis_audit` |
+
+**Défaire une écriture, pas à pas** : 1) `lire_audit` avec `acteur`, `docId` ou `depuis` pour retrouver la ligne ; 2) noter son `operationId` ; 3) `restaurer_depuis_audit` avec cet `operationId` (aperçu) ; 4) relire l'aperçu : chaque ligne dit `supprimer`, `remplacer`, `recreer`, `rien` ou `conflit` ; 5) relancer avec `apercu: false`. Une restauration laisse sa propre trace et peut elle-même être restaurée.
 
 ### Côté clients
 
@@ -139,6 +163,7 @@ Procédure de mise à jour : changer **une** version à la fois sur une branche,
 - https://myaccount.google.com/permissions : seules les applications attendues ont accès.
 - Dates à surveiller : **19/10/2026** (`ubuntu-latest` passe à Ubuntu 26), **fin de support des actions GitHub sur Node 20**, **2028** (Node 22 chez Google).
 - Un test de restauration (étape 5 et suivantes) : une copie récente se restaure-t-elle ?
+- Journal (étape 4) : `lire_audit` avec `incompletes: true` (lignes restées « en_cours »), et le nombre de lignes `echec` récentes ; la stratégie TTL de `crm_audit_avant` est-elle toujours active (console Firestore → Time-to-live) ? Les règles publiées sont-elles toujours celles de `firestore.rules` ?
 
 ## 9. Journal des incidents et constats
 
