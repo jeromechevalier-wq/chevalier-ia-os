@@ -187,10 +187,18 @@ describe('Lecture seule (garantie)', () => {
       assert.doesNotMatch(readFileSync(join(RACINE, f), 'utf8'), /\.(set|update|delete|add|create)\(|batch\(|runTransaction|FieldValue|serverTimestamp/, f);
     }
   });
-  test('l’interface d’accès aux données ne propose que lire (liste, document)', () => {
-    assert.deepEqual(Object.keys(donnees).sort(), ['document', 'liste']);
+  test('la couche de lecture n’appelle jamais les méthodes d’écriture de l’accès aux données ; seuls le moteur, la restauration et les limites y ont droit', () => {
+    for (const f of ['functions/src/coeur/lecture.js', 'functions/src/mcp/outils/lecture.js', 'functions/src/mcp/outils/identite.js']) {
+      assert.doesNotMatch(readFileSync(join(RACINE, f), 'utf8'), /\b(appliquer|mettreAJour|nouvelId)\b/, f);
+    }
+    const dossier = join(RACINE, 'functions/src');
+    const parcourir = (d) => readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? parcourir(join(d, e.name)) : [join(d, e.name)]));
+    const autorises = ['coeur/donnees.js', 'coeur/ecriture.js', 'coeur/restaurer.js', 'securite/limites.js'];
+    for (const f of parcourir(dossier).filter((x) => /\.appliquer\(|\.mettreAJour\(|\.nouvelId\(/.test(readFileSync(x, 'utf8')))) {
+      assert.ok(autorises.some((a) => f.endsWith(a)), `écriture hors du moteur : ${f}`);
+    }
   });
-  test('tous les outils de lecture sont ouverts aux trois profils ; aucun outil d’écriture n’est encore enregistré', () => {
+  test('tous les outils de lecture sont ouverts aux trois profils', () => {
     const noms = OUTILS.map((o) => o.nom).sort();
     assert.deepEqual(noms, ['chercher', 'lire_affaire', 'lire_audit', 'lire_organisation', 'lire_personne', 'lire_reglages', 'lister_activites', 'lister_affaires', 'lister_documents', 'qui_suis_je']);
     for (const o of OUTILS) assert.deepEqual(o.profils, ['lecteur', 'bibliothecaire', 'claude-code'], o.nom);

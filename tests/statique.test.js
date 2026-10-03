@@ -313,9 +313,9 @@ describe('D5 Serveur MCP (étape 2) : déploiement, versions figées, sécurité
     assert.equal(fb.functions[0].ignore, undefined, 'liste d’exclusion par défaut de l’outil (node_modules, .git) : functions/partage/ est bien envoyé au déploiement');
     assert.doesNotMatch(lire('scripts/preparer-fonctions.js'), /^import .* from '(?!node:)/m);
   });
-  test('D5 étape 3 : les tests des fonctions préparent la copie, puis lancent jetons, protocole, lecture et Firestore (émulateur)', () => {
+  test('D5 étapes 3 et 4 : les tests des fonctions préparent la copie, puis lancent jetons, protocole, lecture, écriture avec audit et Firestore (émulateur)', () => {
     const scripts = json('tests/package.json').scripts;
-    assert.match(scripts['test:fonctions'], /^npm run preparer && node --test .*jetons\.test\.js.*mcp\.test\.js.*lecture\.test\.js.*lecture-firestore\.test\.js/);
+    assert.match(scripts['test:fonctions'], /^npm run preparer && node --test .*jetons\.test\.js.*mcp\.test\.js.*lecture\.test\.js.*lecture-firestore\.test\.js.*ecriture\.test\.js.*ecriture-firestore\.test\.js/);
     assert.match(scripts.tous, /test:fonctions/);
   });
   test('D5 outils/creer-jeton.js existe et ne contient aucun jeton', () => {
