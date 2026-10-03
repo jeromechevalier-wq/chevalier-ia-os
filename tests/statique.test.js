@@ -267,11 +267,17 @@ describe('D5 Serveur MCP (étape 2) : déploiement, versions figées, sécurité
     const yml = lire('.github/workflows/firebase-hosting.yml');
     assert.match(yml, /node-version: 22/);
     assert.match(yml, /npm ci --prefix functions/);
-    assert.match(yml, /firebase-tools@15\.32\.0 deploy --only functions --project chevalier-ia-os --non-interactive/);
+    assert.match(yml, /firebase-tools@15\.32\.0 deploy --only functions --project chevalier-ia-os --non-interactive --force/);
     assert.ok(yml.indexOf('deploy --only functions') < yml.indexOf('FirebaseExtended/action-hosting-deploy@v0'), 'fonctions avant Hosting');
     assert.match(yml, /GOOGLE_APPLICATION_CREDENTIALS/);
     assert.match(yml, /trap 'rm -f "\$fichier"' EXIT/);
     assert.match(yml, /umask 077/);
+  });
+  test('D5 workflow : le secret du compte de service n’est jamais affiché ; seule l’adresse du compte l’est (diagnostic)', () => {
+    const yml = lire('.github/workflows/firebase-hosting.yml');
+    assert.match(yml, /JSON\.parse\(process\.env\.COMPTE_DE_SERVICE\)\.client_email/);
+    assert.doesNotMatch(yml, /(echo|cat|printenv|console\.log\([^)]*)\s*[^\n]*\$\{\{\s*secrets\./);
+    assert.doesNotMatch(yml, /private_key/);
   });
   test('D5 le jeton n’est jamais lu ailleurs que dans l’en-tête Authorization (ni adresse, ni corps) et seules des empreintes sont comparées', () => {
     const g = lire('functions/src/mcp/gestionnaire.js');
@@ -287,6 +293,10 @@ describe('D5 Serveur MCP (étape 2) : déploiement, versions figées, sécurité
   });
   test('D5 le code des fonctions ne référence pas l’ancienne collection crm_prospects', () => {
     for (const f of fichiersFonctions()) assert.doesNotMatch(lire(f), /crm_prospects/, f);
+  });
+  test('D5 le guide sécurité et pannes existe et couvre les interrupteurs d’urgence, les secrets et les versions figées', () => {
+    const t = lire('docs/securite-et-pannes.md');
+    for (const mot of ["Interrupteurs d'urgence", 'Où sont les secrets', 'Versions figées', 'MCP_JETONS', 'porte dérobée', 'Contrôle trimestriel']) assert.ok(t.includes(mot), mot);
   });
   test('D5 outils/creer-jeton.js existe et ne contient aucun jeton', () => {
     assert.ok(existsSync(join(RACINE, 'outils/creer-jeton.js')));

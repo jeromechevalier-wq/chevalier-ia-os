@@ -24,13 +24,16 @@ Sans cela, Google refuse de déployer des fonctions. Page : https://console.clou
 ### 1. Budget de 5 € avec trois alertes
 Console → Facturation → **Budgets et alertes** : https://console.cloud.google.com/billing/budgets (compte « Paiement de Firebase » ; **ne modifie pas** le budget existant d'un autre projet). **Créer un budget** (dans « Projets », coche **seulement** `chevalier-ia-os`) : nom `Chevalier IA OS`, projet `chevalier-ia-os`, montant 5 €, seuils 50 %, 90 % et 100 %, e-mails vers `jerome.chevalier@gmail.com`. Une alerte ne coupe rien : elle prévient seulement.
 
-### 2. Activer cinq API (gratuites tant qu'on ne s'en sert pas)
+### 2. Activer huit API (gratuites tant qu'on ne s'en sert pas)
 Ouvre chaque lien (projet `chevalier-ia-os`) et clique sur **Activer** (si tu vois « Gérer », c'est déjà fait) :
 - Cloud Functions : https://console.cloud.google.com/apis/library/cloudfunctions.googleapis.com?project=chevalier-ia-os
 - Cloud Run : https://console.cloud.google.com/apis/library/run.googleapis.com?project=chevalier-ia-os
 - Cloud Build : https://console.cloud.google.com/apis/library/cloudbuild.googleapis.com?project=chevalier-ia-os
 - Artifact Registry : https://console.cloud.google.com/apis/library/artifactregistry.googleapis.com?project=chevalier-ia-os
 - Secret Manager : https://console.cloud.google.com/apis/library/secretmanager.googleapis.com?project=chevalier-ia-os
+- Eventarc (le déploiement l'exige, même pour une fonction HTTP ; trouvé au premier déploiement, 02/10/2026) : https://console.cloud.google.com/apis/library/eventarc.googleapis.com?project=chevalier-ia-os
+- Cloud Billing (l'outil de déploiement vérifie que la facturation est active ; trouvée au troisième déploiement, 03/10/2026) : https://console.cloud.google.com/apis/library/cloudbilling.googleapis.com?project=chevalier-ia-os
+- Firebase Extensions (réclamée par l'outil de déploiement ; sans gravité si elle manque) : https://console.cloud.google.com/apis/library/firebaseextensions.googleapis.com?project=chevalier-ia-os
 
 ### 3. Créer ton premier jeton et le secret `MCP_JETONS`
 1. Sur ton Mac, deux façons équivalentes : soit dans le dossier du dépôt (branche `mcp` à jour) `node outils/creer-jeton.js claude-code-jerome claude-code`, soit **sans le dépôt**, la commande d'une ligne `node -e '…'` que Claude donne dans la conversation (même jeton, même ligne). Le terminal affiche **une fois** le jeton (`cia_…`) et une ligne JSON. **Range le jeton tout de suite** (gestionnaire de mots de passe) ; il n'est enregistré nulle part ailleurs. Ne le colle jamais dans un fichier du dossier synchronisé avec Drive, ni dans une conversation.
@@ -40,7 +43,7 @@ Pour ajouter un client plus tard : relancer `creer-jeton.js`, puis ajouter la no
 
 ### 4. Rôles du compte de service du déploiement (un à la fois)
 Le compte `…@chevalier-ia-os.iam.gserviceaccount.com` créé pour GitHub (celui du secret GitHub `FIREBASE_SERVICE_ACCOUNT_CHEVALIER_IA_OS`) doit pouvoir déployer des fonctions. Console → IAM : https://console.cloud.google.com/iam-admin/iam?project=chevalier-ia-os → crayon sur sa ligne → **Ajouter un autre rôle**. Rôles probables, **à ajouter un par un seulement quand le déploiement les réclame** (le message d'erreur du déploiement nomme le rôle manquant ; je te le donnerai) :
-1. Administrateur Cloud Functions ;
+1. Administrateur Cloud Functions (**indispensable** : le rôle « Développeur » ne permet pas de rendre la fonction publique ; confirmé au déploiement du 03/10/2026) ;
 2. Utilisateur du compte de service (idéalement sur le seul compte d'exécution) ;
 3. Administrateur Cloud Run (rendre le service public) ;
 4. Rédacteur Artifact Registry (et accès au bucket de sources) selon les messages.
@@ -60,10 +63,12 @@ curl -s -X POST https://chevalier-ia-os.web.app/mcp \
 
 Résultat attendu : une réponse JSON contenant `claude-code-jerome`, le profil `claude-code` et la liste `["qui_suis_je"]`. Sans l'en-tête `Authorization` (ou avec un jeton faux) : `{"error":"non_autorise"}`. Avec `-X GET` : `{"error":"methode_refusee"}`.
 
+Sécurité, pannes, interrupteurs d'urgence : voir `securite-et-pannes.md` (à relire en cas de problème).
+
 ## Ce que j'ai vérifié, et ce que je n'ai pas pu vérifier
 
 Vérifié (dans ma session, sans Google) : les tests (jetons, protocole avec un vrai client MCP, droits par profil, journaux sans secret) et le chargement de la fonction `mcp` (région Paris) dans l'émulateur Firebase 15.32.0, où elle répond 405 à un `GET` et **refuse tout (503)** quand le secret est introuvable.
 **Non vérifié** (je n'ai pas accès à ton projet Google) : le déploiement réel, la liste exacte des rôles, la réécriture Hosting vers un service Cloud Run à Paris (forme documentée pour Cloud Run ; repli prévu : adresse directe de la fonction), le compte d'exécution exact, l'accès à Secret Manager.
 
 ## Retour arrière
-Revert de la PR (`git revert -m 1 <commit de fusion>`) puis suppression du service `mcp` dans Cloud Run (le déploiement ne supprime pas de lui-même une fonction retirée du code) : https://console.cloud.google.com/run?project=chevalier-ia-os. Coupure d'urgence sans rien déployer : désactiver la version du secret `MCP_JETONS` (tout est alors refusé) ou retirer l'invocation publique du service dans Cloud Run.
+Revert de la PR (`git revert -m 1 <commit de fusion>`) puis vérification que le service `mcp` a disparu de Cloud Run (le déploiement avec `--force` supprime une fonction retirée du code ; sinon la supprimer à la main) : https://console.cloud.google.com/run?project=chevalier-ia-os. Coupure d'urgence sans rien déployer : désactiver la version du secret `MCP_JETONS` (tout est alors refusé) ou retirer l'invocation publique du service dans Cloud Run.

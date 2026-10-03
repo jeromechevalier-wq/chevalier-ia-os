@@ -64,7 +64,7 @@ Ajouter un module : créer `js/modules/<nom>/index.js` (fonctions `demarrer`, `a
 
 ## Outils hors site (`outils/`)
 
-Scripts lancés à la main sur le Mac, jamais publiés avec le site (exclus par `firebase.json`) : `autoriser-drive.js` et `prototype-drive.js` (prototype Google Drive du chantier MCP, voir `docs/prototype-drive.md` et `docs/plan-mcp.md`) et `creer-jeton.js` (jeton d'un client MCP, voir `docs/mcp-etape-2.md`). Ils n'ont aucune dépendance (Node 22) et gardent leurs secrets dans `~/.config/chevalier-ia-os/`, jamais dans le dépôt.
+Scripts lancés à la main sur le Mac, jamais publiés avec le site (exclus par `firebase.json`) : `autoriser-drive.js` et `prototype-drive.js` (prototype Google Drive du chantier MCP, voir `docs/prototype-drive.md` et `docs/plan-mcp.md`) et `creer-jeton.js` (jeton d'un client MCP, voir `docs/mcp-etape-2.md` ; sécurité et pannes : `docs/securite-et-pannes.md`). Ils n'ont aucune dépendance (Node 22) et gardent leurs secrets dans `~/.config/chevalier-ia-os/`, jamais dans le dépôt.
 
 ## Raccourcis clavier (ordinateur)
 
