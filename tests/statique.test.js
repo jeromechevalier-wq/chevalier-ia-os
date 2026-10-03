@@ -258,6 +258,11 @@ describe('D5 Serveur MCP (étape 2) : déploiement, versions figées, sécurité
     assert.match(t, /invoker: 'public'/);
     assert.match(t, /cors: false/);
   });
+  test('D5 la fonction tourne avec un compte de service dédié, jamais avec le compte par défaut du projet', () => {
+    const t = lire('functions/src/index.js');
+    assert.match(t, /serviceAccount: 'mcp-serveur@chevalier-ia-os\.iam\.gserviceaccount\.com'/);
+    assert.doesNotMatch(t, /compute@developer|appspot\.gserviceaccount/);
+  });
   test('D5 /mcp est réécrit vers le service Cloud Run « mcp » de Paris, et functions/ n’est pas publié', () => {
     assert.deepEqual(fb.hosting.rewrites, [{ source: '/mcp', run: { serviceId: 'mcp', region: 'europe-west9' } }]);
     assert.ok(fb.hosting.ignore.includes('functions/**'));
