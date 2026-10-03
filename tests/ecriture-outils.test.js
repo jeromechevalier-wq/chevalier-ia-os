@@ -265,6 +265,23 @@ describe('Création et modification (tests 9 et 11)', () => {
     assert.deepEqual(s.doc('crm_affaires', 'a1').documents.map((d) => d.libelle), ['Contrat']);
   });
 
+  test('adresse GitHub et dossier Drive d’une affaire : créés et modifiés par les outils, adresses invalides refusées, chaîne vide = effacer', async () => {
+    const s = await demarrer();
+    const avant = s.vue();
+    refuse(await s.appeler('biblio', 'creer_affaire', { titre: 'X', urlGithub: 'http://exemple.test/depot' }), /https:\/\/github\.com\//);
+    refuse(await s.appeler('biblio', 'creer_affaire', { titre: 'X', urlDossier: 'https://exemple.test/dossier' }), /dossier Google Drive/);
+    assert.deepEqual(s.vue(), avant);
+    const r = ok(await s.appeler('biblio', 'creer_affaire', { titre: 'Avec adresses', urlGithub: 'https://github.com/jeromechevalier-wq/essai', urlDossier: 'https://drive.google.com/drive/folders/abc123_-X' }));
+    assert.equal(s.doc('crm_affaires', r.id).urlGithub, 'https://github.com/jeromechevalier-wq/essai');
+    assert.equal(s.doc('crm_affaires', r.id).urlDossier, 'https://drive.google.com/drive/folders/abc123_-X');
+    refuse(await s.appeler('biblio', 'modifier_affaire', { id: r.id, urlGithub: 'github.com/pas-https/x' }), /https:\/\/github\.com\//);
+    ok(await s.appeler('biblio', 'modifier_affaire', { id: 'a1', urlGithub: 'https://github.com/jeromechevalier-wq/autre' }));
+    assert.equal(s.doc('crm_affaires', 'a1').urlGithub, 'https://github.com/jeromechevalier-wq/autre');
+    assert.equal(ok(await s.appeler('biblio', 'lire_affaire', { id: 'a1' })).affaire.urlGithub, 'https://github.com/jeromechevalier-wq/autre', 'la lecture renvoie le champ');
+    ok(await s.appeler('biblio', 'modifier_affaire', { id: 'a1', urlGithub: '' }));
+    assert.equal(s.doc('crm_affaires', 'a1').urlGithub, '');
+  });
+
   test('l’appel à un outil avec des arguments invalides ne laisse aucune trace ni aucune donnée', async () => {
     const s = await demarrer();
     const avant = s.vue();

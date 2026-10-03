@@ -13,6 +13,8 @@ const etiquettes = z.array(z.string().max(80)).max(30).describe('Identifiants d�
 const proprietaire = z.string().max(120).optional().describe(`Propriétaire de la fiche créée (défaut : ${metier.PROPRIETAIRE_PAR_DEFAUT}).`);
 const forcer = z.boolean().optional().describe('true : créer malgré un doublon possible (nom ou e-mail déjà connu), après avoir vérifié que c’est une autre fiche.');
 const texteCourt = z.string().max(300);
+const urlGithub = z.string().max(500).optional().describe('Adresse du dépôt GitHub de l’affaire (https://github.com/compte/nom) ; chaîne vide pour l’effacer.');
+const urlDossier = z.string().max(500).optional().describe('Adresse du dossier Google Drive de travail (https://drive.google.com/drive/folders/…) ; chaîne vide pour l’effacer.');
 
 const outil = (nom, description, schema, action, profils = PROFILS) => ({
   nom, profils, description, schema, executer: ({ args, ...c }) => action(c, args),
@@ -42,13 +44,13 @@ export const OUTILS_ECRITURE = [
   outil('creer_affaire', `Crée une affaire avec son événement. Le titre par défaut est le nom de l'organisation, sinon de la personne ; l'organisation de la personne est reprise si aucune n'est donnée. Étape (défaut premier_contact) parmi : ${L.ETAPES.map((e) => e.id).join(', ')}. Priorité : ${L.PRIORITES.map((p) => p.id).join(', ')}.`, {
     titre: z.string().max(300).optional(), personneId: id.optional(), organisationId: id.optional(), etape: z.string().max(60).optional(), priorite: z.string().max(40).optional(),
     montant: z.number().min(0).max(1e9).nullable().optional().describe('Montant en euros.'), offreId: id.optional(), dureeJours: z.number().int().min(0).max(36500).nullable().optional(),
-    source: texteCourt.optional(), besoin: z.string().max(5000).optional(), proprietaire,
+    source: texteCourt.optional(), besoin: z.string().max(5000).optional(), urlGithub, urlDossier, proprietaire,
   }, metier.creerAffaire),
 
-  outil('modifier_affaire', "Modifie des champs d'une affaire : titre, personneId et organisationId (null pour détacher), montant, priorite, offreId, dureeJours, source, besoin, archive. Pour l'étape ou le statut, utiliser changer_etape, marquer_perdue, mettre_en_pause, rouvrir_affaire.", {
+  outil('modifier_affaire', "Modifie des champs d'une affaire : titre, personneId et organisationId (null pour détacher), montant, priorite, offreId, dureeJours, source, besoin, urlGithub, urlDossier, archive. Pour l'étape ou le statut, utiliser changer_etape, marquer_perdue, mettre_en_pause, rouvrir_affaire.", {
     id, titre: z.string().min(1).max(300).optional(), personneId: id.nullable().optional(), organisationId: id.nullable().optional(), montant: z.number().min(0).max(1e9).nullable().optional(),
     priorite: z.string().max(40).optional(), offreId: id.nullable().optional(), dureeJours: z.number().int().min(0).max(36500).nullable().optional(), source: texteCourt.optional(),
-    besoin: z.string().max(5000).optional(), archive: z.boolean().optional(),
+    besoin: z.string().max(5000).optional(), urlGithub, urlDossier, archive: z.boolean().optional(),
   }, metier.modifierAffaire),
 
   outil('changer_etape', "Change l'étape d'une affaire comme l'écran : statut, dates d'étapes, événements du fil ; « facture_payee » archive l'affaire et enregistre l'encaissement (montantEncaisse, sinon le montant de l'affaire). Renvoie la suggestion d'activité de suivi (non créée : à créer avec creer_activite si pertinent).", {

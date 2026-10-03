@@ -39,6 +39,10 @@ Cahier des charges détaillé : `cahier-mcp.md` (brouillon du 02/10/2026). **Pla
 - **À étudier** : migration des fiches Notion existantes (l'import CSV est hors périmètre de la 2.0).
 - **Décidé** : tous les droits pour les agents, suppression comprise, avec un journal d'audit (collection `crm_audit`, copie de l'état avant chaque modification) pour tout tracer et pouvoir restaurer. L'agent bibliothécaire fait aussi les sauvegardes. **Précision du 02/10/2026** : la suppression et la restauration sont réservées au jeton de Claude Code ; le jeton du bibliothécaire ne les a pas (voir les décisions ci-dessus).
 
+## Version 2.0.1 : adresse GitHub et dossier de travail d'une affaire (reprise le 03/10/2026)
+
+La fonction écrite dans la branche `mcp` (commit de code `24a8e96`) est **reprise sur une branche neuve à partir de `main`** (`mcp-lanceurs-github`), sans toucher à `mcp` : deux champs sur la fiche d'une affaire, **Adresse GitHub** (doit être `https://github.com/compte/nom`) et **Dossier** (dossier Google Drive), chacun avec un bouton « Créer le GitHub » / « Créer le répertoire » qui ouvre une fenêtre avec un **prompt à copier dans Claude Code** ; réglages « GitHub et dossiers de projets » ; version **2.0.1**. Les outils MCP `creer_affaire` et `modifier_affaire` acceptent aussi `urlGithub` et `urlDossier` (mêmes validations ; chaîne vide = effacer), et les outils de lecture les renvoient. Documents repris de `mcp` : `convention-dossiers.md` et `modele-prompt-creation-dossier.md`. **Restent dans la branche `mcp`, non repris** : le cadrage de l'écran Projets (`cadrage-projets.md`), la fiche compagnon des documents (`modele-fiche-document.md`) et les notes de vision. Toujours à valider en réel dans l'appli par Jérôme après fusion.
+
 ## Version 2.1
 
 ### Déjà prévu
