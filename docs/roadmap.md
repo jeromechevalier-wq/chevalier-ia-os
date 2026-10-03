@@ -64,6 +64,10 @@ Cahier des charges détaillé : `cahier-mcp.md` (brouillon du 02/10/2026). **Pla
 ### Adresse GitHub sur les affaires et les projets
 - **Décidé le 03/10/2026** : un champ **`urlGithub`** (adresse du dépôt, d'une demande de fusion ou d'un ticket) sur **chaque affaire** et **chaque projet**. Facultatif, texte, doit être une adresse `https://github.com/…` (sinon refus avec message), affiché en lien dans la section Détails de la fiche (« + Ajouter » quand il est vide), exposé aux outils MCP (`modifier_affaire`, lecture des fiches) et repris dans la fiche compagnon des documents (`modele-fiche-document.md`). Pas de migration : les affaires existantes ont le champ vide. **Pas encore dans le code** : à livrer avec la prochaine version de l'appli.
 
+### Rangement des dossiers de travail
+- **Décidé le 03/10/2026 (principe)** : un seul niveau dans `Projets/`, cinq préfixes (`client-`, `produit-`, `site-`, `interne-`, `perso-`), un dossier seulement s'il a une fiche dans l'OS. Page de référence et plan de renommage : `convention-dossiers.md`. Rien n'est encore renommé.
+- **À trancher** : champ `urlDossier` (lien vers le dossier Drive de l'affaire ou du projet), voisin de `urlGithub`.
+
 ### Plusieurs personnes par affaire
 - **Piste** : en 2.0, une affaire ne porte qu'un `personneId`. Liste de personnes liées, avec une personne principale.
 
