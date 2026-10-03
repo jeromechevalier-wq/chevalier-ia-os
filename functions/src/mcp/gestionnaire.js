@@ -8,6 +8,7 @@ import { ErreurLimite, limitesDuJeton } from '../securite/limites.js';
 import { executerEcritures, ErreurEcriture } from '../coeur/ecriture.js';
 import { restaurerOperation } from '../coeur/restaurer.js';
 import { OUTILS, outilsAutorises } from './outils/index.js';
+import { VERSION_SERVEUR } from '../version.js';
 
 // Les clients MCP (Hermes, Claude Code) n'envoient pas d'en-tête Origin. Un navigateur, si : on n'accepte que l'appli.
 export const ORIGINES_AUTORISEES = ['https://chevalier-ia-os.web.app', 'https://chevalier-ia-os.firebaseapp.com'];
@@ -67,7 +68,7 @@ export function creerGestionnaire({ magasin, donnees, limiteur = null, outils = 
     }
 
     const permis = outilsAutorises(jeton.profil, outils);
-    const serveur = new McpServer({ name: 'chevalier-ia-os', version: '0.1.0' });
+    const serveur = new McpServer({ name: 'chevalier-ia-os', version: VERSION_SERVEUR });
     // Contexte d'écriture de CET appel : acteur du jeton, canal « mcp », heure du serveur. Les plafonds d'écriture sont réservés ici, juste avant d'écrire.
     const ctxEcriture = { acteur: jeton.acteur, jeton: jeton.jeton, via: 'mcp', maintenant: new Date(maintenant()) };
     const ecrire = async ({ operations, parametres, suppression = false, outil }) => {

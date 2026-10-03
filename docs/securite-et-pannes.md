@@ -132,7 +132,7 @@ Ces messages arrivent comme **erreur d'outil** (réponse 200 avec `isError`), ja
 | Symptôme | Causes probables | Réparation |
 |---|---|---|
 | **Claude Code** ne voit plus le serveur | Mise à jour de Claude Code qui change la syntaxe `claude mcp add` ; jeton absent de la variable d'environnement | Relancer `claude mcp list` ; vérifier la variable `CHEVALIER_MCP_TOKEN` ; tester d'abord avec `curl` (voir `mcp-etape-2.md`, point 5) : si `curl` marche, le serveur est sain et le problème est côté client |
-| **Hermes** ne se connecte plus | Mise à jour de Hermes (format de `config.yaml`, nom des outils) ; jeton absent du fichier d'environnement du VPS | Même test `curl` depuis le VPS ; relever `hermes --version` ; comparer avec `docs/branchement-mcp.md` **[prévu]** étape 6 |
+| **Hermes** ne se connecte plus | Mise à jour de Hermes (format de `config.yaml`, nom des outils) ; jeton absent du fichier d'environnement du VPS | Même test `curl` depuis le VPS ; relever `hermes --version` ; comparer avec `docs/branchement-mcp.md` (Claude Code **validé** le 03/10/2026 ; Hermes en brouillon) |
 | `curl` marche depuis le Mac mais pas depuis le VPS | Pare-feu du VPS, DNS, heure du VPS | Tester `curl -I https://chevalier-ia-os.web.app` depuis le VPS |
 
 **Méthode en trois questions** quand « ça ne marche plus » :
