@@ -27,7 +27,7 @@ Le plan plaçait ici l'**extraction des enchaînements d'écriture de `donnees.j
 
 ## Ce que tu fais
 
-1. **Rien dans la console Google** : la fonction lit Firestore avec le compte d'exécution (« Default compute service account »), qui a déjà accès à la base par son rôle « Éditeur » sur le projet. *(Ce droit est large : voir `securite-et-pannes.md`, section 2 ; un compte dédié avec le seul droit Firestore est une amélioration prévue.)*
+1. **Rien dans la console Google** pour cette étape. *(Depuis le 03/10/2026, la fonction tourne avec le compte dédié `mcp-serveur`, qui a le droit « Utilisateur Cloud Datastore » : voir `securite-et-pannes.md`.)*
 2. **Sur ton Mac**, dans le dossier du dépôt : `git fetch origin`, `git checkout mcp-etape-3`, `git pull`, puis `cd tests && npm install && npm run installer-fonctions && npm test` (comme dans le README). Tout doit passer. *(Si tu fusionnes sans l'avoir fait, le risque est faible : cette étape ne touche pas l'appli.)*
 3. **Fusionner la PR.** Le déploiement dure environ 1 à 3 minutes.
 4. **Essai avec `curl`** (ton jeton est dans la variable `CHEVALIER_MCP_TOKEN`, voir `mcp-etape-2.md`) :
@@ -40,6 +40,10 @@ curl -s -X POST https://chevalier-ia-os.web.app/mcp \
 ```
 
 Résultat attendu : tes vraies affaires (titre, étape, statut, personne, organisation). `tools/list` (à la place de `tools/call`, sans `params`) donne les 9 outils. Un problème de droit Firestore se verrait comme une erreur d'outil (`PERMISSION_DENIED`) : voir `securite-et-pannes.md`.
+
+## Résultat (03/10/2026)
+
+Validée en réel par Jérôme : `lister_affaires` renvoie ses vraies affaires (titre, étape, statut, personne, organisation résolus) et `tools/list` liste les outils, d'abord avec le compte par défaut, puis avec le compte dédié `mcp-serveur`. Suite complète exécutée avant la fusion : règles 112, statiques 37, jetons, MCP et lecture 49, parcours navigateur 98 sur 98.
 
 ## Ce qui a été vérifié
 
