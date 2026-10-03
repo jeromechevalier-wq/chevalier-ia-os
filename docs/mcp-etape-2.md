@@ -43,7 +43,7 @@ Pour ajouter un client plus tard : relancer `creer-jeton.js`, puis ajouter la no
 
 ### 4. Rôles du compte de service du déploiement (un à la fois)
 Le compte `…@chevalier-ia-os.iam.gserviceaccount.com` créé pour GitHub (celui du secret GitHub `FIREBASE_SERVICE_ACCOUNT_CHEVALIER_IA_OS`) doit pouvoir déployer des fonctions. Console → IAM : https://console.cloud.google.com/iam-admin/iam?project=chevalier-ia-os → crayon sur sa ligne → **Ajouter un autre rôle**. Rôles probables, **à ajouter un par un seulement quand le déploiement les réclame** (le message d'erreur du déploiement nomme le rôle manquant ; je te le donnerai) :
-1. Administrateur Cloud Functions ;
+1. Administrateur Cloud Functions (**indispensable** : le rôle « Développeur » ne permet pas de rendre la fonction publique ; confirmé au déploiement du 03/10/2026) ;
 2. Utilisateur du compte de service (idéalement sur le seul compte d'exécution) ;
 3. Administrateur Cloud Run (rendre le service public) ;
 4. Rédacteur Artifact Registry (et accès au bucket de sources) selon les messages.
