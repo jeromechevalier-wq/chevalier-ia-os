@@ -267,7 +267,7 @@ describe('D5 Serveur MCP (étape 2) : déploiement, versions figées, sécurité
     const yml = lire('.github/workflows/firebase-hosting.yml');
     assert.match(yml, /node-version: 22/);
     assert.match(yml, /npm ci --prefix functions/);
-    assert.match(yml, /firebase-tools@15\.32\.0 deploy --only functions --project chevalier-ia-os --non-interactive/);
+    assert.match(yml, /firebase-tools@15\.32\.0 deploy --only functions --project chevalier-ia-os --non-interactive --force/);
     assert.ok(yml.indexOf('deploy --only functions') < yml.indexOf('FirebaseExtended/action-hosting-deploy@v0'), 'fonctions avant Hosting');
     assert.match(yml, /GOOGLE_APPLICATION_CREDENTIALS/);
     assert.match(yml, /trap 'rm -f "\$fichier"' EXIT/);

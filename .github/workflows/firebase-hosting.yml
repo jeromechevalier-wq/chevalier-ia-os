@@ -23,6 +23,9 @@ jobs:
         # évite seulement que GitHub la masque par erreur dans le journal.
         run: |
           node -e 'try { console.log("Compte de déploiement :", JSON.parse(process.env.COMPTE_DE_SERVICE).client_email.replace("@", " arobase ")); } catch { console.log("Compte de déploiement : illisible"); }'
+      # --force : sans lui, en mode non interactif, l'outil échoue APRÈS avoir déployé la fonction parce qu'il ne peut pas proposer
+      # la règle de nettoyage des anciennes images (Artifact Registry). Effet à connaître : une fonction retirée du code est aussi
+      # supprimée chez Google au déploiement suivant.
       - name: Déployer les fonctions
         env:
           COMPTE_DE_SERVICE: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CHEVALIER_IA_OS }}
@@ -30,7 +33,7 @@ jobs:
           fichier="$RUNNER_TEMP/compte-de-service.json"
           (umask 077; printf '%s' "$COMPTE_DE_SERVICE" > "$fichier")
           trap 'rm -f "$fichier"' EXIT
-          GOOGLE_APPLICATION_CREDENTIALS="$fichier" npx --yes firebase-tools@15.32.0 deploy --only functions --project chevalier-ia-os --non-interactive
+          GOOGLE_APPLICATION_CREDENTIALS="$fichier" npx --yes firebase-tools@15.32.0 deploy --only functions --project chevalier-ia-os --non-interactive --force
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
