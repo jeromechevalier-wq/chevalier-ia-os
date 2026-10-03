@@ -4,7 +4,7 @@ import * as D from './donnees.js';
 import * as L from './logique.js';
 import {
   lienPersonne, lienOrganisation, sectionRepliable, champPropriete, selecteurPersonne, selecteurOrganisation, titreEditable, selectProprietaire, gabaritFiche,
-  lienRetour, saisieEnCours, pastilleStatut, fournisseurTexte, etatVide, planifier, cheminPersonne, cheminOrganisation,
+  lienRetour, saisieEnCours, pastilleStatut, fournisseurTexte, etatVide, planifier,
 } from './composants.js';
 import { panneauActivite } from './activites.js';
 import { changerEtapeAvecBoites, ouvrirPerdue, ouvrirPause, ouvrirEncaissement, demanderSuppressionAffaire } from './affaires.js';
@@ -66,13 +66,12 @@ export function rendreFicheAffaire(conteneur, id) {
       await D.majAffaire(a.id, { personneId: el.id, ...(nouveau?.organisationId && !a.organisationId ? { organisationId: nouveau.organisationId } : {}) });
     } });
     const selOrg = selecteurOrganisation({ valeurId: a.organisationId, surChoix: async (el) => { if (el && el.id !== a.organisationId) await D.majAffaire(a.id, { organisationId: el.id }); } });
-    const ouvrirFiche = (chemin, libelle) => h('a', { class: 'bouton-icone', href: chemin, title: libelle, 'aria-label': libelle, 'data-action': 'ouvrir-fiche' }, icone('external-link', { taille: 16 }));
     const offres = D.etat.offres.filter((x) => x.actif !== false || x.id === a.offreId);
     const resume = sectionRepliable({
       id: 'affaire-resume', titre: 'Résumé',
       contenu: h('div', { class: 'proprietes' },
-        h('div', { class: 'prop' }, h('span', { class: 'prop-libelle' }, 'Personne'), h('div', { class: 'prop-valeur' }, selPersonne.element, p ? ouvrirFiche(cheminPersonne(p.id), `Ouvrir la fiche de ${p.nom}`) : null)),
-        h('div', { class: 'prop' }, h('span', { class: 'prop-libelle' }, 'Organisation'), h('div', { class: 'prop-valeur' }, selOrg.element, o ? ouvrirFiche(cheminOrganisation(o.id), `Ouvrir la fiche de ${o.nom}`) : null)),
+        h('div', { class: 'prop' }, h('span', { class: 'prop-libelle' }, 'Personne'), h('div', { class: 'prop-valeur' }, selPersonne.element)),
+        h('div', { class: 'prop' }, h('span', { class: 'prop-libelle' }, 'Organisation'), h('div', { class: 'prop-valeur' }, selOrg.element)),
         champPropriete({ libelle: 'Offre', valeur: a.offreId || '', type: 'select', options: offres.map((x) => ({ valeur: x.id, libelle: x.nom })), surEnregistrer: (v) => D.majAffaire(a.id, { offreId: v || null }) }).element,
         champPropriete({ libelle: 'Priorité', valeur: a.priorite || 'tiede', type: 'select', options: L.PRIORITES.map((x) => ({ valeur: x.id, libelle: x.libelle })), surEnregistrer: (v) => D.majAffaire(a.id, { priorite: v || 'tiede' }) }).element,
         h('div', { class: 'prop' }, h('span', { class: 'prop-libelle' }, 'Statut'), h('div', { class: 'prop-valeur' }, pastilleStatut(a.statut), a.statut === 'perdue' ? h('span', { class: 'aide' }, ` ${a.raisonPerdue}${a.raisonPerdueDetail ? ` : ${a.raisonPerdueDetail}` : ''}`) : null, a.statut === 'en_pause' ? h('span', { class: 'aide' }, ` jusqu’au ${L.formatJour(a.dateReveil)}`) : null))),
