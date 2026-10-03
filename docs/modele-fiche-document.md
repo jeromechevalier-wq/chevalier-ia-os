@@ -53,6 +53,7 @@ Fichier de référence que le code remplit. Les parties `{…}` sont automatique
 - Organisation : {nom} · identifiant {organisationId} · {adresse de la fiche}
 - Personne : {nom} · identifiant {personneId} · {adresse de la fiche}
 - Projet : {titre} · identifiant {projetId} · {adresse de la fiche} (s'il existe)
+- Dépôt GitHub : {urlGithub de l'affaire ou du projet} (s'il est renseigné)
 
 ## Résumé
 
@@ -87,7 +88,8 @@ Question de Jérôme : sans crochets, perd-on l'information quand l'OS ou un age
 4. **Les noms restent écrits en clair** dans le résumé (« devis pour dépannage Carrel, Eliot ») : un agent comprend le contexte sans rien appeler.
 5. **L'index** reprend la même logique : titres de client et d'affaire cliquables vers l'appli.
 6. **Si le bibliothécaire copie un jour une fiche dans le vault** (compilation), les crochets deviennent légitimes **pour les cibles qui existent dans le vault** (une entité déjà fichée) et seulement celles-là, selon ta règle. Rien à faire maintenant.
-7. **Pendant la migration** (CRM à la fois dans Notion et dans l'OS) : une pièce ne se joint qu'à une affaire de l'OS, donc les identifiants sont ceux de l'OS. Une affaire encore seulement dans Notion doit d'abord être créée dans l'OS.
+7. **Pendant la migration** (CRM à la fois dans Notion et dans l'OS) : une pièce ne se joint qu'à une affaire **ou un projet** de l'OS, donc les identifiants sont ceux de l'OS. Une affaire encore seulement dans Notion doit d'abord être créée dans l'OS.
+8. **Pièces jointes d'un projet** (décidé le 03/10/2026) : un projet reçoit des pièces comme une affaire. La fiche porte alors `projetId` ; si le projet vient d'une affaire, elle porte aussi `affaireId` (celui de l'affaire d'origine), pour retrouver le devis signé depuis le livrable. Tant que l'écran Projets n'est pas construit (version 2.1), seules les affaires reçoivent des pièces.
 
 ## 4. Qui rédige le résumé (décidé le 03/10/2026 : au moment de l'attachement)
 
@@ -115,6 +117,7 @@ Catalogue des documents joints aux affaires, avec un résumé d'une ligne. Fichi
 ## [depannage Carrel](adresse de la fiche organisation) · Eliot
 
 ### [création appli devis dépannage](adresse de la fiche affaire)
+(les projets de ce client suivent, chacun avec son titre cliquable, sous le même titre de client)
 - [2026-10-02 - depannage Carrel - devis 008](lien du document) · devis · 2026-10-02 — {résumé d'une ligne}. [Fiche](lien du .md)
 ```
 

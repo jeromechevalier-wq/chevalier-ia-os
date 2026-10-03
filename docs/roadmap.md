@@ -43,7 +43,8 @@ Cahier des charges détaillé : `cahier-mcp.md` (brouillon du 02/10/2026). **Pla
 (voir `rapport-construction-v2.md`)
 
 ### Pièces jointes sur les affaires
-- **Décidé** : les pièces jointes se rattachent aux **affaires uniquement**, pas aux personnes ni aux organisations. Raison : rester simple ; dès qu'on travaille avec quelqu'un, il y a une affaire.
+- **Décidé** : les pièces jointes se rattachent aux **affaires**, pas aux personnes ni aux organisations. Raison : rester simple ; dès qu'on travaille avec quelqu'un, il y a une affaire.
+- **Décidé le 03/10/2026** : une pièce jointe se rattache **aussi à un projet** (même forme de données, même fiche compagnon, même index). Tant que l'écran Projets n'existe pas (version 2.1), seules les affaires en reçoivent ; les outils MCP de pièces jointes (`plan-mcp.md`, section 5.7) ont été pensés pour les affaires et prendront un `projetId` en alternative à `affaireId` quand Projets sera construit.
 - **À surveiller** : une interview JTBD d'une personne qui n'aura jamais d'affaire. Remède simple si le cas se présente : ouvrir une affaire au stade « Premier contact ». Le modèle par liens (`personneId`, `organisationId`, `affaireId`) permet d'ajouter les personnes plus tard sans refonte.
 - **Décidé** : deux modes qui coexistent.
   - **Par lien** : on colle le lien Drive d'un fichier rangé à la main (devis fait à la main dans le dossier `devis` d'un projet). Aucune autorisation Google. À faire en premier.
@@ -59,6 +60,9 @@ Cahier des charges détaillé : `cahier-mcp.md` (brouillon du 02/10/2026). **Pla
 - ~~**Piste** : jetons de courte durée, donc réautorisation de temps en temps sur le téléphone ; alternative : un relais n8n.~~ **Remplacée** par le jeton d'une heure remis par la fonction (décision du 02/10/2026) : aucune réautorisation sur le téléphone. Le consentement direct sur le téléphone reste le repli.
 - À faire par Jérôme : réglages Google Cloud (écran de consentement, identifiant OAuth, API Drive). À vérifier : en-têtes de `firebase.json`, sélecteur de fichiers de l'iPhone en appli installée.
 - À prévoir : gros fichiers (audio d'interview) ; dossier Drive strictement privé (enregistrements de personnes).
+
+### Adresse GitHub sur les affaires et les projets
+- **Décidé le 03/10/2026** : un champ **`urlGithub`** (adresse du dépôt, d'une demande de fusion ou d'un ticket) sur **chaque affaire** et **chaque projet**. Facultatif, texte, doit être une adresse `https://github.com/…` (sinon refus avec message), affiché en lien dans la section Détails de la fiche (« + Ajouter » quand il est vide), exposé aux outils MCP (`modifier_affaire`, lecture des fiches) et repris dans la fiche compagnon des documents (`modele-fiche-document.md`). Pas de migration : les affaires existantes ont le champ vide. **Pas encore dans le code** : à livrer avec la prochaine version de l'appli.
 
 ### Plusieurs personnes par affaire
 - **Piste** : en 2.0, une affaire ne porte qu'un `personneId`. Liste de personnes liées, avec une personne principale.

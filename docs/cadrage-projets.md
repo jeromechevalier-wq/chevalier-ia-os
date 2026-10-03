@@ -13,6 +13,8 @@ Rédigé le 03/10/2026 à partir du cahier 2.0, du code du module CRM, de la roa
 7. **Journal** : événements de projet dans `crm_evenements` (4.4).
 8. **Objectif mensuel et suggestions de phase** : aucun en 2.1 (3.10 et 5.8, interprétation à confirmer).
 9. **Calendrier** : Projets se construit **après** l'extraction de logique du chantier MCP (6.4).
+10. **Pièces jointes sur les projets** : un projet reçoit des pièces jointes comme une affaire (3.9). Le champ `documents` du projet a la même forme que celui de l'affaire.
+11. **Adresse GitHub** : champ facultatif `urlGithub` sur chaque affaire et chaque projet (4.1 et 4.5).
 
 ## 1. Pourquoi, et ce que ça change
 
@@ -101,6 +103,7 @@ C'est la décision la plus structurante. Aujourd'hui, Accueil et Points clés mo
 
 ### 3.9 Documents et dossier Drive
 
+- **Décidé le 03/10/2026** : un projet reçoit des **pièces jointes** exactement comme une affaire (même forme `{id, libelle, url, source, driveFileId, resume, ficheUrl, …}`, même fiche compagnon, même index à la racine du dossier Drive ; voir `modele-fiche-document.md`). Les outils MCP prendront `projetId` en alternative à `affaireId`.
 - **Repris** : les documents sont des **liens Drive** (libellé et URL), le dossier de travail par projet reste à la main. **Proposition** : même section « Documents » que sur l'affaire, avec le même code, sur la fiche projet.
 - **Proposition** : les documents de l'affaire d'origine sont **affichés en lecture** sur la fiche projet (le devis signé, par exemple), sans les copier.
 - Le téléversement Drive depuis le téléphone (chantier MCP, étape pièces jointes) viendra plus tard ; Projets s'en servira ensuite sans modification du modèle de données.
@@ -127,7 +130,8 @@ Conventions du cahier 2.0 (3.1) reprises telles quelles : identifiants automatiq
 | `modeleId` | Modèle d'origine | string ou null | non | pour information |
 | `offreId` | Offre | string ou null | non | reprise de l'affaire |
 | `dateEntreePhase`, `datesPhases` | | timestamp, map | auto | comme `dateEntreeEtape` et `datesEtapes` |
-| `documents` | Documents | liste de {libelle, url} | non | liens Drive |
+| `documents` | Documents | liste de pièces jointes | non | même forme que sur l'affaire (`modele-fiche-document.md`) |
+| `urlGithub` | Adresse GitHub | string | non | `https://github.com/…` ; refus d'une autre adresse ; lien dans Détails |
 | `archive` | | boolean | auto | faux par défaut |
 | `proprietaire`, `creeLe`, `modifieLe`, `creePar`, `modifiePar` | | | auto | comme les affaires |
 
@@ -145,7 +149,7 @@ Le journal du CRM (`crm_evenements`) porte `personneId`, `organisationId`, `affa
 
 ### 4.5 Champ ajouté sur l'affaire
 
-Aucune migration : `projetId` existe déjà. Le module Projets l'écrit à la création du projet et le vide à la suppression du projet.
+Aucune migration : `projetId` existe déjà. Le module Projets l'écrit à la création du projet et le vide à la suppression du projet. L'affaire gagne aussi le champ facultatif `urlGithub` (même règle que sur le projet) ; les affaires existantes l'ont vide.
 
 ## 5. Écrans
 
