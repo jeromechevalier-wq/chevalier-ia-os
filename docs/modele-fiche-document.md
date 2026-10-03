@@ -54,6 +54,7 @@ Fichier de référence que le code remplit. Les parties `{…}` sont automatique
 - Personne : {nom} · identifiant {personneId} · {adresse de la fiche}
 - Projet : {titre} · identifiant {projetId} · {adresse de la fiche} (s'il existe)
 - Dépôt GitHub : {urlGithub de l'affaire ou du projet} (s'il est renseigné)
+- Dossier de travail : {urlDossier de l'affaire ou du projet} (s'il est renseigné)
 
 ## Résumé
 

@@ -15,6 +15,7 @@ Rédigé le 03/10/2026 à partir du cahier 2.0, du code du module CRM, de la roa
 9. **Calendrier** : Projets se construit **après** l'extraction de logique du chantier MCP (6.4).
 10. **Pièces jointes sur les projets** : un projet reçoit des pièces jointes comme une affaire (3.9). Le champ `documents` du projet a la même forme que celui de l'affaire.
 11. **Adresse GitHub** : champ facultatif `urlGithub` sur chaque affaire et chaque projet (4.1 et 4.5).
+12. **Dossier de travail** : champ facultatif `urlDossier` (adresse du dossier Drive) sur chaque affaire et chaque projet, voisin de `urlGithub` (4.1 et 4.5). Convention de nommage des dossiers : `convention-dossiers.md`.
 
 ## 1. Pourquoi, et ce que ça change
 
@@ -132,6 +133,7 @@ Conventions du cahier 2.0 (3.1) reprises telles quelles : identifiants automatiq
 | `dateEntreePhase`, `datesPhases` | | timestamp, map | auto | comme `dateEntreeEtape` et `datesEtapes` |
 | `documents` | Documents | liste de pièces jointes | non | même forme que sur l'affaire (`modele-fiche-document.md`) |
 | `urlGithub` | Adresse GitHub | string | non | `https://github.com/…` ; refus d'une autre adresse ; lien dans Détails |
+| `urlDossier` | Dossier de travail | string | non | `https://drive.google.com/drive/folders/…` ; refus d'une autre adresse ; lien « Dossier » dans Détails. Un projet issu d'une affaire reprend celui de l'affaire si elle en a un |
 | `archive` | | boolean | auto | faux par défaut |
 | `proprietaire`, `creeLe`, `modifieLe`, `creePar`, `modifiePar` | | | auto | comme les affaires |
 
@@ -149,7 +151,7 @@ Le journal du CRM (`crm_evenements`) porte `personneId`, `organisationId`, `affa
 
 ### 4.5 Champ ajouté sur l'affaire
 
-Aucune migration : `projetId` existe déjà. Le module Projets l'écrit à la création du projet et le vide à la suppression du projet. L'affaire gagne aussi le champ facultatif `urlGithub` (même règle que sur le projet) ; les affaires existantes l'ont vide.
+Aucune migration : `projetId` existe déjà. Le module Projets l'écrit à la création du projet et le vide à la suppression du projet. L'affaire gagne aussi les champs facultatifs `urlGithub` et `urlDossier` (même règle que sur le projet) ; les affaires existantes l'ont vide.
 
 ## 5. Écrans
 

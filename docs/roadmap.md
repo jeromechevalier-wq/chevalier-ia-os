@@ -66,7 +66,7 @@ Cahier des charges détaillé : `cahier-mcp.md` (brouillon du 02/10/2026). **Pla
 
 ### Rangement des dossiers de travail
 - **Décidé le 03/10/2026 (principe)** : un seul niveau dans `Projets/`, cinq préfixes (`client-`, `produit-`, `site-`, `interne-`, `perso-`), un dossier seulement s'il a une fiche dans l'OS. Page de référence et plan de renommage : `convention-dossiers.md`. Rien n'est encore renommé.
-- **À trancher** : champ `urlDossier` (lien vers le dossier Drive de l'affaire ou du projet), voisin de `urlGithub`.
+- **Décidé le 03/10/2026** : champ **`urlDossier`** (lien vers le dossier Drive de travail de l'affaire ou du projet) sur **chaque affaire et chaque projet**, voisin de `urlGithub` et sur le même modèle : facultatif, texte, doit être une adresse de dossier Drive (`https://drive.google.com/drive/folders/…`), sinon refus avec message ; affiché en lien « Dossier » dans la section Détails (« + Ajouter » quand il est vide) ; exposé aux outils MCP ; repris dans la fiche compagnon des documents. Pas de migration. **Pas encore dans le code** : à livrer avec `urlGithub`, dans la prochaine version de l'appli.
 
 ### Plusieurs personnes par affaire
 - **Piste** : en 2.0, une affaire ne porte qu'un `personneId`. Liste de personnes liées, avec une personne principale.
