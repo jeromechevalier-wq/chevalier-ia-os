@@ -105,7 +105,7 @@ const apercu = await attendu('9. Restauration : aperçu (rien n\'est écrit)', a
 bon(`${apercu.aDefaire} document(s) à recréer : ${apercu.lignes.map((l) => `${l.collection} ${l.action}`).join(', ')}`);
 await refus('10. Toujours supprimée après l\'aperçu', appeler('lire_organisation', { id: organisationId }), /introuvable/);
 const fait = await attendu('11. Restauration : pour de vrai', appeler('restaurer_depuis_audit', { operationId: suppr.operationId, apercu: false }), (d) => (d.restauree === true ? null : `restauration inattendue : ${JSON.stringify(d).slice(0, 150)}`));
-bon(`restaurée : ${fait.ecritures} écriture(s), opération ${fait.operationRestauration}`);
+bon(`restaurée : ${fait.ecritures.length} écriture(s), opération ${fait.operationRestauration}`);
 await attendu('12. Revenue, avec le même identifiant', appeler('lire_organisation', { id: organisationId, avecFil: true }), (d) => {
   if (d.organisation?.nom !== NOM) return 'organisation absente ou autre nom';
   if (!d.fil?.some((e) => /Organisation créée/.test(e.texte ?? ''))) return 'son événement « Organisation créée » n’est pas revenu';

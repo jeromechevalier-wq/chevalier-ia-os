@@ -53,7 +53,7 @@ Un jeton par client (nom + profil + 256 bits) ; seules les empreintes SHA-256 da
 
 ## 5. Ce qui n'est pas encore validé (à vérifier sur la prochaine appli, ou aux étapes suivantes ici)
 
-Lecture de Firestore par la fonction : **validée en réel** (étape 3, avec le compte `mcp-serveur`). Écriture, audit, restauration et plafonds de débit : **code et émulateurs validés** (étape 4), validation en réel à consigner ici après la recette de `mcp-etape-4.md`. Drive côté serveur (étape 5), connexion réelle de Claude Code et de Hermes (étape 6 : syntaxe `claude mcp add`, configuration `mcp_servers`) : à venir.
+Lecture de Firestore par la fonction : **validée en réel** (étape 3, avec le compte `mcp-serveur`). Écriture, audit et restauration : **validés en réel** le 03/10/2026 (étape 4, script de recette de 15 vérifications). Plafonds de débit en charge réelle : non éprouvés. Drive côté serveur (étape 5), connexion réelle de Claude Code et de Hermes (étape 6 : syntaxe `claude mcp add`, configuration `mcp_servers`) : à venir.
 
 ## 6. Liste de contrôle « prêt à déployer »
 
@@ -76,4 +76,9 @@ Lecture de Firestore par la fonction : **validée en réel** (étape 3, avec le 
 - **Tests en parallèle sur un même émulateur** : `node --test fichier1 fichier2` lance les fichiers en parallèle ; un fichier qui vide la base fait échouer les autres. Donner à chaque fichier d'essai son propre identifiant de projet de démonstration (`demo-…`).
 - **Plafonds** : un compteur Firestore par jeton coûte une transaction par appel ; réserver cela aux limites rares (écritures par heure, suppressions par jour) et garder le débit par minute en mémoire de l'instance.
 - **Tester les outils de bout en bout, par le vrai protocole** : les tests du moteur seul ne montrent pas tout ; ici, un test d'outil a trouvé un `forcer: true` ignoré (la vérification de doublon s'exécutait toujours).
+- **Valider en réel avec un script, pas à la main** : un petit script de recette (`outils/essai-ecriture.mjs`) qui crée une fiche de test, vérifie les refus, supprime, restaure et nettoie, évite les erreurs de copier-coller et s'arrête sans rien écrire s'il n'est pas dans le bon état (mauvais profil, fiche de test déjà présente). Le jeton est lu dans une variable d'environnement, jamais affiché.
+- **Contrôler un secret sans le montrer** : `${#VARIABLE}` donne sa longueur (47 pour un jeton `cia_…`) ; une longueur inattendue révèle un mauvais champ copié.
+- **Règle TTL Firestore** : créée dans la console Google Cloud (Firestore, « Valeur TTL (Time to Live) »), mais seulement après la première écriture dans la collection, car la liste ne propose que les collections existantes.
+- **Où lire et modifier les règles** : la console Firebase (carte Firestore, onglet Règles) les modifie ; la console Google Cloud (Firestore, Sécurité) ne les affiche qu'en lecture seule, ce qui sert à vérifier le jeu actif.
+- **Session cloud ou session locale** : un assistant en session cloud ne voit ni le Mac, ni les secrets locaux ; tout ce qui demande le jeton se fait dans le Terminal du Mac.
 
