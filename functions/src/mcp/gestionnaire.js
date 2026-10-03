@@ -4,6 +4,9 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { extraireBearer, trouverJeton } from '../securite/jetons.js';
 import { journaliser } from '../securite/journaux.js';
+import { ErreurLimite, limitesDuJeton } from '../securite/limites.js';
+import { executerEcritures, ErreurEcriture } from '../coeur/ecriture.js';
+import { restaurerOperation } from '../coeur/restaurer.js';
 import { OUTILS, outilsAutorises } from './outils/index.js';
 
 // Les clients MCP (Hermes, Claude Code) n'envoient pas d'en-tête Origin. Un navigateur, si : on n'accepte que l'appli.
@@ -23,7 +26,17 @@ function descriptionAppel(corps, outils) {
   return { methodeMcp, outil };
 }
 
-export function creerGestionnaire({ magasin, donnees, outils = OUTILS, journal = journaliser, maintenant = () => Date.now() }) {
+/** Une erreur d'écriture rendue au client : message clair, avec l'opération à retrouver dans lire_audit. */
+function messageEcriture(e) {
+  const op = e.details?.operationId;
+  return op && !e.message.includes(op) ? `${e.message} (opération ${op})` : e.message;
+}
+
+/**
+ * `limiteur` : plafonds par jeton (securite/limites.js). Sans limiteur, aucun plafond : seuls les tests l'omettent (un contrôle statique
+ * vérifie que index.js en fournit un).
+ */
+export function creerGestionnaire({ magasin, donnees, limiteur = null, outils = OUTILS, journal = journaliser, maintenant = () => Date.now() }) {
   return async function gestionnaire(req, res) {
     const debut = maintenant();
     const infos = {};
@@ -44,11 +57,60 @@ export function creerGestionnaire({ magasin, donnees, outils = OUTILS, journal =
     if (!jeton) { infos.code = 'jeton'; return refuser(res, 401, 'non_autorise', { 'WWW-Authenticate': 'Bearer' }); }
     Object.assign(infos, { jeton: jeton.jeton, acteur: jeton.acteur, profil: jeton.profil }, descriptionAppel(req.body, outils));
 
+    const limites = limitesDuJeton(jeton);
+    try {
+      limiteur?.requete(jeton.jeton, limites);
+    } catch (e) {
+      if (!(e instanceof ErreurLimite)) throw e;
+      infos.code = 'limite_requetes';
+      return refuser(res, 429, 'limite_depassee', { 'Retry-After': String(e.reessayerDansS) });
+    }
+
     const permis = outilsAutorises(jeton.profil, outils);
     const serveur = new McpServer({ name: 'chevalier-ia-os', version: '0.1.0' });
+    // Contexte d'écriture de CET appel : acteur du jeton, canal « mcp », heure du serveur. Les plafonds d'écriture sont réservés ici, juste avant d'écrire.
+    const ctxEcriture = { acteur: jeton.acteur, jeton: jeton.jeton, via: 'mcp', maintenant: new Date(maintenant()) };
+    const ecrire = async ({ operations, parametres, suppression = false, outil }) => {
+      await limiteur?.reserver(jeton.jeton, limites, { suppression });
+      try {
+        const r = await executerEcritures({ donnees, ctx: ctxEcriture, outil, parametres, operations });
+        if (r.operationId) infos.operationId = r.operationId;
+        return r;
+      } catch (e) {
+        if (e instanceof ErreurEcriture) {
+          if (e.details?.operationId) infos.operationId = e.details.operationId;
+          infos.code = e.code;
+          throw new Error(messageEcriture(e));
+        }
+        throw e;
+      }
+    };
+    const restaurer = async ({ operationId, apercu, forcer }) => {
+      if (!apercu) await limiteur?.reserver(jeton.jeton, limites, { suppression: false });
+      try {
+        const r = await restaurerOperation({ donnees, ctx: ctxEcriture, operationId, apercu, forcer });
+        if (r.operationRestauration) infos.operationId = r.operationRestauration;
+        return r;
+      } catch (e) {
+        if (e instanceof ErreurEcriture) { infos.code = e.code; throw new Error(messageEcriture(e)); }
+        throw e;
+      }
+    };
     for (const outil of permis) {
       serveur.registerTool(outil.nom, { description: outil.description, ...(outil.schema ? { inputSchema: outil.schema } : {}) }, async (args) => {
-        const resultat = await outil.executer({ acteur: jeton.acteur, profil: jeton.profil, jeton: jeton.jeton, outilsAutorises: permis.map((o) => o.nom), args, donnees, maintenant: new Date(maintenant()) });
+        const contexte = {
+          acteur: jeton.acteur, profil: jeton.profil, jeton: jeton.jeton, outilsAutorises: permis.map((o) => o.nom), args, donnees, maintenant: ctxEcriture.maintenant,
+          ecrire: (demande) => ecrire({ ...demande, outil: outil.nom }),
+          restaurer,
+        };
+        let resultat;
+        try {
+          resultat = await outil.executer(contexte);
+        } catch (e) {
+          if (e instanceof ErreurLimite) infos.code = e.limite;
+          else if (e?.name === 'ErreurMetier') infos.code = e.code;
+          throw e;
+        }
         return { content: [{ type: 'text', text: JSON.stringify(resultat) }], structuredContent: resultat };
       });
     }

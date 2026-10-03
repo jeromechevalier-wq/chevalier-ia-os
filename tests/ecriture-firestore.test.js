@@ -7,6 +7,8 @@ import { getFirestore, Timestamp } from '../functions/node_modules/firebase-admi
 import { creerAccesFirestore } from '../functions/src/coeur/donnees.js';
 import { executerEcritures, JOURS_COPIES } from '../functions/src/coeur/ecriture.js';
 import { restaurerOperation } from '../functions/src/coeur/restaurer.js';
+import * as metier from '../functions/src/coeur/metier.js';
+import { creerLimiteur, ErreurLimite, LIMITES_PAR_DEFAUT } from '../functions/src/securite/limites.js';
 import * as lecture from '../functions/src/coeur/lecture.js';
 import { collections, MAINTENANT } from './_donnees-essai.js';
 
@@ -143,5 +145,44 @@ describe('Moteur d’écriture et audit sur Firestore (émulateur)', { skip: emu
   test('mettreAJour (compteurs de débit) : lecture-modification-écriture atomique, 20 appels simultanés sans perte', async () => {
     await Promise.all(Array.from({ length: 20 }, () => donnees.mettreAJour('mcp_limites', 'essai', (c) => ({ ecrire: true, donnees: { n: (c?.n ?? 0) + 1 } }))));
     assert.equal((await brut('mcp_limites', 'essai')).n, 20);
+  });
+
+  test('outils sur Firestore : supprimer une personne avec ses affaires puis restaurer rend la base à l’identique, Timestamps compris', async () => {
+    const instantane = async () => Object.fromEntries(await Promise.all(Object.keys(collections).filter((n) => n !== 'crm_audit').map(async (nom) => [nom, Object.fromEntries((await db.collection(nom).get()).docs.map((d) => [d.id, d.data()]))])));
+    const avant = await instantane();
+    const c = {
+      donnees, acteur: 'claude-code-jerome', maintenant: MAINTENANT,
+      ecrire: ({ operations, parametres, suppression }) => executerEcritures({ donnees, ctx: ctx({ acteur: 'claude-code-jerome', jeton: 'claude-code-jerome' }), outil: 'essai', parametres, operations, suppression }),
+      restaurer: (a) => restaurerOperation({ donnees, ctx: ctx({ acteur: 'claude-code-jerome', jeton: 'claude-code-jerome' }), ...a }),
+    };
+    const r = await metier.supprimerPersonne(c, { id: 'p1', choix: 'affaires', confirmationNom: 'camille durand' });
+    assert.deepEqual(r.supprimes, { crm_personnes: 1, crm_affaires: 2, crm_activites: 2, crm_notes: 2, crm_evenements: 2 });
+    assert.equal(await brut('crm_personnes', 'p1'), null);
+    assert.equal(await brut('crm_affaires', 'a1'), null);
+    await metier.restaurer(c, { operationId: r.operationId, apercu: false });
+    assert.deepEqual(await instantane(), avant);
+    // création par un outil : doublon refusé, forcer accepté, propriétaire par défaut, dates en Timestamp
+    await assert.rejects(() => metier.creerPersonne(c, { nom: 'Élodie  BERNARD' }), /Élodie Bernard \(id p2\)/);
+    const p = await metier.creerPersonne(c, { nom: 'Élodie Bernard', forcer: true });
+    const doc = await brut('crm_personnes', p.id);
+    assert.equal(doc.proprietaire, 'jerome.chevalier@gmail.com');
+    assert.equal(doc.via, 'mcp');
+    assert.ok(doc.creeLe instanceof Timestamp);
+  });
+
+  test('plafonds sur Firestore : écritures par heure et suppressions par jour réservées dans mcp_limites, refusées au-delà sans rien compter de plus', async () => {
+    const limiteur = creerLimiteur({ donnees, maintenant: () => MAINTENANT.getTime() });
+    const limites = { ...LIMITES_PAR_DEFAUT, ecrituresParHeure: 3, suppressionsParJour: 2 };
+    await limiteur.reserver('jeton-essai', limites, { suppression: true });
+    await limiteur.reserver('jeton-essai', limites, { suppression: true });
+    await assert.rejects(() => limiteur.reserver('jeton-essai', limites, { suppression: true }), (e) => e instanceof ErreurLimite && e.limite === 'suppressions_jour');
+    await limiteur.reserver('jeton-essai', limites); // une écriture ordinaire passe : 3e de l'heure
+    await assert.rejects(() => limiteur.reserver('jeton-essai', limites), (e) => e instanceof ErreurLimite && e.limite === 'ecritures_heure');
+    const compteur = await brut('mcp_limites', 'jeton-essai');
+    assert.deepEqual([compteur.heure.n, compteur.jour.n], [3, 2]);
+    // des appels simultanés ne dépassent jamais le plafond
+    const limites2 = { ...LIMITES_PAR_DEFAUT, ecrituresParHeure: 5 };
+    const r = await Promise.allSettled(Array.from({ length: 12 }, () => limiteur.reserver('jeton-parallele', limites2)));
+    assert.equal(r.filter((x) => x.status === 'fulfilled').length, 5);
   });
 });

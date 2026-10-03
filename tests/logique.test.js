@@ -976,3 +976,12 @@ describe('B17 Plans d’écriture : exécutés sur des données', () => {
     assert.deepEqual(Object.fromEntries(Object.entries(base).map(([k, v]) => [k, v.length])), { crm_personnes: 0, crm_affaires: 0, crm_evenements: 0, crm_notes: 0 });
   });
 });
+
+describe('B18 Fil : canal de l’auteur', () => {
+  test('B18 un élément créé par le serveur MCP affiche « · via MCP » ; un élément de l’écran, ou sans canal, n’affiche rien', () => {
+    assert.equal(L.mentionCanal({ auteur: 'hermes-bibliothecaire', via: 'mcp' }), ' · via MCP');
+    assert.equal(L.mentionCanal({ auteur: JEROME }), '');
+    assert.equal(L.mentionCanal({ via: 'autre' }), '');
+    assert.equal(L.mentionCanal(null), '');
+  });
+});

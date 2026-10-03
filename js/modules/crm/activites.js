@@ -211,7 +211,7 @@ export function panneauActivite({ lien, liensCreation }) {
 
   function ligneHistorique(e) {
     const el = e.element;
-    const meta = h('span', { class: 'fil-meta' }, L.formatDateHeure(e.date), el.auteur || el.creePar ? ` · ${nomCompte(el.auteur || el.creePar)}` : '');
+    const meta = h('span', { class: 'fil-meta' }, L.formatDateHeure(e.date), el.auteur || el.creePar ? ` · ${nomCompte(el.auteur || el.creePar)}${L.mentionCanal(el)}` : '');
     if (e.genre === 'note') return ligneNote(el, meta);
     if (e.genre === 'activite') {
       return h('li', { class: 'fil-ligne', dataset: { genre: 'activite' } }, h('span', { class: 'fil-puce' }, iconeTypeActivite(el.type)), h('div', { class: 'fil-texte' }, h('span', {}, `${L.libelleTypeActivite(el.type)} fait : `, h('strong', {}, el.titre)), meta));

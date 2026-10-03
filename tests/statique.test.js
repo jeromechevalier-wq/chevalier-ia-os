@@ -321,11 +321,37 @@ describe('D5 Serveur MCP (étape 2) : déploiement, versions figées, sécurité
   });
   test('D5 étapes 3 et 4 : les tests des fonctions préparent la copie, puis lancent jetons, protocole, lecture, écriture avec audit et Firestore (émulateur)', () => {
     const scripts = json('tests/package.json').scripts;
-    assert.match(scripts['test:fonctions'], /^npm run preparer && node --test .*jetons\.test\.js.*mcp\.test\.js.*lecture\.test\.js.*lecture-firestore\.test\.js.*ecriture\.test\.js.*ecriture-firestore\.test\.js/);
+    assert.match(scripts['test:fonctions'], /^npm run preparer && node --test .*jetons\.test\.js.*mcp\.test\.js.*lecture\.test\.js.*lecture-firestore\.test\.js.*ecriture\.test\.js.*ecriture-firestore\.test\.js.*ecriture-outils\.test\.js/);
     assert.match(scripts.tous, /test:fonctions/);
   });
   test('D5 outils/creer-jeton.js existe et ne contient aucun jeton', () => {
     assert.ok(existsSync(join(RACINE, 'outils/creer-jeton.js')));
     assert.doesNotMatch(lire('outils/creer-jeton.js'), /cia_[A-Za-z0-9_-]{40,}/);
+  });
+  test('D6 étape 4 : la fonction branche les plafonds de débit (sans eux, aucun frein) et passe par le moteur d’écriture avec audit', () => {
+    const index = lire('functions/src/index.js');
+    assert.match(index, /creerLimiteur\(\{ donnees \}\)/);
+    assert.match(index, /creerGestionnaire\(\{ magasin, donnees, limiteur \}\)/);
+    const g = lire('functions/src/mcp/gestionnaire.js');
+    assert.match(g, /executerEcritures/);
+    assert.match(g, /limiteur\?\.requete/);
+    assert.match(g, /limiteur\?\.reserver/);
+  });
+  test('D6 étape 4 : les outils de suppression et de restauration sont réservés au profil claude-code, tous les outils d’écriture à bibliothécaire et claude-code', () => {
+    const suppr = lire('functions/src/mcp/outils/suppression.js');
+    assert.match(suppr, /const PROFILS = \['claude-code'\];/);
+    const ecr = lire('functions/src/mcp/outils/ecriture.js');
+    assert.match(ecr, /const PROFILS = \['bibliothecaire', 'claude-code'\];/);
+    assert.doesNotMatch(ecr, /lecteur/);
+    assert.doesNotMatch(lire('functions/src/mcp/outils/lecture.js'), /creer_|modifier_|supprimer_|restaurer/);
+  });
+  test('D6 étape 4 : les outils et les actions métier n’accèdent jamais directement à Firestore (ni SDK d’administration, ni écriture hors moteur)', () => {
+    for (const f of ['functions/src/mcp/outils/ecriture.js', 'functions/src/mcp/outils/suppression.js', 'functions/src/coeur/metier.js']) {
+      assert.doesNotMatch(lire(f), /firebase-admin|getFirestore|\.collection\(|\.batch\(|runTransaction|FieldValue|serverTimestamp/, f);
+    }
+    assert.doesNotMatch(lire('functions/src/coeur/metier.js'), /\.appliquer\(|\.mettreAJour\(/);
+  });
+  test('D6 étape 4 : les collections du serveur ne sont jamais lues ni écrites par le code publié de l’appli (sauf le journal, en lecture)', () => {
+    for (const f of fichiersAppli().filter((x) => /^js\/.*\.js$/.test(x))) assert.doesNotMatch(lire(f), /crm_audit_avant|mcp_limites/, f);
   });
 });

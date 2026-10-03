@@ -502,6 +502,11 @@ export function patchEmails(emails) {
   return { emails: propres, emailsNormalises: emailsNormalises(propres) };
 }
 
+/** Patch après modification des téléphones. */
+export function patchTelephones(telephones) {
+  return { telephones: contactsNettoyes(telephones) };
+}
+
 export function emailActif(personne) {
   return !personne.oppositionProspection && (personne.emails || []).some((e) => emailValide(e.valeur));
 }
@@ -829,6 +834,11 @@ export function nouvelleNote(texte, liens, ctx) {
     affaireId: liens?.affaireId ?? null,
     auteur: ctx.auteur ?? '',
   };
+}
+
+/** Mention du canal à la suite de l'auteur dans le fil : « · via MCP » pour ce qu'un agent a créé par le serveur MCP, sinon rien. */
+export function mentionCanal(element) {
+  return element?.via === 'mcp' ? ' · via MCP' : '';
 }
 
 export const FILTRES_HISTORIQUE = [
