@@ -298,6 +298,10 @@ describe('D5 Serveur MCP (étape 2) : déploiement, versions figées, sécurité
     const t = lire('docs/securite-et-pannes.md');
     for (const mot of ["Interrupteurs d'urgence", 'Où sont les secrets', 'Versions figées', 'MCP_JETONS', 'porte dérobée', 'Contrôle trimestriel']) assert.ok(t.includes(mot), mot);
   });
+  test('D5 le playbook de déploiement d’un serveur MCP existe et liste API, rôles et erreurs rencontrées', () => {
+    const t = lire('docs/playbook-mcp-firebase.md');
+    for (const mot of ['eventarc.googleapis.com', 'cloudbilling.googleapis.com', 'Administrateur Cloud Functions', 'Utilisateur du compte de service', '--force', 'Default compute service account', 'Liste de contrôle']) assert.ok(t.includes(mot), mot);
+  });
   test('D5 outils/creer-jeton.js existe et ne contient aucun jeton', () => {
     assert.ok(existsSync(join(RACINE, 'outils/creer-jeton.js')));
     assert.doesNotMatch(lire('outils/creer-jeton.js'), /cia_[A-Za-z0-9_-]{40,}/);
