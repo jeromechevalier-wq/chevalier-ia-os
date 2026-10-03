@@ -354,4 +354,11 @@ describe('D5 Serveur MCP (étape 2) : déploiement, versions figées, sécurité
   test('D6 étape 4 : les collections du serveur ne sont jamais lues ni écrites par le code publié de l’appli (sauf le journal, en lecture)', () => {
     for (const f of fichiersAppli().filter((x) => /^js\/.*\.js$/.test(x))) assert.doesNotMatch(lire(f), /crm_audit_avant|mcp_limites/, f);
   });
+  test('D6 étape 4 : le texte des règles à coller dans la console, dans le guide mcp-etape-4.md, est identique à firestore.rules', () => {
+    const guide = lire('docs/mcp-etape-4.md');
+    const blocs = [...guide.matchAll(/```\n(rules_version[\s\S]*?)```/g)].map((m) => m[1]);
+    assert.equal(blocs.length, 2, 'nouvelles règles puis anciennes (retour arrière)');
+    assert.equal(blocs[0].trim(), lire('firestore.rules').trim());
+    assert.doesNotMatch(blocs[1], /crm_audit/);
+  });
 });
