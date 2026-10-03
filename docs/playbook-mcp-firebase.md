@@ -23,7 +23,8 @@ Se connecter avec le compte propriétaire du projet. Remplacer `PROJET` dans cha
    Les droits mettent 1 à 2 minutes à s'appliquer. Après un rôle manquant, la bonne méthode est « Re-run failed jobs » sur GitHub.
 5. **Premier jeton** (sur le Mac, hors ligne, sans le dépôt) : la commande d'une ligne `node -e '…'` donnée dans `mcp-etape-2.md` (ou `node outils/creer-jeton.js <nom> <profil>`). Elle affiche le jeton **une seule fois** et une ligne JSON (empreinte). **Ranger le jeton dans le gestionnaire de mots de passe tout de suite.**
 6. **Secret `MCP_JETONS`** : https://console.cloud.google.com/security/secret-manager?project=PROJET → « Créer un secret », nom exact `MCP_JETONS`, valeur = la ligne JSON (pas le jeton).
-7. **Droit de lecture du secret pour le compte d'exécution** : onglet Autorisations du secret → « Accorder l'accès » → **le compte réellement utilisé par la fonction** → rôle « Accesseur de secrets Secret Manager ». **Piège rencontré : ce n'est PAS forcément `PROJET@appspot.gserviceaccount.com`.** Ici, c'était le « Default compute service account » `NUMERO-compute@developer.gserviceaccount.com`. Pour le savoir sans deviner (une fois la fonction déployée) : Cloud Run → service `mcp` → onglet Sécurité → champ « Compte de service » : https://console.cloud.google.com/run/detail/europe-west9/mcp/security?project=PROJET . Avant ce droit, la fonction répond `503 {"error":"indisponible"}` : c'est normal et sans danger (échec fermé).
+7. **Compte de service dédié à la fonction (recommandé dès le départ, à créer AVANT le premier déploiement)** : https://console.cloud.google.com/iam-admin/serviceaccounts/create?project=PROJET → nom `mcp-serveur` → rôle « Utilisateur Cloud Datastore » (si la fonction lit ou écrit Firestore) → terminé. Dans le code : `serviceAccount: 'mcp-serveur@PROJET.iam.gserviceaccount.com'` dans les options de `onRequest`. Sans cela, la fonction tourne avec le « Default compute service account » (rôle « Éditeur » sur tout le projet), beaucoup trop large. Le compte de déploiement doit pouvoir agir en son nom (rôle « Utilisateur du compte de service », étape 4). *Ici, ce compte a été créé après coup (étape 3 validée avec le compte par défaut, puis changement d'une ligne, déploiement vert, essai réel concluant).*
+8. **Droit de lecture du secret pour le compte d'exécution** : onglet Autorisations du secret → « Accorder l'accès » → **le compte réellement utilisé par la fonction (`mcp-serveur` si l'étape 7 est faite)** → rôle « Accesseur de secrets Secret Manager ». **Piège rencontré : ce n'est PAS forcément `PROJET@appspot.gserviceaccount.com`.** Ici, c'était le « Default compute service account » `NUMERO-compute@developer.gserviceaccount.com`. Pour le savoir sans deviner (une fois la fonction déployée) : Cloud Run → service `mcp` → onglet Sécurité → champ « Compte de service » : https://console.cloud.google.com/run/detail/europe-west9/mcp/security?project=PROJET . Avant ce droit, la fonction répond `503 {"error":"indisponible"}` : c'est normal et sans danger (échec fermé).
 
 ## 2. Dans le dépôt
 
@@ -42,7 +43,7 @@ Se connecter avec le compte propriétaire du projet. Remplacer `PROJET` dans cha
 | 3 | `Permissions denied enabling cloudbilling.googleapis.com` | API non activée | Étape 1.3 |
 | 4 | `Missing required permission … cloudfunctions.functions.setIamPolicy … deploy new HTTPS functions` | Rôle « Développeur Cloud Functions » insuffisant | Ajouter « Administrateur Cloud Functions » |
 | 5 | `Functions successfully deployed but could not set up cleanup policy in location europe-west9` | Mode non interactif, règle de nettoyage des images | `--force` dans la commande (nécessite un nouveau commit : un « Re-run » rejoue l'ancien workflow) |
-| 6 | `/mcp` répond `503 indisponible` | Le compte d'exécution ne peut pas lire `MCP_JETONS` | Étape 1.7, avec le bon compte |
+| 6 | `/mcp` répond `503 indisponible` | Le compte d'exécution ne peut pas lire `MCP_JETONS` | Étape 1.8, avec le bon compte |
 
 Remarque : le déploiement d'une fonction prend 1 à 3 minutes ; les tentatives 1 à 3 s'arrêtaient en moins d'une minute, signe d'une erreur de droits ou d'API et non d'une erreur de code.
 
@@ -61,6 +62,7 @@ Lecture et écriture de Firestore par la fonction (étape 3 et suivantes : droit
 - [ ] Compte de déploiement : Administrateur Cloud Functions + Utilisateur du compte de service
 - [ ] Premier jeton créé, **rangé dans le gestionnaire de mots de passe**
 - [ ] Secret `MCP_JETONS` créé avec la ligne d'empreinte
+- [ ] Compte `mcp-serveur` créé (Utilisateur Cloud Datastore), accès au secret, `serviceAccount` dans le code
 - [ ] `--force`, Node 22, `npm ci`, `functions/**` ignoré par Hosting, réécriture `/mcp` dans le dépôt
 - [ ] Tests verts, fonction chargée dans l'émulateur
 - [ ] Après le déploiement : lire le compte d'exécution dans Cloud Run → Sécurité, lui donner l'accès au secret, tester `qui_suis_je` avec `curl`
