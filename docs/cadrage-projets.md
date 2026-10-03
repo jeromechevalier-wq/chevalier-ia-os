@@ -1,6 +1,18 @@
 # Cadrage : écran Projets (version 2.1)
 
-Rédigé le 03/10/2026 à partir du cahier 2.0, du code du module CRM, de la roadmap, de `pipedrive-reference.md` et du plan MCP. **Brouillon à valider par Jérôme** : rien n'est construit. Chaque point est marqué **Repris** (déjà écrit dans un document existant), **Proposition** (mon choix par défaut, que tu peux changer) ou **À trancher** (je n'ai pas assez d'éléments).
+Rédigé le 03/10/2026 à partir du cahier 2.0, du code du module CRM, de la roadmap, de `pipedrive-reference.md` et du plan MCP. **Brouillon** : rien n'est construit. Mis à jour le 03/10/2026 après les réponses de Jérôme (section « Décisions »). Chaque point est marqué **Décidé** (par Jérôme), **Repris** (déjà écrit dans un document existant), **Proposition** (mon choix par défaut, que tu peux changer) ou **À trancher**.
+
+## Décisions de Jérôme du 03/10/2026
+
+1. **Données séparées** : une affaire n'est pas un projet ; ils pourront évoluer différemment dans la base. Collections distinctes (`crm_affaires`, `projets_projets`), pas de table commune avec un champ `type`.
+2. **Phases fixes en 2.1** : on attend d'avoir beaucoup utilisé l'outil avant de personnaliser. Rendre les phases configurables (ajouter, renommer, supprimer) est **reporté à plus tard** (voir 3.1).
+3. **Tâches** : collection séparée dont les tâches datées remontent dans l'Accueil (3.5).
+4. **Création** : suggestion douce à « Gagné » et boutons ; **un projet sans affaire est permis** (3.2 et 3.3).
+5. **Modèles** : contenu de l'Audit et de l'Accompagnement fourni (3.4).
+6. **Module séparé** `projets` (3.6).
+7. **Journal** : événements de projet dans `crm_evenements` (4.4).
+8. **Objectif mensuel et suggestions de phase** : aucun en 2.1 (3.10 et 5.8, interprétation à confirmer).
+9. **Calendrier** : Projets se construit **après** l'extraction de logique du chantier MCP (6.4).
 
 ## 1. Pourquoi, et ce que ça change
 
@@ -21,20 +33,21 @@ Rédigé le 03/10/2026 à partir du cahier 2.0, du code du module CRM, de la roa
 | Pas d'entrée Projets en 2.0 ; un seul dossier Drive `Jerome IA OS Attachments`, les dossiers de travail par projet restent à la main et se relient **par lien** | cahier 2.0, 7.2 ; roadmap |
 | Mêmes principes d'écran que le CRM : un seul champ obligatoire, champs vides en « + Ajouter », enregistrement à la sortie du champ, ordinateur et téléphone à égalité, DA chevalier-ia.fr | cahier 2.0, 4 et 7 |
 
-## 3. Points à trancher avant de construire
+## 3. Décisions et points restants
 
-Ce sont les décisions qui changent l'écran ou les données. Pour chacune : ma proposition, la raison, l'autre option.
+Ce sont les décisions qui changent l'écran ou les données. Les points déjà tranchés par Jérôme sont marqués **Décidé** ; il reste trois questions, en section 9.
 
-### 3.1 Les cinq phases sont-elles les tiennes ?
+### 3.1 Les phases
 
-- Les cinq phases viennent de **l'écran Pipedrive** étudié, pas d'un entretien. **À trancher** : correspondent-elles à ta façon de travailler (Audit, Accompagnement) ?
-- **Chevauchement à régler** : « Facturation » existe déjà dans le CRM (étapes « Facture envoyée » et « Facture payée »). Deux endroits pour la même chose créeraient de la confusion.
-- **Proposition** : garder les cinq colonnes pour démarrer, mais « Facturation » est une **phase de travail** (préparer la facture, relancer) ; le montant encaissé reste dans les encaissements de l'affaire. Si tu n'y vois pas d'utilité, on passe à quatre phases (Lancement, Découverte, Distribution, Clôture).
-- **Demandé par Jérôme le 03/10/2026, à confirmer** : les phases sont **configurables** (ajouter, renommer, supprimer). **Proposition** : liste stockée dans `crm_parametres/phases_projet` (même mécanisme que les offres et les étiquettes), identifiants générés pour que renommer ne casse rien, écran dans Réglages (ajouter, renommer, colorer, réordonner, supprimer) ; supprimer une phase qui contient des projets demande vers quelle phase les déplacer, et il en reste toujours au moins une. Les cinq phases ci-dessus ne sont que le **point de départ**. Cela ne dépend pas du choix de table : c'est possible avec des projets séparés. Les phases n'ont aucune règle métier, contrairement aux étapes des affaires. Pas de pipelines multiples.
+- Les cinq phases de départ du cahier (Lancement, Découverte, Distribution, Facturation, Clôture) viennent de **l'écran Pipedrive** étudié, pas d'un entretien.
+- **Chevauchement** : « Facturation » existe déjà dans le CRM (étapes « Facture envoyée » et « Facture payée »). Le montant encaissé reste dans les encaissements de l'affaire ; une phase « Facturation » dans les projets ferait double emploi, d'où ma proposition de la retirer.
+- **Décidé le 03/10/2026 : phases fixes dans le code en 2.1** (comme les six étapes des affaires). Jérôme veut d'abord beaucoup utiliser l'outil avant de customiser quoi que ce soit.
+- **Plus tard : phases configurables** (ajouter, renommer, supprimer, réordonner). **Pour que ce soit possible sans migration**, deux règles dès la 2.1 : la phase d'un projet se stocke par un **identifiant stable** (`lancement`, `decouverte`…), jamais par son libellé affiché ; et les libellés et couleurs vivent dans **une seule liste** du code, lue partout, qui deviendra `crm_parametres/phases_projet` le jour venu (même mécanisme que les offres et les étiquettes). Pas de pipelines multiples.
+- **Phases de départ** : voir la question 1 de la section 9. Ma proposition : **Lancement, Découverte, Livraison, Clôture**. Pour l'Audit, les interviews tombent en Découverte, le rapport et le débriefing en Livraison.
 
 ### 3.2 Comment naît un projet ?
 
-- **Proposition** : trois voies, la même logique que les « suggestions douces » du cahier (4.8).
+- **Décidé le 03/10/2026** : trois voies, la même logique que les « suggestions douces » du cahier (4.8).
   1. Quand une affaire passe en **Gagné**, une petite boîte préremplie propose « Créer le projet » ; elle se valide, se modifie ou se ferme sans rien changer.
   2. Bouton **« Créer le projet »** sur la fiche d'une affaire gagnée (section Résumé), pour celles déjà gagnées.
   3. Bouton **« + Projet »** dans la barre de l'écran Projets, pour un projet sans affaire (voir 3.3).
@@ -44,14 +57,17 @@ Ce sont les décisions qui changent l'écran ou les données. Pour chacune : ma 
 ### 3.3 Un projet sans affaire est-il permis ?
 
 - Exemples : un chantier interne (le site chevalier-ia.fr), un projet offert, un travail pour un client déjà signé avant l'outil.
-- **Proposition** : **oui**, `affaireId` facultatif. Un seul champ obligatoire : le titre. C'est cohérent avec le principe « un seul champ obligatoire ».
+- **Décidé le 03/10/2026 : oui**, `affaireId` facultatif. Un seul champ obligatoire : le titre. C'est cohérent avec le principe « un seul champ obligatoire ».
 - **À surveiller** : un projet sans affaire n'a ni client ni montant ; la fiche affiche alors des « + Ajouter… » pour la personne et l'organisation.
 
 ### 3.4 Modèles de projet
 
 - **Un modèle** = un nom, une offre liée (facultative) et une liste de tâches types (titre, phase, délai en jours après le démarrage). Créer un projet depuis un modèle crée ses tâches, avec leurs dates calculées.
-- **Proposition** : un modèle peut être lié à une offre du catalogue (Audit, Accompagnement) ; à la création d'un projet depuis une affaire, le modèle de l'offre est préselectionné, modifiable. Sans modèle, le projet démarre vide.
-- **À fournir par Jérôme** : le contenu réel des modèles Audit et Accompagnement (tâches et phases). Je ne l'invente pas : livrés vides, ils se remplissent dans l'appli.
+- **Décidé** : un modèle peut être lié à une offre du catalogue (Audit, Accompagnement) ; à la création d'un projet depuis une affaire, le modèle de l'offre est préselectionné, modifiable. Sans modèle, le projet démarre vide.
+- **Contenu fourni par Jérôme le 03/10/2026** :
+  - **Audit** : une ou plusieurs **interviews**, la **création du rapport**, le **débriefing avec le client**. Modèle : une tâche « Interview » (on en ajoute d'autres si le client en demande plusieurs), « Créer le rapport », « Débriefing avec le client ». Délais relatifs au démarrage à fixer à l'usage (proposition : laisser les dates vides, elles se posent au fil de l'eau).
+  - **Accompagnement** : **un ensemble de rendez-vous sur la durée**. Le nombre et le rythme ne sont pas précisés : voir la question 2 de la section 9.
+  - Les modèles se modifient ensuite dans l'écran Modèles.
 - **Proposition** : les modèles se gèrent dans l'appli (menu **Modèles**, comme chez Pipedrive), pas dans Réglages, parce qu'ils sont longs à éditer.
 - **Piste, pas en 2.1** : durée type et montant type dans le modèle.
 
@@ -59,18 +75,16 @@ Ce sont les décisions qui changent l'écran ou les données. Pour chacune : ma 
 
 C'est la décision la plus structurante. Aujourd'hui, Accueil et Points clés montrent les `crm_activites` non faites (en retard, aujourd'hui, sans action prévue).
 
-- **Option A, recommandée : collection séparée `projets_taches`**, avec leur propre écran, mais **les tâches datées et non faites remontent dans « En retard » et « Aujourd'hui » de l'Accueil**, avec la mention du projet. Une seule liste du matin pour toi, sans mélanger les modèles de données (une tâche de projet a une phase, un ordre, un modèle d'origine ; une activité CRM a un type appel / rendez vous / email).
-- **Option B : réutiliser `crm_activites`** avec un `projetId`. Moins de code, mais la collection devient fourre-tout, les « Points clés » d'une personne se remplissent de tâches de production, et le filtre « sans action prévue » perd son sens.
-- **Option C : deux listes totalement séparées.** Écartée : tu devrais regarder deux endroits le matin, ce que le cahier cherche à éviter.
-- **À trancher** : A (recommandée), B ou C ?
-- **Règles communes (A)** : titre obligatoire ; date facultative ; heure facultative ; case « Fait » (`dateFait`) ; phase ; ordre dans la phase ; assigné à Jérôme ou Charles (le champ est prêt pour « tâches confiées à Charles », prévu « plus tard »).
+- **Décidé le 03/10/2026 : option A, collection séparée `projets_taches`**, avec leur propre écran, mais **les tâches datées et non faites remontent dans « En retard » et « Aujourd'hui » de l'Accueil**, avec la mention du projet. Une seule liste du matin pour toi, sans mélanger les modèles de données (une tâche de projet a une phase, un ordre, un modèle d'origine ; une activité CRM a un type appel / rendez vous / email).
+- **Écartées** : réutiliser `crm_activites` avec un `projetId` (la collection devient fourre-tout, les « Points clés » d'une personne se remplissent de tâches de production) ; deux listes totalement séparées (deux endroits à regarder le matin).
+- **Règles** : titre obligatoire ; date facultative ; heure facultative ; case « Fait » (`dateFait`) ; phase ; ordre dans la phase ; assigné à Jérôme ou Charles (le champ est prêt pour « tâches confiées à Charles », prévu « plus tard »).
 
 ### 3.6 Où vit Projets dans le code et dans le menu ?
 
-- **Proposition** : un **module à part**, `js/modules/projets/`, enregistré dans `js/os/modules.js`. C'est le mécanisme prévu (« Ajouter un module = un dossier + une entrée »), la coquille sait déjà le faire (menu, « + », recherche globale viennent de chaque module). Ça garde « le CRM s'arrête à la signature » et laisse le CRM intact.
+- **Décidé le 03/10/2026** : un **module à part**, `js/modules/projets/`, enregistré dans `js/os/modules.js`. C'est le mécanisme prévu (« Ajouter un module = un dossier + une entrée »), la coquille sait déjà le faire (menu, « + », recherche globale viennent de chaque module). Ça garde « le CRM s'arrête à la signature » et laisse le CRM intact.
 - Entrées de menu : **Projets** (Kanban), **Modèles**, **Archives**. Icône Lucide à choisir (`folder-kanban` ou `layout-dashboard` ; `briefcase` est déjà pris par Affaires).
 - Collections : préfixe `projets_` (`projets_projets`, `projets_taches`, `projets_modeles`), comme `crm_` pour le CRM. Aucun changement de `firestore.rules` (jokers), **mais** voir 6 (restructuration des règles par le chantier MCP).
-- **Autre option** : une cinquième entrée dans le module CRM. Plus rapide, mais mélange deux domaines et rend le CRM plus lourd ; pas recommandée.
+- **Écartée** : une cinquième entrée dans le module CRM (mélange deux domaines).
 - Le module Projets **lit** les données du CRM (affaires, personnes, organisations) par `crm/donnees.js` ; il n'y **écrit** qu'un seul champ : `projetId` sur l'affaire, à la création du projet.
 
 ### 3.7 Que devient l'affaire quand elle est payée ?
@@ -81,8 +95,8 @@ C'est la décision la plus structurante. Aujourd'hui, Accueil et Points clés mo
 
 ### 3.8 Statut et avancement
 
-- **Proposition** : un projet a un **statut** `actif`, `en_pause`, `termine` (dérivé : `termine` quand il est archivé en Clôture) et une **phase** (une des cinq). Le cercle de progression de la carte = tâches faites divisé par tâches du projet.
-- **À trancher** : faut-il un statut « Annulé » ? Proposition : non, on archive.
+- **Proposition** : un projet a un **statut** `actif`, `en_pause`, `termine` (dérivé : `termine` quand il est archivé en Clôture) et une **phase**. Le cercle de progression de la carte = tâches faites divisé par tâches du projet.
+- **Proposition** : pas de statut « Annulé » ; on archive.
 - Retard : un projet est « en retard » si sa **date de fin prévue** est dépassée sans qu'il soit terminé, ou si une de ses tâches est en retard (même logique de pastille rouge, verte, grise que les affaires, calculée dans le navigateur).
 
 ### 3.9 Documents et dossier Drive
@@ -93,7 +107,7 @@ C'est la décision la plus structurante. Aujourd'hui, Accueil et Points clés mo
 
 ### 3.10 Objectifs et célébrations
 
-- **À trancher** : veux-tu un objectif mensuel lié aux projets (par exemple « projets lancés » ou « projets clôturés ») ? **Proposition** : non en 2.1 ; les objectifs calculés se branchent facilement après coup (`enregistrerCalculs`).
+- **Décidé le 03/10/2026 (interprétation à confirmer, question 3 de la section 9)** : pas d'objectif mensuel lié aux projets en 2.1 ; les objectifs calculés se branchent facilement après coup (`enregistrerCalculs`).
 - **Proposition** : une célébration réduite à la **clôture d'un projet** (petite animation de Charles « Projet terminé »), pour rester dans l'esprit de l'outil ; le feu d'artifice reste réservé au « Gagné ».
 
 ## 4. Modèle de données proposé
@@ -107,7 +121,7 @@ Conventions du cahier 2.0 (3.1) reprises telles quelles : identifiants automatiq
 | `titre` | Titre | string | **oui** | prérempli avec le titre de l'affaire |
 | `affaireId` | Affaire | string ou null | non | au plus un projet par affaire ; voir 3.3 |
 | `personneId`, `organisationId` | | string ou null | non | repris de l'affaire à la création, modifiables |
-| `phase` | Phase | string | auto | `lancement`, `decouverte`, `distribution`, `facturation`, `cloture` ; défaut `lancement` |
+| `phase` | Phase | string | auto | identifiant d'une phase de la liste unique du code (3.1) ; défaut `lancement` |
 | `statut` | Statut | string | auto | `actif`, `en_pause`, `termine` |
 | `dateDebut`, `dateFin` | Début, Fin prévue | date | non | début préremplie à aujourd'hui |
 | `modeleId` | Modèle d'origine | string ou null | non | pour information |
@@ -127,7 +141,7 @@ Conventions du cahier 2.0 (3.1) reprises telles quelles : identifiants automatiq
 
 ### 4.4 Journal des événements
 
-Le journal du CRM (`crm_evenements`) porte `personneId`, `organisationId`, `affaireId`. **Proposition** : y ajouter les événements de projet (`projet_cree`, `phase_changee`, `projet_termine`, `projet_archive`) avec un champ `projetId` supplémentaire et les trois liens existants, pour que l'historique de la personne, de l'organisation et de l'affaire affiche aussi « Projet créé ». **À trancher** : sinon un journal séparé `projets_evenements`. La première option est plus utile (une seule histoire du client) ; la seconde isole mieux les deux modules.
+Le journal du CRM (`crm_evenements`) porte `personneId`, `organisationId`, `affaireId`. **Décidé le 03/10/2026** : y ajouter les événements de projet (`projet_cree`, `phase_changee`, `projet_termine`, `projet_archive`) avec un champ `projetId` supplémentaire et les trois liens existants, pour que l'historique de la personne, de l'organisation et de l'affaire affiche aussi « Projet créé ».
 
 ### 4.5 Champ ajouté sur l'affaire
 
@@ -139,11 +153,11 @@ Même modèle que le CRM (Pipedrive pour la structure, DA chevalier-ia.fr pour l
 
 1. **Projets** (`#/projets/projets`) :
    - barre : compteur (« 4 projets »), bouton vert **« + Projet »**, bascule **Kanban / Liste**, recherche, filtres (phase, statut, offre, personne, organisation, en retard) ;
-   - **Kanban de 5 colonnes** (les phases), chacune avec son nombre de projets ; carte : barre de couleur, titre, organisation, date de début et date de fin, cercle de progression, propriétaire, pastille d'alerte ;
+   - **Kanban d'une colonne par phase**, chacune avec son nombre de projets ; carte : barre de couleur, titre, organisation, date de début et date de fin, cercle de progression, propriétaire, pastille d'alerte ;
    - glisser déposer dans tous les sens, y compris en arrière ; sur téléphone, menu « Déplacer vers… » comme les affaires ;
    - **Liste** : Titre, Personne, Organisation, Phase, Début, Fin, Avancement ; cartes sur téléphone.
 2. **Fiche projet** (`#/projets/projets/<id>`) : deux colonnes sur ordinateur, une sur téléphone, mêmes composants que la fiche affaire.
-   - **En tête** : titre modifiable, personne et organisation (liens), lien « Affaire d'origine », **barre des 5 phases** (clic = changement de phase), boutons **Terminer** et **En pause**, menu « ⋯ » (Archiver, Supprimer définitivement) ;
+   - **En tête** : titre modifiable, personne et organisation (liens), lien « Affaire d'origine », **barre des phases** (clic = changement de phase), boutons **Terminer** et **En pause**, menu « ⋯ » (Archiver, Supprimer définitivement) ;
    - **Gauche** : Résumé (affaire, personne, organisation, offre, statut, dates) ; **Tâches** par phase (cocher, ajouter, glisser pour réordonner, date rapide : Demain, +3 jours, +1 semaine) ; Documents ;
    - **Droite** : Activité et Notes (les notes se rattachent au projet **et** à ses liens), Points clés, Historique.
 3. **Modèles** (`#/projets/modeles`) : liste ; fiche d'un modèle avec ses tâches par phase.
@@ -151,7 +165,7 @@ Même modèle que le CRM (Pipedrive pour la structure, DA chevalier-ia.fr pour l
 5. **Accueil du CRM** : les tâches de projet en retard ou du jour s'ajoutent aux groupes « En retard » et « Aujourd'hui », avec le nom du projet (option A de 3.5).
 6. **Fiche affaire** : section « Projet » (lien ou bouton « Créer le projet »). **Fiche personne et fiche organisation** : section « Projets » (liste des projets liés).
 7. **Bouton « + » de la barre supérieure** : entrée **Projet**. **Recherche globale** : groupe **Projets**.
-8. **Suggestions douces** au changement de phase (vers Facturation : « Préparer la facture », vers Clôture : « Faire le point avec le client ») : **À trancher**, je n'en propose pas sans ton accord, pour ne pas inventer ta méthode.
+8. **Suggestions douces** au changement de phase : **décidé le 03/10/2026 (interprétation à confirmer, question 3 de la section 9) : aucune en 2.1**, pour ne pas inventer ta méthode.
 
 ## 6. Contraintes techniques et dépendances
 
@@ -161,7 +175,7 @@ Même modèle que le CRM (Pipedrive pour la structure, DA chevalier-ia.fr pour l
    1. supprimer une affaire qui a un projet : refusé, ou proposition de détacher d'abord (le projet garde son contenu, `affaireId` devient vide) ;
    2. supprimer un projet : confirmation en tapant son titre, supprime ses tâches, détache l'affaire (`projetId` vide) ; l'archivage est la voie normale ;
    3. supprimer une personne ou une organisation liée à un projet : le projet est conservé, le lien est vidé (même règle que les affaires conservées).
-4. **Chantier MCP** (branche `mcp`, `plan-mcp.md` ; état au 03/10/2026 : prototype Drive fait, squelette des fonctions en place dans `functions/`, outils métier pas encore écrits) : il restructure les règles Firestore, extrait les enchaînements de `donnees.js` dans `logique.js` et ajoute un journal d'audit. **Proposition de séquence** : terminer d'abord cette extraction, puis écrire Projets directement dans la nouvelle forme, pour ne pas le refaire. Les outils MCP de Projets (chercher, créer, changer de phase, ajouter une tâche) seraient une deuxième étape, pas dans la 2.1.
+4. **Chantier MCP** (branche `mcp`, `plan-mcp.md` ; état au 03/10/2026 : prototype Drive fait, squelette des fonctions en place dans `functions/`, outils métier pas encore écrits) : il restructure les règles Firestore, extrait les enchaînements de `donnees.js` dans `logique.js` et ajoute un journal d'audit. **Décidé le 03/10/2026** : Projets se construit **après** cette extraction, directement dans la nouvelle forme, pour ne pas le refaire. Les outils MCP de Projets (chercher, créer, changer de phase, ajouter une tâche) seront une deuxième étape, pas dans la 2.1.
 5. **Copie quotidienne vers Google Sheet par n8n** : autre chantier de la 2.1, indépendant ; une feuille « Projets » s'ajoutera à la copie une fois l'écran livré.
 6. **Hors ligne, import, fusion de doublons** : toujours hors périmètre.
 
@@ -189,13 +203,9 @@ Mêmes exigences que le cahier 2.0 (15) : tous les tests automatiques passent su
 7. Supprimer un projet : confirmation par le titre, tâches supprimées, `projetId` de l'affaire vidé.
 8. Recherche globale et « + » : le groupe et l'entrée Projet apparaissent.
 
-## 9. Questions pour Jérôme (par ordre d'importance)
+## 9. Ce qu'il reste à trancher
 
-1. **Phases** (3.1) : phases configurables confirmées ? Quelles phases au départ, et « Facturation » reste-t-elle une phase de travail ?
-2. **Tâches** (3.5) : option A (collection séparée qui remonte dans l'Accueil), B ou C ?
-3. **Création** (3.2) et **projet sans affaire** (3.3) : la suggestion douce à Gagné, plus les boutons, te convient-elle ; un projet sans affaire est-il permis ?
-4. **Modèles** (3.4) : peux-tu me donner les tâches types de l'Audit et de l'Accompagnement ?
-5. **Module à part** (3.6) : d'accord pour un module `projets` séparé ?
-6. **Journal** (4.4) : événements de projet dans `crm_evenements` (proposé) ou journal séparé ?
-7. **Objectif mensuel** (3.10) et **suggestions de phase** (5.8) : veux-tu l'un ou l'autre ?
-8. **Calendrier** : Projets avant ou après l'extraction de logique du chantier MCP (6.4) ?
+1. **Phases de départ** (3.1) : les cinq phases de Pipedrive, ou quatre phases plus proches de ton travail, **Lancement, Découverte, Livraison, Clôture** (Facturation retirée, puisque le CRM suit déjà « Facture envoyée » et « Facture payée »). Ma proposition : les quatre. Pour l'Audit : les interviews tombent en Découverte, le rapport et le débriefing en Livraison.
+2. **Modèle Accompagnement** (3.4) : veux-tu qu'il crée d'avance un nombre fixe de rendez-vous à un rythme donné (par exemple 6 rendez-vous, un par mois), ou qu'il démarre avec un seul rendez-vous de lancement et que tu ajoutes les suivants au fil de l'eau ? Ma proposition : la seconde, parce que le nombre varie d'un client à l'autre.
+3. **Interprétation à confirmer** : à la question 7 (objectif mensuel et suggestions de phase), j'ai compris que tu acceptais ma proposition, c'est-à-dire **ni objectif mensuel ni suggestions douces de phase en 2.1** (la petite célébration à la clôture reste). Dis-moi si tu voulais l'inverse.
+
