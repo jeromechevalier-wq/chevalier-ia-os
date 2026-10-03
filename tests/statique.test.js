@@ -354,6 +354,17 @@ describe('D5 Serveur MCP (étape 2) : déploiement, versions figées, sécurité
   test('D6 étape 4 : les collections du serveur ne sont jamais lues ni écrites par le code publié de l’appli (sauf le journal, en lecture)', () => {
     for (const f of fichiersAppli().filter((x) => /^js\/.*\.js$/.test(x))) assert.doesNotMatch(lire(f), /crm_audit_avant|mcp_limites/, f);
   });
+  test('D7 étape 6 : le guide de branchement existe, branche Claude Code avec des guillemets simples et --scope user, et ne contient aucun jeton', () => {
+    const t = lire('docs/branchement-mcp.md');
+    assert.ok(t.includes("--scope user chevalier-ia-os https://chevalier-ia-os.web.app/mcp --header 'Authorization: Bearer ${CHEVALIER_MCP_TOKEN}'"));
+    assert.doesNotMatch(t, /--header "Authorization: Bearer/, 'guillemets doubles : le jeton serait écrit en clair');
+    for (const mot of ['Trousseau', 'security add-generic-password', 'Hermes', 'bibliothécaire']) assert.ok(t.includes(mot), mot);
+  });
+  test('D7 étape 6 : la liste des outils du bibliothécaire donnée pour Hermes est exactement celle du serveur', async () => {
+    const { OUTILS, outilsAutorises } = await import('../functions/src/mcp/outils/index.js');
+    const bloc = /include: \[([^\]]+)\]/.exec(lire('docs/branchement-mcp.md'))[1].split(',').map((x) => x.trim());
+    assert.deepEqual([...bloc].sort(), outilsAutorises('bibliothecaire', OUTILS).map((o) => o.nom).sort());
+  });
   test('D6 étape 4 : le texte des règles à coller dans la console, dans le guide mcp-etape-4.md, est identique à firestore.rules', () => {
     const guide = lire('docs/mcp-etape-4.md');
     const blocs = [...guide.matchAll(/```\n(rules_version[\s\S]*?)```/g)].map((m) => m[1]);

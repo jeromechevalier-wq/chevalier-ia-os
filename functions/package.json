@@ -1,7 +1,7 @@
 {
   "name": "chevalier-ia-os-fonctions",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Serveur MCP de Chevalier IA OS (Cloud Functions 2e génération, Paris). Jamais publié avec le site.",
   "type": "module",
   "main": "src/index.js",

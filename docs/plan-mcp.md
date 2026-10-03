@@ -295,7 +295,7 @@ Je procède **un rôle à la fois** : le déploiement échoue avec le rôle manq
 | 3 | Couche métier + audit + lecture | extraction dans `logique.js`, `donnees.js` adapté, `coeur/`, outils de lecture, tests 11 et parité | relancer `npm test` ; fusionner | revert |
 | 4 | Écriture, suppression, restauration | outils d'écriture/suppression/restauration, tests 1 à 10 | **publier les règles 5.5** ; activer le TTL sur `crm_audit_avant` ; fusionner | revert ; republier les anciennes règles |
 | 5 | Sauvegardes | `sauvegarder`, `purger_sauvegardes`, `restaurer-export.js` | PITR et copies planifiées ; secret `DRIVE_OAUTH` ; dossier de sauvegarde | revert ; désactiver PITR et la planification |
-| 6 | Branchement des clients | `docs/branchement-mcp.md` (Hermes, Claude Code) | config Hermes sur le VPS ; ajout dans Claude Code ; 1 jeton par client | révoquer le jeton |
+| 6 | Branchement des clients | `docs/branchement-mcp.md` (Hermes, Claude Code ; **Claude Code fait et validé le 03/10/2026**, Hermes à faire) | config Hermes sur le VPS ; ajout dans Claude Code ; 1 jeton par client | révoquer le jeton |
 | 7 | Pièces jointes dans l'appli | modèle, écrans (ordinateur et téléphone), `jetonDrive`, `preparer_televersement`, `joindre_fichier_drive`, version **2.1.0** (`version.json` + `js/os/version.js`) [à confirmer : 2.1.0 ou 2.0.1] | essai sur l'iPhone | revert (le bandeau « Nouvelle version » reprend la précédente) |
 | 8 | Recette et clôture | rapport, `roadmap.md`, README | recette 9, définition de « terminé » | — |
 

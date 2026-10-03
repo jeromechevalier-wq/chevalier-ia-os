@@ -53,7 +53,7 @@ Un jeton par client (nom + profil + 256 bits) ; seules les empreintes SHA-256 da
 
 ## 5. Ce qui n'est pas encore validé (à vérifier sur la prochaine appli, ou aux étapes suivantes ici)
 
-Lecture de Firestore par la fonction : **validée en réel** (étape 3, avec le compte `mcp-serveur`). Écriture, audit et restauration : **validés en réel** le 03/10/2026 (étape 4, script de recette de 15 vérifications). Plafonds de débit en charge réelle : non éprouvés. Drive côté serveur (étape 5), connexion réelle de Claude Code et de Hermes (étape 6 : syntaxe `claude mcp add`, configuration `mcp_servers`) : à venir.
+Lecture de Firestore par la fonction : **validée en réel** (étape 3, avec le compte `mcp-serveur`). Écriture, audit et restauration : **validés en réel** le 03/10/2026 (étape 4, script de recette de 15 vérifications). Plafonds de débit en charge réelle : non éprouvés. Drive côté serveur (étape 5), connexion de Claude Code : **validée en réel** (étape 6, voir `branchement-mcp.md`) ; Hermes (`mcp_servers`) : à venir.
 
 ## 6. Liste de contrôle « prêt à déployer »
 
@@ -81,4 +81,6 @@ Lecture de Firestore par la fonction : **validée en réel** (étape 3, avec le 
 - **Règle TTL Firestore** : créée dans la console Google Cloud (Firestore, « Valeur TTL (Time to Live) »), mais seulement après la première écriture dans la collection, car la liste ne propose que les collections existantes.
 - **Où lire et modifier les règles** : la console Firebase (carte Firestore, onglet Règles) les modifie ; la console Google Cloud (Firestore, Sécurité) ne les affiche qu'en lecture seule, ce qui sert à vérifier le jeu actif.
 - **Session cloud ou session locale** : un assistant en session cloud ne voit ni le Mac, ni les secrets locaux ; tout ce qui demande le jeton se fait dans le Terminal du Mac.
+- **Brancher Claude Code** : `claude mcp add --transport http --scope user NOM URL --header 'Authorization: Bearer ${VARIABLE}'` avec des **guillemets simples** (sinon le jeton est écrit en clair dans `~/.claude.json`) ; `--scope user` pour qu'il soit visible depuis tout dossier ; `claude mcp list` pour vérifier. Sur macOS, ranger le jeton dans le Trousseau (`security add-generic-password`) et le lire seulement au lancement de `claude` par une petite fonction dans `~/.zshrc`. Éviter les collages multi-lignes avec `EOF` (un caractère en trop bloque le Terminal) : préférer `printf '…' >> fichier` sur une seule ligne.
+- **Vérifier ce qu'on croit avoir configuré** : les sauvegardes Google, qu'on croyait actives, ne l'étaient pas (page « Reprise après sinistre » de la console). Une capture de la page vaut mieux qu'un souvenir.
 
