@@ -137,5 +137,6 @@ Procédure de mise à jour : changer **une** version à la fois sur une branche,
 | Date | Constat | Résolution |
 |---|---|---|
 | 02/10/2026 | Le projet `chevalier-ia-os` n'avait **aucun compte de facturation** (le plan supposait le forfait Blaze actif) ; la liste des projets du budget n'en montrait qu'un | Projet relié au compte « Paiement de Firebase », budget de 5 € créé avec alertes 50, 90 et 100 % |
+| 03/10/2026 | Troisième tentative : Eventarc et Firebase Extensions activées, le déploiement a avancé ; puis « Permissions denied enabling cloudbilling.googleapis.com » | API Cloud Billing activée à la main |
 | 02/10/2026 | Deuxième tentative : API Eventarc non activée (« Permissions denied enabling eventarc »). Le rôle « Utilisateur du compte de service » était alors pris en compte (le déploiement a avancé jusqu'à l'envoi du code) | API Eventarc activée à la main |
 | 02/10/2026 | Premier déploiement : `iam.serviceAccounts.ActAs` manquant sur `chevalier-ia-os@appspot.gserviceaccount.com` | Rôle « Utilisateur du compte de service » à ajouter au compte de déploiement ; ajout dans le workflow d'une ligne qui affiche l'adresse de ce compte pour éviter de la chercher |
