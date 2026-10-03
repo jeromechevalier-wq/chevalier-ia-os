@@ -770,3 +770,218 @@ describe('B16 Formats et réglages de départ', () => {
     assert.equal(L.libelleEtape('rdv_fixe'), 'Rendez vous fixé');
   });
 });
+
+// ---------------------------------------------------------------- B17 plans d'écriture (écran ET serveur MCP)
+
+/** Petit « exécuteur » en mémoire : applique les écritures d'un plan comme l'écran (horodater -> date, signer -> acteur). */
+function executerPlan(base, ecritures, { maintenant, acteur }) {
+  const sortie = structuredClone(base);
+  for (const e of ecritures) {
+    const liste = (sortie[e.collection] ||= []);
+    const marques = {};
+    for (const c of e.horodater || []) marques[c] = maintenant;
+    for (const c of e.signer || []) marques[c] = acteur;
+    const i = liste.findIndex((d) => d.id === e.id);
+    if (e.type === 'creer') liste.push({ ...e.donnees, ...marques, id: e.id });
+    else if (e.type === 'modifier') Object.assign(liste[i], e.patch, marques);
+    else liste.splice(i, 1);
+  }
+  return sortie;
+}
+const ctxPlan = (extra = {}) => {
+  let n = 0;
+  return { ...ctx('2026-10-15T08:00:00Z'), nouvelId: (nom) => `${nom}_${++n}`, ...extra };
+};
+const par = (ecritures, type) => ecritures.filter((e) => e.type === type);
+
+describe('B17 Plans d’écriture : créations', () => {
+  test('B17 personne : le document, ses marques de création, et l’événement du fil', () => {
+    const plan = L.planCreerPersonne({ nom: ' Marie  Durand ', organisationId: 'o' }, ctxPlan());
+    assert.equal(plan.id, 'crm_personnes_1');
+    const [p, ev] = plan.ecritures;
+    assert.deepEqual([p.type, p.collection, p.id], ['creer', 'crm_personnes', 'crm_personnes_1']);
+    assert.equal(p.donnees.nom, 'Marie Durand');
+    assert.equal(p.donnees.proprietaire, JEROME);
+    assert.deepEqual(p.horodater, ['creeLe', 'modifieLe']);
+    assert.deepEqual(p.signer, ['creePar', 'modifiePar']);
+    assert.equal(ev.collection, 'crm_evenements');
+    assert.equal(ev.donnees.type, 'personne_creee');
+    assert.equal(ev.donnees.texte, 'Personne créée : Marie Durand');
+    assert.equal(ev.donnees.personneId, 'crm_personnes_1');
+    assert.equal(ev.donnees.organisationId, 'o');
+    assert.equal(ev.donnees.auteur, JEROME);
+  });
+  test('B17 propriétaire : ctx.proprietaire l’emporte sur l’acteur (agent MCP), pour personne, organisation et affaire', () => {
+    const c = ctxPlan({ auteur: 'hermes-bibliothecaire', proprietaire: JEROME });
+    assert.equal(L.planCreerPersonne({ nom: 'A B' }, c).ecritures[0].donnees.proprietaire, JEROME);
+    assert.equal(L.planCreerOrganisation({ nom: 'Org' }, c).ecritures[0].donnees.proprietaire, JEROME);
+    assert.equal(L.planCreerAffaire({ titre: 'T' }, {}, c).ecritures[0].donnees.proprietaire, JEROME);
+    assert.equal(L.planCreerPersonne({ nom: 'A B' }, c).ecritures[1].donnees.auteur, 'hermes-bibliothecaire', 'le fil garde l’acteur');
+    assert.equal(L.planCreerPersonne({ nom: 'A B' }, ctxPlan()).ecritures[0].donnees.proprietaire, JEROME, 'sans proprietaire : l’acteur, comme avant');
+  });
+  test('B17 organisation : document, marques de création et événement', () => {
+    const plan = L.planCreerOrganisation({ nom: 'Atelier' }, ctxPlan());
+    assert.deepEqual(plan.ecritures.map((e) => [e.collection, e.donnees.type ?? e.donnees.nom]), [['crm_organisations', 'Atelier'], ['crm_evenements', 'organisation_creee']]);
+    assert.deepEqual(plan.ecritures[0].signer, ['creePar', 'modifiePar']);
+  });
+  test('B17 affaire : titre par défaut (organisation puis personne), organisation héritée de la personne, événement lié', () => {
+    const personnes = [personne({ id: 'p1', nom: 'Camille Durand', organisationId: 'o1' })];
+    const organisations = [organisation({ id: 'o1', nom: 'Atelier des Lilas' })];
+    const plan = L.planCreerAffaire({ personneId: 'p1', montant: '1500' }, { personnes, organisations }, ctxPlan());
+    const [a, ev] = plan.ecritures;
+    assert.equal(plan.titre, 'Atelier des Lilas');
+    assert.equal(a.donnees.titre, 'Atelier des Lilas');
+    assert.equal(a.donnees.organisationId, 'o1');
+    assert.equal(a.donnees.montant, 1500);
+    assert.equal(a.donnees.etape, 'premier_contact');
+    assert.deepEqual(ev.donnees.affaireId, plan.id);
+    assert.equal(ev.donnees.texte, 'Affaire créée : Atelier des Lilas');
+  });
+  test('B17 affaire : une personne que l’appelant ne connaît pas encore (créée à l’instant) ne bloque pas, comme avant', () => {
+    const plan = L.planCreerAffaire({ titre: 'Nouvelle', personneId: 'tout-neuf' }, { personnes: [], organisations: [] }, ctxPlan());
+    assert.equal(plan.ecritures[0].donnees.personneId, 'tout-neuf');
+    assert.equal(plan.ecritures[0].donnees.organisationId, null);
+  });
+  test('B17 activité et note : seules les marques d’avant (créeLe ; creeLe et modifieLe), jamais d’acteur signé', () => {
+    const act = L.planCreerActivite({ type: 'appel', date: '2026-10-20', affaireId: 'a' }, ctxPlan()).ecritures[0];
+    assert.deepEqual(act.horodater, ['creeLe']);
+    assert.equal(act.signer, undefined);
+    assert.equal(act.donnees.auteur, JEROME);
+    const note = L.planCreerNote('  Bonjour ', { affaireId: 'a' }, ctxPlan()).ecritures[0];
+    assert.deepEqual(note.horodater, ['creeLe', 'modifieLe']);
+    assert.equal(note.signer, undefined);
+    assert.equal(note.donnees.texte, 'Bonjour');
+  });
+});
+
+describe('B17 Plans d’écriture : modifications', () => {
+  test('B17 un patch vide ne produit aucune écriture ; sinon patch + marques de modification', () => {
+    assert.deepEqual(L.planMajPersonne('p', {}).ecritures, []);
+    const [e] = L.planMajAffaire('a', { montant: 10 }).ecritures;
+    assert.deepEqual([e.type, e.collection, e.patch, e.horodater, e.signer], ['modifier', 'crm_affaires', { montant: 10 }, ['modifieLe'], ['modifiePar']]);
+    assert.equal(L.planMajActivite('x', { titre: 'T' }).ecritures[0].signer, undefined);
+    assert.deepEqual(L.planMajNote('n', '  texte ').ecritures[0].patch, { texte: 'texte' });
+  });
+  test('B17 changement d’étape : même patch et mêmes événements que la règle, dans le plan ; une erreur n’écrit rien', () => {
+    const a = affaire({ id: 'a1', etape: 'premier_contact' });
+    const c = ctxPlan();
+    const regle = L.changementEtape(a, 'rdv_fixe', c);
+    const plan = L.planChangerEtape(a, 'rdv_fixe', ctxPlan());
+    assert.deepEqual(plan.ecritures[0].patch, regle.patch);
+    assert.equal(plan.ecritures.length, 1 + regle.evenements.length);
+    assert.deepEqual(plan.ecritures.slice(1).map((e) => e.donnees.type), regle.evenements.map((e) => e.type));
+    assert.deepEqual(plan.suggestion, regle.suggestion);
+    const mauvais = L.planChangerEtape(a, 'étape-bidon', ctxPlan());
+    assert.deepEqual(mauvais.ecritures, []);
+    assert.ok(mauvais.erreurs.etape);
+  });
+  test('B17 perdue, pause, rouvrir, encaissement : une écriture sur l’affaire puis les événements ; erreurs de saisie sans écriture', () => {
+    const a = affaire({ id: 'a1' });
+    assert.equal(L.planMarquerPerdue(a, { raison: 'Prix' }, ctxPlan()).ecritures.length, 2);
+    assert.deepEqual(L.planMarquerPerdue(a, { raison: 'Inconnue' }, ctxPlan()).ecritures, []);
+    assert.equal(L.planMettreEnPause(a, { dateReveil: '2027-01-15' }, ctxPlan()).ecritures[0].patch.statut, 'en_pause');
+    assert.deepEqual(L.planMettreEnPause(a, { dateReveil: '' }, ctxPlan()).ecritures, []);
+    assert.deepEqual(L.planRouvrirAffaire(a, ctxPlan()).ecritures, [], 'une affaire ouverte ne se rouvre pas');
+    assert.equal(L.planRouvrirAffaire(affaire({ id: 'a1', statut: 'perdue' }), ctxPlan()).ecritures.length, 2);
+    const enc = L.planEncaisser(a, { montant: 300, date: '2026-10-14' }, ctxPlan());
+    assert.equal(enc.ecritures[0].patch.encaissements.at(-1).montant, 300);
+    assert.equal(enc.ecritures[1].donnees.type, 'encaissement');
+    assert.deepEqual(L.planEncaisser(a, { montant: -3 }, ctxPlan()).ecritures, []);
+  });
+  test('B17 activité faite : patch sans marque + événement ; déjà faite : rien', () => {
+    const plan = L.planActiviteFaite(activite({ id: 'x', affaireId: 'a', type: 'appel', titre: 'Appeler' }), ctxPlan());
+    assert.equal(plan.ecritures[0].patch.fait, true);
+    assert.equal(plan.ecritures[0].signer, undefined);
+    assert.equal(plan.ecritures[1].donnees.type, 'activite_faite');
+    assert.deepEqual(L.planActiviteFaite(activite({ fait: true }), ctxPlan()).ecritures, []);
+  });
+  test('B17 opposition à la prospection : coche = patch + événement ; décoche = patch seul', () => {
+    const p = personne({ id: 'p1', organisationId: 'o1' });
+    const coche = L.planOppositionPersonne(p, true, ctxPlan());
+    assert.equal(coche.ecritures[0].patch.oppositionProspection, true);
+    assert.equal(coche.ecritures[1].donnees.type, 'opposition');
+    assert.equal(coche.ecritures[1].donnees.organisationId, 'o1');
+    assert.equal(L.planOppositionPersonne(p, false, ctxPlan()).ecritures.length, 1);
+  });
+});
+
+describe('B17 Plans d’écriture : suppressions', () => {
+  const affaires = [affaire({ id: 'a1', personneId: 'p1' }), affaire({ id: 'a2', personneId: 'p1' }), affaire({ id: 'a3', personneId: 'p2' })];
+  const liens = [
+    { collection: 'crm_activites', id: 'ac-a1', personneId: 'p1', affaireId: 'a1' },
+    { collection: 'crm_notes', id: 'n-a1', personneId: 'p1', affaireId: 'a1' },
+    { collection: 'crm_activites', id: 'ac-libre', personneId: 'p1', affaireId: null },
+    { collection: 'crm_evenements', id: 'ev-a2', personneId: 'p1', affaireId: 'a2' },
+    { collection: 'crm_activites', id: 'ac-a3', personneId: 'p2', affaireId: 'a3' },
+  ];
+  const cles = (ecritures) => ecritures.map((e) => `${e.type}:${e.collection}/${e.id}`).sort();
+
+  test('B17 supprimer une personne avec ses affaires : leurs fils, ses documents libres, les affaires puis la personne ; rien aux autres', () => {
+    const doublons = [...liens, liens[0]]; // un document trouvé par deux requêtes ne doit être supprimé qu’une fois
+    const plan = L.planSupprimerPersonne({ personneId: 'p1', choix: 'affaires', affaires, liens: doublons });
+    assert.deepEqual(cles(plan.ecritures), cles([
+      ...['crm_activites/ac-a1', 'crm_notes/n-a1', 'crm_activites/ac-libre', 'crm_evenements/ev-a2', 'crm_affaires/a1', 'crm_affaires/a2', 'crm_personnes/p1'].map((c) => ({ type: 'supprimer', collection: c.split('/')[0], id: c.split('/')[1] })),
+    ]));
+    assert.equal(plan.ecritures.at(-1).id, 'p1', 'la personne en dernier');
+  });
+  test('B17 supprimer une personne en conservant ses affaires : détachées (avec marque de modification), son fil rattaché aux affaires détaché, le reste supprimé', () => {
+    const plan = L.planSupprimerPersonne({ personneId: 'p1', choix: 'conserver', affaires, liens });
+    const details = Object.fromEntries(plan.ecritures.map((e) => [`${e.type}:${e.collection}/${e.id}`, e]));
+    assert.deepEqual(details['modifier:crm_affaires/a1'].patch, { personneId: null });
+    assert.deepEqual(details['modifier:crm_affaires/a1'].signer, ['modifiePar']);
+    assert.deepEqual(details['modifier:crm_activites/ac-a1'].patch, { personneId: null });
+    assert.equal(details['modifier:crm_activites/ac-a1'].signer, undefined, 'les documents du fil sont détachés sans marque, comme avant');
+    assert.ok(details['supprimer:crm_activites/ac-libre'], 'une activité sans affaire disparaît avec la personne');
+    assert.ok(details['supprimer:crm_personnes/p1']);
+    assert.equal(par(plan.ecritures, 'supprimer').length, 2);
+    assert.equal(plan.ecritures.findIndex((e) => e.type === 'supprimer') > plan.ecritures.findLastIndex((e) => e.type === 'modifier'), true, 'détachements avant suppressions');
+  });
+  test('B17 personne avec des affaires : le choix est obligatoire ; sans affaire, il ne sert pas', () => {
+    assert.throws(() => L.planSupprimerPersonne({ personneId: 'p1', choix: undefined, affaires, liens }), /Choisis/);
+    assert.deepEqual(cles(L.planSupprimerPersonne({ personneId: 'p9', choix: undefined, affaires, liens: [] }).ecritures), ['supprimer:crm_personnes/p9']);
+  });
+  test('B17 supprimer une affaire : son fil puis elle ; supprimer une organisation vide : son fil puis elle', () => {
+    assert.deepEqual(cles(L.planSupprimerAffaire({ affaireId: 'a1', liens }).ecritures), ['supprimer:crm_activites/ac-a1', 'supprimer:crm_affaires/a1', 'supprimer:crm_notes/n-a1']);
+    const lo = [{ collection: 'crm_notes', id: 'n-o', organisationId: 'o9' }];
+    assert.deepEqual(cles(L.planSupprimerOrganisation({ organisationId: 'o9', personnes: [], affaires: [], liens: lo }).ecritures), ['supprimer:crm_notes/n-o', 'supprimer:crm_organisations/o9']);
+  });
+  test('B17 supprimer une organisation qui a des personnes ou des affaires : refus avec le message, aucune écriture', () => {
+    const plan = L.planSupprimerOrganisation({ organisationId: 'o1', personnes: [personne({ id: 'p1', organisationId: 'o1' })], affaires: [], liens: [] });
+    assert.match(plan.refus, /1 personne/);
+    assert.deepEqual(plan.ecritures, []);
+  });
+  test('B17 supprimer note et activité : une seule suppression', () => {
+    assert.deepEqual(cles(L.planSupprimerNote('n1').ecritures), ['supprimer:crm_notes/n1']);
+    assert.deepEqual(cles(L.planSupprimerActivite('x1').ecritures), ['supprimer:crm_activites/x1']);
+  });
+});
+
+describe('B17 Plans d’écriture : exécutés sur des données', () => {
+  test('B17 créer une personne puis son affaire, changer l’étape, supprimer la personne avec ses affaires : on retrouve la base de départ', () => {
+    const c = ctxPlan();
+    const exec = (base, plan) => executerPlan(base, plan.ecritures, { maintenant: c.maintenant, acteur: JEROME });
+    let base = {};
+    const pp = L.planCreerPersonne({ nom: 'Camille Durand' }, c);
+    base = exec(base, pp);
+    const pa = L.planCreerAffaire({ titre: 'Site', personneId: pp.id }, { personnes: base.crm_personnes, organisations: [] }, c);
+    base = exec(base, pa);
+    const a = base.crm_affaires[0];
+    base = exec(base, L.planChangerEtape(a, 'rdv_fixe', c));
+    base = exec(base, L.planCreerNote('Une note', { affaireId: a.id, personneId: pp.id }, c));
+    assert.equal(base.crm_affaires[0].etape, 'rdv_fixe');
+    assert.equal(base.crm_affaires[0].modifiePar, JEROME);
+    assert.equal(base.crm_evenements.length, 3);
+    const liens = [...base.crm_evenements, ...base.crm_notes].map((d) => ({ collection: base.crm_evenements.includes(d) ? 'crm_evenements' : 'crm_notes', id: d.id, personneId: d.personneId, organisationId: d.organisationId, affaireId: d.affaireId }));
+    base = exec(base, L.planSupprimerPersonne({ personneId: pp.id, choix: 'affaires', affaires: base.crm_affaires, liens }));
+    assert.deepEqual(Object.fromEntries(Object.entries(base).map(([k, v]) => [k, v.length])), { crm_personnes: 0, crm_affaires: 0, crm_evenements: 0, crm_notes: 0 });
+  });
+});
+
+describe('B18 Fil : canal de l’auteur', () => {
+  test('B18 un élément créé par le serveur MCP affiche « · via MCP » ; un élément de l’écran, ou sans canal, n’affiche rien', () => {
+    assert.equal(L.mentionCanal({ auteur: 'hermes-bibliothecaire', via: 'mcp' }), ' · via MCP');
+    assert.equal(L.mentionCanal({ auteur: JEROME }), '');
+    assert.equal(L.mentionCanal({ via: 'autre' }), '');
+    assert.equal(L.mentionCanal(null), '');
+  });
+});

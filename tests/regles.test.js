@@ -15,10 +15,14 @@ const PROJET = 'demo-chevalier-ia-os';
 const REGLES = readFileSync(fileURLToPath(new URL('../firestore.rules', import.meta.url)), 'utf8');
 const [hote, port] = (process.env.FIRESTORE_EMULATOR_HOST || '127.0.0.1:8080').split(':');
 
+// Collections de l'appli : comportement identique à celui d'avant l'étape 4 (les 45 cas A1 à A5).
 const COLLECTIONS = [
   'crm_personnes', 'crm_organisations', 'crm_affaires', 'crm_activites', 'crm_notes', 'crm_evenements',
   'crm_parametres', 'os_objectifs', 'os_objectifs_saisies',
 ];
+// Collections du serveur MCP (étape 4) : sorties du joker.
+const COLLECTIONS_SERVEUR = ['crm_audit', 'crm_audit_avant', 'mcp_limites'];
+const COMPTES = ['jerome.chevalier@gmail.com', 'jeromebot.chevalierbot@gmail.com'];
 
 let env;
 
@@ -38,7 +42,7 @@ beforeEach(async () => {
   // Un document existant par collection, écrit sans règles, pour les lectures et suppressions.
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
-    for (const c of COLLECTIONS) {
+    for (const c of [...COLLECTIONS, ...COLLECTIONS_SERVEUR, 'crm_autre']) {
       await setDoc(doc(db, c, 'existant'), { valeur: 1 });
     }
   });
@@ -95,4 +99,37 @@ describe('A. Règles de sécurité', () => {
       await aucunDroit(env.unauthenticatedContext().firestore(), c);
     });
   }
+
+  // Étape 4 : le journal est lisible mais jamais modifiable depuis l'appli ; copies « avant » et compteurs sont fermés.
+  for (const email of COMPTES) {
+    test(`A6 ${email} lit le journal d'audit (document et liste) mais ne peut ni créer, ni modifier, ni supprimer`, async () => {
+      const db = contexte(email);
+      await assertSucceeds(getDoc(doc(db, 'crm_audit', 'existant')));
+      await assertSucceeds(getDocs(collection(db, 'crm_audit')));
+      await assertFails(setDoc(doc(db, 'crm_audit', 'nouveau'), { valeur: 2 }));
+      await assertFails(updateDoc(doc(db, 'crm_audit', 'existant'), { valeur: 3 }));
+      await assertFails(deleteDoc(doc(db, 'crm_audit', 'existant')));
+    });
+    for (const c of ['crm_audit_avant', 'mcp_limites']) {
+      test(`A7 ${email} ne peut rien faire dans ${c} (lecture, liste, création, modification, suppression refusées)`, async () => {
+        await aucunDroit(contexte(email), c);
+      });
+    }
+    test(`A8 ${email} garde tous ses droits dans une collection inconnue (le joker reste en place pour le reste)`, async () => {
+      await droitsComplets(contexte(email), 'crm_autre');
+    });
+  }
+
+  test('A6 un autre compte, un compte non vérifié et un visiteur ne lisent pas le journal d’audit', async () => {
+    await aucunDroit(contexte('quelquun.dautre@gmail.com'), 'crm_audit');
+    await aucunDroit(contexte('jerome.chevalier@gmail.com', false), 'crm_audit');
+    await aucunDroit(env.unauthenticatedContext().firestore(), 'crm_audit');
+  });
+
+  test('A7 les trois collections du serveur sont bien exclues du joker : aucun accès en écriture même pour un nouveau document ou une sous-collection', async () => {
+    for (const email of COMPTES) {
+      const db = contexte(email);
+      for (const c of COLLECTIONS_SERVEUR) await assertFails(setDoc(doc(db, c, 'x', 'sous', 'y'), { valeur: 1 }));
+    }
+  });
 });

@@ -6,12 +6,12 @@ import { createServer } from 'node:http';
 import { Client } from '../functions/node_modules/@modelcontextprotocol/sdk/dist/esm/client/index.js';
 import { StreamableHTTPClientTransport } from '../functions/node_modules/@modelcontextprotocol/sdk/dist/esm/client/streamableHttp.js';
 import { creerGestionnaire } from '../functions/src/mcp/gestionnaire.js';
-import { OUTILS } from '../functions/src/mcp/outils/index.js';
+import { OUTILS, outilsAutorises } from '../functions/src/mcp/outils/index.js';
 import { empreinte, creerMagasin } from '../functions/src/securite/jetons.js';
 import { creerAccesMemoire } from '../functions/src/coeur/donnees.js';
 import { collections, MAINTENANT } from './_donnees-essai.js';
 
-const NOMS_OUTILS = OUTILS.map((o) => o.nom).sort();
+const nomsPour = (profil) => outilsAutorises(profil).map((o) => o.nom).sort();
 
 const JETON = { lecteur: `cia_${'L'.repeat(43)}`, biblio: `cia_${'H'.repeat(43)}`, code: `cia_${'C'.repeat(43)}`, revoque: `cia_${'R'.repeat(43)}` };
 const entree = (jeton, nom, profil, actif = true) => ({ jeton: nom, acteur: nom, profil, empreinte: empreinte(jeton), actif });
@@ -92,7 +92,8 @@ describe('Protocole MCP et droits par profil', () => {
     const donnees = JSON.parse(r.content[0].text);
     assert.equal(donnees.acteur, 'hermes-bibliothecaire');
     assert.equal(donnees.profil, 'bibliothecaire');
-    assert.deepEqual([...donnees.outils].sort(), NOMS_OUTILS);
+    assert.deepEqual([...donnees.outils].sort(), nomsPour('bibliothecaire'));
+    assert.ok(donnees.outils.includes('creer_personne') && !donnees.outils.includes('supprimer_personne') && !donnees.outils.includes('restaurer_depuis_audit'));
     assert.ok(!donnees.outils.includes('outil_reserve'));
     assert.equal(donnees.serveur.nom, 'chevalier-ia-os');
     assert.match(donnees.serveur.version, /^\d+\.\d+\.\d+$/);
@@ -100,12 +101,12 @@ describe('Protocole MCP et droits par profil', () => {
   });
   test('droits par profil : un outil hors profil n’est ni listé ni exécutable, même si l’appel arrive', async () => {
     const biblio = await client(JETON.biblio);
-    assert.deepEqual((await biblio.listTools()).tools.map((t) => t.name).sort(), NOMS_OUTILS);
+    assert.deepEqual((await biblio.listTools()).tools.map((t) => t.name).sort(), nomsPour('bibliothecaire'));
     const refus = await biblio.callTool({ name: 'outil_reserve', arguments: {} }).catch((e) => ({ erreur: e }));
     assert.ok(refus.erreur || refus.isError, 'appel refusé');
     await biblio.close();
     const code = await client(JETON.code);
-    assert.deepEqual((await code.listTools()).tools.map((t) => t.name).sort(), [...NOMS_OUTILS, 'outil_reserve'].sort());
+    assert.deepEqual((await code.listTools()).tools.map((t) => t.name).sort(), [...nomsPour('claude-code'), 'outil_reserve'].sort());
     assert.equal(JSON.parse((await code.callTool({ name: 'outil_reserve', arguments: {} })).content[0].text).ok, true);
     await code.close();
   });

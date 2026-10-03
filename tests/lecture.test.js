@@ -9,6 +9,8 @@ import { creerAccesMemoire } from '../functions/src/coeur/donnees.js';
 import * as lecture from '../functions/src/coeur/lecture.js';
 import { serialiser } from '../functions/src/coeur/serialisation.js';
 import { OUTILS } from '../functions/src/mcp/outils/index.js';
+import { OUTILS_LECTURE } from '../functions/src/mcp/outils/lecture.js';
+import { qui_suis_je } from '../functions/src/mcp/outils/identite.js';
 import { collections, MAINTENANT } from './_donnees-essai.js';
 
 const RACINE = fileURLToPath(new URL('../', import.meta.url));
@@ -187,13 +189,26 @@ describe('Lecture seule (garantie)', () => {
       assert.doesNotMatch(readFileSync(join(RACINE, f), 'utf8'), /\.(set|update|delete|add|create)\(|batch\(|runTransaction|FieldValue|serverTimestamp/, f);
     }
   });
-  test('l’interface d’accès aux données ne propose que lire (liste, document)', () => {
-    assert.deepEqual(Object.keys(donnees).sort(), ['document', 'liste']);
+  test('la couche de lecture n’appelle jamais les méthodes d’écriture de l’accès aux données ; seuls le moteur, la restauration et les limites y ont droit', () => {
+    for (const f of ['functions/src/coeur/lecture.js', 'functions/src/mcp/outils/lecture.js', 'functions/src/mcp/outils/identite.js']) {
+      assert.doesNotMatch(readFileSync(join(RACINE, f), 'utf8'), /\b(appliquer|mettreAJour|nouvelId)\b/, f);
+    }
+    const dossier = join(RACINE, 'functions/src');
+    const parcourir = (d) => readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? parcourir(join(d, e.name)) : [join(d, e.name)]));
+    // Les actions métier (metier.js) et le gestionnaire ne font que tirer des identifiants et confier l'écriture au moteur : jamais appliquer/mettreAJour.
+    const autorises = ['coeur/donnees.js', 'coeur/ecriture.js', 'coeur/restaurer.js', 'securite/limites.js'];
+    for (const f of parcourir(dossier).filter((x) => /\.appliquer\(|\.mettreAJour\(/.test(readFileSync(x, 'utf8')))) {
+      assert.ok(autorises.some((a) => f.endsWith(a)), `écriture hors du moteur : ${f}`);
+    }
+    for (const f of parcourir(dossier).filter((x) => /\.nouvelId\(/.test(readFileSync(x, 'utf8')))) {
+      assert.ok([...autorises, 'coeur/metier.js'].some((a) => f.endsWith(a)), `identifiants tirés hors du moteur et de metier.js : ${f}`);
+    }
   });
-  test('tous les outils de lecture sont ouverts aux trois profils ; aucun outil d’écriture n’est encore enregistré', () => {
-    const noms = OUTILS.map((o) => o.nom).sort();
+  test('tous les outils de lecture sont ouverts aux trois profils, et ne sont pas les seuls outils enregistrés', () => {
+    const noms = [qui_suis_je, ...OUTILS_LECTURE].map((o) => o.nom).sort();
     assert.deepEqual(noms, ['chercher', 'lire_affaire', 'lire_audit', 'lire_organisation', 'lire_personne', 'lire_reglages', 'lister_activites', 'lister_affaires', 'lister_documents', 'qui_suis_je']);
-    for (const o of OUTILS) assert.deepEqual(o.profils, ['lecteur', 'bibliothecaire', 'claude-code'], o.nom);
+    for (const o of [qui_suis_je, ...OUTILS_LECTURE]) assert.deepEqual(o.profils, ['lecteur', 'bibliothecaire', 'claude-code'], o.nom);
+    for (const o of OUTILS.filter((x) => !noms.includes(x.nom))) assert.ok(!o.profils.includes('lecteur'), `${o.nom} : le lecteur n’a aucun droit d’écriture`);
   });
   test('le code des fonctions ne référence jamais l’ancienne collection crm_prospects', () => {
     const dossier = join(RACINE, 'functions/src');

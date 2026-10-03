@@ -22,7 +22,7 @@ export function extraireBearer(entete) {
 /**
  * Lit le contenu du secret MCP_JETONS : un tableau JSON, ou une entrée JSON par ligne.
  * Une entrée mal formée est ignorée (le jeton correspondant est donc refusé) et comptée dans `invalides`.
- * Entrée valide : { jeton, acteur, profil, empreinte, actif }.
+ * Entrée valide : { jeton, acteur, profil, empreinte, actif, limites? } ; `limites` (facultatif) règle les plafonds du jeton (voir limites.js).
  */
 export function analyserSecret(texte) {
   const entrees = [];
@@ -38,7 +38,7 @@ export function analyserSecret(texte) {
     const ok = e && typeof e === 'object'
       && FORMAT_NOM.test(e.jeton ?? '') && FORMAT_NOM.test(e.acteur ?? '')
       && PROFILS.includes(e.profil) && FORMAT_EMPREINTE.test(e.empreinte ?? '') && typeof e.actif === 'boolean';
-    if (ok) entrees.push({ jeton: e.jeton, acteur: e.acteur, profil: e.profil, empreinte: e.empreinte, actif: e.actif });
+    if (ok) entrees.push({ jeton: e.jeton, acteur: e.acteur, profil: e.profil, empreinte: e.empreinte, actif: e.actif, ...(e.limites && typeof e.limites === 'object' ? { limites: e.limites } : {}) });
     else invalides += 1;
   }
   return { entrees, invalides };

@@ -64,6 +64,7 @@ export function ctx() {
     auteur: compte?.email || '',
     aujourdhui: L.aujourdhuiParis(maintenant),
     delaiPaiementJours: etat.reglages.delaiPaiementJours,
+    nouvelId: (nom) => doc(collection(db, nom)).id,
   };
 }
 
@@ -150,21 +151,32 @@ async function initialiserParametres(existants) {
 }
 
 // ---------------------------------------------------------------- outils d'écriture
+// Les règles (quoi écrire) sont dans logique.js (plans, partagés avec le serveur MCP) ; ici : exécuter un plan et lire ce qu'il faut.
 
-const nouveauRef = (nom) => doc(collection(db, nom));
-const estampille = () => ({ modifieLe: serverTimestamp(), modifiePar: compte?.email || '' });
-const creation = () => ({ creeLe: serverTimestamp(), creePar: compte?.email || '', ...estampille() });
-
-function ajouterEvenements(batch, evenements) {
-  for (const e of evenements || []) batch.set(nouveauRef('crm_evenements'), e);
-}
-
-async function supprimerParLots(refs) {
-  for (let i = 0; i < refs.length; i += 400) {
+/** Exécute les écritures d'un plan par lots de 400 (un lot est atomique). `horodater` -> heure du serveur Firebase, `signer` -> compte connecté. */
+async function executer(ecritures) {
+  for (let i = 0; i < ecritures.length; i += 400) {
     const lot = writeBatch(db);
-    refs.slice(i, i + 400).forEach((r) => lot.delete(r));
+    for (const e of ecritures.slice(i, i + 400)) {
+      const ref = doc(db, e.collection, e.id);
+      const marques = {};
+      for (const champ of e.horodater || []) marques[champ] = serverTimestamp();
+      for (const champ of e.signer || []) marques[champ] = compte?.email || '';
+      if (e.type === 'creer') lot.set(ref, { ...e.donnees, ...marques });
+      else if (e.type === 'modifier') lot.update(ref, { ...e.patch, ...marques });
+      else lot.delete(ref);
+    }
     await lot.commit();
   }
+}
+
+/** Activités, notes et événements qui portent un lien `champ` = id : [{ collection, id, personneId, organisationId, affaireId }]. */
+async function liensDe(champ, id) {
+  const noms = ['crm_activites', 'crm_notes', 'crm_evenements'];
+  const reponses = await Promise.all(noms.map((nom) => getDocs(query(collection(db, nom), where(champ, '==', id)))));
+  return reponses.flatMap((r, i) => r.docs.map((d) => ({
+    collection: noms[i], id: d.id, personneId: d.data().personneId ?? null, organisationId: d.data().organisationId ?? null, affaireId: d.data().affaireId ?? null,
+  })));
 }
 
 // ---------------------------------------------------------------- fil d'une fiche (notes et événements)
@@ -187,20 +199,13 @@ export function ecouterFil(lien, rappel) {
 // ---------------------------------------------------------------- personnes
 
 export async function creerPersonne(valeurs) {
-  const c = ctx();
-  const ref = nouveauRef('crm_personnes');
-  const lot = writeBatch(db);
-  lot.set(ref, { ...L.nouvellePersonne(valeurs, c), ...creation() });
-  lot.set(nouveauRef('crm_evenements'), L.evenementCreation('personne_creee', `Personne créée : ${L.nettoyerEspaces(valeurs.nom)}`, { personneId: ref.id, organisationId: valeurs.organisationId || null }, c));
-  await lot.commit();
-  return ref.id;
+  const plan = L.planCreerPersonne(valeurs, ctx());
+  await executer(plan.ecritures);
+  return plan.id;
 }
 
 export async function majPersonne(id, patch) {
-  if (!patch || !Object.keys(patch).length) return;
-  const lot = writeBatch(db);
-  lot.update(doc(db, 'crm_personnes', id), { ...patch, ...estampille() });
-  await lot.commit();
+  await executer(L.planMajPersonne(id, patch).ecritures);
 }
 
 /** Change l'organisation d'une personne ; ses affaires gardent leur propre organisation. */
@@ -211,22 +216,12 @@ export async function lierPersonneOrganisation(personneId, organisationId) {
 export async function emailEnvoye(personneId) {
   const p = personne(personneId);
   if (!p) return;
-  const lot = writeBatch(db);
-  ajouterEvenements(lot, [L.evenementEmailEnvoye(p, ctx())]);
-  await lot.commit();
+  await executer(L.planEmailEnvoye(p, ctx()).ecritures);
 }
 
 export async function marquerOppositionPersonne(personneId, coche) {
-  const c = ctx();
-  const lot = writeBatch(db);
-  lot.update(doc(db, 'crm_personnes', personneId), { ...L.marquerOpposition(coche, c), ...estampille() });
-  if (coche) ajouterEvenements(lot, [L.evenementCreation('opposition', 'Opposition à la prospection enregistrée', { personneId, organisationId: personne(personneId)?.organisationId ?? null }, c)]);
-  await lot.commit();
-}
-
-async function liensDe(champ, id) {
-  const [a, n, e] = await Promise.all(['crm_activites', 'crm_notes', 'crm_evenements'].map((nom) => getDocs(query(collection(db, nom), where(champ, '==', id)))));
-  return [...a.docs, ...n.docs, ...e.docs];
+  const p = personne(personneId) || { id: personneId, organisationId: null };
+  await executer(L.planOppositionPersonne(p, coche, ctx()).ecritures);
 }
 
 /**
@@ -234,107 +229,68 @@ async function liensDe(champ, id) {
  * (ses affaires restent, rattachées à leur organisation seule). Ses activités, notes et événements suivent.
  */
 export async function supprimerPersonne(id, choix) {
-  const plan = L.planSuppressionPersonne(id, etat.affaires, choix);
-  for (const aid of plan.supprimerAffaires) await supprimerAffaire(aid);
-  const gardees = new Set(plan.detacherAffaires);
-  if (gardees.size) {
-    const lot = writeBatch(db);
-    for (const aid of gardees) lot.update(doc(db, 'crm_affaires', aid), { personneId: null, ...estampille() });
-    await lot.commit();
-  }
-  const aSupprimer = [];
-  const aDetacher = [];
-  for (const d of await liensDe('personneId', id)) {
-    (gardees.has(d.data().affaireId) ? aDetacher : aSupprimer).push(d.ref);
-  }
-  if (aDetacher.length) {
-    const lot = writeBatch(db);
-    aDetacher.forEach((r) => lot.update(r, { personneId: null }));
-    await lot.commit();
-  }
-  await supprimerParLots([...aSupprimer, doc(db, 'crm_personnes', id)]);
+  const liens = await liensDe('personneId', id);
+  if (choix === 'affaires') for (const a of etat.affaires.filter((x) => x.personneId === id)) liens.push(...await liensDe('affaireId', a.id));
+  await executer(L.planSupprimerPersonne({ personneId: id, choix, affaires: etat.affaires, liens }).ecritures);
 }
 
 // ---------------------------------------------------------------- organisations
 
 export async function creerOrganisation(valeurs) {
-  const c = ctx();
-  const ref = nouveauRef('crm_organisations');
-  const lot = writeBatch(db);
-  lot.set(ref, { ...L.nouvelleOrganisation(valeurs, c), ...creation() });
-  lot.set(nouveauRef('crm_evenements'), L.evenementCreation('organisation_creee', `Organisation créée : ${L.nettoyerEspaces(valeurs.nom)}`, { organisationId: ref.id }, c));
-  await lot.commit();
-  return ref.id;
+  const plan = L.planCreerOrganisation(valeurs, ctx());
+  await executer(plan.ecritures);
+  return plan.id;
 }
 
 export async function majOrganisation(id, patch) {
-  if (!patch || !Object.keys(patch).length) return;
-  const lot = writeBatch(db);
-  lot.update(doc(db, 'crm_organisations', id), { ...patch, ...estampille() });
-  await lot.commit();
+  await executer(L.planMajOrganisation(id, patch).ecritures);
 }
 
 /** Refus (Error) tant que l'organisation a des personnes ou des affaires. */
 export async function supprimerOrganisation(id) {
-  const verif = L.verifierSuppressionOrganisation(id, { personnes: etat.personnes, affaires: etat.affaires });
-  if (!verif.ok) throw new Error(verif.raison);
-  await supprimerParLots([...(await liensDe('organisationId', id)).map((d) => d.ref), doc(db, 'crm_organisations', id)]);
+  const plan = L.planSupprimerOrganisation({ organisationId: id, personnes: etat.personnes, affaires: etat.affaires, liens: await liensDe('organisationId', id) });
+  if (plan.refus) throw new Error(plan.refus);
+  await executer(plan.ecritures);
 }
 
 // ---------------------------------------------------------------- affaires
 
 export async function creerAffaire(valeurs) {
-  const c = ctx();
-  const p = valeurs.personneId ? personne(valeurs.personneId) : null;
-  const organisationId = valeurs.organisationId || p?.organisationId || null;
-  const org = organisationId ? organisation(organisationId) : null;
-  const titre = L.nettoyerEspaces(valeurs.titre) || L.titreParDefaut({ organisation: org, personne: p });
-  const document = L.nouvelleAffaire({ ...valeurs, titre, organisationId }, c);
-  const ref = nouveauRef('crm_affaires');
-  const lot = writeBatch(db);
-  lot.set(ref, { ...document, ...creation() });
-  lot.set(nouveauRef('crm_evenements'), L.evenementCreation('affaire_creee', `Affaire créée : ${titre}`, { personneId: document.personneId, organisationId, affaireId: ref.id }, c));
-  await lot.commit();
-  return ref.id;
+  const plan = L.planCreerAffaire(valeurs, { personnes: etat.personnes, organisations: etat.organisations }, ctx());
+  await executer(plan.ecritures);
+  return plan.id;
 }
 
 export async function majAffaire(id, patch) {
-  if (!patch || !Object.keys(patch).length) return;
-  const lot = writeBatch(db);
-  lot.update(doc(db, 'crm_affaires', id), { ...patch, ...estampille() });
-  await lot.commit();
+  await executer(L.planMajAffaire(id, patch).ecritures);
 }
 
-async function appliquer(id, resultat) {
-  if (resultat.erreurs && Object.keys(resultat.erreurs).length) return resultat;
-  const lot = writeBatch(db);
-  if (Object.keys(resultat.patch || {}).length) lot.update(doc(db, 'crm_affaires', id), { ...resultat.patch, ...estampille() });
-  ajouterEvenements(lot, resultat.evenements);
-  await lot.commit();
-  return resultat;
+async function appliquer(plan) {
+  await executer(plan.ecritures);
+  return plan;
 }
 
 /** Changement d'étape ; renvoie { erreurs, patch, evenements, suggestion }. */
 export async function changerEtape(id, etape, options = {}) {
   const a = affaire(id);
   if (!a) throw new Error('Affaire introuvable');
-  return appliquer(id, L.changementEtape(a, etape, ctx(), options));
+  return appliquer(L.planChangerEtape(a, etape, ctx(), options));
 }
 
 export async function marquerAffairePerdue(id, saisie) {
-  return appliquer(id, L.marquerPerdue(affaire(id), saisie, ctx()));
+  return appliquer(L.planMarquerPerdue(affaire(id), saisie, ctx()));
 }
 
 export async function mettreAffaireEnPause(id, saisie) {
-  return appliquer(id, L.mettreEnPause(affaire(id), saisie, ctx()));
+  return appliquer(L.planMettreEnPause(affaire(id), saisie, ctx()));
 }
 
 export async function rouvrir(id) {
-  return appliquer(id, L.rouvrirAffaire(affaire(id), ctx()));
+  return appliquer(L.planRouvrirAffaire(affaire(id), ctx()));
 }
 
 export async function encaisser(id, saisie) {
-  return appliquer(id, L.ajouterEncaissement(affaire(id), saisie, ctx()));
+  return appliquer(L.planEncaisser(affaire(id), saisie, ctx()));
 }
 
 export async function archiverAffaire(id, archive = true) {
@@ -342,50 +298,46 @@ export async function archiverAffaire(id, archive = true) {
 }
 
 export async function supprimerAffaire(id) {
-  await supprimerParLots([...(await liensDe('affaireId', id)).map((d) => d.ref), doc(db, 'crm_affaires', id)]);
+  await executer(L.planSupprimerAffaire({ affaireId: id, liens: await liensDe('affaireId', id) }).ecritures);
 }
 
 // ---------------------------------------------------------------- activités
 
 export async function creerActivite(valeurs) {
-  const ref = nouveauRef('crm_activites');
-  await setDoc(ref, { ...L.nouvelleActivite(valeurs, ctx()), creeLe: serverTimestamp() });
-  return ref.id;
+  const plan = L.planCreerActivite(valeurs, ctx());
+  await executer(plan.ecritures);
+  return plan.id;
 }
 
 export async function marquerActiviteFaite(id) {
   const a = etat.activites.find((x) => x.id === id);
   if (!a) return null;
-  const r = L.activiteFaite(a, ctx());
-  const lot = writeBatch(db);
-  if (Object.keys(r.patch).length) lot.update(doc(db, 'crm_activites', id), r.patch);
-  ajouterEvenements(lot, r.evenements);
-  await lot.commit();
+  await executer(L.planActiviteFaite(a, ctx()).ecritures);
   return a;
 }
 
 export async function majActivite(id, patch) {
-  await writeBatch(db).update(doc(db, 'crm_activites', id), patch).commit();
+  await executer(L.planMajActivite(id, patch).ecritures);
 }
 
 export async function supprimerActivite(id) {
-  await supprimerParLots([doc(db, 'crm_activites', id)]);
+  await executer(L.planSupprimerActivite(id).ecritures);
 }
 
 // ---------------------------------------------------------------- notes
 
 export async function creerNote(texte, liens) {
-  const ref = nouveauRef('crm_notes');
-  await setDoc(ref, { ...L.nouvelleNote(texte, liens, ctx()), creeLe: serverTimestamp(), modifieLe: serverTimestamp() });
-  return ref.id;
+  const plan = L.planCreerNote(texte, liens, ctx());
+  await executer(plan.ecritures);
+  return plan.id;
 }
 
 export async function majNote(id, texte) {
-  await writeBatch(db).update(doc(db, 'crm_notes', id), { texte: String(texte).trim(), modifieLe: serverTimestamp() }).commit();
+  await executer(L.planMajNote(id, texte).ecritures);
 }
 
 export async function supprimerNote(id) {
-  await supprimerParLots([doc(db, 'crm_notes', id)]);
+  await executer(L.planSupprimerNote(id).ecritures);
 }
 
 // ---------------------------------------------------------------- paramètres

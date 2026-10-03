@@ -11,7 +11,7 @@
     "test:logique": "node --test logique.test.js",
     "test:statique": "node --test statique.test.js",
     "installer-fonctions": "npm ci --prefix ../functions",
-    "test:fonctions": "npm run preparer && node --test jetons.test.js mcp.test.js lecture.test.js lecture-firestore.test.js",
+    "test:fonctions": "npm run preparer && node --test jetons.test.js mcp.test.js lecture.test.js lecture-firestore.test.js ecriture.test.js ecriture-firestore.test.js ecriture-outils.test.js",
     "test:e2e": "playwright test",
     "installer-navigateur": "playwright install chromium",
     "preparer": "node ../scripts/preparer-fonctions.js"

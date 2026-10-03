@@ -4,10 +4,12 @@ import { onRequest } from 'firebase-functions/v2/https';
 import { creerGestionnaire } from './mcp/gestionnaire.js';
 import { creerAccesFirestore } from './coeur/donnees.js';
 import { creerMagasin } from './securite/jetons.js';
+import { creerLimiteur } from './securite/limites.js';
 import { lireSecretJetons } from './securite/secret.js';
 
 const magasin = creerMagasin({ lire: lireSecretJetons() });
 const donnees = creerAccesFirestore();
+const limiteur = creerLimiteur({ donnees });
 
 export const mcp = onRequest(
   {
@@ -20,5 +22,5 @@ export const mcp = onRequest(
     // Compte dédié : seulement « Utilisateur Cloud Datastore » (Firestore) et « Accesseur de secrets » sur MCP_JETONS.
     serviceAccount: 'mcp-serveur@chevalier-ia-os.iam.gserviceaccount.com',
   },
-  creerGestionnaire({ magasin, donnees }),
+  creerGestionnaire({ magasin, donnees, limiteur }),
 );
