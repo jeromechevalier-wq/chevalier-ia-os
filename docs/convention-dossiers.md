@@ -52,7 +52,7 @@ Le préfixe `_` est réservé au système : `_JEROME_OS`, `_outils`, `_archives`
 | `marketing - videos` | `interne-marketing-videos` |
 | `projet-recherche-locations-reunion` | `perso-locations-reunion` |
 | `pension alimentaire` | `perso-pension-alimentaire` |
-| `audrey-suivi-eleves.zip`, `chevalier-ia-os-v1.zip`, `site-chevalier-ia.zip` et le quatrième `.zip` | `_archives/` |
+| `audrey-suivi-eleves.zip`, `chevalier-ia-os-v1.zip`, `site-chevalier-ia.zip` | `_archives/` |
 
 Résultat visible dans le Finder : `_archives`, `_JEROME_OS`, `_outils`, puis les `client-`, `interne-`, `perso-`, `produit-` et `site-` regroupés par ordre alphabétique.
 
