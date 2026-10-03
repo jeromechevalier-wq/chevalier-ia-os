@@ -16,6 +16,7 @@ Rédigé le 03/10/2026 à partir du cahier 2.0, du code du module CRM, de la roa
 10. **Pièces jointes sur les projets** : un projet reçoit des pièces jointes comme une affaire (3.9). Le champ `documents` du projet a la même forme que celui de l'affaire.
 11. **Adresse GitHub** : champ facultatif `urlGithub` sur chaque affaire et chaque projet (4.1 et 4.5).
 12. **Dossier de travail** : champ facultatif `urlDossier` (adresse du dossier Drive) sur chaque affaire et chaque projet, voisin de `urlGithub` (4.1 et 4.5). Convention de nommage des dossiers : `convention-dossiers.md`.
+13. **Bouton « Créer le répertoire »** : un nom de dossier proposé (modifiable) et un prompt à coller dans Claude Code, qui crée le dossier avec la bonne structure en suivant les règles du second cerveau (`modele-prompt-creation-dossier.md`).
 
 ## 1. Pourquoi, et ce que ça change
 
@@ -164,12 +165,12 @@ Même modèle que le CRM (Pipedrive pour la structure, DA chevalier-ia.fr pour l
    - **Liste** : Titre, Personne, Organisation, Phase, Début, Fin, Avancement ; cartes sur téléphone.
 2. **Fiche projet** (`#/projets/projets/<id>`) : deux colonnes sur ordinateur, une sur téléphone, mêmes composants que la fiche affaire.
    - **En tête** : titre modifiable, personne et organisation (liens), lien « Affaire d'origine », **barre des phases** (clic = changement de phase), boutons **Terminer** et **En pause**, menu « ⋯ » (Archiver, Supprimer définitivement) ;
-   - **Gauche** : Résumé (affaire, personne, organisation, offre, statut, dates) ; **Tâches** par phase (cocher, ajouter, glisser pour réordonner, date rapide : Demain, +3 jours, +1 semaine) ; Documents ;
+   - **Gauche** : Résumé (affaire, personne, organisation, offre, statut, dates) ; **Détails** (adresse GitHub `urlGithub`, dossier de travail `urlDossier` avec son bouton « Créer le répertoire ») ; **Tâches** par phase (cocher, ajouter, glisser pour réordonner, date rapide : Demain, +3 jours, +1 semaine) ; Documents ;
    - **Droite** : Activité et Notes (les notes se rattachent au projet **et** à ses liens), Points clés, Historique.
 3. **Modèles** (`#/projets/modeles`) : liste ; fiche d'un modèle avec ses tâches par phase.
 4. **Archives** (`#/projets/archives`) : projets archivés.
 5. **Accueil du CRM** : les tâches de projet en retard ou du jour s'ajoutent aux groupes « En retard » et « Aujourd'hui », avec le nom du projet (option A de 3.5).
-6. **Fiche affaire** : section « Projet » (lien ou bouton « Créer le projet »). **Fiche personne et fiche organisation** : section « Projets » (liste des projets liés).
+6. **Fiche affaire** : section « Projet » (lien ou bouton « Créer le projet ») ; la section **Détails** gagne `urlGithub` et `urlDossier` (avec le bouton « Créer le répertoire »). **Fiche personne et fiche organisation** : section « Projets » (liste des projets liés).
 7. **Bouton « + » de la barre supérieure** : entrée **Projet**. **Recherche globale** : groupe **Projets**.
 8. **Suggestions douces** au changement de phase : **décidé le 03/10/2026 (interprétation à confirmer, question 3 de la section 9) : aucune en 2.1**, pour ne pas inventer ta méthode.
 
