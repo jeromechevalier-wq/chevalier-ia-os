@@ -2,6 +2,25 @@
 
 Rédigé le 03/10/2026 à partir du cahier 2.0, du code du module CRM, de la roadmap, de `pipedrive-reference.md` et du plan MCP. **Brouillon** : rien n'est construit. Mis à jour le 03/10/2026 après les réponses de Jérôme (section « Décisions »). Chaque point est marqué **Décidé** (par Jérôme), **Repris** (déjà écrit dans un document existant), **Proposition** (mon choix par défaut, que tu peux changer) ou **À trancher**.
 
+## La vision de Jérôme (03/10/2026)
+
+**Extraire un maximum de valeur de chaque affaire et de chaque projet, qu'ils soient gagnés ou perdus.** Pour Jérôme, extraire de la valeur, c'est :
+1. tirer des **règles** ;
+2. comprendre ses **erreurs**, pour ne plus les reproduire ;
+3. repérer ce qui est **automatisable** ;
+4. créer de la **documentation marketing** (le point le plus important : le but de Jérôme est d'en produire à partir de chacun de ses projets).
+
+**Mécanisme voulu** : quand une affaire passe en **Gagné ou Perdu**, on crée un **projet d'extraction** qui a pour finalité d'extraire toute la valeur de cette affaire. Quand un **projet est terminé**, on crée de même un projet d'extraction pour ce projet.
+
+**Ma traduction en règles (propositions, à valider)** :
+1. **Un champ `nature`** sur le projet : `livraison` (le travail pour le client, par défaut) ou `extraction`. Un projet d'extraction garde un lien vers sa source : `affaireId` (extraction d'une affaire) ou `projetSourceId` (extraction d'un projet).
+2. **Pas de boucle** : un projet d'extraction **ne déclenche jamais** un autre projet d'extraction quand il se termine. Sans cette règle, chaque extraction en créerait une autre, sans fin.
+3. **Un seul projet d'extraction par source** : si l'affaire est rouverte puis passe de nouveau en Gagné ou Perdu, l'appli propose d'ouvrir l'extraction existante, pas d'en créer une seconde.
+4. **Création automatique, sans boîte à valider**, pour l'extraction (contrairement au projet de livraison, qui reste une suggestion douce, 3.2). Raison : l'extraction doit se faire **à chaque fois**, et elle est écrite dans la **logique commune** de l'écran et du serveur MCP (`changementEtape`). Si elle dépendait d'une boîte de l'écran, une affaire passée en Perdu par un agent (outil `changer_etape`) n'aurait jamais son extraction. Un projet d'extraction inutile se supprime ou s'archive en un clic.
+5. **Modèle « Extraction »** livré avec l'appli, quatre tâches qui reprennent les quatre points de la vision : *Tirer les règles* ; *Comprendre les erreurs* ; *Repérer ce qui est automatisable* ; *Créer la documentation marketing*. Chacune a une échéance par défaut (proposition : sept jours après la création).
+6. **Où va ce qui est extrait** : la **documentation marketing** va dans le dossier `marketing/` de la source (le dossier du projet, voir `convention-dossiers.md`) ; les **règles et les erreurs** deviennent des fiches du second cerveau (le bibliothécaire ou Claude Code les compile) ; ce qui est **automatisable** devient des tâches ou des idées (Notion, n8n). Le projet d'extraction **réutilise le dossier et le dépôt de sa source** (`urlDossier` et `urlGithub` repris, comme un projet repris de son affaire), donc il n'a pas de dossier à lui.
+7. **Affaire perdue** : l'extraction se fait quand même ; la raison de la perte déjà saisie (Prix, Sans réponse…) est reprise dans le projet d'extraction comme point de départ.
+
 ## Décisions de Jérôme du 03/10/2026
 
 1. **Données séparées** : une affaire n'est pas un projet ; ils pourront évoluer différemment dans la base. Collections distinctes (`crm_affaires`, `projets_projets`), pas de table commune avec un champ `type`.
@@ -17,6 +36,7 @@ Rédigé le 03/10/2026 à partir du cahier 2.0, du code du module CRM, de la roa
 11. **Adresse GitHub** : champ facultatif `urlGithub` sur chaque affaire et chaque projet (4.1 et 4.5).
 12. **Dossier de travail** : champ facultatif `urlDossier` (adresse du dossier Drive) sur chaque affaire et chaque projet, voisin de `urlGithub` (4.1 et 4.5). Convention de nommage des dossiers : `convention-dossiers.md`.
 13. **Boutons « Créer le GitHub » puis « Créer le répertoire »** : le champ GitHub vient **avant** le champ Dossier. Chacun propose une valeur (adresse du dépôt, nom du dossier) et un prompt à coller dans Claude Code : dépôt **privé**, puis dossier `PROJET.md` + `app/` + `marketing/` (vide), en suivant les règles du second cerveau (`modele-prompt-creation-dossier.md`).
+14. **Vision : extraire la valeur** de chaque affaire et de chaque projet (gagné ou perdu) par un **projet d'extraction** créé quand une affaire passe en Gagné ou Perdu, et quand un projet se termine (voir « La vision de Jérôme » plus haut).
 
 ## 1. Pourquoi, et ce que ça change
 
@@ -71,6 +91,7 @@ Ce sont les décisions qui changent l'écran ou les données. Les points déjà 
 - **Contenu fourni par Jérôme le 03/10/2026** :
   - **Audit** : une ou plusieurs **interviews**, la **création du rapport**, le **débriefing avec le client**. Modèle : une tâche « Interview » (on en ajoute d'autres si le client en demande plusieurs), « Créer le rapport », « Débriefing avec le client ». Délais relatifs au démarrage à fixer à l'usage (proposition : laisser les dates vides, elles se posent au fil de l'eau).
   - **Accompagnement** : **un ensemble de rendez-vous sur la durée**. **Décidé le 03/10/2026** : le modèle démarre avec un seul rendez-vous de lancement ; les suivants s'ajoutent au fil de l'eau.
+  - **Extraction** (ajouté le 03/10/2026) : quatre tâches, *Tirer les règles*, *Comprendre les erreurs*, *Repérer ce qui est automatisable*, *Créer la documentation marketing*. Utilisé automatiquement pour les projets d'extraction (voir « La vision de Jérôme »).
   - Les modèles se modifient ensuite dans l'écran Modèles.
 - **Proposition** : les modèles se gèrent dans l'appli (menu **Modèles**, comme chez Pipedrive), pas dans Réglages, parce qu'ils sont longs à éditer.
 - **Piste, pas en 2.1** : durée type et montant type dans le modèle.
@@ -134,6 +155,8 @@ Conventions du cahier 2.0 (3.1) reprises telles quelles : identifiants automatiq
 | `dateEntreePhase`, `datesPhases` | | timestamp, map | auto | comme `dateEntreeEtape` et `datesEtapes` |
 | `documents` | Documents | liste de pièces jointes | non | même forme que sur l'affaire (`modele-fiche-document.md`) |
 | `urlGithub` | Adresse GitHub | string | non | `https://github.com/…` ; refus d'une autre adresse ; lien dans Détails |
+| `nature` | Nature | string | auto | `livraison` (par défaut) ou `extraction` : projet dont la finalité est d'extraire la valeur de sa source (vision de Jérôme) |
+| `projetSourceId` | Projet source | string ou null | non | extraction d'un **projet** terminé ; pour l'extraction d'une affaire, c'est `affaireId` |
 | `urlDossier` | Dossier de travail | string | non | `https://drive.google.com/drive/folders/…` ; refus d'une autre adresse ; lien « Dossier » dans Détails. Un projet issu d'une affaire reprend celui de l'affaire si elle en a un |
 | `archive` | | boolean | auto | faux par défaut |
 | `proprietaire`, `creeLe`, `modifieLe`, `creePar`, `modifiePar` | | | auto | comme les affaires |
@@ -185,6 +208,7 @@ Même modèle que le CRM (Pipedrive pour la structure, DA chevalier-ia.fr pour l
 4. **Chantier MCP** (branche `mcp`, `plan-mcp.md` ; état au 03/10/2026 : prototype Drive fait, squelette des fonctions en place dans `functions/`, outils métier pas encore écrits) : il restructure les règles Firestore, extrait les enchaînements de `donnees.js` dans `logique.js` et ajoute un journal d'audit. **Décidé le 03/10/2026** : Projets se construit **après** cette extraction, directement dans la nouvelle forme, pour ne pas le refaire. Les outils MCP de Projets (chercher, créer, changer de phase, ajouter une tâche) seront une deuxième étape, pas dans la 2.1.
 5. **Copie quotidienne vers Google Sheet par n8n** : autre chantier de la 2.1, indépendant ; une feuille « Projets » s'ajoutera à la copie une fois l'écran livré.
 6. **Hors ligne, import, fusion de doublons** : toujours hors périmètre.
+7. **Projets d'extraction** (vision de Jérôme) : leur création vit dans `logique.js` (`changementEtape` pour une affaire en Gagné ou Perdu, `terminerProjet` pour un projet), donc l'écran et les outils MCP produisent le même résultat. Tests : une affaire passée en Gagné puis en Perdu crée une extraction chacune, une seule par source ; un projet d'extraction terminé n'en crée pas d'autre ; l'extraction reprend `urlDossier` et `urlGithub` de sa source ; la raison de la perte est reprise.
 
 ## 7. Découpage proposé
 

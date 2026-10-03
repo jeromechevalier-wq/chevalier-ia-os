@@ -39,6 +39,7 @@ Cahier des charges détaillé : `cahier-mcp.md` (brouillon du 02/10/2026). **Pla
 
 ### Déjà prévu
 - Écran Projets (Kanban de phases, lien `projetId` depuis une affaire gagnée). **Cadrage du 03/10/2026 : `cadrage-projets.md`** (brouillon ; décisions de Jérôme du 03/10/2026 : projets en données séparées, module `projets`, phases fixes en 2.1 puis configurables plus tard, construction après l'extraction de logique du chantier MCP ; trois questions restantes).
+- **Vision de Jérôme, 03/10/2026** : extraire un maximum de valeur de chaque affaire et de chaque projet, gagnés ou perdus (règles, erreurs, ce qui est automatisable, documentation marketing). Une affaire qui passe en **Gagné ou Perdu**, et un projet qui se **termine**, créent un **projet d'extraction** (nouveau champ `nature`, modèle « Extraction » à quatre tâches, jamais de boucle, un seul par source). Détail et règles proposées : `cadrage-projets.md`, section « La vision de Jérôme ».
 - Copie quotidienne vers Google Sheet par n8n.
 (voir `rapport-construction-v2.md`)
 
