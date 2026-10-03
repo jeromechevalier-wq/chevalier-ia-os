@@ -31,13 +31,13 @@ Détails à connaître :
 
 ## Ce que tu fais, dans cet ordre
 
-**Ne dis « fusionne » qu'après les points 1 et 2** (les règles se publient *avant*, le déploiement se fait à la fusion). Rien à faire sur ton Mac (pas de `npm test` : je l'ai lancé ici, résultat plus bas), et **aucun nouveau droit à accorder** dans Google (« Utilisateur Cloud Datastore » suffit pour lire, écrire et faire des transactions).
+**Ne dis « fusionne » qu'après le point 1** (le point 2 se fait après l'essai) (les règles se publient *avant*, le déploiement se fait à la fusion). Rien à faire sur ton Mac (pas de `npm test` : je l'ai lancé ici, résultat plus bas), et **aucun nouveau droit à accorder** dans Google (« Utilisateur Cloud Datastore » suffit pour lire, écrire et faire des transactions).
 
 ### 1. Publier les nouvelles règles Firestore (toi, dans la console)
 
 Pourquoi : aujourd'hui une seule règle couvre toutes les collections. On sort le journal et le tiroir de cette règle : le journal devient **lisible depuis l'appli mais jamais modifiable**, le tiroir et les compteurs sont **fermés** à l'appli. Le serveur n'est pas concerné (il contourne les règles). **Pour l'appli, rien ne change** : les 45 cas de sécurité d'avant sont rejoués et passent.
 
-1. Ouvre https://console.firebase.google.com/project/chevalier-ia-os/firestore/databases/-default-/rules (menu de gauche : **Firestore Database**, puis l'onglet **Règles**).
+1. Ouvre https://console.firebase.google.com/project/chevalier-ia-os/overview , clique sur la carte **Firestore**, puis sur l'onglet **Règles**. *(Le lien direct vers les règles ne marche pas : il renvoie à l'accueil du projet. Dans la console Google Cloud, https://console.cloud.google.com/firestore/databases/-default-/security/rules?project=chevalier-ia-os , la page **Sécurité** n'affiche les règles qu'en lecture seule : elle sert à vérifier ce qui est actif.)*
 2. Clique dans la zone de texte, **sélectionne tout** (⌘A) et **supprime**.
 3. Colle exactement ce texte (c'est le contenu du fichier `firestore.rules` de la PR) :
 
@@ -101,9 +101,9 @@ service cloud.firestore {
 
 Le tiroir `crm_audit_avant` garde chaque copie avec une date d'expiration (`expireAt`, 90 jours après l'écriture). Il faut **dire une fois à Google** de supprimer les documents dont cette date est passée.
 
-1. Ouvre https://console.cloud.google.com/firestore/databases/-default-/time-to-live?project=chevalier-ia-os. *(Si la page ne s'ouvre pas ainsi : https://console.cloud.google.com/firestore?project=chevalier-ia-os , clique sur la base `(default)`, puis **Time-to-live** dans le menu de gauche.)*
-2. **Créer une stratégie** : *Nom du groupe de collections* = `crm_audit_avant` ; *Nom du champ d'horodatage* = `expireAt` ; laisse le *décalage d'expiration* à **0** (la date contient déjà les 90 jours) ; **Créer**.
-3. Si la console refuse parce que la collection n'existe pas encore, fais d'abord l'essai du point 4 (qui la crée) puis reviens ici.
+1. Ouvre https://console.cloud.google.com/firestore/databases/-default-/ttl?project=chevalier-ia-os (menu de gauche : **Valeur TTL (Time to Live)**).
+2. **Créer une règle** : *Groupe de collections* = `crm_audit_avant` ; *Champ de code temporel* = `expireAt` ; laisse le décalage à **0** (la date contient déjà les 90 jours) ; **Créer**.
+3. **La liste des groupes de collections ne propose que celles qui existent déjà.** `crm_audit_avant` n'existe qu'après la première écriture d'un agent : fais donc ce point **après l'essai du point 4**.
 4. Autre méthode (Cloud Shell, l'icône `>_` en haut de la console Google Cloud) : `gcloud firestore fields ttls update expireAt --collection-group=crm_audit_avant --enable-ttl --project=chevalier-ia-os`.
 
 Bon à savoir : Google efface « généralement dans les 24 h » après l'expiration, pas à la seconde. La stratégie met quelques minutes à devenir active.
@@ -112,22 +112,20 @@ Bon à savoir : Google efface « généralement dans les 24 h » après l'expira
 
 Quand j'ai ta réponse « fusionne », je fusionne la PR. Le déploiement dure 1 à 3 minutes (le site passe après les fonctions, comme avant).
 
-### 4. Essai en réel avec Claude Code (sur des données de test, avec nettoyage)
+### 4. Essai en réel avec le script de recette (dans le Terminal de ton Mac)
 
-Ouvre une **nouvelle** session Claude Code (la liste des outils est lue au démarrage ; `claude mcp list` doit montrer `chevalier-ia-os` connecté) et demande, par exemple :
-
-> Avec le serveur chevalier-ia-os : crée une organisation « ZZ Essai MCP », montre-moi ce que dit lire_audit pour cette opération, puis supprime-la (confirmation par son nom), puis restaure-la avec restaurer_depuis_audit (aperçu d'abord), vérifie qu'elle est revenue, et supprime-la une dernière fois pour nettoyer.
-
-Résultat attendu : l'organisation apparaît (ouvre l'écran pour la voir), le journal montre `claude-code-jerome`, `creer_organisation`, « succes » ; elle disparaît puis revient **avec le même identifiant**, puis disparaît. Dans l'écran, son fil affichait « Organisation créée : ZZ Essai MCP ». Les copies sont dans `crm_audit_avant` (visibles seulement dans la console Firestore, jamais depuis l'appli).
-
-Variante avec `curl` (jeton dans `CHEVALIER_MCP_TOKEN`, voir `mcp-etape-2.md`) :
+Claude Code n'est pas encore branché sur ce serveur (c'est l'étape 6) : l'essai se fait donc avec un petit script, `outils/essai-ecriture.mjs`, qui parle au vrai serveur avec ton jeton Claude Code. Il crée une organisation de test « ZZ Essai MCP », lit le journal, essaie un doublon et une suppression non confirmée (deux refus attendus), la supprime, l'aperçoit puis la restaure, vérifie qu'elle est revenue avec le même identifiant et son événement, puis la supprime pour nettoyer. Il ne touche à aucune autre fiche, et s'arrête sans rien écrire si une organisation de ce nom existe déjà. Il n'affiche jamais le jeton. Dans le **Terminal du Mac** (pas dans une session cloud : une session cloud ne voit ni ton jeton ni ton Mac) :
 
 ```sh
-appel() { curl -s -X POST https://chevalier-ia-os.web.app/mcp -H "Authorization: Bearer $CHEVALIER_MCP_TOKEN" -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" -d "$1"; echo; }
-appel '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"creer_organisation","arguments":{"nom":"ZZ Essai MCP"}}}'
+cd <le dossier du dépôt>      # celui où tu fais git pull
+git checkout main && git pull
+read -s CHEVALIER_MCP_TOKEN; export CHEVALIER_MCP_TOKEN     # colle ton jeton Claude Code (rien ne s'affiche), Entrée
+node outils/essai-ecriture.mjs
 ```
 
-La réponse contient `id` (la fiche) et `operationId` (à donner à `restaurer_depuis_audit` ou `lire_audit`). Sans `forcer`, une seconde création du même nom est refusée (doublon) : c'est normal.
+Résultat attendu : une quinzaine de lignes ✓ puis « ESSAI RÉUSSI ». Au premier ✗, le script s'arrête et dit ce qu'il resterait à nettoyer. Avec un jeton de bibliothécaire, il s'arrête dès la première étape.
+
+Ensuite, dans l'écran de l'appli, rien ne doit rester : l'organisation de test a été supprimée. Dans la console Firestore, la collection `crm_audit_avant` existe maintenant : fais alors le point 2 (TTL).
 
 ### 5. Plus tard : si quelque chose se passe mal
 
