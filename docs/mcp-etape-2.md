@@ -38,7 +38,7 @@ Ouvre chaque lien (projet `chevalier-ia-os`) et clique sur **Activer** (si tu vo
 ### 3. Créer ton premier jeton et le secret `MCP_JETONS`
 1. Sur ton Mac, deux façons équivalentes : soit dans le dossier du dépôt (branche `mcp` à jour) `node outils/creer-jeton.js claude-code-jerome claude-code`, soit **sans le dépôt**, la commande d'une ligne `node -e '…'` que Claude donne dans la conversation (même jeton, même ligne). Le terminal affiche **une fois** le jeton (`cia_…`) et une ligne JSON. **Range le jeton tout de suite** (gestionnaire de mots de passe) ; il n'est enregistré nulle part ailleurs. Ne le colle jamais dans un fichier du dossier synchronisé avec Drive, ni dans une conversation.
 2. Console → Sécurité → **Secret Manager** : https://console.cloud.google.com/security/secret-manager?project=chevalier-ia-os → **Créer un secret** : nom exactement `MCP_JETONS`, valeur = **la ligne JSON** (pas le jeton), le reste par défaut.
-3. **À faire après le premier déploiement** (le compte d'exécution réel n'est connu qu'alors ; d'ici là, `/mcp` répond 503, c'est normal). Dans ce secret, onglet **Autorisations** → **Accorder l'accès** : compte principal = le compte d'exécution des fonctions (en général `NUMÉRO-compute@developer.gserviceaccount.com`, que tu vois dans https://console.cloud.google.com/iam-admin/iam?project=chevalier-ia-os ; **[à confirmer au premier déploiement]**), rôle **Accesseur de secrets Secret Manager**.
+3. **À faire après le premier déploiement** (le compte d'exécution réel n'est connu qu'alors ; d'ici là, `/mcp` répond 503, c'est normal). Dans ce secret, onglet **Autorisations** → **Accorder l'accès** : compte principal = le compte d'exécution de la fonction. **Confirmé le 03/10/2026 : c'est le « Default compute service account » `96526036520-compute@developer.gserviceaccount.com`** (visible dans Cloud Run → service `mcp` → Sécurité → Compte de service ; ce n'est PAS le compte `…@appspot…`), rôle **Accesseur de secrets Secret Manager**.
 Pour ajouter un client plus tard : relancer `creer-jeton.js`, puis ajouter la nouvelle ligne dans une **nouvelle version** du secret. Pour révoquer : passer `"actif": true` à `false` dans une nouvelle version (effet en moins d'une minute).
 
 ### 4. Rôles du compte de service du déploiement (un à la fois)
@@ -64,6 +64,10 @@ curl -s -X POST https://chevalier-ia-os.web.app/mcp \
 Résultat attendu : une réponse JSON contenant `claude-code-jerome`, le profil `claude-code` et la liste `["qui_suis_je"]`. Sans l'en-tête `Authorization` (ou avec un jeton faux) : `{"error":"non_autorise"}`. Avec `-X GET` : `{"error":"methode_refusee"}`.
 
 Sécurité, pannes, interrupteurs d'urgence : voir `securite-et-pannes.md` (à relire en cas de problème).
+
+## Résultat (03/10/2026)
+
+L'essai du point 5 a réussi : `qui_suis_je` répond `claude-code-jerome`, profil `claude-code`, outils `["qui_suis_je"]`, serveur `chevalier-ia-os` 0.1.0, par `https://chevalier-ia-os.web.app/mcp` (la réécriture Hosting vers le service Cloud Run de Paris fonctionne ; l'adresse directe de la fonction n'est donc pas nécessaire). Il aura fallu : facturation reliée, 8 API, rôles « Utilisateur du compte de service » et « Administrateur Cloud Functions » sur le compte de déploiement, `--force` au déploiement, et l'accès au secret pour le compte d'exécution.
 
 ## Ce que j'ai vérifié, et ce que je n'ai pas pu vérifier
 
