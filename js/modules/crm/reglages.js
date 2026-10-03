@@ -77,11 +77,28 @@ export function rendreReglagesCrm(page) {
     } });
   sDebut.append(debut);
 
+  const sProjets = section('reglages-projets', 'GitHub et dossiers de projets', 'folder-plus', 'Servent aux boutons « Créer le GitHub » et « Créer le répertoire » des fiches : le compte GitHub propriétaire des dépôts, et le dossier de ton Mac où se rangent les projets.');
+  const compteGithub = h('input', { type: 'text', class: 'champ', 'aria-label': 'Compte GitHub', autocapitalize: 'off', spellcheck: false,
+    onchange: async (e) => {
+      const v = e.target.value.trim();
+      if (Object.keys(L.validerProprietaireGithub(v)).length) { e.target.value = D.etat.reglages.proprietaireGithub; toast('Nom de compte GitHub invalide', { type: 'erreur' }); return; }
+      await D.enregistrerReglages({ proprietaireGithub: v });
+      toast('Compte GitHub enregistré');
+    } });
+  const cheminProjets = h('input', { type: 'text', class: 'champ', 'aria-label': 'Chemin du dossier Projets sur le Mac', autocapitalize: 'off', spellcheck: false,
+    onchange: async (e) => {
+      const v = L.nettoyerEspaces(e.target.value);
+      if (!v) { e.target.value = D.etat.reglages.cheminProjets; return; }
+      await D.enregistrerReglages({ cheminProjets: v });
+      toast('Chemin enregistré');
+    } });
+  sProjets.append(h('label', { class: 'ligne-champ' }, h('span', {}, 'Compte GitHub'), compteGithub), h('label', { class: 'ligne-champ' }, h('span', {}, 'Dossier Projets'), cheminProjets));
+
   const sExport = section('reglages-export', 'Sauvegarde', 'download', 'Télécharge toutes tes données (personnes, organisations, affaires, activités, notes, historique) dans un fichier.');
   const infoExport = h('p', { class: 'aide', 'data-role': 'dernier-export' });
   sExport.append(h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'exporter-tout', onclick: () => exporterToutesLesDonnees() }, icone('download', { taille: 16 }), 'Exporter mes données'), infoExport);
 
-  page.append(sOffres, sSecteurs, sSources, sEtiquettes, sFiltres, sDelai, sDebut, sExport);
+  page.append(sOffres, sSecteurs, sSources, sEtiquettes, sFiltres, sDelai, sDebut, sProjets, sExport);
 
   function ligneOffre(o, i, liste) {
     const nom = h('input', { type: 'text', class: 'champ', value: o.nom, 'aria-label': `Nom de l'offre ${o.nom}`,
@@ -167,6 +184,8 @@ export function rendreReglagesCrm(page) {
     if (!D.etat.filtres.length) listeFiltres.append(h('p', { class: 'vide-discret' }, 'Aucun filtre enregistré.'));
     if (document.activeElement !== delai) delai.value = String(D.etat.reglages.delaiPaiementJours ?? 30);
     if (document.activeElement !== debut) debut.value = D.etat.reglages.debutActivite || '';
+    if (document.activeElement !== compteGithub) compteGithub.value = D.etat.reglages.proprietaireGithub || '';
+    if (document.activeElement !== cheminProjets) cheminProjets.value = D.etat.reglages.cheminProjets || '';
     infoExport.textContent = D.etat.reglages.dernierExport ? `Dernier export : ${L.formatDateHeure(D.etat.reglages.dernierExport)}` : 'Aucun export pour le moment.';
   }
   rafraichir();
