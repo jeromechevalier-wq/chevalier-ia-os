@@ -8,6 +8,10 @@ import { StreamableHTTPClientTransport } from '../functions/node_modules/@modelc
 import { creerGestionnaire } from '../functions/src/mcp/gestionnaire.js';
 import { OUTILS } from '../functions/src/mcp/outils/index.js';
 import { empreinte, creerMagasin } from '../functions/src/securite/jetons.js';
+import { creerAccesMemoire } from '../functions/src/coeur/donnees.js';
+import { collections, MAINTENANT } from './_donnees-essai.js';
+
+const NOMS_OUTILS = OUTILS.map((o) => o.nom).sort();
 
 const JETON = { lecteur: `cia_${'L'.repeat(43)}`, biblio: `cia_${'H'.repeat(43)}`, code: `cia_${'C'.repeat(43)}`, revoque: `cia_${'R'.repeat(43)}` };
 const entree = (jeton, nom, profil, actif = true) => ({ jeton: nom, acteur: nom, profil, empreinte: empreinte(jeton), actif });
@@ -29,7 +33,7 @@ before(async () => {
   lignesJournal = [];
   panneSecret = false;
   const magasin = creerMagasin({ lire: async () => { if (panneSecret) throw new Error('secret illisible : détail interne'); return SECRET; }, dureeCacheMs: 0 });
-  const gestionnaire = creerGestionnaire({ magasin, outils: [...OUTILS, OUTIL_RESERVE], journal: (e) => { lignesJournal.push(e); } });
+  const gestionnaire = creerGestionnaire({ magasin, donnees: creerAccesMemoire(collections), outils: [...OUTILS, OUTIL_RESERVE], maintenant: () => MAINTENANT.getTime(), journal: (e) => { lignesJournal.push(e); } });
   serveur = createServer((req, res) => {
     const morceaux = [];
     req.on('data', (m) => morceaux.push(m));
@@ -88,21 +92,63 @@ describe('Protocole MCP et droits par profil', () => {
     const donnees = JSON.parse(r.content[0].text);
     assert.equal(donnees.acteur, 'hermes-bibliothecaire');
     assert.equal(donnees.profil, 'bibliothecaire');
-    assert.deepEqual(donnees.outils, ['qui_suis_je']);
+    assert.deepEqual([...donnees.outils].sort(), NOMS_OUTILS);
+    assert.ok(!donnees.outils.includes('outil_reserve'));
     assert.equal(donnees.serveur.nom, 'chevalier-ia-os');
     assert.match(donnees.serveur.version, /^\d+\.\d+\.\d+$/);
     await c.close();
   });
   test('droits par profil : un outil hors profil n’est ni listé ni exécutable, même si l’appel arrive', async () => {
     const biblio = await client(JETON.biblio);
-    assert.deepEqual((await biblio.listTools()).tools.map((t) => t.name), ['qui_suis_je']);
+    assert.deepEqual((await biblio.listTools()).tools.map((t) => t.name).sort(), NOMS_OUTILS);
     const refus = await biblio.callTool({ name: 'outil_reserve', arguments: {} }).catch((e) => ({ erreur: e }));
     assert.ok(refus.erreur || refus.isError, 'appel refusé');
     await biblio.close();
     const code = await client(JETON.code);
-    assert.deepEqual((await code.listTools()).tools.map((t) => t.name).sort(), ['outil_reserve', 'qui_suis_je']);
+    assert.deepEqual((await code.listTools()).tools.map((t) => t.name).sort(), [...NOMS_OUTILS, 'outil_reserve'].sort());
     assert.equal(JSON.parse((await code.callTool({ name: 'outil_reserve', arguments: {} })).content[0].text).ok, true);
     await code.close();
+  });
+});
+
+describe('Outils de lecture par le protocole MCP', () => {
+  test('chaque profil peut lire : chercher, lire_affaire, lister_affaires, lire_reglages (schéma vide) et lire_audit répondent', async () => {
+    for (const jeton of [JETON.lecteur, JETON.biblio, JETON.code]) {
+      const c = await client(jeton);
+      const r = await c.callTool({ name: 'chercher', arguments: { texte: 'lilas', types: ['organisations'] } });
+      assert.equal(r.isError, undefined);
+      assert.deepEqual(JSON.parse(r.content[0].text).resultats.map((x) => x.id), ['org1']);
+      const a = JSON.parse((await c.callTool({ name: 'lire_affaire', arguments: { id: 'a1', avecFil: true } })).content[0].text);
+      assert.equal(a.affaire.titre, 'Site vitrine Atelier des Lilas');
+      assert.ok(a.fil.length >= 2);
+      const l = JSON.parse((await c.callTool({ name: 'lister_affaires', arguments: { enRetard: true } })).content[0].text);
+      assert.deepEqual(l.affaires.map((x) => x.id), ['a1']);
+      assert.equal(JSON.parse((await c.callTool({ name: 'lire_reglages', arguments: {} })).content[0].text).reglages.delaiPaiementJours, 45);
+      assert.equal(JSON.parse((await c.callTool({ name: 'lire_audit', arguments: {} })).content[0].text).total, 3);
+      await c.close();
+    }
+  });
+  test('arguments invalides refusés par le schéma (texte absent, limite trop grande, mauvais type) et fiche inconnue : erreur sans détail technique', async () => {
+    const c = await client(JETON.lecteur);
+    for (const [nom, args] of [['chercher', {}], ['chercher', { texte: 'abc', limite: 500 }], ['lister_affaires', { archive: 'oui' }], ['lire_personne', { id: '' }]]) {
+      const r = await c.callTool({ name: nom, arguments: args }).catch((e) => ({ isError: true, message: String(e.message) }));
+      assert.equal(r.isError, true, `${nom} ${JSON.stringify(args)}`);
+    }
+    const inconnue = await c.callTool({ name: 'lire_personne', arguments: { id: 'zzz' } });
+    assert.equal(inconnue.isError, true);
+    assert.match(inconnue.content[0].text, /Personne introuvable/);
+    assert.doesNotMatch(inconnue.content[0].text, /at |node_modules|\.js:/);
+    await c.close();
+  });
+  test('le journal note le nom de l’outil lu (liste blanche) mais jamais ses arguments ni les données', async () => {
+    lignesJournal.length = 0;
+    const c = await client(JETON.biblio);
+    await c.callTool({ name: 'chercher', arguments: { texte: 'camille@exemple.test' } });
+    await c.close();
+    const appel = lignesJournal.find((l) => l.outil === 'chercher');
+    assert.ok(appel, 'ligne de journal pour chercher');
+    const tout = JSON.stringify(lignesJournal);
+    for (const interdit of ['camille@exemple.test', 'Camille Durand', 'Atelier des Lilas']) assert.equal(tout.includes(interdit), false, interdit);
   });
 });
 

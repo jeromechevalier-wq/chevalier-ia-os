@@ -23,7 +23,7 @@ function descriptionAppel(corps, outils) {
   return { methodeMcp, outil };
 }
 
-export function creerGestionnaire({ magasin, outils = OUTILS, journal = journaliser, maintenant = () => Date.now() }) {
+export function creerGestionnaire({ magasin, donnees, outils = OUTILS, journal = journaliser, maintenant = () => Date.now() }) {
   return async function gestionnaire(req, res) {
     const debut = maintenant();
     const infos = {};
@@ -48,7 +48,7 @@ export function creerGestionnaire({ magasin, outils = OUTILS, journal = journali
     const serveur = new McpServer({ name: 'chevalier-ia-os', version: '0.1.0' });
     for (const outil of permis) {
       serveur.registerTool(outil.nom, { description: outil.description, ...(outil.schema ? { inputSchema: outil.schema } : {}) }, async (args) => {
-        const resultat = await outil.executer({ acteur: jeton.acteur, profil: jeton.profil, jeton: jeton.jeton, outilsAutorises: permis.map((o) => o.nom), args });
+        const resultat = await outil.executer({ acteur: jeton.acteur, profil: jeton.profil, jeton: jeton.jeton, outilsAutorises: permis.map((o) => o.nom), args, donnees, maintenant: new Date(maintenant()) });
         return { content: [{ type: 'text', text: JSON.stringify(resultat) }], structuredContent: resultat };
       });
     }

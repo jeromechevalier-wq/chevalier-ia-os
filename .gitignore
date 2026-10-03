@@ -10,3 +10,6 @@ firestore-debug*.log
 ui-debug*.log
 .firebase/
 .DS_Store
+
+# Copie générée avant chaque déploiement et chaque test (scripts/preparer-fonctions.js)
+functions/partage/

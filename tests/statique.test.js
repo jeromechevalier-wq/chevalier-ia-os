@@ -302,6 +302,17 @@ describe('D5 Serveur MCP (étape 2) : déploiement, versions figées, sécurité
     const t = lire('docs/playbook-mcp-firebase.md');
     for (const mot of ['eventarc.googleapis.com', 'cloudbilling.googleapis.com', 'Administrateur Cloud Functions', 'Utilisateur du compte de service', '--force', 'Default compute service account', 'Liste de contrôle']) assert.ok(t.includes(mot), mot);
   });
+  test('D5 étape 3 : la copie de logique.js est préparée avant chaque déploiement (predeploy), ignorée par git, et le script ne dépend de rien', () => {
+    assert.deepEqual(fb.functions[0].predeploy, ['node "$PROJECT_DIR/scripts/preparer-fonctions.js"']);
+    assert.match(lire('.gitignore'), /^functions\/partage\/$/m);
+    assert.equal(fb.functions[0].ignore, undefined, 'liste d’exclusion par défaut de l’outil (node_modules, .git) : functions/partage/ est bien envoyé au déploiement');
+    assert.doesNotMatch(lire('scripts/preparer-fonctions.js'), /^import .* from '(?!node:)/m);
+  });
+  test('D5 étape 3 : les tests des fonctions préparent la copie, puis lancent jetons, protocole, lecture et Firestore (émulateur)', () => {
+    const scripts = json('tests/package.json').scripts;
+    assert.match(scripts['test:fonctions'], /^npm run preparer && node --test .*jetons\.test\.js.*mcp\.test\.js.*lecture\.test\.js.*lecture-firestore\.test\.js/);
+    assert.match(scripts.tous, /test:fonctions/);
+  });
   test('D5 outils/creer-jeton.js existe et ne contient aucun jeton', () => {
     assert.ok(existsSync(join(RACINE, 'outils/creer-jeton.js')));
     assert.doesNotMatch(lire('outils/creer-jeton.js'), /cia_[A-Za-z0-9_-]{40,}/);
