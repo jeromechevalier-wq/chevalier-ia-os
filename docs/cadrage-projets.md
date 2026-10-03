@@ -5,7 +5,7 @@ Rédigé le 03/10/2026 à partir du cahier 2.0, du code du module CRM, de la roa
 ## Décisions de Jérôme du 03/10/2026
 
 1. **Données séparées** : une affaire n'est pas un projet ; ils pourront évoluer différemment dans la base. Collections distinctes (`crm_affaires`, `projets_projets`), pas de table commune avec un champ `type`.
-2. **Phases fixes en 2.1** : on attend d'avoir beaucoup utilisé l'outil avant de personnaliser. Rendre les phases configurables (ajouter, renommer, supprimer) est **reporté à plus tard** (voir 3.1).
+2. **Phases fixes en 2.1, les mêmes pour toutes les offres : Lancement, Découverte, Livraison, Clôture.** Un Audit comme un Accompagnement les traversent ; l'Accompagnement reste simplement longtemps en Livraison.  on attend d'avoir beaucoup utilisé l'outil avant de personnaliser. Rendre les phases configurables (ajouter, renommer, supprimer) est **reporté à plus tard** (voir 3.1).
 3. **Tâches** : collection séparée dont les tâches datées remontent dans l'Accueil (3.5).
 4. **Création** : suggestion douce à « Gagné » et boutons ; **un projet sans affaire est permis** (3.2 et 3.3).
 5. **Modèles** : contenu de l'Audit et de l'Accompagnement fourni (3.4).
@@ -43,7 +43,7 @@ Ce sont les décisions qui changent l'écran ou les données. Les points déjà 
 - **Chevauchement** : « Facturation » existe déjà dans le CRM (étapes « Facture envoyée » et « Facture payée »). Le montant encaissé reste dans les encaissements de l'affaire ; une phase « Facturation » dans les projets ferait double emploi, d'où ma proposition de la retirer.
 - **Décidé le 03/10/2026 : phases fixes dans le code en 2.1** (comme les six étapes des affaires). Jérôme veut d'abord beaucoup utiliser l'outil avant de customiser quoi que ce soit.
 - **Plus tard : phases configurables** (ajouter, renommer, supprimer, réordonner). **Pour que ce soit possible sans migration**, deux règles dès la 2.1 : la phase d'un projet se stocke par un **identifiant stable** (`lancement`, `decouverte`…), jamais par son libellé affiché ; et les libellés et couleurs vivent dans **une seule liste** du code, lue partout, qui deviendra `crm_parametres/phases_projet` le jour venu (même mécanisme que les offres et les étiquettes). Pas de pipelines multiples.
-- **Phases de départ** : voir la question 1 de la section 9. Ma proposition : **Lancement, Découverte, Livraison, Clôture**. Pour l'Audit, les interviews tombent en Découverte, le rapport et le débriefing en Livraison.
+- **Décidé le 03/10/2026 : quatre phases, les mêmes pour l'Audit et pour l'Accompagnement : Lancement, Découverte, Livraison, Clôture.** « Facturation » est retirée (le CRM suit déjà « Facture envoyée » et « Facture payée ») et « Distribution » devient « Livraison ». Pour l'Audit, les interviews tombent en Découverte, le rapport et le débriefing en Livraison ; l'Accompagnement reste en Livraison pendant toute sa durée, donc **aucune durée maximale de phase** et aucune alerte de phase trop longue.
 
 ### 3.2 Comment naît un projet ?
 
@@ -66,7 +66,7 @@ Ce sont les décisions qui changent l'écran ou les données. Les points déjà 
 - **Décidé** : un modèle peut être lié à une offre du catalogue (Audit, Accompagnement) ; à la création d'un projet depuis une affaire, le modèle de l'offre est préselectionné, modifiable. Sans modèle, le projet démarre vide.
 - **Contenu fourni par Jérôme le 03/10/2026** :
   - **Audit** : une ou plusieurs **interviews**, la **création du rapport**, le **débriefing avec le client**. Modèle : une tâche « Interview » (on en ajoute d'autres si le client en demande plusieurs), « Créer le rapport », « Débriefing avec le client ». Délais relatifs au démarrage à fixer à l'usage (proposition : laisser les dates vides, elles se posent au fil de l'eau).
-  - **Accompagnement** : **un ensemble de rendez-vous sur la durée**. Le nombre et le rythme ne sont pas précisés : voir la question 2 de la section 9.
+  - **Accompagnement** : **un ensemble de rendez-vous sur la durée**. **Décidé le 03/10/2026** : le modèle démarre avec un seul rendez-vous de lancement ; les suivants s'ajoutent au fil de l'eau.
   - Les modèles se modifient ensuite dans l'écran Modèles.
 - **Proposition** : les modèles se gèrent dans l'appli (menu **Modèles**, comme chez Pipedrive), pas dans Réglages, parce qu'ils sont longs à éditer.
 - **Piste, pas en 2.1** : durée type et montant type dans le modèle.
@@ -205,7 +205,6 @@ Mêmes exigences que le cahier 2.0 (15) : tous les tests automatiques passent su
 
 ## 9. Ce qu'il reste à trancher
 
-1. **Phases de départ** (3.1) : les cinq phases de Pipedrive, ou quatre phases plus proches de ton travail, **Lancement, Découverte, Livraison, Clôture** (Facturation retirée, puisque le CRM suit déjà « Facture envoyée » et « Facture payée »). Ma proposition : les quatre. Pour l'Audit : les interviews tombent en Découverte, le rapport et le débriefing en Livraison.
-2. **Modèle Accompagnement** (3.4) : veux-tu qu'il crée d'avance un nombre fixe de rendez-vous à un rythme donné (par exemple 6 rendez-vous, un par mois), ou qu'il démarre avec un seul rendez-vous de lancement et que tu ajoutes les suivants au fil de l'eau ? Ma proposition : la seconde, parce que le nombre varie d'un client à l'autre.
-3. **Interprétation à confirmer** : à la question 7 (objectif mensuel et suggestions de phase), j'ai compris que tu acceptais ma proposition, c'est-à-dire **ni objectif mensuel ni suggestions douces de phase en 2.1** (la petite célébration à la clôture reste). Dis-moi si tu voulais l'inverse.
+Les trois questions du 03/10/2026 sont réglées : phases (3.1), rendez-vous de l'Accompagnement (3.4), pas d'objectif mensuel ni de suggestions de phase (3.10 et 5.8).
 
+Reste une demande nouvelle, **hors de l'écran Projets** : une fiche `.md` créée à côté de chaque document déposé sur Drive. Elle est cadrée dans `modele-fiche-document.md` et rangée dans le chantier des pièces jointes (`roadmap.md`), avec deux questions pour Jérôme.
