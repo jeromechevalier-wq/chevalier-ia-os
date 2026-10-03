@@ -1,6 +1,6 @@
 # Cadrage : écran Projets (version 2.1)
 
-Rédigé le 03/10/2026 à partir du cahier 2.0, du code du module CRM, de la roadmap, de `pipedrive-reference.md` et du plan MCP. **Brouillon** : rien n'est construit. Mis à jour le 03/10/2026 après les réponses de Jérôme (section « Décisions »). Chaque point est marqué **Décidé** (par Jérôme), **Repris** (déjà écrit dans un document existant), **Proposition** (mon choix par défaut, que tu peux changer) ou **À trancher**.
+Rédigé le 03/10/2026 à partir du cahier 2.0, du code du module CRM, de la roadmap, de `pipedrive-reference.md` et du plan MCP. **Brouillon** : l'écran Projets n'est pas construit. Seuls les champs `urlGithub` et `urlDossier` et leurs deux boutons le sont, pour les affaires (version 2.0.1, voir `modele-prompt-creation-dossier.md`). Mis à jour le 03/10/2026 après les réponses de Jérôme (section « Décisions »). Chaque point est marqué **Décidé** (par Jérôme), **Repris** (déjà écrit dans un document existant), **Proposition** (mon choix par défaut, que tu peux changer) ou **À trancher**.
 
 ## La vision de Jérôme (03/10/2026)
 

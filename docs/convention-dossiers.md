@@ -66,6 +66,6 @@ Résultat visible dans le Finder : `_archives`, `_JEROME_OS`, `_outils`, puis le
 ## 7. Lien avec l'OS
 
 - **Comment on retrouve un dossier** : on ne fouille pas le Finder. On ouvre l'affaire ou le projet dans l'OS et on clique sur le lien du dossier.
-- **Champ `urlDossier`** (adresse du dossier Drive, voisin de `urlGithub`) : **décidé le 03/10/2026**, sur chaque affaire et chaque projet. Facultatif, doit être une adresse de dossier Drive. Un projet issu d'une affaire reprend celui de l'affaire. Pas encore dans le code : il part avec `urlGithub` dans la prochaine version de l'appli.
+- **Champ `urlDossier`** (adresse du dossier Drive, voisin de `urlGithub`) : **décidé le 03/10/2026**, sur chaque affaire et chaque projet. Facultatif, doit être une adresse de dossier Drive. Un projet issu d'une affaire reprend celui de l'affaire. Construit le 03/10/2026 pour les affaires, avec `urlGithub` (version 2.0.1) ; les projets l'auront avec l'écran Projets.
 - **Bouton « Créer le répertoire »** : un nom proposé et un prompt à coller dans Claude Code, qui crée le dossier avec la structure du préfixe. Voir `modele-prompt-creation-dossier.md` (structure décidée : `PROJET.md`, `app/`, `marketing/`).
 - Une URL de dossier Drive n'existe qu'une fois le dossier créé (`https://drive.google.com/drive/folders/<identifiant>`) : elle se colle à la création du dossier.
