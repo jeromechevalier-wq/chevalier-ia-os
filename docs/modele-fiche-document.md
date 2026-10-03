@@ -4,7 +4,7 @@ Rédigé le 03/10/2026, **brouillon à valider par Jérôme**. Demande de Jérô
 
 **Précisions de Jérôme, 03/10/2026 (soir)** : (1) **rien n'est déposé à la main** dans le dossier ; tout passe par l'OS ou, pour un agent, par le MCP de l'OS (le bibliothécaire) ; (2) **le résumé s'écrit au moment où l'on attache la pièce** ; (3) l'objectif final est un **fichier index à la racine du dossier**. Les sections 4 à 7 ont été réécrites en conséquence.
 
-Cette demande concerne les **pièces jointes des affaires** (chantier MCP, `plan-mcp.md` section 5.7), pas l'écran Projets. Elle servira aussi aux projets, qui afficheront les documents de leur affaire d'origine.
+Cette demande concerne les **pièces jointes des affaires et des projets** (chantier MCP, `plan-mcp.md` section 5.7), pas l'écran Projets lui-même. Un projet reçoit ses propres pièces et affiche aussi, en lecture, celles de son affaire d'origine.
 
 ## 1. D'où vient le modèle
 
