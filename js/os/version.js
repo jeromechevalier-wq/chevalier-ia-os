@@ -1,2 +1,2 @@
 // Version chargée : à augmenter à chaque livraison, en même temps que /version.json.
-export const VERSION = '2.0.0';
+export const VERSION = '2.0.1';
