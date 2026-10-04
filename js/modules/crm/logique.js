@@ -1546,6 +1546,53 @@ export function planCreerNote(texte, liens, ctx) {
 export const planMajNote = (id, texte) => ({ ecritures: [ecritureModifier(C.notes, id, { texte: String(texte).trim() }, { horodater: ['modifieLe'] })] });
 export const planSupprimerNote = (id) => ({ ecritures: [ecritureSupprimer(C.notes, id)] });
 
+// ---------------------------------------------------------------- audit des écritures faites à l'écran
+//
+// Chaque action de l'écran écrit, DANS LE MÊME LOT que les données, une ligne dans crm_audit (qui, quand, quoi, quel document) et une
+// copie « avant / après » dans crm_audit_avant (effacée après 90 jours). Même schéma que le serveur MCP : lire_audit et
+// restaurer_depuis_audit comprennent aussi les actions de l'écran. Les fonctions ci-dessous sont pures : l'écran leur donne
+// ses valeurs « serveur » (horodatage Firebase, e-mail du compte), les tests des dates ordinaires.
+
+export const JOURS_COPIES_AUDIT = 90;
+export const CANAL_ECRAN = 'ecran';
+
+/** Document « après » d'une écriture : null pour une suppression ; `avant` sert pour une modification (champs fusionnés, comme Firestore). */
+export function documentApres(op, avant, { horodatage, acteur }) {
+  const marques = {};
+  for (const champ of op.horodater || []) marques[champ] = horodatage;
+  for (const champ of op.signer || []) marques[champ] = acteur;
+  if (op.type === 'creer') return { ...op.donnees, ...marques };
+  if (op.type === 'modifier') return { ...(avant || {}), ...op.patch, ...marques };
+  return null;
+}
+
+/**
+ * Écritures d'audit d'une action : un tableau par écriture de données, [ligne d'audit, copie avant/après], au même ordre que `ecritures`.
+ * `avants` : { 'collection/id': document avant | null } (les créations n'en ont pas).
+ * `contexte` : { acteur, outil, operationId, maintenant (Date), horodatage (valeur « heure du serveur »), nouvelId(collection) }.
+ */
+export function construireAudit(ecritures, avants, { acteur, outil, operationId, maintenant, horodatage, nouvelId }) {
+  const expireAt = new Date(maintenant.getTime() + JOURS_COPIES_AUDIT * 86_400_000);
+  const action = { creer: 'creer', modifier: 'modifier', supprimer: 'supprimer' };
+  return ecritures.map((op, i) => {
+    const avant = avants?.[`${op.collection}/${op.id}`] ?? null;
+    const apres = documentApres(op, avant, { horodatage, acteur });
+    const champs = op.type === 'modifier' ? [...new Set([...Object.keys(op.patch || {}), ...(op.horodater || []), ...(op.signer || [])])]
+      : op.type === 'creer' ? Object.keys(apres) : [];
+    const id = nouvelId('crm_audit');
+    return [
+      {
+        type: 'creer', collection: 'crm_audit', id, horodater: ['date'],
+        donnees: {
+          operationId, ordre: i + 1, acteur, jeton: CANAL_ECRAN, via: CANAL_ECRAN, outil, collection: op.collection, docId: op.id,
+          action: action[op.type], statut: 'succes', champsModifies: champs, parametresRecus: [],
+        },
+      },
+      { type: 'creer', collection: 'crm_audit_avant', id, donnees: { operationId, collection: op.collection, docId: op.id, avant, apres, expireAt } },
+    ];
+  });
+}
+
 // ---------------------------------------------------------------- export JSON et CSV
 
 export function echapperCsv(valeur) {

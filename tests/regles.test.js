@@ -100,33 +100,53 @@ describe('A. Règles de sécurité', () => {
     });
   }
 
-  // Étape 4 : le journal est lisible mais jamais modifiable depuis l'appli ; copies « avant » et compteurs sont fermés.
+  // Journal d'audit et copies : l'appli lit, et AJOUTE les lignes de ses propres actions (canal « ecran », à son nom) ; jamais de
+  // modification ni de suppression ; les compteurs du serveur restent fermés.
+  const ligne = (email, extra = {}) => ({ operationId: 'op', ordre: 1, acteur: email, via: 'ecran', statut: 'succes', collection: 'crm_notes', docId: 'n', action: 'creer', ...extra });
+  const copie = (extra = {}) => ({ operationId: 'op', collection: 'crm_notes', docId: 'n', avant: null, apres: { texte: 'x' }, expireAt: new Date(Date.now() + 90 * 86_400_000), ...extra });
+
   for (const email of COMPTES) {
-    test(`A6 ${email} lit le journal d'audit (document et liste) mais ne peut ni créer, ni modifier, ni supprimer`, async () => {
+    test(`A6 ${email} lit le journal et peut y ajouter une ligne à son nom (canal ecran), mais ne peut ni la modifier ni la supprimer`, async () => {
       const db = contexte(email);
       await assertSucceeds(getDoc(doc(db, 'crm_audit', 'existant')));
       await assertSucceeds(getDocs(collection(db, 'crm_audit')));
-      await assertFails(setDoc(doc(db, 'crm_audit', 'nouveau'), { valeur: 2 }));
-      await assertFails(updateDoc(doc(db, 'crm_audit', 'existant'), { valeur: 3 }));
+      await assertSucceeds(setDoc(doc(db, 'crm_audit', 'nouvelle'), ligne(email)));
+      await assertFails(updateDoc(doc(db, 'crm_audit', 'existant'), { statut: 'echec' }));
+      await assertFails(updateDoc(doc(db, 'crm_audit', 'nouvelle'), { statut: 'echec' }));
       await assertFails(deleteDoc(doc(db, 'crm_audit', 'existant')));
+      await assertFails(deleteDoc(doc(db, 'crm_audit', 'nouvelle')));
     });
-    for (const c of ['crm_audit_avant', 'mcp_limites']) {
-      test(`A7 ${email} ne peut rien faire dans ${c} (lecture, liste, création, modification, suppression refusées)`, async () => {
-        await aucunDroit(contexte(email), c);
-      });
-    }
+    test(`A6 ${email} ne peut pas écrire une ligne au nom d'un autre, ni avec un autre canal que « ecran » (journal non falsifiable depuis l'appli)`, async () => {
+      const db = contexte(email);
+      const autre = COMPTES.find((c) => c !== email);
+      await assertFails(setDoc(doc(db, 'crm_audit', 'faux1'), ligne(autre)));
+      await assertFails(setDoc(doc(db, 'crm_audit', 'faux2'), ligne(email, { via: 'mcp' })));
+    });
+    test(`A7 ${email} lit les copies et peut en ajouter (avec une date d'expiration), mais ne peut ni les modifier ni les supprimer`, async () => {
+      const db = contexte(email);
+      await assertSucceeds(getDoc(doc(db, 'crm_audit_avant', 'existant')));
+      await assertSucceeds(getDocs(collection(db, 'crm_audit_avant')));
+      await assertSucceeds(setDoc(doc(db, 'crm_audit_avant', 'nouvelle'), copie()));
+      await assertFails(setDoc(doc(db, 'crm_audit_avant', 'sansdate'), copie({ expireAt: 'demain' })));
+      await assertFails(updateDoc(doc(db, 'crm_audit_avant', 'existant'), { apres: null }));
+      await assertFails(deleteDoc(doc(db, 'crm_audit_avant', 'existant')));
+    });
+    test(`A7 ${email} ne peut rien faire dans mcp_limites (compteurs du serveur : lecture, liste, création, modification, suppression refusées)`, async () => {
+      await aucunDroit(contexte(email), 'mcp_limites');
+    });
     test(`A8 ${email} garde tous ses droits dans une collection inconnue (le joker reste en place pour le reste)`, async () => {
       await droitsComplets(contexte(email), 'crm_autre');
     });
   }
 
-  test('A6 un autre compte, un compte non vérifié et un visiteur ne lisent pas le journal d’audit', async () => {
-    await aucunDroit(contexte('quelquun.dautre@gmail.com'), 'crm_audit');
-    await aucunDroit(contexte('jerome.chevalier@gmail.com', false), 'crm_audit');
-    await aucunDroit(env.unauthenticatedContext().firestore(), 'crm_audit');
+  test('A6 un autre compte, un compte non vérifié et un visiteur : ni lecture ni écriture dans le journal, les copies et les compteurs', async () => {
+    const contextes = [contexte('quelquun.dautre@gmail.com'), contexte('jerome.chevalier@gmail.com', false), env.unauthenticatedContext().firestore()];
+    for (const db of contextes) for (const c of COLLECTIONS_SERVEUR) await aucunDroit(db, c);
+    await assertFails(setDoc(doc(contextes[0], 'crm_audit', 'x'), ligne('quelquun.dautre@gmail.com')));
+    await assertFails(setDoc(doc(contextes[1], 'crm_audit', 'x'), ligne('jerome.chevalier@gmail.com')));
   });
 
-  test('A7 les trois collections du serveur sont bien exclues du joker : aucun accès en écriture même pour un nouveau document ou une sous-collection', async () => {
+  test('A7 les trois collections du serveur restent exclues du joker : aucune sous-collection ouverte', async () => {
     for (const email of COMPTES) {
       const db = contexte(email);
       for (const c of COLLECTIONS_SERVEUR) await assertFails(setDoc(doc(db, c, 'x', 'sous', 'y'), { valeur: 1 }));

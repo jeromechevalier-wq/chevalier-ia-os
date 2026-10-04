@@ -36,6 +36,7 @@ Depuis l'étape 4 : la fonction lit et **écrit** la base (créer, modifier ; su
 | Contrôle de concurrence | Une écriture est refusée (« recommencer ») si le document a changé depuis sa lecture, pour ne pas écraser une modification faite sur l'écran | **[en place]** (étape 4) |
 | Restauration | `restaurer_depuis_audit` (Claude Code seul) défait une opération, avec aperçu ; refuse si un document a changé depuis | **[en place]** (étape 4) |
 | Confirmation des suppressions | Le nom exact de la fiche est exigé (comme l'écran) ; une organisation non vide ne se supprime pas | **[en place]** (étape 4) |
+| Audit des actions de l'écran | Chaque création, modification ou suppression faite **dans l'appli** écrit sa ligne d'audit et sa copie **dans le même lot atomique** que la donnée (canal `ecran`, à ton nom) ; `lire_audit` et `restaurer_depuis_audit` les comprennent. Ne couvre pas les réglages ni les modifications à la main dans la console | **[prêt, version 2.0.2]** : règles à publier AVANT la fusion (`audit-ecran.md`) |
 | Journal sans contenu | `crm_audit` (conservé sans limite) ne contient aucune valeur de fiche, seulement qui, quoi, quand, quel document, quels champs ; les valeurs sont dans `crm_audit_avant`, effacé après 90 jours | **[en place]** (étape 4) ; l'effacement par la règle TTL de Google est **créé** (03/10/2026) ; son premier effacement réel (90 jours après une écriture) reste à constater |
 | Règles Firestore | `crm_audit` lisible mais jamais modifiable depuis l'appli ; `crm_audit_avant` et `mcp_limites` fermés | **[en place]** (publiées le 03/10/2026, jeu actif vérifié ; appli vérifiée) |
 | 3 instances au plus | Borne le coût et l'emballement | **[en place]** |
@@ -127,6 +128,13 @@ Ces messages arrivent comme **erreur d'outil** (réponse 200 avec `isError`), ja
 | Une fiche a un contenu inattendu après le passage d'un agent | Un agent a écrit autre chose que prévu | `lire_audit` (par `acteur` ou `docId`), puis `restaurer_depuis_audit` |
 
 **Défaire une écriture, pas à pas** : 1) `lire_audit` avec `acteur`, `docId` ou `depuis` pour retrouver la ligne ; 2) noter son `operationId` ; 3) `restaurer_depuis_audit` avec cet `operationId` (aperçu) ; 4) relire l'aperçu : chaque ligne dit `supprimer`, `remplacer`, `recreer`, `rien` ou `conflit` ; 5) relancer avec `apercu: false`. Une restauration laisse sa propre trace et peut elle-même être restaurée.
+
+### Après la version 2.0.2 : l'appli n'enregistre plus rien
+
+| Symptôme | Cause probable | Réparation |
+|---|---|---|
+| Tous les enregistrements de l'appli échouent (« Enregistrement impossible », « Ajout impossible »), les listes s'affichent | L'appli 2.0.2 écrit le journal d'audit **dans le même lot** que les données ; si les règles Firestore ne sont pas celles de `audit-ecran.md`, Firestore refuse tout le lot | Publier les règles de `audit-ecran.md` (console Firebase, Firestore, Règles). Si ce n'est pas possible tout de suite : annuler la PR (`git revert -m 1 <commit de fusion>`), l'appli repasse en 2.0.1 |
+| Un seul type d'action échoue | Un champ refusé dans la ligne d'audit ou dans la copie (par exemple une valeur interdite par Firestore) | Relever le nom de l'action dans la console du navigateur (le nom de la fonction figure dans la ligne d'audit) et me le donner |
 
 ### Côté clients
 

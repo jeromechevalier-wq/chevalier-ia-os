@@ -367,7 +367,7 @@ Source : le site chevalier-ia.fr (`styles.css`, `tally-merci.html`, dossier `ass
    };
    ```
    `authDomain` est volontairement le domaine d'hébergement (au lieu de `firebaseapp.com`) pour que la connexion par redirection fonctionne sur iPhone. Connexion par fenêtre surgissante sur ordinateur, par redirection sur téléphone et en mode appli installée.
-4. **Règles Firestore** (`firestore.rules`). Inchangées de la version 1.0.0 à la version 2.0 ; **étendues le 03/10/2026 (étape 4 du serveur MCP, `plan-mcp.md` 5.5)** : les trois collections du serveur (`crm_audit`, `crm_audit_avant`, `mcp_limites`) sont sorties du joker, et `crm_audit` devient lisible mais jamais modifiable depuis l'appli. Pour toutes les autres collections, le comportement est identique à celui d'avant. Le serveur écrit avec le SDK d'administration, qui contourne les règles : il n'en dépend pas. Un nouvel utilisateur s'ajoute à `compteAutorise()` ici **et** dans `COMPTES_AUTORISES` (section suivante), puis les règles sont republiées par Jérôme dans la console (elles ne se déploient pas avec la fusion).
+4. **Règles Firestore** (`firestore.rules`). Inchangées de la version 1.0.0 à la version 2.0 ; **étendues le 03/10/2026 (étape 4 du serveur MCP, `plan-mcp.md` 5.5), puis le 04/10/2026 (audit des actions de l'écran, `audit-ecran.md`)** : les trois collections du serveur (`crm_audit`, `crm_audit_avant`, `mcp_limites`) sont sorties du joker ; l'appli lit le journal et ses copies et peut y **ajouter** les lignes de ses propres actions, sans jamais les modifier ni les supprimer. Pour toutes les autres collections, le comportement est identique à celui d'avant. Le serveur écrit avec le SDK d'administration, qui contourne les règles : il n'en dépend pas. Un nouvel utilisateur s'ajoute à `compteAutorise()` ici **et** dans `COMPTES_AUTORISES` (section suivante), puis les règles sont republiées par Jérôme dans la console (elles ne se déploient pas avec la fusion).
    ```
    rules_version = '2';
    service cloud.firestore {
@@ -382,16 +382,24 @@ Source : le site chevalier-ia.fr (`styles.css`, `tally-merci.html`, dossier `ass
               ];
        }
 
-       // Journal d'audit : lisible depuis l'appli, jamais modifiable depuis l'appli.
+       // Journal d'audit : lisible depuis l'appli. L'appli peut y AJOUTER les lignes de ses propres actions (canal « ecran », à son
+       // nom), jamais les modifier ni les supprimer. Le serveur MCP écrit avec le SDK d'administration, qui contourne les règles.
        match /crm_audit/{id} {
          allow read: if compteAutorise();
-         allow write: if false;
+         allow create: if compteAutorise()
+           && request.resource.data.via == 'ecran'
+           && request.resource.data.acteur == request.auth.token.email;
+         allow update, delete: if false;
        }
 
-       // Copies « avant » et compteurs de débit : réservés aux fonctions (qui contournent les règles).
+       // Copies « avant / après » (effacées après 90 jours) : lisibles par l'appli (écran Journal), ajout seul depuis l'appli.
        match /crm_audit_avant/{id} {
-         allow read, write: if false;
+         allow read: if compteAutorise();
+         allow create: if compteAutorise() && request.resource.data.expireAt is timestamp;
+         allow update, delete: if false;
        }
+
+       // Compteurs de débit : réservés aux fonctions.
        match /mcp_limites/{id} {
          allow read, write: if false;
        }

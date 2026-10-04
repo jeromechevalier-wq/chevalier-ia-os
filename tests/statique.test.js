@@ -60,10 +60,10 @@ describe('D1 Manifeste, icônes, service worker, versions', () => {
     }
     assert.ok(!existsSync(join(RACINE, 'sw.js')) && !existsSync(join(RACINE, 'service-worker.js')));
   });
-  test('D1 versions identiques dans version.json et js/os/version.js (2.0.1)', () => {
+  test('D1 versions identiques dans version.json et js/os/version.js (2.0.2)', () => {
     const v = json('version.json').version;
     const m = /VERSION = '([^']+)'/.exec(lire('js/os/version.js'));
-    assert.equal(v, '2.0.1');
+    assert.equal(v, '2.0.2');
     assert.equal(m[1], v);
   });
   test('D1 portraits réduits (512 px de large au plus)', () => {
@@ -196,14 +196,14 @@ describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
   });
 
   test('D4 les collections lues ou écrites sont celles du cahier', () => {
-    const attendues = new Set(['crm_personnes', 'crm_organisations', 'crm_affaires', 'crm_activites', 'crm_notes', 'crm_evenements', 'crm_parametres', 'os_objectifs', 'os_objectifs_saisies']);
+    const attendues = new Set(['crm_personnes', 'crm_organisations', 'crm_affaires', 'crm_activites', 'crm_notes', 'crm_evenements', 'crm_parametres', 'os_objectifs', 'os_objectifs_saisies', 'crm_audit', 'crm_audit_avant']); // + journal et copies (audit de l'écran)
     const trouvees = new Set();
     for (const f of sources()) for (const [, nom] of lire(f).matchAll(/['"`]((?:crm|os)_[a-z_]+)['"`]/g)) trouvees.add(nom);
     for (const nom of trouvees) assert.ok(attendues.has(nom), `collection inattendue : ${nom}`);
     for (const nom of attendues) assert.ok(trouvees.has(nom), `collection jamais utilisée : ${nom}`);
   });
 
-  test('D4 firestore.rules : un seul joker, réservé aux deux comptes vérifiés, qui exclut explicitement les trois collections du serveur (le journal est lisible, jamais modifiable)', () => {
+  test('D4 firestore.rules : un seul joker, réservé aux deux comptes vérifiés, qui exclut explicitement les trois collections du serveur (journal et copies : lus et complétés par l’appli, jamais modifiés ni supprimés)', () => {
     const r = lire('firestore.rules');
     assert.equal((r.match(/match \/\{collection\}\/\{document=\*\*\}/g) || []).length, 1);
     assert.doesNotMatch(r, /match \/\{document=\*\*\}/, 'plus de joker nu : il couvrirait aussi les collections du serveur');
@@ -212,8 +212,9 @@ describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
     assert.match(r, /jerome\.chevalier@gmail\.com/);
     assert.match(r, /jeromebot\.chevalierbot@gmail\.com/);
     assert.match(r, /!\(collection in \['crm_audit', 'crm_audit_avant', 'mcp_limites'\]\)/);
-    assert.match(r, /match \/crm_audit\/\{id\} \{\s+allow read: if compteAutorise\(\);\s+allow write: if false;/);
-    assert.match(r, /match \/crm_audit_avant\/\{id\} \{\s+allow read, write: if false;/);
+    // journal : lu par l'appli, ajout seul (à son nom, canal « ecran »), jamais modifié ni supprimé
+    assert.match(r, /match \/crm_audit\/\{id\} \{\s+allow read: if compteAutorise\(\);\s+allow create: if compteAutorise\(\)\s+&& request\.resource\.data\.via == 'ecran'\s+&& request\.resource\.data\.acteur == request\.auth\.token\.email;\s+allow update, delete: if false;/);
+    assert.match(r, /match \/crm_audit_avant\/\{id\} \{\s+allow read: if compteAutorise\(\);\s+allow create: if compteAutorise\(\) && request\.resource\.data\.expireAt is timestamp;\s+allow update, delete: if false;/);
     assert.match(r, /match \/mcp_limites\/\{id\} \{\s+allow read, write: if false;/);
   });
 
@@ -354,8 +355,16 @@ describe('D5 Serveur MCP (étape 2) : déploiement, versions figées, sécurité
     }
     assert.doesNotMatch(lire('functions/src/coeur/metier.js'), /\.appliquer\(|\.mettreAJour\(/);
   });
-  test('D6 étape 4 : les collections du serveur ne sont jamais lues ni écrites par le code publié de l’appli (sauf le journal, en lecture)', () => {
-    for (const f of fichiersAppli().filter((x) => /^js\/.*\.js$/.test(x))) assert.doesNotMatch(lire(f), /crm_audit_avant|mcp_limites/, f);
+  test('D6 le code publié de l’appli n’utilise jamais les compteurs du serveur (mcp_limites) ; le journal et les copies ne sont écrits que par donnees.js et logique.js, par création seulement', () => {
+    for (const f of fichiersAppli().filter((x) => /^js\/.*\.js$/.test(x))) {
+      const t = lire(f);
+      assert.doesNotMatch(t, /mcp_limites/, f);
+      if (!/^js\/modules\/crm\/(donnees|logique)\.js$/.test(f)) assert.doesNotMatch(t, /crm_audit/, `${f} : seuls donnees.js et logique.js touchent au journal`);
+    }
+    // jamais de modification ni de suppression du journal par l'appli : les seules écritures sont des créations (types « creer » des plans d'audit)
+    const logique = lire('js/modules/crm/logique.js');
+    const audit = logique.slice(logique.indexOf('export function construireAudit'));
+    assert.doesNotMatch(audit.slice(0, audit.indexOf('// ----------------')), /type: '(modifier|supprimer)'/);
   });
   test('D7 étape 6 : le guide de branchement existe, branche Claude Code avec des guillemets simples et --scope user, et ne contient aucun jeton', () => {
     const t = lire('docs/branchement-mcp.md');
@@ -368,11 +377,12 @@ describe('D5 Serveur MCP (étape 2) : déploiement, versions figées, sécurité
     const bloc = /include: \[([^\]]+)\]/.exec(lire('docs/branchement-mcp.md'))[1].split(',').map((x) => x.trim());
     assert.deepEqual([...bloc].sort(), outilsAutorises('bibliothecaire', OUTILS).map((o) => o.nom).sort());
   });
-  test('D6 étape 4 : le texte des règles à coller dans la console, dans le guide mcp-etape-4.md, est identique à firestore.rules', () => {
-    const guide = lire('docs/mcp-etape-4.md');
+  test('D6 le texte des règles à coller dans la console, dans le guide audit-ecran.md, est identique à firestore.rules', () => {
+    const guide = lire('docs/audit-ecran.md');
     const blocs = [...guide.matchAll(/```\n(rules_version[\s\S]*?)```/g)].map((m) => m[1]);
-    assert.equal(blocs.length, 2, 'nouvelles règles puis anciennes (retour arrière)');
+    assert.equal(blocs.length, 2, 'nouvelles règles puis celles de l’étape 4 (retour arrière, après avoir annulé la version 2.0.2 de l’appli)');
     assert.equal(blocs[0].trim(), lire('firestore.rules').trim());
-    assert.doesNotMatch(blocs[1], /crm_audit/);
+    assert.match(blocs[1], /match \/crm_audit\/\{id\} \{\s+allow read: if compteAutorise\(\);\s+allow write: if false;/);
+    assert.doesNotMatch(blocs[1], /via == 'ecran'/);
   });
 });

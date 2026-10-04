@@ -3,7 +3,7 @@
 // activités, paramètres) ; notes et événements se chargent à l'ouverture d'une fiche, par une requête sur son lien.
 // Aucune requête composite : une seule condition par requête (égalité), le reste est fait dans le navigateur.
 import {
-  collection, doc, onSnapshot, query, where, getDocs, setDoc, runTransaction, writeBatch, serverTimestamp,
+  collection, doc, onSnapshot, query, where, getDoc, getDocs, setDoc, runTransaction, writeBatch, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { db } from '../../os/firebase.js';
 import * as L from './logique.js';
@@ -153,18 +153,43 @@ async function initialiserParametres(existants) {
 // ---------------------------------------------------------------- outils d'écriture
 // Les règles (quoi écrire) sont dans logique.js (plans, partagés avec le serveur MCP) ; ici : exécuter un plan et lire ce qu'il faut.
 
-/** Exécute les écritures d'un plan par lots de 400 (un lot est atomique). `horodater` -> heure du serveur Firebase, `signer` -> compte connecté. */
-async function executer(ecritures) {
-  for (let i = 0; i < ecritures.length; i += 400) {
+/** Applique une écriture d'un plan à un lot. `horodater` -> heure du serveur Firebase, `signer` -> compte connecté. */
+function ecrireDansLot(lot, e) {
+  const ref = doc(db, e.collection, e.id);
+  const marques = {};
+  for (const champ of e.horodater || []) marques[champ] = serverTimestamp();
+  for (const champ of e.signer || []) marques[champ] = compte?.email || '';
+  if (e.type === 'creer') lot.set(ref, { ...e.donnees, ...marques });
+  else if (e.type === 'modifier') lot.update(ref, { ...e.patch, ...marques });
+  else lot.delete(ref);
+}
+
+/** Les documents tels qu'ils sont AVANT une modification ou une suppression (pour la copie de l'audit). */
+async function lireAvants(ecritures) {
+  const concernees = ecritures.filter((e) => e.type !== 'creer');
+  const lus = await Promise.all(concernees.map((e) => getDoc(doc(db, e.collection, e.id))));
+  return Object.fromEntries(concernees.map((e, i) => [`${e.collection}/${e.id}`, lus[i].exists() ? lus[i].data() : null]));
+}
+
+// Trois écritures par action élémentaire (la donnée, sa ligne d'audit, sa copie) : 130 actions par lot, la limite de Firestore est 500.
+const ACTIONS_PAR_LOT = 130;
+
+/**
+ * Exécute les écritures d'un plan. Chaque écriture laisse sa trace dans crm_audit (et sa copie dans crm_audit_avant) DANS LE MÊME LOT
+ * que la donnée : jamais de modification sans trace, jamais de trace sans modification (un lot est atomique). `outil` nomme l'action.
+ */
+async function executer(ecritures, outil = 'ecran') {
+  if (!ecritures.length) return;
+  const avants = await lireAvants(ecritures);
+  const audit = L.construireAudit(ecritures, avants, {
+    acteur: compte?.email || '', outil, operationId: doc(collection(db, 'crm_audit')).id, maintenant: new Date(),
+    horodatage: serverTimestamp(), nouvelId: (nom) => doc(collection(db, nom)).id,
+  });
+  for (let i = 0; i < ecritures.length; i += ACTIONS_PAR_LOT) {
     const lot = writeBatch(db);
-    for (const e of ecritures.slice(i, i + 400)) {
-      const ref = doc(db, e.collection, e.id);
-      const marques = {};
-      for (const champ of e.horodater || []) marques[champ] = serverTimestamp();
-      for (const champ of e.signer || []) marques[champ] = compte?.email || '';
-      if (e.type === 'creer') lot.set(ref, { ...e.donnees, ...marques });
-      else if (e.type === 'modifier') lot.update(ref, { ...e.patch, ...marques });
-      else lot.delete(ref);
+    for (let k = i; k < Math.min(i + ACTIONS_PAR_LOT, ecritures.length); k++) {
+      ecrireDansLot(lot, ecritures[k]);
+      audit[k].forEach((a) => ecrireDansLot(lot, a));
     }
     await lot.commit();
   }
@@ -200,12 +225,12 @@ export function ecouterFil(lien, rappel) {
 
 export async function creerPersonne(valeurs) {
   const plan = L.planCreerPersonne(valeurs, ctx());
-  await executer(plan.ecritures);
+  await executer(plan.ecritures, 'creerPersonne');
   return plan.id;
 }
 
 export async function majPersonne(id, patch) {
-  await executer(L.planMajPersonne(id, patch).ecritures);
+  await executer(L.planMajPersonne(id, patch).ecritures, 'majPersonne');
 }
 
 /** Change l'organisation d'une personne ; ses affaires gardent leur propre organisation. */
@@ -216,12 +241,12 @@ export async function lierPersonneOrganisation(personneId, organisationId) {
 export async function emailEnvoye(personneId) {
   const p = personne(personneId);
   if (!p) return;
-  await executer(L.planEmailEnvoye(p, ctx()).ecritures);
+  await executer(L.planEmailEnvoye(p, ctx()).ecritures, 'emailEnvoye');
 }
 
 export async function marquerOppositionPersonne(personneId, coche) {
   const p = personne(personneId) || { id: personneId, organisationId: null };
-  await executer(L.planOppositionPersonne(p, coche, ctx()).ecritures);
+  await executer(L.planOppositionPersonne(p, coche, ctx()).ecritures, 'marquerOppositionPersonne');
 }
 
 /**
@@ -231,42 +256,42 @@ export async function marquerOppositionPersonne(personneId, coche) {
 export async function supprimerPersonne(id, choix) {
   const liens = await liensDe('personneId', id);
   if (choix === 'affaires') for (const a of etat.affaires.filter((x) => x.personneId === id)) liens.push(...await liensDe('affaireId', a.id));
-  await executer(L.planSupprimerPersonne({ personneId: id, choix, affaires: etat.affaires, liens }).ecritures);
+  await executer(L.planSupprimerPersonne({ personneId: id, choix, affaires: etat.affaires, liens }).ecritures, 'supprimerPersonne');
 }
 
 // ---------------------------------------------------------------- organisations
 
 export async function creerOrganisation(valeurs) {
   const plan = L.planCreerOrganisation(valeurs, ctx());
-  await executer(plan.ecritures);
+  await executer(plan.ecritures, 'creerOrganisation');
   return plan.id;
 }
 
 export async function majOrganisation(id, patch) {
-  await executer(L.planMajOrganisation(id, patch).ecritures);
+  await executer(L.planMajOrganisation(id, patch).ecritures, 'majOrganisation');
 }
 
 /** Refus (Error) tant que l'organisation a des personnes ou des affaires. */
 export async function supprimerOrganisation(id) {
   const plan = L.planSupprimerOrganisation({ organisationId: id, personnes: etat.personnes, affaires: etat.affaires, liens: await liensDe('organisationId', id) });
   if (plan.refus) throw new Error(plan.refus);
-  await executer(plan.ecritures);
+  await executer(plan.ecritures, 'supprimerOrganisation');
 }
 
 // ---------------------------------------------------------------- affaires
 
 export async function creerAffaire(valeurs) {
   const plan = L.planCreerAffaire(valeurs, { personnes: etat.personnes, organisations: etat.organisations }, ctx());
-  await executer(plan.ecritures);
+  await executer(plan.ecritures, 'creerAffaire');
   return plan.id;
 }
 
 export async function majAffaire(id, patch) {
-  await executer(L.planMajAffaire(id, patch).ecritures);
+  await executer(L.planMajAffaire(id, patch).ecritures, 'majAffaire');
 }
 
-async function appliquer(plan) {
-  await executer(plan.ecritures);
+async function appliquer(plan, outil) {
+  await executer(plan.ecritures, outil);
   return plan;
 }
 
@@ -274,23 +299,23 @@ async function appliquer(plan) {
 export async function changerEtape(id, etape, options = {}) {
   const a = affaire(id);
   if (!a) throw new Error('Affaire introuvable');
-  return appliquer(L.planChangerEtape(a, etape, ctx(), options));
+  return appliquer(L.planChangerEtape(a, etape, ctx(), options), 'changerEtape');
 }
 
 export async function marquerAffairePerdue(id, saisie) {
-  return appliquer(L.planMarquerPerdue(affaire(id), saisie, ctx()));
+  return appliquer(L.planMarquerPerdue(affaire(id), saisie, ctx()), 'marquerAffairePerdue');
 }
 
 export async function mettreAffaireEnPause(id, saisie) {
-  return appliquer(L.planMettreEnPause(affaire(id), saisie, ctx()));
+  return appliquer(L.planMettreEnPause(affaire(id), saisie, ctx()), 'mettreAffaireEnPause');
 }
 
 export async function rouvrir(id) {
-  return appliquer(L.planRouvrirAffaire(affaire(id), ctx()));
+  return appliquer(L.planRouvrirAffaire(affaire(id), ctx()), 'rouvrir');
 }
 
 export async function encaisser(id, saisie) {
-  return appliquer(L.planEncaisser(affaire(id), saisie, ctx()));
+  return appliquer(L.planEncaisser(affaire(id), saisie, ctx()), 'encaisser');
 }
 
 export async function archiverAffaire(id, archive = true) {
@@ -298,46 +323,46 @@ export async function archiverAffaire(id, archive = true) {
 }
 
 export async function supprimerAffaire(id) {
-  await executer(L.planSupprimerAffaire({ affaireId: id, liens: await liensDe('affaireId', id) }).ecritures);
+  await executer(L.planSupprimerAffaire({ affaireId: id, liens: await liensDe('affaireId', id) }).ecritures, 'supprimerAffaire');
 }
 
 // ---------------------------------------------------------------- activités
 
 export async function creerActivite(valeurs) {
   const plan = L.planCreerActivite(valeurs, ctx());
-  await executer(plan.ecritures);
+  await executer(plan.ecritures, 'creerActivite');
   return plan.id;
 }
 
 export async function marquerActiviteFaite(id) {
   const a = etat.activites.find((x) => x.id === id);
   if (!a) return null;
-  await executer(L.planActiviteFaite(a, ctx()).ecritures);
+  await executer(L.planActiviteFaite(a, ctx()).ecritures, 'marquerActiviteFaite');
   return a;
 }
 
 export async function majActivite(id, patch) {
-  await executer(L.planMajActivite(id, patch).ecritures);
+  await executer(L.planMajActivite(id, patch).ecritures, 'majActivite');
 }
 
 export async function supprimerActivite(id) {
-  await executer(L.planSupprimerActivite(id).ecritures);
+  await executer(L.planSupprimerActivite(id).ecritures, 'supprimerActivite');
 }
 
 // ---------------------------------------------------------------- notes
 
 export async function creerNote(texte, liens) {
   const plan = L.planCreerNote(texte, liens, ctx());
-  await executer(plan.ecritures);
+  await executer(plan.ecritures, 'creerNote');
   return plan.id;
 }
 
 export async function majNote(id, texte) {
-  await executer(L.planMajNote(id, texte).ecritures);
+  await executer(L.planMajNote(id, texte).ecritures, 'majNote');
 }
 
 export async function supprimerNote(id) {
-  await executer(L.planSupprimerNote(id).ecritures);
+  await executer(L.planSupprimerNote(id).ecritures, 'supprimerNote');
 }
 
 // ---------------------------------------------------------------- paramètres

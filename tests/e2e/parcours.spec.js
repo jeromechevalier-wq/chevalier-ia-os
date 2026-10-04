@@ -1211,3 +1211,64 @@ test('C26 réglages : le compte GitHub et le chemin des projets changent les pro
   await page.locator('[data-action="creer-dossier"]').click();
   await expect(dialogue(page).locator('[data-zone="prompt"]')).toHaveValue(/\/Users\/jerome\/Projets\/client-depannage-carrel-/);
 });
+
+// ---------------------------------------------------------------- audit des actions de l'écran (04/10/2026)
+
+test('C27 audit de l’écran : créer puis supprimer une personne laisse des lignes dans crm_audit et des copies dans crm_audit_avant, dans le même lot que les données', async ({ page }) => {
+  await connecter(page);
+  await ouvrirCreation(page, 'personne');
+  await dialogue(page).getByLabel('Nom', { exact: true }).fill('Zoé Audit');
+  await dialogue(page).getByLabel('Nom', { exact: true }).press('Enter');
+  await expect(dialogue(page)).toHaveCount(0);
+  const p = await attendre(page, 'crm_personnes', (d) => d.nom === 'Zoé Audit');
+
+  // création : une ligne par document écrit (la personne, son événement), canal « ecran », à mon nom, sans contenu
+  await expect.poll(async () => (await listerDocuments('crm_audit')).length).toBe(2);
+  const creation = await listerDocuments('crm_audit');
+  expect(creation.map((l) => l.action).sort()).toEqual(['creer', 'creer']);
+  for (const l of creation) {
+    expect(l).toMatchObject({ acteur: JEROME, via: 'ecran', statut: 'succes', outil: 'creerPersonne' });
+    expect(l.date).toBeInstanceOf(Date);
+  }
+  expect(JSON.stringify(creation)).not.toContain('Zoé Audit');
+  const ligneP = creation.find((l) => l.collection === 'crm_personnes');
+  expect(ligneP.docId).toBe(p.id);
+  const copieP = await lireDocument(`crm_audit_avant/${ligneP.id}`);
+  expect(copieP.avant).toBeNull();
+  expect(copieP.apres.nom).toBe('Zoé Audit');
+  expect(copieP.apres.creePar).toBe(JEROME);
+  expect(copieP.expireAt.getTime()).toBeGreaterThan(Date.now() + 89 * 86_400_000);
+
+  // suppression : une ligne « supprimer » par document, avec la copie du document supprimé
+  await aller(page, `#/crm/personnes/${p.id}`);
+  await page.locator('[data-action="menu-fiche"]').click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: /Supprimer définitivement/ }).click();
+  await dialogue(page).getByLabel(/Tape « Zoé Audit »/).fill('zoe audit');
+  await dialogue(page).getByRole('button', { name: 'Supprimer' }).click();
+  await expect(dialogue(page)).toHaveCount(0);
+  await expect.poll(async () => await lireDocument(`crm_personnes/${p.id}`)).toBeNull();
+  await expect.poll(async () => (await listerDocuments('crm_audit')).filter((l) => l.action === 'supprimer').length).toBeGreaterThanOrEqual(2);
+  const suppressions = (await listerDocuments('crm_audit')).filter((l) => l.action === 'supprimer' && l.outil === 'supprimerPersonne');
+  const supprP = suppressions.find((l) => l.collection === 'crm_personnes');
+  expect(supprP.docId).toBe(p.id);
+  const copieSuppr = await lireDocument(`crm_audit_avant/${supprP.id}`);
+  expect(copieSuppr.apres).toBeNull();
+  expect(copieSuppr.avant).toMatchObject({ nom: 'Zoé Audit', roles: ['prospect'] });
+});
+
+test('C27 audit de l’écran : une modification de fiche, un changement d’étape et une note laissent chacun leur trace avec la copie avant', async ({ page }) => {
+  await creerPersonne('p1', { nom: 'Éric Léon' });
+  await creerAffaire('a1', { titre: 'Affaire suivie', personneId: 'p1' });
+  await connecter(page);
+  await aller(page, '#/crm/affaires/a1');
+  await page.locator('[data-etape="rdv_fixe"]').click();
+  await expect.poll(async () => (await lireDocument('crm_affaires/a1')).etape).toBe('rdv_fixe');
+  await expect.poll(async () => (await listerDocuments('crm_audit')).filter((l) => l.outil === 'changerEtape').length).toBe(2); // l'affaire et son événement
+  const ligne = (await listerDocuments('crm_audit')).find((l) => l.outil === 'changerEtape' && l.collection === 'crm_affaires');
+  expect(ligne).toMatchObject({ action: 'modifier', docId: 'a1', acteur: JEROME, via: 'ecran' });
+  expect(ligne.champsModifies).toEqual(expect.arrayContaining(['etape', 'statut', 'modifieLe', 'modifiePar']));
+  const copie = await lireDocument(`crm_audit_avant/${ligne.id}`);
+  expect(copie.avant.etape).toBe('premier_contact');
+  expect(copie.apres.etape).toBe('rdv_fixe');
+  expect(copie.apres.titre).toBe('Affaire suivie'); // champs non modifiés conservés dans la copie « après »
+});
