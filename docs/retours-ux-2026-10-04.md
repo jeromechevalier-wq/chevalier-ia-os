@@ -38,6 +38,31 @@ Le bouton et le champ du nom du dossier n'apparaissent que tant que l'adresse du
 - **Déjà prévu au plan** (`plan-mcp.md` 5.7, étape 7) : un événement `document_ajoute` pour les pièces jointes. Rien de prévu pour les adresses GitHub et dossier.
 - **À discuter** : quels événements (« Document ajouté : libellé », « Document retiré », « Adresse GitHub ajoutée, modifiée ou retirée », idem pour le dossier), contre le risque de bruit dans le fil ; et si le fil doit alors dire qui l'a fait (« via MCP » existe déjà pour ce qui est créé par un agent).
 
+## Décisions et discussion de Jérôme (04/10/2026, après relecture)
+
+- **Points 1 et 2 : ordre des boutons.** Jérôme remarque qu'un humain clique d'instinct sur le **premier** bouton. Sur la ligne GitHub, l'ordre actuel est « Enregistrer » puis « Créer le GitHub » (`lanceurs.js`, lignes 122 et 123) ; il propose l'inverse : **« Créer le GitHub » d'abord, « Enregistrer » ensuite**. Avis de l'assistant : d'accord. Pour le dossier, l'ordre est déjà celui-là (la ligne du nom avec « Créer le répertoire » vient avant la ligne de l'adresse avec « Enregistrer ») : la ligne GitHub est donc **incohérente** avec le dossier. Piste complémentaire : numéroter les deux actions (« 1. Créer le GitHub » puis « 2. Enregistrer l'adresse ») pour montrer l'ordre. **Rien n'est modifié** ; à faire plus tard, avec un test navigateur.
+- **Point 3 : lien « Ouvrir le dossier ».** Jérôme est d'accord pour le laisser tel quel.
+- **Point 4 : historique.** Jérôme est d'accord pour **ne pas ajouter de bruit** dans l'historique de l'affaire. Il veut en revanche, **si un jour quelque chose disparaît, des outils pour comprendre ce qui s'est passé** : voir la section suivante.
+
+## Comprendre ce qui s'est passé : où est l'audit, et ce qu'il ne couvre pas
+
+**Où Jérôme peut le lire aujourd'hui**
+- **Par Claude Code** (serveur MCP) : l'outil `lire_audit`, ouvert à tous les profils. Il filtre par `acteur`, `docId` (le document touché), `operationId`, `depuis` (une date) et `incompletes` (lignes restées « à vérifier »). Chaque ligne dit : quand, quel jeton et quel acteur, via quel canal, quel outil, quelle collection et quel document, quelle action (créer, modifier, supprimer, restaurer), le statut (réussi, échoué, en cours) et les **noms des champs** modifiés. Exemple à demander à Claude Code : « Avec lire_audit, montre-moi les écritures depuis le 2026-10-03. » (Les essais du 03/10 y figurent.)
+- **Dans la console Firestore** (Firestore Studio) : les collections `crm_audit` (le journal) et `crm_audit_avant` (les copies, 90 jours), en lecture ou modification manuelle, la console contournant les règles.
+- **Dans l'appli** : les règles autorisent la **lecture** du journal, mais **aucun écran ne l'affiche** ; l'appli n'en lit rien.
+
+**Ce que l'audit ne contient pas (limites)**
+1. **Il ne couvre que ce qui passe par le serveur MCP** (Claude Code, Hermes). **Ce que Jérôme fait lui-même dans l'appli n'y est pas** : l'écran écrit directement dans la base (aucune référence à `crm_audit` dans `js/`). Si une fiche ou un document disparaît à la suite d'une action dans l'appli, l'audit ne dit rien. Il reste alors les champs `modifiePar` et `modifieLe` de ce qui subsiste, les sauvegardes quotidiennes Google (98 jours) et la récupération à un moment précis (7 jours), qui permettent de **restaurer dans une nouvelle base** puis de comparer.
+2. **Le journal ne dit pas *quoi* a disparu, seulement *quel document*** (collection et identifiant) : le contenu (nom, texte) est volontairement dans les copies `crm_audit_avant`, que **seule la console Firestore** permet de lire ; aucun outil MCP ne les affiche (`restaurer_depuis_audit` montre un aperçu des actions, pas le contenu).
+3. Les copies disparaissent après 90 jours.
+4. **Texte périmé** : la description de `lire_audit` affichée aux clients dit encore « Vide tant qu'aucun outil d'écriture n'est en service », ce qui n'est plus vrai depuis l'étape 4.
+
+**Pistes pour répondre au besoin « comprendre ce qui s'est passé »** (rien n'est décidé ni construit)
+- **Un outil de lecture des copies** réservé au profil Claude Code (par exemple `lire_copie_audit` : le contenu d'un document avant et après une opération), pour répondre à « qu'est-ce qui a été supprimé, et quel était son contenu ? » sans passer par la console.
+- **Un écran « Journal »** dans l'appli (lecture seule), puisque les règles l'autorisent déjà.
+- **Auditer aussi ce que fait l'écran** : plus lourd (l'écran n'a pas le droit d'écrire dans l'audit : il faudrait une fonction côté serveur ou un changement de règles). À peser contre l'usage réel d'un seul utilisateur et les sauvegardes Google déjà actives.
+- Corriger le texte périmé de `lire_audit` (point 4 ci-dessus).
+
 ## Reste à faire côté test
 
 - Supprimer l'affaire de test « ZZ Essai » si ce n'est pas déjà fait.
