@@ -11,16 +11,24 @@ service cloud.firestore {
            ];
     }
 
-    // Journal d'audit : lisible depuis l'appli, jamais modifiable depuis l'appli.
+    // Journal d'audit : lisible depuis l'appli. L'appli peut y AJOUTER les lignes de ses propres actions (canal « ecran », à son
+    // nom), jamais les modifier ni les supprimer. Le serveur MCP écrit avec le SDK d'administration, qui contourne les règles.
     match /crm_audit/{id} {
       allow read: if compteAutorise();
-      allow write: if false;
+      allow create: if compteAutorise()
+        && request.resource.data.via == 'ecran'
+        && request.resource.data.acteur == request.auth.token.email;
+      allow update, delete: if false;
     }
 
-    // Copies « avant » et compteurs de débit : réservés aux fonctions (qui contournent les règles).
+    // Copies « avant / après » (effacées après 90 jours) : lisibles par l'appli (écran Journal), ajout seul depuis l'appli.
     match /crm_audit_avant/{id} {
-      allow read, write: if false;
+      allow read: if compteAutorise();
+      allow create: if compteAutorise() && request.resource.data.expireAt is timestamp;
+      allow update, delete: if false;
     }
+
+    // Compteurs de débit : réservés aux fonctions.
     match /mcp_limites/{id} {
       allow read, write: if false;
     }

@@ -39,7 +39,7 @@ Pourquoi : aujourd'hui une seule règle couvre toutes les collections. On sort l
 
 1. Ouvre https://console.firebase.google.com/project/chevalier-ia-os/overview , clique sur la carte **Firestore**, puis sur l'onglet **Règles**. *(Le lien direct vers les règles ne marche pas : il renvoie à l'accueil du projet. Dans la console Google Cloud, https://console.cloud.google.com/firestore/databases/-default-/security/rules?project=chevalier-ia-os , la page **Sécurité** n'affiche les règles qu'en lecture seule : elle sert à vérifier ce qui est actif.)*
 2. Clique dans la zone de texte, **sélectionne tout** (⌘A) et **supprime**.
-3. Colle exactement ce texte (c'est le contenu du fichier `firestore.rules` de la PR) :
+3. Colle exactement ce texte (le contenu du fichier `firestore.rules` **à l'époque de l'étape 4** ; **depuis le 04/10/2026 les règles ont changé** pour l'audit des actions de l'écran : voir `audit-ecran.md`, dont le texte remplace celui-ci) :
 
 ```
 rules_version = '2';
