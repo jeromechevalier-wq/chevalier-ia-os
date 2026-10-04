@@ -3,7 +3,7 @@
 // activités, paramètres) ; notes et événements se chargent à l'ouverture d'une fiche, par une requête sur son lien.
 // Aucune requête composite : une seule condition par requête (égalité), le reste est fait dans le navigateur.
 import {
-  collection, doc, onSnapshot, query, where, getDoc, getDocs, setDoc, runTransaction, writeBatch, serverTimestamp,
+  collection, doc, onSnapshot, query, where, orderBy, limit, startAfter, getDoc, getDocs, setDoc, runTransaction, writeBatch, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { db } from '../../os/firebase.js';
 import * as L from './logique.js';
@@ -426,4 +426,25 @@ export async function toutesLesCollections() {
     sortie[nom] = snap.docs.map((d) => ({ ...d.data({ serverTimestamps: 'estimate' }), id: d.id }));
   }
   return sortie;
+}
+
+// ---------------------------------------------------------------- journal (lecture seule)
+
+/** Les `taille` lignes du journal les plus récentes (après le curseur `apres` pour la page suivante) : { lignes, curseur, fini }. */
+export async function lireJournal({ taille = 200, apres = null } = {}) {
+  const contraintes = [orderBy('date', 'desc'), ...(apres ? [startAfter(apres)] : []), limit(taille)];
+  const snap = await getDocs(query(collection(db, 'crm_audit'), ...contraintes));
+  return {
+    lignes: snap.docs.map((d) => ({ ...d.data({ serverTimestamps: 'estimate' }), id: d.id })),
+    curseur: snap.docs.at(-1) ?? null,
+    fini: snap.docs.length < taille,
+  };
+}
+
+/** Copie « avant / après » d'une ligne du journal (même identifiant que la ligne) : { avant, apres } ou null si elle a expiré (90 jours). */
+export async function lireCopieJournal(idLigne) {
+  const d = await getDoc(doc(db, 'crm_audit_avant', idLigne));
+  if (!d.exists()) return null;
+  const { avant = null, apres = null } = d.data({ serverTimestamps: 'estimate' });
+  return { avant, apres };
 }

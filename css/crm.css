@@ -372,3 +372,29 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 .lanceur .aide { margin: 0; }
 .dialogue.dialogue-prompt { width: min(720px, 100%); }
 .prompt-zone { font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; min-height: 280px; resize: vertical; width: 100%; white-space: pre-wrap; }
+
+/* ---------------------------------------------------------------- Journal (lecture seule) */
+.page-journal .aide { max-width: 70ch; }
+.journal-outil { color: var(--texte2); font-size: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.pastille-journal { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; background: #ecbc0626; border: 1px solid #ecbc0680; }
+.pastille-journal.echec { background: var(--retard-fond); border-color: var(--retard); color: var(--retard); }
+.journal-pied { display: flex; justify-content: center; padding: 12px 0; }
+.dialogue.dialogue-journal { width: min(820px, 100%); }
+.journal-detail { display: flex; flex-direction: column; gap: 12px; }
+.journal-entete { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px 16px; margin: 0; }
+.journal-entete dt { font: 600 10px/1.4 var(--police-texte); letter-spacing: .14em; text-transform: uppercase; color: var(--texte2); }
+.journal-entete dd { margin: 0; overflow-wrap: anywhere; }
+.journal-ligne { border: 1px solid var(--bordure); border-radius: var(--rayon-petit); padding: 8px 12px; }
+.journal-ligne summary { cursor: pointer; }
+.journal-ligne code { font-size: 12px; overflow-wrap: anywhere; }
+.journal-copie { margin-top: 8px; overflow-x: auto; }
+.tableau-differences td { vertical-align: top; overflow-wrap: anywhere; white-space: pre-wrap; }
+.tableau-differences .diff-champ { font-weight: 600; white-space: nowrap; }
+.tableau-differences .diff-avant { color: var(--retard); }
+.tableau-differences .diff-apres { color: var(--succes); }
+@media (max-width: 767px) {
+  .tableau-journal tr.ligne-liste { grid-template-columns: 1fr 1fr; }
+  .tableau-journal td:nth-child(4) { grid-column: 1 / -1; }
+  .tableau-differences tr { display: block; padding: 6px 0; }
+  .tableau-differences thead { display: none; }
+}

@@ -95,7 +95,7 @@ export const lire_reglages = {
 export const lire_audit = {
   nom: 'lire_audit',
   profils: TOUS,
-  description: "Lit le journal d'audit des écritures faites par les outils (qui, quand, quel outil, quel document). incompletes=true : lignes restées « en_cours » (à vérifier). Vide tant qu'aucun outil d'écriture n'est en service.",
+  description: "Lit le journal d'audit des écritures faites par les outils (qui, quand, quel outil, quel document). incompletes=true : lignes restées « en_cours » (à vérifier). Voit aussi les actions faites dans l'appli (via: 'ecran').",
   schema: {
     acteur: z.string().max(80).optional(),
     docId: id.optional(),

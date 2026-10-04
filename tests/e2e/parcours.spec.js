@@ -1272,3 +1272,79 @@ test('C27 audit de l’écran : une modification de fiche, un changement d’ét
   expect(copie.apres.etape).toBe('rdv_fixe');
   expect(copie.apres.titre).toBe('Affaire suivie'); // champs non modifiés conservés dans la copie « après »
 });
+
+// ---------------------------------------------------------------- écran Journal (lecture seule)
+
+test('C28 Journal : ce que je fais dans l’appli y apparaît avec la copie avant / après ; les lignes du serveur MCP aussi, avec filtres ; rien n’y est modifiable', async ({ page }) => {
+  // une ligne du serveur (Claude Code), une ligne restée « en cours » (à vérifier) sans copie, posées comme le serveur les écrit
+  const il = new Date(Date.now() - 3_600_000);
+  await ecrireDocument('crm_audit/mcp1', { operationId: 'opmcp', ordre: 1, acteur: 'claude-code-jerome', jeton: 'claude-code-jerome', via: 'mcp', outil: 'creer_organisation', collection: 'crm_organisations', docId: 'o1', action: 'creer', statut: 'succes', champsModifies: ['nom'], parametresRecus: ['nom'], date: il });
+  await ecrireDocument('crm_audit_avant/mcp1', { operationId: 'opmcp', collection: 'crm_organisations', docId: 'o1', avant: null, apres: { nom: 'Orga MCP', ville: 'Lyon' }, expireAt: new Date(Date.now() + 80 * 86_400_000) });
+  await ecrireDocument('crm_audit/mcp2', { operationId: 'opbloque', ordre: 1, acteur: 'claude-code-jerome', jeton: 'claude-code-jerome', via: 'mcp', outil: 'supprimer_affaire', collection: 'crm_affaires', docId: 'a9', action: 'supprimer', statut: 'en_cours', champsModifies: [], parametresRecus: [], date: new Date(Date.now() - 7_200_000) });
+
+  await connecter(page);
+  // une action faite dans l'appli : créer puis supprimer une personne
+  await ouvrirCreation(page, 'personne');
+  await dialogue(page).getByLabel('Nom', { exact: true }).fill('Zoé Journal');
+  await dialogue(page).getByLabel('Nom', { exact: true }).press('Enter');
+  await expect(dialogue(page)).toHaveCount(0);
+  const p = await attendre(page, 'crm_personnes', (d) => d.nom === 'Zoé Journal');
+  await aller(page, `#/crm/personnes/${p.id}`);
+  await page.locator('[data-action="menu-fiche"]').click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: /Supprimer définitivement/ }).click();
+  await dialogue(page).getByLabel(/Tape « Zoé Journal »/).fill('zoe journal');
+  await dialogue(page).getByRole('button', { name: 'Supprimer' }).click();
+  await expect(dialogue(page)).toHaveCount(0);
+  await expect.poll(async () => await lireDocument(`crm_personnes/${p.id}`)).toBeNull();
+  await expect.poll(async () => (await listerDocuments('crm_audit')).filter((l) => l.outil === 'supprimerPersonne').length).toBeGreaterThanOrEqual(2);
+  const nbLignes = (await listerDocuments('crm_audit')).length;
+
+  await allerA(page, 'Journal');
+  await expect(page).toHaveURL(/#\/crm\/journal$/);
+  await expect(page.getByRole('heading', { name: 'Journal' })).toBeVisible();
+  const lignes = page.locator('.tableau-journal tbody tr');
+  await expect(lignes).toHaveCount(4); // suppression de la personne (avec son événement), sa création, ligne MCP réussie, ligne MCP à vérifier
+  await expect(lignes.first()).toContainText(/Suppression de 1 événement, 1 personne/);
+  await expect(lignes.first()).toContainText('Jérôme');
+  await expect(lignes.first()).toContainText('Appli');
+  await expect(page.locator('tr[data-operation="opmcp"]')).toContainText('Création de 1 organisation');
+  await expect(page.locator('tr[data-operation="opmcp"]')).toContainText('claude-code-jerome');
+  await expect(page.locator('tr[data-operation="opmcp"]')).toContainText('MCP');
+  await expect(page.locator('tr[data-operation="opbloque"]')).toContainText('À vérifier');
+
+  // détail d'une suppression faite dans l'appli : la copie « avant » du document supprimé
+  await lignes.first().click();
+  await expect(dialogue(page)).toContainText('Suppression de 1 événement, 1 personne');
+  await expect(dialogue(page).locator('.journal-ligne[data-doc-id="' + p.id + '"] .tableau-differences')).toContainText('Zoé Journal');
+  await dialogue(page).getByRole('button', { name: 'Fermer', exact: true }).and(page.locator('.bouton-principal')).click();
+  await expect(dialogue(page)).toHaveCount(0);
+
+  // détail d'une ligne du serveur : champ par champ, « avant » vide
+  await page.locator('tr[data-operation="opmcp"]').click();
+  await expect(dialogue(page).locator('.tableau-differences')).toContainText('Orga MCP');
+  await expect(dialogue(page).locator('.tableau-differences')).toContainText('Lyon');
+  await dialogue(page).getByRole('button', { name: 'Fermer', exact: true }).and(page.locator('.bouton-principal')).click();
+
+  // ligne sans copie : message clair, pas d'erreur
+  await page.locator('tr[data-operation="opbloque"]').click();
+  await expect(dialogue(page)).toContainText('Pas de copie');
+  await dialogue(page).getByRole('button', { name: 'Fermer', exact: true }).and(page.locator('.bouton-principal')).click();
+
+  // filtres
+  await page.locator('[data-role="filtre-canal"]').selectOption('mcp');
+  await expect(lignes).toHaveCount(2);
+  await page.locator('[data-role="filtre-canal"]').selectOption('tous');
+  await page.locator('[data-role="filtre-a-verifier"]').check();
+  await expect(lignes).toHaveCount(1);
+  await expect(lignes.first()).toContainText('Suppression de 1 affaire');
+  await page.locator('[data-role="filtre-a-verifier"]').uncheck();
+  await page.getByLabel('Rechercher dans le journal').fill('lyon-inconnu');
+  await expect(page.getByText('Aucune opération ne correspond')).toBeVisible();
+  await page.getByLabel('Rechercher dans le journal').fill('Lyon');
+  await expect(page.locator('.tableau-journal tbody tr')).toHaveCount(0); // le texte saisi ne cherche pas dans le contenu des documents
+
+  // lecture seule : aucun champ d'édition ni bouton de suppression, et consulter n'écrit rien dans le journal
+  await page.getByLabel('Rechercher dans le journal').fill('');
+  await expect(page.locator('.page-journal').getByRole('button', { name: /Supprimer|Restaurer|Modifier/ })).toHaveCount(0);
+  expect((await listerDocuments('crm_audit')).length).toBe(nbLignes);
+});

@@ -1593,6 +1593,113 @@ export function construireAudit(ecritures, avants, { acteur, outil, operationId,
   });
 }
 
+// ---------------------------------------------------------------- écran Journal (lecture seule)
+// Les lignes du journal (une par document touché) sont regroupées par opération : une action de l'écran ou un appel d'outil du serveur.
+
+const NOMS_DOCUMENTS = {
+  crm_personnes: ['personne', 'personnes'], crm_organisations: ['organisation', 'organisations'], crm_affaires: ['affaire', 'affaires'],
+  crm_activites: ['activité', 'activités'], crm_notes: ['note', 'notes'], crm_evenements: ['événement', 'événements'],
+};
+const ACTIONS_JOURNAL = { creer: 'Création', modifier: 'Modification', supprimer: 'Suppression' };
+
+export function libelleDocumentJournal(collection, pluriel = false) {
+  const n = NOMS_DOCUMENTS[collection];
+  return n ? n[pluriel ? 1 : 0] : String(collection ?? 'document');
+}
+
+export const libelleActionJournal = (action) => ACTIONS_JOURNAL[action] ?? String(action ?? '');
+
+/** Qui a fait l'opération : les deux comptes par leur prénom, un jeton du serveur par son nom (ex. claude-code-jerome). */
+export function libelleActeurJournal(ligne) {
+  const acteur = String(ligne?.acteur ?? '');
+  if (ligne?.via !== 'ecran') return acteur;
+  return { 'jerome.chevalier@gmail.com': 'Jérôme', 'jeromebot.chevalierbot@gmail.com': 'Charles' }[acteur] ?? acteur;
+}
+
+export const libelleCanalJournal = (ligne) => (ligne?.via === 'mcp' ? 'MCP' : 'Appli');
+
+/** « Suppression de 1 affaire, 1 événement · Modification de 2 activités » (actions dans l'ordre création, modification, suppression). */
+export function resumeOperationJournal(lignes) {
+  const parAction = new Map();
+  for (const l of lignes) {
+    const m = parAction.get(l.action) ?? new Map();
+    m.set(l.collection, (m.get(l.collection) ?? 0) + 1);
+    parAction.set(l.action, m);
+  }
+  return ['creer', 'modifier', 'supprimer'].filter((a) => parAction.has(a)).map((a) => {
+    const docs = [...parAction.get(a)].map(([c, n]) => `${n} ${libelleDocumentJournal(c, n > 1)}`).join(', ');
+    return `${libelleActionJournal(a)} de ${docs}`;
+  }).join(' · ');
+}
+
+/** « succes » (rien à signaler), « averifier » (opération restée en cours : peut-être incomplète) ou « echec ». */
+export function statutOperationJournal(lignes) {
+  if (lignes.some((l) => l.statut === 'echec')) return 'echec';
+  if (lignes.some((l) => l.statut === 'en_cours')) return 'averifier';
+  return 'succes';
+}
+
+/** Lignes du journal → opérations, la plus récente d'abord ; les lignes d'une opération suivent leur ordre d'écriture. */
+export function grouperJournal(lignes) {
+  const groupes = new Map();
+  for (const l of lignes) {
+    const cle = l.operationId || l.id;
+    if (!groupes.has(cle)) groupes.set(cle, []);
+    groupes.get(cle).push(l);
+  }
+  const ms = (l) => versDate(l.date)?.getTime() ?? 0;
+  return [...groupes].map(([operationId, liste]) => {
+    liste.sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0) || ms(a) - ms(b));
+    const premiere = liste[0];
+    return {
+      operationId, lignes: liste, date: liste.reduce((m, l) => Math.max(m, ms(l)), 0), acteur: libelleActeurJournal(premiere), canal: libelleCanalJournal(premiere),
+      outil: premiere.outil ?? '', statut: statutOperationJournal(liste), resume: resumeOperationJournal(liste),
+    };
+  }).sort((a, b) => b.date - a.date);
+}
+
+/** criteres : { canal: 'tous' | 'ecran' | 'mcp', aVerifier: bool, depuis: 'AAAA-MM-JJ', texte } ; le texte cherche dans qui, quel outil, quel type de fiche */
+export function filtrerJournal(operations, { canal = 'tous', aVerifier = false, depuis = '', texte = '' } = {}) {
+  const seuil = depuis ? versDate(`${depuis}T00:00`)?.getTime() ?? 0 : 0;
+  const mots = normaliser(texte).split(/\s+/).filter(Boolean);
+  return operations.filter((o) => {
+    if (canal === 'ecran' && o.canal !== 'Appli') return false;
+    if (canal === 'mcp' && o.canal !== 'MCP') return false;
+    if (aVerifier && o.statut === 'succes') return false;
+    if (seuil && o.date < seuil) return false;
+    if (!mots.length) return true;
+    const foin = normaliser([o.acteur, o.outil, o.canal, o.resume, o.operationId, ...o.lignes.flatMap((l) => [l.docId, l.collection, l.outil])].join(' '));
+    return mots.every((m) => foin.includes(m));
+  });
+}
+
+/** Valeur rendue comparable : dates en millisecondes, clés triées. */
+function formeComparable(v) {
+  if (v === undefined) return null;
+  if (v === null || typeof v !== 'object') return v;
+  if (v instanceof Date || typeof v.toDate === 'function' || typeof v.seconds === 'number') return { t: versDate(v)?.getTime() ?? null };
+  if (Array.isArray(v)) return v.map(formeComparable);
+  return Object.fromEntries(Object.keys(v).sort().map((k) => [k, formeComparable(v[k])]));
+}
+
+/** Champs qui diffèrent entre la copie « avant » et la copie « après » (null = document absent) : [{ champ, avant, apres }], par ordre alphabétique. */
+export function differencesJournal(avant, apres) {
+  const a = avant ?? {};
+  const b = apres ?? {};
+  return [...new Set([...Object.keys(a), ...Object.keys(b)])].sort()
+    .filter((champ) => JSON.stringify(formeComparable(a[champ])) !== JSON.stringify(formeComparable(b[champ])))
+    .map((champ) => ({ champ, avant: a[champ], apres: b[champ] }));
+}
+
+/** Texte lisible d'une valeur de copie (date, liste, objet), tronqué pour ne pas noyer l'écran. */
+export function formaterValeurJournal(v, max = 300) {
+  if (v === undefined || v === null || v === '') return '—';
+  if (v instanceof Date || (typeof v === 'object' && (typeof v.toDate === 'function' || typeof v.seconds === 'number'))) return formatDateHeure(v) || '—';
+  if (typeof v === 'boolean') return v ? 'oui' : 'non';
+  const t = typeof v === 'object' ? JSON.stringify(formeComparable(v)) : String(v);
+  return t.length > max ? `${t.slice(0, max)}…` : t;
+}
+
 // ---------------------------------------------------------------- export JSON et CSV
 
 export function echapperCsv(valeur) {

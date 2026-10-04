@@ -1,6 +1,6 @@
 # Audit des actions de l'écran (version 2.0.2) : guide pour Jérôme
 
-Demande du 04/10/2026 : **l'audit doit tracer aussi ce que tu fais toi-même dans l'appli**, pas seulement ce que font Claude Code et Hermes. Choix de Jérôme : **piste A, atomique**. Cette version l'applique à toutes les actions du CRM faites à l'écran. L'**écran « Journal »** (lecture seule) est la suite, dans une autre PR.
+Demande du 04/10/2026 : **l'audit doit tracer aussi ce que tu fais toi-même dans l'appli**, pas seulement ce que font Claude Code et Hermes. Choix de Jérôme : **piste A, atomique**. Cette version l'applique à toutes les actions du CRM faites à l'écran. L'**écran « Journal »** (lecture seule) est livré dans la version 2.0.3 : voir `journal-ecran.md`.
 
 ## En clair
 
