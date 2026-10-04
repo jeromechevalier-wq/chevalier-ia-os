@@ -1192,6 +1192,11 @@ describe('B20 Journal : regroupement, filtres et comparaison avant / après', ()
     assert.equal(r, 'Création de 1 note · Modification de 1 affaire · Suppression de 2 activités');
   });
 
+  test('B20 une restauration (action « restaurer » écrite par le serveur) a son résumé', () => {
+    assert.equal(L.resumeOperationJournal([{ action: 'restaurer', collection: 'crm_affaires' }, { action: 'restaurer', collection: 'crm_evenements' }]), 'Restauration de 1 affaire, 1 événement');
+    assert.equal(L.resumeOperationJournal([{ action: 'inconnue', collection: 'crm_notes' }]), '', 'une action inconnue ne casse rien');
+  });
+
   test('B20 l’état d’une opération : « à vérifier » si une ligne est restée en cours, « échec » l’emporte', () => {
     const ops = L.grouperJournal(lignes);
     assert.equal(ops.find((o) => o.operationId === 'op3').statut, 'averifier');

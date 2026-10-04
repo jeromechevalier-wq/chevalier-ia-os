@@ -1600,7 +1600,7 @@ const NOMS_DOCUMENTS = {
   crm_personnes: ['personne', 'personnes'], crm_organisations: ['organisation', 'organisations'], crm_affaires: ['affaire', 'affaires'],
   crm_activites: ['activité', 'activités'], crm_notes: ['note', 'notes'], crm_evenements: ['événement', 'événements'],
 };
-const ACTIONS_JOURNAL = { creer: 'Création', modifier: 'Modification', supprimer: 'Suppression' };
+const ACTIONS_JOURNAL = { creer: 'Création', modifier: 'Modification', supprimer: 'Suppression', restaurer: 'Restauration' };
 
 export function libelleDocumentJournal(collection, pluriel = false) {
   const n = NOMS_DOCUMENTS[collection];
@@ -1618,7 +1618,7 @@ export function libelleActeurJournal(ligne) {
 
 export const libelleCanalJournal = (ligne) => (ligne?.via === 'mcp' ? 'MCP' : 'Appli');
 
-/** « Suppression de 1 affaire, 1 événement · Modification de 2 activités » (actions dans l'ordre création, modification, suppression). */
+/** « Suppression de 1 affaire, 1 événement · Modification de 2 activités » (actions dans l'ordre création, modification, suppression, restauration). */
 export function resumeOperationJournal(lignes) {
   const parAction = new Map();
   for (const l of lignes) {
@@ -1626,7 +1626,7 @@ export function resumeOperationJournal(lignes) {
     m.set(l.collection, (m.get(l.collection) ?? 0) + 1);
     parAction.set(l.action, m);
   }
-  return ['creer', 'modifier', 'supprimer'].filter((a) => parAction.has(a)).map((a) => {
+  return ['creer', 'modifier', 'supprimer', 'restaurer'].filter((a) => parAction.has(a)).map((a) => {
     const docs = [...parAction.get(a)].map(([c, n]) => `${n} ${libelleDocumentJournal(c, n > 1)}`).join(', ');
     return `${libelleActionJournal(a)} de ${docs}`;
   }).join(' · ');
