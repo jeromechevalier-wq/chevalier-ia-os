@@ -52,16 +52,25 @@ Le bouton et le champ du nom du dossier n'apparaissent que tant que l'adresse du
 - **Dans l'appli** : les règles autorisent la **lecture** du journal, mais **aucun écran ne l'affiche** ; l'appli n'en lit rien.
 
 **Ce que l'audit ne contient pas (limites)**
-1. **Il ne couvre que ce qui passe par le serveur MCP** (Claude Code, Hermes). **Ce que Jérôme fait lui-même dans l'appli n'y est pas** : l'écran écrit directement dans la base (aucune référence à `crm_audit` dans `js/`). Si une fiche ou un document disparaît à la suite d'une action dans l'appli, l'audit ne dit rien. Il reste alors les champs `modifiePar` et `modifieLe` de ce qui subsiste, les sauvegardes quotidiennes Google (98 jours) et la récupération à un moment précis (7 jours), qui permettent de **restaurer dans une nouvelle base** puis de comparer.
+1. **Aujourd'hui, il ne couvre que ce qui passe par le serveur MCP** (Claude Code, Hermes) ; **Jérôme demande que ce soit étendu à l'appli** (voir plus bas). **Ce que Jérôme fait lui-même dans l'appli n'y est pas** : l'écran écrit directement dans la base (aucune référence à `crm_audit` dans `js/`). Si une fiche ou un document disparaît à la suite d'une action dans l'appli, l'audit ne dit rien. Il reste alors les champs `modifiePar` et `modifieLe` de ce qui subsiste, les sauvegardes quotidiennes Google (98 jours) et la récupération à un moment précis (7 jours), qui permettent de **restaurer dans une nouvelle base** puis de comparer.
 2. **Le journal ne dit pas *quoi* a disparu, seulement *quel document*** (collection et identifiant) : le contenu (nom, texte) est volontairement dans les copies `crm_audit_avant`, que **seule la console Firestore** permet de lire ; aucun outil MCP ne les affiche (`restaurer_depuis_audit` montre un aperçu des actions, pas le contenu).
 3. Les copies disparaissent après 90 jours.
 4. **Texte périmé** : la description de `lire_audit` affichée aux clients dit encore « Vide tant qu'aucun outil d'écriture n'est en service », ce qui n'est plus vrai depuis l'étape 4.
 
-**Pistes pour répondre au besoin « comprendre ce qui s'est passé »** (rien n'est décidé ni construit)
-- **Un outil de lecture des copies** réservé au profil Claude Code (par exemple `lire_copie_audit` : le contenu d'un document avant et après une opération), pour répondre à « qu'est-ce qui a été supprimé, et quel était son contenu ? » sans passer par la console.
-- **Un écran « Journal »** dans l'appli (lecture seule), puisque les règles l'autorisent déjà.
-- **Auditer aussi ce que fait l'écran** : plus lourd (l'écran n'a pas le droit d'écrire dans l'audit : il faudrait une fonction côté serveur ou un changement de règles). À peser contre l'usage réel d'un seul utilisateur et les sauvegardes Google déjà actives.
-- Corriger le texte périmé de `lire_audit` (point 4 ci-dessus).
+## Exigences exprimées par Jérôme le 04/10/2026 (rien n'est construit)
+
+1. **L'audit doit couvrir aussi ce que Jérôme fait lui-même dans l'appli**, pas seulement ce que font Claude Code et Hermes. C'est une **demande** (elle remplace la limite 1 ci-dessus, qui devient un écart à combler).
+2. **Un écran « Journal » en lecture seule dans l'appli.** Raison de Jérôme : le jour où il voudra auditer, c'est qu'il a un problème, et le connecteur MCP pourrait justement ne pas marcher ce jour-là. L'audit doit donc être lisible sans passer par MCP.
+3. **Question : pourquoi un outil `lire_copie_audit` si l'on a déjà accès à la table d'audit en direct ?** Réponse : la table `crm_audit` ne contient pas le contenu (volontairement), et les copies sont dans `crm_audit_avant`, dont les règles Firestore interdisent aujourd'hui la lecture à l'appli. **Si l'écran Journal lit lui-même les copies** (règle de lecture de `crm_audit_avant` pour les deux comptes autorisés, qui lisent déjà tout le CRM : pas d'exposition nouvelle), l'outil `lire_copie_audit` devient **inutile pour Jérôme**. Piste retenue : **ne pas créer cet outil**, sauf si un agent en a besoin plus tard.
+
+### Piste de conception pour auditer les actions de l'écran (à décider)
+
+- **Piste A, recommandée par l'assistant** : l'écran écrit lui-même les lignes d'audit et les copies **dans le même lot atomique** que les données (`writeBatch`, déjà utilisé par `donnees.js`). Avantages : atomique (pas de donnée sans trace, pas de trace sans donnée), pas de nouveau service, pas de nouveau droit Google ; les horodatages serveur d'un même lot sont identiques, donc la copie « après » correspond exactement au document (la restauration par `restaurer_depuis_audit` fonctionnerait aussi pour les actions de l'écran). Coûts : les **règles** de `crm_audit` et `crm_audit_avant` passent de « interdit » à « création seulement » (pas de modification ni de suppression depuis l'appli : journal en ajout seul) ; trois fois plus d'écritures par action (négligeable) ; l'écran doit relire un document avant de le modifier ou supprimer quand il ne l'a pas en mémoire (notes) ; modification du chemin d'écriture de l'appli, à couvrir par les 98 parcours de test plus de nouveaux tests. **Ne couvre pas** ce qui est modifié à la main dans la console Firestore (couvert par les sauvegardes Google).
+- **Piste C** : des déclencheurs Firestore (une fonction qui s'exécute après chaque écriture, quelle qu'en soit l'origine, console comprise). Avantages : couvre **tout**. Coûts : nouvelles fonctions et nouveau droit Google à accorder (réception d'événements), journal écrit avec un léger retard, doublon avec l'audit déjà écrit par le moteur MCP, acteur moins précis.
+- **Écran « Journal »** (lecture seule) : liste du plus récent au plus ancien, filtres (acteur, document, date, état « à vérifier »), détail d'une ligne avec le contenu avant et après (copies de 90 jours), mention du canal (« écran », « MCP »).
+
+### À décider avec Jérôme
+Piste A ou C ; si l'écran lit les copies ; ordre par rapport à Hermes et aux pièces jointes (étape 7).
 
 ## Reste à faire côté test
 
