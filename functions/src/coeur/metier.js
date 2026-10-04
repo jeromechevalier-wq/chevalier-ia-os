@@ -156,6 +156,8 @@ export async function creerAffaire(c, args) {
   const { proprietaire, ...valeurs } = args;
   if (valeurs.etape !== undefined) verifierEtape(valeurs.etape);
   if (valeurs.priorite !== undefined) verifierPriorite(valeurs.priorite);
+  verifierMessages(L.validerUrlGithub(valeurs.urlGithub));
+  verifierMessages(L.validerUrlDossier(valeurs.urlDossier));
   await verifierOffre(c, valeurs.offreId);
   const personne = await lireSiDonne(c, C.personnes, valeurs.personneId, 'Personne');
   const organisation = await lireSiDonne(c, C.organisations, valeurs.organisationId || personne?.organisationId, 'Organisation');
@@ -176,6 +178,8 @@ export async function modifierAffaire(c, args) {
   if (champs.offreId !== undefined) { await verifierOffre(c, champs.offreId); patch.offreId = champs.offreId || null; }
   if (champs.dureeJours !== undefined) patch.dureeJours = champs.dureeJours;
   for (const cle of ['source', 'besoin']) if (champs[cle] !== undefined) patch[cle] = cle === 'besoin' ? String(champs[cle]).trim() : texte(champs[cle]);
+  if (champs.urlGithub !== undefined) { const r = L.majUrlGithub(champs.urlGithub); verifierMessages(r.erreurs); Object.assign(patch, r.patch); }
+  if (champs.urlDossier !== undefined) { const r = L.majUrlDossier(champs.urlDossier); verifierMessages(r.erreurs); Object.assign(patch, r.patch); }
   if (champs.archive !== undefined) patch.archive = champs.archive;
   if (!Object.keys(patch).length) refuser('saisie_invalide', 'Aucun champ à modifier (l’étape et le statut passent par changer_etape, marquer_perdue, mettre_en_pause, rouvrir_affaire).');
   const plan = L.planMajAffaire(id, patch);

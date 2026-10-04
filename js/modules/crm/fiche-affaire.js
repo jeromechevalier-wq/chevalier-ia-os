@@ -7,6 +7,7 @@ import {
   lienRetour, saisieEnCours, pastilleStatut, fournisseurTexte, etatVide, planifier,
 } from './composants.js';
 import { panneauActivite } from './activites.js';
+import { creerLanceurs } from './lanceurs.js';
 import { changerEtapeAvecBoites, ouvrirPerdue, ouvrirPause, ouvrirEncaissement, demanderSuppressionAffaire } from './affaires.js';
 
 export function rendreFicheAffaire(conteneur, id) {
@@ -78,13 +79,15 @@ export function rendreFicheAffaire(conteneur, id) {
     });
 
     // ---- Détails
+    const lanceurs = creerLanceurs({ fiche: a, typeFiche: 'affaire', organisation: o, personne: p, enregistrer: (patch) => D.majAffaire(a.id, patch) });
     const details = sectionRepliable({
       id: 'affaire-details', titre: 'Détails',
       contenu: h('div', { class: 'proprietes' },
         champPropriete({ libelle: 'Besoin identifié', valeur: a.besoin || '', type: 'zone', surEnregistrer: (v) => D.majAffaire(a.id, { besoin: v }) }).element,
         champPropriete({ libelle: 'Durée (jours)', valeur: a.dureeJours ?? '', type: 'nombre', pas: '0.5', surEnregistrer: (v) => D.majAffaire(a.id, { dureeJours: v }) }).element,
         champPropriete({ libelle: 'Source', valeur: a.source || '', type: 'intelligent', fournir: fournisseurTexte(() => D.etat.sources),
-          surEnregistrer: async (v) => { if (v) await D.ajouterValeurListe('sources', v); await D.majAffaire(a.id, { source: v }); } }).element),
+          surEnregistrer: async (v) => { if (v) await D.ajouterValeurListe('sources', v); await D.majAffaire(a.id, { source: v }); } }).element,
+        lanceurs.github, lanceurs.dossier),
     });
 
     // ---- Encaissements
