@@ -1,5 +1,5 @@
 // Module CRM (version 2.0) : montage, routes, actions rapides et recherche globale.
-// Routes : crm/accueil, crm/personnes[/id], crm/organisations[/id], crm/affaires[/id].
+// Routes : crm/accueil, crm/personnes[/id], crm/organisations[/id], crm/affaires[/id], crm/journal.
 import { vider } from '../../os/ui.js';
 import { naviguer } from '../../os/router.js';
 import { enregistrerCalculs, signalerChangement } from '../../os/objectifs.js';
@@ -13,12 +13,14 @@ import { rendreFichePersonne } from './fiche-personne.js';
 import { rendreFicheOrganisation } from './fiche-organisation.js';
 import { rendreFicheAffaire } from './fiche-affaire.js';
 import { rendreReglagesCrm } from './reglages.js';
+import { rendreJournal } from './journal.js';
 
 const VUES = {
   accueil: (conteneur, _id, ctx) => rendreAccueil(conteneur, ctx),
   personnes: (conteneur, id) => (id ? rendreFichePersonne(conteneur, id) : rendrePersonnes(conteneur)),
   organisations: (conteneur, id) => (id ? rendreFicheOrganisation(conteneur, id) : rendreOrganisations(conteneur)),
   affaires: (conteneur, id) => (id ? rendreFicheAffaire(conteneur, id) : rendreAffaires(conteneur)),
+  journal: (conteneur) => rendreJournal(conteneur),
 };
 
 /** Objectifs de départ fournis à l'OS (créés au premier lancement). */

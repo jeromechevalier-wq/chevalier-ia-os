@@ -1164,3 +1164,80 @@ describe('B19 Adresse GitHub et dossier de travail (affaires et projets)', () =>
     assert.match(L.promptCreationDossier({ typeFiche: 'projet', id: 'p1', titre: 't', cheminProjets: '/x', nomDossier: 'interne-t' }), /\/#\/crm\/projets\/p1\n/);
   });
 });
+
+describe('B20 Journal : regroupement, filtres et comparaison avant / après', () => {
+  const t = (iso) => new Date(iso);
+  const ligne = (id, o) => ({ id, operationId: 'op1', ordre: 1, acteur: 'jerome.chevalier@gmail.com', via: 'ecran', outil: 'supprimerAffaire', collection: 'crm_affaires', docId: 'a1', action: 'supprimer', statut: 'succes', date: t('2026-10-04T10:00:00Z'), ...o });
+  const lignes = [
+    ligne('l1', {}),
+    ligne('l2', { ordre: 2, collection: 'crm_evenements', docId: 'e1' }),
+    ligne('l3', { operationId: 'op2', acteur: 'claude-code-jerome', via: 'mcp', outil: 'creer_personne', collection: 'crm_personnes', docId: 'p1', action: 'creer', date: t('2026-10-04T12:00:00Z') }),
+    ligne('l4', { operationId: 'op3', via: 'ecran', outil: 'modifierNote', collection: 'crm_notes', docId: 'n1', action: 'modifier', statut: 'en_cours', date: t('2026-10-03T09:00:00Z') }),
+  ];
+
+  test('B20 les lignes sont regroupées par opération, la plus récente d’abord, dans l’ordre d’écriture', () => {
+    const ops = L.grouperJournal(lignes);
+    assert.deepEqual(ops.map((o) => o.operationId), ['op2', 'op1', 'op3']);
+    assert.deepEqual(ops[1].lignes.map((l) => l.id), ['l1', 'l2']);
+    assert.equal(ops[1].resume, 'Suppression de 1 affaire, 1 événement');
+    assert.equal(ops[1].acteur, 'Jérôme');
+    assert.equal(ops[1].canal, 'Appli');
+    assert.equal(ops[0].acteur, 'claude-code-jerome');
+    assert.equal(ops[0].canal, 'MCP');
+    assert.equal(ops[0].resume, 'Création de 1 personne');
+  });
+
+  test('B20 le résumé pluralise et ordonne création, modification, suppression', () => {
+    const r = L.resumeOperationJournal([{ action: 'supprimer', collection: 'crm_activites' }, { action: 'supprimer', collection: 'crm_activites' }, { action: 'creer', collection: 'crm_notes' }, { action: 'modifier', collection: 'crm_affaires' }]);
+    assert.equal(r, 'Création de 1 note · Modification de 1 affaire · Suppression de 2 activités');
+  });
+
+  test('B20 l’état d’une opération : « à vérifier » si une ligne est restée en cours, « échec » l’emporte', () => {
+    const ops = L.grouperJournal(lignes);
+    assert.equal(ops.find((o) => o.operationId === 'op3').statut, 'averifier');
+    assert.equal(ops.find((o) => o.operationId === 'op1').statut, 'succes');
+    assert.equal(L.statutOperationJournal([{ statut: 'en_cours' }, { statut: 'echec' }]), 'echec');
+  });
+
+  test('B20 une ligne sans operationId reste visible (regroupée seule)', () => {
+    const ops = L.grouperJournal([{ id: 'seule', acteur: 'x', via: 'mcp', action: 'creer', collection: 'crm_notes', date: t('2026-10-04T10:00:00Z') }]);
+    assert.equal(ops.length, 1);
+    assert.equal(ops[0].operationId, 'seule');
+  });
+
+  test('B20 filtres : canal, à vérifier, date de début (minuit de Paris), texte (accents et casse ignorés)', () => {
+    const ops = L.grouperJournal(lignes);
+    assert.deepEqual(L.filtrerJournal(ops, { canal: 'mcp' }).map((o) => o.operationId), ['op2']);
+    assert.deepEqual(L.filtrerJournal(ops, { canal: 'ecran' }).map((o) => o.operationId), ['op1', 'op3']);
+    assert.deepEqual(L.filtrerJournal(ops, { aVerifier: true }).map((o) => o.operationId), ['op3']);
+    assert.deepEqual(L.filtrerJournal(ops, { depuis: '2026-10-04' }).map((o) => o.operationId), ['op2', 'op1']);
+    assert.deepEqual(L.filtrerJournal(ops, { texte: 'EVENEMENT' }).map((o) => o.operationId), ['op1']);
+    assert.deepEqual(L.filtrerJournal(ops, { texte: 'claude code' }).map((o) => o.operationId), ['op2'], 'chaque mot est cherché séparément');
+    assert.deepEqual(L.filtrerJournal(ops, { texte: 'claude jerome appli' }).map((o) => o.operationId), []);
+    assert.deepEqual(L.filtrerJournal(ops, { texte: 'claude-code-jerome' }).map((o) => o.operationId), ['op2']);
+    assert.deepEqual(L.filtrerJournal(ops, { texte: 'n1' }).map((o) => o.operationId), ['op3'], 'identifiant du document');
+    assert.equal(L.filtrerJournal(ops, {}).length, 3);
+  });
+
+  test('B20 comparaison avant / après : seuls les champs qui diffèrent, dates comparées par valeur, document absent géré', () => {
+    const d = new Date('2026-10-04T10:00:00Z');
+    const diffs = L.differencesJournal(
+      { nom: 'A', etape: 'x', modifieLe: d, tags: ['a'], meta: { b: 1, a: 2 } },
+      { nom: 'A', etape: 'y', modifieLe: { seconds: d.getTime() / 1000, nanoseconds: 0 }, tags: ['a'], meta: { a: 2, b: 1 }, neuf: 1 });
+    assert.deepEqual(diffs.map((x) => x.champ), ['etape', 'neuf']);
+    assert.deepEqual(L.differencesJournal(null, { a: 1, b: null }).map((x) => x.champ), ['a']);
+    assert.deepEqual(L.differencesJournal({ a: 1 }, null).map((x) => x.champ), ['a']);
+    assert.deepEqual(L.differencesJournal(null, null), []);
+  });
+
+  test('B20 valeurs affichées : vide, booléen, date de Paris, liste, texte long tronqué', () => {
+    assert.equal(L.formaterValeurJournal(undefined), '—');
+    assert.equal(L.formaterValeurJournal(null), '—');
+    assert.equal(L.formaterValeurJournal(true), 'oui');
+    assert.equal(L.formaterValeurJournal(new Date('2026-10-04T10:00:00Z')), '04/10/2026 12:00');
+    assert.equal(L.formaterValeurJournal(['a', 'b']), '["a","b"]');
+    const long = L.formaterValeurJournal('x'.repeat(500));
+    assert.equal(long.length, 301);
+    assert.ok(long.endsWith('…'));
+  });
+});

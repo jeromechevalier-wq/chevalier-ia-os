@@ -60,10 +60,10 @@ describe('D1 Manifeste, icônes, service worker, versions', () => {
     }
     assert.ok(!existsSync(join(RACINE, 'sw.js')) && !existsSync(join(RACINE, 'service-worker.js')));
   });
-  test('D1 versions identiques dans version.json et js/os/version.js (2.0.2)', () => {
+  test('D1 versions identiques dans version.json et js/os/version.js (2.0.3)', () => {
     const v = json('version.json').version;
     const m = /VERSION = '([^']+)'/.exec(lire('js/os/version.js'));
-    assert.equal(v, '2.0.2');
+    assert.equal(v, '2.0.3');
     assert.equal(m[1], v);
   });
   test('D1 portraits réduits (512 px de large au plus)', () => {
@@ -152,7 +152,7 @@ describe('D3 firebase.json, en têtes, indexation', () => {
       'index.html', 'manifest.webmanifest', 'version.json', 'robots.txt', 'firebase.json', '.firebaserc', 'firestore.rules', '.gitignore', 'README.md',
       'css/tokens.css', 'css/os.css', 'css/crm.css', 'js/main.js',
       ...['firebase-config', 'firebase', 'auth', 'router', 'shell', 'modules', 'objectifs', 'celebrations', 'version', 'pwa', 'ui'].map((f) => `js/os/${f}.js`),
-      ...['index', 'donnees', 'logique', 'accueil', 'personnes', 'organisations', 'affaires', 'fiche-personne', 'fiche-organisation', 'fiche-affaire', 'activites', 'reglages', 'export', 'lanceurs'].map((f) => `js/modules/crm/${f}.js`),
+      ...['index', 'donnees', 'logique', 'accueil', 'personnes', 'organisations', 'affaires', 'fiche-personne', 'fiche-organisation', 'fiche-affaire', 'activites', 'reglages', 'export', 'lanceurs', 'journal'].map((f) => `js/modules/crm/${f}.js`),
       'assets/charles-portrait.png', 'assets/jerome-portrait.png', 'docs/cahier-des-charges-v2.0.md', 'docs/pipedrive-reference.md',
       'tests/package.json', 'tests/regles.test.js', 'tests/logique.test.js', '.github/workflows/firebase-hosting.yml',
     ];
@@ -178,9 +178,15 @@ describe('D3 firebase.json, en têtes, indexation', () => {
 describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
   const sources = () => fichiersAppli().filter((x) => /^js\/.*\.js$/.test(x));
 
-  test('D4 aucune requête composite : pas de orderBy, une seule condition where par requête, jamais de plage', () => {
+  test('D4 aucune requête composite : pas de orderBy (sauf le tri du journal sur un seul champ), une seule condition where par requête, jamais de plage', () => {
+    // Seule exception : la lecture du journal (donnees.js, lireJournal), un tri sur UN champ sans aucune condition, servi par l'index automatique.
+    const donnees = lire('js/modules/crm/donnees.js');
+    const debut = donnees.indexOf('export async function lireJournal');
+    const journal = donnees.slice(debut, donnees.indexOf('\n}\n', debut));
+    assert.ok(debut > 0 && /orderBy\('date', 'desc'\)/.test(journal), 'lireJournal trie sur le seul champ date');
+    assert.doesNotMatch(journal, /\bwhere\s*\(/, 'lireJournal : aucune condition en plus du tri');
     for (const f of sources()) {
-      const t = lire(f);
+      const t = f === 'js/modules/crm/donnees.js' ? donnees.replace(journal, '') : lire(f);
       assert.doesNotMatch(t, /\borderBy\s*\(/, `${f} : orderBy`);
       assert.doesNotMatch(t, /\blimit\s*\(/, `${f} : limit`);
       for (const [requete] of t.matchAll(/query\s*\([^;]*?\)\s*,/gs)) {

@@ -11,6 +11,7 @@ export const MODULES = [
       { chemin: 'crm/personnes', libelle: 'Personnes', icone: 'user' },
       { chemin: 'crm/organisations', libelle: 'Organisations', icone: 'building-2' },
       { chemin: 'crm/affaires', libelle: 'Affaires', icone: 'briefcase' },
+      { chemin: 'crm/journal', libelle: 'Journal', icone: 'history' },
     ],
     // Préfixe des routes gérées par le module (#/crm/...)
     prefixe: 'crm',
