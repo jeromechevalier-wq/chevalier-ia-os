@@ -19,6 +19,7 @@
       "scripts/**",
       "functions/**",
       "README.md",
+      "CLAUDE.md",
       "PROMPT-CONSTRUCTION.md",
       "firestore.rules",
       "*.log"

@@ -107,7 +107,7 @@ describe('D3 firebase.json, en têtes, indexation', () => {
   const fb = json('firebase.json');
   test('D3 tests/, docs/, outils/, scripts/, functions/, README.md (et ressources/) non publiés', () => {
     const ignore = fb.hosting.ignore;
-    for (const x of ['tests/**', 'docs/**', 'README.md', 'ressources/**', 'outils/**', 'scripts/**', 'functions/**', '**/node_modules/**', '**/.*']) assert.ok(ignore.includes(x), x);
+    for (const x of ['tests/**', 'docs/**', 'README.md', 'CLAUDE.md', 'ressources/**', 'outils/**', 'scripts/**', 'functions/**', '**/node_modules/**', '**/.*']) assert.ok(ignore.includes(x), x);
   });
   test('D3 en têtes de sécurité présents', () => {
     const tous = fb.hosting.headers.find((h) => h.source === '**').headers;
