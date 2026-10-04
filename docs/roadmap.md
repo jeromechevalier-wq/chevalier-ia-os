@@ -47,6 +47,8 @@ Cahier des charges détaillé : `cahier-mcp.md` (brouillon du 02/10/2026). **Pla
 
 La fonction écrite dans la branche `mcp` (commit de code `24a8e96`) est **reprise sur une branche neuve à partir de `main`** (`mcp-lanceurs-github`), sans toucher à `mcp` : deux champs sur la fiche d'une affaire, **Adresse GitHub** (doit être `https://github.com/compte/nom`) et **Dossier** (dossier Google Drive), chacun avec un bouton « Créer le GitHub » / « Créer le répertoire » qui ouvre une fenêtre avec un **prompt à copier dans Claude Code** ; réglages « GitHub et dossiers de projets » ; version **2.0.1**. Les outils MCP `creer_affaire` et `modifier_affaire` acceptent aussi `urlGithub` et `urlDossier` (mêmes validations ; chaîne vide = effacer), et les outils de lecture les renvoient. Documents repris de `mcp` : `convention-dossiers.md` et `modele-prompt-creation-dossier.md`. **Restent dans la branche `mcp`, non repris** : le cadrage de l'écran Projets (`cadrage-projets.md`), la fiche compagnon des documents (`modele-fiche-document.md`) et les notes de vision. Toujours à valider en réel dans l'appli par Jérôme après fusion.
 
+**Retours de test du 04/10/2026 (version 2.0.1 et MCP)** : tout fonctionne ; quatre points d'expérience utilisateur sont notés **sans correction**, à discuter (bouton « Créer le GitHub » / « Créer le répertoire » qui disparaît après enregistrement, lien « Ouvrir le dossier » sans nom, aucun événement dans l'historique pour les documents et les adresses) : `retours-ux-2026-10-04.md`.
+
 ## Version 2.1
 
 ### Déjà prévu
