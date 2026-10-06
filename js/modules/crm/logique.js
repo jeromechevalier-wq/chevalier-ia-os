@@ -810,7 +810,7 @@ export function validerUrlDossier(url) {
   return { url: "L'adresse doit être celle d'un dossier Google Drive (https://drive.google.com/drive/folders/…)." };
 }
 
-function urlOuVide(valider, url) {
+export function urlOuVide(valider, url) {
   return Object.keys(valider(url)).length ? '' : nettoyerEspaces(url);
 }
 
@@ -1410,16 +1410,46 @@ export const COLLECTIONS_PLAN = {
   activites: 'crm_activites',
   notes: 'crm_notes',
   evenements: 'crm_evenements',
+  // Module Projets (cadrage-projets.md) : mêmes plans, mêmes règles d'écriture, un seul code pour l'écran et le serveur MCP.
+  projets: 'projets_projets',
+  projetsTaches: 'projets_taches',
+  projetsModeles: 'projets_modeles',
 };
 const C = COLLECTIONS_PLAN;
-const MARQUES_CREATION = { horodater: ['creeLe', 'modifieLe'], signer: ['creePar', 'modifiePar'] };
-const MARQUES_MODIFICATION = { horodater: ['modifieLe'], signer: ['modifiePar'] };
+export const MARQUES_CREATION = { horodater: ['creeLe', 'modifieLe'], signer: ['creePar', 'modifiePar'] };
+export const MARQUES_MODIFICATION = { horodater: ['modifieLe'], signer: ['modifiePar'] };
 
-const ecritureCreer = (collection, id, donnees, marques = {}) => ({ type: 'creer', collection, id, donnees, ...marques });
-const ecritureModifier = (collection, id, patch, marques = {}) => ({ type: 'modifier', collection, id, patch, ...marques });
-const ecritureSupprimer = (collection, id) => ({ type: 'supprimer', collection, id });
-const evenements = (liste, ctx) => (liste || []).map((e) => ecritureCreer(C.evenements, ctx.nouvelId(C.evenements), e));
-const modifierSiPatch = (collection, id, patch, marques) => (Object.keys(patch || {}).length ? [ecritureModifier(collection, id, patch, marques)] : []);
+export const ecritureCreer = (collection, id, donnees, marques = {}) => ({ type: 'creer', collection, id, donnees, ...marques });
+export const ecritureModifier = (collection, id, patch, marques = {}) => ({ type: 'modifier', collection, id, patch, ...marques });
+export const ecritureSupprimer = (collection, id) => ({ type: 'supprimer', collection, id });
+/** Écritures de création des événements du fil (un identifiant frais par événement). */
+export const evenements = (liste, ctx) => (liste || []).map((e) => ecritureCreer(C.evenements, ctx.nouvelId(C.evenements), e));
+export const modifierSiPatch = (collection, id, patch, marques) => (Object.keys(patch || {}).length ? [ecritureModifier(collection, id, patch, marques)] : []);
+
+/**
+ * Projets gardés quand une fiche du CRM disparaît : le projet reste, seul le lien vers la fiche supprimée est vidé
+ * (cadrage-projets.md 6.3). Une seule écriture par projet, même si deux liens tombent en même temps.
+ * `projets` : [{ id, affaireId, personneId, organisationId }] lus par l'appelant.
+ */
+function detacherProjets(projets, { affaireIds = new Set(), personneId = null, organisationId = null }) {
+  const uniques = [...new Map((projets || []).map((p) => [p.id, p])).values()];
+  return uniques.flatMap((p) => {
+    const patch = {};
+    if (p.affaireId && affaireIds.has(p.affaireId)) patch.affaireId = null;
+    if (personneId && p.personneId === personneId) patch.personneId = null;
+    if (organisationId && p.organisationId === organisationId) patch.organisationId = null;
+    return modifierSiPatch(C.projets, p.id, patch, MARQUES_MODIFICATION);
+  });
+}
+
+/** Un élément du fil qui appartient à un projet (`projetId`) n'est jamais supprimé avec une fiche du CRM : on vide seulement ses liens. */
+function liensVides(lien, { affaireIds = new Set(), personneId = null, organisationId = null }) {
+  const patch = {};
+  if (lien.affaireId && affaireIds.has(lien.affaireId)) patch.affaireId = null;
+  if (personneId && lien.personneId === personneId) patch.personneId = null;
+  if (organisationId && lien.organisationId === organisationId) patch.organisationId = null;
+  return patch;
+}
 
 // ---- personnes
 
@@ -1452,10 +1482,11 @@ export function planOppositionPersonne(personne, coche, ctx) {
 
 /**
  * Suppression définitive d'une personne (voir planSuppressionPersonne pour `choix`). `liens` : les activités, notes et événements
- * lus par l'appelant qui portent un lien vers la personne OU vers l'une de ses affaires : [{ collection, id, personneId, affaireId }].
+ * lus par l'appelant qui portent un lien vers la personne OU vers l'une de ses affaires : [{ collection, id, personneId, affaireId, projetId }].
+ * `projets` : les projets liés à la personne ou à l'une de ses affaires : ils sont gardés, leur lien est vidé.
  * D'abord les détachements, puis les suppressions (affaires supprimées avec leur fil, fil de la personne, la personne).
  */
-export function planSupprimerPersonne({ personneId, choix, affaires, liens = [] }) {
+export function planSupprimerPersonne({ personneId, choix, affaires, liens = [], projets = [] }) {
   const plan = planSuppressionPersonne(personneId, affaires, choix);
   const supprimees = new Set(plan.supprimerAffaires);
   const gardees = new Set(plan.detacherAffaires);
@@ -1463,8 +1494,11 @@ export function planSupprimerPersonne({ personneId, choix, affaires, liens = [] 
   const detachements = [];
   const suppressions = [];
   for (const aid of gardees) detachements.push(ecritureModifier(C.affaires, aid, { personneId: null }, MARQUES_MODIFICATION));
+  detachements.push(...detacherProjets(projets, { affaireIds: supprimees, personneId }));
   for (const l of uniques) {
-    if (supprimees.has(l.affaireId)) suppressions.push(ecritureSupprimer(l.collection, l.id)); // fil d'une affaire supprimée
+    if (l.projetId) { // fil d'un projet : gardé, ses liens vers ce qui disparaît sont vidés
+      detachements.push(...modifierSiPatch(l.collection, l.id, liensVides(l, { affaireIds: supprimees, personneId })));
+    } else if (supprimees.has(l.affaireId)) suppressions.push(ecritureSupprimer(l.collection, l.id)); // fil d'une affaire supprimée
     else if (l.personneId === personneId && gardees.has(l.affaireId)) detachements.push(ecritureModifier(l.collection, l.id, { personneId: null }));
     else if (l.personneId === personneId) suppressions.push(ecritureSupprimer(l.collection, l.id));
   }
@@ -1488,12 +1522,17 @@ export function planCreerOrganisation(valeurs, ctx) {
 
 export const planMajOrganisation = (id, patch) => ({ ecritures: modifierSiPatch(C.organisations, id, patch, MARQUES_MODIFICATION) });
 
-/** Refus (`refus` = message) tant que l'organisation a des personnes ou des affaires. `liens` : documents portant son organisationId. */
-export function planSupprimerOrganisation({ organisationId, personnes, affaires, liens = [] }) {
+/** Refus (`refus` = message) tant que l'organisation a des personnes ou des affaires. `liens` : documents portant son organisationId ; `projets` : projets gardés, leur lien est vidé. */
+export function planSupprimerOrganisation({ organisationId, personnes, affaires, liens = [], projets = [] }) {
   const verif = verifierSuppressionOrganisation(organisationId, { personnes, affaires });
   if (!verif.ok) return { refus: verif.raison, ecritures: [] };
-  const siens = liens.filter((l) => l.organisationId === organisationId).map((l) => ecritureSupprimer(l.collection, l.id));
-  return { ecritures: [...siens, ecritureSupprimer(C.organisations, organisationId)] };
+  const siens = liens.filter((l) => l.organisationId === organisationId);
+  const detachements = [
+    ...detacherProjets(projets, { organisationId }),
+    ...siens.filter((l) => l.projetId).flatMap((l) => modifierSiPatch(l.collection, l.id, liensVides(l, { organisationId }))),
+  ];
+  const suppressions = siens.filter((l) => !l.projetId).map((l) => ecritureSupprimer(l.collection, l.id));
+  return { ecritures: [...detachements, ...suppressions, ecritureSupprimer(C.organisations, organisationId)] };
 }
 
 // ---- affaires
@@ -1529,10 +1568,19 @@ export const planMettreEnPause = (affaire, saisie, ctx) => planResultatAffaire(a
 export const planRouvrirAffaire = (affaire, ctx) => planResultatAffaire(affaire.id, rouvrirAffaire(affaire, ctx), ctx);
 export const planEncaisser = (affaire, saisie, ctx) => planResultatAffaire(affaire.id, ajouterEncaissement(affaire, saisie, ctx), ctx);
 
-/** Suppression définitive d'une affaire et de son fil. `liens` : documents portant son affaireId. */
-export function planSupprimerAffaire({ affaireId, liens = [] }) {
+/**
+ * Suppression définitive d'une affaire et de son fil. `liens` : documents portant son affaireId ; `projets` : projets liés à l'affaire,
+ * gardés avec leur fil (leur `affaireId` est vidé).
+ */
+export function planSupprimerAffaire({ affaireId, liens = [], projets = [] }) {
   const siens = [...new Map(liens.filter((l) => l.affaireId === affaireId).map((l) => [`${l.collection}/${l.id}`, l])).values()];
-  return { ecritures: [...siens.map((l) => ecritureSupprimer(l.collection, l.id)), ecritureSupprimer(C.affaires, affaireId)] };
+  const affaireIds = new Set([affaireId]);
+  const detachements = [
+    ...detacherProjets(projets, { affaireIds }),
+    ...siens.filter((l) => l.projetId).flatMap((l) => modifierSiPatch(l.collection, l.id, liensVides(l, { affaireIds }))),
+  ];
+  const suppressions = siens.filter((l) => !l.projetId).map((l) => ecritureSupprimer(l.collection, l.id));
+  return { ecritures: [...detachements, ...suppressions, ecritureSupprimer(C.affaires, affaireId)] };
 }
 
 // ---- activités
@@ -1613,6 +1661,7 @@ export function construireAudit(ecritures, avants, { acteur, outil, operationId,
 const NOMS_DOCUMENTS = {
   crm_personnes: ['personne', 'personnes'], crm_organisations: ['organisation', 'organisations'], crm_affaires: ['affaire', 'affaires'],
   crm_activites: ['activité', 'activités'], crm_notes: ['note', 'notes'], crm_evenements: ['événement', 'événements'],
+  projets_projets: ['projet', 'projets'], projets_taches: ['tâche de projet', 'tâches de projet'], projets_modeles: ['modèle de projet', 'modèles de projet'],
 };
 const ACTIONS_JOURNAL = { creer: 'Création', modifier: 'Modification', supprimer: 'Suppression', restaurer: 'Restauration' };
 

@@ -285,7 +285,13 @@ export async function terminerActivite(c, args) {
 async function liensDe(c, champ, id) {
   const noms = [C.activites, C.notes, C.evenements];
   const listes = await Promise.all(noms.map((nom) => c.donnees.liste(nom, { champ, valeur: id })));
-  return listes.flatMap((docs, i) => docs.map((d) => ({ collection: noms[i], id: d.id, personneId: d.personneId ?? null, organisationId: d.organisationId ?? null, affaireId: d.affaireId ?? null })));
+  return listes.flatMap((docs, i) => docs.map((d) => ({ collection: noms[i], id: d.id, personneId: d.personneId ?? null, organisationId: d.organisationId ?? null, affaireId: d.affaireId ?? null, projetId: d.projetId ?? null })));
+}
+
+/** Projets liés à une fiche (`champ` = personneId, organisationId ou affaireId) : gardés quand la fiche disparaît, seul leur lien est vidé. */
+async function projetsLies(c, champ, id) {
+  const projets = await c.donnees.liste(C.projets, { champ, valeur: id });
+  return projets.map((p) => ({ id: p.id, affaireId: p.affaireId ?? null, personneId: p.personneId ?? null, organisationId: p.organisationId ?? null }));
 }
 
 const confirmer = (saisie, nom, genre) => {
@@ -305,9 +311,15 @@ export async function supprimerPersonne(c, args) {
   confirmer(args.confirmationNom, p.nom, 'le nom de la personne');
   const affaires = await c.donnees.liste(C.affaires, { champ: 'personneId', valeur: args.id });
   const liens = await liensDe(c, 'personneId', args.id);
-  if (args.choix === 'affaires') for (const a of affaires) liens.push(...await liensDe(c, 'affaireId', a.id));
+  const projets = await projetsLies(c, 'personneId', args.id);
+  if (args.choix === 'affaires') {
+    for (const a of affaires) {
+      liens.push(...await liensDe(c, 'affaireId', a.id));
+      projets.push(...await projetsLies(c, 'affaireId', a.id));
+    }
+  }
   let plan;
-  try { plan = L.planSupprimerPersonne({ personneId: args.id, choix: args.choix, affaires, liens }); } catch (e) {
+  try { plan = L.planSupprimerPersonne({ personneId: args.id, choix: args.choix, affaires, liens, projets }); } catch (e) {
     refuser('saisie_invalide', `${e.message} Cette personne a ${affaires.length} affaire(s) : choix = "affaires" (les supprimer aussi) ou "conserver" (les garder sans personne).`);
   }
   return resumeSuppression(await c.ecrire({ operations: plan.ecritures, parametres: { id: args.id, choix: args.choix }, suppression: true }), plan);
@@ -320,7 +332,9 @@ export async function supprimerOrganisation(c, args) {
     c.donnees.liste(C.personnes, { champ: 'organisationId', valeur: args.id }),
     c.donnees.liste(C.affaires, { champ: 'organisationId', valeur: args.id }),
   ]);
-  const plan = L.planSupprimerOrganisation({ organisationId: args.id, personnes, affaires, liens: await liensDe(c, 'organisationId', args.id) });
+  const plan = L.planSupprimerOrganisation({
+    organisationId: args.id, personnes, affaires, liens: await liensDe(c, 'organisationId', args.id), projets: await projetsLies(c, 'organisationId', args.id),
+  });
   if (plan.refus) refuser('integrite', plan.refus);
   return resumeSuppression(await c.ecrire({ operations: plan.ecritures, parametres: { id: args.id }, suppression: true }), plan);
 }
@@ -328,7 +342,7 @@ export async function supprimerOrganisation(c, args) {
 export async function supprimerAffaire(c, args) {
   const a = await lire(c, C.affaires, args.id, 'Affaire');
   confirmer(args.confirmationNom, a.titre, 'le titre de l’affaire');
-  const plan = L.planSupprimerAffaire({ affaireId: args.id, liens: await liensDe(c, 'affaireId', args.id) });
+  const plan = L.planSupprimerAffaire({ affaireId: args.id, liens: await liensDe(c, 'affaireId', args.id), projets: await projetsLies(c, 'affaireId', args.id) });
   return resumeSuppression(await c.ecrire({ operations: plan.ecritures, parametres: { id: args.id }, suppression: true }), plan);
 }
 

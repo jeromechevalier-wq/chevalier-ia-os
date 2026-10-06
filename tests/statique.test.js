@@ -202,9 +202,9 @@ describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
   });
 
   test('D4 les collections lues ou écrites sont celles du cahier', () => {
-    const attendues = new Set(['crm_personnes', 'crm_organisations', 'crm_affaires', 'crm_activites', 'crm_notes', 'crm_evenements', 'crm_parametres', 'os_objectifs', 'os_objectifs_saisies', 'crm_audit', 'crm_audit_avant']); // + journal et copies (audit de l'écran)
+    const attendues = new Set(['crm_personnes', 'crm_organisations', 'crm_affaires', 'crm_activites', 'crm_notes', 'crm_evenements', 'crm_parametres', 'os_objectifs', 'os_objectifs_saisies', 'crm_audit', 'crm_audit_avant', 'projets_projets', 'projets_taches', 'projets_modeles']); // + journal et copies (audit de l'écran) ; projets : module Projets (couverts par le joker des règles)
     const trouvees = new Set();
-    for (const f of sources()) for (const [, nom] of lire(f).matchAll(/['"`]((?:crm|os)_[a-z_]+)['"`]/g)) trouvees.add(nom);
+    for (const f of sources()) for (const [, nom] of lire(f).matchAll(/['"`]((?:crm|os|projets)_[a-z_]+)['"`]/g)) trouvees.add(nom);
     for (const nom of trouvees) assert.ok(attendues.has(nom), `collection inattendue : ${nom}`);
     for (const nom of attendues) assert.ok(trouvees.has(nom), `collection jamais utilisée : ${nom}`);
   });

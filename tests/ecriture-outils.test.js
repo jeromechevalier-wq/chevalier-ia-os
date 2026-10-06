@@ -323,6 +323,27 @@ describe('Suppression et restauration (tests 6 et 10)', () => {
     assert.deepEqual(s.vue(), avant);
   });
 
+  test('un projet lié à ce qu’on supprime est conservé, son lien est vidé, et tout se restaure à l’identique (module Projets)', async () => {
+    const s = await demarrer();
+    s.collections.projets_projets = [{ id: 'pr1', titre: 'Audit Lilas', affaireId: 'a1', personneId: 'p1', organisationId: 'org1', phase: 'lancement', statut: 'actif', archive: false }];
+    s.collections.crm_evenements.push({ id: 'ev-pr1', type: 'projet_cree', texte: 'Projet créé : Audit Lilas', projetId: 'pr1', affaireId: 'a1', personneId: 'p1', organisationId: 'org1', auteur: 'x' });
+    const avant = s.vue();
+    const r = ok(await s.appeler('code', 'supprimer_affaire', { id: 'a1', confirmationNom: 'Site vitrine Atelier des Lilas' }));
+    assert.equal(s.doc('crm_affaires', 'a1'), undefined);
+    assert.deepEqual([s.doc('projets_projets', 'pr1').affaireId, s.doc('projets_projets', 'pr1').personneId], [null, 'p1'], 'projet gardé, seul le lien vers l’affaire est vidé');
+    assert.equal(s.doc('crm_evenements', 'ev-pr1').affaireId, null, 'le fil du projet est gardé, détaché de l’affaire');
+    assert.equal(r.detaches.projets_projets, 1);
+    ok(await s.appeler('code', 'restaurer_depuis_audit', { operationId: r.operationId, apercu: false }));
+    assert.deepEqual(s.vue(), avant);
+
+    const r2 = ok(await s.appeler('code', 'supprimer_personne', { id: 'p1', choix: 'affaires', confirmationNom: 'Camille Durand' }));
+    assert.equal(s.doc('crm_personnes', 'p1'), undefined);
+    assert.deepEqual([s.doc('projets_projets', 'pr1').affaireId, s.doc('projets_projets', 'pr1').personneId, s.doc('projets_projets', 'pr1').organisationId], [null, null, 'org1']);
+    assert.ok(s.doc('crm_evenements', 'ev-pr1'), 'le fil du projet survit à la personne et à ses affaires');
+    ok(await s.appeler('code', 'restaurer_depuis_audit', { operationId: r2.operationId, apercu: false }));
+    assert.deepEqual(s.vue(), avant);
+  });
+
   test('test 10 : la confirmation par le nom est exigée (absente, fausse, d’une autre fiche) : rien n’est supprimé', async () => {
     const s = await demarrer();
     const avant = s.vue();
