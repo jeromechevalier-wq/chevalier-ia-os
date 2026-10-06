@@ -3,21 +3,24 @@
 // (`executer` de crm/donnees.js : chaque écriture laisse sa trace dans le même lot que la donnée).
 // Le module lit le CRM (personnes, organisations, affaires) par crm/donnees.js ; il n'y écrit qu'à la suppression d'un projet
 // (le lien `projetId` de l'affaire est vidé, voir planSupprimerProjet).
-import { collection, onSnapshot, query, where, getDocs } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
+import { collection, doc, onSnapshot, query, where, getDoc, getDocs, writeBatch, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { db } from '../../os/firebase.js';
 import * as CRM from '../crm/donnees.js';
 import * as P from './logique.js';
 
-export const etat = { projets: [], taches: [], pret: false, tachesPretes: false };
+export const etat = { projets: [], taches: [], modeles: [], pret: false, tachesPretes: false, modelesPrets: false };
 
 let desabonnements = [];
 let signature = '';
 let signatureTaches = '';
+let signatureModeles = '';
+let initialisationModeles = false;
 const abonnes = new Set();
 
-export const estPret = () => etat.pret && etat.tachesPretes;
+export const estPret = () => etat.pret && etat.tachesPretes && etat.modelesPrets;
 export const ctx = CRM.ctx;
 export const projet = (id) => etat.projets.find((p) => p.id === id) || null;
+export const modele = (id) => etat.modeles.find((m) => m.id === id) || null;
 export const tache = (id) => etat.taches.find((t) => t.id === id) || null;
 /** Les tâches d'un projet, par phase puis par ordre. */
 export const tachesDe = (projetId) => P.tachesDuProjet(etat.taches, projetId);
@@ -55,6 +58,39 @@ export function demarrer() {
     etat.tachesPretes = true;
     if (!inchange) notifier();
   }, (e) => console.warn('projets_taches indisponible', e.code)));
+  desabonnements.push(onSnapshot(collection(db, 'projets_modeles'), (snap) => {
+    const docs = snap.docs.map((d) => ({ ...d.data({ serverTimestamps: 'estimate' }), id: d.id }));
+    const sig = empreinte(docs);
+    const inchange = etat.modelesPrets && sig === signatureModeles;
+    etat.modeles = docs;
+    signatureModeles = sig;
+    etat.modelesPrets = true;
+    if (!inchange) notifier();
+    if (!snap.metadata.fromCache && snap.empty) initialiserModeles();
+  }, (e) => console.warn('projets_modeles indisponible', e.code)));
+}
+
+/**
+ * Premier lancement : crée les modèles de départ (Audit, Accompagnement, Extraction) et un repère dans crm_parametres, dans un seul lot, sans
+ * ligne de journal (comme les paramètres de départ du CRM : ce n'est pas une action de Jérôme). Le repère évite de les recréer si Jérôme les
+ * supprime tous un jour ; les identifiants sont fixes, donc deux onglets qui démarrent ensemble n'en font jamais six.
+ */
+async function initialiserModeles() {
+  if (initialisationModeles) return;
+  initialisationModeles = true;
+  try {
+    if ((await getDoc(doc(db, 'crm_parametres', 'modeles_projet'))).exists()) return;
+    const email = CRM.compteCourant()?.email || '';
+    const lot = writeBatch(db);
+    for (const e of P.planInitialiserModeles().ecritures) {
+      lot.set(doc(db, e.collection, e.id), { ...e.donnees, creeLe: serverTimestamp(), modifieLe: serverTimestamp(), creePar: email, modifiePar: email });
+    }
+    lot.set(doc(db, 'crm_parametres', 'modeles_projet'), { depart: true });
+    await lot.commit();
+  } catch (e) {
+    console.warn('Initialisation des modèles de projet', e.code || e.message);
+    initialisationModeles = false;
+  }
 }
 
 export function arreter() {
@@ -62,10 +98,14 @@ export function arreter() {
   desabonnements = [];
   etat.projets = [];
   etat.taches = [];
+  etat.modeles = [];
   etat.pret = false;
   etat.tachesPretes = false;
+  etat.modelesPrets = false;
   signature = '';
   signatureTaches = '';
+  signatureModeles = '';
+  initialisationModeles = false;
 }
 
 // ---------------------------------------------------------------- écritures
@@ -75,9 +115,9 @@ async function appliquer(plan, outil) {
   return plan;
 }
 
-/** Valeurs : titre (obligatoire) et, facultatif, personneId, organisationId, affaireId, offreId, dateDebut, dateFin. Renvoie l'identifiant du projet. */
-export async function creerProjet(valeurs) {
-  const plan = P.planCreerProjet(valeurs, ctx());
+/** Valeurs : titre (obligatoire) et, facultatif, personneId, organisationId, affaireId, offreId, dateDebut, dateFin. `modeleId` : le projet part avec les tâches du modèle. Renvoie l'identifiant du projet. */
+export async function creerProjet(valeurs, { modeleId = null } = {}) {
+  const plan = P.planCreerProjet(valeurs, ctx(), { modele: modeleId ? modele(modeleId) : null });
   await appliquer(plan, 'creerProjet');
   return plan.id;
 }
@@ -144,8 +184,8 @@ async function appliquerLien(plan, outil) {
 const affaireOuErreur = (id) => CRM.affaire(id) ?? (() => { throw new Error('Affaire introuvable'); })();
 
 /** Crée le projet d'une affaire gagnée (reprend l'affaire) ; renvoie l'identifiant du projet. */
-export async function creerProjetDepuisAffaire(affaireId, valeurs = {}) {
-  const plan = P.planCreerProjetDepuisAffaire({ affaire: affaireOuErreur(affaireId), projets: etat.projets, valeurs }, ctx());
+export async function creerProjetDepuisAffaire(affaireId, valeurs = {}, { modeleId = null } = {}) {
+  const plan = P.planCreerProjetDepuisAffaire({ affaire: affaireOuErreur(affaireId), projets: etat.projets, valeurs, modele: modeleId ? modele(modeleId) : null }, ctx());
   await appliquerLien(plan, 'creerProjetDepuisAffaire');
   return plan.id;
 }
@@ -188,3 +228,19 @@ export const defaireTache = (id) => appliquerTache(P.planTacheNonFaite({ tache: 
 export const supprimerTache = (id) => appliquer(P.planSupprimerTache(id), 'supprimerTache');
 /** `sens` : -1 pour monter, +1 pour descendre dans la phase. */
 export const deplacerTache = (id, sens) => appliquer(P.planDeplacerTache({ tache: tacheOuErreur(id), taches: etat.taches, sens }), 'deplacerTache');
+
+// ---------------------------------------------------------------- modèles
+
+export async function creerModele(valeurs) {
+  const plan = await appliquerTache(P.planCreerModele({ valeurs, modeles: etat.modeles }, ctx()), 'creerModele');
+  return plan.id;
+}
+
+const modeleOuErreur = (id) => modele(id) ?? (() => { throw new Error('Modèle introuvable'); })();
+
+export const majModele = (id, patch) => appliquerTache(P.planMajModele({ modele: modeleOuErreur(id), patch }), 'majModele');
+export const supprimerModele = (id) => appliquer(P.planSupprimerModele(id), 'supprimerModele');
+export const ajouterTacheModele = (id, valeurs) => appliquerTache(P.planAjouterTacheModele({ modele: modeleOuErreur(id), valeurs }, ctx()), 'ajouterTacheModele');
+export const majTacheModele = (id, tacheId, patch) => appliquerTache(P.planMajTacheModele({ modele: modeleOuErreur(id), tacheId, patch }), 'majTacheModele');
+export const supprimerTacheModele = (id, tacheId) => appliquer(P.planSupprimerTacheModele({ modele: modeleOuErreur(id), tacheId }), 'supprimerTacheModele');
+export const deplacerTacheModele = (id, tacheId, sens) => appliquer(P.planDeplacerTacheModele({ modele: modeleOuErreur(id), tacheId, sens }), 'deplacerTacheModele');

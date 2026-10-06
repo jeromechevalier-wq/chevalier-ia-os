@@ -96,7 +96,14 @@ export async function demanderSuppressionProjet(p) {
 
 // ---------------------------------------------------------------- fenêtre « Ajouter un projet »
 
-/** Seul le titre est obligatoire. `lien` : { personneId, organisationId } à préremplir. */
+/** Liste des modèles actifs : « Aucun modèle » (projet vide) ou l'un d'eux. */
+function selectModele(valeur = '') {
+  return h('select', { class: 'champ', 'aria-label': 'Modèle' },
+    h('option', { value: '' }, 'Aucun modèle (projet vide)'),
+    P.modelesActifs(D.etat.modeles).map((m) => h('option', { value: m.id, selected: m.id === valeur }, m.nom)));
+}
+
+/** Seul le titre est obligatoire. `lien` : { personneId, organisationId } à préremplir. Un modèle, si on en choisit un, donne ses tâches au projet. */
 export async function ouvrirCreationProjet({ personneId = null, organisationId = null } = {}) {
   const personneInitiale = personneId ? CRM.personne(personneId) : null;
   const orgInitiale = organisationId || personneInitiale?.organisationId || null;
@@ -109,6 +116,7 @@ export async function ouvrirCreationProjet({ personneId = null, organisationId =
       if (p?.organisationId && !orga.choix()) { const o = CRM.organisation(p.organisationId); if (o) orga.definir({ id: o.id, libelle: o.nom }); }
     },
   });
+  const modele = selectModele();
   const erreur = h('p', { class: 'erreur', role: 'alert' });
   let identifiant = null;
   const r = await dialogue({
@@ -118,6 +126,7 @@ export async function ouvrirCreationProjet({ personneId = null, organisationId =
       h('div', { class: 'bloc-champ' }, h('label', { class: 'etiquette', for: 'creation-projet-titre' }, 'Titre'), champTitre),
       h('div', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Personne'), pers.element),
       h('div', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Organisation'), orga.element),
+      h('label', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Modèle'), modele),
       erreur),
     boutons: [{ libelle: 'Annuler', valeur: false }, {
       libelle: 'Enregistrer', valeur: true, style: 'principal',
@@ -131,7 +140,7 @@ export async function ouvrirCreationProjet({ personneId = null, organisationId =
             const existante = L.trouverDoublonsPersonne(CRM.etat.personnes, { nom: pers.texte() })[0];
             idPersonne = existante ? existante.id : await CRM.creerPersonne({ nom: pers.texte(), organisationId: organisationIdChoisie });
           }
-          identifiant = await D.creerProjet({ titre, personneId: idPersonne, organisationId: organisationIdChoisie });
+          identifiant = await D.creerProjet({ titre, personneId: idPersonne, organisationId: organisationIdChoisie }, { modeleId: modele.value || null });
           return true;
         } catch (e) {
           console.warn(e);
@@ -148,6 +157,51 @@ export async function ouvrirCreationProjet({ personneId = null, organisationId =
   });
   if (r && identifiant) {
     toast('Projet ajouté', { lien: { libelle: 'Ouvrir la fiche', href: cheminProjet(identifiant) }, duree: 5000 });
+    return identifiant;
+  }
+  return null;
+}
+
+/**
+ * « Créer le projet » d'une affaire gagnée : le titre de l'affaire est proposé, le modèle de son offre est préselectionné (on peut en choisir un autre,
+ * ou aucun). Renvoie l'identifiant du projet créé, ou null si la fenêtre est fermée.
+ */
+export async function ouvrirCreationProjetDepuisAffaire(affaire) {
+  const champTitre = h('input', { class: 'champ', type: 'text', id: 'creation-projet-affaire-titre', autocomplete: 'off', 'aria-label': 'Titre', value: affaire.titre, autofocus: true });
+  const modele = selectModele(P.modeleParOffre(D.etat.modeles, affaire.offreId)?.id || '');
+  const erreur = h('p', { class: 'erreur', role: 'alert' });
+  let identifiant = null;
+  const r = await dialogue({
+    titre: 'Créer le projet',
+    classe: 'dialogue-formulaire',
+    contenu: h('div', { class: 'pile formulaire-creation' },
+      h('p', { class: 'aide' }, 'Le projet reprend la personne, l’organisation, l’offre, l’adresse GitHub et le dossier de l’affaire.'),
+      h('div', { class: 'bloc-champ' }, h('label', { class: 'etiquette', for: 'creation-projet-affaire-titre' }, 'Titre'), champTitre),
+      h('label', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Modèle'), modele),
+      erreur),
+    boutons: [{ libelle: 'Annuler', valeur: false }, {
+      libelle: 'Créer le projet', valeur: true, style: 'principal',
+      avantFermeture: async () => {
+        const titre = L.nettoyerEspaces(champTitre.value);
+        if (Object.keys(P.validerProjet({ titre })).length) { erreur.textContent = 'Le titre est obligatoire.'; champTitre.classList.add('invalide'); champTitre.focus(); return false; }
+        try {
+          identifiant = await D.creerProjetDepuisAffaire(affaire.id, { titre }, { modeleId: modele.value || null });
+          return true;
+        } catch (e) {
+          console.warn(e);
+          erreur.textContent = e?.saisie ? e.message : 'Création impossible, réessaie.';
+          return false;
+        }
+      },
+    }],
+    auMontage: ({ boite, boutons }) => {
+      boite.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.defaultPrevented && e.target.tagName === 'INPUT') { e.preventDefault(); boutons.at(-1).click(); }
+      });
+    },
+  });
+  if (r && identifiant) {
+    toast('Projet créé', { lien: { libelle: 'Ouvrir le projet', href: cheminProjet(identifiant) }, duree: 5000 });
     return identifiant;
   }
   return null;

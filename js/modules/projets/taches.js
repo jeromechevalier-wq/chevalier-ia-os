@@ -58,8 +58,6 @@ export async function dialogueTache(t) {
 /** Section « Tâches » de la fiche : les tâches de chaque phase, cases à cocher, ajout rapide, menu par tâche. */
 export function sectionTaches(projet) {
   const aujourdhui = D.ctx().aujourdhui;
-  const groupes = P.tachesParPhase(D.etat.taches, projet.id);
-  const toutes = groupes.flatMap((g) => g.taches);
 
   function ligne(t, g, i) {
     const faite = t.fait;
@@ -92,25 +90,39 @@ export function sectionTaches(projet) {
   const bouton = h('button', { type: 'button', class: 'bouton bouton-principal bouton-petit', 'data-action': 'ajouter-tache', onclick: ajouter }, icone('plus', { taille: 14 }), 'Ajouter la tâche');
   async function ajouter() {
     if (!L.nettoyerEspaces(titre.value)) { toast('Le titre est obligatoire.', { type: 'erreur' }); titre.classList.add('invalide'); titre.focus(); return; }
-    bouton.disabled = true;
-    const ok = await ou(() => D.creerTache(projet.id, { titre: titre.value, phase: phase.value, date: date.valeur() }), 'Ajout impossible');
-    bouton.disabled = false;
-    if (ok) { titre.value = ''; date.champ.value = ''; titre.classList.remove('invalide'); titre.focus(); }
+    // Le formulaire se vide tout de suite (on peut taper la tâche suivante sans attendre la réponse du serveur) ; si l'ajout échoue, ce qui était tapé revient.
+    const saisie = { titre: titre.value, phase: phase.value, date: date.valeur() };
+    titre.value = '';
+    date.champ.value = '';
+    titre.classList.remove('invalide');
+    titre.focus();
+    const ok = await ou(() => D.creerTache(projet.id, saisie), 'Ajout impossible');
+    if (!ok && !titre.value) { titre.value = saisie.titre; date.champ.value = saisie.date; }
   }
   titre.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); ajouter(); } });
 
-  const avecTaches = groupes.filter((g) => g.taches.length);
-  const progression = P.progressionProjet(toutes);
-  return sectionRepliable({
-    id: 'projet-taches', titre: 'Tâches', compteur: toutes.length ? `${progression.faites}/${progression.total}` : 0,
-    contenu: h('div', { class: 'pile' },
-      h('div', { class: 'ajout-tache' }, titre, phase, date.element, bouton),
-      avecTaches.length
-        ? avecTaches.map((g) => h('div', { class: 'groupe-taches', dataset: { phase: g.phase.id } },
-          h('h3', { class: 'sous-titre' }, g.phase.libelle, h('span', { class: 'compteur' }, `${g.faites}/${g.taches.length}`)),
-          h('ul', { class: 'liste-activites' }, g.taches.map((t, i) => ligne(t, g, i)))))
-        : h('p', { class: 'aide' }, 'Aucune tâche pour le moment. Ajoute la première ci-dessus.')),
+  // La liste se redessine seule (sans toucher au formulaire) : on peut taper la tâche suivante pendant que la précédente apparaît.
+  const zoneGroupes = h('div', { class: 'pile zone-groupes-taches' });
+  let compteur = null;
+  function rendreGroupes() {
+    const groupes = P.tachesParPhase(D.etat.taches, projet.id);
+    const toutes = groupes.flatMap((g) => g.taches);
+    const progression = P.progressionProjet(toutes);
+    const avecTaches = groupes.filter((g) => g.taches.length);
+    remplir(zoneGroupes, avecTaches.length
+      ? avecTaches.map((g) => h('div', { class: 'groupe-taches', dataset: { phase: g.phase.id } },
+        h('h3', { class: 'sous-titre' }, g.phase.libelle, h('span', { class: 'compteur' }, `${g.faites}/${g.taches.length}`)),
+        h('ul', { class: 'liste-activites' }, g.taches.map((t, i) => ligne(t, g, i)))))
+      : h('p', { class: 'aide' }, 'Aucune tâche pour le moment. Ajoute la première ci-dessus.'));
+    if (compteur) compteur.textContent = toutes.length ? `${progression.faites}/${progression.total}` : '0';
+  }
+  const section = sectionRepliable({
+    id: 'projet-taches', titre: 'Tâches', compteur: 0,
+    contenu: h('div', { class: 'pile' }, h('div', { class: 'ajout-tache' }, titre, phase, date.element, bouton), zoneGroupes),
   });
+  compteur = section.element.querySelector('.section-compteur');
+  rendreGroupes();
+  return { ...section, majListe: rendreGroupes };
 }
 
 // ---------------------------------------------------------------- Points clés de l'Accueil

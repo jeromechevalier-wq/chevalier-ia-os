@@ -26,6 +26,7 @@ export const MODULES = [
     icone: 'folder-kanban',
     entrees: [
       { chemin: 'projets/projets', libelle: 'Projets', icone: 'folder-kanban' },
+      { chemin: 'projets/modeles', libelle: 'Modèles', icone: 'copy' },
     ],
     prefixe: 'projets',
     monter: () => import('../modules/projets/index.js'),

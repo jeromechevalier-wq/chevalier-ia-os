@@ -6,7 +6,7 @@
 import {
   COLLECTIONS_PLAN, MARQUES_CREATION, MARQUES_MODIFICATION,
   ecritureCreer, ecritureModifier, ecritureSupprimer, evenements, modifierSiPatch, evenementCreation,
-  nettoyerEspaces, aujourdhuiParis, validerUrlGithub, validerUrlDossier, urlOuVide, normaliser,
+  nettoyerEspaces, aujourdhuiParis, validerUrlGithub, validerUrlDossier, urlOuVide, normaliser, ajouterJours,
 } from '../crm/logique.js';
 
 const C = COLLECTIONS_PLAN;
@@ -312,6 +312,170 @@ export function tachesPointsCles(taches, projets, aujourdhui) {
   return { enRetard: ouvertes.filter((t) => t.date < aujourdhui), aujourdhui: ouvertes.filter((t) => t.date === aujourdhui) };
 }
 
+// ---------------------------------------------------------------- modèles de projet (collection projets_modeles)
+// Un modèle = un nom, une offre liée (facultative), une nature, une liste de tâches types (titre, phase, délai en jours après le début du projet).
+// Créer un projet depuis un modèle crée ses tâches, avec leurs dates calculées. Les modèles de départ sont écrits ici ; les copies de la base
+// sont modifiables (écran Modèles). Le modèle « Extraction » sert aux projets d'extraction de valeur (étape 6).
+
+/** Contenu fourni par Jérôme (03/10/2026). Délai `null` : pas de date (elle se pose au fil de l'eau). Extraction : sept jours après la création. */
+export const MODELES_DEPART = [
+  {
+    id: 'audit', nom: 'Audit', offreId: 'audit', nature: 'livraison', actif: true, ordre: 1,
+    taches: [
+      { id: 'audit-interview', titre: 'Interview', phase: 'decouverte', delaiJours: null, ordre: 1 },
+      { id: 'audit-rapport', titre: 'Créer le rapport', phase: 'livraison', delaiJours: null, ordre: 1 },
+      { id: 'audit-debriefing', titre: 'Débriefing avec le client', phase: 'livraison', delaiJours: null, ordre: 2 },
+    ],
+  },
+  {
+    id: 'accompagnement', nom: 'Accompagnement', offreId: 'accompagnement', nature: 'livraison', actif: true, ordre: 2,
+    taches: [{ id: 'accompagnement-lancement', titre: 'Rendez-vous de lancement', phase: 'lancement', delaiJours: null, ordre: 1 }],
+  },
+  {
+    id: 'extraction', nom: 'Extraction', offreId: null, nature: 'extraction', actif: true, ordre: 3,
+    taches: [
+      { id: 'extraction-regles', titre: 'Tirer les règles', phase: 'decouverte', delaiJours: 7, ordre: 1 },
+      { id: 'extraction-erreurs', titre: 'Comprendre les erreurs', phase: 'decouverte', delaiJours: 7, ordre: 2 },
+      { id: 'extraction-automatisable', titre: 'Repérer ce qui est automatisable', phase: 'livraison', delaiJours: 7, ordre: 1 },
+      { id: 'extraction-marketing', titre: 'Créer la documentation marketing', phase: 'livraison', delaiJours: 7, ordre: 2 },
+    ],
+  },
+];
+
+const DELAI_MAX = 3650;
+
+export function validerModele(v = {}) {
+  const erreurs = {};
+  if (!nettoyerEspaces(v.nom)) erreurs.nom = 'Le nom est obligatoire.';
+  if (v.nature && !NATURES_PROJET.some((n) => n.id === v.nature)) erreurs.nature = 'Nature inconnue.';
+  return erreurs;
+}
+
+/** Tâche type : titre obligatoire, phase connue, délai = nombre entier de jours après le début du projet (vide = pas de date). */
+export function validerTacheModele(v = {}) {
+  const erreurs = {};
+  if (!nettoyerEspaces(v.titre)) erreurs.titre = 'Le titre est obligatoire.';
+  if (v.phase && !PHASES.some((p) => p.id === v.phase)) erreurs.phase = 'Phase inconnue.';
+  const d = v.delaiJours;
+  if (d !== null && d !== undefined && d !== '' && !(Number.isInteger(Number(d)) && Number(d) >= 0 && Number(d) <= DELAI_MAX)) erreurs.delaiJours = `Le délai est un nombre de jours entre 0 et ${DELAI_MAX}.`;
+  return erreurs;
+}
+
+const delaiNet = (d) => (d === null || d === undefined || d === '' ? null : Number(d));
+
+/** Les tâches d'un modèle dans l'ordre d'affichage : phase, puis `ordre`. */
+export function tachesDuModele(modele) {
+  const rang = (t) => PHASES.findIndex((p) => p.id === t.phase);
+  return [...(modele?.taches || [])].sort((a, b) => rang(a) - rang(b) || (a.ordre ?? 0) - (b.ordre ?? 0));
+}
+
+/** Les quatre phases avec les tâches types de chacune : [{ phase, taches }]. */
+export function tachesModeleParPhase(modele) {
+  const toutes = tachesDuModele(modele);
+  return PHASES.map((phase) => ({ phase, taches: toutes.filter((t) => t.phase === phase.id) }));
+}
+
+export const modelesActifs = (modeles) => (modeles || []).filter((m) => m.actif !== false).sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
+
+/** Le modèle proposé pour une offre : le premier modèle actif qui y est lié (null s'il n'y en a pas). */
+export const modeleParOffre = (modeles, offreId) => (offreId ? modelesActifs(modeles).find((m) => m.offreId === offreId) ?? null : null);
+
+/** Les tâches d'un modèle devenues vraies tâches d'un projet : date = début du projet + délai, ordre repris dans chaque phase. */
+function ecrituresTachesModele(modele, { projetId, dateDebut }, ctx) {
+  if (!modele) return [];
+  const comptes = {};
+  return tachesDuModele(modele).map((t) => {
+    comptes[t.phase] = (comptes[t.phase] || 0) + 1;
+    const id = ctx.nouvelId(C.projetsTaches);
+    const delai = delaiNet(t.delaiJours);
+    return ecritureCreer(C.projetsTaches, id, nouvelleTache({
+      titre: t.titre, projetId, phase: t.phase, ordre: comptes[t.phase], date: delai === null ? null : ajouterJours(dateDebut, delai),
+    }, ctx), { horodater: ['creeLe'] });
+  });
+}
+
+/** Document d'un nouveau modèle (sans tâche). */
+export function nouveauModele(valeurs, ctx, ordre = 1) {
+  return {
+    nom: nettoyerEspaces(valeurs.nom),
+    offreId: valeurs.offreId || null,
+    nature: NATURES_PROJET.some((n) => n.id === valeurs.nature) ? valeurs.nature : 'livraison',
+    taches: [],
+    actif: true,
+    ordre,
+    proprietaire: ctx.proprietaire ?? ctx.auteur ?? '',
+  };
+}
+
+export function planCreerModele({ valeurs, modeles = [] }, ctx) {
+  const erreurs = validerModele(valeurs);
+  if (Object.keys(erreurs).length) return { erreurs, ecritures: [] };
+  const id = ctx.nouvelId(C.projetsModeles);
+  const ordre = 1 + Math.max(0, ...modeles.map((m) => m.ordre ?? 0));
+  return { erreurs: {}, id, ecritures: [ecritureCreer(C.projetsModeles, id, nouveauModele(valeurs, ctx, ordre), MARQUES_CREATION)] };
+}
+
+/** Modifie le nom, l'offre, la nature ou l'état (actif) d'un modèle. */
+export function planMajModele({ modele, patch }) {
+  const erreurs = validerModele({ nom: modele.nom, ...patch });
+  if (Object.keys(erreurs).length) return { erreurs, ecritures: [] };
+  const net = { ...patch };
+  if (net.nom !== undefined) net.nom = nettoyerEspaces(net.nom);
+  if ('offreId' in net) net.offreId = net.offreId || null;
+  const changes = Object.fromEntries(Object.entries(net).filter(([k, v]) => v !== modele[k]));
+  return { erreurs: {}, patch: changes, ecritures: modifierSiPatch(C.projetsModeles, modele.id, changes, MARQUES_MODIFICATION) };
+}
+
+/** Supprime un modèle. Les projets déjà créés le gardent comme « modèle d'origine » (information seulement). */
+export const planSupprimerModele = (id) => ({ ecritures: [ecritureSupprimer(C.projetsModeles, id)] });
+
+const ecrireTachesModele = (modele, taches) => ({ ecritures: modifierSiPatch(C.projetsModeles, modele.id, { taches }, MARQUES_MODIFICATION) });
+
+/** Ajoute une tâche type à la fin de sa phase. */
+export function planAjouterTacheModele({ modele, valeurs }, ctx) {
+  const phase = PHASES.some((p) => p.id === valeurs.phase) ? valeurs.phase : PHASE_DEPART;
+  const erreurs = validerTacheModele({ ...valeurs, phase });
+  if (Object.keys(erreurs).length) return { erreurs, ecritures: [] };
+  const ordre = 1 + Math.max(0, ...(modele.taches || []).filter((t) => t.phase === phase).map((t) => t.ordre ?? 0));
+  const tache = { id: ctx.nouvelId(C.projetsModeles), titre: nettoyerEspaces(valeurs.titre), phase, delaiJours: delaiNet(valeurs.delaiJours), ordre };
+  return { erreurs: {}, ...ecrireTachesModele(modele, [...(modele.taches || []), tache]) };
+}
+
+/** Modifie une tâche type (titre, délai, phase). Changer de phase la place à la fin de la nouvelle phase. */
+export function planMajTacheModele({ modele, tacheId, patch }) {
+  const tache = (modele.taches || []).find((t) => t.id === tacheId);
+  if (!tache) return { erreurs: { tache: 'Tâche introuvable.' }, ecritures: [] };
+  const erreurs = validerTacheModele({ titre: tache.titre, ...patch });
+  if (Object.keys(erreurs).length) return { erreurs, ecritures: [] };
+  const net = { ...patch };
+  if (net.titre !== undefined) net.titre = nettoyerEspaces(net.titre);
+  if ('delaiJours' in net) net.delaiJours = delaiNet(net.delaiJours);
+  if (net.phase && net.phase !== tache.phase) net.ordre = 1 + Math.max(0, ...modele.taches.filter((t) => t.phase === net.phase).map((t) => t.ordre ?? 0));
+  const changes = Object.fromEntries(Object.entries(net).filter(([k, v]) => v !== tache[k]));
+  if (!Object.keys(changes).length) return { erreurs: {}, ecritures: [] };
+  return { erreurs: {}, ...ecrireTachesModele(modele, modele.taches.map((t) => (t.id === tacheId ? { ...t, ...changes } : t))) };
+}
+
+export const planSupprimerTacheModele = ({ modele, tacheId }) => ecrireTachesModele(modele, (modele.taches || []).filter((t) => t.id !== tacheId));
+
+/** Monte (`sens` = -1) ou descend (+1) une tâche type dans sa phase ; les tâches de la phase sont remises en ordre 1, 2, 3… Au bord : rien. */
+export function planDeplacerTacheModele({ modele, tacheId, sens }) {
+  const tache = (modele.taches || []).find((t) => t.id === tacheId);
+  if (!tache) return { ecritures: [] };
+  const liste = tachesDuModele(modele).filter((t) => t.phase === tache.phase);
+  const i = liste.findIndex((t) => t.id === tacheId);
+  const j = i + sens;
+  if (j < 0 || j >= liste.length) return { ecritures: [] };
+  [liste[i], liste[j]] = [liste[j], liste[i]];
+  const place = new Map(liste.map((t, k) => [t.id, k + 1]));
+  return ecrireTachesModele(modele, modele.taches.map((t) => (place.has(t.id) ? { ...t, ordre: place.get(t.id) } : t)));
+}
+
+/** Création des modèles de départ (premier lancement) : les identifiants sont fixes, donc le même plan rejoué n'en fait jamais deux. */
+export function planInitialiserModeles() {
+  return { ecritures: MODELES_DEPART.map(({ id, ...donnees }) => ecritureCreer(C.projetsModeles, id, structuredClone(donnees), MARQUES_CREATION)) };
+}
+
 // ---------------------------------------------------------------- liens
 
 /** Le projet d'une affaire (au plus un). */
@@ -359,13 +523,14 @@ export const projetsLiables = (projets) => (projets || []).filter((p) => !p.affa
  * Crée le projet d'une affaire gagnée : il reprend le titre, la personne, l'organisation, l'offre, l'adresse GitHub et le dossier de l'affaire
  * (`valeurs` peut en changer). Même plan : l'affaire reçoit `projetId`. Refus : { erreurs, ecritures: [] }.
  */
-export function planCreerProjetDepuisAffaire({ affaire, projets = [], valeurs = {} }, ctx) {
+export function planCreerProjetDepuisAffaire({ affaire, projets = [], valeurs = {}, modele = null }, ctx) {
   const erreurs = validerLienAffaire({ affaire, projets });
   if (Object.keys(erreurs).length) return { erreurs, ecritures: [] };
   const id = ctx.nouvelId(C.projets);
   const fiche = nouveauProjet({
     titre: affaire.titre, personneId: affaire.personneId, organisationId: affaire.organisationId, offreId: affaire.offreId,
     urlGithub: affaire.urlGithub, urlDossier: affaire.urlDossier, ...valeurs, affaireId: affaire.id,
+    ...(modele ? { modeleId: modele.id, nature: modele.nature || valeurs.nature } : {}),
   }, ctx);
   return {
     erreurs: {},
@@ -373,6 +538,7 @@ export function planCreerProjetDepuisAffaire({ affaire, projets = [], valeurs = 
     titre: fiche.titre,
     ecritures: [
       ecritureCreer(C.projets, id, fiche, MARQUES_CREATION),
+      ...ecrituresTachesModele(modele, { projetId: id, dateDebut: fiche.dateDebut }, ctx),
       ...modifierSiPatch(C.affaires, affaire.id, { projetId: id }, MARQUES_MODIFICATION),
       ...evenements([evenementProjet('projet_cree', `Projet créé : ${fiche.titre}`, { ...fiche, id }, ctx)], ctx),
     ],
@@ -495,15 +661,19 @@ export const projetsDePhase = (projets, phase) => (projets || []).filter((p) => 
 
 // ---------------------------------------------------------------- plans d'écriture (écran ET, plus tard, serveur MCP)
 
-/** `ctx.nouvelId(collection)` donne un identifiant frais. L'appelant valide d'abord (`validerProjet`). */
-export function planCreerProjet(valeurs, ctx) {
+/**
+ * `ctx.nouvelId(collection)` donne un identifiant frais. L'appelant valide d'abord (`validerProjet`).
+ * `modele` (facultatif) : le projet part avec les tâches du modèle (dates calculées d'après le début du projet) et prend sa nature.
+ */
+export function planCreerProjet(valeurs, ctx, { modele = null } = {}) {
   const id = ctx.nouvelId(C.projets);
-  const fiche = nouveauProjet(valeurs, ctx);
+  const fiche = nouveauProjet(modele ? { ...valeurs, modeleId: modele.id, nature: modele.nature || valeurs.nature } : valeurs, ctx);
   return {
     id,
     titre: fiche.titre,
     ecritures: [
       ecritureCreer(C.projets, id, fiche, MARQUES_CREATION),
+      ...ecrituresTachesModele(modele, { projetId: id, dateDebut: fiche.dateDebut }, ctx),
       ...evenements([evenementProjet('projet_cree', `Projet créé : ${fiche.titre}`, { ...fiche, id }, ctx)], ctx),
     ],
   };

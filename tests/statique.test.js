@@ -246,6 +246,33 @@ describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
   });
 });
 
+describe('D6 Modules : chaque appel à un module de données existe', () => {
+  // Les modules de données importent le SDK Firebase par une adresse web : on ne peut pas les charger ici, on vérifie donc par le texte
+  // que chaque `X.nom` utilisé dans les écrans (X = alias d'un `import * as X from './donnees.js'`) est bien exporté par ce module.
+  const exportes = (chemin) => new Set([...lire(chemin).matchAll(/^export\s+(?:async\s+)?(?:function|const|let|class)\s+([A-Za-z_$][\w$]*)/gm)].map((m) => m[1]));
+  test('D6 les écrans des modules n’appellent que des fonctions exportées par les modules de données qu’ils importent', () => {
+    const fichiers = fichiersAppli().filter((x) => /^js\/modules\/.*\.js$/.test(x));
+    let verifies = 0;
+    for (const f of fichiers) {
+      const t = lire(f);
+      for (const [, alias, source] of t.matchAll(/import \* as (\w+) from '(\.{1,2}\/[^']*donnees\.js)'/g)) {
+        const chemin = join(f, '..', source).replace(/\\/g, '/');
+        const attendus = exportes(chemin);
+        for (const [, nom] of t.matchAll(new RegExp(`\\b${alias}\\.([A-Za-z_$][\\w$]*)`, 'g'))) {
+          assert.ok(attendus.has(nom), `${f} : ${alias}.${nom} n'est pas exporté par ${chemin}`);
+          verifies += 1;
+        }
+      }
+    }
+    assert.ok(verifies > 200, `trop peu d'appels vérifiés (${verifies})`);
+  });
+  test('D6 un module de l’OS a toujours demarrer, arreter et afficher (la coquille les appelle à la connexion, à la déconnexion et à chaque route)', () => {
+    for (const f of fichiersAppli().filter((x) => /^js\/modules\/[^/]+\/index\.js$/.test(x))) {
+      for (const nom of ['demarrer', 'arreter', 'afficher']) assert.ok(exportes(f).has(nom), `${f} : ${nom} manquant`);
+    }
+  });
+});
+
 describe('D5 Serveur MCP (étape 2) : déploiement, versions figées, sécurité', () => {
   const fb = json('firebase.json');
   const pkg = json('functions/package.json');

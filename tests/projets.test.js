@@ -675,3 +675,136 @@ describe('B29 Tâches d’un projet', () => {
     assert.deepEqual(plan.ecritures.map((e) => `${e.type}:${e.collection}/${e.id}`), ['supprimer:projets_taches/t1', 'supprimer:projets_projets/pr1']);
   });
 });
+
+describe('B30 Modèles de projet', () => {
+  const c = () => ctx('2026-10-20T09:00:00Z');
+  const modele = (extra = {}) => ({ ...P.nouveauModele({ nom: 'Mon modèle' }, c()), id: 'm1', ...extra });
+  const exec = (base, plan) => executer(base, plan.ecritures, { maintenant: c().maintenant });
+
+  test('B30 trois modèles de départ : Audit, Accompagnement, Extraction, avec le contenu de Jérôme', () => {
+    const [audit, accompagnement, extraction] = P.MODELES_DEPART;
+    assert.deepEqual(P.MODELES_DEPART.map((m) => [m.id, m.nom, m.offreId, m.nature]), [['audit', 'Audit', 'audit', 'livraison'], ['accompagnement', 'Accompagnement', 'accompagnement', 'livraison'], ['extraction', 'Extraction', null, 'extraction']]);
+    assert.deepEqual(P.tachesDuModele(audit).map((t) => [t.titre, t.phase]), [['Interview', 'decouverte'], ['Créer le rapport', 'livraison'], ['Débriefing avec le client', 'livraison']]);
+    assert.deepEqual(accompagnement.taches.map((t) => t.titre), ['Rendez-vous de lancement'], 'un seul rendez-vous au départ, les suivants s’ajoutent au fil de l’eau');
+    assert.deepEqual(P.tachesDuModele(extraction).map((t) => t.titre), ['Tirer les règles', 'Comprendre les erreurs', 'Repérer ce qui est automatisable', 'Créer la documentation marketing']);
+    assert.ok(extraction.taches.every((t) => t.delaiJours === 7), 'sept jours après la création');
+    assert.ok(P.MODELES_DEPART.every((m) => Object.keys(P.validerModele(m)).length === 0 && m.taches.every((t) => Object.keys(P.validerTacheModele(t)).length === 0)));
+    assert.equal(new Set(P.MODELES_DEPART.flatMap((m) => m.taches.map((t) => t.id))).size, 8, 'identifiants de tâches uniques');
+  });
+  test('B30 initialiser : trois créations aux identifiants fixes, sans champ vide, sans toucher aux modèles de départ eux-mêmes', () => {
+    const plan = P.planInitialiserModeles();
+    assert.deepEqual(plan.ecritures.map((e) => `${e.type}:${e.collection}/${e.id}`), ['creer:projets_modeles/audit', 'creer:projets_modeles/accompagnement', 'creer:projets_modeles/extraction']);
+    assert.ok(plan.ecritures.every((e) => !('id' in e.donnees) && Object.values(e.donnees).every((v) => v !== undefined)));
+    plan.ecritures[0].donnees.taches.push({ id: 'x' });
+    assert.equal(P.MODELES_DEPART[0].taches.length, 3, 'les modèles de départ ne sont pas modifiés');
+  });
+  test('B30 validations : nom obligatoire ; titre, phase et délai (entier de 0 à 3650, ou vide) d’une tâche type', () => {
+    assert.deepEqual(P.validerModele({ nom: ' ' }), { nom: 'Le nom est obligatoire.' });
+    assert.ok(P.validerModele({ nom: 'x', nature: 'autre' }).nature);
+    assert.deepEqual(P.validerTacheModele({ titre: 'x', delaiJours: '' }), {});
+    assert.deepEqual(P.validerTacheModele({ titre: 'x', delaiJours: 0 }), {});
+    assert.deepEqual(P.validerTacheModele({ titre: 'x', delaiJours: '14' }), {});
+    for (const d of [-1, 1.5, 'abc', 4000]) assert.ok(P.validerTacheModele({ titre: 'x', delaiJours: d }).delaiJours, String(d));
+    assert.ok(P.validerTacheModele({ titre: '' }).titre);
+    assert.ok(P.validerTacheModele({ titre: 'x', phase: 'facturation' }).phase);
+  });
+  test('B30 créer un modèle : à la suite des autres, sans tâche, actif, nature livraison par défaut ; refus sans nom', () => {
+    const plan = P.planCreerModele({ valeurs: { nom: '  Site   vitrine ', offreId: 'off' }, modeles: [{ ordre: 3 }] }, c());
+    assert.equal(plan.id, 'projets_modeles_1');
+    const d = plan.ecritures[0].donnees;
+    assert.deepEqual([d.nom, d.offreId, d.nature, d.taches, d.actif, d.ordre], ['Site vitrine', 'off', 'livraison', [], true, 4]);
+    assert.deepEqual(plan.ecritures[0].horodater, ['creeLe', 'modifieLe']);
+    assert.deepEqual(P.planCreerModele({ valeurs: { nom: '' } }, c()).ecritures, []);
+  });
+  test('B30 modifier un modèle : seuls les champs changés ; nom vide refusé ; offre vide = aucune', () => {
+    const m = modele({ offreId: 'audit' });
+    assert.deepEqual(P.planMajModele({ modele: m, patch: { nom: ' Nouveau nom ', offreId: 'audit', actif: false } }).patch, { nom: 'Nouveau nom', actif: false });
+    assert.deepEqual(P.planMajModele({ modele: m, patch: { offreId: '' } }).patch, { offreId: null });
+    assert.ok(P.planMajModele({ modele: m, patch: { nom: '' } }).erreurs.nom);
+    assert.deepEqual(P.planMajModele({ modele: m, patch: { nom: 'Mon modèle' } }).ecritures, []);
+  });
+  test('B30 tâches types : ajouter à la fin de la phase, modifier, changer de phase, supprimer', () => {
+    let m = modele();
+    let n = 0;
+    const cx = { ...c(), nouvelId: () => `tm${++n}` };
+    const ajout = (valeurs) => { const plan = P.planAjouterTacheModele({ modele: m, valeurs }, cx); assert.deepEqual(plan.erreurs, {}); m = { ...m, taches: plan.ecritures[0].patch.taches }; return plan; };
+    ajout({ titre: ' Interview ', phase: 'decouverte', delaiJours: '3' });
+    ajout({ titre: 'Entretien 2', phase: 'decouverte' });
+    ajout({ titre: 'Rapport', phase: 'livraison', delaiJours: 10 });
+    assert.deepEqual(m.taches.map((t) => [t.id, t.titre, t.phase, t.delaiJours, t.ordre]), [['tm1', 'Interview', 'decouverte', 3, 1], ['tm2', 'Entretien 2', 'decouverte', null, 2], ['tm3', 'Rapport', 'livraison', 10, 1]]);
+    assert.deepEqual(P.planAjouterTacheModele({ modele: m, valeurs: { titre: '' } }, cx).erreurs, { titre: 'Le titre est obligatoire.' });
+    const maj = P.planMajTacheModele({ modele: m, tacheId: 'tm2', patch: { titre: 'Entretien deux', delaiJours: '', phase: 'livraison' } });
+    assert.deepEqual(maj.ecritures[0].patch.taches.find((t) => t.id === 'tm2'), { id: 'tm2', titre: 'Entretien deux', phase: 'livraison', delaiJours: null, ordre: 2 });
+    assert.deepEqual(P.planMajTacheModele({ modele: m, tacheId: 'tm2', patch: {} }).ecritures, []);
+    assert.ok(P.planMajTacheModele({ modele: m, tacheId: 'inconnue', patch: { titre: 'x' } }).erreurs.tache);
+    assert.ok(P.planMajTacheModele({ modele: m, tacheId: 'tm1', patch: { delaiJours: -2 } }).erreurs.delaiJours);
+    const sans = P.planSupprimerTacheModele({ modele: m, tacheId: 'tm1' });
+    assert.deepEqual(sans.ecritures[0].patch.taches.map((t) => t.id), ['tm2', 'tm3']);
+    assert.deepEqual(sans.ecritures[0].signer, ['modifiePar']);
+  });
+  test('B30 monter / descendre une tâche type dans sa phase ; au bord, rien', () => {
+    const m = modele({ taches: [
+      { id: 'a', titre: 'A', phase: 'livraison', delaiJours: null, ordre: 1 }, { id: 'b', titre: 'B', phase: 'livraison', delaiJours: null, ordre: 2 },
+      { id: 'c', titre: 'C', phase: 'livraison', delaiJours: null, ordre: 3 }, { id: 'z', titre: 'Z', phase: 'lancement', delaiJours: null, ordre: 1 },
+    ] });
+    const r = P.planDeplacerTacheModele({ modele: m, tacheId: 'c', sens: -1 });
+    assert.deepEqual(P.tachesDuModele({ taches: r.ecritures[0].patch.taches }).map((t) => t.id), ['z', 'a', 'c', 'b']);
+    assert.deepEqual(P.planDeplacerTacheModele({ modele: m, tacheId: 'a', sens: -1 }).ecritures, []);
+    assert.deepEqual(P.planDeplacerTacheModele({ modele: m, tacheId: 'c', sens: 1 }).ecritures, []);
+    assert.deepEqual(P.planDeplacerTacheModele({ modele: m, tacheId: 'z', sens: 1 }).ecritures, [], 'seule dans sa phase');
+    assert.deepEqual(P.tachesModeleParPhase(m).map((g) => g.taches.length), [1, 0, 3, 0]);
+  });
+  test('B30 supprimer un modèle : une suppression, rien d’autre', () => {
+    assert.deepEqual(P.planSupprimerModele('m1').ecritures.map((e) => `${e.type}:${e.collection}/${e.id}`), ['supprimer:projets_modeles/m1']);
+  });
+  test('B30 le modèle proposé pour une offre : le premier modèle actif qui y est lié, sinon aucun', () => {
+    const modeles = [modele({ id: 'inactif', offreId: 'audit', actif: false, ordre: 1 }), modele({ id: 'b', offreId: 'audit', ordre: 3 }), modele({ id: 'a', offreId: 'audit', ordre: 2 }), modele({ id: 'x', offreId: 'autre', ordre: 1 })];
+    assert.equal(P.modeleParOffre(modeles, 'audit').id, 'a');
+    assert.equal(P.modeleParOffre(modeles, 'inconnue'), null);
+    assert.equal(P.modeleParOffre(modeles, null), null);
+    assert.deepEqual(P.modelesActifs(modeles).map((m) => m.id), ['x', 'a', 'b']);
+  });
+  test('B30 créer un projet depuis un modèle : ses tâches, dates = début + délai, ordre par phase, nature et modeleId du modèle', () => {
+    const m = P.MODELES_DEPART.find((x) => x.id === 'extraction');
+    const plan = P.planCreerProjet({ titre: 'Extraction Carrel', dateDebut: '2026-10-20' }, c(), { modele: m });
+    const projetDoc = plan.ecritures.find((e) => e.collection === 'projets_projets').donnees;
+    assert.deepEqual([projetDoc.modeleId, projetDoc.nature, projetDoc.dateDebut], ['extraction', 'extraction', '2026-10-20']);
+    const taches = plan.ecritures.filter((e) => e.collection === 'projets_taches').map((e) => e.donnees);
+    assert.deepEqual(taches.map((t) => [t.titre, t.phase, t.ordre, t.date]), [
+      ['Tirer les règles', 'decouverte', 1, '2026-10-27'], ['Comprendre les erreurs', 'decouverte', 2, '2026-10-27'],
+      ['Repérer ce qui est automatisable', 'livraison', 1, '2026-10-27'], ['Créer la documentation marketing', 'livraison', 2, '2026-10-27'],
+    ]);
+    assert.ok(taches.every((t) => t.projetId === plan.id && t.fait === false && t.assigneA === 'jerome'));
+    assert.equal(new Set(plan.ecritures.map((e) => `${e.collection}/${e.id}`)).size, plan.ecritures.length, 'chaque document apparaît une seule fois');
+  });
+  test('B30 depuis un modèle sans délai : pas de date ; sans modèle : un projet vide comme avant', () => {
+    const audit = P.planCreerProjet({ titre: 'Audit' }, c(), { modele: P.MODELES_DEPART[0] });
+    assert.deepEqual(audit.ecritures.filter((e) => e.collection === 'projets_taches').map((e) => e.donnees.date), [null, null, null]);
+    assert.equal(audit.ecritures.find((e) => e.collection === 'projets_projets').donnees.nature, 'livraison');
+    const vide = P.planCreerProjet({ titre: 'Chantier' }, c());
+    assert.deepEqual(vide.ecritures.map((e) => e.collection), ['projets_projets', 'crm_evenements']);
+    assert.equal(vide.ecritures[0].donnees.modeleId, null);
+  });
+  test('B30 depuis une affaire gagnée : le modèle ajoute ses tâches dans le même plan, l’affaire reçoit toujours son projetId', () => {
+    const affaire = { ...L.nouvelleAffaire({ titre: 'Audit des Lilas', etape: 'gagne', offreId: 'audit' }, c()), id: 'a1' };
+    const plan = P.planCreerProjetDepuisAffaire({ affaire, modele: P.MODELES_DEPART[0] }, c());
+    assert.deepEqual(plan.erreurs, {});
+    assert.deepEqual(plan.ecritures.map((e) => `${e.type}:${e.collection}`), ['creer:projets_projets', 'creer:projets_taches', 'creer:projets_taches', 'creer:projets_taches', 'modifier:crm_affaires', 'creer:crm_evenements']);
+    assert.equal(plan.ecritures[0].donnees.modeleId, 'audit');
+    assert.equal(plan.ecritures.filter((e) => e.collection === 'projets_taches').every((e) => e.donnees.projetId === plan.id), true);
+    const refus = P.planCreerProjetDepuisAffaire({ affaire: { ...affaire, statut: 'perdue' }, modele: P.MODELES_DEPART[0] }, c());
+    assert.deepEqual(refus.ecritures, [], 'refusé : aucune tâche non plus');
+  });
+  test('B30 de bout en bout sur des données : créer un modèle, y ajouter des tâches, créer un projet, supprimer le projet : tâches supprimées, modèle intact', () => {
+    let base = {};
+    const cx = c();
+    const pm = P.planCreerModele({ valeurs: { nom: 'Atelier' }, modeles: [] }, cx);
+    base = exec(base, pm);
+    base = exec(base, P.planAjouterTacheModele({ modele: base.projets_modeles[0], valeurs: { titre: 'Préparer', phase: 'lancement', delaiJours: 2 } }, cx));
+    const pp = P.planCreerProjet({ titre: 'Atelier IA', dateDebut: '2026-11-01' }, cx, { modele: base.projets_modeles[0] });
+    base = exec(base, pp);
+    assert.equal(base.projets_taches[0].date, '2026-11-03');
+    base = exec(base, P.planSupprimerProjet({ projet: base.projets_projets[0], taches: base.projets_taches }));
+    assert.deepEqual([base.projets_projets.length, base.projets_taches.length, base.projets_modeles.length], [0, 0, 1]);
+  });
+});
