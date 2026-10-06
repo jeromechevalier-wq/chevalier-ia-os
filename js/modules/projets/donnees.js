@@ -1,4 +1,4 @@
-// Données du module Projets (version 2.1) : un écouteur Firestore sur les projets pour toute la session, écritures par plans.
+// Données du module Projets (version 2.1) : un écouteur Firestore sur les projets et un sur les tâches pour toute la session, écritures par plans.
 // Les règles (quoi écrire) sont dans logique.js ; ici : lire ce qu'il faut et exécuter le plan avec le même audit que le CRM
 // (`executer` de crm/donnees.js : chaque écriture laisse sa trace dans le même lot que la donnée).
 // Le module lit le CRM (personnes, organisations, affaires) par crm/donnees.js ; il n'y écrit qu'à la suppression d'un projet
@@ -8,15 +8,19 @@ import { db } from '../../os/firebase.js';
 import * as CRM from '../crm/donnees.js';
 import * as P from './logique.js';
 
-export const etat = { projets: [], pret: false };
+export const etat = { projets: [], taches: [], pret: false, tachesPretes: false };
 
-let desabonnement = null;
+let desabonnements = [];
 let signature = '';
+let signatureTaches = '';
 const abonnes = new Set();
 
-export const estPret = () => etat.pret;
+export const estPret = () => etat.pret && etat.tachesPretes;
 export const ctx = CRM.ctx;
 export const projet = (id) => etat.projets.find((p) => p.id === id) || null;
+export const tache = (id) => etat.taches.find((t) => t.id === id) || null;
+/** Les tâches d'un projet, par phase puis par ordre. */
+export const tachesDe = (projetId) => P.tachesDuProjet(etat.taches, projetId);
 
 export function surChangement(rappel) {
   abonnes.add(rappel);
@@ -32,7 +36,8 @@ const CHAMPS_VOLATILS = new Set(['modifieLe', 'modifiePar', 'creeLe']);
 const empreinte = (docs) => JSON.stringify(docs, (cle, valeur) => (CHAMPS_VOLATILS.has(cle) ? undefined : valeur));
 
 export function demarrer() {
-  desabonnement = onSnapshot(collection(db, 'projets_projets'), (snap) => {
+  // Un écouteur par collection pour toute la session (comme les activités du CRM) : les tâches servent à l'avancement, au retard et à l'Accueil.
+  desabonnements.push(onSnapshot(collection(db, 'projets_projets'), (snap) => {
     const docs = snap.docs.map((d) => ({ ...d.data({ serverTimestamps: 'estimate' }), id: d.id }));
     const sig = empreinte(docs);
     const inchange = etat.pret && sig === signature;
@@ -40,15 +45,27 @@ export function demarrer() {
     signature = sig;
     etat.pret = true;
     if (!inchange) notifier();
-  }, (e) => console.warn('projets_projets indisponible', e.code));
+  }, (e) => console.warn('projets_projets indisponible', e.code)));
+  desabonnements.push(onSnapshot(collection(db, 'projets_taches'), (snap) => {
+    const docs = snap.docs.map((d) => ({ ...d.data({ serverTimestamps: 'estimate' }), id: d.id }));
+    const sig = empreinte(docs);
+    const inchange = etat.tachesPretes && sig === signatureTaches;
+    etat.taches = docs;
+    signatureTaches = sig;
+    etat.tachesPretes = true;
+    if (!inchange) notifier();
+  }, (e) => console.warn('projets_taches indisponible', e.code)));
 }
 
 export function arreter() {
-  desabonnement?.();
-  desabonnement = null;
+  desabonnements.forEach((f) => f());
+  desabonnements = [];
   etat.projets = [];
+  etat.taches = [];
   etat.pret = false;
+  etat.tachesPretes = false;
   signature = '';
+  signatureTaches = '';
 }
 
 // ---------------------------------------------------------------- écritures
@@ -145,3 +162,29 @@ export async function delierProjet(projetId) {
   if (!p) throw new Error('Projet introuvable');
   await appliquerLien(P.planDelierProjet({ projet: p, affaire: p.affaireId ? CRM.affaire(p.affaireId) : null }, ctx()), 'delierProjet');
 }
+
+// ---------------------------------------------------------------- tâches
+
+/** Une règle qui refuse (titre vide, date invalide) : son message est celui de l'erreur. */
+async function appliquerTache(plan, outil) {
+  if (Object.keys(plan.erreurs || {}).length) throw Object.assign(new Error(Object.values(plan.erreurs).join(' ')), { saisie: true });
+  await appliquer(plan, outil);
+  return plan;
+}
+
+/** Valeurs : titre (obligatoire), phase (celle du projet par défaut), date, heure, assigneA. Renvoie l'identifiant de la tâche. */
+export async function creerTache(projetId, valeurs) {
+  const p = projet(projetId);
+  if (!p) throw new Error('Projet introuvable');
+  const plan = await appliquerTache(P.planCreerTache({ projet: p, taches: etat.taches, valeurs }, ctx()), 'creerTache');
+  return plan.id;
+}
+
+const tacheOuErreur = (id) => tache(id) ?? (() => { throw new Error('Tâche introuvable'); })();
+
+export const majTache = (id, patch) => appliquerTache(P.planMajTache({ tache: tacheOuErreur(id), patch, taches: etat.taches }), 'majTache');
+export const faireTache = (id) => appliquerTache(P.planTacheFaite({ tache: tacheOuErreur(id), projet: projet(tacheOuErreur(id).projetId) }, ctx()), 'faireTache');
+export const defaireTache = (id) => appliquerTache(P.planTacheNonFaite({ tache: tacheOuErreur(id) }), 'defaireTache');
+export const supprimerTache = (id) => appliquer(P.planSupprimerTache(id), 'supprimerTache');
+/** `sens` : -1 pour monter, +1 pour descendre dans la phase. */
+export const deplacerTache = (id, sens) => appliquer(P.planDeplacerTache({ tache: tacheOuErreur(id), taches: etat.taches, sens }), 'deplacerTache');

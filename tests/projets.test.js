@@ -568,3 +568,110 @@ describe('B28 Affaire gagnée : créer ou lier un projet', () => {
     assert.deepEqual(P.notesDuProjet(undefined, undefined, 'pr1'), []);
   });
 });
+
+describe('B29 Tâches d’un projet', () => {
+  const c = (iso = '2026-10-20T09:00:00Z') => ctx(iso);
+  const tache = (extra = {}) => ({ ...P.nouvelleTache({ titre: 'Écrire le rapport', projetId: 'pr1', phase: 'livraison', ordre: 1 }, c()), id: 't1', ...extra });
+
+  test('B29 le titre est le seul champ obligatoire ; date, heure, phase et assigné sont contrôlés s’ils sont donnés', () => {
+    assert.deepEqual(P.validerTache({ titre: ' ' }), { titre: 'Le titre est obligatoire.' });
+    assert.deepEqual(P.validerTache({ titre: 'x' }), {});
+    assert.ok(P.validerTache({ titre: 'x', date: '12/10/2026' }).date);
+    assert.ok(P.validerTache({ titre: 'x', heure: '25:00' }).heure);
+    assert.deepEqual(P.validerTache({ titre: 'x', heure: '09:30', date: '2026-10-21' }), {});
+    assert.ok(P.validerTache({ titre: 'x', phase: 'facturation' }).phase);
+    assert.ok(P.validerTache({ titre: 'x', assigneA: 'paul' }).assigneA);
+  });
+  test('B29 une nouvelle tâche : à faire, à Jérôme, sans date, dans la phase donnée', () => {
+    const t = P.nouvelleTache({ titre: '  Interview   Carrel ', projetId: 'pr1', phase: 'decouverte', ordre: 3 }, c());
+    assert.deepEqual(t, { titre: 'Interview Carrel', projetId: 'pr1', phase: 'decouverte', ordre: 3, date: null, heure: '', fait: false, dateFait: null, assigneA: 'jerome', auteur: JEROME });
+    assert.equal(P.nouvelleTache({ titre: 'x', projetId: 'pr1', phase: 'inconnue', assigneA: 'charles', date: '2026-10-21', heure: '09:30' }, c()).phase, 'lancement');
+  });
+  test('B29 créer : à la fin de la phase, avec son projet ; la phase du projet par défaut ; refus sans titre', () => {
+    const existantes = [tache({ id: 'a', ordre: 1 }), tache({ id: 'b', ordre: 4 }), tache({ id: 'z', phase: 'lancement', ordre: 9 }), tache({ id: 'x', projetId: 'autre', ordre: 7 })];
+    const plan = P.planCreerTache({ projet: projet({ id: 'pr1', phase: 'livraison' }), taches: existantes, valeurs: { titre: 'Débriefing' } }, c());
+    assert.deepEqual(plan.erreurs, {});
+    assert.equal(plan.id, 'projets_taches_1');
+    const [e] = plan.ecritures;
+    assert.deepEqual([e.type, e.collection, e.donnees.projetId, e.donnees.phase, e.donnees.ordre, e.horodater], ['creer', 'projets_taches', 'pr1', 'livraison', 5, ['creeLe']]);
+    const autre = P.planCreerTache({ projet: projet({ id: 'pr1', phase: 'livraison' }), taches: existantes, valeurs: { titre: 'Brief', phase: 'lancement' } }, c());
+    assert.equal(autre.ecritures[0].donnees.ordre, 10);
+    const refus = P.planCreerTache({ projet: projet({ id: 'pr1' }), valeurs: { titre: '' } }, c());
+    assert.deepEqual([refus.erreurs.titre, refus.ecritures], ['Le titre est obligatoire.', []]);
+  });
+  test('B29 modifier : seuls les champs qui changent sont écrits ; changer de phase met la tâche à la fin de la nouvelle phase', () => {
+    const t = tache({ date: '2026-10-21' });
+    const plan = P.planMajTache({ tache: t, patch: { titre: ' Nouveau  titre ', date: '2026-10-21', assigneA: 'charles' }, taches: [t] });
+    assert.deepEqual(plan.patch, { titre: 'Nouveau titre', assigneA: 'charles' });
+    assert.deepEqual(plan.ecritures.map((e) => [e.type, e.collection, e.id]), [['modifier', 'projets_taches', 't1']]);
+    const ailleurs = P.planMajTache({ tache: t, patch: { phase: 'cloture' }, taches: [t, tache({ id: 'k', phase: 'cloture', ordre: 6 })] });
+    assert.deepEqual(ailleurs.patch, { phase: 'cloture', ordre: 7 });
+    assert.deepEqual(P.planMajTache({ tache: t, patch: { date: '' }, taches: [t] }).patch, { date: null });
+    assert.deepEqual(P.planMajTache({ tache: t, patch: {}, taches: [t] }).ecritures, [], 'rien à écrire');
+    assert.ok(P.planMajTache({ tache: t, patch: { titre: '  ' }, taches: [t] }).erreurs.titre);
+  });
+  test('B29 cocher : fait + date, un événement dans le fil du projet ; déjà faite : rien ; décocher : à faire', () => {
+    const p = projet({ id: 'pr1', affaireId: 'a1', personneId: 'p1' });
+    const plan = P.planTacheFaite({ tache: tache(), projet: p }, c());
+    assert.deepEqual(plan.ecritures.map((e) => `${e.type}:${e.collection}`), ['modifier:projets_taches', 'creer:crm_evenements']);
+    assert.deepEqual(plan.ecritures[0].patch, { fait: true, dateFait: c().maintenant });
+    const ev = plan.ecritures[1].donnees;
+    assert.deepEqual([ev.type, ev.texte, ev.projetId, ev.affaireId, ev.personneId], ['tache_faite', 'Tâche faite : Écrire le rapport', 'pr1', 'a1', 'p1']);
+    assert.deepEqual(P.planTacheFaite({ tache: tache({ fait: true }), projet: p }, c()).ecritures, []);
+    assert.deepEqual(P.planTacheNonFaite({ tache: tache({ fait: true, dateFait: new Date() }) }).ecritures[0].patch, { fait: false, dateFait: null });
+    assert.deepEqual(P.planTacheNonFaite({ tache: tache() }).ecritures, []);
+  });
+  test('B29 supprimer une tâche : une seule suppression', () => {
+    assert.deepEqual(P.planSupprimerTache('t1').ecritures.map((e) => `${e.type}:${e.collection}/${e.id}`), ['supprimer:projets_taches/t1']);
+  });
+  test('B29 monter ou descendre : la phase est remise en ordre 1, 2, 3 et seules les tâches qui changent de place sont écrites ; au bord, rien', () => {
+    const taches = [tache({ id: 'a', ordre: 1 }), tache({ id: 'b', ordre: 2 }), tache({ id: 'c', ordre: 3 }), tache({ id: 'd', phase: 'lancement', ordre: 1 })];
+    const monte = P.planDeplacerTache({ tache: taches[2], taches, sens: -1 });
+    assert.deepEqual(monte.ecritures.map((e) => [e.id, e.patch.ordre]).sort(), [['b', 3], ['c', 2]]);
+    assert.deepEqual(P.planDeplacerTache({ tache: taches[0], taches, sens: -1 }).ecritures, []);
+    assert.deepEqual(P.planDeplacerTache({ tache: taches[2], taches, sens: 1 }).ecritures, []);
+    assert.deepEqual(P.planDeplacerTache({ tache: taches[3], taches, sens: 1 }).ecritures, [], 'la seule tâche de sa phase');
+    const trous = [tache({ id: 'a', ordre: 2 }), tache({ id: 'b', ordre: 2 }), tache({ id: 'c', ordre: 9 })];
+    const r = P.planDeplacerTache({ tache: trous[2], taches: trous, sens: -1 });
+    const apres = trous.map((t) => ({ ...t, ordre: r.ecritures.find((e) => e.id === t.id)?.patch.ordre ?? t.ordre }));
+    assert.deepEqual(P.tachesDuProjet(apres, 'pr1').map((t) => t.id).sort(), ['a', 'b', 'c']);
+    assert.equal(new Set(apres.map((t) => t.ordre)).size, 3, 'des places toutes différentes après le déplacement');
+  });
+  test('B29 tâches par phase : les quatre phases dans l’ordre, par ordre dans chaque phase, et le nombre de faites', () => {
+    const taches = [
+      tache({ id: 'a', phase: 'livraison', ordre: 2, fait: true }), tache({ id: 'b', phase: 'livraison', ordre: 1 }), tache({ id: 'c', phase: 'lancement', ordre: 1 }),
+      tache({ id: 'x', projetId: 'autre' }),
+    ];
+    const r = P.tachesParPhase(taches, 'pr1');
+    assert.deepEqual(r.map((g) => g.phase.id), ['lancement', 'decouverte', 'livraison', 'cloture']);
+    assert.deepEqual(r.map((g) => g.taches.map((t) => t.id)), [['c'], [], ['b', 'a'], []]);
+    assert.deepEqual(r.map((g) => g.faites), [0, 0, 1, 0]);
+    assert.deepEqual(P.tachesDuProjet(taches, 'pr1').map((t) => t.id), ['c', 'b', 'a']);
+    assert.deepEqual(P.progressionProjet(P.tachesDuProjet(taches, 'pr1')), { faites: 1, total: 3, ratio: 1 / 3 });
+  });
+  test('B29 Accueil : tâches datées, non faites, de projets vivants ; en retard et du jour, par date et heure, avec leur projet', () => {
+    const projets = [projet({ id: 'pr1' }), projet({ id: 'pause', statut: 'en_pause' }), projet({ id: 'fini', statut: 'termine', archive: true }), projet({ id: 'rangé', archive: true })];
+    const t = (id, projetId, date, extra = {}) => tache({ id, projetId, date, ...extra });
+    const taches = [
+      t('r2', 'pr1', '2026-10-10'), t('r1', 'pr1', '2026-10-01'), t('j2', 'pr1', '2026-10-15', { heure: '15:00' }), t('j1', 'pr1', '2026-10-15', { heure: '09:00' }),
+      t('futur', 'pr1', '2026-10-16'), t('sans', 'pr1', null), t('faite', 'pr1', '2026-10-01', { fait: true }),
+      t('p', 'pause', '2026-10-01'), t('f', 'fini', '2026-10-01'), t('a', 'rangé', '2026-10-01'), t('orpheline', 'disparu', '2026-10-01'),
+    ];
+    const r = P.tachesPointsCles(taches, projets, '2026-10-15');
+    assert.deepEqual(r.enRetard.map((x) => x.id), ['r1', 'r2']);
+    assert.deepEqual(r.aujourdhui.map((x) => x.id), ['j1', 'j2']);
+    assert.equal(r.enRetard[0].projet.id, 'pr1');
+    assert.deepEqual(P.tachesPointsCles(undefined, undefined, '2026-10-15'), { enRetard: [], aujourdhui: [] });
+  });
+  test('B29 le retard d’un projet suit ses tâches (pastille rouge) et le filtre « en retard » aussi', () => {
+    const p = projet({ id: 'pr1' });
+    const taches = [tache({ date: '2026-10-01' })];
+    assert.equal(P.pastilleProjet(p, taches, '2026-10-15'), 'rouge');
+    assert.deepEqual(P.filtrerProjets([p], { enRetard: true }, { taches, aujourdhui: '2026-10-15' }).map((x) => x.id), ['pr1']);
+    assert.deepEqual(P.filtrerProjets([p], { enRetard: true }, { taches: [tache({ date: '2026-10-20' })], aujourdhui: '2026-10-15' }), []);
+  });
+  test('B29 supprimer le projet supprime ses tâches (celles qu’on lui passe)', () => {
+    const plan = P.planSupprimerProjet({ projet: projet({ id: 'pr1' }), taches: [tache({ id: 't1' }), tache({ id: 't2', projetId: 'autre' })] });
+    assert.deepEqual(plan.ecritures.map((e) => `${e.type}:${e.collection}/${e.id}`), ['supprimer:projets_taches/t1', 'supprimer:projets_projets/pr1']);
+  });
+});

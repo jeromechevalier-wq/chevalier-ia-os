@@ -19,3 +19,21 @@ export function carteProjetMini(projet) {
     h('span', { class: 'carte-affaire-meta' }, etat, projet.nature === 'extraction' ? ' · Extraction' : '', projet.archive ? ' · Archivé' : ''),
     barrePhases(projet));
 }
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+/**
+ * Cercle d'avancement : tâches faites sur tâches du projet. Renvoie null quand le projet n'a aucune tâche (rien à mesurer).
+ * `progression` : { faites, total, ratio } (voir progressionProjet).
+ */
+export function anneauProgression({ faites, total, ratio }, { taille = 22 } = {}) {
+  if (!total) return null;
+  const rayon = 9;
+  const circonference = 2 * Math.PI * rayon;
+  const tpl = document.createElement('template');
+  tpl.innerHTML = `<svg xmlns="${SVG_NS}" width="${taille}" height="${taille}" viewBox="0 0 24 24" fill="none" stroke-width="3" aria-hidden="true">`
+    + `<circle cx="12" cy="12" r="${rayon}" stroke="var(--barre-fond)"/>`
+    + `<circle cx="12" cy="12" r="${rayon}" stroke="var(--succes)" stroke-linecap="round" stroke-dasharray="${(circonference * ratio).toFixed(2)} ${circonference.toFixed(2)}" transform="rotate(-90 12 12)"/></svg>`;
+  const libelle = `${faites} tâche${faites > 1 ? 's' : ''} faite${faites > 1 ? 's' : ''} sur ${total}`;
+  return h('span', { class: 'anneau-progression', role: 'img', 'aria-label': libelle, title: libelle, dataset: { faites: String(faites), total: String(total) } }, tpl.content.firstElementChild);
+}

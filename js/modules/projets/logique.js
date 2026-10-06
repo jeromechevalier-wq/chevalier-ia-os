@@ -5,7 +5,7 @@
 // et le même audit s'appliquent.
 import {
   COLLECTIONS_PLAN, MARQUES_CREATION, MARQUES_MODIFICATION,
-  ecritureCreer, ecritureSupprimer, evenements, modifierSiPatch, evenementCreation,
+  ecritureCreer, ecritureModifier, ecritureSupprimer, evenements, modifierSiPatch, evenementCreation,
   nettoyerEspaces, aujourdhuiParis, validerUrlGithub, validerUrlDossier, urlOuVide, normaliser,
 } from '../crm/logique.js';
 
@@ -34,6 +34,13 @@ export const NATURES_PROJET = [
   { id: 'livraison', libelle: 'Livraison' },
   { id: 'extraction', libelle: 'Extraction de valeur' },
 ];
+
+/** À qui est confiée une tâche (le champ est prêt pour « tâches confiées à Charles »). */
+export const ASSIGNES = [
+  { id: 'jerome', libelle: 'Jérôme' },
+  { id: 'charles', libelle: 'Charles' },
+];
+export const libelleAssigne = (id) => ASSIGNES.find((a) => a.id === id)?.libelle ?? id ?? '';
 
 export const libellePhase = (id) => PHASES.find((p) => p.id === id)?.libelle ?? id ?? '';
 export const couleurPhase = (id) => PHASES.find((p) => p.id === id)?.couleur ?? '#8d8993';
@@ -181,6 +188,128 @@ export function pastilleProjet(projet, taches = [], aujourdhui) {
   if (!estProjetActif(projet)) return 'grise';
   if (estProjetEnRetard(projet, taches, aujourdhui)) return 'rouge';
   return taches.some((t) => !t.fait) ? 'verte' : 'grise';
+}
+
+// ---------------------------------------------------------------- tâches d'un projet (collection projets_taches)
+// Une tâche appartient à un projet et à une phase ; `ordre` la place dans sa phase. Les tâches datées et non faites d'un projet vivant remontent
+// dans « En retard » et « Aujourd'hui » de l'Accueil (collection séparée des activités du CRM, une seule liste du matin).
+
+const estHeure = (v) => /^([01]\d|2[0-3]):[0-5]\d$/.test(v || '');
+
+/** Titre obligatoire ; date « AAAA-MM-JJ » et heure « HH:MM » facultatives ; phase et assigné parmi les valeurs connues. */
+export function validerTache(v = {}) {
+  const erreurs = {};
+  if (!nettoyerEspaces(v.titre)) erreurs.titre = 'Le titre est obligatoire.';
+  if (v.phase && !PHASES.some((p) => p.id === v.phase)) erreurs.phase = 'Phase inconnue.';
+  if (v.date && !estJour(v.date)) erreurs.date = 'La date doit être au format AAAA-MM-JJ.';
+  if (v.heure && !estHeure(v.heure)) erreurs.heure = 'L’heure doit être au format HH:MM.';
+  if (v.assigneA && !ASSIGNES.some((a) => a.id === v.assigneA)) erreurs.assigneA = 'Personne inconnue.';
+  return erreurs;
+}
+
+/** Les tâches d'un projet par ordre d'affichage : phase (dans l'ordre des phases), puis `ordre`, puis titre. */
+export function tachesDuProjet(taches, projetId) {
+  const rang = (t) => PHASES.findIndex((p) => p.id === t.phase);
+  return (taches || []).filter((t) => t.projetId === projetId)
+    .sort((a, b) => rang(a) - rang(b) || (a.ordre ?? 0) - (b.ordre ?? 0) || normaliser(a.titre).localeCompare(normaliser(b.titre)));
+}
+
+/** Les quatre phases avec leurs tâches (une phase sans tâche a une liste vide) : [{ phase, taches, faites }]. */
+export function tachesParPhase(taches, projetId) {
+  const siennes = tachesDuProjet(taches, projetId);
+  return PHASES.map((phase) => {
+    const liste = siennes.filter((t) => t.phase === phase.id);
+    return { phase, taches: liste, faites: liste.filter((t) => t.fait).length };
+  });
+}
+
+/** Document d'une nouvelle tâche. `ordre` : sa place dans la phase (le plan le calcule). */
+export function nouvelleTache(valeurs, ctx) {
+  return {
+    titre: nettoyerEspaces(valeurs.titre),
+    projetId: valeurs.projetId,
+    phase: PHASES.some((p) => p.id === valeurs.phase) ? valeurs.phase : PHASE_DEPART,
+    ordre: valeurs.ordre ?? 1,
+    date: estJour(valeurs.date) ? valeurs.date : null,
+    heure: estHeure(valeurs.heure) ? valeurs.heure : '',
+    fait: false,
+    dateFait: null,
+    assigneA: ASSIGNES.some((a) => a.id === valeurs.assigneA) ? valeurs.assigneA : 'jerome',
+    auteur: ctx.auteur ?? '',
+  };
+}
+
+const prochainOrdre = (taches, projetId, phase) => 1 + Math.max(0, ...(taches || []).filter((t) => t.projetId === projetId && t.phase === phase).map((t) => t.ordre ?? 0));
+
+/** Crée une tâche à la fin de sa phase. `valeurs.phase` : la phase du projet par défaut (c'est l'écran qui la donne). Refus : { erreurs, ecritures: [] }. */
+export function planCreerTache({ projet, taches = [], valeurs }, ctx) {
+  const phase = PHASES.some((p) => p.id === valeurs.phase) ? valeurs.phase : (projet.phase || PHASE_DEPART);
+  const complet = { ...valeurs, phase, projetId: projet.id };
+  const erreurs = validerTache(complet);
+  if (Object.keys(erreurs).length) return { erreurs, ecritures: [] };
+  const id = ctx.nouvelId(C.projetsTaches);
+  return {
+    erreurs: {},
+    id,
+    ecritures: [ecritureCreer(C.projetsTaches, id, nouvelleTache({ ...complet, ordre: prochainOrdre(taches, projet.id, phase) }, ctx), { horodater: ['creeLe'] })],
+  };
+}
+
+/**
+ * Modifie une tâche (titre, date, heure, assigné, phase). Changer de phase la place à la fin de la nouvelle phase.
+ * `patch` vide : rien à écrire. Refus : { erreurs, ecritures: [] }.
+ */
+export function planMajTache({ tache, patch, taches = [] }) {
+  const erreurs = validerTache({ titre: tache.titre, ...patch });
+  if (Object.keys(erreurs).length) return { erreurs, ecritures: [] };
+  const net = { ...patch };
+  if (net.titre !== undefined) net.titre = nettoyerEspaces(net.titre);
+  if (net.date === '') net.date = null;
+  if (net.phase && net.phase !== tache.phase) net.ordre = prochainOrdre(taches, tache.projetId, net.phase);
+  const changes = Object.fromEntries(Object.entries(net).filter(([k, v]) => v !== tache[k]));
+  return { erreurs: {}, patch: changes, ecritures: modifierSiPatch(C.projetsTaches, tache.id, changes) };
+}
+
+/** Coche une tâche : « fait » et sa date, avec un événement dans le fil du projet. Déjà faite : rien. */
+export function planTacheFaite({ tache, projet = null }, ctx) {
+  if (tache.fait) return { ecritures: [] };
+  return {
+    ecritures: [
+      ...modifierSiPatch(C.projetsTaches, tache.id, { fait: true, dateFait: ctx.maintenant }),
+      ...(projet ? evenements([evenementProjet('tache_faite', `Tâche faite : ${tache.titre}`, projet, ctx)], ctx) : []),
+    ],
+  };
+}
+
+/** Décoche une tâche (elle redevient à faire). */
+export const planTacheNonFaite = ({ tache }) => ({ ecritures: tache.fait ? modifierSiPatch(C.projetsTaches, tache.id, { fait: false, dateFait: null }) : [] });
+
+export const planSupprimerTache = (id) => ({ ecritures: [ecritureSupprimer(C.projetsTaches, id)] });
+
+/**
+ * Monte (`sens` = -1) ou descend (+1) une tâche dans sa phase : les tâches de la phase sont remises en ordre 1, 2, 3… et seules celles
+ * dont la place change sont écrites. Au bord de la liste : rien.
+ */
+export function planDeplacerTache({ tache, taches = [], sens }) {
+  const liste = tachesDuProjet(taches, tache.projetId).filter((t) => t.phase === tache.phase);
+  const i = liste.findIndex((t) => t.id === tache.id);
+  const j = i + sens;
+  if (i < 0 || j < 0 || j >= liste.length) return { ecritures: [] };
+  [liste[i], liste[j]] = [liste[j], liste[i]];
+  return { ecritures: liste.flatMap((t, k) => (t.ordre === k + 1 ? [] : [ecritureModifier(C.projetsTaches, t.id, { ordre: k + 1 })])) };
+}
+
+/**
+ * Tâches à montrer dans les Points clés de l'Accueil : non faites, datées, d'un projet vivant (ni en pause, ni terminé, ni archivé).
+ * { enRetard, aujourdhui } triés par date puis heure ; chaque tâche est rendue avec son projet : { ...tache, projet }.
+ */
+export function tachesPointsCles(taches, projets, aujourdhui) {
+  const vivants = new Map((projets || []).filter(estProjetActif).map((p) => [p.id, p]));
+  const cle = (t) => `${t.date}T${t.heure || '00:00'}`;
+  const ouvertes = (taches || []).filter((t) => !t.fait && t.date && vivants.has(t.projetId))
+    .map((t) => ({ ...t, projet: vivants.get(t.projetId) }))
+    .sort((a, b) => cle(a).localeCompare(cle(b)));
+  return { enRetard: ouvertes.filter((t) => t.date < aujourdhui), aujourdhui: ouvertes.filter((t) => t.date === aujourdhui) };
 }
 
 // ---------------------------------------------------------------- liens

@@ -12,3 +12,17 @@
 
 .ligne-boutons { display: flex; gap: 8px; flex-wrap: wrap; }
 .fil-note-affaire { opacity: .85; }
+
+/* Avancement et tâches */
+.anneau-progression { display: inline-flex; align-items: center; }
+.carte-projet .anneau-progression { margin-left: 2px; }
+.ajout-tache { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: start; }
+.ajout-tache .champ { min-width: 0; }
+.ajout-tache .selecteur-date, .ajout-tache button[data-action="ajouter-tache"] { grid-column: 1 / -1; }
+.ajout-tache button[data-action="ajouter-tache"] { justify-self: start; }
+.groupe-taches .sous-titre { display: flex; align-items: center; gap: 8px; margin: 12px 0 6px; }
+.groupe-taches .compteur { color: var(--texte2); font-size: 12px; font-weight: 600; }
+.case-fait.faite { border-color: var(--succes); background: #6ddba02e; color: var(--succes); }
+.tache-faite .tache-titre { text-decoration: line-through; color: var(--texte2); }
+.badge-assigne { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 999px; background: var(--survol); font-size: 12px; font-weight: 600; }
+.avancement { display: inline-flex; align-items: center; gap: 8px; }

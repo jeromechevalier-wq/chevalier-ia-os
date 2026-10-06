@@ -128,6 +128,15 @@ export async function creerProjet(id, valeurs = {}) {
   return doc;
 }
 
+export async function creerTacheProjet(id, valeurs = {}) {
+  const doc = {
+    titre: 'Tâche test', projetId: 'pr1', phase: 'lancement', ordre: 1, date: null, heure: '', fait: false, dateFait: null, assigneA: 'jerome',
+    auteur: JEROME, creeLe: new Date(), ...valeurs,
+  };
+  await ecrireDocument(`projets_taches/${id}`, doc);
+  return doc;
+}
+
 export async function creerActivite(id, valeurs = {}) {
   const doc = {
     type: 'tache', titre: 'Activité test', date: jour(0), heure: '', fait: false, dateFait: null,
