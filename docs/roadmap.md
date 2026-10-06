@@ -1,6 +1,6 @@
 # Roadmap
 
-Tenue à jour à chaque discussion sur l'évolution de l'appli. Dernière mise à jour : 03/10/2026, après la validation en réel de l'étape 4 du serveur MCP (`plan-mcp.md`, `mcp-etape-4.md`).
+Tenue à jour à chaque discussion sur l'évolution de l'appli. Dernière mise à jour : 06/10/2026 (projet d'extraction de valeur tracé) ; avant : 03/10/2026, après la validation en réel de l'étape 4 du serveur MCP (`plan-mcp.md`, `mcp-etape-4.md`).
 
 Légende : **décidé** = validé par Jérôme ; **piste** = à trancher avant le cahier des charges.
 
@@ -59,7 +59,8 @@ La fonction écrite dans la branche `mcp` (commit de code `24a8e96`) est **repri
 ## Version 2.1
 
 ### Déjà prévu
-- Écran Projets (Kanban de phases, lien `projetId` depuis une affaire gagnée).
+- Écran Projets (Kanban de phases, lien `projetId` depuis une affaire gagnée). **Cadrage du 03/10/2026 : `cadrage-projets.md`** (brouillon, repris de la branche `mcp` le 06/10/2026 ; décisions de Jérôme du 03/10/2026 : projets en données séparées, phases fixes en 2.1, construction après l'extraction de logique du chantier MCP, qui est faite).
+- **Projet d'extraction de valeur (vision de Jérôme, 03/10/2026) : pas encore construit** (rien dans le code de `main`, vérifié le 06/10/2026). Extraire un maximum de valeur de chaque affaire et de chaque projet, gagnés ou perdus : règles, erreurs, ce qui est automatisable, documentation marketing (le point le plus important). **Décidé** : une affaire qui passe en **Gagné ou Perdu**, et un projet qui se **termine**, créent **automatiquement** un projet d'extraction (champ `nature`, modèle « Extraction » à quatre tâches) ; jamais de boucle ; un seul par source ; l'extraction réutilise le dossier et le dépôt de sa source ; pour une affaire perdue, la raison de la perte est reprise. Dépend de l'écran Projets. Détail : `cadrage-projets.md`, section « La vision de Jérôme ». Suivi : ticket GitHub n° 28 (« Projet d'extraction de valeur »).
 - Copie quotidienne vers Google Sheet par n8n.
 (voir `rapport-construction-v2.md`)
 
