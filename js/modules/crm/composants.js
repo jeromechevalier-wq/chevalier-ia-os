@@ -159,7 +159,8 @@ export function champPropriete({ libelle, valeur = '', type = 'texte', options =
         courant = type === 'nombre' ? (v === '' ? '' : Number(v)) : v;
       } catch (e) {
         console.warn(e);
-        toast("Enregistrement impossible", { type: 'erreur' });
+        // Une saisie refusée par une règle (erreur marquée `saisie`) montre son message ; la valeur affichée reste celle qui est enregistrée.
+        toast(e?.saisie ? e.message : "Enregistrement impossible", { type: 'erreur' });
       }
       afficher();
     };

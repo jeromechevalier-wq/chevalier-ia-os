@@ -360,3 +360,63 @@ describe('B25 Intégrité des liens : une fiche du CRM disparaît, ses projets r
     assert.equal(L.libelleDocumentJournal('projets_modeles'), 'modèle de projet');
   });
 });
+
+describe('B26 Projets : filtres et recherche de l’écran', () => {
+  const personnes = [{ id: 'p1', nom: 'Camille Durand' }, { id: 'p2', nom: 'Élodie Martin' }];
+  const organisations = [{ id: 'o1', nom: 'Atelier des Lilas' }];
+  const projets = [
+    projet({ id: 'a', titre: 'Audit Carrel', personneId: 'p1', organisationId: 'o1', phase: 'lancement' }),
+    projet({ id: 'b', titre: 'Accompagnement Martin', personneId: 'p2', phase: 'livraison', dateFin: '2026-10-01' }),
+    projet({ id: 'c', titre: 'Extraction Carrel', nature: 'extraction', phase: 'decouverte', statut: 'en_pause' }),
+    projet({ id: 'd', titre: 'Ancien chantier', phase: 'cloture', statut: 'termine', archive: true }),
+  ];
+  const ids = (liste) => liste.map((p) => p.id);
+  const contexte = { personnes, organisations, taches: [], aujourdhui: '2026-10-15' };
+
+  test('B26 critères : les clés manquantes sont vides ; les filtres posés sont comptés, pas la recherche', () => {
+    assert.deepEqual(P.criteresProjetsComplets(), { recherche: '', phases: [], statuts: [], natures: [], enRetard: false });
+    assert.equal(P.filtresProjetsActifs({ recherche: 'x' }), 0);
+    assert.equal(P.filtresProjetsActifs({ phases: ['lancement', 'livraison'], enRetard: true }), 2, 'un groupe de cases compte pour un filtre');
+    assert.deepEqual(P.CRITERES_PROJETS_VIDES, P.criteresProjetsComplets({}));
+  });
+  test('B26 sans critère : les projets du tableau (non archivés) ; avec archives : les archivés', () => {
+    assert.deepEqual(ids(P.filtrerProjets(projets, {}, contexte)), ['a', 'b', 'c']);
+    assert.deepEqual(ids(P.filtrerProjets(projets, {}, { ...contexte, archives: true })), ['d']);
+  });
+  test('B26 phase, statut et nature se combinent (et)', () => {
+    assert.deepEqual(ids(P.filtrerProjets(projets, { phases: ['lancement', 'livraison'] }, contexte)), ['a', 'b']);
+    assert.deepEqual(ids(P.filtrerProjets(projets, { statuts: ['en_pause'] }, contexte)), ['c']);
+    assert.deepEqual(ids(P.filtrerProjets(projets, { natures: ['extraction'] }, contexte)), ['c']);
+    assert.deepEqual(ids(P.filtrerProjets(projets, { natures: ['livraison'], phases: ['livraison'] }, contexte)), ['b']);
+    assert.deepEqual(ids(P.filtrerProjets(projets, { natures: ['extraction'], phases: ['livraison'] }, contexte)), []);
+  });
+  test('B26 un projet sans nature (document ancien) compte comme une livraison', () => {
+    const sans = [{ ...projet({ id: 'z' }), nature: undefined }];
+    assert.deepEqual(ids(P.filtrerProjets(sans, { natures: ['livraison'] }, contexte)), ['z']);
+  });
+  test('B26 en retard : fin dépassée ou tâche en retard ; jamais un projet en pause ou terminé', () => {
+    assert.deepEqual(ids(P.filtrerProjets(projets, { enRetard: true }, contexte)), ['b']);
+    const avecTache = { ...contexte, taches: [{ projetId: 'a', fait: false, date: '2026-10-02' }, { projetId: 'c', fait: false, date: '2026-10-02' }] };
+    assert.deepEqual(ids(P.filtrerProjets(projets, { enRetard: true }, avecTache)), ['a', 'b'], 'c est en pause : jamais en retard');
+  });
+  test('B26 recherche : titre, personne, organisation, sans accents ni casse, tous les mots', () => {
+    assert.deepEqual(ids(P.filtrerProjets(projets, { recherche: 'carrel' }, contexte)), ['a', 'c']);
+    assert.deepEqual(ids(P.filtrerProjets(projets, { recherche: 'ELODIE' }, contexte)), ['b'], 'la personne, sans accent');
+    assert.deepEqual(ids(P.filtrerProjets(projets, { recherche: 'lilas audit' }, contexte)), ['a'], 'organisation et titre ensemble');
+    assert.deepEqual(ids(P.filtrerProjets(projets, { recherche: 'carrel martin' }, contexte)), []);
+    assert.deepEqual(ids(P.filtrerProjets(projets, { recherche: '   ' }, contexte)), ['a', 'b', 'c']);
+  });
+  test('B26 le tableau : les projets d’une phase, sans les archivés', () => {
+    assert.deepEqual(ids(P.projetsDePhase(projets, 'livraison')), ['b']);
+    assert.deepEqual(ids(P.projetsDePhase(projets, 'cloture')), [], 'le projet terminé est archivé, il n’est plus dans le tableau');
+  });
+  test('B26 liens d’un projet : le projet et tout ce qu’il relie, pour ses notes et son fil', () => {
+    assert.deepEqual(P.liensProjet(projet({ id: 'pr1', affaireId: 'a1', personneId: 'p1', organisationId: 'o1' })), { personneId: 'p1', organisationId: 'o1', affaireId: 'a1', projetId: 'pr1' });
+    assert.deepEqual(P.liensProjet(projet({ id: 'pr2' })), { personneId: null, organisationId: null, affaireId: null, projetId: 'pr2' });
+  });
+  test('B26 une note de projet garde son projetId ; une note du CRM reste exactement comme avant (aucun champ en plus)', () => {
+    const c = ctx();
+    assert.equal(L.nouvelleNote('x', P.liensProjet(projet({ id: 'pr1', affaireId: 'a1' })), c).projetId, 'pr1');
+    assert.deepEqual(Object.keys(L.nouvelleNote('x', { affaireId: 'a1' }, c)).sort(), ['affaireId', 'auteur', 'organisationId', 'personneId', 'texte']);
+  });
+});

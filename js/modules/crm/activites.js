@@ -116,11 +116,12 @@ export function ligneActivite(a, aujourdhui, { avecAffaire = true, tousRattachem
 /**
  * Panneau complet. lien : { personneId } | { organisationId } | { affaireId } (filtre de la fiche).
  * liensCreation() : liens à poser sur ce qu'on crée (personneId, organisationId, affaireId).
+ * `avecActivites: false` (fiche projet : les tâches d'un projet viennent à l'étape 4) : ni onglet « Activité », ni Points clés, seulement les notes et l'historique.
  */
-export function panneauActivite({ lien, liensCreation }) {
+export function panneauActivite({ lien, liensCreation, avecActivites = true }) {
   let fil = { notes: [], evenements: [] };
   let filtre = 'tous';
-  let onglet = 'activite';
+  let onglet = avecActivites ? 'activite' : 'notes';
 
   const zonePointsCles = h('div', { class: 'points-cles' });
   const zoneHistorique = h('div', { class: 'historique' });
@@ -176,7 +177,7 @@ export function panneauActivite({ lien, liensCreation }) {
     }
     boutonNote.disabled = false;
   } }, 'Ajouter la note');
-  const panneauNoteSaisie = h('div', { class: 'compositeur-corps', role: 'tabpanel', 'aria-label': 'Notes', hidden: true }, champNote, h('div', { class: 'compositeur-actions' }, boutonNote));
+  const panneauNoteSaisie = h('div', { class: 'compositeur-corps', role: 'tabpanel', 'aria-label': 'Notes', hidden: avecActivites }, champNote, h('div', { class: 'compositeur-actions' }, boutonNote));
 
   const ongletActivite = h('button', { type: 'button', role: 'tab', class: 'onglet actif', 'aria-selected': 'true', onclick: () => choisirOnglet('activite') }, icone('calendar', { taille: 16 }), 'Activité');
   const ongletNotes = h('button', { type: 'button', role: 'tab', class: 'onglet', 'aria-selected': 'false', onclick: () => choisirOnglet('notes') }, icone('sticky-note', { taille: 16 }), 'Notes');
@@ -190,7 +191,12 @@ export function panneauActivite({ lien, liensCreation }) {
     panneauNoteSaisie.hidden = o !== 'notes';
     (o === 'activite' ? champTitre : champNote).focus();
   }
-  const compositeur = h('div', { class: 'compositeur' }, h('div', { class: 'onglets', role: 'tablist' }, ongletActivite, ongletNotes), panneauActiviteSaisie, panneauNoteSaisie);
+  if (!avecActivites) {
+    ongletNotes.classList.add('actif');
+    ongletNotes.setAttribute('aria-selected', 'true');
+    panneauActiviteSaisie.hidden = true;
+  }
+  const compositeur = h('div', { class: 'compositeur' }, h('div', { class: 'onglets', role: 'tablist' }, avecActivites ? ongletActivite : null, ongletNotes), panneauActiviteSaisie, panneauNoteSaisie);
 
   // ---- points clés et historique
   function rendrePointsCles() {
@@ -244,13 +250,13 @@ export function panneauActivite({ lien, liensCreation }) {
     return carte;
   }
 
-  racine.append(compositeur, zonePointsCles, zoneHistorique);
-  rendrePointsCles();
+  racine.append(...[compositeur, avecActivites ? zonePointsCles : null, zoneHistorique].filter(Boolean));
+  if (avecActivites) rendrePointsCles();
   rendreHistorique();
 
   const arretFil = D.ecouterFil(lien, (donnees) => { fil = donnees; rendreHistorique(); });
   const arretDonnees = D.surChangement(() => {
-    rendrePointsCles();
+    if (avecActivites) rendrePointsCles();
     // Pas de nouveau rendu pendant la modification d'une note (sinon le texte en cours serait perdu).
     if (!(document.activeElement?.tagName === 'TEXTAREA' && zoneHistorique.contains(document.activeElement))) rendreHistorique();
   });

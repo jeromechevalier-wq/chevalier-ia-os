@@ -20,4 +20,14 @@ export const MODULES = [
     //   actionsRapides: [{ libelle, icone, action }], rechercher(saisie) → { groupes } }
     monter: () => import('../modules/crm/index.js'),
   },
+  {
+    id: 'projets',
+    libelle: 'Projets',
+    icone: 'folder-kanban',
+    entrees: [
+      { chemin: 'projets/projets', libelle: 'Projets', icone: 'folder-kanban' },
+    ],
+    prefixe: 'projets',
+    monter: () => import('../modules/projets/index.js'),
+  },
 ];

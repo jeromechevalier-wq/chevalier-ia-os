@@ -1038,6 +1038,8 @@ export function nouvelleNote(texte, liens, ctx) {
     personneId: liens?.personneId ?? null,
     organisationId: liens?.organisationId ?? null,
     affaireId: liens?.affaireId ?? null,
+    // Une note de projet porte aussi son projet (le champ n'existe que sur ces notes : les autres restent comme avant).
+    ...(liens?.projetId ? { projetId: liens.projetId } : {}),
     auteur: ctx.auteur ?? '',
   };
 }

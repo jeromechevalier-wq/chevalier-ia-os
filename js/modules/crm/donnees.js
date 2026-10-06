@@ -16,8 +16,10 @@ const PARAMETRES_DEPART = {
   reglages: L.REGLAGES_DEPART,
 };
 
+// Les collections du module Projets sont dans la sauvegarde complète (l'export JSON), même si elles ne sont pas des collections du CRM.
 export const COLLECTIONS_CRM = [
   'crm_personnes', 'crm_organisations', 'crm_affaires', 'crm_activites', 'crm_notes', 'crm_evenements', 'crm_parametres',
+  'projets_projets', 'projets_taches', 'projets_modeles',
 ];
 
 export const etat = {
@@ -178,7 +180,7 @@ const ACTIONS_PAR_LOT = 130;
  * Exécute les écritures d'un plan. Chaque écriture laisse sa trace dans crm_audit (et sa copie dans crm_audit_avant) DANS LE MÊME LOT
  * que la donnée : jamais de modification sans trace, jamais de trace sans modification (un lot est atomique). `outil` nomme l'action.
  */
-async function executer(ecritures, outil = 'ecran') {
+export async function executer(ecritures, outil = 'ecran') {
   if (!ecritures.length) return;
   const avants = await lireAvants(ecritures);
   const audit = L.construireAudit(ecritures, avants, {

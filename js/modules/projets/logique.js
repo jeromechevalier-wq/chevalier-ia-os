@@ -6,7 +6,7 @@
 import {
   COLLECTIONS_PLAN, MARQUES_CREATION, MARQUES_MODIFICATION,
   ecritureCreer, ecritureSupprimer, evenements, modifierSiPatch, evenementCreation,
-  nettoyerEspaces, aujourdhuiParis, validerUrlGithub, validerUrlDossier, urlOuVide,
+  nettoyerEspaces, aujourdhuiParis, validerUrlGithub, validerUrlDossier, urlOuVide, normaliser,
 } from '../crm/logique.js';
 
 const C = COLLECTIONS_PLAN;
@@ -193,6 +193,62 @@ export function projetsLies(projets, lien) {
   const [cle, id] = Object.entries(lien)[0];
   return (projets || []).filter((p) => id && p[cle] === id);
 }
+
+/** Liens à poser sur un élément du fil (note, événement) rattaché à un projet : le projet et tout ce que le projet relie. */
+export function liensProjet(projet) {
+  return {
+    personneId: projet.personneId ?? null,
+    organisationId: projet.organisationId ?? null,
+    affaireId: projet.affaireId ?? null,
+    projetId: projet.id ?? null,
+  };
+}
+
+// ---------------------------------------------------------------- filtres (écran Projets)
+
+export const CRITERES_PROJETS_VIDES = Object.freeze({ recherche: '', phases: [], statuts: [], natures: [], enRetard: false });
+
+/** Critères complets : les clés manquantes reprennent leur valeur vide (comme `criteresComplets` du CRM). */
+export function criteresProjetsComplets(c = {}) {
+  return {
+    recherche: c.recherche ?? '',
+    phases: [...(c.phases ?? [])],
+    statuts: [...(c.statuts ?? [])],
+    natures: [...(c.natures ?? [])],
+    enRetard: !!c.enRetard,
+  };
+}
+
+/** Nombre de filtres posés (la recherche n'est pas un filtre : elle a son propre champ). */
+export function filtresProjetsActifs(c = {}) {
+  const k = criteresProjetsComplets(c);
+  return [k.phases.length, k.statuts.length, k.natures.length, k.enRetard ? 1 : 0].filter(Boolean).length;
+}
+
+/**
+ * Projets qui répondent aux critères. `archives` : false = ceux du tableau, true = les projets archivés (terminés ou rangés).
+ * La recherche (sans accents ni casse) porte sur le titre, la personne et l'organisation ; tous les mots doivent être trouvés.
+ * contexte : { personnes, organisations, taches, aujourdhui } (les tâches servent au retard).
+ */
+export function filtrerProjets(projets, criteres, { personnes = [], organisations = [], taches = [], aujourdhui, archives = false } = {}) {
+  const c = criteresProjetsComplets(criteres);
+  const mots = normaliser(c.recherche).split(/\s+/).filter(Boolean);
+  const nomPersonne = new Map(personnes.map((p) => [p.id, p.nom]));
+  const nomOrganisation = new Map(organisations.map((o) => [o.id, o.nom]));
+  return (projets || []).filter((p) => {
+    if (!!p.archive !== !!archives) return false;
+    if (c.phases.length && !c.phases.includes(p.phase)) return false;
+    if (c.statuts.length && !c.statuts.includes(p.statut)) return false;
+    if (c.natures.length && !c.natures.includes(p.nature || 'livraison')) return false;
+    if (c.enRetard && !estProjetEnRetard(p, taches.filter((t) => t.projetId === p.id), aujourdhui)) return false;
+    if (!mots.length) return true;
+    const foin = normaliser([p.titre, nomPersonne.get(p.personneId), nomOrganisation.get(p.organisationId)].filter(Boolean).join(' '));
+    return mots.every((m) => foin.includes(m));
+  });
+}
+
+/** Projets d'une phase dans le tableau (les projets archivés n'y sont pas). */
+export const projetsDePhase = (projets, phase) => (projets || []).filter((p) => p.phase === phase && !p.archive);
 
 // ---------------------------------------------------------------- plans d'écriture (écran ET, plus tard, serveur MCP)
 
