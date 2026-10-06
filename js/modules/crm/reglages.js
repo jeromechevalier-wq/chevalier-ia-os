@@ -51,7 +51,7 @@ export function rendreReglagesCrm(page) {
     await D.enregistrerListes({ sources: [...D.etat.sources, v] });
   }));
 
-  const sFiltres = section('reglages-filtres', 'Filtres enregistrés', 'bookmark', 'Crée un filtre depuis une liste (Personnes, Affaires) avec le bouton « Filtres enregistrés ».');
+  const sFiltres = section('reglages-filtres', 'Filtres enregistrés', 'bookmark', 'Crée un filtre depuis une liste (Personnes, Affaires, Projets) avec le bouton « Filtres enregistrés ».');
   const listeFiltres = h('div', { class: 'liste-reglages' });
   sFiltres.append(listeFiltres);
 
@@ -159,7 +159,7 @@ export function rendreReglagesCrm(page) {
 
   function ligneFiltre(f) {
     return h('div', { class: 'ligne-reglage', dataset: { filtre: f.id } },
-      h('span', { class: 'nom-filtre' }, icone('bookmark', { taille: 14 }), f.nom, h('span', { class: 'aide' }, ` · ${f.liste === 'personnes' ? 'Personnes' : f.liste === 'organisations' ? 'Organisations' : 'Affaires'}`)),
+      h('span', { class: 'nom-filtre' }, icone('bookmark', { taille: 14 }), f.nom, h('span', { class: 'aide' }, ` · ${{ personnes: 'Personnes', organisations: 'Organisations', projets: 'Projets' }[f.liste] ?? 'Affaires'}`)),
       h('div', { class: 'groupe-boutons' },
         h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', dataset: { action: 'renommer-filtre' }, onclick: async () => {
           const nom = await demanderTexte('Renommer le filtre', { libelle: 'Nom du filtre', valeur: f.nom });

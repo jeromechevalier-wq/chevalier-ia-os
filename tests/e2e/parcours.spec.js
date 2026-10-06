@@ -581,11 +581,11 @@ test('C16 raccourcis clavier : « / » cherche, « n » ouvre « Ajouter une per
   await expect(dialogue(page)).toHaveCount(0);
 });
 
-test('C16 le bouton « + » propose Personne, Organisation et Affaire', async ({ page }) => {
+test('C16 le bouton « + » propose Personne, Organisation, Affaire et Projet', async ({ page }) => {
   await connecter(page);
   const plus = page.locator(estTelephone(page) ? '.bouton-plus-mobile' : '.bouton-plus:not(.bouton-plus-mobile)');
   await plus.click();
-  await expect(page.locator('.menu-pop').getByRole('menuitem')).toHaveText(['Personne', 'Organisation', 'Affaire']);
+  await expect(page.locator('.menu-pop').getByRole('menuitem')).toHaveText(['Personne', 'Organisation', 'Affaire', 'Projet']);
   await page.locator('.menu-pop').getByRole('menuitem', { name: 'Organisation' }).click();
   await expect(dialogue(page)).toContainText('Ajouter une organisation');
   await page.keyboard.press('Escape');
@@ -698,7 +698,7 @@ test('C19 export : JSON complet de toutes les collections, CSV d’une liste ; l
   expect(telechargement.suggestedFilename()).toMatch(/^chevalier-ia-os-\d{4}-\d{2}-\d{2}\.json$/);
   const json = JSON.parse(await readFile(await telechargement.path(), 'utf8'));
   expect(json.version).toBe('2.0.0');
-  expect(Object.keys(json.collections).sort()).toEqual(['crm_activites', 'crm_affaires', 'crm_evenements', 'crm_notes', 'crm_organisations', 'crm_parametres', 'crm_personnes']);
+  expect(Object.keys(json.collections).sort()).toEqual(['crm_activites', 'crm_affaires', 'crm_evenements', 'crm_notes', 'crm_organisations', 'crm_parametres', 'crm_personnes', 'projets_modeles', 'projets_projets', 'projets_taches']);
   expect(json.collections.crm_personnes.map((p) => p.id).sort()).toEqual(['p1', 'p2']);
   expect(json.collections.crm_notes).toHaveLength(1);
   expect(json.collections.crm_affaires[0].id).toBe('a1');
@@ -1024,7 +1024,7 @@ test('C23 menu : replié par défaut, élargi au clic, état conservé ; sur 390
     await page.getByRole('button', { name: 'Élargir le menu' }).click();
     await expect(page.locator('.coquille')).toHaveAttribute('data-menu', 'elargi');
     await expect.poll(async () => Math.round((await menu.boundingBox()).width)).toBe(240);
-    for (const libelle of ['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Réglages']) await expect(menu.getByText(libelle, { exact: true })).toBeVisible();
+    for (const libelle of ['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Projets', 'Réglages']) await expect(menu.getByRole('link', { name: libelle, exact: true })).toBeVisible();
     await page.reload();
     await expect(page.locator('.coquille')).toHaveAttribute('data-menu', 'elargi');
     await page.getByRole('button', { name: 'Replier le menu' }).click();

@@ -115,6 +115,19 @@ export async function creerAffaire(id, valeurs = {}) {
   return doc;
 }
 
+export async function creerProjet(id, valeurs = {}) {
+  const maintenant = new Date();
+  const phase = valeurs.phase || 'lancement';
+  const doc = {
+    titre: 'Projet test', affaireId: null, personneId: null, organisationId: null, phase, statut: 'actif', dateDebut: jour(0), dateFin: null,
+    modeleId: null, offreId: null, dateEntreePhase: maintenant, datesPhases: { [phase]: maintenant }, documents: [], urlGithub: '', urlDossier: '',
+    nature: 'livraison', projetSourceId: null, archive: false,
+    proprietaire: JEROME, creeLe: maintenant, modifieLe: maintenant, creePar: JEROME, modifiePar: JEROME, ...valeurs,
+  };
+  await ecrireDocument(`projets_projets/${id}`, doc);
+  return doc;
+}
+
 export async function creerActivite(id, valeurs = {}) {
   const doc = {
     type: 'tache', titre: 'Activité test', date: jour(0), heure: '', fait: false, dateFait: null,
