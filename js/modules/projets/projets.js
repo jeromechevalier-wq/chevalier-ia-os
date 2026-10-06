@@ -1,6 +1,6 @@
 // Écran Projets : Kanban par phase, liste, archives, fenêtre « Ajouter un projet », filtres et menus d'actions.
 // Aucune règle métier ici : les règles sont dans logique.js (plans), exécutés par donnees.js.
-import { h, icone, remplir, dialogue, toast, ouvrirMenu, lirePreference, ecrirePreference } from '../../os/ui.js';
+import { h, icone, remplir, dialogue, demanderTexte, toast, ouvrirMenu, lirePreference, ecrirePreference } from '../../os/ui.js';
 import { naviguer } from '../../os/router.js';
 import * as CRM from '../crm/donnees.js';
 import * as L from '../crm/logique.js';
@@ -263,8 +263,21 @@ export function rendreProjets(conteneur) {
     const r = await ouvrirFenetreFiltres();
     if (r) majCriteres(r);
   } });
+  async function enregistrerFiltre() {
+    const nom = await demanderTexte('Enregistrer ce filtre', { libelle: 'Nom du filtre' });
+    if (!nom) return;
+    const r = P.nouveauFiltreProjets(nom, criteres, CRM.etat.filtres, L.idAleatoire().slice(0, 4));
+    if (r.erreurs.nom) { toast(r.erreurs.nom, { type: 'erreur' }); return; }
+    await CRM.enregistrerFiltres([...CRM.etat.filtres, r.filtre]);
+    toast('Filtre enregistré');
+  }
+  const boutonEnregistres = h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'filtres-enregistres', 'aria-label': 'Filtres enregistrés',
+    onclick: (e) => ouvrirMenu(e.currentTarget, [
+      ...P.filtresEnregistresProjets(CRM.etat.filtres).map((f) => ({ libelle: f.nom, icone: 'bookmark', action: () => majCriteres(f.criteres) })),
+      { libelle: 'Enregistrer ce filtre…', icone: 'bookmark-plus', desactive: !P.criteresProjetsActifs(criteres), action: enregistrerFiltre },
+    ]) }, icone('bookmark', { taille: 16 }));
   const zonePastilles = h('div', { class: 'pastilles-actives' });
-  zoneFiltres.append(h('div', { class: 'barre-filtres-ligne' }, h('div', { class: 'champ-avec-icone' }, icone('search', { taille: 16 }), champRecherche), boutonFiltres), zonePastilles);
+  zoneFiltres.append(h('div', { class: 'barre-filtres-ligne' }, h('div', { class: 'champ-avec-icone' }, icone('search', { taille: 16 }), champRecherche), boutonFiltres, boutonEnregistres), zonePastilles);
 
   function majFiltres() {
     const actifs = pastillesFiltres();

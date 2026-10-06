@@ -420,3 +420,36 @@ describe('B26 Projets : filtres et recherche de l’écran', () => {
     assert.deepEqual(Object.keys(L.nouvelleNote('x', { affaireId: 'a1' }, c)).sort(), ['affaireId', 'auteur', 'organisationId', 'personneId', 'texte']);
   });
 });
+
+describe('B27 Projets : filtres enregistrés', () => {
+  test('B27 il y a quelque chose à enregistrer dès qu’il y a une recherche ou un filtre', () => {
+    assert.equal(P.criteresProjetsActifs({}), false);
+    assert.equal(P.criteresProjetsActifs({ recherche: '   ' }), false);
+    assert.equal(P.criteresProjetsActifs({ recherche: 'carrel' }), true);
+    assert.equal(P.criteresProjetsActifs({ enRetard: true }), true);
+    assert.equal(P.criteresProjetsActifs({ phases: ['livraison'] }), true);
+  });
+  test('B27 seuls les filtres de projets sont retenus ; ceux du CRM (sans `liste` = affaires) restent à part', () => {
+    const filtres = [{ id: 'a', liste: 'affaires' }, { id: 'b', liste: 'projets' }, { id: 'c' }, { id: 'd', liste: 'personnes' }];
+    assert.deepEqual(P.filtresEnregistresProjets(filtres).map((f) => f.id), ['b']);
+    assert.deepEqual(P.filtresEnregistresProjets(), []);
+  });
+  test('B27 nouveau filtre : nom nettoyé, liste « projets », critères complets, identifiant propre, rang à la suite', () => {
+    const existants = [{ id: 'x', nom: 'Chaudes', liste: 'affaires', ordre: 1 }];
+    const r = P.nouveauFiltreProjets('  Projets   en retard ', { enRetard: true, phases: ['livraison'] }, existants, 'ab12');
+    assert.deepEqual(r.erreurs, {});
+    assert.deepEqual(r.filtre, { id: 'projets_en_retard_ab12', nom: 'Projets en retard', liste: 'projets', criteres: { recherche: '', phases: ['livraison'], statuts: [], natures: [], enRetard: true }, ordre: 2 });
+  });
+  test('B27 nom vide ou déjà pris par un filtre de projets : refusé ; le même nom chez les affaires ne gêne pas', () => {
+    const existants = [{ id: 'x', nom: 'Chaudes', liste: 'affaires' }, { id: 'y', nom: 'Extractions', liste: 'projets' }];
+    assert.deepEqual(P.nouveauFiltreProjets('  ', {}, existants, 'z').erreurs, { nom: 'Le nom du filtre est obligatoire.' });
+    assert.deepEqual(P.nouveauFiltreProjets('extractions', {}, existants, 'z').erreurs, { nom: 'Un filtre porte déjà ce nom.' });
+    assert.equal(P.nouveauFiltreProjets('Chaudes', {}, existants, 'z').erreurs.nom, undefined);
+  });
+  test('B27 un filtre enregistré se réapplique tel quel (critères complets, même résultat)', () => {
+    const projets = [projet({ id: 'a', phase: 'livraison', dateFin: '2026-10-01' }), projet({ id: 'b', phase: 'lancement' })];
+    const { filtre } = P.nouveauFiltreProjets('En retard', { enRetard: true }, [], 'k');
+    const contexte = { aujourdhui: '2026-10-15' };
+    assert.deepEqual(P.filtrerProjets(projets, filtre.criteres, contexte).map((p) => p.id), ['a']);
+  });
+});

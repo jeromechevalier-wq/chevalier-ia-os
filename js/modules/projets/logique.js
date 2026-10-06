@@ -219,6 +219,24 @@ export function criteresProjetsComplets(c = {}) {
   };
 }
 
+/** Vrai quand il y a quelque chose à enregistrer : une recherche ou au moins un filtre. */
+export const criteresProjetsActifs = (c = {}) => !!nettoyerEspaces(c.recherche) || filtresProjetsActifs(c) > 0;
+
+/** Les filtres enregistrés qui concernent les projets (ils vivent avec ceux du CRM, dans crm_parametres/filtres, avec `liste: 'projets'`). */
+export const filtresEnregistresProjets = (filtres = []) => filtres.filter((f) => f.liste === 'projets');
+
+/**
+ * Nouveau filtre enregistré : { id, nom, liste: 'projets', criteres, ordre }. `suffixe` rend l'identifiant unique (4 caractères au hasard).
+ * Refus (`erreurs.nom`) si le nom est vide ou déjà pris par un autre filtre de projets.
+ */
+export function nouveauFiltreProjets(nom, criteres, filtres = [], suffixe = '') {
+  const n = nettoyerEspaces(nom);
+  if (!n) return { erreurs: { nom: 'Le nom du filtre est obligatoire.' }, filtre: null };
+  if (filtresEnregistresProjets(filtres).some((f) => normaliser(f.nom) === normaliser(n))) return { erreurs: { nom: 'Un filtre porte déjà ce nom.' }, filtre: null };
+  const id = `${normaliser(n).replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'filtre'}_${suffixe}`;
+  return { erreurs: {}, filtre: { id, nom: n, liste: 'projets', criteres: criteresProjetsComplets(criteres), ordre: filtres.length + 1 } };
+}
+
 /** Nombre de filtres posés (la recherche n'est pas un filtre : elle a son propre champ). */
 export function filtresProjetsActifs(c = {}) {
   const k = criteresProjetsComplets(c);

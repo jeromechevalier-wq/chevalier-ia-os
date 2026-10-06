@@ -308,6 +308,69 @@ test('C29 liste, filtres, recherche et recherche globale', async ({ page }) => {
   await expect(globaleListe.locator('.suggestion')).toHaveCount(0);
 });
 
+test('C29 filtres enregistrés : enregistrer, effacer puis réappliquer, renommer et supprimer dans les Réglages ; ils ne paraissent pas dans les Affaires', async ({ page }) => {
+  await creerProjet('pr1', { titre: 'Audit Carrel', phase: 'lancement' });
+  await creerProjet('pr2', { titre: 'Accompagnement Martin', phase: 'livraison', dateFin: jour(-3) });
+  await creerProjet('pr3', { titre: 'Extraction Carrel', phase: 'decouverte', nature: 'extraction' });
+  await connecter(page);
+  await allerA(page, 'Projets');
+  await expect(page.locator('.carte-projet')).toHaveCount(3);
+  // rien à enregistrer tant qu'aucun filtre n'est posé
+  await page.locator('[data-action="filtres-enregistres"]').click();
+  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Enregistrer ce filtre…' })).toBeDisabled();
+  await page.keyboard.press('Escape');
+  // poser deux filtres puis les enregistrer
+  await page.locator('[data-action="filtres"]').click();
+  await dialogue(page).getByLabel('Extraction de valeur').check();
+  await dialogue(page).getByLabel('Découverte').check();
+  await dialogue(page).getByRole('button', { name: 'Appliquer' }).click();
+  await expect(page.locator('.carte-projet')).toHaveCount(1);
+  await page.locator('[data-action="filtres-enregistres"]').click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Enregistrer ce filtre…' }).click();
+  await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(dialogue(page)).toHaveCount(0);
+  expect((await lireDocument('crm_parametres/filtres')).items.filter((f) => f.liste === 'projets')).toHaveLength(0);
+  await page.locator('[data-action="filtres-enregistres"]').click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Enregistrer ce filtre…' }).click();
+  await dialogue(page).getByLabel('Nom du filtre').fill('Extractions à explorer');
+  await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
+  await expect.poll(async () => ((await lireDocument('crm_parametres/filtres'))?.items ?? []).some((f) => f.nom === 'Extractions à explorer' && f.liste === 'projets')).toBe(true);
+  // un nom déjà pris est refusé
+  await page.locator('[data-action="filtres-enregistres"]').click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Enregistrer ce filtre…' }).click();
+  await dialogue(page).getByLabel('Nom du filtre').fill('extractions à explorer');
+  await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(page.locator('.toast', { hasText: 'Un filtre porte déjà ce nom.' })).toBeVisible();
+  expect(((await lireDocument('crm_parametres/filtres')).items).filter((f) => f.liste === 'projets')).toHaveLength(1);
+  // effacer puis réappliquer
+  await page.getByRole('button', { name: 'Tout effacer' }).click();
+  await expect(page.locator('.carte-projet')).toHaveCount(3);
+  await page.locator('[data-action="filtres-enregistres"]').click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Extractions à explorer' }).click();
+  await expect(page.locator('.carte-projet')).toHaveCount(1);
+  await expect(page.locator('.carte-projet[data-projet="pr3"]')).toBeVisible();
+  await expect(page.locator('.pastille-filtre')).toHaveCount(2);
+  // les filtres du CRM ne sont pas proposés ici, et celui-ci n'est pas proposé dans les Affaires
+  await page.locator('[data-action="filtres-enregistres"]').click();
+  await expect(page.locator('.menu-pop').getByRole('menuitem')).toHaveText(['Extractions à explorer', 'Enregistrer ce filtre…']);
+  await page.keyboard.press('Escape');
+  await allerA(page, 'Affaires');
+  await page.locator('[data-action="filtres-enregistres"]').click();
+  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Extractions à explorer' })).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  // Réglages : renommer puis supprimer
+  await allerA(page, 'Réglages');
+  const ligne = page.locator('.ligne-reglage', { hasText: 'Extractions à explorer' });
+  await expect(ligne).toContainText('Projets');
+  await ligne.locator('[data-action="renommer-filtre"]').click();
+  await dialogue(page).getByLabel('Nom du filtre').fill('Extractions');
+  await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(page.locator('.ligne-reglage', { hasText: 'Extractions' })).toContainText('Projets');
+  await page.locator('.ligne-reglage', { hasText: 'Extractions' }).locator('[data-action="supprimer-filtre"]').click();
+  await dialogue(page).getByRole('button', { name: 'Supprimer' }).click();
+  await expect(page.locator('.ligne-reglage', { hasText: 'Extractions' })).toHaveCount(0);
+});
+
 test('C29 aucun défilement horizontal de la page Projets, de sa liste et d’une fiche, même avec des textes très longs', async ({ page }) => {
   await creerOrganisation('o1', { nom: 'Une organisation au nom particulièrement long pour tester le débordement des cartes et des tableaux' });
   await creerPersonne('p1', { nom: 'Raphaëlle de La Tour-Vieille-Montmorency', organisationId: 'o1' });
