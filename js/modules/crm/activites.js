@@ -3,7 +3,7 @@
 import { h, icone, remplir, dialogue, confirmer, ouvrirMenu, toast } from '../../os/ui.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
-import { iconeTypeActivite, lienAffaire, nomCompte } from './composants.js';
+import { iconeTypeActivite, lienAffaire, lienPersonne, lienOrganisation, nomCompte } from './composants.js';
 
 const LIBELLES_ETAT = { retard: 'En retard', aujourdhui: "Aujourd'hui", avenir: '' };
 
@@ -85,10 +85,15 @@ export async function faireActivite(activite, { proposer = true } = {}) {
   }
 }
 
-/** Ligne d'activité à faire (Points clés). */
-export function ligneActivite(a, aujourdhui, { avecAffaire = true, surFait = null } = {}) {
+const LIENS_RATTACHEMENT = { affaire: lienAffaire, personne: lienPersonne, organisation: lienOrganisation };
+
+/** Ligne d'activité à faire (Points clés). `tousRattachements` (accueil) : affaire, sinon personne, sinon organisation. */
+export function ligneActivite(a, aujourdhui, { avecAffaire = true, tousRattachements = false, surFait = null } = {}) {
   const etat = L.estActiviteEnRetard(a, aujourdhui) ? 'retard' : a.date === aujourdhui ? 'aujourdhui' : 'avenir';
-  const affaire = avecAffaire && a.affaireId ? D.affaire(a.affaireId) : null;
+  const rattachement = tousRattachements
+    ? L.rattachementActivite(a, { affaire: D.affaire, personne: D.personne, organisation: D.organisation })
+    : null;
+  const affaire = !tousRattachements && avecAffaire && a.affaireId ? D.affaire(a.affaireId) : null;
   const bouton = h('button', { type: 'button', class: 'case-fait', 'aria-label': `Marquer comme fait : ${a.titre}`, title: 'Fait',
     onclick: () => (surFait ? surFait(a) : faireActivite(a)) }, icone('check', { taille: 14 }));
   const menu = h('button', { type: 'button', class: 'bouton-icone', 'aria-label': `Actions : ${a.titre}`,
@@ -103,6 +108,7 @@ export function ligneActivite(a, aujourdhui, { avecAffaire = true, surFait = nul
       h('span', { class: 'activite-meta' },
         etat !== 'avenir' ? h('span', { class: `badge-etat ${etat}` }, LIBELLES_ETAT[etat]) : null,
         h('span', {}, L.formatJourCourt(a.date, aujourdhui), a.heure ? ` à ${a.heure.replace(':', ' h ')}` : ''),
+        rattachement ? LIENS_RATTACHEMENT[rattachement.type](rattachement.fiche) : null,
         affaire ? lienAffaire(affaire) : null)),
     menu);
 }

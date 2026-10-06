@@ -412,6 +412,25 @@ test('C12 Accueil : les Points clés regroupent En retard, Aujourd’hui et Sans
   await expect(page.locator('.zone-a-faire .etat-vide')).toContainText('Charles veille');
 });
 
+test('C12 Accueil : chaque tâche montre son rattachement (affaire, personne ou organisation) avec un lien vers la fiche', async ({ page }) => {
+  await creerPersonne('p1', { nom: 'Marie Durand' });
+  await creerOrganisation('o1', { nom: 'Atelier Soleil' });
+  await creerAffaire('a1', { titre: 'Atelier IA', personneId: 'p1', etape: 'rdv_fixe' });
+  await creerActivite('x1', { titre: 'Envoyer le devis', date: jour(-1), affaireId: 'a1', personneId: 'p1' });
+  await creerActivite('x2', { titre: 'Appeler Marie', date: jour(-1), personneId: 'p1' });
+  await creerActivite('x3', { titre: 'Écrire à l’atelier', date: jour(0), organisationId: 'o1' });
+  await creerActivite('x4', { titre: 'Penser à autre chose', date: jour(0) });
+  await connecter(page);
+  const ligne = (id) => page.locator(`.activite[data-activite="${id}"]`);
+  await expect(ligne('x1').getByRole('link', { name: 'Atelier IA' })).toBeVisible();
+  await expect(ligne('x1').getByRole('link', { name: 'Marie Durand' })).toHaveCount(0);
+  await expect(ligne('x2').getByRole('link', { name: 'Marie Durand' })).toBeVisible();
+  await expect(ligne('x3').getByRole('link', { name: 'Atelier Soleil' })).toBeVisible();
+  await expect(ligne('x4').getByRole('link')).toHaveCount(0);
+  await ligne('x2').getByRole('link', { name: 'Marie Durand' }).click();
+  await expect(page).toHaveURL(/#\/crm\/personnes\/p1/);
+});
+
 test('C12 un rendez vous marqué fait augmente l’objectif « Rendez vous tenus »', async ({ page }) => {
   await creerPersonne('p1', { nom: 'Marie Durand' });
   await creerActivite('r1', { titre: 'Café avec Marie', type: 'rendez_vous', date: jour(0), personneId: 'p1' });

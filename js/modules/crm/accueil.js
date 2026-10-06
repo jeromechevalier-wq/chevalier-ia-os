@@ -110,7 +110,7 @@ function rendrePointsCles(zone) {
   const duJour = pc.aujourdhui.length + pc.reveils.length;
   if (!pc.enRetard.length && !duJour) zone.append(etatVide('Aucune relance aujourd’hui, Charles veille'));
   if (pc.enRetard.length) {
-    zone.append(groupe('En retard', 'retard', pc.enRetard.length, h('ul', { class: 'liste-activites' }, pc.enRetard.map((a) => ligneActivite(a, aujourdhui, { surFait: faire }))), 'groupe-retard'));
+    zone.append(groupe('En retard', 'retard', pc.enRetard.length, h('ul', { class: 'liste-activites' }, pc.enRetard.map((a) => ligneActivite(a, aujourdhui, { tousRattachements: true, surFait: faire }))), 'groupe-retard'));
   }
   if (duJour) {
     zone.append(groupe('Aujourd’hui', 'aujourdhui', duJour, h('ul', { class: 'liste-activites' },
@@ -119,7 +119,7 @@ function rendrePointsCles(zone) {
           onclick: async () => { await D.rouvrir(a.id); await proposerProchaineActivite(L.liensAffaire(a)); } }, icone('check', { taille: 14 })),
         h('span', { class: 'activite-type' }, icone('clock', { taille: 16 })),
         h('div', { class: 'activite-texte' }, h('strong', {}, 'Reprendre contact'), h('span', { class: 'activite-meta' }, lienAffaire(a))))),
-      pc.aujourdhui.map((a) => ligneActivite(a, aujourdhui, { surFait: faire })))));
+      pc.aujourdhui.map((a) => ligneActivite(a, aujourdhui, { tousRattachements: true, surFait: faire })))));
   }
   zone.append(groupe('Sans action prévue', 'sans-action', pc.sansAction.length,
     pc.sansAction.length ? h('ul', { class: 'liste-activites' }, pc.sansAction.map((a) => h('li', { class: 'activite', dataset: { affaire: a.id } },

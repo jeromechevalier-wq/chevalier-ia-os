@@ -936,6 +936,20 @@ export function nouvelleActivite(valeurs, ctx) {
   };
 }
 
+/**
+ * À quoi une activité est rattachée, pour l'accueil : un seul lien, dans l'ordre affaire, personne, organisation.
+ * trouver : { affaire, personne, organisation }, fonctions id → fiche ou null (un lien vers une fiche supprimée est ignoré).
+ * Renvoie { type, fiche } ou null si l'activité n'est rattachée à rien.
+ */
+export function rattachementActivite(activite, trouver) {
+  for (const type of ['affaire', 'personne', 'organisation']) {
+    const id = activite?.[`${type}Id`];
+    const fiche = id ? trouver[type]?.(id) : null;
+    if (fiche) return { type, fiche };
+  }
+  return null;
+}
+
 export function activiteFaite(activite, ctx) {
   if (activite.fait) return { patch: {}, evenements: [] };
   return {

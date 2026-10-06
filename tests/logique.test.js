@@ -391,6 +391,17 @@ describe('B9 Suggestions douces', () => {
 });
 
 describe('B10 Activités, notes, historique', () => {
+  test('B10 rattachement d’une activité : affaire, sinon personne, sinon organisation, sinon rien', () => {
+    const fiches = { a1: { id: 'a1' }, p1: { id: 'p1' }, o1: { id: 'o1' } };
+    const trouver = { affaire: (id) => fiches[id] ?? null, personne: (id) => fiches[id] ?? null, organisation: (id) => fiches[id] ?? null };
+    const r = (liens) => L.rattachementActivite(activite(liens), trouver);
+    assert.equal(r({ affaireId: 'a1', personneId: 'p1', organisationId: 'o1' }).type, 'affaire');
+    assert.equal(r({ personneId: 'p1', organisationId: 'o1' }).type, 'personne');
+    assert.equal(r({ organisationId: 'o1' }).type, 'organisation');
+    assert.deepEqual(r({ personneId: 'p1' }).fiche, { id: 'p1' });
+    assert.equal(r({}), null);
+    assert.equal(r({ affaireId: 'supprimee', personneId: 'p1' }).type, 'personne'); // fiche supprimée ignorée
+  });
   test('B10 activité : titre prérempli, date du jour par défaut', () => {
     const a = L.nouvelleActivite({ type: 'appel' }, ctx());
     assert.equal(a.titre, 'Appel');
