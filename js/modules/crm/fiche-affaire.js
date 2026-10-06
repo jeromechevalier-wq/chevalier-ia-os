@@ -107,19 +107,22 @@ export function rendreFicheAffaire(conteneur, id) {
 
     // ---- Projet (affaire gagnée : créer ou lier ; au plus un projet par affaire)
     const projetLie = P.projetLieAAffaire(PD.etat.projets, a);
-    const sectionProjet = (projetLie || a.statut === 'gagnee') ? sectionRepliable({
+    const extraction = P.extractionDeLAffaire(PD.etat.projets, a.id);
+    const sectionProjet = (projetLie || extraction || a.statut === 'gagnee') ? sectionRepliable({
       id: 'affaire-projet', titre: 'Projet',
-      contenu: projetLie
-        ? h('div', { class: 'pile' }, carteProjetMini(projetLie),
-          h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', 'data-action': 'detacher-projet', onclick: async () => {
-            if (!(await confirmer('Détacher le projet ?', 'Le projet et l’affaire sont conservés, seul le lien entre eux disparaît.', { libelleOk: 'Détacher' }))) return;
-            try { await PD.delierProjet(projetLie.id); toast('Projet détaché'); } catch (e) { console.warn(e); toast(messageErreur(e, 'Détachement impossible'), { type: 'erreur' }); }
-          } }, icone('x', { taille: 14 }), 'Détacher le projet'))
-        : h('div', { class: 'pile' },
+      contenu: h('div', { class: 'pile' },
+        projetLie
+          ? h('div', { class: 'pile' }, carteProjetMini(projetLie),
+            h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', 'data-action': 'detacher-projet', onclick: async () => {
+              if (!(await confirmer('Détacher le projet ?', 'Le projet et l’affaire sont conservés, seul le lien entre eux disparaît.', { libelleOk: 'Détacher' }))) return;
+              try { await PD.delierProjet(projetLie.id); toast('Projet détaché'); } catch (e) { console.warn(e); toast(messageErreur(e, 'Détachement impossible'), { type: 'erreur' }); }
+            } }, icone('x', { taille: 14 }), 'Détacher le projet'))
+          : (a.statut === 'gagnee' ? h('div', { class: 'pile' },
           h('p', { class: 'aide' }, 'Cette affaire est gagnée : crée son projet pour suivre le travail, ou lie un projet qui existe déjà. Elle peut aussi rester sans projet.'),
           h('div', { class: 'ligne-boutons' },
             h('button', { type: 'button', class: 'bouton bouton-principal bouton-petit', 'data-action': 'creer-projet', onclick: () => ouvrirCreationProjetDepuisAffaire(a) }, icone('folder-kanban', { taille: 14 }), 'Créer le projet'),
-            h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', 'data-action': 'lier-projet', onclick: () => ouvrirLiaisonProjet(a) }, icone('link', { taille: 14 }), 'Lier un projet'))),
+            h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', 'data-action': 'lier-projet', onclick: () => ouvrirLiaisonProjet(a) }, icone('link', { taille: 14 }), 'Lier un projet'))) : null),
+        extraction ? h('div', { class: 'pile', dataset: { bloc: 'extraction' } }, h('h3', { class: 'sous-titre' }, 'Extraction de valeur'), carteProjetMini(extraction)) : null),
     }) : null;
 
     // ---- Détails

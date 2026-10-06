@@ -808,3 +808,161 @@ describe('B30 Modèles de projet', () => {
     assert.deepEqual([base.projets_projets.length, base.projets_taches.length, base.projets_modeles.length], [0, 0, 1]);
   });
 });
+
+describe('B31 Extraction de valeur : création automatique', () => {
+  const c = (iso = '2026-10-20T09:00:00Z') => ctx(iso);
+  const affaire = (extra = {}) => ({
+    ...L.nouvelleAffaire({ titre: 'Audit des Lilas', personneId: 'p1', organisationId: 'o1', offreId: 'audit', urlGithub: 'https://github.com/jeromechevalier-wq/client-lilas', urlDossier: 'https://drive.google.com/drive/folders/abc' }, c('2026-10-01T08:00:00Z')),
+    id: 'a1', ...extra,
+  });
+  const extractions = (ecritures) => ecritures.filter((e) => e.collection === 'projets_projets' && e.type === 'creer').map((e) => e.donnees);
+  const exec = (base, plan) => executer(base, plan.ecritures, { maintenant: c().maintenant });
+
+  test('B31 affaire perdue : un projet d’extraction, avec la raison de la perte, le dossier et le dépôt de l’affaire, les quatre tâches à J + 7', () => {
+    const plan = P.planMarquerPerdueAvecExtraction({ affaire: affaire(), saisie: { raison: 'Prix', detail: ' Trop cher pour eux ' } }, c());
+    assert.deepEqual(plan.erreurs, {});
+    assert.equal(plan.patch.statut, 'perdue');
+    assert.equal(plan.extraction.titre, 'Extraction : Audit des Lilas');
+    const [e] = extractions(plan.ecritures);
+    assert.deepEqual([e.nature, e.affaireId, e.projetSourceId, e.phase, e.statut, e.modeleId], ['extraction', 'a1', null, 'lancement', 'actif', 'extraction']);
+    assert.deepEqual([e.personneId, e.organisationId, e.offreId], ['p1', 'o1', 'audit']);
+    assert.deepEqual([e.urlGithub, e.urlDossier], ['https://github.com/jeromechevalier-wq/client-lilas', 'https://drive.google.com/drive/folders/abc']);
+    assert.deepEqual([e.raisonPerdue, e.raisonPerdueDetail], ['Prix', 'Trop cher pour eux']);
+    const taches = plan.ecritures.filter((x) => x.collection === 'projets_taches').map((x) => x.donnees);
+    assert.deepEqual(taches.map((t) => [t.titre, t.phase, t.date]), [
+      ['Tirer les règles', 'decouverte', '2026-10-27'], ['Comprendre les erreurs', 'decouverte', '2026-10-27'],
+      ['Repérer ce qui est automatisable', 'livraison', '2026-10-27'], ['Créer la documentation marketing', 'livraison', '2026-10-27'],
+    ]);
+    assert.ok(taches.every((t) => t.projetId === plan.extraction.id));
+    // l'affaire est marquée perdue comme avant, et rien d'autre n'est touché
+    assert.deepEqual(plan.ecritures.filter((x) => x.collection === 'crm_affaires').map((x) => x.id), ['a1']);
+    assert.equal(new Set(plan.ecritures.map((x) => `${x.collection}/${x.id}`)).size, plan.ecritures.length);
+    const ev = plan.ecritures.find((x) => x.collection === 'crm_evenements' && x.donnees.type === 'projet_cree').donnees;
+    assert.deepEqual([ev.projetId, ev.affaireId], [plan.extraction.id, 'a1'], 'l’événement est aussi dans le fil de l’affaire');
+  });
+  test('B31 perdue sans raison : refusée comme avant, aucune extraction ; une seconde fois : pas de seconde extraction', () => {
+    const refus = P.planMarquerPerdueAvecExtraction({ affaire: affaire(), saisie: { raison: '' } }, c());
+    assert.deepEqual([Object.keys(refus.erreurs), refus.ecritures, refus.extraction], [['raison'], [], null]);
+    const premiere = P.planMarquerPerdueAvecExtraction({ affaire: affaire(), saisie: { raison: 'Prix' } }, c());
+    const base = exec({ crm_affaires: [affaire()], projets_projets: [] }, premiere);
+    const deuxieme = P.planMarquerPerdueAvecExtraction({ affaire: base.crm_affaires[0], saisie: { raison: 'Concurrent' }, projets: base.projets_projets }, c());
+    assert.equal(deuxieme.extraction, null);
+    assert.equal(extractions(deuxieme.ecritures).length, 0);
+    assert.equal(deuxieme.patch.raisonPerdue, 'Concurrent', 'la perte, elle, est bien enregistrée');
+  });
+  test('B31 affaire gagnée sans projet : extraction à Gagné ; même chose en sautant des étapes (Facture payée)', () => {
+    for (const etape of ['gagne', 'facture_envoyee', 'facture_payee']) {
+      const plan = P.planChangerEtapeAvecExtraction({ affaire: affaire({ etape: 'proposition_envoyee', statut: 'ouverte' }), etape }, c());
+      assert.deepEqual(plan.erreurs, {}, etape);
+      assert.equal(extractions(plan.ecritures).length, 1, etape);
+      assert.equal(extractions(plan.ecritures)[0].affaireId, 'a1');
+      assert.equal(plan.extraction.titre, 'Extraction : Audit des Lilas');
+    }
+  });
+  test('B31 pas d’extraction : étape qui ne gagne rien, étape inconnue, passage entre étapes déjà gagnées, affaire qui a déjà un projet, extraction déjà là', () => {
+    const rien = (plan) => { assert.equal(plan.extraction, null); assert.equal(extractions(plan.ecritures).length, 0); };
+    rien(P.planChangerEtapeAvecExtraction({ affaire: affaire({ etape: 'premier_contact', statut: 'ouverte' }), etape: 'rdv_fixe' }, c()));
+    const inconnue = P.planChangerEtapeAvecExtraction({ affaire: affaire({ etape: 'rdv_fixe', statut: 'ouverte' }), etape: 'nimporte' }, c());
+    assert.ok(inconnue.erreurs.etape); rien(inconnue);
+    rien(P.planChangerEtapeAvecExtraction({ affaire: affaire({ etape: 'gagne', statut: 'gagnee' }), etape: 'facture_envoyee' }, c()));
+    rien(P.planChangerEtapeAvecExtraction({ affaire: affaire({ etape: 'rdv_fixe', statut: 'ouverte' }), etape: 'gagne', projets: [projet({ id: 'pr1', affaireId: 'a1' })] }, c()));
+    rien(P.planChangerEtapeAvecExtraction({ affaire: affaire({ etape: 'rdv_fixe', statut: 'ouverte' }), etape: 'gagne', projets: [projet({ id: 'ex', nature: 'extraction', affaireId: 'a1' })] }, c()));
+  });
+  test('B31 une affaire perdue qui est rouverte puis gagnée : l’extraction faite à Perdu suffit, pas de seconde', () => {
+    let base = { crm_affaires: [affaire({ etape: 'rdv_fixe', statut: 'ouverte' })], projets_projets: [] };
+    base = exec(base, P.planMarquerPerdueAvecExtraction({ affaire: base.crm_affaires[0], saisie: { raison: 'Prix' }, projets: base.projets_projets }, c()));
+    assert.equal(base.projets_projets.length, 1);
+    base = exec(base, L.planRouvrirAffaire(base.crm_affaires[0], c()));
+    const gagne = P.planChangerEtapeAvecExtraction({ affaire: base.crm_affaires[0], etape: 'gagne', projets: base.projets_projets }, c());
+    assert.equal(gagne.extraction, null);
+    base = exec(base, gagne);
+    assert.deepEqual([base.projets_projets.length, base.crm_affaires[0].statut], [1, 'gagnee']);
+  });
+  test('B31 projet terminé : un projet d’extraction pour ce projet (avec ou sans affaire), qui reprend son dossier et son dépôt', () => {
+    const p = projet({ id: 'pr1', titre: 'Site vitrine', personneId: 'p1', organisationId: 'o1', affaireId: 'a1', urlGithub: 'https://github.com/jeromechevalier-wq/site', urlDossier: 'https://drive.google.com/drive/folders/xyz', phase: 'livraison' });
+    for (const source of [p, { ...p, affaireId: null }]) {
+      const plan = P.planTerminerProjetAvecExtraction({ projet: source }, c());
+      assert.equal(plan.patch.statut, 'termine');
+      const [e] = extractions(plan.ecritures);
+      assert.deepEqual([e.nature, e.projetSourceId, e.affaireId, e.titre], ['extraction', 'pr1', null, 'Extraction : Site vitrine']);
+      assert.deepEqual([e.urlGithub, e.urlDossier, e.personneId, e.organisationId], ['https://github.com/jeromechevalier-wq/site', 'https://drive.google.com/drive/folders/xyz', 'p1', 'o1']);
+      assert.equal(e.raisonPerdue, undefined);
+      assert.equal(plan.ecritures.filter((x) => x.collection === 'projets_taches').length, 4);
+      assert.deepEqual(plan.ecritures.filter((x) => x.collection === 'projets_projets' && x.type === 'modifier').map((x) => x.id), ['pr1']);
+    }
+  });
+  test('B31 jamais de boucle : terminer un projet d’extraction ne crée rien ; terminer deux fois ou rouvrir puis terminer ne crée qu’une extraction', () => {
+    const ext = projet({ id: 'ex1', nature: 'extraction', projetSourceId: 'pr1', phase: 'livraison' });
+    const fin = P.planTerminerProjetAvecExtraction({ projet: ext }, c());
+    assert.deepEqual([fin.patch.statut, fin.extraction, extractions(fin.ecritures).length], ['termine', null, 0]);
+    const deja = P.planTerminerProjetAvecExtraction({ projet: projet({ id: 'pr1', statut: 'termine', archive: true }) }, c());
+    assert.deepEqual([deja.ecritures, deja.extraction], [[], null]);
+    let base = { projets_projets: [projet({ id: 'pr1', phase: 'livraison' })] };
+    base = exec(base, P.planTerminerProjetAvecExtraction({ projet: base.projets_projets[0], projets: base.projets_projets }, c()));
+    assert.equal(base.projets_projets.length, 2);
+    base = exec(base, P.planRouvrirProjet(base.projets_projets[0], c()));
+    const encore = P.planTerminerProjetAvecExtraction({ projet: base.projets_projets[0], projets: base.projets_projets }, c());
+    assert.equal(encore.patch.statut, 'termine');
+    assert.equal(encore.extraction, null, 'une seule extraction par projet');
+    base = exec(base, encore);
+    assert.equal(base.projets_projets.length, 2);
+  });
+  test('B31 le modèle d’extraction de la base fait foi, la copie livrée avec l’appli sert de repli', () => {
+    const personnalise = { id: 'extraction', nom: 'Extraction', nature: 'extraction', actif: false, ordre: 3, taches: [{ id: 'x1', titre: 'Une seule leçon', phase: 'cloture', delaiJours: 2, ordre: 1 }] };
+    const avec = P.planMarquerPerdueAvecExtraction({ affaire: affaire(), saisie: { raison: 'Prix' }, modeles: [personnalise] }, c());
+    assert.deepEqual(avec.ecritures.filter((x) => x.collection === 'projets_taches').map((x) => [x.donnees.titre, x.donnees.phase, x.donnees.date]), [['Une seule leçon', 'cloture', '2026-10-22']]);
+    assert.equal(P.modeleExtraction([]).id, 'extraction');
+    assert.equal(P.modeleExtraction([{ id: 'autre', nom: 'Mon extraction', nature: 'extraction', actif: true, taches: [] }]).id, 'autre');
+    assert.equal(P.modeleExtraction([{ id: 'livraison', nom: 'x', nature: 'livraison', actif: true }]).id, 'extraction', 'un modèle de livraison n’est pas pris');
+    const sans = P.planMarquerPerdueAvecExtraction({ affaire: affaire(), saisie: { raison: 'Prix' }, modeles: [] }, c());
+    assert.equal(sans.ecritures.filter((x) => x.collection === 'projets_taches').length, 4, 'sans modèle en base : la copie livrée avec l’appli');
+    const natureForcee = P.planMarquerPerdueAvecExtraction({ affaire: affaire(), saisie: { raison: 'Prix' }, modeles: [{ ...personnalise, nature: 'livraison' }] }, c());
+    assert.equal(extractions(natureForcee.ecritures)[0].nature, 'extraction', 'toujours un projet d’extraction');
+  });
+  test('B31 l’extraction n’est jamais « le projet de l’affaire » : elle ne bloque pas la création ni la liaison d’un vrai projet, et n’est pas proposée à lier', () => {
+    const ext = projet({ id: 'ex', nature: 'extraction', affaireId: 'a1' });
+    assert.equal(P.projetDeAffaire([ext], 'a1'), null);
+    assert.equal(P.projetLieAAffaire([ext], affaire({ etape: 'gagne', statut: 'gagnee' })), null);
+    assert.deepEqual(P.validerLienAffaire({ affaire: affaire({ etape: 'gagne', statut: 'gagnee' }), projets: [ext] }), {});
+    assert.equal(P.extractionDeLAffaire([ext], 'a1').id, 'ex');
+    assert.equal(P.extractionDuProjet([projet({ id: 'e2', nature: 'extraction', projetSourceId: 'pr1' })], 'pr1').id, 'e2');
+    assert.deepEqual(P.projetsLiables([ext, projet({ id: 'e3', nature: 'extraction' }), projet({ id: 'ok' })]).map((p) => p.id), ['ok']);
+  });
+  test('B31 un projet créé ou lié pour une affaire qui a son extraction (faite à Gagné) : l’extraction est rangée tant que rien n’y a été fait', () => {
+    const gagnee = affaire({ etape: 'gagne', statut: 'gagnee' });
+    const ext = projet({ id: 'ex', titre: 'Extraction : Audit des Lilas', nature: 'extraction', affaireId: 'a1' });
+    const rangee = (plan) => plan.ecritures.filter((x) => x.collection === 'projets_projets' && x.type === 'modifier' && x.id === 'ex');
+    const creation = P.planCreerProjetDepuisAffaire({ affaire: gagnee, projets: [ext], taches: [{ projetId: 'ex', fait: false }] }, c());
+    assert.deepEqual(creation.erreurs, {});
+    assert.deepEqual(rangee(creation).map((x) => x.patch), [{ archive: true }]);
+    assert.equal(creation.ecritures.find((x) => x.collection === 'crm_evenements' && x.donnees.type === 'extraction_rangee').donnees.projetId, 'ex');
+    const liaison = P.planLierProjet({ affaire: gagnee, projet: projet({ id: 'libre' }), projets: [ext], taches: [] }, c());
+    assert.deepEqual(rangee(liaison).map((x) => x.patch), [{ archive: true }]);
+    // elle a avancé : elle reste vivante ; déjà rangée ou absente : rien
+    assert.deepEqual(rangee(P.planCreerProjetDepuisAffaire({ affaire: gagnee, projets: [ext], taches: [{ projetId: 'ex', fait: true }] }, c())), []);
+    assert.deepEqual(rangee(P.planCreerProjetDepuisAffaire({ affaire: gagnee, projets: [{ ...ext, archive: true }], taches: [] }, c())), []);
+    assert.deepEqual(rangee(P.planCreerProjetDepuisAffaire({ affaire: gagnee, projets: [], taches: [] }, c())), []);
+    assert.deepEqual(rangee(P.planCreerProjetDepuisAffaire({ affaire: gagnee, projets: [{ ...ext, affaireId: 'autre' }], taches: [] }, c())), [], 'l’extraction d’une autre affaire n’est pas touchée');
+  });
+  test('B31 de bout en bout : gagnée sans projet → extraction ; projet créé → extraction rangée ; fin du projet → la vraie extraction ; supprimer l’affaire garde tout', () => {
+    const cx = c();
+    let base = { crm_affaires: [affaire({ etape: 'rdv_fixe', statut: 'ouverte' })], projets_projets: [], projets_taches: [] };
+    base = exec(base, P.planChangerEtapeAvecExtraction({ affaire: base.crm_affaires[0], etape: 'gagne', projets: base.projets_projets }, cx));
+    assert.deepEqual(base.projets_projets.map((p) => [p.nature, p.archive]), [['extraction', false]]);
+    assert.equal(base.crm_affaires[0].projetId, null, 'l’extraction n’est pas le projet de l’affaire');
+    base = exec(base, P.planCreerProjetDepuisAffaire({ affaire: base.crm_affaires[0], projets: base.projets_projets, taches: base.projets_taches }, cx));
+    assert.deepEqual(base.projets_projets.map((p) => [p.nature, p.archive]), [['extraction', true], ['livraison', false]]);
+    const livraison = base.projets_projets.find((p) => p.nature === 'livraison');
+    assert.equal(base.crm_affaires[0].projetId, livraison.id);
+    base = exec(base, P.planTerminerProjetAvecExtraction({ projet: livraison, projets: base.projets_projets }, cx));
+    const vives = base.projets_projets.filter((p) => p.nature === 'extraction' && !p.archive);
+    assert.equal(vives.length, 1, 'un seul projet d’extraction vivant');
+    assert.equal(vives[0].projetSourceId, livraison.id);
+    // supprimer l'affaire : les projets restent, leur lien vers elle est vidé
+    const liens = (base.crm_evenements || []).map((d) => ({ collection: 'crm_evenements', id: d.id, affaireId: d.affaireId ?? null, projetId: d.projetId ?? null, personneId: d.personneId ?? null, organisationId: d.organisationId ?? null }));
+    const sup = L.planSupprimerAffaire({ affaireId: 'a1', liens, projets: base.projets_projets.filter((p) => p.affaireId === 'a1') });
+    base = exec(base, sup);
+    assert.equal(base.projets_projets.length, 3);
+    assert.ok(base.projets_projets.every((p) => p.affaireId !== 'a1'));
+  });
+});

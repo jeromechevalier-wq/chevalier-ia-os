@@ -2,6 +2,7 @@
 // de logique.js (les mêmes que l'écran) et confient l'écriture au moteur (`c.ecrire`, qui journalise). Aucun accès direct à Firestore pour écrire.
 // `c` : { donnees, acteur, maintenant, ecrire({ operations, parametres, suppression }), restaurer({ operationId, apercu, forcer }) }.
 import * as L from '../../partage/logique.js';
+import * as PL from '../../partage/projets.js';
 import { COLLECTIONS as C } from './donnees.js';
 
 /** Propriétaire des fiches créées par un agent, sauf si l'appel en donne un autre (plan-mcp.md, écart 11). */
@@ -193,14 +194,21 @@ async function appliquerRegle(c, plan, args, extra = () => ({})) {
   return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), extra(plan));
 }
 
+/** Projets et modèles lus pour les règles d'extraction de valeur (une affaire perdue ou gagnée sans projet, un projet terminé : l'extraction est créée par le plan). */
+async function contexteExtraction(c) {
+  const [projets, modeles] = await Promise.all([c.donnees.liste(C.projets), c.donnees.liste(C.projetsModeles)]);
+  return { projets, modeles };
+}
+
 export async function changerEtape(c, args) {
   const a = await lire(c, C.affaires, args.id, 'Affaire');
-  const plan = L.planChangerEtape(a, args.etape, await contexte(c), { montantEncaisse: args.montantEncaisse });
-  return appliquerRegle(c, plan, args, (p) => ({ id: a.id, etape: p.patch.etape, statut: p.patch.statut, suggestion: p.suggestion ?? null }));
+  const plan = PL.planChangerEtapeAvecExtraction({ affaire: a, etape: args.etape, options: { montantEncaisse: args.montantEncaisse }, ...await contexteExtraction(c) }, await contexte(c));
+  return appliquerRegle(c, plan, args, (p) => ({ id: a.id, etape: p.patch.etape, statut: p.patch.statut, suggestion: p.suggestion ?? null, extraction: p.extraction ?? null }));
 }
 export async function marquerPerdue(c, args) {
   const a = await lire(c, C.affaires, args.id, 'Affaire');
-  return appliquerRegle(c, L.planMarquerPerdue(a, { raison: args.raison, detail: args.detail }, await contexte(c)), args, () => ({ id: a.id, statut: 'perdue' }));
+  const plan = PL.planMarquerPerdueAvecExtraction({ affaire: a, saisie: { raison: args.raison, detail: args.detail }, ...await contexteExtraction(c) }, await contexte(c));
+  return appliquerRegle(c, plan, args, (p) => ({ id: a.id, statut: 'perdue', extraction: p.extraction ?? null }));
 }
 export async function mettreEnPause(c, args) {
   const a = await lire(c, C.affaires, args.id, 'Affaire');

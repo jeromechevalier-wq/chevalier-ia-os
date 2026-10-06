@@ -10,6 +10,13 @@ import {
 } from './composants.js';
 import { barreFiltres } from './filtres.js';
 import { dialogueActivite } from './activites.js';
+import * as PD from '../projets/donnees.js';
+import { cheminProjet } from '../projets/composants.js';
+
+/** Un projet d'extraction vient d'être créé avec le changement : on le dit, avec un lien. */
+function annoncerExtraction(plan) {
+  if (plan?.extraction) toast('Projet d’extraction créé', { lien: { libelle: 'Ouvrir', href: cheminProjet(plan.extraction.id) }, duree: 6000 });
+}
 
 // État conservé pendant la session.
 let criteres = L.criteresComplets('affaires', {});
@@ -42,8 +49,9 @@ export async function ouvrirPerdue(a) {
     boutons: [{ libelle: 'Annuler', valeur: false }, {
       libelle: 'Marquer comme perdue', valeur: true, style: 'principal',
       avantFermeture: async () => {
-        const res = await D.marquerAffairePerdue(a.id, { raison: raison.value, detail: detail.value });
+        const res = await PD.marquerAffairePerdue(a.id, { raison: raison.value, detail: detail.value });
         if (res.erreurs?.raison) { erreur.textContent = res.erreurs.raison; raison.classList.add('invalide'); return false; }
+        annoncerExtraction(res);
         return true;
       },
     }],
@@ -97,8 +105,9 @@ export async function changerEtapeAvecBoites(a, etape) {
   }
   const mois = L.moisCourant();
   const avant = L.CALCULS.ca_encaisse.calculer({ affaires: D.etat.affaires }, mois);
-  const r = await D.changerEtape(a.id, etape, options);
+  const r = await PD.changerEtapeAffaire(a.id, etape, options);
   if (r.erreurs && Object.keys(r.erreurs).length) { toast('Changement impossible', { type: 'erreur' }); return; }
+  annoncerExtraction(r);
   if (etape === 'gagne' && a.etape !== 'gagne') celebrerGagne('Bravo Jérôme !', a.titre);
   if (options.montantEncaisse !== undefined) celebrerPaiement(avant, avant + options.montantEncaisse, (n) => L.formatEuros(Math.round(n)));
   if (r.suggestion) {

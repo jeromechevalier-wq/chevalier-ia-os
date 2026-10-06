@@ -12,7 +12,7 @@ import * as D from './donnees.js';
 import * as P from './logique.js';
 import { sectionTaches } from './taches.js';
 import { cheminModele } from './modeles.js';
-import { anneauProgression } from './composants.js';
+import { anneauProgression, cheminProjet } from './composants.js';
 import { pastilleStatutProjet, pastillePhase, terminerProjet, mettreEnPause, reprendre, rouvrir, demanderSuppressionProjet } from './projets.js';
 
 export function rendreFicheProjet(conteneur, id) {
@@ -40,6 +40,9 @@ export function rendreFicheProjet(conteneur, id) {
     const pers = CRM.personne(p.personneId);
     const org = CRM.organisation(p.organisationId);
     const aff = p.affaireId ? CRM.affaire(p.affaireId) : null;
+    const extraction = P.estExtraction(p);
+    const sourceProjet = p.projetSourceId ? D.projet(p.projetSourceId) : null;
+    const projetExtraction = P.extractionDuProjet(D.etat.projets, p.id);
     const termine = P.estProjetTermine(p);
     const titre = titreEditable({ valeur: p.titre, libelle: 'Titre', surEnregistrer: (v) => D.majProjet(p.id, { titre: v }) });
     const menu = h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Plus d’actions', 'data-action': 'menu-fiche',
@@ -94,12 +97,20 @@ export function rendreFicheProjet(conteneur, id) {
     const resume = sectionRepliable({
       id: 'projet-resume', titre: 'Résumé',
       contenu: h('div', { class: 'proprietes' },
-        h('div', { class: 'prop', dataset: { prop: 'affaire' } }, h('span', { class: 'prop-libelle' }, 'Affaire'), h('div', { class: 'prop-valeur' },
+        extraction ? h('div', { class: 'prop', dataset: { prop: 'source' } }, h('span', { class: 'prop-libelle' }, 'Source'), h('div', { class: 'prop-valeur' },
+          aff ? h('span', {}, 'Affaire : ', lienAffaire(aff))
+            : (sourceProjet ? h('span', {}, 'Projet : ', h('a', { class: 'prop-lien', href: cheminProjet(sourceProjet.id) }, sourceProjet.titre))
+              : h('span', { class: 'aide' }, 'Source supprimée')))) : null,
+        extraction && p.raisonPerdue ? h('div', { class: 'prop', dataset: { prop: 'raison-perte' } }, h('span', { class: 'prop-libelle' }, 'Raison de la perte'),
+          h('div', { class: 'prop-valeur' }, p.raisonPerdue, p.raisonPerdueDetail ? h('span', { class: 'aide' }, ` : ${p.raisonPerdueDetail}`) : null)) : null,
+        !extraction ? h('div', { class: 'prop', dataset: { prop: 'affaire' } }, h('span', { class: 'prop-libelle' }, 'Affaire'), h('div', { class: 'prop-valeur' },
           aff ? lienAffaire(aff) : h('span', { class: 'aide' }, p.affaireId ? 'Affaire introuvable' : 'Aucune affaire liée'),
           p.affaireId ? h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', 'data-action': 'detacher-affaire', onclick: async () => {
             if (!(await confirmer('Détacher l’affaire ?', 'Le projet et l’affaire sont conservés, seul le lien entre eux disparaît.', { libelleOk: 'Détacher' }))) return;
             try { await D.delierProjet(p.id); toast('Affaire détachée'); } catch (e) { console.warn(e); toast(e?.saisie ? e.message : 'Détachement impossible', { type: 'erreur' }); }
-          } }, 'Détacher') : null)),
+          } }, 'Détacher') : null)) : null,
+        !extraction && projetExtraction ? h('div', { class: 'prop', dataset: { prop: 'extraction' } }, h('span', { class: 'prop-libelle' }, 'Extraction'), h('div', { class: 'prop-valeur' },
+          h('a', { class: 'prop-lien', href: cheminProjet(projetExtraction.id) }, projetExtraction.titre))) : null,
         h('div', { class: 'prop' }, h('span', { class: 'prop-libelle' }, 'Personne'), h('div', { class: 'prop-valeur' }, selPersonne.element)),
         h('div', { class: 'prop' }, h('span', { class: 'prop-libelle' }, 'Organisation'), h('div', { class: 'prop-valeur' }, selOrg.element)),
         champPropriete({ libelle: 'Offre', valeur: p.offreId || '', type: 'select', options: offres.map((x) => ({ valeur: x.id, libelle: x.nom })), surEnregistrer: (v) => D.majProjet(p.id, { offreId: v || null }) }).element,

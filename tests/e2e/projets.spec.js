@@ -149,7 +149,7 @@ test('C29 fiche : la barre des phases change la phase ; En pause, Reprendre, Ter
   await champDoc('projets_projets', 'pr1', 'statut', 'actif');
   expect((await lireDocument('projets_projets/pr1')).archive).toBe(false);
   const types = (await listerDocuments('crm_evenements')).map((e) => e.type).sort();
-  expect(types).toEqual(['phase_changee', 'projet_en_pause', 'projet_repris', 'projet_rouvert', 'projet_termine']);
+  expect(types).toEqual(['phase_changee', 'projet_cree', 'projet_en_pause', 'projet_repris', 'projet_rouvert', 'projet_termine']); // « projet_cree » : l'extraction de valeur créée à la fin du projet
 });
 
 test('C29 fiche : titre, dates (la fin ne précède pas le début), adresse GitHub, documents', async ({ page }) => {
@@ -1098,4 +1098,236 @@ test('C32 enchaîner les tâches types au clavier : elles apparaissent tout de s
   await champ.press('Enter');
   await expect(section.locator('.tache-titre')).toHaveText(['Rendez-vous de lancement', 'Point mensuel', 'Bilan']);
   await expect(section.locator('.section-compteur')).toHaveText('3');
+});
+
+// ---------------------------------------------------------------- étape 6 : extraction de valeur
+
+/** Marque une affaire perdue depuis sa fiche (boîte « Perdue » : raison obligatoire). */
+async function marquerPerdue(page, raison = 'Prix', detail = '') {
+  await page.locator('.fiche-actions [data-action="perdue"]').click();
+  await dialogue(page).getByLabel('Raison', { exact: true }).selectOption(raison);
+  if (detail) await dialogue(page).getByLabel('Précision').fill(detail);
+  await dialogue(page).getByRole('button', { name: 'Marquer comme perdue' }).click();
+  await expect(dialogue(page)).toHaveCount(0);
+}
+
+/** Passe une affaire en « Gagné » depuis sa fiche : célébration puis suggestion à fermer. */
+async function marquerGagnee(page) {
+  await page.locator('.fiche-actions [data-action="gagnee"]').click();
+  await expect(page.locator('.celebration')).toBeVisible();
+  await page.locator('.celebration').click();
+  await expect(page.locator('.celebration')).toHaveCount(0);
+  await expect(dialogue(page)).toContainText('Une suggestion');
+  await dialogue(page).getByRole('button', { name: 'Fermer', exact: true }).last().click();
+  await expect(dialogue(page)).toHaveCount(0);
+}
+
+const extractionsDe = async (filtre) => (await listerDocuments('projets_projets')).filter((p) => p.nature === 'extraction' && filtre(p));
+
+test('C33 affaire perdue : son projet d’extraction est créé tout de suite, avec la raison de la perte, le dépôt, le dossier et les quatre tâches', async ({ page }) => {
+  await creerOrganisation('o1', { nom: 'Atelier des Lilas' });
+  await creerPersonne('p1', { nom: 'Camille Durand', organisationId: 'o1' });
+  await creerAffaire('a1', {
+    titre: 'Audit des Lilas', personneId: 'p1', organisationId: 'o1', etape: 'proposition_envoyee', offreId: 'audit',
+    urlGithub: 'https://github.com/jeromechevalier-wq/client-lilas', urlDossier: 'https://drive.google.com/drive/folders/lilas',
+    documents: [{ libelle: 'Devis', url: 'https://drive.google.com/file/d/devis/view' }],
+  });
+  await ecrireDocument('crm_notes/n1', { texte: 'Il trouvait le devis trop élevé', personneId: 'p1', organisationId: 'o1', affaireId: 'a1', auteur: JEROME, creeLe: new Date(), modifieLe: new Date() });
+  await connecter(page);
+  await aller(page, '#/crm/affaires/a1');
+  await expect(page.locator('[data-section="affaire-projet"]')).toHaveCount(0); // ni gagnée, ni extraction : rien à montrer
+  await marquerPerdue(page, 'Prix', 'Trop cher pour eux');
+  const e = (await attendre('projets_projets', (d) => d.nature === 'extraction'));
+  expect(e).toMatchObject({
+    titre: 'Extraction : Audit des Lilas', affaireId: 'a1', projetSourceId: null, phase: 'lancement', statut: 'actif', modeleId: 'extraction',
+    personneId: 'p1', organisationId: 'o1', offreId: 'audit', raisonPerdue: 'Prix', raisonPerdueDetail: 'Trop cher pour eux',
+    urlGithub: 'https://github.com/jeromechevalier-wq/client-lilas', urlDossier: 'https://drive.google.com/drive/folders/lilas',
+  });
+  await expect(page.locator('.toast', { hasText: 'Projet d’extraction créé' })).toBeVisible();
+  await expect.poll(async () => (await listerDocuments('projets_taches')).filter((t) => t.projetId === e.id).length).toBe(4);
+  const taches = (await listerDocuments('projets_taches')).filter((t) => t.projetId === e.id);
+  expect(taches.map((t) => t.titre).sort()).toEqual(['Comprendre les erreurs', 'Créer la documentation marketing', 'Repérer ce qui est automatisable', 'Tirer les règles']);
+  expect(taches.every((t) => t.date === jour(7) && !t.fait)).toBe(true);
+  // l'affaire perdue montre son extraction (pas de boutons « Créer le projet »), et n'a pas de projet
+  const section = page.locator('[data-section="affaire-projet"]');
+  await expect(section.locator('[data-bloc="extraction"] .carte-projet-mini')).toContainText('Extraction : Audit des Lilas');
+  await expect(section.locator('[data-action="creer-projet"]')).toHaveCount(0);
+  expect((await lireDocument('crm_affaires/a1')).projetId ?? null).toBeNull();
+  // une seule opération d'audit : l'affaire et son extraction
+  const operations = new Set((await listerDocuments('crm_audit')).filter((l) => l.outil === 'marquerAffairePerdue').map((l) => l.operationId));
+  expect(operations.size).toBe(1);
+  // la fiche de l'extraction : source, raison, documents et notes de l'affaire, tâches, badge ; carte avec son badge sur le Kanban
+  await section.locator('.carte-projet-mini').click();
+  await expect(page).toHaveURL(new RegExp(`#/projets/projets/${e.id}$`));
+  await expect(page.locator('[data-prop="source"]')).toContainText('Audit des Lilas');
+  await expect(page.locator('[data-prop="raison-perte"]')).toContainText('Prix : Trop cher pour eux');
+  await expect(page.locator('[data-prop="affaire"]')).toHaveCount(0); // pas de « Détacher » : l'affaire est sa source
+  await expect(page.locator('[data-prop="modele"] a')).toHaveText('Extraction');
+  await expect(page.locator('.fiche-sous .badge-nature')).toHaveText('Extraction');
+  await expect(page.locator('[data-section="projet-documents-affaire"]')).toContainText('Devis');
+  await expect(page.locator('.historique .fil-note')).toContainText('Il trouvait le devis trop élevé');
+  await expect(page.locator('[data-section="projet-taches"] .tache')).toHaveCount(4);
+  await allerA(page, 'Projets');
+  await expect(page.locator(`.carte-projet[data-projet="${e.id}"] .badge-nature`)).toHaveText('Extraction');
+  await expect(page.locator(`.colonne[data-colonne="lancement"] .carte-projet[data-projet="${e.id}"]`)).toBeVisible();
+  // fiche personne et organisation : le projet d'extraction y est aussi
+  await aller(page, '#/crm/personnes/p1');
+  await expect(page.locator('[data-section="personne-projets"] .carte-projet-mini')).toContainText('Extraction : Audit des Lilas');
+});
+
+test('C33 une seule extraction par source : rouvrir puis perdre de nouveau, ou gagner, n’en crée pas une seconde', async ({ page }) => {
+  await creerAffaire('a1', { titre: 'À perdre deux fois', etape: 'rdv_fixe' });
+  await connecter(page);
+  await aller(page, '#/crm/affaires/a1');
+  await marquerPerdue(page, 'Prix');
+  await attendre('projets_projets', (d) => d.nature === 'extraction');
+  await page.locator('.fiche-actions [data-action="rouvrir"]').click();
+  await champDoc('crm_affaires', 'a1', 'statut', 'ouverte');
+  await marquerPerdue(page, 'Concurrent');
+  await champDoc('crm_affaires', 'a1', 'raisonPerdue', 'Concurrent');
+  await page.waitForTimeout(500);
+  expect(await extractionsDe(() => true)).toHaveLength(1);
+  // rouvrir puis gagner : l'extraction faite à Perdu suffit
+  await page.locator('.fiche-actions [data-action="rouvrir"]').click();
+  await champDoc('crm_affaires', 'a1', 'statut', 'ouverte');
+  await marquerGagnee(page);
+  await champDoc('crm_affaires', 'a1', 'statut', 'gagnee');
+  await page.waitForTimeout(500);
+  expect(await extractionsDe(() => true)).toHaveLength(1);
+  expect((await listerDocuments('projets_taches')).length).toBe(4);
+});
+
+test('C33 affaire gagnée sans projet : extraction à Gagné ; un projet créé ensuite la range ; la fin du projet crée la vraie extraction, une seule vivante', async ({ page }) => {
+  await creerAffaire('a1', { titre: 'Audit des Lilas', etape: 'proposition_envoyee', offreId: 'audit' });
+  await connecter(page);
+  await attendreModeles();
+  await aller(page, '#/crm/affaires/a1');
+  await marquerGagnee(page);
+  const e1 = await attendre('projets_projets', (d) => d.nature === 'extraction');
+  expect(e1).toMatchObject({ titre: 'Extraction : Audit des Lilas', affaireId: 'a1', archive: false });
+  expect(e1.raisonPerdue).toBeUndefined();
+  expect((await lireDocument('crm_affaires/a1')).projetId ?? null).toBeNull(); // l'extraction n'est pas « le projet » de l'affaire
+  const section = page.locator('[data-section="affaire-projet"]');
+  await expect(section.locator('[data-bloc="extraction"]')).toContainText('Extraction : Audit des Lilas');
+  await expect(section.locator('[data-action="creer-projet"]')).toBeVisible(); // on peut toujours créer son vrai projet
+  // création du projet : l'extraction, intacte, est rangée
+  await section.locator('[data-action="creer-projet"]').click();
+  await dialogue(page).getByRole('button', { name: 'Créer le projet' }).click();
+  await expect(dialogue(page)).toHaveCount(0);
+  const projet = await attendre('projets_projets', (d) => d.nature === 'livraison' && d.affaireId === 'a1');
+  await champDoc('projets_projets', e1.id, 'archive', true);
+  const rangee = (await listerDocuments('crm_evenements')).find((ev) => ev.type === 'extraction_rangee');
+  expect(rangee).toMatchObject({ projetId: e1.id, affaireId: 'a1' });
+  await expect(section.locator('.carte-projet-mini').first()).toContainText('Audit des Lilas'); // le vrai projet d'abord
+  await expect(section.locator('[data-bloc="extraction"] .carte-projet-mini')).toContainText('Archivé');
+  await allerA(page, 'Projets');
+  await expect(page.locator(`.carte-projet[data-projet="${e1.id}"]`)).toHaveCount(0); // plus au tableau
+  await page.locator('.bascule-vue[data-vue="archives"]').click();
+  await expect(page.locator('.tableau-projets')).toContainText('Extraction : Audit des Lilas');
+  // fin du projet : sa vraie extraction, à son nom
+  await aller(page, `#/projets/projets/${projet.id}`);
+  await expect(page.locator('[data-prop="extraction"]')).toHaveCount(0);
+  await page.locator('.fiche-actions [data-action="terminer"]').click();
+  await expect(page.locator('.toast', { hasText: 'son projet d’extraction est créé' })).toBeVisible();
+  const e2 = await attendre('projets_projets', (d) => d.nature === 'extraction' && d.projetSourceId === projet.id);
+  expect(e2).toMatchObject({ titre: 'Extraction : Audit des Lilas', affaireId: null, archive: false, modeleId: 'extraction', offreId: 'audit' });
+  expect((await extractionsDe((p) => !p.archive))).toHaveLength(1);
+  await expect(page.locator('[data-prop="extraction"] a')).toHaveText('Extraction : Audit des Lilas');
+  await page.locator('[data-prop="extraction"] a').click();
+  await expect(page).toHaveURL(new RegExp(`#/projets/projets/${e2.id}$`));
+  await expect(page.locator('[data-prop="source"]')).toContainText('Projet : Audit des Lilas');
+});
+
+test('C33 une extraction qui a avancé n’est pas rangée quand le projet arrive ; une affaire qui a déjà son projet n’a pas d’extraction à Gagné', async ({ page }) => {
+  await creerAffaire('a1', { titre: 'Affaire avancée', etape: 'gagne', projetId: null });
+  await creerProjet('ex1', { titre: 'Extraction : Affaire avancée', nature: 'extraction', affaireId: 'a1', modeleId: 'extraction' });
+  await creerTacheProjet('t1', { titre: 'Tirer les règles', projetId: 'ex1', fait: true });
+  await creerAffaire('a2', { titre: 'Avec projet', etape: 'proposition_envoyee', projetId: 'pr2' });
+  await creerProjet('pr2', { titre: 'Avec projet', affaireId: 'a2' });
+  await connecter(page);
+  await attendreModeles();
+  await aller(page, '#/crm/affaires/a1');
+  await page.locator('[data-section="affaire-projet"] [data-action="creer-projet"]').click();
+  await dialogue(page).getByRole('button', { name: 'Créer le projet' }).click();
+  await attendre('projets_projets', (d) => d.nature === 'livraison' && d.affaireId === 'a1');
+  await page.waitForTimeout(600);
+  expect((await lireDocument('projets_projets/ex1')).archive).toBe(false);
+  expect((await listerDocuments('crm_evenements')).filter((ev) => ev.type === 'extraction_rangee')).toHaveLength(0);
+  // affaire qui a déjà son projet : passer à Gagné ne crée aucune extraction
+  await aller(page, '#/crm/affaires/a2');
+  await marquerGagnee(page);
+  await champDoc('crm_affaires', 'a2', 'statut', 'gagnee');
+  await page.waitForTimeout(500);
+  expect(await extractionsDe((p) => p.affaireId === 'a2' || p.projetSourceId === 'pr2')).toHaveLength(0);
+});
+
+test('C33 projet sans affaire terminé : extraction à son nom ; terminer une extraction ne crée rien (jamais de boucle) ; rouvrir puis terminer ne la double pas', async ({ page }) => {
+  await creerProjet('pr1', { titre: 'Chantier interne', phase: 'livraison', urlGithub: 'https://github.com/jeromechevalier-wq/chantier', urlDossier: 'https://drive.google.com/drive/folders/chantier' });
+  await connecter(page);
+  await attendreModeles();
+  await aller(page, '#/projets/projets/pr1');
+  await page.locator('.fiche-actions [data-action="terminer"]').click();
+  const e = await attendre('projets_projets', (d) => d.nature === 'extraction');
+  expect(e).toMatchObject({
+    titre: 'Extraction : Chantier interne', projetSourceId: 'pr1', affaireId: null, phase: 'lancement',
+    urlGithub: 'https://github.com/jeromechevalier-wq/chantier', urlDossier: 'https://drive.google.com/drive/folders/chantier',
+  });
+  await expect.poll(async () => (await listerDocuments('projets_taches')).filter((t) => t.projetId === e.id).length).toBe(4);
+  await champDoc('projets_projets', 'pr1', 'statut', 'termine');
+  // terminer l'extraction : aucune nouvelle extraction
+  await aller(page, `#/projets/projets/${e.id}`);
+  await page.locator('.fiche-actions [data-action="terminer"]').click();
+  await champDoc('projets_projets', e.id, 'statut', 'termine');
+  await expect(page.locator('.toast', { hasText: 'Projet terminé' }).last()).toBeVisible();
+  await page.waitForTimeout(500);
+  expect((await listerDocuments('projets_projets')).length).toBe(2);
+  // rouvrir le projet puis le terminer encore : toujours une seule extraction
+  await aller(page, '#/projets/projets/pr1');
+  await page.locator('.fiche-actions [data-action="rouvrir"]').click();
+  await champDoc('projets_projets', 'pr1', 'statut', 'actif');
+  await page.locator('.fiche-actions [data-action="terminer"]').click();
+  await champDoc('projets_projets', 'pr1', 'statut', 'termine');
+  await page.waitForTimeout(500);
+  expect(await extractionsDe(() => true)).toHaveLength(1);
+});
+
+test('C33 supprimer une affaire garde son extraction (lien vidé) ; supprimer le projet source garde l’extraction du projet', async ({ page }) => {
+  await creerAffaire('a1', { titre: 'Affaire à supprimer', etape: 'rdv_fixe' });
+  await creerProjet('ex1', { titre: 'Extraction : Affaire à supprimer', nature: 'extraction', affaireId: 'a1', modeleId: 'extraction' });
+  await creerProjet('pr2', { titre: 'Projet source', statut: 'termine', archive: true });
+  await creerProjet('ex2', { titre: 'Extraction : Projet source', nature: 'extraction', projetSourceId: 'pr2', modeleId: 'extraction' });
+  await connecter(page);
+  await aller(page, '#/crm/affaires/a1');
+  await page.locator('[data-action="menu-fiche"]').click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: /Supprimer définitivement/ }).click();
+  await dialogue(page).getByLabel(/Tape « Affaire à supprimer »/).fill('Affaire à supprimer');
+  await dialogue(page).getByRole('button', { name: 'Supprimer' }).click();
+  await expect.poll(async () => await lireDocument('crm_affaires/a1')).toBeNull();
+  await champDoc('projets_projets', 'ex1', 'affaireId', null);
+  await aller(page, '#/projets/projets/pr2');
+  await page.locator('[data-action="menu-fiche"]').click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: /Supprimer définitivement/ }).click();
+  await dialogue(page).getByLabel(/Tape « Projet source »/).fill('Projet source');
+  await dialogue(page).getByRole('button', { name: 'Supprimer' }).click();
+  await expect.poll(async () => await lireDocument('projets_projets/pr2')).toBeNull();
+  await champDoc('projets_projets', 'ex2', 'projetSourceId', null);
+  await aller(page, '#/projets/projets/ex2');
+  await expect(page.locator('[data-prop="source"]')).toContainText('Source supprimée');
+});
+
+test('C33 filtre « Extraction de valeur » : les projets d’extraction se retrouvent d’un clic ; aucune extraction dans « Lier un projet »', async ({ page }) => {
+  await creerAffaire('a1', { titre: 'Gagnée', etape: 'gagne' });
+  await creerProjet('pr1', { titre: 'Un vrai projet' });
+  await creerProjet('ex1', { titre: 'Extraction : Quelque chose', nature: 'extraction', projetSourceId: 'inconnu', modeleId: 'extraction' });
+  await connecter(page);
+  await attendreModeles();
+  await allerA(page, 'Projets');
+  await page.locator('[data-action="filtres"]').click();
+  await dialogue(page).getByLabel('Extraction de valeur').check();
+  await dialogue(page).getByRole('button', { name: 'Appliquer' }).click();
+  await expect(page.locator('.carte-projet')).toHaveCount(1);
+  await expect(page.locator('.carte-projet[data-projet="ex1"]')).toBeVisible();
+  await aller(page, '#/crm/affaires/a1');
+  await page.locator('[data-section="affaire-projet"] [data-action="lier-projet"]').click();
+  await expect(dialogue(page).getByLabel('Projet à lier').locator('option')).toHaveText(['Un vrai projet']);
 });

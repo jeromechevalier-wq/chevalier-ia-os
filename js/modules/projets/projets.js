@@ -36,8 +36,8 @@ export function pastillePhase(phase) {
 
 /** Terminer, mettre en pause, reprendre, rouvrir : la règle est dans logique.js, ici seulement le message. */
 export async function terminerProjet(p) {
-  await D.terminer(p.id);
-  toast('Projet terminé');
+  const plan = await D.terminer(p.id);
+  toast(plan.extraction ? 'Projet terminé : son projet d’extraction est créé' : 'Projet terminé', plan.extraction ? { lien: { libelle: 'Ouvrir l’extraction', href: cheminProjet(plan.extraction.id) }, duree: 6000 } : {});
 }
 export async function mettreEnPause(p) {
   await D.mettreEnPause(p.id);

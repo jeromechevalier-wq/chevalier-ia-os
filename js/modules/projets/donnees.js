@@ -79,6 +79,9 @@ async function initialiserModeles() {
   if (initialisationModeles) return;
   initialisationModeles = true;
   try {
+    // Tout premier lancement : le CRM écrit ses propres paramètres de départ au même moment (dans la même collection) ; on attend qu'il ait fini
+    // (le dernier créé est « reglages ») pour ne pas écrire en même temps que lui. Ensuite (usage normal), ce document existe déjà : aucune attente.
+    for (let i = 0; i < 30 && !(await getDoc(doc(db, 'crm_parametres', 'reglages'))).exists(); i++) await new Promise((r) => setTimeout(r, 400));
     if ((await getDoc(doc(db, 'crm_parametres', 'modeles_projet'))).exists()) return;
     const email = CRM.compteCourant()?.email || '';
     const lot = writeBatch(db);
@@ -136,7 +139,8 @@ function regle(id, planFn, outil) {
 export const changerPhase = (id, phase) => regle(id, (p) => P.planChangerPhase(p, phase, ctx()), 'changerPhase');
 export const mettreEnPause = (id) => regle(id, (p) => P.planMettreProjetEnPause(p, ctx()), 'mettreProjetEnPause');
 export const reprendre = (id) => regle(id, (p) => P.planReprendreProjet(p, ctx()), 'reprendreProjet');
-export const terminer = (id) => regle(id, (p) => P.planTerminerProjet(p, ctx()), 'terminerProjet');
+/** Terminer un projet crée aussi son projet d'extraction de valeur (sauf pour une extraction) : le plan renvoyé a `extraction` ({ id, titre } ou null). */
+export const terminer = (id) => regle(id, (p) => P.planTerminerProjetAvecExtraction({ projet: p, projets: etat.projets, modeles: etat.modeles }, ctx()), 'terminerProjet');
 export const rouvrir = (id) => regle(id, (p) => P.planRouvrirProjet(p, ctx()), 'rouvrirProjet');
 export const archiver = (id, archive = true) => regle(id, (p) => P.planArchiverProjet(p, archive, ctx()), 'archiverProjet');
 
@@ -185,7 +189,7 @@ const affaireOuErreur = (id) => CRM.affaire(id) ?? (() => { throw new Error('Aff
 
 /** Crée le projet d'une affaire gagnée (reprend l'affaire) ; renvoie l'identifiant du projet. */
 export async function creerProjetDepuisAffaire(affaireId, valeurs = {}, { modeleId = null } = {}) {
-  const plan = P.planCreerProjetDepuisAffaire({ affaire: affaireOuErreur(affaireId), projets: etat.projets, valeurs, modele: modeleId ? modele(modeleId) : null }, ctx());
+  const plan = P.planCreerProjetDepuisAffaire({ affaire: affaireOuErreur(affaireId), projets: etat.projets, taches: etat.taches, valeurs, modele: modeleId ? modele(modeleId) : null }, ctx());
   await appliquerLien(plan, 'creerProjetDepuisAffaire');
   return plan.id;
 }
@@ -193,7 +197,7 @@ export async function creerProjetDepuisAffaire(affaireId, valeurs = {}, { modele
 export async function lierProjet(affaireId, projetId) {
   const p = projet(projetId);
   if (!p) throw new Error('Projet introuvable');
-  await appliquerLien(P.planLierProjet({ affaire: affaireOuErreur(affaireId), projet: p, projets: etat.projets }, ctx()), 'lierProjet');
+  await appliquerLien(P.planLierProjet({ affaire: affaireOuErreur(affaireId), projet: p, projets: etat.projets, taches: etat.taches }, ctx()), 'lierProjet');
 }
 
 /** Détache le projet de son affaire (rien n'est supprimé). */
@@ -244,3 +248,20 @@ export const ajouterTacheModele = (id, valeurs) => appliquerTache(P.planAjouterT
 export const majTacheModele = (id, tacheId, patch) => appliquerTache(P.planMajTacheModele({ modele: modeleOuErreur(id), tacheId, patch }), 'majTacheModele');
 export const supprimerTacheModele = (id, tacheId) => appliquer(P.planSupprimerTacheModele({ modele: modeleOuErreur(id), tacheId }), 'supprimerTacheModele');
 export const deplacerTacheModele = (id, tacheId, sens) => appliquer(P.planDeplacerTacheModele({ modele: modeleOuErreur(id), tacheId, sens }), 'deplacerTacheModele');
+
+// ---------------------------------------------------------------- étape d'une affaire et perte : avec l'extraction de valeur qu'elles déclenchent
+// (les deux écritures de l'affaire passent ici, et non plus par crm/donnees.js, parce que l'extraction est un projet : même règle pour l'écran et le serveur MCP)
+
+/** Changement d'étape ; renvoie { erreurs, patch, evenements, suggestion, extraction } (`extraction` : { id, titre } si un projet d'extraction vient d'être créé). */
+export async function changerEtapeAffaire(id, etape, options = {}) {
+  const a = CRM.affaire(id);
+  if (!a) throw new Error('Affaire introuvable');
+  return appliquer(P.planChangerEtapeAvecExtraction({ affaire: a, etape, options, projets: etat.projets, modeles: etat.modeles }, ctx()), 'changerEtape');
+}
+
+/** Affaire perdue ; renvoie { erreurs, patch, evenements, extraction }. */
+export async function marquerAffairePerdue(id, saisie) {
+  const a = CRM.affaire(id);
+  if (!a) throw new Error('Affaire introuvable');
+  return appliquer(P.planMarquerPerdueAvecExtraction({ affaire: a, saisie, projets: etat.projets, modeles: etat.modeles }, ctx()), 'marquerAffairePerdue');
+}

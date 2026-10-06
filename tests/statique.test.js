@@ -356,6 +356,24 @@ describe('D5 Serveur MCP (étape 2) : déploiement, versions figées, sécurité
     assert.equal(fb.functions[0].ignore, undefined, 'liste d’exclusion par défaut de l’outil (node_modules, .git) : functions/partage/ est bien envoyé au déploiement');
     assert.doesNotMatch(lire('scripts/preparer-fonctions.js'), /^import .* from '(?!node:)/m);
   });
+  test('D5 étape 6 : les règles des projets (extraction de valeur) sont copiées aussi, avec leur import du CRM réécrit, et le serveur les utilise pour changer l’étape, marquer perdue', () => {
+    const script = lire('scripts/preparer-fonctions.js');
+    assert.match(script, /js['"], ['"]modules['"], ['"]projets['"], ['"]logique\.js/);
+    assert.match(script, /projets\.js/);
+    assert.match(script, /\.\.\/crm\/logique\.js/);
+    assert.doesNotMatch(lire('js/modules/projets/logique.js'), /from '(?!\.\.\/crm\/logique\.js')[^']*'/, 'les règles des projets n’importent que celles du CRM (seule dépendance copiée avec elles)');
+    const metier = lire('functions/src/coeur/metier.js');
+    assert.match(metier, /import \* as PL from '\.\.\/\.\.\/partage\/projets\.js'/);
+    assert.match(metier, /PL\.planChangerEtapeAvecExtraction/);
+    assert.match(metier, /PL\.planMarquerPerdueAvecExtraction/);
+    assert.doesNotMatch(metier, /\bL\.planChangerEtape\b|\bL\.planMarquerPerdue\b/, 'le serveur ne contourne pas l’extraction');
+  });
+  test('D5 étape 6 : aucun écran ne contourne l’extraction : le changement d’étape et la perte d’une affaire passent par projets/donnees.js', () => {
+    for (const f of fichiersAppli().filter((x) => /^js\/.*\.js$/.test(x))) {
+      if (f === 'js/modules/crm/logique.js' || f === 'js/modules/projets/logique.js') continue;
+      assert.doesNotMatch(lire(f), /\bL\.planChangerEtape\b|\bL\.planMarquerPerdue\b|\bD\.changerEtape\b|\bD\.marquerAffairePerdue\b/, f);
+    }
+  });
   test('D5 étapes 3 et 4 : les tests des fonctions préparent la copie, puis lancent jetons, protocole, lecture, écriture avec audit et Firestore (émulateur)', () => {
     const scripts = json('tests/package.json').scripts;
     assert.match(scripts['test:fonctions'], /^npm run preparer && node --test .*jetons\.test\.js.*mcp\.test\.js.*lecture\.test\.js.*lecture-firestore\.test\.js.*ecriture\.test\.js.*ecriture-firestore\.test\.js.*ecriture-outils\.test\.js.*essai-ecriture\.test\.js/);

@@ -192,7 +192,8 @@ describe('Création et modification (tests 9 et 11)', () => {
     assert.equal(gagne.statut, 'gagnee');
     assert.equal(gagne.suggestion.titre, 'Envoyer la facture');
     assert.equal(gagne.suggestion.date, '2026-10-05', 'jour de Paris');
-    assert.deepEqual(s.collections.crm_evenements.filter((e) => e.affaireId === 'a1' && e.date.getTime() === MAINTENANT.getTime()).map((e) => e.type).sort(), ['affaire_gagnee', 'etape_changee']);
+    assert.deepEqual(s.collections.crm_evenements.filter((e) => e.affaireId === 'a1' && e.date.getTime() === MAINTENANT.getTime()).map((e) => e.type).sort(), ['affaire_gagnee', 'etape_changee', 'projet_cree'], 'gagnée sans projet : son projet d’extraction est créé avec elle');
+    assert.equal(gagne.extraction.titre, 'Extraction : Site vitrine Atelier des Lilas');
     assert.equal(s.collections.crm_activites.length, 4, 'la suggestion n’est pas créée toute seule');
     assert.equal(ok(await s.appeler('biblio', 'changer_etape', { id: 'a1', etape: 'gagne' })).rien, true);
     refuse(await s.appeler('biblio', 'changer_etape', { id: 'a1', etape: 'bidon' }), /Étape inconnue/);
@@ -342,6 +343,45 @@ describe('Suppression et restauration (tests 6 et 10)', () => {
     assert.ok(s.doc('crm_evenements', 'ev-pr1'), 'le fil du projet survit à la personne et à ses affaires');
     ok(await s.appeler('code', 'restaurer_depuis_audit', { operationId: r2.operationId, apercu: false }));
     assert.deepEqual(s.vue(), avant);
+  });
+
+  test('extraction de valeur : marquer_perdue crée le projet d’extraction (raison reprise, quatre tâches), une seule fois ; tout se restaure à l’identique', async () => {
+    const s = await demarrer();
+    s.collections.crm_affaires.find((a) => a.id === 'a1').urlGithub = 'https://github.com/jeromechevalier-wq/client-lilas';
+    const avant = s.vue();
+    const r = ok(await s.appeler('code', 'marquer_perdue', { id: 'a1', raison: 'Prix', detail: 'trop cher' }));
+    assert.match(r.extraction.titre, /^Extraction : Site vitrine/);
+    const ext = s.doc('projets_projets', r.extraction.id);
+    assert.deepEqual([ext.nature, ext.affaireId, ext.phase, ext.statut, ext.modeleId, ext.raisonPerdue, ext.raisonPerdueDetail, ext.urlGithub, ext.proprietaire],
+      ['extraction', 'a1', 'lancement', 'actif', 'extraction', 'Prix', 'trop cher', 'https://github.com/jeromechevalier-wq/client-lilas', 'jerome.chevalier@gmail.com']);
+    const taches = s.collections.projets_taches.filter((t) => t.projetId === ext.id);
+    assert.deepEqual(taches.map((t) => t.titre).sort(), ['Comprendre les erreurs', 'Créer la documentation marketing', 'Repérer ce qui est automatisable', 'Tirer les règles']);
+    assert.ok(taches.every((t) => t.date === '2026-10-12'), 'sept jours après le 5 octobre (Paris)');
+    assert.equal(s.doc('crm_affaires', 'a1').projetId ?? null, null, 'l’extraction n’est pas le projet de l’affaire');
+    // rouvrir puis marquer perdue de nouveau : pas de seconde extraction
+    ok(await s.appeler('code', 'rouvrir_affaire', { id: 'a1' }));
+    const encore = ok(await s.appeler('code', 'marquer_perdue', { id: 'a1', raison: 'Concurrent' }));
+    assert.equal(encore.extraction, null);
+    assert.equal(s.collections.projets_projets.length, 1);
+    // une seule opération d'audit pour la perte : la restaurer défait l'affaire ET son extraction
+    const op = (await s.donnees.liste('crm_audit', { champ: 'outil', valeur: 'marquer_perdue' })).sort((a, b) => a.date - b.date)[0].operationId;
+    ok(await s.appeler('code', 'rouvrir_affaire', { id: 'a1' }));
+    ok(await s.appeler('code', 'restaurer_depuis_audit', { operationId: op, apercu: false, forcer: true }));
+    assert.equal(s.collections.projets_projets.length, 0, 'l’extraction créée par l’opération est supprimée par sa restauration');
+    assert.equal(s.collections.projets_taches.length, 0);
+    assert.equal(avant.crm_affaires.find((a) => a.id === 'a1').statut, 'ouverte');
+  });
+
+  test('extraction de valeur : changer_etape vers « gagne » crée l’extraction seulement si l’affaire n’a pas de projet', async () => {
+    const s = await demarrer();
+    s.collections.projets_projets = [{ id: 'pr1', titre: 'Projet de l’affaire', affaireId: 'a1', nature: 'livraison', phase: 'lancement', statut: 'actif', archive: false }];
+    const avecProjet = ok(await s.appeler('biblio', 'changer_etape', { id: 'a1', etape: 'gagne' }));
+    assert.equal(avecProjet.extraction, null);
+    assert.equal(s.collections.projets_projets.length, 1);
+    const sans = ok(await s.appeler('biblio', 'changer_etape', { id: 'a2', etape: 'facture_envoyee' }));
+    assert.equal(sans.extraction, null, 'a2 était déjà gagnée : aucune extraction');
+    ok(await s.appeler('code', 'marquer_perdue', { id: 'a2', raison: 'Autre' }));
+    assert.equal(s.collections.projets_projets.filter((p) => p.nature === 'extraction').length, 1);
   });
 
   test('test 10 : la confirmation par le nom est exigée (absente, fausse, d’une autre fiche) : rien n’est supprimé', async () => {
