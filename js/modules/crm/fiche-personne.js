@@ -9,6 +9,9 @@ import {
 } from './composants.js';
 import { panneauActivite } from './activites.js';
 import { ouvrirCreationAffaire } from './affaires.js';
+import * as PD from '../projets/donnees.js';
+import * as P from '../projets/logique.js';
+import { carteProjetMini } from '../projets/composants.js';
 
 /** Suppression définitive d'une personne : sort de ses affaires + confirmation par le nom. */
 export async function demanderSuppressionPersonne(p) {
@@ -165,12 +168,19 @@ export function rendreFichePersonne(conteneur, id) {
           : null),
     });
 
+    // ---- Projets (seulement s'il y en a : un projet se crée depuis une affaire gagnée ou depuis l'écran Projets)
+    const projets = P.projetsLies(PD.etat.projets, { personneId: p.id });
+    const sectionProjets = projets.length ? sectionRepliable({
+      id: 'personne-projets', titre: 'Projets', compteur: projets.length,
+      contenu: h('div', { class: 'liste-cartes-mini' }, projets.map(carteProjetMini)),
+    }) : null;
+
     if (!panneau) {
       panneau = panneauActivite({ lien: { personneId: p.id }, liensCreation: () => ({ personneId: p.id, organisationId: D.personne(p.id)?.organisationId ?? null }) });
     }
     const gabarit = gabaritFiche({
       entete,
-      gauche: [resume.element, details.element, sectionOrg.element, sectionAffaires.element],
+      gauche: [resume.element, details.element, sectionOrg.element, sectionAffaires.element, sectionProjets?.element].filter(Boolean),
       droite: panneau.element,
     });
     // Le panneau de droite garde son état : on ne le recrée pas.
@@ -189,6 +199,6 @@ export function rendreFichePersonne(conteneur, id) {
     reconstruire();
   });
   reconstruire();
-  const arret = D.surChangement(rafraichir);
-  return () => { arret(); panneau?.arreter(); };
+  const arrets = [D.surChangement(rafraichir), PD.surChangement(rafraichir)];
+  return () => { arrets.forEach((f) => f()); panneau?.arreter(); };
 }

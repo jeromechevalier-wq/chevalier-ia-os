@@ -204,6 +204,102 @@ export function liensProjet(projet) {
   };
 }
 
+// ---------------------------------------------------------------- affaire gagnée : créer ou lier un projet
+// Décisions du 06/10/2026 : depuis la fiche d'une affaire GAGNÉE, on crée un projet ou on en lie un existant ; au plus un projet par affaire
+// (`affaire.projetId` ↔ `projet.affaireId`, les deux côtés s'écrivent dans le même plan) ; une affaire gagnée peut rester sans projet.
+
+/** Le projet d'une affaire : celui qui la cite, sinon celui que l'affaire cite. */
+export function projetLieAAffaire(projets, affaire) {
+  if (!affaire) return null;
+  return projetDeAffaire(projets, affaire.id) ?? (affaire.projetId ? (projets || []).find((p) => p.id === affaire.projetId) ?? null : null);
+}
+
+/** Erreurs d'un lien affaire ↔ projet à créer ({} si tout va bien). `projet` : le projet à lier (absent pour une création). */
+export function validerLienAffaire({ affaire, projet = null, projets = [] }) {
+  if (affaire?.statut !== 'gagnee') return { affaire: 'Seule une affaire gagnée peut avoir un projet.' };
+  if (projetLieAAffaire(projets, affaire)) return { affaire: 'Cette affaire a déjà un projet.' };
+  if (projet?.affaireId) return { projet: 'Ce projet est déjà lié à une affaire.' };
+  if (projet?.archive) return { projet: 'Ce projet est archivé : sors-le d’abord des archives.' };
+  return {};
+}
+
+/** Projets qu'on peut lier à une affaire : sans affaire et pas archivés, par ordre alphabétique. */
+export const projetsLiables = (projets) => (projets || []).filter((p) => !p.affaireId && !p.archive).sort((a, b) => normaliser(a.titre).localeCompare(normaliser(b.titre)));
+
+/**
+ * Crée le projet d'une affaire gagnée : il reprend le titre, la personne, l'organisation, l'offre, l'adresse GitHub et le dossier de l'affaire
+ * (`valeurs` peut en changer). Même plan : l'affaire reçoit `projetId`. Refus : { erreurs, ecritures: [] }.
+ */
+export function planCreerProjetDepuisAffaire({ affaire, projets = [], valeurs = {} }, ctx) {
+  const erreurs = validerLienAffaire({ affaire, projets });
+  if (Object.keys(erreurs).length) return { erreurs, ecritures: [] };
+  const id = ctx.nouvelId(C.projets);
+  const fiche = nouveauProjet({
+    titre: affaire.titre, personneId: affaire.personneId, organisationId: affaire.organisationId, offreId: affaire.offreId,
+    urlGithub: affaire.urlGithub, urlDossier: affaire.urlDossier, ...valeurs, affaireId: affaire.id,
+  }, ctx);
+  return {
+    erreurs: {},
+    id,
+    titre: fiche.titre,
+    ecritures: [
+      ecritureCreer(C.projets, id, fiche, MARQUES_CREATION),
+      ...modifierSiPatch(C.affaires, affaire.id, { projetId: id }, MARQUES_MODIFICATION),
+      ...evenements([evenementProjet('projet_cree', `Projet créé : ${fiche.titre}`, { ...fiche, id }, ctx)], ctx),
+    ],
+  };
+}
+
+/**
+ * Lie un projet existant (sans affaire) à une affaire gagnée. Le projet garde ce qu'il a déjà ; ce qui lui manque (personne, organisation, offre,
+ * adresse GitHub, dossier) est repris de l'affaire.
+ */
+export function planLierProjet({ affaire, projet, projets = [] }, ctx) {
+  const erreurs = validerLienAffaire({ affaire, projet, projets });
+  if (Object.keys(erreurs).length) return { erreurs, ecritures: [] };
+  const patch = { affaireId: affaire.id };
+  for (const champ of ['personneId', 'organisationId', 'offreId']) if (!projet[champ] && affaire[champ]) patch[champ] = affaire[champ];
+  for (const champ of ['urlGithub', 'urlDossier']) if (!projet[champ] && affaire[champ]) patch[champ] = affaire[champ];
+  return {
+    erreurs: {},
+    patch,
+    ecritures: [
+      ...modifierSiPatch(C.projets, projet.id, patch, MARQUES_MODIFICATION),
+      ...modifierSiPatch(C.affaires, affaire.id, { projetId: projet.id }, MARQUES_MODIFICATION),
+      ...evenements([evenementProjet('projet_lie', `Projet lié à l’affaire : ${affaire.titre}`, { ...projet, ...patch }, ctx)], ctx),
+    ],
+  };
+}
+
+/** Détache un projet de son affaire : le projet et l'affaire restent, seul le lien disparaît des deux côtés. `affaire` peut manquer (lien resté seul d'un côté). */
+export function planDelierProjet({ projet, affaire = null }, ctx) {
+  if (!projet?.affaireId) return { erreurs: { projet: 'Ce projet n’est lié à aucune affaire.' }, ecritures: [] };
+  if (affaire && affaire.id !== projet.affaireId) return { erreurs: { projet: 'Ce projet n’est pas lié à cette affaire.' }, ecritures: [] };
+  return {
+    erreurs: {},
+    ecritures: [
+      ...modifierSiPatch(C.projets, projet.id, { affaireId: null }, MARQUES_MODIFICATION),
+      ...(affaire?.projetId === projet.id ? modifierSiPatch(C.affaires, affaire.id, { projetId: null }, MARQUES_MODIFICATION) : []),
+      ...evenements([evenementProjet('projet_delie', `Projet détaché de l’affaire${affaire ? ` : ${affaire.titre}` : ''}`, projet, ctx)], ctx),
+    ],
+  };
+}
+
+/**
+ * Notes à montrer dans un projet : les siennes, plus celles de son affaire (montrées, pas déplacées : elles restent sur l'affaire et sont
+ * marquées `deAffaire`, en lecture seule). Une note n'apparaît qu'une fois.
+ */
+export function notesDuProjet(notesProjet = [], notesAffaire = [], projetId) {
+  const vues = new Set();
+  const sorties = [];
+  for (const n of [...notesProjet, ...notesAffaire]) {
+    if (vues.has(n.id)) continue;
+    vues.add(n.id);
+    sorties.push(n.projetId === projetId ? n : { ...n, deAffaire: true });
+  }
+  return sorties;
+}
+
 // ---------------------------------------------------------------- filtres (écran Projets)
 
 export const CRITERES_PROJETS_VIDES = Object.freeze({ recherche: '', phases: [], statuts: [], natures: [], enRetard: false });

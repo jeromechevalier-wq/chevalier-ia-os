@@ -293,7 +293,7 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
   .compositeur { order: 2; }
   .points-cles { order: 3; }
   .section[data-section='affaire-encaissements'], .section[data-section='organisation-personnes'] { order: 4; }
-  .section[data-section='affaire-documents'], .section[data-section$='-affaires'] { order: 5; }
+  .section[data-section='affaire-documents'], .section[data-section$='-affaires'], .section[data-section$='-projets'], .section[data-section='affaire-projet'], .section[data-section^='projet-documents'] { order: 5; }
   .section[data-section='personne-organisation'] { order: 6; }
   .section[data-section$='-details'] { order: 7; }
   .historique { order: 8; }

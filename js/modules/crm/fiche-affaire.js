@@ -1,5 +1,5 @@
 // Fiche d'une affaire : barre des étapes, résumé, détails, encaissements, documents ; activité à droite.
-import { h, icone, remplir, ouvrirMenu, toast } from '../../os/ui.js';
+import { h, icone, remplir, ouvrirMenu, toast, dialogue, confirmer } from '../../os/ui.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
 import {
@@ -9,6 +9,32 @@ import {
 import { panneauActivite } from './activites.js';
 import { creerLanceurs } from './lanceurs.js';
 import { changerEtapeAvecBoites, ouvrirPerdue, ouvrirPause, ouvrirEncaissement, demanderSuppressionAffaire } from './affaires.js';
+import * as PD from '../projets/donnees.js';
+import * as P from '../projets/logique.js';
+import { carteProjetMini, cheminProjet } from '../projets/composants.js';
+
+/** Un refus de règle montre son message ; toute autre erreur reste « impossible ». */
+const messageErreur = (e, defaut) => (e?.saisie ? e.message : defaut);
+
+/** Choisir parmi les projets sans affaire celui qu'on lie : la liste est proposée dans une fenêtre. */
+async function ouvrirLiaisonProjet(a) {
+  const liables = P.projetsLiables(PD.etat.projets);
+  if (!liables.length) { toast('Aucun projet sans affaire à lier. Crée-en un avec « Créer le projet ».', { type: 'erreur' }); return false; }
+  const choix = h('select', { class: 'champ', 'aria-label': 'Projet à lier', autofocus: true }, liables.map((p) => h('option', { value: p.id }, p.titre)));
+  const r = await dialogue({
+    titre: 'Lier un projet existant',
+    contenu: h('div', { class: 'pile' }, h('p', { class: 'aide' }, 'Seuls les projets qui n’ont pas encore d’affaire sont proposés. Le projet garde ses informations ; ce qui lui manque est repris de l’affaire.'),
+      h('label', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Projet'), choix)),
+    boutons: [{ libelle: 'Annuler', valeur: false }, {
+      libelle: 'Lier', valeur: true, style: 'principal',
+      avantFermeture: async () => {
+        try { await PD.lierProjet(a.id, choix.value); return true; } catch (e) { console.warn(e); toast(messageErreur(e, 'Liaison impossible'), { type: 'erreur' }); return false; }
+      },
+    }],
+  });
+  if (r) toast('Projet lié');
+  return !!r;
+}
 
 export function rendreFicheAffaire(conteneur, id) {
   let panneau = null;
@@ -78,6 +104,28 @@ export function rendreFicheAffaire(conteneur, id) {
         h('div', { class: 'prop' }, h('span', { class: 'prop-libelle' }, 'Statut'), h('div', { class: 'prop-valeur' }, pastilleStatut(a.statut), a.statut === 'perdue' ? h('span', { class: 'aide' }, ` ${a.raisonPerdue}${a.raisonPerdueDetail ? ` : ${a.raisonPerdueDetail}` : ''}`) : null, a.statut === 'en_pause' ? h('span', { class: 'aide' }, ` jusqu’au ${L.formatJour(a.dateReveil)}`) : null))),
     });
 
+    // ---- Projet (affaire gagnée : créer ou lier ; au plus un projet par affaire)
+    const projetLie = P.projetLieAAffaire(PD.etat.projets, a);
+    const sectionProjet = (projetLie || a.statut === 'gagnee') ? sectionRepliable({
+      id: 'affaire-projet', titre: 'Projet',
+      contenu: projetLie
+        ? h('div', { class: 'pile' }, carteProjetMini(projetLie),
+          h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', 'data-action': 'detacher-projet', onclick: async () => {
+            if (!(await confirmer('Détacher le projet ?', 'Le projet et l’affaire sont conservés, seul le lien entre eux disparaît.', { libelleOk: 'Détacher' }))) return;
+            try { await PD.delierProjet(projetLie.id); toast('Projet détaché'); } catch (e) { console.warn(e); toast(messageErreur(e, 'Détachement impossible'), { type: 'erreur' }); }
+          } }, icone('x', { taille: 14 }), 'Détacher le projet'))
+        : h('div', { class: 'pile' },
+          h('p', { class: 'aide' }, 'Cette affaire est gagnée : crée son projet pour suivre le travail, ou lie un projet qui existe déjà. Elle peut aussi rester sans projet.'),
+          h('div', { class: 'ligne-boutons' },
+            h('button', { type: 'button', class: 'bouton bouton-principal bouton-petit', 'data-action': 'creer-projet', onclick: async () => {
+              try {
+                const id = await PD.creerProjetDepuisAffaire(a.id);
+                toast('Projet créé', { lien: { libelle: 'Ouvrir le projet', href: cheminProjet(id) }, duree: 5000 });
+              } catch (e) { console.warn(e); toast(messageErreur(e, 'Création impossible'), { type: 'erreur' }); }
+            } }, icone('folder-kanban', { taille: 14 }), 'Créer le projet'),
+            h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', 'data-action': 'lier-projet', onclick: () => ouvrirLiaisonProjet(a) }, icone('link', { taille: 14 }), 'Lier un projet'))),
+    }) : null;
+
     // ---- Détails
     const lanceurs = creerLanceurs({ fiche: a, typeFiche: 'affaire', organisation: o, personne: p, enregistrer: (patch) => D.majAffaire(a.id, patch) });
     const details = sectionRepliable({
@@ -119,7 +167,7 @@ export function rendreFicheAffaire(conteneur, id) {
     });
 
     if (!panneau) panneau = panneauActivite({ lien: { affaireId: a.id }, liensCreation: () => L.liensAffaire(D.affaire(a.id) || a) });
-    remplir(racine, gabaritFiche({ entete, gauche: [resume.element, details.element, sectionEncaissements.element, sectionDocuments.element], droite: panneau.element }));
+    remplir(racine, gabaritFiche({ entete, gauche: [resume.element, sectionProjet?.element, details.element, sectionEncaissements.element, sectionDocuments.element].filter(Boolean), droite: panneau.element }));
   }
 
   function reconstruire() {
@@ -129,7 +177,7 @@ export function rendreFicheAffaire(conteneur, id) {
   }
   const rafraichir = planifier(() => { if (!saisieEnCours(racine)) reconstruire(); });
   reconstruire();
-  const arret = D.surChangement(rafraichir);
-  return () => { arret(); panneau?.arreter(); };
+  const arrets = [D.surChangement(rafraichir), PD.surChangement(rafraichir)];
+  return () => { arrets.forEach((f) => f()); panneau?.arreter(); };
 }
 

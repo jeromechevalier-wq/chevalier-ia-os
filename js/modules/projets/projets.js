@@ -10,7 +10,9 @@ import {
 import * as D from './donnees.js';
 import * as P from './logique.js';
 
-export const cheminProjet = (id) => `#/projets/projets/${id}`;
+import { cheminProjet } from './composants.js';
+
+export { cheminProjet };
 
 // État conservé pendant la session.
 let criteres = P.criteresProjetsComplets();

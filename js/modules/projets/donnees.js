@@ -115,3 +115,33 @@ export async function supprimerProjet(id) {
   });
   await appliquer(plan, 'supprimerProjet');
 }
+
+// ---------------------------------------------------------------- lien avec une affaire gagnée
+
+/** Un plan refusé par une règle (affaire pas gagnée, déjà un projet…) : le message de la règle est celui de l'erreur. */
+async function appliquerLien(plan, outil) {
+  if (Object.keys(plan.erreurs || {}).length) throw Object.assign(new Error(Object.values(plan.erreurs).join(' ')), { saisie: true });
+  return appliquer(plan, outil);
+}
+
+const affaireOuErreur = (id) => CRM.affaire(id) ?? (() => { throw new Error('Affaire introuvable'); })();
+
+/** Crée le projet d'une affaire gagnée (reprend l'affaire) ; renvoie l'identifiant du projet. */
+export async function creerProjetDepuisAffaire(affaireId, valeurs = {}) {
+  const plan = P.planCreerProjetDepuisAffaire({ affaire: affaireOuErreur(affaireId), projets: etat.projets, valeurs }, ctx());
+  await appliquerLien(plan, 'creerProjetDepuisAffaire');
+  return plan.id;
+}
+
+export async function lierProjet(affaireId, projetId) {
+  const p = projet(projetId);
+  if (!p) throw new Error('Projet introuvable');
+  await appliquerLien(P.planLierProjet({ affaire: affaireOuErreur(affaireId), projet: p, projets: etat.projets }, ctx()), 'lierProjet');
+}
+
+/** Détache le projet de son affaire (rien n'est supprimé). */
+export async function delierProjet(projetId) {
+  const p = projet(projetId);
+  if (!p) throw new Error('Projet introuvable');
+  await appliquerLien(P.planDelierProjet({ projet: p, affaire: p.affaireId ? CRM.affaire(p.affaireId) : null }, ctx()), 'delierProjet');
+}

@@ -453,3 +453,118 @@ describe('B27 Projets : filtres enregistrés', () => {
     assert.deepEqual(P.filtrerProjets(projets, filtre.criteres, contexte).map((p) => p.id), ['a']);
   });
 });
+
+describe('B28 Affaire gagnée : créer ou lier un projet', () => {
+  const gagnee = (extra = {}) => ({ ...L.nouvelleAffaire({ titre: 'Audit des Lilas', personneId: 'p1', organisationId: 'o1', etape: 'gagne', offreId: 'off1', montant: 1200 }, ctx('2026-10-01T08:00:00Z')), id: 'a1', ...extra });
+  const libre = (extra = {}) => projet({ id: 'pl', titre: 'Chantier libre', ...extra });
+  const c = () => ctx('2026-10-20T09:00:00Z');
+  const par = (ecritures) => Object.fromEntries(ecritures.map((e) => [`${e.type}:${e.collection}`, e]));
+
+  test('B28 seule une affaire gagnée peut avoir un projet (en cours, perdue, en pause : refus)', () => {
+    for (const a of [L.nouvelleAffaire({ titre: 'x' }, ctx()), gagnee({ statut: 'perdue' }), gagnee({ statut: 'en_pause' })]) {
+      const plan = P.planCreerProjetDepuisAffaire({ affaire: { ...a, id: 'a1' } }, c());
+      assert.deepEqual(plan.erreurs, { affaire: 'Seule une affaire gagnée peut avoir un projet.' });
+      assert.deepEqual(plan.ecritures, []);
+    }
+    assert.deepEqual(P.validerLienAffaire({ affaire: gagnee() }), {});
+  });
+  test('B28 une affaire archivée mais gagnée (facture payée) peut encore avoir son projet', () => {
+    assert.deepEqual(P.validerLienAffaire({ affaire: gagnee({ etape: 'facture_payee', archive: true }) }), {});
+  });
+  test('B28 créer : le projet reprend l’affaire, l’affaire reçoit projetId, un événement, tout dans le même plan', () => {
+    const affaire = gagnee({ urlGithub: 'https://github.com/jeromechevalier-wq/client-lilas', urlDossier: 'https://drive.google.com/drive/folders/abc' });
+    const plan = P.planCreerProjetDepuisAffaire({ affaire }, c());
+    assert.deepEqual(plan.erreurs, {});
+    assert.equal(plan.id, 'projets_projets_1');
+    assert.equal(plan.titre, 'Audit des Lilas');
+    const e = par(plan.ecritures);
+    assert.equal(plan.ecritures.length, 3);
+    const doc = e['creer:projets_projets'].donnees;
+    assert.deepEqual([doc.titre, doc.affaireId, doc.personneId, doc.organisationId, doc.offreId, doc.phase, doc.statut, doc.nature], ['Audit des Lilas', 'a1', 'p1', 'o1', 'off1', 'lancement', 'actif', 'livraison']);
+    assert.deepEqual([doc.urlGithub, doc.urlDossier], ['https://github.com/jeromechevalier-wq/client-lilas', 'https://drive.google.com/drive/folders/abc']);
+    assert.deepEqual([e['modifier:crm_affaires'].id, e['modifier:crm_affaires'].patch], ['a1', { projetId: 'projets_projets_1' }]);
+    assert.deepEqual(e['modifier:crm_affaires'].signer, ['modifiePar']);
+    const ev = e['creer:crm_evenements'].donnees;
+    assert.deepEqual([ev.type, ev.projetId, ev.affaireId, ev.personneId, ev.organisationId], ['projet_cree', 'projets_projets_1', 'a1', 'p1', 'o1']);
+  });
+  test('B28 créer : les valeurs données l’emportent sur celles de l’affaire', () => {
+    const plan = P.planCreerProjetDepuisAffaire({ affaire: gagnee(), valeurs: { titre: 'Autre titre', dateFin: '2026-12-31' } }, c());
+    const doc = par(plan.ecritures)['creer:projets_projets'].donnees;
+    assert.deepEqual([doc.titre, doc.dateFin, doc.affaireId], ['Autre titre', '2026-12-31', 'a1']);
+  });
+  test('B28 une affaire n’a qu’un projet : refus si un projet la cite, ou si elle cite un projet qui existe ; un lien resté dans le vide ne bloque pas', () => {
+    const deja = P.planCreerProjetDepuisAffaire({ affaire: gagnee(), projets: [projet({ id: 'x', affaireId: 'a1' })] }, c());
+    assert.deepEqual(deja.erreurs, { affaire: 'Cette affaire a déjà un projet.' });
+    const cite = P.planCreerProjetDepuisAffaire({ affaire: gagnee({ projetId: 'y' }), projets: [projet({ id: 'y' })] }, c());
+    assert.deepEqual(cite.erreurs, { affaire: 'Cette affaire a déjà un projet.' });
+    const vide = P.planCreerProjetDepuisAffaire({ affaire: gagnee({ projetId: 'disparu' }), projets: [] }, c());
+    assert.deepEqual(vide.erreurs, {});
+  });
+  test('B28 le projet d’une affaire se retrouve par le lien de l’un ou de l’autre côté', () => {
+    const projets = [projet({ id: 'x', affaireId: 'a1' }), projet({ id: 'y' })];
+    assert.equal(P.projetLieAAffaire(projets, { id: 'a1' }).id, 'x');
+    assert.equal(P.projetLieAAffaire(projets, { id: 'a2', projetId: 'y' }).id, 'y');
+    assert.equal(P.projetLieAAffaire(projets, { id: 'a3' }), null);
+    assert.equal(P.projetLieAAffaire(projets, null), null);
+  });
+  test('B28 lier : le projet reçoit l’affaire et complète ce qui lui manque sans écraser ce qu’il a ; l’affaire reçoit projetId', () => {
+    const affaire = gagnee({ urlGithub: 'https://github.com/jeromechevalier-wq/depot-affaire' });
+    const plan = P.planLierProjet({ affaire, projet: libre({ personneId: 'p9', urlGithub: 'https://github.com/jeromechevalier-wq/depot-projet' }), projets: [] }, c());
+    assert.deepEqual(plan.erreurs, {});
+    assert.deepEqual(plan.patch, { affaireId: 'a1', organisationId: 'o1', offreId: 'off1' });
+    const e = par(plan.ecritures);
+    assert.deepEqual(e['modifier:projets_projets'].patch, plan.patch);
+    assert.deepEqual(e['modifier:projets_projets'].signer, ['modifiePar']);
+    assert.deepEqual(e['modifier:crm_affaires'].patch, { projetId: 'pl' });
+    const ev = e['creer:crm_evenements'].donnees;
+    assert.deepEqual([ev.type, ev.texte, ev.projetId, ev.affaireId, ev.personneId], ['projet_lie', 'Projet lié à l’affaire : Audit des Lilas', 'pl', 'a1', 'p9']);
+  });
+  test('B28 lier : refus si le projet a déjà une affaire, s’il est archivé, ou si l’affaire a déjà un projet', () => {
+    assert.deepEqual(P.planLierProjet({ affaire: gagnee(), projet: libre({ affaireId: 'a7' }) }, c()).erreurs, { projet: 'Ce projet est déjà lié à une affaire.' });
+    assert.match(P.planLierProjet({ affaire: gagnee(), projet: libre({ archive: true }) }, c()).erreurs.projet, /archivé/);
+    assert.deepEqual(P.planLierProjet({ affaire: gagnee({ projetId: 'x' }), projet: libre(), projets: [projet({ id: 'x' })] }, c()).erreurs, { affaire: 'Cette affaire a déjà un projet.' });
+    assert.deepEqual(P.planLierProjet({ affaire: gagnee({ statut: 'perdue' }), projet: libre() }, c()).ecritures, []);
+  });
+  test('B28 projets liables : sans affaire, pas archivés, par ordre alphabétique', () => {
+    const l = P.projetsLiables([projet({ id: 'b', titre: 'Zèbre' }), projet({ id: 'a', titre: 'Abeille' }), projet({ id: 'c', affaireId: 'a1' }), projet({ id: 'd', archive: true })]);
+    assert.deepEqual(l.map((p) => p.id), ['a', 'b']);
+  });
+  test('B28 détacher : le lien disparaît des deux côtés, rien n’est supprimé, un événement garde la trace', () => {
+    const p = projet({ id: 'pr1', affaireId: 'a1', personneId: 'p1' });
+    const plan = P.planDelierProjet({ projet: p, affaire: gagnee({ projetId: 'pr1' }) }, c());
+    assert.deepEqual(plan.erreurs, {});
+    const e = par(plan.ecritures);
+    assert.deepEqual(e['modifier:projets_projets'].patch, { affaireId: null });
+    assert.deepEqual(e['modifier:crm_affaires'].patch, { projetId: null });
+    assert.deepEqual(plan.ecritures.filter((x) => x.type === 'supprimer'), []);
+    const ev = e['creer:crm_evenements'].donnees;
+    assert.deepEqual([ev.type, ev.projetId, ev.affaireId, ev.personneId], ['projet_delie', 'pr1', 'a1', 'p1'], 'l’événement reste dans le fil de l’affaire et du projet');
+  });
+  test('B28 détacher : un projet sans affaire ou une autre affaire est refusé ; une affaire disparue n’empêche pas de détacher', () => {
+    assert.ok(P.planDelierProjet({ projet: projet() }, c()).erreurs.projet);
+    assert.ok(P.planDelierProjet({ projet: projet({ affaireId: 'a1' }), affaire: gagnee({ id: 'a2' }) }, c()).erreurs.projet);
+    const sans = P.planDelierProjet({ projet: projet({ id: 'pr1', affaireId: 'disparue' }), affaire: null }, c());
+    assert.deepEqual(sans.ecritures.map((e) => `${e.type}:${e.collection}`), ['modifier:projets_projets', 'creer:crm_evenements']);
+  });
+  test('B28 créer, lier puis détacher sur des données : on retrouve les deux fiches, liées puis libres', () => {
+    const cx = c();
+    const exec = (base, plan) => executer(base, plan.ecritures, { maintenant: cx.maintenant });
+    let base = { crm_affaires: [gagnee()], projets_projets: [] };
+    const cree = P.planCreerProjetDepuisAffaire({ affaire: base.crm_affaires[0], projets: base.projets_projets }, cx);
+    base = exec(base, cree);
+    assert.equal(base.crm_affaires[0].projetId, cree.id);
+    assert.equal(base.projets_projets[0].affaireId, 'a1');
+    base = exec(base, P.planDelierProjet({ projet: base.projets_projets[0], affaire: base.crm_affaires[0] }, cx));
+    assert.deepEqual([base.crm_affaires[0].projetId, base.projets_projets[0].affaireId], [null, null]);
+    base = exec(base, P.planLierProjet({ affaire: base.crm_affaires[0], projet: base.projets_projets[0], projets: base.projets_projets }, cx));
+    assert.deepEqual([base.crm_affaires[0].projetId, base.projets_projets[0].affaireId], [cree.id, 'a1']);
+  });
+  test('B28 notes d’un projet : les siennes, plus celles de son affaire marquées « de l’affaire », chacune une seule fois', () => {
+    const notesProjet = [{ id: 'n1', projetId: 'pr1', affaireId: 'a1' }];
+    const notesAffaire = [{ id: 'n1', projetId: 'pr1', affaireId: 'a1' }, { id: 'n2', affaireId: 'a1' }, { id: 'n3', projetId: 'autre', affaireId: 'a1' }];
+    const r = P.notesDuProjet(notesProjet, notesAffaire, 'pr1');
+    assert.deepEqual(r.map((n) => [n.id, !!n.deAffaire]), [['n1', false], ['n2', true], ['n3', true]]);
+    assert.equal(notesAffaire[1].deAffaire, undefined, 'les notes d’origine ne sont pas modifiées');
+    assert.deepEqual(P.notesDuProjet(undefined, undefined, 'pr1'), []);
+  });
+});

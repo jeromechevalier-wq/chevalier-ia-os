@@ -401,3 +401,170 @@ test('C29 un projet introuvable : message, lien de retour ; route inconnue du mo
   await aller(page, '#/projets/autre');
   await expect(page).toHaveURL(/#\/projets\/projets$/);
 });
+
+// ---------------------------------------------------------------- étape 3 : affaire gagnée → créer ou lier un projet
+
+test('C30 fiche affaire : « Créer le projet » seulement pour une affaire gagnée ; le projet reprend l’affaire, les deux sont liés', async ({ page }) => {
+  await creerOrganisation('o1', { nom: 'Atelier des Lilas' });
+  await creerPersonne('p1', { nom: 'Camille Durand', organisationId: 'o1' });
+  await creerAffaire('a0', { titre: 'Pas encore gagnée', personneId: 'p1', organisationId: 'o1', etape: 'rdv_fixe' });
+  await creerAffaire('a1', { titre: 'Audit des Lilas', personneId: 'p1', organisationId: 'o1', etape: 'gagne', montant: 1200, urlGithub: 'https://github.com/jeromechevalier-wq/client-lilas' });
+  await connecter(page);
+  // une affaire qui n'est pas gagnée n'a pas de section Projet
+  await aller(page, '#/crm/affaires/a0');
+  await expect(page.locator('.fiche')).toBeVisible();
+  await expect(page.locator('[data-section="affaire-projet"]')).toHaveCount(0);
+  // affaire gagnée : deux choix, et elle peut rester sans projet
+  await aller(page, '#/crm/affaires/a1');
+  const section = page.locator('[data-section="affaire-projet"]');
+  await expect(section.locator('[data-action="creer-projet"]')).toBeVisible();
+  await expect(section.locator('[data-action="lier-projet"]')).toBeVisible();
+  await expect(section).toContainText('Elle peut aussi rester sans projet');
+  await section.locator('[data-action="creer-projet"]').click();
+  const p = await attendre('projets_projets', (d) => d.affaireId === 'a1');
+  expect(p).toMatchObject({
+    titre: 'Audit des Lilas', personneId: 'p1', organisationId: 'o1', phase: 'lancement', statut: 'actif', nature: 'livraison',
+    urlGithub: 'https://github.com/jeromechevalier-wq/client-lilas',
+  });
+  await champDoc('crm_affaires', 'a1', 'projetId', p.id);
+  await expect(page.locator('.toast', { hasText: 'Projet créé' })).toBeVisible();
+  // la section montre maintenant le projet, plus les boutons ; une seule création possible
+  await expect(section.locator('.carte-projet-mini')).toContainText('Audit des Lilas');
+  await expect(section.locator('[data-action="creer-projet"]')).toHaveCount(0);
+  expect(await listerDocuments('projets_projets')).toHaveLength(1);
+  // le projet est dans l'historique de l'affaire, et la fiche du projet renvoie à l'affaire
+  const ev = await attendre('crm_evenements', (e) => e.type === 'projet_cree');
+  expect(ev).toMatchObject({ projetId: p.id, affaireId: 'a1' });
+  await section.locator('.carte-projet-mini').click();
+  await expect(page).toHaveURL(new RegExp(`#/projets/projets/${p.id}$`));
+  await expect(page.locator('[data-prop="affaire"]')).toContainText('Audit des Lilas');
+  await expect(page.locator(`.colonne[data-colonne="lancement"] .carte-projet`)).toHaveCount(0); // (la fiche est ouverte, pas le tableau)
+  // audit : projet, affaire et événement écrits dans le même lot
+  await expect.poll(async () => (await listerDocuments('crm_audit')).filter((l) => l.outil === 'creerProjetDepuisAffaire').length).toBe(3);
+  const lignes = (await listerDocuments('crm_audit')).filter((l) => l.outil === 'creerProjetDepuisAffaire');
+  expect(new Set(lignes.map((l) => l.operationId)).size).toBe(1);
+  expect(lignes.map((l) => l.collection).sort()).toEqual(['crm_affaires', 'crm_evenements', 'projets_projets']);
+});
+
+test('C30 « Lier un projet » : seuls les projets sans affaire sont proposés ; le projet garde ses informations et reprend ce qui lui manque', async ({ page }) => {
+  await creerOrganisation('o1', { nom: 'Atelier des Lilas' });
+  await creerPersonne('p1', { nom: 'Camille Durand', organisationId: 'o1' });
+  await creerPersonne('p2', { nom: 'Paul Martin' });
+  await creerAffaire('a1', { titre: 'Audit des Lilas', personneId: 'p1', organisationId: 'o1', etape: 'gagne' });
+  await creerAffaire('a2', { titre: 'Autre affaire', personneId: 'p1', organisationId: 'o1', etape: 'gagne', projetId: 'pr9' });
+  await connecter(page);
+  // aucun projet à lier : message, rien ne s'ouvre
+  await aller(page, '#/crm/affaires/a1');
+  await page.locator('[data-section="affaire-projet"] [data-action="lier-projet"]').click();
+  await expect(page.locator('.toast', { hasText: 'Aucun projet sans affaire à lier' })).toBeVisible();
+  await expect(dialogue(page)).toHaveCount(0);
+  await creerProjet('pr1', { titre: 'Chantier libre', personneId: 'p2' });
+  await creerProjet('pr2', { titre: 'Ancien chantier', archive: true });
+  await creerProjet('pr9', { titre: 'Déjà pris', affaireId: 'a2' });
+  await page.locator('[data-section="affaire-projet"] [data-action="lier-projet"]').click();
+  await expect(dialogue(page).getByLabel('Projet à lier').locator('option')).toHaveText(['Chantier libre']);
+  await dialogue(page).getByRole('button', { name: 'Lier', exact: true }).click();
+  await expect(dialogue(page)).toHaveCount(0);
+  await champDoc('projets_projets', 'pr1', 'affaireId', 'a1');
+  expect(await lireDocument('projets_projets/pr1')).toMatchObject({ personneId: 'p2', organisationId: 'o1', affaireId: 'a1', titre: 'Chantier libre' });
+  await champDoc('crm_affaires', 'a1', 'projetId', 'pr1');
+  await expect(page.locator('[data-section="affaire-projet"] .carte-projet-mini')).toContainText('Chantier libre');
+  const ev = await attendre('crm_evenements', (e) => e.type === 'projet_lie');
+  expect(ev).toMatchObject({ projetId: 'pr1', affaireId: 'a1', texte: 'Projet lié à l’affaire : Audit des Lilas' });
+});
+
+test('C30 détacher : depuis l’affaire ou depuis le projet, rien n’est supprimé, le lien disparaît des deux côtés', async ({ page }) => {
+  await creerAffaire('a1', { titre: 'Audit des Lilas', etape: 'gagne', projetId: 'pr1' });
+  await creerProjet('pr1', { titre: 'Audit des Lilas', affaireId: 'a1' });
+  await creerAffaire('a2', { titre: 'Site vitrine', etape: 'gagne', projetId: 'pr2' });
+  await creerProjet('pr2', { titre: 'Site vitrine', affaireId: 'a2' });
+  await connecter(page);
+  // depuis l'affaire : annuler ne change rien
+  await aller(page, '#/crm/affaires/a1');
+  await page.locator('[data-action="detacher-projet"]').click();
+  await dialogue(page).getByRole('button', { name: 'Annuler' }).click();
+  expect((await lireDocument('projets_projets/pr1')).affaireId).toBe('a1');
+  await page.locator('[data-action="detacher-projet"]').click();
+  await dialogue(page).getByRole('button', { name: 'Détacher' }).click();
+  await champDoc('projets_projets', 'pr1', 'affaireId', null);
+  await champDoc('crm_affaires', 'a1', 'projetId', null);
+  await expect(page.locator('[data-section="affaire-projet"] [data-action="creer-projet"]')).toBeVisible();
+  // depuis le projet
+  await aller(page, '#/projets/projets/pr2');
+  await page.locator('[data-action="detacher-affaire"]').click();
+  await dialogue(page).getByRole('button', { name: 'Détacher' }).click();
+  await champDoc('projets_projets', 'pr2', 'affaireId', null);
+  await champDoc('crm_affaires', 'a2', 'projetId', null);
+  await expect(page.locator('[data-prop="affaire"]')).toContainText('Aucune affaire liée');
+  expect(await lireDocument('projets_projets/pr1')).not.toBeNull();
+  expect(await lireDocument('crm_affaires/a2')).not.toBeNull();
+  expect((await listerDocuments('crm_evenements')).filter((e) => e.type === 'projet_delie')).toHaveLength(2);
+});
+
+test('C30 le projet montre les documents et les notes de son affaire, sans les déplacer ni les rendre modifiables', async ({ page }) => {
+  await creerAffaire('a1', { titre: 'Audit des Lilas', etape: 'gagne', projetId: 'pr1', documents: [{ libelle: 'Devis signé', url: 'https://drive.google.com/file/d/devis/view' }] });
+  await creerProjet('pr1', { titre: 'Audit des Lilas', affaireId: 'a1', documents: [{ libelle: 'Rapport', url: 'https://drive.google.com/file/d/rapport/view' }] });
+  await ecrireDocument('crm_notes/n1', { texte: 'Note écrite sur l’affaire', personneId: null, organisationId: null, affaireId: 'a1', auteur: JEROME, creeLe: new Date(Date.now() - 60_000), modifieLe: new Date() });
+  await ecrireDocument('crm_notes/n2', { texte: 'Note écrite sur le projet', personneId: null, organisationId: null, affaireId: 'a1', projetId: 'pr1', auteur: JEROME, creeLe: new Date(), modifieLe: new Date() });
+  await connecter(page);
+  await aller(page, '#/projets/projets/pr1');
+  // documents : ceux du projet (modifiables) et, à part, ceux de l'affaire (lecture seule)
+  const docsProjet = page.locator('[data-section="projet-documents"]');
+  await expect(docsProjet).toContainText('Rapport');
+  await expect(docsProjet).not.toContainText('Devis signé');
+  const docsAffaire = page.locator('[data-section="projet-documents-affaire"]');
+  await expect(docsAffaire).toContainText('Devis signé');
+  await expect(docsAffaire.getByRole('link', { name: 'Devis signé' })).toHaveAttribute('href', 'https://drive.google.com/file/d/devis/view');
+  await expect(docsAffaire.getByRole('button', { name: /Retirer|Ajouter/ })).toHaveCount(0); // seul le bouton qui replie la section existe
+  // notes : les deux sont dans l'historique du projet ; seule celle du projet se modifie
+  const notes = page.locator('.historique .fil-note');
+  await expect(notes).toHaveCount(2);
+  await expect(notes.filter({ hasText: 'Note écrite sur l’affaire' })).toContainText('note de l’affaire');
+  await expect(notes.filter({ hasText: 'Note écrite sur l’affaire' }).locator('[data-action="modifier-note"]')).toHaveCount(0);
+  await expect(notes.filter({ hasText: 'Note écrite sur l’affaire' }).locator('[data-action="supprimer-note"]')).toHaveCount(0);
+  await expect(notes.filter({ hasText: 'Note écrite sur le projet' }).locator('[data-action="modifier-note"]')).toHaveCount(1);
+  // rien n'a été déplacé : l'affaire garde ses documents et sa note
+  expect((await lireDocument('crm_affaires/a1')).documents).toHaveLength(1);
+  expect((await lireDocument('crm_notes/n1')).projetId).toBeUndefined();
+  // une affaire détachée n'est plus montrée dans le projet
+  await page.locator('[data-action="detacher-affaire"]').click();
+  await dialogue(page).getByRole('button', { name: 'Détacher' }).click();
+  await expect(docsAffaire).toHaveCount(0);
+  await expect(notes.filter({ hasText: 'Note écrite sur l’affaire' })).toHaveCount(0);
+  await expect(notes.filter({ hasText: 'Note écrite sur le projet' })).toHaveCount(1);
+  if (estTelephone(page)) {
+    // une seule colonne : le résumé en premier, puis les documents, puis les détails
+    const ordre = await page.evaluate(() => ['projet-resume', 'projet-documents', 'projet-details'].map((s) => document.querySelector(`[data-section="${s}"]`).getBoundingClientRect().top));
+    expect(ordre[0]).toBeLessThan(ordre[1]);
+    expect(ordre[1]).toBeLessThan(ordre[2]);
+  }
+});
+
+test('C30 fiches personne et organisation : leurs projets en cartes, la section n’existe que s’il y en a', async ({ page }) => {
+  await creerOrganisation('o1', { nom: 'Atelier des Lilas' });
+  await creerOrganisation('o2', { nom: 'Sans projet' });
+  await creerPersonne('p1', { nom: 'Camille Durand', organisationId: 'o1' });
+  await creerPersonne('p2', { nom: 'Paul Martin' });
+  await creerProjet('pr1', { titre: 'Audit des Lilas', personneId: 'p1', organisationId: 'o1', phase: 'livraison' });
+  await creerProjet('pr2', { titre: 'Extraction Lilas', personneId: 'p1', organisationId: 'o1', nature: 'extraction', statut: 'en_pause' });
+  await creerProjet('pr3', { titre: 'Projet d’un autre', personneId: 'p2' });
+  await connecter(page);
+  await aller(page, '#/crm/personnes/p1');
+  const section = page.locator('[data-section="personne-projets"]');
+  await expect(section.locator('.carte-projet-mini')).toHaveCount(2);
+  await expect(section).toContainText('Audit des Lilas');
+  await expect(section.locator('.carte-projet-mini', { hasText: 'Extraction Lilas' })).toContainText('En pause · Extraction');
+  await expect(section.locator('.carte-projet-mini', { hasText: 'Audit des Lilas' })).toContainText('Livraison');
+  await section.locator('.carte-projet-mini', { hasText: 'Audit des Lilas' }).click();
+  await expect(page).toHaveURL(/#\/projets\/projets\/pr1$/);
+  await aller(page, '#/crm/organisations/o1');
+  await expect(page.locator('[data-section="organisation-projets"] .carte-projet-mini')).toHaveCount(2);
+  await aller(page, '#/crm/organisations/o2');
+  await expect(page.locator('.fiche')).toBeVisible();
+  await expect(page.locator('[data-section="organisation-projets"]')).toHaveCount(0);
+  // un projet créé après coup apparaît sans recharger
+  await aller(page, '#/crm/personnes/p2');
+  await expect(page.locator('[data-section="personne-projets"] .carte-projet-mini')).toHaveCount(1);
+  await creerProjet('pr4', { titre: 'Nouveau chantier', personneId: 'p2' });
+  await expect(page.locator('[data-section="personne-projets"] .carte-projet-mini')).toHaveCount(2);
+});
