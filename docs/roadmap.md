@@ -80,6 +80,12 @@ La fonction écrite dans la branche `mcp` (commit de code `24a8e96`) est **repri
 - À faire par Jérôme : réglages Google Cloud (écran de consentement, identifiant OAuth, API Drive). À vérifier : en-têtes de `firebase.json`, sélecteur de fichiers de l'iPhone en appli installée.
 - À prévoir : gros fichiers (audio d'interview) ; dossier Drive strictement privé (enregistrements de personnes).
 
+### Rattachement des tâches visible dans les Points clés (demandé par Jérôme le 06/10/2026)
+- **Demande** : sur l'accueil, pour chaque tâche (En retard, Aujourd'hui), voir **à quoi elle est rattachée** : une affaire, une personne ou une organisation, avec un petit lien qui ouvre la fiche, exactement comme aujourd'hui pour une affaire.
+- **Constat** : `ligneActivite` (`js/modules/crm/activites.js`) n'affiche que `lienAffaire` quand `affaireId` est renseigné. Une tâche rattachée seulement à une personne ou à une organisation (ex. « appeler aurelien eliot ») ne montre donc aucun rattachement, alors qu'elle en a un.
+- **Piste** : afficher le premier lien existant dans l'ordre affaire, puis personne, puis organisation (`lienAffaire`, `lienPersonne`, `lienOrganisation` existent déjà dans `js/modules/crm/composants.js`). À trancher avec Jérôme : afficher aussi la personne quand l'affaire est présente, ou un seul lien par tâche. Une tâche sans aucun lien reste sans lien (cas possible via `creer_activite` du serveur MCP).
+- Même ligne d'activité réutilisée ailleurs que sur l'accueil : vérifier l'effet sur les fiches (option `avecAffaire`), ajouter un test.
+
 ### Plusieurs personnes par affaire
 - **Piste** : en 2.0, une affaire ne porte qu'un `personneId`. Liste de personnes liées, avec une personne principale.
 
