@@ -201,7 +201,14 @@ async function liensDe(champ, id) {
   const reponses = await Promise.all(noms.map((nom) => getDocs(query(collection(db, nom), where(champ, '==', id)))));
   return reponses.flatMap((r, i) => r.docs.map((d) => ({
     collection: noms[i], id: d.id, personneId: d.data().personneId ?? null, organisationId: d.data().organisationId ?? null, affaireId: d.data().affaireId ?? null,
+    projetId: d.data().projetId ?? null,
   })));
+}
+
+/** Projets liés à une fiche (`champ` = personneId, organisationId ou affaireId) : gardés quand la fiche disparaît, seul leur lien est vidé. */
+async function projetsLies(champ, id) {
+  const r = await getDocs(query(collection(db, 'projets_projets'), where(champ, '==', id)));
+  return r.docs.map((d) => ({ id: d.id, affaireId: d.data().affaireId ?? null, personneId: d.data().personneId ?? null, organisationId: d.data().organisationId ?? null }));
 }
 
 // ---------------------------------------------------------------- fil d'une fiche (notes et événements)
@@ -255,8 +262,14 @@ export async function marquerOppositionPersonne(personneId, coche) {
  */
 export async function supprimerPersonne(id, choix) {
   const liens = await liensDe('personneId', id);
-  if (choix === 'affaires') for (const a of etat.affaires.filter((x) => x.personneId === id)) liens.push(...await liensDe('affaireId', a.id));
-  await executer(L.planSupprimerPersonne({ personneId: id, choix, affaires: etat.affaires, liens }).ecritures, 'supprimerPersonne');
+  const projets = await projetsLies('personneId', id);
+  if (choix === 'affaires') {
+    for (const a of etat.affaires.filter((x) => x.personneId === id)) {
+      liens.push(...await liensDe('affaireId', a.id));
+      projets.push(...await projetsLies('affaireId', a.id));
+    }
+  }
+  await executer(L.planSupprimerPersonne({ personneId: id, choix, affaires: etat.affaires, liens, projets }).ecritures, 'supprimerPersonne');
 }
 
 // ---------------------------------------------------------------- organisations
@@ -273,7 +286,9 @@ export async function majOrganisation(id, patch) {
 
 /** Refus (Error) tant que l'organisation a des personnes ou des affaires. */
 export async function supprimerOrganisation(id) {
-  const plan = L.planSupprimerOrganisation({ organisationId: id, personnes: etat.personnes, affaires: etat.affaires, liens: await liensDe('organisationId', id) });
+  const plan = L.planSupprimerOrganisation({
+    organisationId: id, personnes: etat.personnes, affaires: etat.affaires, liens: await liensDe('organisationId', id), projets: await projetsLies('organisationId', id),
+  });
   if (plan.refus) throw new Error(plan.refus);
   await executer(plan.ecritures, 'supprimerOrganisation');
 }
@@ -323,7 +338,7 @@ export async function archiverAffaire(id, archive = true) {
 }
 
 export async function supprimerAffaire(id) {
-  await executer(L.planSupprimerAffaire({ affaireId: id, liens: await liensDe('affaireId', id) }).ecritures, 'supprimerAffaire');
+  await executer(L.planSupprimerAffaire({ affaireId: id, liens: await liensDe('affaireId', id), projets: await projetsLies('affaireId', id) }).ecritures, 'supprimerAffaire');
 }
 
 // ---------------------------------------------------------------- activités
