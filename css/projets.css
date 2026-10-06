@@ -9,3 +9,6 @@
 }
 .badge-nature { background: color-mix(in srgb, #b98ee0 22%, transparent); color: var(--texte); }
 .page-projets .kanban { min-height: 50vh; }
+
+.ligne-boutons { display: flex; gap: 8px; flex-wrap: wrap; }
+.fil-note-affaire { opacity: .85; }

@@ -8,6 +8,9 @@ import {
 } from './composants.js';
 import { panneauActivite } from './activites.js';
 import { ouvrirCreationAffaire } from './affaires.js';
+import * as PD from '../projets/donnees.js';
+import * as P from '../projets/logique.js';
+import { carteProjetMini } from '../projets/composants.js';
 import { ouvrirCreationPersonne } from './personnes.js';
 import { demanderSuppressionOrganisation } from './organisations.js';
 
@@ -77,8 +80,13 @@ export function rendreFicheOrganisation(conteneur, id) {
           ? h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', 'data-action': 'voir-toutes-affaires', onclick: () => { toutesAffaires = !toutesAffaires; reconstruire(); } }, toutesAffaires ? 'Voir les affaires en cours' : 'Voir toutes les affaires')
           : null),
     });
+    const projets = P.projetsLies(PD.etat.projets, { organisationId: o.id });
+    const sectionProjets = projets.length ? sectionRepliable({
+      id: 'organisation-projets', titre: 'Projets', compteur: projets.length,
+      contenu: h('div', { class: 'liste-cartes-mini' }, projets.map(carteProjetMini)),
+    }) : null;
     if (!panneau) panneau = panneauActivite({ lien: { organisationId: o.id }, liensCreation: () => ({ organisationId: o.id }) });
-    remplir(racine, gabaritFiche({ entete, gauche: [resume.element, details.element, sectionPersonnes.element, sectionAffaires.element], droite: panneau.element }));
+    remplir(racine, gabaritFiche({ entete, gauche: [resume.element, details.element, sectionPersonnes.element, sectionAffaires.element, sectionProjets?.element].filter(Boolean), droite: panneau.element }));
   }
 
   function reconstruire() {
@@ -88,6 +96,6 @@ export function rendreFicheOrganisation(conteneur, id) {
   }
   const rafraichir = planifier(() => { if (!saisieEnCours(racine)) reconstruire(); });
   reconstruire();
-  const arret = D.surChangement(rafraichir);
-  return () => { arret(); panneau?.arreter(); };
+  const arrets = [D.surChangement(rafraichir), PD.surChangement(rafraichir)];
+  return () => { arrets.forEach((f) => f()); panneau?.arreter(); };
 }

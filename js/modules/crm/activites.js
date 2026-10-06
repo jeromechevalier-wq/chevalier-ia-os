@@ -116,10 +116,13 @@ export function ligneActivite(a, aujourdhui, { avecAffaire = true, tousRattachem
 /**
  * Panneau complet. lien : { personneId } | { organisationId } | { affaireId } (filtre de la fiche).
  * liensCreation() : liens à poser sur ce qu'on crée (personneId, organisationId, affaireId).
+ * `affaireLiee: { affaireId, fusionnerNotes(notesDeLaFiche, notesDeLAffaire) }` (fiche projet) : montre aussi les notes de l'affaire, en lecture seule
+ * (les notes marquées `deAffaire` n'ont ni « Modifier » ni « Supprimer » : elles restent sur l'affaire).
  * `avecActivites: false` (fiche projet : les tâches d'un projet viennent à l'étape 4) : ni onglet « Activité », ni Points clés, seulement les notes et l'historique.
  */
-export function panneauActivite({ lien, liensCreation, avecActivites = true }) {
+export function panneauActivite({ lien, liensCreation, avecActivites = true, affaireLiee = null }) {
   let fil = { notes: [], evenements: [] };
+  let filAffaire = { notes: [] };
   let filtre = 'tous';
   let onglet = avecActivites ? 'activite' : 'notes';
 
@@ -210,7 +213,8 @@ export function panneauActivite({ lien, liensCreation, avecActivites = true }) {
   }
 
   function rendreHistorique() {
-    const entrees = L.entreesHistorique({ activites: D.activitesDe(lien), notes: fil.notes, evenements: fil.evenements }, filtre);
+    const notes = affaireLiee ? affaireLiee.fusionnerNotes(fil.notes, filAffaire.notes) : fil.notes;
+    const entrees = L.entreesHistorique({ activites: D.activitesDe(lien), notes, evenements: fil.evenements }, filtre);
     remplir(zoneHistorique,
       h('h3', { class: 'sous-titre' }, 'Historique'),
       h('div', { class: 'pastilles-filtre', role: 'group', 'aria-label': 'Filtrer l’historique' },
@@ -223,7 +227,7 @@ export function panneauActivite({ lien, liensCreation, avecActivites = true }) {
 
   function ligneHistorique(e) {
     const el = e.element;
-    const meta = h('span', { class: 'fil-meta' }, L.formatDateHeure(e.date), el.auteur || el.creePar ? ` · ${nomCompte(el.auteur || el.creePar)}${L.mentionCanal(el)}` : '');
+    const meta = h('span', { class: 'fil-meta' }, L.formatDateHeure(e.date), el.auteur || el.creePar ? ` · ${nomCompte(el.auteur || el.creePar)}${L.mentionCanal(el)}` : '', el.deAffaire ? ' · note de l’affaire' : '');
     if (e.genre === 'note') return ligneNote(el, meta);
     if (e.genre === 'activite') {
       return h('li', { class: 'fil-ligne', dataset: { genre: 'activite' } }, h('span', { class: 'fil-puce' }, iconeTypeActivite(el.type)), h('div', { class: 'fil-texte' }, h('span', {}, `${L.libelleTypeActivite(el.type)} fait : `, h('strong', {}, el.titre)), meta));
@@ -233,9 +237,9 @@ export function panneauActivite({ lien, liensCreation, avecActivites = true }) {
 
   function ligneNote(n, meta) {
     const texte = h('p', { class: 'note-texte' }, n.texte);
-    const carte = h('li', { class: 'fil-ligne fil-note', dataset: { genre: 'note', note: n.id } }, h('span', { class: 'fil-puce' }, icone('sticky-note', { taille: 14 })),
+    const carte = h('li', { class: `fil-ligne fil-note${n.deAffaire ? ' fil-note-affaire' : ''}`, dataset: { genre: 'note', note: n.id } }, h('span', { class: 'fil-puce' }, icone('sticky-note', { taille: 14 })),
       h('div', { class: 'fil-texte note-carte' }, texte, meta,
-        h('div', { class: 'note-actions' },
+        n.deAffaire ? null : h('div', { class: 'note-actions' },
           h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', 'data-action': 'modifier-note', onclick: () => modifier() }, icone('pencil', { taille: 14 }), 'Modifier'),
           h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', 'data-action': 'supprimer-note', onclick: async () => { if (await confirmer('Supprimer cette note ?', '', { libelleOk: 'Supprimer', danger: true })) await D.supprimerNote(n.id); } }, icone('trash-2', { taille: 14 }), 'Supprimer'))));
     function modifier() {
@@ -255,6 +259,7 @@ export function panneauActivite({ lien, liensCreation, avecActivites = true }) {
   rendreHistorique();
 
   const arretFil = D.ecouterFil(lien, (donnees) => { fil = donnees; rendreHistorique(); });
+  const arretFilAffaire = affaireLiee ? D.ecouterFil({ affaireId: affaireLiee.affaireId }, (donnees) => { filAffaire = donnees; rendreHistorique(); }) : () => {};
   const arretDonnees = D.surChangement(() => {
     if (avecActivites) rendrePointsCles();
     // Pas de nouveau rendu pendant la modification d'une note (sinon le texte en cours serait perdu).
@@ -262,7 +267,7 @@ export function panneauActivite({ lien, liensCreation, avecActivites = true }) {
   });
   return {
     element: racine,
-    arreter() { arretFil(); arretDonnees(); },
+    arreter() { arretFil(); arretFilAffaire(); arretDonnees(); },
     focusActivite() { choisirOnglet('activite'); },
     focusNote() { choisirOnglet('notes'); },
   };

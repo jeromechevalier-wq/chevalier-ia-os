@@ -1,5 +1,5 @@
 // Fiche d'un projet : barre des phases, résumé, détails (GitHub, dossier), documents ; notes et historique à droite.
-import { h, icone, remplir, ouvrirMenu, toast } from '../../os/ui.js';
+import { h, icone, remplir, ouvrirMenu, toast, confirmer } from '../../os/ui.js';
 import * as CRM from '../crm/donnees.js';
 import * as L from '../crm/logique.js';
 import {
@@ -14,6 +14,7 @@ import { pastilleStatutProjet, pastillePhase, terminerProjet, mettreEnPause, rep
 
 export function rendreFicheProjet(conteneur, id) {
   let panneau = null;
+  let panneauAffaireId = null;
   const racine = h('div', { class: 'fiche-conteneur' });
   conteneur.append(racine);
 
@@ -80,7 +81,12 @@ export function rendreFicheProjet(conteneur, id) {
     const resume = sectionRepliable({
       id: 'projet-resume', titre: 'Résumé',
       contenu: h('div', { class: 'proprietes' },
-        h('div', { class: 'prop' }, h('span', { class: 'prop-libelle' }, 'Affaire'), h('div', { class: 'prop-valeur' }, aff ? lienAffaire(aff) : h('span', { class: 'aide' }, 'Aucune affaire liée'))),
+        h('div', { class: 'prop', dataset: { prop: 'affaire' } }, h('span', { class: 'prop-libelle' }, 'Affaire'), h('div', { class: 'prop-valeur' },
+          aff ? lienAffaire(aff) : h('span', { class: 'aide' }, p.affaireId ? 'Affaire introuvable' : 'Aucune affaire liée'),
+          p.affaireId ? h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', 'data-action': 'detacher-affaire', onclick: async () => {
+            if (!(await confirmer('Détacher l’affaire ?', 'Le projet et l’affaire sont conservés, seul le lien entre eux disparaît.', { libelleOk: 'Détacher' }))) return;
+            try { await D.delierProjet(p.id); toast('Affaire détachée'); } catch (e) { console.warn(e); toast(e?.saisie ? e.message : 'Détachement impossible', { type: 'erreur' }); }
+          } }, 'Détacher') : null)),
         h('div', { class: 'prop' }, h('span', { class: 'prop-libelle' }, 'Personne'), h('div', { class: 'prop-valeur' }, selPersonne.element)),
         h('div', { class: 'prop' }, h('span', { class: 'prop-libelle' }, 'Organisation'), h('div', { class: 'prop-valeur' }, selOrg.element)),
         champPropriete({ libelle: 'Offre', valeur: p.offreId || '', type: 'select', options: offres.map((x) => ({ valeur: x.id, libelle: x.nom })), surEnregistrer: (v) => D.majProjet(p.id, { offreId: v || null }) }).element,
@@ -115,8 +121,26 @@ export function rendreFicheProjet(conteneur, id) {
           } }, 'Ajouter'))),
     });
 
-    if (!panneau) panneau = panneauActivite({ lien: { projetId: p.id }, liensCreation: () => P.liensProjet(D.projet(p.id) || p), avecActivites: false });
-    remplir(racine, gabaritFiche({ entete, gauche: [resume.element, details.element, sectionDocuments.element], droite: panneau.element }));
+    // ---- Documents de l'affaire : montrés ici, pas déplacés (ils restent sur l'affaire)
+    const documentsAffaire = aff?.documents || [];
+    const sectionDocumentsAffaire = aff && documentsAffaire.length ? sectionRepliable({
+      id: 'projet-documents-affaire', titre: 'Documents de l’affaire', compteur: documentsAffaire.length,
+      contenu: h('div', { class: 'pile' },
+        h('p', { class: 'aide' }, 'Ces documents restent sur l’affaire : ', lienAffaire(aff), '.'),
+        h('ul', { class: 'liste-simple' }, documentsAffaire.map((d) => h('li', { class: 'ligne-simple' }, icone('link', { taille: 14 }),
+          h('a', { href: d.url, target: '_blank', rel: 'noopener noreferrer' }, d.libelle))))),
+    }) : null;
+
+    // Le panneau suit l'affaire liée : il est refait quand le projet est lié ou détaché.
+    if (panneau && panneauAffaireId !== (p.affaireId || null)) { panneau.arreter(); panneau = null; }
+    if (!panneau) {
+      panneauAffaireId = p.affaireId || null;
+      panneau = panneauActivite({
+        lien: { projetId: p.id }, liensCreation: () => P.liensProjet(D.projet(p.id) || p), avecActivites: false,
+        affaireLiee: panneauAffaireId ? { affaireId: panneauAffaireId, fusionnerNotes: (notes, notesAffaire) => P.notesDuProjet(notes, notesAffaire, p.id) } : null,
+      });
+    }
+    remplir(racine, gabaritFiche({ entete, gauche: [resume.element, details.element, sectionDocuments.element, sectionDocumentsAffaire?.element].filter(Boolean), droite: panneau.element }));
   }
 
   function reconstruire() {
