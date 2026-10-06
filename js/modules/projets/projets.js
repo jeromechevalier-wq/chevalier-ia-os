@@ -10,7 +10,7 @@ import {
 import * as D from './donnees.js';
 import * as P from './logique.js';
 
-import { cheminProjet } from './composants.js';
+import { cheminProjet, anneauProgression } from './composants.js';
 
 export { cheminProjet };
 
@@ -21,7 +21,7 @@ let triListe = { colonne: 'titre', sens: 'asc' };
 let enDeplacement = false;
 
 const aujourdhui = () => CRM.ctx().aujourdhui;
-const taches = () => []; // les tâches de projet arrivent à l'étape 4 (projets_taches)
+const taches = () => D.etat.taches;
 
 // ---------------------------------------------------------------- pastilles et actions communes
 
@@ -192,8 +192,9 @@ function pastillesFiltres() {
 function carte(p, rafraichir) {
   const o = CRM.organisation(p.organisationId);
   const pers = CRM.personne(p.personneId);
-  const enRetard = P.estProjetEnRetard(p, taches(), aujourdhui());
-  const couleur = P.pastilleProjet(p, taches(), aujourdhui());
+  const sesTaches = D.tachesDe(p.id);
+  const enRetard = P.estProjetEnRetard(p, sesTaches, aujourdhui());
+  const couleur = P.pastilleProjet(p, sesTaches, aujourdhui());
   const menu = h('button', { type: 'button', class: 'bouton-icone carte-menu', 'aria-label': `Actions : ${p.titre}`,
     onclick: (e) => { e.stopPropagation(); ouvrirMenu(e.currentTarget, [...entreesDeplacement(p), ...menuProjet(p)]); } }, icone('ellipsis', { taille: 16 }));
   const dates = p.dateDebut || p.dateFin
@@ -213,6 +214,7 @@ function carte(p, rafraichir) {
     p.statut === 'en_pause' ? h('span', { class: 'badge-pause' }, 'En pause') : null,
     enRetard ? h('span', { class: 'badge-retard' }, 'En retard') : null,
     p.proprietaire ? h('span', { class: 'carte-proprietaire' }, nomCompte(p.proprietaire)) : null,
+    anneauProgression(P.progressionProjet(D.tachesDe(p.id))),
     pastilleActivite(couleur)));
   return el;
 }

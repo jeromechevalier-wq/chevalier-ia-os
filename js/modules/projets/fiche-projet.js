@@ -10,6 +10,8 @@ import { panneauActivite } from '../crm/activites.js';
 import { creerLanceurs } from '../crm/lanceurs.js';
 import * as D from './donnees.js';
 import * as P from './logique.js';
+import { sectionTaches } from './taches.js';
+import { anneauProgression } from './composants.js';
 import { pastilleStatutProjet, pastillePhase, terminerProjet, mettreEnPause, reprendre, rouvrir, demanderSuppressionProjet } from './projets.js';
 
 export function rendreFicheProjet(conteneur, id) {
@@ -78,6 +80,7 @@ export function rendreFicheProjet(conteneur, id) {
       if (erreurs[champ]) throw Object.assign(new Error(erreurs[champ]), { saisie: true });
       await D.majProjet(p.id, { [champ]: v || null });
     };
+    const avancement = P.progressionProjet(D.tachesDe(p.id));
     const resume = sectionRepliable({
       id: 'projet-resume', titre: 'Résumé',
       contenu: h('div', { class: 'proprietes' },
@@ -90,6 +93,10 @@ export function rendreFicheProjet(conteneur, id) {
         h('div', { class: 'prop' }, h('span', { class: 'prop-libelle' }, 'Personne'), h('div', { class: 'prop-valeur' }, selPersonne.element)),
         h('div', { class: 'prop' }, h('span', { class: 'prop-libelle' }, 'Organisation'), h('div', { class: 'prop-valeur' }, selOrg.element)),
         champPropriete({ libelle: 'Offre', valeur: p.offreId || '', type: 'select', options: offres.map((x) => ({ valeur: x.id, libelle: x.nom })), surEnregistrer: (v) => D.majProjet(p.id, { offreId: v || null }) }).element,
+        h('div', { class: 'prop', dataset: { prop: 'avancement' } }, h('span', { class: 'prop-libelle' }, 'Avancement'), h('div', { class: 'prop-valeur' },
+          avancement.total
+            ? h('span', { class: 'avancement' }, anneauProgression(avancement, { taille: 20 }), `${avancement.faites} / ${avancement.total} tâche${avancement.total > 1 ? 's' : ''}`)
+            : h('span', { class: 'aide' }, 'Aucune tâche'))),
         h('div', { class: 'prop' }, h('span', { class: 'prop-libelle' }, 'Phase'), h('div', { class: 'prop-valeur' }, pastillePhase(p.phase))),
         h('div', { class: 'prop' }, h('span', { class: 'prop-libelle' }, 'Statut'), h('div', { class: 'prop-valeur' }, pastilleStatutProjet(p))),
         champPropriete({ libelle: 'Début', valeur: p.dateDebut || '', type: 'date', surEnregistrer: enregistrerDate('dateDebut') }).element,
@@ -140,7 +147,7 @@ export function rendreFicheProjet(conteneur, id) {
         affaireLiee: panneauAffaireId ? { affaireId: panneauAffaireId, fusionnerNotes: (notes, notesAffaire) => P.notesDuProjet(notes, notesAffaire, p.id) } : null,
       });
     }
-    remplir(racine, gabaritFiche({ entete, gauche: [resume.element, details.element, sectionDocuments.element, sectionDocumentsAffaire?.element].filter(Boolean), droite: panneau.element }));
+    remplir(racine, gabaritFiche({ entete, gauche: [resume.element, sectionTaches(p).element, details.element, sectionDocuments.element, sectionDocumentsAffaire?.element].filter(Boolean), droite: panneau.element }));
   }
 
   function reconstruire() {

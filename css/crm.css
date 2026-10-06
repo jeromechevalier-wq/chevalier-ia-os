@@ -291,7 +291,7 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
   .section { background: var(--panneau); border: 1px solid var(--bordure); border-radius: var(--rayon); padding: 6px 14px; }
   .section[data-section$='-resume'] { order: 1; }
   .compositeur { order: 2; }
-  .points-cles { order: 3; }
+  .points-cles, .section[data-section='projet-taches'] { order: 3; }
   .section[data-section='affaire-encaissements'], .section[data-section='organisation-personnes'] { order: 4; }
   .section[data-section='affaire-documents'], .section[data-section$='-affaires'], .section[data-section$='-projets'], .section[data-section='affaire-projet'], .section[data-section^='projet-documents'] { order: 5; }
   .section[data-section='personne-organisation'] { order: 6; }

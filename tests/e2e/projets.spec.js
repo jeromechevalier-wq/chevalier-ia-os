@@ -1,6 +1,6 @@
 // Tests C : écran Projets (étape 2 : Kanban par phase, liste, fiche), formats 1440 × 900 et 390 × 844.
 import {
-  test, expect, connecter, allerA, creerPersonne, creerOrganisation, creerAffaire, creerProjet, lireDocument, listerDocuments, ecrireDocument,
+  test, expect, connecter, allerA, creerPersonne, creerOrganisation, creerAffaire, creerProjet, creerTacheProjet, creerActivite, lireDocument, listerDocuments, ecrireDocument,
   jour, estTelephone, JEROME,
 } from './outils.js';
 
@@ -567,4 +567,238 @@ test('C30 fiches personne et organisation : leurs projets en cartes, la section 
   await expect(page.locator('[data-section="personne-projets"] .carte-projet-mini')).toHaveCount(1);
   await creerProjet('pr4', { titre: 'Nouveau chantier', personneId: 'p2' });
   await expect(page.locator('[data-section="personne-projets"] .carte-projet-mini')).toHaveCount(2);
+});
+
+// ---------------------------------------------------------------- étape 4 : tâches des projets
+
+test('C31 fiche projet : ajouter des tâches (titre seul, ou avec phase et date rapide), classées par phase, avec le compteur et l’avancement', async ({ page }) => {
+  await creerProjet('pr1', { titre: 'Audit des Lilas', phase: 'decouverte' });
+  await connecter(page);
+  await aller(page, '#/projets/projets/pr1');
+  const section = page.locator('[data-section="projet-taches"]');
+  await expect(section).toContainText('Aucune tâche pour le moment');
+  await expect(page.locator('[data-prop="avancement"]')).toContainText('Aucune tâche');
+  // titre vide : refusé
+  await section.locator('[data-action="ajouter-tache"]').click();
+  await expect(page.locator('.toast', { hasText: 'Le titre est obligatoire.' })).toBeVisible();
+  expect(await listerDocuments('projets_taches')).toHaveLength(0);
+  // titre seul (Entrée) : dans la phase du projet, à Jérôme, sans date
+  await section.getByLabel('Nouvelle tâche').fill('Interview Carrel');
+  await section.getByLabel('Nouvelle tâche').press('Enter');
+  const t1 = await attendre('projets_taches', (d) => d.titre === 'Interview Carrel');
+  expect(t1).toMatchObject({ projetId: 'pr1', phase: 'decouverte', ordre: 1, date: null, fait: false, assigneA: 'jerome', auteur: JEROME });
+  // autre phase et date rapide « Demain »
+  await section.getByLabel('Nouvelle tâche').fill('Rédiger le rapport');
+  await section.getByLabel('Phase de la tâche').selectOption('livraison');
+  await section.locator('[data-date-rapide="demain"]').click();
+  await section.locator('[data-action="ajouter-tache"]').click();
+  const t2 = await attendre('projets_taches', (d) => d.titre === 'Rédiger le rapport');
+  expect(t2).toMatchObject({ phase: 'livraison', ordre: 1, date: jour(1) });
+  // une deuxième tâche dans la même phase passe après la première
+  await section.getByLabel('Nouvelle tâche').fill('Débriefing');
+  await section.getByLabel('Phase de la tâche').selectOption('livraison');
+  await section.locator('[data-action="ajouter-tache"]').click();
+  expect((await attendre('projets_taches', (d) => d.titre === 'Débriefing')).ordre).toBe(2);
+  // groupes par phase, dans l'ordre des phases
+  await expect(section.locator('.groupe-taches')).toHaveCount(2);
+  await expect(section.locator('.groupe-taches').nth(0)).toHaveAttribute('data-phase', 'decouverte');
+  await expect(section.locator('.groupe-taches[data-phase="livraison"] .tache')).toHaveText([/Rédiger le rapport/, /Débriefing/]);
+  await expect(section.locator('.groupe-taches[data-phase="livraison"] .compteur')).toHaveText('0/2');
+  await expect(page.locator('[data-prop="avancement"]')).toContainText('0 / 3 tâches');
+  await expect(section.locator('.section-compteur')).toHaveText('0/3');
+  // audit : la création laisse sa trace
+  expect((await listerDocuments('crm_audit')).filter((l) => l.outil === 'creerTache' && l.collection === 'projets_taches')).toHaveLength(3);
+});
+
+test('C31 cocher une tâche : fait, date, événement dans l’historique du projet, avancement et cercle sur la carte ; décocher la remet à faire', async ({ page }) => {
+  await creerProjet('pr1', { titre: 'Audit des Lilas' });
+  await creerTacheProjet('t1', { titre: 'Interview Carrel' });
+  await creerTacheProjet('t2', { titre: 'Rapport', ordre: 2 });
+  await connecter(page);
+  await aller(page, '#/projets/projets/pr1');
+  const ligne = page.locator('.tache[data-tache="t1"]');
+  await ligne.locator('.case-fait').click();
+  await champDoc('projets_taches', 't1', 'fait', true);
+  expect((await lireDocument('projets_taches/t1')).dateFait).toBeInstanceOf(Date);
+  await expect(ligne).toHaveClass(/tache-faite/);
+  await expect(ligne.locator('.case-fait')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('[data-prop="avancement"] .anneau-progression')).toHaveAttribute('data-faites', '1');
+  await expect(page.locator('[data-prop="avancement"]')).toContainText('1 / 2 tâches');
+  const ev = await attendre('crm_evenements', (e) => e.type === 'tache_faite');
+  expect(ev).toMatchObject({ projetId: 'pr1', texte: 'Tâche faite : Interview Carrel' });
+  await expect(page.locator('.historique')).toContainText('Tâche faite : Interview Carrel');
+  // le Kanban montre le cercle d'avancement
+  await allerA(page, 'Projets');
+  const anneau = page.locator('.carte-projet[data-projet="pr1"] .anneau-progression');
+  await expect(anneau).toHaveAttribute('data-faites', '1');
+  await expect(anneau).toHaveAttribute('data-total', '2');
+  await expect(anneau).toHaveAttribute('aria-label', '1 tâche faite sur 2');
+  // décocher
+  await aller(page, '#/projets/projets/pr1');
+  await page.locator('.tache[data-tache="t1"] .case-fait').click();
+  await champDoc('projets_taches', 't1', 'fait', false);
+  expect((await lireDocument('projets_taches/t1')).dateFait).toBeNull();
+  await expect(page.locator('[data-prop="avancement"]')).toContainText('0 / 2 tâches');
+});
+
+test('C31 le cercle d’avancement n’existe que s’il y a des tâches ; modifier une tâche : titre, date, heure, personne ; « Sans date »', async ({ page }) => {
+  await creerProjet('pr1', { titre: 'Audit des Lilas' });
+  await creerProjet('pr2', { titre: 'Projet sans tâche' });
+  await creerTacheProjet('t1', { titre: 'Interview Carrel', date: jour(2), heure: '09:30' });
+  await connecter(page);
+  await allerA(page, 'Projets');
+  await expect(page.locator('.carte-projet[data-projet="pr1"] .anneau-progression')).toHaveCount(1);
+  await expect(page.locator('.carte-projet[data-projet="pr2"]')).toBeVisible();
+  await expect(page.locator('.carte-projet[data-projet="pr2"] .anneau-progression')).toHaveCount(0);
+  await aller(page, '#/projets/projets/pr1');
+  const ligne = page.locator('.tache[data-tache="t1"]');
+  await expect(ligne).toContainText('9 h 30');
+  await ligne.locator('[data-action="menu-tache"]').click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Modifier…' }).click();
+  await dialogue(page).getByLabel('Titre de la tâche').fill('Interview Carrel et Martin');
+  await dialogue(page).getByLabel('Confiée à').selectOption('charles');
+  await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(dialogue(page)).toHaveCount(0);
+  expect(await lireDocument('projets_taches/t1')).toMatchObject({ titre: 'Interview Carrel et Martin', assigneA: 'charles', date: jour(2), heure: '09:30' });
+  await expect(ligne).toContainText('Charles');
+  // titre vide : message dans la fenêtre, rien n'est écrit
+  await ligne.locator('[data-action="menu-tache"]').click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Modifier…' }).click();
+  await dialogue(page).getByLabel('Titre de la tâche').fill('   ');
+  await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(dialogue(page).getByRole('alert')).toContainText('Le titre est obligatoire.');
+  await dialogue(page).getByRole('button', { name: 'Annuler' }).click();
+  // sans date : date et heure effacées
+  await ligne.locator('[data-action="menu-tache"]').click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Modifier…' }).click();
+  await dialogue(page).locator('[data-action="effacer-date"]').click();
+  await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
+  await champDoc('projets_taches', 't1', 'date', null);
+  expect((await lireDocument('projets_taches/t1')).heure).toBe('');
+});
+
+test('C31 monter, descendre, changer de phase, supprimer une tâche', async ({ page }) => {
+  await creerProjet('pr1', { titre: 'Audit des Lilas' });
+  await creerTacheProjet('a', { titre: 'Première', ordre: 1 });
+  await creerTacheProjet('b', { titre: 'Deuxième', ordre: 2 });
+  await creerTacheProjet('c', { titre: 'Troisième', ordre: 3 });
+  await connecter(page);
+  await aller(page, '#/projets/projets/pr1');
+  const ordre = () => page.locator('[data-section="projet-taches"] .groupe-taches[data-phase="lancement"] .tache .tache-titre');
+  await expect(ordre()).toHaveText(['Première', 'Deuxième', 'Troisième']);
+  const menu = async (id, entree) => {
+    await page.locator(`.tache[data-tache="${id}"] [data-action="menu-tache"]`).click();
+    await page.locator('.menu-pop').getByRole('menuitem', { name: entree, exact: true }).click();
+  };
+  await menu('c', 'Monter');
+  await expect(ordre()).toHaveText(['Première', 'Troisième', 'Deuxième']);
+  await menu('a', 'Descendre');
+  await expect(ordre()).toHaveText(['Troisième', 'Première', 'Deuxième']);
+  expect([(await lireDocument('projets_taches/c')).ordre, (await lireDocument('projets_taches/a')).ordre, (await lireDocument('projets_taches/b')).ordre]).toEqual([1, 2, 3]);
+  // la première de la liste ne se monte pas, la dernière ne se descend pas
+  await page.locator('.tache[data-tache="c"] [data-action="menu-tache"]').click();
+  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Monter', exact: true })).toBeDisabled();
+  await page.keyboard.press('Escape');
+  await page.locator('.tache[data-tache="b"] [data-action="menu-tache"]').click();
+  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Descendre', exact: true })).toBeDisabled();
+  await page.keyboard.press('Escape');
+  // changer de phase : à la fin de la nouvelle phase
+  await menu('a', 'Déplacer vers : Livraison');
+  await champDoc('projets_taches', 'a', 'phase', 'livraison');
+  await expect(page.locator('.groupe-taches[data-phase="livraison"] .tache')).toHaveCount(1);
+  await expect(ordre()).toHaveText(['Troisième', 'Deuxième']);
+  // supprimer : annuler garde, confirmer supprime
+  await page.locator('.tache[data-tache="b"] [data-action="menu-tache"]').click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Supprimer' }).click();
+  await dialogue(page).getByRole('button', { name: 'Annuler' }).click();
+  expect(await lireDocument('projets_taches/b')).not.toBeNull();
+  await menu('b', 'Supprimer');
+  await dialogue(page).getByRole('button', { name: 'Supprimer' }).click();
+  await expect.poll(async () => await lireDocument('projets_taches/b')).toBeNull();
+});
+
+test('C31 Accueil : les tâches de projet en retard et du jour sont dans les Points clés avec leur projet, mêlées aux activités ; « Fait » les coche', async ({ page }) => {
+  await creerProjet('pr1', { titre: 'Audit des Lilas' });
+  await creerProjet('pr2', { titre: 'Chantier en pause', statut: 'en_pause' });
+  await creerProjet('pr3', { titre: 'Projet rangé', archive: true, statut: 'termine' });
+  await creerTacheProjet('retard', { titre: 'Relire le devis', date: jour(-3) });
+  await creerTacheProjet('jour', { titre: 'Appeler Carrel', date: jour(0), heure: '14:00' });
+  await creerTacheProjet('futur', { titre: 'Dans une semaine', date: jour(7) });
+  await creerTacheProjet('sans', { titre: 'Sans date' });
+  await creerTacheProjet('faite', { titre: 'Déjà faite', date: jour(-1), fait: true });
+  await creerTacheProjet('pause', { titre: 'Tâche d’un projet en pause', projetId: 'pr2', date: jour(-1) });
+  await creerTacheProjet('rangee', { titre: 'Tâche d’un projet rangé', projetId: 'pr3', date: jour(-1) });
+  await creerPersonne('p1', { nom: 'Marie Durand' });
+  await creerActivite('x1', { titre: 'Activité du matin', date: jour(0), heure: '08:00', personneId: 'p1' });
+  await connecter(page);
+  const retard = page.locator('[data-groupe="retard"]');
+  await expect(retard.locator('.compteur')).toHaveText('1');
+  await expect(retard.locator('.tache[data-tache="retard"]')).toContainText('Relire le devis');
+  await expect(retard.locator('.tache[data-tache="retard"] .badge-etat')).toHaveText('En retard');
+  await expect(retard.locator('.tache[data-tache="retard"] a')).toHaveText('Audit des Lilas');
+  await expect(retard.locator('.tache[data-tache="retard"] a')).toHaveAttribute('href', '#/projets/projets/pr1');
+  const jourJ = page.locator('[data-groupe="aujourdhui"]');
+  await expect(jourJ.locator('.compteur')).toHaveText('2');
+  await expect(jourJ.locator('.activite')).toHaveText([/Activité du matin/, /Appeler Carrel/]); // mêlées par heure
+  for (const absente of ['Dans une semaine', 'Sans date', 'Déjà faite', 'Tâche d’un projet en pause', 'Tâche d’un projet rangé']) {
+    await expect(page.locator('.section-a-faire')).not.toContainText(absente);
+  }
+  // « Fait » depuis l'Accueil
+  await jourJ.locator('.tache[data-tache="jour"] [data-action="faire-tache"]').click();
+  await champDoc('projets_taches', 'jour', 'fait', true);
+  await expect(jourJ.locator('.compteur')).toHaveText('1');
+  await expect(jourJ.locator('.tache')).toHaveCount(0);
+  await retard.locator('.tache[data-tache="retard"] [data-action="faire-tache"]').click();
+  await champDoc('projets_taches', 'retard', 'fait', true);
+  await expect(retard).toHaveCount(0);
+  expect((await listerDocuments('crm_evenements')).filter((e) => e.type === 'tache_faite')).toHaveLength(2);
+});
+
+test('C31 le retard d’une tâche rend le projet « en retard » : badge, pastille rouge, filtre ; une tâche faite ou à venir non', async ({ page }) => {
+  await creerProjet('pr1', { titre: 'Projet en retard' });
+  await creerProjet('pr2', { titre: 'Projet à l’heure' });
+  await creerTacheProjet('t1', { titre: 'En retard', projetId: 'pr1', date: jour(-2) });
+  await creerTacheProjet('t2', { titre: 'À venir', projetId: 'pr2', date: jour(3) });
+  await creerTacheProjet('t3', { titre: 'Faite', projetId: 'pr2', date: jour(-5), fait: true, ordre: 2 });
+  await connecter(page);
+  await allerA(page, 'Projets');
+  await expect(page.locator('.carte-projet[data-projet="pr1"] .badge-retard')).toBeVisible();
+  await expect(page.locator('.carte-projet[data-projet="pr1"] .pastille-activite.rouge')).toBeVisible();
+  await expect(page.locator('.carte-projet[data-projet="pr2"] .badge-retard')).toHaveCount(0);
+  await expect(page.locator('.carte-projet[data-projet="pr2"] .pastille-activite.verte')).toBeVisible();
+  await page.locator('[data-action="filtres"]').click();
+  await dialogue(page).getByLabel('En retard').check();
+  await dialogue(page).getByRole('button', { name: 'Appliquer' }).click();
+  await expect(page.locator('.carte-projet')).toHaveCount(1);
+  await expect(page.locator('.carte-projet[data-projet="pr1"]')).toBeVisible();
+});
+
+test('C31 supprimer un projet supprime ses tâches et pas celles des autres', async ({ page }) => {
+  await creerProjet('pr1', { titre: 'À supprimer' });
+  await creerProjet('pr2', { titre: 'À garder' });
+  await creerTacheProjet('t1', { titre: 'Tâche 1', projetId: 'pr1' });
+  await creerTacheProjet('t2', { titre: 'Tâche 2', projetId: 'pr1', ordre: 2 });
+  await creerTacheProjet('t3', { titre: 'Tâche 3', projetId: 'pr2' });
+  await connecter(page);
+  await aller(page, '#/projets/projets/pr1');
+  await page.locator('[data-action="menu-fiche"]').click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: /Supprimer définitivement/ }).click();
+  await dialogue(page).getByLabel(/Tape « À supprimer »/).fill('à supprimer');
+  await dialogue(page).getByRole('button', { name: 'Supprimer' }).click();
+  await expect.poll(async () => (await listerDocuments('projets_taches')).map((t) => t.id)).toEqual(['t3']);
+  expect(await lireDocument('projets_projets/pr1')).toBeNull();
+  expect(await lireDocument('projets_projets/pr2')).not.toBeNull();
+});
+
+test('C31 aucun défilement horizontal de la fiche projet avec des tâches aux titres très longs', async ({ page }) => {
+  await creerProjet('pr1', { titre: 'Projet' });
+  await creerTacheProjet('t1', { titre: 'Une tâche dont le titre est vraiment très long pour vérifier le comportement de la ligne et de son menu', date: jour(-1), assigneA: 'charles' });
+  await creerTacheProjet('t2', { titre: 'Untitretrèslongsansespacepourvérifierlecomportementdelaligneetdesonmenudactions', ordre: 2, phase: 'livraison' });
+  await connecter(page);
+  await aller(page, '#/projets/projets/pr1');
+  await expect(page.locator('.tache')).toHaveCount(2);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
+  await allerA(page, 'Projets');
+  await expect(page.locator('.carte-projet')).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
 });

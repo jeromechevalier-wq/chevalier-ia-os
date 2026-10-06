@@ -8,6 +8,9 @@ import { etatVide, lienAffaire, pastilleEtape } from './composants.js';
 import { ligneActivite, faireActivite, dialogueActivite, proposerProchaineActivite } from './activites.js';
 import { exporterToutesLesDonnees } from './export.js';
 import { ouvrirCreationPersonne } from './personnes.js';
+import * as PD from '../projets/donnees.js';
+import * as P from '../projets/logique.js';
+import { ligneTachePointsCles } from '../projets/taches.js';
 
 let moisAffiche = null;
 
@@ -68,7 +71,7 @@ export function rendreAccueil(conteneur, { compte }) {
 
   monterObjectifs();
   rafraichir();
-  const arrets = [D.surChangement(rafraichir), surObjectifs(() => majObjectifs?.())];
+  const arrets = [D.surChangement(rafraichir), PD.surChangement(rafraichir), surObjectifs(() => majObjectifs?.())];
   return () => arrets.forEach((f) => f());
 }
 
@@ -83,8 +86,25 @@ function rendreRappel(zone) {
 
 /** Combien d'éléments restent dans En retard et Aujourd'hui : pour féliciter quand tout est fait. */
 function resteAFaire() {
-  const pc = L.pointsCles({ activites: D.etat.activites, affaires: D.etat.affaires }, D.ctx().aujourdhui);
-  return pc.enRetard.length + pc.aujourdhui.length + pc.reveils.length;
+  const aujourdhui = D.ctx().aujourdhui;
+  const pc = L.pointsCles({ activites: D.etat.activites, affaires: D.etat.affaires }, aujourdhui);
+  const tp = P.tachesPointsCles(PD.etat.taches, PD.etat.projets, aujourdhui);
+  return pc.enRetard.length + pc.aujourdhui.length + pc.reveils.length + tp.enRetard.length + tp.aujourdhui.length;
+}
+
+async function faireTache(tache) {
+  const avant = resteAFaire();
+  await PD.faireTache(tache.id);
+  if (avant > 0 && resteAFaire() === 0) charlesContent();
+}
+
+/** Activités du CRM et tâches de projet d'un même groupe, mêlées par date et heure (les activités d'abord à égalité). */
+function lignesMelees(activites, taches, aujourdhui) {
+  const cle = (x) => `${x.date}T${x.heure || '00:00'}`;
+  return [
+    ...activites.map((a) => ({ cle: cle(a), rang: 0, ligne: ligneActivite(a, aujourdhui, { tousRattachements: true, surFait: faire }) })),
+    ...taches.map((t) => ({ cle: cle(t), rang: 1, ligne: ligneTachePointsCles(t, aujourdhui, { surFait: faireTache }) })),
+  ].sort((a, b) => a.cle.localeCompare(b.cle) || a.rang - b.rang).map((x) => x.ligne);
 }
 
 async function faire(activite) {
@@ -103,14 +123,16 @@ function rendrePointsCles(zone) {
   vider(zone);
   const aujourdhui = D.ctx().aujourdhui;
   const pc = L.pointsCles({ activites: D.etat.activites, affaires: D.etat.affaires }, aujourdhui);
-  if (!D.etat.affaires.length && !D.etat.personnes.length && !D.etat.activites.length) {
+  const tp = P.tachesPointsCles(PD.etat.taches, PD.etat.projets, aujourdhui);
+  if (!D.etat.affaires.length && !D.etat.personnes.length && !D.etat.activites.length && !PD.etat.projets.length) {
     zone.append(etatVide('Ajoute ta première personne, il suffit de son nom.', { action: h('button', { type: 'button', class: 'bouton bouton-principal', onclick: () => ouvrirCreationPersonne() }, icone('plus', { taille: 16 }), 'Personne') }));
     return;
   }
-  const duJour = pc.aujourdhui.length + pc.reveils.length;
-  if (!pc.enRetard.length && !duJour) zone.append(etatVide('Aucune relance aujourd’hui, Charles veille'));
-  if (pc.enRetard.length) {
-    zone.append(groupe('En retard', 'retard', pc.enRetard.length, h('ul', { class: 'liste-activites' }, pc.enRetard.map((a) => ligneActivite(a, aujourdhui, { tousRattachements: true, surFait: faire }))), 'groupe-retard'));
+  const nombreRetard = pc.enRetard.length + tp.enRetard.length;
+  const duJour = pc.aujourdhui.length + pc.reveils.length + tp.aujourdhui.length;
+  if (!nombreRetard && !duJour) zone.append(etatVide('Aucune relance aujourd’hui, Charles veille'));
+  if (nombreRetard) {
+    zone.append(groupe('En retard', 'retard', nombreRetard, h('ul', { class: 'liste-activites' }, lignesMelees(pc.enRetard, tp.enRetard, aujourdhui)), 'groupe-retard'));
   }
   if (duJour) {
     zone.append(groupe('Aujourd’hui', 'aujourdhui', duJour, h('ul', { class: 'liste-activites' },
@@ -119,7 +141,7 @@ function rendrePointsCles(zone) {
           onclick: async () => { await D.rouvrir(a.id); await proposerProchaineActivite(L.liensAffaire(a)); } }, icone('check', { taille: 14 })),
         h('span', { class: 'activite-type' }, icone('clock', { taille: 16 })),
         h('div', { class: 'activite-texte' }, h('strong', {}, 'Reprendre contact'), h('span', { class: 'activite-meta' }, lienAffaire(a))))),
-      pc.aujourdhui.map((a) => ligneActivite(a, aujourdhui, { tousRattachements: true, surFait: faire })))));
+      lignesMelees(pc.aujourdhui, tp.aujourdhui, aujourdhui))));
   }
   zone.append(groupe('Sans action prévue', 'sans-action', pc.sansAction.length,
     pc.sansAction.length ? h('ul', { class: 'liste-activites' }, pc.sansAction.map((a) => h('li', { class: 'activite', dataset: { affaire: a.id } },

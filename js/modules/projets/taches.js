@@ -1,0 +1,132 @@
+// Tâches d'un projet : section de la fiche projet (par phase) et ligne des Points clés de l'Accueil.
+// Aucune règle métier ici : les règles sont dans logique.js (plans), exécutés par donnees.js.
+import { h, icone, remplir, dialogue, confirmer, ouvrirMenu, toast } from '../../os/ui.js';
+import { sectionRepliable, lien } from '../crm/composants.js';
+import { selecteurDate } from '../crm/activites.js';
+import * as L from '../crm/logique.js';
+import * as D from './donnees.js';
+import * as P from './logique.js';
+import { cheminProjet } from './composants.js';
+
+const LIBELLES_ETAT = { retard: 'En retard', aujourdhui: "Aujourd'hui", avenir: '' };
+const etatDe = (t, aujourdhui) => (P.tacheEnRetard(t, aujourdhui) ? 'retard' : t.date === aujourdhui ? 'aujourdhui' : 'avenir');
+/** Un refus de règle montre son message ; toute autre erreur reste « impossible ». */
+const messageErreur = (e, defaut) => (e?.saisie ? e.message : defaut);
+
+async function ou(action, defaut) {
+  try { await action(); return true; } catch (e) { console.warn(e); toast(messageErreur(e, defaut), { type: 'erreur' }); return false; }
+}
+
+const texteDate = (t, aujourdhui) => (t.date ? `${L.formatJourCourt(t.date, aujourdhui)}${t.heure ? ` à ${t.heure.replace(':', ' h ')}` : ''}` : '');
+
+// ---------------------------------------------------------------- modifier une tâche
+
+export async function dialogueTache(t) {
+  const titre = h('input', { class: 'champ', type: 'text', 'aria-label': 'Titre de la tâche', value: t.titre, autofocus: true });
+  const date = selecteurDate(t.date || '');
+  const heure = h('input', { class: 'champ champ-court', type: 'time', 'aria-label': 'Heure (facultatif)', value: t.heure || '' });
+  const assigne = h('select', { class: 'champ', 'aria-label': 'Confiée à' }, P.ASSIGNES.map((a) => h('option', { value: a.id, selected: a.id === (t.assigneA || 'jerome') }, a.libelle)));
+  const erreur = h('p', { class: 'erreur', role: 'alert' });
+  return dialogue({
+    titre: 'Modifier la tâche',
+    classe: 'dialogue-formulaire',
+    contenu: h('div', { class: 'pile' },
+      h('label', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Titre'), titre),
+      h('div', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Date (facultative)'), date.element,
+        h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', 'data-action': 'effacer-date', onclick: () => { date.champ.value = ''; heure.value = ''; } }, 'Sans date')),
+      h('label', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Heure (facultative)'), heure),
+      h('label', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Confiée à'), assigne),
+      erreur),
+    boutons: [{ libelle: 'Annuler', valeur: false }, {
+      libelle: 'Enregistrer', valeur: true, style: 'principal',
+      avantFermeture: async () => {
+        try {
+          await D.majTache(t.id, { titre: titre.value, date: date.valeur(), heure: date.valeur() ? heure.value : '', assigneA: assigne.value });
+          return true;
+        } catch (e) {
+          console.warn(e);
+          erreur.textContent = messageErreur(e, 'Enregistrement impossible, réessaie.');
+          return false;
+        }
+      },
+    }],
+  });
+}
+
+// ---------------------------------------------------------------- section de la fiche projet
+
+/** Section « Tâches » de la fiche : les tâches de chaque phase, cases à cocher, ajout rapide, menu par tâche. */
+export function sectionTaches(projet) {
+  const aujourdhui = D.ctx().aujourdhui;
+  const groupes = P.tachesParPhase(D.etat.taches, projet.id);
+  const toutes = groupes.flatMap((g) => g.taches);
+
+  function ligne(t, g, i) {
+    const faite = t.fait;
+    const case_ = h('button', { type: 'button', class: `case-fait${faite ? ' faite' : ''}`, 'aria-pressed': String(faite), 'aria-label': faite ? `Remettre à faire : ${t.titre}` : `Marquer comme faite : ${t.titre}`,
+      dataset: { action: faite ? 'defaire-tache' : 'faire-tache' }, onclick: () => ou(() => (faite ? D.defaireTache(t.id) : D.faireTache(t.id)), 'Enregistrement impossible') }, icone('check', { taille: 14 }));
+    const etat = faite ? 'avenir' : etatDe(t, aujourdhui);
+    const menu = h('button', { type: 'button', class: 'bouton-icone', 'aria-label': `Actions : ${t.titre}`, dataset: { action: 'menu-tache' },
+      onclick: (e) => ouvrirMenu(e.currentTarget, [
+        { libelle: 'Modifier…', icone: 'pencil', action: () => dialogueTache(t) },
+        { libelle: 'Monter', icone: 'arrow-up', desactive: i === 0, action: () => ou(() => D.deplacerTache(t.id, -1), 'Déplacement impossible') },
+        { libelle: 'Descendre', icone: 'arrow-down', desactive: i === g.taches.length - 1, action: () => ou(() => D.deplacerTache(t.id, 1), 'Déplacement impossible') },
+        ...P.PHASES.map((ph) => ({ libelle: `Déplacer vers : ${ph.libelle}`, icone: 'arrow-right-left', desactive: ph.id === t.phase, action: () => ou(() => D.majTache(t.id, { phase: ph.id }), 'Déplacement impossible') })),
+        { libelle: 'Supprimer', icone: 'trash-2', danger: true, action: async () => { if (await confirmer('Supprimer cette tâche ?', t.titre, { libelleOk: 'Supprimer', danger: true })) await ou(() => D.supprimerTache(t.id), 'Suppression impossible'); } },
+      ]) }, icone('ellipsis', { taille: 16 }));
+    return h('li', { class: `activite tache activite-${etat}${faite ? ' tache-faite' : ''}`, dataset: { tache: t.id } },
+      case_,
+      h('div', { class: 'activite-texte' },
+        h('strong', { class: 'tache-titre' }, t.titre),
+        h('span', { class: 'activite-meta' },
+          etat !== 'avenir' ? h('span', { class: `badge-etat ${etat}` }, LIBELLES_ETAT[etat]) : null,
+          t.date ? h('span', {}, texteDate(t, aujourdhui)) : null,
+          t.assigneA && t.assigneA !== 'jerome' ? h('span', { class: 'badge-assigne' }, icone('user', { taille: 12 }), P.libelleAssigne(t.assigneA)) : null)),
+      menu);
+  }
+
+  // ---- ajout rapide
+  const titre = h('input', { class: 'champ', type: 'text', 'aria-label': 'Nouvelle tâche', placeholder: 'Ajouter une tâche…', autocomplete: 'off' });
+  const phase = h('select', { class: 'champ', 'aria-label': 'Phase de la tâche' }, P.PHASES.map((ph) => h('option', { value: ph.id, selected: ph.id === projet.phase }, ph.libelle)));
+  const date = selecteurDate('');
+  const bouton = h('button', { type: 'button', class: 'bouton bouton-principal bouton-petit', 'data-action': 'ajouter-tache', onclick: ajouter }, icone('plus', { taille: 14 }), 'Ajouter la tâche');
+  async function ajouter() {
+    if (!L.nettoyerEspaces(titre.value)) { toast('Le titre est obligatoire.', { type: 'erreur' }); titre.classList.add('invalide'); titre.focus(); return; }
+    bouton.disabled = true;
+    const ok = await ou(() => D.creerTache(projet.id, { titre: titre.value, phase: phase.value, date: date.valeur() }), 'Ajout impossible');
+    bouton.disabled = false;
+    if (ok) { titre.value = ''; date.champ.value = ''; titre.classList.remove('invalide'); titre.focus(); }
+  }
+  titre.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); ajouter(); } });
+
+  const avecTaches = groupes.filter((g) => g.taches.length);
+  const progression = P.progressionProjet(toutes);
+  return sectionRepliable({
+    id: 'projet-taches', titre: 'Tâches', compteur: toutes.length ? `${progression.faites}/${progression.total}` : 0,
+    contenu: h('div', { class: 'pile' },
+      h('div', { class: 'ajout-tache' }, titre, phase, date.element, bouton),
+      avecTaches.length
+        ? avecTaches.map((g) => h('div', { class: 'groupe-taches', dataset: { phase: g.phase.id } },
+          h('h3', { class: 'sous-titre' }, g.phase.libelle, h('span', { class: 'compteur' }, `${g.faites}/${g.taches.length}`)),
+          h('ul', { class: 'liste-activites' }, g.taches.map((t, i) => ligne(t, g, i)))))
+        : h('p', { class: 'aide' }, 'Aucune tâche pour le moment. Ajoute la première ci-dessus.')),
+  });
+}
+
+// ---------------------------------------------------------------- Points clés de l'Accueil
+
+/** Ligne d'une tâche de projet dans « En retard » ou « Aujourd'hui » : case à cocher, titre, date, lien vers le projet. `t.projet` : le projet. */
+export function ligneTachePointsCles(t, aujourdhui, { surFait = null } = {}) {
+  const etat = etatDe(t, aujourdhui);
+  const bouton = h('button', { type: 'button', class: 'case-fait', 'aria-label': `Marquer comme faite : ${t.titre}`, title: 'Fait', dataset: { action: 'faire-tache' },
+    onclick: () => (surFait ? surFait(t) : D.faireTache(t.id)) }, icone('check', { taille: 14 }));
+  return h('li', { class: `activite tache activite-${etat}`, dataset: { tache: t.id } },
+    bouton,
+    h('span', { class: 'activite-type' }, icone('folder-kanban', { taille: 16 })),
+    h('div', { class: 'activite-texte' },
+      h('strong', {}, t.titre),
+      h('span', { class: 'activite-meta' },
+        etat !== 'avenir' ? h('span', { class: `badge-etat ${etat}` }, LIBELLES_ETAT[etat]) : null,
+        h('span', {}, texteDate(t, aujourdhui)),
+        lien(cheminProjet(t.projet.id), t.projet.titre))));
+}
