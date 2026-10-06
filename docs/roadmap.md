@@ -66,6 +66,7 @@ La fonction écrite dans la branche `mcp` (commit de code `24a8e96`) est **repri
 - **Écran Projets : étape 2 sur 7 (Kanban, liste, fiche projet) construite le 06/10/2026**, PR en attente du « fusionne » : menu Projets, Kanban par phase, liste, archives, recherche et filtres, création, fiche (phases, pause, terminer, notes, documents), recherche globale, export JSON. Détail : `projets-etape-2.md`.
 - **Écran Projets : étape 3 sur 7 (créer ou lier un projet depuis une affaire gagnée) construite le 06/10/2026**, PR en attente du « fusionne » : section Projet sur la fiche affaire (créer, lier, détacher), documents et notes de l'affaire montrés dans le projet, sections Projets sur les fiches personne et organisation. Détail : `projets-etape-3.md`.
 - **Écran Projets : étape 4 sur 7 (tâches des projets) construite le 06/10/2026**, PR en attente du « fusionne » : section Tâches de la fiche projet, avancement (cercle sur les cartes), retard calculé d'après les tâches, tâches en retard et du jour dans l'Accueil. Détail : `projets-etape-4.md`.
+- **Écran Projets : étape 5 sur 7 (modèles de projet) construite le 06/10/2026**, PR en attente du « fusionne » : modèles Audit, Accompagnement et Extraction livrés, écran Modèles, création d'un projet avec les tâches d'un modèle (modèle de l'offre proposé pour une affaire gagnée). Détail : `projets-etape-5.md`.
 - Copie quotidienne vers Google Sheet par n8n.
 (voir `rapport-construction-v2.md`)
 

@@ -26,3 +26,13 @@
 .tache-faite .tache-titre { text-decoration: line-through; color: var(--texte2); }
 .badge-assigne { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 999px; background: var(--survol); font-size: 12px; font-weight: 600; }
 .avancement { display: inline-flex; align-items: center; gap: 8px; }
+
+/* Modèles */
+.fiche-pleine { max-width: 760px; }
+.ajout-tache-modele { grid-template-columns: minmax(0, 1fr) auto auto; }
+.ajout-tache-modele button { grid-column: auto; }
+@media (max-width: 767px) {
+  .ajout-tache-modele { grid-template-columns: 1fr 1fr; }
+  .ajout-tache-modele input[type="text"] { grid-column: 1 / -1; }
+  .ajout-tache-modele button { grid-column: 1 / -1; justify-self: start; }
+}

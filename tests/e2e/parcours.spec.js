@@ -42,7 +42,7 @@ test('C1 connexion avec Jérôme : arrivée sur l’Accueil, 6 objectifs, graphi
   for (const libelle of ['Interviews JTBD réalisées', 'Nouveaux contacts', 'Rendez vous tenus', 'Propositions envoyées', "Chiffre d'affaires encaissé", 'Flyers distribués']) {
     await expect(page.locator('.objectif-libelle', { hasText: libelle })).toBeVisible();
   }
-  await expect.poll(async () => (await listerDocuments('crm_parametres')).map((d) => d.id).sort()).toEqual(['etiquettes', 'filtres', 'listes', 'offres', 'reglages']);
+  await expect.poll(async () => (await listerDocuments('crm_parametres')).map((d) => d.id).sort()).toEqual(['etiquettes', 'filtres', 'listes', 'modeles_projet', 'offres', 'reglages']);
   await expect.poll(async () => (await listerDocuments('os_objectifs')).length).toBe(6);
   // Graphique : aucun mois avant le début d'activité (octobre 2026), jamais plus de 6 mois
   const mois = await page.locator('.colonne-ca').evaluateAll((els) => els.map((e) => e.dataset.mois));
@@ -1105,7 +1105,7 @@ test('C23 navigation : lien direct vers une fiche, route inconnue, déconnexion'
   await aller(page, '#/crm/personnes/inexistante');
   await expect(page.locator('.etat-vide')).toContainText('n’existe plus');
   // Premier lancement : on laisse l'initialisation des réglages et des objectifs se terminer avant de se déconnecter
-  await expect.poll(async () => (await listerDocuments('crm_parametres')).length).toBe(5);
+  await expect.poll(async () => (await listerDocuments('crm_parametres')).length).toBe(6); // + le repère des modèles de projet
   await expect.poll(async () => (await listerDocuments('os_objectifs')).length).toBe(6);
   if (estTelephone(page)) await page.getByRole('button', { name: 'Ouvrir le menu' }).click();
   await page.getByRole('button', { name: 'Se déconnecter' }).click();

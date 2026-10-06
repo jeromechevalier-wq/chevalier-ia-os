@@ -11,12 +11,14 @@ import { creerLanceurs } from '../crm/lanceurs.js';
 import * as D from './donnees.js';
 import * as P from './logique.js';
 import { sectionTaches } from './taches.js';
+import { cheminModele } from './modeles.js';
 import { anneauProgression } from './composants.js';
 import { pastilleStatutProjet, pastillePhase, terminerProjet, mettreEnPause, reprendre, rouvrir, demanderSuppressionProjet } from './projets.js';
 
 export function rendreFicheProjet(conteneur, id) {
   let panneau = null;
   let panneauAffaireId = null;
+  let majTaches = null; // redessine la liste des tâches seule, quand on est en train de taper ailleurs dans la fiche
   const racine = h('div', { class: 'fiche-conteneur' });
   conteneur.append(racine);
 
@@ -80,7 +82,15 @@ export function rendreFicheProjet(conteneur, id) {
       if (erreurs[champ]) throw Object.assign(new Error(erreurs[champ]), { saisie: true });
       await D.majProjet(p.id, { [champ]: v || null });
     };
-    const avancement = P.progressionProjet(D.tachesDe(p.id));
+    /** L'avancement (cercle et « 2 / 5 tâches ») : redessiné seul quand une tâche change pendant qu'on tape dans la fiche. */
+    const zoneAvancement = h('div', { class: 'prop-valeur' });
+    const rendreAvancement = () => {
+      const avancement = P.progressionProjet(D.tachesDe(p.id));
+      remplir(zoneAvancement, avancement.total
+        ? h('span', { class: 'avancement' }, anneauProgression(avancement, { taille: 20 }), `${avancement.faites} / ${avancement.total} tâche${avancement.total > 1 ? 's' : ''}`)
+        : h('span', { class: 'aide' }, 'Aucune tâche'));
+    };
+    rendreAvancement();
     const resume = sectionRepliable({
       id: 'projet-resume', titre: 'Résumé',
       contenu: h('div', { class: 'proprietes' },
@@ -93,10 +103,9 @@ export function rendreFicheProjet(conteneur, id) {
         h('div', { class: 'prop' }, h('span', { class: 'prop-libelle' }, 'Personne'), h('div', { class: 'prop-valeur' }, selPersonne.element)),
         h('div', { class: 'prop' }, h('span', { class: 'prop-libelle' }, 'Organisation'), h('div', { class: 'prop-valeur' }, selOrg.element)),
         champPropriete({ libelle: 'Offre', valeur: p.offreId || '', type: 'select', options: offres.map((x) => ({ valeur: x.id, libelle: x.nom })), surEnregistrer: (v) => D.majProjet(p.id, { offreId: v || null }) }).element,
-        h('div', { class: 'prop', dataset: { prop: 'avancement' } }, h('span', { class: 'prop-libelle' }, 'Avancement'), h('div', { class: 'prop-valeur' },
-          avancement.total
-            ? h('span', { class: 'avancement' }, anneauProgression(avancement, { taille: 20 }), `${avancement.faites} / ${avancement.total} tâche${avancement.total > 1 ? 's' : ''}`)
-            : h('span', { class: 'aide' }, 'Aucune tâche'))),
+        h('div', { class: 'prop', dataset: { prop: 'avancement' } }, h('span', { class: 'prop-libelle' }, 'Avancement'), zoneAvancement),
+        p.modeleId ? h('div', { class: 'prop', dataset: { prop: 'modele' } }, h('span', { class: 'prop-libelle' }, 'Modèle'), h('div', { class: 'prop-valeur' },
+          D.modele(p.modeleId) ? h('a', { class: 'prop-lien', href: cheminModele(p.modeleId) }, D.modele(p.modeleId).nom) : h('span', { class: 'aide' }, 'Modèle supprimé'))) : null,
         h('div', { class: 'prop' }, h('span', { class: 'prop-libelle' }, 'Phase'), h('div', { class: 'prop-valeur' }, pastillePhase(p.phase))),
         h('div', { class: 'prop' }, h('span', { class: 'prop-libelle' }, 'Statut'), h('div', { class: 'prop-valeur' }, pastilleStatutProjet(p))),
         champPropriete({ libelle: 'Début', valeur: p.dateDebut || '', type: 'date', surEnregistrer: enregistrerDate('dateDebut') }).element,
@@ -128,6 +137,10 @@ export function rendreFicheProjet(conteneur, id) {
           } }, 'Ajouter'))),
     });
 
+    // ---- Tâches
+    const taches = sectionTaches(p);
+    majTaches = () => { taches.majListe(); rendreAvancement(); };
+
     // ---- Documents de l'affaire : montrés ici, pas déplacés (ils restent sur l'affaire)
     const documentsAffaire = aff?.documents || [];
     const sectionDocumentsAffaire = aff && documentsAffaire.length ? sectionRepliable({
@@ -147,7 +160,7 @@ export function rendreFicheProjet(conteneur, id) {
         affaireLiee: panneauAffaireId ? { affaireId: panneauAffaireId, fusionnerNotes: (notes, notesAffaire) => P.notesDuProjet(notes, notesAffaire, p.id) } : null,
       });
     }
-    remplir(racine, gabaritFiche({ entete, gauche: [resume.element, sectionTaches(p).element, details.element, sectionDocuments.element, sectionDocumentsAffaire?.element].filter(Boolean), droite: panneau.element }));
+    remplir(racine, gabaritFiche({ entete, gauche: [resume.element, taches.element, details.element, sectionDocuments.element, sectionDocumentsAffaire?.element].filter(Boolean), droite: panneau.element }));
   }
 
   function reconstruire() {
@@ -155,7 +168,10 @@ export function rendreFicheProjet(conteneur, id) {
     if (!p) { introuvable(); return; }
     construire(p);
   }
-  const rafraichir = planifier(() => { if (!saisieEnCours(racine)) reconstruire(); });
+  const rafraichir = planifier(() => {
+    if (!saisieEnCours(racine)) { reconstruire(); return; }
+    majTaches?.(); // une saisie est en cours : la fiche n'est pas refaite, mais la liste des tâches suit (une tâche ajoutée apparaît tout de suite)
+  });
   reconstruire();
   const arrets = [D.surChangement(rafraichir), CRM.surChangement(rafraichir)];
   return () => { arrets.forEach((f) => f()); panneau?.arreter(); };

@@ -11,7 +11,8 @@ import { creerLanceurs } from './lanceurs.js';
 import { changerEtapeAvecBoites, ouvrirPerdue, ouvrirPause, ouvrirEncaissement, demanderSuppressionAffaire } from './affaires.js';
 import * as PD from '../projets/donnees.js';
 import * as P from '../projets/logique.js';
-import { carteProjetMini, cheminProjet } from '../projets/composants.js';
+import { carteProjetMini } from '../projets/composants.js';
+import { ouvrirCreationProjetDepuisAffaire } from '../projets/projets.js';
 
 /** Un refus de règle montre son message ; toute autre erreur reste « impossible ». */
 const messageErreur = (e, defaut) => (e?.saisie ? e.message : defaut);
@@ -117,12 +118,7 @@ export function rendreFicheAffaire(conteneur, id) {
         : h('div', { class: 'pile' },
           h('p', { class: 'aide' }, 'Cette affaire est gagnée : crée son projet pour suivre le travail, ou lie un projet qui existe déjà. Elle peut aussi rester sans projet.'),
           h('div', { class: 'ligne-boutons' },
-            h('button', { type: 'button', class: 'bouton bouton-principal bouton-petit', 'data-action': 'creer-projet', onclick: async () => {
-              try {
-                const id = await PD.creerProjetDepuisAffaire(a.id);
-                toast('Projet créé', { lien: { libelle: 'Ouvrir le projet', href: cheminProjet(id) }, duree: 5000 });
-              } catch (e) { console.warn(e); toast(messageErreur(e, 'Création impossible'), { type: 'erreur' }); }
-            } }, icone('folder-kanban', { taille: 14 }), 'Créer le projet'),
+            h('button', { type: 'button', class: 'bouton bouton-principal bouton-petit', 'data-action': 'creer-projet', onclick: () => ouvrirCreationProjetDepuisAffaire(a) }, icone('folder-kanban', { taille: 14 }), 'Créer le projet'),
             h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', 'data-action': 'lier-projet', onclick: () => ouvrirLiaisonProjet(a) }, icone('link', { taille: 14 }), 'Lier un projet'))),
     }) : null;
 

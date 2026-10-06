@@ -421,6 +421,10 @@ test('C30 fiche affaire : « Créer le projet » seulement pour une affaire gagn
   await expect(section.locator('[data-action="lier-projet"]')).toBeVisible();
   await expect(section).toContainText('Elle peut aussi rester sans projet');
   await section.locator('[data-action="creer-projet"]').click();
+  await expect(dialogue(page).getByLabel('Titre', { exact: true })).toHaveValue('Audit des Lilas');
+  await expect(dialogue(page).getByLabel('Modèle')).toHaveValue('', 'sans offre, aucun modèle n’est proposé d’office');
+  await dialogue(page).getByRole('button', { name: 'Créer le projet' }).click();
+  await expect(dialogue(page)).toHaveCount(0);
   const p = await attendre('projets_projets', (d) => d.affaireId === 'a1');
   expect(p).toMatchObject({
     titre: 'Audit des Lilas', personneId: 'p1', organisationId: 'o1', phase: 'lancement', statut: 'actif', nature: 'livraison',
@@ -801,4 +805,297 @@ test('C31 aucun défilement horizontal de la fiche projet avec des tâches aux t
   await allerA(page, 'Projets');
   await expect(page.locator('.carte-projet')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
+});
+
+// ---------------------------------------------------------------- étape 5 : modèles de projet
+
+async function attendreModeles(n = 3) {
+  await expect.poll(async () => (await listerDocuments('projets_modeles')).length, { timeout: 15_000 }).toBe(n);
+}
+
+test('C32 premier lancement : les modèles Audit, Accompagnement et Extraction sont créés une seule fois, avec le contenu de Jérôme', async ({ page }) => {
+  await connecter(page);
+  await attendreModeles();
+  const modeles = Object.fromEntries((await listerDocuments('projets_modeles')).map((m) => [m.id, m]));
+  expect(Object.keys(modeles).sort()).toEqual(['accompagnement', 'audit', 'extraction']);
+  expect(modeles.audit).toMatchObject({ nom: 'Audit', offreId: 'audit', nature: 'livraison', actif: true });
+  expect(modeles.audit.taches.map((t) => t.titre)).toEqual(['Interview', 'Créer le rapport', 'Débriefing avec le client']);
+  expect(modeles.accompagnement.taches.map((t) => t.titre)).toEqual(['Rendez-vous de lancement']);
+  expect(modeles.extraction).toMatchObject({ nature: 'extraction', offreId: null });
+  expect(modeles.extraction.taches.map((t) => t.titre)).toEqual(['Tirer les règles', 'Comprendre les erreurs', 'Repérer ce qui est automatisable', 'Créer la documentation marketing']);
+  expect(await lireDocument('crm_parametres/modeles_projet')).toEqual({ depart: true });
+  // la création de départ n'est pas une action de Jérôme : aucune ligne de journal
+  expect((await listerDocuments('crm_audit')).filter((l) => l.collection === 'projets_modeles')).toHaveLength(0);
+  // un rechargement ne les recrée pas ; ce que Jérôme modifie ou supprime reste tel quel
+  await ecrireDocument('projets_modeles/audit', { ...modeles.audit, nom: 'Audit modifié' });
+  await page.reload();
+  await expect(page.locator('.coquille')).toBeVisible();
+  await page.waitForTimeout(1500);
+  expect((await listerDocuments('projets_modeles')).length).toBe(3);
+  expect((await lireDocument('projets_modeles/audit')).nom).toBe('Audit modifié');
+});
+
+test('C32 écran Modèles : la liste, un nouveau modèle, sa fiche (paramètres, activation), suppression', async ({ page }) => {
+  await connecter(page);
+  await attendreModeles();
+  await allerA(page, 'Modèles');
+  await expect(page).toHaveURL(/#\/projets\/modeles$/);
+  await expect(page.getByRole('heading', { name: 'Modèles', level: 1 })).toBeVisible();
+  await expect(page.locator('.tableau-modeles .ligne-liste')).toHaveCount(3);
+  await expect(page.locator('.tableau-modeles .ligne-liste[data-id="audit"]')).toContainText('Audit');
+  await expect(page.locator('.tableau-modeles .ligne-liste[data-id="audit"]')).toContainText('3');
+  await expect(page.locator('.tableau-modeles .ligne-liste[data-id="extraction"]')).toContainText('Extraction de valeur');
+  // nouveau modèle : le nom suffit, on arrive sur sa fiche
+  await page.locator('[data-action="nouveau-modele"]').click();
+  await dialogue(page).getByLabel('Nom du modèle').fill('Site vitrine');
+  await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(page).toHaveURL(/#\/projets\/modeles\/.+/);
+  const m = await attendre('projets_modeles', (d) => d.nom === 'Site vitrine');
+  expect(m).toMatchObject({ offreId: null, nature: 'livraison', taches: [], actif: true, ordre: 4 });
+  await expect(page.locator('.titre-editable')).toHaveValue('Site vitrine');
+  await expect(page.locator('[data-section="modele-taches"]')).toContainText('n’a pas encore de tâche');
+  // renommer, offre, nature, désactiver
+  await page.locator('.titre-editable').fill('Site vitrine pro');
+  await page.locator('.titre-editable').press('Enter');
+  await champDoc('projets_modeles', m.id, 'nom', 'Site vitrine pro');
+  await page.getByRole('button', { name: 'Ajouter : Offre' }).click();
+  await page.getByLabel('Offre', { exact: true }).selectOption('accompagnement');
+  await champDoc('projets_modeles', m.id, 'offreId', 'accompagnement');
+  await page.locator('[data-action="basculer-actif"]').click();
+  await champDoc('projets_modeles', m.id, 'actif', false);
+  await expect(page.locator('.fiche-sous .badge-pause')).toHaveText('Inactif');
+  await page.locator('[data-action="basculer-actif"]').click();
+  await champDoc('projets_modeles', m.id, 'actif', true);
+  // suppression : annuler garde, confirmer supprime et revient à la liste
+  await page.locator('[data-action="menu-fiche"]').click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: /Supprimer définitivement/ }).click();
+  await dialogue(page).getByRole('button', { name: 'Annuler' }).click();
+  expect(await lireDocument(`projets_modeles/${m.id}`)).not.toBeNull();
+  await page.locator('[data-action="menu-fiche"]').click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: /Supprimer définitivement/ }).click();
+  await dialogue(page).getByRole('button', { name: 'Supprimer' }).click();
+  await expect.poll(async () => await lireDocument(`projets_modeles/${m.id}`)).toBeNull();
+  await expect(page).toHaveURL(/#\/projets\/modeles$/);
+});
+
+test('C32 fiche d’un modèle : tâches types par phase, délai, modifier, monter, descendre, changer de phase, supprimer', async ({ page }) => {
+  await connecter(page);
+  await attendreModeles();
+  await aller(page, '#/projets/modeles/audit');
+  const section = page.locator('[data-section="modele-taches"]');
+  await expect(section.locator('.groupe-taches')).toHaveCount(2);
+  await expect(section.locator('.groupe-taches[data-phase="livraison"] .tache-titre')).toHaveText(['Créer le rapport', 'Débriefing avec le client']);
+  await expect(section.locator('[data-tache-modele="audit-interview"]')).toContainText('Sans date');
+  // ajouter : titre obligatoire, délai invalide refusé
+  await section.locator('[data-action="ajouter-tache-modele"]').click();
+  await expect(page.locator('.toast', { hasText: 'Le titre est obligatoire.' })).toBeVisible();
+  await section.getByLabel('Nouvelle tâche type').fill('Envoyer la facture');
+  await section.getByLabel('Phase de la tâche type').selectOption('cloture');
+  await section.getByLabel('Délai en jours (vide = sans date)').fill('5');
+  await section.locator('[data-action="ajouter-tache-modele"]').click();
+  await expect.poll(async () => (await lireDocument('projets_modeles/audit')).taches.length).toBe(4);
+  const ajoutee = (await lireDocument('projets_modeles/audit')).taches.find((t) => t.titre === 'Envoyer la facture');
+  expect(ajoutee).toMatchObject({ phase: 'cloture', delaiJours: 5, ordre: 1 });
+  await expect(section.locator('.groupe-taches[data-phase="cloture"]')).toContainText('J + 5');
+  // modifier : titre et délai ; délai invalide refusé dans la fenêtre
+  const menu = async (id, entree) => {
+    await page.locator(`[data-tache-modele="${id}"] [data-action="menu-tache-modele"]`).click();
+    await page.locator('.menu-pop').getByRole('menuitem', { name: entree, exact: true }).click();
+  };
+  await menu('audit-interview', 'Modifier…');
+  await expect(dialogue(page).getByLabel('Titre de la tâche type')).toBeFocused(); // la fenêtre a fini de s'ouvrir (son champ de départ a le curseur)
+  await dialogue(page).getByLabel('Délai en jours après le début').fill('-3');
+  await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(dialogue(page).getByRole('alert')).toContainText('nombre de jours');
+  await dialogue(page).getByLabel('Délai en jours après le début').fill('0');
+  await dialogue(page).getByLabel('Titre de la tâche type').fill('Interview du client');
+  await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(dialogue(page)).toHaveCount(0);
+  await expect.poll(async () => (await lireDocument('projets_modeles/audit')).taches.find((t) => t.id === 'audit-interview').titre).toBe('Interview du client');
+  expect((await lireDocument('projets_modeles/audit')).taches.find((t) => t.id === 'audit-interview').delaiJours).toBe(0);
+  await expect(section.locator('[data-tache-modele="audit-interview"]')).toContainText('Le jour du début');
+  // monter, descendre
+  await menu('audit-debriefing', 'Monter');
+  await expect(section.locator('.groupe-taches[data-phase="livraison"] .tache-titre')).toHaveText(['Débriefing avec le client', 'Créer le rapport']);
+  await page.locator('[data-tache-modele="audit-debriefing"] [data-action="menu-tache-modele"]').click();
+  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Monter', exact: true })).toBeDisabled();
+  await page.keyboard.press('Escape');
+  // changer de phase puis supprimer
+  await menu('audit-rapport', 'Déplacer vers : Clôture');
+  await expect.poll(async () => (await lireDocument('projets_modeles/audit')).taches.find((t) => t.id === 'audit-rapport').phase).toBe('cloture');
+  await menu('audit-rapport', 'Supprimer');
+  await dialogue(page).getByRole('button', { name: 'Supprimer' }).click();
+  await expect.poll(async () => (await lireDocument('projets_modeles/audit')).taches.map((t) => t.id).sort()).toHaveLength(3);
+  expect((await lireDocument('projets_modeles/audit')).taches.map((t) => t.id)).toEqual(expect.arrayContaining(['audit-debriefing', 'audit-interview']));
+  // chaque changement laisse sa trace dans le journal
+  expect((await listerDocuments('crm_audit')).filter((l) => l.collection === 'projets_modeles' && l.docId === 'audit').length).toBe(5); // ajout, modification, déplacement vers le haut, changement de phase, suppression
+});
+
+test('C32 « + Projet » avec un modèle : le projet reçoit ses tâches, dates = début + délai, nature du modèle ; sans modèle, il démarre vide', async ({ page }) => {
+  await connecter(page);
+  await attendreModeles();
+  await allerA(page, 'Projets');
+  await page.locator('.page-actions [data-action="nouveau-projet"]').click();
+  await expect(dialogue(page).getByLabel('Modèle')).toHaveValue('');
+  await expect(dialogue(page).getByLabel('Modèle').locator('option')).toHaveText(['Aucun modèle (projet vide)', 'Audit', 'Accompagnement', 'Extraction']);
+  await dialogue(page).getByLabel('Titre', { exact: true }).fill('Audit Carrel');
+  await dialogue(page).getByLabel('Modèle').selectOption('audit');
+  await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(dialogue(page)).toHaveCount(0);
+  const p = await attendre('projets_projets', (d) => d.titre === 'Audit Carrel');
+  expect(p).toMatchObject({ modeleId: 'audit', nature: 'livraison', phase: 'lancement' });
+  await expect.poll(async () => (await listerDocuments('projets_taches')).filter((t) => t.projetId === p.id).length).toBe(3);
+  const taches = (await listerDocuments('projets_taches')).filter((t) => t.projetId === p.id);
+  expect(taches.map((t) => [t.titre, t.phase, t.ordre, t.date, t.fait]).sort()).toEqual([
+    ['Créer le rapport', 'livraison', 1, null, false], ['Débriefing avec le client', 'livraison', 2, null, false], ['Interview', 'decouverte', 1, null, false],
+  ].sort());
+  // la carte a son cercle d'avancement, la fiche montre le modèle
+  await expect(page.locator(`.carte-projet[data-projet="${p.id}"] .anneau-progression`)).toHaveAttribute('data-total', '3');
+  await aller(page, `#/projets/projets/${p.id}`);
+  await expect(page.locator('[data-prop="modele"] a')).toHaveText('Audit');
+  await expect(page.locator('[data-section="projet-taches"] .tache')).toHaveCount(3);
+  await page.locator('[data-prop="modele"] a').click();
+  await expect(page).toHaveURL(/#\/projets\/modeles\/audit$/);
+  // modèle d'extraction : projet d'extraction, tâches à J + 7
+  await allerA(page, 'Projets');
+  await page.locator('.page-actions [data-action="nouveau-projet"]').click();
+  await dialogue(page).getByLabel('Titre', { exact: true }).fill('Extraction Carrel');
+  await dialogue(page).getByLabel('Modèle').selectOption('extraction');
+  await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
+  const e = await attendre('projets_projets', (d) => d.titre === 'Extraction Carrel');
+  expect(e).toMatchObject({ modeleId: 'extraction', nature: 'extraction' });
+  await expect.poll(async () => (await listerDocuments('projets_taches')).filter((t) => t.projetId === e.id).length).toBe(4);
+  expect((await listerDocuments('projets_taches')).filter((t) => t.projetId === e.id).every((t) => t.date === jour(7))).toBe(true);
+  await expect(page.locator(`.carte-projet[data-projet="${e.id}"] .badge-nature`)).toHaveText('Extraction');
+  // sans modèle : un projet vide
+  await page.locator('.page-actions [data-action="nouveau-projet"]').click();
+  await dialogue(page).getByLabel('Titre', { exact: true }).fill('Chantier interne');
+  await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
+  const v = await attendre('projets_projets', (d) => d.titre === 'Chantier interne');
+  expect(v.modeleId).toBeNull();
+  await page.waitForTimeout(500);
+  expect((await listerDocuments('projets_taches')).filter((t) => t.projetId === v.id)).toHaveLength(0);
+  // les tâches du modèle sont dans l'Accueil le jour dit : ici rien aujourd'hui, mais dans 7 jours elles y seront (dates vérifiées plus haut)
+});
+
+test('C32 « Créer le projet » d’une affaire gagnée : le modèle de son offre est préselectionné ; on peut en changer ou n’en prendre aucun', async ({ page }) => {
+  await creerAffaire('a1', { titre: 'Audit des Lilas', etape: 'gagne', offreId: 'audit' });
+  await creerAffaire('a2', { titre: 'Accompagnement Martin', etape: 'gagne', offreId: 'accompagnement' });
+  await creerAffaire('a3', { titre: 'Audit sans modèle', etape: 'gagne', offreId: 'audit' });
+  await connecter(page);
+  await attendreModeles();
+  // offre Audit : modèle Audit proposé d'office
+  await aller(page, '#/crm/affaires/a1');
+  await page.locator('[data-section="affaire-projet"] [data-action="creer-projet"]').click();
+  await expect(dialogue(page).getByLabel('Modèle')).toHaveValue('audit');
+  await dialogue(page).getByRole('button', { name: 'Créer le projet' }).click();
+  await expect(dialogue(page)).toHaveCount(0);
+  const p1 = await attendre('projets_projets', (d) => d.affaireId === 'a1');
+  expect(p1).toMatchObject({ modeleId: 'audit', offreId: 'audit', titre: 'Audit des Lilas' });
+  await expect.poll(async () => (await listerDocuments('projets_taches')).filter((t) => t.projetId === p1.id).length).toBe(3);
+  await champDoc('crm_affaires', 'a1', 'projetId', p1.id);
+  // offre Accompagnement : un seul rendez-vous de lancement, titre modifiable
+  await aller(page, '#/crm/affaires/a2');
+  await page.locator('[data-section="affaire-projet"] [data-action="creer-projet"]').click();
+  await expect(dialogue(page).getByLabel('Modèle')).toHaveValue('accompagnement');
+  await dialogue(page).getByLabel('Titre', { exact: true }).fill('Suivi Martin');
+  await dialogue(page).getByRole('button', { name: 'Créer le projet' }).click();
+  const p2 = await attendre('projets_projets', (d) => d.affaireId === 'a2');
+  expect(p2).toMatchObject({ titre: 'Suivi Martin', modeleId: 'accompagnement' });
+  await expect.poll(async () => (await listerDocuments('projets_taches')).filter((t) => t.projetId === p2.id).map((t) => t.titre)).toEqual(['Rendez-vous de lancement']);
+  // « Aucun modèle » : projet vide ; titre vide refusé dans la fenêtre
+  await aller(page, '#/crm/affaires/a3');
+  await page.locator('[data-section="affaire-projet"] [data-action="creer-projet"]').click();
+  await dialogue(page).getByLabel('Modèle').selectOption('');
+  await dialogue(page).getByLabel('Titre', { exact: true }).fill('  ');
+  await dialogue(page).getByRole('button', { name: 'Créer le projet' }).click();
+  await expect(dialogue(page).getByRole('alert')).toContainText('Le titre est obligatoire.');
+  await dialogue(page).getByLabel('Titre', { exact: true }).fill('Audit sans modèle');
+  await dialogue(page).getByRole('button', { name: 'Créer le projet' }).click();
+  const p3 = await attendre('projets_projets', (d) => d.affaireId === 'a3');
+  expect(p3.modeleId).toBeNull();
+  await page.waitForTimeout(500);
+  expect((await listerDocuments('projets_taches')).filter((t) => t.projetId === p3.id)).toHaveLength(0);
+});
+
+test('C32 un modèle inactif n’est plus proposé ; supprimer un modèle ne touche pas aux projets déjà créés', async ({ page }) => {
+  await connecter(page);
+  await attendreModeles();
+  await aller(page, '#/projets/modeles/extraction');
+  await page.locator('[data-action="basculer-actif"]').click();
+  await champDoc('projets_modeles', 'extraction', 'actif', false);
+  await allerA(page, 'Projets');
+  await page.locator('.page-actions [data-action="nouveau-projet"]').click();
+  await expect(dialogue(page).getByLabel('Modèle').locator('option')).toHaveText(['Aucun modèle (projet vide)', 'Audit', 'Accompagnement']);
+  await dialogue(page).getByLabel('Titre', { exact: true }).fill('Accompagnement Leroy');
+  await dialogue(page).getByLabel('Modèle').selectOption('accompagnement');
+  await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
+  const p = await attendre('projets_projets', (d) => d.titre === 'Accompagnement Leroy');
+  await expect.poll(async () => (await listerDocuments('projets_taches')).filter((t) => t.projetId === p.id).length).toBe(1);
+  // suppression du modèle : le projet garde ses tâches, la fiche dit « Modèle supprimé »
+  await aller(page, '#/projets/modeles/accompagnement');
+  await page.locator('[data-action="menu-fiche"]').click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: /Supprimer définitivement/ }).click();
+  await dialogue(page).getByRole('button', { name: 'Supprimer' }).click();
+  await expect.poll(async () => await lireDocument('projets_modeles/accompagnement')).toBeNull();
+  await expect(page).toHaveURL(/#\/projets\/modeles$/); // l'appli revient à la liste après la suppression
+  expect((await listerDocuments('projets_taches')).filter((t) => t.projetId === p.id)).toHaveLength(1);
+  await aller(page, `#/projets/projets/${p.id}`);
+  await expect(page.locator('[data-prop="modele"]')).toContainText('Modèle supprimé');
+  await expect(page.locator('[data-section="projet-taches"] .tache')).toHaveCount(1);
+  await page.waitForTimeout(1200);
+  expect((await listerDocuments('projets_modeles')).map((m) => m.id).sort()).toEqual(['audit', 'extraction'], 'un modèle supprimé n’est pas recréé');
+});
+
+test('C32 aucun défilement horizontal de l’écran Modèles et d’une fiche de modèle, même avec des textes très longs', async ({ page }) => {
+  await connecter(page);
+  await attendreModeles();
+  await ecrireDocument('projets_modeles/audit', {
+    nom: 'Un modèle au nom vraiment très long pour vérifier le comportement des tableaux et des cartes sur petit écran', offreId: 'audit', nature: 'livraison', actif: true, ordre: 1,
+    taches: [{ id: 't1', titre: 'Untitretrèslongsansespacepourvérifierlecomportementdelaligneetdesonmenudactionspourlestâchestypes', phase: 'decouverte', delaiJours: 3, ordre: 1 }],
+  });
+  const sansDebordement = async (nom) => expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), nom).toBeLessThanOrEqual(0);
+  await allerA(page, 'Modèles');
+  await expect(page.locator('.tableau-modeles')).toBeVisible();
+  await sansDebordement('liste des modèles');
+  await aller(page, '#/projets/modeles/audit');
+  await expect(page.locator('[data-tache-modele="t1"]')).toBeVisible();
+  await sansDebordement('fiche d’un modèle');
+});
+
+test('C31 enchaîner les tâches au clavier : la tâche ajoutée apparaît tout de suite, sans quitter le champ, et la suivante peut se taper pendant ce temps', async ({ page }) => {
+  await creerProjet('pr1', { titre: 'Audit des Lilas' });
+  await creerTacheProjet('t0', { titre: 'Déjà là' });
+  await connecter(page);
+  await aller(page, '#/projets/projets/pr1');
+  const section = page.locator('[data-section="projet-taches"]');
+  const champ = section.getByLabel('Nouvelle tâche');
+  await champ.fill('Première');
+  await champ.press('Enter');
+  await expect(champ).toHaveValue('');
+  await expect(champ).toBeFocused();
+  await expect(section.locator('.tache-titre')).toHaveText(['Déjà là', 'Première']); // sans avoir quitté le champ
+  await champ.fill('Deuxième');
+  await champ.press('Enter');
+  await champ.fill('Troisième en cours de frappe');
+  await expect(section.locator('.tache-titre')).toHaveText(['Déjà là', 'Première', 'Deuxième']);
+  await expect(champ).toHaveValue('Troisième en cours de frappe'); // ce qui est tapé n'est jamais effacé par le rafraîchissement
+  await expect(section.locator('.section-compteur')).toHaveText('0/3');
+  await expect.poll(async () => (await listerDocuments('projets_taches')).length).toBe(3);
+});
+
+test('C32 enchaîner les tâches types au clavier : elles apparaissent tout de suite, le champ reste prêt', async ({ page }) => {
+  await connecter(page);
+  await attendreModeles();
+  await aller(page, '#/projets/modeles/accompagnement');
+  const section = page.locator('[data-section="modele-taches"]');
+  const champ = section.getByLabel('Nouvelle tâche type');
+  await champ.fill('Point mensuel');
+  await champ.press('Enter');
+  await expect(champ).toHaveValue('');
+  await expect(section.locator('.tache-titre')).toHaveText(['Rendez-vous de lancement', 'Point mensuel']);
+  await champ.fill('Bilan');
+  await champ.press('Enter');
+  await expect(section.locator('.tache-titre')).toHaveText(['Rendez-vous de lancement', 'Point mensuel', 'Bilan']);
+  await expect(section.locator('.section-compteur')).toHaveText('3');
 });
