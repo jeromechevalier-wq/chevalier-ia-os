@@ -1,6 +1,7 @@
 // Lecture du CRM pour le serveur MCP : mêmes règles que l'écran (partage/logique.js), sans aucune écriture.
 // Toutes les fonctions reçoivent l'accès aux données (Firestore ou mémoire) et renvoient des valeurs JSON (dates en texte).
 import * as L from '../../partage/logique.js';
+import * as PL from '../../partage/projets.js';
 import { COLLECTIONS as C } from './donnees.js';
 import { serialiser } from './serialisation.js';
 
@@ -151,6 +152,56 @@ export async function listerDocuments(donnees, { affaireId }) {
   return serialiser({ total: documents.length, documents });
 }
 
+// ---------------------------------------------------------------- projets (2.1) et factures (2.2)
+
+const resumeFacturation = (p) => ({ ...PL.totauxFactures(p), aPayer: PL.facturesAPayer(p).length, impaye: PL.aUnImpaye(p) });
+
+export async function listerProjets(donnees, { phase, statut, nature, archive, affaireId, personneId, organisationId, recherche, enRetard, limite }, maintenant) {
+  const [projets, taches, personnes, organisations] = await Promise.all([C.projets, C.projetsTaches, C.personnes, C.organisations].map((nom) => donnees.liste(nom)));
+  const criteres = { recherche: recherche || '', phases: phase ? [phase] : [], statuts: statut ? [statut] : [], natures: nature ? [nature] : [], enRetard: !!enRetard };
+  let gardes = PL.filtrerProjets(projets, criteres, { personnes, organisations, taches, aujourdhui: L.aujourdhuiParis(maintenant), archives: !!archive });
+  if (affaireId) gardes = gardes.filter((p) => p.affaireId === affaireId);
+  if (personneId) gardes = gardes.filter((p) => p.personneId === personneId);
+  if (organisationId) gardes = gardes.filter((p) => p.organisationId === organisationId);
+  const lignes = L.trier(gardes, (p) => L.normaliser(p.titre)).map((p) => ({
+    ...p, personne: nomDe(personnes, p.personneId), organisation: nomDe(organisations, p.organisationId),
+    avancement: PL.progressionProjet(PL.tachesDuProjet(taches, p.id)), facturation: resumeFacturation(p),
+  }));
+  const { total, tronque, elements } = borne(lignes, Math.min(limite ?? MAX_LIGNES, MAX_LIGNES));
+  return serialiser({ total, tronque, projets: elements });
+}
+
+export async function lireProjet(donnees, { id, avecFil }) {
+  const projet = await donnees.document(C.projets, id);
+  if (!projet) introuvable('Projet');
+  const [affaire, personne, organisation, taches, extractions, source] = await Promise.all([
+    projet.affaireId ? donnees.document(C.affaires, projet.affaireId) : null,
+    projet.personneId ? donnees.document(C.personnes, projet.personneId) : null,
+    projet.organisationId ? donnees.document(C.organisations, projet.organisationId) : null,
+    donnees.liste(C.projetsTaches, { champ: 'projetId', valeur: id }),
+    donnees.liste(C.projets, { champ: 'projetSourceId', valeur: id }),
+    projet.projetSourceId ? donnees.document(C.projets, projet.projetSourceId) : null,
+  ]);
+  const extraction = PL.extractionDuProjet(extractions, id);
+  return serialiser({
+    projet,
+    affaire: affaire ? { id: affaire.id, titre: affaire.titre, etape: affaire.etape, statut: affaire.statut } : null,
+    personne: personne ? { id: personne.id, nom: personne.nom } : null,
+    organisation: organisation ? { id: organisation.id, nom: organisation.nom } : null,
+    source: source ? { id: source.id, titre: source.titre } : null,
+    extraction: extraction ? { id: extraction.id, titre: extraction.titre, statut: extraction.statut, archive: !!extraction.archive } : null,
+    taches: PL.tachesDuProjet(taches, id),
+    avancement: PL.progressionProjet(taches),
+    facturation: resumeFacturation(projet),
+    ...(avecFil ? { fil: await fil(donnees, 'projetId', id, []) } : {}),
+  });
+}
+
+export async function listerModelesProjet(donnees) {
+  const modeles = await donnees.liste(C.projetsModeles);
+  return serialiser({ total: modeles.length, modeles: [...modeles].sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0)) });
+}
+
 // ---------------------------------------------------------------- réglages
 
 export async function lireReglages(donnees) {
@@ -171,6 +222,7 @@ export async function lireReglages(donnees) {
       priorites: L.PRIORITES,
       raisonsPerdue: L.RAISONS_PERDUE,
       tailles: L.TAILLES,
+      projets: { phases: PL.PHASES.map(({ id, libelle }) => ({ id, libelle })), statuts: PL.STATUTS_PROJET.map(({ id, libelle }) => ({ id, libelle })), natures: PL.NATURES_PROJET, assignes: PL.ASSIGNES, statutsFacture: PL.STATUTS_FACTURE.map(({ id, libelle }) => ({ id, libelle })) },
     },
   });
 }

@@ -206,7 +206,7 @@ describe('Lecture seule (garantie)', () => {
   });
   test('tous les outils de lecture sont ouverts aux trois profils, et ne sont pas les seuls outils enregistrés', () => {
     const noms = [qui_suis_je, ...OUTILS_LECTURE].map((o) => o.nom).sort();
-    assert.deepEqual(noms, ['chercher', 'lire_affaire', 'lire_audit', 'lire_organisation', 'lire_personne', 'lire_reglages', 'lister_activites', 'lister_affaires', 'lister_documents', 'qui_suis_je']);
+    assert.deepEqual(noms, ['chercher', 'lire_affaire', 'lire_audit', 'lire_organisation', 'lire_personne', 'lire_projet', 'lire_reglages', 'lister_activites', 'lister_affaires', 'lister_documents', 'lister_modeles_projet', 'lister_projets', 'qui_suis_je']);
     for (const o of [qui_suis_je, ...OUTILS_LECTURE]) assert.deepEqual(o.profils, ['lecteur', 'bibliothecaire', 'claude-code'], o.nom);
     for (const o of OUTILS.filter((x) => !noms.includes(x.nom))) assert.ok(!o.profils.includes('lecteur'), `${o.nom} : le lecteur n’a aucun droit d’écriture`);
   });

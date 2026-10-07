@@ -61,6 +61,41 @@ export const lister_affaires = {
   executer: ({ args, donnees, maintenant }) => lecture.listerAffaires(donnees, args, maintenant),
 };
 
+export const lister_projets = {
+  nom: 'lister_projets',
+  profils: TOUS,
+  description: "Liste les projets (livraison ou extraction de valeur) avec les filtres de l'écran : phase (lancement, decouverte, livraison, cloture), statut (actif, en_pause, termine), nature (livraison, extraction). Par défaut les projets non archivés ; archive=true pour les archivés (dont les projets terminés). Chaque ligne donne l'avancement des tâches et la facturation (facturé, payé, reste à payer, abandonné, impayé).",
+  schema: {
+    phase: z.string().max(40).optional(),
+    statut: z.string().max(40).optional(),
+    nature: z.string().max(40).optional(),
+    archive: z.boolean().optional().describe('true : projets archivés (terminés compris) seulement.'),
+    affaireId: id.optional(),
+    personneId: id.optional(),
+    organisationId: id.optional(),
+    recherche: z.string().max(200).optional().describe('Texte cherché dans le titre, la personne et l’organisation.'),
+    enRetard: z.boolean().optional().describe('Avec une tâche en retard.'),
+    limite,
+  },
+  executer: ({ args, donnees, maintenant }) => lecture.listerProjets(donnees, args, maintenant),
+};
+
+export const lire_projet = {
+  nom: 'lire_projet',
+  profils: TOUS,
+  description: "Lit un projet avec son affaire, sa personne, son organisation, ses tâches (par phase), son avancement, ses factures (dans « projet.factures »), son extraction de valeur et, si c'est une extraction, sa source ; avecFil ajoute le fil du projet (événements et notes).",
+  schema: { id: id.describe('Identifiant du projet.'), avecFil },
+  executer: ({ args, donnees }) => lecture.lireProjet(donnees, args),
+};
+
+export const lister_modeles_projet = {
+  nom: 'lister_modeles_projet',
+  profils: TOUS,
+  description: "Liste les modèles de projet (Audit, Accompagnement, Extraction…) avec leurs tâches types : l'identifiant du modèle se donne à la création d'un projet pour partir avec ses tâches.",
+  schema: {},
+  executer: ({ donnees }) => lecture.listerModelesProjet(donnees),
+};
+
 export const lister_activites = {
   nom: 'lister_activites',
   profils: TOUS,
@@ -107,4 +142,4 @@ export const lire_audit = {
   executer: ({ args, donnees }) => lecture.lireAudit(donnees, args),
 };
 
-export const OUTILS_LECTURE = [chercher, lire_personne, lire_organisation, lire_affaire, lister_affaires, lister_activites, lister_documents, lire_reglages, lire_audit];
+export const OUTILS_LECTURE = [chercher, lire_personne, lire_organisation, lire_affaire, lister_affaires, lister_projets, lire_projet, lister_modeles_projet, lister_activites, lister_documents, lire_reglages, lire_audit];
