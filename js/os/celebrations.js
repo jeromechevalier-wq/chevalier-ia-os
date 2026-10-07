@@ -140,6 +140,21 @@ export function celebrerGagne(message = 'Bravo Jérôme !', sousTitre = '') {
   }));
 }
 
+/** Projet terminé (Clôture) : feu d'artifice plus sobre que « Gagné », avec Charles. */
+export function celebrerCloture(message = 'Projet terminé !', sousTitre = '') {
+  if (reduireAnimations()) return Promise.resolve();
+  return enFile(() => superposition({
+    classe: 'celebration-cloture',
+    duree: 2400,
+    contenu: scene(message, sousTitre),
+    animer: (m) => [
+      setTimeout(() => m.gerbe(0.3, 0.28, 70), 60),
+      setTimeout(() => m.gerbe(0.7, 0.24, 70), 420),
+      setTimeout(() => m.gerbe(0.5, 0.18, 90), 850),
+    ],
+  }));
+}
+
 /** Facture payée : compteur du chiffre d'affaires qui défile et pluie d'étincelles jaunes. */
 export function celebrerPaiement(avant, apres, format = (n) => String(Math.round(n))) {
   if (reduireAnimations()) return Promise.resolve();

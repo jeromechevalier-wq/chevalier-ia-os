@@ -1,5 +1,5 @@
 // Module Projets (version 2.1) : montage, routes, actions rapides et recherche globale.
-// Routes : projets/projets[/id], projets/modeles[/id]. Le module lit les données du CRM (personnes, organisations, affaires) : le CRM démarre avant lui.
+// Routes : projets/projets[/id], projets/archives, projets/modeles[/id]. Le module lit les données du CRM (personnes, organisations, affaires) : le CRM démarre avant lui.
 import { vider } from '../../os/ui.js';
 import { naviguer } from '../../os/router.js';
 import * as D from './donnees.js';
@@ -11,6 +11,7 @@ import { rendreModeles, rendreFicheModele } from './modeles.js';
 
 const VUES = {
   projets: (conteneur, id) => (id ? rendreFicheProjet(conteneur, id) : rendreProjets(conteneur)),
+  archives: (conteneur) => rendreProjets(conteneur, { archives: true }),
   modeles: (conteneur, id) => (id ? rendreFicheModele(conteneur, id) : rendreModeles(conteneur)),
 };
 
