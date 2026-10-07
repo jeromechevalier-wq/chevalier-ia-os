@@ -221,7 +221,7 @@ export async function rouvrirAffaire(c, args) {
 }
 export async function joindreLien(c, args) {
   const a = await lire(c, C.affaires, args.affaireId, 'Affaire');
-  const r = L.ajouterDocument(a, args.libelle, args.url);
+  const r = L.ajouterDocument(a, args.libelle, args.url, args.favori === true);
   verifierMessages(r.erreurs);
   const plan = L.planMajAffaire(a.id, r.patch);
   return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { affaireId: a.id, documents: r.patch.documents.length });

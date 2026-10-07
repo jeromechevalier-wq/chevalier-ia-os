@@ -4,7 +4,7 @@ import * as D from './donnees.js';
 import * as L from './logique.js';
 import {
   lienPersonne, lienOrganisation, sectionRepliable, champPropriete, selecteurPersonne, selecteurOrganisation, titreEditable, selectProprietaire, gabaritFiche,
-  lienRetour, saisieEnCours, pastilleStatut, fournisseurTexte, etatVide, planifier,
+  lienRetour, saisieEnCours, pastilleStatut, fournisseurTexte, etatVide, planifier, boutonEtoile,
 } from './composants.js';
 import { panneauActivite } from './activites.js';
 import { creerLanceurs } from './lanceurs.js';
@@ -155,6 +155,7 @@ export function rendreFicheAffaire(conteneur, id) {
       id: 'affaire-documents', titre: 'Documents', compteur: documents.length,
       contenu: h('div', { class: 'pile' },
         documents.length ? h('ul', { class: 'liste-simple' }, documents.map((d, i) => h('li', { class: 'ligne-simple' }, icone('link', { taille: 14 }),
+          boutonEtoile({ favori: d.favori === true, libelle: d.libelle, surBascule: () => D.majAffaire(a.id, L.basculerFavoriDocument(a, i)) }),
           h('a', { href: d.url, target: '_blank', rel: 'noopener noreferrer' }, d.libelle),
           h('button', { type: 'button', class: 'bouton-icone', 'aria-label': `Retirer ${d.libelle}`, onclick: () => D.majAffaire(a.id, L.supprimerDocument(a, i)) }, icone('x', { taille: 14 }))))) : null,
         h('div', { class: 'ligne-ajout' }, champLibelle, champUrl,

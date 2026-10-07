@@ -14,6 +14,17 @@ export function lien(chemin, texte, classe = 'lien-fiche') {
   return h('a', { class: classe, href: chemin }, texte);
 }
 
+/** Étoile d'un document : jaune et pleine quand le document est en favori, vide sinon. Un clic appelle `surBascule`. */
+export function boutonEtoile({ favori, libelle, surBascule }) {
+  return h('button', {
+    type: 'button', class: `bouton-icone bouton-etoile${favori ? ' est-favori' : ''}`, 'data-action': 'basculer-favori',
+    'aria-pressed': favori ? 'true' : 'false',
+    'aria-label': favori ? `Retirer ${libelle} des favoris` : `Mettre ${libelle} en favori`,
+    title: favori ? 'Retirer des favoris' : 'Mettre en favori',
+    onclick: surBascule,
+  }, icone('star', { taille: 16 }));
+}
+
 export function lienPersonne(p) {
   return p ? lien(cheminPersonne(p.id), p.nom) : null;
 }

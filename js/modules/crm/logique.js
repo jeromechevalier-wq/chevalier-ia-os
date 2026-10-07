@@ -704,14 +704,39 @@ export function estAffaireActive(a) {
   return !estArchivee(a) && (a.statut === 'ouverte' || a.statut === 'gagnee');
 }
 
-export function ajouterDocument(affaire, libelle, url) {
+export function ajouterDocument(affaire, libelle, url, favori = false) {
   const u = nettoyerEspaces(url);
   if (!/^https?:\/\//i.test(u)) return { erreurs: { url: "L'adresse doit commencer par http." }, patch: {} };
-  return { erreurs: {}, patch: { documents: [...(affaire.documents || []), { libelle: nettoyerEspaces(libelle) || u, url: u }] } };
+  const doc = { libelle: nettoyerEspaces(libelle) || u, url: u };
+  if (favori === true) doc.favori = true;
+  return { erreurs: {}, patch: { documents: [...(affaire.documents || []), doc] } };
 }
 
 export function supprimerDocument(affaire, index) {
   return { documents: (affaire.documents || []).filter((_, i) => i !== index) };
+}
+
+/** Met le document d'index `index` en favori (ou l'en retire) : l'étoile. Une étoile retirée efface le champ `favori`. */
+export function basculerFavoriDocument(entite, index) {
+  const documents = entite.documents || [];
+  return {
+    documents: documents.map((d, i) => {
+      if (i !== index) return d;
+      const { favori, ...reste } = d;
+      return favori === true ? reste : { ...reste, favori: true };
+    }),
+  };
+}
+
+/**
+ * Tous les documents en favori des affaires et des projets (un projet archivé ou une affaire archivée ne comptent pas),
+ * par ordre alphabétique de libellé : [{ libelle, url, source: { type: 'affaire' | 'projet', id, titre }, index }].
+ * `index` est la place du document dans la liste de sa source : il sert à retirer l'étoile.
+ */
+export function documentsFavoris(affaires = [], projets = []) {
+  const depuis = (type, liste) => liste.filter((x) => !estArchivee(x)).flatMap((x) => (x.documents || []).flatMap((d, index) => (
+    d.favori === true ? [{ libelle: d.libelle || d.url, url: d.url, source: { type, id: x.id, titre: x.titre || x.nom || '' }, index }] : [])));
+  return [...depuis('affaire', affaires), ...depuis('projet', projets)].sort((a, b) => a.libelle.localeCompare(b.libelle, 'fr', { sensitivity: 'base' }));
 }
 
 // ---------------------------------------------------------------- dépôt GitHub et dossier de travail

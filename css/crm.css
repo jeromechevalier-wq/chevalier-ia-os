@@ -398,3 +398,10 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
   .tableau-differences tr { display: block; padding: 6px 0; }
   .tableau-differences thead { display: none; }
 }
+
+/* Favoris : l'étoile des documents (jaune et pleine quand le document est en favori). */
+.bouton-etoile { color: var(--texte2); }
+.bouton-etoile.est-favori { color: var(--jaune); }
+.bouton-etoile.est-favori .icone { fill: currentColor; }
+:root[data-theme='clair'] .bouton-etoile.est-favori { color: #b8860b; }
+.liste-favoris .ligne-simple > a { font-weight: 500; }

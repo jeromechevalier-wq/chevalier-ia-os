@@ -194,6 +194,31 @@ test('C29 fiche : titre, dates (la fin ne précède pas le début), adresse GitH
   await expect(page.locator('[data-section="projet-documents"]')).toContainText('Devis signé');
 });
 
+test('Favoris : l’étoile d’un document d’affaire ou de projet le met sur l’accueil ; l’étoile de l’accueil le retire', async ({ page }) => {
+  await creerAffaire('a1', { titre: 'Audit des Lilas', etape: 'gagne', documents: [{ libelle: 'Suivi veille', url: 'https://claude.ai/artifact/suivi' }] });
+  await creerProjet('pr1', { titre: 'Chantier Lilas', affaireId: 'a1', documents: [{ libelle: 'Planning', url: 'https://claude.ai/artifact/planning' }] });
+  await connecter(page);
+  await expect(page.locator('.section-favoris')).toContainText('Aucun favori');
+  // étoile sur le document de l'affaire
+  await aller(page, '#/crm/affaires/a1');
+  await page.getByRole('button', { name: 'Mettre Suivi veille en favori' }).click();
+  await champDoc('crm_affaires', 'a1', 'documents', [{ libelle: 'Suivi veille', url: 'https://claude.ai/artifact/suivi', favori: true }]);
+  await expect(page.getByRole('button', { name: 'Retirer Suivi veille des favoris' })).toHaveAttribute('aria-pressed', 'true');
+  // étoile sur le document du projet
+  await aller(page, '#/projets/projets/pr1');
+  await page.getByRole('button', { name: 'Mettre Planning en favori' }).click();
+  await champDoc('projets_projets', 'pr1', 'documents', [{ libelle: 'Planning', url: 'https://claude.ai/artifact/planning', favori: true }]);
+  // les deux sont sur l'accueil, par ordre alphabétique, avec un lien vers le document
+  await aller(page, '#/crm/accueil');
+  await expect(page.locator('.section-favoris li')).toHaveCount(2);
+  await expect(page.locator('.section-favoris li a').first()).toHaveText('Planning');
+  await expect(page.locator('.section-favoris li a[href="https://claude.ai/artifact/suivi"]')).toHaveText('Suivi veille');
+  // retirer l'étoile depuis l'accueil
+  await page.locator('.section-favoris').getByRole('button', { name: 'Retirer Planning des favoris' }).click();
+  await expect.poll(async () => (await lireDocument('projets_projets/pr1')).documents).toEqual([{ libelle: 'Planning', url: 'https://claude.ai/artifact/planning' }]);
+  await expect(page.locator('.section-favoris li')).toHaveCount(1);
+});
+
 test('C29 notes d’un projet : seulement Notes et historique ; la note est aussi dans l’historique de la personne, de l’organisation et de l’affaire', async ({ page }) => {
   await creerOrganisation('o1', { nom: 'Atelier des Lilas' });
   await creerPersonne('p1', { nom: 'Camille Durand', organisationId: 'o1' });
