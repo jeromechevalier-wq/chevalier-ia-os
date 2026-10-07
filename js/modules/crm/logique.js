@@ -1118,8 +1118,13 @@ export const CALCULS = {
   ca_encaisse: {
     libelle: "Chiffre d'affaires encaissé",
     unite: '€',
-    calculer: ({ affaires = [] }, mois) => affaires.reduce(
+    // Les encaissements des affaires (jusqu'à la migration de la 2.2) et les factures PAYÉES des projets (jamais les abandonnées ni les à payer).
+    calculer: ({ affaires = [], projets = [] }, mois) => affaires.reduce(
       (s, a) => s + (a.encaissements || []).filter((e) => dansLeMois(e.date, mois)).reduce((t, e) => t + (Number(e.montant) || 0), 0),
+      0,
+    ) + projets.reduce(
+      (s, p) => s + (Array.isArray(p.factures) ? p.factures : []).filter((f) => f.statut === 'payee' && String(f.datePaiement || '').slice(0, 7) === mois)
+        .reduce((t, f) => t + (Number(f.montant) || 0), 0),
       0,
     ),
   },
@@ -1188,11 +1193,11 @@ export function fenetreCa(debutActivite, moisActuel, n = 6) {
   return mois;
 }
 
-export function caParMois(affaires, moisListe) {
+export function caParMois(affaires, moisListe, projets = []) {
   return moisListe.map((mois) => ({
     mois,
     libelle: libelleMois(mois, true),
-    montant: CALCULS.ca_encaisse.calculer({ affaires }, mois),
+    montant: CALCULS.ca_encaisse.calculer({ affaires, projets }, mois),
   }));
 }
 

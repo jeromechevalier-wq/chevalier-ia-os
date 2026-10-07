@@ -158,7 +158,7 @@ function rendreStats(zone) {
   const max = Math.max(1, ...parEtape.map((e) => e.nombre));
   const debut = D.etat.reglages.debutActivite;
   const fenetre = L.fenetreCa(debut, moisCourantParis(), 6);
-  const ca = L.caParMois(D.etat.affaires, fenetre);
+  const ca = L.caParMois(D.etat.affaires, fenetre, PD.etat.projets);
   const maxCa = Math.max(1, ...ca.map((m) => m.montant));
   const titreCa = fenetre.length === 6 && fenetre[0] > debut ? "Chiffre d'affaires encaissé, 6 derniers mois" : `Chiffre d'affaires encaissé, depuis ${L.libelleMois(fenetre[0])}`;
   const signature = `${titreCa}|${fenetre.join('|')}`;

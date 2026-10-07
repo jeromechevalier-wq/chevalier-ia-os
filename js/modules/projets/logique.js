@@ -7,7 +7,7 @@ import {
   COLLECTIONS_PLAN, MARQUES_CREATION, MARQUES_MODIFICATION,
   ecritureCreer, ecritureModifier, ecritureSupprimer, evenements, modifierSiPatch, evenementCreation,
   nettoyerEspaces, aujourdhuiParis, validerUrlGithub, validerUrlDossier, urlOuVide, normaliser, ajouterJours,
-  planChangerEtape, planMarquerPerdue,
+  planChangerEtape, planMarquerPerdue, formatEuros,
 } from '../crm/logique.js';
 
 const C = COLLECTIONS_PLAN;
@@ -81,6 +81,7 @@ export function nouveauProjet(valeurs, ctx) {
     dateEntreePhase: ctx.maintenant,
     datesPhases: { [phase]: ctx.maintenant },
     documents: [],
+    factures: [],
     urlGithub: urlOuVide(validerUrlGithub, valeurs.urlGithub),
     urlDossier: urlOuVide(validerUrlDossier, valeurs.urlDossier),
     nature: NATURES_PROJET.some((n) => n.id === valeurs.nature) ? valeurs.nature : 'livraison',
@@ -120,6 +121,10 @@ export function changementPhase(projet, phase, ctx) {
   if (!PHASES.some((p) => p.id === phase)) return { erreurs: { phase: 'Phase inconnue.' }, patch: {}, evenements: [] };
   const rouvre = estProjetTermine(projet);
   if (phase === projet.phase && !rouvre) return sansEffet;
+  if (phase === 'cloture' && !estProjetTermine(projet)) {
+    const blocage = blocageCloture(projet);
+    if (blocage) return blocage;
+  }
   const patch = {};
   const faits = [];
   if (phase !== projet.phase) Object.assign(patch, entreeDansPhase(projet, phase, ctx));
@@ -143,15 +148,24 @@ export function reprendreProjet(projet, ctx) {
 }
 
 /**
- * Fin d'un projet : phase Clôture, statut Terminé, archivé. Rien d'autre n'est bloqué en 2.1 (la Clôture ne bloquera qu'en 2.2,
- * tant qu'une facture n'est pas payée). C'est ici que le projet d'extraction sera créé (version 2.1, étape 6) : un seul endroit
+ * Fin d'un projet : phase Clôture, statut Terminé, archivé. Depuis la 2.2, la Clôture est BLOQUÉE tant qu'une facture du projet n'est pas payée
+ * (voir « facturation »). Deux sorties : marquer la facture payée, ou clôturer avec impayé (`options.impaye = { raison }` : chaque facture
+ * restante passe à « Abandonnée »). C'est ici que le projet d'extraction est créé (planTerminerProjetAvecExtraction) : un seul endroit
  * pour l'écran et pour le serveur MCP.
  */
-export function terminerProjet(projet, ctx) {
+export function terminerProjet(projet, ctx, options = {}) {
   if (estProjetTermine(projet)) return sansEffet;
   const patch = { statut: 'termine', archive: true };
+  const faits = [];
+  if (facturesAPayer(projet).length) {
+    if (!options.impaye) return blocageCloture(projet);
+    const raison = nettoyerEspaces(options.impaye.raison);
+    if (!raison) return { erreurs: { raison: 'Dis en quelques mots pourquoi la facture est abandonnée.' }, patch: {}, evenements: [] };
+    Object.assign(patch, { factures: facturesDe(projet).map((f) => (f.statut === 'a_payer' ? { ...f, statut: 'abandonnee', raison, dateAbandon: aujourdhuiParis(ctx.maintenant) } : f)) });
+    facturesAPayer(projet).forEach((f) => faits.push(evenementProjet('facture_abandonnee', `Facture abandonnée : ${libelleFacture(f)} (${raison})`, projet, ctx)));
+  }
   if (projet.phase !== 'cloture') Object.assign(patch, entreeDansPhase(projet, 'cloture', ctx));
-  return { erreurs: {}, patch, evenements: [evenementProjet('projet_termine', `Projet terminé : ${projet.titre}`, projet, ctx)] };
+  return { erreurs: {}, patch, evenements: [...faits, evenementProjet('projet_termine', `Projet terminé : ${projet.titre}`, projet, ctx)] };
 }
 
 /** Rouvre un projet terminé : il redevient actif et sort des archives, sans changer de phase. */
@@ -165,6 +179,155 @@ export function archiverProjet(projet, archive, ctx) {
   if (!!projet.archive === !!archive) return sansEffet;
   const [type, texte] = archive ? ['projet_archive', 'Projet archivé'] : ['projet_desarchive', 'Projet sorti des archives'];
   return { erreurs: {}, patch: { archive: !!archive }, evenements: [evenementProjet(type, `${texte} : ${projet.titre}`, projet, ctx)] };
+}
+
+// ---------------------------------------------------------------- facturation (version 2.2, décisions du 06 et du 07/10/2026)
+// Les factures vivent dans le projet (`factures`, une liste de { id, libelle, montant, dateEnvoi, datePaiement, statut }), une ligne par échéance :
+// 30 % à la commande, 30 % en cours de projet, 40 % à la fin = trois lignes. Une facture est payée en entier ou pas. Statuts : À payer, Payée,
+// Abandonnée (un seul statut pour l'impayé : « Abandonnée », avec sa raison). La Clôture est bloquée tant qu'une facture est À payer ; la sortie
+// « clôturer avec impayé » abandonne les factures restantes. Une facture abandonnée ne compte jamais dans l'encaissé. Seules les factures PAYÉES comptent
+// dans l'objectif « chiffre d'affaires encaissé » (`CALCULS.ca_encaisse`, qui lit aussi les projets).
+
+export const STATUTS_FACTURE = [
+  { id: 'a_payer', libelle: 'À payer', couleur: '#ecbc06' },
+  { id: 'payee', libelle: 'Payée', couleur: '#3fbf7f' },
+  { id: 'abandonnee', libelle: 'Abandonnée', couleur: '#fd6455' },
+];
+export const libelleStatutFacture = (id) => STATUTS_FACTURE.find((s) => s.id === id)?.libelle ?? id;
+
+const MONTANT_MAX = 10_000_000;
+
+export const facturesDe = (projet) => (Array.isArray(projet?.factures) ? projet.factures : []);
+export const facturesAPayer = (projet) => facturesDe(projet).filter((f) => f.statut === 'a_payer');
+/** Un projet clôturé avec au moins une facture abandonnée garde une pastille « Impayé ». */
+export const aUnImpaye = (projet) => facturesDe(projet).some((f) => f.statut === 'abandonnee');
+export const libelleFacture = (f) => nettoyerEspaces(f?.libelle) || `Facture de ${formatEuros(f?.montant)}`;
+const sommeFactures = (projet, statut) => facturesDe(projet).filter((f) => f.statut === statut).reduce((t, f) => t + (Number(f.montant) || 0), 0);
+/** Totaux d'un projet : { facture (tout ce qui n'est pas abandonné), paye, aPayer, abandonne }. */
+export function totauxFactures(projet) {
+  const paye = sommeFactures(projet, 'payee');
+  const aPayer = sommeFactures(projet, 'a_payer');
+  return { facture: paye + aPayer, paye, aPayer, abandonne: sommeFactures(projet, 'abandonnee') };
+}
+
+/** Refus de la Clôture : { erreurs: { factures }, facturesBloquantes } ou null quand rien ne bloque. */
+export function blocageCloture(projet) {
+  const bloquantes = facturesAPayer(projet);
+  if (!bloquantes.length) return null;
+  const liste = bloquantes.map((f) => `${libelleFacture(f)} (${formatEuros(f.montant)})`).join(', ');
+  return {
+    erreurs: { factures: `Clôture bloquée : ${bloquantes.length > 1 ? 'des factures ne sont pas payées' : 'une facture n’est pas payée'} (${liste}).` },
+    facturesBloquantes: bloquantes, patch: {}, evenements: [],
+  };
+}
+
+/** Montant lu dans un champ (virgule ou point, espaces ignorés) ; NaN quand illisible. */
+export function lireMontant(v) {
+  if (typeof v === 'number') return v;
+  return Number(String(v ?? '').replace(/[\s\u00a0\u202f€]/g, '').replace(',', '.'));
+}
+
+export function validerFacture(v = {}) {
+  const erreurs = {};
+  const montant = lireMontant(v.montant);
+  if (v.montant === undefined || v.montant === null || v.montant === '' || !(montant > 0)) erreurs.montant = 'Le montant doit être supérieur à zéro.';
+  else if (montant > MONTANT_MAX) erreurs.montant = 'Ce montant est trop grand.';
+  if (v.dateEnvoi && !estJour(v.dateEnvoi)) erreurs.dateEnvoi = 'La date d’envoi doit être au format AAAA-MM-JJ.';
+  if (v.datePaiement && !estJour(v.datePaiement)) erreurs.datePaiement = 'La date de paiement doit être au format AAAA-MM-JJ.';
+  if (!erreurs.dateEnvoi && !erreurs.datePaiement && v.dateEnvoi && v.datePaiement && v.datePaiement < v.dateEnvoi) erreurs.datePaiement = 'Le paiement ne peut pas précéder l’envoi.';
+  return erreurs;
+}
+
+const retour = (erreurs, extra = {}) => ({ erreurs, patch: {}, evenements: [], ...extra });
+const trouverFacture = (projet, id) => facturesDe(projet).find((f) => f.id === id) ?? null;
+const remplacerFacture = (projet, facture) => facturesDe(projet).map((f) => (f.id === facture.id ? facture : f));
+
+function evenementEncaissement(projet, facture, ctx) {
+  return evenementProjet('encaissement', `Encaissement : ${formatEuros(facture.montant)} (${libelleFacture(facture)})`, projet, ctx);
+}
+
+/**
+ * Ajoute une facture. `valeurs` : montant (obligatoire), libelle, dateEnvoi, datePaiement (une facture déjà payée : elle est créée « Payée »).
+ * Rend { erreurs, patch, evenements, facture }.
+ */
+export function ajouterFacture(projet, valeurs, ctx) {
+  const erreurs = validerFacture(valeurs);
+  if (Object.keys(erreurs).length) return retour(erreurs);
+  const payee = !!valeurs.datePaiement;
+  const facture = {
+    id: ctx.nouvelId('factures'),
+    libelle: nettoyerEspaces(valeurs.libelle),
+    montant: Math.round(lireMontant(valeurs.montant) * 100) / 100,
+    dateEnvoi: valeurs.dateEnvoi || null,
+    datePaiement: payee ? valeurs.datePaiement : null,
+    statut: payee ? 'payee' : 'a_payer',
+  };
+  const faits = [evenementProjet('facture_ajoutee', `Facture ajoutée : ${libelleFacture(facture)} (${formatEuros(facture.montant)})`, projet, ctx)];
+  if (payee) faits.push(evenementEncaissement(projet, facture, ctx));
+  return { erreurs: {}, patch: { factures: [...facturesDe(projet), facture] }, evenements: faits, facture };
+}
+
+/** Modifie une facture (libellé, montant, date d'envoi ; date de paiement si elle est payée). Une facture abandonnée ne se modifie pas. */
+export function modifierFacture(projet, id, valeurs, ctx) {
+  const f = trouverFacture(projet, id);
+  if (!f) return retour({ facture: 'Facture introuvable.' });
+  if (f.statut === 'abandonnee') return retour({ facture: 'Une facture abandonnée ne se modifie pas.' });
+  const suivante = { ...f, ...valeurs };
+  const erreurs = validerFacture({ ...suivante, datePaiement: f.statut === 'payee' ? suivante.datePaiement : null });
+  if (Object.keys(erreurs).length) return retour(erreurs);
+  const nette = {
+    ...f,
+    libelle: nettoyerEspaces(suivante.libelle),
+    montant: Math.round(lireMontant(suivante.montant) * 100) / 100,
+    dateEnvoi: suivante.dateEnvoi || null,
+    datePaiement: f.statut === 'payee' ? suivante.datePaiement : null,
+  };
+  if (JSON.stringify(nette) === JSON.stringify(f)) return sansEffet;
+  return { erreurs: {}, patch: { factures: remplacerFacture(projet, nette) }, evenements: [evenementProjet('facture_modifiee', `Facture modifiée : ${libelleFacture(nette)} (${formatEuros(nette.montant)})`, projet, ctx)], facture: nette };
+}
+
+/** Marque une facture payée (date du jour par défaut ; `montant` seulement si le client a payé une autre somme). Compte dans l'encaissé du mois du paiement. */
+export function marquerFacturePayee(projet, id, { datePaiement = null, montant = null } = {}, ctx) {
+  const f = trouverFacture(projet, id);
+  if (!f) return retour({ facture: 'Facture introuvable.' });
+  if (f.statut === 'payee') return sansEffet;
+  if (f.statut === 'abandonnee') return retour({ facture: 'Cette facture est abandonnée : remets-la d’abord à payer.' });
+  const jour = datePaiement || aujourdhuiParis(ctx.maintenant);
+  const somme = montant === null || montant === '' ? f.montant : montant;
+  const erreurs = validerFacture({ montant: somme, dateEnvoi: f.dateEnvoi, datePaiement: jour });
+  if (Object.keys(erreurs).length) return retour(erreurs);
+  const payee = { ...f, montant: Math.round(lireMontant(somme) * 100) / 100, datePaiement: jour, statut: 'payee' };
+  delete payee.raison;
+  delete payee.dateAbandon;
+  return { erreurs: {}, patch: { factures: remplacerFacture(projet, payee) }, evenements: [evenementEncaissement(projet, payee, ctx)], facture: payee };
+}
+
+/** Remet à payer une facture payée (erreur de saisie) ou abandonnée (le client finit par payer). */
+export function remettreFactureAPayer(projet, id, ctx) {
+  const f = trouverFacture(projet, id);
+  if (!f) return retour({ facture: 'Facture introuvable.' });
+  if (f.statut === 'a_payer') return sansEffet;
+  const { raison, dateAbandon, ...reste } = f;
+  const nette = { ...reste, datePaiement: null, statut: 'a_payer' };
+  return { erreurs: {}, patch: { factures: remplacerFacture(projet, nette) }, evenements: [evenementProjet('facture_remise_a_payer', `Facture remise à payer : ${libelleFacture(nette)}`, projet, ctx)], facture: nette };
+}
+
+/** Abandonne une facture (impayé définitif, geste commercial) : la raison est obligatoire. */
+export function abandonnerFacture(projet, id, raison, ctx) {
+  const f = trouverFacture(projet, id);
+  if (!f) return retour({ facture: 'Facture introuvable.' });
+  if (f.statut === 'abandonnee') return sansEffet;
+  if (f.statut === 'payee') return retour({ facture: 'Une facture payée ne s’abandonne pas : remets-la d’abord à payer.' });
+  const motif = nettoyerEspaces(raison);
+  if (!motif) return retour({ raison: 'Dis en quelques mots pourquoi la facture est abandonnée.' });
+  const nette = { ...f, statut: 'abandonnee', raison: motif, dateAbandon: aujourdhuiParis(ctx.maintenant) };
+  return { erreurs: {}, patch: { factures: remplacerFacture(projet, nette) }, evenements: [evenementProjet('facture_abandonnee', `Facture abandonnée : ${libelleFacture(nette)} (${motif})`, projet, ctx)], facture: nette };
+}
+
+export function supprimerFacture(projet, id, ctx) {
+  const f = trouverFacture(projet, id);
+  if (!f) return retour({ facture: 'Facture introuvable.' });
+  return { erreurs: {}, patch: { factures: facturesDe(projet).filter((x) => x.id !== id) }, evenements: [evenementProjet('facture_supprimee', `Facture supprimée : ${libelleFacture(f)} (${formatEuros(f.montant)})`, projet, ctx)] };
 }
 
 // ---------------------------------------------------------------- avancement et retard
@@ -670,8 +833,8 @@ export function planMarquerPerdueAvecExtraction({ affaire, saisie, projets = [],
 }
 
 /** Fin d'un projet AVEC son extraction (sauf pour un projet d'extraction, et une seule par projet). Même forme que `planTerminerProjet` + `extraction`. */
-export function planTerminerProjetAvecExtraction({ projet, projets = [], modeles = [] }, ctx) {
-  const plan = planTerminerProjet(projet, ctx);
+export function planTerminerProjetAvecExtraction({ projet, projets = [], modeles = [], impaye = null }, ctx) {
+  const plan = planTerminerProjet(projet, ctx, impaye ? { impaye } : {});
   if (!plan.ecritures.length || estExtraction(projet) || extractionDuProjet(projets, projet.id)) return { ...plan, extraction: null };
   const extraction = creerExtraction({ projet, modeles }, ctx);
   return { ...plan, extraction: { id: extraction.id, titre: extraction.titre }, ecritures: [...plan.ecritures, ...extraction.ecritures] };
@@ -785,8 +948,14 @@ export function planResultatProjet(projetId, resultat, ctx) {
 export const planChangerPhase = (projet, phase, ctx) => planResultatProjet(projet.id, changementPhase(projet, phase, ctx), ctx);
 export const planMettreProjetEnPause = (projet, ctx) => planResultatProjet(projet.id, mettreProjetEnPause(projet, ctx), ctx);
 export const planReprendreProjet = (projet, ctx) => planResultatProjet(projet.id, reprendreProjet(projet, ctx), ctx);
-export const planTerminerProjet = (projet, ctx) => planResultatProjet(projet.id, terminerProjet(projet, ctx), ctx);
+export const planTerminerProjet = (projet, ctx, options = {}) => planResultatProjet(projet.id, terminerProjet(projet, ctx, options), ctx);
 export const planRouvrirProjet = (projet, ctx) => planResultatProjet(projet.id, rouvrirProjet(projet, ctx), ctx);
+export const planAjouterFacture = (projet, valeurs, ctx) => planResultatProjet(projet.id, ajouterFacture(projet, valeurs, ctx), ctx);
+export const planModifierFacture = (projet, id, valeurs, ctx) => planResultatProjet(projet.id, modifierFacture(projet, id, valeurs, ctx), ctx);
+export const planMarquerFacturePayee = (projet, id, options, ctx) => planResultatProjet(projet.id, marquerFacturePayee(projet, id, options, ctx), ctx);
+export const planRemettreFactureAPayer = (projet, id, ctx) => planResultatProjet(projet.id, remettreFactureAPayer(projet, id, ctx), ctx);
+export const planAbandonnerFacture = (projet, id, raison, ctx) => planResultatProjet(projet.id, abandonnerFacture(projet, id, raison, ctx), ctx);
+export const planSupprimerFacture = (projet, id, ctx) => planResultatProjet(projet.id, supprimerFacture(projet, id, ctx), ctx);
 export const planArchiverProjet = (projet, archive, ctx) => planResultatProjet(projet.id, archiverProjet(projet, archive, ctx), ctx);
 
 /**

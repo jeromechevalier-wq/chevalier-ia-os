@@ -36,3 +36,16 @@
   .ajout-tache-modele input[type="text"] { grid-column: 1 / -1; }
   .ajout-tache-modele button { grid-column: 1 / -1; justify-self: start; }
 }
+
+/* Factures du projet (2.2) */
+.factures-totaux { margin: 0; color: var(--texte2); font-size: 13px; font-weight: 600; }
+.liste-factures { gap: 8px; }
+.ligne-facture { display: flex; align-items: center; gap: 6px 12px; flex-wrap: wrap; padding: 8px 10px; border: 1px solid var(--bordure); border-radius: 10px; }
+.ligne-facture .facture-texte { display: flex; flex-direction: column; gap: 2px; flex: 1 1 200px; min-width: 0; overflow-wrap: anywhere; }
+.ligne-facture .facture-montant { font-weight: 700; white-space: nowrap; }
+.ligne-facture.statut-abandonnee .facture-texte strong, .ligne-facture.statut-abandonnee .facture-montant { text-decoration: line-through; color: var(--texte2); }
+.ligne-ajout-facture .champ-court { flex: 0 1 150px; }
+.pastille-statut.statut-impaye { margin-left: 6px; }
+@media (max-width: 767px) {
+  .ligne-ajout-facture .champ-court { flex: 1 1 100%; }
+}

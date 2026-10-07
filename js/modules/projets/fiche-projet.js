@@ -11,13 +11,15 @@ import { creerLanceurs } from '../crm/lanceurs.js';
 import * as D from './donnees.js';
 import * as P from './logique.js';
 import { sectionTaches } from './taches.js';
+import { sectionFactures } from './factures.js';
 import { cheminModele } from './modeles.js';
 import { anneauProgression, cheminProjet } from './composants.js';
-import { pastilleStatutProjet, pastillePhase, terminerProjet, extraireValeur, mettreEnPause, reprendre, rouvrir, demanderSuppressionProjet } from './projets.js';
+import { pastilleStatutProjet, pastilleImpaye, pastillePhase, terminerProjet, changerPhaseProjet, extraireValeur, mettreEnPause, reprendre, rouvrir, demanderSuppressionProjet } from './projets.js';
 
 export function rendreFicheProjet(conteneur, id) {
   let panneau = null;
   let panneauAffaireId = null;
+  let majFactures = null; // redessine la liste des factures seule, pendant une saisie dans le formulaire d'ajout
   let majTaches = null; // redessine la liste des tâches seule, quand on est en train de taper ailleurs dans la fiche
   const racine = h('div', { class: 'fiche-conteneur' });
   conteneur.append(racine);
@@ -33,7 +35,7 @@ export function rendreFicheProjet(conteneur, id) {
     return h('ol', { class: `barre-etapes-fiche${vivant ? '' : ' inactive'}`, 'aria-label': 'Phases du projet' },
       P.PHASES.map((ph, i) => h('li', { class: i <= index ? 'passee' : '', style: { '--couleur': ph.couleur } },
         h('button', { type: 'button', class: `etape${i === index ? ' courante' : ''}`, 'aria-current': i === index && vivant ? 'step' : null, dataset: { phase: ph.id },
-          onclick: () => D.changerPhase(p.id, ph.id) }, ph.libelle))));
+          onclick: () => changerPhaseProjet(p, ph.id) }, ph.libelle))));
   }
 
   function construire(p) {
@@ -68,7 +70,7 @@ export function rendreFicheProjet(conteneur, id) {
       lienRetour('#/projets/projets', 'Projets'),
       h('div', { class: 'fiche-tete-ligne' },
         h('div', { class: 'fiche-titre' }, titre,
-          h('div', { class: 'fiche-sous' }, pastilleStatutProjet(p), p.archive ? h('span', { class: 'badge-archive' }, 'Archivé') : null,
+          h('div', { class: 'fiche-sous' }, pastilleStatutProjet(p), pastilleImpaye(p), p.archive ? h('span', { class: 'badge-archive' }, 'Archivé') : null,
             p.nature === 'extraction' ? h('span', { class: 'badge-nature' }, 'Extraction') : null,
             pers ? h('span', {}, icone('user', { taille: 14 }), lienPersonne(pers)) : null, org ? h('span', {}, icone('building-2', { taille: 14 }), lienOrganisation(org)) : null,
             selectProprietaire({ valeur: p.proprietaire, surChoix: (v) => D.majProjet(p.id, { proprietaire: v }) }))),
@@ -156,6 +158,10 @@ export function rendreFicheProjet(conteneur, id) {
     const taches = sectionTaches(p);
     majTaches = () => { taches.majListe(); rendreAvancement(); };
 
+    // ---- Factures (projets de livraison ; une extraction ou un chantier interne n'en a en général pas, mais la section reste là : on peut en ajouter)
+    const factures = sectionFactures(p);
+    majFactures = () => factures.majListe();
+
     // ---- Documents de l'affaire : montrés ici, pas déplacés (ils restent sur l'affaire)
     const documentsAffaire = aff?.documents || [];
     const sectionDocumentsAffaire = aff && documentsAffaire.length ? sectionRepliable({
@@ -175,7 +181,7 @@ export function rendreFicheProjet(conteneur, id) {
         affaireLiee: panneauAffaireId ? { affaireId: panneauAffaireId, fusionnerNotes: (notes, notesAffaire) => P.notesDuProjet(notes, notesAffaire, p.id) } : null,
       });
     }
-    remplir(racine, gabaritFiche({ entete, gauche: [resume.element, taches.element, details.element, sectionDocuments.element, sectionDocumentsAffaire?.element].filter(Boolean), droite: panneau.element }));
+    remplir(racine, gabaritFiche({ entete, gauche: [resume.element, taches.element, factures.element, details.element, sectionDocuments.element, sectionDocumentsAffaire?.element].filter(Boolean), droite: panneau.element }));
   }
 
   function reconstruire() {
@@ -185,6 +191,7 @@ export function rendreFicheProjet(conteneur, id) {
   }
   const rafraichir = planifier(() => {
     if (!saisieEnCours(racine)) { reconstruire(); return; }
+    majFactures?.();
     majTaches?.(); // une saisie est en cours : la fiche n'est pas refaite, mais la liste des tâches suit (une tâche ajoutée apparaît tout de suite)
   });
   reconstruire();

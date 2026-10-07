@@ -120,7 +120,7 @@ export async function creerProjet(id, valeurs = {}) {
   const phase = valeurs.phase || 'lancement';
   const doc = {
     titre: 'Projet test', affaireId: null, personneId: null, organisationId: null, phase, statut: 'actif', dateDebut: jour(0), dateFin: null,
-    modeleId: null, offreId: null, dateEntreePhase: maintenant, datesPhases: { [phase]: maintenant }, documents: [], urlGithub: '', urlDossier: '',
+    modeleId: null, offreId: null, dateEntreePhase: maintenant, datesPhases: { [phase]: maintenant }, documents: [], factures: [], urlGithub: '', urlDossier: '',
     nature: 'livraison', projetSourceId: null, archive: false,
     proprietaire: JEROME, creeLe: maintenant, modifieLe: maintenant, creePar: JEROME, modifiePar: JEROME, ...valeurs,
   };
