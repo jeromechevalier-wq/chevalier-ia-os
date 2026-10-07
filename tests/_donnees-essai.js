@@ -19,7 +19,7 @@ export const collections = {
     { id: 'a1', titre: 'Site vitrine Atelier des Lilas', personneId: 'p1', organisationId: 'org1', etape: 'proposition_envoyee', statut: 'ouverte', archive: false, documents: [{ libelle: 'Devis', url: 'https://exemple.test/devis' }], creeLe: t('2026-09-10T08:00:00Z') },
     { id: 'a2', titre: 'Application de commande Boulangerie', personneId: 'p2', organisationId: 'org2', etape: 'gagne', statut: 'gagnee', archive: false, documents: [], creeLe: t('2026-09-12T08:00:00Z') },
     { id: 'a3', titre: 'Affaire perdue', personneId: 'p1', organisationId: 'org1', etape: 'premier_contact', statut: 'perdue', archive: false, creeLe: t('2026-08-12T08:00:00Z') },
-    { id: 'a4', titre: 'Affaire archivée', personneId: null, organisationId: 'org3', etape: 'facture_payee', statut: 'gagnee', archive: true, creeLe: t('2026-02-12T08:00:00Z') },
+    { id: 'a4', titre: 'Affaire archivée', personneId: null, organisationId: 'org3', etape: 'gagne', statut: 'gagnee', archive: true, creeLe: t('2026-02-12T08:00:00Z') },
   ],
   crm_activites: [
     { id: 'ac1', titre: 'Appeler pour la proposition', type: 'appel', date: '2026-10-02', heure: '10:00', fait: false, affaireId: 'a1', personneId: 'p1', organisationId: 'org1' },

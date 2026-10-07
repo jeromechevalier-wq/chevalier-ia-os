@@ -469,7 +469,7 @@ describe('B28 Affaire gagnée : créer ou lier un projet', () => {
     assert.deepEqual(P.validerLienAffaire({ affaire: gagnee() }), {});
   });
   test('B28 une affaire archivée mais gagnée (facture payée) peut encore avoir son projet', () => {
-    assert.deepEqual(P.validerLienAffaire({ affaire: gagnee({ etape: 'facture_payee', archive: true }) }), {});
+    assert.deepEqual(P.validerLienAffaire({ affaire: gagnee({ etape: 'gagne', archive: true }) }), {});
   });
   test('B28 créer : le projet reprend l’affaire, l’affaire reçoit projetId, un événement, tout dans le même plan', () => {
     const affaire = gagnee({ urlGithub: 'https://github.com/jeromechevalier-wq/client-lilas', urlDossier: 'https://drive.google.com/drive/folders/abc' });
@@ -850,13 +850,18 @@ describe('B31 Extraction de valeur : création automatique', () => {
     assert.equal(extractions(deuxieme.ecritures).length, 0);
     assert.equal(deuxieme.patch.raisonPerdue, 'Concurrent', 'la perte, elle, est bien enregistrée');
   });
-  test('B31 affaire gagnée sans projet : extraction à Gagné ; même chose en sautant des étapes (Facture payée)', () => {
-    for (const etape of ['gagne', 'facture_envoyee', 'facture_payee']) {
+  test('B31 affaire gagnée sans projet : extraction à Gagné ; les anciennes étapes « Facture envoyée / payée » n’existent plus : refusées, rien ne se crée', () => {
+    for (const etape of ['gagne']) {
       const plan = P.planChangerEtapeAvecExtraction({ affaire: affaire({ etape: 'proposition_envoyee', statut: 'ouverte' }), etape }, c());
       assert.deepEqual(plan.erreurs, {}, etape);
       assert.equal(extractions(plan.ecritures).length, 1, etape);
       assert.equal(extractions(plan.ecritures)[0].affaireId, 'a1');
       assert.equal(plan.extraction.titre, 'Extraction : Audit des Lilas');
+    }
+    for (const retiree of ['facture_envoyee', 'facture_payee']) {
+      const plan = P.planChangerEtapeAvecExtraction({ affaire: affaire({ etape: 'proposition_envoyee', statut: 'ouverte' }), etape: retiree }, c());
+      assert.ok(plan.erreurs.etape, retiree);
+      assert.equal(extractions(plan.ecritures).length, 0, retiree);
     }
   });
   test('B31 pas d’extraction : étape qui ne gagne rien, étape inconnue, passage entre étapes déjà gagnées, affaire qui a déjà un projet, extraction déjà là', () => {
@@ -864,7 +869,7 @@ describe('B31 Extraction de valeur : création automatique', () => {
     rien(P.planChangerEtapeAvecExtraction({ affaire: affaire({ etape: 'premier_contact', statut: 'ouverte' }), etape: 'rdv_fixe' }, c()));
     const inconnue = P.planChangerEtapeAvecExtraction({ affaire: affaire({ etape: 'rdv_fixe', statut: 'ouverte' }), etape: 'nimporte' }, c());
     assert.ok(inconnue.erreurs.etape); rien(inconnue);
-    rien(P.planChangerEtapeAvecExtraction({ affaire: affaire({ etape: 'gagne', statut: 'gagnee' }), etape: 'facture_envoyee' }, c()));
+    rien(P.planChangerEtapeAvecExtraction({ affaire: affaire({ etape: 'gagne', statut: 'gagnee' }), etape: 'gagne' }, c()));
     rien(P.planChangerEtapeAvecExtraction({ affaire: affaire({ etape: 'rdv_fixe', statut: 'ouverte' }), etape: 'gagne', projets: [projet({ id: 'pr1', affaireId: 'a1' })] }, c()));
     rien(P.planChangerEtapeAvecExtraction({ affaire: affaire({ etape: 'rdv_fixe', statut: 'ouverte' }), etape: 'gagne', projets: [projet({ id: 'ex', nature: 'extraction', affaireId: 'a1' })] }, c()));
   });
@@ -1179,5 +1184,74 @@ describe('B34 Objectif « chiffre d’affaires encaissé » : les factures PAYÉ
   test('B34 caParMois lit aussi les projets (graphique de l’Accueil)', () => {
     const r = L.caParMois([], ['2026-09', '2026-10'], [projetAvec([fac({ montant: 300 })])]);
     assert.deepEqual(r.map((m) => m.montant), [0, 300]);
+  });
+});
+
+describe('B35 Migration 2.2 : les étapes « Facture envoyée » et « Facture payée » disparaissent', () => {
+  const c = (iso = '2026-10-20T09:00:00Z') => ctx(iso);
+  const exec = (base, plan) => executer(base, plan.ecritures, { maintenant: c().maintenant });
+  const aff = (extra = {}) => ({ ...L.nouvelleAffaire({ titre: 'Audit des Lilas', personneId: 'p1', organisationId: 'o1', montant: 1200 }, c('2026-09-01T08:00:00Z')), id: 'a1', ...extra });
+
+  test('B35 une affaire « Facture payée » passe à Gagné : archivée, encaissements intacts, statut gagnée, un événement', () => {
+    const payee = aff({ etape: 'facture_payee', statut: 'gagnee', archive: true, encaissements: [{ date: new Date('2026-09-20T10:00:00Z'), montant: 1200 }],
+      datesEtapes: { gagne: new Date('2026-09-05T10:00:00Z'), facture_payee: new Date('2026-09-20T10:00:00Z') } });
+    const plan = P.planMigrerEtapesRetirees({ affaires: [payee], projets: [] }, c());
+    assert.deepEqual(plan.migrees, [{ affaireId: 'a1', titre: 'Audit des Lilas', de: 'Facture payée', facture: null }]);
+    assert.deepEqual(plan.aTraiterAMain, []);
+    const base = exec({ crm_affaires: [payee], projets_projets: [] }, plan);
+    const apres = base.crm_affaires[0];
+    assert.deepEqual([apres.etape, apres.statut, apres.archive], ['gagne', 'gagnee', true]);
+    assert.equal(apres.encaissements.length, 1);
+    assert.equal(apres.encaissements[0].montant, 1200);
+    assert.equal(apres.datesEtapes.gagne.toISOString(), '2026-09-05T10:00:00.000Z', 'la date d’arrivée à Gagné d’origine est gardée');
+    assert.deepEqual((base.crm_evenements || []).map((e) => e.type), ['etape_changee']);
+    assert.match(base.crm_evenements[0].texte, /Facture payée → Gagné/);
+    // le chiffre d'affaires du mois du paiement ne bouge pas
+    assert.equal(L.CALCULS.ca_encaisse.calculer({ affaires: [payee] }, '2026-09'), L.CALCULS.ca_encaisse.calculer({ affaires: [apres] }, '2026-09'));
+  });
+  test('B35 une affaire « Facture envoyée » avec un projet : passe à Gagné et le projet reçoit une facture À payer de son montant', () => {
+    const envoyee = aff({ etape: 'facture_envoyee', statut: 'gagnee', projetId: 'pr1', datesEtapes: { gagne: new Date('2026-09-05T10:00:00Z'), facture_envoyee: new Date('2026-09-18T10:00:00Z') } });
+    const pr = projet({ id: 'pr1', affaireId: 'a1' });
+    const plan = P.planMigrerEtapesRetirees({ affaires: [envoyee], projets: [pr] }, c());
+    assert.deepEqual(plan.migrees[0].facture, { projetId: 'pr1', montant: 1200 });
+    const base = exec({ crm_affaires: [envoyee], projets_projets: [pr] }, plan);
+    assert.equal(base.crm_affaires[0].etape, 'gagne');
+    assert.deepEqual(base.projets_projets[0].factures.map((f) => [f.statut, f.montant, f.dateEnvoi]), [['a_payer', 1200, '2026-09-18']]);
+    assert.ok(P.blocageCloture(base.projets_projets[0]), 'la clôture du projet attend ce paiement');
+  });
+  test('B35 « Facture envoyée » sans projet, sans montant ou avec une simple extraction : passe à Gagné et est listée « à traiter à la main », aucun projet créé', () => {
+    const sansProjet = aff({ id: 'a1', etape: 'facture_envoyee', statut: 'gagnee' });
+    const sansMontant = aff({ id: 'a2', etape: 'facture_envoyee', statut: 'gagnee', montant: null, projetId: 'pr2' });
+    const extraction = aff({ id: 'a3', etape: 'facture_envoyee', statut: 'gagnee' });
+    const projets = [projet({ id: 'pr2', affaireId: 'a2' }), projet({ id: 'ex3', affaireId: 'a3', nature: 'extraction' })];
+    const plan = P.planMigrerEtapesRetirees({ affaires: [sansProjet, sansMontant, extraction], projets }, c());
+    assert.deepEqual(plan.aTraiterAMain.map((m) => m.affaireId), ['a1', 'a2', 'a3']);
+    assert.ok(plan.aTraiterAMain.every((m) => m.raison.length > 10));
+    assert.deepEqual(plan.migrees.map((m) => m.facture), [null, null, null]);
+    const base = exec({ crm_affaires: [sansProjet, sansMontant, extraction], projets_projets: projets }, plan);
+    assert.deepEqual(base.crm_affaires.map((a) => a.etape), ['gagne', 'gagne', 'gagne']);
+    assert.equal(base.projets_projets.length, 2, 'aucun projet créé');
+    assert.ok(base.projets_projets.every((p) => !(p.factures || []).length));
+    assert.ok((base.crm_evenements || []).every((e) => /à suivre à la main/.test(e.texte)));
+  });
+  test('B35 idempotent : une fois migrées, les affaires ne sont plus concernées ; les autres affaires ne bougent pas', () => {
+    const payee = aff({ id: 'a1', etape: 'facture_payee', statut: 'gagnee', archive: true });
+    const ouverte = aff({ id: 'a2', etape: 'rdv_fixe', statut: 'ouverte' });
+    const gagnee = aff({ id: 'a3', etape: 'gagne', statut: 'gagnee' });
+    let base = { crm_affaires: [payee, ouverte, gagnee], projets_projets: [] };
+    const plan = P.planMigrerEtapesRetirees({ affaires: base.crm_affaires, projets: [] }, c());
+    assert.deepEqual(plan.migrees.map((m) => m.affaireId), ['a1']);
+    base = exec(base, plan);
+    const encore = P.planMigrerEtapesRetirees({ affaires: base.crm_affaires, projets: base.projets_projets }, c());
+    assert.deepEqual([encore.migrees, encore.aTraiterAMain, encore.ecritures], [[], [], []]);
+    assert.deepEqual(base.crm_affaires.map((a) => a.etape), ['gagne', 'rdv_fixe', 'gagne']);
+  });
+  test('B35 deux affaires « Facture envoyée » sur le même projet : les deux factures s’ajoutent, sans écraser la première', () => {
+    const a = aff({ id: 'a1', etape: 'facture_envoyee', statut: 'gagnee', projetId: 'pr1', montant: 300 });
+    const b = aff({ id: 'a2', etape: 'facture_envoyee', statut: 'gagnee', projetId: 'pr1', montant: 400 });
+    const pr = projet({ id: 'pr1' });
+    const plan = P.planMigrerEtapesRetirees({ affaires: [a, b], projets: [pr] }, c());
+    const dernier = plan.ecritures.filter((e) => e.collection === 'projets_projets').at(-1);
+    assert.deepEqual(dernier.patch.factures.map((f) => f.montant), [300, 400]);
   });
 });

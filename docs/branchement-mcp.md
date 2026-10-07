@@ -78,7 +78,7 @@ Notes de fonctionnement, sans conséquence : le journal du serveur montre parfoi
          Authorization: "Bearer ${env:CHEVALIER_MCP_TOKEN}"
        timeout: 120
        tools:
-         include: [qui_suis_je, chercher, lire_personne, lire_organisation, lire_affaire, lister_affaires, lister_activites, lister_documents, lire_reglages, lire_audit, creer_personne, modifier_personne, creer_organisation, modifier_organisation, creer_affaire, modifier_affaire, changer_etape, marquer_perdue, mettre_en_pause, rouvrir_affaire, ajouter_encaissement, ajouter_note, modifier_note, creer_activite, terminer_activite, joindre_lien, retirer_document]
+         include: [qui_suis_je, chercher, lire_personne, lire_organisation, lire_affaire, lister_affaires, lister_activites, lister_documents, lire_reglages, lire_audit, creer_personne, modifier_personne, creer_organisation, modifier_organisation, creer_affaire, modifier_affaire, changer_etape, marquer_perdue, mettre_en_pause, rouvrir_affaire, ajouter_note, modifier_note, creer_activite, terminer_activite, joindre_lien, retirer_document]
    ```
    Ces **27 outils** sont exactement ceux du profil bibliothécaire aujourd'hui. Les outils de sauvegarde (étape 5) et de pièces jointes (étape 7) s'ajouteront à la liste quand ils existeront. Même sans ce filtre, le serveur refuse tout outil hors profil.
 4. **Essai** : depuis le VPS, un `curl` avec ce jeton (`qui_suis_je` doit répondre `hermes-bibliothecaire`, profil `bibliothecaire`) avant de brancher Hermes ; puis demander à Hermes de créer une fiche de test, vérifier dans `lire_audit` et dans le fil de l'écran (« hermes-bibliothecaire · via MCP »), vérifier qu'un `supprimer_affaire` est refusé, puis nettoyer.

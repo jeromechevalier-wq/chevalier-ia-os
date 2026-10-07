@@ -1,7 +1,7 @@
 // Affaires : Kanban, liste, archives, fenêtre "Ajouter une affaire" et boîtes de dialogue des changements d'étape.
 import { h, icone, remplir, dialogue, toast, ouvrirMenu, lirePreference, ecrirePreference } from '../../os/ui.js';
 import { naviguer } from '../../os/router.js';
-import { celebrerGagne, celebrerPaiement } from '../../os/celebrations.js';
+import { celebrerGagne } from '../../os/celebrations.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
 import {
@@ -27,16 +27,6 @@ const colonnesSortiesOuvertes = new Set();
 let enDeplacement = false;
 
 // ---------------------------------------------------------------- boîtes de dialogue
-
-async function demanderMontant({ titre, valeurInitiale, libelleOk }) {
-  const champ = h('input', { class: 'champ', type: 'number', min: '0', step: '0.01', inputmode: 'decimal', 'aria-label': 'Montant en euros', value: valeurInitiale ?? '', autofocus: true });
-  return dialogue({
-    titre,
-    contenu: h('label', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Montant (€)'), champ),
-    boutons: [{ libelle: 'Annuler', valeur: null }, { libelle: libelleOk, valeur: () => (champ.value === '' ? 0 : Number(champ.value)), style: 'principal' }],
-    auMontage: ({ boutons }) => champ.addEventListener('keydown', (e) => { if (e.key === 'Enter') boutons.at(-1).click(); }),
-  });
-}
 
 /** Perdue : la raison est obligatoire. */
 export async function ouvrirPerdue(a) {
@@ -80,36 +70,18 @@ export async function ouvrirPause(a) {
   return !!r;
 }
 
-export async function ouvrirEncaissement(a) {
-  const montant = await demanderMontant({ titre: 'Ajouter un encaissement', valeurInitiale: a.montant ?? '', libelleOk: 'Ajouter' });
-  if (montant === null || montant === false) return false;
-  const res = await D.encaisser(a.id, { montant });
-  if (res.erreurs?.montant) { toast(res.erreurs.montant, { type: 'erreur' }); return false; }
-  return true;
-}
-
 /**
  * Changement d'étape avec ses boîtes et ses animations :
- *  - Facture payée : montant de l'encaissement (modifiable) puis compteur du chiffre d'affaires ;
  *  - Gagné : feu d'artifice ;
  *  - suggestion douce : activité préremplie, à valider, modifier ou fermer.
  */
 export async function changerEtapeAvecBoites(a, etape) {
   const rouvre = a.statut === 'perdue' || a.statut === 'en_pause';
   if (a.etape === etape && !rouvre) return;
-  const options = {};
-  if (etape === 'facture_payee' && a.etape !== 'facture_payee') {
-    const montant = await demanderMontant({ titre: 'Facture payée', valeurInitiale: a.montant ?? 0, libelleOk: 'Encaisser' });
-    if (montant === null || montant === false) return;
-    options.montantEncaisse = montant;
-  }
-  const mois = L.moisCourant();
-  const avant = L.CALCULS.ca_encaisse.calculer({ affaires: D.etat.affaires, projets: PD.etat.projets }, mois);
-  const r = await PD.changerEtapeAffaire(a.id, etape, options);
+  const r = await PD.changerEtapeAffaire(a.id, etape);
   if (r.erreurs && Object.keys(r.erreurs).length) { toast('Changement impossible', { type: 'erreur' }); return; }
   annoncerExtraction(r);
   if (etape === 'gagne' && a.etape !== 'gagne') celebrerGagne('Bravo Jérôme !', a.titre);
-  if (options.montantEncaisse !== undefined) celebrerPaiement(avant, avant + options.montantEncaisse, (n) => L.formatEuros(Math.round(n)));
   if (r.suggestion) {
     await dialogueActivite({ liens: L.liensAffaire(a), titre: 'Une suggestion', valeurs: r.suggestion, libelleOk: 'Planifier', libelleFermer: 'Fermer' });
   }
@@ -315,9 +287,6 @@ export function rendreAffaires(conteneur) {
   function rendreKanban() {
     const ctxF = contexteFiltres();
     const ouvertes = L.filtrerAffaires(D.etat.affaires, { ...criteres, archives: false }, ctxF);
-    const archivees = L.filtrerAffaires(D.etat.affaires, { ...criteres, archives: true }, ctxF);
-    const mois = L.moisCourant();
-    const payees = L.payeesDuMois(archivees.filter((a) => a.etape === 'facture_payee'), mois);
     const vivantes = ouvertes.filter((a) => a.statut === 'ouverte' || a.statut === 'gagnee');
     remplir(compteur, `${vivantes.length} ${vivantes.length > 1 ? 'affaires' : 'affaire'}`);
     if (!D.etat.affaires.length) {
@@ -325,11 +294,7 @@ export function rendreAffaires(conteneur) {
       return;
     }
     const colonnes = L.ETAPES.map((e) => {
-      let liste = vivantes.filter((a) => a.etape === e.id);
-      if (e.id === 'facture_payee') {
-        const ids = new Set(liste.map((a) => a.id));
-        liste = [...liste, ...payees.filter((a) => !ids.has(a.id))];
-      }
+      const liste = vivantes.filter((a) => a.etape === e.id);
       return colonne({ id: e.id, titre: e.libelle, couleur: e.couleur, affaires: liste, onDrop: (a) => changerEtapeAvecBoites(a, e.id) });
     });
     const sorties = [

@@ -7,7 +7,7 @@ import {
   COLLECTIONS_PLAN, MARQUES_CREATION, MARQUES_MODIFICATION,
   ecritureCreer, ecritureModifier, ecritureSupprimer, evenements, modifierSiPatch, evenementCreation,
   nettoyerEspaces, aujourdhuiParis, validerUrlGithub, validerUrlDossier, urlOuVide, normaliser, ajouterJours,
-  planChangerEtape, planMarquerPerdue, formatEuros,
+  planChangerEtape, planMarquerPerdue, formatEuros, ETAPES_RETIREES, versDate, libelleEtape,
 } from '../crm/logique.js';
 
 const C = COLLECTIONS_PLAN;
@@ -330,6 +330,51 @@ export function supprimerFacture(projet, id, ctx) {
   return { erreurs: {}, patch: { factures: facturesDe(projet).filter((x) => x.id !== id) }, evenements: [evenementProjet('facture_supprimee', `Facture supprimée : ${libelleFacture(f)} (${formatEuros(f.montant)})`, projet, ctx)] };
 }
 
+// ---------------------------------------------------------------- migration 2.2 : les étapes « Facture envoyée » et « Facture payée » disparaissent
+// Les affaires qui y sont passent à « Gagné » (statut gagnée, archivage conservé, encaissements conservés : l'historique du chiffre d'affaires ne
+// bouge pas). Une affaire « Facture envoyée » (un paiement est attendu) reçoit, si elle a un projet, une facture À payer de son montant sur ce projet ;
+// sinon elle est listée « à traiter à la main » : on ne crée jamais de projet à la place de Jérôme. Rien n'est exécuté sans aperçu : l'écran montre
+// `migrees` et `aTraiterAMain` avant d'écrire `ecritures`. Idempotent : une fois migrée, une affaire n'est plus concernée.
+
+/**
+ * Plan de migration : { migrees: [{ affaireId, titre, de, facture: { projetId, montant } | null }], aTraiterAMain: [{ affaireId, titre, raison }], ecritures }.
+ * `affaires` : toutes les affaires ; `projets` : tous les projets ; le contexte donne `nouvelId` et `maintenant`.
+ */
+export function planMigrerEtapesRetirees({ affaires = [], projets = [] }, ctx) {
+  const migrees = [];
+  const aTraiterAMain = [];
+  const ecritures = [];
+  const projetsMaj = new Map(projets.map((p) => [p.id, p]));
+  const jour = (v) => { const d = versDate(v); return d ? aujourdhuiParis(d) : null; };
+  for (const a of affaires.filter((x) => x.etape in ETAPES_RETIREES)) {
+    const retiree = ETAPES_RETIREES[a.etape];
+    const liens = { personneId: a.personneId ?? null, organisationId: a.organisationId ?? null, affaireId: a.id };
+    const datesEtapes = { ...(a.datesEtapes || {}) };
+    if (!datesEtapes[retiree.vers]) datesEtapes[retiree.vers] = datesEtapes[a.etape] ?? ctx.maintenant;
+    const faits = [evenementCreation('etape_changee', `Étape retirée (facturation, version 2.2) : ${retiree.libelle} → ${libelleEtape(retiree.vers)}`, liens, ctx)];
+    let facture = null;
+    if (a.etape === 'facture_envoyee') {
+      const cible = projetsMaj.get(a.projetId) ?? projetDeAffaire([...projetsMaj.values()], a.id);
+      const montant = Number(a.montant) || 0;
+      if (!cible || estExtraction(cible)) aTraiterAMain.push({ affaireId: a.id, titre: a.titre, raison: 'Un paiement est attendu, mais l’affaire n’a pas de projet : crée ou lie son projet, puis ajoute sa facture.' });
+      else if (!(montant > 0)) aTraiterAMain.push({ affaireId: a.id, titre: a.titre, raison: 'Un paiement est attendu, mais l’affaire n’a pas de montant : ajoute la facture sur son projet.' });
+      else {
+        const ajout = ajouterFacture(cible, { libelle: 'Facture envoyée (reprise de l’affaire)', montant, dateEnvoi: jour(a.datesEtapes?.facture_envoyee) }, ctx);
+        if (Object.keys(ajout.erreurs).length) aTraiterAMain.push({ affaireId: a.id, titre: a.titre, raison: 'La facture n’a pas pu être reprise : ajoute-la sur le projet.' });
+        else {
+          const maj = { ...cible, ...ajout.patch };
+          projetsMaj.set(cible.id, maj);
+          ecritures.push(...modifierSiPatch(C.projets, cible.id, ajout.patch, MARQUES_MODIFICATION), ...evenements(ajout.evenements, ctx));
+          facture = { projetId: cible.id, montant: ajout.facture.montant };
+        }
+      }
+      if (!facture) faits[0] = evenementCreation('etape_changee', `Étape retirée (facturation, version 2.2) : ${retiree.libelle} → ${libelleEtape(retiree.vers)} (paiement attendu : à suivre à la main)`, liens, ctx);
+    }
+    ecritures.push(...modifierSiPatch(C.affaires, a.id, { etape: retiree.vers, statut: 'gagnee', datesEtapes }, MARQUES_MODIFICATION), ...evenements(faits, ctx));
+    migrees.push({ affaireId: a.id, titre: a.titre, de: retiree.libelle, facture });
+  }
+  return { migrees, aTraiterAMain, ecritures };
+}
 // ---------------------------------------------------------------- avancement et retard
 // Les tâches sont [{ fait, date }] (collection projets_taches, étape 4) : ces fonctions ne dépendent que de ces deux champs.
 

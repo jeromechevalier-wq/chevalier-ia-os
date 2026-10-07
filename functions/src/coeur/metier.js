@@ -202,7 +202,7 @@ async function contexteExtraction(c) {
 
 export async function changerEtape(c, args) {
   const a = await lire(c, C.affaires, args.id, 'Affaire');
-  const plan = PL.planChangerEtapeAvecExtraction({ affaire: a, etape: args.etape, options: { montantEncaisse: args.montantEncaisse }, ...await contexteExtraction(c) }, await contexte(c));
+  const plan = PL.planChangerEtapeAvecExtraction({ affaire: a, etape: args.etape, ...await contexteExtraction(c) }, await contexte(c));
   return appliquerRegle(c, plan, args, (p) => ({ id: a.id, etape: p.patch.etape, statut: p.patch.statut, suggestion: p.suggestion ?? null, extraction: p.extraction ?? null }));
 }
 export async function marquerPerdue(c, args) {
@@ -219,12 +219,6 @@ export async function rouvrirAffaire(c, args) {
   const a = await lire(c, C.affaires, args.id, 'Affaire');
   return appliquerRegle(c, L.planRouvrirAffaire(a, await contexte(c)), args, () => ({ id: a.id, statut: L.statutPourEtape(a.etape) }));
 }
-export async function ajouterEncaissement(c, args) {
-  const a = await lire(c, C.affaires, args.id, 'Affaire');
-  if (args.date && !jourValide(args.date)) refuser('saisie_invalide', 'date : attendu AAAA-MM-JJ.');
-  return appliquerRegle(c, L.planEncaisser(a, { montant: args.montant, date: args.date }, await contexte(c)), args, () => ({ id: a.id, montant: args.montant }));
-}
-
 export async function joindreLien(c, args) {
   const a = await lire(c, C.affaires, args.affaireId, 'Affaire');
   const r = L.ajouterDocument(a, args.libelle, args.url);

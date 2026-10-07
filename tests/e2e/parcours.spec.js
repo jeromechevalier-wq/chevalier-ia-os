@@ -173,7 +173,7 @@ test('C5 doublon : « Cette personne existe déjà » avec lien, « Créer quand
 
 const LIBELLES_ETAPES = {
   premier_contact: 'Premier contact', rdv_fixe: 'Rendez vous fixé', proposition_envoyee: 'Proposition envoyée',
-  gagne: 'Gagné', facture_envoyee: 'Facture envoyée', facture_payee: 'Facture payée',
+  gagne: 'Gagné',
 };
 
 async function aller(page, hash) {
@@ -195,7 +195,7 @@ async function deplacer(page, id, etape) {
     await page.mouse.move(700, 700);
     await carte.dragTo(page.locator(`.colonne[data-colonne="${etape}"]`));
     try {
-      // Réussi si l'étape a changé, ou si une boîte de dialogue attend une réponse (Facture payée demande le montant).
+      // Réussi si l'étape a changé, ou si une boîte de dialogue attend une réponse (une boîte attend une réponse).
       await expect.poll(async () => (await lireDocument(`crm_affaires/${id}`)).etape !== avant || (await page.locator('.voile-dialogue').count()) > 0, { timeout: 2500 }).toBe(true);
     } catch {
       await page.evaluate(([affaire, colonne]) => {
@@ -295,32 +295,23 @@ test('C9 passage en Proposition envoyée : suggestion affichée ; la fermer ne c
   expect(act).toMatchObject({ titre: 'Relancer la proposition', type: 'tache', date: jour(3), fait: false });
 });
 
-test('C10 Gagné : célébration ; Facture payée : encaissement, archivage, objectif chiffre d’affaires augmenté', async ({ page }) => {
+test('C10 Gagné : célébration, suggestion, extraction ; la vente s’arrête là (plus d’étape de facturation, rien n’est encaissé ni archivé)', async ({ page }) => {
   await creerPersonne('p1', { nom: 'Marie Durand' });
   await creerAffaire('a1', { titre: 'Atelier IA', etape: 'proposition_envoyee', montant: 1200, personneId: 'p1', offreId: 'audit' });
   await connecter(page);
   await allerA(page, 'Affaires');
+  await expect(page.locator('.colonne[data-colonne]:not([data-colonne="perdue"]):not([data-colonne="en_pause"])')).toHaveCount(4);
+  await expect(page.locator('.colonne[data-colonne="facture_envoyee"], .colonne[data-colonne="facture_payee"]')).toHaveCount(0);
   await deplacer(page, 'a1', 'gagne');
   await fermerCelebration(page);
   await expect(dialogue(page).getByLabel('Titre de l’activité')).toHaveValue('Envoyer la facture');
   await fermerSuggestion(page);
   await champDoc('crm_affaires', 'a1', 'statut', 'gagnee');
-  await deplacer(page, 'a1', 'facture_payee');
-  await expect(dialogue(page)).toContainText('Facture payée');
-  await expect(dialogue(page).getByLabel('Montant en euros')).toHaveValue('1200');
-  await dialogue(page).getByRole('button', { name: 'Encaisser' }).click();
-  await fermerCelebration(page);
-  await champDoc('crm_affaires', 'a1', 'archive', true);
   const a = await lireDocument('crm_affaires/a1');
-  expect(a.encaissements).toHaveLength(1);
-  expect(a.encaissements[0]).toMatchObject({ montant: 1200, offreId: 'audit' });
-  expect(a.statut).toBe('gagnee');
-  // Archives : l'affaire s'y retrouve
-  await page.locator('.bascule-vue[data-vue="archives"]').click();
-  await expect(page.locator('.tableau-affaires')).toContainText('Atelier IA');
-  // Objectif chiffre d'affaires
+  expect(a).toMatchObject({ etape: 'gagne', archive: false, encaissements: [] });
+  // rien n'est encaissé tant qu'aucune facture de projet n'est payée
   await allerA(page, 'Accueil');
-  await expect.poll(() => valeurObjectif(page, 'ca_encaisse')).toBe(1200);
+  await expect.poll(() => valeurObjectif(page, 'ca_encaisse')).toBe(0);
 });
 
 test('C11 Perdue (raison obligatoire), En pause (date de réveil), Rouvrir', async ({ page }) => {
@@ -663,7 +654,7 @@ test('C17 filtres d’affaires : Chaudes, en retard ; recherche d’une liste in
 });
 
 test('C18 réglages : étiquette, offre, source ; changer le début d’activité change le graphique', async ({ page }) => {
-  await creerAffaire('a1', { titre: 'Payée en octobre', etape: 'facture_payee', statut: 'gagnee', archive: true, encaissements: [{ date: new Date(), montant: 500, offreId: null }] });
+  await creerAffaire('a1', { titre: 'Payée en octobre', etape: 'gagne', statut: 'gagnee', archive: true, encaissements: [{ date: new Date(), montant: 500, offreId: null }] });
   await connecter(page);
   await allerA(page, 'Réglages');
   await page.getByPlaceholder('Nouvelle étiquette').fill('Très motivée');
@@ -879,7 +870,7 @@ test('C21 fiche personne : emails et téléphones avec leur type, étiquettes cr
   await expect(page.locator('.resume .pastille-choix')).toContainText('Très motivée');
 });
 
-test('C21 fiche affaire : barre des étapes, Gagnée, montant modifiable, documents, encaissement manuel', async ({ page }) => {
+test('C21 fiche affaire : barre des étapes, Gagnée, montant modifiable, documents ; plus d’encaissement manuel', async ({ page }) => {
   await creerPersonne('p1', { nom: 'Marie Durand' });
   await creerAffaire('a1', { titre: 'Atelier IA', personneId: 'p1', etape: 'proposition_envoyee', montant: 900 });
   await connecter(page);
@@ -901,12 +892,9 @@ test('C21 fiche affaire : barre des étapes, Gagnée, montant modifiable, docume
   await page.getByLabel('Adresse du document (lien Google Drive)').fill('https://drive.google.com/devis');
   await page.locator('[data-action="ajouter-document"]').click();
   await champDoc('crm_affaires', 'a1', 'documents', [{ libelle: 'Devis', url: 'https://drive.google.com/devis' }]);
-  // Encaissement manuel
-  await page.locator('[data-action="ajouter-encaissement"]').click();
-  await dialogue(page).getByLabel('Montant en euros').fill('300');
-  await dialogue(page).getByRole('button', { name: 'Ajouter' }).click();
-  await expect.poll(async () => (await lireDocument('crm_affaires/a1'))?.encaissements?.length).toBe(1);
-  expect((await lireDocument('crm_affaires/a1')).encaissements[0].montant).toBe(300);
+  // Plus d'encaissement manuel sur l'affaire (2.2) : l'argent se saisit sur les factures du projet
+  await expect(page.locator('[data-action="ajouter-encaissement"]')).toHaveCount(0);
+  await expect(page.locator('[data-section="affaire-encaissements"]')).toHaveCount(0);
   // Rouvrir après perdue
   await page.locator('[data-action="perdue"]').click();
   await dialogue(page).getByLabel('Raison', { exact: true }).selectOption('Concurrent');

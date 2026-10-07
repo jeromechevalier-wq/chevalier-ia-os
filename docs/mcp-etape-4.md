@@ -17,7 +17,7 @@ Les règles métier (doublons, étapes, dates de Paris, événements du fil, cas
 
 | Pour qui | Outils |
 |---|---|
-| Bibliothécaire **et** Claude Code | `creer_personne`, `modifier_personne`, `creer_organisation`, `modifier_organisation`, `creer_affaire`, `modifier_affaire`, `changer_etape`, `marquer_perdue`, `mettre_en_pause`, `rouvrir_affaire`, `ajouter_encaissement`, `ajouter_note`, `modifier_note`, `creer_activite`, `terminer_activite`, `joindre_lien`, `retirer_document` |
+| Bibliothécaire **et** Claude Code | `creer_personne`, `modifier_personne`, `creer_organisation`, `modifier_organisation`, `creer_affaire`, `modifier_affaire`, `changer_etape`, `marquer_perdue`, `mettre_en_pause`, `rouvrir_affaire`, `ajouter_note`, `modifier_note`, `creer_activite`, `terminer_activite`, `joindre_lien`, `retirer_document` |
 | **Claude Code seul** | `supprimer_personne`, `supprimer_organisation`, `supprimer_affaire`, `supprimer_note`, `supprimer_activite`, `restaurer_depuis_audit` |
 | Tous (étape 3) | les 9 outils de lecture, dont `lire_audit` (maintenant rempli) |
 

@@ -20,12 +20,19 @@ export const ETAPES = [
   { id: 'rdv_fixe', libelle: 'Rendez vous fixé', couleur: '#e3cdee' },
   { id: 'proposition_envoyee', libelle: 'Proposition envoyée', couleur: '#b98ee0' },
   { id: 'gagne', libelle: 'Gagné', couleur: '#ecbc06' },
-  { id: 'facture_envoyee', libelle: 'Facture envoyée', couleur: '#fd6455' },
-  { id: 'facture_payee', libelle: 'Facture payée', couleur: '#3fbf7f' },
 ];
 
-/** Étapes dont le statut dérivé est "gagnée" (la 4e, 5e et 6e). */
-export const ETAPES_GAGNEES = ['gagne', 'facture_envoyee', 'facture_payee'];
+/** Étapes dont le statut dérivé est "gagnée" (la vente s'arrête à Gagné : la facturation se suit dans le projet, depuis la 2.2). */
+export const ETAPES_GAGNEES = ['gagne'];
+
+/**
+ * Étapes retirées en 2.2 (« Facture envoyée » et « Facture payée » : la facturation vit maintenant dans les projets) et l'étape où une affaire
+ * qui y était est migrée. Tant que `planMigrerEtapesRetirees` n'a pas été exécuté, ces affaires restent « gagnées » et lisibles.
+ */
+export const ETAPES_RETIREES = {
+  facture_envoyee: { libelle: 'Facture envoyée', vers: 'gagne' },
+  facture_payee: { libelle: 'Facture payée', vers: 'gagne' },
+};
 
 export const STATUTS = [
   { id: 'ouverte', libelle: 'Ouverte', couleur: '#b98ee0' },
@@ -103,7 +110,7 @@ export const DATES_RAPIDES = [
 ];
 
 export function libelleEtape(id) {
-  return ETAPES.find((e) => e.id === id)?.libelle ?? id ?? '';
+  return ETAPES.find((e) => e.id === id)?.libelle ?? ETAPES_RETIREES[id]?.libelle ?? id ?? '';
 }
 export function couleurEtape(id) {
   return ETAPES.find((e) => e.id === id)?.couleur ?? '#8d8993';
@@ -541,7 +548,7 @@ export function validerAffaire(v) {
 }
 
 export function statutPourEtape(etape) {
-  return ETAPES_GAGNEES.includes(etape) ? 'gagnee' : 'ouverte';
+  return ETAPES_GAGNEES.includes(etape) || etape in ETAPES_RETIREES ? 'gagnee' : 'ouverte';
 }
 
 /** Document d'une nouvelle affaire (étape, priorité et statut posés automatiquement). */
@@ -570,7 +577,7 @@ export function nouvelleAffaire(valeurs, ctx) {
     projetId: null,
     urlGithub: urlOuVide(validerUrlGithub, valeurs.urlGithub),
     urlDossier: urlOuVide(validerUrlDossier, valeurs.urlDossier),
-    archive: etape === 'facture_payee',
+    archive: false,
     proprietaire: ctx.proprietaire ?? ctx.auteur ?? '',
   };
 }
@@ -586,8 +593,6 @@ export function suggestionPourEtape(etape, aujourdhui, delaiPaiementJours = 30) 
       return { type: 'tache', titre: 'Relancer la proposition', date: ajouterJours(aujourdhui, 3) };
     case 'gagne':
       return { type: 'tache', titre: 'Envoyer la facture', date: aujourdhui };
-    case 'facture_envoyee':
-      return { type: 'tache', titre: 'Vérifier le paiement', date: ajouterJours(aujourdhui, Number(delaiPaiementJours) || 30) };
     default:
       return null;
   }
@@ -616,7 +621,7 @@ export function liensAffaire(affaire) {
 
 /**
  * Changement d'étape : renvoie { patch, evenements, suggestion }.
- * options : montantEncaisse (étape Facture payée).
+ * Depuis la 2.2, plus d'encaissement ici : l'argent encaissé se saisit sur les factures du projet.
  * Changer d'étape rouvre une affaire perdue ou en pause (raison et date de réveil effacées).
  */
 export function changementEtape(affaire, etape, ctx, options = {}) {
@@ -636,7 +641,7 @@ export function changementEtape(affaire, etape, ctx, options = {}) {
     raisonPerdue: '',
     raisonPerdueDetail: '',
     dateReveil: null,
-    archive: etape === 'facture_payee',
+    archive: false,
   };
   const evenements = [];
   if (rouvre) evenements.push(evenement('affaire_rouverte', `Affaire rouverte : ${affaire.titre}`, liens, ctx));
@@ -645,11 +650,6 @@ export function changementEtape(affaire, etape, ctx, options = {}) {
   }
   if (etape === 'gagne' && affaire.etape !== 'gagne' && !affaire.datesEtapes?.gagne) {
     evenements.push(evenement('affaire_gagnee', `Affaire gagnée : ${affaire.titre}`, liens, ctx));
-  }
-  if (etape === 'facture_payee' && affaire.etape !== 'facture_payee') {
-    const montant = Number(options.montantEncaisse ?? affaire.montant ?? 0) || 0;
-    patch.encaissements = [...(affaire.encaissements || []), { date: ctx.maintenant, montant, offreId: affaire.offreId ?? null }];
-    evenements.push(evenement('encaissement', `Encaissement : ${formatEuros(montant)}`, liens, ctx));
   }
   const suggestion = etape !== affaire.etape ? suggestionPourEtape(etape, aujourdhuiParis(ctx.maintenant), ctx.delaiPaiementJours) : null;
   return { erreurs: {}, patch, evenements, suggestion };
@@ -702,17 +702,6 @@ export function estArchivee(x) {
 /** Affaire "vivante" : ni archivée, ni perdue, ni en pause. */
 export function estAffaireActive(a) {
   return !estArchivee(a) && (a.statut === 'ouverte' || a.statut === 'gagnee');
-}
-
-export function ajouterEncaissement(affaire, { montant, date }, ctx) {
-  const m = Number(montant);
-  if (!Number.isFinite(m) || m <= 0) return { erreurs: { montant: 'Le montant doit être positif.' }, patch: {}, evenements: [] };
-  const jour = date || aujourdhuiParis(ctx.maintenant);
-  return {
-    erreurs: {},
-    patch: { encaissements: [...(affaire.encaissements || []), { date: versDate(jour), montant: m, offreId: affaire.offreId ?? null }] },
-    evenements: [evenement('encaissement', `Encaissement : ${formatEuros(m)}`, liensAffaire(affaire), ctx)],
-  };
 }
 
 export function ajouterDocument(affaire, libelle, url) {
@@ -1201,11 +1190,6 @@ export function caParMois(affaires, moisListe, projets = []) {
   }));
 }
 
-/** Affaires passées en Facture payée pendant le mois (colonne du Kanban). */
-export function payeesDuMois(affaires, mois) {
-  return affaires.filter((a) => a.etape === 'facture_payee' && dansLeMois(a.datesEtapes?.facture_payee ?? a.dateEntreeEtape, mois));
-}
-
 export function totauxColonne(affaires) {
   return { nombre: affaires.length, montant: affaires.reduce((s, a) => s + (Number(a.montant) || 0), 0) };
 }
@@ -1573,7 +1557,6 @@ export const planChangerEtape = (affaire, etape, ctx, options = {}) => planResul
 export const planMarquerPerdue = (affaire, saisie, ctx) => planResultatAffaire(affaire.id, marquerPerdue(affaire, saisie, ctx), ctx);
 export const planMettreEnPause = (affaire, saisie, ctx) => planResultatAffaire(affaire.id, mettreEnPause(affaire, saisie, ctx), ctx);
 export const planRouvrirAffaire = (affaire, ctx) => planResultatAffaire(affaire.id, rouvrirAffaire(affaire, ctx), ctx);
-export const planEncaisser = (affaire, saisie, ctx) => planResultatAffaire(affaire.id, ajouterEncaissement(affaire, saisie, ctx), ctx);
 
 /**
  * Suppression définitive d'une affaire et de son fil. `liens` : documents portant son affaireId ; `projets` : projets liés à l'affaire,

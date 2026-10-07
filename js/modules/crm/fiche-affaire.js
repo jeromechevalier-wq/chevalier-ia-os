@@ -8,7 +8,7 @@ import {
 } from './composants.js';
 import { panneauActivite } from './activites.js';
 import { creerLanceurs } from './lanceurs.js';
-import { changerEtapeAvecBoites, ouvrirPerdue, ouvrirPause, ouvrirEncaissement, demanderSuppressionAffaire } from './affaires.js';
+import { changerEtapeAvecBoites, ouvrirPerdue, ouvrirPause, demanderSuppressionAffaire } from './affaires.js';
 import * as PD from '../projets/donnees.js';
 import * as P from '../projets/logique.js';
 import { carteProjetMini } from '../projets/composants.js';
@@ -137,15 +137,15 @@ export function rendreFicheAffaire(conteneur, id) {
         lanceurs.github, lanceurs.dossier),
     });
 
-    // ---- Encaissements
+    // ---- Encaissements : historique des encaissements saisis sur l'affaire avant la 2.2 (en lecture seule). Les nouveaux paiements se saisissent
+    // sur les factures du projet ; la section n'apparaît donc que s'il y a un historique.
     const encaissements = a.encaissements || [];
-    const sectionEncaissements = sectionRepliable({
+    const sectionEncaissements = encaissements.length ? sectionRepliable({
       id: 'affaire-encaissements', titre: 'Encaissements', compteur: encaissements.length,
-      actions: a.statut === 'gagnee' ? [h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', 'data-action': 'ajouter-encaissement', onclick: () => ouvrirEncaissement(a) }, icone('plus', { taille: 14 }), 'Ajouter un encaissement')] : [],
-      contenu: encaissements.length
-        ? h('ul', { class: 'liste-simple' }, encaissements.map((e) => h('li', { class: 'ligne-simple' }, h('strong', {}, L.formatEuros(e.montant)), h('span', { class: 'aide' }, L.formatDateHeure(e.date)))))
-        : h('p', { class: 'aide' }, 'Aucun encaissement. Il est ajouté quand l’affaire passe en « Facture payée ».'),
-    });
+      contenu: h('div', { class: 'pile' },
+        h('p', { class: 'aide' }, 'Historique d’avant la facturation par projet. Les nouveaux paiements se saisissent sur les factures du projet.'),
+        h('ul', { class: 'liste-simple' }, encaissements.map((e) => h('li', { class: 'ligne-simple' }, h('strong', {}, L.formatEuros(e.montant)), h('span', { class: 'aide' }, L.formatDateHeure(e.date)))))),
+    }) : null;
 
     // ---- Documents
     const champLibelle = h('input', { class: 'champ', type: 'text', 'aria-label': 'Libellé du document', placeholder: 'Libellé (ex. Devis)' });
@@ -166,7 +166,7 @@ export function rendreFicheAffaire(conteneur, id) {
     });
 
     if (!panneau) panneau = panneauActivite({ lien: { affaireId: a.id }, liensCreation: () => L.liensAffaire(D.affaire(a.id) || a) });
-    remplir(racine, gabaritFiche({ entete, gauche: [resume.element, sectionProjet?.element, details.element, sectionEncaissements.element, sectionDocuments.element].filter(Boolean), droite: panneau.element }));
+    remplir(racine, gabaritFiche({ entete, gauche: [resume.element, sectionProjet?.element, details.element, sectionEncaissements?.element, sectionDocuments.element].filter(Boolean), droite: panneau.element }));
   }
 
   function reconstruire() {
