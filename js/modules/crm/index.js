@@ -4,6 +4,7 @@ import { vider } from '../../os/ui.js';
 import { naviguer } from '../../os/router.js';
 import { enregistrerCalculs, signalerChangement } from '../../os/objectifs.js';
 import * as D from './donnees.js';
+import * as PD from '../projets/donnees.js';
 import * as L from './logique.js';
 import { rendreAccueil } from './accueil.js';
 import { rendrePersonnes, ouvrirCreationPersonne } from './personnes.js';
@@ -43,11 +44,13 @@ export function demarrer({ compte }) {
     calculs[id] = {
       libelle: c.libelle,
       unite: c.unite,
-      calculer: (mois) => c.calculer({ personnes: D.etat.personnes, affaires: D.etat.affaires, activites: D.etat.activites }, mois),
+      calculer: (mois) => c.calculer({ personnes: D.etat.personnes, affaires: D.etat.affaires, activites: D.etat.activites, projets: PD.etat.projets }, mois),
     };
   }
   enregistrerCalculs(calculs, { pret: D.estPret });
-  arretSignal = D.surChangement(signalerChangement);
+  const arretCrm = D.surChangement(signalerChangement);
+  const arretProjets = PD.surChangement(signalerChangement); // un paiement de facture change l'objectif « encaissé »
+  arretSignal = () => { arretCrm(); arretProjets(); };
 }
 
 export function arreter() {

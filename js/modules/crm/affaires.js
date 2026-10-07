@@ -104,7 +104,7 @@ export async function changerEtapeAvecBoites(a, etape) {
     options.montantEncaisse = montant;
   }
   const mois = L.moisCourant();
-  const avant = L.CALCULS.ca_encaisse.calculer({ affaires: D.etat.affaires }, mois);
+  const avant = L.CALCULS.ca_encaisse.calculer({ affaires: D.etat.affaires, projets: PD.etat.projets }, mois);
   const r = await PD.changerEtapeAffaire(a.id, etape, options);
   if (r.erreurs && Object.keys(r.erreurs).length) { toast('Changement impossible', { type: 'erreur' }); return; }
   annoncerExtraction(r);

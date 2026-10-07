@@ -140,13 +140,21 @@ export const changerPhase = (id, phase) => regle(id, (p) => P.planChangerPhase(p
 export const mettreEnPause = (id) => regle(id, (p) => P.planMettreProjetEnPause(p, ctx()), 'mettreProjetEnPause');
 export const reprendre = (id) => regle(id, (p) => P.planReprendreProjet(p, ctx()), 'reprendreProjet');
 /** Terminer un projet crée aussi son projet d'extraction de valeur (sauf pour une extraction) : le plan renvoyé a `extraction` ({ id, titre } ou null). */
-export const terminer = (id) => regle(id, (p) => P.planTerminerProjetAvecExtraction({ projet: p, projets: etat.projets, modeles: etat.modeles }, ctx()), 'terminerProjet');
+/** `impaye` : { raison } pour clôturer malgré des factures non payées (elles passent à « Abandonnée »). Sans lui, une facture à payer bloque : le plan rend `erreurs.factures`. */
+export const terminer = (id, { impaye = null } = {}) => regle(id, (p) => P.planTerminerProjetAvecExtraction({ projet: p, projets: etat.projets, modeles: etat.modeles, impaye }, ctx()), 'terminerProjet');
 /** Extraction déclenchée à la main : { extraction: { id, titre }, dejaExistante } (si elle existe déjà, rien n'est créé). Erreur si le projet est lui-même une extraction. */
 export async function extraire(id) {
   const plan = await regle(id, (p) => P.planExtraireProjet({ projet: p, projets: etat.projets, modeles: etat.modeles }, ctx()), 'extraireProjet');
   if (Object.keys(plan.erreurs || {}).length) throw Object.assign(new Error(Object.values(plan.erreurs)[0]), { saisie: true });
   return plan;
 }
+// Factures du projet (2.2) : chaque fonction rend le plan { erreurs, facture?, ... } ; sans erreur, c'est écrit.
+export const ajouterFacture = (id, valeurs) => regle(id, (p) => P.planAjouterFacture(p, valeurs, ctx()), 'ajouterFacture');
+export const modifierFacture = (id, factureId, valeurs) => regle(id, (p) => P.planModifierFacture(p, factureId, valeurs, ctx()), 'modifierFacture');
+export const marquerFacturePayee = (id, factureId, options = {}) => regle(id, (p) => P.planMarquerFacturePayee(p, factureId, options, ctx()), 'marquerFacturePayee');
+export const remettreFactureAPayer = (id, factureId) => regle(id, (p) => P.planRemettreFactureAPayer(p, factureId, ctx()), 'remettreFactureAPayer');
+export const abandonnerFacture = (id, factureId, raison) => regle(id, (p) => P.planAbandonnerFacture(p, factureId, raison, ctx()), 'abandonnerFacture');
+export const supprimerFacture = (id, factureId) => regle(id, (p) => P.planSupprimerFacture(p, factureId, ctx()), 'supprimerFacture');
 export const rouvrir = (id) => regle(id, (p) => P.planRouvrirProjet(p, ctx()), 'rouvrirProjet');
 export const archiver = (id, archive = true) => regle(id, (p) => P.planArchiverProjet(p, archive, ctx()), 'archiverProjet');
 

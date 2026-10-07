@@ -10,6 +10,7 @@ import {
 } from '../crm/composants.js';
 import * as D from './donnees.js';
 import * as P from './logique.js';
+import { proposerSorties } from './factures.js';
 
 import { cheminProjet, anneauProgression } from './composants.js';
 
@@ -36,12 +37,38 @@ export function pastillePhase(phase) {
   return h('span', { class: 'pastille-statut', style: { '--couleur': P.couleurPhase(phase) } }, P.libellePhase(phase));
 }
 
-/** Terminer, mettre en pause, reprendre, rouvrir : la règle est dans logique.js, ici seulement le message. */
-export async function terminerProjet(p) {
-  const plan = await D.terminer(p.id);
-  toast(plan.extraction ? 'Projet terminé : son projet d’extraction est créé' : 'Projet terminé', plan.extraction ? { lien: { libelle: 'Ouvrir l’extraction', href: cheminProjet(plan.extraction.id) }, duree: 6000 } : {});
-  if (plan.ecritures?.length) celebrerCloture(P.estExtraction(p) ? 'Extraction terminée !' : 'Projet terminé !', p.titre);
+/** Pastille « Impayé » : un projet qui a au moins une facture abandonnée la garde, même clôturé. */
+export function pastilleImpaye(p) {
+  return P.aUnImpaye(p) ? h('span', { class: 'pastille-statut statut-impaye', style: { '--couleur': '#fd6455' }, title: 'Au moins une facture a été abandonnée', dataset: { role: 'impaye' } }, 'Impayé') : null;
 }
+
+/** Clôture bloquée par des factures à payer : message, deux sorties (marquer payée, ou clôturer avec impayé). `relancer(projet)` reprend l'action demandée après un paiement. */
+async function sortirDuBlocage(p, plan, relancer) {
+  const sortie = await proposerSorties(p, plan.facturesBloquantes);
+  if (sortie === 'paye') return relancer(D.projet(p.id) ?? p);
+  if (sortie?.impaye) return terminerProjet(p, sortie);
+  return undefined;
+}
+
+/** Terminer, mettre en pause, reprendre, rouvrir : la règle est dans logique.js, ici seulement le message. `options.impaye` : { raison } pour clôturer malgré des factures à payer. */
+export async function terminerProjet(p, options = {}) {
+  const plan = await D.terminer(p.id, options);
+  if (plan.erreurs?.factures) return sortirDuBlocage(p, plan, (q) => terminerProjet(q));
+  if (Object.keys(plan.erreurs || {}).length) { toast(Object.values(plan.erreurs)[0], { type: 'erreur' }); return undefined; }
+  const impaye = options.impaye ? ' avec impayé' : '';
+  toast(plan.extraction ? `Projet terminé${impaye} : son projet d’extraction est créé` : `Projet terminé${impaye}`, plan.extraction ? { lien: { libelle: 'Ouvrir l’extraction', href: cheminProjet(plan.extraction.id) }, duree: 6000 } : {});
+  if (plan.ecritures?.length) celebrerCloture(P.estExtraction(p) ? 'Extraction terminée !' : 'Projet terminé !', p.titre);
+  return undefined;
+}
+
+/** Changement de phase. Vers la Clôture, des factures à payer bloquent : même message et mêmes sorties que « Terminer ». */
+export async function changerPhaseProjet(p, phase) {
+  const plan = await D.changerPhase(p.id, phase);
+  if (plan.erreurs?.factures) return sortirDuBlocage(p, plan, (q) => changerPhaseProjet(q, phase));
+  if (Object.keys(plan.erreurs || {}).length) toast(Object.values(plan.erreurs)[0], { type: 'erreur' });
+  return undefined;
+}
+
 /** « Extraire la valeur » : crée l'extraction du projet, ou ouvre celle qui existe déjà (une seule par projet). */
 export async function extraireValeur(p) {
   try {
@@ -70,7 +97,7 @@ export async function rouvrir(p) {
 export function entreesDeplacement(p) {
   return P.PHASES.map((ph) => ({
     libelle: `Déplacer vers : ${ph.libelle}`, icone: 'arrow-right-left', desactive: p.phase === ph.id && !P.estProjetTermine(p),
-    action: () => D.changerPhase(p.id, ph.id),
+    action: () => changerPhaseProjet(p, ph.id),
   }));
 }
 
@@ -296,7 +323,7 @@ function colonne(phase, projets, rafraichir) {
       el.classList.remove('cible');
       enDeplacement = false;
       const p = D.projet(e.dataTransfer.getData('text/plain'));
-      if (p) D.changerPhase(p.id, phase.id);
+      if (p) changerPhaseProjet(p, phase.id);
     } },
   h('header', { class: 'colonne-tete' }, h('h2', {}, phase.libelle), h('span', { class: 'colonne-totaux' }, `${projets.length} ${projets.length > 1 ? 'projets' : 'projet'}`)),
   h('div', { class: 'colonne-corps' }, L.trier(projets, (p) => L.normaliser(p.titre)).map((p) => carte(p, rafraichir))));
@@ -410,7 +437,7 @@ export function rendreProjets(conteneur, { archives: surArchives = false } = {})
       h('td', { dataset: { libelle: 'Personne' } }, lienPersonne(CRM.personne(p.personneId))),
       h('td', { dataset: { libelle: 'Organisation' } }, lienOrganisation(CRM.organisation(p.organisationId))),
       h('td', { dataset: { libelle: 'Phase' } }, pastillePhase(p.phase)),
-      h('td', { dataset: { libelle: 'Statut' } }, pastilleStatutProjet(p)),
+      h('td', { dataset: { libelle: 'Statut' } }, pastilleStatutProjet(p), pastilleImpaye(p)),
       h('td', { dataset: { libelle: 'Début' } }, p.dateDebut ? L.formatJour(p.dateDebut) : null),
       h('td', { dataset: { libelle: 'Fin prévue' } }, p.dateFin ? L.formatJour(p.dateFin) : null),
       h('td', { class: 'col-actions' }, h('button', { type: 'button', class: 'bouton-icone', 'aria-label': `Actions : ${p.titre}`, onclick: (e) => ouvrirMenu(e.currentTarget, menuProjet(p)) }, icone('ellipsis', { taille: 18 })))));

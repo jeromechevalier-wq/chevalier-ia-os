@@ -1,7 +1,7 @@
 // Tests C : écran Projets (étape 2 : Kanban par phase, liste, fiche), formats 1440 × 900 et 390 × 844.
 import {
   test, expect, connecter, allerA, creerPersonne, creerOrganisation, creerAffaire, creerProjet, creerTacheProjet, creerActivite, lireDocument, listerDocuments, ecrireDocument,
-  jour, estTelephone, JEROME,
+  jour, estTelephone, valeurObjectif, JEROME,
 } from './outils.js';
 
 const dialogue = (page) => page.getByRole('dialog');
@@ -1390,4 +1390,132 @@ test('C35 menu « Archives » : les projets terminés ou archivés y sont ; la b
   await expect(page.locator('.bascule-vue[data-vue="liste"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('.tableau-projets')).toContainText('Projet vivant');
   await expect(page.locator('.tableau-projets')).not.toContainText('Projet rangé');
+});
+
+// ---------------------------------------------------------------- factures (2.2)
+
+/** Ferme les célébrations qui se suivent (paiement, puis clôture…), dans l'ordre où elles s'affichent. */
+async function fermerCelebrations(page, classes) {
+  for (const classe of classes) {
+    await expect(page.locator(`.celebration.${classe}`)).toBeVisible();
+    await page.locator(`.celebration.${classe}`).click();
+    await expect(page.locator(`.celebration.${classe}`)).toHaveCount(0); // la suivante de la file peut déjà s'afficher
+  }
+  await expect(page.locator('.celebration')).toHaveCount(0);
+}
+
+async function ajouterFacture(page, libelle, montant, envoi = '') {
+  await page.getByLabel('Libellé de la facture').fill(libelle);
+  await page.getByLabel('Montant de la facture en euros').fill(String(montant));
+  if (envoi) await page.getByLabel('Date d’envoi de la facture').fill(envoi);
+  await page.locator('[data-action="ajouter-facture"]').click();
+  await expect(page.locator('.ligne-facture', { hasText: libelle })).toBeVisible();
+}
+
+test('C36 factures 30 % + 30 % + 40 % : trois lignes, des paiements successifs, l’objectif « encaissé » suit ; la clôture attend le solde', async ({ page }) => {
+  await creerProjet('pr1', { titre: 'Audit Lilas', phase: 'livraison' });
+  await connecter(page);
+  await attendreModeles();
+  await aller(page, '#/projets/projets/pr1');
+  const section = page.locator('[data-section="projet-factures"]');
+  await expect(section).toContainText('Aucune facture');
+  await ajouterFacture(page, 'Acompte 30 %', 300, jour(-3));
+  await ajouterFacture(page, 'En cours 30 %', 300);
+  await ajouterFacture(page, 'Solde 40 %', 400);
+  await expect(section.locator('[data-role="totaux-factures"]')).toContainText('Facturé 1 000 € · payé 0 € · reste à payer 1 000 €');
+  const docs = (await lireDocument('projets_projets/pr1')).factures;
+  expect(docs.map((f) => [f.libelle, f.montant, f.statut])).toEqual([['Acompte 30 %', 300, 'a_payer'], ['En cours 30 %', 300, 'a_payer'], ['Solde 40 %', 400, 'a_payer']]);
+  // l'acompte est payé : le chiffre d'affaires encaissé du mois le compte, avec sa célébration
+  await section.locator('.ligne-facture', { hasText: 'Acompte 30 %' }).locator('[data-action="payer-facture"]').click();
+  await dialogue(page).getByRole('button', { name: 'Encaisser' }).click();
+  await fermerCelebrations(page, ['celebration-paiement']);
+  await expect(section.locator('[data-role="totaux-factures"]')).toContainText('payé 300 € · reste à payer 700 €');
+  await expect(section.locator('.ligne-facture', { hasText: 'Acompte 30 %' })).toHaveAttribute('data-statut', 'payee');
+  await allerA(page, 'Accueil');
+  await expect.poll(() => valeurObjectif(page, 'ca_encaisse')).toBe(300);
+  await aller(page, '#/projets/projets/pr1');
+  // deuxième paiement avec un montant différent de celui prévu
+  await section.locator('.ligne-facture', { hasText: 'En cours 30 %' }).locator('[data-action="payer-facture"]').click();
+  await expect(dialogue(page).getByLabel('Date du paiement')).toBeFocused(); // l'autofocus du dialogue arrive en dernier : on attend avant de saisir
+  await dialogue(page).getByLabel('Montant reçu en euros').fill('250');
+  await expect(dialogue(page).getByLabel('Montant reçu en euros')).toHaveValue('250');
+  await dialogue(page).getByRole('button', { name: 'Encaisser' }).click();
+  await fermerCelebrations(page, ['celebration-paiement']);
+  await expect(section.locator('[data-role="totaux-factures"]')).toContainText('payé 550 € · reste à payer 400 €');
+  // le solde n'est pas payé : « Terminer » est bloqué, avec les deux sorties
+  await page.locator('.fiche-actions [data-action="terminer"]').click();
+  await expect(dialogue(page)).toContainText('Clôture bloquée');
+  await expect(dialogue(page)).toContainText('Solde 40 % : 400 €');
+  await expect(dialogue(page).getByRole('button', { name: 'Clôturer avec impayé…' })).toBeVisible();
+  expect((await lireDocument('projets_projets/pr1')).statut).toBe('actif');
+  // sortie 1 : marquer le solde payé, la clôture reprend toute seule
+  await dialogue(page).locator('[data-action="sortie-payer"]').click();
+  await dialogue(page).getByRole('button', { name: 'Encaisser' }).click();
+  await fermerCelebrations(page, ['celebration-paiement', 'celebration-cloture']);
+  await champDoc('projets_projets', 'pr1', 'statut', 'termine');
+  const fini = await lireDocument('projets_projets/pr1');
+  expect(fini.factures.map((f) => f.statut)).toEqual(['payee', 'payee', 'payee']);
+  expect(fini.factures.map((f) => f.montant)).toEqual([300, 250, 400]);
+  await expect(page.locator('[data-role="impaye"]')).toHaveCount(0);
+  const types = (await listerDocuments('crm_evenements')).map((e) => e.type);
+  expect(types.filter((t) => t === 'encaissement')).toHaveLength(3);
+});
+
+test('C36 clôturer avec impayé : raison obligatoire, la facture est abandonnée, pastille « Impayé » ; on peut rouvrir si le client finit par payer', async ({ page }) => {
+  await creerProjet('pr1', { titre: 'Accompagnement Dupont', phase: 'livraison', factures: [
+    { id: 'f1', libelle: 'Acompte', montant: 500, dateEnvoi: jour(-30), datePaiement: jour(-25), statut: 'payee' },
+    { id: 'f2', libelle: 'Solde', montant: 700, dateEnvoi: jour(-5), datePaiement: null, statut: 'a_payer' },
+  ] });
+  await connecter(page);
+  await attendreModeles();
+  await aller(page, '#/projets/projets/pr1');
+  await page.locator('.fiche-actions [data-action="terminer"]').click();
+  await dialogue(page).getByRole('button', { name: 'Clôturer avec impayé…' }).click();
+  // la raison est obligatoire
+  await dialogue(page).getByRole('button', { name: 'Abandonner' }).click();
+  await expect(dialogue(page)).toContainText('Dis en quelques mots pourquoi');
+  await dialogue(page).getByLabel('Raison', { exact: true }).fill('Client injoignable');
+  await dialogue(page).getByRole('button', { name: 'Abandonner' }).click();
+  await fermerCelebrations(page, ['celebration-cloture']);
+  await champDoc('projets_projets', 'pr1', 'statut', 'termine');
+  const fini = await lireDocument('projets_projets/pr1');
+  expect(fini.factures.map((f) => f.statut)).toEqual(['payee', 'abandonnee']);
+  expect(fini.factures[1]).toMatchObject({ raison: 'Client injoignable' });
+  await expect(page.locator('.fiche-sous [data-role="impaye"]')).toHaveText('Impayé');
+  await expect(page.locator('[data-section="projet-factures"] [data-role="totaux-factures"]')).toContainText('abandonné 700 €');
+  expect((await listerDocuments('crm_evenements')).some((e) => e.type === 'facture_abandonnee' && e.projetId === 'pr1')).toBe(true);
+  // l'impayé ne compte pas dans l'encaissé, la facture payée si (payée il y a 25 jours : hors du mois courant sauf début de mois, on ne contrôle que l'abandon)
+  await page.locator('.fiche-actions [data-action="rouvrir"]').click();
+  await champDoc('projets_projets', 'pr1', 'statut', 'actif');
+  // le client finit par payer : on remet la facture à payer, on l'encaisse, la clôture passe
+  await page.locator('.ligne-facture', { hasText: 'Solde' }).locator('[data-action="menu-facture"]').click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Remettre à payer' }).click();
+  await expect(page.locator('.ligne-facture', { hasText: 'Solde' })).toHaveAttribute('data-statut', 'a_payer');
+  await page.locator('.ligne-facture', { hasText: 'Solde' }).locator('[data-action="payer-facture"]').click();
+  await dialogue(page).getByRole('button', { name: 'Encaisser' }).click();
+  await fermerCelebrations(page, ['celebration-paiement']);
+  await expect(page.locator('[data-role="impaye"]')).toHaveCount(0);
+  await page.locator('.fiche-actions [data-action="terminer"]').click();
+  await fermerCelebrations(page, ['celebration-cloture']);
+  await champDoc('projets_projets', 'pr1', 'statut', 'termine');
+  expect((await lireDocument('projets_projets/pr1')).factures.map((f) => f.statut)).toEqual(['payee', 'payee']);
+});
+
+test('C36 déplacer une carte vers la Clôture avec une facture à payer : refusé avec les deux sorties ; Annuler laisse la phase ; les Archives montrent la pastille Impayé', async ({ page }) => {
+  await creerProjet('pr1', { titre: 'Projet en attente de paiement', phase: 'livraison', factures: [{ id: 'f1', libelle: 'Solde', montant: 400, dateEnvoi: jour(-2), datePaiement: null, statut: 'a_payer' }] });
+  await creerProjet('pr2', { titre: 'Projet clos avec impayé', phase: 'cloture', statut: 'termine', archive: true, factures: [{ id: 'f9', libelle: 'Solde', montant: 100, dateEnvoi: jour(-40), datePaiement: null, statut: 'abandonnee', raison: 'Faillite' }] });
+  await connecter(page);
+  await attendreModeles();
+  await allerA(page, 'Projets');
+  const carte = page.locator('.carte-projet[data-projet="pr1"]');
+  await carte.locator('.carte-menu').click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Déplacer vers : Clôture' }).click();
+  await expect(dialogue(page)).toContainText('Clôture bloquée');
+  await dialogue(page).getByRole('button', { name: 'Annuler' }).click();
+  await expect(dialogue(page)).toHaveCount(0);
+  await page.waitForTimeout(400);
+  expect((await lireDocument('projets_projets/pr1')).phase).toBe('livraison');
+  await allerA(page, 'Archives');
+  await expect(page.locator('.tableau-projets')).toContainText('Projet clos avec impayé');
+  await expect(page.locator('.tableau-projets [data-role="impaye"]')).toHaveText('Impayé');
 });

@@ -1007,3 +1007,177 @@ describe('B32 Extraction déclenchée à la main', () => {
     assert.deepEqual(plan.ecritures.filter((e) => e.collection === 'projets_taches').map((e) => e.donnees.titre), ['Seule tâche']);
   });
 });
+
+describe('B33 Factures du projet (2.2) : liste, paiements partiels, blocage de la Clôture, sortie « impayé »', () => {
+  const c = (iso = '2026-10-20T09:00:00Z') => ctx(iso);
+  const exec = (base, plan) => executer(base, plan.ecritures, { maintenant: c().maintenant });
+  /** Applique un plan sur le projet en mémoire (le patch seulement) et rend le projet à jour. */
+  const appliquer = (p, plan) => ({ ...p, ...plan.patch });
+  const avec = (...factures) => ({ ...projet(), factures });
+  const f = (extra = {}) => ({ id: 'f1', libelle: '', montant: 300, dateEnvoi: null, datePaiement: null, statut: 'a_payer', ...extra });
+
+  test('B33 un nouveau projet a une liste de factures vide ; un ancien projet sans le champ est lu comme vide', () => {
+    assert.deepEqual(projet().factures, []);
+    assert.deepEqual(P.facturesDe({ titre: 'Ancien' }), []);
+    assert.equal(P.blocageCloture({ titre: 'Ancien' }), null);
+  });
+  test('B33 validation : montant > 0 obligatoire (virgule acceptée), dates au bon format, paiement jamais avant l’envoi', () => {
+    assert.ok(P.validerFacture({}).montant);
+    assert.ok(P.validerFacture({ montant: 0 }).montant);
+    assert.ok(P.validerFacture({ montant: -5 }).montant);
+    assert.ok(P.validerFacture({ montant: 'abc' }).montant);
+    assert.ok(P.validerFacture({ montant: 99_999_999 }).montant);
+    assert.deepEqual(P.validerFacture({ montant: '1 200,50' }), {});
+    assert.ok(P.validerFacture({ montant: 10, dateEnvoi: '12/10/2026' }).dateEnvoi);
+    assert.ok(P.validerFacture({ montant: 10, datePaiement: '2026-13-45' }).datePaiement);
+    assert.ok(P.validerFacture({ montant: 10, dateEnvoi: '2026-10-10', datePaiement: '2026-10-01' }).datePaiement);
+  });
+  test('B33 ajouter une facture : À payer, montant arrondi au centime, un événement ; refus sans montant', () => {
+    const plan = P.planAjouterFacture(projet(), { libelle: ' Acompte 30 % ', montant: '300,456', dateEnvoi: '2026-10-15' }, c());
+    assert.deepEqual(plan.erreurs, {});
+    assert.deepEqual(plan.facture, { id: 'factures_1', libelle: 'Acompte 30 %', montant: 300.46, dateEnvoi: '2026-10-15', datePaiement: null, statut: 'a_payer' });
+    assert.deepEqual(plan.evenements.map((e) => e.type), ['facture_ajoutee']);
+    assert.deepEqual(cles(plan.ecritures).filter((k) => k.includes('projets_projets')), ['modifier:projets_projets/pr1']);
+    const refus = P.planAjouterFacture(projet(), { libelle: 'x' }, c());
+    assert.ok(refus.erreurs.montant);
+    assert.deepEqual(refus.ecritures, []);
+  });
+  test('B33 une facture ajoutée déjà payée : statut Payée et encaissement dans le fil', () => {
+    const plan = P.planAjouterFacture(projet(), { montant: 500, datePaiement: '2026-10-03' }, c());
+    assert.equal(plan.facture.statut, 'payee');
+    assert.deepEqual(plan.evenements.map((e) => e.type), ['facture_ajoutee', 'encaissement']);
+  });
+  test('B33 30 % + 30 % + 40 % : trois factures, des paiements successifs, totaux justes à chaque étape', () => {
+    let p = projet();
+    const cx = c(); // un seul contexte : les identifiants des factures se suivent (comme en vrai)
+    for (const [lib, m] of [['Acompte 30 %', 300], ['En cours 30 %', 300], ['Solde 40 %', 400]]) p = appliquer(p, P.planAjouterFacture(p, { libelle: lib, montant: m }, cx));
+    assert.deepEqual(P.totauxFactures(p), { facture: 1000, paye: 0, aPayer: 1000, abandonne: 0 });
+    p = appliquer(p, P.planMarquerFacturePayee(p, p.factures[0].id, { datePaiement: '2026-10-05' }, c()));
+    assert.deepEqual(P.totauxFactures(p), { facture: 1000, paye: 300, aPayer: 700, abandonne: 0 });
+    p = appliquer(p, P.planMarquerFacturePayee(p, p.factures[1].id, {}, c('2026-11-02T10:00:00Z')));
+    assert.equal(p.factures[1].datePaiement, '2026-11-02');
+    assert.deepEqual(P.totauxFactures(p), { facture: 1000, paye: 600, aPayer: 400, abandonne: 0 });
+    assert.equal(P.facturesAPayer(p).length, 1);
+  });
+  test('B33 marquer payée : date du jour par défaut, montant corrigé si le client a payé autre chose, un encaissement ; deux fois = sans effet', () => {
+    const p = avec(f({ dateEnvoi: '2026-10-10' }));
+    const plan = P.planMarquerFacturePayee(p, 'f1', { montant: 280 }, c());
+    assert.deepEqual([plan.facture.statut, plan.facture.montant, plan.facture.datePaiement], ['payee', 280, '2026-10-20']);
+    assert.deepEqual(plan.evenements.map((e) => e.type), ['encaissement']);
+    assert.match(plan.evenements[0].texte, /280/);
+    const deja = P.planMarquerFacturePayee(appliquer(p, plan), 'f1', {}, c());
+    assert.deepEqual(deja.ecritures, []);
+    assert.ok(P.planMarquerFacturePayee(p, 'f1', { datePaiement: '2026-10-01' }, c()).erreurs.datePaiement, 'avant l’envoi');
+    assert.ok(P.planMarquerFacturePayee(p, 'nope', {}, c()).erreurs.facture);
+  });
+  test('B33 modifier : libellé, montant, date d’envoi ; une facture abandonnée ne se modifie pas ; sans changement, rien n’est écrit', () => {
+    const p = avec(f(), f({ id: 'f2', statut: 'abandonnee', raison: 'x' }));
+    const plan = P.planModifierFacture(p, 'f1', { libelle: 'Solde', montant: '450' }, c());
+    assert.deepEqual([plan.facture.libelle, plan.facture.montant], ['Solde', 450]);
+    assert.deepEqual(P.planModifierFacture(p, 'f1', { montant: 300 }, c()).ecritures, []);
+    assert.ok(P.planModifierFacture(p, 'f1', { montant: 0 }, c()).erreurs.montant);
+    assert.ok(P.planModifierFacture(p, 'f2', { montant: 10 }, c()).erreurs.facture);
+  });
+  test('B33 la Clôture est bloquée tant qu’une facture est À payer : « Terminer » et le passage en phase Clôture, avec le message qui nomme les factures', () => {
+    const p = avec(f({ libelle: 'Solde 40 %', montant: 400 }), f({ id: 'f2', statut: 'payee', datePaiement: '2026-10-01' }));
+    const fin = P.planTerminerProjet(p, c());
+    assert.deepEqual(fin.ecritures, []);
+    assert.match(fin.erreurs.factures, /Clôture bloquée.*Solde 40 %.*400/);
+    assert.deepEqual(fin.facturesBloquantes.map((x) => x.id), ['f1']);
+    const phase = P.planChangerPhase(p, 'cloture', c());
+    assert.deepEqual(phase.ecritures, []);
+    assert.ok(phase.erreurs.factures);
+    assert.deepEqual(P.planChangerPhase(p, 'livraison', c()).erreurs, {}, 'les autres phases ne sont pas bloquées');
+  });
+  test('B33 pas de facture, ou toutes réglées : « Terminer » comme avant (projet interne, extraction, tout payé, tout abandonné)', () => {
+    for (const p of [projet(), avec(f({ statut: 'payee', datePaiement: '2026-10-02' })), avec(f({ statut: 'abandonnee', raison: 'x' }))]) {
+      const fin = P.planTerminerProjet(p, c());
+      assert.deepEqual(fin.erreurs, {});
+      assert.equal(fin.patch.statut, 'termine');
+    }
+  });
+  test('B33 sortie « clôturer avec impayé » : chaque facture restante passe à Abandonnée avec la raison, les payées ne bougent pas, le projet se termine', () => {
+    const p = avec(f({ id: 'f1', libelle: 'Solde', montant: 400 }), f({ id: 'f2', statut: 'payee', datePaiement: '2026-10-01', montant: 300 }), f({ id: 'f3', montant: 100 }));
+    const fin = P.planTerminerProjet(p, c(), { impaye: { raison: ' Client injoignable ' } });
+    assert.deepEqual(fin.erreurs, {});
+    assert.deepEqual(fin.patch.factures.map((x) => x.statut), ['abandonnee', 'payee', 'abandonnee']);
+    assert.equal(fin.patch.factures[0].raison, 'Client injoignable');
+    assert.equal(fin.patch.factures[1].datePaiement, '2026-10-01');
+    assert.equal(fin.patch.statut, 'termine');
+    assert.deepEqual(fin.evenements.map((e) => e.type), ['facture_abandonnee', 'facture_abandonnee', 'projet_termine']);
+    assert.ok(P.aUnImpaye({ ...p, ...fin.patch }));
+    assert.deepEqual(P.totauxFactures({ ...p, ...fin.patch }), { facture: 300, paye: 300, aPayer: 0, abandonne: 500 });
+    // la raison est obligatoire
+    const sans = P.planTerminerProjet(p, c(), { impaye: { raison: '  ' } });
+    assert.ok(sans.erreurs.raison);
+    assert.deepEqual(sans.ecritures, []);
+  });
+  test('B33 l’extraction suit : un projet bloqué n’en crée pas ; clôturé avec impayé, il en crée une, une seule', () => {
+    const p = avec(f());
+    const bloque = P.planTerminerProjetAvecExtraction({ projet: p }, c());
+    assert.equal(bloque.extraction, null);
+    assert.deepEqual(bloque.ecritures, []);
+    assert.ok(bloque.erreurs.factures);
+    const sortie = P.planTerminerProjetAvecExtraction({ projet: p, impaye: { raison: 'Faillite' } }, c());
+    assert.equal(sortie.extraction.titre, 'Extraction : Audit Carrel');
+    assert.equal(sortie.ecritures.filter((e) => e.collection === 'projets_projets' && e.type === 'creer').length, 1);
+  });
+  test('B33 abandonner une facture à la main : raison obligatoire, une payée ne s’abandonne pas ; la remettre à payer efface la raison', () => {
+    const p = avec(f(), f({ id: 'f2', statut: 'payee', datePaiement: '2026-10-01' }));
+    assert.ok(P.planAbandonnerFacture(p, 'f1', ' ', c()).erreurs.raison);
+    assert.ok(P.planAbandonnerFacture(p, 'f2', 'x', c()).erreurs.facture);
+    const ab = appliquer(p, P.planAbandonnerFacture(p, 'f1', 'Geste commercial', c()));
+    assert.deepEqual([ab.factures[0].statut, ab.factures[0].raison], ['abandonnee', 'Geste commercial']);
+    assert.equal(P.facturesAPayer(ab).length, 0, 'plus rien ne bloque');
+    const retour = appliquer(ab, P.planRemettreFactureAPayer(ab, 'f1', c()));
+    assert.deepEqual([retour.factures[0].statut, retour.factures[0].raison, retour.factures[0].datePaiement], ['a_payer', undefined, null]);
+    const payeeAnnulee = appliquer(p, P.planRemettreFactureAPayer(p, 'f2', c()));
+    assert.deepEqual([payeeAnnulee.factures[1].statut, payeeAnnulee.factures[1].datePaiement], ['a_payer', null]);
+  });
+  test('B33 rouvrir un projet clôturé avec impayé : possible, le client finit par payer, on reclôture sans blocage', () => {
+    const p = avec(f({ montant: 400 }));
+    let cl = appliquer(p, P.planTerminerProjet(p, c(), { impaye: { raison: 'Retard' } }));
+    assert.equal(cl.statut, 'termine');
+    cl = appliquer(cl, P.planRouvrirProjet(cl, c()));
+    assert.equal(cl.statut, 'actif');
+    cl = appliquer(cl, P.planRemettreFactureAPayer(cl, 'f1', c()));
+    cl = appliquer(cl, P.planMarquerFacturePayee(cl, 'f1', {}, c('2026-12-01T10:00:00Z')));
+    const fin = P.planTerminerProjet(cl, c('2026-12-01T10:00:00Z'));
+    assert.deepEqual(fin.erreurs, {});
+    assert.equal(P.aUnImpaye({ ...cl, ...fin.patch }), false);
+  });
+  test('B33 supprimer une facture : elle sort de la liste, un événement', () => {
+    const p = avec(f(), f({ id: 'f2' }));
+    const plan = P.planSupprimerFacture(p, 'f1', c());
+    assert.deepEqual(plan.patch.factures.map((x) => x.id), ['f2']);
+    assert.deepEqual(plan.evenements.map((e) => e.type), ['facture_supprimee']);
+  });
+  test('B33 de bout en bout sur la base : les factures sont écrites avec le projet, le fil garde les encaissements, l’audit les couvre', () => {
+    let base = { projets_projets: [projet()], projets_taches: [] };
+    base = exec(base, P.planAjouterFacture(base.projets_projets[0], { libelle: 'Acompte', montant: 300 }, c()));
+    base = exec(base, P.planMarquerFacturePayee(base.projets_projets[0], 'factures_1', { datePaiement: '2026-10-05' }, c()));
+    assert.deepEqual(base.projets_projets[0].factures.map((x) => [x.statut, x.datePaiement, x.montant]), [['payee', '2026-10-05', 300]]);
+    assert.deepEqual((base.crm_evenements || []).map((e) => e.type).sort(), ['encaissement', 'facture_ajoutee']);
+    assert.ok((base.crm_evenements || []).every((e) => e.projetId === 'pr1'));
+  });
+});
+
+describe('B34 Objectif « chiffre d’affaires encaissé » : les factures PAYÉES des projets comptent, par mois de paiement', () => {
+  const projetAvec = (factures) => ({ id: 'pr1', factures });
+  const fac = (extra) => ({ id: 'f', montant: 100, statut: 'payee', datePaiement: '2026-10-05', ...extra });
+  test('B34 seules les factures payées comptent, dans le mois du paiement ; ni à payer ni abandonnées', () => {
+    const projets = [projetAvec([fac({ montant: 300 }), fac({ montant: 200, datePaiement: '2026-11-02' }), fac({ montant: 50, statut: 'a_payer', datePaiement: null }), fac({ montant: 70, statut: 'abandonnee', datePaiement: null })])];
+    assert.equal(L.CALCULS.ca_encaisse.calculer({ affaires: [], projets }, '2026-10'), 300);
+    assert.equal(L.CALCULS.ca_encaisse.calculer({ affaires: [], projets }, '2026-11'), 200);
+    assert.equal(L.CALCULS.ca_encaisse.calculer({ affaires: [], projets }, '2026-09'), 0);
+  });
+  test('B34 les encaissements des affaires (avant migration) comptent toujours, en plus ; sans projets, comme avant', () => {
+    const affaires = [{ encaissements: [{ date: new Date('2026-10-12T10:00:00Z'), montant: 500 }] }];
+    assert.equal(L.CALCULS.ca_encaisse.calculer({ affaires }, '2026-10'), 500);
+    assert.equal(L.CALCULS.ca_encaisse.calculer({ affaires, projets: [projetAvec([fac({ montant: 300 })])] }, '2026-10'), 800);
+  });
+  test('B34 caParMois lit aussi les projets (graphique de l’Accueil)', () => {
+    const r = L.caParMois([], ['2026-09', '2026-10'], [projetAvec([fac({ montant: 300 })])]);
+    assert.deepEqual(r.map((m) => m.montant), [0, 300]);
+  });
+});
