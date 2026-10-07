@@ -141,6 +141,12 @@ export const mettreEnPause = (id) => regle(id, (p) => P.planMettreProjetEnPause(
 export const reprendre = (id) => regle(id, (p) => P.planReprendreProjet(p, ctx()), 'reprendreProjet');
 /** Terminer un projet crée aussi son projet d'extraction de valeur (sauf pour une extraction) : le plan renvoyé a `extraction` ({ id, titre } ou null). */
 export const terminer = (id) => regle(id, (p) => P.planTerminerProjetAvecExtraction({ projet: p, projets: etat.projets, modeles: etat.modeles }, ctx()), 'terminerProjet');
+/** Extraction déclenchée à la main : { extraction: { id, titre }, dejaExistante } (si elle existe déjà, rien n'est créé). Erreur si le projet est lui-même une extraction. */
+export async function extraire(id) {
+  const plan = await regle(id, (p) => P.planExtraireProjet({ projet: p, projets: etat.projets, modeles: etat.modeles }, ctx()), 'extraireProjet');
+  if (Object.keys(plan.erreurs || {}).length) throw Object.assign(new Error(Object.values(plan.erreurs)[0]), { saisie: true });
+  return plan;
+}
 export const rouvrir = (id) => regle(id, (p) => P.planRouvrirProjet(p, ctx()), 'rouvrirProjet');
 export const archiver = (id, archive = true) => regle(id, (p) => P.planArchiverProjet(p, archive, ctx()), 'archiverProjet');
 

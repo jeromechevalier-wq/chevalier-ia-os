@@ -39,6 +39,17 @@ export async function terminerProjet(p) {
   const plan = await D.terminer(p.id);
   toast(plan.extraction ? 'Projet terminé : son projet d’extraction est créé' : 'Projet terminé', plan.extraction ? { lien: { libelle: 'Ouvrir l’extraction', href: cheminProjet(plan.extraction.id) }, duree: 6000 } : {});
 }
+/** « Extraire la valeur » : crée l'extraction du projet, ou ouvre celle qui existe déjà (une seule par projet). */
+export async function extraireValeur(p) {
+  try {
+    const plan = await D.extraire(p.id);
+    if (plan.dejaExistante) { naviguer(`projets/projets/${plan.extraction.id}`); return; }
+    toast('Projet d’extraction créé', { lien: { libelle: 'Ouvrir l’extraction', href: cheminProjet(plan.extraction.id) }, duree: 6000 });
+  } catch (e) {
+    console.warn(e);
+    toast(e?.saisie ? e.message : 'Extraction impossible', { type: 'erreur' });
+  }
+}
 export async function mettreEnPause(p) {
   await D.mettreEnPause(p.id);
   toast('Projet en pause');

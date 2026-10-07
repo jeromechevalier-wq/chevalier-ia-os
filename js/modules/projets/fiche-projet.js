@@ -13,7 +13,7 @@ import * as P from './logique.js';
 import { sectionTaches } from './taches.js';
 import { cheminModele } from './modeles.js';
 import { anneauProgression, cheminProjet } from './composants.js';
-import { pastilleStatutProjet, pastillePhase, terminerProjet, mettreEnPause, reprendre, rouvrir, demanderSuppressionProjet } from './projets.js';
+import { pastilleStatutProjet, pastillePhase, terminerProjet, extraireValeur, mettreEnPause, reprendre, rouvrir, demanderSuppressionProjet } from './projets.js';
 
 export function rendreFicheProjet(conteneur, id) {
   let panneau = null;
@@ -51,13 +51,17 @@ export function rendreFicheProjet(conteneur, id) {
         { libelle: p.archive ? 'Désarchiver' : 'Archiver', icone: p.archive ? 'archive-restore' : 'archive', action: () => D.archiver(p.id, !p.archive) },
         { libelle: 'Supprimer définitivement…', icone: 'trash-2', danger: true, action: () => demanderSuppressionProjet(p) },
       ]) }, icone('ellipsis', { taille: 20 }));
+    // Bouton manuel (07/10/2026) : on n'attend pas la fin du projet pour extraire sa valeur ; une seule extraction par projet (sinon on ouvre celle qui existe).
+    const boutonExtraire = extraction ? null : h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'extraire',
+      onclick: () => extraireValeur(p) }, icone('sparkles', { taille: 16 }), projetExtraction ? 'Ouvrir l’extraction' : 'Extraire la valeur');
     const actions = termine
-      ? [h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'rouvrir', onclick: () => rouvrir(p) }, icone('rotate-ccw', { taille: 16 }), 'Rouvrir')]
+      ? [h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'rouvrir', onclick: () => rouvrir(p) }, icone('rotate-ccw', { taille: 16 }), 'Rouvrir'), boutonExtraire]
       : [
         h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'terminer', onclick: () => terminerProjet(p) }, icone('circle-check', { taille: 16 }), 'Terminer'),
         p.statut === 'en_pause'
           ? h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'reprendre', onclick: () => reprendre(p) }, 'Reprendre')
           : h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'en-pause', onclick: () => mettreEnPause(p) }, 'En pause'),
+        boutonExtraire,
       ];
 
     const entete = h('header', { class: 'fiche-tete' },

@@ -677,6 +677,20 @@ export function planTerminerProjetAvecExtraction({ projet, projets = [], modeles
   return { ...plan, extraction: { id: extraction.id, titre: extraction.titre }, ecritures: [...plan.ecritures, ...extraction.ecritures] };
 }
 
+/**
+ * Extraction DÉCLENCHÉE À LA MAIN sur un projet (bouton « Extraire la valeur », décision de Jérôme du 07/10/2026 : on n'attend pas le paiement pour
+ * extraire). Une seule extraction par projet : si elle existe déjà, rien n'est créé et le plan rend `dejaExistante: true` avec cette extraction
+ * (l'écran l'ouvre). Un projet d'extraction ne s'extrait pas. Rend { erreurs, ecritures, extraction: { id, titre } | null, dejaExistante }.
+ */
+export function planExtraireProjet({ projet, projets = [], modeles = [] }, ctx) {
+  if (!projet) return { erreurs: { projet: 'Projet introuvable.' }, ecritures: [], extraction: null, dejaExistante: false };
+  if (estExtraction(projet)) return { erreurs: { projet: 'Un projet d’extraction ne s’extrait pas.' }, ecritures: [], extraction: null, dejaExistante: false };
+  const existante = extractionDuProjet(projets, projet.id);
+  if (existante) return { erreurs: {}, ecritures: [], extraction: { id: existante.id, titre: existante.titre }, dejaExistante: true };
+  const extraction = creerExtraction({ projet, modeles }, ctx);
+  return { erreurs: {}, ecritures: extraction.ecritures, extraction: { id: extraction.id, titre: extraction.titre }, dejaExistante: false };
+}
+
 // ---------------------------------------------------------------- filtres (écran Projets)
 
 export const CRITERES_PROJETS_VIDES = Object.freeze({ recherche: '', phases: [], statuts: [], natures: [], enRetard: false });

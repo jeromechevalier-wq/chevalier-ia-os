@@ -966,3 +966,44 @@ describe('B31 Extraction de valeur : création automatique', () => {
     assert.ok(base.projets_projets.every((p) => p.affaireId !== 'a1'));
   });
 });
+
+describe('B32 Extraction déclenchée à la main', () => {
+  const c = () => ctx('2026-10-20T09:00:00Z');
+  const pr = (extra = {}) => projet({ id: 'pr1', titre: 'Site vitrine', personneId: 'p1', affaireId: 'a1', urlGithub: 'https://github.com/jeromechevalier-wq/site', urlDossier: 'https://drive.google.com/drive/folders/xyz', phase: 'livraison', ...extra });
+
+  test('B32 extraire un projet en cours : un projet d’extraction avec ses quatre tâches, le projet lui-même n’est pas touché', () => {
+    const plan = P.planExtraireProjet({ projet: pr() }, c());
+    assert.deepEqual(plan.erreurs, {});
+    assert.equal(plan.dejaExistante, false);
+    const crees = plan.ecritures.filter((e) => e.collection === 'projets_projets' && e.type === 'creer');
+    assert.equal(crees.length, 1);
+    assert.deepEqual([crees[0].donnees.nature, crees[0].donnees.projetSourceId, crees[0].donnees.titre, crees[0].donnees.affaireId], ['extraction', 'pr1', 'Extraction : Site vitrine', null]);
+    assert.equal(crees[0].donnees.urlDossier, 'https://drive.google.com/drive/folders/xyz');
+    assert.equal(plan.ecritures.filter((e) => e.collection === 'projets_taches').length, 4);
+    assert.equal(plan.ecritures.some((e) => e.collection === 'projets_projets' && e.id === 'pr1'), false);
+    assert.deepEqual(plan.extraction, { id: crees[0].id, titre: 'Extraction : Site vitrine' });
+  });
+  test('B32 une seule extraction par projet : si elle existe, rien n’est créé et on rend celle qui existe', () => {
+    const base = executer({ projets_projets: [pr()], projets_taches: [] }, P.planExtraireProjet({ projet: pr() }, c()).ecritures, { maintenant: c().maintenant });
+    const encore = P.planExtraireProjet({ projet: pr(), projets: base.projets_projets }, c());
+    assert.deepEqual([encore.ecritures.length, encore.dejaExistante, encore.extraction.id], [0, true, base.projets_projets.find((p) => p.nature === 'extraction').id]);
+  });
+  test('B32 « Terminer » après une extraction manuelle ne crée pas de seconde extraction', () => {
+    const base = executer({ projets_projets: [pr()], projets_taches: [] }, P.planExtraireProjet({ projet: pr() }, c()).ecritures, { maintenant: c().maintenant });
+    const fin = P.planTerminerProjetAvecExtraction({ projet: pr(), projets: base.projets_projets }, c());
+    assert.equal(fin.extraction, null);
+    assert.equal(fin.ecritures.filter((e) => e.collection === 'projets_projets' && e.type === 'creer').length, 0);
+    assert.equal(fin.patch.statut, 'termine');
+  });
+  test('B32 un projet d’extraction ne s’extrait pas ; un projet introuvable est refusé ; un projet terminé ou archivé peut l’être', () => {
+    assert.ok(P.planExtraireProjet({ projet: pr({ nature: 'extraction' }) }, c()).erreurs.projet);
+    assert.ok(P.planExtraireProjet({ projet: null }, c()).erreurs.projet);
+    assert.equal(P.planExtraireProjet({ projet: pr({ statut: 'termine' }) }, c()).extraction !== null, true);
+    assert.equal(P.planExtraireProjet({ projet: pr({ archive: true }) }, c()).extraction !== null, true);
+  });
+  test('B32 le modèle d’extraction de la base fait foi', () => {
+    const modeles = [{ id: 'extraction', nom: 'Extraction', nature: 'extraction', actif: true, taches: [{ id: 'x', titre: 'Seule tâche', phase: 'decouverte', delaiJours: 3 }] }];
+    const plan = P.planExtraireProjet({ projet: pr(), modeles }, c());
+    assert.deepEqual(plan.ecritures.filter((e) => e.collection === 'projets_taches').map((e) => e.donnees.titre), ['Seule tâche']);
+  });
+});

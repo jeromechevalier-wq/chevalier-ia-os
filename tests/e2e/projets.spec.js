@@ -1331,3 +1331,31 @@ test('C33 filtre « Extraction de valeur » : les projets d’extraction se retr
   await page.locator('[data-section="affaire-projet"] [data-action="lier-projet"]').click();
   await expect(dialogue(page).getByLabel('Projet à lier').locator('option')).toHaveText(['Un vrai projet']);
 });
+
+test('C34 bouton « Extraire la valeur » : crée l’extraction en cours de projet, puis ouvre la même ; « Terminer » n’en crée pas une seconde', async ({ page }) => {
+  await creerProjet('pr1', { titre: 'Site vitrine', phase: 'livraison', urlDossier: 'https://drive.google.com/drive/folders/xyz' });
+  await connecter(page);
+  await attendreModeles();
+  await aller(page, '#/projets/projets/pr1');
+  const bouton = page.locator('.fiche-actions [data-action="extraire"]');
+  await expect(bouton).toHaveText('Extraire la valeur');
+  await bouton.click();
+  await expect(page.locator('.toast', { hasText: 'Projet d’extraction créé' })).toBeVisible();
+  const e1 = await attendre('projets_projets', (d) => d.nature === 'extraction' && d.projetSourceId === 'pr1');
+  expect(e1).toMatchObject({ titre: 'Extraction : Site vitrine', archive: false, modeleId: 'extraction', urlDossier: 'https://drive.google.com/drive/folders/xyz' });
+  expect((await listerDocuments('projets_taches')).filter((t) => t.projetId === e1.id)).toHaveLength(4);
+  expect((await lireDocument('projets_projets/pr1')).statut).toBe('actif'); // le projet continue
+  // le bouton devient « Ouvrir l'extraction » : même extraction, jamais de seconde
+  await expect(bouton).toHaveText('Ouvrir l’extraction');
+  await expect(page.locator('[data-prop="extraction"] a')).toHaveText('Extraction : Site vitrine');
+  await bouton.click();
+  await expect(page).toHaveURL(new RegExp(`#/projets/projets/${e1.id}$`));
+  await expect(page.locator('.fiche-actions [data-action="extraire"]')).toHaveCount(0); // une extraction ne s'extrait pas
+  // fin du projet : pas de seconde extraction
+  await aller(page, '#/projets/projets/pr1');
+  await page.locator('.fiche-actions [data-action="terminer"]').click();
+  await champDoc('projets_projets', 'pr1', 'statut', 'termine');
+  await page.waitForTimeout(600);
+  expect((await listerDocuments('projets_projets')).filter((p) => p.nature === 'extraction')).toHaveLength(1);
+  await expect(page.locator('.fiche-actions [data-action="extraire"]')).toHaveText('Ouvrir l’extraction'); // visible aussi sur un projet terminé
+});

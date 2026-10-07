@@ -22,14 +22,15 @@ Toujours : **jamais de boucle** (terminer un projet d'extraction ne crée rien),
 - **Fiche projet d'extraction** : ligne « Source » (l'affaire ou le projet, avec lien), ligne « Raison de la perte » pour une affaire perdue, documents et notes de l'affaire montrés en lecture seule (la matière des leçons). Pas de bouton « Détacher » : l'affaire est sa source. Un projet qui a une extraction montre une ligne « Extraction » avec un lien.
 - **Fiche affaire** : la section « Projet » montre aussi l'extraction (même pour une affaire perdue). L'extraction n'est **jamais « le projet » de l'affaire** : elle ne bloque pas la création d'un vrai projet, n'est pas proposée dans « Lier un projet », et l'affaire n'a pas de `projetId` vers elle.
 - Un message annonce la création (« Projet d'extraction créé », avec un lien).
+- **Bouton « Extraire la valeur » (07/10/2026)** sur la fiche d'un projet (en cours, en pause ou terminé) : crée l'extraction tout de suite, sans attendre la fin du projet (utile quand le paiement tarde). Une seule extraction par projet : si elle existe déjà, le bouton devient « Ouvrir l'extraction » et l'ouvre. « Terminer » ne recrée rien si elle existe. Pas de bouton sur un projet d'extraction. Règle : `planExtraireProjet` (tests B32 et C34).
 - **Intégrité** : supprimer l'affaire garde son extraction (lien vidé) ; supprimer le projet source garde son extraction (lien vidé, « Source supprimée »).
 - Tests : règles pures (`projets.test.js`, B31), serveur MCP (création, restauration d'une opération), parcours à l'écran (C33), et deux contrôles statiques : le serveur ne contourne pas l'extraction, aucun écran n'appelle l'ancien changement d'étape direct.
 
 ## Choix faits, à contredire si besoin
 
-- **Seule la fin du projet** (bouton Terminer) déclenche l'extraction d'un projet : archiver à la main un projet ne la déclenche pas.
+- **Seule la fin du projet** (bouton Terminer) ou le bouton « Extraire la valeur » déclenche l'extraction d'un projet : archiver à la main un projet ne la déclenche pas. **Une seule extraction par projet** (validé le 07/10/2026) : pour une deuxième, créer un projet d'extraction à la main avec le modèle Extraction.
 - **Le titre** de l'extraction n'est pas modifiable à la création (« Extraction : … »), il se renomme ensuite comme n'importe quel projet.
-- **Ce qui est extrait** (règles, erreurs, automatisable, marketing) se range à la main dans le dossier de la source (`marketing/`, second cerveau) : l'appli ne le fait pas.
+- **Ce qui est extrait** (règles, erreurs, automatisable, marketing) se range à la main dans le dossier de la source (`marketing/`, second cerveau) : l'appli ne le fait pas et ne crée aucun document : tu avances les tâches du projet d'extraction dans le workflow.
 - Les extractions déjà « Perdu » ou « Gagné » **avant** cette version n'en ont pas : pas de rattrapage automatique (on peut créer un projet à la main avec le modèle Extraction).
 
 ## À faire ensuite
