@@ -53,11 +53,11 @@ export const OUTILS_ECRITURE = [
     besoin: z.string().max(5000).optional(), urlGithub, urlDossier, archive: z.boolean().optional(),
   }, metier.modifierAffaire),
 
-  outil('changer_etape', "Change l'étape d'une affaire comme l'écran : statut, dates d'étapes, événements du fil ; « facture_payee » archive l'affaire et enregistre l'encaissement (montantEncaisse, sinon le montant de l'affaire). Renvoie la suggestion d'activité de suivi (non créée : à créer avec creer_activite si pertinent).", {
+  outil('changer_etape', "Change l'étape d'une affaire comme l'écran (une affaire qui devient gagnée sans avoir de projet reçoit son projet d'extraction de valeur : identifiant dans « extraction ») : statut, dates d'étapes, événements du fil ; « facture_payee » archive l'affaire et enregistre l'encaissement (montantEncaisse, sinon le montant de l'affaire). Renvoie la suggestion d'activité de suivi (non créée : à créer avec creer_activite si pertinent).", {
     id, etape: z.string().min(1).max(60), montantEncaisse: z.number().min(0).max(1e9).optional(),
   }, metier.changerEtape),
 
-  outil('marquer_perdue', `Marque une affaire perdue. Raison parmi : ${L.RAISONS_PERDUE.join(' ; ')}.`, { id, raison: z.string().min(1).max(60), detail: z.string().max(1000).optional() }, metier.marquerPerdue),
+  outil('marquer_perdue', `Marque une affaire perdue. Raison parmi : ${L.RAISONS_PERDUE.join(' ; ')}. Crée aussi le projet d'extraction de valeur de l'affaire (règles, erreurs, automatisable, documentation marketing), qui reprend la raison de la perte : la réponse donne son identifiant dans « extraction ».`, { id, raison: z.string().min(1).max(60), detail: z.string().max(1000).optional() }, metier.marquerPerdue),
   outil('mettre_en_pause', 'Met une affaire en pause jusqu\'à une date de réveil (AAAA-MM-JJ).', { id, dateReveil: jour }, metier.mettreEnPause),
   outil('rouvrir_affaire', 'Rouvre une affaire perdue ou en pause.', { id }, metier.rouvrirAffaire),
   outil('ajouter_encaissement', 'Ajoute un encaissement (montant positif en euros, date du jour par défaut) à une affaire, avec son événement.', { id, montant: z.number().positive().max(1e9), date: jour.optional() }, metier.ajouterEncaissement),

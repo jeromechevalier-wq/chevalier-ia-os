@@ -7,6 +7,7 @@ import {
   COLLECTIONS_PLAN, MARQUES_CREATION, MARQUES_MODIFICATION,
   ecritureCreer, ecritureModifier, ecritureSupprimer, evenements, modifierSiPatch, evenementCreation,
   nettoyerEspaces, aujourdhuiParis, validerUrlGithub, validerUrlDossier, urlOuVide, normaliser, ajouterJours,
+  planChangerEtape, planMarquerPerdue,
 } from '../crm/logique.js';
 
 const C = COLLECTIONS_PLAN;
@@ -84,6 +85,8 @@ export function nouveauProjet(valeurs, ctx) {
     urlDossier: urlOuVide(validerUrlDossier, valeurs.urlDossier),
     nature: NATURES_PROJET.some((n) => n.id === valeurs.nature) ? valeurs.nature : 'livraison',
     projetSourceId: valeurs.projetSourceId || null,
+    // Un projet d'extraction d'une affaire perdue reprend la raison de la perte (point de départ de ses leçons).
+    ...(valeurs.raisonPerdue ? { raisonPerdue: valeurs.raisonPerdue, raisonPerdueDetail: nettoyerEspaces(valeurs.raisonPerdueDetail) } : {}),
     archive: false,
     proprietaire: ctx.proprietaire ?? ctx.auteur ?? '',
   };
@@ -478,8 +481,8 @@ export function planInitialiserModeles() {
 
 // ---------------------------------------------------------------- liens
 
-/** Le projet d'une affaire (au plus un). */
-export const projetDeAffaire = (projets, affaireId) => (projets || []).find((p) => affaireId && p.affaireId === affaireId) ?? null;
+/** Le projet d'une affaire (au plus un). Le projet d'extraction de l'affaire n'est pas « son projet » : il a son propre lien (`extractionDeLAffaire`). */
+export const projetDeAffaire = (projets, affaireId) => (projets || []).find((p) => affaireId && p.affaireId === affaireId && !estExtraction(p)) ?? null;
 
 /** Projets liés à une fiche : { affaireId } | { personneId } | { organisationId }. */
 export function projetsLies(projets, lien) {
@@ -516,14 +519,14 @@ export function validerLienAffaire({ affaire, projet = null, projets = [] }) {
   return {};
 }
 
-/** Projets qu'on peut lier à une affaire : sans affaire et pas archivés, par ordre alphabétique. */
-export const projetsLiables = (projets) => (projets || []).filter((p) => !p.affaireId && !p.archive).sort((a, b) => normaliser(a.titre).localeCompare(normaliser(b.titre)));
+/** Projets qu'on peut lier à une affaire : sans affaire, pas archivés, pas d'extraction, par ordre alphabétique. */
+export const projetsLiables = (projets) => (projets || []).filter((p) => !p.affaireId && !p.archive && !estExtraction(p)).sort((a, b) => normaliser(a.titre).localeCompare(normaliser(b.titre)));
 
 /**
  * Crée le projet d'une affaire gagnée : il reprend le titre, la personne, l'organisation, l'offre, l'adresse GitHub et le dossier de l'affaire
  * (`valeurs` peut en changer). Même plan : l'affaire reçoit `projetId`. Refus : { erreurs, ecritures: [] }.
  */
-export function planCreerProjetDepuisAffaire({ affaire, projets = [], valeurs = {}, modele = null }, ctx) {
+export function planCreerProjetDepuisAffaire({ affaire, projets = [], valeurs = {}, modele = null, taches = [] }, ctx) {
   const erreurs = validerLienAffaire({ affaire, projets });
   if (Object.keys(erreurs).length) return { erreurs, ecritures: [] };
   const id = ctx.nouvelId(C.projets);
@@ -541,6 +544,7 @@ export function planCreerProjetDepuisAffaire({ affaire, projets = [], valeurs = 
       ...ecrituresTachesModele(modele, { projetId: id, dateDebut: fiche.dateDebut }, ctx),
       ...modifierSiPatch(C.affaires, affaire.id, { projetId: id }, MARQUES_MODIFICATION),
       ...evenements([evenementProjet('projet_cree', `Projet créé : ${fiche.titre}`, { ...fiche, id }, ctx)], ctx),
+      ...ecrituresRangerExtraction({ affaire, projets, taches }, ctx),
     ],
   };
 }
@@ -549,7 +553,7 @@ export function planCreerProjetDepuisAffaire({ affaire, projets = [], valeurs = 
  * Lie un projet existant (sans affaire) à une affaire gagnée. Le projet garde ce qu'il a déjà ; ce qui lui manque (personne, organisation, offre,
  * adresse GitHub, dossier) est repris de l'affaire.
  */
-export function planLierProjet({ affaire, projet, projets = [] }, ctx) {
+export function planLierProjet({ affaire, projet, projets = [], taches = [] }, ctx) {
   const erreurs = validerLienAffaire({ affaire, projet, projets });
   if (Object.keys(erreurs).length) return { erreurs, ecritures: [] };
   const patch = { affaireId: affaire.id };
@@ -562,6 +566,7 @@ export function planLierProjet({ affaire, projet, projets = [] }, ctx) {
       ...modifierSiPatch(C.projets, projet.id, patch, MARQUES_MODIFICATION),
       ...modifierSiPatch(C.affaires, affaire.id, { projetId: projet.id }, MARQUES_MODIFICATION),
       ...evenements([evenementProjet('projet_lie', `Projet lié à l’affaire : ${affaire.titre}`, { ...projet, ...patch }, ctx)], ctx),
+      ...ecrituresRangerExtraction({ affaire, projets, taches }, ctx),
     ],
   };
 }
@@ -593,6 +598,97 @@ export function notesDuProjet(notesProjet = [], notesAffaire = [], projetId) {
     sorties.push(n.projetId === projetId ? n : { ...n, deAffaire: true });
   }
   return sorties;
+}
+
+// ---------------------------------------------------------------- extraction de valeur
+// Vision de Jérôme (03/10/2026), règles du 06/10/2026 : extraire un maximum de valeur de chaque affaire et de chaque projet, gagnés ou perdus
+// (règles, erreurs, ce qui est automatisable, documentation marketing). L'extraction est un projet comme les autres (nature `extraction`, mêmes phases,
+// tâches, statut, Clôture), créé AUTOMATIQUEMENT, dans les plans ci-dessous : l'écran et le serveur MCP font donc exactement la même chose.
+//  - affaire perdue : à Perdu (la raison de la perte est reprise) ;
+//  - projet terminé : à la fin du projet ;
+//  - affaire gagnée SANS projet : à Gagné. Si un projet est créé ou lié ensuite, cette extraction est rangée (archivée) tant que rien n'y a été fait :
+//    c'est la fin du projet qui crée la vraie extraction (un seul projet d'extraction vivant par affaire) ;
+//  - jamais de boucle (un projet d'extraction ne déclenche rien) ; une seule extraction par source ; elle reprend le dossier et le dépôt de sa source.
+
+export const estExtraction = (p) => p?.nature === 'extraction';
+
+/** L'extraction d'une affaire (créée à Perdu ou à Gagné), archivée ou non. */
+export const extractionDeLAffaire = (projets, affaireId) => (projets || []).find((p) => estExtraction(p) && affaireId && p.affaireId === affaireId) ?? null;
+
+/** L'extraction d'un projet terminé. */
+export const extractionDuProjet = (projets, projetId) => (projets || []).find((p) => estExtraction(p) && projetId && p.projetSourceId === projetId) ?? null;
+
+/** Le modèle de l'extraction : celui d'identifiant `extraction`, sinon un modèle actif de nature extraction, sinon la copie livrée avec l'appli. */
+export function modeleExtraction(modeles = []) {
+  return modeles.find((m) => m.id === 'extraction') ?? modelesActifs(modeles).find((m) => m.nature === 'extraction') ?? MODELES_DEPART.find((m) => m.id === 'extraction');
+}
+
+/** Écritures de création du projet d'extraction d'une source ({ affaire } ou { projet }) : { id, titre, ecritures }. `raison` : { raison, detail } d'une affaire perdue. */
+function creerExtraction({ affaire = null, projet = null, modeles = [], raison = null }, ctx) {
+  const source = affaire ?? projet;
+  const plan = planCreerProjet({
+    titre: `Extraction : ${source.titre}`,
+    personneId: source.personneId, organisationId: source.organisationId, offreId: source.offreId,
+    urlGithub: source.urlGithub, urlDossier: source.urlDossier,
+    ...(affaire ? { affaireId: affaire.id } : { projetSourceId: projet.id }),
+    ...(raison ? { raisonPerdue: raison.raison, raisonPerdueDetail: raison.detail } : {}),
+  }, ctx, { modele: { ...modeleExtraction(modeles), nature: 'extraction' } });
+  return { id: plan.id, titre: plan.titre, ecritures: plan.ecritures };
+}
+
+/**
+ * Range l'extraction d'une affaire quand l'affaire reçoit son projet : archivée, tant que rien n'y a été fait (aucune de ses tâches n'est faite).
+ * Si elle a déjà avancé, elle reste vivante (la fin du projet en créera une autre, rare).
+ */
+function ecrituresRangerExtraction({ affaire, projets = [], taches = [] }, ctx) {
+  const extraction = extractionDeLAffaire(projets, affaire?.id);
+  if (!extraction || extraction.archive || taches.some((t) => t.projetId === extraction.id && t.fait)) return [];
+  return [
+    ...modifierSiPatch(C.projets, extraction.id, { archive: true }, MARQUES_MODIFICATION),
+    ...evenements([evenementProjet('extraction_rangee', `Extraction rangée : l’affaire a maintenant son projet (${extraction.titre})`, extraction, ctx)], ctx),
+  ];
+}
+
+/**
+ * Changement d'étape d'une affaire AVEC l'extraction qu'il déclenche (affaire qui devient gagnée sans projet). Rend le plan de `planChangerEtape`
+ * (erreurs, patch, evenements, suggestion, ecritures) + `extraction` ({ id, titre } ou null).
+ */
+export function planChangerEtapeAvecExtraction({ affaire, etape, options = {}, projets = [], modeles = [] }, ctx) {
+  const plan = planChangerEtape(affaire, etape, ctx, options);
+  const devientGagnee = !Object.keys(plan.erreurs || {}).length && plan.patch?.statut === 'gagnee' && affaire.statut !== 'gagnee';
+  if (!devientGagnee || projetLieAAffaire(projets, affaire) || extractionDeLAffaire(projets, affaire.id)) return { ...plan, extraction: null };
+  const extraction = creerExtraction({ affaire, modeles }, ctx);
+  return { ...plan, extraction: { id: extraction.id, titre: extraction.titre }, ecritures: [...plan.ecritures, ...extraction.ecritures] };
+}
+
+/** Affaire perdue AVEC son extraction (la raison de la perte est reprise). Même forme que `planMarquerPerdue` + `extraction`. */
+export function planMarquerPerdueAvecExtraction({ affaire, saisie, projets = [], modeles = [] }, ctx) {
+  const plan = planMarquerPerdue(affaire, saisie, ctx);
+  if (Object.keys(plan.erreurs || {}).length || extractionDeLAffaire(projets, affaire.id)) return { ...plan, extraction: null };
+  const extraction = creerExtraction({ affaire, modeles, raison: { raison: saisie.raison, detail: saisie.detail ?? '' } }, ctx);
+  return { ...plan, extraction: { id: extraction.id, titre: extraction.titre }, ecritures: [...plan.ecritures, ...extraction.ecritures] };
+}
+
+/** Fin d'un projet AVEC son extraction (sauf pour un projet d'extraction, et une seule par projet). Même forme que `planTerminerProjet` + `extraction`. */
+export function planTerminerProjetAvecExtraction({ projet, projets = [], modeles = [] }, ctx) {
+  const plan = planTerminerProjet(projet, ctx);
+  if (!plan.ecritures.length || estExtraction(projet) || extractionDuProjet(projets, projet.id)) return { ...plan, extraction: null };
+  const extraction = creerExtraction({ projet, modeles }, ctx);
+  return { ...plan, extraction: { id: extraction.id, titre: extraction.titre }, ecritures: [...plan.ecritures, ...extraction.ecritures] };
+}
+
+/**
+ * Extraction DÉCLENCHÉE À LA MAIN sur un projet (bouton « Extraire la valeur », décision de Jérôme du 07/10/2026 : on n'attend pas le paiement pour
+ * extraire). Une seule extraction par projet : si elle existe déjà, rien n'est créé et le plan rend `dejaExistante: true` avec cette extraction
+ * (l'écran l'ouvre). Un projet d'extraction ne s'extrait pas. Rend { erreurs, ecritures, extraction: { id, titre } | null, dejaExistante }.
+ */
+export function planExtraireProjet({ projet, projets = [], modeles = [] }, ctx) {
+  if (!projet) return { erreurs: { projet: 'Projet introuvable.' }, ecritures: [], extraction: null, dejaExistante: false };
+  if (estExtraction(projet)) return { erreurs: { projet: 'Un projet d’extraction ne s’extrait pas.' }, ecritures: [], extraction: null, dejaExistante: false };
+  const existante = extractionDuProjet(projets, projet.id);
+  if (existante) return { erreurs: {}, ecritures: [], extraction: { id: existante.id, titre: existante.titre }, dejaExistante: true };
+  const extraction = creerExtraction({ projet, modeles }, ctx);
+  return { erreurs: {}, ecritures: extraction.ecritures, extraction: { id: extraction.id, titre: extraction.titre }, dejaExistante: false };
 }
 
 // ---------------------------------------------------------------- filtres (écran Projets)
