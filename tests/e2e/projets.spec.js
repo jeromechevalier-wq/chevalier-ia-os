@@ -1519,3 +1519,51 @@ test('C36 déplacer une carte vers la Clôture avec une facture à payer : refus
   await expect(page.locator('.tableau-projets')).toContainText('Projet clos avec impayé');
   await expect(page.locator('.tableau-projets [data-role="impaye"]')).toHaveText('Impayé');
 });
+
+// ---------------------------------------------------------------- migration 2.2
+
+test('C37 migration 2.2 : Réglages propose d’abord un aperçu ; une affaire « Facture payée » passe à Gagné sans toucher à l’encaissé ; une « Facture envoyée » reçoit sa facture sur son projet', async ({ page }) => {
+  await creerAffaire('a1', { titre: 'Audit payé', etape: 'facture_payee', statut: 'gagnee', archive: true, montant: 800, encaissements: [{ date: new Date(), montant: 800, offreId: null }] });
+  await creerAffaire('a2', { titre: 'Audit en attente', etape: 'facture_envoyee', statut: 'gagnee', montant: 1500, projetId: 'pr1' });
+  await creerAffaire('a3', { titre: 'Sans projet', etape: 'facture_envoyee', statut: 'gagnee', montant: 400 });
+  await creerProjet('pr1', { titre: 'Projet de l’audit en attente', affaireId: 'a2', phase: 'livraison' });
+  await connecter(page);
+  await attendreModeles();
+  await allerA(page, 'Accueil');
+  await expect.poll(() => valeurObjectif(page, 'ca_encaisse')).toBe(800);
+  await allerA(page, 'Réglages');
+  const section = page.locator('#reglages-migration');
+  await expect(section).toBeVisible();
+  await expect(section.locator('[data-role="compte-migration"]')).toContainText('3 affaires sont encore');
+  // aperçu : rien n'est écrit tant qu'on n'a pas validé
+  await section.locator('[data-action="migrer-etapes"]').click();
+  await expect(dialogue(page)).toContainText('3 affaires vont être migrées');
+  await expect(dialogue(page).locator('[data-role="apercu-migrees"] [data-affaire="a2"]')).toContainText('facture de 1 500 € ajoutée à son projet');
+  await expect(dialogue(page).locator('[data-role="apercu-a-la-main"] [data-affaire="a3"]')).toContainText('n’a pas de projet');
+  expect((await lireDocument('crm_affaires/a1')).etape).toBe('facture_payee');
+  await dialogue(page).getByRole('button', { name: 'Annuler' }).click();
+  expect((await lireDocument('crm_affaires/a2')).etape).toBe('facture_envoyee');
+  // migration
+  await section.locator('[data-action="migrer-etapes"]').click();
+  await dialogue(page).getByRole('button', { name: 'Migrer' }).click();
+  await expect(page.locator('.toast', { hasText: '3 affaires migrées · 1 à traiter à la main' })).toBeVisible();
+  await champDoc('crm_affaires', 'a2', 'etape', 'gagne');
+  const [a1, a2, a3] = await Promise.all(['a1', 'a2', 'a3'].map((id) => lireDocument(`crm_affaires/${id}`)));
+  expect([a1.etape, a1.statut, a1.archive, a1.encaissements.length]).toEqual(['gagne', 'gagnee', true, 1]);
+  expect([a2.etape, a2.statut]).toEqual(['gagne', 'gagnee']);
+  expect([a3.etape, a3.statut]).toEqual(['gagne', 'gagnee']);
+  const pr1 = await lireDocument('projets_projets/pr1');
+  expect(pr1.factures.map((f) => [f.statut, f.montant])).toEqual([['a_payer', 1500]]);
+  expect((await listerDocuments('projets_projets')).filter((p) => p.id !== 'pr1' && p.nature !== 'extraction')).toHaveLength(0); // aucun projet créé
+  await expect(section).toBeHidden();
+  // le chiffre d'affaires encaissé n'a pas bougé ; la facture attendue bloque la clôture du projet
+  await allerA(page, 'Accueil');
+  await expect.poll(() => valeurObjectif(page, 'ca_encaisse')).toBe(800);
+  await aller(page, '#/projets/projets/pr1');
+  await page.locator('.fiche-actions [data-action="terminer"]').click();
+  await expect(dialogue(page)).toContainText('Clôture bloquée');
+  await expect(dialogue(page)).toContainText('Facture envoyée (reprise de l’affaire)');
+  await dialogue(page).getByRole('button', { name: 'Annuler' }).click();
+  // l'opération est dans le journal (restaurable d'un coup)
+  expect((await listerDocuments('crm_audit')).some((l) => l.outil === 'migrerEtapesRetirees')).toBe(true);
+});

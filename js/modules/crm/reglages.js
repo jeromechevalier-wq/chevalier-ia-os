@@ -1,6 +1,7 @@
 // Réglages du CRM : offres, secteurs, sources, étiquettes, filtres enregistrés, délai de paiement, début d'activité, export.
-import { h, icone, vider, remplir, toast, confirmer, demanderTexte } from '../../os/ui.js';
+import { h, icone, vider, remplir, toast, confirmer, demanderTexte, dialogue } from '../../os/ui.js';
 import * as D from './donnees.js';
+import * as PD from '../projets/donnees.js';
 import * as L from './logique.js';
 import { exporterToutesLesDonnees } from './export.js';
 
@@ -55,7 +56,7 @@ export function rendreReglagesCrm(page) {
   const listeFiltres = h('div', { class: 'liste-reglages' });
   sFiltres.append(listeFiltres);
 
-  const sDelai = section('reglages-delai', 'Délai de paiement', 'clock', 'Utilisé pour la suggestion "Vérifier le paiement" après une facture envoyée.');
+  const sDelai = section('reglages-delai', 'Délai de paiement', 'clock', 'Plus utilisé depuis la 2.2 : la facturation se suit maintenant sur les factures des projets.');
   const delai = h('input', { type: 'number', class: 'champ champ-court', min: '1', max: '365', 'aria-label': 'Délai de paiement en jours',
     onchange: async (e) => {
       const v = Math.max(1, Math.min(365, Number(e.target.value) || 30));
@@ -98,7 +99,35 @@ export function rendreReglagesCrm(page) {
   const infoExport = h('p', { class: 'aide', 'data-role': 'dernier-export' });
   sExport.append(h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'exporter-tout', onclick: () => exporterToutesLesDonnees() }, icone('download', { taille: 16 }), 'Exporter mes données'), infoExport);
 
-  page.append(sOffres, sSecteurs, sSources, sEtiquettes, sFiltres, sDelai, sDebut, sProjets, sExport);
+  // Migration 2.2 : visible seulement tant qu'il reste des affaires dans les étapes retirées « Facture envoyée » / « Facture payée ».
+  const sMigration = section('reglages-migration', 'Migration de la facturation (2.2)', 'rotate-ccw',
+    'Les étapes « Facture envoyée » et « Facture payée » n’existent plus : la facturation se suit sur les projets. Les affaires qui y sont encore passent à « Gagné », sans rien perdre de ton chiffre d’affaires.');
+  const zoneMigration = h('div', { class: 'pile' });
+  sMigration.append(zoneMigration);
+
+  async function apercuMigration() {
+    const apercu = PD.apercuMigrationEtapes();
+    const lignes = apercu.migrees.map((m) => h('li', { class: 'ligne-simple', dataset: { affaire: m.affaireId } },
+      h('strong', {}, m.titre), h('span', { class: 'aide' }, `${m.de} → Gagné${m.facture ? ` · facture de ${L.formatEuros(m.facture.montant)} ajoutée à son projet` : ''}`)));
+    const manuelles = apercu.aTraiterAMain.map((m) => h('li', { class: 'ligne-simple', dataset: { affaire: m.affaireId } }, h('strong', {}, m.titre), h('span', { class: 'aide' }, m.raison)));
+    const ok = await dialogue({
+      titre: 'Migrer les affaires',
+      classe: 'dialogue-large',
+      contenu: h('div', { class: 'pile' },
+        h('p', {}, `${apercu.migrees.length} ${apercu.migrees.length > 1 ? 'affaires vont être migrées' : 'affaire va être migrée'}. Rien n’est écrit tant que tu n’as pas validé.`),
+        h('ul', { class: 'liste-simple', dataset: { role: 'apercu-migrees' } }, lignes),
+        manuelles.length ? h('div', { class: 'pile' }, h('h3', {}, 'À traiter à la main'), h('ul', { class: 'liste-simple', dataset: { role: 'apercu-a-la-main' } }, manuelles)) : null,
+        h('p', { class: 'aide' }, 'L’opération est écrite dans le journal et se restaure d’un coup.')),
+      boutons: [{ libelle: 'Annuler', valeur: false }, { libelle: 'Migrer', valeur: true, style: 'principal' }],
+    });
+    if (!ok) return;
+    try {
+      const r = await PD.migrerEtapesRetirees();
+      toast(`${r.migrees.length} ${r.migrees.length > 1 ? 'affaires migrées' : 'affaire migrée'}${r.aTraiterAMain.length ? ` · ${r.aTraiterAMain.length} à traiter à la main` : ''}`);
+    } catch (e) { console.warn(e); toast('Migration impossible', { type: 'erreur' }); }
+  }
+
+  page.append(sMigration, sOffres, sSecteurs, sSources, sEtiquettes, sFiltres, sDelai, sDebut, sProjets, sExport);
 
   function ligneOffre(o, i, liste) {
     const nom = h('input', { type: 'text', class: 'champ', value: o.nom, 'aria-label': `Nom de l'offre ${o.nom}`,
@@ -174,7 +203,16 @@ export function rendreReglagesCrm(page) {
         } }, icone('trash-2', { taille: 14 }), 'Supprimer')));
   }
 
+  function rafraichirMigration() {
+    const restantes = D.etat.affaires.filter((a) => a.etape in L.ETAPES_RETIREES);
+    sMigration.hidden = !restantes.length;
+    remplir(zoneMigration, restantes.length ? h('div', { class: 'pile' },
+      h('p', { dataset: { role: 'compte-migration' } }, `${restantes.length} ${restantes.length > 1 ? 'affaires sont encore' : 'affaire est encore'} dans une étape retirée.`),
+      h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'migrer-etapes', onclick: apercuMigration }, icone('eye', { taille: 16 }), 'Voir ce qui va changer')) : null);
+  }
+
   function rafraichir() {
+    rafraichirMigration();
     if (page.contains(document.activeElement) && document.activeElement.matches('.liste-reglages input')) return;
     remplir(listeOffres, ...D.etat.offres.map((o, i, l) => ligneOffre(o, i, l)));
     remplir(listeSecteurs, ...D.etat.secteurs.map((v, i, l) => ligneValeur('secteurs', v, i, l)));
@@ -189,5 +227,6 @@ export function rendreReglagesCrm(page) {
     infoExport.textContent = D.etat.reglages.dernierExport ? `Dernier export : ${L.formatDateHeure(D.etat.reglages.dernierExport)}` : 'Aucun export pour le moment.';
   }
   rafraichir();
-  return D.surChangement(rafraichir);
+  const arrets = [D.surChangement(rafraichir), PD.surChangement(rafraichirMigration)];
+  return () => arrets.forEach((f) => f());
 }

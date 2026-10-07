@@ -279,3 +279,18 @@ export async function marquerAffairePerdue(id, saisie) {
   if (!a) throw new Error('Affaire introuvable');
   return appliquer(P.planMarquerPerdueAvecExtraction({ affaire: a, saisie, projets: etat.projets, modeles: etat.modeles }, ctx()), 'marquerAffairePerdue');
 }
+
+// ---------------------------------------------------------------- migration 2.2 (étapes « Facture envoyée / payée » retirées)
+
+/** Aperçu de la migration : { migrees, aTraiterAMain } sans rien écrire. */
+export function apercuMigrationEtapes() {
+  const plan = P.planMigrerEtapesRetirees({ affaires: CRM.etat.affaires, projets: etat.projets }, ctx());
+  return { migrees: plan.migrees, aTraiterAMain: plan.aTraiterAMain };
+}
+
+/** Exécute la migration (une seule opération d'audit, donc restaurable d'un coup) ; rend { migrees, aTraiterAMain }. */
+export async function migrerEtapesRetirees() {
+  const plan = P.planMigrerEtapesRetirees({ affaires: CRM.etat.affaires, projets: etat.projets }, ctx());
+  await appliquer(plan, 'migrerEtapesRetirees');
+  return { migrees: plan.migrees, aTraiterAMain: plan.aTraiterAMain };
+}

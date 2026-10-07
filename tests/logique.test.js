@@ -231,36 +231,30 @@ describe('B5 Perdue, en pause, réouverture', () => {
   });
 });
 
-describe('B6 Facture payée et encaissements', () => {
-  test('B6 ajoute un encaissement du bon montant et archive', () => {
-    const a = affaire({ etape: 'facture_envoyee', statut: 'gagnee', montant: 1200, offreId: 'audit' });
-    const r = L.changementEtape(a, 'facture_payee', ctx('2026-10-20T10:00:00Z'));
-    assert.equal(r.patch.archive, true);
-    assert.equal(r.patch.encaissements.length, 1);
-    assert.equal(r.patch.encaissements[0].montant, 1200);
-    assert.equal(r.patch.encaissements[0].offreId, 'audit');
-    assert.ok(r.evenements.some((e) => e.type === 'encaissement'));
-  });
-  test('B6 le montant de l’encaissement est modifiable', () => {
-    const a = affaire({ etape: 'facture_envoyee', statut: 'gagnee', montant: 1200 });
-    const r = L.changementEtape(a, 'facture_payee', ctx(), { montantEncaisse: 900 });
-    assert.equal(r.patch.encaissements[0].montant, 900);
-  });
-  test('B6 sans montant : encaissement de 0 €', () => {
+describe('B6 Étapes retirées en 2.2 et historique des encaissements', () => {
+  test('B6 la vente s’arrête à Gagné : plus d’étape « Facture envoyée » ni « Facture payée » ; ces étapes sont refusées', () => {
+    assert.deepEqual(L.ETAPES.map((e) => e.id), ['premier_contact', 'rdv_fixe', 'proposition_envoyee', 'gagne']);
+    assert.deepEqual(L.ETAPES_GAGNEES, ['gagne']);
     const r = L.changementEtape(affaire({ etape: 'gagne', statut: 'gagnee' }), 'facture_payee', ctx());
-    assert.equal(r.patch.encaissements[0].montant, 0);
+    assert.ok(r.erreurs.etape);
+    assert.deepEqual(r.patch, {});
   });
-  test('B6 revenir en arrière désarchive sans effacer les encaissements', () => {
-    const payee = affaire({ etape: 'facture_payee', statut: 'gagnee', archive: true, encaissements: [{ date: new Date(), montant: 100 }] });
-    const r = L.changementEtape(payee, 'facture_envoyee', ctx());
+  test('B6 une affaire qui devient gagnée n’encaisse rien et n’est pas archivée', () => {
+    const r = L.changementEtape(affaire({ etape: 'proposition_envoyee' }), 'gagne', ctx());
     assert.equal(r.patch.archive, false);
     assert.equal('encaissements' in r.patch, false);
+    assert.equal(r.patch.statut, 'gagnee');
+    assert.equal(r.evenements.some((e) => e.type === 'encaissement'), false);
   });
-  test('B6 encaissement manuel : montant positif exigé', () => {
-    const a = affaire({ etape: 'gagne', statut: 'gagnee' });
-    assert.ok(L.ajouterEncaissement(a, { montant: 0 }, ctx()).erreurs.montant);
-    const r = L.ajouterEncaissement(a, { montant: '250', date: '2026-10-21' }, ctx());
-    assert.equal(r.patch.encaissements[0].montant, 250);
+  test('B6 une affaire encore dans une étape retirée (avant migration) reste lisible : statut gagnée, libellé de l’étape', () => {
+    assert.equal(L.statutPourEtape('facture_envoyee'), 'gagnee');
+    assert.equal(L.statutPourEtape('facture_payee'), 'gagnee');
+    assert.equal(L.libelleEtape('facture_payee'), 'Facture payée');
+  });
+  test('B6 l’ajout d’un encaissement sur l’affaire n’existe plus (la facturation se saisit sur les projets)', () => {
+    assert.equal(L.ajouterEncaissement, undefined);
+    assert.equal(L.planEncaisser, undefined);
+    assert.equal(L.payeesDuMois, undefined);
   });
   test('B6 une nouvelle affaire ne supprime rien : les anciennes restent', () => {
     const ancienne = affaire({ id: 'a1', etape: 'facture_payee', archive: true, personneId: 'p' });
@@ -376,17 +370,15 @@ describe('B9 Suggestions douces', () => {
   test("B9 Gagné : Envoyer la facture aujourd'hui", () => {
     assert.deepEqual(L.suggestionPourEtape('gagne', auj), { type: 'tache', titre: 'Envoyer la facture', date: auj });
   });
-  test('B9 Facture envoyée : Vérifier le paiement au délai réglable', () => {
-    assert.equal(L.suggestionPourEtape('facture_envoyee', auj).date, '2026-11-14');
-    assert.equal(L.suggestionPourEtape('facture_envoyee', auj, 45).date, '2026-11-29');
-    assert.equal(L.suggestionPourEtape('facture_envoyee', auj, 0).date, '2026-11-14');
+  test('B9 plus de suggestion « Vérifier le paiement » : la facturation se suit sur les projets (2.2)', () => {
+    assert.equal(L.suggestionPourEtape('facture_envoyee', auj), null);
   });
   test('B9 aucune suggestion pour les autres étapes', () => {
     for (const e of ['premier_contact', 'rdv_fixe', 'facture_payee']) assert.equal(L.suggestionPourEtape(e, auj), null);
   });
-  test('B9 le changement d’étape fournit la suggestion avec le délai du contexte', () => {
-    const r = L.changementEtape(affaire({ etape: 'gagne', statut: 'gagnee' }), 'facture_envoyee', ctx('2026-10-15T08:00:00Z', { delaiPaiementJours: 15 }));
-    assert.equal(r.suggestion.date, '2026-10-30');
+  test('B9 le changement d’étape fournit la suggestion de l’étape (Gagné : envoyer la facture)', () => {
+    const r = L.changementEtape(affaire({ etape: 'proposition_envoyee' }), 'gagne', ctx('2026-10-15T08:00:00Z'));
+    assert.deepEqual(r.suggestion, { type: 'tache', titre: 'Envoyer la facture', date: '2026-10-15' });
   });
 });
 
@@ -553,15 +545,14 @@ describe('B12 Graphique du chiffre d’affaires depuis le début d’activité',
     assert.deepEqual(r.map((x) => x.montant), [0, 400]);
     assert.equal(r[0].libelle, 'oct.');
   });
-  test('B12 colonne Facture payée : seulement le mois courant ; totaux de colonne', () => {
+  test('B12 totaux de colonne et comptage par étape (la colonne « Facture payée » n’existe plus)', () => {
     const affaires = [
-      affaire({ id: '1', etape: 'facture_payee', datesEtapes: { facture_payee: new Date('2026-10-12T10:00:00Z') }, montant: 100 }),
-      affaire({ id: '2', etape: 'facture_payee', datesEtapes: { facture_payee: new Date('2026-09-12T10:00:00Z') }, montant: 50 }),
-      affaire({ id: '3', etape: 'gagne', montant: 70 }),
+      affaire({ id: '1', etape: 'gagne', statut: 'gagnee', montant: 100 }),
+      affaire({ id: '3', etape: 'gagne', statut: 'gagnee', montant: 70 }),
     ];
-    assert.deepEqual(L.payeesDuMois(affaires, '2026-10').map((a) => a.id), ['1']);
-    assert.deepEqual(L.totauxColonne([affaires[0], affaires[2]]), { nombre: 2, montant: 170 });
-    assert.equal(L.compterParEtape(affaires).find((e) => e.id === 'facture_payee').nombre, 2);
+    assert.deepEqual(L.totauxColonne(affaires), { nombre: 2, montant: 170 });
+    assert.equal(L.compterParEtape(affaires).find((e) => e.id === 'gagne').nombre, 2);
+    assert.equal(L.compterParEtape(affaires).some((e) => e.id === 'facture_payee'), false);
   });
 });
 
@@ -779,8 +770,8 @@ describe('B16 Formats et réglages de départ', () => {
     assert.equal(L.SECTEURS_DEPART.length, 7);
     assert.equal(L.SOURCES_DEPART.length, 8);
   });
-  test('B16 six étapes, couleurs de la charte', () => {
-    assert.deepEqual(L.ETAPES.map((e) => e.id), ['premier_contact', 'rdv_fixe', 'proposition_envoyee', 'gagne', 'facture_envoyee', 'facture_payee']);
+  test('B16 quatre étapes de vente, couleurs de la charte', () => {
+    assert.deepEqual(L.ETAPES.map((e) => e.id), ['premier_contact', 'rdv_fixe', 'proposition_envoyee', 'gagne']);
     assert.equal(L.couleurEtape('gagne'), '#ecbc06');
     assert.equal(L.libelleEtape('rdv_fixe'), 'Rendez vous fixé');
   });
@@ -890,7 +881,7 @@ describe('B17 Plans d’écriture : modifications', () => {
     assert.deepEqual(mauvais.ecritures, []);
     assert.ok(mauvais.erreurs.etape);
   });
-  test('B17 perdue, pause, rouvrir, encaissement : une écriture sur l’affaire puis les événements ; erreurs de saisie sans écriture', () => {
+  test('B17 perdue, pause, rouvrir : une écriture sur l’affaire puis les événements ; erreurs de saisie sans écriture', () => {
     const a = affaire({ id: 'a1' });
     assert.equal(L.planMarquerPerdue(a, { raison: 'Prix' }, ctxPlan()).ecritures.length, 2);
     assert.deepEqual(L.planMarquerPerdue(a, { raison: 'Inconnue' }, ctxPlan()).ecritures, []);
@@ -898,10 +889,6 @@ describe('B17 Plans d’écriture : modifications', () => {
     assert.deepEqual(L.planMettreEnPause(a, { dateReveil: '' }, ctxPlan()).ecritures, []);
     assert.deepEqual(L.planRouvrirAffaire(a, ctxPlan()).ecritures, [], 'une affaire ouverte ne se rouvre pas');
     assert.equal(L.planRouvrirAffaire(affaire({ id: 'a1', statut: 'perdue' }), ctxPlan()).ecritures.length, 2);
-    const enc = L.planEncaisser(a, { montant: 300, date: '2026-10-14' }, ctxPlan());
-    assert.equal(enc.ecritures[0].patch.encaissements.at(-1).montant, 300);
-    assert.equal(enc.ecritures[1].donnees.type, 'encaissement');
-    assert.deepEqual(L.planEncaisser(a, { montant: -3 }, ctxPlan()).ecritures, []);
   });
   test('B17 activité faite : patch sans marque + événement ; déjà faite : rien', () => {
     const plan = L.planActiviteFaite(activite({ id: 'x', affaireId: 'a', type: 'appel', titre: 'Appeler' }), ctxPlan());

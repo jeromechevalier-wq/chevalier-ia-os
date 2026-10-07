@@ -46,7 +46,7 @@ export const lire_affaire = {
 export const lister_affaires = {
   nom: 'lister_affaires',
   profils: TOUS,
-  description: "Liste les affaires avec les filtres de l'écran. Par défaut les affaires non archivées ; archive=true pour les archivées. Étapes : premier_contact, rdv_fixe, proposition_envoyee, gagne, facture_envoyee, facture_payee (voir lire_reglages pour les valeurs exactes).",
+  description: "Liste les affaires avec les filtres de l'écran. Par défaut les affaires non archivées ; archive=true pour les archivées. Étapes : premier_contact, rdv_fixe, proposition_envoyee, gagne (voir lire_reglages pour les valeurs exactes).",
   schema: {
     etape: z.string().max(60).optional().describe("Identifiant d'étape."),
     statut: z.string().max(60).optional().describe('Statut (voir lire_reglages, referentiels.statuts).'),

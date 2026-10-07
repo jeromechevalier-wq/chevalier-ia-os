@@ -198,25 +198,27 @@ describe('Création et modification (tests 9 et 11)', () => {
     assert.equal(ok(await s.appeler('biblio', 'changer_etape', { id: 'a1', etape: 'gagne' })).rien, true);
     refuse(await s.appeler('biblio', 'changer_etape', { id: 'a1', etape: 'bidon' }), /Étape inconnue/);
     ok(await s.appeler('biblio', 'modifier_affaire', { id: 'a1', montant: 1000 }));
-    ok(await s.appeler('biblio', 'changer_etape', { id: 'a1', etape: 'facture_payee', montantEncaisse: 900 }));
+    // depuis la 2.2, la vente s'arrête à Gagné : les anciennes étapes de facturation sont refusées, rien n'est écrit
+    refuse(await s.appeler('biblio', 'changer_etape', { id: 'a1', etape: 'facture_payee' }), /Étape inconnue/);
+    refuse(await s.appeler('biblio', 'changer_etape', { id: 'a1', etape: 'facture_envoyee' }), /Étape inconnue/);
     const a1 = s.doc('crm_affaires', 'a1');
-    assert.equal(a1.archive, true);
-    assert.equal(a1.encaissements.at(-1).montant, 900);
+    assert.equal(a1.etape, 'gagne');
+    assert.equal(a1.archive, false);
     assert.equal(a1.modifiePar, 'hermes-bibliothecaire');
-    assert.ok(s.collections.crm_evenements.some((e) => e.affaireId === 'a1' && e.type === 'encaissement'));
+    assert.equal(s.collections.crm_evenements.some((e) => e.affaireId === 'a1' && e.type === 'encaissement'), false);
   });
 
   test('test 11 : parité avec l’écran — le patch écrit par l’outil est exactement celui de la règle pure sur les mêmes données', async () => {
     const s = await demarrer();
     const avant = structuredClone(s.doc('crm_affaires', 'a2'));
-    const regle = L.changementEtape(avant, 'facture_envoyee', { maintenant: MAINTENANT, auteur: 'x' });
-    ok(await s.appeler('code', 'changer_etape', { id: 'a2', etape: 'facture_envoyee' }));
+    const regle = L.changementEtape(avant, 'gagne', { maintenant: MAINTENANT, auteur: 'x' });
+    ok(await s.appeler('code', 'changer_etape', { id: 'a2', etape: 'gagne' }));
     const apres = s.doc('crm_affaires', 'a2');
     for (const [k, v] of Object.entries(regle.patch)) assert.deepEqual(apres[k], v, k);
     assert.equal(apres.titre, avant.titre);
   });
 
-  test('test 11 : perdue, pause, rouvrir, encaissement, avec les mêmes contrôles de saisie que l’écran', async () => {
+  test('test 11 : perdue, pause, rouvrir, avec les mêmes contrôles de saisie que l’écran', async () => {
     const s = await demarrer();
     refuse(await s.appeler('biblio', 'marquer_perdue', { id: 'a1', raison: 'Parce que' }), /raison est obligatoire/);
     ok(await s.appeler('biblio', 'marquer_perdue', { id: 'a1', raison: 'Prix', detail: ' trop cher ' }));
@@ -228,10 +230,9 @@ describe('Création et modification (tests 9 et 11)', () => {
     refuse(await s.appeler('biblio', 'mettre_en_pause', { id: 'a1', dateReveil: '2027-13-45' }));
     ok(await s.appeler('biblio', 'mettre_en_pause', { id: 'a1', dateReveil: '2027-01-15' }));
     assert.deepEqual([s.doc('crm_affaires', 'a1').statut, s.doc('crm_affaires', 'a1').dateReveil], ['en_pause', '2027-01-15']);
-    refuse(await s.appeler('biblio', 'ajouter_encaissement', { id: 'a2', montant: -5 }));
-    ok(await s.appeler('biblio', 'ajouter_encaissement', { id: 'a2', montant: 250, date: '2026-10-03' }));
-    assert.equal(s.doc('crm_affaires', 'a2').encaissements.at(-1).montant, 250);
-    assert.ok(s.collections.crm_evenements.some((e) => e.affaireId === 'a2' && e.type === 'encaissement' && /250/.test(e.texte)));
+    // l'ajout d'un encaissement sur l'affaire n'existe plus (2.2) : l'argent se saisit sur les factures des projets
+    const inconnu = await s.appeler('biblio', 'ajouter_encaissement', { id: 'a2', montant: 250 });
+    assert.ok(inconnu.isError || /inconnu|unknown|not found/i.test(JSON.stringify(inconnu)));
   });
 
   test('notes et activités : liens comme l’écran (une affaire porte sa personne et son organisation), date du jour à Paris, activité terminée une seule fois', async () => {
@@ -378,8 +379,9 @@ describe('Suppression et restauration (tests 6 et 10)', () => {
     const avecProjet = ok(await s.appeler('biblio', 'changer_etape', { id: 'a1', etape: 'gagne' }));
     assert.equal(avecProjet.extraction, null);
     assert.equal(s.collections.projets_projets.length, 1);
-    const sans = ok(await s.appeler('biblio', 'changer_etape', { id: 'a2', etape: 'facture_envoyee' }));
-    assert.equal(sans.extraction, null, 'a2 était déjà gagnée : aucune extraction');
+    const sans = ok(await s.appeler('biblio', 'changer_etape', { id: 'a2', etape: 'gagne' }));
+    assert.equal(sans.rien, true, 'a2 était déjà à Gagné : rien à faire, aucune extraction');
+    assert.equal(s.collections.projets_projets.filter((p) => p.nature === 'extraction').length, 0);
     ok(await s.appeler('code', 'marquer_perdue', { id: 'a2', raison: 'Autre' }));
     assert.equal(s.collections.projets_projets.filter((p) => p.nature === 'extraction').length, 1);
   });

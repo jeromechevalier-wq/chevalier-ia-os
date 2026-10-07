@@ -323,9 +323,6 @@ export async function rouvrir(id) {
   return appliquer(L.planRouvrirAffaire(affaire(id), ctx()), 'rouvrir');
 }
 
-export async function encaisser(id, saisie) {
-  return appliquer(L.planEncaisser(affaire(id), saisie, ctx()), 'encaisser');
-}
 
 export async function archiverAffaire(id, archive = true) {
   await majAffaire(id, { archive });
