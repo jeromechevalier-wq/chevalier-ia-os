@@ -26,6 +26,7 @@ export const MODULES = [
     icone: 'folder-kanban',
     entrees: [
       { chemin: 'projets/projets', libelle: 'Projets', icone: 'folder-kanban' },
+      { chemin: 'projets/archives', libelle: 'Archives', icone: 'archive' },
       { chemin: 'projets/modeles', libelle: 'Modèles', icone: 'copy' },
     ],
     prefixe: 'projets',

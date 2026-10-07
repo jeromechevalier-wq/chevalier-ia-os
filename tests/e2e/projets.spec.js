@@ -11,6 +11,14 @@ async function aller(page, hash) {
   await page.evaluate((h) => { location.hash = h; }, hash);
 }
 
+/** Termine le projet depuis sa fiche : la célébration de clôture apparaît, on la ferme. */
+async function terminerDepuisFiche(page) {
+  await page.locator('.fiche-actions [data-action="terminer"]').click();
+  await expect(page.locator('.celebration-cloture')).toBeVisible();
+  await page.locator('.celebration').click();
+  await expect(page.locator('.celebration')).toHaveCount(0);
+}
+
 async function champDoc(collection, id, cle, attendu) {
   await expect.poll(async () => (await lireDocument(`${collection}/${id}`))?.[cle], { timeout: 10_000 }).toEqual(attendu);
 }
@@ -133,7 +141,7 @@ test('C29 fiche : la barre des phases change la phase ; En pause, Reprendre, Ter
   await page.locator('.fiche-actions [data-action="reprendre"]').click();
   await champDoc('projets_projets', 'pr1', 'statut', 'actif');
   // terminer : Clôture, Terminé, archivé
-  await page.locator('.fiche-actions [data-action="terminer"]').click();
+  await terminerDepuisFiche(page);
   await champDoc('projets_projets', 'pr1', 'statut', 'termine');
   const fini = await lireDocument('projets_projets/pr1');
   expect(fini).toMatchObject({ phase: 'cloture', archive: true });
@@ -1227,7 +1235,7 @@ test('C33 affaire gagnée sans projet : extraction à Gagné ; un projet créé 
   // fin du projet : sa vraie extraction, à son nom
   await aller(page, `#/projets/projets/${projet.id}`);
   await expect(page.locator('[data-prop="extraction"]')).toHaveCount(0);
-  await page.locator('.fiche-actions [data-action="terminer"]').click();
+  await terminerDepuisFiche(page);
   await expect(page.locator('.toast', { hasText: 'son projet d’extraction est créé' })).toBeVisible();
   const e2 = await attendre('projets_projets', (d) => d.nature === 'extraction' && d.projetSourceId === projet.id);
   expect(e2).toMatchObject({ titre: 'Extraction : Audit des Lilas', affaireId: null, archive: false, modeleId: 'extraction', offreId: 'audit' });
@@ -1266,7 +1274,7 @@ test('C33 projet sans affaire terminé : extraction à son nom ; terminer une ex
   await connecter(page);
   await attendreModeles();
   await aller(page, '#/projets/projets/pr1');
-  await page.locator('.fiche-actions [data-action="terminer"]').click();
+  await terminerDepuisFiche(page);
   const e = await attendre('projets_projets', (d) => d.nature === 'extraction');
   expect(e).toMatchObject({
     titre: 'Extraction : Chantier interne', projetSourceId: 'pr1', affaireId: null, phase: 'lancement',
@@ -1276,7 +1284,7 @@ test('C33 projet sans affaire terminé : extraction à son nom ; terminer une ex
   await champDoc('projets_projets', 'pr1', 'statut', 'termine');
   // terminer l'extraction : aucune nouvelle extraction
   await aller(page, `#/projets/projets/${e.id}`);
-  await page.locator('.fiche-actions [data-action="terminer"]').click();
+  await terminerDepuisFiche(page);
   await champDoc('projets_projets', e.id, 'statut', 'termine');
   await expect(page.locator('.toast', { hasText: 'Projet terminé' }).last()).toBeVisible();
   await page.waitForTimeout(500);
@@ -1285,7 +1293,7 @@ test('C33 projet sans affaire terminé : extraction à son nom ; terminer une ex
   await aller(page, '#/projets/projets/pr1');
   await page.locator('.fiche-actions [data-action="rouvrir"]').click();
   await champDoc('projets_projets', 'pr1', 'statut', 'actif');
-  await page.locator('.fiche-actions [data-action="terminer"]').click();
+  await terminerDepuisFiche(page);
   await champDoc('projets_projets', 'pr1', 'statut', 'termine');
   await page.waitForTimeout(500);
   expect(await extractionsDe(() => true)).toHaveLength(1);
@@ -1353,9 +1361,33 @@ test('C34 bouton « Extraire la valeur » : crée l’extraction en cours de pro
   await expect(page.locator('.fiche-actions [data-action="extraire"]')).toHaveCount(0); // une extraction ne s'extrait pas
   // fin du projet : pas de seconde extraction
   await aller(page, '#/projets/projets/pr1');
-  await page.locator('.fiche-actions [data-action="terminer"]').click();
+  await terminerDepuisFiche(page);
   await champDoc('projets_projets', 'pr1', 'statut', 'termine');
   await page.waitForTimeout(600);
   expect((await listerDocuments('projets_projets')).filter((p) => p.nature === 'extraction')).toHaveLength(1);
   await expect(page.locator('.fiche-actions [data-action="extraire"]')).toHaveText('Ouvrir l’extraction'); // visible aussi sur un projet terminé
+});
+
+test('C35 menu « Archives » : les projets terminés ou archivés y sont ; la bascule revient au Kanban ; Kanban et Liste restent mémorisés', async ({ page }) => {
+  await creerProjet('pr1', { titre: 'Projet vivant' });
+  await creerProjet('pr2', { titre: 'Projet rangé', archive: true, statut: 'termine', phase: 'cloture' });
+  await connecter(page);
+  await allerA(page, 'Archives');
+  await expect(page).toHaveURL(/#\/projets\/archives$/);
+  await expect(page.locator('.tableau-projets')).toContainText('Projet rangé');
+  await expect(page.locator('.tableau-projets')).not.toContainText('Projet vivant');
+  await expect(page.locator('.bascule-vue[data-vue="archives"]')).toHaveAttribute('aria-pressed', 'true');
+  // la bascule ramène au tableau de bord des projets vivants
+  await page.locator('.bascule-vue[data-vue="kanban"]').click();
+  await expect(page).toHaveURL(/#\/projets\/projets$/);
+  await expect(page.locator('.carte-projet[data-projet="pr1"]')).toBeVisible();
+  await expect(page.locator('.carte-projet[data-projet="pr2"]')).toHaveCount(0);
+  // la liste est mémorisée, pas les archives : Projets rouvre la liste
+  await page.locator('.bascule-vue[data-vue="liste"]').click();
+  await page.locator('.bascule-vue[data-vue="archives"]').click();
+  await expect(page).toHaveURL(/#\/projets\/archives$/);
+  await allerA(page, 'Projets');
+  await expect(page.locator('.bascule-vue[data-vue="liste"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.tableau-projets')).toContainText('Projet vivant');
+  await expect(page.locator('.tableau-projets')).not.toContainText('Projet rangé');
 });

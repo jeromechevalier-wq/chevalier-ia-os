@@ -1,6 +1,6 @@
 # Roadmap
 
-Tenue à jour à chaque discussion sur l'évolution de l'appli. Dernière mise à jour : 06/10/2026 (projets, facturation et extraction de valeur décidés) ; avant : 03/10/2026, après la validation en réel de l'étape 4 du serveur MCP (`plan-mcp.md`, `mcp-etape-4.md`).
+Tenue à jour à chaque discussion sur l'évolution de l'appli. Dernière mise à jour : 07/10/2026 (écran Projets terminé, version 2.1.0 ; avant : projets, facturation et extraction de valeur décidés le 06/10/2026) ; avant : 03/10/2026, après la validation en réel de l'étape 4 du serveur MCP (`plan-mcp.md`, `mcp-etape-4.md`).
 
 Légende : **décidé** = validé par Jérôme ; **piste** = à trancher avant le cahier des charges.
 
@@ -67,7 +67,8 @@ La fonction écrite dans la branche `mcp` (commit de code `24a8e96`) est **repri
 - **Écran Projets : étape 3 sur 7 (créer ou lier un projet depuis une affaire gagnée) construite le 06/10/2026**, PR en attente du « fusionne » : section Projet sur la fiche affaire (créer, lier, détacher), documents et notes de l'affaire montrés dans le projet, sections Projets sur les fiches personne et organisation. Détail : `projets-etape-3.md`.
 - **Écran Projets : étape 4 sur 7 (tâches des projets) construite le 06/10/2026**, PR en attente du « fusionne » : section Tâches de la fiche projet, avancement (cercle sur les cartes), retard calculé d'après les tâches, tâches en retard et du jour dans l'Accueil. Détail : `projets-etape-4.md`.
 - **Écran Projets : étape 5 sur 7 (modèles de projet) construite le 06/10/2026**, PR en attente du « fusionne » : modèles Audit, Accompagnement et Extraction livrés, écran Modèles, création d'un projet avec les tâches d'un modèle (modèle de l'offre proposé pour une affaire gagnée). Détail : `projets-etape-5.md`.
-- **Écran Projets : étape 6 sur 7 (extraction de valeur) construite le 06/10/2026**, PR en attente du « fusionne » : projet d'extraction créé automatiquement (affaire perdue, projet terminé, affaire gagnée sans projet), écran et serveur MCP avec la même règle. Détail : `projets-etape-6.md`.
+- **Écran Projets : étape 6 sur 7 (extraction de valeur) construite le 06/10/2026**, PR #37 fusionnée le 07/10/2026 : projet d'extraction créé automatiquement (affaire perdue, projet terminé, affaire gagnée sans projet), écran et serveur MCP avec la même règle, plus le bouton « Extraire la valeur » (une seule extraction par projet). Détail : `projets-etape-6.md`.
+- **Écran Projets : étape 7 sur 7 (finitions) construite le 07/10/2026**, PR en attente du « fusionne » : entrée de menu « Archives », célébration de clôture, version **2.1.0**. Détail : `projets-etape-7.md`. Ensuite : 2.2 (facturation), puis outils MCP des projets.
 - Copie quotidienne vers Google Sheet par n8n.
 (voir `rapport-construction-v2.md`)
 

@@ -2,6 +2,7 @@
 // Aucune règle métier ici : les règles sont dans logique.js (plans), exécutés par donnees.js.
 import { h, icone, remplir, dialogue, demanderTexte, toast, ouvrirMenu, lirePreference, ecrirePreference } from '../../os/ui.js';
 import { naviguer } from '../../os/router.js';
+import { celebrerCloture } from '../../os/celebrations.js';
 import * as CRM from '../crm/donnees.js';
 import * as L from '../crm/logique.js';
 import {
@@ -16,7 +17,8 @@ export { cheminProjet };
 
 // État conservé pendant la session.
 let criteres = P.criteresProjetsComplets();
-let vue = lirePreference('vue.projets', 'kanban'); // kanban | liste | archives
+let vue = 'kanban'; // kanban | liste | archives (Kanban et Liste sont mémorisés ; Archives a sa propre entrée de menu et son propre chemin)
+const vueMemorisee = () => { const v = lirePreference('vue.projets', 'kanban'); return v === 'liste' ? 'liste' : 'kanban'; };
 let triListe = { colonne: 'titre', sens: 'asc' };
 let enDeplacement = false;
 
@@ -38,6 +40,7 @@ export function pastillePhase(phase) {
 export async function terminerProjet(p) {
   const plan = await D.terminer(p.id);
   toast(plan.extraction ? 'Projet terminé : son projet d’extraction est créé' : 'Projet terminé', plan.extraction ? { lien: { libelle: 'Ouvrir l’extraction', href: cheminProjet(plan.extraction.id) }, duree: 6000 } : {});
+  if (plan.ecritures?.length) celebrerCloture(P.estExtraction(p) ? 'Extraction terminée !' : 'Projet terminé !', p.titre);
 }
 /** « Extraire la valeur » : crée l'extraction du projet, ou ouvre celle qui existe déjà (une seule par projet). */
 export async function extraireValeur(p) {
@@ -302,7 +305,8 @@ function colonne(phase, projets, rafraichir) {
 
 // ---------------------------------------------------------------- page Projets
 
-export function rendreProjets(conteneur) {
+export function rendreProjets(conteneur, { archives: surArchives = false } = {}) {
+  vue = surArchives ? 'archives' : vueMemorisee();
   const compteur = h('span', { class: 'compteur-liste', 'aria-live': 'polite' });
   const zone = h('div', { class: 'zone-affaires zone-projets' });
   const zoneBascule = h('div', {});
@@ -317,7 +321,13 @@ export function rendreProjets(conteneur) {
     const vues = [['kanban', 'Kanban', 'square-kanban'], ['liste', 'Liste', 'list'], ['archives', 'Archives', 'archive']];
     return h('div', { class: 'bascule-vues', role: 'group', 'aria-label': 'Vue' }, vues.map(([id, libelle, ic]) => h('button', {
       type: 'button', class: `bascule-vue${vue === id ? ' actif' : ''}`, 'aria-pressed': String(vue === id), dataset: { vue: id },
-      onclick: () => { vue = id; ecrirePreference('vue.projets', id); rendre(); },
+      onclick: () => {
+        if (id === 'archives') { naviguer('projets/archives'); return; }
+        ecrirePreference('vue.projets', id);
+        if (vue === 'archives') { naviguer('projets/projets'); return; }
+        vue = id;
+        rendre();
+      },
     }, icone(ic, { taille: 16 }), h('span', {}, libelle))));
   }
 
