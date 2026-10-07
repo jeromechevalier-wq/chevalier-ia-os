@@ -4,6 +4,7 @@ import { test, describe, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import * as L from '../functions/partage/logique.js';
+import * as PL from '../functions/partage/projets.js';
 import { creerGestionnaire } from '../functions/src/mcp/gestionnaire.js';
 import { empreinte, creerMagasin } from '../functions/src/securite/jetons.js';
 import { creerLimiteur, LIMITES_PAR_DEFAUT } from '../functions/src/securite/limites.js';
@@ -531,5 +532,231 @@ describe('Journaux sans contenu (test 14)', () => {
     for (const interdit of ['Marie', 'marie.secrete', 'très privé']) assert.equal(audit.includes(interdit), false, interdit);
     assert.ok(JSON.stringify(s.collections.crm_audit_avant).includes('Marie Confidentielle'));
     assert.ok(s.collections.crm_audit_avant.every((c) => c.expireAt instanceof Date));
+  });
+});
+
+// ---------------------------------------------------------------- projets (2.1) et factures (2.2)
+
+describe('Outils des projets : mêmes règles que l’écran, avec audit et restauration', () => {
+  /** Serveur avec les modèles de départ (Audit, Accompagnement, Extraction) installés. */
+  async function avecModeles() {
+    const s = await demarrer();
+    s.collections.projets_modeles = PL.MODELES_DEPART.map((m, i) => ({ ...structuredClone(m), ordre: i + 1, actif: true }));
+    return s;
+  }
+  const projets = (s) => s.collections.projets_projets || [];
+  const extractions = (s) => projets(s).filter((p) => p.nature === 'extraction');
+
+  test('droits : lecture pour les trois profils, écriture pour le bibliothécaire et Claude Code, suppression pour Claude Code seul', async () => {
+    const s = await demarrer();
+    const noms = async (j) => (await (await s.brut(j, 'tools/list')).json()).result.tools.map((t) => t.name);
+    const ecriture = ['creer_projet', 'creer_projet_depuis_affaire', 'modifier_projet', 'changer_phase_projet', 'mettre_projet_en_pause', 'reprendre_projet', 'rouvrir_projet', 'archiver_projet', 'terminer_projet', 'extraire_valeur_projet', 'ajouter_tache_projet', 'terminer_tache_projet', 'ajouter_facture', 'marquer_facture_payee', 'abandonner_facture'];
+    const lecture = ['lister_projets', 'lire_projet', 'lister_modeles_projet'];
+    const lecteur = await noms('lecteur'); const biblio = await noms('biblio'); const code = await noms('code');
+    for (const o of lecture) assert.ok(lecteur.includes(o) && biblio.includes(o) && code.includes(o), o);
+    for (const o of ecriture) assert.ok(!lecteur.includes(o) && biblio.includes(o) && code.includes(o), o);
+    assert.ok(!lecteur.includes('supprimer_projet') && !biblio.includes('supprimer_projet') && code.includes('supprimer_projet'));
+    refuse(await s.appeler('lecteur', 'creer_projet', { titre: 'X' }));
+    refuse(await s.appeler('biblio', 'supprimer_projet', { id: 'x', confirmationNom: 'x' }));
+    assert.equal(projets(s).length, 0);
+  });
+
+  test('créer un projet : règles de l’écran (titre obligatoire, modèle, dates, offre), tâches du modèle, événement, propriétaire par défaut', async () => {
+    const s = await avecModeles();
+    refuse(await s.appeler('biblio', 'creer_projet', { titre: '   ' }), /titre/i);
+    refuse(await s.appeler('biblio', 'creer_projet', { titre: 'X', modeleId: 'nimporte' }), /Modèle de projet introuvable/);
+    refuse(await s.appeler('biblio', 'creer_projet', { titre: 'X', dateDebut: '2026-10-10', dateFin: '2026-10-01' }), /fin ne peut pas précéder/);
+    refuse(await s.appeler('biblio', 'creer_projet', { titre: 'X', offreId: 'inconnue' }), /Offre inconnue/);
+    refuse(await s.appeler('biblio', 'creer_projet', { titre: 'X', personneId: 'fantome' }), /Personne introuvable/);
+    assert.equal(projets(s).length, 0, 'aucun refus n’écrit');
+    const r = ok(await s.appeler('biblio', 'creer_projet', { titre: ' Audit des Lilas ', personneId: 'p1', modeleId: 'audit', dateDebut: '2026-10-05' }));
+    const p = s.doc('projets_projets', r.id);
+    assert.deepEqual([p.titre, p.phase, p.statut, p.nature, p.organisationId, p.modeleId, p.proprietaire, p.factures], ['Audit des Lilas', 'lancement', 'actif', 'livraison', 'org1', 'audit', 'jerome.chevalier@gmail.com', []]);
+    assert.equal(p.creePar, 'hermes-bibliothecaire');
+    assert.equal(s.collections.projets_taches.filter((t) => t.projetId === r.id).length, 3);
+    assert.ok(s.collections.crm_evenements.some((e) => e.type === 'projet_cree' && e.projetId === r.id && e.personneId === 'p1'));
+    assert.ok(s.lignesJournal.length > 0);
+  });
+
+  test('créer le projet d’une affaire gagnée : lie l’affaire ; refus si l’affaire n’est pas gagnée ou a déjà un projet', async () => {
+    const s = await avecModeles();
+    refuse(await s.appeler('biblio', 'creer_projet_depuis_affaire', { affaireId: 'a1' }), /gagn/i);
+    const r = ok(await s.appeler('biblio', 'creer_projet_depuis_affaire', { affaireId: 'a2', modeleId: 'accompagnement' }));
+    assert.equal(s.doc('crm_affaires', 'a2').projetId, r.id);
+    assert.equal(s.doc('projets_projets', r.id).affaireId, 'a2');
+    assert.equal(s.doc('projets_projets', r.id).titre, 'Application de commande Boulangerie');
+    refuse(await s.appeler('biblio', 'creer_projet_depuis_affaire', { affaireId: 'a2' }), /déjà/i);
+    refuse(await s.appeler('biblio', 'creer_projet_depuis_affaire', { affaireId: 'fantome' }), /Affaire introuvable/);
+  });
+
+  test('phase, pause, reprise, archivage, modification : mêmes règles que l’écran ; « rien à faire » n’écrit rien', async () => {
+    const s = await avecModeles();
+    const { id } = ok(await s.appeler('biblio', 'creer_projet', { titre: 'Site' }));
+    refuse(await s.appeler('biblio', 'changer_phase_projet', { id, phase: 'bidon' }), /Phase inconnue/);
+    ok(await s.appeler('biblio', 'changer_phase_projet', { id, phase: 'livraison' }));
+    assert.equal(s.doc('projets_projets', id).phase, 'livraison');
+    assert.equal(ok(await s.appeler('biblio', 'changer_phase_projet', { id, phase: 'livraison' })).rien, true);
+    ok(await s.appeler('biblio', 'mettre_projet_en_pause', { id }));
+    assert.equal(s.doc('projets_projets', id).statut, 'en_pause');
+    assert.equal(ok(await s.appeler('biblio', 'mettre_projet_en_pause', { id })).rien, true);
+    ok(await s.appeler('biblio', 'reprendre_projet', { id }));
+    assert.equal(s.doc('projets_projets', id).statut, 'actif');
+    ok(await s.appeler('biblio', 'archiver_projet', { id, archive: true }));
+    assert.equal(s.doc('projets_projets', id).archive, true);
+    ok(await s.appeler('biblio', 'archiver_projet', { id, archive: false }));
+    refuse(await s.appeler('biblio', 'modifier_projet', { id }), /Aucun champ/);
+    refuse(await s.appeler('biblio', 'modifier_projet', { id, dateDebut: 'demain' }), /AAAA-MM-JJ/);
+    refuse(await s.appeler('biblio', 'modifier_projet', { id, urlGithub: 'pas-une-url' }));
+    ok(await s.appeler('biblio', 'modifier_projet', { id, titre: 'Site refait', dateFin: '2026-12-01', urlDossier: 'https://drive.google.com/drive/folders/abc' }));
+    assert.deepEqual([s.doc('projets_projets', id).titre, s.doc('projets_projets', id).dateFin, s.doc('projets_projets', id).modifiePar], ['Site refait', '2026-12-01', 'hermes-bibliothecaire']);
+    refuse(await s.appeler('biblio', 'lire_projet', { id: 'fantome' }), /introuvable/);
+  });
+
+  test('terminer un projet : phase Clôture, statut Terminé, archivé, UNE extraction ; terminer deux fois ou une extraction ne crée rien de plus', async () => {
+    const s = await avecModeles();
+    const { id } = ok(await s.appeler('code', 'creer_projet', { titre: 'Site vitrine', urlDossier: 'https://drive.google.com/drive/folders/xyz' }));
+    const fin = ok(await s.appeler('code', 'terminer_projet', { id }));
+    assert.deepEqual([s.doc('projets_projets', id).statut, s.doc('projets_projets', id).phase, s.doc('projets_projets', id).archive], ['termine', 'cloture', true]);
+    assert.equal(extractions(s).length, 1);
+    assert.equal(fin.extraction.titre, 'Extraction : Site vitrine');
+    const ext = s.doc('projets_projets', fin.extraction.id);
+    assert.deepEqual([ext.projetSourceId, ext.urlDossier, s.collections.projets_taches.filter((t) => t.projetId === ext.id).length], [id, 'https://drive.google.com/drive/folders/xyz', 4]);
+    assert.equal(ok(await s.appeler('code', 'terminer_projet', { id })).rien, true);
+    ok(await s.appeler('code', 'terminer_projet', { id: ext.id }));
+    assert.equal(extractions(s).length, 1, 'terminer une extraction ne crée rien : jamais de boucle');
+    ok(await s.appeler('code', 'rouvrir_projet', { id }));
+    ok(await s.appeler('code', 'terminer_projet', { id }));
+    assert.equal(extractions(s).length, 1, 'rouvrir puis terminer : toujours une seule extraction');
+  });
+
+  test('extraire_valeur_projet : en cours de projet ; une seule par projet ; un projet d’extraction ne s’extrait pas', async () => {
+    const s = await avecModeles();
+    const { id } = ok(await s.appeler('biblio', 'creer_projet', { titre: 'Site vitrine' }));
+    const r = ok(await s.appeler('biblio', 'extraire_valeur_projet', { id }));
+    assert.equal(r.extraction.titre, 'Extraction : Site vitrine');
+    assert.equal(s.doc('projets_projets', id).statut, 'actif', 'le projet continue');
+    const encore = ok(await s.appeler('biblio', 'extraire_valeur_projet', { id }));
+    assert.deepEqual([encore.rien, encore.extraction.id], [true, r.extraction.id]);
+    assert.equal(extractions(s).length, 1);
+    refuse(await s.appeler('biblio', 'extraire_valeur_projet', { id: r.extraction.id }), /ne s’extrait pas/);
+    ok(await s.appeler('biblio', 'terminer_projet', { id }));
+    assert.equal(extractions(s).length, 1, 'la fin du projet ne recrée pas l’extraction déjà faite');
+  });
+
+  test('tâches : ajouter (phase du projet par défaut), valider, terminer avec son événement, remettre à faire', async () => {
+    const s = await avecModeles();
+    const { id } = ok(await s.appeler('biblio', 'creer_projet', { titre: 'Site', modeleId: 'accompagnement' }));
+    refuse(await s.appeler('biblio', 'ajouter_tache_projet', { projetId: id, titre: ' ' }), /titre/i);
+    refuse(await s.appeler('biblio', 'ajouter_tache_projet', { projetId: id, titre: 'X', phase: 'bidon' }), /Phase inconnue/);
+    refuse(await s.appeler('biblio', 'ajouter_tache_projet', { projetId: id, titre: 'X', assigneA: 'fantome' }), /inconnue/);
+    refuse(await s.appeler('biblio', 'ajouter_tache_projet', { projetId: 'fantome', titre: 'X' }), /Projet introuvable/);
+    const t = ok(await s.appeler('biblio', 'ajouter_tache_projet', { projetId: id, titre: 'Envoyer le devis', date: '2026-10-09', assigneA: 'charles' }));
+    const tache = s.doc('projets_taches', t.id);
+    assert.deepEqual([tache.phase, tache.fait, tache.date, tache.assigneA, tache.projetId], ['lancement', false, '2026-10-09', 'charles', id]);
+    ok(await s.appeler('biblio', 'terminer_tache_projet', { id: t.id }));
+    assert.equal(s.doc('projets_taches', t.id).fait, true);
+    assert.ok(s.collections.crm_evenements.some((e) => e.type === 'tache_faite' && e.projetId === id));
+    assert.equal(ok(await s.appeler('biblio', 'terminer_tache_projet', { id: t.id })).rien, true);
+    ok(await s.appeler('biblio', 'terminer_tache_projet', { id: t.id, fait: false }));
+    assert.equal(s.doc('projets_taches', t.id).fait, false);
+  });
+
+  test('factures : 30 % + 30 % + 40 %, la Clôture est refusée tant qu’une facture est à payer (message avec les factures), deux sorties', async () => {
+    const s = await avecModeles();
+    const { id } = ok(await s.appeler('biblio', 'creer_projet', { titre: 'Audit' }));
+    refuse(await s.appeler('biblio', 'ajouter_facture', { projetId: id, montant: 0 }));
+    refuse(await s.appeler('biblio', 'ajouter_facture', { projetId: id, montant: 100, dateEnvoi: '10/10/2026' }));
+    const f1 = ok(await s.appeler('biblio', 'ajouter_facture', { projetId: id, montant: 300, libelle: 'Acompte 30 %', dateEnvoi: '2026-10-01' }));
+    const f2 = ok(await s.appeler('biblio', 'ajouter_facture', { projetId: id, montant: 300, libelle: 'En cours 30 %' }));
+    ok(await s.appeler('biblio', 'ajouter_facture', { projetId: id, montant: 400, libelle: 'Solde 40 %' }));
+    assert.deepEqual(s.doc('projets_projets', id).factures.map((f) => [f.libelle, f.montant, f.statut]), [['Acompte 30 %', 300, 'a_payer'], ['En cours 30 %', 300, 'a_payer'], ['Solde 40 %', 400, 'a_payer']]);
+    ok(await s.appeler('biblio', 'marquer_facture_payee', { projetId: id, factureId: f1.factureId, datePaiement: '2026-10-04' }));
+    ok(await s.appeler('biblio', 'marquer_facture_payee', { projetId: id, factureId: f2.factureId, montant: 250 }));
+    assert.deepEqual(s.doc('projets_projets', id).factures.map((f) => [f.statut, f.montant]), [['payee', 300], ['payee', 250], ['a_payer', 400]]);
+    assert.equal(ok(await s.appeler('biblio', 'marquer_facture_payee', { projetId: id, factureId: f1.factureId })).rien, true);
+    assert.equal(s.collections.crm_evenements.filter((e) => e.type === 'encaissement' && e.projetId === id).length, 2);
+    // clôture refusée : message de l'écran + factures nommées
+    const refus = await s.appeler('biblio', 'terminer_projet', { id });
+    refuse(refus, /Clôture bloquée.*Solde 40 %/);
+    assert.match(refus.texte, /impaye/);
+    refuse(await s.appeler('biblio', 'changer_phase_projet', { id, phase: 'cloture' }), /Clôture bloquée/);
+    assert.equal(s.doc('projets_projets', id).statut, 'actif');
+    assert.equal(extractions(s).length, 0, 'aucune extraction tant que le projet n’est pas terminé');
+    // la raison de l'impayé est obligatoire
+    refuse(await s.appeler('biblio', 'terminer_projet', { id, impaye: { raison: '   ' } }), /pourquoi/);
+    const fin = ok(await s.appeler('biblio', 'terminer_projet', { id, impaye: { raison: 'Client injoignable' } }));
+    const p = s.doc('projets_projets', id);
+    assert.deepEqual([p.statut, p.factures.map((f) => f.statut), p.factures[2].raison], ['termine', ['payee', 'payee', 'abandonnee'], 'Client injoignable']);
+    assert.equal(fin.abandonnees.length, 1);
+    assert.equal(extractions(s).length, 1);
+    assert.ok(s.collections.crm_evenements.some((e) => e.type === 'facture_abandonnee' && e.projetId === id));
+  });
+
+  test('abandonner une facture à la main : raison obligatoire ; une facture payée ne s’abandonne pas ; elle ne bloque plus la clôture', async () => {
+    const s = await avecModeles();
+    const { id } = ok(await s.appeler('biblio', 'creer_projet', { titre: 'Audit' }));
+    const f = ok(await s.appeler('biblio', 'ajouter_facture', { projetId: id, montant: 500 }));
+    const payee = ok(await s.appeler('biblio', 'ajouter_facture', { projetId: id, montant: 100, datePaiement: '2026-10-02' }));
+    refuse(await s.appeler('biblio', 'abandonner_facture', { projetId: id, factureId: f.factureId, raison: ' ' }), /pourquoi/);
+    refuse(await s.appeler('biblio', 'abandonner_facture', { projetId: id, factureId: payee.factureId, raison: 'x' }), /payée/);
+    refuse(await s.appeler('biblio', 'abandonner_facture', { projetId: id, factureId: 'fantome', raison: 'x' }), /introuvable/);
+    ok(await s.appeler('biblio', 'abandonner_facture', { projetId: id, factureId: f.factureId, raison: 'Geste commercial' }));
+    ok(await s.appeler('biblio', 'terminer_projet', { id }));
+    assert.equal(s.doc('projets_projets', id).statut, 'termine');
+  });
+
+  test('lecture : lister_projets (filtres, avancement, facturation), lire_projet (tâches, factures, extraction, fil), lister_modeles_projet', async () => {
+    const s = await avecModeles();
+    const a = ok(await s.appeler('biblio', 'creer_projet', { titre: 'Audit des Lilas', personneId: 'p1', modeleId: 'audit' }));
+    const b = ok(await s.appeler('biblio', 'creer_projet', { titre: 'Autre projet' }));
+    ok(await s.appeler('biblio', 'changer_phase_projet', { id: b.id, phase: 'livraison' }));
+    ok(await s.appeler('biblio', 'ajouter_facture', { projetId: a.id, montant: 1000 }));
+    const liste = ok(await s.appeler('lecteur', 'lister_projets', {}));
+    assert.deepEqual(liste.projets.map((p) => p.titre), ['Audit des Lilas', 'Autre projet']);
+    const lilas = liste.projets[0];
+    assert.deepEqual([lilas.personne, lilas.organisation, lilas.avancement.total, lilas.avancement.faites], ['Camille Durand', 'Atelier des Lilas', 3, 0]);
+    assert.deepEqual([lilas.facturation.facture, lilas.facturation.paye, lilas.facturation.aPayer, lilas.facturation.impaye], [1000, 0, 1, false]);
+    assert.deepEqual(ok(await s.appeler('lecteur', 'lister_projets', { recherche: 'lilas' })).projets.map((p) => p.id), [a.id]);
+    assert.deepEqual(ok(await s.appeler('lecteur', 'lister_projets', { phase: 'livraison' })).projets.map((p) => p.id), [b.id]);
+    assert.equal(ok(await s.appeler('lecteur', 'lister_projets', { archive: true })).total, 0);
+    ok(await s.appeler('biblio', 'extraire_valeur_projet', { id: b.id }));
+    assert.equal(ok(await s.appeler('lecteur', 'lister_projets', { nature: 'extraction' })).total, 1);
+    const fiche = ok(await s.appeler('lecteur', 'lire_projet', { id: a.id, avecFil: true }));
+    assert.equal(fiche.projet.titre, 'Audit des Lilas');
+    assert.equal(fiche.taches.length, 3);
+    assert.equal(fiche.projet.factures.length, 1);
+    assert.deepEqual([fiche.personne.nom, fiche.extraction, fiche.fil.some((e) => e.type === 'projet_cree')], ['Camille Durand', null, true]);
+    assert.equal(ok(await s.appeler('lecteur', 'lire_projet', { id: b.id })).extraction.titre, 'Extraction : Autre projet');
+    assert.equal(ok(await s.appeler('lecteur', 'lister_modeles_projet', {})).total, 3);
+    assert.ok(ok(await s.appeler('lecteur', 'lire_reglages', {})).referentiels.projets.phases.some((p) => p.id === 'cloture'));
+  });
+
+  test('supprimer_projet (Claude Code) : confirmation par le titre, tâches et fil supprimés, extraction et affaire gardées ; restaurer_depuis_audit redonne tout', async () => {
+    const s = await avecModeles();
+    const r = ok(await s.appeler('code', 'creer_projet_depuis_affaire', { affaireId: 'a2', modeleId: 'audit' }));
+    const ext = ok(await s.appeler('code', 'extraire_valeur_projet', { id: r.id }));
+    const avant = structuredClone(s.vue());
+    refuse(await s.appeler('code', 'supprimer_projet', { id: r.id }));
+    refuse(await s.appeler('code', 'supprimer_projet', { id: r.id, confirmationNom: 'Mauvais titre' }), /non confirmée/);
+    assert.deepEqual(s.vue(), avant, 'rien n’est supprimé sans confirmation');
+    const sup = ok(await s.appeler('code', 'supprimer_projet', { id: r.id, confirmationNom: 'application de commande boulangerie' }));
+    assert.equal(s.doc('projets_projets', r.id), undefined);
+    assert.equal(s.collections.projets_taches.filter((t) => t.projetId === r.id).length, 0);
+    assert.equal(s.doc('crm_affaires', 'a2').projetId, null, 'l’affaire est gardée, son lien vidé');
+    assert.equal(s.doc('projets_projets', ext.extraction.id).projetSourceId, null, 'l’extraction est gardée, sa source vidée');
+    assert.equal(s.collections.crm_evenements.filter((e) => e.projetId === r.id).length, 0);
+    ok(await s.appeler('code', 'restaurer_depuis_audit', { operationId: sup.operationId, apercu: false }));
+    assert.deepEqual(s.vue(), avant, 'la restauration redonne exactement les mêmes documents');
+  });
+
+  test('une opération d’écriture de projet est journalisée (audit) et restaurable : annuler une création de projet le supprime avec ses tâches', async () => {
+    const s = await avecModeles();
+    const r = ok(await s.appeler('biblio', 'creer_projet', { titre: 'Test', modeleId: 'audit' }));
+    assert.equal(s.collections.projets_taches.length, 3);
+    assert.ok((await s.donnees.liste('crm_audit', { champ: 'operationId', valeur: r.operationId })).length >= 5);
+    ok(await s.appeler('code', 'restaurer_depuis_audit', { operationId: r.operationId, apercu: false }));
+    assert.equal(projets(s).length, 0);
+    assert.equal(s.collections.projets_taches.length, 0);
+    assert.equal(s.collections.crm_evenements.filter((e) => e.type === 'projet_cree').length, 0);
   });
 });

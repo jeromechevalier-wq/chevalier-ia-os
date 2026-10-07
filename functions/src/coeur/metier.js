@@ -188,9 +188,9 @@ export async function modifierAffaire(c, args) {
 }
 
 /** Applique un plan de règle d'affaire ; une erreur de règle (saisie) est rendue telle quelle, sans écriture. */
-async function appliquerRegle(c, plan, args, extra = () => ({})) {
+async function appliquerRegle(c, plan, args, extra = () => ({}), genre = 'l’affaire') {
   if (plan.erreurs && Object.keys(plan.erreurs).length) refuser('saisie_invalide', Object.values(plan.erreurs).join(' '), { erreurs: plan.erreurs });
-  if (!plan.ecritures.length) return { operationId: null, rien: true, message: 'Rien à changer : l’affaire est déjà dans cet état.' };
+  if (!plan.ecritures.length) return { operationId: null, rien: true, message: `Rien à changer : ${genre} est déjà dans cet état.` };
   return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), extra(plan));
 }
 
@@ -236,6 +236,151 @@ export async function retirerDocument(c, args) {
   if (args.url !== undefined && documents[index].url !== args.url) refuser('saisie_invalide', 'L’url ne correspond pas au document à cet index (la liste a peut-être changé : relire lister_documents).');
   const plan = L.planMajAffaire(a.id, L.supprimerDocument(a, index));
   return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { affaireId: a.id, documents: documents.length - 1 });
+}
+
+// ---------------------------------------------------------------- projets (2.1) et factures (2.2)
+// Mêmes plans que l'écran (partage/projets.js) : phases, statut, Clôture bloquée par les factures à payer, extraction de valeur créée avec la fin du projet.
+
+const verifierPhase = (phase) => { if (!PL.PHASES.some((p) => p.id === phase)) refuser('saisie_invalide', `Phase inconnue : ${phase} (valeurs : ${PL.PHASES.map((p) => p.id).join(', ')}).`); };
+
+/** Projet et, quand une règle en a besoin, tous les projets et modèles (extraction, une seule par projet). */
+async function lireProjet(c, id) { return lire(c, C.projets, id, 'Projet'); }
+const refusFactures = (plan) => {
+  // La Clôture bloquée porte le même message que l'écran, et nomme les factures : l'appelant peut les payer ou clôturer avec impayé.
+  if (plan.erreurs?.factures) refuser('integrite', `${plan.erreurs.factures} Deux sorties : marquer la facture payée (marquer_facture_payee), ou terminer avec impaye: { raison } (les factures restantes passent à « abandonnee »).`, { erreurs: plan.erreurs, facturesBloquantes: (plan.facturesBloquantes || []).map((f) => ({ id: f.id, libelle: f.libelle, montant: f.montant })) });
+};
+
+async function modeleDemande(c, modeleId) {
+  if (!modeleId) return null;
+  return (await c.donnees.liste(C.projetsModeles)).find((m) => m.id === modeleId) || refuser('introuvable', `Modèle de projet introuvable : ${modeleId} (voir lister_modeles_projet).`);
+}
+
+export async function creerProjet(c, args) {
+  const { modeleId, proprietaire, ...valeurs } = args;
+  verifierMessages(PL.validerProjet(valeurs));
+  if (valeurs.urlGithub !== undefined) verifierMessages(L.validerUrlGithub(valeurs.urlGithub));
+  if (valeurs.urlDossier !== undefined) verifierMessages(L.validerUrlDossier(valeurs.urlDossier));
+  await verifierOffre(c, valeurs.offreId);
+  const personne = await lireSiDonne(c, C.personnes, valeurs.personneId, 'Personne');
+  await lireSiDonne(c, C.organisations, valeurs.organisationId || personne?.organisationId, 'Organisation');
+  const modele = await modeleDemande(c, modeleId);
+  const plan = PL.planCreerProjet({ ...valeurs, organisationId: valeurs.organisationId || personne?.organisationId || null }, await contexte(c, proprietaire), { modele });
+  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: plan.id, titre: plan.titre, modeleId: modele?.id ?? null });
+}
+
+/** Crée le projet d'une affaire GAGNÉE (reprend l'affaire, la lie, et range l'extraction faite à Gagné si rien n'y a été fait), comme « Créer le projet » de l'écran. */
+export async function creerProjetDepuisAffaire(c, args) {
+  const { affaireId, modeleId, ...valeurs } = args;
+  const a = await lire(c, C.affaires, affaireId, 'Affaire');
+  verifierMessages(PL.validerProjet({ titre: valeurs.titre || a.titre, dateDebut: valeurs.dateDebut, dateFin: valeurs.dateFin }));
+  const [projets, taches, modele] = await Promise.all([c.donnees.liste(C.projets), c.donnees.liste(C.projetsTaches), modeleDemande(c, modeleId)]);
+  const plan = PL.planCreerProjetDepuisAffaire({ affaire: a, projets, taches, valeurs, modele }, await contexte(c));
+  verifierMessages(plan.erreurs);
+  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: plan.id, titre: plan.titre, affaireId, modeleId: modele?.id ?? null });
+}
+
+export async function modifierProjet(c, args) {
+  const { id, ...champs } = args;
+  const p = await lireProjet(c, id);
+  const patch = {};
+  if (champs.titre !== undefined) { verifierMessages(PL.validerProjet({ titre: champs.titre })); patch.titre = texte(champs.titre); }
+  if (champs.personneId !== undefined) { await lireSiDonne(c, C.personnes, champs.personneId, 'Personne'); patch.personneId = champs.personneId || null; }
+  if (champs.organisationId !== undefined) { await lireSiDonne(c, C.organisations, champs.organisationId, 'Organisation'); patch.organisationId = champs.organisationId || null; }
+  if (champs.offreId !== undefined) { await verifierOffre(c, champs.offreId); patch.offreId = champs.offreId || null; }
+  for (const cle of ['dateDebut', 'dateFin']) {
+    if (champs[cle] === undefined) continue;
+    if (champs[cle] !== null && !jourValide(champs[cle])) refuser('saisie_invalide', `${cle} : attendu AAAA-MM-JJ.`);
+    patch[cle] = champs[cle];
+  }
+  const debut = patch.dateDebut !== undefined ? patch.dateDebut : p.dateDebut;
+  const fin = patch.dateFin !== undefined ? patch.dateFin : p.dateFin;
+  verifierMessages(PL.validerProjet({ titre: patch.titre ?? p.titre, dateDebut: debut, dateFin: fin }));
+  if (champs.urlGithub !== undefined) { const r = L.majUrlGithub(champs.urlGithub); verifierMessages(r.erreurs); Object.assign(patch, r.patch); }
+  if (champs.urlDossier !== undefined) { const r = L.majUrlDossier(champs.urlDossier); verifierMessages(r.erreurs); Object.assign(patch, r.patch); }
+  if (!Object.keys(patch).length) refuser('saisie_invalide', 'Aucun champ à modifier (la phase et le statut passent par changer_phase_projet, mettre_projet_en_pause, reprendre_projet, terminer_projet, rouvrir_projet, archiver_projet).');
+  const plan = PL.planMajProjet(id, patch);
+  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id, champsModifies: Object.keys(patch) });
+}
+
+export async function changerPhaseProjet(c, args) {
+  verifierPhase(args.phase);
+  const p = await lireProjet(c, args.id);
+  const plan = PL.planChangerPhase(p, args.phase, await contexte(c));
+  refusFactures(plan);
+  return appliquerRegle(c, plan, args, () => ({ id: p.id, phase: args.phase }), 'le projet');
+}
+export async function mettreProjetEnPause(c, args) {
+  const p = await lireProjet(c, args.id);
+  return appliquerRegle(c, PL.planMettreProjetEnPause(p, await contexte(c)), args, () => ({ id: p.id, statut: 'en_pause' }), 'le projet');
+}
+export async function reprendreProjet(c, args) {
+  const p = await lireProjet(c, args.id);
+  return appliquerRegle(c, PL.planReprendreProjet(p, await contexte(c)), args, () => ({ id: p.id, statut: 'actif' }), 'le projet');
+}
+export async function rouvrirProjet(c, args) {
+  const p = await lireProjet(c, args.id);
+  return appliquerRegle(c, PL.planRouvrirProjet(p, await contexte(c)), args, () => ({ id: p.id, statut: 'actif' }), 'le projet');
+}
+export async function archiverProjet(c, args) {
+  const p = await lireProjet(c, args.id);
+  return appliquerRegle(c, PL.planArchiverProjet(p, args.archive, await contexte(c)), args, () => ({ id: p.id, archive: args.archive }), 'le projet');
+}
+
+/** Fin d'un projet : crée son extraction de valeur (sauf pour une extraction, et une seule par projet) ; refusée tant qu'une facture est à payer, sauf `impaye`. */
+export async function terminerProjet(c, args) {
+  const p = await lireProjet(c, args.id);
+  const plan = PL.planTerminerProjetAvecExtraction({ projet: p, ...await contexteExtraction(c), impaye: args.impaye ? { raison: args.impaye.raison } : null }, await contexte(c));
+  refusFactures(plan);
+  return appliquerRegle(c, plan, args, (r) => ({ id: p.id, statut: 'termine', extraction: r.extraction ?? null, abandonnees: args.impaye ? PL.facturesAPayer(p).map((f) => f.id) : [] }), 'le projet');
+}
+
+/** Extraction déclenchée à la main (sans attendre la fin du projet) : une seule par projet, la même est rendue si elle existe. */
+export async function extraireProjet(c, args) {
+  const p = await lireProjet(c, args.id);
+  const plan = PL.planExtraireProjet({ projet: p, ...await contexteExtraction(c) }, await contexte(c));
+  verifierMessages(plan.erreurs);
+  if (plan.dejaExistante) return { operationId: null, rien: true, extraction: plan.extraction, message: 'Ce projet a déjà son extraction : rien n’est créé.' };
+  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: p.id, extraction: plan.extraction });
+}
+
+export async function ajouterTacheProjet(c, args) {
+  const { projetId, ...valeurs } = args;
+  if (valeurs.phase !== undefined) verifierPhase(valeurs.phase);
+  const projet = await lireProjet(c, projetId);
+  const taches = await c.donnees.liste(C.projetsTaches, { champ: 'projetId', valeur: projetId });
+  const plan = PL.planCreerTache({ projet: { ...projet, id: projetId }, taches, valeurs }, await contexte(c));
+  verifierMessages(plan.erreurs);
+  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: plan.id, projetId });
+}
+
+export async function terminerTacheProjet(c, args) {
+  const tache = await lire(c, C.projetsTaches, args.id, 'Tâche de projet');
+  const projet = await c.donnees.document(C.projets, tache.projetId);
+  const faite = args.fait !== false;
+  const plan = faite ? PL.planTacheFaite({ tache, projet }, await contexte(c)) : PL.planTacheNonFaite({ tache });
+  if (!plan.ecritures.length) return { operationId: null, rien: true, message: faite ? 'Rien à changer : la tâche est déjà faite.' : 'Rien à changer : la tâche n’est pas faite.' };
+  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: tache.id, fait: faite });
+}
+
+export async function ajouterFacture(c, args) {
+  const { projetId, ...valeurs } = args;
+  if (valeurs.dateEnvoi && !jourValide(valeurs.dateEnvoi)) refuser('saisie_invalide', 'dateEnvoi : attendu AAAA-MM-JJ.');
+  const p = await lireProjet(c, projetId);
+  const plan = PL.planAjouterFacture(p, valeurs, await contexte(c));
+  verifierMessages(plan.erreurs);
+  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { projetId, factureId: plan.facture.id, statut: plan.facture.statut });
+}
+
+export async function marquerFacturePayee(c, args) {
+  const p = await lireProjet(c, args.projetId);
+  const plan = PL.planMarquerFacturePayee(p, args.factureId, { datePaiement: args.datePaiement, montant: args.montant ?? null }, await contexte(c));
+  return appliquerRegle(c, plan, args, () => ({ projetId: p.id, factureId: args.factureId, statut: 'payee' }), 'la facture');
+}
+
+export async function abandonnerFacture(c, args) {
+  const p = await lireProjet(c, args.projetId);
+  const plan = PL.planAbandonnerFacture(p, args.factureId, args.raison, await contexte(c));
+  return appliquerRegle(c, plan, args, () => ({ projetId: p.id, factureId: args.factureId, statut: 'abandonnee' }), 'la facture');
 }
 
 // ---------------------------------------------------------------- notes et activités
@@ -345,6 +490,19 @@ export async function supprimerAffaire(c, args) {
   const a = await lire(c, C.affaires, args.id, 'Affaire');
   confirmer(args.confirmationNom, a.titre, 'le titre de l’affaire');
   const plan = L.planSupprimerAffaire({ affaireId: args.id, liens: await liensDe(c, 'affaireId', args.id), projets: await projetsLies(c, 'affaireId', args.id) });
+  return resumeSuppression(await c.ecrire({ operations: plan.ecritures, parametres: { id: args.id }, suppression: true }), plan);
+}
+
+export async function supprimerProjet(c, args) {
+  const p = await lireProjet(c, args.id);
+  confirmer(args.confirmationNom, p.titre, 'le titre du projet');
+  const [liens, taches, extractions, affaire] = await Promise.all([
+    liensDe(c, 'projetId', args.id),
+    c.donnees.liste(C.projetsTaches, { champ: 'projetId', valeur: args.id }),
+    c.donnees.liste(C.projets, { champ: 'projetSourceId', valeur: args.id }),
+    p.affaireId ? c.donnees.document(C.affaires, p.affaireId) : null,
+  ]);
+  const plan = PL.planSupprimerProjet({ projet: p, liens, taches: taches.map((t) => ({ id: t.id, projetId: args.id })), affaire, extractions: extractions.map((e) => ({ id: e.id, projetSourceId: args.id })) });
   return resumeSuppression(await c.ecrire({ operations: plan.ecritures, parametres: { id: args.id }, suppression: true }), plan);
 }
 

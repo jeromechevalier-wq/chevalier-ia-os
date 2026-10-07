@@ -18,6 +18,9 @@ export const OUTILS_SUPPRESSION = [
   outil('supprimer_affaire', "Supprime définitivement une affaire, ses activités, notes et événements. Récupérable 90 jours.", {
     id, confirmationNom: confirmation('Le titre exact de l’affaire'),
   }, metier.supprimerAffaire),
+  outil('supprimer_projet', "Supprime définitivement un projet, ses tâches et son fil (événements, notes). Gardés, avec un lien vidé : l'affaire d'origine et les projets d'extraction qui le citent. L'archivage (archiver_projet) est la voie normale. Récupérable 90 jours.", {
+    id, confirmationNom: confirmation('Le titre exact du projet'),
+  }, metier.supprimerProjet),
   outil('supprimer_note', 'Supprime une note. Récupérable 90 jours.', { id }, metier.supprimerNote),
   outil('supprimer_activite', 'Supprime une activité. Récupérable 90 jours.', { id }, metier.supprimerActivite),
   outil('restaurer_depuis_audit', "Défait une opération d'écriture d'après le journal (operationId, donné par l'outil d'écriture ou par lire_audit) : création annulée = suppression, modification annulée = état d'avant, suppression annulée = recréation avec le même identifiant. Par défaut APERÇU seulement (apercu: true) : relire, puis rappeler avec apercu: false. Refuse un document qui a changé depuis (forcer: true l'écrase). Copies gardées 90 jours.", {
