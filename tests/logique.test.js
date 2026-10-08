@@ -283,6 +283,16 @@ describe('B6 Étapes retirées en 2.2 et historique des encaissements', () => {
     assert.equal(f[1].index, 0);
     assert.deepEqual(L.documentsFavoris([], []), []);
   });
+  test('Journal : les changements de documents sont écrits en phrases (favori ajouté ou retiré, document joint ou retiré)', () => {
+    const devis = { libelle: 'Devis', url: 'https://a' };
+    const suivi = { libelle: 'Suivi', url: 'https://b' };
+    assert.deepEqual(L.changementsDocumentsJournal([devis, suivi], [devis, { ...suivi, favori: true }]), ['Favori ajouté : Suivi']);
+    assert.deepEqual(L.changementsDocumentsJournal([devis, { ...suivi, favori: true }], [devis, suivi]), ['Favori retiré : Suivi']);
+    assert.deepEqual(L.changementsDocumentsJournal([devis], [devis, suivi]), ['Document joint : Suivi']);
+    assert.deepEqual(L.changementsDocumentsJournal([devis, suivi], [devis]), ['Document retiré : Suivi']);
+    assert.deepEqual(L.changementsDocumentsJournal(undefined, [{ ...suivi, favori: true }]), ['Document joint (en favori) : Suivi']);
+    assert.deepEqual(L.changementsDocumentsJournal([devis], [devis]), []);
+  });
 });
 
 describe('B7 Retard, sans action, pastille', () => {

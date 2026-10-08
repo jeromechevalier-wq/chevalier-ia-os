@@ -406,3 +406,4 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 :root[data-theme='clair'] .bouton-etoile.est-favori { color: #b8860b; }
 .liste-favoris .ligne-simple > a { font-weight: 500; }
 .liste-favoris .favori-retire > a, .liste-favoris .favori-retire > .activite-meta { opacity: .55; }
+.journal-documents { font-weight: 600; }
