@@ -9,10 +9,8 @@ Ces réponses viennent de Jérôme. Elles ne rouvrent rien : elles confirment la
 | Migration 2.2 | **Déjà appliquée** sur les vraies données. | A-02, A-03, A-04 : voir ci-dessous |
 | Supprimer une facture payée ou un projet qui en contient | **Avertir dans la confirmation** : dire quel montant et quel mois du chiffre d'affaires sont touchés. | A-09, E-07 |
 
-## Conséquence : la migration est déjà appliquée
-Les défauts A-02 (facture « à payer » posée sur un projet déjà terminé), A-03 (acompte déjà encaissé compté deux fois) et A-04 (affaire perdue ou en pause rendue « gagnée ») ont donc pu toucher de vraies données. L'audit n'a pas le droit de lire les vraies données. À faire à la prochaine session, avec l'accord de Jérôme :
-1. Écrire une consigne simple pour que Jérôme regarde dans l'appli (Réglages, puis l'écran Affaires et Projets) : affaires gagnées dont le titre ou l'historique indique « perdue » ou « en pause » ; projets terminés qui affichent une pastille « Impayé » ; chiffre d'affaires d'un mois qui paraît trop haut.
-2. Ou : lire la base réelle uniquement si Jérôme le demande explicitement et fournit l'accès, en lecture seule.
+## Migration 2.2 : vérifiée par Jérôme (8 octobre 2026, 18h50)
+Jérôme a appliqué la migration : « elle s'est bien passée ; j'avais juste deux ou trois affaires et zéro chiffre d'affaires ». Les défauts A-02, A-03 et A-04 existent toujours dans le code, mais n'ont rien faussé dans ses vraies données (pas de chiffre d'affaires à compter deux fois, très peu d'affaires). Leur impact réel est donc faible aujourd'hui ; ils comptent seulement si la migration est relancée un jour sur d'autres données. Gravité à garder dans le rapport : inchangée (c'est celle du code), impact noté « faible, vérifié par Jérôme ».
 
 ## Suite prévue (prochaine session)
 - Étape F : parcours dans l'appli (ordinateur 1440 × 900 et téléphone 390 × 844), avec les émulateurs, puis regénérer `99-rapport.html`.
