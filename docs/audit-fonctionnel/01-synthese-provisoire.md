@@ -1,4 +1,4 @@
-# Synthèse provisoire : les 10 constats les plus importants (état à 18:30, heure de Paris)
+# Synthèse provisoire : les 10 constats les plus importants (état à 17:29, heure de Paris)
 
 Étapes déjà lues : A (projets et factures), B (serveur MCP), C (ventes et CRM), D (journal), E (accueil et chiffres) ; cette liste est mise à jour à chaque étape. Les gravités sont celles des fichiers d'étape.
 
