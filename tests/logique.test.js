@@ -268,6 +268,21 @@ describe('B6 Étapes retirées en 2.2 et historique des encaissements', () => {
     assert.equal(r.patch.documents[0].libelle, 'Devis');
     assert.deepEqual(L.supprimerDocument({ documents: [{ a: 1 }, { b: 2 }] }, 0).documents, [{ b: 2 }]);
   });
+  test('Favoris : l’étoile se pose, se retire, et l’accueil rassemble affaires et projets', () => {
+    assert.equal(L.ajouterDocument(affaire(), 'Suivi', 'https://claude.ai/x').patch.documents[0].favori, undefined);
+    assert.equal(L.ajouterDocument(affaire(), 'Suivi', 'https://claude.ai/x', true).patch.documents[0].favori, true);
+    const docs = [{ libelle: 'Devis', url: 'https://a' }, { libelle: 'Suivi', url: 'https://b' }];
+    const pose = L.basculerFavoriDocument({ documents: docs }, 1).documents;
+    assert.deepEqual(pose, [docs[0], { libelle: 'Suivi', url: 'https://b', favori: true }]);
+    assert.deepEqual(L.basculerFavoriDocument({ documents: pose }, 1).documents, docs, 'retirer l’étoile efface le champ');
+    const affaires = [{ id: 'a1', titre: 'Affaire 1', documents: [{ libelle: 'Zèbre', url: 'https://z', favori: true }, docs[0]] }, { id: 'a2', titre: 'Archivée', archive: true, documents: [{ libelle: 'X', url: 'https://x', favori: true }] }];
+    const projets = [{ id: 'p1', titre: 'Projet 1', documents: [{ libelle: 'Agenda', url: 'https://g', favori: true }] }];
+    const f = L.documentsFavoris(affaires, projets);
+    assert.deepEqual(f.map((x) => x.libelle), ['Agenda', 'Zèbre'], 'triés par libellé, éléments archivés ignorés');
+    assert.deepEqual(f[1].source, { type: 'affaire', id: 'a1', titre: 'Affaire 1' });
+    assert.equal(f[1].index, 0);
+    assert.deepEqual(L.documentsFavoris([], []), []);
+  });
 });
 
 describe('B7 Retard, sans action, pastille', () => {

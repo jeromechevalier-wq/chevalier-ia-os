@@ -1,16 +1,17 @@
-// Accueil : objectifs du mois, Points clés (En retard, Aujourd'hui, Sans action prévue), statistiques, rappel d'export.
+// Accueil : objectifs du mois, Favoris (documents), Points clés (En retard, Aujourd'hui, Sans action prévue), statistiques, rappel d'export.
 import { h, icone, vider, remplir } from '../../os/ui.js';
 import { rendreObjectifs, surObjectifs, moisCourantParis } from '../../os/objectifs.js';
 import { animerCompteur, charlesContent } from '../../os/celebrations.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
-import { etatVide, lienAffaire, pastilleEtape } from './composants.js';
+import { etatVide, lienAffaire, pastilleEtape, boutonEtoile, lien, cheminAffaire } from './composants.js';
 import { ligneActivite, faireActivite, dialogueActivite, proposerProchaineActivite } from './activites.js';
 import { exporterToutesLesDonnees } from './export.js';
 import { ouvrirCreationPersonne } from './personnes.js';
 import * as PD from '../projets/donnees.js';
 import * as P from '../projets/logique.js';
 import { ligneTachePointsCles } from '../projets/taches.js';
+import { cheminProjet } from '../projets/composants.js';
 
 let moisAffiche = null;
 
@@ -24,6 +25,7 @@ export function rendreAccueil(conteneur, { compte }) {
   const libelleMois = h('span', { class: 'mois-libelle' });
   const precedent = h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Mois précédent', onclick: () => changerMois(-1) }, icone('chevron-left'));
   const suivant = h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Mois suivant', onclick: () => changerMois(1) }, icone('chevron-right'));
+  const zoneFavoris = h('div', { class: 'zone-favoris' });
   const zonePoints = h('div', { class: 'zone-a-faire' });
   const zoneStats = h('div', { class: 'zone-stats' });
 
@@ -37,6 +39,9 @@ export function rendreAccueil(conteneur, { compte }) {
         h('h2', { id: 'titre-objectifs' }, icone('target', { taille: 18 }), 'Objectifs du mois'),
         h('div', { class: 'selecteur-mois' }, precedent, libelleMois, suivant)),
       zoneObjectifs),
+    h('section', { class: 'carte-section section-favoris', 'aria-labelledby': 'titre-favoris' },
+      h('div', { class: 'section-tete' }, h('h2', { id: 'titre-favoris' }, icone('star', { taille: 18 }), 'Favoris')),
+      zoneFavoris),
     h('section', { class: 'carte-section section-a-faire', 'aria-labelledby': 'titre-points-cles' },
       h('div', { class: 'section-tete' }, h('h2', { id: 'titre-points-cles' }, icone('check-check', { taille: 18 }), 'Points clés')),
       zonePoints),
@@ -65,6 +70,7 @@ export function rendreAccueil(conteneur, { compte }) {
     }
     majObjectifs ? majObjectifs() : monterObjectifs();
     rendreRappel(rappel);
+    rendreFavoris(zoneFavoris);
     rendrePointsCles(zonePoints);
     rendreStats(zoneStats);
   }
@@ -82,6 +88,25 @@ function rendreRappel(zone) {
     icone('download', { taille: 18 }),
     h('div', {}, h('strong', {}, 'Pense à ta sauvegarde mensuelle'), h('p', { class: 'aide' }, 'Exporte toutes tes données dans un fichier de sauvegarde.')),
     h('button', { type: 'button', class: 'bouton bouton-principal bouton-petit', dataset: { action: 'exporter-tout' }, onclick: () => exporterToutesLesDonnees() }, 'Exporter')));
+}
+
+/** Les documents mis en favori (étoile) sur les affaires et les projets : un clic ouvre le document, l'étoile le retire de la liste. */
+function rendreFavoris(zone) {
+  vider(zone);
+  const favoris = L.documentsFavoris(D.etat.affaires, PD.etat.projets);
+  if (!favoris.length) {
+    zone.append(etatVide('Aucun favori. Clique sur l’étoile d’un document, dans une affaire ou un projet.'));
+    return;
+  }
+  zone.append(h('ul', { class: 'liste-simple liste-favoris' }, favoris.map((f) => h('li', { class: 'ligne-simple', dataset: { favori: f.url } },
+    boutonEtoile({
+      favori: true, libelle: f.libelle,
+      surBascule: () => (f.source.type === 'affaire'
+        ? D.majAffaire(f.source.id, L.basculerFavoriDocument(D.affaire(f.source.id), f.index))
+        : PD.majProjet(f.source.id, L.basculerFavoriDocument(PD.projet(f.source.id), f.index))),
+    }),
+    h('a', { href: f.url, target: '_blank', rel: 'noopener noreferrer' }, f.libelle),
+    h('span', { class: 'activite-meta' }, lien(f.source.type === 'affaire' ? cheminAffaire(f.source.id) : cheminProjet(f.source.id), f.source.titre))))));
 }
 
 /** Combien d'éléments restent dans En retard et Aujourd'hui : pour féliciter quand tout est fait. */

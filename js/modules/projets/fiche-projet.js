@@ -4,7 +4,7 @@ import * as CRM from '../crm/donnees.js';
 import * as L from '../crm/logique.js';
 import {
   lienPersonne, lienOrganisation, lienAffaire, sectionRepliable, champPropriete, selecteurPersonne, selecteurOrganisation, titreEditable, selectProprietaire,
-  gabaritFiche, lienRetour, saisieEnCours, etatVide, planifier,
+  gabaritFiche, lienRetour, saisieEnCours, etatVide, planifier, boutonEtoile,
 } from '../crm/composants.js';
 import { panneauActivite } from '../crm/activites.js';
 import { creerLanceurs } from '../crm/lanceurs.js';
@@ -144,6 +144,7 @@ export function rendreFicheProjet(conteneur, id) {
       id: 'projet-documents', titre: 'Documents', compteur: documents.length,
       contenu: h('div', { class: 'pile' },
         documents.length ? h('ul', { class: 'liste-simple' }, documents.map((d, i) => h('li', { class: 'ligne-simple' }, icone('link', { taille: 14 }),
+          boutonEtoile({ favori: d.favori === true, libelle: d.libelle, surBascule: () => D.majProjet(p.id, L.basculerFavoriDocument(p, i)) }),
           h('a', { href: d.url, target: '_blank', rel: 'noopener noreferrer' }, d.libelle),
           h('button', { type: 'button', class: 'bouton-icone', 'aria-label': `Retirer ${d.libelle}`, onclick: () => D.majProjet(p.id, L.supprimerDocument(p, i)) }, icone('x', { taille: 14 }))))) : null,
         h('div', { class: 'ligne-ajout' }, champLibelle, champUrl,
@@ -168,7 +169,8 @@ export function rendreFicheProjet(conteneur, id) {
       id: 'projet-documents-affaire', titre: 'Documents de l’affaire', compteur: documentsAffaire.length,
       contenu: h('div', { class: 'pile' },
         h('p', { class: 'aide' }, 'Ces documents restent sur l’affaire : ', lienAffaire(aff), '.'),
-        h('ul', { class: 'liste-simple' }, documentsAffaire.map((d) => h('li', { class: 'ligne-simple' }, icone('link', { taille: 14 }),
+        h('ul', { class: 'liste-simple' }, documentsAffaire.map((d, i) => h('li', { class: 'ligne-simple' }, icone('link', { taille: 14 }),
+          boutonEtoile({ favori: d.favori === true, libelle: d.libelle, surBascule: () => CRM.majAffaire(aff.id, L.basculerFavoriDocument(aff, i)) }),
           h('a', { href: d.url, target: '_blank', rel: 'noopener noreferrer' }, d.libelle))))),
     }) : null;
 

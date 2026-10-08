@@ -147,7 +147,7 @@ export async function listerActivites(donnees, { affaireId, personneId, organisa
 export async function listerDocuments(donnees, { affaireId }) {
   const affaires = affaireId ? [await donnees.document(C.affaires, affaireId)].filter(Boolean) : await donnees.liste(C.affaires);
   const documents = affaires.flatMap((a) => (a.documents || []).map((d, index) => ({
-    affaireId: a.id, titreAffaire: a.titre, index, libelle: d.libelle ?? null, url: d.url ?? null,
+    affaireId: a.id, titreAffaire: a.titre, index, libelle: d.libelle ?? null, url: d.url ?? null, favori: d.favori === true,
   })));
   return serialiser({ total: documents.length, documents });
 }
