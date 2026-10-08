@@ -216,6 +216,17 @@ test('Favoris : l’étoile d’un document d’affaire ou de projet le met sur 
   // retirer l'étoile depuis l'accueil
   await page.locator('.section-favoris').getByRole('button', { name: 'Retirer Planning des favoris' }).click();
   await expect.poll(async () => (await lireDocument('projets_projets/pr1')).documents).toEqual([{ libelle: 'Planning', url: 'https://claude.ai/artifact/planning' }]);
+  // le favori retiré reste affiché (grisé) pour pouvoir être remis d'un clic
+  await expect(page.locator('.section-favoris li')).toHaveCount(2);
+  await expect(page.locator('.section-favoris li.favori-retire a[href="https://claude.ai/artifact/planning"]')).toHaveText('Planning');
+  await page.locator('.section-favoris').getByRole('button', { name: 'Mettre Planning en favori' }).click();
+  await expect.poll(async () => (await lireDocument('projets_projets/pr1')).documents).toEqual([{ libelle: 'Planning', url: 'https://claude.ai/artifact/planning', favori: true }]);
+  await expect(page.locator('.section-favoris li.favori-retire')).toHaveCount(0);
+  // en quittant l'accueil puis en y revenant, un favori retiré a bien disparu
+  await page.locator('.section-favoris').getByRole('button', { name: 'Retirer Planning des favoris' }).click();
+  await expect.poll(async () => (await lireDocument('projets_projets/pr1')).documents).toEqual([{ libelle: 'Planning', url: 'https://claude.ai/artifact/planning' }]);
+  await aller(page, '#/crm/affaires');
+  await aller(page, '#/crm/accueil');
   await expect(page.locator('.section-favoris li')).toHaveCount(1);
 });
 

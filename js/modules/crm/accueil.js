@@ -18,6 +18,7 @@ let moisAffiche = null;
 export function rendreAccueil(conteneur, { compte }) {
   const moisActuel = moisCourantParis();
   if (!moisAffiche || moisAffiche > moisActuel) moisAffiche = moisActuel;
+  retires = new Map();
 
   const jour = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', weekday: 'long', day: 'numeric', month: 'long' }).format(new Date());
   const rappel = h('div', { class: 'zone-rappel' });
@@ -90,20 +91,29 @@ function rendreRappel(zone) {
     h('button', { type: 'button', class: 'bouton bouton-principal bouton-petit', dataset: { action: 'exporter-tout' }, onclick: () => exporterToutesLesDonnees() }, 'Exporter')));
 }
 
-/** Les documents mis en favori (étoile) sur les affaires et les projets : un clic ouvre le document, l'étoile le retire de la liste. */
+/** Favoris retirés depuis l'accueil pendant cette visite : ils restent affichés (étoile vide) pour pouvoir être remis d'un clic. Vidé à chaque arrivée sur l'accueil. */
+let retires = new Map();
+
+/** Les documents mis en favori (étoile) sur les affaires et les projets : un clic ouvre le document, l'étoile le retire. */
 function rendreFavoris(zone) {
   vider(zone);
   const favoris = L.documentsFavoris(D.etat.affaires, PD.etat.projets);
-  if (!favoris.length) {
+  const cle = (f) => `${f.source.type}/${f.source.id}/${f.index}`;
+  const actuels = new Set(favoris.map(cle));
+  for (const k of [...retires.keys()]) if (actuels.has(k)) retires.delete(k);
+  const lignes = [...favoris.map((f) => ({ f, favori: true })), ...[...retires.values()].map((f) => ({ f, favori: false }))]
+    .sort((x, y) => x.f.libelle.localeCompare(y.f.libelle, 'fr', { sensitivity: 'base' }));
+  if (!lignes.length) {
     zone.append(etatVide('Aucun favori. Clique sur l’étoile d’un document, dans une affaire ou un projet.'));
     return;
   }
-  zone.append(h('ul', { class: 'liste-simple liste-favoris' }, favoris.map((f) => h('li', { class: 'ligne-simple', dataset: { favori: f.url } },
+  const basculer = (f) => (f.source.type === 'affaire'
+    ? D.majAffaire(f.source.id, L.basculerFavoriDocument(D.affaire(f.source.id), f.index))
+    : PD.majProjet(f.source.id, L.basculerFavoriDocument(PD.projet(f.source.id), f.index)));
+  zone.append(h('ul', { class: 'liste-simple liste-favoris' }, lignes.map(({ f, favori }) => h('li', { class: `ligne-simple${favori ? '' : ' favori-retire'}`, dataset: { favori: f.url } },
     boutonEtoile({
-      favori: true, libelle: f.libelle,
-      surBascule: () => (f.source.type === 'affaire'
-        ? D.majAffaire(f.source.id, L.basculerFavoriDocument(D.affaire(f.source.id), f.index))
-        : PD.majProjet(f.source.id, L.basculerFavoriDocument(PD.projet(f.source.id), f.index))),
+      favori, libelle: f.libelle,
+      surBascule: () => { if (favori) retires.set(cle(f), f); basculer(f); },
     }),
     h('a', { href: f.url, target: '_blank', rel: 'noopener noreferrer' }, f.libelle),
     h('span', { class: 'activite-meta' }, lien(f.source.type === 'affaire' ? cheminAffaire(f.source.id) : cheminProjet(f.source.id), f.source.titre))))));
