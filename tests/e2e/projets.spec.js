@@ -204,6 +204,12 @@ test('Favoris : l’étoile d’un document d’affaire ou de projet le met sur 
   await page.getByRole('button', { name: 'Mettre Suivi veille en favori' }).click();
   await champDoc('crm_affaires', 'a1', 'documents', [{ libelle: 'Suivi veille', url: 'https://claude.ai/artifact/suivi', favori: true }]);
   await expect(page.getByRole('button', { name: 'Retirer Suivi veille des favoris' })).toHaveAttribute('aria-pressed', 'true');
+  // le Journal le dit en clair
+  await allerA(page, 'Journal');
+  await page.locator('.tableau-journal tbody tr').first().click();
+  await expect(dialogue(page)).toContainText('Favori ajouté : Suivi veille');
+  await dialogue(page).getByText('Fermer', { exact: true }).click();
+  await expect(dialogue(page)).toHaveCount(0);
   // étoile sur le document du projet
   await aller(page, '#/projets/projets/pr1');
   await page.getByRole('button', { name: 'Mettre Planning en favori' }).click();

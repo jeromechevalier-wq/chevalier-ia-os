@@ -1769,6 +1769,26 @@ export function differencesJournal(avant, apres) {
     .map((champ) => ({ champ, avant: a[champ], apres: b[champ] }));
 }
 
+/**
+ * Ce qui a changé dans la liste des documents d'une affaire ou d'un projet, en phrases : « Favori ajouté : Suivi », « Document joint : Devis »,
+ * « Document retiré : Devis ». Les documents sont reconnus par leur adresse. `avant` et `apres` : les listes (ou rien).
+ */
+export function changementsDocumentsJournal(avant, apres) {
+  const liste = (v) => (Array.isArray(v) ? v.filter((d) => d && typeof d === 'object') : []);
+  const nom = (d) => d.libelle || d.url || 'sans nom';
+  const avants = new Map(liste(avant).map((d) => [d.url, d]));
+  const apresMap = new Map(liste(apres).map((d) => [d.url, d]));
+  const phrases = [];
+  for (const [url, d] of apresMap) {
+    const ancien = avants.get(url);
+    if (!ancien) phrases.push(`Document joint${d.favori === true ? ' (en favori)' : ''} : ${nom(d)}`);
+    else if (d.favori === true && ancien.favori !== true) phrases.push(`Favori ajouté : ${nom(d)}`);
+    else if (d.favori !== true && ancien.favori === true) phrases.push(`Favori retiré : ${nom(d)}`);
+  }
+  for (const [url, d] of avants) if (!apresMap.has(url)) phrases.push(`Document retiré : ${nom(d)}`);
+  return phrases;
+}
+
 /** Texte lisible d'une valeur de copie (date, liste, objet), tronqué pour ne pas noyer l'écran. */
 export function formaterValeurJournal(v, max = 300) {
   if (v === undefined || v === null || v === '') return '—';

@@ -23,12 +23,16 @@ function pastilleStatut(statut) {
 function tableauDifferences(copie) {
   const diffs = L.differencesJournal(copie.avant, copie.apres);
   if (!diffs.length) return h('p', { class: 'aide' }, 'Aucun champ ne diffère.');
-  return h('table', { class: 'tableau tableau-differences' },
+  const documents = diffs.find((d) => d.champ === 'documents');
+  const phrases = documents ? L.changementsDocumentsJournal(documents.avant, documents.apres) : [];
+  const resume = phrases.length ? h('ul', { class: 'liste-simple journal-documents' }, phrases.map((t) => h('li', {}, t))) : null;
+  const tableau = h('table', { class: 'tableau tableau-differences' },
     h('thead', {}, h('tr', {}, ['Champ', 'Avant', 'Après'].map((t) => h('th', { scope: 'col' }, h('span', { class: 'tri' }, t))))),
     h('tbody', {}, diffs.map((d) => h('tr', {},
       h('td', { class: 'diff-champ' }, d.champ),
       h('td', { class: 'diff-avant', dataset: { libelle: 'Avant' } }, L.formaterValeurJournal(d.avant)),
       h('td', { class: 'diff-apres', dataset: { libelle: 'Après' } }, L.formaterValeurJournal(d.apres))))));
+  return resume ? h('div', { class: 'pile' }, resume, tableau) : tableau;
 }
 
 function blocLigne(ligne, ouvert) {
