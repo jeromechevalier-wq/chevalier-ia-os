@@ -1,6 +1,6 @@
-# Synthèse provisoire : les 10 constats les plus importants (état à 17:55, heure de Paris)
+# Synthèse provisoire : les 10 constats les plus importants (état à 18:15, heure de Paris)
 
-Étapes déjà lues : A (projets et factures), B (serveur MCP), C (ventes et CRM). D (journal) et E (accueil) sont en cours ; cette liste est mise à jour à chaque étape. Les gravités sont celles des fichiers d'étape.
+Étapes déjà lues : A (projets et factures), B (serveur MCP), C (ventes et CRM), E (accueil et chiffres). D (journal) est en cours ; cette liste est mise à jour à chaque étape. Les gravités sont celles des fichiers d'étape.
 
 1. **C-01 · BLOQUANT** : supprimer une ancienne organisation efface aussi des notes et activités de personnes ou d'affaires qui l'ont quittée mais existent toujours (`js/modules/crm/logique.js:1545` et `:1550`). Confirmé au niveau de la règle.
 2. **C-02 · BLOQUANT** : supprimer une personne efface le fil d'une affaire qui lui a été retirée et qui appartient maintenant à quelqu'un d'autre (`js/modules/crm/logique.js:1519`). Confirmé au niveau de la règle.
@@ -10,8 +10,10 @@
 6. **A-03 · GÊNANT** : la migration 2.2 compte deux fois un acompte déjà encaissé (chiffre d'affaires trop haut).
 7. **A-04 · GÊNANT** : la migration rend « gagnée » une affaire perdue ou en pause qui était dans une étape retirée.
 8. **B-03 · GÊNANT** : dans les fiches projet du serveur, « aPayer » est un nombre de factures et non des euros.
-9. **C-03 · GÊNANT** : l'écran ne permet pas de retirer la personne ou l'organisation d'une affaire, alors que le message de suppression dit « détacher d'abord ses affaires ».
-10. **C-06 · GÊNANT** : une affaire gagnée peut être marquée « Perdue » alors que son projet continue.
+9. **E-01 · GÊNANT** : une facture payée dont on efface la date de paiement reste « Payée » mais disparaît du chiffre d'affaires de l'accueil, sans message. Reproduit par essai.
+10. **E-03 · GÊNANT (plausible)** : « Objectif atteint : Chiffre d'affaires encaissé » peut se redéclencher à chaque ouverture, car l'appli n'attend pas les projets (`js/modules/crm/index.js:50`). L'ordre réel d'arrivée des données n'est pas vérifié.
+
+Autres points forts à garder en tête : C-03 (impossible de retirer la personne ou l'organisation d'une affaire à l'écran), C-06 (affaire gagnée marquée « Perdue » alors que son projet continue), E-02 (une affaire Gagnée sans activité reste indéfiniment dans « Sans action prévue »), E-06 (chiffre d'affaires compté deux fois entre anciens encaissements et factures).
 
 À noter côté documentation (B-20) : nombre d'outils vérifié en exécutant le registre = 51 au total (13 lecteur, 44 bibliothécaire, 51 Claude Code). Le « 44 » est exact pour Hermes ; `roadmap.md` dit 16 outils projets (le code en compte 19) ; `branchement-mcp.md` annonce 33 outils pour Claude Code (le code : 51).
 
