@@ -1,6 +1,6 @@
 # Avancement de l'audit fonctionnel (Chevalier IA OS 2.3.3)
 
-Branche : `claude/fervent-mayer-gme1rw` (aucune PR, rien sur `main`). Dernière mise à jour : 2026-10-08 17:29 (heure de Paris).
+Branche : `claude/fervent-mayer-gme1rw` (aucune PR, rien sur `main`). Dernière mise à jour : 2026-10-08 17:35 (heure de Paris).
 
 | Étape | Fichier | État | Heure (Paris) |
 |---|---|---|---|
@@ -13,7 +13,7 @@ Branche : `claude/fervent-mayer-gme1rw` (aucune PR, rien sur `main`). Dernière 
 | E. Accueil, objectifs, statistiques | `50-accueil-objectifs-statistiques.md` | terminé, statut partiel (17 constats : 0 bloquant, 8 gênants, 9 mineurs) | 17:19 |
 | F. Parcours utilisateur | `60-parcours-utilisateur.md` | à faire | |
 | G. Tests et qualité | `70-tests-et-qualite.md` | suite complète lancée à 17:13 (résultat en cours de lecture) | 17:13 |
-| H. Point projet | `80-point-projet.md` | en cours | 17:26 |
+| H. Point projet | `80-point-projet.md` | terminé, statut partiel (9 constats : 0 bloquant, 2 gênants, 7 mineurs) | 17:35 |
 | I. Rapport final | `99-rapport.html` | à faire | |
 
 ## Constats par gravité et par confiance
