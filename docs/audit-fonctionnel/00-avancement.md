@@ -16,6 +16,9 @@ Branche : `claude/fervent-mayer-gme1rw` (aucune PR, rien sur `main`). Dernière 
 | H. Point projet | `80-point-projet.md` | terminé, statut partiel (9 constats : 0 bloquant, 2 gênants, 7 mineurs) | 17:35 |
 | I. Rapport final | `99-rapport.html` | terminé (un seul fichier HTML autonome, vérifié sur 390 px et 1440 px, filtre testé) | 17:58 |
 
+## Décisions de Jérôme sur la facturation (08/10/2026)
+Voir `03-decisions-facturation.md` : paiement partiel refusé, facture refusée sur un projet terminé, confirmation avec avertissement avant de supprimer une facture payée, migration 2.2 déjà appliquée (donc à vérifier sur les vraies données).
+
 ## Constats par gravité et par confiance
 Total compté par script à partir des fichiers d'étape : **110 constats** (2 bloquants, 44 gênants, 64 mineurs ; 84 confirmés, 26 plausibles). Par étape : A 15, B 22, C 24, D 17, E 17, F 0, G 6, H 9. La confiance est celle de la première étiquette de chaque constat (un constat « confirmé en partie » est compté confirmé).
 
