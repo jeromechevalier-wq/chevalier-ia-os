@@ -12,7 +12,7 @@ Branche : `claude/fervent-mayer-gme1rw` (aucune PR, rien sur `main`). Dernière 
 | D. Journal et restauration | `40-journal-et-restauration.md` | terminé, statut partiel (17 constats : 0 bloquant, 7 gênants, 10 mineurs) | 17:25 |
 | E. Accueil, objectifs, statistiques | `50-accueil-objectifs-statistiques.md` | terminé, statut partiel (17 constats : 0 bloquant, 8 gênants, 9 mineurs) | 17:19 |
 | F. Parcours utilisateur | `60-parcours-utilisateur.md` | EN PAUSE (demandée par Jérôme) : aucun parcours fait, 0 constat F ; émulateurs et navigateur vérifiés (démarrent bien ici) | 17:50 |
-| G. Tests et qualité | `70-tests-et-qualite.md` | EN PAUSE (demandée par Jérôme) : suite complète faite (17:13 à 17:34) : 744 réussis (540 tests purs + 204 dans le navigateur), 2 échecs (même test, ordinateur et téléphone), 2 sautés ; analyse des tests en cours (agent) | 17:42 |
+| G. Tests et qualité | `70-tests-et-qualite.md` | EN PAUSE (demandée par Jérôme), statut partiel, 6 constats (0 bloquant, 2 gênants, 4 mineurs) : suite complète faite (17:13 à 17:34) : 744 réussis (540 tests purs + 204 dans le navigateur), 2 échecs (même test, ordinateur et téléphone), 2 sautés ; analyse des tests en cours (agent) | 17:42 |
 | H. Point projet | `80-point-projet.md` | terminé, statut partiel (9 constats : 0 bloquant, 2 gênants, 7 mineurs) | 17:35 |
 | I. Rapport final | `99-rapport.html` | à faire | |
 
