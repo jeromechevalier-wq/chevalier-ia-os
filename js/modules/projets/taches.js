@@ -118,7 +118,7 @@ export function sectionTaches(projet) {
   }
   const section = sectionRepliable({
     id: 'projet-taches', titre: 'Tâches', compteur: 0,
-    contenu: h('div', { class: 'pile' }, h('div', { class: 'ajout-tache' }, titre, phase, date.element, bouton), zoneGroupes),
+    contenu: h('div', { class: 'pile' }, h('div', { class: 'ajout-tache', 'data-saisie': '' }, titre, phase, date.element, bouton), zoneGroupes),
   });
   compteur = section.element.querySelector('.section-compteur');
   rendreGroupes();
