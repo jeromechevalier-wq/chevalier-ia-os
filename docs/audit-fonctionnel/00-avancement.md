@@ -1,6 +1,6 @@
 # Avancement de l'audit fonctionnel (Chevalier IA OS 2.3.3)
 
-Branche : `claude/fervent-mayer-gme1rw` (aucune PR, rien sur `main`). Dernière mise à jour : 2026-10-08 18:15 (heure de Paris).
+Branche : `claude/fervent-mayer-gme1rw` (aucune PR, rien sur `main`). Dernière mise à jour : 2026-10-08 18:30 (heure de Paris).
 
 | Étape | Fichier | État | Heure (Paris) |
 |---|---|---|---|
@@ -9,11 +9,11 @@ Branche : `claude/fervent-mayer-gme1rw` (aucune PR, rien sur `main`). Dernière 
 | A. Projets et factures | `10-projets-et-factures.md` | terminé, statut partiel (15 constats : 0 bloquant, 5 gênants, 10 mineurs) | 17:40 |
 | B. Serveur MCP | `20-serveur-mcp.md` | terminé, statut complet (22 constats : 0 bloquant, 11 gênants, 11 mineurs) | 17:55 |
 | C. Ventes et CRM | `30-ventes-crm.md` | terminé, statut partiel (24 constats : 2 bloquants, 9 gênants, 13 mineurs) | 17:25 |
-| D. Journal et restauration | `40-journal-et-restauration.md` | en cours | 17:30 |
+| D. Journal et restauration | `40-journal-et-restauration.md` | terminé, statut partiel (17 constats : 0 bloquant, 7 gênants, 10 mineurs) | 18:30 |
 | E. Accueil, objectifs, statistiques | `50-accueil-objectifs-statistiques.md` | terminé, statut partiel (17 constats : 0 bloquant, 8 gênants, 9 mineurs) | 18:15 |
 | F. Parcours utilisateur | `60-parcours-utilisateur.md` | à faire | |
 | G. Tests et qualité | `70-tests-et-qualite.md` | suite complète lancée à 17:13 (résultat en cours de lecture) | 17:13 |
-| H. Point projet | `80-point-projet.md` | à faire | |
+| H. Point projet | `80-point-projet.md` | en cours | 18:30 |
 | I. Rapport final | `99-rapport.html` | à faire | |
 
 ## Constats par gravité et par confiance
