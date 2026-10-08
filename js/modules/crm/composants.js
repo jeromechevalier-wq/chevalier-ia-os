@@ -344,10 +344,16 @@ export function lienRetour(chemin, libelle) {
   return h('a', { class: 'lien-retour', href: chemin }, icone('chevron-left', { taille: 16 }), libelle);
 }
 
-/** Vrai quand le focus est dans un champ de saisie du conteneur : on ne reconstruit pas pendant la frappe. */
+/**
+ * Vrai quand le focus est dans un champ de saisie du conteneur : on ne reconstruit pas pendant la frappe.
+ * Les boutons d'un formulaire marqué `data-saisie` comptent aussi (ex. « Demain » du formulaire d'ajout de tâche) : sinon un rafraîchissement
+ * qui arrive juste après le clic vide ce qui vient d'être tapé.
+ */
 export function saisieEnCours(conteneur) {
   const a = document.activeElement;
-  return !!a && conteneur.contains(a) && ['INPUT', 'SELECT', 'TEXTAREA'].includes(a.tagName) && !['checkbox', 'radio', 'button'].includes(a.type);
+  if (!a || !conteneur.contains(a)) return false;
+  if (a.closest('[data-saisie]')) return true;
+  return ['INPUT', 'SELECT', 'TEXTAREA'].includes(a.tagName) && !['checkbox', 'radio', 'button'].includes(a.type);
 }
 
 /** Ligne "Email" ou "Téléphone" d'un résumé : liens avec leur type. */

@@ -215,7 +215,8 @@ export function dialogue({ titre, contenu, boutons = [{ libelle: 'OK', valeur: t
     auMontage?.({ boite, boutons: elementsBoutons, fermer });
     requestAnimationFrame(() => {
       const cible = boite.querySelector('[autofocus], input, select, textarea') || elementsBoutons.at(-1);
-      cible?.focus();
+      // Si l'utilisateur est déjà dans un champ de la fenêtre (il a commencé à taper), on ne lui reprend pas le focus.
+      if (!boite.contains(document.activeElement)) cible?.focus();
     });
   });
 }
