@@ -25,7 +25,11 @@
       "*.log"
     ],
     "rewrites": [
-      { "source": "/mcp", "run": { "serviceId": "mcp", "region": "europe-west9" } }
+      { "source": "/mcp", "run": { "serviceId": "mcp", "region": "europe-west9" } },
+      { "source": "/.well-known/oauth-protected-resource", "run": { "serviceId": "mcp", "region": "europe-west9" } },
+      { "source": "/.well-known/oauth-protected-resource/mcp", "run": { "serviceId": "mcp", "region": "europe-west9" } },
+      { "source": "/.well-known/oauth-authorization-server", "run": { "serviceId": "mcp", "region": "europe-west9" } },
+      { "source": "/oauth/**", "run": { "serviceId": "mcp", "region": "europe-west9" } }
     ],
     "headers": [
       {
