@@ -196,7 +196,8 @@ describe('Lecture seule (garantie)', () => {
     const dossier = join(RACINE, 'functions/src');
     const parcourir = (d) => readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? parcourir(join(d, e.name)) : [join(d, e.name)]));
     // Les actions métier (metier.js) et le gestionnaire ne font que tirer des identifiants et confier l'écriture au moteur : jamais appliquer/mettreAJour.
-    const autorises = ['coeur/donnees.js', 'coeur/ecriture.js', 'coeur/restaurer.js', 'securite/limites.js'];
+    // oauth/magasin.js : seulement sa propre collection fermée `mcp_oauth` (jetons OAuth) ; un test statique (D8) vérifie qu'il ne touche à aucune donnée du CRM.
+    const autorises = ['coeur/donnees.js', 'coeur/ecriture.js', 'coeur/restaurer.js', 'securite/limites.js', 'oauth/magasin.js'];
     for (const f of parcourir(dossier).filter((x) => /\.appliquer\(|\.mettreAJour\(/.test(readFileSync(x, 'utf8')))) {
       assert.ok(autorises.some((a) => f.endsWith(a)), `écriture hors du moteur : ${f}`);
     }

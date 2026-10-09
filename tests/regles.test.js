@@ -23,7 +23,7 @@ const COLLECTIONS = [
   'projets_projets', 'projets_taches', 'projets_modeles',
 ];
 // Collections du serveur MCP (étape 4) : sorties du joker.
-const COLLECTIONS_SERVEUR = ['crm_audit', 'crm_audit_avant', 'mcp_limites'];
+const COLLECTIONS_SERVEUR = ['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth'];
 const COMPTES = ['jerome.chevalier@gmail.com', 'jeromebot.chevalierbot@gmail.com'];
 
 let env;
@@ -135,6 +135,9 @@ describe('A. Règles de sécurité', () => {
     });
     test(`A7 ${email} ne peut rien faire dans mcp_limites (compteurs du serveur : lecture, liste, création, modification, suppression refusées)`, async () => {
       await aucunDroit(contexte(email), 'mcp_limites');
+    });
+    test(`A7 ${email} ne peut rien faire dans mcp_oauth (autorisations OAuth du serveur : empreintes de jetons, tout refusé)`, async () => {
+      await aucunDroit(contexte(email), 'mcp_oauth');
     });
     test(`A8 ${email} garde tous ses droits dans une collection inconnue (le joker reste en place pour le reste)`, async () => {
       await droitsComplets(contexte(email), 'crm_autre');

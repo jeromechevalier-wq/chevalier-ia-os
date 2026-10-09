@@ -162,6 +162,8 @@ Profils : **L** lecteur · **B** bibliothécaire (L + écriture + pièces jointe
 Collisions de règles : l'écran impose la confirmation par le nom pour une suppression ; les outils font de même, pour qu'un agent ne puisse pas supprimer « par erreur d'un seul paramètre ».
 **Deux niveaux de protection pour Hermes** : (1) côté Hermes, `tools.include` liste exactement les outils du profil B ; (2) côté serveur, l'empreinte du jeton porte son profil : un outil hors profil est refusé même si Hermes est mal configuré.
 
+> **Ajout du 09/10/2026 : seconde porte OAuth (connexion Google)** pour l'appli Claude du téléphone et claude.ai, qui ne peuvent pas envoyer un jeton en en-tête. Les jetons `cia_…` décrits ci-dessous ne changent pas. Détail, décisions et sécurité : `mcp-oauth.md`.
+
 ### 5.4 Authentification, jetons, débit, journaux
 
 - **Génération** : tu lances `node outils/creer-jeton.js hermes-bibliothecaire bibliothecaire` sur ton Mac (hors ligne). Il affiche **une seule fois** un jeton de 256 bits (`cia_…`) et la ligne `{ "jeton": "hermes-bibliothecaire", "acteur": "hermes-bibliothecaire", "profil": "bibliothecaire", "empreinte": "<sha256>", "actif": true, "creeLe": "…" }` que tu colles dans le secret `MCP_JETONS` (nouvelle version). Je ne génère aucun jeton à ta place.

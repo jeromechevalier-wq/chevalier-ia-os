@@ -1,15 +1,18 @@
 // Fonctions Cloud (2e génération, Paris). `mcp` : serveur MCP, joint par https://chevalier-ia-os.web.app/mcp
-// (réécriture Hosting). L'invocation est publique côté Google : la porte est le jeton (voir securite/jetons.js).
+// (réécriture Hosting). L'invocation est publique côté Google : la porte est le jeton « cia_… » (securite/jetons.js) ou la connexion Google (oauth/).
 import { onRequest } from 'firebase-functions/v2/https';
 import { creerGestionnaire } from './mcp/gestionnaire.js';
 import { creerAccesFirestore } from './coeur/donnees.js';
 import { creerMagasin } from './securite/jetons.js';
 import { creerLimiteur } from './securite/limites.js';
 import { lireSecretJetons } from './securite/secret.js';
+import { creerRouteurOauth } from './oauth/routeur.js';
+import { creerVerificateurIdentite } from './oauth/identite-google.js';
 
 const magasin = creerMagasin({ lire: lireSecretJetons() });
 const donnees = creerAccesFirestore();
 const limiteur = creerLimiteur({ donnees });
+const oauth = creerRouteurOauth({ donnees, verifierIdToken: creerVerificateurIdentite() });
 
 export const mcp = onRequest(
   {
@@ -22,5 +25,5 @@ export const mcp = onRequest(
     // Compte dédié : seulement « Utilisateur Cloud Datastore » (Firestore) et « Accesseur de secrets » sur MCP_JETONS.
     serviceAccount: 'mcp-serveur@chevalier-ia-os.iam.gserviceaccount.com',
   },
-  creerGestionnaire({ magasin, donnees, limiteur }),
+  creerGestionnaire({ magasin, donnees, limiteur, oauth }),
 );
