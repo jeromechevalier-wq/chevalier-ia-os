@@ -107,7 +107,7 @@ La fonction écrite dans la branche `mcp` (commit de code `24a8e96`) est **repri
 
 ## Piste : plateforme clients sur la coque (étude du 10/10/2026, décisions validées)
 
-Jérôme veut offrir à ses clients une interface graphique **et** un accès MCP (ils pilotent leurs automatisations n8n, y compris en parlant à leur assistant). **Décidé le 10/10/2026** : une seule base Firestore pour tous les clients (projet Firebase séparé du CRM, payé par Jérôme), connexion Google seule pour commencer, une page de connexion et un lien par client avec ses couleurs, son logo et ses propres images, un lien MCP par client. Étude et liste ordonnée de 16 chantiers : `etude-reutilisation-coque.md`. Prérequis : fusion et essai réel de la connexion OAuth du MCP (PR n° 49). Aucun code touché par l'étude.
+Jérôme veut offrir à ses clients une interface graphique **et** un accès MCP (ils pilotent leurs automatisations n8n, y compris en parlant à leur assistant). **Décidé le 10/10/2026** : une seule base Firestore pour tous les clients (projet Firebase séparé du CRM, payé par Jérôme), connexion Google seule pour commencer, une page de connexion et un lien par client avec ses couleurs, son logo et ses propres images, un lien MCP par client. Étude et liste ordonnée de 16 chantiers : `etude-reutilisation-coque.md`. Prérequis : essai réel de la connexion OAuth du MCP (PR n° 49, fusionnée le 10/10/2026 ; restent la publication des règles Firestore et l'essai avec le téléphone). Domaine : la plateforme prend son propre sous-domaine (`app.chevalier-ia.fr` est servi par Hostinger). Aucun code touché par l'étude.
 
 ## Hors périmètre de la 2.0 (rappel)
 Import CSV, fusion de doublons, prévisions en euros, envoi d'e-mails depuis la fiche, mode hors ligne.

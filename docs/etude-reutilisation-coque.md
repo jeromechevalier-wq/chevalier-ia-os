@@ -2,7 +2,7 @@
 
 Demande de Jérôme : repartir de la même coque (interface graphique + accès MCP) pour les futures applis clientes, sans développer deux fois le même code. Les clients pourraient alors consulter et piloter leurs automatisations en parlant à leur assistant (ChatGPT, Claude). Cette étude lit le code de `main` (version 2.3.3) et dit **ce qui se réutilise, ce qui doit changer, dans quel ordre**. Rien n'est modifié dans l'appli.
 
-**Mise à jour du 10/10/2026** : le travail OAuth de Jérôme est arrivé sur GitHub (PR n° 49, branche `claude/eager-allen-jht9kf`, pas encore fusionnée ni publiée ; 40 tests). La section 6 est réécrite d'après ce code. **Jérôme a validé le même jour le modèle « une base pour tous les clients »** (section 5 bis), la connexion Google seule pour commencer, et une **page de connexion personnalisée par client** (section 5 ter) ; les sections 8 et 9 sont refaites en conséquence. Aucune taille en jours n'est annoncée : les tailles ci-dessous sont **relatives** (petit, moyen, gros).
+**Mise à jour du 10/10/2026** : le travail OAuth de Jérôme est arrivé sur GitHub (PR n° 49, 40 tests) et **a été fusionné dans `main` le jour même, à 01:44 (heure de Paris)** ; le code est celui que l'étude a lu, sans changement. Au moment de la relecture, le déploiement automatique était encore en cours. La section 6 est réécrite d'après ce code. **Jérôme a validé le même jour le modèle « une base pour tous les clients »** (section 5 bis), la connexion Google seule pour commencer, et une **page de connexion personnalisée par client** (section 5 ter) ; les sections 8 et 9 sont refaites en conséquence. Aucune taille en jours n'est annoncée : les tailles ci-dessous sont **relatives** (petit, moyen, gros).
 
 ## 1. Verdict
 
@@ -92,7 +92,8 @@ Conséquence sur l'organisation du code : le CRM continue d'écrire à la racine
 
 **Objectif de Jérôme** : le client se sent chez lui dès la connexion, avec ses couleurs, son logo **et ses propres images** (par exemple une photo du bâtiment de son entreprise). Techniquement une seule page suffirait ; il veut quand même une page par client, avec son propre lien.
 
-- **Un lien par client**, de la forme `<domaine>/c/<client>` (chemin dans l'adresse, pas de sous-domaine : pas de domaine à ajouter par client dans Firebase ni dans les domaines autorisés de la connexion Google). Un nom de domaine propre à un client reste possible plus tard.
+- **Un lien par client**, de la forme `<domaine de la plateforme>/c/<client>` (chemin dans l'adresse, pas de sous-domaine par client : pas de domaine à ajouter par client dans Firebase ni dans les domaines autorisés de la connexion Google). Un nom de domaine propre à un client reste possible plus tard.
+- **Le domaine de la plateforme ne peut pas être `app.chevalier-ia.fr`.** Ce sous-domaine est servi par Hostinger (dossier `app/` du dépôt du site, qui porte l'appli d'Audrey et la future vitrine de solutions) ; un domaine ne peut pointer que vers un seul hébergeur. La plateforme (Firebase Hosting) prend donc **son propre sous-domaine** de `chevalier-ia.fr` (par exemple `espace.chevalier-ia.fr`, nom à choisir par Jérôme). Il se crée dans Cloudflare (là où sont les DNS), sans toucher à Hostinger ni au dépôt du site ; le DNS est réglé « sans proxy » le temps que Firebase émette le certificat. Le domaine est aussi ajouté aux domaines autorisés de la connexion Firebase. `app.chevalier-ia.fr` peut présenter la plateforme comme une solution de la vitrine, avec un lien vers ce sous-domaine.
 - **Une fiche de marque par client, lisible sans connexion** : nom, logo, couleurs, images (bâtiment, fond, bannière), texte d'accueil. Elle ne contient **que du visuel**, jamais de donnée. Les images sont rangées dans Firebase Storage sous `marques/<client>/` (lecture publique, écriture réservée à Jérôme au début), compressées à l'envoi pour que la page reste rapide.
 - **Connexion Google seule pour commencer** (compte Google, pas forcément Gmail : une adresse professionnelle sur Google Workspace convient). Si un client n'a pas Google : un **lien de connexion envoyé par e-mail** (sans mot de passe) est le repli recommandé, et l'e-mail avec mot de passe est possible aussi. Deux détails à connaître : les règles exigent une adresse **vérifiée** (donc un e-mail de confirmation), et la porte OAuth du MCP n'accepte aujourd'hui que la connexion Google (contrôle à assouplir si on ajoute ces modes).
 - **Un compte n'ouvre que l'espace dont il est membre.** Après la connexion, la page vérifie l'appartenance au client de ce lien. Si le compte appartient à un autre client, la page **déconnecte** et affiche « ce compte n'a pas accès à cet espace » : elle ne redirige jamais vers l'autre client et ne dit pas que le compte existe ailleurs.
@@ -105,7 +106,7 @@ Conséquence sur l'organisation du code : le CRM continue d'écrire à la racine
 
 ## 6. L'OAuth du MCP : ce que le code de Jérôme apporte, ce qu'il reste à généraliser
 
-Lu le 10/10/2026 dans la branche `claude/eager-allen-jht9kf` (PR n° 49 ; documentation : `docs/mcp-oauth.md` sur cette branche). Le code est dans `functions/src/oauth/` (509 lignes : `config.js`, `identite-google.js`, `magasin.js`, `page.js`, `routeur.js`) avec 40 tests et un test navigateur.
+Lu le 10/10/2026 dans la branche `claude/eager-allen-jht9kf` (PR n° 49, fusionnée dans `main` ; documentation : `docs/mcp-oauth.md`). Le code est dans `functions/src/oauth/` (509 lignes : `config.js`, `identite-google.js`, `magasin.js`, `page.js`, `routeur.js`) avec 40 tests et un test navigateur.
 
 **Ce qui est déjà fait, et bien fait (donc réutilisable tel quel)**
 - La **seconde porte** de `/mcp` : métadonnées de découverte, enregistrement du client, écran d'autorisation, échange de code, renouvellement. La porte des jetons `cia_…` (Hermes, Claude Code) ne change pas.
@@ -121,7 +122,7 @@ Lu le 10/10/2026 dans la branche `claude/eager-allen-jht9kf` (PR n° 49 ; docume
 5. **Les textes et l'émetteur** : « Autoriser Claude à accéder à Chevalier IA OS » et l'adresse de l'émetteur (`EMETTEUR`, `ORIGINES_AUTORISEES`) sont en dur ; ils viennent de la configuration du client.
 6. **Les noms d'acteur** : `claude-ai-<compte>` ne dit pas quel assistant s'est connecté. À prévoir si on branche plusieurs assistants.
 
-**Reste à faire sur la branche elle-même, avant tout** : fusion (le « fusionne » de Jérôme), publication des règles Firestore dans la console (nouveau bloc `mcp_oauth`), puis essai réel avec le téléphone. Le code n'a pas été essayé avec la vraie connexion Google ni avec le vrai claude.ai (la doc de la branche le dit).
+**Reste à faire, avant tout** (la fusion est faite) : vérifier que le déploiement automatique est vert, publier les règles Firestore dans la console (nouveau bloc `mcp_oauth`, la fusion ne les publie pas), puis faire l'essai réel avec le téléphone. Le code n'a pas été essayé avec la vraie connexion Google ni avec le vrai claude.ai (la doc de la branche le dit).
 
 ## 7. Premier module client : suivi des automatisations
 
@@ -136,11 +137,11 @@ C'est le module qui donne son sens à la coque chez un client. Esquisse, à vali
 
 Tailles relatives, pas des durées. Chaque ligne est une PR. Le CRM de Jérôme reste à la racine de sa propre base et n'est pas migré.
 
-**Étape 0 : avant tout.** Fusion de la PR n° 49 (OAuth), publication des règles Firestore du bloc `mcp_oauth`, essai réel avec le téléphone. On ne touche pas à la sécurité sur deux fronts à la fois.
+**Étape 0 : avant tout.** La PR n° 49 (OAuth) est fusionnée (10/10/2026). Restent : déploiement vert, publication des règles Firestore du bloc `mcp_oauth`, essai réel avec le téléphone. On ne touche pas à la sécurité sur deux fronts à la fois.
 
 | # | Chantier | Taille | Dépend de |
 |---|---|---|---|
-| 1 | **Projet Firebase de la plateforme clients** (identifiant neutre, forfait payant, compte de service, règles de départ « tout refusé »), séparé du CRM | petit | — |
+| 1 | **Projet Firebase de la plateforme clients** (identifiant neutre, forfait payant, compte de service, règles de départ « tout refusé »), séparé du CRM ; **sous-domaine dédié** (Cloudflare → Firebase Hosting, domaines autorisés de la connexion) | petit | — |
 | 2 | **Chemin de base donné aux modules** : le CRM garde la racine, un module client écrit sous `clients/<client>/…` | moyen | — |
 | 3 | **Appartenance par client** (`clients/<client>/membres/<e-mail>` avec rôle) ; règles Firestore par chemin ; `auth.js` et `compteAutorise` la lisent | moyen (sensible : sécurité) | 1, 2 |
 | 4 | **Tests d'étanchéité** à l'écran (émulateur) : « le client A ne lit ni n'écrit rien chez B », à relancer à chaque modification | moyen | 3 |
@@ -150,7 +151,7 @@ Tailles relatives, pas des durées. Chaque ligne est une PR. Le CRM de Jérôme 
 | 8 | **Objectifs et célébrations** sortis de la coque, module optionnel du CRM | petit | 6 |
 | 9 | **MCP multi-clients** : client déduit de l'identité authentifiée, jamais d'un paramètre ; lien `…/mcp/<client>` ; isolation écrite dans le code (le MCP contourne les règles) | gros (sensible) | 3, 7 |
 | 10 | **Tests d'étanchéité du MCP** | moyen | 9 |
-| 11 | **OAuth pour les clients** (base de la PR n° 49) : comptes lus dans les membres, profil déduit du rôle, client porté par la connexion, écran d'autorisation à ses couleurs, adresse de retour de ChatGPT, noms d'acteur | moyen | 0, 9 |
+| 11 | **OAuth pour les clients** (base de la PR n° 49, fusionnée) : comptes lus dans les membres, profil déduit du rôle, client porté par la connexion, écran d'autorisation à ses couleurs, adresse de retour de ChatGPT, noms d'acteur | moyen | 0, 9 |
 | 12 | **Déploiement** : règles Firestore déployées par le workflow, une seule source de version, workflow paramétré | petit | 1 |
 | 13 | **Outil « nouveau client »** (fiche de marque, images, premier membre, modules actifs) et outil de **remise ou suppression** des données d'un client | moyen | 3, 5 |
 | 14 | **Module « suivi des automatisations »** et fonction « écrire une progression » (jeton de service par client) | gros | 7, 9 |
@@ -175,10 +176,11 @@ Tailles relatives, pas des durées. Chaque ligne est une PR. Le CRM de Jérôme 
 - **Pas de RGPD pour l'instant** (maintenu). À prévoir comme sujet commercial : un client peut demander un contrat de sous-traitance quand ses données sont hébergées chez lui.
 - **Le nom de la coque n'est pas nécessaire** pour construire ; seul l'identifiant du projet Firebase est définitif et se choisit neutre.
 
-**À confirmer plus tard**
-1. **Pour quel client est faite la première démo** (le client du workflow Gmail ou un autre) : cela fixe le contenu du module de suivi. Question de contenu, sans lien avec la connexion.
-2. **Qui téléverse les images des clients** : Jérôme seul au début (recommandé), ou le client lui-même plus tard.
-3. **Le domaine de la plateforme clients** (par exemple un sous-domaine de `chevalier-ia.fr`).
+- **Jérôme envoie lui-même les images des clients** (le client ne téléverse rien).
+
+**À décider plus tard**
+1. **Pour quel client est faite la première démo** : pas encore connu. Cela fixe seulement le contenu du module de suivi ; on peut commencer par une démo avec des automatisations fictives.
+2. **Le nom du sous-domaine de la plateforme** (hors `app.`, voir section 5 ter) : par exemple `espace.chevalier-ia.fr`. À choisir avant le chantier 1, puis à créer dans Cloudflare.
 
 ## 10. Ce que cette étude n'a pas vérifié
 
