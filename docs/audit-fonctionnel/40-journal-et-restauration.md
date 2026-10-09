@@ -32,7 +32,7 @@ Périmètre : collections `crm_audit` et `crm_audit_avant`, écran Journal (`js/
 
 ### D-01 · Les réglages du CRM ne laissent aucune trace dans le journal, et l'écran Journal dit le contraire
 - **Gravité** : GÊNANT
-- **Confiance** : PLAUSIBLE (recensement complet des écritures dans le code ; pas rejoué dans un navigateur)
+- **Confiance** : CONFIRMÉ (essai du 2026-10-08, voir `09-confirmations.md`) ; avant : PLAUSIBLE (recensement complet des écritures dans le code ; pas rejoué dans un navigateur)
 - **Ce qui se passe** : offres, secteurs, sources, étiquettes, filtres enregistrés, délai de paiement, date de début d'activité, propriétaire GitHub, chemin des projets et date du dernier export sont écrits directement (`setDoc`) dans `crm_parametres`, sans ligne de journal ni copie « avant ». Supprimer une étiquette ou un filtre, renommer une offre, changer le délai de paiement ne se retrouve nulle part et ne se défait pas. Autre cas : choisir un secteur ou une source nouveau dans une fiche écrit d'abord la liste des réglages (sans trace) puis la fiche (avec trace), en deux écritures séparées : si la seconde échoue, la liste a déjà changé.
 - **Ce que ça change pour Jérôme** : la phrase de l'écran Journal « Chaque création, modification ou suppression faite dans l'appli … laisse une ligne ici » est fausse pour tous les réglages ; un réglage supprimé par erreur ne peut se retrouver que dans une sauvegarde.
 - **Où dans le code** : `js/modules/crm/donnees.js:376-378` (`majParametre` = `setDoc` direct), `:380-421` (`enregistrerOffres`, `enregistrerListes`, `enregistrerEtiquettes`, `enregistrerFiltres`, `enregistrerReglages`, `noterExportComplet`), `:389-395` (`ajouterValeurListe`, appelé avant la mise à jour de la fiche : `js/modules/crm/fiche-personne.js:142`, `fiche-organisation.js:62`, `fiche-affaire.js:136`), `js/modules/crm/journal.js:170` (le texte).
@@ -41,7 +41,7 @@ Périmètre : collections `crm_audit` et `crm_audit_avant`, écran Journal (`js/
 
 ### D-02 · Les objectifs saisis à la main s'écrasent sans laisser de trace
 - **Gravité** : GÊNANT
-- **Confiance** : PLAUSIBLE (lu dans le code)
+- **Confiance** : CONFIRMÉ (essai du 2026-10-08, voir `09-confirmations.md`) ; avant : PLAUSIBLE (lu dans le code)
 - **Ce qui se passe** : sur l'accueil, saisir une valeur d'objectif pour un mois, cliquer « +1 » ou « +10 », modifier ou ajouter un objectif manuel écrit directement dans `os_objectifs_saisies` et `os_objectifs`. `definirSaisie` remplace la valeur du mois par la nouvelle sans garder l'ancienne ; « +1 » et « +10 » ajoutent sans dire qui ni quand.
 - **Ce que ça change pour Jérôme** : une valeur d'objectif saisie par erreur (ou écrasée) ne se retrouve pas dans le Journal ; les pourcentages de l'accueil changent sans qu'on sache pourquoi.
 - **Où dans le code** : `js/os/objectifs.js:128-132` (`ajouterASaisie`, `increment`), `:134-138` (`definirSaisie`, `setDoc` avec fusion), `:140-142` (`majObjectif`), `:144-149` (`ajouterObjectifManuel`) ; boutons : `:199`, `:205-206`, `:273-293`.
@@ -131,7 +131,7 @@ Périmètre : collections `crm_audit` et `crm_audit_avant`, écran Journal (`js/
 
 ### D-12 · Le Journal ne propose pas « Ouvrir la fiche » pour les projets
 - **Gravité** : MINEUR
-- **Confiance** : PLAUSIBLE (lu dans le code)
+- **Confiance** : CONFIRMÉ (essai du 2026-10-08, voir `09-confirmations.md`) ; avant : PLAUSIBLE (lu dans le code)
 - **Ce qui se passe** : le lien vers la fiche n'existe que pour les personnes, organisations et affaires ; les projets, tâches et modèles (pourtant dans le Journal) n'en ont pas, alors que l'adresse d'un projet existe (`#/projets/projets/<id>`).
 - **Ce que ça change pour Jérôme** : un clic de moins de confort pour les opérations sur les projets.
 - **Où dans le code** : `js/modules/crm/journal.js:10` (`CHEMINS` à trois entrées) et `:40-41` ; `js/modules/projets/composants.js:5` (`cheminProjet`).
@@ -149,7 +149,7 @@ Périmètre : collections `crm_audit` et `crm_audit_avant`, écran Journal (`js/
 
 ### D-14 · Les valeurs reçues par les outils sont gardées, mais nulle part où on puisse les relire
 - **Gravité** : MINEUR
-- **Confiance** : PLAUSIBLE (lu dans le code)
+- **Confiance** : CONFIRMÉ (essai du 2026-10-08, voir `09-confirmations.md`) ; avant : PLAUSIBLE (lu dans le code)
 - **Ce qui se passe** : le moteur écrit les paramètres reçus (tronqués à 2 000 caractères) dans la copie de la PREMIÈRE ligne seulement (`ordre === 1`). Le journal `crm_audit` ne garde que les noms des paramètres (`parametresRecus`), et l'écran de l'appli (`lireCopieJournal`) ne lit que `avant` et `apres`. `lire_audit` ne lit pas non plus les copies. Pour les actions de l'écran, `parametresRecus` est toujours vide.
 - **Ce que ça change pour Jérôme** : sa décision du 04/10/2026 (« on garde tout, y compris les valeurs reçues ») est respectée pour l'écriture, mais ces valeurs ne se lisent que dans la console Firestore ; la tâche « garder aussi les valeurs reçues dans `crm_audit` » est encore à faire (`docs/reprise-prochaine-session.md`, §1, point 1).
 - **Où dans le code** : `functions/src/coeur/ecriture.js:157-158` et `:39-43` (`tronquer`) ; `:137` (`parametresRecus` = noms) ; `js/modules/crm/donnees.js:451-456` ; `js/modules/crm/logique.js:1665`.

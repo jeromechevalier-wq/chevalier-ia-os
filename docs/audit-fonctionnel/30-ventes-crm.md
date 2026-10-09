@@ -38,7 +38,7 @@ Comment j'ai travaillé : lecture de `js/modules/crm/` en entier (sauf les chiff
 
 ### C-03 · L'écran ne permet pas de retirer la personne ou l'organisation d'une affaire
 - **Gravité** : GÊNANT
-- **Confiance** : PLAUSIBLE (lu dans le code)
+- **Confiance** : CONFIRMÉ (essai du 2026-10-08, voir `09-confirmations.md`) ; avant : PLAUSIBLE (lu dans le code)
 - **Ce qui se passe** : dans la fiche d'une affaire, la croix du champ « Personne » ou « Organisation » vide le champ à l'écran mais n'enregistre rien (le code ignore le choix vide). Au rafraîchissement, l'ancienne valeur revient. On ne peut que remplacer. Le serveur MCP, lui, sait détacher (`null`).
 - **Ce que ça change pour Jérôme** : le message de refus de suppression d'une organisation lui dit « détache d'abord ses affaires », ce qui est impossible depuis l'écran (il doit déplacer chaque affaire vers une autre organisation, ou la supprimer).
 - **Où dans le code** : `js/modules/crm/fiche-affaire.js:92` (`if (!el || el.id === a.personneId) return;`) et `:96` (`if (el && el.id !== a.organisationId)`) ; `js/os/ui.js:343-344` (la croix appelle `surChoix(null)`) ; message : `js/modules/crm/logique.js:1390`.
@@ -74,7 +74,7 @@ Comment j'ai travaillé : lecture de `js/modules/crm/` en entier (sauf les chiff
 
 ### C-07 · Une activité ne peut être ni modifiée, ni reportée, ni « dé-faite » depuis l'écran
 - **Gravité** : GÊNANT
-- **Confiance** : PLAUSIBLE (lu dans le code)
+- **Confiance** : CONFIRMÉ (essai du 2026-10-08, voir `09-confirmations.md`) ; avant : PLAUSIBLE (lu dans le code)
 - **Ce qui se passe** : le menu d'une activité à faire ne propose que « Supprimer ». Les fonctions pour modifier (`majActivite`) et pour annuler un « Fait » (`activiteNonFaite`) existent mais aucun écran ne les appelle. Une activité déjà faite n'a aucun bouton (ni annuler, ni supprimer) dans l'historique.
 - **Ce que ça change pour Jérôme** : pour reporter une relance il faut la supprimer et la recréer ; un « Fait » cliqué par erreur ne peut plus être défait depuis l'écran.
 - **Où dans le code** : `js/modules/crm/activites.js:99-102` (menu : « Supprimer » seulement) et `:232-234` (ligne d'activité faite sans action) ; `js/modules/crm/donnees.js:350` ; `js/modules/crm/logique.js:975` (jamais appelées côté écran : recherche dans `js/`).
@@ -101,7 +101,7 @@ Comment j'ai travaillé : lecture de `js/modules/crm/` en entier (sauf les chiff
 
 ### C-10 · Renommer une source ou un secteur dans les Réglages ne suit pas les fiches ni les filtres enregistrés
 - **Gravité** : GÊNANT
-- **Confiance** : PLAUSIBLE (lu dans le code)
+- **Confiance** : CONFIRMÉ (essai du 2026-10-08, voir `09-confirmations.md`) ; avant : PLAUSIBLE (lu dans le code)
 - **Ce qui se passe** : les sources et secteurs sont des textes recopiés dans chaque fiche. Renommer « Réseau entrepreneuses » dans les Réglages change la liste, mais pas les fiches existantes ni le filtre enregistré « Réseau entrepreneuses » (qui cherche l'ancien texte). Les anciennes et nouvelles valeurs coexistent ensuite dans les filtres. Retirer une étiquette laisse son identifiant dans les fiches (invisible, sans erreur).
 - **Ce que ça change pour Jérôme** : après un renommage, un filtre enregistré ne montre plus que la moitié des fiches.
 - **Où dans le code** : `js/modules/crm/reglages.js:155-168` (renommage de la liste seulement) ; `js/modules/crm/logique.js:101` (filtre de départ qui contient le texte) ; `js/modules/crm/filtres.js:16` (la liste de filtres mélange les valeurs des Réglages et celles des fiches).
@@ -128,7 +128,7 @@ Comment j'ai travaillé : lecture de `js/modules/crm/` en entier (sauf les chiff
 
 ### C-13 · Les boutons « Demain », « +3 jours »… et l'accueil restent sur la date d'ouverture si la page reste ouverte après minuit
 - **Gravité** : MINEUR
-- **Confiance** : PLAUSIBLE (lu dans le code ; essai E13 sur la fonction seulement)
+- **Confiance** : PLAUSIBLE (lu dans le code ; essai E13 sur la fonction seulement) ; essai du 2026-10-08 : non testable ici (voir `09-confirmations.md`)
 - **Ce qui se passe** : le sélecteur de date calcule « aujourd'hui » une seule fois à l'ouverture de la fiche. Si l'onglet reste ouvert pendant la nuit, « Demain » donne la date du jour. L'accueil regroupe En retard / Aujourd'hui au moment du dernier rafraîchissement des données, sans minuteur.
 - **Ce que ça change pour Jérôme** : sur un Mac qu'il laisse ouvert, une relance « demain » peut être planifiée sur le jour même.
 - **Où dans le code** : `js/modules/crm/activites.js:13` (`const aujourdhui = D.ctx().aujourdhui;` au montage) et `:138` ; `js/modules/crm/accueil.js:159` ; aucun `setInterval` côté CRM (recherche dans `js/`).
@@ -146,7 +146,7 @@ Comment j'ai travaillé : lecture de `js/modules/crm/` en entier (sauf les chiff
 
 ### C-15 · Adresses LinkedIn, site web et documents saisies sans contrôle sérieux
 - **Gravité** : MINEUR
-- **Confiance** : PLAUSIBLE pour LinkedIn et site web (lu dans le code) ; CONFIRMÉ pour le document (essai E8)
+- **Confiance** : CONFIRMÉ (essai du 2026-10-08, voir `09-confirmations.md`) ; avant : PLAUSIBLE pour LinkedIn et site web (lu dans le code) ; CONFIRMÉ pour le document (essai E8)
 - **Ce qui se passe** : LinkedIn et site web (personne, organisation) acceptent n'importe quel texte et en font un lien tel quel : « www.exemple.fr » devient un lien relatif vers une page de l'appli. Un document accepte « https:// » sans nom de site ; le même lien peut être ajouté deux fois (le journal ne voit alors qu'un seul document). En revanche l'adresse GitHub et l'adresse du dossier Drive sont bien contrôlées.
 - **Ce que ça change pour Jérôme** : un lien qui ne mène nulle part.
 - **Où dans le code** : `js/modules/crm/composants.js:137` (`href: lienVers(courant)`) ; `js/modules/crm/fiche-personne.js:139-140` ; `js/modules/crm/fiche-organisation.js:56` ; `js/modules/crm/logique.js:707-713` ; `js/modules/crm/logique.js:1776-1790`.
@@ -182,7 +182,7 @@ Comment j'ai travaillé : lecture de `js/modules/crm/` en entier (sauf les chiff
 
 ### C-19 · Une affaire restée dans une étape retirée n'apparaît dans aucune colonne du Kanban
 - **Gravité** : MINEUR
-- **Confiance** : PLAUSIBLE (lu dans le code) ; si la migration a déjà été faite en ligne, le problème n'existe plus (non vérifié)
+- **Confiance** : CONFIRMÉ (essai du 2026-10-08, voir `09-confirmations.md`) ; avant : PLAUSIBLE (lu dans le code) ; si la migration a déjà été faite en ligne, le problème n'existe plus (non vérifié)
 - **Ce qui se passe** : le Kanban ne dessine que les quatre colonnes actuelles. Une affaire en « Facture envoyée » ou « Facture payée » (avant migration) est comptée dans le compteur « N affaires » mais n'a pas de carte. La liste, elle, l'affiche. Le seul indice est la section « Migration » des Réglages.
 - **Ce que ça change pour Jérôme** : le compteur et les cartes ne concordent pas tant que la migration n'est pas lancée.
 - **Où dans le code** : `js/modules/crm/affaires.js:289-297` ; `js/modules/crm/reglages.js:206-212`.
@@ -200,7 +200,7 @@ Comment j'ai travaillé : lecture de `js/modules/crm/` en entier (sauf les chiff
 
 ### C-21 · Supprimer une affaire fait baisser les objectifs du mois (rendez-vous tenus, propositions envoyées)
 - **Gravité** : MINEUR
-- **Confiance** : PLAUSIBLE (lu dans le code)
+- **Confiance** : CONFIRMÉ (essai du 2026-10-08, voir `09-confirmations.md`) ; avant : PLAUSIBLE (lu dans le code)
 - **Ce qui se passe** : les objectifs « Rendez vous tenus » et « Propositions envoyées » se calculent à partir des activités faites et des dates d'étapes. Supprimer une affaire (ou une personne avec ses affaires) supprime ces activités et ces dates : les compteurs du mois passé baissent. La confirmation ne le dit pas.
 - **Ce que ça change pour Jérôme** : après un nettoyage de fiches d'essai, un objectif déjà atteint peut repasser sous 100 %.
 - **Où dans le code** : `js/modules/crm/logique.js:1122-1131` et `:1590-1599`.
@@ -227,7 +227,7 @@ Comment j'ai travaillé : lecture de `js/modules/crm/` en entier (sauf les chiff
 
 ### C-24 · Une grosse suppression est écrite en plusieurs lots qui ne sont pas liés entre eux
 - **Gravité** : MINEUR
-- **Confiance** : PLAUSIBLE (lu dans le code, jamais interrompu en essai)
+- **Confiance** : CONFIRMÉ (essai du 2026-10-08, voir `09-confirmations.md`) ; avant : PLAUSIBLE (lu dans le code, jamais interrompu en essai)
 - **Ce qui se passe** : au-delà de 130 écritures, `executer` coupe en lots successifs. Chaque lot est atomique (donnée et trace ensemble) mais pas l'ensemble : si le réseau tombe au milieu de la suppression d'une personne très fournie, une partie du fil est supprimée et le reste non. L'ordre prévu (détachements, suppressions du fil, personne en dernier) permet de relancer.
 - **Ce que ça change pour Jérôme** : cas rare (plus de 130 éléments) ; on peut recommencer la suppression.
 - **Où dans le code** : `js/modules/crm/donnees.js:177` et `:190-197`.

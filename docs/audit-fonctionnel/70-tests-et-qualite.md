@@ -33,7 +33,7 @@
 
 ### G-02 · Aucun test ne se lance tout seul avant la mise en ligne
 - **Gravité** : GÊNANT
-- **Confiance** : PLAUSIBLE (lu dans le fichier ; le fichier ne contient simplement aucune étape de test)
+- **Confiance** : CONFIRMÉ (essai du 2026-10-08, voir `09-confirmations.md`) ; avant : PLAUSIBLE (lu dans le fichier ; le fichier ne contient simplement aucune étape de test)
 - **Ce qui se passe** : le seul fichier de `.github/workflows` est `firebase-hosting.yml`. Il se lance à chaque envoi sur `main` et fait : installer les fonctions, déployer les fonctions, déployer le site. Il ne lance **aucun** test (ni `npm test`, ni tests purs) avant de déployer. D'après la consigne reçue, la décision R3 de `plan-mcp.md` est aussi de ne pas lancer de tests automatiques sur les Pull Requests, et Jérôme ne lance pas `npm test` sur son Mac.
 - **Ce que ça change pour Jérôme** : la seule barrière est la session Claude qui lance la suite complète (environ 20 minutes) avant la PR, comme le demande `CLAUDE.md`. Si une session l'oublie ou si un test est déjà rouge (G-01), rien ne bloque la mise en ligne.
 - **Où dans le code** : `.github/workflows/firebase-hosting.yml` (étapes `Installer les dépendances`, `Déployer les fonctions`, `FirebaseExtended/action-hosting-deploy`) ; `tests/package.json` (script `test`).
@@ -42,7 +42,7 @@
 
 ### G-03 · Douze attentes de durée fixe et aucun nouvel essai en cas de lenteur
 - **Gravité** : MINEUR
-- **Confiance** : PLAUSIBLE
+- **Confiance** : CONFIRMÉ (essai du 2026-10-08, voir `09-confirmations.md`) ; avant : PLAUSIBLE
 - **Ce qui se passe** : des tests attendent un temps fixe au lieu d'attendre un événement : `tests/e2e/projets.spec.js` lignes 883 (1,5 s), 1026, 1067, 1238, 1245, 1310, 1332, 1340, 1408 (0,5 à 0,6 s), 1096 (1,2 s), 1303 (0,6 s), 1558 (0,4 s). Le réglage de Playwright n'a **aucune reprise** en cas d'échec (`retries: 0`), un seul travailleur (`workers: 1`), 90 s par test et 10 s par attente (`tests/playwright.config.js`).
 - **Ce que ça change pour Jérôme** : sur une machine plus lente, ou un jour chargé, un test peut devenir rouge sans vrai défaut ; il faut alors tout relancer (jusqu'à 20 minutes). Je n'ai pas lu à quoi sert chaque attente.
 - **Où dans le code** : `tests/e2e/projets.spec.js:883,1026,1067,1096,1238,1245,1303,1310,1332,1340,1408,1558` ; `tests/playwright.config.js`.
@@ -51,7 +51,7 @@
 
 ### G-04 · Deux tests de parcours dépendent de l'horloge ou réussissent « dans le vide »
 - **Gravité** : MINEUR
-- **Confiance** : PLAUSIBLE
+- **Confiance** : PLAUSIBLE ; essai du 2026-10-08 : NON REPRODUIT (voir `09-confirmations.md`)
 - **Ce qui se passe** : (1) `parcours.spec.js:49-51` exige au moins 1 mois dans le graphique et que tous soient `>= 2026-10` : il suppose que l'horloge de la machine est en octobre 2026 ou après (il échouerait avec une horloge plus ancienne). (2) `parcours.spec.js:666` vérifie que tous les mois affichés sont `>= 2026-12` après avoir réglé le début d'activité à décembre 2026 ; tant que la date du jour est avant décembre 2026, le graphique est vraisemblablement vide et `every` sur une liste vide est toujours vrai : le test ne prouve rien (non vérifié que le graphique est vide).
 - **Ce que ça change pour Jérôme** : un test donne une fausse impression de contrôle ; un autre pourrait casser avec une mauvaise horloge.
 - **Où dans le code** : `tests/e2e/parcours.spec.js:49-51` et `:666`.
@@ -69,7 +69,7 @@
 
 ### G-06 · Les tests de parcours ont besoin du port 5050 libre
 - **Gravité** : MINEUR
-- **Confiance** : PLAUSIBLE
+- **Confiance** : CONFIRMÉ (essai du 2026-10-08, voir `09-confirmations.md`) ; avant : PLAUSIBLE
 - **Ce qui se passe** : `playwright.config.js` fixe l'adresse `http://localhost:5050` et `reuseExistingServer: false` : si ce port est déjà pris (une autre session, un autre essai), le lancement échoue au lieu de s'adapter. Les émulateurs Firebase utilisent aussi leurs ports par défaut (le coordinateur a signalé qu'un autre agent s'en sert). Deux séries de tests ne peuvent donc pas tourner en même temps sur la même machine.
 - **Ce que ça change pour Jérôme** : pas de lancements en parallèle ; une session qui en trouve une autre en cours doit attendre.
 - **Où dans le code** : `tests/playwright.config.js` (`baseURL`, `webServer`) ; `tests/e2e/serveur.js`.

@@ -123,7 +123,7 @@ Statut : complet pour le périmètre ci-dessous (lecture du code, essais sur des
 
 ### B-12 · Plusieurs lectures n'ont aucune limite de taille
 - **Gravité** : MINEUR
-- **Confiance** : PLAUSIBLE
+- **Confiance** : CONFIRMÉ (essai du 2026-10-08, voir `09-confirmations.md`) ; avant : PLAUSIBLE
 - **Ce qui se passe** : `lister_documents` n'a pas de plafond. `lire_personne`, `lire_organisation` et `lire_affaire` renvoient toutes les activités de la fiche ; avec `avecFil`, jusqu'à 500 entrées (notes de 20 000 caractères au plus chacune), sans limite de poids. `lister_affaires` renvoie les fiches complètes (jusqu'à 5 000 caractères de « besoin » par affaire, fois 200).
 - **Ce que ça change pour Jérôme** : une réponse très grosse peut saturer le contexte de l'agent ou ralentir le serveur ; aucun symptôme aujourd'hui (volumes actuels non vérifiés).
 - **Où dans le code** : `functions/src/coeur/lecture.js:147-153`, `:62-111`, `js/modules/crm/logique.js:11` (`MAX_HISTORIQUE = 500`) et `:1079-1094`, `functions/src/mcp/outils/ecriture.js:119` (notes jusqu'à 20 000 caractères).
@@ -213,7 +213,7 @@ Statut : complet pour le périmètre ci-dessous (lecture du code, essais sur des
 
 ### B-22 · `qui_suis_je` annonce la version 0.2.0 du serveur alors que l'application est en 2.3.3
 - **Gravité** : MINEUR
-- **Confiance** : PLAUSIBLE
+- **Confiance** : CONFIRMÉ (essai du 2026-10-08, voir `09-confirmations.md`) ; avant : PLAUSIBLE
 - **Ce qui se passe** : la version affichée vient de `functions/package.json` (0.2.0), distincte de `version.json` (2.3.3). Aucun document n'explique la différence.
 - **Ce que ça change pour Jérôme** : une personne qui contrôle « quelle version tourne ? » voit deux numéros sans lien.
 - **Où dans le code** : `functions/src/version.js:4`, `functions/package.json` (`"version": "0.2.0"`), `version.json`.

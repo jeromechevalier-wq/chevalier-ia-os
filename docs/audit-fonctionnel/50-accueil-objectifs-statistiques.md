@@ -83,7 +83,7 @@ Comment j'ai travaillé : lecture de `js/modules/crm/accueil.js`, `js/os/objecti
 
 ### E-08 · Accueil laissé ouvert après minuit : le jour, les Points clés et le mois ne bougent pas
 - **Gravité** : GÊNANT
-- **Confiance** : PLAUSIBLE (lu dans le code, pas rejoué dans un navigateur)
+- **Confiance** : PLAUSIBLE (lu dans le code, pas rejoué dans un navigateur) ; essai du 2026-10-08 : non testable ici (voir `09-confirmations.md`)
 - **Ce qui se passe** : l'accueil ne se redessine que lorsqu'une donnée change. Aucun minuteur ni retour au premier plan ne le relance (les seuls `visibilitychange` et `focus` de l'appli ne vérifient que la version, `js/os/pwa.js:52-56`). Après minuit, la date du haut, les groupes « En retard » et « Aujourd'hui » et le mois des objectifs restent ceux de la veille. De plus, le mois affiché est retenu entre deux visites (`moisAffiche` est une variable de module), et le bouton « mois suivant » est désactivé d'après le mois du moment où la page a été dessinée : le 1er du mois, une page déjà ouverte continue de montrer les objectifs du mois fini comme s'ils étaient ceux du mois en cours.
 - **Ce que ça change pour Jérôme** : une appli installée et rouverte le matin montre les « Aujourd'hui » d'hier tant qu'aucune donnée ne bouge, et le 1er du mois elle peut afficher les objectifs du mois précédent (le nom du mois est écrit, donc l'erreur est repérable mais non signalée).
 - **Où dans le code** : `js/modules/crm/accueil.js:16` et `:19-20` (`moisAffiche`, `moisActuel` figés à chaque dessin) ; `:23` (jour figé) ; `:57` (« suivant » désactivé selon `moisActuel`) ; `:81` (seuls abonnements : données du CRM, des projets et objectifs) ; `js/modules/crm/donnees.js:62-70` (`aujourdhui` recalculé seulement quand on appelle `ctx()`, donc au prochain dessin).
@@ -128,7 +128,7 @@ Comment j'ai travaillé : lecture de `js/modules/crm/accueil.js`, `js/os/objecti
 
 ### E-13 · Vider la case d'une saisie manuelle remet le compteur à zéro sans prévenir
 - **Gravité** : MINEUR
-- **Confiance** : PLAUSIBLE (la formule est vérifiée ; l'événement de l'écran n'est pas rejoué)
+- **Confiance** : CONFIRMÉ (essai du 2026-10-08, voir `09-confirmations.md`) ; avant : PLAUSIBLE (la formule est vérifiée ; l'événement de l'écran n'est pas rejoué)
 - **Ce qui se passe** : le champ « saisie directe » d'un objectif manuel enregistre dès qu'on le quitte. Un champ vidé, un texte ou un nombre négatif donnent 0.
 - **Ce que ça change pour Jérôme** : un clic maladroit dans la case des flyers distribués efface le total du mois.
 - **Où dans le code** : `js/os/objectifs.js:134-138` (`Math.max(0, Number(valeurSaisie) || 0)`) ; `js/os/objectifs.js:196-201` (`onchange`).
@@ -146,7 +146,7 @@ Comment j'ai travaillé : lecture de `js/modules/crm/accueil.js`, `js/os/objecti
 
 ### E-15 · Un projet « en retard » à cause de sa date de fin n'apparaît pas dans les Points clés
 - **Gravité** : MINEUR
-- **Confiance** : PLAUSIBLE (lecture du code)
+- **Confiance** : CONFIRMÉ (essai du 2026-10-08, voir `09-confirmations.md`) ; avant : PLAUSIBLE (lecture du code)
 - **Ce qui se passe** : un projet vivant dont la date de fin est dépassée reçoit une pastille rouge (« en retard »), mais les Points clés ne montrent que les tâches datées. Un projet sans tâche en retard n'y figure donc pas.
 - **Ce que ça change pour Jérôme** : la pastille rouge de la liste Projets et la page d'accueil ne disent pas la même chose.
 - **Où dans le code** : `js/modules/projets/logique.js:391-395` (`estProjetEnRetard` : `projet.dateFin < aujourdhui`) ; `js/modules/projets/logique.js:517-523` (`tachesPointsCles`, seulement les tâches).

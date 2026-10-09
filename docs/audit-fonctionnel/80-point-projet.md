@@ -156,7 +156,7 @@ Statut : partiel (la comparaison documentation / code / git est faite ; les dép
 
 ### H-09 · Des contrôles à date fixe n'ont aucun résultat écrit
 - **Gravité** : MINEUR
-- **Confiance** : PLAUSIBLE (les résultats sont peut-être dans la console, que je n'ai pas vue)
+- **Confiance** : PLAUSIBLE (les résultats sont peut-être dans la console, que je n'ai pas vue) ; essai du 2026-10-08 : non testable ici (voir `09-confirmations.md`)
 - **Ce qui se passe** : trois vérifications étaient annoncées avec une date : la première sauvegarde quotidienne de Firestore « à vérifier le 04/10/2026 » (`docs/roadmap.md:11`, `docs/reprise-prochaine-session.md:68`) ; la première copie de la base `suivi-presence-eleves` « attendue le 07/10/2026 » (`docs/reprise-prochaine-session.md:70`) ; le contrôle à 8 jours du prototype Drive « vers le 10/10/2026 » (`docs/prototype-drive.md:15`, `:170`). Aucun document n'écrit que l'une d'elles a été faite. La fiche de reprise elle-même est datée du 07/10/2026 et ne fait pas le point.
 - **Ce que ça change pour Jérôme** : on ne sait pas si les copies Google tournent vraiment, et l'étape 7 (téléversement) attend un contrôle dont on ne connaît pas l'issue.
 - **Où dans le code** : sans objet (documentation).

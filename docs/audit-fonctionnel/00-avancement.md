@@ -14,6 +14,7 @@ Branche : `claude/fervent-mayer-gme1rw` (aucune PR, rien sur `main`). Dernière 
 | F. Parcours utilisateur | `60-parcours-utilisateur.md` | NON FAITE (pause demandée par Jérôme, puis priorité au rapport) : aucun parcours fait, 0 constat F ; émulateurs et navigateur vérifiés (démarrent bien ici) | 17:50 |
 | G. Tests et qualité | `70-tests-et-qualite.md` | terminé en partie, statut partiel, 6 constats (0 bloquant, 2 gênants, 4 mineurs) : suite complète faite (17:13 à 17:34) : 744 réussis (540 tests purs + 204 dans le navigateur), 2 échecs (même test, ordinateur et téléphone), 2 sautés ; analyse des tests en cours (agent) | 17:42 |
 | H. Point projet | `80-point-projet.md` | terminé, statut partiel (9 constats : 0 bloquant, 2 gênants, 7 mineurs) | 17:35 |
+| Confirmations des constats plausibles | `09-confirmations.md` | terminé : sur 26, 20 confirmés, 2 non reproduits (A-12, G-04), 4 non testables ici (E-08, A-15, C-13, H-09) ; reportés dans les fichiers d'étape | 21:55 |
 | I. Rapport final | `99-rapport.html` | terminé (un seul fichier HTML autonome, vérifié sur 390 px et 1440 px, filtre testé) | 17:58 |
 
 ## Décisions de Jérôme sur la facturation (08/10/2026)

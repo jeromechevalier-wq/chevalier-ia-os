@@ -112,7 +112,7 @@ Branche auditée : `claude/fervent-mayer-gme1rw` (identique à `main` au démarr
 
 ### A-11 · Migration en plusieurs lots : un échec en cours de route peut créer une facture en double au deuxième essai
 - **Gravité** : MINEUR
-- **Confiance** : PLAUSIBLE
+- **Confiance** : CONFIRMÉ (essai du 2026-10-08, voir `09-confirmations.md`) ; avant : PLAUSIBLE
 - **Ce qui se passe** : les écritures d'une migration sont envoyées par paquets de 130 écritures (`ACTIONS_PAR_LOT`) ; chaque paquet est atomique mais pas l'ensemble. Pour chaque affaire, le plan écrit d'abord la facture sur le projet, puis le changement d'étape de l'affaire. Si la coupure tombe entre les deux (un paquet réussi, le suivant refusé), l'affaire reste en « Facture envoyée » alors que sa facture existe déjà ; au relancement, une seconde facture identique est ajoutée.
 - **Ce que ça change pour Jérôme** : la promesse « idempotente, se restaure d'un coup » n'est tenue que si tout tient dans un seul paquet ; avec beaucoup d'affaires, une panne réseau pourrait laisser un état à moitié migré. Nombre d'affaires concernées : non vérifié (donc risque non chiffré).
 - **Où dans le code** : `js/modules/crm/donnees.js:176-197` (`executer`, découpage en lots) ; `js/modules/projets/logique.js:367-373` (ordre des écritures) ; `js/modules/projets/donnees.js:292-296`
@@ -121,7 +121,7 @@ Branche auditée : `claude/fervent-mayer-gme1rw` (identique à `main` au démarr
 
 ### A-12 · Les factures sont une liste unique dans le projet : deux modifications simultanées peuvent s'écraser
 - **Gravité** : MINEUR
-- **Confiance** : PLAUSIBLE
+- **Confiance** : PLAUSIBLE ; essai du 2026-10-08 : NON REPRODUIT (voir `09-confirmations.md`)
 - **Ce qui se passe** : ajouter, modifier ou payer une facture réécrit la liste `factures` entière du projet, calculée à partir de la copie lue juste avant. Si l'écran et un agent MCP (qui lit puis écrit de son côté) modifient le même projet à quelques secondes d'écart, la dernière écriture peut effacer l'ajout de l'autre.
 - **Ce que ça change pour Jérôme** : une facture ajoutée par Hermes pendant que Jérôme en marque une autre payée pourrait disparaître sans trace visible (l'événement du fil resterait, mais pas la ligne de facture).
 - **Où dans le code** : `js/modules/projets/logique.js:267`, `:286`, `:302` (patch = tableau complet) ; `functions/src/coeur/metier.js` (`ajouterFacture`, lecture puis écriture)
@@ -130,7 +130,7 @@ Branche auditée : `claude/fervent-mayer-gme1rw` (identique à `main` au démarr
 
 ### A-13 · Le réglage « Délai de paiement » est encore dans Réglages (et encore passé au calcul), alors qu'il n'y a pas de délai
 - **Gravité** : MINEUR
-- **Confiance** : PLAUSIBLE
+- **Confiance** : CONFIRMÉ (essai du 2026-10-08, voir `09-confirmations.md`) ; avant : PLAUSIBLE
 - **Ce qui se passe** : la section « Délai de paiement » (30 jours par défaut, de 1 à 365) reste modifiable, avec la mention « Plus utilisé depuis la 2.2 ». Le paramètre est toujours transmis à `suggestionPourEtape`, qui ne s'en sert plus.
 - **Ce que ça change pour Jérôme** : un réglage qui ne fait rien, et qui laisse croire qu'un délai existe, alors qu'il a décidé « pas de délai de paiement ».
 - **Où dans le code** : `js/modules/crm/reglages.js:52-58` et `:223` ; `js/modules/crm/logique.js:590` (paramètre inutilisé) et `:654` ; `js/modules/crm/donnees.js:68`
@@ -148,7 +148,7 @@ Branche auditée : `claude/fervent-mayer-gme1rw` (identique à `main` au démarr
 
 ### A-15 · La date du jour est « figée » dans la liste des tâches d'une fiche laissée ouverte
 - **Gravité** : MINEUR
-- **Confiance** : PLAUSIBLE
+- **Confiance** : PLAUSIBLE ; essai du 2026-10-08 : non testable ici (voir `09-confirmations.md`)
 - **Ce qui se passe** : `sectionTaches` lit « aujourd'hui » une fois, quand la fiche est dessinée, et s'en sert pour les badges « En retard » / « Aujourd'hui ». Passé minuit à Paris, si la fiche reste ouverte sans qu'aucune donnée ne change, les badges restent ceux de la veille jusqu'au prochain rafraîchissement. (Le calcul lui-même est juste : il utilise bien le fuseau Europe/Paris.)
 - **Ce que ça change pour Jérôme** : un badge peut afficher « Aujourd'hui » pour une tâche qui est déjà en retard, s'il laisse la fiche ouverte la nuit.
 - **Où dans le code** : `js/modules/projets/taches.js:60` (constante figée), à comparer avec `js/modules/projets/projets.js:26` et `factures.js:11` qui relisent la date à chaque appel
