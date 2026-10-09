@@ -56,4 +56,4 @@ Les autorisations sont dans la collection Firestore **`mcp_oauth`** (fermée à 
 
 ## Où est le code
 
-`functions/src/oauth/` : `config.js` (réglages et décisions), `magasin.js` (codes, jetons, révocation), `routeur.js` (routes), `page.js` (page de consentement), `identite-google.js` (vérification de la connexion Google). Branché dans `functions/src/mcp/gestionnaire.js` et `functions/src/index.js`. Tests : `tests/oauth.test.js` (39 tests) et `tests/e2e/oauth.spec.js` (navigateur, ordinateur et téléphone).
+`functions/src/oauth/` : `config.js` (réglages et décisions), `magasin.js` (codes, jetons, révocation), `routeur.js` (routes), `page.js` (page de consentement), `identite-google.js` (vérification de la connexion Google). Branché dans `functions/src/mcp/gestionnaire.js` et `functions/src/index.js`. Tests : `tests/oauth.test.js` (40 tests) et `tests/e2e/oauth.spec.js` (navigateur, ordinateur et téléphone).
