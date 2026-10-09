@@ -1,6 +1,6 @@
-# Synthèse provisoire : les 10 constats les plus importants (état à 17:58, heure de Paris)
+# Synthèse provisoire : les 10 constats les plus importants (état à 22:25, heure de Paris)
 
-Étapes déjà lues : A (projets et factures), B (serveur MCP), C (ventes et CRM), D (journal), E (accueil et chiffres), G (tests, partielle), H (documentation) ; cette liste est mise à jour à chaque étape. Les gravités sont celles des fichiers d'étape.
+Étapes déjà lues : A (projets et factures), B (serveur MCP), C (ventes et CRM), D (journal), E (accueil et chiffres), F (parcours dans l'appli), G (tests, partielle), H (documentation) ; cette liste est mise à jour à chaque étape. Les gravités sont celles des fichiers d'étape.
 
 1. **C-01 · BLOQUANT** : supprimer une ancienne organisation efface aussi des notes et activités de personnes ou d'affaires qui l'ont quittée mais existent toujours (`js/modules/crm/logique.js:1545` et `:1550`). Confirmé au niveau de la règle.
 2. **C-02 · BLOQUANT** : supprimer une personne efface le fil d'une affaire qui lui a été retirée et qui appartient maintenant à quelqu'un d'autre (`js/modules/crm/logique.js:1519`). Confirmé au niveau de la règle.
@@ -19,4 +19,4 @@ Autres points forts à garder en tête : D-03 (une grosse suppression faite depu
 
 (Détail et preuves : `10-projets-et-factures.md`, `20-serveur-mcp.md`, `30-ventes-crm.md`.)
 
-Total : 110 constats (2 bloquants, 44 gênants, 64 mineurs). Rapport lisible par Jérôme : `99-rapport.html`.
+Total : 120 constats (2 bloquants, 45 gênants, 73 mineurs ; 114 confirmés, 6 plausibles). Rapport lisible par Jérôme : `99-rapport.html`. À ajouter à la liste ci-dessus : **F-01 · GÊNANT** : sur téléphone, le message vert « Ouvrir la fiche » se pose 5 secondes sur le bouton « Enregistrer » de la fenêtre suivante ; un toucher change de page et rien n'est enregistré (`css/os.css:296` et `:444`).
