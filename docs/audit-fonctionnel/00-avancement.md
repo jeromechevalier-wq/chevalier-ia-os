@@ -1,6 +1,6 @@
 # Avancement de l'audit fonctionnel (Chevalier IA OS 2.3.3)
 
-Branche : `claude/fervent-mayer-gme1rw` (aucune PR, rien sur `main`). Dernière mise à jour : 2026-10-08 22:25 (heure de Paris). Audit terminé (étapes A à I) : le minimum utile est fait ; les correctifs, l'étude des modules et les autres idées restent en file (voir `04-reprise-one-shot.md`).
+Branche : `claude/fervent-mayer-gme1rw` (aucune PR, rien sur `main`). Dernière mise à jour : 2026-10-09 15:36 (heure de Paris). Audit terminé (étapes A à I) : le minimum utile est fait ; les correctifs, l'étude des modules et les autres idées restent en file (voir `04-reprise-one-shot.md`).
 
 | Étape | Fichier | État | Heure (Paris) |
 |---|---|---|---|
@@ -11,11 +11,11 @@ Branche : `claude/fervent-mayer-gme1rw` (aucune PR, rien sur `main`). Dernière 
 | C. Ventes et CRM | `30-ventes-crm.md` | terminé, statut partiel (24 constats : 2 bloquants, 9 gênants, 13 mineurs) | 17:10 |
 | D. Journal et restauration | `40-journal-et-restauration.md` | terminé, statut partiel (17 constats : 0 bloquant, 7 gênants, 10 mineurs) | 17:25 |
 | E. Accueil, objectifs, statistiques | `50-accueil-objectifs-statistiques.md` | terminé, statut partiel (17 constats : 0 bloquant, 8 gênants, 9 mineurs) | 17:19 |
-| F. Parcours utilisateur | `60-parcours-utilisateur.md` | terminé, complet pour le périmètre demandé : 13 parcours sur ordinateur et téléphone simulé, 10 constats (0 bloquant, 1 gênant, 9 mineurs), 8 captures dans `captures/` | 22:20 |
+| F. Parcours utilisateur | `60-parcours-utilisateur.md` | terminé, complet pour le périmètre demandé : 13 parcours sur ordinateur et téléphone simulé, 10 constats (0 bloquant, 1 gênant, 9 mineurs), 8 captures dans `captures/` | 09/10 15:35 |
 | G. Tests et qualité | `70-tests-et-qualite.md` | terminé en partie, statut partiel, 6 constats (0 bloquant, 2 gênants, 4 mineurs) : suite complète faite (17:13 à 17:34) : 744 réussis (540 tests purs + 204 dans le navigateur), 2 échecs (même test, ordinateur et téléphone), 2 sautés ; analyse des tests en cours (agent) | 17:42 |
 | H. Point projet | `80-point-projet.md` | terminé, statut partiel (9 constats : 0 bloquant, 2 gênants, 7 mineurs) | 17:35 |
-| Confirmations des constats plausibles | `09-confirmations.md` | terminé : sur 26, 20 confirmés, 2 non reproduits (A-12, G-04), 4 non testables ici (E-08, A-15, C-13, H-09) ; reportés dans les fichiers d'étape | 21:55 |
-| I. Rapport final | `99-rapport.html` | terminé et regénéré avec F et les confirmations (un seul fichier HTML autonome, vérifié sur 390 px et 1440 px, filtre testé) | 22:25 |
+| Confirmations des constats plausibles | `09-confirmations.md` | terminé : sur 26, 20 confirmés, 2 non reproduits (A-12, G-04), 4 non testables ici (E-08, A-15, C-13, H-09) ; reportés dans les fichiers d'étape | 09/10 15:15 |
+| I. Rapport final | `99-rapport.html` | terminé et regénéré avec F et les confirmations (un seul fichier HTML autonome, vérifié sur 390 px et 1440 px, filtre testé) | 09/10 15:35 |
 
 ## Décisions de Jérôme sur la facturation (08/10/2026)
 Voir `03-decisions-facturation.md` : paiement partiel refusé, facture refusée sur un projet terminé, confirmation avec avertissement avant de supprimer une facture payée, migration 2.2 déjà appliquée (donc à vérifier sur les vraies données).
