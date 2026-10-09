@@ -30,6 +30,7 @@ Depuis l'étape 4 : la fonction lit et **écrit** la base (créer, modifier ; su
 | Échec fermé | Si le coffre est illisible : 503, jamais d'accès accordé, jamais de copie périmée | **[en place]** |
 | Droits par profil | Le serveur n'expose et n'exécute que les outils du profil du jeton, même si le client est mal configuré : lecteur = lecture ; bibliothécaire = + créer et modifier ; **Claude Code seul = supprimer et restaurer** | **[en place]** (étape 4), testé |
 | Origine et méthode | En-tête `Origin` étranger refusé (403) ; tout sauf `POST` refusé (405) | **[en place]** |
+| Seconde porte : connexion Google (OAuth) | Pour l'appli Claude du téléphone et claude.ai, qui ne savent pas envoyer de jeton `cia_…`. Compte Google de la liste uniquement (revérifié par le serveur), adresse de retour de Claude exactement, PKCE, code de 60 s, accès d'1 h, renouvellement avec rotation, 30 jours glissants, profil `claude-code`. Autorisations (empreintes seulement) dans la collection `mcp_oauth`, fermée à l'appli. Détail : `mcp-oauth.md` | **[construit le 09/10/2026, PR en attente de « fusionne »]**, testé |
 | Journaux sans secret | On ne note que : nom du jeton, acteur, profil, outil, durée, statut, code ; jamais jeton, en-tête, paramètres, contenus de fiches | **[en place]**, testé |
 | Un seul chemin d'écriture | Aucun outil n'écrit directement : tout passe par le moteur d'écriture, qui n'écrit que dans les 6 collections de données du CRM (jamais l'audit, les compteurs ni les paramètres). Contrôlé par test | **[en place]** (étape 4) |
 | Audit en trois temps | Avant d'écrire : trace « en_cours » + copie avant/après (si le journal est en panne, **rien n'est écrit**) ; puis les données ; puis la trace passe à « succes » ou « echec » | **[en place]** (étape 4), pannes simulées en test |
@@ -76,7 +77,8 @@ Ne jamais mettre un jeton ou une clé : dans le dépôt, dans un dossier synchro
 2. **Couper un seul client** : nouvelle version du secret avec `"actif": false` sur sa ligne.
 3. **Retirer l'accès public du service** : console Google → Cloud Run → service `mcp` → Sécurité → retirer l'invocation publique. https://console.cloud.google.com/run?project=chevalier-ia-os
 4. **Passer un client en lecture seule, sans le couper** : dans une **nouvelle version** du secret `MCP_JETONS`, changer `"profil"` de sa ligne en `"lecteur"` (effet en moins d'une minute). Utile si un agent écrit n'importe quoi : il peut encore lire, plus rien écrire.
-5. **Retirer le code** : `git revert -m 1 <commit de fusion>` sur `main` ; le workflow redéploie avec `--force`, ce qui **supprime aussi la fonction** retirée du code. Vérifier ensuite dans Cloud Run que le service `mcp` a disparu (sinon le supprimer à la main).
+5. **Couper la connexion Google (téléphone, claude.ai)**, sans toucher Hermes ni Claude Code : console Firestore → collection `mcp_oauth` → « Supprimer la collection » (ou, pour une seule connexion, `revoque: true` sur son document `connexion_…`). Effet immédiat. Désactiver `MCP_JETONS` (point 1) ne coupe **pas** cette porte. https://console.firebase.google.com/project/chevalier-ia-os/firestore/data
+6. **Retirer le code** : `git revert -m 1 <commit de fusion>` sur `main` ; le workflow redéploie avec `--force`, ce qui **supprime aussi la fonction** retirée du code. Vérifier ensuite dans Cloud Run que le service `mcp` a disparu (sinon le supprimer à la main).
 
 ## 5. Pourquoi il n'y a pas de « porte dérobée » dans le code
 

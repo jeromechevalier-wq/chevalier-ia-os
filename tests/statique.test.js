@@ -217,11 +217,12 @@ describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
     assert.match(r, /email_verified == true/);
     assert.match(r, /jerome\.chevalier@gmail\.com/);
     assert.match(r, /jeromebot\.chevalierbot@gmail\.com/);
-    assert.match(r, /!\(collection in \['crm_audit', 'crm_audit_avant', 'mcp_limites'\]\)/);
+    assert.match(r, /!\(collection in \['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth'\]\)/);
     // journal : lu par l'appli, ajout seul (à son nom, canal « ecran »), jamais modifié ni supprimé
     assert.match(r, /match \/crm_audit\/\{id\} \{\s+allow read: if compteAutorise\(\);\s+allow create: if compteAutorise\(\)\s+&& request\.resource\.data\.via == 'ecran'\s+&& request\.resource\.data\.acteur == request\.auth\.token\.email;\s+allow update, delete: if false;/);
     assert.match(r, /match \/crm_audit_avant\/\{id\} \{\s+allow read: if compteAutorise\(\);\s+allow create: if compteAutorise\(\) && request\.resource\.data\.expireAt is timestamp;\s+allow update, delete: if false;/);
     assert.match(r, /match \/mcp_limites\/\{id\} \{\s+allow read, write: if false;/);
+    assert.match(r, /match \/mcp_oauth\/\{id\} \{\s+allow read, write: if false;/);
   });
 
   test('D4 aucun secret dans le dépôt (secret OAuth Google, jeton de rafraîchissement ou d’accès, jeton MCP, clé privée)', () => {
@@ -307,7 +308,14 @@ describe('D5 Serveur MCP (étape 2) : déploiement, versions figées, sécurité
     assert.doesNotMatch(t, /compute@developer|appspot\.gserviceaccount/);
   });
   test('D5 /mcp est réécrit vers le service Cloud Run « mcp » de Paris, et functions/ n’est pas publié', () => {
-    assert.deepEqual(fb.hosting.rewrites, [{ source: '/mcp', run: { serviceId: 'mcp', region: 'europe-west9' } }]);
+    const vers = { serviceId: 'mcp', region: 'europe-west9' };
+    assert.deepEqual(fb.hosting.rewrites, [
+      { source: '/mcp', run: vers },
+      { source: '/.well-known/oauth-protected-resource', run: vers },
+      { source: '/.well-known/oauth-protected-resource/mcp', run: vers },
+      { source: '/.well-known/oauth-authorization-server', run: vers },
+      { source: '/oauth/**', run: vers },
+    ]);
     assert.ok(fb.hosting.ignore.includes('functions/**'));
     assert.equal(fb.emulators.functions.port, 5001);
   });
@@ -332,6 +340,27 @@ describe('D5 Serveur MCP (étape 2) : déploiement, versions figées, sécurité
     assert.match(g, /req\.headers\.authorization/);
     assert.doesNotMatch(g, /req\.query|req\.url|searchParams/);
     assert.match(lire('functions/src/securite/jetons.js'), /timingSafeEqual/);
+  });
+  test('D8 OAuth : seules les routes lisent l’adresse de la requête (jamais pour un jeton) ; le magasin n’a aucune notion de requête ; aucun secret ni jeton dans le code OAuth', () => {
+    assert.doesNotMatch(lire('functions/src/oauth/magasin.js'), /\breq\b|\bres\b|headers/);
+    assert.doesNotMatch(lire('functions/src/oauth/identite-google.js'), /\breq\b|\bres\b/);
+    for (const f of fichiersFonctions().filter((x) => x.includes('/oauth/'))) {
+      assert.doesNotMatch(lire(f), /crm_|projets_|COLLECTIONS\b/, `${f} : le code OAuth n’écrit que dans mcp_oauth, jamais dans les données du CRM`);
+    }
+    assert.match(lire('functions/src/oauth/config.js'), /COLLECTION_OAUTH = 'mcp_oauth'/);
+    const routeur = lire('functions/src/oauth/routeur.js');
+    assert.doesNotMatch(routeur, /req\.query|req\.headers\.authorization/);
+    assert.match(routeur, /req\.headers\.origin/, 'la route du consentement exige l’origine de l’appli');
+    for (const f of fichiersFonctions().filter((x) => x.includes('/oauth/'))) {
+      assert.doesNotMatch(lire(f), /cia_[A-Za-z0-9_-]{40,}|GOCSPX-|client_secret|-----BEGIN/, f);
+    }
+  });
+  test('D8 OAuth : le téléphone reçoit le profil décidé par Jérôme (claude-code, 09/10/2026), 30 jours glissants, code de 60 s, accès d’une heure, adresses de retour de Claude seulement', async () => {
+    const c = await import('../functions/src/oauth/config.js');
+    assert.equal(c.PROFIL_OAUTH, 'claude-code');
+    assert.deepEqual({ ...c.DUREES }, { codeS: 60, accesS: 3600, connexionJours: 30 });
+    assert.deepEqual(c.REDIRECTIONS_AUTORISEES, ['https://claude.ai/api/mcp/auth_callback', 'https://claude.com/api/mcp/auth_callback']);
+    assert.equal(c.RESSOURCE, 'https://chevalier-ia-os.web.app/mcp');
   });
   test('D5 le code des fonctions n’enregistre jamais de jeton, d’en-tête ni de paramètre (aucun console.log direct, journal à liste blanche)', () => {
     for (const f of fichiersFonctions()) {
@@ -386,7 +415,8 @@ describe('D5 Serveur MCP (étape 2) : déploiement, versions figées, sécurité
   test('D6 étape 4 : la fonction branche les plafonds de débit (sans eux, aucun frein) et passe par le moteur d’écriture avec audit', () => {
     const index = lire('functions/src/index.js');
     assert.match(index, /creerLimiteur\(\{ donnees \}\)/);
-    assert.match(index, /creerGestionnaire\(\{ magasin, donnees, limiteur \}\)/);
+    assert.match(index, /creerGestionnaire\(\{ magasin, donnees, limiteur, oauth \}\)/);
+    assert.match(index, /creerRouteurOauth\(\{ donnees, verifierIdToken: creerVerificateurIdentite\(\) \}\)/);
     const g = lire('functions/src/mcp/gestionnaire.js');
     assert.match(g, /executerEcritures/);
     assert.match(g, /limiteur\?\.requete/);
@@ -409,7 +439,7 @@ describe('D5 Serveur MCP (étape 2) : déploiement, versions figées, sécurité
   test('D6 le code publié de l’appli n’utilise jamais les compteurs du serveur (mcp_limites) ; le journal et les copies ne sont écrits que par donnees.js et logique.js, par création seulement', () => {
     for (const f of fichiersAppli().filter((x) => /^js\/.*\.js$/.test(x))) {
       const t = lire(f);
-      assert.doesNotMatch(t, /mcp_limites/, f);
+      assert.doesNotMatch(t, /mcp_limites|mcp_oauth/, f);
       if (!/^js\/modules\/crm\/(donnees|logique)\.js$/.test(f)) assert.doesNotMatch(t, /crm_audit/, `${f} : seuls donnees.js et logique.js touchent au journal`);
     }
     // jamais de modification ni de suppression du journal par l'appli : les seules écritures sont des créations (types « creer » des plans d'audit)

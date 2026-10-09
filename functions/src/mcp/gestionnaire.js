@@ -9,9 +9,10 @@ import { executerEcritures, ErreurEcriture } from '../coeur/ecriture.js';
 import { restaurerOperation } from '../coeur/restaurer.js';
 import { OUTILS, outilsAutorises } from './outils/index.js';
 import { VERSION_SERVEUR } from '../version.js';
+import { ORIGINES_AUTORISEES as ORIGINES, URL_METADONNEES_RESSOURCE } from '../oauth/config.js';
 
 // Les clients MCP (Hermes, Claude Code) n'envoient pas d'en-tête Origin. Un navigateur, si : on n'accepte que l'appli.
-export const ORIGINES_AUTORISEES = ['https://chevalier-ia-os.web.app', 'https://chevalier-ia-os.firebaseapp.com'];
+export const ORIGINES_AUTORISEES = ORIGINES;
 
 const refuser = (res, statut, erreur, entetes = {}) => {
   res.writeHead(statut, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...entetes });
@@ -36,8 +37,9 @@ function messageEcriture(e) {
 /**
  * `limiteur` : plafonds par jeton (securite/limites.js). Sans limiteur, aucun plafond : seuls les tests l'omettent (un contrôle statique
  * vérifie que index.js en fournit un).
+ * `oauth` (oauth/routeur.js) : seconde porte, la connexion Google de claude.ai et du téléphone ; sans lui, seuls les jetons « cia_… » entrent.
  */
-export function creerGestionnaire({ magasin, donnees, limiteur = null, outils = OUTILS, journal = journaliser, maintenant = () => Date.now() }) {
+export function creerGestionnaire({ magasin, donnees, limiteur = null, oauth = null, outils = OUTILS, journal = journaliser, maintenant = () => Date.now() }) {
   return async function gestionnaire(req, res) {
     const debut = maintenant();
     const infos = {};
@@ -45,6 +47,7 @@ export function creerGestionnaire({ magasin, donnees, limiteur = null, outils = 
 
     const origine = req.headers.origin;
     if (origine !== undefined && !ORIGINES_AUTORISEES.includes(origine)) { infos.code = 'origine'; return refuser(res, 403, 'origine_refusee'); }
+    if (oauth && await oauth.traiter(req, res, infos)) return; // routes OAuth (métadonnées, autorisation, jetons) : traitées à part
     if (req.method !== 'POST') { infos.code = 'methode'; return refuser(res, 405, 'methode_refusee', { Allow: 'POST' }); }
 
     let entrees;
@@ -54,8 +57,18 @@ export function creerGestionnaire({ magasin, donnees, limiteur = null, outils = 
       infos.code = 'secret_illisible';
       return refuser(res, 503, 'indisponible');
     }
-    const jeton = trouverJeton(entrees, extraireBearer(req.headers.authorization));
-    if (!jeton) { infos.code = 'jeton'; return refuser(res, 401, 'non_autorise', { 'WWW-Authenticate': 'Bearer' }); }
+    const bearer = extraireBearer(req.headers.authorization);
+    let jeton = trouverJeton(entrees, bearer);
+    if (!jeton && oauth) {
+      try {
+        jeton = await oauth.verifierAcces(bearer);
+      } catch {
+        infos.code = 'oauth_illisible';
+        return refuser(res, 503, 'indisponible');
+      }
+    }
+    // 401 : même réponse pour tout refus ; l'en-tête dit à claude.ai où se connecter (RFC 9728).
+    if (!jeton) { infos.code = 'jeton'; return refuser(res, 401, 'non_autorise', { 'WWW-Authenticate': oauth ? `Bearer resource_metadata="${URL_METADONNEES_RESSOURCE}"` : 'Bearer' }); }
     Object.assign(infos, { jeton: jeton.jeton, acteur: jeton.acteur, profil: jeton.profil }, descriptionAppel(req.body, outils));
 
     const limites = limitesDuJeton(jeton);

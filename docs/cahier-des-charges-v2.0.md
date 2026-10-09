@@ -404,10 +404,15 @@ Source : le site chevalier-ia.fr (`styles.css`, `tally-merci.html`, dossier `ass
          allow read, write: if false;
        }
 
+       // Autorisations OAuth (connexion de Claude sur le téléphone) : empreintes de jetons, réservées aux fonctions.
+       match /mcp_oauth/{id} {
+         allow read, write: if false;
+       }
+
        // Tout le reste : comme avant (les deux comptes autorisés), sauf les collections ci-dessus.
        match /{collection}/{document=**} {
          allow read, write: if compteAutorise()
-           && !(collection in ['crm_audit', 'crm_audit_avant', 'mcp_limites']);
+           && !(collection in ['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth']);
        }
      }
    }

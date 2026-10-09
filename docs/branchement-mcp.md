@@ -83,3 +83,20 @@ Notes de fonctionnement, sans conséquence : le journal du serveur montre parfoi
    Ces **44 outils** sont exactement ceux du profil bibliothécaire aujourd'hui. Les outils de sauvegarde (étape 5) et de pièces jointes (étape 7) s'ajouteront à la liste quand ils existeront. Même sans ce filtre, le serveur refuse tout outil hors profil.
 4. **Essai** : depuis le VPS, un `curl` avec ce jeton (`qui_suis_je` doit répondre `hermes-bibliothecaire`, profil `bibliothecaire`) avant de brancher Hermes ; puis demander à Hermes de créer une fiche de test, vérifier dans `lire_audit` et dans le fil de l'écran (« hermes-bibliothecaire · via MCP »), vérifier qu'un `supprimer_affaire` est refusé, puis nettoyer.
 5. **Points à confirmer à la première connexion** : la syntaxe de `${env:…}` dans cette version de Hermes, le préfixe des noms d'outils vus par l'agent, le comportement du délai de 120 secondes au démarrage à froid.
+
+## 3. Claude sur le téléphone et sur claude.ai (connexion Google)
+
+**Construit le 09/10/2026, pas encore essayé en réel** (voir `mcp-oauth.md` : fonctionnement, sécurité, mise en route). Ici, **aucun jeton à copier** : on se connecte avec le compte Google, comme dans l'appli. Les droits sont ceux de Claude Code (suppression comprise) ; la connexion dure 30 jours glissants.
+
+**Avant** : la PR OAuth est fusionnée, les règles Firestore sont publiées (`mcp-oauth.md`, « Mise en route »).
+
+1. Sur l'ordinateur, ouvre **https://claude.ai/settings/connectors** (Paramètres → Connecteurs).
+2. Clique **« Ajouter un connecteur personnalisé »**.
+3. Nom : `Chevalier IA OS`. Adresse du serveur : `https://chevalier-ia-os.web.app/mcp`. Ne remplis **aucun** champ « avancé » (identifiant ou secret OAuth) : Claude s'enregistre tout seul. Clique **Ajouter**.
+4. Clique **Se connecter** (ou « Connect ») sur la ligne du connecteur : une page s'ouvre. Connecte-toi avec ton compte Google, vérifie que la page dit bien « Retour vers : claude.ai », puis **Autoriser**.
+5. Sur le téléphone : ouvre l'appli Claude → Paramètres → Connecteurs. Le connecteur ajouté depuis ton compte doit apparaître **[à confirmer au premier essai]** ; s'il demande de se connecter, refais l'étape 4 sur le téléphone. Dans une conversation, active-le (bouton « + », puis Connecteurs).
+6. Essai : demande à Claude « Appelle qui_suis_je sur Chevalier IA OS ». Réponse attendue : acteur **`claude-ai-jerome-chevalier`**, profil `claude-code`.
+
+Si ça échoue : « Couldn't reach the MCP server » → regarder `https://chevalier-ia-os.web.app/.well-known/oauth-protected-resource/mcp` dans un navigateur (doit afficher du JSON) ; « Authorization failed » → regarder les journaux Cloud Run du service `mcp` (champ `code` : `oauth_…`, qui dit à quelle étape ça casse ; jamais de secret dans les journaux). Pour **couper** l'accès : `securite-et-pannes.md`, section 4, point 5.
+
+Note : la documentation de Claude annonce aussi une saisie d'un jeton fixe dans un en-tête pour les connecteurs (bêta, organisations choisies, pas sur tous les forfaits). Non utilisée ici : la connexion Google est plus sûre (jeton d'une heure, révocable, lié à ton compte).
