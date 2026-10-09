@@ -104,5 +104,9 @@ La fonction écrite dans la branche `mcp` (commit de code `24a8e96`) est **repri
 ### Libellé des documents non synchronisé
 - En 2.0, le libellé d'un document est saisi à la main : renommer le fichier dans Drive ne le met pas à jour. Avec un accès Drive, le nom pourrait se synchroniser.
 
+## Piste : réutiliser la coque pour les applis des clients (étude du 10/10/2026)
+
+Idée de Jérôme : repartir de la même coque (interface + accès MCP, connexion OAuth) pour les futures applis clientes, afin que les clients consultent et pilotent leurs automatisations n8n, y compris en parlant à leur assistant. **Étude faite, en attente de validation par Jérôme : `etude-reutilisation-coque.md`** (verdict : réutilisable ; dix chantiers ordonnés ; cinq décisions à prendre dans la section 9). Aucun code touché. Le travail OAuth de Jérôme (en cours sur son Mac) n'est pas encore sur GitHub.
+
 ## Hors périmètre de la 2.0 (rappel)
 Import CSV, fusion de doublons, prévisions en euros, envoi d'e-mails depuis la fiche, mode hors ligne.
