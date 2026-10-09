@@ -44,7 +44,11 @@ Les autorisations sont dans la collection Firestore **`mcp_oauth`** (fermée à 
 3. **Ajouter le connecteur** (voir `branchement-mcp.md`, section 3), se connecter avec Google, autoriser.
 4. **Essai** : demander à Claude « qui_suis_je » : il doit répondre `claude-ai-jerome-chevalier`, profil `claude-code`.
 
-## Ce qu'on n'a pas pu tester ici (à regarder au premier essai)
+## Essai réel du 10/10/2026 : réussi
+
+Après la fusion (PR 49) et la publication des règles Firestore, Jérôme a ajouté le connecteur sur claude.ai et s'est connecté avec Google : `qui_suis_je` répond `claude-ai-jerome-chevalier`, profil `claude-code`, serveur 0.2.0, 51 outils, depuis l'appli Claude sur le Mac, et le connecteur est apparu dans une session cloud de Claude Code. **Reste à confirmer : l'appli du téléphone** (c'était le but de départ).
+
+## Ce qu'on n'avait pas pu tester avant la fusion (la connexion réelle l'a confirmé pour l'ordinateur)
 
 - La **vraie** connexion Google : le test navigateur remplace Google par une doublure (`tests/e2e/oauth.spec.js`). La page utilise le même SDK, la même version (12.19.0) et la même configuration que l'appli ; si la fenêtre Google ne s'ouvre pas sur le téléphone, le bouton passe en « redirection » comme l'appli.
 - Le comportement exact de claude.ai et de l'appli du téléphone : la documentation de Claude décrit ce flux (enregistrement dynamique, PKCE, adresse de retour `https://claude.ai/api/mcp/auth_callback`), et le serveur la suit à la lettre, mais seul un essai réel le confirme.
