@@ -92,7 +92,7 @@ Conséquence sur l'organisation du code : le CRM continue d'écrire à la racine
 
 **Objectif de Jérôme** : le client se sent chez lui dès la connexion, avec ses couleurs, son logo **et ses propres images** (par exemple une photo du bâtiment de son entreprise). Techniquement une seule page suffirait ; il veut quand même une page par client, avec son propre lien.
 
-- **Un lien par client**, de la forme `<identifiant du projet>.web.app/c/<client>` (chemin dans l'adresse, pas de sous-domaine par client : pas de domaine à ajouter par client dans Firebase ni dans les domaines autorisés de la connexion Google). Un nom de domaine propre à un client reste possible plus tard.
+- **Un lien par client**, de la forme `<identifiant du projet>.web.app/espace/<client>` (chemin dans l'adresse, pas de sous-domaine par client : pas de domaine à ajouter par client dans Firebase ni dans les domaines autorisés de la connexion Google). Un nom de domaine propre à un client reste possible plus tard.
 - **Pas de sous-domaine : l'adresse par défaut de Firebase** (décision de Jérôme, 10/10/2026), comme pour son CRM (`chevalier-ia-os.web.app`) et l'appli d'Audrey (`suivi-presence-eleves.web.app`). `app.chevalier-ia.fr` ne peut de toute façon pas porter la plateforme : il est servi par Hostinger (dossier `app/` du dépôt du site), et un domaine ne pointe que vers un seul hébergeur. Avantages : aucun réglage DNS dans Cloudflare, aucun domaine à ajouter à Firebase ni à la connexion Google (les adresses `.web.app` et `.firebaseapp.com` sont déjà autorisées). Contrepartie à connaître : le client voit une adresse `.web.app` et non celle de la marque de Jérôme. Un nom de domaine pourra être ajouté plus tard sans changer le code, mais **les clients qui auraient déjà installé l'appli sur leur téléphone devraient la réinstaller** (une appli installée est liée à son adresse) : à décider avant d'avoir beaucoup de clients installés, pas après.
 - **Connexion Google seule pour commencer** (compte Google, pas forcément Gmail : une adresse professionnelle sur Google Workspace convient). Si un client n'a pas Google : un **lien de connexion envoyé par e-mail** (sans mot de passe) est le repli recommandé, et l'e-mail avec mot de passe est possible aussi. Deux détails à connaître : les règles exigent une adresse **vérifiée** (donc un e-mail de confirmation), et la porte OAuth du MCP n'accepte aujourd'hui que la connexion Google (contrôle à assouplir si on ajoute ces modes).
 - **Un compte n'ouvre que l'espace dont il est membre.** Après la connexion, la page vérifie l'appartenance au client de ce lien. Si le compte appartient à un autre client, la page **déconnecte** et affiche « ce compte n'a pas accès à cet espace » : elle ne redirige jamais vers l'autre client et ne dit pas que le compte existe ailleurs.
@@ -101,7 +101,7 @@ Conséquence sur l'organisation du code : le CRM continue d'écrire à la racine
 - **Le MCP suit la même logique** : un lien par client (`…/mcp/<client>`). Le client l'ajoute dans son assistant, et l'écran « Autoriser … à accéder à … » prend ses couleurs.
 - **Limite incontournable** : l'écran de choix de compte de **Google** est le même pour tous les clients (il affiche le nom du projet). Tout le reste, avant et après, est à leurs couleurs.
 - **Option, plus tard** : l'icône et le nom de l'appli installée sur le téléphone, par client, demandent un manifeste par client (généré par une fonction). Non nécessaire au départ.
-- **L'identifiant du projet Firebase de la plateforme clients est définitif** (il ne se change pas après la création) **et il devient visible dans l'adresse de chaque client** : `<identifiant>.web.app/c/dupont`. Il se choisit donc avec soin (court, sans le mot « test », lisible au téléphone). Exemples : `chevalier-ia-espace`, `chevalier-ia-clients`, `chevalier-ia-pilotage` (un identifiant déjà pris est refusé). Le nom de la coque n'est pas nécessaire ; le nom affiché du projet reste modifiable.
+- **L'identifiant du projet Firebase de la plateforme clients est définitif** (il ne se change pas après la création) **et il devient visible dans l'adresse de chaque client** : `<identifiant>.web.app/espace/dupont`. Il se choisit donc avec soin (court, sans le mot « test », lisible au téléphone). Exemples : `chevalier-ia-espace`, `chevalier-ia-clients`, `chevalier-ia-pilotage` (un identifiant déjà pris est refusé). Le nom de la coque n'est pas nécessaire ; le nom affiché du projet reste modifiable.
 
 ## 5 quater. Portail de démo sur `app.chevalier-ia.fr` (idée de Jérôme, 10/10/2026)
 
@@ -109,7 +109,7 @@ Conséquence sur l'organisation du code : le CRM continue d'écrire à la racine
 
 - **Décidé** : le portail affiche des **vignettes** (une par solution, à la DA de la solution). Un clic **redirige directement vers l'adresse Firebase par défaut** de l'appli, en mode démo. Aucun sous-domaine intermédiaire.
 - **Les vraies applis des clients n'apparaissent jamais** dans le portail.
-- **Cibles possibles** : démo d'Audrey (`suivi-presence-eleves.web.app/?demo`, existe déjà) ; démo de la plateforme clients (client fictif « démo », `<identifiant>.web.app/c/demo`).
+- **Cibles possibles** : démo d'Audrey (`suivi-presence-eleves.web.app/?demo`, existe déjà) ; démo de la plateforme clients (client fictif « démo », `<identifiant>.web.app/espace/demo`).
 - **Proposé par Claude, non contredit, à confirmer** : la démo ne demande **aucune connexion** à un prospect (il n'a pas de compte). Elle s'ouvre sur l'écran de connexion personnalisé du client fictif, qui montre l'effet « chez soi » (couleurs, images), avec un bouton **« Entrer dans la démo »**, sans Google. Les données sont inventées et rien de réel n'est lu ni écrit. Reste à choisir : démo en lecture seule, démo calculée dans le navigateur du visiteur (comme `?demo` chez Audrey), ou démo remise à zéro chaque nuit.
 - **Plus tard** : un contrôle automatique qui ouvre chaque démo une fois par jour, pour repérer une démo cassée par l'évolution de l'appli.
 - **Précaution** : le portail vit dans le dépôt `site-chevalier-ia`, qui est le site public ; rien n'y est poussé sans l'accord explicite de Jérôme.
@@ -155,7 +155,7 @@ Tailles relatives, pas des durées. Chaque ligne est une PR. Le CRM de Jérôme 
 | 2 | **Chemin de base donné aux modules** : le CRM garde la racine, un module client écrit sous `clients/<client>/…` | moyen | — |
 | 3 | **Appartenance par client** (`clients/<client>/membres/<e-mail>` avec rôle) ; règles Firestore par chemin ; `auth.js` et `compteAutorise` la lisent | moyen (sensible : sécurité) | 1, 2 |
 | 4 | **Tests d'étanchéité** à l'écran (émulateur) : « le client A ne lit ni n'écrit rien chez B », à relancer à chaque modification | moyen | 3 |
-| 5 | **Fiche de marque et page de connexion par client** (`/c/<client>`, images, texte d'accueil, refus neutre d'un compte d'un autre client) ; téléversement des images par Jérôme | moyen | 3 |
+| 5 | **Fiche de marque et page de connexion par client** (`/espace/<client>`, images, texte d'accueil, refus neutre d'un compte d'un autre client) ; téléversement des images par Jérôme | moyen | 3 |
 | 6 | **Retirer l'identité de Jérôme de la coque** : nom, logo, textes, route d'accueil lus dans la marque ; `index.html` et titres ; couleurs de marque séparées des couleurs d'étapes du CRM | moyen | 5 |
 | 7 | **Un module déclare écrans et outils MCP** ; modules actifs par client (activables un à un) | moyen | 2 |
 | 8 | **Objectifs et célébrations** sortis de la coque, module optionnel du CRM | petit | 6 |
@@ -188,13 +188,14 @@ Tailles relatives, pas des durées. Chaque ligne est une PR. Le CRM de Jérôme 
 
 - **Jérôme envoie lui-même les images des clients** (le client ne téléverse rien).
 - **Pas de sous-domaine pour la plateforme** : adresse Firebase par défaut (section 5 ter).
+- **Les liens des clients ont la forme `/espace/<client>`** (et non `/c/<client>`), choisi par Jérôme le 10/10/2026 : plus lisible, et le préfixe évite qu'un nom de client entre en conflit avec les adresses techniques (`/mcp`, `/oauth`, `/.well-known`, dossiers `css` et `js`).
+- **Identifiant du projet Firebase : `chevalier-ia`** (proposé par Jérôme le 10/10/2026), donc `chevalier-ia.web.app/espace/<client>`. À confirmer à la création du projet : les identifiants sont uniques dans le monde, le nom peut être déjà pris (repli suggéré : `chevalier-ia-app`). La création du projet se fait par Jérôme dans la console (compte de facturation).
 - **`app.chevalier-ia.fr` = portail de démos** avec vignettes qui redirigent directement vers l'adresse Firebase de la démo (section 5 quater).
 - **Étape 0 (OAuth du MCP) terminée.**
 
 **À décider plus tard**
 1. **Pour quel client est faite la première démo** : pas encore connu. Cela fixe seulement le contenu du module de suivi ; on peut commencer par une démo avec des automatisations fictives.
-2. **L'identifiant du projet Firebase** de la plateforme clients (définitif, visible dans l'adresse de chaque client) : à choisir avant le chantier 1.
-3. **La forme de la démo** : lecture seule, calculée dans le navigateur, ou remise à zéro chaque nuit ; et la confirmation du bouton « Entrer dans la démo » sans connexion (section 5 quater).
+2. **La forme de la démo** : lecture seule, calculée dans le navigateur, ou remise à zéro chaque nuit ; et la confirmation du bouton « Entrer dans la démo » sans connexion (section 5 quater).
 
 ## 10. Ce que cette étude n'a pas vérifié
 
