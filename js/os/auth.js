@@ -8,8 +8,10 @@ import {
   signOut,
   signInWithCredential,
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
-import { auth, MODE_EMULATEURS } from './firebase.js';
+import { doc, getDoc } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
+import { auth, db, MODE_EMULATEURS } from './firebase.js';
 import { COMPTES_AUTORISES } from './firebase-config.js';
+import { cheminMembre, compteMembre } from './membres.js';
 
 export const MESSAGE_REFUS = "Accès refusé : ce compte n'est pas autorisé";
 
@@ -26,6 +28,20 @@ export function compteAutorise(user) {
   const email = user.email.toLowerCase();
   const profil = COMPTES_AUTORISES[email];
   return profil ? { email, uid: user.uid, ...profil } : null;
+}
+
+/**
+ * Compte d'un client (plateforme clients) : lit clients/<client>/membres/<e-mail>. Les règles Firestore n'autorisent que la lecture
+ * de sa propre fiche. Sans fiche (ou sans droit), le compte est refusé. Ne sert pas au CRM de Jérôme (voir compteAutorise).
+ */
+export async function compteDuClient(user, client) {
+  if (!user || !user.email || user.emailVerified !== true) return null;
+  try {
+    const fiche = await getDoc(doc(db, cheminMembre(client, user.email)));
+    return compteMembre(user, client, fiche.exists() ? fiche.data() : null);
+  } catch {
+    return null;
+  }
 }
 
 function fournisseur() {
@@ -63,8 +79,9 @@ export async function deconnecter() {
  * Surveille le compte connecté. Le rappel reçoit :
  *  { etat: 'connecte', compte } | { etat: 'deconnecte', refus: boolean }
  * Un compte non autorisé est déconnecté immédiatement, avant toute lecture de données.
+ * Sans option : CRM de Jérôme (liste fixe, racine). Avec { client } : plateforme clients (appartenance lue dans Firestore).
  */
-export function surveillerCompte(rappel) {
+export function surveillerCompte(rappel, { client = null } = {}) {
   let refus = false;
   // Retour d'une connexion par redirection (téléphone, appli installée) : seulement si on en a lancé une.
   let redirectionEnCours = false;
@@ -80,7 +97,7 @@ export function surveillerCompte(rappel) {
       refus = false;
       return;
     }
-    const compte = compteAutorise(user);
+    const compte = client ? await compteDuClient(user, client) : compteAutorise(user);
     if (!compte) {
       refus = true;
       await signOut(auth);
