@@ -16,7 +16,7 @@ export const MODULES = [
     // Préfixe des routes gérées par le module (#/crm/...)
     prefixe: 'crm',
     // Fonction de montage : charge le module et renvoie son interface
-    // { demarrer(ctx), arreter(), afficher(conteneur, segments, ctx), reglages(conteneur, ctx),
+    // { demarrer({ compte, cheminBase }), arreter(), afficher(conteneur, segments, ctx), reglages(conteneur, ctx),
     //   actionsRapides: [{ libelle, icone, action }], rechercher(saisie) → { groupes } }
     monter: () => import('../modules/crm/index.js'),
   },

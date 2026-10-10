@@ -22,8 +22,8 @@ export const actionsRapides = [
 
 let montee = null; // { cle, quitter }
 
-export function demarrer() {
-  D.demarrer();
+export function demarrer({ cheminBase = '' } = {}) {
+  D.demarrer(cheminBase);
 }
 
 export function arreter() {
