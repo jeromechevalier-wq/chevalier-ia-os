@@ -4,7 +4,7 @@
 
 ## En premier : connexion Google (OAuth) du serveur MCP pour le téléphone (09/10/2026)
 
-PR ouverte le 09/10/2026, **en attente du « fusionne » de Jérôme** (rien n'est actif tant qu'elle n'est pas fusionnée). Lire `mcp-oauth.md` (mise en route dans l'ordre : publier les règles Firestore, fusionner, ajouter le connecteur sur claude.ai, essayer sur le téléphone). Si l'essai échoue : les journaux Cloud Run du service `mcp` portent un champ `code` en `oauth_…` qui dit à quelle étape ça casse. **Pas testé en réel** : la vraie connexion Google et le comportement exact de claude.ai et de l'appli du téléphone (seulement une doublure de Google en test). Décisions de Jérôme : tous les droits, 30 jours glissants.
+PR 49 **fusionnée et déployée le 10/10/2026**, règles Firestore publiées, essai réel réussi sur l'ordinateur (`qui_suis_je` → `claude-ai-jerome-chevalier`) **et sur le téléphone** (Jérôme, 10/10/2026). Chantier terminé : rien à reprendre de ce côté. Lire `mcp-oauth.md` (mise en route dans l'ordre : publier les règles Firestore, fusionner, ajouter le connecteur sur claude.ai, essayer sur le téléphone). Si l'essai échoue : les journaux Cloud Run du service `mcp` portent un champ `code` en `oauth_…` qui dit à quelle étape ça casse. Validé en réel sur l'ordinateur et sur le téléphone. Décisions de Jérôme : tous les droits, 30 jours glissants. **Pour couper l'accès d'un téléphone : pas à pas dans `mcp-oauth.md`, « Couper l'accès du téléphone ».**
 
 ## Pour mémoire : le chantier Projets est terminé (07/10/2026)
 

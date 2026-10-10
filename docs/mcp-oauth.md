@@ -28,14 +28,44 @@ Le serveur MCP avait une seule porte : un jeton secret `cia_…` dans l'en-tête
 | Martelage | 60 requêtes POST par minute et par instance sur les routes OAuth ; plafonds par jeton sur `/mcp` comme avant (nom de jeton : `claude-ai-<compte>`) | oui |
 | Panne de Firestore | `/mcp` répond **503** (jamais 401, pour que Claude ne croie pas son jeton mauvais) | oui |
 
-## Couper l'accès du téléphone
+## Couper l'accès du téléphone (pas à pas)
 
-Les autorisations sont dans la collection Firestore **`mcp_oauth`** (fermée à l'appli par les règles : seul le serveur la lit). Pas de cache : l'effet est immédiat.
+**Quand** : téléphone perdu ou volé, appareil prêté, doute sur une connexion, ou simplement envie de repartir de zéro. **Effet immédiat** : il n'y a aucun cache, la prochaine requête du téléphone est refusée.
 
-- **Couper une connexion** : console Firestore → `mcp_oauth` → document `connexion_…` → mettre `revoque` à `true` (ou supprimer le document). Le jeton d'accès et le jeton de renouvellement cessent de marcher.
-- **Tout couper (tous les téléphones et claude.ai)** : même endroit, menu « ⋮ » de la collection `mcp_oauth` → « Supprimer la collection ». Hermes et Claude Code ne sont **pas** touchés (ils utilisent `MCP_JETONS`).
-- **Fermer la porte OAuth entièrement** : retirer les quatre lignes OAuth de `firebase.json` (`/.well-known/...` et `/oauth/**`) dans une PR, ou revert de la PR OAuth. Les jetons `cia_…` continuent.
-- **Tout couper, jetons compris** : voir `securite-et-pannes.md`, section 4 (désactiver la version de `MCP_JETONS`). Cela **ne coupe pas** la porte OAuth : il faut aussi supprimer la collection `mcp_oauth`.
+**À savoir avant de commencer**
+- **Retirer le connecteur dans Claude (claude.ai → Paramètres → Connecteurs) ne suffit pas** : ça n'efface que ce que Claude garde de son côté. Les autorisations restent valables côté serveur tant qu'on ne les coupe pas dans Firestore. **C'est la console Firestore qui coupe vraiment.**
+- Les connexions de l'ordinateur et du téléphone **se ressemblent** : toutes deux sont au nom de ton compte Google et portent seulement une date de création (`creeLe`) et de dernier renouvellement (`renouvelleLe`). Impossible de lire « celle-ci est le téléphone ». Deux façons de s'y prendre : couper **toutes** les connexions (le plus simple et le plus sûr) puis reconnecter ce que tu veux ; ou couper une seule connexion en te fiant aux dates.
+- Hermes et Claude Code ne sont **pas** touchés : ils ont leurs propres jetons (`securite-et-pannes.md`, section 4).
+
+### A. Tout couper (recommandé : téléphone perdu, ou dans le doute)
+
+1. Ouvre la collection : https://console.firebase.google.com/project/chevalier-ia-os/firestore/databases/-default-/data/~2Fmcp_oauth (si le lien ne va pas droit dessus : https://console.firebase.google.com/project/chevalier-ia-os/firestore/data → colonne de gauche, clique sur **`mcp_oauth`**).
+2. En haut de la colonne `mcp_oauth`, clique sur les **trois petits points ⋮** à côté du nom de la collection.
+3. Clique **« Supprimer la collection »**, puis confirme (la console demande de retaper le nom `mcp_oauth`, puis **Supprimer**).
+4. C'est fait. Le téléphone et claude.ai sur ordinateur sont déconnectés à la requête suivante.
+
+### B. Couper une seule connexion
+
+1. Même page, collection `mcp_oauth`. Parmi les documents, **ceux dont le nom commence par `connexion_`** sont les connexions (les `acces_`, `refresh_` et `code_` sont les jetons : on n'y touche pas).
+2. Clique sur un `connexion_…` : tu vois `email`, `creeLe` et, après un premier renouvellement, `renouvelleLe` (des nombres : millisecondes depuis 1970 ; un convertisseur comme https://www.epochconverter.com/ les traduit en date). La plus récente est en général celle que tu utilises le plus.
+3. Pour la couper : soit **⋮ à côté du document → « Supprimer le document »**, soit modifier le champ **`revoque`** de `false` à `true` (clique sur la valeur, change-la, **Mettre à jour**).
+4. Teste : l'appareil concerné doit être refusé ; si c'est le mauvais, il demandera simplement de se reconnecter.
+
+### C. Après avoir coupé : reconnecter ce que tu veux garder
+
+Dans Claude (ordinateur ou téléphone) : Paramètres → Connecteurs → **Chevalier IA OS** → **Se connecter** (ou « Reconnecter ») → connexion Google → **Autoriser**. Une nouvelle connexion est créée. Si le connecteur n'y est plus, le rajouter comme à la première fois (`branchement-mcp.md`, section 3).
+
+### D. Vérifier que c'est bien coupé
+
+- Dans la collection `mcp_oauth`, plus aucun `connexion_…` indésirable (ou `revoque: true`).
+- Sur l'appareil coupé, demander « Appelle qui_suis_je » : il doit répondre par une erreur d'autorisation ou demander de se reconnecter.
+- Dans la console Firestore → collection `crm_audit`, filtre `acteur` = `claude-ai-jerome-chevalier` : aucune ligne nouvelle après l'heure de la coupure venant de l'appareil perdu.
+
+### E. Cas particuliers
+
+- **Téléphone volé** : coupe tout (A), puis change le mot de passe de ton compte Google et déconnecte l'appareil sur https://myaccount.google.com/device-activity . Pense aussi à l'effacer à distance (Localiser).
+- **Fermer complètement la porte OAuth** (plus aucune connexion Google, jetons `cia_…` intacts) : PR qui retire de `firebase.json` les quatre lignes `/.well-known/...` et `/oauth/**` (ou `git revert -m 1` de la fusion de la PR 49).
+- **Tout couper, jetons Hermes et Claude Code compris** : `securite-et-pannes.md`, section 4, points 1 à 3, **et** supprimer la collection `mcp_oauth` (A ci-dessus). Désactiver `MCP_JETONS` ne coupe pas la connexion Google.
 
 ## Mise en route (dans l'ordre, après le « fusionne » de Jérôme)
 
@@ -44,7 +74,11 @@ Les autorisations sont dans la collection Firestore **`mcp_oauth`** (fermée à 
 3. **Ajouter le connecteur** (voir `branchement-mcp.md`, section 3), se connecter avec Google, autoriser.
 4. **Essai** : demander à Claude « qui_suis_je » : il doit répondre `claude-ai-jerome-chevalier`, profil `claude-code`.
 
-## Ce qu'on n'a pas pu tester ici (à regarder au premier essai)
+## Essai réel du 10/10/2026 : réussi
+
+Après la fusion (PR 49) et la publication des règles Firestore, Jérôme a ajouté le connecteur sur claude.ai et s'est connecté avec Google : `qui_suis_je` répond `claude-ai-jerome-chevalier`, profil `claude-code`, serveur 0.2.0, 51 outils, depuis l'appli Claude sur le Mac, et le connecteur est apparu dans une session cloud de Claude Code. **Téléphone : confirmé par Jérôme le 10/10/2026** (le connecteur fonctionne depuis l'appli Claude de l'iPhone).
+
+## Ce qu'on n'avait pas pu tester avant la fusion (la connexion réelle l'a confirmé pour l'ordinateur)
 
 - La **vraie** connexion Google : le test navigateur remplace Google par une doublure (`tests/e2e/oauth.spec.js`). La page utilise le même SDK, la même version (12.19.0) et la même configuration que l'appli ; si la fenêtre Google ne s'ouvre pas sur le téléphone, le bouton passe en « redirection » comme l'appli.
 - Le comportement exact de claude.ai et de l'appli du téléphone : la documentation de Claude décrit ce flux (enregistrement dynamique, PKCE, adresse de retour `https://claude.ai/api/mcp/auth_callback`), et le serveur la suit à la lettre, mais seul un essai réel le confirme.

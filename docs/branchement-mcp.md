@@ -86,7 +86,7 @@ Notes de fonctionnement, sans conséquence : le journal du serveur montre parfoi
 
 ## 3. Claude sur le téléphone et sur claude.ai (connexion Google)
 
-**Construit le 09/10/2026, pas encore essayé en réel** (voir `mcp-oauth.md` : fonctionnement, sécurité, mise en route). Ici, **aucun jeton à copier** : on se connecte avec le compte Google, comme dans l'appli. Les droits sont ceux de Claude Code (suppression comprise) ; la connexion dure 30 jours glissants.
+**Construit le 09/10/2026, essayé en réel le 10/10/2026 sur l'ordinateur (`qui_suis_je` répond bien `claude-ai-jerome-chevalier`) **et sur le téléphone (confirmé par Jérôme)** (voir `mcp-oauth.md` : fonctionnement, sécurité, mise en route). Ici, **aucun jeton à copier** : on se connecte avec le compte Google, comme dans l'appli. Les droits sont ceux de Claude Code (suppression comprise) ; la connexion dure 30 jours glissants.
 
 **Avant** : la PR OAuth est fusionnée, les règles Firestore sont publiées (`mcp-oauth.md`, « Mise en route »).
 
