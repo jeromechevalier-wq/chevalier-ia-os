@@ -105,5 +105,9 @@ La fonction écrite dans la branche `mcp` (commit de code `24a8e96`) est **repri
 ### Libellé des documents non synchronisé
 - En 2.0, le libellé d'un document est saisi à la main : renommer le fichier dans Drive ne le met pas à jour. Avec un accès Drive, le nom pourrait se synchroniser.
 
+## Piste : plateforme clients sur la coque (étude du 10/10/2026, décisions validées)
+
+Jérôme veut offrir à ses clients une interface graphique **et** un accès MCP (ils pilotent leurs automatisations n8n, y compris en parlant à leur assistant). **Décidé le 10/10/2026** : une seule base Firestore pour tous les clients (projet Firebase séparé du CRM, payé par Jérôme), connexion Google seule pour commencer, une page de connexion et un lien par client avec ses couleurs, son logo et ses propres images, un lien MCP par client. Étude et liste ordonnée de 16 chantiers : `etude-reutilisation-coque.md`. Connexion OAuth du MCP : fusionnée, règles publiées, essai réel réussi depuis le téléphone (10/10/2026). Adresse : celle de Firebase par défaut, sans sous-domaine ; `app.chevalier-ia.fr` (Hostinger) devient un portail de démos dont les vignettes redirigent vers l'adresse Firebase. Aucun code touché par l'étude.
+
 ## Hors périmètre de la 2.0 (rappel)
 Import CSV, fusion de doublons, prévisions en euros, envoi d'e-mails depuis la fiche, mode hors ligne.
