@@ -1,0 +1,13 @@
+{
+  "projet": "plateforme",
+  "commentaire": "Configuration Firebase WEB du projet chevalier-ia-app. Ces six valeurs sont publiques par nature (elles sont visibles dans toute page web qui utilise Firebase) : la sécurité vient des règles Firestore et Storage, pas du secret de ces valeurs. Ne jamais mettre ici une clé de compte de service ni un mot de passe.",
+  "firebaseConfig": {
+    "apiKey": "AIzaSyBozQGcRbt3sOUr3K2pygTUFdCZKcvxTtI",
+    "authDomain": "chevalier-ia-app.firebaseapp.com",
+    "projectId": "chevalier-ia-app",
+    "storageBucket": "chevalier-ia-app.firebasestorage.app",
+    "messagingSenderId": "192468914925",
+    "appId": "1:192468914925:web:4f459f0606689e22c572e4"
+  },
+  "comptesAutorises": {}
+}

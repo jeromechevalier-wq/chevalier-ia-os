@@ -17,6 +17,7 @@
       "ressources/**",
       "outils/**",
       "scripts/**",
+      "dist/**",
       "functions/**",
       "README.md",
       "CLAUDE.md",
