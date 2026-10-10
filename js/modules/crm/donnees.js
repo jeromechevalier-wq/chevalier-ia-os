@@ -6,6 +6,7 @@ import {
   collection, doc, onSnapshot, query, where, orderBy, limit, startAfter, getDoc, getDocs, setDoc, runTransaction, writeBatch, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { db } from '../../os/firebase.js';
+import { normaliserBase, cheminCollection } from '../../os/chemins.js';
 import * as L from './logique.js';
 
 const PARAMETRES_DEPART = {
@@ -37,6 +38,10 @@ export const etat = {
 };
 
 let compte = null;
+// Chemin de base des données : '' pour le CRM de Jérôme (la racine), clients/<client> chez un client. Donné par la coque à demarrer().
+let cheminBase = '';
+/** Chemin complet d'une collection du module (préfixe de base compris). */
+export const chemin = (nom) => cheminCollection(cheminBase, nom);
 let desabonnements = [];
 const abonnes = new Set();
 let initialisation = false;
@@ -54,6 +59,10 @@ function notifier() {
   abonnes.forEach((f) => { try { f(); } catch (e) { console.warn(e); } });
 }
 
+export function cheminDeBase() {
+  return cheminBase;
+}
+
 export function compteCourant() {
   return compte;
 }
@@ -66,7 +75,7 @@ export function ctx() {
     auteur: compte?.email || '',
     aujourdhui: L.aujourdhuiParis(maintenant),
     delaiPaiementJours: etat.reglages.delaiPaiementJours,
-    nouvelId: (nom) => doc(collection(db, nom)).id,
+    nouvelId: (nom) => doc(collection(db, chemin(nom))).id,
   };
 }
 
@@ -92,11 +101,12 @@ function lireDocs(snap) {
   return snap.docs.map((d) => ({ ...d.data({ serverTimestamps: 'estimate' }), id: d.id }));
 }
 
-export function demarrer(compteConnecte) {
+export function demarrer(compteConnecte, base = '') {
   compte = compteConnecte;
+  cheminBase = normaliserBase(base);
   // Quand seul un horodatage serveur se précise (modifieLe, creeLe), les données affichées ne changent pas :
   // on met l'état à jour sans prévenir les écrans (pas de nouveau rendu, donc pas de glisser déposer interrompu).
-  const ecouter = (nom, cle) => desabonnements.push(onSnapshot(collection(db, nom), (snap) => {
+  const ecouter = (nom, cle) => desabonnements.push(onSnapshot(collection(db, chemin(nom)), (snap) => {
     const docs = lireDocs(snap);
     const sig = signature(docs);
     const inchange = etat.pret[cle] && signatures[cle] === sig;
@@ -109,7 +119,7 @@ export function demarrer(compteConnecte) {
   ecouter('crm_organisations', 'organisations');
   ecouter('crm_affaires', 'affaires');
   ecouter('crm_activites', 'activites');
-  desabonnements.push(onSnapshot(collection(db, 'crm_parametres'), (snap) => {
+  desabonnements.push(onSnapshot(collection(db, chemin('crm_parametres')), (snap) => {
     const docs = Object.fromEntries(snap.docs.map((d) => [d.id, d.data({ serverTimestamps: 'estimate' })]));
     const tri = (items) => [...(items || [])].sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
     etat.offres = tri(docs.offres?.items);
@@ -133,6 +143,7 @@ export function arreter() {
   for (const cle of Object.keys(signatures)) delete signatures[cle];
   initialisation = false;
   compte = null;
+  cheminBase = '';
 }
 
 /** Premier lancement : crée les documents de paramètres manquants (ou périmés) avec les valeurs de départ. */
@@ -144,7 +155,7 @@ async function initialiserParametres(existants) {
   if (!manquants.length || initialisation) return;
   initialisation = true;
   for (const id of manquants) {
-    const ref = doc(db, 'crm_parametres', id);
+    const ref = doc(db, chemin('crm_parametres'), id);
     await runTransaction(db, async (t) => {
       const s = await t.get(ref);
       if (!s.exists() || (id === 'filtres' && s.data().version !== 2)) t.set(ref, PARAMETRES_DEPART[id]);
@@ -157,7 +168,7 @@ async function initialiserParametres(existants) {
 
 /** Applique une écriture d'un plan à un lot. `horodater` -> heure du serveur Firebase, `signer` -> compte connecté. */
 function ecrireDansLot(lot, e) {
-  const ref = doc(db, e.collection, e.id);
+  const ref = doc(db, chemin(e.collection), e.id);
   const marques = {};
   for (const champ of e.horodater || []) marques[champ] = serverTimestamp();
   for (const champ of e.signer || []) marques[champ] = compte?.email || '';
@@ -169,7 +180,7 @@ function ecrireDansLot(lot, e) {
 /** Les documents tels qu'ils sont AVANT une modification ou une suppression (pour la copie de l'audit). */
 async function lireAvants(ecritures) {
   const concernees = ecritures.filter((e) => e.type !== 'creer');
-  const lus = await Promise.all(concernees.map((e) => getDoc(doc(db, e.collection, e.id))));
+  const lus = await Promise.all(concernees.map((e) => getDoc(doc(db, chemin(e.collection), e.id))));
   return Object.fromEntries(concernees.map((e, i) => [`${e.collection}/${e.id}`, lus[i].exists() ? lus[i].data() : null]));
 }
 
@@ -184,8 +195,8 @@ export async function executer(ecritures, outil = 'ecran') {
   if (!ecritures.length) return;
   const avants = await lireAvants(ecritures);
   const audit = L.construireAudit(ecritures, avants, {
-    acteur: compte?.email || '', outil, operationId: doc(collection(db, 'crm_audit')).id, maintenant: new Date(),
-    horodatage: serverTimestamp(), nouvelId: (nom) => doc(collection(db, nom)).id,
+    acteur: compte?.email || '', outil, operationId: doc(collection(db, chemin('crm_audit'))).id, maintenant: new Date(),
+    horodatage: serverTimestamp(), nouvelId: (nom) => doc(collection(db, chemin(nom))).id,
   });
   for (let i = 0; i < ecritures.length; i += ACTIONS_PAR_LOT) {
     const lot = writeBatch(db);
@@ -200,7 +211,7 @@ export async function executer(ecritures, outil = 'ecran') {
 /** Activités, notes et événements qui portent un lien `champ` = id : [{ collection, id, personneId, organisationId, affaireId }]. */
 async function liensDe(champ, id) {
   const noms = ['crm_activites', 'crm_notes', 'crm_evenements'];
-  const reponses = await Promise.all(noms.map((nom) => getDocs(query(collection(db, nom), where(champ, '==', id)))));
+  const reponses = await Promise.all(noms.map((nom) => getDocs(query(collection(db, chemin(nom)), where(champ, '==', id)))));
   return reponses.flatMap((r, i) => r.docs.map((d) => ({
     collection: noms[i], id: d.id, personneId: d.data().personneId ?? null, organisationId: d.data().organisationId ?? null, affaireId: d.data().affaireId ?? null,
     projetId: d.data().projetId ?? null,
@@ -209,7 +220,7 @@ async function liensDe(champ, id) {
 
 /** Projets liés à une fiche (`champ` = personneId, organisationId ou affaireId) : gardés quand la fiche disparaît, seul leur lien est vidé. */
 async function projetsLies(champ, id) {
-  const r = await getDocs(query(collection(db, 'projets_projets'), where(champ, '==', id)));
+  const r = await getDocs(query(collection(db, chemin('projets_projets')), where(champ, '==', id)));
   return r.docs.map((d) => ({ id: d.id, affaireId: d.data().affaireId ?? null, personneId: d.data().personneId ?? null, organisationId: d.data().organisationId ?? null }));
 }
 
@@ -222,7 +233,7 @@ async function projetsLies(champ, id) {
 export function ecouterFil(lien, rappel) {
   const [cle, id] = Object.entries(lien)[0];
   const donnees = { notes: [], evenements: [] };
-  const abonner = (nom, champ) => onSnapshot(query(collection(db, nom), where(cle, '==', id)), (snap) => {
+  const abonner = (nom, champ) => onSnapshot(query(collection(db, chemin(nom)), where(cle, '==', id)), (snap) => {
     donnees[champ] = lireDocs(snap);
     rappel({ ...donnees });
   }, (e) => console.warn(`${nom} indisponible`, e.code));
@@ -374,7 +385,7 @@ export async function supprimerNote(id) {
 // ---------------------------------------------------------------- paramètres
 
 export async function majParametre(id, donnees) {
-  await setDoc(doc(db, 'crm_parametres', id), donnees, { merge: true });
+  await setDoc(doc(db, chemin('crm_parametres'), id), donnees, { merge: true });
 }
 
 export async function enregistrerOffres(items) {
@@ -428,7 +439,7 @@ export async function noterExportComplet() {
 export async function toutesLesCollections() {
   const sortie = {};
   for (const nom of COLLECTIONS_CRM) {
-    const snap = await getDocs(collection(db, nom));
+    const snap = await getDocs(collection(db, chemin(nom)));
     sortie[nom] = snap.docs.map((d) => ({ ...d.data({ serverTimestamps: 'estimate' }), id: d.id }));
   }
   return sortie;
@@ -439,7 +450,7 @@ export async function toutesLesCollections() {
 /** Les `taille` lignes du journal les plus récentes (après le curseur `apres` pour la page suivante) : { lignes, curseur, fini }. */
 export async function lireJournal({ taille = 200, apres = null } = {}) {
   const contraintes = [orderBy('date', 'desc'), ...(apres ? [startAfter(apres)] : []), limit(taille)];
-  const snap = await getDocs(query(collection(db, 'crm_audit'), ...contraintes));
+  const snap = await getDocs(query(collection(db, chemin('crm_audit')), ...contraintes));
   return {
     lignes: snap.docs.map((d) => ({ ...d.data({ serverTimestamps: 'estimate' }), id: d.id })),
     curseur: snap.docs.at(-1) ?? null,
@@ -449,7 +460,7 @@ export async function lireJournal({ taille = 200, apres = null } = {}) {
 
 /** Copie « avant / après » d'une ligne du journal (même identifiant que la ligne) : { avant, apres } ou null si elle a expiré (90 jours). */
 export async function lireCopieJournal(idLigne) {
-  const d = await getDoc(doc(db, 'crm_audit_avant', idLigne));
+  const d = await getDoc(doc(db, chemin('crm_audit_avant'), idLigne));
   if (!d.exists()) return null;
   const { avant = null, apres = null } = d.data({ serverTimestamps: 'estimate' });
   return { avant, apres };

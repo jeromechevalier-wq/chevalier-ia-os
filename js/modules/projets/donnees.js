@@ -19,6 +19,8 @@ const abonnes = new Set();
 
 export const estPret = () => etat.pret && etat.tachesPretes && etat.modelesPrets;
 export const ctx = CRM.ctx;
+// Même chemin de base que le CRM (un seul espace de données par session) : racine pour Jérôme, clients/<client> chez un client.
+const chemin = CRM.chemin;
 export const projet = (id) => etat.projets.find((p) => p.id === id) || null;
 export const modele = (id) => etat.modeles.find((m) => m.id === id) || null;
 export const tache = (id) => etat.taches.find((t) => t.id === id) || null;
@@ -38,9 +40,11 @@ function notifier() {
 const CHAMPS_VOLATILS = new Set(['modifieLe', 'modifiePar', 'creeLe']);
 const empreinte = (docs) => JSON.stringify(docs, (cle, valeur) => (CHAMPS_VOLATILS.has(cle) ? undefined : valeur));
 
-export function demarrer() {
+export function demarrer(base = '') {
+  // Le CRM démarre d'abord (ordre de MODULES) et fixe le chemin ; on refuse un désaccord plutôt que d'écrire à deux endroits.
+  if (base !== CRM.cheminDeBase()) throw new Error('Le module Projets doit utiliser le même chemin de base que le CRM');
   // Un écouteur par collection pour toute la session (comme les activités du CRM) : les tâches servent à l'avancement, au retard et à l'Accueil.
-  desabonnements.push(onSnapshot(collection(db, 'projets_projets'), (snap) => {
+  desabonnements.push(onSnapshot(collection(db, chemin('projets_projets')), (snap) => {
     const docs = snap.docs.map((d) => ({ ...d.data({ serverTimestamps: 'estimate' }), id: d.id }));
     const sig = empreinte(docs);
     const inchange = etat.pret && sig === signature;
@@ -49,7 +53,7 @@ export function demarrer() {
     etat.pret = true;
     if (!inchange) notifier();
   }, (e) => console.warn('projets_projets indisponible', e.code)));
-  desabonnements.push(onSnapshot(collection(db, 'projets_taches'), (snap) => {
+  desabonnements.push(onSnapshot(collection(db, chemin('projets_taches')), (snap) => {
     const docs = snap.docs.map((d) => ({ ...d.data({ serverTimestamps: 'estimate' }), id: d.id }));
     const sig = empreinte(docs);
     const inchange = etat.tachesPretes && sig === signatureTaches;
@@ -58,7 +62,7 @@ export function demarrer() {
     etat.tachesPretes = true;
     if (!inchange) notifier();
   }, (e) => console.warn('projets_taches indisponible', e.code)));
-  desabonnements.push(onSnapshot(collection(db, 'projets_modeles'), (snap) => {
+  desabonnements.push(onSnapshot(collection(db, chemin('projets_modeles')), (snap) => {
     const docs = snap.docs.map((d) => ({ ...d.data({ serverTimestamps: 'estimate' }), id: d.id }));
     const sig = empreinte(docs);
     const inchange = etat.modelesPrets && sig === signatureModeles;
@@ -81,14 +85,14 @@ async function initialiserModeles() {
   try {
     // Tout premier lancement : le CRM écrit ses propres paramètres de départ au même moment (dans la même collection) ; on attend qu'il ait fini
     // (le dernier créé est « reglages ») pour ne pas écrire en même temps que lui. Ensuite (usage normal), ce document existe déjà : aucune attente.
-    for (let i = 0; i < 30 && !(await getDoc(doc(db, 'crm_parametres', 'reglages'))).exists(); i++) await new Promise((r) => setTimeout(r, 400));
-    if ((await getDoc(doc(db, 'crm_parametres', 'modeles_projet'))).exists()) return;
+    for (let i = 0; i < 30 && !(await getDoc(doc(db, chemin('crm_parametres'), 'reglages'))).exists(); i++) await new Promise((r) => setTimeout(r, 400));
+    if ((await getDoc(doc(db, chemin('crm_parametres'), 'modeles_projet'))).exists()) return;
     const email = CRM.compteCourant()?.email || '';
     const lot = writeBatch(db);
     for (const e of P.planInitialiserModeles().ecritures) {
-      lot.set(doc(db, e.collection, e.id), { ...e.donnees, creeLe: serverTimestamp(), modifieLe: serverTimestamp(), creePar: email, modifiePar: email });
+      lot.set(doc(db, chemin(e.collection), e.id), { ...e.donnees, creeLe: serverTimestamp(), modifieLe: serverTimestamp(), creePar: email, modifiePar: email });
     }
-    lot.set(doc(db, 'crm_parametres', 'modeles_projet'), { depart: true });
+    lot.set(doc(db, chemin('crm_parametres'), 'modeles_projet'), { depart: true });
     await lot.commit();
   } catch (e) {
     console.warn('Initialisation des modèles de projet', e.code || e.message);
@@ -168,7 +172,7 @@ export async function creerNote(id, texte) {
 /** Éléments du fil (notes, événements, activités) et tâches qui portent le `projetId`. */
 async function liensDuProjet(id) {
   const noms = ['crm_activites', 'crm_notes', 'crm_evenements'];
-  const reponses = await Promise.all(noms.map((nom) => getDocs(query(collection(db, nom), where('projetId', '==', id)))));
+  const reponses = await Promise.all(noms.map((nom) => getDocs(query(collection(db, chemin(nom)), where('projetId', '==', id)))));
   return reponses.flatMap((r, i) => r.docs.map((d) => ({ collection: noms[i], id: d.id, projetId: id })));
 }
 
@@ -178,8 +182,8 @@ export async function supprimerProjet(id) {
   if (!p) throw new Error('Projet introuvable');
   const [liens, taches, extractions] = await Promise.all([
     liensDuProjet(id),
-    getDocs(query(collection(db, 'projets_taches'), where('projetId', '==', id))),
-    getDocs(query(collection(db, 'projets_projets'), where('projetSourceId', '==', id))),
+    getDocs(query(collection(db, chemin('projets_taches')), where('projetId', '==', id))),
+    getDocs(query(collection(db, chemin('projets_projets')), where('projetSourceId', '==', id))),
   ]);
   const plan = P.planSupprimerProjet({
     projet: p,

@@ -51,7 +51,7 @@ async function ouvrirSession(compte) {
   }
   const objectifsDepart = [...apis.values()].flatMap((api) => api.objectifsDepart || []);
   demarrerObjectifs(compte, objectifsDepart);
-  for (const api of apis.values()) api.demarrer({ compte });
+  for (const api of apis.values()) api.demarrer({ compte, cheminBase: '' }); // '' = racine (CRM de Jérôme) ; chez un client : cheminBaseClient(client)
   const coquille = monterCoquille(racine, compte, {
     apis,
     surDeconnexion: async () => {

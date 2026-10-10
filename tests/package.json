@@ -8,7 +8,7 @@
     "test": "firebase emulators:exec --config ../firebase.json --project demo-chevalier-ia-os --only auth,firestore \"npm run tous\"",
     "tous": "npm run test:regles && npm run test:logique && npm run test:statique && npm run test:fonctions && npm run test:e2e",
     "test:regles": "node --test regles.test.js",
-    "test:logique": "node --test logique.test.js projets.test.js",
+    "test:logique": "node --test logique.test.js projets.test.js chemins.test.js",
     "test:statique": "node --test statique.test.js",
     "installer-fonctions": "npm ci --prefix ../functions",
     "test:fonctions": "npm run preparer && node --test jetons.test.js mcp.test.js lecture.test.js lecture-firestore.test.js ecriture.test.js ecriture-firestore.test.js ecriture-outils.test.js essai-ecriture.test.js audit-ecran.test.js oauth.test.js",
