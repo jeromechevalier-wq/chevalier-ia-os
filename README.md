@@ -27,6 +27,10 @@ Rien à changer côté authentification ni règles Firestore (`firestore.rules` 
 
 Les règles Firestore (`firestore.rules`) sont identiques à celles publiées dans la console ; elles ne sont pas déployées par l'action.
 
+## Plateforme clients (projet `chevalier-ia-app`)
+
+Même code, autre projet Firebase : le paquet est construit par `node scripts/preparer-hebergement.js plateforme` et publié à la main par le workflow « Déploiement plateforme clients ». Le CRM n'est pas concerné. Guide : `docs/deploiement-plateforme.md`.
+
 ## Tests
 
 Tous les tests tournent sur les **émulateurs Firebase** (projet `demo-chevalier-ia-os`), jamais sur les données réelles.

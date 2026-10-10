@@ -13,3 +13,6 @@ ui-debug*.log
 
 # Copie générée avant chaque déploiement et chaque test (scripts/preparer-fonctions.js)
 functions/partage/
+
+# Paquets de déploiement générés (scripts/preparer-hebergement.js)
+dist/

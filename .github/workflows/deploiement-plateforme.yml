@@ -1,0 +1,60 @@
+# Déploiement de la PLATEFORME CLIENTS (projet Firebase chevalier-ia-app), uniquement à la main :
+# GitHub > onglet « Actions » > « Déploiement plateforme clients » > « Run workflow ».
+# Ne se déclenche jamais tout seul. Ne touche ni au CRM (projet chevalier-ia-os) ni à ses fonctions : le workflow du CRM
+# (firebase-hosting.yml) reste celui qui publie à chaque fusion dans main.
+# Étapes : 1) contrôles sans réseau, 2) construction du paquet dist/plateforme (même code et même version que le CRM, mais avec la
+# configuration Firebase de chevalier-ia-app), 3) publication de ce qui est choisi. Secret requis : FIREBASE_SERVICE_ACCOUNT_CHEVALIER_IA_APP.
+name: Déploiement plateforme clients
+on:
+  workflow_dispatch:
+    inputs:
+      elements:
+        description: "Que publier ? (les règles ne sont publiées que si tu choisis « regles » ou « tout »)"
+        type: choice
+        default: hosting
+        options:
+          - hosting
+          - regles
+          - tout
+permissions:
+  contents: read
+concurrency:
+  group: deploiement-plateforme
+  cancel-in-progress: false
+jobs:
+  deployer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Contrôles sans réseau (le CRM garde sa configuration, la plateforme prend la sienne, aucun secret)
+        run: node --test tests/plateforme-deploiement.test.js
+      - name: Construire le paquet de la plateforme
+        run: node scripts/preparer-hebergement.js plateforme
+      - name: Vérifier que le secret existe (sans jamais l'afficher)
+        env:
+          COMPTE_DE_SERVICE: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CHEVALIER_IA_APP }}
+        run: |
+          if [ -z "$COMPTE_DE_SERVICE" ]; then
+            echo "Le secret FIREBASE_SERVICE_ACCOUNT_CHEVALIER_IA_APP n'existe pas encore dans GitHub (Settings > Secrets and variables > Actions). Voir docs/deploiement-plateforme.md."
+            exit 1
+          fi
+          # L'adresse du compte n'est pas un secret ; le « arobase » évite seulement que GitHub la masque par erreur dans le journal.
+          node -e 'try { console.log("Compte de déploiement :", JSON.parse(process.env.COMPTE_DE_SERVICE).client_email.replace("@", " arobase ")); } catch { console.log("Compte de déploiement : illisible"); }'
+      - name: Publier sur chevalier-ia-app
+        env:
+          COMPTE_DE_SERVICE: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CHEVALIER_IA_APP }}
+          ELEMENTS: ${{ inputs.elements }}
+        run: |
+          case "$ELEMENTS" in
+            hosting) cible="hosting" ;;
+            regles)  cible="firestore:rules,storage" ;;
+            tout)    cible="hosting,firestore:rules,storage" ;;
+            *) echo "Choix inconnu : $ELEMENTS"; exit 1 ;;
+          esac
+          fichier="$RUNNER_TEMP/compte-de-service.json"
+          (umask 077; printf '%s' "$COMPTE_DE_SERVICE" > "$fichier")
+          trap 'rm -f "$fichier"' EXIT
+          GOOGLE_APPLICATION_CREDENTIALS="$fichier" npx --yes firebase-tools@15.32.0 deploy --only "$cible" --config firebase.plateforme.json --project chevalier-ia-app --non-interactive
