@@ -24,7 +24,7 @@ const CONFIG_CRM = {
 };
 const CONFIG_PLATEFORME = {
   apiKey: 'AIzaSyBozQGcRbt3sOUr3K2pygTUFdCZKcvxTtI',
-  authDomain: 'chevalier-ia-app.firebaseapp.com',
+  authDomain: 'chevalier-ia-app.web.app',
   projectId: 'chevalier-ia-app',
   storageBucket: 'chevalier-ia-app.firebasestorage.app',
   messagingSenderId: '192468914925',

@@ -70,7 +70,7 @@ Le bouton n'apparaît dans GitHub qu'une fois le workflow fusionné dans `main`.
 - *« Le secret n'existe pas encore »* : étape 2 pas faite, ou nom du secret mal écrit.
 - *Erreur de droits (403) dans le journal* : le journal affiche l'adresse du compte utilisé ; vérifier qu'elle porte bien les deux rôles de l'étape 1.
 - *Retour arrière* : relancer le workflow depuis un ancien commit n'est pas prévu ; dans la console Firebase, **Hosting > Historique des versions > Restaurer** remet la version précédente de la page.
-- *Connexion Google sur téléphone* : la configuration reprend le domaine d'authentification donné par Firebase (`chevalier-ia-app.firebaseapp.com`). Si la connexion par redirection échoue sur téléphone, on passera à `chevalier-ia-app.web.app` (une ligne dans `scripts/projets/plateforme.json`) après avoir ajouté `https://chevalier-ia-app.web.app/__/auth/handler` aux URI de redirection autorisées du client OAuth dans Google Cloud. Pas encore essayé en réel.
+- *Connexion Google sur téléphone* : essai réel du 2026-10-11 : avec `chevalier-ia-app.firebaseapp.com` la connexion par redirection revenait sur la page de connexion sans erreur (adresse différente de la page, bloquée par le navigateur du téléphone). Le domaine d'authentification est donc `chevalier-ia-app.web.app` (`scripts/projets/plateforme.json`), avec `https://chevalier-ia-app.web.app/__/auth/handler` ajouté aux URI de redirection autorisées du client OAuth dans Google Cloud.
 
 ## Limites connues (non traitées ici)
 
