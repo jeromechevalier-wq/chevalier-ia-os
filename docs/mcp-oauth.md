@@ -46,7 +46,7 @@ Les autorisations sont dans la collection Firestore **`mcp_oauth`** (fermée à 
 
 ## Essai réel du 10/10/2026 : réussi
 
-Après la fusion (PR 49) et la publication des règles Firestore, Jérôme a ajouté le connecteur sur claude.ai et s'est connecté avec Google : `qui_suis_je` répond `claude-ai-jerome-chevalier`, profil `claude-code`, serveur 0.2.0, 51 outils, depuis l'appli Claude sur le Mac, et le connecteur est apparu dans une session cloud de Claude Code. **Reste à confirmer : l'appli du téléphone** (c'était le but de départ).
+Après la fusion (PR 49) et la publication des règles Firestore, Jérôme a ajouté le connecteur sur claude.ai et s'est connecté avec Google : `qui_suis_je` répond `claude-ai-jerome-chevalier`, profil `claude-code`, serveur 0.2.0, 51 outils, depuis l'appli Claude sur le Mac, et le connecteur est apparu dans une session cloud de Claude Code. **Téléphone : confirmé par Jérôme le 10/10/2026** (le connecteur fonctionne depuis l'appli Claude de l'iPhone).
 
 ## Ce qu'on n'avait pas pu tester avant la fusion (la connexion réelle l'a confirmé pour l'ordinateur)
 
