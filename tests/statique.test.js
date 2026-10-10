@@ -130,6 +130,16 @@ describe('D3 firebase.json, en têtes, indexation', () => {
     assert.equal(fb.firestore.rules, 'firestore.rules');
     assert.equal(json('.firebaserc').projects.default, 'chevalier-ia-os');
   });
+  test('D3 plateforme clients : alias plateforme, règles « tout refusé » séparées, CRM inchangé et fichiers non publiés', () => {
+    const rc = json('.firebaserc');
+    assert.equal(rc.projects.default, 'chevalier-ia-os');
+    assert.equal(rc.projects.plateforme, 'chevalier-ia-app');
+    assert.equal(json('firebase.plateforme.json').firestore.rules, 'firestore.plateforme.rules');
+    const r = lire('firestore.plateforme.rules').replace(/\/\/.*$/gm, '');
+    assert.match(r, /allow read, write: if false;/);
+    assert.ok(!/if\s+(true|request)/.test(r), 'aucune autorisation dans les règles de départ');
+    for (const x of ['firestore.plateforme.rules', 'firebase.plateforme.json']) assert.ok(fb.hosting.ignore.includes(x), x);
+  });
   test('D3 robots.txt interdit tout et meta robots noindex', () => {
     assert.match(lire('robots.txt'), /User-agent: \*\s+Disallow: \//);
     assert.match(lire('index.html'), /<meta name="robots" content="noindex">/);

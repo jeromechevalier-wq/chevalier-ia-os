@@ -22,6 +22,8 @@
       "CLAUDE.md",
       "PROMPT-CONSTRUCTION.md",
       "firestore.rules",
+      "firestore.plateforme.rules",
+      "firebase.plateforme.json",
       "*.log"
     ],
     "rewrites": [

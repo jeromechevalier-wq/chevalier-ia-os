@@ -101,7 +101,7 @@ Conséquence sur l'organisation du code : le CRM continue d'écrire à la racine
 - **Le MCP suit la même logique** : un lien par client (`…/mcp/<client>`). Le client l'ajoute dans son assistant, et l'écran « Autoriser … à accéder à … » prend ses couleurs.
 - **Limite incontournable** : l'écran de choix de compte de **Google** est le même pour tous les clients (il affiche le nom du projet). Tout le reste, avant et après, est à leurs couleurs.
 - **Option, plus tard** : l'icône et le nom de l'appli installée sur le téléphone, par client, demandent un manifeste par client (généré par une fonction). Non nécessaire au départ.
-- **L'identifiant du projet Firebase de la plateforme clients est définitif** (il ne se change pas après la création) **et il devient visible dans l'adresse de chaque client** : `<identifiant>.web.app/espace/dupont`. Il se choisit donc avec soin (court, sans le mot « test », lisible au téléphone). Exemples : `chevalier-ia-espace`, `chevalier-ia-clients`, `chevalier-ia-pilotage` (un identifiant déjà pris est refusé). Le nom de la coque n'est pas nécessaire ; le nom affiché du projet reste modifiable.
+- **L'identifiant du projet Firebase de la plateforme clients est définitif** (il ne se change pas après la création) **et il devient visible dans l'adresse de chaque client** : `<identifiant>.web.app/espace/dupont`. Il se choisit donc avec soin (court, sans le mot « test », lisible au téléphone). Choisi le 10/10/2026 : `chevalier-ia-app`. Le nom de la coque n'est pas nécessaire ; le nom affiché du projet reste modifiable.
 
 ## 5 quater. Portail de démo sur `app.chevalier-ia.fr` (idée de Jérôme, 10/10/2026)
 
@@ -168,6 +168,8 @@ Tailles relatives, pas des durées. Chaque ligne est une PR. Le CRM de Jérôme 
 | 15 | **Connexion par lien envoyé par e-mail** (si un client n'a pas Google) | petit | 3 |
 | 16 | **Option : manifeste par client** (icône et nom de l'appli installée) | petit | 5 |
 
+**Chantier 1, état (10/10/2026)** : projet `chevalier-ia-app` créé par Jérôme. Dans le dépôt : alias `plateforme` dans `.firebaserc` (le CRM reste `default` = `chevalier-ia-os`), règles « tout refusé » dans `firestore.plateforme.rules`, configuration de déploiement séparée `firebase.plateforme.json` (le `firebase.json` du CRM n'est pas modifié, sauf deux fichiers ajoutés à la liste des fichiers non publiés). **Non publié** : pour publier les règles, après l'accord de Jérôme : `firebase deploy --only firestore:rules --config firebase.plateforme.json --project plateforme`. Le CRM se déploie toujours comme avant (`--project default`, ou le workflow GitHub, qui cible `chevalier-ia-os` par son nom).
+
 **Ordre conseillé** : étape 0, puis 1, 2, 3, 4, 12, 5, 6, 7, 8, 9, 10, 11, 13, puis 14 (la démo à montrer à un client), 15 et 16 selon les besoins. Le dépôt modèle de la première version de l'étude disparaît : il n'y a plus de copies à tenir à jour.
 
 **Risques principaux**
@@ -189,7 +191,7 @@ Tailles relatives, pas des durées. Chaque ligne est une PR. Le CRM de Jérôme 
 - **Jérôme envoie lui-même les images des clients** (le client ne téléverse rien).
 - **Pas de sous-domaine pour la plateforme** : adresse Firebase par défaut (section 5 ter).
 - **Les liens des clients ont la forme `/espace/<client>`** (et non `/c/<client>`), choisi par Jérôme le 10/10/2026 : plus lisible, et le préfixe évite qu'un nom de client entre en conflit avec les adresses techniques (`/mcp`, `/oauth`, `/.well-known`, dossiers `css` et `js`).
-- **Identifiant du projet Firebase : `chevalier-ia`** (proposé par Jérôme le 10/10/2026), donc `chevalier-ia.web.app/espace/<client>`. À confirmer à la création du projet : les identifiants sont uniques dans le monde, le nom peut être déjà pris (repli suggéré : `chevalier-ia-app`). La création du projet se fait par Jérôme dans la console (compte de facturation).
+- **Identifiant du projet Firebase : `chevalier-ia-app`** (numéro 192468914925, nom affiché « Chevalier IA - Serveur 1 »), donc `chevalier-ia-app.web.app/espace/<client>`. Le nom `chevalier-ia` (proposé d'abord par Jérôme le 10/10/2026) n'a pas été retenu : le projet a été créé sous `chevalier-ia-app` (le repli prévu). Forfait Blaze, budget 5 €, Google Sign-In activé, Firestore (default) en europe-west9 mode production, application web enregistrée.
 - **`app.chevalier-ia.fr` = portail de démos** avec vignettes qui redirigent directement vers l'adresse Firebase de la démo (section 5 quater).
 - **Étape 0 (OAuth du MCP) terminée.**
 

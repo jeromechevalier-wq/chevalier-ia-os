@@ -1,0 +1,11 @@
+rules_version = '2';
+// Plateforme clients (projet Firebase « chevalier-ia-app ») : règles de départ, TOUT EST REFUSÉ.
+// Aucun navigateur ne lit ni n'écrit rien. Le serveur (fonctions, compte de service) n'est pas soumis aux règles.
+// Ces règles seront remplacées au chantier 3 (appartenance par client). Elles ne concernent PAS le CRM (firestore.rules).
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
