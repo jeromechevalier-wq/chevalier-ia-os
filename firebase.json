@@ -23,10 +23,12 @@
       "PROMPT-CONSTRUCTION.md",
       "firestore.rules",
       "firestore.plateforme.rules",
+      "storage.plateforme.rules",
       "firebase.plateforme.json",
       "*.log"
     ],
     "rewrites": [
+      { "source": "/espace/**", "destination": "/espace/index.html" },
       { "source": "/mcp", "run": { "serviceId": "mcp", "region": "europe-west9" } },
       { "source": "/.well-known/oauth-protected-resource", "run": { "serviceId": "mcp", "region": "europe-west9" } },
       { "source": "/.well-known/oauth-protected-resource/mcp", "run": { "serviceId": "mcp", "region": "europe-west9" } },

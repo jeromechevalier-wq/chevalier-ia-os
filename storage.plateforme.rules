@@ -1,0 +1,17 @@
+rules_version = '2';
+// Images des marques de la plateforme clients (projet Firebase « chevalier-ia-app »). Ne concerne PAS le CRM de Jérôme.
+// Chemin : marques/<client>/<fichier>  (logo, photo du bâtiment…). Lecture publique d'un fichier précis (la page de connexion s'affiche
+// avant toute connexion) mais pas de liste du dossier ; AUCUNE écriture depuis un navigateur : Jérôme envoie les images depuis la
+// console Firebase ou avec un outil d'administration (qui contourne les règles). Tout le reste du stockage est refusé.
+// Ne mettre dans ces dossiers que du visuel destiné à être public.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /marques/{client}/{fichier=**} {
+      allow get: if true;
+      allow list, write: if false;
+    }
+    match /{autre=**} {
+      allow read, write: if false;
+    }
+  }
+}

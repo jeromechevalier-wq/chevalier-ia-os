@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Espace client</title>
+<script>
+  // Lien court /espace/<client> -> page de l'appli (/#/espace/<client>). Seul un identifiant de la forme attendue est repris :
+  // jamais d'adresse libre (pas de redirection vers un autre site).
+  (function () {
+    var m = /^\/espace\/([A-Za-z0-9][A-Za-z0-9_-]{0,39})\/?$/.exec(location.pathname);
+    location.replace('/' + (m ? '#/espace/' + m[1].toLowerCase() : ''));
+  })();
+</script>
+</head>
+<body><noscript>Cette page a besoin de JavaScript.</noscript></body>
+</html>

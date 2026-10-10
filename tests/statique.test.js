@@ -320,6 +320,7 @@ describe('D5 Serveur MCP (étape 2) : déploiement, versions figées, sécurité
   test('D5 /mcp est réécrit vers le service Cloud Run « mcp » de Paris, et functions/ n’est pas publié', () => {
     const vers = { serviceId: 'mcp', region: 'europe-west9' };
     assert.deepEqual(fb.hosting.rewrites, [
+      { source: '/espace/**', destination: '/espace/index.html' }, // lien court d'un client de la plateforme (chantier 5)
       { source: '/mcp', run: vers },
       { source: '/.well-known/oauth-protected-resource', run: vers },
       { source: '/.well-known/oauth-protected-resource/mcp', run: vers },

@@ -43,6 +43,9 @@ beforeEach(async () => {
     }
     await setDoc(doc(db, 'crm_personnes', 'existant'), { valeur: 1 });
     await setDoc(doc(db, 'clients', 'a'), { nom: 'Client A' });
+    await setDoc(doc(db, 'marques', 'a'), { actif: true, nom: 'Client A', couleur: '#336699' });
+    await setDoc(doc(db, 'marques', 'b'), { actif: true, nom: 'Client B', couleur: '#993366' });
+    await setDoc(doc(db, 'marques', 'dormant'), { actif: false, nom: 'Client dormant' });
   });
 });
 
@@ -151,5 +154,53 @@ describe('P. Règles de la plateforme clients', () => {
     await assertSucceeds(setDoc(doc(db, 'clients', 'a', 'automatisations', 'x', 'etapes', 'y'), { valeur: 1 }));
     await assertFails(setDoc(doc(db, 'clients', 'b', 'automatisations', 'x', 'etapes', 'y'), { valeur: 1 }));
     await assertFails(setDoc(doc(db, 'clients', 'a', 'membres', 'x', 'sous', 'y'), { valeur: 1 }));
+  });
+
+  // ---- Fiche de marque (chantier 5) : publique en lecture d'un document précis, jamais en liste, jamais en écriture.
+  describe('fiche de marque (marques/<client>)', () => {
+    const profils = () => [['visiteur sans connexion', env.unauthenticatedContext().firestore()], ['membre de A', ctx(ALICE)], ['compte sans client', ctx(ZOE)], ['e-mail non vérifié', ctx(ALICE, false)]];
+
+    test('M1 une fiche active se lit sans connexion (et avec n\'importe quel compte)', async () => {
+      for (const [, db] of profils()) {
+        const f = await assertSucceeds(getDoc(doc(db, 'marques', 'a')));
+        assert.equal(f.data().nom, 'Client A');
+      }
+    });
+    test('M2 aucune liste : on ne peut pas énumérer les clients', async () => {
+      for (const [, db] of profils()) await assertFails(getDocs(collection(db, 'marques')));
+    });
+    test('M3 aucune écriture depuis un navigateur : ni créer, ni modifier, ni supprimer (même un membre du client)', async () => {
+      for (const [, db] of profils()) {
+        await assertFails(setDoc(doc(db, 'marques', 'a'), { actif: true, nom: 'Pirate' }));
+        await assertFails(setDoc(doc(db, 'marques', 'nouveau'), { actif: true, nom: 'Nouveau' }));
+        await assertFails(updateDoc(doc(db, 'marques', 'a'), { nom: 'Pirate' }));
+        await assertFails(deleteDoc(doc(db, 'marques', 'a')));
+      }
+    });
+    test('M4 une fiche inactive et une fiche absente sont refusées de la même façon (on ne devine pas quels clients existent)', async () => {
+      const db = env.unauthenticatedContext().firestore();
+      const refus = async (id) => {
+        try { await getDoc(doc(db, 'marques', id)); return 'lu'; } catch (e) { return e.code; }
+      };
+      assert.equal(await refus('dormant'), 'permission-denied');
+      assert.equal(await refus('inconnu'), 'permission-denied');
+    });
+    test('M5 pas de fuite : sans connexion, ni membres, ni données, ni fiche du client lui-même', async () => {
+      const db = env.unauthenticatedContext().firestore();
+      await assertFails(getDoc(doc(db, 'clients', 'a', 'membres', ALICE)));
+      await assertFails(getDocs(collection(db, 'clients', 'a', 'membres')));
+      await assertFails(getDoc(doc(db, 'clients', 'a')));
+      for (const c of DONNEES) await assertFails(getDoc(doc(db, 'clients', 'a', c, 'existant')));
+      await assertFails(getDoc(doc(db, 'crm_personnes', 'existant')));
+    });
+    test('M6 les fiches de marque ne donnent aucun droit sur les données : un membre de A reste sans accès à B', async () => {
+      await aucunDroit(ctx(ALICE), 'b', 'crm_personnes');
+      await assertFails(getDoc(doc(ctx(ALICE), 'clients', 'b', 'membres', BOB)));
+    });
+    test('M7 sous-collection d\'une fiche : refusée', async () => {
+      const db = env.unauthenticatedContext().firestore();
+      await assertFails(getDoc(doc(db, 'marques', 'a', 'prive', 'x')));
+      await assertFails(setDoc(doc(db, 'marques', 'a', 'prive', 'x'), { v: 1 }));
+    });
   });
 });
