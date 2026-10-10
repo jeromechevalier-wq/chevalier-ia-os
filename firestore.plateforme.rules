@@ -1,6 +1,6 @@
 rules_version = '2';
 // Plateforme clients (projet Firebase « chevalier-ia-app »). Ne concerne PAS le CRM de Jérôme (firestore.rules).
-// Tout est refusé par défaut. Un compte (e-mail vérifié) n'a de droits que chez les clients dont il est membre :
+// Tout est refusé par défaut, sauf la fiche de marque (marques/<client>, lecture publique d'un document précis, voir plus bas). Un compte (e-mail vérifié) n'a de droits que chez les clients dont il est membre :
 //   clients/<client>/membres/<e-mail en minuscules>  avec un champ « role » : « editeur » (lit et écrit) ou « lecteur » (lit seulement).
 // Un compte peut être membre de plusieurs clients (une fiche par client), et n'a de droits que dans ceux-là.
 // Les fiches d'appartenance ne s'écrivent jamais depuis un navigateur (ni créer, ni modifier, ni supprimer) : elles sont gérées par le
@@ -18,6 +18,15 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/clients/$(client)/membres/$(request.auth.token.email.lower()))
         ? get(/databases/$(database)/documents/clients/$(client)/membres/$(request.auth.token.email.lower())).data.get('role', '')
         : '';
+    }
+
+    // Fiche de marque d'un client (chantier 5) : lisible SANS connexion, pour afficher la page de connexion à ses couleurs.
+    // On ne peut lire qu'UN document précis (get), jamais la liste des clients (list) ; aucune écriture depuis un navigateur
+    // (la fiche est créée par Jérôme ou par l'outil « nouveau client »). Une fiche absente OU inactive est refusée de la même façon :
+    // on ne peut pas deviner quels clients existent. Elle ne contient que du visuel (nom, couleurs, logo, images, texte d'accueil).
+    match /marques/{client} {
+      allow get: if resource.data.get('actif', false) == true;
+      allow list, write: if false;
     }
 
     // Sa propre fiche seulement (pour savoir à quels clients on appartient) : lecture d'un document, jamais de liste, jamais d'écriture.

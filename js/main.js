@@ -3,6 +3,7 @@ import { demarrerPwa } from './os/pwa.js';
 import { appliquerTheme, afficherConnexion, monterCoquille, boutonTheme } from './os/shell.js';
 import { surveillerCompte, connecter, deconnecter, MESSAGE_REFUS } from './os/auth.js';
 import { routeCourante, segments, surChangementRoute, naviguer, ROUTE_DEFAUT } from './os/router.js';
+import { estRouteEspace } from './os/marque.js';
 import { MODULES } from './os/modules.js';
 import { demarrerObjectifs, arreterObjectifs, rendreReglagesObjectifs } from './os/objectifs.js';
 import { h, icone, lirePreference, vider, remplir, toast } from './os/ui.js';
@@ -14,19 +15,33 @@ const racine = document.getElementById('app');
 let session = null; // { compte, coquille, apis: Map(id → api), vue: { cle, quitter } }
 let arretRoute = null;
 
-afficherChargement();
+// Deux entrées : la page d'un client de la plateforme (#/espace/<client>, js/os/espace.js) ou le CRM de Jérôme (tout le reste, inchangé).
+// Passer de l'une à l'autre (ou d'un client à un autre) recharge la page : chaque entrée démarre avec son propre état.
+const cleEntree = () => (estRouteEspace(routeCourante()) ? routeCourante().toLowerCase() : '');
+const entree = cleEntree();
+window.addEventListener('hashchange', () => { if (cleEntree() !== entree) location.reload(); });
 
-surveillerCompte(async (ev) => {
-  if (ev.etat === 'connecte') {
-    if (session?.compte.email === ev.compte.email) return;
-    await ouvrirSession(ev.compte);
-  } else if (ev.etat === 'deconnecte') {
-    fermerSession();
-    afficherConnexion(racine, { message: ev.refus ? MESSAGE_REFUS : '', surConnexion: lancerConnexion });
-  } else if (ev.etat === 'erreur') {
-    toast(ev.message, { type: 'erreur' });
-  }
-});
+if (entree) {
+  afficherChargement();
+  import('./os/espace.js').then((m) => m.demarrerEspace(racine));
+} else {
+  demarrerCrm();
+}
+
+function demarrerCrm() {
+  afficherChargement();
+  surveillerCompte(async (ev) => {
+    if (ev.etat === 'connecte') {
+      if (session?.compte.email === ev.compte.email) return;
+      await ouvrirSession(ev.compte);
+    } else if (ev.etat === 'deconnecte') {
+      fermerSession();
+      afficherConnexion(racine, { message: ev.refus ? MESSAGE_REFUS : '', surConnexion: lancerConnexion });
+    } else if (ev.etat === 'erreur') {
+      toast(ev.message, { type: 'erreur' });
+    }
+  });
+}
 
 async function lancerConnexion() {
   try {
