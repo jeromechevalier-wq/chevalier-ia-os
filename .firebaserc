@@ -1,5 +1,6 @@
 {
   "projects": {
-    "default": "chevalier-ia-os"
+    "default": "chevalier-ia-os",
+    "plateforme": "chevalier-ia-app"
   }
 }
