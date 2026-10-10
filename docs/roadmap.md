@@ -1,6 +1,6 @@
 # Roadmap
 
-Tenue à jour à chaque discussion sur l'évolution de l'appli. Dernière mise à jour : 09/10/2026 (connexion Google OAuth du serveur MCP pour le téléphone, PR en attente, `mcp-oauth.md`) ; avant : 07/10/2026 (écran Projets terminé, version 2.1.0 ; avant : projets, facturation et extraction de valeur décidés le 06/10/2026) ; avant : 03/10/2026, après la validation en réel de l'étape 4 du serveur MCP (`plan-mcp.md`, `mcp-etape-4.md`).
+Tenue à jour à chaque discussion sur l'évolution de l'appli. Dernière mise à jour : 09/10/2026 (connexion Google OAuth du serveur MCP, en place et validée sur ordinateur et téléphone, `mcp-oauth.md`) ; avant : 07/10/2026 (écran Projets terminé, version 2.1.0 ; avant : projets, facturation et extraction de valeur décidés le 06/10/2026) ; avant : 03/10/2026, après la validation en réel de l'étape 4 du serveur MCP (`plan-mcp.md`, `mcp-etape-4.md`).
 
 Légende : **décidé** = validé par Jérôme ; **piste** = à trancher avant le cahier des charges.
 
