@@ -2,6 +2,10 @@
 
 Écrit le 04/10/2026, mis à jour le 07/10/2026 à la fin du chantier Projets, pour qu'une session neuve reprenne sans que Jérôme ait à recoller quoi que ce soit. **À mettre à jour ou à supprimer une fois les points faits.**
 
+## En attente du feu vert de Jérôme : objectif « Chiffre d'affaires signé » (10/10/2026)
+
+Demande d'évolution rédigée et validée, **rien n'est codé** : `demande-evolution-ca-signe.md` (définition, cas particuliers, 4 points à vérifier dans le code avant de commencer, périmètre). Cible : 1 000 € par mois. Une seule PR, suite de tests complète, fusion après le « fusionne » de Jérôme. Le contexte des 4 KPI est dans la fiche « KPI principaux de Chevalier IA » du second cerveau.
+
 ## En premier : connexion Google (OAuth) du serveur MCP pour le téléphone (09/10/2026)
 
 PR 49 **fusionnée et déployée le 10/10/2026**, règles Firestore publiées, essai réel réussi sur l'ordinateur (`qui_suis_je` → `claude-ai-jerome-chevalier`) **et sur le téléphone** (Jérôme, 10/10/2026). Chantier terminé : rien à reprendre de ce côté. Lire `mcp-oauth.md` (mise en route dans l'ordre : publier les règles Firestore, fusionner, ajouter le connecteur sur claude.ai, essayer sur le téléphone). Si l'essai échoue : les journaux Cloud Run du service `mcp` portent un champ `code` en `oauth_…` qui dit à quelle étape ça casse. Validé en réel sur l'ordinateur et sur le téléphone. Décisions de Jérôme : tous les droits, 30 jours glissants. **Pour couper l'accès d'un téléphone : pas à pas dans `mcp-oauth.md`, « Couper l'accès du téléphone ».**
