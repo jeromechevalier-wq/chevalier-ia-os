@@ -5,7 +5,7 @@
   "description": "Tests de Chevalier IA OS (émulateurs Firebase, jamais les données réelles)",
   "type": "module",
   "scripts": {
-    "test": "firebase emulators:exec --config ../firebase.json --project demo-chevalier-ia-os --only auth,firestore \"npm run tous\" && npm run test:storage && npm run test:outil-client",
+    "test": "firebase emulators:exec --config ../firebase.json --project demo-chevalier-ia-os --only auth,firestore \"npm run tous\" && npm run test:storage && npm run test:outil-client && npm run test:journal",
     "tous": "npm run test:regles && npm run test:logique && npm run test:statique && npm run test:fonctions && npm run test:e2e",
     "test:regles": "node --test --test-concurrency=1 regles.test.js regles-plateforme.test.js",
     "test:logique": "node --test logique.test.js projets.test.js chemins.test.js membres.test.js marque.test.js identite-client.test.js registre.test.js plateforme-deploiement.test.js journal-statique.test.js journal-logique.test.js",
