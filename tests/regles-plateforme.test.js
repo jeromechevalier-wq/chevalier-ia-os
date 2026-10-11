@@ -42,7 +42,8 @@ beforeEach(async () => {
       for (const c of DONNEES) await setDoc(doc(db, 'clients', client, c, 'existant'), { valeur: 1 });
     }
     await setDoc(doc(db, 'crm_personnes', 'existant'), { valeur: 1 });
-    await setDoc(doc(db, 'clients', 'a'), { nom: 'Client A' });
+    await setDoc(doc(db, 'clients', 'a'), { nom: 'Client A', modules: { affaires: true, projets: false } });
+    await setDoc(doc(db, 'clients', 'b'), { nom: 'Client B', modules: { affaires: true, projets: true } });
     await setDoc(doc(db, 'marques', 'a'), { actif: true, nom: 'Client A', couleur: '#336699' });
     await setDoc(doc(db, 'marques', 'b'), { actif: true, nom: 'Client B', couleur: '#993366' });
     await setDoc(doc(db, 'marques', 'dormant'), { actif: false, nom: 'Client dormant' });
@@ -95,12 +96,12 @@ describe('P. Règles de la plateforme clients', () => {
     });
   }
 
-  test('P8 un membre est refusé à la racine (collections du CRM) et sur la fiche du client lui-même', async () => {
+  test('P8 un membre est refusé à la racine (collections du CRM) ; la fiche de son client se lit mais ne s\'écrit pas (chantier 7)', async () => {
     const db = ctx(ALICE);
     await assertFails(getDoc(doc(db, 'crm_personnes', 'existant')));
     await assertFails(getDocs(collection(db, 'crm_personnes')));
     await assertFails(setDoc(doc(db, 'crm_personnes', 'nouveau'), { valeur: 2 }));
-    await assertFails(getDoc(doc(db, 'clients', 'a')));
+    await assertSucceeds(getDoc(doc(db, 'clients', 'a')));
     await assertFails(setDoc(doc(db, 'clients', 'a'), { nom: 'Autre' }));
     await assertFails(getDocs(collection(db, 'clients')));
     await assertFails(setDoc(doc(db, 'divers', 'x'), { valeur: 1 }));
@@ -154,6 +155,71 @@ describe('P. Règles de la plateforme clients', () => {
     await assertSucceeds(setDoc(doc(db, 'clients', 'a', 'automatisations', 'x', 'etapes', 'y'), { valeur: 1 }));
     await assertFails(setDoc(doc(db, 'clients', 'b', 'automatisations', 'x', 'etapes', 'y'), { valeur: 1 }));
     await assertFails(setDoc(doc(db, 'clients', 'a', 'membres', 'x', 'sous', 'y'), { valeur: 1 }));
+  });
+
+  // ---- Modules actifs d'un client (chantier 7) : champ « modules » du document clients/<client>.
+  describe('modules actifs (clients/<client>)', () => {
+    const fiche = (db, client) => getDoc(doc(db, 'clients', client));
+    const ecritures = (db, client) => [
+      () => setDoc(doc(db, 'clients', client), { modules: { affaires: true, projets: true } }),
+      () => setDoc(doc(db, 'clients', client), { modules: { projets: true } }, { merge: true }),
+      () => updateDoc(doc(db, 'clients', client), { modules: { affaires: true, projets: true } }),
+      () => updateDoc(doc(db, 'clients', client), { 'modules.projets': true }),
+      () => deleteDoc(doc(db, 'clients', client)),
+    ];
+
+    test('Q1 un éditeur lit les modules actifs de SON client', async () => {
+      const f = await assertSucceeds(fiche(ctx(ALICE), 'a'));
+      assert.deepEqual(f.data().modules, { affaires: true, projets: false });
+    });
+    test('Q2 un lecteur lit aussi les modules de son client', async () => {
+      const f = await assertSucceeds(fiche(ctx(LEA), 'a'));
+      assert.deepEqual(f.data().modules, { affaires: true, projets: false });
+    });
+    test('Q3 jamais d\'écriture depuis un navigateur : ni éditeur, ni lecteur (créer, modifier, activer un module, supprimer)', async () => {
+      for (const email of [ALICE, LEA, CLARA]) {
+        for (const ecrire of ecritures(ctx(email), 'a')) await assertFails(ecrire());
+      }
+      await env.withSecurityRulesDisabled(async (c) => {
+        const f = await getDoc(doc(c.firestore(), 'clients', 'a'));
+        assert.deepEqual(f.data().modules, { affaires: true, projets: false }); // rien n'a bougé
+      });
+    });
+    test('Q4 un membre d\'un autre client ne lit pas les modules de ce client (et ne les écrit pas)', async () => {
+      await assertFails(fiche(ctx(BOB), 'a'));
+      await assertFails(fiche(ctx(ALICE), 'b'));
+      for (const ecrire of ecritures(ctx(BOB), 'a')) await assertFails(ecrire());
+      for (const ecrire of ecritures(ctx(ALICE), 'b')) await assertFails(ecrire());
+    });
+    test('Q5 un compte sans client, un e-mail non vérifié, un visiteur sans connexion : rien', async () => {
+      for (const db of [ctx(ZOE), ctx(ALICE, false), env.unauthenticatedContext().firestore()]) {
+        await assertFails(fiche(db, 'a'));
+        await assertFails(fiche(db, 'b'));
+        for (const ecrire of ecritures(db, 'a')) await assertFails(ecrire());
+      }
+    });
+    test('Q6 pas de liste des clients (ni pour un membre) ; un membre de deux clients lit les deux, chacun avec ses modules', async () => {
+      await assertFails(getDocs(collection(ctx(ALICE), 'clients')));
+      const a = await assertSucceeds(fiche(ctx(CLARA), 'a'));
+      const b = await assertSucceeds(fiche(ctx(CLARA), 'b'));
+      assert.equal(a.data().modules.projets, false);
+      assert.equal(b.data().modules.projets, true);
+    });
+    test('Q7 un client sans document : la lecture passe pour un membre (document absent = aucun module), refusée pour les autres', async () => {
+      await env.withSecurityRulesDisabled(async (c) => {
+        await setDoc(doc(c.firestore(), 'clients', 'sans-fiche', 'membres', ALICE), { role: 'editeur' });
+      });
+      const f = await assertSucceeds(fiche(ctx(ALICE), 'sans-fiche'));
+      assert.equal(f.exists(), false);
+      await assertFails(fiche(ctx(BOB), 'sans-fiche'));
+    });
+    test('Q8 la lecture de la fiche ne change rien aux autres droits : la liste des membres reste fermée, la racine aussi', async () => {
+      const db = ctx(ALICE);
+      await assertFails(getDocs(collection(db, 'clients', 'a', 'membres')));
+      await assertFails(getDoc(doc(db, 'clients', 'a', 'membres', LEA)));
+      await assertFails(getDoc(doc(db, 'crm_personnes', 'existant')));
+      await assertFails(setDoc(doc(db, 'clients', 'a', 'membres', ALICE), { role: 'editeur', modules: {} }));
+    });
   });
 
   // ---- Fiche de marque (chantier 5) : publique en lecture d'un document précis, jamais en liste, jamais en écriture.

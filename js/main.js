@@ -2,8 +2,8 @@
 import { demarrerPwa } from './os/pwa.js';
 import { appliquerTheme, afficherConnexion, monterCoquille, boutonTheme } from './os/shell.js';
 import { surveillerCompte, connecter, deconnecter, MESSAGE_REFUS } from './os/auth.js';
-import { routeCourante, segments, surChangementRoute, naviguer, ROUTE_DEFAUT } from './os/router.js';
-import { estRouteEspace } from './os/marque.js';
+import { routeCourante, routeDepuisHash, segments, surChangementRoute, naviguer, ROUTE_DEFAUT } from './os/router.js';
+import { estRouteEspace, cleEspace } from './os/marque.js';
 import { MODULES } from './os/modules.js';
 import { demarrerObjectifs, arreterObjectifs, rendreReglagesObjectifs } from './os/objectifs.js';
 import { h, icone, lirePreference, vider, remplir, toast } from './os/ui.js';
@@ -17,7 +17,8 @@ let arretRoute = null;
 
 // Deux entrées : la page d'un client de la plateforme (#/espace/<client>, js/os/espace.js) ou le CRM de Jérôme (tout le reste, inchangé).
 // Passer de l'une à l'autre (ou d'un client à un autre) recharge la page : chaque entrée démarre avec son propre état.
-const cleEntree = () => (estRouteEspace(routeCourante()) ? routeCourante().toLowerCase() : '');
+// La clé est `espace/<client>` : changer d'écran chez un même client ne recharge pas la page. (Route brute, sans le préfixe que le router ajoute chez un client.)
+const cleEntree = () => (estRouteEspace(routeDepuisHash(location.hash)) ? cleEspace(routeDepuisHash(location.hash)) : '');
 const entree = cleEntree();
 window.addEventListener('hashchange', () => { if (cleEntree() !== entree) location.reload(); });
 

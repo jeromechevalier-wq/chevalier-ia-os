@@ -1,7 +1,7 @@
 // Coquille de l'OS : menu latéral repliable, thèmes sombre et clair, profil, écran de connexion.
 import { h, icone, vider, remplir, lirePreference, ecrirePreference, estTelephone, champIntelligent, ouvrirMenu } from './ui.js';
 import { MODULES } from './modules.js';
-import { naviguer } from './router.js';
+import { naviguer, lien } from './router.js';
 
 // ---------------------------------------------------------------- thème
 
@@ -72,37 +72,46 @@ export function afficherConnexion(racine, { message = '', surConnexion, enCours 
 /**
  * Monte la coquille pour le compte connecté.
  * Renvoie { contenu, activer(route) }.
+ * Options : `modules` (défaut : tous, CRM de Jérôme) ; chez un client (chantier 7) `client` = { nom, logo } remplace la marque de Jérôme,
+ * `accueil` = première route, `reglages: false` retire l'entrée Réglages (pas de réglages de l'OS chez un client pour l'instant).
  */
-export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map() }) {
+export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(), modules = MODULES, client = null, accueil = 'crm/accueil', reglages: avecReglages = true }) {
   vider(racine);
   document.body.classList.remove('page-connexion');
   const elargi = lirePreference('menu', 'replie') === 'elargi';
 
   const entrees = [];
   const nav = h('nav', { class: 'menu-nav', 'aria-label': 'Navigation' });
-  for (const m of MODULES) {
+  for (const m of modules) {
     const groupe = h('div', { class: 'menu-groupe' },
       h('div', { class: 'menu-groupe-titre' }, icone(m.icone, { taille: 16 }), h('span', { class: 'menu-texte' }, m.libelle)));
     for (const e of m.entrees) {
-      const a = h('a', { class: 'menu-entree', href: `#/${e.chemin}`, dataset: { infobulle: e.libelle, chemin: e.chemin } },
+      const a = h('a', { class: 'menu-entree', href: lien(e.chemin), dataset: { infobulle: e.libelle, chemin: e.chemin } },
         icone(e.icone), h('span', { class: 'menu-texte' }, e.libelle));
       entrees.push(a);
       groupe.append(a);
     }
     nav.append(groupe);
   }
-  const reglages = h('a', { class: 'menu-entree', href: '#/reglages', dataset: { infobulle: 'Réglages', chemin: 'reglages' } },
-    icone('settings'), h('span', { class: 'menu-texte' }, 'Réglages'));
-  entrees.push(reglages);
-  nav.append(h('div', { class: 'menu-groupe' }, reglages));
+  if (avecReglages) {
+    const reglages = h('a', { class: 'menu-entree', href: '#/reglages', dataset: { infobulle: 'Réglages', chemin: 'reglages' } },
+      icone('settings'), h('span', { class: 'menu-texte' }, 'Réglages'));
+    entrees.push(reglages);
+    nav.append(h('div', { class: 'menu-groupe' }, reglages));
+  }
 
   const boutonRepli = h('button', {
     type: 'button', class: 'menu-entree menu-repli', dataset: { role: 'bascule-menu' },
     onclick: () => definirElargi(coquille.dataset.menu !== 'elargi'),
   });
-  const avatar = h('img', { class: `avatar avatar-${compte.nom === 'Charles' ? 'charles' : 'jerome'}`, src: compte.avatar, alt: '', width: '32', height: '32' });
+  // Chez un client : pas de photo, une pastille avec l'initiale du nom.
+  const initiale = (taille) => h('span', { class: 'avatar avatar-initiale', style: { width: `${taille}px`, height: `${taille}px` }, 'aria-hidden': 'true' }, [...String(compte.nom || '?')][0].toUpperCase());
+  const avatar = client ? initiale(32) : h('img', { class: `avatar avatar-${compte.nom === 'Charles' ? 'charles' : 'jerome'}`, src: compte.avatar, alt: '', width: '32', height: '32' });
+  const marqueMenu = client
+    ? [client.logo ? h('img', { class: 'menu-logo-client', src: client.logo, alt: '', width: '26', height: '26' }) : null, h('span', { class: 'menu-texte' }, client.nom)]
+    : [baguette(26), h('span', { class: 'menu-texte' }, 'Chevalier IA ', h('b', {}, 'OS'))];
   const menu = h('aside', { class: 'menu', id: 'menu', 'aria-label': 'Menu principal' },
-    h('div', { class: 'menu-marque' }, baguette(26), h('span', { class: 'menu-texte' }, 'Chevalier IA ', h('b', {}, 'OS'))),
+    h('div', { class: 'menu-marque' }, ...marqueMenu),
     nav,
     h('div', { class: 'menu-bas' },
       boutonTheme(),
@@ -145,10 +154,10 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
 
   const barreHaut = h('header', { class: 'barre-haut' },
     boutonMobile,
-    h('a', { class: 'barre-haut-marque', href: '#/crm/accueil' }, baguette(22), h('span', {}, 'Chevalier IA ', h('b', {}, 'OS'))),
+    h('a', { class: 'barre-haut-marque', href: lien(accueil) }, ...(client ? [h('span', {}, client.nom)] : [baguette(22), h('span', {}, 'Chevalier IA ', h('b', {}, 'OS'))])),
     boutonRecherche,
     boutonPlusMobile,
-    h('img', { class: `avatar avatar-${compte.nom === 'Charles' ? 'charles' : 'jerome'}`, src: compte.avatar, alt: compte.nom, width: '30', height: '30' }));
+    client ? initiale(30) : h('img', { class: `avatar avatar-${compte.nom === 'Charles' ? 'charles' : 'jerome'}`, src: compte.avatar, alt: compte.nom, width: '30', height: '30' }));
   const voile = h('div', { class: 'voile-menu', onclick: () => ouvrirMobile(false) });
   const contenu = h('main', { class: 'contenu', id: 'contenu', tabindex: '-1' });
   const zone = h('div', { class: 'zone' }, barreOutils, contenu);

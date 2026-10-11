@@ -130,7 +130,8 @@ export function demarrer(compteConnecte, base = '') {
     etat.filtres = docs.filtres?.version === 2 ? tri(docs.filtres.items) : [];
     etat.reglages = { ...L.REGLAGES_DEPART, ...(docs.reglages || {}) };
     etat.pret.parametres = true;
-    if (!snap.metadata.fromCache) initialiserParametres(docs);
+    // Un lecteur d'un client (compte.ecrit === false, chantier 7) ne crée pas les paramètres de départ : les règles le refuseraient. Le CRM de Jérôme n'a pas ce champ.
+    if (!snap.metadata.fromCache && compte?.ecrit !== false) initialiserParametres(docs);
     notifier();
   }, (e) => console.warn('Paramètres indisponibles', e.code)));
 }

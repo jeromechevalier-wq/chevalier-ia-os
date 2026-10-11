@@ -15,7 +15,8 @@ import { cheminProjet } from '../projets/composants.js';
 
 let moisAffiche = null;
 
-export function rendreAccueil(conteneur, { compte }) {
+// `objectifs: false` (chez un client, chantier 7) : la section « Objectifs du mois » n'est pas montée (les objectifs sortent de la coquille au chantier 8).
+export function rendreAccueil(conteneur, { compte, objectifs = true }) {
   const moisActuel = moisCourantParis();
   if (!moisAffiche || moisAffiche > moisActuel) moisAffiche = moisActuel;
   retires = new Map();
@@ -35,11 +36,11 @@ export function rendreAccueil(conteneur, { compte }) {
       h('div', {}, h('p', { class: 'etiquette' }, jour), h('h1', {}, `Bonjour ${compte.nom}`)),
       h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'nouvelle-personne', onclick: () => ouvrirCreationPersonne() }, icone('plus', { taille: 16 }), 'Personne')),
     rappel,
-    h('section', { class: 'carte-section section-objectifs', 'aria-labelledby': 'titre-objectifs' },
+    objectifs ? h('section', { class: 'carte-section section-objectifs', 'aria-labelledby': 'titre-objectifs' },
       h('div', { class: 'section-tete' },
         h('h2', { id: 'titre-objectifs' }, icone('target', { taille: 18 }), 'Objectifs du mois'),
         h('div', { class: 'selecteur-mois' }, precedent, libelleMois, suivant)),
-      zoneObjectifs),
+      zoneObjectifs) : null,
     h('section', { class: 'carte-section section-favoris', 'aria-labelledby': 'titre-favoris' },
       h('div', { class: 'section-tete' }, h('h2', { id: 'titre-favoris' }, icone('star', { taille: 18 }), 'Favoris')),
       zoneFavoris),
@@ -55,7 +56,7 @@ export function rendreAccueil(conteneur, { compte }) {
   function monterObjectifs() {
     libelleMois.textContent = L.libelleMois(moisAffiche);
     suivant.disabled = moisAffiche >= moisActuel;
-    majObjectifs = rendreObjectifs(zoneObjectifs, { mois: moisAffiche });
+    if (objectifs) majObjectifs = rendreObjectifs(zoneObjectifs, { mois: moisAffiche });
   }
   function changerMois(n) {
     const m = L.decalerMois(moisAffiche, n);

@@ -70,7 +70,7 @@ export function demarrer(base = '') {
     signatureModeles = sig;
     etat.modelesPrets = true;
     if (!inchange) notifier();
-    if (!snap.metadata.fromCache && snap.empty) initialiserModeles();
+    if (!snap.metadata.fromCache && snap.empty && CRM.compteCourant()?.ecrit !== false) initialiserModeles(); // pas pour un lecteur d'un client (chantier 7)
   }, (e) => console.warn('projets_modeles indisponible', e.code)));
 }
 
