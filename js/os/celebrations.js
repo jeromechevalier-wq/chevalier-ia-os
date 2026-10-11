@@ -1,5 +1,9 @@
 // Célébrations (feu d'artifice repris de tally-merci.html), Charles, compteurs animés.
 import { h, reduireAnimations } from './ui.js';
+import { estChezClient } from './contexte.js';
+
+// Chez un client (plateforme), aucune célébration : elles portent Charles et le prénom de Jérôme (chantier 8 : module optionnel).
+const sansAnimation = () => estChezClient() || reduireAnimations();
 
 const COULEURS = ['#ecbc06', '#ffe56c', '#e3cdee', '#ffffff', '#b98ee0'];
 const AVATAR_CHARLES = 'assets/charles-portrait.png';
@@ -126,7 +130,7 @@ function scene(message, sousTitre) {
 
 /** Carte passée en Gagné : grand feu d'artifice et Charles au centre. */
 export function celebrerGagne(message = 'Bravo Jérôme !', sousTitre = '') {
-  if (reduireAnimations()) return Promise.resolve();
+  if (sansAnimation()) return Promise.resolve();
   return enFile(() => superposition({
     classe: 'celebration-gagne',
     duree: 2800,
@@ -142,7 +146,7 @@ export function celebrerGagne(message = 'Bravo Jérôme !', sousTitre = '') {
 
 /** Projet terminé (Clôture) : feu d'artifice plus sobre que « Gagné », avec Charles. */
 export function celebrerCloture(message = 'Projet terminé !', sousTitre = '') {
-  if (reduireAnimations()) return Promise.resolve();
+  if (sansAnimation()) return Promise.resolve();
   return enFile(() => superposition({
     classe: 'celebration-cloture',
     duree: 2400,
@@ -157,7 +161,7 @@ export function celebrerCloture(message = 'Projet terminé !', sousTitre = '') {
 
 /** Facture payée : compteur du chiffre d'affaires qui défile et pluie d'étincelles jaunes. */
 export function celebrerPaiement(avant, apres, format = (n) => String(Math.round(n))) {
-  if (reduireAnimations()) return Promise.resolve();
+  if (sansAnimation()) return Promise.resolve();
   const compteur = h('span', { class: 'celebration-compteur' }, format(avant));
   return enFile(() => superposition({
     classe: 'celebration-paiement',
@@ -175,7 +179,7 @@ export function celebrerPaiement(avant, apres, format = (n) => String(Math.round
 
 /** Objectif atteint : feu d'artifice et "Objectif atteint : <libellé>". */
 export function celebrerObjectif(libelle) {
-  if (reduireAnimations()) return Promise.resolve();
+  if (sansAnimation()) return Promise.resolve();
   return enFile(() => superposition({
     classe: 'celebration-objectif',
     duree: 2600,
@@ -191,7 +195,7 @@ export function celebrerObjectif(libelle) {
 
 /** Dernière action du jour faite : petite animation de Charles (non bloquante). */
 export function charlesContent(message = 'Tout est fait pour aujourd’hui') {
-  if (reduireAnimations()) return;
+  if (sansAnimation()) return;
   document.querySelector('.charles-content')?.remove();
   const bulle = h('div', { class: 'charles-content', role: 'status' },
     h('img', { src: AVATAR_CHARLES, alt: '', width: '512', height: '384' }),

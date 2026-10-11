@@ -3,6 +3,7 @@
 import { h, icone, remplir, champIntelligent, lirePreference, ecrirePreference, toast } from '../../os/ui.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
+import { estChezClient } from '../../os/contexte.js';
 
 // ---------------------------------------------------------------- liens et pastilles
 
@@ -74,7 +75,7 @@ export function iconeTypeActivite(type) {
 
 export function etatVide(message, { action = null } = {}) {
   return h('div', { class: 'etat-vide' },
-    h('img', { class: 'charles-vide', src: 'assets/charles-portrait.png', alt: '', width: '110', height: '82' }),
+    estChezClient() ? null : h('img', { class: 'charles-vide', src: 'assets/charles-portrait.png', alt: '', width: '110', height: '82' }),
     h('p', {}, message), action);
 }
 
@@ -326,6 +327,8 @@ export function titreEditable({ valeur, libelle, surEnregistrer }) {
 
 /** Propriétaire d'une fiche : le compte qui l'a créée, modifiable. */
 export function selectProprietaire({ valeur, surChoix }) {
+  // Chez un client, les comptes Jérôme et Charles ne sont pas ses comptes : le propriétaire s'affiche, sans liste de choix.
+  if (estChezClient()) return valeur ? h('p', { class: 'proprietaire' }, h('span', { class: 'etiquette' }, 'Propriétaire'), ' ', valeur) : null;
   const options = COMPTES.some((c) => c.email === valeur) ? COMPTES : [...COMPTES, { email: valeur, nom: valeur }];
   return h('label', { class: 'proprietaire' },
     h('span', { class: 'etiquette' }, 'Propriétaire'),

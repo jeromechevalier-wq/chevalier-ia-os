@@ -23,7 +23,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 img { max-width: 100%; }
 [hidden] { display: none !important; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-:focus-visible { outline: 2px solid var(--jaune); outline-offset: 2px; }
+:focus-visible { outline: 2px solid var(--accent-trait); outline-offset: 2px; }
 
 .etiquette {
   display: block;
@@ -48,10 +48,10 @@ img { max-width: 100%; }
 }
 .bouton:hover:not(:disabled) { transform: translateY(-1px); }
 .bouton:disabled { opacity: .45; cursor: not-allowed; }
-.bouton-principal { background: var(--jaune); color: var(--sur-accent); }
-.bouton-principal:hover:not(:disabled) { background: var(--jaune-clair); }
+.bouton-principal { background: var(--accent); color: var(--sur-accent); }
+.bouton-principal:hover:not(:disabled) { background: var(--accent-survol); }
 .bouton-secondaire { background: transparent; border-color: var(--bordure-forte); color: var(--texte); }
-.bouton-secondaire:hover:not(:disabled) { border-color: var(--jaune); }
+.bouton-secondaire:hover:not(:disabled) { border-color: var(--accent-trait); }
 .bouton-discret { background: transparent; color: var(--texte2); padding: 6px 10px; }
 .bouton-discret:hover:not(:disabled) { color: var(--texte); background: var(--survol); }
 .bouton-danger { background: transparent; border-color: var(--retard); color: var(--retard); }
@@ -75,7 +75,7 @@ img { max-width: 100%; }
   transition: border-color var(--transition), box-shadow var(--transition);
 }
 textarea.champ { resize: vertical; min-height: 64px; line-height: 1.5; }
-.champ:focus { outline: none; border-color: var(--jaune); box-shadow: 0 0 0 3px #ecbc0633; }
+.champ:focus { outline: none; border-color: var(--accent-trait); box-shadow: 0 0 0 3px var(--accent-a33); }
 .champ.invalide, .groupe-cases.invalide { border-color: var(--retard); }
 .champ-court { width: 110px; }
 select.champ { appearance: none; background-image: linear-gradient(45deg, transparent 50%, var(--texte2) 50%), linear-gradient(135deg, var(--texte2) 50%, transparent 50%); background-position: calc(100% - 17px) 55%, calc(100% - 12px) 55%; background-size: 5px 5px; background-repeat: no-repeat; padding-right: 32px; }
@@ -83,7 +83,7 @@ input[type='date'].champ, input[type='datetime-local'].champ { color-scheme: inh
 .bloc-champ { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .bloc-champ > .etiquette { margin: 0; }
 .case { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; min-height: 32px; }
-.case input { width: 18px; height: 18px; accent-color: var(--jaune); margin: 0; }
+.case input { width: 18px; height: 18px; accent-color: var(--accent); margin: 0; }
 .groupe-cases { display: flex; flex-wrap: wrap; gap: 4px 16px; border: 1px solid transparent; border-radius: var(--rayon-petit); }
 .champ-couleur { width: 40px; height: 36px; border: 1px solid var(--bordure); border-radius: var(--rayon-petit); background: none; padding: 2px; cursor: pointer; }
 .pile { display: flex; flex-direction: column; gap: 14px; }
@@ -112,7 +112,7 @@ input[type='date'].champ, input[type='datetime-local'].champ { color-scheme: inh
 
 .chargement { min-height: 100vh; display: grid; place-items: center; }
 .chargement-bloc { display: grid; place-items: center; padding: 32px; }
-.rond-chargement { width: 28px; height: 28px; border-radius: 50%; border: 3px solid var(--bordure-forte); border-top-color: var(--jaune); animation: tourne .9s linear infinite; }
+.rond-chargement { width: 28px; height: 28px; border-radius: 50%; border: 3px solid var(--bordure-forte); border-top-color: var(--accent-trait); animation: tourne .9s linear infinite; }
 @keyframes tourne { to { transform: rotate(360deg); } }
 
 /* ---------------------------------------------------------------- écran de connexion (repris de tally-merci.html) */
@@ -193,9 +193,9 @@ body.page-connexion {
 }
 .menu-entree .icone { flex: none; }
 .menu-entree:hover { background: var(--survol); color: var(--texte); }
-.menu-entree.actif { background: #ecbc0626; color: var(--texte); }
-.menu-entree.actif .icone { color: var(--jaune); }
-.menu-entree.actif::before { content: ''; position: absolute; left: -10px; top: 9px; bottom: 9px; width: 3px; border-radius: 0 3px 3px 0; background: var(--jaune); }
+.menu-entree.actif { background: var(--accent-a26); color: var(--texte); }
+.menu-entree.actif .icone { color: var(--accent-trait); }
+.menu-entree.actif::before { content: ''; position: absolute; left: -10px; top: 9px; bottom: 9px; width: 3px; border-radius: 0 3px 3px 0; background: var(--accent-trait); }
 :root[data-theme='clair'] .menu-entree.actif .icone { color: var(--lien); }
 .menu-texte { overflow: hidden; text-overflow: ellipsis; transition: opacity var(--transition); }
 .coquille[data-menu='replie'] .menu .menu-texte { opacity: 0; pointer-events: none; }
@@ -207,7 +207,7 @@ body.page-connexion {
 .avatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; flex: none; border: 1px solid var(--bordure-forte); background: var(--survol); }
 .avatar-jerome { object-position: 28% 40%; }
 .avatar-charles { object-position: 50% 30%; }
-.avatar-initiale { display: inline-flex; align-items: center; justify-content: center; background: var(--jaune); color: #1b1a1e; font: 700 14px/1 var(--police-titre); }
+.avatar-initiale { display: inline-flex; align-items: center; justify-content: center; background: var(--accent); color: var(--sur-accent); font: 700 14px/1 var(--police-titre); }
 .menu-logo-client { width: 26px; height: 26px; object-fit: contain; flex: none; }
 .page-introuvable { max-width: 560px; margin: 12vh auto; padding: 0 16px; text-align: center; }
 
@@ -263,7 +263,7 @@ body.page-connexion {
   padding: 20px; display: flex; flex-direction: column; gap: 14px; min-width: 0;
 }
 .carte-section > h2, .section-tete h2 { display: flex; align-items: center; gap: 10px; }
-.carte-section > h2 .icone, .section-tete h2 .icone { color: var(--jaune); }
+.carte-section > h2 .icone, .section-tete h2 .icone { color: var(--accent-trait); }
 :root[data-theme='clair'] .carte-section > h2 .icone, :root[data-theme='clair'] .section-tete h2 .icone { color: var(--lien); }
 .section-tete { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 @media (max-width: 767px) {
@@ -291,7 +291,7 @@ body.page-connexion {
   background: var(--ink2); color: #fff; border: 1px solid #ffffff26; font-weight: 500; font-size: 14px;
 }
 .bandeau span { flex: 1; min-width: 0; }
-.bandeau-version .icone { color: var(--jaune); }
+.bandeau-version .icone { color: var(--accent-trait); }
 .bandeau-hors-ligne { background: #5c2320; border-color: #ff8f8666; }
 
 /* ---------------------------------------------------------------- toasts */
@@ -368,9 +368,9 @@ body.page-connexion {
 .recherche-globale { flex: 0 1 460px; }
 .bouton-plus {
   display: inline-grid; place-items: center; width: 40px; height: 40px; border: 0; border-radius: 50%; cursor: pointer;
-  background: var(--jaune); color: var(--sur-accent); transition: transform var(--transition), background var(--transition);
+  background: var(--accent); color: var(--sur-accent); transition: transform var(--transition), background var(--transition);
 }
-.bouton-plus:hover { background: var(--jaune-clair); transform: scale(1.06); }
+.bouton-plus:hover { background: var(--accent-survol); transform: scale(1.06); }
 .bouton-plus-mobile, .bouton-recherche-mobile { display: none; }
 @media (max-width: 767px) {
   .barre-outils { display: none; top: 56px; padding: 8px 12px; height: auto; }
@@ -393,7 +393,7 @@ body.page-connexion {
 .champ-intelligent.multiple { }
 .champ-intelligent-zone { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 5px 8px; cursor: text; min-height: 42px; }
 .champ-intelligent:has(.champ-intelligent-icone) .champ-intelligent-zone { padding-left: 36px; }
-.champ-intelligent-zone:focus-within { border-color: var(--jaune); box-shadow: 0 0 0 3px #ecbc0633; }
+.champ-intelligent-zone:focus-within { border-color: var(--accent-trait); box-shadow: 0 0 0 3px var(--accent-a33); }
 .champ-intelligent-zone .champ-intelligent-saisie { flex: 1 1 120px; width: auto; min-width: 80px; border: 0; box-shadow: none; padding: 4px 2px; background: transparent; min-height: 30px; }
 .champ-intelligent-zone .champ-intelligent-saisie:focus { outline: none; box-shadow: none; }
 .champ-intelligent-pastilles { display: contents; }
@@ -413,10 +413,10 @@ body.page-connexion {
 .suggestion.actif, .suggestion:hover { background: var(--survol); }
 .suggestion-texte { display: flex; flex-direction: column; min-width: 0; }
 .suggestion-libelle { overflow-wrap: anywhere; }
-.suggestion-libelle strong { color: var(--jaune); font-weight: 700; }
+.suggestion-libelle strong { color: var(--accent-trait); font-weight: 700; }
 :root[data-theme='clair'] .suggestion-libelle strong { color: var(--lien); }
 .suggestion-sous { color: var(--texte2); font-size: 12px; overflow-wrap: anywhere; }
-.suggestion-creer { color: var(--jaune); font-weight: 600; }
+.suggestion-creer { color: var(--accent-trait); font-weight: 600; }
 :root[data-theme='clair'] .suggestion-creer { color: var(--lien); }
 .suggestion-groupe { padding: 8px 10px 4px; font: 600 11px/1.3 var(--police-texte); letter-spacing: .14em; text-transform: uppercase; color: var(--texte2); }
 .puce-couleur { width: 10px; height: 10px; border-radius: 50%; flex: none; }

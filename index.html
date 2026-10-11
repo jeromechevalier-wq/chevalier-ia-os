@@ -24,10 +24,18 @@
   // Thème appliqué avant l'affichage (évite un flash du mauvais thème).
   try { if (localStorage.getItem('chevalier-os.theme') === 'clair') document.documentElement.dataset.theme = 'clair'; } catch (e) {}
 </script>
+<script>
+  // Page d'un client (#/espace/<client>) : dès le premier affichage, rien de l'identité de Jérôme (titre, appli installée, icône).
+  // js/os/identite.js met ensuite le nom, l'icône et les couleurs du client. Aucun effet sur le CRM (adresses sans « #/espace/ »).
+  if (/^#\/espace\//.test(location.hash)) {
+    document.title = 'Espace client';
+    ['link[rel="manifest"]', 'link[rel="apple-touch-icon"]', 'link[rel="icon"]'].forEach(function (s) { var e = document.querySelector(s); if (e) e.remove(); });
+  }
+</script>
 <script type="module" src="js/main.js"></script>
 </head>
 <body>
 <div id="app"></div>
-<noscript>Chevalier IA OS a besoin de JavaScript.</noscript>
+<noscript>Cette application a besoin de JavaScript.</noscript>
 </body>
 </html>

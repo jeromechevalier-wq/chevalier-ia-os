@@ -140,3 +140,78 @@ export function styleMarque(marque) {
     '--marque-lisible': couleurLisibleSur(m.couleur),
   };
 }
+
+// ---------------------------------------------------------------- accent de l'interface chez un client (chantier 6)
+// L'accent de l'interface (boutons, menu actif, liens, pastilles) prend la couleur de marque du client. Les couleurs SÉMANTIQUES
+// (étapes des affaires, phases des projets, priorités, retard, succès) ne passent jamais par ici : elles ne changent pas.
+// Chez Jérôme (racine) rien n'est injecté : les jetons de css/tokens.css gardent leurs valeurs jaunes.
+
+/** Surfaces les plus défavorables de chaque thème (css/tokens.css) : le contraste est garanti sur toutes les surfaces du thème. */
+export const SURFACES_THEME = Object.freeze({ sombre: '#36353a', clair: '#efeee9' });
+const CONTRASTE_TEXTE = 4.5; // texte, icônes, liens
+const CONTRASTE_FOND = 3; // éléments d'interface (fond d'un bouton) : critère WCAG 1.4.11
+
+/** Accent calculé pour un thème : { accent, surAccent, survol, trait } (toutes en #rrggbb). */
+export function accentPourTheme(couleur, theme) {
+  const surface = SURFACES_THEME[theme] ?? SURFACES_THEME.sombre;
+  const base = normaliserCouleur(couleur) || MARQUE_NEUTRE.couleur;
+  const accent = couleurLisibleSur(base, surface, CONTRASTE_FOND); // fond de bouton : visible sur la page
+  const surAccent = texteSur(accent);
+  return {
+    accent,
+    surAccent,
+    survol: melanger(accent, surAccent === '#000000' ? '#ffffff' : '#000000', 0.2),
+    trait: couleurLisibleSur(base, surface, CONTRASTE_TEXTE), // texte, icône, trait fin
+  };
+}
+
+const ALPHAS = ['1f', '20', '26', '33', '55', '66', '80', '99'];
+
+/**
+ * Feuille de style de l'accent d'un client : redéfinit les jetons d'accent de tokens.css pour les deux thèmes
+ * (sélecteur `:root[data-marque]`, plus précis que celui des thèmes). La couleur est revalidée (#rgb / #rrggbb) : rien d'autre n'entre dans la feuille.
+ */
+export function feuilleAccent(couleur) {
+  const base = normaliserCouleur(couleur) || MARQUE_NEUTRE.couleur;
+  const alphas = ALPHAS.map((a) => `--accent-a${a}: ${base}${a};`).join(' ');
+  return ['sombre', 'clair'].map((theme) => {
+    const a = accentPourTheme(base, theme);
+    return `:root[data-theme='${theme}'][data-marque] { --accent: ${a.accent}; --sur-accent: ${a.surAccent}; --accent-survol: ${a.survol}; --accent-trait: ${a.trait}; --lien: ${a.trait}; ${alphas} }`;
+  }).join('\n');
+}
+
+// ---------------------------------------------------------------- identité de la page (titre, icône, appli installée)
+
+/** Première lettre du nom, en majuscule (pastille et icône quand il n'y a pas de logo). */
+export function initialeMarque(marque) {
+  return [...String((marque || MARQUE_NEUTRE).nom || '?').trim()][0]?.toUpperCase() || '?';
+}
+
+const echapperXml = (t) => t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[c]);
+
+/** Icône de page sans logo : carré arrondi à la couleur de marque avec l'initiale (adresse data: SVG, aucun fichier). */
+export function iconeInitiale(marque) {
+  const m = marque || MARQUE_NEUTRE;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="${m.couleur}"/>`
+    + `<text x="32" y="44" font-family="Arial, sans-serif" font-size="36" font-weight="700" text-anchor="middle" fill="${texteSur(m.couleur)}">${echapperXml(initialeMarque(m))}</text></svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
+/** Manifeste de l'appli installée d'un client (nom et couleurs du client, jamais ceux de Jérôme). `origine` = l'origine de la page (schéma et domaine). */
+export function manifesteClient(marque, client, origine) {
+  const m = marque || MARQUE_NEUTRE;
+  const accueil = `${origine}/#/espace/${client}`;
+  return {
+    name: m.nom,
+    short_name: [...m.nom].slice(0, 12).join(''),
+    description: m.nom,
+    lang: 'fr',
+    start_url: accueil,
+    scope: `${origine}/`,
+    id: accueil,
+    display: 'standalone',
+    background_color: FOND_PAGE,
+    theme_color: FOND_PAGE,
+    icons: m.logo ? [{ src: m.logo, sizes: 'any' }] : [{ src: iconeInitiale(m), sizes: 'any', type: 'image/svg+xml' }],
+  };
+}

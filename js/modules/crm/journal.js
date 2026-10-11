@@ -5,6 +5,7 @@ import { h, icone, remplir, dialogue } from '../../os/ui.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
 import { etatVide } from './composants.js';
+import { estChezClient } from '../../os/contexte.js';
 
 const TAILLE_PAGE = 200;
 const CHEMINS = { crm_personnes: 'personnes', crm_organisations: 'organisations', crm_affaires: 'affaires' };
@@ -96,7 +97,7 @@ export function rendreJournal(conteneur) {
     oninput: (e) => { criteres = { ...criteres, texte: e.target.value }; rendre(); } });
   const choixCanal = h('select', { class: 'champ champ-petit', 'aria-label': 'Canal', dataset: { role: 'filtre-canal' },
     onchange: (e) => { criteres = { ...criteres, canal: e.target.value }; rendre(); } },
-  [['tous', 'Tous les canaux'], ['ecran', 'Appli'], ['mcp', 'MCP (Claude Code, Hermes)']].map(([v, t]) => h('option', { value: v, selected: criteres.canal === v }, t)));
+  [['tous', 'Tous les canaux'], ['ecran', 'Appli'], ['mcp', estChezClient() ? 'Assistant IA (MCP)' : 'MCP (Claude Code, Hermes)']].map(([v, t]) => h('option', { value: v, selected: criteres.canal === v }, t)));
   const choixDate = h('input', { class: 'champ champ-petit', type: 'date', 'aria-label': 'Depuis le', value: criteres.depuis, dataset: { role: 'filtre-depuis' },
     onchange: (e) => { criteres = { ...criteres, depuis: e.target.value }; rendre(); } });
   const caseAVerifier = h('input', { type: 'checkbox', checked: criteres.aVerifier, dataset: { role: 'filtre-a-verifier' },
@@ -167,7 +168,9 @@ export function rendreJournal(conteneur) {
     h('div', {}, h('p', { class: 'etiquette' }, 'Lecture seule'), h('h1', {}, 'Journal'), compteur),
     h('div', { class: 'page-actions' }, boutonActualiser));
   conteneur.append(h('div', { class: 'page page-liste page-journal' }, entete,
-    h('p', { class: 'aide' }, 'Chaque création, modification ou suppression faite dans l’appli ou par Claude Code laisse une ligne ici, avec une copie du document avant et après (gardée 90 jours). Pour défaire une opération, demande-le à Claude Code (restaurer_depuis_audit).'),
+    h('p', { class: 'aide' }, estChezClient()
+      ? 'Chaque création, modification ou suppression faite dans l’appli ou par un assistant IA laisse une ligne ici, avec une copie du document avant et après (gardée 90 jours).'
+      : 'Chaque création, modification ou suppression faite dans l’appli ou par Claude Code laisse une ligne ici, avec une copie du document avant et après (gardée 90 jours). Pour défaire une opération, demande-le à Claude Code (restaurer_depuis_audit).'),
     barre, zone, pied));
   rendre();
   charger(false);

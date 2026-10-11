@@ -128,7 +128,7 @@ export function demarrer(compteConnecte, base = '') {
     etat.etiquettes = tri(docs.etiquettes?.items);
     // Les filtres enregistrés de la version 1.0.0 (sans "version: 2") ne servent plus : ignorés.
     etat.filtres = docs.filtres?.version === 2 ? tri(docs.filtres.items) : [];
-    etat.reglages = { ...L.REGLAGES_DEPART, ...(docs.reglages || {}) };
+    etat.reglages = { ...reglagesDepart(), ...(docs.reglages || {}) };
     etat.pret.parametres = true;
     // Un lecteur d'un client (compte.ecrit === false, chantier 7) ne crée pas les paramètres de départ : les règles le refuseraient. Le CRM de Jérôme n'a pas ce champ.
     if (!snap.metadata.fromCache && compte?.ecrit !== false) initialiserParametres(docs);
@@ -147,6 +147,9 @@ export function arreter() {
   cheminBase = '';
 }
 
+/** Réglages de départ : chez un client (chemin de base non vide), sans le compte GitHub ni le dossier de travail de Jérôme (chantier 6). */
+const reglagesDepart = () => (cheminBase ? { ...L.REGLAGES_DEPART, proprietaireGithub: '', cheminProjets: '' } : L.REGLAGES_DEPART);
+
 /** Premier lancement : crée les documents de paramètres manquants (ou périmés) avec les valeurs de départ. */
 async function initialiserParametres(existants) {
   const manquants = Object.keys(PARAMETRES_DEPART).filter((id) => {
@@ -159,7 +162,7 @@ async function initialiserParametres(existants) {
     const ref = doc(db, chemin('crm_parametres'), id);
     await runTransaction(db, async (t) => {
       const s = await t.get(ref);
-      if (!s.exists() || (id === 'filtres' && s.data().version !== 2)) t.set(ref, PARAMETRES_DEPART[id]);
+      if (!s.exists() || (id === 'filtres' && s.data().version !== 2)) t.set(ref, id === 'reglages' ? reglagesDepart() : PARAMETRES_DEPART[id]);
     }).catch((e) => console.warn('Initialisation des paramètres', e.code));
   }
 }

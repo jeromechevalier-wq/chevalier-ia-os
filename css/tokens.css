@@ -24,6 +24,14 @@
   --vert: #3fbf7f;
   --gris-lilas: #b9adc9;
 
+  /* Accent de l'interface (boutons, menu actif, liens, pastilles). Par défaut = le jaune de Jérôme : le CRM à la racine ne change pas.
+     Chez un client, js/os/identite.js les redéfinit à la couleur de marque (feuille « accent-marque »). Les couleurs ci-dessous
+     (étapes, priorités, retard, succès) sont SÉMANTIQUES : elles ne suivent jamais la marque. */
+  --accent-survol: var(--jaune-clair);
+  --accent-trait: var(--jaune); /* traits, icônes et petits textes posés sur le fond de la page */
+  --accent-a1f: #ecbc061f; --accent-a20: #ecbc0620; --accent-a26: #ecbc0626; --accent-a33: #ecbc0633;
+  --accent-a55: #ecbc0655; --accent-a66: #ecbc0666; --accent-a80: #ecbc0680; --accent-a99: #ecbc0699;
+
   /* Étapes du pipeline */
   --etape-premier_contact: var(--gris-lilas);
   --etape-rdv_fixe: var(--lilas);

@@ -7,6 +7,7 @@ import * as L from '../crm/logique.js';
 import * as D from './donnees.js';
 import * as P from './logique.js';
 import { cheminProjet } from './composants.js';
+import { estChezClient } from '../../os/contexte.js';
 
 const LIBELLES_ETAT = { retard: 'En retard', aujourdhui: "Aujourd'hui", avenir: '' };
 const etatDe = (t, aujourdhui) => (P.tacheEnRetard(t, aujourdhui) ? 'retard' : t.date === aujourdhui ? 'aujourdhui' : 'avenir');
@@ -35,13 +36,13 @@ export async function dialogueTache(t) {
       h('div', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Date (facultative)'), date.element,
         h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', 'data-action': 'effacer-date', onclick: () => { date.champ.value = ''; heure.value = ''; } }, 'Sans date')),
       h('label', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Heure (facultative)'), heure),
-      h('label', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Confiée à'), assigne),
+      estChezClient() ? null : h('label', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Confiée à'), assigne), // Jérôme / Charles : pas chez un client
       erreur),
     boutons: [{ libelle: 'Annuler', valeur: false }, {
       libelle: 'Enregistrer', valeur: true, style: 'principal',
       avantFermeture: async () => {
         try {
-          await D.majTache(t.id, { titre: titre.value, date: date.valeur(), heure: date.valeur() ? heure.value : '', assigneA: assigne.value });
+          await D.majTache(t.id, { titre: titre.value, date: date.valeur(), heure: date.valeur() ? heure.value : '', ...(estChezClient() ? {} : { assigneA: assigne.value }) });
           return true;
         } catch (e) {
           console.warn(e);

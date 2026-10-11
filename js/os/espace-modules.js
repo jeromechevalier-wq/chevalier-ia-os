@@ -8,6 +8,8 @@ import { cheminBaseClient } from './chemins.js';
 import { moduleAccessible, premiereRoute } from './registre.js';
 import { definirPrefixe, routeCourante, segments, surChangementRoute, naviguer, lien, suivreLiensDuPrefixe } from './router.js';
 import { monterCoquille } from './shell.js';
+import { definirChezClient } from './contexte.js';
+import { appliquerIdentite } from './identite.js';
 import { h, icone, vider, remplir } from './ui.js';
 
 /**
@@ -22,7 +24,8 @@ export async function ouvrirEspaceModules(racine, { client, marque, compte, acti
   definirPrefixe(`espace/${client}`);
   for (const api of apis.values()) api.demarrer({ compte, cheminBase: base });
   document.body.classList.remove('page-espace');
-  document.title = marque.nom;
+  appliquerIdentite(marque, client); // titre, icône, appli installée et accent de l'interface = ceux du client
+  definirChezClient(true); // masque ce qui est personnel à Jérôme (Charles, célébrations, sauvegarde, GitHub…)
   const accueil = premiereRoute(actifs);
   const coquille = monterCoquille(racine, compte, { apis, modules, client: { nom: marque.nom, logo: marque.logo }, accueil, reglages: false, surDeconnexion });
   let vue = null; // { cle, quitter }
@@ -64,5 +67,6 @@ export async function ouvrirEspaceModules(racine, { client, marque, compte, acti
     coquille.arreter?.();
     for (const api of apis.values()) api.arreter();
     definirPrefixe('');
+    definirChezClient(false);
   };
 }
