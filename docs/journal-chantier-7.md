@@ -9,14 +9,12 @@ Branche `plateforme-chantier-7`. Mission : voir `docs/etude-reutilisation-coque.
 - [x] `router.js` (préfixe `espace/<client>`), `shell.js` (options client), `espace-modules.js` (montage des seuls modules actifs), `espace.js` (lecture de la fiche), `accueil.js` (option `objectifs:false`).
 
 ## Reste à faire
-- [ ] Tests e2e (navigateur, émulateurs) : `tests/e2e/modules-client.spec.js`.
-- [ ] Documentation : section chantier 7 dans `docs/etude-reutilisation-coque.md`, `docs/deploiement-plateforme.md`.
-- [ ] Suite complète, relecture du diff, fusion, déploiement (workflow « Déploiement plateforme clients », choix `tout`), vérifications en ligne.
+- [x] Tests navigateur `tests/e2e/modules-client.spec.js` (R1 à R8), documentation, suite complète verte (117 + 366 + 52 + 177 tests, 240 parcours navigateur, 4 Storage).
+- [ ] Fusion de la PR, puis déploiement « Déploiement plateforme clients » (`tout`), vérifications en ligne (voir la fin de ce journal une fois fait).
 
 ## Prochaine commande
 ```
-export JAVA_HOME=$HOME/.local/jdk-21/Contents/Home PATH=$JAVA_HOME/bin:$PATH
-cd tests && npm install && npm run installer-fonctions && npm test
+gh workflow run "Déploiement plateforme clients" -f elements=tout   # après la fusion
 ```
 
 ## Décisions prises seul (Jérôme dort)
