@@ -120,7 +120,7 @@ test('J3 isolation : le journal d\'un autre client n\'apparaît jamais ; un autr
 test('J4 bandeau jaune quand n8n ne répond pas, avec l\'heure des dernières données ; les données restent affichées', async ({ page }) => {
   await ecrireDocument('clients/cabinet/sync/state', { n8nOk: false, lastSuccessAt: new Date(2026, 9, 11, 9, 5, 7), lastSyncedAt: new Date(2026, 9, 11, 9, 5, 7), lastError: 'n8n ne répond pas' });
   await ouvrir(page, 'cabinet');
-  await expect(page.locator('.journal-bandeau')).toHaveText('n8n ne répond pas pour le moment. Vous voyez les données de 09:05:07. Nous sommes prévenus.');
+  await expect(page.locator('.journal-bandeau')).toHaveText('n8n ne répond pas pour le moment. Vous voyez les données de 09:05:07.');
   await expect(lignes(page)).toHaveCount(5);
 });
 

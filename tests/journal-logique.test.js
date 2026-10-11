@@ -43,7 +43,7 @@ describe('textes', () => {
   test('bandeau jaune : seulement si n8n est injoignable, avec l\'heure des dernières données', () => {
     assert.equal(L.texteBandeau(null), null);
     assert.equal(L.texteBandeau({ n8nOk: true }), null);
-    assert.equal(L.texteBandeau({ n8nOk: false, lastSuccessAt: new Date(2026, 9, 11, 9, 5, 7) }), 'n8n ne répond pas pour le moment. Vous voyez les données de 09:05:07. Nous sommes prévenus.');
+    assert.equal(L.texteBandeau({ n8nOk: false, lastSuccessAt: new Date(2026, 9, 11, 9, 5, 7) }), 'n8n ne répond pas pour le moment. Vous voyez les données de 09:05:07.');
     assert.match(L.texteBandeau({ n8nOk: false }), /données de —\./);
   });
   test('durées et dates', () => {

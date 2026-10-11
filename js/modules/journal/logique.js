@@ -117,7 +117,7 @@ export function texteDuree(exe, maintenant) {
 export function texteBandeau(etatSynchro) {
   if (!etatSynchro || etatSynchro.n8nOk !== false) return null;
   const dernier = enMs(etatSynchro.lastSuccessAt);
-  return `n8n ne répond pas pour le moment. Vous voyez les données de ${dernier === null ? '—' : hhmmss(dernier)}. Nous sommes prévenus.`;
+  return `n8n ne répond pas pour le moment. Vous voyez les données de ${dernier === null ? '—' : hhmmss(dernier)}.`;
 }
 
 /** « Mis à jour il y a 40 s » (ou « Mis à jour… » tant que rien n'a été copié). */

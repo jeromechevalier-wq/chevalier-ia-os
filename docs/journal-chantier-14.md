@@ -37,4 +37,4 @@ npm run test:journal   # seulement le journal (émulateur Firestore + faux n8n)
 - `statique.test.js` : exceptions précises pour le journal (un `orderBy` + `limit` sur `startedAt`, deux appels de fonctions) ; `identite-client.test.js` a imposé de ne pas écrire « Jérôme » dans un nom de champ.
 
 ## Non testé
-Vrai n8n, déploiement Google Cloud, vrai SDK appelant les vraies fonctions, alerte « Nous sommes prévenus » (pas branchée).
+Vrai n8n, déploiement Google Cloud, vrai SDK appelant les vraies fonctions, alerte e-mail (branchée le 11/10/2026, testée avec une fausse erreur ; phrase « Nous sommes prévenus » retirée).

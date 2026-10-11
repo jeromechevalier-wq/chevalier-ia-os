@@ -236,7 +236,7 @@ Tailles relatives, pas des durées. Chaque ligne est une PR. Le CRM de Jérôme 
 - **Étiquettes** : `client-<identifiant>` ; **24 caractères au plus** pour un nom d'étiquette n8n (vérifié dans le code de n8n) donc **identifiant de 17 caractères au plus** pour un client qui active ce module ; l'outil « nouveau client » le vérifie. Au passage, l'outil compare maintenant les objets sans tenir compte de l'ordre des clés (Firestore les range par ordre alphabétique : une mise à jour identique se disait « modifiée »).
 - **Déploiement préparé, non lancé** : le workflow `deploiement-plateforme.yml` a un choix `fonctions` (jamais inclus dans `tout`).
 - **Tests** : `journal-synchro` et `journal-appels` (émulateur + faux n8n, 42 tests), `journal-statique` et `journal-logique` (sans réseau), `e2e/journal.spec.js` (navigateur, ordinateur et téléphone), règles J1 à J6, outil « nouveau client » A2b ; `npm test` les lance.
-- **Pas testé** : le vrai n8n, le déploiement Google Cloud, le vrai SDK appelant les vraies fonctions, l'alerte « Nous sommes prévenus » (pas encore branchée).
+- **Pas testé** : le vrai n8n, le déploiement Google Cloud, le vrai SDK appelant les vraies fonctions, l'alerte e-mail sur une vraie panne de n8n (branchée et testée avec une fausse erreur le 11/10/2026).
 
 **Ordre conseillé** : étape 0, puis 1, 2, 3, 4, 12, 5, 6, 7, 8, 9, 10, 11, 13, puis 14 (la démo à montrer à un client), 15 et 16 selon les besoins. Le dépôt modèle de la première version de l'étude disparaît : il n'y a plus de copies à tenir à jour.
 
