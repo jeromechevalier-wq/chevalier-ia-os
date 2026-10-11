@@ -5,8 +5,10 @@ import { doc, getDoc } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase
 import { db } from './firebase.js';
 import { surveillerCompte, connecter, deconnecter } from './auth.js';
 import { routeCourante } from './router.js';
+import { modulesActifsDuClient } from './registre.js';
+import { ouvrirEspaceModules } from './espace-modules.js';
 import { h, icone, remplir } from './ui.js';
-import { identifiantClientDepuisRoute, normaliserMarque, styleMarque, MARQUE_NEUTRE, MESSAGE_REFUS_ESPACE } from './marque.js';
+import { routeDansEspace, normaliserMarque, styleMarque, MARQUE_NEUTRE, MESSAGE_REFUS_ESPACE } from './marque.js';
 
 /**
  * Fiche de marque d'un client : { marque } si elle existe et est active, { marque: null } si le client est inconnu ou inactif
@@ -58,29 +60,66 @@ function pageConnexion(racine, marque, { message = '', surConnexion }) {
     galerie.length ? h('div', { class: 'espace-galerie' }, galerie.map((i) => h('img', { src: i.url, alt: i.alt, loading: 'lazy', width: '400', height: '300' }))) : null));
 }
 
-/** Après la connexion (chantier 5) : simple accueil. Les écrans du client viendront avec les modules (chantiers 6 et 7). */
+/**
+ * Modules actifs du client (chantier 7) : champ `modules` du document clients/<client>, lisible par ses membres.
+ * { fiche } (fiche vide ou absente = aucun module) ; permission refusée = même chose (règles pas encore à jour : accueil provisoire) ;
+ * { erreur: true } si le réseau a échoué.
+ */
+export async function lireFicheClient(client) {
+  try {
+    const fiche = await getDoc(doc(db, 'clients', client));
+    return { fiche: fiche.exists() ? fiche.data() : null };
+  } catch (e) {
+    if (e?.code === 'permission-denied' || e?.code === 'not-found') return { fiche: null };
+    return { erreur: true };
+  }
+}
+
+/** Accueil provisoire : le client n'a (encore) aucun module actif. Les écrans arrivent quand Jérôme active des modules pour lui. */
 function pageAccueil(racine, marque, compte) {
   remplir(racine, coquilleEspace(marque,
     marque.logo ? h('img', { class: 'espace-logo', src: marque.logo, alt: '', width: '160', height: '80' }) : null,
     h('h1', {}, marque.nom),
     h('p', { class: 'espace-accueil' }, `Bonjour ${compte.nom}, tu es connecté·e.`),
+    h('p', { class: 'espace-accueil' }, "Aucun écran n'est encore activé dans cet espace."),
     h('p', { class: 'espace-pied' }, `${compte.email} · ${compte.role === 'editeur' ? 'éditeur' : 'lecteur'}`),
     h('button', { type: 'button', class: 'bouton espace-bouton', onclick: () => deconnecter() }, icone('log-out', { taille: 18 }), 'Se déconnecter')));
 }
 
 /** Point d'entrée : appelé par main.js quand la route est #/espace/…. */
 export async function demarrerEspace(racine) {
-  const client = identifiantClientDepuisRoute(routeCourante());
+  const client = routeDansEspace(routeCourante())?.client;
   if (!client) { pageIndisponible(racine); return; }
   remplir(racine, h('div', { class: 'chargement', role: 'status' }, h('span', { class: 'rond-chargement' }), h('span', { class: 'sr-only' }, 'Chargement')));
   const lu = await lireMarque(client);
   if (lu.erreur) { pageIndisponible(racine, { reessayer: () => demarrerEspace(racine) }); return; }
   if (!lu.marque) { pageIndisponible(racine); return; }
   const marque = lu.marque;
+  let fermer = null; // arrête les modules montés (déconnexion, changement de compte)
+  let emailOuvert = null;
+  const ouvrir = async (compte) => {
+    emailOuvert = compte.email;
+    remplir(racine, h('div', { class: 'chargement', role: 'status' }, h('span', { class: 'rond-chargement' }), h('span', { class: 'sr-only' }, 'Chargement')));
+    const lu = await lireFicheClient(client);
+    if (emailOuvert !== compte.email) return; // déconnecté pendant la lecture
+    if (lu.erreur) { pageIndisponible(racine, { reessayer: () => ouvrir(compte) }); return; }
+    const { actifs, erreurs } = modulesActifsDuClient(lu.fiche);
+    for (const e of erreurs) console.warn('Modules du client :', e);
+    if (!actifs.length) { pageAccueil(racine, marque, compte); return; }
+    const f = await ouvrirEspaceModules(racine, { client, marque, compte, actifs, surDeconnexion: () => deconnecter() });
+    if (emailOuvert === compte.email) fermer = f; else f();
+  };
   surveillerCompte((ev) => {
-    if (ev.etat === 'connecte') pageAccueil(racine, marque, ev.compte);
-    else if (ev.etat === 'deconnecte') pageConnexion(racine, marque, { message: ev.refus ? MESSAGE_REFUS_ESPACE : '', surConnexion: seConnecter });
-    else if (ev.etat === 'erreur') pageConnexion(racine, marque, { message: ev.message, surConnexion: seConnecter });
+    if (ev.etat === 'connecte') {
+      if (emailOuvert === ev.compte.email) return;
+      fermer?.(); fermer = null;
+      ouvrir(ev.compte);
+    } else {
+      fermer?.(); fermer = null; emailOuvert = null;
+      document.body.classList.add('page-espace');
+      if (ev.etat === 'deconnecte') pageConnexion(racine, marque, { message: ev.refus ? MESSAGE_REFUS_ESPACE : '', surConnexion: seConnecter });
+      else if (ev.etat === 'erreur') pageConnexion(racine, marque, { message: ev.message, surConnexion: seConnecter });
+    }
   }, { client });
 }
 

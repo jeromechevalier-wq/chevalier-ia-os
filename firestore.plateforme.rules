@@ -35,13 +35,22 @@ service cloud.firestore {
       allow list, write: if false;
     }
 
+    // Fiche du client (chantier 7) : le document « clients/<client> » lui-même, qui porte le champ « modules » (modules actifs).
+    // Un membre (éditeur ou lecteur) le LIT, lui seul ; personne ne l'écrit depuis un navigateur (Jérôme ou l'outil « nouveau client »,
+    // chantier 13, qui contourne les règles). Pas de liste des clients. Ne rien mettre de confidentiel dans ce document : tous les
+    // membres du client le lisent. Un client sans document (ou sans champ « modules ») n'a simplement aucun module actif.
+    match /clients/{client} {
+      allow get: if roleDe(client) in ['editeur', 'lecteur'];
+      allow list, write: if false;
+    }
+
     // Les données du client (tout sauf les fiches d'appartenance, traitées ci-dessus).
     match /clients/{client}/{collection}/{reste=**} {
       allow read: if collection != 'membres' && roleDe(client) in ['editeur', 'lecteur'];
       allow write: if collection != 'membres' && roleDe(client) == 'editeur';
     }
 
-    // Tout le reste (racine, document « clients/<client> » lui-même, autres collections) : refusé.
+    // Tout le reste (racine, autres collections) : refusé.
     match /{document=**} {
       allow read, write: if false;
     }

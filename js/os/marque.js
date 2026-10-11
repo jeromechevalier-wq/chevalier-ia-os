@@ -27,6 +27,23 @@ export function identifiantClientDepuisRoute(route) {
   return ID_CLIENT.test(id) ? id : null;
 }
 
+/**
+ * Route d'un espace client avec ou sans écran de module : `espace/<client>[/<route du module>]` -> { client, reste } ; null si l'identifiant est invalide.
+ * `reste` est la route du module (ex. « crm/personnes/abc »), vide pour la page d'accueil du client.
+ */
+export function routeDansEspace(route) {
+  const segs = String(route ?? '').split('/').filter(Boolean);
+  if (segs[0] !== 'espace' || segs.length < 2) return null;
+  const client = segs[1].trim().toLowerCase();
+  return ID_CLIENT.test(client) ? { client, reste: segs.slice(2).join('/') } : null;
+}
+
+/** Clé d'entrée d'une route d'espace : `espace/<client>` en minuscules (les écrans d'un même client ne rechargent pas la page). */
+export function cleEspace(route) {
+  const segs = String(route ?? '').split('/').filter(Boolean);
+  return segs[0] === 'espace' ? ['espace', ...(segs[1] ? [segs[1]] : [])].join('/').toLowerCase() : '';
+}
+
 /** La route désigne-t-elle une page d'espace client (valide ou non) ? Sert à choisir entre le CRM et la plateforme. */
 export function estRouteEspace(route) {
   return String(route ?? '').split('/').filter(Boolean)[0] === 'espace';
