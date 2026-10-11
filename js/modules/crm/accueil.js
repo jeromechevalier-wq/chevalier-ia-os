@@ -7,6 +7,7 @@ import * as L from './logique.js';
 import { etatVide, lienAffaire, pastilleEtape, boutonEtoile, lien, cheminAffaire } from './composants.js';
 import { ligneActivite, faireActivite, dialogueActivite, proposerProchaineActivite } from './activites.js';
 import { exporterToutesLesDonnees } from './export.js';
+import { estChezClient } from '../../os/contexte.js';
 import { ouvrirCreationPersonne } from './personnes.js';
 import * as PD from '../projets/donnees.js';
 import * as P from '../projets/logique.js';
@@ -85,6 +86,7 @@ export function rendreAccueil(conteneur, { compte, objectifs = true }) {
 
 function rendreRappel(zone) {
   vider(zone);
+  if (estChezClient()) return; // rappel de sauvegarde mensuelle : propre à Jérôme
   if (!L.rappelExportVisible(D.etat.reglages.dernierExport)) return;
   zone.append(h('div', { class: 'rappel-export', role: 'status' },
     icone('download', { taille: 18 }),
@@ -166,7 +168,7 @@ function rendrePointsCles(zone) {
   }
   const nombreRetard = pc.enRetard.length + tp.enRetard.length;
   const duJour = pc.aujourdhui.length + pc.reveils.length + tp.aujourdhui.length;
-  if (!nombreRetard && !duJour) zone.append(etatVide('Aucune relance aujourd’hui, Charles veille'));
+  if (!nombreRetard && !duJour) zone.append(etatVide(estChezClient() ? 'Aucune relance aujourd’hui.' : 'Aucune relance aujourd’hui, Charles veille'));
   if (nombreRetard) {
     zone.append(groupe('En retard', 'retard', nombreRetard, h('ul', { class: 'liste-activites' }, lignesMelees(pc.enRetard, tp.enRetard, aujourdhui)), 'groupe-retard'));
   }

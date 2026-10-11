@@ -81,3 +81,9 @@ Le bouton n'apparaît dans GitHub qu'une fois le workflow fusionné dans `main`.
 ## Activer des modules pour un client (chantier 7)
 
 Les écrans d'un client dépendent du document `clients/<client>` (champ `modules`). Il se crée à la main dans la console Firebase (Firestore Database du projet `chevalier-ia-app`) : document `clients/<client>`, champ `modules` de type « map », avec `affaires` et/ou `projets` à `true`. Projets exige Affaires. Sans ce champ, le client voit seulement l'accueil provisoire. Les règles qui permettent aux membres de LIRE ce document sont publiées avec le choix `regles` ou `tout` du workflow.
+
+## Ce que le client voit (chantier 6)
+
+La fiche `marques/<client>` ne change pas : `actif`, `nom`, `couleur`, `logo`, `images`, `accueil`. Aucun champ nouveau.
+- `couleur` sert aussi d'**accent de toute l'interface** (boutons, menu actif, liens). Choisis une couleur franche : si elle est trop pâle ou trop foncée pour être lue, elle est éclaircie ou assombrie automatiquement (contraste vérifié), ce qui peut la rendre un peu différente de celle du client dans l'un des deux thèmes.
+- `nom` = titre de l'onglet, menu et nom de l'appli installée. `logo` = image du menu et icône de page (en https ; à défaut, une pastille à la couleur du client avec son initiale). Pour une icône d'appli installée nette sur téléphone, un logo carré d'au moins 512 px convient le mieux (non essayé sur téléphone).

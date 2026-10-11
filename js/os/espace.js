@@ -7,6 +7,7 @@ import { surveillerCompte, connecter, deconnecter } from './auth.js';
 import { routeCourante } from './router.js';
 import { modulesActifsDuClient } from './registre.js';
 import { ouvrirEspaceModules } from './espace-modules.js';
+import { appliquerIdentite } from './identite.js';
 import { h, icone, remplir } from './ui.js';
 import { routeDansEspace, normaliserMarque, styleMarque, MARQUE_NEUTRE, MESSAGE_REFUS_ESPACE } from './marque.js';
 
@@ -26,7 +27,7 @@ export async function lireMarque(client) {
 
 function coquilleEspace(marque, ...enfants) {
   document.body.classList.add('page-espace');
-  document.title = marque === MARQUE_NEUTRE ? 'Espace client' : marque.nom;
+  document.title = marque === MARQUE_NEUTRE ? 'Espace client' : marque.nom; // appliquerIdentite() fait le reste (icône, appli installée, accent)
   const hero = marque.images[0];
   return h('div', { class: 'espace', style: styleMarque(marque) },
     hero ? h('img', { class: 'espace-fond', src: hero.url, alt: hero.alt, width: '1600', height: '900', fetchpriority: 'high' }) : null,
@@ -89,12 +90,14 @@ function pageAccueil(racine, marque, compte) {
 /** Point d'entrée : appelé par main.js quand la route est #/espace/…. */
 export async function demarrerEspace(racine) {
   const client = routeDansEspace(routeCourante())?.client;
+  appliquerIdentite(MARQUE_NEUTRE); // dès le départ : plus rien de l'identité de Jérôme (titre, icône, appli installée)
   if (!client) { pageIndisponible(racine); return; }
   remplir(racine, h('div', { class: 'chargement', role: 'status' }, h('span', { class: 'rond-chargement' }), h('span', { class: 'sr-only' }, 'Chargement')));
   const lu = await lireMarque(client);
   if (lu.erreur) { pageIndisponible(racine, { reessayer: () => demarrerEspace(racine) }); return; }
   if (!lu.marque) { pageIndisponible(racine); return; }
   const marque = lu.marque;
+  appliquerIdentite(marque, client);
   let fermer = null; // arrête les modules montés (déconnexion, changement de compte)
   let emailOuvert = null;
   const ouvrir = async (compte) => {
