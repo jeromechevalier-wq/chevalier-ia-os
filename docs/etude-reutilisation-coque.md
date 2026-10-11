@@ -134,14 +134,19 @@ Lu le 10/10/2026 dans la branche `claude/eager-allen-jht9kf` (PR n° 49, fusionn
 
 **Fait le 10/10/2026** : fusion, règles Firestore publiées par Jérôme dans la console (bloc `mcp_oauth`), essai réel : le MCP répond depuis son téléphone. Le code n'a pas été essayé avec la vraie connexion Google ni avec le vrai claude.ai (la doc de la branche le dit).
 
-## 7. Premier module client : suivi des automatisations
+## 7. Premier module client : journal d'activité des workflows (plan remplacé le 11/10/2026)
 
-C'est le module qui donne son sens à la coque chez un client. Esquisse, à valider avant de construire.
+**Ancien plan, abandonné** : n8n écrit lui-même sa progression dans Firebase à chaque étape (collections `auto_lancements` et `auto_automatisations`), par une petite fonction « écrire une progression » protégée par un jeton de service. Abandonné parce qu'il exigeait un jeton dans chaque workflow, que le workflow écrivait des données dans la base du client, et que si n8n s'arrête, plus rien ne remonte.
 
-- **Données** : collection `auto_lancements` (un document par lancement : identifiant unique, automatisation, état, étape active, liste des étapes, dates, résumé) et `auto_automatisations` (la fiche de chaque automatisation : nom, description, étapes prévues). Un même format pour toutes les automatisations.
-- **Écrans** : liste des automatisations avec le compte du mois ; page d'un lancement avec la frise d'étapes mise à jour en direct (écoute Firestore, sans serveur) ; chiffres mensuels.
-- **Écriture par n8n** : le workflow écrit sa progression à chaque étape. Il faut une porte sûre pour cela : de préférence **une petite fonction « écrire une progression »** protégée par un jeton de service (la mécanique des jetons de `securite/` existe déjà), plutôt qu'un accès direct à Firestore avec un compte de service stocké dans n8n.
-- **Outils MCP du client** (peu nombreux, volontairement) : `lister_automatisations`, `voir_lancement`, `chiffres_du_mois`, et, si le client le veut, `relancer`. Le module déclare ses outils et ses écrans au même endroit (voir le chantier 7).
+**Nouveau plan, décidé par Jérôme (cahier des charges du 11/10/2026 : <https://claude.ai/artifact/DqhJ4UZ4sucD93d2z7F56H>)** : l'application ne lit que Firebase, qui contient une **copie choisie** du journal de n8n, faite **hors de n8n** par des fonctions Firebase qui **lisent** l'API publique de n8n (requêtes `GET` seulement).
+- **Données** (sous `clients/<client>/`) : `executions/<numéro>` (état, dates, durée, mode, relance, message d'erreur et étape en échec, courts), `workflows/<id>` (nom de n8n, nom choisi par le client, actif), `sync/state` (état de la copie), et la sous-collection `executions/<numéro>/steps` **préparée, vide** (phase 3). Jamais de contenu de données, de définition de workflow ni de secret.
+- **Copie** : toutes les heures, plus un bouton « Rafraîchir » (client déduit de l'identité de l'appelant, jamais d'un paramètre ; 10 s minimum entre deux), plus une mise à jour automatique de l'écran toutes les 10 s tant que la page est visible. Verrou anti-doublon, écriture par numéro d'exécution, état « à vérifier » après 10 minutes « en cours ».
+- **Association workflow → client** : par **étiquette n8n `client-<identifiant>`** (limite de 24 caractères pour une étiquette : identifiant de 17 caractères au plus pour ce module). Garde-fous : client inconnu ou sans module, ou deux étiquettes de client : ignoré et signalé ; sans étiquette de client : jamais copié.
+- **Renommage** par les éditeurs, via une fonction appelable ; c'est la seule écriture depuis un écran.
+- **Écran** : 4 compteurs, liste filtrable, pastille animée « en cours », ligne d'erreur, bandeau jaune si n8n est injoignable.
+- **Plus de « outils MCP du client » pour l'instant** : le module n'en déclare aucun.
+
+Détail, mode d'emploi et mise en service : `journal-activite-workflows.md`. Journal du chantier : `journal-chantier-14.md`.
 
 ## 8. Chantiers, dans l'ordre (refaits pour « une base pour tous les clients »)
 
@@ -164,7 +169,7 @@ Tailles relatives, pas des durées. Chaque ligne est une PR. Le CRM de Jérôme 
 | 11 | **OAuth pour les clients** (base de la PR n° 49, fusionnée) : comptes lus dans les membres, profil déduit du rôle, client porté par la connexion, écran d'autorisation à ses couleurs, adresse de retour de ChatGPT, noms d'acteur | moyen | 0, 9 |
 | 12 | ✅ **Déploiement** : règles Firestore déployées par le workflow, une seule source de version, workflow paramétré | petit | 1 |
 | 13 | ✅ **Outil « nouveau client »** (fiche de marque, images, premier membre, modules actifs) et outil de **remise ou suppression** des données d'un client | moyen | 3, 5 |
-| 14 | **Module « suivi des automatisations »** et fonction « écrire une progression » (jeton de service par client) | gros | 7, 9 |
+| 14 | 🚧 **Module « journal d'activité des workflows »** (phases 1 et 2 du cahier de Jérôme : copie hors de n8n par fonctions Firebase, écran en direct, rattachement par étiquette ; l'ancien plan « n8n écrit sa progression avec un jeton » est abandonné, voir section 7) ; phase 3 (Logger, étapes) plus tard | gros | 7 |
 | 15 | **Connexion par lien envoyé par e-mail** (si un client n'a pas Google) | petit | 3 |
 | 16 | **Option : manifeste par client** (icône et nom de l'appli installée) | petit | 5 |
 
@@ -223,6 +228,15 @@ Tailles relatives, pas des durées. Chaque ligne est une PR. Le CRM de Jérôme 
 - **Tests** : `tests/outil-client.test.js` (18 tests, émulateurs Firestore + Storage, lecture par les vraies règles `firestore.plateforme.rules` et `storage.plateforme.rules`) ; lancé par `npm test` (`test:outil-client`).
 - **Non testé** : la vraie base et le vrai Storage (aucun identifiant, aucune écriture en réel) ; le nom exact du stockage de `chevalier-ia-app` (`--bucket` si ce n'est pas `chevalier-ia-app.firebasestorage.app`) ; les droits du compte de Jérôme sur le projet.
 - **Reste hors de ce chantier** : les données de départ propres au métier de Jérôme créées au premier lancement chez un client (voir chantier 6) ; la restauration d'un export (l'outil sait écrire une sauvegarde, pas la relire).
+
+**Chantier 14, état (11/10/2026, PR en attente du « fusionne »)** : **journal d'activité des workflows n8n, phases 1 et 2**. Rien n'est déployé, aucun appel réel à n8n, aucune écriture dans la vraie base : tout est testé sur émulateurs avec un **faux n8n**. Guide complet (dont le dépôt de la clé n8n dans Secret Manager et le déploiement) : `docs/journal-activite-workflows.md`. Journal : `docs/journal-chantier-14.md`.
+- **Fonctions** : dossier `functions-plateforme/` (projet `chevalier-ia-app`, codebase `plateforme`, région Paris, déclaré dans `firebase.plateforme.json` ; jamais dans le `firebase.json` du CRM, qui ne publie pas ce dossier) : `journalCopieHoraire` (toutes les heures), `journalRafraichir` (appelable, client déduit de l'identité), `journalRenommer` (appelable, éditeurs du client). Le lecteur n8n (`src/n8n.js`) ne fait que des `GET` (test statique + faux n8n qui enregistre les verbes). Clé n8n : secret `N8N_API_KEY` (Secret Manager), jamais dans le dépôt.
+- **Module** `journal` déclaré dans `js/os/registre.js` (`chezJerome: false` : absent du CRM de Jérôme ; `MODULES` inchangé, `MODULES_CLIENT` pour les clients), menu « Automatisations > Historique », écran `js/modules/journal/`.
+- **Règles Firestore** (non publiées) : `workflows`, `executions` (+ `steps`) et `sync` en lecture seule pour tous les navigateurs, même un éditeur ; les autres collections de l'éditeur inchangées.
+- **Étiquettes** : `client-<identifiant>` ; **24 caractères au plus** pour un nom d'étiquette n8n (vérifié dans le code de n8n) donc **identifiant de 17 caractères au plus** pour un client qui active ce module ; l'outil « nouveau client » le vérifie. Au passage, l'outil compare maintenant les objets sans tenir compte de l'ordre des clés (Firestore les range par ordre alphabétique : une mise à jour identique se disait « modifiée »).
+- **Déploiement préparé, non lancé** : le workflow `deploiement-plateforme.yml` a un choix `fonctions` (jamais inclus dans `tout`).
+- **Tests** : `journal-synchro` et `journal-appels` (émulateur + faux n8n, 42 tests), `journal-statique` et `journal-logique` (sans réseau), `e2e/journal.spec.js` (navigateur, ordinateur et téléphone), règles J1 à J6, outil « nouveau client » A2b ; `npm test` les lance.
+- **Pas testé** : le vrai n8n, le déploiement Google Cloud, le vrai SDK appelant les vraies fonctions, l'alerte « Nous sommes prévenus » (pas encore branchée).
 
 **Ordre conseillé** : étape 0, puis 1, 2, 3, 4, 12, 5, 6, 7, 8, 9, 10, 11, 13, puis 14 (la démo à montrer à un client), 15 et 16 selon les besoins. Le dépôt modèle de la première version de l'étude disparaît : il n'y a plus de copies à tenir à jour.
 
