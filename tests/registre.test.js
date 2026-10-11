@@ -153,3 +153,45 @@ describe('registre : le CRM de Jérôme est strictement inchangé', () => {
     assert.match(shell, /modules = MODULES/);
   });
 });
+
+describe('routage chez un client (préfixe espace/<client>) et CRM de Jérôme sans préfixe', async () => {
+  const { routeDepuisHash, lien, estSousPrefixe, ROUTE_DEFAUT } = await import('../js/os/router.js');
+  const { routeDansEspace, cleEspace, estRouteEspace } = await import('../js/os/marque.js');
+
+  test('sans préfixe (CRM de Jérôme) : exactement le comportement d\'avant', () => {
+    assert.equal(routeDepuisHash(''), ROUTE_DEFAUT);
+    assert.equal(routeDepuisHash('#/'), ROUTE_DEFAUT);
+    assert.equal(routeDepuisHash('#/crm/personnes/'), 'crm/personnes');
+    assert.equal(routeDepuisHash('#/crm/personnes/ab%20c'), 'crm/personnes/ab c');
+    assert.equal(routeDepuisHash('#/reglages'), 'reglages');
+    assert.equal(lien('crm/accueil', ''), '#/crm/accueil');
+    assert.equal(lien('crm/personnes/x', ''), '#/crm/personnes/x');
+  });
+  test('avec préfixe : la route rendue est celle du module, sans le préfixe', () => {
+    assert.equal(routeDepuisHash('#/espace/acme/crm/personnes/p1', 'espace/acme'), 'crm/personnes/p1');
+    assert.equal(routeDepuisHash('#/espace/Acme/crm/personnes', 'espace/acme'), 'crm/personnes');
+    assert.equal(routeDepuisHash('#/espace/acme', 'espace/acme'), '');
+    assert.equal(routeDepuisHash('#/espace/acme/', 'espace/acme'), '');
+    assert.equal(routeDepuisHash('#/crm/accueil', 'espace/acme'), ''); // hors de l'espace : rien
+    assert.equal(routeDepuisHash('#/espace/acmeX/crm', 'espace/acme'), '');
+    assert.equal(lien('crm/accueil', 'espace/acme'), '#/espace/acme/crm/accueil');
+    assert.equal(lien('#/crm/accueil', 'espace/acme'), '#/espace/acme/crm/accueil');
+  });
+  test('estSousPrefixe', () => {
+    assert.equal(estSousPrefixe('#/espace/acme/crm', 'espace/acme'), true);
+    assert.equal(estSousPrefixe('#/espace/acme', 'espace/acme'), true);
+    assert.equal(estSousPrefixe('#/espace/acmeX', 'espace/acme'), false);
+    assert.equal(estSousPrefixe('#/crm/personnes', 'espace/acme'), false);
+    assert.equal(estSousPrefixe('#/crm/personnes', ''), false);
+  });
+  test('routeDansEspace / cleEspace : l\'écran change, le client non', () => {
+    assert.deepEqual(routeDansEspace('espace/Acme'), { client: 'acme', reste: '' });
+    assert.deepEqual(routeDansEspace('espace/acme/crm/personnes/p1'), { client: 'acme', reste: 'crm/personnes/p1' });
+    for (const r of ['', 'espace', 'crm/accueil', 'espace/a b', 'espace/-x', 'espace/é/crm', null]) assert.equal(routeDansEspace(r), null, String(r));
+    assert.equal(cleEspace('espace/Acme/crm/personnes'), 'espace/acme');
+    assert.equal(cleEspace('espace/acme'), 'espace/acme');
+    assert.equal(cleEspace('espace'), 'espace');
+    assert.equal(cleEspace('crm/accueil'), '');
+    assert.equal(estRouteEspace('espace/acme/projets/projets'), true);
+  });
+});
