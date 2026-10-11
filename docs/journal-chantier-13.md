@@ -10,8 +10,7 @@ Branche `plateforme-chantier-13`. À lire en premier si la session est coupée.
 - Prérequis des tests : `npm run installer-outils` (une fois, comme `installer-fonctions`), puis `npm run test:outil-client`.
 
 ## Reste
-- Documentation `docs/nouveau-client.md`, mise à jour de `docs/etude-reutilisation-coque.md` (section chantier 13 + feuille de route).
-- Suite complète, relecture du diff, PR « prête ».
+- Rien côté code. Documentation faite (`docs/nouveau-client.md`, étude, feuille de route). Suite complète verte (11/10/2026) ; PR prête, en attente du « fusionne » de Jérôme.
 
 ## Prochaine commande
 ```
