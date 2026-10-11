@@ -77,3 +77,7 @@ Le bouton n'apparaît dans GitHub qu'une fois le workflow fusionné dans `main`.
 - Le paquet de la plateforme contient encore le **code** du CRM et de Projets (modules, portraits dans `assets/`) : ils sont inertes (aucun compte n'est autorisé à y entrer), mais restent visibles dans les fichiers servis. Les retirer relève des chantiers 6 à 8.
 - Les adresses de Jérôme restent dans le code du module CRM (`composants.js`), dans `firestore.rules`, dans le serveur MCP et dans `functions/src/oauth/config.js` : ils ne servent pas la plateforme (pas de fonctions, pas de `/mcp`, règles à part) et sont traités par les chantiers 6, 9 et 11.
 - Le workflow n'a **jamais été lancé** (consigne du chantier : rien déployer). Les tests vérifient les fichiers, pas l'exécution réelle chez GitHub et Google.
+
+## Activer des modules pour un client (chantier 7)
+
+Les écrans d'un client dépendent du document `clients/<client>` (champ `modules`). Il se crée à la main dans la console Firebase (Firestore Database du projet `chevalier-ia-app`) : document `clients/<client>`, champ `modules` de type « map », avec `affaires` et/ou `projets` à `true`. Projets exige Affaires. Sans ce champ, le client voit seulement l'accueil provisoire. Les règles qui permettent aux membres de LIRE ce document sont publiées avec le choix `regles` ou `tout` du workflow.

@@ -40,7 +40,7 @@ export const MODULES_DECLARES = geler([
       { route: 'crm/affaires', libelle: 'Affaires', icone: 'briefcase' },
       { route: 'crm/journal', libelle: 'Journal', icone: 'history' },
     ],
-    collections: ['crm_personnes', 'crm_organisations', 'crm_affaires', 'crm_activites', 'crm_notes', 'crm_evenements', 'crm_parametres', 'crm_audit', 'crm_audit_avant'],
+    collections: ['crm_personnes', 'crm_organisations', 'crm_affaires', 'crm_activites', 'crm_notes', 'crm_evenements', 'crm_parametres'],
     outilsMcp: [
       'chercher', 'lire_personne', 'lire_organisation', 'lire_affaire', 'lister_affaires', 'lister_activites', 'lister_documents', 'lire_reglages', 'lire_audit',
       'creer_personne', 'creer_organisation', 'creer_affaire', 'creer_activite', 'ajouter_note', 'joindre_lien',

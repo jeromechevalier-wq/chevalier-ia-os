@@ -43,7 +43,7 @@ describe('registre : déclarations', () => {
     assert.throws(() => { 'use strict'; MODULES_DECLARES[0].ecrans.push({}); }, TypeError);
   });
   test('les collections déclarées sont exactement celles que le code du CRM et de Projets lit (sauvegarde complète)', () => {
-    const declarees = MODULES_DECLARES.flatMap((m) => m.collections).filter((c) => !['crm_audit', 'crm_audit_avant'].includes(c)).sort();
+    const declarees = MODULES_DECLARES.flatMap((m) => m.collections).sort();
     const source = lire('js/modules/crm/donnees.js');
     const bloc = source.match(/COLLECTIONS_CRM = \[([\s\S]*?)\]/)[1];
     const lues = [...bloc.matchAll(/'([a-z_]+)'/g)].map((m) => m[1]).sort();
