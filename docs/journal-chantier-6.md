@@ -30,10 +30,12 @@ Classement : **(1)** à remplacer par la marque du client ; **(2)** personnel à
 | `main.js` Réglages « Chevalier IA OS » | CRM | 3 | jamais chez un client |
 
 ## Fait
-- (voir les commits)
+- Inventaire, jetons d'accent, identité de la page, masquage chez un client, tests (unitaires, navigateur), documentation.
+- Suite complète verte : règles 117, logique 385, statique 52, fonctions 177, navigateur 270 (ordinateur + téléphone), Storage 4.
 
 ## Reste
-- tests unitaires, e2e, suite complète ; documentation (étude + déploiement) ; relecture du diff ; PR « prête ».
+- Validation de Jérôme (voir le résultat sur /espace/clientdemo après déploiement), puis fusion.
+- Non testé : vrai bouton Google, installation sur téléphone (icône/nom de l'appli), rendu sur un vrai téléphone.
 
 ## Prochaine commande
 ```
