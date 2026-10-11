@@ -17,7 +17,7 @@
     "installer-navigateur": "playwright install chromium",
     "preparer": "node ../scripts/preparer-fonctions.js",
     "installer-outils": "npm ci --prefix ../scripts/plateforme",
-    "test:outil-client": "npm run installer-outils && firebase emulators:exec --config ../firebase.plateforme.json --project demo-chevalier-ia-os --only firestore,storage \"node --test --test-concurrency=1 outil-client.test.js\""
+    "test:outil-client": "firebase emulators:exec --config ../firebase.plateforme.json --project demo-chevalier-ia-os --only firestore,storage \"node --test --test-concurrency=1 outil-client.test.js\""
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "5.0.2",

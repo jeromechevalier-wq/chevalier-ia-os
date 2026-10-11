@@ -7,6 +7,7 @@ Branche `plateforme-chantier-13`. À lire en premier si la session est coupée.
 - `scripts/nouveau-client.js` (création, mise à jour, afficher, membres, rôles, modules, désactiver / réactiver un client). Simule par défaut, `--ecrire` pour écrire.
 - `scripts/donnees-client.js` (`exporter`, `supprimer`). La suppression simule par défaut, exige un export à jour (comparaison document par document) et la saisie de l'identifiant.
 - `tests/outil-client.test.js` : 18 tests sur émulateurs Firestore + Storage, lecture par les vraies règles ; ajouté à `npm test` (`test:outil-client`).
+- Prérequis des tests : `npm run installer-outils` (une fois, comme `installer-fonctions`), puis `npm run test:outil-client`.
 
 ## Reste
 - Documentation `docs/nouveau-client.md`, mise à jour de `docs/etude-reutilisation-coque.md` (section chantier 13 + feuille de route).
