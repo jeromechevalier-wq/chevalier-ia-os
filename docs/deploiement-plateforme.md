@@ -63,7 +63,7 @@ Le bouton n'apparaît dans GitHub qu'une fois le workflow fusionné dans `main`.
 1. Ouvrir <https://github.com/jeromechevalier-wq/chevalier-ia-os/actions/workflows/deploiement-plateforme.yml>.
 2. Cliquer **Run workflow**, laisser la branche `main`, laisser **hosting**, cliquer le bouton vert **Run workflow**.
 3. Quand c'est vert, ouvrir `https://chevalier-ia-app.web.app/espace/<client>` : sans fiche de marque, tu dois voir la page neutre « Espace indisponible » (c'est normal).
-4. Plus tard, quand tu es prêt à créer un premier client : relancer avec **regles**, puis créer la fiche de marque et la fiche de membre (chantiers 5 et 13).
+4. Plus tard, quand tu es prêt à créer un premier client : relancer avec **regles**, puis créer la fiche de marque, la fiche du client et la fiche de membre avec l'outil « nouveau client » : pas à pas dans `docs/nouveau-client.md`.
 
 ## Si quelque chose ne va pas
 
