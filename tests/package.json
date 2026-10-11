@@ -5,7 +5,7 @@
   "description": "Tests de Chevalier IA OS (émulateurs Firebase, jamais les données réelles)",
   "type": "module",
   "scripts": {
-    "test": "firebase emulators:exec --config ../firebase.json --project demo-chevalier-ia-os --only auth,firestore \"npm run tous\" && npm run test:storage",
+    "test": "firebase emulators:exec --config ../firebase.json --project demo-chevalier-ia-os --only auth,firestore \"npm run tous\" && npm run test:storage && npm run test:outil-client",
     "tous": "npm run test:regles && npm run test:logique && npm run test:statique && npm run test:fonctions && npm run test:e2e",
     "test:regles": "node --test --test-concurrency=1 regles.test.js regles-plateforme.test.js",
     "test:logique": "node --test logique.test.js projets.test.js chemins.test.js membres.test.js marque.test.js identite-client.test.js registre.test.js plateforme-deploiement.test.js",
@@ -15,7 +15,9 @@
     "test:fonctions": "npm run preparer && node --test registre-mcp.test.js jetons.test.js mcp.test.js lecture.test.js lecture-firestore.test.js ecriture.test.js ecriture-firestore.test.js ecriture-outils.test.js essai-ecriture.test.js audit-ecran.test.js oauth.test.js",
     "test:e2e": "playwright test",
     "installer-navigateur": "playwright install chromium",
-    "preparer": "node ../scripts/preparer-fonctions.js"
+    "preparer": "node ../scripts/preparer-fonctions.js",
+    "installer-outils": "npm ci --prefix ../scripts/plateforme",
+    "test:outil-client": "firebase emulators:exec --config ../firebase.plateforme.json --project demo-chevalier-ia-os --only firestore,storage \"node --test --test-concurrency=1 outil-client.test.js\""
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "5.0.2",
