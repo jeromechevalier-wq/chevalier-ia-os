@@ -3,7 +3,7 @@
 // accessible, même par son adresse directe : sa route affiche « page introuvable ». Les routes des modules sont #/espace/<client>/crm/…
 // (le préfixe est géré par router.js). Ce fichier ne lit pas Firestore lui-même (les modules le font, sous leur chemin de base) ;
 // la vraie protection reste dans les règles (firestore.plateforme.rules).
-import { MODULES } from './modules.js';
+import { MODULES_CLIENT } from './modules.js';
 import { cheminBaseClient } from './chemins.js';
 import { moduleAccessible, premiereRoute } from './registre.js';
 import { definirPrefixe, routeCourante, segments, surChangementRoute, naviguer, lien, suivreLiensDuPrefixe } from './router.js';
@@ -17,7 +17,7 @@ import { h, icone, vider, remplir } from './ui.js';
  * `actifs` doit venir de modulesActifsDuClient() : au moins un module, dépendances respectées.
  */
 export async function ouvrirEspaceModules(racine, { client, marque, compte, actifs, surDeconnexion }) {
-  const modules = MODULES.filter((m) => actifs.includes(m.id)); // ordre de démarrage du registre (affaires avant projets)
+  const modules = MODULES_CLIENT.filter((m) => actifs.includes(m.id)); // ordre de démarrage du registre (affaires avant projets)
   const apis = new Map();
   for (const m of modules) apis.set(m.id, await m.monter());
   const base = cheminBaseClient(client);

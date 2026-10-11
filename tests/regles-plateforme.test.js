@@ -270,3 +270,45 @@ describe('P. Règles de la plateforme clients', () => {
     });
   });
 });
+
+// Journal d'activité des workflows (chantier 14) : lecture par les membres, écriture par le serveur seulement.
+describe('J. Journal des workflows : lecture seule pour tous les navigateurs', () => {
+  const JOURNAL = ['workflows', 'executions', 'sync'];
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (c) => {
+      const db = c.firestore();
+      for (const client of ['a', 'b']) {
+        for (const col of JOURNAL) await setDoc(doc(db, 'clients', client, col, 'existant'), { valeur: 1 });
+        await setDoc(doc(db, 'clients', client, 'executions', 'existant', 'steps', 's1'), { valeur: 1 });
+      }
+    });
+  });
+  for (const col of JOURNAL) {
+    test(`J1 ${col} : un éditeur et un lecteur du client LISENT, aucun des deux n'écrit (ni crée, ni modifie, ni supprime)`, async () => {
+      await lectureSeule(ctx(ALICE), 'a', col); // éditrice
+      await lectureSeule(ctx(LEA), 'a', col); // lectrice
+    });
+    test(`J2 ${col} : un membre d'un autre client ne lit rien et n'écrit rien`, async () => {
+      await aucunDroit(ctx(BOB), 'a', col);
+      await aucunDroit(ctx(ZOE), 'a', col);
+      await aucunDroit(env.unauthenticatedContext().firestore(), 'a', col);
+    });
+  }
+  test('J3 les étapes (sous-collection steps) suivent la même règle : lecture oui, écriture non', async () => {
+    const db = ctx(ALICE);
+    await assertSucceeds(getDoc(doc(db, 'clients', 'a', 'executions', 'existant', 'steps', 's1')));
+    await assertFails(setDoc(doc(db, 'clients', 'a', 'executions', 'existant', 'steps', 's2'), { valeur: 2 }));
+    await assertFails(deleteDoc(doc(db, 'clients', 'a', 'executions', 'existant', 'steps', 's1')));
+    await assertFails(getDoc(doc(ctx(BOB), 'clients', 'a', 'executions', 'existant', 'steps', 's1')));
+  });
+  test('J4 clara (éditrice chez A, lectrice chez B) lit les deux journaux et écrit dans aucun', async () => {
+    await lectureSeule(ctx(CLARA), 'a', 'executions');
+    await lectureSeule(ctx(CLARA), 'b', 'executions');
+  });
+  test('J5 le libellé d\'un workflow ne se change pas depuis un navigateur : seule la fonction « renommer » (serveur) le peut', async () => {
+    await assertFails(updateDoc(doc(ctx(ALICE), 'clients', 'a', 'workflows', 'existant'), { libelle: 'Mon nom' }));
+  });
+  test('J6 les autres collections de l\'éditeur ne changent pas (il écrit toujours ses données métier)', async () => {
+    await droitsComplets(ctx(ALICE), 'a', 'crm_personnes');
+  });
+});

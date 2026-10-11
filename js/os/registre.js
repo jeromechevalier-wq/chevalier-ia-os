@@ -24,7 +24,8 @@ export const OUTILS_COMMUNS = geler(['qui_suis_je']);
  *  nom         : nom montré à l'utilisateur ; libelleMenu / iconeMenu : titre du groupe dans le menu (« CRM » pour le CRM de Jérôme) ;
  *  prefixe     : premier morceau des routes du module (#/crm/…) ;
  *  ecrans      : { route, libelle, icone } ; collections : noms « nus » (sous clients/<client>/ chez un client) ;
- *  outilsMcp   : outils MCP du module (déclaration seulement) ; dependances : modules à activer avant celui-ci.
+ *  outilsMcp   : outils MCP du module (déclaration seulement) ; dependances : modules à activer avant celui-ci ;
+ *  chezJerome  : `false` = module réservé aux clients de la plateforme, absent du CRM de Jérôme (absent du champ = présent).
  */
 export const MODULES_DECLARES = geler([
   {
@@ -69,6 +70,22 @@ export const MODULES_DECLARES = geler([
       'ajouter_facture', 'marquer_facture_payee', 'abandonner_facture', 'supprimer_projet',
     ],
     dependances: ['affaires'],
+  },
+  {
+    // Journal d'activité des workflows n8n (chantier 14). Réservé aux clients de la plateforme : le CRM de Jérôme ne le montre pas (chezJerome: false).
+    // Ses données (workflows, executions, sync) sont écrites par les fonctions du serveur seulement ; l'écran les lit.
+    id: 'journal',
+    nom: "Journal d'activité",
+    libelleMenu: 'Automatisations',
+    iconeMenu: 'activity',
+    prefixe: 'journal',
+    chezJerome: false,
+    ecrans: [
+      { route: 'journal/historique', libelle: 'Historique', icone: 'activity' },
+    ],
+    collections: ['workflows', 'executions', 'sync'],
+    outilsMcp: [],
+    dependances: [],
   },
 ]);
 
