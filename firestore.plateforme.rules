@@ -44,10 +44,17 @@ service cloud.firestore {
       allow list, write: if false;
     }
 
+    // Collections du journal d'activité des workflows (chantier 14) : workflows, executions (et leurs « steps »), sync.
+    // Lisibles par les membres, mais écrites par le SERVEUR seulement (la copie horaire et la fonction « renommer »), jamais par un navigateur,
+    // même par un éditeur : sinon un navigateur pourrait fausser l'historique ou le verrou de copie.
+    function collectionDuJournal(collection) {
+      return collection in ['workflows', 'executions', 'sync'];
+    }
+
     // Les données du client (tout sauf les fiches d'appartenance, traitées ci-dessus).
     match /clients/{client}/{collection}/{reste=**} {
       allow read: if collection != 'membres' && roleDe(client) in ['editeur', 'lecteur'];
-      allow write: if collection != 'membres' && roleDe(client) == 'editeur';
+      allow write: if collection != 'membres' && !collectionDuJournal(collection) && roleDe(client) == 'editeur';
     }
 
     // Tout le reste (racine, autres collections) : refusé.

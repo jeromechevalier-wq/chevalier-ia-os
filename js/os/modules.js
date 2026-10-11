@@ -11,13 +11,19 @@ import { MODULES_DECLARES } from './registre.js';
 const MONTAGES = {
   affaires: () => import('../modules/crm/index.js'),
   projets: () => import('../modules/projets/index.js'),
+  journal: () => import('../modules/journal/index.js'),
 };
 
-export const MODULES = MODULES_DECLARES.map((d) => ({
+const versModule = (d) => ({
   id: d.id,
   libelle: d.libelleMenu,
   icone: d.iconeMenu,
   entrees: d.ecrans.map((e) => ({ chemin: e.route, libelle: e.libelle, icone: e.icone })), // sous entrées du menu (et routes principales)
   prefixe: d.prefixe, // préfixe des routes gérées par le module (#/crm/...)
   monter: MONTAGES[d.id],
-}));
+});
+
+// CRM de la racine : ses modules seulement (un module « reserveAuxClients » n'y est ni monté ni affiché).
+export const MODULES = MODULES_DECLARES.filter((d) => d.reserveAuxClients !== true).map(versModule);
+// Espace d'un client de la plateforme : tous les modules possibles (espace-modules.js ne garde que ses modules actifs).
+export const MODULES_CLIENT = MODULES_DECLARES.map(versModule);

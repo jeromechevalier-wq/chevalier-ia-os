@@ -103,7 +103,7 @@ describe('nouveau client : création et lecture par les vraies règles', () => {
     assert.equal(marque.couleur, '#336699');
     assert.match(marque.logo, /^https:\/\/firebasestorage\.googleapis\.com\/v0\/b\/.+\/o\/marques%2Fdemo1%2Flogo\.png\?alt=media$/);
     assert.equal(marque.images.length, 1);
-    assert.deepEqual(await lireDoc('clients/demo1'), { nom: 'Client fictif', modules: { affaires: true, projets: true } });
+    assert.deepEqual(await lireDoc('clients/demo1'), { nom: 'Client fictif', modules: { affaires: true, projets: true, journal: false } });
     assert.deepEqual(await lireDoc(`clients/demo1/membres/${ALICE}`), { role: 'editeur' });
     assert.deepEqual(await lireDoc(`clients/demo1/membres/${BOB}`), { role: 'lecteur' });
     await admin.db.doc('clients/demo1/crm_personnes/p1').set({ nom: 'Personne inventée' });
@@ -262,10 +262,10 @@ describe('nouveau client : commandes annexes', () => {
 
   test('A2 activer et désactiver un module (projets exige affaires)', async () => {
     assert.equal((await nc('desactiver-module', 'annexe', 'projets', '--ecrire')).code, 0);
-    assert.deepEqual((await lireDoc('clients/annexe')).modules, { affaires: true, projets: false });
+    assert.deepEqual((await lireDoc('clients/annexe')).modules, { affaires: true, projets: false, journal: false });
     const refus = await nc('desactiver-module', 'annexe', 'affaires', '--ecrire'); // projets est déjà off : permis
     assert.equal(refus.code, 0);
-    assert.deepEqual((await lireDoc('clients/annexe')).modules, { affaires: false, projets: false });
+    assert.deepEqual((await lireDoc('clients/annexe')).modules, { affaires: false, projets: false, journal: false });
     const sans = await nc('activer-module', 'annexe', 'projets', '--ecrire');
     assert.equal(sans.code, 1);
     assert.match(sans.texte, /sans : Affaires/);
@@ -273,8 +273,31 @@ describe('nouveau client : commandes annexes', () => {
     assert.equal((await nc('activer-module', 'annexe', 'projets', '--ecrire')).code, 0);
     const casse = await nc('desactiver-module', 'annexe', 'affaires', '--ecrire');
     assert.equal(casse.code, 1);
-    assert.deepEqual((await lireDoc('clients/annexe')).modules, { affaires: true, projets: true });
+    assert.deepEqual((await lireDoc('clients/annexe')).modules, { affaires: true, projets: true, journal: false });
     assert.equal((await nc('activer-module', 'annexe', 'compta', '--ecrire')).code, 1);
+  });
+
+  test('A2b module « journal » (chantier 14) : activable à la création et après coup, refusé si l\'identifiant dépasse 17 caractères (étiquette n8n de 24 au plus)', async () => {
+    const court = await nc('journalcourt', '--nom', 'Journal', '--membre', `${ALICE}:editeur`, '--modules', 'journal', '--ecrire');
+    assert.equal(court.code, 0, court.texte);
+    assert.deepEqual((await lireDoc('clients/journalcourt')).modules, { affaires: false, projets: false, journal: true });
+    assert.equal((await nc('desactiver-module', 'journalcourt', 'journal', '--ecrire')).code, 0);
+    assert.equal((await nc('activer-module', 'journalcourt', 'journal', '--ecrire')).code, 0);
+    assert.equal((await lireDoc('clients/journalcourt')).modules.journal, true);
+    const dixSept = 'a'.repeat(17);
+    assert.equal((await nc(dixSept, '--nom', 'Limite', '--membre', `${ALICE}:editeur`, '--modules', 'journal', '--ecrire')).code, 0);
+    const long = 'cabinet-de-conseil-martin-et-associes';
+    const refus = await nc(long, '--nom', 'Long', '--membre', `${ALICE}:editeur`, '--modules', 'journal', '--ecrire');
+    assert.equal(refus.code, 1);
+    assert.match(refus.texte, /17 caractères au plus/);
+    assert.match(refus.texte, /24 caractères/);
+    assert.equal(await lireDoc(`clients/${long}`), null, 'rien n\'est écrit');
+    // Un client à nom long peut exister sans le journal, mais ne peut pas l'activer ensuite.
+    assert.equal((await nc(long, '--nom', 'Long', '--membre', `${ALICE}:editeur`, '--modules', 'affaires', '--ecrire')).code, 0);
+    const apres = await nc('activer-module', long, 'journal', '--ecrire');
+    assert.equal(apres.code, 1);
+    assert.match(apres.texte, /17 caractères au plus/);
+    assert.equal((await lireDoc(`clients/${long}`)).modules.journal, false);
   });
 
   test('A3 désactiver le client rend sa page indisponible (règles réelles), le réactiver la rend', async () => {

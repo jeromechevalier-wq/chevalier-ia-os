@@ -19,6 +19,7 @@
       "scripts/**",
       "dist/**",
       "functions/**",
+      "functions-plateforme/**",
       "README.md",
       "CLAUDE.md",
       "PROMPT-CONSTRUCTION.md",

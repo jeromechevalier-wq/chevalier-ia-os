@@ -1,4 +1,7 @@
 {
+  "functions": [
+    { "source": "functions-plateforme", "codebase": "plateforme", "runtime": "nodejs22" }
+  ],
   "firestore": {
     "rules": "firestore.plateforme.rules"
   },

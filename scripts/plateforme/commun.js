@@ -102,6 +102,18 @@ export function verifierListeModules(ids) {
   if (!v.ok) throw new ErreurOutil(v.erreurs);
   return v.actifs;
 }
+/**
+ * Le journal des workflows retrouve les workflows d'un client par une étiquette n8n « client-<identifiant> ». Un nom d'étiquette n8n
+ * fait 24 caractères au plus (« client- » en prend 7) : l'identifiant d'un client qui active ce module tient donc en 17 caractères.
+ * Un client à nom long garde son identifiant long pour tout le reste ; on refuse seulement d'activer le journal tant qu'il n'est pas raccourci.
+ */
+export const LONGUEUR_MAX_ID_JOURNAL = 17;
+export function verifierModulesPourClient(id, actifs) {
+  if (actifs.includes('journal') && id.length > LONGUEUR_MAX_ID_JOURNAL) {
+    throw new ErreurOutil(`Le module « journal » exige un identifiant de client de ${LONGUEUR_MAX_ID_JOURNAL} caractères au plus (« ${id} » en a ${id.length}) : n8n limite le nom d'une étiquette à 24 caractères, et l'étiquette est « client-${id} ». Choisissez un identifiant plus court (par exemple « ${id.slice(0, LONGUEUR_MAX_ID_JOURNAL).replace(/[-_]+$/, '')} »).`);
+  }
+  return actifs;
+}
 /** Liste de modules actifs -> objet écrit dans clients/<client>.modules (tous les modules connus, true ou false). */
 export function objetModules(actifs) {
   return Object.fromEntries(IDS_MODULES.map((id) => [id, actifs.includes(id)]));
