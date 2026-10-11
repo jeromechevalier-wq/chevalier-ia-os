@@ -23,7 +23,7 @@ const versModule = (d) => ({
   monter: MONTAGES[d.id],
 });
 
-// CRM de Jérôme : ses modules seulement (un module « chezJerome: false » n'y est ni monté ni affiché).
-export const MODULES = MODULES_DECLARES.filter((d) => d.chezJerome !== false).map(versModule);
+// CRM de la racine : ses modules seulement (un module « reserveAuxClients » n'y est ni monté ni affiché).
+export const MODULES = MODULES_DECLARES.filter((d) => d.reserveAuxClients !== true).map(versModule);
 // Espace d'un client de la plateforme : tous les modules possibles (espace-modules.js ne garde que ses modules actifs).
 export const MODULES_CLIENT = MODULES_DECLARES.map(versModule);

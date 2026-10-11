@@ -1,5 +1,5 @@
 // Module Journal d'activité (chantier 14) : historique des exécutions des workflows n8n du client, en lecture seule.
-// Route : journal/historique. Réservé aux clients de la plateforme (le CRM de Jérôme ne le monte pas : registre.js, chezJerome: false).
+// Route : journal/historique. Réservé aux clients de la plateforme (le CRM de Jérôme ne le monte pas : registre.js, reserveAuxClients).
 import { vider } from '../../os/ui.js';
 import { naviguer } from '../../os/router.js';
 import * as D from './donnees.js';

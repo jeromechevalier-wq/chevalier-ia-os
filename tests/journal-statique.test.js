@@ -69,7 +69,7 @@ describe('Cohérence : registre, règles, fonctions, déploiement', () => {
   test('le module « journal » du registre est celui que les fonctions cherchent, réservé aux clients', () => {
     assert.equal(MODULE_JOURNAL, 'journal');
     const m = moduleDeclare('journal');
-    assert.equal(m.chezJerome, false);
+    assert.equal(m.reserveAuxClients, true);
     assert.ok(IDS_MODULES.includes('journal'));
     assert.deepEqual(m.dependances, []);
     assert.deepEqual(m.outilsMcp, []);
@@ -109,5 +109,18 @@ describe('Cohérence : registre, règles, fonctions, déploiement', () => {
       const t = lire(`js/modules/journal/${f}`).replace(/\/\/.*$/gm, '');
       assert.ok(!/\b(setDoc|addDoc|updateDoc|deleteDoc|writeBatch|runTransaction)\b/.test(t), `${f} écrit dans Firestore`);
     }
+  });
+});
+
+describe('Les fonctions se chargent comme Firebase les chargera', () => {
+  test('trois fonctions, région de Paris, planifiée toutes les heures, clé n8n liée par secret sur les deux qui lisent n8n, aucun secret pour « renommer »', async () => {
+    process.env.GCLOUD_PROJECT ??= 'demo-chevalier-ia-os';
+    const m = await import('../functions-plateforme/src/index.js');
+    assert.deepEqual(Object.keys(m).sort(), ['journalCopieHoraire', 'journalRafraichir', 'journalRenommer']);
+    for (const f of Object.values(m)) assert.deepEqual(f.__endpoint.region, ['europe-west9']);
+    assert.equal(m.journalCopieHoraire.__endpoint.scheduleTrigger.schedule, '0 * * * *');
+    assert.deepEqual(m.journalCopieHoraire.__endpoint.secretEnvironmentVariables, [{ key: 'N8N_API_KEY' }]);
+    assert.deepEqual(m.journalRafraichir.__endpoint.secretEnvironmentVariables, [{ key: 'N8N_API_KEY' }]);
+    assert.equal(m.journalRenommer.__endpoint.secretEnvironmentVariables, undefined);
   });
 });
