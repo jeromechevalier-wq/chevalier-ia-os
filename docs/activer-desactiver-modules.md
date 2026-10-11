@@ -1,0 +1,75 @@
+# Activer et désactiver un module chez un client
+
+Un **module** est un bloc d'écrans (par exemple « Journal » ou « Affaires »). Chaque client voit seulement les modules que tu as activés pour lui. Il y a **deux façons** de les gérer : à la main dans la console Firebase, ou avec une commande dans le Terminal. Les deux donnent le même résultat.
+
+## Les modules existants
+
+| Nom à écrire | Ce que le client voit | À savoir |
+|---|---|---|
+| `affaires` | le « CRM » : personnes, organisations, affaires | |
+| `projets` | les projets | ne marche **que si `affaires` est aussi actif** |
+| `journal` | « Automatisations > Historique » (journal des workflows n8n) | l'identifiant du client doit faire 17 caractères au plus ; il faut aussi l'étiquette `client-<identifiant>` sur les workflows dans n8n |
+
+Ce que change un interrupteur : les **menus du client** (au prochain rechargement de sa page). Les **données ne sont jamais effacées** : si tu rallumes un module, tout est retrouvé. Pour `journal`, éteint, plus rien n'est copié depuis n8n pour ce client.
+
+## Méthode 1 : à la main, dans la console Firebase (sans Terminal)
+
+1. Ouvre la fiche du client. Remplace `clientdemo` par l'identifiant du client dans ce lien :
+   <https://console.firebase.google.com/project/chevalier-ia-app/firestore/databases/-default-/data/~2Fclients~2Fclientdemo>
+   (Sinon : console Firebase > projet **chevalier-ia-app** > **Firestore Database** > onglet **Données** > collection `clients` > clique sur l'identifiant du client.)
+2. Dans la colonne de droite, repère le champ **`modules`** (type *map*). Il contient une ligne par module, par exemple `affaires: true`.
+3. **Pour activer** un module qui n'est pas dans la liste :
+   - survole la ligne `modules`, clique sur le **+** (« Ajouter un champ » dans le champ) ;
+   - **Nom du champ** : le nom du module (`journal`, `affaires`, `projets`) ;
+   - **Type** : *boolean* ; **Valeur** : `true` ;
+   - clique sur **Ajouter**.
+4. **Pour désactiver** : clique sur la valeur `true` du module, mets **`false`**, puis valide par **Mettre à jour**.
+5. **Pour réactiver** un module qui est à `false` : même chose, mets `true`.
+
+Contrôles :
+- Le module ajouté doit être **dans** `modules`, au même niveau que les autres, pas dans un champ à part.
+- Écris le nom du module exactement comme dans le tableau (minuscules, sans accent).
+- Si tu actives `projets`, assure-toi que `affaires` est à `true`.
+
+Pour voir le résultat : ouvre `https://chevalier-ia-app.web.app/espace/<identifiant>` et recharge la page (sur téléphone, ferme et rouvre l'application).
+
+## Méthode 2 : une commande dans le Terminal
+
+À faire une seule fois sur le Mac : avoir fait `gcloud auth application-default login` (identifiants d'administrateur).
+
+Dans le Terminal, dans le dossier du projet :
+
+```bash
+cd "/Users/jeromechevalier/Library/CloudStorage/GoogleDrive-jerome.chevalier@gmail.com/Mon Drive/Chevalier-AI/Projets/chevalier-ia-os"
+```
+
+Activer :
+
+```bash
+node scripts/nouveau-client.js activer-module <identifiant> journal --ecrire
+```
+
+Désactiver :
+
+```bash
+node scripts/nouveau-client.js desactiver-module <identifiant> journal --ecrire
+```
+
+Sans `--ecrire`, la commande **simule** : elle affiche ce qu'elle ferait, sans rien changer. L'outil refuse aussi les combinaisons invalides (par exemple `projets` sans `affaires`).
+
+Voir l'état d'un client :
+
+```bash
+node scripts/nouveau-client.js afficher <identifiant>
+```
+
+## Si quelque chose ne marche pas
+
+| Ce que tu vois | Cause probable |
+|---|---|
+| Le module n'apparaît pas chez le client | page non rechargée, nom mal écrit, valeur à `false`, ou le module est ajouté hors du champ `modules` |
+| `Could not load the default credentials` dans le Terminal | l'étape `gcloud auth application-default login` n'est pas faite |
+| `gcloud: command not found` | ouvre un nouveau Terminal (l'installation est dans `~/.local/google-cloud-sdk`) |
+| Le journal est vide | pas d'étiquette `client-<identifiant>` sur un workflow n8n, ou pas encore de clic sur « Rafraîchir l'historique » |
+
+Voir aussi : `docs/nouveau-client.md` (créer un client, membres) et `docs/journal-activite-workflows.md` (le journal).
