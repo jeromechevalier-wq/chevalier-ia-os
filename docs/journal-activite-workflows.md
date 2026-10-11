@@ -44,7 +44,7 @@ Chaque exécution est écrite dans un document qui porte **son numéro**, avec �
 
 ### Si n8n ne répond pas
 
-La copie garde les dernières données, note « n8n injoignable » dans `sync/state`, et l'écran affiche le **bandeau jaune** : « n8n ne répond pas pour le moment. Vous voyez les données de HH:MM:SS. Nous sommes prévenus. » L'erreur est aussi écrite dans les journaux de Google Cloud (gravité *ERROR*). **« Nous sommes prévenus » n'est pas encore branché sur une alerte** (e-mail ou SMS) : à faire plus tard dans *Google Cloud > Surveillance > Alertes*, en filtrant sur « Journal : n8n injoignable ». Tant que ce n'est pas fait, la phrase est à relire avec soin.
+La copie garde les dernières données, note « n8n injoignable » dans `sync/state`, et l'écran affiche le **bandeau jaune** : « n8n ne répond pas pour le moment. Vous voyez les données de HH:MM:SS. » (la phrase « Nous sommes prévenus » a été retirée le 11/10/2026 : un e-mail reçu n'est pas un e-mail lu). L'erreur est aussi écrite dans les journaux de Google Cloud (gravité *ERROR*, message commençant par « Journal : »), et **une alerte envoie un e-mail à Jérôme** (voir ci-dessous).
 
 ---
 
@@ -108,7 +108,7 @@ Par défaut, l'écran affiche le **nom du workflow dans n8n**. Un **éditeur** d
 
 Testé sur émulateur, avec un **faux n8n** (petit serveur local) : isolation entre clients, pas de doublon, verrou, « à vérifier », états, erreurs (message et étape), étiquettes invalides, aucun contenu ni secret écrit, n8n en panne / coupé / trop lent / clé refusée, **seulement des GET**, rafraîchissement par l'identité, délai de 10 s, renommage réservé aux éditeurs du bon client, règles Firestore, écran (ordinateur et téléphone), outil « nouveau client ».
 
-**Pas testé** (impossible sans toucher aux vrais services) : le vrai n8n (la forme exacte de ses réponses a été lue dans la documentation et d'après ton essai du 11/10/2026 ; le faux n8n l'imite), le déploiement sur Google Cloud (planificateur, secret, droits), les fonctions appelables **par le vrai SDK** depuis un navigateur (l'écran a été essayé avec des réponses simulées), l'alerte « Nous sommes prévenus ».
+**Pas testé** (impossible sans toucher aux vrais services) : le vrai n8n (la forme exacte de ses réponses a été lue dans la documentation et d'après ton essai du 11/10/2026 ; le faux n8n l'imite), le déploiement sur Google Cloud (planificateur, secret, droits), les fonctions appelables **par le vrai SDK** depuis un navigateur (l'écran a été essayé avec des réponses simulées), l'alerte e-mail sur une **vraie** panne de n8n (testée seulement avec une erreur écrite à la main dans les journaux, le 11/10/2026 : l'e-mail est bien arrivé).
 
 ---
 
@@ -178,3 +178,12 @@ Le choix `tout` du workflow ne déploie **jamais** les fonctions.
 ## 9. Phase 3 (pas faite)
 
 Le Logger dans les workflows et la frise d'étapes. Rien à changer pour l'ajouter plus tard : la sous-collection `steps` et le champ `runGroupId` existent déjà, vides ; la règle Firestore ferme déjà `steps` à l'écriture navigateur.
+
+## Alerte e-mail quand n8n tombe (mise en place le 11/10/2026)
+
+- **Ce qui se déclenche** : toute erreur de gravité *ERROR* dont le message contient « Journal : » dans les journaux de Google Cloud (projet `chevalier-ia-app`) : n8n qui ne répond pas, **clé n8n expirée ou refusée** (même message), liste des workflows illisible, erreur inattendue. Les simples avertissements (workflow ignoré, cause d'erreur illisible) ne déclenchent rien.
+- **Qui est prévenu** : `jerome.chevalier@gmail.com`, par e-mail de « Google Cloud Alerting » (regarde aussi les courriers indésirables).
+- **Fréquence** : un e-mail à l'ouverture de la panne, puis **un rappel au plus une fois par jour** tant que les erreurs continuent. Il n'y a **pas d'e-mail de retour à la normale** (Google ne le permet pas pour ce type d'alerte) : pour vérifier, ouvre l'espace d'un client et regarde si le journal se remet à jour.
+- **Où la voir ou la modifier** : Google Cloud > Surveillance (Monitoring) > Alertes > règles > « Journal des workflows : n8n injoignable ou erreur de copie » ; le destinataire est dans *Canaux de notification*. Elle a été créée par l'API de Monitoring avec les identifiants d'administrateur, pas par le code du dépôt : elle n'est pas recréée par un déploiement.
+- **Que faire quand l'e-mail arrive** : le texte de l'e-mail le dit (n8n en panne : relancer ; clé refusée : nouvelle clé dans n8n > Settings > n8n API, puis `firebase functions:secrets:set N8N_API_KEY --project chevalier-ia-app` et redéploiement des fonctions).
+- **Tester sans casser n8n** : écrire une fausse erreur dans les journaux. L'alerte reconnaît le type de journal des fonctions (`cloud_run_revision`) ; une entrée de type « global » n'a pas déclenché l'alerte lors du premier essai.
