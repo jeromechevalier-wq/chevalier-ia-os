@@ -439,6 +439,10 @@ export async function noterExportComplet() {
   await majParametre('reglages', { dernierExport: serverTimestamp() });
 }
 
+export async function noterExportContacts() {
+  await majParametre('reglages', { dernierExportContacts: serverTimestamp() });
+}
+
 /** Lit toutes les collections du CRM (sauvegarde complète) : { nom: [documents avec id] }. */
 export async function toutesLesCollections() {
   const sortie = {};

@@ -123,6 +123,7 @@
 
 /* ---------------------------------------------------------------- listes (personnes, organisations, affaires) */
 
+.export-contacts { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
 .page-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .compteur-liste { display: block; margin-top: 4px; color: var(--texte2); font-size: 14px; font-family: var(--police-texte); letter-spacing: 0; }
 .barre-filtres { display: flex; flex-direction: column; gap: 10px; flex: 1; min-width: 0; }

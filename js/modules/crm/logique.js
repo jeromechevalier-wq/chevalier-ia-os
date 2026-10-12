@@ -91,6 +91,7 @@ export const REGLAGES_DEPART = {
   delaiPaiementJours: 30,
   debutActivite: '2026-10',
   dernierExport: null,
+  dernierExportContacts: null,
   proprietaireGithub: PROPRIETAIRE_GITHUB_DEPART,
   cheminProjets: CHEMIN_PROJETS_DEPART,
 };
@@ -1916,9 +1917,49 @@ export function nomFichierExport(maintenant = new Date(), type = 'complet') {
     personnes: ['chevalier-ia-personnes', 'csv'],
     organisations: ['chevalier-ia-organisations', 'csv'],
     affaires: ['chevalier-ia-affaires', 'csv'],
+    contacts: ['chevalier-ia-contacts', 'vcf'],
   };
   const [base, ext] = bases[type] || bases.complet;
   return `${base}-${jour}.${ext}`;
+}
+
+// ---------------------------------------------------------------- export des contacts vers le téléphone (.vcf)
+
+/** Personnes à envoyer au téléphone : non archivées, créées après le dernier export des contacts (toutes s'il n'y en a pas eu). */
+export function personnesAExporterVcf(personnes, dernierExportContacts) {
+  const depuis = versDate(dernierExportContacts);
+  return (personnes || []).filter((p) => {
+    if (p.archive || !String(p.nom || '').trim()) return false;
+    if (!depuis) return true;
+    const cree = versDate(p.creeLe);
+    return !cree || cree.getTime() > depuis.getTime();
+  });
+}
+
+function echapperVcf(valeur) {
+  return String(valeur ?? '').replace(/\\/g, '\\\\').replace(/\r?\n/g, '\\n').replace(/;/g, '\\;').replace(/,/g, '\\,');
+}
+
+const TYPE_VCF = { travail: 'WORK', perso: 'HOME' };
+
+/** Fichier de contacts vCard 3.0 (lu par Google Contacts et par les téléphones). Fins de ligne CRLF. */
+export function vcardPersonnes(personnes, { organisations = [] } = {}) {
+  const orgs = new Map(organisations.map((o) => [o.id, o.nom]));
+  const cartes = personnes.map((p) => {
+    const nom = String(p.nom || '').trim();
+    const l = ['BEGIN:VCARD', 'VERSION:3.0'];
+    l.push(`N:${echapperVcf(p.nomFamille || '')};${echapperVcf(p.prenom || '')};;;`);
+    l.push(`FN:${echapperVcf(nom)}`);
+    const org = orgs.get(p.organisationId);
+    if (org) l.push(`ORG:${echapperVcf(org)}`);
+    for (const t of p.telephones || []) if (t.valeur) l.push(`TEL;TYPE=${TYPE_VCF[t.type] || 'OTHER'}:${echapperVcf(t.valeur)}`);
+    for (const e of p.emails || []) if (e.valeur) l.push(`EMAIL;TYPE=${TYPE_VCF[e.type] || 'OTHER'}:${echapperVcf(e.valeur)}`);
+    if (p.ville) l.push(`ADR;TYPE=HOME:;;;${echapperVcf(p.ville)};;;`);
+    if (p.siteWeb) l.push(`URL:${echapperVcf(p.siteWeb)}`);
+    l.push('END:VCARD');
+    return l.join('\r\n');
+  });
+  return cartes.length ? `${cartes.join('\r\n')}\r\n` : '';
 }
 
 /** Rappel d'export : affiché si aucun export, ou si le dernier date de plus de 30 jours. */

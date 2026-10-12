@@ -103,9 +103,17 @@ export function rendrePersonnes(conteneur) {
     remplir(zoneTableau, h('table', { class: 'tableau tableau-personnes' }, h('thead', {}, entete), h('tbody', {}, corps)));
   }
 
+  const infoContacts = h('span', { class: 'vide-discret', 'data-role': 'dernier-export-contacts' });
+  function majInfoContacts() {
+    const d = D.etat.reglages.dernierExportContacts;
+    infoContacts.textContent = d ? `Dernier export : ${L.formatDateHeure(d)}` : 'Aucun export pour le moment.';
+  }
   const entete = h('header', { class: 'page-tete' },
     h('div', {}, h('p', { class: 'etiquette' }, 'Contacts'), h('h1', {}, 'Personnes'), compteur),
     h('div', { class: 'page-actions' },
+      h('div', { class: 'export-contacts' },
+        h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'exporter-contacts-telephone', onclick: exporterContactsTelephone }, icone('download', { taille: 16 }), 'Contacts pour téléphone'),
+        infoContacts),
       h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'exporter-personnes', onclick: exporter }, icone('download', { taille: 16 }), 'Exporter'),
       h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'nouvelle-personne', onclick: () => ouvrirCreationPersonne() }, icone('plus', { taille: 16 }), 'Personne')));
   conteneur.append(h('div', { class: 'page page-liste' }, entete, filtres.element, zoneTableau));
@@ -116,7 +124,21 @@ export function rendrePersonnes(conteneur) {
     telecharger(L.nomFichierExport(new Date(), 'personnes'), L.csvPersonnes(lignes, { organisations: D.etat.organisations, etiquettes: D.etat.etiquettes }), 'text/csv;charset=utf-8');
   }
 
-  const rafraichir = planifier(() => { rendre(); filtres.rafraichir(); });
+  async function exporterContactsTelephone() {
+    const aExporter = L.personnesAExporterVcf(D.etat.personnes, D.etat.reglages.dernierExportContacts);
+    if (!aExporter.length) { toast('Aucune nouvelle personne depuis le dernier export'); return; }
+    try {
+      telecharger(L.nomFichierExport(new Date(), 'contacts'), L.vcardPersonnes(aExporter, { organisations: D.etat.organisations }), 'text/vcard;charset=utf-8');
+      await D.noterExportContacts();
+      toast(`${aExporter.length} contact${aExporter.length > 1 ? 's' : ''} exporté${aExporter.length > 1 ? 's' : ''}`);
+    } catch (e) {
+      console.warn(e);
+      toast('Export impossible', { type: 'erreur' });
+    }
+  }
+
+  const rafraichir = planifier(() => { rendre(); filtres.rafraichir(); majInfoContacts(); });
+  majInfoContacts();
   rendre();
   const arret = D.surChangement(rafraichir);
   return arret;
