@@ -5,7 +5,7 @@ import * as D from './donnees.js';
 import * as L from './logique.js';
 import {
   avatar, lienOrganisation, sectionRepliable, champPropriete, selecteurOrganisation, selecteurEtiquettes, listeContacts, titreEditable, selectProprietaire,
-  gabaritFiche, lienRetour, saisieEnCours, lignesContact, carteAffaireMini, fournisseurTexte, villesConnues, etatVide, planifier,
+  telecharger, gabaritFiche, lienRetour, saisieEnCours, lignesContact, carteAffaireMini, fournisseurTexte, villesConnues, etatVide, planifier,
 } from './composants.js';
 import { panneauActivite } from './activites.js';
 import { ouvrirCreationAffaire } from './affaires.js';
@@ -87,6 +87,10 @@ export function rendreFichePersonne(conteneur, id) {
     const nom = titreEditable({ valeur: p.nom, libelle: 'Nom', surEnregistrer: (v) => D.majPersonne(p.id, L.patchNomAffiche(v)) });
     const menu = h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Plus d’actions', 'data-action': 'menu-fiche',
       onclick: (e) => ouvrirMenu(e.currentTarget, [
+        { libelle: 'Exporter ce contact', icone: 'download', action: () => {
+          telecharger(L.nomFichierExport(new Date(), 'contacts'), L.vcardPersonnes([p], { organisations: D.etat.organisations }), 'text/vcard;charset=utf-8');
+          toast('Contact exporté');
+        } },
         { libelle: p.archive ? 'Désarchiver' : 'Archiver', icone: p.archive ? 'archive-restore' : 'archive', action: () => D.majPersonne(p.id, { archive: !p.archive }) },
         { libelle: 'Supprimer définitivement…', icone: 'trash-2', danger: true, action: () => demanderSuppressionPersonne(p) },
       ]) }, icone('ellipsis', { taille: 20 }));

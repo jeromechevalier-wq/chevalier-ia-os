@@ -112,17 +112,10 @@ export function rendrePersonnes(conteneur) {
     h('div', {}, h('p', { class: 'etiquette' }, 'Contacts'), h('h1', {}, 'Personnes'), compteur),
     h('div', { class: 'page-actions' },
       h('div', { class: 'export-contacts' },
-        h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'exporter-contacts-telephone', onclick: exporterContactsTelephone }, icone('download', { taille: 16 }), 'Contacts pour téléphone'),
+        h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'exporter-personnes', onclick: exporterContactsTelephone }, icone('download', { taille: 16 }), 'Exporter'),
         infoContacts),
-      h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'exporter-personnes', onclick: exporter }, icone('download', { taille: 16 }), 'Exporter'),
       h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'nouvelle-personne', onclick: () => ouvrirCreationPersonne() }, icone('plus', { taille: 16 }), 'Personne')));
   conteneur.append(h('div', { class: 'page page-liste' }, entete, filtres.element, zoneTableau));
-
-  function exporter() {
-    const contexte = { organisations: D.etat.organisations };
-    const lignes = L.trier(L.filtrerPersonnes(D.etat.personnes, criteres, contexte), (p) => L.normaliser(p.nom));
-    telecharger(L.nomFichierExport(new Date(), 'personnes'), L.csvPersonnes(lignes, { organisations: D.etat.organisations, etiquettes: D.etat.etiquettes }), 'text/csv;charset=utf-8');
-  }
 
   async function exporterContactsTelephone() {
     const { nouvelles, modifiees } = L.personnesAExporterVcf(D.etat.personnes, D.etat.reglages.dernierExportContacts);

@@ -99,6 +99,18 @@ export function rendreReglagesCrm(page) {
   const infoExport = h('p', { class: 'aide', 'data-role': 'dernier-export' });
   sExport.append(h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'exporter-tout', onclick: () => exporterToutesLesDonnees() }, icone('download', { taille: 16 }), 'Exporter mes données'), infoExport);
 
+  // Date du dernier export des contacts : modifiable (reculer pour renvoyer des contacts, vider pour tout renvoyer).
+  const dateContacts = h('input', { type: 'date', class: 'champ', 'aria-label': 'Date du dernier export des contacts', 'data-role': 'date-export-contacts',
+    onchange: async (e) => {
+      await D.enregistrerReglages({ dernierExportContacts: e.target.value ? new Date(`${e.target.value}T00:00:00`) : null });
+      toast(e.target.value ? 'Date enregistrée' : 'Date effacée : le prochain export renverra tous les contacts');
+    } });
+  const viderDateContacts = h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', 'data-action': 'vider-date-export-contacts',
+    onclick: async () => { await D.enregistrerReglages({ dernierExportContacts: null }); toast('Date effacée : le prochain export renverra tous les contacts'); } }, 'Tout renvoyer');
+  sExport.append(
+    h('label', { class: 'ligne-export-contacts' }, h('span', {}, 'Dernier export des contacts'), dateContacts, viderDateContacts),
+    h('p', { class: 'aide' }, 'Le bouton Exporter de l’écran Personnes envoie les contacts créés ou modifiés depuis cette date. Recule-la pour en renvoyer plus, ou efface-la pour tout renvoyer.'));
+
   // Migration 2.2 : visible seulement tant qu'il reste des affaires dans les étapes retirées « Facture envoyée » / « Facture payée ».
   const sMigration = section('reglages-migration', 'Migration de la facturation (2.2)', 'rotate-ccw',
     'Les étapes « Facture envoyée » et « Facture payée » n’existent plus : la facturation se suit sur les projets. Les affaires qui y sont encore passent à « Gagné », sans rien perdre de ton chiffre d’affaires.');
@@ -224,6 +236,8 @@ export function rendreReglagesCrm(page) {
     if (document.activeElement !== debut) debut.value = D.etat.reglages.debutActivite || '';
     if (document.activeElement !== compteGithub) compteGithub.value = D.etat.reglages.proprietaireGithub || '';
     if (document.activeElement !== cheminProjets) cheminProjets.value = D.etat.reglages.cheminProjets || '';
+    const dc = L.versDate(D.etat.reglages.dernierExportContacts);
+    if (document.activeElement !== dateContacts) dateContacts.value = dc ? `${dc.getFullYear()}-${String(dc.getMonth() + 1).padStart(2, '0')}-${String(dc.getDate()).padStart(2, '0')}` : '';
     infoExport.textContent = D.etat.reglages.dernierExport ? `Dernier export : ${L.formatDateHeure(D.etat.reglages.dernierExport)}` : 'Aucun export pour le moment.';
   }
   rafraichir();

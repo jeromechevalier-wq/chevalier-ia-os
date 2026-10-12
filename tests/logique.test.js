@@ -744,19 +744,12 @@ describe('B15 Export JSON et CSV', () => {
     assert.ok(lignes.length >= 1);
   });
   test('B15 CSV : le nom de l’organisation, pas son identifiant', () => {
-    const csv = L.csvPersonnes(pers, { organisations: orgs, etiquettes: L.ETIQUETTES_DEPART });
-    assert.ok(csv.includes('"Fleurs; ""de"" Provence"'));
-    assert.ok(!csv.includes(';o1;'));
-    assert.ok(csv.includes('marie@x.fr (Perso)'));
-    assert.ok(csv.includes('Partenaire'));
-    assert.ok(csv.includes('Prospect, Partenaire'));
     const orgCsv = L.csvOrganisations(orgs, { personnes: pers });
     assert.ok(orgCsv.includes(';1;')); // une personne
     assert.ok(L.csvAffaires(affs, { personnes: pers, organisations: orgs, offres: L.OFFRES_DEPART }).includes('Audit'));
   });
   test('B15 noms de fichiers datés (jour de Paris)', () => {
     assert.equal(L.nomFichierExport(new Date('2026-10-20T10:00:00Z')), 'chevalier-ia-os-2026-10-20.json');
-    assert.equal(L.nomFichierExport(new Date('2026-10-20T10:00:00Z'), 'personnes'), 'chevalier-ia-personnes-2026-10-20.csv');
     assert.equal(L.nomFichierExport(new Date('2026-10-20T22:30:00Z'), 'affaires'), 'chevalier-ia-affaires-2026-10-21.csv');
   });
   test('B15 rappel d’export : affiché sans export ou après plus de 30 jours', () => {
