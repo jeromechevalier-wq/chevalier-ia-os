@@ -1925,15 +1925,24 @@ export function nomFichierExport(maintenant = new Date(), type = 'complet') {
 
 // ---------------------------------------------------------------- export des contacts vers le téléphone (.vcf)
 
-/** Personnes à envoyer au téléphone : non archivées, créées après le dernier export des contacts (toutes s'il n'y en a pas eu). */
+/**
+ * Personnes à envoyer au téléphone, non archivées : { nouvelles, modifiees }.
+ * nouvelles = créées après le dernier export des contacts (toutes s'il n'y en a pas eu) ;
+ * modifiees = déjà exportées (créées avant) mais modifiées depuis.
+ */
 export function personnesAExporterVcf(personnes, dernierExportContacts) {
   const depuis = versDate(dernierExportContacts);
-  return (personnes || []).filter((p) => {
-    if (p.archive || !String(p.nom || '').trim()) return false;
-    if (!depuis) return true;
+  const nouvelles = [];
+  const modifiees = [];
+  for (const p of personnes || []) {
+    if (p.archive || !String(p.nom || '').trim()) continue;
+    if (!depuis) { nouvelles.push(p); continue; }
     const cree = versDate(p.creeLe);
-    return !cree || cree.getTime() > depuis.getTime();
-  });
+    const modifie = versDate(p.modifieLe);
+    if (!cree || cree.getTime() > depuis.getTime()) nouvelles.push(p);
+    else if (modifie && modifie.getTime() > depuis.getTime()) modifiees.push(p);
+  }
+  return { nouvelles, modifiees };
 }
 
 function echapperVcf(valeur) {
@@ -1948,6 +1957,7 @@ export function vcardPersonnes(personnes, { organisations = [] } = {}) {
   const cartes = personnes.map((p) => {
     const nom = String(p.nom || '').trim();
     const l = ['BEGIN:VCARD', 'VERSION:3.0'];
+    if (p.id) l.push(`UID:chevalier-ia-os-${p.id}`);
     l.push(`N:${echapperVcf(p.nomFamille || '')};${echapperVcf(p.prenom || '')};;;`);
     l.push(`FN:${echapperVcf(nom)}`);
     const org = orgs.get(p.organisationId);

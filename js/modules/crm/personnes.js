@@ -125,12 +125,16 @@ export function rendrePersonnes(conteneur) {
   }
 
   async function exporterContactsTelephone() {
-    const aExporter = L.personnesAExporterVcf(D.etat.personnes, D.etat.reglages.dernierExportContacts);
-    if (!aExporter.length) { toast('Aucune nouvelle personne depuis le dernier export'); return; }
+    const { nouvelles, modifiees } = L.personnesAExporterVcf(D.etat.personnes, D.etat.reglages.dernierExportContacts);
+    const aExporter = [...nouvelles, ...modifiees];
+    if (!aExporter.length) { toast('Rien de nouveau ni de modifié depuis le dernier export'); return; }
     try {
       telecharger(L.nomFichierExport(new Date(), 'contacts'), L.vcardPersonnes(aExporter, { organisations: D.etat.organisations }), 'text/vcard;charset=utf-8');
       await D.noterExportContacts();
-      toast(`${aExporter.length} contact${aExporter.length > 1 ? 's' : ''} exporté${aExporter.length > 1 ? 's' : ''}`);
+      const morceaux = [];
+      if (nouvelles.length) morceaux.push(`${nouvelles.length} nouveau${nouvelles.length > 1 ? 'x' : ''}`);
+      if (modifiees.length) morceaux.push(`${modifiees.length} modifié${modifiees.length > 1 ? 's' : ''}`);
+      toast(`Contacts exportés : ${morceaux.join(', ')}`);
     } catch (e) {
       console.warn(e);
       toast('Export impossible', { type: 'erreur' });

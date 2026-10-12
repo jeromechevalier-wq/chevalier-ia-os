@@ -1276,17 +1276,29 @@ describe('Export des contacts pour le téléphone (.vcf)', () => {
     telephones: [{ valeur: '06 12 34 56 78', type: 'perso' }], emails: [{ valeur: 'marie@x.fr', type: 'travail' }] });
   const b = personne({ id: 'b', nom: 'Paul Martin', creeLe: new Date('2026-10-10T08:00:00Z') });
   const c = personne({ id: 'c', nom: 'Archivée', archive: true, creeLe: new Date('2026-10-12T08:00:00Z') });
-  test('premier export : toutes les personnes non archivées', () => {
-    assert.deepEqual(L.personnesAExporterVcf([a, b, c], null).map((p) => p.id), ['a', 'b']);
+  test('premier export : toutes les personnes non archivées, toutes « nouvelles »', () => {
+    const r = L.personnesAExporterVcf([a, b, c], null);
+    assert.deepEqual(r.nouvelles.map((p) => p.id), ['a', 'b']);
+    assert.deepEqual(r.modifiees, []);
   });
-  test('export suivant : seulement les personnes créées depuis le dernier export', () => {
-    assert.deepEqual(L.personnesAExporterVcf([a, b, c], new Date('2026-10-05T00:00:00Z')).map((p) => p.id), ['b']);
-    assert.deepEqual(L.personnesAExporterVcf([a, b], new Date('2026-10-11T00:00:00Z')), []);
+  test('export suivant : nouvelles = créées depuis, modifiées = anciennes retouchées depuis', () => {
+    const a2 = { ...a, modifieLe: new Date('2026-10-11T08:00:00Z') };
+    const r = L.personnesAExporterVcf([a2, b, c], new Date('2026-10-05T00:00:00Z'));
+    assert.deepEqual(r.nouvelles.map((p) => p.id), ['b']);
+    assert.deepEqual(r.modifiees.map((p) => p.id), ['a']);
+    const rien = L.personnesAExporterVcf([a, b], new Date('2026-10-11T00:00:00Z'));
+    assert.deepEqual([rien.nouvelles, rien.modifiees], [[], []]);
+  });
+  test('une personne créée puis retouchée avant l’export reste « nouvelle » (une seule fois)', () => {
+    const d = { ...b, modifieLe: new Date('2026-10-11T08:00:00Z') };
+    const r = L.personnesAExporterVcf([d], new Date('2026-10-05T00:00:00Z'));
+    assert.deepEqual([r.nouvelles.length, r.modifiees.length], [1, 0]);
   });
   test('fichier vCard 3.0 : champs, échappements, fins de ligne CRLF', () => {
     const v = L.vcardPersonnes([a, b], { organisations: orgs });
     assert.ok(v.startsWith('BEGIN:VCARD\r\nVERSION:3.0\r\n'));
     assert.equal((v.match(/BEGIN:VCARD/g) || []).length, 2);
+    assert.ok(v.includes('UID:chevalier-ia-os-a'));
     assert.ok(v.includes('N:Dupont;Marie;;;'));
     assert.ok(v.includes('FN:Marie Dupont'));
     assert.ok(v.includes('ORG:Fleurs\\; de Provence'));
