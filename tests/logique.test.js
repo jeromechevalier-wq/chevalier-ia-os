@@ -784,7 +784,7 @@ describe('B16 Formats et réglages de départ', () => {
   });
   test('B16 réglages de départ : 30 jours, octobre 2026', () => {
     assert.deepEqual(L.REGLAGES_DEPART, {
-      delaiPaiementJours: 30, debutActivite: '2026-10', dernierExport: null,
+      delaiPaiementJours: 30, debutActivite: '2026-10', dernierExport: null, dernierExportContacts: null,
       proprietaireGithub: 'jeromechevalier-wq',
       cheminProjets: '~/Library/CloudStorage/GoogleDrive-jerome.chevalier@gmail.com/Mon Drive/Chevalier-AI/Projets',
     });
@@ -1267,5 +1267,32 @@ describe('B20 Journal : regroupement, filtres et comparaison avant / après', ()
     const long = L.formaterValeurJournal('x'.repeat(500));
     assert.equal(long.length, 301);
     assert.ok(long.endsWith('…'));
+  });
+});
+
+describe('Export des contacts pour le téléphone (.vcf)', () => {
+  const orgs = [{ id: 'o1', nom: 'Fleurs; de Provence' }];
+  const a = personne({ id: 'a', nom: 'Marie Dupont', prenom: 'Marie', nomFamille: 'Dupont', organisationId: 'o1', creeLe: new Date('2026-10-01T08:00:00Z'),
+    telephones: [{ valeur: '06 12 34 56 78', type: 'perso' }], emails: [{ valeur: 'marie@x.fr', type: 'travail' }] });
+  const b = personne({ id: 'b', nom: 'Paul Martin', creeLe: new Date('2026-10-10T08:00:00Z') });
+  const c = personne({ id: 'c', nom: 'Archivée', archive: true, creeLe: new Date('2026-10-12T08:00:00Z') });
+  test('premier export : toutes les personnes non archivées', () => {
+    assert.deepEqual(L.personnesAExporterVcf([a, b, c], null).map((p) => p.id), ['a', 'b']);
+  });
+  test('export suivant : seulement les personnes créées depuis le dernier export', () => {
+    assert.deepEqual(L.personnesAExporterVcf([a, b, c], new Date('2026-10-05T00:00:00Z')).map((p) => p.id), ['b']);
+    assert.deepEqual(L.personnesAExporterVcf([a, b], new Date('2026-10-11T00:00:00Z')), []);
+  });
+  test('fichier vCard 3.0 : champs, échappements, fins de ligne CRLF', () => {
+    const v = L.vcardPersonnes([a, b], { organisations: orgs });
+    assert.ok(v.startsWith('BEGIN:VCARD\r\nVERSION:3.0\r\n'));
+    assert.equal((v.match(/BEGIN:VCARD/g) || []).length, 2);
+    assert.ok(v.includes('N:Dupont;Marie;;;'));
+    assert.ok(v.includes('FN:Marie Dupont'));
+    assert.ok(v.includes('ORG:Fleurs\\; de Provence'));
+    assert.ok(v.includes('TEL;TYPE=HOME:06 12 34 56 78'));
+    assert.ok(v.includes('EMAIL;TYPE=WORK:marie@x.fr'));
+    assert.equal(L.vcardPersonnes([], {}), '');
+    assert.equal(L.nomFichierExport(new Date('2026-10-20T10:00:00Z'), 'contacts'), 'chevalier-ia-contacts-2026-10-20.vcf');
   });
 });
