@@ -106,15 +106,14 @@ La fonction écrite dans la branche `mcp` (commit de code `24a8e96`) est **repri
 - En 2.0, le libellé d'un document est saisi à la main : renommer le fichier dans Drive ne le met pas à jour. Avec un accès Drive, le nom pourrait se synchroniser.
 
 ### SIRET et numéro de TVA sur la fiche société (demandé par Jérôme le 12/10/2026)
-- **Demande, pas encore commencée.** Les sociétés (organisations du CRM) n'ont aujourd'hui ni SIRET ni n° de TVA (constat du 12/10/2026 : ni SIREN non plus, aucune occurrence dans le code).
+- **Demande du 12/10/2026, pas encore commencée (prochaine évolution prévue).** Les sociétés (organisations du CRM) n'ont aujourd'hui ni SIRET ni n° de TVA (constat du 12/10/2026 : ni SIREN non plus, aucune occurrence dans le code).
 - **Décidé** : deux champs, **SIRET** (14 chiffres ; le SIREN en est les 9 premiers chiffres, affiché sans second champ) et **n° de TVA** (champ séparé, peut rester vide : micro-entrepreneurs en franchise, associations).
 - À toucher : formulaire de création (`js/modules/crm/organisations.js`), fiche société (`js/modules/crm/composants.js`), outils MCP `creer_organisation` et `modifier_organisation` (et `lire_organisation`), tests.
 
-### Export des contacts vers Google Contacts (idées du 12/10/2026, à reprendre quand Jérôme retravaille sur l'OS)
-- Aujourd'hui rien ne copie les contacts de l'OS vers le téléphone. Détail des deux idées : fiche « Projet Chevalier IA OS » du second cerveau.
-- **Idée 1, bouton « Exporter mes contacts »** : crée un fichier `.vcf` et l'envoie par email à Jérôme (sur le téléphone : toucher la pièce jointe et choisir le compte Google ; sur ordinateur : import à la main dans contacts.google.com). Pour éviter les doublons : n'exporter que les personnes ajoutées depuis le dernier export (l'OS retient la date). **À vérifier dans le code** : l'OS sait-il déjà envoyer un email ?
-- **Idée 2, synchro de nuit avec n8n** : workflow programmé qui crée les nouvelles personnes dans Google Contacts. Obstacles : (a) aucune connexion Google Contacts dans n8n, à autoriser une fois avec le compte de Jérôme ; (b) l'outil MCP de lecture ne sait que chercher par nom, pas lister toutes les personnes ; (c) n8n ne joint pas le serveur local des outils : il faudrait un point d'accès sécurisé exposé par l'OS (recommandé) ou une lecture directe de Firestore (plus risquée).
-- **À trancher avec Jérôme** : seule l'idée 1 évite toute connexion à Google.
+### Export des contacts vers le téléphone : fait le 12/10/2026 (PR 66, 67, 68), essayé par Jérôme sur son téléphone
+- **Fait.** Écran Personnes : bouton « Exporter » = fichier `.vcf` des personnes non archivées **créées ou modifiées** depuis le dernier export, avec la date du dernier export sous le bouton ; le fichier porte un `UID` (`chevalier-ia-os-<identifiant>`) gardé exprès pour une synchro future. Réglages, section Sauvegarde : date du dernier export des contacts modifiable, bouton « Tout renvoyer ». Fiche personne, menu « ⋯ » : « Exporter ce contact » (sans condition de date, ne change pas la date). Le CSV des personnes est retiré (ceux des sociétés et des affaires restent). Tout se fait dans le navigateur : aucune fonction, aucun email, aucune connexion Google. Détail : `js/modules/crm/personnes.js`, `fiche-personne.js`, `reglages.js`, `logique.js` (`personnesAExporterVcf`, `vcardPersonnes`).
+- **Limite connue** : renommer une société ne renvoie pas ses personnes (la date de modification d'une personne ne change que si sa propre fiche est modifiée).
+- **Reste en réserve : synchro de nuit avec n8n** vers Google Contacts (crée les nouvelles personnes automatiquement). Obstacles : (a) aucune connexion Google Contacts dans n8n, à autoriser une fois avec le compte de Jérôme ; (b) l'outil MCP de lecture ne sait que chercher par nom, pas lister toutes les personnes ; (c) n8n ne joint pas le serveur local des outils : il faudrait un point d'accès sécurisé exposé par l'OS (recommandé) ou une lecture directe de Firestore (plus risquée). À reprendre seulement si l'export à la main devient pénible.
 
 ## Piste : plateforme clients sur la coque (étude du 10/10/2026, décisions validées)
 
