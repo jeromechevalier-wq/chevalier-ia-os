@@ -91,6 +91,7 @@ export const REGLAGES_DEPART = {
   delaiPaiementJours: 30,
   debutActivite: '2026-10',
   dernierExport: null,
+  dernierExportContacts: null,
   proprietaireGithub: PROPRIETAIRE_GITHUB_DEPART,
   cheminProjets: CHEMIN_PROJETS_DEPART,
 };
@@ -1819,30 +1820,6 @@ function nombreFr(n) {
 
 const oui = (v) => (v ? 'Oui' : 'Non');
 
-export function csvPersonnes(personnes, { organisations = [], etiquettes = [] } = {}) {
-  const orgs = new Map(organisations.map((o) => [o.id, o.nom]));
-  return versCsv([
-    ['Identifiant', (p) => p.id],
-    ['Nom', (p) => p.nom],
-    ['Prénom', (p) => p.prenom],
-    ['Nom de famille', (p) => p.nomFamille],
-    ['Organisation', (p) => orgs.get(p.organisationId) ?? ''],
-    ['Emails', (p) => (p.emails || []).map((e) => `${e.valeur} (${libelleTypeContact(e.type)})`).join('\n')],
-    ['Téléphones', (p) => (p.telephones || []).map((t) => `${t.valeur} (${libelleTypeContact(t.type)})`).join('\n')],
-    ['Étiquettes', (p) => (p.etiquettes || []).map((id) => libelleEtiquette(etiquettes, id)).join(', ')],
-    ['Rôles', (p) => (p.roles || []).map(libelleRole).join(', ')],
-    ["Interview JTBD faite le", (p) => formatJour(p.dateInterviewJtbd)],
-    ['Ville', (p) => p.ville],
-    ['LinkedIn', (p) => p.linkedin],
-    ['Site web', (p) => p.siteWeb],
-    ['Source', (p) => p.source],
-    ['Opposition à la prospection', (p) => oui(p.oppositionProspection)],
-    ['Archivé', (p) => oui(p.archive)],
-    ['Propriétaire', (p) => p.proprietaire],
-    ['Créé le', (p) => formatDateHeure(p.creeLe)],
-  ], personnes);
-}
-
 export function csvOrganisations(organisations, { etiquettes = [], personnes = [] } = {}) {
   return versCsv([
     ['Identifiant', (o) => o.id],
@@ -1913,12 +1890,61 @@ export function nomFichierExport(maintenant = new Date(), type = 'complet') {
   const jour = aujourdhuiParis(maintenant);
   const bases = {
     complet: ['chevalier-ia-os', 'json'],
-    personnes: ['chevalier-ia-personnes', 'csv'],
     organisations: ['chevalier-ia-organisations', 'csv'],
     affaires: ['chevalier-ia-affaires', 'csv'],
+    contacts: ['chevalier-ia-contacts', 'vcf'],
   };
   const [base, ext] = bases[type] || bases.complet;
   return `${base}-${jour}.${ext}`;
+}
+
+// ---------------------------------------------------------------- export des contacts vers le téléphone (.vcf)
+
+/**
+ * Personnes à envoyer au téléphone, non archivées : { nouvelles, modifiees }.
+ * nouvelles = créées après le dernier export des contacts (toutes s'il n'y en a pas eu) ;
+ * modifiees = déjà exportées (créées avant) mais modifiées depuis.
+ */
+export function personnesAExporterVcf(personnes, dernierExportContacts) {
+  const depuis = versDate(dernierExportContacts);
+  const nouvelles = [];
+  const modifiees = [];
+  for (const p of personnes || []) {
+    if (p.archive || !String(p.nom || '').trim()) continue;
+    if (!depuis) { nouvelles.push(p); continue; }
+    const cree = versDate(p.creeLe);
+    const modifie = versDate(p.modifieLe);
+    if (!cree || cree.getTime() > depuis.getTime()) nouvelles.push(p);
+    else if (modifie && modifie.getTime() > depuis.getTime()) modifiees.push(p);
+  }
+  return { nouvelles, modifiees };
+}
+
+function echapperVcf(valeur) {
+  return String(valeur ?? '').replace(/\\/g, '\\\\').replace(/\r?\n/g, '\\n').replace(/;/g, '\\;').replace(/,/g, '\\,');
+}
+
+const TYPE_VCF = { travail: 'WORK', perso: 'HOME' };
+
+/** Fichier de contacts vCard 3.0 (lu par Google Contacts et par les téléphones). Fins de ligne CRLF. */
+export function vcardPersonnes(personnes, { organisations = [] } = {}) {
+  const orgs = new Map(organisations.map((o) => [o.id, o.nom]));
+  const cartes = personnes.map((p) => {
+    const nom = String(p.nom || '').trim();
+    const l = ['BEGIN:VCARD', 'VERSION:3.0'];
+    if (p.id) l.push(`UID:chevalier-ia-os-${p.id}`);
+    l.push(`N:${echapperVcf(p.nomFamille || '')};${echapperVcf(p.prenom || '')};;;`);
+    l.push(`FN:${echapperVcf(nom)}`);
+    const org = orgs.get(p.organisationId);
+    if (org) l.push(`ORG:${echapperVcf(org)}`);
+    for (const t of p.telephones || []) if (t.valeur) l.push(`TEL;TYPE=${TYPE_VCF[t.type] || 'OTHER'}:${echapperVcf(t.valeur)}`);
+    for (const e of p.emails || []) if (e.valeur) l.push(`EMAIL;TYPE=${TYPE_VCF[e.type] || 'OTHER'}:${echapperVcf(e.valeur)}`);
+    if (p.ville) l.push(`ADR;TYPE=HOME:;;;${echapperVcf(p.ville)};;;`);
+    if (p.siteWeb) l.push(`URL:${echapperVcf(p.siteWeb)}`);
+    l.push('END:VCARD');
+    return l.join('\r\n');
+  });
+  return cartes.length ? `${cartes.join('\r\n')}\r\n` : '';
 }
 
 /** Rappel d'export : affiché si aucun export, ou si le dernier date de plus de 30 jours. */

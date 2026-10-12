@@ -677,7 +677,7 @@ test('C18 réglages : étiquette, offre, source ; changer le début d’activit�
   expect(mois.every((m) => m >= '2026-12')).toBe(true);
 });
 
-test('C19 export : JSON complet de toutes les collections, CSV d’une liste ; le rappel d’export disparaît', async ({ page }) => {
+test('C19 export : JSON complet de toutes les collections, contacts .vcf ; le rappel d’export disparaît', async ({ page }) => {
   await creerOrganisation('o1', { nom: 'Fleurs; "de" Provence' });
   await creerPersonne('p1', { nom: 'Marie Durand', organisationId: 'o1' });
   await creerPersonne('p2', { nom: 'Paul Martin' });
@@ -695,14 +695,13 @@ test('C19 export : JSON complet de toutes les collections, CSV d’une liste ; l
   expect(json.collections.crm_affaires[0].id).toBe('a1');
   await expect(page.locator('.rappel-export')).toHaveCount(0);
   await expect.poll(async () => (await lireDocument('crm_parametres/reglages'))?.dernierExport ?? null).not.toBeNull();
-  // CSV d'une liste
+  // Contacts pour le téléphone (.vcf) : tout au premier export, puis plus rien tant que rien ne change
   await allerA(page, 'Personnes');
-  const [csv] = await Promise.all([page.waitForEvent('download'), page.locator('[data-action="exporter-personnes"]').click()]);
-  expect(csv.suggestedFilename()).toMatch(/^chevalier-ia-personnes-\d{4}-\d{2}-\d{2}\.csv$/);
-  const texte = await readFile(await csv.path(), 'utf8');
-  expect(texte.charCodeAt(0)).toBe(0xfeff);
-  expect(texte.trimEnd().split('\r\n')).toHaveLength(3); // en-tête + 2 personnes
-  expect(texte).toContain('"Fleurs; ""de"" Provence"');
+  const [vcf] = await Promise.all([page.waitForEvent('download'), page.locator('[data-action="exporter-personnes"]').click()]);
+  expect(vcf.suggestedFilename()).toMatch(/^chevalier-ia-contacts-\d{4}-\d{2}-\d{2}\.vcf$/);
+  const texte = await readFile(await vcf.path(), 'utf8');
+  expect((texte.match(/BEGIN:VCARD/g) || [])).toHaveLength(2);
+  expect(texte).toContain('ORG:Fleurs\\; "de" Provence');
 });
 
 test('C19 le rappel d’export réapparaît quand le dernier export date de plus de 30 jours', async ({ page }) => {
