@@ -1820,30 +1820,6 @@ function nombreFr(n) {
 
 const oui = (v) => (v ? 'Oui' : 'Non');
 
-export function csvPersonnes(personnes, { organisations = [], etiquettes = [] } = {}) {
-  const orgs = new Map(organisations.map((o) => [o.id, o.nom]));
-  return versCsv([
-    ['Identifiant', (p) => p.id],
-    ['Nom', (p) => p.nom],
-    ['Prénom', (p) => p.prenom],
-    ['Nom de famille', (p) => p.nomFamille],
-    ['Organisation', (p) => orgs.get(p.organisationId) ?? ''],
-    ['Emails', (p) => (p.emails || []).map((e) => `${e.valeur} (${libelleTypeContact(e.type)})`).join('\n')],
-    ['Téléphones', (p) => (p.telephones || []).map((t) => `${t.valeur} (${libelleTypeContact(t.type)})`).join('\n')],
-    ['Étiquettes', (p) => (p.etiquettes || []).map((id) => libelleEtiquette(etiquettes, id)).join(', ')],
-    ['Rôles', (p) => (p.roles || []).map(libelleRole).join(', ')],
-    ["Interview JTBD faite le", (p) => formatJour(p.dateInterviewJtbd)],
-    ['Ville', (p) => p.ville],
-    ['LinkedIn', (p) => p.linkedin],
-    ['Site web', (p) => p.siteWeb],
-    ['Source', (p) => p.source],
-    ['Opposition à la prospection', (p) => oui(p.oppositionProspection)],
-    ['Archivé', (p) => oui(p.archive)],
-    ['Propriétaire', (p) => p.proprietaire],
-    ['Créé le', (p) => formatDateHeure(p.creeLe)],
-  ], personnes);
-}
-
 export function csvOrganisations(organisations, { etiquettes = [], personnes = [] } = {}) {
   return versCsv([
     ['Identifiant', (o) => o.id],
@@ -1914,7 +1890,6 @@ export function nomFichierExport(maintenant = new Date(), type = 'complet') {
   const jour = aujourdhuiParis(maintenant);
   const bases = {
     complet: ['chevalier-ia-os', 'json'],
-    personnes: ['chevalier-ia-personnes', 'csv'],
     organisations: ['chevalier-ia-organisations', 'csv'],
     affaires: ['chevalier-ia-affaires', 'csv'],
     contacts: ['chevalier-ia-contacts', 'vcf'],
