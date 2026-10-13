@@ -112,7 +112,7 @@ export function rendrePersonnes(conteneur) {
     h('div', {}, h('p', { class: 'etiquette' }, 'Contacts'), h('h1', {}, 'Personnes'), compteur),
     h('div', { class: 'page-actions' },
       h('div', { class: 'export-contacts' },
-        h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'exporter-personnes', onclick: exporterContactsTelephone }, icone('download', { taille: 16 }), 'Exporter'),
+        h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'exporter-personnes', 'aria-label': 'Exporter les contacts', title: 'Exporter les contacts', onclick: exporterContactsTelephone }, icone('download', { taille: 16 })),
         infoContacts),
       h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'nouvelle-personne', onclick: () => ouvrirCreationPersonne() }, icone('plus', { taille: 16 }), 'Personne')));
   conteneur.append(h('div', { class: 'page page-liste' }, entete, filtres.element, zoneTableau));

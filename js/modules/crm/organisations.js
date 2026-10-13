@@ -3,7 +3,7 @@ import { h, icone, remplir, dialogue, toast, ouvrirMenu, lirePreference, ecrireP
 import { naviguer } from '../../os/router.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
-import { avatar, cheminOrganisation, pastillesEtiquettes, selecteurEtiquettes, etatVide, telecharger, planifier } from './composants.js';
+import { avatar, cheminOrganisation, pastillesEtiquettes, selecteurEtiquettes, etatVide, planifier } from './composants.js';
 import { barreFiltres } from './filtres.js';
 
 let criteres = L.criteresComplets('organisations', {});
@@ -92,10 +92,6 @@ export function rendreOrganisations(conteneur) {
   const entete = h('header', { class: 'page-tete' },
     h('div', {}, h('p', { class: 'etiquette' }, 'Contacts'), h('h1', {}, 'Organisations'), compteur),
     h('div', { class: 'page-actions' },
-      h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'exporter-organisations', onclick: () => {
-        const lignes = L.trier(L.filtrerOrganisations(D.etat.organisations, criteres), (o) => L.normaliser(o.nom));
-        telecharger(L.nomFichierExport(new Date(), 'organisations'), L.csvOrganisations(lignes, { etiquettes: D.etat.etiquettes, personnes: D.etat.personnes }), 'text/csv;charset=utf-8');
-      } }, icone('download', { taille: 16 }), 'Exporter'),
       h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'nouvelle-organisation', onclick: () => ouvrirCreationOrganisation() }, icone('plus', { taille: 16 }), 'Organisation')));
   conteneur.append(h('div', { class: 'page page-liste' }, entete, filtres.element, zoneTableau));
 

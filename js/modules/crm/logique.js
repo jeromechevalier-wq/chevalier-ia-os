@@ -1799,69 +1799,7 @@ export function formaterValeurJournal(v, max = 300) {
   return t.length > max ? `${t.slice(0, max)}…` : t;
 }
 
-// ---------------------------------------------------------------- export JSON et CSV
-
-export function echapperCsv(valeur) {
-  const s = String(valeur ?? '');
-  return /[";\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
-
-/** colonnes : [[libelle, (ligne) => valeur]]. UTF 8 avec BOM, séparateur point virgule, fins de ligne CRLF. */
-export function versCsv(colonnes, lignes) {
-  const sortie = [colonnes.map(([libelle]) => echapperCsv(libelle)).join(';')];
-  for (const l of lignes) sortie.push(colonnes.map(([, f]) => echapperCsv(f(l))).join(';'));
-  return `\ufeff${sortie.join('\r\n')}\r\n`;
-}
-
-function nombreFr(n) {
-  if (n === null || n === undefined || n === '') return '';
-  return String(n).replace('.', ',');
-}
-
-const oui = (v) => (v ? 'Oui' : 'Non');
-
-export function csvOrganisations(organisations, { etiquettes = [], personnes = [] } = {}) {
-  return versCsv([
-    ['Identifiant', (o) => o.id],
-    ['Nom', (o) => o.nom],
-    ['Adresse', (o) => o.adresse],
-    ['Ville', (o) => o.ville],
-    ['Site web', (o) => o.siteWeb],
-    ['Secteur', (o) => o.secteur],
-    ['Taille', (o) => o.taille],
-    ['Étiquettes', (o) => (o.etiquettes || []).map((id) => libelleEtiquette(etiquettes, id)).join(', ')],
-    ['Personnes', (o) => personnesDeLOrganisation(personnes, o.id).length],
-    ['Archivé', (o) => oui(o.archive)],
-    ['Propriétaire', (o) => o.proprietaire],
-    ['Créé le', (o) => formatDateHeure(o.creeLe)],
-  ], organisations);
-}
-
-export function csvAffaires(affaires, { personnes = [], organisations = [], offres = [] } = {}) {
-  const pers = new Map(personnes.map((p) => [p.id, p.nom]));
-  const orgs = new Map(organisations.map((o) => [o.id, o.nom]));
-  return versCsv([
-    ['Identifiant', (a) => a.id],
-    ['Titre', (a) => a.titre],
-    ['Personne', (a) => pers.get(a.personneId) ?? ''],
-    ['Organisation', (a) => orgs.get(a.organisationId) ?? ''],
-    ['Étape', (a) => libelleEtape(a.etape)],
-    ['Statut', (a) => libelleStatut(a.statut)],
-    ['Priorité', (a) => libellePriorite(a.priorite)],
-    ['Montant (€)', (a) => nombreFr(a.montant)],
-    ['Offre', (a) => libelleOffre(offres, a.offreId)],
-    ['Durée (jours)', (a) => nombreFr(a.dureeJours)],
-    ['Source', (a) => a.source],
-    ['Besoin identifié', (a) => a.besoin],
-    ['Raison si perdue', (a) => a.raisonPerdue],
-    ['Date de réveil', (a) => formatJour(a.dateReveil)],
-    ['Encaissements', (a) => (a.encaissements || []).map((e) => `${formatDateHeure(e.date)} : ${nombreFr(e.montant)} €`).join('\n')],
-    ['Documents', (a) => (a.documents || []).map((d) => `${d.libelle} : ${d.url}`).join('\n')],
-    ['Archivé', (a) => oui(a.archive)],
-    ['Propriétaire', (a) => a.proprietaire],
-    ['Créé le', (a) => formatDateHeure(a.creeLe)],
-  ], affaires);
-}
+// ---------------------------------------------------------------- export JSON et contacts
 
 function versSerialisable(v) {
   if (v === null || v === undefined) return null;
@@ -1890,8 +1828,6 @@ export function nomFichierExport(maintenant = new Date(), type = 'complet') {
   const jour = aujourdhuiParis(maintenant);
   const bases = {
     complet: ['chevalier-ia-os', 'json'],
-    organisations: ['chevalier-ia-organisations', 'csv'],
-    affaires: ['chevalier-ia-affaires', 'csv'],
     contacts: ['chevalier-ia-contacts', 'vcf'],
   };
   const [base, ext] = bases[type] || bases.complet;

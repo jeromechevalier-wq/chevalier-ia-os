@@ -6,7 +6,7 @@ import * as D from './donnees.js';
 import * as L from './logique.js';
 import {
   lienPersonne, lienOrganisation, cheminAffaire, pastilleActivite, pastilleStatut, pastilleEtape, selecteurPersonne, selecteurOrganisation,
-  organisationChoisieOuSaisie, etatVide, telecharger, planifier,
+  organisationChoisieOuSaisie, etatVide, planifier,
 } from './composants.js';
 import { barreFiltres } from './filtres.js';
 import { dialogueActivite } from './activites.js';
@@ -344,10 +344,6 @@ export function rendreAffaires(conteneur) {
     h('div', {}, h('p', { class: 'etiquette' }, 'Commercial'), h('h1', {}, 'Affaires'), compteur),
     h('div', { class: 'page-actions' },
       zoneBascule,
-      h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'exporter-affaires', onclick: () => {
-        const lignes = L.trier(L.filtrerAffaires(D.etat.affaires, { ...criteres, archives: vue === 'archives' }, contexteFiltres()), (a) => L.normaliser(a.titre));
-        telecharger(L.nomFichierExport(new Date(), 'affaires'), L.csvAffaires(lignes, { personnes: D.etat.personnes, organisations: D.etat.organisations, offres: D.etat.offres }), 'text/csv;charset=utf-8');
-      } }, icone('download', { taille: 16 }), 'Exporter'),
       h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'nouvelle-affaire', onclick: () => ouvrirCreationAffaire() }, icone('plus', { taille: 16 }), 'Affaire')));
   conteneur.append(h('div', { class: 'page page-affaires' }, entete, h('div', { class: 'barre-affaires' }, filtres.element, selectTri), zone));
 

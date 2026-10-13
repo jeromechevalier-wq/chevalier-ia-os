@@ -714,7 +714,7 @@ describe('B14 Intégrité des liens', () => {
   });
 });
 
-describe('B15 Export JSON et CSV', () => {
+describe('B15 Export JSON', () => {
   const orgs = [organisation({ id: 'o1', nom: 'Fleurs; "de" Provence' })];
   const pers = [personne({ id: 'p1', nom: 'Marie Durand', organisationId: 'o1', emails: [{ valeur: 'marie@x.fr', type: 'perso' }], etiquettes: ['partenaire'], roles: ['prospect', 'partenaire'] })];
   const affs = [affaire({ id: 'a1', titre: 'Atelier\nIA', personneId: 'p1', organisationId: 'o1', montant: 1200.5, offreId: 'audit' })];
@@ -732,25 +732,9 @@ describe('B15 Export JSON et CSV', () => {
     assert.equal(j.collections.crm_personnes[0].creeLe, '2026-10-01T08:00:00.000Z');
     assert.equal(j.collections.crm_evenements[0].date, '2025-10-09T08:53:20.000Z');
   });
-  test('B15 CSV : BOM, point virgule, CRLF, guillemets et retours à la ligne échappés', () => {
-    const csv = L.csvAffaires(affs, { personnes: pers, organisations: orgs, offres: L.OFFRES_DEPART });
-    assert.equal(csv.charCodeAt(0), 0xfeff);
-    assert.ok(csv.includes('\r\n'));
-    const [entete, ...lignes] = csv.slice(1).split('\r\n');
-    assert.equal(entete.split(';')[0], 'Identifiant');
-    assert.match(csv, /"Atelier\nIA"/);
-    assert.match(csv, /"Fleurs; ""de"" Provence"/);
-    assert.match(csv, /1200,5/);
-    assert.ok(lignes.length >= 1);
-  });
-  test('B15 CSV : le nom de l’organisation, pas son identifiant', () => {
-    const orgCsv = L.csvOrganisations(orgs, { personnes: pers });
-    assert.ok(orgCsv.includes(';1;')); // une personne
-    assert.ok(L.csvAffaires(affs, { personnes: pers, organisations: orgs, offres: L.OFFRES_DEPART }).includes('Audit'));
-  });
   test('B15 noms de fichiers datés (jour de Paris)', () => {
     assert.equal(L.nomFichierExport(new Date('2026-10-20T10:00:00Z')), 'chevalier-ia-os-2026-10-20.json');
-    assert.equal(L.nomFichierExport(new Date('2026-10-20T22:30:00Z'), 'affaires'), 'chevalier-ia-affaires-2026-10-21.csv');
+    assert.equal(L.nomFichierExport(new Date('2026-10-20T22:30:00Z'), 'contacts'), 'chevalier-ia-contacts-2026-10-21.vcf');
   });
   test('B15 rappel d’export : affiché sans export ou après plus de 30 jours', () => {
     const maintenant = new Date('2026-11-20T10:00:00Z');
