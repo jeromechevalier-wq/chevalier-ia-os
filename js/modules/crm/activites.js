@@ -85,6 +85,81 @@ export async function faireActivite(activite, { proposer = true } = {}) {
   }
 }
 
+/**
+ * Clic sur « En retard » ou sur la date : fenêtre pour déplacer l'activité.
+ * L'heure se règle d'abord ; un clic sur un raccourci (Demain, +3 jours…) ou un changement de date enregistre et ferme.
+ * « Enregistrer » sert quand on ne change que l'heure.
+ */
+async function dialogueDecalage(a) {
+  const date = selecteurDate(a.date);
+  const heure = h('input', { class: 'champ champ-court', type: 'time', 'aria-label': 'Heure (facultatif)', value: a.heure || '' });
+  let fermerFenetre = () => {};
+  let enCours = false;
+  async function enregistrer() {
+    if (enCours) return false;
+    if (!date.valeur()) { toast('Choisis une date.', { type: 'erreur' }); return false; }
+    enCours = true;
+    try {
+      await D.majActivite(a.id, { date: date.valeur(), heure: heure.value });
+      return true;
+    } catch (e) {
+      console.warn(e);
+      toast('Modification impossible', { type: 'erreur' });
+      enCours = false;
+      return false;
+    }
+  }
+  // Raccourcis : changement simulé → on enregistre tout de suite. Date saisie ou choisie dans le calendrier : petite attente,
+  // pour ne pas fermer pendant qu'on tape le jour puis le mois au clavier.
+  let attente = null;
+  date.champ.addEventListener('change', (e) => {
+    clearTimeout(attente);
+    const lancer = async () => { if (await enregistrer()) fermerFenetre(null); };
+    if (e.isTrusted) attente = setTimeout(lancer, 700); else lancer();
+  });
+  await dialogue({
+    titre: 'Changer la date',
+    classe: 'dialogue-formulaire',
+    auMontage: ({ fermer }) => { fermerFenetre = fermer; },
+    contenu: h('div', { class: 'pile' },
+      h('label', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Heure'), heure),
+      h('div', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Date'), date.element)),
+    boutons: [
+      { libelle: 'Annuler', valeur: null },
+      { libelle: 'Enregistrer', valeur: true, style: 'principal', avantFermeture: enregistrer },
+    ],
+  });
+  clearTimeout(attente);
+}
+
+/** Titre cliquable : un clic le transforme en champ ; Entrée ou clic ailleurs enregistre, Échap annule. */
+function titreModifiable(a) {
+  const el = h('strong', { class: 'activite-titre-modifiable', tabindex: '0', role: 'button', title: 'Cliquer pour modifier le texte' }, a.titre);
+  function editer() {
+    const champ = h('input', { class: 'champ', type: 'text', 'aria-label': 'Modifier le texte de l’activité', value: a.titre });
+    let fini = false;
+    const terminer = async (enregistrer) => {
+      if (fini) return;
+      fini = true;
+      const texte = L.nettoyerEspaces(champ.value);
+      if (enregistrer && texte && texte !== a.titre) {
+        try { await D.majActivite(a.id, { titre: texte }); return; } catch (e) { console.warn(e); toast('Modification impossible', { type: 'erreur' }); }
+      }
+      champ.replaceWith(el);
+    };
+    champ.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); terminer(true); } else if (e.key === 'Escape') terminer(false);
+    });
+    champ.addEventListener('blur', () => terminer(true));
+    el.replaceWith(champ);
+    champ.focus();
+    champ.select();
+  }
+  el.addEventListener('click', editer);
+  el.addEventListener('keydown', (e) => { if (e.key === 'Enter') editer(); });
+  return el;
+}
+
 const LIENS_RATTACHEMENT = { affaire: lienAffaire, personne: lienPersonne, organisation: lienOrganisation };
 
 /** Ligne d'activité à faire (Points clés). `tousRattachements` (accueil) : affaire, sinon personne, sinon organisation. */
@@ -104,10 +179,11 @@ export function ligneActivite(a, aujourdhui, { avecAffaire = true, tousRattachem
     bouton,
     h('span', { class: 'activite-type' }, iconeTypeActivite(a.type)),
     h('div', { class: 'activite-texte' },
-      h('strong', {}, a.titre),
+      titreModifiable(a),
       h('span', { class: 'activite-meta' },
-        etat !== 'avenir' ? h('span', { class: `badge-etat ${etat}` }, LIBELLES_ETAT[etat]) : null,
-        h('span', {}, L.formatJourCourt(a.date, aujourdhui), a.heure ? ` à ${a.heure.replace(':', ' h ')}` : ''),
+        etat !== 'avenir' ? h('button', { type: 'button', class: `badge-etat ${etat}`, title: 'Changer la date', onclick: () => dialogueDecalage(a) }, LIBELLES_ETAT[etat]) : null,
+        h('span', { class: 'activite-date-modifiable', role: 'button', tabindex: '0', title: 'Changer la date', onclick: () => dialogueDecalage(a),
+          onkeydown: (e) => { if (e.key === 'Enter') dialogueDecalage(a); } }, L.formatJourCourt(a.date, aujourdhui), a.heure ? ` à ${a.heure.replace(':', ' h ')}` : ''),
         rattachement ? LIENS_RATTACHEMENT[rattachement.type](rattachement.fiche) : null,
         affaire ? lienAffaire(affaire) : null)),
     menu);
