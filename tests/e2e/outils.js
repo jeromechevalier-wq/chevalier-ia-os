@@ -83,7 +83,7 @@ export async function creerPersonne(id, valeurs = {}) {
   const espace = nom.indexOf(' ');
   const doc = {
     nom, prenom: espace === -1 ? '' : nom.slice(0, espace), nomFamille: espace === -1 ? nom : nom.slice(espace + 1), organisationId: null, telephones: [], emails,
-    emailsNormalises: emails.map((e) => e.valeur.toLowerCase()), etiquettes: [], roles: ['prospect'], dateInterviewJtbd: null,
+    emailsNormalises: emails.map((e) => e.valeur.toLowerCase()), etiquettes: [],
     ville: '', linkedin: '', siteWeb: '', source: '', oppositionProspection: false, dateOpposition: null, archive: false,
     proprietaire: JEROME, creeLe: maintenant, modifieLe: maintenant, creePar: JEROME, modifiePar: JEROME, ...valeurs,
   };
@@ -163,7 +163,7 @@ export async function connecter(page, email = JEROME, { attendreAccueil = true, 
   await page.evaluate(([e, v]) => window.__chevalierTest.connecter(e, v), [email, emailVerifie]);
   if (attendreAccueil) {
     await expect(page.locator('.coquille')).toBeVisible();
-    if (route === 'crm/accueil') await expect(page.locator('.grille-objectifs .objectif')).toHaveCount(6);
+    if (route === 'crm/accueil') await expect(page.locator('.grille-objectifs .objectif')).toHaveCount(5);
   }
 }
 

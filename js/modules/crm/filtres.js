@@ -18,10 +18,8 @@ function controles(liste) {
     return [
       cases('etiquettes', 'Étiquettes', etiquettes),
       { cle: 'organisations', libelle: 'Organisations', type: 'organisations' },
-      cases('roles', 'Rôles', L.ROLES.map((r) => ({ valeur: r.id, libelle: r.libelle }))),
       cases('sources', 'Source', sources.map((s) => ({ valeur: s, libelle: s }))),
       cases('villes', 'Ville', unique(D.etat.personnes.map((p) => p.ville)).map((v) => ({ valeur: v, libelle: v }))),
-      { cle: 'jtbd', libelle: 'Interview JTBD', type: 'choix', options: [{ valeur: '', libelle: 'Peu importe' }, { valeur: 'faite', libelle: 'Faite' }, { valeur: 'non_faite', libelle: 'À faire' }] },
       oui('archives', 'Archivées seulement'),
     ];
   }

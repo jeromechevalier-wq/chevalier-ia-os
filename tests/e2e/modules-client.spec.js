@@ -23,8 +23,8 @@ function personne(nom) {
   const maintenant = new Date();
   const [prenom, ...reste] = nom.split(' ');
   return {
-    nom, prenom, nomFamille: reste.join(' '), organisationId: null, telephones: [], emails: [], emailsNormalises: [], etiquettes: [], roles: ['prospect'],
-    dateInterviewJtbd: null, ville: '', linkedin: '', siteWeb: '', source: '', oppositionProspection: false, dateOpposition: null, archive: false,
+    nom, prenom, nomFamille: reste.join(' '), organisationId: null, telephones: [], emails: [], emailsNormalises: [], etiquettes: [],
+    ville: '', linkedin: '', siteWeb: '', source: '', oppositionProspection: false, dateOpposition: null, archive: false,
     proprietaire: ALICE, creeLe: maintenant, modifieLe: maintenant, creePar: ALICE, modifiePar: ALICE,
   };
 }

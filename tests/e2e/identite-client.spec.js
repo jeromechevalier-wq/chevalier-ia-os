@@ -38,8 +38,8 @@ test.beforeEach(async () => {
   await ecrireDocument(`clients/studio/membres/${ALICE}`, { role: 'editeur' });
   await ecrireDocument(`clients/cabinet/membres/${ALICE}`, { role: 'editeur' });
   await ecrireDocument('clients/studio/crm_personnes/p1', {
-    nom: 'Camille Dubois', prenom: 'Camille', nomFamille: 'Dubois', organisationId: null, telephones: [], emails: [], emailsNormalises: [], etiquettes: [], roles: ['prospect'],
-    dateInterviewJtbd: null, ville: '', linkedin: '', siteWeb: '', source: '', oppositionProspection: false, dateOpposition: null, archive: false, ...base,
+    nom: 'Camille Dubois', prenom: 'Camille', nomFamille: 'Dubois', organisationId: null, telephones: [], emails: [], emailsNormalises: [], etiquettes: [],
+    ville: '', linkedin: '', siteWeb: '', source: '', oppositionProspection: false, dateOpposition: null, archive: false, ...base,
   });
   await ecrireDocument('clients/studio/crm_affaires/a1', {
     titre: 'Audit du lac', personneId: 'p1', organisationId: null, etape: 'proposition_envoyee', statut: 'ouverte', priorite: 'tiede', montant: 1200, offreId: null,

@@ -44,7 +44,7 @@ describe('B1 Nom : prénom et nom de famille', () => {
     assert.deepEqual(L.validerPersonne({ nom: '' }), { nom: 'Le nom est obligatoire.' });
     assert.deepEqual(L.validerPersonne({ nom: 'Léa' }), {});
     const p = L.nouvellePersonne({ nom: 'Léa' }, ctx());
-    assert.deepEqual(p.roles, ['prospect']);
+    assert.equal(p.roles, undefined);
     assert.equal(p.organisationId, null);
     assert.equal(p.proprietaire, JEROME);
     assert.equal(p.archive, false);
@@ -484,10 +484,6 @@ describe('B10 Activités, notes, historique', () => {
 
 describe('B11 Objectifs', () => {
   const mois = '2026-10';
-  test('B11 interviews JTBD : date de la personne dans le mois', () => {
-    const personnes = [personne({ id: '1', dateInterviewJtbd: '2026-10-05' }), personne({ id: '2', dateInterviewJtbd: '2026-09-30' }), personne({ id: '3', dateInterviewJtbd: null })];
-    assert.equal(L.CALCULS.interviews_jtbd.calculer({ personnes }, mois), 1);
-  });
   test('B11 nouveaux contacts : personnes créées dans le mois (fuseau Paris)', () => {
     const personnes = [
       personne({ id: '1', creeLe: new Date('2026-10-01T08:00:00Z') }),
@@ -522,9 +518,9 @@ describe('B11 Objectifs', () => {
     assert.equal(L.CALCULS.ca_encaisse.calculer({ affaires }, mois), 750.5);
     assert.equal(L.CALCULS.ca_encaisse.calculer({ affaires }, '2026-09'), 300);
   });
-  test('B11 les six objectifs de départ et leurs cibles', () => {
+  test('B11 les cinq objectifs de départ et leurs cibles', () => {
     assert.deepEqual(L.OBJECTIFS_DEPART.map((o) => [o.id, o.cible]), [
-      ['interviews_jtbd', 10], ['nouveaux_contacts', 10], ['rdv_tenus', 4], ['propositions_envoyees', 3], ['ca_encaisse', 1000], ['flyers', 100],
+      ['nouveaux_contacts', 10], ['rdv_tenus', 4], ['propositions_envoyees', 3], ['ca_encaisse', 1000], ['flyers', 100],
     ]);
     const flyers = L.OBJECTIFS_DEPART.find((o) => o.id === 'flyers');
     assert.equal(L.valeurObjectif(flyers, { saisies: [{ objectifId: 'flyers', mois, valeur: 40 }], mois }), 40);
@@ -584,9 +580,9 @@ describe('B12 Graphique du chiffre d’affaires depuis le début d’activité',
 describe('B13 Filtres', () => {
   const orgs = [organisation({ id: 'o1', nom: 'Fleurs de Provence', secteur: 'Commerce local', ville: 'Manosque', etiquettes: ['commercant_local'] }), organisation({ id: 'o2', nom: 'Atelier Bois', ville: 'Digne', archive: true })];
   const pers = [
-    personne({ id: '1', nom: 'Marie Durand', organisationId: 'o1', roles: ['prospect'], etiquettes: ['prospect_chaud'], ville: 'Manosque', source: 'Flyer', emails: [{ valeur: 'marie@fleurs.fr', type: 'travail' }] }),
-    personne({ id: '2', nom: 'Éric Léon', roles: ['interview_jtbd'], dateInterviewJtbd: '2026-10-02', ville: 'Digne' }),
-    personne({ id: '3', nom: 'Paul Martin', roles: ['interview_jtbd', 'partenaire'], dateInterviewJtbd: null }),
+    personne({ id: '1', nom: 'Marie Durand', organisationId: 'o1', etiquettes: ['prospect_chaud'], ville: 'Manosque', source: 'Flyer', emails: [{ valeur: 'marie@fleurs.fr', type: 'travail' }] }),
+    personne({ id: '2', nom: 'Éric Léon', ville: 'Digne' }),
+    personne({ id: '3', nom: 'Paul Martin', etiquettes: ['partenaire'] }),
     personne({ id: '4', nom: 'Vieux Contact', archive: true }),
   ];
   const ids = (l) => l.map((x) => x.id);
@@ -598,11 +594,9 @@ describe('B13 Filtres', () => {
     const f = (c) => ids(L.filtrerPersonnes(pers, c, { organisations: orgs }));
     assert.deepEqual(f({ etiquettes: ['prospect_chaud'] }), ['1']);
     assert.deepEqual(f({ organisations: ['o1'] }), ['1']);
-    assert.deepEqual(f({ roles: ['interview_jtbd'] }), ['2', '3']);
+    assert.deepEqual(f({ etiquettes: ['partenaire'] }), ['3']);
     assert.deepEqual(f({ sources: ['Flyer'] }), ['1']);
     assert.deepEqual(f({ villes: ['Digne'] }), ['2']);
-    assert.deepEqual(f({ jtbd: 'faite' }), ['2']);
-    assert.deepEqual(f({ jtbd: 'non_faite' }), ['1', '3']);
   });
   test('B13 personnes : recherche insensible aux accents, dans nom, organisation, email', () => {
     const f = (r) => ids(L.filtrerPersonnes(pers, { recherche: r }, { organisations: orgs }));
@@ -612,7 +606,7 @@ describe('B13 Filtres', () => {
     assert.deepEqual(f('marie zzz'), []);
   });
   test('B13 personnes : filtres combinés', () => {
-    assert.deepEqual(ids(L.filtrerPersonnes(pers, { roles: ['interview_jtbd'], jtbd: 'non_faite' }, { organisations: orgs })), ['3']);
+    assert.deepEqual(ids(L.filtrerPersonnes(pers, { etiquettes: ['partenaire'], recherche: 'paul' }, { organisations: orgs })), ['3']);
   });
   test('B13 organisations : filtres seuls et combinés', () => {
     assert.deepEqual(ids(L.filtrerOrganisations(orgs, {})), ['o1']);
@@ -658,12 +652,10 @@ describe('B13 Filtres', () => {
   });
   test('B13 filtres enregistrés de départ', () => {
     assert.deepEqual(L.FILTRES_DEPART.map((f) => [f.id, f.liste]), [
-      ['relancer_semaine', 'affaires'], ['chaudes', 'affaires'], ['reseau_entrepreneuses', 'affaires'], ['jtbd_a_faire', 'personnes'],
+      ['relancer_semaine', 'affaires'], ['chaudes', 'affaires'], ['reseau_entrepreneuses', 'affaires'],
     ]);
     const chaudes = L.FILTRES_DEPART.find((f) => f.id === 'chaudes').criteres;
     assert.deepEqual(fa(chaudes), ['a']);
-    const jtbd = L.FILTRES_DEPART.find((f) => f.id === 'jtbd_a_faire').criteres;
-    assert.deepEqual(ids(L.filtrerPersonnes(pers, jtbd, { organisations: orgs })), ['3']);
     const reseau = L.FILTRES_DEPART.find((f) => f.id === 'reseau_entrepreneuses').criteres;
     assert.deepEqual(fa(reseau), []);
   });
@@ -716,7 +708,7 @@ describe('B14 Intégrité des liens', () => {
 
 describe('B15 Export JSON', () => {
   const orgs = [organisation({ id: 'o1', nom: 'Fleurs; "de" Provence' })];
-  const pers = [personne({ id: 'p1', nom: 'Marie Durand', organisationId: 'o1', emails: [{ valeur: 'marie@x.fr', type: 'perso' }], etiquettes: ['partenaire'], roles: ['prospect', 'partenaire'] })];
+  const pers = [personne({ id: 'p1', nom: 'Marie Durand', organisationId: 'o1', emails: [{ valeur: 'marie@x.fr', type: 'perso' }], etiquettes: ['partenaire'] })];
   const affs = [affaire({ id: 'a1', titre: 'Atelier\nIA', personneId: 'p1', organisationId: 'o1', montant: 1200.5, offreId: 'audit' })];
   test('B15 JSON complet : toutes les collections, identifiants présents, dates en ISO', () => {
     const texte = L.exportJson({

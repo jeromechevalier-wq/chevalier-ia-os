@@ -38,12 +38,12 @@ test('C1 connexion avec Jérôme : arrivée sur l’Accueil, 6 objectifs, graphi
   await connecter(page, JEROME);
   await expect(page).toHaveURL(/#\/crm\/accueil$/);
   await expect(page.getByRole('heading', { name: 'Bonjour Jérôme' })).toBeVisible();
-  await expect(page.locator('.grille-objectifs .objectif')).toHaveCount(6);
-  for (const libelle of ['Interviews JTBD réalisées', 'Nouveaux contacts', 'Rendez vous tenus', 'Propositions envoyées', "Chiffre d'affaires encaissé", 'Flyers distribués']) {
+  await expect(page.locator('.grille-objectifs .objectif')).toHaveCount(5);
+  for (const libelle of ['Nouveaux contacts', 'Rendez vous tenus', 'Propositions envoyées', "Chiffre d'affaires encaissé", 'Flyers distribués']) {
     await expect(page.locator('.objectif-libelle', { hasText: libelle })).toBeVisible();
   }
   await expect.poll(async () => (await listerDocuments('crm_parametres')).map((d) => d.id).sort()).toEqual(['etiquettes', 'filtres', 'listes', 'modeles_projet', 'offres', 'reglages']);
-  await expect.poll(async () => (await listerDocuments('os_objectifs')).length).toBe(6);
+  await expect.poll(async () => (await listerDocuments('os_objectifs')).length).toBe(5);
   // Graphique : aucun mois avant le début d'activité (octobre 2026), jamais plus de 6 mois
   const mois = await page.locator('.colonne-ca').evaluateAll((els) => els.map((e) => e.dataset.mois));
   expect(mois.length).toBeGreaterThanOrEqual(1);
@@ -88,7 +88,7 @@ test('C3 créer une personne en ne tapant que le nom : curseur dans « Nom », E
   await expect(page.locator('.toast', { hasText: 'Personne ajoutée' })).toBeVisible();
   await expect(page.locator('.tableau-personnes')).toContainText('Marie Durand');
   const p = await attendre(page, 'crm_personnes', (d) => d.nom === 'Marie Durand');
-  expect(p).toMatchObject({ prenom: 'Marie', nomFamille: 'Durand', roles: ['prospect'], proprietaire: JEROME, archive: false, organisationId: null });
+  expect(p).toMatchObject({ prenom: 'Marie', nomFamille: 'Durand', proprietaire: JEROME, archive: false, organisationId: null });
 });
 
 test('C3 le nom vide est refusé avec un message, rien n’est créé', async ({ page }) => {
@@ -516,13 +516,12 @@ test('C15 objectif flyers : « +10 » met à jour la barre et persiste après re
   expect(saisies[0].id).toMatch(/^flyers_\d{4}-\d{2}$/);
 });
 
-test('C15 les objectifs calculés suivent les nouveaux contacts, interviews et propositions', async ({ page }) => {
-  await creerPersonne('p1', { nom: 'Marie Durand', dateInterviewJtbd: jour(0) });
+test('C15 les objectifs calculés suivent les nouveaux contacts et les propositions', async ({ page }) => {
+  await creerPersonne('p1', { nom: 'Marie Durand' });
   await creerPersonne('p2', { nom: 'Paul Martin' });
   await creerAffaire('a1', { titre: 'Proposée', etape: 'proposition_envoyee', datesEtapes: { proposition_envoyee: new Date() } });
   await connecter(page);
   await expect.poll(() => valeurObjectif(page, 'nouveaux_contacts')).toBe(2);
-  await expect.poll(() => valeurObjectif(page, 'interviews_jtbd')).toBe(1);
   await expect.poll(() => valeurObjectif(page, 'propositions_envoyees')).toBe(1);
 });
 
@@ -586,15 +585,15 @@ test('C16 le bouton « + » propose Personne, Organisation, Affaire et Projet', 
 });
 
 test('C17 filtres : combiner deux filtres, enregistrer, appliquer, renommer et supprimer un filtre enregistré', async ({ page }) => {
-  await creerPersonne('p1', { nom: 'Marie Durand', ville: 'Manosque', roles: ['prospect'] });
-  await creerPersonne('p2', { nom: 'Paul Martin', ville: 'Digne', roles: ['prospect'] });
-  await creerPersonne('p3', { nom: 'Éric Léon', ville: 'Manosque', roles: ['interview_jtbd'] });
+  await creerPersonne('p1', { nom: 'Marie Durand', ville: 'Manosque', source: 'Flyer' });
+  await creerPersonne('p2', { nom: 'Paul Martin', ville: 'Digne', source: 'Flyer' });
+  await creerPersonne('p3', { nom: 'Éric Léon', ville: 'Manosque', source: 'LinkedIn' });
   await connecter(page);
   await allerA(page, 'Personnes');
   await expect(page.locator('.tableau-personnes tbody tr')).toHaveCount(3);
   await page.locator('[data-action="filtres"]').click();
   await dialogue(page).locator('input[data-cle="villes"][data-valeur="Manosque"]').check();
-  await dialogue(page).locator('input[data-role="prospect"], input[data-cle="roles"][data-valeur="prospect"]').check();
+  await dialogue(page).locator('input[data-cle="sources"][data-valeur="Flyer"]').check();
   await dialogue(page).getByRole('button', { name: 'Appliquer' }).click();
   await expect(page.locator('.tableau-personnes tbody tr')).toHaveCount(1);
   await expect(page.locator('.tableau-personnes')).toContainText('Marie Durand');
@@ -611,11 +610,6 @@ test('C17 filtres : combiner deux filtres, enregistrer, appliquer, renommer et s
   await page.locator('[data-action="filtres-enregistres"]').click();
   await page.locator('.menu-pop').getByRole('menuitem', { name: 'Prospects de Manosque' }).click();
   await expect(page.locator('.tableau-personnes tbody tr')).toHaveCount(1);
-  // Filtre de départ : Interviews JTBD à faire
-  await page.locator('[data-action="filtres-enregistres"]').click();
-  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Interviews JTBD à faire' }).click();
-  await expect(page.locator('.tableau-personnes tbody tr')).toHaveCount(1);
-  await expect(page.locator('.tableau-personnes')).toContainText('Éric Léon');
   // Réglages : renommer puis supprimer
   await allerA(page, 'Réglages');
   const ligne = page.locator('.ligne-reglage', { hasText: 'Prospects de Manosque' });
@@ -834,9 +828,6 @@ test('C21 fiche personne : « + Ajouter » à la demande, enregistrement en quit
   await details.getByLabel('Prénom', { exact: true }).press('Enter');
   await champDoc('crm_personnes', 'p1', 'nom', 'Marie-Claire Durand');
   await expect(page.locator('.fiche-tete .titre-editable')).toHaveValue('Marie-Claire Durand');
-  // Rôles
-  await details.locator('input[data-role="interview_jtbd"]').check();
-  await champDoc('crm_personnes', 'p1', 'roles', ['prospect', 'interview_jtbd']);
   // Titre modifiable en place
   const titre = page.locator('.fiche-tete .titre-editable');
   await titre.fill('Marie Dupont');
@@ -1031,7 +1022,7 @@ test('C23 thème : bascule sombre / clair conservée après rechargement', async
   expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).not.toBe(fondSombre);
   await page.reload();
   await expect(html).toHaveAttribute('data-theme', 'clair');
-  await expect(page.locator('.grille-objectifs .objectif')).toHaveCount(6);
+  await expect(page.locator('.grille-objectifs .objectif')).toHaveCount(5);
 });
 
 test('C23 nouvelle version : bandeau au retour sur l’onglet ; hors réseau, bandeau « Hors ligne »', async ({ page, context, erreursConsole }) => {
@@ -1093,7 +1084,7 @@ test('C23 navigation : lien direct vers une fiche, route inconnue, déconnexion'
   await expect(page.locator('.etat-vide')).toContainText('n’existe plus');
   // Premier lancement : on laisse l'initialisation des réglages et des objectifs se terminer avant de se déconnecter
   await expect.poll(async () => (await listerDocuments('crm_parametres')).length).toBe(6); // + le repère des modèles de projet
-  await expect.poll(async () => (await listerDocuments('os_objectifs')).length).toBe(6);
+  await expect.poll(async () => (await listerDocuments('os_objectifs')).length).toBe(5);
   if (estTelephone(page)) await page.getByRole('button', { name: 'Ouvrir le menu' }).click();
   await page.getByRole('button', { name: 'Se déconnecter' }).click();
   await expect(page.getByRole('button', { name: 'Se connecter avec Google' })).toBeVisible();
@@ -1259,7 +1250,7 @@ test('C27 audit de l’écran : créer puis supprimer une personne laisse des li
   expect(supprP.docId).toBe(p.id);
   const copieSuppr = await lireDocument(`crm_audit_avant/${supprP.id}`);
   expect(copieSuppr.apres).toBeNull();
-  expect(copieSuppr.avant).toMatchObject({ nom: 'Zoé Audit', roles: ['prospect'] });
+  expect(copieSuppr.avant).toMatchObject({ nom: 'Zoé Audit' });
 });
 
 test('C27 audit de l’écran : une modification de fiche, un changement d’étape et une note laissent chacun leur trace avec la copie avant', async ({ page }) => {
@@ -1353,4 +1344,58 @@ test('C28 Journal : ce que je fais dans l’appli y apparaît avec la copie avan
   await page.getByLabel('Rechercher dans le journal').fill('');
   await expect(page.locator('.page-journal').getByRole('button', { name: /Supprimer|Restaurer|Modifier/ })).toHaveCount(0);
   expect((await listerDocuments('crm_audit')).length).toBe(nbLignes);
+});
+
+test('C29 les anciens rôles et dates JTBD sont convertis à l’ouverture en étiquettes ; la vue et l’objectif suivent', async ({ page }) => {
+  await ecrireDocument('crm_parametres/etiquettes', { items: [{ id: 'partenaire', nom: 'Partenaire', couleur: '#3fbf7f', ordre: 1 }] });
+  await ecrireDocument('crm_parametres/filtres', { version: 2, items: [{ id: 'jtbd_a_faire', nom: 'Interviews JTBD à faire', liste: 'personnes', criteres: { roles: ['interview_jtbd'], jtbd: 'non_faite' }, ordre: 1 }] });
+  await ecrireDocument('os_objectifs/interviews_jtbd', { id: 'interviews_jtbd', libelle: 'Interviews JTBD réalisées', type: 'calcule', calcul: 'interviews_jtbd', cible: 10, unite: '', couleur: '#e3cdee', ordre: 1, actif: true });
+  await creerPersonne('p1', { nom: 'Marie Durand', roles: ['partenaire'] });
+  await creerPersonne('p2', { nom: 'Paul Martin', roles: ['interview_jtbd'] });
+  await creerPersonne('p3', { nom: 'Éric Léon', roles: ['interview_jtbd'], dateInterviewJtbd: '2026-10-02' });
+  await creerPersonne('p4', { nom: 'Zoé Simple' });
+  await connecter(page, JEROME, { attendreAccueil: false });
+  await expect(page.locator('.coquille')).toBeVisible();
+  await champDoc('crm_personnes', 'p1', 'etiquettes', ['partenaire']);
+  await champDoc('crm_personnes', 'p2', 'etiquettes', ['a_interviewer_jtbd']);
+  await champDoc('crm_personnes', 'p3', 'etiquettes', ['interviewe_jtbd']);
+  await champDoc('crm_personnes', 'p4', 'etiquettes', []);
+  await champDoc('crm_personnes', 'p2', 'roles', []);
+  await champDoc('crm_personnes', 'p3', 'dateInterviewJtbd', null);
+  await expect.poll(async () => ((await lireDocument('crm_parametres/etiquettes'))?.items ?? []).map((e) => e.nom).sort()).toEqual(['Interviewé JTBD', 'Partenaire', 'À interviewer JTBD']);
+  await expect.poll(async () => ((await lireDocument('crm_parametres/filtres'))?.items ?? [])[0]?.criteres).toEqual({ etiquettes: ['a_interviewer_jtbd'] });
+  await champDoc('os_objectifs', 'interviews_jtbd', 'type', 'manuel');
+  await allerA(page, 'Personnes');
+  await page.locator('[data-action="filtres-enregistres"]').click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Interviews JTBD à faire' }).click();
+  await expect(page.locator('.tableau-personnes tbody tr')).toHaveCount(1);
+  await expect(page.locator('.tableau-personnes')).toContainText('Paul Martin');
+});
+
+test('C30 source d’une personne : liste fermée, dernière ligne « Nouvelle valeur » avec bouton Créer ; les sources tapées à la main entrent dans la liste', async ({ page }) => {
+  await creerPersonne('p1', { nom: 'Marie Durand', source: 'Salon du livre' });
+  await creerPersonne('p2', { nom: 'Paul Martin' });
+  await connecter(page);
+  await expect.poll(async () => ((await lireDocument('crm_parametres/listes'))?.sources ?? [])).toContain('Salon du livre');
+  await aller(page, '#/crm/personnes/p2');
+  const details = page.locator('.section[data-section="personne-details"]');
+  await details.locator('.prop', { hasText: 'Source' }).getByRole('button', { name: /Ajouter/ }).click();
+  const liste = details.getByLabel('Source', { exact: true });
+  await expect(liste.locator('option', { hasText: 'LinkedIn' })).toHaveCount(1);
+  await expect(liste.locator('option').last()).toHaveText('+ Nouvelle valeur…');
+  await liste.selectOption('LinkedIn');
+  await champDoc('crm_personnes', 'p2', 'source', 'LinkedIn');
+  // Nouvelle source : même écriture à l'accent et à la casse près -> l'existante est reprise, pas de doublon
+  await details.locator('.prop', { hasText: 'Source' }).locator('.prop-modifier').click();
+  await details.getByLabel('Source', { exact: true }).selectOption({ label: '+ Nouvelle valeur…' });
+  await details.getByLabel('Nouvelle valeur : Source').fill('salon du livre');
+  await details.locator('[data-action="creer-valeur"]').click();
+  await champDoc('crm_personnes', 'p2', 'source', 'Salon du livre');
+  await details.locator('.prop', { hasText: 'Source' }).locator('.prop-modifier').click();
+  await details.getByLabel('Source', { exact: true }).selectOption({ label: '+ Nouvelle valeur…' });
+  await details.getByLabel('Nouvelle valeur : Source').fill('Bouche à oreille');
+  await details.locator('[data-action="creer-valeur"]').click();
+  await champDoc('crm_personnes', 'p2', 'source', 'Bouche à oreille');
+  await expect.poll(async () => ((await lireDocument('crm_parametres/listes'))?.sources ?? []).filter((s) => /salon du livre/i.test(s)).length).toBe(1);
+  await expect.poll(async () => ((await lireDocument('crm_parametres/listes'))?.sources ?? [])).toContain('Bouche à oreille');
 });

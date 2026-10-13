@@ -97,15 +97,7 @@ export async function modifierPersonne(c, args) {
     patch.organisationId = champs.organisationId || null;
   }
   if (champs.etiquettes !== undefined) { await verifierEtiquettes(c, champs.etiquettes); patch.etiquettes = [...champs.etiquettes]; }
-  if (champs.roles !== undefined) {
-    if (!champs.roles.length) refuser('saisie_invalide', 'Au moins un rôle est nécessaire.');
-    patch.roles = [...champs.roles];
-  }
   for (const cle of ['ville', 'source', 'linkedin', 'siteWeb']) if (champs[cle] !== undefined) patch[cle] = texte(champs[cle]);
-  if (champs.dateInterviewJtbd !== undefined) {
-    if (champs.dateInterviewJtbd !== null && !jourValide(champs.dateInterviewJtbd)) refuser('saisie_invalide', 'dateInterviewJtbd : attendu AAAA-MM-JJ.');
-    patch.dateInterviewJtbd = champs.dateInterviewJtbd;
-  }
   if (champs.archive !== undefined) patch.archive = champs.archive;
   if (!Object.keys(patch).length) refuser('saisie_invalide', 'Aucun champ à modifier.');
   if (!forcer && (patch.nom || patch.emails)) {

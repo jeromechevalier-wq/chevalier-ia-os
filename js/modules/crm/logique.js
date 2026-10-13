@@ -1,6 +1,6 @@
 // Règles métier pures du module CRM (version 2.0) : aucune dépendance à Firebase ni au navigateur.
 // Conventions :
-//  - les champs "date" (date d'une activité, dateInterviewJtbd, dateReveil) sont des chaînes "AAAA-MM-JJ"
+//  - les champs "date" (date d'une activité, dateReveil) sont des chaînes "AAAA-MM-JJ"
 //    (jour civil, sans fuseau) ; les heures sont "HH:MM" ; les mois "AAAA-MM" ;
 //  - les champs "timestamp" sont des Timestamp Firestore (ou des Date côté tests) : versDate() lit les deux ;
 //  - les fonctions qui modifient un document renvoient un "patch" (champs à écrire) et, quand il y a lieu,
@@ -39,12 +39,6 @@ export const STATUTS = [
   { id: 'gagnee', libelle: 'Gagnée', couleur: '#ecbc06' },
   { id: 'perdue', libelle: 'Perdue', couleur: '#8d8993' },
   { id: 'en_pause', libelle: 'En pause', couleur: '#8a9bb4' },
-];
-
-export const ROLES = [
-  { id: 'prospect', libelle: 'Prospect' },
-  { id: 'partenaire', libelle: 'Partenaire' },
-  { id: 'interview_jtbd', libelle: 'Interviewé JTBD' },
 ];
 
 export const TYPES_CONTACT = [
@@ -100,7 +94,6 @@ export const FILTRES_DEPART = [
   { id: 'relancer_semaine', nom: 'À relancer cette semaine', liste: 'affaires', criteres: { semaine: true }, ordre: 1 },
   { id: 'chaudes', nom: 'Chaudes', liste: 'affaires', criteres: { priorites: ['chaud'] }, ordre: 2 },
   { id: 'reseau_entrepreneuses', nom: 'Réseau entrepreneuses', liste: 'affaires', criteres: { sources: ['Réseau entrepreneuses'] }, ordre: 3 },
-  { id: 'jtbd_a_faire', nom: 'Interviews JTBD à faire', liste: 'personnes', criteres: { roles: ['interview_jtbd'], jtbd: 'non_faite' }, ordre: 4 },
 ];
 
 export const DATES_RAPIDES = [
@@ -118,9 +111,6 @@ export function couleurEtape(id) {
 }
 export function libelleStatut(id) {
   return STATUTS.find((s) => s.id === id)?.libelle ?? id ?? '';
-}
-export function libelleRole(id) {
-  return ROLES.find((r) => r.id === id)?.libelle ?? id;
 }
 export function libellePriorite(id) {
   return PRIORITES.find((p) => p.id === id)?.libelle ?? id ?? '';
@@ -472,8 +462,6 @@ export function nouvellePersonne(valeurs, ctx) {
     emails,
     emailsNormalises: emailsNormalises(emails),
     etiquettes: [...(valeurs.etiquettes || [])],
-    roles: valeurs.roles?.length ? [...valeurs.roles] : ['prospect'],
-    dateInterviewJtbd: null,
     ville: nettoyerEspaces(valeurs.ville),
     linkedin: '',
     siteWeb: '',
@@ -1110,11 +1098,6 @@ function dansLeMois(valeur, mois) {
 
 /** Chaque calcul reçoit { personnes, affaires, activites } et un mois "AAAA-MM". */
 export const CALCULS = {
-  interviews_jtbd: {
-    libelle: 'Interviews JTBD réalisées',
-    unite: '',
-    calculer: ({ personnes = [] }, mois) => personnes.filter((p) => dansLeMois(p.dateInterviewJtbd, mois)).length,
-  },
   nouveaux_contacts: {
     libelle: 'Nouveaux contacts',
     unite: '',
@@ -1146,7 +1129,6 @@ export const CALCULS = {
 };
 
 export const OBJECTIFS_DEPART = [
-  { id: 'interviews_jtbd', libelle: 'Interviews JTBD réalisées', type: 'calcule', calcul: 'interviews_jtbd', cible: 10, unite: '', couleur: '#e3cdee', ordre: 1, actif: true },
   { id: 'nouveaux_contacts', libelle: 'Nouveaux contacts', type: 'calcule', calcul: 'nouveaux_contacts', cible: 10, unite: '', couleur: '#b98ee0', ordre: 2, actif: true },
   { id: 'rdv_tenus', libelle: 'Rendez vous tenus', type: 'calcule', calcul: 'rdv_tenus', cible: 4, unite: '', couleur: '#ecbc06', ordre: 3, actif: true },
   { id: 'propositions_envoyees', libelle: 'Propositions envoyées', type: 'calcule', calcul: 'propositions_envoyees', cible: 3, unite: '', couleur: '#fd6455', ordre: 4, actif: true },
@@ -1223,7 +1205,7 @@ export function totauxColonne(affaires) {
 // ---------------------------------------------------------------- filtres
 
 export const CRITERES_PERSONNES_VIDES = Object.freeze({
-  recherche: '', etiquettes: [], organisations: [], roles: [], sources: [], villes: [], jtbd: '', archives: false,
+  recherche: '', etiquettes: [], organisations: [], sources: [], villes: [], archives: false,
 });
 export const CRITERES_ORGANISATIONS_VIDES = Object.freeze({
   recherche: '', etiquettes: [], secteurs: [], villes: [], archives: false,
@@ -1269,11 +1251,8 @@ export function filtrerPersonnes(personnes, criteres, { organisations = [] } = {
     if (!correspond(recherchePersonne(p, orgs.get(p.organisationId)?.nom), c.recherche)) return false;
     if (!interAvec(c.etiquettes, p.etiquettes)) return false;
     if (!inter(c.organisations, p.organisationId)) return false;
-    if (!interAvec(c.roles, p.roles)) return false;
     if (!inter(c.sources, p.source)) return false;
     if (!inter(c.villes, p.ville)) return false;
-    if (c.jtbd === 'faite' && !p.dateInterviewJtbd) return false;
-    if (c.jtbd === 'non_faite' && p.dateInterviewJtbd) return false;
     return true;
   });
 }
@@ -1323,7 +1302,6 @@ export function pastillesFiltres(liste, criteres, { offres = [], etiquettes = []
   if (c.recherche) p.push({ cle: 'recherche', valeur: c.recherche, libelle: `Recherche : ${c.recherche}` });
   (c.etiquettes || []).forEach((v) => p.push({ cle: 'etiquettes', valeur: v, libelle: `Étiquette : ${libelleEtiquette(etiquettes, v)}` }));
   (c.organisations || []).forEach((v) => p.push({ cle: 'organisations', valeur: v, libelle: `Organisation : ${nomOrg(v)}` }));
-  (c.roles || []).forEach((v) => p.push({ cle: 'roles', valeur: v, libelle: `Rôle : ${libelleRole(v)}` }));
   (c.sources || []).forEach((v) => p.push({ cle: 'sources', valeur: v, libelle: `Source : ${v}` }));
   (c.secteurs || []).forEach((v) => p.push({ cle: 'secteurs', valeur: v, libelle: `Secteur : ${v}` }));
   (c.villes || []).forEach((v) => p.push({ cle: 'villes', valeur: v, libelle: `Ville : ${v}` }));
@@ -1332,8 +1310,6 @@ export function pastillesFiltres(liste, criteres, { offres = [], etiquettes = []
   (c.priorites || []).forEach((v) => p.push({ cle: 'priorites', valeur: v, libelle: `Priorité : ${libellePriorite(v)}` }));
   (c.offres || []).forEach((v) => p.push({ cle: 'offres', valeur: v, libelle: `Offre : ${libelleOffre(offres, v)}` }));
   (c.personnes || []).forEach((v) => p.push({ cle: 'personnes', valeur: v, libelle: `Personne : ${nomPersonne(v)}` }));
-  if (c.jtbd === 'faite') p.push({ cle: 'jtbd', valeur: 'faite', libelle: 'Interview JTBD faite' });
-  if (c.jtbd === 'non_faite') p.push({ cle: 'jtbd', valeur: 'non_faite', libelle: 'Interview JTBD à faire' });
   if (c.enRetard) p.push({ cle: 'enRetard', valeur: true, libelle: 'En retard' });
   if (c.sansAction) p.push({ cle: 'sansAction', valeur: true, libelle: 'Sans action prévue' });
   if (c.semaine) p.push({ cle: 'semaine', valeur: true, libelle: 'À relancer cette semaine' });

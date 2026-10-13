@@ -216,7 +216,6 @@ export async function lireReglages(donnees) {
     referentiels: {
       etapes: L.ETAPES.map(({ id, libelle }) => ({ id, libelle })),
       statuts: L.STATUTS,
-      roles: L.ROLES,
       typesContact: L.TYPES_CONTACT,
       typesActivite: L.TYPES_ACTIVITE,
       priorites: L.PRIORITES,

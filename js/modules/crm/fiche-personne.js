@@ -126,10 +126,6 @@ export function rendreFichePersonne(conteneur, id) {
 
     // ---- Détails
     const prop = (libelle, champ, extra = {}) => champPropriete({ libelle, valeur: p[champ] ?? '', surEnregistrer: (v) => D.majPersonne(p.id, { [champ]: v }), ...extra });
-    const roles = h('div', { class: 'prop' }, h('span', { class: 'prop-libelle' }, 'Rôles'),
-      h('div', { class: 'prop-valeur cases' }, L.ROLES.map((r) => h('label', { class: 'case' },
-        h('input', { type: 'checkbox', checked: (p.roles || []).includes(r.id), dataset: { role: r.id },
-          onchange: (e) => D.majPersonne(p.id, { roles: e.target.checked ? [...new Set([...(p.roles || []), r.id])] : (p.roles || []).filter((x) => x !== r.id) }) }), r.libelle))));
     const opposition = h('div', { class: 'prop' }, h('span', { class: 'prop-libelle' }, 'Prospection'),
       h('div', { class: 'prop-valeur' }, h('label', { class: 'case' }, h('input', { type: 'checkbox', checked: !!p.oppositionProspection, dataset: { role: 'opposition' }, onchange: (e) => D.marquerOppositionPersonne(p.id, e.target.checked) }), 'Opposition à la prospection')));
     const details = sectionRepliable({
@@ -137,12 +133,10 @@ export function rendreFichePersonne(conteneur, id) {
       contenu: h('div', { class: 'proprietes' },
         champPropriete({ libelle: 'Prénom', valeur: p.prenom || '', surEnregistrer: (v) => D.majPersonne(p.id, L.patchNomDetaille(v, p.nomFamille)) }).element,
         champPropriete({ libelle: 'Nom de famille', valeur: p.nomFamille || '', surEnregistrer: (v) => D.majPersonne(p.id, L.patchNomDetaille(p.prenom, v)) }).element,
-        roles,
-        prop('Interview JTBD faite le', 'dateInterviewJtbd', { type: 'date', surEnregistrer: (v) => D.majPersonne(p.id, { dateInterviewJtbd: v || null }) }).element,
         prop('Ville', 'ville', { type: 'intelligent', fournir: fournisseurTexte(villesConnues) }).element,
         prop('LinkedIn', 'linkedin', { type: 'url', lienVers: (v) => v }).element,
         prop('Site web', 'siteWeb', { type: 'url', lienVers: (v) => v }).element,
-        champPropriete({ libelle: 'Source', valeur: p.source || '', type: 'intelligent', fournir: fournisseurTexte(() => D.etat.sources),
+        champPropriete({ libelle: 'Source', valeur: p.source || '', type: 'liste', fournir: () => D.etat.sources,
           surEnregistrer: async (v) => { if (v) await D.ajouterValeurListe('sources', v); await D.majPersonne(p.id, { source: v }); } }).element,
         opposition),
     });

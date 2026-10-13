@@ -9,7 +9,6 @@ const PROFILS = ['bibliothecaire', 'claude-code'];
 const id = z.string().min(1).max(200);
 const jour = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Attendu AAAA-MM-JJ').describe('Date AAAA-MM-JJ.');
 const contacts = z.array(z.object({ valeur: z.string().max(200), type: z.enum(L.TYPES_CONTACT.map((t) => t.id)).optional() })).max(10);
-const roles = z.array(z.enum(L.ROLES.map((r) => r.id))).max(10).describe(`Rôles possibles : ${L.ROLES.map((r) => r.id).join(', ')}.`);
 const etiquettes = z.array(z.string().max(80)).max(30).describe('Identifiants d’étiquettes (voir lire_reglages, etiquettes).');
 const proprietaire = z.string().max(120).optional().describe(`Propriétaire de la fiche créée (défaut : ${metier.PROPRIETAIRE_PAR_DEFAUT}).`);
 const forcer = z.boolean().optional().describe('true : créer malgré un doublon possible (nom ou e-mail déjà connu), après avoir vérifié que c’est une autre fiche.');
@@ -24,13 +23,13 @@ const outil = (nom, description, schema, action, profils = PROFILS) => ({
 export const OUTILS_ECRITURE = [
   outil('creer_personne', "Crée une personne (seul le nom est obligatoire), avec son événement dans le fil. Refuse un doublon (même nom, accents et casse ignorés, ou même e-mail) sauf forcer: true. Le propriétaire est Jérôme par défaut.", {
     nom: z.string().min(1).max(200), organisationId: id.optional(), emails: contacts.optional(), telephones: contacts.optional(), etiquettes: etiquettes.optional(),
-    roles: roles.optional(), ville: texteCourt.optional(), source: texteCourt.optional(), forcer, proprietaire,
+    ville: texteCourt.optional(), source: texteCourt.optional(), forcer, proprietaire,
   }, metier.creerPersonne),
 
-  outil('modifier_personne', "Modifie des champs d'une personne (seuls les champs donnés changent) : nom, organisationId (null pour détacher), emails, telephones, etiquettes, roles, ville, source, linkedin, siteWeb, dateInterviewJtbd, archive. Ne supprime jamais. Refuse un nom ou e-mail qui ferait doublon avec une autre personne sauf forcer: true.", {
+  outil('modifier_personne', "Modifie des champs d'une personne (seuls les champs donnés changent) : nom, organisationId (null pour détacher), emails, telephones, etiquettes, ville, source, linkedin, siteWeb, archive. Ne supprime jamais. Refuse un nom ou e-mail qui ferait doublon avec une autre personne sauf forcer: true.", {
     id, nom: z.string().min(1).max(200).optional(), organisationId: id.nullable().optional(), emails: contacts.optional(), telephones: contacts.optional(), etiquettes: etiquettes.optional(),
-    roles: roles.optional(), ville: texteCourt.optional(), source: texteCourt.optional(), linkedin: z.string().max(300).optional(), siteWeb: z.string().max(300).optional(),
-    dateInterviewJtbd: jour.nullable().optional(), archive: z.boolean().optional().describe('true : archiver ; false : désarchiver.'), forcer,
+    ville: texteCourt.optional(), source: texteCourt.optional(), linkedin: z.string().max(300).optional(), siteWeb: z.string().max(300).optional(),
+    archive: z.boolean().optional().describe('true : archiver ; false : désarchiver.'), forcer,
   }, metier.modifierPersonne),
 
   outil('creer_organisation', "Crée une organisation (seul le nom est obligatoire), avec son événement dans le fil. Refuse un doublon de nom sauf forcer: true.", {

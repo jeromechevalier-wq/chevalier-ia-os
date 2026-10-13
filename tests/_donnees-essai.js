@@ -11,8 +11,8 @@ export const collections = {
     { id: 'org3', nom: 'Ancienne Société', ville: 'Lille', archive: true, creeLe: t('2026-01-02T08:00:00Z') },
   ],
   crm_personnes: [
-    { id: 'p1', nom: 'Camille Durand', organisationId: 'org1', emails: [{ valeur: 'camille@exemple.test', type: 'travail' }], roles: ['prospect'], archive: false, creeLe: t('2026-09-01T09:00:00Z') },
-    { id: 'p2', nom: 'Élodie Bernard', organisationId: 'org2', emails: [{ valeur: 'elodie@exemple.test', type: 'travail' }], roles: ['partenaire'], archive: false, creeLe: t('2026-09-02T09:00:00Z') },
+    { id: 'p1', nom: 'Camille Durand', organisationId: 'org1', emails: [{ valeur: 'camille@exemple.test', type: 'travail' }], archive: false, creeLe: t('2026-09-01T09:00:00Z') },
+    { id: 'p2', nom: 'Élodie Bernard', organisationId: 'org2', emails: [{ valeur: 'elodie@exemple.test', type: 'travail' }], archive: false, creeLe: t('2026-09-02T09:00:00Z') },
     { id: 'p3', nom: 'Personne Archivée', organisationId: null, emails: [], archive: true, creeLe: t('2026-01-03T09:00:00Z') },
   ],
   crm_affaires: [

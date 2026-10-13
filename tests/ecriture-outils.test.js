@@ -140,10 +140,9 @@ describe('Création et modification (tests 9 et 11)', () => {
     refuse(await s.appeler('biblio', 'creer_personne', { nom: '   ' }), /nom est obligatoire/);
     refuse(await s.appeler('biblio', 'creer_personne', { nom: 'Jean Dupont', organisationId: 'inconnue' }), /Organisation introuvable/);
     refuse(await s.appeler('biblio', 'creer_personne', { nom: 'Jean Dupont', etiquettes: ['nexistepas'] }), /Étiquette\(s\) inconnue/);
-    refuse(await s.appeler('biblio', 'creer_personne', { nom: 'Jean Dupont', roles: ['roi'] }));
     refuse(await s.appeler('biblio', 'creer_personne', { nom: 'Jean Dupont', emails: [{ valeur: 'pas-un-mail' }] }), /email n'est pas valide/);
-    const bon = ok(await s.appeler('biblio', 'creer_personne', { nom: 'Jean Dupont', organisationId: 'org2', etiquettes: ['chaud'], roles: ['partenaire'], ville: ' Nantes ' }));
-    assert.deepEqual([s.doc('crm_personnes', bon.id).organisationId, s.doc('crm_personnes', bon.id).ville, s.doc('crm_personnes', bon.id).roles], ['org2', 'Nantes', ['partenaire']]);
+    const bon = ok(await s.appeler('biblio', 'creer_personne', { nom: 'Jean Dupont', organisationId: 'org2', etiquettes: ['chaud'], ville: ' Nantes ' }));
+    assert.deepEqual([s.doc('crm_personnes', bon.id).organisationId, s.doc('crm_personnes', bon.id).ville, s.doc('crm_personnes', bon.id).etiquettes], ['org2', 'Nantes', ['chaud']]);
   });
 
   test('modification de personne : seuls les champs donnés changent ; nom redécoupé ; rien à modifier et fiche inconnue refusés ; doublon refusé', async () => {

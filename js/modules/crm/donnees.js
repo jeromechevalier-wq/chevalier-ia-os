@@ -57,6 +57,61 @@ export function surChangement(rappel) {
 
 function notifier() {
   abonnes.forEach((f) => { try { f(); } catch (e) { console.warn(e); } });
+  if (estPret() && parametresCrees && !migrationRolesLancee && compte?.ecrit !== false) { migrationRolesLancee = true; migrerRoles().then(completerSources).catch((e) => console.warn('Conversion des anciennes données', e)); }
+}
+
+let migrationRolesLancee = false;
+/** Vrai quand les listes et les étiquettes existent déjà (les valeurs de départ sont posées) : on ne convertit rien avant, sinon on les écraserait. */
+let parametresCrees = false;
+
+/** Les sources déjà tapées à la main sur des fiches entrent dans la liste des sources (le champ est maintenant une liste fermée). Sans rien de nouveau, ne fait rien. */
+async function completerSources() {
+  const toutes = [...etat.sources];
+  for (const s of [...etat.personnes, ...etat.affaires].map((x) => L.nettoyerEspaces(x.source)).filter(Boolean)) {
+    if (!toutes.some((x) => L.normaliserNom(x) === L.normaliserNom(s))) toutes.push(s);
+  }
+  if (toutes.length !== etat.sources.length) await enregistrerListes({ sources: toutes });
+}
+
+/**
+ * Les rôles des personnes (Prospect, Partenaire, Interviewé JTBD) et la date d'interview JTBD n'existent plus. Une fois, à l'ouverture :
+ * « Partenaire » devient l'étiquette Partenaire ; « Interviewé JTBD » devient l'étiquette « Interviewé JTBD » (date remplie) ou « À interviewer JTBD » (sans date) ;
+ * l'ancienne vue enregistrée « Interviews JTBD à faire » filtre désormais sur « À interviewer JTBD ». Ces étiquettes ne sont créées que si un compte avait des données JTBD
+ * (donc seulement chez Jérôme, jamais chez un client). « Prospect » n'a pas d'équivalent : il se déduit des affaires.
+ * Sans rien à convertir, ne fait rien (peut donc rester sans risque).
+ */
+async function migrerRoles() {
+  const aConvertir = etat.personnes.filter((p) => (p.roles || []).some((r) => r === 'partenaire' || r === 'interview_jtbd') || p.dateInterviewJtbd);
+  const vue = etat.filtres.find((f) => f.criteres?.roles?.length || f.criteres?.jtbd);
+  if (!aConvertir.length && !vue) return;
+  const etiquettes = [...etat.etiquettes];
+  const idPour = (nom, idSouhaite) => {
+    const existante = etiquettes.find((e) => L.normaliserNom(e.nom) === L.normaliserNom(nom) || e.id === idSouhaite);
+    if (existante) return existante.id;
+    etiquettes.push({ id: idSouhaite, nom, couleur: COULEURS_ETIQUETTES[etiquettes.length % COULEURS_ETIQUETTES.length] });
+    return idSouhaite;
+  };
+  const idAInterviewer = () => idPour('À interviewer JTBD', 'a_interviewer_jtbd');
+  const idInterviewe = () => idPour('Interviewé JTBD', 'interviewe_jtbd');
+  const ajouts = aConvertir.map((p) => {
+    const ajout = [];
+    if ((p.roles || []).includes('partenaire')) ajout.push(idPour('Partenaire', 'partenaire'));
+    if (p.dateInterviewJtbd) ajout.push(idInterviewe());
+    else if ((p.roles || []).includes('interview_jtbd')) ajout.push(idAInterviewer());
+    return ajout;
+  });
+  const idVue = vue ? idAInterviewer() : null;
+  if (etiquettes.length !== etat.etiquettes.length) await enregistrerEtiquettes(etiquettes);
+  for (const [i, p] of aConvertir.entries()) {
+    await majPersonne(p.id, { etiquettes: [...new Set([...(p.etiquettes || []), ...ajouts[i]])], roles: [], dateInterviewJtbd: null });
+  }
+  if (vue) {
+    await enregistrerFiltres(etat.filtres.map((f) => {
+      if (!f.criteres?.roles?.length && !f.criteres?.jtbd) return f;
+      const { roles, jtbd, ...reste } = f.criteres;
+      return { ...f, criteres: { ...reste, etiquettes: [...new Set([...(reste.etiquettes || []), idVue])] } };
+    }));
+  }
 }
 
 export function cheminDeBase() {
@@ -129,6 +184,7 @@ export function demarrer(compteConnecte, base = '') {
     // Les filtres enregistrés de la version 1.0.0 (sans "version: 2") ne servent plus : ignorés.
     etat.filtres = docs.filtres?.version === 2 ? tri(docs.filtres.items) : [];
     etat.reglages = { ...reglagesDepart(), ...(docs.reglages || {}) };
+    parametresCrees = !!docs.listes && !!docs.etiquettes && !!docs.filtres;
     etat.pret.parametres = true;
     // Un lecteur d'un client (compte.ecrit === false, chantier 7) ne crée pas les paramètres de départ : les règles le refuseraient. Le CRM de Jérôme n'a pas ce champ.
     if (!snap.metadata.fromCache && compte?.ecrit !== false) initialiserParametres(docs);
@@ -143,6 +199,8 @@ export function arreter() {
   for (const cle of Object.keys(etat.pret)) etat.pret[cle] = false;
   for (const cle of Object.keys(signatures)) delete signatures[cle];
   initialisation = false;
+  migrationRolesLancee = false;
+  parametresCrees = false;
   compte = null;
   cheminBase = '';
 }

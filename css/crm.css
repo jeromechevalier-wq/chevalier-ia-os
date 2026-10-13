@@ -248,10 +248,14 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 .prop:hover .prop-modifier, .prop-modifier:focus-visible { opacity: 1; }
 .prop-lien { color: var(--lien); }
 .resume { gap: 10px; }
+.ligne-creation { display: flex; align-items: center; gap: 8px; }
+.ligne-creation .champ { flex: 1; min-width: 0; }
 .contact-ligne { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
 .contact-ligne a { min-width: 0; overflow-wrap: anywhere; }
 .contact-ligne .icone { margin-top: 3px; }
 .contact-ligne .icone { color: var(--texte2); flex: none; }
+.contact-ligne .bouton-copier { width: 24px; height: 24px; flex: none; }
+.contact-ligne .bouton-copier .icone { margin-top: 0; }
 .contact-type { color: var(--texte2); font-size: 13px; }
 .actions-email { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
 .liste-simple { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }

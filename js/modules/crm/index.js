@@ -2,7 +2,7 @@
 // Routes : crm/accueil, crm/personnes[/id], crm/organisations[/id], crm/affaires[/id], crm/journal.
 import { vider } from '../../os/ui.js';
 import { naviguer } from '../../os/router.js';
-import { enregistrerCalculs, signalerChangement } from '../../os/objectifs.js';
+import { enregistrerCalculs, signalerChangement, surObjectifs, estPret as objectifsPrets, tousLesObjectifs, majObjectif } from '../../os/objectifs.js';
 import * as D from './donnees.js';
 import * as PD from '../projets/donnees.js';
 import * as L from './logique.js';
@@ -50,7 +50,15 @@ export function demarrer({ compte, cheminBase = '' }) {
   enregistrerCalculs(calculs, { pret: D.estPret });
   const arretCrm = D.surChangement(signalerChangement);
   const arretProjets = PD.surChangement(signalerChangement); // un paiement de facture change l'objectif « encaissé »
-  arretSignal = () => { arretCrm(); arretProjets(); };
+  // L'objectif « Interviews JTBD réalisées » n'est plus calculé : il devient un compteur à tenir à la main (une seule fois, s'il existe déjà).
+  let objectifConverti = false;
+  const arretObjectifs = surObjectifs(() => {
+    if (objectifConverti || !objectifsPrets() || compte?.ecrit === false) return;
+    const ancien = tousLesObjectifs().find((o) => o.type === 'calcule' && o.calcul === 'interviews_jtbd');
+    objectifConverti = true;
+    if (ancien) majObjectif(ancien.id, { type: 'manuel', calcul: null }).catch((e) => console.warn('Conversion de l’objectif JTBD', e));
+  });
+  arretSignal = () => { arretCrm(); arretProjets(); arretObjectifs(); };
 }
 
 export function arreter() {

@@ -112,10 +112,13 @@ export function sectionRepliable({ id, titre, contenu, actions = [], ouverte = t
  * Ligne de propriété d'une fiche. Valeur vide : un "+ Ajouter" discret ; un clic ouvre le champ ; la valeur
  * s'enregistre en quittant le champ (Entrée ou clic ailleurs), Échap annule.
  *  type : texte | url | nombre | date | select | zone | intelligent (texte libre avec suggestions : fournir)
+ *         | liste (liste fermée de textes donnée par `fournir`, dont la dernière ligne « + Nouvelle valeur… » ouvre un champ avec un bouton Créer)
  */
 export function champPropriete({ libelle, valeur = '', type = 'texte', options = [], surEnregistrer, placeholder = '', formater = null, lienVers = null, fournir = null, pas = null }) {
   let courant = valeur ?? '';
   let enEdition = false;
+  let creation = false;
+  const NOUVEAU = '__nouveau__';
   const zone = h('div', { class: 'prop-valeur' });
   const racine = h('div', { class: 'prop' }, h('span', { class: 'prop-libelle' }, libelle), zone);
 
@@ -143,12 +146,37 @@ export function champPropriete({ libelle, valeur = '', type = 'texte', options =
     enEdition = true;
     let champ;
     let lire;
+    let fini = false;
     if (type === 'select') {
       champ = h('select', { class: 'champ', 'aria-label': libelle }, h('option', { value: '' }, '—'), options.map((o) => h('option', { value: o.valeur, selected: o.valeur === courant }, o.libelle)));
       lire = () => champ.value;
     } else if (type === 'zone') {
       champ = h('textarea', { class: 'champ', rows: 3, 'aria-label': libelle, value: courant });
       lire = () => champ.value.trim();
+    } else if (type === 'liste') {
+      const choix = [...new Set([...(fournir?.() ?? []), ...(courant ? [courant] : [])])];
+      champ = h('select', { class: 'champ', 'aria-label': libelle }, h('option', { value: '' }, '—'),
+        choix.map((v) => h('option', { value: v, selected: v === courant }, v)), h('option', { value: NOUVEAU }, '+ Nouvelle valeur…'));
+      lire = () => champ.value;
+      champ.addEventListener('change', () => {
+        if (champ.value !== NOUVEAU) { valider(); return; }
+        creation = true;
+        const saisie = h('input', { class: 'champ', type: 'text', 'aria-label': `Nouvelle valeur : ${libelle}`, placeholder: 'Nouvelle valeur' });
+        const creer = () => {
+          const t = L.nettoyerEspaces(saisie.value);
+          if (!t) return;
+          const existante = choix.find((v) => L.normaliserNom(v) === L.normaliserNom(t));
+          lire = () => existante ?? t;
+          creation = false;
+          valider();
+        };
+        saisie.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') { e.preventDefault(); creer(); }
+          if (e.key === 'Escape') { e.stopPropagation(); fini = true; creation = false; afficher(); }
+        });
+        zone.replaceChildren(h('div', { class: 'ligne-creation' }, saisie, h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'creer-valeur', onclick: creer }, 'Créer')));
+        saisie.focus();
+      });
     } else if (type === 'intelligent') {
       const ci = champIntelligent({ etiquette: libelle, placeholder, libre: true, texteInitial: String(courant), fournir, surChoix: () => {} });
       champ = ci.entree;
@@ -160,9 +188,8 @@ export function champPropriete({ libelle, valeur = '', type = 'texte', options =
     }
     if (type !== 'intelligent') zone.replaceChildren(champ);
     champ.focus();
-    let fini = false;
     const valider = async () => {
-      if (fini) return;
+      if (fini || creation) return;
       fini = true;
       const v = lire();
       if (String(v) === String(courant ?? '')) { afficher(); return; }
@@ -363,7 +390,11 @@ export function saisieEnCours(conteneur) {
 export function lignesContact(liste, genre) {
   return (liste || []).map((c) => h('div', { class: 'contact-ligne' }, icone(genre === 'email' ? 'mail' : 'phone', { taille: 15 }),
     h('a', { href: genre === 'email' ? `mailto:${c.valeur}` : `tel:${c.valeur.replace(/\s+/g, '')}` }, c.valeur),
-    h('span', { class: 'contact-type' }, `(${L.libelleTypeContact(c.type)})`)));
+    h('span', { class: 'contact-type' }, `(${L.libelleTypeContact(c.type)})`),
+    genre === 'email' ? h('button', { type: 'button', class: 'bouton-icone bouton-copier', 'aria-label': `Copier ${c.valeur}`, title: 'Copier l’adresse',
+      onclick: async () => {
+        try { await navigator.clipboard.writeText(c.valeur); toast('Adresse copiée'); } catch (e) { console.warn(e); toast('Copie impossible', { type: 'erreur' }); }
+      } }, icone('copy', { taille: 14 })) : null));
 }
 
 // ---------------------------------------------------------------- aides diverses
