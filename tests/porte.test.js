@@ -414,6 +414,27 @@ describe('porte : passerelle HTTP', () => {
       assert.equal(gros.status, 413);
     } finally { await s.fin(); }
   });
+
+  test('corps déjà lu par les fonctions Firebase (flux vide, rawBody rempli) : la porte lit rawBody', async () => {
+    const m = monde();
+    m.base.docs.set('clients/audrey/veille_sources/s1', SOURCE);
+    const gestionnaire = creerGestionnaireHttp(m.porte, { octetsMax: 2000 });
+    const s = createServer(async (req, res) => {
+      const morceaux = [];
+      for await (const x of req) morceaux.push(x);
+      req.rawBody = Buffer.concat(morceaux); // comme Firebase : le flux est consommé avant la porte
+      await gestionnaire(req, res);
+    });
+    await new Promise((r) => s.listen(0, '127.0.0.1', r));
+    const url = `http://127.0.0.1:${s.address().port}/porte`;
+    try {
+      const ok = await post(url, m.cles.audrey.cle, { module: 'veille', action: 'sources.lire', workflowId: 'wA1', donnees: {} });
+      assert.equal(ok.status, 200);
+      assert.equal((await ok.json()).resultat.sources.length, 1);
+      const gros = await post(url, m.cles.audrey.cle, { module: 'veille', action: 'sources.lire', workflowId: 'wA1', donnees: { x: 'a'.repeat(5000) } });
+      assert.equal(gros.status, 413);
+    } finally { await new Promise((r) => s.close(r)); }
+  });
 });
 
 describe('porte : le code', () => {

@@ -184,10 +184,16 @@ export function creerGestionnaireHttp(traiter, { octetsMax = OCTETS_MAX } = {}) 
     let texte = '';
     let octets = 0;
     try {
-      for await (const morceau of req) {
-        octets += morceau.length;
-        if (octets > octetsMax) return repondre(res, 413, { ok: false, erreur: 'corps_trop_gros' });
-        texte += morceau.toString('utf8');
+      if (req.rawBody !== undefined) {
+        // Fonctions Firebase : le corps est déjà lu (le flux est vide), il est gardé dans rawBody.
+        if (req.rawBody.length > octetsMax) return repondre(res, 413, { ok: false, erreur: 'corps_trop_gros' });
+        texte = req.rawBody.toString('utf8');
+      } else {
+        for await (const morceau of req) {
+          octets += morceau.length;
+          if (octets > octetsMax) return repondre(res, 413, { ok: false, erreur: 'corps_trop_gros' });
+          texte += morceau.toString('utf8');
+        }
       }
     } catch {
       return repondre(res, 400, { ok: false, erreur: 'requete_invalide', message: 'Corps illisible.' });
