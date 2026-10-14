@@ -72,6 +72,23 @@ export const MODULES_DECLARES = geler([
     dependances: ['affaires'],
   },
   {
+    // Veille (étape 1, lecture seule) : sources suivies, contenus détectés (vidéos, épisodes, articles) et résumés produits.
+    // Les trois tables suivent la règle `module_table`. Elles sont remplies par les workflows n8n (la « porte » viendra à l'étape 2).
+    // Pour l'instant seul le CRM de Jérôme (base 1) s'en sert ; un client ne la voit que si Jérôme l'active dans sa fiche.
+    id: 'veille',
+    nom: 'Veille',
+    libelleMenu: 'Veille',
+    iconeMenu: 'globe',
+    prefixe: 'veille',
+    ecrans: [
+      { route: 'veille/contenus', libelle: 'Contenus', icone: 'file-text' },
+      { route: 'veille/sources', libelle: 'Sources', icone: 'link' },
+    ],
+    collections: ['veille_sources', 'veille_contenus', 'veille_resumes'],
+    outilsMcp: [],
+    dependances: [],
+  },
+  {
     // Journal d'activité des workflows n8n (chantier 14). Réservé aux clients de la plateforme : le CRM de Jérôme ne le montre pas (reserveAuxClients: true).
     // Ses données (workflows, executions, sync) sont écrites par les fonctions du serveur seulement ; l'écran les lit.
     id: 'journal',

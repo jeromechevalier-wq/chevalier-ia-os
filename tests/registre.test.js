@@ -18,7 +18,7 @@ describe('registre : déclarations', () => {
     for (const m of MODULES_DECLARES) {
       assert.match(m.id, /^[a-z]+$/);
       assert.ok(m.nom && m.libelleMenu && m.iconeMenu && m.prefixe, m.id);
-      assert.ok(m.ecrans.length > 0 && m.collections.length > 0 && (m.outilsMcp.length > 0 || m.id === 'journal'), m.id);
+      assert.ok(m.ecrans.length > 0 && m.collections.length > 0 && (m.outilsMcp.length > 0 || ['journal', 'veille'].includes(m.id)), m.id);
       for (const e of m.ecrans) {
         assert.ok(e.route.startsWith(`${m.prefixe}/`) && e.libelle && e.icone, `${m.id} ${e.route}`);
       }
@@ -136,6 +136,11 @@ describe('registre : le CRM de Jérôme est strictement inchangé', () => {
       { chemin: 'projets/projets', libelle: 'Projets', icone: 'folder-kanban' },
       { chemin: 'projets/archives', libelle: 'Archives', icone: 'archive' },
       { chemin: 'projets/modeles', libelle: 'Modèles', icone: 'copy' },
+    ] },
+    // Ajout voulu (veille vendable en module, étape 1, 2026-10-14) : le menu du CRM gagne « Veille » après Projets. Rien d'autre ne change.
+    { id: 'veille', libelle: 'Veille', icone: 'globe', prefixe: 'veille', entrees: [
+      { chemin: 'veille/contenus', libelle: 'Contenus', icone: 'file-text' },
+      { chemin: 'veille/sources', libelle: 'Sources', icone: 'link' },
     ] },
   ];
   test('MODULES (menu, routes, libellés, icônes, ordre) est identique à celui d\'avant', () => {

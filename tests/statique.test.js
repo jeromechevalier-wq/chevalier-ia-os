@@ -233,7 +233,8 @@ describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
     assert.match(r, /email_verified == true/);
     assert.match(r, /jerome\.chevalier@gmail\.com/);
     assert.match(r, /jeromebot\.chevalierbot@gmail\.com/);
-    assert.match(r, /!\(collection in \['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth'\]\)/);
+    assert.match(r, /!\(collection in \['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles'\]\)/);
+    assert.match(r, /match \/plateforme_cles\/\{id\} \{\s+allow read, write: if false;/); // clés de la porte : fermées à tout navigateur
     // journal : lu par l'appli, ajout seul (à son nom, canal « ecran »), jamais modifié ni supprimé
     assert.match(r, /match \/crm_audit\/\{id\} \{\s+allow read: if compteAutorise\(\);\s+allow create: if compteAutorise\(\)\s+&& request\.resource\.data\.via == 'ecran'\s+&& request\.resource\.data\.acteur == request\.auth\.token\.email;\s+allow update, delete: if false;/);
     assert.match(r, /match \/crm_audit_avant\/\{id\} \{\s+allow read: if compteAutorise\(\);\s+allow create: if compteAutorise\(\) && request\.resource\.data\.expireAt is timestamp;\s+allow update, delete: if false;/);
@@ -324,6 +325,16 @@ describe('D5 Serveur MCP (étape 2) : déploiement, versions figées, sécurité
     assert.match(t, /invoker: 'public'/);
     assert.match(t, /cors: false/);
   });
+  test('D5 la fonction porte : Paris, 3 instances au plus, invocation publique, pas de CORS, compte de service dédié', () => {
+    const t = lire('functions/src/index.js');
+    const bloc = t.slice(t.indexOf('export const porte = onRequest'));
+    assert.match(bloc, /region: 'europe-west9'/);
+    assert.match(bloc, /maxInstances: 3/);
+    assert.match(bloc, /invoker: 'public'/);
+    assert.match(bloc, /cors: false/);
+    assert.match(bloc, /serviceAccount: 'porte-serveur@chevalier-ia-os\.iam\.gserviceaccount\.com'/);
+    assert.match(bloc, /creerGestionnairePorteCrm\(\)/);
+  });
   test('D5 la fonction tourne avec un compte de service dédié, jamais avec le compte par défaut du projet', () => {
     const t = lire('functions/src/index.js');
     assert.match(t, /serviceAccount: 'mcp-serveur@chevalier-ia-os\.iam\.gserviceaccount\.com'/);
@@ -338,6 +349,7 @@ describe('D5 Serveur MCP (étape 2) : déploiement, versions figées, sécurité
       { source: '/.well-known/oauth-protected-resource/mcp', run: vers },
       { source: '/.well-known/oauth-authorization-server', run: vers },
       { source: '/oauth/**', run: vers },
+      { source: '/porte', run: { serviceId: 'porte', region: 'europe-west9' } },
     ]);
     assert.ok(fb.hosting.ignore.includes('functions/**'));
     assert.equal(fb.emulators.functions.port, 5001);
@@ -462,7 +474,7 @@ describe('D5 Serveur MCP (étape 2) : déploiement, versions figées, sécurité
   test('D6 le code publié de l’appli n’utilise jamais les compteurs du serveur (mcp_limites) ; le journal et les copies ne sont écrits que par donnees.js et logique.js, par création seulement', () => {
     for (const f of fichiersAppli().filter((x) => /^js\/.*\.js$/.test(x))) {
       const t = lire(f);
-      assert.doesNotMatch(t, /mcp_limites|mcp_oauth/, f);
+      assert.doesNotMatch(t, /mcp_limites|mcp_oauth|plateforme_cles/, f);
       if (!/^js\/modules\/crm\/(donnees|logique)\.js$/.test(f)) assert.doesNotMatch(t, /crm_audit/, `${f} : seuls donnees.js et logique.js touchent au journal`);
     }
     // jamais de modification ni de suppression du journal par l'appli : les seules écritures sont des créations (types « creer » des plans d'audit)

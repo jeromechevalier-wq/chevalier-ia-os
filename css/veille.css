@@ -1,0 +1,42 @@
+/* Module Veille : compteurs, filtres, liste des contenus et des sources. Même esprit que le journal des workflows :
+   réussite, erreur et attention sont des couleurs SÉMANTIQUES (jamais la marque) ; « en cours » suit l'accent. */
+:root { --ve-attention: #e6b25c; --ve-attention-fond: #e6b25c26; }
+:root[data-theme='clair'] { --ve-attention: #8a5300; --ve-attention-fond: #f3d9a633; }
+
+.page-veille { max-width: 960px; }
+.veille-resume { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.veille-puce { display: inline-flex; align-items: baseline; gap: 6px; padding: 4px 12px; border-radius: 999px; background: var(--panneau); border: 1px solid var(--bordure); font-size: 14px; }
+.veille-puce b { font-size: 16px; font-variant-numeric: tabular-nums; }
+.veille-puce.nv b { color: var(--ve-attention); }
+.veille-puce.run b { color: var(--accent); }
+.veille-puce.ko b { color: var(--retard); }
+.veille-puce.ok b { color: var(--succes); }
+.veille-filtres { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.veille-filtres select, .veille-filtres input { flex: 1 1 180px; width: auto; min-width: 0; max-width: 100%; }
+.veille-filtres input[type='search'] { flex-basis: 240px; }
+
+.veille-liste { list-style: none; margin: 0; padding: 0; background: var(--panneau); border: 1px solid var(--bordure); border-radius: 10px; overflow: hidden; }
+.veille-ligne { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 6px 16px; padding: 13px 16px; border-bottom: 1px solid var(--bordure); }
+.veille-ligne:last-child { border-bottom: 0; }
+.veille-principal { flex: 1 1 260px; min-width: 0; }
+.veille-titre { font-weight: 600; overflow-wrap: anywhere; color: inherit; text-decoration: none; display: inline-flex; gap: 6px; align-items: center; }
+a.veille-titre:hover, a.veille-titre:focus-visible { text-decoration: underline; }
+.veille-meta { color: var(--texte2); font-size: 14px; }
+.veille-actions { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; margin-top: 6px; font-size: 14px; }
+.veille-lien { color: var(--accent); text-decoration: none; display: inline-flex; gap: 4px; align-items: center; }
+.veille-lien:hover, .veille-lien:focus-visible { text-decoration: underline; }
+.veille-note { color: var(--texte2); font-size: 14px; margin-top: 4px; overflow-wrap: anywhere; }
+.veille-erreur { margin-top: 6px; font-size: 14px; color: var(--retard); }
+.veille-erreur-cle { font-weight: 600; }
+.veille-vide { padding: 18px 16px; color: var(--texte2); }
+
+.veille-pastille { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 7px; font-size: 14px; font-weight: 600; padding: 3px 11px; border-radius: 999px; white-space: nowrap; }
+.veille-point { width: 9px; height: 9px; border-radius: 50%; background: currentColor; display: inline-block; }
+.veille-pastille.etat-nouveau { background: var(--ve-attention-fond); color: var(--ve-attention); }
+.veille-pastille.etat-en_cours { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+.veille-pastille.etat-resume { background: color-mix(in srgb, var(--succes) 18%, transparent); color: var(--succes); }
+.veille-pastille.etat-echec { background: var(--retard-fond); color: var(--retard); }
+.veille-pastille.etat-inactif { background: var(--survol); color: var(--texte2); }
+.veille-pastille.etat-en_cours .veille-point { animation: veille-pulse 1.3s ease-in-out infinite; }
+@keyframes veille-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .3; transform: scale(.65); } }
+@media (prefers-reduced-motion: reduce) { .veille-pastille.etat-en_cours .veille-point { animation: none; } }
