@@ -1,6 +1,6 @@
 # La porte et les clés des workflows n8n
 
-> **État au 2026-10-14 : écrite et testée, pas encore en ligne.** Les clés, l'outil qui les gère et le cœur de la porte (contrôles, actions de la veille) sont écrits et testés, y compris contre un Firestore d'essai avec un faux n8n. **La fonction n'est pas encore branchée ni déployée** : il reste la mise en service (section 7) qui demande tes accords et quelques gestes de ta part. Ce guide est mis à jour à chaque étape ; la section « Où en est-on » dit ce qui marche aujourd'hui.
+> **État au 2026-10-14 : en service pour ton CRM (base 1).** La porte est déployée à l'adresse `https://chevalier-ia-os.web.app/porte`, la clé `interne` est dans n8n, et un workflow d'essai (lecture seule) a lu les sources de la veille avec succès. Reste à faire : la porte pour la base 2 (clients) et la copie des workflows réels (étape 3).
 
 ## 1. À quoi ça sert
 
@@ -162,16 +162,16 @@ Un navigateur ne peut pas appeler la porte (toute requête avec une origine est 
 | Élément | État |
 |---|---|
 | Bibliothèque des clés (`scripts/porte/cles.js`) | ✅ écrite et testée (`tests/porte-cles.test.js`) |
-| Outil de gestion (`scripts/cles.js`, `scripts/porte/outil.js`) | ✅ écrit et testé (`tests/porte-outil.test.js`) ; **jamais lancé sur une vraie base** |
+| Outil de gestion (`scripts/cles.js`, `scripts/porte/outil.js`) | ✅ écrit et testé (`tests/porte-outil.test.js`) ; lancé sur la vraie base le 2026-10-14 (il copie maintenant `Bearer` + la clé, prête à coller dans n8n) |
 | Cœur de la porte (`scripts/porte/porte.js`, `validation.js`, `actions-veille.js`, `adaptateur.js`, `n8n.js`) | ✅ écrit et testé : attaques en mémoire (`tests/porte.test.js`), contre un Firestore d'essai (`tests/porte-firestore.test.js`), assemblage avec un faux n8n (`tests/porte-fonction.test.js`) |
-| Fermeture de `plateforme_cles` aux navigateurs (base 1) : règles, cahier des charges, guide `audit-ecran.md`, tests | ✅ faite dans le code ; **règles pas encore publiées dans Firebase** |
-| Fonction de la porte pour la base 1 (`functions/src/porte.js`) | ✅ écrite ; ⏳ **volontairement pas branchée** dans `functions/src/index.js` ni dans `firebase.json` (le déploiement part tout seul à la fusion dans `main`) |
+| Fermeture de `plateforme_cles` aux navigateurs (base 1) : règles, cahier des charges, guide `audit-ecran.md`, tests | ✅ faite et **publiée dans Firebase le 2026-10-14** |
+| Fonction de la porte pour la base 1 (`functions/src/porte.js`) | ✅ **en ligne depuis le 2026-10-14** : fonction `porte` dans `functions/src/index.js` (Paris, compte `porte-serveur`, 3 instances au plus), réécriture `/porte` dans `firebase.json` |
 | Porte pour la base 2 (clients) | ⏳ à faire avec le premier client : même code, autre assemblage, copie partagée et règles à adapter |
-| Mise en service (section 7) | ⏳ seulement avec ton accord |
+| Mise en service (section 7) | ✅ faite le 2026-10-14 (points 1 à 5) |
 
 ## 7. Mise en service dans ton CRM (base 1), dans l'ordre
 
-Rien de ceci n'est fait. Chaque point est soit **à toi** (identifiants, secrets), soit **à moi** (code), soit **à nous deux**. Je ne branche la fonction qu'après tes points 1 à 3.
+**Tout ceci a été fait le 2026-10-14.** Chaque point est soit **à toi** (identifiants, secrets), soit **à moi** (code), soit **à nous deux**. La fonction n'a été branchée qu'après les points 1 à 3.
 
 1. **Toi : un compte de service dédié** `porte-serveur@chevalier-ia-os.iam.gserviceaccount.com`, avec seulement « Utilisateur Cloud Datastore » (Firestore) et « Accesseur de secrets » sur le seul secret `N8N_API_KEY`. Même principe que le compte `mcp-serveur` du serveur MCP : on ne réutilise pas son compte, pour que chaque porte ait ses propres droits.
 2. **Toi : déposer la clé d'API de n8n** dans Secret Manager (projet `chevalier-ia-os`, nom `N8N_API_KEY`). Je ne la vois jamais et je ne la manipule pas : tu la crées dans n8n (*Settings* › *n8n API*, en lecture seule si ton n8n le propose), tu la copies, puis dans le Terminal : `pbpaste | gcloud secrets create N8N_API_KEY --project chevalier-ia-os --data-file=-`.
@@ -179,9 +179,18 @@ Rien de ceci n'est fait. Chaque point est soit **à toi** (identifiants, secrets
 4. **Moi : brancher la fonction** (`functions/src/index.js` avec le compte de service du point 1), la réécriture `/porte` dans `firebase.json`, et adapter les tests qui figent ces fichiers. **Attention : la fusion de la branche dans `main` déploie les fonctions toute seule** : on ne fusionne qu'après les points 1 à 3.
 5. **Nous deux : créer ta première clé** (`node scripts/cles.js creer --projet crm --proprietaire interne --ecrire`), la mettre dans n8n (section 4), et tester avec un workflow d'essai de ta veille.
 
+### Leçons de la mise en service (2026-10-14)
+
+- **Un workflow qui appelle la porte doit s'appeler `interne-…` (ou `produit-…`, `perso-…`) et porter l'étiquette correspondante** : sans cela, la porte répond 403 (`pour_qui_absent_ou_multiple`).
+- **La valeur du credential n8n est `Bearer ` + la clé** : l'outil copie maintenant ce texte complet, à coller tel quel dans le champ *Value*. Sans `Bearer`, la porte répond 401 (`cle_format`).
+- **Ne rien copier d'autre entre la création de la clé et le collage** : copier une commande remplace le presse-papiers.
+- **La clé d'API n8n** se dépose avec un champ caché : `read -s "K?…" && printf %s "$K" | gcloud secrets versions add N8N_API_KEY …`. La porte la garde 5 minutes en mémoire : attendre avant de retester.
+- **Sur Firebase, le corps de la requête est déjà lu** quand la porte le reçoit : elle le lit dans `req.rawBody` (corrigé le 2026-10-14, test dédié dans `tests/porte.test.js`).
+
 ## 8. Décisions et dates
 
 - **2026-10-13** : une clé technique par propriétaire, commune à tous ses modules (même base, tables reliables) ; l'ancienne clé reste valable jusqu'à sa révocation (décision de Jérôme : « le plus sûr » pour la production) ; table de clés nommée selon la règle `module_table`.
 - **2026-10-14** : format `cle-n8n.<propriétaire>.<aléatoire>` (le nom du client au début) ; 3 clés actives au plus par propriétaire ; porte dans les deux bases, une adresse par base ; la clé d'API n8n sera déposée dans la base 1 par Jérôme pour la vérification d'intégrité.
 
 Décisions plus larges (une base pour Jérôme, une pour les clients, un site dédié par client) : fiche du second cerveau *Plateforme clients - décisions du module Automatisations et de la veille*.
+- **2026-10-14** : porte en service pour la base 1 (fonction `porte`, compte `porte-serveur`, secret `N8N_API_KEY`) ; première clé `interne` en usage, les deux clés d'essai révoquées.
