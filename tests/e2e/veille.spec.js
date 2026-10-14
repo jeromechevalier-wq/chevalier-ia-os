@@ -24,6 +24,7 @@ test('Veille : contenus, filtres, liens sûrs, coût visible chez Jérôme, sour
   await connecter(page);
   await page.evaluate(() => { location.hash = '#/veille/contenus'; });
   await expect(page.locator('.veille-ligne')).toHaveCount(4);
+  await page.screenshot({ path: `test-results/veille-contenus-${info.project.name}.png`, fullPage: true }); // avant d'ouvrir le menu (sur téléphone il masque l'écran)
   // Menu : un groupe « Veille » avec ses deux écrans.
   if (estTelephone(page)) await page.getByRole('button', { name: 'Ouvrir le menu' }).click();
   await expect(page.locator('.menu').getByRole('link', { name: 'Contenus', exact: true })).toBeVisible();
@@ -58,7 +59,7 @@ test('Veille : contenus, filtres, liens sûrs, coût visible chez Jérôme, sour
   await page.getByLabel('Filtrer par type').selectOption('');
   await page.getByLabel('Chercher dans les titres').fill('NOUVEAU');
   await expect(page.locator('.veille-ligne')).toHaveCount(1);
-  await page.screenshot({ path: `test-results/veille-contenus-${info.project.name}.png` });
+  await page.screenshot({ path: `test-results/veille-contenus-filtre-${info.project.name}.png` });
   // Sources : actives d'abord, nombre de contenus, état.
   await page.evaluate(() => { location.hash = '#/veille/sources'; });
   await expect(page.locator('.veille-ligne')).toHaveCount(3);
