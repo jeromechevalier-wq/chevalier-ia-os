@@ -23,6 +23,8 @@
 a.veille-titre:hover, a.veille-titre:focus-visible { text-decoration: underline; }
 .veille-meta { color: var(--texte2); font-size: 14px; }
 .veille-actions { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; margin-top: 6px; font-size: 14px; }
+.veille-bouton { display: inline-block; padding: 6px 16px; border-radius: 6px; background: var(--accent); color: var(--sur-accent); font-weight: 600; text-decoration: none; }
+.veille-bouton:hover, .veille-bouton:focus-visible { filter: brightness(1.1); }
 .veille-lien { color: var(--accent); text-decoration: none; display: inline-flex; gap: 4px; align-items: center; }
 .veille-lien:hover, .veille-lien:focus-visible { text-decoration: underline; }
 .veille-note { color: var(--texte2); font-size: 14px; margin-top: 4px; overflow-wrap: anywhere; }

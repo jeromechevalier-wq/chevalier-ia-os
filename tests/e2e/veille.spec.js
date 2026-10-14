@@ -43,6 +43,10 @@ test('Veille : contenus, filtres, liens sûrs, coût visible chez Jérôme, sour
   await expect(c1).toContainText('deepseek/deepseek-v4-pro');
   await expect(c1).toContainText('0,002 $');
   await expect(c1).toContainText('Payé par : Moi');
+  // Bouton Résumer : seulement sur le contenu « nouveau » (c2), même lien que le mail ; absent d'un contenu déjà résumé.
+  const c2 = page.locator('.veille-ligne[data-id="c2"]');
+  await expect(c2.getByRole('link', { name: 'Résumer', exact: true })).toHaveAttribute('href', /veille-resumer-porte\?video_id=c2&token=/);
+  await expect(c1.getByRole('link', { name: 'Résumer', exact: true })).toHaveCount(0);
   // Échec : étape affichée, titre non cliquable (adresse dangereuse refusée).
   const c3 = page.locator('.veille-ligne[data-id="c3"]');
   await expect(c3).toContainText('Étape en échec : Transcription');

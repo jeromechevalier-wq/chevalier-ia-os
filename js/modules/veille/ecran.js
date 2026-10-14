@@ -1,5 +1,5 @@
 // Écrans du module Veille : « Contenus » (liste filtrable avec l'état et les liens des résumés) et « Sources » (ce que Jérôme suit).
-// Lecture seule : aucun bouton n'écrit dans la base. Texte affiché : toujours en texte simple (h() ne fabrique jamais de HTML),
+// Aucun bouton n'écrit dans la base (le bouton « Résumer » ouvre le lien n8n du mail). Texte affiché : toujours en texte simple (h() ne fabrique jamais de HTML),
 // et un lien n'est cliquable que s'il commence par http(s) (L.lienSur).
 import { h, icone, remplir } from '../../os/ui.js';
 import { estChezClient } from '../../os/contexte.js';
@@ -56,10 +56,15 @@ export function rendreContenus(conteneur) {
       cout ? h('span', { class: 'veille-meta' }, cout) : null,
       interne && r.payeur && L.LIBELLES_PAYEUR[r.payeur] ? h('span', { class: 'veille-meta' }, `Payé par : ${L.LIBELLES_PAYEUR[r.payeur]}`) : null,
     ] : null;
+    // Bouton Résumer : seulement sur un contenu « nouveau » et chez le propriétaire (comme le mail). Même lien que le mail, ouvert dans un nouvel onglet.
+    const lienBouton = etat === 'nouveau' && interne ? L.lienResumer(x.id) : null;
+    const boutonResumer = lienBouton ? h('div', { class: 'veille-actions' },
+      h('a', { class: 'veille-bouton', href: lienBouton, target: '_blank', rel: 'noopener noreferrer' }, 'Résumer')) : null;
     return h('li', { class: 'veille-ligne', dataset: { id: x.id, etat } },
       h('div', { class: 'veille-principal' }, titre,
         h('div', { class: 'veille-meta' }, L.nomSource(x, D.etat.sources), ' · ', L.normaliserType(x.type), date ? ` · ${date}` : ''),
         detailsResume ? h('div', { class: 'veille-actions' }, detailsResume) : null,
+        boutonResumer,
         etat === 'echec' && x.etapeEchec ? h('div', { class: 'veille-erreur' }, h('span', { class: 'veille-erreur-cle' }, 'Étape en échec : '), x.etapeEchec) : null),
       pastille(etat));
   }

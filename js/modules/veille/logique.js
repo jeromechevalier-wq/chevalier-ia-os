@@ -45,6 +45,17 @@ export function lienSur(url) {
   return /^https?:\/\/\S+$/i.test(t) ? t : null;
 }
 
+// Bouton « Résumer » : même lien que celui du mail du lundi (workflow n8n « résumer à la demande »). Le jeton n'ouvre aucune donnée :
+// il sert seulement à lancer un résumé. Décision de Jérôme (2026-10-14) : peu grave s'il est visible, l'appli est derrière un login Google.
+export const ADRESSE_RESUMER = 'https://n8n.chevalier-ia.fr/webhook/veille-resumer-porte';
+export const JETON_RESUMER = '27a9434ae485af417e6f5769cbe73ce56add5ada';
+
+/** Lien du bouton Résumer pour un contenu (identique au lien du mail). `null` si l'identifiant manque. */
+export function lienResumer(contenuId) {
+  const id = String(contenuId ?? '').trim();
+  return id ? `${ADRESSE_RESUMER}?video_id=${encodeURIComponent(id)}&token=${JETON_RESUMER}` : null;
+}
+
 /** Date lisible : « 14 oct. » (même année) ou « 14 oct. 2025 ». `null` si inconnue. */
 export function dateTexte(v, maintenant = Date.now()) {
   const ms = enMs(v);

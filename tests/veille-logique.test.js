@@ -29,6 +29,14 @@ describe('veille : types, états, liens', () => {
     assert.equal(L.normaliserEtat(''), 'nouveau');
     assert.equal(L.normaliserEtat('autre chose'), 'nouveau');
   });
+
+  test('lienResumer : même lien que le bouton du mail (adresse, video_id, jeton)', () => {
+    const l = L.lienResumer('abc 1');
+    assert.ok(l.startsWith('https://n8n.chevalier-ia.fr/webhook/veille-resumer-porte?video_id=abc%201&token='));
+    assert.ok(l.endsWith(L.JETON_RESUMER));
+    assert.equal(L.lienResumer(''), null);
+    assert.equal(L.lienResumer(null), null);
+  });
   test('un lien n\'est cliquable que s\'il est en http ou https (jamais javascript:)', () => {
     assert.equal(L.lienSur('https://exemple.test/a'), 'https://exemple.test/a');
     assert.equal(L.lienSur('http://exemple.test'), 'http://exemple.test');

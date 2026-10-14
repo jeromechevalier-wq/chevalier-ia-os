@@ -84,6 +84,8 @@ describe('D2 Aucune ressource externe hors Google', () => {
         // Adresses écrites en texte (prompts à coller dans Claude Code, exemples et validation des champs GitHub et Dossier, lien vers l'OS) :
         // jamais chargées. Le parcours D2 dans le navigateur vérifie qu'aucune requête ne part vers ces sites.
         if (/^https:\/\/(github\.com\/|drive\.google\.com\/drive\/|chevalier-ia-os\.web\.app)/.test(url) && /logique\.js$|lanceurs\.js$/.test(f)) continue;
+        // Bouton « Résumer » de la page Veille : simple lien ouvert dans un nouvel onglet (comme dans le mail), jamais une requête du code.
+        if (url === 'https://n8n.chevalier-ia.fr/webhook/veille-resumer-porte' && f.endsWith('veille/logique.js')) continue;
         assert.match(url, autorise, `${f} : ${url}`);
       }
       assert.doesNotMatch(t, /fonts\.googleapis\.com|cdn\.jsdelivr|unpkg\.com|cdnjs/, f);
