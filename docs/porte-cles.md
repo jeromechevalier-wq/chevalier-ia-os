@@ -71,7 +71,7 @@ node scripts/cles.js creer --projet plateforme --proprietaire audrey --ecrire
 
 Dans n8n : *Credentials* > *Add credential* > **Header Auth**.
 - Nom (*Name*) : `Authorization`
-- Valeur (*Value*) : `Bearer ` (avec une espace) **suivi de la clé collée**.
+- Valeur (*Value*) : **colle telle quelle** ce que l'outil a copié : c'est déjà `Bearer ` (avec une espace) suivi de la clé. Ne retape rien.
 - Nom du credential : `Clé n8n - <client>` (par exemple `Clé n8n - Audrey`).
 
 **Un seul credential par client**, utilisé par **tous** ses workflows. Pour changer la clé plus tard, on ne modifie que ce credential.
