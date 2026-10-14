@@ -125,6 +125,7 @@ node scripts/cles.js revoquer --projet plateforme --proprietaire audrey --cle ab
 |---|---|
 | `sources.lire` | Renvoie les sources suivies (`actifSeulement`: vrai par défaut). |
 | `contenus.lire` | Renvoie les contenus, filtrables par `etat` (nouveau, en_cours, resume, echec), 200 au plus. |
+| `resumes.lire` | Renvoie les résumés déjà enregistrés (liens des fichiers, date), 200 au plus. Lecture seule. |
 | `contenus.ajouter` | Ajoute jusqu'à 100 contenus à l'état « nouveau ». Les sources doivent exister (sinon rien n'est écrit). Un contenu déjà présent n'est pas touché. |
 | `contenus.changerEtat` | Change l'état d'un contenu qui existe (`id`, `etat`, et `etapeEchec` pour un échec). Ne crée jamais. |
 | `resumes.ajouter` | Enregistre un résumé : `contenuId`, `idExecution` (le numéro d'exécution n8n, qui rend l'appel répétable sans doublon), modèle, coût réel, devise, qui paie (`jerome` ou `client`), nom de la clé d'IA (un **nom** comme `openrouter-jerome`, jamais la clé elle-même : une vraie clé est refusée) et les liens des fichiers. |
