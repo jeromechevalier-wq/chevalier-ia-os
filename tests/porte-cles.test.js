@@ -71,7 +71,7 @@ describe('porte : vérification d\'une clé présentée', () => {
   const e = enregistrementDe(c, 'audrey');
   test('clé valide : acceptée, avec son propriétaire et son identifiant court', async () => {
     const r = await verifierCle(c, lecteur(base(e.id, e.donnees)));
-    assert.deepEqual(r, { ok: true, proprietaire: 'audrey', idCourt: e.donnees.idCourt, empreinte: e.id });
+    assert.deepEqual(r, { ok: true, proprietaire: 'audrey', idCourt: e.donnees.idCourt, empreinte: e.id, dernierUsage: null });
   });
   test('clé inconnue, mal formée ou révoquée : refusée, pour des raisons différentes dans le journal seulement', async () => {
     assert.deepEqual(await verifierCle(c, lecteur(new Map())), { ok: false, raison: 'inconnue' });

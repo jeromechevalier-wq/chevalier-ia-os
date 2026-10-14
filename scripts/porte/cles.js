@@ -51,7 +51,7 @@ export function enregistrementDe(cle, proprietaire, maintenant = new Date()) {
 }
 
 /**
- * Vérifie une clé présentée. `lire(empreinte)` renvoie le document de la table (ou null). Renvoie { ok: true, proprietaire, idCourt, empreinte }
+ * Vérifie une clé présentée. `lire(empreinte)` renvoie le document de la table (ou null). Renvoie { ok: true, proprietaire, idCourt, empreinte, dernierUsage }
  * ou { ok: false, raison } : la raison sert au journal seulement, l'appelant répond toujours la même chose (« clé refusée »).
  * La recherche se fait par l'empreinte (une lecture directe) : il n'y a aucune comparaison de secrets à chronométrer.
  */
@@ -63,7 +63,7 @@ export async function verifierCle(cle, lire) {
   if (!doc) return { ok: false, raison: 'inconnue' };
   if (doc.actif !== true) return { ok: false, raison: 'revoquee' };
   if (doc.proprietaire !== analyse.proprietaire) return { ok: false, raison: 'proprietaire_different' }; // étiquette ≠ propriétaire enregistré
-  return { ok: true, proprietaire: doc.proprietaire, idCourt: doc.idCourt, empreinte: e };
+  return { ok: true, proprietaire: doc.proprietaire, idCourt: doc.idCourt, empreinte: e, dernierUsage: doc.dernierUsage ?? null };
 }
 
 const enMs = (v) => (v == null ? null : typeof v === 'number' ? v : v instanceof Date ? v.getTime() : typeof v.toMillis === 'function' ? v.toMillis() : null);

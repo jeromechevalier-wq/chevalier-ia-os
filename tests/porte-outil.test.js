@@ -112,6 +112,16 @@ describe('outil des clés : créer', () => {
   });
 });
 
+describe('outil des clés : longueur de l\'identifiant', () => {
+  test('un client de plus de 17 caractères ne peut pas avoir de clé (l\'étiquette n8n client-<id> dépasserait 24 caractères)', async () => {
+    const m = monde({ clients: ['a'.repeat(17), 'a'.repeat(18)] });
+    assert.equal(await executer(['creer', '--projet', 'plateforme', '--proprietaire', 'a'.repeat(18), '--ecrire'], m.ctx), 1);
+    assert.match(m.texte(), /24 caractères/);
+    assert.equal(m.docs.size, 0);
+    assert.equal(await executer(['creer', '--projet', 'plateforme', '--proprietaire', 'a'.repeat(17), '--ecrire'], m.ctx), 0);
+  });
+});
+
 describe('outil des clés : lister', () => {
   test('montre l\'identifiant court, l\'état, le dernier usage ; jamais la clé ni l\'empreinte complète', async () => {
     const m = monde({ cles: [doc(ID('a'), 'audrey', { dernierUsage: new Date(T0 - 3600_000) }), doc(ID('b'), 'audrey', { actif: false }), doc(ID('c'), 'martin')] });

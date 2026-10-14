@@ -89,8 +89,15 @@ async function lister(projet, proprietaire, ctx) {
   return 0;
 }
 
+/** Un nom d'étiquette n8n fait 24 caractères au plus : « client- » en prend 7. Au-delà de 17 caractères, l'étiquette du client ne peut pas exister et la vérification d'intégrité ne pourrait jamais réussir. */
+export const LONGUEUR_MAX_CLIENT_AVEC_PORTE = 17;
+
 async function creer(projet, proprietaire, options, ctx) {
   const { sortie, store, copier, maintenant } = ctx;
+  if (projet.proprietairesFixes === null && proprietaire.length > LONGUEUR_MAX_CLIENT_AVEC_PORTE) {
+    sortie(`✖ L'identifiant « ${proprietaire} » fait ${proprietaire.length} caractères : au-delà de ${LONGUEUR_MAX_CLIENT_AVEC_PORTE}, n8n ne peut pas créer l'étiquette « client-${proprietaire} » (24 caractères au plus), et la porte ne pourrait pas vérifier ses workflows. Aucune clé créée.`);
+    return 1;
+  }
   const existantes = await store.listerCles(proprietaire);
   const { ok, actives } = peutCreer(existantes);
   if (!ok) {
