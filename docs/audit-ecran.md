@@ -60,10 +60,15 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Clés de la porte des workflows n8n (empreintes SHA-256, jamais les clés) : réservées aux fonctions. Aucun navigateur n'y a accès.
+    match /plateforme_cles/{id} {
+      allow read, write: if false;
+    }
+
     // Tout le reste : comme avant (les deux comptes autorisés), sauf les collections ci-dessus.
     match /{collection}/{document=**} {
       allow read, write: if compteAutorise()
-        && !(collection in ['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth']);
+        && !(collection in ['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles']);
     }
   }
 }

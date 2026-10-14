@@ -233,7 +233,8 @@ describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
     assert.match(r, /email_verified == true/);
     assert.match(r, /jerome\.chevalier@gmail\.com/);
     assert.match(r, /jeromebot\.chevalierbot@gmail\.com/);
-    assert.match(r, /!\(collection in \['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth'\]\)/);
+    assert.match(r, /!\(collection in \['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles'\]\)/);
+    assert.match(r, /match \/plateforme_cles\/\{id\} \{\s+allow read, write: if false;/); // clés de la porte : fermées à tout navigateur
     // journal : lu par l'appli, ajout seul (à son nom, canal « ecran »), jamais modifié ni supprimé
     assert.match(r, /match \/crm_audit\/\{id\} \{\s+allow read: if compteAutorise\(\);\s+allow create: if compteAutorise\(\)\s+&& request\.resource\.data\.via == 'ecran'\s+&& request\.resource\.data\.acteur == request\.auth\.token\.email;\s+allow update, delete: if false;/);
     assert.match(r, /match \/crm_audit_avant\/\{id\} \{\s+allow read: if compteAutorise\(\);\s+allow create: if compteAutorise\(\) && request\.resource\.data\.expireAt is timestamp;\s+allow update, delete: if false;/);
@@ -462,7 +463,7 @@ describe('D5 Serveur MCP (étape 2) : déploiement, versions figées, sécurité
   test('D6 le code publié de l’appli n’utilise jamais les compteurs du serveur (mcp_limites) ; le journal et les copies ne sont écrits que par donnees.js et logique.js, par création seulement', () => {
     for (const f of fichiersAppli().filter((x) => /^js\/.*\.js$/.test(x))) {
       const t = lire(f);
-      assert.doesNotMatch(t, /mcp_limites|mcp_oauth/, f);
+      assert.doesNotMatch(t, /mcp_limites|mcp_oauth|plateforme_cles/, f);
       if (!/^js\/modules\/crm\/(donnees|logique)\.js$/.test(f)) assert.doesNotMatch(t, /crm_audit/, `${f} : seuls donnees.js et logique.js touchent au journal`);
     }
     // jamais de modification ni de suppression du journal par l'appli : les seules écritures sont des créations (types « creer » des plans d'audit)
