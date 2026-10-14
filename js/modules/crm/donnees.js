@@ -17,10 +17,11 @@ const PARAMETRES_DEPART = {
   reglages: L.REGLAGES_DEPART,
 };
 
-// Les collections du module Projets sont dans la sauvegarde complète (l'export JSON), même si elles ne sont pas des collections du CRM.
+// Les collections des modules Projets et Veille sont dans la sauvegarde complète (l'export JSON), même si elles ne sont pas des collections du CRM.
 export const COLLECTIONS_CRM = [
   'crm_personnes', 'crm_organisations', 'crm_affaires', 'crm_activites', 'crm_notes', 'crm_evenements', 'crm_parametres',
   'projets_projets', 'projets_taches', 'projets_modeles',
+  'veille_sources', 'veille_contenus', 'veille_resumes',
 ];
 
 export const etat = {
