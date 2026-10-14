@@ -1,6 +1,6 @@
 # La porte et les clés des workflows n8n
 
-> **État au 2026-10-14 : en construction.** Les clés et l'outil qui les gère sont écrits et testés. **La porte elle-même (la fonction que n8n appelle) n'est pas encore écrite ni déployée.** Ce guide est mis à jour à chaque étape ; la section « Où en est-on » dit ce qui marche aujourd'hui.
+> **État au 2026-10-14 : écrite et testée, pas encore en ligne.** Les clés, l'outil qui les gère et le cœur de la porte (contrôles, actions de la veille) sont écrits et testés, y compris contre un Firestore d'essai avec un faux n8n. **La fonction n'est pas encore branchée ni déployée** : il reste la mise en service (section 7) qui demande tes accords et quelques gestes de ta part. Ce guide est mis à jour à chaque étape ; la section « Où en est-on » dit ce qui marche aujourd'hui.
 
 ## 1. À quoi ça sert
 
@@ -17,9 +17,9 @@ La clé est **la même pour tous les modules d'un client** : quand on active un 
 ```
  workflow n8n ──(clé)──▶  PORTE  ──▶ 1. la clé existe et n'est pas révoquée ?
                                      2. le module demandé est actif pour ce client ?
-                                     3. le workflow appelant appartient bien à ce propriétaire ?   (à venir)
-                                     4. les données sont-elles valides et de taille raisonnable ?  (à venir)
-                                     5. écriture (un identifiant fixe : jamais de doublon)         (à venir)
+                                     3. le workflow appelant appartient bien à ce propriétaire ?
+                                     4. les données sont-elles valides et de taille raisonnable ?
+                                     5. écriture (un identifiant fixe : jamais de doublon)
 ```
 
 - La porte n'offre **que des actions précises** (lire les sources, ajouter un contenu, ajouter un résumé…), jamais « écris où tu veux » : une clé volée ne peut donc rien faire d'autre.
@@ -37,7 +37,7 @@ La clé est **la même pour tous les modules d'un client** : quand on active un 
 
 **Conséquence importante : une clé perdue ne se retrouve pas.** Personne ne peut la relire, ni toi, ni Claude. On en crée une autre (section 5).
 
-Les navigateurs n'ont **aucun accès** à cette table : dans la base 2, les règles refusent tout par défaut ; dans la base 1, une règle spécifique la ferme à tes comptes (à venir, avec la porte).
+Les navigateurs n'ont **aucun accès** à cette table : dans la base 2, les règles refusent tout par défaut ; dans la base 1, une règle spécifique la ferme à tes comptes (`plateforme_cles` est exclue du joker de `firestore.rules`, avec un test). **Cette règle doit être publiée avant de créer la première clé** (section 7).
 
 ## 4. Utiliser l'outil de gestion des clés
 
@@ -104,6 +104,46 @@ node scripts/cles.js revoquer --projet plateforme --proprietaire audrey --cle ab
 | **Plus de place (3 clés actives)** | Révoque d'abord une clé inutile (`lister` montre laquelle n'a pas servi depuis longtemps). |
 | **Un client s'en va** | Révoque toutes ses clés (`lister`, puis `revoquer` pour chacune). |
 
+## 4 bis. Appeler la porte depuis n8n
+
+**Une seule adresse par base** : `POST https://chevalier-ia-os.web.app/porte` (base 1, tes workflows). Dans n8n : un nœud *HTTP Request*, méthode `POST`, authentification *Header Auth* avec le credential du propriétaire, corps JSON :
+
+```json
+{
+  "module": "veille",
+  "action": "contenus.ajouter",
+  "workflowId": "{{ $workflow.id }}",
+  "donnees": { "contenus": [ { "id": "abc123", "sourceId": "UC2UmrCDeb8CEB7t6v6Kqt7A", "titre": "Titre de la vidéo", "url": "https://…", "datePublication": "2026-10-12T15:30:32Z" } ] }
+}
+```
+
+`workflowId` est **obligatoire** : la porte s'en sert pour vérifier que le workflow appartient bien au propriétaire de la clé (section 6). Aucun autre champ n'est accepté (ni « client », ni chemin) : **le propriétaire et l'endroit où l'on écrit viennent de la clé, jamais du corps de la requête.**
+
+**Actions du module Veille** (toutes les écritures créent sans jamais écraser : rappeler la même action ne change rien) :
+
+| Action | Ce qu'elle fait |
+|---|---|
+| `sources.lire` | Renvoie les sources suivies (`actifSeulement`: vrai par défaut). |
+| `contenus.lire` | Renvoie les contenus, filtrables par `etat` (nouveau, en_cours, resume, echec), 200 au plus. |
+| `contenus.ajouter` | Ajoute jusqu'à 100 contenus à l'état « nouveau ». Les sources doivent exister (sinon rien n'est écrit). Un contenu déjà présent n'est pas touché. |
+| `contenus.changerEtat` | Change l'état d'un contenu qui existe (`id`, `etat`, et `etapeEchec` pour un échec). Ne crée jamais. |
+| `resumes.ajouter` | Enregistre un résumé : `contenuId`, `idExecution` (le numéro d'exécution n8n, qui rend l'appel répétable sans doublon), modèle, coût réel, devise, qui paie (`jerome` ou `client`), nom de la clé d'IA (un **nom** comme `openrouter-jerome`, jamais la clé elle-même : une vraie clé est refusée) et les liens des fichiers. |
+
+**Réponses** : `200 {"ok": true, "resultat": …}` ou `{"ok": false, "erreur": "<code>", "message": "…"}`.
+
+| Statut | Code | Signification |
+|---|---|---|
+| 401 | `cle_refusee` | Clé absente, inconnue, mal formée, révoquée… (toujours le même message : la réponse ne dit pas pourquoi). |
+| 403 | `module_non_actif` | Le module n'est pas actif pour ce propriétaire. |
+| 403 | `workflow_refuse` | Le workflow n'appartient pas au propriétaire de la clé (mauvaise étiquette ou mauvais nom). |
+| 400 | `requete_invalide` / `action_inconnue` | Corps mal formé, champ inconnu, valeur interdite (le message nomme le champ). |
+| 404 | `source_inconnue` / `contenu_inconnu` | L'élément cité n'existe pas chez ce propriétaire. |
+| 413 | `corps_trop_gros` | Plus de 256 Ko. |
+| 429 | `limite_depassee` | Plus de 120 requêtes par minute pour cette clé. |
+| 503 | `verification_indisponible` | n8n ne répond pas ou la clé d'API n8n manque : **la porte se ferme** plutôt que de laisser passer sans contrôle. Réessayer plus tard. |
+
+Un navigateur ne peut pas appeler la porte (toute requête avec une origine est refusée). Seul n8n l'appelle.
+
 ## 5. Comprendre les protections (et leurs limites)
 
 - **La clé n'est jamais stockée** : seulement son empreinte. La recherche se fait par l'empreinte (une lecture directe) : il n'y a aucune comparaison de secrets qu'on pourrait chronométrer.
@@ -111,20 +151,35 @@ node scripts/cles.js revoquer --projet plateforme --proprietaire audrey --cle ab
 - **Un document « actif » douteux est refusé** : seul `actif: true` exact est accepté (jamais « actif par défaut »).
 - **L'étiquette doit correspondre au propriétaire enregistré** : si les deux diffèrent, la clé est refusée.
 - **Plusieurs clés actives en même temps** : le changement de clé ne coupe rien.
-- **Ce que la vérification d'intégrité fera, et ne fera pas** (à venir) : la porte lira le workflow appelant dans n8n (lecture seule) et vérifiera que son tag `client-<id>` et le préfixe de son nom (`client-<id>-…`) correspondent au propriétaire de la clé. Elle **protège des erreurs** (la clé d'un client collée dans le workflow d'un autre), **pas d'une personne qui détiendrait la clé** : celle-ci pourrait annoncer l'identifiant d'un workflow du même client. Garde donc les clés secrètes comme des mots de passe.
+- **La vérification d'intégrité** : la porte lit le workflow appelant dans n8n (**lecture seule, un seul GET**, la clé d'API n8n ne sort jamais ailleurs) et vérifie : pour un client, l'étiquette `client-<id>` (et aucune autre étiquette de client) et un nom qui commence par `client-<id>-` ; pour toi (propriétaire « interne »), exactement une étiquette parmi `interne`, `produit`, `perso`, aucune étiquette de client, et un nom qui commence par ce mot suivi d'un tiret. Un contrôle réussi est gardé 60 secondes. **Si n8n est injoignable, la porte se ferme** (503). Elle **protège des erreurs** (la clé d'un client collée dans le workflow d'un autre), **pas d'une personne qui détiendrait la clé** : celle-ci pourrait annoncer l'identifiant d'un workflow du même propriétaire. Garde donc les clés secrètes comme des mots de passe. **Limite** : un client dont l'identifiant dépasse **17 caractères** ne peut pas avoir de clé (l'étiquette n8n `client-<id>` ferait plus de 24 caractères).
+- **Isolation** : le nom des tables est écrit dans le code, jamais reçu ; une clé n'écrit que sous son propriétaire (`clients/<id>/…` dans la base 2, la racine dans la base 1) ; une clé de client n'ouvre rien dans la base 1.
+- **Aucune suppression** : la porte sait créer (sans écraser), mettre à jour ce qui existe, et lire. Elle n'a aucun moyen de supprimer.
+- **Journal** : une ligne par appel (clé courte, propriétaire, module, action, workflow, statut, durée). **Jamais** la clé, les données reçues, les titres ni la clé d'API n8n (liste blanche de champs, testée).
+- **Plafond** : 120 requêtes par minute et par clé (compteur en mémoire de l'instance : un frein grossier, pas une garantie ; 3 instances au plus).
 
 ## 6. Où en est-on
 
 | Élément | État |
 |---|---|
-| Bibliothèque des clés (`scripts/porte/cles.js`) : format, empreinte, vérification | ✅ écrite et testée (`tests/porte-cles.test.js`) |
-| Outil de gestion (`scripts/cles.js`, `scripts/porte/outil.js`) : lister, créer, révoquer | ✅ écrit et testé (`tests/porte-outil.test.js`), essayé en émulateur ; **jamais lancé sur une vraie base** |
-| La porte (fonction Firebase) et ses actions de veille | ⏳ à écrire |
-| Vérification d'intégrité auprès de n8n | ⏳ à écrire (demande de déposer la clé d'API n8n dans la base 1, par Jérôme) |
-| Fermeture de `plateforme_cles` aux navigateurs dans les règles de la base 1 | ⏳ à faire avec la porte (modifier aussi le cahier des charges et ses tests) |
-| Déploiement | ⏳ seulement avec l'accord de Jérôme |
+| Bibliothèque des clés (`scripts/porte/cles.js`) | ✅ écrite et testée (`tests/porte-cles.test.js`) |
+| Outil de gestion (`scripts/cles.js`, `scripts/porte/outil.js`) | ✅ écrit et testé (`tests/porte-outil.test.js`) ; **jamais lancé sur une vraie base** |
+| Cœur de la porte (`scripts/porte/porte.js`, `validation.js`, `actions-veille.js`, `adaptateur.js`, `n8n.js`) | ✅ écrit et testé : attaques en mémoire (`tests/porte.test.js`), contre un Firestore d'essai (`tests/porte-firestore.test.js`), assemblage avec un faux n8n (`tests/porte-fonction.test.js`) |
+| Fermeture de `plateforme_cles` aux navigateurs (base 1) : règles, cahier des charges, guide `audit-ecran.md`, tests | ✅ faite dans le code ; **règles pas encore publiées dans Firebase** |
+| Fonction de la porte pour la base 1 (`functions/src/porte.js`) | ✅ écrite ; ⏳ **volontairement pas branchée** dans `functions/src/index.js` ni dans `firebase.json` (le déploiement part tout seul à la fusion dans `main`) |
+| Porte pour la base 2 (clients) | ⏳ à faire avec le premier client : même code, autre assemblage, copie partagée et règles à adapter |
+| Mise en service (section 7) | ⏳ seulement avec ton accord |
 
-## 7. Décisions et dates
+## 7. Mise en service dans ton CRM (base 1), dans l'ordre
+
+Rien de ceci n'est fait. Chaque point est soit **à toi** (identifiants, secrets), soit **à moi** (code), soit **à nous deux**. Je ne branche la fonction qu'après tes points 1 à 3.
+
+1. **Toi : un compte de service dédié** `porte-serveur@chevalier-ia-os.iam.gserviceaccount.com`, avec seulement « Utilisateur Cloud Datastore » (Firestore) et « Accesseur de secrets » sur le seul secret `N8N_API_KEY`. Même principe que le compte `mcp-serveur` du serveur MCP : on ne réutilise pas son compte, pour que chaque porte ait ses propres droits.
+2. **Toi : déposer la clé d'API de n8n** dans Secret Manager (projet `chevalier-ia-os`, nom `N8N_API_KEY`). Je ne la vois jamais et je ne la manipule pas : tu la crées dans n8n (*Settings* › *n8n API*, en lecture seule si ton n8n le propose), tu la copies, puis dans le Terminal : `pbpaste | gcloud secrets create N8N_API_KEY --project chevalier-ia-os --data-file=-`.
+3. **Toi : publier les règles Firestore** de la base 1 (celles de `firestore.rules`, qui ferment `plateforme_cles`), **avant** de créer une clé.
+4. **Moi : brancher la fonction** (`functions/src/index.js` avec le compte de service du point 1), la réécriture `/porte` dans `firebase.json`, et adapter les tests qui figent ces fichiers. **Attention : la fusion de la branche dans `main` déploie les fonctions toute seule** : on ne fusionne qu'après les points 1 à 3.
+5. **Nous deux : créer ta première clé** (`node scripts/cles.js creer --projet crm --proprietaire interne --ecrire`), la mettre dans n8n (section 4), et tester avec un workflow d'essai de ta veille.
+
+## 8. Décisions et dates
 
 - **2026-10-13** : une clé technique par propriétaire, commune à tous ses modules (même base, tables reliables) ; l'ancienne clé reste valable jusqu'à sa révocation (décision de Jérôme : « le plus sûr » pour la production) ; table de clés nommée selon la règle `module_table`.
 - **2026-10-14** : format `cle-n8n.<propriétaire>.<aléatoire>` (le nom du client au début) ; 3 clés actives au plus par propriétaire ; porte dans les deux bases, une adresse par base ; la clé d'API n8n sera déposée dans la base 1 par Jérôme pour la vérification d'intégrité.
