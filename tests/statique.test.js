@@ -325,6 +325,16 @@ describe('D5 Serveur MCP (étape 2) : déploiement, versions figées, sécurité
     assert.match(t, /invoker: 'public'/);
     assert.match(t, /cors: false/);
   });
+  test('D5 la fonction porte : Paris, 3 instances au plus, invocation publique, pas de CORS, compte de service dédié', () => {
+    const t = lire('functions/src/index.js');
+    const bloc = t.slice(t.indexOf('export const porte = onRequest'));
+    assert.match(bloc, /region: 'europe-west9'/);
+    assert.match(bloc, /maxInstances: 3/);
+    assert.match(bloc, /invoker: 'public'/);
+    assert.match(bloc, /cors: false/);
+    assert.match(bloc, /serviceAccount: 'porte-serveur@chevalier-ia-os\.iam\.gserviceaccount\.com'/);
+    assert.match(bloc, /creerGestionnairePorteCrm\(\)/);
+  });
   test('D5 la fonction tourne avec un compte de service dédié, jamais avec le compte par défaut du projet', () => {
     const t = lire('functions/src/index.js');
     assert.match(t, /serviceAccount: 'mcp-serveur@chevalier-ia-os\.iam\.gserviceaccount\.com'/);
@@ -339,6 +349,7 @@ describe('D5 Serveur MCP (étape 2) : déploiement, versions figées, sécurité
       { source: '/.well-known/oauth-protected-resource/mcp', run: vers },
       { source: '/.well-known/oauth-authorization-server', run: vers },
       { source: '/oauth/**', run: vers },
+      { source: '/porte', run: { serviceId: 'porte', region: 'europe-west9' } },
     ]);
     assert.ok(fb.hosting.ignore.includes('functions/**'));
     assert.equal(fb.emulators.functions.port, 5001);
