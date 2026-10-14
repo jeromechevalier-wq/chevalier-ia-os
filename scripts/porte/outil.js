@@ -115,13 +115,13 @@ async function creer(projet, proprietaire, options, ctx) {
   const enregistrement = enregistrementDe(cle, proprietaire, new Date(maintenant()));
   // La clé est remise AVANT d'être enregistrée : si la remise échoue, rien n'existe côté base ; si l'enregistrement échoue, la clé remise ne marche pas (elle est refusée).
   if (options.afficher) {
-    sortie('\nVoici la clé. Elle ne sera plus jamais affichée ; copie-la maintenant dans le credential n8n du client :\n');
-    sortie(`  ${cle}\n`);
-  } else if (!copier(cle)) {
+    sortie('\nVoici la valeur complète. Elle ne sera plus jamais affichée ; copie-la maintenant dans le champ Value du credential n8n du client :\n');
+    sortie(`  Bearer ${cle}\n`);
+  } else if (!copier(`Bearer ${cle}`)) {
     sortie('✖ Impossible de copier la clé dans le presse-papiers. Rien n\'a été créé. Relance avec --afficher pour la voir à l\'écran.');
     return 1;
   } else {
-    sortie('\nLa clé est copiée dans le presse-papiers (elle n\'est pas affichée). Colle-la maintenant dans le credential n8n du client : elle ne pourra plus être retrouvée.');
+    sortie('\nLa valeur complète (« Bearer » + la clé) est copiée dans le presse-papiers (elle n\'est pas affichée). Colle-la maintenant, telle quelle, dans le champ Value du credential n8n du client : elle ne pourra plus être retrouvée.');
   }
   await store.ecrireCle(enregistrement.id, enregistrement.donnees);
   const relu = await store.lireCle(enregistrement.id);
