@@ -1,6 +1,6 @@
 # La porte et les clés des workflows n8n
 
-> **État au 2026-10-14 : en service pour ton CRM (base 1).** La porte est déployée à l'adresse `https://chevalier-ia-os.web.app/porte`, la clé `interne` est dans n8n, et un workflow d'essai (lecture seule) a lu les sources de la veille avec succès. Reste à faire : la porte pour la base 2 (clients) et la copie des workflows réels (étape 3).
+> **État au 2026-10-14 : en service pour ton CRM (base 1).** La porte est déployée à l'adresse `https://chevalier-ia-os.web.app/porte`, la clé `interne` est dans n8n, et **les 4 workflows de la veille passent par la porte depuis le 2026-10-14** (étape 3 faite, voir la section 9). Reste à faire : la porte pour la base 2 (clients).
 
 ## 1. À quoi ça sert
 
@@ -169,6 +169,7 @@ Un navigateur ne peut pas appeler la porte (toute requête avec une origine est 
 | Fonction de la porte pour la base 1 (`functions/src/porte.js`) | ✅ **en ligne depuis le 2026-10-14** : fonction `porte` dans `functions/src/index.js` (Paris, compte `porte-serveur`, 3 instances au plus), réécriture `/porte` dans `firebase.json` |
 | Porte pour la base 2 (clients) | ⏳ à faire avec le premier client : même code, autre assemblage, copie partagée et règles à adapter |
 | Mise en service (section 7) | ✅ faite le 2026-10-14 (points 1 à 5) |
+| Workflows de la veille par la porte (section 9) | ✅ bascule faite le 2026-10-14 : 4 copies actives, 4 originaux désactivés |
 
 ## 7. Mise en service dans ton CRM (base 1), dans l'ordre
 
@@ -188,6 +189,27 @@ Un navigateur ne peut pas appeler la porte (toute requête avec une origine est 
 - **La clé d'API n8n** se dépose avec un champ caché : `read -s "K?…" && printf %s "$K" | gcloud secrets versions add N8N_API_KEY …`. La porte la garde 5 minutes en mémoire : attendre avant de retester.
 - **Sur Firebase, le corps de la requête est déjà lu** quand la porte le reçoit : elle le lit dans `req.rawBody` (corrigé le 2026-10-14, test dédié dans `tests/porte.test.js`).
 
+## 9. La veille passe par la porte (étape 3, faite le 2026-10-14)
+
+**Avant** : les 4 workflows lisaient et écrivaient dans un Google Sheet. **Après** : leurs copies `…-porte` lisent et écrivent dans Firebase par la porte. Les originaux sont désactivés (jamais supprimés) et le Sheet est renommé « Veille YouTube - to be removed ».
+
+| Workflow actif | Remplace | Actions de la porte utilisées |
+|---|---|---|
+| `interne-veille-collecte-youtube-porte` (lundi 8 h) | `interne-veille-collecte-youtube` | `contenus.lire`, `sources.lire`, `contenus.ajouter` |
+| `interne-veille-collecte-rss-porte` (lundi 8 h) | `interne-veille-collecte-rss` | `contenus.lire`, `sources.lire`, `contenus.ajouter` |
+| `interne-veille-mail-lundi-porte` (lundi 8 h 30) | `interne-veille-mail-lundi` | `contenus.lire`, `resumes.lire` |
+| `interne-veille-resumer-a-la-demande-porte` (bouton Résumer) | `interne-veille-resumer-a-la-demande` | `contenus.lire`, `sources.lire`, `resumes.lire`, `contenus.changerEtat`, `resumes.ajouter` |
+
+**À savoir**
+- Les états du Sheet (« à choisir », « en cours », « résumée », « échec ») s'appellent `nouveau`, `en_cours`, `resume`, `echec` dans la porte ; les copies font la traduction.
+- L'historique du Sheet (6 sources, 30 contenus, 14 résumés) a été importé le 2026-10-14 avec `scripts/veille/importer-sheet.js`. Les identifiants de contenu suivent la règle de l'import : une adresse devient son dernier morceau en minuscules.
+- Les fichiers de résumé (transcript, résumé court, résumé HTML) restent déposés dans Drive ; la porte garde leurs liens (`resumes.ajouter`).
+- Une source YouTube sans identifiant de chaîne est ignorée par la collecte (chaque source de Firebase a le sien).
+- **Le jeton du bouton Résumer n'est plus écrit dans les workflows** : il est dans la table de données n8n `veille_jeton_bouton` (colonne `jeton`). L'ancien jeton est remplacé : les anciens boutons ne marchent plus.
+- Le bouton Résumer répond à l'adresse `…/webhook/veille-resumer-porte` (l'ancienne adresse `veille-resumer` est éteinte).
+- Les workflows d'essai ont été archivés.
+- Retour en arrière : réactiver les 4 originaux dans n8n et désactiver les copies (le Sheet existe toujours dans Drive).
+
 ## 8. Décisions et dates
 
 - **2026-10-13** : une clé technique par propriétaire, commune à tous ses modules (même base, tables reliables) ; l'ancienne clé reste valable jusqu'à sa révocation (décision de Jérôme : « le plus sûr » pour la production) ; table de clés nommée selon la règle `module_table`.
@@ -195,3 +217,4 @@ Un navigateur ne peut pas appeler la porte (toute requête avec une origine est 
 
 Décisions plus larges (une base pour Jérôme, une pour les clients, un site dédié par client) : fiche du second cerveau *Plateforme clients - décisions du module Automatisations et de la veille*.
 - **2026-10-14** : porte en service pour la base 1 (fonction `porte`, compte `porte-serveur`, secret `N8N_API_KEY`) ; première clé `interne` en usage, les deux clés d'essai révoquées.
+- **2026-10-14** : bascule de la veille vers la porte (4 workflows) ; action `resumes.lire` ajoutée pour relire les liens des résumés ; résumés laissés dans Drive ; jeton du bouton Résumer déplacé dans une table de données n8n.
