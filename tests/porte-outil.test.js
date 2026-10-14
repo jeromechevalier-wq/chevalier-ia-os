@@ -70,7 +70,8 @@ describe('outil des clés : créer', () => {
   test('avec --ecrire : clé copiée (jamais affichée), seule l\'empreinte est enregistrée, et la clé marche', async () => {
     const m = monde();
     assert.equal(await executer(['creer', '--projet', 'plateforme', '--proprietaire', 'audrey', '--ecrire'], m.ctx), 0);
-    const cle = m.presse.contenu;
+    assert.match(m.presse.contenu, /^Bearer cle-n8n\.audrey\./, 'le presse-papiers contient la valeur complète du champ Value : « Bearer » + la clé');
+    const cle = m.presse.contenu.replace(/^Bearer /, '');
     assert.deepEqual(analyserCle(cle), { proprietaire: 'audrey' });
     assert.ok(!m.texte().includes(cle) && !m.texte().includes(cle.split('.')[2]), 'la clé n\'est pas affichée');
     assert.equal(m.docs.size, 1);
@@ -84,6 +85,7 @@ describe('outil des clés : créer', () => {
     await executer(['creer', '--projet', 'crm', '--proprietaire', 'interne', '--ecrire', '--afficher'], m.ctx);
     const trouvee = m.texte().match(/cle-n8n\.interne\.[A-Za-z0-9_-]{43}/);
     assert.ok(trouvee);
+    assert.match(m.texte(), /Bearer cle-n8n\.interne\./, 'la valeur complète est affichée');
     assert.equal(m.presse.contenu, null);
     assert.ok(m.docs.has(empreinte(trouvee[0])));
   });
