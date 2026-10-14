@@ -74,6 +74,16 @@ export const ACTIONS_VEILLE = Object.freeze({
     },
   },
 
+  // Lecture des résumés déjà faits (liens vers les fichiers), par exemple pour le mail du lundi. Lecture seule, 200 au plus.
+  'resumes.lire': {
+    ecrit: false,
+    schema: { limite: { type: 'nombre', min: 1, max: MAX_LECTURE } },
+    async executer({ base, donnees }, { limite = 100 }) {
+      const liste = await donnees.lister(chemin(base, TABLES.resumes), { limite: Math.floor(limite) });
+      return { resumes: liste.map(versJson) };
+    },
+  },
+
   'contenus.ajouter': {
     ecrit: true,
     schema: { contenus: { type: 'liste', max: MAX_CONTENUS_PAR_APPEL, item: SCHEMA_CONTENU, requis: true } },
