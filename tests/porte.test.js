@@ -320,6 +320,18 @@ describe('porte : actions de la veille et isolation', () => {
     assert.equal((await audrey(m, 'contenus.lire', { limite: 0 })).statut, 400);
     assert.equal((await audrey(m, 'contenus.lire', {})).corps.resultat.contenus.length, 2);
   });
+  test('resumes.lire : renvoie les résumés de ce client seulement, limité, en lecture seule', async () => {
+    const m = await pret();
+    await audrey(m, 'contenus.ajouter', { contenus: [CONTENU] });
+    await audrey(m, 'resumes.ajouter', { contenuId: 'c1', idExecution: '1', lienHtml: 'https://exemple.fr/r' });
+    m.base.docs.set('clients/martin/veille_resumes/r-m1', { contenuId: 'm1', lienHtml: 'https://exemple.fr/martin' });
+    const r = await audrey(m, 'resumes.lire', {});
+    assert.equal(r.statut, 200);
+    assert.deepEqual(r.corps.resultat.resumes.map((x) => [x.id, x.contenuId, x.lienHtml]), [['r-c1-1', 'c1', 'https://exemple.fr/r']]);
+    assert.equal(typeof r.corps.resultat.resumes[0].creeLe, 'string', 'dates en texte ISO');
+    assert.equal((await audrey(m, 'resumes.lire', { limite: 201 })).statut, 400);
+    assert.equal((await audrey(m, 'resumes.lire', { autre: 1 })).statut, 400);
+  });
   test('resumes.ajouter : le contenu doit exister, identifiant composé et stable, coût et modèle contrôlés, aucune clé secrète acceptée', async () => {
     const m = await pret();
     await audrey(m, 'contenus.ajouter', { contenus: [CONTENU] });
