@@ -27,3 +27,7 @@ const destinationPorte = join(destination, 'porte');
 mkdirSync(destinationPorte, { recursive: true });
 for (const f of FICHIERS_PORTE) copyFileSync(join(racine, 'scripts', 'porte', f), join(destinationPorte, f));
 console.log(`functions/partage/porte/ mis à jour (${FICHIERS_PORTE.length} fichiers copiés de scripts/porte/)`);
+
+// Le lien YouTube collé à la main (reconnaissance d'un épisode ou d'une chaîne, lecture du flux) : écrit une seule fois pour l'écran et pour le serveur.
+copyFileSync(join(racine, 'js', 'modules', 'veille', 'lien.js'), join(destination, 'veille-lien.js'));
+console.log('functions/partage/veille-lien.js mis à jour (copie exacte de js/modules/veille/lien.js)');

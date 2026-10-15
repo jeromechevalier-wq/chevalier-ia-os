@@ -84,7 +84,7 @@ export const MODULES_DECLARES = geler([
       { route: 'veille/contenus', libelle: 'Contenus', icone: 'file-text' },
       { route: 'veille/sources', libelle: 'Sources', icone: 'link' },
     ],
-    collections: ['veille_sources', 'veille_contenus', 'veille_resumes'],
+    collections: ['veille_sources', 'veille_contenus', 'veille_resumes', 'veille_pages'],
     outilsMcp: [],
     dependances: [],
   },

@@ -4,7 +4,7 @@
 // Toutes les écritures sont « idempotentes » : un identifiant fixe, créé seulement s'il n'existe pas (un appel répété ne change rien).
 import { valider } from './validation.js';
 
-export const TABLES = Object.freeze({ sources: 'veille_sources', contenus: 'veille_contenus', resumes: 'veille_resumes' });
+export const TABLES = Object.freeze({ sources: 'veille_sources', contenus: 'veille_contenus', resumes: 'veille_resumes', pages: 'veille_pages' });
 export const ETATS = ['nouveau', 'en_cours', 'resume', 'echec'];
 export const TYPES = ['YouTube', 'Podcast', 'Newsletter'];
 export const MAX_CONTENUS_PAR_APPEL = 100;
@@ -47,6 +47,8 @@ const SCHEMA_RESUME = {
   lienHtml: { type: 'url' },
   lienCourt: { type: 'url' },
   lienTranscript: { type: 'url' },
+  // Page HTML du résumé, gardée dans la base pour être lue dans l'appli (table veille_pages, à part pour ne pas alourdir la liste des résumés).
+  html: { type: 'html', max: 150000 },
 };
 
 /** Document → objet sans danger pour la réponse JSON (dates en texte ISO). */
@@ -127,9 +129,10 @@ export const ACTIONS_VEILLE = Object.freeze({
     schema: SCHEMA_RESUME,
     async executer({ base, donnees, auteur, maintenant }, d) {
       if (!(await donnees.lireDoc(chemin(base, TABLES.contenus, d.contenuId)))) throw new ErreurAction('contenu_inconnu', `Contenu inconnu : « ${d.contenuId} ».`, 404);
-      const { idExecution, ...reste } = d;
+      const { idExecution, html, ...reste } = d;
       const id = `r-${d.contenuId}-${idExecution}`;
-      const cree = await donnees.creerSiAbsent(chemin(base, TABLES.resumes, id), { ...reste, creeLe: new Date(maintenant()), origine: 'porte', ecritPar: auteur });
+      const cree = await donnees.creerSiAbsent(chemin(base, TABLES.resumes, id), { ...reste, ...(html ? { pageDisponible: true } : {}), creeLe: new Date(maintenant()), origine: 'porte', ecritPar: auteur });
+      if (cree && html) await donnees.creerSiAbsent(chemin(base, TABLES.pages, id), { html, creeLe: new Date(maintenant()), origine: 'porte', ecritPar: auteur });
       return { id, cree };
     },
   },

@@ -45,15 +45,37 @@ export function lienSur(url) {
   return /^https?:\/\/\S+$/i.test(t) ? t : null;
 }
 
-// Bouton « Résumer » : même lien que celui du mail du lundi (workflow n8n « résumer à la demande »). Le jeton n'ouvre aucune donnée :
-// il sert seulement à lancer un résumé. Décision de Jérôme (2026-10-14) : peu grave s'il est visible, l'appli est derrière un login Google.
-export const ADRESSE_RESUMER = 'https://n8n.chevalier-ia.fr/webhook/veille-resumer-porte';
-export const JETON_RESUMER = '27a9434ae485af417e6f5769cbe73ce56add5ada';
+// Bouton « Résumer » : l'appli appelle la fonction `veille` du serveur, qui garde le jeton secret et lance le workflow n8n (plus aucun jeton dans la page).
+// Un contenu se résume quand il est « nouveau » ou « en échec » (le workflow accepte ces deux états : on peut donc réessayer après un échec).
+export const peutResumer = (etat) => etat === 'nouveau' || etat === 'echec';
 
-/** Lien du bouton Résumer pour un contenu (identique au lien du mail). `null` si l'identifiant manque. */
-export function lienResumer(contenuId) {
-  const id = String(contenuId ?? '').trim();
-  return id ? `${ADRESSE_RESUMER}?video_id=${encodeURIComponent(id)}&token=${JETON_RESUMER}` : null;
+/** Libellés des boutons du formulaire d'ajout, selon ce que le lien collé désigne. `lien` : résultat de analyserLien (ou null). */
+export function boutonsAjout(lien, texte = '') {
+  if (!String(texte).trim()) return { aide: 'Coller le lien d\'un épisode ou d\'une chaîne YouTube.', boutons: [] };
+  if (!lien) return { aide: 'Ce lien n\'est ni un épisode ni une chaîne YouTube.', boutons: [] };
+  if (lien.genre === 'chaine') return { aide: 'Chaîne reconnue : elle sera suivie et ses 5 derniers épisodes ajoutés.', boutons: [{ cle: 'ajouter', libelle: 'Suivre la chaîne' }] };
+  return { aide: 'Épisode reconnu.', boutons: [{ cle: 'ajouter', libelle: 'Ajouter' }, { cle: 'ajouter-resumer', libelle: 'Ajouter et résumer' }] };
+}
+
+/** Phrase de confirmation après un ajout (résultat de la fonction `veille`). */
+export function messageAjout(r) {
+  if (r.genre === 'chaine') {
+    const n = r.crees;
+    const suite = n ? `${n} épisode${n > 1 ? 's' : ''} ajouté${n > 1 ? 's' : ''}` : 'aucun nouvel épisode (déjà tous dans la liste)';
+    return `${r.sourceNouvelle ? 'Chaîne suivie' : 'Chaîne déjà suivie'} : ${r.sourceNom}, ${suite}.`;
+  }
+  const base = r.crees ? `Épisode ajouté : ${r.titre}.` : `Cet épisode est déjà dans la liste : ${r.titre}.`;
+  return r.resume ? `${base} ${r.resume.message}` : base;
+}
+
+/**
+ * Page HTML d'un résumé prête pour un cadre isolé (iframe `srcdoc`, sandbox sans script) : les liens s'ouvrent dans un nouvel onglet.
+ * Le texte vient de la base, jamais d'une saisie directe, et le cadre n'exécute aucun script : cette ligne ne sert qu'à bien ouvrir les liens.
+ */
+export function pageDuResume(html) {
+  const t = String(html ?? '');
+  const base = '<base target="_blank">';
+  return /<head[^>]*>/i.test(t) ? t.replace(/<head[^>]*>/i, (m) => `${m}${base}`) : `${base}${t}`;
 }
 
 /** Date lisible : « 14 oct. » (même année) ou « 14 oct. 2025 ». `null` si inconnue. */
