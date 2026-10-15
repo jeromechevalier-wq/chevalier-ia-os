@@ -271,6 +271,26 @@ describe('Création et modification (tests 9 et 11)', () => {
     assert.deepEqual(s.doc('crm_affaires', 'a1').documents.map((d) => d.libelle), ['Contrat']);
   });
 
+  test('pièces jointes d’un projet : mêmes règles que sur une affaire (http exigé, favori, retrait par index ou url, une seule cible)', async () => {
+    const s = await demarrer();
+    const projet = ok(await s.appeler('biblio', 'creer_projet', { titre: 'Marketing - Prospection' }));
+    refuse(await s.appeler('biblio', 'joindre_lien', { url: 'https://exemple.test/x' }), /affaireId ou projetId/);
+    refuse(await s.appeler('biblio', 'joindre_lien', { affaireId: 'a1', projetId: projet.id, url: 'https://exemple.test/x' }), /affaireId ou projetId/);
+    refuse(await s.appeler('biblio', 'joindre_lien', { projetId: projet.id, url: 'ftp://exemple.test/x' }), /http/);
+    refuse(await s.appeler('biblio', 'joindre_lien', { projetId: 'inconnu', url: 'https://exemple.test/x' }), /introuvable/i);
+    ok(await s.appeler('biblio', 'joindre_lien', { projetId: projet.id, url: 'https://exemple.test/fiche', libelle: 'Fiche', favori: true }));
+    ok(await s.appeler('biblio', 'joindre_lien', { projetId: projet.id, url: 'https://exemple.test/autre', libelle: 'Autre' }));
+    assert.deepEqual(s.doc('projets_projets', projet.id).documents, [{ libelle: 'Fiche', url: 'https://exemple.test/fiche', favori: true }, { libelle: 'Autre', url: 'https://exemple.test/autre' }]);
+    assert.equal(s.doc('crm_affaires', 'a1').documents.length, 1, 'l’affaire n’est pas touchée');
+    refuse(await s.appeler('biblio', 'retirer_document', { projetId: projet.id, index: 0, url: 'https://exemple.test/autre' }), /ne correspond pas/);
+    refuse(await s.appeler('biblio', 'retirer_document', { projetId: projet.id, index: 5 }), /ce projet/);
+    ok(await s.appeler('biblio', 'retirer_document', { projetId: projet.id, url: 'https://exemple.test/fiche' }));
+    assert.deepEqual(s.doc('projets_projets', projet.id).documents.map((d) => d.libelle), ['Autre']);
+    const liste = ok(await s.appeler('biblio', 'lister_documents', { projetId: projet.id }));
+    assert.deepEqual(liste.documents, [{ projetId: projet.id, titreProjet: 'Marketing - Prospection', index: 0, libelle: 'Autre', url: 'https://exemple.test/autre', favori: false }]);
+    assert.ok(ok(await s.appeler('biblio', 'lister_documents', {})).documents.some((d) => d.affaireId === 'a1'), 'sans filtre : affaires et projets');
+  });
+
   test('adresse GitHub et dossier Drive d’une affaire : créés et modifiés par les outils, adresses invalides refusées, chaîne vide = effacer', async () => {
     const s = await demarrer();
     const avant = s.vue();

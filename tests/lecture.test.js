@@ -136,6 +136,7 @@ describe('Listes', () => {
     assert.equal(tous.total, 1);
     assert.deepEqual(tous.documents[0], { affaireId: 'a1', titreAffaire: 'Site vitrine Atelier des Lilas', index: 0, libelle: 'Devis', url: 'https://exemple.test/devis', favori: false });
     assert.equal((await lecture.listerDocuments(donnees, { affaireId: 'a2' })).total, 0);
+    assert.equal((await lecture.listerDocuments(donnees, { projetId: 'inconnu' })).total, 0, 'un projet inconnu ne renvoie rien');
   });
 });
 
