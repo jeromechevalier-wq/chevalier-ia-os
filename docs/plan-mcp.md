@@ -150,7 +150,7 @@ Profils : **L** lecteur · **B** bibliothécaire (L + écriture + pièces jointe
 | `ajouter_encaissement` | `id`, `montant`, `date?` | `ajouterEncaissement` | oui | B C |
 | `ajouter_note`, `modifier_note` | liens, `texte` | notes (jamais modifiées automatiquement) | oui | B C |
 | `creer_activite`, `terminer_activite` | champs / `id` | `nouvelleActivite`, `activiteFaite` | oui | B C |
-| `joindre_lien` | `affaireId`, `url`, `libelle` | `ajouterDocument` (http obligatoire) | oui | B C |
+| `joindre_lien` | `affaireId` ou `projetId`, `url`, `libelle`, `favori` | `ajouterDocument` (http obligatoire) | oui | B C |
 | `retirer_document` | `affaireId`, `index` ou `url` (réalisation étape 4) | retire la pièce (jamais le fichier Drive) | oui | B C |
 | `preparer_televersement` | `affaireId`, `contenu`, `mimeType`, `taille` | crée une session de téléversement Drive reprenable, renvoie l'adresse d'envoi et le nom final | oui | B C |
 | `joindre_fichier_drive` | `affaireId`, `fileId` | vérifie le fichier (visible par l'appli), le renomme `AAAA-MM-JJ - <affaire> - <contenu>`, ajoute la pièce et un événement | oui | B C |
