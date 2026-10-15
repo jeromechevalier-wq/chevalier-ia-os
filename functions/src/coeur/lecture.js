@@ -144,11 +144,15 @@ export async function listerActivites(donnees, { affaireId, personneId, organisa
   return serialiser({ total, tronque, activites: elements.map((a) => ({ ...a, lien: lienActivite(a) })) });
 }
 
-export async function listerDocuments(donnees, { affaireId }) {
-  const affaires = affaireId ? [await donnees.document(C.affaires, affaireId)].filter(Boolean) : await donnees.liste(C.affaires);
-  const documents = affaires.flatMap((a) => (a.documents || []).map((d, index) => ({
-    affaireId: a.id, titreAffaire: a.titre, index, libelle: d.libelle ?? null, url: d.url ?? null, favori: d.favori === true,
-  })));
+export async function listerDocuments(donnees, { affaireId, projetId }) {
+  // Sans filtre : affaires puis projets ; avec un filtre : seulement la source demandée.
+  const affaires = projetId ? [] : affaireId ? [await donnees.document(C.affaires, affaireId)].filter(Boolean) : await donnees.liste(C.affaires);
+  const projets = affaireId ? [] : projetId ? [await donnees.document(C.projets, projetId)].filter(Boolean) : await donnees.liste(C.projets);
+  const ligne = (d, index) => ({ index, libelle: d.libelle ?? null, url: d.url ?? null, favori: d.favori === true });
+  const documents = [
+    ...affaires.flatMap((a) => (a.documents || []).map((d, index) => ({ affaireId: a.id, titreAffaire: a.titre, ...ligne(d, index) }))),
+    ...projets.flatMap((p) => (p.documents || []).map((d, index) => ({ projetId: p.id, titreProjet: p.titre, ...ligne(d, index) }))),
+  ];
   return serialiser({ total: documents.length, documents });
 }
 

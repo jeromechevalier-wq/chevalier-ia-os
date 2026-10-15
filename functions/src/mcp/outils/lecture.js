@@ -114,8 +114,8 @@ export const lister_activites = {
 export const lister_documents = {
   nom: 'lister_documents',
   profils: TOUS,
-  description: "Liste les documents joints aux affaires (libellé et adresse), toutes affaires ou une seule, pour contrôler les liens.",
-  schema: { affaireId: id.optional() },
+  description: "Liste les documents joints aux affaires et aux projets (libellé, adresse, favori), tout ou une seule affaire (affaireId) ou un seul projet (projetId), pour contrôler les liens.",
+  schema: { affaireId: id.optional(), projetId: id.optional() },
   executer: ({ args, donnees }) => lecture.listerDocuments(donnees, args),
 };
 

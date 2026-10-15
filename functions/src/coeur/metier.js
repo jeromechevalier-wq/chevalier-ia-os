@@ -211,23 +211,32 @@ export async function rouvrirAffaire(c, args) {
   const a = await lire(c, C.affaires, args.id, 'Affaire');
   return appliquerRegle(c, L.planRouvrirAffaire(a, await contexte(c)), args, () => ({ id: a.id, statut: L.statutPourEtape(a.etape) }));
 }
+/** Cible d'une pièce jointe : une affaire ou un projet (exactement l'un des deux), mêmes règles pour les deux. */
+async function cibleDocuments(c, { affaireId, projetId }) {
+  if ((affaireId === undefined) === (projetId === undefined)) refuser('saisie_invalide', 'Donner affaireId ou projetId (un seul des deux).');
+  if (projetId !== undefined) {
+    const p = await lire(c, C.projets, projetId, 'Projet');
+    return { entite: p, libelle: 'ce projet', cle: { projetId: p.id }, plan: (patch) => PL.planMajProjet(p.id, patch) };
+  }
+  const a = await lire(c, C.affaires, affaireId, 'Affaire');
+  return { entite: a, libelle: 'cette affaire', cle: { affaireId: a.id }, plan: (patch) => L.planMajAffaire(a.id, patch) };
+}
+
 export async function joindreLien(c, args) {
-  const a = await lire(c, C.affaires, args.affaireId, 'Affaire');
-  const r = L.ajouterDocument(a, args.libelle, args.url, args.favori === true);
+  const cible = await cibleDocuments(c, args);
+  const r = L.ajouterDocument(cible.entite, args.libelle, args.url, args.favori === true);
   verifierMessages(r.erreurs);
-  const plan = L.planMajAffaire(a.id, r.patch);
-  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { affaireId: a.id, documents: r.patch.documents.length });
+  return sortie(await c.ecrire({ operations: cible.plan(r.patch).ecritures, parametres: args }), { ...cible.cle, documents: r.patch.documents.length });
 }
 
 export async function retirerDocument(c, args) {
-  const a = await lire(c, C.affaires, args.affaireId, 'Affaire');
-  const documents = a.documents || [];
+  const cible = await cibleDocuments(c, args);
+  const documents = cible.entite.documents || [];
   const index = args.index !== undefined ? args.index : documents.findIndex((d) => d.url === args.url);
   if (args.index === undefined && args.url === undefined) refuser('saisie_invalide', 'Donner index ou url du document à retirer (lister_documents).');
-  if (!Number.isInteger(index) || index < 0 || index >= documents.length) refuser('introuvable', 'Document introuvable sur cette affaire (lister_documents donne l’index).');
+  if (!Number.isInteger(index) || index < 0 || index >= documents.length) refuser('introuvable', `Document introuvable sur ${cible.libelle} (lister_documents donne l’index).`);
   if (args.url !== undefined && documents[index].url !== args.url) refuser('saisie_invalide', 'L’url ne correspond pas au document à cet index (la liste a peut-être changé : relire lister_documents).');
-  const plan = L.planMajAffaire(a.id, L.supprimerDocument(a, index));
-  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { affaireId: a.id, documents: documents.length - 1 });
+  return sortie(await c.ecrire({ operations: cible.plan(L.supprimerDocument(cible.entite, index)).ecritures, parametres: args }), { ...cible.cle, documents: documents.length - 1 });
 }
 
 // ---------------------------------------------------------------- projets (2.1) et factures (2.2)
