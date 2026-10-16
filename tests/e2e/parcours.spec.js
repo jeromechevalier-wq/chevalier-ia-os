@@ -1,7 +1,7 @@
 // Tests C : parcours dans le navigateur (Playwright + émulateurs), formats 1440 × 900 et 390 × 844.
 import { readFile } from 'node:fs/promises';
 import {
-  test, expect, connecter, allerA, creerPersonne, creerOrganisation, creerAffaire, creerActivite, lireDocument, listerDocuments, ecrireDocument,
+  test, expect, connecter, allerA, allerAuxReglagesCrm, creerPersonne, creerOrganisation, creerAffaire, creerActivite, lireDocument, listerDocuments, ecrireDocument,
   jour, estTelephone, valeurObjectif, JEROME, CHARLES,
 } from './outils.js';
 
@@ -624,7 +624,7 @@ test('C17 filtres : combiner deux filtres, enregistrer, appliquer, renommer et s
   await page.locator('.menu-pop').getByRole('menuitem', { name: 'Prospects de Manosque' }).click();
   await expect(page.locator('.tableau-personnes tbody tr')).toHaveCount(1);
   // Réglages : renommer puis supprimer
-  await allerA(page, 'Réglages');
+  await allerAuxReglagesCrm(page);
   const ligne = page.locator('.ligne-reglage', { hasText: 'Prospects de Manosque' });
   await ligne.locator('[data-action="renommer-filtre"]').click();
   await dialogue(page).getByLabel('Nom du filtre').fill('Prospects Manosque');
@@ -663,7 +663,7 @@ test('C17 filtres d’affaires : Chaudes, en retard ; recherche d’une liste in
 test('C18 réglages : étiquette, offre, source ; changer le début d’activité change le graphique', async ({ page }) => {
   await creerAffaire('a1', { titre: 'Payée en octobre', etape: 'gagne', statut: 'gagnee', archive: true, encaissements: [{ date: new Date(), montant: 500, offreId: null }] });
   await connecter(page);
-  await allerA(page, 'Réglages');
+  await allerAuxReglagesCrm(page);
   await page.getByPlaceholder('Nouvelle étiquette').fill('Très motivée');
   await page.getByPlaceholder('Nouvelle étiquette').press('Enter');
   await expect(page.locator('.ligne-reglage[data-etiquette] input[type="text"]').last()).toHaveValue('Très motivée');
@@ -1171,7 +1171,7 @@ test('C25 dossier de travail d\'une affaire : n\'importe quel lien (Drive, serve
 test('C26 réglages : plus de compte GitHub ni de dossier Mac ; la section Google Drive dit que Google n\'est pas encore branché', async ({ page }) => {
   await fixtureEliot();
   await connecter(page);
-  await allerA(page, 'Réglages');
+  await allerAuxReglagesCrm(page);
   await expect(page.getByLabel('Compte GitHub')).toHaveCount(0);
   await expect(page.getByLabel('Chemin du dossier Projets sur le Mac')).toHaveCount(0);
   const section = page.locator('#reglages-projets');

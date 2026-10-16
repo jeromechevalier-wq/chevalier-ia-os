@@ -1,6 +1,6 @@
 // Chantier « Liens et documents » : fenêtre standard de Google (Picker), « Créer le répertoire » par l'API Google Drive, liens libres.
 // Google est SIMULÉ (voir google-simule.js) : on vérifie ce que l'appli demande à Google et ce qu'elle enregistre, pas Google lui-même.
-import { test, expect, connecter, allerA, creerProjet, lireDocument, ecrireDocument, JEROME } from './outils.js';
+import { test, expect, connecter, allerAuxReglagesCrm, creerProjet, lireDocument, ecrireDocument, JEROME } from './outils.js';
 import { brancherGoogle, lireGoogle, choisirDansGoogle, refuserAutorisation, ID_CLIENT, PARENT } from './google-simule.js';
 
 const dialogue = (page) => page.getByRole('dialog');
@@ -42,7 +42,7 @@ test.describe('Google branché (simulé)', () => {
 
   test('L2 réglages : dossier parent choisi dans la fenêtre Google, sous-dossiers (ajout, ordre, retrait), essai de la fenêtre', async ({ page }) => {
     await connecter(page);
-    await allerA(page, 'Réglages');
+    await allerAuxReglagesCrm(page);
     const section = page.locator('#reglages-projets');
     await expect(section.locator('[data-role="etat-google"]')).toHaveText('Google Drive est branché.');
     await expect(section.locator('[data-role="dossier-parent"]')).toHaveText('Racine de Mon Drive');

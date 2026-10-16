@@ -1,6 +1,6 @@
 // Tests C : écran Projets (étape 2 : Kanban par phase, liste, fiche), formats 1440 × 900 et 390 × 844.
 import {
-  test, expect, connecter, allerA, creerPersonne, creerOrganisation, creerAffaire, creerProjet, creerTacheProjet, creerActivite, lireDocument, listerDocuments, ecrireDocument,
+  test, expect, connecter, allerA, allerAuxReglagesCrm, creerPersonne, creerOrganisation, creerAffaire, creerProjet, creerTacheProjet, creerActivite, lireDocument, listerDocuments, ecrireDocument,
   jour, estTelephone, valeurObjectif, JEROME,
 } from './outils.js';
 
@@ -433,7 +433,7 @@ test('C29 filtres enregistrés : enregistrer, effacer puis réappliquer, renomme
   await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Extractions à explorer' })).toHaveCount(0);
   await page.keyboard.press('Escape');
   // Réglages : renommer puis supprimer
-  await allerA(page, 'Réglages');
+  await allerAuxReglagesCrm(page);
   const ligne = page.locator('.ligne-reglage', { hasText: 'Extractions à explorer' });
   await expect(ligne).toContainText('Projets');
   await ligne.locator('[data-action="renommer-filtre"]').click();
@@ -913,7 +913,7 @@ test('C32 Modèles de projets (dans les Réglages, plus dans le menu) : la liste
   await connecter(page);
   await attendreModeles();
   await expect(page.getByRole('link', { name: 'Modèles', exact: true })).toHaveCount(0);
-  await aller(page, '#/reglages');
+  await aller(page, '#/reglages/crm');
   await expect(page.locator('#reglages-modeles-projets')).toBeVisible();
   await expect(page.locator('.tableau-modeles .ligne-liste')).toHaveCount(3);
   await expect(page.locator('.tableau-modeles .ligne-liste[data-id="audit"]')).toContainText('Audit');
@@ -949,7 +949,7 @@ test('C32 Modèles de projets (dans les Réglages, plus dans le menu) : la liste
   await page.locator('.menu-pop').getByRole('menuitem', { name: /Supprimer définitivement/ }).click();
   await dialogue(page).getByRole('button', { name: 'Supprimer' }).click();
   await expect.poll(async () => await lireDocument(`projets_modeles/${m.id}`)).toBeNull();
-  await expect(page).toHaveURL(/#\/reglages$/); // la suppression ramène aux Réglages
+  await expect(page).toHaveURL(/#\/reglages\/crm$/); // la suppression ramène aux Réglages
 });
 
 test('C32 fiche d’un modèle : tâches types par phase, délai, modifier, monter, descendre, changer de phase, supprimer', async ({ page }) => {
@@ -1112,7 +1112,7 @@ test('C32 un modèle inactif n’est plus proposé ; supprimer un modèle ne tou
   await page.locator('.menu-pop').getByRole('menuitem', { name: /Supprimer définitivement/ }).click();
   await dialogue(page).getByRole('button', { name: 'Supprimer' }).click();
   await expect.poll(async () => await lireDocument('projets_modeles/accompagnement')).toBeNull();
-  await expect(page).toHaveURL(/#\/reglages$/); // l'appli revient aux Réglages après la suppression
+  await expect(page).toHaveURL(/#\/reglages\/crm$/); // l'appli revient aux Réglages après la suppression
   expect((await listerDocuments('projets_taches')).filter((t) => t.projetId === p.id)).toHaveLength(1);
   await aller(page, `#/projets/projets/${p.id}`);
   await expect(page.locator('[data-prop="modele"]')).toContainText('Modèle supprimé');
@@ -1129,7 +1129,7 @@ test('C32 aucun défilement horizontal de l’écran Modèles et d’une fiche d
     taches: [{ id: 't1', titre: 'Untitretrèslongsansespacepourvérifierlecomportementdelaligneetdesonmenudactionspourlestâchestypes', phase: 'decouverte', delaiJours: 3, ordre: 1 }],
   });
   const sansDebordement = async (nom) => expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), nom).toBeLessThanOrEqual(0);
-  await aller(page, '#/reglages');
+  await aller(page, '#/reglages/crm');
   await expect(page.locator('.tableau-modeles')).toBeVisible();
   await sansDebordement('liste des modèles (Réglages)');
   await aller(page, '#/projets/modeles/audit');
@@ -1590,7 +1590,7 @@ test('C37 Réglages : les restes de la 2.2 ont disparu (migration, délai de pai
   await creerAffaire('a1', { titre: 'Audit payé', etape: 'gagne', statut: 'gagnee', montant: 800, encaissements: [{ date: new Date(), montant: 800, offreId: null }] });
   await connecter(page);
   await attendreModeles();
-  await aller(page, '#/reglages');
+  await aller(page, '#/reglages/crm');
   await expect(page.locator('#reglages-etapes')).toBeVisible();
   await expect(page.locator('#reglages-migration, #reglages-delai')).toHaveCount(0);
   await expect(page.getByText('Délai de paiement')).toHaveCount(0);
@@ -1602,7 +1602,7 @@ test('C38 Réglages : étapes de vente configurables — renommer, expliquer (ic
   await creerAffaire('a1', { titre: 'Dans Rendez vous', etape: 'rdv_fixe' });
   await connecter(page);
   await attendreModeles();
-  await aller(page, '#/reglages');
+  await aller(page, '#/reglages/crm');
   const sec = page.locator('#reglages-etapes');
   await expect(sec.locator('.emplacement')).toHaveCount(6);
   const ligne = (id) => sec.locator(`.emplacement[data-emplacement="${id}"]`);
@@ -1641,7 +1641,7 @@ test('C39 Réglages : options du CRM — suivi des paiements, extraction de vale
   await aller(page, '#/projets/projets/pr1');
   await expect(page.locator('[data-section="projet-factures"]')).toHaveCount(1);
   await expect(page.locator('.fiche-actions [data-action="extraire"]')).toHaveCount(1);
-  await aller(page, '#/reglages');
+  await aller(page, '#/reglages/crm');
   const option = (cle) => page.locator(`[data-option="${cle}"]`);
   await expect(option('suiviPaiements')).toBeChecked();
   await option('suiviPaiements').uncheck();
@@ -1653,7 +1653,7 @@ test('C39 Réglages : options du CRM — suivi des paiements, extraction de vale
   await expect(page.locator('[data-section="projet-factures"]')).toHaveCount(0);
   await expect(page.locator('.fiche-actions [data-action="extraire"]')).toHaveCount(0);
   // « Créer le répertoire dans Google Drive » : éteint, plus de section de réglages Drive ni de bouton ; le dossier de travail reste un lien libre
-  await aller(page, '#/reglages');
+  await aller(page, '#/reglages/crm');
   await expect(page.locator('#reglages-projets')).toBeVisible();
   await option('boutonsDepot').uncheck();
   await expect(page.locator('#reglages-projets')).toBeHidden();
@@ -1666,7 +1666,7 @@ test('C40 Réglages : objectifs — chaque indicateur calculé explique son calc
   await creerAffaire('a1', { titre: 'Signée', etape: 'gagne', statut: 'gagnee', montant: 1200, datesEtapes: { gagne: new Date() } });
   await connecter(page);
   await attendreModeles();
-  await aller(page, '#/reglages');
+  await aller(page, '#/reglages/crm');
   const sec = page.locator('#reglages-objectifs');
   await expect(sec.locator('[data-role="explication"]').first()).toBeVisible();
   await expect(sec.locator('.ligne-objectif[data-objectif="ca_encaisse"] [data-role="explication"]')).toContainText('marquées payées');

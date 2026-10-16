@@ -298,6 +298,21 @@ describe('nouveau client : commandes annexes', () => {
     assert.equal((await nc('activer-module', 'annexe', 'compta', '--ecrire')).code, 1);
   });
 
+  test('A2d interrupteur unique « crm » : allume et éteint affaires ET projets d\'un coup, accepté partout où un module se nomme', async () => {
+    const cree = await nc('uncrm', '--nom', 'Un CRM', '--membre', `${ALICE}:editeur`, '--modules', 'crm,mcp', '--ecrire');
+    assert.equal(cree.code, 0, cree.texte);
+    assert.deepEqual((await lireDoc('clients/uncrm')).modules, { affaires: true, projets: true, automatisations: false, veille: false, mcp: true });
+    assert.equal((await nc('desactiver-module', 'uncrm', 'crm', '--ecrire')).code, 0);
+    assert.deepEqual((await lireDoc('clients/uncrm')).modules, { affaires: false, projets: false, automatisations: false, veille: false, mcp: true });
+    assert.equal((await nc('activer-module', 'uncrm', 'crm', '--ecrire')).code, 0);
+    assert.deepEqual((await lireDoc('clients/uncrm')).modules, { affaires: true, projets: true, automatisations: false, veille: false, mcp: true });
+    // Un client réglé avant la 2.6.0 avec « affaires » seul : rallumé avec « crm », il gagne les projets.
+    assert.equal((await nc('desactiver-module', 'uncrm', 'projets', '--ecrire')).code, 0);
+    assert.equal((await lireDoc('clients/uncrm')).modules.projets, false);
+    assert.equal((await nc('activer-module', 'uncrm', 'crm', '--ecrire')).code, 0);
+    assert.equal((await lireDoc('clients/uncrm')).modules.projets, true);
+  });
+
   test('A2c module « mcp » (accès d\'un assistant) : éteint par défaut, activable seul, sans dépendance ; le lien ne dépend que de cet interrupteur', async () => {
     assert.equal((await nc('activer-module', 'annexe', 'mcp', '--ecrire')).code, 0);
     assert.equal((await lireDoc('clients/annexe')).modules.mcp, true);
