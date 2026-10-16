@@ -8,6 +8,7 @@ import {
 } from './composants.js';
 import { panneauActivite } from './activites.js';
 import { creerLanceurs } from './lanceurs.js';
+import { sectionLiensEtDocuments } from './liens-documents.js';
 import { changerEtapeAvecBoites, ouvrirPerdue, ouvrirPause, demanderSuppressionAffaire } from './affaires.js';
 import * as PD from '../projets/donnees.js';
 import * as P from '../projets/logique.js';
@@ -139,24 +140,8 @@ export function rendreFicheAffaire(conteneur, id) {
         lanceurs.github, lanceurs.dossier),
     });
 
-    // ---- Documents
-    const champLibelle = h('input', { class: 'champ', type: 'text', 'aria-label': 'Libellé du document', placeholder: 'Libellé (ex. Devis)' });
-    const champUrl = h('input', { class: 'champ', type: 'url', 'aria-label': 'Adresse du document (lien Google Drive)', placeholder: 'Lien Google Drive' });
-    const documents = a.documents || [];
-    const sectionDocuments = sectionRepliable({
-      id: 'affaire-documents', titre: 'Documents', compteur: documents.length,
-      contenu: h('div', { class: 'pile' },
-        documents.length ? h('ul', { class: 'liste-simple' }, documents.map((d, i) => h('li', { class: 'ligne-simple' }, icone('link', { taille: 14 }),
-          boutonEtoile({ favori: d.favori === true, libelle: d.libelle, surBascule: () => D.majAffaire(a.id, L.basculerFavoriDocument(a, i)) }),
-          h('a', { href: d.url, target: '_blank', rel: 'noopener noreferrer' }, d.libelle),
-          h('button', { type: 'button', class: 'bouton-icone', 'aria-label': `Retirer ${d.libelle}`, onclick: () => D.majAffaire(a.id, L.supprimerDocument(a, i)) }, icone('x', { taille: 14 }))))) : null,
-        h('div', { class: 'ligne-ajout' }, champLibelle, champUrl,
-          h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', 'data-action': 'ajouter-document', onclick: async () => {
-            const r = L.ajouterDocument(a, champLibelle.value, champUrl.value);
-            if (r.erreurs.url) { toast(r.erreurs.url, { type: 'erreur' }); champUrl.classList.add('invalide'); return; }
-            await D.majAffaire(a.id, r.patch);
-          } }, 'Ajouter'))),
-    });
+    // ---- Liens et documents : même composant que la fiche projet
+    const sectionDocuments = sectionLiensEtDocuments({ id: 'affaire-documents', typeFiche: 'affaire', entite: a, courant: () => D.affaire(a.id) || a, enregistrer: (patch) => D.majAffaire(a.id, patch) });
 
     if (!panneau) panneau = panneauActivite({ lien: { affaireId: a.id }, liensCreation: () => L.liensAffaire(D.affaire(a.id) || a) });
     remplir(racine, gabaritFiche({ entete, gauche: [resume.element, sectionProjet?.element, details.element, sectionDocuments.element].filter(Boolean), droite: panneau.element }));

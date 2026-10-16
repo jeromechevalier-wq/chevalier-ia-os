@@ -243,6 +243,7 @@ test('I10 chez un client : « Ajouter un document » (Google branché) et dossie
   await choisirDansGoogle(page, [{ id: 'F1', name: 'Contrat.pdf', url: 'https://drive.google.com/file/d/F1/view', mimeType: 'application/pdf' }]);
   await page.locator('[data-action="ajouter-document-google"]').click();
   await page.getByRole('dialog').getByRole('button', { name: 'Parcourir seulement' }).click(); // pas encore de dossier de travail : on ne le crée pas ici
+  await page.locator('[data-role="form-lien"] [data-action="valider-lien"]').click();
   await expect.poll(async () => (await lireDocument('clients/studio/projets_projets/pr1')).documents).toEqual([{ libelle: 'Contrat.pdf', url: 'https://drive.google.com/file/d/F1/view' }]);
   const g = await lireGoogle(page);
   expect(g.autorisations[0]).toMatchObject({ clientId: ID_CLIENT, indice: ALICE });

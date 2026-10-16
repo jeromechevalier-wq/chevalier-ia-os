@@ -77,6 +77,7 @@ export function rendreReglagesCrm(page) {
   const sProjets = section('reglages-projets', 'Dossiers de projets dans Google Drive', 'folder-plus', 'Servent au bouton « Créer le répertoire » de la fiche projet : le dossier Drive où ranger les dossiers de projets, et les sous-dossiers créés dans chacun.');
   const etatGoogle = h('p', { class: 'aide', 'data-role': 'etat-google' });
   const nomParent = h('span', { class: 'valeur-parent', 'data-role': 'dossier-parent' });
+  // (le nom complet reste lisible au survol quand il est tronqué)
   const choisirParent = h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', 'data-action': 'choisir-dossier-parent', onclick: async () => {
     choisirParent.disabled = true;
     try {
@@ -114,8 +115,8 @@ export function rendreReglagesCrm(page) {
   } }, icone('circle-check', { taille: 14 }), 'Tester la fenêtre Google');
   sProjets.append(
     etatGoogle,
-    h('div', { class: 'ligne-champ' }, h('span', {}, 'Dossier Drive parent'), h('div', { class: 'ligne-ajout' }, nomParent, choisirParent, retirerParent)),
-    h('p', { class: 'aide' }, 'Sans dossier parent, les dossiers de projets sont créés à la racine de « Mon Drive ». Renommer ou déplacer un dossier dans Drive ne casse pas son lien.'),
+    h('div', { class: 'ligne-parent-drive' }, h('span', { class: 'ligne-parent-libelle' }, 'Dossier Drive parent'), nomParent, choisirParent, retirerParent),
+    h('p', { class: 'aide' }, 'Dans la fenêtre Google, seuls les dossiers s’affichent (les fichiers sont cachés exprès) : « Aucun document » veut dire que ce dossier n’a pas de sous-dossier, clique alors sur « Sélectionner ». Sans dossier parent, les dossiers de projets sont créés à la racine de « Mon Drive ». Renommer ou déplacer un dossier dans Drive ne casse pas son lien.'),
     h('h3', { class: 'sous-titre' }, 'Sous-dossiers de chaque projet'),
     listeSousDossiers,
     formulaireAjout('Nouveau sous-dossier (ex. Contrat, Livrables)', 'Ajouter', async (v) => { await enregistrerSousDossiers([...(D.etat.reglages.sousDossiersDrive || []), v]); }),
@@ -235,6 +236,7 @@ export function rendreReglagesCrm(page) {
     config.rafraichir();
     const parent = D.etat.reglages.dossierParentDrive;
     nomParent.textContent = parent?.nom || 'Racine de Mon Drive';
+    nomParent.title = parent?.nom || '';
     retirerParent.hidden = !parent;
     tester.disabled = choisirParent.disabled = !googleDisponible();
     etatGoogle.textContent = googleDisponible() ? 'Google Drive est branché.' : 'Google Drive n’est pas encore branché : l’identifiant client Google manque (guide pas à pas : docs/google-drive.md). Les boutons Google restent cachés sur les fiches.';

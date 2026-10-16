@@ -890,9 +890,10 @@ test('C21 fiche affaire : barre des étapes, Gagnée, montant modifiable, docume
   await expect(page.locator('.barre-etapes-fiche .etape.courante')).toHaveText('Gagné');
   await champDoc('crm_affaires', 'a1', 'statut', 'gagnee');
   // Document
-  await page.getByLabel('Libellé du document').fill('Devis');
-  await page.getByLabel('Adresse du document (lien Google Drive)').fill('https://drive.google.com/devis');
-  await page.locator('[data-action="ajouter-document"]').click();
+  await page.locator('[data-action="ajouter-lien"]').click();
+  await page.getByLabel('Lien web', { exact: true }).fill('https://drive.google.com/devis');
+  await page.getByLabel('Nom (facultatif)').fill('Devis');
+  await page.locator('[data-action="valider-lien"]').click();
   await champDoc('crm_affaires', 'a1', 'documents', [{ libelle: 'Devis', url: 'https://drive.google.com/devis' }]);
   // Plus d'encaissement manuel sur l'affaire (2.2) : l'argent se saisit sur les factures du projet
   await expect(page.locator('[data-action="ajouter-encaissement"]')).toHaveCount(0);
@@ -1115,7 +1116,7 @@ async function fixtureEliot(extra = {}) {
   await creerAffaire('a1', { titre: 'création appli devis dépannage', personneId: 'p1', organisationId: 'o1', ...extra });
 }
 
-test('C24 plus de champ GitHub ni de « Créer le GitHub » : une ancienne adresse reste visible (lien « GitHub »), se retire sans toucher au reste', async ({ page }) => {
+test('C24 plus de champ GitHub ni de « Créer le GitHub » : une ancienne adresse reste visible dans « Liens et documents » (lien « GitHub »), se retire sans toucher au reste', async ({ page }) => {
   await fixtureEliot();
   await connecter(page);
   await aller(page, '#/crm/affaires/a1');
@@ -1128,14 +1129,15 @@ test('C24 plus de champ GitHub ni de « Créer le GitHub » : une ancienne adres
   await ecrireDocument('crm_affaires/a1', { ...(await lireDocument('crm_affaires/a1')), urlGithub: 'https://github.com/jeromechevalier-wq/eliot-devis-depannage' });
   await aller(page, '#/crm/affaires');
   await aller(page, '#/crm/affaires/a1');
-  const github = page.locator('[data-prop="github"]');
-  await expect(github.locator('.prop-libelle')).toHaveText('GitHub');
-  await expect(github.locator('a.prop-lien')).toHaveAttribute('href', 'https://github.com/jeromechevalier-wq/eliot-devis-depannage');
+  const liens = page.locator('[data-section="affaire-documents"]');
+  await expect(liens).toContainText('Liens et documents');
+  await expect(liens.getByRole('link', { name: 'GitHub' })).toHaveAttribute('href', 'https://github.com/jeromechevalier-wq/eliot-devis-depannage');
+  await expect(page.locator('[data-prop="github"]')).toHaveCount(0); // plus de ligne à part dans « Détails »
   expect((await lireDocument('crm_affaires/a1')).urlGithub).toBe('https://github.com/jeromechevalier-wq/eliot-devis-depannage');
   // La retirer est un geste volontaire.
-  await github.locator('[data-action="retirer-github"]').click();
+  await liens.getByRole('button', { name: 'Retirer GitHub' }).click();
   await champDoc('crm_affaires', 'a1', 'urlGithub', '');
-  await expect(page.locator('[data-prop="github"]')).toHaveCount(0);
+  await expect(liens.getByRole('link', { name: 'GitHub' })).toHaveCount(0);
 });
 
 test('C25 dossier de travail d\'une affaire : n\'importe quel lien (Drive, serveur, NAS, site) ; un texte qui n\'est pas un lien est refusé ; pas de « Créer le répertoire » ici', async ({ page }) => {

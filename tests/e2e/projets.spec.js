@@ -185,14 +185,18 @@ test('C29 fiche : titre, dates (la fin ne précède pas le début), dossier de t
   await champDoc('projets_projets', 'pr1', 'urlDossier', 'smb://nas/clients/carrel');
   // Liens et documents (la section s'appelait « Documents »)
   await expect(page.locator('[data-section="projet-documents"]')).toContainText('Liens et documents');
-  await page.getByLabel('Libellé du lien').fill('Devis signé');
+  await page.locator('[data-action="ajouter-lien"]').click();
   await page.getByLabel('Lien web', { exact: true }).fill('https://drive.google.com/file/d/abc/view');
-  await page.locator('[data-action="ajouter-document"]').click();
-  await expect.poll(async () => (await lireDocument('projets_projets/pr1')).documents).toEqual([{ libelle: 'Devis signé', url: 'https://drive.google.com/file/d/abc/view' }]);
+  await page.getByLabel('Nom (facultatif)').fill('Devis signé');
+  await page.getByLabel('Note (facultative)').fill('envoyé au client');
+  await page.locator('[data-action="valider-lien"]').click();
+  await expect.poll(async () => (await lireDocument('projets_projets/pr1')).documents).toEqual([{ libelle: 'Devis signé', url: 'https://drive.google.com/file/d/abc/view', note: 'envoyé au client' }]);
   await expect(page.locator('[data-section="projet-documents"]')).toContainText('Devis signé');
+  await expect(page.locator('[data-section="projet-documents"] .lien-note')).toHaveText('envoyé au client');
   // Un lien qui n'en est pas un est refusé
+  await page.locator('[data-action="ajouter-lien"]').click();
   await page.getByLabel('Lien web', { exact: true }).fill('pas un lien');
-  await page.locator('[data-action="ajouter-document"]').click();
+  await page.locator('[data-action="valider-lien"]').click();
   await expect(page.locator('.toast-erreur').last()).toContainText('http');
   expect((await lireDocument('projets_projets/pr1')).documents).toHaveLength(1);
 });

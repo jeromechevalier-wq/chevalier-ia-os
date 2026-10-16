@@ -125,8 +125,8 @@ export const OUTILS_ECRITURE = [
   }, metier.creerActivite),
   outil('terminer_activite', "Marque une activité comme faite (et ajoute l'événement au fil).", { id }, metier.terminerActivite),
 
-  outil('joindre_lien', "Ajoute un lien ou un document à la liste « Liens et documents » d'une affaire (affaireId) ou d'un projet (projetId), un seul des deux, par son adresse (http ou https obligatoire : Drive, serveur, site, dépôt GitHub…), un libellé facultatif ; favori: true le met en favori (étoile, visible sur l'accueil de l'OS).", {
-    affaireId: id.optional(), projetId: id.optional(), url: z.string().min(1).max(2000), libelle: texteCourt.optional(), favori: z.boolean().optional(),
+  outil('joindre_lien', "Ajoute un lien ou un document à la liste « Liens et documents » d'une affaire (affaireId) ou d'un projet (projetId), un seul des deux, par son adresse (http ou https obligatoire : Drive, serveur, site, dépôt GitHub…), un libellé facultatif ; favori: true le met en favori (étoile, visible sur l'accueil de l'OS) ; note facultative.", {
+    affaireId: id.optional(), projetId: id.optional(), url: z.string().min(1).max(2000), libelle: texteCourt.optional(), note: z.string().max(300).optional().describe('Note facultative affichée sous le nom (300 caractères au plus), ex. « envoyé au client ».'), favori: z.boolean().optional(),
   }, metier.joindreLien),
   outil('retirer_document', "Retire un document d'une affaire (affaireId) ou d'un projet (projetId) (jamais le fichier lui-même) : par index (voir lister_documents) ou par url ; si les deux sont donnés, ils doivent correspondre.", {
     affaireId: id.optional(), projetId: id.optional(), index: z.number().int().min(0).optional(), url: z.string().max(2000).optional(),

@@ -947,10 +947,22 @@ export function estAffaireActive(a) {
   return !estArchivee(a) && (a.statut === 'ouverte' || a.statut === 'gagnee');
 }
 
-export function ajouterDocument(affaire, libelle, url, favori = false) {
+export const LONGUEUR_MAX_NOTE = 300;
+
+/** Nom court d'un lien sans nom : le nom du site (sans « www. »), sinon l'adresse elle-même. */
+export function nomCourtLien(url) {
+  const u = nettoyerEspaces(url);
+  try { return new URL(u).hostname.replace(/^www\./, '') || u; } catch { return u; }
+}
+
+/** Note facultative d'un lien ou d'un document : texte court, une seule ligne, 300 caractères au plus. */
+export const nettoyerNote = (note) => nettoyerEspaces(note).slice(0, LONGUEUR_MAX_NOTE);
+
+export function ajouterDocument(affaire, libelle, url, favori = false, note = '') {
   const u = nettoyerEspaces(url);
   if (!/^https?:\/\//i.test(u)) return { erreurs: { url: "L'adresse doit commencer par http." }, patch: {} };
-  const doc = { libelle: nettoyerEspaces(libelle) || u, url: u };
+  const doc = { libelle: nettoyerEspaces(libelle) || nomCourtLien(u), url: u };
+  if (nettoyerNote(note)) doc.note = nettoyerNote(note);
   if (favori === true) doc.favori = true;
   return { erreurs: {}, patch: { documents: [...(affaire.documents || []), doc] } };
 }
@@ -1026,15 +1038,27 @@ export function majUrlDossier(url) {
  */
 export function liensEtDocuments(entite) {
   const documents = entite?.documents || [];
-  const liens = documents.map((d, index) => ({ libelle: d.libelle || d.url, url: d.url, favori: d.favori === true, index }));
+  const liens = documents.map((d, index) => ({ libelle: d.libelle || nomCourtLien(d.url), url: d.url, note: d.note || '', favori: d.favori === true, index }));
   const github = nettoyerEspaces(entite?.urlGithub);
-  if (github && !Object.keys(validerUrlGithub(github)).length && !documents.some((d) => d.url === github)) liens.push({ libelle: 'GitHub', url: github, favori: false, index: -1 });
+  if (github && !Object.keys(validerUrlGithub(github)).length && !documents.some((d) => d.url === github)) liens.push({ libelle: 'GitHub', url: github, note: '', favori: false, index: -1 });
   return liens;
 }
 
 /** Retire une ligne de la liste (document, ou ancienne adresse GitHub) : { patch }. */
 export function retirerLien(entite, lien) {
   return lien.index === -1 ? { urlGithub: '' } : supprimerDocument(entite, lien.index);
+}
+
+/**
+ * Modifie le nom et la note d'une ligne de « Liens et documents ». Un nom vide redevient le nom court du lien ; une note vide efface le champ.
+ * L'ancienne adresse GitHub entre dans la liste des documents (même lien) et le champ ancien est vidé : { patch }.
+ */
+export function modifierLien(entite, lien, { libelle, note }) {
+  const nom = nettoyerEspaces(libelle) || nomCourtLien(lien.url);
+  const n = nettoyerNote(note);
+  const refaire = (d) => { const { note: _ancienne, ...reste } = d; return { ...reste, libelle: nom, ...(n ? { note: n } : {}) }; };
+  if (lien.index === -1) return { documents: [...(entite.documents || []), refaire({ url: lien.url })], urlGithub: '' };
+  return { documents: (entite.documents || []).map((d, i) => (i === lien.index ? refaire(d) : d)) };
 }
 
 /** Étoile sur une ligne. Pour l'ancienne adresse GitHub, elle entre dans la liste des documents (en favori) et le champ ancien est vidé : même lien, même libellé. */
