@@ -104,6 +104,24 @@ export const MODULES_DECLARES = geler([
     outilsMcp: [],
     dependances: [],
   },
+  {
+    // Accès MCP (chantier 9 et 11) : un assistant (Claude, ChatGPT) se connecte à l'espace du client par un lien (…/mcp/<client>) et ses outils sont ceux des
+    // modules actifs. Allumé ou éteint par client comme les autres modules ; éteint = le lien ne répond plus. Le module n'a qu'une page d'information
+    // (lien à copier, mode d'emploi, membres et rôles, lien vers le Journal du CRM) : aucun réglage, aucune donnée à lui. Réservé aux clients : le MCP de
+    // Jérôme (base chevalier-ia-os) est un autre serveur, qui ne change pas.
+    id: 'mcp',
+    nom: 'Accès MCP',
+    libelleMenu: 'Assistant (MCP)',
+    iconeMenu: 'link',
+    prefixe: 'mcp',
+    reserveAuxClients: true,
+    ecrans: [
+      { route: 'mcp/infos', libelle: 'Connexion', icone: 'link' },
+    ],
+    collections: [],
+    outilsMcp: [],
+    dependances: [],
+  },
 ]);
 
 export const IDS_MODULES = geler(MODULES_DECLARES.map((m) => m.id));

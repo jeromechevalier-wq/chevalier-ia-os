@@ -20,11 +20,11 @@ export const ENTETES_PAGE = Object.freeze({
   'X-Content-Type-Options': 'nosniff',
 });
 
-const echapper = (t) => String(t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+export const echapper = (t) => String(t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 /** JSON sûr dans un <script type="application/json"> : `<` devient \u003c, impossible de refermer la balise. */
-const jsonSur = (o) => JSON.stringify(o).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
+export const jsonSur = (o) => JSON.stringify(o).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
 
-const STYLE = `
+export const STYLE = `
 :root{color-scheme:light dark;--fond:#f6f7f9;--carte:#fff;--texte:#14181f;--discret:#5a6472;--bord:#d9dee5;--accent:#1a56db;--danger:#b42318}
 @media (prefers-color-scheme:dark){:root{--fond:#0f1319;--carte:#181e27;--texte:#eef1f5;--discret:#9aa5b4;--bord:#2b3441;--accent:#6ea1ff;--danger:#ff8a80}}
 *{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:16px;background:var(--fond);color:var(--texte);font:16px/1.5 system-ui,-apple-system,Segoe UI,sans-serif}
@@ -35,9 +35,9 @@ button.principal{background:var(--accent);border-color:var(--accent);color:#fff}
 .alerte{color:var(--danger);font-weight:600}.droits{border:1px solid var(--bord);border-radius:12px;padding:12px;margin:12px 0}
 [hidden]{display:none!important}`;
 
-const enveloppe = (titre, corps) => `<!doctype html>
+export const enveloppe = (titre, corps, styleEnPlus = '') => `<!doctype html>
 <html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow">
-<title>${echapper(titre)}</title><style>${STYLE}</style></head><body><main>${corps}</main></body></html>`;
+<title>${echapper(titre)}</title><style>${STYLE}${styleEnPlus}</style></head><body><main>${corps}</main></body></html>`;
 
 /** Page d'erreur : demande invalide (jamais de redirection vers une adresse non vérifiée). */
 export function pageErreur(message) {
@@ -45,9 +45,24 @@ export function pageErreur(message) {
 }
 
 /** `demande` : { client_id, redirect_uri, code_challenge, state?, resource? }, déjà validée par le serveur. */
-export function pageAutorisation(demande) {
-  const corps = `
-<h1>Autoriser Claude à accéder à Chevalier IA OS ?</h1>
+/**
+ * `options` (MCP des clients, clients/page.js) : { titre, titreOnglet, droits (HTML déjà sûr), pied (texte), urlApprouver, configFirebase, styleEnPlus, entete (HTML déjà sûr) }.
+ * Sans options : la page de Jérôme, inchangée.
+ */
+export function pageAutorisation(demande, options = {}) {
+  const {
+    titre = 'Autoriser Claude à accéder à Chevalier IA OS ?',
+    titreOnglet = 'Autoriser Claude',
+    droits = `<p><strong>Cette application va pouvoir :</strong></p>
+    <p>lire, créer, modifier et <strong>supprimer</strong> des fiches, des notes et des projets dans ta base, comme Claude Code sur ton Mac.</p>`,
+    pied = 'Tu peux couper cet accès à tout moment (voir docs/securite-et-pannes.md).',
+    urlApprouver = '/oauth/approve',
+    configFirebase = CONFIG_FIREBASE,
+    styleEnPlus = '',
+    entete = '',
+  } = options;
+  const corps = `${entete}
+<h1>${echapper(titre)}</h1>
 <div id="etat-connexion" hidden>
   <p>Pour continuer, connecte-toi avec ton compte Google.</p>
   <button type="button" class="principal" id="se-connecter">Se connecter avec Google</button>
@@ -55,8 +70,7 @@ export function pageAutorisation(demande) {
 <div id="etat-consentement" hidden>
   <p>Connecté en tant que <strong id="compte"></strong>.</p>
   <div class="droits">
-    <p><strong>Cette application va pouvoir :</strong></p>
-    <p>lire, créer, modifier et <strong>supprimer</strong> des fiches, des notes et des projets dans ta base, comme Claude Code sur ton Mac.</p>
+    ${droits}
     <p class="discret">Retour vers : <strong id="destination"></strong></p>
   </div>
   <button type="button" class="principal" id="autoriser">Autoriser</button>
@@ -64,9 +78,9 @@ export function pageAutorisation(demande) {
   <button type="button" id="changer">Changer de compte</button>
 </div>
 <p id="message" class="alerte" role="alert" hidden></p>
-<p class="discret">Tu peux couper cet accès à tout moment (voir docs/securite-et-pannes.md).</p>
+<p class="discret">${echapper(pied)}</p>
 <script type="application/json" id="demande">${jsonSur(demande)}</script>
-<script type="application/json" id="config">${jsonSur(CONFIG_FIREBASE)}</script>
+<script type="application/json" id="config">${jsonSur(configFirebase)}</script>
 <script type="module">
 import { initializeApp } from '${FIREBASE}/firebase-app.js';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut } from '${FIREBASE}/firebase-auth.js';
@@ -87,7 +101,7 @@ async function envoyer(decision) {
   try {
     const corps = { ...demande, decision };
     if (decision === 'allow') corps.id_token = await utilisateur.getIdToken();
-    const r = await fetch('/oauth/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corps) });
+    const r = await fetch(${jsonSur(urlApprouver)}, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corps) });
     const j = await r.json().catch(() => ({}));
     if (r.ok && typeof j.redirect === 'string') { window.location.assign(j.redirect); return; }
     dire(j.message || "Ce compte n'est pas autorisé ou la demande a expiré. Relance la connexion depuis Claude.");
@@ -116,5 +130,5 @@ onAuthStateChanged(auth, (u) => {
 });
 getRedirectResult(auth).catch(() => dire('La connexion Google a échoué. Réessaie.'));
 </script>`;
-  return enveloppe('Autoriser Claude', corps);
+  return enveloppe(titreOnglet, corps, styleEnPlus);
 }

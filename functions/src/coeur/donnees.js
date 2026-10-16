@@ -101,6 +101,34 @@ export function creerAccesFirestore({ projectId, db: dbFournie = null } = {}) {
   };
 }
 
+/**
+ * Espace d'UN client : la même interface, mais chaque collection vit sous `clients/<client>/` (la base). C'est ici que se tient l'isolation
+ * entre clients du serveur MCP, qui lit et écrit avec les droits d'administration (les règles Firestore ne le protègent pas) :
+ *  - la base est fixée à la création, jamais lue dans une demande ; les outils ne reçoivent ni chemin ni nom de collection libre ;
+ *  - un nom de collection doit être un simple nom (lettres minuscules, chiffres, tiret bas), jamais un chemin ;
+ *  - un identifiant de document contenant « / » ou valant « . » / « .. » ne désigne rien : lecture = « introuvable », écriture = refusée.
+ */
+export function avecBase(acces, base) {
+  if (typeof base !== 'string' || !/^clients\/[a-z0-9][a-z0-9_-]{0,39}$/.test(base)) throw new Error(`Base de client invalide : « ${base} »`);
+  const nom = (n) => {
+    if (typeof n !== 'string' || !/^[a-z][a-z0-9_]{0,60}$/.test(n)) throw new Error(`Nom de collection invalide : « ${n} »`);
+    return `${base}/${n}`;
+  };
+  const idSur = (id) => { const t = String(id); return t.length > 0 && t.length <= 1500 && !t.includes('/') && t !== '.' && t !== '..'; };
+  const exigerId = (id) => { if (!idSur(id)) throw new Error(`Identifiant de document invalide : « ${id} »`); return id; };
+  return {
+    base,
+    liste: (n, filtre) => acces.liste(nom(n), filtre),
+    document: (n, id) => (idSur(id) ? acces.document(nom(n), id) : Promise.resolve(null)),
+    nouvelId: (n) => acces.nouvelId(nom(n)),
+    appliquer: (ecritures, { attendus = [] } = {}) => acces.appliquer(
+      ecritures.map((e) => ({ ...e, collection: nom(e.collection), id: exigerId(e.id) })),
+      { attendus: attendus.map((a) => ({ ...a, collection: nom(a.collection), id: exigerId(a.id) })) },
+    ),
+    mettreAJour: (n, id, fn) => acces.mettreAJour(nom(n), exigerId(id), fn),
+  };
+}
+
 /** Réalisation en mémoire pour les tests : collections = { nom: [documents avec id] }. Les écritures modifient `collections`. */
 export function creerAccesMemoire(collections = {}) {
   const copie = (x) => structuredClone(x);
@@ -120,7 +148,7 @@ export function creerAccesMemoire(collections = {}) {
     },
     nouvelId(nom) {
       compteur += 1;
-      return `${nom.replace(/^crm_|^mcp_/, '').slice(0, 4)}_${compteur}`;
+      return `${nom.split('/').pop().replace(/^crm_|^mcp_/, '').slice(0, 4)}_${compteur}`;
     },
     async appliquer(ecritures, { attendus = [] } = {}) {
       verifierAttendus(attendus, attendus.map((a) => contenu(a.collection, a.id)));

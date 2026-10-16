@@ -80,6 +80,13 @@ Ne jamais mettre un jeton ou une clé : dans le dépôt, dans un dossier synchro
 5. **Couper la connexion Google (téléphone, claude.ai)**, sans toucher Hermes ni Claude Code : console Firestore → collection `mcp_oauth` → « Supprimer la collection » (ou, pour une seule connexion, `revoque: true` sur son document `connexion_…`). Effet immédiat. Désactiver `MCP_JETONS` (point 1) ne coupe **pas** cette porte. **Pas à pas, avec les clics : `mcp-oauth.md`, « Couper l'accès du téléphone ».** Retirer le connecteur dans Claude ne suffit pas, il faut passer par Firestore. https://console.firebase.google.com/project/chevalier-ia-os/firestore/data
 6. **Retirer le code** : `git revert -m 1 <commit de fusion>` sur `main` ; le workflow redéploie avec `--force`, ce qui **supprime aussi la fonction** retirée du code. Vérifier ensuite dans Cloud Run que le service `mcp` a disparu (sinon le supprimer à la main).
 
+### Le MCP des clients (plateforme, depuis le 16/10/2026) : couper un accès
+Détail dans `mcp-clients.md`. Du plus fin au plus large, tout agit à l'appel suivant (les droits sont relus à chaque appel) :
+- **un membre** : le retirer (`retirer-membre <client> adresse --ecrire`) ou changer son rôle ;
+- **un client** : éteindre son module (`desactiver-module <client> mcp --ecrire`) ou le désactiver (`desactiver-client <client> --ecrire`) ;
+- **tous les clients** : supprimer la fonction `mcpclients` (`firebase functions:delete mcpclients --config firebase.plateforme.json --project chevalier-ia-app`). Le MCP de Jérôme (`/mcp` sur `chevalier-ia-os`) n'est pas touché ;
+- **une connexion précise** : dans la console Firestore de `chevalier-ia-app`, collection `mcp_oauth`, document `connexion_<identifiant>` : mettre `revoque` à `true` (le champ `client` dit de quel client il s'agit).
+
 ## 5. Pourquoi il n'y a pas de « porte dérobée » dans le code
 
 Idée évoquée le 02/10/2026 : prévoir un accès caché, éteint, qu'on activerait en changeant une ligne et en redéployant. **Décision : non**, pour deux raisons.

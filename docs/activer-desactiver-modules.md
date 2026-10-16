@@ -73,3 +73,6 @@ node scripts/nouveau-client.js afficher <identifiant>
 | Le journal est vide | pas d'étiquette `client-<identifiant>` sur un workflow n8n, ou pas encore de clic sur « Rafraîchir l'historique » |
 
 Voir aussi : `docs/nouveau-client.md` (créer un client, membres) et `docs/journal-activite-workflows.md` (le journal).
+
+## Le module « mcp » (accès d'un assistant : Claude, ChatGPT)
+`activer-module <client> mcp --ecrire` allume le lien `https://chevalier-ia-app.web.app/mcp/<client>` et la page « Connecter ton assistant » ; `desactiver-module <client> mcp --ecrire` les éteint (le lien ne répond plus à l'appel suivant). Il ne dépend d'aucun autre module, mais n'a d'outils à proposer que ceux des modules actifs (CRM = `affaires` + `projets`). Tout est expliqué dans `docs/mcp-clients.md`.
