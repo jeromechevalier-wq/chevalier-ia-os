@@ -47,3 +47,7 @@ Chantier 1 des décisions du 16/10/2026 (fiche « Décisions de cadrage du CRM c
 ## Pour la session « multi-clients MCP »
 
 `functions/src/coeur/config.js` : `lireConfig(donnees, { racine, membres })` : par défaut `racine` = « pas de base » (serveur de Jérôme) ; le serveur des clients (`avecBase`) est donc traité en espace client (valeurs neutres). Il ne lit pas la fiche `clients/<client>` : liste de membres vide, donc pas de choix « Confiée à » côté MCP client (à brancher plus tard avec le champ `equipe`).
+
+## Suite (2.6.0)
+
+Les réglages décrits ici se trouvent maintenant dans **Réglages > CRM** (page à menu latéral) et le menu n'a plus qu'un seul bloc « CRM » : voir `reglages-menu-crm-unique.md`. Les fiches de modèles gardent leur adresse `#/projets/modeles/<id>`, leur lien de retour va à `#/reglages/crm`.

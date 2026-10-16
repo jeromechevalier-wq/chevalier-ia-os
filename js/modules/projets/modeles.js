@@ -104,7 +104,7 @@ export function rendreFicheModele(conteneur, id) {
   conteneur.append(racine);
 
   function introuvable() {
-    remplir(racine, h('div', { class: 'page' }, lienRetour('#/reglages', 'Réglages'), etatVide(D.estPret() ? 'Ce modèle n’existe plus.' : 'Chargement…')));
+    remplir(racine, h('div', { class: 'page' }, lienRetour('#/reglages/crm', 'Réglages du CRM'), etatVide(D.estPret() ? 'Ce modèle n’existe plus.' : 'Chargement…')));
   }
 
   function construire(m) {
@@ -113,7 +113,7 @@ export function rendreFicheModele(conteneur, id) {
     const menu = h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Plus d’actions', 'data-action': 'menu-fiche',
       onclick: (e) => ouvrirMenu(e.currentTarget, [{ libelle: 'Supprimer définitivement…', icone: 'trash-2', danger: true, action: () => supprimer(m) }]) }, icone('ellipsis', { taille: 20 }));
     const entete = h('header', { class: 'fiche-tete' },
-      lienRetour('#/reglages', 'Réglages'),
+      lienRetour('#/reglages/crm', 'Réglages du CRM'),
       h('div', { class: 'fiche-tete-ligne' },
         h('div', { class: 'fiche-titre' }, titreEditable({ valeur: m.nom, libelle: 'Nom du modèle', surEnregistrer: (v) => D.majModele(m.id, { nom: v }) }),
           h('div', { class: 'fiche-sous' }, actif ? h('span', { class: 'pastille-statut', style: { '--couleur': '#3fbf7f' } }, 'Actif') : h('span', { class: 'badge-pause' }, 'Inactif'))),
@@ -189,7 +189,7 @@ export function rendreFicheModele(conteneur, id) {
 
   async function supprimer(m) {
     if (!(await confirmer('Supprimer ce modèle ?', `« ${m.nom} » : les projets déjà créés avec lui ne changent pas.`, { libelleOk: 'Supprimer', danger: true }))) return;
-    if (await ou(() => D.supprimerModele(m.id), 'Suppression impossible')) { toast('Modèle supprimé'); naviguer('reglages'); }
+    if (await ou(() => D.supprimerModele(m.id), 'Suppression impossible')) { toast('Modèle supprimé'); naviguer('reglages/crm'); }
   }
 
   function reconstruire() {

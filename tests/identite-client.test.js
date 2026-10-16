@@ -184,7 +184,7 @@ describe('inventaire des textes d\'identité de Jérôme dans le code de l\'inte
     assert.match(lire('js/modules/projets/taches.js'), /choixAssigneVisible/);
   });
   test('les fichiers propres à la page d\'un client ne portent aucun nom de Jérôme', () => {
-    for (const f of ['js/os/espace.js', 'js/os/espace-modules.js', 'js/os/identite.js', 'js/os/marque.js', 'js/os/contexte.js']) {
+    for (const f of ['js/os/espace.js', 'js/os/espace-modules.js', 'js/os/identite.js', 'js/os/marque.js', 'js/os/contexte.js', 'js/os/reglages.js']) {
       assert.ok(!MOTS.test(sansComm(lire(f))), f);
     }
   });

@@ -8,13 +8,13 @@ import {
   modulesActifsDe, objetModules, verifierModulesPourClient, ouvrir, urlPublique, verifierCouleur, verifierEmail, verifierListeModules, fichierStorageAutorise,
   prefixeStorage, traduireErreur,
 } from './commun.js';
-import { IDS_MODULES, identifiantActuel } from '../../js/os/registre.js';
+import { IDS_MODULES, modulesDeNom } from '../../js/os/registre.js';
 
 export const AIDE = `Outil « nouveau client » — simule par défaut ; ajouter --ecrire pour écrire vraiment.
 
 Créer un client :
   node scripts/nouveau-client.js <identifiant> --nom "Nom affiché" --couleur "#336699" --accueil "Texte de bienvenue" \\
-       --membre prenom@exemple.fr:editeur [--membre autre@exemple.fr:lecteur] --modules affaires,projets,automatisations \\
+       --membre prenom@exemple.fr:editeur [--membre autre@exemple.fr:lecteur] --modules crm,automatisations \\
        [--logo chemin/logo.png] [--images chemin/a.jpg,chemin/b.jpg] [--ecrire]
   Un client qui existe déjà est refusé, sauf avec --mettre-a-jour (seuls les champs écrits dans la commande changent).
 
@@ -23,8 +23,8 @@ Commandes annexes (toutes avec --ecrire pour écrire vraiment) :
   node scripts/nouveau-client.js ajouter-membre <identifiant> adresse:rôle
   node scripts/nouveau-client.js changer-role <identifiant> adresse:rôle
   node scripts/nouveau-client.js retirer-membre <identifiant> adresse
-  node scripts/nouveau-client.js activer-module <identifiant> affaires|projets|veille|automatisations|mcp
-  node scripts/nouveau-client.js desactiver-module <identifiant> affaires|projets|veille|automatisations|mcp
+  node scripts/nouveau-client.js activer-module <identifiant> crm|veille|automatisations|mcp   (crm = affaires + projets)
+  node scripts/nouveau-client.js desactiver-module <identifiant> crm|veille|automatisations|mcp
   node scripts/nouveau-client.js desactiver-client <identifiant>      (la page du client devient « indisponible »)
   node scripts/nouveau-client.js reactiver-client <identifiant>
 
@@ -308,12 +308,14 @@ async function retirerMembre(id, texte, ctx) {
 }
 
 async function changerModule(id, moduleDemande, ctx, activer) {
-  const module = identifiantActuel(moduleDemande); // ancien nom « journal » accepté
-  if (!IDS_MODULES.includes(module)) throw new ErreurOutil(`Module inconnu : « ${module} ». Modules connus : ${IDS_MODULES.join(', ')}.`);
+  const module = String(moduleDemande ?? '').trim();
+  const concernes = modulesDeNom(module); // « crm » = affaires + projets (un seul interrupteur) ; l'ancien nom « journal » est traduit
+  const inconnus = concernes.filter((m) => !IDS_MODULES.includes(m));
+  if (inconnus.length) throw new ErreurOutil(`Module inconnu : « ${module} ». Modules connus : crm, ${IDS_MODULES.join(', ')}.`);
   const e = await exigerClient(ctx, id);
   const actuels = modulesActifsDe(e.client?.modules);
-  const voulus = activer ? [...new Set([...actuels, module])] : actuels.filter((m) => m !== module);
-  const liste = verifierListeModules(voulus); // projets exige affaires, y compris quand on désactive affaires
+  const voulus = activer ? [...new Set([...actuels, ...concernes])] : actuels.filter((m) => !concernes.includes(m));
+  const liste = verifierListeModules(voulus); // projets exige affaires, y compris quand on désactive affaires seul
   if (activer) verifierModulesPourClient(id, liste); // automatisations : identifiant de 17 caractères au plus
   const plan = nouveauPlan();
   opDoc(plan, `clients/${id}`, e.client, { modules: objetModules(liste) });

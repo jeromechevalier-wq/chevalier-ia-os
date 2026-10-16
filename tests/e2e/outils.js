@@ -173,6 +173,19 @@ export async function allerA(page, libelle) {
   await page.locator('.menu').getByRole('link', { name: libelle, exact: true }).click();
 }
 
+/** Ouvre une section de la page Réglages par le menu de gauche (« Mon espace », « CRM »…). Sur téléphone, le menu replié s'ouvre d'abord. */
+export async function ouvrirSectionReglages(page, nom) {
+  const menu = page.locator('.reglages-menu');
+  if (estTelephone(page)) await menu.locator('.reglages-menu-bouton').click();
+  await menu.getByRole('link', { name: nom, exact: true }).click();
+}
+
+/** Réglages du CRM : menu principal « Réglages », puis « CRM » dans le menu de gauche (tout ce que le CRM règle est dans cette page). */
+export async function allerAuxReglagesCrm(page) {
+  await allerA(page, 'Réglages');
+  await ouvrirSectionReglages(page, 'CRM');
+}
+
 export async function valeurObjectif(page, id) {
   return Number(await page.locator(`.objectif[data-objectif="${id}"]`).getAttribute('data-valeur'));
 }
