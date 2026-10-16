@@ -12,7 +12,7 @@ const SCRIPT_API = `${DEBUT}
 window.gapi = { load(nom, rappel) {
   window.__google.charges.push(nom);
   class DocsView { constructor(id) { this.type = 'DocsView'; this.viewId = id; }
-    setIncludeFolders(v) { this.dossiers = v; return this; } setSelectFolderEnabled(v) { this.choixDossier = v; return this; } setMimeTypes(m) { this.mime = m; return this; } }
+    setParent(p) { this.parent = p; return this; } setIncludeFolders(v) { this.dossiers = v; return this; } setSelectFolderEnabled(v) { this.choixDossier = v; return this; } setMimeTypes(m) { this.mime = m; return this; } }
   class DocsUploadView { constructor() { this.type = 'DocsUploadView'; } setParent(p) { this.parent = p; return this; } }
   class PickerBuilder {
     constructor() { this.cfg = { views: [], features: [] }; }

@@ -1,4 +1,4 @@
-# Liens et documents, Google Drive (version 2.6.1, 16/10/2026)
+# Liens et documents, Google Drive (version 2.6.2, 16/10/2026)
 
 Chantier « Liens et documents » des décisions du 16/10/2026. **Rien n'est déployé.** Les règles Firestore ne sont **pas** modifiées. Aucune donnée existante n'est modifiée ni migrée.
 
@@ -51,6 +51,13 @@ Il y a deux projets Google : **`chevalier-ia-app`** (plateforme clients, la prio
 - **Affaires** : même « Dossier de travail » libre ; pas de « Créer le répertoire » (c'est sur la fiche projet, comme décidé) ; leur section « Documents » est inchangée.
 - **Supprimé** (code mort, plus de convention de nommage) : les prompts Claude Code, `nomDossierSuggere` et les fonctions de nommage de dépôt, les réglages « Compte GitHub » et « Dossier Projets du Mac » (leurs valeurs restent dans la base, simplement plus affichées).
 - **Version 2.6.1** (l'autre session met 2.6.0) : les conflits de numéro (`js/os/version.js`, `version.json`, `tests/statique.test.js`) sont à régler à la fusion.
+
+## Vues de la fenêtre Google (2.6.2, après le premier essai réel de Jérôme)
+
+Premier essai réel (plateforme, espace clientdemo) : le Picker s'ouvre, mais le choix du dossier parent montrait **à plat tous les dossiers du Drive mélangés** (vue « FOLDERS »). Maintenant :
+- **Choisir le dossier parent** : vue `DocsView(DOCS)` avec `setParent('root')`, `setIncludeFolders(true)`, `setSelectFolderEnabled(true)` et le filtre « dossiers » : on part de la racine de Mon Drive et on descend dossier par dossier.
+- **« Ajouter un document »** : l'onglet Mon Drive démarre **dans le dossier de travail** s'il est dans Drive, sinon à la **racine de Mon Drive** ; « Importer » reste dans le dossier de travail.
+- Toujours la fenêtre standard de Google, aucun écran sur mesure. Vérifié ici avec un Google simulé (ce qu'on demande au Picker) ; l'affichage réel de ces vues n'a pas pu être vu sans jeton valide : à confirmer par Jérôme.
 
 ## Pas vérifié (à faire après le branchement)
 

@@ -55,7 +55,8 @@ test.describe('Google branché (simulé)', () => {
     expect(g.autorisations).toEqual([{ clientId: ID_CLIENT, scope: 'https://www.googleapis.com/auth/drive.file', indice: JEROME }]);
     expect(g.pickers).toHaveLength(1);
     expect(g.pickers[0]).toMatchObject({ token: 'ya29.SIMULE', cle: CLE_CRM, appId: '96526036520', langue: 'fr' });
-    expect(g.pickers[0].views).toEqual([{ type: 'DocsView', viewId: 'folders', dossiers: true, choixDossier: true, mime: 'application/vnd.google-apps.folder' }]);
+    // Vue « DOCS » qui part de la racine de Mon Drive et se parcourt dossier par dossier (la vue « folders » montrerait à plat tous les dossiers du Drive).
+    expect(g.pickers[0].views).toEqual([{ type: 'DocsView', viewId: 'all', parent: 'root', dossiers: true, choixDossier: true, mime: 'application/vnd.google-apps.folder' }]);
     expect(g.pickers[0].features).toEqual([]);
     // Fermer la fenêtre sans choisir : rien ne change.
     await choisirDansGoogle(page, 'annule');
@@ -86,7 +87,7 @@ test.describe('Google branché (simulé)', () => {
     await expect(section.locator('[data-role="essai-google"] a')).toHaveAttribute('href', 'https://drive.google.com/file/d/F1/view');
     await expect(section.locator('[data-role="essai-google"]')).toContainText('Devis.pdf');
     const derniere = (await lireGoogle(page)).pickers.at(-1);
-    expect(derniere.views.map((v) => v.type)).toEqual(['DocsView']);
+    expect(derniere.views).toEqual([{ type: 'DocsView', viewId: 'all', parent: 'root', dossiers: true }]); // sans dossier de travail : racine de Mon Drive, pas d'import
     // Retirer le parent : retour à la racine de Mon Drive.
     await section.locator('[data-action="retirer-dossier-parent"]').click();
     await champDoc('crm_parametres', 'reglages', 'dossierParentDrive', null);
@@ -181,7 +182,7 @@ test.describe('Google branché (simulé)', () => {
     const g = await lireGoogle(page);
     expect(g.pickers).toHaveLength(1);
     expect(g.pickers[0]).toMatchObject({ token: 'ya29.SIMULE', cle: CLE_CRM, appId: '96526036520', langue: 'fr', features: ['multiselectEnabled'] });
-    expect(g.pickers[0].views).toEqual([{ type: 'DocsView', viewId: 'all', dossiers: true }, { type: 'DocsUploadView', parent: '1AbC_dEf-1234567' }]);
+    expect(g.pickers[0].views).toEqual([{ type: 'DocsView', viewId: 'all', parent: '1AbC_dEf-1234567', dossiers: true }, { type: 'DocsUploadView', parent: '1AbC_dEf-1234567' }]); // « Mon Drive » démarre dans le dossier de travail
     expect(drive.requetes).toHaveLength(0); // rien à créer
     // Un même lien choisi deux fois n'est pas ajouté deux fois ; fermer la fenêtre n'ajoute rien.
     await page.locator('[data-action="ajouter-document-google"]').click();
@@ -211,7 +212,7 @@ test.describe('Google branché (simulé)', () => {
     await champDoc('projets_projets', 'pr1', 'documents', [{ libelle: 'Maquette.pdf', url: 'https://drive.google.com/file/d/F1/view' }]);
     expect(drive.requetes).toHaveLength(0);
     expect((await lireDocument('projets_projets/pr1')).urlDossier).toBe('');
-    expect((await lireGoogle(page)).pickers[0].views.map((v) => v.type)).toEqual(['DocsView']);
+    expect((await lireGoogle(page)).pickers[0].views).toEqual([{ type: 'DocsView', viewId: 'all', parent: 'root', dossiers: true }]); // racine de Mon Drive, pas d'onglet « Importer »
     // Fermer la question : rien ne se passe.
     await page.locator('[data-action="ajouter-document-google"]').click();
     await dialogue(page).getByRole('button', { name: 'Fermer' }).click();
@@ -227,7 +228,7 @@ test.describe('Google branché (simulé)', () => {
       { libelle: 'Maquette.pdf', url: 'https://drive.google.com/file/d/F1/view' }, { libelle: 'Scan.jpg', url: 'https://drive.google.com/file/d/F2/view' },
     ]);
     const derniere = (await lireGoogle(page)).pickers.at(-1);
-    expect(derniere.views).toEqual([{ type: 'DocsView', viewId: 'all', dossiers: true }, { type: 'DocsUploadView', parent: 'DOSSIER_1_abcdefghij' }]);
+    expect(derniere.views).toEqual([{ type: 'DocsView', viewId: 'all', parent: 'DOSSIER_1_abcdefghij', dossiers: true }, { type: 'DocsUploadView', parent: 'DOSSIER_1_abcdefghij' }]);
   });
 
   test('L8 dossier de travail sur un serveur ou un NAS : « Ajouter un document » propose « Mon Drive » seulement (pas d\'import) et ne crée rien', async ({ page }) => {
@@ -238,7 +239,7 @@ test.describe('Google branché (simulé)', () => {
     await page.locator('[data-action="ajouter-document-google"]').click();
     await champDoc('projets_projets', 'pr1', 'documents', [{ libelle: 'Devis.pdf', url: 'https://drive.google.com/file/d/F1/view' }]);
     await expect(dialogue(page)).toHaveCount(0);
-    expect((await lireGoogle(page)).pickers[0].views.map((v) => v.type)).toEqual(['DocsView']);
+    expect((await lireGoogle(page)).pickers[0].views).toEqual([{ type: 'DocsView', viewId: 'all', parent: 'root', dossiers: true }]); // dossier hors Drive : racine de Mon Drive, pas d'import
     expect(drive.requetes).toHaveLength(0);
     expect((await lireDocument('projets_projets/pr1')).urlDossier).toBe('smb://nas/clients/carrel');
   });
