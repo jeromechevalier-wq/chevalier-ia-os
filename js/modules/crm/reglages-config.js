@@ -151,7 +151,7 @@ function sectionOptions() {
       interrupteur({ cle: 'extractionValeur', titre: 'Extraction de valeur', aide: 'Crée un projet d’extraction quand une affaire est perdue ou gagnée sans projet, ou quand un projet est terminé. Éteint : plus de création, et le bloc, le bouton, le badge et le modèle d’extraction disparaissent.' }),
       interrupteur({ cle: 'celebrations', titre: 'Célébrations', aide: 'Un petit feu d’artifice quand une affaire est gagnée, un projet terminé, une facture payée ou un objectif atteint. Le message est neutre (« Bravo ! ») ; tu peux y ajouter un prénom et une image.' }),
       o.celebrations ? h('div', { class: 'ligne-champs' }, prenom, image) : null,
-      interrupteur({ cle: 'boutonsDepot', titre: 'Créer le répertoire dans Google Drive', aide: 'Affiche, sur la fiche projet, le bouton « Créer le répertoire » : il crée le dossier du projet et ses sous-dossiers dans Google Drive, puis enregistre son lien. Ajoute la section « Dossiers de projets dans Google Drive » plus bas. Nécessite que Google Drive soit branché.' }));
+      interrupteur({ cle: 'boutonsDepot', titre: 'Créer un dossier dans Google Drive', aide: 'Affiche, sur les fiches affaire et projet, le bouton « Créer un dossier dans Google Drive » : il crée le dossier de la fiche et ses sous-dossiers dans Google Drive, puis enregistre son lien. Ajoute la section « Dossiers de projets dans Google Drive » plus bas. Nécessite que Google Drive soit branché.' }));
   }
   rendre();
   return { element: sec, rafraichir: rendre };

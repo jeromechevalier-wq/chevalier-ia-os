@@ -1,4 +1,4 @@
-# Liens et documents, Google Drive (version 2.6.3, 16/10/2026)
+# Liens et documents, Google Drive (version 2.6.5, 17/10/2026)
 
 Chantier « Liens et documents » des décisions du 16/10/2026. **Rien n'est déployé.** Les règles Firestore ne sont **pas** modifiées. Aucune donnée existante n'est modifiée ni migrée.
 
@@ -6,9 +6,9 @@ Chantier « Liens et documents » des décisions du 16/10/2026. **Rien n'est dé
 
 - **Fiche projet, section « Liens et documents »** (elle s'appelait « Documents ») : le formulaire reste (Libellé, « Lien web », **Ajouter**) et accepte n'importe quel lien. Un second bouton **« Ajouter un document »** ouvre la fenêtre **standard de Google** (Google Picker) avec deux onglets : **Mon Drive** (parcourir) et **Importer** (un fichier de l'ordinateur, envoyé dans le dossier de travail Drive du projet). Le lien du document entre dans la liste.
 - **Fiche projet, « Détails » : « Dossier de travail »** : n'importe quel lien (Drive, serveur, NAS en `smb://`, site…). Le champ « Adresse GitHub », le bouton « Créer le GitHub » et le prompt à copier pour Claude Code **n'existent plus**. Une ancienne adresse GitHub **reste dans la base** et apparaît dans la liste avec le libellé **« GitHub »** (l'étoile la range dans la liste des documents ; la croix la retire : geste volontaire). Sur une affaire, elle reste visible dans « Détails » tant qu'elle existe.
-- **« Créer le répertoire »** (fiche projet, sous « Dossier de travail », seulement si le projet n'a pas encore de dossier) : on tape le nom (le nom du projet est proposé, **aucune convention imposée**), on clique : l'OS crée le dossier et ses sous-dossiers dans Drive par l'API Google, puis enregistre le lien. Le lien repose sur l'**identifiant** du dossier : renommer ou déplacer le dossier dans Drive ne casse rien. Le bouton reste derrière l'interrupteur du ménage 2.5.0, **rebaptisé « Créer le répertoire dans Google Drive »** (Réglages > Options du CRM ; allumé chez Jérôme, éteint par défaut chez un client).
+- **« Créer un dossier dans Google Drive »** (fiche projet, sous « Dossier de travail », seulement si le projet n'a pas encore de dossier) : on tape le nom (le nom du projet est proposé, **aucune convention imposée**), on clique : l'OS crée le dossier et ses sous-dossiers dans Drive par l'API Google, puis enregistre le lien. Le lien repose sur l'**identifiant** du dossier : renommer ou déplacer le dossier dans Drive ne casse rien. Le bouton reste derrière l'interrupteur du ménage 2.5.0, **rebaptisé « Créer un dossier dans Google Drive »** (Réglages > Options du CRM ; allumé chez Jérôme, éteint par défaut chez un client).
 - **Réglages > CRM (menu de gauche) > « Dossiers de projets dans Google Drive »** (section `reglages-projets`, raccourci « Google Drive : dossiers de projets » ; visible quand l'interrupteur est allumé) : le **dossier parent** (choisi UNE fois dans la fenêtre Google, ou la racine de Mon Drive à défaut), la liste des **sous-dossiers** (ajout, renommer, ordre, retrait ; 20 au plus, vide par défaut), un bouton **« Tester la fenêtre Google »** et une phrase qui dit si Google est branché.
-- **Tant que Google n'est pas branché** (étape ci-dessous), les boutons « Ajouter un document » et « Créer le répertoire » sont **cachés** ; tout le reste marche (liens libres, dossier libre).
+- **Tant que Google n'est pas branché** (étape ci-dessous), les boutons « Ajouter un document » et « Créer un dossier dans Google Drive » sont **cachés** ; tout le reste marche (liens libres, dossier libre).
 
 ## Essai minimal de la fenêtre Google (premier livrable demandé)
 
@@ -30,7 +30,7 @@ Il y a deux projets Google : **`chevalier-ia-app`** (plateforme clients, la prio
    - Audience : <https://console.cloud.google.com/auth/audience?project=chevalier-ia-app> > si l'état est « Test », cliquer **Publier l'application** (« En production »), sinon seuls les « utilisateurs test » pourraient autoriser. À ma connaissance, `drive.file` n'est pas une portée sensible (pas de vérification Google à passer) : **à confirmer à l'écran**.
 5. **Donner l'ID client à Claude** (il n'est **pas** confidentiel : Google l'affiche à chaque autorisation) : Claude l'écrit dans `scripts/projets/plateforme.json` (champ `googleDrive.idClient`, plateforme clients) et/ou `js/os/google-config.js` (CRM de Jérôme), dans une PR. Un test refuse tout ce qui ressemble à un secret.
 6. **Publier** : la plateforme se publie par le workflow à la main « Déploiement plateforme clients » (choix `hosting`) ; le CRM de Jérôme se publie à la fusion dans `main`.
-7. **Essayer** : Réglages > CRM > « Dossiers de projets dans Google Drive » > **Tester la fenêtre Google** (la première fois, Google demande l'autorisation : l'accepter), puis **Choisir dans Google Drive** pour le dossier parent, ajouter les sous-dossiers, puis une fiche projet > **Créer le répertoire**.
+7. **Essayer** : Réglages > CRM > « Dossiers de projets dans Google Drive » > **Tester la fenêtre Google** (la première fois, Google demande l'autorisation : l'accepter), puis **Choisir dans Google Drive** pour le dossier parent, ajouter les sous-dossiers, puis une fiche projet > **Créer un dossier**.
 
 ## Comment c'est fait (court)
 
@@ -47,8 +47,8 @@ Il y a deux projets Google : **`chevalier-ia-app`** (plateforme clients, la prio
 - **Plusieurs fichiers** peuvent être choisis d'un coup ; un lien déjà dans la liste n'est pas ajouté deux fois.
 - **Sans dossier parent** dans les Réglages : création à la racine de Mon Drive.
 - **Un sous-dossier qui échoue** n'empêche pas le reste : le dossier du projet existe, le message nomme les sous-dossiers manquants.
-- **Dossier de travail libre pour tous** : le lien est visible et modifiable même quand l'interrupteur est éteint (chez un client) ; l'interrupteur ne commande que le bouton « Créer le répertoire » et ses réglages.
-- **Affaires** : même « Dossier de travail » libre ; pas de « Créer le répertoire » (c'est sur la fiche projet, comme décidé) ; leur section « Documents » est inchangée.
+- **Dossier de travail libre pour tous** : le lien est visible et modifiable même quand l'interrupteur est éteint (chez un client) ; l'interrupteur ne commande que le bouton « Créer un dossier dans Google Drive » et ses réglages.
+- **Affaires** : même « Dossier de travail » libre ; pas de « Créer un dossier dans Google Drive » (c'est sur la fiche projet, comme décidé) ; leur section « Documents » est inchangée.
 - **Supprimé** (code mort, plus de convention de nommage) : les prompts Claude Code, `nomDossierSuggere` et les fonctions de nommage de dépôt, les réglages « Compte GitHub » et « Dossier Projets du Mac » (leurs valeurs restent dans la base, simplement plus affichées).
 - **Version 2.6.1** (l'autre session met 2.6.0) : les conflits de numéro (`js/os/version.js`, `version.json`, `tests/statique.test.js`) sont à régler à la fusion.
 
@@ -71,6 +71,18 @@ Premier essai réel (plateforme, espace clientdemo) : le Picker s'ouvre, mais le
 - **Affaires** : même logique que les projets pour le dossier de travail (proposer de créer le dossier Drive de la fiche, ou « Parcourir seulement »). L'ancienne ligne « GitHub » de « Détails » est supprimée : l'adresse est dans la liste.
 - **Fenêtre Google** : titres adaptés (« Choisir un dossier », « Ajouter un document ») ; Réglages : phrase qui explique que seuls les dossiers s'affichent dans le choix du dossier parent.
 - **Réglages** : la ligne « Dossier Drive parent » est alignée (libellé, nom, boutons au même niveau ; nom long tronqué avec « … ; sur téléphone la ligne passe à la ligne sans défilement horizontal).
+
+## « Dossier de travail » identique partout, version 2.6.5
+
+Jérôme : « c'est différent d'une fiche à l'autre ». Maintenant **un seul composant** (`js/modules/crm/lanceurs.js`) sur la fiche **affaire** et la fiche **projet** :
+- **Sans dossier** : deux boutons côte à côte, **« Créer un dossier dans Google Drive »** (affiché seulement si l'interrupteur est allumé **et** Google branché) et **« Lier un dossier existant »**. Aucun champ n'est affiché avant le clic. Le premier ouvre un petit formulaire en place (nom prérempli avec le titre de la fiche, modifiable ; « Créer le dossier » / Annuler) qui crée le dossier et les sous-dossiers des Réglages, puis enregistre le lien. Le second ouvre un champ « Lien du dossier (Drive, serveur, NAS, site…) » + Enregistrer / Annuler.
+- **Avec un dossier** : « Ouvrir le dossier », « Modifier », « Retirer » (retirer n'efface rien dans Drive : seul le lien est retiré).
+- L'explication tient dans une icône « i » à côté du libellé (plus de texte long).
+- **Vocabulaire** : « dossier » partout (plus « répertoire ») : boutons, interrupteur (« Créer un dossier dans Google Drive »), réglages, messages, tests, doc.
+- **L'affaire** reçoit aussi « Créer un dossier » (même fonctionnement que le projet). Un projet créé depuis une affaire **reprend déjà** le dossier de travail de l'affaire (déjà le cas : test B28).
+- **Avertissement non bloquant** quand le dossier lié sert déjà à un **autre projet** : « Ce dossier sert déjà au projet X ». Pas d'avertissement pour le projet de l'affaire elle-même. Comparaison par adresse, ou par identifiant Drive. Le dossier est enregistré malgré l'avertissement.
+- Aucune migration : le champ `urlDossier` est le même.
+- « Début d'activité » (année invisible) : corrigé dans une PR à part (PR 81 : champ élargi).
 
 ## Pas vérifié (à faire après le branchement)
 

@@ -1,4 +1,4 @@
-// Réglage Google Drive du CRM de Jérôme (fenêtre « Ajouter un document », « Créer le répertoire »).
+// Réglage Google Drive du CRM de Jérôme (fenêtre « Ajouter un document », « Créer un dossier dans Google Drive »).
 // idClient : identifiant du « client OAuth Web » du projet Google Cloud. Il est PUBLIC par nature (visible dans toute page qui demande une autorisation Google) :
 // ce n'est pas un secret, et le « client secret » ne va JAMAIS ici. Vide tant que Jérôme ne l'a pas créé : les boutons Google restent cachés.
 // La clé de navigateur et le numéro de projet sont ceux de Firebase (firebase-config.js), sauf si « cleApi » / « idApp » sont donnés ici.

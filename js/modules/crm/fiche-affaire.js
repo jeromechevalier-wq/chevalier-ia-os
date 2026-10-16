@@ -129,7 +129,7 @@ export function rendreFicheAffaire(conteneur, id) {
     }) : null;
 
     // ---- Détails
-    const lanceurs = creerLanceurs({ fiche: a, typeFiche: 'affaire', enregistrer: (patch) => D.majAffaire(a.id, patch) });
+    const lanceurs = creerLanceurs({ fiche: a, typeFiche: 'affaire', nomSuggere: a.titre, enregistrer: (patch) => D.majAffaire(a.id, patch) });
     const details = sectionRepliable({
       id: 'affaire-details', titre: 'Détails',
       contenu: h('div', { class: 'proprietes' },

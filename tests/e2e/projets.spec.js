@@ -180,6 +180,7 @@ test('C29 fiche : titre, dates (la fin ne précède pas le début), dossier de t
   await champDoc('projets_projets', 'pr1', 'dateFin', '2026-11-30');
   // Détails : le dossier de travail accepte n'importe quel lien ; plus de champ GitHub ni de « Créer le GitHub »
   await expect(page.locator('[data-champ="github"], [data-action="creer-github"]')).toHaveCount(0);
+  await page.locator('[data-action="lier-dossier"]').click();
   await page.locator('[data-champ="dossier"]').fill('smb://nas/clients/carrel');
   await page.locator('[data-action="enregistrer-dossier"]').click();
   await champDoc('projets_projets', 'pr1', 'urlDossier', 'smb://nas/clients/carrel');
@@ -1638,7 +1639,7 @@ test('C38 Réglages : étapes de vente configurables — renommer, expliquer (ic
   await expect(page.locator('.barre-etapes-fiche [data-role="info"]')).toHaveAttribute('title', 'Le prospect vient de nous écrire.');
 });
 
-test('C39 Réglages : options du CRM — suivi des paiements, extraction de valeur, répertoire Drive : éteindre cache les écrans associés', async ({ page }) => {
+test('C39 Réglages : options du CRM — suivi des paiements, extraction de valeur, dossier Drive : éteindre cache les écrans associés', async ({ page }) => {
   await creerProjet('pr1', { titre: 'Audit des Lilas' });
   await connecter(page);
   await attendreModeles();
@@ -1656,13 +1657,13 @@ test('C39 Réglages : options du CRM — suivi des paiements, extraction de vale
   await aller(page, '#/projets/projets/pr1');
   await expect(page.locator('[data-section="projet-factures"]')).toHaveCount(0);
   await expect(page.locator('.fiche-actions [data-action="extraire"]')).toHaveCount(0);
-  // « Créer le répertoire dans Google Drive » : éteint, plus de section de réglages Drive ni de bouton ; le dossier de travail reste un lien libre
+  // « Créer un dossier dans Google Drive » : éteint, plus de section de réglages Drive ni de bouton ; le dossier de travail reste un lien libre
   await aller(page, '#/reglages/crm');
   await expect(page.locator('#reglages-projets')).toBeVisible();
   await option('boutonsDepot').uncheck();
   await expect(page.locator('#reglages-projets')).toBeHidden();
   await aller(page, '#/projets/projets/pr1');
-  await expect(page.locator('[data-prop="github"], [data-action="creer-dossier"], [data-role="google-absent"]')).toHaveCount(0);
+  await expect(page.locator('[data-prop="github"], [data-action="creer-dossier-ouvrir"]')).toHaveCount(0);
   await expect(page.locator('[data-prop="dossier"]')).toBeVisible();
 });
 
