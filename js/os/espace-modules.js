@@ -8,6 +8,7 @@ import { cheminBaseClient } from './chemins.js';
 import { moduleAccessible, premiereRoute, routeModernisee } from './registre.js';
 import { definirPrefixe, routeCourante, segments, surChangementRoute, naviguer, lien, suivreLiensDuPrefixe } from './router.js';
 import { monterCoquille } from './shell.js';
+import { monterReglages } from './reglages.js';
 import { definirChezClient } from './contexte.js';
 import { appliquerIdentite } from './identite.js';
 import { h, icone, vider, remplir } from './ui.js';
@@ -16,7 +17,7 @@ import { h, icone, vider, remplir } from './ui.js';
  * Monte les modules actifs d'un client. Renvoie une fonction `fermer()` (déconnexion ou changement de compte).
  * `actifs` doit venir de modulesActifsDuClient() : au moins un module, dépendances respectées.
  */
-export async function ouvrirEspaceModules(racine, { client, marque, compte, actifs, equipe = null, surDeconnexion }) {
+export async function ouvrirEspaceModules(racine, { client, marque, compte, actifs, equipe = null, fiche = null, surDeconnexion }) {
   const modules = MODULES_CLIENT.filter((m) => actifs.includes(m.id)); // ordre de démarrage du registre (affaires avant projets)
   const apis = new Map();
   for (const m of modules) apis.set(m.id, await m.monter());
@@ -27,7 +28,7 @@ export async function ouvrirEspaceModules(racine, { client, marque, compte, acti
   appliquerIdentite(marque, client); // titre, icône, appli installée et accent de l'interface = ceux du client
   definirChezClient(true); // masque ce qui est personnel à Jérôme (Charles, célébrations, sauvegarde, GitHub…)
   const accueil = premiereRoute(actifs);
-  const coquille = monterCoquille(racine, compte, { apis, modules, client: { nom: marque.nom, logo: marque.logo }, accueil, reglages: false, surDeconnexion });
+  const coquille = monterCoquille(racine, compte, { apis, modules, client: { nom: marque.nom, logo: marque.logo }, accueil, surDeconnexion });
   let vue = null; // { cle, quitter }
   const arretLiens = suivreLiensDuPrefixe();
 
@@ -36,6 +37,16 @@ export async function ouvrirEspaceModules(racine, { client, marque, compte, acti
     if (modernisee !== route) { naviguer(modernisee, { remplacer: true }); return; }
     const segs = segments(route);
     if (!segs.length) { naviguer(accueil, { remplacer: true }); return; }
+    if (segs[0] === 'reglages') { // page Réglages de l'espace : toujours accessible, quels que soient les modules actifs
+      if (vue?.cle !== 'reglages') {
+        vue?.quitter?.();
+        vider(coquille.contenu);
+        vue = { cle: 'reglages', quitter: null };
+      }
+      vue.quitter = monterReglages(coquille.contenu, segs, { apis, actifs, chezClient: true, nomEspace: marque.nom, marque, fiche, compte });
+      coquille.activer(segs.join('/'));
+      return;
+    }
     const m = modules.find((x) => x.prefixe === segs[0]);
     if (!m || !moduleAccessible(segs[0], actifs)) {
       vue?.quitter?.();

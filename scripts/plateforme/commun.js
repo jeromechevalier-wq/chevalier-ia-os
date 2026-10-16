@@ -5,7 +5,7 @@
 import { getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
-import { IDS_MODULES, verifierActivation, identifiantActuel, lireModulesDemandes } from '../../js/os/registre.js';
+import { IDS_MODULES, INTERRUPTEURS, verifierActivation, modulesDeNom, lireModulesDemandes } from '../../js/os/registre.js';
 import { normaliserCouleur } from '../../js/os/marque.js';
 
 export const PROJET_PLATEFORME = 'chevalier-ia-app';
@@ -87,14 +87,15 @@ export function verifierRole(texte) {
   return r;
 }
 
-/** « affaires,projets » -> liste vérifiée avec le registre des modules (projets exige affaires). « aucun » = liste vide. */
+/** « crm,veille » ou « affaires,projets » -> liste vérifiée avec le registre des modules (projets exige affaires). « crm » allume affaires ET projets. « aucun » = liste vide. */
 export function lireModules(texte) {
   const brut = String(texte ?? '').trim();
   if (brut === '' || brut === 'aucun') return [];
   // L'ancien nom « journal » (module n8n, devenu « automatisations » le 16/10/2026) est encore accepté : il est traduit.
-  const ids = [...new Set(brut.split(',').map((m) => identifiantActuel(m.trim())).filter(Boolean))];
+  // « crm » (interrupteur unique du CRM, 2.6.0) est traduit en affaires + projets.
+  const ids = [...new Set(brut.split(',').map((m) => m.trim()).filter(Boolean).flatMap((m) => modulesDeNom(m)))];
   const inconnus = ids.filter((m) => !IDS_MODULES.includes(m));
-  if (inconnus.length) throw new ErreurOutil(`Module inconnu : ${inconnus.map((m) => `« ${m} »`).join(', ')}. Modules connus : ${IDS_MODULES.join(', ')}.`);
+  if (inconnus.length) throw new ErreurOutil(`Module inconnu : ${inconnus.map((m) => `« ${m} »`).join(', ')}. Modules connus : ${[...Object.keys(INTERRUPTEURS), ...IDS_MODULES].join(', ')}.`);
   return verifierListeModules(ids);
 }
 /** Vérifie les dépendances entre modules ; renvoie la liste dans l'ordre de démarrage. */

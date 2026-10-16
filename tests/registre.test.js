@@ -1,13 +1,15 @@
 // Registre des modules (chantier 7) : déclarations, modules actifs d'un client, dépendances, et CRM de Jérôme inchangé.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import {
   MODULES_DECLARES, IDS_MODULES, OUTILS_COMMUNS, moduleDeclare, moduleDeRoute, lireModulesDemandes, verifierActivation,
   modulesActifsDuClient, moduleAccessible, premiereRoute, ecransActifs,
   ANCIENS_IDENTIFIANTS, ANCIENS_PREFIXES, identifiantActuel, routeModernisee,
+  GROUPES_MENU, INTERRUPTEURS, modulesDeNom, groupeDuModule, blocsDuMenu, reglagesDesModules,
+  SECTIONS_ESPACE, sectionsEspaceVisibles, interrupteursDuClient, cibleReglages,
 } from '../js/os/registre.js';
 import { MODULES } from '../js/os/modules.js';
 
@@ -256,5 +258,141 @@ describe('renommage « journal » -> « automatisations » : compatibilité des 
     const t = lire('js/os/espace-modules.js');
     assert.match(t, /routeModernisee\(route\)/);
     assert.ok(t.indexOf('routeModernisee(route)') < t.indexOf('moduleAccessible(segs[0]'));
+  });
+});
+
+describe('menu CRM unique (méthode A, 2.6.0) : un seul groupe « CRM », deux modules techniques', () => {
+  const LIBELLES = (b) => b.entrees.map((e) => e.libelle);
+  test('affaires et projets restent deux modules techniques, réunis dans le groupe « crm » ; les autres modules ont leur propre bloc', () => {
+    assert.deepEqual(GROUPES_MENU.map((g) => g.id), ['crm']);
+    assert.deepEqual(GROUPES_MENU[0].modules, ['affaires', 'projets']);
+    assert.equal(moduleDeclare('affaires').groupe, 'crm');
+    assert.equal(moduleDeclare('projets').groupe, 'crm');
+    assert.equal(groupeDuModule('affaires').id, 'crm');
+    assert.equal(groupeDuModule('veille'), null);
+    for (const m of MODULES_DECLARES.filter((x) => x.groupe)) assert.ok(GROUPES_MENU.some((g) => g.id === m.groupe && g.modules.includes(m.id)), m.id);
+  });
+  test('menu du CRM : Accueil, Personnes, Organisations, Affaires, Projets, Journal, Archives, dans cet ordre, dans UN seul bloc « CRM »', () => {
+    const blocs = blocsDuMenu(['affaires', 'projets']);
+    assert.equal(blocs.length, 1);
+    assert.equal(blocs[0].libelle, 'CRM');
+    assert.deepEqual(LIBELLES(blocs[0]), ['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Projets', 'Journal', 'Archives']);
+    assert.deepEqual(blocs[0].entrees.map((e) => e.chemin), ['crm/accueil', 'crm/personnes', 'crm/organisations', 'crm/affaires', 'projets/projets', 'crm/journal', 'projets/archives']);
+    assert.ok(!LIBELLES(blocs[0]).includes('Modèles'), '« Modèles » est dans les Réglages');
+  });
+  test('les routes (donc les signets et les liens) sont celles d\'avant : aucune adresse ne change', () => {
+    const routes = blocsDuMenu(IDS_MODULES).flatMap((b) => b.entrees.map((e) => e.chemin));
+    for (const r of ['crm/accueil', 'crm/personnes', 'crm/organisations', 'crm/affaires', 'crm/journal', 'projets/projets', 'projets/archives', 'veille/contenus', 'automatisations/historique']) assert.ok(routes.includes(r), r);
+    assert.equal(moduleDeRoute('crm').id, 'affaires');
+    assert.equal(moduleDeRoute('projets').id, 'projets');
+  });
+  test('un client avec « affaires » seul : le bloc CRM existe sans Projets ni Archives', () => {
+    const [bloc] = blocsDuMenu(['affaires']);
+    assert.deepEqual(LIBELLES(bloc), ['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Journal']);
+  });
+  test('aucun module actif : aucun bloc ; les autres modules gardent chacun leur bloc, après le CRM', () => {
+    assert.deepEqual(blocsDuMenu([]), []);
+    assert.deepEqual(blocsDuMenu(['mcp', 'affaires', 'veille', 'projets', 'automatisations']).map((b) => b.id), ['crm', 'veille', 'automatisations', 'mcp']);
+  });
+  test('un seul interrupteur « crm » : active affaires ET projets ; une valeur précise l\'emporte ; l\'ancien réglage ne change pas', () => {
+    assert.deepEqual(INTERRUPTEURS.crm, ['affaires', 'projets']);
+    assert.deepEqual(modulesDeNom('crm'), ['affaires', 'projets']);
+    assert.deepEqual(modulesDeNom('veille'), ['veille']);
+    assert.deepEqual(modulesDeNom('journal'), ['automatisations']);
+    assert.deepEqual(modulesActifsDuClient({ modules: { crm: true } }), { actifs: ['affaires', 'projets'], erreurs: [] });
+    assert.deepEqual(modulesActifsDuClient({ modules: { crm: true, veille: true, mcp: true } }).actifs, ['affaires', 'projets', 'veille', 'mcp']);
+    assert.deepEqual(modulesActifsDuClient({ modules: { crm: false } }), { actifs: [], erreurs: [] });
+    assert.deepEqual(modulesActifsDuClient({ modules: { crm: true, projets: false } }).actifs, ['affaires']);
+    assert.deepEqual(modulesActifsDuClient({ modules: { affaires: true, projets: false } }).actifs, ['affaires']); // client réglé avant la 2.6.0 : inchangé
+    assert.deepEqual(modulesActifsDuClient({ modules: { affaires: true, projets: true } }).actifs, ['affaires', 'projets']);
+    // crm à true mais affaires explicitement à false : les projets seraient seuls, ce qui est refusé comme avant
+    const r = modulesActifsDuClient({ modules: { crm: true, affaires: false } });
+    assert.deepEqual(r.actifs, []);
+    assert.match(r.erreurs[0], /Projets.*sans.*Affaires/);
+    assert.deepEqual(modulesActifsDuClient({ modules: { crm: 'true' } }).actifs, [], 'seul `true` allume');
+    assert.deepEqual(modulesActifsDuClient({ modules: { crm: true, factures: true } }).erreurs, ['Module inconnu : « factures ».']);
+    assert.ok(!IDS_MODULES.includes('crm'), '« crm » est un interrupteur, pas un module technique : aucune donnée, aucune route à lui');
+  });
+  test('l\'interface déclare un interrupteur par bloc (CRM = affaires + projets)', () => {
+    const lignes = interrupteursDuClient(['affaires', 'projets', 'mcp']);
+    assert.deepEqual(lignes.map((l) => [l.id, l.actif, l.complet]), [['crm', true, true], ['veille', false, false], ['automatisations', false, false], ['mcp', true, true]]);
+    assert.deepEqual(interrupteursDuClient(['affaires']).find((l) => l.id === 'crm'), { id: 'crm', libelle: 'CRM', modules: ['affaires', 'projets'], actif: true, complet: false });
+    assert.deepEqual(interrupteursDuClient([]).filter((l) => l.actif), []);
+  });
+});
+
+describe('Réglages à menu latéral (2.6.0) : ce que chaque module déclare', () => {
+  const lireModule = (dossier) => readdirSync(join(RACINE, 'js/modules', dossier)).filter((f) => f.endsWith('.js')).map((f) => lire(`js/modules/${dossier}/${f}`)).join('\n');
+  const SOURCES = { affaires: 'crm', projets: 'projets', mcp: 'mcp' };
+
+  test('chaque module déclare ses réglages : des sections (id « reglages-… », libellé) ou un résumé s\'il n\'en a pas', () => {
+    for (const m of MODULES_DECLARES) {
+      assert.ok(m.reglages && Array.isArray(m.reglages.sections), `${m.id} : reglages manquant`);
+      if (!m.reglages.sections.length) assert.ok(m.reglages.resume, `${m.id} : aucun réglage, il faut un résumé`);
+      for (const s of m.reglages.sections) assert.ok(/^reglages-[a-z-]+$/.test(s.id) && s.libelle, `${m.id} ${s.id}`);
+    }
+    const ids = MODULES_DECLARES.flatMap((m) => m.reglages.sections.map((s) => s.id));
+    assert.equal(new Set(ids).size, ids.length, 'identifiants de section uniques entre modules');
+  });
+  test('chaque section déclarée existe dans le code du module, et chaque section que le module écrit est déclarée', () => {
+    for (const [idModule, dossier] of Object.entries(SOURCES)) {
+      const code = lireModule(dossier);
+      const declarees = moduleDeclare(idModule).reglages.sections.map((s) => s.id);
+      for (const id of declarees) assert.ok(code.includes(`'${id}'`), `${idModule} : « ${id} » déclarée mais absente du code`);
+      const ecrites = [...code.matchAll(/(?:section|h\('section', \{ class: 'carte-section', id:)\(?\s*'(reglages-[a-z-]+)'/g)].map((x) => x[1]);
+      for (const id of ecrites) assert.ok(declarees.includes(id), `${idModule} : « ${id} » écrite mais pas déclarée dans registre.js`);
+    }
+  });
+  test('Réglages du CRM : un seul élément « CRM » pour affaires + projets, sections rangées dans l\'ordre du groupe, modèles de projets compris', () => {
+    const [crm] = reglagesDesModules(['affaires', 'projets']);
+    assert.equal(crm.id, 'crm');
+    assert.equal(crm.libelle, 'CRM');
+    assert.deepEqual(crm.modules, ['affaires', 'projets']);
+    const ids = crm.sections.map((s) => s.id);
+    assert.deepEqual(ids, GROUPES_MENU[0].ordreReglages.filter((id) => ids.includes(id)));
+    assert.ok(ids.includes('reglages-modeles-projets') && ids.includes('reglages-etapes') && ids.includes('reglages-objectifs'));
+    assert.ok(ids.indexOf('reglages-modeles-affaire') < ids.indexOf('reglages-modeles-projets'), 'les deux familles de modèles côte à côte');
+    assert.equal(crm.ouvrir, 'crm/accueil');
+    assert.ok(!reglagesDesModules(['affaires'])[0].sections.some((s) => s.id === 'reglages-modeles-projets'), 'projets éteint : pas de modèles de projets');
+  });
+  test('un élément par module actif, dans l\'ordre du menu ; un module sans réglage a un résumé', () => {
+    const items = reglagesDesModules(['affaires', 'projets', 'veille', 'automatisations', 'mcp']);
+    assert.deepEqual(items.map((i) => i.id), ['crm', 'veille', 'automatisations', 'mcp']);
+    assert.deepEqual(items.map((i) => i.libelle), ['CRM', 'Veille', 'Automatisations', 'Assistant (MCP)']);
+    assert.match(items[1].resume, /Aucun réglage/);
+    assert.deepEqual(items[1].sections, []);
+    assert.deepEqual(reglagesDesModules([]), []);
+  });
+  test('réglages de l\'espace : « Mon espace » pour tous, membres et modules réservés aux éditeurs, membres seulement chez un client', () => {
+    assert.deepEqual(SECTIONS_ESPACE.map((s) => s.id), ['espace', 'membres', 'modules']);
+    const ids = (o) => sectionsEspaceVisibles(o).map((s) => s.id);
+    assert.deepEqual(ids({ chezClient: true, editeur: true }), ['espace', 'membres', 'modules']);
+    assert.deepEqual(ids({ chezClient: true, editeur: false }), ['espace'], 'un lecteur ne voit pas les sections réservées aux éditeurs');
+    assert.deepEqual(ids({ chezClient: false, editeur: true }), ['espace', 'modules'], 'à la racine il n\'y a pas de membres à gérer');
+  });
+  test('cibleReglages : arrivée sur la première section d\'espace ; section inconnue ou interdite = null', () => {
+    const espaces = sectionsEspaceVisibles({ chezClient: true, editeur: false });
+    const modules = reglagesDesModules(['affaires', 'projets']);
+    assert.deepEqual(cibleReglages(['reglages'], { espaces, modules }), { type: 'espace', id: 'espace' });
+    assert.deepEqual(cibleReglages(['reglages', 'crm'], { espaces, modules }), { type: 'module', id: 'crm' });
+    assert.deepEqual(cibleReglages(['reglages', 'espace'], { espaces, modules }), { type: 'espace', id: 'espace' });
+    assert.equal(cibleReglages(['reglages', 'membres'], { espaces, modules }), null);
+    assert.equal(cibleReglages(['reglages', 'inconnu'], { espaces, modules }), null);
+  });
+  test('la coque ne connaît aucun module : js/os/reglages.js n\'importe rien de js/modules et ne cite aucun module par son nom', () => {
+    const source = lire('js/os/reglages.js').replace(/^\s*\/\/.*$/gm, '');
+    assert.ok(!/modules\//.test(source.replace(/\.\/modules\.js/g, '')), 'aucun import de js/modules/…');
+    for (const mot of ['crm', 'projets', 'affaires', 'veille', 'automatisations']) assert.ok(!new RegExp(`['"\`]${mot}['"\`]`).test(source), mot);
+  });
+  test('main.js et espace-modules.js passent par la même page (monterReglages) ; aucune section n\'est écrite dans main.js', () => {
+    assert.match(lire('js/main.js'), /monterReglages/);
+    assert.match(lire('js/os/espace-modules.js'), /monterReglages/);
+    assert.ok(!/reglages: false/.test(lire('js/os/espace-modules.js')), 'les Réglages existent aussi chez un client');
+    assert.ok(!/carte-section/.test(lire('js/main.js')));
+  });
+  test('rien n\'est déplacé : les collections et les documents de réglages du CRM sont ceux d\'avant (aucune migration)', () => {
+    assert.deepEqual(moduleDeclare('affaires').collections, ['crm_personnes', 'crm_organisations', 'crm_affaires', 'crm_activites', 'crm_notes', 'crm_evenements', 'crm_parametres']);
+    assert.deepEqual(moduleDeclare('projets').collections, ['projets_projets', 'projets_taches', 'projets_modeles']);
+    assert.ok(!/firestore|setDoc|updateDoc|getDoc/.test(lire('js/os/reglages.js')), 'la page Réglages de la coque ne lit ni n\'écrit aucune donnée');
   });
 });

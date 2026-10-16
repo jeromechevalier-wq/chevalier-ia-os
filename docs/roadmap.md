@@ -4,6 +4,10 @@ Tenue à jour à chaque discussion sur l'évolution de l'appli. Dernière mise �
 
 Légende : **décidé** = validé par Jérôme ; **piste** = à trancher avant le cahier des charges.
 
+## Réglages à menu latéral et menu CRM unique (16/10/2026, version 2.6.0)
+
+**Décidé (16/10/2026)** : une seule page Réglages à menu latéral (l'espace d'abord, puis un élément par module), et un seul bloc « CRM » dans le menu (méthode A : deux modules techniques, un seul groupe et un seul interrupteur `crm`). **Écrit et testé** (PR en attente du « fusionne ») : `reglages-menu-crm-unique.md`. Reste à décider : rendre modifiables par un éditeur le nom, les membres et les modules d'un espace (demande un changement des règles Firestore ou une fonction serveur) ; Drive (« Liens et documents ») ajoutera sa section à Réglages > CRM.
+
 ## Priorité : Claude Code et les agents lisent et écrivent dans la base
 
 Cahier des charges détaillé : `cahier-mcp.md` (brouillon du 02/10/2026). **Plan détaillé approuvé le 02/10/2026 : `plan-mcp.md`** (architecture, outils, audit, sauvegardes, pièces jointes, tests, déploiement par étapes, risques). En cas de contradiction, `plan-mcp.md` prévaut sur `cahier-mcp.md`.
