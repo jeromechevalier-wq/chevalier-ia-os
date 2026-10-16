@@ -56,7 +56,7 @@ test('K3 bandeau « Pense à ta sauvegarde mensuelle », objectifs, Charles dans
   await expect(page.locator('.charles-vide').first()).toBeVisible();
 });
 
-test('K4 réglages, comptes Jérôme / Charles dans les listes, GitHub : toujours là au CRM de Jérôme', async ({ page }) => {
+test('K4 réglages, comptes Jérôme / Charles dans les listes, dossier de travail : toujours là au CRM de Jérôme', async ({ page }) => {
   await creerPersonne('p1', { nom: 'Camille Dubois' });
   await creerAffaire('a1', { titre: 'Audit du lac', personneId: 'p1', etape: 'proposition_envoyee' });
   await connecter(page, JEROME);
@@ -65,8 +65,8 @@ test('K4 réglages, comptes Jérôme / Charles dans les listes, GitHub : toujour
   await page.evaluate(() => { location.hash = '#/crm/affaires/a1'; });
   await expect(page.locator('input.titre-editable')).toHaveValue('Audit du lac');
   await expect(page.locator('select[aria-label="Propriétaire"] option')).toHaveText(['Jérôme', 'Charles']);
-  await expect(page.locator('[data-prop="github"]')).toHaveCount(1);
   await expect(page.locator('[data-prop="dossier"]')).toHaveCount(1);
+  await expect(page.locator('[data-prop="github"]')).toHaveCount(0); // plus de champ GitHub (une ancienne adresse serait reprise comme lien)
 });
 
 test('K5 célébration « Bravo Jérôme ! » toujours montrée quand une affaire est gagnée au CRM de Jérôme', async ({ page }) => {

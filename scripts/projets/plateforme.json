@@ -9,5 +9,9 @@
     "messagingSenderId": "192468914925",
     "appId": "1:192468914925:web:4f459f0606689e22c572e4"
   },
-  "comptesAutorises": {}
+  "comptesAutorises": {},
+  "googleDrive": {
+    "commentaire": "Identifiant du client OAuth Web du projet chevalier-ia-app (forme 123456-abc.apps.googleusercontent.com). Public par nature, jamais le « client secret ». Renseigné le 16/10/2026 (créé par Jérôme) ; s'il est vidé, les boutons Google (Ajouter un document, Créer le répertoire) sont cachés. Pas à pas : docs/google-drive.md.",
+    "idClient": "192468914925-ojvn6n92sl17kp8sqbdnhs3jlehr2qcd.apps.googleusercontent.com"
+  }
 }

@@ -912,25 +912,30 @@ test('C22 fiche personne : deux colonnes sur ordinateur, une seule colonne sur t
   await creerPersonne('p1', { nom: 'Marie Durand' });
   await connecter(page);
   await aller(page, '#/crm/personnes/p1');
-  const gauche = await page.locator('.fiche-gauche').boundingBox();
-  const droite = await page.locator('.fiche-droite').boundingBox();
+  // La fiche est redessinée à chaque lot de données qui arrive de Firestore (personne, organisations, paramètres) : on ne mesure donc pas une seule fois
+  // un élément qui peut être remplacé à cet instant (boundingBox renvoie alors null), on attend une mesure complète et juste (réessayée jusqu'à la bonne).
   if (estTelephone(page)) {
     // Une seule colonne, dans l'ordre du cahier : Résumé, Activité et Notes, Points clés, Affaires, Organisation, Détails, Historique
-    const ordre = await page.evaluate(() => {
+    const mesurerOrdre = () => page.evaluate(() => {
       const blocs = [
         ['résumé', '.section[data-section="personne-resume"]'], ['activité', '.compositeur'], ['points clés', '.points-cles'],
         ['affaires', '.section[data-section="personne-affaires"]'], ['organisation', '.section[data-section="personne-organisation"]'],
         ['détails', '.section[data-section="personne-details"]'], ['historique', '.historique'],
       ];
-      return blocs.map(([nom, sel]) => { const r = document.querySelector(sel).getBoundingClientRect(); return { nom, x: Math.round(r.x), y: r.y }; })
-        .sort((a, b) => a.y - b.y);
+      const elements = blocs.map(([nom, sel]) => [nom, document.querySelector(sel)]);
+      if (elements.some(([, el]) => !el)) return null; // fiche en cours de redessin
+      return elements.map(([nom, el]) => { const r = el.getBoundingClientRect(); return { nom, x: Math.round(r.x), y: r.y }; }).sort((a, b) => a.y - b.y);
     });
-    expect(ordre.map((b) => b.nom)).toEqual(['résumé', 'activité', 'points clés', 'affaires', 'organisation', 'détails', 'historique']);
-    expect(new Set(ordre.map((b) => b.x)).size).toBeLessThanOrEqual(2); // même colonne (au pixel près)
-    void gauche; void droite;
+    await expect.poll(async () => (await mesurerOrdre())?.map((b) => b.nom)).toEqual(['résumé', 'activité', 'points clés', 'affaires', 'organisation', 'détails', 'historique']);
+    expect(new Set((await mesurerOrdre()).map((b) => b.x)).size).toBeLessThanOrEqual(2); // même colonne (au pixel près)
   } else {
-    expect(droite.x).toBeGreaterThan(gauche.x + gauche.width - 2); // côte à côte
-    expect(Math.abs(droite.y - gauche.y)).toBeLessThan(4);
+    const cotesACotes = async () => {
+      const gauche = await page.locator('.fiche-gauche').boundingBox();
+      const droite = await page.locator('.fiche-droite').boundingBox();
+      if (!gauche || !droite) return null; // fiche en cours de redessin
+      return droite.x > gauche.x + gauche.width - 2 && Math.abs(droite.y - gauche.y) < 4; // côte à côte, en haut au même niveau
+    };
+    await expect.poll(cotesACotes).toBe(true);
   }
   for (const section of ['personne-resume', 'personne-details', 'personne-organisation', 'personne-affaires']) {
     await expect(page.locator(`.section[data-section="${section}"]`)).toBeVisible();
@@ -1102,123 +1107,85 @@ test('C23 navigation : lien direct vers une fiche, route inconnue, déconnexion'
   await expect(page.getByRole('button', { name: 'Se connecter avec Google' })).toBeVisible();
 });
 
-// ---------------------------------------------------------------- adresse GitHub et dossier de travail
+// ---------------------------------------------------------------- dossier de travail, ancienne adresse GitHub (chantier « Liens et documents »)
 
 async function fixtureEliot(extra = {}) {
   await creerOrganisation('o1', { nom: 'dépannage Carrel' });
   await creerPersonne('p1', { nom: 'Eliot', organisationId: 'o1' });
   await creerAffaire('a1', { titre: 'création appli devis dépannage', personneId: 'p1', organisationId: 'o1', ...extra });
 }
-const pied = (page) => dialogue(page).locator('.dialogue-pied');
 
-test('C24 adresse GitHub : proposée avant le dossier, enregistrée seulement quand on la valide, prompt « Créer le GitHub » en privé', async ({ page, context }) => {
-  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+test('C24 plus de champ GitHub ni de « Créer le GitHub » : une ancienne adresse reste visible (lien « GitHub »), se retire sans toucher au reste', async ({ page }) => {
   await fixtureEliot();
   await connecter(page);
   await aller(page, '#/crm/affaires/a1');
-  const champ = page.locator('[data-champ="github"]');
-  await expect(champ).toHaveValue('https://github.com/jeromechevalier-wq/depannage-carrel-creation-appli-devis-depannage');
-  // L'adresse GitHub vient avant le dossier.
+  // Sans adresse : aucune ligne GitHub, aucun champ, aucun bouton, aucun prompt.
+  await expect(page.locator('[data-prop="dossier"]')).toBeVisible();
+  await expect(page.locator('[data-prop="github"]')).toHaveCount(0);
+  await expect(page.locator('[data-champ="github"], [data-action="creer-github"]')).toHaveCount(0);
+  await expect(page.getByText('Créer le GitHub')).toHaveCount(0);
+  // Avec une ancienne adresse : reprise comme lien « GitHub », donnée intacte.
+  await ecrireDocument('crm_affaires/a1', { ...(await lireDocument('crm_affaires/a1')), urlGithub: 'https://github.com/jeromechevalier-wq/eliot-devis-depannage' });
+  await aller(page, '#/crm/affaires');
+  await aller(page, '#/crm/affaires/a1');
   const github = page.locator('[data-prop="github"]');
-  const dossier = page.locator('[data-prop="dossier"]');
-  await expect(dossier).toBeVisible();
-  expect(await page.evaluate(() => !!(document.querySelector('[data-prop="github"]').compareDocumentPosition(document.querySelector('[data-prop="dossier"]')) & Node.DOCUMENT_POSITION_FOLLOWING))).toBe(true);
-  // La proposition n'est pas enregistrée.
-  expect((await lireDocument('crm_affaires/a1')).urlGithub ?? '').toBe('');
-  // Prompt : privé, compte et nom du dépôt, données balisées ; « Copier » garde la fenêtre ouverte.
-  await page.locator('[data-action="creer-github"]').click();
-  await expect(dialogue(page)).toBeVisible();
-  const texte = await dialogue(page).locator('[data-zone="prompt"]').inputValue();
-  expect(texte).toContain('en PRIVÉ');
-  expect(texte).toContain('jamais public');
-  expect(texte).toContain('jeromechevalier-wq/depannage-carrel-creation-appli-devis-depannage');
-  expect(texte).toContain('Titre : création appli devis dépannage');
-  expect(texte).toContain('Organisation : dépannage Carrel');
-  expect(texte).toContain('https://chevalier-ia-os.web.app/#/crm/affaires/a1');
-  await dialogue(page).getByRole('button', { name: 'Copier' }).click();
-  await expect(page.locator('.toast')).toContainText('Prompt copié');
-  await expect(dialogue(page)).toBeVisible();
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(texte);
-  await pied(page).getByRole('button', { name: 'Fermer' }).click();
-  await expect(dialogue(page)).toHaveCount(0);
-  // Une adresse qui n'est pas GitHub est refusée, rien n'est enregistré.
-  await champ.fill('https://gitlab.com/a/b');
-  await page.locator('[data-action="enregistrer-github"]').click();
-  await expect(page.locator('.toast-erreur')).toContainText('https://github.com/');
-  await expect(champ).toHaveClass(/invalide/);
-  expect((await lireDocument('crm_affaires/a1')).urlGithub ?? '').toBe('');
-  // Adresse valide : Entrée enregistre, le champ devient un lien.
-  await champ.fill('https://github.com/jeromechevalier-wq/eliot-devis-depannage');
-  await champ.press('Enter');
-  await champDoc('crm_affaires', 'a1', 'urlGithub', 'https://github.com/jeromechevalier-wq/eliot-devis-depannage');
+  await expect(github.locator('.prop-libelle')).toHaveText('GitHub');
   await expect(github.locator('a.prop-lien')).toHaveAttribute('href', 'https://github.com/jeromechevalier-wq/eliot-devis-depannage');
-  await expect(page.locator('[data-champ="github"]')).toHaveCount(0);
-  // Modifier : Échap revient au lien sans rien changer.
-  await github.locator('.prop-modifier').click();
-  await expect(page.locator('[data-champ="github"]')).toHaveValue('https://github.com/jeromechevalier-wq/eliot-devis-depannage');
-  await page.locator('[data-champ="github"]').press('Escape');
-  await expect(github.locator('a.prop-lien')).toBeVisible();
+  expect((await lireDocument('crm_affaires/a1')).urlGithub).toBe('https://github.com/jeromechevalier-wq/eliot-devis-depannage');
+  // La retirer est un geste volontaire.
+  await github.locator('[data-action="retirer-github"]').click();
+  await champDoc('crm_affaires', 'a1', 'urlGithub', '');
+  await expect(page.locator('[data-prop="github"]')).toHaveCount(0);
 });
 
-test('C25 dossier : nom proposé et corrigeable, prompt « Créer le répertoire » avec le dépôt, adresse du dossier enregistrée', async ({ page }) => {
-  await fixtureEliot({ urlGithub: 'https://github.com/jeromechevalier-wq/eliot-devis-depannage' });
+test('C25 dossier de travail d\'une affaire : n\'importe quel lien (Drive, serveur, NAS, site) ; un texte qui n\'est pas un lien est refusé ; pas de « Créer le répertoire » ici', async ({ page }) => {
+  await fixtureEliot();
   await connecter(page);
   await aller(page, '#/crm/affaires/a1');
-  const nom = page.locator('[data-champ="nom-dossier"]');
-  await expect(nom).toHaveValue('client-depannage-carrel-creation-appli-devis-depannage');
-  // Un nom invalide est refusé, aucune fenêtre ne s'ouvre.
-  await nom.fill('Client Carrel');
-  await page.locator('[data-action="creer-dossier"]').click();
-  await expect(page.locator('.toast-erreur')).toContainText('client-');
-  await expect(nom).toHaveClass(/invalide/);
-  await expect(dialogue(page)).toHaveCount(0);
-  // Nom corrigé : le prompt reprend le chemin, le nom, le dépôt GitHub et exige l'accord de Jérôme.
-  await nom.fill('client-depannage-carrel-appli-devis');
-  await page.locator('[data-action="creer-dossier"]').click();
-  await expect(dialogue(page)).toBeVisible();
-  const texte = await dialogue(page).locator('[data-zone="prompt"]').inputValue();
-  expect(texte).toContain('Nouveau projet à créer');
-  expect(texte).toContain('Mon Drive/Chevalier-AI/Projets/client-depannage-carrel-appli-devis/');
-  expect(texte).toContain('Dépôt GitHub : https://github.com/jeromechevalier-wq/eliot-devis-depannage');
-  expect(texte).toContain('Personne : Eliot');
-  expect(texte).toContain('liste exacte de ce que tu vas créer');
-  expect(texte).toContain('Ne supprime rien');
-  await pied(page).getByRole('button', { name: 'Fermer' }).click();
-  await expect(dialogue(page)).toHaveCount(0);
-  // Le nom n'est jamais enregistré ; une adresse qui n'est pas un dossier Drive est refusée.
-  expect((await lireDocument('crm_affaires/a1')).urlDossier ?? '').toBe('');
   const champUrl = page.locator('[data-champ="dossier"]');
-  await champUrl.fill('https://exemple.fr/dossier');
+  await expect(page.locator('[data-prop="dossier"] .prop-libelle')).toHaveText('Dossier de travail');
+  await expect(page.locator('[data-action="creer-dossier"], [data-champ="nom-dossier"]')).toHaveCount(0);
+  // Pas un lien : refusé, rien n'est enregistré.
+  await champUrl.fill('Mon Drive/Projets/carrel');
   await page.locator('[data-action="enregistrer-dossier"]').click();
-  await expect(page.locator('.toast-erreur').last()).toContainText('dossier Google Drive');
+  await expect(page.locator('.toast-erreur').last()).toContainText('lien complet');
+  await expect(champUrl).toHaveClass(/invalide/);
   expect((await lireDocument('crm_affaires/a1')).urlDossier ?? '').toBe('');
-  // Adresse de dossier valide : enregistrée, le champ et le bouton laissent la place au lien.
-  await champUrl.fill('https://drive.google.com/drive/folders/1AbC_dEf-123');
+  // Un dossier de NAS est accepté (affiché en texte : un navigateur n'ouvre pas smb://).
+  await champUrl.fill('smb://nas/clients/carrel');
   await champUrl.press('Enter');
+  await champDoc('crm_affaires', 'a1', 'urlDossier', 'smb://nas/clients/carrel');
+  await expect(page.locator('[data-prop="dossier"]')).toContainText('smb://nas/clients/carrel');
+  // Un site, puis un dossier Drive : liens cliquables.
+  await page.locator('[data-prop="dossier"] .prop-modifier').click();
+  await page.locator('[data-champ="dossier"]').fill('https://exemple.fr/espace/carrel');
+  await page.locator('[data-champ="dossier"]').press('Enter');
+  await champDoc('crm_affaires', 'a1', 'urlDossier', 'https://exemple.fr/espace/carrel');
+  await expect(page.locator('[data-prop="dossier"] a.prop-lien')).toHaveAttribute('href', 'https://exemple.fr/espace/carrel');
+  await page.locator('[data-prop="dossier"] .prop-modifier').click();
+  await page.locator('[data-champ="dossier"]').fill('https://drive.google.com/drive/folders/1AbC_dEf-123');
+  await page.locator('[data-champ="dossier"]').press('Enter');
   await champDoc('crm_affaires', 'a1', 'urlDossier', 'https://drive.google.com/drive/folders/1AbC_dEf-123');
   await expect(page.locator('[data-prop="dossier"] a.prop-lien')).toHaveAttribute('href', 'https://drive.google.com/drive/folders/1AbC_dEf-123');
-  await expect(page.locator('[data-champ="nom-dossier"]')).toHaveCount(0);
-  await expect(page.locator('[data-action="creer-dossier"]')).toHaveCount(0);
+  // Échap revient au lien sans rien changer.
+  await page.locator('[data-prop="dossier"] .prop-modifier').click();
+  await page.locator('[data-champ="dossier"]').press('Escape');
+  await expect(page.locator('[data-prop="dossier"] a.prop-lien')).toBeVisible();
 });
 
-test('C26 réglages : le compte GitHub et le chemin des projets changent les propositions des fiches', async ({ page }) => {
+test('C26 réglages : plus de compte GitHub ni de dossier Mac ; la section Google Drive dit que Google n\'est pas encore branché', async ({ page }) => {
   await fixtureEliot();
   await connecter(page);
   await allerAuxReglagesCrm(page);
-  await page.getByLabel('Compte GitHub').fill('compte invalide !');
-  await page.getByLabel('Compte GitHub').blur();
-  await expect(page.locator('.toast-erreur')).toContainText('invalide');
-  await expect(page.getByLabel('Compte GitHub')).toHaveValue('jeromechevalier-wq');
-  await page.getByLabel('Compte GitHub').fill('autre-compte');
-  await page.getByLabel('Compte GitHub').blur();
-  await expect.poll(async () => (await lireDocument('crm_parametres/reglages'))?.proprietaireGithub).toBe('autre-compte');
-  await page.getByLabel('Chemin du dossier Projets sur le Mac').fill('/Users/jerome/Projets');
-  await page.getByLabel('Chemin du dossier Projets sur le Mac').blur();
-  await expect.poll(async () => (await lireDocument('crm_parametres/reglages'))?.cheminProjets).toBe('/Users/jerome/Projets');
-  await aller(page, '#/crm/affaires/a1');
-  await expect(page.locator('[data-champ="github"]')).toHaveValue(/^https:\/\/github\.com\/autre-compte\//);
-  await page.locator('[data-action="creer-dossier"]').click();
-  await expect(dialogue(page).locator('[data-zone="prompt"]')).toHaveValue(/\/Users\/jerome\/Projets\/client-depannage-carrel-/);
+  await expect(page.getByLabel('Compte GitHub')).toHaveCount(0);
+  await expect(page.getByLabel('Chemin du dossier Projets sur le Mac')).toHaveCount(0);
+  const section = page.locator('#reglages-projets');
+  await expect(section).toBeVisible(); // l'interrupteur est allumé chez Jérôme
+  await expect(section.locator('[data-role="etat-google"]')).toContainText('pas encore branché');
+  await expect(section.locator('[data-action="choisir-dossier-parent"]')).toBeDisabled();
+  await expect(section.locator('[data-action="tester-google"]')).toBeDisabled();
+  await expect(page.locator('[data-option="boutonsDepot"]')).toBeChecked();
+  await expect(page.locator('[data-ligne="boutonsDepot"]')).toContainText('Créer le répertoire dans Google Drive');
 });
 
 // ---------------------------------------------------------------- audit des actions de l'écran (04/10/2026)

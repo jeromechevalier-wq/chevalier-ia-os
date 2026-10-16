@@ -1,5 +1,5 @@
-// Fiche d'un projet : barre des phases, résumé, détails (GitHub, dossier), documents ; notes et historique à droite.
-import { h, icone, remplir, ouvrirMenu, toast, confirmer } from '../../os/ui.js';
+// Fiche d'un projet : barre des phases, résumé, détails (dossier de travail), liens et documents ; notes et historique à droite.
+import { h, icone, remplir, ouvrirMenu, toast, confirmer, dialogue } from '../../os/ui.js';
 import * as CRM from '../crm/donnees.js';
 import * as L from '../crm/logique.js';
 import {
@@ -7,7 +7,9 @@ import {
   gabaritFiche, lienRetour, saisieEnCours, etatVide, planifier, boutonEtoile, iconeInfo,
 } from '../crm/composants.js';
 import { panneauActivite } from '../crm/activites.js';
-import { creerLanceurs } from '../crm/lanceurs.js';
+import { creerLanceurs, creerRepertoireDrive, messageCreation } from '../crm/lanceurs.js';
+import { googleDisponible, preparerGoogle, ouvrirFenetreGoogle } from '../../os/google-picker.js';
+import { idDossierDrive, documentDepuisChoix } from '../../os/google-drive.js';
 import * as D from './donnees.js';
 import * as P from './logique.js';
 import { sectionTaches } from './taches.js';
@@ -16,6 +18,56 @@ import { cheminModele } from './modeles.js';
 import { anneauProgression, cheminProjet } from './composants.js';
 import { pastilleStatutProjet, pastilleImpaye, terminerProjet, changerPhaseProjet, extraireValeur, mettreEnPause, reprendre, rouvrir, demanderSuppressionProjet } from './projets.js';
 const cfg = () => CRM.etat.config;
+
+/**
+ * « Ajouter un document » : la fenêtre standard de Google (onglets « Mon Drive » et « Importer »). Un fichier importé est envoyé dans le dossier de travail
+ * Drive du projet, créé au besoin (avec l'accord de l'utilisateur). Si le dossier de travail n'est pas dans Drive (serveur, NAS…), seul « Mon Drive » est proposé.
+ * Chaque document choisi entre dans la liste « Liens et documents » (un lien déjà présent n'est pas ajouté deux fois).
+ */
+async function ajouterDocumentGoogle(projet, bouton) {
+  const email = CRM.compteCourant()?.email || '';
+  let patron = D.projet(projet.id) || projet;
+  let dossierImport = idDossierDrive(patron.urlDossier);
+  bouton.disabled = true;
+  try {
+    if (!patron.urlDossier) {
+      const choix = await dialogue({
+        titre: 'Dossier de travail du projet',
+        contenu: h('p', {}, 'Ce projet n’a pas encore de dossier de travail dans Google Drive. Pour y importer des fichiers, je peux le créer maintenant (avec ses sous-dossiers définis dans les Réglages) : son lien sera enregistré comme dossier de travail.'),
+        boutons: [
+          { libelle: 'Créer le dossier', valeur: 'creer', style: 'principal' },
+          { libelle: 'Parcourir seulement', valeur: 'parcourir' },
+        ],
+      });
+      if (!choix) return;
+      if (choix === 'creer') {
+        const r = await creerRepertoireDrive({ nom: patron.titre });
+        await D.majProjet(projet.id, { urlDossier: r.url });
+        dossierImport = idDossierDrive(r.url);
+        toast(messageCreation(r), { type: r.manquants.length ? 'erreur' : 'info' });
+        patron = D.projet(projet.id) || { ...patron, urlDossier: r.url };
+      }
+    }
+    const elus = await ouvrirFenetreGoogle({ mode: 'documents', dossierImport, email });
+    let courant = D.projet(projet.id) || patron;
+    let ajoutes = 0;
+    for (const e of elus) {
+      const doc = documentDepuisChoix(e);
+      if (!doc || (courant.documents || []).some((d) => d.url === doc.url)) continue;
+      const r = L.ajouterDocument(courant, doc.libelle, doc.url);
+      if (r.erreurs.url) continue;
+      await D.majProjet(projet.id, r.patch);
+      courant = { ...courant, ...r.patch };
+      ajoutes++;
+    }
+    if (ajoutes) toast(ajoutes === 1 ? 'Document ajouté' : `${ajoutes} documents ajoutés`);
+  } catch (e) {
+    if (!e?.saisie && !e?.annule) console.warn(e);
+    toast(e?.message || 'Ajout impossible', { type: e?.annule ? 'info' : 'erreur' });
+  } finally {
+    bouton.disabled = false;
+  }
+}
 
 export function rendreFicheProjet(conteneur, id) {
   let panneau = null;
@@ -139,28 +191,34 @@ export function rendreFicheProjet(conteneur, id) {
 
     // ---- Détails
     const lanceurs = creerLanceurs({
-      fiche: p, typeFiche: 'projet', organisation: org, personne: pers, affaireOrigine: aff,
+      fiche: p, typeFiche: 'projet', nomSuggere: p.titre,
       enregistrer: (patch) => D.majProjet(p.id, patch),
     });
-    const details = sectionRepliable({ id: 'projet-details', titre: 'Détails', contenu: h('div', { class: 'proprietes' }, lanceurs.github, lanceurs.dossier) });
+    const details = sectionRepliable({ id: 'projet-details', titre: 'Détails', contenu: h('div', { class: 'proprietes' }, lanceurs.dossier) });
 
-    // ---- Documents
-    const champLibelle = h('input', { class: 'champ', type: 'text', 'aria-label': 'Libellé du document', placeholder: 'Libellé (ex. Devis)' });
-    const champUrl = h('input', { class: 'champ', type: 'url', 'aria-label': 'Adresse du document (lien Google Drive)', placeholder: 'Lien Google Drive' });
-    const documents = p.documents || [];
+    // ---- Liens et documents : les liens saisis à la main (libellé + lien web) et les documents choisis dans la fenêtre Google (« Ajouter un document »).
+    // L'ancienne adresse GitHub du projet est reprise ici comme un lien « GitHub » (aucune donnée perdue).
+    const champLibelle = h('input', { class: 'champ', type: 'text', 'aria-label': 'Libellé du lien', placeholder: 'Libellé (ex. Devis)' });
+    const champUrl = h('input', { class: 'champ', type: 'url', 'aria-label': 'Lien web', placeholder: 'Lien web (Drive, serveur, site…)' });
+    const liens = L.liensEtDocuments(p);
+    const google = googleDisponible();
+    if (google) preparerGoogle().catch((e) => console.warn(e)); // chargé à l'avance : le clic ouvre la fenêtre sans délai
+    const boutonGoogle = google ? h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', 'data-action': 'ajouter-document-google', onclick: () => ajouterDocumentGoogle(p, boutonGoogle) },
+      icone('plus', { taille: 14 }), 'Ajouter un document') : null;
     const sectionDocuments = sectionRepliable({
-      id: 'projet-documents', titre: 'Documents', compteur: documents.length,
+      id: 'projet-documents', titre: 'Liens et documents', compteur: liens.length,
       contenu: h('div', { class: 'pile' },
-        documents.length ? h('ul', { class: 'liste-simple' }, documents.map((d, i) => h('li', { class: 'ligne-simple' }, icone('link', { taille: 14 }),
-          boutonEtoile({ favori: d.favori === true, libelle: d.libelle, surBascule: () => D.majProjet(p.id, L.basculerFavoriDocument(p, i)) }),
+        liens.length ? h('ul', { class: 'liste-simple' }, liens.map((d) => h('li', { class: 'ligne-simple' }, icone('link', { taille: 14 }),
+          boutonEtoile({ favori: d.favori, libelle: d.libelle, surBascule: () => D.majProjet(p.id, L.basculerFavoriLien(p, d)) }),
           h('a', { href: d.url, target: '_blank', rel: 'noopener noreferrer' }, d.libelle),
-          h('button', { type: 'button', class: 'bouton-icone', 'aria-label': `Retirer ${d.libelle}`, onclick: () => D.majProjet(p.id, L.supprimerDocument(p, i)) }, icone('x', { taille: 14 }))))) : null,
+          h('button', { type: 'button', class: 'bouton-icone', 'aria-label': `Retirer ${d.libelle}`, onclick: () => D.majProjet(p.id, L.retirerLien(p, d)) }, icone('x', { taille: 14 }))))) : null,
         h('div', { class: 'ligne-ajout' }, champLibelle, champUrl,
           h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', 'data-action': 'ajouter-document', onclick: async () => {
             const r = L.ajouterDocument(p, champLibelle.value, champUrl.value);
             if (r.erreurs.url) { toast(r.erreurs.url, { type: 'erreur' }); champUrl.classList.add('invalide'); return; }
             await D.majProjet(p.id, r.patch);
-          } }, 'Ajouter'))),
+          } }, 'Ajouter'),
+          boutonGoogle)),
     });
 
     // ---- Tâches

@@ -2,7 +2,7 @@
 //
 // Principe : le CRM de Jérôme (projet chevalier-ia-os) est publié tel quel, depuis la racine du dépôt, avec js/os/firebase-config.js
 // qui reste son fichier de configuration. Pour un autre projet (la plateforme clients, chevalier-ia-app), on construit un dossier
-// dist/<projet>/ : copie exacte des fichiers du site, SAUF js/os/firebase-config.js, remplacé par un fichier généré depuis
+// dist/<projet>/ : copie exacte des fichiers du site, SAUF js/os/firebase-config.js (et js/os/google-config.js), remplacés par des fichiers générés depuis
 // scripts/projets/<projet>.json. Le même code, la même version (version.json et js/os/version.js sont copiés tels quels),
 // une configuration par projet choisie au moment de construire, jamais devinée dans le navigateur.
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
@@ -20,6 +20,7 @@ export const PROJETS = {
 };
 
 const CLES_CONFIG = ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'messagingSenderId', 'appId'];
+const CLES_GOOGLE = ['commentaire', 'idClient', 'cleApi', 'idApp'];
 const MOTIFS_SECRETS = /-----BEGIN|private_key|client_email|client_secret|service_account|"type"\s*:\s*"service_account"/i;
 
 /** Lit et vérifie la configuration d'un projet. Lève une erreur claire au moindre doute. */
@@ -39,7 +40,15 @@ export function lireConfigProjet(projet, racine = RACINE) {
   if (!new RegExp(`^1:${fb.messagingSenderId}:web:[0-9a-f]+$`).test(fb.appId)) throw new Error(`${def.fichier} : appId incohérent avec messagingSenderId`);
   const comptes = conf.comptesAutorises ?? {};
   if (typeof comptes !== 'object' || Array.isArray(comptes)) throw new Error(`${def.fichier} : comptesAutorises doit être un objet`);
-  return { firebaseConfig: fb, comptesAutorises: comptes };
+  // Google Drive (facultatif) : identifiant du client OAuth Web (public), clé de navigateur et numéro de projet si différents de Firebase.
+  const brutGoogle = conf.googleDrive ?? {};
+  if (typeof brutGoogle !== 'object' || Array.isArray(brutGoogle)) throw new Error(`${def.fichier} : googleDrive doit être un objet`);
+  for (const cle of Object.keys(brutGoogle)) if (!CLES_GOOGLE.includes(cle)) throw new Error(`${def.fichier} : clé inattendue « googleDrive.${cle} »`);
+  const googleDrive = { idClient: brutGoogle.idClient ?? '', ...(brutGoogle.cleApi ? { cleApi: brutGoogle.cleApi } : {}), ...(brutGoogle.idApp ? { idApp: brutGoogle.idApp } : {}) };
+  if (typeof googleDrive.idClient !== 'string' || (googleDrive.idClient && !/^[0-9]+-[A-Za-z0-9_-]+\.apps\.googleusercontent\.com$/.test(googleDrive.idClient))) throw new Error(`${def.fichier} : googleDrive.idClient de forme inattendue (attendu : …apps.googleusercontent.com)`);
+  if (googleDrive.cleApi && !/^AIza[0-9A-Za-z_-]{35}$/.test(googleDrive.cleApi)) throw new Error(`${def.fichier} : googleDrive.cleApi de forme inattendue`);
+  if (googleDrive.idApp && !/^[0-9]+$/.test(googleDrive.idApp)) throw new Error(`${def.fichier} : googleDrive.idApp doit être un numéro de projet`);
+  return { firebaseConfig: fb, comptesAutorises: comptes, googleDrive };
 }
 
 /** Texte du fichier js/os/firebase-config.js d'un projet (même forme exportée que celui du CRM). */
@@ -55,9 +64,21 @@ export function contenuConfigFirebase(projet, racine = RACINE) {
   ].join('\n');
 }
 
+/** Texte du fichier js/os/google-config.js d'un projet : l'identifiant du client OAuth Web (public, pas un secret). Vide = boutons Google cachés. */
+export function contenuConfigGoogle(projet, racine = RACINE) {
+  const { googleDrive } = lireConfigProjet(projet, racine);
+  return [
+    `// FICHIER GÉNÉRÉ par scripts/preparer-hebergement.js pour le projet « ${projet} » : ne pas le modifier ici.`,
+    '// Identifiant du client OAuth Web de ce projet (public par nature, jamais le « client secret »). Vide = boutons Google cachés. Pas à pas : docs/google-drive.md.',
+    `export const googleDrive = ${JSON.stringify(googleDrive, null, 2)};`,
+    '',
+  ].join('\n');
+}
+
 /** Construit dist/<projet>/ (efface l'ancien). Retourne le dossier de sortie. */
 export function construire(projet, { racine = RACINE, sortie } = {}) {
   const config = contenuConfigFirebase(projet, racine); // vérifie avant de toucher au disque
+  const configGoogle = contenuConfigGoogle(projet, racine);
   const dossier = sortie ?? join(racine, 'dist', projet);
   rmSync(dossier, { recursive: true, force: true });
   mkdirSync(dossier, { recursive: true });
@@ -67,6 +88,7 @@ export function construire(projet, { racine = RACINE, sortie } = {}) {
     cpSync(source, join(dossier, element), { recursive: true });
   }
   writeFileSync(join(dossier, 'js', 'os', 'firebase-config.js'), config);
+  writeFileSync(join(dossier, 'js', 'os', 'google-config.js'), configGoogle);
   return dossier;
 }
 

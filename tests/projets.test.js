@@ -72,12 +72,12 @@ describe('B20 Projets : phases, statuts et création', () => {
   test('B20 un projet repris d’une affaire garde ses liens ; une extraction garde sa source ; une adresse invalide est vidée', () => {
     const p = P.nouveauProjet({
       titre: 'Extraction', nature: 'extraction', affaireId: 'a1', personneId: 'p1', organisationId: 'o1', projetSourceId: 'pr9', offreId: 'off', modeleId: 'm',
-      dateDebut: '2026-11-02', dateFin: '2026-11-30', phase: 'decouverte', urlGithub: 'https://github.com/jeromechevalier-wq/client-carrel', urlDossier: 'https://exemple.fr',
+      dateDebut: '2026-11-02', dateFin: '2026-11-30', phase: 'decouverte', urlGithub: 'https://github.com/jeromechevalier-wq/client-carrel', urlDossier: 'Mon Drive/dossier-sans-lien',
     }, ctx());
     assert.deepEqual([p.nature, p.affaireId, p.personneId, p.organisationId, p.projetSourceId, p.offreId, p.modeleId], ['extraction', 'a1', 'p1', 'o1', 'pr9', 'off', 'm']);
     assert.deepEqual([p.dateDebut, p.dateFin, p.phase], ['2026-11-02', '2026-11-30', 'decouverte']);
     assert.equal(p.urlGithub, 'https://github.com/jeromechevalier-wq/client-carrel');
-    assert.equal(p.urlDossier, '', 'une adresse qui n’est pas un dossier Drive n’est pas gardée');
+    assert.equal(p.urlDossier, '', 'une adresse qui n’est pas un lien n’est pas gardée');
   });
   test('B20 ctx.proprietaire l’emporte sur l’acteur (agent MCP)', () => {
     assert.equal(P.nouveauProjet({ titre: 'x' }, ctx('2026-10-15T08:00:00Z', { auteur: 'hermes-bibliothecaire', proprietaire: JEROME })).proprietaire, JEROME);

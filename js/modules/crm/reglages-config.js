@@ -151,7 +151,7 @@ function sectionOptions() {
       interrupteur({ cle: 'extractionValeur', titre: 'Extraction de valeur', aide: 'Crée un projet d’extraction quand une affaire est perdue ou gagnée sans projet, ou quand un projet est terminé. Éteint : plus de création, et le bloc, le bouton, le badge et le modèle d’extraction disparaissent.' }),
       interrupteur({ cle: 'celebrations', titre: 'Célébrations', aide: 'Un petit feu d’artifice quand une affaire est gagnée, un projet terminé, une facture payée ou un objectif atteint. Le message est neutre (« Bravo ! ») ; tu peux y ajouter un prénom et une image.' }),
       o.celebrations ? h('div', { class: 'ligne-champs' }, prenom, image) : null,
-      interrupteur({ cle: 'boutonsDepot', titre: 'Dépôt de code et dossier', aide: 'Affiche les champs « Adresse GitHub » et « Dossier » sur les fiches, avec les boutons « Créer le GitHub » et « Créer le répertoire », et la section de réglages GitHub ci-dessous.' }));
+      interrupteur({ cle: 'boutonsDepot', titre: 'Créer le répertoire dans Google Drive', aide: 'Affiche, sur la fiche projet, le bouton « Créer le répertoire » : il crée le dossier du projet et ses sous-dossiers dans Google Drive, puis enregistre son lien. Ajoute la section « Dossiers de projets dans Google Drive » plus bas. Nécessite que Google Drive soit branché.' }));
   }
   rendre();
   return { element: sec, rafraichir: rendre };

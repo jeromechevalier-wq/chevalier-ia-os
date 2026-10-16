@@ -70,7 +70,7 @@ export const MODULES_DECLARES = geler([
         { id: 'reglages-etiquettes', libelle: 'Étiquettes' },
         { id: 'reglages-filtres', libelle: 'Filtres enregistrés' },
         { id: 'reglages-debut', libelle: 'Début d’activité' },
-        { id: 'reglages-projets', libelle: 'GitHub et dossiers' },
+        { id: 'reglages-projets', libelle: 'Google Drive : dossiers de projets' },
         { id: 'reglages-export', libelle: 'Sauvegarde' },
       ],
     },

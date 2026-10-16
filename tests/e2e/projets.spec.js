@@ -160,7 +160,7 @@ test('C29 fiche : la barre des phases change la phase ; En pause, Reprendre, Ter
   expect(types).toEqual(['phase_changee', 'projet_cree', 'projet_en_pause', 'projet_repris', 'projet_rouvert', 'projet_termine']); // « projet_cree » : l'extraction de valeur créée à la fin du projet
 });
 
-test('C29 fiche : titre, dates (la fin ne précède pas le début), adresse GitHub, documents', async ({ page }) => {
+test('C29 fiche : titre, dates (la fin ne précède pas le début), dossier de travail, liens et documents', async ({ page }) => {
   await creerProjet('pr1', { titre: 'Audit Carrel', dateDebut: '2026-10-10' });
   await connecter(page);
   await aller(page, '#/projets/projets/pr1');
@@ -178,20 +178,23 @@ test('C29 fiche : titre, dates (la fin ne précède pas le début), adresse GitH
   await page.getByLabel('Fin prévue', { exact: true }).fill('2026-11-30');
   await page.getByLabel('Fin prévue', { exact: true }).press('Enter');
   await champDoc('projets_projets', 'pr1', 'dateFin', '2026-11-30');
-  // adresse GitHub : proposée, enregistrée seulement quand on la valide, adresse invalide refusée
-  await page.locator('[data-champ="github"]').fill('https://exemple.fr/pas-github');
-  await page.locator('[data-action="enregistrer-github"]').click();
-  await expect(page.locator('.toast', { hasText: 'https://github.com/' })).toBeVisible();
-  expect((await lireDocument('projets_projets/pr1')).urlGithub).toBe('');
-  await page.locator('[data-champ="github"]').fill('https://github.com/jeromechevalier-wq/client-carrel');
-  await page.locator('[data-action="enregistrer-github"]').click();
-  await champDoc('projets_projets', 'pr1', 'urlGithub', 'https://github.com/jeromechevalier-wq/client-carrel');
-  // documents
-  await page.getByLabel('Libellé du document').fill('Devis signé');
-  await page.getByLabel('Adresse du document (lien Google Drive)').fill('https://drive.google.com/file/d/abc/view');
+  // Détails : le dossier de travail accepte n'importe quel lien ; plus de champ GitHub ni de « Créer le GitHub »
+  await expect(page.locator('[data-champ="github"], [data-action="creer-github"]')).toHaveCount(0);
+  await page.locator('[data-champ="dossier"]').fill('smb://nas/clients/carrel');
+  await page.locator('[data-action="enregistrer-dossier"]').click();
+  await champDoc('projets_projets', 'pr1', 'urlDossier', 'smb://nas/clients/carrel');
+  // Liens et documents (la section s'appelait « Documents »)
+  await expect(page.locator('[data-section="projet-documents"]')).toContainText('Liens et documents');
+  await page.getByLabel('Libellé du lien').fill('Devis signé');
+  await page.getByLabel('Lien web', { exact: true }).fill('https://drive.google.com/file/d/abc/view');
   await page.locator('[data-action="ajouter-document"]').click();
   await expect.poll(async () => (await lireDocument('projets_projets/pr1')).documents).toEqual([{ libelle: 'Devis signé', url: 'https://drive.google.com/file/d/abc/view' }]);
   await expect(page.locator('[data-section="projet-documents"]')).toContainText('Devis signé');
+  // Un lien qui n'en est pas un est refusé
+  await page.getByLabel('Lien web', { exact: true }).fill('pas un lien');
+  await page.locator('[data-action="ajouter-document"]').click();
+  await expect(page.locator('.toast-erreur').last()).toContainText('http');
+  expect((await lireDocument('projets_projets/pr1')).documents).toHaveLength(1);
 });
 
 test('Favoris : l’étoile d’un document d’affaire ou de projet le met sur l’accueil ; l’étoile de l’accueil le retire', async ({ page }) => {
@@ -1631,7 +1634,7 @@ test('C38 Réglages : étapes de vente configurables — renommer, expliquer (ic
   await expect(page.locator('.barre-etapes-fiche [data-role="info"]')).toHaveAttribute('title', 'Le prospect vient de nous écrire.');
 });
 
-test('C39 Réglages : options du CRM — suivi des paiements, extraction de valeur, dépôt de code : éteindre cache les écrans associés', async ({ page }) => {
+test('C39 Réglages : options du CRM — suivi des paiements, extraction de valeur, répertoire Drive : éteindre cache les écrans associés', async ({ page }) => {
   await creerProjet('pr1', { titre: 'Audit des Lilas' });
   await connecter(page);
   await attendreModeles();
@@ -1649,13 +1652,14 @@ test('C39 Réglages : options du CRM — suivi des paiements, extraction de vale
   await aller(page, '#/projets/projets/pr1');
   await expect(page.locator('[data-section="projet-factures"]')).toHaveCount(0);
   await expect(page.locator('.fiche-actions [data-action="extraire"]')).toHaveCount(0);
-  // dépôt de code et dossier : éteint, plus de section de réglages GitHub ni de boutons sur la fiche
+  // « Créer le répertoire dans Google Drive » : éteint, plus de section de réglages Drive ni de bouton ; le dossier de travail reste un lien libre
   await aller(page, '#/reglages/crm');
   await expect(page.locator('#reglages-projets')).toBeVisible();
   await option('boutonsDepot').uncheck();
   await expect(page.locator('#reglages-projets')).toBeHidden();
   await aller(page, '#/projets/projets/pr1');
-  await expect(page.locator('[data-prop="github"], [data-prop="dossier"]')).toHaveCount(0);
+  await expect(page.locator('[data-prop="github"], [data-action="creer-dossier"], [data-role="google-absent"]')).toHaveCount(0);
+  await expect(page.locator('[data-prop="dossier"]')).toBeVisible();
 });
 
 test('C40 Réglages : objectifs — chaque indicateur calculé explique son calcul ; on ajoute le chiffre d’affaires signé', async ({ page }) => {
