@@ -54,7 +54,7 @@ describe('Aucun secret dans le dépôt', () => {
   });
   test('aucun fichier de cette étape ne contient de clé, de jeton ou de clé privée', () => {
     const liste = [];
-    const marcher = (d) => { for (const n of readdirSync(d)) { if (n === 'node_modules') continue; const c = join(d, n); statSync(c).isDirectory() ? marcher(c) : liste.push(c); } };
+    const marcher = (d) => { for (const n of readdirSync(d)) { if (n === 'node_modules' || (n === 'serveur' && d.endsWith('functions-plateforme'))) continue; /* « serveur » : copie générée de functions/src, ignorée par git (MCP des clients) */ const c = join(d, n); statSync(c).isDirectory() ? marcher(c) : liste.push(c); } };
     marcher(join(RACINE, 'functions-plateforme'));
     for (const f of ['tests/_faux-n8n.js', 'docs/journal-activite-workflows.md', 'docs/journal-chantier-14.md']) liste.push(join(RACINE, f));
     for (const c of liste) {
@@ -99,8 +99,8 @@ describe('Cohérence : registre, règles, fonctions, déploiement', () => {
     const p = JSON.parse(lire('functions-plateforme/package.json'));
     assert.equal(p.engines.node, '22');
     for (const v of Object.values(p.dependencies)) assert.match(v, /^\d+\.\d+\.\d+$/);
-    assert.deepEqual(Object.keys(p.dependencies).sort(), ['firebase-admin', 'firebase-functions']);
-    assert.equal((code('index.js').match(/region:\s*REGION/g) || []).length, 3);
+    assert.deepEqual(Object.keys(p.dependencies).sort(), ['@modelcontextprotocol/sdk', 'firebase-admin', 'firebase-functions', 'zod']); // + le MCP des clients (mcpclients)
+    assert.equal((code('index.js').match(/region:\s*REGION/g) || []).length, 4); // trois du journal + mcpclients
     assert.match(code('index.js'), /REGION = 'europe-west9'/);
     assert.match(code('index.js'), /schedule: '0 \* \* \* \*'/);
   });
@@ -116,7 +116,7 @@ describe('Les fonctions se chargent comme Firebase les chargera', () => {
   test('trois fonctions, région de Paris, planifiée toutes les heures, clé n8n liée par secret sur les deux qui lisent n8n, aucun secret pour « renommer »', async () => {
     process.env.GCLOUD_PROJECT ??= 'demo-chevalier-ia-os';
     const m = await import('../functions-plateforme/src/index.js');
-    assert.deepEqual(Object.keys(m).sort(), ['journalCopieHoraire', 'journalRafraichir', 'journalRenommer']);
+    assert.deepEqual(Object.keys(m).sort(), ['journalCopieHoraire', 'journalRafraichir', 'journalRenommer', 'mcpclients']);
     for (const f of Object.values(m)) assert.deepEqual(f.__endpoint.region, ['europe-west9']);
     assert.equal(m.journalCopieHoraire.__endpoint.scheduleTrigger.schedule, '0 * * * *');
     assert.deepEqual(m.journalCopieHoraire.__endpoint.secretEnvironmentVariables, [{ key: 'N8N_API_KEY' }]);

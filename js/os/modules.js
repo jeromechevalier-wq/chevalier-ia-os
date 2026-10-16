@@ -13,6 +13,7 @@ const MONTAGES = {
   projets: () => import('../modules/projets/index.js'),
   veille: () => import('../modules/veille/index.js'),
   journal: () => import('../modules/journal/index.js'),
+  mcp: () => import('../modules/mcp/index.js'),
 };
 
 const versModule = (d) => ({

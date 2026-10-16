@@ -43,7 +43,17 @@ export const compteAutorise = (email) => typeof email === 'string' && COMPTES_AU
 export const pkceValide = (verifier, challenge) => typeof verifier === 'string' && /^[A-Za-z0-9._~-]{43,128}$/.test(verifier)
   && egal(createHash('sha256').update(verifier, 'utf8').digest('base64url'), challenge);
 
-export function creerMagasinOauth({ donnees, maintenant = () => Date.now() }) {
+/**
+ * `client` / `controleCompte` : réservés au MCP des clients (clients/). Sans eux, comportement de Jérôme inchangé (liste COMPTES_AUTORISES, profil unique).
+ *  - `client` : l'identifiant du client que cette instance sert. Il est écrit dans le code, la connexion et les jetons, et revérifié à chaque lecture :
+ *    un jeton ou une connexion d'un autre client est refusé comme n'importe quel jeton inconnu ;
+ *  - `controleCompte(email, { assistant })` : async, rend { acteur, profil, ... } si le compte a (encore) le droit de se connecter à ce client, sinon null.
+ *    Appelé à l'échange du code, à chaque renouvellement et à chaque appel : retirer un membre ou éteindre le module coupe l'accès tout de suite.
+ */
+export function creerMagasinOauth({ donnees, maintenant = () => Date.now(), client = null, controleCompte = null }) {
+  const controle = controleCompte ?? (async (email) => (compteAutorise(email) ? { acteur: acteurDuCompte(email), profil: PROFIL_OAUTH } : null));
+  const marque = client ? { client } : {};
+  const memeClient = (doc) => !client || doc.client === client;
   const ecrire = (ecritures) => donnees.appliquer(ecritures);
   const set = (id, doc) => ({ type: 'set', collection: COL, id, donnees: doc });
 
@@ -68,8 +78,8 @@ export function creerMagasinOauth({ donnees, maintenant = () => Date.now() }) {
     return {
       acces, refresh,
       docs: [
-        set(`acces_${sha(acces)}`, { connexionId, email, clientId, expireLe: t + DUREES.accesS * 1000 }),
-        set(`refresh_${sha(refresh)}`, { connexionId, email, clientId, expireLe: t + DUREES.connexionJours * 86_400_000, utilise: false }),
+        set(`acces_${sha(acces)}`, { connexionId, email, clientId, ...marque, expireLe: t + DUREES.accesS * 1000 }),
+        set(`refresh_${sha(refresh)}`, { connexionId, email, clientId, ...marque, expireLe: t + DUREES.connexionJours * 86_400_000, utilise: false }),
       ],
       hashAcces: sha(acces), hashRefresh: sha(refresh),
     };
@@ -78,9 +88,9 @@ export function creerMagasinOauth({ donnees, maintenant = () => Date.now() }) {
 
   return {
     /** Crée un code d'autorisation pour un compte déjà vérifié. Renvoie le code en clair (jamais gardé). */
-    async creerCode({ email, clientId, redirectUri, challenge }) {
+    async creerCode({ email, clientId, redirectUri, challenge, assistant = null }) {
       const code = nouveauJeton('cia_c_');
-      await ecrire([set(`code_${sha(code)}`, { email, clientId, redirectUri, challenge, expireLe: maintenant() + DUREES.codeS * 1000, utilise: false, connexionId: null })]);
+      await ecrire([set(`code_${sha(code)}`, { email, clientId, ...marque, ...(assistant ? { assistant } : {}), redirectUri, challenge, expireLe: maintenant() + DUREES.codeS * 1000, utilise: false, connexionId: null })]);
       return code;
     },
 
@@ -93,13 +103,13 @@ export function creerMagasinOauth({ donnees, maintenant = () => Date.now() }) {
       if (r.etat === 'rejoue') { await revoquer(r.connexionId); throw refuse; } // code rejoué : on coupe la connexion qu'il a ouverte
       if (r.etat !== 'ok') throw refuse;
       const c = r.doc;
-      if (!egal(c.clientId, clientId ?? '') || !egal(c.redirectUri, redirectUri ?? '') || !pkceValide(verifier, c.challenge) || !compteAutorise(c.email)) throw refuse;
+      if (!egal(c.clientId, clientId ?? '') || !egal(c.redirectUri, redirectUri ?? '') || !pkceValide(verifier, c.challenge) || !memeClient(c) || !(await controle(c.email, c))) throw refuse;
       const connexionId = randomBytes(16).toString('hex');
       const e = emettre(connexionId, c.email, c.clientId);
       const t = maintenant();
       await ecrire([
         set(`connexion_${connexionId}`, {
-          email: c.email, clientId: c.clientId, creeLe: t, expireLe: t + DUREES.connexionJours * 86_400_000, revoque: false,
+          email: c.email, clientId: c.clientId, ...marque, ...(c.assistant ? { assistant: c.assistant } : {}), creeLe: t, expireLe: t + DUREES.connexionJours * 86_400_000, revoque: false,
           refreshActuel: e.hashRefresh, refreshPrecedent: null, accesActuel: e.hashAcces, accesPrecedent: null,
         }),
         ...e.docs,
@@ -117,7 +127,7 @@ export function creerMagasinOauth({ donnees, maintenant = () => Date.now() }) {
       if (r.etat !== 'ok') throw refuse;
       const connexion = await donnees.document(COL, `connexion_${r.doc.connexionId}`);
       const t = maintenant();
-      if (!connexion || connexion.revoque || connexion.expireLe < t || !compteAutorise(connexion.email)) throw refuse;
+      if (!connexion || connexion.revoque || connexion.expireLe < t || !memeClient(connexion) || !memeClient(r.doc) || !(await controle(connexion.email, connexion))) throw refuse;
       if (clientId !== undefined && clientId !== null && !egal(connexion.clientId, clientId)) throw refuse;
       const e = emettre(r.doc.connexionId, connexion.email, connexion.clientId);
       const anciens = [connexion.refreshPrecedent && `refresh_${connexion.refreshPrecedent}`, connexion.accesPrecedent && `acces_${connexion.accesPrecedent}`].filter(Boolean);
@@ -142,9 +152,10 @@ export function creerMagasinOauth({ donnees, maintenant = () => Date.now() }) {
       const t = maintenant();
       if (!acces || acces.expireLe < t) return null;
       const connexion = await donnees.document(COL, `connexion_${acces.connexionId}`);
-      if (!connexion || connexion.revoque || connexion.expireLe < t || !compteAutorise(connexion.email)) return null;
-      const acteur = acteurDuCompte(connexion.email);
-      return { jeton: acteur, acteur, profil: PROFIL_OAUTH, actif: true };
+      if (!connexion || connexion.revoque || connexion.expireLe < t || !memeClient(acces) || !memeClient(connexion)) return null;
+      const compte = await controle(connexion.email, connexion);
+      if (!compte) return null;
+      return client ? { ...compte, actif: true } : { jeton: compte.acteur, acteur: compte.acteur, profil: compte.profil, actif: true };
     },
 
     revoquer,

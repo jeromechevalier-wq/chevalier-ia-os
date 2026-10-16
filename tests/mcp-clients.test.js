@@ -1,0 +1,584 @@
+// Tests du MCP des clients (functions/src/clients/) : un lien par client, comptes lus dans les membres, profil déduit du rôle, outils limités aux modules
+// actifs, et surtout l'ÉTANCHÉITÉ entre clients (plan M1 à M15 de docs/mcp-multi-clients-en-reserve.md).
+// Un vrai client MCP (SDK officiel) appelle le gestionnaire sur un serveur HTTP local ; la base est en mémoire ; Google est remplacé par un vérificateur factice.
+// Deux clients de test, « a » et « b », avec des données reconnaissables (noms inventés) ; « sans-mcp » a le module éteint, « dormant » est désactivé.
+import { test, describe, before, after, beforeEach } from 'node:test';
+import assert from 'node:assert/strict';
+import { createServer } from 'node:http';
+import { createHash, randomBytes } from 'node:crypto';
+import { Client } from '../functions/node_modules/@modelcontextprotocol/sdk/dist/esm/client/index.js';
+import { StreamableHTTPClientTransport } from '../functions/node_modules/@modelcontextprotocol/sdk/dist/esm/client/streamableHttp.js';
+import { creerAccesMemoire, avecBase } from '../functions/src/coeur/donnees.js';
+import { creerLimiteur } from '../functions/src/securite/limites.js';
+import { creerEspaces } from '../functions/src/clients/espaces.js';
+import { creerRouteurOauthClients } from '../functions/src/clients/routeur-oauth.js';
+import { creerGestionnaireClients, outilsDesModules } from '../functions/src/clients/gestionnaire.js';
+import { OUTILS } from '../functions/src/mcp/outils/index.js';
+import { EMETTEUR_PLATEFORME as EMETTEUR } from '../functions/src/clients/config.js';
+import { collections } from './_donnees-essai.js';
+
+const CLAUDE = 'https://claude.ai/api/mcp/auth_callback';
+const CHATGPT = 'https://chatgpt.com/connector/oauth/abc123_DEF-456';
+const ALICE = 'alice@exemple.test'; // éditrice chez A
+const LEA = 'lea@exemple.test'; // lectrice chez A
+const CLARA = 'clara@exemple.test'; // éditrice chez A, lectrice chez B
+const BOB = 'bob@exemple.test'; // éditeur chez B
+const ZOE = 'zoe@exemple.test'; // chez personne
+const IDENTITES = {
+  'ID-ALICE': { email: ALICE, emailVerifie: true, fournisseur: 'google.com' },
+  'ID-LEA': { email: LEA, emailVerifie: true, fournisseur: 'google.com' },
+  'ID-CLARA': { email: CLARA, emailVerifie: true, fournisseur: 'google.com' },
+  'ID-BOB': { email: BOB, emailVerifie: true, fournisseur: 'google.com' },
+  'ID-ZOE': { email: ZOE, emailVerifie: true, fournisseur: 'google.com' },
+  'ID-ALICE-NON-VERIFIEE': { email: ALICE, emailVerifie: false, fournisseur: 'google.com' },
+  'ID-ALICE-MOT-DE-PASSE': { email: ALICE, emailVerifie: true, fournisseur: 'password' },
+  'ID-ALICE-MAJUSCULES': { email: 'Alice@Exemple.TEST', emailVerifie: true, fournisseur: 'google.com' },
+};
+
+/** Données d'un client : le jeu d'essai du CRM, avec des noms propres à ce client (pour reconnaître d'où vient une donnée). */
+function donneesClient(client, marqueur) {
+  const copie = structuredClone(collections);
+  const jeu = {};
+  for (const [nom, docs] of Object.entries(copie)) {
+    jeu[`clients/${client}/${nom}`] = docs.map((d) => {
+      const t = JSON.stringify(d).replaceAll('Camille Durand', `Camille ${marqueur}`).replaceAll('Atelier des Lilas', `Atelier ${marqueur}`).replaceAll('Site vitrine', `Site ${marqueur}`);
+      return JSON.parse(t, (k, v) => (typeof v === 'string' && /^\d{4}-\d\d-\d\dT/.test(v) ? new Date(v) : v));
+    });
+  }
+  return jeu;
+}
+const tout = (...ensembles) => Object.assign({}, ...ensembles);
+const fichier = (client, nom, extra = {}) => ({ id: client, actif: true, nom, couleur: '#336699', ...extra });
+function baseInitiale() {
+  return tout(
+    donneesClient('a', 'ALPHA'), donneesClient('b', 'BRAVO'),
+    {
+      marques: [
+        fichier('a', 'Cabinet Alpha', { logo: 'https://exemple.test/alpha.png' }), fichier('b', 'Atelier Bravo', { couleur: '#aa3355' }),
+        fichier('sans-mcp', 'Sans MCP'), fichier('dormant', 'Dormant', { actif: false }),
+      ],
+      clients: [
+        { id: 'a', modules: { affaires: true, projets: true, mcp: true } },
+        { id: 'b', modules: { affaires: true, projets: false, mcp: true } },
+        { id: 'sans-mcp', modules: { affaires: true, projets: true, mcp: false } },
+        { id: 'dormant', modules: { affaires: true, mcp: true } },
+      ],
+      'clients/a/membres': [{ id: ALICE, role: 'editeur', nom: 'Alice' }, { id: LEA, role: 'lecteur' }, { id: CLARA, role: 'editeur' }],
+      'clients/b/membres': [{ id: BOB, role: 'editeur' }, { id: CLARA, role: 'lecteur' }],
+      'clients/sans-mcp/membres': [{ id: ALICE, role: 'editeur' }],
+      'clients/dormant/membres': [{ id: ALICE, role: 'editeur' }],
+    },
+  );
+}
+
+let serveur, base, donnees, lignesJournal, horloge, panne;
+const maintenant = () => horloge;
+
+before(async () => {
+  donnees = creerAccesMemoire(baseInitiale());
+  const lire = donnees.document;
+  donnees.document = async (...a) => { if (panne) throw new Error('Firestore en panne : détail interne'); return lire(...a); };
+  const oauth = creerRouteurOauthClients({
+    donnees,
+    espaces: creerEspaces({ donnees }),
+    verifierIdToken: async (jeton) => { const i = IDENTITES[jeton]; if (!i) throw new Error('jeton Google invalide'); return i; },
+    maintenant,
+    limitePostParMinute: 1_000_000,
+  });
+  const gestionnaire = creerGestionnaireClients({ donnees, oauth, limiteur: creerLimiteur({ donnees, maintenant }), maintenant, journal: (e) => { lignesJournal.push(e); } });
+  serveur = createServer((req, res) => {
+    const morceaux = [];
+    req.on('data', (m) => morceaux.push(m));
+    req.on('end', () => {
+      const t = Buffer.concat(morceaux).toString('utf8');
+      const type = req.headers['content-type'] || '';
+      try {
+        if (!t) req.body = undefined;
+        else if (type.includes('application/x-www-form-urlencoded')) req.body = Object.fromEntries(new URLSearchParams(t));
+        else req.body = JSON.parse(t);
+      } catch { req.body = undefined; }
+      gestionnaire(req, res);
+    });
+  });
+  await new Promise((ok) => serveur.listen(0, '127.0.0.1', ok));
+  base = `http://127.0.0.1:${serveur.address().port}`;
+});
+after(() => serveur.close());
+beforeEach(() => { horloge = Date.parse('2026-10-16T08:00:00Z'); lignesJournal = []; panne = false; });
+
+/** Remet la base dans son état de départ (les tests qui écrivent ou éteignent un module la restaurent). */
+async function reinitialiser() {
+  const neuf = baseInitiale();
+  for (const nom of new Set([...Object.keys(neuf), ...['mcp_oauth', 'mcp_limites', 'clients/a/crm_audit', 'clients/a/crm_audit_avant']])) {
+    const ecritures = [
+      ...(await donnees.liste(nom)).map((d) => ({ type: 'delete', collection: nom, id: d.id })),
+      ...(neuf[nom] || []).map((d) => ({ type: 'set', collection: nom, id: d.id, donnees: d })),
+    ];
+    if (ecritures.length) await donnees.appliquer(ecritures);
+  }
+}
+
+// --- outils de test -----------------------------------------------------------------------------------------------------------------
+const pkce = () => { const verifier = randomBytes(32).toString('base64url'); return { verifier, challenge: createHash('sha256').update(verifier).digest('base64url') }; };
+const demande = (client, p = pkce(), extra = {}) => ({ response_type: 'code', client_id: 'cli_essai', redirect_uri: CLAUDE, code_challenge: p.challenge, code_challenge_method: 'S256', state: 'etat-1', resource: `${EMETTEUR}/mcp/${client}`, ...extra });
+const approuver = (client, corps, origine = EMETTEUR) => fetch(`${base}/oauth/${client}/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(origine ? { Origin: origine } : {}) }, body: JSON.stringify(corps) });
+const jeton = (client, champs) => fetch(`${base}/oauth/${client}/token`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(champs) });
+const brut = (lien, bearer, corps = { jsonrpc: '2.0', id: 1, method: 'tools/list' }) => fetch(`${base}${lien}`, {
+  method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}) }, body: JSON.stringify(corps),
+});
+async function assistant(lien, bearer) {
+  const c = new Client({ name: 'essai', version: '1.0.0' });
+  await c.connect(new StreamableHTTPClientTransport(new URL(`${base}${lien}`), { requestInit: { headers: { Authorization: `Bearer ${bearer}` } } }));
+  return c;
+}
+/** Parcours complet : approbation, échange du code. Renvoie les jetons ({ access_token, refresh_token }). */
+async function connecter(client, identite, { redirect = CLAUDE } = {}) {
+  const p = pkce();
+  const r = await approuver(client, { ...demande(client, p, { redirect_uri: redirect }), decision: 'allow', id_token: identite });
+  assert.equal(r.status, 200, await r.clone().text());
+  const code = new URL((await r.json()).redirect).searchParams.get('code');
+  const t = await jeton(client, { grant_type: 'authorization_code', code, redirect_uri: redirect, client_id: 'cli_essai', code_verifier: p.verifier });
+  assert.equal(t.status, 200, await t.clone().text());
+  return t.json();
+}
+const noms = (liste) => liste.tools.map((t) => t.name).sort();
+const donneesDe = async (client) => Object.fromEntries(await Promise.all(Object.keys(baseInitiale()).filter((n) => n.startsWith(`clients/${client}/`) && !n.endsWith('/membres')).map(async (n) => [n, await donnees.liste(n)])));
+const resultat = (r) => JSON.parse(r.content[0].text);
+/** Un appel refusé par le serveur : soit une erreur de protocole, soit un résultat d'erreur (le SDK rend « outil inconnu » ainsi). */
+const refuse = async (c, name, args) => { try { const r = await c.callTool({ name, arguments: args }); return r.isError === true; } catch { return true; } };
+const MOTS_ECRITURE = /^(creer_|modifier_|ajouter_|changer_|terminer_|marquer_|mettre_|rouvrir_|joindre_|retirer_|archiver_|reprendre_|abandonner_)/;
+const SUPPRESSIONS = /^(supprimer_|restaurer_)/;
+
+describe('Adresses : un lien par client, rien ne dit si un client existe', () => {
+  test('/mcp/<client> sans jeton : 401 avec les métadonnées de CE client ; client inconnu, désactivé ou sans module : même réponse', async () => {
+    const corps = [];
+    for (const c of ['a', 'b', 'inconnu', 'dormant', 'sans-mcp']) {
+      const r = await brut(`/mcp/${c}`);
+      assert.equal(r.status, 401, c);
+      assert.equal(r.headers.get('www-authenticate'), `Bearer resource_metadata="${EMETTEUR}/.well-known/oauth-protected-resource/mcp/${c}"`);
+      corps.push(await r.text());
+    }
+    assert.equal(new Set(corps).size, 1);
+    assert.equal(corps[0], '{"error":"non_autorise"}');
+  });
+  test('M5 majuscules, chemins, caractères spéciaux dans le lien : refusés comme un jeton mauvais', async () => {
+    for (const lien of ['/mcp/A', '/mcp/a%2Fb', '/mcp/..', '/mcp/a/b', '/mcp/a%20', '/mcp/-a', '/mcp/' + 'x'.repeat(41), '/mcp', '/mcp/']) {
+      const r = await brut(lien, 'nimporte');
+      assert.ok([401, 404].includes(r.status), `${lien} -> ${r.status}`);
+    }
+  });
+  test('métadonnées : ressource et serveur d\'autorisation propres au client, aucun accès à la base', async () => {
+    panne = true; // si la route lisait la base, elle échouerait
+    for (const c of ['a', 'inconnu']) {
+      const res = await (await fetch(`${base}/.well-known/oauth-protected-resource/mcp/${c}`)).json();
+      assert.deepEqual(res, { resource: `${EMETTEUR}/mcp/${c}`, authorization_servers: [`${EMETTEUR}/mcp/${c}`], bearer_methods_supported: ['header'] });
+      const m = await (await fetch(`${base}/.well-known/oauth-authorization-server/mcp/${c}`)).json();
+      assert.equal(m.issuer, `${EMETTEUR}/mcp/${c}`);
+      assert.equal(m.authorization_endpoint, `${EMETTEUR}/oauth/${c}/authorize`);
+      assert.equal(m.token_endpoint, `${EMETTEUR}/oauth/${c}/token`);
+      assert.equal(m.registration_endpoint, `${EMETTEUR}/oauth/${c}/register`);
+      assert.deepEqual(m.code_challenge_methods_supported, ['S256']);
+    }
+    assert.equal((await fetch(`${base}/.well-known/oauth-protected-resource/mcp/A`)).status, 404);
+  });
+  test('un jeton « cia_… » (Hermes, Claude Code) n\'ouvre aucun client ; une origine de navigateur inconnue est refusée', async () => {
+    assert.equal((await brut('/mcp/a', `cia_${'H'.repeat(43)}`)).status, 401);
+    const r = await fetch(`${base}/mcp/a`, { method: 'POST', headers: { Origin: 'https://pirate.example', 'Content-Type': 'application/json' }, body: '{}' });
+    assert.equal(r.status, 403);
+  });
+  test('GET sur le lien d\'un client : 405 (POST seulement)', async () => {
+    assert.equal((await fetch(`${base}/mcp/a`)).status, 405);
+  });
+});
+
+describe('Connexion : comptes lus dans les membres, un seul refus pour tout', () => {
+  test('un membre de A obtient un code sur A ; l\'adresse de retour reçoit code et state', async () => {
+    const t = await connecter('a', 'ID-ALICE');
+    assert.match(t.access_token, /^cia_a_/);
+    assert.match(t.refresh_token, /^cia_r_/);
+  });
+  test('refus identique (statut et corps) : non-membre, membre d\'un AUTRE client, client inconnu, désactivé, module éteint, adresse non vérifiée, connexion non Google', async () => {
+    const essais = [
+      ['a', 'ID-ZOE'], ['a', 'ID-BOB'], ['b', 'ID-ALICE'], ['inconnu', 'ID-ALICE'], ['dormant', 'ID-ALICE'], ['sans-mcp', 'ID-ALICE'],
+      ['a', 'ID-ALICE-NON-VERIFIEE'], ['a', 'ID-ALICE-MOT-DE-PASSE'],
+    ];
+    const corps = new Set();
+    await reinitialiser();
+    for (const [client, identite] of essais) {
+      const r = await approuver(client, { ...demande(client), decision: 'allow', id_token: identite });
+      assert.equal(r.status, 403, `${client} ${identite}`);
+      corps.add(await r.text());
+    }
+    assert.equal(corps.size, 1, [...corps].join(' | '));
+    assert.match([...corps][0], /n'a pas accès à cet espace/);
+    assert.equal((await donnees.liste('mcp_oauth')).length, 0, 'aucun code créé');
+  });
+  test('l\'adresse e-mail est comparée sans tenir compte des majuscules', async () => {
+    const t = await connecter('a', 'ID-ALICE-MAJUSCULES');
+    const c = await assistant('/mcp/a', t.access_token);
+    assert.equal(resultat(await c.callTool({ name: 'qui_suis_je', arguments: {} })).acteur, 'claude-ai-alice');
+    await c.close();
+  });
+  test('jeton d\'identité Google invalide : 401 ; origine inconnue : 403 ; décision « refuser » : retour à l\'assistant avec access_denied', async () => {
+    assert.equal((await approuver('a', { ...demande('a'), decision: 'allow', id_token: 'faux' })).status, 401);
+    assert.equal((await approuver('a', { ...demande('a'), decision: 'allow', id_token: 'ID-ALICE' }, 'https://pirate.example')).status, 403);
+    const r = await approuver('a', { ...demande('a'), decision: 'deny' });
+    assert.equal(new URL((await r.json()).redirect).searchParams.get('error'), 'access_denied');
+  });
+  test('adresses de retour : Claude et ChatGPT acceptés, toute autre refusée (autorisation et enregistrement)', async () => {
+    for (const ok of [CLAUDE, 'https://claude.com/api/mcp/auth_callback', CHATGPT, 'https://chatgpt.com/connector_platform_oauth_redirect']) {
+      const r = await approuver('a', { ...demande('a', pkce(), { redirect_uri: ok }), decision: 'deny' });
+      assert.equal(r.status, 200, ok);
+    }
+    for (const mauvaise of ['https://pirate.example/cb', 'https://chatgpt.com.pirate.example/connector/oauth/x', 'https://chatgpt.com/connector/oauth/', 'https://chatgpt.com/autre', 'http://claude.ai/api/mcp/auth_callback', 'https://claude.ai/api/mcp/auth_callback/../x']) {
+      const r = await approuver('a', { ...demande('a', pkce(), { redirect_uri: mauvaise }), decision: 'allow', id_token: 'ID-ALICE' });
+      assert.equal(r.status, 400, mauvaise);
+      const e = await fetch(`${base}/oauth/a/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ redirect_uris: [mauvaise] }) });
+      assert.equal(e.status, 400, mauvaise);
+    }
+    const bon = await fetch(`${base}/oauth/a/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ redirect_uris: [CHATGPT], client_name: 'ChatGPT' }) });
+    assert.equal(bon.status, 201);
+  });
+  test('noms d\'acteur : claude-ai-<compte> pour Claude, chatgpt-<compte> pour ChatGPT', async () => {
+    for (const [redirect, attendu] of [[CLAUDE, 'claude-ai-alice'], [CHATGPT, 'chatgpt-alice']]) {
+      const t = await connecter('a', 'ID-ALICE', { redirect });
+      const c = await assistant('/mcp/a', t.access_token);
+      const moi = resultat(await c.callTool({ name: 'qui_suis_je', arguments: {} }));
+      assert.equal(moi.acteur, attendu);
+      await c.close();
+    }
+  });
+  test('l\'échange du code ne marche qu\'avec le client du lien : un code obtenu sur A est refusé sur B', async () => {
+    const p = pkce();
+    const r = await approuver('a', { ...demande('a', p), decision: 'allow', id_token: 'ID-CLARA' }); // Clara est membre de A ET de B
+    const code = new URL((await r.json()).redirect).searchParams.get('code');
+    const t = await jeton('b', { grant_type: 'authorization_code', code, redirect_uri: CLAUDE, client_id: 'cli_essai', code_verifier: p.verifier });
+    assert.equal(t.status, 400);
+    assert.equal((await t.json()).error, 'invalid_grant');
+  });
+});
+
+describe('Rôles : le profil vient du rôle du membre', () => {
+  test('M6 lecteur : outils de lecture seulement ; un outil d\'écriture appelé quand même est refusé', async () => {
+    const t = await connecter('a', 'ID-LEA');
+    const c = await assistant('/mcp/a', t.access_token);
+    const liste = noms(await c.listTools());
+    assert.ok(liste.includes('chercher') && liste.includes('lister_projets') && liste.includes('qui_suis_je'));
+    assert.deepEqual(liste.filter((n) => MOTS_ECRITURE.test(n) || SUPPRESSIONS.test(n)), []);
+    assert.equal(resultat(await c.callTool({ name: 'qui_suis_je', arguments: {} })).profil, 'lecteur');
+    const avant = await donneesDe('a');
+    assert.ok(await refuse(c, 'creer_personne', { nom: 'Intrus' }));
+    assert.ok(await refuse(c, 'supprimer_personne', { id: 'p1', confirmationNom: 'Camille ALPHA' }));
+    assert.deepEqual(await donneesDe('a'), avant);
+    await c.close();
+  });
+  test('M7 éditeur : lecture et écriture, jamais de suppression ni de restauration (ni listées, ni appelables)', async () => {
+    const t = await connecter('a', 'ID-ALICE');
+    const c = await assistant('/mcp/a', t.access_token);
+    const liste = noms(await c.listTools());
+    assert.ok(liste.includes('creer_personne') && liste.includes('modifier_projet'));
+    assert.deepEqual(liste.filter((n) => SUPPRESSIONS.test(n)), []);
+    assert.equal(resultat(await c.callTool({ name: 'qui_suis_je', arguments: {} })).profil, 'bibliothecaire');
+    const avant = await donneesDe('a');
+    assert.ok(await refuse(c, 'supprimer_personne', { id: 'p1', confirmationNom: 'Camille ALPHA' }));
+    assert.ok(await refuse(c, 'restaurer_depuis_audit', { operationId: 'op1', apercu: false }));
+    assert.deepEqual(await donneesDe('a'), avant);
+    await c.close();
+  });
+  test('un éditeur écrit dans SON espace, avec son nom d\'acteur dans l\'audit ; son rôle est relu à chaque appel (rétrogradé = lecture seule)', async () => {
+    await reinitialiser();
+    const t = await connecter('a', 'ID-ALICE');
+    const c = await assistant('/mcp/a', t.access_token);
+    const r = resultat(await c.callTool({ name: 'creer_personne', arguments: { nom: 'Nouvelle Personne Alpha' } }));
+    assert.ok(r.operationId);
+    const personnes = await donnees.liste('clients/a/crm_personnes');
+    assert.ok(personnes.some((p) => p.nom === 'Nouvelle Personne Alpha'));
+    const audit = (await donnees.liste('clients/a/crm_audit')).filter((l) => l.operationId === r.operationId);
+    assert.ok(audit.length > 0 && audit.every((l) => l.acteur === 'claude-ai-alice' && l.via === 'mcp'));
+    await c.close();
+    await donnees.appliquer([{ type: 'set', collection: 'clients/a/membres', id: ALICE, donnees: { role: 'lecteur' } }]);
+    const c2 = await assistant('/mcp/a', t.access_token);
+    assert.equal(resultat(await c2.callTool({ name: 'qui_suis_je', arguments: {} })).profil, 'lecteur');
+    assert.deepEqual(noms(await c2.listTools()).filter((n) => MOTS_ECRITURE.test(n)), []);
+    await c2.close();
+    await reinitialiser();
+  });
+});
+
+describe('Modules : les outils suivent les modules actifs du client', () => {
+  test('M8 client sans le module projets : aucun outil de projet, ni listé ni appelable ; avec : tous', async () => {
+    const ta = await connecter('a', 'ID-ALICE');
+    const tb = await connecter('b', 'ID-BOB');
+    const ca = await assistant('/mcp/a', ta.access_token);
+    const cb = await assistant('/mcp/b', tb.access_token);
+    const projetsA = noms(await ca.listTools()).filter((n) => /projet/.test(n));
+    const projetsB = noms(await cb.listTools()).filter((n) => /projet/.test(n));
+    assert.ok(projetsA.includes('lister_projets') && projetsA.includes('creer_projet'));
+    assert.deepEqual(projetsB, []);
+    assert.ok(await refuse(cb, 'lister_projets', {}));
+    await ca.close(); await cb.close();
+  });
+  test('outilsDesModules : communs seuls sans module ; CRM seul = outils de l\'affaire ; tout est déclaré au registre', () => {
+    const seuls = (actifs) => outilsDesModules(actifs, OUTILS).map((o) => o.nom);
+    assert.deepEqual(seuls([]), ['qui_suis_je']);
+    assert.ok(seuls(['affaires']).includes('chercher') && !seuls(['affaires']).includes('lister_projets'));
+    assert.equal(seuls(['affaires', 'projets']).length, OUTILS.length);
+  });
+  test('M9 module « mcp » éteint, ou client désactivé : l\'accès déjà accordé est coupé tout de suite, et la connexion n\'est plus possible', async () => {
+    await reinitialiser();
+    const t = await connecter('a', 'ID-ALICE');
+    assert.equal((await brut('/mcp/a', t.access_token)).status, 200);
+    await donnees.appliquer([{ type: 'set', collection: 'clients', id: 'a', donnees: { modules: { affaires: true, projets: true, mcp: false } } }]);
+    assert.equal((await brut('/mcp/a', t.access_token)).status, 401, 'module éteint');
+    assert.equal((await approuver('a', { ...demande('a'), decision: 'allow', id_token: 'ID-ALICE' })).status, 403);
+    assert.equal((await jeton('a', { grant_type: 'refresh_token', refresh_token: t.refresh_token, client_id: 'cli_essai' })).status, 400);
+    await donnees.appliquer([{ type: 'set', collection: 'clients', id: 'a', donnees: { modules: { affaires: true, projets: true, mcp: true } } }]);
+    const t2 = await connecter('a', 'ID-ALICE');
+    assert.equal((await brut('/mcp/a', t2.access_token)).status, 200);
+    await donnees.appliquer([{ type: 'set', collection: 'marques', id: 'a', donnees: { actif: false, nom: 'Cabinet Alpha' } }]);
+    assert.equal((await brut('/mcp/a', t2.access_token)).status, 401, 'client désactivé');
+    await reinitialiser();
+  });
+  test('un membre retiré perd l\'accès tout de suite (même jeton, même connexion)', async () => {
+    await reinitialiser();
+    const t = await connecter('a', 'ID-LEA');
+    assert.equal((await brut('/mcp/a', t.access_token)).status, 200);
+    await donnees.appliquer([{ type: 'delete', collection: 'clients/a/membres', id: LEA }]);
+    assert.equal((await brut('/mcp/a', t.access_token)).status, 401);
+    await reinitialiser();
+  });
+  test('panne de la base : 503 (et non 401 : le client ne doit pas croire son jeton mauvais)', async () => {
+    const t = await connecter('a', 'ID-ALICE');
+    panne = true;
+    assert.equal((await brut('/mcp/a', t.access_token)).status, 503);
+  });
+});
+
+describe('Étanchéité entre clients (plan M1 à M15)', () => {
+  test('M1 toutes les lectures de A ne montrent que des données de A (et B seulement des siennes)', async () => {
+    const ta = await connecter('a', 'ID-ALICE');
+    const tb = await connecter('b', 'ID-BOB');
+    for (const [lien, token, present, absent] of [['/mcp/a', ta.access_token, 'ALPHA', 'BRAVO'], ['/mcp/b', tb.access_token, 'BRAVO', 'ALPHA']]) {
+      const c = await assistant(lien, token);
+      const lectures = [['chercher', { texte: 'Camille' }], ['lister_affaires', {}], ['lire_personne', { id: 'p1', avecFil: true }], ['lire_organisation', { id: 'org1' }], ['lire_affaire', { id: 'a1', avecFil: true }],
+        ['lister_activites', {}], ['lister_documents', {}], ['lire_reglages', {}], ['lire_audit', {}]];
+      if (lien === '/mcp/a') lectures.push(['lister_projets', {}], ['lister_modeles_projet', {}]);
+      let texte = '';
+      for (const [nom, args] of lectures) {
+        const r = await c.callTool({ name: nom, arguments: args });
+        texte += JSON.stringify(r.content);
+      }
+      assert.ok(texte.includes(present), `${lien} : données propres absentes`);
+      assert.ok(!texte.includes(absent), `${lien} : donnée de l'autre client`);
+      await c.close();
+    }
+  });
+  test('M2 un identifiant de client glissé dans les paramètres, l\'en-tête ou le corps est ignoré : seule l\'adresse compte', async () => {
+    const ta = await connecter('a', 'ID-ALICE');
+    for (const extra of [{ client: 'b' }, { clientId: 'b' }, { base: 'clients/b' }, { collection: 'clients/b/crm_personnes' }, { chemin: 'clients/b/crm_personnes/p1' }]) {
+      const r = await brut('/mcp/a', ta.access_token, { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'lister_affaires', arguments: extra, ...extra }, ...extra });
+      const t = await r.text();
+      assert.ok(!t.includes('BRAVO'), JSON.stringify(extra));
+    }
+    const r = await fetch(`${base}/mcp/a?client=b&clientId=b`, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', Authorization: `Bearer ${ta.access_token}`, 'X-Client': 'b', 'X-Client-Id': 'b' }, body: JSON.stringify({ jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'lire_personne', arguments: { id: 'p1' } } }) });
+    const t = await r.text();
+    assert.ok(t.includes('ALPHA') && !t.includes('BRAVO'));
+  });
+  test('M3 et M12 le lien d\'un autre client : refus neutre, même avec un jeton valable ailleurs (Clara est membre des deux : le lien décide)', async () => {
+    const ta = await connecter('a', 'ID-ALICE');
+    const refus = await brut('/mcp/b', ta.access_token);
+    assert.equal(refus.status, 401);
+    assert.equal(await refus.text(), '{"error":"non_autorise"}');
+    assert.equal(await (await brut('/mcp/inconnu', ta.access_token)).text(), '{"error":"non_autorise"}');
+    // M10 : Clara, éditrice chez A et lectrice chez B ; chaque lien lui donne SON espace et SON rôle.
+    const tc = await connecter('a', 'ID-CLARA');
+    const sur = async (client, token) => { const c = await assistant(`/mcp/${client}`, token); const t = JSON.stringify((await c.callTool({ name: 'lister_affaires', arguments: {} })).content) + resultat(await c.callTool({ name: 'qui_suis_je', arguments: {} })).profil; await c.close(); return t; };
+    const chezA = await sur('a', tc.access_token);
+    assert.ok(chezA.includes('ALPHA') && !chezA.includes('BRAVO') && chezA.endsWith('bibliothecaire'));
+    assert.equal((await brut('/mcp/b', tc.access_token)).status, 401, 'le jeton de A ne vaut pas sur B, même pour un compte membre des deux');
+    const tcb = await connecter('b', 'ID-CLARA');
+    const chezB = await sur('b', tcb.access_token);
+    assert.ok(chezB.includes('BRAVO') && !chezB.includes('ALPHA') && chezB.endsWith('lecteur'));
+    assert.equal((await brut('/mcp/a', tcb.access_token)).status, 401);
+  });
+  test('M4 un document de B demandé par A (lecture, modification) : « introuvable », aucune écriture chez B', async () => {
+    await reinitialiser();
+    const avantB = await donneesDe('b');
+    const ta = await connecter('a', 'ID-ALICE');
+    const c = await assistant('/mcp/a', ta.access_token);
+    // Mêmes identifiants chez B (p1, a1…) : seule l'adresse distingue les clients ; on crée aussi un document qui n'existe QUE chez B.
+    await donnees.appliquer([{ type: 'set', collection: 'clients/b/crm_personnes', id: 'seulement-b', donnees: { nom: 'Fantôme BRAVO', emails: [], archive: false } }]);
+    const avantB2 = await donneesDe('b');
+    for (const [nom, args] of [['lire_personne', { id: 'seulement-b' }], ['modifier_personne', { id: 'seulement-b', nom: 'Piraté' }], ['modifier_organisation', { id: 'seulement-b', nom: 'Piraté' }], ['ajouter_note', { personneId: 'seulement-b', texte: 'Piraté' }]]) {
+      const r = await c.callTool({ name: nom, arguments: args }).catch((e) => ({ isError: true, content: [{ text: String(e.message) }] }));
+      assert.ok(r.isError || /introuvable/i.test(JSON.stringify(r)), `${nom} : ${JSON.stringify(r).slice(0, 200)}`);
+      assert.ok(!JSON.stringify(r).includes('Fantôme'), nom);
+    }
+    assert.deepEqual(await donneesDe('b'), avantB2);
+    assert.notDeepEqual(avantB2, avantB);
+    await c.close();
+    await reinitialiser();
+  });
+  test('M5 identifiants et noms de collection douteux : refusés, aucun accès hors de clients/<client>/', async () => {
+    const ta = await connecter('a', 'ID-ALICE');
+    const c = await assistant('/mcp/a', ta.access_token);
+    const avantB = await donneesDe('b');
+    for (const id of ['../b/crm_personnes/p1', '../../clients/b/crm_personnes/p1', 'clients/b/crm_personnes/p1', '..', '.', 'p1/../../b', '__x__', 'P1', 'p1 ', '%2e%2e']) {
+      for (const nom of ['lire_personne', 'lire_affaire', 'lire_organisation']) {
+        const r = await c.callTool({ name: nom, arguments: { id } }).catch((e) => ({ isError: true, content: [{ text: String(e.message) }] }));
+        assert.ok(r.isError || /introuvable/i.test(JSON.stringify(r)), `${nom} ${id}`);
+        assert.ok(!JSON.stringify(r).includes('BRAVO'), `${nom} ${id}`);
+      }
+      await c.callTool({ name: 'modifier_personne', arguments: { id, nom: 'X' } }).catch(() => {});
+    }
+    assert.deepEqual(await donneesDe('b'), avantB);
+    await c.close();
+  });
+  test('M11 jeton de renouvellement rejoué : toute la connexion est coupée (jeton d\'accès compris) ; connexion révoquée à la main : refus', async () => {
+    const t = await connecter('a', 'ID-ALICE');
+    const r1 = await jeton('a', { grant_type: 'refresh_token', refresh_token: t.refresh_token, client_id: 'cli_essai' });
+    assert.equal(r1.status, 200);
+    const t2 = await r1.json();
+    assert.equal((await brut('/mcp/a', t2.access_token)).status, 200);
+    assert.equal((await jeton('a', { grant_type: 'refresh_token', refresh_token: t.refresh_token, client_id: 'cli_essai' })).status, 400); // rejoué
+    assert.equal((await brut('/mcp/a', t2.access_token)).status, 401);
+    const t3 = await connecter('a', 'ID-LEA');
+    assert.equal((await brut('/mcp/a', t3.access_token)).status, 200);
+    for (const d of await donnees.liste('mcp_oauth')) if (d.id.startsWith('connexion_') && d.email === LEA) await donnees.appliquer([{ type: 'update', collection: 'mcp_oauth', id: d.id, donnees: { revoque: true } }]);
+    assert.equal((await brut('/mcp/a', t3.access_token)).status, 401);
+  });
+  test('M11 bis : un jeton d\'accès expire au bout d\'une heure', async () => {
+    const t = await connecter('a', 'ID-ALICE');
+    horloge += 3601 * 1000;
+    assert.equal((await brut('/mcp/a', t.access_token)).status, 401);
+  });
+  test('M13 les plafonds sont séparés : un compteur par client et par compte, hors des données des clients', async () => {
+    await reinitialiser();
+    const ta = await connecter('a', 'ID-ALICE');
+    const tb = await connecter('b', 'ID-BOB');
+    const ca = await assistant('/mcp/a', ta.access_token);
+    const cb = await assistant('/mcp/b', tb.access_token);
+    await ca.callTool({ name: 'creer_personne', arguments: { nom: 'Compteur Alpha' } });
+    await cb.callTool({ name: 'creer_personne', arguments: { nom: 'Compteur Bravo' } });
+    await cb.callTool({ name: 'creer_personne', arguments: { nom: 'Compteur Bravo 2' } });
+    const limites = await donnees.liste('mcp_limites');
+    assert.deepEqual(limites.map((l) => l.id).sort(), ['a__claude-ai-alice', 'b__claude-ai-bob']);
+    assert.equal(limites.find((l) => l.id === 'a__claude-ai-alice').heure.n, 1);
+    assert.equal(limites.find((l) => l.id === 'b__claude-ai-bob').heure.n, 2);
+    await ca.close(); await cb.close();
+    await reinitialiser();
+  });
+  test('M14 le journal porte le client, l\'acteur et le rôle ; rien d\'un autre client, aucune donnée', async () => {
+    lignesJournal = [];
+    const ta = await connecter('a', 'ID-ALICE');
+    const c = await assistant('/mcp/a', ta.access_token);
+    await c.callTool({ name: 'lire_personne', arguments: { id: 'p1' } });
+    await c.close();
+    const appels = lignesJournal.filter((l) => l.outil === 'lire_personne');
+    assert.ok(appels.length > 0);
+    for (const l of appels) assert.deepEqual([l.client, l.acteur, l.profil, l.role], ['a', 'claude-ai-alice', 'bibliothecaire', 'editeur']);
+    assert.ok(!JSON.stringify(lignesJournal).includes('BRAVO') && !JSON.stringify(lignesJournal).includes('ALPHA'));
+    const { journaliser } = await import('../functions/src/securite/journaux.js');
+    const lignes = [];
+    journaliser({ client: 'a', acteur: 'claude-ai-alice', jeton: 'a__claude-ai-alice', profil: 'lecteur', role: 'lecteur', statut: 200, secret: 'NE PAS ECRIRE' }, (l) => lignes.push(l));
+    assert.match(lignes[0], /"client":"a"/);
+    assert.ok(!lignes[0].includes('NE PAS ECRIRE'));
+  });
+  test('garde-fou : aucun outil du serveur n\'accepte un paramètre « client », « clientId », « projet », « chemin », « collection » ou « base »', () => {
+    const interdits = ['client', 'clientId', 'projet', 'chemin', 'collection', 'base'];
+    for (const o of OUTILS) for (const cle of Object.keys(o.schema ?? {})) assert.ok(!interdits.includes(cle), `${o.nom} : paramètre « ${cle} »`);
+  });
+  test('avecBase : la base est fixe, un nom de collection est un simple nom, un identifiant n\'est jamais un chemin', async () => {
+    const brute = creerAccesMemoire({ 'clients/a/crm_personnes': [{ id: 'p1', nom: 'A' }], 'clients/b/crm_personnes': [{ id: 'p1', nom: 'B' }] });
+    const a = avecBase(brute, 'clients/a');
+    assert.equal((await a.document('crm_personnes', 'p1')).nom, 'A');
+    assert.deepEqual((await a.liste('crm_personnes')).map((d) => d.nom), ['A']);
+    for (const mauvais of ['clients/b/crm_personnes', '../b', 'Crm', '', 'a b', 'crm_personnes/x', undefined]) {
+      assert.throws(() => a.liste(mauvais), /Nom de collection invalide/);
+      assert.throws(() => a.nouvelId(mauvais), /Nom de collection invalide/);
+    }
+    for (const id of ['../b', 'x/y', '..', '.', '']) {
+      assert.equal(await a.document('crm_personnes', id), null);
+      await assert.rejects(async () => a.appliquer([{ type: 'set', collection: 'crm_personnes', id, donnees: { nom: 'X' } }]), /Identifiant de document invalide/);
+    }
+    for (const base_ of ['clients/B', 'clients/', 'clients/a/x', 'autre/a', '', 'clients/a b', 'clients/-a', undefined]) assert.throws(() => avecBase(brute, base_), /Base de client invalide/);
+    await a.appliquer([{ type: 'update', collection: 'crm_personnes', id: 'p1', donnees: { nom: 'A2' } }]);
+    assert.equal((await brute.document('clients/a/crm_personnes', 'p1')).nom, 'A2');
+    assert.equal((await brute.document('clients/b/crm_personnes', 'p1')).nom, 'B');
+    assert.equal(a.nouvelId('crm_personnes').startsWith('crm_'.slice(0, 0)), true);
+  });
+  test('M15 balayage final : rien de B sous A et inversement ; aucune écriture hors clients/<client>/… sauf mcp_oauth et mcp_limites', async () => {
+    const attendu = baseInitiale();
+    const toutes = new Set([...Object.keys(attendu), 'mcp_oauth', 'mcp_limites', 'clients/a/crm_audit', 'clients/a/crm_audit_avant', 'clients/b/crm_audit', 'clients/b/crm_audit_avant']);
+    for (const nom of toutes) {
+      const docs = await donnees.liste(nom);
+      const texte = JSON.stringify(docs);
+      if (nom.startsWith('clients/a/')) assert.ok(!texte.includes('BRAVO') && !texte.includes('Atelier Bravo'), nom);
+      if (nom.startsWith('clients/b/') && !nom.endsWith('/membres')) assert.ok(!texte.includes('ALPHA'), nom);
+    }
+    for (const nom of ['crm_personnes', 'crm_affaires', 'crm_audit', 'projets_projets', 'crm_notes', 'crm_organisations']) assert.deepEqual(await donnees.liste(nom), [], `${nom} à la racine`);
+    // la base de B n'a jamais été touchée par les essais de A (le jeu de départ + le document « seulement-b » ajouté puis retiré par reinitialiser)
+    assert.deepEqual((await donneesDe('b')), Object.fromEntries(Object.entries(attendu).filter(([n]) => n.startsWith('clients/b/') && !n.endsWith('/membres'))));
+  });
+});
+
+describe('Écran d\'autorisation : aux couleurs du client, neutre pour tout ce qui est refusé', () => {
+  const autoriser = (client, extra = {}) => fetch(`${base}/oauth/${client}/authorize?${new URLSearchParams({ ...demande(client), ...extra })}`);
+  test('client actif avec le module : nom, couleur, logo du client et adresse d\'envoi propre au client ; pas de nom de Jérôme', async () => {
+    const r = await autoriser('a');
+    assert.equal(r.status, 200);
+    assert.equal(r.headers.get('x-frame-options'), 'DENY');
+    const t = await r.text();
+    assert.match(t, /Autoriser Claude à accéder à Cabinet Alpha \?/);
+    assert.match(t, /#336699/);
+    assert.match(t, /https:\/\/exemple\.test\/alpha\.png/);
+    assert.match(t, /\/oauth\/a\/approve/);
+    assert.match(t, /chevalier-ia-app/);
+    assert.ok(!t.includes('Chevalier IA OS') && !t.includes('chevalier-ia-os') && !t.includes('et <strong>supprimer</strong>') && /jamais supprimer/.test(t));
+    const tb = await (await autoriser('b')).text();
+    assert.match(tb, /Atelier Bravo/);
+    assert.match(tb, /#aa3355/);
+    assert.ok(!tb.includes('Cabinet Alpha') && !tb.includes('#336699'));
+    const chatgpt = await (await autoriser('a', { redirect_uri: CHATGPT })).text();
+    assert.match(chatgpt, /Autoriser ChatGPT à accéder à Cabinet Alpha \?/);
+  });
+  test('client inconnu, désactivé ou module éteint : la même page d\'erreur, sans nom ni couleur', async () => {
+    const pages = [];
+    for (const c of ['inconnu', 'dormant', 'sans-mcp']) {
+      const r = await autoriser(c);
+      assert.equal(r.status, 400, c);
+      pages.push((await r.text()).replace(/inconnu|dormant|sans-mcp/g, 'X'));
+    }
+    assert.equal(new Set(pages).size, 1);
+    assert.match(pages[0], /n&#39;est pas disponible/);
+    assert.ok(!pages[0].includes('Dormant') && !/#336699|#aa3355/.test(pages[0]));
+    assert.equal((await autoriser('A')).status, 404);
+  });
+  test('demande mal formée ou adresse de retour étrangère : page d\'erreur, jamais de redirection', async () => {
+    assert.equal((await autoriser('a', { redirect_uri: 'https://pirate.example/cb' })).status, 400);
+    assert.equal((await autoriser('a', { code_challenge_method: 'plain' })).status, 400);
+    assert.equal((await autoriser('a', { resource: 'https://pirate.example/mcp/a' })).status, 400);
+  });
+  test('un nom de client piégé (balise, guillemets) est échappé dans la page', async () => {
+    await donnees.appliquer([{ type: 'set', collection: 'marques', id: 'a', donnees: fichier('a', '</title><script>alert(1)</script>"\'', { couleur: 'red;}</style><script>', logo: 'javascript:alert(1)' }) }]);
+    const t = await (await autoriser('a')).text();
+    assert.ok(!t.includes('<script>alert(1)'));
+    assert.ok(!t.includes('javascript:'));
+    assert.ok(!t.includes('red;}'));
+    await reinitialiser();
+  });
+});
+
+describe('Jérôme : son serveur ne change pas', () => {
+  test('le serveur de Jérôme garde ses adresses, sa liste de comptes et son profil unique', async () => {
+    const c = await import('../functions/src/oauth/config.js');
+    assert.equal(c.RESSOURCE, 'https://chevalier-ia-os.web.app/mcp');
+    assert.equal(c.PROFIL_OAUTH, 'claude-code');
+    assert.deepEqual(c.COMPTES_AUTORISES, ['jerome.chevalier@gmail.com', 'jeromebot.chevalierbot@gmail.com']);
+    const { pageAutorisation } = await import('../functions/src/oauth/page.js');
+    const p = pageAutorisation({ client_id: 'x', redirect_uri: 'https://claude.ai/api/mcp/auth_callback', code_challenge: 'c'.repeat(43) });
+    assert.match(p, /Autoriser Claude à accéder à Chevalier IA OS \?/);
+    assert.match(p, /\/oauth\/approve/);
+    assert.match(p, /supprimer<\/strong>/);
+  });
+});
