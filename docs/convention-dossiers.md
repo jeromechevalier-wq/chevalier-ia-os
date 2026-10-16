@@ -1,5 +1,7 @@
 # Convention de nommage des dossiers de `Projets/`
 
+> **Historique (16/10/2026)** : l'OS n'impose plus de convention de nommage (chantier « Liens et documents », `google-drive.md`). Ce texte ne vaut que pour le rangement du dossier `Projets/` de Jérôme.
+
 Rédigée le 03/10/2026, **validée par Jérôme dans son principe** (cinq préfixes, un seul niveau). Rien n'est encore renommé : le tableau de la section 5 est un plan, à exécuter dossier par dossier.
 
 Besoin : ne plus se perdre dans `Mon Drive/Chevalier-AI/Projets/`, qui doit pouvoir passer de 14 à 40 dossiers sans devenir illisible.

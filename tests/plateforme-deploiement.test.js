@@ -111,7 +111,7 @@ describe('La plateforme prend sa propre configuration', () => {
     const fichiers = listerFichiers(paquet);
     assert.ok(fichiers.length > 50);
     for (const f of fichiers) {
-      if (f === 'js/os/firebase-config.js') continue;
+      if (f === 'js/os/firebase-config.js' || f === 'js/os/google-config.js') continue;
       assert.ok(readFileSync(join(paquet, f)).equals(readFileSync(join(RACINE, f))), f);
     }
     const attendus = ELEMENTS_PUBLIES.flatMap((e) => (statSync(join(RACINE, e)).isDirectory() ? listerFichiers(join(RACINE, e)).map((f) => `${e}/${f}`) : [e])).sort();
@@ -143,9 +143,27 @@ describe('La plateforme prend sa propre configuration', () => {
       assert.throws(essai((c) => { c.firebaseConfig.authDomain = 'chevalier-ia-os.web.app'; }), /authDomain/);
       assert.throws(essai((c) => { c.private_key = '-----' + 'BEGIN PRIVATE' + ' KEY' + '-----'; }), /compte de service/);
       assert.throws(essai((c) => { c.comptesAutorises = []; }), /objet/);
+      // Google Drive : identifiant client public seulement, bien formé ; jamais de secret.
+      assert.doesNotThrow(essai((c) => { c.googleDrive.idClient = '192468914925-abcdefghijklmnop0123456789abcdef.apps.googleusercontent.com'; }));
+      assert.throws(essai((c) => { c.googleDrive.idClient = 'pas-un-identifiant'; }), /idClient/);
+      assert.throws(essai((c) => { c.googleDrive.cleApi = 'pas-une-cle'; }), /cleApi/);
+      assert.throws(essai((c) => { c.googleDrive.idApp = 'abc'; }), /idApp/);
+      assert.throws(essai((c) => { c.googleDrive.motDePasse = 'x'; }), /inattendue/);
+      assert.throws(essai((c) => { c.googleDrive.client_secret = 'x'; }), /compte de service/);
     } finally {
       rmSync(faux, { recursive: true, force: true });
     }
+  });
+  test('Google Drive : le CRM et la plateforme ont chacun leur fichier google-config.js ; l\'identifiant client est vide ou bien formé, jamais un secret', async () => {
+    const motif = /^$|^[0-9]+-[A-Za-z0-9_-]+\.apps\.googleusercontent\.com$/;
+    const crm = await charger(join(RACINE, 'js/os/google-config.js'));
+    const plateforme = await charger(join(paquet, 'js/os/google-config.js'));
+    assert.match(crm.googleDrive.idClient, motif);
+    assert.match(plateforme.googleDrive.idClient, motif);
+    assert.match(readFileSync(join(paquet, 'js/os/google-config.js'), 'utf8'), /FICHIER GÉNÉRÉ/);
+    assert.equal(plateforme.googleDrive.idClient, json('scripts/projets/plateforme.json').googleDrive.idClient, 'le paquet reprend le réglage de la plateforme');
+    for (const f of ['js/os/google-config.js', 'scripts/projets/plateforme.json']) assert.doesNotMatch(lire(f), /client_secret"\s*:|GOCSPX|BEGIN PRIVATE/, f);
+    assert.doesNotMatch(readFileSync(join(paquet, 'js/os/google-config.js'), 'utf8'), /GOCSPX|client_secret/i);
   });
   test('contenuConfigFirebase est déterministe (deux constructions donnent le même fichier)', () => {
     assert.equal(contenuConfigFirebase('plateforme'), contenuConfigFirebase('plateforme'));

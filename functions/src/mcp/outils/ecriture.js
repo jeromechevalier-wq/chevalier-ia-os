@@ -13,8 +13,8 @@ const etiquettes = z.array(z.string().max(80)).max(30).describe('Identifiants d�
 const proprietaire = z.string().max(120).optional().describe(`Propriétaire de la fiche créée (défaut : ${metier.PROPRIETAIRE_PAR_DEFAUT}).`);
 const forcer = z.boolean().optional().describe('true : créer malgré un doublon possible (nom ou e-mail déjà connu), après avoir vérifié que c’est une autre fiche.');
 const texteCourt = z.string().max(300);
-const urlGithub = z.string().max(500).optional().describe('Adresse du dépôt GitHub de l’affaire (https://github.com/compte/nom) ; chaîne vide pour l’effacer.');
-const urlDossier = z.string().max(500).optional().describe('Adresse du dossier Google Drive de travail (https://drive.google.com/drive/folders/…) ; chaîne vide pour l’effacer.');
+const urlGithub = z.string().max(500).optional().describe('Ancien champ « dépôt de code » (https://github.com/compte/nom), facultatif ; chaîne vide pour l’effacer. Pour un nouveau lien, préférer joindre_lien (liste « Liens et documents »).');
+const urlDossier = z.string().max(500).optional().describe('Lien du dossier de travail : n’importe quel lien complet (Google Drive, serveur ou NAS en smb://, site…) ; chaîne vide pour l’effacer.');
 
 const outil = (nom, description, schema, action, profils = PROFILS) => ({
   nom, profils, description, schema, executer: ({ args, ...c }) => action(c, args),
@@ -125,7 +125,7 @@ export const OUTILS_ECRITURE = [
   }, metier.creerActivite),
   outil('terminer_activite', "Marque une activité comme faite (et ajoute l'événement au fil).", { id }, metier.terminerActivite),
 
-  outil('joindre_lien', "Joint un document à une affaire (affaireId) ou à un projet (projetId), un seul des deux, par son adresse (http ou https obligatoire), un libellé facultatif ; favori: true le met en favori (étoile, visible sur l'accueil de l'OS).", {
+  outil('joindre_lien', "Ajoute un lien ou un document à la liste « Liens et documents » d'une affaire (affaireId) ou d'un projet (projetId), un seul des deux, par son adresse (http ou https obligatoire : Drive, serveur, site, dépôt GitHub…), un libellé facultatif ; favori: true le met en favori (étoile, visible sur l'accueil de l'OS).", {
     affaireId: id.optional(), projetId: id.optional(), url: z.string().min(1).max(2000), libelle: texteCourt.optional(), favori: z.boolean().optional(),
   }, metier.joindreLien),
   outil('retirer_document', "Retire un document d'une affaire (affaireId) ou d'un projet (projetId) (jamais le fichier lui-même) : par index (voir lister_documents) ou par url ; si les deux sont donnés, ils doivent correspondre.", {

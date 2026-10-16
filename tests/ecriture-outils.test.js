@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import * as L from '../functions/partage/logique.js';
 import * as PL from '../functions/partage/projets.js';
+import { OUTILS_ECRITURE } from '../functions/src/mcp/outils/ecriture.js';
 import { creerGestionnaire } from '../functions/src/mcp/gestionnaire.js';
 import { empreinte, creerMagasin } from '../functions/src/securite/jetons.js';
 import { creerLimiteur, LIMITES_PAR_DEFAUT } from '../functions/src/securite/limites.js';
@@ -294,7 +295,8 @@ describe('Création et modification (tests 9 et 11)', () => {
     const s = await demarrer();
     const avant = s.vue();
     refuse(await s.appeler('biblio', 'creer_affaire', { titre: 'X', urlGithub: 'http://exemple.test/depot' }), /https:\/\/github\.com\//);
-    refuse(await s.appeler('biblio', 'creer_affaire', { titre: 'X', urlDossier: 'https://exemple.test/dossier' }), /dossier Google Drive/);
+    refuse(await s.appeler('biblio', 'creer_affaire', { titre: 'X', urlDossier: 'Mon Drive/dossier-sans-lien' }), /lien complet/);
+    refuse(await s.appeler('biblio', 'creer_affaire', { titre: 'X', urlDossier: 'javascript:alert(1)' }), /lien complet/);
     assert.deepEqual(s.vue(), avant);
     const r = ok(await s.appeler('biblio', 'creer_affaire', { titre: 'Avec adresses', urlGithub: 'https://github.com/jeromechevalier-wq/essai', urlDossier: 'https://drive.google.com/drive/folders/abc123_-X' }));
     assert.equal(s.doc('crm_affaires', r.id).urlGithub, 'https://github.com/jeromechevalier-wq/essai');
@@ -629,6 +631,16 @@ describe('Outils des projets : mêmes règles que l’écran, avec audit et rest
     refuse(await s.appeler('biblio', 'modifier_projet', { id }), /Aucun champ/);
     refuse(await s.appeler('biblio', 'modifier_projet', { id, dateDebut: 'demain' }), /AAAA-MM-JJ/);
     refuse(await s.appeler('biblio', 'modifier_projet', { id, urlGithub: 'pas-une-url' }));
+    // Dossier de travail : n'importe quel lien complet (plus de restriction « Google Drive seulement »), un texte libre est refusé.
+    refuse(await s.appeler('biblio', 'modifier_projet', { id, urlDossier: 'Mon Drive/Projets/x' }), /lien complet/);
+    for (const lien of ['smb://nas/clients/carrel', 'https://exemple.test/espace/carrel', 'http://nas.local:5000/partage']) {
+      ok(await s.appeler('biblio', 'modifier_projet', { id, urlDossier: lien }));
+      assert.equal(s.doc('projets_projets', id).urlDossier, lien);
+    }
+    ok(await s.appeler('biblio', 'modifier_projet', { id, urlDossier: '' }));
+    assert.equal(s.doc('projets_projets', id).urlDossier, '');
+    assert.match(OUTILS_ECRITURE.find((o) => o.nom === 'modifier_projet').schema.urlDossier.description, /n’importe quel lien/);
+    assert.doesNotMatch(OUTILS_ECRITURE.find((o) => o.nom === 'modifier_projet').schema.urlDossier.description, /Google Drive de travail/);
     ok(await s.appeler('biblio', 'modifier_projet', { id, titre: 'Site refait', dateFin: '2026-12-01', urlDossier: 'https://drive.google.com/drive/folders/abc' }));
     assert.deepEqual([s.doc('projets_projets', id).titre, s.doc('projets_projets', id).dateFin, s.doc('projets_projets', id).modifiePar], ['Site refait', '2026-12-01', 'hermes-bibliothecaire']);
     refuse(await s.appeler('biblio', 'lire_projet', { id: 'fantome' }), /introuvable/);
