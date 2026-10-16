@@ -12,7 +12,7 @@ const MONTAGES = {
   affaires: () => import('../modules/crm/index.js'),
   projets: () => import('../modules/projets/index.js'),
   veille: () => import('../modules/veille/index.js'),
-  journal: () => import('../modules/journal/index.js'),
+  automatisations: () => import('../modules/automatisations/index.js'),
 };
 
 const versModule = (d) => ({
@@ -24,7 +24,7 @@ const versModule = (d) => ({
   monter: MONTAGES[d.id],
 });
 
-// CRM de la racine : ses modules seulement (un module « reserveAuxClients » n'y est ni monté ni affiché).
+// CRM de la racine : ses modules (un module marqué « reserveAuxClients » n'y serait ni monté ni affiché ; aucun ne l'est depuis le 16/10/2026).
 export const MODULES = MODULES_DECLARES.filter((d) => d.reserveAuxClients !== true).map(versModule);
 // Espace d'un client de la plateforme : tous les modules possibles (espace-modules.js ne garde que ses modules actifs).
 export const MODULES_CLIENT = MODULES_DECLARES.map(versModule);

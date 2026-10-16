@@ -1,7 +1,7 @@
-// Règles d'affichage du journal (js/modules/journal/logique.js) : sans réseau, sans navigateur.
+// Règles d'affichage du module Automatisations (js/modules/automatisations/logique.js) : sans réseau, sans navigateur.
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
-import * as L from '../js/modules/journal/logique.js';
+import * as L from '../js/modules/automatisations/logique.js';
 
 const T = new Date(2026, 9, 11, 10, 0, 0).getTime();
 const MIN = 60000;

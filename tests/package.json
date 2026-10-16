@@ -5,10 +5,10 @@
   "description": "Tests de Chevalier IA OS (émulateurs Firebase, jamais les données réelles)",
   "type": "module",
   "scripts": {
-    "test": "firebase emulators:exec --config ../firebase.json --project demo-chevalier-ia-os --only auth,firestore \"npm run tous\" && npm run test:storage && npm run test:outil-client && npm run test:journal",
+    "test": "firebase emulators:exec --config ../firebase.json --project demo-chevalier-ia-os --only auth,firestore \"npm run tous\" && npm run test:storage && npm run test:outil-client && npm run test:automatisations",
     "tous": "npm run test:regles && npm run test:logique && npm run preparer && npm run test:statique && npm run test:fonctions && npm run test:porte && npm run test:e2e",
     "test:regles": "node --test --test-concurrency=1 regles.test.js regles-plateforme.test.js",
-    "test:logique": "node --test logique.test.js projets.test.js chemins.test.js membres.test.js marque.test.js identite-client.test.js registre.test.js plateforme-deploiement.test.js journal-statique.test.js journal-logique.test.js veille-logique.test.js veille-import.test.js porte-cles.test.js porte-outil.test.js porte.test.js",
+    "test:logique": "node --test logique.test.js projets.test.js chemins.test.js membres.test.js marque.test.js identite-client.test.js registre.test.js plateforme-deploiement.test.js automatisations-statique.test.js automatisations-logique.test.js veille-logique.test.js veille-import.test.js porte-cles.test.js porte-outil.test.js porte.test.js",
     "test:storage": "firebase emulators:exec --config ../firebase.plateforme.json --project demo-chevalier-ia-os --only storage \"node --test --test-concurrency=1 regles-storage.test.js\"",
     "test:statique": "node --test statique.test.js",
     "installer-fonctions": "npm ci --prefix ../functions",
@@ -19,7 +19,7 @@
     "preparer": "node ../scripts/preparer-fonctions.js",
     "installer-outils": "npm ci --prefix ../scripts/plateforme",
     "installer-fonctions-plateforme": "npm ci --prefix ../functions-plateforme",
-    "test:journal": "firebase emulators:exec --config ../firebase.plateforme.json --project demo-chevalier-ia-os --only firestore \"node --test --test-concurrency=1 journal-synchro.test.js journal-appels.test.js\"",
+    "test:automatisations": "firebase emulators:exec --config ../firebase.plateforme.json --project demo-chevalier-ia-os --only firestore \"node --test --test-concurrency=1 automatisations-synchro.test.js automatisations-appels.test.js\"",
     "test:outil-client": "firebase emulators:exec --config ../firebase.plateforme.json --project demo-chevalier-ia-os --only firestore,storage \"node --test --test-concurrency=1 outil-client.test.js\""
   },
   "devDependencies": {

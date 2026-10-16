@@ -1,15 +1,15 @@
 // Association workflow → client par ÉTIQUETTE n8n : « client-<identifiant> » (ex. client-audrey).
 // Garde-fous (décision de Jérôme) :
 //  - sans étiquette de client : le workflow n'est JAMAIS copié ;
-//  - étiquette d'un client inconnu, ou d'un client sans le module « journal » : workflow ignoré et signalé ;
+//  - étiquette d'un client inconnu, ou d'un client sans le module « automatisations » : workflow ignoré et signalé ;
 //  - deux étiquettes de client sur un même workflow : refusé et signalé (pour aucun des deux clients) ;
 //  - étiquette mal formée : ignoré et signalé.
 // Un nom d'étiquette n8n fait 24 caractères au plus : « client- » en prend 7, donc l'identifiant d'un client qui veut ce module
-// tient en 17 caractères au plus (les identifiants de clients vont jusqu'à 40 : voir docs/journal-activite-workflows.md).
+// tient en 17 caractères au plus (les identifiants de clients vont jusqu'à 40 : voir docs/automatisations-n8n.md).
 
 export const PREFIXE_ETIQUETTE = 'client-';
 export const LONGUEUR_MAX_ETIQUETTE_N8N = 24;
-export const LONGUEUR_MAX_IDENTIFIANT_JOURNAL = LONGUEUR_MAX_ETIQUETTE_N8N - PREFIXE_ETIQUETTE.length; // 17
+export const LONGUEUR_MAX_IDENTIFIANT_AUTOMATISATIONS = LONGUEUR_MAX_ETIQUETTE_N8N - PREFIXE_ETIQUETTE.length; // 17
 export const MOTIF_IDENTIFIANT_CLIENT = /^[a-z0-9][a-z0-9_-]{0,39}$/; // même règle que l'outil « nouveau client »
 export const MOTIF_ID_N8N = /^[A-Za-z0-9_-]{1,64}$/; // identifiants n8n acceptés comme noms de documents
 
@@ -18,7 +18,7 @@ export const etiquetteDuClient = (client) => `${PREFIXE_ETIQUETTE}${client}`;
 
 /**
  * Range les workflows par client.
- * `connus` : identifiants de tous les clients qui existent ; `actifs` : ceux qui ont le module « journal » actif.
+ * `connus` : identifiants de tous les clients qui existent ; `actifs` : ceux qui ont le module « automatisations » actif.
  * Renvoie { parClient: Map(client → [workflow]), signalements: [{ workflowId, raison, etiquettes }] }.
  * Raisons : 'deux-clients', 'client-inconnu', 'sans-module', 'etiquette-invalide', 'identifiant-invalide'.
  */

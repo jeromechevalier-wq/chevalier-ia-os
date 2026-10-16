@@ -7,6 +7,11 @@
 //  - un module actif dont la dépendance est inactive est REFUSÉ (ex. projets sans affaires) : il n'est pas activé, l'erreur est donnée.
 // Le CRM de Jérôme (racine) n'utilise rien de tout cela : il garde tous les modules (js/os/modules.js).
 //
+// Renommage « journal » -> « automatisations » (module n8n, 16/10/2026) : les fiches client déjà activées avec `journal: true` continuent de
+// marcher (voir ANCIENS_IDENTIFIANTS ; la nouvelle clé gagne si les deux sont présentes) et les anciennes adresses `journal/…` sont redirigées
+// (voir ANCIENS_PREFIXES). Aucune donnée n'est déplacée : les collections gardent leurs noms (workflows, executions, sync).
+// Ne pas confondre avec l'écran « Journal » du CRM (route crm/journal, historique des modifications), qui garde son nom.
+//
 // Les outils MCP ne sont ici qu'une DÉCLARATION (liste de noms). Le serveur MCP multi-clients est le chantier 9 ; un test
 // (tests/registre-mcp.test.js) vérifie que cette liste correspond exactement aux outils du serveur.
 
@@ -25,7 +30,8 @@ export const OUTILS_COMMUNS = geler(['qui_suis_je']);
  *  prefixe     : premier morceau des routes du module (#/crm/…) ;
  *  ecrans      : { route, libelle, icone } ; collections : noms « nus » (sous clients/<client>/ chez un client) ;
  *  outilsMcp   : outils MCP du module (déclaration seulement) ; dependances : modules à activer avant celui-ci ;
- *  reserveAuxClients : `true` = module réservé aux clients de la plateforme, absent du CRM de Jérôme (champ absent = présent partout).
+ *  reserveAuxClients : `true` = module réservé aux clients de la plateforme, absent du CRM de Jérôme (champ absent = présent partout ;
+ *                      plus aucun module n'a ce drapeau depuis le 16/10/2026 : règle « tout module existe d'abord chez Jérôme »).
  */
 export const MODULES_DECLARES = geler([
   {
@@ -89,16 +95,16 @@ export const MODULES_DECLARES = geler([
     dependances: [],
   },
   {
-    // Journal d'activité des workflows n8n (chantier 14). Réservé aux clients de la plateforme : le CRM de Jérôme ne le montre pas (reserveAuxClients: true).
+    // Automatisations : historique des workflows n8n (chantier 14, anciennement le module « journal »). Présent chez Jérôme comme chez les clients.
     // Ses données (workflows, executions, sync) sont écrites par les fonctions du serveur seulement ; l'écran les lit.
-    id: 'journal',
-    nom: "Journal d'activité",
+    // Chez Jérôme (racine), rien ne les remplit encore (la copie de ses propres workflows n'est pas développée) : l'écran affiche un état vide.
+    id: 'automatisations',
+    nom: 'Automatisations',
     libelleMenu: 'Automatisations',
     iconeMenu: 'activity',
-    prefixe: 'journal',
-    reserveAuxClients: true,
+    prefixe: 'automatisations',
     ecrans: [
-      { route: 'journal/historique', libelle: 'Historique', icone: 'activity' },
+      { route: 'automatisations/historique', libelle: 'Historique', icone: 'activity' },
     ],
     collections: ['workflows', 'executions', 'sync'],
     outilsMcp: [],
@@ -107,6 +113,24 @@ export const MODULES_DECLARES = geler([
 ]);
 
 export const IDS_MODULES = geler(MODULES_DECLARES.map((m) => m.id));
+
+/** Anciens identifiants de modules -> identifiant actuel (champ `modules` des fiches client écrites avant le renommage). */
+export const ANCIENS_IDENTIFIANTS = geler({ journal: 'automatisations' });
+/** Anciens premiers segments de route -> segment actuel (signets et liens écrits avant le renommage). */
+export const ANCIENS_PREFIXES = geler({ journal: 'automatisations' });
+
+/** Identifiant actuel d'un module à partir d'un identifiant ancien ou actuel (inconnu : renvoyé tel quel). */
+export function identifiantActuel(id) {
+  return Object.prototype.hasOwnProperty.call(ANCIENS_IDENTIFIANTS, id) ? ANCIENS_IDENTIFIANTS[id] : id;
+}
+
+/** Route écrite avec un ancien préfixe (journal/historique) -> route actuelle (automatisations/historique) ; sinon renvoyée telle quelle. */
+export function routeModernisee(route) {
+  const morceaux = String(route ?? '').split('/');
+  const premier = morceaux[0];
+  if (!Object.prototype.hasOwnProperty.call(ANCIENS_PREFIXES, premier)) return route;
+  return [ANCIENS_PREFIXES[premier], ...morceaux.slice(1)].join('/');
+}
 
 /** Déclaration d'un module par son identifiant, ou null. */
 export function moduleDeclare(id) {
@@ -131,9 +155,15 @@ export function lireModulesDemandes(fiche) {
     return { demandes: [], erreurs: ['Le champ « modules » doit être un objet, par exemple { affaires: true, projets: false }.'] };
   }
   for (const cle of Object.keys(brut)) {
-    if (!IDS_MODULES.includes(cle)) erreurs.push(`Module inconnu : « ${cle} ».`);
+    if (!IDS_MODULES.includes(cle) && !Object.prototype.hasOwnProperty.call(ANCIENS_IDENTIFIANTS, cle)) erreurs.push(`Module inconnu : « ${cle} ».`);
   }
-  return { demandes: IDS_MODULES.filter((id) => brut[id] === true), erreurs };
+  // Migration douce : un ancien identifiant à `true` active le module actuel, sauf si la fiche dit déjà autre chose pour le nouveau (true ou false).
+  const effectif = (id) => {
+    const valeur = brut[id];
+    if (valeur !== undefined && valeur !== null) return valeur;
+    return Object.entries(ANCIENS_IDENTIFIANTS).some(([ancien, actuel]) => actuel === id && brut[ancien] === true) ? true : valeur;
+  };
+  return { demandes: IDS_MODULES.filter((id) => effectif(id) === true), erreurs };
 }
 
 /**

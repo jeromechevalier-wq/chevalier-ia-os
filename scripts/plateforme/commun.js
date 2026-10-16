@@ -5,7 +5,7 @@
 import { getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
-import { IDS_MODULES, verifierActivation } from '../../js/os/registre.js';
+import { IDS_MODULES, verifierActivation, identifiantActuel, lireModulesDemandes } from '../../js/os/registre.js';
 import { normaliserCouleur } from '../../js/os/marque.js';
 
 export const PROJET_PLATEFORME = 'chevalier-ia-app';
@@ -91,7 +91,8 @@ export function verifierRole(texte) {
 export function lireModules(texte) {
   const brut = String(texte ?? '').trim();
   if (brut === '' || brut === 'aucun') return [];
-  const ids = [...new Set(brut.split(',').map((m) => m.trim()).filter(Boolean))];
+  // L'ancien nom « journal » (module n8n, devenu « automatisations » le 16/10/2026) est encore accepté : il est traduit.
+  const ids = [...new Set(brut.split(',').map((m) => identifiantActuel(m.trim())).filter(Boolean))];
   const inconnus = ids.filter((m) => !IDS_MODULES.includes(m));
   if (inconnus.length) throw new ErreurOutil(`Module inconnu : ${inconnus.map((m) => `« ${m} »`).join(', ')}. Modules connus : ${IDS_MODULES.join(', ')}.`);
   return verifierListeModules(ids);
@@ -103,14 +104,14 @@ export function verifierListeModules(ids) {
   return v.actifs;
 }
 /**
- * Le journal des workflows retrouve les workflows d'un client par une étiquette n8n « client-<identifiant> ». Un nom d'étiquette n8n
+ * Le module Automatisations retrouve les workflows d'un client par une étiquette n8n « client-<identifiant> ». Un nom d'étiquette n8n
  * fait 24 caractères au plus (« client- » en prend 7) : l'identifiant d'un client qui active ce module tient donc en 17 caractères.
- * Un client à nom long garde son identifiant long pour tout le reste ; on refuse seulement d'activer le journal tant qu'il n'est pas raccourci.
+ * Un client à nom long garde son identifiant long pour tout le reste ; on refuse seulement d'activer ce module tant qu'il n'est pas raccourci.
  */
-export const LONGUEUR_MAX_ID_JOURNAL = 17;
+export const LONGUEUR_MAX_ID_AUTOMATISATIONS = 17;
 export function verifierModulesPourClient(id, actifs) {
-  if (actifs.includes('journal') && id.length > LONGUEUR_MAX_ID_JOURNAL) {
-    throw new ErreurOutil(`Le module « journal » exige un identifiant de client de ${LONGUEUR_MAX_ID_JOURNAL} caractères au plus (« ${id} » en a ${id.length}) : n8n limite le nom d'une étiquette à 24 caractères, et l'étiquette est « client-${id} ». Choisissez un identifiant plus court (par exemple « ${id.slice(0, LONGUEUR_MAX_ID_JOURNAL).replace(/[-_]+$/, '')} »).`);
+  if (actifs.includes('automatisations') && id.length > LONGUEUR_MAX_ID_AUTOMATISATIONS) {
+    throw new ErreurOutil(`Le module « automatisations » exige un identifiant de client de ${LONGUEUR_MAX_ID_AUTOMATISATIONS} caractères au plus (« ${id} » en a ${id.length}) : n8n limite le nom d'une étiquette à 24 caractères, et l'étiquette est « client-${id} ». Choisissez un identifiant plus court (par exemple « ${id.slice(0, LONGUEUR_MAX_ID_AUTOMATISATIONS).replace(/[-_]+$/, '')} »).`);
   }
   return actifs;
 }
@@ -118,8 +119,9 @@ export function verifierModulesPourClient(id, actifs) {
 export function objetModules(actifs) {
   return Object.fromEntries(IDS_MODULES.map((id) => [id, actifs.includes(id)]));
 }
+/** Modules actifs d'après le champ `modules` d'une fiche (comprend l'ancien nom `journal`, comme l'application : registre.js). */
 export function modulesActifsDe(objet) {
-  return IDS_MODULES.filter((id) => objet && typeof objet === 'object' && objet[id] === true);
+  return lireModulesDemandes({ modules: objet }).demandes;
 }
 
 export function verifierCouleur(texte) {

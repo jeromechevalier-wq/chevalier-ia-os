@@ -1,4 +1,4 @@
-// Fonctions appelables du journal (chantier 14) : « Rafraîchir » (client déduit de l'identité) et « Renommer » (éditeurs du bon client).
+// Fonctions appelables du module Automatisations (chantier 14) : « Rafraîchir » (client déduit de l'identité) et « Renommer » (éditeurs du bon client).
 // FAUX n8n + ÉMULATEUR Firestore. Les fonctions sont appelées directement (functions-plateforme/src/appels.js) avec une identité simulée.
 import assert from 'node:assert/strict';
 import { test, describe, before, after, beforeEach } from 'node:test';
@@ -40,9 +40,9 @@ beforeEach(async () => {
   assert.ok(r.ok);
   faux.vider();
   Object.assign(faux.etat, { panne: false, coupe: false, latenceMs: 0, taillePage: 100 });
-  await db.doc('clients/audrey').set({ modules: { journal: true } });
-  await db.doc('clients/boris').set({ modules: { journal: true } });
-  await db.doc('clients/dora').set({ modules: { affaires: true } }); // sans le journal
+  await db.doc('clients/audrey').set({ modules: { automatisations: true } });
+  await db.doc('clients/boris').set({ modules: { automatisations: true } });
+  await db.doc('clients/dora').set({ modules: { affaires: true } }); // sans le module
   for (const [c, e, role] of [['audrey', ALICE, 'editeur'], ['audrey', LEA, 'lecteur'], ['audrey', CLARA, 'editeur'], ['boris', BOB, 'editeur'], ['boris', CLARA, 'lecteur'], ['dora', ZOE, 'editeur']]) {
     await db.doc(`clients/${c}/membres/${e}`).set({ role });
   }
@@ -71,7 +71,7 @@ describe('R. Rafraîchir : le client vient de l\'identité', () => {
     assert.equal(r.resultat, 'mis-a-jour');
     assert.deepEqual(await liste('clients/boris/executions'), []);
   });
-  test('R3 refusés : sans connexion, e-mail non vérifié, membre d\'aucun journal, membre d\'un client sans module (même message)', async () => {
+  test('R3 refusés : sans connexion, e-mail non vérifié, membre d\'aucun client avec le module, membre d\'un client sans module (même message)', async () => {
     const e1 = await refus(rafraichir({ db, n8n: n8n(), auth: null, maintenant: T0 }));
     assert.equal(e1.code, 'unauthenticated');
     assert.equal((await refus(rafraichir({ db, n8n: n8n(), auth: id(ALICE, false), maintenant: T0 }))).code, 'unauthenticated');
@@ -159,7 +159,7 @@ describe('N. Renommer : éditeurs du bon client, un seul champ', () => {
     assert.equal(e.code, 'not-found');
     assert.equal((await lire('clients/boris/workflows/wfB1')).libelle, undefined);
   });
-  test('N5 mêmes mots pour : client inexistant, non-membre, module journal inactif (on ne devine rien)', async () => {
+  test('N5 mêmes mots pour : client inexistant, non-membre, module automatisations inactif (on ne devine rien)', async () => {
     await copier();
     const a = await refus(renommer({ db, auth: id(ALICE), donnees: demande({ client: 'fantome' }) }));
     const b = await refus(renommer({ db, auth: id(BOB), donnees: demande() }));
@@ -198,5 +198,32 @@ describe('N. Renommer : éditeurs du bon client, un seul champ', () => {
     assert.equal(w.libelle, 'Présences du matin');
     assert.equal(w.nom, 'Nom changé dans n8n', 'le nom d\'origine suit n8n');
     assert.equal((await lire('clients/audrey/executions/102')).workflowLabel, 'Présences du matin');
+  });
+});
+
+describe('C. Compatibilité : les clients activés avec l\'ancien identifiant « journal » continuent de marcher', () => {
+  const copier = () => copieHoraire({ db, n8n: n8n(), maintenant: T0 });
+  test('C1 une fiche qui porte seulement « journal: true » est copiée, peut rafraîchir et renommer', async () => {
+    await db.doc('clients/audrey').set({ modules: { journal: true } });
+    const r = await copier();
+    assert.equal(r.clients.audrey.resultat, 'mis-a-jour');
+    assert.deepEqual((await liste('clients/audrey/executions')).map((e) => e.id), ['101']);
+    assert.equal((await rafraichir({ db, n8n: n8n(), auth: id(ALICE), maintenant: T0 + 20000 })).resultat, 'mis-a-jour');
+    assert.equal((await renommer({ db, auth: id(ALICE), donnees: { client: 'audrey', workflowId: 'wfA1', libelle: 'Ancien nom de module' } })).ok, true);
+  });
+  test('C2 la nouvelle clé gagne : « automatisations: false » éteint le module même si « journal: true » traîne encore', async () => {
+    await db.doc('clients/audrey').set({ modules: { journal: true, automatisations: false } });
+    const r = await copier();
+    assert.equal(r.clients.audrey, undefined, 'audrey n\'est plus copié');
+    assert.deepEqual(await liste('clients/audrey/executions'), []);
+    await refus(rafraichir({ db, n8n: n8n(), auth: id(ALICE), maintenant: T0 }));
+    await db.doc('clients/audrey/workflows/wfA1').set({ workflowId: 'wfA1', nom: 'x' });
+    await refus(renommer({ db, auth: id(ALICE), donnees: { client: 'audrey', workflowId: 'wfA1', libelle: 'Non' } }));
+  });
+  test('C3 les deux clés à true : le client est copié une seule fois', async () => {
+    await db.doc('clients/audrey').set({ modules: { journal: true, automatisations: true } });
+    const r = await copier();
+    assert.equal(r.clients.audrey.resultat, 'mis-a-jour');
+    assert.deepEqual((await liste('clients/audrey/executions')).map((e) => e.id), ['101']);
   });
 });
