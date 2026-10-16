@@ -51,6 +51,6 @@ describe('chemins : les modules passent tous par le chemin de base', () => {
   });
   test('la coque démarre les modules à la racine par défaut (CRM inchangé)', () => {
     assert.match(lire('js/main.js'), /api\.demarrer\(\{ compte, cheminBase: '' \}\)/);
-    assert.match(lire('js/modules/crm/donnees.js'), /export function demarrer\(compteConnecte, base = ''\)/);
+    assert.match(lire('js/modules/crm/donnees.js'), /export function demarrer\(compteConnecte, base = '', options = \{\}\)/);
   });
 });

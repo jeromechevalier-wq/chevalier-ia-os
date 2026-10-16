@@ -102,11 +102,12 @@ test('R4 un client avec « affaires » et « projets » : les deux groupes, et l
   await ouvrir(page, 'studio');
   await expect(page.locator('.coquille')).toBeVisible();
   await ouvrirMenu(page);
-  for (const lib of ['Personnes', 'Projets', 'Archives', 'Modèles']) await expect(menu(page).getByRole('link', { name: lib, exact: true })).toHaveCount(1);
-  await menu(page).getByRole('link', { name: 'Modèles', exact: true }).click();
-  await expect(page).toHaveURL(/#\/espace\/studio\/projets\/modeles$/);
+  for (const lib of ['Personnes', 'Projets', 'Archives']) await expect(menu(page).getByRole('link', { name: lib, exact: true })).toHaveCount(1);
+  await expect(menu(page).getByRole('link', { name: 'Modèles', exact: true })).toHaveCount(0); // « Modèles » est dans les Réglages
+  await menu(page).getByRole('link', { name: 'Archives', exact: true }).click();
+  await expect(page).toHaveURL(/#\/espace\/studio\/projets\/archives$/);
   await expect(page.getByRole('heading', { name: 'Page introuvable' })).toHaveCount(0);
-  await expect(page.locator('.coquille')).toContainText('Modèles');
+  await expect(page.locator('.coquille')).toContainText('Archives');
   await expect(page.locator('body')).not.toContainText('Camille Dubois');
 });
 

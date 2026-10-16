@@ -145,14 +145,24 @@ describe('Réglages et audit', () => {
     const r = await lecture.lireReglages(donnees);
     assert.deepEqual(r.offres.map((o) => o.id), ['o1', 'o2']);
     assert.equal(r.reglages.delaiPaiementJours, 45);
-    assert.equal(r.reglages.debutActivite, L.REGLAGES_DEPART.debutActivite);
+    assert.equal(r.reglages.debutActivite, L.REGLAGES_JEROME.debutActivite);
     assert.ok(r.referentiels.etapes.some((e) => e.id === 'gagne'));
+    assert.equal(r.configuration.etapes.length, 6, 'six emplacements d’étapes, actifs ou non');
+    assert.deepEqual(r.configuration.etapes.filter((e) => e.roleGagnee).map((e) => e.id), ['gagne']);
+    assert.deepEqual(r.configuration.phases.filter((p) => p.roleCloture).map((p) => p.id), ['cloture']);
+    assert.equal(r.configuration.options.suiviPaiements, true, 'à la racine : les valeurs de Jérôme tant que rien n’est enregistré');
+    assert.deepEqual(r.referentiels.projets.assignes.map((a) => a.id), ['jerome', 'charles']);
     assert.deepEqual(r.referentiels.statuts.map((s) => s.id), ['ouverte', 'gagnee', 'perdue', 'en_pause']);
   });
   test('lire_reglages sur une base vide : valeurs de départ, aucune erreur', async () => {
     const r = await lecture.lireReglages(creerAccesMemoire({}));
     assert.deepEqual(r.offres, []);
-    assert.deepEqual(r.reglages, JSON.parse(JSON.stringify(L.REGLAGES_DEPART)));
+    assert.deepEqual(r.reglages, JSON.parse(JSON.stringify(L.REGLAGES_JEROME)));
+    const client = await lecture.lireReglages(creerAccesMemoire({}), { racine: false });
+    assert.deepEqual(client.reglages, JSON.parse(JSON.stringify(L.REGLAGES_NEUTRES)));
+    assert.equal(client.configuration.options.suiviPaiements, false);
+    assert.deepEqual(client.referentiels.etapes.map((e) => e.id), ['etape_1', 'etape_2', 'etape_3', 'etape_4', 'etape_5']);
+    assert.deepEqual(client.referentiels.projets.natures.map((n) => n.id), ['livraison'], 'extraction éteinte : la nature n’est pas proposée');
   });
   test('lire_audit : filtres acteur, document, opération, date ; lignes « en_cours » signalées', async () => {
     assert.deepEqual(ids((await lecture.lireAudit(donnees, { acteur: 'claude-code-jerome' })).lignes), ['au3', 'au2'], 'du plus récent au plus ancien');

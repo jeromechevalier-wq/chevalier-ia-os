@@ -128,7 +128,7 @@ function afficherReglages(conteneur) {
   }
   const sectionObjectifs = h('section', { class: 'carte-section', id: 'reglages-objectifs' },
     h('h2', {}, icone('target', { taille: 18 }), 'Objectifs du mois'),
-    h('p', { class: 'aide' }, 'Cibles, libellés, couleurs, ordre et affichage. Les objectifs calculés sont fixés dans le code ; tu peux ajouter des objectifs manuels.'));
+    h('p', { class: 'aide' }, 'Cibles, couleurs, ordre et affichage. Chaque indicateur calculé explique comment il est calculé ; tu peux en ajouter (chiffre d’affaires signé, facturé, encaissé, passages à une étape…) et créer des objectifs manuels.'));
   arrets.push(rendreReglagesObjectifs(sectionObjectifs));
   const sectionTheme = h('section', { class: 'carte-section', id: 'reglages-theme' },
     h('h2', {}, icone('sun', { taille: 18 }), 'Thème'),

@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import * as L from '../js/modules/crm/logique.js';
 
 const JEROME = 'jerome.chevalier@gmail.com';
-const ctx = (iso = '2026-10-15T08:00:00Z', extra = {}) => ({ maintenant: new Date(iso), auteur: JEROME, ...extra });
+const ctx = (iso = '2026-10-15T08:00:00Z', extra = {}) => ({ maintenant: new Date(iso), auteur: JEROME, config: L.CONFIG_JEROME, ...extra });
 
 function personne(p = {}) {
   return { ...L.nouvellePersonne({ nom: 'Test Personne' }, ctx('2026-10-01T08:00:00Z')), id: p.id || 'p', creeLe: new Date('2026-10-01T08:00:00Z'), ...p };
@@ -145,9 +145,11 @@ describe('B3 Recherche intelligente', () => {
 });
 
 describe('B4 Statut dérivé de l’étape', () => {
-  test('B4 étapes 1 à 3 : ouverte ; 4 à 6 : gagnée', () => {
-    for (const e of ['premier_contact', 'rdv_fixe', 'proposition_envoyee']) assert.equal(L.statutPourEtape(e), 'ouverte');
-    for (const e of ['gagne', 'facture_envoyee', 'facture_payee']) assert.equal(L.statutPourEtape(e), 'gagnee');
+  test('B4 seule l’étape qui porte le rôle « vente gagnée » donne le statut gagnée', () => {
+    for (const e of ['premier_contact', 'rdv_fixe', 'proposition_envoyee']) assert.equal(L.statutPourEtape(e, L.CONFIG_JEROME), 'ouverte');
+    assert.equal(L.statutPourEtape('gagne', L.CONFIG_JEROME), 'gagnee');
+    assert.equal(L.statutPourEtape('etape_5', L.CONFIG_NEUTRE), 'gagnee', 'neutre : le rôle est porté par la 5e étape');
+    assert.equal(L.statutPourEtape('etape_4', L.CONFIG_NEUTRE), 'ouverte');
   });
   test('B4 nouvelle affaire : valeurs automatiques', () => {
     const a = L.nouvelleAffaire({ titre: ' Atelier ', montant: '1200' }, ctx());
@@ -156,7 +158,7 @@ describe('B4 Statut dérivé de l’étape', () => {
     assert.equal(a.priorite, 'tiede');
     assert.equal(a.montant, 1200);
     assert.equal(a.titre, 'Atelier');
-    assert.deepEqual(a.encaissements, []);
+    assert.equal('encaissements' in a, false, 'plus de champ encaissements sur une nouvelle affaire (restes de la 2.2 supprimés)');
     assert.equal(a.projetId, null);
     assert.ok(a.datesEtapes.premier_contact);
   });
@@ -233,8 +235,8 @@ describe('B5 Perdue, en pause, réouverture', () => {
 
 describe('B6 Étapes retirées en 2.2 et historique des encaissements', () => {
   test('B6 la vente s’arrête à Gagné : plus d’étape « Facture envoyée » ni « Facture payée » ; ces étapes sont refusées', () => {
-    assert.deepEqual(L.ETAPES.map((e) => e.id), ['premier_contact', 'rdv_fixe', 'proposition_envoyee', 'gagne']);
-    assert.deepEqual(L.ETAPES_GAGNEES, ['gagne']);
+    assert.deepEqual(L.etapesActives(L.CONFIG_JEROME).map((e) => e.id), ['premier_contact', 'rdv_fixe', 'proposition_envoyee', 'gagne']);
+    assert.equal(L.etapeGagnee(L.CONFIG_JEROME), 'gagne');
     const r = L.changementEtape(affaire({ etape: 'gagne', statut: 'gagnee' }), 'facture_payee', ctx());
     assert.ok(r.erreurs.etape);
     assert.deepEqual(r.patch, {});
@@ -246,10 +248,10 @@ describe('B6 Étapes retirées en 2.2 et historique des encaissements', () => {
     assert.equal(r.patch.statut, 'gagnee');
     assert.equal(r.evenements.some((e) => e.type === 'encaissement'), false);
   });
-  test('B6 une affaire encore dans une étape retirée (avant migration) reste lisible : statut gagnée, libellé de l’étape', () => {
-    assert.equal(L.statutPourEtape('facture_envoyee'), 'gagnee');
-    assert.equal(L.statutPourEtape('facture_payee'), 'gagnee');
-    assert.equal(L.libelleEtape('facture_payee'), 'Facture payée');
+  test('B6 les restes de la 2.2 sont supprimés : ni étapes retirées, ni migration', () => {
+    assert.equal(L.ETAPES_RETIREES, undefined);
+    assert.equal(L.ETAPES, undefined);
+    assert.equal(L.libelleEtape('facture_payee', L.CONFIG_JEROME), 'facture_payee', 'un identifiant inconnu s’affiche tel quel');
   });
   test('B6 l’ajout d’un encaissement sur l’affaire n’existe plus (la facturation se saisit sur les projets)', () => {
     assert.equal(L.ajouterEncaissement, undefined);
@@ -387,23 +389,32 @@ describe('B8 Boutons de date', () => {
   });
 });
 
-describe('B9 Suggestions douces', () => {
+describe('B9 Action suggérée par l’étape (aucune règle en dur)', () => {
   const auj = '2026-10-15';
-  test('B9 Proposition envoyée : Relancer la proposition à +3 jours', () => {
-    assert.deepEqual(L.suggestionPourEtape('proposition_envoyee', auj), { type: 'tache', titre: 'Relancer la proposition', date: '2026-10-18' });
+  const avecAction = (etapeId, action) => ({ ...L.CONFIG_JEROME, etapes: L.CONFIG_JEROME.etapes.map((e) => (e.id === etapeId ? { ...e, action } : e)) });
+  test('B9 aucune suggestion par défaut, chez Jérôme comme chez un client (les deux règles en dur ont disparu)', () => {
+    for (const e of L.CONFIG_JEROME.etapes) assert.equal(L.suggestionPourEtape(e.id, auj, L.CONFIG_JEROME), null);
+    for (const e of L.CONFIG_NEUTRE.etapes) assert.equal(L.suggestionPourEtape(e.id, auj, L.CONFIG_NEUTRE), null);
+    assert.equal(L.suggestionPourEtape('proposition_envoyee', auj, L.CONFIG_JEROME), null);
+    assert.equal(L.suggestionPourEtape('gagne', auj, L.CONFIG_JEROME), null);
   });
-  test("B9 Gagné : Envoyer la facture aujourd'hui", () => {
-    assert.deepEqual(L.suggestionPourEtape('gagne', auj), { type: 'tache', titre: 'Envoyer la facture', date: auj });
+  test('B9 une étape peut porter une action suggérée : type, titre, délai', () => {
+    const c = avecAction('rdv_fixe', { type: 'appel', titre: 'Confirmer le rendez-vous', delaiJours: 2 });
+    assert.deepEqual(L.suggestionPourEtape('rdv_fixe', auj, c), { type: 'appel', titre: 'Confirmer le rendez-vous', date: '2026-10-17' });
+    assert.equal(L.suggestionPourEtape('gagne', auj, c), null, 'les autres étapes n’en ont pas');
   });
-  test('B9 plus de suggestion « Vérifier le paiement » : la facturation se suit sur les projets (2.2)', () => {
-    assert.equal(L.suggestionPourEtape('facture_envoyee', auj), null);
+  test('B9 le changement d’étape fournit la suggestion de l’étape d’arrivée (jamais créée toute seule : aucune écriture d’activité)', () => {
+    const c = avecAction('gagne', { type: 'tache', titre: 'Planifier le démarrage', delaiJours: 0 });
+    const r = L.changementEtape(affaire({ etape: 'proposition_envoyee' }), 'gagne', ctx('2026-10-15T08:00:00Z', { config: c }));
+    assert.deepEqual(r.suggestion, { type: 'tache', titre: 'Planifier le démarrage', date: '2026-10-15' });
+    const plan = L.planChangerEtape(affaire({ etape: 'proposition_envoyee' }), 'gagne', ctx('2026-10-15T08:00:00Z', { nouvelId: (n) => `${n}_1`, config: c }));
+    assert.equal(plan.ecritures.some((e) => e.collection === 'crm_activites'), false);
+    assert.equal(L.changementEtape(affaire({ etape: 'proposition_envoyee' }), 'gagne', ctx()).suggestion, null);
   });
-  test('B9 aucune suggestion pour les autres étapes', () => {
-    for (const e of ['premier_contact', 'rdv_fixe', 'facture_payee']) assert.equal(L.suggestionPourEtape(e, auj), null);
-  });
-  test('B9 le changement d’étape fournit la suggestion de l’étape (Gagné : envoyer la facture)', () => {
-    const r = L.changementEtape(affaire({ etape: 'proposition_envoyee' }), 'gagne', ctx('2026-10-15T08:00:00Z'));
-    assert.deepEqual(r.suggestion, { type: 'tache', titre: 'Envoyer la facture', date: '2026-10-15' });
+  test('B9 la configuration normalise l’action suggérée (titre vide = aucune, délai borné)', () => {
+    const c = L.construireConfig({ etapes: { items: [{ action: { type: 'email', titre: '  ', delaiJours: 3 } }, { action: { type: 'inconnu', titre: 'Relance', delaiJours: -4 } }] } }, { racine: true });
+    assert.equal(c.etapes[0].action, null);
+    assert.deepEqual(c.etapes[1].action, { type: 'tache', titre: 'Relance', delaiJours: 0 });
   });
 });
 
@@ -518,11 +529,11 @@ describe('B11 Objectifs', () => {
     assert.equal(L.CALCULS.ca_encaisse.calculer({ affaires }, mois), 750.5);
     assert.equal(L.CALCULS.ca_encaisse.calculer({ affaires }, '2026-09'), 300);
   });
-  test('B11 les cinq objectifs de départ et leurs cibles', () => {
-    assert.deepEqual(L.OBJECTIFS_DEPART.map((o) => [o.id, o.cible]), [
+  test('B11 objectifs de Jérôme (sa base) : les cinq, dont Flyers qui reste chez lui seulement', () => {
+    assert.deepEqual(L.OBJECTIFS_JEROME.map((o) => [o.id, o.cible]), [
       ['nouveaux_contacts', 10], ['rdv_tenus', 4], ['propositions_envoyees', 3], ['ca_encaisse', 1000], ['flyers', 100],
     ]);
-    const flyers = L.OBJECTIFS_DEPART.find((o) => o.id === 'flyers');
+    const flyers = L.OBJECTIFS_JEROME.find((o) => o.id === 'flyers');
     assert.equal(L.valeurObjectif(flyers, { saisies: [{ objectifId: 'flyers', mois, valeur: 40 }], mois }), 40);
     assert.equal(L.valeurObjectif(flyers, { saisies: [], mois }), 0);
   });
@@ -572,8 +583,9 @@ describe('B12 Graphique du chiffre d’affaires depuis le début d’activité',
       affaire({ id: '3', etape: 'gagne', statut: 'gagnee', montant: 70 }),
     ];
     assert.deepEqual(L.totauxColonne(affaires), { nombre: 2, montant: 170 });
-    assert.equal(L.compterParEtape(affaires).find((e) => e.id === 'gagne').nombre, 2);
-    assert.equal(L.compterParEtape(affaires).some((e) => e.id === 'facture_payee'), false);
+    assert.equal(L.compterParEtape(affaires, L.CONFIG_JEROME).find((e) => e.id === 'gagne').nombre, 2);
+    assert.equal(L.compterParEtape(affaires, L.CONFIG_JEROME).length, 4, 'toutes les étapes actives, même vides');
+    assert.equal(L.compterParEtape(affaires, L.CONFIG_JEROME).find((e) => e.id === 'rdv_fixe').nombre, 0);
   });
 });
 
@@ -650,18 +662,19 @@ describe('B13 Filtres', () => {
   test('B13 affaires : filtres combinés', () => {
     assert.deepEqual(fa({ etapes: ['rdv_fixe', 'gagne'], enRetard: true }), ['a']);
   });
-  test('B13 filtres enregistrés de départ', () => {
-    assert.deepEqual(L.FILTRES_DEPART.map((f) => [f.id, f.liste]), [
+  test('B13 filtres enregistrés de départ (Jérôme : trois ; un nouvel espace : deux, sans filtre propre à Jérôme)', () => {
+    assert.deepEqual(L.FILTRES_JEROME.map((f) => [f.id, f.liste]), [
       ['relancer_semaine', 'affaires'], ['chaudes', 'affaires'], ['reseau_entrepreneuses', 'affaires'],
     ]);
-    const chaudes = L.FILTRES_DEPART.find((f) => f.id === 'chaudes').criteres;
+    assert.deepEqual(L.FILTRES_NEUTRES.map((f) => f.id), ['relancer_semaine', 'chaudes']);
+    const chaudes = L.FILTRES_JEROME.find((f) => f.id === 'chaudes').criteres;
     assert.deepEqual(fa(chaudes), ['a']);
-    const reseau = L.FILTRES_DEPART.find((f) => f.id === 'reseau_entrepreneuses').criteres;
+    const reseau = L.FILTRES_JEROME.find((f) => f.id === 'reseau_entrepreneuses').criteres;
     assert.deepEqual(fa(reseau), []);
   });
   test('B13 pastilles supprimables', () => {
     const c = { etapes: ['rdv_fixe'], enRetard: true };
-    const p = L.pastillesFiltres('affaires', c);
+    const p = L.pastillesFiltres('affaires', c, { config: L.CONFIG_JEROME });
     assert.deepEqual(p.map((x) => x.libelle), ['Étape : Rendez vous fixé', 'En retard']);
     const sans = L.retirerCritere('affaires', c, 'etapes', 'rdv_fixe');
     assert.deepEqual(sans.etapes, []);
@@ -751,23 +764,41 @@ describe('B16 Formats et réglages de départ', () => {
     assert.equal(L.libelleMois('2026-10'), 'octobre 2026');
     assert.equal(L.decalerMois('2026-12', 1), '2027-01');
   });
-  test('B16 réglages de départ : 30 jours, octobre 2026', () => {
-    assert.deepEqual(L.REGLAGES_DEPART, {
-      delaiPaiementJours: 30, debutActivite: '2026-10', dernierExport: null, dernierExportContacts: null,
+  test('B16 réglages de départ : Jérôme garde ses valeurs, un client part sur du neutre', () => {
+    assert.deepEqual(L.REGLAGES_JEROME, {
+      debutActivite: '2026-10', dernierExport: null, dernierExportContacts: null,
       proprietaireGithub: 'jeromechevalier-wq',
       cheminProjets: '~/Library/CloudStorage/GoogleDrive-jerome.chevalier@gmail.com/Mon Drive/Chevalier-AI/Projets',
+      suiviPaiements: true, clotureBloquee: true, extractionValeur: true, boutonsDepot: true, celebrations: true,
+      prenomCelebration: 'Jérôme', imageCelebration: 'assets/charles-portrait.png',
     });
+    assert.deepEqual(L.REGLAGES_NEUTRES, {
+      debutActivite: null, dernierExport: null, dernierExportContacts: null, proprietaireGithub: '', cheminProjets: '',
+      suiviPaiements: false, clotureBloquee: true, extractionValeur: false, boutonsDepot: false, celebrations: false,
+      prenomCelebration: '', imageCelebration: '',
+    });
+    assert.equal('delaiPaiementJours' in L.REGLAGES_JEROME, false, 'le réglage « Délai de paiement » (2.2) est supprimé');
   });
-  test('B16 étiquettes, offres, secteurs et sources de départ', () => {
-    assert.deepEqual(L.ETIQUETTES_DEPART.map((e) => e.nom), ['Prospect chaud', 'Réseau entrepreneuses', 'Commerçant local', 'Partenaire']);
-    assert.deepEqual(L.OFFRES_DEPART.map((o) => o.nom), ['Audit', 'Accompagnement']);
-    assert.equal(L.SECTEURS_DEPART.length, 7);
-    assert.equal(L.SOURCES_DEPART.length, 8);
+  test('B16 valeurs de départ : Jérôme (étiquettes, offres, secteurs, sources) et un nouvel espace neutre', () => {
+    assert.deepEqual(L.ETIQUETTES_JEROME.map((e) => e.nom), ['Prospect chaud', 'Réseau entrepreneuses', 'Commerçant local', 'Partenaire']);
+    assert.deepEqual(L.OFFRES_JEROME.map((o) => o.nom), ['Audit', 'Accompagnement']);
+    assert.equal(L.SECTEURS_JEROME.length, 7);
+    assert.equal(L.SOURCES_JEROME.length, 8);
+    const neutre = L.parametresDepart({ racine: false, moisCourant: '2027-02' });
+    assert.deepEqual(neutre.offres.items, []);
+    assert.ok(!JSON.stringify(neutre).match(/Audit|Accompagnement|Réseau entrepreneuses|Flyer|jeromechevalier|Charles|Prospect chaud|Commerçant local/), 'rien de Jérôme dans le jeu neutre');
+    assert.equal(neutre.reglages.debutActivite, '2027-02');
+    assert.equal(neutre.etapes.roleGagnee, 'etape_5');
+    assert.equal(neutre.phases.roleCloture, 'phase_4');
+    assert.deepEqual(neutre.modeles_affaire.items.map((m) => m.id), ['affaire-type']);
+    const jerome = L.parametresDepart({ racine: true });
+    assert.deepEqual(jerome.etapes.items.map((e) => e.id), ['premier_contact', 'rdv_fixe', 'proposition_envoyee', 'gagne', 'etape_5', 'etape_6']);
+    assert.deepEqual(jerome.modeles_affaire.items, []);
   });
-  test('B16 quatre étapes de vente, couleurs de la charte', () => {
-    assert.deepEqual(L.ETAPES.map((e) => e.id), ['premier_contact', 'rdv_fixe', 'proposition_envoyee', 'gagne']);
-    assert.equal(L.couleurEtape('gagne'), '#ecbc06');
-    assert.equal(L.libelleEtape('rdv_fixe'), 'Rendez vous fixé');
+  test('B16 quatre étapes de vente actives chez Jérôme, couleurs de la charte', () => {
+    assert.deepEqual(L.etapesActives(L.CONFIG_JEROME).map((e) => e.id), ['premier_contact', 'rdv_fixe', 'proposition_envoyee', 'gagne']);
+    assert.equal(L.couleurEtape('gagne', L.CONFIG_JEROME), '#ecbc06');
+    assert.equal(L.libelleEtape('rdv_fixe', L.CONFIG_JEROME), 'Rendez vous fixé');
   });
 });
 

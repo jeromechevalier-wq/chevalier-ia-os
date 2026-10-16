@@ -25,7 +25,7 @@ export const projet = (id) => etat.projets.find((p) => p.id === id) || null;
 export const modele = (id) => etat.modeles.find((m) => m.id === id) || null;
 export const tache = (id) => etat.taches.find((t) => t.id === id) || null;
 /** Les tâches d'un projet, par phase puis par ordre. */
-export const tachesDe = (projetId) => P.tachesDuProjet(etat.taches, projetId);
+export const tachesDe = (projetId) => P.tachesDuProjet(etat.taches, projetId, CRM.etat.config);
 
 export function surChangement(rappel) {
   abonnes.add(rappel);
@@ -89,7 +89,7 @@ async function initialiserModeles() {
     if ((await getDoc(doc(db, chemin('crm_parametres'), 'modeles_projet'))).exists()) return;
     const email = CRM.compteCourant()?.email || '';
     const lot = writeBatch(db);
-    for (const e of P.planInitialiserModeles().ecritures) {
+    for (const e of P.planInitialiserModeles({ racine: CRM.cheminDeBase() === '' }).ecritures) {
       lot.set(doc(db, chemin(e.collection), e.id), { ...e.donnees, creeLe: serverTimestamp(), modifieLe: serverTimestamp(), creePar: email, modifiePar: email });
     }
     lot.set(doc(db, chemin('crm_parametres'), 'modeles_projet'), { depart: true });
@@ -244,12 +244,12 @@ export async function creerTache(projetId, valeurs) {
 
 const tacheOuErreur = (id) => tache(id) ?? (() => { throw new Error('Tâche introuvable'); })();
 
-export const majTache = (id, patch) => appliquerTache(P.planMajTache({ tache: tacheOuErreur(id), patch, taches: etat.taches }), 'majTache');
+export const majTache = (id, patch) => appliquerTache(P.planMajTache({ tache: tacheOuErreur(id), patch, taches: etat.taches, config: CRM.etat.config }), 'majTache');
 export const faireTache = (id) => appliquerTache(P.planTacheFaite({ tache: tacheOuErreur(id), projet: projet(tacheOuErreur(id).projetId) }, ctx()), 'faireTache');
 export const defaireTache = (id) => appliquerTache(P.planTacheNonFaite({ tache: tacheOuErreur(id) }), 'defaireTache');
 export const supprimerTache = (id) => appliquer(P.planSupprimerTache(id), 'supprimerTache');
 /** `sens` : -1 pour monter, +1 pour descendre dans la phase. */
-export const deplacerTache = (id, sens) => appliquer(P.planDeplacerTache({ tache: tacheOuErreur(id), taches: etat.taches, sens }), 'deplacerTache');
+export const deplacerTache = (id, sens) => appliquer(P.planDeplacerTache({ tache: tacheOuErreur(id), taches: etat.taches, sens, config: CRM.etat.config }), 'deplacerTache');
 
 // ---------------------------------------------------------------- modèles
 
@@ -263,9 +263,9 @@ const modeleOuErreur = (id) => modele(id) ?? (() => { throw new Error('Modèle i
 export const majModele = (id, patch) => appliquerTache(P.planMajModele({ modele: modeleOuErreur(id), patch }), 'majModele');
 export const supprimerModele = (id) => appliquer(P.planSupprimerModele(id), 'supprimerModele');
 export const ajouterTacheModele = (id, valeurs) => appliquerTache(P.planAjouterTacheModele({ modele: modeleOuErreur(id), valeurs }, ctx()), 'ajouterTacheModele');
-export const majTacheModele = (id, tacheId, patch) => appliquerTache(P.planMajTacheModele({ modele: modeleOuErreur(id), tacheId, patch }), 'majTacheModele');
+export const majTacheModele = (id, tacheId, patch) => appliquerTache(P.planMajTacheModele({ modele: modeleOuErreur(id), tacheId, patch, config: CRM.etat.config }), 'majTacheModele');
 export const supprimerTacheModele = (id, tacheId) => appliquer(P.planSupprimerTacheModele({ modele: modeleOuErreur(id), tacheId }), 'supprimerTacheModele');
-export const deplacerTacheModele = (id, tacheId, sens) => appliquer(P.planDeplacerTacheModele({ modele: modeleOuErreur(id), tacheId, sens }), 'deplacerTacheModele');
+export const deplacerTacheModele = (id, tacheId, sens) => appliquer(P.planDeplacerTacheModele({ modele: modeleOuErreur(id), tacheId, sens, config: CRM.etat.config }), 'deplacerTacheModele');
 
 // ---------------------------------------------------------------- étape d'une affaire et perte : avec l'extraction de valeur qu'elles déclenchent
 // (les deux écritures de l'affaire passent ici, et non plus par crm/donnees.js, parce que l'extraction est un projet : même règle pour l'écran et le serveur MCP)
@@ -282,19 +282,4 @@ export async function marquerAffairePerdue(id, saisie) {
   const a = CRM.affaire(id);
   if (!a) throw new Error('Affaire introuvable');
   return appliquer(P.planMarquerPerdueAvecExtraction({ affaire: a, saisie, projets: etat.projets, modeles: etat.modeles }, ctx()), 'marquerAffairePerdue');
-}
-
-// ---------------------------------------------------------------- migration 2.2 (étapes « Facture envoyée / payée » retirées)
-
-/** Aperçu de la migration : { migrees, aTraiterAMain } sans rien écrire. */
-export function apercuMigrationEtapes() {
-  const plan = P.planMigrerEtapesRetirees({ affaires: CRM.etat.affaires, projets: etat.projets }, ctx());
-  return { migrees: plan.migrees, aTraiterAMain: plan.aTraiterAMain };
-}
-
-/** Exécute la migration (une seule opération d'audit, donc restaurable d'un coup) ; rend { migrees, aTraiterAMain }. */
-export async function migrerEtapesRetirees() {
-  const plan = P.planMigrerEtapesRetirees({ affaires: CRM.etat.affaires, projets: etat.projets }, ctx());
-  await appliquer(plan, 'migrerEtapesRetirees');
-  return { migrees: plan.migrees, aTraiterAMain: plan.aTraiterAMain };
 }

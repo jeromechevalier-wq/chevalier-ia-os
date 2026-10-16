@@ -90,6 +90,13 @@ const triee = (v) => (v && typeof v === 'object' && !Array.isArray(v) && typeof 
   ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, triee(v[k])])) : v);
 const memes = (a, b) => JSON.stringify(triee(a)) === JSON.stringify(triee(b));
 
+/**
+ * Liste des membres recopiée dans la fiche du client (`clients/<id>`, champ `equipe`) : les fiches d'appartenance ne se listent pas depuis un navigateur
+ * (règles Firestore), alors que l'écran a besoin des membres pour proposer « Confiée à » sur les tâches. La fiche du client est lisible par ses membres.
+ * Seulement l'adresse et le rôle, rien d'autre. L'outil est le seul à l'écrire, en même temps que les fiches d'appartenance.
+ */
+const equipeDe = (membres) => Object.entries(membres).map(([email, d]) => ({ email, role: d.role })).sort((a, b) => a.email.localeCompare(b.email));
+
 /** Ajoute un document au plan en comparant avec l'existant : CRÉER / MODIFIER / INCHANGÉ. */
 function opDoc(plan, chemin, avant, apres, fusion = true) {
   const action = avant == null ? 'CRÉER' : Object.keys(apres).every((k) => memes(avant[k], apres[k])) ? 'INCHANGÉ' : 'MODIFIER';
@@ -223,6 +230,7 @@ async function creer(id, options, ctx) {
     fiche.modules = objetModules([]);
     plan.avertissements.push('Aucun module demandé (--modules) : le client verra seulement l\'accueil provisoire. Ajoutez-en plus tard avec activer-module.');
   }
+  if (membres.length) fiche.equipe = equipeDe({ ...avant.membres, ...Object.fromEntries(membres.map((m) => [m.email, { role: m.role }])) });
   if (Object.keys(fiche).length) opDoc(plan, `clients/${id}`, avant.client, fiche);
 
   // Membres
@@ -271,8 +279,13 @@ async function ajouterMembre(id, texte, ctx, { changer }) {
   const actuel = e.membres[m.email];
   if (changer && !actuel) throw new ErreurOutil(`${m.email} n'est pas membre de « ${id} » : utilisez ajouter-membre.`);
   if (!changer && actuel && actuel.role !== m.role) throw new ErreurOutil(`${m.email} est déjà membre de « ${id} » avec le rôle « ${actuel.role} » : utilisez changer-role pour le modifier.`);
+  const autresEditeurs = Object.entries(e.membres).filter(([a, d]) => a !== m.email && d.role === 'editeur');
+  if (actuel?.role === 'editeur' && m.role !== 'editeur' && !autresEditeurs.length) {
+    throw new ErreurOutil(`${m.email} est le dernier éditeur de « ${id} » : on ne peut pas lui retirer ce rôle (personne ne pourrait plus écrire dans cet espace). Ajoutez d'abord un autre éditeur.`);
+  }
   const plan = nouveauPlan();
   opDoc(plan, `clients/${id}/membres/${m.email}`, actuel ?? null, { role: m.role });
+  opDoc(plan, `clients/${id}`, e.client, { equipe: equipeDe({ ...e.membres, [m.email]: { role: m.role } }) });
   return terminer(plan, ctx, `${changer ? 'CHANGEMENT DE RÔLE' : 'AJOUT D\'UN MEMBRE'} chez « ${id} »`);
 }
 
@@ -281,9 +294,15 @@ async function retirerMembre(id, texte, ctx) {
   const e = await exigerClient(ctx, id);
   if (!e.membres[email]) throw new ErreurOutil(`${email} n'est pas membre de « ${id} » : rien à retirer.`);
   const autresEditeurs = Object.entries(e.membres).filter(([a, d]) => a !== email && d.role === 'editeur');
+  // Règle : le dernier éditeur ne peut jamais être retiré (sinon plus personne ne pourrait écrire dans l'espace).
+  if (e.membres[email].role === 'editeur' && !autresEditeurs.length) {
+    throw new ErreurOutil(`${email} est le dernier éditeur de « ${id} » : on ne peut pas le retirer (personne ne pourrait plus écrire dans cet espace). Ajoutez d'abord un autre éditeur.`);
+  }
   const plan = nouveauPlan();
   plan.docs.push({ chemin: `clients/${id}/membres/${email}`, donnees: e.membres[email], fusion: false, action: 'SUPPRIMER' });
-  if (e.membres[email].role === 'editeur' && !autresEditeurs.length) plan.avertissements.push("C'est le dernier éditeur : après ça, personne ne pourra plus écrire dans cet espace.");
+  const restants = { ...e.membres };
+  delete restants[email];
+  opDoc(plan, `clients/${id}`, e.client, { equipe: equipeDe(restants) });
   plan.avertissements.push(`${email} perd l'accès tout de suite.`);
   return terminer(plan, ctx, `RETRAIT D'UN MEMBRE de « ${id} »`);
 }

@@ -16,13 +16,13 @@ import { h, icone, vider, remplir } from './ui.js';
  * Monte les modules actifs d'un client. Renvoie une fonction `fermer()` (déconnexion ou changement de compte).
  * `actifs` doit venir de modulesActifsDuClient() : au moins un module, dépendances respectées.
  */
-export async function ouvrirEspaceModules(racine, { client, marque, compte, actifs, surDeconnexion }) {
+export async function ouvrirEspaceModules(racine, { client, marque, compte, actifs, equipe = null, surDeconnexion }) {
   const modules = MODULES_CLIENT.filter((m) => actifs.includes(m.id)); // ordre de démarrage du registre (affaires avant projets)
   const apis = new Map();
   for (const m of modules) apis.set(m.id, await m.monter());
   const base = cheminBaseClient(client);
   definirPrefixe(`espace/${client}`);
-  for (const api of apis.values()) api.demarrer({ compte, cheminBase: base });
+  for (const api of apis.values()) api.demarrer({ compte, cheminBase: base, equipe }); // equipe : membres de l'espace (fiche du client), pour « Confiée à »
   document.body.classList.remove('page-espace');
   appliquerIdentite(marque, client); // titre, icône, appli installée et accent de l'interface = ceux du client
   definirChezClient(true); // masque ce qui est personnel à Jérôme (Charles, célébrations, sauvegarde, GitHub…)

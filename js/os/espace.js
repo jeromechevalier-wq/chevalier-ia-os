@@ -109,7 +109,7 @@ export async function demarrerEspace(racine) {
     const { actifs, erreurs } = modulesActifsDuClient(lu.fiche);
     for (const e of erreurs) console.warn('Modules du client :', e);
     if (!actifs.length) { pageAccueil(racine, marque, compte); return; }
-    const f = await ouvrirEspaceModules(racine, { client, marque, compte, actifs, surDeconnexion: () => deconnecter() });
+    const f = await ouvrirEspaceModules(racine, { client, marque, compte, actifs, equipe: lu.fiche?.equipe ?? null, surDeconnexion: () => deconnecter() });
     if (emailOuvert === compte.email) fermer = f; else f();
   };
   surveillerCompte((ev) => {

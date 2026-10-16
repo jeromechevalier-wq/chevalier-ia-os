@@ -1,7 +1,7 @@
 // Affaires : Kanban, liste, archives, fenêtre "Ajouter une affaire" et boîtes de dialogue des changements d'étape.
 import { h, icone, remplir, dialogue, toast, ouvrirMenu, lirePreference, ecrirePreference } from '../../os/ui.js';
 import { naviguer } from '../../os/router.js';
-import { celebrerGagne } from '../../os/celebrations.js';
+import { celebrerGagne, messageBravo } from '../../os/celebrations.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
 import {
@@ -72,8 +72,8 @@ export async function ouvrirPause(a) {
 
 /**
  * Changement d'étape avec ses boîtes et ses animations :
- *  - Gagné : feu d'artifice ;
- *  - suggestion douce : activité préremplie, à valider, modifier ou fermer.
+ *  - étape « vente gagnée » : feu d'artifice (si les célébrations sont allumées) ;
+ *  - action suggérée par l'étape (réglage, aucune par défaut) : fenêtre où l'on accepte ou refuse, jamais créée toute seule.
  */
 export async function changerEtapeAvecBoites(a, etape) {
   const rouvre = a.statut === 'perdue' || a.statut === 'en_pause';
@@ -81,15 +81,15 @@ export async function changerEtapeAvecBoites(a, etape) {
   const r = await PD.changerEtapeAffaire(a.id, etape);
   if (r.erreurs && Object.keys(r.erreurs).length) { toast('Changement impossible', { type: 'erreur' }); return; }
   annoncerExtraction(r);
-  if (etape === 'gagne' && a.etape !== 'gagne') celebrerGagne('Bravo Jérôme !', a.titre);
+  if (L.estEtapeGagnee(etape, D.etat.config) && a.etape !== etape) celebrerGagne(messageBravo(), a.titre);
   if (r.suggestion) {
-    await dialogueActivite({ liens: L.liensAffaire(a), titre: 'Une suggestion', valeurs: r.suggestion, libelleOk: 'Planifier', libelleFermer: 'Fermer' });
+    await dialogueActivite({ liens: L.liensAffaire(a), titre: 'Action suggérée', valeurs: r.suggestion, libelleOk: 'Accepter', libelleFermer: 'Refuser' });
   }
 }
 
 /** Entrées du menu "Déplacer vers…" d'une affaire. */
 export function entreesDeplacement(a) {
-  const entrees = L.ETAPES.map((e) => ({ libelle: `Déplacer vers : ${e.libelle}`, icone: 'arrow-right-left', desactive: a.etape === e.id && (a.statut === 'ouverte' || a.statut === 'gagnee'), action: () => changerEtapeAvecBoites(a, e.id) }));
+  const entrees = L.etapesActives(D.etat.config).map((e) => ({ libelle: `Déplacer vers : ${e.libelle}`, icone: 'arrow-right-left', desactive: a.etape === e.id && (a.statut === 'ouverte' || a.statut === 'gagnee'), action: () => changerEtapeAvecBoites(a, e.id) }));
   entrees.push({ libelle: 'Perdue…', icone: 'x', action: () => ouvrirPerdue(a) });
   entrees.push({ libelle: 'En pause…', icone: 'clock', action: () => ouvrirPause(a) });
   if (a.statut === 'perdue' || a.statut === 'en_pause') entrees.push({ libelle: 'Rouvrir', icone: 'rotate-ccw', action: () => D.rouvrir(a.id) });
@@ -132,6 +132,8 @@ export async function ouvrirCreationAffaire({ personneId = null, organisationId 
   const champTitre = h('input', { class: 'champ', type: 'text', id: 'creation-affaire-titre', autocomplete: 'off', 'aria-label': 'Titre', placeholder: 'Titre', autofocus: true,
     oninput: () => { titreModifie = true; } });
   const champMontant = h('input', { class: 'champ', type: 'number', min: '0', step: '0.01', inputmode: 'decimal', 'aria-label': 'Montant en euros', placeholder: 'Montant (€)' });
+  const modeles = L.modelesAffaireActifs(D.etat.modelesAffaire);
+  const champModele = h('select', { class: 'champ', 'aria-label': 'Modèle d’affaire' }, h('option', { value: '' }, 'Aucun modèle'), modeles.map((m) => h('option', { value: m.id }, m.nom)));
   const orga = selecteurOrganisation({ valeurId: orgInitiale, surChoix: majTitre });
   const pers = selecteurPersonne({
     valeurId: personneId,
@@ -153,6 +155,7 @@ export async function ouvrirCreationAffaire({ personneId = null, organisationId 
       h('div', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Personne'), pers.element),
       h('div', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Organisation'), orga.element),
       h('label', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Montant'), champMontant),
+      modeles.length ? h('label', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Modèle d’affaire'), champModele) : null,
       erreur),
     boutons: [{ libelle: 'Annuler', valeur: false }, {
       libelle: 'Enregistrer', valeur: true, style: 'principal',
@@ -167,7 +170,7 @@ export async function ouvrirCreationAffaire({ personneId = null, organisationId 
             const existante = L.trouverDoublonsPersonne(D.etat.personnes, { nom: pers.texte() })[0];
             idPersonne = existante ? existante.id : await D.creerPersonne({ nom: pers.texte(), organisationId: organisationIdChoisie });
           }
-          identifiant = await D.creerAffaire({ titre, personneId: idPersonne, organisationId: organisationIdChoisie, montant: champMontant.value });
+          identifiant = await D.creerAffaire({ titre, personneId: idPersonne, organisationId: organisationIdChoisie, montant: champMontant.value }, { modeleId: champModele.value || null });
           return true;
         } catch (e) {
           console.warn(e);
@@ -192,7 +195,7 @@ export async function ouvrirCreationAffaire({ personneId = null, organisationId 
 // ---------------------------------------------------------------- page Affaires
 
 function contexteFiltres() {
-  return { activites: D.etat.activites, personnes: D.etat.personnes, organisations: D.etat.organisations, aujourdhui: D.ctx().aujourdhui };
+  return { activites: D.etat.activites, personnes: D.etat.personnes, organisations: D.etat.organisations, aujourdhui: D.ctx().aujourdhui, config: D.etat.config };
 }
 
 function prochaine(a) {
@@ -262,7 +265,7 @@ export function rendreAffaires(conteneur) {
     liste: 'affaires', placeholder: 'Rechercher une affaire',
     lireCriteres: () => criteres,
     ecrireCriteres: (c) => { criteres = L.criteresComplets('affaires', c); rendre(); filtres.rafraichir(); },
-    contexte: () => ({ offres: D.etat.offres, personnes: D.etat.personnes, organisations: D.etat.organisations }),
+    contexte: () => ({ offres: D.etat.offres, personnes: D.etat.personnes, organisations: D.etat.organisations, config: D.etat.config }),
   });
 
   function bascule() {
@@ -293,7 +296,8 @@ export function rendreAffaires(conteneur) {
       remplir(zone, etatVide('Ajoute ta première affaire depuis la fiche d’une personne, ou avec le bouton ci-dessous.', { action: h('button', { type: 'button', class: 'bouton bouton-principal', onclick: () => ouvrirCreationAffaire() }, icone('plus', { taille: 16 }), 'Affaire') }));
       return;
     }
-    const colonnes = L.ETAPES.map((e) => {
+    // Toutes les étapes actives, même vides (on peut glisser une carte dans chacune).
+    const colonnes = L.etapesActives(D.etat.config).map((e) => {
       const liste = vivantes.filter((a) => a.etape === e.id);
       return colonne({ id: e.id, titre: e.libelle, couleur: e.couleur, affaires: liste, onDrop: (a) => changerEtapeAvecBoites(a, e.id) });
     });
@@ -308,7 +312,7 @@ export function rendreAffaires(conteneur) {
     { id: 'titre', libelle: 'Titre', tri: (a) => L.normaliser(a.titre) },
     { id: 'personne', libelle: 'Personne', tri: (a) => L.normaliser(D.personne(a.personneId)?.nom) },
     { id: 'organisation', libelle: 'Organisation', tri: (a) => L.normaliser(D.organisation(a.organisationId)?.nom) },
-    { id: 'etape', libelle: 'Étape', tri: (a) => L.ETAPES.findIndex((e) => e.id === a.etape) },
+    { id: 'etape', libelle: 'Étape', tri: (a) => D.etat.config.etapes.findIndex((e) => e.id === a.etape) },
     { id: 'montant', libelle: 'Montant', tri: (a) => (a.montant === null || a.montant === undefined ? null : Number(a.montant)) },
     { id: 'priorite', libelle: 'Priorité', tri: (a) => L.PRIORITES.findIndex((p) => p.id === a.priorite) },
     { id: 'activite', libelle: 'Prochaine activité', tri: (a) => { const p = prochaine(a); return p ? `${p.date}T${p.heure || '00:00'}` : null; } },
