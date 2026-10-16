@@ -5,7 +5,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import * as L from '../functions/partage/logique.js';
-import { creerAccesMemoire } from '../functions/src/coeur/donnees.js';
+import { creerAccesMemoire, avecBase } from '../functions/src/coeur/donnees.js';
 import * as lecture from '../functions/src/coeur/lecture.js';
 import { serialiser } from '../functions/src/coeur/serialisation.js';
 import { OUTILS } from '../functions/src/mcp/outils/index.js';
@@ -159,6 +159,8 @@ describe('Réglages et audit', () => {
     assert.deepEqual(r.offres, []);
     assert.deepEqual(r.reglages, JSON.parse(JSON.stringify(L.REGLAGES_JEROME)));
     const client = await lecture.lireReglages(creerAccesMemoire({}), { racine: false });
+    const parBase = await lecture.lireReglages(avecBase(creerAccesMemoire({}), 'clients/acme'));
+    assert.deepEqual(parBase.configuration, client.configuration, 'le serveur des clients (accès avecBase) lit une configuration neutre sans rien préciser');
     assert.deepEqual(client.reglages, JSON.parse(JSON.stringify(L.REGLAGES_NEUTRES)));
     assert.equal(client.configuration.options.suiviPaiements, false);
     assert.deepEqual(client.referentiels.etapes.map((e) => e.id), ['etape_1', 'etape_2', 'etape_3', 'etape_4', 'etape_5']);

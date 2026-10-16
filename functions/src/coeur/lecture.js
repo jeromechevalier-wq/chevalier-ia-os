@@ -220,7 +220,7 @@ export async function lireReglages(donnees, espace = {}) {
     secteurs: docs.listes?.secteurs || [],
     sources: docs.listes?.sources || [],
     etiquettes: tri(docs.etiquettes?.items),
-    reglages: L.reglagesEffectifs(docs.reglages, { racine: espace.racine !== false }),
+    reglages: L.reglagesEffectifs(docs.reglages, { racine: espace.racine ?? !donnees.base }),
     // Configuration de l'espace : étapes de vente et phases de projet (six emplacements, actifs ou non), rôles, options (interrupteurs).
     configuration: {
       etapes: config.etapes.map(({ id, libelle, description, actif, action }) => ({ id, libelle, description, actif, action, roleGagnee: id === config.roleGagnee })),

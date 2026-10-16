@@ -20,8 +20,8 @@ export class ErreurMetier extends Error {
 }
 const refuser = (code, message, details) => { throw new ErreurMetier(code, message, details); };
 
-/** Configuration de l'espace pour cet appel (voir config.js) : `c.racine !== false` = CRM de Jérôme, `c.membres` = membres assignables d'un espace client. */
-const lireConfig = (c) => lireConfigEspace(c.donnees, { racine: c.racine !== false, membres: c.membres ?? null });
+/** Configuration de l'espace pour cet appel (voir config.js) : `c.racine` (par défaut : pas de base = CRM de Jérôme), `c.membres` = membres assignables d'un espace client. */
+const lireConfig = (c) => lireConfigEspace(c.donnees, { racine: c.racine, membres: c.membres ?? null });
 
 async function contexte(c, proprietaire) {
   return {

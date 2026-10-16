@@ -46,4 +46,4 @@ Chantier 1 des décisions du 16/10/2026 (fiche « Décisions de cadrage du CRM c
 
 ## Pour la session « multi-clients MCP »
 
-`functions/src/coeur/config.js` : `lireConfig(donnees, { racine, membres })`. Le serveur ne sert que la racine (`racine: true`, valeurs de Jérôme à défaut de documents). Pour un espace client : passer `racine: false` et la liste `membres` (voir `equipe` de la fiche client), via `c.racine` / `c.membres` du contexte d'écriture et `lireReglages(donnees, espace)`.
+`functions/src/coeur/config.js` : `lireConfig(donnees, { racine, membres })` : par défaut `racine` = « pas de base » (serveur de Jérôme) ; le serveur des clients (`avecBase`) est donc traité en espace client (valeurs neutres). Il ne lit pas la fiche `clients/<client>` : liste de membres vide, donc pas de choix « Confiée à » côté MCP client (à brancher plus tard avec le champ `equipe`).
