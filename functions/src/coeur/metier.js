@@ -4,6 +4,7 @@
 import * as L from '../../partage/logique.js';
 import * as PL from '../../partage/projets.js';
 import { COLLECTIONS as C } from './donnees.js';
+import { lireConfig as lireConfigEspace } from './config.js';
 
 /** Propriétaire des fiches créées par un agent, sauf si l'appel en donne un autre (plan-mcp.md, écart 11). */
 export const PROPRIETAIRE_PAR_DEFAUT = 'jerome.chevalier@gmail.com';
@@ -19,14 +20,16 @@ export class ErreurMetier extends Error {
 }
 const refuser = (code, message, details) => { throw new ErreurMetier(code, message, details); };
 
+/** Configuration de l'espace pour cet appel (voir config.js) : `c.racine` (par défaut : pas de base = CRM de Jérôme), `c.membres` = membres assignables d'un espace client. */
+const lireConfig = (c) => lireConfigEspace(c.donnees, { racine: c.racine, membres: c.membres ?? null });
+
 async function contexte(c, proprietaire) {
-  const reglages = await c.donnees.document(C.parametres, 'reglages');
   return {
     maintenant: c.maintenant,
     auteur: c.acteur,
     proprietaire: proprietaire || PROPRIETAIRE_PAR_DEFAUT,
     aujourdhui: L.aujourdhuiParis(c.maintenant),
-    delaiPaiementJours: reglages?.delaiPaiementJours ?? L.REGLAGES_DEPART.delaiPaiementJours,
+    config: await lireConfig(c),
     nouvelId: (nom) => c.donnees.nouvelId(nom),
   };
 }
@@ -142,19 +145,20 @@ export async function modifierOrganisation(c, args) {
 
 // ---------------------------------------------------------------- affaires
 
-const verifierEtape = (etape) => { if (!L.ETAPES.some((e) => e.id === etape)) refuser('saisie_invalide', `Étape inconnue : ${etape} (valeurs : ${L.ETAPES.map((e) => e.id).join(', ')}).`); };
+const verifierEtape = (config, etape) => { if (!L.etapeActive(etape, config)) refuser('saisie_invalide', `Étape inconnue ou désactivée : ${etape} (valeurs : ${L.etapesActives(config).map((e) => e.id).join(', ')}).`); };
 const verifierPriorite = (p) => { if (!L.PRIORITES.some((x) => x.id === p)) refuser('saisie_invalide', `Priorité inconnue : ${p} (valeurs : ${L.PRIORITES.map((x) => x.id).join(', ')}).`); };
 
 export async function creerAffaire(c, args) {
   const { proprietaire, ...valeurs } = args;
-  if (valeurs.etape !== undefined) verifierEtape(valeurs.etape);
+  const ctx = await contexte(c, proprietaire);
+  if (valeurs.etape !== undefined) verifierEtape(ctx.config, valeurs.etape);
   if (valeurs.priorite !== undefined) verifierPriorite(valeurs.priorite);
   verifierMessages(L.validerUrlGithub(valeurs.urlGithub));
   verifierMessages(L.validerUrlDossier(valeurs.urlDossier));
   await verifierOffre(c, valeurs.offreId);
   const personne = await lireSiDonne(c, C.personnes, valeurs.personneId, 'Personne');
   const organisation = await lireSiDonne(c, C.organisations, valeurs.organisationId || personne?.organisationId, 'Organisation');
-  const plan = L.planCreerAffaire(valeurs, { personnes: personne ? [personne] : [], organisations: organisation ? [organisation] : [] }, await contexte(c, proprietaire));
+  const plan = L.planCreerAffaire(valeurs, { personnes: personne ? [personne] : [], organisations: organisation ? [organisation] : [] }, ctx);
   verifierMessages(L.validerAffaire({ titre: plan.titre }));
   return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: plan.id, titre: plan.titre });
 }
@@ -209,7 +213,8 @@ export async function mettreEnPause(c, args) {
 }
 export async function rouvrirAffaire(c, args) {
   const a = await lire(c, C.affaires, args.id, 'Affaire');
-  return appliquerRegle(c, L.planRouvrirAffaire(a, await contexte(c)), args, () => ({ id: a.id, statut: L.statutPourEtape(a.etape) }));
+  const ctx = await contexte(c);
+  return appliquerRegle(c, L.planRouvrirAffaire(a, ctx), args, () => ({ id: a.id, statut: L.statutPourEtape(a.etape, ctx.config) }));
 }
 /** Cible d'une pièce jointe : une affaire ou un projet (exactement l'un des deux), mêmes règles pour les deux. */
 async function cibleDocuments(c, { affaireId, projetId }) {
@@ -224,7 +229,7 @@ async function cibleDocuments(c, { affaireId, projetId }) {
 
 export async function joindreLien(c, args) {
   const cible = await cibleDocuments(c, args);
-  const r = L.ajouterDocument(cible.entite, args.libelle, args.url, args.favori === true);
+  const r = L.ajouterDocument(cible.entite, args.libelle, args.url, args.favori === true, args.note);
   verifierMessages(r.erreurs);
   return sortie(await c.ecrire({ operations: cible.plan(r.patch).ecritures, parametres: args }), { ...cible.cle, documents: r.patch.documents.length });
 }
@@ -242,7 +247,7 @@ export async function retirerDocument(c, args) {
 // ---------------------------------------------------------------- projets (2.1) et factures (2.2)
 // Mêmes plans que l'écran (partage/projets.js) : phases, statut, Clôture bloquée par les factures à payer, extraction de valeur créée avec la fin du projet.
 
-const verifierPhase = (phase) => { if (!PL.PHASES.some((p) => p.id === phase)) refuser('saisie_invalide', `Phase inconnue : ${phase} (valeurs : ${PL.PHASES.map((p) => p.id).join(', ')}).`); };
+const verifierPhase = (config, phase) => { if (!PL.phaseActive(phase, config)) refuser('saisie_invalide', `Phase inconnue ou désactivée : ${phase} (valeurs : ${PL.phasesActives(config).map((p) => p.id).join(', ')}).`); };
 
 /** Projet et, quand une règle en a besoin, tous les projets et modèles (extraction, une seule par projet). */
 async function lireProjet(c, id) { return lire(c, C.projets, id, 'Projet'); }
@@ -258,14 +263,15 @@ async function modeleDemande(c, modeleId) {
 
 export async function creerProjet(c, args) {
   const { modeleId, proprietaire, ...valeurs } = args;
-  verifierMessages(PL.validerProjet(valeurs));
+  const ctx = await contexte(c, proprietaire);
+  verifierMessages(PL.validerProjet(valeurs, ctx.config));
   if (valeurs.urlGithub !== undefined) verifierMessages(L.validerUrlGithub(valeurs.urlGithub));
   if (valeurs.urlDossier !== undefined) verifierMessages(L.validerUrlDossier(valeurs.urlDossier));
   await verifierOffre(c, valeurs.offreId);
   const personne = await lireSiDonne(c, C.personnes, valeurs.personneId, 'Personne');
   await lireSiDonne(c, C.organisations, valeurs.organisationId || personne?.organisationId, 'Organisation');
   const modele = await modeleDemande(c, modeleId);
-  const plan = PL.planCreerProjet({ ...valeurs, organisationId: valeurs.organisationId || personne?.organisationId || null }, await contexte(c, proprietaire), { modele });
+  const plan = PL.planCreerProjet({ ...valeurs, organisationId: valeurs.organisationId || personne?.organisationId || null }, ctx, { modele });
   return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: plan.id, titre: plan.titre, modeleId: modele?.id ?? null });
 }
 
@@ -273,7 +279,7 @@ export async function creerProjet(c, args) {
 export async function creerProjetDepuisAffaire(c, args) {
   const { affaireId, modeleId, ...valeurs } = args;
   const a = await lire(c, C.affaires, affaireId, 'Affaire');
-  verifierMessages(PL.validerProjet({ titre: valeurs.titre || a.titre, dateDebut: valeurs.dateDebut, dateFin: valeurs.dateFin }));
+  verifierMessages(PL.validerProjet({ titre: valeurs.titre || a.titre, dateDebut: valeurs.dateDebut, dateFin: valeurs.dateFin }, (await contexte(c)).config));
   const [projets, taches, modele] = await Promise.all([c.donnees.liste(C.projets), c.donnees.liste(C.projetsTaches), modeleDemande(c, modeleId)]);
   const plan = PL.planCreerProjetDepuisAffaire({ affaire: a, projets, taches, valeurs, modele }, await contexte(c));
   verifierMessages(plan.erreurs);
@@ -304,7 +310,7 @@ export async function modifierProjet(c, args) {
 }
 
 export async function changerPhaseProjet(c, args) {
-  verifierPhase(args.phase);
+  verifierPhase((await contexte(c)).config, args.phase);
   const p = await lireProjet(c, args.id);
   const plan = PL.planChangerPhase(p, args.phase, await contexte(c));
   refusFactures(plan);
@@ -346,10 +352,11 @@ export async function extraireProjet(c, args) {
 
 export async function ajouterTacheProjet(c, args) {
   const { projetId, ...valeurs } = args;
-  if (valeurs.phase !== undefined) verifierPhase(valeurs.phase);
+  const ctx = await contexte(c);
+  if (valeurs.phase !== undefined) verifierPhase(ctx.config, valeurs.phase);
   const projet = await lireProjet(c, projetId);
   const taches = await c.donnees.liste(C.projetsTaches, { champ: 'projetId', valeur: projetId });
-  const plan = PL.planCreerTache({ projet: { ...projet, id: projetId }, taches, valeurs }, await contexte(c));
+  const plan = PL.planCreerTache({ projet: { ...projet, id: projetId }, taches, valeurs }, ctx);
   verifierMessages(plan.erreurs);
   return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: plan.id, projetId });
 }

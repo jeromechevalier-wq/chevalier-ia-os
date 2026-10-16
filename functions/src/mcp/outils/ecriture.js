@@ -13,8 +13,8 @@ const etiquettes = z.array(z.string().max(80)).max(30).describe('Identifiants d�
 const proprietaire = z.string().max(120).optional().describe(`Propriétaire de la fiche créée (défaut : ${metier.PROPRIETAIRE_PAR_DEFAUT}).`);
 const forcer = z.boolean().optional().describe('true : créer malgré un doublon possible (nom ou e-mail déjà connu), après avoir vérifié que c’est une autre fiche.');
 const texteCourt = z.string().max(300);
-const urlGithub = z.string().max(500).optional().describe('Adresse du dépôt GitHub de l’affaire (https://github.com/compte/nom) ; chaîne vide pour l’effacer.');
-const urlDossier = z.string().max(500).optional().describe('Adresse du dossier Google Drive de travail (https://drive.google.com/drive/folders/…) ; chaîne vide pour l’effacer.');
+const urlGithub = z.string().max(500).optional().describe('Ancien champ « dépôt de code » (https://github.com/compte/nom), facultatif ; chaîne vide pour l’effacer. Pour un nouveau lien, préférer joindre_lien (liste « Liens et documents »).');
+const urlDossier = z.string().max(500).optional().describe('Lien du dossier de travail : n’importe quel lien complet (Google Drive, serveur ou NAS en smb://, site…) ; chaîne vide pour l’effacer.');
 
 const outil = (nom, description, schema, action, profils = PROFILS) => ({
   nom, profils, description, schema, executer: ({ args, ...c }) => action(c, args),
@@ -41,7 +41,7 @@ export const OUTILS_ECRITURE = [
     taille: z.string().max(20).optional(), etiquettes: etiquettes.optional(), archive: z.boolean().optional(), forcer,
   }, metier.modifierOrganisation),
 
-  outil('creer_affaire', `Crée une affaire avec son événement. Le titre par défaut est le nom de l'organisation, sinon de la personne ; l'organisation de la personne est reprise si aucune n'est donnée. Étape (défaut premier_contact) parmi : ${L.ETAPES.map((e) => e.id).join(', ')}. Priorité : ${L.PRIORITES.map((p) => p.id).join(', ')}.`, {
+  outil('creer_affaire', `Crée une affaire avec son événement. Le titre par défaut est le nom de l'organisation, sinon de la personne ; l'organisation de la personne est reprise si aucune n'est donnée. Étape (défaut : la première étape active) parmi celles de lire_reglages (configuration.etapes, referentiels.etapes). Priorité : ${L.PRIORITES.map((p) => p.id).join(', ')}.`, {
     titre: z.string().max(300).optional(), personneId: id.optional(), organisationId: id.optional(), etape: z.string().max(60).optional(), priorite: z.string().max(40).optional(),
     montant: z.number().min(0).max(1e9).nullable().optional().describe('Montant en euros.'), offreId: id.optional(), dureeJours: z.number().int().min(0).max(36500).nullable().optional(),
     source: texteCourt.optional(), besoin: z.string().max(5000).optional(), urlGithub, urlDossier, proprietaire,
@@ -53,7 +53,7 @@ export const OUTILS_ECRITURE = [
     besoin: z.string().max(5000).optional(), urlGithub, urlDossier, archive: z.boolean().optional(),
   }, metier.modifierAffaire),
 
-  outil('changer_etape', "Change l'étape d'une affaire comme l'écran (une affaire qui devient gagnée sans avoir de projet reçoit son projet d'extraction de valeur : identifiant dans « extraction ») : statut, dates d'étapes, événements du fil ; la vente s'arrête à « gagne » : la facturation se suit sur les factures des projets (« facture_envoyee » et « facture_payee » n'existent plus). Renvoie la suggestion d'activité de suivi (non créée : à créer avec creer_activite si pertinent).", {
+  outil('changer_etape', "Change l'étape d'une affaire comme l'écran (une affaire qui devient gagnée sans avoir de projet reçoit son projet d'extraction de valeur : identifiant dans « extraction ») : statut, dates d'étapes, événements du fil ; l'étape « vente gagnée » est celle que la configuration désigne (lire_reglages). Renvoie l'action suggérée par l'étape, s'il y en a une (non créée : à créer avec creer_activite si pertinent).", {
     id, etape: z.string().min(1).max(60),
   }, metier.changerEtape),
 
@@ -76,7 +76,7 @@ export const OUTILS_ECRITURE = [
     dateDebut: jour.nullable().optional(), dateFin: jour.nullable().optional(), urlGithub, urlDossier,
   }, metier.modifierProjet),
 
-  outil('changer_phase_projet', `Change la phase d'un projet, dans tous les sens (on peut revenir en arrière). Phases : ${PL.PHASES.map((p) => p.id).join(', ')}. Vers « cloture », refusé tant qu'une facture est à payer (voir terminer_projet pour la sortie « impayé »). Changer la phase d'un projet terminé le rouvre.`, {
+  outil('changer_phase_projet', `Change la phase d'un projet, dans tous les sens (on peut revenir en arrière). Phases : celles de lire_reglages (configuration.phases). Vers la phase de clôture, refusé tant qu'une facture est à payer si le suivi des paiements et la règle de clôture bloquée sont allumés (voir terminer_projet pour la sortie « impayé »). Changer la phase d'un projet terminé le rouvre.`, {
     id, phase: z.string().min(1).max(40),
   }, metier.changerPhaseProjet),
 
@@ -93,7 +93,7 @@ export const OUTILS_ECRITURE = [
 
   outil('extraire_valeur_projet', "Déclenche à la main l'extraction de valeur d'un projet, sans attendre sa fin (utile quand le paiement tarde) : crée son projet d'extraction (modèle « Extraction », quatre tâches). Une seule extraction par projet : si elle existe déjà, rien n'est créé et son identifiant est rendu. Un projet d'extraction ne s'extrait pas.", { id }, metier.extraireProjet),
 
-  outil('ajouter_tache_projet', "Ajoute une tâche à un projet (phase du projet par défaut ; date AAAA-MM-JJ et heure HH:MM facultatives ; assigneA : jerome ou charles).", {
+  outil('ajouter_tache_projet', "Ajoute une tâche à un projet (phase du projet par défaut ; date AAAA-MM-JJ et heure HH:MM facultatives ; assigneA : un membre de l'espace, voir lire_reglages, referentiels.projets.assignes).", {
     projetId: id, titre: z.string().min(1).max(300), phase: z.string().max(40).optional(), date: jour.optional(),
     heure: z.string().regex(/^\d{2}:\d{2}$/, 'Attendu HH:MM').optional(), assigneA: z.string().max(40).optional(),
   }, metier.ajouterTacheProjet),
@@ -125,8 +125,8 @@ export const OUTILS_ECRITURE = [
   }, metier.creerActivite),
   outil('terminer_activite', "Marque une activité comme faite (et ajoute l'événement au fil).", { id }, metier.terminerActivite),
 
-  outil('joindre_lien', "Joint un document à une affaire (affaireId) ou à un projet (projetId), un seul des deux, par son adresse (http ou https obligatoire), un libellé facultatif ; favori: true le met en favori (étoile, visible sur l'accueil de l'OS).", {
-    affaireId: id.optional(), projetId: id.optional(), url: z.string().min(1).max(2000), libelle: texteCourt.optional(), favori: z.boolean().optional(),
+  outil('joindre_lien', "Ajoute un lien ou un document à la liste « Liens et documents » d'une affaire (affaireId) ou d'un projet (projetId), un seul des deux, par son adresse (http ou https obligatoire : Drive, serveur, site, dépôt GitHub…), un libellé facultatif ; favori: true le met en favori (étoile, visible sur l'accueil de l'OS) ; note facultative.", {
+    affaireId: id.optional(), projetId: id.optional(), url: z.string().min(1).max(2000), libelle: texteCourt.optional(), note: z.string().max(300).optional().describe('Note facultative affichée sous le nom (300 caractères au plus), ex. « envoyé au client ».'), favori: z.boolean().optional(),
   }, metier.joindreLien),
   outil('retirer_document', "Retire un document d'une affaire (affaireId) ou d'un projet (projetId) (jamais le fichier lui-même) : par index (voir lister_documents) ou par url ; si les deux sont donnés, ils doivent correspondre.", {
     affaireId: id.optional(), projetId: id.optional(), index: z.number().int().min(0).optional(), url: z.string().max(2000).optional(),

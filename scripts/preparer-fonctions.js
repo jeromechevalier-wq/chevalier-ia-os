@@ -2,7 +2,7 @@
 // dans functions/partage/ pour que le serveur MCP applique EXACTEMENT les mêmes règles que l'écran. Le déploiement n'envoie que le dossier functions/ : cette copie est faite avant chaque
 // déploiement (« predeploy » de firebase.json) et avant chaque test, jamais commitée (functions/partage/ est ignoré par git).
 // Aucune dépendance. Usage : node scripts/preparer-fonctions.js
-import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -31,3 +31,21 @@ console.log(`functions/partage/porte/ mis à jour (${FICHIERS_PORTE.length} fich
 // Le lien YouTube collé à la main (reconnaissance d'un épisode ou d'une chaîne, lecture du flux) : écrit une seule fois pour l'écran et pour le serveur.
 copyFileSync(join(racine, 'js', 'modules', 'veille', 'lien.js'), join(destination, 'veille-lien.js'));
 console.log('functions/partage/veille-lien.js mis à jour (copie exacte de js/modules/veille/lien.js)');
+// Le MCP des clients (functions/src/clients/) lit le registre des modules (modules actifs d'un client, outils de chaque module), les règles de la fiche de marque
+// (couleurs de l'écran d'autorisation) et les rôles des membres : mêmes fichiers que l'appli, copiés à plat dans functions/partage/ (aucun n'importe autre chose que ses voisins).
+for (const f of ['registre.js', 'marque.js', 'chemins.js', 'membres.js']) copyFileSync(join(racine, 'js', 'os', f), join(destination, f));
+console.log('functions/partage/ : registre.js, marque.js, chemins.js, membres.js copiés de js/os/');
+
+// Le même serveur tourne aussi sur la plateforme clients (projet chevalier-ia-app, codebase « plateforme ») : on y copie le code du serveur tel quel, à côté de ses fonctions.
+// Le déploiement n'envoie que le dossier functions-plateforme/ ; les imports relatifs (../../partage/…) restent valables dans la copie. Dossier ignoré par git.
+const destinationServeur = join(racine, 'functions-plateforme', 'serveur');
+rmSync(destinationServeur, { recursive: true, force: true });
+for (const dossier of ['coeur', 'mcp', 'oauth', 'securite', 'clients']) cpSync(join(racine, 'functions', 'src', dossier), join(destinationServeur, 'src', dossier), { recursive: true });
+mkdirSync(join(destinationServeur, 'src'), { recursive: true });
+copyFileSync(join(racine, 'functions', 'src', 'version.js'), join(destinationServeur, 'src', 'version.js'));
+copyFileSync(join(racine, 'functions', 'package.json'), join(destinationServeur, 'package.json')); // version.js lit la version du serveur ici
+for (const f of ['logique.js', 'projets.js', 'registre.js', 'marque.js', 'chemins.js', 'membres.js']) {
+  mkdirSync(join(destinationServeur, 'partage'), { recursive: true });
+  copyFileSync(join(destination, f), join(destinationServeur, 'partage', f));
+}
+console.log('functions-plateforme/serveur/ mis à jour (copie du serveur MCP pour la plateforme clients)');

@@ -1,4 +1,6 @@
-# MCP pour les clients (chantiers 9, 10 et 11) : étude gardée en réserve
+# MCP pour les clients (chantiers 9, 10 et 11) : étude d'origine
+
+> **Sorti de la réserve le 16/10/2026** : le MCP client est construit, voir `mcp-clients.md` (ce qui est fait, déploiement, ce qui n'est pas vérifié). Ce document garde l'étude d'origine et le plan de tests M1 à M15 (écrits dans `tests/mcp-clients.test.js`).
 
 **Décision de Jérôme (11/10/2026)** : aucun client ne demande le MCP. On ne le développe **pas** maintenant. Cette page garde l'étude et le plan de tests pour le jour où un client le demande. Rien n'est à faire tant qu'il n'y a pas de demande.
 

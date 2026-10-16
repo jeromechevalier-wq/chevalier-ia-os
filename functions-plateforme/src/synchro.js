@@ -1,4 +1,4 @@
-// Copie du journal n8n vers Firestore, pour UN client à la fois (chantier 14).
+// Copie de l'historique n8n vers Firestore, pour UN client à la fois (chantier 14).
 // Tout est écrit sous clients/<client>/… : workflows/<id>, executions/<numéro>, sync/state. Le client est TOUJOURS passé par le code
 // appelant (déduit de l'identité de l'utilisateur ou de la liste des clients), jamais lu dans une donnée venant de n8n.
 //

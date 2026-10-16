@@ -7,22 +7,15 @@ import {
   COLLECTIONS_PLAN, MARQUES_CREATION, MARQUES_MODIFICATION,
   ecritureCreer, ecritureModifier, ecritureSupprimer, evenements, modifierSiPatch, evenementCreation,
   nettoyerEspaces, aujourdhuiParis, validerUrlGithub, validerUrlDossier, urlOuVide, normaliser, ajouterJours,
-  planChangerEtape, planMarquerPerdue, formatEuros, ETAPES_RETIREES, versDate, libelleEtape,
+  planChangerEtape, planMarquerPerdue, formatEuros, configDe, TYPES_ACTIVITE,
 } from '../crm/logique.js';
 
 const C = COLLECTIONS_PLAN;
 
 // ---------------------------------------------------------------- référentiels
-// Les phases se stockent par identifiant stable, jamais par libellé : le jour où elles deviendront configurables
-// (crm_parametres/phases_projet), aucune donnée n'aura à migrer. Libellés et couleurs vivent dans cette seule liste.
-
-export const PHASES = [
-  { id: 'lancement', libelle: 'Lancement', couleur: '#b9adc9' },
-  { id: 'decouverte', libelle: 'Découverte', couleur: '#b98ee0' },
-  { id: 'livraison', libelle: 'Livraison', couleur: '#ecbc06' },
-  { id: 'cloture', libelle: 'Clôture', couleur: '#3fbf7f' },
-];
-export const PHASE_DEPART = 'lancement';
+// Les phases se stockent par identifiant stable, jamais par libellé. Elles sont configurables (six emplacements fixes, voir crm/logique.js :
+// `construireConfig`) : libellé, couleur, description et rôle « clôture » viennent de la configuration de l'espace, passée par `ctx.config`
+// (ou `config` quand une fonction n'a pas de ctx). Sans configuration, le jeu neutre sert de repli.
 
 export const STATUTS_PROJET = [
   { id: 'actif', libelle: 'Actif', couleur: '#b98ee0' },
@@ -36,15 +29,44 @@ export const NATURES_PROJET = [
   { id: 'extraction', libelle: 'Extraction de valeur' },
 ];
 
-/** À qui est confiée une tâche (le champ est prêt pour « tâches confiées à Charles »). */
-export const ASSIGNES = [
-  { id: 'jerome', libelle: 'Jérôme' },
-  { id: 'charles', libelle: 'Charles' },
-];
-export const libelleAssigne = (id) => ASSIGNES.find((a) => a.id === id)?.libelle ?? id ?? '';
+export const phasesActives = (config) => configDe(config).phases.filter((p) => p.actif);
+export const phaseDe = (id, config) => configDe(config).phases.find((p) => p.id === id) ?? null;
+export const phaseActive = (id, config) => phaseDe(id, config)?.actif === true;
+export const libellePhase = (id, config) => phaseDe(id, config)?.libelle ?? id ?? '';
+export const couleurPhase = (id, config) => phaseDe(id, config)?.couleur ?? '#8d8993';
+/** Phase où commence un nouveau projet : la première active. */
+export const phaseDeDepart = (config) => phasesActives(config)[0]?.id ?? configDe(config).phases[0].id;
+/** Identifiant de la phase « clôture ». */
+export const phaseCloture = (config) => configDe(config).roleCloture;
+export const estPhaseCloture = (id, config) => !!id && id === phaseCloture(config);
+/** Rang d'une phase parmi les six emplacements (pour trier) ; une phase inconnue passe en dernier. */
+export const rangPhase = (id, config) => { const i = configDe(config).phases.findIndex((p) => p.id === id); return i < 0 ? 99 : i; };
 
-export const libellePhase = (id) => PHASES.find((p) => p.id === id)?.libelle ?? id ?? '';
-export const couleurPhase = (id) => PHASES.find((p) => p.id === id)?.couleur ?? '#8d8993';
+/** Nombre de projets par phase (tous les projets, archivés et d'extraction compris) : { identifiant: nombre }. */
+export function comptesParPhase(projets) {
+  const comptes = {};
+  for (const p of projets || []) if (p.phase) comptes[p.phase] = (comptes[p.phase] || 0) + 1;
+  return comptes;
+}
+
+/** Membres à qui une tâche peut être confiée : ceux de l'espace (`config.membres`). Un seul membre : pas de choix à proposer. */
+export const membresAssignables = (config) => configDe(config).membres;
+export const choixAssigneVisible = (config) => membresAssignables(config).length > 1;
+/** Nom d'affichage de la personne à qui une tâche est confiée ; un membre retiré garde son nom suivi de « (ancien membre) ». */
+export function libelleAssigne(id, config, nomMemorise = '') {
+  if (!id) return '';
+  const m = membresAssignables(config).find((x) => x.id === id);
+  if (m) return m.libelle;
+  const nom = nettoyerEspaces(nomMemorise) || (String(id).includes('@') ? String(id).split('@')[0] : String(id));
+  return `${nom} (ancien membre)`;
+}
+/** Assigné par défaut d'une nouvelle tâche : l'auteur s'il est membre, sinon le premier membre, sinon personne. */
+export function assigneParDefaut(config, auteur = '') {
+  const membres = membresAssignables(config);
+  const a = normaliser(auteur);
+  return (membres.find((m) => normaliser(m.email) === a) ?? membres[0])?.id ?? '';
+}
+
 export const libelleStatutProjet = (id) => STATUTS_PROJET.find((s) => s.id === id)?.libelle ?? id ?? '';
 export const libelleNature = (id) => NATURES_PROJET.find((n) => n.id === id)?.libelle ?? id ?? '';
 
@@ -53,10 +75,10 @@ const estJour = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v || '') && !Number.isNaN(Date
 // ---------------------------------------------------------------- création
 
 /** Seul le titre est obligatoire. Les dates, si elles sont données, sont des jours « AAAA-MM-JJ » et la fin ne précède pas le début. */
-export function validerProjet(v = {}) {
+export function validerProjet(v = {}, config) {
   const erreurs = {};
   if (!nettoyerEspaces(v.titre)) erreurs.titre = 'Le titre est obligatoire.';
-  if (v.phase && !PHASES.some((p) => p.id === v.phase)) erreurs.phase = 'Phase inconnue.';
+  if (v.phase && !phaseActive(v.phase, config)) erreurs.phase = 'Phase inconnue ou désactivée.';
   if (v.nature && !NATURES_PROJET.some((n) => n.id === v.nature)) erreurs.nature = 'Nature inconnue.';
   if (v.dateDebut && !estJour(v.dateDebut)) erreurs.dateDebut = 'La date de début doit être au format AAAA-MM-JJ.';
   if (v.dateFin && !estJour(v.dateFin)) erreurs.dateFin = 'La date de fin doit être au format AAAA-MM-JJ.';
@@ -66,7 +88,8 @@ export function validerProjet(v = {}) {
 
 /** Document d'un nouveau projet : phase, statut, nature et dates de départ posés automatiquement. */
 export function nouveauProjet(valeurs, ctx) {
-  const phase = PHASES.some((p) => p.id === valeurs.phase) ? valeurs.phase : PHASE_DEPART;
+  const config = configDe(ctx);
+  const phase = phaseActive(valeurs.phase, config) ? valeurs.phase : phaseDeDepart(config);
   return {
     titre: nettoyerEspaces(valeurs.titre),
     affaireId: valeurs.affaireId || null,
@@ -118,11 +141,12 @@ function entreeDansPhase(projet, phase, ctx) {
  * Changer la phase d'un projet terminé le rouvre (actif, désarchivé), comme changer l'étape d'une affaire perdue la rouvre.
  */
 export function changementPhase(projet, phase, ctx) {
-  if (!PHASES.some((p) => p.id === phase)) return { erreurs: { phase: 'Phase inconnue.' }, patch: {}, evenements: [] };
+  const config = configDe(ctx);
+  if (!phaseActive(phase, config)) return { erreurs: { phase: 'Phase inconnue ou désactivée.' }, patch: {}, evenements: [] };
   const rouvre = estProjetTermine(projet);
   if (phase === projet.phase && !rouvre) return sansEffet;
-  if (phase === 'cloture' && !estProjetTermine(projet)) {
-    const blocage = blocageCloture(projet);
+  if (estPhaseCloture(phase, config) && !estProjetTermine(projet)) {
+    const blocage = blocageCloture(projet, config);
     if (blocage) return blocage;
   }
   const patch = {};
@@ -132,8 +156,18 @@ export function changementPhase(projet, phase, ctx) {
     Object.assign(patch, { statut: 'actif', archive: false });
     faits.push(evenementProjet('projet_rouvert', `Projet rouvert : ${projet.titre}`, projet, ctx));
   }
-  if (phase !== projet.phase) faits.push(evenementProjet('phase_changee', `Phase : ${libellePhase(projet.phase)} → ${libellePhase(phase)}`, projet, ctx));
-  return { erreurs: {}, patch, evenements: faits };
+  if (phase !== projet.phase) faits.push(evenementProjet('phase_changee', `Phase : ${libellePhase(projet.phase, config)} → ${libellePhase(phase, config)}`, projet, ctx));
+  const suggestion = phase !== projet.phase ? suggestionPourPhase(phase, aujourdhuiParis(ctx.maintenant), config) : null;
+  return { erreurs: {}, patch, evenements: faits, suggestion };
+}
+
+/**
+ * Action suggérée par la phase où arrive un projet : { type: 'tache', titre, date } ou null (aucune par défaut). Jamais créée toute seule :
+ * l'écran demande d'accepter ou de refuser ; si on accepte, c'est une tâche du projet, dans cette phase.
+ */
+export function suggestionPourPhase(phase, aujourdhui, config) {
+  const a = phaseDe(phase, config)?.action;
+  return a ? { type: 'tache', titre: a.titre, date: ajouterJours(aujourdhui, a.delaiJours || 0) } : null;
 }
 
 export function mettreProjetEnPause(projet, ctx) {
@@ -148,23 +182,24 @@ export function reprendreProjet(projet, ctx) {
 }
 
 /**
- * Fin d'un projet : phase Clôture, statut Terminé, archivé. Depuis la 2.2, la Clôture est BLOQUÉE tant qu'une facture du projet n'est pas payée
- * (voir « facturation »). Deux sorties : marquer la facture payée, ou clôturer avec impayé (`options.impaye = { raison }` : chaque facture
+ * Fin d'un projet : phase « clôture » (celle qui porte ce rôle), statut Terminé, archivé. Quand le suivi des paiements est allumé et que la règle
+ * est active (réglage), la Clôture est BLOQUÉE tant qu'une facture du projet n'est pas payée (voir « facturation »). Deux sorties : marquer la facture payée, ou clôturer avec impayé (`options.impaye = { raison }` : chaque facture
  * restante passe à « Abandonnée »). C'est ici que le projet d'extraction est créé (planTerminerProjetAvecExtraction) : un seul endroit
  * pour l'écran et pour le serveur MCP.
  */
 export function terminerProjet(projet, ctx, options = {}) {
   if (estProjetTermine(projet)) return sansEffet;
+  const config = configDe(ctx);
   const patch = { statut: 'termine', archive: true };
   const faits = [];
-  if (facturesAPayer(projet).length) {
-    if (!options.impaye) return blocageCloture(projet);
+  if (clotureBloqueeParFactures(config) && facturesAPayer(projet).length) {
+    if (!options.impaye) return blocageCloture(projet, config);
     const raison = nettoyerEspaces(options.impaye.raison);
     if (!raison) return { erreurs: { raison: 'Dis en quelques mots pourquoi la facture est abandonnée.' }, patch: {}, evenements: [] };
     Object.assign(patch, { factures: facturesDe(projet).map((f) => (f.statut === 'a_payer' ? { ...f, statut: 'abandonnee', raison, dateAbandon: aujourdhuiParis(ctx.maintenant) } : f)) });
     facturesAPayer(projet).forEach((f) => faits.push(evenementProjet('facture_abandonnee', `Facture abandonnée : ${libelleFacture(f)} (${raison})`, projet, ctx)));
   }
-  if (projet.phase !== 'cloture') Object.assign(patch, entreeDansPhase(projet, 'cloture', ctx));
+  if (projet.phase !== phaseCloture(config)) Object.assign(patch, entreeDansPhase(projet, phaseCloture(config), ctx));
   return { erreurs: {}, patch, evenements: [...faits, evenementProjet('projet_termine', `Projet terminé : ${projet.titre}`, projet, ctx)] };
 }
 
@@ -210,8 +245,14 @@ export function totauxFactures(projet) {
   return { facture: paye + aPayer, paye, aPayer, abandonne: sommeFactures(projet, 'abandonnee') };
 }
 
+/** Le suivi des paiements (factures des projets) est-il allumé ? Éteint : plus de factures, la Clôture n'est jamais bloquée. */
+export const suiviPaiementsActif = (config) => configDe(config).options.suiviPaiements === true;
+/** La Clôture est-elle bloquée par des factures à payer ? Il faut le suivi des paiements ET la règle « clôture bloquée » (réglable oui/non). */
+export const clotureBloqueeParFactures = (config) => suiviPaiementsActif(config) && configDe(config).options.clotureBloquee !== false;
+
 /** Refus de la Clôture : { erreurs: { factures }, facturesBloquantes } ou null quand rien ne bloque. */
-export function blocageCloture(projet) {
+export function blocageCloture(projet, config) {
+  if (!clotureBloqueeParFactures(config)) return null;
   const bloquantes = facturesAPayer(projet);
   if (!bloquantes.length) return null;
   const liste = bloquantes.map((f) => `${libelleFacture(f)} (${formatEuros(f.montant)})`).join(', ');
@@ -239,6 +280,8 @@ export function validerFacture(v = {}) {
 }
 
 const retour = (erreurs, extra = {}) => ({ erreurs, patch: {}, evenements: [], ...extra });
+export const MESSAGE_SUIVI_ETEINT = 'Le suivi des paiements est désactivé dans les réglages du CRM.';
+const suiviEteint = (ctx) => (suiviPaiementsActif(configDe(ctx)) ? null : retour({ factures: MESSAGE_SUIVI_ETEINT }));
 const trouverFacture = (projet, id) => facturesDe(projet).find((f) => f.id === id) ?? null;
 const remplacerFacture = (projet, facture) => facturesDe(projet).map((f) => (f.id === facture.id ? facture : f));
 
@@ -251,6 +294,7 @@ function evenementEncaissement(projet, facture, ctx) {
  * Rend { erreurs, patch, evenements, facture }.
  */
 export function ajouterFacture(projet, valeurs, ctx) {
+  { const eteint = suiviEteint(ctx); if (eteint) return eteint; }
   const erreurs = validerFacture(valeurs);
   if (Object.keys(erreurs).length) return retour(erreurs);
   const payee = !!valeurs.datePaiement;
@@ -269,6 +313,7 @@ export function ajouterFacture(projet, valeurs, ctx) {
 
 /** Modifie une facture (libellé, montant, date d'envoi ; date de paiement si elle est payée). Une facture abandonnée ne se modifie pas. */
 export function modifierFacture(projet, id, valeurs, ctx) {
+  { const eteint = suiviEteint(ctx); if (eteint) return eteint; }
   const f = trouverFacture(projet, id);
   if (!f) return retour({ facture: 'Facture introuvable.' });
   if (f.statut === 'abandonnee') return retour({ facture: 'Une facture abandonnée ne se modifie pas.' });
@@ -288,6 +333,7 @@ export function modifierFacture(projet, id, valeurs, ctx) {
 
 /** Marque une facture payée (date du jour par défaut ; `montant` seulement si le client a payé une autre somme). Compte dans l'encaissé du mois du paiement. */
 export function marquerFacturePayee(projet, id, { datePaiement = null, montant = null } = {}, ctx) {
+  { const eteint = suiviEteint(ctx); if (eteint) return eteint; }
   const f = trouverFacture(projet, id);
   if (!f) return retour({ facture: 'Facture introuvable.' });
   if (f.statut === 'payee') return sansEffet;
@@ -304,6 +350,7 @@ export function marquerFacturePayee(projet, id, { datePaiement = null, montant =
 
 /** Remet à payer une facture payée (erreur de saisie) ou abandonnée (le client finit par payer). */
 export function remettreFactureAPayer(projet, id, ctx) {
+  { const eteint = suiviEteint(ctx); if (eteint) return eteint; }
   const f = trouverFacture(projet, id);
   if (!f) return retour({ facture: 'Facture introuvable.' });
   if (f.statut === 'a_payer') return sansEffet;
@@ -314,6 +361,7 @@ export function remettreFactureAPayer(projet, id, ctx) {
 
 /** Abandonne une facture (impayé définitif, geste commercial) : la raison est obligatoire. */
 export function abandonnerFacture(projet, id, raison, ctx) {
+  { const eteint = suiviEteint(ctx); if (eteint) return eteint; }
   const f = trouverFacture(projet, id);
   if (!f) return retour({ facture: 'Facture introuvable.' });
   if (f.statut === 'abandonnee') return sansEffet;
@@ -325,56 +373,12 @@ export function abandonnerFacture(projet, id, raison, ctx) {
 }
 
 export function supprimerFacture(projet, id, ctx) {
+  { const eteint = suiviEteint(ctx); if (eteint) return eteint; }
   const f = trouverFacture(projet, id);
   if (!f) return retour({ facture: 'Facture introuvable.' });
   return { erreurs: {}, patch: { factures: facturesDe(projet).filter((x) => x.id !== id) }, evenements: [evenementProjet('facture_supprimee', `Facture supprimée : ${libelleFacture(f)} (${formatEuros(f.montant)})`, projet, ctx)] };
 }
 
-// ---------------------------------------------------------------- migration 2.2 : les étapes « Facture envoyée » et « Facture payée » disparaissent
-// Les affaires qui y sont passent à « Gagné » (statut gagnée, archivage conservé, encaissements conservés : l'historique du chiffre d'affaires ne
-// bouge pas). Une affaire « Facture envoyée » (un paiement est attendu) reçoit, si elle a un projet, une facture À payer de son montant sur ce projet ;
-// sinon elle est listée « à traiter à la main » : on ne crée jamais de projet à la place de Jérôme. Rien n'est exécuté sans aperçu : l'écran montre
-// `migrees` et `aTraiterAMain` avant d'écrire `ecritures`. Idempotent : une fois migrée, une affaire n'est plus concernée.
-
-/**
- * Plan de migration : { migrees: [{ affaireId, titre, de, facture: { projetId, montant } | null }], aTraiterAMain: [{ affaireId, titre, raison }], ecritures }.
- * `affaires` : toutes les affaires ; `projets` : tous les projets ; le contexte donne `nouvelId` et `maintenant`.
- */
-export function planMigrerEtapesRetirees({ affaires = [], projets = [] }, ctx) {
-  const migrees = [];
-  const aTraiterAMain = [];
-  const ecritures = [];
-  const projetsMaj = new Map(projets.map((p) => [p.id, p]));
-  const jour = (v) => { const d = versDate(v); return d ? aujourdhuiParis(d) : null; };
-  for (const a of affaires.filter((x) => x.etape in ETAPES_RETIREES)) {
-    const retiree = ETAPES_RETIREES[a.etape];
-    const liens = { personneId: a.personneId ?? null, organisationId: a.organisationId ?? null, affaireId: a.id };
-    const datesEtapes = { ...(a.datesEtapes || {}) };
-    if (!datesEtapes[retiree.vers]) datesEtapes[retiree.vers] = datesEtapes[a.etape] ?? ctx.maintenant;
-    const faits = [evenementCreation('etape_changee', `Étape retirée (facturation, version 2.2) : ${retiree.libelle} → ${libelleEtape(retiree.vers)}`, liens, ctx)];
-    let facture = null;
-    if (a.etape === 'facture_envoyee') {
-      const cible = projetsMaj.get(a.projetId) ?? projetDeAffaire([...projetsMaj.values()], a.id);
-      const montant = Number(a.montant) || 0;
-      if (!cible || estExtraction(cible)) aTraiterAMain.push({ affaireId: a.id, titre: a.titre, raison: 'Un paiement est attendu, mais l’affaire n’a pas de projet : crée ou lie son projet, puis ajoute sa facture.' });
-      else if (!(montant > 0)) aTraiterAMain.push({ affaireId: a.id, titre: a.titre, raison: 'Un paiement est attendu, mais l’affaire n’a pas de montant : ajoute la facture sur son projet.' });
-      else {
-        const ajout = ajouterFacture(cible, { libelle: 'Facture envoyée (reprise de l’affaire)', montant, dateEnvoi: jour(a.datesEtapes?.facture_envoyee) }, ctx);
-        if (Object.keys(ajout.erreurs).length) aTraiterAMain.push({ affaireId: a.id, titre: a.titre, raison: 'La facture n’a pas pu être reprise : ajoute-la sur le projet.' });
-        else {
-          const maj = { ...cible, ...ajout.patch };
-          projetsMaj.set(cible.id, maj);
-          ecritures.push(...modifierSiPatch(C.projets, cible.id, ajout.patch, MARQUES_MODIFICATION), ...evenements(ajout.evenements, ctx));
-          facture = { projetId: cible.id, montant: ajout.facture.montant };
-        }
-      }
-      if (!facture) faits[0] = evenementCreation('etape_changee', `Étape retirée (facturation, version 2.2) : ${retiree.libelle} → ${libelleEtape(retiree.vers)} (paiement attendu : à suivre à la main)`, liens, ctx);
-    }
-    ecritures.push(...modifierSiPatch(C.affaires, a.id, { etape: retiree.vers, statut: 'gagnee', datesEtapes }, MARQUES_MODIFICATION), ...evenements(faits, ctx));
-    migrees.push({ affaireId: a.id, titre: a.titre, de: retiree.libelle, facture });
-  }
-  return { migrees, aTraiterAMain, ecritures };
-}
 // ---------------------------------------------------------------- avancement et retard
 // Les tâches sont [{ fait, date }] (collection projets_taches, étape 4) : ces fonctions ne dépendent que de ces deux champs.
 
@@ -408,27 +412,31 @@ export function pastilleProjet(projet, taches = [], aujourdhui) {
 const estHeure = (v) => /^([01]\d|2[0-3]):[0-5]\d$/.test(v || '');
 
 /** Titre obligatoire ; date « AAAA-MM-JJ » et heure « HH:MM » facultatives ; phase et assigné parmi les valeurs connues. */
-export function validerTache(v = {}) {
+export function validerTache(v = {}, config) {
   const erreurs = {};
   if (!nettoyerEspaces(v.titre)) erreurs.titre = 'Le titre est obligatoire.';
-  if (v.phase && !PHASES.some((p) => p.id === v.phase)) erreurs.phase = 'Phase inconnue.';
+  if (v.phase && !phaseActive(v.phase, config)) erreurs.phase = 'Phase inconnue ou désactivée.';
   if (v.date && !estJour(v.date)) erreurs.date = 'La date doit être au format AAAA-MM-JJ.';
   if (v.heure && !estHeure(v.heure)) erreurs.heure = 'L’heure doit être au format HH:MM.';
-  if (v.assigneA && !ASSIGNES.some((a) => a.id === v.assigneA)) erreurs.assigneA = 'Personne inconnue.';
+  if (v.assigneA && !membresAssignables(config).some((a) => a.id === v.assigneA)) erreurs.assigneA = 'Personne inconnue : elle n’est pas membre de l’espace.';
   return erreurs;
 }
 
 /** Les tâches d'un projet par ordre d'affichage : phase (dans l'ordre des phases), puis `ordre`, puis titre. */
-export function tachesDuProjet(taches, projetId) {
-  const rang = (t) => PHASES.findIndex((p) => p.id === t.phase);
+export function tachesDuProjet(taches, projetId, config) {
+  const rang = (t) => rangPhase(t.phase, config);
   return (taches || []).filter((t) => t.projetId === projetId)
     .sort((a, b) => rang(a) - rang(b) || (a.ordre ?? 0) - (b.ordre ?? 0) || normaliser(a.titre).localeCompare(normaliser(b.titre)));
 }
 
-/** Les quatre phases avec leurs tâches (une phase sans tâche a une liste vide) : [{ phase, taches, faites }]. */
-export function tachesParPhase(taches, projetId) {
-  const siennes = tachesDuProjet(taches, projetId);
-  return PHASES.map((phase) => {
+/**
+ * Les phases actives avec leurs tâches (une phase sans tâche a une liste vide) : [{ phase, taches, faites }].
+ * Une phase désactivée qui porte encore des tâches reste montrée, pour qu'aucune tâche ne disparaisse.
+ */
+export function tachesParPhase(taches, projetId, config) {
+  const siennes = tachesDuProjet(taches, projetId, config);
+  const montrees = configDe(config).phases.filter((p) => p.actif || siennes.some((t) => t.phase === p.id));
+  return montrees.map((phase) => {
     const liste = siennes.filter((t) => t.phase === phase.id);
     return { phase, taches: liste, faites: liste.filter((t) => t.fait).length };
   });
@@ -436,16 +444,19 @@ export function tachesParPhase(taches, projetId) {
 
 /** Document d'une nouvelle tâche. `ordre` : sa place dans la phase (le plan le calcule). */
 export function nouvelleTache(valeurs, ctx) {
+  const config = configDe(ctx);
+  const membre = membresAssignables(config).find((m) => m.id === valeurs.assigneA) ?? membresAssignables(config).find((m) => m.id === assigneParDefaut(config, ctx.auteur)) ?? null;
   return {
     titre: nettoyerEspaces(valeurs.titre),
     projetId: valeurs.projetId,
-    phase: PHASES.some((p) => p.id === valeurs.phase) ? valeurs.phase : PHASE_DEPART,
+    phase: phaseActive(valeurs.phase, config) ? valeurs.phase : phaseDeDepart(config),
     ordre: valeurs.ordre ?? 1,
     date: estJour(valeurs.date) ? valeurs.date : null,
     heure: estHeure(valeurs.heure) ? valeurs.heure : '',
     fait: false,
     dateFait: null,
-    assigneA: ASSIGNES.some((a) => a.id === valeurs.assigneA) ? valeurs.assigneA : 'jerome',
+    assigneA: membre?.id ?? '',
+    assigneNom: membre?.libelle ?? '',
     auteur: ctx.auteur ?? '',
   };
 }
@@ -454,9 +465,10 @@ const prochainOrdre = (taches, projetId, phase) => 1 + Math.max(0, ...(taches ||
 
 /** Crée une tâche à la fin de sa phase. `valeurs.phase` : la phase du projet par défaut (c'est l'écran qui la donne). Refus : { erreurs, ecritures: [] }. */
 export function planCreerTache({ projet, taches = [], valeurs }, ctx) {
-  const phase = PHASES.some((p) => p.id === valeurs.phase) ? valeurs.phase : (projet.phase || PHASE_DEPART);
+  const config = configDe(ctx);
+  const phase = phaseActive(valeurs.phase, config) ? valeurs.phase : (phaseActive(projet.phase, config) ? projet.phase : phaseDeDepart(config));
   const complet = { ...valeurs, phase, projetId: projet.id };
-  const erreurs = validerTache(complet);
+  const erreurs = validerTache(complet, config);
   if (Object.keys(erreurs).length) return { erreurs, ecritures: [] };
   const id = ctx.nouvelId(C.projetsTaches);
   return {
@@ -470,10 +482,11 @@ export function planCreerTache({ projet, taches = [], valeurs }, ctx) {
  * Modifie une tâche (titre, date, heure, assigné, phase). Changer de phase la place à la fin de la nouvelle phase.
  * `patch` vide : rien à écrire. Refus : { erreurs, ecritures: [] }.
  */
-export function planMajTache({ tache, patch, taches = [] }) {
-  const erreurs = validerTache({ titre: tache.titre, ...patch });
+export function planMajTache({ tache, patch, taches = [], config }) {
+  const erreurs = validerTache({ titre: tache.titre, ...patch }, config);
   if (Object.keys(erreurs).length) return { erreurs, ecritures: [] };
   const net = { ...patch };
+  if (net.assigneA) net.assigneNom = membresAssignables(config).find((m) => m.id === net.assigneA)?.libelle ?? '';
   if (net.titre !== undefined) net.titre = nettoyerEspaces(net.titre);
   if (net.date === '') net.date = null;
   if (net.phase && net.phase !== tache.phase) net.ordre = prochainOrdre(taches, tache.projetId, net.phase);
@@ -526,10 +539,10 @@ export function tachesPointsCles(taches, projets, aujourdhui) {
 // ---------------------------------------------------------------- modèles de projet (collection projets_modeles)
 // Un modèle = un nom, une offre liée (facultative), une nature, une liste de tâches types (titre, phase, délai en jours après le début du projet).
 // Créer un projet depuis un modèle crée ses tâches, avec leurs dates calculées. Les modèles de départ sont écrits ici ; les copies de la base
-// sont modifiables (écran Modèles). Le modèle « Extraction » sert aux projets d'extraction de valeur (étape 6).
+// sont modifiables (Réglages, « Modèles de projets »). Le modèle « Extraction » sert aux projets d'extraction de valeur (si l'option est allumée).
 
-/** Contenu fourni par Jérôme (03/10/2026). Délai `null` : pas de date (elle se pose au fil de l'eau). Extraction : sept jours après la création. */
-export const MODELES_DEPART = [
+/** Modèles de Jérôme (03/10/2026), semés seulement dans sa base. Délai `null` : pas de date (elle se pose au fil de l'eau). Extraction : sept jours après la création. */
+export const MODELES_JEROME = [
   {
     id: 'audit', nom: 'Audit', offreId: 'audit', nature: 'livraison', actif: true, ordre: 1,
     taches: [
@@ -553,6 +566,18 @@ export const MODELES_DEPART = [
   },
 ];
 
+/** Jeu neutre d'un nouvel espace : un seul modèle générique, sur les trois premières phases du jeu neutre. */
+export const MODELES_NEUTRES = [
+  {
+    id: 'projet-type', nom: 'Projet type', offreId: null, nature: 'livraison', actif: true, ordre: 1,
+    taches: [
+      { id: 'projet-type-demarrage', titre: 'Réunion de démarrage', phase: 'phase_1', delaiJours: null, ordre: 1 },
+      { id: 'projet-type-point', titre: 'Point d’avancement', phase: 'phase_2', delaiJours: null, ordre: 1 },
+      { id: 'projet-type-livraison', titre: 'Livraison au client', phase: 'phase_3', delaiJours: null, ordre: 1 },
+    ],
+  },
+];
+
 const DELAI_MAX = 3650;
 
 export function validerModele(v = {}) {
@@ -563,10 +588,10 @@ export function validerModele(v = {}) {
 }
 
 /** Tâche type : titre obligatoire, phase connue, délai = nombre entier de jours après le début du projet (vide = pas de date). */
-export function validerTacheModele(v = {}) {
+export function validerTacheModele(v = {}, config) {
   const erreurs = {};
   if (!nettoyerEspaces(v.titre)) erreurs.titre = 'Le titre est obligatoire.';
-  if (v.phase && !PHASES.some((p) => p.id === v.phase)) erreurs.phase = 'Phase inconnue.';
+  if (v.phase && !phaseActive(v.phase, config)) erreurs.phase = 'Phase inconnue ou désactivée.';
   const d = v.delaiJours;
   if (d !== null && d !== undefined && d !== '' && !(Number.isInteger(Number(d)) && Number(d) >= 0 && Number(d) <= DELAI_MAX)) erreurs.delaiJours = `Le délai est un nombre de jours entre 0 et ${DELAI_MAX}.`;
   return erreurs;
@@ -575,15 +600,15 @@ export function validerTacheModele(v = {}) {
 const delaiNet = (d) => (d === null || d === undefined || d === '' ? null : Number(d));
 
 /** Les tâches d'un modèle dans l'ordre d'affichage : phase, puis `ordre`. */
-export function tachesDuModele(modele) {
-  const rang = (t) => PHASES.findIndex((p) => p.id === t.phase);
+export function tachesDuModele(modele, config) {
+  const rang = (t) => rangPhase(t.phase, config);
   return [...(modele?.taches || [])].sort((a, b) => rang(a) - rang(b) || (a.ordre ?? 0) - (b.ordre ?? 0));
 }
 
-/** Les quatre phases avec les tâches types de chacune : [{ phase, taches }]. */
-export function tachesModeleParPhase(modele) {
-  const toutes = tachesDuModele(modele);
-  return PHASES.map((phase) => ({ phase, taches: toutes.filter((t) => t.phase === phase.id) }));
+/** Les phases actives (et celles, désactivées, qui portent encore des tâches types) avec leurs tâches types : [{ phase, taches }]. */
+export function tachesModeleParPhase(modele, config) {
+  const toutes = tachesDuModele(modele, config);
+  return configDe(config).phases.filter((p) => p.actif || toutes.some((t) => t.phase === p.id)).map((phase) => ({ phase, taches: toutes.filter((t) => t.phase === phase.id) }));
 }
 
 export const modelesActifs = (modeles) => (modeles || []).filter((m) => m.actif !== false).sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
@@ -595,7 +620,7 @@ export const modeleParOffre = (modeles, offreId) => (offreId ? modelesActifs(mod
 function ecrituresTachesModele(modele, { projetId, dateDebut }, ctx) {
   if (!modele) return [];
   const comptes = {};
-  return tachesDuModele(modele).map((t) => {
+  return tachesDuModele(modele, configDe(ctx)).map((t) => {
     comptes[t.phase] = (comptes[t.phase] || 0) + 1;
     const id = ctx.nouvelId(C.projetsTaches);
     const delai = delaiNet(t.delaiJours);
@@ -644,8 +669,9 @@ const ecrireTachesModele = (modele, taches) => ({ ecritures: modifierSiPatch(C.p
 
 /** Ajoute une tâche type à la fin de sa phase. */
 export function planAjouterTacheModele({ modele, valeurs }, ctx) {
-  const phase = PHASES.some((p) => p.id === valeurs.phase) ? valeurs.phase : PHASE_DEPART;
-  const erreurs = validerTacheModele({ ...valeurs, phase });
+  const config = configDe(ctx);
+  const phase = phaseActive(valeurs.phase, config) ? valeurs.phase : phaseDeDepart(config);
+  const erreurs = validerTacheModele({ ...valeurs, phase }, config);
   if (Object.keys(erreurs).length) return { erreurs, ecritures: [] };
   const ordre = 1 + Math.max(0, ...(modele.taches || []).filter((t) => t.phase === phase).map((t) => t.ordre ?? 0));
   const tache = { id: ctx.nouvelId(C.projetsModeles), titre: nettoyerEspaces(valeurs.titre), phase, delaiJours: delaiNet(valeurs.delaiJours), ordre };
@@ -653,10 +679,10 @@ export function planAjouterTacheModele({ modele, valeurs }, ctx) {
 }
 
 /** Modifie une tâche type (titre, délai, phase). Changer de phase la place à la fin de la nouvelle phase. */
-export function planMajTacheModele({ modele, tacheId, patch }) {
+export function planMajTacheModele({ modele, tacheId, patch, config }) {
   const tache = (modele.taches || []).find((t) => t.id === tacheId);
   if (!tache) return { erreurs: { tache: 'Tâche introuvable.' }, ecritures: [] };
-  const erreurs = validerTacheModele({ titre: tache.titre, ...patch });
+  const erreurs = validerTacheModele({ titre: tache.titre, ...patch }, config);
   if (Object.keys(erreurs).length) return { erreurs, ecritures: [] };
   const net = { ...patch };
   if (net.titre !== undefined) net.titre = nettoyerEspaces(net.titre);
@@ -670,10 +696,10 @@ export function planMajTacheModele({ modele, tacheId, patch }) {
 export const planSupprimerTacheModele = ({ modele, tacheId }) => ecrireTachesModele(modele, (modele.taches || []).filter((t) => t.id !== tacheId));
 
 /** Monte (`sens` = -1) ou descend (+1) une tâche type dans sa phase ; les tâches de la phase sont remises en ordre 1, 2, 3… Au bord : rien. */
-export function planDeplacerTacheModele({ modele, tacheId, sens }) {
+export function planDeplacerTacheModele({ modele, tacheId, sens, config }) {
   const tache = (modele.taches || []).find((t) => t.id === tacheId);
   if (!tache) return { ecritures: [] };
-  const liste = tachesDuModele(modele).filter((t) => t.phase === tache.phase);
+  const liste = tachesDuModele(modele, config).filter((t) => t.phase === tache.phase);
   const i = liste.findIndex((t) => t.id === tacheId);
   const j = i + sens;
   if (j < 0 || j >= liste.length) return { ecritures: [] };
@@ -683,8 +709,8 @@ export function planDeplacerTacheModele({ modele, tacheId, sens }) {
 }
 
 /** Création des modèles de départ (premier lancement) : les identifiants sont fixes, donc le même plan rejoué n'en fait jamais deux. */
-export function planInitialiserModeles() {
-  return { ecritures: MODELES_DEPART.map(({ id, ...donnees }) => ecritureCreer(C.projetsModeles, id, structuredClone(donnees), MARQUES_CREATION)) };
+export function planInitialiserModeles({ racine = false } = {}) {
+  return { ecritures: (racine ? MODELES_JEROME : MODELES_NEUTRES).map(({ id, ...donnees }) => ecritureCreer(C.projetsModeles, id, structuredClone(donnees), MARQUES_CREATION)) };
 }
 
 // ---------------------------------------------------------------- liens
@@ -820,15 +846,40 @@ export function notesDuProjet(notesProjet = [], notesAffaire = [], projetId) {
 
 export const estExtraction = (p) => p?.nature === 'extraction';
 
+/**
+ * L'extraction de valeur est une OPTION du CRM (éteinte par défaut chez un client). Éteinte : aucun plan n'en crée (ni à Perdu, ni à Gagné, ni à
+ * la fin d'un projet, ni à la main) ; l'écran cache le bloc, le bouton, le badge et le modèle. Les extractions déjà créées ne sont pas touchées.
+ */
+export const extractionActive = (config) => configDe(config).options.extractionValeur === true;
+
 /** L'extraction d'une affaire (créée à Perdu ou à Gagné), archivée ou non. */
 export const extractionDeLAffaire = (projets, affaireId) => (projets || []).find((p) => estExtraction(p) && affaireId && p.affaireId === affaireId) ?? null;
 
 /** L'extraction d'un projet terminé. */
 export const extractionDuProjet = (projets, projetId) => (projets || []).find((p) => estExtraction(p) && projetId && p.projetSourceId === projetId) ?? null;
 
+/**
+ * Modèle d'extraction livré avec l'appli (si la base n'en a pas) : quatre tâches types sur les 2e et 3e phases actives de l'espace
+ * (la copie de Jérôme garde ses phases `decouverte` et `livraison`).
+ */
+export function modeleExtractionLivre(config) {
+  const actives = phasesActives(config);
+  const p1 = (actives[1] ?? actives[0]).id;
+  const p2 = (actives[2] ?? actives.at(-1)).id;
+  return {
+    id: 'extraction', nom: 'Extraction', offreId: null, nature: 'extraction', actif: true, ordre: 99,
+    taches: [
+      { id: 'extraction-regles', titre: 'Tirer les règles', phase: p1, delaiJours: 7, ordre: 1 },
+      { id: 'extraction-erreurs', titre: 'Comprendre les erreurs', phase: p1, delaiJours: 7, ordre: 2 },
+      { id: 'extraction-automatisable', titre: 'Repérer ce qui est automatisable', phase: p2, delaiJours: 7, ordre: 1 },
+      { id: 'extraction-marketing', titre: 'Créer la documentation marketing', phase: p2, delaiJours: 7, ordre: 2 },
+    ],
+  };
+}
+
 /** Le modèle de l'extraction : celui d'identifiant `extraction`, sinon un modèle actif de nature extraction, sinon la copie livrée avec l'appli. */
-export function modeleExtraction(modeles = []) {
-  return modeles.find((m) => m.id === 'extraction') ?? modelesActifs(modeles).find((m) => m.nature === 'extraction') ?? MODELES_DEPART.find((m) => m.id === 'extraction');
+export function modeleExtraction(modeles = [], config) {
+  return modeles.find((m) => m.id === 'extraction') ?? modelesActifs(modeles).find((m) => m.nature === 'extraction') ?? modeleExtractionLivre(config);
 }
 
 /** Écritures de création du projet d'extraction d'une source ({ affaire } ou { projet }) : { id, titre, ecritures }. `raison` : { raison, detail } d'une affaire perdue. */
@@ -840,7 +891,7 @@ function creerExtraction({ affaire = null, projet = null, modeles = [], raison =
     urlGithub: source.urlGithub, urlDossier: source.urlDossier,
     ...(affaire ? { affaireId: affaire.id } : { projetSourceId: projet.id }),
     ...(raison ? { raisonPerdue: raison.raison, raisonPerdueDetail: raison.detail } : {}),
-  }, ctx, { modele: { ...modeleExtraction(modeles), nature: 'extraction' } });
+  }, ctx, { modele: { ...modeleExtraction(modeles, configDe(ctx)), nature: 'extraction' } });
   return { id: plan.id, titre: plan.titre, ecritures: plan.ecritures };
 }
 
@@ -864,7 +915,7 @@ function ecrituresRangerExtraction({ affaire, projets = [], taches = [] }, ctx) 
 export function planChangerEtapeAvecExtraction({ affaire, etape, options = {}, projets = [], modeles = [] }, ctx) {
   const plan = planChangerEtape(affaire, etape, ctx, options);
   const devientGagnee = !Object.keys(plan.erreurs || {}).length && plan.patch?.statut === 'gagnee' && affaire.statut !== 'gagnee';
-  if (!devientGagnee || projetLieAAffaire(projets, affaire) || extractionDeLAffaire(projets, affaire.id)) return { ...plan, extraction: null };
+  if (!extractionActive(configDe(ctx)) || !devientGagnee || projetLieAAffaire(projets, affaire) || extractionDeLAffaire(projets, affaire.id)) return { ...plan, extraction: null };
   const extraction = creerExtraction({ affaire, modeles }, ctx);
   return { ...plan, extraction: { id: extraction.id, titre: extraction.titre }, ecritures: [...plan.ecritures, ...extraction.ecritures] };
 }
@@ -872,7 +923,7 @@ export function planChangerEtapeAvecExtraction({ affaire, etape, options = {}, p
 /** Affaire perdue AVEC son extraction (la raison de la perte est reprise). Même forme que `planMarquerPerdue` + `extraction`. */
 export function planMarquerPerdueAvecExtraction({ affaire, saisie, projets = [], modeles = [] }, ctx) {
   const plan = planMarquerPerdue(affaire, saisie, ctx);
-  if (Object.keys(plan.erreurs || {}).length || extractionDeLAffaire(projets, affaire.id)) return { ...plan, extraction: null };
+  if (!extractionActive(configDe(ctx)) || Object.keys(plan.erreurs || {}).length || extractionDeLAffaire(projets, affaire.id)) return { ...plan, extraction: null };
   const extraction = creerExtraction({ affaire, modeles, raison: { raison: saisie.raison, detail: saisie.detail ?? '' } }, ctx);
   return { ...plan, extraction: { id: extraction.id, titre: extraction.titre }, ecritures: [...plan.ecritures, ...extraction.ecritures] };
 }
@@ -880,7 +931,7 @@ export function planMarquerPerdueAvecExtraction({ affaire, saisie, projets = [],
 /** Fin d'un projet AVEC son extraction (sauf pour un projet d'extraction, et une seule par projet). Même forme que `planTerminerProjet` + `extraction`. */
 export function planTerminerProjetAvecExtraction({ projet, projets = [], modeles = [], impaye = null }, ctx) {
   const plan = planTerminerProjet(projet, ctx, impaye ? { impaye } : {});
-  if (!plan.ecritures.length || estExtraction(projet) || extractionDuProjet(projets, projet.id)) return { ...plan, extraction: null };
+  if (!extractionActive(configDe(ctx)) || !plan.ecritures.length || estExtraction(projet) || extractionDuProjet(projets, projet.id)) return { ...plan, extraction: null };
   const extraction = creerExtraction({ projet, modeles }, ctx);
   return { ...plan, extraction: { id: extraction.id, titre: extraction.titre }, ecritures: [...plan.ecritures, ...extraction.ecritures] };
 }
@@ -892,6 +943,7 @@ export function planTerminerProjetAvecExtraction({ projet, projets = [], modeles
  */
 export function planExtraireProjet({ projet, projets = [], modeles = [] }, ctx) {
   if (!projet) return { erreurs: { projet: 'Projet introuvable.' }, ecritures: [], extraction: null, dejaExistante: false };
+  if (!extractionActive(configDe(ctx))) return { erreurs: { projet: 'L’extraction de valeur est désactivée dans les réglages du CRM.' }, ecritures: [], extraction: null, dejaExistante: false };
   if (estExtraction(projet)) return { erreurs: { projet: 'Un projet d’extraction ne s’extrait pas.' }, ecritures: [], extraction: null, dejaExistante: false };
   const existante = extractionDuProjet(projets, projet.id);
   if (existante) return { erreurs: {}, ecritures: [], extraction: { id: existante.id, titre: existante.titre }, dejaExistante: true };

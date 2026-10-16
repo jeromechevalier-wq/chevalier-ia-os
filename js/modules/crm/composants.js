@@ -60,7 +60,18 @@ export function pastilleStatut(statut) {
 }
 
 export function pastilleEtape(etape) {
-  return h('span', { class: 'pastille-statut', style: { '--couleur': L.couleurEtape(etape) } }, L.libelleEtape(etape));
+  return h('span', { class: 'pastille-statut', style: { '--couleur': L.couleurEtape(etape, D.etat.config) } }, L.libelleEtape(etape, D.etat.config));
+}
+
+/**
+ * Petite icône « i » qui explique une étape ou une phase (le texte écrit dans les Réglages) : au survol sur ordinateur, au toucher sur téléphone
+ * (un clic affiche le texte). Rien si l'explication est vide.
+ */
+export function iconeInfo(texte, nom = '') {
+  const t = L.nettoyerEspaces(texte);
+  if (!t) return null;
+  return h('button', { type: 'button', class: 'bouton-info', title: t, 'aria-label': `Explication${nom ? ` : ${nom}` : ''} : ${t}`, 'data-role': 'info',
+    onclick: (e) => { e.preventDefault(); e.stopPropagation(); toast(t, { duree: 7000 }); } }, icone('info', { taille: 14 }));
 }
 
 export function pastilleActivite(couleur) {
@@ -75,7 +86,7 @@ export function iconeTypeActivite(type) {
 
 export function etatVide(message, { action = null } = {}) {
   return h('div', { class: 'etat-vide' },
-    estChezClient() ? null : h('img', { class: 'charles-vide', src: 'assets/charles-portrait.png', alt: '', width: '110', height: '82' }),
+    D.etat.reglages.imageCelebration ? h('img', { class: 'charles-vide', src: D.etat.reglages.imageCelebration, alt: '', width: '110', height: '82' }) : null,
     h('p', {}, message), action);
 }
 
@@ -319,16 +330,17 @@ export function listeContacts({ libelle, ajout, valeurs = [], type = 'texte', su
 
 /** Barre de progression par étape (une case par étape, colorée jusqu'à l'étape actuelle). */
 export function barreEtapes(affaire) {
-  const index = L.ETAPES.findIndex((e) => e.id === affaire.etape);
-  return h('span', { class: `barre-etapes statut-${affaire.statut}`, role: 'img', 'aria-label': `Étape : ${L.libelleEtape(affaire.etape)}` },
-    L.ETAPES.map((e, i) => h('span', { class: `segment${i <= index ? ' plein' : ''}`, style: { '--couleur': e.couleur } })));
+  const etapes = L.etapesActives(D.etat.config);
+  const index = etapes.findIndex((e) => e.id === affaire.etape);
+  return h('span', { class: `barre-etapes statut-${affaire.statut}`, role: 'img', 'aria-label': `Étape : ${L.libelleEtape(affaire.etape, D.etat.config)}` },
+    etapes.map((e, i) => h('span', { class: `segment${i <= index ? ' plein' : ''}`, style: { '--couleur': e.couleur } })));
 }
 
 /** Petite carte d'une affaire (sections "Affaires" des fiches). */
 export function carteAffaireMini(a) {
   return h('a', { class: 'carte-affaire-mini', href: cheminAffaire(a.id), dataset: { affaire: a.id } },
     h('span', { class: 'carte-affaire-titre' }, a.titre),
-    h('span', { class: 'carte-affaire-meta' }, a.montant !== null && a.montant !== undefined ? L.formatEuros(a.montant) : '—', ' · ', a.statut === 'ouverte' || a.statut === 'gagnee' ? L.libelleEtape(a.etape) : L.libelleStatut(a.statut)),
+    h('span', { class: 'carte-affaire-meta' }, a.montant !== null && a.montant !== undefined ? L.formatEuros(a.montant) : '—', ' · ', a.statut === 'ouverte' || a.statut === 'gagnee' ? L.libelleEtape(a.etape, D.etat.config) : L.libelleStatut(a.statut)),
     barreEtapes(a));
 }
 

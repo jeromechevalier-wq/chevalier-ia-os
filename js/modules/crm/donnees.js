@@ -7,15 +7,8 @@ import {
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { db } from '../../os/firebase.js';
 import { normaliserBase, cheminCollection } from '../../os/chemins.js';
+import { configurerCelebrations } from '../../os/celebrations.js';
 import * as L from './logique.js';
-
-const PARAMETRES_DEPART = {
-  offres: { items: L.OFFRES_DEPART },
-  listes: { secteurs: L.SECTEURS_DEPART, sources: L.SOURCES_DEPART },
-  etiquettes: { items: L.ETIQUETTES_DEPART },
-  filtres: { items: L.FILTRES_DEPART, version: 2 },
-  reglages: L.REGLAGES_DEPART,
-};
 
 // Les collections des modules Projets et Veille sont dans la sauvegarde complète (l'export JSON), même si elles ne sont pas des collections du CRM.
 export const COLLECTIONS_CRM = [
@@ -34,13 +27,20 @@ export const etat = {
   sources: [],
   etiquettes: [],
   filtres: [],
-  reglages: { ...L.REGLAGES_DEPART },
+  modelesAffaire: [],
+  // Configuration de l'espace (étapes de vente, phases de projet, options, membres) : la même que lit le serveur MCP (logique.js : construireConfig).
+  config: L.CONFIG_NEUTRE,
+  reglages: { ...L.REGLAGES_NEUTRES },
   pret: { personnes: false, organisations: false, affaires: false, activites: false, parametres: false },
 };
 
 let compte = null;
 // Chemin de base des données : '' pour le CRM de Jérôme (la racine), clients/<client> chez un client. Donné par la coque à demarrer().
 let cheminBase = '';
+// Membres de l'espace à qui une tâche peut être confiée (chez un client : la liste `equipe` de sa fiche, donnée par la coque) ; à la racine : Jérôme et Charles.
+let equipe = null;
+/** Vrai à la racine : le CRM de Jérôme (ses valeurs historiques). Un espace client démarre sur un jeu neutre. */
+const estRacine = () => cheminBase === '';
 /** Chemin complet d'une collection du module (préfixe de base compris). */
 export const chemin = (nom) => cheminCollection(cheminBase, nom);
 let desabonnements = [];
@@ -130,7 +130,7 @@ export function ctx() {
     maintenant,
     auteur: compte?.email || '',
     aujourdhui: L.aujourdhuiParis(maintenant),
-    delaiPaiementJours: etat.reglages.delaiPaiementJours,
+    config: etat.config,
     nouvelId: (nom) => doc(collection(db, chemin(nom))).id,
   };
 }
@@ -157,9 +157,17 @@ function lireDocs(snap) {
   return snap.docs.map((d) => ({ ...d.data({ serverTimestamps: 'estimate' }), id: d.id }));
 }
 
-export function demarrer(compteConnecte, base = '') {
+/** Membres assignables d'un espace client d'après la liste `equipe` de sa fiche : les éditeurs, identifiés par leur adresse. */
+export function membresDeEquipe(liste) {
+  const nom = (email) => { const t = String(email).split('@')[0].replace(/[._-]+/g, ' ').trim(); return t ? t[0].toUpperCase() + t.slice(1) : String(email); };
+  return (Array.isArray(liste) ? liste : []).filter((m) => m?.role === 'editeur' && m.email)
+    .map((m) => ({ id: String(m.email).toLowerCase(), libelle: nom(m.email), email: String(m.email).toLowerCase() }));
+}
+
+export function demarrer(compteConnecte, base = '', options = {}) {
   compte = compteConnecte;
   cheminBase = normaliserBase(base);
+  equipe = options.equipe ?? null;
   // Quand seul un horodatage serveur se précise (modifieLe, creeLe), les données affichées ne changent pas :
   // on met l'état à jour sans prévenir les écrans (pas de nouveau rendu, donc pas de glisser déposer interrompu).
   const ecouter = (nom, cle) => desabonnements.push(onSnapshot(collection(db, chemin(nom)), (snap) => {
@@ -184,7 +192,10 @@ export function demarrer(compteConnecte, base = '') {
     etat.etiquettes = tri(docs.etiquettes?.items);
     // Les filtres enregistrés de la version 1.0.0 (sans "version: 2") ne servent plus : ignorés.
     etat.filtres = docs.filtres?.version === 2 ? tri(docs.filtres.items) : [];
+    etat.modelesAffaire = tri(docs.modeles_affaire?.items);
     etat.reglages = { ...reglagesDepart(), ...(docs.reglages || {}) };
+    etat.config = L.construireConfig({ ...docs, reglages: etat.reglages }, { racine: estRacine(), membres: estRacine() ? L.MEMBRES_JEROME : membresDeEquipe(equipe) });
+    configurerCelebrations({ actif: etat.config.options.celebrations, prenom: etat.reglages.prenomCelebration, image: etat.reglages.imageCelebration });
     parametresCrees = !!docs.listes && !!docs.etiquettes && !!docs.filtres;
     etat.pret.parametres = true;
     // Un lecteur d'un client (compte.ecrit === false, chantier 7) ne crée pas les paramètres de départ : les règles le refuseraient. Le CRM de Jérôme n'a pas ce champ.
@@ -204,25 +215,45 @@ export function arreter() {
   parametresCrees = false;
   compte = null;
   cheminBase = '';
+  equipe = null;
+  etat.config = L.CONFIG_NEUTRE;
+  etat.modelesAffaire = [];
 }
 
-/** Réglages de départ : chez un client (chemin de base non vide), sans le compte GitHub ni le dossier de travail de Jérôme (chantier 6). */
-const reglagesDepart = () => (cheminBase ? { ...L.REGLAGES_DEPART, proprietaireGithub: '', cheminProjets: '' } : L.REGLAGES_DEPART);
+/**
+ * Réglages de départ : à la racine, ceux de Jérôme ; chez un client, un jeu neutre (pas de compte GitHub ni de dossier, options éteintes,
+ * début d'activité = ce mois-ci).
+ */
+const reglagesDepart = () => (estRacine() ? L.REGLAGES_JEROME : { ...L.REGLAGES_NEUTRES, debutActivite: L.moisCourant() });
 
-/** Premier lancement : crée les documents de paramètres manquants (ou périmés) avec les valeurs de départ. */
+/** Valeurs de départ de tous les documents de paramètres de cet espace. */
+const parametresDepart = () => L.parametresDepart({ racine: estRacine(), moisCourant: L.moisCourant() });
+
+/**
+ * Premier lancement : crée les documents de paramètres manquants (ou périmés) avec les valeurs de départ de l'espace (Jérôme à la racine, jeu neutre
+ * chez un client). Les nouveaux documents (étapes, phases, modèles d'affaire) sont créés de la même façon dans la base de Jérôme, qui n'a rien à faire :
+ * ses étapes et phases gardent leurs identifiants et leurs noms. Les interrupteurs absents du document « reglages » y sont ajoutés (sans toucher au reste).
+ */
 async function initialiserParametres(existants) {
-  const manquants = Object.keys(PARAMETRES_DEPART).filter((id) => {
+  const depart = parametresDepart();
+  const manquants = Object.keys(depart).filter((id) => {
     if (!existants[id]) return true;
     return id === 'filtres' && existants[id].version !== 2;
   });
-  if (!manquants.length || initialisation) return;
+  const reglagesIncomplets = existants.reglages && L.CLES_OPTIONS.some((k) => typeof existants.reglages[k] !== 'boolean');
+  if ((!manquants.length && !reglagesIncomplets) || initialisation) return;
   initialisation = true;
   for (const id of manquants) {
     const ref = doc(db, chemin('crm_parametres'), id);
     await runTransaction(db, async (t) => {
       const s = await t.get(ref);
-      if (!s.exists() || (id === 'filtres' && s.data().version !== 2)) t.set(ref, id === 'reglages' ? reglagesDepart() : PARAMETRES_DEPART[id]);
+      if (!s.exists() || (id === 'filtres' && s.data().version !== 2)) t.set(ref, depart[id]);
     }).catch((e) => console.warn('Initialisation des paramètres', e.code));
+  }
+  if (reglagesIncomplets) {
+    const manque = Object.fromEntries(Object.entries({ ...Object.fromEntries(L.CLES_OPTIONS.map((k) => [k, depart.reglages[k]])), prenomCelebration: depart.reglages.prenomCelebration, imageCelebration: depart.reglages.imageCelebration })
+      .filter(([k]) => existants.reglages[k] === undefined));
+    if (Object.keys(manque).length) await setDoc(doc(db, chemin('crm_parametres'), 'reglages'), manque, { merge: true }).catch((e) => console.warn('Initialisation des options', e.code));
   }
 }
 
@@ -371,8 +402,10 @@ export async function supprimerOrganisation(id) {
 
 // ---------------------------------------------------------------- affaires
 
-export async function creerAffaire(valeurs) {
-  const plan = L.planCreerAffaire(valeurs, { personnes: etat.personnes, organisations: etat.organisations }, ctx());
+/** `modeleId` (facultatif) : un modèle d'affaire des Réglages ; il préremplit l'affaire et crée ses activités types. */
+export async function creerAffaire(valeurs, { modeleId = null } = {}) {
+  const modele = modeleId ? etat.modelesAffaire.find((m) => m.id === modeleId) ?? null : null;
+  const plan = L.planCreerAffaire(valeurs, { personnes: etat.personnes, organisations: etat.organisations, modele }, ctx());
   await executer(plan.ecritures, 'creerAffaire');
   return plan.id;
 }
@@ -492,6 +525,17 @@ export async function enregistrerFiltres(items) {
 
 export async function enregistrerReglages(patch) {
   await majParametre('reglages', patch);
+}
+
+/** Étapes de vente / phases de projet : le contrôle (validerEmplacements) se fait avant, dans l'écran des Réglages. */
+export async function enregistrerEtapes(items, roleGagnee) {
+  await setDoc(doc(db, chemin('crm_parametres'), 'etapes'), L.documentEmplacements(items, roleGagnee, 'etape'));
+}
+export async function enregistrerPhases(items, roleCloture) {
+  await setDoc(doc(db, chemin('crm_parametres'), 'phases'), L.documentEmplacements(items, roleCloture, 'phase'));
+}
+export async function enregistrerModelesAffaire(items) {
+  await majParametre('modeles_affaire', { items: items.map((m, i) => ({ ...m, ordre: i + 1 })) });
 }
 
 export async function noterExportComplet() {

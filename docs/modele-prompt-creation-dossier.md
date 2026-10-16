@@ -1,5 +1,7 @@
 # Boutons « Créer le GitHub » et « Créer le répertoire » (affaires et projets)
 
+> **Remplacé le 16/10/2026 (version 2.6.1)** : plus de prompt Claude Code ni de « Créer le GitHub » ; « Créer le répertoire » crée le dossier dans Google Drive par l'API Google. Voir `google-drive.md`. Ce texte reste pour mémoire.
+
 Rédigé le 03/10/2026. **Construit le 03/10/2026 pour les affaires** (version 2.0.1, branche `mcp`) : fonctions pures dans `js/modules/crm/logique.js` (`nomDossierSuggere`, `nomDepotSuggere`, `promptCreationGithub`, `promptCreationDossier`…), lignes de la fiche dans `js/modules/crm/lanceurs.js`, réglages « GitHub et dossiers de projets » ; tests B17 (logique) et C24 à C26 (navigateur). **Pas encore testé à la main par Jérôme.** Les projets les auront avec l'écran Projets. Cette fonction s'ajoute à `urlGithub` et `urlDossier` (voir `cadrage-projets.md`, `convention-dossiers.md`).
 
 ## 1. Ce que veut Jérôme

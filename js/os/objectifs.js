@@ -3,7 +3,7 @@ import {
   collection, doc, onSnapshot, setDoc, updateDoc, runTransaction, serverTimestamp, increment,
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { db } from './firebase.js';
-import { h, icone, vider, toast } from './ui.js';
+import { h, icone, vider, remplir, toast } from './ui.js';
 import { animerCompteur, celebrerObjectif } from './celebrations.js';
 
 const etat = { objectifs: [], saisies: [], pretObjectifs: false, pretSaisies: false };
@@ -14,6 +14,14 @@ let compte = null;
 let objectifsDepart = [];
 let referenceFranchissement = null; // { cle: pourcentage } relevé pendant la session
 let donneesModulesPretes = () => true;
+// Ce que sait le module qui fournit les calculs (le CRM) : libellé d'un objectif (« Passages à l'étape : … » suit le nom de l'étape), disponibilité
+// (option éteinte ou étape désactivée = indisponible), indicateurs qu'on peut ajouter, étapes au choix.
+let regles = { libelle: (o) => o.libelle, disponible: () => true, proposables: () => [], etapes: () => [] };
+
+/** Le CRM déclare ses règles d'objectifs : { libelle(o), disponible(o), proposables(objectifs), etapes() }. */
+export function definirConfigObjectifs(r) {
+  regles = { ...regles, ...r };
+}
 
 // ---------------------------------------------------------------- outils
 
@@ -56,11 +64,11 @@ export function valeur(objectif, mois) {
     return Number(s?.valeur) || 0;
   }
   const c = calculateurs[objectif.calcul];
-  return c ? c.calculer(mois) : 0;
+  return c ? c.calculer(mois, objectif) : 0;
 }
 
 export function objectifsActifs() {
-  return etat.objectifs.filter((o) => o.actif !== false).sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
+  return etat.objectifs.filter((o) => o.actif !== false && regles.disponible(o)).sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
 }
 
 export function tousLesObjectifs() {
@@ -141,6 +149,17 @@ export async function majObjectif(id, patch) {
   await updateDoc(doc(db, 'os_objectifs', id), patch);
 }
 
+/** Ajoute un objectif calculé choisi dans la liste des indicateurs proposés (nouveaux contacts, chiffre d'affaires signé, passages à une étape…). */
+export async function ajouterObjectifCalcule({ calcul, etapeId = null, cible, couleur = '#b98ee0' }) {
+  const c = calculateurs[calcul];
+  if (!c) throw new Error('Indicateur inconnu');
+  const id = `${calcul}${etapeId ? `_${etapeId}` : ''}_${Date.now().toString(36)}`;
+  const ordre = Math.max(0, ...etat.objectifs.map((o) => o.ordre ?? 0)) + 1;
+  await setDoc(doc(db, 'os_objectifs', id), {
+    id, libelle: c.libelle, type: 'calcule', calcul, ...(c.etape ? { etapeId } : {}), cible: Number(cible) || 1, unite: c.unite || '', couleur, ordre, actif: true,
+  });
+}
+
 export async function ajouterObjectifManuel({ libelle, cible, unite = '', couleur = '#b98ee0' }) {
   const id = `manuel_${Date.now().toString(36)}`;
   const ordre = Math.max(0, ...etat.objectifs.map((o) => o.ordre ?? 0)) + 1;
@@ -173,7 +192,7 @@ function verifierFranchissements() {
   }
   for (const [cle, { o, pct }] of Object.entries(actuel)) {
     const avant = referenceFranchissement[cle];
-    if (avant && avant.pct < 100 && pct >= 100) celebrerObjectif(o.libelle);
+    if (avant && avant.pct < 100 && pct >= 100) celebrerObjectif(regles.libelle(o));
   }
   referenceFranchissement = actuel;
 }
@@ -190,6 +209,7 @@ export function rendreObjectifs(conteneur, { mois, modifiable = true }) {
   const cartes = new Map();
 
   function carte(o) {
+    const libelle = regles.libelle(o);
     const valeurEl = h('span', { class: 'objectif-valeur' }, '0');
     const barre = h('div', { class: 'barre-remplie', style: { width: '0%', background: o.couleur || 'var(--jaune)' } });
     const saisie = o.type === 'manuel' && modifiable
@@ -209,12 +229,12 @@ export function rendreObjectifs(conteneur, { mois, modifiable = true }) {
     const el = h('article', { class: 'objectif', dataset: { objectif: o.id } },
       h('div', { class: 'objectif-tete' },
         h('span', { class: 'pastille-couleur', style: { background: o.couleur || 'var(--jaune)' } }),
-        h('span', { class: 'objectif-libelle' }, o.libelle)),
+        h('span', { class: 'objectif-libelle' }, libelle)),
       h('div', { class: 'objectif-chiffres' },
         valeurEl,
         h('span', { class: 'objectif-cible' }, ` / ${formatValeur(o.cible, o.unite)}`),
         h('span', { class: 'objectif-pct' }, '')),
-      h('div', { class: 'barre', role: 'progressbar', 'aria-label': o.libelle, 'aria-valuemin': '0', 'aria-valuemax': '100' }, barre),
+      h('div', { class: 'barre', role: 'progressbar', 'aria-label': libelle, 'aria-valuemin': '0', 'aria-valuemax': '100' }, barre),
       actions);
     return { el, valeurEl, barre, saisie };
   }
@@ -254,7 +274,7 @@ export function rendreObjectifs(conteneur, { mois, modifiable = true }) {
 }
 
 function signature(liste) {
-  return liste.map((o) => `${o.id}:${o.libelle}:${o.cible}:${o.couleur}:${o.unite}`).join('|');
+  return liste.map((o) => `${o.id}:${regles.libelle(o)}:${o.cible}:${o.couleur}:${o.unite}`).join('|');
 }
 
 // ---------------------------------------------------------------- réglages des objectifs
@@ -277,14 +297,50 @@ export function rendreReglagesObjectifs(conteneur) {
     }, libelle, cible, unite, h('button', { type: 'submit', class: 'bouton bouton-secondaire' }, icone('plus', { taille: 16 }), 'Ajouter un objectif manuel'));
   })();
 
+  // Ajout d'un indicateur calculé (nouveaux contacts, rendez-vous, passages à une étape, chiffre d'affaires signé / facturé / encaissé selon les options).
+  const zoneCalcule = h('div', { class: 'ajout-calcule', dataset: { role: 'ajout-calcule' } });
+  function rendreAjoutCalcule() {
+    const choix = regles.proposables(etat.objectifs);
+    if (!choix.length) { vider(zoneCalcule); return; }
+    const selection = h('select', { class: 'champ', 'aria-label': 'Indicateur calculé à ajouter' }, choix.map((c) => h('option', { value: c.id }, c.libelle)));
+    const etapes = regles.etapes();
+    const selEtape = h('select', { class: 'champ', 'aria-label': 'Étape suivie' }, etapes.map((e) => h('option', { value: e.id }, e.libelle)));
+    const cible = h('input', { type: 'number', class: 'champ champ-court', min: '1', value: '5', 'aria-label': 'Cible du nouvel indicateur' });
+    const explication = h('p', { class: 'aide', dataset: { role: 'explication-ajout' } });
+    const maj = () => {
+      const c = choix.find((x) => x.id === selection.value);
+      selEtape.hidden = !c?.etape;
+      cible.value = c?.unite === '€' ? '1000' : '5';
+      explication.textContent = c?.explication || '';
+    };
+    selection.addEventListener('change', maj);
+    maj();
+    remplir(zoneCalcule, h('div', { class: 'ligne-ajout' }, selection, selEtape, cible,
+      h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'ajouter-calcule' }, onclick: async () => {
+        const c = choix.find((x) => x.id === selection.value);
+        if (!c) return;
+        try { await ajouterObjectifCalcule({ calcul: c.id, etapeId: c.etape ? selEtape.value : null, cible: cible.value }); toast('Objectif ajouté'); } catch (e) { console.warn(e); toast('Ajout impossible', { type: 'erreur' }); }
+      } }, icone('plus', { taille: 16 }), 'Ajouter un indicateur calculé')), explication);
+  }
+
   function ligne(o, index, liste) {
-    const libelle = h('input', { type: 'text', class: 'champ', value: o.libelle, 'aria-label': 'Libellé',
-      onchange: (e) => e.target.value.trim() && majObjectif(o.id, { libelle: e.target.value.trim() }) });
-    const cible = h('input', { type: 'number', class: 'champ champ-court', min: '1', value: String(o.cible), 'aria-label': `Cible : ${o.libelle}`,
+    const calcule = o.type !== 'manuel';
+    const c = calcule ? calculateurs[o.calcul] : null;
+    const dispo = regles.disponible(o);
+    const libelleCalcule = calcule && c?.etape;
+    const libelle = libelleCalcule
+      ? h('span', { class: 'libelle-calcule', dataset: { role: 'libelle-objectif' } }, regles.libelle(o))
+      : h('input', { type: 'text', class: 'champ', value: o.libelle, 'aria-label': 'Libellé',
+        onchange: (e) => e.target.value.trim() && majObjectif(o.id, { libelle: e.target.value.trim() }) });
+    const etape = libelleCalcule
+      ? h('select', { class: 'champ', 'aria-label': `Étape suivie : ${regles.libelle(o)}`, onchange: (e) => majObjectif(o.id, { etapeId: e.target.value }) },
+        regles.etapes().map((e) => h('option', { value: e.id, selected: e.id === o.etapeId }, e.libelle)))
+      : null;
+    const cible = h('input', { type: 'number', class: 'champ champ-court', min: '1', value: String(o.cible), 'aria-label': `Cible : ${regles.libelle(o)}`,
       onchange: (e) => majObjectif(o.id, { cible: Math.max(1, Number(e.target.value) || 1) }) });
-    const couleur = h('input', { type: 'color', class: 'champ-couleur', value: o.couleur || '#ecbc06', 'aria-label': `Couleur : ${o.libelle}`,
+    const couleur = h('input', { type: 'color', class: 'champ-couleur', value: o.couleur || '#ecbc06', 'aria-label': `Couleur : ${regles.libelle(o)}`,
       onchange: (e) => majObjectif(o.id, { couleur: e.target.value }) });
-    const actif = h('input', { type: 'checkbox', checked: o.actif !== false, 'aria-label': `Afficher : ${o.libelle}`,
+    const actif = h('input', { type: 'checkbox', checked: o.actif !== false, 'aria-label': `Afficher : ${regles.libelle(o)}`,
       onchange: (e) => majObjectif(o.id, { actif: e.target.checked }) });
     const echanger = async (j) => {
       const autre = liste[j];
@@ -292,13 +348,19 @@ export function rendreReglagesObjectifs(conteneur) {
       await majObjectif(o.id, { ordre: autre.ordre ?? j });
       await majObjectif(autre.id, { ordre: o.ordre ?? index });
     };
-    return h('div', { class: 'ligne-reglage', dataset: { objectif: o.id } },
-      h('span', { class: `badge ${o.type === 'manuel' ? 'badge-manuel' : 'badge-calcule'}` }, o.type === 'manuel' ? 'Manuel' : 'Calculé'),
-      libelle, cible, couleur,
-      h('label', { class: 'case' }, actif, h('span', {}, 'Actif')),
-      h('div', { class: 'groupe-boutons' },
-        h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Monter', disabled: index === 0, onclick: () => echanger(index - 1) }, icone('arrow-up', { taille: 16 })),
-        h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Descendre', disabled: index === liste.length - 1, onclick: () => echanger(index + 1) }, icone('arrow-down', { taille: 16 }))));
+    const explication = c?.explication
+      ? h('p', { class: 'aide explication-objectif', dataset: { role: 'explication' } }, h('strong', {}, 'Comment c’est calculé : '), c.explication)
+      : (calcule ? null : h('p', { class: 'aide explication-objectif', dataset: { role: 'explication' } }, 'Compteur à tenir à la main : tu ajoutes +1, +10 ou tu saisis la valeur sur l’Accueil.'));
+    return h('div', { class: `ligne-reglage ligne-objectif${dispo ? '' : ' archivee'}`, dataset: { objectif: o.id } },
+      h('div', { class: 'ligne-objectif-champs' },
+        h('span', { class: `badge ${o.type === 'manuel' ? 'badge-manuel' : 'badge-calcule'}` }, o.type === 'manuel' ? 'Manuel' : 'Calculé'),
+        libelle, etape, cible, couleur,
+        h('label', { class: 'case' }, actif, h('span', {}, 'Actif')),
+        h('div', { class: 'groupe-boutons' },
+          h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Monter', disabled: index === 0, onclick: () => echanger(index - 1) }, icone('arrow-up', { taille: 16 })),
+          h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Descendre', disabled: index === liste.length - 1, onclick: () => echanger(index + 1) }, icone('arrow-down', { taille: 16 })))),
+      explication,
+      dispo ? null : h('p', { class: 'aide', dataset: { role: 'indisponible' } }, 'Indisponible pour le moment (une option du CRM est éteinte, ou l’étape suivie est désactivée) : l’objectif n’est pas affiché sur l’Accueil.'));
   }
 
   function maj() {
@@ -306,8 +368,9 @@ export function rendreReglagesObjectifs(conteneur) {
     vider(corps);
     const liste = tousLesObjectifs();
     liste.forEach((o, i) => corps.append(ligne(o, i, liste)));
+    rendreAjoutCalcule();
   }
-  conteneur.append(corps, formulaireAjout);
+  conteneur.append(corps, zoneCalcule, formulaireAjout);
   maj();
   const stop = surObjectifs(maj);
   return stop;

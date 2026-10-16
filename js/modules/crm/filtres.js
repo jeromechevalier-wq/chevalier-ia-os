@@ -32,7 +32,7 @@ function controles(liste) {
     ];
   }
   return [
-    cases('etapes', 'Étape', L.ETAPES.map((e) => ({ valeur: e.id, libelle: e.libelle }))),
+    cases('etapes', 'Étape', L.etapesActives(D.etat.config).map((e) => ({ valeur: e.id, libelle: e.libelle }))),
     cases('statuts', 'Statut', L.STATUTS.map((s) => ({ valeur: s.id, libelle: s.libelle }))),
     cases('priorites', 'Priorité', L.PRIORITES.map((p) => ({ valeur: p.id, libelle: p.libelle }))),
     cases('offres', 'Offre', D.etat.offres.filter((o) => o.actif !== false).map((o) => ({ valeur: o.id, libelle: o.nom }))),

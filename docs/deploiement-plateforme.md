@@ -38,7 +38,7 @@ Le workflow a besoin d'un « badge » pour avoir le droit de publier sur `cheval
 1. Ouvrir <https://console.cloud.google.com/iam-admin/serviceaccounts?project=chevalier-ia-app> (en haut, vérifier que le projet est bien `chevalier-ia-app`).
 2. Cliquer **Créer un compte de service**.
 3. Nom : `deploiement-github`. Cliquer **Créer et continuer**.
-4. Dans « Sélectionner un rôle », ajouter deux rôles (bouton **Ajouter un autre rôle** pour le second) : **Administrateur Firebase** (en anglais : *Firebase Admin*) et **Consommateur Service Usage** (*Service Usage Consumer*). Cliquer **Continuer**, puis **OK**.
+4. Dans « Sélectionner un rôle », ajouter les rôles suivants (bouton **Ajouter un autre rôle** pour chacun) : **Administrateur Firebase** (en anglais : *Firebase Admin*), **Consommateur Service Usage** (*Service Usage Consumer*) et, pour publier des fonctions (choix `fonctions`, ex. le MCP des clients), **Utilisateur du compte de service** (*Service Account User*). Sans ce dernier, le choix `fonctions` échoue avec « Missing permissions … iam.serviceAccounts.ActAs ». Pour l'ajouter après coup : <https://console.cloud.google.com/iam-admin/iam?project=chevalier-ia-app>, crayon à droite de `deploiement-github@…`, **Ajouter un autre rôle**, **Utilisateur du compte de service**, **Enregistrer**. Cliquer **Continuer**, puis **OK**.
 5. Dans la liste, cliquer sur l'adresse du compte `deploiement-github@chevalier-ia-app.iam.gserviceaccount.com`, onglet **Clés**, bouton **Ajouter une clé**, **Créer une clé**, choisir **JSON**, **Créer**. Un fichier `.json` se télécharge sur le Mac.
    - Si Google refuse (« la création de clés est désactivée par une règle »), dis-le : on prendra une autre voie, ne contourne rien toi-même.
 

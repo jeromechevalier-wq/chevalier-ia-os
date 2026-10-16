@@ -1,0 +1,49 @@
+/* Module Automatisations (chantier 14) : compteurs, filtres, liste des exécutions, bandeau « n8n injoignable ».
+   Couleurs : l'état « en cours » suit l'accent du client ; réussite, erreur et attention sont des couleurs SÉMANTIQUES (jamais la marque). */
+:root { --au-attention: #e6b25c; --au-attention-fond: #e6b25c26; }
+:root[data-theme='clair'] { --au-attention: #8a5300; --au-attention-fond: #f3d9a633; }
+
+.page-automatisations { max-width: 960px; }
+.autom-bandeau { background: var(--au-attention-fond); color: var(--au-attention); border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; font-weight: 600; }
+.autom-barre { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.autom-resume { display: flex; flex-wrap: wrap; gap: 8px; }
+.autom-puce { display: inline-flex; align-items: baseline; gap: 6px; padding: 4px 12px; border-radius: 999px; background: var(--panneau); border: 1px solid var(--bordure); font-size: 14px; }
+.autom-puce b { font-size: 16px; font-variant-numeric: tabular-nums; }
+.autom-puce.run b { color: var(--accent); }
+.autom-puce.ko b { color: var(--retard); }
+.autom-puce.chk b { color: var(--au-attention); }
+.autom-puce.ok b { color: var(--succes); }
+.autom-actions { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; font-size: 14px; color: var(--texte2); }
+.autom-case { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+.autom-filtres { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.autom-filtres select { max-width: 100%; }
+
+.autom-liste { list-style: none; margin: 0; padding: 0; background: var(--panneau); border: 1px solid var(--bordure); border-radius: 10px; overflow: hidden; }
+.autom-ligne { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 6px 16px; padding: 13px 16px; border-bottom: 1px solid var(--bordure); }
+.autom-ligne:last-child { border-bottom: 0; }
+.autom-principal { flex: 1 1 260px; min-width: 0; }
+.autom-nom { font-weight: 600; overflow-wrap: anywhere; }
+.autom-nom-editable { background: none; border: 0; padding: 0; color: inherit; font: inherit; font-weight: 600; text-align: left; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
+.autom-nom-editable svg { opacity: .5; }
+.autom-nom-editable:hover svg, .autom-nom-editable:focus-visible svg { opacity: 1; }
+.autom-meta { color: var(--texte2); font-size: 14px; font-variant-numeric: tabular-nums; }
+.autom-pastille { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 7px; font-size: 14px; font-weight: 600; padding: 3px 11px; border-radius: 999px; white-space: nowrap; }
+.autom-point { width: 9px; height: 9px; border-radius: 50%; background: currentColor; display: inline-block; }
+.autom-pastille.etat-running, .autom-pastille.etat-new { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+.autom-pastille.etat-success { background: color-mix(in srgb, var(--succes) 18%, transparent); color: var(--succes); }
+.autom-pastille.etat-error { background: var(--retard-fond); color: var(--retard); }
+.autom-pastille.etat-waiting, .autom-pastille.etat-stale { background: var(--au-attention-fond); color: var(--au-attention); }
+.autom-pastille.etat-canceled, .autom-pastille.etat-unknown { background: var(--survol); color: var(--texte2); }
+/* « en cours » : la pastille pulse ; « à vérifier » : carré fixe, sans animation. */
+.autom-pastille.etat-running .autom-point, .autom-pastille.etat-new .autom-point { animation: autom-pulse 1.3s ease-in-out infinite; }
+.autom-pastille.etat-stale .autom-point { border-radius: 2px; }
+@keyframes autom-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .3; transform: scale(.65); } }
+/* Appareil réglé pour réduire les animations : plus de pulsation, un carré fixe à la place. */
+@media (prefers-reduced-motion: reduce) {
+  .autom-pastille.etat-running .autom-point, .autom-pastille.etat-new .autom-point { animation: none; border-radius: 2px; }
+}
+.autom-erreur { flex: 1 1 100%; background: var(--retard-fond); border-radius: 6px; padding: 9px 12px; font-size: 14px; }
+.autom-erreur-cle { color: var(--retard); font-weight: 600; }
+.autom-erreur code { font-family: ui-monospace, Menlo, monospace; font-size: 13px; overflow-wrap: anywhere; background: none; padding: 0; }
+.autom-indice { flex: 1 1 100%; font-size: 14px; color: var(--au-attention); }
+.autom-vide { padding: 28px 16px; text-align: center; color: var(--texte2); }

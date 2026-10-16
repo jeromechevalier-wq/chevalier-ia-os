@@ -1,6 +1,13 @@
 {
   "functions": [
-    { "source": "functions-plateforme", "codebase": "plateforme", "runtime": "nodejs22" }
+    {
+      "source": "functions-plateforme",
+      "codebase": "plateforme",
+      "runtime": "nodejs22",
+      "predeploy": [
+        "node \"$PROJECT_DIR/scripts/preparer-fonctions.js\""
+      ]
+    }
   ],
   "firestore": {
     "rules": "firestore.plateforme.rules"
@@ -21,6 +28,34 @@
       {
         "source": "/espace/**",
         "destination": "/espace/index.html"
+      },
+      {
+        "source": "/mcp/**",
+        "run": {
+          "serviceId": "mcpclients",
+          "region": "europe-west9"
+        }
+      },
+      {
+        "source": "/.well-known/oauth-protected-resource/mcp/**",
+        "run": {
+          "serviceId": "mcpclients",
+          "region": "europe-west9"
+        }
+      },
+      {
+        "source": "/.well-known/oauth-authorization-server/mcp/**",
+        "run": {
+          "serviceId": "mcpclients",
+          "region": "europe-west9"
+        }
+      },
+      {
+        "source": "/oauth/**",
+        "run": {
+          "serviceId": "mcpclients",
+          "region": "europe-west9"
+        }
       }
     ],
     "headers": [

@@ -1,5 +1,5 @@
 // Chantier 6 : le CRM de Jérôme (racine, règles du CRM) reste STRICTEMENT identique : identité, jaune, bandeau de sauvegarde, célébrations.
-import { test, expect, connecter, allerA, creerAffaire, creerPersonne, estTelephone, JEROME } from './outils.js';
+import { test, expect, connecter, allerA, allerAuxReglagesCrm, ouvrirSectionReglages, creerAffaire, creerPersonne, estTelephone, JEROME } from './outils.js';
 
 const JAUNE = 'rgb(236, 188, 6)';
 const couleurDe = (page, selecteur, propriete = 'backgroundColor', pseudo = null) =>
@@ -56,17 +56,17 @@ test('K3 bandeau « Pense à ta sauvegarde mensuelle », objectifs, Charles dans
   await expect(page.locator('.charles-vide').first()).toBeVisible();
 });
 
-test('K4 réglages, comptes Jérôme / Charles dans les listes, GitHub : toujours là au CRM de Jérôme', async ({ page }) => {
+test('K4 réglages, comptes Jérôme / Charles dans les listes, dossier de travail : toujours là au CRM de Jérôme', async ({ page }) => {
   await creerPersonne('p1', { nom: 'Camille Dubois' });
   await creerAffaire('a1', { titre: 'Audit du lac', personneId: 'p1', etape: 'proposition_envoyee' });
   await connecter(page, JEROME);
-  await allerA(page, 'Réglages');
+  await allerAuxReglagesCrm(page);
   await expect(page.locator('#reglages-objectifs')).toBeVisible();
   await page.evaluate(() => { location.hash = '#/crm/affaires/a1'; });
   await expect(page.locator('input.titre-editable')).toHaveValue('Audit du lac');
   await expect(page.locator('select[aria-label="Propriétaire"] option')).toHaveText(['Jérôme', 'Charles']);
-  await expect(page.locator('[data-prop="github"]')).toHaveCount(1);
   await expect(page.locator('[data-prop="dossier"]')).toHaveCount(1);
+  await expect(page.locator('[data-prop="github"]')).toHaveCount(0); // plus de champ GitHub (une ancienne adresse serait reprise comme lien)
 });
 
 test('K5 célébration « Bravo Jérôme ! » toujours montrée quand une affaire est gagnée au CRM de Jérôme', async ({ page }) => {
@@ -77,4 +77,34 @@ test('K5 célébration « Bravo Jérôme ! » toujours montrée quand une affair
   await expect(page.locator('input.titre-editable')).toHaveValue('Audit du lac');
   await page.locator('[data-action="gagnee"]').click();
   await expect(page.locator('.celebration')).toContainText('Bravo Jérôme !');
+});
+
+test('K5 Réglages à menu latéral chez Jérôme : l\'espace d\'abord, puis les modules ; le CRM garde tous ses réglages ; menu CRM en un seul bloc', async ({ page }) => {
+  await connecter(page, JEROME);
+  // menu principal : un seul bloc « CRM » avec ses sept écrans dans l'ordre (Modèles est dans les Réglages)
+  await expect(page.locator('.menu .menu-groupe[data-bloc="crm"] .menu-entree')).toHaveText(['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Projets', 'Journal', 'Archives']);
+  await expect(page.locator('.menu .menu-groupe[data-bloc="projets"]')).toHaveCount(0);
+  await allerA(page, 'Réglages');
+  await expect(page).toHaveURL(/#\/reglages$/);
+  await expect(page.getByRole('heading', { name: 'Réglages', level: 1 })).toBeVisible();
+  await expect(page.locator('.reglages-menu-lien')).toHaveText(['Mon espace', 'Modules actifs', 'CRM', 'Veille', 'Automatisations']); // ni membres (racine) ni MCP (clients)
+  await expect(page.locator('.reglages-menu-lien[aria-current="page"]')).toHaveText('Mon espace');
+  await expect(page.locator('[data-info="nom"]')).toContainText('Chevalier IA OS');
+  await expect(page.locator('#reglages-theme')).toBeVisible();
+  if (!estTelephone(page)) await expect(page.locator('.reglages-menu-bouton')).toBeHidden(); // sur ordinateur le menu reste déplié
+  await ouvrirSectionReglages(page, 'Modules actifs');
+  await expect(page.locator('[data-interrupteur="crm"]')).toBeChecked();
+  await expect(page.locator('[data-interrupteur="mcp"]')).toHaveCount(0); // réservé aux clients
+  await ouvrirSectionReglages(page, 'CRM');
+  await expect(page).toHaveURL(/#\/reglages\/crm$/);
+  for (const id of ['etapes', 'phases', 'options', 'modeles-affaire', 'modeles-projets', 'objectifs', 'offres', 'secteurs', 'sources', 'etiquettes', 'filtres', 'debut', 'export']) await expect(page.locator(`#reglages-${id}`), id).toBeVisible();
+  await expect(page.locator('.reglages-raccourcis .reglages-raccourci').first()).toBeVisible();
+  await page.locator('.reglages-raccourci[data-vers="reglages-export"]').click();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), 'pas de défilement horizontal').toBe(true);
+  // une section d'espace ne s'affiche pas deux fois et le thème n'est plus dans le CRM
+  await expect(page.locator('#reglages-theme')).toHaveCount(0);
+  await ouvrirSectionReglages(page, 'Veille');
+  await expect(page.locator('[data-role="aucun-reglage"]')).toContainText('Aucun réglage');
+  await page.evaluate(() => { location.hash = '#/reglages/membres'; }); // pas de membres à la racine : retour à l'arrivée
+  await expect(page).toHaveURL(/#\/reglages$/);
 });

@@ -1,20 +1,22 @@
-// Fiche d'un projet : barre des phases, résumé, détails (GitHub, dossier), documents ; notes et historique à droite.
+// Fiche d'un projet : barre des phases, résumé, détails (dossier de travail), liens et documents ; notes et historique à droite.
 import { h, icone, remplir, ouvrirMenu, toast, confirmer } from '../../os/ui.js';
 import * as CRM from '../crm/donnees.js';
 import * as L from '../crm/logique.js';
 import {
   lienPersonne, lienOrganisation, lienAffaire, sectionRepliable, champPropriete, selecteurPersonne, selecteurOrganisation, titreEditable, selectProprietaire,
-  gabaritFiche, lienRetour, saisieEnCours, etatVide, planifier, boutonEtoile,
+  gabaritFiche, lienRetour, saisieEnCours, etatVide, planifier, boutonEtoile, iconeInfo,
 } from '../crm/composants.js';
 import { panneauActivite } from '../crm/activites.js';
 import { creerLanceurs } from '../crm/lanceurs.js';
+import { sectionLiensEtDocuments } from '../crm/liens-documents.js';
 import * as D from './donnees.js';
 import * as P from './logique.js';
 import { sectionTaches } from './taches.js';
 import { sectionFactures } from './factures.js';
 import { cheminModele } from './modeles.js';
 import { anneauProgression, cheminProjet } from './composants.js';
-import { pastilleStatutProjet, pastilleImpaye, pastillePhase, terminerProjet, changerPhaseProjet, extraireValeur, mettreEnPause, reprendre, rouvrir, demanderSuppressionProjet } from './projets.js';
+import { pastilleStatutProjet, pastilleImpaye, terminerProjet, changerPhaseProjet, extraireValeur, mettreEnPause, reprendre, rouvrir, demanderSuppressionProjet } from './projets.js';
+const cfg = () => CRM.etat.config;
 
 export function rendreFicheProjet(conteneur, id) {
   let panneau = null;
@@ -30,12 +32,13 @@ export function rendreFicheProjet(conteneur, id) {
   }
 
   function barreDesPhases(p) {
-    const index = P.PHASES.findIndex((x) => x.id === p.phase);
+    const index = P.phasesActives(cfg()).findIndex((x) => x.id === p.phase);
     const vivant = P.estProjetActif(p);
     return h('ol', { class: `barre-etapes-fiche${vivant ? '' : ' inactive'}`, 'aria-label': 'Phases du projet' },
-      P.PHASES.map((ph, i) => h('li', { class: i <= index ? 'passee' : '', style: { '--couleur': ph.couleur } },
-        h('button', { type: 'button', class: `etape${i === index ? ' courante' : ''}`, 'aria-current': i === index && vivant ? 'step' : null, dataset: { phase: ph.id },
-          onclick: () => changerPhaseProjet(p, ph.id) }, ph.libelle))));
+      P.phasesActives(cfg()).map((ph, i) => h('li', { class: i <= index ? 'passee' : '', style: { '--couleur': ph.couleur } },
+        h('button', { type: 'button', class: `etape${i === index ? ' courante' : ''}`, 'aria-current': i === index && vivant ? 'step' : null, dataset: { phase: ph.id }, title: i === index ? `Phase actuelle : ${ph.libelle}` : `Passer en phase ${ph.libelle}`,
+          onclick: () => changerPhaseProjet(p, ph.id) }, ph.libelle),
+        iconeInfo(ph.description, ph.libelle))));
   }
 
   function construire(p) {
@@ -44,7 +47,8 @@ export function rendreFicheProjet(conteneur, id) {
     const aff = p.affaireId ? CRM.affaire(p.affaireId) : null;
     const extraction = P.estExtraction(p);
     const sourceProjet = p.projetSourceId ? D.projet(p.projetSourceId) : null;
-    const projetExtraction = P.extractionDuProjet(D.etat.projets, p.id);
+    const extractionOn = P.extractionActive(cfg()); // option « Extraction de valeur » : éteinte, on ne montre ni bouton, ni badge, ni lien d'extraction
+    const projetExtraction = extractionOn ? P.extractionDuProjet(D.etat.projets, p.id) : null;
     const termine = P.estProjetTermine(p);
     const titre = titreEditable({ valeur: p.titre, libelle: 'Titre', surEnregistrer: (v) => D.majProjet(p.id, { titre: v }) });
     const menu = h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Plus d’actions', 'data-action': 'menu-fiche',
@@ -54,7 +58,7 @@ export function rendreFicheProjet(conteneur, id) {
         { libelle: 'Supprimer définitivement…', icone: 'trash-2', danger: true, action: () => demanderSuppressionProjet(p) },
       ]) }, icone('ellipsis', { taille: 20 }));
     // Bouton manuel (07/10/2026) : on n'attend pas la fin du projet pour extraire sa valeur ; une seule extraction par projet (sinon on ouvre celle qui existe).
-    const boutonExtraire = extraction ? null : h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'extraire',
+    const boutonExtraire = extraction || !extractionOn ? null : h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'extraire',
       onclick: () => extraireValeur(p) }, icone('sparkles', { taille: 16 }), projetExtraction ? 'Ouvrir l’extraction' : 'Extraire la valeur');
     const actions = termine
       ? [h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'rouvrir', onclick: () => rouvrir(p) }, icone('rotate-ccw', { taille: 16 }), 'Rouvrir'), boutonExtraire]
@@ -71,7 +75,7 @@ export function rendreFicheProjet(conteneur, id) {
       h('div', { class: 'fiche-tete-ligne' },
         h('div', { class: 'fiche-titre' }, titre,
           h('div', { class: 'fiche-sous' }, pastilleStatutProjet(p), pastilleImpaye(p), p.archive ? h('span', { class: 'badge-archive' }, 'Archivé') : null,
-            p.nature === 'extraction' ? h('span', { class: 'badge-nature' }, 'Extraction') : null,
+            p.nature === 'extraction' && extractionOn ? h('span', { class: 'badge-nature' }, 'Extraction') : null,
             pers ? h('span', {}, icone('user', { taille: 14 }), lienPersonne(pers)) : null, org ? h('span', {}, icone('building-2', { taille: 14 }), lienOrganisation(org)) : null,
             selectProprietaire({ valeur: p.proprietaire, surChoix: (v) => D.majProjet(p.id, { proprietaire: v }) }))),
         h('div', { class: 'fiche-actions' }, actions, menu)),
@@ -91,6 +95,12 @@ export function rendreFicheProjet(conteneur, id) {
       if (erreurs[champ]) throw Object.assign(new Error(erreurs[champ]), { saisie: true });
       await D.majProjet(p.id, { [champ]: v || null });
     };
+    /** La phase, modifiable ici comme dans la barre sous le titre : même règle (la Clôture peut être bloquée par les factures), même fonction. */
+    const selectPhase = h('select', { class: 'champ', 'aria-label': 'Phase', 'data-action': 'choisir-phase',
+      onchange: async () => {
+        await changerPhaseProjet(p, selectPhase.value);
+        selectPhase.value = D.projet(p.id)?.phase ?? p.phase; // refus ou annulation : on revient à la phase réelle
+      } }, P.phasesActives(cfg()).map((ph) => h('option', { value: ph.id, selected: ph.id === p.phase }, ph.libelle)));
     /** L'avancement (cercle et « 2 / 5 tâches ») : redessiné seul quand une tâche change pendant qu'on tape dans la fiche. */
     const zoneAvancement = h('div', { class: 'prop-valeur' });
     const rendreAvancement = () => {
@@ -123,45 +133,28 @@ export function rendreFicheProjet(conteneur, id) {
         h('div', { class: 'prop', dataset: { prop: 'avancement' } }, h('span', { class: 'prop-libelle' }, 'Avancement'), zoneAvancement),
         p.modeleId ? h('div', { class: 'prop', dataset: { prop: 'modele' } }, h('span', { class: 'prop-libelle' }, 'Modèle'), h('div', { class: 'prop-valeur' },
           D.modele(p.modeleId) ? h('a', { class: 'prop-lien', href: cheminModele(p.modeleId) }, D.modele(p.modeleId).nom) : h('span', { class: 'aide' }, 'Modèle supprimé'))) : null,
-        h('div', { class: 'prop' }, h('span', { class: 'prop-libelle' }, 'Phase'), h('div', { class: 'prop-valeur' }, pastillePhase(p.phase))),
-        h('div', { class: 'prop' }, h('span', { class: 'prop-libelle' }, 'Statut'), h('div', { class: 'prop-valeur' }, pastilleStatutProjet(p))),
+        h('div', { class: 'prop', dataset: { prop: 'phase' } }, h('span', { class: 'prop-libelle' }, 'Phase'), h('div', { class: 'prop-valeur' }, selectPhase)),
         champPropriete({ libelle: 'Début', valeur: p.dateDebut || '', type: 'date', surEnregistrer: enregistrerDate('dateDebut') }).element,
         champPropriete({ libelle: 'Fin prévue', valeur: p.dateFin || '', type: 'date', surEnregistrer: enregistrerDate('dateFin') }).element),
     });
 
     // ---- Détails
     const lanceurs = creerLanceurs({
-      fiche: p, typeFiche: 'projet', organisation: org, personne: pers, affaireOrigine: aff,
+      fiche: p, typeFiche: 'projet', nomSuggere: p.titre,
       enregistrer: (patch) => D.majProjet(p.id, patch),
     });
-    const details = sectionRepliable({ id: 'projet-details', titre: 'Détails', contenu: h('div', { class: 'proprietes' }, lanceurs.github, lanceurs.dossier) });
+    const details = sectionRepliable({ id: 'projet-details', titre: 'Détails', contenu: h('div', { class: 'proprietes' }, lanceurs.dossier) });
 
-    // ---- Documents
-    const champLibelle = h('input', { class: 'champ', type: 'text', 'aria-label': 'Libellé du document', placeholder: 'Libellé (ex. Devis)' });
-    const champUrl = h('input', { class: 'champ', type: 'url', 'aria-label': 'Adresse du document (lien Google Drive)', placeholder: 'Lien Google Drive' });
-    const documents = p.documents || [];
-    const sectionDocuments = sectionRepliable({
-      id: 'projet-documents', titre: 'Documents', compteur: documents.length,
-      contenu: h('div', { class: 'pile' },
-        documents.length ? h('ul', { class: 'liste-simple' }, documents.map((d, i) => h('li', { class: 'ligne-simple' }, icone('link', { taille: 14 }),
-          boutonEtoile({ favori: d.favori === true, libelle: d.libelle, surBascule: () => D.majProjet(p.id, L.basculerFavoriDocument(p, i)) }),
-          h('a', { href: d.url, target: '_blank', rel: 'noopener noreferrer' }, d.libelle),
-          h('button', { type: 'button', class: 'bouton-icone', 'aria-label': `Retirer ${d.libelle}`, onclick: () => D.majProjet(p.id, L.supprimerDocument(p, i)) }, icone('x', { taille: 14 }))))) : null,
-        h('div', { class: 'ligne-ajout' }, champLibelle, champUrl,
-          h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', 'data-action': 'ajouter-document', onclick: async () => {
-            const r = L.ajouterDocument(p, champLibelle.value, champUrl.value);
-            if (r.erreurs.url) { toast(r.erreurs.url, { type: 'erreur' }); champUrl.classList.add('invalide'); return; }
-            await D.majProjet(p.id, r.patch);
-          } }, 'Ajouter'))),
-    });
+    // ---- Liens et documents : composant commun aux projets et aux affaires (liens web, documents choisis dans la fenêtre Google, notes).
+    const sectionDocuments = sectionLiensEtDocuments({ id: 'projet-documents', typeFiche: 'projet', entite: p, courant: () => D.projet(p.id) || p, enregistrer: (patch) => D.majProjet(p.id, patch) });
 
     // ---- Tâches
     const taches = sectionTaches(p);
     majTaches = () => { taches.majListe(); rendreAvancement(); };
 
     // ---- Factures (projets de livraison ; une extraction ou un chantier interne n'en a en général pas, mais la section reste là : on peut en ajouter)
-    const factures = sectionFactures(p);
-    majFactures = () => factures.majListe();
+    const factures = P.suiviPaiementsActif(cfg()) ? sectionFactures(p) : null; // option « Suivi des paiements » éteinte : pas de section Factures
+    majFactures = () => factures?.majListe();
 
     // ---- Documents de l'affaire : montrés ici, pas déplacés (ils restent sur l'affaire)
     const documentsAffaire = aff?.documents || [];
@@ -179,11 +172,12 @@ export function rendreFicheProjet(conteneur, id) {
     if (!panneau) {
       panneauAffaireId = p.affaireId || null;
       panneau = panneauActivite({
-        lien: { projetId: p.id }, liensCreation: () => P.liensProjet(D.projet(p.id) || p), avecActivites: false,
+        lien: { projetId: p.id }, liensCreation: () => P.liensProjet(D.projet(p.id) || p),
+        typesActivite: ['appel', 'rendez_vous', 'email'], // pas de « Tâche » libre : un projet a sa section Tâches
         affaireLiee: panneauAffaireId ? { affaireId: panneauAffaireId, fusionnerNotes: (notes, notesAffaire) => P.notesDuProjet(notes, notesAffaire, p.id) } : null,
       });
     }
-    remplir(racine, gabaritFiche({ entete, gauche: [resume.element, taches.element, factures.element, details.element, sectionDocuments.element, sectionDocumentsAffaire?.element].filter(Boolean), droite: panneau.element }));
+    remplir(racine, gabaritFiche({ entete, gauche: [resume.element, taches.element, factures?.element, details.element, sectionDocuments.element, sectionDocumentsAffaire?.element].filter(Boolean), droite: panneau.element }));
   }
 
   function reconstruire() {

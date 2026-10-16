@@ -1,4 +1,4 @@
-// Écran Modèles : la liste des modèles de projet et la fiche d'un modèle (ses tâches types par phase).
+// Modèles de projet : la liste (dans les Réglages, section « Modèles de projets ») et la fiche d'un modèle (ses tâches types par phase).
 // Aucune règle métier ici : les règles sont dans logique.js (plans), exécutés par donnees.js.
 import { h, icone, remplir, dialogue, confirmer, demanderTexte, ouvrirMenu, toast } from '../../os/ui.js';
 import { naviguer } from '../../os/router.js';
@@ -7,6 +7,7 @@ import * as L from '../crm/logique.js';
 import { champPropriete, sectionRepliable, titreEditable, lienRetour, saisieEnCours, etatVide, planifier } from '../crm/composants.js';
 import * as D from './donnees.js';
 import * as P from './logique.js';
+const cfg = () => CRM.etat.config;
 
 export const cheminModele = (id) => `#/projets/modeles/${id}`;
 
@@ -21,7 +22,11 @@ const libelleDelai = (t) => (t.delaiJours === null || t.delaiJours === undefined
 
 // ---------------------------------------------------------------- liste
 
-export function rendreModeles(conteneur) {
+/**
+ * Liste des modèles de projet. `page: false` (Réglages) : seulement le compteur, le bouton « Modèle » et le tableau, sans l'en-tête de page.
+ * Les modèles ne sont plus dans le menu : ils se règlent dans les Réglages, avec les modèles d'affaires.
+ */
+export function rendreModeles(conteneur, { page = true } = {}) {
   const zone = h('div', { class: 'zone-affaires' });
   const compteur = h('span', { class: 'compteur-liste', 'aria-live': 'polite' });
 
@@ -50,13 +55,15 @@ export function rendreModeles(conteneur) {
       h('tbody', {}, lignes))));
   }
 
-  conteneur.append(h('div', { class: 'page page-affaires page-modeles' },
-    h('header', { class: 'page-tete' },
-      h('div', {}, h('p', { class: 'etiquette' }, 'Livraison'), h('h1', {}, 'Modèles'), compteur),
-      h('div', { class: 'page-actions' },
-        h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'nouveau-modele', onclick: nouveau }, icone('plus', { taille: 16 }), 'Modèle'))),
-    h('p', { class: 'aide' }, 'Un modèle donne à un projet ses tâches de départ. Il se choisit à la création du projet ; celui de l’offre de l’affaire est proposé d’office.'),
-    zone));
+  const boutonNouveau = h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'nouveau-modele', onclick: nouveau }, icone('plus', { taille: 16 }), 'Modèle');
+  const aide = h('p', { class: 'aide' }, 'Un modèle donne à un projet ses tâches de départ. Il se choisit à la création du projet ; celui de l’offre de l’affaire est proposé d’office.');
+  conteneur.append(page
+    ? h('div', { class: 'page page-affaires page-modeles' },
+      h('header', { class: 'page-tete' },
+        h('div', {}, h('p', { class: 'etiquette' }, 'Réglages'), h('h1', {}, 'Modèles de projets'), compteur),
+        h('div', { class: 'page-actions' }, boutonNouveau)),
+      aide, zone)
+    : h('div', { class: 'pile modeles-reglages' }, aide, h('div', { class: 'ligne-boutons' }, compteur, boutonNouveau), zone));
   const planifie = planifier(rendre);
   rendre();
   const arrets = [D.surChangement(planifie), CRM.surChangement(planifie)];
@@ -67,7 +74,7 @@ export function rendreModeles(conteneur) {
 
 async function dialogueTacheModele(modele, t) {
   const titre = h('input', { class: 'champ', type: 'text', 'aria-label': 'Titre de la tâche type', value: t.titre, autofocus: true });
-  const phase = h('select', { class: 'champ', 'aria-label': 'Phase' }, P.PHASES.map((ph) => h('option', { value: ph.id, selected: ph.id === t.phase }, ph.libelle)));
+  const phase = h('select', { class: 'champ', 'aria-label': 'Phase' }, P.phasesActives(cfg()).map((ph) => h('option', { value: ph.id, selected: ph.id === t.phase }, ph.libelle)));
   const delai = h('input', { class: 'champ champ-court', type: 'number', min: '0', step: '1', inputmode: 'numeric', 'aria-label': 'Délai en jours après le début', value: t.delaiJours ?? '' });
   const erreur = h('p', { class: 'erreur', role: 'alert' });
   return dialogue({
@@ -97,7 +104,7 @@ export function rendreFicheModele(conteneur, id) {
   conteneur.append(racine);
 
   function introuvable() {
-    remplir(racine, h('div', { class: 'page' }, lienRetour('#/projets/modeles', 'Modèles'), etatVide(D.estPret() ? 'Ce modèle n’existe plus.' : 'Chargement…')));
+    remplir(racine, h('div', { class: 'page' }, lienRetour('#/reglages/crm', 'Réglages du CRM'), etatVide(D.estPret() ? 'Ce modèle n’existe plus.' : 'Chargement…')));
   }
 
   function construire(m) {
@@ -106,7 +113,7 @@ export function rendreFicheModele(conteneur, id) {
     const menu = h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Plus d’actions', 'data-action': 'menu-fiche',
       onclick: (e) => ouvrirMenu(e.currentTarget, [{ libelle: 'Supprimer définitivement…', icone: 'trash-2', danger: true, action: () => supprimer(m) }]) }, icone('ellipsis', { taille: 20 }));
     const entete = h('header', { class: 'fiche-tete' },
-      lienRetour('#/projets/modeles', 'Modèles'),
+      lienRetour('#/reglages/crm', 'Réglages du CRM'),
       h('div', { class: 'fiche-tete-ligne' },
         h('div', { class: 'fiche-titre' }, titreEditable({ valeur: m.nom, libelle: 'Nom du modèle', surEnregistrer: (v) => D.majModele(m.id, { nom: v }) }),
           h('div', { class: 'fiche-sous' }, actif ? h('span', { class: 'pastille-statut', style: { '--couleur': '#3fbf7f' } }, 'Actif') : h('span', { class: 'badge-pause' }, 'Inactif'))),
@@ -119,7 +126,7 @@ export function rendreFicheModele(conteneur, id) {
       id: 'modele-parametres', titre: 'Paramètres',
       contenu: h('div', { class: 'proprietes' },
         champPropriete({ libelle: 'Offre', valeur: m.offreId || '', type: 'select', options: offres.map((o) => ({ valeur: o.id, libelle: o.nom })), surEnregistrer: (v) => D.majModele(m.id, { offreId: v || null }) }).element,
-        champPropriete({ libelle: 'Nature', valeur: m.nature || 'livraison', type: 'select', options: P.NATURES_PROJET.map((n) => ({ valeur: n.id, libelle: n.libelle })), surEnregistrer: (v) => D.majModele(m.id, { nature: v || 'livraison' }) }).element,
+        champPropriete({ libelle: 'Nature', valeur: m.nature || 'livraison', type: 'select', options: P.NATURES_PROJET.filter((n) => n.id !== 'extraction' || P.extractionActive(cfg()) || m.nature === 'extraction').map((n) => ({ valeur: n.id, libelle: n.libelle })), surEnregistrer: (v) => D.majModele(m.id, { nature: v || 'livraison' }) }).element,
         h('p', { class: 'aide' }, 'Quand on crée un projet depuis une affaire gagnée, le modèle de son offre est proposé. Un projet créé depuis un modèle « Extraction de valeur » est un projet d’extraction.')),
     });
 
@@ -129,7 +136,7 @@ export function rendreFicheModele(conteneur, id) {
           { libelle: 'Modifier…', icone: 'pencil', action: () => dialogueTacheModele(m, t) },
           { libelle: 'Monter', icone: 'arrow-up', desactive: i === 0, action: () => ou(() => D.deplacerTacheModele(m.id, t.id, -1), 'Déplacement impossible') },
           { libelle: 'Descendre', icone: 'arrow-down', desactive: i === g.taches.length - 1, action: () => ou(() => D.deplacerTacheModele(m.id, t.id, 1), 'Déplacement impossible') },
-          ...P.PHASES.map((ph) => ({ libelle: `Déplacer vers : ${ph.libelle}`, icone: 'arrow-right-left', desactive: ph.id === t.phase, action: () => ou(() => D.majTacheModele(m.id, t.id, { phase: ph.id }), 'Déplacement impossible') })),
+          ...P.phasesActives(cfg()).map((ph) => ({ libelle: `Déplacer vers : ${ph.libelle}`, icone: 'arrow-right-left', desactive: ph.id === t.phase, action: () => ou(() => D.majTacheModele(m.id, t.id, { phase: ph.id }), 'Déplacement impossible') })),
           { libelle: 'Supprimer', icone: 'trash-2', danger: true, action: async () => { if (await confirmer('Supprimer cette tâche type ?', t.titre, { libelleOk: 'Supprimer', danger: true })) await ou(() => D.supprimerTacheModele(m.id, t.id), 'Suppression impossible'); } },
         ]) }, icone('ellipsis', { taille: 16 }));
       return h('li', { class: 'activite tache', dataset: { tacheModele: t.id } },
@@ -139,7 +146,7 @@ export function rendreFicheModele(conteneur, id) {
     }
 
     const titre = h('input', { class: 'champ', type: 'text', 'aria-label': 'Nouvelle tâche type', placeholder: 'Ajouter une tâche type…', autocomplete: 'off' });
-    const phase = h('select', { class: 'champ', 'aria-label': 'Phase de la tâche type' }, P.PHASES.map((ph) => h('option', { value: ph.id }, ph.libelle)));
+    const phase = h('select', { class: 'champ', 'aria-label': 'Phase de la tâche type' }, P.phasesActives(cfg()).map((ph) => h('option', { value: ph.id }, ph.libelle)));
     const delai = h('input', { class: 'champ champ-court', type: 'number', min: '0', step: '1', inputmode: 'numeric', 'aria-label': 'Délai en jours (vide = sans date)', placeholder: 'Délai (jours)' });
     const bouton = h('button', { type: 'button', class: 'bouton bouton-principal bouton-petit', 'data-action': 'ajouter-tache-modele', onclick: ajouter }, icone('plus', { taille: 14 }), 'Ajouter la tâche type');
     async function ajouter() {
@@ -160,7 +167,7 @@ export function rendreFicheModele(conteneur, id) {
     let compteur = null;
     function rendreGroupes() {
       const courant = D.modele(m.id) ?? m;
-      const groupes = P.tachesModeleParPhase(courant);
+      const groupes = P.tachesModeleParPhase(courant, cfg());
       const avecTaches = groupes.filter((g) => g.taches.length);
       remplir(zoneGroupes, avecTaches.length
         ? avecTaches.map((g) => h('div', { class: 'groupe-taches', dataset: { phase: g.phase.id } },
@@ -182,7 +189,7 @@ export function rendreFicheModele(conteneur, id) {
 
   async function supprimer(m) {
     if (!(await confirmer('Supprimer ce modèle ?', `« ${m.nom} » : les projets déjà créés avec lui ne changent pas.`, { libelleOk: 'Supprimer', danger: true }))) return;
-    if (await ou(() => D.supprimerModele(m.id), 'Suppression impossible')) { toast('Modèle supprimé'); naviguer('projets/modeles'); }
+    if (await ou(() => D.supprimerModele(m.id), 'Suppression impossible')) { toast('Modèle supprimé'); naviguer('reglages/crm'); }
   }
 
   function reconstruire() {

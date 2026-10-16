@@ -8,13 +8,13 @@ import {
   modulesActifsDe, objetModules, verifierModulesPourClient, ouvrir, urlPublique, verifierCouleur, verifierEmail, verifierListeModules, fichierStorageAutorise,
   prefixeStorage, traduireErreur,
 } from './commun.js';
-import { IDS_MODULES } from '../../js/os/registre.js';
+import { IDS_MODULES, modulesDeNom } from '../../js/os/registre.js';
 
 export const AIDE = `Outil « nouveau client » — simule par défaut ; ajouter --ecrire pour écrire vraiment.
 
 Créer un client :
   node scripts/nouveau-client.js <identifiant> --nom "Nom affiché" --couleur "#336699" --accueil "Texte de bienvenue" \\
-       --membre prenom@exemple.fr:editeur [--membre autre@exemple.fr:lecteur] --modules affaires,projets,journal \\
+       --membre prenom@exemple.fr:editeur [--membre autre@exemple.fr:lecteur] --modules crm,automatisations \\
        [--logo chemin/logo.png] [--images chemin/a.jpg,chemin/b.jpg] [--ecrire]
   Un client qui existe déjà est refusé, sauf avec --mettre-a-jour (seuls les champs écrits dans la commande changent).
 
@@ -23,8 +23,8 @@ Commandes annexes (toutes avec --ecrire pour écrire vraiment) :
   node scripts/nouveau-client.js ajouter-membre <identifiant> adresse:rôle
   node scripts/nouveau-client.js changer-role <identifiant> adresse:rôle
   node scripts/nouveau-client.js retirer-membre <identifiant> adresse
-  node scripts/nouveau-client.js activer-module <identifiant> affaires|projets|journal
-  node scripts/nouveau-client.js desactiver-module <identifiant> affaires|projets|journal|journal
+  node scripts/nouveau-client.js activer-module <identifiant> crm|veille|automatisations|mcp   (crm = affaires + projets)
+  node scripts/nouveau-client.js desactiver-module <identifiant> crm|veille|automatisations|mcp
   node scripts/nouveau-client.js desactiver-client <identifiant>      (la page du client devient « indisponible »)
   node scripts/nouveau-client.js reactiver-client <identifiant>
 
@@ -85,10 +85,17 @@ async function etat(ctx, id) {
 // ------------------------------------------------------------------------------------------------ plan et application
 
 // Comparaison qui ignore l'ordre des clés d'un objet : Firestore range les clés d'une « map » par ordre alphabétique à la relecture
-// (les modules affaires, projets, journal reviennent dans l'ordre affaires, journal, projets).
+// (les modules affaires, projets, automatisations reviennent dans l'ordre affaires, automatisations, projets).
 const triee = (v) => (v && typeof v === 'object' && !Array.isArray(v) && typeof v.toMillis !== 'function'
   ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, triee(v[k])])) : v);
 const memes = (a, b) => JSON.stringify(triee(a)) === JSON.stringify(triee(b));
+
+/**
+ * Liste des membres recopiée dans la fiche du client (`clients/<id>`, champ `equipe`) : les fiches d'appartenance ne se listent pas depuis un navigateur
+ * (règles Firestore), alors que l'écran a besoin des membres pour proposer « Confiée à » sur les tâches. La fiche du client est lisible par ses membres.
+ * Seulement l'adresse et le rôle, rien d'autre. L'outil est le seul à l'écrire, en même temps que les fiches d'appartenance.
+ */
+const equipeDe = (membres) => Object.entries(membres).map(([email, d]) => ({ email, role: d.role })).sort((a, b) => a.email.localeCompare(b.email));
 
 /** Ajoute un document au plan en comparant avec l'existant : CRÉER / MODIFIER / INCHANGÉ. */
 function opDoc(plan, chemin, avant, apres, fusion = true) {
@@ -223,6 +230,7 @@ async function creer(id, options, ctx) {
     fiche.modules = objetModules([]);
     plan.avertissements.push('Aucun module demandé (--modules) : le client verra seulement l\'accueil provisoire. Ajoutez-en plus tard avec activer-module.');
   }
+  if (membres.length) fiche.equipe = equipeDe({ ...avant.membres, ...Object.fromEntries(membres.map((m) => [m.email, { role: m.role }])) });
   if (Object.keys(fiche).length) opDoc(plan, `clients/${id}`, avant.client, fiche);
 
   // Membres
@@ -271,8 +279,13 @@ async function ajouterMembre(id, texte, ctx, { changer }) {
   const actuel = e.membres[m.email];
   if (changer && !actuel) throw new ErreurOutil(`${m.email} n'est pas membre de « ${id} » : utilisez ajouter-membre.`);
   if (!changer && actuel && actuel.role !== m.role) throw new ErreurOutil(`${m.email} est déjà membre de « ${id} » avec le rôle « ${actuel.role} » : utilisez changer-role pour le modifier.`);
+  const autresEditeurs = Object.entries(e.membres).filter(([a, d]) => a !== m.email && d.role === 'editeur');
+  if (actuel?.role === 'editeur' && m.role !== 'editeur' && !autresEditeurs.length) {
+    throw new ErreurOutil(`${m.email} est le dernier éditeur de « ${id} » : on ne peut pas lui retirer ce rôle (personne ne pourrait plus écrire dans cet espace). Ajoutez d'abord un autre éditeur.`);
+  }
   const plan = nouveauPlan();
   opDoc(plan, `clients/${id}/membres/${m.email}`, actuel ?? null, { role: m.role });
+  opDoc(plan, `clients/${id}`, e.client, { equipe: equipeDe({ ...e.membres, [m.email]: { role: m.role } }) });
   return terminer(plan, ctx, `${changer ? 'CHANGEMENT DE RÔLE' : 'AJOUT D\'UN MEMBRE'} chez « ${id} »`);
 }
 
@@ -281,20 +294,29 @@ async function retirerMembre(id, texte, ctx) {
   const e = await exigerClient(ctx, id);
   if (!e.membres[email]) throw new ErreurOutil(`${email} n'est pas membre de « ${id} » : rien à retirer.`);
   const autresEditeurs = Object.entries(e.membres).filter(([a, d]) => a !== email && d.role === 'editeur');
+  // Règle : le dernier éditeur ne peut jamais être retiré (sinon plus personne ne pourrait écrire dans l'espace).
+  if (e.membres[email].role === 'editeur' && !autresEditeurs.length) {
+    throw new ErreurOutil(`${email} est le dernier éditeur de « ${id} » : on ne peut pas le retirer (personne ne pourrait plus écrire dans cet espace). Ajoutez d'abord un autre éditeur.`);
+  }
   const plan = nouveauPlan();
   plan.docs.push({ chemin: `clients/${id}/membres/${email}`, donnees: e.membres[email], fusion: false, action: 'SUPPRIMER' });
-  if (e.membres[email].role === 'editeur' && !autresEditeurs.length) plan.avertissements.push("C'est le dernier éditeur : après ça, personne ne pourra plus écrire dans cet espace.");
+  const restants = { ...e.membres };
+  delete restants[email];
+  opDoc(plan, `clients/${id}`, e.client, { equipe: equipeDe(restants) });
   plan.avertissements.push(`${email} perd l'accès tout de suite.`);
   return terminer(plan, ctx, `RETRAIT D'UN MEMBRE de « ${id} »`);
 }
 
-async function changerModule(id, module, ctx, activer) {
-  if (!IDS_MODULES.includes(module)) throw new ErreurOutil(`Module inconnu : « ${module} ». Modules connus : ${IDS_MODULES.join(', ')}.`);
+async function changerModule(id, moduleDemande, ctx, activer) {
+  const module = String(moduleDemande ?? '').trim();
+  const concernes = modulesDeNom(module); // « crm » = affaires + projets (un seul interrupteur) ; l'ancien nom « journal » est traduit
+  const inconnus = concernes.filter((m) => !IDS_MODULES.includes(m));
+  if (inconnus.length) throw new ErreurOutil(`Module inconnu : « ${module} ». Modules connus : crm, ${IDS_MODULES.join(', ')}.`);
   const e = await exigerClient(ctx, id);
   const actuels = modulesActifsDe(e.client?.modules);
-  const voulus = activer ? [...new Set([...actuels, module])] : actuels.filter((m) => m !== module);
-  const liste = verifierListeModules(voulus); // projets exige affaires, y compris quand on désactive affaires
-  if (activer) verifierModulesPourClient(id, liste); // journal : identifiant de 17 caractères au plus
+  const voulus = activer ? [...new Set([...actuels, ...concernes])] : actuels.filter((m) => !concernes.includes(m));
+  const liste = verifierListeModules(voulus); // projets exige affaires, y compris quand on désactive affaires seul
+  if (activer) verifierModulesPourClient(id, liste); // automatisations : identifiant de 17 caractères au plus
   const plan = nouveauPlan();
   opDoc(plan, `clients/${id}`, e.client, { modules: objetModules(liste) });
   return terminer(plan, ctx, `${activer ? 'ACTIVATION' : 'DÉSACTIVATION'} du module « ${module} » chez « ${id} »`);

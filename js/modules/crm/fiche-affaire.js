@@ -1,13 +1,14 @@
-// Fiche d'une affaire : barre des étapes, résumé, détails, encaissements, documents ; activité à droite.
+// Fiche d'une affaire : barre des étapes, résumé, détails, documents ; activité à droite.
 import { h, icone, remplir, ouvrirMenu, toast, dialogue, confirmer } from '../../os/ui.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
 import {
   lienPersonne, lienOrganisation, sectionRepliable, champPropriete, selecteurPersonne, selecteurOrganisation, titreEditable, selectProprietaire, gabaritFiche,
-  lienRetour, saisieEnCours, pastilleStatut, etatVide, planifier, boutonEtoile,
+  lienRetour, saisieEnCours, pastilleStatut, etatVide, planifier, boutonEtoile, iconeInfo,
 } from './composants.js';
 import { panneauActivite } from './activites.js';
 import { creerLanceurs } from './lanceurs.js';
+import { sectionLiensEtDocuments } from './liens-documents.js';
 import { changerEtapeAvecBoites, ouvrirPerdue, ouvrirPause, demanderSuppressionAffaire } from './affaires.js';
 import * as PD from '../projets/donnees.js';
 import * as P from '../projets/logique.js';
@@ -48,12 +49,14 @@ export function rendreFicheAffaire(conteneur, id) {
   }
 
   function barreDesEtapes(a) {
-    const index = L.ETAPES.findIndex((e) => e.id === a.etape);
+    const etapes = L.etapesActives(D.etat.config);
+    const index = etapes.findIndex((e) => e.id === a.etape);
     const vivante = a.statut === 'ouverte' || a.statut === 'gagnee';
     return h('ol', { class: `barre-etapes-fiche${vivante ? '' : ' inactive'}`, 'aria-label': 'Étapes de l’affaire' },
-      L.ETAPES.map((e, i) => h('li', { class: i <= index ? 'passee' : '', style: { '--couleur': e.couleur } },
+      etapes.map((e, i) => h('li', { class: i <= index ? 'passee' : '', style: { '--couleur': e.couleur } },
         h('button', { type: 'button', class: `etape${i === index ? ' courante' : ''}`, 'aria-current': i === index && vivante ? 'step' : null, dataset: { etape: e.id },
-          onclick: () => changerEtapeAvecBoites(a, e.id) }, e.libelle))));
+          onclick: () => changerEtapeAvecBoites(a, e.id) }, e.libelle),
+        iconeInfo(e.description, e.libelle))));
   }
 
   function construire(a) {
@@ -70,7 +73,7 @@ export function rendreFicheAffaire(conteneur, id) {
       ]) }, icone('ellipsis', { taille: 20 }));
     const actionsStatut = vivante
       ? [
-        a.statut === 'gagnee' ? null : h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'gagnee', onclick: () => changerEtapeAvecBoites(a, 'gagne') }, icone('trophy', { taille: 16 }), 'Gagnée'),
+        a.statut === 'gagnee' ? null : h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'gagnee', onclick: () => changerEtapeAvecBoites(a, L.etapeGagnee(D.etat.config)) }, icone('trophy', { taille: 16 }), 'Gagnée'),
         h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'perdue', onclick: () => ouvrirPerdue(a) }, 'Perdue'),
         h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'en-pause', onclick: () => ouvrirPause(a) }, 'En pause'),
       ]
@@ -107,7 +110,7 @@ export function rendreFicheAffaire(conteneur, id) {
 
     // ---- Projet (affaire gagnée : créer ou lier ; au plus un projet par affaire)
     const projetLie = P.projetLieAAffaire(PD.etat.projets, a);
-    const extraction = P.extractionDeLAffaire(PD.etat.projets, a.id);
+    const extraction = D.etat.config.options.extractionValeur ? P.extractionDeLAffaire(PD.etat.projets, a.id) : null; // option « Extraction de valeur » éteinte : rien n'est montré
     const sectionProjet = (projetLie || extraction || a.statut === 'gagnee') ? sectionRepliable({
       id: 'affaire-projet', titre: 'Projet',
       contenu: h('div', { class: 'pile' },
@@ -126,7 +129,7 @@ export function rendreFicheAffaire(conteneur, id) {
     }) : null;
 
     // ---- Détails
-    const lanceurs = creerLanceurs({ fiche: a, typeFiche: 'affaire', organisation: o, personne: p, enregistrer: (patch) => D.majAffaire(a.id, patch) });
+    const lanceurs = creerLanceurs({ fiche: a, typeFiche: 'affaire', enregistrer: (patch) => D.majAffaire(a.id, patch) });
     const details = sectionRepliable({
       id: 'affaire-details', titre: 'Détails',
       contenu: h('div', { class: 'proprietes' },
@@ -137,37 +140,11 @@ export function rendreFicheAffaire(conteneur, id) {
         lanceurs.github, lanceurs.dossier),
     });
 
-    // ---- Encaissements : historique des encaissements saisis sur l'affaire avant la 2.2 (en lecture seule). Les nouveaux paiements se saisissent
-    // sur les factures du projet ; la section n'apparaît donc que s'il y a un historique.
-    const encaissements = a.encaissements || [];
-    const sectionEncaissements = encaissements.length ? sectionRepliable({
-      id: 'affaire-encaissements', titre: 'Encaissements', compteur: encaissements.length,
-      contenu: h('div', { class: 'pile' },
-        h('p', { class: 'aide' }, 'Historique d’avant la facturation par projet. Les nouveaux paiements se saisissent sur les factures du projet.'),
-        h('ul', { class: 'liste-simple' }, encaissements.map((e) => h('li', { class: 'ligne-simple' }, h('strong', {}, L.formatEuros(e.montant)), h('span', { class: 'aide' }, L.formatDateHeure(e.date)))))),
-    }) : null;
-
-    // ---- Documents
-    const champLibelle = h('input', { class: 'champ', type: 'text', 'aria-label': 'Libellé du document', placeholder: 'Libellé (ex. Devis)' });
-    const champUrl = h('input', { class: 'champ', type: 'url', 'aria-label': 'Adresse du document (lien Google Drive)', placeholder: 'Lien Google Drive' });
-    const documents = a.documents || [];
-    const sectionDocuments = sectionRepliable({
-      id: 'affaire-documents', titre: 'Documents', compteur: documents.length,
-      contenu: h('div', { class: 'pile' },
-        documents.length ? h('ul', { class: 'liste-simple' }, documents.map((d, i) => h('li', { class: 'ligne-simple' }, icone('link', { taille: 14 }),
-          boutonEtoile({ favori: d.favori === true, libelle: d.libelle, surBascule: () => D.majAffaire(a.id, L.basculerFavoriDocument(a, i)) }),
-          h('a', { href: d.url, target: '_blank', rel: 'noopener noreferrer' }, d.libelle),
-          h('button', { type: 'button', class: 'bouton-icone', 'aria-label': `Retirer ${d.libelle}`, onclick: () => D.majAffaire(a.id, L.supprimerDocument(a, i)) }, icone('x', { taille: 14 }))))) : null,
-        h('div', { class: 'ligne-ajout' }, champLibelle, champUrl,
-          h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', 'data-action': 'ajouter-document', onclick: async () => {
-            const r = L.ajouterDocument(a, champLibelle.value, champUrl.value);
-            if (r.erreurs.url) { toast(r.erreurs.url, { type: 'erreur' }); champUrl.classList.add('invalide'); return; }
-            await D.majAffaire(a.id, r.patch);
-          } }, 'Ajouter'))),
-    });
+    // ---- Liens et documents : même composant que la fiche projet
+    const sectionDocuments = sectionLiensEtDocuments({ id: 'affaire-documents', typeFiche: 'affaire', entite: a, courant: () => D.affaire(a.id) || a, enregistrer: (patch) => D.majAffaire(a.id, patch) });
 
     if (!panneau) panneau = panneauActivite({ lien: { affaireId: a.id }, liensCreation: () => L.liensAffaire(D.affaire(a.id) || a) });
-    remplir(racine, gabaritFiche({ entete, gauche: [resume.element, sectionProjet?.element, details.element, sectionEncaissements?.element, sectionDocuments.element].filter(Boolean), droite: panneau.element }));
+    remplir(racine, gabaritFiche({ entete, gauche: [resume.element, sectionProjet?.element, details.element, sectionDocuments.element].filter(Boolean), droite: panneau.element }));
   }
 
   function reconstruire() {

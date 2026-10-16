@@ -168,7 +168,7 @@ function rendrePointsCles(zone) {
   }
   const nombreRetard = pc.enRetard.length + tp.enRetard.length;
   const duJour = pc.aujourdhui.length + pc.reveils.length + tp.aujourdhui.length;
-  if (!nombreRetard && !duJour) zone.append(etatVide(estChezClient() ? 'Aucune relance aujourd’hui.' : 'Aucune relance aujourd’hui, Charles veille'));
+  if (!nombreRetard && !duJour) zone.append(etatVide(D.etat.reglages.imageCelebration ? 'Aucune relance aujourd’hui, Charles veille' : 'Aucune relance aujourd’hui.'));
   if (nombreRetard) {
     zone.append(groupe('En retard', 'retard', nombreRetard, h('ul', { class: 'liste-activites' }, lignesMelees(pc.enRetard, tp.enRetard, aujourdhui)), 'groupe-retard'));
   }
@@ -192,14 +192,15 @@ let derniersNombres = new Map();
 
 /** Statistiques : le DOM est construit une fois, puis seules les valeurs changent (barres animées). */
 function rendreStats(zone) {
-  const parEtape = L.compterParEtape(D.etat.affaires);
+  const parEtape = L.compterParEtape(D.etat.affaires, D.etat.config);
+  const avecCa = D.etat.config.options.suiviPaiements; // le graphique du chiffre d'affaires ENCAISSÉ n'existe qu'avec le suivi des paiements
   const max = Math.max(1, ...parEtape.map((e) => e.nombre));
   const debut = D.etat.reglages.debutActivite;
   const fenetre = L.fenetreCa(debut, moisCourantParis(), 6);
-  const ca = L.caParMois(D.etat.affaires, fenetre, PD.etat.projets);
+  const ca = avecCa ? L.caParMois(D.etat.affaires, fenetre, PD.etat.projets) : [];
   const maxCa = Math.max(1, ...ca.map((m) => m.montant));
   const titreCa = fenetre.length === 6 && fenetre[0] > debut ? "Chiffre d'affaires encaissé, 6 derniers mois" : `Chiffre d'affaires encaissé, depuis ${L.libelleMois(fenetre[0])}`;
-  const signature = `${titreCa}|${fenetre.join('|')}`;
+  const signature = `${avecCa ? titreCa : ''}|${avecCa ? fenetre.join('|') : ''}|${parEtape.map((e) => e.id).join(',')}`;
   if (zone.dataset.signature !== signature) {
     zone.dataset.signature = signature;
     remplir(zone,
@@ -209,12 +210,12 @@ function rendreStats(zone) {
           h('span', { class: 'barre-libelle' }, e.libelle),
           h('span', { class: 'barre' }, h('span', { class: 'barre-remplie', style: { width: '0%', background: e.couleur } })),
           h('span', { class: 'barre-nombre' }, '0'))))),
-      h('div', { class: 'stats-ca' },
+      avecCa ? h('div', { class: 'stats-ca' },
         h('h3', { 'data-role': 'titre-ca' }, titreCa),
         h('div', { class: 'barres-verticales', role: 'img' }, ca.map((m) => h('div', { class: 'colonne-ca', dataset: { mois: m.mois } },
           h('span', { class: 'colonne-valeur' }, ''),
           h('span', { class: 'colonne-piste' }, h('span', { class: 'colonne-remplie', style: { height: '0%' } })),
-          h('span', { class: 'colonne-libelle' }, m.libelle))))));
+          h('span', { class: 'colonne-libelle' }, m.libelle))))) : null);
   }
   for (const e of parEtape) {
     const li = zone.querySelector(`li[data-etape="${e.id}"]`);
@@ -223,6 +224,7 @@ function rendreStats(zone) {
     const remplie = li.querySelector('.barre-remplie');
     requestAnimationFrame(() => requestAnimationFrame(() => { remplie.style.width = `${(e.nombre / max) * 100}%`; }));
   }
+  if (!avecCa) return;
   zone.querySelector('.barres-verticales').setAttribute('aria-label', ca.map((m) => `${L.libelleMois(m.mois)} : ${L.formatEuros(m.montant)}`).join(', '));
   for (const m of ca) {
     const col = zone.querySelector(`.colonne-ca[data-mois="${m.mois}"]`);
