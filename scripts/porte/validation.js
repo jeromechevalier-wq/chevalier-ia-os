@@ -11,12 +11,13 @@ export class ErreurValidation extends Error {
 }
 
 const CARACTERES_DE_CONTROLE = /[\u0000-\u001f\u007f]/;
+const CARACTERES_DE_CONTROLE_SAUF_MISE_EN_PAGE = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/; // un texte long (page HTML) garde ses retours à la ligne et tabulations
 const MOTIF_ID = /^[A-Za-z0-9_-]{1,100}$/;
 const MOTIF_ETIQUETTE = /^[a-z0-9][a-z0-9_-]{0,59}$/; // noms d'étiquettes (clé d'IA…) : en minuscules, donc jamais une vraie clé secrète collée par erreur
 const MOTIF_MODELE = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,79}$/;
 
 /**
- * Types de champs : { type: 'texte', max, min? } | { type: 'id' } | { type: 'etiquette' } | { type: 'modele' } | { type: 'url' } |
+ * Types de champs : { type: 'texte', max, min? } | { type: 'html', max } | { type: 'id' } | { type: 'etiquette' } | { type: 'modele' } | { type: 'url' } |
  * { type: 'date' } | { type: 'nombre', min, max } | { type: 'choix', valeurs } | { type: 'booleen' } | { type: 'liste', max, item: schéma }.
  * `requis: true` pour un champ obligatoire. Renvoie un objet NOUVEAU ne contenant que les champs reçus et valides (jamais l'objet d'origine).
  */
@@ -47,6 +48,14 @@ function texteSur(v, chemin, max, min = 0) {
 function champ(v, regle, chemin) {
   switch (regle.type) {
     case 'texte': return texteSur(v, chemin, regle.max, regle.min ?? 0);
+    case 'html': {
+      // Page HTML d'un résumé : texte long avec retours à la ligne. Elle n'est JAMAIS exécutée par l'appli (affichée dans un cadre isolé, sans script).
+      if (typeof v !== 'string') throw new ErreurValidation(`« ${chemin} » doit être un texte.`);
+      if (CARACTERES_DE_CONTROLE_SAUF_MISE_EN_PAGE.test(v)) throw new ErreurValidation(`« ${chemin} » contient un caractère interdit.`);
+      if (v.trim().length < 1) throw new ErreurValidation(`« ${chemin} » est vide.`);
+      if (v.length > regle.max) throw new ErreurValidation(`« ${chemin} » est trop long (${regle.max} caractères au plus).`);
+      return v;
+    }
     case 'id': case 'etiquette': case 'modele': {
       const t = texteSur(v, chemin, 100, 1);
       const motif = regle.type === 'id' ? MOTIF_ID : regle.type === 'etiquette' ? MOTIF_ETIQUETTE : MOTIF_MODELE;

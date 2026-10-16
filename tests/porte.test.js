@@ -347,6 +347,27 @@ describe('porte : actions de la veille et isolation', () => {
       assert.equal(x.statut, 400, JSON.stringify(mauvais));
     }
   });
+  test('resumes.ajouter avec une page HTML : la page est gardée à part (veille_pages), jamais réécrite, retours à la ligne permis, autres caractères de contrôle refusés', async () => {
+    const m = await pret();
+    await audrey(m, 'contenus.ajouter', { contenus: [CONTENU] });
+    const html = '<!DOCTYPE html>\n<html><body>\n\t<h1>Résumé « ÿ » 🙂</h1>\r\n</body></html>';
+    const r = await audrey(m, 'resumes.ajouter', { contenuId: 'c1', idExecution: '7', html });
+    assert.deepEqual(r.corps.resultat, { id: 'r-c1-7', cree: true });
+    assert.equal(m.base.docs.get('clients/audrey/veille_pages/r-c1-7').html, html);
+    assert.equal(m.base.docs.get('clients/audrey/veille_resumes/r-c1-7').pageDisponible, true);
+    assert.equal('html' in m.base.docs.get('clients/audrey/veille_resumes/r-c1-7'), false, 'la page n\'alourdit pas la liste des résumés');
+    const encore = await audrey(m, 'resumes.ajouter', { contenuId: 'c1', idExecution: '7', html: '<p>autre</p>' });
+    assert.equal(encore.corps.resultat.cree, false);
+    assert.equal(m.base.docs.get('clients/audrey/veille_pages/r-c1-7').html, html, 'une page existante n\'est jamais écrasée');
+    for (const mauvais of ['a\u0000b', 'a\u001bb', '', '   ', 'x'.repeat(150001), 12]) {
+      assert.equal((await audrey(m, 'resumes.ajouter', { contenuId: 'c1', idExecution: '8', html: mauvais })).statut, 400, JSON.stringify(mauvais).slice(0, 30));
+    }
+    assert.equal(m.base.docs.has('clients/audrey/veille_pages/r-c1-8'), false);
+    const sans = await audrey(m, 'resumes.ajouter', { contenuId: 'c1', idExecution: '9' });
+    assert.equal(m.base.docs.has('clients/audrey/veille_pages/r-c1-9'), false);
+    assert.equal('pageDisponible' in m.base.docs.get('clients/audrey/veille_resumes/r-c1-9'), false);
+    assert.equal(sans.statut, 200);
+  });
   test('isolation : la clé d\'Audrey n\'écrit jamais chez Martin ni à la racine, et le chemin n\'est jamais fourni par le workflow', async () => {
     const m = await pret();
     await audrey(m, 'contenus.ajouter', { contenus: [CONTENU] });
@@ -471,6 +492,6 @@ describe('porte : le code', () => {
   });
   test('le nom des tables est écrit dans le code, jamais reçu du workflow', () => {
     const c = lire('actions-veille.js');
-    assert.deepEqual([...c.matchAll(/'(veille_[a-z]+)'/g)].map((m) => m[1]).sort(), ['veille_contenus', 'veille_resumes', 'veille_sources']);
+    assert.deepEqual([...c.matchAll(/'(veille_[a-z]+)'/g)].map((m) => m[1]).sort(), ['veille_contenus', 'veille_pages', 'veille_resumes', 'veille_sources']);
   });
 });

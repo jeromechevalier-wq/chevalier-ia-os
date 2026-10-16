@@ -1,5 +1,6 @@
 // Tests C : parcours dans le navigateur (Playwright + émulateurs), formats 1440 × 900 et 390 × 844.
 import { readFile } from 'node:fs/promises';
+import { debrancherGoogle } from './google-simule.js';
 import {
   test, expect, connecter, allerA, allerAuxReglagesCrm, creerPersonne, creerOrganisation, creerAffaire, creerActivite, lireDocument, listerDocuments, ecrireDocument,
   jour, estTelephone, valeurObjectif, JEROME, CHARLES,
@@ -696,7 +697,7 @@ test('C19 export : JSON complet de toutes les collections, contacts .vcf ; le ra
   expect(telechargement.suggestedFilename()).toMatch(/^chevalier-ia-os-\d{4}-\d{2}-\d{2}\.json$/);
   const json = JSON.parse(await readFile(await telechargement.path(), 'utf8'));
   expect(json.version).toBe('2.0.0');
-  expect(Object.keys(json.collections).sort()).toEqual(['crm_activites', 'crm_affaires', 'crm_evenements', 'crm_notes', 'crm_organisations', 'crm_parametres', 'crm_personnes', 'projets_modeles', 'projets_projets', 'projets_taches', 'veille_contenus', 'veille_resumes', 'veille_sources']);
+  expect(Object.keys(json.collections).sort()).toEqual(['crm_activites', 'crm_affaires', 'crm_evenements', 'crm_notes', 'crm_organisations', 'crm_parametres', 'crm_personnes', 'projets_modeles', 'projets_projets', 'projets_taches', 'veille_contenus', 'veille_pages', 'veille_resumes', 'veille_sources']);
   expect(json.collections.crm_personnes.map((p) => p.id).sort()).toEqual(['p1', 'p2']);
   expect(json.collections.crm_notes).toHaveLength(1);
   expect(json.collections.crm_affaires[0].id).toBe('a1');
@@ -1191,7 +1192,8 @@ test('C25 dossier de travail d\'une affaire : « Lier un dossier existant » acc
   await expect(ligne.locator('[data-action="lier-dossier"]')).toBeVisible();
 });
 
-test('C26 réglages : plus de compte GitHub ni de dossier Mac ; la section Google Drive dit que Google n\'est pas encore branché', async ({ page }) => {
+test('C26 réglages : plus de compte GitHub ni de dossier Mac ; la section Google Drive dit que Google n\'est pas encore branché', async ({ page, context }) => {
+  await debrancherGoogle(context);
   await fixtureEliot();
   await connecter(page);
   await allerAuxReglagesCrm(page);

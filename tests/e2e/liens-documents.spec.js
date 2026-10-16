@@ -1,7 +1,7 @@
 // Chantier « Liens et documents » : fenêtre standard de Google (Picker), « Créer un dossier dans Google Drive » par l'API Google Drive, liens libres.
 // Google est SIMULÉ (voir google-simule.js) : on vérifie ce que l'appli demande à Google et ce qu'elle enregistre, pas Google lui-même.
 import { test, expect, connecter, allerAuxReglagesCrm, creerProjet, creerAffaire, lireDocument, ecrireDocument, estTelephone, JEROME } from './outils.js';
-import { brancherGoogle, lireGoogle, choisirDansGoogle, refuserAutorisation, ID_CLIENT, PARENT } from './google-simule.js';
+import { debrancherGoogle, brancherGoogle, lireGoogle, choisirDansGoogle, refuserAutorisation, ID_CLIENT, PARENT } from './google-simule.js';
 
 const dialogue = (page) => page.getByRole('dialog');
 const CLE_CRM = 'AIzaSyAa04eaHNaBJwGAUwMrDampugAn1aralXc';
@@ -23,7 +23,8 @@ const reglerDrive = () => regler({ dossierParentDrive: { id: PARENT, nom: 'Clien
 const unDocument = (id, nom, url, type = 'application/pdf') => ({ id, name: nom, url, mimeType: type });
 
 test.describe('Google non branché (identifiant client vide, comme dans le dépôt)', () => {
-  test('L1 aucun bouton Google sur la fiche projet ; « Créer un dossier dans Google Drive » attend le branchement et le dit', async ({ page }) => {
+  test('L1 aucun bouton Google sur la fiche projet ; « Créer un dossier dans Google Drive » attend le branchement et le dit', async ({ page, context }) => {
+    await debrancherGoogle(context);
     await creerProjet('pr1', { titre: 'Refonte site' });
     await connecter(page);
     await aller(page, FICHE);

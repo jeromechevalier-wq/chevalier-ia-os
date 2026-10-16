@@ -15,8 +15,24 @@ async function donnees() {
   await ecrireDocument('veille_contenus/c4', { sourceId: 's-alpha', sourceNom: 'Chaîne Alpha', titre: 'Une vidéo en cours', url: 'https://exemple.test/v4', type: 'YouTube', etat: 'en_cours', datePublication: il_y_a(500 * MIN) });
   await ecrireDocument('veille_resumes/r1', {
     contenuId: 'c1', modele: 'deepseek/deepseek-v4-pro', coutReel: 0.002, devise: 'USD', payeur: 'jerome', cleIa: 'openrouter-jerome',
-    lienHtml: 'https://exemple.test/resume.html', lienCourt: 'https://exemple.test/court.html', lienTranscript: 'javascript:alert(2)', creeLe: il_y_a(2900 * MIN),
+    pageDisponible: true, lienHtml: 'https://exemple.test/resume.html', lienCourt: 'https://exemple.test/court.html', lienTranscript: 'javascript:alert(2)', creeLe: il_y_a(2900 * MIN),
   });
+  await ecrireDocument('veille_pages/r1', { html: '<!DOCTYPE html><html><head><title>R</title></head><body><h1 id="titre-resume">Un joli résumé</h1><script>document.title="PIRATE"</script><a href="https://exemple.test/lien">Un lien</a></body></html>' });
+}
+
+// Fonction `veille` du serveur simulée dans le navigateur (aucun serveur réel) : on note les demandes reçues et on répond ce que le serveur répondrait.
+async function simulerFonction(page, reponses) {
+  const recues = [];
+  await page.route(/cloudfunctions\.net\/veille$/, async (route) => {
+    const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'POST, OPTIONS' };
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+    const demande = JSON.parse(route.request().postData() ?? '{}').data;
+    recues.push(demande);
+    const r = reponses(demande);
+    if (r.erreur) return route.fulfill({ status: 400, headers: cors, contentType: 'application/json', body: JSON.stringify({ error: { status: 'FAILED_PRECONDITION', message: r.erreur } }) });
+    return route.fulfill({ status: 200, headers: cors, contentType: 'application/json', body: JSON.stringify({ result: r }) });
+  });
+  return recues;
 }
 
 test('Veille : contenus, filtres, liens sûrs, coût visible chez Jérôme, sources', async ({ page, erreursConsole }, info) => {
@@ -38,15 +54,18 @@ test('Veille : contenus, filtres, liens sûrs, coût visible chez Jérôme, sour
   await expect(page.locator('.veille-ligne').first()).toHaveAttribute('data-id', 'c4');
   // Résumé : liens http(s) cliquables, lien javascript: jamais rendu en lien ; modèle, coût et payeur visibles chez Jérôme.
   const c1 = page.locator('.veille-ligne[data-id="c1"]');
-  await expect(c1.getByRole('link', { name: 'Résumé complet' })).toHaveAttribute('href', 'https://exemple.test/resume.html');
+  await expect(c1.getByRole('link', { name: 'Ouvrir dans Drive' })).toHaveAttribute('href', 'https://exemple.test/resume.html');
   await expect(c1.getByRole('link', { name: 'Texte intégral' })).toHaveCount(0);
   await expect(c1).toContainText('deepseek/deepseek-v4-pro');
   await expect(c1).toContainText('0,002 $');
   await expect(c1).toContainText('Payé par : Moi');
-  // Bouton Résumer : seulement sur le contenu « nouveau » (c2), même lien que le mail ; absent d'un contenu déjà résumé.
+  // Bouton Résumer : un vrai bouton, seulement sur un contenu « nouveau » (c2) ou « en échec » (c3) ; absent d'un contenu déjà résumé ou en cours. Plus aucun lien n8n dans la page.
   const c2 = page.locator('.veille-ligne[data-id="c2"]');
-  await expect(c2.getByRole('link', { name: 'Résumer', exact: true })).toHaveAttribute('href', /veille-resumer-porte\?video_id=c2&token=/);
-  await expect(c1.getByRole('link', { name: 'Résumer', exact: true })).toHaveCount(0);
+  await expect(c2.getByRole('button', { name: 'Résumer', exact: true })).toBeVisible();
+  await expect(c1.getByRole('button', { name: 'Résumer', exact: true })).toHaveCount(0);
+  await expect(page.locator('.veille-ligne[data-id="c4"] [data-action="resumer"]')).toHaveCount(0);
+  await expect(page.locator('.veille-ligne[data-id="c3"]').getByRole('button', { name: 'Réessayer le résumé' })).toBeVisible();
+  expect(await page.locator('a[href*="n8n"], a[href*="token="]').count()).toBe(0);
   // Échec : étape affichée, titre non cliquable (adresse dangereuse refusée).
   const c3 = page.locator('.veille-ligne[data-id="c3"]');
   await expect(c3).toContainText('Étape en échec : Transcription');
@@ -82,4 +101,62 @@ test('Veille : sans aucune donnée, des messages clairs (les tables n\'existent 
   await page.evaluate(() => { location.hash = '#/veille/sources'; });
   await expect(page.locator('.veille-vide')).toContainText('Aucune source pour le moment');
   expect(erreursConsole).toEqual([]);
+});
+
+test('Veille : bouton Résumer (appelle le serveur), ajout d\'un épisode et d\'une chaîne, lecture d\'un résumé dans l\'appli', async ({ page, erreursConsole }, info) => {
+  await donnees();
+  const recues = await simulerFonction(page, (d) => {
+    if (d.action === 'resumer') return d.contenuId === 'c3' ? { erreur: 'Le service de résumé ne répond pas. Réessayer dans un instant.' } : { lance: true, message: 'Résumé lancé. Il apparaît ici dans quelques minutes.' };
+    if (d.url.includes('/@')) return { genre: 'chaine', crees: 5, existants: 0, sourceNom: 'Veritasium', sourceNouvelle: true };
+    return { genre: 'video', crees: 1, existants: 0, titre: 'Mon épisode', sourceNom: 'Ajouts manuels', ...(d.lancerResume ? { resume: { lance: true, message: 'Résumé lancé. Il apparaît ici dans quelques minutes.' } } : {}) };
+  });
+  await connecter(page);
+  await page.evaluate(() => { location.hash = '#/veille/contenus'; });
+  await expect(page.locator('.veille-ligne')).toHaveCount(4);
+
+  // Résumer : la demande part au serveur avec l'identifiant du contenu ; un refus du serveur s'affiche tel quel et le bouton redevient cliquable.
+  await page.locator('.veille-ligne[data-id="c2"]').getByRole('button', { name: 'Résumer', exact: true }).click();
+  await expect(page.locator('.toast')).toContainText('Résumé lancé');
+  expect(recues.at(-1)).toEqual({ action: 'resumer', contenuId: 'c2' });
+  const reessayer = page.locator('.veille-ligne[data-id="c3"]').getByRole('button', { name: 'Réessayer le résumé' });
+  await reessayer.click();
+  await expect(page.locator('.toast-erreur')).toContainText('ne répond pas');
+  await expect(reessayer).toBeEnabled();
+
+  // Ajout : les boutons suivent ce que le lien désigne.
+  const champ = page.getByLabel('Lien YouTube à ajouter');
+  await expect(page.locator('.veille-ajout [data-action]')).toHaveCount(0);
+  await champ.fill('bonjour');
+  await expect(page.locator('.veille-ajout')).toContainText('ni un épisode ni une chaîne');
+  await expect(page.locator('.veille-ajout [data-action]')).toHaveCount(0);
+  await champ.fill('https://youtu.be/dQw4w9WgXcQ');
+  await expect(page.locator('.veille-ajout').getByRole('button')).toHaveText(['Ajouter', 'Ajouter et résumer']);
+  await page.screenshot({ path: `test-results/veille-ajout-episode-${info.project.name}.png` });
+  await page.locator('.veille-ajout').getByRole('button', { name: 'Ajouter et résumer' }).click();
+  await expect(page.locator('.toast').last()).toContainText('Épisode ajouté : Mon épisode. Résumé lancé');
+  expect(recues.at(-1)).toEqual({ action: 'ajouterLien', url: 'https://youtu.be/dQw4w9WgXcQ', lancerResume: true });
+  await expect(champ).toHaveValue('');
+  await champ.fill('https://www.youtube.com/@veritasium');
+  await expect(page.locator('.veille-ajout').getByRole('button')).toHaveText(['Suivre la chaîne']);
+  await page.locator('.veille-ajout').getByRole('button', { name: 'Suivre la chaîne' }).click();
+  await expect(page.locator('.toast').last()).toContainText('Chaîne suivie : Veritasium, 5 épisodes ajoutés.');
+  expect(recues.at(-1)).toEqual({ action: 'ajouterLien', url: 'https://www.youtube.com/@veritasium', lancerResume: false });
+
+  // Lecture d'un résumé dans l'appli : cadre isolé (aucun script exécuté), lien vers Drive gardé en secours.
+  const c1 = page.locator('.veille-ligne[data-id="c1"]');
+  await expect(c1.getByRole('link', { name: 'Ouvrir dans Drive' })).toHaveAttribute('href', 'https://exemple.test/resume.html');
+  await c1.getByRole('button', { name: 'Lire le résumé' }).click();
+  const cadre = page.locator('iframe.veille-cadre');
+  await expect(cadre).toBeVisible();
+  await expect(cadre).toHaveAttribute('sandbox', 'allow-popups allow-popups-to-escape-sandbox');
+  await expect(page.frameLocator('iframe.veille-cadre').locator('#titre-resume')).toHaveText('Un joli résumé');
+  await expect(page.frameLocator('iframe.veille-cadre').locator('a')).toHaveAttribute('href', 'https://exemple.test/lien');
+  expect(await cadre.evaluate((f) => f.contentDocument?.title)).not.toBe('PIRATE'); // le script de la page n'a pas tourné
+  await page.screenshot({ path: `test-results/veille-lecture-resume-${info.project.name}.png` });
+  await page.keyboard.press('Escape');
+  await expect(cadre).toHaveCount(0);
+  // Deux messages attendus : le refus simulé du serveur (400) et le blocage du script de la page de résumé par le cadre isolé (c'est la preuve qu'il tient).
+  info.annotations.push({ type: 'erreurs-reseau-attendues', description: 'refus simulé du serveur, script bloqué par le cadre isolé' });
+  expect(erreursConsole.filter((e) => !/status of 400|Blocked script execution/.test(e))).toEqual([]);
+  expect(erreursConsole.some((e) => /Blocked script execution/.test(e))).toBe(true);
 });

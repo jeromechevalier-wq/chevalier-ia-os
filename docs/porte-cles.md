@@ -128,7 +128,7 @@ node scripts/cles.js revoquer --projet plateforme --proprietaire audrey --cle ab
 | `resumes.lire` | Renvoie les résumés déjà enregistrés (liens des fichiers, date), 200 au plus. Lecture seule. |
 | `contenus.ajouter` | Ajoute jusqu'à 100 contenus à l'état « nouveau ». Les sources doivent exister (sinon rien n'est écrit). Un contenu déjà présent n'est pas touché. |
 | `contenus.changerEtat` | Change l'état d'un contenu qui existe (`id`, `etat`, et `etapeEchec` pour un échec). Ne crée jamais. |
-| `resumes.ajouter` | Enregistre un résumé : `contenuId`, `idExecution` (le numéro d'exécution n8n, qui rend l'appel répétable sans doublon), modèle, coût réel, devise, qui paie (`jerome` ou `client`), nom de la clé d'IA (un **nom** comme `openrouter-jerome`, jamais la clé elle-même : une vraie clé est refusée) et les liens des fichiers. |
+| `resumes.ajouter` | Enregistre un résumé : `contenuId`, `idExecution` (le numéro d'exécution n8n, qui rend l'appel répétable sans doublon), modèle, coût réel, devise, qui paie (`jerome` ou `client`), nom de la clé d'IA (un **nom** comme `openrouter-jerome`, jamais la clé elle-même : une vraie clé est refusée), les liens des fichiers et, depuis le 2026-10-15, `html` (la page du résumé, 150 000 caractères au plus) : rangée à part dans la table `veille_pages` pour être lue dans l'appli (voir `veille-ajout-et-resume.md`). |
 
 **Réponses** : `200 {"ok": true, "resultat": …}` ou `{"ok": false, "erreur": "<code>", "message": "…"}`.
 
@@ -218,3 +218,4 @@ Un navigateur ne peut pas appeler la porte (toute requête avec une origine est 
 Décisions plus larges (une base pour Jérôme, une pour les clients, un site dédié par client) : fiche du second cerveau *Plateforme clients - décisions du module Automatisations et de la veille*.
 - **2026-10-14** : porte en service pour la base 1 (fonction `porte`, compte `porte-serveur`, secret `N8N_API_KEY`) ; première clé `interne` en usage, les deux clés d'essai révoquées.
 - **2026-10-14** : bascule de la veille vers la porte (4 workflows) ; action `resumes.lire` ajoutée pour relire les liens des résumés ; résumés laissés dans Drive ; jeton du bouton Résumer déplacé dans une table de données n8n.
+- **2026-10-15** : `resumes.ajouter` accepte un champ `html` (page du résumé, table `veille_pages`) ; l'appli ajoute un lien collé et lance les résumés par sa propre fonction `veille` (voir `docs/veille-ajout-et-resume.md`).
