@@ -1161,14 +1161,12 @@ async function marquerPerdue(page, raison = 'Prix', detail = '') {
   await expect(dialogue(page)).toHaveCount(0);
 }
 
-/** Passe une affaire en « Gagné » depuis sa fiche : célébration puis suggestion à fermer. */
+/** Passe une affaire en « Gagné » depuis sa fiche : célébration (aucune action suggérée par défaut). */
 async function marquerGagnee(page) {
   await page.locator('.fiche-actions [data-action="gagnee"]').click();
   await expect(page.locator('.celebration')).toBeVisible();
   await page.locator('.celebration').click();
   await expect(page.locator('.celebration')).toHaveCount(0);
-  await expect(dialogue(page)).toContainText('Une suggestion');
-  await dialogue(page).getByRole('button', { name: 'Fermer', exact: true }).last().click();
   await expect(dialogue(page)).toHaveCount(0);
 }
 

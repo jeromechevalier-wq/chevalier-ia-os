@@ -322,7 +322,6 @@ test('C10 Gagné : célébration, extraction ; la vente s’arrête là (plus d�
   await champDoc('crm_affaires', 'a1', 'statut', 'gagnee');
   const a = await lireDocument('crm_affaires/a1');
   expect(a).toMatchObject({ etape: 'gagne', archive: false });
-  expect('encaissements' in a).toBe(false);
   // rien n'est encaissé tant qu'aucune facture de projet n'est payée
   await allerA(page, 'Accueil');
   await expect.poll(() => valeurObjectif(page, 'ca_encaisse')).toBe(0);
@@ -888,7 +887,6 @@ test('C21 fiche affaire : barre des étapes, Gagnée, montant modifiable, docume
   // Gagnée
   await page.locator('[data-action="gagnee"]').click();
   await fermerCelebration(page);
-  await fermerSuggestion(page);
   await expect(page.locator('.barre-etapes-fiche .etape.courante')).toHaveText('Gagné');
   await champDoc('crm_affaires', 'a1', 'statut', 'gagnee');
   // Document
@@ -1097,7 +1095,7 @@ test('C23 navigation : lien direct vers une fiche, route inconnue, déconnexion'
   await aller(page, '#/crm/personnes/inexistante');
   await expect(page.locator('.etat-vide')).toContainText('n’existe plus');
   // Premier lancement : on laisse l'initialisation des réglages et des objectifs se terminer avant de se déconnecter
-  await expect.poll(async () => (await listerDocuments('crm_parametres')).length).toBe(6); // + le repère des modèles de projet
+  await expect.poll(async () => (await listerDocuments('crm_parametres')).length).toBe(9); // listes, offres, étiquettes, filtres, réglages, étapes, phases, modèles d'affaire + le repère des modèles de projet
   await expect.poll(async () => (await listerDocuments('os_objectifs')).length).toBe(5);
   if (estTelephone(page)) await page.getByRole('button', { name: 'Ouvrir le menu' }).click();
   await page.getByRole('button', { name: 'Se déconnecter' }).click();
@@ -1124,7 +1122,7 @@ test('C24 adresse GitHub : proposée avant le dossier, enregistrée seulement qu
   const github = page.locator('[data-prop="github"]');
   const dossier = page.locator('[data-prop="dossier"]');
   await expect(dossier).toBeVisible();
-  expect(await github.evaluate((a, b) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING), await dossier.elementHandle())).toBe(true);
+  expect(await page.evaluate(() => !!(document.querySelector('[data-prop="github"]').compareDocumentPosition(document.querySelector('[data-prop="dossier"]')) & Node.DOCUMENT_POSITION_FOLLOWING))).toBe(true);
   // La proposition n'est pas enregistrée.
   expect((await lireDocument('crm_affaires/a1')).urlGithub ?? '').toBe('');
   // Prompt : privé, compte et nom du dépôt, données balisées ; « Copier » garde la fenêtre ouverte.

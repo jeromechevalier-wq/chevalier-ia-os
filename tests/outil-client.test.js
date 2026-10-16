@@ -103,7 +103,7 @@ describe('nouveau client : création et lecture par les vraies règles', () => {
     assert.equal(marque.couleur, '#336699');
     assert.match(marque.logo, /^https:\/\/firebasestorage\.googleapis\.com\/v0\/b\/.+\/o\/marques%2Fdemo1%2Flogo\.png\?alt=media$/);
     assert.equal(marque.images.length, 1);
-    assert.deepEqual(await lireDoc('clients/demo1'), { nom: 'Client fictif', modules: { affaires: true, projets: true, journal: false, veille: false } });
+    assert.deepEqual(await lireDoc('clients/demo1'), { nom: 'Client fictif', modules: { affaires: true, projets: true, journal: false, veille: false }, equipe: [{ email: ALICE, role: 'editeur' }, { email: BOB, role: 'lecteur' }] });
     assert.deepEqual(await lireDoc(`clients/demo1/membres/${ALICE}`), { role: 'editeur' });
     assert.deepEqual(await lireDoc(`clients/demo1/membres/${BOB}`), { role: 'lecteur' });
     await admin.db.doc('clients/demo1/crm_personnes/p1').set({ nom: 'Personne inventée' });
