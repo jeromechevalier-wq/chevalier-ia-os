@@ -72,6 +72,13 @@ Premier essai réel (plateforme, espace clientdemo) : le Picker s'ouvre, mais le
 - **Fenêtre Google** : titres adaptés (« Choisir un dossier », « Ajouter un document ») ; Réglages : phrase qui explique que seuls les dossiers s'affichent dans le choix du dossier parent.
 - **Réglages** : la ligne « Dossier Drive parent » est alignée (libellé, nom, boutons au même niveau ; nom long tronqué avec « … ; sur téléphone la ligne passe à la ligne sans défilement horizontal).
 
+## Fiches affaire et projet cohérentes, version 2.6.7
+
+- **La bande du haut** (étapes d'une affaire, phases d'un projet) n'est plus cliquable : c'est un simple indicateur. On change l'étape avec la liste **« Étape »** du Résumé de l'affaire (nouvelle), la phase avec la liste **« Phase »** du Résumé du projet, même fonction que le Kanban (boîtes de dialogue, célébration, action suggérée). Le glisser-déposer du Kanban ne change pas.
+- **Même ordre des sections** sur les deux fiches : Résumé, Tâches et Factures (projets seulement), **Liens et documents**, puis **Détails**. À droite : Activité et Notes, Points clés, Historique (inchangés). *Choix : j'ai appliqué l'ordre demandé à la colonne principale (« Liens et documents » passe avant « Détails » ; la colonne de droite était déjà identique).*
+- **Fiche projet** : la ligne « Affaire d'origine » n'apparaît que s'il y a une affaire (plus de « Aucune affaire liée »).
+- **Étiquette d'état** (Ouverte / Actif…) : une seule fois, sous le titre, avec une icône « i » qui l'explique ; la ligne « Statut » du Résumé de l'affaire est supprimée (la raison de la perte ou la date de réveil s'affichent à côté de l'étiquette).
+
 ## Pas vérifié (à faire après le branchement)
 
 - Le vrai parcours Google : autorisation, Picker avec « Importer » **dans le bon dossier** (`DocsUploadView.setParent`, d'après la documentation de Google), création réelle des dossiers, ouverture du lien enregistré.
