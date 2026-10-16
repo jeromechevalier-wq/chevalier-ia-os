@@ -23,8 +23,8 @@ Commandes annexes (toutes avec --ecrire pour écrire vraiment) :
   node scripts/nouveau-client.js ajouter-membre <identifiant> adresse:rôle
   node scripts/nouveau-client.js changer-role <identifiant> adresse:rôle
   node scripts/nouveau-client.js retirer-membre <identifiant> adresse
-  node scripts/nouveau-client.js activer-module <identifiant> affaires|projets|veille|automatisations
-  node scripts/nouveau-client.js desactiver-module <identifiant> affaires|projets|veille|automatisations
+  node scripts/nouveau-client.js activer-module <identifiant> affaires|projets|veille|automatisations|mcp
+  node scripts/nouveau-client.js desactiver-module <identifiant> affaires|projets|veille|automatisations|mcp
   node scripts/nouveau-client.js desactiver-client <identifiant>      (la page du client devient « indisponible »)
   node scripts/nouveau-client.js reactiver-client <identifiant>
 

@@ -107,12 +107,16 @@ describe('P. Règles de la plateforme clients', () => {
     await assertFails(setDoc(doc(db, 'divers', 'x'), { valeur: 1 }));
   });
 
-  test('P9 un membre lit sa propre fiche (et seulement la sienne) ; pas de liste des membres', async () => {
+  test('P9 un membre lit les fiches de membres de SON client (liste comprise), jamais celles d\'un autre client', async () => {
     const db = ctx(ALICE);
     await assertSucceeds(getDoc(doc(db, 'clients', 'a', 'membres', ALICE)));
-    await assertFails(getDoc(doc(db, 'clients', 'a', 'membres', CLARA)));
-    await assertFails(getDocs(collection(db, 'clients', 'a', 'membres')));
-    const chezB = await assertSucceeds(getDoc(doc(db, 'clients', 'b', 'membres', ALICE))); // sa fiche chez B n'existe pas : réponse « vide », rien de B n'est révélé
+    await assertSucceeds(getDoc(doc(db, 'clients', 'a', 'membres', CLARA)));
+    const liste = await assertSucceeds(getDocs(collection(db, 'clients', 'a', 'membres')));
+    assert.equal(liste.size, 3); // alice, clara, lea : ceux de A seulement
+    await assertSucceeds(getDocs(collection(ctx(LEA), 'clients', 'a', 'membres'))); // un lecteur aussi
+    await assertFails(getDoc(doc(db, 'clients', 'b', 'membres', BOB)));
+    await assertFails(getDocs(collection(db, 'clients', 'b', 'membres')));
+    const chezB = await assertSucceeds(getDoc(doc(db, 'clients', 'b', 'membres', ALICE))); // sa propre fiche chez B n'existe pas : réponse « vide », rien de B n'est révélé
     assert.equal(chezB.exists(), false);
   });
 
@@ -213,10 +217,10 @@ describe('P. Règles de la plateforme clients', () => {
       assert.equal(f.exists(), false);
       await assertFails(fiche(ctx(BOB), 'sans-fiche'));
     });
-    test('Q8 la lecture de la fiche ne change rien aux autres droits : la liste des membres reste fermée, la racine aussi', async () => {
+    test('Q8 la lecture de la fiche ne change rien aux autres droits : la liste des membres d\'un autre client reste fermée, la racine aussi', async () => {
       const db = ctx(ALICE);
-      await assertFails(getDocs(collection(db, 'clients', 'a', 'membres')));
-      await assertFails(getDoc(doc(db, 'clients', 'a', 'membres', LEA)));
+      await assertFails(getDocs(collection(db, 'clients', 'b', 'membres')));
+      await assertFails(getDoc(doc(db, 'clients', 'b', 'membres', BOB)));
       await assertFails(getDoc(doc(db, 'crm_personnes', 'existant')));
       await assertFails(setDoc(doc(db, 'clients', 'a', 'membres', ALICE), { role: 'editeur', modules: {} }));
     });

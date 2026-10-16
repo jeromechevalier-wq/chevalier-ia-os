@@ -19,7 +19,7 @@ describe('registre : déclarations', () => {
     for (const m of MODULES_DECLARES) {
       assert.match(m.id, /^[a-z]+$/);
       assert.ok(m.nom && m.libelleMenu && m.iconeMenu && m.prefixe, m.id);
-      assert.ok(m.ecrans.length > 0 && m.collections.length > 0 && (m.outilsMcp.length > 0 || ['automatisations', 'veille'].includes(m.id)), m.id);
+      assert.ok(m.ecrans.length > 0 && (m.collections.length > 0 || m.id === 'mcp') && (m.outilsMcp.length > 0 || ['automatisations', 'veille', 'mcp'].includes(m.id)), m.id); // « mcp » n'a ni données ni outil à lui : il allume le lien du client
       for (const e of m.ecrans) {
         assert.ok(e.route.startsWith(`${m.prefixe}/`) && e.libelle && e.icone, `${m.id} ${e.route}`);
       }

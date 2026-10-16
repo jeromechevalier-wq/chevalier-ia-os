@@ -13,7 +13,7 @@ import { ErreurOauth, compteAutorise, creerMagasinOauth } from './magasin.js';
 import { ENTETES_PAGE, pageAutorisation, pageErreur } from './page.js';
 
 const ENTETES_JSON = { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', Pragma: 'no-cache', 'X-Content-Type-Options': 'nosniff' };
-const repondre = (res, statut, corps, entetes = {}) => { res.writeHead(statut, { ...ENTETES_JSON, ...entetes }); res.end(JSON.stringify(corps)); };
+export const repondre = (res, statut, corps, entetes = {}) => { res.writeHead(statut, { ...ENTETES_JSON, ...entetes }); res.end(JSON.stringify(corps)); };
 
 export const METADONNEES_RESSOURCE = Object.freeze({
   resource: RESSOURCE,
@@ -35,24 +35,24 @@ export const METADONNEES_SERVEUR = Object.freeze({
 
 const FORMAT_CLIENT = /^[A-Za-z0-9._:/-]{1,200}$/;
 const FORMAT_CHALLENGE = /^[A-Za-z0-9_-]{43,128}$/;
-const sameOrigin = (u) => { try { return new URL(u).origin === EMETTEUR; } catch { return false; } };
-const objet = (x) => (x && typeof x === 'object' && !Array.isArray(x) ? x : {});
-const texte = (x) => (typeof x === 'string' ? x : undefined);
+const sameOrigin = (u, origine = EMETTEUR) => { try { return new URL(u).origin === origine; } catch { return false; } };
+export const objet = (x) => (x && typeof x === 'object' && !Array.isArray(x) ? x : {});
+export const texte = (x) => (typeof x === 'string' ? x : undefined);
 
 /** Valide une demande d'autorisation. Renvoie { demande } ou { erreur } (message pour la page, jamais de détail interne). */
-export function validerDemande(p) {
+export function validerDemande(p, { redirectionAutorisee = (u) => REDIRECTIONS_AUTORISEES.includes(u), origine = EMETTEUR, messageRedirection = "Adresse de retour non autorisée : seule l'application Claude peut se connecter." } = {}) {
   const q = objet(p);
   if (q.response_type !== 'code') return { erreur: 'Type de réponse non pris en charge.' };
   if (!texte(q.client_id) || !FORMAT_CLIENT.test(q.client_id)) return { erreur: 'Client inconnu.' };
-  if (!REDIRECTIONS_AUTORISEES.includes(q.redirect_uri)) return { erreur: "Adresse de retour non autorisée : seule l'application Claude peut se connecter." };
+  if (typeof q.redirect_uri !== 'string' || !redirectionAutorisee(q.redirect_uri)) return { erreur: messageRedirection };
   if (q.code_challenge_method !== 'S256' || !texte(q.code_challenge) || !FORMAT_CHALLENGE.test(q.code_challenge)) return { erreur: 'Protection PKCE (S256) obligatoire.' };
   if (q.state !== undefined && (!texte(q.state) || q.state.length > 512)) return { erreur: 'Paramètre « state » invalide.' };
   // `resource` (RFC 8707) : tolérant sur le détail (barre finale), strict sur le site ; il n'y a qu'un seul serveur, le jeton n'en dépend pas.
-  if (q.resource !== undefined && !(texte(q.resource) && sameOrigin(q.resource))) return { erreur: 'Ressource inconnue.' };
+  if (q.resource !== undefined && !(texte(q.resource) && sameOrigin(q.resource, origine))) return { erreur: 'Ressource inconnue.' };
   return { demande: { client_id: q.client_id, redirect_uri: q.redirect_uri, code_challenge: q.code_challenge, ...(q.state !== undefined ? { state: q.state } : {}), ...(q.resource !== undefined ? { resource: q.resource } : {}) } };
 }
 
-const adresseRetour = (demande, params) => {
+export const adresseRetour = (demande, params) => {
   const u = new URL(demande.redirect_uri);
   for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v);
   if (demande.state !== undefined) u.searchParams.set('state', demande.state);
@@ -60,7 +60,7 @@ const adresseRetour = (demande, params) => {
 };
 
 /** Compteur à fenêtre fixe, en mémoire de l'instance : frein grossier contre le martelage des routes qui lisent Firestore. */
-function creerFenetre({ max, ms, maintenant }) {
+export function creerFenetre({ max, ms, maintenant }) {
   let debut = 0;
   let n = 0;
   return () => {

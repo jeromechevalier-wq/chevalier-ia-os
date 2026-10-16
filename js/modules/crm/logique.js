@@ -935,6 +935,8 @@ export function nouvelleActivite(valeurs, ctx) {
     personneId: valeurs.personneId ?? null,
     organisationId: valeurs.organisationId ?? null,
     affaireId: valeurs.affaireId ?? null,
+    // Une activité de projet (appel, rendez vous, email saisis depuis la fiche projet) porte aussi son projet : le champ n'existe que sur elles.
+    ...(valeurs.projetId ? { projetId: valeurs.projetId } : {}),
     auteur: ctx.auteur ?? '',
   };
 }

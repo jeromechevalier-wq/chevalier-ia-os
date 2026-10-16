@@ -320,6 +320,7 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 .barre-etapes-fiche .etape { width: 100%; padding: 8px 14px; border: 1px solid var(--bordure); border-radius: 8px; background: var(--panneau2); color: var(--texte2); font-weight: 600; font-size: 13px; cursor: pointer; white-space: nowrap; border-bottom: 3px solid var(--bordure); }
 .barre-etapes-fiche .passee .etape { border-bottom-color: var(--couleur); color: var(--texte); }
 .barre-etapes-fiche .etape.courante { background: color-mix(in srgb, var(--couleur) 30%, var(--panneau2)); border-color: var(--couleur); color: var(--texte); }
+.barre-etapes-fiche .etape:hover:not(.courante), .barre-etapes-fiche .etape:focus-visible { border-color: var(--couleur); color: var(--texte); }
 .barre-etapes-fiche.inactive .etape { opacity: .6; }
 
 /* ---------------------------------------------------------------- colonne de droite : activité, notes, historique */
