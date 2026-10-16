@@ -25,7 +25,13 @@ Tests : `tests/mcp-clients.test.js` (M1 à M15, rôles, modules, écran d'autori
 Le MCP des clients lit la base de la plateforme (projet `chevalier-ia-app`), pas celle de Jérôme. C'est **le même code** (`functions/src/mcp`, `coeur`, `oauth`, `securite`, plus `functions/src/clients/`), copié avant chaque déploiement dans `functions-plateforme/serveur/` (dossier ignoré par git) par `scripts/preparer-fonctions.js`. La fonction s'appelle `mcpclients` (Paris, 3 instances au plus, invocation publique comme celle de Jérôme). `firebase.plateforme.json` réécrit vers elle : `/mcp/**`, `/oauth/**`, `/.well-known/oauth-protected-resource/mcp/**`, `/.well-known/oauth-authorization-server/mcp/**`. **Chaque client a son propre « serveur d'autorisation »** (`…/mcp/<client>` sert d'émetteur) : le client est dans toutes les adresses OAuth.
 
 ## À déployer, dans l'ordre (par Jérôme, une fois la PR fusionnée)
-Rien ne part tout seul sur la plateforme. Dans GitHub : <https://github.com/jeromechevalier-wq/chevalier-ia-os/actions/workflows/deploiement-plateforme.yml> > **Run workflow**, branche `main`, puis :
+Rien ne part tout seul sur la plateforme. 0. **Une seule fois, avant le choix `mcp`** : créer le compte d'exécution dédié (compte de service `mcp-clients`, seul rôle « Utilisateur Cloud Datastore ») :
+   ```
+   gcloud iam service-accounts create mcp-clients --project chevalier-ia-app --display-name "MCP clients (Firestore seulement)"
+   gcloud projects add-iam-policy-binding chevalier-ia-app --member="serviceAccount:mcp-clients@chevalier-ia-app.iam.gserviceaccount.com" --role="roles/datastore.user"
+   ```
+   Le compte de déploiement `deploiement-github` peut agir en son nom grâce au rôle « Utilisateur du compte de service » (déjà accordé au niveau du projet).
+Dans GitHub : <https://github.com/jeromechevalier-wq/chevalier-ia-os/actions/workflows/deploiement-plateforme.yml> > **Run workflow**, branche `main`, puis :
 1. choisir **regles** : publie la règle qui permet à un membre de voir la liste des membres de son espace (page d'information) ;
 2. choisir **mcp** : publie seulement `mcpclients` (aucun secret nécessaire). Le choix **fonctions** publie toute la série, journal compris, et exige la clé n8n (`N8N_API_KEY`) dans Secret Manager ;
 3. choisir **hosting** : publie le site et les réécritures `/mcp/…` et `/oauth/…` (à faire **après** les fonctions : Hosting refuse une réécriture vers un service qui n'existe pas encore).
@@ -35,7 +41,7 @@ Rien ne part tout seul sur la plateforme. Dans GitHub : <https://github.com/jero
 - Le parcours complet avec **le vrai claude.ai** et **le vrai ChatGPT** n'a pas été essayé : les tests utilisent un client MCP du SDK officiel et un Google factice.
 - **ChatGPT** : adresse de retour `https://chatgpt.com/connector/oauth/<identifiant>` (et l'ancienne adresse fixe), relevées dans la documentation d'OpenAI le 16/10/2026 ; ses exigences changent (enregistrement dynamique, `resource`, éventuellement un document d'identité de client). À relire avant la première connexion réelle.
 - Les clients MCP doivent suivre l'émetteur « avec chemin » (`…/mcp/<client>`, RFC 8414 par insertion de chemin) : c'est la norme MCP, non essayée en réel.
-- Le compte de service par défaut de la fonction a accès à Firestore ; le compte dédié `mcp-serveur` n'existe que dans le projet de Jérôme. Pour resserrer les droits sur `chevalier-ia-app`, créer un compte avec seulement « Utilisateur Cloud Datastore » et l'ajouter à `serviceAccount`.
+- Le compte dédié `mcp-clients@chevalier-ia-app.iam.gserviceaccount.com` (seulement « Utilisateur Cloud Datastore ») est dans le code (`serviceAccount`). **Il doit exister avant le déploiement `mcp`** (voir l'étape 0 ci-dessus). Non vérifié en réel : après le déploiement, Cloud Run > service `mcpclients` > Sécurité doit afficher ce compte, et un essai Claude (`qui_suis_je`, puis une écriture) doit passer. Si une lecture échoue en `PERMISSION_DENIED`, le rôle manque.
 
 ## Choix faits (à confirmer ou changer)
 - Éditeur = profil `bibliothecaire` (pas de suppression ni de restauration, pas de réglage de profil par membre).

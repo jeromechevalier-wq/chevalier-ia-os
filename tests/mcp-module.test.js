@@ -80,7 +80,8 @@ describe('plateforme : fonction, adresses, configuration, règles', () => {
   test('la fonction « mcpclients » est exportée par les fonctions de la plateforme (Paris, publique, sans CORS) et jamais par celles du CRM', () => {
     const idx = lire('functions-plateforme/src/index.js');
     assert.match(idx, /export const mcpclients = onRequest\(/);
-    assert.match(idx, /region: REGION, maxInstances: 3, memory: '256MiB', timeoutSeconds: 120, invoker: 'public', cors: false/);
+    assert.match(idx, /region: REGION, maxInstances: 3, memory: '256MiB', timeoutSeconds: 120, invoker: 'public', cors: false, serviceAccount: 'mcp-clients@chevalier-ia-app\.iam\.gserviceaccount\.com'/);
+    assert.doesNotMatch(idx, /compute@developer|appspot\.gserviceaccount/); // jamais le compte par défaut du projet (rôle « Éditeur »)
     assert.match(lire('functions-plateforme/src/mcp-clients.js'), /creerGestionnaireClients/);
     assert.doesNotMatch(lire('functions/src/index.js'), /clients|mcpclients/);
     assert.doesNotMatch(lire('firebase.json'), /mcpclients|\/mcp\/\*\*/);
