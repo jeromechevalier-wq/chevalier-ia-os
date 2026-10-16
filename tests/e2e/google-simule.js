@@ -27,7 +27,7 @@ window.gapi = { load(nom, rappel) {
   }
   window.google = window.google || {};
   window.google.picker = { PickerBuilder, DocsView, DocsUploadView, ViewId: { DOCS: 'all', FOLDERS: 'folders' }, Feature: { MULTISELECT_ENABLED: 'multiselectEnabled' },
-    Action: { PICKED: 'picked', CANCEL: 'cancel' }, Response: { ACTION: 'action', DOCUMENTS: 'docs' }, Document: { ID: 'id', NAME: 'name', URL: 'url', MIME_TYPE: 'mimeType' } };
+    Action: { PICKED: 'picked', CANCEL: 'cancel' }, Response: { ACTION: 'action', DOCUMENTS: 'docs' }, Document: { ID: 'id', NAME: 'name', URL: 'url', MIME_TYPE: 'mimeType', PARENT_ID: 'parentId' } };
   setTimeout(() => (typeof rappel === 'function' ? rappel() : rappel.callback()), 0);
 } };`;
 
@@ -43,7 +43,7 @@ window.google.accounts = { oauth2: { initTokenClient(cfg) { return { requestAcce
  * Dans la page : window.__google.reponse = [{ id, name, url, mimeType }] (ou 'annule') fixe ce que « l'utilisateur » choisit dans la fenêtre Google.
  */
 export async function brancherGoogle(context, { idClient = ID_CLIENT } = {}) {
-  const drive = { requetes: [], echecs: {}, compteur: 0 };
+  const drive = { requetes: [], echecs: {}, compteur: 0, copies: [], compteurCopies: 0, echecCopie: 0 };
   await context.addInitScript(DEBUT);
   await context.route('**/js/os/google-config.js', (route) => route.fulfill({ status: 200, contentType: 'text/javascript', body: `export const googleDrive = { idClient: '${idClient}' };` }));
   await context.route('https://apis.google.com/js/api.js', (route) => route.fulfill({ status: 200, contentType: 'text/javascript', body: SCRIPT_API }));
@@ -52,6 +52,14 @@ export async function brancherGoogle(context, { idClient = ID_CLIENT } = {}) {
     const requete = route.request();
     if (requete.method() === 'OPTIONS') { await route.fulfill({ status: 204, headers: CORS }); return; }
     const corps = JSON.parse(requete.postData() || '{}');
+    if (/\/files\/[^/?]+\/copy/.test(requete.url())) { // files.copy : { parents, name? } → la copie
+      drive.copies.push({ url: requete.url(), autorisation: requete.headers().authorization, corps });
+      if (drive.echecCopie) { await route.fulfill({ status: drive.echecCopie, contentType: 'application/json', headers: CORS, body: JSON.stringify({ error: { status: 'NOT_FOUND', message: 'introuvable' } }) }); return; }
+      drive.compteurCopies += 1;
+      const id = `COPIE_${drive.compteurCopies}_abcdefghij`;
+      await route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: JSON.stringify({ id, name: corps.name || 'Copie', webViewLink: `https://drive.google.com/file/d/${id}/view` }) });
+      return;
+    }
     drive.requetes.push({ url: requete.url(), autorisation: requete.headers().authorization, corps });
     if (drive.echecs[corps.name]) {
       await route.fulfill({ status: drive.echecs[corps.name], contentType: 'application/json', headers: CORS, body: JSON.stringify({ error: { status: 'PERMISSION_DENIED', message: 'refusé' } }) });

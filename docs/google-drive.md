@@ -72,6 +72,15 @@ Premier essai réel (plateforme, espace clientdemo) : le Picker s'ouvre, mais le
 - **Fenêtre Google** : titres adaptés (« Choisir un dossier », « Ajouter un document ») ; Réglages : phrase qui explique que seuls les dossiers s'affichent dans le choix du dossier parent.
 - **Réglages** : la ligne « Dossier Drive parent » est alignée (libellé, nom, boutons au même niveau ; nom long tronqué avec « … ; sur téléphone la ligne passe à la ligne sans défilement horizontal).
 
+## Copier un fichier dans le dossier de travail (version 2.6.8)
+
+Quand on ajoute un document choisi dans l'onglet **Google Drive** de la fenêtre Google (un fichier qui existe déjà), le petit formulaire (nom + note) propose la case **« Copier dans le dossier de travail du projet »** (de l'affaire, sur une affaire), **décochée par défaut**.
+- **Décochée** : le lien du fichier d'origine est enregistré, comme avant.
+- **Cochée** : le fichier est **copié** par l'API Drive (`files.copy`) dans le dossier de travail, et le lien enregistré pointe vers la **copie** ; l'original reste où il est. Jamais de déplacement automatique.
+- **La case n'apparaît pas** si le dossier de travail n'est pas un dossier Drive (serveur, NAS, site), si le fichier vient d'« Importer » (il est déjà dans le dossier de travail : la fenêtre Google indique son dossier d'origine), si c'est un dossier, ni pour un lien web.
+- **Si la copie échoue** (droits, fichier ou dossier introuvable…) : message simple, le lien d'origine est enregistré quand même.
+- Si la fiche n'a pas encore de dossier de travail, la question habituelle (« Créer le dossier » / « Parcourir seulement ») est posée avant la fenêtre : créer le dossier le rend disponible pour la copie. *Reste à vérifier en réel* : que l'appli a bien le droit de copier un fichier choisi dans la fenêtre (portée `drive.file`) vers le dossier de travail créé par l'appli.
+
 ## Pas vérifié (à faire après le branchement)
 
 - Le vrai parcours Google : autorisation, Picker avec « Importer » **dans le bon dossier** (`DocsUploadView.setParent`, d'après la documentation de Google), création réelle des dossiers, ouverture du lien enregistré.

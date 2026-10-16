@@ -121,6 +121,33 @@ describe('G3 création du dossier d\'un projet dans Google Drive', () => {
   });
 });
 
+describe('G5 copie d\'un fichier dans le dossier de travail', () => {
+  /** Faux Drive qui répond à files.copy. */
+  const fauxCopie = (statut = 200) => {
+    const appels = [];
+    return { appels, appelFetch: async (url, options) => {
+      appels.push({ url, options, corps: JSON.parse(options.body) });
+      return { ok: statut === 200, status: statut, json: async () => (statut === 200 ? { id: 'COPIE_0123456789', name: 'Scan.jpg', webViewLink: 'https://drive.google.com/file/d/COPIE_0123456789/view?usp=drivesdk' } : { error: { status: 'NOT_FOUND' } }) };
+    } };
+  };
+  test('G5 files.copy : le fichier est copié DANS le dossier (parents), le lien rendu est celui de la COPIE', async () => {
+    const { appels, appelFetch } = fauxCopie();
+    const r = await G.copierFichier({ jeton: 'ya29.TEST', fichierId: 'FICHIER_0123456789', parentId: 'DOSSIER_0123456789', nom: ' Scan.jpg ', appelFetch });
+    assert.deepEqual(r, { id: 'COPIE_0123456789', nom: 'Scan.jpg', url: 'https://drive.google.com/file/d/COPIE_0123456789/view?usp=drivesdk' });
+    assert.match(appels[0].url, /^https:\/\/www\.googleapis\.com\/drive\/v3\/files\/FICHIER_0123456789\/copy\?supportsAllDrives=true/);
+    assert.equal(appels[0].options.method, 'POST');
+    assert.equal(appels[0].options.headers.Authorization, 'Bearer ya29.TEST');
+    assert.deepEqual(appels[0].corps, { parents: ['DOSSIER_0123456789'], name: 'Scan.jpg' });
+  });
+  test('G5 échec de Google : erreur claire (le code appelant garde alors le lien d\'origine) ; identifiants invalides refusés avant tout appel', async () => {
+    await assert.rejects(G.copierFichier({ jeton: 'j', fichierId: 'FICHIER_0123456789', parentId: 'DOSSIER_0123456789', appelFetch: fauxCopie(404).appelFetch }), (e) => e.statut === 404 && /introuvable/.test(e.message));
+    const { appels, appelFetch } = fauxCopie();
+    await assert.rejects(G.copierFichier({ jeton: 'j', fichierId: '../x', parentId: 'DOSSIER_0123456789', appelFetch }), (e) => e.saisie === true);
+    await assert.rejects(G.copierFichier({ jeton: 'j', fichierId: 'FICHIER_0123456789', parentId: '', appelFetch }), (e) => e.saisie === true);
+    assert.equal(appels.length, 0);
+  });
+});
+
 describe('G4 document choisi dans la fenêtre Google', () => {
   test('G4 un document Drive ou Docs entre dans la liste avec son nom ; autre chose est écarté', () => {
     assert.deepEqual(G.documentDepuisChoix({ nom: ' Devis  signé.pdf ', url: 'https://drive.google.com/file/d/abc/view?usp=drive_web' }), { libelle: 'Devis signé.pdf', url: 'https://drive.google.com/file/d/abc/view?usp=drive_web' });
