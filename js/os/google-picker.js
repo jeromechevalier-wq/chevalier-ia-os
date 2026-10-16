@@ -8,6 +8,7 @@ import { lireConfigGoogle, PORTEE_DRIVE, TYPE_DOSSIER } from './google-drive.js'
 
 const SCRIPT_API = 'https://apis.google.com/js/api.js';
 const SCRIPT_IDENTITE = 'https://accounts.google.com/gsi/client';
+const RACINE_DRIVE = 'root'; // identifiant que Google donne à la racine de « Mon Drive »
 
 /** Réglages Google de cette plateforme, ou null tant que l'identifiant client n'est pas renseigné (les boutons Google sont alors cachés). */
 export const configGoogle = () => lireConfigGoogle({ firebaseConfig: configFirebase.firebaseConfig, googleDrive: configGoogleDrive.googleDrive });
@@ -79,8 +80,10 @@ export function oublierJeton() { jeton = null; }
 
 /**
  * Ouvre la fenêtre Google. Renvoie la liste des éléments choisis [{ id, nom, url, type }], ou [] si l'utilisateur ferme la fenêtre.
- * - mode 'documents' : onglets « Mon Drive » (parcourir) et, si `dossierImport` est donné, « Importer » (le fichier de l'ordinateur est envoyé dans ce dossier) ;
- * - mode 'dossier' : choisir UN dossier existant (réglage du dossier parent).
+ * - mode 'documents' : onglets « Mon Drive » (parcourir) et, si `dossierImport` est donné, « Importer » (le fichier de l'ordinateur est envoyé dans ce dossier).
+ *   « Mon Drive » démarre dans le dossier de travail (`dossierImport`) s'il y en a un, sinon à la RACINE de Mon Drive ;
+ * - mode 'dossier' : choisir UN dossier existant (réglage du dossier parent), en partant de la racine de Mon Drive.
+ * Les deux vues sont des DocsView avec setParent : on navigue dossier par dossier (la vue « FOLDERS » seule, elle, montre à plat TOUS les dossiers du Drive mélangés).
  */
 export async function ouvrirFenetreGoogle({ mode = 'documents', dossierImport = '', email = '', multiple = true } = {}) {
   const conf = configGoogle();
@@ -93,9 +96,9 @@ export async function ouvrirFenetreGoogle({ mode = 'documents', dossierImport = 
     .setLocale('fr')
     .setOrigin(window.location.protocol + '//' + window.location.host);
   if (mode === 'dossier') {
-    constructeur.addView(new g.DocsView(g.ViewId.FOLDERS).setIncludeFolders(true).setSelectFolderEnabled(true).setMimeTypes(TYPE_DOSSIER));
+    constructeur.addView(new g.DocsView(g.ViewId.DOCS).setParent(RACINE_DRIVE).setIncludeFolders(true).setSelectFolderEnabled(true).setMimeTypes(TYPE_DOSSIER));
   } else {
-    constructeur.addView(new g.DocsView(g.ViewId.DOCS).setIncludeFolders(true)); // l'onglet s'appelle « Mon Drive » en français chez Google
+    constructeur.addView(new g.DocsView(g.ViewId.DOCS).setParent(dossierImport || RACINE_DRIVE).setIncludeFolders(true)); // l'onglet s'appelle « Mon Drive » en français chez Google
     if (dossierImport) constructeur.addView(new g.DocsUploadView().setParent(dossierImport));
     if (multiple) constructeur.enableFeature(g.Feature.MULTISELECT_ENABLED);
   }
