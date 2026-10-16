@@ -459,3 +459,6 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 .ligne-parent-drive .ligne-parent-libelle { flex: none; }
 .ligne-parent-drive .valeur-parent { flex: 1 1 120px; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .ligne-parent-drive .bouton { flex: none; }
+
+/* Début d'activité : assez large pour montrer le mois ET l'année (« octobre 2026 ») */
+.champ-mois { width: 240px; max-width: 100%; }
