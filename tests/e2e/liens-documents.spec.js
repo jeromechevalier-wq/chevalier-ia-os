@@ -373,4 +373,13 @@ test.describe('Google branché (simulé)', () => {
     await liste.getByRole('button', { name: 'Retirer Devis' }).click();
     await champDoc('projets_projets', 'pr1', 'documents', [{ libelle: 'GitHub', url: 'https://github.com/jeromechevalier-wq/client-carrel', favori: true }]);
   });
+
+  test('L13 « Début d\'activité » : le champ est assez large pour montrer le mois ET l\'année', async ({ page }) => {
+    await connecter(page);
+    await allerAuxReglagesCrm(page);
+    const champ = page.getByLabel('Mois de début d’activité');
+    await expect(champ).toBeVisible();
+    expect((await champ.boundingBox()).width).toBeGreaterThanOrEqual(200); // 110 px coupait l'année (« octobre » seul)
+    await expect(champ).toHaveValue(/^\d{4}-\d{2}$/);
+  });
 });

@@ -64,7 +64,7 @@ export function rendreReglagesCrm(page) {
   sEtiquettes.append(listeEtiquettes, formulaireAjout('Nouvelle étiquette', 'Ajouter', async (v) => { await D.creerEtiquette(v); }));
 
   const sDebut = section('reglages-debut', 'Début d’activité', 'calendar', 'Le graphique du chiffre d’affaires part de ce mois et ne montre jamais les mois d’avant.');
-  const debut = h('input', { type: 'month', class: 'champ champ-court', 'aria-label': 'Mois de début d’activité',
+  const debut = h('input', { type: 'month', class: 'champ champ-mois', 'aria-label': 'Mois de début d’activité',
     onchange: async (e) => {
       if (!/^\d{4}-\d{2}$/.test(e.target.value)) { e.target.value = D.etat.reglages.debutActivite; return; }
       await D.enregistrerReglages({ debutActivite: e.target.value });
