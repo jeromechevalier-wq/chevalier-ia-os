@@ -143,6 +143,6 @@ export function sectionLiensEtDocuments({ id, typeFiche, entite, courant, enregi
 
   return sectionRepliable({
     id, titre: 'Liens et documents', compteur: liens.length,
-    contenu: h('div', { class: 'pile' }, liste, h('div', { class: 'ligne-ajout' }, boutonGoogle, boutonLien), zoneFormulaire),
+    contenu: h('div', { class: 'pile' }, liste, h('div', { class: 'boutons-liens' }, boutonGoogle, boutonLien), zoneFormulaire),
   });
 }

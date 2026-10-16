@@ -451,7 +451,8 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 .ligne-lien-edition { display: block; }
 .form-lien { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .form-lien .champ { width: 100%; }
-.pile > .ligne-ajout .bouton { flex: 0 0 auto; }
+.boutons-liens { display: flex; gap: 8px; }
+.boutons-liens .bouton { flex: 1 1 0; min-width: 0; justify-content: center; white-space: normal; text-align: center; }
 
 /* Réglages : « Dossier Drive parent » : libellé, nom du dossier, boutons alignés sur la même ligne (le nom se tronque avec « … ») */
 .ligne-parent-drive { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; min-width: 0; }

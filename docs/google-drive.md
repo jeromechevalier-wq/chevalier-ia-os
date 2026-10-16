@@ -1,4 +1,4 @@
-# Liens et documents, Google Drive (version 2.6.2, 16/10/2026)
+# Liens et documents, Google Drive (version 2.6.3, 16/10/2026)
 
 Chantier « Liens et documents » des décisions du 16/10/2026. **Rien n'est déployé.** Les règles Firestore ne sont **pas** modifiées. Aucune donnée existante n'est modifiée ni migrée.
 
@@ -58,6 +58,19 @@ Premier essai réel (plateforme, espace clientdemo) : le Picker s'ouvre, mais le
 - **Choisir le dossier parent** : vue `DocsView(DOCS)` avec `setParent('root')`, `setIncludeFolders(true)`, `setSelectFolderEnabled(true)` et le filtre « dossiers » : on part de la racine de Mon Drive et on descend dossier par dossier.
 - **« Ajouter un document »** : l'onglet Mon Drive démarre **dans le dossier de travail** s'il est dans Drive, sinon à la **racine de Mon Drive** ; « Importer » reste dans le dossier de travail.
 - Toujours la fenêtre standard de Google, aucun écran sur mesure. Vérifié ici avec un Google simulé (ce qu'on demande au Picker) ; l'affichage réel de ces vues n'a pas pu être vu sans jeton valide : à confirmer par Jérôme.
+
+## Liens et documents, version 2.6.3 (retours de l'essai réel)
+
+- **Un seul composant** (`js/modules/crm/liens-documents.js`) pour la fiche **projet** et la fiche **affaire** (section « Liens et documents », qui remplace l'ancienne section « Documents » des affaires). Aucune donnée existante n'est modifiée : les anciens documents restent tels quels.
+- **Deux boutons côte à côte** : « Ajouter un document » (fenêtre Google, si Google est branché) et « Ajouter un lien web ». Plus de champs permanents sous la liste.
+- **Petit formulaire en place** après le choix d'un document Google (**nom** prérempli avec le nom du fichier, modifiable ; **note** facultative) ou pour un lien web (**lien**, **nom** facultatif : sans nom, on affiche le nom du site, ex. `exemple.fr` ; **note** facultative). Le formulaire en cours de saisie survit au redessin de la fiche. Un lien déjà dans la liste n'est pas ajouté deux fois.
+- **La liste** : un clic sur le nom ouvre le lien, la note est en petit dessous, **crayon** pour modifier nom et note (nom vide = nom du site, note vide = champ effacé), étoile, croix.
+- **Données** : champ facultatif `note` (300 caractères au plus) sur l'élément de `documents` ; aucun élément ancien n'a besoin de migration.
+- **Serveur MCP** : `joindre_lien` accepte une `note` facultative et `lister_documents` la renvoie. Pas d'outil pour modifier une note après coup (reste à faire si besoin : il faut retirer puis rejoindre le lien).
+- **Mon Drive est libre** : l'onglet part de la racine de Mon Drive (`setParent('root')`), jamais du dossier de travail. Seul « Importer » est limité au dossier de travail. **Choix** : pas d'onglet supplémentaire « Ce projet » (les deux onglets standard suffisent ; deux vues portant le même titre « Google Drive » auraient prêté à confusion).
+- **Affaires** : même logique que les projets pour le dossier de travail (proposer de créer le dossier Drive de la fiche, ou « Parcourir seulement »). L'ancienne ligne « GitHub » de « Détails » est supprimée : l'adresse est dans la liste.
+- **Fenêtre Google** : titres adaptés (« Choisir un dossier », « Ajouter un document ») ; Réglages : phrase qui explique que seuls les dossiers s'affichent dans le choix du dossier parent.
+- **Réglages** : la ligne « Dossier Drive parent » est alignée (libellé, nom, boutons au même niveau ; nom long tronqué avec « … ; sur téléphone la ligne passe à la ligne sans défilement horizontal).
 
 ## Pas vérifié (à faire après le branchement)
 
