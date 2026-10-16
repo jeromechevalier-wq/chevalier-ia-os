@@ -1,5 +1,5 @@
-// Ce que font les trois fonctions du journal (chantier 14). Séparé de index.js pour pouvoir les essayer sans Cloud Functions.
-//  - copieHoraire    : toutes les heures, pour tous les clients qui ont le module « journal » ;
+// Ce que font les trois fonctions du module Automatisations (chantier 14, anciennement « journal »). Séparé de index.js pour pouvoir les essayer sans Cloud Functions.
+//  - copieHoraire    : toutes les heures, pour tous les clients qui ont le module « automatisations » ;
 //  - rafraichir      : bouton « Rafraîchir » et mise à jour automatique de l'écran ; le client vient de l'IDENTITÉ de l'appelant ;
 //  - renommer        : un éditeur du client change le nom affiché d'un workflow (c'est la seule écriture venue d'un écran).
 import { FieldValue } from 'firebase-admin/firestore';
@@ -8,7 +8,21 @@ import { classer, etiquetteDuClient, MOTIF_ID_N8N, MOTIF_IDENTIFIANT_CLIENT } fr
 import { synchroniserClient, marquerInjoignable, raccourcir } from './synchro.js';
 import { ErreurN8n } from './n8n.js';
 
-export const MODULE_JOURNAL = 'journal';
+export const MODULE_AUTOMATISATIONS = 'automatisations';
+/** Ancien identifiant du module (avant le renommage) : les fiches client déjà activées avec `journal: true` continuent de marcher. Voir moduleActif(). */
+export const ANCIEN_MODULE_JOURNAL = 'journal';
+// Les messages des journaux Cloud gardent le préfixe « Journal : » : l'alerte e-mail de Google Cloud (créée à la main dans la console) le cherche.
+
+/**
+ * Le module est-il actif d'après le champ `modules` de la fiche client ? Même règle que js/os/registre.js (un test les compare) :
+ * la nouvelle clé gagne si elle est présente (true ou false) ; sinon l'ancienne clé `journal: true` compte comme `automatisations: true`.
+ */
+export function moduleActif(modules) {
+  if (!modules || typeof modules !== 'object') return false;
+  const neuf = modules[MODULE_AUTOMATISATIONS];
+  if (neuf !== undefined && neuf !== null) return neuf === true;
+  return modules[ANCIEN_MODULE_JOURNAL] === true;
+}
 export const LONGUEUR_MAX_LIBELLE = 80;
 
 /** Refus d'une fonction appelable ; `code` suit les codes de Firebase (unauthenticated, permission-denied, invalid-argument…). */
@@ -20,7 +34,7 @@ export class Refus extends Error {
 }
 const REFUS_NEUTRE = () => new Refus('permission-denied', 'Action non autorisée.');
 
-/** Clients qui existent, et ceux dont la fiche active le module journal : { connus: Set, actifs: Set }. */
+/** Clients qui existent, et ceux dont la fiche active le module automatisations : { connus: Set, actifs: Set }. */
 export async function lireClients(db) {
   const refs = await db.collection('clients').listDocuments();
   const connus = new Set();
@@ -30,7 +44,7 @@ export async function lireClients(db) {
   for (const f of fiches) {
     if (!MOTIF_IDENTIFIANT_CLIENT.test(f.id)) continue;
     connus.add(f.id);
-    if (f.exists && f.get('modules')?.[MODULE_JOURNAL] === true) actifs.add(f.id);
+    if (f.exists && moduleActif(f.get('modules'))) actifs.add(f.id);
   }
   return { connus, actifs };
 }
@@ -81,7 +95,7 @@ function emailDe(auth) {
 
 /**
  * Bouton « Rafraîchir » / mise à jour automatique. AUCUN paramètre n'est lu : les clients de l'appelant viennent de ses fiches de membre
- * (clients/<client>/membres/<son e-mail>) et de l'activation du module journal sur ces clients.
+ * (clients/<client>/membres/<son e-mail>) et de l'activation du module automatisations sur ces clients.
  * Renvoie { resultat, lastSyncedAt } : 'mis-a-jour', 'trop-tot', 'deja-en-cours' ou 'n8n-injoignable'.
  */
 export async function rafraichir({ db, n8n, auth, maintenant = Date.now() }) {
@@ -110,7 +124,7 @@ export async function rafraichir({ db, n8n, auth, maintenant = Date.now() }) {
 /**
  * Renommer l'affichage d'un workflow. Données reçues : { client, workflowId, libelle }.
  * Le client reçu est une CIBLE à vérifier, jamais une confiance : l'appelant doit être ÉDITEUR de ce client (un lecteur est refusé),
- * le module journal doit y être actif, le workflow doit déjà exister chez ce client. Seul le champ « libelle » est écrit.
+ * le module automatisations doit y être actif, le workflow doit déjà exister chez ce client. Seul le champ « libelle » est écrit.
  * Un libellé vide revient au nom d'origine (celui de n8n). n8n n'est jamais modifié.
  */
 export async function renommer({ db, auth, donnees }) {
@@ -124,7 +138,7 @@ export async function renommer({ db, auth, donnees }) {
   // Mêmes refus, mêmes mots : on ne dit pas si le client existe, si on en est membre ou si le module est actif.
   if ((await roleDe(db, client, email)) !== 'editeur') throw REFUS_NEUTRE();
   const fiche = await db.doc(`clients/${client}`).get();
-  if (!fiche.exists || fiche.get('modules')?.[MODULE_JOURNAL] !== true) throw REFUS_NEUTRE();
+  if (!fiche.exists || !moduleActif(fiche.get('modules'))) throw REFUS_NEUTRE();
   const ref = db.doc(`clients/${client}/workflows/${workflowId}`);
   if (!(await ref.get()).exists) throw new Refus('not-found', 'Cette automatisation est introuvable.');
   await ref.update({ libelle: propre === '' ? FieldValue.delete() : propre });

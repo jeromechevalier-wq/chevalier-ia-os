@@ -1,5 +1,5 @@
-// Module Journal d'activité (chantier 14) : historique des exécutions des workflows n8n du client, en lecture seule.
-// Route : journal/historique. Réservé aux clients de la plateforme (le CRM de Jérôme ne le monte pas : registre.js, reserveAuxClients).
+// Module Automatisations (chantier 14, anciennement « journal » ; ne pas confondre avec l'écran « Journal » du CRM) : historique des exécutions
+// des workflows n8n, en lecture seule. Route : automatisations/historique. Présent chez Jérôme (racine) et chez les clients qui l'ont activé.
 import { vider } from '../../os/ui.js';
 import { naviguer } from '../../os/router.js';
 import * as D from './donnees.js';
@@ -7,20 +7,19 @@ import { rendreHistorique } from './ecran.js';
 
 // Feuille de style propre au module, ajoutée au premier affichage (index.html du CRM reste inchangé).
 function ajouterFeuille() {
-  if (document.querySelector('link[data-journal]')) return;
+  if (document.querySelector('link[data-automatisations]')) return;
   const l = document.createElement('link');
   l.rel = 'stylesheet';
-  l.href = new URL('../../../css/journal.css', import.meta.url).href;
-  l.dataset.journal = '1';
+  l.href = new URL('../../../css/automatisations.css', import.meta.url).href;
+  l.dataset.automatisations = '1';
   document.head.append(l);
 }
 
-export const actionsRapides = []; // rien à créer depuis l'écran : le journal se lit
+export const actionsRapides = []; // rien à créer depuis l'écran : l'historique se lit
 
 let montee = null;
 
 export function demarrer({ compte, cheminBase = '' } = {}) {
-  if (!cheminBase) throw new Error('Le module Journal n’existe que chez un client (clients/<client>)');
   D.demarrer(compte, cheminBase);
 }
 
@@ -36,7 +35,7 @@ function quitter() {
 
 export function afficher(conteneur, segs) {
   if (segs[0] !== 'historique') {
-    naviguer('journal/historique', { remplacer: true });
+    naviguer('automatisations/historique', { remplacer: true });
     return quitter;
   }
   if (montee && conteneur.firstChild) return quitter;

@@ -2,7 +2,7 @@
   "name": "chevalier-ia-plateforme-fonctions",
   "private": true,
   "version": "0.2.0",
-  "description": "Fonctions Firebase de la plateforme clients (projet chevalier-ia-app) : journal d'activité des workflows n8n et MCP des clients. Jamais publié avec le site, jamais déployé sur le projet du CRM.",
+  "description": "Fonctions Firebase de la plateforme clients (projet chevalier-ia-app) : module Automatisations (historique des workflows n8n) et MCP des clients. Jamais publié avec le site, jamais déployé sur le projet du CRM.",
   "type": "module",
   "main": "src/index.js",
   "engines": {

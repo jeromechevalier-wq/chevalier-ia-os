@@ -1,5 +1,5 @@
-// Copie du journal n8n vers Firestore (chantier 14), contre un FAUX n8n et l'ÉMULATEUR Firestore (projet demo-…). Aucun appel réel.
-// Lancé par « npm run test:journal ». Les fonctions sont essayées directement (functions-plateforme/src), sans Cloud Functions.
+// Copie de l'historique n8n vers Firestore (chantier 14), contre un FAUX n8n et l'ÉMULATEUR Firestore (projet demo-…). Aucun appel réel.
+// Lancé par « npm run test:automatisations ». Les fonctions sont essayées directement (functions-plateforme/src), sans Cloud Functions.
 import assert from 'node:assert/strict';
 import { test, describe, before, after, beforeEach } from 'node:test';
 import { createRequire } from 'node:module';
@@ -39,9 +39,9 @@ async function installer() {
   faux.vider();
   Object.assign(faux.etat, { panne: false, coupe: false, latenceMs: 0, taillePage: 100 });
   // Deux clients avec le module, un client sans, un membre de chaque.
-  await db.doc('clients/audrey').set({ modules: { journal: true } });
-  await db.doc('clients/boris').set({ modules: { journal: true } });
-  await db.doc('clients/carla').set({ modules: { affaires: true } }); // sans le module journal
+  await db.doc('clients/audrey').set({ modules: { automatisations: true } });
+  await db.doc('clients/boris').set({ modules: { automatisations: true } });
+  await db.doc('clients/carla').set({ modules: { affaires: true } }); // sans le module
   faux.etat.workflows = [
     { id: 'wfA1', name: 'Lire une fiche', active: true, tags: ['client-audrey', 'prod'] },
     { id: 'wfA2', name: 'Mon mois', active: true, tags: ['client-audrey'] },

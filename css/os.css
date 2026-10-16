@@ -223,6 +223,10 @@ body.page-connexion {
 }
 .coquille[data-menu='replie'] .menu { overflow: visible; }
 .coquille[data-menu='replie'] .menu-nav { overflow: visible; }
+/* Menu replié : il ne défile pas (les info-bulles dépassent), donc il doit tenir dans la hauteur de l'écran (900 px d'un portable) même avec
+   cinq groupes (CRM, Projets, Veille, Automatisations, Réglages) : titres de groupe et espaces resserrés. Replié seulement ; élargi, rien ne change. */
+.coquille[data-menu='replie'] .menu-nav { padding-top: 8px; padding-bottom: 8px; gap: 8px; }
+.coquille[data-menu='replie'] .menu-groupe-titre { height: 18px; }
 
 .barre-haut, .voile-menu { display: none; }
 

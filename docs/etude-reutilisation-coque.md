@@ -134,7 +134,7 @@ Lu le 10/10/2026 dans la branche `claude/eager-allen-jht9kf` (PR n° 49, fusionn
 
 **Fait le 10/10/2026** : fusion, règles Firestore publiées par Jérôme dans la console (bloc `mcp_oauth`), essai réel : le MCP répond depuis son téléphone. Le code n'a pas été essayé avec la vraie connexion Google ni avec le vrai claude.ai (la doc de la branche le dit).
 
-## 7. Premier module client : journal d'activité des workflows (plan remplacé le 11/10/2026)
+## 7. Premier module client : Automatisations, historique des workflows (plan remplacé le 11/10/2026 ; module renommé de « journal » en « automatisations » le 16/10/2026)
 
 **Ancien plan, abandonné** : n8n écrit lui-même sa progression dans Firebase à chaque étape (collections `auto_lancements` et `auto_automatisations`), par une petite fonction « écrire une progression » protégée par un jeton de service. Abandonné parce qu'il exigeait un jeton dans chaque workflow, que le workflow écrivait des données dans la base du client, et que si n8n s'arrête, plus rien ne remonte.
 
@@ -146,7 +146,7 @@ Lu le 10/10/2026 dans la branche `claude/eager-allen-jht9kf` (PR n° 49, fusionn
 - **Écran** : 4 compteurs, liste filtrable, pastille animée « en cours », ligne d'erreur, bandeau jaune si n8n est injoignable.
 - **Plus de « outils MCP du client » pour l'instant** : le module n'en déclare aucun.
 
-Détail, mode d'emploi et mise en service : `journal-activite-workflows.md`. Journal du chantier : `journal-chantier-14.md`.
+Détail, mode d'emploi et mise en service : `automatisations-n8n.md`. Journal du chantier : `journal-chantier-14.md`.
 
 ## 8. Chantiers, dans l'ordre (refaits pour « une base pour tous les clients »)
 
@@ -169,7 +169,7 @@ Tailles relatives, pas des durées. Chaque ligne est une PR. Le CRM de Jérôme 
 | 11 | ✅ *(16/10/2026, voir `mcp-clients.md`)* **OAuth pour les clients** (base de la PR n° 49, fusionnée) : comptes lus dans les membres, profil déduit du rôle, client porté par la connexion, écran d'autorisation à ses couleurs, adresse de retour de ChatGPT, noms d'acteur | moyen | 0, 9 |
 | 12 | ✅ **Déploiement** : règles Firestore déployées par le workflow, une seule source de version, workflow paramétré | petit | 1 |
 | 13 | ✅ **Outil « nouveau client »** (fiche de marque, images, premier membre, modules actifs) et outil de **remise ou suppression** des données d'un client | moyen | 3, 5 |
-| 14 | 🚧 **Module « journal d'activité des workflows »** (phases 1 et 2 du cahier de Jérôme : copie hors de n8n par fonctions Firebase, écran en direct, rattachement par étiquette ; l'ancien plan « n8n écrit sa progression avec un jeton » est abandonné, voir section 7) ; phase 3 (Logger, étapes) plus tard | gros | 7 |
+| 14 | 🚧 **Module « Automatisations » (ex-« journal d'activité des workflows », renommé le 16/10/2026)** (phases 1 et 2 du cahier de Jérôme : copie hors de n8n par fonctions Firebase, écran en direct, rattachement par étiquette ; l'ancien plan « n8n écrit sa progression avec un jeton » est abandonné, voir section 7) ; phase 3 (Logger, étapes) plus tard | gros | 7 |
 | 15 | **Connexion par lien envoyé par e-mail** (si un client n'a pas Google) | petit | 3 |
 | 16 | **Option : manifeste par client** (icône et nom de l'appli installée) | petit | 5 |
 
@@ -229,9 +229,9 @@ Tailles relatives, pas des durées. Chaque ligne est une PR. Le CRM de Jérôme 
 - **Non testé** : la vraie base et le vrai Storage (aucun identifiant, aucune écriture en réel) ; le nom exact du stockage de `chevalier-ia-app` (`--bucket` si ce n'est pas `chevalier-ia-app.firebasestorage.app`) ; les droits du compte de Jérôme sur le projet.
 - **Reste hors de ce chantier** : les données de départ propres au métier de Jérôme créées au premier lancement chez un client (voir chantier 6) ; la restauration d'un export (l'outil sait écrire une sauvegarde, pas la relire).
 
-**Chantier 14, état (11/10/2026, PR en attente du « fusionne »)** : **journal d'activité des workflows n8n, phases 1 et 2**. Rien n'est déployé, aucun appel réel à n8n, aucune écriture dans la vraie base : tout est testé sur émulateurs avec un **faux n8n**. Guide complet (dont le dépôt de la clé n8n dans Secret Manager et le déploiement) : `docs/journal-activite-workflows.md`. Journal : `docs/journal-chantier-14.md`.
-- **Fonctions** : dossier `functions-plateforme/` (projet `chevalier-ia-app`, codebase `plateforme`, région Paris, déclaré dans `firebase.plateforme.json` ; jamais dans le `firebase.json` du CRM, qui ne publie pas ce dossier) : `journalCopieHoraire` (toutes les heures), `journalRafraichir` (appelable, client déduit de l'identité), `journalRenommer` (appelable, éditeurs du client). Le lecteur n8n (`src/n8n.js`) ne fait que des `GET` (test statique + faux n8n qui enregistre les verbes). Clé n8n : secret `N8N_API_KEY` (Secret Manager), jamais dans le dépôt.
-- **Module** `journal` déclaré dans `js/os/registre.js` (`reserveAuxClients: true` : absent du CRM de Jérôme ; `MODULES` inchangé, `MODULES_CLIENT` pour les clients), menu « Automatisations > Historique », écran `js/modules/journal/`.
+**Chantier 14, état (11/10/2026, PR en attente du « fusionne »)** : **journal d'activité des workflows n8n, phases 1 et 2**. Rien n'est déployé, aucun appel réel à n8n, aucune écriture dans la vraie base : tout est testé sur émulateurs avec un **faux n8n**. Guide complet (dont le dépôt de la clé n8n dans Secret Manager et le déploiement) : `docs/automatisations-n8n.md`. **Renommé le 16/10/2026** : module `automatisations`, fonctions `automatisationsCopieHoraire` / `automatisationsRafraichir` / `automatisationsRenommer`, plus réservé aux clients (visible chez Jérôme, écran vide). Journal : `docs/journal-chantier-14.md`.
+- **Fonctions** : dossier `functions-plateforme/` (projet `chevalier-ia-app`, codebase `plateforme`, région Paris, déclaré dans `firebase.plateforme.json` ; jamais dans le `firebase.json` du CRM, qui ne publie pas ce dossier) : `automatisationsCopieHoraire` (toutes les heures), `automatisationsRafraichir` (appelable, client déduit de l'identité), `automatisationsRenommer` (appelable, éditeurs du client) ; noms d'origine `journal…`, changés le 16/10/2026. Le lecteur n8n (`src/n8n.js`) ne fait que des `GET` (test statique + faux n8n qui enregistre les verbes). Clé n8n : secret `N8N_API_KEY` (Secret Manager), jamais dans le dépôt.
+- **Module** `automatisations` (d'abord `journal`) déclaré dans `js/os/registre.js` (d'abord `reserveAuxClients: true` ; drapeau retiré le 16/10/2026 : le module est aussi dans `MODULES`, donc chez Jérôme), menu « Automatisations > Historique », écran `js/modules/automatisations/`.
 - **Règles Firestore** (non publiées) : `workflows`, `executions` (+ `steps`) et `sync` en lecture seule pour tous les navigateurs, même un éditeur ; les autres collections de l'éditeur inchangées.
 - **Étiquettes** : `client-<identifiant>` ; **24 caractères au plus** pour un nom d'étiquette n8n (vérifié dans le code de n8n) donc **identifiant de 17 caractères au plus** pour un client qui active ce module ; l'outil « nouveau client » le vérifie. Au passage, l'outil compare maintenant les objets sans tenir compte de l'ordre des clés (Firestore les range par ordre alphabétique : une mise à jour identique se disait « modifiée »).
 - **Déploiement préparé, non lancé** : le workflow `deploiement-plateforme.yml` a un choix `fonctions` (jamais inclus dans `tout`).

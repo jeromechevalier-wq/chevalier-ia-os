@@ -1,5 +1,5 @@
-// Journal d'activité des workflows : règles d'affichage (états, compteurs, filtres, durées, textes). Aucune dépendance (ni Firebase ni DOM) :
-// ce fichier se teste seul (tests/journal-logique.test.js). Les libellés viennent du cahier des charges de Jérôme (11/10/2026).
+// Module Automatisations (workflows n8n) : règles d'affichage (états, compteurs, filtres, durées, textes). Aucune dépendance (ni Firebase ni DOM) :
+// ce fichier se teste seul (tests/automatisations-logique.test.js). Les libellés viennent du cahier des charges de Jérôme (11/10/2026).
 
 export const DELAI_STALE_MS = 10 * 60 * 1000; // « en cours » depuis plus de 10 minutes = à vérifier
 export const DELAI_RAFRAICHIR_MS = 10 * 1000; // entre deux rafraîchissements (bouton) et intervalle de la mise à jour automatique

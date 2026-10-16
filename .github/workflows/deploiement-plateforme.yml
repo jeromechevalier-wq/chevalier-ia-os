@@ -2,8 +2,8 @@
 # GitHub > onglet « Actions » > « Déploiement plateforme clients » > « Run workflow ».
 # Ne se déclenche jamais tout seul. Ne touche ni au CRM (projet chevalier-ia-os) ni à ses fonctions : le workflow du CRM
 # (firebase-hosting.yml) reste celui qui publie à chaque fusion dans main.
-# Les fonctions de la plateforme (journal d'activité des workflows, dossier functions-plateforme/) ne sont publiées que par le choix « fonctions »,
-# jamais avec les autres : c'est un déploiement à part, qui exige la clé de n8n déjà déposée dans Secret Manager (docs/journal-activite-workflows.md).
+# Les fonctions de la plateforme (module Automatisations : historique des workflows n8n, dossier functions-plateforme/) ne sont publiées que par le choix « fonctions »,
+# jamais avec les autres : c'est un déploiement à part, qui exige la clé de n8n déjà déposée dans Secret Manager (docs/automatisations-n8n.md).
 # Le choix « mcp » ne publie QUE la fonction du MCP des clients (mcpclients) : elle n'a besoin d'aucun secret (docs/mcp-clients.md).
 # Étapes : 1) contrôles sans réseau, 2) construction du paquet dist/plateforme (même code et même version que le CRM, mais avec la
 # configuration Firebase de chevalier-ia-app), 3) publication de ce qui est choisi. Secret requis : FIREBASE_SERVICE_ACCOUNT_CHEVALIER_IA_APP.
@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       elements:
-        description: "Que publier ? (les règles ne sont publiées que si tu choisis « regles » ou « tout » ; les fonctions du journal seulement si tu choisis « fonctions », jamais avec « tout » ; « mcp » publie seulement le MCP des clients)"
+        description: "Que publier ? (les règles ne sont publiées que si tu choisis « regles » ou « tout » ; les fonctions des automatisations seulement si tu choisis « fonctions », jamais avec « tout » ; « mcp » publie seulement le MCP des clients)"
         type: choice
         default: hosting
         options:

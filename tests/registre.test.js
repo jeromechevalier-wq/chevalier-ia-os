@@ -7,6 +7,7 @@ import { dirname, join } from 'node:path';
 import {
   MODULES_DECLARES, IDS_MODULES, OUTILS_COMMUNS, moduleDeclare, moduleDeRoute, lireModulesDemandes, verifierActivation,
   modulesActifsDuClient, moduleAccessible, premiereRoute, ecransActifs,
+  ANCIENS_IDENTIFIANTS, ANCIENS_PREFIXES, identifiantActuel, routeModernisee,
 } from '../js/os/registre.js';
 import { MODULES } from '../js/os/modules.js';
 
@@ -18,7 +19,7 @@ describe('registre : déclarations', () => {
     for (const m of MODULES_DECLARES) {
       assert.match(m.id, /^[a-z]+$/);
       assert.ok(m.nom && m.libelleMenu && m.iconeMenu && m.prefixe, m.id);
-      assert.ok(m.ecrans.length > 0 && (m.collections.length > 0 || m.id === 'mcp') && (m.outilsMcp.length > 0 || ['journal', 'veille', 'mcp'].includes(m.id)), m.id); // « mcp » n'a ni données ni outil à lui : il allume le lien du client
+      assert.ok(m.ecrans.length > 0 && (m.collections.length > 0 || m.id === 'mcp') && (m.outilsMcp.length > 0 || ['automatisations', 'veille', 'mcp'].includes(m.id)), m.id); // « mcp » n'a ni données ni outil à lui : il allume le lien du client
       for (const e of m.ecrans) {
         assert.ok(e.route.startsWith(`${m.prefixe}/`) && e.libelle && e.icone, `${m.id} ${e.route}`);
       }
@@ -43,7 +44,10 @@ describe('registre : déclarations', () => {
     assert.throws(() => { 'use strict'; MODULES_DECLARES[0].ecrans.push({}); }, TypeError);
   });
   test('les collections déclarées sont exactement celles que le code du CRM et de Projets lit (sauvegarde complète)', () => {
-    const declarees = MODULES_DECLARES.filter((m) => m.reserveAuxClients !== true).flatMap((m) => m.collections).sort();
+    // Exception voulue (16/10/2026) : le module Automatisations ne copie que l'historique de n8n (refaisable depuis n8n, volumineux) ; ses collections
+    // (workflows, executions, sync) ne sont pas dans l'export JSON du CRM. À reprendre si Jérôme veut les sauvegarder.
+    const SANS_SAUVEGARDE = ['automatisations'];
+    const declarees = MODULES_DECLARES.filter((m) => m.reserveAuxClients !== true && !SANS_SAUVEGARDE.includes(m.id)).flatMap((m) => m.collections).sort();
     const source = lire('js/modules/crm/donnees.js');
     const bloc = source.match(/COLLECTIONS_CRM = \[([\s\S]*?)\]/)[1];
     const lues = [...bloc.matchAll(/'([a-z_]+)'/g)].map((m) => m[1]).sort();
@@ -137,10 +141,14 @@ describe('registre : le CRM de Jérôme est strictement inchangé', () => {
       { chemin: 'projets/archives', libelle: 'Archives', icone: 'archive' },
       { chemin: 'projets/modeles', libelle: 'Modèles', icone: 'copy' },
     ] },
-    // Ajout voulu (veille vendable en module, étape 1, 2026-10-14) : le menu du CRM gagne « Veille » après Projets. Rien d'autre ne change.
+    // Ajout voulu (veille vendable en module, étape 1, 2026-10-14) : le menu du CRM gagne « Veille » après Projets.
     { id: 'veille', libelle: 'Veille', icone: 'globe', prefixe: 'veille', entrees: [
       { chemin: 'veille/contenus', libelle: 'Contenus', icone: 'file-text' },
       { chemin: 'veille/sources', libelle: 'Sources', icone: 'link' },
+    ] },
+    // Ajout voulu (16/10/2026) : le module n8n (ex-« journal », menu « Automatisations ») n'est plus réservé aux clients ; il est chez Jérôme aussi (règle « tout module existe d'abord chez Jérôme »).
+    { id: 'automatisations', libelle: 'Automatisations', icone: 'activity', prefixe: 'automatisations', entrees: [
+      { chemin: 'automatisations/historique', libelle: 'Historique', icone: 'activity' },
     ] },
   ];
   test('MODULES (menu, routes, libellés, icônes, ordre) est identique à celui d\'avant', () => {
@@ -198,5 +206,55 @@ describe('routage chez un client (préfixe espace/<client>) et CRM de Jérôme s
     assert.equal(cleEspace('espace'), 'espace');
     assert.equal(cleEspace('crm/accueil'), '');
     assert.equal(estRouteEspace('espace/acme/projets/projets'), true);
+  });
+});
+
+describe('renommage « journal » -> « automatisations » : compatibilité des fiches client et des adresses', () => {
+  test('l\'ancien identifiant n\'est plus un module, seulement un alias', () => {
+    assert.ok(!IDS_MODULES.includes('journal'));
+    assert.equal(moduleDeclare('journal'), null);
+    assert.equal(moduleDeRoute('journal'), null);
+    assert.deepEqual({ ...ANCIENS_IDENTIFIANTS }, { journal: 'automatisations' });
+    assert.equal(identifiantActuel('journal'), 'automatisations');
+    assert.equal(identifiantActuel('affaires'), 'affaires');
+    assert.equal(identifiantActuel('constructor'), 'constructor');
+  });
+  test('une fiche écrite avant le renommage (journal: true) active toujours le module, sans erreur', () => {
+    const r = modulesActifsDuClient({ modules: { affaires: true, journal: true } });
+    assert.deepEqual(r.actifs, ['affaires', 'automatisations']);
+    assert.deepEqual(r.erreurs, []);
+    assert.deepEqual(modulesActifsDuClient({ modules: { journal: true } }).actifs, ['automatisations']);
+    assert.equal(premiereRoute(modulesActifsDuClient({ modules: { journal: true } }).actifs), 'automatisations/historique');
+  });
+  test('la nouvelle clé gagne sur l\'ancienne, qu\'elle soit vraie ou fausse', () => {
+    assert.deepEqual(modulesActifsDuClient({ modules: { journal: true, automatisations: false } }).actifs, []);
+    assert.deepEqual(modulesActifsDuClient({ modules: { journal: false, automatisations: true } }).actifs, ['automatisations']);
+    assert.deepEqual(modulesActifsDuClient({ modules: { journal: true, automatisations: true } }).actifs, ['automatisations']);
+  });
+  test('« journal: false », ou autre chose que true, n\'active rien', () => {
+    for (const v of [false, 'true', 1, null, {}]) assert.deepEqual(modulesActifsDuClient({ modules: { journal: v } }).actifs, [], String(v));
+    assert.deepEqual(modulesActifsDuClient({ modules: { journal: false } }).erreurs, []);
+  });
+  test('un autre module inconnu reste signalé', () => {
+    assert.ok(modulesActifsDuClient({ modules: { journalisme: true } }).erreurs.some((e) => /journalisme/.test(e)));
+  });
+  test('les anciennes adresses journal/… sont redirigées vers automatisations/… ; le Journal du CRM (crm/journal) ne bouge pas', () => {
+    assert.deepEqual({ ...ANCIENS_PREFIXES }, { journal: 'automatisations' });
+    assert.equal(routeModernisee('journal/historique'), 'automatisations/historique');
+    assert.equal(routeModernisee('journal'), 'automatisations');
+    assert.equal(routeModernisee('crm/journal'), 'crm/journal');
+    assert.equal(routeModernisee('automatisations/historique'), 'automatisations/historique');
+    assert.equal(routeModernisee('journaux/x'), 'journaux/x');
+    assert.equal(routeModernisee(''), '');
+    assert.equal(routeModernisee('constructor/x'), 'constructor/x');
+  });
+  test('le module Automatisations n\'est plus réservé aux clients : il figure dans le menu du CRM de Jérôme, avec le libellé « Automatisations »', () => {
+    assert.ok(MODULES.some((m) => m.id === 'automatisations' && m.libelle === 'Automatisations'));
+    assert.notEqual(moduleDeclare('automatisations').reserveAuxClients, true); // (« mcp » reste réservé aux clients : c'est voulu)
+  });
+  test('espace-modules.js redirige les anciens liens avant de chercher le module', () => {
+    const t = lire('js/os/espace-modules.js');
+    assert.match(t, /routeModernisee\(route\)/);
+    assert.ok(t.indexOf('routeModernisee(route)') < t.indexOf('moduleAccessible(segs[0]'));
   });
 });

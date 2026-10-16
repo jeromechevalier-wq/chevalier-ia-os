@@ -1,8 +1,8 @@
 // Lecture de l'API publique de n8n. RÈGLE ABSOLUE : ce fichier ne fait QUE des requêtes GET (lecture seule). Aucune écriture,
-// aucune suppression, aucun lancement de workflow dans n8n, jamais. Un test (tests/journal-statique.test.js) fait échouer la suite
+// aucune suppression, aucun lancement de workflow dans n8n, jamais. Un test (tests/automatisations-statique.test.js) fait échouer la suite
 // si un autre verbe HTTP apparaît dans le code, et un faux n8n enregistre chaque verbe reçu pendant les essais.
 //
-// Ce que ce fichier garde de n8n : seulement ce que le journal affiche (identifiants, noms, états, dates, noms d'étiquettes).
+// Ce que ce fichier garde de n8n : seulement ce que l'écran Automatisations affiche (identifiants, noms, états, dates, noms d'étiquettes).
 // Le contenu des données, la définition des workflows et les réglages sensibles sont lus au passage puis JETÉS ici même.
 // La clé d'API n'est jamais écrite dans un journal, un message d'erreur ni une adresse : elle voyage dans un en-tête.
 

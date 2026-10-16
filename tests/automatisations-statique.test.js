@@ -1,13 +1,13 @@
-// Contrôles sans réseau ni émulateur du journal d'activité (chantier 14) : lecture seule vers n8n, aucun secret, cohérence entre
+// Contrôles sans réseau ni émulateur du module Automatisations (chantier 14) : lecture seule vers n8n, aucun secret, cohérence entre
 // le registre, les règles Firestore, les fonctions et la configuration de déploiement.
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { moduleDeclare, IDS_MODULES } from '../js/os/registre.js';
-import { MOTIF_IDENTIFIANT_CLIENT, LONGUEUR_MAX_ETIQUETTE_N8N, LONGUEUR_MAX_IDENTIFIANT_JOURNAL, PREFIXE_ETIQUETTE } from '../functions-plateforme/src/etiquettes.js';
-import { MODULE_JOURNAL } from '../functions-plateforme/src/appels.js';
+import { moduleDeclare, IDS_MODULES, modulesActifsDuClient } from '../js/os/registre.js';
+import { MOTIF_IDENTIFIANT_CLIENT, LONGUEUR_MAX_ETIQUETTE_N8N, LONGUEUR_MAX_IDENTIFIANT_AUTOMATISATIONS, PREFIXE_ETIQUETTE } from '../functions-plateforme/src/etiquettes.js';
+import { MODULE_AUTOMATISATIONS, moduleActif } from '../functions-plateforme/src/appels.js';
 
 const RACINE = join(dirname(fileURLToPath(import.meta.url)), '..');
 const lire = (f) => readFileSync(join(RACINE, f), 'utf8');
@@ -56,7 +56,7 @@ describe('Aucun secret dans le dépôt', () => {
     const liste = [];
     const marcher = (d) => { for (const n of readdirSync(d)) { if (n === 'node_modules' || (n === 'serveur' && d.endsWith('functions-plateforme'))) continue; /* « serveur » : copie générée de functions/src, ignorée par git (MCP des clients) */ const c = join(d, n); statSync(c).isDirectory() ? marcher(c) : liste.push(c); } };
     marcher(join(RACINE, 'functions-plateforme'));
-    for (const f of ['tests/_faux-n8n.js', 'docs/journal-activite-workflows.md', 'docs/journal-chantier-14.md']) liste.push(join(RACINE, f));
+    for (const f of ['tests/_faux-n8n.js', 'docs/automatisations-n8n.md', 'docs/journal-chantier-14.md']) liste.push(join(RACINE, f));
     for (const c of liste) {
       if (c.endsWith('package-lock.json')) continue;
       let t; try { t = readFileSync(c, 'utf8'); } catch { continue; }
@@ -66,24 +66,38 @@ describe('Aucun secret dans le dépôt', () => {
 });
 
 describe('Cohérence : registre, règles, fonctions, déploiement', () => {
-  test('le module « journal » du registre est celui que les fonctions cherchent, réservé aux clients', () => {
-    assert.equal(MODULE_JOURNAL, 'journal');
-    const m = moduleDeclare('journal');
-    assert.equal(m.reserveAuxClients, true);
-    assert.ok(IDS_MODULES.includes('journal'));
+  test('le module « automatisations » du registre est celui que les fonctions cherchent, visible aussi chez Jérôme (plus réservé aux clients)', () => {
+    assert.equal(MODULE_AUTOMATISATIONS, 'automatisations');
+    const m = moduleDeclare('automatisations');
+    assert.notEqual(m.reserveAuxClients, true);
+    assert.ok(IDS_MODULES.includes('automatisations'));
+    assert.ok(!IDS_MODULES.includes('journal'), 'l\'ancien identifiant n\'est plus un module : seulement un alias');
     assert.deepEqual(m.dependances, []);
     assert.deepEqual(m.outilsMcp, []);
-    assert.deepEqual(m.ecrans.map((e) => e.route), ['journal/historique']);
+    assert.deepEqual(m.ecrans.map((e) => e.route), ['automatisations/historique']);
+  });
+  test('les fonctions et l\'application lisent le champ « modules » de la même façon (nouvelle clé, ancienne clé « journal », conflits)', () => {
+    const cas = [
+      undefined, null, 'x', [], {}, { affaires: true },
+      { automatisations: true }, { automatisations: false }, { automatisations: 'true' }, { automatisations: 1 }, { automatisations: null },
+      { journal: true }, { journal: false }, { journal: 'true' }, { journal: null },
+      { journal: true, automatisations: true }, { journal: true, automatisations: false }, { journal: false, automatisations: true },
+      { journal: true, automatisations: null }, { journal: true, automatisations: 'oui' },
+    ];
+    for (const modules of cas) {
+      const dansApp = modulesActifsDuClient({ modules }).actifs.includes('automatisations');
+      assert.equal(moduleActif(modules), dansApp, JSON.stringify(modules));
+    }
   });
   test('les collections du module sont exactement celles que les règles ferment à l\'écriture', () => {
-    const m = moduleDeclare('journal');
+    const m = moduleDeclare('automatisations');
     const regles = lire('firestore.plateforme.rules');
     const liste = regles.match(/collection in \[([^\]]*)\]/)[1].match(/'([a-z_]+)'/g).map((x) => x.replace(/'/g, ''));
     assert.deepEqual([...liste].sort(), [...m.collections].sort());
     assert.match(regles, /!collectionDuJournal\(collection\) && roleDe\(client\) == 'editeur'/);
   });
   test('les fonctions n\'écrivent que dans les collections déclarées (et le signalement du serveur)', () => {
-    const m = moduleDeclare('journal');
+    const m = moduleDeclare('automatisations');
     const chemins = new Set();
     for (const f of fichiers) for (const x of code(f).matchAll(/\$\{(?:racine|client)\}\/([a-z_]+)|clients\/\$\{client\}\/([a-z_]+)|`clients\/\$\{client\}\/([a-z_]+)/g)) chemins.add(x[1] || x[2] || x[3]);
     for (const c of chemins) assert.ok([...m.collections, 'membres'].includes(c), `collection inattendue : ${c}`);
@@ -91,7 +105,7 @@ describe('Cohérence : registre, règles, fonctions, déploiement', () => {
   test('étiquette n8n : 24 caractères au plus, donc identifiant de client de 17 caractères au plus pour ce module', () => {
     assert.equal(LONGUEUR_MAX_ETIQUETTE_N8N, 24);
     assert.equal(PREFIXE_ETIQUETTE, 'client-');
-    assert.equal(LONGUEUR_MAX_IDENTIFIANT_JOURNAL, 17);
+    assert.equal(LONGUEUR_MAX_IDENTIFIANT_AUTOMATISATIONS, 17);
     assert.equal(`${PREFIXE_ETIQUETTE}${'a'.repeat(17)}`.length, 24);
     assert.ok(MOTIF_IDENTIFIANT_CLIENT.test('a'.repeat(40)), 'les identifiants de clients vont jusqu\'à 40');
   });
@@ -105,8 +119,8 @@ describe('Cohérence : registre, règles, fonctions, déploiement', () => {
     assert.match(code('index.js'), /schedule: '0 \* \* \* \*'/);
   });
   test('seule la copie et le renommage touchent à Firestore pour écrire ; l\'écran n\'écrit jamais lui-même', () => {
-    for (const f of readdirSync(join(RACINE, 'js/modules/journal'))) {
-      const t = lire(`js/modules/journal/${f}`).replace(/\/\/.*$/gm, '');
+    for (const f of readdirSync(join(RACINE, 'js/modules/automatisations'))) {
+      const t = lire(`js/modules/automatisations/${f}`).replace(/\/\/.*$/gm, '');
       assert.ok(!/\b(setDoc|addDoc|updateDoc|deleteDoc|writeBatch|runTransaction)\b/.test(t), `${f} écrit dans Firestore`);
     }
   });
@@ -116,11 +130,11 @@ describe('Les fonctions se chargent comme Firebase les chargera', () => {
   test('trois fonctions, région de Paris, planifiée toutes les heures, clé n8n liée par secret sur les deux qui lisent n8n, aucun secret pour « renommer »', async () => {
     process.env.GCLOUD_PROJECT ??= 'demo-chevalier-ia-os';
     const m = await import('../functions-plateforme/src/index.js');
-    assert.deepEqual(Object.keys(m).sort(), ['journalCopieHoraire', 'journalRafraichir', 'journalRenommer', 'mcpclients']);
+    assert.deepEqual(Object.keys(m).sort(), ['automatisationsCopieHoraire', 'automatisationsRafraichir', 'automatisationsRenommer', 'mcpclients']);
     for (const f of Object.values(m)) assert.deepEqual(f.__endpoint.region, ['europe-west9']);
-    assert.equal(m.journalCopieHoraire.__endpoint.scheduleTrigger.schedule, '0 * * * *');
-    assert.deepEqual(m.journalCopieHoraire.__endpoint.secretEnvironmentVariables, [{ key: 'N8N_API_KEY' }]);
-    assert.deepEqual(m.journalRafraichir.__endpoint.secretEnvironmentVariables, [{ key: 'N8N_API_KEY' }]);
-    assert.equal(m.journalRenommer.__endpoint.secretEnvironmentVariables, undefined);
+    assert.equal(m.automatisationsCopieHoraire.__endpoint.scheduleTrigger.schedule, '0 * * * *');
+    assert.deepEqual(m.automatisationsCopieHoraire.__endpoint.secretEnvironmentVariables, [{ key: 'N8N_API_KEY' }]);
+    assert.deepEqual(m.automatisationsRafraichir.__endpoint.secretEnvironmentVariables, [{ key: 'N8N_API_KEY' }]);
+    assert.equal(m.automatisationsRenommer.__endpoint.secretEnvironmentVariables, undefined);
   });
 });
