@@ -68,3 +68,8 @@ export const lireGoogle = (page) => page.evaluate(() => window.__google);
 /** Fixe le choix de l'utilisateur dans la prochaine fenêtre Google : une liste de documents, ou 'annule'. */
 export const choisirDansGoogle = (page, reponse) => page.evaluate((r) => { window.__google.reponse = r; }, reponse);
 export const refuserAutorisation = (page, refus = true) => page.evaluate((r) => { window.__google.refus = r; }, refus);
+
+/** Simule un CRM sans identifiant client Google (cas d'un espace où Google n'est pas encore branché) : le dépôt, lui, porte l'identifiant réel de Jérôme. */
+export async function debrancherGoogle(context) {
+  await context.route('**/js/os/google-config.js', (route) => route.fulfill({ status: 200, contentType: 'text/javascript', body: "export const googleDrive = { idClient: '' };" }));
+}
