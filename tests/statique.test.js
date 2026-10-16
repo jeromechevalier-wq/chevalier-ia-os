@@ -260,13 +260,17 @@ describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
   });
 
   test('D4 le code publié (appli) n’utilise ni Cloud Function ni Cloud Storage : le serveur MCP vit dans functions/, jamais publié', () => {
-    // Seule exception (chantier 14) : le module Automatisations (n8n) appelle deux fonctions du serveur (rafraîchir, renommer) ; aucun Cloud Storage.
+    // Deux exceptions : le module Automatisations (n8n) appelle deux fonctions du serveur (rafraîchir, renommer), et la veille en appelle une seule,
+    // `veille` (ajouter un lien collé, lancer un résumé : 2026-10-15) ; aucun Cloud Storage.
+    const AVEC_FONCTIONS = ['js/modules/automatisations/donnees.js', 'js/modules/veille/donnees.js'];
     for (const f of fichiersAppli().filter((x) => /\.js$/.test(x))) {
-      const t = f === 'js/modules/automatisations/donnees.js' ? lire(f).replaceAll(/getFunctions|httpsCallable|firebase-functions\.js/g, '') : lire(f);
+      const t = AVEC_FONCTIONS.includes(f) ? lire(f).replaceAll(/getFunctions|httpsCallable|firebase-functions\.js/g, '') : lire(f);
       assert.doesNotMatch(t, /firebase-functions|firebase-storage|getStorage|httpsCallable/, f);
     }
     const appels = [...lire('js/modules/automatisations/donnees.js').matchAll(/httpsCallable\(fonctions\(\), '([A-Za-z]+)'\)/g)].map((m) => m[1]);
     assert.deepEqual(appels.sort(), ['automatisationsRafraichir', 'automatisationsRenommer']);
+    const appelsVeille = [...lire('js/modules/veille/donnees.js').matchAll(/httpsCallable\(fonctions\(\), '([A-Za-z]+)'\)/g)].map((m) => m[1]);
+    assert.deepEqual(appelsVeille, ['veille']);
   });
 });
 
