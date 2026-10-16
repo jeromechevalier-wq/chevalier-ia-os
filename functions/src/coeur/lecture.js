@@ -4,6 +4,7 @@ import * as L from '../../partage/logique.js';
 import * as PL from '../../partage/projets.js';
 import { COLLECTIONS as C } from './donnees.js';
 import { serialiser } from './serialisation.js';
+import { lireConfig } from './config.js';
 
 export const MAX_LIGNES = 200;
 const borne = (liste, limite = MAX_LIGNES) => ({ total: liste.length, tronque: liste.length > limite, elements: liste.slice(0, limite) });
@@ -160,7 +161,8 @@ export async function listerDocuments(donnees, { affaireId, projetId }) {
 
 const resumeFacturation = (p) => ({ ...PL.totauxFactures(p), aPayer: PL.facturesAPayer(p).length, impaye: PL.aUnImpaye(p) });
 
-export async function listerProjets(donnees, { phase, statut, nature, archive, affaireId, personneId, organisationId, recherche, enRetard, limite }, maintenant) {
+export async function listerProjets(donnees, { phase, statut, nature, archive, affaireId, personneId, organisationId, recherche, enRetard, limite }, maintenant, espace = {}) {
+  const config = await lireConfig(donnees, espace);
   const [projets, taches, personnes, organisations] = await Promise.all([C.projets, C.projetsTaches, C.personnes, C.organisations].map((nom) => donnees.liste(nom)));
   const criteres = { recherche: recherche || '', phases: phase ? [phase] : [], statuts: statut ? [statut] : [], natures: nature ? [nature] : [], enRetard: !!enRetard };
   let gardes = PL.filtrerProjets(projets, criteres, { personnes, organisations, taches, aujourdhui: L.aujourdhuiParis(maintenant), archives: !!archive });
@@ -169,13 +171,14 @@ export async function listerProjets(donnees, { phase, statut, nature, archive, a
   if (organisationId) gardes = gardes.filter((p) => p.organisationId === organisationId);
   const lignes = L.trier(gardes, (p) => L.normaliser(p.titre)).map((p) => ({
     ...p, personne: nomDe(personnes, p.personneId), organisation: nomDe(organisations, p.organisationId),
-    avancement: PL.progressionProjet(PL.tachesDuProjet(taches, p.id)), facturation: resumeFacturation(p),
+    avancement: PL.progressionProjet(PL.tachesDuProjet(taches, p.id, config)), facturation: config.options.suiviPaiements ? resumeFacturation(p) : null,
   }));
   const { total, tronque, elements } = borne(lignes, Math.min(limite ?? MAX_LIGNES, MAX_LIGNES));
   return serialiser({ total, tronque, projets: elements });
 }
 
-export async function lireProjet(donnees, { id, avecFil }) {
+export async function lireProjet(donnees, { id, avecFil }, espace = {}) {
+  const config = await lireConfig(donnees, espace);
   const projet = await donnees.document(C.projets, id);
   if (!projet) introuvable('Projet');
   const [affaire, personne, organisation, taches, extractions, source] = await Promise.all([
@@ -186,7 +189,7 @@ export async function lireProjet(donnees, { id, avecFil }) {
     donnees.liste(C.projets, { champ: 'projetSourceId', valeur: id }),
     projet.projetSourceId ? donnees.document(C.projets, projet.projetSourceId) : null,
   ]);
-  const extraction = PL.extractionDuProjet(extractions, id);
+  const extraction = config.options.extractionValeur ? PL.extractionDuProjet(extractions, id) : null; // option « Extraction de valeur » éteinte : rien n'est montré
   return serialiser({
     projet,
     affaire: affaire ? { id: affaire.id, titre: affaire.titre, etape: affaire.etape, statut: affaire.statut } : null,
@@ -194,9 +197,9 @@ export async function lireProjet(donnees, { id, avecFil }) {
     organisation: organisation ? { id: organisation.id, nom: organisation.nom } : null,
     source: source ? { id: source.id, titre: source.titre } : null,
     extraction: extraction ? { id: extraction.id, titre: extraction.titre, statut: extraction.statut, archive: !!extraction.archive } : null,
-    taches: PL.tachesDuProjet(taches, id),
+    taches: PL.tachesDuProjet(taches, id, config),
     avancement: PL.progressionProjet(taches),
-    facturation: resumeFacturation(projet),
+    facturation: config.options.suiviPaiements ? resumeFacturation(projet) : null,
     ...(avecFil ? { fil: await fil(donnees, 'projetId', id, []) } : {}),
   });
 }
@@ -208,7 +211,8 @@ export async function listerModelesProjet(donnees) {
 
 // ---------------------------------------------------------------- réglages
 
-export async function lireReglages(donnees) {
+export async function lireReglages(donnees, espace = {}) {
+  const config = await lireConfig(donnees, espace);
   const docs = Object.fromEntries((await donnees.liste(C.parametres)).map((d) => [d.id, d]));
   const tri = (items) => [...(items || [])].sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
   return serialiser({
@@ -216,16 +220,22 @@ export async function lireReglages(donnees) {
     secteurs: docs.listes?.secteurs || [],
     sources: docs.listes?.sources || [],
     etiquettes: tri(docs.etiquettes?.items),
-    reglages: { ...L.REGLAGES_DEPART, ...(docs.reglages || {}) },
+    reglages: L.reglagesEffectifs(docs.reglages, { racine: espace.racine ?? !donnees.base }),
+    // Configuration de l'espace : étapes de vente et phases de projet (six emplacements, actifs ou non), rôles, options (interrupteurs).
+    configuration: {
+      etapes: config.etapes.map(({ id, libelle, description, actif, action }) => ({ id, libelle, description, actif, action, roleGagnee: id === config.roleGagnee })),
+      phases: config.phases.map(({ id, libelle, description, actif, action }) => ({ id, libelle, description, actif, action, roleCloture: id === config.roleCloture })),
+      options: config.options,
+    },
     referentiels: {
-      etapes: L.ETAPES.map(({ id, libelle }) => ({ id, libelle })),
+      etapes: L.etapesActives(config).map(({ id, libelle }) => ({ id, libelle })),
       statuts: L.STATUTS,
       typesContact: L.TYPES_CONTACT,
       typesActivite: L.TYPES_ACTIVITE,
       priorites: L.PRIORITES,
       raisonsPerdue: L.RAISONS_PERDUE,
       tailles: L.TAILLES,
-      projets: { phases: PL.PHASES.map(({ id, libelle }) => ({ id, libelle })), statuts: PL.STATUTS_PROJET.map(({ id, libelle }) => ({ id, libelle })), natures: PL.NATURES_PROJET, assignes: PL.ASSIGNES, statutsFacture: PL.STATUTS_FACTURE.map(({ id, libelle }) => ({ id, libelle })) },
+      projets: { phases: PL.phasesActives(config).map(({ id, libelle }) => ({ id, libelle })), statuts: PL.STATUTS_PROJET.map(({ id, libelle }) => ({ id, libelle })), natures: config.options.extractionValeur ? PL.NATURES_PROJET : PL.NATURES_PROJET.filter((n) => n.id !== 'extraction'), assignes: config.membres.map(({ id, libelle }) => ({ id, libelle })), statutsFacture: config.options.suiviPaiements ? PL.STATUTS_FACTURE.map(({ id, libelle }) => ({ id, libelle })) : [] },
     },
   });
 }

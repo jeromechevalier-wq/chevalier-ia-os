@@ -1,6 +1,7 @@
 // Coquille de l'OS : menu latéral repliable, thèmes sombre et clair, profil, écran de connexion.
 import { h, icone, vider, remplir, lirePreference, ecrirePreference, estTelephone, champIntelligent, ouvrirMenu } from './ui.js';
 import { MODULES } from './modules.js';
+import { blocsDuMenu } from './registre.js';
 import { naviguer, lien } from './router.js';
 
 // ---------------------------------------------------------------- thème
@@ -73,7 +74,7 @@ export function afficherConnexion(racine, { message = '', surConnexion, enCours 
  * Monte la coquille pour le compte connecté.
  * Renvoie { contenu, activer(route) }.
  * Options : `modules` (défaut : tous, CRM de Jérôme) ; chez un client (chantier 7) `client` = { nom, logo } remplace la marque de Jérôme,
- * `accueil` = première route, `reglages: false` retire l'entrée Réglages (pas de réglages de l'OS chez un client pour l'instant).
+ * `accueil` = première route, `reglages: false` retire l'entrée Réglages (la page existe aussi chez un client depuis la 2.6.0 ; l'option reste pour les tests).
  */
 export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(), modules = MODULES, client = null, accueil = 'crm/accueil', reglages: avecReglages = true }) {
   vider(racine);
@@ -82,8 +83,9 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
 
   const entrees = [];
   const nav = h('nav', { class: 'menu-nav', 'aria-label': 'Navigation' });
-  for (const m of modules) {
-    const groupe = h('div', { class: 'menu-groupe' },
+  // Un bloc du menu par module ou groupe de modules (le CRM réunit affaires et projets : registre.js, blocsDuMenu).
+  for (const m of blocsDuMenu(modules.map((x) => x.id))) {
+    const groupe = h('div', { class: 'menu-groupe', dataset: { bloc: m.id } },
       h('div', { class: 'menu-groupe-titre' }, icone(m.icone, { taille: 16 }), h('span', { class: 'menu-texte' }, m.libelle)));
     for (const e of m.entrees) {
       const a = h('a', { class: 'menu-entree', href: lien(e.chemin), dataset: { infobulle: e.libelle, chemin: e.chemin } },
@@ -94,7 +96,7 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
     nav.append(groupe);
   }
   if (avecReglages) {
-    const reglages = h('a', { class: 'menu-entree', href: '#/reglages', dataset: { infobulle: 'Réglages', chemin: 'reglages' } },
+    const reglages = h('a', { class: 'menu-entree', href: lien('reglages'), dataset: { infobulle: 'Réglages', chemin: 'reglages' } },
       icone('settings'), h('span', { class: 'menu-texte' }, 'Réglages'));
     entrees.push(reglages);
     nav.append(h('div', { class: 'menu-groupe' }, reglages));

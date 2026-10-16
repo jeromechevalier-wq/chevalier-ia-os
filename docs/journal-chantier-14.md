@@ -1,7 +1,9 @@
-# Journal du chantier 14 (journal d'activité des workflows n8n, phases 1 et 2)
+# Journal du chantier 14 (module Automatisations, ex-« journal d'activité des workflows n8n », phases 1 et 2)
+
+> **Mise à jour du 16/10/2026** : le module `journal` est devenu `automatisations` (identifiant, routes, dossiers, fonctions, tests) et n'est plus réservé aux clients. Les noms ci-dessous sont ceux **de l'époque** ; la correspondance et la suite sont dans `docs/automatisations-n8n.md` (encadré en tête et partie 10).
 
 Branche `claude/chantier-14-journal-workflows-4679bc`, PR n° 61. À lire en premier si la session est coupée.
-Cahier des charges de Jérôme : <https://claude.ai/artifact/DqhJ4UZ4sucD93d2z7F56H> (remplace le plan « n8n pousse sa progression avec un jeton », étude section 7). Guide complet : `docs/journal-activite-workflows.md`.
+Cahier des charges de Jérôme : <https://claude.ai/artifact/DqhJ4UZ4sucD93d2z7F56H> (remplace le plan « n8n pousse sa progression avec un jeton », étude section 7). Guide complet : `docs/automatisations-n8n.md` (ex-`journal-activite-workflows.md`).
 
 ## Fait (tout vert le 11/10/2026 : `npm test` complet, code 0)
 - Module `journal` dans `js/os/registre.js` (`reserveAuxClients: true`), `MODULES` (CRM, inchangé) et `MODULES_CLIENT` dans `js/os/modules.js`, montage dans `espace-modules.js`.
@@ -15,7 +17,7 @@ Cahier des charges de Jérôme : <https://claude.ai/artifact/DqhJ4UZ4sucD93d2z7F
 
 ## Reste
 - Rien côté code pour les phases 1 et 2. Phase 3 (Logger, frise d'étapes) : non faite.
-- Pour Jérôme : dire « fusionne », puis `journal-activite-workflows.md` partie 7 (règles/page, clé n8n dans Secret Manager, déploiement des fonctions, workflow de test étiqueté).
+- Pour Jérôme : dire « fusionne », puis `automatisations-n8n.md` partie 7 (règles/page, clé n8n dans Secret Manager, déploiement des fonctions, workflow de test étiqueté).
 
 ## Prérequis des tests (une fois)
 ```

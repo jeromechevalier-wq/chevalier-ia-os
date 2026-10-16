@@ -8,7 +8,7 @@ import * as P from '../js/modules/projets/logique.js';
 const JEROME = 'jerome.chevalier@gmail.com';
 const ctx = (iso = '2026-10-15T08:00:00Z', extra = {}) => {
   let n = 0;
-  return { maintenant: new Date(iso), auteur: JEROME, nouvelId: (nom) => `${nom}_${++n}`, ...extra };
+  return { maintenant: new Date(iso), auteur: JEROME, config: L.CONFIG_JEROME, nouvelId: (nom) => `${nom}_${++n}`, ...extra };
 };
 const projet = (extra = {}) => ({ ...P.nouveauProjet({ titre: 'Audit Carrel' }, ctx('2026-10-01T08:00:00Z')), id: 'pr1', ...extra });
 const cles = (ecritures) => ecritures.map((e) => `${e.type}:${e.collection}/${e.id}`).sort();
@@ -30,13 +30,15 @@ function executer(base, ecritures, { maintenant, acteur = JEROME }) {
 }
 
 describe('B20 Projets : phases, statuts et création', () => {
-  test('B20 quatre phases fixes, dans l’ordre, avec des identifiants stables', () => {
-    assert.deepEqual(P.PHASES.map((p) => p.id), ['lancement', 'decouverte', 'livraison', 'cloture']);
-    assert.deepEqual(P.PHASES.map((p) => p.libelle), ['Lancement', 'Découverte', 'Livraison', 'Clôture']);
+  test('B20 quatre phases actives chez Jérôme, dans l’ordre, avec des identifiants stables (six emplacements en tout)', () => {
+    assert.deepEqual(P.phasesActives(L.CONFIG_JEROME).map((p) => p.id), ['lancement', 'decouverte', 'livraison', 'cloture']);
+    assert.deepEqual(P.phasesActives(L.CONFIG_JEROME).map((p) => p.libelle), ['Lancement', 'Découverte', 'Livraison', 'Clôture']);
+    assert.equal(L.CONFIG_JEROME.phases.length, 6);
+    assert.equal(P.phaseCloture(L.CONFIG_JEROME), 'cloture');
     assert.deepEqual(P.STATUTS_PROJET.map((s) => s.id), ['actif', 'en_pause', 'termine']);
     assert.deepEqual(P.NATURES_PROJET.map((n) => n.id), ['livraison', 'extraction']);
-    assert.equal(P.libellePhase('decouverte'), 'Découverte');
-    assert.equal(P.libellePhase('inconnue'), 'inconnue', 'un identifiant inconnu s’affiche tel quel');
+    assert.equal(P.libellePhase('decouverte', L.CONFIG_JEROME), 'Découverte');
+    assert.equal(P.libellePhase('inconnue', L.CONFIG_JEROME), 'inconnue', 'un identifiant inconnu s’affiche tel quel');
   });
   test('B20 le titre est le seul champ obligatoire', () => {
     assert.deepEqual(P.validerProjet({ titre: '  ' }), { titre: 'Le titre est obligatoire.' });
@@ -70,12 +72,12 @@ describe('B20 Projets : phases, statuts et création', () => {
   test('B20 un projet repris d’une affaire garde ses liens ; une extraction garde sa source ; une adresse invalide est vidée', () => {
     const p = P.nouveauProjet({
       titre: 'Extraction', nature: 'extraction', affaireId: 'a1', personneId: 'p1', organisationId: 'o1', projetSourceId: 'pr9', offreId: 'off', modeleId: 'm',
-      dateDebut: '2026-11-02', dateFin: '2026-11-30', phase: 'decouverte', urlGithub: 'https://github.com/jeromechevalier-wq/client-carrel', urlDossier: 'https://exemple.fr',
+      dateDebut: '2026-11-02', dateFin: '2026-11-30', phase: 'decouverte', urlGithub: 'https://github.com/jeromechevalier-wq/client-carrel', urlDossier: 'Mon Drive/dossier-sans-lien',
     }, ctx());
     assert.deepEqual([p.nature, p.affaireId, p.personneId, p.organisationId, p.projetSourceId, p.offreId, p.modeleId], ['extraction', 'a1', 'p1', 'o1', 'pr9', 'off', 'm']);
     assert.deepEqual([p.dateDebut, p.dateFin, p.phase], ['2026-11-02', '2026-11-30', 'decouverte']);
     assert.equal(p.urlGithub, 'https://github.com/jeromechevalier-wq/client-carrel');
-    assert.equal(p.urlDossier, '', 'une adresse qui n’est pas un dossier Drive n’est pas gardée');
+    assert.equal(p.urlDossier, '', 'une adresse qui n’est pas un lien n’est pas gardée');
   });
   test('B20 ctx.proprietaire l’emporte sur l’acteur (agent MCP)', () => {
     assert.equal(P.nouveauProjet({ titre: 'x' }, ctx('2026-10-15T08:00:00Z', { auteur: 'hermes-bibliothecaire', proprietaire: JEROME })).proprietaire, JEROME);
@@ -579,12 +581,12 @@ describe('B29 Tâches d’un projet', () => {
     assert.ok(P.validerTache({ titre: 'x', date: '12/10/2026' }).date);
     assert.ok(P.validerTache({ titre: 'x', heure: '25:00' }).heure);
     assert.deepEqual(P.validerTache({ titre: 'x', heure: '09:30', date: '2026-10-21' }), {});
-    assert.ok(P.validerTache({ titre: 'x', phase: 'facturation' }).phase);
-    assert.ok(P.validerTache({ titre: 'x', assigneA: 'paul' }).assigneA);
+    assert.ok(P.validerTache({ titre: 'x', phase: 'facturation' }, L.CONFIG_JEROME).phase);
+    assert.ok(P.validerTache({ titre: 'x', assigneA: 'paul' }, L.CONFIG_JEROME).assigneA);
   });
   test('B29 une nouvelle tâche : à faire, à Jérôme, sans date, dans la phase donnée', () => {
     const t = P.nouvelleTache({ titre: '  Interview   Carrel ', projetId: 'pr1', phase: 'decouverte', ordre: 3 }, c());
-    assert.deepEqual(t, { titre: 'Interview Carrel', projetId: 'pr1', phase: 'decouverte', ordre: 3, date: null, heure: '', fait: false, dateFait: null, assigneA: 'jerome', auteur: JEROME });
+    assert.deepEqual(t, { titre: 'Interview Carrel', projetId: 'pr1', phase: 'decouverte', ordre: 3, date: null, heure: '', fait: false, dateFait: null, assigneA: 'jerome', assigneNom: 'Jérôme', auteur: JEROME });
     assert.equal(P.nouvelleTache({ titre: 'x', projetId: 'pr1', phase: 'inconnue', assigneA: 'charles', date: '2026-10-21', heure: '09:30' }, c()).phase, 'lancement');
   });
   test('B29 créer : à la fin de la phase, avec son projet ; la phase du projet par défaut ; refus sans titre', () => {
@@ -601,14 +603,14 @@ describe('B29 Tâches d’un projet', () => {
   });
   test('B29 modifier : seuls les champs qui changent sont écrits ; changer de phase met la tâche à la fin de la nouvelle phase', () => {
     const t = tache({ date: '2026-10-21' });
-    const plan = P.planMajTache({ tache: t, patch: { titre: ' Nouveau  titre ', date: '2026-10-21', assigneA: 'charles' }, taches: [t] });
-    assert.deepEqual(plan.patch, { titre: 'Nouveau titre', assigneA: 'charles' });
+    const plan = P.planMajTache({ tache: t, patch: { titre: ' Nouveau  titre ', date: '2026-10-21', assigneA: 'charles' }, taches: [t], config: L.CONFIG_JEROME });
+    assert.deepEqual(plan.patch, { titre: 'Nouveau titre', assigneA: 'charles', assigneNom: 'Charles' });
     assert.deepEqual(plan.ecritures.map((e) => [e.type, e.collection, e.id]), [['modifier', 'projets_taches', 't1']]);
-    const ailleurs = P.planMajTache({ tache: t, patch: { phase: 'cloture' }, taches: [t, tache({ id: 'k', phase: 'cloture', ordre: 6 })] });
+    const ailleurs = P.planMajTache({ tache: t, patch: { phase: 'cloture' }, taches: [t, tache({ id: 'k', phase: 'cloture', ordre: 6 })], config: L.CONFIG_JEROME });
     assert.deepEqual(ailleurs.patch, { phase: 'cloture', ordre: 7 });
-    assert.deepEqual(P.planMajTache({ tache: t, patch: { date: '' }, taches: [t] }).patch, { date: null });
-    assert.deepEqual(P.planMajTache({ tache: t, patch: {}, taches: [t] }).ecritures, [], 'rien à écrire');
-    assert.ok(P.planMajTache({ tache: t, patch: { titre: '  ' }, taches: [t] }).erreurs.titre);
+    assert.deepEqual(P.planMajTache({ tache: t, patch: { date: '' }, taches: [t], config: L.CONFIG_JEROME }).patch, { date: null });
+    assert.deepEqual(P.planMajTache({ tache: t, patch: {}, taches: [t], config: L.CONFIG_JEROME }).ecritures, [], 'rien à écrire');
+    assert.ok(P.planMajTache({ tache: t, patch: { titre: '  ' }, taches: [t], config: L.CONFIG_JEROME }).erreurs.titre);
   });
   test('B29 cocher : fait + date, un événement dans le fil du projet ; déjà faite : rien ; décocher : à faire', () => {
     const p = projet({ id: 'pr1', affaireId: 'a1', personneId: 'p1' });
@@ -642,12 +644,12 @@ describe('B29 Tâches d’un projet', () => {
       tache({ id: 'a', phase: 'livraison', ordre: 2, fait: true }), tache({ id: 'b', phase: 'livraison', ordre: 1 }), tache({ id: 'c', phase: 'lancement', ordre: 1 }),
       tache({ id: 'x', projetId: 'autre' }),
     ];
-    const r = P.tachesParPhase(taches, 'pr1');
+    const r = P.tachesParPhase(taches, 'pr1', L.CONFIG_JEROME);
     assert.deepEqual(r.map((g) => g.phase.id), ['lancement', 'decouverte', 'livraison', 'cloture']);
     assert.deepEqual(r.map((g) => g.taches.map((t) => t.id)), [['c'], [], ['b', 'a'], []]);
     assert.deepEqual(r.map((g) => g.faites), [0, 0, 1, 0]);
-    assert.deepEqual(P.tachesDuProjet(taches, 'pr1').map((t) => t.id), ['c', 'b', 'a']);
-    assert.deepEqual(P.progressionProjet(P.tachesDuProjet(taches, 'pr1')), { faites: 1, total: 3, ratio: 1 / 3 });
+    assert.deepEqual(P.tachesDuProjet(taches, 'pr1', L.CONFIG_JEROME).map((t) => t.id), ['c', 'b', 'a']);
+    assert.deepEqual(P.progressionProjet(P.tachesDuProjet(taches, 'pr1', L.CONFIG_JEROME)), { faites: 1, total: 3, ratio: 1 / 3 });
   });
   test('B29 Accueil : tâches datées, non faites, de projets vivants ; en retard et du jour, par date et heure, avec leur projet', () => {
     const projets = [projet({ id: 'pr1' }), projet({ id: 'pause', statut: 'en_pause' }), projet({ id: 'fini', statut: 'termine', archive: true }), projet({ id: 'rangé', archive: true })];
@@ -682,21 +684,21 @@ describe('B30 Modèles de projet', () => {
   const exec = (base, plan) => executer(base, plan.ecritures, { maintenant: c().maintenant });
 
   test('B30 trois modèles de départ : Audit, Accompagnement, Extraction, avec le contenu de Jérôme', () => {
-    const [audit, accompagnement, extraction] = P.MODELES_DEPART;
-    assert.deepEqual(P.MODELES_DEPART.map((m) => [m.id, m.nom, m.offreId, m.nature]), [['audit', 'Audit', 'audit', 'livraison'], ['accompagnement', 'Accompagnement', 'accompagnement', 'livraison'], ['extraction', 'Extraction', null, 'extraction']]);
-    assert.deepEqual(P.tachesDuModele(audit).map((t) => [t.titre, t.phase]), [['Interview', 'decouverte'], ['Créer le rapport', 'livraison'], ['Débriefing avec le client', 'livraison']]);
+    const [audit, accompagnement, extraction] = P.MODELES_JEROME;
+    assert.deepEqual(P.MODELES_JEROME.map((m) => [m.id, m.nom, m.offreId, m.nature]), [['audit', 'Audit', 'audit', 'livraison'], ['accompagnement', 'Accompagnement', 'accompagnement', 'livraison'], ['extraction', 'Extraction', null, 'extraction']]);
+    assert.deepEqual(P.tachesDuModele(audit, L.CONFIG_JEROME).map((t) => [t.titre, t.phase]), [['Interview', 'decouverte'], ['Créer le rapport', 'livraison'], ['Débriefing avec le client', 'livraison']]);
     assert.deepEqual(accompagnement.taches.map((t) => t.titre), ['Rendez-vous de lancement'], 'un seul rendez-vous au départ, les suivants s’ajoutent au fil de l’eau');
-    assert.deepEqual(P.tachesDuModele(extraction).map((t) => t.titre), ['Tirer les règles', 'Comprendre les erreurs', 'Repérer ce qui est automatisable', 'Créer la documentation marketing']);
+    assert.deepEqual(P.tachesDuModele(extraction, L.CONFIG_JEROME).map((t) => t.titre), ['Tirer les règles', 'Comprendre les erreurs', 'Repérer ce qui est automatisable', 'Créer la documentation marketing']);
     assert.ok(extraction.taches.every((t) => t.delaiJours === 7), 'sept jours après la création');
-    assert.ok(P.MODELES_DEPART.every((m) => Object.keys(P.validerModele(m)).length === 0 && m.taches.every((t) => Object.keys(P.validerTacheModele(t)).length === 0)));
-    assert.equal(new Set(P.MODELES_DEPART.flatMap((m) => m.taches.map((t) => t.id))).size, 8, 'identifiants de tâches uniques');
+    assert.ok(P.MODELES_JEROME.every((m) => Object.keys(P.validerModele(m)).length === 0 && m.taches.every((t) => Object.keys(P.validerTacheModele(t, L.CONFIG_JEROME)).length === 0)));
+    assert.equal(new Set(P.MODELES_JEROME.flatMap((m) => m.taches.map((t) => t.id))).size, 8, 'identifiants de tâches uniques');
   });
   test('B30 initialiser : trois créations aux identifiants fixes, sans champ vide, sans toucher aux modèles de départ eux-mêmes', () => {
-    const plan = P.planInitialiserModeles();
+    const plan = P.planInitialiserModeles({ racine: true });
     assert.deepEqual(plan.ecritures.map((e) => `${e.type}:${e.collection}/${e.id}`), ['creer:projets_modeles/audit', 'creer:projets_modeles/accompagnement', 'creer:projets_modeles/extraction']);
     assert.ok(plan.ecritures.every((e) => !('id' in e.donnees) && Object.values(e.donnees).every((v) => v !== undefined)));
     plan.ecritures[0].donnees.taches.push({ id: 'x' });
-    assert.equal(P.MODELES_DEPART[0].taches.length, 3, 'les modèles de départ ne sont pas modifiés');
+    assert.equal(P.MODELES_JEROME[0].taches.length, 3, 'les modèles de départ ne sont pas modifiés');
   });
   test('B30 validations : nom obligatoire ; titre, phase et délai (entier de 0 à 3650, ou vide) d’une tâche type', () => {
     assert.deepEqual(P.validerModele({ nom: ' ' }), { nom: 'Le nom est obligatoire.' });
@@ -706,7 +708,7 @@ describe('B30 Modèles de projet', () => {
     assert.deepEqual(P.validerTacheModele({ titre: 'x', delaiJours: '14' }), {});
     for (const d of [-1, 1.5, 'abc', 4000]) assert.ok(P.validerTacheModele({ titre: 'x', delaiJours: d }).delaiJours, String(d));
     assert.ok(P.validerTacheModele({ titre: '' }).titre);
-    assert.ok(P.validerTacheModele({ titre: 'x', phase: 'facturation' }).phase);
+    assert.ok(P.validerTacheModele({ titre: 'x', phase: 'facturation' }, L.CONFIG_JEROME).phase);
   });
   test('B30 créer un modèle : à la suite des autres, sans tâche, actif, nature livraison par défaut ; refus sans nom', () => {
     const plan = P.planCreerModele({ valeurs: { nom: '  Site   vitrine ', offreId: 'off' }, modeles: [{ ordre: 3 }] }, c());
@@ -733,11 +735,11 @@ describe('B30 Modèles de projet', () => {
     ajout({ titre: 'Rapport', phase: 'livraison', delaiJours: 10 });
     assert.deepEqual(m.taches.map((t) => [t.id, t.titre, t.phase, t.delaiJours, t.ordre]), [['tm1', 'Interview', 'decouverte', 3, 1], ['tm2', 'Entretien 2', 'decouverte', null, 2], ['tm3', 'Rapport', 'livraison', 10, 1]]);
     assert.deepEqual(P.planAjouterTacheModele({ modele: m, valeurs: { titre: '' } }, cx).erreurs, { titre: 'Le titre est obligatoire.' });
-    const maj = P.planMajTacheModele({ modele: m, tacheId: 'tm2', patch: { titre: 'Entretien deux', delaiJours: '', phase: 'livraison' } });
+    const maj = P.planMajTacheModele({ modele: m, tacheId: 'tm2', patch: { titre: 'Entretien deux', delaiJours: '', phase: 'livraison' }, config: L.CONFIG_JEROME });
     assert.deepEqual(maj.ecritures[0].patch.taches.find((t) => t.id === 'tm2'), { id: 'tm2', titre: 'Entretien deux', phase: 'livraison', delaiJours: null, ordre: 2 });
     assert.deepEqual(P.planMajTacheModele({ modele: m, tacheId: 'tm2', patch: {} }).ecritures, []);
     assert.ok(P.planMajTacheModele({ modele: m, tacheId: 'inconnue', patch: { titre: 'x' } }).erreurs.tache);
-    assert.ok(P.planMajTacheModele({ modele: m, tacheId: 'tm1', patch: { delaiJours: -2 } }).erreurs.delaiJours);
+    assert.ok(P.planMajTacheModele({ modele: m, tacheId: 'tm1', patch: { delaiJours: -2 }, config: L.CONFIG_JEROME }).erreurs.delaiJours);
     const sans = P.planSupprimerTacheModele({ modele: m, tacheId: 'tm1' });
     assert.deepEqual(sans.ecritures[0].patch.taches.map((t) => t.id), ['tm2', 'tm3']);
     assert.deepEqual(sans.ecritures[0].signer, ['modifiePar']);
@@ -748,11 +750,11 @@ describe('B30 Modèles de projet', () => {
       { id: 'c', titre: 'C', phase: 'livraison', delaiJours: null, ordre: 3 }, { id: 'z', titre: 'Z', phase: 'lancement', delaiJours: null, ordre: 1 },
     ] });
     const r = P.planDeplacerTacheModele({ modele: m, tacheId: 'c', sens: -1 });
-    assert.deepEqual(P.tachesDuModele({ taches: r.ecritures[0].patch.taches }).map((t) => t.id), ['z', 'a', 'c', 'b']);
+    assert.deepEqual(P.tachesDuModele({ taches: r.ecritures[0].patch.taches }, L.CONFIG_JEROME).map((t) => t.id), ['z', 'a', 'c', 'b']);
     assert.deepEqual(P.planDeplacerTacheModele({ modele: m, tacheId: 'a', sens: -1 }).ecritures, []);
     assert.deepEqual(P.planDeplacerTacheModele({ modele: m, tacheId: 'c', sens: 1 }).ecritures, []);
     assert.deepEqual(P.planDeplacerTacheModele({ modele: m, tacheId: 'z', sens: 1 }).ecritures, [], 'seule dans sa phase');
-    assert.deepEqual(P.tachesModeleParPhase(m).map((g) => g.taches.length), [1, 0, 3, 0]);
+    assert.deepEqual(P.tachesModeleParPhase(m, L.CONFIG_JEROME).map((g) => g.taches.length), [1, 0, 3, 0]);
   });
   test('B30 supprimer un modèle : une suppression, rien d’autre', () => {
     assert.deepEqual(P.planSupprimerModele('m1').ecritures.map((e) => `${e.type}:${e.collection}/${e.id}`), ['supprimer:projets_modeles/m1']);
@@ -765,7 +767,7 @@ describe('B30 Modèles de projet', () => {
     assert.deepEqual(P.modelesActifs(modeles).map((m) => m.id), ['x', 'a', 'b']);
   });
   test('B30 créer un projet depuis un modèle : ses tâches, dates = début + délai, ordre par phase, nature et modeleId du modèle', () => {
-    const m = P.MODELES_DEPART.find((x) => x.id === 'extraction');
+    const m = P.MODELES_JEROME.find((x) => x.id === 'extraction');
     const plan = P.planCreerProjet({ titre: 'Extraction Carrel', dateDebut: '2026-10-20' }, c(), { modele: m });
     const projetDoc = plan.ecritures.find((e) => e.collection === 'projets_projets').donnees;
     assert.deepEqual([projetDoc.modeleId, projetDoc.nature, projetDoc.dateDebut], ['extraction', 'extraction', '2026-10-20']);
@@ -778,7 +780,7 @@ describe('B30 Modèles de projet', () => {
     assert.equal(new Set(plan.ecritures.map((e) => `${e.collection}/${e.id}`)).size, plan.ecritures.length, 'chaque document apparaît une seule fois');
   });
   test('B30 depuis un modèle sans délai : pas de date ; sans modèle : un projet vide comme avant', () => {
-    const audit = P.planCreerProjet({ titre: 'Audit' }, c(), { modele: P.MODELES_DEPART[0] });
+    const audit = P.planCreerProjet({ titre: 'Audit' }, c(), { modele: P.MODELES_JEROME[0] });
     assert.deepEqual(audit.ecritures.filter((e) => e.collection === 'projets_taches').map((e) => e.donnees.date), [null, null, null]);
     assert.equal(audit.ecritures.find((e) => e.collection === 'projets_projets').donnees.nature, 'livraison');
     const vide = P.planCreerProjet({ titre: 'Chantier' }, c());
@@ -787,12 +789,12 @@ describe('B30 Modèles de projet', () => {
   });
   test('B30 depuis une affaire gagnée : le modèle ajoute ses tâches dans le même plan, l’affaire reçoit toujours son projetId', () => {
     const affaire = { ...L.nouvelleAffaire({ titre: 'Audit des Lilas', etape: 'gagne', offreId: 'audit' }, c()), id: 'a1' };
-    const plan = P.planCreerProjetDepuisAffaire({ affaire, modele: P.MODELES_DEPART[0] }, c());
+    const plan = P.planCreerProjetDepuisAffaire({ affaire, modele: P.MODELES_JEROME[0] }, c());
     assert.deepEqual(plan.erreurs, {});
     assert.deepEqual(plan.ecritures.map((e) => `${e.type}:${e.collection}`), ['creer:projets_projets', 'creer:projets_taches', 'creer:projets_taches', 'creer:projets_taches', 'modifier:crm_affaires', 'creer:crm_evenements']);
     assert.equal(plan.ecritures[0].donnees.modeleId, 'audit');
     assert.equal(plan.ecritures.filter((e) => e.collection === 'projets_taches').every((e) => e.donnees.projetId === plan.id), true);
-    const refus = P.planCreerProjetDepuisAffaire({ affaire: { ...affaire, statut: 'perdue' }, modele: P.MODELES_DEPART[0] }, c());
+    const refus = P.planCreerProjetDepuisAffaire({ affaire: { ...affaire, statut: 'perdue' }, modele: P.MODELES_JEROME[0] }, c());
     assert.deepEqual(refus.ecritures, [], 'refusé : aucune tâche non plus');
   });
   test('B30 de bout en bout sur des données : créer un modèle, y ajouter des tâches, créer un projet, supprimer le projet : tâches supprimées, modèle intact', () => {
@@ -1184,74 +1186,5 @@ describe('B34 Objectif « chiffre d’affaires encaissé » : les factures PAYÉ
   test('B34 caParMois lit aussi les projets (graphique de l’Accueil)', () => {
     const r = L.caParMois([], ['2026-09', '2026-10'], [projetAvec([fac({ montant: 300 })])]);
     assert.deepEqual(r.map((m) => m.montant), [0, 300]);
-  });
-});
-
-describe('B35 Migration 2.2 : les étapes « Facture envoyée » et « Facture payée » disparaissent', () => {
-  const c = (iso = '2026-10-20T09:00:00Z') => ctx(iso);
-  const exec = (base, plan) => executer(base, plan.ecritures, { maintenant: c().maintenant });
-  const aff = (extra = {}) => ({ ...L.nouvelleAffaire({ titre: 'Audit des Lilas', personneId: 'p1', organisationId: 'o1', montant: 1200 }, c('2026-09-01T08:00:00Z')), id: 'a1', ...extra });
-
-  test('B35 une affaire « Facture payée » passe à Gagné : archivée, encaissements intacts, statut gagnée, un événement', () => {
-    const payee = aff({ etape: 'facture_payee', statut: 'gagnee', archive: true, encaissements: [{ date: new Date('2026-09-20T10:00:00Z'), montant: 1200 }],
-      datesEtapes: { gagne: new Date('2026-09-05T10:00:00Z'), facture_payee: new Date('2026-09-20T10:00:00Z') } });
-    const plan = P.planMigrerEtapesRetirees({ affaires: [payee], projets: [] }, c());
-    assert.deepEqual(plan.migrees, [{ affaireId: 'a1', titre: 'Audit des Lilas', de: 'Facture payée', facture: null }]);
-    assert.deepEqual(plan.aTraiterAMain, []);
-    const base = exec({ crm_affaires: [payee], projets_projets: [] }, plan);
-    const apres = base.crm_affaires[0];
-    assert.deepEqual([apres.etape, apres.statut, apres.archive], ['gagne', 'gagnee', true]);
-    assert.equal(apres.encaissements.length, 1);
-    assert.equal(apres.encaissements[0].montant, 1200);
-    assert.equal(apres.datesEtapes.gagne.toISOString(), '2026-09-05T10:00:00.000Z', 'la date d’arrivée à Gagné d’origine est gardée');
-    assert.deepEqual((base.crm_evenements || []).map((e) => e.type), ['etape_changee']);
-    assert.match(base.crm_evenements[0].texte, /Facture payée → Gagné/);
-    // le chiffre d'affaires du mois du paiement ne bouge pas
-    assert.equal(L.CALCULS.ca_encaisse.calculer({ affaires: [payee] }, '2026-09'), L.CALCULS.ca_encaisse.calculer({ affaires: [apres] }, '2026-09'));
-  });
-  test('B35 une affaire « Facture envoyée » avec un projet : passe à Gagné et le projet reçoit une facture À payer de son montant', () => {
-    const envoyee = aff({ etape: 'facture_envoyee', statut: 'gagnee', projetId: 'pr1', datesEtapes: { gagne: new Date('2026-09-05T10:00:00Z'), facture_envoyee: new Date('2026-09-18T10:00:00Z') } });
-    const pr = projet({ id: 'pr1', affaireId: 'a1' });
-    const plan = P.planMigrerEtapesRetirees({ affaires: [envoyee], projets: [pr] }, c());
-    assert.deepEqual(plan.migrees[0].facture, { projetId: 'pr1', montant: 1200 });
-    const base = exec({ crm_affaires: [envoyee], projets_projets: [pr] }, plan);
-    assert.equal(base.crm_affaires[0].etape, 'gagne');
-    assert.deepEqual(base.projets_projets[0].factures.map((f) => [f.statut, f.montant, f.dateEnvoi]), [['a_payer', 1200, '2026-09-18']]);
-    assert.ok(P.blocageCloture(base.projets_projets[0]), 'la clôture du projet attend ce paiement');
-  });
-  test('B35 « Facture envoyée » sans projet, sans montant ou avec une simple extraction : passe à Gagné et est listée « à traiter à la main », aucun projet créé', () => {
-    const sansProjet = aff({ id: 'a1', etape: 'facture_envoyee', statut: 'gagnee' });
-    const sansMontant = aff({ id: 'a2', etape: 'facture_envoyee', statut: 'gagnee', montant: null, projetId: 'pr2' });
-    const extraction = aff({ id: 'a3', etape: 'facture_envoyee', statut: 'gagnee' });
-    const projets = [projet({ id: 'pr2', affaireId: 'a2' }), projet({ id: 'ex3', affaireId: 'a3', nature: 'extraction' })];
-    const plan = P.planMigrerEtapesRetirees({ affaires: [sansProjet, sansMontant, extraction], projets }, c());
-    assert.deepEqual(plan.aTraiterAMain.map((m) => m.affaireId), ['a1', 'a2', 'a3']);
-    assert.ok(plan.aTraiterAMain.every((m) => m.raison.length > 10));
-    assert.deepEqual(plan.migrees.map((m) => m.facture), [null, null, null]);
-    const base = exec({ crm_affaires: [sansProjet, sansMontant, extraction], projets_projets: projets }, plan);
-    assert.deepEqual(base.crm_affaires.map((a) => a.etape), ['gagne', 'gagne', 'gagne']);
-    assert.equal(base.projets_projets.length, 2, 'aucun projet créé');
-    assert.ok(base.projets_projets.every((p) => !(p.factures || []).length));
-    assert.ok((base.crm_evenements || []).every((e) => /à suivre à la main/.test(e.texte)));
-  });
-  test('B35 idempotent : une fois migrées, les affaires ne sont plus concernées ; les autres affaires ne bougent pas', () => {
-    const payee = aff({ id: 'a1', etape: 'facture_payee', statut: 'gagnee', archive: true });
-    const ouverte = aff({ id: 'a2', etape: 'rdv_fixe', statut: 'ouverte' });
-    const gagnee = aff({ id: 'a3', etape: 'gagne', statut: 'gagnee' });
-    let base = { crm_affaires: [payee, ouverte, gagnee], projets_projets: [] };
-    const plan = P.planMigrerEtapesRetirees({ affaires: base.crm_affaires, projets: [] }, c());
-    assert.deepEqual(plan.migrees.map((m) => m.affaireId), ['a1']);
-    base = exec(base, plan);
-    const encore = P.planMigrerEtapesRetirees({ affaires: base.crm_affaires, projets: base.projets_projets }, c());
-    assert.deepEqual([encore.migrees, encore.aTraiterAMain, encore.ecritures], [[], [], []]);
-    assert.deepEqual(base.crm_affaires.map((a) => a.etape), ['gagne', 'rdv_fixe', 'gagne']);
-  });
-  test('B35 deux affaires « Facture envoyée » sur le même projet : les deux factures s’ajoutent, sans écraser la première', () => {
-    const a = aff({ id: 'a1', etape: 'facture_envoyee', statut: 'gagnee', projetId: 'pr1', montant: 300 });
-    const b = aff({ id: 'a2', etape: 'facture_envoyee', statut: 'gagnee', projetId: 'pr1', montant: 400 });
-    const pr = projet({ id: 'pr1' });
-    const plan = P.planMigrerEtapesRetirees({ affaires: [a, b], projets: [pr] }, c());
-    const dernier = plan.ecritures.filter((e) => e.collection === 'projets_projets').at(-1);
-    assert.deepEqual(dernier.patch.factures.map((f) => f.montant), [300, 400]);
   });
 });

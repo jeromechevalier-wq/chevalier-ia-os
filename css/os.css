@@ -223,6 +223,10 @@ body.page-connexion {
 }
 .coquille[data-menu='replie'] .menu { overflow: visible; }
 .coquille[data-menu='replie'] .menu-nav { overflow: visible; }
+/* Menu replié : il ne défile pas (les info-bulles dépassent), donc il doit tenir dans la hauteur de l'écran (900 px d'un portable) même avec
+   cinq groupes (CRM, Projets, Veille, Automatisations, Réglages) : titres de groupe et espaces resserrés. Replié seulement ; élargi, rien ne change. */
+.coquille[data-menu='replie'] .menu-nav { padding-top: 8px; padding-bottom: 8px; gap: 8px; }
+.coquille[data-menu='replie'] .menu-groupe-titre { height: 18px; }
 
 .barre-haut, .voile-menu { display: none; }
 
@@ -274,6 +278,56 @@ body.page-connexion {
 }
 
 .page-reglages { max-width: 920px; }
+
+/* Page Réglages à menu latéral (2.6.0) : menu à gauche (espace, puis modules), contenu à droite. Sur téléphone, le menu se replie en un bouton. */
+.page-reglages-menu { max-width: 1120px; }
+.page-tete-reglages { margin-bottom: 4px; }
+.reglages-corps { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 24px; align-items: start; }
+.reglages-menu { position: sticky; top: 16px; display: flex; flex-direction: column; gap: 4px; }
+.reglages-menu-bouton { display: none; }
+.reglages-menu-liste { display: flex; flex-direction: column; gap: 2px; }
+.reglages-menu-titre { margin: 14px 0 4px; padding: 0 10px; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--texte2); }
+.reglages-menu-titre:first-child { margin-top: 0; }
+.reglages-menu-lien { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--rayon-petit); color: var(--texte2); text-decoration: none; font-weight: 500; font-size: 14px; }
+.reglages-menu-lien:hover { background: var(--survol); color: var(--texte); }
+.reglages-menu-lien[aria-current='page'] { background: var(--accent-a26); color: var(--texte); }
+.reglages-menu-lien[aria-current='page'] .icone { color: var(--accent-trait); }
+:root[data-theme='clair'] .reglages-menu-lien[aria-current='page'] .icone { color: var(--lien); }
+.reglages-contenu { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.reglages-contenu > .page-tete { padding: 0; }
+.reglages-titre { margin: 0; font: 700 22px/1.2 var(--police-titre); letter-spacing: -.02em; }
+.reglages-sections { display: flex; flex-direction: column; gap: 16px; border: 0; margin: 0; padding: 0; min-inline-size: 0; }
+.reglages-sections:disabled { opacity: .85; }
+.reglages-lecture { display: flex; align-items: center; gap: 8px; margin: 0; }
+.reglages-raccourcis { display: flex; flex-wrap: wrap; gap: 6px; }
+.reglages-raccourci { border: 1px solid var(--bordure-forte); background: transparent; color: var(--texte2); border-radius: 999px; padding: 4px 12px; font: inherit; font-size: 13px; cursor: pointer; }
+.reglages-raccourci:hover { background: var(--survol); color: var(--texte); }
+.reglages-infos { display: flex; flex-direction: column; gap: 10px; }
+.reglages-info { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.reglages-info-etiquette { flex: 0 0 90px; color: var(--texte2); font-size: 13px; }
+.reglages-info-valeur { display: inline-flex; align-items: center; gap: 8px; font-weight: 500; }
+.reglages-logo { width: 48px; height: 48px; object-fit: contain; border-radius: var(--rayon-petit); background: var(--survol); }
+.reglages-pastille { display: inline-block; width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--bordure-forte); }
+.reglages-membres, .reglages-modules { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.reglages-membre, .reglages-module-ligne { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 8px 0; border-bottom: 1px solid var(--bordure); }
+.reglages-membre:last-child, .reglages-module-ligne:last-child { border-bottom: 0; }
+.reglages-membre-nom { font-weight: 500; overflow-wrap: anywhere; }
+.reglages-role { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--survol); color: var(--texte2); }
+.reglages-module-ligne .aide { flex: 1 1 140px; margin: 0; }
+.badge-actif { background: var(--accent-a26); color: var(--texte); }
+@media (max-width: 767px) {
+  .reglages-corps { grid-template-columns: 1fr; gap: 14px; }
+  .reglages-menu { position: static; }
+  .reglages-menu-bouton {
+    display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; border: 1px solid var(--bordure-forte); border-radius: var(--rayon);
+    background: var(--panneau); color: var(--texte); font: inherit; font-weight: 600; cursor: pointer; text-align: left;
+  }
+  .reglages-menu-bouton span { flex: 1; }
+  .reglages-menu-liste { display: none; padding: 6px; border: 1px solid var(--bordure); border-radius: var(--rayon); background: var(--panneau); }
+  .reglages-menu[data-ouvert='true'] .reglages-menu-liste { display: flex; }
+  .reglages-menu[data-ouvert='true'] .reglages-menu-bouton .icone:last-child { transform: rotate(180deg); }
+  .reglages-menu-lien { padding: 12px 10px; }
+}
 .liste-reglages { display: flex; flex-direction: column; gap: 8px; }
 .ligne-reglage { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 6px 0; border-bottom: 1px solid var(--bordure); }
 .ligne-reglage:last-child { border-bottom: 0; }

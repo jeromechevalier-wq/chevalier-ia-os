@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import * as L from '../functions/partage/logique.js';
 import * as PL from '../functions/partage/projets.js';
+import { OUTILS_ECRITURE } from '../functions/src/mcp/outils/ecriture.js';
 import { creerGestionnaire } from '../functions/src/mcp/gestionnaire.js';
 import { empreinte, creerMagasin } from '../functions/src/securite/jetons.js';
 import { creerLimiteur, LIMITES_PAR_DEFAUT } from '../functions/src/securite/limites.js';
@@ -190,8 +191,7 @@ describe('Création et modification (tests 9 et 11)', () => {
     const s = await demarrer();
     const gagne = ok(await s.appeler('biblio', 'changer_etape', { id: 'a1', etape: 'gagne' }));
     assert.equal(gagne.statut, 'gagnee');
-    assert.equal(gagne.suggestion.titre, 'Envoyer la facture');
-    assert.equal(gagne.suggestion.date, '2026-10-05', 'jour de Paris');
+    assert.equal(gagne.suggestion, null, 'aucune action suggérée par défaut (les deux règles en dur ont disparu)');
     assert.deepEqual(s.collections.crm_evenements.filter((e) => e.affaireId === 'a1' && e.date.getTime() === MAINTENANT.getTime()).map((e) => e.type).sort(), ['affaire_gagnee', 'etape_changee', 'projet_cree'], 'gagnée sans projet : son projet d’extraction est créé avec elle');
     assert.equal(gagne.extraction.titre, 'Extraction : Site vitrine Atelier des Lilas');
     assert.equal(s.collections.crm_activites.length, 4, 'la suggestion n’est pas créée toute seule');
@@ -211,7 +211,7 @@ describe('Création et modification (tests 9 et 11)', () => {
   test('test 11 : parité avec l’écran — le patch écrit par l’outil est exactement celui de la règle pure sur les mêmes données', async () => {
     const s = await demarrer();
     const avant = structuredClone(s.doc('crm_affaires', 'a2'));
-    const regle = L.changementEtape(avant, 'gagne', { maintenant: MAINTENANT, auteur: 'x' });
+    const regle = L.changementEtape(avant, 'gagne', { maintenant: MAINTENANT, auteur: 'x', config: L.CONFIG_JEROME });
     ok(await s.appeler('code', 'changer_etape', { id: 'a2', etape: 'gagne' }));
     const apres = s.doc('crm_affaires', 'a2');
     for (const [k, v] of Object.entries(regle.patch)) assert.deepEqual(apres[k], v, k);
@@ -295,7 +295,8 @@ describe('Création et modification (tests 9 et 11)', () => {
     const s = await demarrer();
     const avant = s.vue();
     refuse(await s.appeler('biblio', 'creer_affaire', { titre: 'X', urlGithub: 'http://exemple.test/depot' }), /https:\/\/github\.com\//);
-    refuse(await s.appeler('biblio', 'creer_affaire', { titre: 'X', urlDossier: 'https://exemple.test/dossier' }), /dossier Google Drive/);
+    refuse(await s.appeler('biblio', 'creer_affaire', { titre: 'X', urlDossier: 'Mon Drive/dossier-sans-lien' }), /lien complet/);
+    refuse(await s.appeler('biblio', 'creer_affaire', { titre: 'X', urlDossier: 'javascript:alert(1)' }), /lien complet/);
     assert.deepEqual(s.vue(), avant);
     const r = ok(await s.appeler('biblio', 'creer_affaire', { titre: 'Avec adresses', urlGithub: 'https://github.com/jeromechevalier-wq/essai', urlDossier: 'https://drive.google.com/drive/folders/abc123_-X' }));
     assert.equal(s.doc('crm_affaires', r.id).urlGithub, 'https://github.com/jeromechevalier-wq/essai');
@@ -564,7 +565,7 @@ describe('Outils des projets : mêmes règles que l’écran, avec audit et rest
   /** Serveur avec les modèles de départ (Audit, Accompagnement, Extraction) installés. */
   async function avecModeles() {
     const s = await demarrer();
-    s.collections.projets_modeles = PL.MODELES_DEPART.map((m, i) => ({ ...structuredClone(m), ordre: i + 1, actif: true }));
+    s.collections.projets_modeles = PL.MODELES_JEROME.map((m, i) => ({ ...structuredClone(m), ordre: i + 1, actif: true }));
     return s;
   }
   const projets = (s) => s.collections.projets_projets || [];
@@ -630,6 +631,16 @@ describe('Outils des projets : mêmes règles que l’écran, avec audit et rest
     refuse(await s.appeler('biblio', 'modifier_projet', { id }), /Aucun champ/);
     refuse(await s.appeler('biblio', 'modifier_projet', { id, dateDebut: 'demain' }), /AAAA-MM-JJ/);
     refuse(await s.appeler('biblio', 'modifier_projet', { id, urlGithub: 'pas-une-url' }));
+    // Dossier de travail : n'importe quel lien complet (plus de restriction « Google Drive seulement »), un texte libre est refusé.
+    refuse(await s.appeler('biblio', 'modifier_projet', { id, urlDossier: 'Mon Drive/Projets/x' }), /lien complet/);
+    for (const lien of ['smb://nas/clients/carrel', 'https://exemple.test/espace/carrel', 'http://nas.local:5000/partage']) {
+      ok(await s.appeler('biblio', 'modifier_projet', { id, urlDossier: lien }));
+      assert.equal(s.doc('projets_projets', id).urlDossier, lien);
+    }
+    ok(await s.appeler('biblio', 'modifier_projet', { id, urlDossier: '' }));
+    assert.equal(s.doc('projets_projets', id).urlDossier, '');
+    assert.match(OUTILS_ECRITURE.find((o) => o.nom === 'modifier_projet').schema.urlDossier.description, /n’importe quel lien/);
+    assert.doesNotMatch(OUTILS_ECRITURE.find((o) => o.nom === 'modifier_projet').schema.urlDossier.description, /Google Drive de travail/);
     ok(await s.appeler('biblio', 'modifier_projet', { id, titre: 'Site refait', dateFin: '2026-12-01', urlDossier: 'https://drive.google.com/drive/folders/abc' }));
     assert.deepEqual([s.doc('projets_projets', id).titre, s.doc('projets_projets', id).dateFin, s.doc('projets_projets', id).modifiePar], ['Site refait', '2026-12-01', 'hermes-bibliothecaire']);
     refuse(await s.appeler('biblio', 'lire_projet', { id: 'fantome' }), /introuvable/);
@@ -781,5 +792,77 @@ describe('Outils des projets : mêmes règles que l’écran, avec audit et rest
     assert.equal(projets(s).length, 0);
     assert.equal(s.collections.projets_taches.length, 0);
     assert.equal(s.collections.crm_evenements.filter((e) => e.type === 'projet_cree').length, 0);
+  });
+});
+
+// ---------------------------------------------------------------- configuration de l'espace (ménage du CRM, 2026-10-16)
+
+describe('Configuration de l’espace lue par le serveur : la même que l’écran', () => {
+  const avecReglage = (s, id, doc) => { s.collections.crm_parametres = [...s.collections.crm_parametres.filter((d) => d.id !== id), { id, ...doc }]; };
+
+  test('sans document de configuration, la racine garde les valeurs de Jérôme (migration douce)', async () => {
+    const s = await demarrer();
+    const r = ok(await s.appeler('biblio', 'lire_reglages'));
+    assert.equal(r.configuration.options.extractionValeur, true);
+    assert.equal(r.configuration.options.suiviPaiements, true);
+    assert.deepEqual(r.referentiels.etapes.map((e) => e.id), ['premier_contact', 'rdv_fixe', 'proposition_envoyee', 'gagne']);
+  });
+
+  test('étapes : un emplacement désactivé est refusé, un renommage se voit dans lire_reglages, le rôle « vente gagnée » est celui de la configuration', async () => {
+    const s = await demarrer();
+    avecReglage(s, 'etapes', { items: [{ libelle: 'Contact' }, { libelle: 'Rendez-vous', actif: false }, {}, { libelle: 'Signé' }], roleGagnee: 'proposition_envoyee' });
+    const r = ok(await s.appeler('biblio', 'lire_reglages'));
+    assert.equal(r.configuration.etapes[0].libelle, 'Contact');
+    assert.deepEqual(r.referentiels.etapes.map((e) => e.id), ['premier_contact', 'proposition_envoyee', 'gagne']);
+    refuse(await s.appeler('biblio', 'changer_etape', { id: 'a2', etape: 'rdv_fixe' }), /désactivée/);
+    refuse(await s.appeler('biblio', 'creer_affaire', { titre: 'X', etape: 'rdv_fixe' }), /désactivée/);
+    const g = ok(await s.appeler('biblio', 'changer_etape', { id: 'a2', etape: 'proposition_envoyee' }));
+    assert.equal(g.statut, 'gagnee', 'le rôle « vente gagnée » est porté par l’étape que la configuration désigne');
+  });
+
+  test('action suggérée par une étape : rendue par changer_etape, jamais créée', async () => {
+    const s = await demarrer();
+    avecReglage(s, 'etapes', { items: [{}, { action: { type: 'appel', titre: 'Confirmer', delaiJours: 2 } }] });
+    const avant = s.collections.crm_activites.length;
+    const r = ok(await s.appeler('biblio', 'changer_etape', { id: 'a2', etape: 'rdv_fixe' }));
+    assert.deepEqual(r.suggestion, { type: 'appel', titre: 'Confirmer', date: '2026-10-07' });
+    assert.equal(s.collections.crm_activites.length, avant);
+  });
+
+  test('extraction de valeur éteinte : rien n’est créé (ni à Perdu, ni à la main), rien n’est montré', async () => {
+    const s = await demarrer();
+    avecReglage(s, 'reglages', { extractionValeur: false });
+    const perdue = ok(await s.appeler('biblio', 'marquer_perdue', { id: 'a2', raison: 'Prix' }));
+    assert.equal(perdue.extraction, null);
+    assert.equal((s.collections.projets_projets || []).length, 0);
+    const { id } = ok(await s.appeler('biblio', 'creer_projet', { titre: 'Chantier' }));
+    refuse(await s.appeler('biblio', 'extraire_valeur_projet', { id }), /désactivée/);
+    const fin = ok(await s.appeler('biblio', 'terminer_projet', { id }));
+    assert.equal(fin.extraction, null);
+    assert.equal((await s.appeler('biblio', 'lire_projet', { id })).data.extraction, null);
+  });
+
+  test('suivi des paiements éteint : factures refusées, clôture jamais bloquée ; règle « clôture bloquée » réglable', async () => {
+    const s = await demarrer();
+    const { id } = ok(await s.appeler('biblio', 'creer_projet', { titre: 'Audit' }));
+    ok(await s.appeler('biblio', 'ajouter_facture', { projetId: id, montant: 100 }));
+    avecReglage(s, 'reglages', { clotureBloquee: false });
+    const libre = ok(await s.appeler('biblio', 'terminer_projet', { id }));
+    assert.equal(libre.statut, 'termine', 'règle éteinte : une facture à payer ne bloque pas');
+    const s2 = await demarrer();
+    avecReglage(s2, 'reglages', { suiviPaiements: false });
+    const p2 = ok(await s2.appeler('biblio', 'creer_projet', { titre: 'Audit' })).id;
+    refuse(await s2.appeler('biblio', 'ajouter_facture', { projetId: p2, montant: 100 }), /suivi des paiements est désactivé/);
+    assert.equal(ok(await s2.appeler('biblio', 'terminer_projet', { id: p2 })).statut, 'termine');
+    assert.equal((await s2.appeler('biblio', 'lire_projet', { id: p2 })).data.facturation, null);
+  });
+
+  test('phases : une phase désactivée est refusée, la phase « clôture » est celle de la configuration', async () => {
+    const s = await demarrer();
+    avecReglage(s, 'phases', { items: [{}, { actif: false }], roleCloture: 'livraison' });
+    const { id } = ok(await s.appeler('biblio', 'creer_projet', { titre: 'Chantier' }));
+    refuse(await s.appeler('biblio', 'changer_phase_projet', { id, phase: 'decouverte' }), /désactivée/);
+    ok(await s.appeler('biblio', 'terminer_projet', { id }));
+    assert.equal(s.doc('projets_projets', id).phase, 'livraison');
   });
 });

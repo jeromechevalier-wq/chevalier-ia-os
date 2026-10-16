@@ -1,7 +1,7 @@
 // Tests C : parcours dans le navigateur (Playwright + émulateurs), formats 1440 × 900 et 390 × 844.
 import { readFile } from 'node:fs/promises';
 import {
-  test, expect, connecter, allerA, creerPersonne, creerOrganisation, creerAffaire, creerActivite, lireDocument, listerDocuments, ecrireDocument,
+  test, expect, connecter, allerA, allerAuxReglagesCrm, creerPersonne, creerOrganisation, creerAffaire, creerActivite, lireDocument, listerDocuments, ecrireDocument,
   jour, estTelephone, valeurObjectif, JEROME, CHARLES,
 } from './outils.js';
 
@@ -42,7 +42,7 @@ test('C1 connexion avec Jérôme : arrivée sur l’Accueil, 6 objectifs, graphi
   for (const libelle of ['Nouveaux contacts', 'Rendez vous tenus', 'Propositions envoyées', "Chiffre d'affaires encaissé", 'Flyers distribués']) {
     await expect(page.locator('.objectif-libelle', { hasText: libelle })).toBeVisible();
   }
-  await expect.poll(async () => (await listerDocuments('crm_parametres')).map((d) => d.id).sort()).toEqual(['etiquettes', 'filtres', 'listes', 'modeles_projet', 'offres', 'reglages']);
+  await expect.poll(async () => (await listerDocuments('crm_parametres')).map((d) => d.id).sort()).toEqual(['etapes', 'etiquettes', 'filtres', 'listes', 'modeles_affaire', 'modeles_projet', 'offres', 'phases', 'reglages']);
   await expect.poll(async () => (await listerDocuments('os_objectifs')).length).toBe(5);
   // Graphique : aucun mois avant le début d'activité (octobre 2026), jamais plus de 6 mois
   const mois = await page.locator('.colonne-ca').evaluateAll((els) => els.map((e) => e.dataset.mois));
@@ -211,9 +211,10 @@ async function deplacer(page, id, etape) {
   }
 }
 
-async function fermerSuggestion(page) {
-  await expect(dialogue(page)).toContainText('Une suggestion');
-  await dialogue(page).getByRole('button', { name: 'Fermer', exact: true }).last().click();
+// Action suggérée par une étape (réglage, aucune par défaut) : on accepte ou on refuse, jamais créée toute seule.
+async function refuserSuggestion(page) {
+  await expect(dialogue(page)).toContainText('Action suggérée');
+  await dialogue(page).getByRole('button', { name: 'Refuser', exact: true }).last().click();
   await expect(dialogue(page)).toHaveCount(0);
 }
 
@@ -253,7 +254,8 @@ test('C7 « + Affaire » depuis la fiche d’une personne : titre prérempli, en
   await expect(dialogue(page).getByLabel('Titre', { exact: true })).toHaveAttribute('placeholder', 'Fleurs de Provence');
   await enregistrer(page);
   const a = await attendre(page, 'crm_affaires', (d) => d.titre === 'Fleurs de Provence');
-  expect(a).toMatchObject({ personneId: 'p1', organisationId: 'o1', etape: 'premier_contact', statut: 'ouverte', priorite: 'tiede', archive: false, encaissements: [] });
+  expect(a).toMatchObject({ personneId: 'p1', organisationId: 'o1', etape: 'premier_contact', statut: 'ouverte', priorite: 'tiede', archive: false });
+  expect('encaissements' in a, 'plus de champ encaissements (restes de la 2.2 supprimés)').toBe(false);
   await expect(page.locator('.section[data-section="personne-affaires"] .carte-affaire-mini')).toContainText('Fleurs de Provence');
   await allerA(page, 'Affaires');
   await expect(page.locator(`.colonne[data-colonne="premier_contact"] .carte-affaire[data-affaire="${a.id}"]`)).toBeVisible();
@@ -276,26 +278,38 @@ test('C8 glisser une carte de Premier contact à Rendez vous fixé puis revenir 
   expect(evenements).toEqual(['Étape : Premier contact → Rendez vous fixé', 'Étape : Rendez vous fixé → Premier contact']);
 });
 
-test('C9 passage en Proposition envoyée : suggestion affichée ; la fermer ne change rien, la valider crée l’activité', async ({ page }) => {
+test('C9 action suggérée par une étape (réglage) : fenêtre accepter / refuser ; refuser ne change rien, accepter crée l’activité', async ({ page }) => {
+  // Aucune action par défaut : l'étape « Proposition envoyée » en reçoit une dans les Réglages (ici écrite directement).
+  await ecrireDocument('crm_parametres/etapes', { items: [{}, {}, { action: { type: 'tache', titre: 'Relancer la proposition', delaiJours: 3 } }], roleGagnee: 'gagne' });
   await creerAffaire('a1', { titre: 'Première', etape: 'rdv_fixe' });
   await creerAffaire('a2', { titre: 'Seconde', etape: 'rdv_fixe' });
   await connecter(page);
   await allerA(page, 'Affaires');
   await deplacer(page, 'a1', 'proposition_envoyee');
-  await expect(dialogue(page)).toContainText('Une suggestion');
+  await expect(dialogue(page)).toContainText('Action suggérée');
   await expect(dialogue(page).getByLabel('Titre de l’activité')).toHaveValue('Relancer la proposition');
   await expect(dialogue(page).getByLabel('Date', { exact: true })).toHaveValue(jour(3));
-  await fermerSuggestion(page);
+  await refuserSuggestion(page);
   await champDoc('crm_affaires', 'a1', 'etape', 'proposition_envoyee');
   expect(await listerDocuments('crm_activites')).toHaveLength(0);
   await deplacer(page, 'a2', 'proposition_envoyee');
-  await expect(dialogue(page)).toContainText('Une suggestion');
-  await dialogue(page).getByRole('button', { name: 'Planifier' }).click();
+  await expect(dialogue(page)).toContainText('Action suggérée');
+  await dialogue(page).getByRole('button', { name: 'Accepter' }).click();
   const act = await attendre(page, 'crm_activites', (d) => d.affaireId === 'a2');
   expect(act).toMatchObject({ titre: 'Relancer la proposition', type: 'tache', date: jour(3), fait: false });
 });
 
-test('C10 Gagné : célébration, suggestion, extraction ; la vente s’arrête là (plus d’étape de facturation, rien n’est encaissé ni archivé)', async ({ page }) => {
+test('C9b aucune action suggérée par défaut : passer à « Proposition envoyée » ou à « Gagné » n’ouvre aucune fenêtre', async ({ page }) => {
+  await creerAffaire('a1', { titre: 'Sans règle en dur', etape: 'rdv_fixe' });
+  await connecter(page);
+  await allerA(page, 'Affaires');
+  await deplacer(page, 'a1', 'proposition_envoyee');
+  await champDoc('crm_affaires', 'a1', 'etape', 'proposition_envoyee');
+  await expect(page.locator('.voile-dialogue')).toHaveCount(0);
+  expect(await listerDocuments('crm_activites')).toHaveLength(0);
+});
+
+test('C10 Gagné : célébration, extraction ; la vente s’arrête là (plus d’étape de facturation, rien n’est encaissé ni archivé)', async ({ page }) => {
   await creerPersonne('p1', { nom: 'Marie Durand' });
   await creerAffaire('a1', { titre: 'Atelier IA', etape: 'proposition_envoyee', montant: 1200, personneId: 'p1', offreId: 'audit' });
   await connecter(page);
@@ -304,11 +318,10 @@ test('C10 Gagné : célébration, suggestion, extraction ; la vente s’arrête 
   await expect(page.locator('.colonne[data-colonne="facture_envoyee"], .colonne[data-colonne="facture_payee"]')).toHaveCount(0);
   await deplacer(page, 'a1', 'gagne');
   await fermerCelebration(page);
-  await expect(dialogue(page).getByLabel('Titre de l’activité')).toHaveValue('Envoyer la facture');
-  await fermerSuggestion(page);
+  await expect(page.locator('.voile-dialogue')).toHaveCount(0); // plus de suggestion « Envoyer la facture » : la règle en dur a disparu
   await champDoc('crm_affaires', 'a1', 'statut', 'gagnee');
   const a = await lireDocument('crm_affaires/a1');
-  expect(a).toMatchObject({ etape: 'gagne', archive: false, encaissements: [] });
+  expect(a).toMatchObject({ etape: 'gagne', archive: false });
   // rien n'est encaissé tant qu'aucune facture de projet n'est payée
   await allerA(page, 'Accueil');
   await expect.poll(() => valeurObjectif(page, 'ca_encaisse')).toBe(0);
@@ -611,7 +624,7 @@ test('C17 filtres : combiner deux filtres, enregistrer, appliquer, renommer et s
   await page.locator('.menu-pop').getByRole('menuitem', { name: 'Prospects de Manosque' }).click();
   await expect(page.locator('.tableau-personnes tbody tr')).toHaveCount(1);
   // Réglages : renommer puis supprimer
-  await allerA(page, 'Réglages');
+  await allerAuxReglagesCrm(page);
   const ligne = page.locator('.ligne-reglage', { hasText: 'Prospects de Manosque' });
   await ligne.locator('[data-action="renommer-filtre"]').click();
   await dialogue(page).getByLabel('Nom du filtre').fill('Prospects Manosque');
@@ -650,7 +663,7 @@ test('C17 filtres d’affaires : Chaudes, en retard ; recherche d’une liste in
 test('C18 réglages : étiquette, offre, source ; changer le début d’activité change le graphique', async ({ page }) => {
   await creerAffaire('a1', { titre: 'Payée en octobre', etape: 'gagne', statut: 'gagnee', archive: true, encaissements: [{ date: new Date(), montant: 500, offreId: null }] });
   await connecter(page);
-  await allerA(page, 'Réglages');
+  await allerAuxReglagesCrm(page);
   await page.getByPlaceholder('Nouvelle étiquette').fill('Très motivée');
   await page.getByPlaceholder('Nouvelle étiquette').press('Enter');
   await expect(page.locator('.ligne-reglage[data-etiquette] input[type="text"]').last()).toHaveValue('Très motivée');
@@ -874,7 +887,6 @@ test('C21 fiche affaire : barre des étapes, Gagnée, montant modifiable, docume
   // Gagnée
   await page.locator('[data-action="gagnee"]').click();
   await fermerCelebration(page);
-  await fermerSuggestion(page);
   await expect(page.locator('.barre-etapes-fiche .etape.courante')).toHaveText('Gagné');
   await champDoc('crm_affaires', 'a1', 'statut', 'gagnee');
   // Document
@@ -900,25 +912,30 @@ test('C22 fiche personne : deux colonnes sur ordinateur, une seule colonne sur t
   await creerPersonne('p1', { nom: 'Marie Durand' });
   await connecter(page);
   await aller(page, '#/crm/personnes/p1');
-  const gauche = await page.locator('.fiche-gauche').boundingBox();
-  const droite = await page.locator('.fiche-droite').boundingBox();
+  // La fiche est redessinée à chaque lot de données qui arrive de Firestore (personne, organisations, paramètres) : on ne mesure donc pas une seule fois
+  // un élément qui peut être remplacé à cet instant (boundingBox renvoie alors null), on attend une mesure complète et juste (réessayée jusqu'à la bonne).
   if (estTelephone(page)) {
     // Une seule colonne, dans l'ordre du cahier : Résumé, Activité et Notes, Points clés, Affaires, Organisation, Détails, Historique
-    const ordre = await page.evaluate(() => {
+    const mesurerOrdre = () => page.evaluate(() => {
       const blocs = [
         ['résumé', '.section[data-section="personne-resume"]'], ['activité', '.compositeur'], ['points clés', '.points-cles'],
         ['affaires', '.section[data-section="personne-affaires"]'], ['organisation', '.section[data-section="personne-organisation"]'],
         ['détails', '.section[data-section="personne-details"]'], ['historique', '.historique'],
       ];
-      return blocs.map(([nom, sel]) => { const r = document.querySelector(sel).getBoundingClientRect(); return { nom, x: Math.round(r.x), y: r.y }; })
-        .sort((a, b) => a.y - b.y);
+      const elements = blocs.map(([nom, sel]) => [nom, document.querySelector(sel)]);
+      if (elements.some(([, el]) => !el)) return null; // fiche en cours de redessin
+      return elements.map(([nom, el]) => { const r = el.getBoundingClientRect(); return { nom, x: Math.round(r.x), y: r.y }; }).sort((a, b) => a.y - b.y);
     });
-    expect(ordre.map((b) => b.nom)).toEqual(['résumé', 'activité', 'points clés', 'affaires', 'organisation', 'détails', 'historique']);
-    expect(new Set(ordre.map((b) => b.x)).size).toBeLessThanOrEqual(2); // même colonne (au pixel près)
-    void gauche; void droite;
+    await expect.poll(async () => (await mesurerOrdre())?.map((b) => b.nom)).toEqual(['résumé', 'activité', 'points clés', 'affaires', 'organisation', 'détails', 'historique']);
+    expect(new Set((await mesurerOrdre()).map((b) => b.x)).size).toBeLessThanOrEqual(2); // même colonne (au pixel près)
   } else {
-    expect(droite.x).toBeGreaterThan(gauche.x + gauche.width - 2); // côte à côte
-    expect(Math.abs(droite.y - gauche.y)).toBeLessThan(4);
+    const cotesACotes = async () => {
+      const gauche = await page.locator('.fiche-gauche').boundingBox();
+      const droite = await page.locator('.fiche-droite').boundingBox();
+      if (!gauche || !droite) return null; // fiche en cours de redessin
+      return droite.x > gauche.x + gauche.width - 2 && Math.abs(droite.y - gauche.y) < 4; // côte à côte, en haut au même niveau
+    };
+    await expect.poll(cotesACotes).toBe(true);
   }
   for (const section of ['personne-resume', 'personne-details', 'personne-organisation', 'personne-affaires']) {
     await expect(page.locator(`.section[data-section="${section}"]`)).toBeVisible();
@@ -1083,130 +1100,92 @@ test('C23 navigation : lien direct vers une fiche, route inconnue, déconnexion'
   await aller(page, '#/crm/personnes/inexistante');
   await expect(page.locator('.etat-vide')).toContainText('n’existe plus');
   // Premier lancement : on laisse l'initialisation des réglages et des objectifs se terminer avant de se déconnecter
-  await expect.poll(async () => (await listerDocuments('crm_parametres')).length).toBe(6); // + le repère des modèles de projet
+  await expect.poll(async () => (await listerDocuments('crm_parametres')).length).toBe(9); // listes, offres, étiquettes, filtres, réglages, étapes, phases, modèles d'affaire + le repère des modèles de projet
   await expect.poll(async () => (await listerDocuments('os_objectifs')).length).toBe(5);
   if (estTelephone(page)) await page.getByRole('button', { name: 'Ouvrir le menu' }).click();
   await page.getByRole('button', { name: 'Se déconnecter' }).click();
   await expect(page.getByRole('button', { name: 'Se connecter avec Google' })).toBeVisible();
 });
 
-// ---------------------------------------------------------------- adresse GitHub et dossier de travail
+// ---------------------------------------------------------------- dossier de travail, ancienne adresse GitHub (chantier « Liens et documents »)
 
 async function fixtureEliot(extra = {}) {
   await creerOrganisation('o1', { nom: 'dépannage Carrel' });
   await creerPersonne('p1', { nom: 'Eliot', organisationId: 'o1' });
   await creerAffaire('a1', { titre: 'création appli devis dépannage', personneId: 'p1', organisationId: 'o1', ...extra });
 }
-const pied = (page) => dialogue(page).locator('.dialogue-pied');
 
-test('C24 adresse GitHub : proposée avant le dossier, enregistrée seulement quand on la valide, prompt « Créer le GitHub » en privé', async ({ page, context }) => {
-  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+test('C24 plus de champ GitHub ni de « Créer le GitHub » : une ancienne adresse reste visible (lien « GitHub »), se retire sans toucher au reste', async ({ page }) => {
   await fixtureEliot();
   await connecter(page);
   await aller(page, '#/crm/affaires/a1');
-  const champ = page.locator('[data-champ="github"]');
-  await expect(champ).toHaveValue('https://github.com/jeromechevalier-wq/depannage-carrel-creation-appli-devis-depannage');
-  // L'adresse GitHub vient avant le dossier.
+  // Sans adresse : aucune ligne GitHub, aucun champ, aucun bouton, aucun prompt.
+  await expect(page.locator('[data-prop="dossier"]')).toBeVisible();
+  await expect(page.locator('[data-prop="github"]')).toHaveCount(0);
+  await expect(page.locator('[data-champ="github"], [data-action="creer-github"]')).toHaveCount(0);
+  await expect(page.getByText('Créer le GitHub')).toHaveCount(0);
+  // Avec une ancienne adresse : reprise comme lien « GitHub », donnée intacte.
+  await ecrireDocument('crm_affaires/a1', { ...(await lireDocument('crm_affaires/a1')), urlGithub: 'https://github.com/jeromechevalier-wq/eliot-devis-depannage' });
+  await aller(page, '#/crm/affaires');
+  await aller(page, '#/crm/affaires/a1');
   const github = page.locator('[data-prop="github"]');
-  const dossier = page.locator('[data-prop="dossier"]');
-  await expect(dossier).toBeVisible();
-  expect(await github.evaluate((a, b) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING), await dossier.elementHandle())).toBe(true);
-  // La proposition n'est pas enregistrée.
-  expect((await lireDocument('crm_affaires/a1')).urlGithub ?? '').toBe('');
-  // Prompt : privé, compte et nom du dépôt, données balisées ; « Copier » garde la fenêtre ouverte.
-  await page.locator('[data-action="creer-github"]').click();
-  await expect(dialogue(page)).toBeVisible();
-  const texte = await dialogue(page).locator('[data-zone="prompt"]').inputValue();
-  expect(texte).toContain('en PRIVÉ');
-  expect(texte).toContain('jamais public');
-  expect(texte).toContain('jeromechevalier-wq/depannage-carrel-creation-appli-devis-depannage');
-  expect(texte).toContain('Titre : création appli devis dépannage');
-  expect(texte).toContain('Organisation : dépannage Carrel');
-  expect(texte).toContain('https://chevalier-ia-os.web.app/#/crm/affaires/a1');
-  await dialogue(page).getByRole('button', { name: 'Copier' }).click();
-  await expect(page.locator('.toast')).toContainText('Prompt copié');
-  await expect(dialogue(page)).toBeVisible();
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(texte);
-  await pied(page).getByRole('button', { name: 'Fermer' }).click();
-  await expect(dialogue(page)).toHaveCount(0);
-  // Une adresse qui n'est pas GitHub est refusée, rien n'est enregistré.
-  await champ.fill('https://gitlab.com/a/b');
-  await page.locator('[data-action="enregistrer-github"]').click();
-  await expect(page.locator('.toast-erreur')).toContainText('https://github.com/');
-  await expect(champ).toHaveClass(/invalide/);
-  expect((await lireDocument('crm_affaires/a1')).urlGithub ?? '').toBe('');
-  // Adresse valide : Entrée enregistre, le champ devient un lien.
-  await champ.fill('https://github.com/jeromechevalier-wq/eliot-devis-depannage');
-  await champ.press('Enter');
-  await champDoc('crm_affaires', 'a1', 'urlGithub', 'https://github.com/jeromechevalier-wq/eliot-devis-depannage');
+  await expect(github.locator('.prop-libelle')).toHaveText('GitHub');
   await expect(github.locator('a.prop-lien')).toHaveAttribute('href', 'https://github.com/jeromechevalier-wq/eliot-devis-depannage');
-  await expect(page.locator('[data-champ="github"]')).toHaveCount(0);
-  // Modifier : Échap revient au lien sans rien changer.
-  await github.locator('.prop-modifier').click();
-  await expect(page.locator('[data-champ="github"]')).toHaveValue('https://github.com/jeromechevalier-wq/eliot-devis-depannage');
-  await page.locator('[data-champ="github"]').press('Escape');
-  await expect(github.locator('a.prop-lien')).toBeVisible();
+  expect((await lireDocument('crm_affaires/a1')).urlGithub).toBe('https://github.com/jeromechevalier-wq/eliot-devis-depannage');
+  // La retirer est un geste volontaire.
+  await github.locator('[data-action="retirer-github"]').click();
+  await champDoc('crm_affaires', 'a1', 'urlGithub', '');
+  await expect(page.locator('[data-prop="github"]')).toHaveCount(0);
 });
 
-test('C25 dossier : nom proposé et corrigeable, prompt « Créer le répertoire » avec le dépôt, adresse du dossier enregistrée', async ({ page }) => {
-  await fixtureEliot({ urlGithub: 'https://github.com/jeromechevalier-wq/eliot-devis-depannage' });
+test('C25 dossier de travail d\'une affaire : n\'importe quel lien (Drive, serveur, NAS, site) ; un texte qui n\'est pas un lien est refusé ; pas de « Créer le répertoire » ici', async ({ page }) => {
+  await fixtureEliot();
   await connecter(page);
   await aller(page, '#/crm/affaires/a1');
-  const nom = page.locator('[data-champ="nom-dossier"]');
-  await expect(nom).toHaveValue('client-depannage-carrel-creation-appli-devis-depannage');
-  // Un nom invalide est refusé, aucune fenêtre ne s'ouvre.
-  await nom.fill('Client Carrel');
-  await page.locator('[data-action="creer-dossier"]').click();
-  await expect(page.locator('.toast-erreur')).toContainText('client-');
-  await expect(nom).toHaveClass(/invalide/);
-  await expect(dialogue(page)).toHaveCount(0);
-  // Nom corrigé : le prompt reprend le chemin, le nom, le dépôt GitHub et exige l'accord de Jérôme.
-  await nom.fill('client-depannage-carrel-appli-devis');
-  await page.locator('[data-action="creer-dossier"]').click();
-  await expect(dialogue(page)).toBeVisible();
-  const texte = await dialogue(page).locator('[data-zone="prompt"]').inputValue();
-  expect(texte).toContain('Nouveau projet à créer');
-  expect(texte).toContain('Mon Drive/Chevalier-AI/Projets/client-depannage-carrel-appli-devis/');
-  expect(texte).toContain('Dépôt GitHub : https://github.com/jeromechevalier-wq/eliot-devis-depannage');
-  expect(texte).toContain('Personne : Eliot');
-  expect(texte).toContain('liste exacte de ce que tu vas créer');
-  expect(texte).toContain('Ne supprime rien');
-  await pied(page).getByRole('button', { name: 'Fermer' }).click();
-  await expect(dialogue(page)).toHaveCount(0);
-  // Le nom n'est jamais enregistré ; une adresse qui n'est pas un dossier Drive est refusée.
-  expect((await lireDocument('crm_affaires/a1')).urlDossier ?? '').toBe('');
   const champUrl = page.locator('[data-champ="dossier"]');
-  await champUrl.fill('https://exemple.fr/dossier');
+  await expect(page.locator('[data-prop="dossier"] .prop-libelle')).toHaveText('Dossier de travail');
+  await expect(page.locator('[data-action="creer-dossier"], [data-champ="nom-dossier"]')).toHaveCount(0);
+  // Pas un lien : refusé, rien n'est enregistré.
+  await champUrl.fill('Mon Drive/Projets/carrel');
   await page.locator('[data-action="enregistrer-dossier"]').click();
-  await expect(page.locator('.toast-erreur').last()).toContainText('dossier Google Drive');
+  await expect(page.locator('.toast-erreur').last()).toContainText('lien complet');
+  await expect(champUrl).toHaveClass(/invalide/);
   expect((await lireDocument('crm_affaires/a1')).urlDossier ?? '').toBe('');
-  // Adresse de dossier valide : enregistrée, le champ et le bouton laissent la place au lien.
-  await champUrl.fill('https://drive.google.com/drive/folders/1AbC_dEf-123');
+  // Un dossier de NAS est accepté (affiché en texte : un navigateur n'ouvre pas smb://).
+  await champUrl.fill('smb://nas/clients/carrel');
   await champUrl.press('Enter');
+  await champDoc('crm_affaires', 'a1', 'urlDossier', 'smb://nas/clients/carrel');
+  await expect(page.locator('[data-prop="dossier"]')).toContainText('smb://nas/clients/carrel');
+  // Un site, puis un dossier Drive : liens cliquables.
+  await page.locator('[data-prop="dossier"] .prop-modifier').click();
+  await page.locator('[data-champ="dossier"]').fill('https://exemple.fr/espace/carrel');
+  await page.locator('[data-champ="dossier"]').press('Enter');
+  await champDoc('crm_affaires', 'a1', 'urlDossier', 'https://exemple.fr/espace/carrel');
+  await expect(page.locator('[data-prop="dossier"] a.prop-lien')).toHaveAttribute('href', 'https://exemple.fr/espace/carrel');
+  await page.locator('[data-prop="dossier"] .prop-modifier').click();
+  await page.locator('[data-champ="dossier"]').fill('https://drive.google.com/drive/folders/1AbC_dEf-123');
+  await page.locator('[data-champ="dossier"]').press('Enter');
   await champDoc('crm_affaires', 'a1', 'urlDossier', 'https://drive.google.com/drive/folders/1AbC_dEf-123');
   await expect(page.locator('[data-prop="dossier"] a.prop-lien')).toHaveAttribute('href', 'https://drive.google.com/drive/folders/1AbC_dEf-123');
-  await expect(page.locator('[data-champ="nom-dossier"]')).toHaveCount(0);
-  await expect(page.locator('[data-action="creer-dossier"]')).toHaveCount(0);
+  // Échap revient au lien sans rien changer.
+  await page.locator('[data-prop="dossier"] .prop-modifier').click();
+  await page.locator('[data-champ="dossier"]').press('Escape');
+  await expect(page.locator('[data-prop="dossier"] a.prop-lien')).toBeVisible();
 });
 
-test('C26 réglages : le compte GitHub et le chemin des projets changent les propositions des fiches', async ({ page }) => {
+test('C26 réglages : plus de compte GitHub ni de dossier Mac ; la section Google Drive dit que Google n\'est pas encore branché', async ({ page }) => {
   await fixtureEliot();
   await connecter(page);
-  await allerA(page, 'Réglages');
-  await page.getByLabel('Compte GitHub').fill('compte invalide !');
-  await page.getByLabel('Compte GitHub').blur();
-  await expect(page.locator('.toast-erreur')).toContainText('invalide');
-  await expect(page.getByLabel('Compte GitHub')).toHaveValue('jeromechevalier-wq');
-  await page.getByLabel('Compte GitHub').fill('autre-compte');
-  await page.getByLabel('Compte GitHub').blur();
-  await expect.poll(async () => (await lireDocument('crm_parametres/reglages'))?.proprietaireGithub).toBe('autre-compte');
-  await page.getByLabel('Chemin du dossier Projets sur le Mac').fill('/Users/jerome/Projets');
-  await page.getByLabel('Chemin du dossier Projets sur le Mac').blur();
-  await expect.poll(async () => (await lireDocument('crm_parametres/reglages'))?.cheminProjets).toBe('/Users/jerome/Projets');
-  await aller(page, '#/crm/affaires/a1');
-  await expect(page.locator('[data-champ="github"]')).toHaveValue(/^https:\/\/github\.com\/autre-compte\//);
-  await page.locator('[data-action="creer-dossier"]').click();
-  await expect(dialogue(page).locator('[data-zone="prompt"]')).toHaveValue(/\/Users\/jerome\/Projets\/client-depannage-carrel-/);
+  await allerAuxReglagesCrm(page);
+  await expect(page.getByLabel('Compte GitHub')).toHaveCount(0);
+  await expect(page.getByLabel('Chemin du dossier Projets sur le Mac')).toHaveCount(0);
+  const section = page.locator('#reglages-projets');
+  await expect(section).toBeVisible(); // l'interrupteur est allumé chez Jérôme
+  await expect(section.locator('[data-role="etat-google"]')).toContainText('pas encore branché');
+  await expect(section.locator('[data-action="choisir-dossier-parent"]')).toBeDisabled();
+  await expect(section.locator('[data-action="tester-google"]')).toBeDisabled();
+  await expect(page.locator('[data-option="boutonsDepot"]')).toBeChecked();
+  await expect(page.locator('[data-ligne="boutonsDepot"]')).toContainText('Créer le répertoire dans Google Drive');
 });
 
 // ---------------------------------------------------------------- audit des actions de l'écran (04/10/2026)

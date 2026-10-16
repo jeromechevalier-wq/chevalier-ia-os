@@ -16,3 +16,6 @@ functions/partage/
 
 # Paquets de déploiement générés (scripts/preparer-hebergement.js)
 dist/
+
+# Copie du serveur MCP pour la plateforme clients (scripts/preparer-fonctions.js)
+functions-plateforme/serveur/

@@ -1,6 +1,6 @@
 # Veille : ajouter un lien, résumer, lire le résumé (écrit le 2026-10-15)
 
-Trois ajouts au module Veille, décidés avec Jérôme le 2026-10-15. Version 2.4.0.
+Trois ajouts au module Veille, décidés avec Jérôme le 2026-10-15. Version 2.7.0.
 
 ## 1. Ce que ça fait
 

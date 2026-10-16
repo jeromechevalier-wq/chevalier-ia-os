@@ -4,11 +4,27 @@
 
 ## Veille : ajout de lien, bouton Résumer, lecture du résumé (15/10/2026)
 
-Codé et testé sur la branche `veille-ajout-lien-resumer-lire` (version 2.4.0), **PR en attente du « fusionne » de Jérôme**. **Avant de fusionner** (la fusion déploie les fonctions) : Jérôme crée le secret `VEILLE_JETON_RESUMER`. Ensuite : modifier le nœud « Enregistrer le résumé via la porte » du workflow n8n pour envoyer `html`, tester ensemble, puis essai réel. Pas à pas dans `veille-ajout-et-resume.md`, partie 3.
+Codé et testé sur la branche `veille-ajout-lien-resumer-lire` (version 2.7.0), **PR en attente du « fusionne » de Jérôme**. Le secret `VEILLE_JETON_RESUMER` est créé (16/10/2026). Ensuite : modifier le nœud « Enregistrer le résumé via la porte » du workflow n8n pour envoyer `html`, tester ensemble, puis essai réel. Pas à pas dans `veille-ajout-et-resume.md`, partie 3.
 
-## Chantier 14 : journal d'activité des workflows (11/10/2026)
+## Liens et documents, Google Drive (16/10/2026) : branche liens-documents-drive, version 2.6.1
 
-Phases 1 et 2 écrites et testées (émulateurs + faux n8n), PR en attente du « fusionne » de Jérôme. Rien déployé. **À faire par Jérôme, dans l'ordre** (pas à pas dans `journal-activite-workflows.md`, partie 7) : publier règles et page (workflow, choix `tout`), déposer la clé n8n (`firebase functions:secrets:set N8N_API_KEY --project chevalier-ia-app`, sans la montrer à personne), déployer les fonctions, étiqueter un workflow de test `client-<identifiant>` et activer le module (`activer-module <client> journal`). Ensuite : essai réel avec un workflow lent et un workflow qui échoue, brancher l'alerte « Nous sommes prévenus ». Phase 3 (Logger, étapes) : pas commencée, `steps` est prêt.
+Code, tests (Google simulé) et guide écrits ; **rien déployé**. Lire `google-drive.md` : ce que Jérôme verra, les **étapes à faire par lui dans la console Google** (API Drive et Picker, ID client OAuth, écran de consentement `drive.file`, puis donner l'ID client public à Claude), les choix faits et ce qui n'est pas vérifié en réel. Tant que l'ID client est vide, les boutons Google sont cachés.
+
+## Réglages à menu latéral + menu CRM unique (16/10/2026) : branche reglages-menu-crm-unique, version 2.6.0
+
+Code écrit, suite complète lancée sous émulateurs, **rien déployé**, PR en attente du « fusionne ». Voir `reglages-menu-crm-unique.md` : ce que Jérôme voit, le choix de la méthode A, comment un module déclare ses réglages, et ce qui reste en lecture seule chez un client (nom, logo, membres, modules : les règles Firestore interdisent l'écriture depuis le navigateur). Reste à décider avec Jérôme : si un éditeur doit pouvoir les modifier (règles ou fonction serveur). La section Drive de « Liens et documents » s'ajoute par une déclaration dans `registre.js` (point d'accroche décrit dans la doc).
+
+## Ménage du CRM (16/10/2026) : branche menage-crm-clients, version 2.5.0
+
+Code écrit, **suite complète verte sous émulateurs** (PR n° 73). Voir `menage-crm.md` : ce qui est fait, les choix faits, ce qui touche les données de Jérôme. Reste : relecture de la PR, « fusionne » de Jérôme. Chantiers suivants : Réglages à menu latéral, fusion du menu CRM, Drive / liens.
+
+## MCP pour tous les clients (16/10/2026) : PR en attente du « fusionne »
+
+Construit et testé (suite complète verte), **rien déployé**. Lire `mcp-clients.md` : ce qui est fait, l'isolation entre clients, les trois déploiements à lancer dans l'ordre (règles, fonctions, site, par le workflow « Déploiement plateforme clients »), et ce qui n'est **pas** vérifié (vrai claude.ai, vrai ChatGPT). Première chose à faire après le déploiement : allumer le module chez un client d'essai (`activer-module <client> mcp --ecrire`) et brancher Claude sur son lien.
+
+## Chantier 14 : module Automatisations, ex-« journal d'activité des workflows » (11/10/2026 ; renommé le 16/10/2026)
+
+Phases 1 et 2 écrites et testées (émulateurs + faux n8n), PR en attente du « fusionne » de Jérôme. Rien déployé. **À faire par Jérôme, dans l'ordre** (pas à pas dans `automatisations-n8n.md`, partie 7) : publier règles et page (workflow, choix `tout`), déposer la clé n8n (`firebase functions:secrets:set N8N_API_KEY --project chevalier-ia-app`, sans la montrer à personne), déployer les fonctions, étiqueter un workflow de test `client-<identifiant>` et activer le module (`activer-module <client> automatisations`). Ensuite : essai réel avec un workflow lent et un workflow qui échoue, brancher l'alerte « Nous sommes prévenus ». Phase 3 (Logger, étapes) : pas commencée, `steps` est prêt.
 
 ## En attente du feu vert de Jérôme : objectif « Chiffre d'affaires signé » (10/10/2026)
 

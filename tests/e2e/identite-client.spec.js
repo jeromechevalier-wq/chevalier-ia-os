@@ -2,7 +2,8 @@
 // ne montre rien qui soit propre à Jérôme. Émulateurs, règles de la plateforme (chargées le temps de ce fichier).
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { test, expect, ecrireDocument, listerDocuments, estTelephone, PROJET, FIRESTORE, URL_APP, jour } from './outils.js';
+import { test, expect, ecrireDocument, lireDocument, listerDocuments, estTelephone, PROJET, FIRESTORE, URL_APP, jour } from './outils.js';
+import { brancherGoogle, lireGoogle, choisirDansGoogle, ID_CLIENT } from './google-simule.js';
 
 const ALICE = 'alice@exemple.test';
 const COULEUR = '#336699';
@@ -42,17 +43,17 @@ test.beforeEach(async () => {
     ville: '', linkedin: '', siteWeb: '', source: '', oppositionProspection: false, dateOpposition: null, archive: false, ...base,
   });
   await ecrireDocument('clients/studio/crm_affaires/a1', {
-    titre: 'Audit du lac', personneId: 'p1', organisationId: null, etape: 'proposition_envoyee', statut: 'ouverte', priorite: 'tiede', montant: 1200, offreId: null,
+    titre: 'Audit du lac', personneId: 'p1', organisationId: null, etape: 'etape_3', statut: 'ouverte', priorite: 'tiede', montant: 1200, offreId: null,
     dureeJours: null, source: '', besoin: '', dateEntreeEtape: maintenant, datesEtapes: { proposition_envoyee: maintenant }, raisonPerdue: '',
     raisonPerdueDetail: '', dateReveil: null, encaissements: [], documents: [], projetId: null, archive: false, ...base,
   });
   await ecrireDocument('clients/studio/projets_projets/pr1', {
-    titre: 'Site du lac', affaireId: null, personneId: 'p1', organisationId: null, phase: 'lancement', statut: 'actif', dateDebut: jour(0), dateFin: null,
+    titre: 'Site du lac', affaireId: null, personneId: 'p1', organisationId: null, phase: 'phase_1', statut: 'actif', dateDebut: jour(0), dateFin: null,
     modeleId: null, offreId: null, dateEntreePhase: maintenant, datesPhases: { lancement: maintenant }, documents: [], factures: [], urlGithub: '', urlDossier: '',
     nature: 'livraison', projetSourceId: null, archive: false, ...base,
   });
   await ecrireDocument('clients/studio/projets_taches/t1', {
-    titre: 'Préparer la maquette', projetId: 'pr1', phase: 'lancement', ordre: 1, date: jour(0), heure: '', fait: false, dateFait: null, assigneA: 'jerome', auteur: ALICE, creeLe: maintenant,
+    titre: 'Préparer la maquette', projetId: 'pr1', phase: 'phase_1', ordre: 1, date: jour(0), heure: '', fait: false, dateFait: null, assigneA: 'jerome', auteur: ALICE, creeLe: maintenant,
   });
 });
 
@@ -152,7 +153,7 @@ test('I4 les couleurs d\'étapes ne suivent pas la marque (rouge, vert… resten
   const attendu = { '--etape-gagne': '#ecbc06', '--etape-facture_envoyee': '#fd6455', '--etape-facture_payee': '#3fbf7f', '--etape-perdu': '#8d8993', '--prio-chaud': '#fd6455', '--prio-tiede': '#ecbc06' };
   for (const [j, v] of jetons) if (attendu[j]) expect(v, j).toBe(attendu[j]);
   await aller(page, 'Affaires');
-  await expect(page.locator('.colonne[data-colonne="gagne"]')).toBeVisible();
+  await expect(page.locator('.colonne[data-colonne="etape_5"]')).toBeVisible();
 });
 
 test('I5 aucun texte au nom de Jérôme sur les écrans d\'un client (accueil, listes, fiches, journal, projets)', async ({ page }) => {
@@ -169,20 +170,23 @@ test('I5 aucun texte au nom de Jérôme sur les écrans d\'un client (accueil, l
   await expect(page.locator('.page-accueil')).toBeVisible();
   await verifier('accueil');
   await expect(page.locator('.rappel-export')).toHaveCount(0);
-  for (const lib of ['Personnes', 'Organisations', 'Affaires', 'Journal', 'Projets', 'Archives', 'Modèles']) {
+  for (const lib of ['Personnes', 'Organisations', 'Affaires', 'Journal', 'Projets', 'Archives']) { // « Modèles » n'est plus dans le menu : il est dans les Réglages
     await aller(page, lib);
     await verifier(lib);
   }
   await page.evaluate(() => { location.hash = '#/espace/studio/crm/affaires/a1'; });
   await expect(page.locator('input.titre-editable')).toHaveValue('Audit du lac');
   await verifier('fiche affaire');
-  await expect(page.locator('[data-prop="github"], [data-prop="dossier"]')).toHaveCount(0);
+  // Le dossier de travail est un lien libre (utile à tous) ; ni GitHub, ni « Créer le répertoire » tant que l'interrupteur est éteint (éteint par défaut chez un client).
+  await expect(page.locator('[data-prop="github"], [data-action="creer-dossier"]')).toHaveCount(0);
+  await expect(page.locator('[data-prop="dossier"]')).toBeVisible();
   await expect(page.locator('select[aria-label="Propriétaire"]')).toHaveCount(0);
   await expect(page.locator('.proprietaire')).toContainText(ALICE);
   await page.evaluate(() => { location.hash = '#/espace/studio/projets/projets/pr1'; });
   await expect(page.locator('input.titre-editable')).toHaveValue('Site du lac');
   await verifier('fiche projet');
-  await expect(page.locator('[data-prop="github"], [data-prop="dossier"]')).toHaveCount(0);
+  await expect(page.locator('[data-prop="github"], [data-action="creer-dossier"]')).toHaveCount(0);
+  await expect(page.locator('[data-prop="dossier"]')).toBeVisible();
 });
 
 test('I6 tâche de projet : pas de « Confiée à » (Jérôme / Charles) chez un client', async ({ page }) => {
@@ -227,4 +231,30 @@ test('I9 la page de connexion du client (avant la connexion) n\'a aucune identit
   const manifeste = await page.evaluate(() => document.head.querySelector('link[rel="manifest"]')?.getAttribute('href'));
   expect(manifeste).not.toBe('manifest.webmanifest');
   expect(await page.evaluate(() => document.head.querySelector('link[rel="apple-touch-icon"]')?.getAttribute('href') || '')).not.toContain('assets/icons');
+});
+
+test('I10 chez un client : « Ajouter un document » (Google branché) et dossier de travail libre ; « Créer le répertoire » seulement si l\'interrupteur est allumé, dans l\'espace du client', async ({ page, context }) => {
+  const drive = await brancherGoogle(context);
+  await ouvrir(page, 'studio', 'projets/projets/pr1');
+  await expect(page.locator('input.titre-editable')).toHaveValue('Site du lac');
+  // Interrupteur éteint par défaut : le dossier de travail est un lien libre, pas de création ; la fenêtre Google d'ajout de document est là.
+  await expect(page.locator('[data-action="creer-dossier"]')).toHaveCount(0);
+  await expect(page.locator('[data-section="projet-documents"]')).toContainText('Liens et documents');
+  await choisirDansGoogle(page, [{ id: 'F1', name: 'Contrat.pdf', url: 'https://drive.google.com/file/d/F1/view', mimeType: 'application/pdf' }]);
+  await page.locator('[data-action="ajouter-document-google"]').click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Parcourir seulement' }).click(); // pas encore de dossier de travail : on ne le crée pas ici
+  await expect.poll(async () => (await lireDocument('clients/studio/projets_projets/pr1')).documents).toEqual([{ libelle: 'Contrat.pdf', url: 'https://drive.google.com/file/d/F1/view' }]);
+  const g = await lireGoogle(page);
+  expect(g.autorisations[0]).toMatchObject({ clientId: ID_CLIENT, indice: ALICE });
+  // Le dossier de travail (lien libre) enregistre n'importe quel lien.
+  await page.locator('[data-champ="dossier"]').fill('https://exemple.test/clients/lune');
+  await page.locator('[data-action="enregistrer-dossier"]').click();
+  await expect.poll(async () => (await lireDocument('clients/studio/projets_projets/pr1')).urlDossier).toBe('https://exemple.test/clients/lune');
+  // On allume l'interrupteur (comme dans les Réglages) et on efface le dossier : « Créer le répertoire » apparaît et crée dans Drive.
+  await expect.poll(async () => (await lireDocument('clients/studio/crm_parametres/reglages')) !== null).toBe(true);
+  await ecrireDocument('clients/studio/crm_parametres/reglages', { ...(await lireDocument('clients/studio/crm_parametres/reglages')), boutonsDepot: true, sousDossiersDrive: ['Contrat'] });
+  await ecrireDocument('clients/studio/projets_projets/pr1', { ...(await lireDocument('clients/studio/projets_projets/pr1')), urlDossier: '' });
+  await page.locator('[data-action="creer-dossier"]').click();
+  await expect.poll(async () => (await lireDocument('clients/studio/projets_projets/pr1')).urlDossier).toBe('https://drive.google.com/drive/folders/DOSSIER_1_abcdefghij');
+  expect(drive.requetes.map((r) => r.corps.name)).toEqual(['Site du lac', 'Contrat']);
 });

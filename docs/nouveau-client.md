@@ -1,6 +1,6 @@
 # Créer un client, sauvegarder ses données, le supprimer
 
-> **Module `journal` (chantier 14)** : `--modules affaires,projets,journal` ou `activer-module <client> journal`. L'identifiant du client doit faire **17 caractères au plus** pour ce module (étiquette n8n `client-<identifiant>` limitée à 24 caractères) ; sinon l'outil refuse. Voir `docs/journal-activite-workflows.md`.
+> **Module `automatisations` (chantier 14, ex-`journal`, renommé le 16/10/2026)** : `--modules affaires,projets,automatisations` ou `activer-module <client> automatisations` (l'ancien nom `journal` est encore accepté par l'outil et lu dans les fiches existantes). L'identifiant du client doit faire **17 caractères au plus** pour ce module (étiquette n8n `client-<identifiant>` limitée à 24 caractères) ; sinon l'outil refuse. Voir `docs/automatisations-n8n.md`.
 
 Deux petits programmes à lancer **depuis le Terminal de ton Mac**, avec **ton** compte Google :
 
@@ -82,7 +82,7 @@ Puis ouvre `https://chevalier-ia-app.web.app/espace/clientdemo` et connecte-toi 
 | `--couleur "#336699"` | la couleur du client (`#rgb` ou `#rrggbb`) |
 | `--accueil "…"` | le texte de bienvenue sur la page de connexion (500 caractères au plus) |
 | `--membre adresse:rôle` | une personne qui a le droit d'entrer. **Au moins une.** À répéter pour chaque personne. Rôles : `editeur` (lit et écrit) ou `lecteur` (lit seulement). **L'adresse en minuscules.** |
-| `--modules affaires,projets` | les écrans activés. `affaires` = le « CRM » (personnes, organisations, affaires) ; `projets` ne marche que **avec** `affaires`. Sans `--modules`, le client ne voit que l'accueil provisoire. |
+| `--modules crm,automatisations` | les écrans activés. **`crm` = l'interrupteur unique du CRM (2.6.0) : il allume `affaires` ET `projets`** (un seul bloc « CRM » dans le menu du client). `affaires` seul (CRM sans les projets) et `projets` (qui ne marche que **avec** `affaires`) restent acceptés. Sans `--modules`, le client ne voit que l'accueil provisoire. |
 | `--logo`, `--images` | fichiers de ton Mac (facultatif ; 4 images au plus, séparées par des virgules, sans espace) |
 
 ### Envoyer ou changer les images plus tard
@@ -106,15 +106,16 @@ node scripts/nouveau-client.js afficher clientdemo
 node scripts/nouveau-client.js ajouter-membre clientdemo marie@exemple.fr:lecteur
 node scripts/nouveau-client.js changer-role clientdemo marie@exemple.fr:editeur
 node scripts/nouveau-client.js retirer-membre clientdemo marie@exemple.fr
+node scripts/nouveau-client.js activer-module clientdemo crm        # allume affaires et projets
+node scripts/nouveau-client.js desactiver-module clientdemo crm     # éteint les deux
 node scripts/nouveau-client.js activer-module clientdemo projets
-node scripts/nouveau-client.js desactiver-module clientdemo projets
 node scripts/nouveau-client.js desactiver-client clientdemo
 node scripts/nouveau-client.js reactiver-client clientdemo
 ```
 
 - `retirer-membre` : la personne perd l'accès tout de suite (le programme te prévient si c'est le dernier éditeur).
 - `desactiver-client` : la page du client devient « indisponible », **sans rien effacer** (données et membres restent). `reactiver-client` la rend.
-- `desactiver-module affaires` est refusé tant que `projets` est actif.
+- `desactiver-module affaires` est refusé tant que `projets` est actif (utiliser `desactiver-module <client> crm` pour éteindre les deux).
 
 ---
 

@@ -1,6 +1,6 @@
 // Module Projets (version 2.1) : montage, routes, actions rapides et recherche globale.
 // Routes : projets/projets[/id], projets/archives, projets/modeles[/id]. Le module lit les données du CRM (personnes, organisations, affaires) : le CRM démarre avant lui.
-import { vider } from '../../os/ui.js';
+import { vider, h, icone } from '../../os/ui.js';
 import { naviguer } from '../../os/router.js';
 import * as D from './donnees.js';
 import * as CRM from '../crm/donnees.js';
@@ -19,6 +19,17 @@ const VUES = {
 export const actionsRapides = [
   { id: 'projet', libelle: 'Projet', icone: 'folder-kanban', action: () => ouvrirCreationProjet() },
 ];
+
+/**
+ * Réglages du module : « Modèles de projets » (le menu n'a plus d'entrée « Modèles »). Les modèles d'affaires sont dans les réglages du CRM,
+ * juste au-dessus : les deux familles se règlent au même endroit.
+ */
+export function reglages(page) {
+  const corps = h('div', {});
+  const section = h('section', { class: 'carte-section', id: 'reglages-modeles-projets' }, h('h2', {}, icone('copy', { taille: 18 }), 'Modèles de projets'), corps);
+  page.append(section);
+  return rendreModeles(corps, { page: false });
+}
 
 let montee = null; // { cle, quitter }
 

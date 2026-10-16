@@ -13,6 +13,7 @@ import * as P from './logique.js';
 import { proposerSorties } from './factures.js';
 
 import { cheminProjet, anneauProgression } from './composants.js';
+const cfg = () => CRM.etat.config;
 
 export { cheminProjet };
 
@@ -34,7 +35,7 @@ export function pastilleStatutProjet(p) {
 }
 
 export function pastillePhase(phase) {
-  return h('span', { class: 'pastille-statut', style: { '--couleur': P.couleurPhase(phase) } }, P.libellePhase(phase));
+  return h('span', { class: 'pastille-statut', style: { '--couleur': P.couleurPhase(phase, cfg()) } }, P.libellePhase(phase, cfg()));
 }
 
 /** Pastille « Impayé » : un projet qui a au moins une facture abandonnée la garde, même clôturé. */
@@ -57,15 +58,32 @@ export async function terminerProjet(p, options = {}) {
   if (Object.keys(plan.erreurs || {}).length) { toast(Object.values(plan.erreurs)[0], { type: 'erreur' }); return undefined; }
   const impaye = options.impaye ? ' avec impayé' : '';
   toast(plan.extraction ? `Projet terminé${impaye} : son projet d’extraction est créé` : `Projet terminé${impaye}`, plan.extraction ? { lien: { libelle: 'Ouvrir l’extraction', href: cheminProjet(plan.extraction.id) }, duree: 6000 } : {});
-  if (plan.ecritures?.length) celebrerCloture(P.estExtraction(p) ? 'Extraction terminée !' : 'Projet terminé !', p.titre);
+  if (plan.ecritures?.length) celebrerCloture(P.estExtraction(p) && P.extractionActive(cfg()) ? 'Extraction terminée !' : 'Projet terminé !', p.titre);
   return undefined;
 }
 
-/** Changement de phase. Vers la Clôture, des factures à payer bloquent : même message et mêmes sorties que « Terminer ». */
+/**
+ * Action suggérée par la phase d'arrivée (réglage, aucune par défaut) : une fenêtre où l'on accepte ou refuse. Si on accepte, une tâche est ajoutée au projet,
+ * dans cette phase. Jamais créée toute seule.
+ */
+async function proposerActionPhase(p, phase, suggestion) {
+  const accepte = await dialogue({
+    titre: 'Action suggérée',
+    contenu: h('div', { class: 'pile', dataset: { role: 'action-suggeree' } },
+      h('p', {}, `Le projet arrive en « ${P.libellePhase(phase, cfg())} ». Ajouter cette tâche ?`),
+      h('p', {}, h('strong', {}, suggestion.titre), h('span', { class: 'aide' }, ` · pour le ${L.formatJour(suggestion.date)}`))),
+    boutons: [{ libelle: 'Refuser', valeur: false }, { libelle: 'Accepter', valeur: true, style: 'principal' }],
+  });
+  if (!accepte) return;
+  try { await D.creerTache(p.id, { titre: suggestion.titre, date: suggestion.date, phase }); toast('Tâche ajoutée'); } catch (e) { console.warn(e); toast('Ajout impossible', { type: 'erreur' }); }
+}
+
+/** Changement de phase. Vers la Clôture, des factures à payer bloquent (si le suivi des paiements et la règle sont allumés) : même message et mêmes sorties que « Terminer ». */
 export async function changerPhaseProjet(p, phase) {
   const plan = await D.changerPhase(p.id, phase);
   if (plan.erreurs?.factures) return sortirDuBlocage(p, plan, (q) => changerPhaseProjet(q, phase));
   if (Object.keys(plan.erreurs || {}).length) toast(Object.values(plan.erreurs)[0], { type: 'erreur' });
+  else if (plan.suggestion) await proposerActionPhase(p, phase, plan.suggestion);
   return undefined;
 }
 
@@ -95,7 +113,7 @@ export async function rouvrir(p) {
 
 /** Entrées « Déplacer vers… » d'un projet : une par phase. */
 export function entreesDeplacement(p) {
-  return P.PHASES.map((ph) => ({
+  return P.phasesActives(cfg()).map((ph) => ({
     libelle: `Déplacer vers : ${ph.libelle}`, icone: 'arrow-right-left', desactive: p.phase === ph.id && !P.estProjetTermine(p),
     action: () => changerPhaseProjet(p, ph.id),
   }));
@@ -137,11 +155,11 @@ export async function demanderSuppressionProjet(p) {
 
 // ---------------------------------------------------------------- fenêtre « Ajouter un projet »
 
-/** Liste des modèles actifs : « Aucun modèle » (projet vide) ou l'un d'eux. */
+/** Liste des modèles actifs : « Aucun modèle » (projet vide) ou l'un d'eux. Le modèle d'extraction n'est proposé que si l'option « Extraction de valeur » est allumée. */
 function selectModele(valeur = '') {
   return h('select', { class: 'champ', 'aria-label': 'Modèle' },
     h('option', { value: '' }, 'Aucun modèle (projet vide)'),
-    P.modelesActifs(D.etat.modeles).map((m) => h('option', { value: m.id, selected: m.id === valeur }, m.nom)));
+    P.modelesActifs(D.etat.modeles).filter((m) => P.extractionActive(cfg()) || m.nature !== 'extraction').map((m) => h('option', { value: m.id, selected: m.id === valeur }, m.nom)));
 }
 
 /** Seul le titre est obligatoire. `lien` : { personneId, organisationId } à préremplir. Un modèle, si on en choisit un, donne ses tâches au projet. */
@@ -260,9 +278,9 @@ async function ouvrirFenetreFiltres() {
     titre: 'Filtres',
     classe: 'dialogue-formulaire dialogue-filtres',
     contenu: h('div', { class: 'pile filtres-corps' },
-      groupe('phases', 'Phase', P.PHASES),
+      groupe('phases', 'Phase', P.phasesActives(cfg())),
       groupe('statuts', 'Statut', P.STATUTS_PROJET),
-      groupe('natures', 'Nature', P.NATURES_PROJET),
+      P.extractionActive(cfg()) ? groupe('natures', 'Nature', P.NATURES_PROJET) : null,
       h('label', { class: 'case case-seule' }, h('input', { type: 'checkbox', checked: c.enRetard, dataset: { cle: 'enRetard' }, onchange: (e) => { c.enRetard = e.target.checked; } }), 'En retard')),
     boutons: [{ libelle: 'Tout effacer', valeur: 'effacer' }, { libelle: 'Appliquer', valeur: 'appliquer', style: 'principal' }],
   });
@@ -275,7 +293,7 @@ function pastillesFiltres() {
   const c = P.criteresProjetsComplets(criteres);
   const sans = (cle, valeur) => P.criteresProjetsComplets({ ...c, [cle]: c[cle].filter((v) => v !== valeur) });
   return [
-    ...c.phases.map((v) => ({ libelle: `Phase : ${P.libellePhase(v)}`, retirer: () => sans('phases', v) })),
+    ...c.phases.map((v) => ({ libelle: `Phase : ${P.libellePhase(v, cfg())}`, retirer: () => sans('phases', v) })),
     ...c.statuts.map((v) => ({ libelle: `Statut : ${P.libelleStatutProjet(v)}`, retirer: () => sans('statuts', v) })),
     ...c.natures.map((v) => ({ libelle: `Nature : ${P.libelleNature(v)}`, retirer: () => sans('natures', v) })),
     ...(c.enRetard ? [{ libelle: 'En retard', retirer: () => P.criteresProjetsComplets({ ...c, enRetard: false }) }] : []),
@@ -295,7 +313,7 @@ function carte(p, rafraichir) {
   const dates = p.dateDebut || p.dateFin
     ? h('span', { class: 'carte-sous carte-dates' }, icone('calendar', { taille: 12 }), [p.dateDebut ? L.formatJour(p.dateDebut) : '…', p.dateFin ? L.formatJour(p.dateFin) : '…'].join(' → '))
     : null;
-  const el = h('article', { class: `carte-projet carte-affaire statut-${p.statut}`, draggable: 'true', tabindex: '0', dataset: { projet: p.id }, 'aria-label': p.titre, style: { '--couleur': P.couleurPhase(p.phase) },
+  const el = h('article', { class: `carte-projet carte-affaire statut-${p.statut}`, draggable: 'true', tabindex: '0', dataset: { projet: p.id }, 'aria-label': p.titre, style: { '--couleur': P.couleurPhase(p.phase, cfg()) },
     onclick: (e) => { if (!e.target.closest('a, button')) naviguer(`projets/projets/${p.id}`); },
     onkeydown: (e) => { if (e.key === 'Enter' && e.target === el) naviguer(`projets/projets/${p.id}`); },
     ondragstart: (e) => { enDeplacement = true; e.dataTransfer.setData('text/plain', p.id); e.dataTransfer.effectAllowed = 'move'; el.classList.add('en-deplacement'); },
@@ -305,7 +323,7 @@ function carte(p, rafraichir) {
   pers ? h('span', { class: 'carte-sous' }, icone('user', { taille: 12 }), pers.nom) : null,
   dates,
   h('div', { class: 'carte-pied' },
-    p.nature === 'extraction' ? h('span', { class: 'badge-nature' }, 'Extraction') : null,
+    p.nature === 'extraction' && P.extractionActive(cfg()) ? h('span', { class: 'badge-nature' }, 'Extraction') : null,
     p.statut === 'en_pause' ? h('span', { class: 'badge-pause' }, 'En pause') : null,
     enRetard ? h('span', { class: 'badge-retard' }, 'En retard') : null,
     p.proprietaire ? h('span', { class: 'carte-proprietaire' }, nomCompte(p.proprietaire)) : null,
@@ -410,14 +428,14 @@ export function rendreProjets(conteneur, { archives: surArchives = false } = {})
       remplir(zone, etatVide('Ajoute ton premier projet avec le bouton ci-dessous.', { action: h('button', { type: 'button', class: 'bouton bouton-principal', onclick: () => ouvrirCreationProjet() }, icone('plus', { taille: 16 }), 'Projet') }));
       return;
     }
-    remplir(zone, h('div', { class: 'kanban' }, P.PHASES.map((ph) => colonne(ph, P.projetsDePhase(projets, ph.id), rafraichir))));
+    remplir(zone, h('div', { class: 'kanban' }, P.phasesActives(cfg()).map((ph) => colonne(ph, P.projetsDePhase(projets, ph.id), rafraichir))));
   }
 
   const COLONNES_LISTE = [
     { id: 'titre', libelle: 'Titre', tri: (p) => L.normaliser(p.titre) },
     { id: 'personne', libelle: 'Personne', tri: (p) => L.normaliser(CRM.personne(p.personneId)?.nom) },
     { id: 'organisation', libelle: 'Organisation', tri: (p) => L.normaliser(CRM.organisation(p.organisationId)?.nom) },
-    { id: 'phase', libelle: 'Phase', tri: (p) => P.PHASES.findIndex((x) => x.id === p.phase) },
+    { id: 'phase', libelle: 'Phase', tri: (p) => P.rangPhase(p.phase, cfg()) },
     { id: 'statut', libelle: 'Statut', tri: (p) => P.STATUTS_PROJET.findIndex((x) => x.id === p.statut) },
     { id: 'debut', libelle: 'Début', tri: (p) => p.dateDebut || null },
     { id: 'fin', libelle: 'Fin prévue', tri: (p) => p.dateFin || null },

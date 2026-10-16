@@ -11,7 +11,7 @@ Ce fichier est lu au début de chaque session. Il garde les décisions de Jérô
 
 - Explique simplement, comme à quelqu'un de 18 ans.
 - Quand Jérôme doit faire quelque chose dans la console Google, GitHub ou le Terminal : donne le **lien exact** et dis **où cliquer**.
-- **Ne fusionne une PR qu'après son « fusionne »**. Une PR par étape cohérente. Jamais de poussée sur `main`.
+- **Fusion des PR** (accord général de Jérôme, 2026-10-16) : Claude fusionne lui-même les PR, une par étape cohérente, **uniquement par la PR** (jamais de poussée directe sur `main`), et **seulement si toute la suite de tests est verte**. Un push sur `main` met le vrai CRM de Jérôme à jour : Claude s'arrête et demande d'abord si la PR modifie des données existantes de Jérôme, les règles Firestore, ou ce que son CRM affiche de façon visible. Il ne déploie jamais la plateforme clients (workflow manuel) sans Jérôme.
 - Jérôme ne lance pas `npm test` sur son Mac : **lance la suite complète toi-même** dans la session (`cd tests && npm install && npm run installer-fonctions && npm test`, environ 5 minutes).
 - Jamais de jeton, de secret ni de clé dans la conversation, le dépôt ou un commit.
 

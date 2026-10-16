@@ -46,7 +46,7 @@ export const lire_affaire = {
 export const lister_affaires = {
   nom: 'lister_affaires',
   profils: TOUS,
-  description: "Liste les affaires avec les filtres de l'écran. Par défaut les affaires non archivées ; archive=true pour les archivées. Étapes : premier_contact, rdv_fixe, proposition_envoyee, gagne (voir lire_reglages pour les valeurs exactes).",
+  description: "Liste les affaires avec les filtres de l'écran. Par défaut les affaires non archivées ; archive=true pour les archivées. Étapes : voir lire_reglages (configuration.etapes) pour les identifiants.",
   schema: {
     etape: z.string().max(60).optional().describe("Identifiant d'étape."),
     statut: z.string().max(60).optional().describe('Statut (voir lire_reglages, referentiels.statuts).'),
@@ -64,7 +64,7 @@ export const lister_affaires = {
 export const lister_projets = {
   nom: 'lister_projets',
   profils: TOUS,
-  description: "Liste les projets (livraison ou extraction de valeur) avec les filtres de l'écran : phase (lancement, decouverte, livraison, cloture), statut (actif, en_pause, termine), nature (livraison, extraction). Par défaut les projets non archivés ; archive=true pour les archivés (dont les projets terminés). Chaque ligne donne l'avancement des tâches et la facturation (facturé, payé, reste à payer, abandonné, impayé).",
+  description: "Liste les projets (livraison ou extraction de valeur) avec les filtres de l'écran : phase (identifiants dans lire_reglages, configuration.phases), statut (actif, en_pause, termine), nature (livraison, extraction). Par défaut les projets non archivés ; archive=true pour les archivés (dont les projets terminés). Chaque ligne donne l'avancement des tâches et la facturation (facturé, payé, reste à payer, abandonné, impayé).",
   schema: {
     phase: z.string().max(40).optional(),
     statut: z.string().max(40).optional(),

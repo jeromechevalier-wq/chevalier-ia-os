@@ -103,7 +103,7 @@ describe('nouveau client : création et lecture par les vraies règles', () => {
     assert.equal(marque.couleur, '#336699');
     assert.match(marque.logo, /^https:\/\/firebasestorage\.googleapis\.com\/v0\/b\/.+\/o\/marques%2Fdemo1%2Flogo\.png\?alt=media$/);
     assert.equal(marque.images.length, 1);
-    assert.deepEqual(await lireDoc('clients/demo1'), { nom: 'Client fictif', modules: { affaires: true, projets: true, journal: false, veille: false } });
+    assert.deepEqual(await lireDoc('clients/demo1'), { nom: 'Client fictif', modules: { affaires: true, projets: true, automatisations: false, veille: false, mcp: false }, equipe: [{ email: ALICE, role: 'editeur' }, { email: BOB, role: 'lecteur' }] });
     assert.deepEqual(await lireDoc(`clients/demo1/membres/${ALICE}`), { role: 'editeur' });
     assert.deepEqual(await lireDoc(`clients/demo1/membres/${BOB}`), { role: 'lecteur' });
     await admin.db.doc('clients/demo1/crm_personnes/p1').set({ nom: 'Personne inventée' });
@@ -256,16 +256,37 @@ describe('nouveau client : commandes annexes', () => {
     assert.equal((await nc('retirer-membre', 'annexe', ZOE, '--ecrire')).code, 1);
     // il reste Alice et Bob
     assert.deepEqual(await lireDoc(`clients/annexe/membres/${ALICE}`), { role: 'editeur' });
-    const dernier = await nc('retirer-membre', 'annexe', ALICE);
+    // Règle : le dernier éditeur ne peut jamais être retiré, ni rétrogradé en lecteur (même avec --ecrire : rien n'est écrit)
+    const dernier = await nc('retirer-membre', 'annexe', ALICE, '--ecrire');
+    assert.equal(dernier.code, 1);
     assert.match(dernier.texte, /dernier éditeur/);
+    assert.deepEqual(await lireDoc(`clients/annexe/membres/${ALICE}`), { role: 'editeur' });
+    const retrograde = await nc('changer-role', 'annexe', `${ALICE}:lecteur`, '--ecrire');
+    assert.equal(retrograde.code, 1);
+    assert.match(retrograde.texte, /dernier éditeur/);
+    assert.deepEqual(await lireDoc(`clients/annexe/membres/${ALICE}`), { role: 'editeur' });
+    // avec un autre éditeur, on peut retirer le premier
+    assert.equal((await nc('ajouter-membre', 'annexe', `${BOB}:editeur`, '--ecrire')).code, 1, 'Bob est déjà lecteur : changer-role');
+    assert.equal((await nc('changer-role', 'annexe', `${BOB}:editeur`, '--ecrire')).code, 0);
+    assert.equal((await nc('retirer-membre', 'annexe', ALICE, '--ecrire')).code, 0);
+    assert.equal(await lireDoc(`clients/annexe/membres/${ALICE}`), null);
+  });
+
+  test('A1b la liste des membres (équipe) est recopiée dans la fiche du client : adresse et rôle seulement, pour « Confiée à »', async () => {
+    const equipe = (await lireDoc('clients/annexe')).equipe;
+    assert.deepEqual(equipe, [{ email: ALICE, role: 'editeur' }, { email: BOB, role: 'lecteur' }]);
+    assert.equal((await nc('ajouter-membre', 'annexe', `${ZOE}:editeur`, '--ecrire')).code, 0);
+    assert.deepEqual((await lireDoc('clients/annexe')).equipe.map((m) => [m.email, m.role]), [[ALICE, 'editeur'], [BOB, 'lecteur'], [ZOE, 'editeur']]);
+    assert.equal((await nc('retirer-membre', 'annexe', ZOE, '--ecrire')).code, 0);
+    assert.deepEqual((await lireDoc('clients/annexe')).equipe.map((m) => m.email), [ALICE, BOB], 'un membre retiré sort de la liste');
   });
 
   test('A2 activer et désactiver un module (projets exige affaires)', async () => {
     assert.equal((await nc('desactiver-module', 'annexe', 'projets', '--ecrire')).code, 0);
-    assert.deepEqual((await lireDoc('clients/annexe')).modules, { affaires: true, projets: false, journal: false, veille: false });
+    assert.deepEqual((await lireDoc('clients/annexe')).modules, { affaires: true, projets: false, automatisations: false, veille: false, mcp: false });
     const refus = await nc('desactiver-module', 'annexe', 'affaires', '--ecrire'); // projets est déjà off : permis
     assert.equal(refus.code, 0);
-    assert.deepEqual((await lireDoc('clients/annexe')).modules, { affaires: false, projets: false, journal: false, veille: false });
+    assert.deepEqual((await lireDoc('clients/annexe')).modules, { affaires: false, projets: false, automatisations: false, veille: false, mcp: false });
     const sans = await nc('activer-module', 'annexe', 'projets', '--ecrire');
     assert.equal(sans.code, 1);
     assert.match(sans.texte, /sans : Affaires/);
@@ -273,31 +294,75 @@ describe('nouveau client : commandes annexes', () => {
     assert.equal((await nc('activer-module', 'annexe', 'projets', '--ecrire')).code, 0);
     const casse = await nc('desactiver-module', 'annexe', 'affaires', '--ecrire');
     assert.equal(casse.code, 1);
-    assert.deepEqual((await lireDoc('clients/annexe')).modules, { affaires: true, projets: true, journal: false, veille: false });
+    assert.deepEqual((await lireDoc('clients/annexe')).modules, { affaires: true, projets: true, automatisations: false, veille: false, mcp: false });
     assert.equal((await nc('activer-module', 'annexe', 'compta', '--ecrire')).code, 1);
   });
 
-  test('A2b module « journal » (chantier 14) : activable à la création et après coup, refusé si l\'identifiant dépasse 17 caractères (étiquette n8n de 24 au plus)', async () => {
-    const court = await nc('journalcourt', '--nom', 'Journal', '--membre', `${ALICE}:editeur`, '--modules', 'journal', '--ecrire');
+  test('A2d interrupteur unique « crm » : allume et éteint affaires ET projets d\'un coup, accepté partout où un module se nomme', async () => {
+    const cree = await nc('uncrm', '--nom', 'Un CRM', '--membre', `${ALICE}:editeur`, '--modules', 'crm,mcp', '--ecrire');
+    assert.equal(cree.code, 0, cree.texte);
+    assert.deepEqual((await lireDoc('clients/uncrm')).modules, { affaires: true, projets: true, automatisations: false, veille: false, mcp: true });
+    assert.equal((await nc('desactiver-module', 'uncrm', 'crm', '--ecrire')).code, 0);
+    assert.deepEqual((await lireDoc('clients/uncrm')).modules, { affaires: false, projets: false, automatisations: false, veille: false, mcp: true });
+    assert.equal((await nc('activer-module', 'uncrm', 'crm', '--ecrire')).code, 0);
+    assert.deepEqual((await lireDoc('clients/uncrm')).modules, { affaires: true, projets: true, automatisations: false, veille: false, mcp: true });
+    // Un client réglé avant la 2.6.0 avec « affaires » seul : rallumé avec « crm », il gagne les projets.
+    assert.equal((await nc('desactiver-module', 'uncrm', 'projets', '--ecrire')).code, 0);
+    assert.equal((await lireDoc('clients/uncrm')).modules.projets, false);
+    assert.equal((await nc('activer-module', 'uncrm', 'crm', '--ecrire')).code, 0);
+    assert.equal((await lireDoc('clients/uncrm')).modules.projets, true);
+  });
+
+  test('A2c module « mcp » (accès d\'un assistant) : éteint par défaut, activable seul, sans dépendance ; le lien ne dépend que de cet interrupteur', async () => {
+    assert.equal((await nc('activer-module', 'annexe', 'mcp', '--ecrire')).code, 0);
+    assert.equal((await lireDoc('clients/annexe')).modules.mcp, true);
+    assert.equal((await nc('desactiver-module', 'annexe', 'mcp', '--ecrire')).code, 0);
+    assert.equal((await lireDoc('clients/annexe')).modules.mcp, false);
+    const seul = await nc('seulmcp', '--nom', 'Seul MCP', '--membre', `${ALICE}:editeur`, '--modules', 'mcp', '--ecrire');
+    assert.equal(seul.code, 0, seul.texte);
+    assert.deepEqual((await lireDoc('clients/seulmcp')).modules, { affaires: false, projets: false, automatisations: false, veille: false, mcp: true });
+  });
+
+  test('A2b module « automatisations » (chantier 14, ancien nom « journal » encore accepté) : activable à la création et après coup, refusé si l\'identifiant dépasse 17 caractères (étiquette n8n de 24 au plus)', async () => {
+    const court = await nc('autocourt', '--nom', 'Auto', '--membre', `${ALICE}:editeur`, '--modules', 'automatisations', '--ecrire');
     assert.equal(court.code, 0, court.texte);
-    assert.deepEqual((await lireDoc('clients/journalcourt')).modules, { affaires: false, projets: false, journal: true, veille: false });
-    assert.equal((await nc('desactiver-module', 'journalcourt', 'journal', '--ecrire')).code, 0);
-    assert.equal((await nc('activer-module', 'journalcourt', 'journal', '--ecrire')).code, 0);
-    assert.equal((await lireDoc('clients/journalcourt')).modules.journal, true);
+    assert.deepEqual((await lireDoc('clients/autocourt')).modules, { affaires: false, projets: false, automatisations: true, veille: false, mcp: false });
+    assert.equal((await nc('desactiver-module', 'autocourt', 'automatisations', '--ecrire')).code, 0);
+    assert.equal((await nc('activer-module', 'autocourt', 'automatisations', '--ecrire')).code, 0);
+    assert.equal((await lireDoc('clients/autocourt')).modules.automatisations, true);
     const dixSept = 'a'.repeat(17);
-    assert.equal((await nc(dixSept, '--nom', 'Limite', '--membre', `${ALICE}:editeur`, '--modules', 'journal', '--ecrire')).code, 0);
+    assert.equal((await nc(dixSept, '--nom', 'Limite', '--membre', `${ALICE}:editeur`, '--modules', 'automatisations', '--ecrire')).code, 0);
     const long = 'cabinet-de-conseil-martin-et-associes';
-    const refus = await nc(long, '--nom', 'Long', '--membre', `${ALICE}:editeur`, '--modules', 'journal', '--ecrire');
+    const refus = await nc(long, '--nom', 'Long', '--membre', `${ALICE}:editeur`, '--modules', 'automatisations', '--ecrire');
     assert.equal(refus.code, 1);
     assert.match(refus.texte, /17 caractères au plus/);
     assert.match(refus.texte, /24 caractères/);
     assert.equal(await lireDoc(`clients/${long}`), null, 'rien n\'est écrit');
-    // Un client à nom long peut exister sans le journal, mais ne peut pas l'activer ensuite.
+    // Un client à nom long peut exister sans ce module, mais ne peut pas l'activer ensuite.
     assert.equal((await nc(long, '--nom', 'Long', '--membre', `${ALICE}:editeur`, '--modules', 'affaires', '--ecrire')).code, 0);
-    const apres = await nc('activer-module', long, 'journal', '--ecrire');
+    const apres = await nc('activer-module', long, 'automatisations', '--ecrire');
     assert.equal(apres.code, 1);
     assert.match(apres.texte, /17 caractères au plus/);
-    assert.equal((await lireDoc(`clients/${long}`)).modules.journal, false);
+    assert.equal((await lireDoc(`clients/${long}`)).modules.automatisations, false);
+  });
+
+  test('A2d ancien nom « journal » : accepté par l\'outil et traduit en « automatisations » ; une fiche ancienne (journal: true) est comprise et migrée à l\'écriture', async () => {
+    const ancien = await nc('ancien', '--nom', 'Ancien', '--membre', `${ALICE}:editeur`, '--modules', 'journal', '--ecrire');
+    assert.equal(ancien.code, 0, ancien.texte);
+    assert.deepEqual((await lireDoc('clients/ancien')).modules, { affaires: false, projets: false, automatisations: true, veille: false, mcp: false });
+    // Fiche écrite avant le renommage : seulement « journal: true ». L'outil la lit comme « automatisations actif » et ne la perd pas en activant autre chose.
+    await admin.db.doc('clients/avant').set({ nom: 'Avant', modules: { affaires: true, projets: false, journal: true } });
+    const afficher = await nc('afficher', 'avant');
+    assert.match(afficher.texte, /automatisations/, afficher.texte);
+    assert.equal((await nc('activer-module', 'avant', 'projets', '--ecrire')).code, 0);
+    const apres = (await lireDoc('clients/avant')).modules;
+    assert.equal(apres.automatisations, true, 'le module reste actif sous son nouveau nom');
+    assert.equal(apres.projets, true);
+    // Désactiver (avec l'ancien nom) : la nouvelle clé gagne sur l'ancienne qui traîne.
+    assert.equal((await nc('desactiver-module', 'avant', 'journal', '--ecrire')).code, 0);
+    assert.equal((await lireDoc('clients/avant')).modules.automatisations, false);
+    assert.match((await nc('afficher', 'avant')).texte, /Modules actifs : (affaires, )?projets/, 'automatisations n\'est plus actif');
+    assert.doesNotMatch((await nc('afficher', 'avant')).texte, /Modules actifs :.*automatisations/);
   });
 
   test('A3 désactiver le client rend sa page indisponible (règles réelles), le réactiver la rend', async () => {

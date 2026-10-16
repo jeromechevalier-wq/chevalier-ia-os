@@ -35,7 +35,7 @@ function ecran(collections) {
     await donnees.appliquer(lot); // tout ou rien, comme un lot Firestore
     return operationId;
   };
-  const ctxPlan = (maintenant) => ({ maintenant, auteur: JEROME, aujourdhui: L.aujourdhuiParis(maintenant), nouvelId });
+  const ctxPlan = (maintenant) => ({ maintenant, auteur: JEROME, aujourdhui: L.aujourdhuiParis(maintenant), config: L.CONFIG_JEROME, nouvelId });
   return { collections, donnees, executer, ctxPlan, lire };
 }
 

@@ -1,8 +1,8 @@
 // Module CRM (version 2.0) : montage, routes, actions rapides et recherche globale.
 // Routes : crm/accueil, crm/personnes[/id], crm/organisations[/id], crm/affaires[/id], crm/journal.
-import { vider } from '../../os/ui.js';
+import { vider, h, icone } from '../../os/ui.js';
 import { naviguer } from '../../os/router.js';
-import { enregistrerCalculs, signalerChangement, surObjectifs, estPret as objectifsPrets, tousLesObjectifs, majObjectif } from '../../os/objectifs.js';
+import { enregistrerCalculs, definirConfigObjectifs, signalerChangement, surObjectifs, estPret as objectifsPrets, tousLesObjectifs, majObjectif, rendreReglagesObjectifs } from '../../os/objectifs.js';
 import * as D from './donnees.js';
 import * as PD from '../projets/donnees.js';
 import * as L from './logique.js';
@@ -24,8 +24,8 @@ const VUES = {
   journal: (conteneur) => rendreJournal(conteneur),
 };
 
-/** Objectifs de départ fournis à l'OS (créés au premier lancement). */
-export const objectifsDepart = L.OBJECTIFS_DEPART;
+/** Objectifs de départ fournis à l'OS (créés au premier lancement de la base de Jérôme ; un nouvel espace part des objectifs neutres : L.objectifsDepart(config)). */
+export const objectifsDepart = L.OBJECTIFS_JEROME;
 
 /** Entrées du bouton "+" de la barre supérieure. */
 export const actionsRapides = [
@@ -37,17 +37,27 @@ export const actionsRapides = [
 let arretSignal = null;
 let montee = null; // { cle, quitter }
 
-export function demarrer({ compte, cheminBase = '' }) {
-  D.demarrer(compte, cheminBase);
+export function demarrer({ compte, cheminBase = '', equipe = null }) {
+  D.demarrer(compte, cheminBase, { equipe });
   const calculs = {};
   for (const [id, c] of Object.entries(L.CALCULS)) {
     calculs[id] = {
       libelle: c.libelle,
       unite: c.unite,
-      calculer: (mois) => c.calculer({ personnes: D.etat.personnes, affaires: D.etat.affaires, activites: D.etat.activites, projets: PD.etat.projets }, mois),
+      explication: c.explication,
+      exige: c.exige,
+      etape: c.etape === true,
+      heritage: c.heritage === true,
+      calculer: (mois, objectif) => c.calculer({ personnes: D.etat.personnes, affaires: D.etat.affaires, activites: D.etat.activites, projets: PD.etat.projets, config: D.etat.config }, mois, objectif),
     };
   }
   enregistrerCalculs(calculs, { pret: D.estPret });
+  definirConfigObjectifs({
+    libelle: (o) => L.libelleObjectif(o, D.etat.config),
+    disponible: (o) => L.objectifDisponible(o, D.etat.config),
+    proposables: (objectifs) => L.calculsProposables(D.etat.config, objectifs),
+    etapes: () => L.etapesActives(D.etat.config),
+  });
   const arretCrm = D.surChangement(signalerChangement);
   const arretProjets = PD.surChangement(signalerChangement); // un paiement de facture change l'objectif « encaissé »
   // L'objectif « Interviews JTBD réalisées » n'est plus calculé : il devient un compteur à tenir à la main (une seule fois, s'il existe déjà).
@@ -91,8 +101,20 @@ export function afficher(conteneur, segs, ctx) {
   return quitter;
 }
 
-export function reglages(page) {
-  return rendreReglagesCrm(page);
+/**
+ * Réglages du CRM (page Réglages > CRM, sections déclarées dans registre.js). Les objectifs du mois sont ceux de la racine (chez un client l'accueil n'en montre pas) :
+ * la section n'est donc ajoutée que là. Rien n'est stocké ailleurs qu'avant.
+ */
+export function reglages(page, ctx = {}) {
+  const arrets = [rendreReglagesCrm(page)];
+  if (!ctx.chezClient) {
+    const sectionObjectifs = h('section', { class: 'carte-section', id: 'reglages-objectifs' },
+      h('h2', {}, icone('target', { taille: 18 }), 'Objectifs du mois'),
+      h('p', { class: 'aide' }, 'Cibles, couleurs, ordre et affichage. Chaque indicateur calculé explique comment il est calculé ; tu peux en ajouter (chiffre d’affaires signé, facturé, encaissé, passages à une étape…) et créer des objectifs manuels.'));
+    arrets.push(rendreReglagesObjectifs(sectionObjectifs));
+    page.append(sectionObjectifs);
+  }
+  return () => arrets.forEach((f) => typeof f === 'function' && f());
 }
 
 // ---------------------------------------------------------------- recherche globale
