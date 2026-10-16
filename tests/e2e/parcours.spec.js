@@ -1,5 +1,6 @@
 // Tests C : parcours dans le navigateur (Playwright + émulateurs), formats 1440 × 900 et 390 × 844.
 import { readFile } from 'node:fs/promises';
+import { debrancherGoogle } from './google-simule.js';
 import {
   test, expect, connecter, allerA, allerAuxReglagesCrm, creerPersonne, creerOrganisation, creerAffaire, creerActivite, lireDocument, listerDocuments, ecrireDocument,
   jour, estTelephone, valeurObjectif, JEROME, CHARLES,
@@ -1175,7 +1176,8 @@ test('C25 dossier de travail d\'une affaire : n\'importe quel lien (Drive, serve
   await expect(page.locator('[data-prop="dossier"] a.prop-lien')).toBeVisible();
 });
 
-test('C26 réglages : plus de compte GitHub ni de dossier Mac ; la section Google Drive dit que Google n\'est pas encore branché', async ({ page }) => {
+test('C26 réglages : plus de compte GitHub ni de dossier Mac ; la section Google Drive dit que Google n\'est pas encore branché', async ({ page, context }) => {
+  await debrancherGoogle(context);
   await fixtureEliot();
   await connecter(page);
   await allerAuxReglagesCrm(page);
