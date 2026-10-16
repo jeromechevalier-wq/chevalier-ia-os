@@ -99,7 +99,7 @@ export function rendreFicheProjet(conteneur, id) {
       onchange: async () => {
         await changerPhaseProjet(p, selectPhase.value);
         selectPhase.value = D.projet(p.id)?.phase ?? p.phase; // refus ou annulation : on revient à la phase réelle
-      } }, P.phasesActives(cfg()).map((ph) => h("option", { value: ph.id, selected: ph.id === p.phase }, ph.libelle)));
+      } }, P.phasesActives(cfg()).map((ph) => h('option', { value: ph.id, selected: ph.id === p.phase }, ph.libelle)));
     /** L'avancement (cercle et « 2 / 5 tâches ») : redessiné seul quand une tâche change pendant qu'on tape dans la fiche. */
     const zoneAvancement = h('div', { class: 'prop-valeur' });
     const rendreAvancement = () => {
