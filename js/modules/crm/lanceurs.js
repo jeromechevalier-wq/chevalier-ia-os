@@ -1,8 +1,7 @@
 // « Dossier de travail » d'une affaire ou d'un projet : n'importe quel lien (Drive, serveur, NAS, site…).
 // Sur un PROJET, si l'option « Créer le répertoire dans Google Drive » est allumée et que Google est branché, un bouton « Créer le répertoire »
 // crée le dossier (et ses sous-dossiers, définis dans les Réglages) directement dans Drive, puis enregistre son lien.
-// L'ancienne « Adresse GitHub » n'est plus un champ : elle est reprise comme lien « GitHub » (liste « Liens et documents » du projet),
-// et reste visible ici, sur l'affaire, tant qu'elle existe.
+// L'ancienne « Adresse GitHub » n'est plus un champ : elle est reprise comme lien « GitHub » dans la liste « Liens et documents » (projet et affaire).
 import { h, icone, remplir, toast } from '../../os/ui.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
@@ -42,7 +41,7 @@ export function messageCreation({ nom, manquants }) {
 /**
  * Les lignes de la section Détails.
  * - fiche : l'affaire (ou le projet) ; enregistrer(patch) l'écrit ; typeFiche : 'affaire' ou 'projet' ; nomSuggere : nom proposé pour le dossier à créer.
- * Renvoie { github, dossier } : `github` n'existe que sur une affaire qui porte encore une ancienne adresse GitHub.
+ * Renvoie { github: null, dossier } (l'ancienne adresse GitHub est dans la liste « Liens et documents », avec le libellé « GitHub »).
  */
 export function creerLanceurs({ fiche, typeFiche = 'affaire', nomSuggere = '', enregistrer }) {
   const etat = { urlGithub: fiche.urlGithub || '', urlDossier: fiche.urlDossier || '' };
@@ -66,18 +65,6 @@ export function creerLanceurs({ fiche, typeFiche = 'affaire', nomSuggere = '', e
       toast('Enregistrement impossible', { type: 'erreur' });
       return false;
     }
-  }
-
-  // ------------------------------------------------------------ Ancienne adresse GitHub (affaire seulement, tant qu'elle existe)
-  let ligneGithub = null;
-  if (typeFiche === 'affaire' && etat.urlGithub) {
-    const sure = !Object.keys(L.validerUrlGithub(etat.urlGithub)).length;
-    const texte = ` ${etat.urlGithub.replace(/^https:\/\//, '')}`;
-    ligneGithub = h('div', { class: 'prop', dataset: { prop: 'github' } }, h('span', { class: 'prop-libelle' }, 'GitHub'),
-      h('div', { class: 'prop-valeur lanceur' }, h('div', { class: 'lanceur-ligne' },
-        sure ? h('a', { class: 'prop-lien', href: etat.urlGithub, target: '_blank', rel: 'noopener noreferrer' }, icone('git-branch', { taille: 14 }), texte) : h('span', {}, texte),
-        h('button', { type: 'button', class: 'prop-modifier bouton-icone', dataset: { action: 'retirer-github' }, 'aria-label': 'Retirer l’adresse GitHub',
-          onclick: async () => { try { await enregistrer({ urlGithub: '' }); } catch (e) { console.warn(e); toast('Enregistrement impossible', { type: 'erreur' }); } } }, icone('x', { taille: 14 })))));
   }
 
   // ------------------------------------------------------------ Dossier de travail
@@ -141,5 +128,5 @@ export function creerLanceurs({ fiche, typeFiche = 'affaire', nomSuggere = '', e
   }
 
   afficherDossier();
-  return { github: ligneGithub, dossier: ligneDossier };
+  return { github: null, dossier: ligneDossier };
 }

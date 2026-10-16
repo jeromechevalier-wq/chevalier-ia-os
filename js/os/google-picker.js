@@ -81,7 +81,7 @@ export function oublierJeton() { jeton = null; }
 /**
  * Ouvre la fenêtre Google. Renvoie la liste des éléments choisis [{ id, nom, url, type }], ou [] si l'utilisateur ferme la fenêtre.
  * - mode 'documents' : onglets « Mon Drive » (parcourir) et, si `dossierImport` est donné, « Importer » (le fichier de l'ordinateur est envoyé dans ce dossier).
- *   « Mon Drive » démarre dans le dossier de travail (`dossierImport`) s'il y en a un, sinon à la RACINE de Mon Drive ;
+ *   « Mon Drive » est libre : il démarre à la RACINE de Mon Drive (on peut tout parcourir) ; seul « Importer » est limité au dossier de travail ;
  * - mode 'dossier' : choisir UN dossier existant (réglage du dossier parent), en partant de la racine de Mon Drive.
  * Les deux vues sont des DocsView avec setParent : on navigue dossier par dossier (la vue « FOLDERS » seule, elle, montre à plat TOUS les dossiers du Drive mélangés).
  */
@@ -99,7 +99,7 @@ export async function ouvrirFenetreGoogle({ mode = 'documents', dossierImport = 
   if (mode === 'dossier') {
     constructeur.addView(new g.DocsView(g.ViewId.DOCS).setParent(RACINE_DRIVE).setIncludeFolders(true).setSelectFolderEnabled(true).setMimeTypes(TYPE_DOSSIER));
   } else {
-    constructeur.addView(new g.DocsView(g.ViewId.DOCS).setParent(dossierImport || RACINE_DRIVE).setIncludeFolders(true)); // l'onglet s'appelle « Mon Drive » en français chez Google
+    constructeur.addView(new g.DocsView(g.ViewId.DOCS).setParent(RACINE_DRIVE).setIncludeFolders(true)); // l'onglet s'appelle « Mon Drive » en français chez Google
     if (dossierImport) constructeur.addView(new g.DocsUploadView().setParent(dossierImport));
     if (multiple) constructeur.enableFeature(g.Feature.MULTISELECT_ENABLED);
   }

@@ -1064,9 +1064,9 @@ describe('B19 Liens et documents, dossier de travail (affaires et projets)', () 
   test('B19 « Liens et documents » : les documents, puis l\'ancienne adresse GitHub (libellé « GitHub ») sans rien écrire ; pas de doublon', () => {
     const projet = { documents: [{ libelle: 'Devis', url: 'https://drive.google.com/file/d/abc/view', favori: true }, { url: 'https://exemple.fr/x' }], urlGithub: 'https://github.com/a/b' };
     assert.deepEqual(L.liensEtDocuments(projet), [
-      { libelle: 'Devis', url: 'https://drive.google.com/file/d/abc/view', favori: true, index: 0 },
-      { libelle: 'https://exemple.fr/x', url: 'https://exemple.fr/x', favori: false, index: 1 },
-      { libelle: 'GitHub', url: 'https://github.com/a/b', favori: false, index: -1 },
+      { libelle: 'Devis', url: 'https://drive.google.com/file/d/abc/view', note: '', favori: true, index: 0 },
+      { libelle: 'exemple.fr', url: 'https://exemple.fr/x', note: '', favori: false, index: 1 }, // sans nom : le nom du site
+      { libelle: 'GitHub', url: 'https://github.com/a/b', note: '', favori: false, index: -1 },
     ]);
     assert.equal(projet.urlGithub, 'https://github.com/a/b', 'la donnée ancienne n\'est pas modifiée');
     assert.deepEqual(L.liensEtDocuments({ documents: [{ libelle: 'Dépôt', url: 'https://github.com/a/b' }], urlGithub: 'https://github.com/a/b' }).map((l) => l.libelle), ['Dépôt'], 'déjà dans la liste : pas deux fois');
@@ -1081,6 +1081,28 @@ describe('B19 Liens et documents, dossier de travail (affaires et projets)', () 
     assert.deepEqual(L.retirerLien(projet, github), { urlGithub: '' });
     assert.deepEqual(L.basculerFavoriLien(projet, devis), { documents: [{ libelle: 'Devis', url: 'https://d.fr/1', favori: true }] });
     assert.deepEqual(L.basculerFavoriLien(projet, github), { documents: [{ libelle: 'Devis', url: 'https://d.fr/1' }, { libelle: 'GitHub', url: 'https://github.com/a/b', favori: true }], urlGithub: '' });
+  });
+
+  test('B19 nom et note facultatifs : sans nom, le nom du site ; note de 300 caractères au plus ; anciens documents inchangés', () => {
+    assert.equal(L.nomCourtLien('https://www.exemple.fr/chemin/long?x=1'), 'exemple.fr');
+    assert.equal(L.nomCourtLien('http://nas.local:5000/partage'), 'nas.local');
+    assert.equal(L.nomCourtLien('pas un lien'), 'pas un lien');
+    const sans = L.ajouterDocument({ documents: [{ libelle: 'Ancien', url: 'https://a.fr/1' }] }, '', 'https://www.exemple.fr/devis');
+    assert.deepEqual(sans.patch.documents, [{ libelle: 'Ancien', url: 'https://a.fr/1' }, { libelle: 'exemple.fr', url: 'https://www.exemple.fr/devis' }]);
+    const avec = L.ajouterDocument({}, '  Portrait   Chantal ', 'https://drive.google.com/file/d/1/view', false, '  envoyé  au client ');
+    assert.deepEqual(avec.patch.documents, [{ libelle: 'Portrait Chantal', url: 'https://drive.google.com/file/d/1/view', note: 'envoyé au client' }]);
+    assert.equal(L.ajouterDocument({}, 'x', 'https://a.fr', false, 'n'.repeat(500)).patch.documents[0].note.length, 300);
+    assert.equal('note' in L.ajouterDocument({}, 'x', 'https://a.fr', false, '   ').patch.documents[0], false);
+    assert.deepEqual(L.liensEtDocuments(avec.patch).map((l) => l.note), ['envoyé au client']);
+  });
+
+  test('B19 modifier le nom et la note d\'une ligne : nom vide = nom du site, note vide = champ effacé, étoile gardée ; l\'ancien GitHub passe dans la liste', () => {
+    const e = { documents: [{ libelle: 'Devis', url: 'https://www.d.fr/1', note: 'v1', favori: true }, { libelle: 'Autre', url: 'https://a.fr' }], urlGithub: 'https://github.com/a/b' };
+    const [devis, , github] = L.liensEtDocuments(e);
+    assert.deepEqual(L.modifierLien(e, devis, { libelle: 'Devis signé', note: ' v2 ' }).documents[0], { libelle: 'Devis signé', url: 'https://www.d.fr/1', note: 'v2', favori: true });
+    assert.deepEqual(L.modifierLien(e, devis, { libelle: '', note: '' }).documents[0], { libelle: 'd.fr', url: 'https://www.d.fr/1', favori: true });
+    assert.deepEqual(L.modifierLien(e, devis, { libelle: 'x', note: '' }).documents[1], { libelle: 'Autre', url: 'https://a.fr' }, 'les autres lignes ne bougent pas');
+    assert.deepEqual(L.modifierLien(e, github, { libelle: 'Dépôt', note: 'code' }), { documents: [...e.documents, { libelle: 'Dépôt', url: 'https://github.com/a/b', note: 'code' }], urlGithub: '' });
   });
 
   test('B19 plus de convention de nommage ni de prompt Claude Code : ces fonctions n\'existent plus', () => {

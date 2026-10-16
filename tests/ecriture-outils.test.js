@@ -263,6 +263,12 @@ describe('Création et modification (tests 9 et 11)', () => {
     assert.deepEqual(s.doc('crm_affaires', 'a1').documents.map((d) => d.favori), [undefined, undefined], 'sans favori: true, pas d’étoile');
     ok(await s.appeler('biblio', 'joindre_lien', { affaireId: 'a1', url: 'https://exemple.test/suivi', libelle: 'Suivi', favori: true }));
     assert.equal(s.doc('crm_affaires', 'a1').documents.at(-1).favori, true);
+    // Note facultative (300 caractères au plus), renvoyée à la lecture ; sans nom : le nom du site
+    ok(await s.appeler('biblio', 'joindre_lien', { affaireId: 'a1', url: 'https://www.exemple.test/portrait', note: 'envoyé au client' }));
+    assert.deepEqual(s.doc('crm_affaires', 'a1').documents.at(-1), { libelle: 'exemple.test', url: 'https://www.exemple.test/portrait', note: 'envoyé au client' });
+    assert.equal(ok(await s.appeler('biblio', 'lister_documents', { affaireId: 'a1' })).documents.at(-1).note, 'envoyé au client');
+    refuse(await s.appeler('biblio', 'joindre_lien', { affaireId: 'a1', url: 'https://exemple.test/long', note: 'x'.repeat(301) }));
+    ok(await s.appeler('biblio', 'retirer_document', { affaireId: 'a1', url: 'https://www.exemple.test/portrait' }));
     ok(await s.appeler('biblio', 'retirer_document', { affaireId: 'a1', url: 'https://exemple.test/suivi' }));
     refuse(await s.appeler('biblio', 'retirer_document', { affaireId: 'a1', index: 0, url: 'https://exemple.test/contrat' }), /ne correspond pas/);
     refuse(await s.appeler('biblio', 'retirer_document', { affaireId: 'a1', index: 7 }), /introuvable/);

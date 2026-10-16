@@ -441,3 +441,20 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 .libelle-calcule { flex: 1 1 200px; font-weight: 600; }
 .explication-objectif { margin: 2px 0 0; }
 .ajout-calcule { margin-top: 12px; }
+
+/* ---------------------------------------------------------------- liens et documents (projet et affaire) */
+.liste-liens { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.ligne-lien { display: flex; align-items: flex-start; gap: 6px 10px; min-width: 0; }
+.ligne-lien > svg { margin-top: 5px; flex: none; }
+.ligne-lien .lien-texte { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 2px; overflow-wrap: anywhere; }
+.ligne-lien .lien-note { font-size: 13px; color: var(--texte2); }
+.ligne-lien-edition { display: block; }
+.form-lien { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.form-lien .champ { width: 100%; }
+.pile > .ligne-ajout .bouton { flex: 0 0 auto; }
+
+/* Réglages : « Dossier Drive parent » : libellé, nom du dossier, boutons alignés sur la même ligne (le nom se tronque avec « … ») */
+.ligne-parent-drive { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; min-width: 0; }
+.ligne-parent-drive .ligne-parent-libelle { flex: none; }
+.ligne-parent-drive .valeur-parent { flex: 1 1 120px; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.ligne-parent-drive .bouton { flex: none; }

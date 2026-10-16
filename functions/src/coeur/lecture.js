@@ -149,7 +149,7 @@ export async function listerDocuments(donnees, { affaireId, projetId }) {
   // Sans filtre : affaires puis projets ; avec un filtre : seulement la source demandée.
   const affaires = projetId ? [] : affaireId ? [await donnees.document(C.affaires, affaireId)].filter(Boolean) : await donnees.liste(C.affaires);
   const projets = affaireId ? [] : projetId ? [await donnees.document(C.projets, projetId)].filter(Boolean) : await donnees.liste(C.projets);
-  const ligne = (d, index) => ({ index, libelle: d.libelle ?? null, url: d.url ?? null, favori: d.favori === true });
+  const ligne = (d, index) => ({ index, libelle: d.libelle ?? null, url: d.url ?? null, ...(d.note ? { note: d.note } : {}), favori: d.favori === true });
   const documents = [
     ...affaires.flatMap((a) => (a.documents || []).map((d, index) => ({ affaireId: a.id, titreAffaire: a.titre, ...ligne(d, index) }))),
     ...projets.flatMap((p) => (p.documents || []).map((d, index) => ({ projetId: p.id, titreProjet: p.titre, ...ligne(d, index) }))),

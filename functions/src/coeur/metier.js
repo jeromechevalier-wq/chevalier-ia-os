@@ -229,7 +229,7 @@ async function cibleDocuments(c, { affaireId, projetId }) {
 
 export async function joindreLien(c, args) {
   const cible = await cibleDocuments(c, args);
-  const r = L.ajouterDocument(cible.entite, args.libelle, args.url, args.favori === true);
+  const r = L.ajouterDocument(cible.entite, args.libelle, args.url, args.favori === true, args.note);
   verifierMessages(r.erreurs);
   return sortie(await c.ecrire({ operations: cible.plan(r.patch).ecritures, parametres: args }), { ...cible.cle, documents: r.patch.documents.length });
 }
