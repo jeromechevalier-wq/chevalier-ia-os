@@ -1141,7 +1141,8 @@ test('C24 plus de champ GitHub ni de « Créer le GitHub » : une ancienne adres
   await expect(liens.getByRole('link', { name: 'GitHub' })).toHaveCount(0);
 });
 
-test('C25 dossier de travail d\'une affaire : « Lier un dossier existant » accepte n\'importe quel lien (Drive, serveur, NAS, site), refuse un texte ; Ouvrir, Modifier, Retirer ; pas de « Créer un dossier » tant que Google n\'est pas branché', async ({ page }) => {
+test('C25 dossier de travail d\'une affaire : « Lier un dossier existant » accepte n\'importe quel lien (Drive, serveur, NAS, site), refuse un texte ; Ouvrir, Modifier, Retirer ; pas de « Créer un dossier » tant que Google n\'est pas branché', async ({ page, context }) => {
+  await debrancherGoogle(context); // le CRM de Jérôme a maintenant son identifiant client : on simule « Google non branché »
   await fixtureEliot();
   await connecter(page);
   await aller(page, '#/crm/affaires/a1');
