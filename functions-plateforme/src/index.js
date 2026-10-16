@@ -50,7 +50,8 @@ export const automatisationsRenommer = onCall(
 // MCP des clients : un lien par client (https://chevalier-ia-app.web.app/mcp/<client>), comptes lus dans les membres, profil déduit du rôle.
 // Invocation publique côté Google (comme le MCP de Jérôme) : la vraie porte est la connexion Google + la fiche de membre, revérifiées à chaque appel.
 // Le nom « mcpclients » est celui du service Cloud Run visé par les réécritures de firebase.plateforme.json. Code : functions/src/clients/ (copié dans serveur/ au déploiement).
+// Compte dédié : seulement « Utilisateur Cloud Datastore » (Firestore). À créer AVANT le déploiement (docs/mcp-clients.md), sinon le déploiement échoue.
 export const mcpclients = onRequest(
-  { region: REGION, maxInstances: 3, memory: '256MiB', timeoutSeconds: 120, invoker: 'public', cors: false },
+  { region: REGION, maxInstances: 3, memory: '256MiB', timeoutSeconds: 120, invoker: 'public', cors: false, serviceAccount: 'mcp-clients@chevalier-ia-app.iam.gserviceaccount.com' },
   creerMcpClients(),
 );
