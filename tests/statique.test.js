@@ -195,16 +195,16 @@ describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
     const donnees = lire('js/modules/crm/donnees.js');
     const debut = donnees.indexOf('export async function lireJournal');
     const journal = donnees.slice(debut, donnees.indexOf('\n}\n', debut));
-    // Seconde exception (chantier 14) : l'historique du journal des workflows lit les 300 dernières exécutions, triées sur UN champ, sans condition.
-    const FICHIER_JOURNAL_WORKFLOWS = 'js/modules/journal/donnees.js';
+    // Seconde exception (chantier 14) : l'historique des automatisations (n8n) lit les 300 dernières exécutions, triées sur UN champ, sans condition.
+    const FICHIER_AUTOMATISATIONS = 'js/modules/automatisations/donnees.js';
     const requeteWorkflows = "query(collection(db, chemin('executions')), orderBy('startedAt', 'desc'), limit(NB_MAX_EXECUTIONS))";
-    const donneesWorkflows = lire(FICHIER_JOURNAL_WORKFLOWS);
-    assert.ok(donneesWorkflows.includes(requeteWorkflows), 'journal des workflows : tri sur le seul champ startedAt, avec limite');
+    const donneesWorkflows = lire(FICHIER_AUTOMATISATIONS);
+    assert.ok(donneesWorkflows.includes(requeteWorkflows), 'automatisations : tri sur le seul champ startedAt, avec limite');
     assert.equal((donneesWorkflows.match(/\borderBy\s*\(/g) || []).length, 1);
     assert.ok(debut > 0 && /orderBy\('date', 'desc'\)/.test(journal), 'lireJournal trie sur le seul champ date');
     assert.doesNotMatch(journal, /\bwhere\s*\(/, 'lireJournal : aucune condition en plus du tri');
     for (const f of sources()) {
-      const t = f === 'js/modules/crm/donnees.js' ? donnees.replace(journal, '') : f === FICHIER_JOURNAL_WORKFLOWS ? donneesWorkflows.replace(requeteWorkflows, '') : lire(f);
+      const t = f === 'js/modules/crm/donnees.js' ? donnees.replace(journal, '') : f === FICHIER_AUTOMATISATIONS ? donneesWorkflows.replace(requeteWorkflows, '') : lire(f);
       assert.doesNotMatch(t, /\borderBy\s*\(/, `${f} : orderBy`);
       assert.doesNotMatch(t, /\blimit\s*\(/, `${f} : limit`);
       for (const [requete] of t.matchAll(/query\s*\([^;]*?\)\s*,/gs)) {
@@ -262,13 +262,13 @@ describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
   });
 
   test('D4 le code publié (appli) n’utilise ni Cloud Function ni Cloud Storage : le serveur MCP vit dans functions/, jamais publié', () => {
-    // Seule exception (chantier 14) : le journal des workflows appelle deux fonctions du serveur (rafraîchir, renommer) ; aucun Cloud Storage.
+    // Seule exception (chantier 14) : le module Automatisations (n8n) appelle deux fonctions du serveur (rafraîchir, renommer) ; aucun Cloud Storage.
     for (const f of fichiersAppli().filter((x) => /\.js$/.test(x))) {
-      const t = f === 'js/modules/journal/donnees.js' ? lire(f).replaceAll(/getFunctions|httpsCallable|firebase-functions\.js/g, '') : lire(f);
+      const t = f === 'js/modules/automatisations/donnees.js' ? lire(f).replaceAll(/getFunctions|httpsCallable|firebase-functions\.js/g, '') : lire(f);
       assert.doesNotMatch(t, /firebase-functions|firebase-storage|getStorage|httpsCallable/, f);
     }
-    const appels = [...lire('js/modules/journal/donnees.js').matchAll(/httpsCallable\(fonctions\(\), '([A-Za-z]+)'\)/g)].map((m) => m[1]);
-    assert.deepEqual(appels.sort(), ['journalRafraichir', 'journalRenommer']);
+    const appels = [...lire('js/modules/automatisations/donnees.js').matchAll(/httpsCallable\(fonctions\(\), '([A-Za-z]+)'\)/g)].map((m) => m[1]);
+    assert.deepEqual(appels.sort(), ['automatisationsRafraichir', 'automatisationsRenommer']);
   });
 });
 

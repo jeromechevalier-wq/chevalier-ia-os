@@ -438,6 +438,10 @@ describe('B10 Activités, notes, historique', () => {
     assert.equal(L.nouvelleActivite({ type: 'rendez_vous', titre: ' Café ' }, ctx()).titre, 'Café');
     assert.equal(L.nouvelleActivite({ type: 'inconnu' }, ctx()).type, 'tache');
   });
+  test('B10 activité de projet : le projet est gardé ; une activité ordinaire n’a pas ce champ', () => {
+    assert.equal(L.nouvelleActivite({ type: 'appel', projetId: 'pr1', personneId: 'p1' }, ctx()).projetId, 'pr1');
+    assert.equal('projetId' in L.nouvelleActivite({ type: 'appel', personneId: 'p1' }, ctx()), false);
+  });
   test('B10 "Fait" : enregistre la date et crée l’événement', () => {
     const r = L.activiteFaite(activite({ type: 'rendez_vous', titre: 'Café', personneId: 'p', affaireId: 'a' }), ctx('2026-10-15T09:00:00Z'));
     assert.equal(r.patch.fait, true);

@@ -236,7 +236,27 @@ test('Favoris : l’étoile d’un document d’affaire ou de projet le met sur 
   await expect(page.locator('.section-favoris li')).toHaveCount(1);
 });
 
-test('C29 notes d’un projet : seulement Notes et historique ; la note est aussi dans l’historique de la personne, de l’organisation et de l’affaire', async ({ page }) => {
+test('C29 fiche projet : phase modifiable depuis le Résumé (sans ligne Statut) ; appel, rendez vous et email rattachés au projet, sans tâche libre', async ({ page }) => {
+  await creerPersonne('p1', { nom: 'Camille Durand' });
+  await creerProjet('pr1', { titre: 'Audit des Lilas', personneId: 'p1' });
+  await connecter(page);
+  await aller(page, '#/projets/projets/pr1');
+  const resume = page.locator('[data-section="projet-resume"]');
+  await expect(resume).not.toContainText('Statut');
+  await resume.locator('[data-action="choisir-phase"]').selectOption('decouverte');
+  await champDoc('projets_projets', 'pr1', 'phase', 'decouverte');
+  await expect(page.locator('.barre-etapes-fiche .etape.courante')).toHaveText('Découverte');
+  const panneau = page.locator('.panneau-activite');
+  await expect(panneau.getByRole('group', { name: 'Type d’activité' }).getByRole('button')).toHaveText(['Appel', 'Rendez vous', 'Email']);
+  await panneau.getByRole('button', { name: 'Rendez vous' }).click();
+  await panneau.getByLabel('Titre de l’activité').fill('Point de lancement');
+  await panneau.locator('[data-action="enregistrer-activite"]').click();
+  const activite = await attendre('crm_activites', (d) => d.projetId === 'pr1');
+  expect(activite).toMatchObject({ type: 'rendez_vous', titre: 'Point de lancement', personneId: 'p1', projetId: 'pr1', fait: false });
+  await expect(panneau.locator('.points-cles')).toContainText('Point de lancement');
+});
+
+test('C29 notes d’un projet : onglets Activité et Notes ; la note est aussi dans l’historique de la personne, de l’organisation et de l’affaire', async ({ page }) => {
   await creerOrganisation('o1', { nom: 'Atelier des Lilas' });
   await creerPersonne('p1', { nom: 'Camille Durand', organisationId: 'o1' });
   await creerAffaire('a1', { titre: 'Audit des Lilas', personneId: 'p1', organisationId: 'o1', etape: 'gagne' });
@@ -244,9 +264,10 @@ test('C29 notes d’un projet : seulement Notes et historique ; la note est auss
   await connecter(page);
   await aller(page, '#/projets/projets/pr1');
   const panneau = page.locator('.panneau-activite');
-  await expect(panneau.getByRole('tab')).toHaveCount(1);
+  await expect(panneau.getByRole('tab')).toHaveCount(2);
+  await expect(panneau.getByRole('tab', { name: 'Activité' })).toHaveAttribute('aria-selected', 'true');
+  await panneau.getByRole('tab', { name: 'Notes' }).click();
   await expect(panneau.getByRole('tab', { name: 'Notes' })).toHaveAttribute('aria-selected', 'true');
-  await expect(panneau.locator('.points-cles')).toHaveCount(0);
   await expect(panneau).not.toContainText('null');
   await expect(page.locator('.fiche-sous')).toContainText('Camille Durand');
   await expect(page.locator('[data-section="projet-resume"]')).toContainText('Audit des Lilas');

@@ -5,7 +5,7 @@
 // la vraie protection reste dans les règles (firestore.plateforme.rules).
 import { MODULES_CLIENT } from './modules.js';
 import { cheminBaseClient } from './chemins.js';
-import { moduleAccessible, premiereRoute } from './registre.js';
+import { moduleAccessible, premiereRoute, routeModernisee } from './registre.js';
 import { definirPrefixe, routeCourante, segments, surChangementRoute, naviguer, lien, suivreLiensDuPrefixe } from './router.js';
 import { monterCoquille } from './shell.js';
 import { definirChezClient } from './contexte.js';
@@ -32,6 +32,8 @@ export async function ouvrirEspaceModules(racine, { client, marque, compte, acti
   const arretLiens = suivreLiensDuPrefixe();
 
   function afficherRoute(route) {
+    const modernisee = routeModernisee(route); // ancien lien #/espace/<client>/journal/… -> automatisations/… (renommage du 16/10/2026)
+    if (modernisee !== route) { naviguer(modernisee, { remplacer: true }); return; }
     const segs = segments(route);
     if (!segs.length) { naviguer(accueil, { remplacer: true }); return; }
     const m = modules.find((x) => x.prefixe === segs[0]);

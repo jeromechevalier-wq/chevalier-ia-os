@@ -1,6 +1,6 @@
 # Activer et désactiver un module chez un client
 
-Un **module** est un bloc d'écrans (par exemple « Journal » ou « Affaires »). Chaque client voit seulement les modules que tu as activés pour lui. Il y a **deux façons** de les gérer : à la main dans la console Firebase, ou avec une commande dans le Terminal. Les deux donnent le même résultat.
+Un **module** est un bloc d'écrans (par exemple « Automatisations » ou « Affaires »). Chaque client voit seulement les modules que tu as activés pour lui. Il y a **deux façons** de les gérer : à la main dans la console Firebase, ou avec une commande dans le Terminal. Les deux donnent le même résultat.
 
 ## Les modules existants
 
@@ -8,9 +8,10 @@ Un **module** est un bloc d'écrans (par exemple « Journal » ou « Affaires »
 |---|---|---|
 | `affaires` | le « CRM » : personnes, organisations, affaires | |
 | `projets` | les projets | ne marche **que si `affaires` est aussi actif** |
-| `journal` | « Automatisations > Historique » (journal des workflows n8n) | l'identifiant du client doit faire 17 caractères au plus ; il faut aussi l'étiquette `client-<identifiant>` sur les workflows dans n8n |
+| `veille` | « Veille » : contenus et sources suivies | |
+| `automatisations` | « Automatisations > Historique » (historique des workflows n8n) | l'identifiant du client doit faire 17 caractères au plus ; il faut aussi l'étiquette `client-<identifiant>` sur les workflows dans n8n. **Ancien nom : `journal`** (renommé le 16/10/2026) : une fiche qui dit encore `journal: true` marche toujours, sans rien changer ; pour un nouveau réglage, écris `automatisations`. Ne pas confondre avec l'écran « Journal » du CRM (historique des modifications), qui n'est pas un module à activer. |
 
-Ce que change un interrupteur : les **menus du client** (au prochain rechargement de sa page). Les **données ne sont jamais effacées** : si tu rallumes un module, tout est retrouvé. Pour `journal`, éteint, plus rien n'est copié depuis n8n pour ce client.
+Ce que change un interrupteur : les **menus du client** (au prochain rechargement de sa page). Les **données ne sont jamais effacées** : si tu rallumes un module, tout est retrouvé. Pour `automatisations`, éteint, plus rien n'est copié depuis n8n pour ce client.
 
 ## Méthode 1 : à la main, dans la console Firebase (sans Terminal)
 
@@ -20,7 +21,7 @@ Ce que change un interrupteur : les **menus du client** (au prochain rechargemen
 2. Dans la colonne de droite, repère le champ **`modules`** (type *map*). Il contient une ligne par module, par exemple `affaires: true`.
 3. **Pour activer** un module qui n'est pas dans la liste :
    - survole la ligne `modules`, clique sur le **+** (« Ajouter un champ » dans le champ) ;
-   - **Nom du champ** : le nom du module (`journal`, `affaires`, `projets`) ;
+   - **Nom du champ** : le nom du module (`automatisations`, `affaires`, `projets`, `veille`) ;
    - **Type** : *boolean* ; **Valeur** : `true` ;
    - clique sur **Ajouter**.
 4. **Pour désactiver** : clique sur la valeur `true` du module, mets **`false`**, puis valide par **Mettre à jour**.
@@ -46,13 +47,13 @@ cd "/Users/jeromechevalier/Library/CloudStorage/GoogleDrive-jerome.chevalier@gma
 Activer :
 
 ```bash
-node scripts/nouveau-client.js activer-module <identifiant> journal --ecrire
+node scripts/nouveau-client.js activer-module <identifiant> automatisations --ecrire
 ```
 
 Désactiver :
 
 ```bash
-node scripts/nouveau-client.js desactiver-module <identifiant> journal --ecrire
+node scripts/nouveau-client.js desactiver-module <identifiant> automatisations --ecrire
 ```
 
 Sans `--ecrire`, la commande **simule** : elle affiche ce qu'elle ferait, sans rien changer. L'outil refuse aussi les combinaisons invalides (par exemple `projets` sans `affaires`).
@@ -70,9 +71,9 @@ node scripts/nouveau-client.js afficher <identifiant>
 | Le module n'apparaît pas chez le client | page non rechargée, nom mal écrit, valeur à `false`, ou le module est ajouté hors du champ `modules` |
 | `Could not load the default credentials` dans le Terminal | l'étape `gcloud auth application-default login` n'est pas faite |
 | `gcloud: command not found` | ouvre un nouveau Terminal (l'installation est dans `~/.local/google-cloud-sdk`) |
-| Le journal est vide | pas d'étiquette `client-<identifiant>` sur un workflow n8n, ou pas encore de clic sur « Rafraîchir l'historique » |
+| L'historique des automatisations est vide | pas d'étiquette `client-<identifiant>` sur un workflow n8n, ou pas encore de clic sur « Rafraîchir l'historique » |
 
-Voir aussi : `docs/nouveau-client.md` (créer un client, membres) et `docs/journal-activite-workflows.md` (le journal).
+Voir aussi : `docs/nouveau-client.md` (créer un client, membres) et `docs/automatisations-n8n.md` (le module Automatisations).
 
 ## Le module « mcp » (accès d'un assistant : Claude, ChatGPT)
 `activer-module <client> mcp --ecrire` allume le lien `https://chevalier-ia-app.web.app/mcp/<client>` et la page « Connecter ton assistant » ; `desactiver-module <client> mcp --ecrire` les éteint (le lien ne répond plus à l'appel suivant). Il ne dépend d'aucun autre module, mais n'a d'outils à proposer que ceux des modules actifs (CRM = `affaires` + `projets`). Tout est expliqué dans `docs/mcp-clients.md`.

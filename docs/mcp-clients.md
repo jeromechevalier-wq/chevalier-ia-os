@@ -27,7 +27,7 @@ Le MCP des clients lit la base de la plateforme (projet `chevalier-ia-app`), pas
 ## À déployer, dans l'ordre (par Jérôme, une fois la PR fusionnée)
 Rien ne part tout seul sur la plateforme. Dans GitHub : <https://github.com/jeromechevalier-wq/chevalier-ia-os/actions/workflows/deploiement-plateforme.yml> > **Run workflow**, branche `main`, puis :
 1. choisir **regles** : publie la règle qui permet à un membre de voir la liste des membres de son espace (page d'information) ;
-2. choisir **fonctions** : publie `mcpclients` (et republie les trois fonctions du journal, sans changement) ;
+2. choisir **mcp** : publie seulement `mcpclients` (aucun secret nécessaire). Le choix **fonctions** publie toute la série, journal compris, et exige la clé n8n (`N8N_API_KEY`) dans Secret Manager ;
 3. choisir **hosting** : publie le site et les réécritures `/mcp/…` et `/oauth/…` (à faire **après** les fonctions : Hosting refuse une réécriture vers un service qui n'existe pas encore).
 4. Allumer le module chez un client : `node scripts/nouveau-client.js activer-module <client> mcp --ecrire` (voir `nouveau-client.md`), puis ouvrir `https://chevalier-ia-app.web.app/mcp/<client>` n'affiche rien d'utile dans un navigateur : l'essai se fait en ajoutant le lien dans Claude.
 

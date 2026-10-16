@@ -1,8 +1,10 @@
-# Journal d'activité des workflows n8n (chantier 14, phases 1 et 2)
+# Module Automatisations : historique des workflows n8n (chantier 14, phases 1 et 2)
+
+> **Renommage du 16/10/2026** : ce module s'appelait `journal` dans le code (et « journal d'activité des workflows » dans cette page). Il s'appelle maintenant **`automatisations`**, comme son menu, pour ne plus le confondre avec l'écran **« Journal » du CRM** (historique des modifications et restauration, `docs/journal-ecran.md`), qui garde son nom. Ce qui change : l'identifiant du module, les routes (`automatisations/historique`), les dossiers (`js/modules/automatisations/`, `css/automatisations.css`), les trois fonctions Firebase (`automatisationsCopieHoraire`, `automatisationsRafraichir`, `automatisationsRenommer`) et ce fichier. Ce qui **ne change pas** : les collections Firestore (`workflows`, `executions`, `sync`, `plateforme_journal/signalements`), l'étiquette n8n `client-<identifiant>`, la clé `N8N_API_KEY`, et le préfixe « Journal : » des messages dans les journaux Google Cloud (l'alerte e-mail le cherche). **Compatibilité** : un client dont la fiche dit encore `journal: true` garde son module (voir la partie 3), et les anciens liens `…/journal/historique` sont redirigés.
 
 Chaque client voit, dans son espace, ce que font ses automatisations n8n : ce qui tourne **en ce moment** et l'**historique**. L'application ne parle jamais à n8n : elle lit une **copie** rangée dans Firebase. Cahier des charges de Jérôme : <https://claude.ai/artifact/DqhJ4UZ4sucD93d2z7F56H>.
 
-**État : tout est écrit et testé sur des émulateurs avec un FAUX n8n. Rien n'est déployé, aucun appel réel à n8n, aucune écriture dans la vraie base.** Les étapes pour mettre en service sont dans la partie 7 (c'est à toi, Jérôme, de les faire).
+**État : tout est écrit et testé sur des émulateurs avec un FAUX n8n. Rien n'est déployé, aucun appel réel à n8n, aucune écriture dans la vraie base.** Les étapes pour mettre en service sont dans la partie 7 (c'est à toi, Jérôme, de les faire). Depuis le 16/10/2026 le module est aussi **visible dans ton propre OS** (menu « Automatisations »), avec un écran vide tant que tes workflows ne sont pas copiés (partie 10).
 
 ---
 
@@ -13,10 +15,10 @@ n8n  ──(lecture seule, toutes les heures + à chaque « Rafraîchir »)─�
 ```
 
 - **Trois fonctions Firebase** (dossier `functions-plateforme/`, projet `chevalier-ia-app`, région Paris) :
-  - `journalCopieHoraire` : tourne **toutes les heures** et copie le journal de tous les clients qui ont le module.
-  - `journalRafraichir` : appelée par le bouton **« Rafraîchir l'historique »** et par la mise à jour automatique de l'écran.
-  - `journalRenommer` : change le nom affiché d'une automatisation (partie 4).
-- **L'écran** (module `journal`, menu « Automatisations » > « Historique ») lit Firestore **en direct** : dès que le serveur écrit, la liste change sans recharger. Tant que la page est visible et la case « Mise à jour automatique (10 s) » cochée, elle demande une copie au serveur toutes les 10 secondes (le serveur refuse poliment si la dernière date de moins de 10 secondes).
+  - `automatisationsCopieHoraire` : tourne **toutes les heures** et copie l'historique de tous les clients qui ont le module.
+  - `automatisationsRafraichir` : appelée par le bouton **« Rafraîchir l'historique »** et par la mise à jour automatique de l'écran.
+  - `automatisationsRenommer` : change le nom affiché d'une automatisation (partie 4).
+- **L'écran** (module `automatisations`, menu « Automatisations » > « Historique ») lit Firestore **en direct** : dès que le serveur écrit, la liste change sans recharger. Tant que la page est visible et la case « Mise à jour automatique (10 s) » cochée, elle demande une copie au serveur toutes les 10 secondes (le serveur refuse poliment si la dernière date de moins de 10 secondes).
 - **Les fonctions ne font que LIRE n8n** (requêtes `GET`). Un test échoue si le code emploie un autre verbe. n8n n'est jamais modifié, jamais relancé.
 
 ### Ce qui est copié dans Firebase (et ce qui ne l'est jamais)
@@ -54,7 +56,7 @@ Dans n8n, sur le workflow : **ajouter l'étiquette `client-<identifiant du clien
 
 | Situation | Ce qui se passe |
 |---|---|
-| Une étiquette `client-audrey`, client connu **avec** le module journal | le workflow est copié chez `audrey` |
+| Une étiquette `client-audrey`, client connu **avec** le module automatisations | le workflow est copié chez `audrey` |
 | **Aucune** étiquette de client | **jamais copié** (cas normal des workflows de Jérôme) |
 | Étiquette d'un client **inconnu** | ignoré et **signalé** (raison `client-inconnu`) |
 | Étiquette d'un client **sans** le module | ignoré et signalé (`sans-module`) |
@@ -68,7 +70,7 @@ Les **dossiers et projets** de n8n ne servent pas (ta formule n8n n'a pas de pro
 
 ### ⚠ Limite : 24 caractères
 
-n8n limite le nom d'une étiquette à **24 caractères** (vérifié dans le code de n8n, `TagEntity`). `client-` en prend 7 : **l'identifiant d'un client qui a le module journal tient donc en 17 caractères au plus**, alors qu'un identifiant peut aller jusqu'à 40. Conséquence : pour un client au nom long (`cabinet-de-conseil-martin`), choisis un identifiant court (`cabinet-martin`). L'outil « nouveau client » **refuse** d'activer le module journal sur un identifiant trop long, en le disant. Le nom affiché du client (page, menu) reste, lui, aussi long que tu veux.
+n8n limite le nom d'une étiquette à **24 caractères** (vérifié dans le code de n8n, `TagEntity`). `client-` en prend 7 : **l'identifiant d'un client qui a le module automatisations tient donc en 17 caractères au plus**, alors qu'un identifiant peut aller jusqu'à 40. Conséquence : pour un client au nom long (`cabinet-de-conseil-martin`), choisis un identifiant court (`cabinet-martin`). L'outil « nouveau client » **refuse** d'activer le module automatisations sur un identifiant trop long, en le disant. Le nom affiché du client (page, menu) reste, lui, aussi long que tu veux.
 
 ---
 
@@ -77,11 +79,15 @@ n8n limite le nom d'une étiquette à **24 caractères** (vérifié dans le code
 Avec l'outil du chantier 13 (voir `docs/nouveau-client.md`) :
 
 ```bash
-node scripts/nouveau-client.js activer-module audrey journal          # simulation
-node scripts/nouveau-client.js activer-module audrey journal --ecrire # pour de vrai
+node scripts/nouveau-client.js activer-module audrey automatisations          # simulation
+node scripts/nouveau-client.js activer-module audrey automatisations --ecrire # pour de vrai
 ```
 
-ou, à la création : `--modules affaires,projets,journal`. Le module n'a pas de dépendance. Il n'existe **pas dans le CRM de Jérôme** (il n'apparaît ni dans son menu ni dans ses routes).
+ou, à la création : `--modules affaires,projets,automatisations`. Le module n'a pas de dépendance.
+
+**Ancien nom** : l'outil accepte encore `journal` (`activer-module audrey journal` active `automatisations`). Une fiche client écrite avant le renommage (`modules: { journal: true }`) est comprise telle quelle par l'application et par les fonctions : **rien à migrer à la main**. Si les deux clés sont présentes, la nouvelle (`automatisations`, vraie ou fausse) l'emporte. La prochaine fois que tu passes par l'outil pour ce client, il écrit `automatisations` ; la vieille clé `journal` reste dans la fiche sans gêner (tu peux la supprimer dans la console Firestore quand tu veux).
+
+Ton propre OS (le CRM de Jérôme) n'a pas de fiche `modules` : il montre le module Automatisations en permanence (partie 10).
 
 ---
 
@@ -90,7 +96,7 @@ ou, à la création : `--modules affaires,projets,journal`. Le module n'a pas de
 Par défaut, l'écran affiche le **nom du workflow dans n8n**. Un **éditeur** du client (pas un lecteur) peut **cliquer sur le nom** pour le changer ; laisser le champ vide revient au nom d'origine.
 
 - Le nom choisi est gardé dans `clients/<client>/workflows/<id>`, champ `libelle`. La copie horaire **ne l'écrase jamais** (le champ `nom`, lui, suit n8n). **n8n n'est jamais modifié.**
-- C'est la fonction `journalRenommer` qui l'écrit, après avoir vérifié que l'appelant est **éditeur de ce client** et que le workflow existe déjà chez lui. Elle ne modifie **que** ce champ, 80 caractères au plus, texte simple.
+- C'est la fonction `automatisationsRenommer` qui l'écrit, après avoir vérifié que l'appelant est **éditeur de ce client** et que le workflow existe déjà chez lui. Elle ne modifie **que** ce champ, 80 caractères au plus, texte simple.
 - C'est la **seule écriture** possible depuis un écran. Les règles Firestore interdisent toute écriture dans `workflows`, `executions` et `sync` depuis un navigateur, même à un éditeur.
 
 ---
@@ -156,15 +162,16 @@ Le choix `tout` du workflow ne déploie **jamais** les fonctions.
 ### d. Étiqueter un workflow de test et activer le module
 
 1. Dans n8n, ajoute l'étiquette `client-<identifiant du client de test>` à un workflow de test (partie 2).
-2. Active le module : `node scripts/nouveau-client.js activer-module <client> journal --ecrire`.
+2. Active le module : `node scripts/nouveau-client.js activer-module <client> automatisations --ecrire`.
 3. Ouvre `https://chevalier-ia-app.web.app/espace/<client>`, connecte-toi, clique **Automatisations > Historique** puis **Rafraîchir l'historique**.
 4. Prévois deux workflows de test : un **lent** (une pause de quelques dizaines de secondes, pour voir la pastille « En cours » qui pulse) et un qui **échoue volontairement** (pour voir l'étape et le message d'erreur).
 
 ### e. Si quelque chose se passe mal
 
 - **Écran vide** : le workflow a-t-il l'étiquette exacte ? Le module est-il actif ? Regarde `plateforme_journal/signalements` dans la console Firestore.
-- **Bandeau jaune permanent** : clé absente ou refusée. Journaux : <https://console.cloud.google.com/functions/list?project=chevalier-ia-app> > `journalRafraichir` > *Journaux*.
-- **Tout arrêter** : *Run workflow* n'a pas de bouton d'arrêt ; supprime les fonctions avec `firebase functions:delete journalCopieHoraire journalRafraichir journalRenommer --project chevalier-ia-app`, ou désactive le module chez le client (`desactiver-module <client> journal --ecrire`) : plus rien ne lui est copié.
+- **Bandeau jaune permanent** : clé absente ou refusée. Journaux : <https://console.cloud.google.com/functions/list?project=chevalier-ia-app> > `automatisationsRafraichir` > *Journaux*.
+- **Anciennes fonctions encore en ligne** : si tu avais déjà déployé les fonctions sous leurs anciens noms (`journalCopieHoraire`, `journalRafraichir`, `journalRenommer`), le déploiement des nouvelles ne les retire pas : supprime-les avec `firebase functions:delete journalCopieHoraire journalRafraichir journalRenommer --project chevalier-ia-app` (sinon la copie horaire tournerait en double). Le premier déploiement décrit en partie 7 n'avait pas encore eu lieu au 16/10/2026, donc normalement rien à supprimer.
+- **Tout arrêter** : *Run workflow* n'a pas de bouton d'arrêt ; supprime les fonctions avec `firebase functions:delete automatisationsCopieHoraire automatisationsRafraichir automatisationsRenommer --project chevalier-ia-app`, ou désactive le module chez le client (`desactiver-module <client> automatisations --ecrire`) : plus rien ne lui est copié.
 
 ---
 
@@ -187,3 +194,24 @@ Le Logger dans les workflows et la frise d'étapes. Rien à changer pour l'ajout
 - **Où la voir ou la modifier** : Google Cloud > Surveillance (Monitoring) > Alertes > règles > « Journal des workflows : n8n injoignable ou erreur de copie » ; le destinataire est dans *Canaux de notification*. Elle a été créée par l'API de Monitoring avec les identifiants d'administrateur, pas par le code du dépôt : elle n'est pas recréée par un déploiement.
 - **Que faire quand l'e-mail arrive** : le texte de l'e-mail le dit (n8n en panne : relancer ; clé refusée : nouvelle clé dans n8n > Settings > n8n API, puis `firebase functions:secrets:set N8N_API_KEY --project chevalier-ia-app` et redéploiement des fonctions).
 - **Tester sans casser n8n** : écrire une fausse erreur dans les journaux. L'alerte reconnaît le type de journal des fonctions (`cloud_run_revision`) ; une entrée de type « global » n'a pas déclenché l'alerte lors du premier essai.
+
+## 10. Chez Jérôme (ton propre OS) : visible, mais pas encore alimenté (16/10/2026)
+
+Règle posée le 16/10/2026 : **tout module existe d'abord chez toi (bêta-testeur), puis s'ouvre aux clients**. Le module n'est donc plus « réservé aux clients » (le drapeau `reserveAuxClients` a été retiré de sa déclaration dans `js/os/registre.js`) : le menu **Automatisations > Historique** apparaît dans ton OS (base `chevalier-ia-os`).
+
+- **Ce que tu vois** : tant qu'aucun workflow n'a été copié dans ta base, l'écran affiche les quatre compteurs à 0 et le message « Aucune automatisation n'a encore été copiée dans cette base. Elles apparaîtront ici quand la copie depuis n8n sera branchée. ». Il n'y a **ni bouton « Rafraîchir », ni mise à jour automatique, ni renommage** chez toi : les trois fonctions Firebase vivent dans le projet des clients (`chevalier-ia-app`) et n'existent pas dans le projet de ton CRM.
+- **Où l'écran lit** : à la racine de ta base (`workflows`, `executions`, `sync/state`), avec les mêmes noms que chez un client. Tes règles Firestore actuelles (« tout le reste : tes deux comptes ») autorisent déjà cette lecture : **aucune règle modifiée**. Si un jour des documents y sont écrits, ils s'affichent sans rien changer au code.
+- **Sauvegarde** : ces trois collections ne sont pas dans l'export JSON du CRM (c'est une copie de n8n, qu'on peut refaire).
+
+### La copie de tes propres workflows n8n : pas faite (décidée le 12/10/2026)
+
+Le code de copie existant (`functions-plateforme/src/synchro.js`, `appels.js`) **ne la permet pas simplement** :
+
+1. Il écrit sous `clients/<client>/…` dans la base **de la plateforme** (projet `chevalier-ia-app`). Ta base est un **autre projet Firebase** (`chevalier-ia-os`), à la racine : il faudrait une version du code qui écrit à la racine (chemins sans `clients/<client>/`), et qui tourne **dans** ton projet ou avec des droits d'écriture sur lui.
+2. Il rattache un workflow à un client par l'étiquette `client-<identifiant>` ; tes workflows n'ont **aucune** étiquette (« jamais copié » = cas normal chez toi). Il faut décider **comment reconnaître les tiens** (par exemple une étiquette `jerome`, ou « tout ce qui n'a pas d'étiquette client »).
+3. Il faut la clé n8n (`N8N_API_KEY`) **dans le Secret Manager du projet `chevalier-ia-os`** (aujourd'hui elle n'est prévue que dans `chevalier-ia-app`), un déploiement de fonctions dans ton projet (`functions/`, qui déploie aujourd'hui le serveur MCP : à ne pas mélanger sans réfléchir) et une planification horaire.
+4. Tes collections `workflows`, `executions`, `sync` : les règles actuelles suffisent pour la lecture par l'écran ; les fonctions écrivent avec le SDK d'administration, qui contourne les règles.
+5. Le bouton « Rafraîchir » chez toi demanderait une fonction appelable dans ton projet, avec la vérification de ton identité Google (comme le MCP), et l'écran à rebrancher dessus (aujourd'hui masqué chez toi).
+
+Pour que ce soit propre : extraire la logique de copie (`synchro.js`, `etiquettes.js`, `n8n.js`) dans un dossier partagé par les deux projets (avec un paramètre « chemin de base » `''` ou `clients/<client>`, comme `js/os/chemins.js` côté application), puis une seule nouvelle fonction horaire dans `functions/`. À faire dans une PR à part, après ton accord sur le point 2.
+

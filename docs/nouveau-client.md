@@ -1,6 +1,6 @@
 # Créer un client, sauvegarder ses données, le supprimer
 
-> **Module `journal` (chantier 14)** : `--modules affaires,projets,journal` ou `activer-module <client> journal`. L'identifiant du client doit faire **17 caractères au plus** pour ce module (étiquette n8n `client-<identifiant>` limitée à 24 caractères) ; sinon l'outil refuse. Voir `docs/journal-activite-workflows.md`.
+> **Module `automatisations` (chantier 14, ex-`journal`, renommé le 16/10/2026)** : `--modules affaires,projets,automatisations` ou `activer-module <client> automatisations` (l'ancien nom `journal` est encore accepté par l'outil et lu dans les fiches existantes). L'identifiant du client doit faire **17 caractères au plus** pour ce module (étiquette n8n `client-<identifiant>` limitée à 24 caractères) ; sinon l'outil refuse. Voir `docs/automatisations-n8n.md`.
 
 Deux petits programmes à lancer **depuis le Terminal de ton Mac**, avec **ton** compte Google :
 
