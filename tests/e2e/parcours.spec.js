@@ -912,25 +912,30 @@ test('C22 fiche personne : deux colonnes sur ordinateur, une seule colonne sur t
   await creerPersonne('p1', { nom: 'Marie Durand' });
   await connecter(page);
   await aller(page, '#/crm/personnes/p1');
-  const gauche = await page.locator('.fiche-gauche').boundingBox();
-  const droite = await page.locator('.fiche-droite').boundingBox();
+  // La fiche est redessinée à chaque lot de données qui arrive de Firestore (personne, organisations, paramètres) : on ne mesure donc pas une seule fois
+  // un élément qui peut être remplacé à cet instant (boundingBox renvoie alors null), on attend une mesure complète et juste (réessayée jusqu'à la bonne).
   if (estTelephone(page)) {
     // Une seule colonne, dans l'ordre du cahier : Résumé, Activité et Notes, Points clés, Affaires, Organisation, Détails, Historique
-    const ordre = await page.evaluate(() => {
+    const mesurerOrdre = () => page.evaluate(() => {
       const blocs = [
         ['résumé', '.section[data-section="personne-resume"]'], ['activité', '.compositeur'], ['points clés', '.points-cles'],
         ['affaires', '.section[data-section="personne-affaires"]'], ['organisation', '.section[data-section="personne-organisation"]'],
         ['détails', '.section[data-section="personne-details"]'], ['historique', '.historique'],
       ];
-      return blocs.map(([nom, sel]) => { const r = document.querySelector(sel).getBoundingClientRect(); return { nom, x: Math.round(r.x), y: r.y }; })
-        .sort((a, b) => a.y - b.y);
+      const elements = blocs.map(([nom, sel]) => [nom, document.querySelector(sel)]);
+      if (elements.some(([, el]) => !el)) return null; // fiche en cours de redessin
+      return elements.map(([nom, el]) => { const r = el.getBoundingClientRect(); return { nom, x: Math.round(r.x), y: r.y }; }).sort((a, b) => a.y - b.y);
     });
-    expect(ordre.map((b) => b.nom)).toEqual(['résumé', 'activité', 'points clés', 'affaires', 'organisation', 'détails', 'historique']);
-    expect(new Set(ordre.map((b) => b.x)).size).toBeLessThanOrEqual(2); // même colonne (au pixel près)
-    void gauche; void droite;
+    await expect.poll(async () => (await mesurerOrdre())?.map((b) => b.nom)).toEqual(['résumé', 'activité', 'points clés', 'affaires', 'organisation', 'détails', 'historique']);
+    expect(new Set((await mesurerOrdre()).map((b) => b.x)).size).toBeLessThanOrEqual(2); // même colonne (au pixel près)
   } else {
-    expect(droite.x).toBeGreaterThan(gauche.x + gauche.width - 2); // côte à côte
-    expect(Math.abs(droite.y - gauche.y)).toBeLessThan(4);
+    const cotesACotes = async () => {
+      const gauche = await page.locator('.fiche-gauche').boundingBox();
+      const droite = await page.locator('.fiche-droite').boundingBox();
+      if (!gauche || !droite) return null; // fiche en cours de redessin
+      return droite.x > gauche.x + gauche.width - 2 && Math.abs(droite.y - gauche.y) < 4; // côte à côte, en haut au même niveau
+    };
+    await expect.poll(cotesACotes).toBe(true);
   }
   for (const section of ['personne-resume', 'personne-details', 'personne-organisation', 'personne-affaires']) {
     await expect(page.locator(`.section[data-section="${section}"]`)).toBeVisible();
