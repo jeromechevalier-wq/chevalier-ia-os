@@ -115,7 +115,7 @@ export function rendreReglagesCrm(page) {
   sProjets.append(
     etatGoogle,
     h('div', { class: 'ligne-champ' }, h('span', {}, 'Dossier Drive parent'), h('div', { class: 'ligne-ajout' }, nomParent, choisirParent, retirerParent)),
-    h('p', { class: 'aide' }, 'Sans dossier parent, les dossiers de projets sont créés à la racine de « Mon Drive ». Renommer ou déplacer un dossier dans Drive ne casse pas son lien.'),
+    h('p', { class: 'aide' }, 'Dans la fenêtre Google, seuls les dossiers s'affichent (les fichiers sont cachés exprès) : « Aucun document » veut dire que ce dossier n'a pas de sous-dossier, clique alors sur « Sélectionner ». Sans dossier parent, les dossiers de projets sont créés à la racine de « Mon Drive ». Renommer ou déplacer un dossier dans Drive ne casse pas son lien.'),
     h('h3', { class: 'sous-titre' }, 'Sous-dossiers de chaque projet'),
     listeSousDossiers,
     formulaireAjout('Nouveau sous-dossier (ex. Contrat, Livrables)', 'Ajouter', async (v) => { await enregistrerSousDossiers([...(D.etat.reglages.sousDossiersDrive || []), v]); }),

@@ -17,7 +17,7 @@ window.gapi = { load(nom, rappel) {
   class PickerBuilder {
     constructor() { this.cfg = { views: [], features: [] }; }
     setOAuthToken(t) { this.cfg.token = t; return this; } setDeveloperKey(k) { this.cfg.cle = k; return this; } setAppId(a) { this.cfg.appId = a; return this; }
-    setLocale(l) { this.cfg.langue = l; return this; } setOrigin(o) { this.cfg.origine = o; return this; }
+    setLocale(l) { this.cfg.langue = l; return this; } setTitle(t) { this.cfg.titre = t; return this; } setOrigin(o) { this.cfg.origine = o; return this; }
     addView(v) { this.cfg.views.push(v); return this; } enableFeature(f) { this.cfg.features.push(f); return this; } setCallback(cb) { this.cb = cb; return this; }
     build() { const moi = this; return { setVisible(v) {
       if (!v) return;

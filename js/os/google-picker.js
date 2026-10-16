@@ -94,6 +94,7 @@ export async function ouvrirFenetreGoogle({ mode = 'documents', dossierImport = 
     .setDeveloperKey(conf.cleApi)
     .setAppId(conf.idApp)
     .setLocale('fr')
+    .setTitle(mode === 'dossier' ? 'Choisir un dossier' : 'Ajouter un document') // sinon Google affiche « Sélectionner un fichier »
     .setOrigin(window.location.protocol + '//' + window.location.host);
   if (mode === 'dossier') {
     constructeur.addView(new g.DocsView(g.ViewId.DOCS).setParent(RACINE_DRIVE).setIncludeFolders(true).setSelectFolderEnabled(true).setMimeTypes(TYPE_DOSSIER));

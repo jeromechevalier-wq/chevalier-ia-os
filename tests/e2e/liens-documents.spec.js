@@ -54,7 +54,7 @@ test.describe('Google branché (simulé)', () => {
     const g = await lireGoogle(page);
     expect(g.autorisations).toEqual([{ clientId: ID_CLIENT, scope: 'https://www.googleapis.com/auth/drive.file', indice: JEROME }]);
     expect(g.pickers).toHaveLength(1);
-    expect(g.pickers[0]).toMatchObject({ token: 'ya29.SIMULE', cle: CLE_CRM, appId: '96526036520', langue: 'fr' });
+    expect(g.pickers[0]).toMatchObject({ token: 'ya29.SIMULE', cle: CLE_CRM, appId: '96526036520', langue: 'fr', titre: 'Choisir un dossier' });
     // Vue « DOCS » qui part de la racine de Mon Drive et se parcourt dossier par dossier (la vue « folders » montrerait à plat tous les dossiers du Drive).
     expect(g.pickers[0].views).toEqual([{ type: 'DocsView', viewId: 'all', parent: 'root', dossiers: true, choixDossier: true, mime: 'application/vnd.google-apps.folder' }]);
     expect(g.pickers[0].features).toEqual([]);
@@ -181,7 +181,7 @@ test.describe('Google branché (simulé)', () => {
     await expect(dialogue(page)).toHaveCount(0); // le projet a déjà son dossier : aucune question
     const g = await lireGoogle(page);
     expect(g.pickers).toHaveLength(1);
-    expect(g.pickers[0]).toMatchObject({ token: 'ya29.SIMULE', cle: CLE_CRM, appId: '96526036520', langue: 'fr', features: ['multiselectEnabled'] });
+    expect(g.pickers[0]).toMatchObject({ token: 'ya29.SIMULE', cle: CLE_CRM, appId: '96526036520', langue: 'fr', titre: 'Ajouter un document', features: ['multiselectEnabled'] });
     expect(g.pickers[0].views).toEqual([{ type: 'DocsView', viewId: 'all', parent: '1AbC_dEf-1234567', dossiers: true }, { type: 'DocsUploadView', parent: '1AbC_dEf-1234567' }]); // « Mon Drive » démarre dans le dossier de travail
     expect(drive.requetes).toHaveLength(0); // rien à créer
     // Un même lien choisi deux fois n'est pas ajouté deux fois ; fermer la fenêtre n'ajoute rien.
