@@ -1,0 +1,13 @@
+/* Module « Accès MCP » : page d'information. Couleurs de l'interface seulement (accent du client, jetons de tokens.css). */
+.page-mcp { max-width: 760px; }
+.mcp-bloc { background: var(--panneau); border: 1px solid var(--bordure); border-radius: 10px; padding: 14px 16px; margin: 12px 0; }
+.mcp-bloc h2 { font-size: 16px; margin: 0 0 8px; }
+.mcp-copie { display: flex; flex-wrap: wrap; gap: 8px; }
+.mcp-lien { flex: 1 1 260px; min-width: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 14px; }
+.mcp-etapes { margin: 0; padding-left: 20px; display: grid; gap: 8px; }
+.mcp-membres { list-style: none; margin: 8px 0 0; padding: 0; }
+.mcp-membre { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 16px; padding: 9px 0; border-bottom: 1px solid var(--bordure); }
+.mcp-membre:last-child { border-bottom: 0; }
+.mcp-membre-nom { overflow-wrap: anywhere; }
+.mcp-role { font-size: 14px; color: var(--texte2); }
+.mcp-role-editeur { color: var(--accent-trait, var(--accent)); font-weight: 600; }

@@ -29,10 +29,13 @@ service cloud.firestore {
       allow list, write: if false;
     }
 
-    // Sa propre fiche seulement (pour savoir à quels clients on appartient) : lecture d'un document, jamais de liste, jamais d'écriture.
+    // Sa propre fiche (pour savoir à quels clients on appartient), toujours lisible. Depuis le module « Accès MCP » (16/10/2026), un membre (éditeur ou lecteur)
+    // peut aussi LIRE les fiches des autres membres de SON client (adresse, nom, rôle), pour la page « Qui peut se connecter » : jamais celles d'un autre client.
+    // Aucune écriture depuis un navigateur, quoi qu'il arrive (on ne s'ajoute pas, on ne change pas un rôle).
     match /clients/{client}/membres/{email} {
-      allow get: if connecte() && email == request.auth.token.email.lower();
-      allow list, write: if false;
+      allow get: if connecte() && (email == request.auth.token.email.lower() || roleDe(client) in ['editeur', 'lecteur']);
+      allow list: if roleDe(client) in ['editeur', 'lecteur'];
+      allow write: if false;
     }
 
     // Fiche du client (chantier 7) : le document « clients/<client> » lui-même, qui porte le champ « modules » (modules actifs).

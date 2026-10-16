@@ -1,4 +1,4 @@
-# Ménage du CRM avant déploiement chez les clients (version 2.4.0, 16/10/2026)
+# Ménage du CRM avant déploiement chez les clients (version 2.5.0, 16/10/2026)
 
 Chantier 1 des décisions du 16/10/2026 (fiche « Décisions de cadrage du CRM client »). **Rien n'est déployé.** Les règles Firestore ne sont **pas** modifiées.
 

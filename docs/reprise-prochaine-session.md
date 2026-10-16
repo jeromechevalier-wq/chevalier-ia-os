@@ -2,9 +2,13 @@
 
 Écrit le 04/10/2026, mis à jour le 07/10/2026 à la fin du chantier Projets, pour qu'une session neuve reprenne sans que Jérôme ait à recoller quoi que ce soit. **À mettre à jour ou à supprimer une fois les points faits.**
 
-## Ménage du CRM (16/10/2026) : branche menage-crm-clients, version 2.4.0
+## Ménage du CRM (16/10/2026) : branche menage-crm-clients, version 2.5.0
 
-Code écrit et testé (tests purs verts). Voir `menage-crm.md` : ce qui est fait, les choix faits, ce qui touche les données de Jérôme. Reste : suites sous émulateur (Java), relecture de la PR, « fusionne » de Jérôme. Chantiers suivants : Réglages à menu latéral, fusion du menu CRM, Drive / liens.
+Code écrit, **suite complète verte sous émulateurs** (PR n° 73). Voir `menage-crm.md` : ce qui est fait, les choix faits, ce qui touche les données de Jérôme. Reste : relecture de la PR, « fusionne » de Jérôme. Chantiers suivants : Réglages à menu latéral, fusion du menu CRM, Drive / liens.
+
+## MCP pour tous les clients (16/10/2026) : PR en attente du « fusionne »
+
+Construit et testé (suite complète verte), **rien déployé**. Lire `mcp-clients.md` : ce qui est fait, l'isolation entre clients, les trois déploiements à lancer dans l'ordre (règles, fonctions, site, par le workflow « Déploiement plateforme clients »), et ce qui n'est **pas** vérifié (vrai claude.ai, vrai ChatGPT). Première chose à faire après le déploiement : allumer le module chez un client d'essai (`activer-module <client> mcp --ecrire`) et brancher Claude sur son lien.
 
 ## Chantier 14 : journal d'activité des workflows (11/10/2026)
 
