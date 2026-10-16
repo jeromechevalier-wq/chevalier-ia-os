@@ -148,7 +148,7 @@ describe('inventaire des textes d\'identité de Jérôme dans le code de l\'inte
   const ATTENDUS = {
     'js/main.js': 'CRM de Jérôme seulement (Réglages, connexion)',
     'js/os/shell.js': 'marque de Jérôme à la racine ; chez un client : nom du client (option client)',
-    'js/os/celebrations.js': 'coupées chez un client (estChezClient)',
+    'js/os/celebrations.js': 'option du CRM (éteinte par défaut chez un client), message neutre, prénom et image en réglage',
     'js/os/firebase-config.js': 'comptes autorisés du CRM de Jérôme (vide dans la plateforme)',
     'js/os/registre.js': 'menu « CRM » (mot du métier)',
     'js/modules/crm/composants.js': 'noms des deux comptes (affichage d\'un auteur) ; image de Charles et liste Jérôme/Charles coupées chez un client',
@@ -156,11 +156,11 @@ describe('inventaire des textes d\'identité de Jérôme dans le code de l\'inte
     'js/modules/crm/affaires.js': 'célébration « Bravo Jérôme ! » (coupée chez un client)',
     'js/modules/crm/accueil.js': 'texte de Charles remplacé chez un client',
     'js/modules/crm/journal.js': 'texte neutre chez un client',
-    'js/modules/crm/lanceurs.js': 'Claude Code / GitHub : masqués chez un client',
+    'js/modules/crm/lanceurs.js': 'Claude Code / GitHub : derrière l’option « Dépôt de code et dossier » (éteinte par défaut chez un client)',
     'js/modules/crm/reglages.js': 'écran Réglages du CRM : inaccessible chez un client',
     'js/modules/crm/donnees.js': 'noms de collections ; réglages de départ vidés chez un client',
-    'js/modules/projets/logique.js': 'liste Jérôme/Charles des tâches (champ masqué chez un client)',
-    'js/modules/projets/taches.js': 'champ « Confiée à » masqué chez un client',
+    'js/modules/projets/logique.js': 'modèles de départ de Jérôme (semés seulement à la racine)',
+    'js/modules/projets/taches.js': 'champ « Confiée à » : membres de l’espace, caché s’il n’y en a qu’un',
     'js/modules/projets/fiche-projet.js': 'lanceurs masqués chez un client',
     'js/modules/projets/projets.js': 'GitHub / célébration de clôture coupée chez un client',
   };
@@ -175,10 +175,13 @@ describe('inventaire des textes d\'identité de Jérôme dans le code de l\'inte
     assert.deepEqual(inconnus, [], `nouvelles mentions à classer : ${inconnus.join(', ')}`);
   });
   test('les fichiers partagés qui montrent encore un texte de Jérôme le coupent chez un client', () => {
-    for (const f of ['js/os/celebrations.js', 'js/modules/crm/lanceurs.js', 'js/modules/crm/accueil.js', 'js/modules/crm/composants.js',
-      'js/modules/crm/journal.js', 'js/modules/projets/taches.js']) {
+    for (const f of ['js/modules/crm/accueil.js', 'js/modules/crm/composants.js', 'js/modules/crm/journal.js']) {
       assert.match(lire(f), /estChezClient/, f);
     }
+    // Depuis le ménage du CRM, les célébrations, le GitHub et « Confiée à » ne dépendent plus de « chez un client » mais d'une option / des membres.
+    assert.match(lire('js/os/celebrations.js'), /configurerCelebrations/);
+    assert.match(lire('js/modules/crm/lanceurs.js'), /boutonsDepot/);
+    assert.match(lire('js/modules/projets/taches.js'), /choixAssigneVisible/);
   });
   test('les fichiers propres à la page d\'un client ne portent aucun nom de Jérôme', () => {
     for (const f of ['js/os/espace.js', 'js/os/espace-modules.js', 'js/os/identite.js', 'js/os/marque.js', 'js/os/contexte.js']) {

@@ -3,7 +3,6 @@
 import { h, icone, remplir, toast, dialogue } from '../../os/ui.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
-import { estChezClient } from '../../os/contexte.js';
 
 async function copierTexte(texte, zone) {
   try {
@@ -55,8 +54,9 @@ function boutonPetit(libelle, nomIcone, action, onclick) {
  * - fiche : l'affaire (ou le projet) ; enregistrer(patch) l'écrit ; typeFiche : 'affaire' ou 'projet'.
  */
 export function creerLanceurs({ fiche, typeFiche = 'affaire', organisation = null, personne = null, affaireOrigine = null, enregistrer }) {
-  // Chez un client : ni GitHub ni dossier Claude Code (outils personnels de Jérôme). Les champs de la fiche restent intacts.
-  if (estChezClient()) return { github: null, dossier: null };
+  // Option du CRM « Dépôt de code et dossier » (éteinte par défaut chez un client) : éteinte, ni « Créer le GitHub » ni « Créer le répertoire ».
+  // Les champs de la fiche restent intacts (le chantier « liens et dossier » les reprendra).
+  if (!D.etat.config.options.boutonsDepot) return { github: null, dossier: null };
   const etat = { urlGithub: fiche.urlGithub || '', urlDossier: fiche.urlDossier || '' };
   const reglages = D.etat.reglages || {};
   const nomDossier = L.nomDossierSuggere({ organisation, titre: fiche.titre });

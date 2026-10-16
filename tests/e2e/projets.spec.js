@@ -906,12 +906,12 @@ test('C32 premier lancement : les modèles Audit, Accompagnement et Extraction s
   expect((await lireDocument('projets_modeles/audit')).nom).toBe('Audit modifié');
 });
 
-test('C32 écran Modèles : la liste, un nouveau modèle, sa fiche (paramètres, activation), suppression', async ({ page }) => {
+test('C32 Modèles de projets (dans les Réglages, plus dans le menu) : la liste, un nouveau modèle, sa fiche (paramètres, activation), suppression', async ({ page }) => {
   await connecter(page);
   await attendreModeles();
-  await allerA(page, 'Modèles');
-  await expect(page).toHaveURL(/#\/projets\/modeles$/);
-  await expect(page.getByRole('heading', { name: 'Modèles', level: 1 })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Modèles', exact: true })).toHaveCount(0);
+  await aller(page, '#/reglages');
+  await expect(page.locator('#reglages-modeles-projets')).toBeVisible();
   await expect(page.locator('.tableau-modeles .ligne-liste')).toHaveCount(3);
   await expect(page.locator('.tableau-modeles .ligne-liste[data-id="audit"]')).toContainText('Audit');
   await expect(page.locator('.tableau-modeles .ligne-liste[data-id="audit"]')).toContainText('3');
@@ -946,7 +946,7 @@ test('C32 écran Modèles : la liste, un nouveau modèle, sa fiche (paramètres,
   await page.locator('.menu-pop').getByRole('menuitem', { name: /Supprimer définitivement/ }).click();
   await dialogue(page).getByRole('button', { name: 'Supprimer' }).click();
   await expect.poll(async () => await lireDocument(`projets_modeles/${m.id}`)).toBeNull();
-  await expect(page).toHaveURL(/#\/projets\/modeles$/);
+  await expect(page).toHaveURL(/#\/reglages$/); // la suppression ramène aux Réglages
 });
 
 test('C32 fiche d’un modèle : tâches types par phase, délai, modifier, monter, descendre, changer de phase, supprimer', async ({ page }) => {
@@ -1109,7 +1109,7 @@ test('C32 un modèle inactif n’est plus proposé ; supprimer un modèle ne tou
   await page.locator('.menu-pop').getByRole('menuitem', { name: /Supprimer définitivement/ }).click();
   await dialogue(page).getByRole('button', { name: 'Supprimer' }).click();
   await expect.poll(async () => await lireDocument('projets_modeles/accompagnement')).toBeNull();
-  await expect(page).toHaveURL(/#\/projets\/modeles$/); // l'appli revient à la liste après la suppression
+  await expect(page).toHaveURL(/#\/reglages$/); // l'appli revient aux Réglages après la suppression
   expect((await listerDocuments('projets_taches')).filter((t) => t.projetId === p.id)).toHaveLength(1);
   await aller(page, `#/projets/projets/${p.id}`);
   await expect(page.locator('[data-prop="modele"]')).toContainText('Modèle supprimé');
@@ -1126,9 +1126,9 @@ test('C32 aucun défilement horizontal de l’écran Modèles et d’une fiche d
     taches: [{ id: 't1', titre: 'Untitretrèslongsansespacepourvérifierlecomportementdelaligneetdesonmenudactionspourlestâchestypes', phase: 'decouverte', delaiJours: 3, ordre: 1 }],
   });
   const sansDebordement = async (nom) => expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), nom).toBeLessThanOrEqual(0);
-  await allerA(page, 'Modèles');
+  await aller(page, '#/reglages');
   await expect(page.locator('.tableau-modeles')).toBeVisible();
-  await sansDebordement('liste des modèles');
+  await sansDebordement('liste des modèles (Réglages)');
   await aller(page, '#/projets/modeles/audit');
   await expect(page.locator('[data-tache-modele="t1"]')).toBeVisible();
   await sansDebordement('fiche d’un modèle');
@@ -1182,14 +1182,12 @@ async function marquerPerdue(page, raison = 'Prix', detail = '') {
   await expect(dialogue(page)).toHaveCount(0);
 }
 
-/** Passe une affaire en « Gagné » depuis sa fiche : célébration puis suggestion à fermer. */
+/** Passe une affaire en « Gagné » depuis sa fiche : célébration (aucune action suggérée par défaut). */
 async function marquerGagnee(page) {
   await page.locator('.fiche-actions [data-action="gagnee"]').click();
   await expect(page.locator('.celebration')).toBeVisible();
   await page.locator('.celebration').click();
   await expect(page.locator('.celebration')).toHaveCount(0);
-  await expect(dialogue(page)).toContainText('Une suggestion');
-  await dialogue(page).getByRole('button', { name: 'Fermer', exact: true }).last().click();
   await expect(dialogue(page)).toHaveCount(0);
 }
 
@@ -1583,50 +1581,96 @@ test('C36 déplacer une carte vers la Clôture avec une facture à payer : refus
   await expect(page.locator('.tableau-projets [data-role="impaye"]')).toHaveText('Impayé');
 });
 
-// ---------------------------------------------------------------- migration 2.2
+// ---------------------------------------------------------------- configuration du CRM (ménage du 16/10/2026)
 
-test('C37 migration 2.2 : Réglages propose d’abord un aperçu ; une affaire « Facture payée » passe à Gagné sans toucher à l’encaissé ; une « Facture envoyée » reçoit sa facture sur son projet', async ({ page }) => {
-  await creerAffaire('a1', { titre: 'Audit payé', etape: 'facture_payee', statut: 'gagnee', archive: true, montant: 800, encaissements: [{ date: new Date(), montant: 800, offreId: null }] });
-  await creerAffaire('a2', { titre: 'Audit en attente', etape: 'facture_envoyee', statut: 'gagnee', montant: 1500, projetId: 'pr1' });
-  await creerAffaire('a3', { titre: 'Sans projet', etape: 'facture_envoyee', statut: 'gagnee', montant: 400 });
-  await creerProjet('pr1', { titre: 'Projet de l’audit en attente', affaireId: 'a2', phase: 'livraison' });
+test('C37 Réglages : les restes de la 2.2 ont disparu (migration, délai de paiement, encaissements de la fiche affaire)', async ({ page }) => {
+  await creerAffaire('a1', { titre: 'Audit payé', etape: 'gagne', statut: 'gagnee', montant: 800, encaissements: [{ date: new Date(), montant: 800, offreId: null }] });
   await connecter(page);
   await attendreModeles();
-  await allerA(page, 'Accueil');
-  await expect.poll(() => valeurObjectif(page, 'ca_encaisse')).toBe(800);
-  await allerA(page, 'Réglages');
-  const section = page.locator('#reglages-migration');
-  await expect(section).toBeVisible();
-  await expect(section.locator('[data-role="compte-migration"]')).toContainText('3 affaires sont encore');
-  // aperçu : rien n'est écrit tant qu'on n'a pas validé
-  await section.locator('[data-action="migrer-etapes"]').click();
-  await expect(dialogue(page)).toContainText('3 affaires vont être migrées');
-  await expect(dialogue(page).locator('[data-role="apercu-migrees"] [data-affaire="a2"]')).toContainText('facture de 1 500 € ajoutée à son projet');
-  await expect(dialogue(page).locator('[data-role="apercu-a-la-main"] [data-affaire="a3"]')).toContainText('n’a pas de projet');
-  expect((await lireDocument('crm_affaires/a1')).etape).toBe('facture_payee');
-  await dialogue(page).getByRole('button', { name: 'Annuler' }).click();
-  expect((await lireDocument('crm_affaires/a2')).etape).toBe('facture_envoyee');
-  // migration
-  await section.locator('[data-action="migrer-etapes"]').click();
-  await dialogue(page).getByRole('button', { name: 'Migrer' }).click();
-  await expect(page.locator('.toast', { hasText: '3 affaires migrées · 1 à traiter à la main' })).toBeVisible();
-  await champDoc('crm_affaires', 'a2', 'etape', 'gagne');
-  const [a1, a2, a3] = await Promise.all(['a1', 'a2', 'a3'].map((id) => lireDocument(`crm_affaires/${id}`)));
-  expect([a1.etape, a1.statut, a1.archive, a1.encaissements.length]).toEqual(['gagne', 'gagnee', true, 1]);
-  expect([a2.etape, a2.statut]).toEqual(['gagne', 'gagnee']);
-  expect([a3.etape, a3.statut]).toEqual(['gagne', 'gagnee']);
-  const pr1 = await lireDocument('projets_projets/pr1');
-  expect(pr1.factures.map((f) => [f.statut, f.montant])).toEqual([['a_payer', 1500]]);
-  expect((await listerDocuments('projets_projets')).filter((p) => p.id !== 'pr1' && p.nature !== 'extraction')).toHaveLength(0); // aucun projet créé
-  await expect(section).toBeHidden();
-  // le chiffre d'affaires encaissé n'a pas bougé ; la facture attendue bloque la clôture du projet
-  await allerA(page, 'Accueil');
-  await expect.poll(() => valeurObjectif(page, 'ca_encaisse')).toBe(800);
+  await aller(page, '#/reglages');
+  await expect(page.locator('#reglages-etapes')).toBeVisible();
+  await expect(page.locator('#reglages-migration, #reglages-delai')).toHaveCount(0);
+  await expect(page.getByText('Délai de paiement')).toHaveCount(0);
+  await aller(page, '#/crm/affaires/a1');
+  await expect(page.locator('[data-section="affaire-encaissements"]')).toHaveCount(0);
+});
+
+test('C38 Réglages : étapes de vente configurables — renommer, expliquer (icône « i »), désactiver seulement si vide, activer un emplacement', async ({ page }) => {
+  await creerAffaire('a1', { titre: 'Dans Rendez vous', etape: 'rdv_fixe' });
+  await connecter(page);
+  await attendreModeles();
+  await aller(page, '#/reglages');
+  const sec = page.locator('#reglages-etapes');
+  await expect(sec.locator('.emplacement')).toHaveCount(6);
+  const ligne = (id) => sec.locator(`.emplacement[data-emplacement="${id}"]`);
+  // désactiver une étape qui contient une affaire : refusé, rien n'est écrit
+  await ligne('rdv_fixe').locator('[data-role="actif"]').uncheck();
+  await sec.locator('[data-action="enregistrer-etape"]').click();
+  await expect(sec.locator('[data-erreur="rdv_fixe"]')).toContainText('contient 1 fiche');
+  await ligne('rdv_fixe').locator('[data-role="actif"]').check();
+  // renommer + décrire la première étape, activer la cinquième
+  await ligne('premier_contact').getByLabel('Nom de l’emplacement 1').fill('Premier échange');
+  await ligne('premier_contact').getByLabel('Description de l’emplacement 1').fill('Le prospect vient de nous écrire.');
+  await ligne('etape_5').locator('[data-role="actif"]').check();
+  await ligne('etape_5').getByLabel('Nom de l’emplacement 5').fill('En négociation');
+  await sec.locator('[data-action="enregistrer-etape"]').click();
+  await expect(page.locator('.toast', { hasText: 'Étapes enregistrées' })).toBeVisible();
+  await expect.poll(async () => (await lireDocument('crm_parametres/etapes'))?.items?.[0]?.libelle).toBe('Premier échange');
+  const doc = await lireDocument('crm_parametres/etapes');
+  expect(doc.roleGagnee).toBe('gagne');
+  expect(doc.items.map((e) => e.id)).toEqual(['premier_contact', 'rdv_fixe', 'proposition_envoyee', 'gagne', 'etape_5', 'etape_6']);
+  expect(doc.items[4]).toMatchObject({ libelle: 'En négociation', actif: true });
+  // Kanban : toutes les étapes actives, même vides ; le nouveau nom suit
+  await allerA(page, 'Affaires');
+  await expect(page.locator('.kanban > .colonne')).toHaveCount(5);
+  await expect(page.locator('.colonne[data-colonne="premier_contact"] h2')).toHaveText('Premier échange');
+  await expect(page.locator('.colonne[data-colonne="etape_5"] .carte-affaire')).toHaveCount(0);
+  // fiche affaire : la barre des étapes porte l'icône « i » de l'étape décrite
+  await aller(page, '#/crm/affaires/a1');
+  await expect(page.locator('.barre-etapes-fiche [data-role="info"]')).toHaveCount(1);
+  await expect(page.locator('.barre-etapes-fiche [data-role="info"]')).toHaveAttribute('title', 'Le prospect vient de nous écrire.');
+});
+
+test('C39 Réglages : options du CRM — suivi des paiements, extraction de valeur, dépôt de code : éteindre cache les écrans associés', async ({ page }) => {
+  await creerProjet('pr1', { titre: 'Audit des Lilas' });
+  await connecter(page);
+  await attendreModeles();
   await aller(page, '#/projets/projets/pr1');
-  await page.locator('.fiche-actions [data-action="terminer"]').click();
-  await expect(dialogue(page)).toContainText('Clôture bloquée');
-  await expect(dialogue(page)).toContainText('Facture envoyée (reprise de l’affaire)');
-  await dialogue(page).getByRole('button', { name: 'Annuler' }).click();
-  // l'opération est dans le journal (restaurable d'un coup)
-  expect((await listerDocuments('crm_audit')).some((l) => l.outil === 'migrerEtapesRetirees')).toBe(true);
+  await expect(page.locator('[data-section="projet-factures"]')).toHaveCount(1);
+  await expect(page.locator('.fiche-actions [data-action="extraire"]')).toHaveCount(1);
+  await aller(page, '#/reglages');
+  const option = (cle) => page.locator(`[data-option="${cle}"]`);
+  await expect(option('suiviPaiements')).toBeChecked();
+  await option('suiviPaiements').uncheck();
+  await option('extractionValeur').uncheck();
+  await expect.poll(async () => (await lireDocument('crm_parametres/reglages'))?.suiviPaiements).toBe(false);
+  await expect.poll(async () => (await lireDocument('crm_parametres/reglages'))?.extractionValeur).toBe(false);
+  await expect(option('clotureBloquee')).toBeDisabled(); // sans suivi des paiements, la règle n'a plus d'objet
+  await aller(page, '#/projets/projets/pr1');
+  await expect(page.locator('[data-section="projet-factures"]')).toHaveCount(0);
+  await expect(page.locator('.fiche-actions [data-action="extraire"]')).toHaveCount(0);
+  // dépôt de code et dossier : éteint, plus de section de réglages GitHub ni de boutons sur la fiche
+  await aller(page, '#/reglages');
+  await expect(page.locator('#reglages-projets')).toBeVisible();
+  await option('boutonsDepot').uncheck();
+  await expect(page.locator('#reglages-projets')).toBeHidden();
+  await aller(page, '#/projets/projets/pr1');
+  await expect(page.locator('[data-prop="github"], [data-prop="dossier"]')).toHaveCount(0);
+});
+
+test('C40 Réglages : objectifs — chaque indicateur calculé explique son calcul ; on ajoute le chiffre d’affaires signé', async ({ page }) => {
+  await creerAffaire('a1', { titre: 'Signée', etape: 'gagne', statut: 'gagnee', montant: 1200, datesEtapes: { gagne: new Date() } });
+  await connecter(page);
+  await attendreModeles();
+  await aller(page, '#/reglages');
+  const sec = page.locator('#reglages-objectifs');
+  await expect(sec.locator('[data-role="explication"]').first()).toBeVisible();
+  await expect(sec.locator('.ligne-objectif[data-objectif="ca_encaisse"] [data-role="explication"]')).toContainText('marquées payées');
+  await sec.getByLabel('Indicateur calculé à ajouter').selectOption('ca_signe');
+  await expect(sec.locator('[data-role="explication-ajout"]')).toContainText('vente gagnée');
+  await sec.locator('[data-action="ajouter-calcule"]').click();
+  await expect.poll(async () => (await listerDocuments('os_objectifs')).some((o) => o.calcul === 'ca_signe')).toBe(true);
+  const objectif = (await listerDocuments('os_objectifs')).find((o) => o.calcul === 'ca_signe');
+  await allerA(page, 'Accueil');
+  await expect.poll(() => valeurObjectif(page, objectif.id)).toBe(1200);
 });

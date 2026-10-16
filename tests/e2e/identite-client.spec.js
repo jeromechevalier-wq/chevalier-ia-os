@@ -42,17 +42,17 @@ test.beforeEach(async () => {
     ville: '', linkedin: '', siteWeb: '', source: '', oppositionProspection: false, dateOpposition: null, archive: false, ...base,
   });
   await ecrireDocument('clients/studio/crm_affaires/a1', {
-    titre: 'Audit du lac', personneId: 'p1', organisationId: null, etape: 'proposition_envoyee', statut: 'ouverte', priorite: 'tiede', montant: 1200, offreId: null,
+    titre: 'Audit du lac', personneId: 'p1', organisationId: null, etape: 'etape_3', statut: 'ouverte', priorite: 'tiede', montant: 1200, offreId: null,
     dureeJours: null, source: '', besoin: '', dateEntreeEtape: maintenant, datesEtapes: { proposition_envoyee: maintenant }, raisonPerdue: '',
     raisonPerdueDetail: '', dateReveil: null, encaissements: [], documents: [], projetId: null, archive: false, ...base,
   });
   await ecrireDocument('clients/studio/projets_projets/pr1', {
-    titre: 'Site du lac', affaireId: null, personneId: 'p1', organisationId: null, phase: 'lancement', statut: 'actif', dateDebut: jour(0), dateFin: null,
+    titre: 'Site du lac', affaireId: null, personneId: 'p1', organisationId: null, phase: 'phase_1', statut: 'actif', dateDebut: jour(0), dateFin: null,
     modeleId: null, offreId: null, dateEntreePhase: maintenant, datesPhases: { lancement: maintenant }, documents: [], factures: [], urlGithub: '', urlDossier: '',
     nature: 'livraison', projetSourceId: null, archive: false, ...base,
   });
   await ecrireDocument('clients/studio/projets_taches/t1', {
-    titre: 'Préparer la maquette', projetId: 'pr1', phase: 'lancement', ordre: 1, date: jour(0), heure: '', fait: false, dateFait: null, assigneA: 'jerome', auteur: ALICE, creeLe: maintenant,
+    titre: 'Préparer la maquette', projetId: 'pr1', phase: 'phase_1', ordre: 1, date: jour(0), heure: '', fait: false, dateFait: null, assigneA: 'jerome', auteur: ALICE, creeLe: maintenant,
   });
 });
 
@@ -152,7 +152,7 @@ test('I4 les couleurs d\'étapes ne suivent pas la marque (rouge, vert… resten
   const attendu = { '--etape-gagne': '#ecbc06', '--etape-facture_envoyee': '#fd6455', '--etape-facture_payee': '#3fbf7f', '--etape-perdu': '#8d8993', '--prio-chaud': '#fd6455', '--prio-tiede': '#ecbc06' };
   for (const [j, v] of jetons) if (attendu[j]) expect(v, j).toBe(attendu[j]);
   await aller(page, 'Affaires');
-  await expect(page.locator('.colonne[data-colonne="gagne"]')).toBeVisible();
+  await expect(page.locator('.colonne[data-colonne="etape_5"]')).toBeVisible();
 });
 
 test('I5 aucun texte au nom de Jérôme sur les écrans d\'un client (accueil, listes, fiches, journal, projets)', async ({ page }) => {
@@ -169,7 +169,7 @@ test('I5 aucun texte au nom de Jérôme sur les écrans d\'un client (accueil, l
   await expect(page.locator('.page-accueil')).toBeVisible();
   await verifier('accueil');
   await expect(page.locator('.rappel-export')).toHaveCount(0);
-  for (const lib of ['Personnes', 'Organisations', 'Affaires', 'Journal', 'Projets', 'Archives', 'Modèles']) {
+  for (const lib of ['Personnes', 'Organisations', 'Affaires', 'Journal', 'Projets', 'Archives']) { // « Modèles » n'est plus dans le menu : il est dans les Réglages
     await aller(page, lib);
     await verifier(lib);
   }

@@ -103,7 +103,7 @@ describe('nouveau client : création et lecture par les vraies règles', () => {
     assert.equal(marque.couleur, '#336699');
     assert.match(marque.logo, /^https:\/\/firebasestorage\.googleapis\.com\/v0\/b\/.+\/o\/marques%2Fdemo1%2Flogo\.png\?alt=media$/);
     assert.equal(marque.images.length, 1);
-    assert.deepEqual(await lireDoc('clients/demo1'), { nom: 'Client fictif', modules: { affaires: true, projets: true, automatisations: false, veille: false, mcp: false } });
+    assert.deepEqual(await lireDoc('clients/demo1'), { nom: 'Client fictif', modules: { affaires: true, projets: true, automatisations: false, veille: false, mcp: false }, equipe: [{ email: ALICE, role: 'editeur' }, { email: BOB, role: 'lecteur' }] });
     assert.deepEqual(await lireDoc(`clients/demo1/membres/${ALICE}`), { role: 'editeur' });
     assert.deepEqual(await lireDoc(`clients/demo1/membres/${BOB}`), { role: 'lecteur' });
     await admin.db.doc('clients/demo1/crm_personnes/p1').set({ nom: 'Personne inventée' });
@@ -256,8 +256,29 @@ describe('nouveau client : commandes annexes', () => {
     assert.equal((await nc('retirer-membre', 'annexe', ZOE, '--ecrire')).code, 1);
     // il reste Alice et Bob
     assert.deepEqual(await lireDoc(`clients/annexe/membres/${ALICE}`), { role: 'editeur' });
-    const dernier = await nc('retirer-membre', 'annexe', ALICE);
+    // Règle : le dernier éditeur ne peut jamais être retiré, ni rétrogradé en lecteur (même avec --ecrire : rien n'est écrit)
+    const dernier = await nc('retirer-membre', 'annexe', ALICE, '--ecrire');
+    assert.equal(dernier.code, 1);
     assert.match(dernier.texte, /dernier éditeur/);
+    assert.deepEqual(await lireDoc(`clients/annexe/membres/${ALICE}`), { role: 'editeur' });
+    const retrograde = await nc('changer-role', 'annexe', `${ALICE}:lecteur`, '--ecrire');
+    assert.equal(retrograde.code, 1);
+    assert.match(retrograde.texte, /dernier éditeur/);
+    assert.deepEqual(await lireDoc(`clients/annexe/membres/${ALICE}`), { role: 'editeur' });
+    // avec un autre éditeur, on peut retirer le premier
+    assert.equal((await nc('ajouter-membre', 'annexe', `${BOB}:editeur`, '--ecrire')).code, 1, 'Bob est déjà lecteur : changer-role');
+    assert.equal((await nc('changer-role', 'annexe', `${BOB}:editeur`, '--ecrire')).code, 0);
+    assert.equal((await nc('retirer-membre', 'annexe', ALICE, '--ecrire')).code, 0);
+    assert.equal(await lireDoc(`clients/annexe/membres/${ALICE}`), null);
+  });
+
+  test('A1b la liste des membres (équipe) est recopiée dans la fiche du client : adresse et rôle seulement, pour « Confiée à »', async () => {
+    const equipe = (await lireDoc('clients/annexe')).equipe;
+    assert.deepEqual(equipe, [{ email: ALICE, role: 'editeur' }, { email: BOB, role: 'lecteur' }]);
+    assert.equal((await nc('ajouter-membre', 'annexe', `${ZOE}:editeur`, '--ecrire')).code, 0);
+    assert.deepEqual((await lireDoc('clients/annexe')).equipe.map((m) => [m.email, m.role]), [[ALICE, 'editeur'], [BOB, 'lecteur'], [ZOE, 'editeur']]);
+    assert.equal((await nc('retirer-membre', 'annexe', ZOE, '--ecrire')).code, 0);
+    assert.deepEqual((await lireDoc('clients/annexe')).equipe.map((m) => m.email), [ALICE, BOB], 'un membre retiré sort de la liste');
   });
 
   test('A2 activer et désactiver un module (projets exige affaires)', async () => {

@@ -41,7 +41,7 @@ export const OUTILS_ECRITURE = [
     taille: z.string().max(20).optional(), etiquettes: etiquettes.optional(), archive: z.boolean().optional(), forcer,
   }, metier.modifierOrganisation),
 
-  outil('creer_affaire', `Crée une affaire avec son événement. Le titre par défaut est le nom de l'organisation, sinon de la personne ; l'organisation de la personne est reprise si aucune n'est donnée. Étape (défaut premier_contact) parmi : ${L.ETAPES.map((e) => e.id).join(', ')}. Priorité : ${L.PRIORITES.map((p) => p.id).join(', ')}.`, {
+  outil('creer_affaire', `Crée une affaire avec son événement. Le titre par défaut est le nom de l'organisation, sinon de la personne ; l'organisation de la personne est reprise si aucune n'est donnée. Étape (défaut : la première étape active) parmi celles de lire_reglages (configuration.etapes, referentiels.etapes). Priorité : ${L.PRIORITES.map((p) => p.id).join(', ')}.`, {
     titre: z.string().max(300).optional(), personneId: id.optional(), organisationId: id.optional(), etape: z.string().max(60).optional(), priorite: z.string().max(40).optional(),
     montant: z.number().min(0).max(1e9).nullable().optional().describe('Montant en euros.'), offreId: id.optional(), dureeJours: z.number().int().min(0).max(36500).nullable().optional(),
     source: texteCourt.optional(), besoin: z.string().max(5000).optional(), urlGithub, urlDossier, proprietaire,
@@ -53,7 +53,7 @@ export const OUTILS_ECRITURE = [
     besoin: z.string().max(5000).optional(), urlGithub, urlDossier, archive: z.boolean().optional(),
   }, metier.modifierAffaire),
 
-  outil('changer_etape', "Change l'étape d'une affaire comme l'écran (une affaire qui devient gagnée sans avoir de projet reçoit son projet d'extraction de valeur : identifiant dans « extraction ») : statut, dates d'étapes, événements du fil ; la vente s'arrête à « gagne » : la facturation se suit sur les factures des projets (« facture_envoyee » et « facture_payee » n'existent plus). Renvoie la suggestion d'activité de suivi (non créée : à créer avec creer_activite si pertinent).", {
+  outil('changer_etape', "Change l'étape d'une affaire comme l'écran (une affaire qui devient gagnée sans avoir de projet reçoit son projet d'extraction de valeur : identifiant dans « extraction ») : statut, dates d'étapes, événements du fil ; l'étape « vente gagnée » est celle que la configuration désigne (lire_reglages). Renvoie l'action suggérée par l'étape, s'il y en a une (non créée : à créer avec creer_activite si pertinent).", {
     id, etape: z.string().min(1).max(60),
   }, metier.changerEtape),
 
@@ -76,7 +76,7 @@ export const OUTILS_ECRITURE = [
     dateDebut: jour.nullable().optional(), dateFin: jour.nullable().optional(), urlGithub, urlDossier,
   }, metier.modifierProjet),
 
-  outil('changer_phase_projet', `Change la phase d'un projet, dans tous les sens (on peut revenir en arrière). Phases : ${PL.PHASES.map((p) => p.id).join(', ')}. Vers « cloture », refusé tant qu'une facture est à payer (voir terminer_projet pour la sortie « impayé »). Changer la phase d'un projet terminé le rouvre.`, {
+  outil('changer_phase_projet', `Change la phase d'un projet, dans tous les sens (on peut revenir en arrière). Phases : celles de lire_reglages (configuration.phases). Vers la phase de clôture, refusé tant qu'une facture est à payer si le suivi des paiements et la règle de clôture bloquée sont allumés (voir terminer_projet pour la sortie « impayé »). Changer la phase d'un projet terminé le rouvre.`, {
     id, phase: z.string().min(1).max(40),
   }, metier.changerPhaseProjet),
 
@@ -93,7 +93,7 @@ export const OUTILS_ECRITURE = [
 
   outil('extraire_valeur_projet', "Déclenche à la main l'extraction de valeur d'un projet, sans attendre sa fin (utile quand le paiement tarde) : crée son projet d'extraction (modèle « Extraction », quatre tâches). Une seule extraction par projet : si elle existe déjà, rien n'est créé et son identifiant est rendu. Un projet d'extraction ne s'extrait pas.", { id }, metier.extraireProjet),
 
-  outil('ajouter_tache_projet', "Ajoute une tâche à un projet (phase du projet par défaut ; date AAAA-MM-JJ et heure HH:MM facultatives ; assigneA : jerome ou charles).", {
+  outil('ajouter_tache_projet', "Ajoute une tâche à un projet (phase du projet par défaut ; date AAAA-MM-JJ et heure HH:MM facultatives ; assigneA : un membre de l'espace, voir lire_reglages, referentiels.projets.assignes).", {
     projetId: id, titre: z.string().min(1).max(300), phase: z.string().max(40).optional(), date: jour.optional(),
     heure: z.string().regex(/^\d{2}:\d{2}$/, 'Attendu HH:MM').optional(), assigneA: z.string().max(40).optional(),
   }, metier.ajouterTacheProjet),

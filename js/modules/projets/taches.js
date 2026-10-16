@@ -7,7 +7,8 @@ import * as L from '../crm/logique.js';
 import * as D from './donnees.js';
 import * as P from './logique.js';
 import { cheminProjet } from './composants.js';
-import { estChezClient } from '../../os/contexte.js';
+import * as CRM from '../crm/donnees.js';
+const cfg = () => CRM.etat.config;
 
 const LIBELLES_ETAT = { retard: 'En retard', aujourdhui: "Aujourd'hui", avenir: '' };
 const etatDe = (t, aujourdhui) => (P.tacheEnRetard(t, aujourdhui) ? 'retard' : t.date === aujourdhui ? 'aujourdhui' : 'avenir');
@@ -26,7 +27,12 @@ export async function dialogueTache(t) {
   const titre = h('input', { class: 'champ', type: 'text', 'aria-label': 'Titre de la tâche', value: t.titre, autofocus: true });
   const date = selecteurDate(t.date || '');
   const heure = h('input', { class: 'champ champ-court', type: 'time', 'aria-label': 'Heure (facultatif)', value: t.heure || '' });
-  const assigne = h('select', { class: 'champ', 'aria-label': 'Confiée à' }, P.ASSIGNES.map((a) => h('option', { value: a.id, selected: a.id === (t.assigneA || 'jerome') }, a.libelle)));
+  // « Confiée à » : les membres de l'espace. Un seul membre : pas de choix. Un membre retiré reste affiché « Nom (ancien membre) » tant qu'on ne change pas.
+  const membres = P.membresAssignables(cfg());
+  const choixVisible = P.choixAssigneVisible(cfg());
+  const ancien = t.assigneA && !membres.some((m) => m.id === t.assigneA) ? { id: t.assigneA, libelle: P.libelleAssigne(t.assigneA, cfg(), t.assigneNom) } : null;
+  const assigne = h('select', { class: 'champ', 'aria-label': 'Confiée à' },
+    [...(ancien ? [ancien] : []), ...membres].map((a) => h('option', { value: a.id, selected: a.id === (t.assigneA || membres[0]?.id) }, a.libelle)));
   const erreur = h('p', { class: 'erreur', role: 'alert' });
   return dialogue({
     titre: 'Modifier la tâche',
@@ -36,13 +42,13 @@ export async function dialogueTache(t) {
       h('div', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Date (facultative)'), date.element,
         h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', 'data-action': 'effacer-date', onclick: () => { date.champ.value = ''; heure.value = ''; } }, 'Sans date')),
       h('label', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Heure (facultative)'), heure),
-      estChezClient() ? null : h('label', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Confiée à'), assigne), // Jérôme / Charles : pas chez un client
+      choixVisible ? h('label', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Confiée à'), assigne) : null,
       erreur),
     boutons: [{ libelle: 'Annuler', valeur: false }, {
       libelle: 'Enregistrer', valeur: true, style: 'principal',
       avantFermeture: async () => {
         try {
-          await D.majTache(t.id, { titre: titre.value, date: date.valeur(), heure: date.valeur() ? heure.value : '', ...(estChezClient() ? {} : { assigneA: assigne.value }) });
+          await D.majTache(t.id, { titre: titre.value, date: date.valeur(), heure: date.valeur() ? heure.value : '', ...(choixVisible && assigne.value !== t.assigneA ? { assigneA: assigne.value } : {}) });
           return true;
         } catch (e) {
           console.warn(e);
@@ -70,7 +76,7 @@ export function sectionTaches(projet) {
         { libelle: 'Modifier…', icone: 'pencil', action: () => dialogueTache(t) },
         { libelle: 'Monter', icone: 'arrow-up', desactive: i === 0, action: () => ou(() => D.deplacerTache(t.id, -1), 'Déplacement impossible') },
         { libelle: 'Descendre', icone: 'arrow-down', desactive: i === g.taches.length - 1, action: () => ou(() => D.deplacerTache(t.id, 1), 'Déplacement impossible') },
-        ...P.PHASES.map((ph) => ({ libelle: `Déplacer vers : ${ph.libelle}`, icone: 'arrow-right-left', desactive: ph.id === t.phase, action: () => ou(() => D.majTache(t.id, { phase: ph.id }), 'Déplacement impossible') })),
+        ...P.phasesActives(cfg()).map((ph) => ({ libelle: `Déplacer vers : ${ph.libelle}`, icone: 'arrow-right-left', desactive: ph.id === t.phase, action: () => ou(() => D.majTache(t.id, { phase: ph.id }), 'Déplacement impossible') })),
         { libelle: 'Supprimer', icone: 'trash-2', danger: true, action: async () => { if (await confirmer('Supprimer cette tâche ?', t.titre, { libelleOk: 'Supprimer', danger: true })) await ou(() => D.supprimerTache(t.id), 'Suppression impossible'); } },
       ]) }, icone('ellipsis', { taille: 16 }));
     return h('li', { class: `activite tache activite-${etat}${faite ? ' tache-faite' : ''}`, dataset: { tache: t.id } },
@@ -80,13 +86,13 @@ export function sectionTaches(projet) {
         h('span', { class: 'activite-meta' },
           etat !== 'avenir' ? h('span', { class: `badge-etat ${etat}` }, LIBELLES_ETAT[etat]) : null,
           t.date ? h('span', {}, texteDate(t, aujourdhui)) : null,
-          t.assigneA && t.assigneA !== 'jerome' ? h('span', { class: 'badge-assigne' }, icone('user', { taille: 12 }), P.libelleAssigne(t.assigneA)) : null)),
+          t.assigneA && t.assigneA !== P.membresAssignables(cfg())[0]?.id ? h('span', { class: 'badge-assigne', dataset: { role: 'assigne' } }, icone('user', { taille: 12 }), P.libelleAssigne(t.assigneA, cfg(), t.assigneNom)) : null)),
       menu);
   }
 
   // ---- ajout rapide
   const titre = h('input', { class: 'champ', type: 'text', 'aria-label': 'Nouvelle tâche', placeholder: 'Ajouter une tâche…', autocomplete: 'off' });
-  const phase = h('select', { class: 'champ', 'aria-label': 'Phase de la tâche' }, P.PHASES.map((ph) => h('option', { value: ph.id, selected: ph.id === projet.phase }, ph.libelle)));
+  const phase = h('select', { class: 'champ', 'aria-label': 'Phase de la tâche' }, P.phasesActives(cfg()).map((ph) => h('option', { value: ph.id, selected: ph.id === projet.phase }, ph.libelle)));
   const date = selecteurDate('');
   const bouton = h('button', { type: 'button', class: 'bouton bouton-principal bouton-petit', 'data-action': 'ajouter-tache', onclick: ajouter }, icone('plus', { taille: 14 }), 'Ajouter la tâche');
   async function ajouter() {
@@ -106,7 +112,7 @@ export function sectionTaches(projet) {
   const zoneGroupes = h('div', { class: 'pile zone-groupes-taches' });
   let compteur = null;
   function rendreGroupes() {
-    const groupes = P.tachesParPhase(D.etat.taches, projet.id);
+    const groupes = P.tachesParPhase(D.etat.taches, projet.id, cfg());
     const toutes = groupes.flatMap((g) => g.taches);
     const progression = P.progressionProjet(toutes);
     const avecTaches = groupes.filter((g) => g.taches.length);

@@ -1,12 +1,25 @@
 // Célébrations (feu d'artifice repris de tally-merci.html), Charles, compteurs animés.
 import { h, reduireAnimations } from './ui.js';
-import { estChezClient } from './contexte.js';
 
-// Chez un client (plateforme), aucune célébration : elles portent Charles et le prénom de Jérôme (chantier 8 : module optionnel).
-const sansAnimation = () => estChezClient() || reduireAnimations();
+// Les célébrations sont une option du CRM (réglages : interrupteur « Célébrations », prénom et image facultatifs). Éteinte, rien ne s'affiche.
+// Messages neutres par défaut (« Bravo ! »…) ; le prénom et l'image (par exemple Charles, chez Jérôme) viennent des réglages. Sans image : pas d'image.
+const options = { actif: false, prenom: '', image: '' };
+
+/** Appelé par le CRM quand ses réglages changent : { actif, prenom, image }. */
+export function configurerCelebrations({ actif = false, prenom = '', image = '' } = {}) {
+  options.actif = actif === true;
+  options.prenom = String(prenom || '').trim();
+  options.image = String(image || '').trim();
+}
+
+const sansAnimation = () => !options.actif || reduireAnimations();
+
+/** Message avec le prénom en option : « Bravo ! » ou « Bravo Marie ! ». */
+export function messageBravo(base = 'Bravo', prenom = options.prenom) {
+  return prenom ? `${base} ${prenom} !` : `${base} !`;
+}
 
 const COULEURS = ['#ecbc06', '#ffe56c', '#e3cdee', '#ffffff', '#b98ee0'];
-const AVATAR_CHARLES = 'assets/charles-portrait.png';
 
 let file = Promise.resolve();
 
@@ -121,7 +134,7 @@ function scene(message, sousTitre) {
     h('div', { class: 'scene' },
       h('div', { class: 'orbite o1' }),
       h('div', { class: 'orbite o2' }),
-      h('div', { class: 'charles-flottant' }, h('img', { src: AVATAR_CHARLES, alt: 'Charles, l’assistant IA', width: '512', height: '384' }))),
+      options.image ? h('div', { class: 'charles-flottant' }, h('img', { src: options.image, alt: '', width: '512', height: '384' })) : null),
     h('p', { class: 'celebration-titre' }, message),
     sousTitre ? h('p', { class: 'celebration-sous-titre' }, sousTitre) : null);
 }
@@ -129,7 +142,7 @@ function scene(message, sousTitre) {
 // ---------------------------------------------------------------- célébrations publiques
 
 /** Carte passée en Gagné : grand feu d'artifice et Charles au centre. */
-export function celebrerGagne(message = 'Bravo Jérôme !', sousTitre = '') {
+export function celebrerGagne(message = messageBravo(), sousTitre = '') {
   if (sansAnimation()) return Promise.resolve();
   return enFile(() => superposition({
     classe: 'celebration-gagne',
@@ -169,7 +182,7 @@ export function celebrerPaiement(avant, apres, format = (n) => String(Math.round
     contenu: h('div', { class: 'scene-paiement' },
       h('p', { class: 'etiquette' }, "Chiffre d'affaires encaissé ce mois"),
       compteur,
-      h('p', { class: 'celebration-sous-titre' }, 'Facture payée, merci Charles !')),
+      h('p', { class: 'celebration-sous-titre' }, 'Facture payée !')),
     animer: (m) => {
       animerCompteur(compteur, avant, apres, { duree: 1600, format });
       return [setInterval(() => m.pluie(8), 60)];
@@ -198,7 +211,7 @@ export function charlesContent(message = 'Tout est fait pour aujourd’hui') {
   if (sansAnimation()) return;
   document.querySelector('.charles-content')?.remove();
   const bulle = h('div', { class: 'charles-content', role: 'status' },
-    h('img', { src: AVATAR_CHARLES, alt: '', width: '512', height: '384' }),
+    options.image ? h('img', { src: options.image, alt: '', width: '512', height: '384' }) : null,
     h('span', {}, message));
   bulle.addEventListener('click', () => bulle.remove());
   document.body.append(bulle);

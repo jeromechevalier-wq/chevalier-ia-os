@@ -122,7 +122,7 @@ describe('registre : modules actifs d\'un client', () => {
     assert.equal(premiereRoute(['projets']), 'projets/projets');
     assert.deepEqual(ecransActifs([]), []);
     assert.deepEqual(ecransActifs(['affaires']).map((e) => e.route), ['crm/accueil', 'crm/personnes', 'crm/organisations', 'crm/affaires', 'crm/journal']);
-    assert.equal(ecransActifs(['affaires', 'projets']).length, 8);
+    assert.equal(ecransActifs(['affaires', 'projets']).length, 7);
   });
 });
 
@@ -139,7 +139,7 @@ describe('registre : le CRM de Jérôme est strictement inchangé', () => {
     { id: 'projets', libelle: 'Projets', icone: 'folder-kanban', prefixe: 'projets', entrees: [
       { chemin: 'projets/projets', libelle: 'Projets', icone: 'folder-kanban' },
       { chemin: 'projets/archives', libelle: 'Archives', icone: 'archive' },
-      { chemin: 'projets/modeles', libelle: 'Modèles', icone: 'copy' },
+      // « Modèles » est sorti du menu (chantier ménage du CRM, 2026-10-16) : il se règle dans les Réglages (modèles de projets et modèles d'affaires).
     ] },
     // Ajout voulu (veille vendable en module, étape 1, 2026-10-14) : le menu du CRM gagne « Veille » après Projets.
     { id: 'veille', libelle: 'Veille', icone: 'globe', prefixe: 'veille', entrees: [

@@ -66,7 +66,6 @@ export const MODULES_DECLARES = geler([
     ecrans: [
       { route: 'projets/projets', libelle: 'Projets', icone: 'folder-kanban' },
       { route: 'projets/archives', libelle: 'Archives', icone: 'archive' },
-      { route: 'projets/modeles', libelle: 'Modèles', icone: 'copy' },
     ],
     collections: ['projets_projets', 'projets_taches', 'projets_modeles'],
     outilsMcp: [

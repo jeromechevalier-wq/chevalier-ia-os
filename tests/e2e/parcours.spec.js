@@ -42,7 +42,7 @@ test('C1 connexion avec Jérôme : arrivée sur l’Accueil, 6 objectifs, graphi
   for (const libelle of ['Nouveaux contacts', 'Rendez vous tenus', 'Propositions envoyées', "Chiffre d'affaires encaissé", 'Flyers distribués']) {
     await expect(page.locator('.objectif-libelle', { hasText: libelle })).toBeVisible();
   }
-  await expect.poll(async () => (await listerDocuments('crm_parametres')).map((d) => d.id).sort()).toEqual(['etiquettes', 'filtres', 'listes', 'modeles_projet', 'offres', 'reglages']);
+  await expect.poll(async () => (await listerDocuments('crm_parametres')).map((d) => d.id).sort()).toEqual(['etapes', 'etiquettes', 'filtres', 'listes', 'modeles_affaire', 'modeles_projet', 'offres', 'phases', 'reglages']);
   await expect.poll(async () => (await listerDocuments('os_objectifs')).length).toBe(5);
   // Graphique : aucun mois avant le début d'activité (octobre 2026), jamais plus de 6 mois
   const mois = await page.locator('.colonne-ca').evaluateAll((els) => els.map((e) => e.dataset.mois));
@@ -211,9 +211,10 @@ async function deplacer(page, id, etape) {
   }
 }
 
-async function fermerSuggestion(page) {
-  await expect(dialogue(page)).toContainText('Une suggestion');
-  await dialogue(page).getByRole('button', { name: 'Fermer', exact: true }).last().click();
+// Action suggérée par une étape (réglage, aucune par défaut) : on accepte ou on refuse, jamais créée toute seule.
+async function refuserSuggestion(page) {
+  await expect(dialogue(page)).toContainText('Action suggérée');
+  await dialogue(page).getByRole('button', { name: 'Refuser', exact: true }).last().click();
   await expect(dialogue(page)).toHaveCount(0);
 }
 
@@ -253,7 +254,8 @@ test('C7 « + Affaire » depuis la fiche d’une personne : titre prérempli, en
   await expect(dialogue(page).getByLabel('Titre', { exact: true })).toHaveAttribute('placeholder', 'Fleurs de Provence');
   await enregistrer(page);
   const a = await attendre(page, 'crm_affaires', (d) => d.titre === 'Fleurs de Provence');
-  expect(a).toMatchObject({ personneId: 'p1', organisationId: 'o1', etape: 'premier_contact', statut: 'ouverte', priorite: 'tiede', archive: false, encaissements: [] });
+  expect(a).toMatchObject({ personneId: 'p1', organisationId: 'o1', etape: 'premier_contact', statut: 'ouverte', priorite: 'tiede', archive: false });
+  expect('encaissements' in a, 'plus de champ encaissements (restes de la 2.2 supprimés)').toBe(false);
   await expect(page.locator('.section[data-section="personne-affaires"] .carte-affaire-mini')).toContainText('Fleurs de Provence');
   await allerA(page, 'Affaires');
   await expect(page.locator(`.colonne[data-colonne="premier_contact"] .carte-affaire[data-affaire="${a.id}"]`)).toBeVisible();
@@ -276,26 +278,38 @@ test('C8 glisser une carte de Premier contact à Rendez vous fixé puis revenir 
   expect(evenements).toEqual(['Étape : Premier contact → Rendez vous fixé', 'Étape : Rendez vous fixé → Premier contact']);
 });
 
-test('C9 passage en Proposition envoyée : suggestion affichée ; la fermer ne change rien, la valider crée l’activité', async ({ page }) => {
+test('C9 action suggérée par une étape (réglage) : fenêtre accepter / refuser ; refuser ne change rien, accepter crée l’activité', async ({ page }) => {
+  // Aucune action par défaut : l'étape « Proposition envoyée » en reçoit une dans les Réglages (ici écrite directement).
+  await ecrireDocument('crm_parametres/etapes', { items: [{}, {}, { action: { type: 'tache', titre: 'Relancer la proposition', delaiJours: 3 } }], roleGagnee: 'gagne' });
   await creerAffaire('a1', { titre: 'Première', etape: 'rdv_fixe' });
   await creerAffaire('a2', { titre: 'Seconde', etape: 'rdv_fixe' });
   await connecter(page);
   await allerA(page, 'Affaires');
   await deplacer(page, 'a1', 'proposition_envoyee');
-  await expect(dialogue(page)).toContainText('Une suggestion');
+  await expect(dialogue(page)).toContainText('Action suggérée');
   await expect(dialogue(page).getByLabel('Titre de l’activité')).toHaveValue('Relancer la proposition');
   await expect(dialogue(page).getByLabel('Date', { exact: true })).toHaveValue(jour(3));
-  await fermerSuggestion(page);
+  await refuserSuggestion(page);
   await champDoc('crm_affaires', 'a1', 'etape', 'proposition_envoyee');
   expect(await listerDocuments('crm_activites')).toHaveLength(0);
   await deplacer(page, 'a2', 'proposition_envoyee');
-  await expect(dialogue(page)).toContainText('Une suggestion');
-  await dialogue(page).getByRole('button', { name: 'Planifier' }).click();
+  await expect(dialogue(page)).toContainText('Action suggérée');
+  await dialogue(page).getByRole('button', { name: 'Accepter' }).click();
   const act = await attendre(page, 'crm_activites', (d) => d.affaireId === 'a2');
   expect(act).toMatchObject({ titre: 'Relancer la proposition', type: 'tache', date: jour(3), fait: false });
 });
 
-test('C10 Gagné : célébration, suggestion, extraction ; la vente s’arrête là (plus d’étape de facturation, rien n’est encaissé ni archivé)', async ({ page }) => {
+test('C9b aucune action suggérée par défaut : passer à « Proposition envoyée » ou à « Gagné » n’ouvre aucune fenêtre', async ({ page }) => {
+  await creerAffaire('a1', { titre: 'Sans règle en dur', etape: 'rdv_fixe' });
+  await connecter(page);
+  await allerA(page, 'Affaires');
+  await deplacer(page, 'a1', 'proposition_envoyee');
+  await champDoc('crm_affaires', 'a1', 'etape', 'proposition_envoyee');
+  await expect(page.locator('.voile-dialogue')).toHaveCount(0);
+  expect(await listerDocuments('crm_activites')).toHaveLength(0);
+});
+
+test('C10 Gagné : célébration, extraction ; la vente s’arrête là (plus d’étape de facturation, rien n’est encaissé ni archivé)', async ({ page }) => {
   await creerPersonne('p1', { nom: 'Marie Durand' });
   await creerAffaire('a1', { titre: 'Atelier IA', etape: 'proposition_envoyee', montant: 1200, personneId: 'p1', offreId: 'audit' });
   await connecter(page);
@@ -304,11 +318,10 @@ test('C10 Gagné : célébration, suggestion, extraction ; la vente s’arrête 
   await expect(page.locator('.colonne[data-colonne="facture_envoyee"], .colonne[data-colonne="facture_payee"]')).toHaveCount(0);
   await deplacer(page, 'a1', 'gagne');
   await fermerCelebration(page);
-  await expect(dialogue(page).getByLabel('Titre de l’activité')).toHaveValue('Envoyer la facture');
-  await fermerSuggestion(page);
+  await expect(page.locator('.voile-dialogue')).toHaveCount(0); // plus de suggestion « Envoyer la facture » : la règle en dur a disparu
   await champDoc('crm_affaires', 'a1', 'statut', 'gagnee');
   const a = await lireDocument('crm_affaires/a1');
-  expect(a).toMatchObject({ etape: 'gagne', archive: false, encaissements: [] });
+  expect(a).toMatchObject({ etape: 'gagne', archive: false });
   // rien n'est encaissé tant qu'aucune facture de projet n'est payée
   await allerA(page, 'Accueil');
   await expect.poll(() => valeurObjectif(page, 'ca_encaisse')).toBe(0);
@@ -874,7 +887,6 @@ test('C21 fiche affaire : barre des étapes, Gagnée, montant modifiable, docume
   // Gagnée
   await page.locator('[data-action="gagnee"]').click();
   await fermerCelebration(page);
-  await fermerSuggestion(page);
   await expect(page.locator('.barre-etapes-fiche .etape.courante')).toHaveText('Gagné');
   await champDoc('crm_affaires', 'a1', 'statut', 'gagnee');
   // Document
@@ -1083,7 +1095,7 @@ test('C23 navigation : lien direct vers une fiche, route inconnue, déconnexion'
   await aller(page, '#/crm/personnes/inexistante');
   await expect(page.locator('.etat-vide')).toContainText('n’existe plus');
   // Premier lancement : on laisse l'initialisation des réglages et des objectifs se terminer avant de se déconnecter
-  await expect.poll(async () => (await listerDocuments('crm_parametres')).length).toBe(6); // + le repère des modèles de projet
+  await expect.poll(async () => (await listerDocuments('crm_parametres')).length).toBe(9); // listes, offres, étiquettes, filtres, réglages, étapes, phases, modèles d'affaire + le repère des modèles de projet
   await expect.poll(async () => (await listerDocuments('os_objectifs')).length).toBe(5);
   if (estTelephone(page)) await page.getByRole('button', { name: 'Ouvrir le menu' }).click();
   await page.getByRole('button', { name: 'Se déconnecter' }).click();
@@ -1110,7 +1122,7 @@ test('C24 adresse GitHub : proposée avant le dossier, enregistrée seulement qu
   const github = page.locator('[data-prop="github"]');
   const dossier = page.locator('[data-prop="dossier"]');
   await expect(dossier).toBeVisible();
-  expect(await github.evaluate((a, b) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING), await dossier.elementHandle())).toBe(true);
+  expect(await page.evaluate(() => !!(document.querySelector('[data-prop="github"]').compareDocumentPosition(document.querySelector('[data-prop="dossier"]')) & Node.DOCUMENT_POSITION_FOLLOWING))).toBe(true);
   // La proposition n'est pas enregistrée.
   expect((await lireDocument('crm_affaires/a1')).urlGithub ?? '').toBe('');
   // Prompt : privé, compte et nom du dépôt, données balisées ; « Copier » garde la fenêtre ouverte.
