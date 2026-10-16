@@ -60,10 +60,10 @@ describe('D1 Manifeste, icônes, service worker, versions', () => {
     }
     assert.ok(!existsSync(join(RACINE, 'sw.js')) && !existsSync(join(RACINE, 'service-worker.js')));
   });
-  test('D1 versions identiques dans version.json et js/os/version.js (2.6.4)', () => {
+  test('D1 versions identiques dans version.json et js/os/version.js (2.6.5)', () => {
     const v = json('version.json').version;
     const m = /VERSION = '([^']+)'/.exec(lire('js/os/version.js'));
-    assert.equal(v, '2.6.4');
+    assert.equal(v, '2.6.5');
     assert.equal(m[1], v);
   });
   test('D1 portraits réduits (512 px de large au plus)', () => {
@@ -84,8 +84,6 @@ describe('D2 Aucune ressource externe hors Google', () => {
         // Adresses écrites en texte (prompts à coller dans Claude Code, exemples et validation des champs GitHub et Dossier, lien vers l'OS) :
         // jamais chargées. Le parcours D2 dans le navigateur vérifie qu'aucune requête ne part vers ces sites.
         if (/^https:\/\/(github\.com\/|drive\.google\.com\/drive\/|chevalier-ia-os\.web\.app)/.test(url) && /logique\.js$|lanceurs\.js$/.test(f)) continue;
-        // Bouton « Résumer » de la page Veille : simple lien ouvert dans un nouvel onglet (comme dans le mail), jamais une requête du code.
-        if (url === 'https://n8n.chevalier-ia.fr/webhook/veille-resumer-porte' && f.endsWith('veille/logique.js')) continue;
         assert.match(url, autorise, `${f} : ${url}`);
       }
       assert.doesNotMatch(t, /fonts\.googleapis\.com|cdn\.jsdelivr|unpkg\.com|cdnjs/, f);
@@ -262,13 +260,17 @@ describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
   });
 
   test('D4 le code publié (appli) n’utilise ni Cloud Function ni Cloud Storage : le serveur MCP vit dans functions/, jamais publié', () => {
-    // Seule exception (chantier 14) : le module Automatisations (n8n) appelle deux fonctions du serveur (rafraîchir, renommer) ; aucun Cloud Storage.
+    // Deux exceptions : le module Automatisations (n8n) appelle deux fonctions du serveur (rafraîchir, renommer), et la veille en appelle une seule,
+    // `veille` (ajouter un lien collé, lancer un résumé : 2026-10-15) ; aucun Cloud Storage.
+    const AVEC_FONCTIONS = ['js/modules/automatisations/donnees.js', 'js/modules/veille/donnees.js'];
     for (const f of fichiersAppli().filter((x) => /\.js$/.test(x))) {
-      const t = f === 'js/modules/automatisations/donnees.js' ? lire(f).replaceAll(/getFunctions|httpsCallable|firebase-functions\.js/g, '') : lire(f);
+      const t = AVEC_FONCTIONS.includes(f) ? lire(f).replaceAll(/getFunctions|httpsCallable|firebase-functions\.js/g, '') : lire(f);
       assert.doesNotMatch(t, /firebase-functions|firebase-storage|getStorage|httpsCallable/, f);
     }
     const appels = [...lire('js/modules/automatisations/donnees.js').matchAll(/httpsCallable\(fonctions\(\), '([A-Za-z]+)'\)/g)].map((m) => m[1]);
     assert.deepEqual(appels.sort(), ['automatisationsRafraichir', 'automatisationsRenommer']);
+    const appelsVeille = [...lire('js/modules/veille/donnees.js').matchAll(/httpsCallable\(fonctions\(\), '([A-Za-z]+)'\)/g)].map((m) => m[1]);
+    assert.deepEqual(appelsVeille, ['veille']);
   });
 });
 
