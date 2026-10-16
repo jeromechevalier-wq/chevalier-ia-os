@@ -1634,7 +1634,7 @@ test('C38 Réglages : étapes de vente configurables — renommer, expliquer (ic
   await expect(page.locator('.barre-etapes-fiche [data-role="info"]')).toHaveAttribute('title', 'Le prospect vient de nous écrire.');
 });
 
-test('C39 Réglages : options du CRM — suivi des paiements, extraction de valeur, dépôt de code : éteindre cache les écrans associés', async ({ page }) => {
+test('C39 Réglages : options du CRM — suivi des paiements, extraction de valeur, répertoire Drive : éteindre cache les écrans associés', async ({ page }) => {
   await creerProjet('pr1', { titre: 'Audit des Lilas' });
   await connecter(page);
   await attendreModeles();
@@ -1652,13 +1652,14 @@ test('C39 Réglages : options du CRM — suivi des paiements, extraction de vale
   await aller(page, '#/projets/projets/pr1');
   await expect(page.locator('[data-section="projet-factures"]')).toHaveCount(0);
   await expect(page.locator('.fiche-actions [data-action="extraire"]')).toHaveCount(0);
-  // dépôt de code et dossier : éteint, plus de section de réglages GitHub ni de boutons sur la fiche
+  // « Créer le répertoire dans Google Drive » : éteint, plus de section de réglages Drive ni de bouton ; le dossier de travail reste un lien libre
   await aller(page, '#/reglages');
   await expect(page.locator('#reglages-projets')).toBeVisible();
   await option('boutonsDepot').uncheck();
   await expect(page.locator('#reglages-projets')).toBeHidden();
   await aller(page, '#/projets/projets/pr1');
-  await expect(page.locator('[data-prop="github"], [data-prop="dossier"]')).toHaveCount(0);
+  await expect(page.locator('[data-prop="github"], [data-action="creer-dossier"], [data-role="google-absent"]')).toHaveCount(0);
+  await expect(page.locator('[data-prop="dossier"]')).toBeVisible();
 });
 
 test('C40 Réglages : objectifs — chaque indicateur calculé explique son calcul ; on ajoute le chiffre d’affaires signé', async ({ page }) => {
