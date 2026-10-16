@@ -4,6 +4,7 @@
 # (firebase-hosting.yml) reste celui qui publie à chaque fusion dans main.
 # Les fonctions de la plateforme (journal d'activité des workflows, dossier functions-plateforme/) ne sont publiées que par le choix « fonctions »,
 # jamais avec les autres : c'est un déploiement à part, qui exige la clé de n8n déjà déposée dans Secret Manager (docs/journal-activite-workflows.md).
+# Le choix « mcp » ne publie QUE la fonction du MCP des clients (mcpclients) : elle n'a besoin d'aucun secret (docs/mcp-clients.md).
 # Étapes : 1) contrôles sans réseau, 2) construction du paquet dist/plateforme (même code et même version que le CRM, mais avec la
 # configuration Firebase de chevalier-ia-app), 3) publication de ce qui est choisi. Secret requis : FIREBASE_SERVICE_ACCOUNT_CHEVALIER_IA_APP.
 name: Déploiement plateforme clients
@@ -11,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       elements:
-        description: "Que publier ? (les règles ne sont publiées que si tu choisis « regles » ou « tout » ; les fonctions du journal seulement si tu choisis « fonctions », jamais avec « tout »)"
+        description: "Que publier ? (les règles ne sont publiées que si tu choisis « regles » ou « tout » ; les fonctions du journal seulement si tu choisis « fonctions », jamais avec « tout » ; « mcp » publie seulement le MCP des clients)"
         type: choice
         default: hosting
         options:
@@ -19,6 +20,7 @@ on:
           - regles
           - tout
           - fonctions
+          - mcp
 permissions:
   contents: read
 concurrency:
@@ -35,7 +37,7 @@ jobs:
       - name: Contrôles sans réseau (le CRM garde sa configuration, la plateforme prend la sienne, aucun secret)
         run: node --test tests/plateforme-deploiement.test.js
       - name: Installer les composants des fonctions (choix « fonctions » seulement)
-        if: ${{ inputs.elements == 'fonctions' }}
+        if: ${{ inputs.elements == 'fonctions' || inputs.elements == 'mcp' }}
         run: npm ci --prefix functions-plateforme
       - name: Construire le paquet de la plateforme
         run: node scripts/preparer-hebergement.js plateforme
@@ -59,6 +61,7 @@ jobs:
             regles)  cible="firestore:rules,storage" ;;
             tout)    cible="hosting,firestore:rules,storage" ;;
             fonctions) cible="functions:plateforme" ;;
+            mcp)     cible="functions:plateforme:mcpclients" ;;
             *) echo "Choix inconnu : $ELEMENTS"; exit 1 ;;
           esac
           fichier="$RUNNER_TEMP/compte-de-service.json"
