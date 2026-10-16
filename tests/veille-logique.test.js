@@ -30,12 +30,39 @@ describe('veille : types, états, liens', () => {
     assert.equal(L.normaliserEtat('autre chose'), 'nouveau');
   });
 
-  test('lienResumer : même lien que le bouton du mail (adresse, video_id, jeton)', () => {
-    const l = L.lienResumer('abc 1');
-    assert.ok(l.startsWith('https://n8n.chevalier-ia.fr/webhook/veille-resumer-porte?video_id=abc%201&token='));
-    assert.ok(l.endsWith(L.JETON_RESUMER));
-    assert.equal(L.lienResumer(''), null);
-    assert.equal(L.lienResumer(null), null);
+  test('Résumer : possible sur un contenu nouveau ou en échec seulement, et aucun jeton ni adresse n8n dans la page', () => {
+    assert.equal(L.peutResumer('nouveau'), true);
+    assert.equal(L.peutResumer('echec'), true);
+    assert.equal(L.peutResumer('en_cours'), false);
+    assert.equal(L.peutResumer('resume'), false);
+    for (const f of ['js/modules/veille/logique.js', 'js/modules/veille/ecran.js', 'js/modules/veille/donnees.js', 'js/modules/veille/lien.js']) {
+      assert.doesNotMatch(lire(f), /n8n\.chevalier-ia\.fr|JETON_RESUMER|token=/, f);
+    }
+  });
+  test('boutonsAjout : les boutons dépendent de ce que le lien désigne', () => {
+    const vide = L.boutonsAjout(null, '  ');
+    assert.deepEqual(vide.boutons, []);
+    assert.match(vide.aide, /Coller/);
+    assert.deepEqual(L.boutonsAjout(null, 'bonjour').boutons, []);
+    assert.match(L.boutonsAjout(null, 'bonjour').aide, /ni un épisode ni une chaîne/);
+    assert.deepEqual(L.boutonsAjout({ genre: 'video' }, 'x').boutons.map((b) => b.libelle), ['Ajouter', 'Ajouter et résumer']);
+    assert.deepEqual(L.boutonsAjout({ genre: 'video' }, 'x').boutons.map((b) => b.cle), ['ajouter', 'ajouter-resumer']);
+    const chaine = L.boutonsAjout({ genre: 'chaine' }, 'x');
+    assert.deepEqual(chaine.boutons.map((b) => b.libelle), ['Suivre la chaîne']);
+    assert.match(chaine.aide, /5 derniers/);
+  });
+  test('messageAjout : phrases de confirmation (chaîne, épisode, déjà présent, résumé lancé)', () => {
+    assert.equal(L.messageAjout({ genre: 'chaine', sourceNom: 'Veritasium', sourceNouvelle: true, crees: 5 }), 'Chaîne suivie : Veritasium, 5 épisodes ajoutés.');
+    assert.equal(L.messageAjout({ genre: 'chaine', sourceNom: 'Veritasium', sourceNouvelle: false, crees: 1 }), 'Chaîne déjà suivie : Veritasium, 1 épisode ajouté.');
+    assert.match(L.messageAjout({ genre: 'chaine', sourceNom: 'V', sourceNouvelle: false, crees: 0 }), /aucun nouvel épisode/);
+    assert.equal(L.messageAjout({ genre: 'video', crees: 1, titre: 'Mon épisode' }), 'Épisode ajouté : Mon épisode.');
+    assert.equal(L.messageAjout({ genre: 'video', crees: 0, titre: 'Mon épisode' }), 'Cet épisode est déjà dans la liste : Mon épisode.');
+    assert.equal(L.messageAjout({ genre: 'video', crees: 1, titre: 'T', resume: { message: 'Résumé lancé.' } }), 'Épisode ajouté : T. Résumé lancé.');
+  });
+  test('pageDuResume : les liens s\'ouvrent dans un nouvel onglet (balise base ajoutée une fois)', () => {
+    assert.equal(L.pageDuResume('<html><head><title>x</title></head><body>a</body></html>'), '<html><head><base target="_blank"><title>x</title></head><body>a</body></html>');
+    assert.equal(L.pageDuResume('<p>a</p>'), '<base target="_blank"><p>a</p>');
+    assert.equal(L.pageDuResume(null), '<base target="_blank">');
   });
   test('un lien n\'est cliquable que s\'il est en http ou https (jamais javascript:)', () => {
     assert.equal(L.lienSur('https://exemple.test/a'), 'https://exemple.test/a');
@@ -104,8 +131,8 @@ describe('veille : contenus', () => {
 });
 
 describe('veille : cohérence du code', () => {
-  test('règle de nommage module_table : les trois tables déclarées sont veille_sources, veille_contenus, veille_resumes', () => {
-    assert.deepEqual(moduleDeclare('veille').collections, ['veille_sources', 'veille_contenus', 'veille_resumes']);
+  test('règle de nommage module_table : les quatre tables déclarées sont veille_sources, veille_contenus, veille_resumes, veille_pages', () => {
+    assert.deepEqual(moduleDeclare('veille').collections, ['veille_sources', 'veille_contenus', 'veille_resumes', 'veille_pages']);
     for (const m of MODULES_DECLARES) for (const c of m.collections) if (m.id === 'veille') assert.match(c, /^veille_[a-z]+$/);
   });
   test('l\'écran ne peut rien écrire : aucune fonction d\'écriture Firestore dans le module', () => {

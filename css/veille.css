@@ -42,3 +42,12 @@ a.veille-titre:hover, a.veille-titre:focus-visible { text-decoration: underline;
 .veille-pastille.etat-en_cours .veille-point { animation: veille-pulse 1.3s ease-in-out infinite; }
 @keyframes veille-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .3; transform: scale(.65); } }
 @media (prefers-reduced-motion: reduce) { .veille-pastille.etat-en_cours .veille-point { animation: none; } }
+
+/* Ajout d'un lien collé à la main, bouton qui est un vrai <button>, et cadre de lecture d'un résumé. */
+.veille-ajout { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 14px; padding: 12px 16px; background: var(--panneau); border: 1px solid var(--bordure); border-radius: 10px; }
+.veille-ajout .champ { width: 100%; }
+.veille-ajout .veille-actions { margin-top: 2px; }
+button.veille-bouton { border: 0; cursor: pointer; font: inherit; font-weight: 600; }
+button.veille-bouton:disabled { opacity: .55; cursor: default; filter: none; }
+.dialogue-veille-resume { width: min(900px, 96vw); max-width: 96vw; }
+.veille-cadre { width: 100%; height: min(70vh, 720px); border: 1px solid var(--bordure); border-radius: 8px; background: #fff; display: block; }

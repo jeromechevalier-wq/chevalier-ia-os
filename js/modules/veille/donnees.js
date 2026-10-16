@@ -1,8 +1,10 @@
-// Données du module Veille : lecture en temps réel de veille_sources, veille_contenus et veille_resumes.
-// L'écran n'ÉCRIT RIEN dans Firestore : ces tables sont remplies par les workflows n8n (par la « porte » de l'étape 2).
+// Données du module Veille : lecture en temps réel de veille_sources, veille_contenus, veille_resumes et veille_pages (page HTML d'un résumé, lue à la demande).
+// L'écran n'ÉCRIT RIEN dans Firestore : ces tables sont remplies par les workflows n8n (par la « porte ») et par la fonction `veille` du serveur
+// (ajout d'un lien collé, bouton Résumer), appelée avec appeler().
 // Pas de tri ni de limite côté Firestore (le tri se fait dans logique.js) : aucune requête composite, aucun index à créer.
-import { collection, onSnapshot } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
-import { db } from '../../os/firebase.js';
+import { collection, doc, getDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
+import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-functions.js';
+import { db, app } from '../../os/firebase.js';
 import { cheminCollection } from '../../os/chemins.js';
 
 export const etat = { sources: [], contenus: [], resumes: [], pret: false };
@@ -41,4 +43,27 @@ export function arreter() {
   Object.assign(etat, { sources: [], contenus: [], resumes: [], pret: false });
   Object.assign(prets, { sources: false, contenus: false, resumes: false });
   base = '';
+}
+
+const fonctions = () => getFunctions(app, 'europe-west9');
+
+/** Appelle la fonction `veille` du serveur ({ action: 'ajouterLien', url, lancerResume } ou { action: 'resumer', contenuId }). Lève une erreur au message lisible. */
+export async function appeler(demande) {
+  try {
+    const r = await httpsCallable(fonctions(), 'veille')(demande);
+    return r.data;
+  } catch (e) {
+    // Un refus « métier » du serveur porte un message écrit pour être lu tel quel ; tout le reste devient une phrase simple (jamais de détail technique).
+    const code = String(e?.code ?? '');
+    const message = String(e?.message ?? '').replace(/\s*\[\d{3}\]\s*$/, '').trim();
+    if (code.endsWith('failed-precondition') && message) throw new Error(message);
+    if (code.endsWith('permission-denied') || code.endsWith('unauthenticated')) throw new Error('Ce compte n\'a pas accès à cette action. Se reconnecter si besoin.');
+    throw new Error('Le serveur ne répond pas pour le moment. Réessayer dans un instant.');
+  }
+}
+
+/** Page HTML d'un résumé (table veille_pages, lue à la demande pour ne pas alourdir la liste). `null` si elle n'existe pas. */
+export async function lirePage(resumeId) {
+  const d = await getDoc(doc(db, chemin('veille_pages'), resumeId));
+  return d.exists() && typeof d.data().html === 'string' ? d.data().html : null;
 }

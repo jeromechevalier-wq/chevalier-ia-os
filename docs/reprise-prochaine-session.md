@@ -4,6 +4,12 @@
 
 ## Liens et documents, Google Drive (16/10/2026) : branche liens-documents-drive, version 2.6.1
 
+## Veille : ajout de lien, bouton Résumer, lecture du résumé (15/10/2026)
+
+Codé et testé sur la branche `veille-ajout-lien-resumer-lire` (version 2.4.0), **PR en attente du « fusionne » de Jérôme**. **Avant de fusionner** (la fusion déploie les fonctions) : Jérôme crée le secret `VEILLE_JETON_RESUMER`. Ensuite : modifier le nœud « Enregistrer le résumé via la porte » du workflow n8n pour envoyer `html`, tester ensemble, puis essai réel. Pas à pas dans `veille-ajout-et-resume.md`, partie 3.
+
+## Chantier 14 : journal d'activité des workflows (11/10/2026)
+
 Code, tests (Google simulé) et guide écrits ; **rien déployé**. Lire `google-drive.md` : ce que Jérôme verra, les **étapes à faire par lui dans la console Google** (API Drive et Picker, ID client OAuth, écran de consentement `drive.file`, puis donner l'ID client public à Claude), les choix faits et ce qui n'est pas vérifié en réel. Tant que l'ID client est vide, les boutons Google sont cachés.
 
 ## Réglages à menu latéral + menu CRM unique (16/10/2026) : branche reglages-menu-crm-unique, version 2.6.0
