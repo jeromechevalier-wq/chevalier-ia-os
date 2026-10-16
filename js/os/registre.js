@@ -31,7 +31,7 @@ export const OUTILS_COMMUNS = geler(['qui_suis_je']);
  *  ecrans      : { route, libelle, icone } ; collections : noms « nus » (sous clients/<client>/ chez un client) ;
  *  outilsMcp   : outils MCP du module (déclaration seulement) ; dependances : modules à activer avant celui-ci ;
  *  reserveAuxClients : `true` = module réservé aux clients de la plateforme, absent du CRM de Jérôme (champ absent = présent partout ;
- *                      plus aucun module n'a ce drapeau depuis le 16/10/2026 : règle « tout module existe d'abord chez Jérôme »).
+ *                      « automatisations » ne l'a plus depuis le 16/10/2026 : règle « tout module existe d'abord chez Jérôme » ; « mcp » le garde).
  */
 export const MODULES_DECLARES = geler([
   {

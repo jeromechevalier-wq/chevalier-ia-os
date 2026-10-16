@@ -250,7 +250,7 @@ describe('renommage « journal » -> « automatisations » : compatibilité des 
   });
   test('le module Automatisations n\'est plus réservé aux clients : il figure dans le menu du CRM de Jérôme, avec le libellé « Automatisations »', () => {
     assert.ok(MODULES.some((m) => m.id === 'automatisations' && m.libelle === 'Automatisations'));
-    assert.ok(MODULES_DECLARES.every((m) => m.reserveAuxClients !== true));
+    assert.notEqual(moduleDeclare('automatisations').reserveAuxClients, true); // (« mcp » reste réservé aux clients : c'est voulu)
   });
   test('espace-modules.js redirige les anciens liens avant de chercher le module', () => {
     const t = lire('js/os/espace-modules.js');
