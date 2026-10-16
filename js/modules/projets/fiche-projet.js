@@ -17,6 +17,11 @@ import { cheminModele } from './modeles.js';
 import { anneauProgression, cheminProjet } from './composants.js';
 import { pastilleStatutProjet, pastilleImpaye, terminerProjet, changerPhaseProjet, extraireValeur, mettreEnPause, reprendre, rouvrir, demanderSuppressionProjet } from './projets.js';
 const cfg = () => CRM.etat.config;
+const EXPLICATION_STATUT_PROJET = {
+  actif: 'Le projet est en cours : il avance de phase en phase.',
+  en_pause: 'Le projet est mis de côté. On peut le reprendre.',
+  termine: 'Le projet est terminé (phase de clôture). On peut le rouvrir.',
+};
 
 export function rendreFicheProjet(conteneur, id) {
   let panneau = null;
@@ -36,8 +41,8 @@ export function rendreFicheProjet(conteneur, id) {
     const vivant = P.estProjetActif(p);
     return h('ol', { class: `barre-etapes-fiche${vivant ? '' : ' inactive'}`, 'aria-label': 'Phases du projet' },
       P.phasesActives(cfg()).map((ph, i) => h('li', { class: i <= index ? 'passee' : '', style: { '--couleur': ph.couleur } },
-        h('button', { type: 'button', class: `etape${i === index ? ' courante' : ''}`, 'aria-current': i === index && vivant ? 'step' : null, dataset: { phase: ph.id }, title: i === index ? `Phase actuelle : ${ph.libelle}` : `Passer en phase ${ph.libelle}`,
-          onclick: () => changerPhaseProjet(p, ph.id) }, ph.libelle),
+        // Simple indicateur : on change la phase avec la liste « Phase » du Résumé.
+        h('span', { class: `etape${i === index ? ' courante' : ''}`, 'aria-current': i === index && vivant ? 'step' : null, dataset: { phase: ph.id }, title: i === index ? `Phase actuelle : ${ph.libelle}` : ph.libelle }, ph.libelle),
         iconeInfo(ph.description, ph.libelle))));
   }
 
@@ -74,7 +79,7 @@ export function rendreFicheProjet(conteneur, id) {
       lienRetour('#/projets/projets', 'Projets'),
       h('div', { class: 'fiche-tete-ligne' },
         h('div', { class: 'fiche-titre' }, titre,
-          h('div', { class: 'fiche-sous' }, pastilleStatutProjet(p), pastilleImpaye(p), p.archive ? h('span', { class: 'badge-archive' }, 'Archivé') : null,
+          h('div', { class: 'fiche-sous' }, pastilleStatutProjet(p), iconeInfo(EXPLICATION_STATUT_PROJET[p.statut], 'État du projet'), pastilleImpaye(p), p.archive ? h('span', { class: 'badge-archive' }, 'Archivé') : null,
             p.nature === 'extraction' && extractionOn ? h('span', { class: 'badge-nature' }, 'Extraction') : null,
             pers ? h('span', {}, icone('user', { taille: 14 }), lienPersonne(pers)) : null, org ? h('span', {}, icone('building-2', { taille: 14 }), lienOrganisation(org)) : null,
             selectProprietaire({ valeur: p.proprietaire, surChoix: (v) => D.majProjet(p.id, { proprietaire: v }) }))),
@@ -119,12 +124,12 @@ export function rendreFicheProjet(conteneur, id) {
               : h('span', { class: 'aide' }, 'Source supprimée')))) : null,
         extraction && p.raisonPerdue ? h('div', { class: 'prop', dataset: { prop: 'raison-perte' } }, h('span', { class: 'prop-libelle' }, 'Raison de la perte'),
           h('div', { class: 'prop-valeur' }, p.raisonPerdue, p.raisonPerdueDetail ? h('span', { class: 'aide' }, ` : ${p.raisonPerdueDetail}`) : null)) : null,
-        !extraction ? h('div', { class: 'prop', dataset: { prop: 'affaire' } }, h('span', { class: 'prop-libelle' }, 'Affaire'), h('div', { class: 'prop-valeur' },
-          aff ? lienAffaire(aff) : h('span', { class: 'aide' }, p.affaireId ? 'Affaire introuvable' : 'Aucune affaire liée'),
-          p.affaireId ? h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', 'data-action': 'detacher-affaire', onclick: async () => {
+        !extraction && p.affaireId ? h('div', { class: 'prop', dataset: { prop: 'affaire' } }, h('span', { class: 'prop-libelle' }, 'Affaire d’origine'), h('div', { class: 'prop-valeur' },
+          aff ? lienAffaire(aff) : h('span', { class: 'aide' }, 'Affaire introuvable'),
+          h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', 'data-action': 'detacher-affaire', onclick: async () => {
             if (!(await confirmer('Détacher l’affaire ?', 'Le projet et l’affaire sont conservés, seul le lien entre eux disparaît.', { libelleOk: 'Détacher' }))) return;
             try { await D.delierProjet(p.id); toast('Affaire détachée'); } catch (e) { console.warn(e); toast(e?.saisie ? e.message : 'Détachement impossible', { type: 'erreur' }); }
-          } }, 'Détacher') : null)) : null,
+          } }, 'Détacher'))) : null,
         !extraction && projetExtraction ? h('div', { class: 'prop', dataset: { prop: 'extraction' } }, h('span', { class: 'prop-libelle' }, 'Extraction'), h('div', { class: 'prop-valeur' },
           h('a', { class: 'prop-lien', href: cheminProjet(projetExtraction.id) }, projetExtraction.titre))) : null,
         h('div', { class: 'prop' }, h('span', { class: 'prop-libelle' }, 'Personne'), h('div', { class: 'prop-valeur' }, selPersonne.element)),
@@ -177,7 +182,7 @@ export function rendreFicheProjet(conteneur, id) {
         affaireLiee: panneauAffaireId ? { affaireId: panneauAffaireId, fusionnerNotes: (notes, notesAffaire) => P.notesDuProjet(notes, notesAffaire, p.id) } : null,
       });
     }
-    remplir(racine, gabaritFiche({ entete, gauche: [resume.element, taches.element, factures?.element, details.element, sectionDocuments.element, sectionDocumentsAffaire?.element].filter(Boolean), droite: panneau.element }));
+    remplir(racine, gabaritFiche({ entete, gauche: [resume.element, taches.element, factures?.element, sectionDocuments.element, details.element, sectionDocumentsAffaire?.element].filter(Boolean), droite: panneau.element }));
   }
 
   function reconstruire() {

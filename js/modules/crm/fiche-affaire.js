@@ -4,7 +4,7 @@ import * as D from './donnees.js';
 import * as L from './logique.js';
 import {
   lienPersonne, lienOrganisation, sectionRepliable, champPropriete, selecteurPersonne, selecteurOrganisation, titreEditable, selectProprietaire, gabaritFiche,
-  lienRetour, saisieEnCours, pastilleStatut, etatVide, planifier, boutonEtoile, iconeInfo,
+  lienRetour, saisieEnCours, pastilleStatut, etatVide, planifier, iconeInfo, EXPLICATION_STATUT_AFFAIRE,
 } from './composants.js';
 import { panneauActivite } from './activites.js';
 import { creerLanceurs } from './lanceurs.js';
@@ -54,8 +54,8 @@ export function rendreFicheAffaire(conteneur, id) {
     const vivante = a.statut === 'ouverte' || a.statut === 'gagnee';
     return h('ol', { class: `barre-etapes-fiche${vivante ? '' : ' inactive'}`, 'aria-label': 'Étapes de l’affaire' },
       etapes.map((e, i) => h('li', { class: i <= index ? 'passee' : '', style: { '--couleur': e.couleur } },
-        h('button', { type: 'button', class: `etape${i === index ? ' courante' : ''}`, 'aria-current': i === index && vivante ? 'step' : null, dataset: { etape: e.id },
-          onclick: () => changerEtapeAvecBoites(a, e.id) }, e.libelle),
+        // Simple indicateur : on change l'étape avec la liste « Étape » du Résumé (ou « Gagnée », « Perdue »).
+        h('span', { class: `etape${i === index ? ' courante' : ''}`, 'aria-current': i === index && vivante ? 'step' : null, dataset: { etape: e.id }, title: i === index ? `Étape actuelle : ${e.libelle}` : e.libelle }, e.libelle),
         iconeInfo(e.description, e.libelle))));
   }
 
@@ -83,7 +83,10 @@ export function rendreFicheAffaire(conteneur, id) {
       lienRetour('#/crm/affaires', 'Affaires'),
       h('div', { class: 'fiche-tete-ligne' },
         h('div', { class: 'fiche-titre' }, titre,
-          h('div', { class: 'fiche-sous' }, pastilleStatut(a.statut), a.archive ? h('span', { class: 'badge-archive' }, 'Archivée') : null,
+          h('div', { class: 'fiche-sous' }, pastilleStatut(a.statut), iconeInfo(EXPLICATION_STATUT_AFFAIRE[a.statut], 'État de l’affaire'),
+            a.statut === 'perdue' ? h('span', { class: 'aide' }, `${a.raisonPerdue}${a.raisonPerdueDetail ? ` : ${a.raisonPerdueDetail}` : ''}`) : null,
+            a.statut === 'en_pause' ? h('span', { class: 'aide' }, `jusqu’au ${L.formatJour(a.dateReveil)}`) : null,
+            a.archive ? h('span', { class: 'badge-archive' }, 'Archivée') : null,
             p ? h('span', {}, icone('user', { taille: 14 }), lienPersonne(p)) : null, o ? h('span', {}, icone('building-2', { taille: 14 }), lienOrganisation(o)) : null,
             selectProprietaire({ valeur: a.proprietaire, surChoix: (v) => D.majAffaire(a.id, { proprietaire: v }) }))),
         h('div', { class: 'fiche-montant' }, montant.element),
@@ -98,6 +101,12 @@ export function rendreFicheAffaire(conteneur, id) {
     } });
     const selOrg = selecteurOrganisation({ valeurId: a.organisationId, surChoix: async (el) => { if (el && el.id !== a.organisationId) await D.majAffaire(a.id, { organisationId: el.id }); } });
     const offres = D.etat.offres.filter((x) => x.actif !== false || x.id === a.offreId);
+    /** L'étape, modifiable comme la phase d'un projet : même fonction que le Kanban (boîtes de dialogue, célébration, action suggérée). */
+    const selectEtape = h('select', { class: 'champ', 'aria-label': 'Étape', 'data-action': 'choisir-etape',
+      onchange: async () => {
+        await changerEtapeAvecBoites(a, selectEtape.value);
+        selectEtape.value = D.affaire(a.id)?.etape ?? a.etape; // refus ou annulation : on revient à l'étape réelle
+      } }, L.etapesActives(D.etat.config).map((e) => h('option', { value: e.id, selected: e.id === a.etape }, e.libelle)));
     const resume = sectionRepliable({
       id: 'affaire-resume', titre: 'Résumé',
       contenu: h('div', { class: 'proprietes' },
@@ -105,7 +114,7 @@ export function rendreFicheAffaire(conteneur, id) {
         h('div', { class: 'prop' }, h('span', { class: 'prop-libelle' }, 'Organisation'), h('div', { class: 'prop-valeur' }, selOrg.element)),
         champPropriete({ libelle: 'Offre', valeur: a.offreId || '', type: 'select', options: offres.map((x) => ({ valeur: x.id, libelle: x.nom })), surEnregistrer: (v) => D.majAffaire(a.id, { offreId: v || null }) }).element,
         champPropriete({ libelle: 'Priorité', valeur: a.priorite || 'tiede', type: 'select', options: L.PRIORITES.map((x) => ({ valeur: x.id, libelle: x.libelle })), surEnregistrer: (v) => D.majAffaire(a.id, { priorite: v || 'tiede' }) }).element,
-        h('div', { class: 'prop' }, h('span', { class: 'prop-libelle' }, 'Statut'), h('div', { class: 'prop-valeur' }, pastilleStatut(a.statut), a.statut === 'perdue' ? h('span', { class: 'aide' }, ` ${a.raisonPerdue}${a.raisonPerdueDetail ? ` : ${a.raisonPerdueDetail}` : ''}`) : null, a.statut === 'en_pause' ? h('span', { class: 'aide' }, ` jusqu’au ${L.formatJour(a.dateReveil)}`) : null))),
+        h('div', { class: 'prop', dataset: { prop: 'etape' } }, h('span', { class: 'prop-libelle' }, 'Étape'), h('div', { class: 'prop-valeur' }, selectEtape))),
     });
 
     // ---- Projet (affaire gagnée : créer ou lier ; au plus un projet par affaire)
@@ -144,7 +153,7 @@ export function rendreFicheAffaire(conteneur, id) {
     const sectionDocuments = sectionLiensEtDocuments({ id: 'affaire-documents', typeFiche: 'affaire', entite: a, courant: () => D.affaire(a.id) || a, enregistrer: (patch) => D.majAffaire(a.id, patch) });
 
     if (!panneau) panneau = panneauActivite({ lien: { affaireId: a.id }, liensCreation: () => L.liensAffaire(D.affaire(a.id) || a) });
-    remplir(racine, gabaritFiche({ entete, gauche: [resume.element, sectionProjet?.element, details.element, sectionDocuments.element].filter(Boolean), droite: panneau.element }));
+    remplir(racine, gabaritFiche({ entete, gauche: [resume.element, sectionProjet?.element, sectionDocuments.element, details.element].filter(Boolean), droite: panneau.element }));
   }
 
   function reconstruire() {

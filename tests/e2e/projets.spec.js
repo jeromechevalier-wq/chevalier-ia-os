@@ -131,7 +131,7 @@ test('C29 fiche : la barre des phases change la phase ; En pause, Reprendre, Ter
   await expect(page.locator('.fiche')).toBeVisible();
   await expect(page.locator('.titre-editable')).toHaveValue('Audit Carrel');
   await expect(page.locator('.barre-etapes-fiche .etape.courante')).toHaveText('Lancement');
-  await page.locator('.barre-etapes-fiche [data-phase="livraison"]').click();
+  await page.locator('[data-action="choisir-phase"]').selectOption('livraison'); // la bande du haut n'est plus qu'un indicateur
   await champDoc('projets_projets', 'pr1', 'phase', 'livraison');
   await expect(page.locator('.barre-etapes-fiche .etape.courante')).toHaveText('Livraison');
   // pause et reprise
@@ -577,7 +577,7 @@ test('C30 détacher : depuis l’affaire ou depuis le projet, rien n’est suppr
   await dialogue(page).getByRole('button', { name: 'Détacher' }).click();
   await champDoc('projets_projets', 'pr2', 'affaireId', null);
   await champDoc('crm_affaires', 'a2', 'projetId', null);
-  await expect(page.locator('[data-prop="affaire"]')).toContainText('Aucune affaire liée');
+  await expect(page.locator('[data-prop="affaire"]')).toHaveCount(0); // plus de ligne « Aucune affaire liée » : elle n'apparaît que s'il y a une affaire d'origine
   expect(await lireDocument('projets_projets/pr1')).not.toBeNull();
   expect(await lireDocument('crm_affaires/a2')).not.toBeNull();
   expect((await listerDocuments('crm_evenements')).filter((e) => e.type === 'projet_delie')).toHaveLength(2);

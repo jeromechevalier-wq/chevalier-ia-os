@@ -59,6 +59,14 @@ export function pastilleStatut(statut) {
   return h('span', { class: `pastille-statut statut-${statut}`, style: { '--couleur': s?.couleur || '#8d8993' } }, L.libelleStatut(statut));
 }
 
+/** Ce que veut dire l'étiquette d'état d'une affaire (icône « i » à côté, une seule fois sous le titre). */
+export const EXPLICATION_STATUT_AFFAIRE = {
+  ouverte: 'L’affaire est en cours : elle avance d’étape en étape.',
+  gagnee: 'L’affaire est gagnée : la vente est conclue.',
+  perdue: 'L’affaire est perdue : elle ne bouge plus. On peut la rouvrir.',
+  en_pause: 'L’affaire est mise de côté jusqu’à sa date de réveil. On peut la rouvrir.',
+};
+
 export function pastilleEtape(etape) {
   return h('span', { class: 'pastille-statut', style: { '--couleur': L.couleurEtape(etape, D.etat.config) } }, L.libelleEtape(etape, D.etat.config));
 }
