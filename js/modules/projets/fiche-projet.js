@@ -14,7 +14,7 @@ import { sectionTaches } from './taches.js';
 import { sectionFactures } from './factures.js';
 import { cheminModele } from './modeles.js';
 import { anneauProgression, cheminProjet } from './composants.js';
-import { pastilleStatutProjet, pastilleImpaye, pastillePhase, terminerProjet, changerPhaseProjet, extraireValeur, mettreEnPause, reprendre, rouvrir, demanderSuppressionProjet } from './projets.js';
+import { pastilleStatutProjet, pastilleImpaye, terminerProjet, changerPhaseProjet, extraireValeur, mettreEnPause, reprendre, rouvrir, demanderSuppressionProjet } from './projets.js';
 
 export function rendreFicheProjet(conteneur, id) {
   let panneau = null;
@@ -34,7 +34,7 @@ export function rendreFicheProjet(conteneur, id) {
     const vivant = P.estProjetActif(p);
     return h('ol', { class: `barre-etapes-fiche${vivant ? '' : ' inactive'}`, 'aria-label': 'Phases du projet' },
       P.PHASES.map((ph, i) => h('li', { class: i <= index ? 'passee' : '', style: { '--couleur': ph.couleur } },
-        h('button', { type: 'button', class: `etape${i === index ? ' courante' : ''}`, 'aria-current': i === index && vivant ? 'step' : null, dataset: { phase: ph.id },
+        h('button', { type: 'button', class: `etape${i === index ? ' courante' : ''}`, 'aria-current': i === index && vivant ? 'step' : null, dataset: { phase: ph.id }, title: i === index ? `Phase actuelle : ${ph.libelle}` : `Passer en phase ${ph.libelle}`,
           onclick: () => changerPhaseProjet(p, ph.id) }, ph.libelle))));
   }
 
@@ -91,6 +91,12 @@ export function rendreFicheProjet(conteneur, id) {
       if (erreurs[champ]) throw Object.assign(new Error(erreurs[champ]), { saisie: true });
       await D.majProjet(p.id, { [champ]: v || null });
     };
+    /** La phase, modifiable ici comme dans la barre sous le titre : même règle (la Clôture peut être bloquée par les factures), même fonction. */
+    const selectPhase = h('select', { class: 'champ', 'aria-label': 'Phase', 'data-action': 'choisir-phase',
+      onchange: async () => {
+        await changerPhaseProjet(p, selectPhase.value);
+        selectPhase.value = D.projet(p.id)?.phase ?? p.phase; // refus ou annulation : on revient à la phase réelle
+      } }, P.PHASES.map((ph) => h('option', { value: ph.id, selected: ph.id === p.phase }, ph.libelle)));
     /** L'avancement (cercle et « 2 / 5 tâches ») : redessiné seul quand une tâche change pendant qu'on tape dans la fiche. */
     const zoneAvancement = h('div', { class: 'prop-valeur' });
     const rendreAvancement = () => {
@@ -123,8 +129,7 @@ export function rendreFicheProjet(conteneur, id) {
         h('div', { class: 'prop', dataset: { prop: 'avancement' } }, h('span', { class: 'prop-libelle' }, 'Avancement'), zoneAvancement),
         p.modeleId ? h('div', { class: 'prop', dataset: { prop: 'modele' } }, h('span', { class: 'prop-libelle' }, 'Modèle'), h('div', { class: 'prop-valeur' },
           D.modele(p.modeleId) ? h('a', { class: 'prop-lien', href: cheminModele(p.modeleId) }, D.modele(p.modeleId).nom) : h('span', { class: 'aide' }, 'Modèle supprimé'))) : null,
-        h('div', { class: 'prop' }, h('span', { class: 'prop-libelle' }, 'Phase'), h('div', { class: 'prop-valeur' }, pastillePhase(p.phase))),
-        h('div', { class: 'prop' }, h('span', { class: 'prop-libelle' }, 'Statut'), h('div', { class: 'prop-valeur' }, pastilleStatutProjet(p))),
+        h('div', { class: 'prop', dataset: { prop: 'phase' } }, h('span', { class: 'prop-libelle' }, 'Phase'), h('div', { class: 'prop-valeur' }, selectPhase)),
         champPropriete({ libelle: 'Début', valeur: p.dateDebut || '', type: 'date', surEnregistrer: enregistrerDate('dateDebut') }).element,
         champPropriete({ libelle: 'Fin prévue', valeur: p.dateFin || '', type: 'date', surEnregistrer: enregistrerDate('dateFin') }).element),
     });
@@ -179,7 +184,8 @@ export function rendreFicheProjet(conteneur, id) {
     if (!panneau) {
       panneauAffaireId = p.affaireId || null;
       panneau = panneauActivite({
-        lien: { projetId: p.id }, liensCreation: () => P.liensProjet(D.projet(p.id) || p), avecActivites: false,
+        lien: { projetId: p.id }, liensCreation: () => P.liensProjet(D.projet(p.id) || p),
+        typesActivite: ['appel', 'rendez_vous', 'email'], // pas de « Tâche » libre : un projet a sa section Tâches
         affaireLiee: panneauAffaireId ? { affaireId: panneauAffaireId, fusionnerNotes: (notes, notesAffaire) => P.notesDuProjet(notes, notesAffaire, p.id) } : null,
       });
     }

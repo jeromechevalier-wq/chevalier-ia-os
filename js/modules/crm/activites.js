@@ -194,20 +194,22 @@ export function ligneActivite(a, aujourdhui, { avecAffaire = true, tousRattachem
  * liensCreation() : liens à poser sur ce qu'on crée (personneId, organisationId, affaireId).
  * `affaireLiee: { affaireId, fusionnerNotes(notesDeLaFiche, notesDeLAffaire) }` (fiche projet) : montre aussi les notes de l'affaire, en lecture seule
  * (les notes marquées `deAffaire` n'ont ni « Modifier » ni « Supprimer » : elles restent sur l'affaire).
- * `avecActivites: false` (fiche projet : les tâches d'un projet viennent à l'étape 4) : ni onglet « Activité », ni Points clés, seulement les notes et l'historique.
+ * `avecActivites: false` : ni onglet « Activité », ni Points clés, seulement les notes et l'historique (plus utilisé : la fiche projet a retrouvé ses activités).
+ * `typesActivite` : identifiants des types proposés dans l'onglet Activité (par défaut tous). La fiche projet n'offre pas « Tâche » : un projet a ses propres tâches.
  */
-export function panneauActivite({ lien, liensCreation, avecActivites = true, affaireLiee = null }) {
+export function panneauActivite({ lien, liensCreation, avecActivites = true, affaireLiee = null, typesActivite = null }) {
   let fil = { notes: [], evenements: [] };
   let filAffaire = { notes: [] };
   let filtre = 'tous';
   let onglet = avecActivites ? 'activite' : 'notes';
+  const typesProposes = L.TYPES_ACTIVITE.filter((t) => !typesActivite || typesActivite.includes(t.id));
 
   const zonePointsCles = h('div', { class: 'points-cles' });
   const zoneHistorique = h('div', { class: 'historique' });
   const racine = h('div', { class: 'panneau-activite' });
 
   // ---- compositeur (onglets Activité / Notes)
-  let type = 'tache';
+  let type = typesProposes.some((t) => t.id === 'tache') ? 'tache' : typesProposes[0].id;
   let titreModifie = false;
   const champTitre = h('input', { class: 'champ', type: 'text', 'aria-label': 'Titre de l’activité', placeholder: 'Clique ici pour ajouter une activité…', value: '',
     oninput: () => { titreModifie = true; } });
@@ -215,7 +217,7 @@ export function panneauActivite({ lien, liensCreation, avecActivites = true, aff
   const champHeure = h('input', { class: 'champ champ-court', type: 'time', 'aria-label': 'Heure (facultatif)' });
   const types = h('div', { class: 'types-activite', role: 'group', 'aria-label': 'Type d’activité' });
   function rendreTypes() {
-    remplir(types, L.TYPES_ACTIVITE.map((t) => h('button', {
+    remplir(types, typesProposes.map((t) => h('button', {
       type: 'button', class: `pastille-type${t.id === type ? ' actif' : ''}`, 'aria-pressed': String(t.id === type),
       onclick: () => { type = t.id; if (!titreModifie) champTitre.value = ''; rendreTypes(); champTitre.focus(); },
     }, iconeTypeActivite(t.id), t.libelle)));
