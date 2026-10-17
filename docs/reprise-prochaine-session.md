@@ -25,9 +25,9 @@ Petits points notés par la relecture : aide de la méthode (auto/semi/manuel) �
 
 **Pour les tests** : un port d'émulateur pris par une autre session ? Ne rien tuer ; copie jetable sur d'autres ports avec `/private/tmp/claude-501/sync-alt.sh` si elle existe encore (sinon refaire : ports 8180, 9199, 5150). `JAVA_HOME=$HOME/.local/jdk-21/Contents/Home`.
 
-## Veille : ajout de lien, bouton Résumer, lecture du résumé (15/10/2026)
+## Veille : ajout de lien, bouton Résumer, lecture du résumé : TERMINÉ le 17/10/2026
 
-Codé et testé sur la branche `veille-ajout-lien-resumer-lire` (version 2.4.0), **PR en attente du « fusionne » de Jérôme**. **Avant de fusionner** (la fusion déploie les fonctions) : Jérôme crée le secret `VEILLE_JETON_RESUMER`. Ensuite : modifier le nœud « Enregistrer le résumé via la porte » du workflow n8n pour envoyer `html`, tester ensemble, puis essai réel. Pas à pas dans `veille-ajout-et-resume.md`, partie 3.
+Fusionné (PR n° 69), secret `VEILLE_JETON_RESUMER` créé, workflow n8n `interne-veille-resumer-a-la-demande-porte` publié avec le champ `html` (version `9695bfa8` ; version de retour : `9e0f1ece`), essai réel réussi par Jérôme (« Lire le résumé » apparaît). **Rien à reprendre**, sauf l'option de changer l'ancien jeton du bouton (voir `veille-ajout-et-resume.md`, fin de la partie 3). À supprimer de cette note quand Jérôme l'aura lue.
 
 ## Chantier 14 : journal d'activité des workflows (11/10/2026)
 
