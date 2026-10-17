@@ -599,10 +599,8 @@ test.describe('Google branché (simulé)', () => {
     await info.dispatchEvent('click');
     await expect(bulle).toBeVisible();
     // Dans l'écran, jamais coupée.
-    const b = await bulle.boundingBox();
     const largeurEcran = await page.evaluate(() => window.innerWidth);
-    expect(b.x).toBeGreaterThanOrEqual(0);
-    expect(b.x + b.width).toBeLessThanOrEqual(largeurEcran);
+    await expect.poll(async () => { const b = await bulle.boundingBox(); return b ? b.x >= 0 && b.x + b.width <= largeurEcran : null; }).toBe(true); // jamais coupée (mesure réessayée si la fiche se redessine)
     await page.locator('.titre-editable').click(); // ailleurs : elle se ferme
     await expect(bulle).toBeHidden();
     // Survol (souris, ordinateur seulement) : même bulle, même texte, aussi pour l'icône du Dossier de travail.

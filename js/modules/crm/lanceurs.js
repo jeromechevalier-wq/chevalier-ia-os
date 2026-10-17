@@ -80,13 +80,16 @@ export function creerLanceurs({ fiche, typeFiche = 'affaire', nomSuggere = '', e
   }
 
   async function ecrireDossier(url) {
+    // Le formulaire se ferme AVANT l'écriture : dès qu'elle est enregistrée, la fiche est redessinée (nouvelle ligne « Dossier de travail ») et ne doit plus le retrouver ouvert.
+    const ouvert = formulaires.get(cle);
+    formulaires.delete(cle);
     try {
       await enregistrer({ urlDossier: url });
       etat.urlDossier = url;
-      formulaires.delete(cle);
       afficherDossier();
       return true;
     } catch (e) {
+      if (ouvert) formulaires.set(cle, ouvert);
       console.warn(e);
       toast('Enregistrement impossible', { type: 'erreur' });
       return false;
