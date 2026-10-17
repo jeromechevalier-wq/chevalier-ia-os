@@ -1,6 +1,6 @@
 // Gestion des clés de la porte (workflows n8n -> données des modules). Voir scripts/porte/outil.js pour les commandes et les garde-fous.
 //   node scripts/cles.js lister   --projet crm|plateforme [--proprietaire <id>]
-//   node scripts/cles.js creer    --projet crm|plateforme --proprietaire <id> [--ecrire] [--afficher]
+//   node scripts/cles.js creer    --projet crm|plateforme --proprietaire <id> [--usage tableaudebord] [--ecrire] [--afficher]
 //   node scripts/cles.js revoquer --projet crm|plateforme --proprietaire <id> --cle <identifiant court> [--ecrire] [--forcer]
 // Lancé À LA MAIN par Jérôme avec ses identifiants Google (gcloud auth application-default login), comme l'outil « nouveau client ».
 // Dans l'émulateur (FIRESTORE_EMULATOR_HOST défini) : projet de test, aucune donnée réelle.

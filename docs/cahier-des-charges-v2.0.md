@@ -369,59 +369,74 @@ Source : le site chevalier-ia.fr (`styles.css`, `tally-merci.html`, dossier `ass
    `authDomain` est volontairement le domaine d'hébergement (au lieu de `firebaseapp.com`) pour que la connexion par redirection fonctionne sur iPhone. Connexion par fenêtre surgissante sur ordinateur, par redirection sur téléphone et en mode appli installée.
 4. **Règles Firestore** (`firestore.rules`). Inchangées de la version 1.0.0 à la version 2.0 ; **étendues le 03/10/2026 (étape 4 du serveur MCP, `plan-mcp.md` 5.5), puis le 04/10/2026 (audit des actions de l'écran, `audit-ecran.md`)** : les trois collections du serveur (`crm_audit`, `crm_audit_avant`, `mcp_limites`) sont sorties du joker ; l'appli lit le journal et ses copies et peut y **ajouter** les lignes de ses propres actions, sans jamais les modifier ni les supprimer. Pour toutes les autres collections, le comportement est identique à celui d'avant. Le serveur écrit avec le SDK d'administration, qui contourne les règles : il n'en dépend pas. Un nouvel utilisateur s'ajoute à `compteAutorise()` ici **et** dans `COMPTES_AUTORISES` (section suivante), puis les règles sont republiées par Jérôme dans la console (elles ne se déploient pas avec la fusion).
    ```
-   rules_version = '2';
-   service cloud.firestore {
-     match /databases/{database}/documents {
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
 
-       function compteAutorise() {
-         return request.auth != null
-           && request.auth.token.email_verified == true
-           && request.auth.token.email in [
-                "jerome.chevalier@gmail.com",
-                "jeromebot.chevalierbot@gmail.com"
-              ];
-       }
+    function compteAutorise() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email in [
+             "jerome.chevalier@gmail.com",
+             "jeromebot.chevalierbot@gmail.com"
+           ];
+    }
 
-       // Journal d'audit : lisible depuis l'appli. L'appli peut y AJOUTER les lignes de ses propres actions (canal « ecran », à son
-       // nom), jamais les modifier ni les supprimer. Le serveur MCP écrit avec le SDK d'administration, qui contourne les règles.
-       match /crm_audit/{id} {
-         allow read: if compteAutorise();
-         allow create: if compteAutorise()
-           && request.resource.data.via == 'ecran'
-           && request.resource.data.acteur == request.auth.token.email;
-         allow update, delete: if false;
-       }
+    // Journal d'audit : lisible depuis l'appli. L'appli peut y AJOUTER les lignes de ses propres actions (canal « ecran », à son
+    // nom), jamais les modifier ni les supprimer. Le serveur MCP écrit avec le SDK d'administration, qui contourne les règles.
+    match /crm_audit/{id} {
+      allow read: if compteAutorise();
+      allow create: if compteAutorise()
+        && request.resource.data.via == 'ecran'
+        && request.resource.data.acteur == request.auth.token.email;
+      allow update, delete: if false;
+    }
 
-       // Copies « avant / après » (effacées après 90 jours) : lisibles par l'appli (écran Journal), ajout seul depuis l'appli.
-       match /crm_audit_avant/{id} {
-         allow read: if compteAutorise();
-         allow create: if compteAutorise() && request.resource.data.expireAt is timestamp;
-         allow update, delete: if false;
-       }
+    // Copies « avant / après » (effacées après 90 jours) : lisibles par l'appli (écran Journal), ajout seul depuis l'appli.
+    match /crm_audit_avant/{id} {
+      allow read: if compteAutorise();
+      allow create: if compteAutorise() && request.resource.data.expireAt is timestamp;
+      allow update, delete: if false;
+    }
 
-       // Compteurs de débit : réservés aux fonctions.
-       match /mcp_limites/{id} {
-         allow read, write: if false;
-       }
+    // Compteurs de débit : réservés aux fonctions.
+    match /mcp_limites/{id} {
+      allow read, write: if false;
+    }
 
-       // Autorisations OAuth (connexion de Claude sur le téléphone) : empreintes de jetons, réservées aux fonctions.
-       match /mcp_oauth/{id} {
-         allow read, write: if false;
-       }
+    // Autorisations OAuth (connexion de Claude sur le téléphone) : empreintes de jetons, réservées aux fonctions.
+    match /mcp_oauth/{id} {
+      allow read, write: if false;
+    }
 
-       // Clés de la porte des workflows n8n (empreintes SHA-256, jamais les clés) : réservées aux fonctions. Aucun navigateur n'y a accès.
-       match /plateforme_cles/{id} {
-         allow read, write: if false;
-       }
+    // Clés de la porte des workflows n8n (empreintes SHA-256, jamais les clés) : réservées aux fonctions. Aucun navigateur n'y a accès.
+    match /plateforme_cles/{id} {
+      allow read, write: if false;
+    }
 
-       // Tout le reste : comme avant (les deux comptes autorisés), sauf les collections ci-dessus.
-       match /{collection}/{document=**} {
-         allow read, write: if compteAutorise()
-           && !(collection in ['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles']);
-       }
-     }
-   }
-   ```
+    // Tableau de bord : l'écran LIT (les deux comptes autorisés), mais n'écrit jamais lui-même. Les relevés viennent de la porte du tableau de bord (scripts GitHub)
+    // et les saisies passent par une fonction serveur qui les journalise : aucune écriture depuis un navigateur.
+    match /tableaudebord_indicateurs/{id} {
+      allow read: if compteAutorise();
+      allow write: if false;
+    }
+    match /tableaudebord_releves/{id} {
+      allow read: if compteAutorise();
+      allow write: if false;
+    }
+    match /tableaudebord_demandes/{id} {
+      allow read: if compteAutorise();
+      allow write: if false;
+    }
+
+    // Tout le reste : comme avant (les deux comptes autorisés), sauf les collections ci-dessus.
+    match /{collection}/{document=**} {
+      allow read, write: if compteAutorise()
+        && !(collection in ['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes']);
+    }
+  }
+}
+```
 5. **Contrôle dans l'interface** : après connexion, si l'email n'est pas dans `COMPTES_AUTORISES` ou n'est pas vérifié, déconnexion immédiate et message d'accès refusé ; aucune donnée n'est demandée avant ce contrôle.
 6. **Pas de mode hors ligne en version 2.0** : cache Firestore en mémoire (réglage par défaut, pas de cache persistant). Sans réseau, bandeau "Hors ligne : reconnecte toi pour continuer" ; aucune modification n'est promise hors ligne.
 7. **Lectures économes** : un écouteur `onSnapshot` par collection de listes pour toute la session, filtrage et calculs côté navigateur ; requêtes ciblées à l'ouverture d'une fiche pour notes, événements et activités faites (section 3.1.6) ; aucune requête composite, donc aucun index à publier.

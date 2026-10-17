@@ -8,7 +8,7 @@
     "test": "firebase emulators:exec --config ../firebase.json --project demo-chevalier-ia-os --only auth,firestore \"npm run tous\" && npm run test:storage && npm run test:outil-client && npm run test:automatisations",
     "tous": "npm run test:regles && npm run test:logique && npm run preparer && npm run test:statique && npm run test:fonctions && npm run test:porte && npm run test:e2e",
     "test:regles": "node --test --test-concurrency=1 regles.test.js regles-plateforme.test.js",
-    "test:logique": "node --test logique.test.js google-drive.test.js projets.test.js configuration.test.js chemins.test.js membres.test.js marque.test.js identite-client.test.js registre.test.js mcp-module.test.js plateforme-deploiement.test.js automatisations-statique.test.js automatisations-logique.test.js veille-logique.test.js veille-lien.test.js veille-import.test.js porte-cles.test.js porte-outil.test.js porte.test.js",
+    "test:logique": "node --test logique.test.js google-drive.test.js projets.test.js configuration.test.js chemins.test.js membres.test.js marque.test.js identite-client.test.js registre.test.js mcp-module.test.js plateforme-deploiement.test.js automatisations-statique.test.js automatisations-logique.test.js veille-logique.test.js veille-lien.test.js veille-import.test.js porte-cles.test.js porte-outil.test.js porte.test.js tableaudebord.test.js",
     "test:storage": "firebase emulators:exec --config ../firebase.plateforme.json --project demo-chevalier-ia-os --only storage \"node --test --test-concurrency=1 regles-storage.test.js\"",
     "test:statique": "node --test statique.test.js",
     "installer-fonctions": "npm ci --prefix ../functions",

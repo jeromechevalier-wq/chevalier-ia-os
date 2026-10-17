@@ -167,16 +167,16 @@ export function creerPorte({ contexte, donnees, n8n, modulesActifs, limiteur = c
 
 /**
  * Passerelle HTTP (Node) : refuse toute origine de navigateur, lit le corps avec une taille maximale, répond toujours en JSON sans mise en cache.
- * Seuls « / » et « /porte » existent (la réécriture d'hébergement envoie /porte).
+ * Par défaut seuls « / » et « /porte » existent (la réécriture d'hébergement envoie /porte) ; `chemins` en choisit d'autres (porte du tableau de bord).
  */
-export function creerGestionnaireHttp(traiter, { octetsMax = OCTETS_MAX } = {}) {
+export function creerGestionnaireHttp(traiter, { octetsMax = OCTETS_MAX, chemins = ['/', '/porte'] } = {}) {
   const repondre = (res, statut, corps, entetes = {}) => {
     res.writeHead(statut, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...entetes });
     res.end(JSON.stringify(corps));
   };
   return async function gestionnaire(req, res) {
     const chemin = new URL(req.url ?? '/', 'http://x').pathname.replace(/\/+$/, '') || '/';
-    if (chemin !== '/' && chemin !== '/porte') return repondre(res, 404, { ok: false, erreur: 'introuvable' });
+    if (!chemins.includes(chemin)) return repondre(res, 404, { ok: false, erreur: 'introuvable' });
     if (req.headers.origin !== undefined) return repondre(res, 403, { ok: false, erreur: 'origine_refusee' }); // n8n n'envoie pas d'origine ; un navigateur, si
     if (req.method !== 'POST') return repondre(res, 405, { ok: false, erreur: 'methode_refusee', message: 'Seule la méthode POST est acceptée.' }, { Allow: 'POST' });
     const declare = Number(req.headers['content-length']);

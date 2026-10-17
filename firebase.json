@@ -36,7 +36,8 @@
       { "source": "/.well-known/oauth-protected-resource/mcp", "run": { "serviceId": "mcp", "region": "europe-west9" } },
       { "source": "/.well-known/oauth-authorization-server", "run": { "serviceId": "mcp", "region": "europe-west9" } },
       { "source": "/oauth/**", "run": { "serviceId": "mcp", "region": "europe-west9" } },
-      { "source": "/porte", "run": { "serviceId": "porte", "region": "europe-west9" } }
+      { "source": "/porte", "run": { "serviceId": "porte", "region": "europe-west9" } },
+      { "source": "/tableau-de-bord", "run": { "serviceId": "tableaudebord", "region": "europe-west9" } }
     ],
     "headers": [
       {

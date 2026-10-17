@@ -233,7 +233,10 @@ describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
     assert.match(r, /email_verified == true/);
     assert.match(r, /jerome\.chevalier@gmail\.com/);
     assert.match(r, /jeromebot\.chevalierbot@gmail\.com/);
-    assert.match(r, /!\(collection in \['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles'\]\)/);
+    assert.match(r, /!\(collection in \['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes'\]\)/);
+    for (const t of ['tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes']) {
+      assert.match(r, new RegExp(`match /${t}/\\{id\\} \\{\\s+allow read: if compteAutorise\\(\\);\\s+allow write: if false;`), `${t} : lecture seule pour l'écran`);
+    }
     assert.match(r, /match \/plateforme_cles\/\{id\} \{\s+allow read, write: if false;/); // clés de la porte : fermées à tout navigateur
     // journal : lu par l'appli, ajout seul (à son nom, canal « ecran »), jamais modifié ni supprimé
     assert.match(r, /match \/crm_audit\/\{id\} \{\s+allow read: if compteAutorise\(\);\s+allow create: if compteAutorise\(\)\s+&& request\.resource\.data\.via == 'ecran'\s+&& request\.resource\.data\.acteur == request\.auth\.token\.email;\s+allow update, delete: if false;/);
@@ -354,6 +357,7 @@ describe('D5 Serveur MCP (étape 2) : déploiement, versions figées, sécurité
       { source: '/.well-known/oauth-authorization-server', run: vers },
       { source: '/oauth/**', run: vers },
       { source: '/porte', run: { serviceId: 'porte', region: 'europe-west9' } },
+      { source: '/tableau-de-bord', run: { serviceId: 'tableaudebord', region: 'europe-west9' } },
     ]);
     assert.ok(fb.hosting.ignore.includes('functions/**'));
     assert.equal(fb.emulators.functions.port, 5001);
