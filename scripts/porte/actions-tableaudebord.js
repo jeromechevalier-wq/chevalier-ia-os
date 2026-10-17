@@ -1,6 +1,6 @@
 // Actions de la porte du tableau de bord. Une action n'agit QUE sur les tables tableaudebord_indicateurs et tableaudebord_releves du propriétaire de la clé
 // (`base` : '' chez Jérôme, « clients/<id> » chez un client) : le nom des tables est écrit ici, jamais reçu. Aucune suppression.
-//  - indicateurs.ecrire : la situation ACTUELLE de chaque indicateur (un document par indicateur, remplacé à chaque relevé) ;
+//  - indicateurs.ecrire : la situation ACTUELLE de chaque indicateur (un document par indicateur, remplacé par un relevé plus récent ; un relevé plus ancien ou identique est ignoré) ;
 //  - releves.ajouter    : un point d'HISTORIQUE par relevé (créé seulement s'il n'existe pas : un appel répété ne change rien), avec l'objectif en vigueur ce mois-là.
 // Le propriétaire n'est jamais dans le corps : il vient de la clé. Les textes libres refusent tout ce qui ressemble à une clé ou à un secret.
 import { valider } from './validation.js';
@@ -18,8 +18,17 @@ const dateCompacte = (d) => d.toISOString().replace(/[-:]/g, '').slice(0, 15); /
 
 const CHAMPS_FACULTATIFS = Object.freeze({ niveau: null, message: null, valeur: null, unite: null, objectif: null, echeance: null, perimeApresMinutes: null, source: null, procedure: null });
 
+/** Millisecondes d'une date lue en base (Date, objet de date de la base avec toMillis()/toDate(), ou nombre) ; null si illisible. */
+function enMillis(v) {
+  if (v instanceof Date) return v.getTime();
+  if (typeof v === 'number') return v;
+  if (v && typeof v.toMillis === 'function') return v.toMillis();
+  if (v && typeof v.toDate === 'function') return v.toDate().getTime();
+  return null;
+}
+
 const SCHEMA_INDICATEUR = {
-  id: { type: 'id', requis: true },
+  id: { type: 'idsur', requis: true },
   tableau: { type: 'choix', valeurs: TABLEAUX, requis: true },
   famille: { type: 'etiquette', requis: true },
   nom: { type: 'libre', max: 120, min: 1, requis: true },
@@ -38,7 +47,7 @@ const SCHEMA_INDICATEUR = {
 };
 
 const SCHEMA_RELEVE = {
-  indicateurId: { type: 'id', requis: true },
+  indicateurId: { type: 'idsur', requis: true },
   releveLe: { type: 'date', requis: true },
   valeur: { type: 'nombre', min: -1e12, max: 1e12 },
   objectif: { type: 'nombre', min: -1e12, max: 1e12 },
@@ -63,6 +72,7 @@ export const ACTIONS_TABLEAU = Object.freeze({
     async executer({ base, donnees, auteur, maintenant, proprietaire }, { indicateurs }) {
       sansDoublon(indicateurs, (i) => i.id, 'Identifiant');
       let ecrits = 0;
+      let ignores = 0;
       for (const i of indicateurs) {
         if (i.type === 'etat' && !i.niveau) throw new ErreurAction('requete_invalide', `L'indicateur « ${i.id} » est un état : « niveau » est obligatoire.`);
         if (i.type === 'mesure' && i.valeur === undefined) throw new ErreurAction('requete_invalide', `L'indicateur « ${i.id} » est une mesure : « valeur » est obligatoire.`);
@@ -70,13 +80,17 @@ export const ACTIONS_TABLEAU = Object.freeze({
         // (une échéance disparue, une valeur d'avant). L'adaptateur ne sait que créer et mettre à jour : jamais de remplacement ni de suppression.
         const doc = { ...CHAMPS_FACULTATIFS, ...sansIndefini(i), proprietaire, ecritPar: auteur, modifieLe: new Date(maintenant()) };
         const chem = chemin(base, TABLES_TABLEAU.indicateurs, i.id);
+        // Un relevé ancien (ou rejoué) ne remplace jamais un relevé plus récent ou identique : il est ignoré et compté.
+        const existant = await donnees.lireDoc(chem);
+        const dejaLe = existant ? enMillis(existant.releveLe) : null;
+        if (dejaLe !== null && dejaLe >= i.releveLe.getTime()) { ignores++; continue; }
         if (!(await donnees.majDoc(chem, doc)) && !(await donnees.creerSiAbsent(chem, doc))) {
           // Créé entre-temps par un autre appel : une seule nouvelle tentative de mise à jour.
           if (!(await donnees.majDoc(chem, doc))) throw new ErreurAction('ecriture_impossible', 'Écriture impossible.', 500);
         }
         ecrits++;
       }
-      return { ecrits };
+      return { ecrits, ignores };
     },
   },
 

@@ -81,11 +81,16 @@ async function lister(projet, proprietaire, ctx) {
   const { sortie, store, maintenant } = ctx;
   const cles = await store.listerCles(proprietaire);
   if (!cles.length) { sortie(proprietaire ? `Aucune clé pour « ${proprietaire} ».` : 'Aucune clé.'); return 0; }
+  const usageDe = (c) => c.usage ?? 'n8n';
   const parProprietaire = new Map();
   for (const c of cles) parProprietaire.set(c.proprietaire, [...(parProprietaire.get(c.proprietaire) ?? []), c]);
   for (const [p, liste] of [...parProprietaire].sort(([a], [b]) => a.localeCompare(b))) {
-    sortie(`\n${p} : ${liste.filter((c) => c.actif === true).length} clé(s) active(s) sur ${MAX_CLES_ACTIVES} permises`);
-    for (const c of liste.sort((a, b) => String(a.idCourt).localeCompare(String(b.idCourt)))) sortie(`  ${resumeCle(c, maintenant())}`);
+    // Les 3 clés actives permises se comptent par usage : une ligne par usage présent.
+    for (const u of [...new Set(liste.map(usageDe))].sort()) {
+      const duUsage = liste.filter((c) => usageDe(c) === u);
+      sortie(`\n${p} (${u}) : ${duUsage.filter((c) => c.actif === true).length} clé(s) active(s) sur ${MAX_CLES_ACTIVES} permises`);
+      for (const c of duUsage.sort((a, b) => String(a.idCourt).localeCompare(String(b.idCourt)))) sortie(`  ${resumeCle(c, maintenant())}`);
+    }
   }
   return 0;
 }
@@ -157,15 +162,16 @@ async function revoquer(projet, proprietaire, options, ctx) {
     sortie('  Si tu es sûr (clé volée, ou workflows déjà changés), relance avec --forcer.');
     return 1;
   }
-  const autresActives = cles.filter((x) => x.actif === true && x.idCourt !== options.cle).length;
+  const usageCible = c.usage ?? 'n8n';
+  const autresActives = cles.filter((x) => x.actif === true && x.idCourt !== options.cle && (x.usage ?? 'n8n') === usageCible).length;
   if (!options.ecrire) {
-    sortie(`Révoquerait la clé ${options.cle} de « ${proprietaire} ».${autresActives === 0 ? ' ATTENTION : ce serait sa dernière clé active, plus aucun workflow ne pourrait entrer.' : ''}`);
+    sortie(`Révoquerait la clé ${options.cle} de « ${proprietaire} ».${autresActives === 0 ? ` ATTENTION : ce serait sa dernière clé active pour l'usage « ${usageCible} », plus aucun appel de cet usage ne pourrait entrer.` : ''}`);
     sortie('Relancer avec --ecrire pour la révoquer.');
     return 0;
   }
   await store.majCle(c.id, { actif: false, revoqueLe: new Date(maintenant()) });
   const relu = await store.lireCle(c.id);
   if (!relu || relu.actif !== false) { sortie('✖ La révocation n\'est pas confirmée : vérifie avec « lister ».'); return 1; }
-  sortie(`Clé ${options.cle} révoquée : elle est refusée dès maintenant.${autresActives === 0 ? ' Plus aucune clé active pour ce propriétaire.' : ''}`);
+  sortie(`Clé ${options.cle} révoquée : elle est refusée dès maintenant.${autresActives === 0 ? ` Plus aucune clé active de l'usage « ${usageCible} » pour ce propriétaire.` : ''}`);
   return 0;
 }
