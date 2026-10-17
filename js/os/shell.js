@@ -109,11 +109,11 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
   // Chez un client : pas de photo, une pastille avec l'initiale du nom.
   const initiale = (taille) => h('span', { class: 'avatar avatar-initiale', style: { width: `${taille}px`, height: `${taille}px` }, 'aria-hidden': 'true' }, [...String(compte.nom || '?')][0].toUpperCase());
   const avatar = client ? initiale(32) : h('img', { class: `avatar avatar-${compte.nom === 'Charles' ? 'charles' : 'jerome'}`, src: compte.avatar, alt: '', width: '32', height: '32' });
-  const marqueMenu = client
-    ? [client.logo ? h('img', { class: 'menu-logo-client', src: client.logo, alt: '', width: '26', height: '26' }) : null, h('span', { class: 'menu-texte' }, client.nom)]
-    : [baguette(26), h('span', { class: 'menu-texte' }, 'Chevalier IA ', h('b', {}, 'OS'))];
+  const marqueMenu = (c) => (c
+    ? [c.logo ? h('img', { class: 'menu-logo-client', src: c.logo, alt: '', width: '26', height: '26' }) : null, h('span', { class: 'menu-texte' }, c.nom)]
+    : [baguette(26), h('span', { class: 'menu-texte' }, 'Chevalier IA ', h('b', {}, 'OS'))]);
   const menu = h('aside', { class: 'menu', id: 'menu', 'aria-label': 'Menu principal' },
-    h('div', { class: 'menu-marque' }, ...marqueMenu),
+    h('div', { class: 'menu-marque' }, ...marqueMenu(client)),
     nav,
     h('div', { class: 'menu-bas' },
       boutonTheme(),
@@ -207,5 +207,13 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
       if (actif) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
     }
   }
-  return { contenu, activer, arreter: () => document.removeEventListener('keydown', surTouche) };
+  /** Chez un client : nouveau nom et nouveau logo (un éditeur vient de les enregistrer) dans le menu et la barre du haut, sans recharger la page. */
+  function majClient(nouveau) {
+    if (!client) return;
+    client = { ...client, ...nouveau };
+    remplir(menu.querySelector('.menu-marque'), ...marqueMenu(client));
+    const nomHaut = barreHaut.querySelector('.barre-haut-marque span');
+    if (nomHaut) nomHaut.textContent = client.nom;
+  }
+  return { contenu, activer, majClient, arreter: () => document.removeEventListener('keydown', surTouche) };
 }

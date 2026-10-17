@@ -1,4 +1,4 @@
-// Contrôles par le texte du module Tableau de bord (écrans en lecture seule) : R11 (aucune écriture), règles de requête, identité, branchement dans la coque.
+// Contrôles par le texte du module Tableau de bord : R11 et S9 (aucune écriture dans la base depuis l'écran ; seul appel serveur : la fonction `tableaudebordSaisir`), règles de requête, identité, branchement dans la coque.
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -19,23 +19,47 @@ describe('R11 aucune écriture', () => {
     for (const f of fichiers) {
       const t = sansCommentaires(lire(`${DOSSIER}/${f}`));
       assert.doesNotMatch(t, /\b(setDoc|updateDoc|addDoc|deleteDoc|writeBatch|runTransaction)\b/, f);
-      assert.doesNotMatch(t, /firebase-functions|httpsCallable|firebase-storage|\bfetch\s*\(/, `${f} : aucun appel au serveur`);
+      assert.doesNotMatch(t, /firebase-storage|\bfetch\s*\(/, `${f} : aucun autre appel au serveur`);
+      // Seul donnees.js parle au serveur, et seulement par httpsCallable (la saisie) : aucun autre fichier du module n'y touche.
+      if (f !== 'donnees.js') assert.doesNotMatch(t, /firebase-functions|httpsCallable|getFunctions/, `${f} : l'appel au serveur est dans donnees.js seulement`);
     }
   });
-  test('R11 les imports Firestore du module se limitent à la lecture (collection, onSnapshot)', () => {
+  test('S9 le seul appel au serveur est httpsCallable, et il appelle exactement la fonction « tableaudebordSaisir »', () => {
+    const t = sansCommentaires(lire(`${DOSSIER}/donnees.js`));
+    assert.deepEqual([...t.matchAll(/httpsCallable\(fonctions\(\), '([A-Za-z]+)'\)/g)].map((m) => m[1]), ['tableaudebordSaisir']);
+    assert.equal((t.match(/httpsCallable\(/g) || []).length, 1);
+    const [, liste] = /import \{([^}]*)\} from 'https:\/\/www\.gstatic\.com\/firebasejs\/[^/]+\/firebase-functions\.js'/.exec(t);
+    assert.deepEqual(liste.split(',').map((x) => x.trim()).filter(Boolean).sort(), ['getFunctions', 'httpsCallable']);
+  });
+  test('R11 les imports Firestore du module se limitent à la lecture (collection, onSnapshot, query, where)', () => {
     const t = lire(`${DOSSIER}/donnees.js`);
     const [, liste] = /import \{([^}]*)\} from 'https:\/\/www\.gstatic\.com\/firebasejs\/[^/]+\/firebase-firestore\.js'/.exec(t);
-    assert.deepEqual(liste.split(',').map((x) => x.trim()).filter(Boolean).sort(), ['collection', 'onSnapshot']);
+    assert.deepEqual(liste.split(',').map((x) => x.trim()).filter(Boolean).sort(), ['collection', 'onSnapshot', 'query', 'where']);
   });
-  test('R11 aucun bouton d\'action dans l\'écran : seulement « Réessayer » et les filtres (ni rafraîchir, ni saisie, ni suppression)', () => {
+  test('R11 boutons de l\'écran : « Réessayer », les filtres, et la saisie (Saisir, Enregistrer, Annuler) ; ni rafraîchir, ni suppression', () => {
     const ecran = lire(`${DOSSIER}/ecran.js`);
-    assert.doesNotMatch(ecran, /Rafraîchir|Saisir|Enregistrer|Supprimer|Retirer|type: 'date'|<input|h\('input'/);
+    assert.doesNotMatch(ecran, /Rafraîchir|Supprimer|Retirer|<input/);
+    assert.match(ecran, /Enregistrer/);
+    assert.match(ecran, /Annuler/);
+    assert.match(lire(`${DOSSIER}/logique.js`), /Saisir la date/);
+    assert.match(lire(`${DOSSIER}/logique.js`), /Saisir la valeur/);
+    // Deux champs seulement, dans la zone de saisie : la date (ou le nombre) et la note facultative.
+    assert.equal((ecran.match(/h\('input'/g) || []).length, 2);
+    assert.equal((ecran.match(/h\('form'/g) || []).length, 1);
+  });
+  test('S9 l\'écran ne parle à la base que par donnees.js : il appelle seulement D.saisir (aucun autre accès en écriture)', () => {
+    const ecran = sansCommentaires(lire(`${DOSSIER}/ecran.js`));
+    const appels = new Set([...ecran.matchAll(/\bD\.([A-Za-z]+)/g)].map((m) => m[1]));
+    assert.ok(appels.has('saisir'));
+    assert.ok(![...appels].some((x) => /^(ecrire|ajouter|supprimer|maj|modifier)/.test(x)));
   });
 });
 
 describe('règles du dépôt appliquées au module', () => {
-  test('pas de orderBy, limit ni where : la requête lit la collection entière et l\'écran trie (D4)', () => {
-    for (const f of fichiers) assert.doesNotMatch(sansCommentaires(lire(`${DOSSIER}/${f}`)), /\b(orderBy|limit|where)\s*\(/, f);
+  test('S9 pas de orderBy ni limit ; au plus UNE condition where (saisie == true, historique), jamais dans un autre fichier que donnees.js ; l\'écran trie (D4)', () => {
+    for (const f of fichiers) assert.doesNotMatch(sansCommentaires(lire(`${DOSSIER}/${f}`)), /\b(orderBy|limit)\s*\(/, f);
+    const total = fichiers.map((f) => [...sansCommentaires(lire(`${DOSSIER}/${f}`)).matchAll(/\bwhere\s*\(([^)]*)\)/g)].map((m) => [f, m[1]])).flat();
+    assert.deepEqual(total, [['donnees.js', "'saisie', '==', true"]]);
   });
   test('le module lit le chemin de la coque (cheminCollection) et ne filtre jamais sur le champ « proprietaire »', () => {
     const d = lire(`${DOSSIER}/donnees.js`);

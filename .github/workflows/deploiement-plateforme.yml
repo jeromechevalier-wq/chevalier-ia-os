@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       elements:
-        description: "Que publier ? (les règles ne sont publiées que si tu choisis « regles » ou « tout » ; les fonctions des automatisations seulement si tu choisis « fonctions », jamais avec « tout » ; « mcp » publie seulement le MCP des clients)"
+        description: "Que publier ? (les règles ne sont publiées que si tu choisis « regles » ou « tout » ; les fonctions des automatisations seulement si tu choisis « fonctions », jamais avec « tout » ; « mcp » publie seulement le MCP des clients ; « espace » publie seulement la fonction « Mon espace modifiable »)"
         type: choice
         default: hosting
         options:
@@ -21,6 +21,7 @@ on:
           - tout
           - fonctions
           - mcp
+          - espace
 permissions:
   contents: read
 concurrency:
@@ -37,7 +38,7 @@ jobs:
       - name: Contrôles sans réseau (le CRM garde sa configuration, la plateforme prend la sienne, aucun secret)
         run: node --test tests/plateforme-deploiement.test.js
       - name: Installer les composants des fonctions (choix « fonctions » seulement)
-        if: ${{ inputs.elements == 'fonctions' || inputs.elements == 'mcp' }}
+        if: ${{ inputs.elements == 'fonctions' || inputs.elements == 'mcp' || inputs.elements == 'espace' }}
         run: npm ci --prefix functions-plateforme
       - name: Construire le paquet de la plateforme
         run: node scripts/preparer-hebergement.js plateforme
@@ -62,6 +63,7 @@ jobs:
             tout)    cible="hosting,firestore:rules,storage" ;;
             fonctions) cible="functions:plateforme" ;;
             mcp)     cible="functions:plateforme:mcpclients" ;;
+            espace)  cible="functions:plateforme:espaceReglages" ;;
             *) echo "Choix inconnu : $ELEMENTS"; exit 1 ;;
           esac
           fichier="$RUNNER_TEMP/compte-de-service.json"

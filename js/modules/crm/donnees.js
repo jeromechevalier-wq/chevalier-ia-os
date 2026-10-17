@@ -195,7 +195,12 @@ export function demarrer(compteConnecte, base = '', options = {}) {
     etat.modelesAffaire = tri(docs.modeles_affaire?.items);
     etat.reglages = { ...reglagesDepart(), ...(docs.reglages || {}) };
     etat.config = L.construireConfig({ ...docs, reglages: etat.reglages }, { racine: estRacine(), membres: estRacine() ? L.MEMBRES_JEROME : membresDeEquipe(equipe) });
-    configurerCelebrations({ actif: etat.config.options.celebrations, prenom: etat.reglages.prenomCelebration, image: etat.reglages.imageCelebration });
+    // Chez un client : jamais l'image de Charles (réservée à Jérôme) ; le logo de l'espace sert d'image tant que la case n'est pas décochée (2.8.0).
+    const imageCharles = !estRacine() && etat.reglages.imageCelebration === L.IMAGE_CELEBRATION_JEROME;
+    configurerCelebrations({
+      actif: etat.config.options.celebrations, prenom: etat.reglages.prenomCelebration,
+      image: imageCharles ? '' : etat.reglages.imageCelebration, logo: !estRacine() && etat.reglages.logoCelebration !== false,
+    });
     parametresCrees = !!docs.listes && !!docs.etiquettes && !!docs.filtres;
     etat.pret.parametres = true;
     // Un lecteur d'un client (compte.ecrit === false, chantier 7) ne crée pas les paramètres de départ : les règles le refuseraient. Le CRM de Jérôme n'a pas ce champ.

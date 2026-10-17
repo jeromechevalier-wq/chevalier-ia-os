@@ -1,12 +1,12 @@
-// Module Tableau de bord (étape 2 : écrans en lecture seule) : état des indicateurs de surveillance (clés, plus tard sauvegardes, finances, stocks).
+// Module Tableau de bord (écrans, saisie d'une date ou d'une valeur par la fonction du serveur, onglet « Historique des saisies ») : état des indicateurs de surveillance (clés, plus tard sauvegardes, finances, stocks).
 // Routes : tableaudebord/general, tableaudebord/technique ; tableaudebord/finance et tableaudebord/stocks existent aussi (onglets montrés seulement
-// si un indicateur les porte). Présent à la racine et chez les clients qui l'ont activé ; les données se lisent sous le chemin de base de la coque.
+// si un indicateur les porte) ; tableaudebord/historique est un onglet seulement (pas d'entrée de menu). Présent à la racine et chez les clients qui l'ont activé ; les données se lisent sous le chemin de base de la coque.
 import { vider } from '../../os/ui.js';
 import { naviguer } from '../../os/router.js';
 import * as D from './donnees.js';
 import { rendreTableau } from './ecran.js';
 
-const ECRANS = ['general', 'technique', 'finance', 'stocks'];
+const ECRANS = ['general', 'technique', 'finance', 'stocks', 'historique'];
 
 // Feuille de style propre au module, ajoutée au premier affichage (index.html reste inchangé).
 function ajouterFeuille() {
