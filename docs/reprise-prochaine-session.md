@@ -2,19 +2,25 @@
 
 Écrit le 04/10/2026, mis à jour le 07/10/2026 à la fin du chantier Projets, pour qu'une session neuve reprenne sans que Jérôme ait à recoller quoi que ce soit. **À mettre à jour ou à supprimer une fois les points faits.**
 
+## Mon espace modifiable (17/10/2026) : branche mon-espace-modifiable, version 2.10.0
+
+Code et tests écrits, **rien déployé**, PR en attente du « fusionne ». Lire `mon-espace.md` : qui peut quoi, la fonction `espaceReglages`, les **étapes de Jérôme avant le déploiement** (créer le compte de service `espace-reglages` et lui donner deux droits, vérifier le nom « Chevalier IA - Serveur 1 » en haut de chaque page de la console, puis choisir « fonctions » dans le workflow, qui publie aussi les automatisations et exige la clé n8n) et ce qui n'est pas vérifié en réel (vrai Storage, vrai appel, iPhone). Les règles Firestore et Storage ne changent pas. Captures de recette : `~/chantiers-crm/captures-mon-espace/`.
+
 ## Automatisations de Jérôme + vue administrateur (17/10/2026) : branche automatisations-admin, version 2.7.0
 
 Code et tests écrits, **rien déployé**, interrupteur `AUTOMATISATIONS_EN_SERVICE = false` dans `functions/src/index.js` (une fusion déploie toutes les fonctions : il faut d'abord le secret et le compte de service). Lire `automatisations-n8n.md` parties 10 et 11 : reconnaissance par trois signes, guide pas à pas pour Jérôme, **à confirmer avec lui : le nom exact du credential `interne` dans son n8n** (prévu : « Clé n8n - interne »).
 
 ## Liens et documents, Google Drive (16/10/2026) : branche liens-documents-drive, version 2.6.1
 
-## Tableau de bord : porte et écran en lecture (17/10/2026), version 2.8.0
+## Tableau de bord : porte, écran et saisie (17/10/2026), version 2.9.0
 
-**En ligne** : la porte des scripts GitHub (`docs/tableau-de-bord.md`, PR 94, 97 : fonction `tableaudebord`, clé `cle-tdb`, règles lecture seule publiées des deux côtés) et l'écran en lecture « Tableau de bord » (PR 98 : Général et Technique, niveau calculé par l'écran, cas vide/erreur/chargement, 50 captures dans `tests/e2e/captures/tableaudebord/`). Les 14 indicateurs de clés sont écrits chaque jour par le workflow `interne-surveillance-cles` du dépôt `interne-sauvegardes`.
+**En ligne** : la porte des scripts GitHub (`docs/tableau-de-bord.md`, PR 94, 97), l'écran en lecture (PR 98), et la saisie d'une date ou d'une mesure avec l'onglet « Historique des saisies » (PR 101 : fonction appelable `tableaudebordSaisir`, lot atomique, le script quotidien n'écrase plus une saisie même en cas de course, section 7 de `docs/tableau-de-bord.md`). Les 14 indicateurs de clés sont écrits chaque jour par `interne-surveillance-cles`.
+
+**Constats de Jérôme à traiter en premier (17/10/2026)** : (1) une échéance à moins d'un mois doit s'afficher en rouge (clignotement discret, avec `prefers-reduced-motion`) et déclencher des e-mails d'alarme : la règle actuelle (orange sous 30 jours) est à revoir avec lui ; (2) le workflow quotidien ignore les indicateurs saisis à la main, donc aucun e-mail pour une échéance saisie : ajouter une lecture seule sur la porte (`indicateurs.lire`) que le script appelle pour les évaluer ; (3) une note saisie affichait `dat" de test a v"rifier` : le texte est stocké tel quel (le `é` est devenu `"`), l'affichage est bon : retester la saisie des accents dans le champ. Brief complet : fiche du second cerveau `Reprise - Tableau de bord, suite (2026-10-17)`.
 
 **Reste à faire, dans l'ordre** (conception : fiche « Module Tableau de bord - conception » du second cerveau ; relecture Fable du 17/10/2026) :
-1. Objectifs du mois et courbes : migrer `os_objectifs` dans les nouvelles tables (décision de Jérôme : même code partout), lecture de `tableaudebord_releves` (index composite à créer : aucun `firestore.indexes.json` aujourd'hui), tableau Général avec les objectifs.
-2. Saisie des dates et des mesures par une fonction serveur (pas d'écriture depuis l'écran), traçabilité dans un onglet « Historique des saisies » propre au module (décision du 17/10).
+1. Objectifs du mois et courbes (décision de Jérôme : calcul chaque dimanche par une fonction planifiée, et à chaque arrivée sur la page par une fonction appelable ; jamais d'écriture depuis l'écran) : migrer `os_objectifs` dans les nouvelles tables (décision de Jérôme : même code partout), lecture de `tableaudebord_releves` (index composite à créer : aucun `firestore.indexes.json` aujourd'hui), tableau Général avec les objectifs.
+2. (FAIT, PR 101) Saisie des dates et des mesures par une fonction serveur, historique des saisies.
 3. Boutons de rafraîchissement (demande en base, fonction qui lance le workflow GitHub avec un jeton limité, le workflow accepte une cible).
 4. Retrait des indicateurs disparus de la configuration ; limites par famille de clés ; lot d'écriture atomique ; frein sur les refus 401.
 5. Indicateurs des sauvegardes et des copies Google dans le tableau de bord.
@@ -23,9 +29,9 @@ Petits points notés par la relecture : aide de la méthode (auto/semi/manuel) �
 
 **Pour les tests** : un port d'émulateur pris par une autre session ? Ne rien tuer ; copie jetable sur d'autres ports avec `/private/tmp/claude-501/sync-alt.sh` si elle existe encore (sinon refaire : ports 8180, 9199, 5150). `JAVA_HOME=$HOME/.local/jdk-21/Contents/Home`.
 
-## Veille : ajout de lien, bouton Résumer, lecture du résumé (15/10/2026)
+## Veille : ajout de lien, bouton Résumer, lecture du résumé : TERMINÉ le 17/10/2026
 
-Codé et testé sur la branche `veille-ajout-lien-resumer-lire` (version 2.4.0), **PR en attente du « fusionne » de Jérôme**. **Avant de fusionner** (la fusion déploie les fonctions) : Jérôme crée le secret `VEILLE_JETON_RESUMER`. Ensuite : modifier le nœud « Enregistrer le résumé via la porte » du workflow n8n pour envoyer `html`, tester ensemble, puis essai réel. Pas à pas dans `veille-ajout-et-resume.md`, partie 3.
+Fusionné (PR n° 69), secret `VEILLE_JETON_RESUMER` créé, workflow n8n `interne-veille-resumer-a-la-demande-porte` publié avec le champ `html` (version `9695bfa8` ; version de retour : `9e0f1ece`), essai réel réussi par Jérôme (« Lire le résumé » apparaît). **Rien à reprendre**, sauf l'option de changer l'ancien jeton du bouton (voir `veille-ajout-et-resume.md`, fin de la partie 3). À supprimer de cette note quand Jérôme l'aura lue.
 
 ## Chantier 14 : journal d'activité des workflows (11/10/2026)
 

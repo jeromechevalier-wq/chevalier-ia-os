@@ -9,8 +9,9 @@ import { moduleAccessible, premiereRoute, routeModernisee } from './registre.js'
 import { definirPrefixe, routeCourante, segments, surChangementRoute, naviguer, lien, suivreLiensDuPrefixe } from './router.js';
 import { monterCoquille } from './shell.js';
 import { monterReglages } from './reglages.js';
-import { definirChezClient } from './contexte.js';
+import { definirChezClient, definirLogoEspace } from './contexte.js';
 import { appliquerIdentite } from './identite.js';
+import { normaliserMarque } from './marque.js';
 import { h, icone, vider, remplir } from './ui.js';
 
 /**
@@ -26,9 +27,17 @@ export async function ouvrirEspaceModules(racine, { client, marque, compte, acti
   for (const api of apis.values()) api.demarrer({ compte, cheminBase: base, equipe }); // equipe : membres de l'espace (fiche du client), pour « Confiée à »
   document.body.classList.remove('page-espace');
   appliquerIdentite(marque, client); // titre, icône, appli installée et accent de l'interface = ceux du client
-  definirChezClient(true); // masque ce qui est personnel à Jérôme (Charles, célébrations, sauvegarde, GitHub…)
+  definirChezClient(true); // masque ce qui est personnel à Jérôme (Charles, sauvegarde, GitHub…) ; les célébrations n'y existent qu'avec leur option, et l'image de Charles n'y est jamais
+  definirLogoEspace(marque.logo); // le logo de l'espace peut servir d'image aux célébrations (lu en direct, jamais recopié)
   const accueil = premiereRoute(actifs);
   const coquille = monterCoquille(racine, compte, { apis, modules, client: { nom: marque.nom, logo: marque.logo }, accueil, surDeconnexion });
+  /** Un éditeur vient d'enregistrer nom, couleur ou logo : tout ce qui est visible se met à jour tout de suite, sans recharger (les autres appareils au prochain chargement). */
+  const surMarque = (nouvelle) => {
+    Object.assign(marque, normaliserMarque({ actif: true, ...nouvelle }) ?? nouvelle); // mêmes formes que la marque lue à l'ouverture (images : { url, alt })
+    appliquerIdentite(marque, client);
+    definirLogoEspace(marque.logo);
+    coquille.majClient({ nom: marque.nom, logo: marque.logo });
+  };
   let vue = null; // { cle, quitter }
   const arretLiens = suivreLiensDuPrefixe();
 
@@ -43,7 +52,7 @@ export async function ouvrirEspaceModules(racine, { client, marque, compte, acti
         vider(coquille.contenu);
         vue = { cle: 'reglages', quitter: null };
       }
-      vue.quitter = monterReglages(coquille.contenu, segs, { apis, actifs, chezClient: true, nomEspace: marque.nom, marque, fiche, compte });
+      vue.quitter = monterReglages(coquille.contenu, segs, { apis, actifs, chezClient: true, client, nomEspace: marque.nom, marque, fiche, compte, surMarque, surDeconnexion });
       coquille.activer(segs.join('/'));
       return;
     }
@@ -81,5 +90,6 @@ export async function ouvrirEspaceModules(racine, { client, marque, compte, acti
     for (const api of apis.values()) api.arreter();
     definirPrefixe('');
     definirChezClient(false);
+    definirLogoEspace(null);
   };
 }

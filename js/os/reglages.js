@@ -4,11 +4,13 @@
 // La coque ne connaît aucun module : le menu vient du registre (registre.js, reglagesDesModules) et chaque module écrit ses sections dans `reglages(page, ctx)`.
 // On réorganise l'AFFICHAGE seulement : aucune donnée n'est déplacée, chaque module garde ses collections.
 // Routes : reglages (première section de l'espace), reglages/<section d'espace ou bloc de module>, par exemple reglages/crm.
-// Chez un client, le nom, le logo, les membres et les modules sont lus (fiche de marque et fiche du client) mais PAS modifiables depuis le navigateur :
-// les règles Firestore l'interdisent (seul l'outil « nouveau client » écrit ces fiches). Un lecteur ne modifie rien nulle part (réglages des modules grisés).
+// Chez un client (2.10.0) : un ÉDITEUR règle lui-même le nom, la couleur, le logo, les images, le texte d'accueil (Mon espace) et les membres (Membres et rôles),
+// par la fonction serveur « espaceReglages » (mon-espace.js) : les règles Firestore interdisent toujours d'écrire ces fiches depuis le navigateur. Les modules actifs restent
+// à l'administrateur (lecture seule). Un lecteur voit Mon espace en lecture seule et ne modifie rien nulle part (réglages des modules grisés).
 import { h, icone, vider, remplir } from './ui.js';
 import { lien, naviguer } from './router.js';
 import { boutonTheme } from './shell.js';
+import { sectionMonEspace, sectionMembresEditable } from './mon-espace.js';
 import { reglagesDesModules, sectionsEspaceVisibles, interrupteursDuClient, cibleReglages, moduleDeclare } from './registre.js';
 
 const LIBELLES_ROLE = Object.freeze({ editeur: 'Éditeur : consulte et modifie', lecteur: 'Lecteur : consulte seulement' });
@@ -37,7 +39,11 @@ function ligneInfo(etiquette, valeur, donnee) {
 
 // ---------------------------------------------------------------- réglages de l'espace (coque)
 
-function sectionEspace(ctx) {
+function sectionEspace(ctx, etat) {
+  const apparence = section('reglages-theme', 'Apparence de cet appareil', 'sun',
+    h('p', { class: 'aide' }, 'Le thème choisi est mémorisé sur cet appareil.'),
+    boutonTheme('bouton bouton-secondaire'));
+  if (ctx.chezClient && ctx.client) return [sectionMonEspace(ctx, etat), apparence]; // éditeur : formulaire ; lecteur : mêmes valeurs désactivées
   const m = ctx.marque;
   const lignes = [ligneInfo('Nom', ctx.nomEspace, 'nom')];
   if (ctx.chezClient) {
@@ -48,18 +54,14 @@ function sectionEspace(ctx) {
       h('span', { class: 'reglages-info-etiquette' }, 'Couleur'),
       m?.couleur ? h('span', { class: 'reglages-info-valeur' }, h('span', { class: 'reglages-pastille', style: { background: m.couleur }, 'aria-hidden': 'true' }), m.couleur) : h('span', { class: 'reglages-info-valeur' }, 'Couleur par défaut')));
   }
-  const apparence = section('reglages-theme', 'Apparence de cet appareil', 'sun',
-    h('p', { class: 'aide' }, 'Le thème choisi est mémorisé sur cet appareil.'),
-    boutonTheme('bouton bouton-secondaire'));
   const identite = section('reglages-identite', 'Identité de l’espace', 'house',
-    ctx.chezClient
-      ? h('p', { class: 'aide' }, 'Nom, logo et couleur viennent de la fiche de marque de ton espace. Ils se changent par la personne qui gère ton espace : ils ne se modifient pas depuis cette page.')
-      : h('p', { class: 'aide' }, 'L’identité de cet espace est celle de la coque de l’application : elle ne se règle pas ici.'),
+    h('p', { class: 'aide' }, 'L’identité de cet espace est celle de la coque de l’application : elle ne se règle pas ici.'),
     h('div', { class: 'reglages-infos' }, ...lignes));
   return [identite, apparence];
 }
 
-function sectionMembres(ctx) {
+function sectionMembres(ctx, etat) {
+  if (ctx.chezClient && ctx.client && ctx.editeur) return [sectionMembresEditable(ctx, etat)];
   const equipe = Array.isArray(ctx.fiche?.equipe) ? ctx.fiche.equipe : null;
   const moi = String(ctx.compte?.email ?? '').toLowerCase();
   const membres = (equipe ?? [{ email: ctx.compte?.email, role: ctx.compte?.role }])
@@ -79,8 +81,9 @@ function sectionModules(ctx) {
   const lignes = interrupteursDuClient(ctx.actifs).filter((l) => ctx.chezClient || l.modules.every((id) => !moduleDeclare(id).reserveAuxClients));
   return [section('reglages-modules', 'Modules actifs', 'layout-dashboard',
     h('p', { class: 'aide' }, ctx.chezClient
-      ? 'Les modules allumés dans cet espace. Un module s’allume ou s’éteint pour ton espace seulement, par la personne qui le gère : les interrupteurs ci-dessous sont en lecture seule. Éteindre un module ne supprime aucune donnée.'
+      ? 'Les modules allumés dans cet espace. Éteindre un module ne supprime aucune donnée.'
       : 'Ici tous les modules sont allumés : cet espace n’a pas d’interrupteur par module.'),
+    ctx.chezClient ? h('p', { class: 'aide', dataset: { role: 'modules-administrateur' } }, 'Pour changer de module, contacte ton administrateur') : null,
     h('ul', { class: 'reglages-modules' }, lignes.map((l) => {
       const noms = l.modules.map((id) => moduleDeclare(id).nom).join(', ');
       const etat = l.actif ? 'Allumé' : 'Éteint';
@@ -148,7 +151,7 @@ function contenuModule(item, ctx, arrets) {
 
 /**
  * Monte la page Réglages dans `conteneur` (appelée à chaque changement d'adresse sous `reglages`). Renvoie `quitter()`.
- * `ctx` : { apis: Map(id -> api), actifs: [ids], chezClient, nomEspace, marque, fiche, compte, editeur }.
+ * `ctx` : { apis: Map(id -> api), actifs: [ids], chezClient, client (identifiant), nomEspace, marque, fiche, compte, editeur, surMarque(marque) (nouvelle marque enregistrée), surDeconnexion }.
  */
 export function monterReglages(conteneur, segs, ctx) {
   arreterCourant();
@@ -160,11 +163,18 @@ export function monterReglages(conteneur, segs, ctx) {
   if (!cible) { naviguer('reglages', { remplacer: true }); return arreterCourant; } // section inconnue (ou réservée aux éditeurs) : retour à la page d'arrivée
 
   const arrets = [];
+  const etat = { vivant: true, nettoyages: [] }; // écrans de « Mon espace » : plus rien ne s'affiche après avoir quitté la page
+  arrets.push(() => { etat.vivant = false; etat.nettoyages.forEach((f) => f()); }); // un retrait en attente (8 s) suit son cours même si on change de page
+  // Un éditeur vient d'enregistrer : le nom de la page se met à jour ici, la coquille (menu, barre, onglet, accent) dans espace-modules.js.
+  c.surMarque = (m) => {
+    ctx.surMarque?.(m);
+    document.querySelectorAll('[data-nom-espace]').forEach((el) => { el.textContent = `${el.dataset.nomEspace}${m.nom}`; });
+  };
   const contenu = h('div', { class: 'reglages-contenu', dataset: { reglages: `${cible.type}:${cible.id}` } });
   const titreActuel = cible.type === 'espace' ? espaces.find((s) => s.id === cible.id) : items.find((m) => m.id === cible.id);
   if (cible.type === 'espace') {
-    contenu.append(h('header', { class: 'page-tete' }, h('div', {}, h('p', { class: 'etiquette' }, `Réglages de l’espace · ${c.nomEspace}`), h('h2', { class: 'reglages-titre' }, titreActuel.libelle))));
-    const rendu = SECTIONS_ESPACE_RENDU[cible.id](c);
+    contenu.append(h('header', { class: 'page-tete' }, h('div', {}, h('p', { class: 'etiquette', dataset: { nomEspace: 'Réglages de l’espace · ' } }, `Réglages de l’espace · ${c.nomEspace}`), h('h2', { class: 'reglages-titre' }, titreActuel.libelle))));
+    const rendu = SECTIONS_ESPACE_RENDU[cible.id](c, etat);
     contenu.append(...rendu);
   } else {
     contenu.append(...contenuModule(items.find((m) => m.id === cible.id), c, arrets).filter(Boolean));
@@ -187,7 +197,7 @@ export function monterReglages(conteneur, segs, ctx) {
 
   vider(conteneur);
   conteneur.append(h('div', { class: 'page page-reglages page-reglages-menu' },
-    h('header', { class: 'page-tete page-tete-reglages' }, h('div', {}, h('p', { class: 'etiquette' }, c.nomEspace), h('h1', {}, 'Réglages'))),
+    h('header', { class: 'page-tete page-tete-reglages' }, h('div', {}, h('p', { class: 'etiquette', dataset: { nomEspace: '' } }, c.nomEspace), h('h1', {}, 'Réglages'))),
     h('div', { class: 'reglages-corps' }, menu, contenu)));
 
   courant = { arreter: () => { arrets.forEach((f) => f()); } };
