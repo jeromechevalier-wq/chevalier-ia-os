@@ -275,6 +275,28 @@ describe('P. Règles de la plateforme clients', () => {
   });
 });
 
+// Tableau de bord : lecture par les membres, écriture par le serveur seulement (même un éditeur ne peut pas se fabriquer un « vert »).
+describe('K. Tableau de bord : lecture seule pour tous les navigateurs', () => {
+  const TABLEAU = ['tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes'];
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (c) => {
+      const db = c.firestore();
+      for (const client of ['a', 'b']) for (const col of TABLEAU) await setDoc(doc(db, 'clients', client, col, 'existant'), { valeur: 1 });
+    });
+  });
+  for (const col of TABLEAU) {
+    test(`K1 ${col} : un éditeur et un lecteur du client LISENT, aucun des deux n'écrit (ni crée, ni modifie, ni supprime)`, async () => {
+      await lectureSeule(ctx(ALICE), 'a', col);
+      await lectureSeule(ctx(LEA), 'a', col);
+    });
+    test(`K2 ${col} : un membre d'un autre client, un visiteur : ni lecture ni écriture`, async () => {
+      await aucunDroit(ctx(BOB), 'a', col);
+      await aucunDroit(ctx(ZOE), 'a', col);
+      await aucunDroit(env.unauthenticatedContext().firestore(), 'a', col);
+    });
+  }
+});
+
 // Journal d'activité des workflows (chantier 14) : lecture par les membres, écriture par le serveur seulement.
 describe('J. Journal des workflows : lecture seule pour tous les navigateurs', () => {
   const JOURNAL = ['workflows', 'executions', 'sync'];

@@ -136,6 +136,28 @@ describe('outil des clés : lister', () => {
   });
 });
 
+describe('outil des clés : plusieurs usages', () => {
+  const mixte = () => monde({ cles: [doc(ID('a'), 'interne'), doc(ID('b'), 'interne', { usage: 'tableaudebord' }), doc(ID('c'), 'interne', { actif: false })] });
+  test('lister compte les clés actives par usage', async () => {
+    const m = mixte();
+    assert.equal(await executer(['lister', '--projet', 'crm'], m.ctx), 0);
+    const t = m.texte();
+    assert.match(t, /interne \(n8n\) : 1 clé\(s\) active\(s\) sur 3 permises\n  aaaaaaaa[^\n]*\n  cccccccc/);
+    assert.match(t, /interne \(tableaudebord\) : 1 clé\(s\) active\(s\) sur 3 permises\n  bbbbbbbb/);
+  });
+  test('révoquer ne compte que les clés du même usage', async () => {
+    const m = mixte();
+    await executer(['revoquer', '--projet', 'crm', '--proprietaire', 'interne', '--cle', 'aaaaaaaa'], m.ctx);
+    assert.match(m.texte(), /dernière clé active pour l'usage « n8n »/);
+    const m2 = mixte();
+    await executer(['revoquer', '--projet', 'crm', '--proprietaire', 'interne', '--cle', 'bbbbbbbb'], m2.ctx);
+    assert.match(m2.texte(), /dernière clé active pour l'usage « tableaudebord »/);
+    const m3 = monde({ cles: [doc(ID('a'), 'interne'), doc(ID('b'), 'interne'), doc(ID('d'), 'interne', { usage: 'tableaudebord' })] });
+    await executer(['revoquer', '--projet', 'crm', '--proprietaire', 'interne', '--cle', 'aaaaaaaa'], m3.ctx);
+    assert.doesNotMatch(m3.texte(), /dernière clé active/);
+  });
+});
+
 describe('outil des clés : révoquer', () => {
   const avec = (extra = {}) => monde({ cles: [doc(ID('a'), 'audrey', extra), doc(ID('b'), 'audrey'), doc(ID('c'), 'martin')] });
   test('identifiant court obligatoire et exact, limité au propriétaire demandé', async () => {

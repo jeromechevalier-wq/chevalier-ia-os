@@ -54,10 +54,16 @@ service cloud.firestore {
       return collection in ['workflows', 'executions', 'sync'];
     }
 
+    // Tableau de bord : lisible par les membres, écrit par le SERVEUR seulement (la porte des scripts GitHub et les fonctions de saisie), jamais par un navigateur,
+    // même par un éditeur : sinon un éditeur pourrait se fabriquer un « vert ».
+    function collectionDuTableauDeBord(collection) {
+      return collection in ['tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes'];
+    }
+
     // Les données du client (tout sauf les fiches d'appartenance, traitées ci-dessus).
     match /clients/{client}/{collection}/{reste=**} {
       allow read: if collection != 'membres' && roleDe(client) in ['editeur', 'lecteur'];
-      allow write: if collection != 'membres' && !collectionDuJournal(collection) && roleDe(client) == 'editeur';
+      allow write: if collection != 'membres' && !collectionDuJournal(collection) && !collectionDuTableauDeBord(collection) && roleDe(client) == 'editeur';
     }
 
     // Tout le reste (racine, autres collections) : refusé.
