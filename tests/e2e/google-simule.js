@@ -4,7 +4,7 @@
 // - l'API Drive (création de dossiers) : un faux serveur qui garde les requêtes reçues et donne des identifiants à la suite.
 export const ID_CLIENT = '192468914925-essaisimule0000000000000000000.apps.googleusercontent.com';
 export const PARENT = 'PARENT_ID_0123456789';
-export const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization,content-type', 'Access-Control-Allow-Methods': 'POST,OPTIONS' };
+export const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization,content-type', 'Access-Control-Allow-Methods': 'GET,POST,OPTIONS' };
 
 const DEBUT = `window.__google = window.__google || { charges: [], autorisations: [], pickers: [], reponse: [], refus: false };`;
 
@@ -43,7 +43,7 @@ window.google.accounts = { oauth2: { initTokenClient(cfg) { return { requestAcce
  * Dans la page : window.__google.reponse = [{ id, name, url, mimeType }] (ou 'annule') fixe ce que « l'utilisateur » choisit dans la fenêtre Google.
  */
 export async function brancherGoogle(context, { idClient = ID_CLIENT } = {}) {
-  const drive = { requetes: [], echecs: {}, compteur: 0, copies: [], compteurCopies: 0, echecCopie: 0 };
+  const drive = { requetes: [], dossiers: [], recherches: [], echecs: {}, compteur: 0, copies: [], compteurCopies: 0, echecCopie: 0 };
   await context.addInitScript(DEBUT);
   await context.route('**/js/os/google-config.js', (route) => route.fulfill({ status: 200, contentType: 'text/javascript', body: `export const googleDrive = { idClient: '${idClient}' };` }));
   await context.route('https://apis.google.com/js/api.js', (route) => route.fulfill({ status: 200, contentType: 'text/javascript', body: SCRIPT_API }));
@@ -51,6 +51,15 @@ export async function brancherGoogle(context, { idClient = ID_CLIENT } = {}) {
   await context.route('https://www.googleapis.com/drive/v3/files**', async (route) => {
     const requete = route.request();
     if (requete.method() === 'OPTIONS') { await route.fulfill({ status: 204, headers: CORS }); return; }
+    if (requete.method() === 'GET') { // files.list : dossiers de même nom (seuls ceux que l'appli a créés, comme avec la portée drive.file)
+      const q = decodeURIComponent(new URL(requete.url()).searchParams.get('q') || '');
+      const nom = /name = '(.*?)' and/.exec(q)?.[1]?.replace(/\\'/g, "'");
+      const parent = /and '([^']+)' in parents/.exec(q)?.[1];
+      drive.recherches.push({ nom, parent });
+      const trouves = drive.dossiers.filter((d) => d.name === nom && (d.parents?.[0] || 'root') === parent).map((d) => ({ id: d.id, name: d.name }));
+      await route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: JSON.stringify({ files: trouves }) });
+      return;
+    }
     const corps = JSON.parse(requete.postData() || '{}');
     if (/\/files\/[^/?]+\/copy/.test(requete.url())) { // files.copy : { parents, name? } → la copie
       drive.copies.push({ url: requete.url(), autorisation: requete.headers().authorization, corps });
@@ -66,7 +75,9 @@ export async function brancherGoogle(context, { idClient = ID_CLIENT } = {}) {
       return;
     }
     drive.compteur += 1;
-    await route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: JSON.stringify({ id: `DOSSIER_${drive.compteur}_abcdefghij`, name: corps.name }) });
+    const idDossier = `DOSSIER_${drive.compteur}_abcdefghij`;
+    drive.dossiers.push({ id: idDossier, name: corps.name, parents: corps.parents });
+    await route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: JSON.stringify({ id: idDossier, name: corps.name }) });
   });
   return drive;
 }

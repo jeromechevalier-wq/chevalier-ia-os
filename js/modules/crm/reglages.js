@@ -6,6 +6,7 @@ import { sectionsConfiguration } from './reglages-config.js';
 import * as L from './logique.js';
 import { exporterToutesLesDonnees } from './export.js';
 import { googleDisponible, ouvrirFenetreGoogle } from '../../os/google-picker.js';
+import { retirerAvecAnnulation } from '../../os/retrait.js';
 import { nettoyerNomDossier, nettoyerSousDossiers } from '../../os/google-drive.js';
 
 function section(id, titre, nomIcone, aide) {
@@ -92,8 +93,13 @@ export function rendreReglagesCrm(page) {
       toast(e?.message || 'Choix impossible', { type: e?.annule ? 'info' : 'erreur' });
     } finally { choisirParent.disabled = false; }
   } }, icone('search', { taille: 14 }), 'Choisir dans Google Drive');
-  const retirerParent = h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', 'data-action': 'retirer-dossier-parent',
-    onclick: async () => { await D.enregistrerReglages({ dossierParentDrive: null }); toast('Dossier parent retiré : les dossiers seront créés à la racine de Mon Drive'); } }, 'Retirer');
+  const retirerParent = h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', 'data-action': 'retirer-dossier-parent', onclick: () => {
+    const ancien = D.etat.reglages.dossierParentDrive || null;
+    return retirerAvecAnnulation({
+      titre: 'Retirer le dossier parent ?', message: 'Les prochains dossiers seront créés à la racine de « Mon Drive ». Les dossiers déjà créés ne bougent pas.',
+      faire: () => D.enregistrerReglages({ dossierParentDrive: null }), defaire: () => D.enregistrerReglages({ dossierParentDrive: ancien }), messageFait: 'Dossier parent retiré',
+    });
+  } }, 'Retirer');
   const listeSousDossiers = h('div', { class: 'liste-reglages', 'data-role': 'sous-dossiers' });
   const enregistrerSousDossiers = async (noms) => {
     const { liste, erreur } = nettoyerSousDossiers(noms);
@@ -101,26 +107,13 @@ export function rendreReglagesCrm(page) {
     await D.enregistrerReglages({ sousDossiersDrive: liste });
     return true;
   };
-  const essai = h('span', { class: 'aide', 'data-role': 'essai-google' });
-  const tester = h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', 'data-action': 'tester-google', onclick: async () => {
-    tester.disabled = true;
-    essai.textContent = '';
-    try {
-      const elus = await ouvrirFenetreGoogle({ mode: 'documents', email: D.compteCourant()?.email || '', multiple: false });
-      if (elus[0]) remplir(essai, 'Lien reçu de Google : ', h('a', { class: 'prop-lien', href: elus[0].url, target: '_blank', rel: 'noopener noreferrer' }, elus[0].nom || elus[0].url));
-    } catch (e) {
-      if (!e?.annule) console.warn(e);
-      essai.textContent = e?.message || 'La fenêtre Google n’a pas pu s’ouvrir.';
-    } finally { tester.disabled = false; }
-  } }, icone('circle-check', { taille: 14 }), 'Tester la fenêtre Google');
   sProjets.append(
     etatGoogle,
     h('div', { class: 'ligne-parent-drive' }, h('span', { class: 'ligne-parent-libelle' }, 'Dossier Drive parent'), nomParent, choisirParent, retirerParent),
     h('p', { class: 'aide' }, 'Dans la fenêtre Google, seuls les dossiers s’affichent (les fichiers sont cachés exprès) : « Aucun document » veut dire que ce dossier n’a pas de sous-dossier, clique alors sur « Sélectionner ». Sans dossier parent, les dossiers de projets sont créés à la racine de « Mon Drive ». Renommer ou déplacer un dossier dans Drive ne casse pas son lien.'),
     h('h3', { class: 'sous-titre' }, 'Sous-dossiers de chaque projet'),
     listeSousDossiers,
-    formulaireAjout('Nouveau sous-dossier (ex. Contrat, Livrables)', 'Ajouter', async (v) => { await enregistrerSousDossiers([...(D.etat.reglages.sousDossiersDrive || []), v]); }),
-    h('p', { class: 'ligne-ajout' }, tester, essai));
+    formulaireAjout('Nouveau sous-dossier (ex. Contrat, Livrables)', 'Ajouter', async (v) => { await enregistrerSousDossiers([...(D.etat.reglages.sousDossiersDrive || []), v]); }));
 
   const sExport = section('reglages-export', 'Sauvegarde', 'download', 'Télécharge toutes tes données (personnes, organisations, affaires, activités, notes, historique) dans un fichier.');
   const infoExport = h('p', { class: 'aide', 'data-role': 'dernier-export' });
@@ -174,11 +167,9 @@ export function rendreReglagesCrm(page) {
       } });
     return h('div', { class: 'ligne-reglage' }, champ,
       h('div', { class: 'groupe-boutons' },
-        boutonIcone('trash-2', `Retirer ${valeur}`, async () => {
-          if (await confirmer('Retirer de la liste', `"${valeur}" ne sera plus proposé. Les fiches existantes gardent leur valeur.`, { libelleOk: 'Retirer' })) {
-            D.enregistrerListes({ [cle]: liste.filter((x) => x !== valeur) });
-          }
-        })));
+        boutonIcone('trash-2', `Retirer ${valeur}`, () => retirerAvecAnnulation({
+          titre: 'Retirer de la liste', message: `"${valeur}" ne sera plus proposé. Les fiches existantes gardent leur valeur.`,
+          faire: () => D.enregistrerListes({ [cle]: liste.filter((x) => x !== valeur) }), defaire: () => D.enregistrerListes({ [cle]: liste }), messageFait: `« ${valeur} » retiré` }))));
   }
 
   function ligneSousDossier(nom, i, liste) {
@@ -193,7 +184,9 @@ export function rendreReglagesCrm(page) {
       h('div', { class: 'groupe-boutons' },
         boutonIcone('arrow-up', 'Monter', () => deplacer(i - 1), i === 0),
         boutonIcone('arrow-down', 'Descendre', () => deplacer(i + 1), i === liste.length - 1),
-        boutonIcone('trash-2', `Retirer ${nom}`, () => enregistrerSousDossiers(liste.filter((_, j) => j !== i)))));
+        boutonIcone('trash-2', `Retirer ${nom}`, () => retirerAvecAnnulation({
+          titre: 'Retirer ce sous-dossier ?', message: `« ${nom} » ne sera plus créé dans les prochains dossiers. Les dossiers déjà créés ne changent pas.`,
+          faire: () => enregistrerSousDossiers(liste.filter((_, j) => j !== i)), defaire: () => enregistrerSousDossiers(liste), messageFait: `« ${nom} » retiré` }))));
   }
 
   function ligneEtiquette(e, i, liste) {
@@ -207,11 +200,9 @@ export function rendreReglagesCrm(page) {
       onchange: (ev) => D.enregistrerEtiquettes(liste.map((x) => (x.id === e.id ? { ...x, couleur: ev.target.value } : x))) });
     return h('div', { class: 'ligne-reglage', dataset: { etiquette: e.id } }, couleur, nom,
       h('div', { class: 'groupe-boutons' },
-        boutonIcone('trash-2', `Retirer ${e.nom}`, async () => {
-          if (await confirmer('Retirer l’étiquette', `« ${e.nom} » sera retirée de la liste. Les fiches qui l’utilisent n’affichent plus cette étiquette.`, { libelleOk: 'Retirer' })) {
-            D.enregistrerEtiquettes(liste.filter((x) => x.id !== e.id));
-          }
-        })));
+        boutonIcone('trash-2', `Retirer ${e.nom}`, () => retirerAvecAnnulation({
+          titre: 'Retirer l’étiquette', message: `« ${e.nom} » sera retirée de la liste. Les fiches qui l’utilisent n’affichent plus cette étiquette.`,
+          faire: () => D.enregistrerEtiquettes(liste.filter((x) => x.id !== e.id)), defaire: () => D.enregistrerEtiquettes(liste), messageFait: `« ${e.nom} » retirée` }))));
   }
 
   function ligneFiltre(f) {
@@ -224,10 +215,10 @@ export function rendreReglagesCrm(page) {
           await D.enregistrerFiltres(D.etat.filtres.map((x) => (x.id === f.id ? { ...x, nom } : x)));
           toast('Filtre renommé');
         } }, icone('pencil', { taille: 14 }), 'Renommer'),
-        h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', dataset: { action: 'supprimer-filtre' }, onclick: async () => {
-          if (!(await confirmer('Supprimer le filtre', `Supprimer le filtre "${f.nom}" ?`, { libelleOk: 'Supprimer', danger: true }))) return;
-          await D.enregistrerFiltres(D.etat.filtres.filter((x) => x.id !== f.id));
-          toast('Filtre supprimé');
+        h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', dataset: { action: 'supprimer-filtre' }, onclick: () => {
+          const avant = D.etat.filtres;
+          return retirerAvecAnnulation({ titre: 'Supprimer le filtre', message: `Supprimer le filtre "${f.nom}" ?`, libelleOk: 'Supprimer', danger: true,
+            faire: () => D.enregistrerFiltres(avant.filter((x) => x.id !== f.id)), defaire: () => D.enregistrerFiltres(avant), messageFait: 'Filtre supprimé' });
         } }, icone('trash-2', { taille: 14 }), 'Supprimer')));
   }
 
@@ -238,7 +229,7 @@ export function rendreReglagesCrm(page) {
     nomParent.textContent = parent?.nom || 'Racine de Mon Drive';
     nomParent.title = parent?.nom || '';
     retirerParent.hidden = !parent;
-    tester.disabled = choisirParent.disabled = !googleDisponible();
+    choisirParent.disabled = !googleDisponible();
     etatGoogle.textContent = googleDisponible() ? 'Google Drive est branché.' : 'Google Drive n’est pas encore branché : l’identifiant client Google manque (guide pas à pas : docs/google-drive.md). Les boutons Google restent cachés sur les fiches.';
     if (page.contains(document.activeElement) && document.activeElement.matches('.liste-reglages input')) return;
     remplir(listeSousDossiers, ...(D.etat.reglages.sousDossiersDrive || []).map((nom, i, liste) => ligneSousDossier(nom, i, liste)));

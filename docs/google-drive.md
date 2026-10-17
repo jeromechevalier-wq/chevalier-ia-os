@@ -14,7 +14,7 @@ Chantier « Liens et documents » des décisions du 16/10/2026. **Rien n'est dé
 
 - **Marche (vu dans le navigateur intégré)** : les deux scripts Google (api.js et gsi/client) se chargent depuis l'OS ; la **vraie** fenêtre Picker de Google s'ouvre, en français (code : `js/os/google-picker.js`).
 - **Pas vérifiable par Claude** : l'autorisation (fenêtre surgissante Google, bloquée dans le navigateur intégré) et la suite (un faux jeton donne « 403 » dans la fenêtre : normal). Il faut les étapes ci-dessous, que seul Jérôme peut faire.
-- Test réel après le branchement : Réglages > « Tester la fenêtre Google » (renvoie le lien du fichier choisi).
+- Test réel après le branchement : une fiche projet > « Ajouter un document » (le bouton « Tester la fenêtre Google » des Réglages a été retiré en 2.7.4).
 
 ## Ce que Jérôme doit faire (une seule fois par projet Google)
 
@@ -30,7 +30,7 @@ Il y a deux projets Google : **`chevalier-ia-app`** (plateforme clients, la prio
    - Audience : <https://console.cloud.google.com/auth/audience?project=chevalier-ia-app> > si l'état est « Test », cliquer **Publier l'application** (« En production »), sinon seuls les « utilisateurs test » pourraient autoriser. À ma connaissance, `drive.file` n'est pas une portée sensible (pas de vérification Google à passer) : **à confirmer à l'écran**.
 5. **Donner l'ID client à Claude** (il n'est **pas** confidentiel : Google l'affiche à chaque autorisation) : Claude l'écrit dans `scripts/projets/plateforme.json` (champ `googleDrive.idClient`, plateforme clients) et/ou `js/os/google-config.js` (CRM de Jérôme), dans une PR. Un test refuse tout ce qui ressemble à un secret.
 6. **Publier** : la plateforme se publie par le workflow à la main « Déploiement plateforme clients » (choix `hosting`) ; le CRM de Jérôme se publie à la fusion dans `main`.
-7. **Essayer** : Réglages > CRM > « Dossiers de projets dans Google Drive » > **Tester la fenêtre Google** (la première fois, Google demande l'autorisation : l'accepter), puis **Choisir dans Google Drive** pour le dossier parent, ajouter les sous-dossiers, puis une fiche projet > **Créer un dossier**.
+7. **Essayer** : Réglages > CRM > « Dossiers de projets dans Google Drive » > (le bouton « Tester la fenêtre Google » n'existe plus depuis 2.7.4 : on essaie avec « Choisir dans Google Drive » ou « Ajouter un document ») (la première fois, Google demande l'autorisation : l'accepter), puis **Choisir dans Google Drive** pour le dossier parent, ajouter les sous-dossiers, puis une fiche projet > **Créer un dossier**.
 
 ## Comment c'est fait (court)
 
@@ -97,6 +97,30 @@ Quand on ajoute un document choisi dans l'onglet **Google Drive** de la fenêtre
 - **La case n'apparaît pas** si le dossier de travail n'est pas un dossier Drive (serveur, NAS, site), si le fichier vient d'« Importer » (il est déjà dans le dossier de travail : la fenêtre Google indique son dossier d'origine), si c'est un dossier, ni pour un lien web.
 - **Si la copie échoue** (droits, fichier ou dossier introuvable…) : message simple, le lien d'origine est enregistré quand même.
 - Si la fiche n'a pas encore de dossier de travail, la question habituelle (« Créer le dossier » / « Parcourir seulement ») est posée avant la fenêtre : créer le dossier le rend disponible pour la copie. *Reste à vérifier en réel* : que l'appli a bien le droit de copier un fichier choisi dans la fenêtre (portée `drive.file`) vers le dossier de travail créé par l'appli.
+
+## Petites corrections, version 2.7.4 (17/10/2026)
+
+Les sections plus haut décrivent l'historique ; **ce qui suit prévaut** quand il les contredit.
+1. **Réglages > CRM > Google Drive** : le bouton « Tester la fenêtre Google » est retiré (inutile pour un client).
+2. **Tâches (projet) et points clés (projet et affaire)** : même comportement. Un clic sur le texte le modifie sur place ; le rond à gauche coche pour terminer ; le menu « … » ne garde que les actions rares (tâches : Modifier… pour la date et la personne, Monter, Descendre, Déplacer vers, Supprimer ; points clés : Supprimer).
+3. **Confirmation puis « Retiré · Annuler » 8 secondes** pour tout retrait réversible, avec un **audit** de tous les boutons : voir `audit-boutons-destructifs.md`.
+4. **Sans dossier de travail, « Ajouter un document »** : la fenêtre explique qu'il n'y a pas de dossier de travail ; elle ne propose plus que « Créer le dossier » ou « Annuler » (« Parcourir seulement » est supprimé).
+5. **Bloc « Dossier de travail » (affaire et projet, même composant)** : deux boutons, « Créer un dossier dans Google Drive » et « Lier un dossier Google Drive existant » (fenêtre Google en mode « choisir un dossier », depuis la racine de Mon Drive). Plus de champ pour coller une adresse (une adresse web va dans « Liens et documents > Ajouter un lien web »), plus de bouton « Modifier » : pour changer, « Retirer » (confirmation + Annuler) puis recréer ou relier. Un ancien dossier qui est une adresse non-Drive (serveur, NAS, site) reste affiché et ouvrable, sans migration. **Doublon** : avant de créer, l'appli cherche dans le dossier parent un dossier du même nom ; s'il existe : « Un dossier de ce nom existe déjà. Utilise « Lier un dossier Google Drive existant ». » **Limite honnête** : avec l'autorisation `drive.file`, l'appli ne voit que les dossiers qu'elle a créés ou que l'utilisateur lui a montrés dans la fenêtre Google ; un dossier créé à la main dans Drive n'est **pas** détectable, la vérification ne protège donc que des doublons faits par l'appli. Sans Google branché, ni création ni liaison : seul le message vers « Liens et documents » s'affiche.
+6. **Icônes « i »** : toutes marchent pareil (bulle au survol, au clavier avec le focus, au toucher ; Échap ou un clic ailleurs la ferme ; la bulle reste dans l'écran). Une icône « i » est ajoutée à côté de « Liens et documents ».
+7. **Lien web** : « monsite.fr » et « www.monsite.fr » reçoivent `https://` ; « http:www.monsite.fr » devient `http://www.monsite.fr` ; sinon le message est « L'adresse doit commencer par http:// ou https:// ».
+8. **Case « Copier dans le dossier de travail »** : **cochée par défaut** pour un fichier choisi dans l'onglet « Google Drive ». Pour un fichier venu d'« Importer » (reconnu à son dossier d'origine, renvoyé par la fenêtre Google), la case est affichée **grisée et cochée** avec « Le fichier est envoyé dans le dossier de travail ». Aucune case si le dossier de travail n'est pas dans Drive. Échec de la copie : le lien d'origine est gardé et un message le dit.
+
+### Recette (8 vérifications à l'écran, une par point)
+1. Réglages > CRM > Dossiers de projets dans Google Drive : il n'y a plus de bouton « Tester la fenêtre Google ».
+2. Fiche projet : cliquer sur le texte d'une tâche → il se modifie sur place (Entrée enregistre, Échap annule) ; le rond la coche ; le menu « … » n'a que les actions rares. Même geste sur un point clé d'une fiche affaire.
+3. Retirer un lien (Liens et documents) : la fenêtre de confirmation s'ouvre ; après « Retirer », le message « Retiré · Annuler » reste 8 secondes et « Annuler » remet le lien. Idem pour retirer le dossier de travail.
+4. Sur une fiche sans dossier de travail, « Ajouter un document » : la fenêtre explique la situation, boutons « Annuler » et « Créer le dossier » seulement.
+5. Bloc « Dossier de travail » : mêmes deux boutons sur une affaire et sur un projet ; « Lier un dossier Google Drive existant » ouvre la fenêtre Google à la racine de Mon Drive ; créer un dossier dont le nom existe déjà (créé par l'appli) affiche le message d'erreur ; pas de champ d'adresse ni de « Modifier ».
+6. Passer la souris sur le « i » de « Liens et documents », puis le choisir au clavier (Tab), puis le toucher sur téléphone : la bulle apparaît à chaque fois.
+7. « Ajouter un lien web » : saisir `monsite.fr` → le lien enregistré est `https://monsite.fr` ; saisir `bonjour` → message « L'adresse doit commencer par http:// ou https:// ».
+8. « Ajouter un document » depuis l'onglet « Google Drive » : la case « Copier dans le dossier de travail » est cochée ; avec « Importer » elle est grisée et cochée avec le message gris.
+
+**Non vérifié avec le vrai Google** : la copie (`files.copy`) vers le dossier de travail avec la portée `drive.file`, la reconnaissance d'« Importer » par le dossier d'origine renvoyé par la fenêtre, la recherche de doublon par nom (`files.list`), l'affichage réel de la bulle sur un téléphone.
 
 ## Pas vérifié (à faire après le branchement)
 

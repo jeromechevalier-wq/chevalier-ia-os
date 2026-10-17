@@ -63,6 +63,32 @@ export async function dialogueTache(t) {
 // ---------------------------------------------------------------- section de la fiche projet
 
 /** Section « Tâches » de la fiche : les tâches de chaque phase, cases à cocher, ajout rapide, menu par tâche. */
+/** Titre d'une tâche cliquable (comme celui d'un point clé) : un clic le transforme en champ ; Entrée ou clic ailleurs enregistre, Échap annule. */
+function titreModifiable(t) {
+  const el = h('strong', { class: 'tache-titre activite-titre-modifiable', tabindex: '0', role: 'button', title: 'Cliquer pour modifier le texte', dataset: { role: 'titre-tache' } }, t.titre);
+  function editer() {
+    const champ = h('input', { class: 'champ', type: 'text', 'aria-label': 'Modifier le texte de la tâche', value: t.titre, maxlength: '300' });
+    let fini = false;
+    const terminer = async (enregistrer) => {
+      if (fini) return;
+      fini = true;
+      const texte = L.nettoyerEspaces(champ.value);
+      if (enregistrer && texte && texte !== t.titre) {
+        try { await D.majTache(t.id, { titre: texte }); return; } catch (e) { console.warn(e); toast('Modification impossible', { type: 'erreur' }); }
+      }
+      champ.replaceWith(el);
+    };
+    champ.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); terminer(true); } else if (e.key === 'Escape') terminer(false); });
+    champ.addEventListener('blur', () => terminer(true));
+    el.replaceWith(champ);
+    champ.focus();
+    champ.select();
+  }
+  el.addEventListener('click', editer);
+  el.addEventListener('keydown', (e) => { if (e.key === 'Enter') editer(); });
+  return el;
+}
+
 export function sectionTaches(projet) {
   const aujourdhui = D.ctx().aujourdhui;
 
@@ -73,7 +99,7 @@ export function sectionTaches(projet) {
     const etat = faite ? 'avenir' : etatDe(t, aujourdhui);
     const menu = h('button', { type: 'button', class: 'bouton-icone', 'aria-label': `Actions : ${t.titre}`, dataset: { action: 'menu-tache' },
       onclick: (e) => ouvrirMenu(e.currentTarget, [
-        { libelle: 'Modifier…', icone: 'pencil', action: () => dialogueTache(t) },
+        { libelle: 'Modifier…', icone: 'pencil', action: () => dialogueTache(t) }, // le texte se modifie d'un clic sur le titre ; ici : date, personne et autres réglages
         { libelle: 'Monter', icone: 'arrow-up', desactive: i === 0, action: () => ou(() => D.deplacerTache(t.id, -1), 'Déplacement impossible') },
         { libelle: 'Descendre', icone: 'arrow-down', desactive: i === g.taches.length - 1, action: () => ou(() => D.deplacerTache(t.id, 1), 'Déplacement impossible') },
         ...P.phasesActives(cfg()).map((ph) => ({ libelle: `Déplacer vers : ${ph.libelle}`, icone: 'arrow-right-left', desactive: ph.id === t.phase, action: () => ou(() => D.majTache(t.id, { phase: ph.id }), 'Déplacement impossible') })),
@@ -82,7 +108,7 @@ export function sectionTaches(projet) {
     return h('li', { class: `activite tache activite-${etat}${faite ? ' tache-faite' : ''}`, dataset: { tache: t.id } },
       case_,
       h('div', { class: 'activite-texte' },
-        h('strong', { class: 'tache-titre' }, t.titre),
+        titreModifiable(t),
         h('span', { class: 'activite-meta' },
           etat !== 'avenir' ? h('span', { class: `badge-etat ${etat}` }, LIBELLES_ETAT[etat]) : null,
           t.date ? h('span', {}, texteDate(t, aujourdhui)) : null,

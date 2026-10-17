@@ -949,6 +949,19 @@ export function estAffaireActive(a) {
 
 export const LONGUEUR_MAX_NOTE = 300;
 
+/**
+ * Lien web saisi à la main : on complète ce qui manque. « www.monsite.fr » ou « monsite.fr » → https://…, « http:www.monsite.fr » (deux-points sans //) → http://www.monsite.fr.
+ * Tout ce qui n'a pas la forme d'une adresse reste tel quel (il sera refusé avec un message clair).
+ */
+export function normaliserLienWeb(url) {
+  const u = nettoyerEspaces(url);
+  if (/^https?:\/\/\S+$/i.test(u)) return u;
+  const m = /^(https?):\/{0,2}([^\s/][^\s]*)$/i.exec(u);
+  if (m) return `${m[1].toLowerCase()}://${m[2]}`;
+  if (/^(?:www\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)+(?:[/?#]\S*)?$/i.test(u)) return `https://${u}`;
+  return u;
+}
+
 /** Nom court d'un lien sans nom : le nom du site (sans « www. »), sinon l'adresse elle-même. */
 export function nomCourtLien(url) {
   const u = nettoyerEspaces(url);
@@ -960,7 +973,7 @@ export const nettoyerNote = (note) => nettoyerEspaces(note).slice(0, LONGUEUR_MA
 
 export function ajouterDocument(affaire, libelle, url, favori = false, note = '') {
   const u = nettoyerEspaces(url);
-  if (!/^https?:\/\//i.test(u)) return { erreurs: { url: "L'adresse doit commencer par http." }, patch: {} };
+  if (!/^https?:\/\//i.test(u)) return { erreurs: { url: "L'adresse doit commencer par http:// ou https://" }, patch: {} };
   const doc = { libelle: nettoyerEspaces(libelle) || nomCourtLien(u), url: u };
   if (nettoyerNote(note)) doc.note = nettoyerNote(note);
   if (favori === true) doc.favori = true;

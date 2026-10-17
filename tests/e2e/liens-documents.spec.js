@@ -31,7 +31,8 @@ test.describe('Google non branché (identifiant client vide, comme dans le dép�
     await expect(page.locator('[data-section="projet-documents"]')).toContainText('Liens et documents');
     await expect(page.locator('[data-action="ajouter-document-google"]')).toHaveCount(0);
     await expect(page.locator('[data-action="creer-dossier-ouvrir"]')).toHaveCount(0); // « Créer un dossier dans Google Drive » attend le branchement de Google
-    await expect(page.locator('[data-action="lier-dossier"]')).toBeVisible(); // « Lier un dossier existant » est toujours là
+    await expect(page.locator('[data-action="lier-dossier"]')).toHaveCount(0); // « Lier un dossier Google Drive existant » aussi : il passe par la fenêtre Google
+    await expect(page.locator('[data-role="google-absent"]')).toContainText('Google Drive n’est pas branché');
     await expect(page.locator('[data-action="ajouter-lien"]')).toBeVisible(); // « Ajouter un lien web » est toujours là
     await expect(page.locator('script[src*="apis.google.com"]')).toHaveCount(0); // aucun script Google chargé inutilement
   });
@@ -77,20 +78,25 @@ test.describe('Google branché (simulé)', () => {
     await section.locator('[data-sous-dossier="Échanges"]').getByRole('button', { name: 'Monter' }).click();
     await champDoc('crm_parametres', 'reglages', 'sousDossiersDrive', ['Contrat', 'Échanges', 'Livrables']);
     await section.locator('[data-sous-dossier="Échanges"]').getByRole('button', { name: 'Retirer Échanges' }).click();
+    await dialogue(page).getByRole('button', { name: 'Retirer' }).click(); // confirmation d'abord
     await champDoc('crm_parametres', 'reglages', 'sousDossiersDrive', ['Contrat', 'Livrables']);
     // Renommer
     await section.getByLabel('Renommer le sous-dossier Livrables').fill('Livrables finaux');
     await section.getByLabel('Renommer le sous-dossier Livrables').blur();
     await champDoc('crm_parametres', 'reglages', 'sousDossiersDrive', ['Contrat', 'Livrables finaux']);
-    // Essai de la fenêtre : le lien reçu s'affiche, rien n'est enregistré ; vues « Mon Drive » seulement (pas d'import sans dossier).
-    await choisirDansGoogle(page, [unDocument('F1', 'Devis.pdf', 'https://drive.google.com/file/d/F1/view')]);
-    await section.locator('[data-action="tester-google"]').click();
-    await expect(section.locator('[data-role="essai-google"] a')).toHaveAttribute('href', 'https://drive.google.com/file/d/F1/view');
-    await expect(section.locator('[data-role="essai-google"]')).toContainText('Devis.pdf');
-    const derniere = (await lireGoogle(page)).pickers.at(-1);
-    expect(derniere.views).toEqual([{ type: 'DocsView', viewId: 'all', parent: 'root', dossiers: true }]); // sans dossier de travail : racine de Mon Drive, pas d'import
+    await expect(section.locator('[data-action="tester-google"]')).toHaveCount(0); // plus de bouton « Tester la fenêtre Google » (inutile pour un client)
     // Retirer le parent : retour à la racine de Mon Drive.
     await section.locator('[data-action="retirer-dossier-parent"]').click();
+    await expect(dialogue(page)).toContainText('Retirer le dossier parent');
+    await dialogue(page).getByRole('button', { name: 'Annuler' }).click(); // la confirmation d'abord : annuler ne retire rien
+    expect((await lireDocument('crm_parametres/reglages')).dossierParentDrive).toEqual({ id: PARENT, nom: 'Clients 2026' });
+    await section.locator('[data-action="retirer-dossier-parent"]').click();
+    await dialogue(page).getByRole('button', { name: 'Retirer' }).click();
+    await champDoc('crm_parametres', 'reglages', 'dossierParentDrive', null);
+    await page.locator('.toast [data-action="toast-action"]').last().click(); // « Retiré · Annuler » : on remet
+    await champDoc('crm_parametres', 'reglages', 'dossierParentDrive', { id: PARENT, nom: 'Clients 2026' });
+    await section.locator('[data-action="retirer-dossier-parent"]').click();
+    await dialogue(page).getByRole('button', { name: 'Retirer' }).click();
     await champDoc('crm_parametres', 'reglages', 'dossierParentDrive', null);
     await expect(section.locator('[data-role="dossier-parent"]')).toHaveText('Racine de Mon Drive');
     expect(drive.requetes).toHaveLength(0); // les réglages ne créent rien dans Drive
@@ -220,36 +226,33 @@ test.describe('Google branché (simulé)', () => {
     expect((await lireDocument('projets_projets/pr1')).documents).toHaveLength(1);
   });
 
-  test('L7 « Ajouter un document » sans dossier de travail : on propose de le créer (envoi dans ce dossier) ou de parcourir seulement', async ({ page }) => {
+  test('L7 « Ajouter un document » sans dossier de travail : la fenêtre l\'explique et propose « Créer le dossier » ou « Annuler » (plus de « Parcourir seulement »)', async ({ page }) => {
     await creerProjet('pr1', { titre: 'Refonte site Carrel' });
     await connecter(page);
     await reglerDrive();
     await aller(page, FICHE);
-    // « Parcourir seulement » : ni dossier créé, ni onglet « Importer ».
-    await choisirDansGoogle(page, [unDocument('F1', 'Maquette.pdf', 'https://drive.google.com/file/d/F1/view')]);
+    await choisirDansGoogle(page, [unDocument('FICHIER_AAAAAAAAAA', 'Maquette.pdf', 'https://drive.google.com/file/d/FICHIER_AAAAAAAAAA/view')]);
     await page.locator('[data-action="ajouter-document-google"]').click();
-    await expect(dialogue(page)).toContainText('pas encore de dossier de travail');
-    await dialogue(page).getByRole('button', { name: 'Parcourir seulement' }).click();
-    await page.locator('[data-role="form-lien"] [data-action="valider-lien"]').click();
-    await champDoc('projets_projets', 'pr1', 'documents', [{ libelle: 'Maquette.pdf', url: 'https://drive.google.com/file/d/F1/view' }]);
+    await expect(dialogue(page)).toContainText('n’a pas de dossier de travail');
+    await expect(dialogue(page)).toContainText('« Créer le dossier » en crée un dans Google Drive');
+    await expect(dialogue(page).getByRole('button')).toHaveText([' ', 'Annuler', 'Créer le dossier']); // le premier bouton est la croix de la fenêtre
+    await expect(dialogue(page).getByRole('button', { name: 'Parcourir seulement' })).toHaveCount(0);
+    // Annuler : rien ne se passe (ni dossier, ni fenêtre Google).
+    await dialogue(page).getByRole('button', { name: 'Annuler' }).click();
     expect(drive.requetes).toHaveLength(0);
+    expect((await lireGoogle(page)).pickers).toHaveLength(0);
     expect((await lireDocument('projets_projets/pr1')).urlDossier).toBe('');
-    expect((await lireGoogle(page)).pickers[0].views).toEqual([{ type: 'DocsView', viewId: 'all', parent: 'root', dossiers: true }]); // racine de Mon Drive, pas d'onglet « Importer »
-    // Fermer la question : rien ne se passe.
-    await page.locator('[data-action="ajouter-document-google"]').click();
-    await dialogue(page).getByRole('button', { name: 'Fermer' }).click();
-    expect((await lireGoogle(page)).pickers).toHaveLength(1);
     // « Créer le dossier » : dossier du projet + sous-dossiers dans le parent, lien enregistré, puis la fenêtre avec « Importer » dans CE dossier.
-    await choisirDansGoogle(page, [unDocument('F2', 'Scan.jpg', 'https://drive.google.com/file/d/F2/view', 'image/jpeg')]);
     await page.locator('[data-action="ajouter-document-google"]').click();
     await dialogue(page).getByRole('button', { name: 'Créer le dossier' }).click();
     await champDoc('projets_projets', 'pr1', 'urlDossier', dossierDrive(1));
     expect(drive.requetes.map((r) => r.corps.name)).toEqual(['Refonte site Carrel', 'Contrat', 'Livrables']);
     expect(drive.requetes[0].corps.parents).toEqual([PARENT]);
+    // Le fichier est choisi dans « Google Drive » : la case « Copier » est cochée par défaut → copie dans le nouveau dossier, lien vers la copie.
+    await expect(page.locator('[data-champ="copier"]')).toBeChecked();
     await page.locator('[data-role="form-lien"] [data-action="valider-lien"]').click();
-    await champDoc('projets_projets', 'pr1', 'documents', [
-      { libelle: 'Maquette.pdf', url: 'https://drive.google.com/file/d/F1/view' }, { libelle: 'Scan.jpg', url: 'https://drive.google.com/file/d/F2/view' },
-    ]);
+    await champDoc('projets_projets', 'pr1', 'documents', [{ libelle: 'Maquette.pdf', url: 'https://drive.google.com/file/d/COPIE_1_abcdefghij/view' }]);
+    expect(drive.copies[0].corps.parents).toEqual(['DOSSIER_1_abcdefghij']);
     const derniere = (await lireGoogle(page)).pickers.at(-1);
     expect(derniere.views).toEqual([{ type: 'DocsView', viewId: 'all', parent: 'root', dossiers: true }, { type: 'DocsUploadView', parent: 'DOSSIER_1_abcdefghij' }]);
   });
@@ -376,7 +379,15 @@ test.describe('Google branché (simulé)', () => {
     await expect(liste.locator('a')).toHaveText(['Devis', 'GitHub']);
     // Retrait d'un lien
     await liste.getByRole('button', { name: 'Retirer Devis' }).click();
+    await expect(dialogue(page)).toContainText('Retirer ce lien');
+    await dialogue(page).getByRole('button', { name: 'Annuler' }).click(); // confirmation d'abord : annuler ne retire rien
+    expect((await lireDocument('projets_projets/pr1')).documents).toHaveLength(2);
+    await liste.getByRole('button', { name: 'Retirer Devis' }).click();
+    await dialogue(page).getByRole('button', { name: 'Retirer' }).click();
     await champDoc('projets_projets', 'pr1', 'documents', [{ libelle: 'GitHub', url: 'https://github.com/jeromechevalier-wq/client-carrel', favori: true }]);
+    await expect(page.locator('.toast', { hasText: '« Devis » retiré' })).toBeVisible();
+    await page.locator('.toast [data-action="toast-action"]').last().click(); // « Retiré · Annuler » : le lien revient à sa place
+    await champDoc('projets_projets', 'pr1', 'documents', [{ libelle: 'Devis', url: 'https://exemple.fr/devis' }, { libelle: 'GitHub', url: 'https://github.com/jeromechevalier-wq/client-carrel', favori: true }]);
   });
 
   test('L13 « Début d\'activité » : le champ est assez large pour montrer le mois ET l\'année', async ({ page }) => {
@@ -388,7 +399,7 @@ test.describe('Google branché (simulé)', () => {
     await expect(champ).toHaveValue(/^\d{4}-\d{2}$/);
   });
 
-  test('L14 « Dossier de travail » identique sur la fiche affaire et la fiche projet : deux boutons, formulaire en place, création dans Drive, puis Ouvrir / Modifier / Retirer', async ({ page }) => {
+  test('L14 « Dossier de travail » identique sur la fiche affaire et la fiche projet : deux boutons, formulaire en place, création dans Drive, puis Ouvrir / Retirer (confirmation et annulation) ; plus de « Modifier » ni de champ d\'adresse', async ({ page }) => {
     await creerAffaire('a1', { titre: 'Audit des Lilas' });
     await creerProjet('pr1', { titre: 'Refonte site' });
     await connecter(page);
@@ -396,9 +407,9 @@ test.describe('Google branché (simulé)', () => {
     for (const [hash, collection, id, titre, numero] of [['#/crm/affaires/a1', 'crm_affaires', 'a1', 'Audit des Lilas', 1], ['#/projets/projets/pr1', 'projets_projets', 'pr1', 'Refonte site', 2]]) {
       await aller(page, hash);
       const ligne = page.locator('[data-prop="dossier"]');
-      await expect(ligne.locator('.prop-libelle')).toHaveText('Dossier de travail');
+      await expect(ligne.locator('.prop-libelle')).toContainText('Dossier de travail');
       await expect(ligne.locator('[data-role="info"]')).toHaveCount(1);
-      await expect(ligne.locator('.boutons-liens button')).toHaveText(['Créer un dossier dans Google Drive', 'Lier un dossier existant']);
+      await expect(ligne.locator('.boutons-liens button')).toHaveText(['Créer un dossier dans Google Drive', 'Lier un dossier Google Drive existant']);
       await expect(page.locator('[data-champ="nom-dossier"], [data-champ="dossier"]')).toHaveCount(0); // pas de champs empilés avant le clic
       // « Créer un dossier dans Google Drive » : nom prérempli (celui de la fiche), modifiable ; crée le dossier et les sous-dossiers des Réglages.
       await ligne.locator('[data-action="creer-dossier-ouvrir"]').click();
@@ -410,9 +421,14 @@ test.describe('Google branché (simulé)', () => {
       await champDoc(collection, id, 'urlDossier', dossierDrive(numero === 1 ? 1 : 4));
       expect(drive.requetes.slice(-3).map((r) => r.corps.name)).toEqual([titre, 'Contrat', 'Livrables']);
       await expect(ligne.locator('[data-action="ouvrir-dossier"]')).toHaveAttribute('href', dossierDrive(numero === 1 ? 1 : 4));
-      await expect(ligne.locator('[data-action="modifier-dossier"], [data-action="retirer-dossier"]')).toHaveCount(2);
+      await expect(ligne.locator('[data-action="modifier-dossier"]')).toHaveCount(0); // plus de « Modifier » : pour changer, on retire puis on recrée ou on relie
+      await expect(ligne.locator('[data-action="retirer-dossier"]')).toHaveCount(1);
       await expect(ligne.locator('[data-action="creer-dossier-ouvrir"]')).toHaveCount(0);
       await ligne.locator('[data-action="retirer-dossier"]').click();
+      await dialogue(page).getByRole('button', { name: 'Annuler' }).click(); // confirmation d'abord
+      expect((await lireDocument(`${collection}/${id}`)).urlDossier).toBe(dossierDrive(numero === 1 ? 1 : 4));
+      await ligne.locator('[data-action="retirer-dossier"]').click();
+      await dialogue(page).getByRole('button', { name: 'Retirer' }).click();
       await champDoc(collection, id, 'urlDossier', '');
     }
   });
@@ -426,9 +442,8 @@ test.describe('Google branché (simulé)', () => {
     await connecter(page);
     const lier = async (hash, collection, id) => {
       await aller(page, hash);
+      await choisirDansGoogle(page, [unDocument('1AbC_dEf-1234567', 'Dossier partagé', D1, 'application/vnd.google-apps.folder')]);
       await page.locator('[data-action="lier-dossier"]').click();
-      await page.locator('[data-champ="dossier"]').fill(D1);
-      await page.locator('[data-action="enregistrer-dossier"]').click();
       await champDoc(collection, id, 'urlDossier', D1); // enregistré malgré l'avertissement
     };
     await lier('#/projets/projets/pr2', 'projets_projets', 'pr2');
@@ -441,15 +456,17 @@ test.describe('Google branché (simulé)', () => {
     await expect(page.locator('.toast', { hasText: 'Ce dossier sert déjà au projet' }).first()).toBeVisible();
   });
 
-  test('L16 « Copier dans le dossier de travail » : case COCHÉE par défaut : le fichier est copié (files.copy) et le lien pointe vers la COPIE ; décochée : lien seul ; échec : lien d\'origine gardé', async ({ page }) => {
+  test('L16 « Copier dans le dossier de travail » : case COCHÉE par défaut → files.copy et lien vers la COPIE ; décochée → lien seul ; échec → lien d\'origine gardé', async ({ page }) => {
+    test.info().annotations.push({ type: 'erreurs-reseau-attendues' }); // le faux Google répond 404 à la copie : le navigateur le note dans sa console
     const DOSSIER = '1AbC_dEf-1234567';
     await creerProjet('pr1', { titre: 'Refonte', urlDossier: `https://drive.google.com/drive/folders/${DOSSIER}` });
     await connecter(page);
     await aller(page, FICHE);
     const form = page.locator('[data-role="form-lien"][data-mode="document"]');
     const caseCopie = form.locator('[data-champ="copier"]');
+    const choisir = (id, nom, type = 'application/pdf') => choisirDansGoogle(page, [{ ...unDocument(id, nom, `https://drive.google.com/file/d/${id}/view`, type), parentId: 'AUTRE_DOSSIER_123' }]);
     // Par défaut : cochée → copie dans le dossier de travail, le lien enregistré est celui de la copie.
-    await choisirDansGoogle(page, [{ ...unDocument('FICHIER_AAAAAAAAAA', 'Devis.pdf', 'https://drive.google.com/file/d/FICHIER_AAAAAAAAAA/view'), parentId: 'AUTRE_DOSSIER_123' }]);
+    await choisir('FICHIER_AAAAAAAAAA', 'Devis.pdf');
     await page.locator('[data-action="ajouter-document-google"]').click();
     await expect(caseCopie).toBeVisible();
     await expect(caseCopie).toBeChecked();
@@ -457,9 +474,10 @@ test.describe('Google branché (simulé)', () => {
     await champDoc('projets_projets', 'pr1', 'documents', [{ libelle: 'Devis.pdf', url: 'https://drive.google.com/file/d/COPIE_1_abcdefghij/view' }]);
     expect(drive.copies).toHaveLength(1);
     expect(drive.copies[0].url).toContain('/files/FICHIER_AAAAAAAAAA/copy');
+    expect(drive.copies[0].autorisation).toBe('Bearer ya29.SIMULE');
     expect(drive.copies[0].corps).toEqual({ parents: [DOSSIER], name: 'Devis.pdf' });
     // Décochée par l'utilisateur : lien seul, l'original, aucune copie de plus.
-    await choisirDansGoogle(page, [{ ...unDocument('FICHIER_BBBBBBBBBB', 'Scan.jpg', 'https://drive.google.com/file/d/FICHIER_BBBBBBBBBB/view', 'image/jpeg'), parentId: 'AUTRE_DOSSIER_123' }]);
+    await choisir('FICHIER_BBBBBBBBBB', 'Scan.jpg', 'image/jpeg');
     await page.locator('[data-action="ajouter-document-google"]').click();
     await expect(caseCopie).toBeChecked();
     await caseCopie.uncheck();
@@ -470,10 +488,9 @@ test.describe('Google branché (simulé)', () => {
       { libelle: 'Scan.jpg', url: 'https://drive.google.com/file/d/FICHIER_BBBBBBBBBB/view', note: 'lien seul' },
     ]);
     expect(drive.copies).toHaveLength(1);
-    expect(drive.copies[0].autorisation).toBe('Bearer ya29.SIMULE');
     // Échec de la copie : message simple, le lien d'origine est gardé.
     drive.echecCopie = 404;
-    await choisirDansGoogle(page, [{ ...unDocument('FICHIER_CCCCCCCCCC', 'Plan.pdf', 'https://drive.google.com/file/d/FICHIER_CCCCCCCCCC/view'), parentId: 'AUTRE_DOSSIER_123' }]);
+    await choisir('FICHIER_CCCCCCCCCC', 'Plan.pdf');
     await page.locator('[data-action="ajouter-document-google"]').click();
     await expect(caseCopie).toBeChecked();
     await form.locator('[data-action="valider-lien"]').click();
@@ -485,21 +502,24 @@ test.describe('Google branché (simulé)', () => {
     ]);
   });
 
-  test('L17 pas de case « Copier » pour un fichier déjà dans le dossier de travail (Importer), ni pour un dossier de serveur ou de NAS ; sur une affaire, le libellé le dit', async ({ page }) => {
+  test('L17 « Importer » : case affichée GRISÉE et cochée avec « Le fichier est envoyé dans le dossier de travail » ; aucune case pour un dossier de serveur ou de NAS ; sur une affaire le libellé le dit ; jamais pour un lien web', async ({ page }) => {
     const DOSSIER = '1AbC_dEf-1234567';
     await creerProjet('pr1', { titre: 'Avec dossier Drive', urlDossier: `https://drive.google.com/drive/folders/${DOSSIER}` });
     await creerProjet('pr2', { titre: 'Avec NAS', urlDossier: 'smb://nas/clients/carrel' });
     await creerAffaire('a1', { titre: 'Affaire', urlDossier: `https://drive.google.com/drive/folders/${DOSSIER}` });
     await connecter(page);
     const form = page.locator('[data-role="form-lien"][data-mode="document"]');
-    // Déposé par « Importer » : il est déjà dans le dossier de travail.
+    // Déposé par « Importer » : il est déjà dans le dossier de travail → case grisée, cochée, message gris, aucune copie.
     await aller(page, FICHE);
     await choisirDansGoogle(page, [{ ...unDocument('FICHIER_DDDDDDDDDD', 'Importé.pdf', 'https://drive.google.com/file/d/FICHIER_DDDDDDDDDD/view'), parentId: DOSSIER }]);
     await page.locator('[data-action="ajouter-document-google"]').click();
-    await expect(form).toBeVisible();
-    await expect(form.locator('[data-champ="copier"]')).toHaveCount(0);
-    await form.locator('[data-action="annuler-lien"]').click();
-    // Dossier de travail hors Drive : pas de case.
+    await expect(form.locator('[data-role="case-importe"]')).toContainText('Le fichier est envoyé dans le dossier de travail');
+    await expect(form.locator('[data-role="case-importe"] input')).toBeDisabled();
+    await expect(form.locator('[data-role="case-importe"] input')).toBeChecked();
+    await form.locator('[data-action="valider-lien"]').click();
+    await champDoc('projets_projets', 'pr1', 'documents', [{ libelle: 'Importé.pdf', url: 'https://drive.google.com/file/d/FICHIER_DDDDDDDDDD/view' }]);
+    expect(drive.copies).toHaveLength(0);
+    // Dossier de travail hors Drive : pas de case (comportement inchangé).
     await aller(page, '#/projets/projets/pr2');
     await choisirDansGoogle(page, [{ ...unDocument('FICHIER_EEEEEEEEEE', 'Autre.pdf', 'https://drive.google.com/file/d/FICHIER_EEEEEEEEEE/view'), parentId: 'AUTRE_DOSSIER_123' }]);
     await page.locator('[data-action="ajouter-document-google"]').click();
@@ -508,11 +528,90 @@ test.describe('Google branché (simulé)', () => {
     await form.locator('[data-action="annuler-lien"]').click();
     // Affaire avec un dossier Drive : la case parle de l'affaire.
     await aller(page, '#/crm/affaires/a1');
+    await choisirDansGoogle(page, [{ ...unDocument('FICHIER_FFFFFFFFFF', 'Pièce.pdf', 'https://drive.google.com/file/d/FICHIER_FFFFFFFFFF/view'), parentId: 'AUTRE_DOSSIER_123' }]);
     await page.locator('[data-action="ajouter-document-google"]').click();
     await expect(form.locator('label.case')).toContainText('Copier dans le dossier de travail de l’affaire');
-    // Un lien web n'a jamais cette case.
     await form.locator('[data-action="annuler-lien"]').click();
+    // Un lien web n'a jamais cette case.
     await page.locator('[data-action="ajouter-lien"]').click();
     await expect(page.locator('[data-champ="copier"]')).toHaveCount(0);
+  });
+
+  test('L18 créer un dossier dont le nom existe déjà (créé par l\'appli) : message clair, rien de créé ; « Lier un dossier Google Drive existant » en repart', async ({ page }) => {
+    await creerProjet('pr1', { titre: 'Refonte' });
+    await creerProjet('pr2', { titre: 'Refonte' });
+    await connecter(page);
+    await aller(page, FICHE);
+    await page.locator('[data-action="creer-dossier-ouvrir"]').click();
+    await page.locator('[data-action="creer-dossier"]').click();
+    await champDoc('projets_projets', 'pr1', 'urlDossier', dossierDrive(1));
+    expect(drive.recherches.at(-1)).toEqual({ nom: 'Refonte', parent: 'root' }); // l'appli cherche d'abord un dossier de ce nom (dans le parent des Réglages, ici la racine)
+    const avant = drive.requetes.length;
+    await aller(page, '#/projets/projets/pr2');
+    await page.locator('[data-action="creer-dossier-ouvrir"]').click();
+    await page.locator('[data-action="creer-dossier"]').click();
+    await expect(page.locator('.toast-erreur').last()).toContainText('Un dossier de ce nom existe déjà. Utilise « Lier un dossier Google Drive existant ».');
+    expect(drive.requetes).toHaveLength(avant); // aucun doublon créé
+    expect((await lireDocument('projets_projets/pr2')).urlDossier).toBe('');
+    await expect(page.locator('[data-action="creer-dossier"]')).toBeEnabled();
+    // Un autre nom passe.
+    await page.locator('[data-champ="nom-dossier"]').fill('Refonte 2');
+    await page.locator('[data-action="creer-dossier"]').click();
+    await champDoc('projets_projets', 'pr2', 'urlDossier', dossierDrive(2));
+  });
+
+  test('L19 liens web : « www.monsite.fr » et « monsite.fr » reçoivent https:// ; « http:www.monsite.fr » devient http://www.monsite.fr ; un texte refusé donne un message clair', async ({ page }) => {
+    await creerProjet('pr1', { titre: 'Refonte' });
+    await connecter(page);
+    await aller(page, FICHE);
+    const section = page.locator('[data-section="projet-documents"]');
+    const ajouter = async (saisie) => {
+      await section.locator('[data-action="ajouter-lien"]').click();
+      await section.getByLabel('Lien web', { exact: true }).fill(saisie);
+      await section.locator('[data-action="valider-lien"]').click();
+    };
+    await ajouter('www.monsite.fr');
+    await ajouter('autresite.fr/page');
+    await ajouter('http:www.troisieme.fr');
+    await champDoc('projets_projets', 'pr1', 'documents', [
+      { libelle: 'monsite.fr', url: 'https://www.monsite.fr' }, { libelle: 'autresite.fr', url: 'https://autresite.fr/page' }, { libelle: 'troisieme.fr', url: 'http://www.troisieme.fr' },
+    ]);
+    await ajouter('pas une adresse');
+    await expect(page.locator('.toast-erreur').last()).toHaveText('L\'adresse doit commencer par http:// ou https://');
+    expect((await lireDocument('projets_projets/pr1')).documents).toHaveLength(3);
+  });
+
+  test('L20 icônes « i » : la bulle s\'affiche au survol, au clavier (focus) et au toucher ; une icône « i » est à côté de « Liens et documents »', async ({ page }) => {
+    await creerProjet('pr1', { titre: 'Refonte' });
+    await connecter(page);
+    await aller(page, FICHE);
+    const info = page.locator('[data-section="projet-documents"] .section-tete [data-role="info"]');
+    await expect(info).toHaveCount(1);
+    const bulle = info.locator('[data-role="bulle-info"]');
+    await expect(bulle).toBeHidden();
+    await expect(bulle).toContainText('copie le fichier dans le dossier de travail'.replace('copie le fichier', 'le copie'));
+    // Clavier : le focus affiche la bulle, Échap la ferme.
+    await info.focus();
+    await expect(bulle).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(bulle).toBeHidden();
+    // Toucher / clic : affiche, un second clic ferme.
+    await info.dispatchEvent('click');
+    await expect(bulle).toBeVisible();
+    // Dans l'écran, jamais coupée.
+    const b = await bulle.boundingBox();
+    const largeurEcran = await page.evaluate(() => window.innerWidth);
+    expect(b.x).toBeGreaterThanOrEqual(0);
+    expect(b.x + b.width).toBeLessThanOrEqual(largeurEcran);
+    await page.locator('.titre-editable').click(); // ailleurs : elle se ferme
+    await expect(bulle).toBeHidden();
+    // Survol (souris, ordinateur seulement) : même bulle, même texte, aussi pour l'icône du Dossier de travail.
+    if (!estTelephone(page)) {
+      const infoDossier = page.locator('[data-prop="dossier"] [data-role="info"]');
+      await infoDossier.hover();
+      await expect(infoDossier.locator('[data-role="bulle-info"]')).toBeVisible();
+      await page.mouse.move(5, 5);
+      await expect(infoDossier.locator('[data-role="bulle-info"]')).toBeHidden();
+    }
   });
 });

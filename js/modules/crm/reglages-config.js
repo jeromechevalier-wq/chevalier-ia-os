@@ -5,6 +5,7 @@ import * as D from './donnees.js';
 import * as PD from '../projets/donnees.js';
 import * as L from './logique.js';
 import * as P from '../projets/logique.js';
+import { retirerAvecAnnulation } from '../../os/retrait.js';
 
 function section(id, titre, nomIcone, aide) {
   return h('section', { class: 'carte-section', id },
@@ -247,11 +248,9 @@ function sectionModelesAffaire() {
         } }, icone('pencil', { taille: 14 }), 'Modifier'),
         h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', onclick: () => D.enregistrerModelesAffaire(tous.map((x) => (x.id === m.id ? { ...x, actif: x.actif === false } : x))) },
           icone(m.actif === false ? 'archive-restore' : 'archive', { taille: 14 }), m.actif === false ? 'Activer' : 'Désactiver'),
-        h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', dataset: { action: 'supprimer-modele-affaire' }, onclick: async () => {
-          if (!(await confirmer('Supprimer le modèle', `Supprimer « ${m.nom} » ? Les affaires déjà créées ne changent pas.`, { libelleOk: 'Supprimer', danger: true }))) return;
-          await D.enregistrerModelesAffaire(tous.filter((x) => x.id !== m.id));
-          toast('Modèle supprimé');
-        } }, icone('trash-2', { taille: 14 }), 'Supprimer')));
+        h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', dataset: { action: 'supprimer-modele-affaire' }, onclick: () => retirerAvecAnnulation({
+          titre: 'Supprimer le modèle', message: `Supprimer « ${m.nom} » ? Les affaires déjà créées ne changent pas.`, libelleOk: 'Supprimer', danger: true,
+          faire: () => D.enregistrerModelesAffaire(tous.filter((x) => x.id !== m.id)), defaire: () => D.enregistrerModelesAffaire(tous), messageFait: 'Modèle supprimé' }) }, icone('trash-2', { taille: 14 }), 'Supprimer')));
   }
   function rafraichir() {
     const tous = D.etat.modelesAffaire;

@@ -8,8 +8,9 @@ import * as D from './donnees.js';
 import * as L from './logique.js';
 import * as PD from '../projets/donnees.js';
 import { iconeInfo } from './composants.js';
-import { googleDisponible, preparerGoogle, obtenirJeton, oublierJeton } from '../../os/google-picker.js';
-import { creerArborescence, nettoyerNomDossier, idDossierDrive } from '../../os/google-drive.js';
+import { googleDisponible, preparerGoogle, obtenirJeton, oublierJeton, ouvrirFenetreGoogle } from '../../os/google-picker.js';
+import { retirerAvecAnnulation } from '../../os/retrait.js';
+import { creerArborescence, nettoyerNomDossier, idDossierDrive, trouverDossierDeMemeNom, adresseDossierDrive } from '../../os/google-drive.js';
 
 function boutonPetit(libelle, nomIcone, action, onclick) {
   return h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', dataset: { action }, onclick }, icone(nomIcone, { taille: 14 }), libelle);
@@ -26,6 +27,9 @@ export async function creerRepertoireDrive({ nom }) {
   let jeton;
   try { jeton = await obtenirJeton({ email: D.compteCourant()?.email || '' }); } catch (e) { throw Object.assign(e, { saisie: e.annule === true }); }
   try {
+    // Un dossier de ce nom créé par l'appli (ou montré à l'appli) existe déjà : on ne crée pas de doublon. (Un dossier créé à la main dans Drive n'est pas visible avec la portée drive.file.)
+    const existant = await trouverDossierDeMemeNom({ jeton, nom: propre, parentId: reglages.dossierParentDrive?.id || '' });
+    if (existant) throw Object.assign(new Error('Un dossier de ce nom existe déjà. Utilise « Lier un dossier Google Drive existant ».'), { saisie: true });
     const r = await creerArborescence({ jeton, nom: propre, parentId: reglages.dossierParentDrive?.id || '', sousDossiers: reglages.sousDossiersDrive || [] });
     return { url: r.dossier.url, nom: r.dossier.nom, manquants: r.manquants };
   } catch (e) {
@@ -49,7 +53,7 @@ export function projetsUtilisantDossier(url, sauf = null) {
   return (PD.etat.projets || []).filter((p) => p.id !== sauf && p.urlDossier && (p.urlDossier === cible || (idCible && idDossierDrive(p.urlDossier) === idCible))).map((p) => ({ id: p.id, titre: p.titre }));
 }
 
-const EXPLICATION = 'Le dossier où ranger les fichiers de cette fiche : un dossier créé dans Google Drive, ou le lien d’un dossier qui existe déjà (Drive, serveur, NAS, site…).';
+const EXPLICATION = 'Le dossier où ranger les fichiers de cette fiche : un dossier créé dans Google Drive, ou un dossier Google Drive qui existe déjà. Une adresse web (serveur, NAS, site) se met dans « Liens et documents ».';
 const formulaires = new Map(); // formulaire ouvert (la fiche est redessinée quand des données arrivent : il ne doit pas disparaître)
 
 /**
@@ -61,8 +65,9 @@ export function creerLanceurs({ fiche, typeFiche = 'affaire', nomSuggere = '', e
   const etat = { urlDossier: fiche.urlDossier || '' };
   const cle = `${typeFiche}:${fiche.id}`;
   const sauf = typeFiche === 'projet' ? fiche.id : (fiche.projetId || null); // le projet de cette affaire peut partager son dossier, sans avertissement
-  const peutCreer = D.etat.config.options.boutonsDepot === true && googleDisponible();
-  if (peutCreer) preparerGoogle().catch((e) => console.warn(e)); // chargé à l'avance : le clic ouvre la fenêtre sans délai
+  const google = googleDisponible();
+  const peutCreer = D.etat.config.options.boutonsDepot === true && google;
+  if (google) preparerGoogle().catch((e) => console.warn(e)); // chargé à l'avance : le clic ouvre la fenêtre sans délai
 
   const zoneDossier = h('div', { class: 'prop-valeur lanceur' });
   const ligneDossier = h('div', { class: 'prop', dataset: { prop: 'dossier' } },
@@ -90,22 +95,6 @@ export function creerLanceurs({ fiche, typeFiche = 'affaire', nomSuggere = '', e
 
   const annuler = () => { formulaires.delete(cle); afficherDossier(); };
   const ouvrir = (mode, valeur) => { formulaires.set(cle, { mode, valeur }); afficherDossier(); };
-
-  function formulaireLien(etatForm) {
-    const champUrl = h('input', { class: 'champ', type: 'url', 'aria-label': 'Lien du dossier', placeholder: 'Lien du dossier (Drive, serveur, NAS, site…)', value: etatForm.valeur, dataset: { champ: 'dossier' }, maxlength: '500' });
-    champUrl.addEventListener('input', () => { etatForm.valeur = champUrl.value; champUrl.classList.remove('invalide'); });
-    const valider = async () => {
-      const r = L.majUrlDossier(champUrl.value);
-      if (Object.keys(r.erreurs).length) { champUrl.classList.add('invalide'); toast(r.erreurs.url, { type: 'erreur' }); return; }
-      if (await ecrireDossier(r.patch.urlDossier)) avertirSiPartage(r.patch.urlDossier);
-    };
-    champUrl.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') { e.preventDefault(); valider(); }
-      if (e.key === 'Escape') { e.stopPropagation(); annuler(); }
-    });
-    return h('div', { class: 'form-lien', dataset: { role: 'form-dossier', mode: 'lier' } }, champUrl,
-      h('div', { class: 'ligne-ajout' }, boutonPetit('Enregistrer', 'check', 'enregistrer-dossier', valider), boutonPetit('Annuler', 'x', 'annuler-dossier', annuler)));
-  }
 
   function formulaireCreation(etatForm) {
     const champNom = h('input', { class: 'champ', type: 'text', 'aria-label': 'Nom du dossier à créer', value: etatForm.valeur, maxlength: '200', dataset: { champ: 'nom-dossier' }, autocapitalize: 'off', spellcheck: false });
@@ -135,21 +124,47 @@ export function creerLanceurs({ fiche, typeFiche = 'affaire', nomSuggere = '', e
       h('div', { class: 'ligne-ajout' }, bouton, boutonPetit('Annuler', 'x', 'annuler-dossier', annuler)));
   }
 
+  /** « Lier un dossier Google Drive existant » : la fenêtre Google en mode « choisir UN dossier », depuis la racine de Mon Drive (plus de champ pour coller une adresse). */
+  async function lierDossierExistant(bouton) {
+    bouton.disabled = true;
+    try {
+      const elus = await ouvrirFenetreGoogle({ mode: 'dossier', email: D.compteCourant()?.email || '', multiple: false });
+      const dossier = elus[0];
+      if (!dossier) return;
+      const url = adresseDossierDrive(dossier.id);
+      if (await ecrireDossier(url)) { toast('Dossier lié', { type: 'info' }); avertirSiPartage(url); }
+    } catch (e) {
+      if (!e?.annule) console.warn(e);
+      toast(e?.message || 'Liaison impossible', { type: e?.annule ? 'info' : 'erreur' });
+    } finally { bouton.disabled = false; }
+  }
+
+  /** Retirer le dossier de travail : confirmation, puis « Retiré · Annuler » 8 secondes. Seul le lien est retiré : rien n'est supprimé dans Drive. */
+  function retirerDossier() {
+    const ancien = etat.urlDossier;
+    return retirerAvecAnnulation({
+      titre: 'Retirer le dossier de travail ?', message: 'Seul le lien est retiré de cette fiche : le dossier lui-même n’est pas supprimé.',
+      faire: async () => { if (!(await ecrireDossier(''))) throw new Error('enregistrement'); },
+      defaire: async () => { await enregistrer({ urlDossier: ancien }); etat.urlDossier = ancien; afficherDossier(); },
+      messageFait: 'Dossier de travail retiré',
+    });
+  }
+
   function afficherDossier() {
     const ouvert = formulaires.get(cle);
-    if (etat.urlDossier && !ouvert) {
-      // Défense en profondeur : une valeur écrite hors de l'écran (agent, import) n'est un lien que si elle passe la même validation.
+    if (ouvert) { remplir(zoneDossier, formulaireCreation(ouvert)); return; }
+    if (etat.urlDossier) {
+      // Un ancien lien (serveur, NAS, site) reste affiché et ouvrable comme avant ; seule une adresse web est un lien cliquable.
       const sure = !Object.keys(L.validerUrlDossier(etat.urlDossier)).length && /^https?:/i.test(etat.urlDossier);
       remplir(zoneDossier, h('div', { class: 'lanceur-ligne' },
         sure ? h('a', { class: 'prop-lien', href: etat.urlDossier, target: '_blank', rel: 'noopener noreferrer', dataset: { action: 'ouvrir-dossier' } }, icone('external-link', { taille: 14 }), ' Ouvrir le dossier') : h('span', {}, etat.urlDossier),
-        boutonPetit('Modifier', 'pencil', 'modifier-dossier', () => ouvrir('lier', etat.urlDossier)),
-        boutonPetit('Retirer', 'x', 'retirer-dossier', () => ecrireDossier(''))));
+        boutonPetit('Retirer', 'x', 'retirer-dossier', retirerDossier)));
       return;
     }
-    if (ouvert) { remplir(zoneDossier, ouvert.mode === 'creer' ? formulaireCreation(ouvert) : formulaireLien(ouvert)); return; }
+    const lier = google ? boutonPetit('Lier un dossier Google Drive existant', 'link', 'lier-dossier', (e) => lierDossierExistant(e.currentTarget)) : null;
     remplir(zoneDossier, h('div', { class: 'boutons-liens' },
-      peutCreer ? boutonPetit('Créer un dossier dans Google Drive', 'folder-plus', 'creer-dossier-ouvrir', () => ouvrir('creer', nomSuggere)) : null,
-      boutonPetit('Lier un dossier existant', 'link', 'lier-dossier', () => ouvrir('lier', ''))));
+      peutCreer ? boutonPetit('Créer un dossier dans Google Drive', 'folder-plus', 'creer-dossier-ouvrir', () => ouvrir('creer', nomSuggere)) : null, lier),
+      !peutCreer && !google ? h('p', { class: 'aide', dataset: { role: 'google-absent' } }, 'Aucun dossier de travail. Google Drive n’est pas branché ici : ajoute une adresse dans « Liens et documents ».') : null);
   }
 
   afficherDossier();
