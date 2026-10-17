@@ -14,7 +14,7 @@ Ce fichier est lu au début de chaque session. Il garde les décisions de Jérô
 - **Fusion des PR** (accord général de Jérôme, 2026-10-16) : Claude fusionne lui-même les PR, une par étape cohérente, **uniquement par la PR** (jamais de poussée directe sur `main`), et **seulement si toute la suite de tests est verte**. Un push sur `main` met le vrai CRM de Jérôme à jour : Claude s'arrête et demande d'abord si la PR modifie des données existantes de Jérôme, les règles Firestore, ou ce que son CRM affiche de façon visible. Il ne déploie jamais la plateforme clients (workflow manuel) sans Jérôme.
 - Jérôme ne lance pas `npm test` sur son Mac : **lance la suite complète toi-même** dans la session (`cd tests && npm install && npm run installer-fonctions && npm test`, environ 5 minutes).
 - **Avant de rendre la main** : donne une liste de recette (5 vérifications à l'écran pour Jérôme), décris le cas vide et le cas d'erreur de chaque écran, et dis ce que tu n'as pas pu vérifier avec le vrai système.
-- **Puissance** : au début d'une session, vérifie que le niveau (modèle et effort) donné suffit à la tâche ; c'est toi qui juges, et tu le dis tout de suite si c'est trop bas.
+- **Puissance** : l'architecte (qui décide, écrit le brief et relit) a besoin de plus de puissance ; un exécutant peut être faible si la consigne est précise (sinon, précise d'abord la consigne). Au début d'une session, c'est toi qui juges si le niveau (modèle et effort) donné suffit, et tu le dis tout de suite si c'est trop bas.
 - Jamais de jeton, de secret ni de clé dans la conversation, le dépôt ou un commit.
 
 ## Au démarrage d'une session
