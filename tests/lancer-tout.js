@@ -2,7 +2,7 @@
 // Les séries (chacune avec ses propres émulateurs, donc ses propres ports) tournent en même temps ; le code de sortie est non nul si UNE échoue.
 // Mêmes fichiers de test qu'avant : les listes viennent de package.json (scripts test:regles, test:logique, test:storage…).
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync, createWriteStream } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, rmSync, createWriteStream } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -150,7 +150,8 @@ async function principal() {
     for (const p of pris) console.error(`Port ${p.port} pris (${p.nom}) ; relance avec TESTS_DECALAGE=${d + 1}`);
     process.exit(2);
   }
-  rmSync(DOSSIER, { recursive: true, force: true });
+  // On ne nettoie que les fichiers de CE décalage : une autre session peut utiliser le même dossier avec un autre décalage.
+  if (existsSync(DOSSIER)) for (const f of readdirSync(DOSSIER)) if (f.startsWith(`${d}-`)) rmSync(join(DOSSIER, f), { recursive: true, force: true });
 
   // La copie des fonctions (nécessaire pour charger les tests) est faite une seule fois, avant le départ des séries.
   const prep = spawnSync('npm', ['run', '--silent', 'preparer'], { cwd: TESTS, env, encoding: 'utf8' });

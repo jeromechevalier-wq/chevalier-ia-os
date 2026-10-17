@@ -914,7 +914,7 @@ test('C32 premier lancement : les modèles Audit, Accompagnement et Extraction s
   expect((await lireDocument('projets_modeles/audit')).nom).toBe('Audit modifié');
 });
 
-test('C32 Modèles de projets (dans les Réglages, plus dans le menu) : la liste, un nouveau modèle, sa fiche (paramètres, activation), suppression', { tag: '@sans-telephone' }, async ({ page }) => {
+test('C32 Modèles de projets (dans les Réglages, plus dans le menu) : la liste, un nouveau modèle, sa fiche (paramètres, activation), suppression', async ({ page }) => {
   await connecter(page);
   await attendreModeles();
   await expect(page.getByRole('link', { name: 'Modèles', exact: true })).toHaveCount(0);
@@ -957,7 +957,7 @@ test('C32 Modèles de projets (dans les Réglages, plus dans le menu) : la liste
   await expect(page).toHaveURL(/#\/reglages\/crm$/); // la suppression ramène aux Réglages
 });
 
-test('C32 fiche d’un modèle : tâches types par phase, délai, modifier, monter, descendre, changer de phase, supprimer', { tag: '@sans-telephone' }, async ({ page }) => {
+test('C32 fiche d’un modèle : tâches types par phase, délai, modifier, monter, descendre, changer de phase, supprimer', async ({ page }) => {
   await connecter(page);
   await attendreModeles();
   await aller(page, '#/projets/modeles/audit');
@@ -1010,7 +1010,7 @@ test('C32 fiche d’un modèle : tâches types par phase, délai, modifier, mont
   expect((await listerDocuments('crm_audit')).filter((l) => l.collection === 'projets_modeles' && l.docId === 'audit').length).toBe(5); // ajout, modification, déplacement vers le haut, changement de phase, suppression
 });
 
-test('C32 « + Projet » avec un modèle : le projet reçoit ses tâches, dates = début + délai, nature du modèle ; sans modèle, il démarre vide', { tag: '@sans-telephone' }, async ({ page }) => {
+test('C32 « + Projet » avec un modèle : le projet reçoit ses tâches, dates = début + délai, nature du modèle ; sans modèle, il démarre vide', async ({ page }) => {
   await connecter(page);
   await attendreModeles();
   await allerA(page, 'Projets');
@@ -1057,7 +1057,7 @@ test('C32 « + Projet » avec un modèle : le projet reçoit ses tâches, dates 
   // les tâches du modèle sont dans l'Accueil le jour dit : ici rien aujourd'hui, mais dans 7 jours elles y seront (dates vérifiées plus haut)
 });
 
-test('C32 « Créer le projet » d’une affaire gagnée : le modèle de son offre est préselectionné ; on peut en changer ou n’en prendre aucun', { tag: '@sans-telephone' }, async ({ page }) => {
+test('C32 « Créer le projet » d’une affaire gagnée : le modèle de son offre est préselectionné ; on peut en changer ou n’en prendre aucun', async ({ page }) => {
   await creerAffaire('a1', { titre: 'Audit des Lilas', etape: 'gagne', offreId: 'audit' });
   await creerAffaire('a2', { titre: 'Accompagnement Martin', etape: 'gagne', offreId: 'accompagnement' });
   await creerAffaire('a3', { titre: 'Audit sans modèle', etape: 'gagne', offreId: 'audit' });
@@ -1097,7 +1097,7 @@ test('C32 « Créer le projet » d’une affaire gagnée : le modèle de son off
   expect((await listerDocuments('projets_taches')).filter((t) => t.projetId === p3.id)).toHaveLength(0);
 });
 
-test('C32 un modèle inactif n’est plus proposé ; supprimer un modèle ne touche pas aux projets déjà créés', { tag: '@sans-telephone' }, async ({ page }) => {
+test('C32 un modèle inactif n’est plus proposé ; supprimer un modèle ne touche pas aux projets déjà créés', async ({ page }) => {
   await connecter(page);
   await attendreModeles();
   await aller(page, '#/projets/modeles/extraction');
@@ -1126,7 +1126,7 @@ test('C32 un modèle inactif n’est plus proposé ; supprimer un modèle ne tou
   expect((await listerDocuments('projets_modeles')).map((m) => m.id).sort()).toEqual(['audit', 'extraction'], 'un modèle supprimé n’est pas recréé');
 });
 
-test('C32 aucun défilement horizontal de l’écran Modèles et d’une fiche de modèle, même avec des textes très longs', { tag: '@sans-telephone' }, async ({ page }) => {
+test('C32 aucun défilement horizontal de l’écran Modèles et d’une fiche de modèle, même avec des textes très longs', async ({ page }) => {
   await connecter(page);
   await attendreModeles();
   await ecrireDocument('projets_modeles/audit', {
@@ -1163,7 +1163,7 @@ test('C31 enchaîner les tâches au clavier : la tâche ajoutée apparaît tout 
   await expect.poll(async () => (await listerDocuments('projets_taches')).length).toBe(3);
 });
 
-test('C32 enchaîner les tâches types au clavier : elles apparaissent tout de suite, le champ reste prêt', { tag: '@sans-telephone' }, async ({ page }) => {
+test('C32 enchaîner les tâches types au clavier : elles apparaissent tout de suite, le champ reste prêt', async ({ page }) => {
   await connecter(page);
   await attendreModeles();
   await aller(page, '#/projets/modeles/accompagnement');

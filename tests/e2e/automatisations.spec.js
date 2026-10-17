@@ -191,7 +191,7 @@ test('J10 un client sans le module n\'a ni menu ni écran des automatisations (p
   await expect(page.getByText('Page introuvable')).toBeVisible();
 });
 
-test('J12 compatibilité : un client activé avec l\'ancien identifiant « journal » garde son menu et son écran ; les anciens liens journal/… sont redirigés', { tag: '@sans-telephone' }, async ({ page }) => {
+test('J12 compatibilité : un client activé avec l\'ancien identifiant « journal » garde son menu et son écran ; les anciens liens journal/… sont redirigés', async ({ page }) => {
   await ecrireDocument('marques/ancien', { actif: true, nom: 'Client ancien', couleur: '#336699', accueil: 'Bienvenue.' });
   await ecrireDocument('clients/ancien', { modules: { journal: true } }); // fiche écrite avant le renommage
   await ecrireDocument(`clients/ancien/membres/${ALICE}`, { role: 'editeur' });

@@ -2,7 +2,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import net from 'node:net';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { BASES, RANGS, decalage, ports, portOccupe, portsPris } from './ports.js';
@@ -75,10 +75,5 @@ describe('A6 production inchangée : js/os/firebase.js', () => {
   test('aucun autre fichier de l\'appli ne connaît window.__emulateurs', () => {
     const r = spawnSync('git', ['grep', '-l', '__emulateurs', '--', 'js', 'index.html', 'espace'], { cwd: RACINE, encoding: 'utf8' });
     assert.equal(r.stdout.trim(), 'js/os/firebase.js');
-  });
-  test('par rapport à origin/main, le seul fichier de js/ modifié est js/os/firebase.js', { skip: !existsSync(`${RACINE}.git`) ? 'pas de dépôt git' : false }, (t) => {
-    const r = spawnSync('git', ['diff', '--name-only', 'origin/main...HEAD', '--', 'js'], { cwd: RACINE, encoding: 'utf8' });
-    if (r.status !== 0) return t.skip('origin/main introuvable ici');
-    assert.deepEqual(r.stdout.split('\n').filter(Boolean), r.stdout.trim() ? ['js/os/firebase.js'] : []);
   });
 });

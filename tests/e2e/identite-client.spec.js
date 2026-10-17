@@ -156,7 +156,7 @@ test('I4 les couleurs d\'étapes ne suivent pas la marque (rouge, vert… resten
   await expect(page.locator('.colonne[data-colonne="etape_5"]')).toBeVisible();
 });
 
-test('I5 aucun texte au nom de Jérôme sur les écrans d\'un client (accueil, listes, fiches, journal, projets)', { tag: '@sans-telephone' }, async ({ page }) => {
+test('I5 aucun texte au nom de Jérôme sur les écrans d\'un client (accueil, listes, fiches, journal, projets)', async ({ page }) => {
   await ouvrir(page, 'studio');
   const verifier = async (nom) => {
     await expect.poll(() => page.locator('.contenu').innerText(), nom).not.toBe('');
