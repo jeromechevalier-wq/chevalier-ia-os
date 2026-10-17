@@ -47,3 +47,10 @@
 .autom-erreur code { font-family: ui-monospace, Menlo, monospace; font-size: 13px; overflow-wrap: anywhere; background: none; padding: 0; }
 .autom-indice { flex: 1 1 100%; font-size: 14px; color: var(--au-attention); }
 .autom-vide { padding: 28px 16px; text-align: center; color: var(--texte2); }
+
+/* Vue administrateur (Chevalier IA OS, compte de Jérôme) : pastille du propriétaire sur chaque ligne et rappel des workflows « à vérifier ». */
+.autom-proprio { flex: 0 0 auto; align-self: flex-start; font-size: 13px; padding: 3px 10px; border-radius: 999px; background: var(--survol); color: var(--texte2); border: 1px solid var(--bordure); white-space: nowrap; }
+.autom-alerte-verifier { display: block; width: 100%; margin: 0 0 12px; text-align: left; font: inherit; font-weight: 600; cursor: pointer; background: var(--au-attention-fond); color: var(--au-attention); border: 0; border-radius: 8px; padding: 10px 14px; }
+.autom-alerte-verifier[hidden] { display: none; }
+.autom-alerte-verifier:hover, .autom-alerte-verifier:focus-visible { text-decoration: underline; }
+.autom-averifier .autom-indice { color: var(--texte); }

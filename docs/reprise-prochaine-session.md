@@ -2,6 +2,10 @@
 
 Écrit le 04/10/2026, mis à jour le 07/10/2026 à la fin du chantier Projets, pour qu'une session neuve reprenne sans que Jérôme ait à recoller quoi que ce soit. **À mettre à jour ou à supprimer une fois les points faits.**
 
+## Automatisations de Jérôme + vue administrateur (17/10/2026) : branche automatisations-admin, version 2.7.0
+
+Code et tests écrits, **rien déployé**, interrupteur `AUTOMATISATIONS_EN_SERVICE = false` dans `functions/src/index.js` (une fusion déploie toutes les fonctions : il faut d'abord le secret et le compte de service). Lire `automatisations-n8n.md` parties 10 et 11 : reconnaissance par trois signes, guide pas à pas pour Jérôme, **à confirmer avec lui : le nom exact du credential `interne` dans son n8n** (prévu : « Clé n8n - interne »).
+
 ## Liens et documents, Google Drive (16/10/2026) : branche liens-documents-drive, version 2.6.1
 
 ## Veille : ajout de lien, bouton Résumer, lecture du résumé (15/10/2026)

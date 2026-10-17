@@ -195,23 +195,82 @@ Le Logger dans les workflows et la frise d'étapes. Rien à changer pour l'ajout
 - **Que faire quand l'e-mail arrive** : le texte de l'e-mail le dit (n8n en panne : relancer ; clé refusée : nouvelle clé dans n8n > Settings > n8n API, puis `firebase functions:secrets:set N8N_API_KEY --project chevalier-ia-app` et redéploiement des fonctions).
 - **Tester sans casser n8n** : écrire une fausse erreur dans les journaux. L'alerte reconnaît le type de journal des fonctions (`cloud_run_revision`) ; une entrée de type « global » n'a pas déclenché l'alerte lors du premier essai.
 
-## 10. Chez Jérôme (ton propre OS) : visible, mais pas encore alimenté (16/10/2026)
+## 10. Chez Jérôme (Chevalier IA OS) : tes workflows et la vue administrateur (2.7.0, 17/10/2026)
 
-Règle posée le 16/10/2026 : **tout module existe d'abord chez toi (bêta-testeur), puis s'ouvre aux clients**. Le module n'est donc plus « réservé aux clients » (le drapeau `reserveAuxClients` a été retiré de sa déclaration dans `js/os/registre.js`) : le menu **Automatisations > Historique** apparaît dans ton OS (base `chevalier-ia-os`).
+Règle posée le 16/10/2026 : **tout module existe d'abord chez toi (bêta-testeur), puis s'ouvre aux clients**. Depuis la 2.7.0, la copie de **tes** workflows et la vue de **tous** les propriétaires sont codées et testées ; **rien n'est déployé** (partie 11 : ce que tu dois faire).
 
-- **Ce que tu vois** : tant qu'aucun workflow n'a été copié dans ta base, l'écran affiche les quatre compteurs à 0 et le message « Aucune automatisation n'a encore été copiée dans cette base. Elles apparaîtront ici quand la copie depuis n8n sera branchée. ». Il n'y a **ni bouton « Rafraîchir », ni mise à jour automatique, ni renommage** chez toi : les trois fonctions Firebase vivent dans le projet des clients (`chevalier-ia-app`) et n'existent pas dans le projet de ton CRM.
-- **Où l'écran lit** : à la racine de ta base (`workflows`, `executions`, `sync/state`), avec les mêmes noms que chez un client. Tes règles Firestore actuelles (« tout le reste : tes deux comptes ») autorisent déjà cette lecture : **aucune règle modifiée**. Si un jour des documents y sont écrits, ils s'affichent sans rien changer au code.
-- **Sauvegarde** : ces trois collections ne sont pas dans l'export JSON du CRM (c'est une copie de n8n, qu'on peut refaire).
+### Même code partout
+Le code qui lit n8n, reconnaît le propriétaire et copie vers Firestore est **le même** pour toi et pour les clients (`functions-plateforme/src/`, copié tel quel dans `functions/partage/automatisations/` par `scripts/preparer-fonctions.js`). Seul l'endroit d'écriture change :
 
-### La copie de tes propres workflows n8n : pas faite (décidée le 12/10/2026)
+| Propriétaire | Où la copie est écrite | Quelle fonction |
+|---|---|---|
+| un client (`audrey`) | `clients/audrey/…` dans **Chevalier IA APP** (projet `chevalier-ia-app`) | `automatisationsCopieHoraire` (inchangée) |
+| toi (`interne`) | à la **racine** de **Chevalier IA OS** (`workflows`, `executions`, `sync`, projet `chevalier-ia-os`) | `automatisationsInterneHoraire` (nouvelle, toutes les heures) |
 
-Le code de copie existant (`functions-plateforme/src/synchro.js`, `appels.js`) **ne la permet pas simplement** :
+Avec tout l'historique, comme pour les clients (pas de lecture à la volée). Le choix « où lire » est fait par source : un autre serveur n8n pourra s'ajouter plus tard en ajoutant une source, sans toucher à l'écran (non codé).
 
-1. Il écrit sous `clients/<client>/…` dans la base **de la plateforme** (projet `chevalier-ia-app`). Ta base est un **autre projet Firebase** (`chevalier-ia-os`), à la racine : il faudrait une version du code qui écrit à la racine (chemins sans `clients/<client>/`), et qui tourne **dans** ton projet ou avec des droits d'écriture sur lui.
-2. Il rattache un workflow à un client par l'étiquette `client-<identifiant>` ; tes workflows n'ont **aucune** étiquette (« jamais copié » = cas normal chez toi). Il faut décider **comment reconnaître les tiens** (par exemple une étiquette `jerome`, ou « tout ce qui n'a pas d'étiquette client »).
-3. Il faut la clé n8n (`N8N_API_KEY`) **dans le Secret Manager du projet `chevalier-ia-os`** (aujourd'hui elle n'est prévue que dans `chevalier-ia-app`), un déploiement de fonctions dans ton projet (`functions/`, qui déploie aujourd'hui le serveur MCP : à ne pas mélanger sans réfléchir) et une planification horaire.
-4. Tes collections `workflows`, `executions`, `sync` : les règles actuelles suffisent pour la lecture par l'écran ; les fonctions écrivent avec le SDK d'administration, qui contourne les règles.
-5. Le bouton « Rafraîchir » chez toi demanderait une fonction appelable dans ton projet, avec la vérification de ton identité Google (comme le MCP), et l'écran à rebrancher dessus (aujourd'hui masqué chez toi).
+### Comment un workflow est reconnu : trois signes qui doivent concorder
+| Signe | Pour toi (`interne`) | Pour un client (`audrey`) |
+|---|---|---|
+| **(a) Étiquette n8n** | `interne` | `client-audrey` (comme avant) |
+| **(b) Nom du workflow** | commence par `interne-` (exigé) | peut commencer par `audrey-` ou `client-audrey-` (convention de la porte) ; **pas exigé** (compatibilité : la doc n'a jamais imposé de nom) |
+| **(c) Clé de la porte** : le credential que les nœuds utilisent | `Clé n8n - interne` (exigé) | `Clé n8n - audrey` ; **pas exigé** (compatibilité), mais s'il y en a un il doit être le bon |
 
-Pour que ce soit propre : extraire la logique de copie (`synchro.js`, `etiquettes.js`, `n8n.js`) dans un dossier partagé par les deux projets (avec un paramètre « chemin de base » `''` ou `clients/<client>`, comme `js/os/chemins.js` côté application), puis une seule nouvelle fonction horaire dans `functions/`. À faire dans une PR à part, après ton accord sur le point 2.
+Le nom du credential est comparé **sans tenir compte** des majuscules, des accents, des espaces ni du type de tiret : « Clé n8n - interne », « CLE N8N – Interne » et « cle n8n-interne » sont le même. Seuls les **noms** des credentials sont lus dans n8n (jamais leur contenu).
+
+Ce qui se passe :
+- **Les trois concordent** → copié chez le bon propriétaire.
+- **Aucun signe** → ignoré sans bruit (cas normal d'un brouillon).
+- **Un signe manque ou en désigne un autre** (ex. nom `interne-…` sans l'étiquette `interne`, ou étiquette `client-audrey` avec la clé `interne`) → **jamais copié**, et rangé dans **« À vérifier »** avec la raison en français simple (« Il manque : l'étiquette « interne » »). Pour un client, une étiquette de client sans module ou inconnu, ou deux étiquettes, restent signalés comme avant.
+- Le dossier n8n **« Audrey »** : ses workflows portent `client-audrey` / « Clé n8n - Audrey », donc **jamais** copiés chez toi. S'il leur manque l'étiquette, ils sont signalés « étiquette manquante » (pour Audrey, pas pour toi).
+
+**⚠ À vérifier avec toi :** le nom exact du credential `interne` dans ton n8n n'est pas confirmé (« Clé n8n - interne » est le nom prévu par `porte-cles.md`). Si le tien s'appelle autrement (« Clé n8n - Jérôme » par exemple), renomme-le dans n8n (*Credentials*), ou dis-le-moi et on adapte la règle. Tant que ça ne concorde pas, tes workflows apparaissent dans « À vérifier » avec cette raison : c'est le bon test.
+
+### Ce que tu vois (menu Automatisations > Historique)
+- **Avec ton compte** (`jerome.chevalier@gmail.com`, le seul administrateur ; le compte d'assistant ne l'est pas) : un **filtre « propriétaire »** : *Tous les propriétaires*, *Interne (toi)*, un client par son nom, et **À vérifier (n)**. Chaque ligne porte une pastille du propriétaire. Un rappel jaune « n workflows à vérifier : voir pourquoi » mène à la catégorie. Le bouton **Rafraîchir** recopie **tes** workflows maintenant (les clients sont copiés toutes les heures par leur propre fonction). Les clients sont **relus toutes les 30 secondes** tant que la page est visible.
+- **Les clients ne voient que leurs workflows** (inchangé). Jamais le contenu des données : seulement noms, états, erreurs, étapes.
+- **La base des clients n'est jamais écrite** depuis Chevalier IA OS : la fonction lit avec un compte qui n'a que le droit de lecture (voir partie 11), et un test compare la base avant/après.
+- Compte d'assistant : écran vide propre comme avant (pas de filtre, pas de bouton, aucun appel).
+
+### Les deux fonctions (projet `chevalier-ia-os`, `functions/src/automatisations/appels.js`)
+- `automatisationsInterneHoraire` : toutes les heures, liste les workflows de n8n, garde ceux aux trois signes, copie, écrit les « À vérifier » dans `plateforme_journal/signalements` de ta base.
+- `automatisationsAdmin` (appelable, administrateur seulement, refus neutre sinon) : `lire` (clients + « À vérifier » des deux bases, lecture seule, 300 exécutions les plus récentes) et `rafraichir` (tes workflows).
+- Clé n8n : **la même `N8N_API_KEY`**, mais un **secret du même nom dans chevalier-ia-os** (le secret de chevalier-ia-app n'est pas visible de l'autre projet).
+- **Interrupteur** `AUTOMATISATIONS_EN_SERVICE` dans `functions/src/index.js` : **`false` pour l'instant**. Pourquoi : chaque fusion dans `main` déploie toutes les fonctions de `functions/` ; si le secret ou le compte de service n'existe pas encore, le déploiement échouerait et le CRM ne se mettrait plus à jour. Il passe à `true` dans une petite PR, après la partie 11. D'ici là, l'écran affiche tes workflows (vides) et le bandeau « Les clients ne sont pas lisibles pour le moment ».
+
+**Règles Firestore : aucune modification.** Tes règles actuelles (« tout le reste : tes deux comptes ») couvrent déjà la lecture de `workflows`, `executions`, `sync` et `plateforme_journal`. Les clients ne sont pas lus par le navigateur mais par la fonction (SDK d'administration).
+
+**Sauvegarde** : ces collections (copie de n8n, refaisable) ne sont pas dans l'export JSON du CRM.
+
+### Plus tard : un autre serveur
+La vue lit « par source » (ta base, la base des clients). Un second serveur = une source de plus dans `lireVueAdministrateur` et une fonction de copie. Rien n'est codé pour ça.
+
+---
+
+## 11. Guide pour Jérôme : mettre en service tes automatisations (à faire dans l'ordre)
+
+Rien ici ne touche à tes données existantes. Compte ~20 minutes.
+
+**1. Déposer la clé n8n dans chevalier-ia-os** (la même clé que pour chevalier-ia-app, sans la montrer à personne). Dans le Terminal, dans le dossier du projet :
+
+```bash
+firebase functions:secrets:set N8N_API_KEY --project chevalier-ia-os
+```
+
+Le Terminal te demande la valeur : colle la clé (champ caché, rien ne s'affiche) puis Entrée. Contrôle : <https://console.cloud.google.com/security/secret-manager?project=chevalier-ia-os> doit lister `N8N_API_KEY`.
+
+**2. Créer le compte de service** : <https://console.cloud.google.com/iam-admin/serviceaccounts/create?project=chevalier-ia-os>
+- Nom : `automatisations-serveur` (l'adresse sera `automatisations-serveur@chevalier-ia-os.iam.gserviceaccount.com`).
+- Étape « Accorder l'accès » : ajoute **Utilisateur Cloud Datastore** (*Cloud Datastore User*). *OK*.
+- Comme pour `mcp-serveur` : le compte qui déploie depuis GitHub doit pouvoir « agir en tant que » lui (rôle *Utilisateur du compte de service* sur ce compte) ; si le déploiement refuse, la phrase d'erreur le dit.
+
+**3. Lui donner la clé** : <https://console.cloud.google.com/security/secret-manager?project=chevalier-ia-os> > clique `N8N_API_KEY` > onglet *Autorisations* > *Accorder l'accès* > principal `automatisations-serveur@chevalier-ia-os.iam.gserviceaccount.com`, rôle **Accesseur de secrets Secret Manager**.
+
+**4. Lui donner la LECTURE SEULE des clients** : <https://console.cloud.google.com/iam-admin/iam?project=chevalier-ia-app> > *Accorder l'accès* > même adresse > rôle **Lecteur Cloud Datastore** (*Cloud Datastore Viewer*) **et rien d'autre**. C'est ce qui garantit que Chevalier IA OS ne peut jamais écrire chez les clients.
+
+**5. n8n** (<https://n8n.chevalier-ia.fr>) : sur chacun de tes workflows de veille : étiquette `interne` ; nom commençant par `interne-` ; les nœuds qui appellent la porte utilisent le credential **« Clé n8n - interne »** (*Credentials* : vérifie son nom exact, partie 10). Ne touche pas au dossier « Audrey ».
+
+**6. Dis-moi « active les automatisations »** : je passe l'interrupteur à `true` dans une PR ; je la fusionne seulement si les tests sont verts, et la fusion déploie les deux fonctions. Ensuite ouvre Chevalier IA OS > Automatisations : tes workflows apparaissent après la première copie (clique **Rafraîchir**), ceux qui ne concordent pas sont dans **À vérifier**.
+
+**Si ça ne marche pas** : bandeau jaune « n'est pas lisible » = droits des étapes 2 à 4 ; liste vide = regarde « À vérifier » ; journaux : <https://console.cloud.google.com/functions/list?project=chevalier-ia-os>. Pour tout arrêter : remettre l'interrupteur à `false` (la fusion suivante supprime les deux fonctions).
 

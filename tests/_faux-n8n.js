@@ -9,7 +9,7 @@ export const SECRET_DANS_WORKFLOW = 'SECRET-DE-CONNEXION-ne-doit-jamais-sortir';
 
 export function creerFauxN8n() {
   const etat = {
-    workflows: [], // { id, name, active, tags: [noms] }
+    workflows: [], // { id, name, active, tags: [noms], cles: [noms de credentials utilisés par les nœuds] }
     executions: [], // { id, workflowId, status, mode, startedAt, stoppedAt, retryOf, erreur: { message, etape } }
     requetes: [],
     panne: false, // true : le serveur répond 503
@@ -22,7 +22,9 @@ export function creerFauxN8n() {
   const workflowComplet = (w) => ({
     id: w.id, name: w.name, active: w.active, isArchived: false,
     tags: w.tags.map((t, i) => ({ id: `t${i}`, name: t })),
-    nodes: [{ name: 'Lire Presences', type: 'n8n-nodes-base.httpRequest', parameters: { authentication: SECRET_DANS_WORKFLOW, url: 'https://exemple.test' } }],
+    nodes: [{ name: 'Lire Presences', type: 'n8n-nodes-base.httpRequest', parameters: { authentication: SECRET_DANS_WORKFLOW, url: 'https://exemple.test' },
+      // Comme le vrai n8n : le NOM du credential (et son identifiant), jamais sa valeur.
+      credentials: Object.fromEntries((w.cles ?? []).map((nom, i) => [`httpHeaderAuth${i}`, { id: `cred${i}`, name: nom }])) }],
     settings: { saveManualExecutions: true }, staticData: { secret: SECRET_DANS_WORKFLOW },
   });
   const executionResume = (e) => ({

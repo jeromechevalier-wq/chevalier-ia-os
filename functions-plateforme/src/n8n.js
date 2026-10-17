@@ -87,15 +87,16 @@ export function creerLecteurN8n({ cle, url = URL_N8N, fetchImpl = globalThis.fet
 
   return {
     /**
-     * Workflows avec leurs étiquettes : [{ id, name, active, tags: [noms] }]. `etiquette` (facultatif) ne demande à n8n que les workflows
-     * portant cette étiquette. La réponse de n8n contient la définition complète de chaque workflow : on n'en garde RIEN d'autre que ces quatre champs.
+     * Workflows avec leurs étiquettes : [{ id, name, active, tags: [noms], cles: [noms de credentials] }]. `etiquette` (facultatif) ne demande à n8n que les workflows
+     * portant cette étiquette. La réponse de n8n contient la définition complète de chaque workflow : on n'en garde RIEN d'autre que ces cinq champs.
+     * `cles` : uniquement les NOMS des credentials utilisés par les nœuds (« Clé n8n - interne »), jamais leur contenu : sert à reconnaître le propriétaire (etiquettes.js).
      */
     async workflows({ etiquette } = {}) {
       const liste = [];
       await parcourir('/workflows', { tags: etiquette, excludePinnedData: true }, (page) => {
         for (const w of page) {
           const tags = Array.isArray(w?.tags) ? w.tags.map((t) => texte(t?.name)).filter(Boolean) : [];
-          liste.push({ id: texte(w?.id), name: texte(w?.name) ?? '', active: w?.active === true, tags });
+          liste.push({ id: texte(w?.id), name: texte(w?.name) ?? '', active: w?.active === true, tags, cles: nomsDeCredentials(w?.nodes) });
         }
       });
       return liste.filter((w) => w.id);
@@ -141,6 +142,21 @@ export function creerLecteurN8n({ cle, url = URL_N8N, fetchImpl = globalThis.fet
       return message || etape ? { message: message ?? '', etape: etape ?? '' } : null;
     },
   };
+}
+
+/** Noms (et rien d'autre) des credentials que les nœuds d'un workflow utilisent. Au plus 40 noms, 120 caractères chacun. */
+function nomsDeCredentials(noeuds) {
+  const noms = new Set();
+  for (const n of Array.isArray(noeuds) ? noeuds : []) {
+    const creds = n?.credentials;
+    if (!creds || typeof creds !== 'object') continue;
+    for (const c of Object.values(creds)) {
+      const nom = texte(c?.name);
+      if (nom) noms.add(nom.slice(0, 120));
+      if (noms.size >= 40) return [...noms];
+    }
+  }
+  return [...noms];
 }
 
 /** Garde d'une exécution seulement les champs de suivi (liste blanche). */

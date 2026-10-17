@@ -135,3 +135,64 @@ export function attenteRafraichir(dernierClic, maintenant) {
 export function doitRafraichirAuto({ active, visible, derniereDemande, maintenant, enCours }) {
   return active && visible && !enCours && maintenant - derniereDemande >= DELAI_RAFRAICHIR_MS;
 }
+
+// ------------------------------------------------------------------ vue administrateur (tous les propriétaires)
+
+export const PROPRIETAIRE_INTERNE = 'interne';
+export const FILTRE_A_VERIFIER = 'a-verifier';
+
+/**
+ * Fusionne tes données (Chevalier IA OS, en direct) et celles des clients (fonction serveur, lecture seule) selon le filtre :
+ * 'tous', 'interne', l'identifiant d'un client ; 'interne-seul' = pas administrateur (aucun mélange, aucun propriétaire affiché).
+ * Renvoie { executions, workflows: Map } ; chaque exécution d'administrateur porte `proprietaire` et un `id` unique (« client/numéro »).
+ */
+export function fusionnerVues(interne, admin, filtre) {
+  if (filtre === 'interne-seul') return { executions: interne.executions, workflows: interne.workflows, proprietaire: false };
+  const moi = (e) => ({ ...e, proprietaire: PROPRIETAIRE_INTERNE });
+  const lui = (e) => ({ ...e, id: `${e.proprietaire}/${e.id}` });
+  const executions = [];
+  const workflows = new Map();
+  if (filtre === 'tous' || filtre === PROPRIETAIRE_INTERNE || filtre === FILTRE_A_VERIFIER) {
+    executions.push(...interne.executions.map(moi));
+    for (const [id, w] of interne.workflows) workflows.set(id, w);
+  }
+  if (filtre !== PROPRIETAIRE_INTERNE) {
+    executions.push(...(admin?.executions ?? []).filter((e) => filtre === 'tous' || filtre === FILTRE_A_VERIFIER || e.proprietaire === filtre).map(lui));
+    for (const w of admin?.workflows ?? []) workflows.set(w.id, w);
+  }
+  return { executions, workflows, proprietaire: true };
+}
+
+/** Options du filtre « propriétaire » : Tous, Interne, les clients, puis « À vérifier (n) ». */
+export function optionsProprietaires(proprietaires, nbAVerifier) {
+  return [
+    { valeur: 'tous', libelle: 'Tous les propriétaires' },
+    { valeur: PROPRIETAIRE_INTERNE, libelle: 'Interne (toi)' },
+    ...(proprietaires ?? []).map((p) => ({ valeur: p.id, libelle: p.nom || p.id })),
+    { valeur: FILTRE_A_VERIFIER, libelle: nbAVerifier ? `À vérifier (${nbAVerifier})` : 'À vérifier' },
+  ];
+}
+
+/** Nom d'un propriétaire pour une pastille sur la ligne. */
+export function nomProprietaire(id, proprietaires) {
+  if (id === PROPRIETAIRE_INTERNE) return 'Interne';
+  return (proprietaires ?? []).find((p) => p.id === id)?.nom || id || '';
+}
+
+/**
+ * Bandeau jaune de l'administrateur : n8n qui ne répond pas pour toi ou pour un client concerné par le filtre, ou la base des clients illisible.
+ * Renvoie un texte ou null.
+ */
+export function texteBandeauAdmin({ synchroInterne, admin, filtre }) {
+  const lignes = [];
+  if (filtre === 'tous' || filtre === PROPRIETAIRE_INTERNE || filtre === FILTRE_A_VERIFIER) {
+    const t = texteBandeau(synchroInterne);
+    if (t) lignes.push(`Interne : ${t}`);
+  }
+  if (filtre !== PROPRIETAIRE_INTERNE) {
+    if (admin?.erreur) lignes.push('Les clients ne sont pas lisibles pour le moment (la fonction n’est pas encore en service ou ne répond pas). Tes propres automatisations restent affichées.');
+    else if (admin?.charge && admin.lecturePossible === false) lignes.push('La base des clients (Chevalier IA APP) n’est pas lisible : le droit de lecture n’est pas encore donné au serveur.');
+    else for (const p of admin?.proprietaires ?? []) if ((filtre === 'tous' || filtre === FILTRE_A_VERIFIER || filtre === p.id) && p.synchro && p.synchro.n8nOk === false) lignes.push(`${p.nom || p.id} : n8n ne répond pas, les données datent de ${enMs(p.synchro.lastSuccessAt) === null ? '—' : hhmmss(enMs(p.synchro.lastSuccessAt))}.`);
+  }
+  return lignes.length ? lignes.join(' ') : null;
+}
