@@ -8,9 +8,8 @@ import * as D from './donnees.js';
 import * as L from './logique.js';
 import { sectionRepliable, boutonEtoile, iconeInfo } from './composants.js';
 import { retirerAvecAnnulation } from '../../os/retrait.js';
-import { creerRepertoireDrive, messageCreation } from './lanceurs.js';
 import { googleDisponible, preparerGoogle, ouvrirFenetreGoogle, obtenirJeton } from '../../os/google-picker.js';
-import { idDossierDrive, documentDepuisChoix, copierFichier, TYPE_DOSSIER } from '../../os/google-drive.js';
+import { idDossierDrive, documentDepuisChoix, copierFichier, parentsDuFichier, TYPE_DOSSIER } from '../../os/google-drive.js';
 
 // Formulaire ouvert, gardé hors de la fiche : la fiche est redessinée quand des données arrivent, le formulaire en cours de saisie ne doit pas disparaître.
 const EXPLICATION = 'Liens et documents de cette fiche. « Ajouter un document » choisit un fichier dans Google Drive (ou envoie un fichier de l’ordinateur) et, par défaut, le copie dans le dossier de travail. « Ajouter un lien web » garde l’adresse d’un site ou d’un fichier.';
@@ -91,34 +90,29 @@ export function sectionLiensEtDocuments({ id, typeFiche, entite, courant, enregi
   // ------------------------------------------------------------ « Ajouter un document » : la fenêtre standard de Google
   async function choisirDansGoogle(bouton) {
     const email = D.compteCourant()?.email || '';
-    let fiche = courant();
-    let dossierImport = idDossierDrive(fiche.urlDossier);
+    const fiche = courant();
+    const dossierImport = idDossierDrive(fiche.urlDossier);
     bouton.disabled = true;
     try {
       if (!fiche.urlDossier) {
-        const choix = await dialogue({
-          titre: 'Pas encore de dossier de travail',
-          contenu: h('p', {}, 'Cette fiche n’a pas de dossier de travail. « Créer le dossier » en crée un dans Google Drive (avec les sous-dossiers définis dans les Réglages) et l’enregistre comme dossier de travail : les fichiers importés ou copiés y seront rangés.'),
-          boutons: [
-            { libelle: 'Annuler', valeur: null },
-            { libelle: 'Créer le dossier', valeur: 'creer', style: 'principal' },
-          ],
+        // Pas de dossier de travail : un message d'information, rien d'autre (aucune création, aucune fenêtre Google).
+        await dialogue({
+          titre: 'Pas de dossier de travail',
+          contenu: h('p', {}, 'Cette fiche n’a pas de dossier de travail : on ne peut pas y ajouter de document. Crée ou relie d’abord le dossier de travail de cette fiche (bloc Détails).'),
+          boutons: [{ libelle: 'Fermer', valeur: null, style: 'principal' }],
         });
-        if (choix !== 'creer') return;
-        {
-          const r = await creerRepertoireDrive({ nom: fiche.titre });
-          await enregistrer({ urlDossier: r.url });
-          dossierImport = idDossierDrive(r.url);
-          toast(messageCreation(r), { type: r.manquants.length ? 'erreur' : 'info' });
-          fiche = courant();
-        }
+        return;
       }
       // « Mon Drive » est libre (racine) ; « Importer » envoie dans le dossier de travail Drive, s'il y en a un.
       const elus = await ouvrirFenetreGoogle({ mode: 'documents', dossierImport, email, multiple: false });
       const doc = documentDepuisChoix(elus[0]);
       if (!doc) { if (elus[0]) toast('Ce document n’a pas d’adresse Google utilisable', { type: 'erreur' }); return; }
       // Un fichier choisi dans « Google Drive » (pas déposé par « Importer » : celui-là est déjà dans le dossier de travail) est copié dans ce dossier, sauf si on décoche la case.
-      const dejaDansLeDossier = dossierImport && elus[0].parentId === dossierImport;
+      // Comment reconnaître un fichier « Importer » ? On demande à Drive dans quels dossiers il est (files.get) : un fichier déposé par « Importer » est dans le dossier de travail.
+      // Si Drive ne répond pas, on se rabat sur le dossier d'origine indiqué par la fenêtre Google.
+      let parents = null;
+      if (dossierImport) { try { parents = await parentsDuFichier({ jeton: await obtenirJeton({ email }), fichierId: elus[0].id }); } catch (e) { console.warn(e); } }
+      const dejaDansLeDossier = dossierImport && (parents ? parents.includes(dossierImport) : elus[0].parentId === dossierImport);
       ouvrirFormulaire({ mode: 'document', nom: doc.libelle, nomOriginal: doc.libelle, urlDocument: doc.url, fichierId: elus[0].id, copiable: !dejaDansLeDossier && elus[0].type !== TYPE_DOSSIER, importe: !!dejaDansLeDossier, copier: true }); // cochée par défaut (décision de Jérôme)
     } catch (e) {
       if (!e?.saisie && !e?.annule) console.warn(e);

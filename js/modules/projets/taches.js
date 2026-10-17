@@ -1,8 +1,9 @@
 // Tâches d'un projet : section de la fiche projet (par phase) et ligne des Points clés de l'Accueil.
 // Aucune règle métier ici : les règles sont dans logique.js (plans), exécutés par donnees.js.
 import { h, icone, remplir, dialogue, confirmer, ouvrirMenu, toast } from '../../os/ui.js';
+import { retirerAvecAnnulation } from '../../os/retrait.js';
 import { sectionRepliable, lien } from '../crm/composants.js';
-import { selecteurDate } from '../crm/activites.js';
+import { selecteurDate, dialogueDecalage } from '../crm/activites.js';
 import * as L from '../crm/logique.js';
 import * as D from './donnees.js';
 import * as P from './logique.js';
@@ -89,6 +90,9 @@ function titreModifiable(t) {
   return el;
 }
 
+/** Clic sur la date d'une tâche : la fenêtre « Changer la date » des activités (date, heure, raccourcis), avec en plus « Sans date ». */
+const dateTache = (t) => dialogueDecalage(t, { enregistrerPatch: (patch) => D.majTache(t.id, patch), sansDate: true });
+
 export function sectionTaches(projet) {
   const aujourdhui = D.ctx().aujourdhui;
 
@@ -103,7 +107,9 @@ export function sectionTaches(projet) {
         { libelle: 'Monter', icone: 'arrow-up', desactive: i === 0, action: () => ou(() => D.deplacerTache(t.id, -1), 'Déplacement impossible') },
         { libelle: 'Descendre', icone: 'arrow-down', desactive: i === g.taches.length - 1, action: () => ou(() => D.deplacerTache(t.id, 1), 'Déplacement impossible') },
         ...P.phasesActives(cfg()).map((ph) => ({ libelle: `Déplacer vers : ${ph.libelle}`, icone: 'arrow-right-left', desactive: ph.id === t.phase, action: () => ou(() => D.majTache(t.id, { phase: ph.id }), 'Déplacement impossible') })),
-        { libelle: 'Supprimer', icone: 'trash-2', danger: true, action: async () => { if (await confirmer('Supprimer cette tâche ?', t.titre, { libelleOk: 'Supprimer', danger: true })) await ou(() => D.supprimerTache(t.id), 'Suppression impossible'); } },
+        { libelle: 'Supprimer', icone: 'trash-2', danger: true, action: () => retirerAvecAnnulation({
+          titre: 'Supprimer cette tâche ?', message: t.titre, libelleOk: 'Supprimer', danger: true, messageErreur: 'Suppression impossible',
+          faire: () => D.supprimerTache(t.id), defaire: () => D.restaurerTache(t), messageFait: 'Tâche supprimée' }) },
       ]) }, icone('ellipsis', { taille: 16 }));
     return h('li', { class: `activite tache activite-${etat}${faite ? ' tache-faite' : ''}`, dataset: { tache: t.id } },
       case_,
@@ -111,7 +117,10 @@ export function sectionTaches(projet) {
         titreModifiable(t),
         h('span', { class: 'activite-meta' },
           etat !== 'avenir' ? h('span', { class: `badge-etat ${etat}` }, LIBELLES_ETAT[etat]) : null,
-          t.date ? h('span', {}, texteDate(t, aujourdhui)) : null,
+          // Comme sur une activité : un clic sur la date (ou sur « En retard ») ouvre la même fenêtre pour la changer ; une tâche sans date peut en recevoir une.
+          etat !== 'avenir' ? h('button', { type: 'button', class: `badge-etat ${etat}`, title: 'Changer la date', dataset: { action: 'badge-date-tache' }, onclick: () => dateTache(t) }, LIBELLES_ETAT[etat]) : null,
+          h('span', { class: 'activite-date-modifiable', role: 'button', tabindex: '0', title: 'Changer la date', dataset: { action: 'date-tache' }, onclick: () => dateTache(t),
+            onkeydown: (e) => { if (e.key === 'Enter') dateTache(t); } }, t.date ? texteDate(t, aujourdhui) : 'Sans date'),
           t.assigneA && t.assigneA !== P.membresAssignables(cfg())[0]?.id ? h('span', { class: 'badge-assigne', dataset: { role: 'assigne' } }, icone('user', { taille: 12 }), P.libelleAssigne(t.assigneA, cfg(), t.assigneNom)) : null)),
       menu);
   }

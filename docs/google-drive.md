@@ -122,6 +122,23 @@ Les sections plus haut décrivent l'historique ; **ce qui suit prévaut** quand 
 
 **Non vérifié avec le vrai Google** : la copie (`files.copy`) vers le dossier de travail avec la portée `drive.file`, la reconnaissance d'« Importer » par le dossier d'origine renvoyé par la fenêtre, la recherche de doublon par nom (`files.list`), l'affichage réel de la bulle sur un téléphone.
 
+## Corrections, version 2.7.5 (retours de l'essai de la 2.7.4)
+
+- **P1 Tâches** : un clic sur la date d'une tâche (ou sur « En retard ») ouvre **la même fenêtre « Changer la date »** que pour une activité (date, heure, raccourcis) ; une tâche sans date affiche « Sans date » (cliquable) et la fenêtre ajoute « Sans date » pour l'effacer. Comparaison faite : texte au clic, date au clic, rond, menu « … » existent des deux côtés ; seules les tâches se déplacent de phase et se confient à quelqu'un (« Modifier… »), seules les activités ont un type. *Sur une affaire, les « tâches » sont des activités de type Tâche : elles avaient déjà ce comportement.*
+- **P2 Annuler 8 s** : suppression d'une **tâche**, d'une **activité**, d'une **note** : « Supprimé · Annuler » (la fiche revient à l'identique). Cause du manque en 2.7.4 : ces trois suppressions n'étaient que confirmées. Audit repris dans `audit-boutons-destructifs.md`.
+- **P3 « Ajouter un document » sans dossier de travail** : un seul message d'information (« Cette fiche n'a pas de dossier de travail : on ne peut pas y ajouter de document. Crée ou relie d'abord le dossier de travail de cette fiche (bloc Détails). »), un seul bouton « Fermer ». Aucune création de dossier, aucune fenêtre Google.
+- **P4 Libellé** : « Dossier de travail de cette fiche » (affaire et projet).
+- **P5 Fichier importé** : la fenêtre Google ne dit pas fiablement qu'un fichier vient d'« Importer ». L'appli **demande à Drive** (`files.get`, champ `parents`) : un fichier dont les dossiers contiennent le dossier de travail est « déjà dans le dossier » → case **grisée et cochée**, message « Le fichier est envoyé dans le dossier de travail », aucune copie. Si Drive ne répond pas, on se rabat sur le dossier d'origine (`parentId`) donné par la fenêtre. Un fichier choisi ailleurs dans « Google Drive » garde la case active, cochée par défaut.
+
+### Recette 2.7.5 : ce qui est VÉRIFIÉ à l'écran (Google simulé) et ce qui ne l'est pas
+| Point | Vérifié par test | Pas vérifié avec le vrai Google |
+|---|---|---|
+| P1 | `P1 …` (2 tests) : clic sur la date d'une tâche, badge « En retard », tâche sans date, même fenêtre que l'activité | — (aucun appel Google) |
+| P2 | `P2 …` (5 tests) : tâche, activité, note, lien, dossier de travail, organisation détachée, dossier parent, sous-dossier, valeur de liste, étiquette, filtre, modèle d'affaire : confirmation, message « Annuler », restauration ; durée de 8 s | — |
+| P3 | `P3 projet …`, `P3 affaire …` : message unique, bouton « Fermer » seul, aucun dossier créé, aucune fenêtre Google | — |
+| P4 | `P4 projet …`, `P4 affaire …` | — |
+| P5 | `P5 …` (2 tests) : import reconnu par `files.get`, case grisée / cochée / non décochable, aucune copie ; secours par `parentId` ; fichier d'ailleurs : case active | **Le champ `parents` renvoyé par le vrai `files.get` pour un fichier déposé par « Importer »** (attendu : le dossier de travail, d'après le comportement documenté de `DocsUploadView.setParent`) ; la copie `files.copy` avec `drive.file` |
+
 ## Pas vérifié (à faire après le branchement)
 
 - Le vrai parcours Google : autorisation, Picker avec « Importer » **dans le bon dossier** (`DocsUploadView.setParent`, d'après la documentation de Google), création réelle des dossiers, ouverture du lien enregistré.

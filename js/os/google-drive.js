@@ -116,6 +116,20 @@ export async function trouverDossierDeMemeNom({ jeton, nom, parentId = '', appel
 }
 
 /**
+ * Dans quels dossiers est ce fichier ? (files.get, champ parents). Sert à reconnaître un fichier que « Importer » vient de déposer dans le dossier de travail :
+ * ses parents contiennent ce dossier. Renvoie la liste des identifiants de dossiers, ou null si Google ne répond pas (on retombe alors sur l'indication de la fenêtre Google).
+ */
+export async function parentsDuFichier({ jeton, fichierId, appelFetch = globalThis.fetch }) {
+  if (!IDENTIFIANT.test(fichierId || '')) return null;
+  try {
+    const reponse = await appelFetch(`${API_FICHIERS}/${fichierId}?fields=parents&supportsAllDrives=true`, { headers: { Authorization: `Bearer ${jeton}` } });
+    if (!reponse.ok) return null;
+    const corps = await reponse.json();
+    return Array.isArray(corps?.parents) ? corps.parents : null;
+  } catch { return null; }
+}
+
+/**
  * Copie un fichier Drive DANS un dossier (files.copy) : l'original reste où il est. Renvoie { id, nom, url } de la COPIE.
  * Il faut que l'appli ait accès au fichier (choisi dans la fenêtre Google) et au dossier (créé par l'appli ou choisi dans la fenêtre).
  */

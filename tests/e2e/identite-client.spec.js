@@ -245,7 +245,7 @@ test('I10 chez un client : « Ajouter un document » (Google branché) et dossie
   await page.locator('[data-action="ajouter-document-google"]').click();
   await expect(page.getByRole('dialog')).toContainText('Cette fiche n’a pas de dossier de travail');
   await expect(page.getByRole('dialog').getByRole('button', { name: 'Parcourir seulement' })).toHaveCount(0);
-  await page.getByRole('dialog').getByRole('button', { name: 'Annuler' }).click();
+  await page.getByRole('dialog').locator('.dialogue-pied').getByRole('button', { name: 'Fermer' }).click();
   expect((await lireDocument('clients/studio/projets_projets/pr1')).documents).toEqual([]);
   // « Lier un dossier Google Drive existant » : la fenêtre Google en mode « choisir un dossier » ; aucun champ pour coller une adresse.
   await expect(page.locator('[data-champ="dossier"]')).toHaveCount(0);
