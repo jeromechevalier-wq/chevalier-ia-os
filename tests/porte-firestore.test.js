@@ -1,6 +1,6 @@
 // La porte de bout en bout avec le VRAI accès Firestore (SDK d'administration) contre l'ÉMULATEUR : clés, intégrité (faux n8n), isolation entre deux clients
 // et la racine, création sans écrasement, mise à jour sans création. Lancé par « npm test » (émulateurs) ; ignoré si l'émulateur n'est pas démarré.
-import { test, describe, before, after } from 'node:test';
+import { test, describe, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { initializeApp, deleteApp } from '../functions/node_modules/firebase-admin/lib/esm/app/index.js';
 import { getFirestore, Timestamp } from '../functions/node_modules/firebase-admin/lib/esm/firestore/index.js';
@@ -92,5 +92,78 @@ describe('Porte et Firestore (émulateur)', { skip: emulateur ? false : 'émulat
     for (const mauvais of ['clients/../x', 'a//b', 'a/b c', '', 'a/b/../c']) await assert.rejects(() => donnees.lireDoc(mauvais), /Chemin invalide/, mauvais);
     assert.equal(typeof donnees.supprimer, 'undefined');
     assert.equal(Object.keys(donnees).some((k) => /suppr|delete|efface/i.test(k)), false);
+  });
+});
+
+// Saisie à l'écran du tableau de bord (scripts/porte/saisie-tableaudebord.js) avec le VRAI accès Firestore : le lot est atomique (S2).
+describe('Saisie du tableau de bord et Firestore (émulateur)', { skip: emulateur ? false : 'émulateur Firestore non démarré (lancer npm test)' }, () => {
+  let app; let db; let donnees;
+  const T0 = Date.parse('2026-10-17T10:00:00Z');
+  const MAIL = 'jerome.chevalier@gmail.com';
+  const IND = { tableau: 'technique', famille: 'cles', nom: 'Clé API de n8n', type: 'etat', niveau: 'orange', message: 'Date à vérifier', methode: 'manuel', echeance: Timestamp.fromDate(new Date('2026-12-01')), proprietaire: 'interne' };
+  const CHEM = 'tableaudebord_indicateurs/cle_n8n';
+  const HISTORIQUE = 'tableaudebord_releves/cle_n8n_20261017T100000';
+
+  before(async () => {
+    assert.ok(PROJET.startsWith('demo-'), 'projet de démonstration uniquement');
+    app = initializeApp({ projectId: PROJET }, 'test-saisie-tdb');
+    db = getFirestore(app);
+    donnees = creerAdaptateur({ db });
+  });
+  after(async () => { await deleteApp(app); });
+  beforeEach(async () => {
+    for (const c of ['tableaudebord_indicateurs', 'tableaudebord_releves']) await db.recursiveDelete(db.collection(c));
+    await db.doc(CHEM).set(IND);
+  });
+
+  test('S2 une saisie écrit l\'indicateur ET l\'historique en un lot, avec de vraies dates et « avant »', async () => {
+    const { saisir } = await import('../scripts/porte/saisie-tableaudebord.js');
+    const r = await saisir({ donnees, maintenant: () => T0, auteur: MAIL, demande: { indicateurId: 'cle_n8n', echeance: '2027-05-01', commentaire: 'Renouvelée' } });
+    assert.equal(r.niveau, 'vert');
+    const ind = (await db.doc(CHEM).get()).data();
+    assert.equal(ind.saisiPar, MAIL);
+    assert.ok(ind.saisiLe instanceof Timestamp && ind.releveLe instanceof Timestamp && ind.echeance instanceof Timestamp);
+    assert.equal(ind.echeance.toDate().toISOString().slice(0, 10), '2027-05-01');
+    assert.equal(ind.nom, 'Clé API de n8n', 'les autres champs ne bougent pas');
+    const h = (await db.doc(HISTORIQUE).get()).data();
+    assert.equal(h.saisie, true);
+    assert.equal(h.saisiPar, MAIL);
+    assert.ok(h.saisiLe instanceof Timestamp);
+    assert.equal(h.avant.echeance.toDate().toISOString().slice(0, 10), '2026-12-01');
+    assert.equal(h.commentaire, 'Renouvelée');
+  });
+  test('S2 si le lot échoue (historique déjà présent, même seconde), l\'indicateur n\'est PAS modifié non plus', async () => {
+    const { saisir } = await import('../scripts/porte/saisie-tableaudebord.js');
+    await db.doc(HISTORIQUE).set({ indicateurId: 'cle_n8n', saisie: true, ancien: true });
+    await assert.rejects(() => saisir({ donnees, maintenant: () => T0, auteur: MAIL, demande: { indicateurId: 'cle_n8n', echeance: '2027-05-01' } }));
+    const ind = (await db.doc(CHEM).get()).data();
+    assert.equal(ind.saisiPar, undefined);
+    assert.equal(ind.niveau, 'orange');
+    assert.equal(ind.echeance.toDate().toISOString().slice(0, 10), '2026-12-01');
+    assert.deepEqual((await db.doc(HISTORIQUE).get()).data(), { indicateurId: 'cle_n8n', saisie: true, ancien: true }, 'l\'historique existant n\'est pas écrasé');
+  });
+  test('ecrireLot : une mise à jour d\'un document absent échoue et rien n\'est créé ; chemin piégé refusé ; lot vide ou inconnu refusé', async () => {
+    await assert.rejects(() => donnees.ecrireLot([
+      { type: 'creer', chemin: 'tableaudebord_releves/nouveau', donnees: { a: 1 } },
+      { type: 'maj', chemin: 'tableaudebord_indicateurs/fantome', donnees: { a: 1 } },
+    ]));
+    assert.equal((await db.doc('tableaudebord_releves/nouveau').get()).exists, false);
+    assert.equal((await db.doc('tableaudebord_indicateurs/fantome').get()).exists, false);
+    await assert.rejects(() => donnees.ecrireLot([{ type: 'creer', chemin: 'a/../b', donnees: {} }]), /Chemin invalide/);
+    await assert.rejects(() => donnees.ecrireLot([]), /Lot invalide/);
+    await assert.rejects(() => donnees.ecrireLot([{ type: 'supprimer', chemin: CHEM, donnees: {} }]), /inconnue/);
+    assert.equal((await db.doc(CHEM).get()).exists, true);
+  });
+  test('S5 sur la vraie base : la saisie résiste au relevé du script (ignores: 1) tandis qu\'un « auto » est réécrit', async () => {
+    const { saisir } = await import('../scripts/porte/saisie-tableaudebord.js');
+    const { ACTIONS_TABLEAU } = await import('../scripts/porte/actions-tableaudebord.js');
+    await saisir({ donnees, maintenant: () => T0, auteur: MAIL, demande: { indicateurId: 'cle_n8n', echeance: '2027-05-01' } });
+    const lendemain = new Date(T0 + 86_400_000);
+    const script = { id: 'cle_n8n', tableau: 'technique', famille: 'cles', nom: 'Clé API de n8n', type: 'etat', niveau: 'orange', message: 'Date à vérifier', releveLe: lendemain, methode: 'manuel' };
+    const ctx = { base: '', donnees, auteur: 'github:abcd1234', maintenant: () => lendemain.getTime(), proprietaire: 'interne' };
+    assert.deepEqual(await ACTIONS_TABLEAU['indicateurs.ecrire'].executer(ctx, { indicateurs: [script] }), { ecrits: 0, ignores: 1 });
+    assert.equal((await db.doc(CHEM).get()).data().saisiPar, MAIL);
+    assert.deepEqual(await ACTIONS_TABLEAU['indicateurs.ecrire'].executer(ctx, { indicateurs: [{ ...script, methode: 'auto' }] }), { ecrits: 1, ignores: 0 });
+    assert.equal((await db.doc(CHEM).get()).data().saisiPar, null);
   });
 });

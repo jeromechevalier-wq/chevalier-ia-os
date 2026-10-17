@@ -10,6 +10,7 @@ import {
 } from '../scripts/porte/cles-tableau.js';
 import { executer } from '../scripts/porte/outil.js';
 import { creerPorteTableau } from '../scripts/porte/porte-tableau.js';
+import { saisir } from '../scripts/porte/saisie-tableaudebord.js';
 import { creerGestionnaireHttp, creerLimiteurMemoire } from '../scripts/porte/porte.js';
 
 const T0 = Date.parse('2026-10-17T10:00:00Z');
@@ -320,6 +321,29 @@ describe('tableau de bord : une saisie à l\'écran n\'est jamais écrasée par 
   });
 });
 
+describe('tableau de bord : saisie à l\'écran, atomicité (S2)', () => {
+  const IND = { id: 'cle_n8n', type: 'etat', methode: 'manuel', niveau: 'orange', echeance: new Date('2026-12-01') };
+  function baseAvecLot({ panne = false } = {}) {
+    const docs = new Map([['tableaudebord_indicateurs/cle_n8n', IND]]);
+    return {
+      docs,
+      lireDoc: async (c) => (docs.has(c) ? { ...docs.get(c) } : null),
+      // lot atomique : toutes les opérations sont préparées, puis appliquées d'un coup ; une panne n'en applique aucune
+      ecrireLot: async (ops) => { if (panne) throw new Error('panne simulée'); for (const o of ops) docs.set(o.chemin, { ...docs.get(o.chemin), ...o.donnees }); },
+    };
+  }
+  test('S2 si le lot échoue (panne simulée), ni l\'indicateur ni la ligne d\'historique ne sont écrits ; sinon les deux le sont', async () => {
+    const demande = { indicateurId: 'cle_n8n', echeance: '2027-05-01' };
+    const ko = baseAvecLot({ panne: true });
+    await assert.rejects(() => saisir({ donnees: ko, maintenant: () => T0, auteur: 'jerome.chevalier@gmail.com', demande }), /panne simulée/);
+    assert.deepEqual([...ko.docs.keys()], ['tableaudebord_indicateurs/cle_n8n']);
+    assert.deepEqual(ko.docs.get('tableaudebord_indicateurs/cle_n8n'), IND);
+    const ok = baseAvecLot();
+    await saisir({ donnees: ok, maintenant: () => T0, auteur: 'jerome.chevalier@gmail.com', demande });
+    assert.deepEqual([...ok.docs.keys()].sort(), ['tableaudebord_indicateurs/cle_n8n', 'tableaudebord_releves/cle_n8n_20261017T100000']);
+  });
+});
+
 describe('tableau de bord : releves.ajouter (historique)', () => {
   const R1 = { indicateurId: 'rdv_tenus', releveLe: '2026-10-17T10:15:00Z', valeur: 9, objectif: 12 };
   test('crée un point par relevé, avec l\'objectif en vigueur, le propriétaire de la clé et l\'auteur', async () => {
@@ -417,7 +441,7 @@ describe('tableau de bord : journal, erreurs, passerelle HTTP', () => {
 describe('tableau de bord : le code', () => {
   const lire = (f) => readFileSync(new URL(`../scripts/porte/${f}`, import.meta.url), 'utf8');
   test('la logique ne touche ni Firebase ni le réseau ni la console, et n\'offre aucune suppression', () => {
-    for (const f of ['cles-tableau.js', 'actions-tableaudebord.js', 'porte-tableau.js']) {
+    for (const f of ['cles-tableau.js', 'actions-tableaudebord.js', 'porte-tableau.js', 'saisie-tableaudebord.js']) {
       assert.doesNotMatch(lire(f), /\bdb\b|firebase|firestore|recursiveDelete|\.delete\(|console\.|process\.env|eval\(|new Function|fetch\(/i, `${f} touche à l'extérieur`);
     }
   });
