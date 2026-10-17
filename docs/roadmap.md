@@ -4,9 +4,13 @@ Tenue à jour à chaque discussion sur l'évolution de l'appli. Dernière mise �
 
 Légende : **décidé** = validé par Jérôme ; **piste** = à trancher avant le cahier des charges.
 
+## Mon espace modifiable (17/10/2026, version 2.10.0)
+
+**Décidé (17/10/2026)** : Ingrid Atamian (et tout client) règle elle-même le nom, la couleur, le logo, les images de la page de connexion et le texte d'accueil de son espace ; les **éditeurs** gèrent aussi les membres (on ne retire ni ne rétrograde jamais le dernier éditeur) ; **les modules restent à Jérôme seul** (écran en lecture seule : « Pour changer de module, contacte ton administrateur »). Le logo de l'espace sert d'image aux célébrations (case « Utiliser le logo de mon espace »). **Écrit et testé, PR en attente du « fusionne »** : fonction serveur `espaceReglages` (compte de service dédié `espace-reglages`, **à créer avant le déploiement**), écrans Réglages > Mon espace et Membres et rôles. Les règles Firestore et Storage ne changent pas. Détail, étapes de déploiement et ce qui n'est pas vérifié en réel : `mon-espace.md`.
+
 ## Réglages à menu latéral et menu CRM unique (16/10/2026, version 2.6.0)
 
-**Décidé (16/10/2026)** : une seule page Réglages à menu latéral (l'espace d'abord, puis un élément par module), et un seul bloc « CRM » dans le menu (méthode A : deux modules techniques, un seul groupe et un seul interrupteur `crm`). **Écrit et testé** (PR en attente du « fusionne ») : `reglages-menu-crm-unique.md`. Reste à décider : rendre modifiables par un éditeur le nom, les membres et les modules d'un espace (demande un changement des règles Firestore ou une fonction serveur) ; Drive (« Liens et documents ») ajoutera sa section à Réglages > CRM.
+**Décidé (16/10/2026)** : une seule page Réglages à menu latéral (l'espace d'abord, puis un élément par module), et un seul bloc « CRM » dans le menu (méthode A : deux modules techniques, un seul groupe et un seul interrupteur `crm`). **Écrit et testé** (PR en attente du « fusionne ») : `reglages-menu-crm-unique.md`. Rendre modifiables par un éditeur le nom, le logo, la couleur et les membres d'un espace : fait en 2.10.0 (section suivante) ; les modules restent à Jérôme. Drive (« Liens et documents ») ajoutera sa section à Réglages > CRM.
 
 ## Priorité : Claude Code et les agents lisent et écrivent dans la base
 

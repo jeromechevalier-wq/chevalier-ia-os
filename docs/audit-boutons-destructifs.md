@@ -15,6 +15,8 @@
 | Supprimer une facture ; abandonner une facture ; supprimer un modèle de projet ou une tâche type | confirmation | inchangé (confirmation seule) |
 | Détacher l'affaire d'un projet / le projet d'une affaire | confirmation | inchangé (confirmation seule ; l'annulation demande de relier : à reprendre) |
 | Archiver / Désarchiver ; archiver une offre | direct, réversible par le bouton inverse | inchangé |
+| Retirer le logo ou une image de la page de connexion (Réglages > Mon espace, 2.10.0) | n'existait pas | confirmation + « Annuler » 8 s ; **le fichier n'est supprimé qu'après les 8 secondes** (Annuler = rien n'a été écrit) |
+| Retirer un membre (Réglages > Membres et rôles, 2.10.0) | n'existait pas | confirmation + « Annuler » 8 s (Annuler recrée le membre avec le même rôle et le même nom). Se retirer soi-même : confirmation « Tu vas perdre l'accès de ce compte à l'espace », sans « Annuler » (on n'a plus accès pour le défaire). Le dernier éditeur ne se retire jamais |
 | Pastilles « retirer le filtre » (listes), croix d'un champ à choix | filtre d'affichage, rien n'est supprimé | inchangé |
 
 **Pas d'« Annuler » là où il faudrait recréer un enregistrement avec son historique** (tâches, activités, notes, personnes, organisations, affaires, projets, factures) : la couche de données n'a pas (encore) de « recréer à l'identique » côté écran. C'est dit ici plutôt que caché.
