@@ -80,17 +80,21 @@ describe('R. Reconnaissance du propriétaire : trois signes', () => {
     }
   });
   test('R5 le dossier d\'une cliente (étiquette, nom et clé d\'Audrey) n\'est JAMAIS copié chez Jérôme et ne le dérange pas', () => {
-    const w = wf('x', 'Audrey - Rapport mensuel', ['client-audrey'], ['Clé n8n - Audrey']);
+    const w = wf('x', 'client-audrey-rapport-mensuel', ['client-audrey'], ['Clé n8n - Audrey']);
     const r = E.classerInterne([w], { connus });
     assert.deepEqual(r, { retenus: [], signalements: [] });
     const c = E.classer([w], { connus, actifs: new Set(['audrey']) });
     assert.deepEqual(c.parClient.get('audrey').map((x) => x.id), ['x']);
   });
-  test('R6 client : l\'étiquette suffit (compatibilité), mais un nom ou une clé d\'un autre est refusé', () => {
+  test('R6 client : étiquette ET nom « client-<id>-… » exigés ; un nom ou une clé d\'un autre est refusé', () => {
     const ctx = { connus, actifs: new Set(['audrey', 'cabinet-martin']) };
-    assert.equal(E.classer([wf('1', 'Lire une fiche', ['client-audrey'])], ctx).parClient.get('audrey').length, 1);
-    assert.equal(E.classer([wf('2', 'audrey-lire', ['client-audrey'], ['Clé n8n - Audrey'])], ctx).parClient.get('audrey').length, 1);
-    assert.equal(E.classer([wf('3', 'cabinet-martin-x', ['client-cabinet-martin'], ['Clé n8n - Cabinet Martin'])], ctx).parClient.get('cabinet-martin').length, 1);
+    for (const nom of ['Lire une fiche', 'PROD - Audrey suivi', 'audrey-lire']) { // nom libre ou à l'ancienne : plus accepté
+      const r = E.classer([wf('1', nom, ['client-audrey'])], ctx);
+      assert.equal(r.parClient.size, 0, nom);
+      assert.equal(r.signalements[0].raison, 'nom-different', nom);
+      assert.match(r.signalements[0].message, /client-audrey-/);
+    }
+    assert.equal(E.classer([wf('3', 'client-cabinet-martin-x', ['client-cabinet-martin'], ['Clé n8n - Cabinet Martin'])], ctx).parClient.get('cabinet-martin').length, 1);
     assert.equal(E.classer([wf('8', 'client-audrey-lire', ['client-audrey'])], ctx).parClient.get('audrey').length, 1);
     assert.equal(E.classer([wf('9', 'client-boris-lire', ['client-audrey'])], { connus: new Set(['audrey', 'boris']), actifs: new Set(['audrey', 'boris']) }).signalements[0].raison, 'signes-differents');
     for (const w of [wf('4', 'interne-x', ['client-audrey']), wf('5', 'x', ['client-audrey'], [CLE_INTERNE]), wf('6', 'x', ['client-audrey', 'interne']), wf('7', 'x', ['client-audrey'], ['Clé n8n - Zoé'])]) {
@@ -122,7 +126,7 @@ describe('I. Copie de tes workflows vers Chevalier IA OS', () => {
       wf('wfV1', 'interne-veille-collecte', ['interne', 'veille'], [CLE_INTERNE]),
       wf('wfV2', 'interne-veille-resume', ['interne'], ['Clé n8n - Interne']),
       wf('wfBad', 'interne-sans-etiquette', [], [CLE_INTERNE]), // étiquette oubliée
-      wf('wfAud', 'Audrey - Rapport', ['client-audrey'], ['Clé n8n - Audrey']), // dossier Audrey
+      wf('wfAud', 'client-audrey-rapport', ['client-audrey'], ['Clé n8n - Audrey']), // dossier Audrey
       wf('wfLibre', 'Brouillon perso', ['perso']),
     ];
     faux.etat.executions = [
@@ -147,10 +151,11 @@ describe('I. Copie de tes workflows vers Chevalier IA OS', () => {
     assert.deepEqual(await liste(dbApp, 'executions'), []);
     assert.deepEqual(await liste(dbApp, 'workflows'), []); // ni dans l'autre base
   });
-  test('I2 le workflow mal étiqueté est SIGNALÉ (À vérifier) avec la raison ; celui d\'Audrey et le brouillon ne le sont pas', async () => {
+  test('I2 le workflow mal étiqueté et celui sans étiquette de propriétaire sont SIGNALÉS (À vérifier) avec la raison ; celui d\'Audrey ne l\'est pas', async () => {
     await copieInterne({ db: dbOs, dbPlateforme: dbApp, n8n: n8n(), maintenant: T0 });
     const items = (await lire(dbOs, 'plateforme_journal/signalements')).items;
-    assert.deepEqual(items.map((i) => i.workflowId), ['wfBad']);
+    assert.deepEqual(items.map((i) => i.workflowId), ['wfBad', 'wfLibre']);
+    assert.equal(items[1].raison, 'sans-etiquette');
     assert.equal(items[0].raison, 'signe-manquant');
     assert.match(items[0].message, /étiquette « interne »/);
   });
@@ -162,7 +167,7 @@ describe('I. Copie de tes workflows vers Chevalier IA OS', () => {
     assert.equal(r.resultat, 'mis-a-jour');
     assert.deepEqual((await liste(dbOs, 'executions')).map((e) => e.id).sort(), ['10', '11', '15']);
     assert.equal(faux.etat.requetes.find((q) => q.chemin === '/api/v1/workflows').params.tags, undefined, 'la liste complète est lue : les « non reconnus » sont recalculés aussi au bouton');
-    assert.equal((await lire(dbOs, 'plateforme_journal/signalements')).items.length, 1);
+    assert.equal((await lire(dbOs, 'plateforme_journal/signalements')).items.length, 2);
   });
   test('I4 lecture seule vers n8n, et aucun contenu ni secret n\'arrive dans ta base', async () => {
     await copieInterne({ db: dbOs, dbPlateforme: dbApp, n8n: n8n(), maintenant: T0 });
@@ -309,12 +314,12 @@ describe('N. Explications précises, identifiant du credential, catégories', ()
   });
   test('N4 client sans le module : catégorie « sans-module » (workflow en règle, rien à corriger) ; client inconnu : « non-reconnu »', () => {
     const ctx = { connus: new Set(['audrey']), actifs: new Set() };
-    const a = E.classer([wfc('1', 'Rapport', ['client-audrey'], [], [])], ctx).signalements[0];
+    const a = E.classer([wfc('1', 'client-audrey-rapport', ['client-audrey'], [], [])], ctx).signalements[0];
     assert.equal(a.categorie, 'sans-module');
     assert.equal(a.proprietaire, 'audrey');
     assert.equal(a.lignes.at(-1).signe, 'Module');
     assert.equal(a.lignes.at(-1).ok, false);
-    assert.equal(E.classer([wfc('2', 'Rapport', ['client-zoe'], [], [])], ctx).signalements[0].categorie, 'non-reconnu');
+    assert.equal(E.classer([wfc('2', 'client-zoe-rapport', ['client-zoe'], [], [])], ctx).signalements[0].categorie, 'non-reconnu');
   });
   test('N5 la copie interne écrit TOUT : tes non reconnus (nom réel, lignes) ET les clients sans module, séparés par catégorie ; les anciens signalements sans nom ne sont pas affichés', async () => {
     await vider('demo-chevalier-ia-os'); await vider('demo-chevalier-ia-app');
@@ -322,7 +327,7 @@ describe('N. Explications précises, identifiant du credential, catégories', ()
     faux.etat.workflows = [
       wfc('wfV1', 'interne-veille-collecte', ['interne'], ['Clé n8n - Jérôme'], [ID]),
       wfc('wfMal', 'interne-sans-etiquette', [], ['Clé n8n - interne'], ['x']),
-      wfc('wfAud', 'Audrey - Rapport', ['client-audrey'], ['Clé n8n - Audrey'], ['y']),
+      wfc('wfAud', 'client-audrey-rapport', ['client-audrey'], ['Clé n8n - Audrey'], ['y']),
     ];
     faux.etat.executions = [];
     await dbApp.doc('plateforme_journal/signalements').set({ items: [{ workflowId: 'vieux', raison: 'sans-module', etiquettes: ['client-x'] }] }); // ancien format, sans nom

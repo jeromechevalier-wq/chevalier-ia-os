@@ -43,13 +43,13 @@ async function installer() {
   await db.doc('clients/boris').set({ modules: { automatisations: true } });
   await db.doc('clients/carla').set({ modules: { affaires: true } }); // sans le module
   faux.etat.workflows = [
-    { id: 'wfA1', name: 'Lire une fiche', active: true, tags: ['client-audrey', 'prod'] },
-    { id: 'wfA2', name: 'Mon mois', active: true, tags: ['client-audrey'] },
-    { id: 'wfB1', name: 'Rapport Boris', active: true, tags: ['client-boris'] },
+    { id: 'wfA1', name: 'client-audrey-lire-une-fiche', active: true, tags: ['client-audrey', 'prod'] },
+    { id: 'wfA2', name: 'client-audrey-mon-mois', active: true, tags: ['client-audrey'] },
+    { id: 'wfB1', name: 'client-boris-rapport', active: true, tags: ['client-boris'] },
     { id: 'wfJ', name: 'Workflow interne de Jérôme', active: true, tags: ['perso'] },
     { id: 'wfSans', name: 'Sans étiquette', active: true, tags: [] },
     { id: 'wfX', name: 'Client inconnu', active: true, tags: ['client-fantome'] },
-    { id: 'wfC', name: 'Client sans module', active: true, tags: ['client-carla'] },
+    { id: 'wfC', name: 'client-carla-sans-module', active: true, tags: ['client-carla'] },
     { id: 'wfDouble', name: 'Deux clients', active: true, tags: ['client-audrey', 'client-boris'] },
   ];
   faux.etat.executions = [
@@ -98,13 +98,13 @@ describe('A. Isolation entre clients et étiquettes', () => {
     for (const c of ['audrey', 'boris']) assert.ok(!JSON.stringify(await liste(`clients/${c}/sync`)).includes('fantome'));
   });
   test('A4 étiquette mal formée ou en majuscules', () => {
-    const wf = (tags) => ({ id: 'w1', name: 'x', active: true, tags });
+    const wf = (tags) => ({ id: 'w1', name: 'client-audrey-x', active: true, tags });
     const ctx = { connus: new Set(['audrey']), actifs: new Set(['audrey']) };
     assert.equal(classer([wf(['Client-Audrey'])], ctx).parClient.get('audrey').length, 1);
     assert.equal(classer([wf(['client-'])], ctx).signalements[0].raison, 'etiquette-invalide');
     assert.equal(classer([wf(['client-a b'])], ctx).signalements[0].raison, 'etiquette-invalide');
     assert.equal(classer([wf(['client-audrey', 'client-oups'])], ctx).signalements[0].raison, 'deux-clients');
-    assert.equal(classer([{ id: '../x', name: 'x', active: true, tags: ['client-audrey'] }], ctx).signalements[0].raison, 'identifiant-invalide');
+    assert.equal(classer([{ id: '../x', name: 'client-audrey-x', active: true, tags: ['client-audrey'] }], ctx).signalements[0].raison, 'identifiant-invalide');
   });
   test('A5 changement d\'étiquette : l\'historique déjà copié reste chez l\'ancien client', async () => {
     await copieHoraire({ db, n8n: n8n(), maintenant: T0 });
@@ -238,7 +238,7 @@ describe('C. États, « à vérifier », erreurs', () => {
     assert.equal(e.runGroupId, null);
     assert.equal(e.expireAt, null);
     assert.equal(e.source, 'sync');
-    assert.equal(e.workflowLabel, 'Lire une fiche');
+    assert.equal(e.workflowLabel, 'client-audrey-lire-une-fiche');
     assert.equal(e.durationMs, 800);
     assert.equal(e.mode, 'webhook');
   });
