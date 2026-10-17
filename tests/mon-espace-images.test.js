@@ -1,4 +1,4 @@
-// « Mon espace » (2.9.0), parties sans navigateur : reconnaissance du type d'image par les premiers octets (côté navigateur, la même règle que côté serveur),
+// « Mon espace » (2.10.0), parties sans navigateur : reconnaissance du type d'image par les premiers octets (côté navigateur, la même règle que côté serveur),
 // limites, message d'erreur de la fonction (le SDK Firebase ajoute « [403] »), et le logo de l'espace lu en direct par les célébrations.
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';

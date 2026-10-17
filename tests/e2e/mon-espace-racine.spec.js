@@ -1,4 +1,4 @@
-// Critère M23 de « Mon espace modifiable » (2.9.0) : le CRM de Jérôme (racine, règles du CRM) ne change pas. Capture dans ~/chantiers-crm/captures-mon-espace/.
+// Critère M23 de « Mon espace modifiable » (2.10.0) : le CRM de Jérôme (racine, règles du CRM) ne change pas. Capture dans ~/chantiers-crm/captures-mon-espace/.
 // (Dans un fichier à part : les autres critères tournent avec les règles de la plateforme, celui-ci avec celles du CRM.)
 import { mkdir } from 'node:fs/promises';
 import { homedir } from 'node:os';

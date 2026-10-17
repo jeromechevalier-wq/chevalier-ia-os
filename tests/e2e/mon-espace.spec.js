@@ -1,4 +1,4 @@
-// « Mon espace modifiable » (2.9.0) : un éditeur règle lui-même nom, couleur, logo, images, texte d'accueil et membres de son espace.
+// « Mon espace modifiable » (2.10.0) : un éditeur règle lui-même nom, couleur, logo, images, texte d'accueil et membres de son espace.
 // Un test par critère (M1 à M23) et UNE capture par critère, enregistrée dans ~/chantiers-crm/captures-mon-espace/ (M1.png… ; « -tel » pour le format téléphone).
 // Le navigateur appelle la VRAIE fonction serveur (functions-plateforme/src/espace.js) via tests/e2e/espace-faux-serveur.js, sur l'émulateur Firestore et un FAUX Storage.
 // Pas essayé ici : le vrai Google Cloud (compte de service, droits Storage, vrai téléversement, vraie adresse de la fonction), un vrai iPhone.

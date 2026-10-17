@@ -2,7 +2,7 @@
 // Chez un client, tout ce qui est PERSONNEL à Jérôme (Charles et ses célébrations, rappel de sauvegarde, boutons GitHub / Claude Code,
 // comptes Jérôme et Charles dans les listes) n'est pas montré. Le CRM de Jérôme ne passe jamais par ici : le drapeau y reste faux.
 // Les célébrations existent bien chez un client (option « Célébrations » des réglages du CRM de son espace, éteinte au départ) : l'image de Charles reste réservée à Jérôme,
-// un client peut y mettre le LOGO de son espace (2.9.0), lu en direct ici (logoEspace) et jamais recopié.
+// un client peut y mettre le LOGO de son espace (2.10.0), lu en direct ici (logoEspace) et jamais recopié.
 // Sans dépendance (ni Firebase ni DOM) : se teste seul.
 let chezClient = false;
 

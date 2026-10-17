@@ -14,6 +14,7 @@ import { creerRouteurOauth } from './oauth/routeur.js';
 import { creerVerificateurIdentite } from './oauth/identite-google.js';
 import { creerGestionnairePorteCrm } from './porte.js';
 import { creerGestionnaireTableauCrm } from './tableaudebord.js';
+import { creerAppelSaisie, ligneDeJournalSaisie } from './tableaudebord-saisie.js';
 import { creerAdaptateur } from '../partage/porte/adaptateur.js';
 import { creerServiceVeille } from './veille/service.js';
 import { creerAppelVeille } from './veille/appel.js';
@@ -67,6 +68,16 @@ export const tableaudebord = onRequest(
     serviceAccount: 'porte-serveur@chevalier-ia-os.iam.gserviceaccount.com',
   },
   creerGestionnaireTableauCrm(),
+);
+
+// `tableaudebordSaisir` : appelée par l'écran Tableau de bord (saisir une date d'échéance ou une valeur). Contrôle l'appelant (mêmes comptes que `veille`), puis écrit
+// l'indicateur ET la ligne d'historique en un seul lot. Même région et mêmes limites que `veille` ; même compte de service que la porte (il a déjà les droits Firestore, aucun secret lu).
+export const tableaudebordSaisir = onCall(
+  { region: 'europe-west9', maxInstances: 3, memory: '256MiB', timeoutSeconds: 60, serviceAccount: 'porte-serveur@chevalier-ia-os.iam.gserviceaccount.com' },
+  (requete) => {
+    if (!getApps().length) initializeApp();
+    return creerAppelSaisie({ donnees: creerAdaptateur({ db: getFirestore() }), journal: (e) => process.stdout.write(`${ligneDeJournalSaisie(e)}\n`) })(requete);
+  },
 );
 
 // `veille` : appelée par l'appli (boutons « Ajouter » et « Résumer » du module Veille). Le jeton du bouton Résumer vit ici (Secret Manager),

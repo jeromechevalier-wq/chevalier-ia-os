@@ -2,7 +2,7 @@
 
 Écrit le 04/10/2026, mis à jour le 07/10/2026 à la fin du chantier Projets, pour qu'une session neuve reprenne sans que Jérôme ait à recoller quoi que ce soit. **À mettre à jour ou à supprimer une fois les points faits.**
 
-## Mon espace modifiable (17/10/2026) : branche mon-espace-modifiable, version 2.9.0
+## Mon espace modifiable (17/10/2026) : branche mon-espace-modifiable, version 2.10.0
 
 Code et tests écrits, **rien déployé**, PR en attente du « fusionne ». Lire `mon-espace.md` : qui peut quoi, la fonction `espaceReglages`, les **étapes de Jérôme avant le déploiement** (créer le compte de service `espace-reglages` et lui donner deux droits, vérifier le nom « Chevalier IA - Serveur 1 » en haut de chaque page de la console, puis choisir « fonctions » dans le workflow, qui publie aussi les automatisations et exige la clé n8n) et ce qui n'est pas vérifié en réel (vrai Storage, vrai appel, iPhone). Les règles Firestore et Storage ne changent pas. Captures de recette : `~/chantiers-crm/captures-mon-espace/`.
 
@@ -12,13 +12,13 @@ Code et tests écrits, **rien déployé**, interrupteur `AUTOMATISATIONS_EN_SERV
 
 ## Liens et documents, Google Drive (16/10/2026) : branche liens-documents-drive, version 2.6.1
 
-## Tableau de bord : porte et écran en lecture (17/10/2026), version 2.8.0
+## Tableau de bord : porte, écran et saisie (17/10/2026), version 2.9.0
 
-**En ligne** : la porte des scripts GitHub (`docs/tableau-de-bord.md`, PR 94, 97 : fonction `tableaudebord`, clé `cle-tdb`, règles lecture seule publiées des deux côtés) et l'écran en lecture « Tableau de bord » (PR 98 : Général et Technique, niveau calculé par l'écran, cas vide/erreur/chargement, 50 captures dans `tests/e2e/captures/tableaudebord/`). Les 14 indicateurs de clés sont écrits chaque jour par le workflow `interne-surveillance-cles` du dépôt `interne-sauvegardes`.
+**En ligne** : la porte des scripts GitHub (`docs/tableau-de-bord.md`, PR 94, 97), l'écran en lecture (PR 98), et la saisie d'une date ou d'une mesure avec l'onglet « Historique des saisies » (PR 101 : fonction appelable `tableaudebordSaisir`, lot atomique, le script quotidien n'écrase plus une saisie même en cas de course, section 7 de `docs/tableau-de-bord.md`). Les 14 indicateurs de clés sont écrits chaque jour par `interne-surveillance-cles`.
 
 **Reste à faire, dans l'ordre** (conception : fiche « Module Tableau de bord - conception » du second cerveau ; relecture Fable du 17/10/2026) :
-1. Objectifs du mois et courbes : migrer `os_objectifs` dans les nouvelles tables (décision de Jérôme : même code partout), lecture de `tableaudebord_releves` (index composite à créer : aucun `firestore.indexes.json` aujourd'hui), tableau Général avec les objectifs.
-2. Saisie des dates et des mesures par une fonction serveur (pas d'écriture depuis l'écran), traçabilité dans un onglet « Historique des saisies » propre au module (décision du 17/10).
+1. Objectifs du mois et courbes (décision de Jérôme : calcul chaque dimanche par une fonction planifiée, et à chaque arrivée sur la page par une fonction appelable ; jamais d'écriture depuis l'écran) : migrer `os_objectifs` dans les nouvelles tables (décision de Jérôme : même code partout), lecture de `tableaudebord_releves` (index composite à créer : aucun `firestore.indexes.json` aujourd'hui), tableau Général avec les objectifs.
+2. (FAIT, PR 101) Saisie des dates et des mesures par une fonction serveur, historique des saisies.
 3. Boutons de rafraîchissement (demande en base, fonction qui lance le workflow GitHub avec un jeton limité, le workflow accepte une cible).
 4. Retrait des indicateurs disparus de la configuration ; limites par famille de clés ; lot d'écriture atomique ; frein sur les refus 401.
 5. Indicateurs des sauvegardes et des copies Google dans le tableau de bord.

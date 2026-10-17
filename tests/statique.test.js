@@ -60,10 +60,10 @@ describe('D1 Manifeste, icônes, service worker, versions', () => {
     }
     assert.ok(!existsSync(join(RACINE, 'sw.js')) && !existsSync(join(RACINE, 'service-worker.js')));
   });
-  test('D1 versions identiques dans version.json et js/os/version.js (2.9.0)', () => {
+  test('D1 versions identiques dans version.json et js/os/version.js (2.10.0)', () => {
     const v = json('version.json').version;
     const m = /VERSION = '([^']+)'/.exec(lire('js/os/version.js'));
-    assert.equal(v, '2.9.0');
+    assert.equal(v, '2.10.0');
     assert.equal(m[1], v);
   });
   test('D1 portraits réduits (512 px de large au plus)', () => {
@@ -264,8 +264,9 @@ describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
 
   test('D4 le code publié (appli) n’utilise ni Cloud Function ni Cloud Storage : le serveur MCP vit dans functions/, jamais publié', () => {
     // Deux exceptions : le module Automatisations (n8n) appelle deux fonctions du serveur (rafraîchir, renommer), et la veille en appelle une seule,
-    // `veille` (ajouter un lien collé, lancer un résumé : 2026-10-15) ; aucun Cloud Storage.
-    const AVEC_FONCTIONS = ['js/modules/automatisations/donnees.js', 'js/modules/veille/donnees.js', 'js/os/mon-espace-donnees.js'];
+    // `veille` (ajouter un lien collé, lancer un résumé : 2026-10-15), et le tableau de bord en appelle une seule, `tableaudebordSaisir`
+    // (saisir une date ou une valeur : le serveur contrôle, écrit et journalise) ; aucun Cloud Storage.
+    const AVEC_FONCTIONS = ['js/modules/automatisations/donnees.js', 'js/modules/veille/donnees.js', 'js/modules/tableaudebord/donnees.js', 'js/os/mon-espace-donnees.js'];
     for (const f of fichiersAppli().filter((x) => /\.js$/.test(x))) {
       const t = AVEC_FONCTIONS.includes(f) ? lire(f).replaceAll(/getFunctions|httpsCallable|firebase-functions\.js/g, '') : lire(f);
       assert.doesNotMatch(t, /firebase-functions|firebase-storage|getStorage|httpsCallable/, f);
@@ -274,8 +275,10 @@ describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
     assert.deepEqual([...new Set(appels)].sort(), ['automatisationsAdmin', 'automatisationsRafraichir', 'automatisationsRenommer']); // Admin : compte de Jérôme seulement (vue de tous les propriétaires)
     const appelsVeille = [...lire('js/modules/veille/donnees.js').matchAll(/httpsCallable\(fonctions\(\), '([A-Za-z]+)'\)/g)].map((m) => m[1]);
     assert.deepEqual(appelsVeille, ['veille']);
+    const appelsTableau = [...lire('js/modules/tableaudebord/donnees.js').matchAll(/httpsCallable\(fonctions\(\), '([A-Za-z]+)'\)/g)].map((m) => m[1]);
+    assert.deepEqual(appelsTableau, ['tableaudebordSaisir']); // saisir une date ou une valeur à l'écran : le serveur contrôle, écrit et journalise
     const appelsEspace = [...lire('js/os/mon-espace-donnees.js').matchAll(/httpsCallable\(fonctions\(\), '([A-Za-z]+)'\)/g)].map((m) => m[1]);
-    assert.deepEqual(appelsEspace, ['espaceReglages']); // « Mon espace » (2.9.0) : la seule fonction appelée par la coque, pour les éditeurs d'un client
+    assert.deepEqual(appelsEspace, ['espaceReglages']); // « Mon espace » (2.10.0) : la seule fonction appelée par la coque, pour les éditeurs d'un client
     for (const f of fichiersAppli().filter((x) => /^js\/os\/.*\.js$/.test(x) && x !== 'js/os/mon-espace-donnees.js')) assert.doesNotMatch(lire(f), /httpsCallable|firebase-functions/, `${f} : seul mon-espace-donnees.js appelle une fonction`);
   });
 });

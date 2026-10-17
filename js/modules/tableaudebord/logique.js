@@ -204,3 +204,45 @@ export function texteValeur(valeur, unite) {
   const nombre = typeof valeur === 'number' && Number.isFinite(valeur) ? new Intl.NumberFormat('fr-FR').format(valeur) : String(valeur);
   return unite ? `${nombre} ${unite}` : nombre;
 }
+
+/** Un indicateur se saisit à la main seulement s'il est « manuel » ou « semi » : un « auto » est vérifié par un script, il n'a pas de bouton. */
+export const peutSaisir = (indicateur) => indicateur?.methode === 'manuel' || indicateur?.methode === 'semi';
+
+/** Texte du bouton de saisie : une date pour un état, une valeur pour une mesure. */
+export const libelleSaisie = (indicateur) => (indicateur?.type === 'mesure' ? 'Saisir la valeur' : 'Saisir la date');
+
+// ---------------------------------------------------------------- Historique des saisies
+
+/** Au plus 200 saisies affichées (les plus récentes). */
+export const MAX_SAISIES_AFFICHEES = 200;
+
+const jourFr = (ms) => new Intl.DateTimeFormat('fr-FR', { timeZone: 'UTC', day: '2-digit', month: '2-digit', year: 'numeric' }).format(ms);
+
+/** « 17/10/2026 à 10:15 » (heure du navigateur, ou `fuseau` : 'Europe/Paris'). */
+export function dateHeure(ms, fuseau) {
+  if (!estNombre(ms)) return 'date inconnue';
+  const o = fuseau ? { timeZone: fuseau } : {};
+  const jour = new Intl.DateTimeFormat('fr-FR', { ...o, day: '2-digit', month: '2-digit', year: 'numeric' }).format(ms);
+  const heure = new Intl.DateTimeFormat('fr-FR', { ...o, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(ms);
+  return `${jour} à ${heure}`;
+}
+
+/**
+ * Saisies à montrer : seulement celles marquées `saisie: true` (le champ « saisiPar » existe aussi sur les relevés des scripts, avec un autre sens),
+ * du plus récent au plus ancien (à égalité : identifiant), 200 au plus. Ne modifie pas la liste reçue.
+ */
+export function saisiesRecentes(releves, max = MAX_SAISIES_AFFICHEES) {
+  return releves
+    .filter((r) => r?.saisie === true)
+    .sort((a, b) => (estNombre(b.releveMs) ? b.releveMs : -Infinity) - (estNombre(a.releveMs) ? a.releveMs : -Infinity) || String(b.id).localeCompare(String(a.id)))
+    .slice(0, max);
+}
+
+/** « 01/12/2026 → 01/05/2027 » (date) ou « 42 bouteilles → 37,5 bouteilles » (valeur) ; une valeur d'avant inconnue : « aucune date » / « aucune valeur ». */
+export function texteAvantApres(saisie, unite) {
+  if (estNombre(saisie?.apresEcheanceMs) || estNombre(saisie?.avantEcheanceMs)) {
+    return `${estNombre(saisie.avantEcheanceMs) ? jourFr(saisie.avantEcheanceMs) : 'aucune date'} → ${estNombre(saisie.apresEcheanceMs) ? jourFr(saisie.apresEcheanceMs) : 'aucune date'}`;
+  }
+  const v = (x) => (estNombre(x) ? texteValeur(x, unite) : 'aucune valeur');
+  return `${v(saisie?.avantValeur)} → ${v(saisie?.apresValeur)}`;
+}

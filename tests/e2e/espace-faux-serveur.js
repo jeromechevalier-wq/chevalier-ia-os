@@ -1,4 +1,4 @@
-// Faux serveur de « Mon espace » pour les tests dans le navigateur (2.9.0).
+// Faux serveur de « Mon espace » pour les tests dans le navigateur (2.10.0).
 // Le navigateur appelle la VRAIE fonction (functions-plateforme/src/espace.js, la même qu'en production) : on la fait tourner ici, dans Node, sur l'ÉMULATEUR Firestore,
 // avec un FAUX Storage en mémoire (les adresses des fichiers envoyés sont servies au navigateur). L'identité de l'appelant est lue dans son jeton de connexion (émulateur Auth).
 // Ce qui n'est PAS essayé ici : le vrai Google Cloud (compte de service, droits Storage, adresse réelle de la fonction), un vrai téléversement.

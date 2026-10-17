@@ -1,4 +1,4 @@
-// Réglages > « Mon espace » et « Membres et rôles » chez un client (2.9.0). Un ÉDITEUR règle lui-même le nom, la couleur, le logo, les images, le texte d'accueil
+// Réglages > « Mon espace » et « Membres et rôles » chez un client (2.10.0). Un ÉDITEUR règle lui-même le nom, la couleur, le logo, les images, le texte d'accueil
 // et les membres de son espace ; un lecteur voit les mêmes valeurs, désactivées. Les modules actifs restent à l'administrateur (affichage seul : reglages.js).
 // Tout passe par la fonction serveur « espaceReglages » (mon-espace-donnees.js) : les règles Firestore et Storage interdisent d'écrire depuis le navigateur.
 // Un seul formulaire (nom, couleur, texte d'accueil, logo choisi) avec UN bouton « Enregistrer » ; les images et les membres agissent tout de suite.

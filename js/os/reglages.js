@@ -4,7 +4,7 @@
 // La coque ne connaît aucun module : le menu vient du registre (registre.js, reglagesDesModules) et chaque module écrit ses sections dans `reglages(page, ctx)`.
 // On réorganise l'AFFICHAGE seulement : aucune donnée n'est déplacée, chaque module garde ses collections.
 // Routes : reglages (première section de l'espace), reglages/<section d'espace ou bloc de module>, par exemple reglages/crm.
-// Chez un client (2.9.0) : un ÉDITEUR règle lui-même le nom, la couleur, le logo, les images, le texte d'accueil (Mon espace) et les membres (Membres et rôles),
+// Chez un client (2.10.0) : un ÉDITEUR règle lui-même le nom, la couleur, le logo, les images, le texte d'accueil (Mon espace) et les membres (Membres et rôles),
 // par la fonction serveur « espaceReglages » (mon-espace.js) : les règles Firestore interdisent toujours d'écrire ces fiches depuis le navigateur. Les modules actifs restent
 // à l'administrateur (lecture seule). Un lecteur voit Mon espace en lecture seule et ne modifie rien nulle part (réglages des modules grisés).
 import { h, icone, vider, remplir } from './ui.js';
