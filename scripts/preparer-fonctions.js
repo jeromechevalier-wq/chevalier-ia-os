@@ -22,7 +22,7 @@ console.log("functions/partage/projets.js mis à jour (copie de js/modules/proje
 
 // La porte des workflows n8n (scripts/porte/) : la logique (clés, contrôles, actions de la veille, accès Firestore, lecteur n8n) est copiée telle quelle,
 // sans l'outil en ligne de commande (outil.js), qui reste sur le Mac de Jérôme. Même principe : un seul exemplaire du code, testé, utilisé par la fonction.
-const FICHIERS_PORTE = ['cles.js', 'validation.js', 'actions-veille.js', 'n8n.js', 'adaptateur.js', 'porte.js'];
+const FICHIERS_PORTE = ['cles.js', 'validation.js', 'actions-veille.js', 'n8n.js', 'adaptateur.js', 'porte.js', 'cles-tableau.js', 'actions-tableaudebord.js', 'porte-tableau.js'];
 const destinationPorte = join(destination, 'porte');
 mkdirSync(destinationPorte, { recursive: true });
 for (const f of FICHIERS_PORTE) copyFileSync(join(racine, 'scripts', 'porte', f), join(destinationPorte, f));

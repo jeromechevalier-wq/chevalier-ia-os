@@ -24,6 +24,8 @@ const COLLECTIONS = [
 ];
 // Collections du serveur MCP (étape 4) : sorties du joker.
 const COLLECTIONS_SERVEUR = ['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles'];
+// Tableau de bord : lisible par les deux comptes, jamais modifiable depuis un navigateur (les écritures passent par les fonctions).
+const COLLECTIONS_TABLEAU = ['tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes'];
 const COMPTES = ['jerome.chevalier@gmail.com', 'jeromebot.chevalierbot@gmail.com'];
 
 let env;
@@ -44,7 +46,7 @@ beforeEach(async () => {
   // Un document existant par collection, écrit sans règles, pour les lectures et suppressions.
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
-    for (const c of [...COLLECTIONS, ...COLLECTIONS_SERVEUR, 'crm_autre']) {
+    for (const c of [...COLLECTIONS, ...COLLECTIONS_SERVEUR, ...COLLECTIONS_TABLEAU, 'crm_autre']) {
       await setDoc(doc(db, c, 'existant'), { valeur: 1 });
     }
   });
@@ -142,6 +144,16 @@ describe('A. Règles de sécurité', () => {
     test(`A7 ${email} ne peut rien faire dans plateforme_cles (clés de la porte : empreintes, tout refusé à un navigateur)`, async () => {
       await aucunDroit(contexte(email), 'plateforme_cles');
     });
+    for (const c of COLLECTIONS_TABLEAU) {
+      test(`A7 ${email} lit ${c} mais ne peut ni créer, ni modifier, ni supprimer (écritures réservées aux fonctions du tableau de bord)`, async () => {
+        const db = contexte(email);
+        await assertSucceeds(getDoc(doc(db, c, 'existant')));
+        await assertSucceeds(getDocs(collection(db, c)));
+        await assertFails(setDoc(doc(db, c, 'nouveau'), { valeur: 2 }));
+        await assertFails(updateDoc(doc(db, c, 'existant'), { valeur: 3 }));
+        await assertFails(deleteDoc(doc(db, c, 'existant')));
+      });
+    }
     test(`A8 ${email} garde tous ses droits dans une collection inconnue (le joker reste en place pour le reste)`, async () => {
       await droitsComplets(contexte(email), 'crm_autre');
     });
@@ -149,7 +161,7 @@ describe('A. Règles de sécurité', () => {
 
   test('A6 un autre compte, un compte non vérifié et un visiteur : ni lecture ni écriture dans le journal, les copies et les compteurs', async () => {
     const contextes = [contexte('quelquun.dautre@gmail.com'), contexte('jerome.chevalier@gmail.com', false), env.unauthenticatedContext().firestore()];
-    for (const db of contextes) for (const c of COLLECTIONS_SERVEUR) await aucunDroit(db, c);
+    for (const db of contextes) for (const c of [...COLLECTIONS_SERVEUR, ...COLLECTIONS_TABLEAU]) await aucunDroit(db, c);
     await assertFails(setDoc(doc(contextes[0], 'crm_audit', 'x'), ligne('quelquun.dautre@gmail.com')));
     await assertFails(setDoc(doc(contextes[1], 'crm_audit', 'x'), ligne('jerome.chevalier@gmail.com')));
   });
@@ -157,7 +169,7 @@ describe('A. Règles de sécurité', () => {
   test('A7 les trois collections du serveur restent exclues du joker : aucune sous-collection ouverte', async () => {
     for (const email of COMPTES) {
       const db = contexte(email);
-      for (const c of COLLECTIONS_SERVEUR) await assertFails(setDoc(doc(db, c, 'x', 'sous', 'y'), { valeur: 1 }));
+      for (const c of [...COLLECTIONS_SERVEUR, ...COLLECTIONS_TABLEAU]) await assertFails(setDoc(doc(db, c, 'x', 'sous', 'y'), { valeur: 1 }));
     }
   });
 });

@@ -8,6 +8,10 @@ Code et tests écrits, **rien déployé**, interrupteur `AUTOMATISATIONS_EN_SERV
 
 ## Liens et documents, Google Drive (16/10/2026) : branche liens-documents-drive, version 2.6.1
 
+## Tableau de bord : la porte des scripts GitHub (17/10/2026)
+
+Code et tests écrits sur la branche `tableau-de-bord-porte`, **rien déployé**, PR en attente du « fusionne » de Jérôme (elle touche les règles Firestore : lui demander d'abord). Lire `tableau-de-bord.md` : la porte, les deux actions, la mise en service en 5 étapes (règles, fusion, clé, secret GitHub, essai). Ensuite : l'écran « Tableau de bord » (maquette dans le second cerveau, `ARCHIVES/Maquette Tableau de bord (2026-10-17).html`), puis les boutons de rafraîchissement et la saisie journalisée.
+
 ## Veille : ajout de lien, bouton Résumer, lecture du résumé (15/10/2026)
 
 Codé et testé sur la branche `veille-ajout-lien-resumer-lire` (version 2.4.0), **PR en attente du « fusionne » de Jérôme**. **Avant de fusionner** (la fusion déploie les fonctions) : Jérôme crée le secret `VEILLE_JETON_RESUMER`. Ensuite : modifier le nœud « Enregistrer le résumé via la porte » du workflow n8n pour envoyer `html`, tester ensemble, puis essai réel. Pas à pas dans `veille-ajout-et-resume.md`, partie 3.

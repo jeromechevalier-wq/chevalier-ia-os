@@ -65,10 +65,25 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Tableau de bord : l'écran LIT (les deux comptes autorisés), mais n'écrit jamais lui-même. Les relevés viennent de la porte du tableau de bord (scripts GitHub)
+    // et les saisies passent par une fonction serveur qui les journalise : aucune écriture depuis un navigateur.
+    match /tableaudebord_indicateurs/{id} {
+      allow read: if compteAutorise();
+      allow write: if false;
+    }
+    match /tableaudebord_releves/{id} {
+      allow read: if compteAutorise();
+      allow write: if false;
+    }
+    match /tableaudebord_demandes/{id} {
+      allow read: if compteAutorise();
+      allow write: if false;
+    }
+
     // Tout le reste : comme avant (les deux comptes autorisés), sauf les collections ci-dessus.
     match /{collection}/{document=**} {
       allow read, write: if compteAutorise()
-        && !(collection in ['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles']);
+        && !(collection in ['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes']);
     }
   }
 }

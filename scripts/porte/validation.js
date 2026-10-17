@@ -14,11 +14,13 @@ const CARACTERES_DE_CONTROLE = /[\u0000-\u001f\u007f]/;
 const CARACTERES_DE_CONTROLE_SAUF_MISE_EN_PAGE = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/; // un texte long (page HTML) garde ses retours à la ligne et tabulations
 const MOTIF_ID = /^[A-Za-z0-9_-]{1,100}$/;
 const MOTIF_ETIQUETTE = /^[a-z0-9][a-z0-9_-]{0,59}$/; // noms d'étiquettes (clé d'IA…) : en minuscules, donc jamais une vraie clé secrète collée par erreur
+// Ce qui ressemble à une clé ou à un secret : jamais accepté dans un texte libre (nom, message, procédure…), même collé par erreur.
+const MOTIF_SECRET = /cle-(n8n|tdb)\.|\bcia_[A-Za-z0-9_-]{10,}|ghp_[A-Za-z0-9]{20,}|github_pat_|-----BEGIN|AKIA[0-9A-Z]{12,}|\bK00[0-9A-Za-z]{20,}|[A-Za-z0-9_+/=-]{40,}/;
 const MOTIF_MODELE = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,79}$/;
 
 /**
  * Types de champs : { type: 'texte', max, min? } | { type: 'html', max } | { type: 'id' } | { type: 'etiquette' } | { type: 'modele' } | { type: 'url' } |
- * { type: 'date' } | { type: 'nombre', min, max } | { type: 'choix', valeurs } | { type: 'booleen' } | { type: 'liste', max, item: schéma }.
+ * { type: 'date' } | { type: 'echeance' } | { type: 'libre', max } | { type: 'nombre', min, max } | { type: 'choix', valeurs } | { type: 'booleen' } | { type: 'liste', max, item: schéma }.
  * `requis: true` pour un champ obligatoire. Renvoie un objet NOUVEAU ne contenant que les champs reçus et valides (jamais l'objet d'origine).
  */
 export function valider(entree, schema, nom = 'donnees') {
@@ -48,6 +50,20 @@ function texteSur(v, chemin, max, min = 0) {
 function champ(v, regle, chemin) {
   switch (regle.type) {
     case 'texte': return texteSur(v, chemin, regle.max, regle.min ?? 0);
+    case 'libre': {
+      // Texte court affiché à l'écran : comme « texte », mais refuse tout ce qui ressemble à une clé ou à un secret.
+      const t = texteSur(v, chemin, regle.max, regle.min ?? 0);
+      if (MOTIF_SECRET.test(t)) throw new ErreurValidation(`« ${chemin} » ressemble à un secret : refusé.`);
+      return t;
+    }
+    case 'echeance': {
+      // Date d'expiration d'une clé : dans le passé ou dans le futur (jusqu'en 2100), contrairement à « date » qui refuse le futur.
+      const t = texteSur(v, chemin, 40, 1);
+      const d = new Date(t);
+      const ms = d.getTime();
+      if (Number.isNaN(ms) || ms < Date.UTC(2000, 0, 1) || ms > Date.UTC(2100, 0, 1)) throw new ErreurValidation(`« ${chemin} » n'est pas une date valide.`);
+      return d;
+    }
     case 'html': {
       // Page HTML d'un résumé : texte long avec retours à la ligne. Elle n'est JAMAIS exécutée par l'appli (affichée dans un cadre isolé, sans script).
       if (typeof v !== 'string') throw new ErreurValidation(`« ${chemin} » doit être un texte.`);
