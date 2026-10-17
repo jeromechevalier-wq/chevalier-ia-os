@@ -104,7 +104,7 @@ test('J2 filtres par automatisation et par état', async ({ page }) => {
   await page.getByLabel('Filtrer par automatisation').selectOption('wf1');
   await expect(lignes(page)).toHaveCount(2);
   await page.getByLabel('Filtrer par état').selectOption('running');
-  await expect(page.locator('.autom-vide')).toHaveText('Aucune exécution ne correspond à ce filtre.');
+  await expect(page.locator('.autom-vide')).toContainText('Aucun résultat pour ces filtres');
 });
 
 test('J3 isolation : le journal d\'un autre client n\'apparaît jamais ; un autre client voit le sien seul', async ({ page }) => {

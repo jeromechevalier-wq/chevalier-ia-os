@@ -152,3 +152,52 @@ test('Automatisations chez Jérôme administrateur : si la fonction n\'est pas e
   await expect(page.locator('.autom-ligne')).toHaveCount(1);
   await expect(page.locator('.autom-bandeau')).toContainText('Les clients ne sont pas lisibles pour le moment');
 });
+
+test('Automatisations chez Jérôme administrateur : les filtres se combinent, ne proposent que le possible, se vident au changement de propriétaire et ont un message « aucun résultat »', async ({ page }) => {
+  await page.route('**/automatisationsAdmin', async (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+    const d = JSON.parse(route.request().postData()).data;
+    const cible = d.proprietaire && d.proprietaire !== 'tous' ? d.proprietaire : null;
+    const r = { ...DONNEES_CLIENTS, executions: DONNEES_CLIENTS.executions.filter((e) => !cible || e.proprietaire === cible), workflows: DONNEES_CLIENTS.workflows.filter((w) => !cible || w.proprietaire === cible) };
+    return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ result: r }) });
+  });
+  await ecrireDocument('workflows/wf1', { workflowId: 'wf1', nom: 'interne-veille-collecte', active: true, stepsPlan: [] });
+  await ecrireDocument('executions/501', {
+    executionId: '501', workflowId: 'wf1', workflowLabel: 'interne-veille-collecte', status: 'success', stale: false, mode: 'cron',
+    startedAt: il_y_a(5 * MIN), stoppedAt: il_y_a(5 * MIN - 1500), durationMs: 1500, retryOf: null, errorMessage: null, failedStep: null,
+    runGroupId: null, source: 'sync', lastSyncedAt: new Date(), expireAt: null,
+  });
+  await ecrireDocument('sync/state', { n8nOk: true, lastSyncedAt: new Date(), lastSuccessAt: new Date() });
+  await connecter(page);
+  await page.evaluate(() => { location.hash = '#/automatisations/historique'; });
+  const proprio = page.getByLabel('Filtrer par propriétaire');
+  const auto = page.getByLabel('Filtrer par automatisation');
+  const etat = page.getByLabel('Filtrer par état');
+  await expect(page.locator('.autom-ligne')).toHaveCount(3);
+  // (a) les filtres se combinent (ET) : automatisation d'Audrey + état « Terminées » = rien, avec message et bouton
+  await auto.selectOption({ label: 'Rapport Audrey' });
+  await expect(page.locator('.autom-ligne')).toHaveCount(1);
+  await etat.selectOption('success');
+  await expect(page.locator('.autom-ligne')).toHaveCount(0);
+  await expect(page.locator('.autom-aucun-resultat')).toContainText('Aucun résultat pour ces filtres');
+  await page.getByRole('button', { name: 'Réinitialiser les filtres' }).click();
+  await expect(page.locator('.autom-ligne')).toHaveCount(3);
+  await expect(auto).toHaveValue('');
+  await expect(etat).toHaveValue('');
+  // (b) changer de propriétaire vide les deux autres filtres, qui ne proposent que les valeurs de CE propriétaire
+  await etat.selectOption('success');
+  await expect(page.locator('.autom-ligne')).toHaveCount(2);
+  await proprio.selectOption('audrey');
+  await expect(etat).toHaveValue('');
+  await expect(auto.locator('option')).toHaveText(['Toutes les automatisations', 'Rapport Audrey']);
+  await expect(etat.locator('option')).toHaveText(['Tous les états', 'En erreur']);
+  await expect(page.locator('.autom-ligne')).toHaveCount(1);
+  // vue « workflows non reconnus » : pas de liste d'exécutions, les filtres d'automatisation et d'état sont masqués
+  await proprio.selectOption('a-verifier');
+  await expect(auto).toBeHidden();
+  await expect(etat).toBeHidden();
+  await expect(page.locator('.autom-averifier')).toHaveCount(2);
+  await proprio.selectOption('interne');
+  await expect(auto).toBeVisible();
+  await expect(page.locator('.autom-ligne')).toHaveCount(1);
+});

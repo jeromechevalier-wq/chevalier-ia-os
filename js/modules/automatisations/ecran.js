@@ -82,7 +82,7 @@ export function rendreHistorique(conteneur) {
   }
 
   function changerProprietaire(valeur) {
-    filtres = { ...filtres, proprietaire: valeur, workflowId: '' };
+    filtres = { workflowId: '', etat: '', proprietaire: valeur }; // changer de propriétaire vide les deux autres filtres
     signature = '';
     selProprietaire.value = valeur;
     if (valeur !== L.PROPRIETAIRE_INTERNE && !L.estCategorieWorkflows(valeur)) lireClients(true);
@@ -107,6 +107,27 @@ export function rendreHistorique(conteneur) {
       h('span', { class: `autom-pastille ${i.categorie === 'sans-module' ? 'etat-canceled' : 'etat-stale'}` }, h('i', { class: 'autom-point' }), i.categorie === 'sans-module' ? 'Client sans le module' : 'Non reconnu'),
       h('div', { class: 'autom-indice' }, i.message || 'Les signes de ce workflow ne concordent pas : il n’est pas copié.'),
       i.lignes?.length ? h('ul', { class: 'autom-signes' }, i.lignes.map((l) => h('li', { class: l.ok ? 'ok' : 'ko' }, h('b', {}, `${l.ok ? '✔' : '✘'} ${l.signe} : `), l.texte))) : null);
+  }
+
+  /** Ne propose que les états qui existent chez le propriétaire choisi ; un état devenu impossible est vidé. */
+  function remplirFiltreEtats(maintenant) {
+    const options = L.optionsEtatPossibles(vue.executions, maintenant);
+    const sig = JSON.stringify(options);
+    if (selEtat.dataset.sig !== sig) {
+      selEtat.dataset.sig = sig;
+      remplir(selEtat, options.map((o) => h('option', { value: o.valeur }, o.libelle)));
+    }
+    selEtat.value = options.some((o) => o.valeur === filtres.etat) ? filtres.etat : '';
+    filtres.etat = selEtat.value;
+  }
+
+  function reinitialiserFiltres() {
+    filtres = { workflowId: '', etat: '', proprietaire: 'tous' };
+    selProprietaire.value = 'tous';
+    selAutomatisation.value = '';
+    signature = '';
+    lireClients(true);
+    rendre();
   }
 
   function remplirFiltreAutomatisations() {
@@ -164,7 +185,10 @@ export function rendreHistorique(conteneur) {
     bandeau.textContent = texteBandeau || '';
     if (!D.etat.pret) { remplir(liste, h('li', { class: 'autom-vide' }, 'Chargement…')); return; }
     if (admin) remplirFiltreProprietaires();
-    remplirFiltreAutomatisations();
+    // Vue « workflows non reconnus » ou « clients sans le module » : ce sont des workflows, pas des exécutions ; les filtres d'automatisation et d'état n'ont pas de sens.
+    const categorie = admin && L.estCategorieWorkflows(filtres.proprietaire);
+    selAutomatisation.hidden = categorie; selEtat.hidden = categorie; resume.hidden = categorie;
+    if (!categorie) { remplirFiltreAutomatisations(); remplirFiltreEtats(maintenant); }
     const nbVerifier = admin ? L.signalementsDe(D.etat.admin.aVerifier, L.FILTRE_A_VERIFIER).length : 0;
     alerteVerifier.hidden = !(admin && nbVerifier > 0 && filtres.proprietaire !== L.FILTRE_A_VERIFIER);
     alerteVerifier.textContent = `${nbVerifier} workflow${nbVerifier > 1 ? 's' : ''} non reconnu${nbVerifier > 1 ? 's' : ''} : voir pourquoi`;
@@ -187,6 +211,12 @@ export function rendreHistorique(conteneur) {
       return;
     }
     if (!visibles.length) {
+      const filtreActif = filtres.workflowId || filtres.etat || (admin && filtres.proprietaire !== 'tous');
+      if (filtreActif) {
+        remplir(liste, h('li', { class: 'autom-vide autom-aucun-resultat' }, 'Aucun résultat pour ces filtres. ',
+          h('button', { type: 'button', class: 'bouton', onclick: reinitialiserFiltres }, 'Réinitialiser les filtres')));
+        return;
+      }
       remplir(liste, h('li', { class: 'autom-vide' }, vue.executions.length
         ? 'Aucune exécution ne correspond à ce filtre.'
         : copiePossible

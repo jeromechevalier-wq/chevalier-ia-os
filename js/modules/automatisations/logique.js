@@ -75,6 +75,11 @@ export function optionsAutomatisations(workflows, executions) {
   return [...m].map(([id, nom]) => ({ id, nom })).sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
 }
 
+/** Options de l'état qui ont au moins une exécution dans `liste` (« Tous les états » toujours là) : une liste déroulante ne propose que du possible. */
+export function optionsEtatPossibles(liste, maintenant) {
+  return OPTIONS_ETAT.filter((o) => o.valeur === '' || filtrer(liste, { etat: o.valeur }, maintenant).length > 0);
+}
+
 export function hhmmss(ms) {
   const d = new Date(ms);
   return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
@@ -163,7 +168,7 @@ export function fusionnerVues(interne, admin, filtre) {
   }
   if (filtre !== PROPRIETAIRE_INTERNE) {
     executions.push(...(admin?.executions ?? []).filter((e) => filtre === 'tous' || estCategorieWorkflows(filtre) || e.proprietaire === filtre).map(lui));
-    for (const w of admin?.workflows ?? []) workflows.set(w.id, w);
+    for (const w of admin?.workflows ?? []) if (filtre === 'tous' || estCategorieWorkflows(filtre) || w.proprietaire === filtre) workflows.set(w.id, w);
   }
   return { executions, workflows, proprietaire: true };
 }
