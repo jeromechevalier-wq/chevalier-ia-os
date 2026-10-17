@@ -204,3 +204,9 @@ export function texteValeur(valeur, unite) {
   const nombre = typeof valeur === 'number' && Number.isFinite(valeur) ? new Intl.NumberFormat('fr-FR').format(valeur) : String(valeur);
   return unite ? `${nombre} ${unite}` : nombre;
 }
+
+/** Un indicateur se saisit à la main seulement s'il est « manuel » ou « semi » : un « auto » est vérifié par un script, il n'a pas de bouton. */
+export const peutSaisir = (indicateur) => indicateur?.methode === 'manuel' || indicateur?.methode === 'semi';
+
+/** Texte du bouton de saisie : une date pour un état, une valeur pour une mesure. */
+export const libelleSaisie = (indicateur) => (indicateur?.type === 'mesure' ? 'Saisir la valeur' : 'Saisir la date');

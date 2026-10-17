@@ -1,9 +1,11 @@
 // Données du module Tableau de bord : lecture en temps réel de la collection `tableaudebord_indicateurs` (un document par indicateur).
-// Ce module ne fait que LIRE : les relevés sont écrits par la porte des scripts de surveillance (les règles interdisent toute écriture depuis l'écran).
+// Ce module n'ÉCRIT JAMAIS dans la base : les relevés sont écrits par la porte des scripts de surveillance, et une saisie faite à l'écran passe par la fonction
+// appelable `tableaudebordSaisir` du serveur, qui contrôle, écrit et journalise (les règles interdisent toute écriture depuis l'écran).
 // Le chemin de base vient de la coque ('' à la racine, clients/<client> côté plateforme) ; le champ `proprietaire` ne sert jamais de filtre : le chemin fait foi.
 // Les dates (Timestamp) sont converties en millisecondes ici, pour que logique.js reste pur.
 import { collection, onSnapshot } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
-import { db } from '../../os/firebase.js';
+import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-functions.js';
+import { db, app } from '../../os/firebase.js';
 import { cheminCollection } from '../../os/chemins.js';
 
 export const etat = { indicateurs: [], pret: false, erreur: false };
@@ -83,4 +85,24 @@ export function arreter() {
   desabonnement = null;
   Object.assign(etat, { indicateurs: [], pret: false, erreur: false });
   base = '';
+}
+
+const fonctions = () => getFunctions(app, 'europe-west9');
+
+/**
+ * Saisit une date d'échéance ({ indicateurId, echeance: 'AAAA-MM-JJ', commentaire? }) ou une valeur ({ indicateurId, valeur, commentaire? }) par la fonction `tableaudebordSaisir`.
+ * Renvoie { niveau, message, rappel }. Lève une erreur au message lisible tel quel (jamais de détail technique).
+ */
+export async function saisir(demande) {
+  try {
+    const r = await httpsCallable(fonctions(), 'tableaudebordSaisir')(demande);
+    return r.data;
+  } catch (e) {
+    const code = String(e?.code ?? '');
+    const message = String(e?.message ?? '').replace(/\s*\[\d{3}\]\s*$/, '').trim();
+    if (code.endsWith('failed-precondition') && message) throw new Error(message);
+    if (code.endsWith('permission-denied') || code.endsWith('unauthenticated')) throw new Error('Ce compte n\'a pas accès à cette action. Reconnecte-toi si besoin.');
+    if (code.endsWith('internal') && message === 'Une erreur est survenue. Réessaie.') throw new Error(message);
+    throw new Error('Le serveur ne répond pas pour le moment. Réessaie dans un instant.');
+  }
 }

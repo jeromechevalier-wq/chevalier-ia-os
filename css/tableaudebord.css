@@ -59,6 +59,17 @@
 .td-methode { border: 1px solid var(--bordure); border-radius: 4px; padding: 0 6px; font-size: 11px; }
 .td-procedure { overflow-wrap: anywhere; }
 
+/* Saisie d'une date ou d'une valeur : zone sous la ligne (pas de fenêtre) */
+.td-saisie { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end; padding: 12px; margin-top: 4px; background: var(--panneau2); border: 1px solid var(--bordure); border-radius: 8px; min-width: 0; }
+.td-saisie-champ { flex: 0 1 220px; }
+.td-saisie-note { flex: 1 1 240px; }
+.td-saisie-actions { flex: 0 0 auto; }
+.td-saisie-erreur { flex: 1 1 100%; margin: 0; color: var(--td-rouge); font-weight: 500; overflow-wrap: anywhere; }
+.td-avis:empty { display: none; }
+.td-avis { margin-top: 10px; }
+.td-avis-texte { margin: 0; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--td-vert); color: var(--texte); background: color-mix(in srgb, var(--td-vert) 12%, transparent); overflow-wrap: anywhere; }
+.td-avis-texte strong { color: var(--td-vert); }
+
 /* Chargement, vide, erreur */
 .td-etat-ecran { background: var(--panneau); border: 1px solid var(--bordure); border-radius: 10px; padding: 28px 16px; text-align: center; color: var(--texte2); display: grid; gap: 14px; justify-items: center; }
 .td-etat-ecran p { margin: 0; max-width: 56ch; }
@@ -72,4 +83,5 @@
   .td-detail { grid-column: 1 / -1; order: 3; }
   .td-outils { grid-column: 1 / -1; order: 4; justify-content: flex-start; }
   .td-phrase { font-size: 18px; }
+  .td-saisie-champ, .td-saisie-note { flex: 1 1 100%; }
 }
