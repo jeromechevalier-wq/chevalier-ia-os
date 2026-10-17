@@ -950,7 +950,7 @@ export function estAffaireActive(a) {
 export const LONGUEUR_MAX_NOTE = 300;
 
 /**
- * Lien web saisi à la main : on complète ce qui manque. « www.monsite.fr » ou « monsite.fr » → https://…, « http:www.monsite.fr » (deux-points sans //) → http://www.monsite.fr.
+ * Lien web saisi à la main : on complète ce qui manque. « www.monsite.fr » ou « monsite.fr » reçoivent le début « https » ; « http:www.monsite.fr » (deux-points sans les deux barres) est corrigé.
  * Tout ce qui n'a pas la forme d'une adresse reste tel quel (il sera refusé avec un message clair).
  */
 export function normaliserLienWeb(url) {
