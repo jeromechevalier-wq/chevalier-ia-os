@@ -108,7 +108,8 @@ describe('A. Isolation entre clients et étiquettes', () => {
   });
   test('A5 changement d\'étiquette : l\'historique déjà copié reste chez l\'ancien client', async () => {
     await copieHoraire({ db, n8n: n8n(), maintenant: T0 });
-    faux.etat.workflows.find((w) => w.id === 'wfA1').tags = ['client-boris']; // le workflow change de client
+    const wfA1 = faux.etat.workflows.find((w) => w.id === 'wfA1');
+    wfA1.tags = ['client-boris']; wfA1.name = 'client-boris-lire-une-fiche'; // le workflow change de client (étiquette ET nom, comme l'exige la règle)
     faux.etat.executions.push({ id: '105', workflowId: 'wfA1', status: 'success', startedAt: il_y_a(MIN), stoppedAt: il_y_a(MIN - 1000) });
     await copieHoraire({ db, n8n: n8n(), maintenant: T0 + 5 * MIN });
     assert.ok((await lire('clients/audrey/executions/101')), 'l\'ancienne exécution reste chez Audrey');

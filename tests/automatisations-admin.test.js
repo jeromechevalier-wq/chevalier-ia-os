@@ -97,7 +97,7 @@ describe('R. Reconnaissance du propriétaire : trois signes', () => {
     assert.equal(E.classer([wf('3', 'client-cabinet-martin-x', ['client-cabinet-martin'], ['Clé n8n - Cabinet Martin'])], ctx).parClient.get('cabinet-martin').length, 1);
     assert.equal(E.classer([wf('8', 'client-audrey-lire', ['client-audrey'])], ctx).parClient.get('audrey').length, 1);
     assert.equal(E.classer([wf('9', 'client-boris-lire', ['client-audrey'])], { connus: new Set(['audrey', 'boris']), actifs: new Set(['audrey', 'boris']) }).signalements[0].raison, 'signes-differents');
-    for (const w of [wf('4', 'interne-x', ['client-audrey']), wf('5', 'x', ['client-audrey'], [CLE_INTERNE]), wf('6', 'x', ['client-audrey', 'interne']), wf('7', 'x', ['client-audrey'], ['Clé n8n - Zoé'])]) {
+    for (const w of [wf('4', 'interne-x', ['client-audrey']), wf('5', 'client-audrey-x', ['client-audrey'], [CLE_INTERNE]), wf('6', 'client-audrey-x', ['client-audrey', 'interne']), wf('7', 'client-audrey-x', ['client-audrey'], ['Clé n8n - Zoé'])]) {
       const r = E.classer([w], ctx);
       assert.equal(r.parClient.size, 0, w.id);
       assert.equal(r.signalements[0].raison, 'signes-differents', w.id);
