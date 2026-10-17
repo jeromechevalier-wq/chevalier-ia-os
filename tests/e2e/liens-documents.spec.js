@@ -441,45 +441,46 @@ test.describe('Google branché (simulé)', () => {
     await expect(page.locator('.toast', { hasText: 'Ce dossier sert déjà au projet' }).first()).toBeVisible();
   });
 
-  test('L16 « Copier dans le dossier de travail » : case décochée par défaut ; cochée, le fichier est copié (files.copy) et le lien pointe vers la COPIE ; échec : lien d\'origine gardé', async ({ page }) => {
+  test('L16 « Copier dans le dossier de travail » : case COCHÉE par défaut : le fichier est copié (files.copy) et le lien pointe vers la COPIE ; décochée : lien seul ; échec : lien d\'origine gardé', async ({ page }) => {
     const DOSSIER = '1AbC_dEf-1234567';
     await creerProjet('pr1', { titre: 'Refonte', urlDossier: `https://drive.google.com/drive/folders/${DOSSIER}` });
     await connecter(page);
     await aller(page, FICHE);
     const form = page.locator('[data-role="form-lien"][data-mode="document"]');
     const caseCopie = form.locator('[data-champ="copier"]');
-    // Par défaut : décochée, le lien d'origine est enregistré, aucune copie.
+    // Par défaut : cochée → copie dans le dossier de travail, le lien enregistré est celui de la copie.
     await choisirDansGoogle(page, [{ ...unDocument('FICHIER_AAAAAAAAAA', 'Devis.pdf', 'https://drive.google.com/file/d/FICHIER_AAAAAAAAAA/view'), parentId: 'AUTRE_DOSSIER_123' }]);
     await page.locator('[data-action="ajouter-document-google"]').click();
     await expect(caseCopie).toBeVisible();
-    await expect(caseCopie).not.toBeChecked();
+    await expect(caseCopie).toBeChecked();
     await form.locator('[data-action="valider-lien"]').click();
-    await champDoc('projets_projets', 'pr1', 'documents', [{ libelle: 'Devis.pdf', url: 'https://drive.google.com/file/d/FICHIER_AAAAAAAAAA/view' }]);
-    expect(drive.copies).toHaveLength(0);
-    // Cochée : copie dans le dossier de travail, lien vers la copie (l'original n'est pas enregistré).
+    await champDoc('projets_projets', 'pr1', 'documents', [{ libelle: 'Devis.pdf', url: 'https://drive.google.com/file/d/COPIE_1_abcdefghij/view' }]);
+    expect(drive.copies).toHaveLength(1);
+    expect(drive.copies[0].url).toContain('/files/FICHIER_AAAAAAAAAA/copy');
+    expect(drive.copies[0].corps).toEqual({ parents: [DOSSIER], name: 'Devis.pdf' });
+    // Décochée par l'utilisateur : lien seul, l'original, aucune copie de plus.
     await choisirDansGoogle(page, [{ ...unDocument('FICHIER_BBBBBBBBBB', 'Scan.jpg', 'https://drive.google.com/file/d/FICHIER_BBBBBBBBBB/view', 'image/jpeg'), parentId: 'AUTRE_DOSSIER_123' }]);
     await page.locator('[data-action="ajouter-document-google"]').click();
-    await caseCopie.check();
-    await form.getByLabel('Note (facultative)').fill('copie du client');
+    await expect(caseCopie).toBeChecked();
+    await caseCopie.uncheck();
+    await form.getByLabel('Note (facultative)').fill('lien seul');
     await form.locator('[data-action="valider-lien"]').click();
     await champDoc('projets_projets', 'pr1', 'documents', [
-      { libelle: 'Devis.pdf', url: 'https://drive.google.com/file/d/FICHIER_AAAAAAAAAA/view' },
-      { libelle: 'Scan.jpg', url: 'https://drive.google.com/file/d/COPIE_1_abcdefghij/view', note: 'copie du client' },
+      { libelle: 'Devis.pdf', url: 'https://drive.google.com/file/d/COPIE_1_abcdefghij/view' },
+      { libelle: 'Scan.jpg', url: 'https://drive.google.com/file/d/FICHIER_BBBBBBBBBB/view', note: 'lien seul' },
     ]);
     expect(drive.copies).toHaveLength(1);
-    expect(drive.copies[0].url).toContain('/files/FICHIER_BBBBBBBBBB/copy');
     expect(drive.copies[0].autorisation).toBe('Bearer ya29.SIMULE');
-    expect(drive.copies[0].corps).toEqual({ parents: [DOSSIER], name: 'Scan.jpg' });
     // Échec de la copie : message simple, le lien d'origine est gardé.
     drive.echecCopie = 404;
     await choisirDansGoogle(page, [{ ...unDocument('FICHIER_CCCCCCCCCC', 'Plan.pdf', 'https://drive.google.com/file/d/FICHIER_CCCCCCCCCC/view'), parentId: 'AUTRE_DOSSIER_123' }]);
     await page.locator('[data-action="ajouter-document-google"]').click();
-    await caseCopie.check();
+    await expect(caseCopie).toBeChecked();
     await form.locator('[data-action="valider-lien"]').click();
     await expect(page.locator('.toast-erreur').last()).toContainText('le lien d’origine est gardé');
     await champDoc('projets_projets', 'pr1', 'documents', [
-      { libelle: 'Devis.pdf', url: 'https://drive.google.com/file/d/FICHIER_AAAAAAAAAA/view' },
-      { libelle: 'Scan.jpg', url: 'https://drive.google.com/file/d/COPIE_1_abcdefghij/view', note: 'copie du client' },
+      { libelle: 'Devis.pdf', url: 'https://drive.google.com/file/d/COPIE_1_abcdefghij/view' },
+      { libelle: 'Scan.jpg', url: 'https://drive.google.com/file/d/FICHIER_BBBBBBBBBB/view', note: 'lien seul' },
       { libelle: 'Plan.pdf', url: 'https://drive.google.com/file/d/FICHIER_CCCCCCCCCC/view' },
     ]);
   });

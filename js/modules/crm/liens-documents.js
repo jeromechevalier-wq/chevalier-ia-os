@@ -46,9 +46,9 @@ export function sectionLiensEtDocuments({ id, typeFiche, entite, courant, enregi
     const champNote = champ('Note (facultative)', etat.note, (v) => { etat.note = v; }, { placeholder: 'Note (ex. envoyé au client)', max: L.LONGUEUR_MAX_NOTE });
     const valider = async () => {
       let urlChoisie = lien ? etat.url : etat.urlDocument;
-      // Case cochée : on copie le fichier dans le dossier de travail (l'original reste où il est) et le lien enregistré pointe vers la COPIE.
-      if (!lien && etat.copier) {
-        const dossier = idDossierDrive(courant().urlDossier);
+      // Case cochée (par défaut, quand elle est proposée) : on copie le fichier dans le dossier de travail (l'original reste où il est) et le lien enregistré pointe vers la COPIE.
+      const dossier = idDossierDrive(courant().urlDossier);
+      if (!lien && etat.copiable && etat.copier && dossier) {
         try {
           const jeton = await obtenirJeton({ email: D.compteCourant()?.email || '' });
           urlChoisie = (await copierFichier({ jeton, fichierId: etat.fichierId, parentId: dossier, nom: etat.nomOriginal })).url;
@@ -110,9 +110,9 @@ export function sectionLiensEtDocuments({ id, typeFiche, entite, courant, enregi
       const elus = await ouvrirFenetreGoogle({ mode: 'documents', dossierImport, email, multiple: false });
       const doc = documentDepuisChoix(elus[0]);
       if (!doc) { if (elus[0]) toast('Ce document n’a pas d’adresse Google utilisable', { type: 'erreur' }); return; }
-      // Un fichier choisi dans « Google Drive » (pas déposé par « Importer » : celui-là est déjà dans le dossier de travail) peut être copié dans ce dossier.
+      // Un fichier choisi dans « Google Drive » (pas déposé par « Importer » : celui-là est déjà dans le dossier de travail) est copié dans ce dossier, sauf si on décoche la case.
       const dejaDansLeDossier = dossierImport && elus[0].parentId === dossierImport;
-      ouvrirFormulaire({ mode: 'document', nom: doc.libelle, nomOriginal: doc.libelle, urlDocument: doc.url, fichierId: elus[0].id, copiable: !dejaDansLeDossier && elus[0].type !== TYPE_DOSSIER, copier: false });
+      ouvrirFormulaire({ mode: 'document', nom: doc.libelle, nomOriginal: doc.libelle, urlDocument: doc.url, fichierId: elus[0].id, copiable: !dejaDansLeDossier && elus[0].type !== TYPE_DOSSIER, copier: true }); // cochée par défaut (décision de Jérôme)
     } catch (e) {
       if (!e?.saisie && !e?.annule) console.warn(e);
       toast(e?.message || 'Ajout impossible', { type: e?.annule ? 'info' : 'erreur' });
