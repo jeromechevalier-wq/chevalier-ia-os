@@ -34,8 +34,10 @@ test.beforeEach(async ({ page }) => {
 });
 
 /** Capture de l'écran (page entière) dans le dossier des captures ; le format téléphone porte « -tel ». */
-async function capturer(page, nom) {
-  await page.screenshot({ path: join(DOSSIER_CAPTURES, `${nom}${estTelephone(page) ? '-tel' : ''}.png`), fullPage: true });
+async function capturer(page, nom, { fenetre = false, element = null } = {}) {
+  const chemin = join(DOSSIER_CAPTURES, `${nom}${estTelephone(page) ? '-tel' : ''}.png`);
+  if (element) await element.screenshot({ path: chemin }); // un bloc seul, lisible
+  else await page.screenshot({ path: chemin, fullPage: !fenetre }); // fenetre : ce qu'on voit à l'écran (les messages en bas, comme « Retiré · Annuler »)
 }
 
 async function ouvrir(page, reste = 'reglages', { client = 'studio', email = ALICE } = {}) {
@@ -215,7 +217,8 @@ test('M7 retirer le logo (confirmation puis « Retiré · Annuler ») : les init
   await expect(page.locator('[data-role="pas-de-logo"]')).toHaveText('Pas de logo');
   await expect(page.locator('.toast', { hasText: 'Retiré' })).toBeVisible();
   await expect(page.locator('.toast [data-action="toast-action"]')).toHaveText('Annuler');
-  await capturer(page, 'M7');
+  await page.locator('[data-role="logo-initiale"]').scrollIntoViewIfNeeded();
+  await capturer(page, 'M7', { fenetre: true });
   expect((await marque()).logo, 'le fichier n\'est supprimé qu\'après les 8 secondes').toBe(url);
   await page.locator('.toast [data-action="toast-action"]').click(); // Annuler
   await expect(page.locator('[data-role="logo-image"]')).toHaveAttribute('src', url);
@@ -335,16 +338,23 @@ test('M11 un lecteur, un inconnu ou un éditeur d\'un autre espace qui appelle l
   await ouvrir(page, 'reglages', { email: LEA });
   await imageEnAttenteDeVue(page);
   // 1) un lecteur de l'espace, 2) un inconnu (aucun espace), 3) un éditeur d'un autre espace, 4) un espace qui n'existe pas : même refus, mêmes mots
-  expect(await appeler(LEA, 'studio', 'enregistrer', { nom: 'Pirate', couleur: '#ff0000' })).toEqual(REFUS);
-  expect(await appeler(LEA, 'studio', 'membre-role', { email: LEA, role: 'editeur' })).toEqual(REFUS);
-  expect(await appeler('inconnu@exemple.test', 'studio', 'enregistrer', { nom: 'Pirate' })).toEqual(REFUS);
-  expect(await appeler('bob@exemple.test', 'studio', 'enregistrer', { nom: 'Pirate' })).toEqual(REFUS);
-  expect(await appeler('bob@exemple.test', 'studio', 'membre-ajouter', { email: 'pirate@exemple.test', role: 'editeur' })).toEqual(REFUS);
-  expect(await appeler('bob@exemple.test', 'fantome', 'enregistrer', { nom: 'Pirate' })).toEqual(REFUS);
+  const reponses = [];
+  for (const [email, client, action, donnees, quoi] of [
+    [LEA, 'studio', 'enregistrer', { nom: 'Pirate', couleur: '#ff0000' }, 'un lecteur : enregistrer'],
+    [LEA, 'studio', 'membre-role', { email: LEA, role: 'editeur' }, 'un lecteur : se donner le rôle éditeur'],
+    ['inconnu@exemple.test', 'studio', 'enregistrer', { nom: 'Pirate' }, 'un inconnu : enregistrer'],
+    ['bob@exemple.test', 'studio', 'enregistrer', { nom: 'Pirate' }, 'un éditeur d’un autre espace : enregistrer'],
+    ['bob@exemple.test', 'studio', 'membre-ajouter', { email: 'pirate@exemple.test', role: 'editeur' }, 'un éditeur d’un autre espace : ajouter un membre'],
+    ['bob@exemple.test', 'fantome', 'enregistrer', { nom: 'Pirate' }, 'un espace qui n’existe pas'],
+  ]) {
+    const r = await appeler(email, client, action, donnees);
+    expect(r).toEqual(REFUS);
+    reponses.push(`${quoi}  →  HTTP ${r.statut} · ${r.code} · « ${r.message} »`);
+  }
   expect([await marque(), await lireDocument('clients/studio'), await lireDocument('marques/autre'), await listerDocuments('clients/studio/membres')]).toEqual(avant);
   expect(serveur.bucket.journal).toEqual([]);
-  await page.evaluate((texte) => { const o = document.createElement('output'); o.dataset.role = 'resultat-m11'; o.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#fff;color:#000;padding:16px;font:600 18px sans-serif'; o.textContent = texte; document.body.append(o); },
-    'Appel direct de la fonction par un lecteur, un inconnu, un éditeur d’un autre espace : « Action non autorisée. » (403), fiche inchangée');
+  // on affiche les VRAIES réponses reçues du serveur (rien n'est écrit à la main : une ligne par appel)
+  await page.evaluate((lignes) => { const o = document.createElement('pre'); o.dataset.role = 'reponses-m11'; o.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#fff;color:#000;padding:16px;margin:0;font:600 15px/1.6 monospace;white-space:pre-wrap'; o.textContent = lignes.join('\n'); document.body.append(o); }, reponses);
   await capturer(page, 'M11');
 });
 
@@ -484,13 +494,14 @@ test('M18 « Utiliser le logo de mon espace » : cochée par défaut avec un log
   await expect(caseLogo).toBeDisabled();
   await expect(caseLogo).not.toBeChecked();
   await expect(page.locator('[data-ligne="logoCelebration"]')).toContainText('n’a pas encore de logo');
-  await capturer(page, 'M18-sans-logo');
+  await capturer(page, 'M18-sans-logo', { element: page.locator('[data-ligne="logoCelebration"]') });
   // avec un logo : cochée par défaut
   const { url } = await poserLogo(page, { largeur: 180, hauteur: 120, couleur: '#dd5522' });
   await ouvrir(page, 'reglages/crm');
   await expect(page.locator('[data-option="celebrations"]')).toBeChecked();
   await expect(caseLogo).toBeEnabled();
   await expect(caseLogo).toBeChecked();
+  await capturer(page, 'M18-case-cochee', { element: page.locator('[data-ligne="celebrations"], [data-ligne="logoCelebration"]').first().locator('xpath=..') });
   // « Gagnée » : le logo de l'espace dans l'animation
   await page.evaluate(() => { location.hash = '#/espace/studio/crm/affaires/a1'; });
   await expect(page.locator('input.titre-editable')).toHaveValue('Audit du lac');

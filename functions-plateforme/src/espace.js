@@ -94,12 +94,18 @@ const marquePublique = (d) => ({ nom: d.nom ?? '', couleur: d.couleur ?? '', acc
 /** Vérifie l'appelant et l'espace : renvoie { email, marque } ou lève LE refus neutre. */
 async function exigerEditeur({ db, auth, client }) {
   const email = emailDe(auth);
-  if (typeof client !== 'string' || !MOTIF_ID.test(client)) throw DEMANDE_INVALIDE();
+  if (typeof client !== 'string' || !MOTIF_ID.test(client)) throw REFUS_NEUTRE(); // un identifiant mal formé reçoit le même refus que tout le reste
   const membre = await db.doc(`clients/${client}/membres/${email}`).get();
   if (!membre.exists || membre.get('role') !== 'editeur') throw REFUS_NEUTRE();
   const marque = await db.doc(`marques/${client}`).get();
   if (!marque.exists || marque.get('actif') !== true) throw REFUS_NEUTRE();
   return { email };
+}
+
+/** À appeler DANS chaque transaction d'écriture, avant la première écriture : l'appelant est-il ENCORE éditeur ? (retiré ou rétrogradé pendant l'envoi d'une image : refus neutre, rien n'est écrit). */
+async function revérifierEditeur(t, db, client, email) {
+  const membre = await t.get(db.doc(`clients/${client}/membres/${email}`));
+  if (!membre.exists || membre.get('role') !== 'editeur') throw REFUS_NEUTRE();
 }
 
 /** Envoie un fichier, puis le supprime si la suite échoue ; les suppressions ne bloquent jamais la réponse (un fichier orphelin est sans danger). */
@@ -155,6 +161,7 @@ async function enregistrer({ db, bucket, nomBucket, client, email, donnees, main
     marque = await db.runTransaction(async (t) => {
       const refMarque = db.doc(`marques/${client}`);
       const refClient = db.doc(`clients/${client}`);
+      await revérifierEditeur(t, db, client, email);
       const fiche = await t.get(refMarque);
       const ficheClient = champs.nom !== undefined ? await t.get(refClient) : null; // toutes les lectures avant les écritures
       if (!fiche.exists || fiche.get('actif') !== true) throw REFUS_NEUTRE();
@@ -190,6 +197,7 @@ async function ajouterImage({ db, bucket, nomBucket, client, email, donnees, mai
   try {
     marque = await db.runTransaction(async (t) => {
       const ref = db.doc(`marques/${client}`);
+      await revérifierEditeur(t, db, client, email);
       const fiche = await t.get(ref);
       if (!fiche.exists || fiche.get('actif') !== true) throw REFUS_NEUTRE();
       const images = marquePublique(fiche.data()).images;
@@ -216,6 +224,7 @@ async function retirerImage({ db, bucket, nomBucket, client, email, donnees }) {
   const url = urlImageDemandee(donnees);
   const marque = await db.runTransaction(async (t) => {
     const ref = db.doc(`marques/${client}`);
+    await revérifierEditeur(t, db, client, email);
     const fiche = await t.get(ref);
     if (!fiche.exists || fiche.get('actif') !== true) throw REFUS_NEUTRE();
     const images = marquePublique(fiche.data()).images;
@@ -234,6 +243,7 @@ async function imagePremiere({ db, client, email, donnees }) {
   const url = urlImageDemandee(donnees);
   const marque = await db.runTransaction(async (t) => {
     const ref = db.doc(`marques/${client}`);
+    await revérifierEditeur(t, db, client, email);
     const fiche = await t.get(ref);
     if (!fiche.exists || fiche.get('actif') !== true) throw REFUS_NEUTRE();
     const images = marquePublique(fiche.data()).images;

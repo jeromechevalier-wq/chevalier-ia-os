@@ -23,9 +23,13 @@ Chez un client : **Réglages > Mon espace** (un formulaire, un bouton « Enregis
 - **Application immédiate** : après « Enregistrer », le menu, la barre du haut, l'onglet, l'icône et les couleurs changent tout de suite sur l'appareil qui a enregistré. Les **autres appareils** se mettent à jour au rechargement de la page.
 - **Célébrations** : Réglages > CRM > Célébrations (une fois l'option allumée) a une case « Utiliser le logo de mon espace » : cochée par défaut s'il y a un logo, grisée et décochée sinon. Le logo est lu en direct dans la fiche de l'espace (jamais recopié). L'image de Charles reste réservée à l'espace de Jérôme.
 
+## À savoir
+- **Fermer l'onglet pendant les 8 secondes de « Retiré · Annuler »** (logo ou image) : le retrait n'est jamais écrit, le logo ou l'image est toujours là au retour. Rien n'est perdu ; il suffit de recommencer. Changer de page dans l'appli pendant ces 8 secondes ne change rien : le retrait suit son cours.
+- Un éditeur retiré de l'espace pendant qu'il envoie une image n'écrit plus rien : le serveur revérifie son rôle à l'intérieur de chaque écriture (réglages, logo, images, membres).
+
 ## Comment c'est protégé
 Les règles Firestore et Storage **ne changent pas** : un navigateur ne peut toujours rien écrire dans `marques/<client>`. Tout passe par une fonction du serveur, `espaceReglages` (Paris, `europe-west9`, `functions-plateforme/src/espace.js`), qui :
-1. exige une connexion avec une adresse e-mail vérifiée ;
+1. exige une connexion avec une adresse e-mail vérifiée (et revérifie que l'appelant est encore éditeur dans chaque écriture) ;
 2. traite l'espace reçu comme une **cible à vérifier** : l'appelant doit avoir une fiche `clients/<espace>/membres/<son adresse>` avec le rôle `editeur`. Sinon, **un seul refus neutre** : « Action non autorisée. » (espace inexistant, non-membre, lecteur, espace désactivé : même mot, on ne dit rien de plus) ;
 3. n'écrit que cette liste fixe : nom, couleur, texte d'accueil, logo, images de `marques/<espace>`, le nom dans `clients/<espace>`, et les membres. **Jamais** `actif`, **jamais** `modules` ;
 4. construit lui-même le chemin des fichiers (`marques/<espace>/logo-<heure>.png`, `image-<heure>.jpg`…), contrôle le type d'image par ses premiers octets (PNG, JPG, WebP ; SVG refusé), la taille (2 Mo logo, 1,5 Mo image, 3 Mo par appel) et le nombre (4 images). Ordre : envoyer le nouveau fichier, écrire la fiche, supprimer l'ancien ; si l'écriture de la fiche échoue, le nouveau fichier est supprimé. La fiche ne pointe donc jamais vers un fichier absent ;

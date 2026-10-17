@@ -19,10 +19,10 @@ test('M23 les pages de Jérôme (racine, #/reglages) ne changent pas : Mon espac
   await expect(page.getByRole('button', { name: 'Enregistrer' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Choisir un logo' })).toHaveCount(0);
   await expect(page).toHaveTitle('Chevalier IA OS');
+  await mkdir(join(homedir(), 'chantiers-crm', 'captures-mon-espace'), { recursive: true });
+  await page.screenshot({ path: join(homedir(), 'chantiers-crm', 'captures-mon-espace', `M23${estTelephone(page) ? '-tel' : ''}.png`), fullPage: true }); // la page « Mon espace » de Jérôme, en lecture seule
   await ouvrirSectionReglages(page, 'Modules actifs');
   await expect(page.locator('#reglages-modules')).not.toContainText('contacte ton administrateur');
   await expect(page.locator('[data-interrupteur="crm"]')).toBeChecked();
   expect(serveur.appels).toEqual([]);
-  await mkdir(join(homedir(), 'chantiers-crm', 'captures-mon-espace'), { recursive: true });
-  await page.screenshot({ path: join(homedir(), 'chantiers-crm', 'captures-mon-espace', `M23${estTelephone(page) ? '-tel' : ''}.png`), fullPage: true });
 });

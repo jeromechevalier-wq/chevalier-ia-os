@@ -12,7 +12,7 @@ import { MODULE_AUTOMATISATIONS, moduleActif } from '../functions-plateforme/src
 const RACINE = join(dirname(fileURLToPath(import.meta.url)), '..');
 const lire = (f) => readFileSync(join(RACINE, f), 'utf8');
 const SRC = join(RACINE, 'functions-plateforme', 'src');
-const fichiers = readdirSync(SRC).filter((f) => f.endsWith('.js') && f !== 'espace.js'); // espace.js (Mon espace, 2.9.0) a ses propres tests : espace-reglages.test.js
+const fichiers = readdirSync(SRC).filter((f) => f.endsWith('.js'));
 /** Code sans commentaires (// et /* *​/) ni textes entre guillemets : pour chercher des appels réels, pas des mots dans une explication. */
 const code = (f) => lire(`functions-plateforme/src/${f}`).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '').replace(/\s\/\/ .*$/gm, '');
 
@@ -99,7 +99,7 @@ describe('Cohérence : registre, règles, fonctions, déploiement', () => {
   test('les fonctions n\'écrivent que dans les collections déclarées (et le signalement du serveur)', () => {
     const m = moduleDeclare('automatisations');
     const chemins = new Set();
-    for (const f of fichiers) for (const x of code(f).matchAll(/\$\{(?:racine|client)\}\/([a-z_]+)|clients\/\$\{client\}\/([a-z_]+)|`clients\/\$\{client\}\/([a-z_]+)/g)) chemins.add(x[1] || x[2] || x[3]);
+    for (const f of fichiers.filter((x) => x !== 'espace.js')) for (const x of code(f).matchAll(/\$\{(?:racine|client)\}\/([a-z_]+)|clients\/\$\{client\}\/([a-z_]+)|`clients\/\$\{client\}\/([a-z_]+)/g)) chemins.add(x[1] || x[2] || x[3]);
     for (const c of chemins) assert.ok([...m.collections, 'membres'].includes(c), `collection inattendue : ${c}`);
   });
   test('étiquette n8n : 24 caractères au plus, donc identifiant de client de 17 caractères au plus pour ce module', () => {

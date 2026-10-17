@@ -17,7 +17,7 @@ const BUCKET = 'chevalier-ia-app.firebasestorage.app';
 
 const ALICE = 'alice@exemple.test'; // éditrice chez audrey
 const LEA = 'lea@exemple.test'; // lectrice chez audrey
-const BOB = 'bob@exemple.test'; // éditeur chez boris
+const BOB = 'bob@exemple.test'; // éditeur chez boris (et second éditeur d'audrey dans certains tests)
 const ZOE = 'zoe@exemple.test'; // éditrice d'un espace désactivé
 const INCONNU = 'inconnu@exemple.test';
 const id = (email, verifie = true) => ({ uid: `uid-${email}`, token: { email, email_verified: verifie } });
@@ -94,8 +94,32 @@ describe('M11 sécurité d\'appel : un seul refus neutre, la fiche ne bouge pas'
   });
   test('M11 l\'identifiant d\'espace reçu est une cible : motif strict, jamais de chemin', async () => {
     for (const client of ['../clients/audrey', 'audrey/membres', 'AUDREY', '', null, 12, 'a'.repeat(41), 'audrey ']) {
-      await refus(appel(ALICE, { client, action: 'enregistrer', nom: 'X' }));
+      const e = await refus(appel(ALICE, { client, action: 'enregistrer', nom: 'X' }), 'permission-denied');
+      assert.equal(e.message, NEUTRE, 'même refus neutre pour un identifiant mal formé');
     }
+  });
+  for (const [quoi, donnees] of [
+    ['réglages (logo)', { action: 'enregistrer', nom: 'Après retrait', logo: img(PNG) }],
+    ['image', { action: 'image-ajouter', image: img(PNG) }],
+  ]) {
+    test(`M11 un éditeur retiré PENDANT l'envoi (${quoi}) : l'écriture finale est refusée (refus neutre), la fiche ne bouge pas, le fichier envoyé est supprimé`, async () => {
+      await db.doc(`clients/audrey/membres/${BOB}`).set({ role: 'editeur' }); // un second éditeur, pour que ce retrait soit permis
+      const envoi = bucket.file;
+      bucket.file = (chemin) => ({ ...envoi(chemin), save: async (...a) => { await envoi(chemin).save(...a); await db.doc(`clients/audrey/membres/${ALICE}`).delete(); } }); // Alice est retirée pendant l'envoi
+      const avant = await lire('marques/audrey');
+      const e = await refus(appel(ALICE, { client: 'audrey', ...donnees }), 'permission-denied');
+      assert.equal(e.message, NEUTRE);
+      assert.deepEqual(await lire('marques/audrey'), avant);
+      assert.equal(bucket.fichiers.size, 0, 'le fichier envoyé est supprimé');
+    });
+  }
+  test('M11 un éditeur rétrogradé en lecteur pendant un retrait ou une mise en première d\'image : refusé aussi', async () => {
+    await db.doc('marques/audrey').update({ images: [E.urlPublique(BUCKET, 'marques/audrey/image-1.png'), E.urlPublique(BUCKET, 'marques/audrey/image-2.png')] });
+    const [a, b] = (await lire('marques/audrey')).images;
+    await db.doc(`clients/audrey/membres/${ALICE}`).update({ role: 'lecteur' });
+    const e = await refus(E.reglerEspace({ db, bucket, auth: id(ALICE), donnees: { client: 'audrey', action: 'image-premiere', url: b }, maintenant: 1 }), 'permission-denied');
+    assert.equal(e.message, NEUTRE);
+    assert.deepEqual((await lire('marques/audrey')).images, [a, b]);
   });
 });
 
