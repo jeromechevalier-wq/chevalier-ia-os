@@ -1258,7 +1258,7 @@ test('C27 audit de l’écran : une modification de fiche, un changement d’ét
   await creerAffaire('a1', { titre: 'Affaire suivie', personneId: 'p1' });
   await connecter(page);
   await aller(page, '#/crm/affaires/a1');
-  await page.locator('[data-etape="rdv_fixe"]').click();
+  await page.locator('[data-action="choisir-etape"]').selectOption('rdv_fixe'); // la bande du haut n'est plus qu'un indicateur
   await expect.poll(async () => (await lireDocument('crm_affaires/a1')).etape).toBe('rdv_fixe');
   await expect.poll(async () => (await listerDocuments('crm_audit')).filter((l) => l.outil === 'changerEtape').length).toBe(2); // l'affaire et son événement
   const ligne = (await listerDocuments('crm_audit')).find((l) => l.outil === 'changerEtape' && l.collection === 'crm_affaires');

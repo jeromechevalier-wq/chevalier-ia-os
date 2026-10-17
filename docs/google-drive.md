@@ -83,6 +83,12 @@ Jérôme : « c'est différent d'une fiche à l'autre ». Maintenant **un seul c
 - **Avertissement non bloquant** quand le dossier lié sert déjà à un **autre projet** : « Ce dossier sert déjà au projet X ». Pas d'avertissement pour le projet de l'affaire elle-même. Comparaison par adresse, ou par identifiant Drive. Le dossier est enregistré malgré l'avertissement.
 - Aucune migration : le champ `urlDossier` est le même.
 - « Début d'activité » (année invisible) : corrigé dans une PR à part (PR 81 : champ élargi).
+## Fiches affaire et projet cohérentes, version 2.6.7
+
+- **La bande du haut** (étapes d'une affaire, phases d'un projet) n'est plus cliquable : c'est un simple indicateur. On change l'étape avec la liste **« Étape »** du Résumé de l'affaire (nouvelle), la phase avec la liste **« Phase »** du Résumé du projet, même fonction que le Kanban (boîtes de dialogue, célébration, action suggérée). Le glisser-déposer du Kanban ne change pas.
+- **Même ordre des sections** sur les deux fiches : Résumé, Tâches et Factures (projets seulement), **Liens et documents**, puis **Détails**. À droite : Activité et Notes, Points clés, Historique (inchangés). *Choix : j'ai appliqué l'ordre demandé à la colonne principale (« Liens et documents » passe avant « Détails » ; la colonne de droite était déjà identique).*
+- **Fiche projet** : la ligne « Affaire d'origine » n'apparaît que s'il y a une affaire (plus de « Aucune affaire liée »).
+- **Étiquette d'état** (Ouverte / Actif…) : une seule fois, sous le titre, avec une icône « i » qui l'explique ; la ligne « Statut » du Résumé de l'affaire est supprimée (la raison de la perte ou la date de réveil s'affichent à côté de l'étiquette).
 
 ## Pas vérifié (à faire après le branchement)
 
