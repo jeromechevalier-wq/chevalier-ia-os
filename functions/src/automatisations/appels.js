@@ -5,7 +5,7 @@
 //  - copieInterne          : toutes les heures, copie tes workflows « interne » vers TA base (documents à la racine : workflows, executions, sync) ;
 //  - automatisationsAdmin  : appelable par ton compte seulement. « lire » = lit, SANS JAMAIS ÉCRIRE, la base de Chevalier IA APP (clients) ; « rafraichir » = recopie tes workflows maintenant.
 // La base de Chevalier IA APP n'est jamais écrite d'ici : le compte de service de la fonction n'y a que le rôle « Lecteur Cloud Datastore » (voir docs/automatisations-n8n.md, guide).
-import { classer, classerInterne, moduleActif, MOTIF_IDENTIFIANT_CLIENT, PROPRIETAIRE_INTERNE, ETIQUETTE_INTERNE } from '../../partage/automatisations/etiquettes.js';
+import { classer, classerInterne, classerSansEtiquette, moduleActif, MOTIF_IDENTIFIANT_CLIENT, PROPRIETAIRE_INTERNE, ETIQUETTE_INTERNE } from '../../partage/automatisations/etiquettes.js';
 import { synchroniserClient, marquerInjoignable } from '../../partage/automatisations/synchro.js';
 import { ErreurN8n } from '../../partage/automatisations/n8n.js';
 import { estAdministrateur } from '../../partage/administrateur.js';
@@ -69,8 +69,10 @@ export async function copieInterne({ db, dbPlateforme = null, n8n, raison = 'hor
   }
   const { retenus, signalements: siens } = classerInterne(workflows, { connus: clients?.connus ?? new Set() });
   const deClients = clients ? classer(workflows, clients).signalements : [];
+  const sansEtiquette = classerSansEtiquette(workflows).signalements;
+  const archives = new Set(workflows.filter((w) => w.archive === true).map((w) => String(w.id))); // un workflow archivé ne tourne plus : pas de signalement
   const vus = new Set();
-  const signalements = [...siens, ...deClients].filter((i) => !vus.has(i.workflowId) && vus.add(i.workflowId));
+  const signalements = [...siens, ...deClients, ...sansEtiquette].filter((i) => !archives.has(i.workflowId) && !vus.has(i.workflowId) && vus.add(i.workflowId));
   await db.doc('plateforme_journal/signalements').set({ lastRunAt: new Date(maintenant), items: signalements });
   for (const s of signalements) journalCloud.warn('Journal : workflow ignoré (interne)', { workflowId: s.workflowId, raison: s.raison });
   return synchroniserClient({ db, n8n, client: PROPRIETAIRE_INTERNE, base: BASE_INTERNE, maintenant, raison, obtenirWorkflows: async () => retenus });
