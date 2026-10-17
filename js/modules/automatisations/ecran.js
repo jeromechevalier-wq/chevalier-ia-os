@@ -77,20 +77,20 @@ export function rendreHistorique(conteneur) {
     const maintenant = Date.now();
     if (!force && maintenant - derniereLecture < 30000) return;
     derniereLecture = maintenant;
-    const cible = filtres.proprietaire === L.PROPRIETAIRE_INTERNE || filtres.proprietaire === L.FILTRE_A_VERIFIER ? 'tous' : filtres.proprietaire;
+    const cible = filtres.proprietaire === L.PROPRIETAIRE_INTERNE || L.estCategorieWorkflows(filtres.proprietaire) ? 'tous' : filtres.proprietaire;
     D.chargerClients(cible);
   }
 
   function changerProprietaire(valeur) {
-    filtres = { ...filtres, proprietaire: valeur, workflowId: '' };
+    filtres = { workflowId: '', etat: '', proprietaire: valeur }; // changer de propriétaire vide les deux autres filtres
     signature = '';
     selProprietaire.value = valeur;
-    if (valeur !== L.PROPRIETAIRE_INTERNE && valeur !== L.FILTRE_A_VERIFIER) lireClients(true);
+    if (valeur !== L.PROPRIETAIRE_INTERNE && !L.estCategorieWorkflows(valeur)) lireClients(true);
     rendre();
   }
 
   function remplirFiltreProprietaires() {
-    const options = L.optionsProprietaires(D.etat.admin.proprietaires, D.etat.admin.aVerifier.length);
+    const options = L.optionsProprietaires(D.etat.admin.proprietaires, L.signalementsDe(D.etat.admin.aVerifier, L.FILTRE_A_VERIFIER).length, L.signalementsDe(D.etat.admin.aVerifier, L.FILTRE_SANS_MODULE).length);
     const sig = JSON.stringify(options);
     if (selProprietaire.dataset.sig === sig) return;
     selProprietaire.dataset.sig = sig;
@@ -99,13 +99,35 @@ export function rendreHistorique(conteneur) {
     selProprietaire.value = filtres.proprietaire;
   }
 
-  /** Une carte « À vérifier » : le workflow, la raison en français simple, d'où vient le signalement. Texte simple uniquement. */
-  function carteAVerifier(i) {
-    return h('li', { class: 'autom-ligne autom-averifier', dataset: { raison: i.raison || '' } },
-      h('div', { class: 'autom-principal' }, h('span', { class: 'autom-nom' }, i.nom || 'Workflow sans nom'),
-        h('div', { class: 'autom-meta' }, `Identifiant n8n : ${i.workflowId || '—'}`)),
-      h('span', { class: 'autom-pastille etat-stale' }, h('i', { class: 'autom-point' }), 'À vérifier'),
-      h('div', { class: 'autom-indice' }, i.message || 'Les signes de ce workflow ne concordent pas : il n’est pas copié.'));
+  /** Une carte de workflow non copié : son vrai nom, la raison en français, puis une ligne par signe (✔ concorde, ✘ manque ou diverge). Texte simple uniquement. */
+  function carteWorkflow(i) {
+    return h('li', { class: 'autom-ligne autom-averifier', dataset: { raison: i.raison || '', categorie: i.categorie || '' } },
+      h('div', { class: 'autom-principal' }, h('span', { class: 'autom-nom' }, i.nom || `Workflow n°${i.workflowId || '?'} (nom non fourni)`),
+        h('div', { class: 'autom-meta' }, `Identifiant n8n : ${i.workflowId || '—'}${i.proprietaire ? ` · vise : ${L.nomProprietaire(i.proprietaire, D.etat.admin.proprietaires)}` : ''}`)),
+      h('span', { class: `autom-pastille ${i.categorie === 'sans-module' ? 'etat-canceled' : 'etat-stale'}` }, h('i', { class: 'autom-point' }), i.categorie === 'sans-module' ? 'Client sans le module' : 'Non reconnu'),
+      h('div', { class: 'autom-indice' }, i.message || 'Les signes de ce workflow ne concordent pas : il n’est pas copié.'),
+      i.lignes?.length ? h('ul', { class: 'autom-signes' }, i.lignes.map((l) => h('li', { class: l.ok ? 'ok' : 'ko' }, h('b', {}, `${l.ok ? '✔' : '✘'} ${l.signe} : `), l.texte))) : null);
+  }
+
+  /** Ne propose que les états qui existent chez le propriétaire choisi ; un état devenu impossible est vidé. */
+  function remplirFiltreEtats(maintenant) {
+    const options = L.optionsEtatPossibles(vue.executions, maintenant);
+    const sig = JSON.stringify(options);
+    if (selEtat.dataset.sig !== sig) {
+      selEtat.dataset.sig = sig;
+      remplir(selEtat, options.map((o) => h('option', { value: o.valeur }, o.libelle)));
+    }
+    selEtat.value = options.some((o) => o.valeur === filtres.etat) ? filtres.etat : '';
+    filtres.etat = selEtat.value;
+  }
+
+  function reinitialiserFiltres() {
+    filtres = { workflowId: '', etat: '', proprietaire: 'tous' };
+    selProprietaire.value = 'tous';
+    selAutomatisation.value = '';
+    signature = '';
+    lireClients(true);
+    rendre();
   }
 
   function remplirFiltreAutomatisations() {
@@ -163,10 +185,13 @@ export function rendreHistorique(conteneur) {
     bandeau.textContent = texteBandeau || '';
     if (!D.etat.pret) { remplir(liste, h('li', { class: 'autom-vide' }, 'Chargement…')); return; }
     if (admin) remplirFiltreProprietaires();
-    remplirFiltreAutomatisations();
-    const nbVerifier = admin ? D.etat.admin.aVerifier.length : 0;
+    // Vue « workflows non reconnus » ou « clients sans le module » : ce sont des workflows, pas des exécutions ; les filtres d'automatisation et d'état n'ont pas de sens.
+    const categorie = admin && L.estCategorieWorkflows(filtres.proprietaire);
+    selAutomatisation.hidden = categorie; selEtat.hidden = categorie; resume.hidden = categorie;
+    if (!categorie) { remplirFiltreAutomatisations(); remplirFiltreEtats(maintenant); }
+    const nbVerifier = admin ? L.signalementsDe(D.etat.admin.aVerifier, L.FILTRE_A_VERIFIER).length : 0;
     alerteVerifier.hidden = !(admin && nbVerifier > 0 && filtres.proprietaire !== L.FILTRE_A_VERIFIER);
-    alerteVerifier.textContent = `${nbVerifier} workflow${nbVerifier > 1 ? 's' : ''} à vérifier : voir pourquoi`;
+    alerteVerifier.textContent = `${nbVerifier} workflow${nbVerifier > 1 ? 's' : ''} non reconnu${nbVerifier > 1 ? 's' : ''} : voir pourquoi`;
     const c = L.compteurs(vue.executions, maintenant);
     const visibles = L.filtrer(vue.executions, filtres, maintenant);
     // On ne reconstruit la liste que si quelque chose a changé (évite de perdre le focus et de faire clignoter).
@@ -176,15 +201,22 @@ export function rendreHistorique(conteneur) {
     remplir(resume,
       h('span', { class: 'autom-puce run' }, h('b', {}, String(c.enCours)), ' en cours'),
       h('span', { class: 'autom-puce ko' }, h('b', {}, String(c.erreur)), ' en erreur'),
-      h('span', { class: 'autom-puce chk' }, h('b', {}, String(c.averifier)), ' à vérifier'),
+      h('span', { class: 'autom-puce chk' }, h('b', {}, String(c.averifier)), ' exécutions à vérifier'),
       h('span', { class: 'autom-puce ok' }, h('b', {}, String(c.terminees)), ' terminées'));
-    if (admin && filtres.proprietaire === L.FILTRE_A_VERIFIER) {
-      remplir(liste, D.etat.admin.aVerifier.length
-        ? D.etat.admin.aVerifier.map(carteAVerifier)
-        : h('li', { class: 'autom-vide' }, 'Rien à vérifier : tous les workflows reconnus ont leurs trois signes (étiquette, nom, clé de la porte).'));
+    if (admin && L.estCategorieWorkflows(filtres.proprietaire)) {
+      const cartes = L.signalementsDe(D.etat.admin.aVerifier, filtres.proprietaire);
+      remplir(liste, cartes.length
+        ? cartes.map(carteWorkflow)
+        : h('li', { class: 'autom-vide' }, filtres.proprietaire === L.FILTRE_SANS_MODULE ? 'Aucun client sans le module n’a de workflow étiqueté.' : 'Aucun workflow non reconnu : tous ceux qui ont un signe de propriétaire ont leurs signes en règle.'));
       return;
     }
     if (!visibles.length) {
+      const filtreActif = filtres.workflowId || filtres.etat || (admin && filtres.proprietaire !== 'tous');
+      if (filtreActif) {
+        remplir(liste, h('li', { class: 'autom-vide autom-aucun-resultat' }, 'Aucun résultat pour ces filtres. ',
+          h('button', { type: 'button', class: 'bouton', onclick: reinitialiserFiltres }, 'Réinitialiser les filtres')));
+        return;
+      }
       remplir(liste, h('li', { class: 'autom-vide' }, vue.executions.length
         ? 'Aucune exécution ne correspond à ce filtre.'
         : copiePossible

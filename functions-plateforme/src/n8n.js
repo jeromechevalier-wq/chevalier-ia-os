@@ -96,7 +96,7 @@ export function creerLecteurN8n({ cle, url = URL_N8N, fetchImpl = globalThis.fet
       await parcourir('/workflows', { tags: etiquette, excludePinnedData: true }, (page) => {
         for (const w of page) {
           const tags = Array.isArray(w?.tags) ? w.tags.map((t) => texte(t?.name)).filter(Boolean) : [];
-          liste.push({ id: texte(w?.id), name: texte(w?.name) ?? '', active: w?.active === true, tags, cles: nomsDeCredentials(w?.nodes) });
+          liste.push({ id: texte(w?.id), name: texte(w?.name) ?? '', active: w?.active === true, tags, ...credentialsDe(w?.nodes) });
         }
       });
       return liste.filter((w) => w.id);
@@ -144,19 +144,26 @@ export function creerLecteurN8n({ cle, url = URL_N8N, fetchImpl = globalThis.fet
   };
 }
 
-/** Noms (et rien d'autre) des credentials que les nœuds d'un workflow utilisent. Au plus 40 noms, 120 caractères chacun. */
-function nomsDeCredentials(noeuds) {
-  const noms = new Set();
+/**
+ * Credentials que les nœuds d'un workflow utilisent : { cles: [noms], clesIds: [identifiants] } (mêmes positions). Jamais leur contenu.
+ * Attention : n8n écrit le NOM du credential dans chaque nœud au moment où on l'y choisit ; si on renomme ensuite le credential, ce nom reste ancien dans
+ * le workflow tant qu'on ne l'a pas rechoisi. L'IDENTIFIANT, lui, ne change jamais : c'est lui qui fait foi (etiquettes.js). Au plus 40 credentials.
+ */
+function credentialsDe(noeuds) {
+  const vus = new Map(); // identifiant (ou nom) -> { nom, id }
   for (const n of Array.isArray(noeuds) ? noeuds : []) {
     const creds = n?.credentials;
     if (!creds || typeof creds !== 'object') continue;
     for (const c of Object.values(creds)) {
       const nom = texte(c?.name);
-      if (nom) noms.add(nom.slice(0, 120));
-      if (noms.size >= 40) return [...noms];
+      const id = texte(c?.id);
+      if (!nom && !id) continue;
+      vus.set(id ?? `nom:${nom}`, { nom: (nom ?? '').slice(0, 120), id: id ? id.slice(0, 64) : null });
+      if (vus.size >= 40) break;
     }
   }
-  return [...noms];
+  const liste = [...vus.values()];
+  return { cles: liste.map((c) => c.nom), clesIds: liste.map((c) => c.id) };
 }
 
 /** Garde d'une exécution seulement les champs de suivi (liste blanche). */

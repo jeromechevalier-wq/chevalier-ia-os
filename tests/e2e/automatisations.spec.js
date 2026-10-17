@@ -76,7 +76,7 @@ const lignes = (page) => page.locator('.autom-ligne');
 test('J1 écran : quatre compteurs, liste, état « à vérifier » avec son explication, ligne d\'erreur avec étape et message', async ({ page }) => {
   await ouvrir(page, 'cabinet');
   await expect(page).toHaveURL(/#\/espace\/cabinet\/automatisations\/historique$/);
-  await expect(page.locator('.autom-resume')).toHaveText(/1\s*en cours\s*1\s*en erreur\s*1\s*à vérifier\s*2\s*terminées/);
+  await expect(page.locator('.autom-resume')).toHaveText(/1\s*en cours\s*1\s*en erreur\s*1\s*exécutions à vérifier\s*2\s*terminées/);
   await expect(lignes(page)).toHaveCount(5);
   const erreur = page.locator('.autom-ligne[data-etat="error"]');
   await expect(erreur).toContainText('Étape en échec : Lire Presences');
@@ -104,7 +104,7 @@ test('J2 filtres par automatisation et par état', async ({ page }) => {
   await page.getByLabel('Filtrer par automatisation').selectOption('wf1');
   await expect(lignes(page)).toHaveCount(2);
   await page.getByLabel('Filtrer par état').selectOption('running');
-  await expect(page.locator('.autom-vide')).toHaveText('Aucune exécution ne correspond à ce filtre.');
+  await expect(page.locator('.autom-vide')).toContainText('Aucun résultat pour ces filtres');
 });
 
 test('J3 isolation : le journal d\'un autre client n\'apparaît jamais ; un autre client voit le sien seul', async ({ page }) => {

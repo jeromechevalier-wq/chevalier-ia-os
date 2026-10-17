@@ -54,6 +54,11 @@
 .autom-alerte-verifier[hidden] { display: none; }
 .autom-alerte-verifier:hover, .autom-alerte-verifier:focus-visible { text-decoration: underline; }
 .autom-averifier .autom-indice { color: var(--texte); }
+.autom-signes { flex: 1 1 100%; list-style: none; margin: 4px 0 0; padding: 0; font-size: 14px; display: grid; gap: 3px; }
+.autom-signes .ok b { color: var(--succes); }
+.autom-signes .ko b { color: var(--retard); }
+.autom-resume[hidden], .autom-filtres select[hidden] { display: none; }
+.autom-aucun-resultat { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
 
 /* Les compteurs (« il y a 2 s », durées) changent chaque seconde : chiffres de largeur fixe et zone réservée, pour que la ligne ne bouge plus. */
 .autom-maj { display: inline-block; min-width: 14ch; font-variant-numeric: tabular-nums; }
