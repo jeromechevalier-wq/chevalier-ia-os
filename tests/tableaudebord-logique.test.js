@@ -231,3 +231,40 @@ describe('identifiant HTML d\'une famille', () => {
     assert.equal(L.idFamille(''), 'td-f-autres');
   });
 });
+
+describe('saisie et historique des saisies (logique pure)', () => {
+  test('S6 seuls les indicateurs manuel et semi se saisissent ; le bouton dit « date » pour un état, « valeur » pour une mesure', () => {
+    assert.equal(L.peutSaisir({ methode: 'manuel' }), true);
+    assert.equal(L.peutSaisir({ methode: 'semi' }), true);
+    for (const m of ['auto', null, undefined, 'autre']) assert.equal(L.peutSaisir({ methode: m }), false, String(m));
+    assert.equal(L.peutSaisir(undefined), false);
+    assert.equal(L.libelleSaisie({ type: 'etat' }), 'Saisir la date');
+    assert.equal(L.libelleSaisie({ type: 'mesure' }), 'Saisir la valeur');
+  });
+  test('S7 saisiesRecentes : seulement saisie === true, du plus récent au plus ancien, 200 au plus, sans modifier la liste reçue', () => {
+    const liste = [
+      { id: 'a', saisie: true, releveMs: 1000 }, { id: 'script', saisie: false, releveMs: 9999, saisiPar: 'github:x' }, { id: 'b', saisie: true, releveMs: 3000 },
+      { id: 'c', saisie: true, releveMs: 2000 }, { id: 'sans', releveMs: 5000 }, { id: 'inconnue', saisie: true, releveMs: null },
+    ];
+    const copie = JSON.stringify(liste);
+    assert.deepEqual(L.saisiesRecentes(liste).map((s) => s.id), ['b', 'c', 'a', 'inconnue']);
+    assert.equal(JSON.stringify(liste), copie);
+    const beaucoup = Array.from({ length: 250 }, (_, i) => ({ id: `s${i}`, saisie: true, releveMs: i }));
+    const r = L.saisiesRecentes(beaucoup);
+    assert.equal(r.length, 200);
+    assert.equal(r[0].id, 's249');
+    assert.equal(r.at(-1).id, 's50');
+    assert.equal(L.MAX_SAISIES_AFFICHEES, 200);
+  });
+  test('S7 texteAvantApres : dates en jour/mois/année, valeurs avec unité, « avant » inconnu', () => {
+    const jour = (s) => Date.parse(`${s}T00:00:00Z`);
+    assert.equal(L.texteAvantApres({ avantEcheanceMs: jour('2026-12-01'), apresEcheanceMs: jour('2027-05-01') }), '01/12/2026 → 01/05/2027');
+    assert.equal(L.texteAvantApres({ avantEcheanceMs: null, apresEcheanceMs: jour('2027-05-01') }), 'aucune date → 01/05/2027');
+    assert.equal(L.texteAvantApres({ avantValeur: 42, apresValeur: 37.5 }, 'bouteilles'), '42 bouteilles → 37,5 bouteilles');
+    assert.equal(L.texteAvantApres({ avantValeur: null, apresValeur: 0 }), 'aucune valeur → 0');
+  });
+  test('S7 dateHeure : « 17/10/2026 à 12:15 » (fuseau de Paris), date inconnue sinon', () => {
+    assert.equal(L.dateHeure(Date.parse('2026-10-17T10:15:00Z'), 'Europe/Paris'), '17/10/2026 à 12:15');
+    assert.equal(L.dateHeure(null), 'date inconnue');
+  });
+});
