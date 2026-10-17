@@ -82,18 +82,28 @@ export const ACTIONS_TABLEAU = Object.freeze({
         // (une échéance disparue, une valeur d'avant). L'adaptateur ne sait que créer et mettre à jour : jamais de remplacement ni de suppression.
         const doc = { ...CHAMPS_FACULTATIFS, ...sansIndefini(i), proprietaire, ecritPar: auteur, modifieLe: new Date(maintenant()) };
         const chem = chemin(base, TABLES_TABLEAU.indicateurs, i.id);
-        // Un relevé ancien (ou rejoué) ne remplace jamais un relevé plus récent ou identique : il est ignoré et compté.
-        const existant = await donnees.lireDoc(chem);
-        // Une saisie faite à l'écran (saisiPar) sur un indicateur manuel ou semi n'est JAMAIS remplacée par le script : il ne met rien à jour (ni échéance, ni nom, ni message), même si
-        // l'échéance saisie est dépassée ; Jérôme ressaisit. Un indicateur « auto » n'est pas concerné (et perd alors sa trace de saisie, voir CHAMPS_FACULTATIFS).
-        if (existant?.saisiPar && (i.methode === 'manuel' || i.methode === 'semi')) { ignores++; continue; }
-        const dejaLe = existant ? enMillis(existant.releveLe) : null;
-        if (dejaLe !== null && dejaLe >= i.releveLe.getTime()) { ignores++; continue; }
-        if (!(await donnees.majDoc(chem, doc)) && !(await donnees.creerSiAbsent(chem, doc))) {
-          // Créé entre-temps par un autre appel : une seule nouvelle tentative de mise à jour.
-          if (!(await donnees.majDoc(chem, doc))) throw new ErreurAction('ecriture_impossible', 'Écriture impossible.', 500);
+        // Course avec une saisie à l'écran : la mise à jour porte la précondition « le document n'a pas changé depuis ma lecture » (updateTime rendu par lireDoc).
+        // Si elle échoue, une saisie est peut-être arrivée entre-temps : on relit UNE fois et on réapplique toute la règle ; un deuxième échec est une erreur
+        // claire (le script réessaiera au prochain passage). Sans transaction. Un adaptateur qui ne rend pas d'updateTime écrit sans précondition (comportement d'avant).
+        let fait = false;
+        for (let essai = 1; essai <= 2 && !fait; essai++) {
+          // Un relevé ancien (ou rejoué) ne remplace jamais un relevé plus récent ou identique : il est ignoré et compté.
+          const existant = await donnees.lireDoc(chem);
+          // Une saisie faite à l'écran (saisiPar) sur un indicateur manuel ou semi n'est JAMAIS remplacée par le script : il ne met rien à jour (ni échéance, ni nom, ni message), même si
+          // l'échéance saisie est dépassée ; Jérôme ressaisit. Un indicateur « auto » n'est pas concerné (et perd alors sa trace de saisie, voir CHAMPS_FACULTATIFS).
+          if (existant?.saisiPar && (i.methode === 'manuel' || i.methode === 'semi')) { ignores++; fait = true; break; }
+          const dejaLe = existant ? enMillis(existant.releveLe) : null;
+          if (dejaLe !== null && dejaLe >= i.releveLe.getTime()) { ignores++; fait = true; break; }
+          const r = await donnees.majDoc(chem, doc, existant?.updateTime ? { lastUpdateTime: existant.updateTime } : undefined);
+          if (r?.preconditionEchouee === true) continue; // modifié depuis la lecture : relire et réappliquer la règle
+          if (!r && !(await donnees.creerSiAbsent(chem, doc))) {
+            // Créé entre-temps par un autre appel : une seule nouvelle tentative de mise à jour (sans précondition : le document vient d'apparaître, la règle est relue au prochain passage).
+            if (!(await donnees.majDoc(chem, doc))) throw new ErreurAction('ecriture_impossible', 'Écriture impossible.', 500);
+          }
+          ecrits++;
+          fait = true;
         }
-        ecrits++;
+        if (!fait) throw new ErreurAction('conflit_ecriture', `L'indicateur « ${i.id} » a été modifié pendant l'écriture : rien n'a été écrit pour lui, le script réessaiera au prochain passage.`, 409);
       }
       return { ecrits, ignores };
     },

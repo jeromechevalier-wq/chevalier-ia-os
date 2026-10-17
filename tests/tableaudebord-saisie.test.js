@@ -4,6 +4,8 @@ import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { saisir, ErreurSaisie, DELAI_ECHEANCE_JOURS, PERIME_APRES_MINUTES, RAPPEL, lireJour } from '../scripts/porte/saisie-tableaudebord.js';
+import { ACTIONS_TABLEAU } from '../scripts/porte/actions-tableaudebord.js';
+import { PRECONDITION_ECHOUEE } from '../scripts/porte/adaptateur.js';
 import * as L from '../js/modules/tableaudebord/logique.js';
 
 const JOUR = 86_400_000;
@@ -197,5 +199,87 @@ describe('le code de la saisie', () => {
   });
   test('les deux tables sont écrites dans le code, jamais reçues', () => {
     assert.deepEqual([...new Set([...t.matchAll(/'(tableaudebord_[a-z_]+)'/g)].map((m) => m[1]))].sort(), ['tableaudebord_indicateurs', 'tableaudebord_releves']);
+  });
+});
+
+describe('course entre le script quotidien et une saisie (précondition sur la dernière modification)', () => {
+  const CHEM = 'tableaudebord_indicateurs/cle_n8n';
+  const LENDEMAIN = new Date(T0 + JOUR);
+  const SCRIPT = { id: 'cle_n8n', tableau: 'technique', famille: 'cles', nom: 'Clé API de n8n', type: 'etat', niveau: 'orange', message: 'Date à vérifier', releveLe: LENDEMAIN, methode: 'manuel' };
+  const executer = (donnees, indicateurs = [SCRIPT]) => ACTIONS_TABLEAU['indicateurs.ecrire'].executer({ base: '', donnees, auteur: 'github:abcd1234', maintenant: () => LENDEMAIN.getTime(), proprietaire: 'interne' }, { indicateurs });
+
+  /**
+   * Faux adaptateur à la manière de Firestore : lireDoc rend un updateTime (un compteur), majDoc avec { lastUpdateTime } échoue (PRECONDITION_ECHOUEE) si le document a changé depuis.
+   * `entreLectureEtEcriture(n)` est appelé juste avant chaque majDoc (n = numéro de la mise à jour) : c'est là qu'on simule une saisie arrivée entre-temps.
+   */
+  function baseConcurrente(initial, entreLectureEtEcriture = () => {}) {
+    const docs = new Map(Object.entries(initial).map(([c, d]) => [c, { ...d, _version: 1 }]));
+    const b = {
+      docs, lectures: 0, majs: [],
+      async lireDoc(c) { b.lectures++; if (!docs.has(c)) return null; const { _version, ...d } = docs.get(c); return { ...d, id: c.split('/').at(-1), updateTime: _version }; },
+      async creerSiAbsent() { throw new Error('inattendu'); },
+      async majDoc(c, p, { lastUpdateTime } = {}) {
+        b.majs.push({ c, lastUpdateTime });
+        await entreLectureEtEcriture(b.majs.length, b);
+        if (!docs.has(c)) return false;
+        if (lastUpdateTime !== undefined && docs.get(c)._version !== lastUpdateTime) return PRECONDITION_ECHOUEE;
+        const v = docs.get(c);
+        docs.set(c, { ...v, ...p, _version: v._version + 1 });
+        return true;
+      },
+      /** Ce que fait la fonction de saisie : met à jour l'indicateur (nouvelle version). */
+      saisieArrivee() {
+        const v = docs.get(CHEM);
+        docs.set(CHEM, { ...v, echeance: new Date('2027-05-01'), niveau: 'vert', saisiPar: MAIL, saisiLe: new Date(T0), _version: v._version + 1 });
+      },
+    };
+    return b;
+  }
+
+  test('une saisie validée entre la lecture et l\'écriture du script reste intacte : le script relit, voit la saisie et l\'ignore (ignores: 1)', async () => {
+    const b = baseConcurrente({ [CHEM]: CLE_N8N }, (n, base) => { if (n === 1) base.saisieArrivee(); });
+    assert.deepEqual(await executer(b), { ecrits: 0, ignores: 1 });
+    const doc = b.docs.get(CHEM);
+    assert.equal(doc.saisiPar, MAIL, 'la trace de la saisie est conservée');
+    assert.equal(doc.niveau, 'vert');
+    assert.equal(doc.echeance.toISOString().slice(0, 10), '2027-05-01');
+    assert.equal(doc.ecritPar, undefined, 'le script n\'a rien écrit');
+    assert.equal(b.majs.length, 1, 'la précondition a refusé la seule tentative d\'écriture');
+    assert.equal(b.lectures, 2, 'une seule relecture');
+  });
+  test('la précondition est bien posée : l\'écriture du script porte le updateTime lu', async () => {
+    const b = baseConcurrente({ [CHEM]: CLE_N8N });
+    assert.deepEqual(await executer(b), { ecrits: 1, ignores: 0 });
+    assert.deepEqual(b.majs, [{ c: CHEM, lastUpdateTime: 1 }]);
+    assert.equal(b.docs.get(CHEM).ecritPar, 'github:abcd1234');
+  });
+  test('modifié par autre chose qu\'une saisie (un autre relevé du script) : une relecture, la règle est réappliquée et l\'écriture a lieu', async () => {
+    const b = baseConcurrente({ [CHEM]: CLE_N8N }, (n, base) => { if (n === 1) base.docs.set(CHEM, { ...base.docs.get(CHEM), message: 'Autre', _version: 2 }); });
+    assert.deepEqual(await executer(b), { ecrits: 1, ignores: 0 });
+    assert.deepEqual(b.majs.map((m) => m.lastUpdateTime), [1, 2]);
+    assert.equal(b.docs.get(CHEM).message, 'Date à vérifier');
+  });
+  test('un indicateur « auto » n\'est pas protégé : si une saisie arrive entre-temps, le script relit puis réécrit (et remet saisiPar à null)', async () => {
+    const b = baseConcurrente({ [CHEM]: CLE_N8N }, (n, base) => { if (n === 1) base.saisieArrivee(); });
+    assert.deepEqual(await executer(b, [{ ...SCRIPT, methode: 'auto' }]), { ecrits: 1, ignores: 0 });
+    assert.equal(b.docs.get(CHEM).saisiPar, null);
+  });
+  test('deuxième échec de précondition : erreur claire « conflit_ecriture », rien n\'est écrit par le script (il réessaiera demain)', async () => {
+    const b = baseConcurrente({ [CHEM]: CLE_N8N }, (n, base) => { const v = base.docs.get(CHEM); base.docs.set(CHEM, { ...v, _version: v._version + 1 }); });
+    await assert.rejects(() => executer(b), (e) => e.code === 'conflit_ecriture' && e.statut === 409 && /réessaiera/.test(e.message) && !/\bupdateTime\b|Firestore/.test(e.message));
+    assert.equal(b.majs.length, 2, 'exactement une relecture, jamais de boucle');
+    assert.equal(b.lectures, 2);
+    assert.equal(b.docs.get(CHEM).ecritPar, undefined);
+  });
+  test('un adaptateur sans updateTime (autres appelants, faux simples) écrit comme avant, sans précondition', async () => {
+    const docs = new Map([[CHEM, { ...CLE_N8N }]]);
+    const appels = [];
+    const donnees = {
+      async lireDoc(c) { return docs.has(c) ? { ...docs.get(c), id: 'cle_n8n' } : null; },
+      async creerSiAbsent() { return false; },
+      async majDoc(c, p, options) { appels.push(options); docs.set(CHEM, { ...docs.get(CHEM), ...p }); return true; },
+    };
+    assert.deepEqual(await executer(donnees), { ecrits: 1, ignores: 0 });
+    assert.deepEqual(appels, [undefined], 'majDoc appelé sans précondition');
   });
 });

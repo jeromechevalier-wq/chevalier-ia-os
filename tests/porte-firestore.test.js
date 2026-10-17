@@ -166,4 +166,42 @@ describe('Saisie du tableau de bord et Firestore (émulateur)', { skip: emulateu
     assert.deepEqual(await ACTIONS_TABLEAU['indicateurs.ecrire'].executer(ctx, { indicateurs: [{ ...script, methode: 'auto' }] }), { ecrits: 1, ignores: 0 });
     assert.equal((await db.doc(CHEM).get()).data().saisiPar, null);
   });
+  test('S5bis sur la vraie base : une saisie validée entre la lecture et l\'écriture du script n\'est pas écrasée (vraie précondition lastUpdateTime)', async () => {
+    const { saisir } = await import('../scripts/porte/saisie-tableaudebord.js');
+    const { ACTIONS_TABLEAU } = await import('../scripts/porte/actions-tableaudebord.js');
+    const lendemain = new Date(T0 + 86_400_000);
+    const script = { id: 'cle_n8n', tableau: 'technique', famille: 'cles', nom: 'Clé API de n8n', type: 'etat', niveau: 'orange', message: 'Date à vérifier', releveLe: lendemain, methode: 'manuel' };
+    const ctx = (d) => ({ base: '', donnees: d, auteur: 'github:abcd1234', maintenant: () => lendemain.getTime(), proprietaire: 'interne' });
+    // La saisie arrive APRÈS la lecture du script et AVANT son écriture : on la glisse dans le premier majDoc.
+    let majs = 0; let lectures = 0;
+    const concurrent = {
+      ...donnees,
+      async lireDoc(c) { lectures++; return donnees.lireDoc(c); },
+      async majDoc(c, p, o) {
+        majs++;
+        if (majs === 1) await saisir({ donnees, maintenant: () => T0, auteur: MAIL, demande: { indicateurId: 'cle_n8n', echeance: '2027-05-01' } });
+        return donnees.majDoc(c, p, o);
+      },
+    };
+    assert.deepEqual(await ACTIONS_TABLEAU['indicateurs.ecrire'].executer(ctx(concurrent), { indicateurs: [script] }), { ecrits: 0, ignores: 1 });
+    const ind = (await db.doc(CHEM).get()).data();
+    assert.equal(ind.saisiPar, MAIL, 'la saisie est intacte');
+    assert.equal(ind.echeance.toDate().toISOString().slice(0, 10), '2027-05-01');
+    assert.equal(ind.ecritPar, undefined, 'le script n\'a rien écrit');
+    assert.equal(majs, 1);
+    assert.equal(lectures, 2, 'une seule relecture');
+  });
+  test('majDoc : sans changement la précondition passe ; après un changement elle échoue (résultat distinct de « absent ») ; un document absent reste false sans précondition', async () => {
+    const { PRECONDITION_ECHOUEE } = await import('../scripts/porte/adaptateur.js');
+    const lu = await donnees.lireDoc(CHEM);
+    assert.ok(lu.updateTime, 'lireDoc rend updateTime');
+    assert.equal(await donnees.majDoc(CHEM, { message: 'A' }, { lastUpdateTime: lu.updateTime }), true);
+    assert.equal(await donnees.majDoc(CHEM, { message: 'B' }, { lastUpdateTime: lu.updateTime }), PRECONDITION_ECHOUEE, 'le document a changé depuis la lecture');
+    assert.equal((await db.doc(CHEM).get()).data().message, 'A', 'rien n\'est écrit quand la précondition échoue');
+    assert.equal(await donnees.majDoc('tableaudebord_indicateurs/fantome', { a: 1 }), false);
+    // Avec une précondition, Firestore répond « précondition échouée » (et non « introuvable ») pour un document absent : rien n'est créé non plus.
+    assert.equal(await donnees.majDoc('tableaudebord_indicateurs/fantome', { a: 1 }, { lastUpdateTime: lu.updateTime }), PRECONDITION_ECHOUEE);
+    assert.equal((await db.doc('tableaudebord_indicateurs/fantome').get()).exists, false);
+    assert.equal(await donnees.majDoc(CHEM, { message: 'C' }), true, 'sans option : comme avant');
+  });
 });

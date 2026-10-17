@@ -490,7 +490,10 @@ describe('porte : le code', () => {
     assert.match(a, /lot\.update\(ref, donnees\)/);
     assert.doesNotMatch(a, /lot\.(set|delete)\(/);
     assert.match(a, /\.create\(donnees\)/);
+    // Mise à jour simple, ou avec la seule précondition « document inchangé depuis la lecture » (lastUpdateTime) : aucune autre option (pas de merge, pas de remplacement) : majCle, majDoc simple, majDoc avec précondition.
     assert.match(a, /\.update\(partiel\)/);
+    assert.match(a, /\.update\(partiel, \{ lastUpdateTime \}\)/);
+    assert.equal((a.match(/\.update\(partiel/g) || []).length, 3);
     for (const f of ['porte.js', 'actions-veille.js', 'validation.js', 'cles.js']) assert.doesNotMatch(lire(f), /\bdb\b|firebase|firestore|recursiveDelete/i, `${f} ne touche pas à la base directement`);
   });
   test('pas de console, de variable d\'environnement, d\'eval ni de processus dans les fichiers de la porte', () => {

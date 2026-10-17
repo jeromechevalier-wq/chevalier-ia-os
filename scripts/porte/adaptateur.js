@@ -7,6 +7,10 @@ import { TABLE_CLES } from './cles.js';
 const SEGMENT = /^[A-Za-z0-9_-]{1,100}$/;
 const DEJA_EXISTANT = [6, 'already-exists', 'ALREADY_EXISTS'];
 const INTROUVABLE = [5, 'not-found', 'NOT_FOUND'];
+const PRECONDITION = [9, 'failed-precondition', 'FAILED_PRECONDITION'];
+
+/** Résultat de `majDoc` quand la précondition `lastUpdateTime` n'est plus vraie (le document a été modifié depuis la lecture) : distinct de `false` (document absent). */
+export const PRECONDITION_ECHOUEE = Object.freeze({ preconditionEchouee: true });
 
 function sur(chemin) {
   const segments = String(chemin).split('/');
@@ -25,15 +29,28 @@ export function creerAdaptateur({ db }) {
     },
     async lireDoc(chemin) {
       const d = await db.doc(sur(chemin)).get();
-      return d.exists ? { ...d.data(), id: d.id } : null;
+      // `updateTime` : horodatage de dernière modification, tel que Firestore le donne ; il sert de précondition à `majDoc` (voir ci-dessous).
+      return d.exists ? { ...d.data(), id: d.id, updateTime: d.updateTime } : null;
     },
     /** Crée le document seulement s'il n'existe pas. Renvoie true s'il vient d'être créé. */
     async creerSiAbsent(chemin, donnees) {
       try { await db.doc(sur(chemin)).create(donnees); return true; } catch (e) { if (DEJA_EXISTANT.includes(e?.code)) return false; throw e; }
     },
-    /** Met à jour un document qui existe. Renvoie false s'il n'existe pas (rien n'est créé). */
-    async majDoc(chemin, partiel) {
-      try { await db.doc(sur(chemin)).update(partiel); return true; } catch (e) { if (INTROUVABLE.includes(e?.code)) return false; throw e; }
+    /**
+     * Met à jour un document qui existe. Renvoie true si c'est fait, false s'il n'existe pas (rien n'est créé).
+     * Avec `{ lastUpdateTime }` (l'`updateTime` rendu par `lireDoc`), la mise à jour n'a lieu que si le document n'a pas changé depuis cette lecture ;
+     * sinon rien n'est écrit et le résultat est PRECONDITION_ECHOUEE (objet distinct de false, qui est « absent »).
+     */
+    async majDoc(chemin, partiel, { lastUpdateTime } = {}) {
+      try {
+        if (lastUpdateTime) await db.doc(sur(chemin)).update(partiel, { lastUpdateTime });
+        else await db.doc(sur(chemin)).update(partiel);
+        return true;
+      } catch (e) {
+        if (INTROUVABLE.includes(e?.code)) return false;
+        if (lastUpdateTime && PRECONDITION.includes(e?.code)) return PRECONDITION_ECHOUEE;
+        throw e;
+      }
     },
     /**
      * Écrit plusieurs documents EN UN SEUL LOT atomique (tout ou rien). `operations` : [{ type: 'creer' | 'maj', chemin, donnees }].
