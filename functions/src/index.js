@@ -13,6 +13,7 @@ import { lireSecretJetons } from './securite/secret.js';
 import { creerRouteurOauth } from './oauth/routeur.js';
 import { creerVerificateurIdentite } from './oauth/identite-google.js';
 import { creerGestionnairePorteCrm } from './porte.js';
+import { creerGestionnaireTableauCrm } from './tableaudebord.js';
 import { creerAdaptateur } from '../partage/porte/adaptateur.js';
 import { creerServiceVeille } from './veille/service.js';
 import { creerAppelVeille } from './veille/appel.js';
@@ -50,6 +51,22 @@ export const porte = onRequest(
     serviceAccount: 'porte-serveur@chevalier-ia-os.iam.gserviceaccount.com',
   },
   creerGestionnairePorteCrm(),
+);
+
+// `tableaudebord` : porte des scripts GitHub (surveillance des clés, des sauvegardes) qui écrivent leurs relevés dans la base, jointe par
+// https://chevalier-ia-os.web.app/tableau-de-bord (réécriture Hosting). Clé « cle-tdb.interne.… » (outil scripts/cles.js, --usage tableaudebord). Même compte que la porte :
+// aucun droit de plus, et aucun secret lu.
+export const tableaudebord = onRequest(
+  {
+    region: 'europe-west9',
+    maxInstances: 3,
+    memory: '256MiB',
+    timeoutSeconds: 60,
+    invoker: 'public',
+    cors: false,
+    serviceAccount: 'porte-serveur@chevalier-ia-os.iam.gserviceaccount.com',
+  },
+  creerGestionnaireTableauCrm(),
 );
 
 // `veille` : appelée par l'appli (boutons « Ajouter » et « Résumer » du module Veille). Le jeton du bouton Résumer vit ici (Secret Manager),

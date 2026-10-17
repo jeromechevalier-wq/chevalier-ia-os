@@ -1,7 +1,7 @@
 // Outil des clés de la porte : créer (ou changer de clé), lister, révoquer. Logique pure : le stockage, l'affichage et le presse-papiers sont
 // injectés, donc tout se teste sans Firebase (tests/porte-outil.test.js). Le point d'entrée est scripts/cles.js.
 //
-//   creer     --projet crm|plateforme --proprietaire <id> [--ecrire] [--afficher]
+//   creer     --projet crm|plateforme --proprietaire <id> [--usage tableaudebord] [--ecrire] [--afficher]   (sans --usage : clé n8n)
 //   lister    --projet crm|plateforme [--proprietaire <id>]
 //   revoquer  --projet crm|plateforme --proprietaire <id> --cle <identifiant court> [--ecrire] [--forcer]
 //
@@ -11,6 +11,7 @@
 import {
   genererCle, enregistrementDe, peutCreer, enService, resumeCle, MAX_CLES_ACTIVES, FORMAT_PROPRIETAIRE,
 } from './cles.js';
+import { genererCleTableau, enregistrementTableau, USAGE_TABLEAU } from './cles-tableau.js';
 
 /** projet -> projet Firebase et propriétaires permis. « crm » = la base 1 (Jérôme) : un seul propriétaire, « interne ». « plateforme » = la base 2 : un client existant. */
 export const PROJETS = Object.freeze({
@@ -21,7 +22,7 @@ export const PROJET_ESSAI = 'demo-chevalier-ia-os';
 const ID_COURT = /^[0-9a-f]{8}$/;
 const COMMANDES = ['creer', 'lister', 'revoquer'];
 const BOOLEENS = ['ecrire', 'afficher', 'forcer'];
-const VALEURS = ['projet', 'proprietaire', 'cle'];
+const VALEURS = ['projet', 'proprietaire', 'cle', 'usage'];
 
 /** argv (sans « node » ni le script) -> { commande, options } ou { erreur }. Option inconnue ou sans valeur = erreur (jamais ignorée en silence). */
 export function lireArguments(argv) {
@@ -98,7 +99,12 @@ async function creer(projet, proprietaire, options, ctx) {
     sortie(`✖ L'identifiant « ${proprietaire} » fait ${proprietaire.length} caractères : au-delà de ${LONGUEUR_MAX_CLIENT_AVEC_PORTE}, n8n ne peut pas créer l'étiquette « client-${proprietaire} » (24 caractères au plus), et la porte ne pourrait pas vérifier ses workflows. Aucune clé créée.`);
     return 1;
   }
-  const existantes = await store.listerCles(proprietaire);
+  const usage = options.usage ?? 'n8n';
+  if (usage !== 'n8n' && usage !== USAGE_TABLEAU) { sortie(`✖ --usage « ${usage} » inconnu. Choix : n8n (par défaut), ${USAGE_TABLEAU}.`); return 1; }
+  const tableau = usage === USAGE_TABLEAU;
+  if (tableau && projet.proprietairesFixes === null) { sortie('✖ La porte du tableau de bord n\'est en service que pour ton CRM (--projet crm). Aucune clé créée.'); return 1; }
+  // Les 3 clés actives au plus se comptent par usage : une clé du tableau de bord ne prend pas la place d'une clé n8n.
+  const existantes = (await store.listerCles(proprietaire)).filter((c) => (c.usage ?? 'n8n') === usage);
   const { ok, actives } = peutCreer(existantes);
   if (!ok) {
     sortie(`✖ « ${proprietaire} » a déjà ${actives} clés actives (maximum ${MAX_CLES_ACTIVES}). Révoque d'abord une clé devenue inutile :`);
@@ -111,17 +117,20 @@ async function creer(projet, proprietaire, options, ctx) {
     sortie('Relancer avec --ecrire pour la créer.');
     return 0;
   }
-  const cle = genererCle(proprietaire);
-  const enregistrement = enregistrementDe(cle, proprietaire, new Date(maintenant()));
+  const cle = tableau ? genererCleTableau(proprietaire) : genererCle(proprietaire);
+  const enregistrement = (tableau ? enregistrementTableau : enregistrementDe)(cle, proprietaire, new Date(maintenant()));
+  const remise = tableau ? cle : `Bearer ${cle}`; // le script GitHub ajoute « Bearer » lui-même ; le credential n8n, lui, le veut dans sa valeur
   // La clé est remise AVANT d'être enregistrée : si la remise échoue, rien n'existe côté base ; si l'enregistrement échoue, la clé remise ne marche pas (elle est refusée).
   if (options.afficher) {
-    sortie('\nVoici la valeur complète. Elle ne sera plus jamais affichée ; copie-la maintenant dans le champ Value du credential n8n du client :\n');
-    sortie(`  Bearer ${cle}\n`);
-  } else if (!copier(`Bearer ${cle}`)) {
+    sortie(`\nVoici la valeur complète. Elle ne sera plus jamais affichée ; copie-la maintenant ${tableau ? 'dans le secret GitHub CLE_TABLEAU_DE_BORD du dépôt interne-sauvegardes' : 'dans le champ Value du credential n8n du client'} :\n`);
+    sortie(`  ${remise}\n`);
+  } else if (!copier(remise)) {
     sortie('✖ Impossible de copier la clé dans le presse-papiers. Rien n\'a été créé. Relance avec --afficher pour la voir à l\'écran.');
     return 1;
   } else {
-    sortie('\nLa valeur complète (« Bearer » + la clé) est copiée dans le presse-papiers (elle n\'est pas affichée). Colle-la maintenant, telle quelle, dans le champ Value du credential n8n du client : elle ne pourra plus être retrouvée.');
+    sortie(tableau
+      ? '\nLa clé est copiée dans le presse-papiers (elle n\'est pas affichée). Colle-la maintenant, telle quelle, comme valeur du secret GitHub CLE_TABLEAU_DE_BORD du dépôt interne-sauvegardes : elle ne pourra plus être retrouvée.'
+      : '\nLa valeur complète (« Bearer » + la clé) est copiée dans le presse-papiers (elle n\'est pas affichée). Colle-la maintenant, telle quelle, dans le champ Value du credential n8n du client : elle ne pourra plus être retrouvée.');
   }
   await store.ecrireCle(enregistrement.id, enregistrement.donnees);
   const relu = await store.lireCle(enregistrement.id);

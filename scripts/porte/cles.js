@@ -91,5 +91,5 @@ export function resumeCle(doc, maintenant = Date.now()) {
   const dernier = enMs(doc.dernierUsage);
   const jours = dernier === null ? null : Math.floor((maintenant - dernier) / 86_400_000);
   const usage = dernier === null ? 'jamais utilisée' : jours === 0 ? 'utilisée aujourd\'hui' : `dernier usage il y a ${jours} jour${jours > 1 ? 's' : ''}`;
-  return `${doc.idCourt}  ${doc.actif ? 'active   ' : 'révoquée '} ${usage}${enService(doc, maintenant) ? '  (EN SERVICE)' : ''}`;
+  return `${doc.idCourt}  ${doc.actif ? 'active   ' : 'révoquée '} ${usage}${enService(doc, maintenant) ? '  (EN SERVICE)' : ''}${doc.usage === 'tableaudebord' ? '  [tableau de bord]' : ''}`;
 }
