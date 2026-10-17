@@ -139,6 +139,34 @@ Les sections plus haut décrivent l'historique ; **ce qui suit prévaut** quand 
 | P4 | `P4 projet …`, `P4 affaire …` | — |
 | P5 | `P5 …` (2 tests) : import reconnu par `files.get`, case grisée / cochée / non décochable, aucune copie ; secours par `parentId` ; fichier d'ailleurs : case active | **Le champ `parents` renvoyé par le vrai `files.get` pour un fichier déposé par « Importer »** (attendu : le dossier de travail, d'après le comportement documenté de `DocsUploadView.setParent`) ; la copie `files.copy` avec `drive.file` |
 
+### Critères d'acceptation, tests et captures (lot 2.7.5)
+Captures (Playwright, Google simulé) : `~/chantiers-crm/captures-corrections-dossiers-2/`.
+| Point | Critère observable (une phrase) | Test | Capture |
+|---|---|---|---|
+| P1 | Je clique sur la date d'une tâche : la même fenêtre « Changer la date » que pour une activité s'ouvre. | `P1 une tâche se traite comme une activité…` | `P1.png` |
+| P2 | Après avoir supprimé une tâche (idem activité, note), un message « Annuler » reste affiché 8 s et la rend. | `P2 « Supprimé · Annuler » : une TÂCHE…`, `…ACTIVITÉ et NOTE…`, `P2 le message « Annuler » disparaît après 8 secondes` | `P2.png` |
+| P3 | « Ajouter un document » sans dossier de travail : un message et « Fermer », rien d'autre. | `P3 projet …`, `P3 affaire …` | `P3.png` |
+| P4 | Le libellé lit « Dossier de travail de cette fiche ». | `P4 projet …`, `P4 affaire …` | `P4-projet.png`, `P4-affaire.png` |
+| P5 | Un fichier importé de l'ordinateur : la case « Copier » est grisée et cochée avec le message grisé, et un clic ne la décoche pas. | `P5 un fichier IMPORTÉ…`, `Quand je décoche « Copier » pour un fichier importé de mon ordinateur…` | `P5.png` |
+
+### Un test permanent par règle de `docs/consignes-ui.md` (`tests/e2e/consignes-ui.spec.js`, affaire ET projet, ordinateur ET téléphone)
+| Règle | Test |
+|---|---|
+| Affaire et projet fonctionnent pareil | `Affaire et projet fonctionnent pareil : sur projet / affaire…` |
+| Tâche, activité, point clé : texte, date, rond, menu | `Tâche, activité et point clé fonctionnent pareil` (projet) et (affaire) |
+| Liste déroulante / bande indicateur | `Une liste déroulante change l'étape ou la phase…` |
+| Retirer : confirmation puis « Annuler » 8 s | `Quand je retire un lien sur …` ; `Quand je retire le dossier parent…` |
+| Pas de « Modifier » si « Retirer » puis recréer suffit | `Pas de bouton « Modifier » quand « Retirer » puis recréer suffit…` |
+| « dossier », jamais « répertoire » | `On dit « dossier », jamais « répertoire »` (écrans + code) |
+| Message d'erreur clair, https:// ajouté | `Message d'erreur clair, et https:// ajouté tout seul…` |
+| Icône « i » : survol, clavier, toucher | `L'icône « i » explique…` |
+| « Liens et documents » : deux boutons, nom et note | `« Liens et documents » : nom et note facultatifs…` + 1re règle |
+| Bloc « Dossier de travail de cette fiche » identique | `Affaire et projet fonctionnent pareil…` |
+| Sans dossier : message et « Fermer » | `Sans dossier de travail, « Ajouter un document »…` |
+| Case « Copier » : cochée par défaut / grisée et cochée | `Case « Copier… » cochée par défaut…` ; `Quand je décoche « Copier » pour un fichier importé…` |
+| Adresse hors Drive : dans « Ajouter un lien web » | `Une adresse hors Google Drive se met dans « Ajouter un lien web »…` |
+| **Sans test permanent (dit clairement)** | filtres combinés / listes limitées (écran Automatisations, tests 2.7.3, non rejoués ici) ; « un mot = une seule chose » (relecture humaine) ; « cas vide, erreur, chargement décrits et testés » (règle de méthode) ; « chiffres de largeur fixe » (`tabular-nums` posé sur les compteurs existants, pas de test de rendu). |
+
 ## Pas vérifié (à faire après le branchement)
 
 - Le vrai parcours Google : autorisation, Picker avec « Importer » **dans le bon dossier** (`DocsUploadView.setParent`, d'après la documentation de Google), création réelle des dossiers, ouverture du lien enregistré.
