@@ -161,14 +161,15 @@ describe('I. Copie de tes workflows vers Chevalier IA OS', () => {
     const r = await copieInterne({ db: dbOs, dbPlateforme: dbApp, n8n: n8n(), raison: 'manuel', maintenant: T0 + 5 * MIN });
     assert.equal(r.resultat, 'mis-a-jour');
     assert.deepEqual((await liste(dbOs, 'executions')).map((e) => e.id).sort(), ['10', '11', '15']);
-    assert.equal(faux.etat.requetes.find((q) => q.chemin === '/api/v1/workflows').params.tags, 'interne');
+    assert.equal(faux.etat.requetes.find((q) => q.chemin === '/api/v1/workflows').params.tags, undefined, 'la liste complète est lue : les « non reconnus » sont recalculés aussi au bouton');
     assert.equal((await lire(dbOs, 'plateforme_journal/signalements')).items.length, 1);
   });
   test('I4 lecture seule vers n8n, et aucun contenu ni secret n\'arrive dans ta base', async () => {
     await copieInterne({ db: dbOs, dbPlateforme: dbApp, n8n: n8n(), maintenant: T0 });
     assert.deepEqual(faux.verbes(), ['GET']);
     const tout = JSON.stringify([await liste(dbOs, 'workflows'), await liste(dbOs, 'executions'), await lire(dbOs, 'sync/state'), await lire(dbOs, 'plateforme_journal/signalements')]);
-    for (const interdit of [CONTENU_SECRET, SECRET_DANS_WORKFLOW, CLE_ESSAI, 'httpHeaderAuth', CLE_INTERNE]) assert.ok(!tout.includes(interdit), `« ${interdit} » ne doit pas être dans la base`);
+    for (const interdit of [CONTENU_SECRET, SECRET_DANS_WORKFLOW, CLE_ESSAI, 'httpHeaderAuth']) // le NOM d'un credential (« Clé n8n - interne ») s'affiche dans les explications : ce n'est pas un secret
+     assert.ok(!tout.includes(interdit), `« ${interdit} » ne doit pas être dans la base`);
   });
   test('I5 n8n en panne : rien n\'est effacé, l\'état le dit (bandeau jaune)', async () => {
     await copieInterne({ db: dbOs, dbPlateforme: dbApp, n8n: n8n(), maintenant: T0 });
@@ -277,5 +278,68 @@ describe('A. Vue administrateur : accès réservé, lecture seule', () => {
     assert.equal(r.resultat, 'mis-a-jour');
     assert.deepEqual((await liste(dbOs, 'executions')).map((e) => e.id), ['10']);
     assert.deepEqual(faux.verbes(), ['GET']);
+  });
+});
+
+const appel = (auth, donnees) => administrateur({ db: dbOs, dbPlateforme: dbApp, n8n, auth, donnees, maintenant: T0 });
+
+describe('N. Explications précises, identifiant du credential, catégories', () => {
+  const ID = E.IDENTIFIANTS_CLES.interne[0];
+  const wfc = (id, name, tags, cles, clesIds) => ({ id, name, active: true, tags, cles, clesIds });
+  test('N1 le credential est reconnu par son IDENTIFIANT même si le nom lu dans le nœud est ancien (« Clé n8n - Jérôme »)', () => {
+    const r = E.classerInterne([wfc('1', 'interne-veille-x-porte', ['interne', 'domaine-marketing'], ['Clé n8n - Jérôme'], [ID])]);
+    assert.deepEqual(r.retenus.map((w) => w.id), ['1']);
+    assert.deepEqual(r.signalements, []);
+  });
+  test('N2 sans identifiant connu, un nom ancien est refusé AVEC l\'explication : une ligne par signe, ✔/✘, credentials lus et attendu', () => {
+    const r = E.classerInterne([wfc('1', 'interne-veille-x', ['interne'], ['Clé n8n - Jérôme'], ['autre'])]);
+    assert.deepEqual(r.retenus, []);
+    const [s] = r.signalements;
+    assert.equal(s.nom, 'interne-veille-x');
+    assert.equal(s.proprietaire, 'interne');
+    assert.deepEqual(s.lignes.map((l) => [l.signe, l.ok]), [['Étiquette', true], ['Nom', true], ['Clé de la porte', false]]);
+    assert.match(s.lignes[2].texte, /« Clé n8n - Jérôme »/);
+    assert.match(s.lignes[2].texte, /« Clé n8n - interne »/);
+  });
+  test('N3 étiquette absente et nom différent : les lignes le disent, avec les étiquettes réellement présentes', () => {
+    const [s] = E.classerInterne([wfc('2', 'veille-x', ['marketing'], ['Clé n8n - interne'], ['c1'])]).signalements;
+    assert.deepEqual(s.lignes.map((l) => l.ok), [false, false, true]);
+    assert.match(s.lignes[0].texte, /marketing/);
+    assert.match(s.lignes[1].texte, /veille-x/);
+  });
+  test('N4 client sans le module : catégorie « sans-module » (workflow en règle, rien à corriger) ; client inconnu : « non-reconnu »', () => {
+    const ctx = { connus: new Set(['audrey']), actifs: new Set() };
+    const a = E.classer([wfc('1', 'Rapport', ['client-audrey'], [], [])], ctx).signalements[0];
+    assert.equal(a.categorie, 'sans-module');
+    assert.equal(a.proprietaire, 'audrey');
+    assert.equal(a.lignes.at(-1).signe, 'Module');
+    assert.equal(a.lignes.at(-1).ok, false);
+    assert.equal(E.classer([wfc('2', 'Rapport', ['client-zoe'], [], [])], ctx).signalements[0].categorie, 'non-reconnu');
+  });
+  test('N5 la copie interne écrit TOUT : tes non reconnus (nom réel, lignes) ET les clients sans module, séparés par catégorie ; les anciens signalements sans nom ne sont pas affichés', async () => {
+    await vider('demo-chevalier-ia-os'); await vider('demo-chevalier-ia-app');
+    await dbApp.doc('clients/audrey').set({ modules: { affaires: true } }); // existe, SANS le module
+    faux.etat.workflows = [
+      wfc('wfV1', 'interne-veille-collecte', ['interne'], ['Clé n8n - Jérôme'], [ID]),
+      wfc('wfMal', 'interne-sans-etiquette', [], ['Clé n8n - interne'], ['x']),
+      wfc('wfAud', 'Audrey - Rapport', ['client-audrey'], ['Clé n8n - Audrey'], ['y']),
+    ];
+    faux.etat.executions = [];
+    await dbApp.doc('plateforme_journal/signalements').set({ items: [{ workflowId: 'vieux', raison: 'sans-module', etiquettes: ['client-x'] }] }); // ancien format, sans nom
+    await copieInterne({ db: dbOs, dbPlateforme: dbApp, n8n: n8n(), maintenant: T0 });
+    assert.deepEqual((await liste(dbOs, 'workflows')).map((w) => w.id), ['wfV1']);
+    const r = await appel(JEROME, { action: 'lire' });
+    assert.deepEqual(r.aVerifier.map((i) => [i.workflowId, i.categorie]).sort(), [['wfAud', 'sans-module'], ['wfMal', 'non-reconnu']]);
+    const mal = r.aVerifier.find((i) => i.workflowId === 'wfMal');
+    assert.equal(mal.nom, 'interne-sans-etiquette');
+    assert.equal(mal.lignes.length, 3);
+    assert.equal(mal.lignes[0].ok, false);
+  });
+  test('N6 si les clients ne sont pas lisibles, leurs workflows ne sont PAS jugés (pas de faux « client inconnu »)', async () => {
+    await vider('demo-chevalier-ia-os');
+    faux.etat.workflows = [wfc('wfAud', 'Audrey - Rapport', ['client-audrey'], [], [])];
+    const casse = { collection: () => ({ listDocuments: async () => { throw new Error('refus'); } }) };
+    await copieInterne({ db: dbOs, dbPlateforme: casse, n8n: n8n(), maintenant: T0 });
+    assert.deepEqual((await lire(dbOs, 'plateforme_journal/signalements')).items, []);
   });
 });

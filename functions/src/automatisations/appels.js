@@ -5,7 +5,7 @@
 //  - copieInterne          : toutes les heures, copie tes workflows « interne » vers TA base (documents à la racine : workflows, executions, sync) ;
 //  - automatisationsAdmin  : appelable par ton compte seulement. « lire » = lit, SANS JAMAIS ÉCRIRE, la base de Chevalier IA APP (clients) ; « rafraichir » = recopie tes workflows maintenant.
 // La base de Chevalier IA APP n'est jamais écrite d'ici : le compte de service de la fonction n'y a que le rôle « Lecteur Cloud Datastore » (voir docs/automatisations-n8n.md, guide).
-import { classerInterne, moduleActif, MOTIF_IDENTIFIANT_CLIENT, PROPRIETAIRE_INTERNE, ETIQUETTE_INTERNE } from '../../partage/automatisations/etiquettes.js';
+import { classer, classerInterne, moduleActif, MOTIF_IDENTIFIANT_CLIENT, PROPRIETAIRE_INTERNE, ETIQUETTE_INTERNE } from '../../partage/automatisations/etiquettes.js';
 import { synchroniserClient, marquerInjoignable } from '../../partage/automatisations/synchro.js';
 import { ErreurN8n } from '../../partage/automatisations/n8n.js';
 import { estAdministrateur } from '../../partage/administrateur.js';
@@ -35,37 +35,44 @@ export function exigerAdministrateur(auth) {
   return jeton.email.toLowerCase();
 }
 
-/** Identifiants des clients qui existent (lecture seule dans Chevalier IA APP). Si la lecture est impossible (droits pas encore donnés), liste vide : la copie interne continue. */
-async function clientsConnus(dbPlateforme) {
-  if (!dbPlateforme) return new Set();
+/**
+ * Clients qui existent et ceux qui ont le module (lecture seule dans Chevalier IA APP) : { connus, actifs } ou null si la lecture est impossible
+ * (droits pas encore donnés) : on ne juge alors PAS les workflows des clients (sans cette liste, tous passeraient pour « client inconnu »).
+ */
+async function lireClients(dbPlateforme) {
+  if (!dbPlateforme) return null;
   try {
-    return new Set((await dbPlateforme.collection('clients').listDocuments()).map((r) => r.id).filter((id) => MOTIF_IDENTIFIANT_CLIENT.test(id)));
+    const ids = (await dbPlateforme.collection('clients').listDocuments()).map((r) => r.id).filter((id) => MOTIF_IDENTIFIANT_CLIENT.test(id));
+    const fiches = ids.length ? await dbPlateforme.getAll(...ids.map((id) => dbPlateforme.doc(`clients/${id}`)), { fieldMask: ['modules'] }) : [];
+    return { connus: new Set(ids), actifs: new Set(ids.filter((id, i) => fiches[i].exists && moduleActif(fiches[i].get('modules')))) };
   } catch (e) {
     journalCloud.warn('Journal : clients illisibles depuis Chevalier IA OS', { code: e?.code });
-    return new Set();
+    return null;
   }
 }
 
 /**
- * Copie TES workflows (propriétaire « interne ») vers ta base. Horaire : un appel à n8n pour la liste complète, reconnaissance des trois signes,
- * signalements (« À vérifier ») écrits dans plateforme_journal/signalements de TA base. Manuel : seulement les workflows portant l'étiquette « interne ».
+ * Copie TES workflows (propriétaire « interne ») vers ta base. Dans les deux cas (horaire ou bouton), la liste COMPLÈTE de n8n est lue, tous les workflows sont
+ * jugés (les tiens aux trois signes ; ceux des clients comme le fait leur propre copie) et le résultat est écrit dans plateforme_journal/signalements de TA base :
+ * c'est la source unique des « workflows non reconnus » et « clients sans le module » de l'écran. Seuls les tiens sont copiés.
  */
 export async function copieInterne({ db, dbPlateforme = null, n8n, raison = 'horaire', maintenant = Date.now() }) {
-  const connus = await clientsConnus(dbPlateforme);
+  const clients = await lireClients(dbPlateforme);
   let workflows;
   try {
-    workflows = await n8n.workflows(raison === 'manuel' ? { etiquette: ETIQUETTE_INTERNE } : {});
+    workflows = await n8n.workflows();
   } catch (e) {
     if (!(e instanceof ErreurN8n)) throw e;
     journalCloud.error('Journal : liste des workflows illisible (interne)', { genre: e.genre, detail: e.message });
     await marquerInjoignable(db, [PROPRIETAIRE_INTERNE], { maintenant, message: e.message, base: () => BASE_INTERNE });
     return { resultat: 'n8n-injoignable', lastSyncedAt: null };
   }
-  const { retenus, signalements } = classerInterne(workflows, { connus });
-  if (raison !== 'manuel') {
-    await db.doc('plateforme_journal/signalements').set({ lastRunAt: new Date(maintenant), items: signalements });
-    for (const s of signalements) journalCloud.warn('Journal : workflow ignoré (interne)', { workflowId: s.workflowId, raison: s.raison });
-  }
+  const { retenus, signalements: siens } = classerInterne(workflows, { connus: clients?.connus ?? new Set() });
+  const deClients = clients ? classer(workflows, clients).signalements : [];
+  const vus = new Set();
+  const signalements = [...siens, ...deClients].filter((i) => !vus.has(i.workflowId) && vus.add(i.workflowId));
+  await db.doc('plateforme_journal/signalements').set({ lastRunAt: new Date(maintenant), items: signalements });
+  for (const s of signalements) journalCloud.warn('Journal : workflow ignoré (interne)', { workflowId: s.workflowId, raison: s.raison });
   return synchroniserClient({ db, n8n, client: PROPRIETAIRE_INTERNE, base: BASE_INTERNE, maintenant, raison, obtenirWorkflows: async () => retenus });
 }
 
@@ -85,11 +92,17 @@ function exePublique(id, d) {
 const wfPublic = (id, d) => ({ id, workflowId: id, nom: texte(d.nom, 120), libelle: texte(d.libelle, 80), active: d.active === true });
 const synchroPublique = (d) => (d ? { n8nOk: d.n8nOk !== false, lastSyncedAt: ms(d.lastSyncedAt), lastSuccessAt: ms(d.lastSuccessAt) } : null);
 
-/** Signalements (« À vérifier ») d'une base : [{ workflowId, nom, raison, message, source }]. */
+/** Signalements d'une base : [{ workflowId, nom, raison, categorie, proprietaire, message, lignes, source }] (liste blanche de champs). */
 async function lireSignalements(db, source) {
   const s = await db.doc('plateforme_journal/signalements').get();
   const items = s.exists && Array.isArray(s.get('items')) ? s.get('items') : [];
-  return items.map((i) => ({ workflowId: texte(i.workflowId, 64), nom: texte(i.nom, 120) ?? '', raison: texte(i.raison, 40), message: texte(i.message, 400) ?? '', etiquettes: (i.etiquettes ?? []).slice(0, 5).map((t) => texte(t, 40)), source }));
+  return items.map((i) => ({
+    workflowId: texte(i.workflowId, 64), nom: texte(i.nom, 120) ?? '', raison: texte(i.raison, 40),
+    categorie: i.categorie === 'sans-module' ? 'sans-module' : 'non-reconnu', proprietaire: texte(i.proprietaire, 40),
+    etiquettes: (i.etiquettes ?? []).slice(0, 5).map((t) => texte(t, 40)), message: texte(i.message, 400) ?? '',
+    lignes: (Array.isArray(i.lignes) ? i.lignes : []).slice(0, 6).map((l) => ({ signe: texte(l?.signe, 40) ?? '', ok: l?.ok === true, texte: texte(l?.texte, 400) ?? '' })),
+    source,
+  }));
 }
 
 /**
@@ -123,7 +136,8 @@ export async function lireVueAdministrateur({ db, dbPlateforme, proprietaire = '
     }
     reponse.executions = exes.sort((a, b) => (b.startedAt ?? 0) - (a.startedAt ?? 0)).slice(0, NB_MAX_EXECUTIONS);
     const deja = new Set(aVerifier.map((i) => i.workflowId));
-    for (const i of await lireSignalements(dbPlateforme, 'app')) if (!deja.has(i.workflowId)) aVerifier.push(i);
+    // Ceux de la copie des clients : seulement s'ils sont au format détaillé (nom et message) ; les tiens (jugés avec la liste complète) l'emportent.
+    for (const i of await lireSignalements(dbPlateforme, 'app')) if (i.nom && i.message && !deja.has(i.workflowId)) aVerifier.push(i);
   } catch (e) {
     journalCloud.error('Journal : Chevalier IA APP illisible depuis Chevalier IA OS', { code: e?.code });
     return { ...reponse, proprietaires: [], workflows: [], executions: [], lecturePossible: false };

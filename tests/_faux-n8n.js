@@ -24,7 +24,7 @@ export function creerFauxN8n() {
     tags: w.tags.map((t, i) => ({ id: `t${i}`, name: t })),
     nodes: [{ name: 'Lire Presences', type: 'n8n-nodes-base.httpRequest', parameters: { authentication: SECRET_DANS_WORKFLOW, url: 'https://exemple.test' },
       // Comme le vrai n8n : le NOM du credential (et son identifiant), jamais sa valeur.
-      credentials: Object.fromEntries((w.cles ?? []).map((nom, i) => [`httpHeaderAuth${i}`, { id: `cred${i}`, name: nom }])) }],
+      credentials: Object.fromEntries((w.cles ?? []).map((nom, i) => [`httpHeaderAuth${i}`, { id: w.clesIds?.[i] ?? `cred${i}`, name: nom }])) }],
     settings: { saveManualExecutions: true }, staticData: { secret: SECRET_DANS_WORKFLOW },
   });
   const executionResume = (e) => ({

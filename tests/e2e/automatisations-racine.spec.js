@@ -1,7 +1,7 @@
 // Module Automatisations chez Jérôme (racine, règles du CRM). Deux cas :
 //  - le compte d'assistant (Charles), PAS administrateur : écran vide propre, ni bouton « Rafraîchir », ni mise à jour automatique, ni filtre, ni appel au serveur ;
 //  - le compte de Jérôme, ADMINISTRATEUR (2.7.0) : ses workflows « interne » en direct + un filtre par propriétaire (clients lus par la fonction serveur, SIMULÉE ici)
-//    et la catégorie « À vérifier ».
+//    et les catégories « Workflows non reconnus » et « Clients sans le module ».
 import { test, expect, connecter, ecrireDocument, estTelephone, CHARLES } from './outils.js';
 
 const MIN = 60000;
@@ -14,7 +14,7 @@ test('Automatisations chez l\'assistant (non administrateur) : menu visible, ét
   await page.evaluate(() => { location.hash = '#/automatisations/historique'; });
   await expect(page.getByRole('heading', { name: 'Automatisations' })).toBeVisible();
   await expect(page.locator('.autom-vide')).toContainText('Aucune automatisation n’a encore été copiée dans cette base');
-  await expect(page.locator('.autom-resume')).toHaveText(/0\s*en cours\s*0\s*en erreur\s*0\s*à vérifier\s*0\s*terminées/);
+  await expect(page.locator('.autom-resume')).toHaveText(/0\s*en cours\s*0\s*en erreur\s*0\s*exécutions à vérifier\s*0\s*terminées/);
   await expect(page.getByRole('button', { name: /Rafraîchir/ })).toHaveCount(0);
   await expect(page.getByLabel(/Mise à jour automatique/)).toHaveCount(0);
   await expect(page.getByLabel('Filtrer par propriétaire')).toHaveCount(0);
@@ -63,8 +63,11 @@ const DONNEES_CLIENTS = {
     exeClient(8, 'boris', 'wfb', 'Relance Boris', 'success', 6 * MIN),
   ],
   aVerifier: [
-    { workflowId: 'wfX', nom: 'interne-sans-etiquette', raison: 'signe-manquant', etiquettes: [], message: 'Pour être rangé chez toi, ce workflow doit avoir les trois signes. Il manque : l’étiquette « interne ». Il n’est pas copié.', source: 'os' },
-    { workflowId: 'wfY', nom: 'audrey-rapport', raison: 'etiquette-manquante', etiquettes: [], message: 'Ce workflow semble être celui du client « audrey », mais il n’a pas l’étiquette « client-audrey » dans n8n. Il n’est pas copié.', source: 'app' },
+    { workflowId: 'wfX', nom: 'interne-sans-etiquette', raison: 'signe-manquant', categorie: 'non-reconnu', proprietaire: 'interne', etiquettes: [], message: 'Pour être rangé chez toi, ce workflow doit avoir les trois signes. Il manque : l’étiquette « interne ». Il n’est pas copié.', source: 'os',
+      lignes: [{ signe: 'Étiquette', ok: false, texte: 'Étiquette « interne » absente (étiquettes du workflow : aucune).' }, { signe: 'Nom', ok: true, texte: 'Le nom commence par « interne- ».' }, { signe: 'Clé de la porte', ok: false, texte: 'Les nœuds utilisent une autre clé de la porte (credentials lus : « Clé n8n - Jérôme » ; attendu : « Clé n8n - interne »).' }] },
+    { workflowId: 'wfY', nom: 'audrey-rapport', raison: 'etiquette-manquante', categorie: 'non-reconnu', proprietaire: 'audrey', etiquettes: [], message: 'Ce workflow semble être celui du client « audrey », mais il n’a pas l’étiquette « client-audrey » dans n8n. Il n’est pas copié.', source: 'os', lignes: [] },
+    { workflowId: 'wfZ', nom: 'Rapport de Zoé', raison: 'sans-module', categorie: 'sans-module', proprietaire: 'zoe', etiquettes: ['client-zoe'], message: 'Workflow en règle du client « zoe », qui n’a pas (encore) le module Automatisations : il n’est pas copié. Rien à corriger dans n8n.', source: 'os',
+      lignes: [{ signe: 'Module', ok: false, texte: 'Le module Automatisations n’est pas activé chez « zoe ».' }] },
   ],
   lecturePossible: true,
 };
@@ -94,11 +97,11 @@ test('Automatisations chez Jérôme administrateur : filtre par propriétaire, p
   const filtre = page.getByLabel('Filtrer par propriétaire');
   await expect(filtre).toBeVisible();
   await expect(page.locator('.autom-ligne')).toHaveCount(3); // 1 à lui + 2 clients
-  await expect(filtre.locator('option')).toHaveText(['Tous les propriétaires', 'Interne (toi)', 'Audrey Conseil', 'Boris SARL', 'À vérifier (2)']);
+  await expect(filtre.locator('option')).toHaveText(['Tous les propriétaires', 'Interne (toi)', 'Audrey Conseil', 'Boris SARL', 'Workflows non reconnus (2)', 'Clients sans le module (1)']);
   await expect(page.locator('.autom-proprio')).toHaveText(['Interne', 'Boris SARL', 'Audrey Conseil']);
   await expect(page.locator('.autom-bandeau')).toContainText('Boris SARL : n8n ne répond pas');
   await expect(page.locator('.autom-erreur')).toContainText('Boom');
-  await expect(page.locator('.autom-alerte-verifier')).toContainText('2 workflows à vérifier');
+  await expect(page.locator('.autom-alerte-verifier')).toContainText('2 workflows non reconnus');
   await page.screenshot({ path: `test-results/automatisations-admin-tous-${info.project.name}.png`, fullPage: true });
   // Interne : seulement ses workflows à lui, sans appel de plus.
   await filtre.selectOption('interne');
@@ -113,9 +116,14 @@ test('Automatisations chez Jérôme administrateur : filtre par propriétaire, p
   // À vérifier : une carte par workflow écarté, avec la raison en français simple.
   await filtre.selectOption('a-verifier');
   await expect(page.locator('.autom-averifier')).toHaveCount(2);
+  await expect(page.locator('.autom-averifier').first().locator('.autom-nom')).toHaveText('interne-sans-etiquette');
+  await expect(page.locator('.autom-averifier').first().locator('.autom-signes li')).toHaveText([/✘ Étiquette : Étiquette « interne » absente/, /✔ Nom/, /✘ Clé de la porte : .*Clé n8n - Jérôme.*attendu/]);
   await expect(page.locator('.autom-averifier').first()).toContainText('Il manque : l’étiquette « interne »');
   await expect(page.locator('.autom-averifier').nth(1)).toContainText('client-audrey');
   await page.screenshot({ path: `test-results/automatisations-admin-averifier-${info.project.name}.png`, fullPage: true });
+  await filtre.selectOption('sans-module');
+  await expect(page.locator('.autom-averifier')).toHaveCount(1);
+  await expect(page.locator('.autom-averifier .autom-pastille')).toHaveText('Client sans le module');
   // Retour à « Tous » : tout revient.
   await filtre.selectOption('tous');
   await expect(page.locator('.autom-ligne')).toHaveCount(3);

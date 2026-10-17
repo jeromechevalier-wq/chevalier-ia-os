@@ -35,7 +35,7 @@ describe('états et compteurs', () => {
 
 describe('textes', () => {
   test('libellés du cahier des charges', () => {
-    assert.deepEqual(Object.values(L.OPTIONS_ETAT).map((o) => o.libelle), ['Tous les états', 'En cours', 'Terminées', 'En erreur', 'À vérifier']);
+    assert.deepEqual(Object.values(L.OPTIONS_ETAT).map((o) => o.libelle), ['Tous les états', 'En cours', 'Terminées', 'En erreur', 'Exécutions à vérifier']);
     assert.equal(L.LIBELLES_ETAT.stale, 'À vérifier');
     assert.equal(L.LIBELLES_ETAT.error, 'En erreur');
     assert.equal(L.LIBELLES_ETAT.success, 'Terminée');
@@ -99,7 +99,8 @@ describe('Vue administrateur : fusion des propriétaires, options du filtre, ban
   });
   test('options du filtre et noms', () => {
     const o = M.optionsProprietaires(admin.proprietaires, 3);
-    assert.deepEqual(o.map((x) => x.libelle), ['Tous les propriétaires', 'Interne (toi)', 'Audrey Conseil', 'À vérifier (3)']);
+    assert.deepEqual(o.map((x) => x.libelle), ['Tous les propriétaires', 'Interne (toi)', 'Audrey Conseil', 'Workflows non reconnus (3)']);
+    assert.equal(M.optionsProprietaires([], 0, 2).at(-1).libelle, 'Clients sans le module (2)');
     assert.equal(M.nomProprietaire('interne', []), 'Interne');
     assert.equal(M.nomProprietaire('zoe', []), 'zoe');
   });

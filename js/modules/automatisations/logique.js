@@ -9,7 +9,7 @@ export const LIBELLES_ETAT = {
 };
 export const OPTIONS_ETAT = [
   { valeur: '', libelle: 'Tous les états' }, { valeur: 'running', libelle: 'En cours' }, { valeur: 'success', libelle: 'Terminées' },
-  { valeur: 'error', libelle: 'En erreur' }, { valeur: 'stale', libelle: 'À vérifier' },
+  { valeur: 'error', libelle: 'En erreur' }, { valeur: 'stale', libelle: 'Exécutions à vérifier' },
 ];
 
 const pad = (n) => (n < 10 ? '0' : '') + n;
@@ -139,7 +139,12 @@ export function doitRafraichirAuto({ active, visible, derniereDemande, maintenan
 // ------------------------------------------------------------------ vue administrateur (tous les propriétaires)
 
 export const PROPRIETAIRE_INTERNE = 'interne';
-export const FILTRE_A_VERIFIER = 'a-verifier';
+export const FILTRE_A_VERIFIER = 'a-verifier'; // « Workflows non reconnus » (à corriger dans n8n)
+export const FILTRE_SANS_MODULE = 'sans-module'; // workflows en règle de clients qui n'ont pas le module (rien à corriger)
+/** Les deux catégories de workflows non copiés : pas des exécutions, donc aucune liste d'exécutions dans ces vues. */
+export const estCategorieWorkflows = (filtre) => filtre === FILTRE_A_VERIFIER || filtre === FILTRE_SANS_MODULE;
+/** Signalements d'une catégorie. Sans `categorie` (ancien format), « non reconnu ». */
+export const signalementsDe = (liste, filtre) => (liste ?? []).filter((i) => (i.categorie === 'sans-module') === (filtre === FILTRE_SANS_MODULE));
 
 /**
  * Fusionne tes données (Chevalier IA OS, en direct) et celles des clients (fonction serveur, lecture seule) selon le filtre :
@@ -152,24 +157,25 @@ export function fusionnerVues(interne, admin, filtre) {
   const lui = (e) => ({ ...e, id: `${e.proprietaire}/${e.id}` });
   const executions = [];
   const workflows = new Map();
-  if (filtre === 'tous' || filtre === PROPRIETAIRE_INTERNE || filtre === FILTRE_A_VERIFIER) {
+  if (filtre === 'tous' || filtre === PROPRIETAIRE_INTERNE || estCategorieWorkflows(filtre)) {
     executions.push(...interne.executions.map(moi));
     for (const [id, w] of interne.workflows) workflows.set(id, w);
   }
   if (filtre !== PROPRIETAIRE_INTERNE) {
-    executions.push(...(admin?.executions ?? []).filter((e) => filtre === 'tous' || filtre === FILTRE_A_VERIFIER || e.proprietaire === filtre).map(lui));
+    executions.push(...(admin?.executions ?? []).filter((e) => filtre === 'tous' || estCategorieWorkflows(filtre) || e.proprietaire === filtre).map(lui));
     for (const w of admin?.workflows ?? []) workflows.set(w.id, w);
   }
   return { executions, workflows, proprietaire: true };
 }
 
-/** Options du filtre « propriétaire » : Tous, Interne, les clients, puis « À vérifier (n) ». */
-export function optionsProprietaires(proprietaires, nbAVerifier) {
+/** Options du filtre « propriétaire » : Tous, Interne, les clients, « Workflows non reconnus (n) » et, s'il y en a, « Clients sans le module (n) ». */
+export function optionsProprietaires(proprietaires, nbAVerifier, nbSansModule = 0) {
   return [
     { valeur: 'tous', libelle: 'Tous les propriétaires' },
     { valeur: PROPRIETAIRE_INTERNE, libelle: 'Interne (toi)' },
     ...(proprietaires ?? []).map((p) => ({ valeur: p.id, libelle: p.nom || p.id })),
-    { valeur: FILTRE_A_VERIFIER, libelle: nbAVerifier ? `À vérifier (${nbAVerifier})` : 'À vérifier' },
+    { valeur: FILTRE_A_VERIFIER, libelle: `Workflows non reconnus (${nbAVerifier})` },
+    ...(nbSansModule ? [{ valeur: FILTRE_SANS_MODULE, libelle: `Clients sans le module (${nbSansModule})` }] : []),
   ];
 }
 
@@ -185,14 +191,14 @@ export function nomProprietaire(id, proprietaires) {
  */
 export function texteBandeauAdmin({ synchroInterne, admin, filtre }) {
   const lignes = [];
-  if (filtre === 'tous' || filtre === PROPRIETAIRE_INTERNE || filtre === FILTRE_A_VERIFIER) {
+  if (filtre === 'tous' || filtre === PROPRIETAIRE_INTERNE || estCategorieWorkflows(filtre)) {
     const t = texteBandeau(synchroInterne);
     if (t) lignes.push(`Interne : ${t}`);
   }
   if (filtre !== PROPRIETAIRE_INTERNE) {
     if (admin?.erreur) lignes.push('Les clients ne sont pas lisibles pour le moment (la fonction n’est pas encore en service ou ne répond pas). Tes propres automatisations restent affichées.');
     else if (admin?.charge && admin.lecturePossible === false) lignes.push('La base des clients (Chevalier IA APP) n’est pas lisible : le droit de lecture n’est pas encore donné au serveur.');
-    else for (const p of admin?.proprietaires ?? []) if ((filtre === 'tous' || filtre === FILTRE_A_VERIFIER || filtre === p.id) && p.synchro && p.synchro.n8nOk === false) lignes.push(`${p.nom || p.id} : n8n ne répond pas, les données datent de ${enMs(p.synchro.lastSuccessAt) === null ? '—' : hhmmss(enMs(p.synchro.lastSuccessAt))}.`);
+    else for (const p of admin?.proprietaires ?? []) if ((filtre === 'tous' || estCategorieWorkflows(filtre) || filtre === p.id) && p.synchro && p.synchro.n8nOk === false) lignes.push(`${p.nom || p.id} : n8n ne répond pas, les données datent de ${enMs(p.synchro.lastSuccessAt) === null ? '—' : hhmmss(enMs(p.synchro.lastSuccessAt))}.`);
   }
   return lignes.length ? lignes.join(' ') : null;
 }
