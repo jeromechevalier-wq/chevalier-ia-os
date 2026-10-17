@@ -69,7 +69,7 @@ export const veille = onCall(
 // ou le compte de service ci-dessous n'existe pas encore dans chevalier-ia-os, le déploiement ÉCHOUE et le CRM n'est plus mis à jour. Tant que cette constante est `false`,
 // les deux fonctions ne sont donc pas déclarées (rien n'est déployé, l'écran le dit poliment). Elle passe à `true` dans une petite PR, APRÈS le guide de
 // docs/automatisations-n8n.md (partie 11) : secret créé, compte de service créé avec ses trois droits.
-export const AUTOMATISATIONS_EN_SERVICE = false;
+export const AUTOMATISATIONS_EN_SERVICE = true;
 // Compte dédié : « Utilisateur Cloud Datastore » sur chevalier-ia-os (écrire TES copies), « Accesseur de secrets » sur N8N_API_KEY, et SEULEMENT « Lecteur Cloud Datastore » sur chevalier-ia-app
 // (lecture de l'autre base : le compte ne peut pas y écrire, même par erreur).
 const COMPTE_AUTOMATISATIONS = 'automatisations-serveur@chevalier-ia-os.iam.gserviceaccount.com';

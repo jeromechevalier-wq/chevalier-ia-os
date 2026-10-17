@@ -30,24 +30,17 @@ describe('Chevalier IA OS : copie de tes workflows et vue administrateur (2.7.0)
     for (const f of ['n8n.js', 'etiquettes.js', 'synchro.js']) assert.equal(lire(`functions/partage/automatisations/${f}`), lire(`functions-plateforme/src/${f}`), f);
     assert.equal(lire('functions/partage/administrateur.js'), lire('js/os/administrateur.js'));
   });
-  test('l\'interrupteur est coupé par défaut : une fusion ne déploie rien qui exige un secret absent ; activé, les deux fonctions sont celles décrites par le guide', async () => {
+  test('interrupteur allumé (17/10/2026, secret et comptes en place) : les deux fonctions sont celles décrites par le guide', async () => {
     process.env.GCLOUD_PROJECT ??= 'demo-chevalier-ia-os';
     const source = lire('functions/src/index.js');
-    assert.match(source, /export const AUTOMATISATIONS_EN_SERVICE = false;/);
-    const arret = await import('../functions/src/index.js');
-    assert.equal(arret.automatisationsAdmin, undefined);
-    assert.equal(arret.automatisationsInterneHoraire, undefined);
-    const copie = join(RACINE, 'functions/src/_essai-en-service.js');
-    writeFileSync(copie, source.replace('AUTOMATISATIONS_EN_SERVICE = false;', 'AUTOMATISATIONS_EN_SERVICE = true;'));
-    try {
-      const m = await import(`../functions/src/_essai-en-service.js?${Date.now()}`);
-      for (const f of [m.automatisationsAdmin, m.automatisationsInterneHoraire]) {
-        assert.deepEqual(f.__endpoint.region, ['europe-west9']);
-        assert.deepEqual(f.__endpoint.secretEnvironmentVariables, [{ key: 'N8N_API_KEY' }]);
-        assert.equal(f.__endpoint.serviceAccountEmail, 'automatisations-serveur@chevalier-ia-os.iam.gserviceaccount.com');
-      }
-      assert.equal(m.automatisationsInterneHoraire.__endpoint.scheduleTrigger.schedule, '0 * * * *');
-    } finally { rmSync(copie, { force: true }); }
+    assert.match(source, /export const AUTOMATISATIONS_EN_SERVICE = true;/);
+    const m = await import('../functions/src/index.js');
+    for (const f of [m.automatisationsAdmin, m.automatisationsInterneHoraire]) {
+      assert.deepEqual(f.__endpoint.region, ['europe-west9']);
+      assert.deepEqual(f.__endpoint.secretEnvironmentVariables, [{ key: 'N8N_API_KEY' }]);
+      assert.equal(f.__endpoint.serviceAccountEmail, 'automatisations-serveur@chevalier-ia-os.iam.gserviceaccount.com');
+    }
+    assert.equal(m.automatisationsInterneHoraire.__endpoint.scheduleTrigger.schedule, '0 * * * *');
   });
   test('aucun secret ni clé dans les fichiers ajoutés', () => {
     for (const f of ['functions/src/automatisations/appels.js', 'js/os/administrateur.js', 'functions-plateforme/src/etiquettes.js', 'docs/automatisations-n8n.md']) {
