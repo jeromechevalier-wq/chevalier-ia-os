@@ -2,13 +2,15 @@
 // Même construction que la porte des workflows n8n (porte.js), sans la vérification d'un workflow n8n : l'appelant est un script GitHub, identifié par sa clé seule.
 // Logique pure : tout ce qui touche l'extérieur (base, modules actifs, journal) est injecté. Copiée dans functions/partage/porte/ avant les tests et le déploiement.
 //
-// Ordre des contrôles (le premier qui échoue arrête tout, et rien n'est écrit) :
+// Ordre des contrôles (le premier qui échoue arrête tout ; jusqu'à la validation des données incluse, rien n'est écrit) :
 //   1. méthode POST, aucune origine de navigateur, corps JSON de taille raisonnable (couche HTTP, creerGestionnaireHttp) ;
 //   2. clé du tableau de bord valide, active, d'usage « tableaudebord », étiquette = propriétaire  → 401 « cle_refusee » (toujours la même réponse) ;
 //   3. plafond de requêtes par clé                                                                  → 429 ;
 //   4. forme de la requête, action connue                                                            → 400 ;
 //   5. module « tableaudebord » actif pour ce propriétaire                                            → 403 ;
 //   6. validation stricte des données, puis l'action (tables tableaudebord_* du propriétaire seulement).
+// L'écriture d'une liste n'est PAS atomique : document après document, une panne au milieu laisse un état mixte (une partie écrite) et répond 500.
+// Rejouer le même appel est sans danger : un relevé déjà écrit est ignoré (indicateurs) ou déjà présent (historique).
 import { extraireBearer, doitNoterUsage } from './cles.js';
 import { verifierCleTableau } from './cles-tableau.js';
 import { ErreurAction, lancerAction } from './actions-veille.js';

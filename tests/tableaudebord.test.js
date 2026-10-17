@@ -23,6 +23,7 @@ function creerBase() {
     lireCle: async (e) => cles.get(e) ?? null,
     majCle: async (e, p) => { cles.set(e, { ...cles.get(e), ...p }); },
     creerSiAbsent: async (c, d) => { if (docs.has(c)) return false; docs.set(c, d); return true; },
+    lireDoc: async (c) => (docs.has(c) ? { ...docs.get(c) } : null),
     majDoc: async (c, p) => { if (!docs.has(c)) return false; docs.set(c, { ...docs.get(c), ...p }); return true; },
   };
 }
@@ -144,11 +145,57 @@ describe('tableau de bord : contrôles de la porte', () => {
 });
 
 describe('tableau de bord : indicateurs.ecrire', () => {
+  test('un relevé plus ancien ou identique est ignoré en silence, un plus récent est écrit', async () => {
+    const m = monde();
+    const c = m.cles.interne.cle;
+    await m.ecrire(c, [STOCK]);
+    const chem = 'tableaudebord_indicateurs/stock_bordeaux_2022';
+    let r = await m.ecrire(c, [{ ...STOCK, valeur: 1, releveLe: '2026-10-17T08:00:00Z' }]);
+    assert.deepEqual(r.corps.resultat, { ecrits: 0, ignores: 1 });
+    assert.equal(m.base.docs.get(chem).valeur, 42);
+    r = await m.ecrire(c, [{ ...STOCK, valeur: 2 }]);
+    assert.deepEqual(r.corps.resultat, { ecrits: 0, ignores: 1 }, 'égalité : ignoré');
+    assert.equal(m.base.docs.get(chem).valeur, 42);
+    r = await m.ecrire(c, [{ ...STOCK, valeur: 3, releveLe: '2026-10-17T09:30:00Z' }]);
+    assert.deepEqual(r.corps.resultat, { ecrits: 1, ignores: 0 });
+    assert.equal(m.base.docs.get(chem).valeur, 3);
+  });
+  test('la date existante peut être un objet Firestore (toMillis) ou un nombre', async () => {
+    const m = monde();
+    const c = m.cles.interne.cle;
+    m.base.docs.set('tableaudebord_indicateurs/stock_bordeaux_2022', { valeur: 9, releveLe: { toMillis: () => Date.parse('2026-10-17T12:00:00Z') } });
+    assert.deepEqual((await m.ecrire(c, [STOCK])).corps.resultat, { ecrits: 0, ignores: 1 });
+    m.base.docs.set('tableaudebord_indicateurs/stock_bordeaux_2022', { valeur: 9, releveLe: Date.parse('2026-10-17T08:00:00Z') });
+    assert.deepEqual((await m.ecrire(c, [STOCK])).corps.resultat, { ecrits: 1, ignores: 0 });
+  });
+  test('identifiants : majuscule ou forme de clé refusées, 80 caractères en minuscules acceptés', async () => {
+    const m = monde();
+    const c = m.cles.interne.cle;
+    for (const id of ['Stock_Majuscule', 'AIza' + 'a'.repeat(35), 'cle-tdb.interne.abc', 'a'.repeat(40) + 'B']) {
+      const r = await m.ecrire(c, [{ ...STOCK, id }]);
+      assert.equal(r.statut, 400, id);
+      assert.ok(!JSON.stringify(r.corps).includes(id), 'la valeur refusée n\'est jamais renvoyée');
+    }
+    assert.equal((await m.releves(c, [{ indicateurId: 'Stock', releveLe: '2026-10-17T09:00:00Z', valeur: 1 }])).statut, 400);
+    const long = 'cles_compte_de_service_cle_firebase_chevalier_ia_os';
+    assert.equal((await m.ecrire(c, [{ ...STOCK, id: long }])).statut, 200);
+    const quatreVingts = 'a'.repeat(80);
+    assert.equal((await m.ecrire(c, [{ ...STOCK, id: quatreVingts }])).statut, 200);
+    assert.equal((await m.releves(c, [{ indicateurId: quatreVingts, releveLe: '2026-10-17T09:00:00Z', valeur: 1 }])).statut, 200);
+  });
+  test('une clé Google (AIza) est refusée dans le nom et le message', async () => {
+    const m = monde();
+    const c = m.cles.interne.cle;
+    const aiza = 'AIza' + 'Sy'.repeat(17) + 'x';
+    assert.equal((await m.ecrire(c, [{ ...STOCK, nom: `Stock ${aiza}` }])).statut, 400);
+    assert.equal((await m.ecrire(c, [{ ...GITHUB, message: aiza }])).statut, 400);
+    assert.equal(m.base.docs.size, 0);
+  });
   test('écrit l\'état actuel à la racine (CRM), le propriétaire vient de la clé, l\'auteur est le script', async () => {
     const m = monde();
     const r = await m.ecrire(m.cles.interne.cle, [GITHUB, STOCK]);
     assert.equal(r.statut, 200);
-    assert.deepEqual(r.corps.resultat, { ecrits: 2 });
+    assert.deepEqual(r.corps.resultat, { ecrits: 2, ignores: 0 });
     const d = m.base.docs.get('tableaudebord_indicateurs/cles_github_lecture');
     assert.equal(d.proprietaire, 'interne');
     assert.equal(d.ecritPar, `github:${m.cles.interne.empreinte.slice(0, 8)}`);
@@ -168,7 +215,7 @@ describe('tableau de bord : indicateurs.ecrire', () => {
     const m = monde();
     await m.ecrire(m.cles.interne.cle, [GITHUB]);
     const { echeance, ...sans } = GITHUB;
-    await m.ecrire(m.cles.interne.cle, [{ ...sans, niveau: 'rouge', message: 'Ne répond plus' }]);
+    await m.ecrire(m.cles.interne.cle, [{ ...sans, niveau: 'rouge', message: 'Ne répond plus', releveLe: '2026-10-17T09:58:00Z' }]);
     const d = m.base.docs.get('tableaudebord_indicateurs/cles_github_lecture');
     assert.equal(d.niveau, 'rouge');
     assert.equal(d.echeance, null);
@@ -289,7 +336,7 @@ describe('tableau de bord : journal, erreurs, passerelle HTTP', () => {
       const ent = { 'content-type': 'application/json', authorization: `Bearer ${m.cles.interne.cle}` };
       const ok = await fetch(`${s.url}/tableau-de-bord`, { method: 'POST', headers: ent, body: corps });
       assert.equal(ok.status, 200);
-      assert.deepEqual((await ok.json()).resultat, { ecrits: 1 });
+      assert.deepEqual((await ok.json()).resultat, { ecrits: 1, ignores: 0 });
       assert.equal((await fetch(`${s.url}/porte`, { method: 'POST', headers: ent, body: corps })).status, 404);
       assert.equal((await fetch(`${s.url}/tableau-de-bord`, { method: 'POST', headers: { ...ent, origin: 'https://exemple.test' }, body: corps })).status, 403);
       assert.equal((await fetch(`${s.url}/tableau-de-bord`, { method: 'GET' })).status, 405);

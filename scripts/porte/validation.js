@@ -15,12 +15,16 @@ const CARACTERES_DE_CONTROLE_SAUF_MISE_EN_PAGE = /[\u0000-\u0008\u000b\u000c\u00
 const MOTIF_ID = /^[A-Za-z0-9_-]{1,100}$/;
 const MOTIF_ETIQUETTE = /^[a-z0-9][a-z0-9_-]{0,59}$/; // noms d'étiquettes (clé d'IA…) : en minuscules, donc jamais une vraie clé secrète collée par erreur
 // Ce qui ressemble à une clé ou à un secret : jamais accepté dans un texte libre (nom, message, procédure…), même collé par erreur.
-const MOTIF_SECRET = /cle-(n8n|tdb)\.|\bcia_[A-Za-z0-9_-]{10,}|ghp_[A-Za-z0-9]{20,}|github_pat_|-----BEGIN|AKIA[0-9A-Z]{12,}|\bK00[0-9A-Za-z]{20,}|[A-Za-z0-9_+/=-]{40,}/;
+// MOTIF_SECRET_PRECIS : les formes connues de clés. MOTIF_SECRET y ajoute « un mot de 40 caractères ou plus » (texte libre) ; il ne convient pas aux identifiants, qui font jusqu'à 80 caractères.
+const MOTIF_SECRET_PRECIS = /cle-(n8n|tdb)\.|\bcia_[A-Za-z0-9_-]{10,}|ghp_[A-Za-z0-9]{20,}|github_pat_|-----BEGIN|AKIA[0-9A-Z]{12,}|AIza[0-9A-Za-z_-]{35}|\bK00[0-9A-Za-z]{20,}/;
+const MOTIF_SECRET = new RegExp(`${MOTIF_SECRET_PRECIS.source}|[A-Za-z0-9_+/=-]{40,}`);
+const MOTIF_ID_SUR = /^[a-z0-9][a-z0-9_-]{0,99}$/; // identifiant en minuscules seulement : une clé en base64 (majuscules) ne passe jamais pour un identifiant
 const MOTIF_MODELE = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,79}$/;
 
 /**
- * Types de champs : { type: 'texte', max, min? } | { type: 'html', max } | { type: 'id' } | { type: 'etiquette' } | { type: 'modele' } | { type: 'url' } |
+ * Types de champs : { type: 'texte', max, min? } | { type: 'html', max } | { type: 'id' } | { type: 'idsur' } | { type: 'etiquette' } | { type: 'modele' } | { type: 'url' } |
  * { type: 'date' } | { type: 'echeance' } | { type: 'libre', max } | { type: 'nombre', min, max } | { type: 'choix', valeurs } | { type: 'booleen' } | { type: 'liste', max, item: schéma }.
+ * « idsur » : identifiant en minuscules (1 à 100 caractères), qui ne ressemble à aucune clé connue (MOTIF_SECRET_PRECIS) ; à préférer à « id » quand l'identifiant vient d'un script.
  * `requis: true` pour un champ obligatoire. Renvoie un objet NOUVEAU ne contenant que les champs reçus et valides (jamais l'objet d'origine).
  */
 export function valider(entree, schema, nom = 'donnees') {
@@ -76,6 +80,12 @@ function champ(v, regle, chemin) {
       const t = texteSur(v, chemin, 100, 1);
       const motif = regle.type === 'id' ? MOTIF_ID : regle.type === 'etiquette' ? MOTIF_ETIQUETTE : MOTIF_MODELE;
       if (!motif.test(t)) throw new ErreurValidation(`« ${chemin} » n'a pas le bon format.`);
+      return t;
+    }
+    case 'idsur': {
+      const t = texteSur(v, chemin, 100, 1);
+      if (!MOTIF_ID_SUR.test(t)) throw new ErreurValidation(`« ${chemin} » n'a pas le bon format (minuscules, chiffres, _ et - seulement).`);
+      if (MOTIF_SECRET_PRECIS.test(t)) throw new ErreurValidation(`« ${chemin} » ressemble à un secret : refusé.`);
       return t;
     }
     case 'url': {
