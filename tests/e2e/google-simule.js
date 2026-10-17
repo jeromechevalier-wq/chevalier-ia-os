@@ -43,7 +43,7 @@ window.google.accounts = { oauth2: { initTokenClient(cfg) { return { requestAcce
  * Dans la page : window.__google.reponse = [{ id, name, url, mimeType }] (ou 'annule') fixe ce que « l'utilisateur » choisit dans la fenêtre Google.
  */
 export async function brancherGoogle(context, { idClient = ID_CLIENT } = {}) {
-  const drive = { requetes: [], dossiers: [], fichiers: {}, lectures: [], recherches: [], echecs: {}, compteur: 0, copies: [], compteurCopies: 0, echecCopie: 0, echecLecture: 0 };
+  const drive = { requetes: [], supprimes: new Set(), dossiers: [], fichiers: {}, lectures: [], recherches: [], echecs: {}, compteur: 0, copies: [], compteurCopies: 0, echecCopie: 0, echecLecture: 0 };
   await context.addInitScript(DEBUT);
   await context.route('**/js/os/google-config.js', (route) => route.fulfill({ status: 200, contentType: 'text/javascript', body: `export const googleDrive = { idClient: '${idClient}' };` }));
   await context.route('https://apis.google.com/js/api.js', (route) => route.fulfill({ status: 200, contentType: 'text/javascript', body: SCRIPT_API }));
@@ -55,7 +55,8 @@ export async function brancherGoogle(context, { idClient = ID_CLIENT } = {}) {
     if (requete.method() === 'GET' && idFichier) {
       if (drive.echecLecture) { await route.fulfill({ status: drive.echecLecture, contentType: 'application/json', headers: CORS, body: '{}' }); return; } // files.get (parents) : où est ce fichier ? `drive.fichiers[id] = { parents: [...] }` ; par défaut : un dossier quelconque
       drive.lectures.push(idFichier);
-      await route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: JSON.stringify({ parents: drive.fichiers[idFichier]?.parents || ['AUTRE_DOSSIER_123'], createdTime: drive.fichiers[idFichier]?.createdTime || '2020-01-01T00:00:00.000Z' }) });
+      if (drive.supprimes.has(idFichier)) { await route.fulfill({ status: 404, contentType: 'application/json', headers: CORS, body: JSON.stringify({ error: { status: 'NOT_FOUND' } }) }); return; } // supprimé par l'utilisateur
+      await route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: JSON.stringify({ id: idFichier, trashed: false, parents: drive.fichiers[idFichier]?.parents || ['AUTRE_DOSSIER_123'], createdTime: drive.fichiers[idFichier]?.createdTime || '2020-01-01T00:00:00.000Z' }) });
       return;
     }
     if (requete.method() === 'GET') { // files.list : dossiers de même nom (seuls ceux que l'appli a créés, comme avec la portée drive.file)
@@ -63,7 +64,7 @@ export async function brancherGoogle(context, { idClient = ID_CLIENT } = {}) {
       const nom = /name = '(.*?)' and/.exec(q)?.[1]?.replace(/\\'/g, "'");
       const parent = /and '([^']+)' in parents/.exec(q)?.[1];
       drive.recherches.push({ nom, parent });
-      const trouves = drive.dossiers.filter((d) => d.name === nom && (d.parents?.[0] || 'root') === parent).map((d) => ({ id: d.id, name: d.name }));
+      const trouves = drive.dossiers.filter((d) => !drive.supprimes.has(d.id) && d.name === nom && (d.parents?.[0] || 'root') === parent).map((d) => ({ id: d.id, name: d.name }));
       await route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: JSON.stringify({ files: trouves }) });
       return;
     }

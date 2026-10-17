@@ -24,7 +24,7 @@ export async function ouvrirEspaceModules(racine, { client, marque, compte, acti
   for (const m of modules) apis.set(m.id, await m.monter());
   const base = cheminBaseClient(client);
   definirPrefixe(`espace/${client}`);
-  for (const api of apis.values()) api.demarrer({ compte, cheminBase: base, equipe }); // equipe : membres de l'espace (fiche du client), pour « Confiée à »
+  for (const api of apis.values()) api.demarrer({ compte, cheminBase: base, equipe, nomEspace: marque?.nom || '' }); // equipe : membres de l'espace (fiche du client), pour « Confiée à »
   document.body.classList.remove('page-espace');
   appliquerIdentite(marque, client); // titre, icône, appli installée et accent de l'interface = ceux du client
   definirChezClient(true); // masque ce qui est personnel à Jérôme (Charles, sauvegarde, GitHub…) ; les célébrations n'y existent qu'avec leur option, et l'image de Charles n'y est jamais

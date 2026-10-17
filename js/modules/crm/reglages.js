@@ -96,7 +96,7 @@ export function rendreReglagesCrm(page) {
   const retirerParent = h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', 'data-action': 'retirer-dossier-parent', onclick: () => {
     const ancien = D.etat.reglages.dossierParentDrive || null;
     return retirerAvecAnnulation({
-      titre: 'Retirer le dossier parent ?', message: 'Les prochains dossiers seront créés à la racine de « Mon Drive ». Les dossiers déjà créés ne bougent pas.',
+      titre: 'Retirer le dossier parent ?', message: 'Au prochain dossier, l’appli en créera un nouveau toute seule. Les dossiers déjà créés ne bougent pas.',
       faire: () => D.enregistrerReglages({ dossierParentDrive: null }), defaire: () => D.enregistrerReglages({ dossierParentDrive: ancien }), messageFait: 'Dossier parent retiré',
     });
   } }, 'Retirer');
@@ -110,7 +110,7 @@ export function rendreReglagesCrm(page) {
   sProjets.append(
     etatGoogle,
     h('div', { class: 'ligne-parent-drive' }, h('span', { class: 'ligne-parent-libelle' }, 'Dossier Drive parent'), nomParent, choisirParent, retirerParent),
-    h('p', { class: 'aide' }, 'Dans la fenêtre Google, seuls les dossiers s’affichent (les fichiers sont cachés exprès) : « Aucun document » veut dire que ce dossier n’a pas de sous-dossier, clique alors sur « Sélectionner ». Sans dossier parent, les dossiers de projets sont créés à la racine de « Mon Drive ». Renommer ou déplacer un dossier dans Drive ne casse pas son lien.'),
+    h('p', { class: 'aide' }, 'Dans la fenêtre Google, seuls les dossiers s’affichent (les fichiers sont cachés exprès) : « Aucun document » veut dire que ce dossier n’a pas de sous-dossier, clique alors sur « Sélectionner ». Sans dossier parent choisi, l’appli en crée un toute seule la première fois (« Chevalier IA - … ») et y range les dossiers. Renommer ou déplacer un dossier dans Drive ne casse pas son lien.'),
     h('h3', { class: 'sous-titre' }, 'Sous-dossiers de chaque projet'),
     listeSousDossiers,
     formulaireAjout('Nouveau sous-dossier (ex. Contrat, Livrables)', 'Ajouter', async (v) => { await enregistrerSousDossiers([...(D.etat.reglages.sousDossiersDrive || []), v]); }));
@@ -226,7 +226,7 @@ export function rendreReglagesCrm(page) {
     sProjets.hidden = !D.etat.config.options.boutonsDepot;
     config.rafraichir();
     const parent = D.etat.reglages.dossierParentDrive;
-    nomParent.textContent = parent?.nom || 'Racine de Mon Drive';
+    nomParent.textContent = parent?.nom || 'Créé tout seul au premier dossier';
     nomParent.title = parent?.nom || '';
     retirerParent.hidden = !parent;
     choisirParent.disabled = !googleDisponible();

@@ -167,6 +167,16 @@ Captures **produites par les tests e2e eux-mêmes** (refaites à chaque passage,
 | Adresse hors Drive : dans « Ajouter un lien web » | `Une adresse hors Google Drive se met dans « Ajouter un lien web »…` |
 | **Sans test permanent (dit clairement)** | filtres combinés / listes limitées (écran Automatisations, tests 2.7.3, non rejoués ici) ; « un mot = une seule chose » (relecture humaine) ; « cas vide, erreur, chargement décrits et testés » (règle de méthode) ; « chiffres de largeur fixe » (`tabular-nums` posé sur les compteurs existants, pas de test de rendu). |
 
+## Dossier parent créé tout seul (version 2.10.2)
+
+Demande de Jérôme : « quand on veut créer un dossier, paf, ça lui crée automatiquement un répertoire dans son Google Drive ». Avant, sans dossier parent choisi dans Réglages, le dossier était créé à la racine de Mon Drive (désordre). Maintenant :
+- **Aucun parent enregistré** : au premier besoin, l'appli crée **UNE fois** un dossier dans Mon Drive — **« Chevalier IA OS »** pour le CRM de Jérôme, **« Chevalier IA - <nom de l'espace> »** chez un client (nom lu dans la fiche de marque) —, l'enregistre dans `dossierParentDrive` (`{ id, nom, auto: true }`, comme si l'utilisateur l'avait choisi) et crée dedans le dossier de la fiche et ses sous-dossiers. S'il existe déjà un dossier de ce nom connu de l'appli, il est réutilisé (pas de doublon).
+- **Parent choisi par l'utilisateur** (« Choisir dans Google Drive ») : conservé tel quel, jamais remplacé.
+- **Parent créé tout seul puis supprimé** (ou mis à la corbeille) dans Drive : recréé au prochain dossier, avec le message « Le dossier « … » avait été supprimé de ton Drive : il a été recréé pour le ranger. » Si Drive ne répond pas, on garde l'ancien (on ne conclut pas qu'il est supprimé).
+- Aucune fenêtre de choix, rien à expliquer ; Réglages montre « Créé tout seul au premier dossier » tant qu'il n'y en a pas, puis son nom. Aucun changement de règles Firestore ; aucune donnée existante modifiée (le champ `dossierParentDrive` existait).
+- *Choix* : à la racine de Jérôme, le dossier s'appelle « Chevalier IA OS » (et non « Chevalier IA - Chevalier IA OS »).
+- Tests : `G7` (logique, faux Drive), `L4` (racine : parent créé une fois puis réutilisé), `L3` (parent choisi conservé), `P6` (parent supprimé : recréé + message ; capture `P6-parent-recree.png`), `P6` chez un client (« Chevalier IA - Studio Lune »). **Non vérifié avec le vrai Google** : la suppression réelle d'un dossier et son signalement par `files.get` (404 ou `trashed`), la création dans Mon Drive avec `drive.file`.
+
 ## Pas vérifié (à faire après le branchement)
 
 - Le vrai parcours Google : autorisation, Picker avec « Importer » **dans le bon dossier** (`DocsUploadView.setParent`, d'après la documentation de Google), création réelle des dossiers, ouverture du lien enregistré.

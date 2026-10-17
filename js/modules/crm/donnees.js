@@ -39,6 +39,8 @@ let compte = null;
 let cheminBase = '';
 // Membres de l'espace à qui une tâche peut être confiée (chez un client : la liste `equipe` de sa fiche, donnée par la coque) ; à la racine : Jérôme et Charles.
 let equipe = null;
+// Nom de l'espace (fiche de marque du client) : sert à nommer le dossier Google Drive créé tout seul au premier besoin.
+let nomEspace = '';
 /** Vrai à la racine : le CRM de Jérôme (ses valeurs historiques). Un espace client démarre sur un jeu neutre. */
 const estRacine = () => cheminBase === '';
 /** Chemin complet d'une collection du module (préfixe de base compris). */
@@ -119,6 +121,11 @@ export function cheminDeBase() {
   return cheminBase;
 }
 
+/** Nom de l'espace : « Chevalier IA OS » à la racine (CRM de Jérôme), le nom de la marque chez un client. */
+export function nomDeLEspace() {
+  return estRacine() ? 'Chevalier IA OS' : (nomEspace || 'Mon espace');
+}
+
 export function compteCourant() {
   return compte;
 }
@@ -168,6 +175,7 @@ export function demarrer(compteConnecte, base = '', options = {}) {
   compte = compteConnecte;
   cheminBase = normaliserBase(base);
   equipe = options.equipe ?? null;
+  nomEspace = options.nomEspace ?? '';
   // Quand seul un horodatage serveur se précise (modifieLe, creeLe), les données affichées ne changent pas :
   // on met l'état à jour sans prévenir les écrans (pas de nouveau rendu, donc pas de glisser déposer interrompu).
   const ecouter = (nom, cle) => desabonnements.push(onSnapshot(collection(db, chemin(nom)), (snap) => {
@@ -221,6 +229,7 @@ export function arreter() {
   compte = null;
   cheminBase = '';
   equipe = null;
+  nomEspace = '';
   etat.config = L.CONFIG_NEUTRE;
   etat.modelesAffaire = [];
 }
