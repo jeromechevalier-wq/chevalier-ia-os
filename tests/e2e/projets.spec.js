@@ -180,10 +180,7 @@ test('C29 fiche : titre, dates (la fin ne précède pas le début), dossier de t
   await champDoc('projets_projets', 'pr1', 'dateFin', '2026-11-30');
   // Détails : le dossier de travail accepte n'importe quel lien ; plus de champ GitHub ni de « Créer le GitHub »
   await expect(page.locator('[data-champ="github"], [data-action="creer-github"]')).toHaveCount(0);
-  await page.locator('[data-action="lier-dossier"]').click();
-  await page.locator('[data-champ="dossier"]').fill('smb://nas/clients/carrel');
-  await page.locator('[data-action="enregistrer-dossier"]').click();
-  await champDoc('projets_projets', 'pr1', 'urlDossier', 'smb://nas/clients/carrel');
+  await expect(page.locator('[data-champ="dossier"]')).toHaveCount(0); // plus de champ pour coller une adresse : une adresse web va dans « Liens et documents »
   // Liens et documents (la section s'appelait « Documents »)
   await expect(page.locator('[data-section="projet-documents"]')).toContainText('Liens et documents');
   await page.locator('[data-action="ajouter-lien"]').click();
@@ -1636,7 +1633,7 @@ test('C38 Réglages : étapes de vente configurables — renommer, expliquer (ic
   // fiche affaire : la barre des étapes porte l'icône « i » de l'étape décrite
   await aller(page, '#/crm/affaires/a1');
   await expect(page.locator('.barre-etapes-fiche [data-role="info"]')).toHaveCount(1);
-  await expect(page.locator('.barre-etapes-fiche [data-role="info"]')).toHaveAttribute('title', 'Le prospect vient de nous écrire.');
+  await expect(page.locator('.barre-etapes-fiche [data-role="bulle-info"]')).toHaveText('Le prospect vient de nous écrire.');
 });
 
 test('C39 Réglages : options du CRM — suivi des paiements, extraction de valeur, dossier Drive : éteindre cache les écrans associés', async ({ page }) => {

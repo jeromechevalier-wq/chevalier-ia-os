@@ -461,3 +461,7 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 
 /* Début d'activité : assez large pour montrer le mois ET l'année (« octobre 2026 ») */
 .champ-mois { width: 240px; max-width: 100%; }
+
+/* Icône « i » : bulle d'explication au survol, au focus et au toucher (position posée par composants.js, jamais hors de l'écran) */
+.bouton-info .bulle-info { display: none; position: fixed; z-index: 90; padding: 8px 12px; border-radius: 8px; background: var(--ink2, #2b2930); color: #fff; font: 400 13px/1.4 var(--police-texte); text-align: left; box-shadow: var(--ombre); pointer-events: none; white-space: normal; }
+.bouton-info.ouvert .bulle-info { display: block; }

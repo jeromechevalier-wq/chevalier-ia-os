@@ -95,6 +95,27 @@ export async function creerDossier({ jeton, nom, parentId = '', appelFetch = glo
 }
 
 /**
+ * Cherche, dans le dossier `parentId` (« root » = racine de Mon Drive), un dossier qui porte déjà ce nom. ATTENTION : avec la portée drive.file, Google ne montre à l'appli
+ * que les dossiers qu'ELLE a créés ou que l'utilisateur lui a montrés dans la fenêtre Google : un dossier créé à la main dans Drive n'est pas vu. Renvoie { id, nom } ou null.
+ * Une erreur de Google ne bloque pas (null) : la vérification est un confort, pas une garantie.
+ */
+export async function trouverDossierDeMemeNom({ jeton, nom, parentId = '', appelFetch = globalThis.fetch }) {
+  const parent = parentId || 'root';
+  if (parent !== 'root' && !IDENTIFIANT.test(parent)) return null;
+  const { nom: propre, erreur } = nettoyerNomDossier(nom);
+  if (erreur) return null;
+  const echapper = (t) => t.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  const q = `name = '${echapper(propre)}' and mimeType = '${TYPE_DOSSIER}' and trashed = false and '${parent}' in parents`;
+  try {
+    const reponse = await appelFetch(`${API_FICHIERS}?q=${encodeURIComponent(q)}&fields=files(id,name)&pageSize=1&supportsAllDrives=true&includeItemsFromAllDrives=true`, { headers: { Authorization: `Bearer ${jeton}` } });
+    if (!reponse.ok) return null;
+    const corps = await reponse.json();
+    const f = corps?.files?.[0];
+    return f?.id ? { id: f.id, nom: f.name || propre } : null;
+  } catch { return null; }
+}
+
+/**
  * Copie un fichier Drive DANS un dossier (files.copy) : l'original reste où il est. Renvoie { id, nom, url } de la COPIE.
  * Il faut que l'appli ait accès au fichier (choisi dans la fenêtre Google) et au dossier (créé par l'appli ou choisi dans la fenêtre).
  */

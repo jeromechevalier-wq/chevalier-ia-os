@@ -528,3 +528,7 @@ body.page-espace { background: #241b2e; color: #fff; }
 .espace-galerie { margin-top: 32px; width: 100%; display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
 .espace-galerie img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 8px; border: 1px solid #ffffff33; }
 .espace .message-refus { background: #4a1f24; color: #ffe3df; border-color: #ff8f86; }
+
+.toast .toast-action { pointer-events: auto; margin-left: 4px; padding: 2px 10px; border: 1px solid rgba(255,255,255,.5); border-radius: 999px; background: none; color: #fff; font: 600 13px var(--police-texte); cursor: pointer; }
+.toast .toast-action:hover, .toast .toast-action:focus-visible { background: rgba(255,255,255,.18); }
+.toast:has(.toast-action) { pointer-events: auto; }

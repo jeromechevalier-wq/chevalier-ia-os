@@ -1,5 +1,5 @@
 // Fiches affaire et projet cohérentes : bande d'étapes / de phases = simple indicateur (la liste du Résumé change), même ordre des sections, une seule étiquette d'état.
-import { test, expect, connecter, creerAffaire, creerProjet, lireDocument, estTelephone } from './outils.js';
+import { test, expect, connecter, creerAffaire, creerProjet, creerTacheProjet, creerActivite, lireDocument, estTelephone } from './outils.js';
 
 async function aller(page, hash) { await page.evaluate((h) => { location.hash = h; }, hash); }
 const dessus = (page, a, b) => page.evaluate(([x, y]) => document.querySelector(`[data-section="${x}"]`).getBoundingClientRect().top < document.querySelector(`[data-section="${y}"]`).getBoundingClientRect().top, [a, b]);
@@ -51,16 +51,16 @@ test('F3 l\'étiquette d\'état n\'apparaît qu\'UNE fois, sous le titre, avec u
   await connecter(page);
   await aller(page, '#/crm/affaires/a1');
   await expect(page.locator('.pastille-statut', { hasText: 'Ouverte' })).toHaveCount(1);
-  await expect(page.locator('.fiche-sous [data-role="info"]')).toHaveAttribute('title', /en cours/);
+  await expect(page.locator('.fiche-sous [data-role="bulle-info"]')).toHaveText(/en cours/);
   await expect(page.locator('[data-section="affaire-resume"]')).not.toContainText('Statut');
   await aller(page, '#/crm/affaires/a2');
   await expect(page.locator('.pastille-statut', { hasText: 'Perdue' })).toHaveCount(1);
   await expect(page.locator('.fiche-sous')).toContainText('Prix trop élevé');
-  await expect(page.locator('.fiche-sous [data-role="info"]')).toHaveAttribute('title', /perdue/);
+  await expect(page.locator('.fiche-sous [data-role="bulle-info"]')).toHaveText(/perdue/);
   await aller(page, '#/projets/projets/pr1');
   await expect(page.locator('.fiche-sous .pastille-statut')).toHaveCount(1);
   await expect(page.locator('.fiche-sous .pastille-statut')).toHaveText('Actif');
-  await expect(page.locator('.fiche-sous [data-role="info"]')).toHaveAttribute('title', /en cours/);
+  await expect(page.locator('.fiche-sous [data-role="bulle-info"]')).toHaveText(/en cours/);
 });
 
 test('F4 fiche projet : la ligne « Affaire d\'origine » n\'apparaît que s\'il y a une affaire', async ({ page }) => {
@@ -74,4 +74,43 @@ test('F4 fiche projet : la ligne « Affaire d\'origine » n\'apparaît que s\'il
   await aller(page, '#/projets/projets/pr2');
   await expect(page.locator('[data-prop="affaire"] .prop-libelle')).toHaveText('Affaire d’origine');
   await expect(page.locator('[data-prop="affaire"]')).toContainText('Audit des Lilas');
+});
+
+test('F5 tâches (projet) et points clés (affaire) : même comportement — un clic sur le texte le modifie sur place, le rond coche pour terminer, le menu « … » ne garde que les actions rares', async ({ page }) => {
+  await creerProjet('pr1', { titre: 'Refonte site' });
+  await creerTacheProjet('t1', { titre: 'Écrire le devis', projetId: 'pr1' });
+  await creerAffaire('a1', { titre: 'Audit des Lilas' });
+  await creerActivite('ac1', { titre: 'Appeler le client', affaireId: 'a1', type: 'appel' });
+  await connecter(page);
+  // Tâche de projet : clic sur le texte → champ ; Entrée enregistre.
+  await aller(page, '#/projets/projets/pr1');
+  const tache = page.locator('.tache[data-tache="t1"]');
+  await tache.locator('[data-role="titre-tache"]').click();
+  await tache.getByLabel('Modifier le texte de la tâche').fill('Écrire le devis final');
+  await tache.getByLabel('Modifier le texte de la tâche').press('Enter');
+  await expect.poll(async () => (await lireDocument('projets_taches/t1')).titre).toBe('Écrire le devis final');
+  // Échap annule.
+  await tache.locator('[data-role="titre-tache"]').click();
+  await tache.getByLabel('Modifier le texte de la tâche').fill('Autre texte');
+  await tache.getByLabel('Modifier le texte de la tâche').press('Escape');
+  await expect(tache.locator('[data-role="titre-tache"]')).toHaveText('Écrire le devis final');
+  expect((await lireDocument('projets_taches/t1')).titre).toBe('Écrire le devis final');
+  // Le menu ne garde que les actions rares (réglages, ordre, déplacement, suppression) : pas de modification du texte.
+  await tache.locator('[data-action="menu-tache"]').click();
+  const entrees = await page.locator('.menu-pop [role="menuitem"]').allInnerTexts();
+  expect(entrees[0]).toBe('Modifier…');
+  expect(entrees.at(-1)).toBe('Supprimer');
+  await page.keyboard.press('Escape');
+  // Le rond coche pour terminer.
+  await tache.locator('[data-action="faire-tache"]').click();
+  await expect.poll(async () => (await lireDocument('projets_taches/t1')).fait).toBe(true);
+  // Point clé de l'affaire : même geste.
+  await aller(page, '#/crm/affaires/a1');
+  const pointCle = page.locator('.activite[data-activite="ac1"]');
+  await pointCle.locator('.activite-titre-modifiable').click();
+  await pointCle.getByLabel('Modifier le texte de l’activité').fill('Appeler le client demain');
+  await pointCle.getByLabel('Modifier le texte de l’activité').press('Enter');
+  await expect.poll(async () => (await lireDocument('crm_activites/ac1')).titre).toBe('Appeler le client demain');
+  await pointCle.getByRole('button', { name: /Actions/ }).click();
+  expect(await page.locator('.menu-pop [role="menuitem"]').allInnerTexts()).toEqual(['Supprimer']);
 });

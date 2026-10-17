@@ -144,19 +144,25 @@ export function vider(el) {
 // ---------------------------------------------------------------- toasts
 
 /** lien : { libelle, href } ajoute un lien cliquable dans le message (ex. "Ouvrir la fiche"). */
-export function toast(message, { type = 'info', duree = 3200, lien = null } = {}) {
+export function toast(message, { type = 'info', duree = 3200, lien = null, action = null } = {}) {
   let zone = document.getElementById('toasts');
   if (!zone) {
     zone = h('div', { id: 'toasts', class: 'toasts', role: 'status', 'aria-live': 'polite' });
     document.body.append(zone);
   }
   const t = h('div', { class: `toast toast-${type}${lien ? ' avec-lien' : ''}` }, icone(type === 'erreur' ? 'triangle-alert' : 'circle-check', { taille: 16 }), h('span', {}, message),
-    lien ? h('a', { class: 'toast-lien', href: lien.href }, lien.libelle) : null);
+    lien ? h('a', { class: 'toast-lien', href: lien.href }, lien.libelle) : null,
+    // Action (ex. « Annuler » après un retrait) : un bouton dans le message, qui le ferme.
+    action ? h('button', { type: 'button', class: 'toast-action', dataset: { action: 'toast-action' }, onclick: () => { fermer(); action.surClic(); } }, action.libelle) : null);
   zone.append(t);
-  setTimeout(() => {
+  let ferme = false;
+  function fermer() {
+    if (ferme) return;
+    ferme = true;
     t.classList.add('sortie');
     setTimeout(() => t.remove(), 250);
-  }, duree);
+  }
+  setTimeout(fermer, duree);
 }
 
 // ---------------------------------------------------------------- boîtes de dialogue

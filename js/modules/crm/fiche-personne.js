@@ -1,4 +1,5 @@
 // Fiche d'une personne : colonne de gauche en sections repliables, colonne de droite (activité, notes, historique).
+import { retirerAvecAnnulation } from '../../os/retrait.js';
 import { h, icone, remplir, dialogue, toast, ouvrirMenu } from '../../os/ui.js';
 import { naviguer } from '../../os/router.js';
 import * as D from './donnees.js';
@@ -145,7 +146,9 @@ export function rendreFichePersonne(conteneur, id) {
     let contenuOrg;
     if (org && !editionOrganisation) {
       contenuOrg = h('div', { class: 'contact-ligne' }, icone('building-2', { taille: 15 }), lienOrganisation(org),
-        h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', 'data-action': 'detacher-organisation', onclick: () => D.lierPersonneOrganisation(p.id, null) }, 'Détacher'),
+        h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', 'data-action': 'detacher-organisation', onclick: () => retirerAvecAnnulation({
+          titre: 'Détacher l’organisation ?', message: `« ${org.nom} » ne sera plus associée à ${p.nom}. La personne et l’organisation sont conservées.`, libelleOk: 'Détacher',
+          faire: () => D.lierPersonneOrganisation(p.id, null), defaire: () => D.lierPersonneOrganisation(p.id, org.id), messageFait: 'Organisation détachée' }) }, 'Détacher'),
         h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', onclick: () => { editionOrganisation = true; reconstruire(); } }, 'Changer'));
     } else {
       const sel = selecteurOrganisation({ valeurId: org?.id || null, surChoix: async (el) => { if (el) { editionOrganisation = false; await D.lierPersonneOrganisation(p.id, el.id); } } });

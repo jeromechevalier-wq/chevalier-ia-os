@@ -1137,60 +1137,42 @@ test('C24 plus de champ GitHub ni de « Créer le GitHub » : une ancienne adres
   expect((await lireDocument('crm_affaires/a1')).urlGithub).toBe('https://github.com/jeromechevalier-wq/eliot-devis-depannage');
   // La retirer est un geste volontaire.
   await liens.getByRole('button', { name: 'Retirer GitHub' }).click();
+  await dialogue(page).getByRole('button', { name: 'Retirer' }).click(); // confirmation d'abord
   await champDoc('crm_affaires', 'a1', 'urlGithub', '');
   await expect(liens.getByRole('link', { name: 'GitHub' })).toHaveCount(0);
 });
 
-test('C25 dossier de travail d\'une affaire : « Lier un dossier existant » accepte n\'importe quel lien (Drive, serveur, NAS, site), refuse un texte ; Ouvrir, Modifier, Retirer ; pas de « Créer un dossier » tant que Google n\'est pas branché', async ({ page, context }) => {
-  await debrancherGoogle(context); // le CRM de Jérôme a maintenant son identifiant client : on simule « Google non branché »
-  await fixtureEliot();
+test('C25 dossier de travail d\'une affaire : sans Google, aucun champ ; un ancien lien (serveur, NAS, site) reste affiché et ouvrable ; « Retirer » demande confirmation puis propose « Annuler »', async ({ page, context }) => {
+  await debrancherGoogle(context); // Google non branché
+  await fixtureEliot({ urlDossier: 'smb://nas/clients/carrel' });
+  await creerAffaire('a2', { titre: 'Autre affaire', urlDossier: 'https://exemple.fr/espace/carrel' });
+  await creerAffaire('a3', { titre: 'Sans dossier' });
   await connecter(page);
-  await aller(page, '#/crm/affaires/a1');
+  // Sans dossier et sans Google : aucun champ pour coller une adresse, aucun bouton ; le texte renvoie vers « Liens et documents ».
+  await aller(page, '#/crm/affaires/a3');
   const ligne = page.locator('[data-prop="dossier"]');
-  await expect(ligne.locator('.prop-libelle')).toHaveText('Dossier de travail');
-  await expect(ligne.locator('[data-role="info"]')).toHaveCount(1); // l'explication tient dans une icône « i », pas dans un long texte
-  // Sans dossier : deux boutons côte à côte ; « Créer un dossier dans Google Drive » attend le branchement de Google.
-  await expect(ligne.locator('[data-action="creer-dossier-ouvrir"]')).toHaveCount(0);
-  await expect(ligne.locator('[data-action="lier-dossier"]')).toHaveText('Lier un dossier existant');
-  await expect(page.locator('[data-champ="dossier"]')).toHaveCount(0); // aucun champ tant qu'on n'a pas cliqué
-  await ligne.locator('[data-action="lier-dossier"]').click();
-  const champUrl = page.locator('[data-champ="dossier"]');
-  // Pas un lien : refusé, rien n'est enregistré.
-  await champUrl.fill('Mon Drive/Projets/carrel');
-  await ligne.locator('[data-action="enregistrer-dossier"]').click();
-  await expect(page.locator('.toast-erreur').last()).toContainText('lien complet');
-  await expect(champUrl).toHaveClass(/invalide/);
-  expect((await lireDocument('crm_affaires/a1')).urlDossier ?? '').toBe('');
-  // Annuler : retour aux deux boutons.
-  await ligne.locator('[data-action="annuler-dossier"]').click();
-  await expect(ligne.locator('[data-action="lier-dossier"]')).toBeVisible();
-  // Un dossier de NAS est accepté (affiché en texte : un navigateur n'ouvre pas smb://).
-  await ligne.locator('[data-action="lier-dossier"]').click();
-  await champUrl.fill('smb://nas/clients/carrel');
-  await champUrl.press('Enter');
-  await champDoc('crm_affaires', 'a1', 'urlDossier', 'smb://nas/clients/carrel');
+  await expect(ligne.locator('.prop-libelle')).toContainText('Dossier de travail');
+  await expect(ligne.locator('[data-role="info"]')).toHaveCount(1); // l'explication tient dans une icône « i »
+  await expect(page.locator('[data-champ="dossier"], [data-action="enregistrer-dossier"], [data-action="lier-dossier"], [data-action="creer-dossier-ouvrir"]')).toHaveCount(0);
+  await expect(ligne.locator('[data-role="google-absent"]')).toContainText('« Liens et documents »');
+  // Un ancien dossier de NAS : affiché en texte (un navigateur n'ouvre pas smb://), pas de « Modifier », « Retirer » seulement.
+  await aller(page, '#/crm/affaires/a1');
   await expect(ligne).toContainText('smb://nas/clients/carrel');
-  // Modifier : un site, puis un dossier Drive : liens « Ouvrir le dossier ».
-  await ligne.locator('[data-action="modifier-dossier"]').click();
-  await expect(page.locator('[data-champ="dossier"]')).toHaveValue('smb://nas/clients/carrel');
-  await page.locator('[data-champ="dossier"]').fill('https://exemple.fr/espace/carrel');
-  await page.locator('[data-champ="dossier"]').press('Enter');
-  await champDoc('crm_affaires', 'a1', 'urlDossier', 'https://exemple.fr/espace/carrel');
+  await expect(ligne.locator('[data-action="modifier-dossier"]')).toHaveCount(0);
+  // Un ancien lien web : « Ouvrir le dossier ».
+  await aller(page, '#/crm/affaires/a2');
   await expect(ligne.locator('[data-action="ouvrir-dossier"]')).toHaveAttribute('href', 'https://exemple.fr/espace/carrel');
-  await ligne.locator('[data-action="modifier-dossier"]').click();
-  await page.locator('[data-champ="dossier"]').fill('https://drive.google.com/drive/folders/1AbC_dEf-123');
-  await page.locator('[data-champ="dossier"]').press('Enter');
-  await champDoc('crm_affaires', 'a1', 'urlDossier', 'https://drive.google.com/drive/folders/1AbC_dEf-123');
-  await expect(ligne.locator('[data-action="ouvrir-dossier"]')).toHaveAttribute('href', 'https://drive.google.com/drive/folders/1AbC_dEf-123');
-  // Échap pendant une modification revient au lien sans rien changer.
-  await ligne.locator('[data-action="modifier-dossier"]').click();
-  await page.locator('[data-champ="dossier"]').press('Escape');
-  await expect(ligne.locator('[data-action="ouvrir-dossier"]')).toBeVisible();
-  expect((await lireDocument('crm_affaires/a1')).urlDossier).toBe('https://drive.google.com/drive/folders/1AbC_dEf-123');
-  // Retirer : le dossier n'est plus lié, les deux boutons reviennent.
+  // Retirer : confirmation d'abord (annuler ne retire rien), puis « Retiré · Annuler ».
   await ligne.locator('[data-action="retirer-dossier"]').click();
-  await champDoc('crm_affaires', 'a1', 'urlDossier', '');
-  await expect(ligne.locator('[data-action="lier-dossier"]')).toBeVisible();
+  await expect(dialogue(page)).toContainText('Seul le lien est retiré');
+  await dialogue(page).getByRole('button', { name: 'Annuler' }).click();
+  expect((await lireDocument('crm_affaires/a2')).urlDossier).toBe('https://exemple.fr/espace/carrel');
+  await ligne.locator('[data-action="retirer-dossier"]').click();
+  await dialogue(page).getByRole('button', { name: 'Retirer' }).click();
+  await champDoc('crm_affaires', 'a2', 'urlDossier', '');
+  await page.locator('.toast [data-action="toast-action"]').click();
+  await champDoc('crm_affaires', 'a2', 'urlDossier', 'https://exemple.fr/espace/carrel');
+  await expect(ligne.locator('[data-action="ouvrir-dossier"]')).toBeVisible();
 });
 
 test('C26 réglages : plus de compte GitHub ni de dossier Mac ; la section Google Drive dit que Google n\'est pas encore branché', async ({ page, context }) => {
@@ -1204,7 +1186,7 @@ test('C26 réglages : plus de compte GitHub ni de dossier Mac ; la section Googl
   await expect(section).toBeVisible(); // l'interrupteur est allumé chez Jérôme
   await expect(section.locator('[data-role="etat-google"]')).toContainText('pas encore branché');
   await expect(section.locator('[data-action="choisir-dossier-parent"]')).toBeDisabled();
-  await expect(section.locator('[data-action="tester-google"]')).toBeDisabled();
+  await expect(section.locator('[data-action="tester-google"]')).toHaveCount(0); // plus de bouton « Tester la fenêtre Google »
   await expect(page.locator('[data-option="boutonsDepot"]')).toBeChecked();
   await expect(page.locator('[data-ligne="boutonsDepot"]')).toContainText('Créer un dossier dans Google Drive');
 });

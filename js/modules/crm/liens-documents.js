@@ -6,12 +6,14 @@
 import { h, icone, remplir, toast, dialogue } from '../../os/ui.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
-import { sectionRepliable, boutonEtoile } from './composants.js';
+import { sectionRepliable, boutonEtoile, iconeInfo } from './composants.js';
+import { retirerAvecAnnulation } from '../../os/retrait.js';
 import { creerRepertoireDrive, messageCreation } from './lanceurs.js';
 import { googleDisponible, preparerGoogle, ouvrirFenetreGoogle, obtenirJeton } from '../../os/google-picker.js';
 import { idDossierDrive, documentDepuisChoix, copierFichier, TYPE_DOSSIER } from '../../os/google-drive.js';
 
 // Formulaire ouvert, gardé hors de la fiche : la fiche est redessinée quand des données arrivent, le formulaire en cours de saisie ne doit pas disparaître.
+const EXPLICATION = 'Liens et documents de cette fiche. « Ajouter un document » choisit un fichier dans Google Drive (ou envoie un fichier de l’ordinateur) et, par défaut, le copie dans le dossier de travail. « Ajouter un lien web » garde l’adresse d’un site ou d’un fichier.';
 const formulaires = new Map();
 
 /**
@@ -46,9 +48,9 @@ export function sectionLiensEtDocuments({ id, typeFiche, entite, courant, enregi
     const champNote = champ('Note (facultative)', etat.note, (v) => { etat.note = v; }, { placeholder: 'Note (ex. envoyé au client)', max: L.LONGUEUR_MAX_NOTE });
     const valider = async () => {
       let urlChoisie = lien ? etat.url : etat.urlDocument;
-      // Case cochée : on copie le fichier dans le dossier de travail (l'original reste où il est) et le lien enregistré pointe vers la COPIE.
-      if (!lien && etat.copier) {
-        const dossier = idDossierDrive(courant().urlDossier);
+      // Case cochée (par défaut, quand elle est proposée) : on copie le fichier dans le dossier de travail (l'original reste où il est) et le lien enregistré pointe vers la COPIE.
+      const dossier = idDossierDrive(courant().urlDossier);
+      if (!lien && etat.copiable && etat.copier && dossier) {
         try {
           const jeton = await obtenirJeton({ email: D.compteCourant()?.email || '' });
           urlChoisie = (await copierFichier({ jeton, fichierId: etat.fichierId, parentId: dossier, nom: etat.nomOriginal })).url;
@@ -58,6 +60,7 @@ export function sectionLiensEtDocuments({ id, typeFiche, entite, courant, enregi
           toast(`La copie dans le dossier de travail n’a pas pu être faite (${e?.message || 'erreur'}) : le lien d’origine est gardé.`, { type: 'erreur', duree: 8000 });
         }
       }
+      if (lien) urlChoisie = L.normaliserLienWeb(urlChoisie); // on complète le début de l'adresse (voir normaliserLienWeb)
       const r = L.ajouterDocument(courant(), etat.nom, urlChoisie, false, etat.note);
       if (r.erreurs.url) { toast(r.erreurs.url, { type: 'erreur' }); champUrl?.classList.add('invalide'); return; }
       if ((courant().documents || []).some((d) => d.url === r.patch.documents.at(-1).url)) { toast('Ce lien est déjà dans la liste', { type: 'info' }); return; }
@@ -66,7 +69,11 @@ export function sectionLiensEtDocuments({ id, typeFiche, entite, courant, enregi
       await ecrire(r.patch);
     };
     // Case « Copier dans le dossier de travail » : seulement pour un fichier déjà dans Drive (pas « Importer »), si le dossier de travail est un dossier Drive.
-    const caseCopie = !lien && etat.copiable && idDossierDrive(courant().urlDossier)
+    const dossierDrive = idDossierDrive(courant().urlDossier);
+    const caseCopie = !lien && etat.importe && dossierDrive
+      ? h('label', { class: 'case case-grisee', dataset: { role: 'case-importe' } }, h('input', { type: 'checkbox', checked: true, disabled: true, dataset: { champ: 'copier' }, 'aria-label': 'Copier dans le dossier de travail' }),
+        h('span', {}, 'Le fichier est envoyé dans le dossier de travail'))
+      : !lien && etat.copiable && dossierDrive
       ? h('label', { class: 'case' }, h('input', { type: 'checkbox', checked: etat.copier === true, dataset: { champ: 'copier' }, 'aria-label': 'Copier dans le dossier de travail',
         onchange: (e) => { etat.copier = e.target.checked; } }), h('span', {}, `Copier dans le dossier de travail${typeFiche === 'affaire' ? ' de l’affaire' : ' du projet'}`))
       : null;
@@ -90,15 +97,15 @@ export function sectionLiensEtDocuments({ id, typeFiche, entite, courant, enregi
     try {
       if (!fiche.urlDossier) {
         const choix = await dialogue({
-          titre: 'Dossier de travail',
-          contenu: h('p', {}, `Cette fiche n’a pas encore de dossier de travail dans Google Drive. Pour y importer des fichiers, je peux le créer maintenant (avec ses sous-dossiers définis dans les Réglages) : son lien sera enregistré comme dossier de travail.`),
+          titre: 'Pas encore de dossier de travail',
+          contenu: h('p', {}, 'Cette fiche n’a pas de dossier de travail. « Créer le dossier » en crée un dans Google Drive (avec les sous-dossiers définis dans les Réglages) et l’enregistre comme dossier de travail : les fichiers importés ou copiés y seront rangés.'),
           boutons: [
+            { libelle: 'Annuler', valeur: null },
             { libelle: 'Créer le dossier', valeur: 'creer', style: 'principal' },
-            { libelle: 'Parcourir seulement', valeur: 'parcourir' },
           ],
         });
-        if (!choix) return;
-        if (choix === 'creer') {
+        if (choix !== 'creer') return;
+        {
           const r = await creerRepertoireDrive({ nom: fiche.titre });
           await enregistrer({ urlDossier: r.url });
           dossierImport = idDossierDrive(r.url);
@@ -110,9 +117,9 @@ export function sectionLiensEtDocuments({ id, typeFiche, entite, courant, enregi
       const elus = await ouvrirFenetreGoogle({ mode: 'documents', dossierImport, email, multiple: false });
       const doc = documentDepuisChoix(elus[0]);
       if (!doc) { if (elus[0]) toast('Ce document n’a pas d’adresse Google utilisable', { type: 'erreur' }); return; }
-      // Un fichier choisi dans « Google Drive » (pas déposé par « Importer » : celui-là est déjà dans le dossier de travail) peut être copié dans ce dossier.
+      // Un fichier choisi dans « Google Drive » (pas déposé par « Importer » : celui-là est déjà dans le dossier de travail) est copié dans ce dossier, sauf si on décoche la case.
       const dejaDansLeDossier = dossierImport && elus[0].parentId === dossierImport;
-      ouvrirFormulaire({ mode: 'document', nom: doc.libelle, nomOriginal: doc.libelle, urlDocument: doc.url, fichierId: elus[0].id, copiable: !dejaDansLeDossier && elus[0].type !== TYPE_DOSSIER, copier: false });
+      ouvrirFormulaire({ mode: 'document', nom: doc.libelle, nomOriginal: doc.libelle, urlDocument: doc.url, fichierId: elus[0].id, copiable: !dejaDansLeDossier && elus[0].type !== TYPE_DOSSIER, importe: !!dejaDansLeDossier, copier: true }); // cochée par défaut (décision de Jérôme)
     } catch (e) {
       if (!e?.saisie && !e?.annule) console.warn(e);
       toast(e?.message || 'Ajout impossible', { type: e?.annule ? 'info' : 'erreur' });
@@ -122,6 +129,17 @@ export function sectionLiensEtDocuments({ id, typeFiche, entite, courant, enregi
   }
 
   // ------------------------------------------------------------ la liste
+  /** Retirer un lien : confirmation, puis « Retiré · Annuler » pendant 8 secondes (le fichier lui-même n'est jamais touché). */
+  function retirerLien(lien) {
+    const avant = courant();
+    return retirerAvecAnnulation({
+      titre: 'Retirer ce lien ?', message: `« ${lien.libelle} » sera retiré de la liste. Le fichier ou le site, lui, n’est pas touché.`,
+      faire: () => enregistrer(L.retirerLien(avant, lien)),
+      defaire: () => enregistrer({ documents: avant.documents || [], urlGithub: avant.urlGithub || '' }),
+      messageFait: `« ${lien.libelle} » retiré`,
+    });
+  }
+
   function ligneModifiable(lien) {
     let nom = lien.libelle;
     let note = lien.note;
@@ -149,7 +167,7 @@ export function sectionLiensEtDocuments({ id, typeFiche, entite, courant, enregi
         h('a', { href: lien.url, target: '_blank', rel: 'noopener noreferrer' }, lien.libelle),
         lien.note ? h('span', { class: 'lien-note' }, lien.note) : null),
       h('button', { type: 'button', class: 'bouton-icone', dataset: { action: 'modifier-lien' }, 'aria-label': `Modifier ${lien.libelle}`, onclick: () => li.replaceWith(ligneModifiable(lien)) }, icone('pencil', { taille: 14 })),
-      h('button', { type: 'button', class: 'bouton-icone', dataset: { action: 'retirer-lien' }, 'aria-label': `Retirer ${lien.libelle}`, onclick: () => ecrire(L.retirerLien(courant(), lien)) }, icone('x', { taille: 14 })));
+      h('button', { type: 'button', class: 'bouton-icone', dataset: { action: 'retirer-lien' }, 'aria-label': `Retirer ${lien.libelle}`, onclick: () => retirerLien(lien) }, icone('x', { taille: 14 })));
     return li;
   }
   const lignes = () => (liens.length ? [h('ul', { class: 'liste-liens' }, liens.map(ligne))] : []);
@@ -162,7 +180,7 @@ export function sectionLiensEtDocuments({ id, typeFiche, entite, courant, enregi
   afficherFormulaire();
 
   return sectionRepliable({
-    id, titre: 'Liens et documents', compteur: liens.length,
+    id, titre: 'Liens et documents', compteur: liens.length, actions: [iconeInfo(EXPLICATION, 'Liens et documents')],
     contenu: h('div', { class: 'pile' }, liste, h('div', { class: 'boutons-liens' }, boutonGoogle, boutonLien), zoneFormulaire),
   });
 }
