@@ -60,7 +60,7 @@ export function sectionLiensEtDocuments({ id, typeFiche, entite, courant, enregi
           toast(`La copie dans le dossier de travail n’a pas pu être faite (${e?.message || 'erreur'}) : le lien d’origine est gardé.`, { type: 'erreur', duree: 8000 });
         }
       }
-      if (lien) urlChoisie = L.normaliserLienWeb(urlChoisie); // « monsite.fr » → https://monsite.fr ; « http:www… » → http://www…
+      if (lien) urlChoisie = L.normaliserLienWeb(urlChoisie); // on complète le début de l'adresse (voir normaliserLienWeb)
       const r = L.ajouterDocument(courant(), etat.nom, urlChoisie, false, etat.note);
       if (r.erreurs.url) { toast(r.erreurs.url, { type: 'erreur' }); champUrl?.classList.add('invalide'); return; }
       if ((courant().documents || []).some((d) => d.url === r.patch.documents.at(-1).url)) { toast('Ce lien est déjà dans la liste', { type: 'info' }); return; }
