@@ -100,8 +100,8 @@ function vueParFamille(duTableau, maintenant, surFiltre) {
       h('div', { class: 'td-segment', role: 'group', 'aria-label': 'Filtre' }, bouton(false, 'Tout voir'), bouton(true, 'À traiter')),
       possibles.length > 1 ? selection : null),
     groupes.length
-      ? groupes.map((g) => h('section', { class: 'td-panneau td-famille', dataset: { famille: g.famille }, 'aria-labelledby': `td-f-${g.famille || 'autres'}` },
-        h('header', {}, h('h2', { id: `td-f-${g.famille || 'autres'}` }, g.titre), compteursPastilles(g.compteurs)),
+      ? groupes.map((g) => h('section', { class: 'td-panneau td-famille', dataset: { famille: g.famille }, 'aria-labelledby': L.idFamille(g.famille) },
+        h('header', {}, h('h2', { id: L.idFamille(g.famille) }, g.titre), compteursPastilles(g.compteurs)),
         h('ul', { class: 'td-liste' }, g.indicateurs.map((i) => ligne(i, maintenant)))))
       : h('p', { class: 'td-vide td-rien' }, filtres.traiter ? MESSAGE_RIEN_A_TRAITER : SANS_RESULTAT),
   ];

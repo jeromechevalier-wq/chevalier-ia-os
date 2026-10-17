@@ -221,3 +221,13 @@ describe('R12 la logique ne dépend de rien', () => {
     assert.doesNotMatch(source, /Date\.now|new Date|document\.|window\./);
   });
 });
+
+describe('identifiant HTML d\'une famille', () => {
+  test('une famille venue de la base avec espace, guillemet ou & donne un id valide', () => {
+    const id = L.idFamille('clés & jetons "x"');
+    assert.match(id, /^td-f-[a-z0-9-]+$/i);
+    assert.doesNotMatch(id, /[\s"&']/);
+    assert.equal(L.idFamille('cles'), 'td-f-cles');
+    assert.equal(L.idFamille(''), 'td-f-autres');
+  });
+});

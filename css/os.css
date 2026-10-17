@@ -224,9 +224,10 @@ body.page-connexion {
 .coquille[data-menu='replie'] .menu { overflow: visible; }
 .coquille[data-menu='replie'] .menu-nav { overflow: visible; }
 /* Menu replié : il ne défile pas (les info-bulles dépassent), donc il doit tenir dans la hauteur de l'écran (900 px d'un portable) même avec
-   cinq groupes (CRM, Projets, Veille, Automatisations, Réglages) : titres de groupe et espaces resserrés. Replié seulement ; élargi, rien ne change. */
-.coquille[data-menu='replie'] .menu-nav { padding-top: 8px; padding-bottom: 8px; gap: 8px; }
+   six groupes (CRM, Projets, Veille, Automatisations, Tableau de bord, Réglages) : titres de groupe, boutons et espaces resserrés. Replié seulement ; élargi, rien ne change. */
+.coquille[data-menu='replie'] .menu-nav { padding-top: 8px; padding-bottom: 8px; gap: 4px; }
 .coquille[data-menu='replie'] .menu-groupe-titre { height: 18px; }
+.coquille[data-menu='replie'] .menu-entree { height: 38px; }
 
 .barre-haut, .voile-menu { display: none; }
 
@@ -532,10 +533,3 @@ body.page-espace { background: #241b2e; color: #fff; }
 .toast .toast-action { pointer-events: auto; margin-left: 4px; padding: 2px 10px; border: 1px solid rgba(255,255,255,.5); border-radius: 999px; background: none; color: #fff; font: 600 13px var(--police-texte); cursor: pointer; }
 .toast .toast-action:hover, .toast .toast-action:focus-visible { background: rgba(255,255,255,.18); }
 .toast:has(.toast-action) { pointer-events: auto; }
-
-/* Écran peu haut (portable) : le menu replié, qui ne défile pas (ses bulles d'aide dépassent), se compacte pour garder ses boutons du bas visibles malgré le nombre d'entrées. */
-@media (min-width: 768px) and (max-height: 1000px) {
-  .coquille[data-menu='replie'] .menu-nav { gap: 4px; }
-  .coquille[data-menu='replie'] .menu-groupe-titre { height: 18px; }
-  .coquille[data-menu='replie'] .menu-entree { height: 38px; }
-}

@@ -145,6 +145,11 @@ export function texteEcheance(echeanceMs, maintenant) {
   return `Échéance dépassée depuis ${jours} ${jours > 1 ? 'jours' : 'jour'}`;
 }
 
+/** Identifiant HTML sûr d'une famille (elle vient de la base) : tout caractère hors lettres, chiffres et tiret devient « - » ; sans famille : « autres ». */
+export function idFamille(famille) {
+  return `td-f-${String(famille || 'autres').replace(/[^a-z0-9-]/gi, '-')}`;
+}
+
 /** Nom affiché d'une famille : le nom connu, sinon le code avec une majuscule ; sans famille : « Autres ». */
 export function nomFamille(famille) {
   if (!famille) return 'Autres';

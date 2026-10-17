@@ -152,8 +152,8 @@ export const MODULES_DECLARES = geler([
     prefixe: 'tableaudebord',
     reglages: { sections: [], resume: 'Le tableau de bord se lit : ses indicateurs sont écrits par les scripts de surveillance. Aucun réglage à faire ici pour l’instant.' },
     ecrans: [
-      { route: 'tableaudebord/general', libelle: 'Général', icone: 'house' },
-      { route: 'tableaudebord/technique', libelle: 'Technique', icone: 'settings' },
+      { route: 'tableaudebord/general', libelle: 'Général', icone: 'layout-dashboard' },
+      { route: 'tableaudebord/technique', libelle: 'Technique', icone: 'shield-check' },
     ],
     collections: ['tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes'],
     outilsMcp: [],

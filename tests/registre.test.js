@@ -154,8 +154,8 @@ describe('registre : le CRM de Jérôme est strictement inchangé', () => {
     ] },
     // Ajout voulu (17/10/2026) : le module Tableau de bord (écrans en lecture seule) est chez Jérôme dès le départ ; ses onglets Finance et Stocks ne sont pas dans le menu.
     { id: 'tableaudebord', libelle: 'Tableau de bord', icone: 'layout-dashboard', prefixe: 'tableaudebord', entrees: [
-      { chemin: 'tableaudebord/general', libelle: 'Général', icone: 'house' },
-      { chemin: 'tableaudebord/technique', libelle: 'Technique', icone: 'settings' },
+      { chemin: 'tableaudebord/general', libelle: 'Général', icone: 'layout-dashboard' },
+      { chemin: 'tableaudebord/technique', libelle: 'Technique', icone: 'shield-check' },
     ] },
   ];
   test('MODULES (menu, routes, libellés, icônes, ordre) est identique à celui d\'avant', () => {
