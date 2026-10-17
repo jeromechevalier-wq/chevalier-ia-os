@@ -1,5 +1,5 @@
 // Aide Google Drive (sans écran, sans Firebase, sans navigateur obligatoire : se teste seule avec un faux `fetch`).
-// Sert à « Créer le répertoire » (dossier du projet + sous-dossiers, créés par l'API Google Drive) et à lire / écrire les adresses de dossiers.
+// Sert à « Créer un dossier dans Google Drive » (dossier du projet + sous-dossiers, créés par l'API Google Drive) et à lire / écrire les adresses de dossiers.
 // L'autorisation (jeton) et la fenêtre de choix (Picker) sont dans google-picker.js.
 //
 // Portée demandée : drive.file = l'appli ne voit QUE les fichiers et dossiers qu'elle a créés ou que l'utilisateur lui a montrés dans la

@@ -153,7 +153,7 @@ export const REGLAGES_NEUTRES = Object.freeze({
   dernierExportContacts: null,
   proprietaireGithub: '',
   cheminProjets: '',
-  dossierParentDrive: null, // { id, nom } : le dossier Google Drive où « Créer le répertoire » range les dossiers de projets (choisi avec la fenêtre Google)
+  dossierParentDrive: null, // { id, nom } : le dossier Google Drive où « Créer un dossier dans Google Drive » range les dossiers de projets (choisi avec la fenêtre Google)
   sousDossiersDrive: [], // noms des sous-dossiers créés dans chaque dossier de projet
   ...OPTIONS_NEUTRES,
   prenomCelebration: '',
