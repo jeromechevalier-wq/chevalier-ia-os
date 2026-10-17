@@ -85,3 +85,28 @@ describe('rafraîchissement', () => {
     assert.equal(L.doitRafraichirAuto({ ...base, enCours: true }), false);
   });
 });
+
+describe('Vue administrateur : fusion des propriétaires, options du filtre, bandeau', async () => {
+  const M = await import('../js/modules/automatisations/logique.js');
+  const interne = { executions: [{ id: '1', workflowId: 'w1' }], workflows: new Map([['w1', { nom: 'interne-a' }]]) };
+  const admin = { executions: [{ id: '1', workflowId: 'w2', proprietaire: 'audrey' }, { id: '2', workflowId: 'w3', proprietaire: 'boris' }], workflows: [{ id: 'w2', nom: 'A' }, { id: 'w3', nom: 'B' }], proprietaires: [{ id: 'audrey', nom: 'Audrey Conseil', synchro: { n8nOk: false, lastSuccessAt: Date.parse('2026-10-17T08:00:00Z') } }], aVerifier: [], charge: true, lecturePossible: true };
+  test('tous = toi + clients, ids uniques même si deux propriétaires ont le même numéro ; interne = toi seul ; un client = lui seul', () => {
+    const tous = M.fusionnerVues(interne, admin, 'tous');
+    assert.deepEqual(tous.executions.map((e) => e.id), ['1', 'audrey/1', 'boris/2']);
+    assert.deepEqual(M.fusionnerVues(interne, admin, 'interne').executions.map((e) => e.proprietaire), ['interne']);
+    assert.deepEqual(M.fusionnerVues(interne, admin, 'boris').executions.map((e) => e.id), ['boris/2']);
+    assert.equal(M.fusionnerVues(interne, admin, 'interne-seul').proprietaire, false);
+  });
+  test('options du filtre et noms', () => {
+    const o = M.optionsProprietaires(admin.proprietaires, 3);
+    assert.deepEqual(o.map((x) => x.libelle), ['Tous les propriétaires', 'Interne (toi)', 'Audrey Conseil', 'À vérifier (3)']);
+    assert.equal(M.nomProprietaire('interne', []), 'Interne');
+    assert.equal(M.nomProprietaire('zoe', []), 'zoe');
+  });
+  test('bandeau : n8n d\'un client, base des clients illisible, rien à signaler', () => {
+    assert.match(M.texteBandeauAdmin({ synchroInterne: { n8nOk: true }, admin, filtre: 'tous' }), /Audrey Conseil : n8n ne répond pas/);
+    assert.equal(M.texteBandeauAdmin({ synchroInterne: { n8nOk: true }, admin, filtre: 'interne' }), null);
+    assert.match(M.texteBandeauAdmin({ synchroInterne: null, admin: { ...admin, erreur: true }, filtre: 'tous' }), /pas lisibles/);
+    assert.match(M.texteBandeauAdmin({ synchroInterne: null, admin: { ...admin, lecturePossible: false, proprietaires: [] }, filtre: 'tous' }), /droit de lecture/);
+  });
+});

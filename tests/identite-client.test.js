@@ -159,6 +159,7 @@ describe('inventaire des textes d\'identité de Jérôme dans le code de l\'inte
     'js/modules/crm/lanceurs.js': 'Claude Code / GitHub : derrière l’option « Dépôt de code et dossier » (éteinte par défaut chez un client)',
     'js/modules/crm/reglages.js': 'écran Réglages du CRM : inaccessible chez un client',
     'js/modules/crm/donnees.js': 'noms de collections ; réglages de départ vidés chez un client',
+    'js/modules/automatisations/logique.js': 'bandeau de la vue administrateur (nomme Chevalier IA APP) : montré au seul compte de Jérôme, chez lui',
     'js/modules/projets/logique.js': 'modèles de départ de Jérôme (semés seulement à la racine)',
     'js/modules/projets/taches.js': 'champ « Confiée à » : membres de l’espace, caché s’il n’y en a qu’un',
     'js/modules/projets/fiche-projet.js': 'lanceurs masqués chez un client',

@@ -219,3 +219,7 @@ Décisions plus larges (une base pour Jérôme, une pour les clients, un site d�
 - **2026-10-14** : porte en service pour la base 1 (fonction `porte`, compte `porte-serveur`, secret `N8N_API_KEY`) ; première clé `interne` en usage, les deux clés d'essai révoquées.
 - **2026-10-14** : bascule de la veille vers la porte (4 workflows) ; action `resumes.lire` ajoutée pour relire les liens des résumés ; résumés laissés dans Drive ; jeton du bouton Résumer déplacé dans une table de données n8n.
 - **2026-10-15** : `resumes.ajouter` accepte un champ `html` (page du résumé, table `veille_pages`) ; l'appli ajoute un lien collé et lance les résumés par sa propre fonction `veille` (voir `docs/veille-ajout-et-resume.md`).
+
+## 11. Lien avec les Automatisations (2.7.0)
+
+Le credential « Clé n8n - <propriétaire> » (section 4) sert aussi à **reconnaître le propriétaire d'un workflow** pour l'écran Automatisations : étiquette + nom + clé doivent concorder (détails et tolérance sur le nom dans `automatisations-n8n.md`, partie 10). Pour toi : étiquette `interne`, nom `interne-…`, credential « Clé n8n - interne ». À vérifier avec toi : le nom exact de ce credential dans ton n8n.

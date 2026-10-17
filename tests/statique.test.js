@@ -60,10 +60,10 @@ describe('D1 Manifeste, icônes, service worker, versions', () => {
     }
     assert.ok(!existsSync(join(RACINE, 'sw.js')) && !existsSync(join(RACINE, 'service-worker.js')));
   });
-  test('D1 versions identiques dans version.json et js/os/version.js (2.6.9)', () => {
+  test('D1 versions identiques dans version.json et js/os/version.js (2.7.0)', () => {
     const v = json('version.json').version;
     const m = /VERSION = '([^']+)'/.exec(lire('js/os/version.js'));
-    assert.equal(v, '2.6.9');
+    assert.equal(v, '2.7.0');
     assert.equal(m[1], v);
   });
   test('D1 portraits réduits (512 px de large au plus)', () => {
@@ -268,7 +268,7 @@ describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
       assert.doesNotMatch(t, /firebase-functions|firebase-storage|getStorage|httpsCallable/, f);
     }
     const appels = [...lire('js/modules/automatisations/donnees.js').matchAll(/httpsCallable\(fonctions\(\), '([A-Za-z]+)'\)/g)].map((m) => m[1]);
-    assert.deepEqual(appels.sort(), ['automatisationsRafraichir', 'automatisationsRenommer']);
+    assert.deepEqual([...new Set(appels)].sort(), ['automatisationsAdmin', 'automatisationsRafraichir', 'automatisationsRenommer']); // Admin : compte de Jérôme seulement (vue de tous les propriétaires)
     const appelsVeille = [...lire('js/modules/veille/donnees.js').matchAll(/httpsCallable\(fonctions\(\), '([A-Za-z]+)'\)/g)].map((m) => m[1]);
     assert.deepEqual(appelsVeille, ['veille']);
   });

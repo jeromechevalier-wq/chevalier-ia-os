@@ -1,6 +1,8 @@
-// Copie de l'historique n8n vers Firestore, pour UN client à la fois (chantier 14).
+// Copie de l'historique n8n vers Firestore, pour UN propriétaire à la fois (chantier 14).
 // Tout est écrit sous clients/<client>/… : workflows/<id>, executions/<numéro>, sync/state. Le client est TOUJOURS passé par le code
 // appelant (déduit de l'identité de l'utilisateur ou de la liste des clients), jamais lu dans une donnée venant de n8n.
+// Même code pour Jérôme : avec `base: ''` les mêmes documents sont écrits à la RACINE de sa base (Chevalier IA OS), sans « clients/<client>/ »
+// (voir fonctions/src/automatisations/appels.js, qui reçoit une copie de ce fichier).
 //
 // Garanties (cahier des charges, critères de réussite) :
 //  - pas de doublon : un document par numéro d'exécution, écrit avec « set / merge » (écrire deux fois la même chose ne change rien) ;
@@ -65,14 +67,17 @@ export function documentExecution(exe, { libelle, existant, cause, maintenant })
 
 const numero = (id) => Number(id);
 
+/** Chemin d'un document ou d'une collection sous la base du propriétaire (`base` vide = racine de la base de Jérôme). */
+export const sous = (base, chemin) => (base ? `${base}/${chemin}` : chemin);
+
 /**
  * Copie un client. Options :
- *  db, n8n (lecteur n8n), client, maintenant (ms), raison ('horaire' | 'manuel'),
+ *  db, n8n (lecteur n8n), client (nom pour les journaux), base (où écrire : `clients/<client>` par défaut, '' pour Jérôme), maintenant (ms), raison ('horaire' | 'manuel'),
  *  obtenirWorkflows : async () => [workflows de CE client] — appelée APRÈS la prise du verrou (pas d'appel à n8n si on est refusé).
  * Renvoie { resultat, ... } où resultat vaut 'mis-a-jour', 'deja-en-cours', 'trop-tot' ou 'n8n-injoignable'.
  */
-export async function synchroniserClient({ db, n8n, client, maintenant = Date.now(), raison, obtenirWorkflows }) {
-  const refEtat = db.doc(`clients/${client}/sync/state`);
+export async function synchroniserClient({ db, n8n, client, base = `clients/${client}`, maintenant = Date.now(), raison, obtenirWorkflows }) {
+  const refEtat = db.doc(sous(base, 'sync/state'));
   const jeton = `${maintenant}-${Math.random().toString(36).slice(2, 10)}`;
 
   // 1. Verrou (transaction) + délai minimal entre deux rafraîchissements demandés par un utilisateur.
@@ -89,7 +94,7 @@ export async function synchroniserClient({ db, n8n, client, maintenant = Date.no
   try {
     const etat = prise.e;
     const workflows = await obtenirWorkflows();
-    const nbCopiees = await copier({ db, n8n, client, workflows, curseurs: { ...(etat.curseurs ?? {}) }, maintenant, refEtat });
+    const nbCopiees = await copier({ db, n8n, client, base, workflows, curseurs: { ...(etat.curseurs ?? {}) }, maintenant, refEtat });
     return { resultat: 'mis-a-jour', lastSyncedAt: maintenant, ...nbCopiees };
   } catch (e) {
     if (!(e instanceof ErreurN8n)) throw e;
@@ -106,12 +111,12 @@ export async function synchroniserClient({ db, n8n, client, maintenant = Date.no
   }
 }
 
-async function copier({ db, n8n, client, workflows, curseurs, maintenant, refEtat }) {
-  const racine = `clients/${client}`;
+async function copier({ db, n8n, client, base, workflows, curseurs, maintenant, refEtat }) {
+  const racine = base; // '' = racine de la base de Jérôme
   const sures = workflows.filter((w) => MOTIF_ID_N8N.test(w.id));
 
   // Workflows : n8n fait foi pour le nom d'origine ; le nom choisi par le client (« libelle ») n'est JAMAIS touché ici.
-  const refsWf = sures.map((w) => db.doc(`${racine}/workflows/${w.id}`));
+  const refsWf = sures.map((w) => db.doc(sous(racine, `workflows/${w.id}`)));
   const dejaWf = refsWf.length ? await db.getAll(...refsWf) : [];
   const libelleDe = new Map();
   const lotWf = db.batch();
@@ -140,7 +145,7 @@ async function copier({ db, n8n, client, workflows, curseurs, maintenant, refEta
   }
 
   // Exécutions encore ouvertes dans Firestore (en cours, en attente) : on redemande leur état à n8n.
-  const ouvertes = await db.collection(`${racine}/executions`).where('status', 'in', ETATS_OUVERTS).get();
+  const ouvertes = await db.collection(sous(racine, 'executions')).where('status', 'in', ETATS_OUVERTS).get();
   for (const d of ouvertes.docs) {
     if (aEcrire.has(d.id)) continue;
     try {
@@ -158,7 +163,7 @@ async function copier({ db, n8n, client, workflows, curseurs, maintenant, refEta
   let ecrites = 0;
   for (let i = 0; i < ids.length; i += 200) {
     const groupe = ids.slice(i, i + 200);
-    const refs = groupe.map((id) => db.doc(`${racine}/executions/${id}`));
+    const refs = groupe.map((id) => db.doc(sous(racine, `executions/${id}`)));
     const existants = await db.getAll(...refs);
     const lot = db.batch();
     for (let j = 0; j < groupe.length; j++) {
@@ -183,8 +188,8 @@ async function copier({ db, n8n, client, workflows, curseurs, maintenant, refEta
 }
 
 /** Marque tous les clients donnés « n8n injoignable » (la liste des workflows n'a pas pu être lue). */
-export async function marquerInjoignable(db, clients, { maintenant = Date.now(), message }) {
-  await Promise.all(clients.map((c) => db.doc(`clients/${c}/sync/state`).set(
+export async function marquerInjoignable(db, clients, { maintenant = Date.now(), message, base = (c) => `clients/${c}` }) {
+  await Promise.all(clients.map((c) => db.doc(sous(base(c), 'sync/state')).set(
     { n8nOk: false, lastAttemptAt: new Date(maintenant), lastError: raccourcir(message, 120) }, { merge: true })));
 }
 

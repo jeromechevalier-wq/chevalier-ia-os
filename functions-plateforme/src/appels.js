@@ -4,25 +4,12 @@
 //  - renommer        : un éditeur du client change le nom affiché d'un workflow (c'est la seule écriture venue d'un écran).
 import { FieldValue } from 'firebase-admin/firestore';
 import { logger } from 'firebase-functions';
-import { classer, etiquetteDuClient, MOTIF_ID_N8N, MOTIF_IDENTIFIANT_CLIENT } from './etiquettes.js';
+import { classer, etiquetteDuClient, moduleActif, MODULE_AUTOMATISATIONS, ANCIEN_MODULE_JOURNAL, MOTIF_ID_N8N, MOTIF_IDENTIFIANT_CLIENT } from './etiquettes.js';
 import { synchroniserClient, marquerInjoignable, raccourcir } from './synchro.js';
 import { ErreurN8n } from './n8n.js';
 
-export const MODULE_AUTOMATISATIONS = 'automatisations';
-/** Ancien identifiant du module (avant le renommage) : les fiches client déjà activées avec `journal: true` continuent de marcher. Voir moduleActif(). */
-export const ANCIEN_MODULE_JOURNAL = 'journal';
+export { MODULE_AUTOMATISATIONS, ANCIEN_MODULE_JOURNAL, moduleActif };
 // Les messages des journaux Cloud gardent le préfixe « Journal : » : l'alerte e-mail de Google Cloud (créée à la main dans la console) le cherche.
-
-/**
- * Le module est-il actif d'après le champ `modules` de la fiche client ? Même règle que js/os/registre.js (un test les compare) :
- * la nouvelle clé gagne si elle est présente (true ou false) ; sinon l'ancienne clé `journal: true` compte comme `automatisations: true`.
- */
-export function moduleActif(modules) {
-  if (!modules || typeof modules !== 'object') return false;
-  const neuf = modules[MODULE_AUTOMATISATIONS];
-  if (neuf !== undefined && neuf !== null) return neuf === true;
-  return modules[ANCIEN_MODULE_JOURNAL] === true;
-}
 export const LONGUEUR_MAX_LIBELLE = 80;
 
 /** Refus d'une fonction appelable ; `code` suit les codes de Firebase (unauthenticated, permission-denied, invalid-argument…). */
