@@ -1,13 +1,15 @@
 // Célébrations (feu d'artifice repris de tally-merci.html), Charles, compteurs animés.
 import { h, reduireAnimations } from './ui.js';
+import { logoEspace } from './contexte.js';
 
 // Les célébrations sont une option du CRM (réglages : interrupteur « Célébrations », prénom et image facultatifs). Éteinte, rien ne s'affiche.
 // Messages neutres par défaut (« Bravo ! »…) ; le prénom et l'image (par exemple Charles, chez Jérôme) viennent des réglages. Sans image : pas d'image.
-const options = { actif: false, prenom: '', image: '' };
+const options = { actif: false, prenom: '', image: '', logo: false };
 
-/** Appelé par le CRM quand ses réglages changent : { actif, prenom, image }. */
-export function configurerCelebrations({ actif = false, prenom = '', image = '' } = {}) {
+/** Appelé par le CRM quand ses réglages changent : { actif, prenom, image, logo }. `logo` = utiliser le logo de l'espace client (lu en direct au moment de la célébration, jamais recopié). */
+export function configurerCelebrations({ actif = false, prenom = '', image = '', logo = false } = {}) {
   options.actif = actif === true;
+  options.logo = logo === true;
   options.prenom = String(prenom || '').trim();
   options.image = String(image || '').trim();
 }
@@ -129,12 +131,16 @@ function superposition({ classe, contenu, duree, animer }) {
   });
 }
 
+/** Image de la célébration : le logo de l'espace client si l'option est cochée (et qu'il y en a un), sinon l'image des réglages (Charles chez Jérôme seulement). */
+const imageCelebration = () => (options.logo ? logoEspace() || '' : options.image);
+
 function scene(message, sousTitre) {
+  const image = imageCelebration();
   return h('div', { class: 'scene-charles' },
     h('div', { class: 'scene' },
       h('div', { class: 'orbite o1' }),
       h('div', { class: 'orbite o2' }),
-      options.image ? h('div', { class: 'charles-flottant' }, h('img', { src: options.image, alt: '', width: '512', height: '384' })) : null),
+      image ? h('div', { class: `charles-flottant${options.logo ? ' logo-espace' : ''}` }, h('img', { src: image, alt: '', width: '512', height: '384' })) : null),
     h('p', { class: 'celebration-titre' }, message),
     sousTitre ? h('p', { class: 'celebration-sous-titre' }, sousTitre) : null);
 }

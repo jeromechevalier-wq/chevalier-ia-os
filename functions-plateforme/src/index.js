@@ -3,6 +3,7 @@
 // La clé d'API de n8n est dans Secret Manager (nom : N8N_API_KEY), déposée par Jérôme ; elle n'est lue qu'au moment d'un appel.
 import { initializeApp, getApps } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
+import { getStorage } from 'firebase-admin/storage';
 import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { defineSecret } from 'firebase-functions/params';
@@ -10,11 +11,13 @@ import { logger } from 'firebase-functions';
 import { creerLecteurN8n } from './n8n.js';
 import { copieHoraire, rafraichir, renommer, Refus } from './appels.js';
 import { creerMcpClients } from './mcp-clients.js';
+import { reglerEspace } from './espace.js';
 
 if (!getApps().length) initializeApp();
 const db = () => getFirestore();
 const CLE_N8N = defineSecret('N8N_API_KEY');
 const REGION = 'europe-west9';
+const BUCKET = 'chevalier-ia-app.firebasestorage.app'; // images des marques (même bucket que storage.plateforme.rules)
 
 const lecteur = () => creerLecteurN8n({ cle: CLE_N8N.value() });
 
@@ -54,4 +57,14 @@ export const automatisationsRenommer = onCall(
 export const mcpclients = onRequest(
   { region: REGION, maxInstances: 3, memory: '256MiB', timeoutSeconds: 120, invoker: 'public', cors: false, serviceAccount: 'mcp-clients@chevalier-ia-app.iam.gserviceaccount.com' },
   creerMcpClients(),
+);
+
+// Mon espace (2.8.0) : un éditeur du client règle lui-même nom, couleur, logo, images, texte d'accueil et membres de son espace (Réglages > Mon espace, Membres et rôles).
+// Les règles Firestore et Storage ne changent pas : c'est cette fonction, avec son compte dédié, qui écrit marques/<client> et les membres, après avoir vérifié que l'appelant est éditeur.
+// Aucun secret. Compte dédié : « Utilisateur Cloud Datastore » et, sur Storage, « Administrateur des objets » limité aux fichiers marques/. À créer AVANT le déploiement (docs/mon-espace.md), sinon le déploiement échoue.
+export const espaceReglages = onCall(
+  { region: REGION, timeoutSeconds: 60, memory: '512MiB', maxInstances: 5, serviceAccount: 'espace-reglages@chevalier-ia-app.iam.gserviceaccount.com' },
+  async (requete) => {
+    try { return await reglerEspace({ db: db(), bucket: getStorage().bucket(BUCKET), nomBucket: BUCKET, auth: requete.auth, donnees: requete.data }); } catch (e) { throw enHttps(e); }
+  },
 );

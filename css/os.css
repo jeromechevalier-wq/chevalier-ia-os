@@ -315,6 +315,49 @@ body.page-connexion {
 .reglages-role { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--survol); color: var(--texte2); }
 .reglages-module-ligne .aide { flex: 1 1 140px; margin: 0; }
 .badge-actif { background: var(--accent-a26); color: var(--texte); }
+/* Mon espace et Membres et rôles chez un client (2.8.0) */
+.mon-espace { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.mon-espace-formulaire { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.mon-espace-champs { display: flex; flex-direction: column; gap: 20px; border: 0; margin: 0; padding: 0; min-inline-size: 0; }
+.mon-espace-champs:disabled { opacity: .85; }
+.mon-espace-champ { min-width: 0; }
+.mon-espace-champ .aide { margin: 0; }
+.mon-espace-ligne { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.mon-espace-ligne-espacee { justify-content: space-between; align-items: flex-start; }
+.mon-espace-couleur { width: 56px; height: 40px; }
+.mon-espace-code { font-size: 13px; color: var(--texte2); }
+.mon-espace-apercus { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.mon-espace-apercu { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 12px; border-radius: var(--rayon); border: 1px solid var(--bordure-forte); min-width: 0; }
+.mon-espace-apercu-titre { font-size: 12px; opacity: .8; }
+.mon-espace-apercu-bouton { display: inline-block; padding: 6px 14px; border-radius: var(--rayon-petit); font-weight: 600; font-size: 13px; }
+.mon-espace-apercu-lien { font-weight: 600; font-size: 13px; }
+.mon-espace-compteur { font-size: 12px; color: var(--texte2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mon-espace-compteur[data-limite='true'] { color: var(--retard); font-weight: 600; }
+.mon-espace-logo-bloc { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.mon-espace-logo { width: 72px; height: 72px; object-fit: contain; border-radius: var(--rayon); background: var(--survol); border: 1px solid var(--bordure); flex: none; }
+.mon-espace-initiale { display: inline-grid; place-items: center; font: 700 30px/1 var(--police-titre); color: #fff; }
+.mon-espace-logo-actions { display: flex; flex-direction: column; gap: 8px; min-width: 0; flex: 1 1 200px; }
+.mon-espace-boutons { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.mon-espace-images { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.mon-espace-image { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 8px; border: 1px solid var(--bordure); border-radius: var(--rayon); }
+.mon-espace-miniature { width: 96px; height: 60px; object-fit: cover; border-radius: var(--rayon-petit); background: var(--survol); flex: none; }
+.mon-espace-image-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; min-width: 0; }
+.mon-espace-erreur-champ { margin: 0; color: var(--retard); font-size: 13px; }
+.mon-espace-public { display: flex; gap: 8px; align-items: flex-start; }
+.mon-espace-pied { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.mon-espace-message { margin: 0; font-size: 14px; min-width: 0; overflow-wrap: anywhere; }
+.mon-espace-message[data-etat='erreur'] { color: var(--retard); }
+.mon-espace-message[data-etat='ok'] { color: var(--succes); }
+.mon-espace-erreur { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; color: var(--retard); }
+.mon-espace-erreur p { margin: 0; }
+.mon-espace-ajout { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; padding-top: 12px; border-top: 1px solid var(--bordure); }
+.mon-espace-ajout .bloc-champ:first-child { flex: 1 1 220px; }
+.mon-espace-ajout .bloc-champ:nth-child(2) { flex: 1 1 200px; }
+.mon-espace-ajout-aide { flex: 1 1 100%; margin: 0; }
+.mon-espace-membre-actions { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.mon-espace-membre-actions .champ-court { width: 130px; }
+.charles-flottant.logo-espace img { max-width: 190px; max-height: 190px; width: auto; object-fit: contain; transform: none; background: #ffffffee; padding: 10px; }
+@media (max-width: 480px) { .mon-espace-apercus { grid-template-columns: 1fr; } .mon-espace-ajout .bloc-champ { flex: 1 1 100% !important; } }
 @media (max-width: 767px) {
   .reglages-corps { grid-template-columns: 1fr; gap: 14px; }
   .reglages-menu { position: static; }

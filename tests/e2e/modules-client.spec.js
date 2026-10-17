@@ -193,18 +193,20 @@ test('R10 Réglages chez un éditeur : l\'espace d\'abord (Mon espace, Membres, 
   const liens = page.locator('.reglages-menu-lien');
   await expect(liens).toHaveText(['Mon espace', 'Membres et rôles', 'Modules actifs', 'CRM', 'Veille', 'Automatisations', 'Assistant (MCP)']);
   await expect(page.locator('.reglages-menu-titre')).toHaveText(['Espace', 'Modules']);
-  // Mon espace : le nom, la couleur (lus dans la fiche de marque), le thème de l'appareil ; rien ne s'écrit ici
-  await expect(page.locator('[data-info="nom"]')).toContainText('Maison Pleine');
+  // Mon espace (modifiable par un éditeur depuis la 2.8.0 : tests/e2e/mon-espace.spec.js) : le nom et la couleur lus dans la fiche de marque, le thème de l'appareil
+  await expect(page.locator('[data-champ="nom"]')).toHaveValue('Maison Pleine');
   await expect(page.locator('body')).not.toContainText(/Chevalier|Jérôme|Charles/); // aucune identité de Jérôme dans les Réglages d'un client
-  await expect(page.locator('[data-info="couleur"]')).toContainText('#336699');
+  await expect(page.locator('[data-champ="couleur"]')).toHaveValue('#336699');
   await expect(page.locator('#reglages-theme')).toBeVisible();
   // Membres et rôles
   await ouvrirSectionReglages(page, 'Membres et rôles');
   await expect(page).toHaveURL(/#\/espace\/plein\/reglages\/membres$/);
   await expect(page.locator(`[data-membre="${ALICE}"]`)).toContainText('(toi)');
-  await expect(page.locator(`[data-membre="${LEA}"]`)).toContainText('Lecteur');
-  // Modules actifs : un seul interrupteur « CRM » (affaires + projets), tous en lecture seule
+  await expect(page.locator(`[data-membre="${LEA}"] [data-role="role-membre"]`)).toHaveValue('lecteur');
+  await expect(page.locator(`[data-membre="${ALICE}"] [data-role="role-membre"]`)).toHaveValue('editeur');
+  // Modules actifs : un seul interrupteur « CRM » (affaires + projets), tous en lecture seule (seul l'administrateur change les modules)
   await ouvrirSectionReglages(page, 'Modules actifs');
+  await expect(page.locator('#reglages-modules')).toContainText('Pour changer de module, contacte ton administrateur');
   await expect(page.locator('[data-interrupteur="crm"]')).toBeChecked();
   await expect(page.locator('[data-interrupteur="crm"]')).toBeDisabled();
   await expect(page.locator('[data-interrupteur="mcp"]')).toBeChecked();

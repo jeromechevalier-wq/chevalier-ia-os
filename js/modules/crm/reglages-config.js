@@ -6,6 +6,7 @@ import * as PD from '../projets/donnees.js';
 import * as L from './logique.js';
 import * as P from '../projets/logique.js';
 import { retirerAvecAnnulation } from '../../os/retrait.js';
+import { estChezClient, logoEspace } from '../../os/contexte.js';
 
 function section(id, titre, nomIcone, aide) {
   return h('section', { class: 'carte-section', id },
@@ -146,12 +147,24 @@ function sectionOptions() {
       onchange: async (e) => { await D.enregistrerReglages({ prenomCelebration: L.nettoyerEspaces(e.target.value) }); toast('Prénom enregistré'); } });
     const image = h('input', { type: 'text', class: 'champ', value: r.imageCelebration || '', placeholder: 'Adresse d’une image (facultatif)', 'aria-label': 'Image des célébrations', autocapitalize: 'off', spellcheck: false,
       onchange: async (e) => { await D.enregistrerReglages({ imageCelebration: L.nettoyerEspaces(e.target.value) }); toast('Image enregistrée'); } });
+    // Chez un client : « Utiliser le logo de mon espace » (cochée par défaut s'il y a un logo, grisée et décochée sinon) ; le logo est lu en direct dans la fiche de marque.
+    const logo = estChezClient() ? logoEspace() : null;
+    const utiliserLogo = logo && r.logoCelebration !== false;
+    const caseLogo = estChezClient() ? h('div', { class: 'option-ligne', dataset: { ligne: 'logoCelebration' } },
+      h('label', { class: 'case' },
+        h('input', { type: 'checkbox', checked: !!utiliserLogo, disabled: !logo, dataset: { option: 'logoCelebration' }, 'aria-label': 'Utiliser le logo de mon espace',
+          onchange: async (e) => {
+            try { await D.enregistrerReglages({ logoCelebration: e.target.checked }); toast(e.target.checked ? 'Le logo de ton espace sert aux célébrations' : 'Le logo ne sert plus aux célébrations'); } catch (err) { console.warn(err); toast('Enregistrement impossible', { type: 'erreur' }); e.target.checked = !e.target.checked; }
+          } }),
+        h('strong', {}, 'Utiliser le logo de mon espace')),
+      h('p', { class: 'aide' }, logo ? 'Le logo de ton espace s’affiche dans l’animation (affaire gagnée, facture payée, projet terminé).' : 'Ton espace n’a pas encore de logo : ajoute-en un dans Réglages > Mon espace.')) : null;
     remplir(corps,
       interrupteur({ cle: 'suiviPaiements', titre: 'Suivi des paiements', aide: 'Une liste de factures par projet (À payer, Payée, Abandonnée) : le CRM suit les paiements, il n’édite pas de factures. Allumé, il ajoute aussi les objectifs « facturé » et « encaissé » et le graphique d’encaissement.' }),
       interrupteur({ cle: 'clotureBloquee', titre: 'Clôture bloquée tant qu’une facture est à payer', aide: 'Un projet ne peut pas être terminé tant qu’une de ses factures est à payer (on peut la marquer payée, ou clôturer avec impayé). Sans effet si le suivi des paiements est éteint.', desactive: !o.suiviPaiements }),
       interrupteur({ cle: 'extractionValeur', titre: 'Extraction de valeur', aide: 'Crée un projet d’extraction quand une affaire est perdue ou gagnée sans projet, ou quand un projet est terminé. Éteint : plus de création, et le bloc, le bouton, le badge et le modèle d’extraction disparaissent.' }),
       interrupteur({ cle: 'celebrations', titre: 'Célébrations', aide: 'Un petit feu d’artifice quand une affaire est gagnée, un projet terminé, une facture payée ou un objectif atteint. Le message est neutre (« Bravo ! ») ; tu peux y ajouter un prénom et une image.' }),
-      o.celebrations ? h('div', { class: 'ligne-champs' }, prenom, image) : null,
+      o.celebrations ? caseLogo : null,
+      o.celebrations ? h('div', { class: 'ligne-champs' }, prenom, utiliserLogo ? null : image) : null,
       interrupteur({ cle: 'boutonsDepot', titre: 'Créer un dossier dans Google Drive', aide: 'Affiche, sur les fiches affaire et projet, le bouton « Créer un dossier dans Google Drive » : il crée le dossier de la fiche et ses sous-dossiers dans Google Drive, puis enregistre son lien. Ajoute la section « Dossiers de projets dans Google Drive » plus bas. Nécessite que Google Drive soit branché.' }));
   }
   rendre();
