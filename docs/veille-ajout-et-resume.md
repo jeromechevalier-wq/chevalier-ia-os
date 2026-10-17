@@ -1,6 +1,6 @@
 # Veille : ajouter un lien, résumer, lire le résumé (écrit le 2026-10-15)
 
-Trois ajouts au module Veille, décidés avec Jérôme le 2026-10-15. Version 2.4.0.
+Trois ajouts au module Veille, décidés avec Jérôme le 2026-10-15. Version 2.7.0.
 
 ## 1. Ce que ça fait
 
@@ -18,15 +18,15 @@ Trois ajouts au module Veille, décidés avec Jérôme le 2026-10-15. Version 2.
 - **Page du résumé** : la porte accepte maintenant un champ `html` dans `resumes.ajouter` (150 000 caractères au plus, retours à la ligne permis, autres caractères de contrôle refusés). La page est rangée **à part**, dans la table `veille_pages` (même identifiant que le résumé), pour ne pas alourdir la liste des résumés ; le résumé reçoit `pageDisponible: true`. Une page existante n'est jamais écrasée. `veille_pages` est dans la sauvegarde complète du CRM.
 - **Sécurité de l'affichage** : la page s'affiche dans un cadre isolé (`iframe`, `sandbox` sans `allow-scripts`) : aucun script de la page ne tourne, même si le texte en contenait. Les liens s'ouvrent dans un nouvel onglet. Un test dans le navigateur le prouve.
 
-## 3. Mise en service : à faire dans cet ordre
+## 3. Mise en service : faite (secret le 2026-10-16, workflow n8n et essai réel le 2026-10-17)
 
-**Attention : la fusion dans `main` déploie les fonctions toute seule, et la fonction `veille` a besoin de son secret. Créer le secret AVANT de fusionner, sinon le déploiement échoue.**
+**Pour mémoire** : la fusion dans `main` déploie les fonctions toute seule, et la fonction `veille` a besoin de son secret. Il faut donc créer le secret avant la fusion, sinon le déploiement échoue.
 
-1. **Toi : créer le secret `VEILLE_JETON_RESUMER`.** C'est le jeton du bouton Résumer : sa valeur est dans n8n, table de données `veille_jeton_bouton`, colonne `jeton`. Copie-la, puis dans le Terminal (le champ caché évite de l'afficher) :
+1. **Fait. Toi : créer le secret `VEILLE_JETON_RESUMER`.** C'est le jeton du bouton Résumer : sa valeur est dans n8n, table de données `veille_jeton_bouton`, colonne `jeton`. Copie-la, puis dans le Terminal (le champ caché évite de l'afficher) :
    `read -s "K?Jeton du bouton Résumer : " && printf %s "$K" | gcloud secrets create VEILLE_JETON_RESUMER --project chevalier-ia-os --data-file=-`
-2. **Toi : dire « fusionne »** pour la PR. Le déploiement envoie la fonction `veille` et la page (version 2.4.0).
-3. **Nous deux : modifier le workflow n8n** `interne-veille-resumer-a-la-demande-porte`, pour que la page du résumé soit rangée dans l'appli. Dans le nœud **« Enregistrer le résumé via la porte »**, ajouter dans `donnees` : `html: $("Mettre le résumé en page HTML").first().json.fichier_html`. À tester ensemble avant de publier (jamais de publication sans ton accord).
-4. **Essai réel** : coller un épisode, cliquer « Ajouter et résumer », attendre le résumé, cliquer « Lire le résumé ».
+2. **Fait. Toi : dire « fusionne »** pour la PR (n° 69). Le déploiement envoie la fonction `veille` et la page (version 2.7.0).
+3. **Fait (2026-10-17, version `9695bfa8` du workflow ; pour revenir en arrière : version `9e0f1ece`). Nous deux : modifier le workflow n8n** `interne-veille-resumer-a-la-demande-porte`, pour que la page du résumé soit rangée dans l'appli. Dans le nœud **« Enregistrer le résumé via la porte »**, ajouter dans `donnees` : `html: $("Mettre le résumé en page HTML").first().json.fichier_html`. L'expression envoie la page nettoyée des caractères de contrôle et coupée à 100 000 caractères (la porte en accepte 150 000). Publiée avec l'accord de Jérôme, après vérification des synchronisations.
+4. **Essai réel : réussi le 2026-10-17.** Épisode collé, « Ajouter et résumer », résumé fait, bouton « Lire le résumé » présent. Les résumés faits **avant** le 2026-10-17 n'ont pas de page dans l'appli : ils gardent leurs liens Drive.
 
 **Jeton historique** : l'ancien jeton du bouton a été écrit dans le code de la page jusqu'à cette version ; il reste visible dans l'historique de GitHub. Tu avais jugé cela peu grave (appli derrière une connexion Google). Si tu veux fermer le sujet : changer la valeur dans la table n8n et dans le secret. Optionnel.
 
