@@ -234,12 +234,12 @@ test('R6 Général : « Une panne à traiter » au singulier, « Tout marche, qu
 test('R7 les onglets Finance et Stocks sont absents quand aucun indicateur ne les porte, présents sinon (et la page s\'ouvre)', async ({ page }, info) => {
   await jeuStandard();
   await ouvrir(page, 'general');
-  await expect(page.locator('.td-onglet')).toHaveText(['Général', 'Technique']);
+  await expect(page.locator('.td-onglet')).toHaveText(['Général', 'Technique', 'Historique des saisies']);
   await capturer(page, info, 'R7-onglets-sans-finance-ni-stocks');
   await indicateur('marge', { tableau: 'finance', famille: 'finance', nom: 'Marge du mois', type: 'mesure', niveau: null, valeur: 1240, unite: '€', message: 'Marge brute' });
-  await expect(page.locator('.td-onglet')).toHaveText(['Général', 'Technique', 'Finance']);
+  await expect(page.locator('.td-onglet')).toHaveText(['Général', 'Technique', 'Finance', 'Historique des saisies']);
   await indicateur('stock-papier', { tableau: 'stocks', famille: 'papier', nom: 'Rames de papier', niveau: 'orange', message: 'Il en reste 4' });
-  await expect(page.locator('.td-onglet')).toHaveText(['Général', 'Technique', 'Finance', 'Stocks']);
+  await expect(page.locator('.td-onglet')).toHaveText(['Général', 'Technique', 'Finance', 'Stocks', 'Historique des saisies']);
   await page.locator('.td-onglet', { hasText: 'Finance' }).click();
   await expect(page).toHaveURL(/#\/tableaudebord\/finance$/);
   await expect(page.locator('.td-onglet[aria-current="page"]')).toHaveText('Finance');
@@ -265,7 +265,7 @@ test('R8 vide : aucun indicateur, Général et Technique disent pourquoi', async
   await capturer(page, info, 'R8-vide-general');
   await aller(page, 'technique');
   await expect(page.locator('.td-etat-ecran.td-vide')).toHaveText(MESSAGE);
-  await expect(page.locator('.td-onglet')).toHaveText(['Général', 'Technique']);
+  await expect(page.locator('.td-onglet')).toHaveText(['Général', 'Technique', 'Historique des saisies']);
   await capturer(page, info, 'R8-vide-technique');
   // Un indicateur arrive : l'écran vide cède la place sans rechargement
   await indicateur('premier');
@@ -287,7 +287,7 @@ test('R8 chargement : « Chargement des indicateurs… » tant que la base n\'a 
     await expect(page.locator('.td-etat-ecran.td-chargement')).toHaveText('Chargement des indicateurs…');
     await expect(page.locator('.td-etat-ecran.td-chargement')).toHaveAttribute('role', 'status');
     await expect(page.locator('.td-ligne, .td-phrase, .td-erreur')).toHaveCount(0);
-    await expect(page.locator('.td-onglet')).toHaveText(['Général', 'Technique']);
+    await expect(page.locator('.td-onglet')).toHaveText(['Général', 'Technique', 'Historique des saisies']);
     await capturer(page, info, `R8-chargement-${ecran}`);
   }
 });
@@ -635,5 +635,133 @@ for (const theme of ['sombre', 'clair']) {
     await expect(page.locator('.td-avis')).toContainText('Enregistré');
     expect(await page.evaluate(SANS_DEBORDEMENT), 'confirmation : défilement horizontal').toBe(true);
     await capturer(page, info, `S8-saisie-enregistre-${theme}`);
+  });
+}
+
+// ---------------------------------------------------------------- S7 Historique des saisies
+
+const MESSAGE_VIDE_HISTORIQUE = 'Aucune saisie pour l\'instant. Quand tu saisis une date ou une valeur, elle apparaît ici avec ton nom et l\'heure.';
+async function saisieHistorique(id, indicateurId, quand, extra = {}) {
+  await ecrireDocument(`tableaudebord_releves/${id}`, {
+    indicateurId, releveLe: quand, saisiLe: quand, niveau: 'vert', message: `Saisi par ${JEROME}`, saisie: true, saisiPar: JEROME, commentaire: null, proprietaire: 'interne', ...extra,
+  });
+}
+async function jeuHistorique() {
+  await jeuSaisie();
+  await saisieHistorique('n8n_20261001T080000', 'n8n', avant(16 * JOUR), { echeance: new Date('2027-03-01'), avant: { echeance: new Date('2026-12-01') }, commentaire: 'Première saisie' });
+  await saisieHistorique('stock_20261016T153000', 'stock', avant(1 * JOUR), { valeur: 37.5, avant: { valeur: 42 }, niveau: null, saisiPar: 'jeromebot.chevalierbot@gmail.com' });
+  await saisieHistorique('n8n_20261010T101500', 'n8n', avant(7 * JOUR), { echeance: new Date('2027-05-01'), avant: { echeance: new Date('2027-03-01') } });
+  // Un relevé de script (sans « saisie ») avec un « saisiPar » d'un autre sens : jamais dans l'historique
+  await ecrireDocument('tableaudebord_releves/github_20261017T100000', { indicateurId: 'github', releveLe: avant(14 * MIN), niveau: 'vert', saisiPar: 'github:abcd1234', proprietaire: 'interne' });
+}
+
+test('S7 Historique des saisies : onglet sans entrée de menu, tri du plus récent au plus ancien, « avant → après » lisible, note, scripts exclus', async ({ page }, info) => {
+  await jeuHistorique();
+  await ouvrir(page, 'technique');
+  await expect(page.locator('.td-onglet').last()).toHaveText('Historique des saisies');
+  if (estTelephone(page)) await page.getByRole('button', { name: 'Ouvrir le menu' }).click();
+  await expect(page.locator('.menu').getByRole('link', { name: 'Historique des saisies' })).toHaveCount(0); // onglet seulement
+  if (estTelephone(page)) await page.keyboard.press('Escape');
+  await page.locator('.td-onglet', { hasText: 'Historique des saisies' }).click();
+  await expect(page.locator('.td-onglet[aria-current="page"]')).toHaveText('Historique des saisies');
+  await expect(page.locator('.td-h-ligne')).toHaveCount(3);
+  expect(await page.locator('.td-h-ligne').evaluateAll((els) => els.map((e) => e.dataset.id))).toEqual(['stock_20261016T153000', 'n8n_20261010T101500', 'n8n_20261001T080000']);
+  const stock = page.locator('.td-h-ligne[data-id="stock_20261016T153000"]');
+  await expect(stock.locator('.td-h-qui')).toHaveText('jeromebot.chevalierbot@gmail.com');
+  await expect(stock.locator('.td-h-nom')).toHaveText('Bouteilles de Bordeaux');
+  await expect(stock.locator('.td-h-change')).toHaveText('42 bouteilles → 37,5 bouteilles');
+  await expect(stock.locator('.td-h-quand')).toHaveText(/^\d{2}\/\d{2}\/\d{4} à \d{2}:\d{2}$/);
+  const cle = page.locator('.td-h-ligne[data-id="n8n_20261001T080000"]');
+  await expect(cle.locator('.td-h-qui')).toHaveText(JEROME);
+  await expect(cle.locator('.td-h-nom')).toHaveText('Clé API de n8n');
+  await expect(cle.locator('.td-h-change')).toHaveText('01/12/2026 → 01/03/2027');
+  await expect(cle.locator('.td-h-note')).toHaveText('Première saisie');
+  await expect(page.locator('.td-h-ligne[data-id="n8n_20261010T101500"] .td-h-note')).toHaveCount(0);
+  await expect(page.locator('body')).not.toContainText('github:abcd1234');
+  expect(await page.evaluate(SANS_DEBORDEMENT)).toBe(true);
+  await capturer(page, info, 'S7-historique');
+});
+
+test('S7 une saisie faite à l\'écran apparaît aussitôt dans l\'historique, en tête de liste', async ({ page }) => {
+  await jeuHistorique();
+  await simulerSaisie(page);
+  await ouvrir(page, 'technique');
+  await boutonSaisir(page, 'n8n').click();
+  await zone(page, 'n8n').getByLabel('Nouvelle date d\'échéance').fill(jour(200));
+  await zone(page, 'n8n').getByLabel('Note (facultatif)').fill('Renouvelée');
+  await zone(page, 'n8n').getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(page.locator('.td-avis')).toContainText('Enregistré');
+  await page.locator('.td-onglet', { hasText: 'Historique des saisies' }).click();
+  await expect(page.locator('.td-h-ligne')).toHaveCount(4);
+  const premiere = page.locator('.td-h-ligne').first();
+  await expect(premiere.locator('.td-h-nom')).toHaveText('Clé API de n8n');
+  await expect(premiere.locator('.td-h-change')).toHaveText(/→ \d{2}\/\d{2}\/\d{4}$/);
+  await expect(premiere.locator('.td-h-note')).toHaveText('Renouvelée');
+});
+
+test('S7 vide : phrase qui explique, sans liste', async ({ page }, info) => {
+  await jeuSaisie();
+  await ouvrir(page, 'historique');
+  await expect(page.locator('.td-etat-ecran.td-vide')).toHaveText(MESSAGE_VIDE_HISTORIQUE);
+  await expect(page.locator('.td-h-ligne')).toHaveCount(0);
+  await expect(page.locator('.td-onglet[aria-current="page"]')).toHaveText('Historique des saisies');
+  await capturer(page, info, 'S7-historique-vide');
+});
+
+test('S7 chargement : « Chargement des saisies… » tant que la base n\'a pas répondu', async ({ page }, info) => {
+  await page.route('**/js/modules/tableaudebord/donnees.js', async (route) => {
+    const source = await readFile(fileURLToPath(new URL('../../js/modules/tableaudebord/donnees.js', import.meta.url)), 'utf8');
+    expect(source).toContain('desabonnementHistorique = onSnapshot(');
+    await route.fulfill({ status: 200, contentType: 'text/javascript', body: source.replace('desabonnementHistorique = onSnapshot(', 'desabonnementHistorique = (() => () => {})(') });
+  });
+  await jeuHistorique();
+  await ouvrir(page, 'historique');
+  await expect(page.locator('.td-etat-ecran.td-chargement')).toHaveText('Chargement des saisies…');
+  await expect(page.locator('.td-etat-ecran.td-chargement')).toHaveAttribute('role', 'status');
+  await expect(page.locator('.td-h-ligne')).toHaveCount(0);
+  await capturer(page, info, 'S7-historique-chargement');
+});
+
+test('S7 erreur de lecture : message clair et « Réessayer » ; le bouton relit la base', async ({ page }, info) => {
+  test.info().annotations.push({ type: 'erreurs-reseau-attendues' });
+  await jeuHistorique();
+  const contenu = (await readFile(fileURLToPath(new URL('../../firestore.rules', import.meta.url)), 'utf8'))
+    .replace(/(match \/tableaudebord_releves\/\{id\} \{\s*allow read: if )compteAutorise\(\)/, '$1false');
+  expect(contenu).not.toEqual(await readFile(fileURLToPath(new URL('../../firestore.rules', import.meta.url)), 'utf8'));
+  await chargerRegles(contenu);
+  try {
+    await ouvrir(page, 'historique');
+    const erreur = page.locator('.td-etat-ecran.td-erreur');
+    await expect(erreur).toContainText('Impossible de lire l\'historique des saisies pour le moment.');
+    await expect(erreur).toContainText('clique sur « Réessayer »');
+    await capturer(page, info, 'S7-historique-erreur');
+    await erreur.getByRole('button', { name: 'Réessayer' }).click();
+    await expect(erreur.getByRole('button', { name: 'Réessayer' })).toBeVisible(); // toujours refusé : l'erreur revient
+    await rendreLesVraiesRegles();
+    await erreur.getByRole('button', { name: 'Réessayer' }).click();
+    await expect(page.locator('.td-h-ligne')).toHaveCount(3);
+    await expect(page.locator('.td-erreur')).toHaveCount(0);
+  } finally {
+    await rendreLesVraiesRegles();
+  }
+});
+
+test('S7 au plus 200 saisies affichées, les plus récentes', async ({ page }) => {
+  await jeuSaisie();
+  for (let i = 0; i < 205; i += 1) await saisieHistorique(`n8n_${String(i).padStart(4, '0')}`, 'n8n', avant((i + 1) * MIN), { echeance: new Date('2027-05-01'), avant: { echeance: null } });
+  await ouvrir(page, 'historique');
+  await expect(page.locator('.td-h-ligne')).toHaveCount(200);
+  await expect(page.locator('.td-h-ligne').first()).toHaveAttribute('data-id', 'n8n_0000');
+  await expect(page.locator('.td-h-ligne').last()).toHaveAttribute('data-id', 'n8n_0199');
+});
+
+for (const theme of ['sombre', 'clair']) {
+  test(`S8 thème ${theme} : Historique des saisies lisible, sans défilement horizontal`, async ({ page }, info) => {
+    await jeuHistorique();
+    await ouvrir(page, 'historique');
+    await page.evaluate((x) => { document.documentElement.dataset.theme = x; }, theme);
+    await expect(page.locator('.td-h-ligne')).toHaveCount(3);
+    expect(await page.evaluate(SANS_DEBORDEMENT), 'historique : défilement horizontal').toBe(true);
+    await capturer(page, info, `S8-historique-${theme}`);
   });
 }

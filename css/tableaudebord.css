@@ -70,6 +70,15 @@
 .td-avis-texte { margin: 0; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--td-vert); color: var(--texte); background: color-mix(in srgb, var(--td-vert) 12%, transparent); overflow-wrap: anywhere; }
 .td-avis-texte strong { color: var(--td-vert); }
 
+/* Historique des saisies */
+.td-h-ligne { display: grid; grid-template-columns: 150px minmax(0, 1.7fr) minmax(0, 1.1fr) minmax(0, 1.5fr); gap: 4px 14px; align-items: start; padding: 10px 0; border-top: 1px solid var(--bordure); font-variant-numeric: tabular-nums; }
+.td-h-ligne > * { min-width: 0; overflow-wrap: anywhere; }
+.td-h-quand { color: var(--texte2); font-size: 13px; }
+.td-h-qui { color: var(--texte2); font-size: 13px; }
+.td-h-nom { font-weight: 500; }
+.td-h-change { font-weight: 600; }
+.td-h-note { grid-column: 1 / -1; color: var(--texte2); font-size: 13px; font-style: italic; }
+
 /* Chargement, vide, erreur */
 .td-etat-ecran { background: var(--panneau); border: 1px solid var(--bordure); border-radius: 10px; padding: 28px 16px; text-align: center; color: var(--texte2); display: grid; gap: 14px; justify-items: center; }
 .td-etat-ecran p { margin: 0; max-width: 56ch; }
@@ -84,4 +93,5 @@
   .td-outils { grid-column: 1 / -1; order: 4; justify-content: flex-start; }
   .td-phrase { font-size: 18px; }
   .td-saisie-champ, .td-saisie-note { flex: 1 1 100%; }
+  .td-h-ligne { grid-template-columns: minmax(0, 1fr); }
 }

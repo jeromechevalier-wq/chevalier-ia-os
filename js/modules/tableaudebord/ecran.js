@@ -22,6 +22,10 @@ const filtres = { traiter: false, famille: '' };
 const saisie = { id: null, brouillon: '', note: '', envoi: false, erreur: '' };
 const videSaisie = () => Object.assign(saisie, { id: null, brouillon: '', note: '', envoi: false, erreur: '' });
 export const TEXTE_ENREGISTRE = 'Enregistré';
+export const MESSAGE_HISTORIQUE_VIDE = 'Aucune saisie pour l\'instant. Quand tu saisis une date ou une valeur, elle apparaît ici avec ton nom et l\'heure.';
+export const MESSAGE_HISTORIQUE_CHARGEMENT = 'Chargement des saisies…';
+export const MESSAGE_HISTORIQUE_ERREUR = 'Impossible de lire l\'historique des saisies pour le moment. Vérifie ta connexion à internet, puis clique sur « Réessayer ».';
+export const LIBELLE_ONGLET_HISTORIQUE = 'Historique des saisies';
 
 // ---------------------------------------------------------------- pictogrammes (icône + mot : l'état n'est jamais montré par la couleur seule)
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -142,8 +146,25 @@ function vueParFamille(duTableau, maintenant, surFiltre, actions) {
   ];
 }
 
+// ---------------------------------------------------------------- onglet « Historique des saisies »
+/** Liste du plus récent au plus ancien : date et heure, auteur, indicateur, « avant → après », note. */
+function vueHistorique(saisies, indicateurs) {
+  const parId = new Map(indicateurs.map((i) => [i.id, i]));
+  return h('section', { class: 'td-panneau', 'aria-labelledby': 'td-historique' },
+    h('h2', { id: 'td-historique' }, LIBELLE_ONGLET_HISTORIQUE),
+    h('ul', { class: 'td-liste td-historique', dataset: { liste: 'historique' } }, saisies.map((s) => {
+      const ind = parId.get(s.indicateurId);
+      return h('li', { class: 'td-h-ligne', dataset: { id: s.id } },
+        h('div', { class: 'td-h-quand' }, L.dateHeure(s.releveMs)),
+        h('div', { class: 'td-h-qui' }, s.auteur ?? 'auteur inconnu'),
+        h('div', { class: 'td-h-nom' }, ind?.nom ?? s.indicateurId),
+        h('div', { class: 'td-h-change' }, L.texteAvantApres(s, ind?.unite)),
+        s.commentaire ? h('div', { class: 'td-h-note' }, s.commentaire) : null);
+    })));
+}
+
 // ---------------------------------------------------------------- montage
-/** Monte l'écran d'un tableau ('general', 'technique', 'finance', 'stocks'). Renvoie la fonction qui l'arrête. */
+/** Monte l'écran d'un tableau ('general', 'technique', 'finance', 'stocks') ou l'onglet 'historique'. Renvoie la fonction qui l'arrête. */
 export function rendreTableau(conteneur, tableau) {
   const onglets = h('nav', { class: 'td-onglets', 'aria-label': 'Tableaux' });
   const contenu = h('div', { class: 'td-contenu' });
@@ -200,7 +221,8 @@ export function rendreTableau(conteneur, tableau) {
     const sig = `${tableau}|${liste.map((t) => t.id).join()}`;
     if (sig === signatureOnglets) return;
     signatureOnglets = sig;
-    remplir(onglets, liste.map((t) => h('a', {
+    // « Historique des saisies » : un onglet seulement (aucune entrée de menu), toujours présent, après les tableaux.
+    remplir(onglets, [...liste, { id: 'historique', libelle: LIBELLE_ONGLET_HISTORIQUE }].map((t) => h('a', {
       class: 'td-onglet', href: lien(`tableaudebord/${t.id}`), dataset: { onglet: t.id }, 'aria-current': t.id === tableau ? 'page' : null,
     }, t.libelle)));
   }
@@ -212,6 +234,7 @@ export function rendreTableau(conteneur, tableau) {
   function rendre() {
     const maintenant = Date.now();
     rendreOnglets();
+    if (tableau === 'historique') { rendreHistorique(); return; }
     const tous = D.etat.indicateurs;
     const duTableau = L.duTableau(tous, tableau);
     const lignes = tous.map((i) => [i.id, i.tableau, i.famille, i.nom, i.type, L.niveauEffectif(i, maintenant), i.message, i.valeur, i.unite, i.methode, i.procedure,
@@ -237,12 +260,33 @@ export function rendreTableau(conteneur, tableau) {
     majDepuis(maintenant);
   }
 
+  function rendreHistorique() {
+    const H = D.historique;
+    const saisies = L.saisiesRecentes(H.saisies);
+    const sig = JSON.stringify(['historique', H.erreur, H.pret, saisies, D.etat.indicateurs.map((i) => [i.id, i.nom, i.unite])]);
+    if (sig === signature) return;
+    signature = sig;
+    const focus = document.activeElement?.dataset?.focus ?? null;
+    if (H.erreur) {
+      remplir(contenu, etatSimple('td-erreur', MESSAGE_HISTORIQUE_ERREUR, 'alert',
+        h('button', { type: 'button', class: 'bouton bouton-principal', dataset: { role: 'reessayer' }, onclick: () => D.reessayerHistorique() }, 'Réessayer')));
+    } else if (!H.pret) {
+      remplir(contenu, etatSimple('td-chargement', MESSAGE_HISTORIQUE_CHARGEMENT, 'status'));
+    } else if (saisies.length === 0) {
+      remplir(contenu, etatSimple('td-vide', MESSAGE_HISTORIQUE_VIDE, 'status'));
+    } else {
+      remplir(contenu, vueHistorique(saisies, D.etat.indicateurs));
+    }
+    if (focus) contenu.querySelector(`[data-focus="${focus}"]`)?.focus();
+  }
+
   /** Les « relevé il y a … » avancent sans reconstruire la liste (le focus et le défilement ne bougent pas). */
   function majDepuis(maintenant) {
     contenu.querySelectorAll('.td-releve[data-releve]').forEach((el) => { el.textContent = texteReleve(el.dataset.releve === '' ? NaN : Number(el.dataset.releve), maintenant); });
     contenu.querySelectorAll('.td-aide [data-releve]').forEach((el) => { el.textContent = L.depuis(Number(el.dataset.releve), maintenant); });
   }
 
+  if (tableau === 'historique') D.demarrerHistorique(); // la lecture des saisies ne démarre que sur cet onglet
   const arretDonnees = D.surChangement(rendre);
   const minuteur = setInterval(rendre, L.MINUTE); // chaque minute : « il y a … » et passage au gris
   rendre();
@@ -251,5 +295,6 @@ export function rendreTableau(conteneur, tableau) {
     clearTimeout(minuteurAvis);
     clearInterval(minuteur);
     arretDonnees();
+    if (tableau === 'historique') D.arreterHistorique();
   };
 }

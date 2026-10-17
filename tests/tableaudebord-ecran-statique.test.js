@@ -31,10 +31,10 @@ describe('R11 aucune écriture', () => {
     const [, liste] = /import \{([^}]*)\} from 'https:\/\/www\.gstatic\.com\/firebasejs\/[^/]+\/firebase-functions\.js'/.exec(t);
     assert.deepEqual(liste.split(',').map((x) => x.trim()).filter(Boolean).sort(), ['getFunctions', 'httpsCallable']);
   });
-  test('R11 les imports Firestore du module se limitent à la lecture (collection, onSnapshot)', () => {
+  test('R11 les imports Firestore du module se limitent à la lecture (collection, onSnapshot, query, where)', () => {
     const t = lire(`${DOSSIER}/donnees.js`);
     const [, liste] = /import \{([^}]*)\} from 'https:\/\/www\.gstatic\.com\/firebasejs\/[^/]+\/firebase-firestore\.js'/.exec(t);
-    assert.deepEqual(liste.split(',').map((x) => x.trim()).filter(Boolean).sort(), ['collection', 'onSnapshot']);
+    assert.deepEqual(liste.split(',').map((x) => x.trim()).filter(Boolean).sort(), ['collection', 'onSnapshot', 'query', 'where']);
   });
   test('R11 boutons de l\'écran : « Réessayer », les filtres, et la saisie (Saisir, Enregistrer, Annuler) ; ni rafraîchir, ni suppression', () => {
     const ecran = lire(`${DOSSIER}/ecran.js`);
@@ -56,8 +56,10 @@ describe('R11 aucune écriture', () => {
 });
 
 describe('règles du dépôt appliquées au module', () => {
-  test('pas de orderBy, limit ni where : la requête lit la collection entière et l\'écran trie (D4)', () => {
-    for (const f of fichiers) assert.doesNotMatch(sansCommentaires(lire(`${DOSSIER}/${f}`)), /\b(orderBy|limit|where)\s*\(/, f);
+  test('S9 pas de orderBy ni limit ; au plus UNE condition where (saisie == true, historique), jamais dans un autre fichier que donnees.js ; l\'écran trie (D4)', () => {
+    for (const f of fichiers) assert.doesNotMatch(sansCommentaires(lire(`${DOSSIER}/${f}`)), /\b(orderBy|limit)\s*\(/, f);
+    const total = fichiers.map((f) => [...sansCommentaires(lire(`${DOSSIER}/${f}`)).matchAll(/\bwhere\s*\(([^)]*)\)/g)].map((m) => [f, m[1]])).flat();
+    assert.deepEqual(total, [['donnees.js', "'saisie', '==', true"]]);
   });
   test('le module lit le chemin de la coque (cheminCollection) et ne filtre jamais sur le champ « proprietaire »', () => {
     const d = lire(`${DOSSIER}/donnees.js`);
