@@ -88,8 +88,10 @@ export function iconeInfo(texte, nom = '') {
     bulle.style.left = `${Math.max(12, Math.min(r.left + r.width / 2 - largeur / 2, window.innerWidth - largeur - 12))}px`;
     bulle.style.top = `${r.bottom + 8}px`;
   };
-  const ouvrir = () => { placer(); bouton.classList.add('ouvert'); };
-  const fermer = () => bouton.classList.remove('ouvert');
+  // Au toucher, un appui ailleurs ferme la bulle (le « blur » n'arrive pas toujours sur un téléphone).
+  const fermerSiAilleurs = (e) => { if (!bouton.contains(e.target)) fermer(); };
+  const ouvrir = () => { placer(); bouton.classList.add('ouvert'); document.addEventListener('pointerdown', fermerSiAilleurs, true); };
+  function fermer() { bouton.classList.remove('ouvert'); document.removeEventListener('pointerdown', fermerSiAilleurs, true); }
   bouton.addEventListener('mouseenter', ouvrir);
   bouton.addEventListener('mouseleave', () => { if (document.activeElement !== bouton) fermer(); });
   bouton.addEventListener('focus', ouvrir);

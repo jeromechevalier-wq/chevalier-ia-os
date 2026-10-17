@@ -509,7 +509,7 @@ test.describe('Google branché (simulé)', () => {
     await connecter(page);
     const form = page.locator('[data-role="form-lien"][data-mode="document"]');
     // Déposé par « Importer » : Drive dit qu'il est dans le dossier de travail → case grisée, cochée, message gris, aucune copie.
-    drive.fichiers.FICHIER_DDDDDDDDDD = { parents: [DOSSIER] };
+    drive.fichiers.FICHIER_DDDDDDDDDD = { parents: [DOSSIER], createdTime: new Date().toISOString() };
     await aller(page, FICHE);
     await choisirDansGoogle(page, [{ ...unDocument('FICHIER_DDDDDDDDDD', 'Importé.pdf', 'https://drive.google.com/file/d/FICHIER_DDDDDDDDDD/view'), parentId: DOSSIER }]);
     await page.locator('[data-action="ajouter-document-google"]').click();

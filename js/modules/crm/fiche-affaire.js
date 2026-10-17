@@ -8,6 +8,7 @@ import {
 } from './composants.js';
 import { panneauActivite } from './activites.js';
 import { creerLanceurs } from './lanceurs.js';
+import { retirerAvecAnnulation } from '../../os/retrait.js';
 import { sectionLiensEtDocuments } from './liens-documents.js';
 import { changerEtapeAvecBoites, ouvrirPerdue, ouvrirPause, demanderSuppressionAffaire } from './affaires.js';
 import * as PD from '../projets/donnees.js';
@@ -125,10 +126,9 @@ export function rendreFicheAffaire(conteneur, id) {
       contenu: h('div', { class: 'pile' },
         projetLie
           ? h('div', { class: 'pile' }, carteProjetMini(projetLie),
-            h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', 'data-action': 'detacher-projet', onclick: async () => {
-              if (!(await confirmer('Détacher le projet ?', 'Le projet et l’affaire sont conservés, seul le lien entre eux disparaît.', { libelleOk: 'Détacher' }))) return;
-              try { await PD.delierProjet(projetLie.id); toast('Projet détaché'); } catch (e) { console.warn(e); toast(messageErreur(e, 'Détachement impossible'), { type: 'erreur' }); }
-            } }, icone('x', { taille: 14 }), 'Détacher le projet'))
+            h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', 'data-action': 'detacher-projet', onclick: () => retirerAvecAnnulation({
+              titre: 'Détacher le projet ?', message: 'Le projet et l’affaire sont conservés, seul le lien entre eux disparaît.', libelleOk: 'Détacher', messageErreur: 'Détachement impossible',
+              faire: () => PD.delierProjet(projetLie.id), defaire: () => PD.lierProjet(a.id, projetLie.id), messageFait: 'Projet détaché' }) }, icone('x', { taille: 14 }), 'Détacher le projet'))
           : (a.statut === 'gagnee' ? h('div', { class: 'pile' },
           h('p', { class: 'aide' }, 'Cette affaire est gagnée : crée son projet pour suivre le travail, ou lie un projet qui existe déjà. Elle peut aussi rester sans projet.'),
           h('div', { class: 'ligne-boutons' },

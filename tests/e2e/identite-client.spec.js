@@ -256,6 +256,7 @@ test('I10 chez un client : « Ajouter un document » (Google branché) et dossie
   expect(g.autorisations[0]).toMatchObject({ clientId: ID_CLIENT, indice: ALICE });
   expect(g.pickers[0].titre).toBe('Choisir un dossier');
   // Un document : fichier déjà dans le dossier de travail (déposé par « Importer ») → case grisée et cochée, message gris.
+  drive.fichiers.F1 = { parents: ['DOSSIER_LUNE_1234'], createdTime: new Date().toISOString() };
   await choisirDansGoogle(page, [{ id: 'F1', name: 'Contrat.pdf', url: 'https://drive.google.com/file/d/F1/view', mimeType: 'application/pdf', parentId: 'DOSSIER_LUNE_1234' }]);
   await page.locator('[data-action="ajouter-document-google"]').click();
   await expect(page.locator('[data-role="case-importe"]')).toContainText('Le fichier est envoyé dans le dossier de travail');

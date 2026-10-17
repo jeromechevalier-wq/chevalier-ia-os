@@ -2,6 +2,7 @@
 // Aucune règle métier ici : les règles sont dans logique.js (plans), exécutés par donnees.js.
 import { h, icone, remplir, dialogue, confirmer, demanderTexte, ouvrirMenu, toast } from '../../os/ui.js';
 import { naviguer } from '../../os/router.js';
+import { retirerAvecAnnulation } from '../../os/retrait.js';
 import * as CRM from '../crm/donnees.js';
 import * as L from '../crm/logique.js';
 import { champPropriete, sectionRepliable, titreEditable, lienRetour, saisieEnCours, etatVide, planifier } from '../crm/composants.js';
@@ -137,7 +138,9 @@ export function rendreFicheModele(conteneur, id) {
           { libelle: 'Monter', icone: 'arrow-up', desactive: i === 0, action: () => ou(() => D.deplacerTacheModele(m.id, t.id, -1), 'Déplacement impossible') },
           { libelle: 'Descendre', icone: 'arrow-down', desactive: i === g.taches.length - 1, action: () => ou(() => D.deplacerTacheModele(m.id, t.id, 1), 'Déplacement impossible') },
           ...P.phasesActives(cfg()).map((ph) => ({ libelle: `Déplacer vers : ${ph.libelle}`, icone: 'arrow-right-left', desactive: ph.id === t.phase, action: () => ou(() => D.majTacheModele(m.id, t.id, { phase: ph.id }), 'Déplacement impossible') })),
-          { libelle: 'Supprimer', icone: 'trash-2', danger: true, action: async () => { if (await confirmer('Supprimer cette tâche type ?', t.titre, { libelleOk: 'Supprimer', danger: true })) await ou(() => D.supprimerTacheModele(m.id, t.id), 'Suppression impossible'); } },
+          { libelle: 'Supprimer', icone: 'trash-2', danger: true, action: () => retirerAvecAnnulation({
+            titre: 'Supprimer cette tâche type ?', message: t.titre, libelleOk: 'Supprimer', danger: true, messageErreur: 'Suppression impossible',
+            faire: () => D.supprimerTacheModele(m.id, t.id), defaire: () => D.restaurerTachesModele(m.id, m.taches || []), messageFait: 'Tâche type supprimée' }) },
         ]) }, icone('ellipsis', { taille: 16 }));
       return h('li', { class: 'activite tache', dataset: { tacheModele: t.id } },
         h('span', { class: 'activite-type' }, icone('circle', { taille: 14 })),
@@ -188,8 +191,11 @@ export function rendreFicheModele(conteneur, id) {
   }
 
   async function supprimer(m) {
-    if (!(await confirmer('Supprimer ce modèle ?', `« ${m.nom} » : les projets déjà créés avec lui ne changent pas.`, { libelleOk: 'Supprimer', danger: true }))) return;
-    if (await ou(() => D.supprimerModele(m.id), 'Suppression impossible')) { toast('Modèle supprimé'); naviguer('reglages/crm'); }
+    const fait = await retirerAvecAnnulation({
+      titre: 'Supprimer ce modèle ?', message: `« ${m.nom} » : les projets déjà créés avec lui ne changent pas.`, libelleOk: 'Supprimer', danger: true, messageErreur: 'Suppression impossible',
+      faire: () => D.supprimerModele(m.id), defaire: () => D.restaurerModele(m), messageFait: 'Modèle supprimé',
+    });
+    if (fait) naviguer('reglages/crm');
   }
 
   function reconstruire() {

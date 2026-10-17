@@ -1,6 +1,7 @@
 // Factures d'un projet (version 2.2) : section de la fiche projet, fenêtres de paiement et de sortie « impayé ».
 // Aucune règle métier ici : les règles sont dans logique.js (plans), exécutés par donnees.js.
 import { h, icone, remplir, dialogue, confirmer, ouvrirMenu, toast } from '../../os/ui.js';
+import { retirerAvecAnnulation } from '../../os/retrait.js';
 import { sectionRepliable } from '../crm/composants.js';
 import { celebrerPaiement } from '../../os/celebrations.js';
 import * as L from '../crm/logique.js';
@@ -107,8 +108,11 @@ async function abandonner(p, f) {
 }
 
 async function retirer(p, f) {
-  if (!(await confirmer('Supprimer la facture ?', `${P.libelleFacture(f)} (${L.formatEuros(f.montant)}) sera retirée du projet.`, { libelleOk: 'Supprimer', danger: true }))) return;
-  await ou(() => D.supprimerFacture(p.id, f.id), 'Suppression impossible');
+  const avant = p.factures || [];
+  await retirerAvecAnnulation({
+    titre: 'Supprimer la facture ?', message: `${P.libelleFacture(f)} (${L.formatEuros(f.montant)}) sera retirée du projet.`, libelleOk: 'Supprimer', danger: true, messageErreur: 'Suppression impossible',
+    faire: () => D.supprimerFacture(p.id, f.id), defaire: () => D.restaurerFactures(p.id, avant), messageFait: 'Facture supprimée',
+  });
 }
 
 async function remettre(p, f) {

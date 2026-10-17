@@ -159,7 +159,7 @@ for (const f of FICHES) {
     await f.creer({ urlDossier: URL_DOSSIER });
     await connecter(page);
     await aller(page, f.hash);
-    drive.fichiers.FICHIER_IMPORT_01 = { parents: [DOSSIER] };
+    drive.fichiers.FICHIER_IMPORT_01 = { parents: [DOSSIER], createdTime: new Date().toISOString() }; // créé à l'instant, dans le dossier de travail : c'est un import
     await choisirDansGoogle(page, [fichierDrive('FICHIER_IMPORT_01', '1.png', undefined, 'image/png')]);
     await page.locator(`[data-section="${f.section}"] [data-action="ajouter-document-google"]`).click();
     const importe = page.locator('[data-role="case-importe"]');

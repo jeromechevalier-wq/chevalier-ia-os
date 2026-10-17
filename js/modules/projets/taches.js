@@ -116,7 +116,6 @@ export function sectionTaches(projet) {
       h('div', { class: 'activite-texte' },
         titreModifiable(t),
         h('span', { class: 'activite-meta' },
-          etat !== 'avenir' ? h('span', { class: `badge-etat ${etat}` }, LIBELLES_ETAT[etat]) : null,
           // Comme sur une activité : un clic sur la date (ou sur « En retard ») ouvre la même fenêtre pour la changer ; une tâche sans date peut en recevoir une.
           etat !== 'avenir' ? h('button', { type: 'button', class: `badge-etat ${etat}`, title: 'Changer la date', dataset: { action: 'badge-date-tache' }, onclick: () => dateTache(t) }, LIBELLES_ETAT[etat]) : null,
           h('span', { class: 'activite-date-modifiable', role: 'button', tabindex: '0', title: 'Changer la date', dataset: { action: 'date-tache' }, onclick: () => dateTache(t),

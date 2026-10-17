@@ -2,10 +2,18 @@
 //  P1 tâches : mêmes gestes que les activités (clic sur la date) ; P2 « Supprimé · Annuler » 8 s pour chaque retrait réversible ;
 //  P3 « Ajouter un document » sans dossier de travail : un message, rien d'autre ; P4 libellé « Dossier de travail de cette fiche » ;
 //  P5 fichier importé : case grisée et cochée (reconnu par Drive).
-import { test, expect, connecter, allerAuxReglagesCrm, creerProjet, creerAffaire, creerPersonne, creerOrganisation, creerTacheProjet, creerActivite, lireDocument, ecrireDocument, jour, JEROME } from './outils.js';
+import { test, expect, connecter, allerAuxReglagesCrm, creerProjet, creerAffaire, creerPersonne, creerOrganisation, creerTacheProjet, creerActivite, lireDocument, ecrireDocument, listerDocuments, jour, JEROME } from './outils.js';
 import { brancherGoogle, lireGoogle, choisirDansGoogle, PARENT } from './google-simule.js';
 
 const dialogue = (page) => page.getByRole('dialog');
+const DOSSIER_CAPTURES = `${process.env.HOME}/chantiers-crm/captures-corrections-dossiers-2`;
+/** Capture produite par le test lui-même (refaite à chaque passage) : P1.png sur ordinateur, P1-telephone.png sur téléphone. */
+async function capturer(page, nom, cible = null) {
+  const fichier = `${DOSSIER_CAPTURES}/${nom}${page.viewportSize().width < 768 ? '-telephone' : ''}.png`;
+  for (let essai = 1; ; essai++) { // la fiche peut être redessinée pendant la capture : on recommence
+    try { if (cible) await cible.screenshot({ path: fichier }); else await page.screenshot({ path: fichier }); return; } catch (e) { if (essai >= 5) throw e; await page.waitForTimeout(300); }
+  }
+}
 async function aller(page, hash) { await page.evaluate((h) => { location.hash = h; }, hash); }
 async function champDoc(collection, id, cle, attendu) {
   await expect.poll(async () => (await lireDocument(`${collection}/${id}`))?.[cle], { timeout: 10_000 }).toEqual(attendu);
@@ -39,8 +47,11 @@ test('P1 une tâche se traite comme une activité : un clic sur la date (ou sur 
   await champDoc('crm_activites', 'ac1', 'date', jour(1));
   // Tâche en retard : un clic sur la date ouvre EXACTEMENT la même fenêtre.
   const retard = page.locator('.tache[data-tache="t2"]');
+  await expect(retard.locator('.badge-etat')).toHaveCount(1); // un seul badge « En retard » (pas de doublon)
+  await expect(retard.locator('.badge-etat')).toHaveText('En retard');
   await retard.locator('[data-action="date-tache"]').click();
   await expect(dialogue(page)).toContainText('Changer la date');
+  await capturer(page, 'P1');
   await expect(dialogue(page).getByLabel('Heure (facultatif)')).toBeVisible();
   await expect(dialogue(page).locator('[data-date-rapide]')).toHaveCount(4);
   await dialogue(page).locator('[data-date-rapide="3j"]').click();
@@ -62,6 +73,18 @@ test('P1 une tâche se traite comme une activité : un clic sur la date (ou sur 
   await dialogue(page).locator('[data-action="effacer-date"]').click();
   await champDoc('projets_taches', 't1', 'date', null);
   await expect(sans.locator('[data-action="date-tache"]')).toHaveText('Sans date');
+});
+
+test('P1 (toucher) sur téléphone, toucher la date d\'une tâche ouvre la fenêtre pour la changer ; sur ordinateur, un clic', async ({ page }, info) => {
+  await creerProjet('pr1', { titre: 'Refonte site' });
+  await creerTacheProjet('t1', { titre: 'Écrire le devis', projetId: 'pr1', date: jour(-2) });
+  await connecter(page);
+  await aller(page, '#/projets/projets/pr1');
+  const date = page.locator('.tache[data-tache="t1"] [data-action="date-tache"]');
+  if (info.project.name === 'telephone') await date.tap(); else await date.click();
+  await expect(dialogue(page)).toContainText('Changer la date');
+  await dialogue(page).locator('[data-date-rapide="demain"]').tap().catch(() => dialogue(page).locator('[data-date-rapide="demain"]').click());
+  await champDoc('projets_taches', 't1', 'date', jour(1));
 });
 
 test('P1 (suite) mêmes modifications possibles : texte au clic, date au clic, rond pour terminer ; seule la tâche se déplace de phase et se confie à quelqu\'un (menu « Modifier… »), seule l\'activité a un type', async ({ page }) => {
@@ -99,6 +122,7 @@ test('P2 « Supprimé · Annuler » : une TÂCHE supprimée revient à l\'identi
   await confirmer(page, 'Supprimer');
   await expect.poll(async () => await lireDocument('projets_taches/t1')).toBeNull();
   await expect(page.locator('.toast', { hasText: 'Tâche supprimée' })).toBeVisible();
+  await capturer(page, 'P2');
   await annulerLeRetrait(page);
   await expect.poll(async () => await lireDocument('projets_taches/t1')).toEqual(avant);
   await expect(page.locator('.tache[data-tache="t1"]')).toBeVisible();
@@ -236,6 +260,8 @@ for (const [libelle, hash, collection, id, creer] of [
     const boutons = dialogue(page).locator('.dialogue-pied button');
     await expect(boutons).toHaveCount(1);
     await expect(boutons).toHaveText('Fermer');
+    await expect(dialogue(page)).toBeVisible();
+    await capturer(page, `P3-${libelle}`); // la fenêtre de message est visible : texte et bouton « Fermer »
     await boutons.click();
     await expect(dialogue(page)).toHaveCount(0);
     expect(drive.requetes).toHaveLength(0); // aucun dossier créé
@@ -251,6 +277,7 @@ for (const [libelle, hash, collection, id, creer] of [
     await aller(page, hash);
     await expect(page.locator('[data-prop="dossier"] .prop-libelle')).toContainText('Dossier de travail de cette fiche');
     await expect(page.locator('[data-prop="dossier"] [data-role="info"]')).toHaveAttribute('aria-label', /Dossier de travail de cette fiche/);
+    await capturer(page, `P4-${libelle}`, page.locator('[data-prop="dossier"]'));
   });
 }
 
@@ -260,7 +287,7 @@ test('P5 un fichier IMPORTÉ depuis l\'ordinateur est reconnu (Drive dit qu\'il 
   await connecter(page);
   await aller(page, '#/projets/projets/pr1');
   // Le fichier renvoyé par la fenêtre Google ne dit RIEN de son dossier (pas de parentId) : c'est Drive (files.get) qui le dit.
-  drive.fichiers.FICHIER_IMPORT_01 = { parents: [DOSSIER] };
+  drive.fichiers.FICHIER_IMPORT_01 = { parents: [DOSSIER], createdTime: new Date().toISOString() };
   await choisirDansGoogle(page, [unDocument('FICHIER_IMPORT_01', '1.png', 'https://drive.google.com/file/d/FICHIER_IMPORT_01/view', 'image/png')]);
   await page.locator('[data-action="ajouter-document-google"]').click();
   const importe = page.locator('[data-role="case-importe"]');
@@ -273,6 +300,7 @@ test('P5 un fichier IMPORTÉ depuis l\'ordinateur est reconnu (Drive dit qu\'il 
   await caseCopie.click({ force: true }).catch(() => {}); // même forcé, une case désactivée ne change pas
   await expect(caseCopie).toBeChecked();
   expect(drive.lectures).toContain('FICHIER_IMPORT_01');
+  await capturer(page, 'P5', page.locator('[data-section="projet-documents"]'));
   await page.locator('[data-role="form-lien"] [data-action="valider-lien"]').click();
   await champDoc('projets_projets', 'pr1', 'documents', [{ libelle: '1.png', url: 'https://drive.google.com/file/d/FICHIER_IMPORT_01/view' }]);
   expect(drive.copies).toHaveLength(0); // le fichier est déjà dans le dossier : pas de copie
@@ -299,4 +327,120 @@ test('P5 (secours) si Drive ne répond pas à files.get, le dossier d\'origine d
   await page.locator('[data-action="ajouter-document-google"]').click();
   await expect(page.locator('[data-role="case-importe"] input')).toBeDisabled();
   expect(drive.copies).toHaveLength(0);
+});
+
+test('P5 (déjà rangé) un fichier de Drive ANCIEN qui est déjà dans le dossier de travail : la case grisée dit « Ce fichier est déjà dans le dossier de travail » (pas « envoyé »), aucune copie', async ({ page, context }) => {
+  const drive = await brancherGoogle(context);
+  await creerProjet('pr1', { titre: 'Refonte site', urlDossier: URL_DOSSIER });
+  await connecter(page);
+  await aller(page, '#/projets/projets/pr1');
+  drive.fichiers.FICHIER_ANCIEN_01 = { parents: [DOSSIER], createdTime: '2024-03-01T10:00:00.000Z' };
+  await choisirDansGoogle(page, [unDocument('FICHIER_ANCIEN_01', 'Ancien.pdf', 'https://drive.google.com/file/d/FICHIER_ANCIEN_01/view')]);
+  await page.locator('[data-action="ajouter-document-google"]').click();
+  await expect(page.locator('[data-role="case-deja-dans"]')).toContainText('Ce fichier est déjà dans le dossier de travail');
+  await expect(page.locator('[data-role="case-deja-dans"]')).not.toContainText('envoyé');
+  await expect(page.locator('[data-role="case-deja-dans"] input')).toBeDisabled();
+  await expect(page.locator('[data-role="case-importe"]')).toHaveCount(0);
+  await page.locator('[data-action="valider-lien"]').click();
+  await champDoc('projets_projets', 'pr1', 'documents', [{ libelle: 'Ancien.pdf', url: 'https://drive.google.com/file/d/FICHIER_ANCIEN_01/view' }]);
+  expect(drive.copies).toHaveLength(0);
+});
+
+test('P5 (prudence) si Drive ne répond pas et que la fenêtre Google ne dit rien du dossier : on ne copie PAS (risque de doublon), la case est grisée et décochée avec une explication, le lien d\'origine est gardé', async ({ page, context }) => {
+  test.info().annotations.push({ type: 'erreurs-reseau-attendues' });
+  const drive = await brancherGoogle(context);
+  await creerProjet('pr1', { titre: 'Refonte site', urlDossier: URL_DOSSIER });
+  await connecter(page);
+  await aller(page, '#/projets/projets/pr1');
+  drive.echecLecture = 500;
+  await choisirDansGoogle(page, [unDocument('FICHIER_INCONNU_1', 'Inconnu.pdf', 'https://drive.google.com/file/d/FICHIER_INCONNU_1/view')]);
+  await page.locator('[data-action="ajouter-document-google"]').click();
+  const incertaine = page.locator('[data-role="case-incertaine"]');
+  await expect(incertaine).toContainText('Impossible de vérifier le dossier de ce fichier');
+  await expect(incertaine.locator('input')).toBeDisabled();
+  await expect(incertaine.locator('input')).not.toBeChecked();
+  await page.locator('[data-action="valider-lien"]').click();
+  await champDoc('projets_projets', 'pr1', 'documents', [{ libelle: 'Inconnu.pdf', url: 'https://drive.google.com/file/d/FICHIER_INCONNU_1/view' }]);
+  expect(drive.copies).toHaveLength(0);
+});
+
+test('P5 (deuxième signal) un fichier créé à l\'instant dans le dossier de travail est un import, même si la fenêtre Google ne dit rien ; un fichier dans le dossier mais créé hier n\'en est pas un', async ({ page, context }) => {
+  const drive = await brancherGoogle(context);
+  await creerProjet('pr1', { titre: 'Refonte site', urlDossier: URL_DOSSIER });
+  await connecter(page);
+  await aller(page, '#/projets/projets/pr1');
+  drive.fichiers.NOUVEAU_IMPORT_1 = { parents: [DOSSIER], createdTime: new Date(Date.now() - 20_000).toISOString() };
+  await choisirDansGoogle(page, [unDocument('NOUVEAU_IMPORT_1', 'Photo.jpg', 'https://drive.google.com/file/d/NOUVEAU_IMPORT_1/view', 'image/jpeg')]);
+  await page.locator('[data-action="ajouter-document-google"]').click();
+  await expect(page.locator('[data-role="case-importe"]')).toContainText('envoyé dans le dossier de travail');
+  await page.locator('[data-action="annuler-lien"]').click();
+  drive.fichiers.VIEUX_FICHIER_01 = { parents: [DOSSIER], createdTime: new Date(Date.now() - 24 * 3600 * 1000).toISOString() };
+  await choisirDansGoogle(page, [unDocument('VIEUX_FICHIER_01', 'Hier.jpg', 'https://drive.google.com/file/d/VIEUX_FICHIER_01/view', 'image/jpeg')]);
+  await page.locator('[data-action="ajouter-document-google"]').click();
+  await expect(page.locator('[data-role="case-deja-dans"]')).toBeVisible();
+  await expect(page.locator('[data-role="case-importe"]')).toHaveCount(0);
+});
+
+test('P2 « Supprimé · Annuler » : une FACTURE supprimée revient à l\'identique (les autres factures ne bougent pas)', async ({ page }) => {
+  await creerProjet('pr1', { titre: 'Refonte site', phase: 'livraison', factures: [
+    { id: 'f1', libelle: 'Acompte', montant: 500, dateEnvoi: jour(-5), datePaiement: null, statut: 'a_payer' },
+    { id: 'f2', libelle: 'Solde', montant: 400, dateEnvoi: jour(-2), datePaiement: null, statut: 'a_payer' },
+  ] });
+  await connecter(page);
+  await aller(page, '#/projets/projets/pr1');
+  const avant = (await lireDocument('projets_projets/pr1')).factures;
+  await page.locator('[data-action="menu-facture"]').first().click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: /Supprimer/ }).click();
+  await expect(dialogue(page)).toContainText('Supprimer la facture');
+  await confirmer(page, 'Supprimer');
+  await expect.poll(async () => (await lireDocument('projets_projets/pr1')).factures.length).toBe(1);
+  await expect(page.locator('.toast', { hasText: 'Facture supprimée' })).toBeVisible();
+  await annulerLeRetrait(page);
+  await expect.poll(async () => (await lireDocument('projets_projets/pr1')).factures).toEqual(avant);
+});
+
+test('P2 « Supprimé · Annuler » : une TÂCHE TYPE et un MODÈLE DE PROJET supprimés reviennent à l\'identique', async ({ page }) => {
+  await connecter(page);
+  await expect.poll(async () => (await listerDocuments('projets_modeles')).length, { timeout: 15_000 }).toBe(3);
+  await aller(page, '#/projets/modeles/audit');
+  const avant = await lireDocument('projets_modeles/audit');
+  await page.locator('[data-action="menu-tache-modele"]').first().click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Supprimer' }).click();
+  await expect(dialogue(page)).toContainText('Supprimer cette tâche type');
+  await confirmer(page, 'Supprimer');
+  await expect.poll(async () => (await lireDocument('projets_modeles/audit')).taches.length).toBe(avant.taches.length - 1);
+  await annulerLeRetrait(page);
+  await expect.poll(async () => (await lireDocument('projets_modeles/audit')).taches).toEqual(avant.taches);
+  // Le modèle lui-même (état relu : la restauration des tâches types a mis à jour sa date de modification)
+  const avantModele = await lireDocument('projets_modeles/audit');
+  await page.locator('[data-action="menu-fiche"]').click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: /Supprimer définitivement/ }).click();
+  await expect(dialogue(page)).toContainText('Supprimer ce modèle');
+  await confirmer(page, 'Supprimer');
+  await expect.poll(async () => await lireDocument('projets_modeles/audit')).toBeNull();
+  await annulerLeRetrait(page);
+  await expect.poll(async () => await lireDocument('projets_modeles/audit')).toEqual(avantModele);
+});
+
+test('P2 « Détaché · Annuler » : détacher l\'affaire d\'un projet ou le projet d\'une affaire se défait en un clic', async ({ page }) => {
+  await creerAffaire('a1', { titre: 'Audit des Lilas', etape: 'gagne', projetId: 'pr1' });
+  await creerProjet('pr1', { titre: 'Audit des Lilas', affaireId: 'a1' });
+  await connecter(page);
+  // Depuis le projet
+  await aller(page, '#/projets/projets/pr1');
+  await page.locator('[data-action="detacher-affaire"]').click();
+  await expect(dialogue(page)).toContainText('Détacher l’affaire');
+  await confirmer(page, 'Détacher');
+  await expect.poll(async () => (await lireDocument('projets_projets/pr1')).affaireId).toBeNull();
+  await annulerLeRetrait(page);
+  await expect.poll(async () => (await lireDocument('projets_projets/pr1')).affaireId).toBe('a1');
+  await expect.poll(async () => (await lireDocument('crm_affaires/a1')).projetId).toBe('pr1');
+  // Depuis l'affaire
+  await aller(page, '#/crm/affaires/a1');
+  await page.locator('[data-action="detacher-projet"]').click();
+  await expect(dialogue(page)).toContainText('Détacher le projet');
+  await confirmer(page, 'Détacher');
+  await expect.poll(async () => (await lireDocument('crm_affaires/a1')).projetId).toBeNull();
+  await annulerLeRetrait(page);
+  await expect.poll(async () => (await lireDocument('crm_affaires/a1')).projetId).toBe('pr1');
 });
