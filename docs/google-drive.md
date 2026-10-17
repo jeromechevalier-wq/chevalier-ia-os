@@ -89,6 +89,14 @@ Jérôme : « c'est différent d'une fiche à l'autre ». Maintenant **un seul c
 - **Même ordre des sections** sur les deux fiches : Résumé, Tâches et Factures (projets seulement), **Liens et documents**, puis **Détails**. À droite : Activité et Notes, Points clés, Historique (inchangés). *Choix : j'ai appliqué l'ordre demandé à la colonne principale (« Liens et documents » passe avant « Détails » ; la colonne de droite était déjà identique).*
 - **Fiche projet** : la ligne « Affaire d'origine » n'apparaît que s'il y a une affaire (plus de « Aucune affaire liée »).
 - **Étiquette d'état** (Ouverte / Actif…) : une seule fois, sous le titre, avec une icône « i » qui l'explique ; la ligne « Statut » du Résumé de l'affaire est supprimée (la raison de la perte ou la date de réveil s'affichent à côté de l'étiquette).
+## Copier un fichier dans le dossier de travail (version 2.6.8)
+
+Quand on ajoute un document choisi dans l'onglet **Google Drive** de la fenêtre Google (un fichier qui existe déjà), le petit formulaire (nom + note) propose la case **« Copier dans le dossier de travail du projet »** (de l'affaire, sur une affaire), **décochée par défaut**.
+- **Décochée** : le lien du fichier d'origine est enregistré, comme avant.
+- **Cochée** : le fichier est **copié** par l'API Drive (`files.copy`) dans le dossier de travail, et le lien enregistré pointe vers la **copie** ; l'original reste où il est. Jamais de déplacement automatique.
+- **La case n'apparaît pas** si le dossier de travail n'est pas un dossier Drive (serveur, NAS, site), si le fichier vient d'« Importer » (il est déjà dans le dossier de travail : la fenêtre Google indique son dossier d'origine), si c'est un dossier, ni pour un lien web.
+- **Si la copie échoue** (droits, fichier ou dossier introuvable…) : message simple, le lien d'origine est enregistré quand même.
+- Si la fiche n'a pas encore de dossier de travail, la question habituelle (« Créer le dossier » / « Parcourir seulement ») est posée avant la fenêtre : créer le dossier le rend disponible pour la copie. *Reste à vérifier en réel* : que l'appli a bien le droit de copier un fichier choisi dans la fenêtre (portée `drive.file`) vers le dossier de travail créé par l'appli.
 
 ## Pas vérifié (à faire après le branchement)
 

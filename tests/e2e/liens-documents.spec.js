@@ -440,4 +440,78 @@ test.describe('Google branché (simulé)', () => {
     await lier('#/crm/affaires/a2', 'crm_affaires', 'a2');
     await expect(page.locator('.toast', { hasText: 'Ce dossier sert déjà au projet' }).first()).toBeVisible();
   });
+
+  test('L16 « Copier dans le dossier de travail » : case décochée par défaut ; cochée, le fichier est copié (files.copy) et le lien pointe vers la COPIE ; échec : lien d\'origine gardé', async ({ page }) => {
+    const DOSSIER = '1AbC_dEf-1234567';
+    await creerProjet('pr1', { titre: 'Refonte', urlDossier: `https://drive.google.com/drive/folders/${DOSSIER}` });
+    await connecter(page);
+    await aller(page, FICHE);
+    const form = page.locator('[data-role="form-lien"][data-mode="document"]');
+    const caseCopie = form.locator('[data-champ="copier"]');
+    // Par défaut : décochée, le lien d'origine est enregistré, aucune copie.
+    await choisirDansGoogle(page, [{ ...unDocument('FICHIER_AAAAAAAAAA', 'Devis.pdf', 'https://drive.google.com/file/d/FICHIER_AAAAAAAAAA/view'), parentId: 'AUTRE_DOSSIER_123' }]);
+    await page.locator('[data-action="ajouter-document-google"]').click();
+    await expect(caseCopie).toBeVisible();
+    await expect(caseCopie).not.toBeChecked();
+    await form.locator('[data-action="valider-lien"]').click();
+    await champDoc('projets_projets', 'pr1', 'documents', [{ libelle: 'Devis.pdf', url: 'https://drive.google.com/file/d/FICHIER_AAAAAAAAAA/view' }]);
+    expect(drive.copies).toHaveLength(0);
+    // Cochée : copie dans le dossier de travail, lien vers la copie (l'original n'est pas enregistré).
+    await choisirDansGoogle(page, [{ ...unDocument('FICHIER_BBBBBBBBBB', 'Scan.jpg', 'https://drive.google.com/file/d/FICHIER_BBBBBBBBBB/view', 'image/jpeg'), parentId: 'AUTRE_DOSSIER_123' }]);
+    await page.locator('[data-action="ajouter-document-google"]').click();
+    await caseCopie.check();
+    await form.getByLabel('Note (facultative)').fill('copie du client');
+    await form.locator('[data-action="valider-lien"]').click();
+    await champDoc('projets_projets', 'pr1', 'documents', [
+      { libelle: 'Devis.pdf', url: 'https://drive.google.com/file/d/FICHIER_AAAAAAAAAA/view' },
+      { libelle: 'Scan.jpg', url: 'https://drive.google.com/file/d/COPIE_1_abcdefghij/view', note: 'copie du client' },
+    ]);
+    expect(drive.copies).toHaveLength(1);
+    expect(drive.copies[0].url).toContain('/files/FICHIER_BBBBBBBBBB/copy');
+    expect(drive.copies[0].autorisation).toBe('Bearer ya29.SIMULE');
+    expect(drive.copies[0].corps).toEqual({ parents: [DOSSIER], name: 'Scan.jpg' });
+    // Échec de la copie : message simple, le lien d'origine est gardé.
+    drive.echecCopie = 404;
+    await choisirDansGoogle(page, [{ ...unDocument('FICHIER_CCCCCCCCCC', 'Plan.pdf', 'https://drive.google.com/file/d/FICHIER_CCCCCCCCCC/view'), parentId: 'AUTRE_DOSSIER_123' }]);
+    await page.locator('[data-action="ajouter-document-google"]').click();
+    await caseCopie.check();
+    await form.locator('[data-action="valider-lien"]').click();
+    await expect(page.locator('.toast-erreur').last()).toContainText('le lien d’origine est gardé');
+    await champDoc('projets_projets', 'pr1', 'documents', [
+      { libelle: 'Devis.pdf', url: 'https://drive.google.com/file/d/FICHIER_AAAAAAAAAA/view' },
+      { libelle: 'Scan.jpg', url: 'https://drive.google.com/file/d/COPIE_1_abcdefghij/view', note: 'copie du client' },
+      { libelle: 'Plan.pdf', url: 'https://drive.google.com/file/d/FICHIER_CCCCCCCCCC/view' },
+    ]);
+  });
+
+  test('L17 pas de case « Copier » pour un fichier déjà dans le dossier de travail (Importer), ni pour un dossier de serveur ou de NAS ; sur une affaire, le libellé le dit', async ({ page }) => {
+    const DOSSIER = '1AbC_dEf-1234567';
+    await creerProjet('pr1', { titre: 'Avec dossier Drive', urlDossier: `https://drive.google.com/drive/folders/${DOSSIER}` });
+    await creerProjet('pr2', { titre: 'Avec NAS', urlDossier: 'smb://nas/clients/carrel' });
+    await creerAffaire('a1', { titre: 'Affaire', urlDossier: `https://drive.google.com/drive/folders/${DOSSIER}` });
+    await connecter(page);
+    const form = page.locator('[data-role="form-lien"][data-mode="document"]');
+    // Déposé par « Importer » : il est déjà dans le dossier de travail.
+    await aller(page, FICHE);
+    await choisirDansGoogle(page, [{ ...unDocument('FICHIER_DDDDDDDDDD', 'Importé.pdf', 'https://drive.google.com/file/d/FICHIER_DDDDDDDDDD/view'), parentId: DOSSIER }]);
+    await page.locator('[data-action="ajouter-document-google"]').click();
+    await expect(form).toBeVisible();
+    await expect(form.locator('[data-champ="copier"]')).toHaveCount(0);
+    await form.locator('[data-action="annuler-lien"]').click();
+    // Dossier de travail hors Drive : pas de case.
+    await aller(page, '#/projets/projets/pr2');
+    await choisirDansGoogle(page, [{ ...unDocument('FICHIER_EEEEEEEEEE', 'Autre.pdf', 'https://drive.google.com/file/d/FICHIER_EEEEEEEEEE/view'), parentId: 'AUTRE_DOSSIER_123' }]);
+    await page.locator('[data-action="ajouter-document-google"]').click();
+    await expect(form).toBeVisible();
+    await expect(form.locator('[data-champ="copier"]')).toHaveCount(0);
+    await form.locator('[data-action="annuler-lien"]').click();
+    // Affaire avec un dossier Drive : la case parle de l'affaire.
+    await aller(page, '#/crm/affaires/a1');
+    await page.locator('[data-action="ajouter-document-google"]').click();
+    await expect(form.locator('label.case')).toContainText('Copier dans le dossier de travail de l’affaire');
+    // Un lien web n'a jamais cette case.
+    await form.locator('[data-action="annuler-lien"]').click();
+    await page.locator('[data-action="ajouter-lien"]').click();
+    await expect(page.locator('[data-champ="copier"]')).toHaveCount(0);
+  });
 });

@@ -95,6 +95,25 @@ export async function creerDossier({ jeton, nom, parentId = '', appelFetch = glo
 }
 
 /**
+ * Copie un fichier Drive DANS un dossier (files.copy) : l'original reste où il est. Renvoie { id, nom, url } de la COPIE.
+ * Il faut que l'appli ait accès au fichier (choisi dans la fenêtre Google) et au dossier (créé par l'appli ou choisi dans la fenêtre).
+ */
+export async function copierFichier({ jeton, fichierId, parentId, nom = '', appelFetch = globalThis.fetch }) {
+  if (!IDENTIFIANT.test(fichierId || '') || !IDENTIFIANT.test(parentId || '')) throw Object.assign(new Error('Fichier ou dossier invalide pour la copie.'), { saisie: true });
+  const propre = nettoyerNomDossier(nom).nom;
+  const reponse = await appelFetch(`${API_FICHIERS}/${fichierId}/copy?supportsAllDrives=true&fields=id,name,webViewLink`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${jeton}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ parents: [parentId], ...(propre ? { name: propre } : {}) }),
+  });
+  let corps = null;
+  try { corps = await reponse.json(); } catch { /* corps vide ou illisible */ }
+  if (!reponse.ok || !corps?.id) throw Object.assign(new Error(messageErreurDrive(reponse.status, corps)), { statut: reponse.status });
+  const url = /^https:\/\/(?:drive|docs)\.google\.com\//.test(corps.webViewLink || '') ? corps.webViewLink : `https://drive.google.com/file/d/${corps.id}/view`;
+  return { id: corps.id, nom: corps.name || propre, url };
+}
+
+/**
  * Crée le dossier d'un projet puis ses sous-dossiers, dans l'ordre de la liste. Si le dossier principal échoue, tout s'arrête (rien n'est créé).
  * Si un sous-dossier échoue, on continue avec les suivants : le résultat dit lesquels manquent (`manquants`), le dossier principal est bien créé.
  * Renvoie { dossier: { id, nom, url }, sousDossiers: [{ id, nom, url }], manquants: [nom] }.
