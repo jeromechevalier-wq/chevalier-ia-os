@@ -268,23 +268,22 @@ test('R8 vide : aucun indicateur, Général et Technique disent pourquoi', async
   await expect(ligne(page, 'premier')).toBeVisible();
 });
 
-test('R8 chargement : « Chargement des indicateurs… » tant que la base n\'a pas répondu, sur Général et sur Technique', async ({ page, context }, info) => {
+test('R8 chargement : « Chargement des indicateurs… » tant que la base n\'a pas répondu, sur Général et sur Technique', async ({ page }, info) => {
+  // La base « ne répond pas » : on sert le fichier de lecture du module avec une écoute qui ne rappelle jamais l'écran (seul ce fichier est modifié, dans ce test).
+  await page.route('**/js/modules/tableaudebord/donnees.js', async (route) => {
+    const source = await readFile(fileURLToPath(new URL('../../js/modules/tableaudebord/donnees.js', import.meta.url)), 'utf8');
+    expect(source).toContain('desabonnement = onSnapshot(');
+    await route.fulfill({ status: 200, contentType: 'text/javascript', body: source.replace('desabonnement = onSnapshot(', 'desabonnement = (() => () => {})(') });
+  });
   await jeuStandard();
   await ouvrir(page, 'general');
   for (const ecran of ['general', 'technique']) {
     await aller(page, ecran);
-    await expect(page.locator('.td-ligne').first()).toBeVisible();
-    await context.setOffline(true); // plus de réponse possible : l'écran reste en chargement
-    const texte = await page.evaluate(async () => {
-      const D = await import('/js/modules/tableaudebord/donnees.js');
-      D.reessayer();
-      return document.querySelector('.td-contenu').innerText;
-    });
-    expect(texte).toContain('Chargement des indicateurs…');
     await expect(page.locator('.td-etat-ecran.td-chargement')).toHaveText('Chargement des indicateurs…');
+    await expect(page.locator('.td-etat-ecran.td-chargement')).toHaveAttribute('role', 'status');
+    await expect(page.locator('.td-ligne, .td-phrase, .td-erreur')).toHaveCount(0);
+    await expect(page.locator('.td-onglet')).toHaveText(['Général', 'Technique']);
     await capturer(page, info, `R8-chargement-${ecran}`);
-    await context.setOffline(false);
-    await expect(page.locator('.td-ligne').first()).toBeVisible({ timeout: 20_000 }); // la connexion revient : les indicateurs s'affichent
   }
 });
 
