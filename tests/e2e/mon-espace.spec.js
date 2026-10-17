@@ -523,11 +523,9 @@ test('M19 chargement des réglages : un indicateur pendant le chargement ; en ca
   // 1) réseau lent : l'indicateur de chargement reste affiché le temps de la lecture
   const cdp = await context.newCDPSession(page);
   await cdp.send('Network.enable');
-  await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 3000, downloadThroughput: -1, uploadThroughput: -1 });
+  await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 6000, downloadThroughput: -1, uploadThroughput: -1 });
   await page.evaluate(() => { location.hash = '#/espace/studio/reglages'; });
-  const chargement = page.locator('[data-etat="chargement"]').first();
-  await expect(chargement).toBeVisible();
-  await expect(chargement).toContainText('Chargement');
+  await expect(page.locator('[data-etat="chargement"]', { hasText: 'Chargement' }).first()).toBeVisible();
   await capturer(page, 'M19-chargement');
   await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
   await expect(champ(page, 'nom')).toHaveValue('Studio Lune', { timeout: 60_000 });
