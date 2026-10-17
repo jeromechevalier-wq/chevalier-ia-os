@@ -28,9 +28,12 @@ for (const f of FICHES) {
     await expect(liens).toContainText('Liens et documents');
     expect(await page.evaluate(([a, b]) => document.querySelector(`[data-section="${a}"]`).getBoundingClientRect().top < document.querySelector(`[data-section="${b}"]`).getBoundingClientRect().top, [f.section, f.details])).toBe(true);
     await expect(liens.locator('.boutons-liens button')).toHaveText(['Ajouter un document', 'Ajouter un lien web']);
-    const b1 = await liens.locator('[data-action="ajouter-document-google"]').boundingBox();
-    const b2 = await liens.locator('[data-action="ajouter-lien"]').boundingBox();
-    expect(Math.abs((b1.y + b1.height / 2) - (b2.y + b2.height / 2))).toBeLessThan(3);
+    // La fiche est redessinée quand des données arrivent : on réessaie la mesure jusqu'à ce que les deux boutons soient mesurables.
+    await expect.poll(async () => {
+      const b1 = await liens.locator('[data-action="ajouter-document-google"]').boundingBox();
+      const b2 = await liens.locator('[data-action="ajouter-lien"]').boundingBox();
+      return b1 && b2 ? Math.abs((b1.y + b1.height / 2) - (b2.y + b2.height / 2)) < 3 : null;
+    }).toBe(true);
     await expect(page.locator('[data-prop="dossier"] .prop-libelle')).toContainText('Dossier de travail de cette fiche');
     await expect(page.locator('[data-prop="dossier"] .boutons-liens button')).toHaveText(['Créer un dossier dans Google Drive', 'Lier un dossier Google Drive existant']);
   });
