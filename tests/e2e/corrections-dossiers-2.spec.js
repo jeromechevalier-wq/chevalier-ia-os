@@ -11,7 +11,7 @@ const DOSSIER_CAPTURES = `${process.env.HOME}/chantiers-crm/captures-corrections
 async function capturer(page, nom, cible = null) {
   const fichier = `${DOSSIER_CAPTURES}/${nom}${page.viewportSize().width < 768 ? '-telephone' : ''}.png`;
   for (let essai = 1; ; essai++) { // la fiche peut être redessinée pendant la capture : on recommence
-    try { if (cible) await cible.screenshot({ path: fichier }); else await page.screenshot({ path: fichier }); return; } catch (e) { if (essai >= 5) throw e; await page.waitForTimeout(300); }
+    try { await page.waitForTimeout(350); /* fin des animations d'ouverture des fenêtres */ if (cible) await cible.screenshot({ path: fichier, animations: 'disabled' }); else await page.screenshot({ path: fichier, animations: 'disabled' }); return; } catch (e) { if (essai >= 5) throw e; await page.waitForTimeout(300); }
   }
 }
 async function aller(page, hash) { await page.evaluate((h) => { location.hash = h; }, hash); }
