@@ -116,7 +116,7 @@ test('R4 un client avec « affaires » et « projets » : les deux groupes, et l
   await expect(page.locator('body')).not.toContainText('Camille Dubois');
 });
 
-test('R5 « projets » sans « affaires » est refusé : aucun écran, accueil provisoire, rien ne casse', async ({ page }) => {
+test('R5 « projets » sans « affaires » est refusé : aucun écran, accueil provisoire, rien ne casse', { tag: '@sans-telephone' }, async ({ page }) => {
   await ouvrir(page, 'faux');
   await expect(page.getByText("Aucun écran n'est encore activé dans cet espace.")).toBeVisible();
   await expect(page.locator('.coquille')).toHaveCount(0);
@@ -133,7 +133,7 @@ test('R6 un client sans fiche de modules : accueil provisoire actuel (nom, e-mai
   await expect(page.getByRole('button', { name: 'Se connecter avec Google' })).toBeVisible();
 });
 
-test('R7 un lecteur lit les modules de son client ; un membre d\'un autre client est refusé comme avant', async ({ page }) => {
+test('R7 un lecteur lit les modules de son client ; un membre d\'un autre client est refusé comme avant', { tag: '@sans-telephone' }, async ({ page }) => {
   await ouvrir(page, 'cabinet', LEA);
   await expect(page.locator('.coquille')).toBeVisible();
   await ouvrirMenu(page);

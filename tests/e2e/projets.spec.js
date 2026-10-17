@@ -4,6 +4,9 @@ import {
   jour, estTelephone, valeurObjectif, JEROME,
 } from './outils.js';
 
+// Les scénarios de ce fichier sont indépendants (chacun repart d'une base vide) : ils se répartissent sur plusieurs workers.
+test.describe.configure({ mode: 'parallel' });
+
 const dialogue = (page) => page.getByRole('dialog');
 const LIBELLES = { lancement: 'Lancement', decouverte: 'Découverte', livraison: 'Livraison', cloture: 'Clôture' };
 
@@ -56,7 +59,7 @@ async function deplacer(page, id, phase) {
   }
 }
 
-test('C29 menu « Projets » et bouton « + » : un projet se crée en ne tapant que le titre, au bon endroit, avec sa trace dans le journal', async ({ page }) => {
+test('C29 menu « Projets » et bouton « + » : un projet se crée en ne tapant que le titre, au bon endroit, avec sa trace dans le journal', { tag: '@rapide' }, async ({ page }) => {
   await connecter(page);
   await allerA(page, 'Projets');
   await expect(page).toHaveURL(/#\/projets\/projets$/);
@@ -889,7 +892,7 @@ async function attendreModeles(n = 3) {
   await expect.poll(async () => (await listerDocuments('projets_modeles')).length, { timeout: 15_000 }).toBe(n);
 }
 
-test('C32 premier lancement : les modèles Audit, Accompagnement et Extraction sont créés une seule fois, avec le contenu de Jérôme', async ({ page }) => {
+test('C32 premier lancement : les modèles Audit, Accompagnement et Extraction sont créés une seule fois, avec le contenu de Jérôme', { tag: '@sans-telephone' }, async ({ page }) => {
   await connecter(page);
   await attendreModeles();
   const modeles = Object.fromEntries((await listerDocuments('projets_modeles')).map((m) => [m.id, m]));
@@ -911,7 +914,7 @@ test('C32 premier lancement : les modèles Audit, Accompagnement et Extraction s
   expect((await lireDocument('projets_modeles/audit')).nom).toBe('Audit modifié');
 });
 
-test('C32 Modèles de projets (dans les Réglages, plus dans le menu) : la liste, un nouveau modèle, sa fiche (paramètres, activation), suppression', async ({ page }) => {
+test('C32 Modèles de projets (dans les Réglages, plus dans le menu) : la liste, un nouveau modèle, sa fiche (paramètres, activation), suppression', { tag: '@sans-telephone' }, async ({ page }) => {
   await connecter(page);
   await attendreModeles();
   await expect(page.getByRole('link', { name: 'Modèles', exact: true })).toHaveCount(0);
@@ -954,7 +957,7 @@ test('C32 Modèles de projets (dans les Réglages, plus dans le menu) : la liste
   await expect(page).toHaveURL(/#\/reglages\/crm$/); // la suppression ramène aux Réglages
 });
 
-test('C32 fiche d’un modèle : tâches types par phase, délai, modifier, monter, descendre, changer de phase, supprimer', async ({ page }) => {
+test('C32 fiche d’un modèle : tâches types par phase, délai, modifier, monter, descendre, changer de phase, supprimer', { tag: '@sans-telephone' }, async ({ page }) => {
   await connecter(page);
   await attendreModeles();
   await aller(page, '#/projets/modeles/audit');
@@ -1007,7 +1010,7 @@ test('C32 fiche d’un modèle : tâches types par phase, délai, modifier, mont
   expect((await listerDocuments('crm_audit')).filter((l) => l.collection === 'projets_modeles' && l.docId === 'audit').length).toBe(5); // ajout, modification, déplacement vers le haut, changement de phase, suppression
 });
 
-test('C32 « + Projet » avec un modèle : le projet reçoit ses tâches, dates = début + délai, nature du modèle ; sans modèle, il démarre vide', async ({ page }) => {
+test('C32 « + Projet » avec un modèle : le projet reçoit ses tâches, dates = début + délai, nature du modèle ; sans modèle, il démarre vide', { tag: '@sans-telephone' }, async ({ page }) => {
   await connecter(page);
   await attendreModeles();
   await allerA(page, 'Projets');
@@ -1054,7 +1057,7 @@ test('C32 « + Projet » avec un modèle : le projet reçoit ses tâches, dates 
   // les tâches du modèle sont dans l'Accueil le jour dit : ici rien aujourd'hui, mais dans 7 jours elles y seront (dates vérifiées plus haut)
 });
 
-test('C32 « Créer le projet » d’une affaire gagnée : le modèle de son offre est préselectionné ; on peut en changer ou n’en prendre aucun', async ({ page }) => {
+test('C32 « Créer le projet » d’une affaire gagnée : le modèle de son offre est préselectionné ; on peut en changer ou n’en prendre aucun', { tag: '@sans-telephone' }, async ({ page }) => {
   await creerAffaire('a1', { titre: 'Audit des Lilas', etape: 'gagne', offreId: 'audit' });
   await creerAffaire('a2', { titre: 'Accompagnement Martin', etape: 'gagne', offreId: 'accompagnement' });
   await creerAffaire('a3', { titre: 'Audit sans modèle', etape: 'gagne', offreId: 'audit' });
@@ -1094,7 +1097,7 @@ test('C32 « Créer le projet » d’une affaire gagnée : le modèle de son off
   expect((await listerDocuments('projets_taches')).filter((t) => t.projetId === p3.id)).toHaveLength(0);
 });
 
-test('C32 un modèle inactif n’est plus proposé ; supprimer un modèle ne touche pas aux projets déjà créés', async ({ page }) => {
+test('C32 un modèle inactif n’est plus proposé ; supprimer un modèle ne touche pas aux projets déjà créés', { tag: '@sans-telephone' }, async ({ page }) => {
   await connecter(page);
   await attendreModeles();
   await aller(page, '#/projets/modeles/extraction');
@@ -1123,7 +1126,7 @@ test('C32 un modèle inactif n’est plus proposé ; supprimer un modèle ne tou
   expect((await listerDocuments('projets_modeles')).map((m) => m.id).sort()).toEqual(['audit', 'extraction'], 'un modèle supprimé n’est pas recréé');
 });
 
-test('C32 aucun défilement horizontal de l’écran Modèles et d’une fiche de modèle, même avec des textes très longs', async ({ page }) => {
+test('C32 aucun défilement horizontal de l’écran Modèles et d’une fiche de modèle, même avec des textes très longs', { tag: '@sans-telephone' }, async ({ page }) => {
   await connecter(page);
   await attendreModeles();
   await ecrireDocument('projets_modeles/audit', {
@@ -1160,7 +1163,7 @@ test('C31 enchaîner les tâches au clavier : la tâche ajoutée apparaît tout 
   await expect.poll(async () => (await listerDocuments('projets_taches')).length).toBe(3);
 });
 
-test('C32 enchaîner les tâches types au clavier : elles apparaissent tout de suite, le champ reste prêt', async ({ page }) => {
+test('C32 enchaîner les tâches types au clavier : elles apparaissent tout de suite, le champ reste prêt', { tag: '@sans-telephone' }, async ({ page }) => {
   await connecter(page);
   await attendreModeles();
   await aller(page, '#/projets/modeles/accompagnement');
@@ -1588,7 +1591,7 @@ test('C36 déplacer une carte vers la Clôture avec une facture à payer : refus
 
 // ---------------------------------------------------------------- configuration du CRM (ménage du 16/10/2026)
 
-test('C37 Réglages : les restes de la 2.2 ont disparu (migration, délai de paiement, encaissements de la fiche affaire)', async ({ page }) => {
+test('C37 Réglages : les restes de la 2.2 ont disparu (migration, délai de paiement, encaissements de la fiche affaire)', { tag: '@sans-telephone' }, async ({ page }) => {
   await creerAffaire('a1', { titre: 'Audit payé', etape: 'gagne', statut: 'gagnee', montant: 800, encaissements: [{ date: new Date(), montant: 800, offreId: null }] });
   await connecter(page);
   await attendreModeles();

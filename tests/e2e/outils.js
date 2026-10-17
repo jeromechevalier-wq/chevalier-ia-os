@@ -2,10 +2,21 @@
 import { test as base, expect } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+import { portsCourants } from '../ports.js';
 
-export const PROJET = 'demo-chevalier-ia-os';
-export const FIRESTORE = `http://${process.env.FIRESTORE_EMULATOR_HOST || '127.0.0.1:8080'}`;
-export const AUTH = `http://${process.env.FIREBASE_AUTH_EMULATOR_HOST || '127.0.0.1:9099'}`;
+// Un projet Firebase par worker Playwright (sur le même émulateur) : deux workers ne voient jamais les données l'un de l'autre.
+// Hors Playwright (TEST_PARALLEL_INDEX absent), le projet d'avant.
+const PORTS = portsCourants();
+const INDEX_WORKER = process.env.TEST_PARALLEL_INDEX;
+const PROJET_DE_BASE = 'demo-chevalier-ia-os';
+export const PROJET = INDEX_WORKER === undefined ? PROJET_DE_BASE : `${PROJET_DE_BASE}-w${INDEX_WORKER}`;
+const HOTE_FIRESTORE = process.env.FIRESTORE_EMULATOR_HOST || `127.0.0.1:${PORTS.firestore}`;
+const HOTE_AUTH = process.env.FIREBASE_AUTH_EMULATOR_HOST || `127.0.0.1:${PORTS.auth}`;
+export const FIRESTORE = `http://${HOTE_FIRESTORE}`;
+export const AUTH = `http://${HOTE_AUTH}`;
+const separer = (h) => ({ hote: h.slice(0, h.lastIndexOf(':')), port: Number(h.slice(h.lastIndexOf(':') + 1)) });
+/** Ce que l'appli lit (window.__emulateurs) en mode test pour parler au bon projet et aux bons ports. */
+export const EMULATEURS_APPLI = { projet: PROJET, auth: separer(HOTE_AUTH), firestore: separer(HOTE_FIRESTORE) };
 export const JEROME = 'jerome.chevalier@gmail.com';
 export const CHARLES = 'jeromebot.chevalierbot@gmail.com';
 export const URL_APP = '/?emulateurs=1';
@@ -14,9 +25,14 @@ const DOSSIER_FIREBASE = fileURLToPath(new URL('../node_modules/firebase/', impo
 
 // ---------------------------------------------------------------- émulateurs
 
-export async function reinitialiser() {
+/**
+ * Vide les données du projet de CE worker. Les comptes Auth sont vidés seulement quand un seul worker travaille :
+ * l'émulateur Auth range toujours les connexions du navigateur dans son projet par défaut, partagé entre workers
+ * (les vider en plein test d'un autre worker le déconnecterait). Les comptes de test sont identiques d'un test à l'autre.
+ */
+export async function reinitialiser({ viderAuth = true } = {}) {
   const r1 = await fetch(`${FIRESTORE}/emulator/v1/projects/${PROJET}/databases/(default)/documents`, { method: 'DELETE' });
-  const r2 = await fetch(`${AUTH}/emulator/v1/projects/${PROJET}/accounts`, { method: 'DELETE' });
+  const r2 = viderAuth ? await fetch(`${AUTH}/emulator/v1/projects/${PROJET_DE_BASE}/accounts`, { method: 'DELETE' }) : { ok: true };
   if (!r1.ok || !r2.ok) throw new Error('Réinitialisation des émulateurs impossible');
 }
 
@@ -193,7 +209,9 @@ export async function valeurObjectif(page, id) {
 // ---------------------------------------------------------------- fixture : SDK local, console, émulateurs propres
 
 export const test = base.extend({
-  erreursConsole: [async ({ page, context }, use) => {
+  erreursConsole: [async ({ page, context }, use, testInfo) => {
+    // Avant le chargement de l'appli : projet et ports de ce worker (lus par js/os/firebase.js en mode test).
+    await context.addInitScript((e) => { window.__emulateurs = e; }, EMULATEURS_APPLI);
     // Le SDK Firebase 12.19.0 est chargé depuis gstatic dans l'appli ; pendant les tests, il est servi
     // depuis node_modules (même version) pour ne pas dépendre du réseau.
     await context.route('https://www.gstatic.com/firebasejs/12.19.0/**', async (route) => {
@@ -211,7 +229,7 @@ export const test = base.extend({
     const erreurs = [];
     page.on('console', (m) => { if (m.type() === 'error') erreurs.push(`${m.text()}${m.location()?.url ? ` (${m.location().url})` : ''}`); });
     page.on('pageerror', (e) => erreurs.push(`pageerror: ${e.message}`));
-    await reinitialiser();
+    await reinitialiser({ viderAuth: testInfo.config.workers === 1 });
     await use(erreurs);
   }, { auto: true }],
 });
