@@ -1,7 +1,7 @@
 // Fiches affaire et projet cohérentes : bande d'étapes / de phases = simple indicateur (la liste du Résumé change), même ordre des sections, une seule étiquette d'état.
-import { test, expect, connecter, creerAffaire, creerProjet, creerTacheProjet, creerActivite, lireDocument, estTelephone } from './outils.js';
+import { test, expect, attendreCalme, connecter, creerAffaire, creerProjet, creerTacheProjet, creerActivite, lireDocument, estTelephone } from './outils.js';
 
-async function aller(page, hash) { await page.evaluate((h) => { location.hash = h; }, hash); }
+async function aller(page, hash) { await page.evaluate((h) => { location.hash = h; }, hash); await attendreCalme(page); }
 const dessus = (page, a, b) => page.evaluate(([x, y]) => document.querySelector(`[data-section="${x}"]`).getBoundingClientRect().top < document.querySelector(`[data-section="${y}"]`).getBoundingClientRect().top, [a, b]);
 
 test('F1 la bande des étapes (affaire) et des phases (projet) n\'est plus cliquable ; la liste « Étape » / « Phase » du Résumé change l\'étape ou la phase, identique des deux côtés', async ({ page }) => {

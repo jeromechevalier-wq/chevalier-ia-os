@@ -1,6 +1,6 @@
 // Chantier « Liens et documents » : fenêtre standard de Google (Picker), « Créer un dossier dans Google Drive » par l'API Google Drive, liens libres.
 // Google est SIMULÉ (voir google-simule.js) : on vérifie ce que l'appli demande à Google et ce qu'elle enregistre, pas Google lui-même.
-import { test, expect, connecter, allerAuxReglagesCrm, creerProjet, creerAffaire, lireDocument, ecrireDocument, estTelephone, JEROME } from './outils.js';
+import { test, expect, attendreCalme, connecter, allerAuxReglagesCrm, creerProjet, creerAffaire, lireDocument, ecrireDocument, estTelephone, JEROME } from './outils.js';
 import { debrancherGoogle, brancherGoogle, lireGoogle, choisirDansGoogle, refuserAutorisation, ID_CLIENT, PARENT } from './google-simule.js';
 
 const dialogue = (page) => page.getByRole('dialog');
@@ -10,6 +10,7 @@ const dossierDrive = (n) => `https://drive.google.com/drive/folders/DOSSIER_${n}
 
 async function aller(page, hash) {
   await page.evaluate((h) => { location.hash = h; }, hash);
+  await attendreCalme(page);
 }
 async function champDoc(collection, id, cle, attendu) {
   await expect.poll(async () => (await lireDocument(`${collection}/${id}`))?.[cle], { timeout: 10_000 }).toEqual(attendu);
@@ -19,7 +20,14 @@ async function regler(patch) {
   await expect.poll(async () => (await lireDocument('crm_parametres/reglages')) !== null, { timeout: 10_000 }).toBe(true);
   await ecrireDocument('crm_parametres/reglages', { ...(await lireDocument('crm_parametres/reglages')), ...patch });
 }
-const reglerDrive = () => regler({ dossierParentDrive: { id: PARENT, nom: 'Clients 2026' }, sousDossiersDrive: ['Contrat', 'Livrables'] });
+/**
+ * Règle le dossier parent et les sous-dossiers, puis ATTEND que l'écran les ait reçus (sinon un clic rapide créerait le dossier sans eux : course entre l'écriture
+ * dans la base et l'arrivée de la donnée dans la page).
+ */
+const reglerDrive = async (page) => {
+  await regler({ dossierParentDrive: { id: PARENT, nom: 'Clients 2026' }, sousDossiersDrive: ['Contrat', 'Livrables'] });
+  await expect.poll(() => page.evaluate(async () => (await import('/js/modules/crm/donnees.js')).etat.reglages.sousDossiersDrive?.length ?? 0), { timeout: 10_000 }).toBe(2);
+};
 const unDocument = (id, nom, url, type = 'application/pdf') => ({ id, name: nom, url, mimeType: type });
 
 test.describe('Google non branché (identifiant client vide, comme dans le dépôt)', () => {
@@ -105,7 +113,7 @@ test.describe('Google branché (simulé)', () => {
   test('L3 « Créer un dossier dans Google Drive » : le dossier du projet puis ses sous-dossiers dans Drive, le lien est enregistré comme dossier de travail', async ({ page }) => {
     await creerProjet('pr1', { titre: 'Refonte site Carrel' });
     await connecter(page);
-    await reglerDrive();
+    await reglerDrive(page);
     await aller(page, FICHE);
     await page.locator('[data-action="creer-dossier-ouvrir"]').click();
     const nom = page.locator('[data-champ="nom-dossier"]');
@@ -151,7 +159,7 @@ test.describe('Google branché (simulé)', () => {
     test.info().annotations.push({ type: 'erreurs-reseau-attendues' }); // le faux Google répond 403 puis 500 : le navigateur le note dans sa console
     await creerProjet('pr1', { titre: 'Refonte' });
     await connecter(page);
-    await reglerDrive();
+    await reglerDrive(page);
     await aller(page, FICHE);
     // Autorisation refusée dans la fenêtre Google : message simple, aucune requête, le bouton reste utilisable.
     await refuserAutorisation(page);
@@ -229,7 +237,7 @@ test.describe('Google branché (simulé)', () => {
   test('L7 « Ajouter un document » sans dossier de travail : un message d\'information, aucune création ni fenêtre Google (détail : P3)', async ({ page }) => {
     await creerProjet('pr1', { titre: 'Refonte site Carrel' });
     await connecter(page);
-    await reglerDrive();
+    await reglerDrive(page);
     await aller(page, FICHE);
     await page.locator('[data-action="ajouter-document-google"]').click();
     await expect(dialogue(page)).toContainText('n’a pas de dossier de travail');
@@ -270,7 +278,7 @@ test.describe('Google branché (simulé)', () => {
   test('L10 fiche AFFAIRE : « Liens et documents » comme sur le projet (deux boutons, Google, dossier créé au besoin) ; documents existants intacts', async ({ page }) => {
     await creerAffaire('a1', { titre: 'Audit des Lilas', documents: [{ libelle: 'Ancien devis', url: 'https://exemple.fr/ancien' }] });
     await connecter(page);
-    await reglerDrive();
+    await reglerDrive(page);
     await aller(page, '#/crm/affaires/a1');
     const section = page.locator('[data-section="affaire-documents"]');
     await expect(section).toContainText('Liens et documents');
@@ -284,6 +292,7 @@ test.describe('Google branché (simulé)', () => {
     await champDoc('crm_affaires', 'a1', 'urlDossier', dossierDrive(1));
     expect(drive.requetes.map((r) => r.corps.name)).toEqual(['Audit des Lilas', 'Contrat', 'Livrables']);
     await choisirDansGoogle(page, [unDocument('FICHIER_AAAAAAAAAA', 'Portrait Chantal.jpg', 'https://drive.google.com/file/d/FICHIER_AAAAAAAAAA/view', 'image/jpeg')]);
+    await expect(page.locator('[data-action="ouvrir-dossier"]')).toBeVisible(); // la fiche est redessinée avec le dossier : on clique ensuite
     await section.locator('[data-action="ajouter-document-google"]').click();
     await expect(section.locator('[data-champ="copier"]')).toBeChecked();
     await section.getByLabel('Note (facultative)').fill('envoyé au client');
@@ -402,7 +411,7 @@ test.describe('Google branché (simulé)', () => {
     await creerAffaire('a1', { titre: 'Audit des Lilas' });
     await creerProjet('pr1', { titre: 'Refonte site' });
     await connecter(page);
-    await reglerDrive();
+    await reglerDrive(page);
     for (const [hash, collection, id, titre, numero] of [['#/crm/affaires/a1', 'crm_affaires', 'a1', 'Audit des Lilas', 1], ['#/projets/projets/pr1', 'projets_projets', 'pr1', 'Refonte site', 2]]) {
       await aller(page, hash);
       const ligne = page.locator('[data-prop="dossier"]');
@@ -600,7 +609,12 @@ test.describe('Google branché (simulé)', () => {
     await expect(bulle).toBeVisible();
     // Dans l'écran, jamais coupée.
     const largeurEcran = await page.evaluate(() => window.innerWidth);
-    await expect.poll(async () => { const b = await bulle.boundingBox(); return b ? b.x >= 0 && b.x + b.width <= largeurEcran : null; }).toBe(true); // jamais coupée (mesure réessayée si la fiche se redessine)
+    // Si la fiche est redessinée pendant la mesure, la bulle (ouverte à la main) est refermée avec l'ancienne fiche : on la rouvre et on remesure.
+    await expect(async () => {
+      if (!(await bulle.isVisible())) await info.dispatchEvent('click');
+      const b = await bulle.boundingBox();
+      expect(b && b.x >= 0 && b.x + b.width <= largeurEcran).toBe(true); // jamais coupée
+    }).toPass({ timeout: 10_000 });
     await page.locator('.titre-editable').click(); // ailleurs : elle se ferme
     await expect(bulle).toBeHidden();
     // Survol (souris, ordinateur seulement) : même bulle, même texte, aussi pour l'icône du Dossier de travail.

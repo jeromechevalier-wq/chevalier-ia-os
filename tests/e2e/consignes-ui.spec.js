@@ -4,11 +4,11 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { test, expect, connecter, allerAuxReglagesCrm, creerProjet, creerAffaire, creerTacheProjet, creerActivite, lireDocument, jour } from './outils.js';
+import { test, expect, attendreCalme, connecter, allerAuxReglagesCrm, creerProjet, creerAffaire, creerTacheProjet, creerActivite, lireDocument, jour } from './outils.js';
 import { brancherGoogle, lireGoogle, choisirDansGoogle, PARENT } from './google-simule.js';
 
 const dialogue = (page) => page.getByRole('dialog');
-async function aller(page, hash) { await page.evaluate((h) => { location.hash = h; }, hash); }
+async function aller(page, hash) { await page.evaluate((h) => { location.hash = h; }, hash); await attendreCalme(page); }
 async function champDoc(collection, id, cle, attendu) { await expect.poll(async () => (await lireDocument(`${collection}/${id}`))?.[cle], { timeout: 10_000 }).toEqual(attendu); }
 const DOSSIER = '1AbC_dEf-1234567';
 const URL_DOSSIER = `https://drive.google.com/drive/folders/${DOSSIER}`;
@@ -211,6 +211,7 @@ test('Tâche, activité et point clé fonctionnent pareil : sur le projet, je cl
     [page.locator('.activite[data-activite="ac1"]'), 'crm_activites', 'ac1', '.activite-titre-modifiable', 'Modifier le texte de l’activité', 'Appeler le client demain'],
   ]) {
     await ligne.locator(titreSel).click(); // clic sur le texte = modifier sur place
+    await expect(ligne.getByLabel(champTexte)).toBeFocused(); // le champ est bien posé et actif avant de taper
     await ligne.getByLabel(champTexte).fill(nouveau);
     await ligne.getByLabel(champTexte).press('Enter');
     await champDoc(collection, id, 'titre', nouveau);
@@ -240,6 +241,7 @@ test('Tâche, activité et point clé fonctionnent pareil : sur l\'affaire, le p
   await aller(page, '#/crm/affaires/a1');
   const ligne = page.locator('.activite[data-activite="ac1"]');
   await ligne.locator('.activite-titre-modifiable').click();
+  await expect(ligne.getByLabel('Modifier le texte de l’activité')).toBeFocused();
   await ligne.getByLabel('Modifier le texte de l’activité').fill('Appeler le client demain');
   await ligne.getByLabel('Modifier le texte de l’activité').press('Enter');
   await champDoc('crm_activites', 'ac1', 'titre', 'Appeler le client demain');
