@@ -64,7 +64,7 @@ export function rendreReglagesCrm(page) {
   sEtiquettes.append(listeEtiquettes, formulaireAjout('Nouvelle étiquette', 'Ajouter', async (v) => { await D.creerEtiquette(v); }));
 
   const sDebut = section('reglages-debut', 'Début d’activité', 'calendar', 'Le graphique du chiffre d’affaires part de ce mois et ne montre jamais les mois d’avant.');
-  const debut = h('input', { type: 'month', class: 'champ champ-court', 'aria-label': 'Mois de début d’activité',
+  const debut = h('input', { type: 'month', class: 'champ champ-mois', 'aria-label': 'Mois de début d’activité',
     onchange: async (e) => {
       if (!/^\d{4}-\d{2}$/.test(e.target.value)) { e.target.value = D.etat.reglages.debutActivite; return; }
       await D.enregistrerReglages({ debutActivite: e.target.value });
@@ -72,9 +72,9 @@ export function rendreReglagesCrm(page) {
     } });
   sDebut.append(debut);
 
-  // Visible seulement si l'option « Créer le répertoire dans Google Drive » est allumée : le dossier Drive parent (choisi UNE fois avec la fenêtre Google)
-  // et les sous-dossiers que « Créer le répertoire » crée dans chaque dossier de projet.
-  const sProjets = section('reglages-projets', 'Dossiers de projets dans Google Drive', 'folder-plus', 'Servent au bouton « Créer le répertoire » de la fiche projet : le dossier Drive où ranger les dossiers de projets, et les sous-dossiers créés dans chacun.');
+  // Visible seulement si l'option « Créer un dossier dans Google Drive » est allumée : le dossier Drive parent (choisi UNE fois avec la fenêtre Google)
+  // et les sous-dossiers que « Créer un dossier dans Google Drive » crée dans chaque dossier de projet.
+  const sProjets = section('reglages-projets', 'Dossiers de projets dans Google Drive', 'folder-plus', 'Servent au bouton « Créer un dossier dans Google Drive » des fiches affaire et projet : le dossier Drive où ranger les dossiers créés, et les sous-dossiers créés dans chacun.');
   const etatGoogle = h('p', { class: 'aide', 'data-role': 'etat-google' });
   const nomParent = h('span', { class: 'valeur-parent', 'data-role': 'dossier-parent' });
   // (le nom complet reste lisible au survol quand il est tronqué)

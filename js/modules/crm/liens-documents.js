@@ -8,8 +8,8 @@ import * as D from './donnees.js';
 import * as L from './logique.js';
 import { sectionRepliable, boutonEtoile } from './composants.js';
 import { creerRepertoireDrive, messageCreation } from './lanceurs.js';
-import { googleDisponible, preparerGoogle, ouvrirFenetreGoogle } from '../../os/google-picker.js';
-import { idDossierDrive, documentDepuisChoix } from '../../os/google-drive.js';
+import { googleDisponible, preparerGoogle, ouvrirFenetreGoogle, obtenirJeton } from '../../os/google-picker.js';
+import { idDossierDrive, documentDepuisChoix, copierFichier, TYPE_DOSSIER } from '../../os/google-drive.js';
 
 // Formulaire ouvert, gardé hors de la fiche : la fiche est redessinée quand des données arrivent, le formulaire en cours de saisie ne doit pas disparaître.
 const formulaires = new Map();
@@ -45,16 +45,34 @@ export function sectionLiensEtDocuments({ id, typeFiche, entite, courant, enregi
     const champNom = champ(lien ? 'Nom (facultatif)' : 'Nom du document', etat.nom, (v) => { etat.nom = v; }, { placeholder: lien ? 'Nom du lien (sinon le nom du site)' : 'Nom du document', max: 200 });
     const champNote = champ('Note (facultative)', etat.note, (v) => { etat.note = v; }, { placeholder: 'Note (ex. envoyé au client)', max: L.LONGUEUR_MAX_NOTE });
     const valider = async () => {
-      const r = L.ajouterDocument(courant(), etat.nom, lien ? etat.url : etat.urlDocument, false, etat.note);
+      let urlChoisie = lien ? etat.url : etat.urlDocument;
+      // Case cochée : on copie le fichier dans le dossier de travail (l'original reste où il est) et le lien enregistré pointe vers la COPIE.
+      if (!lien && etat.copier) {
+        const dossier = idDossierDrive(courant().urlDossier);
+        try {
+          const jeton = await obtenirJeton({ email: D.compteCourant()?.email || '' });
+          urlChoisie = (await copierFichier({ jeton, fichierId: etat.fichierId, parentId: dossier, nom: etat.nomOriginal })).url;
+          toast('Copie faite dans le dossier de travail', { type: 'info' });
+        } catch (e) {
+          if (!e?.saisie && !e?.annule) console.warn(e);
+          toast(`La copie dans le dossier de travail n’a pas pu être faite (${e?.message || 'erreur'}) : le lien d’origine est gardé.`, { type: 'erreur', duree: 8000 });
+        }
+      }
+      const r = L.ajouterDocument(courant(), etat.nom, urlChoisie, false, etat.note);
       if (r.erreurs.url) { toast(r.erreurs.url, { type: 'erreur' }); champUrl?.classList.add('invalide'); return; }
       if ((courant().documents || []).some((d) => d.url === r.patch.documents.at(-1).url)) { toast('Ce lien est déjà dans la liste', { type: 'info' }); return; }
       formulaires.delete(cle);
       afficherFormulaire();
       await ecrire(r.patch);
     };
+    // Case « Copier dans le dossier de travail » : seulement pour un fichier déjà dans Drive (pas « Importer »), si le dossier de travail est un dossier Drive.
+    const caseCopie = !lien && etat.copiable && idDossierDrive(courant().urlDossier)
+      ? h('label', { class: 'case' }, h('input', { type: 'checkbox', checked: etat.copier === true, dataset: { champ: 'copier' }, 'aria-label': 'Copier dans le dossier de travail',
+        onchange: (e) => { etat.copier = e.target.checked; } }), h('span', {}, `Copier dans le dossier de travail${typeFiche === 'affaire' ? ' de l’affaire' : ' du projet'}`))
+      : null;
     for (const c of [champUrl, champNom, champNote]) c?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); valider(); } });
     remplir(zoneFormulaire, h('div', { class: 'form-lien', dataset: { role: 'form-lien', mode: etat.mode } },
-      champUrl, champNom, champNote,
+      champUrl, champNom, champNote, caseCopie,
       h('div', { class: 'ligne-ajout' },
         h('button', { type: 'button', class: 'bouton bouton-principal bouton-petit', dataset: { action: 'valider-lien' }, onclick: valider }, 'Ajouter'),
         h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', dataset: { action: 'annuler-lien' }, onclick: () => { formulaires.delete(cle); afficherFormulaire(); } }, 'Annuler'))));
@@ -92,7 +110,9 @@ export function sectionLiensEtDocuments({ id, typeFiche, entite, courant, enregi
       const elus = await ouvrirFenetreGoogle({ mode: 'documents', dossierImport, email, multiple: false });
       const doc = documentDepuisChoix(elus[0]);
       if (!doc) { if (elus[0]) toast('Ce document n’a pas d’adresse Google utilisable', { type: 'erreur' }); return; }
-      ouvrirFormulaire({ mode: 'document', nom: doc.libelle, urlDocument: doc.url });
+      // Un fichier choisi dans « Google Drive » (pas déposé par « Importer » : celui-là est déjà dans le dossier de travail) peut être copié dans ce dossier.
+      const dejaDansLeDossier = dossierImport && elus[0].parentId === dossierImport;
+      ouvrirFormulaire({ mode: 'document', nom: doc.libelle, nomOriginal: doc.libelle, urlDocument: doc.url, fichierId: elus[0].id, copiable: !dejaDansLeDossier && elus[0].type !== TYPE_DOSSIER, copier: false });
     } catch (e) {
       if (!e?.saisie && !e?.annule) console.warn(e);
       toast(e?.message || 'Ajout impossible', { type: e?.annule ? 'info' : 'erreur' });

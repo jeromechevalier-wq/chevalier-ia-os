@@ -318,10 +318,9 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 .barre-etapes-fiche { display: flex; gap: 4px; list-style: none; margin: 0; padding: 0; overflow-x: auto; }
 .barre-etapes-fiche li { flex: 1 0 auto; display: flex; align-items: center; gap: 2px; }
 .barre-etapes-fiche li .etape { flex: 1 1 auto; }
-.barre-etapes-fiche .etape { width: 100%; padding: 8px 14px; border: 1px solid var(--bordure); border-radius: 8px; background: var(--panneau2); color: var(--texte2); font-weight: 600; font-size: 13px; cursor: pointer; white-space: nowrap; border-bottom: 3px solid var(--bordure); }
+.barre-etapes-fiche .etape { display: block; box-sizing: border-box; text-align: center; width: 100%; padding: 8px 14px; border: 1px solid var(--bordure); border-radius: 8px; background: var(--panneau2); color: var(--texte2); font-weight: 600; font-size: 13px; cursor: default; white-space: nowrap; border-bottom: 3px solid var(--bordure); } /* simple indicateur : on change l'étape ou la phase avec la liste du Résumé */
 .barre-etapes-fiche .passee .etape { border-bottom-color: var(--couleur); color: var(--texte); }
 .barre-etapes-fiche .etape.courante { background: color-mix(in srgb, var(--couleur) 30%, var(--panneau2)); border-color: var(--couleur); color: var(--texte); }
-.barre-etapes-fiche .etape:hover:not(.courante), .barre-etapes-fiche .etape:focus-visible { border-color: var(--couleur); color: var(--texte); }
 .barre-etapes-fiche.inactive .etape { opacity: .6; }
 
 /* ---------------------------------------------------------------- colonne de droite : activité, notes, historique */
@@ -459,3 +458,6 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 .ligne-parent-drive .ligne-parent-libelle { flex: none; }
 .ligne-parent-drive .valeur-parent { flex: 1 1 120px; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .ligne-parent-drive .bouton { flex: none; }
+
+/* Début d'activité : assez large pour montrer le mois ET l'année (« octobre 2026 ») */
+.champ-mois { width: 240px; max-width: 100%; }

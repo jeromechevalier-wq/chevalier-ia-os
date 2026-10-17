@@ -107,7 +107,7 @@ export async function ouvrirFenetreGoogle({ mode = 'documents', dossierImport = 
     constructeur.setCallback((donnees) => {
       const action = donnees[g.Response.ACTION];
       if (action === g.Action.PICKED) {
-        resoudre((donnees[g.Response.DOCUMENTS] || []).map((d) => ({ id: d[g.Document.ID], nom: d[g.Document.NAME], url: d[g.Document.URL], type: d[g.Document.MIME_TYPE] })));
+        resoudre((donnees[g.Response.DOCUMENTS] || []).map((d) => ({ id: d[g.Document.ID], nom: d[g.Document.NAME], url: d[g.Document.URL], type: d[g.Document.MIME_TYPE], parentId: d[g.Document.PARENT_ID] || '' })));
       } else if (action === g.Action.CANCEL) {
         resoudre([]);
       }
