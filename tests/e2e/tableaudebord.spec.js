@@ -659,9 +659,6 @@ test('S7 Historique des saisies : onglet sans entrée de menu, tri du plus réce
   await jeuHistorique();
   await ouvrir(page, 'technique');
   await expect(page.locator('.td-onglet').last()).toHaveText('Historique des saisies');
-  if (estTelephone(page)) await page.getByRole('button', { name: 'Ouvrir le menu' }).click();
-  await expect(page.locator('.menu').getByRole('link', { name: 'Historique des saisies' })).toHaveCount(0); // onglet seulement
-  if (estTelephone(page)) await page.keyboard.press('Escape');
   await page.locator('.td-onglet', { hasText: 'Historique des saisies' }).click();
   await expect(page.locator('.td-onglet[aria-current="page"]')).toHaveText('Historique des saisies');
   await expect(page.locator('.td-h-ligne')).toHaveCount(3);
@@ -680,6 +677,9 @@ test('S7 Historique des saisies : onglet sans entrée de menu, tri du plus réce
   await expect(page.locator('body')).not.toContainText('github:abcd1234');
   expect(await page.evaluate(SANS_DEBORDEMENT)).toBe(true);
   await capturer(page, info, 'S7-historique');
+  // Onglet seulement : aucune entrée de menu pour l'historique
+  if (estTelephone(page)) await page.getByRole('button', { name: 'Ouvrir le menu' }).click();
+  await expect(page.locator('.menu').getByRole('link', { name: 'Historique des saisies' })).toHaveCount(0);
 });
 
 test('S7 une saisie faite à l\'écran apparaît aussitôt dans l\'historique, en tête de liste', async ({ page }) => {
