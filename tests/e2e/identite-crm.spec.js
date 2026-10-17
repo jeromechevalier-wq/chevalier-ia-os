@@ -87,7 +87,7 @@ test('K5 Réglages à menu latéral chez Jérôme : l\'espace d\'abord, puis les
   await allerA(page, 'Réglages');
   await expect(page).toHaveURL(/#\/reglages$/);
   await expect(page.getByRole('heading', { name: 'Réglages', level: 1 })).toBeVisible();
-  await expect(page.locator('.reglages-menu-lien')).toHaveText(['Mon espace', 'Modules actifs', 'CRM', 'Veille', 'Automatisations']); // ni membres (racine) ni MCP (clients)
+  await expect(page.locator('.reglages-menu-lien')).toHaveText(['Mon espace', 'Modules actifs', 'CRM', 'Veille', 'Automatisations', 'Tableau de bord']); // ni membres (racine) ni MCP (clients)
   await expect(page.locator('.reglages-menu-lien[aria-current="page"]')).toHaveText('Mon espace');
   await expect(page.locator('[data-info="nom"]')).toContainText('Chevalier IA OS');
   await expect(page.locator('#reglages-theme')).toBeVisible();

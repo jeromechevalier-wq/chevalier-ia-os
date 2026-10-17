@@ -21,7 +21,7 @@ describe('registre : déclarations', () => {
     for (const m of MODULES_DECLARES) {
       assert.match(m.id, /^[a-z]+$/);
       assert.ok(m.nom && m.libelleMenu && m.iconeMenu && m.prefixe, m.id);
-      assert.ok(m.ecrans.length > 0 && (m.collections.length > 0 || m.id === 'mcp') && (m.outilsMcp.length > 0 || ['automatisations', 'veille', 'mcp'].includes(m.id)), m.id); // « mcp » n'a ni données ni outil à lui : il allume le lien du client
+      assert.ok(m.ecrans.length > 0 && (m.collections.length > 0 || m.id === 'mcp') && (m.outilsMcp.length > 0 || ['automatisations', 'veille', 'tableaudebord', 'mcp'].includes(m.id)), m.id); // « mcp » n'a ni données ni outil à lui : il allume le lien du client
       for (const e of m.ecrans) {
         assert.ok(e.route.startsWith(`${m.prefixe}/`) && e.libelle && e.icone, `${m.id} ${e.route}`);
       }
@@ -48,7 +48,7 @@ describe('registre : déclarations', () => {
   test('les collections déclarées sont exactement celles que le code du CRM et de Projets lit (sauvegarde complète)', () => {
     // Exception voulue (16/10/2026) : le module Automatisations ne copie que l'historique de n8n (refaisable depuis n8n, volumineux) ; ses collections
     // (workflows, executions, sync) ne sont pas dans l'export JSON du CRM. À reprendre si Jérôme veut les sauvegarder.
-    const SANS_SAUVEGARDE = ['automatisations'];
+    const SANS_SAUVEGARDE = ['automatisations', 'tableaudebord']; // tableaudebord (17/10/2026) : relevés refaits chaque jour par les scripts de surveillance
     const declarees = MODULES_DECLARES.filter((m) => m.reserveAuxClients !== true && !SANS_SAUVEGARDE.includes(m.id)).flatMap((m) => m.collections).sort();
     const source = lire('js/modules/crm/donnees.js');
     const bloc = source.match(/COLLECTIONS_CRM = \[([\s\S]*?)\]/)[1];
@@ -151,6 +151,11 @@ describe('registre : le CRM de Jérôme est strictement inchangé', () => {
     // Ajout voulu (16/10/2026) : le module n8n (ex-« journal », menu « Automatisations ») n'est plus réservé aux clients ; il est chez Jérôme aussi (règle « tout module existe d'abord chez Jérôme »).
     { id: 'automatisations', libelle: 'Automatisations', icone: 'activity', prefixe: 'automatisations', entrees: [
       { chemin: 'automatisations/historique', libelle: 'Historique', icone: 'activity' },
+    ] },
+    // Ajout voulu (17/10/2026) : le module Tableau de bord (écrans en lecture seule) est chez Jérôme dès le départ ; ses onglets Finance et Stocks ne sont pas dans le menu.
+    { id: 'tableaudebord', libelle: 'Tableau de bord', icone: 'layout-dashboard', prefixe: 'tableaudebord', entrees: [
+      { chemin: 'tableaudebord/general', libelle: 'Général', icone: 'layout-dashboard' },
+      { chemin: 'tableaudebord/technique', libelle: 'Technique', icone: 'shield-check' },
     ] },
   ];
   test('MODULES (menu, routes, libellés, icônes, ordre) est identique à celui d\'avant', () => {
@@ -315,7 +320,7 @@ describe('menu CRM unique (méthode A, 2.6.0) : un seul groupe « CRM », deux m
   });
   test('l\'interface déclare un interrupteur par bloc (CRM = affaires + projets)', () => {
     const lignes = interrupteursDuClient(['affaires', 'projets', 'mcp']);
-    assert.deepEqual(lignes.map((l) => [l.id, l.actif, l.complet]), [['crm', true, true], ['veille', false, false], ['automatisations', false, false], ['mcp', true, true]]);
+    assert.deepEqual(lignes.map((l) => [l.id, l.actif, l.complet]), [['crm', true, true], ['veille', false, false], ['automatisations', false, false], ['tableaudebord', false, false], ['mcp', true, true]]);
     assert.deepEqual(interrupteursDuClient(['affaires']).find((l) => l.id === 'crm'), { id: 'crm', libelle: 'CRM', modules: ['affaires', 'projets'], actif: true, complet: false });
     assert.deepEqual(interrupteursDuClient([]).filter((l) => l.actif), []);
   });

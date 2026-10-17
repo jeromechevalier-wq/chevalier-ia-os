@@ -1,4 +1,4 @@
-// « Mon espace » (2.8.0), côté serveur : la fonction appelable espaceReglages (functions-plateforme/src/espace.js).
+// « Mon espace » (2.9.0), côté serveur : la fonction appelable espaceReglages (functions-plateforme/src/espace.js).
 // ÉMULATEUR Firestore + FAUX bucket Storage (db et bucket sont injectés). Les critères M11 et M16 de la recette sont ici (M11, M16) ; les autres sont dans tests/e2e/mon-espace.spec.js.
 import assert from 'node:assert/strict';
 import { test, describe, before, beforeEach } from 'node:test';

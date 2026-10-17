@@ -59,7 +59,7 @@ export const mcpclients = onRequest(
   creerMcpClients(),
 );
 
-// Mon espace (2.8.0) : un éditeur du client règle lui-même nom, couleur, logo, images, texte d'accueil et membres de son espace (Réglages > Mon espace, Membres et rôles).
+// Mon espace (2.9.0) : un éditeur du client règle lui-même nom, couleur, logo, images, texte d'accueil et membres de son espace (Réglages > Mon espace, Membres et rôles).
 // Les règles Firestore et Storage ne changent pas : c'est cette fonction, avec son compte dédié, qui écrit marques/<client> et les membres, après avoir vérifié que l'appelant est éditeur.
 // Aucun secret. Compte dédié : « Utilisateur Cloud Datastore » et, sur Storage, « Administrateur des objets » limité aux fichiers marques/. À créer AVANT le déploiement (docs/mon-espace.md), sinon le déploiement échoue.
 export const espaceReglages = onCall(

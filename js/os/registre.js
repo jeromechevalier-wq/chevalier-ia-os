@@ -141,6 +141,25 @@ export const MODULES_DECLARES = geler([
     dependances: [],
   },
   {
+    // Tableau de bord (étape 2 : écrans en lecture seule) : état des indicateurs de surveillance (clés, plus tard sauvegardes, finances, stocks).
+    // Les indicateurs sont écrits par la porte des scripts de surveillance (tableaudebord_indicateurs) ; l'écran les lit. Les onglets Finance et Stocks
+    // (routes tableaudebord/finance et tableaudebord/stocks) n'apparaissent que si un indicateur les porte : ils ne sont donc pas des entrées du menu.
+    // Chez un client, il n'existe pas encore de porte qui écrit : le module s'affiche vide (attendu).
+    id: 'tableaudebord',
+    nom: 'Tableau de bord',
+    libelleMenu: 'Tableau de bord',
+    iconeMenu: 'layout-dashboard',
+    prefixe: 'tableaudebord',
+    reglages: { sections: [], resume: 'Le tableau de bord se lit : ses indicateurs sont écrits par les scripts de surveillance. Aucun réglage à faire ici pour l’instant.' },
+    ecrans: [
+      { route: 'tableaudebord/general', libelle: 'Général', icone: 'layout-dashboard' },
+      { route: 'tableaudebord/technique', libelle: 'Technique', icone: 'shield-check' },
+    ],
+    collections: ['tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes'],
+    outilsMcp: [],
+    dependances: [],
+  },
+  {
     // Accès MCP (chantier 9 et 11) : un assistant (Claude, ChatGPT) se connecte à l'espace du client par un lien (…/mcp/<client>) et ses outils sont ceux des
     // modules actifs. Allumé ou éteint par client comme les autres modules ; éteint = le lien ne répond plus. Le module n'a qu'une page d'information
     // (lien à copier, mode d'emploi, membres et rôles, lien vers le Journal du CRM) : aucun réglage, aucune donnée à lui. Réservé aux clients : le MCP de

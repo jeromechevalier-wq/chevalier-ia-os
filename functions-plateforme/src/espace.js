@@ -1,4 +1,4 @@
-// « Mon espace » (2.8.0) : un ÉDITEUR d'un espace client règle lui-même le nom, la couleur, le logo, les images, le texte d'accueil et les membres de son espace.
+// « Mon espace » (2.9.0) : un ÉDITEUR d'un espace client règle lui-même le nom, la couleur, le logo, les images, le texte d'accueil et les membres de son espace.
 // Les règles Firestore et Storage interdisent toute écriture de marques/<client> depuis un navigateur : c'est CETTE fonction (côté serveur, compte dédié) qui écrit, après avoir vérifié l'appelant.
 // Séparé de index.js pour pouvoir l'essayer sans Cloud Functions : `db` et `bucket` sont injectés (comme appels.js). Modèle : automatisationsRenommer.
 //  - le client reçu est une CIBLE à vérifier, jamais une confiance : l'appelant doit avoir clients/<client>/membres/<son e-mail> avec le rôle « editeur » ;

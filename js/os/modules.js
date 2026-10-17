@@ -13,6 +13,7 @@ const MONTAGES = {
   projets: () => import('../modules/projets/index.js'),
   veille: () => import('../modules/veille/index.js'),
   automatisations: () => import('../modules/automatisations/index.js'),
+  tableaudebord: () => import('../modules/tableaudebord/index.js'),
   mcp: () => import('../modules/mcp/index.js'),
 };
 

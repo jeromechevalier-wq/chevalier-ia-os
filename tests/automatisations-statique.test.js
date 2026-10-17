@@ -12,7 +12,7 @@ import { MODULE_AUTOMATISATIONS, moduleActif } from '../functions-plateforme/src
 const RACINE = join(dirname(fileURLToPath(import.meta.url)), '..');
 const lire = (f) => readFileSync(join(RACINE, f), 'utf8');
 const SRC = join(RACINE, 'functions-plateforme', 'src');
-const fichiers = readdirSync(SRC).filter((f) => f.endsWith('.js') && f !== 'espace.js'); // espace.js (Mon espace, 2.8.0) a ses propres tests : espace-reglages.test.js
+const fichiers = readdirSync(SRC).filter((f) => f.endsWith('.js') && f !== 'espace.js'); // espace.js (Mon espace, 2.9.0) a ses propres tests : espace-reglages.test.js
 /** Code sans commentaires (// et /* *​/) ni textes entre guillemets : pour chercher des appels réels, pas des mots dans une explication. */
 const code = (f) => lire(`functions-plateforme/src/${f}`).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '').replace(/\s\/\/ .*$/gm, '');
 
@@ -136,14 +136,14 @@ describe('Les fonctions se chargent comme Firebase les chargera', () => {
     assert.deepEqual(m.automatisationsCopieHoraire.__endpoint.secretEnvironmentVariables, [{ key: 'N8N_API_KEY' }]);
     assert.deepEqual(m.automatisationsRafraichir.__endpoint.secretEnvironmentVariables, [{ key: 'N8N_API_KEY' }]);
     assert.equal(m.automatisationsRenommer.__endpoint.secretEnvironmentVariables, undefined);
-    // Mon espace (2.8.0) : compte dédié (à créer avant le déploiement), 5 instances au plus, aucun secret
+    // Mon espace (2.9.0) : compte dédié (à créer avant le déploiement), 5 instances au plus, aucun secret
     const e = m.espaceReglages.__endpoint;
     assert.equal(e.serviceAccountEmail, 'espace-reglages@chevalier-ia-app.iam.gserviceaccount.com');
     assert.equal(e.maxInstances, 5);
     assert.equal(e.secretEnvironmentVariables, undefined);
     assert.ok(e.callableTrigger, 'fonction appelable');
   });
-  test('Mon espace (2.8.0) ne change AUCUNE règle de sécurité : un navigateur n\'écrit toujours ni la marque, ni les membres, ni la fiche du client, ni Storage', () => {
+  test('Mon espace (2.9.0) ne change AUCUNE règle de sécurité : un navigateur n\'écrit toujours ni la marque, ni les membres, ni la fiche du client, ni Storage', () => {
     const f = lire('firestore.plateforme.rules');
     assert.match(f, /match \/marques\/\{client\} \{\s*allow get: if resource\.data\.get\('actif', false\) == true;\s*allow list, write: if false;/);
     assert.match(f, /match \/clients\/\{client\}\/membres\/\{email\} \{[^}]*allow write: if false;/);

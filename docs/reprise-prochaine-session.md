@@ -2,7 +2,7 @@
 
 Écrit le 04/10/2026, mis à jour le 07/10/2026 à la fin du chantier Projets, pour qu'une session neuve reprenne sans que Jérôme ait à recoller quoi que ce soit. **À mettre à jour ou à supprimer une fois les points faits.**
 
-## Mon espace modifiable (17/10/2026) : branche mon-espace-modifiable, version 2.8.0
+## Mon espace modifiable (17/10/2026) : branche mon-espace-modifiable, version 2.9.0
 
 Code et tests écrits, **rien déployé**, PR en attente du « fusionne ». Lire `mon-espace.md` : qui peut quoi, la fonction `espaceReglages`, les **étapes de Jérôme avant le déploiement** (créer le compte de service `espace-reglages` et lui donner deux droits, vérifier le nom « Chevalier IA - Serveur 1 » en haut de chaque page de la console, puis choisir « fonctions » dans le workflow, qui publie aussi les automatisations et exige la clé n8n) et ce qui n'est pas vérifié en réel (vrai Storage, vrai appel, iPhone). Les règles Firestore et Storage ne changent pas. Captures de recette : `~/chantiers-crm/captures-mon-espace/`.
 
@@ -12,9 +12,20 @@ Code et tests écrits, **rien déployé**, interrupteur `AUTOMATISATIONS_EN_SERV
 
 ## Liens et documents, Google Drive (16/10/2026) : branche liens-documents-drive, version 2.6.1
 
-## Tableau de bord : la porte des scripts GitHub (17/10/2026)
+## Tableau de bord : porte et écran en lecture (17/10/2026), version 2.8.0
 
-Code et tests écrits sur la branche `tableau-de-bord-porte`, **rien déployé**, PR en attente du « fusionne » de Jérôme (elle touche les règles Firestore : lui demander d'abord). Lire `tableau-de-bord.md` : la porte, les deux actions, la mise en service en 5 étapes (règles, fusion, clé, secret GitHub, essai). Ensuite : l'écran « Tableau de bord » (maquette dans le second cerveau, `ARCHIVES/Maquette Tableau de bord (2026-10-17).html`), puis les boutons de rafraîchissement et la saisie journalisée.
+**En ligne** : la porte des scripts GitHub (`docs/tableau-de-bord.md`, PR 94, 97 : fonction `tableaudebord`, clé `cle-tdb`, règles lecture seule publiées des deux côtés) et l'écran en lecture « Tableau de bord » (PR 98 : Général et Technique, niveau calculé par l'écran, cas vide/erreur/chargement, 50 captures dans `tests/e2e/captures/tableaudebord/`). Les 14 indicateurs de clés sont écrits chaque jour par le workflow `interne-surveillance-cles` du dépôt `interne-sauvegardes`.
+
+**Reste à faire, dans l'ordre** (conception : fiche « Module Tableau de bord - conception » du second cerveau ; relecture Fable du 17/10/2026) :
+1. Objectifs du mois et courbes : migrer `os_objectifs` dans les nouvelles tables (décision de Jérôme : même code partout), lecture de `tableaudebord_releves` (index composite à créer : aucun `firestore.indexes.json` aujourd'hui), tableau Général avec les objectifs.
+2. Saisie des dates et des mesures par une fonction serveur (pas d'écriture depuis l'écran), traçabilité dans un onglet « Historique des saisies » propre au module (décision du 17/10).
+3. Boutons de rafraîchissement (demande en base, fonction qui lance le workflow GitHub avec un jeton limité, le workflow accepte une cible).
+4. Retrait des indicateurs disparus de la configuration ; limites par famille de clés ; lot d'écriture atomique ; frein sur les refus 401.
+5. Indicateurs des sauvegardes et des copies Google dans le tableau de bord.
+6. Plateforme clients : porte `tableaudebord` dans `functions-plateforme`, réécriture `/tableau-de-bord` dans `firebase.plateforme.json`, `--usage tableaudebord` pour les clients dans `scripts/porte/outil.js`, fonction d'administration pour que Jérôme lise les bases clients, point d'étape Fable avant ouverture.
+Petits points notés par la relecture : aide de la méthode (auto/semi/manuel) à rendre accessible au toucher et au clavier, vocabulaire de « à traiter », échéance écrite en texte.
+
+**Pour les tests** : un port d'émulateur pris par une autre session ? Ne rien tuer ; copie jetable sur d'autres ports avec `/private/tmp/claude-501/sync-alt.sh` si elle existe encore (sinon refaire : ports 8180, 9199, 5150). `JAVA_HOME=$HOME/.local/jdk-21/Contents/Home`.
 
 ## Veille : ajout de lien, bouton Résumer, lecture du résumé (15/10/2026)
 

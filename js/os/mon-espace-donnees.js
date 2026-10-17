@@ -1,4 +1,4 @@
-// Données de « Mon espace » (2.8.0) : lecture de la fiche de marque et des membres, et l'appel à la fonction serveur « espaceReglages ».
+// Données de « Mon espace » (2.9.0) : lecture de la fiche de marque et des membres, et l'appel à la fonction serveur « espaceReglages ».
 // L'écran n'ÉCRIT RIEN dans Firestore (les règles l'interdisent) : tout passe par la fonction, qui revérifie que l'appelant est éditeur.
 // Les messages de refus du serveur sont écrits pour être lus tels quels ; une panne réseau ou une erreur inattendue reçoit un message générique qui dit quoi faire.
 import { doc, collection, getDocFromServer, getDocsFromServer } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';

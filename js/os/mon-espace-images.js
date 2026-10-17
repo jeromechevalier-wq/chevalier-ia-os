@@ -1,4 +1,4 @@
-// Images de « Mon espace » (2.8.0), côté navigateur : contrôle du fichier choisi (PNG, JPG ou WebP seulement, jamais de SVG), réduction avant l'envoi
+// Images de « Mon espace » (2.9.0), côté navigateur : contrôle du fichier choisi (PNG, JPG ou WebP seulement, jamais de SVG), réduction avant l'envoi
 // (jamais agrandie, transparence du PNG conservée) et conversion pour l'envoi. Le serveur refait tous les contrôles : ceci évite seulement d'envoyer pour rien.
 export const LIMITES = Object.freeze({
   logo: { octets: 2 * 1024 * 1024, largeur: 512, libelle: 'logo', mo: '2 Mo' },
