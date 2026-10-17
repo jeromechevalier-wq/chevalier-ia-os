@@ -1,11 +1,11 @@
 // Parcours dans le navigateur (tests C et D), sur les émulateurs, formats ordinateur et téléphone.
-// Ports : voir ports.js (TESTS_DECALAGE). Workers : TESTS_WORKERS (défaut : la moitié des cœurs, 4 au plus).
+// Ports : voir ports.js (TESTS_DECALAGE). Workers : TESTS_WORKERS (défaut : la moitié des cœurs, 3 au plus : 3 workers vont aussi vite que 4 sur le Mac de Jérôme et se gênent moins).
 import os from 'node:os';
 import { defineConfig } from '@playwright/test';
 import { portsCourants, decalage } from './ports.js';
 
 const ports = portsCourants();
-const WORKERS = Number(process.env.TESTS_WORKERS) || Math.max(1, Math.min(4, Math.floor(os.cpus().length / 2)));
+const WORKERS = Number(process.env.TESTS_WORKERS) || Math.max(1, Math.min(3, Math.floor(os.cpus().length / 2)));
 
 export default defineConfig({
   testDir: './e2e',

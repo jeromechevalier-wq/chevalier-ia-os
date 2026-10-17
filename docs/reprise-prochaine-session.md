@@ -2,6 +2,12 @@
 
 Écrit le 04/10/2026, mis à jour le 07/10/2026 à la fin du chantier Projets, pour qu'une session neuve reprenne sans que Jérôme ait à recoller quoi que ce soit. **À mettre à jour ou à supprimer une fois les points faits.**
 
+## Tests plus rapides, plusieurs sessions en même temps (17/10/2026) : branche acceleration-tests
+
+`npm test` lance maintenant cinq séries d'émulateurs en même temps (`tests/lancer-tout.js`), les scénarios du navigateur tournent sur 4 workers avec un projet Firebase chacun, et `TESTS_DECALAGE=<numéro de session>` décale tous les ports (deux sessions ne se disputent plus rien). `npm run test:rapide` (moins d'une minute) sert pendant le codage et ne remplace jamais `npm test` avant fusion. Mode d'emploi : `tests/README.md`.
+
+**Reste à faire** : les scénarios `L10`, `L14` (et par moments `L16`, `L17`, `L19`, `L20`) de `liens-documents.spec.js` échouent au hasard, **déjà avant ce chantier** (L14 : 2 mesures sur 3 sur `main`). Cause trouvée : l'écran se redessine quand Firestore renvoie la fiche, parfois avant la fin de `ecrireDossier` (`js/modules/crm/lanceurs.js`) ou de `choisirDansGoogle` (`js/modules/crm/liens-documents.js`) ; la suite de l'action écrit alors sur un morceau d'écran déjà remplacé (un vrai utilisateur verrait un formulaire resté ouvert). Correctif à écrire dans l'appli (pas dans les tests) : effacer l'état du formulaire avant l'écriture, et faire lire `formulaires` par l'écran redessiné.
+
 ## Automatisations de Jérôme + vue administrateur (17/10/2026) : branche automatisations-admin, version 2.7.0
 
 Code et tests écrits, **rien déployé**, interrupteur `AUTOMATISATIONS_EN_SERVICE = false` dans `functions/src/index.js` (une fusion déploie toutes les fonctions : il faut d'abord le secret et le compte de service). Lire `automatisations-n8n.md` parties 10 et 11 : reconnaissance par trois signes, guide pas à pas pour Jérôme, **à confirmer avec lui : le nom exact du credential `interne` dans son n8n** (prévu : « Clé n8n - interne »).
