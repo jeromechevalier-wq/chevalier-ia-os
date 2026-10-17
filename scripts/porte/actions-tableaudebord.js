@@ -16,7 +16,9 @@ const chemin = (base, table, id) => `${base ? `${base}/` : ''}${table}/${id}`;
 const sansIndefini = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
 const dateCompacte = (d) => d.toISOString().replace(/[-:]/g, '').slice(0, 15); // 20261017T101500
 
-const CHAMPS_FACULTATIFS = Object.freeze({ niveau: null, message: null, valeur: null, unite: null, objectif: null, echeance: null, perimeApresMinutes: null, source: null, procedure: null });
+const CHAMPS_FACULTATIFS = Object.freeze({ niveau: null, message: null, valeur: null, unite: null, objectif: null, echeance: null, perimeApresMinutes: null, source: null, procedure: null, saisiPar: null, saisiLe: null });
+// `saisiPar` / `saisiLe` : posés SEULEMENT par la fonction `tableaudebordSaisir` (saisie à l'écran), jamais par un script (champs inconnus pour la validation).
+// Ils sont remis à null ici : un indicateur devenu « auto » perd sa trace de saisie.
 
 /** Millisecondes d'une date lue en base (Date, objet de date de la base avec toMillis()/toDate(), ou nombre) ; null si illisible. */
 function enMillis(v) {
@@ -82,6 +84,9 @@ export const ACTIONS_TABLEAU = Object.freeze({
         const chem = chemin(base, TABLES_TABLEAU.indicateurs, i.id);
         // Un relevé ancien (ou rejoué) ne remplace jamais un relevé plus récent ou identique : il est ignoré et compté.
         const existant = await donnees.lireDoc(chem);
+        // Une saisie faite à l'écran (saisiPar) sur un indicateur manuel ou semi n'est JAMAIS remplacée par le script : il ne met rien à jour (ni échéance, ni nom, ni message), même si
+        // l'échéance saisie est dépassée ; Jérôme ressaisit. Un indicateur « auto » n'est pas concerné (et perd alors sa trace de saisie, voir CHAMPS_FACULTATIFS).
+        if (existant?.saisiPar && (i.methode === 'manuel' || i.methode === 'semi')) { ignores++; continue; }
         const dejaLe = existant ? enMillis(existant.releveLe) : null;
         if (dejaLe !== null && dejaLe >= i.releveLe.getTime()) { ignores++; continue; }
         if (!(await donnees.majDoc(chem, doc)) && !(await donnees.creerSiAbsent(chem, doc))) {

@@ -482,7 +482,13 @@ describe('porte : le code', () => {
   });
   test('seul l\'adaptateur parle à la base, et il ne sait que créer, mettre à jour et lire : aucune suppression, aucun « set » qui écraserait', () => {
     const a = lire('adaptateur.js');
-    assert.doesNotMatch(a, /\.delete\(|\.set\(|recursiveDelete|\.add\(|runTransaction|batch\(/);
+    assert.doesNotMatch(a, /\.delete\(|\.set\(|recursiveDelete|\.add\(|runTransaction/);
+    // `ecrireLot` : un seul lot (db.batch()), avec création et mise à jour seulement (jamais .set, .delete).
+    assert.equal((a.match(/\bbatch\(/g) || []).length, 1);
+    assert.match(a, /db\.batch\(\)/);
+    assert.match(a, /lot\.create\(ref, donnees\)/);
+    assert.match(a, /lot\.update\(ref, donnees\)/);
+    assert.doesNotMatch(a, /lot\.(set|delete)\(/);
     assert.match(a, /\.create\(donnees\)/);
     assert.match(a, /\.update\(partiel\)/);
     for (const f of ['porte.js', 'actions-veille.js', 'validation.js', 'cles.js']) assert.doesNotMatch(lire(f), /\bdb\b|firebase|firestore|recursiveDelete/i, `${f} ne touche pas à la base directement`);

@@ -264,6 +264,62 @@ describe('tableau de bord : indicateurs.ecrire', () => {
   });
 });
 
+describe('tableau de bord : une saisie à l\'écran n\'est jamais écrasée par le script (S5, P2, P3)', () => {
+  const CHEM = 'tableaudebord_indicateurs/cle_n8n';
+  const MANUEL = { id: 'cle_n8n', tableau: 'technique', famille: 'cles', nom: 'Clé API de n8n', type: 'etat', niveau: 'orange', message: 'Date à vérifier', releveLe: '2026-10-18T05:00:00Z', perimeApresMinutes: 2880, methode: 'manuel', procedure: 'Protocole' };
+  const saisie = (m, extra = {}) => m.base.docs.set(CHEM, { ...MANUEL, niveau: 'vert', message: 'Saisi par jerome.chevalier@gmail.com', echeance: new Date('2027-05-01'), releveLe: new Date('2026-10-17T09:00:00Z'), saisiPar: 'jerome.chevalier@gmail.com', saisiLe: new Date('2026-10-17T09:00:00Z'), proprietaire: 'interne', ...extra });
+  test('S5 saisie, puis relevé du script le lendemain : la saisie reste intacte, « ignores: 1 »', async () => {
+    const m = monde();
+    saisie(m);
+    const avant = JSON.stringify(m.base.docs.get(CHEM));
+    const r = await m.ecrire(m.cles.interne.cle, [MANUEL]);
+    assert.deepEqual(r.corps.resultat, { ecrits: 0, ignores: 1 });
+    assert.equal(JSON.stringify(m.base.docs.get(CHEM)), avant);
+  });
+  test('S5 même règle pour la méthode « semi », même si l\'échéance saisie est dépassée (Jérôme ressaisit)', async () => {
+    const m = monde();
+    saisie(m, { echeance: new Date('2026-01-01'), niveau: 'rouge' });
+    const r = await m.ecrire(m.cles.interne.cle, [{ ...MANUEL, methode: 'semi', nom: 'Autre nom', message: 'Autre message' }]);
+    assert.deepEqual(r.corps.resultat, { ecrits: 0, ignores: 1 });
+    assert.equal(m.base.docs.get(CHEM).nom, 'Clé API de n8n');
+    assert.equal(m.base.docs.get(CHEM).message, 'Saisi par jerome.chevalier@gmail.com');
+  });
+  test('S5 un indicateur « auto » est toujours écrasé par le script, même s\'il porte une trace de saisie', async () => {
+    const m = monde();
+    saisie(m);
+    const r = await m.ecrire(m.cles.interne.cle, [{ ...MANUEL, methode: 'auto', message: 'Répond' }]);
+    assert.deepEqual(r.corps.resultat, { ecrits: 1, ignores: 0 });
+    assert.equal(m.base.docs.get(CHEM).message, 'Répond');
+  });
+  test('P3 un indicateur devenu auto perd sa trace de saisie (saisiPar et saisiLe remis à null)', async () => {
+    const m = monde();
+    saisie(m);
+    await m.ecrire(m.cles.interne.cle, [{ ...MANUEL, methode: 'auto' }]);
+    assert.equal(m.base.docs.get(CHEM).saisiPar, null);
+    assert.equal(m.base.docs.get(CHEM).saisiLe, null);
+    // et il n'est plus protégé : un relevé manuel suivant (plus récent) s'écrit
+    const r = await m.ecrire(m.cles.interne.cle, [{ ...MANUEL, releveLe: '2026-10-19T05:00:00Z' }]);
+    assert.deepEqual(r.corps.resultat, { ecrits: 1, ignores: 0 });
+  });
+  test('S5 un manuel sans saisie reste mis à jour par le script comme avant', async () => {
+    const m = monde();
+    await m.ecrire(m.cles.interne.cle, [MANUEL]);
+    const r = await m.ecrire(m.cles.interne.cle, [{ ...MANUEL, releveLe: '2026-10-19T05:00:00Z', message: 'Date à vérifier encore' }]);
+    assert.deepEqual(r.corps.resultat, { ecrits: 1, ignores: 0 });
+    assert.equal(m.base.docs.get(CHEM).message, 'Date à vérifier encore');
+  });
+  test('P2 la porte REFUSE « saisie », « saisiPar » et « saisiLe » envoyés par un script (indicateurs.ecrire et releves.ajouter), rien n\'est écrit', async () => {
+    const m = monde();
+    const c = m.cles.interne.cle;
+    for (const champ of ['saisie', 'saisiPar', 'saisiLe']) {
+      const v = champ === 'saisie' ? true : champ === 'saisiPar' ? 'jerome.chevalier@gmail.com' : '2026-10-17T09:00:00Z';
+      assert.equal((await m.ecrire(c, [{ ...MANUEL, [champ]: v }])).statut, 400, `indicateurs.ecrire ${champ}`);
+      assert.equal((await m.releves(c, [{ indicateurId: 'cle_n8n', releveLe: '2026-10-17T09:00:00Z', [champ]: v }])).statut, 400, `releves.ajouter ${champ}`);
+    }
+    assert.equal(m.base.docs.size, 0);
+  });
+});
+
 describe('tableau de bord : releves.ajouter (historique)', () => {
   const R1 = { indicateurId: 'rdv_tenus', releveLe: '2026-10-17T10:15:00Z', valeur: 9, objectif: 12 };
   test('crée un point par relevé, avec l\'objectif en vigueur, le propriétaire de la clé et l\'auteur', async () => {
