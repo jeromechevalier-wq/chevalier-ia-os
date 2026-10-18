@@ -1,5 +1,7 @@
 # Connexion Google (OAuth) du serveur MCP : téléphone et claude.ai
 
+> Vue d'ensemble (qui entre par quelle porte, avec quels droits) : [portes-et-droits-mcp.md](portes-et-droits-mcp.md).
+
 Écrit le 09/10/2026. Décidé par Jérôme le même jour : le téléphone doit pouvoir se brancher sur le serveur MCP, avec **tous les droits** (comme Claude Code, suppression comprise), connexion de **30 jours glissants**.
 
 ## En deux phrases

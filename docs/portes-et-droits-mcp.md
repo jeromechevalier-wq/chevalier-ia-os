@@ -1,0 +1,48 @@
+# MCP : qui entre par quelle porte, et avec quels droits
+
+Écrit le 18/10/2026 pour Jérôme. Page de départ : elle explique les idées en simple et renvoie vers les pages de détail. Aucun secret ici.
+
+## Deux mots à ne pas mélanger
+
+- **La porte** : comment on prouve qui on est pour entrer. C'est **OAuth** ou un **jeton**.
+- **Les droits** : ce qu'on a le droit de faire une fois entré. C'est le **profil** (lecteur, éditeur, « claude-code »).
+
+**OAuth** : on clique « Se connecter avec Google » sur un écran. Google confirme que c'est bien la personne, puis l'assistant (Claude, bientôt ChatGPT) reçoit une clé temporaire (1 heure, renouvelée toute seule, 30 jours glissants). C'est le clic sur « Autoriser » qui protège l'accès.
+
+**Jeton** (`cia_…`) : un long mot de passe secret, écrit une fois dans un réglage. Il sert aux programmes qui ne peuvent pas cliquer sur un bouton Google : Claude Code sur le Mac, Hermes sur le VPS, les scripts. **Décision ferme de Jérôme (17/10/2026) : les jetons du CRM sont gardés.** Ils sont recensés dans le « Registre des clés et échéances » du second cerveau (ligne `MCP_JETONS`).
+
+## Qui entre par quelle porte
+
+| | OAuth (clic Google) | Jeton (mot de passe long) |
+|---|---|---|
+| **Plateforme clients** (Ingrid, etc.) | Oui : Claude aujourd'hui ; ChatGPT prévu | Non, jamais |
+| **CRM de Jérôme** | Oui : Claude aujourd'hui ; ChatGPT prévu. Seulement les deux comptes Google de Jérôme | Oui : Claude Code et les programmes |
+
+Les deux serveurs sont séparés : le CRM est sur `https://chevalier-ia-os.web.app/mcp` (projet Firebase `chevalier-ia-os`), la plateforme clients sur `https://chevalier-ia-app.web.app/mcp/<client>` (projet `chevalier-ia-app`).
+
+## Les droits, une fois entré
+
+| Qui | Lire | Écrire | Supprimer et restaurer |
+|---|---|---|---|
+| Client **lecteur** | oui | non | non |
+| Client **éditeur** (en ligne aujourd'hui) | oui | oui | non |
+| Client **éditeur** (décidé le 17/10/2026, **pas encore en ligne**) | oui | oui | oui |
+| **Jérôme**, par Claude (OAuth) | oui | oui | oui |
+| **Jérôme**, par ChatGPT (**prévu**) | oui | oui | oui |
+| **Claude Code** (jeton `claude-code-jerome`) | oui | oui | oui |
+| **Hermes** (jeton « bibliothécaire ») | oui | oui | non |
+
+Chaque client ne voit et ne touche que **son** espace : l'identifiant du client est lu dans l'adresse, jamais dans ce que l'assistant envoie. Les suppressions sont journalisées dans l'audit et restaurables (outil `restaurer_depuis_audit`) ; plafond de 20 suppressions par jour et par connexion.
+
+## Où en est ChatGPT (18/10/2026)
+
+- **Plateforme clients** : le code accepte déjà les adresses de retour de ChatGPT et l'enregistrement dynamique. **Jamais essayé avec un vrai ChatGPT.**
+- **CRM de Jérôme** : refuse encore ChatGPT (adresses de retour, enregistrement). Chantier prévu, avec la page de consentement qui affichera l'identifiant du connecteur pour repérer un faux lien.
+- **Le risque à connaître** : avec OAuth, un pirate peut envoyer un faux lien pour faire autoriser *son* connecteur. Le risque est le même avec Claude. La parade : lire l'identifiant affiché avant de cliquer « Autoriser ». Option plus forte, à décider plus tard : une liste des seuls connecteurs ChatGPT autorisés.
+
+## Pour aller plus loin
+
+- Connexion Google du CRM, couper l'accès du téléphone : [mcp-oauth.md](mcp-oauth.md).
+- Jetons, profils, plafonds, interrupteurs d'urgence : [securite-et-pannes.md](securite-et-pannes.md).
+- Brancher Claude Code ou Hermes avec un jeton : [branchement-mcp.md](branchement-mcp.md).
+- MCP des espaces clients : [mcp-clients.md](mcp-clients.md).
