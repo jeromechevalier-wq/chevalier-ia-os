@@ -4,6 +4,11 @@ Tenue à jour à chaque discussion sur l'évolution de l'appli. Dernière mise �
 
 Légende : **décidé** = validé par Jérôme ; **piste** = à trancher avant le cahier des charges.
 
+## Pistes notées le 18/10/2026 (à planifier après la recette MCP et l'audit de sécurité)
+
+- **Aide client lisible, publiée** : un site d'aide public en français (accueil avec recherche, catégories, articles courts, captures de notre appli), inspiré de l'organisation du centre d'aide de Pipedrive sans recopier ses textes, séparé du wiki technique. Découpage proposé : squelette + 3 articles, articles CRM, article de connexion de l'assistant, lien « Aide » dans l'appli. Pages publiques relues par Fable. À trancher : adresse (`/aide` sur la plateforme ou domaine à Jérôme). En attendant : `affaire-ou-projet.md`.
+- **Lever la dépendance Projets -> Affaires** à l'activation des modules (`js/os/registre.js`) : les données n'obligent déjà plus un projet à avoir une affaire (décision du 03/10/2026) ; PR dédiée avec test de l'écran Projets sans le module Affaires.
+
 ## Mon espace modifiable (17/10/2026, version 2.10.0)
 
 **Décidé (17/10/2026)** : Ingrid Atamian (et tout client) règle elle-même le nom, la couleur, le logo, les images de la page de connexion et le texte d'accueil de son espace ; les **éditeurs** gèrent aussi les membres (on ne retire ni ne rétrograde jamais le dernier éditeur) ; **les modules restent à Jérôme seul** (écran en lecture seule : « Pour changer de module, contacte ton administrateur »). Le logo de l'espace sert d'image aux célébrations (case « Utiliser le logo de mon espace »). **Écrit et testé, PR en attente du « fusionne »** : fonction serveur `espaceReglages` (compte de service dédié `espace-reglages`, **à créer avant le déploiement**), écrans Réglages > Mon espace et Membres et rôles. Les règles Firestore et Storage ne changent pas. Détail, étapes de déploiement et ce qui n'est pas vérifié en réel : `mon-espace.md`.
