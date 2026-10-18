@@ -390,6 +390,13 @@ describe('D5 Serveur MCP (étape 2) : déploiement, versions figées, sécurité
     assert.doesNotMatch(g, /req\.query|req\.url|searchParams/);
     assert.match(lire('functions/src/securite/jetons.js'), /timingSafeEqual/);
   });
+  test('D8 codes de suppression : securite/codes.js ne touche que la collection mcp_codes (jamais les données du CRM, l\'audit, les limites ni OAuth) et n\'écrit nulle part ailleurs', () => {
+    const t = lire('functions/src/securite/codes.js');
+    assert.deepEqual([...new Set(t.match(/\bC\.\w+/g))], ['C.codes']);
+    assert.doesNotMatch(t, /crm_|projets_|mcp_oauth|mcp_limites|plateforme_cles|COLLECTIONS_ECRITES/);
+    assert.match(lire('functions/src/coeur/donnees.js'), /codes: 'mcp_codes'/);
+    assert.doesNotMatch(t, /firebase-admin|getFirestore|\.collection\(/);
+  });
   test('D8 OAuth : seules les routes lisent l’adresse de la requête (jamais pour un jeton) ; le magasin n’a aucune notion de requête ; aucun secret ni jeton dans le code OAuth', () => {
     assert.doesNotMatch(lire('functions/src/oauth/magasin.js'), /\breq\b|\bres\b|headers/);
     assert.doesNotMatch(lire('functions/src/oauth/identite-google.js'), /\breq\b|\bres\b/);

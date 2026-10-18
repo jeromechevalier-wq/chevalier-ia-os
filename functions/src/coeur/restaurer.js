@@ -21,7 +21,8 @@ const RAISONS = {
   rien: 'Déjà dans l’état d’avant.',
 };
 
-export async function restaurerOperation({ donnees, ctx, operationId, apercu = true, forcer = false }) {
+/** `reserver(operations)` : appelé juste avant d'écrire (plafonds du jeton) ; une restauration qui supprime compte comme suppression. */
+export async function restaurerOperation({ donnees, ctx, operationId, apercu = true, forcer = false, reserver = null }) {
   const lignesAudit = (await donnees.liste(C.audit, { champ: 'operationId', valeur: operationId }))
     .filter((l) => l.statut !== 'echec')
     .sort((a, b) => (b.ordre ?? 0) - (a.ordre ?? 0));
@@ -53,6 +54,7 @@ export async function restaurerOperation({ donnees, ctx, operationId, apercu = t
     .filter((l) => l.decision !== 'rien')
     .map((l) => ({ type: 'remplacer', collection: l.collection, id: l.id, donnees: l.avant }));
   if (!operations.length) return { operationId, restauree: true, rienAFaire: true, ecritures: [] };
+  await reserver?.(operations);
   const resultat = await executerEcritures({ donnees, ctx, outil: 'restaurer_depuis_audit', parametres: { operationId, forcer }, operations });
   return { operationId, restauree: true, operationRestauration: resultat.operationId, ecritures: resultat.ecritures, ...(resultat.auditIncomplet ? { auditIncomplet: true, avertissement: resultat.avertissement } : {}) };
 }
