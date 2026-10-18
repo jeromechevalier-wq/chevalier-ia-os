@@ -1,7 +1,7 @@
 // Point d'entrée HTTP du MCP des clients : https://chevalier-ia-app.web.app/mcp/<client>.
 // Même chaîne que le serveur de Jérôme (origine, méthode, jeton, plafonds, outils du profil, protocole MCP), avec en plus :
 //  - le client vient de l'adresse, vérifié contre la connexion (un jeton d'un autre client est refusé comme un jeton inconnu) ;
-//  - le profil vient du RÔLE du membre, relu à chaque appel (lecteur -> lecture seule ; éditeur -> + écriture ; jamais de suppression ni de restauration) ;
+//  - le profil vient du RÔLE du membre, relu à chaque appel (lecteur -> lecture seule ; éditeur -> + écriture, suppression et restauration) ;
 //  - les données vues par les outils sont celles de CE client seulement (avecBase : clients/<client>/…) ;
 //  - les outils proposés sont ceux des modules ACTIFS du client (registre des modules) ; module « mcp » éteint = plus rien ne répond ;
 //  - les outils de factures et d'extraction n'existent que si l'option du client est allumée (OUTILS_PAR_OPTION), relue à chaque appel.

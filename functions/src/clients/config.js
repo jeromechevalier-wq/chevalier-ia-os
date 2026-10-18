@@ -20,8 +20,12 @@ export const FORMAT_CLIENT = /^[a-z0-9][a-z0-9_-]{0,39}$/;
 /** Module qui allume le MCP chez un client (js/os/registre.js). */
 export const MODULE_MCP = 'mcp';
 
-/** Profil du serveur déduit du rôle du membre : lecteur = consultation seule ; éditeur = consultation et modification, JAMAIS de suppression ni de restauration. */
-export const PROFIL_PAR_ROLE = Object.freeze({ lecteur: 'lecteur', editeur: 'bibliothecaire' });
+/**
+ * Profil du serveur déduit du rôle du membre (décision de Jérôme, 17/10/2026) : lecteur = consultation seule ; éditeur = consultation, modification,
+ * suppression et restauration (profil 'claude-code' = écriture + supprimer_* + restaurer_depuis_audit, rien d'autre). La liste blanche des outils reste
+ * js/os/registre.js (outilsMcp). Suppressions journalisées et restaurables (restaurer_depuis_audit) ; plafond de 20 suppressions par jour.
+ */
+export const PROFIL_PAR_ROLE = Object.freeze({ lecteur: 'lecteur', editeur: 'claude-code' });
 
 /**
  * Adresses de retour acceptées (comparaison exacte, sauf ChatGPT dont l'adresse porte un identifiant propre à chaque connecteur) :

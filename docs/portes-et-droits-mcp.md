@@ -25,8 +25,7 @@ Les deux serveurs sont séparés : le CRM est sur `https://chevalier-ia-os.web.a
 | Qui | Lire | Écrire | Supprimer et restaurer |
 |---|---|---|---|
 | Client **lecteur** | oui | non | non |
-| Client **éditeur** (en ligne aujourd'hui) | oui | oui | non |
-| Client **éditeur** (décidé le 17/10/2026, **pas encore en ligne**) | oui | oui | oui |
+| Client **éditeur** (décidé le 17/10/2026) | oui | oui | oui, dans son espace seulement |
 | **Jérôme**, par Claude (OAuth) | oui | oui | oui |
 | **Jérôme**, par ChatGPT (**prévu**) | oui | oui | oui |
 | **Claude Code** (jeton `claude-code-jerome`) | oui | oui | oui |
