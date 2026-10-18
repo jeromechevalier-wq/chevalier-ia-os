@@ -155,7 +155,12 @@ test('C29 fiche : la barre des phases change la phase ; En pause, Reprendre, Ter
   await expect(page.locator('.barre-etapes-fiche .etape.courante')).toHaveText('Clôture');
   await expect(page.locator('.fiche-sous .badge-archive')).toBeVisible();
   await allerA(page, 'Projets');
-  await expect(page.locator('.carte-projet')).toHaveCount(0);
+  // Le tableau ne montre que les projets actifs : la fin du projet crée son extraction (active, elle y est) et retire le projet terminé.
+  // On attend la carte de l'extraction (preuve que le tableau a reçu la mise à jour de Firestore) avant de vérifier que la carte terminée a disparu :
+  // « 0 carte » seul était vrai tant que le tableau n'était pas encore rempli (test instable en CI).
+  await expect(page.locator('.carte-projet[aria-label="Extraction : Audit Carrel"]')).toBeVisible();
+  await expect(page.locator('.carte-projet[data-projet="pr1"]')).toHaveCount(0);
+  await expect(page.locator('.carte-projet')).toHaveCount(1);
   await page.locator('.bascule-vue[data-vue="archives"]').click();
   await expect(page.locator('.tableau-projets')).toContainText('Audit Carrel');
   await page.locator('.tableau-projets a', { hasText: 'Audit Carrel' }).click();
