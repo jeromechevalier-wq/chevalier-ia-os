@@ -493,7 +493,7 @@ test('M18 « Utiliser le logo de mon espace » : cochée par défaut avec un log
   await affaire('a2', 'Audit de la rivière');
   // sans logo : case grisée et décochée
   await ouvrir(page, 'reglages/crm');
-  // Allumées par défaut (2.11.6) : on attend que l'écran ait écrit les réglages de départ (il se redessine à ce moment), puis on vérifie la case.
+  // Allumées par défaut (2.11.7) : on attend que l'écran ait écrit les réglages de départ (il se redessine à ce moment), puis on vérifie la case.
   await expect.poll(async () => (await lireDocument('clients/studio/crm_parametres/reglages'))?.celebrations).toBe(true);
   await expect(page.locator('[data-option="celebrations"]')).toBeChecked();
   const caseLogo = page.locator('[data-option="logoCelebration"]');

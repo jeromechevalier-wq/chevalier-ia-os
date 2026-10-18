@@ -46,7 +46,7 @@ Chez un client, **le nom, le logo, la couleur, les membres et les modules s'affi
 - Version 2.6.0 : `js/os/version.js`, `version.json`, `tests/statique.test.js`.
 - Non touchés (autre session) : `fiche-projet.js`, `functions/src/mcp/outils/ecriture.js`, section « Liens et documents ».
 
-## Options par défaut d'un nouvel espace (2.11.6)
+## Options par défaut d'un nouvel espace (2.11.7)
 
 Un nouvel espace démarre avec « Créer un dossier dans Google Drive » et « Célébrations » **allumés**, « Extraction de valeur » éteinte (`OPTIONS_NEUTRES`, `js/modules/crm/logique.js`). Un booléen déjà enregistré garde la priorité. Sous la case Drive, Options du CRM montre la zone « Dossier Drive parent » (visible seulement case cochée).
 

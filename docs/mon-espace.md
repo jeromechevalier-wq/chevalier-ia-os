@@ -21,7 +21,7 @@ Chez un client : **Réglages > Mon espace** (un formulaire, un bouton « Enregis
 - **Texte d'accueil** : 500 caractères au plus, affiché comme du texte (jamais comme du code).
 - **Visible par tout le monde** : le nom, le logo, les images et le texte d'accueil se voient sur la page de connexion, même sans compte. N'y mets rien de confidentiel.
 - **Application immédiate** : après « Enregistrer », le menu, la barre du haut, l'onglet, l'icône et les couleurs changent tout de suite sur l'appareil qui a enregistré. Les **autres appareils** se mettent à jour au rechargement de la page.
-- **Célébrations** : allumées par défaut dans un nouvel espace (2.11.6). Réglages > CRM > Célébrations (tant que l'option est allumée) a une case « Utiliser le logo de mon espace » : cochée par défaut s'il y a un logo, grisée et décochée sinon. Le logo est lu en direct dans la fiche de l'espace (jamais recopié). L'image de Charles reste réservée à l'espace de Jérôme.
+- **Célébrations** : allumées par défaut dans un nouvel espace (2.11.7). Réglages > CRM > Célébrations (tant que l'option est allumée) a une case « Utiliser le logo de mon espace » : cochée par défaut s'il y a un logo, grisée et décochée sinon. Le logo est lu en direct dans la fiche de l'espace (jamais recopié). L'image de Charles reste réservée à l'espace de Jérôme.
 
 ## À savoir
 - **Fermer l'onglet pendant les 8 secondes de « Retiré · Annuler »** (logo ou image) : le retrait n'est jamais écrit, le logo ou l'image est toujours là au retour. Rien n'est perdu ; il suffit de recommencer. Changer de page dans l'appli pendant ces 8 secondes ne change rien : le retrait suit son cours.

@@ -1,4 +1,4 @@
-// Options par défaut des NOUVEAUX espaces (2.11.6) : « Créer un dossier dans Google Drive » et « Célébrations » allumés, « Extraction de valeur » éteinte ;
+// Options par défaut des NOUVEAUX espaces (2.11.7) : « Créer un dossier dans Google Drive » et « Célébrations » allumés, « Extraction de valeur » éteinte ;
 // la zone « Dossier Drive parent » est sous la case Drive, visible seulement quand elle est cochée. Un booléen déjà enregistré garde la priorité (espace d'Ingrid).
 // Un test par critère (D1 à D5) et UNE capture par critère, dans ~/chantiers-crm/captures-defauts-espaces/ (« -tel » pour le format téléphone).
 // Google est SIMULÉ (google-simule.js) : on vérifie ce que l'appli demande et enregistre, pas Google lui-même.
