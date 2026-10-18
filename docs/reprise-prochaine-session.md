@@ -4,8 +4,8 @@
 
 ## Deux actions pour Jérôme : tests sur GitHub (18/10/2026)
 
-1. **Exiger la coche « Tests » avant toute fusion** : ouvre https://github.com/jeromechevalier-wq/chevalier-ia-os/settings/branches puis clique « Add branch ruleset » (ou « Add rule » sur `main`), nom du jeu de règles « main », cible `main` ; coche « Require status checks to pass », clique « Add checks », choisis « Tests » (elle n'apparaît qu'après le premier run du workflow), puis « Create ».
-2. **Sortir le dépôt de Google Drive** : dans le Terminal, `mkdir -p ~/Projets && git clone https://github.com/jeromechevalier-wq/chevalier-ia-os.git ~/Projets/chevalier-ia-os`, puis ouvre ce dossier dans Claude Code et ne touche plus à la copie qui est dans Drive (Drive et Git se disputent les fichiers).
+1. **Exiger la coche « Tests » avant toute fusion** : **impossible sur le forfait gratuit** (vérifié le 18/10/2026 : GitHub répond « Upgrade to GitHub Pro or make this repository public » pour les règles de branche d'un dépôt privé). Décision de Jérôme à prendre : rester en gratuit (la règle « on ne fusionne que si la coche Tests est verte » est alors tenue par Claude, sans verrou technique) ou passer à GitHub Pro (environ 4 $ par mois, résiliable à tout moment, 3 000 minutes d'Actions). Avec le Pro : https://github.com/settings/billing/plans (« Upgrade » sur la ligne Pro), puis https://github.com/jeromechevalier-wq/chevalier-ia-os/settings/rules/new?target=branch : nom « main », statut « Active », « Add target » > « Include default branch », cocher « Require status checks to pass », « Add checks » > « Tests », « Create ».
+2. **Sortir le dépôt de Google Drive** : dans le Terminal, `mkdir -p ~/Code-Chevalier-IA && git clone https://github.com/jeromechevalier-wq/chevalier-ia-os.git ~/Code-Chevalier-IA/chevalier-ia-os`, puis ouvre ce dossier dans Claude Code et ne touche plus à la copie qui est dans Drive (Drive et Git se disputent les fichiers).
 
 ## Mon espace modifiable (17/10/2026) : branche mon-espace-modifiable, version 2.10.0
 

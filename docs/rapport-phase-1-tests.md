@@ -30,10 +30,10 @@
 - L'ancien palier « rapide » (basé sur les specs modifiées) est remplacé par « sans navigateur ».
 
 ## Ce que je n'ai pas pu faire
-- Rendre la coche « Tests » obligatoire : c'est un réglage de ton compte GitHub (voir ci-dessous).
+- Rendre la coche « Tests » obligatoire : impossible sur le forfait gratuit d'un dépôt privé (voir ci-dessous).
 - Le run de nuit programmé (2 h) n'a pas encore tourné tout seul ; seul le lancement à la main est vérifié.
 - Stabiliser les scénarios instables listés plus haut.
 
 ## Les deux actions qui te restent
-1. **Exiger la coche « Tests » avant fusion** : https://github.com/jeromechevalier-wq/chevalier-ia-os/settings/branches → « Add branch ruleset » (ou règle sur `main`) → « Require status checks to pass » → « Add checks » → « Tests ».
-2. **Sortir le dépôt de Google Drive** : `git clone https://github.com/jeromechevalier-wq/chevalier-ia-os.git ~/Projets/chevalier-ia-os`, ouvrir ce dossier dans Claude Code, ne plus toucher à la copie dans Drive.
+1. **Exiger la coche « Tests » avant fusion** : **impossible sur le forfait gratuit** (GitHub : « Upgrade to GitHub Pro or make this repository public »). Soit on reste en gratuit (Claude tient la règle sans verrou), soit GitHub Pro (environ 4 $ par mois, résiliable, 3 000 minutes d'Actions) : procédure dans `docs/reprise-prochaine-session.md`.
+2. **Sortir le dépôt de Google Drive** : `git clone https://github.com/jeromechevalier-wq/chevalier-ia-os.git ~/Code-Chevalier-IA/chevalier-ia-os`, ouvrir ce dossier dans Claude Code, ne plus toucher à la copie dans Drive.
