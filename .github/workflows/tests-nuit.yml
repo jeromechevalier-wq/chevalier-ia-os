@@ -3,8 +3,10 @@
 name: Tests de nuit
 on:
   schedule:
-    # 0 h UTC = 2 h en heure d'été de Paris, 1 h en heure d'hiver.
-    - cron: '0 0 * * *'
+    # Essai d'UNE seule nuit (décision de Jérôme, 18/10/2026) : le 19 octobre à 0 h 17 UTC = 2 h 17 à Paris (heure d'été).
+    # Les minutes ≠ 0 évitent l'heure pile, où GitHub retarde ou saute des runs. Le jour et le mois reviennent chaque année :
+    # après l'essai, soit remettre '17 0 * * *' (toutes les nuits), soit supprimer cette ligne (sinon il se relancera le 19/10/2027).
+    - cron: '17 0 19 10 *'
   workflow_dispatch:
 permissions:
   contents: read

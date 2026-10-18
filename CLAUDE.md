@@ -29,7 +29,7 @@ Ce fichier est lu au début de chaque session. Il garde les décisions de Jérô
 - On fusionne quand la coche GitHub « Tests » est verte. Rien d'autre.
 - Tout ce qui dépasse 2 minutes se lance en arrière-plan et on continue.
 - Jamais deux suites de tests en même temps sur le Mac.
-- Une PR, un sujet, fusionnée dans la journée. Deux chantiers en parallèle au maximum.
+- Une PR, un sujet, fusionnée dans la journée. Pas de plafond fixe de chantiers en parallèle (Jérôme, 18/10/2026) : on avance autant qu'il passe, mais on reste vigilant. Signes que les tests se marchent sur les pieds : ports déjà pris, délais dépassés, échecs qui disparaissent au deuxième essai, Mac qui rame. Dès qu'on en voit un, on réduit le nombre de chantiers de code en cours.
 - `npm ci` seulement si `package-lock.json` a changé.
 - Mode d'emploi pour Jérôme : `docs/tests.md`.
 - `wiki/` est généré depuis `docs/` par `node scripts/wiki/construire.js` : ne jamais l'écrire à la main, le régénérer et le commiter à chaque changement de `docs/` (mode d'emploi : `docs/wiki.md`).
