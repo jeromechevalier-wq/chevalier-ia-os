@@ -34,7 +34,7 @@ Cahier des charges détaillé : `cahier-mcp.md` (brouillon du 02/10/2026). **Pla
 - **Décidé** : budget **5 € par mois**, alertes à 50 / 90 / 100 % (elles ne coupent rien), 3 instances au plus, plafonds d'écriture par jeton.
 - **Décidé** : nouveaux utilisateurs (Paul) par liste dans le code **et** dans les règles ; Jérôme publie les règles.
 - **Décidé** : téléversement depuis le téléphone par un **jeton Drive d'une heure remis par la fonction** (pas d'écran de consentement Google sur le téléphone) ; le consentement direct reste un repli si le prototype échoue.
-- **Décidé** : pas de tests automatiques sur chaque Pull Request (Jérôme lance `npm test` sur son Mac avant de fusionner) ; risque assumé, noté R3 dans le plan.
+- **Décidé (18/10/2026)** : les tests tournent sur GitHub à chaque Pull Request (workflow `tests.yml`, palier complet au format ordinateur) et chaque nuit sur `main` (ordinateur et téléphone). On fusionne quand la coche « Tests » est verte. Voir `docs/tests.md`.
 - **Constats à traiter** (détail dans `plan-mcp.md`, section 3) : les enchaînements de `donnees.js` sont à extraire dans `logique.js` pour que l'écran et le serveur partagent le même code ; les règles Firestore doivent être restructurées (un bloc plus précis ne l'emporte pas sur le joker actuel) ; les tests D3 et D4 et le README sont à adapter (« aucune Cloud Function » n'est plus vrai).
 
 - **Décidé** : c'est **indispensable**. Chevalier IA OS devient le CRM de Jérôme (aujourd'hui Notion), Claude Code sur son ordinateur est son outil principal, et des agents IA automatiseront ensuite. Ils doivent pouvoir interroger la base et y écrire, comme avec Notion.

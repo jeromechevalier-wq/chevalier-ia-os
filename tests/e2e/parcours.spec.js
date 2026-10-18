@@ -38,7 +38,7 @@ async function fermerCelebration(page) {
 
 // ---------------------------------------------------------------- connexion
 
-test('C1 connexion avec Jérôme : arrivée sur l’Accueil, 6 objectifs, graphique limité aux mois depuis le début d’activité', { tag: '@rapide' }, async ({ page }) => {
+test('C1 connexion avec Jérôme : arrivée sur l’Accueil, 6 objectifs, graphique limité aux mois depuis le début d’activité', { tag: '@smoke' }, async ({ page }) => {
   await connecter(page, JEROME);
   await expect(page).toHaveURL(/#\/crm\/accueil$/);
   await expect(page.getByRole('heading', { name: 'Bonjour Jérôme' })).toBeVisible();
@@ -74,7 +74,7 @@ test('C2 un compte non autorisé : accès refusé, retour à la connexion, aucun
 
 // ---------------------------------------------------------------- création minimale
 
-test('C3 créer une personne en ne tapant que le nom : curseur dans « Nom », Entrée enregistre, aucun champ obligatoire de plus', async ({ page }) => {
+test('C3 créer une personne en ne tapant que le nom : curseur dans « Nom », Entrée enregistre, aucun champ obligatoire de plus', { tag: '@smoke' }, async ({ page }) => {
   await connecter(page);
   await ouvrirCreation(page, 'personne');
   const nom = dialogue(page).getByLabel('Nom', { exact: true });
@@ -226,7 +226,7 @@ async function champDoc(collection, id, cle, attendu) {
   await expect.poll(async () => (await lireDocument(`${collection}/${id}`))?.[cle], { timeout: 10_000 }).toEqual(attendu);
 }
 
-test('C6 organisation : la créer, la lier à une personne depuis sa fiche, la retrouver dans la fiche de l’organisation', { tag: '@rapide' }, async ({ page }) => {
+test('C6 organisation : la créer, la lier à une personne depuis sa fiche, la retrouver dans la fiche de l’organisation', async ({ page }) => {
   await creerPersonne('p1', { nom: 'Marie Durand' });
   await connecter(page);
   await ouvrirCreation(page, 'organisation');
@@ -248,7 +248,7 @@ test('C6 organisation : la créer, la lier à une personne depuis sa fiche, la r
   await expect(page.locator('.ligne-simple[data-personne="p1"]')).toContainText('Marie Durand');
 });
 
-test('C7 « + Affaire » depuis la fiche d’une personne : titre prérempli, enregistrer sans rien taper', { tag: '@rapide' }, async ({ page }) => {
+test('C7 « + Affaire » depuis la fiche d’une personne : titre prérempli, enregistrer sans rien taper', { tag: '@smoke' }, async ({ page }) => {
   await creerOrganisation('o1', { nom: 'Fleurs de Provence' });
   await creerPersonne('p1', { nom: 'Marie Durand', organisationId: 'o1' });
   await connecter(page);

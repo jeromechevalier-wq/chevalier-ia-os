@@ -71,7 +71,7 @@ const rendreLesVraiesRegles = async () => chargerRegles(await readFile(fileURLTo
 
 // ---------------------------------------------------------------- R1
 
-test('R1 le menu contient le bloc « Tableau de bord » chez Jérôme, et sa première entrée « Général » ouvre l\'écran Général', { tag: '@rapide' }, async ({ page }, info) => {
+test('R1 le menu contient le bloc « Tableau de bord » chez Jérôme, et sa première entrée « Général » ouvre l\'écran Général', async ({ page }, info) => {
   await jeuStandard();
   await connecter(page);
   if (estTelephone(page)) await page.getByRole('button', { name: 'Ouvrir le menu' }).click();

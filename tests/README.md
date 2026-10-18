@@ -2,16 +2,17 @@
 
 Tout tourne sur les émulateurs Firebase (jamais sur les vraies données).
 
-## Les deux niveaux
+## Les paliers (décision du 18/10/2026)
 
-| Commande | Ce qu'elle fait | Durée visée |
-|---|---|---|
-| `npm run test:rapide` | règles, logique, contrôles statiques + les scénarios (ordinateur seulement) des fichiers de spec que ta branche a modifiés + les scénarios `@rapide` (un test de fumée par grand écran) | moins d'une minute |
-| `npm test` | **tout** : toutes les séries, formats ordinateur et téléphone | 5 minutes ou moins |
+| Commande | Ce qu'elle fait | Durée visée | Qui la lance |
+|---|---|---|---|
+| `npm run test:module <nom>` | les fichiers `tests/<nom>*.test.js` et `tests/e2e/<nom>*.spec.js`, format ordinateur | quelques secondes à 1 minute | la session, pendant le travail |
+| `npm run test:rapide` | règles, logique, statique, fonctions, porte (sans navigateur) | moins d'une minute | la session, avant d'ouvrir la PR |
+| `npm run test:smoke` | 5 parcours essentiels dans le navigateur (étiquette `@smoke`), format ordinateur | environ 15 secondes | la session, avant d'ouvrir la PR |
+| `npm run test:complet` (= `npm test`) | tout, format ordinateur | 5 à 10 minutes | **GitHub**, sur chaque PR (`tests.yml`) |
+| `npm run test:nuit` | tout, ordinateur et téléphone, chaque scénario 3 fois | 30 minutes ou plus | **GitHub**, chaque nuit sur `main` (`tests-nuit.yml`) |
 
-**Le rapide ne remplace JAMAIS le complet avant une fusion** (règle de `CLAUDE.md`). Il sert à avancer vite pendant le codage.
-
-Le niveau rapide compare ta branche à `origin/main` (`git fetch` d'abord). Sans réseau, il saute le `fetch` et le dit.
+La session ne lance jamais la suite complète. Voir `docs/tests.md`.
 
 ## Plusieurs sessions en même temps
 
@@ -45,8 +46,10 @@ Tous les ports (émulateurs, serveur de test, hub) sont décalés de `1000 × nu
 
 ```bash
 cd tests && npm install && npm run installer-fonctions && npm run installer-outils && npm run installer-fonctions-plateforme && npx playwright install chromium
-npm test                      # complet
-npm run test:rapide           # rapide
+npm run test:module projets  # un module
+npm run test:rapide           # sans navigateur
+npm run test:smoke            # 5 parcours navigateur
+npm run test:complet          # tout, ordinateur (GitHub le lance sur chaque PR)
 npm run test:sequentiel       # l'ancien enchaînement, une série après l'autre (secours)
 ```
 

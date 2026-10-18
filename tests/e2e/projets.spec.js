@@ -59,7 +59,7 @@ async function deplacer(page, id, phase) {
   }
 }
 
-test('C29 menu « Projets » et bouton « + » : un projet se crée en ne tapant que le titre, au bon endroit, avec sa trace dans le journal', { tag: '@rapide' }, async ({ page }) => {
+test('C29 menu « Projets » et bouton « + » : un projet se crée en ne tapant que le titre, au bon endroit, avec sa trace dans le journal', { tag: '@smoke' }, async ({ page }) => {
   await connecter(page);
   await allerA(page, 'Projets');
   await expect(page).toHaveURL(/#\/projets\/projets$/);
@@ -1481,7 +1481,7 @@ async function ajouterFacture(page, libelle, montant, envoi = '') {
   await expect(page.locator('.ligne-facture', { hasText: libelle })).toBeVisible();
 }
 
-test('C36 factures 30 % + 30 % + 40 % : trois lignes, des paiements successifs, l’objectif « encaissé » suit ; la clôture attend le solde', async ({ page }) => {
+test('C36 factures 30 % + 30 % + 40 % : trois lignes, des paiements successifs, l’objectif « encaissé » suit ; la clôture attend le solde', { tag: '@smoke' }, async ({ page }) => {
   await creerProjet('pr1', { titre: 'Audit Lilas', phase: 'livraison' });
   await connecter(page);
   await attendreModeles();

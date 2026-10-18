@@ -65,7 +65,7 @@ test('E2 la page prend le nom, le texte, le logo et les images de la fiche ; la 
   if (estTelephone(page)) expect(taille.width).toBeLessThanOrEqual(390);
 });
 
-test('E3 un membre du client se connecte et arrive sur son accueil ; il peut se déconnecter', { tag: '@rapide' }, async ({ page }) => {
+test('E3 un membre du client se connecte et arrive sur son accueil ; il peut se déconnecter', async ({ page }) => {
   await aller(page, 'atelier');
   await page.waitForFunction(() => !!window.__chevalierTest);
   await page.evaluate((e) => window.__chevalierTest.connecter(e, true), ALICE);

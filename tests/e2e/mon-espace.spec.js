@@ -450,8 +450,13 @@ test('M16 dernier éditeur : se retirer ou se passer en lecteur affiche « Il fa
   await ouvrir(page, 'reglages/membres');
   await ecrireDocument(`clients/studio/membres/${LEA}`, { role: 'lecteur', nom: 'Léa' });
   await page.locator(`[data-membre="${ALICE}"] [data-role="role-membre"]`).selectOption('lecteur');
-  await expect(page.getByRole('dialog')).toContainText('Tu vas perdre l’accès de ce compte à l’espace');
-  await page.getByRole('dialog').getByRole('button', { name: 'Changer mon rôle' }).click();
+  // Selon la vitesse de la machine, la page a déjà reçu la nouvelle liste (le refus est alors immédiat) ou non (fenêtre de confirmation, puis refus du serveur) : dans les deux cas, mêmes mots.
+  const fenetre = page.getByRole('dialog');
+  await expect(fenetre.or(erreur.filter({ hasText: 'Il faut garder au moins un éditeur.' }))).toBeVisible();
+  if (await fenetre.count()) {
+    await expect(fenetre).toContainText('Tu vas perdre l’accès de ce compte à l’espace');
+    await fenetre.getByRole('button', { name: 'Changer mon rôle' }).click();
+  }
   await expect(erreur).toHaveText('Il faut garder au moins un éditeur.');
   expect(await lireDocument(`clients/studio/membres/${ALICE}`)).toEqual({ role: 'editeur', nom: 'Alice' });
   expect((await lireDocument('clients/studio')).equipe).toContainEqual({ email: ALICE, role: 'editeur' });
