@@ -1,4 +1,4 @@
-// Options par défaut des NOUVEAUX espaces (2.11.8) : « Créer un dossier dans Google Drive » et « Célébrations » allumés, « Extraction de valeur » éteinte ;
+// Options par défaut des NOUVEAUX espaces (2.11.8) : « Créer un dossier dans Google Drive » et « Célébrations » allumés, (l'ancienne option « Extraction de valeur » n'existe plus) ;
 // la zone « Dossier Drive parent » est sous la case Drive, visible seulement quand elle est cochée. Un booléen déjà enregistré garde la priorité (espace d'Ingrid).
 // Un test par critère (D1 à D5) et UNE capture par critère, dans ~/chantiers-crm/captures-defauts-espaces/ (« -tel » pour le format téléphone).
 // Google est SIMULÉ (google-simule.js) : on vérifie ce que l'appli demande et enregistre, pas Google lui-même.
@@ -29,7 +29,7 @@ test.beforeEach(async () => {
     await ecrireDocument(`clients/${client}/membres/${ALICE}`, { role: 'editeur' });
   }
   // Ingrid : le réglage « boutonsDepot » est écrit à false, noir sur blanc ; « celebrations » est absent.
-  await ecrireDocument('clients/ingrid/crm_parametres/reglages', { boutonsDepot: false, suiviPaiements: false, clotureBloquee: true, extractionValeur: false });
+  await ecrireDocument('clients/ingrid/crm_parametres/reglages', { boutonsDepot: false, suiviPaiements: false, clotureBloquee: true });
 });
 
 async function ouvrirReglages(page, client) {
@@ -44,13 +44,13 @@ const capturer = async (page, nom) => page.locator('#reglages-options').screensh
 const ligneDrive = (page) => page.locator('[data-ligne="boutonsDepot"]');
 const zone = (page) => page.locator('[data-role="zone-dossier-parent"]');
 
-test('D1 un nouvel espace (rien d’enregistré) a « Créer un dossier dans Google Drive » et « Célébrations » cochés, « Extraction de valeur » décochée', async ({ page }) => {
+test('D1 un nouvel espace (rien d’enregistré) a « Créer un dossier dans Google Drive » et « Célébrations » cochés, sans option « Extraction de valeur »', async ({ page }) => {
   await ouvrirReglages(page, 'neuf');
   await expect(page.locator('[data-option="boutonsDepot"]')).toBeChecked();
   await expect(page.locator('[data-option="celebrations"]')).toBeChecked();
-  await expect(page.locator('[data-option="extractionValeur"]')).not.toBeChecked();
+  await expect(page.locator('[data-option="extractionValeur"]')).toHaveCount(0);
   await expect(page.locator('[data-option="suiviPaiements"]')).not.toBeChecked();
-  await expect.poll(async () => { const r = await lireDocument('clients/neuf/crm_parametres/reglages'); return [r?.boutonsDepot, r?.celebrations, r?.extractionValeur]; }).toEqual([true, true, false]);
+  await expect.poll(async () => { const r = await lireDocument('clients/neuf/crm_parametres/reglages'); return [r?.boutonsDepot, r?.celebrations, 'extractionValeur' in (r ?? {})]; }).toEqual([true, true, false]);
   await capturer(page, 'D1-options-par-defaut');
 });
 
@@ -84,7 +84,7 @@ test('D4 l’espace d’Ingrid (boutonsDepot=false écrit) reste inchangé : cas
   await expect(page.locator('[data-option="celebrations"]')).toBeChecked(); // absent chez elle : valeur par défaut
   await expect.poll(async () => (await lireDocument('clients/ingrid/crm_parametres/reglages')).celebrations).toBe(true);
   const r = await lireDocument('clients/ingrid/crm_parametres/reglages');
-  expect([r.boutonsDepot, r.suiviPaiements, r.extractionValeur, r.clotureBloquee]).toEqual([false, false, false, true]);
+  expect([r.boutonsDepot, r.suiviPaiements, r.clotureBloquee]).toEqual([false, false, true]);
   await capturer(page, 'D4-espace-ingrid');
 });
 
