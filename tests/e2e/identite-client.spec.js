@@ -50,7 +50,7 @@ test.beforeEach(async () => {
   await ecrireDocument('clients/studio/projets_projets/pr1', {
     titre: 'Site du lac', affaireId: null, personneId: 'p1', organisationId: null, phase: 'phase_1', statut: 'actif', dateDebut: jour(0), dateFin: null,
     modeleId: null, offreId: null, dateEntreePhase: maintenant, datesPhases: { lancement: maintenant }, documents: [], factures: [], urlGithub: '', urlDossier: '',
-    nature: 'livraison', projetSourceId: null, archive: false, ...base,
+    archive: false, ...base,
   });
   await ecrireDocument('clients/studio/projets_taches/t1', {
     titre: 'Préparer la maquette', projetId: 'pr1', phase: 'phase_1', ordre: 1, date: jour(0), heure: '', fait: false, dateFait: null, assigneA: 'jerome', auteur: ALICE, creeLe: maintenant,

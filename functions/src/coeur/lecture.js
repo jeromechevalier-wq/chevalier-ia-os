@@ -161,10 +161,10 @@ export async function listerDocuments(donnees, { affaireId, projetId }) {
 
 const resumeFacturation = (p) => ({ ...PL.totauxFactures(p), aPayer: PL.facturesAPayer(p).length, impaye: PL.aUnImpaye(p) });
 
-export async function listerProjets(donnees, { phase, statut, nature, archive, affaireId, personneId, organisationId, recherche, enRetard, limite }, maintenant, espace = {}) {
+export async function listerProjets(donnees, { phase, statut, archive, affaireId, personneId, organisationId, recherche, enRetard, limite }, maintenant, espace = {}) {
   const config = await lireConfig(donnees, espace);
   const [projets, taches, personnes, organisations] = await Promise.all([C.projets, C.projetsTaches, C.personnes, C.organisations].map((nom) => donnees.liste(nom)));
-  const criteres = { recherche: recherche || '', phases: phase ? [phase] : [], statuts: statut ? [statut] : [], natures: nature ? [nature] : [], enRetard: !!enRetard };
+  const criteres = { recherche: recherche || '', phases: phase ? [phase] : [], statuts: statut ? [statut] : [], enRetard: !!enRetard };
   let gardes = PL.filtrerProjets(projets, criteres, { personnes, organisations, taches, aujourdhui: L.aujourdhuiParis(maintenant), archives: !!archive });
   if (affaireId) gardes = gardes.filter((p) => p.affaireId === affaireId);
   if (personneId) gardes = gardes.filter((p) => p.personneId === personneId);
@@ -181,22 +181,17 @@ export async function lireProjet(donnees, { id, avecFil }, espace = {}) {
   const config = await lireConfig(donnees, espace);
   const projet = await donnees.document(C.projets, id);
   if (!projet) introuvable('Projet');
-  const [affaire, personne, organisation, taches, extractions, source] = await Promise.all([
+  const [affaire, personne, organisation, taches] = await Promise.all([
     projet.affaireId ? donnees.document(C.affaires, projet.affaireId) : null,
     projet.personneId ? donnees.document(C.personnes, projet.personneId) : null,
     projet.organisationId ? donnees.document(C.organisations, projet.organisationId) : null,
     donnees.liste(C.projetsTaches, { champ: 'projetId', valeur: id }),
-    donnees.liste(C.projets, { champ: 'projetSourceId', valeur: id }),
-    projet.projetSourceId ? donnees.document(C.projets, projet.projetSourceId) : null,
   ]);
-  const extraction = config.options.extractionValeur ? PL.extractionDuProjet(extractions, id) : null; // option « Extraction de valeur » éteinte : rien n'est montré
   return serialiser({
     projet,
     affaire: affaire ? { id: affaire.id, titre: affaire.titre, etape: affaire.etape, statut: affaire.statut } : null,
     personne: personne ? { id: personne.id, nom: personne.nom } : null,
     organisation: organisation ? { id: organisation.id, nom: organisation.nom } : null,
-    source: source ? { id: source.id, titre: source.titre } : null,
-    extraction: extraction ? { id: extraction.id, titre: extraction.titre, statut: extraction.statut, archive: !!extraction.archive } : null,
     taches: PL.tachesDuProjet(taches, id, config),
     avancement: PL.progressionProjet(taches),
     facturation: config.options.suiviPaiements ? resumeFacturation(projet) : null,
@@ -235,7 +230,7 @@ export async function lireReglages(donnees, espace = {}) {
       priorites: L.PRIORITES,
       raisonsPerdue: L.RAISONS_PERDUE,
       tailles: L.TAILLES,
-      projets: { phases: PL.phasesActives(config).map(({ id, libelle }) => ({ id, libelle })), statuts: PL.STATUTS_PROJET.map(({ id, libelle }) => ({ id, libelle })), natures: config.options.extractionValeur ? PL.NATURES_PROJET : PL.NATURES_PROJET.filter((n) => n.id !== 'extraction'), assignes: config.membres.map(({ id, libelle }) => ({ id, libelle })), statutsFacture: config.options.suiviPaiements ? PL.STATUTS_FACTURE.map(({ id, libelle }) => ({ id, libelle })) : [] },
+      projets: { phases: PL.phasesActives(config).map(({ id, libelle }) => ({ id, libelle })), statuts: PL.STATUTS_PROJET.map(({ id, libelle }) => ({ id, libelle })), assignes: config.membres.map(({ id, libelle }) => ({ id, libelle })), statutsFacture: config.options.suiviPaiements ? PL.STATUTS_FACTURE.map(({ id, libelle }) => ({ id, libelle })) : [] },
     },
   });
 }

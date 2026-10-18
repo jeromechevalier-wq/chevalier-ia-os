@@ -199,8 +199,9 @@ describe('Création et modification (tests 9 et 11)', () => {
     const gagne = ok(await s.appeler('biblio', 'changer_etape', { id: 'a1', etape: 'gagne' }));
     assert.equal(gagne.statut, 'gagnee');
     assert.equal(gagne.suggestion, null, 'aucune action suggérée par défaut (les deux règles en dur ont disparu)');
-    assert.deepEqual(s.collections.crm_evenements.filter((e) => e.affaireId === 'a1' && e.date.getTime() === MAINTENANT.getTime()).map((e) => e.type).sort(), ['affaire_gagnee', 'etape_changee', 'projet_cree'], 'gagnée sans projet : son projet d’extraction est créé avec elle');
-    assert.equal(gagne.extraction.titre, 'Extraction : Site vitrine Atelier des Lilas');
+    assert.deepEqual(s.collections.crm_evenements.filter((e) => e.affaireId === 'a1' && e.date.getTime() === MAINTENANT.getTime()).map((e) => e.type).sort(), ['affaire_gagnee', 'etape_changee'], 'gagnée sans projet : aucun projet n’est créé avec elle');
+    assert.equal('extraction' in gagne, false);
+    assert.equal((s.collections.projets_projets || []).length, 0);
     assert.equal(s.collections.crm_activites.length, 4, 'la suggestion n’est pas créée toute seule');
     assert.equal(ok(await s.appeler('biblio', 'changer_etape', { id: 'a1', etape: 'gagne' })).rien, true);
     refuse(await s.appeler('biblio', 'changer_etape', { id: 'a1', etape: 'bidon' }), /Étape inconnue/);
@@ -384,44 +385,19 @@ describe('Suppression et restauration (tests 6 et 10)', () => {
     assert.deepEqual(s.vue(), avant);
   });
 
-  test('extraction de valeur : marquer_perdue crée le projet d’extraction (raison reprise, quatre tâches), une seule fois ; tout se restaure à l’identique', async () => {
+  test('X2 extraction de valeur supprimée : marquer_perdue et changer_etape ne créent aucun projet ; la restauration défait l’affaire', async () => {
     const s = await demarrer();
-    s.collections.crm_affaires.find((a) => a.id === 'a1').urlGithub = 'https://github.com/jeromechevalier-wq/client-lilas';
     const avant = s.vue();
     const r = ok(await s.appeler('code', 'marquer_perdue', { id: 'a1', raison: 'Prix', detail: 'trop cher' }));
-    assert.match(r.extraction.titre, /^Extraction : Site vitrine/);
-    const ext = s.doc('projets_projets', r.extraction.id);
-    assert.deepEqual([ext.nature, ext.affaireId, ext.phase, ext.statut, ext.modeleId, ext.raisonPerdue, ext.raisonPerdueDetail, ext.urlGithub, ext.proprietaire],
-      ['extraction', 'a1', 'lancement', 'actif', 'extraction', 'Prix', 'trop cher', 'https://github.com/jeromechevalier-wq/client-lilas', 'jerome.chevalier@gmail.com']);
-    const taches = s.collections.projets_taches.filter((t) => t.projetId === ext.id);
-    assert.deepEqual(taches.map((t) => t.titre).sort(), ['Comprendre les erreurs', 'Créer la documentation marketing', 'Repérer ce qui est automatisable', 'Tirer les règles']);
-    assert.ok(taches.every((t) => t.date === '2026-10-12'), 'sept jours après le 5 octobre (Paris)');
-    assert.equal(s.doc('crm_affaires', 'a1').projetId ?? null, null, 'l’extraction n’est pas le projet de l’affaire');
-    // rouvrir puis marquer perdue de nouveau : pas de seconde extraction
-    ok(await s.appeler('code', 'rouvrir_affaire', { id: 'a1' }));
-    const encore = ok(await s.appeler('code', 'marquer_perdue', { id: 'a1', raison: 'Concurrent' }));
-    assert.equal(encore.extraction, null);
-    assert.equal(s.collections.projets_projets.length, 1);
-    // une seule opération d'audit pour la perte : la restaurer défait l'affaire ET son extraction
+    assert.equal(r.statut, 'perdue');
+    assert.equal('extraction' in r, false, 'plus de champ « extraction » dans la réponse');
+    assert.equal((s.collections.projets_projets || []).length, 0);
+    assert.equal((s.collections.projets_taches || []).length, 0);
     const op = (await s.donnees.liste('crm_audit', { champ: 'outil', valeur: 'marquer_perdue' })).sort((a, b) => a.date - b.date)[0].operationId;
-    ok(await s.appeler('code', 'rouvrir_affaire', { id: 'a1' }));
     ok(await s.appeler('code', 'restaurer_depuis_audit', { operationId: op, apercu: false, forcer: true }));
-    assert.equal(s.collections.projets_projets.length, 0, 'l’extraction créée par l’opération est supprimée par sa restauration');
-    assert.equal(s.collections.projets_taches.length, 0);
-    assert.equal(avant.crm_affaires.find((a) => a.id === 'a1').statut, 'ouverte');
-  });
-
-  test('extraction de valeur : changer_etape vers « gagne » crée l’extraction seulement si l’affaire n’a pas de projet', async () => {
-    const s = await demarrer();
-    s.collections.projets_projets = [{ id: 'pr1', titre: 'Projet de l’affaire', affaireId: 'a1', nature: 'livraison', phase: 'lancement', statut: 'actif', archive: false }];
-    const avecProjet = ok(await s.appeler('biblio', 'changer_etape', { id: 'a1', etape: 'gagne' }));
-    assert.equal(avecProjet.extraction, null);
-    assert.equal(s.collections.projets_projets.length, 1);
-    const sans = ok(await s.appeler('biblio', 'changer_etape', { id: 'a2', etape: 'gagne' }));
-    assert.equal(sans.rien, true, 'a2 était déjà à Gagné : rien à faire, aucune extraction');
-    assert.equal(s.collections.projets_projets.filter((p) => p.nature === 'extraction').length, 0);
-    ok(await s.appeler('code', 'marquer_perdue', { id: 'a2', raison: 'Autre' }));
-    assert.equal(s.collections.projets_projets.filter((p) => p.nature === 'extraction').length, 1);
+    assert.equal(s.doc('crm_affaires', 'a1').statut, avant.crm_affaires.find((a) => a.id === 'a1').statut);
+    ok(await s.appeler('biblio', 'changer_etape', { id: 'a1', etape: 'gagne' }));
+    assert.equal((s.collections.projets_projets || []).length, 0, 'affaire gagnée sans projet : rien n’est créé');
   });
 
   test('test 10 : la confirmation par le nom est exigée (absente, fausse, d’une autre fiche) : rien n’est supprimé', async () => {
@@ -588,19 +564,18 @@ describe('Journaux sans contenu (test 14)', () => {
 // ---------------------------------------------------------------- projets (2.1) et factures (2.2)
 
 describe('Outils des projets : mêmes règles que l’écran, avec audit et restauration', () => {
-  /** Serveur avec les modèles de départ (Audit, Accompagnement, Extraction) installés. */
+  /** Serveur avec les modèles de départ (Audit, Accompagnement) installés. */
   async function avecModeles() {
     const s = await demarrer();
     s.collections.projets_modeles = PL.MODELES_JEROME.map((m, i) => ({ ...structuredClone(m), ordre: i + 1, actif: true }));
     return s;
   }
   const projets = (s) => s.collections.projets_projets || [];
-  const extractions = (s) => projets(s).filter((p) => p.nature === 'extraction');
 
   test('droits : lecture pour les trois profils, écriture pour le bibliothécaire et Claude Code, suppression pour Claude Code seul', async () => {
     const s = await demarrer();
     const noms = async (j) => (await (await s.brut(j, 'tools/list')).json()).result.tools.map((t) => t.name);
-    const ecriture = ['creer_projet', 'creer_projet_depuis_affaire', 'modifier_projet', 'changer_phase_projet', 'mettre_projet_en_pause', 'reprendre_projet', 'rouvrir_projet', 'archiver_projet', 'terminer_projet', 'extraire_valeur_projet', 'ajouter_tache_projet', 'terminer_tache_projet', 'ajouter_facture', 'marquer_facture_payee', 'abandonner_facture'];
+    const ecriture = ['creer_projet', 'creer_projet_depuis_affaire', 'modifier_projet', 'changer_phase_projet', 'mettre_projet_en_pause', 'reprendre_projet', 'rouvrir_projet', 'archiver_projet', 'terminer_projet', 'ajouter_tache_projet', 'terminer_tache_projet', 'ajouter_facture', 'marquer_facture_payee', 'abandonner_facture'];
     const lecture = ['lister_projets', 'lire_projet', 'lister_modeles_projet'];
     const lecteur = await noms('lecteur'); const biblio = await noms('biblio'); const code = await noms('code');
     for (const o of lecture) assert.ok(lecteur.includes(o) && biblio.includes(o) && code.includes(o), o);
@@ -621,7 +596,7 @@ describe('Outils des projets : mêmes règles que l’écran, avec audit et rest
     assert.equal(projets(s).length, 0, 'aucun refus n’écrit');
     const r = ok(await s.appeler('biblio', 'creer_projet', { titre: ' Audit des Lilas ', personneId: 'p1', modeleId: 'audit', dateDebut: '2026-10-05' }));
     const p = s.doc('projets_projets', r.id);
-    assert.deepEqual([p.titre, p.phase, p.statut, p.nature, p.organisationId, p.modeleId, p.proprietaire, p.factures], ['Audit des Lilas', 'lancement', 'actif', 'livraison', 'org1', 'audit', 'jerome.chevalier@gmail.com', []]);
+    assert.deepEqual([p.titre, p.phase, p.statut, p.organisationId, p.modeleId, p.proprietaire, p.factures], ['Audit des Lilas', 'lancement', 'actif', 'org1', 'audit', 'jerome.chevalier@gmail.com', []]);
     assert.equal(p.creePar, 'hermes-bibliothecaire');
     assert.equal(s.collections.projets_taches.filter((t) => t.projetId === r.id).length, 3);
     assert.ok(s.collections.crm_evenements.some((e) => e.type === 'projet_cree' && e.projetId === r.id && e.personneId === 'p1'));
@@ -672,35 +647,30 @@ describe('Outils des projets : mêmes règles que l’écran, avec audit et rest
     refuse(await s.appeler('biblio', 'lire_projet', { id: 'fantome' }), /introuvable/);
   });
 
-  test('terminer un projet : phase Clôture, statut Terminé, archivé, UNE extraction ; terminer deux fois ou une extraction ne crée rien de plus', async () => {
+  test('terminer un projet : phase Clôture, statut Terminé, archivé, aucun autre projet créé ; terminer deux fois ne fait rien', async () => {
     const s = await avecModeles();
     const { id } = ok(await s.appeler('code', 'creer_projet', { titre: 'Site vitrine', urlDossier: 'https://drive.google.com/drive/folders/xyz' }));
     const fin = ok(await s.appeler('code', 'terminer_projet', { id }));
     assert.deepEqual([s.doc('projets_projets', id).statut, s.doc('projets_projets', id).phase, s.doc('projets_projets', id).archive], ['termine', 'cloture', true]);
-    assert.equal(extractions(s).length, 1);
-    assert.equal(fin.extraction.titre, 'Extraction : Site vitrine');
-    const ext = s.doc('projets_projets', fin.extraction.id);
-    assert.deepEqual([ext.projetSourceId, ext.urlDossier, s.collections.projets_taches.filter((t) => t.projetId === ext.id).length], [id, 'https://drive.google.com/drive/folders/xyz', 4]);
+    assert.equal(projets(s).length, 1, 'X2 la fin d’un projet ne crée plus de projet d’extraction');
+    assert.equal('extraction' in fin, false);
     assert.equal(ok(await s.appeler('code', 'terminer_projet', { id })).rien, true);
-    ok(await s.appeler('code', 'terminer_projet', { id: ext.id }));
-    assert.equal(extractions(s).length, 1, 'terminer une extraction ne crée rien : jamais de boucle');
     ok(await s.appeler('code', 'rouvrir_projet', { id }));
     ok(await s.appeler('code', 'terminer_projet', { id }));
-    assert.equal(extractions(s).length, 1, 'rouvrir puis terminer : toujours une seule extraction');
+    assert.equal(projets(s).length, 1);
   });
 
-  test('extraire_valeur_projet : en cours de projet ; une seule par projet ; un projet d’extraction ne s’extrait pas', async () => {
+  test('X7 un ancien projet « nature: extraction » (sans l’option) se lit et se termine comme un projet ordinaire, sans erreur', async () => {
     const s = await avecModeles();
-    const { id } = ok(await s.appeler('biblio', 'creer_projet', { titre: 'Site vitrine' }));
-    const r = ok(await s.appeler('biblio', 'extraire_valeur_projet', { id }));
-    assert.equal(r.extraction.titre, 'Extraction : Site vitrine');
-    assert.equal(s.doc('projets_projets', id).statut, 'actif', 'le projet continue');
-    const encore = ok(await s.appeler('biblio', 'extraire_valeur_projet', { id }));
-    assert.deepEqual([encore.rien, encore.extraction.id], [true, r.extraction.id]);
-    assert.equal(extractions(s).length, 1);
-    refuse(await s.appeler('biblio', 'extraire_valeur_projet', { id: r.extraction.id }), /ne s’extrait pas/);
-    ok(await s.appeler('biblio', 'terminer_projet', { id }));
-    assert.equal(extractions(s).length, 1, 'la fin du projet ne recrée pas l’extraction déjà faite');
+    s.collections.projets_projets = [{ id: 'ex1', titre: 'Extraction : Ancien', nature: 'extraction', projetSourceId: 'pr9', affaireId: null, phase: 'decouverte', statut: 'actif', archive: false, factures: [] }];
+    const lu = ok(await s.appeler('lecteur', 'lire_projet', { id: 'ex1' }));
+    assert.equal(lu.projet.titre, 'Extraction : Ancien');
+    assert.equal(lu.projet.nature, 'extraction', 'la donnée est montrée telle quelle');
+    assert.equal(ok(await s.appeler('lecteur', 'lister_projets', {})).total, 1);
+    const avant = structuredClone(s.doc('projets_projets', 'ex1'));
+    ok(await s.appeler('code', 'terminer_projet', { id: 'ex1' }));
+    assert.deepEqual([s.doc('projets_projets', 'ex1').statut, s.doc('projets_projets', 'ex1').nature, s.doc('projets_projets', 'ex1').projetSourceId], ['termine', avant.nature, avant.projetSourceId]);
+    assert.equal(projets(s).length, 1);
   });
 
   test('tâches : ajouter (phase du projet par défaut), valider, terminer avec son événement, remettre à faire', async () => {
@@ -741,14 +711,13 @@ describe('Outils des projets : mêmes règles que l’écran, avec audit et rest
     assert.match(refus.texte, /impaye/);
     refuse(await s.appeler('biblio', 'changer_phase_projet', { id, phase: 'cloture' }), /Clôture bloquée/);
     assert.equal(s.doc('projets_projets', id).statut, 'actif');
-    assert.equal(extractions(s).length, 0, 'aucune extraction tant que le projet n’est pas terminé');
     // la raison de l'impayé est obligatoire
     refuse(await s.appeler('biblio', 'terminer_projet', { id, impaye: { raison: '   ' } }), /pourquoi/);
     const fin = ok(await s.appeler('biblio', 'terminer_projet', { id, impaye: { raison: 'Client injoignable' } }));
     const p = s.doc('projets_projets', id);
     assert.deepEqual([p.statut, p.factures.map((f) => f.statut), p.factures[2].raison], ['termine', ['payee', 'payee', 'abandonnee'], 'Client injoignable']);
     assert.equal(fin.abandonnees.length, 1);
-    assert.equal(extractions(s).length, 1);
+    assert.equal(projets(s).length, 1);
     assert.ok(s.collections.crm_evenements.some((e) => e.type === 'facture_abandonnee' && e.projetId === id));
   });
 
@@ -765,7 +734,7 @@ describe('Outils des projets : mêmes règles que l’écran, avec audit et rest
     assert.equal(s.doc('projets_projets', id).statut, 'termine');
   });
 
-  test('lecture : lister_projets (filtres, avancement, facturation), lire_projet (tâches, factures, extraction, fil), lister_modeles_projet', async () => {
+  test('lecture : lister_projets (filtres, avancement, facturation), lire_projet (tâches, factures, fil), lister_modeles_projet', async () => {
     const s = await avecModeles();
     const a = ok(await s.appeler('biblio', 'creer_projet', { titre: 'Audit des Lilas', personneId: 'p1', modeleId: 'audit' }));
     const b = ok(await s.appeler('biblio', 'creer_projet', { titre: 'Autre projet' }));
@@ -779,22 +748,18 @@ describe('Outils des projets : mêmes règles que l’écran, avec audit et rest
     assert.deepEqual(ok(await s.appeler('lecteur', 'lister_projets', { recherche: 'lilas' })).projets.map((p) => p.id), [a.id]);
     assert.deepEqual(ok(await s.appeler('lecteur', 'lister_projets', { phase: 'livraison' })).projets.map((p) => p.id), [b.id]);
     assert.equal(ok(await s.appeler('lecteur', 'lister_projets', { archive: true })).total, 0);
-    ok(await s.appeler('biblio', 'extraire_valeur_projet', { id: b.id }));
-    assert.equal(ok(await s.appeler('lecteur', 'lister_projets', { nature: 'extraction' })).total, 1);
     const fiche = ok(await s.appeler('lecteur', 'lire_projet', { id: a.id, avecFil: true }));
     assert.equal(fiche.projet.titre, 'Audit des Lilas');
     assert.equal(fiche.taches.length, 3);
     assert.equal(fiche.projet.factures.length, 1);
-    assert.deepEqual([fiche.personne.nom, fiche.extraction, fiche.fil.some((e) => e.type === 'projet_cree')], ['Camille Durand', null, true]);
-    assert.equal(ok(await s.appeler('lecteur', 'lire_projet', { id: b.id })).extraction.titre, 'Extraction : Autre projet');
-    assert.equal(ok(await s.appeler('lecteur', 'lister_modeles_projet', {})).total, 3);
+    assert.deepEqual([fiche.personne.nom, 'extraction' in fiche, fiche.fil.some((e) => e.type === 'projet_cree')], ['Camille Durand', false, true]);
+    assert.equal(ok(await s.appeler('lecteur', 'lister_modeles_projet', {})).total, 2);
     assert.ok(ok(await s.appeler('lecteur', 'lire_reglages', {})).referentiels.projets.phases.some((p) => p.id === 'cloture'));
   });
 
-  test('supprimer_projet (Claude Code) : confirmation par le titre, tâches et fil supprimés, extraction et affaire gardées ; restaurer_depuis_audit redonne tout', async () => {
+  test('supprimer_projet (Claude Code) : confirmation par le titre, tâches et fil supprimés, affaire gardée ; restaurer_depuis_audit redonne tout', async () => {
     const s = await avecModeles();
     const r = ok(await s.appeler('code', 'creer_projet_depuis_affaire', { affaireId: 'a2', modeleId: 'audit' }));
-    const ext = ok(await s.appeler('code', 'extraire_valeur_projet', { id: r.id }));
     const avant = structuredClone(s.vue());
     refuse(await s.appeler('code', 'supprimer_projet', { id: r.id }));
     refuse(await s.appeler('code', 'supprimer_projet', { id: r.id, confirmationNom: 'Mauvais titre' }), /non confirmée/);
@@ -803,7 +768,6 @@ describe('Outils des projets : mêmes règles que l’écran, avec audit et rest
     assert.equal(s.doc('projets_projets', r.id), undefined);
     assert.equal(s.collections.projets_taches.filter((t) => t.projetId === r.id).length, 0);
     assert.equal(s.doc('crm_affaires', 'a2').projetId, null, 'l’affaire est gardée, son lien vidé');
-    assert.equal(s.doc('projets_projets', ext.extraction.id).projetSourceId, null, 'l’extraction est gardée, sa source vidée');
     assert.equal(s.collections.crm_evenements.filter((e) => e.projetId === r.id).length, 0);
     ok(await s.appeler('code', 'restaurer_depuis_audit', { operationId: sup.operationId, apercu: false }));
     assert.deepEqual(s.vue(), avant, 'la restauration redonne exactement les mêmes documents');
@@ -829,7 +793,7 @@ describe('Configuration de l’espace lue par le serveur : la même que l’écr
   test('sans document de configuration, la racine garde les valeurs de Jérôme (migration douce)', async () => {
     const s = await demarrer();
     const r = ok(await s.appeler('biblio', 'lire_reglages'));
-    assert.equal(r.configuration.options.extractionValeur, true);
+    assert.equal('extractionValeur' in r.configuration.options, false, 'X1 l’option « Extraction de valeur » n’existe plus dans les réglages lus');
     assert.equal(r.configuration.options.suiviPaiements, true);
     assert.deepEqual(r.referentiels.etapes.map((e) => e.id), ['premier_contact', 'rdv_fixe', 'proposition_envoyee', 'gagne']);
   });
@@ -855,17 +819,16 @@ describe('Configuration de l’espace lue par le serveur : la même que l’écr
     assert.equal(s.collections.crm_activites.length, avant);
   });
 
-  test('extraction de valeur éteinte : rien n’est créé (ni à Perdu, ni à la main), rien n’est montré', async () => {
+  test('X1 un ancien réglage « extractionValeur » resté dans la base est ignoré : rien n’est créé, aucune erreur', async () => {
     const s = await demarrer();
-    avecReglage(s, 'reglages', { extractionValeur: false });
+    avecReglage(s, 'reglages', { extractionValeur: true });
     const perdue = ok(await s.appeler('biblio', 'marquer_perdue', { id: 'a2', raison: 'Prix' }));
-    assert.equal(perdue.extraction, null);
+    assert.equal('extraction' in perdue, false);
     assert.equal((s.collections.projets_projets || []).length, 0);
     const { id } = ok(await s.appeler('biblio', 'creer_projet', { titre: 'Chantier' }));
-    refuse(await s.appeler('biblio', 'extraire_valeur_projet', { id }), /désactivée/);
     const fin = ok(await s.appeler('biblio', 'terminer_projet', { id }));
-    assert.equal(fin.extraction, null);
-    assert.equal((await s.appeler('biblio', 'lire_projet', { id })).data.extraction, null);
+    assert.equal('extraction' in fin, false);
+    assert.equal('extraction' in ok(await s.appeler('biblio', 'lire_projet', { id })), false);
   });
 
   test('suivi des paiements éteint : factures refusées, clôture jamais bloquée ; règle « clôture bloquée » réglable', async () => {
