@@ -38,6 +38,7 @@ test('1 Archives n’est plus dans le menu ; #/projets/archives affiche sa page 
   await expect(page.locator('.menu .menu-entree[data-chemin="projets/projets"]')).toHaveAttribute('aria-current', 'page');
   // et le bouton « Archives » de l'écran Projets y mène
   await aller(page, '#/projets/projets');
+  if (estTelephone(page)) await page.locator('.voile-menu').click({ position: { x: 380, y: 400 } }); // le tiroir du menu est encore ouvert : on le ferme
   await page.locator('.bascule-vue[data-vue="archives"]').click();
   await expect(page).toHaveURL(/#\/projets\/archives$/);
   await expect(page.locator('.tableau-projets')).toContainText('Projet rangé');
@@ -54,7 +55,8 @@ test('1 cas vide : sans projet archivé, la page Archives s’affiche quand mêm
 test('2 le groupe s’appelle « Affaires et projets » dans le menu, les Réglages et « Modules actifs » ; #/reglages/crm ne change pas', async ({ page }) => {
   await connecter(page);
   await ouvrirMenu(page);
-  await expect(page.locator('.menu .menu-groupe-titre .menu-texte').first()).toHaveText('Affaires et projets');
+  // PR B : le groupe n'a plus de titre dans le menu principal (son nom reste dans les Réglages et « Modules actifs »)
+  await expect(page.locator('.menu .menu-groupe-titre')).toHaveCount(0);
   await expect(page.locator('.menu .menu-groupe[data-bloc="crm"]')).toHaveCount(1);
   await capture(page, '2-menu-affaires-et-projets');
   await aller(page, '#/reglages/crm'); // l'adresse du groupe garde son identifiant technique
@@ -71,7 +73,7 @@ test('3 plus de mot « CRM » dans Réglages, dans le menu ni dans la page Journ
   await connecter(page);
   await ouvrirMenu(page);
   await expect(page.locator('.menu')).not.toContainText('CRM');
-  await expect(page.locator('.menu').getByRole('link', { name: 'Journal des modifications', exact: true })).toHaveCount(1);
+  await expect(page.locator('.menu').getByRole('link', { name: 'Journal des modifications', exact: true })).toHaveCount(0); // PR B : dans le menu utilisateur
   await allerAuxReglagesCrm(page);
   const corps = page.locator('.reglages-contenu');
   await expect(corps.locator('#reglages-options h2')).toHaveText('Options');

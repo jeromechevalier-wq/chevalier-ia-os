@@ -78,7 +78,7 @@ function sectionMembres(ctx, etat) {
 }
 
 function sectionModules(ctx) {
-  const lignes = interrupteursDuClient(ctx.actifs).filter((l) => ctx.chezClient || l.modules.every((id) => !moduleDeclare(id).reserveAuxClients));
+  const lignes = interrupteursDuClient(ctx.actifs);
   return [section('reglages-modules', 'Modules actifs', 'layout-dashboard',
     h('p', { class: 'aide' }, ctx.chezClient
       ? 'Les modules allumés dans cet espace. Éteindre un module ne supprime aucune donnée.'

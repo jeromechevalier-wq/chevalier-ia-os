@@ -47,9 +47,9 @@ Dans GitHub : <https://github.com/jeromechevalier-wq/chevalier-ia-os/actions/wor
 
 ## Choix faits (à confirmer ou changer)
 - Éditeur = profil `claude-code` (le nom vient du profil de Claude Code ; il est écrit en première ligne de `functions/src/mcp/outils/suppression.js`) (écriture, suppression et restauration ; pas de réglage de profil par membre). Décision de Jérôme du 17/10/2026.
-- Module `reserveAuxClients` : absent du CRM de Jérôme (son MCP est un autre serveur).
+- Le module « mcp » n'est plus réservé aux clients (18/10/2026, PR B) : chez Jérôme (racine) la page « Connecter mon assistant » existe aussi. Elle ne lit **rien** dans Firestore : elle montre l'adresse `<origine de la page>/mcp` (jamais écrite en dur), le mode d'emploi de la connexion par compte Google en trois lignes (voir `mcp-oauth.md`), la phrase « Les comptes autorisés sont fixés par Jérôme » (chez Jérôme les comptes sont dans les règles, pas dans la base) et le lien vers le Journal des modifications. Le serveur MCP de Jérôme ne change pas.
 - La liste des membres devient lisible par les autres membres du même espace (règle Firestore modifiée, écriture toujours interdite).
-- Pas de page Réglages : la page est dans le module (les espaces clients n'ont pas encore de Réglages).
+- La page s'ouvre depuis le **menu utilisateur** (« Connecter mon assistant ») et depuis les Réglages ; elle n'est plus une entrée du menu principal (`horsMenu` dans `registre.js`).
 - Le propriétaire par défaut des fiches créées par un outil reste « Jérôme » (liste des tâches assignables à tirer des membres : chantier à part, voir la fiche de cadrage).
 
 ## Textes des outils et options (2.11.0)

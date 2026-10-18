@@ -37,8 +37,8 @@ export const OUTILS_COMMUNS = geler(['qui_suis_je']);
  *  prefixe     : premier morceau des routes du module (#/crm/…) ;
  *  ecrans      : { route, libelle, icone } ; collections : noms « nus » (sous clients/<client>/ chez un client) ;
  *  outilsMcp   : outils MCP du module (déclaration seulement) ; dependances : modules à activer avant celui-ci ;
- *  reserveAuxClients : `true` = module réservé aux clients de la plateforme, absent du CRM de Jérôme (champ absent = présent partout ;
- *                      « automatisations » ne l'a plus depuis le 16/10/2026 : règle « tout module existe d'abord chez Jérôme » ; « mcp » le garde).
+ *  horsMenu    : `true` = le module n'a pas d'entrée dans le menu principal (il s'ouvre depuis le menu utilisateur) mais garde ses écrans et son interrupteur ;
+ *                Tous les modules existent chez Jérôme comme chez les clients (décision du 18/10/2026) : plus de champ « réservé aux clients ».
  */
 export const MODULES_DECLARES = geler([
   {
@@ -53,8 +53,9 @@ export const MODULES_DECLARES = geler([
       { route: 'crm/personnes', libelle: 'Personnes', icone: 'user' },
       { route: 'crm/organisations', libelle: 'Organisations', icone: 'building-2' },
       { route: 'crm/affaires', libelle: 'Affaires', icone: 'briefcase' },
-      { route: 'crm/journal', libelle: 'Journal des modifications', icone: 'history' },
     ],
+    // Le Journal des modifications (route crm/journal) n'est plus une entrée du menu principal (18/10/2026) : il s'ouvre depuis le menu utilisateur
+    // (en bas à gauche). Sa route reste servie par le module (préfixe crm) et les signets marchent ; voir ROUTES_MENU_UTILISATEUR.
     // Sections de la page Réglages > CRM (id = identifiant de la section dans la page). La coque les range dans l'ordre de GROUPES_MENU.crm.ordreReglages.
     // Point d'accroche pour « Liens et documents » (Drive) : y ajouter { id: 'reglages-drive', libelle: '…' } et créer la section dans reglages() du module.
     reglages: {
@@ -161,15 +162,16 @@ export const MODULES_DECLARES = geler([
   {
     // Accès MCP (chantier 9 et 11) : un assistant (Claude, ChatGPT) se connecte à l'espace du client par un lien (…/mcp/<client>) et ses outils sont ceux des
     // modules actifs. Allumé ou éteint par client comme les autres modules ; éteint = le lien ne répond plus. Le module n'a qu'une page d'information
-    // (lien à copier, mode d'emploi, membres et rôles, lien vers le Journal du CRM) : aucun réglage, aucune donnée à lui. Réservé aux clients : le MCP de
-    // Jérôme (base chevalier-ia-os) est un autre serveur, qui ne change pas.
+    // (lien à copier, mode d'emploi, membres et rôles, lien vers le Journal des modifications) : aucun réglage, aucune donnée à lui. Chez Jérôme (racine) la page
+    // existe aussi (18/10/2026) : elle ne lit rien dans la base, elle donne l'adresse du MCP de Jérôme et le mode d'emploi de la connexion Google.
+    // Elle s'ouvre depuis le menu utilisateur (« Connecter mon assistant »), pas depuis le menu principal.
     id: 'mcp',
     nom: 'Accès MCP',
-    libelleMenu: 'Assistant (MCP)',
+    libelleMenu: 'Connecter mon assistant',
     iconeMenu: 'link',
     prefixe: 'mcp',
+    horsMenu: true,
     reglages: { sections: [{ id: 'reglages-mcp', libelle: 'Connexion de l’assistant' }] },
-    reserveAuxClients: true,
     ecrans: [
       { route: 'mcp/infos', libelle: 'Connexion', icone: 'link' },
     ],
@@ -185,6 +187,7 @@ export const IDS_MODULES = geler(MODULES_DECLARES.map((m) => m.id));
  * Groupes du menu : plusieurs modules techniques montrés comme UN seul bloc dans le menu et dans les Réglages.
  *  id / nom / libelleMenu / iconeMenu : le bloc (« CRM ») ; modules : modules techniques réunis, dans l'ordre de démarrage ;
  *  ordreMenu : routes des entrées du menu, dans l'ordre voulu (elles viennent des écrans des deux modules) ;
+ *  sectionsMenu : routes regroupées en blocs du menu (une fine ligne sépare deux blocs non vides) ;
  *  ordreReglages : identifiants des sections de la page Réglages, dans l'ordre voulu (celles qui ne sont pas listées viennent à la fin).
  */
 export const GROUPES_MENU = geler([
@@ -194,7 +197,10 @@ export const GROUPES_MENU = geler([
     libelleMenu: 'Affaires et projets',
     iconeMenu: 'users',
     modules: ['affaires', 'projets'],
-    ordreMenu: ['crm/accueil', 'crm/personnes', 'crm/organisations', 'crm/affaires', 'projets/projets', 'crm/journal'],
+    ordreMenu: ['crm/accueil', 'crm/personnes', 'crm/organisations', 'crm/affaires', 'projets/projets'],
+    // Blocs du menu séparés par une fine ligne (pas de titres de groupes, 18/10/2026) : Accueil | Personnes, Organisations | Affaires, Projets.
+    // Une entrée qui n'est pas listée (module éteint) laisse simplement son bloc plus court ; un bloc vide disparaît avec sa ligne.
+    sectionsMenu: [['crm/accueil'], ['crm/personnes', 'crm/organisations'], ['crm/affaires', 'projets/projets']],
     ordreReglages: [
       'reglages-etapes', 'reglages-phases', 'reglages-options', 'reglages-modeles-affaire', 'reglages-modeles-projets', 'reglages-objectifs',
       'reglages-offres', 'reglages-secteurs', 'reglages-sources', 'reglages-etiquettes', 'reglages-filtres', 'reglages-debut', 'reglages-projets', 'reglages-export',
@@ -324,7 +330,8 @@ export function ecransActifs(actifs) {
 // ---------------------------------------------------------------- menu (blocs) et Réglages (méthode A, 2.6.0)
 
 /**
- * Blocs du menu pour les modules actifs : [{ id, libelle, icone, modules, entrees: [{ chemin, libelle, icone }] }], dans l'ordre de démarrage.
+ * Blocs du menu pour les modules actifs : [{ id, libelle, icone, modules, entrees: [{ chemin, libelle, icone }], sections: [[entrée…]] }], dans l'ordre de démarrage.
+ * `entrees` contient tous les écrans du bloc (une entrée « horsMenu » porte l'indicateur) ; `sections` ne contient que ce que le menu principal montre. Un bloc sans section n'a pas de place dans le menu.
  * Les modules d'un même groupe (GROUPES_MENU) ne forment qu'un bloc ; les autres ont chacun le leur. Un bloc sans module actif n'existe pas.
  */
 export function blocsDuMenu(actifs) {
@@ -339,11 +346,16 @@ export function blocsDuMenu(actifs) {
       blocs.push(bloc);
     }
     bloc.modules.push(m.id);
-    bloc.entrees.push(...m.ecrans.map((e) => ({ chemin: e.route, libelle: e.libelle, icone: e.icone })));
+    bloc.entrees.push(...m.ecrans.map((e) => ({ chemin: e.route, libelle: e.libelle, icone: e.icone, ...(m.horsMenu ? { horsMenu: true } : {}) })));
   }
   for (const bloc of blocs) {
-    const ordre = GROUPES_MENU.find((g) => g.id === bloc.id)?.ordreMenu;
-    if (ordre) bloc.entrees.sort((a, b) => rangOu(ordre, a.chemin) - rangOu(ordre, b.chemin));
+    const groupe = GROUPES_MENU.find((g) => g.id === bloc.id);
+    if (groupe?.ordreMenu) bloc.entrees.sort((a, b) => rangOu(groupe.ordreMenu, a.chemin) - rangOu(groupe.ordreMenu, b.chemin));
+    // Blocs séparés par une ligne : ceux de sectionsMenu, puis les entrées non listées ; les écrans « horsMenu » n'y sont pas et un bloc vide n'existe pas.
+    const visibles = bloc.entrees.filter((e) => !e.horsMenu);
+    const listes = groupe?.sectionsMenu ? [...groupe.sectionsMenu.map((routes) => visibles.filter((e) => routes.includes(e.chemin))),
+      visibles.filter((e) => !groupe.sectionsMenu.some((routes) => routes.includes(e.chemin)))] : [visibles];
+    bloc.sections = listes.filter((l) => l.length);
   }
   return blocs;
 }

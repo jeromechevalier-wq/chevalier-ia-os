@@ -1,6 +1,6 @@
 // Démarrage de Chevalier IA OS.
 import { demarrerPwa } from './os/pwa.js';
-import { appliquerTheme, afficherConnexion, monterCoquille } from './os/shell.js';
+import { appliquerTheme, afficherConnexion, monterCoquille, ESPACE_RACINE } from './os/shell.js';
 import { surveillerCompte, connecter, deconnecter, MESSAGE_REFUS } from './os/auth.js';
 import { routeCourante, routeDepuisHash, segments, surChangementRoute, naviguer, ROUTE_DEFAUT } from './os/router.js';
 import { estRouteEspace, cleEspace } from './os/marque.js';
@@ -71,6 +71,7 @@ async function ouvrirSession(compte) {
   for (const api of apis.values()) api.demarrer({ compte, cheminBase: '' }); // '' = racine (CRM de Jérôme) ; chez un client : cheminBaseClient(client)
   const coquille = monterCoquille(racine, compte, {
     apis,
+    client: ESPACE_RACINE,
     surDeconnexion: async () => {
       fermerSession();
       await deconnecter();

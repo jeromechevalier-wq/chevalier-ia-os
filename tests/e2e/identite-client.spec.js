@@ -2,7 +2,7 @@
 // ne montre rien qui soit propre à Jérôme. Émulateurs, règles de la plateforme (chargées le temps de ce fichier).
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { test, expect, ecrireDocument, lireDocument, listerDocuments, estTelephone, PROJET, FIRESTORE, URL_APP, jour } from './outils.js';
+import { test, expect, ecrireDocument, lireDocument, listerDocuments, estTelephone, basculerThemeParMenu, allerA, PROJET, FIRESTORE, URL_APP, jour } from './outils.js';
 import { brancherGoogle, lireGoogle, choisirDansGoogle, ID_CLIENT } from './google-simule.js';
 
 const ALICE = 'alice@exemple.test';
@@ -73,10 +73,7 @@ const couleurFinale = async (page, selecteur, propriete, pseudo = null) => {
   await expect.poll(async () => { const v = await couleurDe(page, selecteur, propriete, pseudo); const stable = v === derniere; derniere = v; return stable; }, { intervals: [300, 300, 300] }).toBe(true);
   return derniere;
 };
-async function aller(page, libelle) {
-  if (estTelephone(page)) await page.getByRole('button', { name: 'Ouvrir le menu' }).click();
-  await page.locator('.menu').getByRole('link', { name: libelle, exact: true }).click();
-}
+const aller = allerA; // menu principal, ou menu utilisateur pour le Journal
 
 test('I1 titre, description, icône, appli installée et nom : ceux du client, rien de Jérôme', async ({ page }) => {
   await ouvrir(page, 'studio');
@@ -121,8 +118,7 @@ test('I3 accent de l\'interface = couleur de marque, contraste vérifié, dans l
   await ouvrir(page, 'studio');
   for (const theme of ['sombre', 'clair']) {
     if ((await page.evaluate(() => document.documentElement.dataset.theme)) !== theme) {
-      if (estTelephone(page)) await page.getByRole('button', { name: 'Ouvrir le menu' }).click();
-      await page.locator('[data-role="bascule-theme"]').first().click();
+      await basculerThemeParMenu(page);
       if (estTelephone(page)) await page.locator('.voile-menu').click({ position: { x: 380, y: 400 } });
     }
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
@@ -170,7 +166,7 @@ test('I5 aucun texte au nom de Jérôme sur les écrans d\'un client (accueil, l
   await expect(page.locator('.page-accueil')).toBeVisible();
   await verifier('accueil');
   await expect(page.locator('.rappel-export')).toHaveCount(0);
-  for (const lib of ['Personnes', 'Organisations', 'Affaires', 'Journal des modifications', 'Projets']) { // « Modèles » n'est plus dans le menu : il est dans les Réglages
+  for (const lib of ['Personnes', 'Organisations', 'Affaires', 'Journal des modifications', 'Projets']) { // le Journal s'ouvre par le menu utilisateur // « Modèles » n'est plus dans le menu : il est dans les Réglages
     await aller(page, lib);
     await verifier(lib);
   }

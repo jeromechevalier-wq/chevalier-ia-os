@@ -6,7 +6,7 @@ import { readFile, mkdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { test, expect, ecrireDocument, lireDocument, listerDocuments, estTelephone, PROJET, FIRESTORE, AUTH, URL_APP } from './outils.js';
+import { test, expect, ecrireDocument, lireDocument, listerDocuments, estTelephone, allerA, choisirDansMenuUtilisateur, PROJET, FIRESTORE, AUTH, URL_APP } from './outils.js';
 import { brancherServeurEspace, fabriquerImage, dimensionsPng, dimensionsDansNavigateur, urlFichier } from './espace-faux-serveur.js';
 
 const ALICE = 'alice@exemple.test'; // éditrice, seule éditrice de « studio »
@@ -134,8 +134,9 @@ test('M3 couleur : aperçu sombre et clair ; une couleur très pâle est accept�
   await expect.poll(() => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim())).toBe(vive.accent);
   await page.mouse.move(0, 0);
   await expect.poll(() => page.locator('.mon-espace-pied .bouton-principal').evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(rgb(vive.accent));
-  await expect.poll(() => page.locator('.menu-entree.actif').first().evaluate((el) => getComputedStyle(el, '::before').backgroundColor)).toBe(rgb(vive.trait)); // la barre du menu actif prend le « trait » de la couleur
   await capturer(page, 'M3');
+  await allerA(page, 'Accueil'); // Réglages n'est plus une entrée du menu (PR B) : on regarde l'entrée allumée de l'Accueil
+  await expect.poll(() => page.locator('.menu-entree.actif').first().evaluate((el) => getComputedStyle(el, '::before').backgroundColor)).toBe(rgb(vive.trait)); // la barre du menu actif prend le « trait » de la couleur
 });
 
 test('M4 logo PNG, JPG ou WebP valide : aperçu avant d\'enregistrer ; après « Enregistrer », le logo dans le menu et dans l\'icône de l\'onglet, sans recharger', async ({ page }) => {
@@ -272,8 +273,7 @@ test('M8 images de la page de connexion : jusqu\'à 4 ; retrait avec confirmatio
   await expect(images.nth(0).locator('[data-role="image-fond"]')).toBeVisible();
   await capturer(page, 'M8');
   // page de connexion (après déconnexion) : le fond est cette image
-  if (estTelephone(page)) await page.getByRole('button', { name: 'Ouvrir le menu' }).click();
-  await page.getByRole('button', { name: 'Se déconnecter' }).click();
+  await choisirDansMenuUtilisateur(page, 'Se déconnecter');
   await expect(page.getByRole('button', { name: 'Se connecter avec Google' })).toBeVisible();
   await expect(page.locator('.espace-fond')).toHaveAttribute('src', c);
 });

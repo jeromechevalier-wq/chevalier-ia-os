@@ -197,9 +197,37 @@ export async function attendreCalme(page, calmeMs = 400, maxMs = 8000) {
   }), [calmeMs, maxMs]);
 }
 
-/** Ouvre le menu sur téléphone si nécessaire, puis clique sur une entrée. */
+/** Ouvre le menu sur téléphone si nécessaire (il peut déjà l'être). */
+async function ouvrirMenuTelephone(page) {
+  if (estTelephone(page) && !(await page.locator('.coquille.menu-ouvert').count())) await page.getByRole('button', { name: 'Ouvrir le menu' }).click();
+}
+
+/** Menu utilisateur (clic sur le nom, en bas à gauche) : l'ouvre, sur téléphone après avoir ouvert le menu. */
+export async function ouvrirMenuUtilisateur(page) {
+  await ouvrirMenuTelephone(page);
+  await page.locator('.menu-compte').click();
+  await expect(page.locator('.menu-pop')).toBeVisible();
+}
+
+/** Choisit une entrée du menu utilisateur par son nom (« Réglages », « Se déconnecter »…). */
+export async function choisirDansMenuUtilisateur(page, nom) {
+  await ouvrirMenuUtilisateur(page);
+  await page.locator('.menu-pop').getByRole('menuitem', { name: nom, exact: true }).click();
+}
+
+/** Bascule le thème clair / sombre par le menu utilisateur (le menu reste ouvert, puis on le ferme avec Échap). */
+export async function basculerThemeParMenu(page) {
+  await ouvrirMenuUtilisateur(page);
+  await page.locator('.menu-pop [data-role="bascule-theme"]').click();
+  await page.keyboard.press('Escape');
+}
+
+const ENTREES_MENU_UTILISATEUR = { 'Réglages': 'Réglages', 'Journal des modifications': 'Voir le journal des modifications', 'Connecter mon assistant': 'Connecter mon assistant' };
+
+/** Ouvre le menu sur téléphone si nécessaire, puis clique sur une entrée. Réglages, Journal et « Connecter mon assistant » sont dans le menu utilisateur (PR B, 18/10/2026). */
 export async function allerA(page, libelle) {
-  if (estTelephone(page)) await page.getByRole('button', { name: 'Ouvrir le menu' }).click();
+  if (ENTREES_MENU_UTILISATEUR[libelle]) { await choisirDansMenuUtilisateur(page, ENTREES_MENU_UTILISATEUR[libelle]); return; }
+  await ouvrirMenuTelephone(page);
   await page.locator('.menu').getByRole('link', { name: libelle, exact: true }).click();
 }
 

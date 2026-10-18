@@ -74,8 +74,8 @@ test('4 une fiche ancienne `crm: true` allume toujours affaires ET projets : éc
   await expect(page.locator('.coquille')).toBeVisible();
   if (estTelephone(page)) await page.getByRole('button', { name: 'Ouvrir le menu' }).click();
   else if (await page.getByRole('button', { name: 'Élargir le menu' }).count()) await page.getByRole('button', { name: 'Élargir le menu' }).click();
-  await expect(page.locator('.menu .menu-groupe-titre .menu-texte')).toHaveText(['Affaires et projets']);
-  await expect(page.locator('.menu .menu-groupe[data-bloc="crm"] .menu-entree')).toHaveText(['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Projets', 'Journal des modifications']);
+  await expect(page.locator('.menu .menu-groupe-titre')).toHaveCount(0); // PR B : plus de titres de groupes
+  await expect(page.locator('.menu .menu-groupe[data-bloc="crm"] .menu-entree')).toHaveText(['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Projets']);
   await page.locator('.menu').getByRole('link', { name: 'Projets', exact: true }).click();
   await expect(page).toHaveURL(/#\/espace\/ancien\/projets\/projets$/);
   await expect(page.getByRole('heading', { name: 'Page introuvable' })).toHaveCount(0);

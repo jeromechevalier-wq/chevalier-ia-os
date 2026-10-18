@@ -2,7 +2,7 @@
 import { readFile } from 'node:fs/promises';
 import { debrancherGoogle } from './google-simule.js';
 import {
-  test, expect, connecter, allerA, allerAuxReglagesCrm, creerPersonne, creerOrganisation, creerAffaire, creerActivite, lireDocument, listerDocuments, ecrireDocument,
+  test, expect, connecter, allerA, allerAuxReglagesCrm, choisirDansMenuUtilisateur, basculerThemeParMenu, creerPersonne, creerOrganisation, creerAffaire, creerActivite, lireDocument, listerDocuments, ecrireDocument,
   jour, estTelephone, valeurObjectif, JEROME, CHARLES,
 } from './outils.js';
 
@@ -59,7 +59,7 @@ test('C1 connexion avec Charles : mêmes données, nom et avatar de Charles', as
   await creerPersonne('p1', { nom: 'Marie Durand' });
   await connecter(page, CHARLES);
   await expect(page.getByRole('heading', { name: 'Bonjour Charles' })).toBeVisible();
-  await expect(page.locator('.menu-compte .avatar-charles')).toBeVisible();
+  await expect(page.locator('.menu-compte .avatar-initiale')).toHaveText('C'); // PR B : l'initiale du compte, plus de photo
   await allerA(page, 'Personnes');
   await expect(page.locator('.tableau-personnes')).toContainText('Marie Durand');
 });
@@ -1024,7 +1024,7 @@ test('C23 menu : replié par défaut, élargi au clic, état conservé ; sur 390
     await page.getByRole('button', { name: 'Élargir le menu' }).click();
     await expect(page.locator('.coquille')).toHaveAttribute('data-menu', 'elargi');
     await expect.poll(async () => Math.round((await menu.boundingBox()).width)).toBe(240);
-    for (const libelle of ['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Projets', 'Réglages']) await expect(menu.getByRole('link', { name: libelle, exact: true })).toBeVisible();
+    for (const libelle of ['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Projets']) await expect(menu.getByRole('link', { name: libelle, exact: true })).toBeVisible();
     await page.reload();
     await expect(page.locator('.coquille')).toHaveAttribute('data-menu', 'elargi');
     await page.getByRole('button', { name: 'Replier le menu' }).click();
@@ -1038,8 +1038,7 @@ test('C23 thème : bascule sombre / clair conservée après rechargement', async
   const html = page.locator('html');
   await expect(html).toHaveAttribute('data-theme', 'sombre');
   const fondSombre = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
-  if (estTelephone(page)) await page.getByRole('button', { name: 'Ouvrir le menu' }).click();
-  await page.locator('.menu').getByRole('button', { name: 'Thème clair' }).click();
+  await basculerThemeParMenu(page);
   await expect(html).toHaveAttribute('data-theme', 'clair');
   expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).not.toBe(fondSombre);
   await page.reload();
@@ -1107,8 +1106,7 @@ test('C23 navigation : lien direct vers une fiche, route inconnue, déconnexion'
   // Premier lancement : on laisse l'initialisation des réglages et des objectifs se terminer avant de se déconnecter
   await expect.poll(async () => (await listerDocuments('crm_parametres')).length).toBe(9); // listes, offres, étiquettes, filtres, réglages, étapes, phases, modèles d'affaire + le repère des modèles de projet
   await expect.poll(async () => (await listerDocuments('os_objectifs')).length).toBe(5);
-  if (estTelephone(page)) await page.getByRole('button', { name: 'Ouvrir le menu' }).click();
-  await page.getByRole('button', { name: 'Se déconnecter' }).click();
+  await choisirDansMenuUtilisateur(page, 'Se déconnecter');
   await expect(page.getByRole('button', { name: 'Se connecter avec Google' })).toBeVisible();
 });
 

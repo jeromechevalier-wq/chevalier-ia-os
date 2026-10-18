@@ -18,9 +18,11 @@ const json = (f) => JSON.parse(lire(f));
 
 describe('registre : le module « mcp »', () => {
   const mcp = MODULES_DECLARES.find((m) => m.id === 'mcp');
-  test('déclaré une fois, réservé aux clients, une page d\'information, aucune donnée ni outil à lui, aucune dépendance', () => {
+  test('déclaré une fois, hors du menu principal, une page d\'information, aucune donnée ni outil à lui, aucune dépendance', () => {
     assert.ok(mcp);
-    assert.equal(mcp.reserveAuxClients, true);
+    assert.equal(mcp.reserveAuxClients, undefined, 'plus réservé aux clients (18/10/2026)');
+    assert.equal(mcp.horsMenu, true);
+    assert.equal(mcp.libelleMenu, 'Connecter mon assistant');
     assert.deepEqual(mcp.ecrans.map((e) => e.route), ['mcp/infos']);
     assert.deepEqual([mcp.collections, mcp.outilsMcp, mcp.dependances], [[], [], []]);
     assert.ok(IDS_MODULES.includes('mcp'));
@@ -35,8 +37,8 @@ describe('registre : le module « mcp »', () => {
     assert.equal(moduleAccessible('mcp', ['affaires']), false);
     assert.equal(moduleAccessible('mcp', ['mcp']), true);
   });
-  test('le CRM de Jérôme (racine) ne monte pas ce module ; l\'espace d\'un client peut le monter', () => {
-    assert.ok(!MODULES.some((m) => m.id === 'mcp'));
+  test('le CRM de Jérôme (racine) monte ce module aussi (18/10/2026) ; l\'espace d\'un client aussi', () => {
+    assert.ok(MODULES.some((m) => m.id === 'mcp'));
     const m = MODULES_CLIENT.find((x) => x.id === 'mcp');
     assert.equal(typeof m?.monter, 'function');
     assert.equal(m.prefixe, 'mcp');
@@ -47,8 +49,20 @@ describe('page d\'information : logique', () => {
   test('lien de connexion : <origine>/mcp/<client>, identifiant validé', () => {
     assert.equal(L.lienConnexion('https://chevalier-ia-app.web.app', 'cabinet-martin'), 'https://chevalier-ia-app.web.app/mcp/cabinet-martin');
     assert.equal(L.lienConnexion('https://chevalier-ia-app.web.app/', 'a'), 'https://chevalier-ia-app.web.app/mcp/a');
-    for (const mauvais of ['A', '../x', 'a/b', '', undefined, 'x'.repeat(41)]) assert.throws(() => L.lienConnexion('https://x.test', mauvais));
+    for (const mauvais of ['A', '../x', 'a/b', '', 'x'.repeat(41)]) assert.throws(() => L.lienConnexion('https://x.test', mauvais));
     assert.equal(L.lienConnexion('https://chevalier-ia-app.web.app', 'abc'), adressesClient('abc').ressource, 'même adresse que celle du serveur');
+  });
+  test('sans client (espace de Jérôme) : <origine>/mcp, sans adresse écrite en dur', () => {
+    assert.equal(L.lienConnexion('https://exemple.test'), 'https://exemple.test/mcp');
+    assert.equal(L.lienConnexion('https://exemple.test/', null), 'https://exemple.test/mcp');
+    assert.ok(!/https?:\/\//.test(lire('js/modules/mcp/logique.js').replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '')), 'aucune adresse en dur');
+  });
+  test('mode d\'emploi de la racine : trois lignes, connexion Google, ni jeton ni secret', () => {
+    assert.equal(L.MODE_EMPLOI_RACINE.length, 3);
+    const t = L.MODE_EMPLOI_RACINE.map((e) => e.texte).join(' ');
+    assert.match(t, /Google/); assert.match(t, /Autoriser/);
+    assert.doesNotMatch(t, /cia_|jeton|claude-code/i);
+    assert.equal(L.PHRASE_COMPTES_RACINE, 'Les comptes autorisés sont fixés par Jérôme.');
   });
   test('client du chemin de base', () => {
     assert.equal(L.clientDuChemin('clients/acme'), 'acme');
