@@ -9,7 +9,7 @@
 | **Rapide** | Les règles, la logique et les contrôles, sans navigateur | moins d'une minute | Claude, dans la session, avant d'ouvrir une PR |
 | **Smoke** (« fumée ») | 5 parcours essentiels dans un vrai navigateur : connexion, créer une personne, une affaire, un projet, ajouter des factures. Format ordinateur seulement | environ 15 secondes | Claude, dans la session, avant d'ouvrir une PR |
 | **Complet** | Tous les tests, dont tous les parcours navigateur. Format ordinateur seulement | voir « Durée réelle » ci-dessous | **GitHub**, automatiquement, sur chaque PR |
-| **De nuit** | Tout, ordinateur **et téléphone**, chaque scénario une fois (3 fois si on règle `TESTS_REPETER=3`, trop long pour le quota gratuit) | plus long | **GitHub**, chaque nuit à 2 h (heure de Paris) sur `main` |
+| **De nuit** | Tout, ordinateur **et téléphone**, chaque scénario une fois (3 fois si on règle `TESTS_REPETER=3`, trop long pour le quota gratuit) | plus long | **GitHub**, 1 nuit d'essai (celle du 19/10/2026, vers 2 h 17 heure de Paris) sur `main`, puis à décider |
 
 Pendant le travail, Claude ne lance que les tests du module qu'il touche (`npm run test:module projets`, par exemple).
 
@@ -38,7 +38,7 @@ Estimation : voir « Durée réelle » ci-dessous (mise à jour avec les premier
 Mesures du 18/10/2026 (machine GitHub Ubuntu, petite : 2 workers) :
 
 - **Run « Tests » sur une PR** (complet, ordinateur) : **10 à 14 minutes** (14 min 0 s sur la PR 111, 9 min 47 s sur la PR 112).
-- **Run de nuit** (ordinateur + téléphone, 1 passage) : **23 min 30 s**.
+- **Run de nuit** (ordinateur + téléphone, 1 passage) : **23 min 30 s** (mesuré sur le run du 18/10/2026, qui s'est terminé en échec : la durée d'un run entièrement vert peut être un peu plus longue).
 - Coût par mois, à titre d'ordre de grandeur : une PR avec 3 poussées ≈ 40 minutes ; 20 PR ≈ 800 minutes ; la nuit ≈ 30 × 24 = 720 minutes. Le total (~1 500 minutes) tient dans les 2 000 minutes, mais sans grande marge : si le quota se vide, passer la nuit à un jour sur deux ou rendre le dépôt public (minutes gratuites).
 
 ## Scénarios connus pour échouer « au hasard »
