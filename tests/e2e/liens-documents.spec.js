@@ -54,13 +54,14 @@ test.describe('Google branché (simulé)', () => {
     await connecter(page);
     await allerAuxReglagesCrm(page);
     const section = page.locator('#reglages-projets');
+    const zone = page.locator('[data-ligne="boutonsDepot"]'); // le dossier parent se choisit sous la case « Créer un dossier dans Google Drive »
     await expect(section.locator('[data-role="etat-google"]')).toHaveText('Google Drive est branché.');
-    await expect(section.locator('[data-role="dossier-parent"]')).toHaveText('Créé tout seul au premier dossier');
+    await expect(zone.locator('[data-role="dossier-parent"]')).toHaveText('Créé tout seul au premier dossier');
     // Choisir le dossier parent : la fenêtre standard, vue « dossiers », un seul choix, autorisation drive.file au nom de Jérôme.
     await choisirDansGoogle(page, [unDocument(PARENT, 'Clients 2026', `https://drive.google.com/drive/folders/${PARENT}`, 'application/vnd.google-apps.folder')]);
-    await section.locator('[data-action="choisir-dossier-parent"]').click();
+    await zone.locator('[data-action="choisir-dossier-parent"]').click();
     await champDoc('crm_parametres', 'reglages', 'dossierParentDrive', { id: PARENT, nom: 'Clients 2026' });
-    await expect(section.locator('[data-role="dossier-parent"]')).toHaveText('Clients 2026');
+    await expect(zone.locator('[data-role="dossier-parent"]')).toHaveText('Clients 2026');
     const g = await lireGoogle(page);
     expect(g.autorisations).toEqual([{ clientId: ID_CLIENT, scope: 'https://www.googleapis.com/auth/drive.file', indice: JEROME }]);
     expect(g.pickers).toHaveLength(1);
@@ -70,7 +71,7 @@ test.describe('Google branché (simulé)', () => {
     expect(g.pickers[0].features).toEqual([]);
     // Fermer la fenêtre sans choisir : rien ne change.
     await choisirDansGoogle(page, 'annule');
-    await section.locator('[data-action="choisir-dossier-parent"]').click();
+    await zone.locator('[data-action="choisir-dossier-parent"]').click();
     await expect.poll(async () => (await lireGoogle(page)).pickers.length).toBe(2);
     expect((await lireDocument('crm_parametres/reglages')).dossierParentDrive).toEqual({ id: PARENT, nom: 'Clients 2026' });
     // Sous-dossiers : ajout, doublon ignoré, ordre, retrait.
@@ -94,19 +95,19 @@ test.describe('Google branché (simulé)', () => {
     await champDoc('crm_parametres', 'reglages', 'sousDossiersDrive', ['Contrat', 'Livrables finaux']);
     await expect(section.locator('[data-action="tester-google"]')).toHaveCount(0); // plus de bouton « Tester la fenêtre Google » (inutile pour un client)
     // Retirer le parent : l'appli en recréera un toute seule au prochain dossier.
-    await section.locator('[data-action="retirer-dossier-parent"]').click();
+    await zone.locator('[data-action="retirer-dossier-parent"]').click();
     await expect(dialogue(page)).toContainText('Retirer le dossier parent');
     await dialogue(page).getByRole('button', { name: 'Annuler' }).click(); // la confirmation d'abord : annuler ne retire rien
     expect((await lireDocument('crm_parametres/reglages')).dossierParentDrive).toEqual({ id: PARENT, nom: 'Clients 2026' });
-    await section.locator('[data-action="retirer-dossier-parent"]').click();
+    await zone.locator('[data-action="retirer-dossier-parent"]').click();
     await dialogue(page).getByRole('button', { name: 'Retirer' }).click();
     await champDoc('crm_parametres', 'reglages', 'dossierParentDrive', null);
     await page.locator('.toast [data-action="toast-action"]').last().click(); // « Retiré · Annuler » : on remet
     await champDoc('crm_parametres', 'reglages', 'dossierParentDrive', { id: PARENT, nom: 'Clients 2026' });
-    await section.locator('[data-action="retirer-dossier-parent"]').click();
+    await zone.locator('[data-action="retirer-dossier-parent"]').click();
     await dialogue(page).getByRole('button', { name: 'Retirer' }).click();
     await champDoc('crm_parametres', 'reglages', 'dossierParentDrive', null);
-    await expect(section.locator('[data-role="dossier-parent"]')).toHaveText('Créé tout seul au premier dossier');
+    await expect(zone.locator('[data-role="dossier-parent"]')).toHaveText('Créé tout seul au premier dossier');
     expect(drive.requetes).toHaveLength(0); // les réglages ne créent rien dans Drive
   });
 

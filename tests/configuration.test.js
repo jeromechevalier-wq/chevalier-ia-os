@@ -43,13 +43,13 @@ describe('Configuration : six emplacements, valeurs de départ, migration douce'
     assert.equal(L.CALCULS.ca_signe.calculer({ affaires: [ancienne], config: c }, '2026-10'), 500);
   });
 
-  test('sans configuration, un espace client part du jeu neutre, options éteintes', () => {
+  test('sans configuration, un espace client part du jeu neutre : suivi des paiements et extraction éteints, dossier Drive et célébrations allumés', () => {
     const c = L.construireConfig({}, { racine: false });
     assert.equal(c.roleGagnee, 'etape_5');
     assert.equal(c.options.suiviPaiements, false);
     assert.equal(c.options.extractionValeur, false);
-    assert.equal(c.options.boutonsDepot, false);
-    assert.equal(c.options.celebrations, false);
+    assert.equal(c.options.boutonsDepot, true);
+    assert.equal(c.options.celebrations, true);
     assert.equal(c.options.clotureBloquee, true);
     assert.deepEqual(c.membres, []);
   });
@@ -69,6 +69,26 @@ describe('Configuration : six emplacements, valeurs de départ, migration douce'
     assert.equal(c.options.extractionValeur, false, 'une valeur qui n’est pas vrai/faux est ignorée');
     assert.equal(c.debutActivite, '2026-03');
     assert.equal(c.membres.length, 1);
+  });
+
+  test('P1 un nouvel espace (aucun réglage enregistré) a « Créer un dossier dans Google Drive » et les célébrations allumés, l’extraction de valeur éteinte', () => {
+    assert.deepEqual({ ...L.OPTIONS_NEUTRES }, { suiviPaiements: false, clotureBloquee: true, extractionValeur: false, boutonsDepot: true, celebrations: true });
+    const c = L.construireConfig({ reglages: { debutActivite: '2026-03' } }, { racine: false });
+    assert.equal(c.options.boutonsDepot, true);
+    assert.equal(c.options.celebrations, true);
+    assert.equal(c.options.extractionValeur, false);
+  });
+
+  test('P2 un booléen déjà enregistré garde la priorité ; seul le champ absent prend la nouvelle valeur par défaut (espace d’Ingrid : boutonsDepot=false écrit, inchangé)', () => {
+    const ingrid = L.construireConfig({ reglages: { boutonsDepot: false, celebrations: false, suiviPaiements: true } }, { racine: false });
+    assert.equal(ingrid.options.boutonsDepot, false, 'le false écrit chez Ingrid reste false');
+    assert.equal(ingrid.options.celebrations, false);
+    assert.equal(ingrid.options.suiviPaiements, true);
+    const partiel = L.construireConfig({ reglages: { boutonsDepot: false } }, { racine: false });
+    assert.equal(partiel.options.boutonsDepot, false);
+    assert.equal(partiel.options.celebrations, true, 'le champ absent prend la valeur par défaut');
+    const jerome = L.construireConfig({}, { racine: true });
+    assert.deepEqual({ ...jerome.options }, { ...L.OPTIONS_JEROME }, 'le CRM de Jérôme ne change pas');
   });
 
   test('un rôle porté par une étape désactivée ou inconnue retombe sur une étape active', () => {

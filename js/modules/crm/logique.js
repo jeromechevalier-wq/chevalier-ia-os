@@ -132,7 +132,7 @@ export const PHASES_JEROME = [
 ];
 
 /** Options du CRM d'un espace (interrupteurs, stockés dans `crm_parametres/reglages`). */
-export const OPTIONS_NEUTRES = Object.freeze({ suiviPaiements: false, clotureBloquee: true, extractionValeur: false, boutonsDepot: false, celebrations: false });
+export const OPTIONS_NEUTRES = Object.freeze({ suiviPaiements: false, clotureBloquee: true, extractionValeur: false, boutonsDepot: true, celebrations: true });
 export const OPTIONS_JEROME = Object.freeze({ suiviPaiements: true, clotureBloquee: true, extractionValeur: true, boutonsDepot: true, celebrations: true });
 export const CLES_OPTIONS = Object.freeze(Object.keys(OPTIONS_NEUTRES));
 
