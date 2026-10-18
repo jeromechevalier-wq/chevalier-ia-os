@@ -2,6 +2,9 @@
 
 Ce fichier est lu au début de chaque session. Il garde les décisions de Jérôme qui doivent survivre d'une session à l'autre.
 
+## Le projet en 5 lignes
+Chevalier IA OS : CRM et tableau de bord de l'entreprise de Jérôme (affaires, projets, factures, veille, serveur MCP). En ligne sur https://chevalier-ia-os.web.app. Le code est dans ce dossier (c'est le dépôt Git). État : docs/roadmap.md et docs/reprise-prochaine-session.md. Fiche du second cerveau : wiki/Entities/Projet Chevalier IA OS.md. Index des fichiers : PROJET.md.
+
 ## Décisions permanentes de Jérôme (ne pas les remettre en cause de toi-même)
 
 - **RGPD (04/10/2026)** : la base de Chevalier IA OS est **interne**. Jérôme choisit de **ne prendre aucune mesure RGPD** pour l'instant. Les journaux d'audit **ne s'effacent jamais** : on garde tout, y compris les valeurs reçues (noms, e-mails, notes) et les copies « avant ». Plus de règle de durée de vie (TTL) de 90 jours (Jérôme a supprimé la règle dans la console le 04/10/2026). **Quand le RGPD deviendra nécessaire, Jérôme le dira** : ne le réintroduis pas, ne le propose pas comme un « écart à corriger ».

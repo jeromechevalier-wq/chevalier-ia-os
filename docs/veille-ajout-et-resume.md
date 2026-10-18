@@ -24,7 +24,7 @@ Trois ajouts au module Veille, décidés avec Jérôme le 2026-10-15. Version 2.
 
 1. **Toi : créer le secret `VEILLE_JETON_RESUMER`.** C'est le jeton du bouton Résumer : sa valeur est dans n8n, table de données `veille_jeton_bouton`, colonne `jeton`. Copie-la, puis dans le Terminal (le champ caché évite de l'afficher) :
    `read -s "K?Jeton du bouton Résumer : " && printf %s "$K" | gcloud secrets create VEILLE_JETON_RESUMER --project chevalier-ia-os --data-file=-`
-2. **Toi : dire « fusionne »** pour la PR. Le déploiement envoie la fonction `veille` et la page (version 2.4.0).
+2. **Toi : dire « fusionne »** pour la PR. Le déploiement envoie la fonction `veille` et la page (version 2.7.0).
 3. **Nous deux : modifier le workflow n8n** `interne-veille-resumer-a-la-demande-porte`, pour que la page du résumé soit rangée dans l'appli. Dans le nœud **« Enregistrer le résumé via la porte »**, ajouter dans `donnees` : `html: $("Mettre le résumé en page HTML").first().json.fichier_html`. À tester ensemble avant de publier (jamais de publication sans ton accord).
 4. **Essai réel** : coller un épisode, cliquer « Ajouter et résumer », attendre le résumé, cliquer « Lire le résumé ».
 
