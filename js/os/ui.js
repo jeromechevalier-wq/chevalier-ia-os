@@ -279,29 +279,39 @@ export function estTelephone() {
 // ---------------------------------------------------------------- menu contextuel ("⋯")
 
 /**
- * Petit menu flottant sous un élément. items : [{ libelle, icone, action, danger, desactive }].
- * Se ferme au clic extérieur, à Échap et au choix d'une entrée. Renvoie la fonction de fermeture.
+ * Petit menu flottant sous un élément (ou au-dessus avec `{ placement: 'haut' }`, pour un bouton placé en bas de l'écran).
+ * items : [{ libelle, icone, action, danger, desactive }] ; autres éléments possibles :
+ *  - { texte } : ligne d'information, non cliquable (ex. l'adresse e-mail) ;
+ *  - { separateur: true } : fine ligne de séparation ;
+ *  - { noeud } : bouton déjà fabriqué (ex. la bascule de thème) ; le menu reste ouvert quand on l'utilise.
+ * Se ferme au clic extérieur (souris ou toucher), à Échap et au choix d'une entrée ; le focus revient alors à `ancre`.
+ * Clavier : flèches et Tab passent d'une entrée à l'autre, Entrée choisit. Renvoie la fonction de fermeture.
  */
-export function ouvrirMenu(ancre, items) {
+export function ouvrirMenu(ancre, items, { placement = 'bas' } = {}) {
   document.querySelector('.menu-pop')?.remove();
-  const menu = h('div', { class: 'menu-pop', role: 'menu' });
+  const menu = h('div', { class: 'menu-pop', role: 'menu', dataset: { placement } });
   const fermer = () => {
     menu.remove();
-    document.removeEventListener('mousedown', surClicExterieur, true);
+    document.removeEventListener('pointerdown', surClicExterieur, true);
     document.removeEventListener('keydown', surTouche, true);
+    ancre.setAttribute?.('aria-expanded', 'false');
     ancre.focus?.();
   };
   function surClicExterieur(e) { if (!menu.contains(e.target) && !ancre.contains(e.target)) fermer(); }
   function surTouche(e) {
     if (e.key === 'Escape') { e.stopPropagation(); fermer(); }
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    const avance = e.key === 'ArrowDown' || (e.key === 'Tab' && !e.shiftKey);
+    if (avance || e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey)) {
       e.preventDefault();
       const liste = [...menu.querySelectorAll('button:not(:disabled)')];
       const i = liste.indexOf(document.activeElement);
-      liste[(i + (e.key === 'ArrowDown' ? 1 : -1) + liste.length) % liste.length]?.focus();
+      liste[(i + (avance ? 1 : -1) + liste.length) % liste.length]?.focus();
     }
   }
   for (const it of items) {
+    if (it.separateur) { menu.append(h('div', { class: 'menu-pop-separateur', role: 'separator' })); continue; }
+    if (it.texte !== undefined) { menu.append(h('div', { class: 'menu-pop-texte' }, it.texte)); continue; }
+    if (it.noeud) { it.noeud.setAttribute('role', 'menuitem'); menu.append(it.noeud); continue; }
     menu.append(h('button', {
       type: 'button', role: 'menuitem', class: `menu-pop-entree${it.danger ? ' danger' : ''}`, disabled: !!it.desactive,
       onclick: () => { fermer(); it.action?.(); },
@@ -310,9 +320,15 @@ export function ouvrirMenu(ancre, items) {
   document.body.append(menu);
   const r = ancre.getBoundingClientRect();
   const l = menu.offsetWidth;
-  menu.style.top = `${Math.min(r.bottom + 6, window.innerHeight - menu.offsetHeight - 8)}px`;
-  menu.style.left = `${Math.max(8, Math.min(r.right - l, window.innerWidth - l - 8))}px`;
-  document.addEventListener('mousedown', surClicExterieur, true);
+  if (placement === 'haut') {
+    menu.style.top = `${Math.max(8, r.top - menu.offsetHeight - 6)}px`;
+    menu.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - l - 8))}px`;
+  } else {
+    menu.style.top = `${Math.min(r.bottom + 6, window.innerHeight - menu.offsetHeight - 8)}px`;
+    menu.style.left = `${Math.max(8, Math.min(r.right - l, window.innerWidth - l - 8))}px`;
+  }
+  ancre.setAttribute?.('aria-expanded', 'true');
+  document.addEventListener('pointerdown', surClicExterieur, true);
   document.addEventListener('keydown', surTouche, true);
   menu.querySelector('button:not(:disabled)')?.focus();
   return fermer;

@@ -17,6 +17,8 @@
 <h1 id="connexion-google-oauth-du-serveur-mcp-telephone-et-claude-ai">Connexion Google (OAuth) du serveur MCP : téléphone et claude.ai</h1>
 <blockquote><p>Vue d'ensemble (qui entre par quelle porte, avec quels droits) : <a href="portes-et-droits-mcp.html">portes-et-droits-mcp.md</a>.</p></blockquote>
 <p>Écrit le 09/10/2026. Décidé par Jérôme le même jour : le téléphone doit pouvoir se brancher sur le serveur MCP, avec <strong>tous les droits</strong> (comme Claude Code, suppression comprise), connexion de <strong>30 jours glissants</strong>.</p>
+<h2 id="depuis-l-appli-18-10-2026">Depuis l'appli (18/10/2026)</h2>
+<p>Dans Chevalier IA OS, <strong>menu utilisateur (clic sur ton nom, en bas à gauche) &gt; Connecter mon assistant</strong> : la page donne l'adresse du serveur (<code>&lt;adresse de l'appli&gt;/mcp</code>) et rappelle les trois gestes (coller le lien dans les connecteurs de Claude, se connecter avec Google, cliquer sur « Autoriser »). Elle ne contient ni jeton ni secret et ne lit rien dans la base.</p>
 <h2 id="en-deux-phrases">En deux phrases</h2>
 <p>Le serveur MCP avait une seule porte : un jeton secret <code>cia_…</code> dans l'en-tête de la requête (Claude Code sur le Mac, Hermes sur le VPS). L'appli Claude du téléphone ne sait pas envoyer ce jeton : elle sait seulement se connecter par OAuth, c'est-à-dire ouvrir une page « Se connecter avec Google ». Il y a donc maintenant <strong>une deuxième porte</strong>, réservée aux comptes Google autorisés, et <strong>la première ne change pas</strong>.</p>
 <h2 id="ce-qui-se-passe-quand-tu-ajoutes-le-connecteur">Ce qui se passe quand tu ajoutes le connecteur</h2>

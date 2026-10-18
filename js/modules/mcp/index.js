@@ -1,5 +1,5 @@
 // Module « Accès MCP » : page d'information (lecture seule) sur la connexion d'un assistant (Claude, ChatGPT) à l'espace du client.
-// Route : mcp/infos. Réservé aux clients de la plateforme (registre.js, reserveAuxClients) : le MCP de Jérôme est un autre serveur, qui ne change pas.
+// Route : mcp/infos. Présent chez Jérôme (racine) comme chez les clients ; à la racine la page ne lit rien dans Firestore.
 import { vider, h, icone } from '../../os/ui.js';
 import { naviguer, lien } from '../../os/router.js';
 import * as D from './donnees.js';
@@ -20,8 +20,7 @@ export const actionsRapides = [];
 let montee = null;
 
 export function demarrer({ compte, cheminBase = '' } = {}) {
-  if (!cheminBase) throw new Error('Le module Accès MCP n’existe que chez un client (clients/<client>)');
-  D.demarrer(compte, cheminBase);
+  D.demarrer(compte, cheminBase); // '' = racine (Jérôme) : aucune lecture dans la base
 }
 
 export function arreter() {

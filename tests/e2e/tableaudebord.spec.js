@@ -76,7 +76,7 @@ test('R1 le menu contient le bloc « Tableau de bord » chez Jérôme, et sa pre
   await connecter(page);
   if (estTelephone(page)) await page.getByRole('button', { name: 'Ouvrir le menu' }).click();
   const bloc = page.locator('.menu-groupe[data-bloc="tableaudebord"]');
-  await expect(bloc.locator('.menu-groupe-titre')).toHaveText('Tableau de bord');
+  await expect(bloc.locator('.menu-groupe-titre')).toHaveCount(0); // PR B : plus de titres de groupes
   await expect(bloc.locator('.menu-entree')).toHaveText(['Général', 'Technique']);
   await capturer(page, info, 'R1-menu');
   await bloc.getByRole('link', { name: 'Général', exact: true }).click();

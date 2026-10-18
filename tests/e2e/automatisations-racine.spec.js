@@ -19,10 +19,10 @@ test('Automatisations chez l\'assistant (non administrateur) : menu visible, ét
   await expect(page.getByLabel(/Mise à jour automatique/)).toHaveCount(0);
   await expect(page.getByLabel('Filtrer par propriétaire')).toHaveCount(0);
   await page.screenshot({ path: `test-results/automatisations-racine-vide-${info.project.name}.png`, fullPage: true });
-  // Menu : un groupe « Automatisations » avec « Historique », à côté du CRM et de son écran « Journal » qui garde son nom.
+  // Menu : un groupe « Automatisations » avec « Historique », à côté du CRM ; le « Journal des modifications » est dans le menu utilisateur (PR B).
   if (estTelephone(page)) await page.getByRole('button', { name: 'Ouvrir le menu' }).click();
   await expect(page.locator('.menu').getByRole('link', { name: 'Historique', exact: true })).toBeVisible();
-  await expect(page.locator('.menu').getByRole('link', { name: 'Journal des modifications', exact: true })).toHaveCount(1);
+  await expect(page.locator('.menu').getByRole('link', { name: 'Journal des modifications', exact: true })).toHaveCount(0);
   if (estTelephone(page)) await page.keyboard.press('Escape');
   await page.waitForTimeout(1500); // laisse passer au moins un « tic » : la mise à jour automatique ne doit rien demander
   expect(appels).toEqual([]);

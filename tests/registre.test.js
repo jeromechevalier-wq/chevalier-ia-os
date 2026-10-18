@@ -49,7 +49,7 @@ describe('registre : déclarations', () => {
     // Exception voulue (16/10/2026) : le module Automatisations ne copie que l'historique de n8n (refaisable depuis n8n, volumineux) ; ses collections
     // (workflows, executions, sync) ne sont pas dans l'export JSON du CRM. À reprendre si Jérôme veut les sauvegarder.
     const SANS_SAUVEGARDE = ['automatisations', 'tableaudebord']; // tableaudebord (17/10/2026) : relevés refaits chaque jour par les scripts de surveillance
-    const declarees = MODULES_DECLARES.filter((m) => m.reserveAuxClients !== true && !SANS_SAUVEGARDE.includes(m.id)).flatMap((m) => m.collections).sort();
+    const declarees = MODULES_DECLARES.filter((m) => !SANS_SAUVEGARDE.includes(m.id)).flatMap((m) => m.collections).sort();
     const source = lire('js/modules/crm/donnees.js');
     const bloc = source.match(/COLLECTIONS_CRM = \[([\s\S]*?)\]/)[1];
     const lues = [...bloc.matchAll(/'([a-z_]+)'/g)].map((m) => m[1]).sort();
@@ -123,8 +123,9 @@ describe('registre : modules actifs d\'un client', () => {
     assert.equal(premiereRoute(['affaires']), 'crm/accueil');
     assert.equal(premiereRoute(['projets']), 'projets/projets');
     assert.deepEqual(ecransActifs([]), []);
-    assert.deepEqual(ecransActifs(['affaires']).map((e) => e.route), ['crm/accueil', 'crm/personnes', 'crm/organisations', 'crm/affaires', 'crm/journal']);
-    assert.equal(ecransActifs(['affaires', 'projets']).length, 6);
+    assert.deepEqual(ecransActifs(['affaires']).map((e) => e.route), ['crm/accueil', 'crm/personnes', 'crm/organisations', 'crm/affaires']);
+    assert.equal(ecransActifs(['affaires', 'projets']).length, 5);
+    assert.equal(premiereRoute(['affaires', 'projets']), 'crm/accueil', 'le premier écran reste l\'Accueil (le Journal n\'est plus un écran de menu)');
   });
 });
 
@@ -136,7 +137,7 @@ describe('registre : le menu de Jérôme (modules, routes, écrans ; Archives et
       { chemin: 'crm/personnes', libelle: 'Personnes', icone: 'user' },
       { chemin: 'crm/organisations', libelle: 'Organisations', icone: 'building-2' },
       { chemin: 'crm/affaires', libelle: 'Affaires', icone: 'briefcase' },
-      { chemin: 'crm/journal', libelle: 'Journal des modifications', icone: 'history' },
+      // « Journal des modifications » (crm/journal) n'est plus un écran de menu (PR B, 18/10/2026) : il s'ouvre depuis le menu utilisateur ; sa route reste servie.
     ] },
     { id: 'projets', libelle: 'Projets', icone: 'folder-kanban', prefixe: 'projets', entrees: [
       { chemin: 'projets/projets', libelle: 'Projets', icone: 'folder-kanban' },
@@ -156,6 +157,10 @@ describe('registre : le menu de Jérôme (modules, routes, écrans ; Archives et
     { id: 'tableaudebord', libelle: 'Tableau de bord', icone: 'layout-dashboard', prefixe: 'tableaudebord', entrees: [
       { chemin: 'tableaudebord/general', libelle: 'Général', icone: 'layout-dashboard' },
       { chemin: 'tableaudebord/technique', libelle: 'Technique', icone: 'shield-check' },
+    ] },
+    // Ajout voulu (PR B, 18/10/2026) : « Connecter mon assistant » est chez Jérôme aussi (il s'ouvre depuis le menu utilisateur, pas depuis le menu principal).
+    { id: 'mcp', libelle: 'Connecter mon assistant', icone: 'link', prefixe: 'mcp', entrees: [
+      { chemin: 'mcp/infos', libelle: 'Connexion', icone: 'link' },
     ] },
   ];
   test('MODULES (menu, routes, libellés, icônes, ordre) est identique à celui d\'avant', () => {
@@ -257,7 +262,8 @@ describe('renommage « journal » -> « automatisations » : compatibilité des 
   });
   test('le module Automatisations n\'est plus réservé aux clients : il figure dans le menu du CRM de Jérôme, avec le libellé « Automatisations »', () => {
     assert.ok(MODULES.some((m) => m.id === 'automatisations' && m.libelle === 'Automatisations'));
-    assert.notEqual(moduleDeclare('automatisations').reserveAuxClients, true); // (« mcp » reste réservé aux clients : c'est voulu)
+    assert.equal(moduleDeclare('automatisations').reserveAuxClients, undefined);
+    assert.ok(MODULES_DECLARES.every((m) => m.reserveAuxClients === undefined), 'plus aucun module réservé aux clients (18/10/2026)');
   });
   test('espace-modules.js redirige les anciens liens avant de chercher le module', () => {
     const t = lire('js/os/espace-modules.js');
@@ -277,23 +283,35 @@ describe('menu CRM unique (méthode A, 2.6.0) : un seul groupe « CRM », deux m
     assert.equal(groupeDuModule('veille'), null);
     for (const m of MODULES_DECLARES.filter((x) => x.groupe)) assert.ok(GROUPES_MENU.some((g) => g.id === m.groupe && g.modules.includes(m.id)), m.id);
   });
-  test('menu du CRM : Accueil, Personnes, Organisations, Affaires, Projets, Journal des modifications, dans cet ordre, dans UN seul bloc « Affaires et projets » (Archives n\'est plus au menu)', () => {
+  test('menu du CRM : Accueil | Personnes, Organisations | Affaires, Projets, dans cet ordre, dans UN seul bloc « Affaires et projets » (ni Archives ni Journal au menu)', () => {
     const blocs = blocsDuMenu(['affaires', 'projets']);
     assert.equal(blocs.length, 1);
     assert.equal(blocs[0].libelle, 'Affaires et projets');
-    assert.deepEqual(LIBELLES(blocs[0]), ['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Projets', 'Journal des modifications']);
-    assert.deepEqual(blocs[0].entrees.map((e) => e.chemin), ['crm/accueil', 'crm/personnes', 'crm/organisations', 'crm/affaires', 'projets/projets', 'crm/journal']);
+    assert.deepEqual(LIBELLES(blocs[0]), ['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Projets']);
+    assert.deepEqual(blocs[0].entrees.map((e) => e.chemin), ['crm/accueil', 'crm/personnes', 'crm/organisations', 'crm/affaires', 'projets/projets']);
+    assert.deepEqual(blocs[0].sections.map((sec) => sec.map((e) => e.libelle)), [['Accueil'], ['Personnes', 'Organisations'], ['Affaires', 'Projets']]);
     assert.ok(!LIBELLES(blocs[0]).includes('Modèles'), '« Modèles » est dans les Réglages');
   });
   test('les routes (donc les signets et les liens) sont celles d\'avant : aucune adresse ne change', () => {
     const routes = blocsDuMenu(IDS_MODULES).flatMap((b) => b.entrees.map((e) => e.chemin));
-    for (const r of ['crm/accueil', 'crm/personnes', 'crm/organisations', 'crm/affaires', 'crm/journal', 'projets/projets', 'veille/contenus', 'automatisations/historique']) assert.ok(routes.includes(r), r);
+    for (const r of ['crm/accueil', 'crm/personnes', 'crm/organisations', 'crm/affaires', 'projets/projets', 'veille/contenus', 'automatisations/historique']) assert.ok(routes.includes(r), r);
     assert.equal(moduleDeRoute('crm').id, 'affaires');
     assert.equal(moduleDeRoute('projets').id, 'projets');
   });
   test('un client avec « affaires » seul : le bloc « Affaires et projets » existe sans Projets', () => {
     const [bloc] = blocsDuMenu(['affaires']);
-    assert.deepEqual(LIBELLES(bloc), ['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Journal des modifications']);
+    assert.deepEqual(LIBELLES(bloc), ['Accueil', 'Personnes', 'Organisations', 'Affaires']);
+  });
+  test('une séparation n\'apparaît que si ses deux côtés ont des entrées ; le Journal et « Connecter mon assistant » ne sont pas des entrées du menu principal', () => {
+    const [crm] = blocsDuMenu(['affaires']);
+    assert.deepEqual(crm.sections.map((sec) => sec.length), [1, 2, 1], 'projets éteint : le dernier bloc n\'a que « Affaires »');
+    const tous = blocsDuMenu(IDS_MODULES);
+    const dansLeMenu = tous.flatMap((b) => b.sections.flat().map((e) => e.chemin));
+    assert.ok(!dansLeMenu.includes('crm/journal') && !dansLeMenu.includes('mcp/infos') && !dansLeMenu.some((c) => c.startsWith('reglages')));
+    assert.ok(tous.find((b) => b.id === 'mcp').sections.length === 0, 'le bloc « mcp » n\'a aucune section : le menu ne le montre pas');
+    assert.ok(tous.find((b) => b.id === 'mcp').entrees.some((e) => e.chemin === 'mcp/infos'), 'mais sa page existe (Réglages, menu utilisateur)');
+    assert.equal(moduleDeRoute('crm').id, 'affaires', 'la route crm/journal reste servie par le module (préfixe crm)');
+    assert.ok(moduleAccessible('crm', ['affaires']));
   });
   test('aucun module actif : aucun bloc ; les autres modules gardent chacun leur bloc, après le CRM', () => {
     assert.deepEqual(blocsDuMenu([]), []);
@@ -363,7 +381,7 @@ describe('Réglages à menu latéral (2.6.0) : ce que chaque module déclare', (
   test('un élément par module actif, dans l\'ordre du menu ; un module sans réglage a un résumé', () => {
     const items = reglagesDesModules(['affaires', 'projets', 'veille', 'automatisations', 'mcp']);
     assert.deepEqual(items.map((i) => i.id), ['crm', 'veille', 'automatisations', 'mcp']);
-    assert.deepEqual(items.map((i) => i.libelle), ['Affaires et projets', 'Veille', 'Automatisations', 'Assistant (MCP)']);
+    assert.deepEqual(items.map((i) => i.libelle), ['Affaires et projets', 'Veille', 'Automatisations', 'Connecter mon assistant']);
     assert.match(items[1].resume, /Aucun réglage/);
     assert.deepEqual(items[1].sections, []);
     assert.deepEqual(reglagesDesModules([]), []);

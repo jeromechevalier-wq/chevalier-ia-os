@@ -73,57 +73,88 @@ export function afficherConnexion(racine, { message = '', surConnexion, enCours 
 
 // ---------------------------------------------------------------- coquille
 
+/** Espace de Jérôme (racine) : même forme que l'identité d'un client, `logo` = la baguette (fonction qui fabrique l'image à la taille voulue). */
+export const ESPACE_RACINE = Object.freeze({ nom: 'Chevalier IA OS', logo: baguette });
+
+/** Logo d'un espace : adresse d'image (client), fonction qui fabrique l'image (baguette de la racine) ou rien. */
+function logoEspace(logo, taille, classe) {
+  if (typeof logo === 'function') return logo(taille);
+  return logo ? h('img', { class: classe, src: logo, alt: '', width: String(taille), height: String(taille) }) : null;
+}
+
 /**
  * Monte la coquille pour le compte connecté.
- * Renvoie { contenu, activer(route) }.
- * Options : `modules` (défaut : tous, CRM de Jérôme) ; chez un client (chantier 7) `client` = { nom, logo } remplace la marque de Jérôme,
- * `accueil` = première route, `reglages: false` retire l'entrée Réglages (la page existe aussi chez un client depuis la 2.6.0 ; l'option reste pour les tests).
+ * Renvoie { contenu, activer(route), majClient(nouveau), arreter() }.
+ * Options : `modules` (défaut : tous) ; `client` = { nom, logo } (identité de l'espace : la même forme chez Jérôme, où elle vaut ESPACE_RACINE, et chez un client) ;
+ * `accueil` = première route.
+ * Menu principal : blocs d'entrées séparés par de fines lignes, sans titres de groupes. Réglages, Journal des modifications, « Connecter mon assistant », thème
+ * et déconnexion sont dans le menu utilisateur (clic sur le nom, en bas à gauche). Le bouton de repli est à droite du nom de l'espace (Cmd/Ctrl+B).
  */
-export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(), modules = MODULES, client = null, accueil = 'crm/accueil', reglages: avecReglages = true }) {
+export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(), modules = MODULES, client = ESPACE_RACINE, accueil = 'crm/accueil' }) {
   vider(racine);
   document.body.classList.remove('page-connexion');
   const elargi = lirePreference('menu', 'replie') === 'elargi';
+  const idsModules = modules.map((x) => x.id);
 
   const entrees = [];
   const nav = h('nav', { class: 'menu-nav', 'aria-label': 'Navigation' });
-  // Un bloc du menu par module ou groupe de modules (le CRM réunit affaires et projets : registre.js, blocsDuMenu).
-  for (const m of blocsDuMenu(modules.map((x) => x.id))) {
-    const groupe = h('div', { class: 'menu-groupe', dataset: { bloc: m.id } },
-      h('div', { class: 'menu-groupe-titre' }, icone(m.icone, { taille: 16 }), h('span', { class: 'menu-texte' }, m.libelle)));
-    for (const e of m.entrees) {
-      const a = h('a', { class: 'menu-entree', href: lien(e.chemin), dataset: { infobulle: e.libelle, chemin: e.chemin } },
-        icone(e.icone), h('span', { class: 'menu-texte' }, e.libelle));
-      entrees.push(a);
-      groupe.append(a);
+  // Un bloc du menu par module ou groupe de modules (le CRM réunit affaires et projets : registre.js, blocsDuMenu), lui-même coupé en sections ;
+  // une fine ligne sépare deux sections (CSS), jamais de titre. Un module sans entrée de menu (Connecter mon assistant) n'a pas de bloc.
+  for (const m of blocsDuMenu(idsModules)) {
+    if (!m.sections.length) continue;
+    const groupe = h('div', { class: 'menu-groupe', dataset: { bloc: m.id } });
+    for (const liste of m.sections) {
+      const section = h('div', { class: 'menu-section' });
+      for (const e of liste) {
+        const a = h('a', { class: 'menu-entree', href: lien(e.chemin), dataset: { infobulle: e.libelle, chemin: e.chemin } },
+          icone(e.icone), h('span', { class: 'menu-texte' }, e.libelle));
+        entrees.push(a);
+        section.append(a);
+      }
+      groupe.append(section);
     }
     nav.append(groupe);
   }
-  if (avecReglages) {
-    const reglages = h('a', { class: 'menu-entree', href: lien('reglages'), dataset: { infobulle: 'Réglages', chemin: 'reglages' } },
-      icone('settings'), h('span', { class: 'menu-texte' }, 'Réglages'));
-    entrees.push(reglages);
-    nav.append(h('div', { class: 'menu-groupe' }, reglages));
-  }
 
   const boutonRepli = h('button', {
-    type: 'button', class: 'menu-entree menu-repli', dataset: { role: 'bascule-menu' },
+    type: 'button', class: 'bouton-icone menu-repli', dataset: { role: 'bascule-menu' },
     onclick: () => definirElargi(coquille.dataset.menu !== 'elargi'),
   });
-  // Chez un client : pas de photo, une pastille avec l'initiale du nom.
   const initiale = (taille) => h('span', { class: 'avatar avatar-initiale', style: { width: `${taille}px`, height: `${taille}px` }, 'aria-hidden': 'true' }, [...String(compte.nom || '?')][0].toUpperCase());
-  const avatar = client ? initiale(32) : h('img', { class: `avatar avatar-${compte.nom === 'Charles' ? 'charles' : 'jerome'}`, src: compte.avatar, alt: '', width: '32', height: '32' });
-  const marqueMenu = (c) => (c
-    ? [c.logo ? h('img', { class: 'menu-logo-client', src: c.logo, alt: '', width: '26', height: '26' }) : null, h('span', { class: 'menu-texte' }, c.nom)]
-    : [baguette(26), h('span', { class: 'menu-texte' }, 'Chevalier IA ', h('b', {}, 'OS'))]);
+  // Chez Jérôme (racine) : la photo du compte ; chez un client : l'initiale.
+  const avatar = (taille) => (client === ESPACE_RACINE
+    ? h('img', { class: `avatar avatar-${compte.nom === 'Charles' ? 'charles' : 'jerome'}`, src: compte.avatar, alt: '', width: String(taille), height: String(taille) })
+    : initiale(taille));
+  const marqueNom = h('span', { class: 'menu-marque-nom' });
+  const remplirMarque = () => {
+    remplir(marqueNom, logoEspace(client.logo, 26, 'menu-logo-client'), h('span', { class: 'menu-texte' }, client.nom));
+  };
+  remplirMarque();
+
+  // Menu utilisateur : s'ouvre vers le haut depuis le nom du compte (ouvrirMenu, placement 'haut').
+  const boutonCompte = h('button', {
+    type: 'button', class: 'menu-compte', 'aria-haspopup': 'menu', 'aria-expanded': 'false', dataset: { role: 'menu-utilisateur', infobulle: compte.nom },
+  }, avatar(32), h('span', { class: 'menu-texte compte-nom' }, compte.nom), h('span', { class: 'menu-texte compte-chevron' }, icone('chevron-up', { taille: 16 })));
+  let fermerCompte = null;
+  const allerDepuisMenu = (route) => () => { if (estTelephone()) ouvrirMobile(false); naviguer(route); };
+  boutonCompte.addEventListener('click', () => {
+    if (boutonCompte.getAttribute('aria-expanded') === 'true') { fermerCompte?.(); return; }
+    const items = [
+      { texte: compte.email || '' },
+      { libelle: 'Réglages', icone: 'settings', action: allerDepuisMenu('reglages') },
+      ...(idsModules.includes('affaires') ? [{ libelle: 'Voir le journal des modifications', icone: 'history', action: allerDepuisMenu('crm/journal') }] : []),
+      ...(idsModules.includes('mcp') ? [{ libelle: 'Connecter mon assistant', icone: 'link', action: allerDepuisMenu('mcp/infos') }] : []),
+      { noeud: boutonTheme('menu-pop-entree') },
+      { separateur: true },
+      { libelle: 'Se déconnecter', icone: 'log-out', action: surDeconnexion },
+    ];
+    fermerCompte = ouvrirMenu(boutonCompte, items, { placement: 'haut' });
+  });
+
   const menu = h('aside', { class: 'menu', id: 'menu', 'aria-label': 'Menu principal' },
-    h('div', { class: 'menu-marque' }, ...marqueMenu(client)),
+    h('div', { class: 'menu-marque' }, marqueNom, boutonRepli),
     nav,
-    h('div', { class: 'menu-bas' },
-      boutonTheme(),
-      h('div', { class: 'menu-compte', dataset: { infobulle: compte.nom } }, avatar, h('span', { class: 'menu-texte' }, h('span', { class: 'compte-nom' }, compte.nom), h('span', { class: 'compte-email' }, compte.email))),
-      h('button', { type: 'button', class: 'menu-entree', dataset: { infobulle: 'Se déconnecter' }, 'aria-label': 'Se déconnecter', onclick: surDeconnexion },
-        icone('log-out'), h('span', { class: 'menu-texte' }, 'Se déconnecter')),
-      boutonRepli));
+    h('div', { class: 'menu-bas' }, boutonCompte));
 
   const boutonMobile = h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Ouvrir le menu', 'aria-controls': 'menu', 'aria-expanded': 'false', dataset: { role: 'ouvrir-menu' },
     onclick: () => ouvrirMobile(!coquille.classList.contains('menu-ouvert')) }, icone('menu', { taille: 22 }));
@@ -157,12 +188,10 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
   });
   const barreOutils = h('div', { class: 'barre-outils' }, recherche.element, boutonPlus);
 
-  const barreHaut = h('header', { class: 'barre-haut' },
-    boutonMobile,
-    h('a', { class: 'barre-haut-marque', href: lien(accueil) }, ...(client ? [h('span', {}, client.nom)] : [baguette(22), h('span', {}, 'Chevalier IA ', h('b', {}, 'OS'))])),
-    boutonRecherche,
-    boutonPlusMobile,
-    client ? initiale(30) : h('img', { class: `avatar avatar-${compte.nom === 'Charles' ? 'charles' : 'jerome'}`, src: compte.avatar, alt: compte.nom, width: '30', height: '30' }));
+  const marqueHaut = h('a', { class: 'barre-haut-marque', href: lien(accueil) });
+  const remplirMarqueHaut = () => remplir(marqueHaut, logoEspace(client.logo, 22, 'barre-haut-logo'), h('span', {}, client.nom));
+  remplirMarqueHaut();
+  const barreHaut = h('header', { class: 'barre-haut' }, boutonMobile, marqueHaut, boutonRecherche, boutonPlusMobile, avatar(30));
   const voile = h('div', { class: 'voile-menu', onclick: () => ouvrirMobile(false) });
   const contenu = h('main', { class: 'contenu', id: 'contenu', tabindex: '-1' });
   const zone = h('div', { class: 'zone' }, barreOutils, contenu);
@@ -177,7 +206,7 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
   function majRepli() {
     const v = coquille.dataset.menu === 'elargi';
     const libelle = v ? 'Replier le menu' : 'Élargir le menu';
-    remplir(boutonRepli, icone(v ? 'panel-left-close' : 'panel-left-open'), h('span', { class: 'menu-texte' }, libelle));
+    remplir(boutonRepli, icone(v ? 'panel-left-close' : 'panel-left-open', { taille: 20 }));
     boutonRepli.setAttribute('aria-label', libelle);
     boutonRepli.setAttribute('aria-expanded', String(v));
     boutonRepli.dataset.infobulle = libelle;
@@ -189,19 +218,29 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
   majRepli();
   nav.addEventListener('click', (e) => { if (e.target.closest('a') && estTelephone()) ouvrirMobile(false); });
 
+  const ignorerTouche = (e) => {
+    const cible = e.target;
+    return Boolean(cible && (['INPUT', 'TEXTAREA', 'SELECT'].includes(cible.tagName) || cible.isContentEditable)) || Boolean(document.querySelector('.voile-dialogue'));
+  };
   // Raccourcis (ordinateur) : "n" ouvre « Ajouter une personne », "/" place le curseur dans la recherche.
   function surTouche(e) {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
-    const cible = e.target;
-    if (cible && (['INPUT', 'TEXTAREA', 'SELECT'].includes(cible.tagName) || cible.isContentEditable)) return;
-    if (document.querySelector('.voile-dialogue')) return;
+    if (ignorerTouche(e)) return;
     if (e.key === '/') { e.preventDefault(); recherche.focus(); }
     else if (e.key === 'n') {
       const a = actions.find((x) => x.raccourci === 'n');
       if (a) { e.preventDefault(); a.action(); }
     }
   }
+  // Cmd+B (Mac) ou Ctrl+B : replie ou élargit le menu (écouteur à part : surTouche sort dès qu'une touche Ctrl ou Cmd est pressée). Sans effet sur téléphone.
+  function surToucheRepli(e) {
+    if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || String(e.key).toLowerCase() !== 'b') return;
+    if (ignorerTouche(e) || estTelephone()) return;
+    e.preventDefault();
+    definirElargi(coquille.dataset.menu !== 'elargi');
+  }
   document.addEventListener('keydown', surTouche);
+  document.addEventListener('keydown', surToucheRepli);
 
   function activer(route) {
     for (const a of entrees) {
@@ -212,13 +251,11 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
       if (actif) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
     }
   }
-  /** Chez un client : nouveau nom et nouveau logo (un éditeur vient de les enregistrer) dans le menu et la barre du haut, sans recharger la page. */
+  /** Nouveau nom et nouveau logo de l'espace (un éditeur vient de les enregistrer chez un client) dans le menu et la barre du haut, sans recharger la page. */
   function majClient(nouveau) {
-    if (!client) return;
     client = { ...client, ...nouveau };
-    remplir(menu.querySelector('.menu-marque'), ...marqueMenu(client));
-    const nomHaut = barreHaut.querySelector('.barre-haut-marque span');
-    if (nomHaut) nomHaut.textContent = client.nom;
+    remplirMarque();
+    remplirMarqueHaut();
   }
-  return { contenu, activer, majClient, arreter: () => document.removeEventListener('keydown', surTouche) };
+  return { contenu, activer, majClient, arreter: () => { document.removeEventListener('keydown', surTouche); document.removeEventListener('keydown', surToucheRepli); } };
 }

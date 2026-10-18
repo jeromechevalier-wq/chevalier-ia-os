@@ -19,6 +19,7 @@ Ces règles viennent de Jérôme (non-développeur). Elles valent pour tous les 
 - Les compteurs qui changent chaque seconde ont des chiffres de largeur fixe (la ligne ne bouge pas). *(2026-10-17)*
 - On n'écrit plus le mot « CRM » dans ce que l'utilisateur voit (menu, titres, aides, messages) : c'est un jargon qui fait peur. On dit « Réglages », « Options », « Journal des modifications », « ton espace ». Les adresses (`#/crm/…`) et les noms de fichiers gardent le mot : un utilisateur ne les lit pas et les renommer casserait les signets. *(2026-10-18)*
 - On parle d'**étapes** pour les affaires et de **phases** pour les projets (mots de Pipedrive). *(2026-10-18)*
+- Menu de gauche (modèle : Claude et ChatGPT) : **pas de titres de groupes**, de fines lignes entre les blocs (une ligne n'apparaît que si ses deux côtés ont des entrées) ; Réglages, Journal des modifications et « Connecter mon assistant » ne sont pas dans le menu principal : ils sont dans le **menu utilisateur** (clic sur le nom, en bas à gauche, s'ouvre vers le haut ; fermeture au clic extérieur et à Échap ; clavier : Tab, flèches, Entrée ; toucher : tap pour ouvrir, tap ailleurs pour fermer). Le bouton de repli est à droite du nom de l'espace (raccourci Cmd/Ctrl+B). L'en-tête est le même chez Jérôme et chez un client : nom + logo de l'espace, initiale du compte. *(2026-10-18)*
 - L'icône « i » explique ; elle marche au survol, au clavier et au toucher. *(2026-10-17)*
 
 ## Liens, documents et dossier de travail

@@ -4,7 +4,7 @@
 
 ## Vocabulaire et registre du menu (18/10/2026) : PR 127, version 2.12.0
 
-PR A faite, en attente du « fusionne » (voir `reglages-menu-crm-unique.md`, section du 18/10/2026). **À faire ensuite : la PR B** (coque du menu, menu utilisateur où partira « Journal des modifications », bouton de repli).
+PR A faite, en attente du « fusionne » (voir `reglages-menu-crm-unique.md`, section du 18/10/2026). **PR B faite (2.13.0, nouvelle coque du menu), en attente du « fusionne »** : voir `roadmap.md`. Reste à Jérôme : regarder les captures de `~/chantiers-crm/captures-menu-B/`, dire s'il garde sa photo (annuler le commit « avatar = initiale »). **Plus tard** : l'audit complet des différences entre l'espace de Jérôme et ceux des clients.
 
 ## Extraction de valeur supprimée (18/10/2026)
 

@@ -2,7 +2,7 @@
 // puis les règles du CRM remises). Un client voit le menu et les écrans de ses seuls modules actifs, sous clients/<client>/…
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { test, expect, ecrireDocument, estTelephone, ouvrirSectionReglages, PROJET, FIRESTORE, URL_APP } from './outils.js';
+import { test, expect, ecrireDocument, estTelephone, ouvrirSectionReglages, choisirDansMenuUtilisateur, ouvrirMenuUtilisateur, PROJET, FIRESTORE, URL_APP } from './outils.js';
 
 const ALICE = 'alice@exemple.test';
 const LEA = 'lea@exemple.test';
@@ -66,9 +66,12 @@ test('R1 un client avec « affaires » seul : menu et écrans du CRM, aucun écr
   await expect(page).toHaveURL(/#\/espace\/cabinet\/crm\/accueil$/);
   await expect(page).toHaveTitle('Cabinet Martin');
   await ouvrirMenu(page);
-  for (const lib of ['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Journal des modifications']) await expect(menu(page).getByRole('link', { name: lib, exact: true })).toHaveCount(1);
-  for (const lib of ['Projets', 'Archives', 'Modèles']) await expect(menu(page).getByRole('link', { name: lib, exact: true })).toHaveCount(0);
-  await expect(menu(page).getByRole('link', { name: 'Réglages', exact: true })).toHaveCount(1); // la page Réglages existe aussi chez un client (2.6.0)
+  for (const lib of ['Accueil', 'Personnes', 'Organisations', 'Affaires']) await expect(menu(page).getByRole('link', { name: lib, exact: true })).toHaveCount(1);
+  for (const lib of ['Projets', 'Archives', 'Modèles', 'Journal des modifications', 'Réglages']) await expect(menu(page).getByRole('link', { name: lib, exact: true })).toHaveCount(0);
+  // la page Réglages existe aussi chez un client (2.6.0) : elle s'ouvre depuis le menu utilisateur (PR B), comme le Journal et « Connecter mon assistant » s'ils sont allumés
+  await ouvrirMenuUtilisateur(page);
+  await expect(page.locator('.menu-pop').getByRole('menuitem')).toHaveText(['Réglages', 'Voir le journal des modifications', /Thème/, 'Se déconnecter']);
+  await page.keyboard.press('Escape');
   await expect(menu(page)).toContainText('Cabinet Martin');
   await expect(menu(page)).not.toContainText('Chevalier IA');
   await expect(page.locator('.section-objectifs')).toHaveCount(0); // les objectifs de Jérôme n'existent pas chez un client
@@ -150,7 +153,7 @@ test('R8 déconnexion depuis le menu : retour à la page de connexion du client,
   await ouvrir(page, 'cabinet');
   await expect(page.locator('.coquille')).toBeVisible();
   await ouvrirMenu(page);
-  await menu(page).getByRole('button', { name: 'Se déconnecter' }).click();
+  await choisirDansMenuUtilisateur(page, 'Se déconnecter');
   await expect(page.getByRole('button', { name: 'Se connecter avec Google' })).toBeVisible();
   await expect(page.locator('.coquille')).toHaveCount(0);
   await expect(page.locator('body')).not.toContainText('Camille Dubois');
@@ -162,16 +165,16 @@ test('R9 menu CRM unique : un seul groupe « CRM », sept entrées dans l\'ordre
   await ouvrir(page, 'studio');
   await expect(page.locator('.coquille')).toBeVisible();
   await ouvrirMenu(page);
-  await expect(menu(page).locator('.menu-groupe-titre .menu-texte')).toHaveText(['Affaires et projets']);
-  await expect(menu(page).locator('.menu-groupe[data-bloc="crm"] .menu-entree')).toHaveText(['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Projets', 'Journal des modifications']);
-  for (const [lib, adresse, chemin] of [['Projets', /#\/espace\/studio\/projets\/projets$/, 'projets/projets'], ['Journal des modifications', /#\/espace\/studio\/crm\/journal$/, 'crm/journal'], ['Affaires', /#\/espace\/studio\/crm\/affaires$/, 'crm/affaires']]) {
+  await expect(menu(page).locator('.menu-groupe-titre')).toHaveCount(0); // plus de titres de groupes (PR B)
+  await expect(menu(page).locator('.menu-groupe[data-bloc="crm"] .menu-entree')).toHaveText(['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Projets']);
+  for (const [lib, adresse, chemin] of [['Projets', /#\/espace\/studio\/projets\/projets$/, 'projets/projets'], ['Affaires', /#\/espace\/studio\/crm\/affaires$/, 'crm/affaires']]) {
     if (estTelephone(page) && !(await page.locator('.coquille.menu-ouvert').count())) await page.getByRole('button', { name: 'Ouvrir le menu' }).click(); // sur téléphone le menu se referme après chaque clic
     await menu(page).getByRole('link', { name: lib, exact: true }).click();
     await expect(page).toHaveURL(adresse);
     await expect(menu(page).locator(`.menu-entree[data-chemin="${chemin}"]`)).toHaveAttribute('aria-current', 'page');
   }
   // anciennes adresses écrites à la main (signets) : toujours valides
-  for (const route of ['crm/accueil', 'crm/personnes', 'projets/projets/pr1', 'projets/archives']) {
+  for (const route of ['crm/accueil', 'crm/personnes', 'crm/journal', 'projets/projets/pr1', 'projets/archives']) {
     await page.evaluate((r) => { location.hash = `#/espace/studio/${r}`; }, route);
     await expect(page.getByRole('heading', { name: 'Page introuvable' })).toHaveCount(0);
     await expect(page.locator('.contenu')).not.toBeEmpty();
@@ -181,8 +184,7 @@ test('R9 menu CRM unique : un seul groupe « CRM », sept entrées dans l\'ordre
 test('R10 Réglages chez un éditeur : l\'espace d\'abord (Mon espace, Membres, Modules), puis les modules ; les sections du CRM y sont toutes', async ({ page }) => {
   await ouvrir(page, 'plein');
   await expect(page.locator('.coquille')).toBeVisible();
-  await ouvrirMenu(page);
-  await menu(page).getByRole('link', { name: 'Réglages', exact: true }).click();
+  await choisirDansMenuUtilisateur(page, 'Réglages');
   await expect(page).toHaveURL(/#\/espace\/plein\/reglages$/);
   await expect(page.getByRole('heading', { name: 'Réglages', level: 1 })).toBeVisible();
   if (estTelephone(page)) { // sur téléphone le menu de gauche est replié : un bouton qui montre la section ouverte
@@ -193,7 +195,7 @@ test('R10 Réglages chez un éditeur : l\'espace d\'abord (Mon espace, Membres, 
     await page.locator('.reglages-menu-bouton').click();
   }
   const liens = page.locator('.reglages-menu-lien');
-  await expect(liens).toHaveText(['Mon espace', 'Membres et rôles', 'Modules actifs', 'Affaires et projets', 'Veille', 'Automatisations', 'Assistant (MCP)']);
+  await expect(liens).toHaveText(['Mon espace', 'Membres et rôles', 'Modules actifs', 'Affaires et projets', 'Veille', 'Automatisations', 'Connecter mon assistant']);
   await expect(page.locator('.reglages-menu-titre')).toHaveText(['Espace', 'Modules']);
   // Mon espace (modifiable par un éditeur depuis la 2.8.0 : tests/e2e/mon-espace.spec.js) : le nom et la couleur lus dans la fiche de marque, le thème de l'appareil
   await expect(page.locator('[data-champ="nom"]')).toHaveValue('Maison Pleine');
@@ -228,7 +230,7 @@ test('R10 Réglages chez un éditeur : l\'espace d\'abord (Mon espace, Membres, 
   await expect(page.locator('[data-role="aucun-reglage"]')).toContainText('Aucun réglage');
   await ouvrirSectionReglages(page, 'Automatisations');
   await expect(page.locator('[data-role="aucun-reglage"]')).toContainText('Aucun réglage');
-  await ouvrirSectionReglages(page, 'Assistant (MCP)');
+  await ouvrirSectionReglages(page, 'Connecter mon assistant');
   await page.getByRole('link', { name: 'Ouvrir la page Connexion' }).click();
   await expect(page).toHaveURL(/#\/espace\/plein\/mcp\/infos$/);
 });
@@ -237,7 +239,7 @@ test('R11 Réglages chez un lecteur : pas de sections d\'espace réservées aux 
   await ouvrir(page, 'plein', LEA);
   await expect(page.locator('.coquille')).toBeVisible();
   await page.evaluate(() => { location.hash = '#/espace/plein/reglages'; });
-  await expect(page.locator('.reglages-menu-lien')).toHaveText(['Mon espace', 'Affaires et projets', 'Veille', 'Automatisations', 'Assistant (MCP)']);
+  await expect(page.locator('.reglages-menu-lien')).toHaveText(['Mon espace', 'Affaires et projets', 'Veille', 'Automatisations', 'Connecter mon assistant']);
   await page.evaluate(() => { location.hash = '#/espace/plein/reglages/membres'; }); // réservé aux éditeurs : retour à la page d'arrivée
   await expect(page).toHaveURL(/#\/espace\/plein\/reglages$/);
   await page.evaluate(() => { location.hash = '#/espace/plein/reglages/modules'; });

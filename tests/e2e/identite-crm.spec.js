@@ -1,5 +1,5 @@
 // Chantier 6 : le CRM de Jérôme (racine, règles du CRM) reste STRICTEMENT identique : identité, jaune, bandeau de sauvegarde, célébrations.
-import { test, expect, connecter, allerA, allerAuxReglagesCrm, ouvrirSectionReglages, creerAffaire, creerPersonne, estTelephone, JEROME } from './outils.js';
+import { test, expect, connecter, allerA, allerAuxReglagesCrm, ouvrirSectionReglages, basculerThemeParMenu, creerAffaire, creerPersonne, estTelephone, JEROME } from './outils.js';
 
 const JAUNE = 'rgb(236, 188, 6)';
 const couleurDe = (page, selecteur, propriete = 'backgroundColor', pseudo = null) =>
@@ -25,8 +25,7 @@ for (const theme of ['sombre', 'clair']) {
   test(`K2 couleurs de l'interface du CRM identiques (jaune de Jérôme), thème ${theme}`, async ({ page }) => {
     await connecter(page, JEROME);
     if (theme === 'clair') {
-      if (estTelephone(page)) await page.getByRole('button', { name: 'Ouvrir le menu' }).click();
-      await page.locator('[data-role="bascule-theme"]').first().click();
+      await basculerThemeParMenu(page);
       if (estTelephone(page)) await page.locator('.voile-menu').click({ position: { x: 380, y: 400 } });
     }
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
@@ -82,19 +81,19 @@ test('K5 célébration « Bravo Jérôme ! » toujours montrée quand une affair
 test('K5 Réglages à menu latéral chez Jérôme : l\'espace d\'abord, puis les modules ; le CRM garde tous ses réglages ; menu CRM en un seul bloc', async ({ page }) => {
   await connecter(page, JEROME);
   // menu principal : un seul bloc « CRM » avec ses sept écrans dans l'ordre (Modèles est dans les Réglages)
-  await expect(page.locator('.menu .menu-groupe[data-bloc="crm"] .menu-entree')).toHaveText(['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Projets', 'Journal des modifications']);
+  await expect(page.locator('.menu .menu-groupe[data-bloc="crm"] .menu-entree')).toHaveText(['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Projets']);
   await expect(page.locator('.menu .menu-groupe[data-bloc="projets"]')).toHaveCount(0);
   await allerA(page, 'Réglages');
   await expect(page).toHaveURL(/#\/reglages$/);
   await expect(page.getByRole('heading', { name: 'Réglages', level: 1 })).toBeVisible();
-  await expect(page.locator('.reglages-menu-lien')).toHaveText(['Mon espace', 'Modules actifs', 'Affaires et projets', 'Veille', 'Automatisations', 'Tableau de bord']); // ni membres (racine) ni MCP (clients)
+  await expect(page.locator('.reglages-menu-lien')).toHaveText(['Mon espace', 'Modules actifs', 'Affaires et projets', 'Veille', 'Automatisations', 'Tableau de bord', 'Connecter mon assistant']); // pas de « Membres et rôles » à la racine (les comptes sont dans les règles)
   await expect(page.locator('.reglages-menu-lien[aria-current="page"]')).toHaveText('Mon espace');
   await expect(page.locator('[data-info="nom"]')).toContainText('Chevalier IA OS');
   await expect(page.locator('#reglages-theme')).toBeVisible();
   if (!estTelephone(page)) await expect(page.locator('.reglages-menu-bouton')).toBeHidden(); // sur ordinateur le menu reste déplié
   await ouvrirSectionReglages(page, 'Modules actifs');
   await expect(page.locator('[data-interrupteur="crm"]')).toBeChecked();
-  await expect(page.locator('[data-interrupteur="mcp"]')).toHaveCount(0); // réservé aux clients
+  await expect(page.locator('[data-interrupteur="mcp"]')).toBeChecked(); // « Connecter mon assistant » existe aussi chez Jérôme (PR B)
   await ouvrirSectionReglages(page, 'Affaires et projets');
   await expect(page).toHaveURL(/#\/reglages\/crm$/);
   for (const id of ['etapes', 'phases', 'options', 'modeles-affaire', 'modeles-projets', 'objectifs', 'offres', 'secteurs', 'sources', 'etiquettes', 'filtres', 'debut', 'export']) await expect(page.locator(`#reglages-${id}`), id).toBeVisible();

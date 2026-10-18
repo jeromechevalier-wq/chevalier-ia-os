@@ -16,9 +16,34 @@ async function copier(texte, champ) {
   }
 }
 
+/** Espace de Jérôme (racine) : adresse du MCP, connexion par compte Google, comptes fixés par Jérôme. Aucune lecture dans la base. */
+function rendreInfosRacine(conteneur) {
+  const adresse = L.lienConnexion(window.location.origin);
+  const champ = h('input', { type: 'text', class: 'champ mcp-lien', readonly: true, value: adresse, 'aria-label': 'Adresse de connexion de l’assistant', onfocus: (e) => e.target.select() });
+  conteneur.append(h('div', { class: 'page page-mcp', dataset: { mcp: 'racine' } },
+    h('header', { class: 'page-tete' }, h('h1', {}, 'Connecter mon assistant')),
+    h('p', { class: 'aide' }, 'Cette page est informative : rien ne se règle ici.'),
+    h('section', { class: 'mcp-bloc' },
+      h('h2', {}, 'Adresse de connexion'),
+      h('div', { class: 'mcp-copie' }, champ,
+        h('button', { type: 'button', class: 'bouton bouton-principal', onclick: () => copier(adresse, champ) }, icone('copy', { taille: 16 }), 'Copier le lien'))),
+    h('section', { class: 'mcp-bloc' },
+      h('h2', {}, 'Comment l\'utiliser'),
+      h('ol', { class: 'mcp-etapes' }, L.MODE_EMPLOI_RACINE.map((e) => h('li', {}, h('strong', {}, e.titre), ' : ', e.texte)))),
+    h('section', { class: 'mcp-bloc' },
+      h('h2', {}, 'Qui peut se connecter'),
+      h('p', { class: 'aide' }, L.PHRASE_COMPTES_RACINE)),
+    h('section', { class: 'mcp-bloc' },
+      h('h2', {}, 'Suivre ce que fait l\'assistant'),
+      h('p', { class: 'aide' }, 'Chaque modification faite par l\'assistant apparaît dans le Journal des modifications, avec son nom.'),
+      h('p', { class: 'aide' }, h('a', { href: lien('crm/journal') }, icone('history', { taille: 14 }), ' Journal des modifications')))));
+  return () => {};
+}
+
 export function rendreInfos(conteneur) {
   const client = D.clientCourant();
-  const adresse = client ? L.lienConnexion(window.location.origin, client) : '';
+  if (!client) return rendreInfosRacine(conteneur);
+  const adresse = L.lienConnexion(window.location.origin, client);
   let ferme = false;
 
   const champ = h('input', { type: 'text', class: 'champ mcp-lien', readonly: true, value: adresse, 'aria-label': 'Lien de connexion de ton espace', onfocus: (e) => e.target.select() });

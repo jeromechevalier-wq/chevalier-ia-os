@@ -147,7 +147,7 @@ describe('6 commentaire de js/os/modules.js', () => {
     assert.match(src, /automatisations » existe chez Jérôme/);
     const ids = MODULES.map((m) => m.id);
     assert.ok(ids.includes('automatisations'), 'automatisations est monté à la racine');
-    assert.ok(!ids.includes('mcp'), 'mcp reste réservé aux clients');
+    assert.ok(ids.includes('mcp'), 'mcp (Connecter mon assistant) est monté à la racine depuis la PR B');
   });
 });
 
