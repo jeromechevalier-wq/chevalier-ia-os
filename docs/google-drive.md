@@ -122,6 +122,51 @@ Les sections plus haut décrivent l'historique ; **ce qui suit prévaut** quand 
 
 **Non vérifié avec le vrai Google** : la copie (`files.copy`) vers le dossier de travail avec la portée `drive.file`, la reconnaissance d'« Importer » par le dossier d'origine renvoyé par la fenêtre, la recherche de doublon par nom (`files.list`), l'affichage réel de la bulle sur un téléphone.
 
+## Corrections, version 2.7.5 (retours de l'essai de la 2.7.4)
+
+- **P1 Tâches** : un clic sur la date d'une tâche (ou sur « En retard ») ouvre **la même fenêtre « Changer la date »** que pour une activité (date, heure, raccourcis) ; une tâche sans date affiche « Sans date » (cliquable) et la fenêtre ajoute « Sans date » pour l'effacer. Comparaison faite : texte au clic, date au clic, rond, menu « … » existent des deux côtés ; seules les tâches se déplacent de phase et se confient à quelqu'un (« Modifier… »), seules les activités ont un type. *Sur une affaire, les « tâches » sont des activités de type Tâche : elles avaient déjà ce comportement.*
+- **P2 Annuler 8 s** : suppression d'une **tâche**, d'une **activité**, d'une **note** : « Supprimé · Annuler » (la fiche revient à l'identique). Cause du manque en 2.7.4 : ces trois suppressions n'étaient que confirmées. Audit repris dans `audit-boutons-destructifs.md`.
+- **P3 « Ajouter un document » sans dossier de travail** : un seul message d'information (« Cette fiche n'a pas de dossier de travail : on ne peut pas y ajouter de document. Crée ou relie d'abord le dossier de travail de cette fiche (bloc Détails). »), un seul bouton « Fermer ». Aucune création de dossier, aucune fenêtre Google.
+- **P4 Libellé** : « Dossier de travail de cette fiche » (affaire et projet).
+- **P5 Fichier importé** : deux signaux, demandés à Drive (`files.get`, champs `parents` et `createdTime`) : le fichier est **dans le dossier de travail** ET a été **créé à l'instant** (moins de 5 minutes) → c'est un import : case **grisée et cochée**, « Le fichier est envoyé dans le dossier de travail », aucune copie. Un fichier **ancien** déjà dans le dossier : case grisée et cochée, « Ce fichier est déjà dans le dossier de travail » (jamais « envoyé »). Un fichier ailleurs : case active, cochée par défaut. **Si Drive ne répond pas** : on se rabat sur le dossier d'origine donné par la fenêtre Google ; s'il manque aussi, on ne **copie pas** (une copie pourrait doubler un fichier importé) : case grisée et décochée, « Impossible de vérifier le dossier de ce fichier : il reste où il est, seul son lien est gardé » (comportement le plus prudent).
+
+### Recette 2.7.5 : ce qui est VÉRIFIÉ à l'écran (Google simulé) et ce qui ne l'est pas
+| Point | Vérifié par test | Pas vérifié avec le vrai Google |
+|---|---|---|
+| P1 | `P1 …` (2 tests) : clic sur la date d'une tâche, badge « En retard », tâche sans date, même fenêtre que l'activité | — (aucun appel Google) |
+| P2 | `P2 …` (8 tests) : tâche, activité, note, lien, dossier de travail, organisation détachée, dossier parent, sous-dossier, valeur de liste, étiquette, filtre, modèle d'affaire, **facture, tâche type, modèle de projet, détacher l'affaire / le projet** : confirmation, message « Annuler », restauration ; durée de 8 s | — |
+| P3 | `P3 projet …`, `P3 affaire …` : message unique, bouton « Fermer » seul, aucun dossier créé, aucune fenêtre Google | — |
+| P4 | `P4 projet …`, `P4 affaire …` | — |
+| P5 | `P5 …` (5 tests) : import reconnu par `files.get` (dans le dossier + créé à l'instant), case grisée / cochée / non décochable, aucune copie ; fichier ancien déjà dans le dossier (« déjà dans le dossier ») ; secours par `parentId` ; Drive muet sans indice : on ne copie pas ; fichier d'ailleurs : case active | **Le contenu réel de `parents` et `createdTime` renvoyé par le vrai `files.get` pour un fichier déposé par « Importer »** (attendu : le dossier de travail et l'heure d'envoi, d'après le comportement documenté de `DocsUploadView.setParent`) ; la copie `files.copy` avec `drive.file` |
+
+### Critères d'acceptation, tests et captures (lot 2.7.5)
+Captures **produites par les tests e2e eux-mêmes** (refaites à chaque passage, Google simulé) : `~/chantiers-crm/captures-corrections-dossiers-2/` (`P1.png`… sur ordinateur, `P1-telephone.png`… sur téléphone ; P3 et P4 existent pour le projet et pour l'affaire).
+| Point | Critère observable (une phrase) | Test | Capture |
+|---|---|---|---|
+| P1 | Je clique (ou je touche, sur téléphone) la date d'une tâche : la même fenêtre « Changer la date » que pour une activité s'ouvre, et la tâche n'affiche qu'UN badge « En retard ». | `P1 une tâche se traite comme une activité…` (compte les badges), `P1 (toucher)…` | `P1.png` |
+| P2 | Après avoir supprimé une tâche (idem activité, note), un message « Annuler » reste affiché 8 s et la rend. | `P2 « Supprimé · Annuler » : une TÂCHE…`, `…ACTIVITÉ et NOTE…`, `P2 le message « Annuler » disparaît après 8 secondes` | `P2.png` |
+| P3 | « Ajouter un document » sans dossier de travail : un message et « Fermer », rien d'autre. | `P3 projet …`, `P3 affaire …` | `P3-projet.png`, `P3-affaire.png` (fenêtre de message visible) |
+| P4 | Le libellé lit « Dossier de travail de cette fiche ». | `P4 projet …`, `P4 affaire …` | `P4-projet.png`, `P4-affaire.png` |
+| P5 | Un fichier importé de l'ordinateur : la case « Copier » est grisée et cochée avec le message grisé, et un clic ne la décoche pas. | `P5 un fichier IMPORTÉ…`, `Quand je décoche « Copier » pour un fichier importé de mon ordinateur…` | `P5.png` |
+
+### Un test permanent par règle de `docs/consignes-ui.md` (`tests/e2e/consignes-ui.spec.js`, affaire ET projet, ordinateur ET téléphone)
+| Règle | Test |
+|---|---|
+| Affaire et projet fonctionnent pareil | `Affaire et projet fonctionnent pareil : sur projet / affaire…` |
+| Tâche, activité, point clé : texte, date, rond, menu | `Tâche, activité et point clé fonctionnent pareil` (projet) et (affaire) |
+| Liste déroulante / bande indicateur | `Une liste déroulante change l'étape ou la phase…` |
+| Retirer : confirmation puis « Annuler » 8 s | `Quand je retire un lien sur …` ; `Quand je retire le dossier parent…` |
+| Pas de « Modifier » si « Retirer » puis recréer suffit | `Pas de bouton « Modifier » quand « Retirer » puis recréer suffit…` |
+| « dossier », jamais « répertoire » | `On dit « dossier », jamais « répertoire »` (écrans + code) |
+| Message d'erreur clair, https:// ajouté | `Message d'erreur clair, et https:// ajouté tout seul…` |
+| Icône « i » : survol, clavier, toucher | `L'icône « i » explique…` |
+| « Liens et documents » : deux boutons, nom et note | `« Liens et documents » : nom et note facultatifs…` + 1re règle |
+| Bloc « Dossier de travail de cette fiche » identique | `Affaire et projet fonctionnent pareil…` |
+| Sans dossier : message et « Fermer » | `Sans dossier de travail, « Ajouter un document »…` |
+| Case « Copier » : cochée par défaut / grisée et cochée | `Case « Copier… » cochée par défaut…` ; `Quand je décoche « Copier » pour un fichier importé…` |
+| Adresse hors Drive : dans « Ajouter un lien web » | `Une adresse hors Google Drive se met dans « Ajouter un lien web »…` |
+| **Sans test permanent (dit clairement)** | filtres combinés / listes limitées (écran Automatisations, tests 2.7.3, non rejoués ici) ; « un mot = une seule chose » (relecture humaine) ; « cas vide, erreur, chargement décrits et testés » (règle de méthode) ; « chiffres de largeur fixe » (`tabular-nums` posé sur les compteurs existants, pas de test de rendu). |
+
 ## Pas vérifié (à faire après le branchement)
 
 - Le vrai parcours Google : autorisation, Picker avec « Importer » **dans le bon dossier** (`DocsUploadView.setParent`, d'après la documentation de Google), création réelle des dossiers, ouverture du lien enregistré.

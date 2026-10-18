@@ -72,7 +72,7 @@ export function creerLanceurs({ fiche, typeFiche = 'affaire', nomSuggere = '', e
 
   const zoneDossier = h('div', { class: 'prop-valeur lanceur' });
   const ligneDossier = h('div', { class: 'prop', dataset: { prop: 'dossier' } },
-    h('span', { class: 'prop-libelle' }, 'Dossier de travail', iconeInfo(EXPLICATION, 'Dossier de travail')), zoneDossier);
+    h('span', { class: 'prop-libelle' }, 'Dossier de travail de cette fiche', iconeInfo(EXPLICATION, 'Dossier de travail de cette fiche')), zoneDossier);
 
   /** Avertissement simple, jamais bloquant : le dossier choisi sert déjà à un autre projet. */
   function avertirSiPartage(url) {
@@ -81,6 +81,9 @@ export function creerLanceurs({ fiche, typeFiche = 'affaire', nomSuggere = '', e
   }
 
   async function ecrireDossier(url) {
+    // Le formulaire se ferme AVANT l'écriture : dès qu'elle est enregistrée, la fiche est redessinée (nouvelle ligne « Dossier de travail ») et ne doit plus le retrouver ouvert.
+    const ouvert = formulaires.get(cle);
+    formulaires.delete(cle);
     try {
       await enregistrer({ urlDossier: url });
       etat.urlDossier = url;
@@ -88,6 +91,7 @@ export function creerLanceurs({ fiche, typeFiche = 'affaire', nomSuggere = '', e
       (afficheurs.get(cle) || afficherDossier)();
       return true;
     } catch (e) {
+      if (ouvert) formulaires.set(cle, ouvert);
       console.warn(e);
       toast('Enregistrement impossible', { type: 'erreur' });
       return false;
@@ -144,7 +148,7 @@ export function creerLanceurs({ fiche, typeFiche = 'affaire', nomSuggere = '', e
   function retirerDossier() {
     const ancien = etat.urlDossier;
     return retirerAvecAnnulation({
-      titre: 'Retirer le dossier de travail ?', message: 'Seul le lien est retiré de cette fiche : le dossier lui-même n’est pas supprimé.',
+      titre: 'Retirer le dossier de travail de cette fiche ?', message: 'Seul le lien est retiré de cette fiche : le dossier lui-même n’est pas supprimé.',
       faire: async () => { if (!(await ecrireDossier(''))) throw new Error('enregistrement'); },
       defaire: async () => { await enregistrer({ urlDossier: ancien }); etat.urlDossier = ancien; afficherDossier(); },
       messageFait: 'Dossier de travail retiré',

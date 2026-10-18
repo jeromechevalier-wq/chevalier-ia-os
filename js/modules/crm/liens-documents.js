@@ -8,9 +8,8 @@ import * as D from './donnees.js';
 import * as L from './logique.js';
 import { sectionRepliable, boutonEtoile, iconeInfo } from './composants.js';
 import { retirerAvecAnnulation } from '../../os/retrait.js';
-import { creerRepertoireDrive, messageCreation } from './lanceurs.js';
 import { googleDisponible, preparerGoogle, ouvrirFenetreGoogle, obtenirJeton } from '../../os/google-picker.js';
-import { idDossierDrive, documentDepuisChoix, copierFichier, TYPE_DOSSIER } from '../../os/google-drive.js';
+import { idDossierDrive, documentDepuisChoix, copierFichier, infoFichier, etatCopie, TYPE_DOSSIER } from '../../os/google-drive.js';
 
 // Formulaire ouvert, gardé hors de la fiche : la fiche est redessinée quand des données arrivent, le formulaire en cours de saisie ne doit pas disparaître.
 const EXPLICATION = 'Liens et documents de cette fiche. « Ajouter un document » choisit un fichier dans Google Drive (ou envoie un fichier de l’ordinateur) et, par défaut, le copie dans le dossier de travail. « Ajouter un lien web » garde l’adresse d’un site ou d’un fichier.';
@@ -51,7 +50,7 @@ export function sectionLiensEtDocuments({ id, typeFiche, entite, courant, enregi
       let urlChoisie = lien ? etat.url : etat.urlDocument;
       // Case cochée (par défaut, quand elle est proposée) : on copie le fichier dans le dossier de travail (l'original reste où il est) et le lien enregistré pointe vers la COPIE.
       const dossier = idDossierDrive(courant().urlDossier);
-      if (!lien && etat.copiable && etat.copier && dossier) {
+      if (!lien && etat.etatCopie === 'copiable' && etat.copier && dossier) {
         try {
           const jeton = await obtenirJeton({ email: D.compteCourant()?.email || '' });
           urlChoisie = (await copierFichier({ jeton, fichierId: etat.fichierId, parentId: dossier, nom: etat.nomOriginal })).url;
@@ -71,10 +70,11 @@ export function sectionLiensEtDocuments({ id, typeFiche, entite, courant, enregi
     };
     // Case « Copier dans le dossier de travail » : seulement pour un fichier déjà dans Drive (pas « Importer »), si le dossier de travail est un dossier Drive.
     const dossierDrive = idDossierDrive(courant().urlDossier);
-    const caseCopie = !lien && etat.importe && dossierDrive
-      ? h('label', { class: 'case case-grisee', dataset: { role: 'case-importe' } }, h('input', { type: 'checkbox', checked: true, disabled: true, dataset: { champ: 'copier' }, 'aria-label': 'Copier dans le dossier de travail' }),
-        h('span', {}, 'Le fichier est envoyé dans le dossier de travail'))
-      : !lien && etat.copiable && dossierDrive
+    const grisee = (role, coche, texte) => h('label', { class: 'case case-grisee', dataset: { role } }, h('input', { type: 'checkbox', checked: coche, disabled: true, dataset: { champ: 'copier' }, 'aria-label': 'Copier dans le dossier de travail' }), h('span', {}, texte));
+    const caseCopie = !lien && dossierDrive && etat.etatCopie === 'importe' ? grisee('case-importe', true, 'Le fichier est envoyé dans le dossier de travail')
+      : !lien && dossierDrive && etat.etatCopie === 'dejaDans' ? grisee('case-deja-dans', true, 'Ce fichier est déjà dans le dossier de travail')
+      : !lien && dossierDrive && etat.etatCopie === 'incertain' ? grisee('case-incertaine', false, 'Impossible de vérifier le dossier de ce fichier : il reste où il est, seul son lien est gardé')
+      : !lien && etat.etatCopie === 'copiable' && dossierDrive
       ? h('label', { class: 'case' }, h('input', { type: 'checkbox', checked: etat.copier === true, dataset: { champ: 'copier' }, 'aria-label': 'Copier dans le dossier de travail',
         onchange: (e) => { etat.copier = e.target.checked; } }), h('span', {}, `Copier dans le dossier de travail${typeFiche === 'affaire' ? ' de l’affaire' : ' du projet'}`))
       : null;
@@ -93,35 +93,30 @@ export function sectionLiensEtDocuments({ id, typeFiche, entite, courant, enregi
   // ------------------------------------------------------------ « Ajouter un document » : la fenêtre standard de Google
   async function choisirDansGoogle(bouton) {
     const email = D.compteCourant()?.email || '';
-    let fiche = courant();
-    let dossierImport = idDossierDrive(fiche.urlDossier);
+    const fiche = courant();
+    const dossierImport = idDossierDrive(fiche.urlDossier);
     bouton.disabled = true;
     try {
       if (!fiche.urlDossier) {
-        const choix = await dialogue({
-          titre: 'Pas encore de dossier de travail',
-          contenu: h('p', {}, 'Cette fiche n’a pas de dossier de travail. « Créer le dossier » en crée un dans Google Drive (avec les sous-dossiers définis dans les Réglages) et l’enregistre comme dossier de travail : les fichiers importés ou copiés y seront rangés.'),
-          boutons: [
-            { libelle: 'Annuler', valeur: null },
-            { libelle: 'Créer le dossier', valeur: 'creer', style: 'principal' },
-          ],
+        // Pas de dossier de travail : un message d'information, rien d'autre (aucune création, aucune fenêtre Google).
+        await dialogue({
+          titre: 'Pas de dossier de travail',
+          contenu: h('p', {}, 'Cette fiche n’a pas de dossier de travail : on ne peut pas y ajouter de document. Crée ou relie d’abord le dossier de travail de cette fiche (bloc Détails).'),
+          boutons: [{ libelle: 'Fermer', valeur: null, style: 'principal' }],
         });
-        if (choix !== 'creer') return;
-        {
-          const r = await creerRepertoireDrive({ nom: fiche.titre });
-          await enregistrer({ urlDossier: r.url });
-          dossierImport = idDossierDrive(r.url);
-          toast(messageCreation(r), { type: r.manquants.length ? 'erreur' : 'info' });
-          fiche = courant();
-        }
+        return;
       }
       // « Mon Drive » est libre (racine) ; « Importer » envoie dans le dossier de travail Drive, s'il y en a un.
       const elus = await ouvrirFenetreGoogle({ mode: 'documents', dossierImport, email, multiple: false });
       const doc = documentDepuisChoix(elus[0]);
       if (!doc) { if (elus[0]) toast('Ce document n’a pas d’adresse Google utilisable', { type: 'erreur' }); return; }
       // Un fichier choisi dans « Google Drive » (pas déposé par « Importer » : celui-là est déjà dans le dossier de travail) est copié dans ce dossier, sauf si on décoche la case.
-      const dejaDansLeDossier = dossierImport && elus[0].parentId === dossierImport;
-      ouvrirFormulaire({ mode: 'document', nom: doc.libelle, nomOriginal: doc.libelle, urlDocument: doc.url, fichierId: elus[0].id, copiable: !dejaDansLeDossier && elus[0].type !== TYPE_DOSSIER, importe: !!dejaDansLeDossier, copier: true }); // cochée par défaut (décision de Jérôme)
+      // Comment reconnaître un fichier « Importer » ? On demande à Drive dans quels dossiers il est (files.get) : un fichier déposé par « Importer » est dans le dossier de travail.
+      // Si Drive ne répond pas, on se rabat sur le dossier d'origine indiqué par la fenêtre Google.
+      let info = null;
+      if (dossierImport) { try { info = await infoFichier({ jeton: await obtenirJeton({ email }), fichierId: elus[0].id }); } catch (e) { console.warn(e); } }
+      const etatDeLaCopie = elus[0].type === TYPE_DOSSIER ? 'aucune' : (dossierImport ? etatCopie({ info, parentIdFenetre: elus[0].parentId, dossierId: dossierImport }) : 'aucune');
+      ouvrirFormulaire({ mode: 'document', nom: doc.libelle, nomOriginal: doc.libelle, urlDocument: doc.url, fichierId: elus[0].id, etatCopie: etatDeLaCopie, copier: etatDeLaCopie === 'copiable' }); // cochée par défaut (décision de Jérôme)
     } catch (e) {
       if (!e?.saisie && !e?.annule) console.warn(e);
       toast(e?.message || 'Ajout impossible', { type: e?.annule ? 'info' : 'erreur' });

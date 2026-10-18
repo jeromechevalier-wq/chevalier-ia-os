@@ -116,6 +116,39 @@ export async function trouverDossierDeMemeNom({ jeton, nom, parentId = '', appel
 }
 
 /**
+ * Où est ce fichier et depuis quand ? (files.get : parents, createdTime). Deux signaux pour reconnaître un fichier que « Importer » vient de déposer :
+ * il est DANS le dossier de travail (parents) et il a été créé À L'INSTANT (createdTime). Renvoie { parents, creeLe } ou null si Google ne répond pas.
+ */
+export async function infoFichier({ jeton, fichierId, appelFetch = globalThis.fetch }) {
+  if (!IDENTIFIANT.test(fichierId || '')) return null;
+  try {
+    const reponse = await appelFetch(`${API_FICHIERS}/${fichierId}?fields=parents,createdTime&supportsAllDrives=true`, { headers: { Authorization: `Bearer ${jeton}` } });
+    if (!reponse.ok) return null;
+    const corps = await reponse.json();
+    return { parents: Array.isArray(corps?.parents) ? corps.parents : null, creeLe: corps?.createdTime ? new Date(corps.createdTime) : null };
+  } catch { return null; }
+}
+
+/** Plus de 5 minutes : le fichier n'a pas été envoyé à l'instant par « Importer ». */
+export const DELAI_IMPORT_MS = 5 * 60 * 1000;
+
+/**
+ * Que faire de la case « Copier dans le dossier de travail » pour un fichier choisi dans la fenêtre Google ?
+ * - 'importe' : il vient d'être déposé par « Importer » (dans le dossier de travail ET créé à l'instant) : case grisée et cochée, rien à copier ;
+ * - 'dejaDans' : il est déjà dans le dossier de travail (mais ancien) : rien à copier, on le dit ;
+ * - 'copiable' : il est ailleurs : case cochée par défaut ;
+ * - 'incertain' : Drive n'a pas répondu et la fenêtre Google n'a rien dit du dossier : on ne copie PAS (une copie risquerait de doubler un fichier importé), le lien d'origine est gardé.
+ * `info` : résultat d'infoFichier ; `parentIdFenetre` : dossier d'origine donné par la fenêtre Google (peut manquer) ; `dossierId` : le dossier de travail.
+ */
+export function etatCopie({ info, parentIdFenetre = '', dossierId, maintenant = Date.now() }) {
+  const parents = info?.parents || (parentIdFenetre ? [parentIdFenetre] : null);
+  if (!parents) return 'incertain';
+  if (!parents.includes(dossierId)) return 'copiable';
+  const recent = info?.creeLe && maintenant - info.creeLe.getTime() < DELAI_IMPORT_MS;
+  return recent || (!info?.creeLe && !info?.parents) ? 'importe' : 'dejaDans';
+}
+
+/**
  * Copie un fichier Drive DANS un dossier (files.copy) : l'original reste où il est. Renvoie { id, nom, url } de la COPIE.
  * Il faut que l'appli ait accès au fichier (choisi dans la fenêtre Google) et au dossier (créé par l'appli ou choisi dans la fenêtre).
  */

@@ -183,6 +183,20 @@ export async function connecter(page, email = JEROME, { attendreAccueil = true, 
   }
 }
 
+/**
+ * Attend que la page soit « posée » : plus aucun changement dans l'écran pendant `calmeMs` (au plus `maxMs`). Une fiche est redessinée à chaque lot de données
+ * qui arrive de la base ; agir avant la fin de ces redessins, c'est cliquer sur un élément qui va être remplacé. On attend un ÉTAT (le calme), pas un délai fixe.
+ */
+export async function attendreCalme(page, calmeMs = 400, maxMs = 8000) {
+  await page.evaluate(([calme, max]) => new Promise((resoudre) => {
+    let minuteur = setTimeout(fin, calme);
+    const limite = setTimeout(fin, max);
+    const observateur = new MutationObserver(() => { clearTimeout(minuteur); minuteur = setTimeout(fin, calme); });
+    observateur.observe(document.body, { childList: true, subtree: true, characterData: true });
+    function fin() { observateur.disconnect(); clearTimeout(minuteur); clearTimeout(limite); resoudre(); }
+  }), [calmeMs, maxMs]);
+}
+
 /** Ouvre le menu sur téléphone si nécessaire, puis clique sur une entrée. */
 export async function allerA(page, libelle) {
   if (estTelephone(page)) await page.getByRole('button', { name: 'Ouvrir le menu' }).click();

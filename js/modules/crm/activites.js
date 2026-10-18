@@ -1,6 +1,7 @@
 // Colonne de droite des fiches : onglets Activité / Notes, Points clés, Historique.
 // Partagée par les fiches personne, organisation et affaire.
 import { h, icone, remplir, dialogue, confirmer, ouvrirMenu, toast } from '../../os/ui.js';
+import { retirerAvecAnnulation } from '../../os/retrait.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
 import { iconeTypeActivite, lienAffaire, lienPersonne, lienOrganisation, nomCompte } from './composants.js';
@@ -90,17 +91,17 @@ export async function faireActivite(activite, { proposer = true } = {}) {
  * L'heure se règle d'abord ; un clic sur un raccourci (Demain, +3 jours…) ou un changement de date enregistre et ferme.
  * « Enregistrer » sert quand on ne change que l'heure.
  */
-async function dialogueDecalage(a) {
+export async function dialogueDecalage(a, { enregistrerPatch = (patch) => D.majActivite(a.id, patch), sansDate = false } = {}) {
   const date = selecteurDate(a.date);
   const heure = h('input', { class: 'champ champ-court', type: 'time', 'aria-label': 'Heure (facultatif)', value: a.heure || '' });
   let fermerFenetre = () => {};
   let enCours = false;
   async function enregistrer() {
     if (enCours) return false;
-    if (!date.valeur()) { toast('Choisis une date.', { type: 'erreur' }); return false; }
+    if (!date.valeur() && !sansDate) { toast('Choisis une date.', { type: 'erreur' }); return false; }
     enCours = true;
     try {
-      await D.majActivite(a.id, { date: date.valeur(), heure: heure.value });
+      await enregistrerPatch({ date: date.valeur(), heure: date.valeur() ? heure.value : '' });
       return true;
     } catch (e) {
       console.warn(e);
@@ -123,7 +124,8 @@ async function dialogueDecalage(a) {
     auMontage: ({ fermer }) => { fermerFenetre = fermer; },
     contenu: h('div', { class: 'pile' },
       h('label', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Heure'), heure),
-      h('div', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Date'), date.element)),
+      h('div', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Date'), date.element,
+        sansDate ? h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', dataset: { action: 'effacer-date' }, onclick: async () => { date.champ.value = ''; heure.value = ''; if (await enregistrer()) fermerFenetre(null); } }, 'Sans date') : null)),
     boutons: [
       { libelle: 'Annuler', valeur: null },
       { libelle: 'Enregistrer', valeur: true, style: 'principal', avantFermeture: enregistrer },
@@ -173,7 +175,9 @@ export function ligneActivite(a, aujourdhui, { avecAffaire = true, tousRattachem
     onclick: () => (surFait ? surFait(a) : faireActivite(a)) }, icone('check', { taille: 14 }));
   const menu = h('button', { type: 'button', class: 'bouton-icone', 'aria-label': `Actions : ${a.titre}`,
     onclick: (e) => ouvrirMenu(e.currentTarget, [
-      { libelle: 'Supprimer', icone: 'trash-2', danger: true, action: async () => { if (await confirmer('Supprimer cette activité ?', a.titre, { libelleOk: 'Supprimer', danger: true })) await D.supprimerActivite(a.id); } },
+      { libelle: 'Supprimer', icone: 'trash-2', danger: true, action: () => retirerAvecAnnulation({
+        titre: 'Supprimer cette activité ?', message: a.titre, libelleOk: 'Supprimer', danger: true,
+        faire: () => D.supprimerActivite(a.id), defaire: () => D.restaurerActivite(a), messageFait: 'Activité supprimée' }) },
     ]) }, icone('ellipsis', { taille: 16 }));
   return h('li', { class: `activite activite-${etat}`, dataset: { activite: a.id } },
     bouton,
@@ -319,7 +323,9 @@ export function panneauActivite({ lien, liensCreation, avecActivites = true, aff
       h('div', { class: 'fil-texte note-carte' }, texte, meta,
         n.deAffaire ? null : h('div', { class: 'note-actions' },
           h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', 'data-action': 'modifier-note', onclick: () => modifier() }, icone('pencil', { taille: 14 }), 'Modifier'),
-          h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', 'data-action': 'supprimer-note', onclick: async () => { if (await confirmer('Supprimer cette note ?', '', { libelleOk: 'Supprimer', danger: true })) await D.supprimerNote(n.id); } }, icone('trash-2', { taille: 14 }), 'Supprimer'))));
+          h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', 'data-action': 'supprimer-note', onclick: () => retirerAvecAnnulation({
+            titre: 'Supprimer cette note ?', message: '', libelleOk: 'Supprimer', danger: true,
+            faire: () => D.supprimerNote(n.id), defaire: () => D.restaurerNote(n), messageFait: 'Note supprimée' }) }, icone('trash-2', { taille: 14 }), 'Supprimer'))));
     function modifier() {
       const zone = h('textarea', { class: 'champ', rows: 4, 'aria-label': 'Modifier la note', value: n.texte });
       const corps = carte.querySelector('.fil-texte');

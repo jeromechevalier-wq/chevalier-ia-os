@@ -1,7 +1,7 @@
 // Fiches affaire et projet cohérentes : bande d'étapes / de phases = simple indicateur (la liste du Résumé change), même ordre des sections, une seule étiquette d'état.
-import { test, expect, connecter, creerAffaire, creerProjet, creerTacheProjet, creerActivite, lireDocument, estTelephone } from './outils.js';
+import { test, expect, attendreCalme, connecter, creerAffaire, creerProjet, creerTacheProjet, creerActivite, lireDocument, estTelephone } from './outils.js';
 
-async function aller(page, hash) { await page.evaluate((h) => { location.hash = h; }, hash); }
+async function aller(page, hash) { await page.evaluate((h) => { location.hash = h; }, hash); await attendreCalme(page); }
 const dessus = (page, a, b) => page.evaluate(([x, y]) => document.querySelector(`[data-section="${x}"]`).getBoundingClientRect().top < document.querySelector(`[data-section="${y}"]`).getBoundingClientRect().top, [a, b]);
 
 test('F1 la bande des étapes (affaire) et des phases (projet) n\'est plus cliquable ; la liste « Étape » / « Phase » du Résumé change l\'étape ou la phase, identique des deux côtés', async ({ page }) => {
@@ -11,6 +11,7 @@ test('F1 la bande des étapes (affaire) et des phases (projet) n\'est plus cliqu
   await aller(page, '#/crm/affaires/a1');
   await expect(page.locator('.barre-etapes-fiche .etape.courante')).toHaveText('Premier contact');
   await expect(page.locator('.barre-etapes-fiche button')).toHaveCount(0); // plus aucun bouton dans la bande
+  await expect(page.locator('.barre-etapes-fiche .etape', { hasText: 'Proposition envoyée' })).toBeVisible(); // la fiche est redessinée quand des données arrivent : on attend qu'elle soit posée
   await page.locator('.barre-etapes-fiche .etape', { hasText: 'Proposition envoyée' }).click({ force: true });
   expect((await lireDocument('crm_affaires/a1')).etape).toBe('premier_contact'); // un clic sur la bande ne change rien
   const resumeAffaire = page.locator('[data-section="affaire-resume"]');
@@ -21,6 +22,7 @@ test('F1 la bande des étapes (affaire) et des phases (projet) n\'est plus cliqu
   await expect(resumeAffaire.locator('[data-action="choisir-etape"]')).toHaveValue('proposition_envoyee');
   await aller(page, '#/projets/projets/pr1');
   await expect(page.locator('.barre-etapes-fiche button')).toHaveCount(0);
+  await expect(page.locator('.barre-etapes-fiche .etape', { hasText: 'Livraison' })).toBeVisible();
   await page.locator('.barre-etapes-fiche .etape', { hasText: 'Livraison' }).click({ force: true });
   expect((await lireDocument('projets_projets/pr1')).phase).toBe('lancement');
   await page.locator('[data-section="projet-resume"] [data-action="choisir-phase"]').selectOption('livraison');

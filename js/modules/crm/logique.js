@@ -1910,6 +1910,9 @@ export function planActiviteFaite(activite, ctx) {
 }
 
 export const planMajActivite = (id, patch) => ({ ecritures: modifierSiPatch(C.activites, id, patch) });
+/** Remet un document supprimé, à l'identique (même identifiant, mêmes champs) : sert au bouton « Annuler » après une suppression confirmée. */
+export const planRestaurerDocument = (collection, doc) => { const { id, ...donnees } = doc; return { ecritures: [ecritureCreer(collection, id, donnees)] }; };
+
 export const planSupprimerActivite = (id) => ({ ecritures: [ecritureSupprimer(C.activites, id)] });
 
 // ---- notes

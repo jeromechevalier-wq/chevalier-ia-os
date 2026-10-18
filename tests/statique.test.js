@@ -60,10 +60,10 @@ describe('D1 Manifeste, icônes, service worker, versions', () => {
     }
     assert.ok(!existsSync(join(RACINE, 'sw.js')) && !existsSync(join(RACINE, 'service-worker.js')));
   });
-  test('D1 versions identiques dans version.json et js/os/version.js (2.11.0)', () => {
+  test('D1 versions identiques dans version.json et js/os/version.js (2.11.1)', () => {
     const v = json('version.json').version;
     const m = /VERSION = '([^']+)'/.exec(lire('js/os/version.js'));
-    assert.equal(v, '2.11.0');
+    assert.equal(v, '2.11.1');
     assert.equal(m[1], v);
   });
   test('D1 portraits réduits (512 px de large au plus)', () => {
@@ -278,7 +278,7 @@ describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
     const appelsTableau = [...lire('js/modules/tableaudebord/donnees.js').matchAll(/httpsCallable\(fonctions\(\), '([A-Za-z]+)'\)/g)].map((m) => m[1]);
     assert.deepEqual(appelsTableau, ['tableaudebordSaisir']); // saisir une date ou une valeur à l'écran : le serveur contrôle, écrit et journalise
     const appelsEspace = [...lire('js/os/mon-espace-donnees.js').matchAll(/httpsCallable\(fonctions\(\), '([A-Za-z]+)'\)/g)].map((m) => m[1]);
-    assert.deepEqual(appelsEspace, ['espaceReglages']); // « Mon espace » (2.10.0) : la seule fonction appelée par la coque, pour les éditeurs d'un client
+    assert.deepEqual(appelsEspace, ['espaceReglages']); // « Mon espace » (2.10.1) : la seule fonction appelée par la coque, pour les éditeurs d'un client
     for (const f of fichiersAppli().filter((x) => /^js\/os\/.*\.js$/.test(x) && x !== 'js/os/mon-espace-donnees.js')) assert.doesNotMatch(lire(f), /httpsCallable|firebase-functions/, `${f} : seul mon-espace-donnees.js appelle une fonction`);
   });
 });

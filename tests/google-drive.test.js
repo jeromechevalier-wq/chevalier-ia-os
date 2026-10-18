@@ -148,6 +148,31 @@ describe('G5 copie d\'un fichier dans le dossier de travail', () => {
   });
 });
 
+describe('G6 que faire de la case « Copier » (import reconnu par deux signaux)', () => {
+  const D = 'DOSSIER_0123456789';
+  const maintenant = Date.parse('2026-10-17T12:00:00Z');
+  const info = (parents, creeLe) => ({ parents, creeLe: creeLe ? new Date(creeLe) : null });
+  test('G6 dans le dossier ET créé à l\'instant → importé ; dans le dossier mais ancien → déjà dedans ; ailleurs → copiable', () => {
+    assert.equal(G.etatCopie({ info: info([D], '2026-10-17T11:58:00Z'), dossierId: D, maintenant }), 'importe');
+    assert.equal(G.etatCopie({ info: info([D], '2026-10-16T11:58:00Z'), dossierId: D, maintenant }), 'dejaDans');
+    assert.equal(G.etatCopie({ info: info(['AUTRE_01234567'], '2026-10-17T11:59:00Z'), dossierId: D, maintenant }), 'copiable');
+  });
+  test('G6 Drive ne répond pas : on se rabat sur le dossier d\'origine de la fenêtre Google ; sans rien : incertain (on ne copie pas)', () => {
+    assert.equal(G.etatCopie({ info: null, parentIdFenetre: D, dossierId: D, maintenant }), 'importe');
+    assert.equal(G.etatCopie({ info: null, parentIdFenetre: 'AUTRE_01234567', dossierId: D, maintenant }), 'copiable');
+    assert.equal(G.etatCopie({ info: null, parentIdFenetre: '', dossierId: D, maintenant }), 'incertain');
+  });
+  test('G6 files.get demande parents et createdTime ; une erreur de Google donne null', async () => {
+    let url = '';
+    const r = await G.infoFichier({ jeton: 'j', fichierId: 'FICHIER_0123456789', appelFetch: async (u) => { url = u; return { ok: true, json: async () => ({ parents: [D], createdTime: '2026-10-17T11:59:00Z' }) }; } });
+    assert.match(url, /fields=parents,createdTime/);
+    assert.deepEqual(r.parents, [D]);
+    assert.equal(r.creeLe.toISOString(), '2026-10-17T11:59:00.000Z');
+    assert.equal(await G.infoFichier({ jeton: 'j', fichierId: 'FICHIER_0123456789', appelFetch: async () => ({ ok: false, status: 500 }) }), null);
+    assert.equal(await G.infoFichier({ jeton: 'j', fichierId: '../x' }), null);
+  });
+});
+
 describe('G4 document choisi dans la fenêtre Google', () => {
   test('G4 un document Drive ou Docs entre dans la liste avec son nom ; autre chose est écarté', () => {
     assert.deepEqual(G.documentDepuisChoix({ nom: ' Devis  signé.pdf ', url: 'https://drive.google.com/file/d/abc/view?usp=drive_web' }), { libelle: 'Devis signé.pdf', url: 'https://drive.google.com/file/d/abc/view?usp=drive_web' });

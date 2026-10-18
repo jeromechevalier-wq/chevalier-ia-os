@@ -6,6 +6,7 @@
 import { collection, doc, onSnapshot, query, where, getDoc, getDocs, writeBatch, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { db } from '../../os/firebase.js';
 import * as CRM from '../crm/donnees.js';
+import * as CL from '../crm/logique.js';
 import * as P from './logique.js';
 
 export const etat = { projets: [], taches: [], modeles: [], pret: false, tachesPretes: false, modelesPrets: false };
@@ -247,6 +248,11 @@ const tacheOuErreur = (id) => tache(id) ?? (() => { throw new Error('Tâche intr
 export const majTache = (id, patch) => appliquerTache(P.planMajTache({ tache: tacheOuErreur(id), patch, taches: etat.taches, config: CRM.etat.config }), 'majTache');
 export const faireTache = (id) => appliquerTache(P.planTacheFaite({ tache: tacheOuErreur(id), projet: projet(tacheOuErreur(id).projetId) }, ctx()), 'faireTache');
 export const defaireTache = (id) => appliquerTache(P.planTacheNonFaite({ tache: tacheOuErreur(id) }), 'defaireTache');
+/** « Annuler » après une suppression confirmée : le modèle, ses tâches types ou les factures reviennent tels qu'ils étaient. */
+export const restaurerModele = (m) => appliquer(CL.planRestaurerDocument(CL.COLLECTIONS_PLAN.projetsModeles, m), 'restaurerModele');
+export const restaurerTachesModele = (id, taches) => appliquer({ ecritures: [CL.ecritureModifier(CL.COLLECTIONS_PLAN.projetsModeles, id, { taches })] }, 'restaurerTachesModele');
+export const restaurerFactures = (projetId, factures) => appliquer({ ecritures: [CL.ecritureModifier(CL.COLLECTIONS_PLAN.projets, projetId, { factures })] }, 'restaurerFactures');
+export const restaurerTache = (t) => appliquer(CL.planRestaurerDocument(CL.COLLECTIONS_PLAN.projetsTaches, t), 'restaurerTache');
 export const supprimerTache = (id) => appliquer(P.planSupprimerTache(id), 'supprimerTache');
 /** `sens` : -1 pour monter, +1 pour descendre dans la phase. */
 export const deplacerTache = (id, sens) => appliquer(P.planDeplacerTache({ tache: tacheOuErreur(id), taches: etat.taches, sens, config: CRM.etat.config }), 'deplacerTache');

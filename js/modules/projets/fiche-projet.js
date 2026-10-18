@@ -8,6 +8,7 @@ import {
 } from '../crm/composants.js';
 import { panneauActivite } from '../crm/activites.js';
 import { creerLanceurs } from '../crm/lanceurs.js';
+import { retirerAvecAnnulation } from '../../os/retrait.js';
 import { sectionLiensEtDocuments } from '../crm/liens-documents.js';
 import * as D from './donnees.js';
 import * as P from './logique.js';
@@ -126,10 +127,9 @@ export function rendreFicheProjet(conteneur, id) {
           h('div', { class: 'prop-valeur' }, p.raisonPerdue, p.raisonPerdueDetail ? h('span', { class: 'aide' }, ` : ${p.raisonPerdueDetail}`) : null)) : null,
         !extraction && p.affaireId ? h('div', { class: 'prop', dataset: { prop: 'affaire' } }, h('span', { class: 'prop-libelle' }, 'Affaire d’origine'), h('div', { class: 'prop-valeur' },
           aff ? lienAffaire(aff) : h('span', { class: 'aide' }, 'Affaire introuvable'),
-          h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', 'data-action': 'detacher-affaire', onclick: async () => {
-            if (!(await confirmer('Détacher l’affaire ?', 'Le projet et l’affaire sont conservés, seul le lien entre eux disparaît.', { libelleOk: 'Détacher' }))) return;
-            try { await D.delierProjet(p.id); toast('Affaire détachée'); } catch (e) { console.warn(e); toast(e?.saisie ? e.message : 'Détachement impossible', { type: 'erreur' }); }
-          } }, 'Détacher'))) : null,
+          h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', 'data-action': 'detacher-affaire', onclick: () => retirerAvecAnnulation({
+            titre: 'Détacher l’affaire ?', message: 'Le projet et l’affaire sont conservés, seul le lien entre eux disparaît.', libelleOk: 'Détacher', messageErreur: 'Détachement impossible',
+            faire: () => D.delierProjet(p.id), defaire: () => D.lierProjet(p.affaireId, p.id), messageFait: 'Affaire détachée' }) }, 'Détacher'))) : null,
         !extraction && projetExtraction ? h('div', { class: 'prop', dataset: { prop: 'extraction' } }, h('span', { class: 'prop-libelle' }, 'Extraction'), h('div', { class: 'prop-valeur' },
           h('a', { class: 'prop-lien', href: cheminProjet(projetExtraction.id) }, projetExtraction.titre))) : null,
         h('div', { class: 'prop' }, h('span', { class: 'prop-libelle' }, 'Personne'), h('div', { class: 'prop-valeur' }, selPersonne.element)),
