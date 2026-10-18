@@ -4,16 +4,14 @@ Tenue à jour à chaque discussion sur l'évolution de l'appli. Dernière mise �
 
 Légende : **décidé** = validé par Jérôme ; **piste** = à trancher avant le cahier des charges.
 
-<<<<<<< HEAD
 ## Pistes notées le 18/10/2026 (à planifier après la recette MCP et l'audit de sécurité)
 
 - **Aide client lisible, publiée** : un site d'aide public en français (accueil avec recherche, catégories, articles courts, captures de notre appli), inspiré de l'organisation du centre d'aide de Pipedrive sans recopier ses textes, séparé du wiki technique. Découpage proposé : squelette + 3 articles, articles CRM, article de connexion de l'assistant, lien « Aide » dans l'appli. Pages publiques relues par Fable. À trancher : adresse (`/aide` sur la plateforme ou domaine à Jérôme). En attendant : `affaire-ou-projet.md`.
 - **Lever la dépendance Projets -> Affaires** à l'activation des modules (`js/os/registre.js`) : les données n'obligent déjà plus un projet à avoir une affaire (décision du 03/10/2026) ; PR dédiée avec test de l'écran Projets sans le module Affaires.
-=======
+
 ## Options par défaut des nouveaux espaces (18/10/2026, PR 122, version 2.11.x)
 
 Un nouvel espace démarre avec « Créer un dossier dans Google Drive » et « Célébrations » **allumés** (extraction de valeur éteinte) ; le dossier Drive parent se choisit sous la case, dans Réglages > Options du CRM. Un booléen déjà enregistré garde la priorité (Ingrid : `boutonsDepot=false` reste). **Vigilance avant de déployer la plateforme** : `initialiserParametres` écrit les champs absents avec la nouvelle valeur (true) au prochain chargement ; vérifier dans Firestore (`clients/<client>/crm_parametres/reglages`) que les espaces existants ont bien `celebrations` et `boutonsDepot` écrits (sinon ils passent à allumé). Détail : `google-drive.md`.
->>>>>>> origin/main
 
 ## Mon espace modifiable (17/10/2026, version 2.10.0)
 
