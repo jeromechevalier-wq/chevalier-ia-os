@@ -1188,7 +1188,7 @@ test('C26 réglages : plus de compte GitHub ni de dossier Mac ; la section Googl
   const section = page.locator('#reglages-projets');
   await expect(section).toBeVisible(); // l'interrupteur est allumé chez Jérôme
   await expect(section.locator('[data-role="etat-google"]')).toContainText('pas encore branché');
-  await expect(section.locator('[data-action="choisir-dossier-parent"]')).toBeDisabled();
+  await expect(page.locator('[data-ligne="boutonsDepot"] [data-action="choisir-dossier-parent"]')).toBeDisabled(); // la zone du dossier parent est sous la case
   await expect(section.locator('[data-action="tester-google"]')).toHaveCount(0); // plus de bouton « Tester la fenêtre Google »
   await expect(page.locator('[data-option="boutonsDepot"]')).toBeChecked();
   await expect(page.locator('[data-ligne="boutonsDepot"]')).toContainText('Créer un dossier dans Google Drive');
