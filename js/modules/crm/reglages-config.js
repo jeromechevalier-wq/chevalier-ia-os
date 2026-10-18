@@ -188,7 +188,7 @@ function sectionOptions() {
       interrupteur({ cle: 'celebrations', titre: 'Célébrations', aide: 'Un petit feu d’artifice quand une affaire est gagnée, un projet terminé, une facture payée ou un objectif atteint. Le message est neutre (« Bravo ! ») ; tu peux y ajouter un prénom et une image.' }),
       o.celebrations ? caseLogo : null,
       o.celebrations ? h('div', { class: 'ligne-champs' }, prenom, utiliserLogo ? null : image) : null,
-      interrupteur({ cle: 'boutonsDepot', titre: 'Créer un dossier dans Google Drive', aide: 'Affiche, sur les fiches affaire et projet, le bouton « Créer un dossier dans Google Drive » : il crée le dossier de la fiche et ses sous-dossiers dans Google Drive, puis enregistre son lien. Ajoute la section « Dossiers de projets dans Google Drive » plus bas. Nécessite que Google Drive soit branché.', suite: o.boutonsDepot ? zoneDossierParent().element : null }));
+      interrupteur({ cle: 'boutonsDepot', titre: 'Créer un dossier dans Google Drive', aide: 'Affiche, sur les fiches affaire et projet, le bouton « Créer un dossier dans Google Drive » : il crée le dossier de la fiche et ses sous-dossiers dans Google Drive, puis enregistre son lien. Ajoute la section « Dossiers de projets dans Google Drive » plus bas. Nécessite que Google Drive soit branché.', suite: o.boutonsDepot ? zoneDossierParent() : null }));
   }
   rendre();
   return { element: sec, rafraichir: rendre };

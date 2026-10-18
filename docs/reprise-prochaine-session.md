@@ -2,6 +2,10 @@
 
 Écrit le 04/10/2026, mis à jour le 07/10/2026 à la fin du chantier Projets, pour qu'une session neuve reprenne sans que Jérôme ait à recoller quoi que ce soit. **À mettre à jour ou à supprimer une fois les points faits.**
 
+## Options par défaut des nouveaux espaces (18/10/2026) : PR 122
+
+Dossier Drive et célébrations allumés par défaut chez un nouveau client ; zone « Dossier Drive parent » sous la case (Réglages > Options du CRM). PR en attente du « fusionne » de Jérôme (visible dans Réglages). **Avant de déployer la plateforme** : vérifier dans Firestore (`clients/<client>/crm_parametres/reglages`) que les espaces existants ont `celebrations` et `boutonsDepot` écrits, car les champs absents prennent la nouvelle valeur (true). Voir `roadmap.md` et `google-drive.md`.
+
 ## Deux actions pour Jérôme : tests sur GitHub (18/10/2026)
 
 1. **Exiger la coche « Tests » avant toute fusion** : **impossible sur le forfait gratuit** (vérifié le 18/10/2026 : GitHub répond « Upgrade to GitHub Pro or make this repository public » pour les règles de branche d'un dépôt privé). Décision de Jérôme à prendre : rester en gratuit (la règle « on ne fusionne que si la coche Tests est verte » est alors tenue par Claude, sans verrou technique) ou passer à GitHub Pro (environ 4 $ par mois, résiliable à tout moment, 3 000 minutes d'Actions). Avec le Pro : https://github.com/settings/billing/plans (« Upgrade » sur la ligne Pro), puis https://github.com/jeromechevalier-wq/chevalier-ia-os/settings/rules/new?target=branch : nom « main », statut « Active », « Add target » > « Include default branch », cocher « Require status checks to pass », « Add checks » > « Tests », « Create ».

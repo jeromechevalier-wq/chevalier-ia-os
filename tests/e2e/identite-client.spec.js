@@ -248,11 +248,10 @@ test('I9 la page de connexion du client (avant la connexion) n\'a aucune identit
 
 test('I10 chez un client : « Ajouter un document » (Google branché) et dossier de travail libre ; « Créer un dossier dans Google Drive » allumé par défaut, absent quand le réglage est écrit à false, dans l\'espace du client', async ({ page, context }) => {
   const drive = await brancherGoogle(context);
+  // Réglage écrit à false (comme chez Ingrid) AVANT d'ouvrir la fiche : le dossier de travail est un lien libre, pas de création ; la fenêtre Google d'ajout de document est là.
+  await ecrireDocument('clients/studio/crm_parametres/reglages', { boutonsDepot: false });
   await ouvrir(page, 'studio', 'projets/projets/pr1');
   await expect(page.locator('input.titre-editable')).toHaveValue('Site du lac');
-  // Réglage écrit à false (comme chez Ingrid) : le dossier de travail est un lien libre, pas de création ; la fenêtre Google d'ajout de document est là.
-  await expect.poll(async () => (await lireDocument('clients/studio/crm_parametres/reglages')) !== null).toBe(true);
-  await ecrireDocument('clients/studio/crm_parametres/reglages', { ...(await lireDocument('clients/studio/crm_parametres/reglages')), boutonsDepot: false });
   await expect(page.locator('[data-action="creer-dossier-ouvrir"]')).toHaveCount(0);
   await expect(page.locator('[data-action="lier-dossier"]')).toBeVisible();
   await expect(page.locator('[data-section="projet-documents"]')).toContainText('Liens et documents');
