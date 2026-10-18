@@ -1,5 +1,7 @@
 # Le MCP pour les clients (module « Accès MCP »)
 
+> Vue d'ensemble (qui entre par quelle porte, avec quels droits) : [portes-et-droits-mcp.md](portes-et-droits-mcp.md).
+
 **Décidé par Jérôme le 16/10/2026** : l'accès MCP est la raison pour laquelle la première cliente s'intéresse au logiciel, et il est ouvert à **tous** les clients. Il sort de la réserve du 11/10/2026 (`mcp-multi-clients-en-reserve.md`, gardé pour l'historique et le plan de tests M1 à M15). Le MCP de Jérôme (base `chevalier-ia-os`) **ne change pas**.
 
 ## Ce que ça fait
