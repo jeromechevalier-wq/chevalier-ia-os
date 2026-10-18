@@ -128,7 +128,7 @@ describe('registre : modules actifs d\'un client', () => {
   });
 });
 
-describe('registre : le CRM de Jérôme est strictement inchangé', () => {
+describe('registre : le menu de Jérôme (modules, routes, écrans ; Archives et libellés changés le 18/10/2026)', () => {
   // Copie exacte du contenu de js/os/modules.js avant le chantier 7 (id « crm » devenu « affaires » : identifiant interne seulement).
   const AVANT = [
     { id: 'affaires', libelle: 'Affaires et projets', icone: 'users', prefixe: 'crm', entrees: [

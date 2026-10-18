@@ -4,6 +4,9 @@ import { MODULES } from './modules.js';
 import { blocsDuMenu } from './registre.js';
 import { naviguer, lien } from './router.js';
 
+// Routes sans entrée de menu -> entrée allumée à leur place (l'écran principal de leur module).
+const ROUTES_SOUS_ENTREE = [['projets/archives', 'projets/projets'], ['projets/modeles', 'projets/projets']];
+
 // ---------------------------------------------------------------- thème
 
 export function themeCourant() {
@@ -202,7 +205,9 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
 
   function activer(route) {
     for (const a of entrees) {
-      const actif = route === a.dataset.chemin || route.startsWith(`${a.dataset.chemin}/`);
+      // Les pages d'un module qui n'ont pas (ou plus) d'entrée de menu allument l'entrée de leur écran principal : archives et modèles -> Projets.
+      const chemin = ROUTES_SOUS_ENTREE.find(([prefixe]) => route === prefixe || route.startsWith(`${prefixe}/`))?.[1];
+      const actif = route === a.dataset.chemin || route.startsWith(`${a.dataset.chemin}/`) || chemin === a.dataset.chemin;
       a.classList.toggle('actif', actif);
       if (actif) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
     }

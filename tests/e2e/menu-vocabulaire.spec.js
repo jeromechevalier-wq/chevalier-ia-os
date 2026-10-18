@@ -34,6 +34,8 @@ test('1 Archives n’est plus dans le menu ; #/projets/archives affiche sa page 
   await expect(page.locator('.bascule-vue[data-vue="archives"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('.tableau-projets')).toContainText('Projet rangé');
   await expect(page.getByRole('heading', { name: 'Page introuvable' })).toHaveCount(0);
+  // sans entrée « Archives », l'entrée « Projets » reste la page courante
+  await expect(page.locator('.menu .menu-entree[data-chemin="projets/projets"]')).toHaveAttribute('aria-current', 'page');
   // et le bouton « Archives » de l'écran Projets y mène
   await aller(page, '#/projets/projets');
   await page.locator('.bascule-vue[data-vue="archives"]').click();

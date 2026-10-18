@@ -50,4 +50,4 @@ Chantier 1 des décisions du 16/10/2026 (fiche « Décisions de cadrage du CRM c
 
 ## Suite (2.6.0)
 
-Les réglages décrits ici se trouvent maintenant dans **Réglages > CRM** (page à menu latéral) et le menu n'a plus qu'un seul bloc « CRM » : voir `reglages-menu-crm-unique.md`. Les fiches de modèles gardent leur adresse `#/projets/modeles/<id>`, leur lien de retour va à `#/reglages/crm`.
+Les réglages décrits ici se trouvent maintenant dans **Réglages > Affaires et projets** (page à menu latéral) et le menu n'a plus qu'un seul bloc « CRM » : voir `reglages-menu-crm-unique.md`. Les fiches de modèles gardent leur adresse `#/projets/modeles/<id>`, leur lien de retour va à `#/reglages/crm`.

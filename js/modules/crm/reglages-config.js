@@ -132,7 +132,7 @@ function editeurEmplacements({ genre, visible = true }) {
   boutonAnnuler = h('button', { type: 'button', class: 'bouton bouton-secondaire', disabled: true, dataset: { action: `annuler-${genre}` }, onclick: () => { charger(); rendre(); erreurGenerale.textContent = ''; } }, 'Annuler les changements');
   sec.append(zone, erreurGenerale, h('div', { class: 'ligne-boutons' }, boutonEnregistrer, boutonAnnuler));
   // Quitter la page avec un brouillon non enregistré : le routeur demande confirmation (voir ajouterGardeSortie).
-  ajouterGardeSortie(() => sec.isConnected && modifie(), { message: `Les changements des ${etape ? 'étapes de vente' : 'phases de projet'} ne sont pas enregistrés.` });
+  ajouterGardeSortie(() => sec.isConnected && modifie(), { message: `Les changements des ${etape ? 'étapes des affaires' : 'phases des projets'} ne sont pas enregistrés.` });
 
   function rafraichir() {
     // Un brouillon en cours n'est jamais écrasé par un changement venu d'ailleurs.

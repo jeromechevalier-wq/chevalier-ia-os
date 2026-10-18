@@ -76,6 +76,8 @@ function fichiers(dossier, extension) {
 // Exceptions : aucune pour l'instant. Une chaîne qui doit garder « CRM » (identifiant technique) s'ajoute ici avec sa raison, en texte exact.
 // Les adresses #/crm/…, 'crm', crm_…, reglages-…, css/crm.css et l'alias `CRM.` (import * as CRM) sont en minuscules ou ne sont pas des chaînes : elles ne sont pas visées.
 const EXCEPTIONS = new Set([]);
+/** Ce qui ne doit plus s'écrire dans une chaîne visible : le mot CRM et les anciens noms « Étapes de vente » / « Phases de projet » (singulier). */
+const interdit = (t) => /CRM/.test(t) || /tapes de vente|hases de projet\b/i.test(t);
 
 describe('3 plus de mot « CRM » visible', () => {
   test('3 l’analyseur de chaînes ignore les commentaires, les expressions régulières et lit les gabarits', () => {
@@ -83,19 +85,24 @@ describe('3 plus de mot « CRM » visible', () => {
     assert.deepEqual(chainesDe(src).filter((x) => x.texte.includes('CRM')).map((x) => [x.texte, x.ligne]), [['CRM1', 4], ['Mon CRM', 5]]);
   });
 
-  test('3 aucune chaîne de js/**/*.js ni de index.html ne contient « CRM » (commentaires exclus)', () => {
+  test('3 le manifeste de l’application ne dit pas « CRM »', () => {
+    const m = JSON.parse(readFileSync(join(RACINE, 'manifest.webmanifest'), 'utf8'));
+    for (const [cle, valeur] of Object.entries(m)) if (typeof valeur === 'string') assert.ok(!interdit(valeur), `manifest.webmanifest ${cle} : ${valeur}`);
+  });
+
+  test('3 aucune chaîne de js/**/*.js ni de index.html ne contient « CRM », « Étapes de vente » ni « Phases de projet » (commentaires exclus)', () => {
     const trouves = [];
     for (const f of fichiers(join(RACINE, 'js'), '.js')) {
       for (const c of chainesDe(readFileSync(f, 'utf8'))) {
-        if (/CRM/.test(c.texte) && !EXCEPTIONS.has(c.texte)) trouves.push(`${relative(RACINE, f)}:${c.ligne} « ${c.texte.slice(0, 80)} »`);
+        if (interdit(c.texte) && !EXCEPTIONS.has(c.texte)) trouves.push(`${relative(RACINE, f)}:${c.ligne} « ${c.texte.slice(0, 80)} »`);
       }
     }
     // index.html : le texte de la page (hors commentaires HTML) et les chaînes de ses scripts en ligne (leurs commentaires sont exclus).
     const html = readFileSync(join(RACINE, 'index.html'), 'utf8').replace(/<!--[\s\S]*?-->/g, '');
     const scripts = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
     const texte = html.replace(/<script\b[^>]*>[\s\S]*?<\/script>|<style\b[^>]*>[\s\S]*?<\/style>/g, '');
-    texte.split('\n').forEach((l, k) => { if (/CRM/.test(l)) trouves.push(`index.html (page) ligne ${k + 1} ${l.trim().slice(0, 80)}`); });
-    for (const code of scripts) for (const c of chainesDe(code)) if (/CRM/.test(c.texte)) trouves.push(`index.html (script) « ${c.texte.slice(0, 80)} »`);
+    texte.split('\n').forEach((l, k) => { if (interdit(l)) trouves.push(`index.html (page) ligne ${k + 1} ${l.trim().slice(0, 80)}`); });
+    for (const code of scripts) for (const c of chainesDe(code)) if (interdit(c.texte)) trouves.push(`index.html (script) « ${c.texte.slice(0, 80)} »`);
     assert.deepEqual(trouves, [], 'le mot « CRM » ne doit plus être écrit dans ce que l’utilisateur voit');
   });
 });

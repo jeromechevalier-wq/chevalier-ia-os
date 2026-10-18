@@ -174,6 +174,9 @@ test('I5 aucun texte au nom de Jérôme sur les écrans d\'un client (accueil, l
     await aller(page, lib);
     await verifier(lib);
   }
+  // « Archives » n'est plus au menu : on y va par le bouton de l'écran Projets
+  await page.locator('.bascule-vue[data-vue="archives"]').click();
+  await verifier('Archives');
   await page.evaluate(() => { location.hash = '#/espace/studio/crm/affaires/a1'; });
   await expect(page.locator('input.titre-editable')).toHaveValue('Audit du lac');
   await verifier('fiche affaire');
