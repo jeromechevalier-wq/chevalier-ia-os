@@ -15,6 +15,7 @@ import { idDossierDrive, documentDepuisChoix, copierFichier, TYPE_DOSSIER } from
 // Formulaire ouvert, gardé hors de la fiche : la fiche est redessinée quand des données arrivent, le formulaire en cours de saisie ne doit pas disparaître.
 const EXPLICATION = 'Liens et documents de cette fiche. « Ajouter un document » choisit un fichier dans Google Drive (ou envoie un fichier de l’ordinateur) et, par défaut, le copie dans le dossier de travail. « Ajouter un lien web » garde l’adresse d’un site ou d’un fichier.';
 const formulaires = new Map();
+const afficheurs = new Map(); // fiche → fonction qui redessine le formulaire de la section la plus récente (la fiche peut être redessinée pendant une action : on redessine alors la nouvelle section, pas l'ancienne)
 
 /**
  * - id : identifiant de la section (data-section) ; typeFiche : 'projet' | 'affaire'
@@ -86,7 +87,8 @@ export function sectionLiensEtDocuments({ id, typeFiche, entite, courant, enregi
     (champUrl || champNom).focus?.();
   }
 
-  const ouvrirFormulaire = (etat) => { formulaires.set(cle, { url: '', nom: '', note: '', ...etat }); afficherFormulaire(); };
+  const ouvrirFormulaire = (etat) => { formulaires.set(cle, { url: '', nom: '', note: '', ...etat }); (afficheurs.get(cle) || afficherFormulaire)(); };
+  afficheurs.set(cle, afficherFormulaire);
 
   // ------------------------------------------------------------ « Ajouter un document » : la fenêtre standard de Google
   async function choisirDansGoogle(bouton) {
