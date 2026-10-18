@@ -28,6 +28,7 @@ Ce fichier est lu au début de chaque session. Il garde les décisions de Jérô
 - Une PR, un sujet, fusionnée dans la journée. Deux chantiers en parallèle au maximum.
 - `npm ci` seulement si `package-lock.json` a changé.
 - Mode d'emploi pour Jérôme : `docs/tests.md`.
+- `wiki/` est généré depuis `docs/` par `node scripts/wiki/construire.js` : ne jamais l'écrire à la main, le régénérer et le commiter à chaque changement de `docs/` (mode d'emploi : `docs/wiki.md`).
 
 ## Au démarrage d'une session
 
