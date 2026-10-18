@@ -36,4 +36,4 @@
 
 ## Les deux actions qui te restent
 1. **Exiger la coche « Tests » avant fusion** : **impossible sur le forfait gratuit** (GitHub : « Upgrade to GitHub Pro or make this repository public »). Soit on reste en gratuit (Claude tient la règle sans verrou), soit GitHub Pro (environ 4 $ par mois, résiliable, 3 000 minutes d'Actions) : procédure dans `docs/reprise-prochaine-session.md`.
-2. **Sortir le dépôt de Google Drive** : `git clone https://github.com/jeromechevalier-wq/chevalier-ia-os.git ~/Projets/chevalier-ia-os`, ouvrir ce dossier dans Claude Code, ne plus toucher à la copie dans Drive.
+2. **Sortir le dépôt de Google Drive** : `git clone https://github.com/jeromechevalier-wq/chevalier-ia-os.git ~/Code-Chevalier-IA/chevalier-ia-os`, ouvrir ce dossier dans Claude Code, ne plus toucher à la copie dans Drive.
