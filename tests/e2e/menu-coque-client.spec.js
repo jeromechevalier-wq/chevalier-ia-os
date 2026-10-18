@@ -104,3 +104,41 @@ test('6 chez un client, l’en-tête a la même forme que chez Jérôme : nom, b
   await expect(page.locator('img.avatar')).toHaveCount(0);
   await capture(page, '6-en-tete-client', estTelephone(page) ? {} : { clip: { x: 0, y: 0, width: 260, height: 900 } });
 });
+
+test('C5 chez un client : la même poignée de largeur du menu, la largeur choisie est mémorisée et le repli la respecte @sans-telephone', async ({ page }) => {
+  await ouvrir(page, 'assistant');
+  await deplier(page);
+  const poignee = page.getByRole('separator', { name: 'Largeur du menu' });
+  await expect(poignee).toHaveAttribute('aria-valuenow', '240');
+  await expect.poll(async () => (await poignee.boundingBox()).x, { intervals: [200, 200, 300] }).toBe(233); // fin de l'animation d'ouverture
+  const b = await poignee.boundingBox();
+  await page.mouse.move(b.x + 3, b.y + 300);
+  await page.mouse.down();
+  await page.mouse.move(340, b.y + 300, { steps: 5 });
+  await page.mouse.up();
+  await expect.poll(() => page.locator('.menu').evaluate((m) => Math.round(m.getBoundingClientRect().width))).toBe(340);
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('chevalier-os.menu-largeur'))).toBe('340');
+  await page.getByRole('button', { name: 'Replier le menu' }).click();
+  await expect(page.locator('.menu-poignee')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Élargir le menu' }).click();
+  await expect.poll(() => page.locator('.menu').evaluate((m) => Math.round(m.getBoundingClientRect().width))).toBe(340);
+  await mkdir(join(homedir(), 'chantiers-crm', 'captures-menu-C'), { recursive: true });
+  await page.screenshot({ path: join(homedir(), 'chantiers-crm', 'captures-menu-C', '5-client-340.png'), animations: 'disabled', clip: { x: 0, y: 0, width: 700, height: 600 } });
+});
+
+test('C1 chez un client, au minimum de 200 px, un long nom d’espace est tronqué sans rien faire déborder @sans-telephone', async ({ page }) => {
+  await ecrireDocument('marques/long', { actif: true, nom: 'Cabinet d’Avocats Associés Dupont-Martin et Fils', couleur: '#336699', accueil: 'Bienvenue.' });
+  await ecrireDocument(`clients/long/membres/${ALICE}`, { role: 'editeur' });
+  await ecrireDocument('clients/long', { modules: { affaires: true, projets: true, mcp: true }, equipe: [{ email: ALICE, role: 'editeur' }] });
+  await ouvrir(page, 'long');
+  await deplier(page);
+  const poignee = page.getByRole('separator', { name: 'Largeur du menu' });
+  await poignee.focus();
+  await page.keyboard.press('Home');
+  await expect.poll(() => page.locator('.menu').evaluate((m) => Math.round(m.getBoundingClientRect().width))).toBe(200);
+  await page.waitForTimeout(400);
+  expect(await page.locator('.menu').evaluate((m) => m.scrollWidth <= m.clientWidth)).toBe(true);
+  expect(await page.locator('.menu-repli').evaluate((r) => r.getBoundingClientRect().right <= document.querySelector('.menu').getBoundingClientRect().right)).toBe(true);
+  await mkdir(join(homedir(), 'chantiers-crm', 'captures-menu-C'), { recursive: true });
+  await page.screenshot({ path: join(homedir(), 'chantiers-crm', 'captures-menu-C', 'C1-client-nom-long-minimum-200.png'), animations: 'disabled', clip: { x: 0, y: 0, width: 700, height: 600 } });
+});
