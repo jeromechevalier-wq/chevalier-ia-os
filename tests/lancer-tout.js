@@ -18,7 +18,8 @@ const POS_MODULE = process.argv.indexOf('--module');
 const MODULE = POS_MODULE === -1 ? null : (process.argv[POS_MODULE + 1] || '');
 // Palier « complet » = format ordinateur seulement (ce que GitHub lance sur chaque PR) ; `--nuit` = ordinateur et téléphone, chaque scénario 3 fois.
 const NUIT = process.argv.includes('--nuit');
-const PROJETS = NUIT ? '--repeat-each=3' : '--project=ordinateur';
+// TESTS_REPETER : nombre de passages de la suite de nuit (3 par défaut ; le workflow GitHub met 1 pour rester dans le quota de minutes).
+const PROJETS = NUIT ? `--repeat-each=${Number(process.env.TESTS_REPETER) || 3}` : '--project=ordinateur';
 // `node lancer-tout.js --e2e <arguments de playwright>` : seulement la série navigateur (un fichier de spec, --repeat-each…), mêmes ports et mêmes émulateurs.
 const POS_E2E = process.argv.indexOf('--e2e');
 const ARGS_E2E = POS_E2E === -1 ? null : process.argv.slice(POS_E2E + 1).map((a) => `'${a.replace(/'/g, `'\\''`)}'`).join(' ');

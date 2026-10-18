@@ -1,4 +1,4 @@
-# Tests de nuit sur main : ordinateur ET téléphone, chaque scénario 3 fois (pour repérer les scénarios instables).
+# Tests de nuit sur main : ordinateur ET téléphone, chaque scénario 1 fois (3 avec TESTS_REPETER=3).
 # Aucun secret : émulateurs Firebase, projet demo-chevalier-ia-os.
 name: Tests de nuit
 on:
@@ -12,12 +12,14 @@ jobs:
   nuit:
     name: Tests de nuit
     runs-on: ubuntu-24.04
-    timeout-minutes: 120
+    timeout-minutes: 90
     env:
       CI: 'true'
       # Le navigateur de test est réglé sur Europe/Paris ; le processus Node doit l'être aussi (sinon les heures attendues par certains tests sont décalées de 2 h).
       TZ: Europe/Paris
       TESTS_WORKERS: '2'
+      # 1 seul passage : à 3 passages, le run dépasse 2 h (essai du 18/10/2026) et épuiserait à lui seul le quota de 2 000 minutes par mois.
+      TESTS_REPETER: '1'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -44,7 +46,7 @@ jobs:
       - name: Installer le navigateur de test
         run: npx playwright install chromium --with-deps
         working-directory: tests
-      - name: Suite de nuit (ordinateur et téléphone, 3 passages)
+      - name: Suite de nuit (ordinateur et téléphone)
         run: npm run test:nuit
         working-directory: tests
       - name: Rapport et captures
