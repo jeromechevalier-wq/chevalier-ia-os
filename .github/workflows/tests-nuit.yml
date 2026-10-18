@@ -1,0 +1,53 @@
+# Tests de nuit sur main : ordinateur ET téléphone, chaque scénario 3 fois (pour repérer les scénarios instables).
+# Aucun secret : émulateurs Firebase, projet demo-chevalier-ia-os.
+name: Tests de nuit
+on:
+  schedule:
+    # 0 h UTC = 2 h en heure d'été de Paris, 1 h en heure d'hiver.
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  nuit:
+    name: Tests de nuit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            tests/package-lock.json
+            functions/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Installer les dépendances (versions figées par package-lock.json)
+        run: |
+          npm ci --prefix tests
+          npm ci --prefix functions
+      - name: Installer le navigateur de test
+        run: npx playwright install chromium --with-deps
+        working-directory: tests
+      - name: Suite de nuit (ordinateur et téléphone, 3 passages)
+        run: npm run test:nuit
+        working-directory: tests
+      - name: Rapport et captures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tests-nuit
+          path: |
+            tests/test-results
+            tests/playwright-report
+            tests/.config-ports/*.log
+          retention-days: 14
+          if-no-files-found: ignore

@@ -237,7 +237,10 @@ export const test = base.extend({
 /** C20 : aucune erreur dans la console du navigateur pendant le parcours. */
 test.afterEach(async ({ erreursConsole }, info) => {
   if (info.annotations.some((a) => a.type === 'erreurs-reseau-attendues')) return;
-  expect(erreursConsole, 'Erreurs dans la console du navigateur').toEqual([]);
+  // Une transaction Firestore refusée (409) pendant une écriture directe du test est rejouée par le SDK : le navigateur la note dans sa console,
+  // mais ce n'est pas une erreur de l'appli (cause des échecs au hasard « 409 Conflict », voir docs/acceleration-tests-mesures.md). Toute autre erreur reste signalée.
+  const reelles = erreursConsole.filter((m) => !/status of 409 \(Conflict\).*documents:commit/.test(String(m)));
+  expect(reelles, 'Erreurs dans la console du navigateur').toEqual([]);
 });
 
 export { expect };

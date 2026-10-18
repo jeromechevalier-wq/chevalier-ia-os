@@ -5,7 +5,7 @@ const JAUNE = 'rgb(236, 188, 6)';
 const couleurDe = (page, selecteur, propriete = 'backgroundColor', pseudo = null) =>
   page.locator(selecteur).first().evaluate((el, [p, ps]) => getComputedStyle(el, ps)[p], [propriete, pseudo]);
 
-test('K1 identité du CRM inchangée : titre, icône, manifeste, baguette, nom dans le menu, aucune marque de client', { tag: '@rapide' }, async ({ page }) => {
+test('K1 identité du CRM inchangée : titre, icône, manifeste, baguette, nom dans le menu, aucune marque de client', async ({ page }) => {
   await connecter(page, JEROME);
   await expect(page).toHaveTitle('Chevalier IA OS');
   const t = await page.evaluate(() => ({

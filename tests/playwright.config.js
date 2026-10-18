@@ -12,10 +12,10 @@ export default defineConfig({
   testMatch: /.*\.spec\.js/,
   fullyParallel: false,
   workers: WORKERS,
-  retries: 0,
+  retries: process.env.CI ? 1 : 0, // sur GitHub : une reprise (un scénario qui ne passe qu'à la 2e fois est signalé « flaky » dans le rapport)
   timeout: 90_000,
   expect: { timeout: 10_000 },
-  reporter: [['list']],
+  reporter: process.env.CI ? [['list'], ['html', { open: 'never', outputFolder: 'playwright-report' }]] : [['list']],
   outputDir: `./test-results/${decalage()}`, // un dossier par session : deux suites en même temps ne s'effacent pas
   use: {
     baseURL: `http://localhost:${ports.serveur}`,
