@@ -10,6 +10,7 @@ Tout tourne sur les émulateurs Firebase (jamais sur les vraies données).
 | `npm run test:rapide` | règles, logique, statique, fonctions, porte (sans navigateur) | moins d'une minute | la session, avant d'ouvrir la PR |
 | `npm run test:smoke` | 5 parcours essentiels dans le navigateur (étiquette `@smoke`), format ordinateur | environ 15 secondes | la session, avant d'ouvrir la PR |
 | `npm run test:complet` (= `npm test`) | tout, format ordinateur | 5 à 10 minutes | **GitHub**, sur chaque PR (`tests.yml`) |
+| `npm run test:telephone` | les parcours navigateur en format téléphone seul (390×844, tactile ; sans les scénarios `@sans-telephone`) | quelques minutes | **GitHub**, sur les PR qui touchent `css/`, `js/`, `index.html`, `espace/`, `assets/`, `manifest.webmanifest` ou `tests/e2e/` (étape de `tests.yml`) |
 | `npm run test:nuit` | tout, ordinateur et téléphone, chaque scénario 3 fois | 30 minutes ou plus | **GitHub**, chaque nuit sur `main` (`tests-nuit.yml`) |
 
 La session ne lance jamais la suite complète. Voir `docs/tests.md`.

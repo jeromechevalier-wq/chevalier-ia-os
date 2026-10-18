@@ -1,4 +1,4 @@
-# Tests sur chaque PR vers main : palier « complet », format ordinateur seulement (le format téléphone tourne la nuit, voir tests-nuit.yml).
+# Tests sur chaque PR vers main : palier « complet » en format ordinateur ; le format téléphone s'ajoute seulement si la PR touche le CSS ou un écran (étape « Format téléphone »), et tourne toujours la nuit (tests-nuit.yml).
 # Le résultat est la coche GitHub « Tests » : on fusionne quand elle est verte. Aucun secret : émulateurs Firebase, projet demo-chevalier-ia-os.
 name: Tests
 on:
@@ -22,6 +22,9 @@ jobs:
       TESTS_WORKERS: '2'
     steps:
       - uses: actions/checkout@v4
+        with:
+          # 2 commits : sur une PR, GitHub teste la fusion (PR + main) ; HEAD^1 = main, ce qui permet de lister les fichiers que la PR change.
+          fetch-depth: 2
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -46,6 +49,20 @@ jobs:
         working-directory: tests
       - name: Palier complet (ordinateur)
         run: npm run test:complet
+        working-directory: tests
+      # Le format téléphone coûte des minutes de quota : il ne tourne que si la PR touche l'affichage (CSS, écrans, page d'accueil, images/polices, scénarios navigateur) ; sinon la nuit s'en charge.
+      # Étape dans le même job : la coche « Tests » reste unique, et ne passer l'étape ne la rend ni rouge ni en attente.
+      - name: Format téléphone (si la PR touche le CSS ou un écran)
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            fichiers=$(git diff --name-only HEAD^1 HEAD)
+            echo "Fichiers changés par la PR :"; echo "$fichiers"
+            if ! echo "$fichiers" | grep -Eq '^(css/|js/|index\.html$|espace/|assets/|manifest\.webmanifest$|tests/e2e/|tests/playwright\.config\.js$)'; then
+              echo "Aucun fichier d'affichage touché : format téléphone sauté (il tourne la nuit)."
+              exit 0
+            fi
+          fi
+          npm run test:telephone
         working-directory: tests
       - name: Captures et rapport en cas d'échec
         if: failure()

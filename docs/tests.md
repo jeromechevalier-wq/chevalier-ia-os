@@ -8,7 +8,7 @@
 |---|---|---|---|
 | **Rapide** | Les règles, la logique et les contrôles, sans navigateur | moins d'une minute | Claude, dans la session, avant d'ouvrir une PR |
 | **Smoke** (« fumée ») | 5 parcours essentiels dans un vrai navigateur : connexion, créer une personne, une affaire, un projet, ajouter des factures. Format ordinateur seulement | environ 15 secondes | Claude, dans la session, avant d'ouvrir une PR |
-| **Complet** | Tous les tests, dont tous les parcours navigateur. Format ordinateur seulement | voir « Durée réelle » ci-dessous | **GitHub**, automatiquement, sur chaque PR |
+| **Complet** | Tous les tests, dont tous les parcours navigateur, en format ordinateur. **Si la PR touche le CSS ou un écran** (`css/`, `js/`, `index.html`, `espace/`, `assets/`, `manifest.webmanifest`, `tests/e2e/`, `tests/playwright.config.js`), le format **téléphone** est ajouté. Une PR qui ne touche que de la doc, des règles ou des fonctions saute le téléphone (il tourne la nuit) | voir « Durée réelle » ci-dessous | **GitHub**, automatiquement, sur chaque PR |
 | **De nuit** | Tout, ordinateur **et téléphone**, chaque scénario une fois (3 fois si on règle `TESTS_REPETER=3`, trop long pour le quota gratuit) | plus long | **GitHub**, chaque nuit à 2 h (heure de Paris) sur `main` |
 
 Pendant le travail, Claude ne lance que les tests du module qu'il touche (`npm run test:module projets`, par exemple).
