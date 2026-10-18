@@ -48,10 +48,10 @@ export function afficher(conteneur, segs) {
 }
 
 /** Réglages > Accès MCP : rien à régler, un renvoi vers la page d'information (lien de connexion, mode d'emploi, membres). */
-export function reglages(page) {
+export function reglages(page, { chezClient = true } = {}) {
   page.append(h('section', { class: 'carte-section', id: 'reglages-mcp' },
     h('h2', {}, icone('link', { taille: 18 }), 'Connexion de l’assistant'),
-    h('p', { class: 'aide' }, 'Ce module n’a pas de réglage à toi : il s’allume ou s’éteint pour ton espace. Le lien de connexion, le mode d’emploi et la liste des membres autorisés sont sur la page Connexion.'),
+    h('p', { class: 'aide' }, 'Ce module n’a pas de réglage à toi : il s’allume ou s’éteint pour ton espace. ' + (chezClient ? 'Le lien de connexion, le mode d’emploi et la liste des membres autorisés sont sur la page Connexion.' : 'L’adresse de connexion et le mode d’emploi sont sur la page Connexion ; les comptes autorisés sont fixés par Jérôme.')),
     h('a', { class: 'bouton bouton-secondaire', href: lien('mcp/infos') }, icone('link', { taille: 16 }), 'Ouvrir la page Connexion')));
   return null;
 }

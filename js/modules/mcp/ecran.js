@@ -1,5 +1,5 @@
 // Page d'information du module « Accès MCP » (lecture seule, aucun réglage) : lien de connexion à copier, mode d'emploi en trois lignes,
-// membres autorisés avec leur rôle, lien vers le Journal du CRM. Texte affiché : toujours en texte simple (h() ne fabrique jamais de HTML).
+// membres autorisés avec leur rôle, lien vers le Journal des modifications. Texte affiché : toujours en texte simple (h() ne fabrique jamais de HTML).
 import { h, icone, remplir, toast } from '../../os/ui.js';
 import { lien } from '../../os/router.js';
 import * as D from './donnees.js';

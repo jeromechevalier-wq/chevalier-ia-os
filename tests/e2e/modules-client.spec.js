@@ -2,7 +2,7 @@
 // puis les règles du CRM remises). Un client voit le menu et les écrans de ses seuls modules actifs, sous clients/<client>/…
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { test, expect, ecrireDocument, estTelephone, ouvrirSectionReglages, choisirDansMenuUtilisateur, ouvrirMenuUtilisateur, PROJET, FIRESTORE, URL_APP } from './outils.js';
+import { test, expect, ecrireDocument, estTelephone, ouvrirSectionReglages, choisirDansMenuUtilisateur, ouvrirMenuUtilisateur, attendreCalme, PROJET, FIRESTORE, URL_APP } from './outils.js';
 
 const ALICE = 'alice@exemple.test';
 const LEA = 'lea@exemple.test';
@@ -152,7 +152,7 @@ test('R7 un lecteur lit les modules de son client ; un membre d\'un autre client
 test('R8 déconnexion depuis le menu : retour à la page de connexion du client, sans fuite d\'écrans', async ({ page }) => {
   await ouvrir(page, 'cabinet');
   await expect(page.locator('.coquille')).toBeVisible();
-  await ouvrirMenu(page);
+  await attendreCalme(page); // l'espace finit d'écrire ses réglages de départ avant qu'on se déconnecte (sinon : écriture refusée après la déconnexion)
   await choisirDansMenuUtilisateur(page, 'Se déconnecter');
   await expect(page.getByRole('button', { name: 'Se connecter avec Google' })).toBeVisible();
   await expect(page.locator('.coquille')).toHaveCount(0);

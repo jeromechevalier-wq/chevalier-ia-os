@@ -34,7 +34,7 @@ export const MODE_EMPLOI = Object.freeze([
 export const MODE_EMPLOI_RACINE = Object.freeze([
   { titre: 'Colle le lien', texte: 'Dans Claude : Paramètres, Connecteurs, « Ajouter un connecteur personnalisé ». Colle le lien ci-dessus.' },
   { titre: 'Connecte-toi avec Google', texte: 'Une fenêtre de Google s\'ouvre : choisis ton compte Google autorisé. Un autre compte est refusé.' },
-  { titre: 'Autorise', texte: 'Clique sur « Autoriser » : l\'assistant peut alors consulter et modifier tes fiches. La connexion se retire depuis les Connecteurs de Claude.' },
+  { titre: 'Autorise', texte: 'Clique sur « Autoriser » : l\'assistant peut alors consulter et modifier tes fiches. Retirer le connecteur dans Claude ne coupe pas l\'autorisation côté serveur : demande à Jérôme de la couper.' },
 ]);
 
 export const PHRASE_COMPTES_RACINE = 'Les comptes autorisés sont fixés par Jérôme.';

@@ -1,6 +1,3 @@
-  // PR B : l'en-tête est le même chez Jérôme et chez un client (nom + logo + initiale du compte), plus de photo dans le menu
-  await expect(page.locator('.menu .menu-compte .avatar-initiale')).toHaveText('J');
-  await expect(page.locator('.menu img.avatar')).toHaveCount(0);
 // Chantier 6 : le CRM de Jérôme (racine, règles du CRM) reste STRICTEMENT identique : identité, jaune, bandeau de sauvegarde, célébrations.
 import { test, expect, connecter, allerA, allerAuxReglagesCrm, ouvrirSectionReglages, basculerThemeParMenu, creerAffaire, creerPersonne, estTelephone, JEROME } from './outils.js';
 
@@ -21,6 +18,10 @@ test('K1 identité du CRM inchangée : titre, icône, manifeste, baguette, nom d
   }));
   expect(t).toEqual({ icone: 'assets/logo/favicon.svg', manifeste: 'manifest.webmanifest', touch: 'assets/icons/apple-touch-icon.png', description: 'Espace de travail de Chevalier IA.', appleTitre: 'Chevalier OS', marque: false, feuille: false });
   await expect(page.locator('.menu-marque')).toContainText('Chevalier IA OS');
+  // PR B : l'en-tête est le même chez Jérôme et chez un client (nom + logo + initiale du compte), plus de photo dans le menu
+  await expect(page.locator('.menu .menu-compte .avatar-initiale')).toHaveText('J');
+  await expect(page.locator('.menu img.avatar')).toHaveCount(0);
+  await expect(page.locator('.menu-marque b')).toHaveText('OS'); // le « OS » jaune de la marque est resté
   await expect(page.locator('.menu-marque .baguette')).toHaveCount(1);
 });
 

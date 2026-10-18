@@ -210,7 +210,8 @@ body.page-connexion {
 .menu-compte { -webkit-tap-highlight-color: transparent; }
 .menu-compte:hover, .menu-compte[aria-expanded='true'] { background: var(--survol); }
 .compte-nom { font-weight: 600; font-size: 14px; min-width: 0; flex: 1; }
-.compte-chevron { display: inline-flex; color: var(--texte2); }
+.compte-chevron { display: inline-flex; color: var(--texte2); transition: transform var(--transition); }
+.menu-compte[aria-expanded='true'] .compte-chevron { transform: rotate(180deg); }
 .avatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; flex: none; border: 1px solid var(--bordure-forte); background: var(--survol); }
 .avatar-initiale { display: inline-flex; align-items: center; justify-content: center; background: var(--accent); color: var(--sur-accent); font: 700 14px/1 var(--police-titre); }
 .menu-logo-client { width: 26px; height: 26px; object-fit: contain; flex: none; }
@@ -234,7 +235,8 @@ body.page-connexion {
 .coquille[data-menu='replie'] .menu-entree { height: 38px; }
 .coquille[data-menu='replie'] .menu-groupe + .menu-groupe, .coquille[data-menu='replie'] .menu-section + .menu-section { margin-top: 6px; padding-top: 6px; }
 /* Menu replié : la marque (logo) et le bouton « Élargir le menu » sont l'un sous l'autre, le bouton reste visible et cliquable dans la bande de 64 px. */
-.coquille[data-menu='replie'] .menu-marque { flex-direction: column; justify-content: center; height: auto; min-height: 64px; padding: 8px 0; gap: 4px; }
+.coquille[data-menu='replie'] .menu-marque { flex-direction: column; justify-content: center; height: 64px; padding: 0; gap: 2px; }
+.coquille[data-menu='replie'] .menu-repli { width: 28px; height: 28px; }
 .coquille[data-menu='replie'] .menu-marque-nom .menu-texte { display: none; }
 .coquille[data-menu='replie'] .compte-nom, .coquille[data-menu='replie'] .compte-chevron { display: none; }
 
@@ -532,7 +534,7 @@ body.page-connexion {
 /* ---------------------------------------------------------------- menu contextuel */
 
 .menu-pop {
-  position: fixed; z-index: 90; min-width: 210px; max-width: calc(100vw - 16px); padding: 6px; display: flex; flex-direction: column; gap: 2px;
+  position: fixed; z-index: 90; min-width: 210px; max-width: calc(100vw - 16px); max-height: calc(100dvh - 16px); overflow-y: auto; padding: 6px; display: flex; flex-direction: column; gap: 2px;
   background: var(--panneau); border: 1px solid var(--bordure-forte); border-radius: var(--rayon); box-shadow: var(--ombre);
 }
 .menu-pop-entree { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 6px 10px; border: 0; border-radius: 6px; background: none; text-align: left; cursor: pointer; }

@@ -287,9 +287,9 @@ export function estTelephone() {
  * Se ferme au clic extérieur (souris ou toucher), à Échap et au choix d'une entrée ; le focus revient alors à `ancre`.
  * Clavier : flèches et Tab passent d'une entrée à l'autre, Entrée choisit. Renvoie la fonction de fermeture.
  */
-export function ouvrirMenu(ancre, items, { placement = 'bas' } = {}) {
+export function ouvrirMenu(ancre, items, { placement = 'bas', id = null } = {}) {
   document.querySelector('.menu-pop')?.remove();
-  const menu = h('div', { class: 'menu-pop', role: 'menu', dataset: { placement } });
+  const menu = h('div', { class: 'menu-pop', role: 'menu', id, dataset: { placement } });
   const fermer = () => {
     menu.remove();
     document.removeEventListener('pointerdown', surClicExterieur, true);
@@ -310,7 +310,7 @@ export function ouvrirMenu(ancre, items, { placement = 'bas' } = {}) {
   }
   for (const it of items) {
     if (it.separateur) { menu.append(h('div', { class: 'menu-pop-separateur', role: 'separator' })); continue; }
-    if (it.texte !== undefined) { menu.append(h('div', { class: 'menu-pop-texte' }, it.texte)); continue; }
+    if (it.texte !== undefined) { menu.append(h('div', { class: 'menu-pop-texte', role: 'presentation' }, it.texte)); continue; }
     if (it.noeud) { it.noeud.setAttribute('role', 'menuitem'); menu.append(it.noeud); continue; }
     menu.append(h('button', {
       type: 'button', role: 'menuitem', class: `menu-pop-entree${it.danger ? ' danger' : ''}`, disabled: !!it.desactive,

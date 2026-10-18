@@ -73,7 +73,8 @@ test('3 menu utilisateur chez un client : Réglages, Journal et « Connecter mon
   await ouvrir(page, 'assistant');
   await deplier(page);
   await ouvrirMenuUtilisateur(page);
-  await expect(page.locator('.menu-pop > *').first()).toHaveText(ALICE);
+  await expect(page.locator('.menu-pop-texte')).toHaveCount(0); // chez un client le nom du compte est son e-mail : pas de ligne en double
+  await expect(page.locator('.menu-pop > *').first()).toHaveText('Réglages');
   await expect(page.locator('.menu-pop').getByRole('menuitem')).toHaveText(['Réglages', 'Voir le journal des modifications', 'Connecter mon assistant', /Thème/, 'Se déconnecter']);
   await capture(page, '3-client-menu-utilisateur');
   await page.locator('.menu-pop').getByRole('menuitem', { name: 'Voir le journal des modifications' }).click();

@@ -66,6 +66,10 @@ test('3 menu utilisateur : s’ouvre vers le haut depuis le nom, contenu dans l�
   expect(bp.y + bp.height).toBeLessThanOrEqual(bc.y + 1);
   // contenu et ordre : e-mail (texte), Réglages, Journal, assistant, thème, ligne, Se déconnecter tout en bas
   await expect(pop.locator('> *').first()).toHaveText(JEROME);
+  await expect(pop.locator('.menu-pop-texte')).toHaveAttribute('role', 'presentation');
+  await expect(compte).toHaveAttribute('aria-controls', 'menu-utilisateur');
+  await expect(pop).toHaveAttribute('id', 'menu-utilisateur');
+  expect(await pop.evaluate((el) => getComputedStyle(el).maxHeight)).not.toBe('none'); // défile sur un écran bas (téléphone en paysage)
   await expect(pop.locator('.menu-pop-texte')).toHaveCount(1);
   await expect(pop.getByRole('menuitem')).toHaveText(['Réglages', 'Voir le journal des modifications', 'Connecter mon assistant', /Thème (clair|sombre)/, 'Se déconnecter']);
   await expect(pop.locator('[data-role="bascule-theme"]')).toHaveCount(1);
@@ -144,6 +148,8 @@ test('4 bouton de repli à droite du nom de l’espace : même état mémorisé,
   expect(b.x + b.width).toBeLessThanOrEqual(64);
   await page.locator('.menu .menu-entree[data-chemin="crm/personnes"]').hover();
   await expect(page.locator('.menu .menu-entree[data-chemin="crm/personnes"]')).toHaveAttribute('data-infobulle', 'Personnes');
+  // la bande de la marque a la hauteur normale (64 px) en mode replié, pas plus
+  expect(Math.round((await page.locator('.menu-marque').boundingBox()).height)).toBeLessThanOrEqual(64);
   await capture(page, '4-menu-replie');
   // le bouton élargit, et il est à droite du nom de l'espace
   await repli.click();
@@ -157,6 +163,13 @@ test('4 bouton de repli à droite du nom de l’espace : même état mémorisé,
   await expect(coquille).toHaveAttribute('data-menu', 'replie');
   await page.keyboard.press('Meta+b');
   await expect(coquille).toHaveAttribute('data-menu', 'elargi');
+  // ignoré tant qu'un menu flottant (menu utilisateur) est ouvert : on ne replie pas le menu dessous
+  await page.locator('.menu-compte').click();
+  await expect(page.locator('.menu-pop')).toBeVisible();
+  await page.keyboard.press('Control+b');
+  await expect(coquille).toHaveAttribute('data-menu', 'elargi');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.menu-pop')).toHaveCount(0);
   // ignoré dans un champ de saisie
   await page.locator('[data-role="recherche-globale"]').click();
   await page.keyboard.press('Control+b');
@@ -208,6 +221,9 @@ test('6 en-tête du menu : nom de l’espace + logo + bouton de repli, avatar = 
   await expect(page.locator('.menu-marque')).toContainText('Chevalier IA OS');
   await expect(page.locator('.menu-marque .baguette')).toHaveCount(1);
   await expect(page.locator('.menu-marque > .menu-marque-nom + .menu-repli')).toHaveCount(1);
+  await expect(page.locator('.menu-marque b')).toHaveText('OS'); // le « OS » jaune de la marque
+  await expect(page.locator('.barre-haut-marque b')).toHaveText('OS');
+  await expect(page.locator('.barre-haut .avatar-initiale')).toHaveAttribute('aria-label', 'Jérôme'); // nom accessible (visible sur téléphone)
   await expect(page.locator('.menu .menu-compte .avatar-initiale')).toHaveText('J');
   await expect(page.locator('img.avatar')).toHaveCount(0);
   await expect(page.locator('.menu-compte')).toContainText('Jérôme');
