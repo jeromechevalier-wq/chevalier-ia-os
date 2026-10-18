@@ -2,6 +2,9 @@
 
 Ce fichier est lu au début de chaque session. Il garde les décisions de Jérôme qui doivent survivre d'une session à l'autre.
 
+## Où est le code
+Dossier de travail : **`/Users/jeromechevalier/Code-Chevalier-IA/chevalier-ia-os`**, un clone hors de Google Drive depuis le 18/10/2026 (dépôt de référence : https://github.com/jeromechevalier-wq/chevalier-ia-os). L'ancien dossier Drive est renommé « chevalier-ia-os (ancien - ne plus utiliser) » : n'y travaille pas. Les copies de session sont dans `/Users/jeromechevalier/chantiers-crm/`.
+
 ## Décisions permanentes de Jérôme (ne pas les remettre en cause de toi-même)
 
 - **RGPD (04/10/2026)** : la base de Chevalier IA OS est **interne**. Jérôme choisit de **ne prendre aucune mesure RGPD** pour l'instant. Les journaux d'audit **ne s'effacent jamais** : on garde tout, y compris les valeurs reçues (noms, e-mails, notes) et les copies « avant ». Plus de règle de durée de vie (TTL) de 90 jours (Jérôme a supprimé la règle dans la console le 04/10/2026). **Quand le RGPD deviendra nécessaire, Jérôme le dira** : ne le réintroduis pas, ne le propose pas comme un « écart à corriger ».
