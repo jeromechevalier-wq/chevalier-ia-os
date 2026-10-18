@@ -774,13 +774,13 @@ describe('B16 Formats et réglages de départ', () => {
       proprietaireGithub: 'jeromechevalier-wq',
       cheminProjets: '~/Library/CloudStorage/GoogleDrive-jerome.chevalier@gmail.com/Mon Drive/Chevalier-AI/Projets',
       dossierParentDrive: null, sousDossiersDrive: [],
-      suiviPaiements: true, clotureBloquee: true, extractionValeur: true, boutonsDepot: true, celebrations: true,
+      suiviPaiements: true, clotureBloquee: true, boutonsDepot: true, celebrations: true,
       prenomCelebration: 'Jérôme', imageCelebration: 'assets/charles-portrait.png',
     });
     assert.deepEqual(L.REGLAGES_NEUTRES, {
       debutActivite: null, dernierExport: null, dernierExportContacts: null, proprietaireGithub: '', cheminProjets: '',
       dossierParentDrive: null, sousDossiersDrive: [],
-      suiviPaiements: false, clotureBloquee: true, extractionValeur: false, boutonsDepot: false, celebrations: false,
+      suiviPaiements: false, clotureBloquee: true, boutonsDepot: false, celebrations: false,
       prenomCelebration: '', imageCelebration: '',
     });
     assert.equal('delaiPaiementJours' in L.REGLAGES_JEROME, false, 'le réglage « Délai de paiement » (2.2) est supprimé');

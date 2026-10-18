@@ -1,5 +1,7 @@
 # Écran Projets, étape 7 sur 7 : finitions et version 2.1.0 (07/10/2026)
 
+> **Note du 18/10/2026 : l'« Extraction de valeur » citée dans ce document a été supprimée** (décision de Jérôme, voir `cadrage-projets.md`) : plus d'option, de création de projet d'extraction, de modèle, de badge ni d'outil MCP `extraire_valeur_projet`. Les projets déjà créés restent lisibles comme des projets ordinaires. Le texte ci-dessous est conservé comme historique.
+
 Dernière étape de l'écran Projets (version 2.1).
 
 ## Ce qui est construit

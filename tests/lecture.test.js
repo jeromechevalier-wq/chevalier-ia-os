@@ -164,7 +164,7 @@ describe('Réglages et audit', () => {
     assert.deepEqual(client.reglages, JSON.parse(JSON.stringify(L.REGLAGES_NEUTRES)));
     assert.equal(client.configuration.options.suiviPaiements, false);
     assert.deepEqual(client.referentiels.etapes.map((e) => e.id), ['etape_1', 'etape_2', 'etape_3', 'etape_4', 'etape_5']);
-    assert.deepEqual(client.referentiels.projets.natures.map((n) => n.id), ['livraison'], 'extraction éteinte : la nature n’est pas proposée');
+    assert.equal('natures' in client.referentiels.projets, false, 'plus de filtre « Nature »');
   });
   test('lire_audit : filtres acteur, document, opération, date ; lignes « en_cours » signalées', async () => {
     assert.deepEqual(ids((await lecture.lireAudit(donnees, { acteur: 'claude-code-jerome' })).lignes), ['au3', 'au2'], 'du plus récent au plus ancien');

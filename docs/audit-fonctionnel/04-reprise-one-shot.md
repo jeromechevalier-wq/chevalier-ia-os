@@ -1,5 +1,7 @@
 # Consigne « one shot » pour la prochaine session (à coller telle quelle)
 
+> **Note du 18/10/2026 : l'« Extraction de valeur » citée dans ce document a été supprimée** (décision de Jérôme, voir `cadrage-projets.md`) : plus d'option, de création de projet d'extraction, de modèle, de badge ni d'outil MCP `extraire_valeur_projet`. Les projets déjà créés restent lisibles comme des projets ordinaires. Le texte ci-dessous est conservé comme historique.
+
 > Jérôme relance à 19h01 (heure de Paris), le 8 octobre 2026. Une seule passe, sans poser de question, sauf si une règle ci-dessous l'exige. Tout est déjà sur la branche `claude/fervent-mayer-gme1rw`.
 
 ## Règles (inchangées)

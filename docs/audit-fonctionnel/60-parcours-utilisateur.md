@@ -1,5 +1,7 @@
 # Étape F : parcours utilisateur (ordinateur 1440 × 900 et téléphone 390 × 844)
 
+> **Note du 18/10/2026 : l'« Extraction de valeur » citée dans ce document a été supprimée** (décision de Jérôme, voir `cadrage-projets.md`) : plus d'option, de création de projet d'extraction, de modèle, de badge ni d'outil MCP `extraire_valeur_projet`. Les projets déjà créés restent lisibles comme des projets ordinaires. Le texte ci-dessous est conservé comme historique.
+
 Statut : complet pour le périmètre demandé (tous les parcours ont été faits sur les deux formats). Voir « Ce qui n'a PAS été regardé » plus bas.
 
 Version essayée : 2.3.3, branche `claude/fervent-mayer-gme1rw`. Essais faits **uniquement sur les émulateurs locaux** (auth + firestore, projet `demo-chevalier-ia-os`), avec Chromium piloté par Playwright. Aucune donnée réelle, aucune production, rien modifié dans le code, les tests ou les règles, aucun git.

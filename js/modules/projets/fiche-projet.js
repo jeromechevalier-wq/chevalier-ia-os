@@ -16,7 +16,7 @@ import { sectionTaches } from './taches.js';
 import { sectionFactures } from './factures.js';
 import { cheminModele } from './modeles.js';
 import { anneauProgression, cheminProjet } from './composants.js';
-import { pastilleStatutProjet, pastilleImpaye, terminerProjet, changerPhaseProjet, extraireValeur, mettreEnPause, reprendre, rouvrir, demanderSuppressionProjet } from './projets.js';
+import { pastilleStatutProjet, pastilleImpaye, terminerProjet, changerPhaseProjet, mettreEnPause, reprendre, rouvrir, demanderSuppressionProjet } from './projets.js';
 const cfg = () => CRM.etat.config;
 const EXPLICATION_STATUT_PROJET = {
   actif: 'Le projet est en cours : il avance de phase en phase.',
@@ -51,10 +51,6 @@ export function rendreFicheProjet(conteneur, id) {
     const pers = CRM.personne(p.personneId);
     const org = CRM.organisation(p.organisationId);
     const aff = p.affaireId ? CRM.affaire(p.affaireId) : null;
-    const extraction = P.estExtraction(p);
-    const sourceProjet = p.projetSourceId ? D.projet(p.projetSourceId) : null;
-    const extractionOn = P.extractionActive(cfg()); // option « Extraction de valeur » : éteinte, on ne montre ni bouton, ni badge, ni lien d'extraction
-    const projetExtraction = extractionOn ? P.extractionDuProjet(D.etat.projets, p.id) : null;
     const termine = P.estProjetTermine(p);
     const titre = titreEditable({ valeur: p.titre, libelle: 'Titre', surEnregistrer: (v) => D.majProjet(p.id, { titre: v }) });
     const menu = h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Plus d’actions', 'data-action': 'menu-fiche',
@@ -63,17 +59,13 @@ export function rendreFicheProjet(conteneur, id) {
         { libelle: p.archive ? 'Désarchiver' : 'Archiver', icone: p.archive ? 'archive-restore' : 'archive', action: () => D.archiver(p.id, !p.archive) },
         { libelle: 'Supprimer définitivement…', icone: 'trash-2', danger: true, action: () => demanderSuppressionProjet(p) },
       ]) }, icone('ellipsis', { taille: 20 }));
-    // Bouton manuel (07/10/2026) : on n'attend pas la fin du projet pour extraire sa valeur ; une seule extraction par projet (sinon on ouvre celle qui existe).
-    const boutonExtraire = extraction || !extractionOn ? null : h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'extraire',
-      onclick: () => extraireValeur(p) }, icone('sparkles', { taille: 16 }), projetExtraction ? 'Ouvrir l’extraction' : 'Extraire la valeur');
     const actions = termine
-      ? [h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'rouvrir', onclick: () => rouvrir(p) }, icone('rotate-ccw', { taille: 16 }), 'Rouvrir'), boutonExtraire]
+      ? [h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'rouvrir', onclick: () => rouvrir(p) }, icone('rotate-ccw', { taille: 16 }), 'Rouvrir')]
       : [
         h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'terminer', onclick: () => terminerProjet(p) }, icone('circle-check', { taille: 16 }), 'Terminer'),
         p.statut === 'en_pause'
           ? h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'reprendre', onclick: () => reprendre(p) }, 'Reprendre')
           : h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'en-pause', onclick: () => mettreEnPause(p) }, 'En pause'),
-        boutonExtraire,
       ];
 
     const entete = h('header', { class: 'fiche-tete' },
@@ -81,7 +73,6 @@ export function rendreFicheProjet(conteneur, id) {
       h('div', { class: 'fiche-tete-ligne' },
         h('div', { class: 'fiche-titre' }, titre,
           h('div', { class: 'fiche-sous' }, pastilleStatutProjet(p), iconeInfo(EXPLICATION_STATUT_PROJET[p.statut], 'État du projet'), pastilleImpaye(p), p.archive ? h('span', { class: 'badge-archive' }, 'Archivé') : null,
-            p.nature === 'extraction' && extractionOn ? h('span', { class: 'badge-nature' }, 'Extraction') : null,
             pers ? h('span', {}, icone('user', { taille: 14 }), lienPersonne(pers)) : null, org ? h('span', {}, icone('building-2', { taille: 14 }), lienOrganisation(org)) : null,
             selectProprietaire({ valeur: p.proprietaire, surChoix: (v) => D.majProjet(p.id, { proprietaire: v }) }))),
         h('div', { class: 'fiche-actions' }, actions, menu)),
@@ -119,19 +110,11 @@ export function rendreFicheProjet(conteneur, id) {
     const resume = sectionRepliable({
       id: 'projet-resume', titre: 'Résumé',
       contenu: h('div', { class: 'proprietes' },
-        extraction ? h('div', { class: 'prop', dataset: { prop: 'source' } }, h('span', { class: 'prop-libelle' }, 'Source'), h('div', { class: 'prop-valeur' },
-          aff ? h('span', {}, 'Affaire : ', lienAffaire(aff))
-            : (sourceProjet ? h('span', {}, 'Projet : ', h('a', { class: 'prop-lien', href: cheminProjet(sourceProjet.id) }, sourceProjet.titre))
-              : h('span', { class: 'aide' }, 'Source supprimée')))) : null,
-        extraction && p.raisonPerdue ? h('div', { class: 'prop', dataset: { prop: 'raison-perte' } }, h('span', { class: 'prop-libelle' }, 'Raison de la perte'),
-          h('div', { class: 'prop-valeur' }, p.raisonPerdue, p.raisonPerdueDetail ? h('span', { class: 'aide' }, ` : ${p.raisonPerdueDetail}`) : null)) : null,
-        !extraction && p.affaireId ? h('div', { class: 'prop', dataset: { prop: 'affaire' } }, h('span', { class: 'prop-libelle' }, 'Affaire d’origine'), h('div', { class: 'prop-valeur' },
+        p.affaireId ? h('div', { class: 'prop', dataset: { prop: 'affaire' } }, h('span', { class: 'prop-libelle' }, 'Affaire d’origine'), h('div', { class: 'prop-valeur' },
           aff ? lienAffaire(aff) : h('span', { class: 'aide' }, 'Affaire introuvable'),
           h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', 'data-action': 'detacher-affaire', onclick: () => retirerAvecAnnulation({
             titre: 'Détacher l’affaire ?', message: 'Le projet et l’affaire sont conservés, seul le lien entre eux disparaît.', libelleOk: 'Détacher', messageErreur: 'Détachement impossible',
             faire: () => D.delierProjet(p.id), defaire: () => D.lierProjet(p.affaireId, p.id), messageFait: 'Affaire détachée' }) }, 'Détacher'))) : null,
-        !extraction && projetExtraction ? h('div', { class: 'prop', dataset: { prop: 'extraction' } }, h('span', { class: 'prop-libelle' }, 'Extraction'), h('div', { class: 'prop-valeur' },
-          h('a', { class: 'prop-lien', href: cheminProjet(projetExtraction.id) }, projetExtraction.titre))) : null,
         h('div', { class: 'prop' }, h('span', { class: 'prop-libelle' }, 'Personne'), h('div', { class: 'prop-valeur' }, selPersonne.element)),
         h('div', { class: 'prop' }, h('span', { class: 'prop-libelle' }, 'Organisation'), h('div', { class: 'prop-valeur' }, selOrg.element)),
         champPropriete({ libelle: 'Offre', valeur: p.offreId || '', type: 'select', options: offres.map((x) => ({ valeur: x.id, libelle: x.nom })), surEnregistrer: (v) => D.majProjet(p.id, { offreId: v || null }) }).element,
@@ -157,7 +140,7 @@ export function rendreFicheProjet(conteneur, id) {
     const taches = sectionTaches(p);
     majTaches = () => { taches.majListe(); rendreAvancement(); };
 
-    // ---- Factures (projets de livraison ; une extraction ou un chantier interne n'en a en général pas, mais la section reste là : on peut en ajouter)
+    // ---- Factures (un chantier interne n'en a en général pas, mais la section reste là : on peut en ajouter)
     const factures = P.suiviPaiementsActif(cfg()) ? sectionFactures(p) : null; // option « Suivi des paiements » éteinte : pas de section Factures
     majFactures = () => factures?.majListe();
 

@@ -191,21 +191,15 @@ async function appliquerRegle(c, plan, args, extra = () => ({}), genre = 'l’af
   return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), extra(plan));
 }
 
-/** Projets et modèles lus pour les règles d'extraction de valeur (une affaire perdue ou gagnée sans projet, un projet terminé : l'extraction est créée par le plan). */
-async function contexteExtraction(c) {
-  const [projets, modeles] = await Promise.all([c.donnees.liste(C.projets), c.donnees.liste(C.projetsModeles)]);
-  return { projets, modeles };
-}
-
 export async function changerEtape(c, args) {
   const a = await lire(c, C.affaires, args.id, 'Affaire');
-  const plan = PL.planChangerEtapeAvecExtraction({ affaire: a, etape: args.etape, ...await contexteExtraction(c) }, await contexte(c));
-  return appliquerRegle(c, plan, args, (p) => ({ id: a.id, etape: p.patch.etape, statut: p.patch.statut, suggestion: p.suggestion ?? null, extraction: p.extraction ?? null }));
+  const plan = L.planChangerEtape(a, args.etape, await contexte(c));
+  return appliquerRegle(c, plan, args, (p) => ({ id: a.id, etape: p.patch.etape, statut: p.patch.statut, suggestion: p.suggestion ?? null }));
 }
 export async function marquerPerdue(c, args) {
   const a = await lire(c, C.affaires, args.id, 'Affaire');
-  const plan = PL.planMarquerPerdueAvecExtraction({ affaire: a, saisie: { raison: args.raison, detail: args.detail }, ...await contexteExtraction(c) }, await contexte(c));
-  return appliquerRegle(c, plan, args, (p) => ({ id: a.id, statut: 'perdue', extraction: p.extraction ?? null }));
+  const plan = L.planMarquerPerdue(a, { raison: args.raison, detail: args.detail }, await contexte(c));
+  return appliquerRegle(c, plan, args, (p) => ({ id: a.id, statut: 'perdue' }));
 }
 export async function mettreEnPause(c, args) {
   const a = await lire(c, C.affaires, args.id, 'Affaire');
@@ -246,11 +240,10 @@ export async function retirerDocument(c, args) {
 }
 
 // ---------------------------------------------------------------- projets (2.1) et factures (2.2)
-// Mêmes plans que l'écran (partage/projets.js) : phases, statut, Clôture bloquée par les factures à payer, extraction de valeur créée avec la fin du projet.
+// Mêmes plans que l'écran (partage/projets.js) : phases, statut, Clôture bloquée par les factures à payer.
 
 const verifierPhase = (config, phase) => { if (!PL.phaseActive(phase, config)) refuser('saisie_invalide', `Phase inconnue ou désactivée : ${phase} (valeurs : ${PL.phasesActives(config).map((p) => p.id).join(', ')}).`); };
 
-/** Projet et, quand une règle en a besoin, tous les projets et modèles (extraction, une seule par projet). */
 async function lireProjet(c, id) { return lire(c, C.projets, id, 'Projet'); }
 const refusFactures = (plan) => {
   // La Clôture bloquée porte le même message que l'écran, et nomme les factures : l'appelant peut les payer ou clôturer avec impayé.
@@ -276,13 +269,13 @@ export async function creerProjet(c, args) {
   return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: plan.id, titre: plan.titre, modeleId: modele?.id ?? null });
 }
 
-/** Crée le projet d'une affaire GAGNÉE (reprend l'affaire, la lie, et range l'extraction faite à Gagné si rien n'y a été fait), comme « Créer le projet » de l'écran. */
+/** Crée le projet d'une affaire GAGNÉE (reprend l'affaire et la lie), comme « Créer le projet » de l'écran. */
 export async function creerProjetDepuisAffaire(c, args) {
   const { affaireId, modeleId, ...valeurs } = args;
   const a = await lire(c, C.affaires, affaireId, 'Affaire');
   verifierMessages(PL.validerProjet({ titre: valeurs.titre || a.titre, dateDebut: valeurs.dateDebut, dateFin: valeurs.dateFin }, (await contexte(c)).config));
-  const [projets, taches, modele] = await Promise.all([c.donnees.liste(C.projets), c.donnees.liste(C.projetsTaches), modeleDemande(c, modeleId)]);
-  const plan = PL.planCreerProjetDepuisAffaire({ affaire: a, projets, taches, valeurs, modele }, await contexte(c));
+  const [projets, modele] = await Promise.all([c.donnees.liste(C.projets), modeleDemande(c, modeleId)]);
+  const plan = PL.planCreerProjetDepuisAffaire({ affaire: a, projets, valeurs, modele }, await contexte(c));
   verifierMessages(plan.erreurs);
   return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: plan.id, titre: plan.titre, affaireId, modeleId: modele?.id ?? null });
 }
@@ -334,21 +327,12 @@ export async function archiverProjet(c, args) {
   return appliquerRegle(c, PL.planArchiverProjet(p, args.archive, await contexte(c)), args, () => ({ id: p.id, archive: args.archive }), 'le projet');
 }
 
-/** Fin d'un projet : crée son extraction de valeur (sauf pour une extraction, et une seule par projet) ; refusée tant qu'une facture est à payer, sauf `impaye`. */
+/** Fin d'un projet ; refusée tant qu'une facture est à payer, sauf `impaye`. */
 export async function terminerProjet(c, args) {
   const p = await lireProjet(c, args.id);
-  const plan = PL.planTerminerProjetAvecExtraction({ projet: p, ...await contexteExtraction(c), impaye: args.impaye ? { raison: args.impaye.raison } : null }, await contexte(c));
+  const plan = PL.planTerminerProjet(p, await contexte(c), args.impaye ? { impaye: { raison: args.impaye.raison } } : {});
   refusFactures(plan);
-  return appliquerRegle(c, plan, args, (r) => ({ id: p.id, statut: 'termine', extraction: r.extraction ?? null, abandonnees: args.impaye ? PL.facturesAPayer(p).map((f) => f.id) : [] }), 'le projet');
-}
-
-/** Extraction déclenchée à la main (sans attendre la fin du projet) : une seule par projet, la même est rendue si elle existe. */
-export async function extraireProjet(c, args) {
-  const p = await lireProjet(c, args.id);
-  const plan = PL.planExtraireProjet({ projet: p, ...await contexteExtraction(c) }, await contexte(c));
-  verifierMessages(plan.erreurs);
-  if (plan.dejaExistante) return { operationId: null, rien: true, extraction: plan.extraction, message: 'Ce projet a déjà son extraction : rien n’est créé.' };
-  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: p.id, extraction: plan.extraction });
+  return appliquerRegle(c, plan, args, () => ({ id: p.id, statut: 'termine', abandonnees: args.impaye ? PL.facturesAPayer(p).map((f) => f.id) : [] }), 'le projet');
 }
 
 export async function ajouterTacheProjet(c, args) {
@@ -569,13 +553,12 @@ export async function supprimerAffaire(c, args) {
 export async function supprimerProjet(c, args) {
   const p = await lireProjet(c, args.id);
   confirmer(args.confirmationNom, p.titre, 'le titre du projet');
-  const [liens, taches, extractions, affaire] = await Promise.all([
+  const [liens, taches, affaire] = await Promise.all([
     liensDe(c, 'projetId', args.id),
     c.donnees.liste(C.projetsTaches, { champ: 'projetId', valeur: args.id }),
-    c.donnees.liste(C.projets, { champ: 'projetSourceId', valeur: args.id }),
     p.affaireId ? c.donnees.document(C.affaires, p.affaireId) : null,
   ]);
-  const plan = PL.planSupprimerProjet({ projet: p, liens, taches: taches.map((t) => ({ id: t.id, projetId: args.id })), affaire, extractions: extractions.map((e) => ({ id: e.id, projetSourceId: args.id })) });
+  const plan = PL.planSupprimerProjet({ projet: p, liens, taches: taches.map((t) => ({ id: t.id, projetId: args.id })), affaire });
   return supprimerAvecCode(c, 'supprimer_projet', args, { collection: C.projets, id: args.id }, plan, parametresDe(args));
 }
 

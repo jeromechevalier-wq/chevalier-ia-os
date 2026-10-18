@@ -120,8 +120,7 @@ export function rendreFicheAffaire(conteneur, id) {
 
     // ---- Projet (affaire gagnée : créer ou lier ; au plus un projet par affaire)
     const projetLie = P.projetLieAAffaire(PD.etat.projets, a);
-    const extraction = D.etat.config.options.extractionValeur ? P.extractionDeLAffaire(PD.etat.projets, a.id) : null; // option « Extraction de valeur » éteinte : rien n'est montré
-    const sectionProjet = (projetLie || extraction || a.statut === 'gagnee') ? sectionRepliable({
+    const sectionProjet = (projetLie || a.statut === 'gagnee') ? sectionRepliable({
       id: 'affaire-projet', titre: 'Projet',
       contenu: h('div', { class: 'pile' },
         projetLie
@@ -133,8 +132,7 @@ export function rendreFicheAffaire(conteneur, id) {
           h('p', { class: 'aide' }, 'Cette affaire est gagnée : crée son projet pour suivre le travail, ou lie un projet qui existe déjà. Elle peut aussi rester sans projet.'),
           h('div', { class: 'ligne-boutons' },
             h('button', { type: 'button', class: 'bouton bouton-principal bouton-petit', 'data-action': 'creer-projet', onclick: () => ouvrirCreationProjetDepuisAffaire(a) }, icone('folder-kanban', { taille: 14 }), 'Créer le projet'),
-            h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', 'data-action': 'lier-projet', onclick: () => ouvrirLiaisonProjet(a) }, icone('link', { taille: 14 }), 'Lier un projet'))) : null),
-        extraction ? h('div', { class: 'pile', dataset: { bloc: 'extraction' } }, h('h3', { class: 'sous-titre' }, 'Extraction de valeur'), carteProjetMini(extraction)) : null),
+            h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', 'data-action': 'lier-projet', onclick: () => ouvrirLiaisonProjet(a) }, icone('link', { taille: 14 }), 'Lier un projet'))) : null)),
     }) : null;
 
     // ---- Détails

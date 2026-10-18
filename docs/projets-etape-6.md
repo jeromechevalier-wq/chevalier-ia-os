@@ -1,5 +1,7 @@
 # Écran Projets, étape 6 sur 7 : l'extraction de valeur (06/10/2026)
 
+> **Note du 18/10/2026 : l'« Extraction de valeur » citée dans ce document a été supprimée** (décision de Jérôme, voir `cadrage-projets.md`) : plus d'option, de création de projet d'extraction, de modèle, de badge ni d'outil MCP `extraire_valeur_projet`. Les projets déjà créés restent lisibles comme des projets ordinaires. Le texte ci-dessous est conservé comme historique.
+
 Vision de Jérôme (ticket n° 28) : extraire un maximum de valeur de chaque affaire et de chaque projet, gagnés ou perdus : tirer des règles, comprendre ses erreurs, repérer ce qui est automatisable, créer de la documentation marketing. L'extraction est **un projet comme les autres** (nature « Extraction de valeur », mêmes phases, tâches, statut, Clôture), créé **automatiquement**.
 
 ## Quand le projet d'extraction est créé

@@ -1,5 +1,7 @@
 # Facturation 2.2, partie A : les factures du projet (07/10/2026)
 
+> **Note du 18/10/2026 : l'« Extraction de valeur » citée dans ce document a été supprimée** (décision de Jérôme, voir `cadrage-projets.md`) : plus d'option, de création de projet d'extraction, de modèle, de badge ni d'outil MCP `extraire_valeur_projet`. Les projets déjà créés restent lisibles comme des projets ordinaires. Le texte ci-dessous est conservé comme historique.
+
 Première des deux PR de la 2.2. **Rien n'est retiré** : les étapes « Facture envoyée » et « Facture payée » des affaires restent (partie B, après ta validation sur tes vraies données).
 
 ## Ce qui est construit

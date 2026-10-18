@@ -1,5 +1,7 @@
 # Étape 4 du serveur MCP : écrire, supprimer, restaurer (guide pour Jérôme)
 
+> **Note du 18/10/2026 : l'« Extraction de valeur » citée dans ce document a été supprimée** (décision de Jérôme, voir `cadrage-projets.md`) : plus d'option, de création de projet d'extraction, de modèle, de badge ni d'outil MCP `extraire_valeur_projet`. Les projets déjà créés restent lisibles comme des projets ordinaires. Le texte ci-dessous est conservé comme historique.
+
 Référence : `plan-mcp.md`, sections 5.2 (audit), 5.3 (outils), 5.4 (plafonds), 5.5 (règles) et 5.9 (tests). Après cette étape, **Claude Code peut créer et modifier ton CRM, supprimer et restaurer** par `https://chevalier-ia-os.web.app/mcp`. Le jeton « bibliothécaire » (Hermes) pourra créer et modifier, **jamais supprimer ni restaurer** : le serveur le refuse même si Hermes est mal configuré. Chaque écriture laisse une trace et peut être défaite.
 
 ## En clair : comment ça marche

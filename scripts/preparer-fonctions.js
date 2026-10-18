@@ -1,4 +1,4 @@
-// Copie les règles métier de l'appli (js/modules/crm/logique.js, et js/modules/projets/logique.js pour les projets et l'extraction de valeur)
+// Copie les règles métier de l'appli (js/modules/crm/logique.js, et js/modules/projets/logique.js pour les projets)
 // dans functions/partage/ pour que le serveur MCP applique EXACTEMENT les mêmes règles que l'écran. Le déploiement n'envoie que le dossier functions/ : cette copie est faite avant chaque
 // déploiement (« predeploy » de firebase.json) et avant chaque test, jamais commitée (functions/partage/ est ignoré par git).
 // Aucune dépendance. Usage : node scripts/preparer-fonctions.js

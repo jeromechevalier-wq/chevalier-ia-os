@@ -1,5 +1,7 @@
 # Facturation 2.2, partie B : la vente s'arrête à Gagné (07/10/2026)
 
+> **Note du 18/10/2026 : l'« Extraction de valeur » citée dans ce document a été supprimée** (décision de Jérôme, voir `cadrage-projets.md`) : plus d'option, de création de projet d'extraction, de modèle, de badge ni d'outil MCP `extraire_valeur_projet`. Les projets déjà créés restent lisibles comme des projets ordinaires. Le texte ci-dessous est conservé comme historique.
+
 Deuxième et dernière PR de la 2.2 (version **2.2.0**). La partie A avait ajouté les factures du projet ; la B retire les deux étapes des affaires et migre celles qui y étaient.
 
 ## Ce qui change

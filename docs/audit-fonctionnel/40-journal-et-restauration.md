@@ -1,5 +1,7 @@
 # Étape D : journal d'audit et restauration (audit fonctionnel, version 2.3.3)
 
+> **Note du 18/10/2026 : l'« Extraction de valeur » citée dans ce document a été supprimée** (décision de Jérôme, voir `cadrage-projets.md`) : plus d'option, de création de projet d'extraction, de modèle, de badge ni d'outil MCP `extraire_valeur_projet`. Les projets déjà créés restent lisibles comme des projets ordinaires. Le texte ci-dessous est conservé comme historique.
+
 Statut : partiel (code relu en entier sur le périmètre, essais purs et essais sur un émulateur Firestore faits ; rien n'a été essayé dans un vrai navigateur, ni sur les données réelles, ni sur le serveur déployé).
 
 Périmètre : collections `crm_audit` et `crm_audit_avant`, écran Journal (`js/modules/crm/journal.js`), moteur d'écriture du serveur (`functions/src/coeur/ecriture.js`, `restaurer.js`, `canonique.js`, `serialisation.js`, `donnees.js`), audit de l'écran (`js/modules/crm/logique.js` partie audit, `js/modules/crm/donnees.js`), `firestore.rules`, tests d'audit et d'écriture, docs `audit-ecran.md`, `journal-ecran.md`, `plan-mcp.md` section 5, `mcp-etape-4.md`, `securite-et-pannes.md`.

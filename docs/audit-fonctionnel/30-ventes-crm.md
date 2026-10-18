@@ -1,5 +1,7 @@
 # Étape C : ventes et CRM (audit fonctionnel, version 2.3.3)
 
+> **Note du 18/10/2026 : l'« Extraction de valeur » citée dans ce document a été supprimée** (décision de Jérôme, voir `cadrage-projets.md`) : plus d'option, de création de projet d'extraction, de modèle, de badge ni d'outil MCP `extraire_valeur_projet`. Les projets déjà créés restent lisibles comme des projets ordinaires. Le texte ci-dessous est conservé comme historique.
+
 Statut : partiel (lecture du code et essais de règles pures faits ; aucun essai dans un navigateur ni sur les émulateurs, voir ci-dessous).
 
 Périmètre : personnes, organisations, affaires (étapes, perdue, pause, gagné, archivage, suppression), activités, notes, documents et favoris, recherche, filtres, export, réglages du CRM, lien affaire-projet.

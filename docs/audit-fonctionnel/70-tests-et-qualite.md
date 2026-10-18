@@ -1,5 +1,7 @@
 # Étape G : tests et qualité (audit fonctionnel, version 2.3.3)
 
+> **Note du 18/10/2026 : l'« Extraction de valeur » citée dans ce document a été supprimée** (décision de Jérôme, voir `cadrage-projets.md`) : plus d'option, de création de projet d'extraction, de modèle, de badge ni d'outil MCP `extraire_valeur_projet`. Les projets déjà créés restent lisibles comme des projets ordinaires. Le texte ci-dessous est conservé comme historique.
+
 **Statut : partiel** (l'audit est mis en pause par Jérôme ; ce fichier contient ce qui avait déjà été regardé).
 
 ## Ce qui n'a PAS été regardé

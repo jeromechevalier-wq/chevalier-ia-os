@@ -8,7 +8,7 @@ Chantier 1 des décisions du 16/10/2026 (fiche « Décisions de cadrage du CRM c
 2. **Valeurs neutres** pour tout nouvel espace client (étapes, phases, offres vides, secteurs, sources, filtres, étiquettes, modèles). Les valeurs de Jérôme (`PROFIL JÉRÔME` dans `logique.js` : `CONFIG_JEROME`, `REGLAGES_JEROME`, `*_JEROME`) ne servent qu'à la racine.
 3. **Objectifs** : départ neutre (nouveaux contacts, rendez-vous tenus, « Passages à l'étape : [choix] »), chiffre d'affaires signé / facturé / encaissé à ajouter au choix, « Flyers » reste chez Jérôme, un texte « Comment c'est calculé » en lecture seule par indicateur.
 4. **Suivi des paiements** : interrupteur (éteint par défaut chez un client), règle « clôture bloquée » réglable, et suppression de la section Encaissements de la fiche affaire, du réglage Délai de paiement et du bloc Migration 2.2.
-5. **Extraction de valeur** : interrupteur lu par `logique.js` (donc écran **et** serveur MCP). Éteint : plus de création, plus de bloc, bouton, badge, modèle ; l'outil MCP `extraire_valeur_projet` refuse.
+5. ~~**Extraction de valeur**~~ : interrupteur **supprimé le 18/10/2026** avec toute la fonctionnalité (décision de Jérôme, voir `cadrage-projets.md`).
 6. **Action suggérée** : les deux règles en dur ont disparu. Chaque étape / phase peut porter une action (type, titre, délai) ; fenêtre Accepter / Refuser, jamais automatique. Aucune par défaut.
 7. **Modèles** : plus dans le menu, dans les Réglages : « Modèles d'affaires » (nouveau) et « Modèles de projets ».
 8. **Célébrations** : option ; message neutre « Bravo ! », prénom et image en réglage (chez Jérôme : « Jérôme » et l'image de Charles).
@@ -19,7 +19,7 @@ Chantier 1 des décisions du 16/10/2026 (fiche « Décisions de cadrage du CRM c
 
 - `crm_parametres/etapes` et `crm_parametres/phases` : `{ items: [6 emplacements], roleGagnee | roleCloture }`.
 - `crm_parametres/modeles_affaire` : `{ items: [...] }`.
-- Interrupteurs : champs du document existant `crm_parametres/reglages` (`suiviPaiements`, `clotureBloquee`, `extractionValeur`, `celebrations`, `boutonsDepot`, `prenomCelebration`, `imageCelebration`).
+- Interrupteurs : champs du document existant `crm_parametres/reglages` (`suiviPaiements`, `clotureBloquee`, `celebrations`, `boutonsDepot`, `prenomCelebration`, `imageCelebration`).
 - Membres assignables d'un espace client : champ `equipe` de la fiche `clients/<client>` (adresse + rôle), écrit par l'outil `nouveau-client` en même temps que les fiches d'appartenance (les règles interdisent de lister les membres depuis un navigateur).
 
 ## Ce qui touche les données existantes de Jérôme

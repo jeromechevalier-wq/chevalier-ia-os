@@ -1,5 +1,7 @@
 # Synthèse provisoire : les 10 constats les plus importants (état au 9 octobre 2026, 15:36, heure de Paris)
 
+> **Note du 18/10/2026 : l'« Extraction de valeur » citée dans ce document a été supprimée** (décision de Jérôme, voir `cadrage-projets.md`) : plus d'option, de création de projet d'extraction, de modèle, de badge ni d'outil MCP `extraire_valeur_projet`. Les projets déjà créés restent lisibles comme des projets ordinaires. Le texte ci-dessous est conservé comme historique.
+
 Étapes déjà lues : A (projets et factures), B (serveur MCP), C (ventes et CRM), D (journal), E (accueil et chiffres), F (parcours dans l'appli), G (tests, partielle), H (documentation) ; cette liste est mise à jour à chaque étape. Les gravités sont celles des fichiers d'étape.
 
 1. **C-01 · BLOQUANT** : supprimer une ancienne organisation efface aussi des notes et activités de personnes ou d'affaires qui l'ont quittée mais existent toujours (`js/modules/crm/logique.js:1545` et `:1550`). Confirmé au niveau de la règle.

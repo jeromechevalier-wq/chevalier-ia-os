@@ -1,5 +1,7 @@
 # Étape B : le serveur MCP (audit fonctionnel, version 2.3.3)
 
+> **Note du 18/10/2026 : l'« Extraction de valeur » citée dans ce document a été supprimée** (décision de Jérôme, voir `cadrage-projets.md`) : plus d'option, de création de projet d'extraction, de modèle, de badge ni d'outil MCP `extraire_valeur_projet`. Les projets déjà créés restent lisibles comme des projets ordinaires. Le texte ci-dessous est conservé comme historique.
+
 Statut : complet pour le périmètre ci-dessous (lecture du code, essais sur des données fictives en mémoire, tests existants rejoués, tests de l'émulateur Firestore rejoués). Écrit le 2026-10-08.
 
 ## Ce qui n'a PAS été regardé

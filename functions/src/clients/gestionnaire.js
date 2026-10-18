@@ -4,7 +4,7 @@
 //  - le profil vient du RÔLE du membre, relu à chaque appel (lecteur -> lecture seule ; éditeur -> + écriture, suppression et restauration) ;
 //  - les données vues par les outils sont celles de CE client seulement (avecBase : clients/<client>/…) ;
 //  - les outils proposés sont ceux des modules ACTIFS du client (registre des modules) ; module « mcp » éteint = plus rien ne répond ;
-//  - les outils de factures et d'extraction n'existent que si l'option du client est allumée (OUTILS_PAR_OPTION), relue à chaque appel.
+//  - les outils de factures n'existent que si l'option du client est allumée (OUTILS_PAR_OPTION), relue à chaque appel.
 import { extraireBearer } from '../securite/jetons.js';
 import { journaliser } from '../securite/journaux.js';
 import { avecBase } from '../coeur/donnees.js';
@@ -28,7 +28,6 @@ export function outilsDesModules(actifs, outils = OUTILS) {
 /** Options de l'espace (réglages du CRM du client) -> outils qui n'existent que si l'option est allumée. Le serveur de Jérôme n'y passe pas. */
 export const OUTILS_PAR_OPTION = Object.freeze({
   suiviPaiements: Object.freeze(['ajouter_facture', 'marquer_facture_payee', 'abandonner_facture']),
-  extractionValeur: Object.freeze(['extraire_valeur_projet']),
 });
 
 /** Retire les outils dont l'option est éteinte. `options` : configuration.options de l'espace (valeurs neutres si rien n'est réglé). */

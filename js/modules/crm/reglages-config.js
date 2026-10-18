@@ -183,7 +183,6 @@ function sectionOptions() {
     remplir(corps,
       interrupteur({ cle: 'suiviPaiements', titre: 'Suivi des paiements', aide: 'Une liste de factures par projet (À payer, Payée, Abandonnée) : le CRM suit les paiements, il n’édite pas de factures. Allumé, il ajoute aussi les objectifs « facturé » et « encaissé » et le graphique d’encaissement.' }),
       interrupteur({ cle: 'clotureBloquee', titre: 'Clôture bloquée tant qu’une facture est à payer', aide: 'Un projet ne peut pas être terminé tant qu’une de ses factures est à payer (on peut la marquer payée, ou clôturer avec impayé). Sans effet si le suivi des paiements est éteint.', desactive: !o.suiviPaiements }),
-      interrupteur({ cle: 'extractionValeur', titre: 'Extraction de valeur', aide: 'Crée un projet d’extraction quand une affaire est perdue ou gagnée sans projet, ou quand un projet est terminé. Éteint : plus de création, et le bloc, le bouton, le badge et le modèle d’extraction disparaissent.' }),
       interrupteur({ cle: 'celebrations', titre: 'Célébrations', aide: 'Un petit feu d’artifice quand une affaire est gagnée, un projet terminé, une facture payée ou un objectif atteint. Le message est neutre (« Bravo ! ») ; tu peux y ajouter un prénom et une image.' }),
       o.celebrations ? caseLogo : null,
       o.celebrations ? h('div', { class: 'ligne-champs' }, prenom, utiliserLogo ? null : image) : null,

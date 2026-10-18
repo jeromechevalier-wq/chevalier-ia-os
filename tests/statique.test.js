@@ -60,10 +60,10 @@ describe('D1 Manifeste, icônes, service worker, versions', () => {
     }
     assert.ok(!existsSync(join(RACINE, 'sw.js')) && !existsSync(join(RACINE, 'service-worker.js')));
   });
-  test('D1 versions identiques dans version.json et js/os/version.js (2.11.7)', () => {
+  test('D1 versions identiques dans version.json et js/os/version.js (2.11.9)', () => {
     const v = json('version.json').version;
     const m = /VERSION = '([^']+)'/.exec(lire('js/os/version.js'));
-    assert.equal(v, '2.11.7');
+    assert.equal(v, '2.11.9');
     assert.equal(m[1], v);
   });
   test('D1 portraits réduits (512 px de large au plus)', () => {
@@ -441,7 +441,7 @@ describe('D5 Serveur MCP (étape 2) : déploiement, versions figées, sécurité
     assert.equal(fb.functions[0].ignore, undefined, 'liste d’exclusion par défaut de l’outil (node_modules, .git) : functions/partage/ est bien envoyé au déploiement');
     assert.doesNotMatch(lire('scripts/preparer-fonctions.js'), /^import .* from '(?!node:)/m);
   });
-  test('D5 étape 6 : les règles des projets (extraction de valeur) sont copiées aussi, avec leur import du CRM réécrit, et le serveur les utilise pour changer l’étape, marquer perdue', () => {
+  test('D5 étape 6 : les règles des projets sont copiées aussi, avec leur import du CRM réécrit, et le serveur les utilise', () => {
     const script = lire('scripts/preparer-fonctions.js');
     assert.match(script, /js['"], ['"]modules['"], ['"]projets['"], ['"]logique\.js/);
     assert.match(script, /projets\.js/);
@@ -449,14 +449,14 @@ describe('D5 Serveur MCP (étape 2) : déploiement, versions figées, sécurité
     assert.doesNotMatch(lire('js/modules/projets/logique.js'), /from '(?!\.\.\/crm\/logique\.js')[^']*'/, 'les règles des projets n’importent que celles du CRM (seule dépendance copiée avec elles)');
     const metier = lire('functions/src/coeur/metier.js');
     assert.match(metier, /import \* as PL from '\.\.\/\.\.\/partage\/projets\.js'/);
-    assert.match(metier, /PL\.planChangerEtapeAvecExtraction/);
-    assert.match(metier, /PL\.planMarquerPerdueAvecExtraction/);
-    assert.doesNotMatch(metier, /\bL\.planChangerEtape\b|\bL\.planMarquerPerdue\b/, 'le serveur ne contourne pas l’extraction');
+    assert.match(metier, /L\.planChangerEtape\b/);
+    assert.match(metier, /L\.planMarquerPerdue\b/);
+    assert.doesNotMatch(metier, /AvecExtraction|planExtraireProjet/, 'X2 le serveur ne connaît plus l’extraction de valeur');
   });
-  test('D5 étape 6 : aucun écran ne contourne l’extraction : le changement d’étape et la perte d’une affaire passent par projets/donnees.js', () => {
-    for (const f of fichiersAppli().filter((x) => /^js\/.*\.js$/.test(x))) {
-      if (f === 'js/modules/crm/logique.js' || f === 'js/modules/projets/logique.js') continue;
-      assert.doesNotMatch(lire(f), /\bL\.planChangerEtape\b|\bL\.planMarquerPerdue\b|\bD\.changerEtape\b|\bD\.marquerAffairePerdue\b/, f);
+  test('X2 aucun fichier de l’application ni du serveur ne mentionne encore l’extraction de valeur (hors anciennes données lues telles quelles)', () => {
+    const interdit = /AvecExtraction|planExtraireProjet|extractionActive|extractionDuProjet|extractionDeLAffaire|creerExtraction|extraire_valeur_projet|extractionValeur|NATURES_PROJET|badge-nature/;
+    for (const f of [...fichiersAppli().filter((x) => /^js\/.*\.js$/.test(x)), 'functions/src/coeur/metier.js', 'functions/src/coeur/lecture.js', 'functions/src/clients/gestionnaire.js', 'functions/src/mcp/outils/ecriture.js', 'functions/src/mcp/outils/lecture.js', 'css/projets.css']) {
+      assert.doesNotMatch(lire(f), interdit, f);
     }
   });
   test('D5 étapes 3 et 4 : les tests des fonctions préparent la copie, puis lancent jetons, protocole, lecture, écriture avec audit et Firestore (émulateur)', () => {
