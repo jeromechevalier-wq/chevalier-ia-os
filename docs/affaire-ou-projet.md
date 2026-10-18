@@ -27,7 +27,7 @@
 
 ## Un projet peut aussi vivre seul
 
-Un projet n'a **pas besoin** d'une affaire : un chantier interne, un travail offert, un client déjà signé avant l'outil. Seul le titre est obligatoire. Chez Pipedrive, c'est pareil : un projet sert à organiser le travail lié à un client avant, pendant ou après une vente, et il peut être lié à une affaire ou pas.
+Un projet n'a **pas besoin** d'une affaire : un chantier interne, un travail offert, un client déjà signé avant l'outil. Seul le titre est obligatoire. Chez Pipedrive, c'est pareil pour les données : un projet sert à organiser le travail lié à un client avant, pendant ou après une vente, et il peut être lié à une affaire ou pas. En revanche, Pipedrive ne vend pas les projets seuls : pour utiliser Projects, il faut aussi avoir l'app Deals (affaires).
 
 ## D'où vient cette façon de faire
 
@@ -36,7 +36,8 @@ On s'est inspiré de Pipedrive, avec nos propres mots. Ses pages d'aide officiel
 - [Deals vs. projects: when to use each](https://support.pipedrive.com/en/article/projects-vs-deals)
 - [Projects: how to plan your project](https://support.pipedrive.com/en/article/projects-tasks-and-subtasks)
 - [Activities](https://support.pipedrive.com/en/article/activities)
+- [Projects: billing and subscription](https://support.pipedrive.com/en/article/projects-billing-and-subscription) (accès : Deals + Projects)
 
 ## Limite connue
 
-Les **données** n'obligent pas un projet à avoir une affaire, mais l'**activation des modules** garde un ancien lien : dans `js/os/registre.js`, le module « Projets » déclare qu'il dépend de « Affaires ». Un espace qui ne veut que des projets doit donc allumer aussi le module « Affaires ». À lever dans une PR dédiée (voir la roadmap).
+Les **données** n'obligent pas un projet à avoir une affaire, mais l'**activation des modules** garde un ancien lien : dans `js/os/registre.js`, le module « Projets » déclare qu'il dépend de « Affaires ». Un espace qui ne veut que des projets doit donc allumer aussi le module « Affaires ». Chez Pipedrive aussi, Projects demande l'app Deals ; nous pourrions faire mieux. À lever dans une PR dédiée (voir la roadmap).
