@@ -1,3 +1,6 @@
+  // PR B : l'en-tête est le même chez Jérôme et chez un client (nom + logo + initiale du compte), plus de photo dans le menu
+  await expect(page.locator('.menu .menu-compte .avatar-initiale')).toHaveText('J');
+  await expect(page.locator('.menu img.avatar')).toHaveCount(0);
 // Chantier 6 : le CRM de Jérôme (racine, règles du CRM) reste STRICTEMENT identique : identité, jaune, bandeau de sauvegarde, célébrations.
 import { test, expect, connecter, allerA, allerAuxReglagesCrm, ouvrirSectionReglages, basculerThemeParMenu, creerAffaire, creerPersonne, estTelephone, JEROME } from './outils.js';
 

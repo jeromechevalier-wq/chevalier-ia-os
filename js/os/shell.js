@@ -121,10 +121,6 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
     onclick: () => definirElargi(coquille.dataset.menu !== 'elargi'),
   });
   const initiale = (taille) => h('span', { class: 'avatar avatar-initiale', style: { width: `${taille}px`, height: `${taille}px` }, 'aria-hidden': 'true' }, [...String(compte.nom || '?')][0].toUpperCase());
-  // Chez Jérôme (racine) : la photo du compte ; chez un client : l'initiale.
-  const avatar = (taille) => (client === ESPACE_RACINE
-    ? h('img', { class: `avatar avatar-${compte.nom === 'Charles' ? 'charles' : 'jerome'}`, src: compte.avatar, alt: '', width: String(taille), height: String(taille) })
-    : initiale(taille));
   const marqueNom = h('span', { class: 'menu-marque-nom' });
   const remplirMarque = () => {
     remplir(marqueNom, logoEspace(client.logo, 26, 'menu-logo-client'), h('span', { class: 'menu-texte' }, client.nom));
@@ -134,7 +130,7 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
   // Menu utilisateur : s'ouvre vers le haut depuis le nom du compte (ouvrirMenu, placement 'haut').
   const boutonCompte = h('button', {
     type: 'button', class: 'menu-compte', 'aria-haspopup': 'menu', 'aria-expanded': 'false', dataset: { role: 'menu-utilisateur', infobulle: compte.nom },
-  }, avatar(32), h('span', { class: 'menu-texte compte-nom' }, compte.nom), h('span', { class: 'menu-texte compte-chevron' }, icone('chevron-up', { taille: 16 })));
+  }, initiale(32), h('span', { class: 'menu-texte compte-nom' }, compte.nom), h('span', { class: 'menu-texte compte-chevron' }, icone('chevron-up', { taille: 16 })));
   let fermerCompte = null;
   const allerDepuisMenu = (route) => () => { if (estTelephone()) ouvrirMobile(false); naviguer(route); };
   boutonCompte.addEventListener('click', () => {
@@ -191,7 +187,7 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
   const marqueHaut = h('a', { class: 'barre-haut-marque', href: lien(accueil) });
   const remplirMarqueHaut = () => remplir(marqueHaut, logoEspace(client.logo, 22, 'barre-haut-logo'), h('span', {}, client.nom));
   remplirMarqueHaut();
-  const barreHaut = h('header', { class: 'barre-haut' }, boutonMobile, marqueHaut, boutonRecherche, boutonPlusMobile, avatar(30));
+  const barreHaut = h('header', { class: 'barre-haut' }, boutonMobile, marqueHaut, boutonRecherche, boutonPlusMobile, initiale(30));
   const voile = h('div', { class: 'voile-menu', onclick: () => ouvrirMobile(false) });
   const contenu = h('main', { class: 'contenu', id: 'contenu', tabindex: '-1' });
   const zone = h('div', { class: 'zone' }, barreOutils, contenu);

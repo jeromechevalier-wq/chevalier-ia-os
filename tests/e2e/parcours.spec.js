@@ -59,7 +59,7 @@ test('C1 connexion avec Charles : mêmes données, nom et avatar de Charles', as
   await creerPersonne('p1', { nom: 'Marie Durand' });
   await connecter(page, CHARLES);
   await expect(page.getByRole('heading', { name: 'Bonjour Charles' })).toBeVisible();
-  await expect(page.locator('.menu-compte .avatar-charles')).toBeVisible();
+  await expect(page.locator('.menu-compte .avatar-initiale')).toHaveText('C'); // PR B : l'initiale du compte, plus de photo
   await allerA(page, 'Personnes');
   await expect(page.locator('.tableau-personnes')).toContainText('Marie Durand');
 });

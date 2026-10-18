@@ -202,13 +202,14 @@ test('5 « Connecter mon assistant » chez Jérôme : adresse /mcp de la page, m
   await expect(page).toHaveURL(/#\/crm\/journal$/);
 });
 
-test('6 en-tête du menu : nom de l’espace + logo + bouton de repli, avatar', async ({ page }) => {
+test('6 en-tête du menu : nom de l’espace + logo + bouton de repli, avatar = initiale du compte (plus de photo)', async ({ page }) => {
   await connecter(page, JEROME);
   await deplier(page);
   await expect(page.locator('.menu-marque')).toContainText('Chevalier IA OS');
   await expect(page.locator('.menu-marque .baguette')).toHaveCount(1);
   await expect(page.locator('.menu-marque > .menu-marque-nom + .menu-repli')).toHaveCount(1);
-  await expect(page.locator('.menu .menu-compte img.avatar-jerome')).toHaveCount(1);
+  await expect(page.locator('.menu .menu-compte .avatar-initiale')).toHaveText('J');
+  await expect(page.locator('img.avatar')).toHaveCount(0);
   await expect(page.locator('.menu-compte')).toContainText('Jérôme');
   await expect(page.locator('.menu-compte')).not.toContainText('@');
   await capture(page, '6-en-tete-apres', estTelephone(page) ? {} : { clip: { x: 0, y: 0, width: 260, height: 900 } });
