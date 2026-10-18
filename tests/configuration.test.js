@@ -43,7 +43,7 @@ describe('Configuration : six emplacements, valeurs de départ, migration douce'
     assert.equal(L.CALCULS.ca_signe.calculer({ affaires: [ancienne], config: c }, '2026-10'), 500);
   });
 
-  test('sans configuration, un espace client part du jeu neutre : suivi des paiements et extraction éteints, dossier Drive et célébrations allumés', () => {
+  test('sans configuration, un espace client part du jeu neutre : suivi des paiements éteint, dossier Drive et célébrations allumés', () => {
     const c = L.construireConfig({}, { racine: false });
     assert.equal(c.roleGagnee, 'etape_5');
     assert.equal(c.options.suiviPaiements, false);
@@ -71,12 +71,12 @@ describe('Configuration : six emplacements, valeurs de départ, migration douce'
     assert.equal(c.membres.length, 1);
   });
 
-  test('P1 un nouvel espace (aucun réglage enregistré) a « Créer un dossier dans Google Drive » et les célébrations allumés, l’extraction de valeur éteinte', () => {
-    assert.deepEqual({ ...L.OPTIONS_NEUTRES }, { suiviPaiements: false, clotureBloquee: true, extractionValeur: false, boutonsDepot: true, celebrations: true });
+  test('P1 un nouvel espace (aucun réglage enregistré) a « Créer un dossier dans Google Drive » et les célébrations allumés', () => {
+    assert.deepEqual({ ...L.OPTIONS_NEUTRES }, { suiviPaiements: false, clotureBloquee: true, boutonsDepot: true, celebrations: true });
     const c = L.construireConfig({ reglages: { debutActivite: '2026-03' } }, { racine: false });
     assert.equal(c.options.boutonsDepot, true);
     assert.equal(c.options.celebrations, true);
-    assert.equal(c.options.extractionValeur, false);
+    assert.equal('extractionValeur' in c.options, false);
   });
 
   test('P2 un booléen déjà enregistré garde la priorité ; seul le champ absent prend la nouvelle valeur par défaut (espace d’Ingrid : boutonsDepot=false écrit, inchangé)', () => {
