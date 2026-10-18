@@ -35,7 +35,11 @@ Estimation : voir « Durée réelle » ci-dessous (mise à jour avec les premier
 
 ## Durée réelle
 
-*(à compléter avec le premier run sur GitHub : voir `docs/rapport-phase-1-tests.md`)*
+Mesures du 18/10/2026 (machine GitHub Ubuntu, petite : 2 workers) :
+
+- **Run « Tests » sur une PR** (complet, ordinateur) : **10 à 14 minutes** (14 min 0 s sur la PR 111, 9 min 47 s sur la PR 112).
+- **Run de nuit** (ordinateur + téléphone, 1 passage) : **23 min 30 s**.
+- Coût par mois, à titre d'ordre de grandeur : une PR avec 3 poussées ≈ 40 minutes ; 20 PR ≈ 800 minutes ; la nuit ≈ 30 × 24 = 720 minutes. Le total (~1 500 minutes) tient dans les 2 000 minutes, mais sans grande marge : si le quota se vide, passer la nuit à un jour sur deux ou rendre le dépôt public (minutes gratuites).
 
 ## Scénarios connus pour échouer « au hasard »
 
