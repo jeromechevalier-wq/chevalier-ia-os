@@ -7,7 +7,7 @@
 ## Ce que ça fait
 - **Un lien par client** : `https://chevalier-ia-app.web.app/mcp/<client>`. Le client l'ajoute dans Claude (ou ChatGPT) comme connecteur personnalisé.
 - **Connexion Google**, puis écran « Autoriser Claude (ou ChatGPT) à accéder à <nom du client> » **aux couleurs du client** (nom, logo, couleur de sa fiche `marques/<client>`).
-- **Qui peut se connecter** : les membres de l'espace (`clients/<client>/membres/<e-mail>`). Le rôle donne le profil : **lecteur** = consultation seule ; **éditeur** = consultation, modification, suppression et restauration (profil `claude-code`, décidé le 17/10/2026), comme dans son écran. Les suppressions sont journalisées et restaurables (`restaurer_depuis_audit`), plafond de 20 par jour, et un client ne supprime que dans **son** espace.
+- **Qui peut se connecter** : les membres de l'espace (`clients/<client>/membres/<e-mail>`). Le rôle donne le profil : **lecteur** = consultation seule ; **éditeur** = consultation, modification, suppression et restauration (profil `claude-code`, décidé le 17/10/2026), comme dans son écran. Les suppressions sont journalisées et restaurables (`restaurer_depuis_audit`), plafond de **50 par jour** (compté par document supprimé), **double confirmation** (un premier appel donne l'aperçu de ce qui serait supprimé et un code à usage unique de 5 minutes, le second supprime ; voir [portes-et-droits-mcp.md](portes-et-droits-mcp.md)), et un client ne supprime que dans **son** espace.
 - **Outils proposés** : ceux des modules **actifs** du client (CRM = `affaires` + `projets`), d'après `js/os/registre.js`. Un client sans le module Projets ne voit aucun outil de projet.
 - **Module « mcp »** : interrupteur par client, comme `affaires`, `projets`, `veille`. Éteint (ou absent) : le lien ne répond plus, la connexion est refusée, un accès déjà accordé est coupé **à l'appel suivant**.
 - **Noms d'acteur** : `claude-ai-<compte>` ou `chatgpt-<compte>` (selon l'adresse de retour), dans le Journal du CRM et l'audit.
@@ -46,7 +46,7 @@ Dans GitHub : <https://github.com/jeromechevalier-wq/chevalier-ia-os/actions/wor
 - Le compte dédié `mcp-clients@chevalier-ia-app.iam.gserviceaccount.com` (seulement « Utilisateur Cloud Datastore ») est dans le code (`serviceAccount`). **Il doit exister avant le déploiement `mcp`** (voir l'étape 0 ci-dessus). Non vérifié en réel : après le déploiement, Cloud Run > service `mcpclients` > Sécurité doit afficher ce compte, et un essai Claude (`qui_suis_je`, puis une écriture) doit passer. Si une lecture échoue en `PERMISSION_DENIED`, le rôle manque.
 
 ## Choix faits (à confirmer ou changer)
-- Éditeur = profil `claude-code` (écriture, suppression et restauration ; pas de réglage de profil par membre). Décision de Jérôme du 17/10/2026.
+- Éditeur = profil `claude-code` (le nom vient du profil de Claude Code ; il est écrit en première ligne de `functions/src/mcp/outils/suppression.js`) (écriture, suppression et restauration ; pas de réglage de profil par membre). Décision de Jérôme du 17/10/2026.
 - Module `reserveAuxClients` : absent du CRM de Jérôme (son MCP est un autre serveur).
 - La liste des membres devient lisible par les autres membres du même espace (règle Firestore modifiée, écriture toujours interdite).
 - Pas de page Réglages : la page est dans le module (les espaces clients n'ont pas encore de Réglages).
@@ -57,3 +57,7 @@ Dans GitHub : <https://github.com/jeromechevalier-wq/chevalier-ia-os/actions/wor
 - Les outils `ajouter_facture`, `marquer_facture_payee`, `abandonner_facture` (option « Suivi des paiements ») et `extraire_valeur_projet` (option « Extraction de valeur ») ne sont **listés** que si l'option est allumée dans les réglages du client (`OUTILS_PAR_OPTION`, `functions/src/clients/gestionnaire.js`). Les réglages sont relus à chaque appel (trois documents de `crm_parametres` du client en plus), sans cache ; si la lecture échoue : 503 « indisponible ». Le serveur de Jérôme ne passe pas par là : sa liste d'outils ne change pas. Les refus dans la logique (« … est désactivé dans les réglages du CRM. ») restent la deuxième barrière.
 - Un client déjà connecté à claude.ai doit **republier** le MCP (workflow plateforme, choix « mcp ») pour voir le changement, puis rafraîchir la liste des outils.
 - Question ouverte : le propriétaire enregistré sur une fiche créée par un outil dans un espace client reste Jérôme (`PROPRIETAIRE_PAR_DEFAUT`), seul le texte a été corrigé.
+
+## Première connexion et outils manquants (2.11.6)
+
+Chaque outil envoie maintenant ses annotations (lecture seule, destructif) et le serveur d'un espace client se présente sous le nom neutre `espace-client`. Chez le client : **Claude** = ouvrir une **nouvelle conversation** et régler les **permissions par outil** dans les réglages du connecteur ; **ChatGPT** = bouton **« Actualiser les outils »** en bas de la page du connecteur après chaque mise à jour. Détail : [portes-et-droits-mcp.md](portes-et-droits-mcp.md).

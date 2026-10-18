@@ -9,7 +9,7 @@ Imagine un cahier de comptes où chaque ligne écrite est photographiée avant d
 2. **Il écrit** les données, par paquets de 400 (comme l'écran). Si quelqu'un (toi, sur l'écran) a modifié le même document une seconde plus tôt, il **refuse** plutôt que d'écraser, et te dit de recommencer.
 3. **Il note le résultat** dans le journal (« succes » ou « echec »). Une ligne restée « en_cours » veut dire « à vérifier » : `lire_audit` avec `incompletes: true` les montre.
 4. **Restaurer** = rejouer l'opération à l'envers à partir des copies du tiroir : une création est effacée, une modification est remise comme avant, une suppression est recréée **avec le même identifiant** (donc tous les liens entre fiches reviennent). Si le document a changé depuis, il refuse, sauf `forcer: true`. Les copies du tiroir **s'effacent toutes seules après 90 jours** (RGPD) ; ensuite, ce sont les sauvegardes (étape 5) qui prennent le relais.
-5. **Freins** : par jeton, 120 requêtes par minute, 500 écritures par heure, 20 suppressions par jour. Au-delà, le serveur répond « plafond atteint » avec le délai.
+5. **Freins** : par jeton, 120 requêtes par minute, 500 écritures par heure, 50 suppressions par jour (comptées par document supprimé). Au-delà, le serveur répond « plafond atteint » avec le délai.
 
 Les règles métier (doublons, étapes, dates de Paris, événements du fil, cascade de suppression) sont **exactement celles de l'écran** : le code est le même fichier (`logique.js`), utilisé par l'écran et par le serveur.
 
