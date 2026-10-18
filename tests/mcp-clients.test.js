@@ -284,18 +284,85 @@ describe('Rôles : le profil vient du rôle du membre', () => {
     assert.deepEqual(await donneesDe('a'), avant);
     await c.close();
   });
-  test('M7 éditeur : lecture et écriture, jamais de suppression ni de restauration (ni listées, ni appelables)', async () => {
+  test('M7 éditeur : lecture, écriture, suppression et restauration (listées et appelables), profil claude-code', async () => {
+    await reinitialiser();
     const t = await connecter('a', 'ID-ALICE');
     const c = await assistant('/mcp/a', t.access_token);
     const liste = noms(await c.listTools());
     assert.ok(liste.includes('creer_personne') && liste.includes('modifier_projet'));
-    assert.deepEqual(liste.filter((n) => SUPPRESSIONS.test(n)), []);
-    assert.equal(resultat(await c.callTool({ name: 'qui_suis_je', arguments: {} })).profil, 'bibliothecaire');
-    const avant = await donneesDe('a');
-    assert.ok(await refuse(c, 'supprimer_personne', { id: 'p1', confirmationNom: 'Camille ALPHA' }));
-    assert.ok(await refuse(c, 'restaurer_depuis_audit', { operationId: 'op1', apercu: false }));
-    assert.deepEqual(await donneesDe('a'), avant);
+    assert.ok(liste.includes('supprimer_personne') && liste.includes('restaurer_depuis_audit'));
+    assert.equal(resultat(await c.callTool({ name: 'qui_suis_je', arguments: {} })).profil, 'claude-code');
     await c.close();
+    await reinitialiser();
+  });
+  test('M7a éditeur chez A : supprimer_personne avec la confirmation du nom -> operationId, la personne disparaît de A, audit « supprimer » signé claude-ai-alice', async () => {
+    await reinitialiser();
+    const t = await connecter('a', 'ID-ALICE');
+    const c = await assistant('/mcp/a', t.access_token);
+    const r = resultat(await c.callTool({ name: 'supprimer_personne', arguments: { id: 'p1', choix: 'conserver', confirmationNom: 'Camille ALPHA' } }));
+    assert.ok(r.operationId, JSON.stringify(r));
+    assert.ok(!(await donnees.liste('clients/a/crm_personnes')).some((p) => p.id === 'p1'));
+    const audit = (await donnees.liste('clients/a/crm_audit')).filter((l) => l.operationId === r.operationId);
+    assert.ok(audit.some((l) => l.action === 'supprimer' && l.acteur === 'claude-ai-alice'), JSON.stringify(audit));
+    assert.ok(audit.every((l) => l.acteur === 'claude-ai-alice'));
+    await c.close();
+    await reinitialiser();
+  });
+  test('M7b membre éditeur de A et lecteur de B : la suppression chez B est refusée et les données de B ne changent pas', async () => {
+    await reinitialiser();
+    const tb = await connecter('b', 'ID-CLARA');
+    const cb = await assistant('/mcp/b', tb.access_token);
+    assert.equal(resultat(await cb.callTool({ name: 'qui_suis_je', arguments: {} })).profil, 'lecteur');
+    const avantB = await donneesDe('b');
+    assert.ok(await refuse(cb, 'supprimer_personne', { id: 'p1', choix: 'conserver', confirmationNom: 'Camille BRAVO' }));
+    assert.deepEqual(await donneesDe('b'), avantB);
+    await cb.close();
+    const ta = await connecter('a', 'ID-CLARA');
+    const ca = await assistant('/mcp/a', ta.access_token);
+    assert.ok(await refuse(ca, 'supprimer_personne', { id: 'p1', choix: 'conserver', confirmationNom: 'Camille BRAVO' }), 'le nom de B ne vaut pas chez A');
+    assert.deepEqual(await donneesDe('b'), avantB);
+    await ca.close();
+    await reinitialiser();
+  });
+  test('M7c restaurer_depuis_audit avec l\'operationId de M7a chez A : la personne réapparaît', async () => {
+    await reinitialiser();
+    const t = await connecter('a', 'ID-ALICE');
+    const c = await assistant('/mcp/a', t.access_token);
+    const { operationId } = resultat(await c.callTool({ name: 'supprimer_personne', arguments: { id: 'p1', choix: 'conserver', confirmationNom: 'Camille ALPHA' } }));
+    assert.ok(!(await donnees.liste('clients/a/crm_personnes')).some((p) => p.id === 'p1'));
+    const r = await c.callTool({ name: 'restaurer_depuis_audit', arguments: { operationId, apercu: false } });
+    assert.ok(!r.isError, r.content[0].text);
+    assert.ok((await donnees.liste('clients/a/crm_personnes')).some((p) => p.id === 'p1' && p.nom === 'Camille ALPHA'));
+    await c.close();
+    await reinitialiser();
+  });
+  test('M7d le même operationId chez B (éditeur de B) : refus «identifiant inconnu», B inchangé', async () => {
+    await reinitialiser();
+    const ta = await connecter('a', 'ID-ALICE');
+    const ca = await assistant('/mcp/a', ta.access_token);
+    const { operationId } = resultat(await ca.callTool({ name: 'supprimer_personne', arguments: { id: 'p1', choix: 'conserver', confirmationNom: 'Camille ALPHA' } }));
+    await ca.close();
+    const tb = await connecter('b', 'ID-BOB');
+    const cb = await assistant('/mcp/b', tb.access_token);
+    const avantB = await donneesDe('b');
+    const r = await cb.callTool({ name: 'restaurer_depuis_audit', arguments: { operationId, apercu: false } });
+    assert.equal(r.isError, true);
+    assert.match(JSON.stringify(r.content), /identifiant inconnu/); // le serveur dit « Aucune écriture réussie pour cette opération (identifiant inconnu… ) » : même réponse que pour un operationId qui n'existe pas
+    assert.deepEqual(await donneesDe('b'), avantB);
+    assert.ok(!(await donnees.liste('clients/a/crm_personnes')).some((p) => p.id === 'p1'), 'A est resté comme après la suppression');
+    await cb.close();
+    await reinitialiser();
+  });
+  test('M7e connexion avec une adresse de retour ChatGPT : acteur chatgpt-<compte> et suppression journalisée avec cet acteur', async () => {
+    await reinitialiser();
+    const t = await connecter('a', 'ID-ALICE', { redirect: CHATGPT });
+    const c = await assistant('/mcp/a', t.access_token);
+    assert.equal(resultat(await c.callTool({ name: 'qui_suis_je', arguments: {} })).acteur, 'chatgpt-alice');
+    const r = resultat(await c.callTool({ name: 'supprimer_personne', arguments: { id: 'p1', choix: 'conserver', confirmationNom: 'Camille ALPHA' } }));
+    const audit = (await donnees.liste('clients/a/crm_audit')).filter((l) => l.operationId === r.operationId);
+    assert.ok(audit.some((l) => l.action === 'supprimer' && l.acteur === 'chatgpt-alice'), JSON.stringify(audit));
+    await c.close();
+    await reinitialiser();
   });
   test('un éditeur écrit dans SON espace, avec son nom d\'acteur dans l\'audit ; son rôle est relu à chaque appel (rétrogradé = lecture seule)', async () => {
     await reinitialiser();
@@ -406,7 +473,7 @@ describe('Étanchéité entre clients (plan M1 à M15)', () => {
     const tc = await connecter('a', 'ID-CLARA');
     const sur = async (client, token) => { const c = await assistant(`/mcp/${client}`, token); const t = JSON.stringify((await c.callTool({ name: 'lister_affaires', arguments: {} })).content) + resultat(await c.callTool({ name: 'qui_suis_je', arguments: {} })).profil; await c.close(); return t; };
     const chezA = await sur('a', tc.access_token);
-    assert.ok(chezA.includes('ALPHA') && !chezA.includes('BRAVO') && chezA.endsWith('bibliothecaire'));
+    assert.ok(chezA.includes('ALPHA') && !chezA.includes('BRAVO') && chezA.endsWith('claude-code'));
     assert.equal((await brut('/mcp/b', tc.access_token)).status, 401, 'le jeton de A ne vaut pas sur B, même pour un compte membre des deux');
     const tcb = await connecter('b', 'ID-CLARA');
     const chezB = await sur('b', tcb.access_token);
@@ -488,7 +555,7 @@ describe('Étanchéité entre clients (plan M1 à M15)', () => {
     await c.close();
     const appels = lignesJournal.filter((l) => l.outil === 'lire_personne');
     assert.ok(appels.length > 0);
-    for (const l of appels) assert.deepEqual([l.client, l.acteur, l.profil, l.role], ['a', 'claude-ai-alice', 'bibliothecaire', 'editeur']);
+    for (const l of appels) assert.deepEqual([l.client, l.acteur, l.profil, l.role], ['a', 'claude-ai-alice', 'claude-code', 'editeur']);
     assert.ok(!JSON.stringify(lignesJournal).includes('BRAVO') && !JSON.stringify(lignesJournal).includes('ALPHA'));
     const { journaliser } = await import('../functions/src/securite/journaux.js');
     const lignes = [];
@@ -546,7 +613,7 @@ describe('Écran d\'autorisation : aux couleurs du client, neutre pour tout ce q
     assert.match(t, /https:\/\/exemple\.test\/alpha\.png/);
     assert.match(t, /\/oauth\/a\/approve/);
     assert.match(t, /chevalier-ia-app/);
-    assert.ok(!t.includes('Chevalier IA OS') && !t.includes('chevalier-ia-os') && !t.includes('et <strong>supprimer</strong>') && /jamais supprimer/.test(t));
+    assert.ok(!t.includes('Chevalier IA OS') && !t.includes('chevalier-ia-os') && !t.includes('et <strong>supprimer</strong>') && /éditeur<\/strong> : les consulter, en créer, les modifier et les <strong>supprimer<\/strong> \(récupérable\)/.test(t) && !/jamais supprimer/.test(t));
     const tb = await (await autoriser('b')).text();
     assert.match(tb, /Atelier Bravo/);
     assert.match(tb, /#aa3355/);

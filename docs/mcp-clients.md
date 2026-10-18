@@ -7,7 +7,7 @@
 ## Ce que ça fait
 - **Un lien par client** : `https://chevalier-ia-app.web.app/mcp/<client>`. Le client l'ajoute dans Claude (ou ChatGPT) comme connecteur personnalisé.
 - **Connexion Google**, puis écran « Autoriser Claude (ou ChatGPT) à accéder à <nom du client> » **aux couleurs du client** (nom, logo, couleur de sa fiche `marques/<client>`).
-- **Qui peut se connecter** : les membres de l'espace (`clients/<client>/membres/<e-mail>`). Le rôle donne le profil : **lecteur** = consultation seule ; **éditeur** = consultation et modification (profil `bibliothecaire`). **Jamais de suppression ni de restauration** pour un client.
+- **Qui peut se connecter** : les membres de l'espace (`clients/<client>/membres/<e-mail>`). Le rôle donne le profil : **lecteur** = consultation seule ; **éditeur** = consultation, modification, suppression et restauration (profil `claude-code`, décidé le 17/10/2026), comme dans son écran. Les suppressions sont journalisées et restaurables (`restaurer_depuis_audit`), plafond de 20 par jour, et un client ne supprime que dans **son** espace.
 - **Outils proposés** : ceux des modules **actifs** du client (CRM = `affaires` + `projets`), d'après `js/os/registre.js`. Un client sans le module Projets ne voit aucun outil de projet.
 - **Module « mcp »** : interrupteur par client, comme `affaires`, `projets`, `veille`. Éteint (ou absent) : le lien ne répond plus, la connexion est refusée, un accès déjà accordé est coupé **à l'appel suivant**.
 - **Noms d'acteur** : `claude-ai-<compte>` ou `chatgpt-<compte>` (selon l'adresse de retour), dans le Journal du CRM et l'audit.
@@ -46,7 +46,7 @@ Dans GitHub : <https://github.com/jeromechevalier-wq/chevalier-ia-os/actions/wor
 - Le compte dédié `mcp-clients@chevalier-ia-app.iam.gserviceaccount.com` (seulement « Utilisateur Cloud Datastore ») est dans le code (`serviceAccount`). **Il doit exister avant le déploiement `mcp`** (voir l'étape 0 ci-dessus). Non vérifié en réel : après le déploiement, Cloud Run > service `mcpclients` > Sécurité doit afficher ce compte, et un essai Claude (`qui_suis_je`, puis une écriture) doit passer. Si une lecture échoue en `PERMISSION_DENIED`, le rôle manque.
 
 ## Choix faits (à confirmer ou changer)
-- Éditeur = profil `bibliothecaire` (pas de suppression ni de restauration, pas de réglage de profil par membre).
+- Éditeur = profil `claude-code` (écriture, suppression et restauration ; pas de réglage de profil par membre). Décision de Jérôme du 17/10/2026.
 - Module `reserveAuxClients` : absent du CRM de Jérôme (son MCP est un autre serveur).
 - La liste des membres devient lisible par les autres membres du même espace (règle Firestore modifiée, écriture toujours interdite).
 - Pas de page Réglages : la page est dans le module (les espaces clients n'ont pas encore de Réglages).
