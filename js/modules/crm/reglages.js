@@ -74,7 +74,7 @@ export function rendreReglagesCrm(page) {
   sDebut.append(debut);
 
   // Visible seulement si l'option « Créer un dossier dans Google Drive » est allumée : les sous-dossiers que « Créer un dossier dans Google Drive » crée dans chaque dossier de projet.
-  const sProjets = section('reglages-projets', 'Dossiers de projets dans Google Drive', 'folder-plus', 'Servent au bouton « Créer un dossier dans Google Drive » des fiches affaire et projet : les sous-dossiers créés dans chaque dossier. Le dossier Drive parent se choisit dans Options du CRM, sous la case.');
+  const sProjets = section('reglages-projets', 'Dossiers de projets dans Google Drive', 'folder-plus', 'Les sous-dossiers créés dans chaque dossier. Le dossier parent se règle dans Options du CRM, sous la case.');
   const etatGoogle = h('p', { class: 'aide', 'data-role': 'etat-google' });
   const listeSousDossiers = h('div', { class: 'liste-reglages', 'data-role': 'sous-dossiers' });
   const enregistrerSousDossiers = async (noms) => {

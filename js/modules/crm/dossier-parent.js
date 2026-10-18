@@ -32,7 +32,7 @@ export function zoneDossierParent() {
   } }, 'Retirer');
   const element = h('div', { class: 'zone-dossier-parent', 'data-role': 'zone-dossier-parent' },
     h('div', { class: 'ligne-parent-drive' }, h('span', { class: 'ligne-parent-libelle' }, 'Dossier Drive parent'), nomParent, choisirParent, retirerParent),
-    h('p', { class: 'aide' }, 'Dans la fenêtre Google, seuls les dossiers s’affichent (les fichiers sont cachés exprès) : « Aucun document » veut dire que ce dossier n’a pas de sous-dossier, clique alors sur « Sélectionner ». Sans dossier parent choisi, l’appli en crée un toute seule la première fois (« Chevalier IA - … ») et y range les dossiers. Renommer ou déplacer un dossier dans Drive ne casse pas son lien.'));
+    h('p', { class: 'aide' }, 'Dans la fenêtre Google, seuls les dossiers s’affichent. Sans choix, un dossier est créé tout seul au premier besoin.'));
   // Les réglages changent : l'écran des options se redessine, donc la zone est refaite à chaque fois (pas de mise à jour à part).
   const parent = D.etat.reglages.dossierParentDrive;
   nomParent.textContent = parent?.nom || 'Créé tout seul au premier dossier';
