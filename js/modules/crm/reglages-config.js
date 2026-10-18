@@ -7,6 +7,7 @@ import * as L from './logique.js';
 import * as P from '../projets/logique.js';
 import { retirerAvecAnnulation } from '../../os/retrait.js';
 import { estChezClient, logoEspace } from '../../os/contexte.js';
+import { ajouterGardeSortie } from '../../os/router.js';
 
 function section(id, titre, nomIcone, aide) {
   return h('section', { class: 'carte-section', id },
@@ -33,27 +34,41 @@ function editeurEmplacements({ genre }) {
   const erreurGenerale = h('p', { class: 'erreur', role: 'alert' });
   let brouillon = null;
   let role = null;
-  let sale = false;
+  let reference = ''; // empreinte de l'état enregistré : « Enregistrer » ne s'allume que si le brouillon en diffère
+  let enCours = false;
+  let boutonEnregistrer = null;
+  let boutonAnnuler = null;
 
   const items = () => (etape ? D.etat.config.etapes : D.etat.config.phases);
   const roleActuel = () => (etape ? D.etat.config.roleGagnee : D.etat.config.roleCloture);
   const comptes = () => (etape ? L.comptesParEtape(D.etat.affaires) : P.comptesParPhase(PD.etat.projets));
 
+  const empreinte = () => JSON.stringify([(brouillon || []).map((e) => ({ ...e, description: e.description || '' })), role]);
+  const modifie = () => brouillon !== null && empreinte() !== reference;
+  // Grisés tant qu'il n'y a rien à enregistrer ; jaune (bouton principal actif) dès qu'une modification est faite.
+  function majBoutons() {
+    if (!boutonEnregistrer) return;
+    const rien = !modifie();
+    boutonEnregistrer.disabled = rien || enCours;
+    boutonAnnuler.disabled = rien || enCours;
+  }
+
   function charger() {
     brouillon = copie(items());
     role = roleActuel();
-    sale = false;
+    reference = empreinte();
+    majBoutons();
   }
 
   function ligne(e, i) {
     const nb = comptes()[e.id] || 0;
-    const modifier = (patch) => { Object.assign(e, patch); sale = true; };
+    const modifier = (patch) => { Object.assign(e, patch); majBoutons(); };
     const nom = h('input', { type: 'text', class: 'champ', value: e.libelle, maxlength: '40', 'aria-label': `Nom de l’emplacement ${i + 1}`, oninput: (ev) => modifier({ libelle: ev.target.value }) });
     const couleur = h('input', { type: 'color', class: 'champ-couleur', value: e.couleur || '#8d8993', 'aria-label': `Couleur de l’emplacement ${i + 1}`, oninput: (ev) => modifier({ couleur: ev.target.value }) });
     const actif = h('input', { type: 'checkbox', checked: e.actif, dataset: { role: 'actif' }, 'aria-label': `Utiliser l’emplacement ${i + 1}`,
       onchange: (ev) => { modifier({ actif: ev.target.checked }); rendre(); } });
     const roleRadio = h('input', { type: 'radio', name: `role-${genre}`, checked: role === e.id, disabled: !e.actif, dataset: { role: 'role' }, 'aria-label': `${etape ? 'Vente gagnée' : 'Clôture'} : emplacement ${i + 1}`,
-      onchange: () => { role = e.id; sale = true; } });
+      onchange: () => { role = e.id; majBoutons(); } });
     const description = h('textarea', { class: 'champ', rows: 2, maxlength: '300', placeholder: `Explication de cette ${mot}, affichée avec l’icône « i »`, 'aria-label': `Description de l’emplacement ${i + 1}`,
       oninput: (ev) => modifier({ description: ev.target.value }) });
     description.value = e.description || '';
@@ -86,6 +101,7 @@ function editeurEmplacements({ genre }) {
   function rendre() {
     if (!brouillon) charger();
     remplir(zone, brouillon.map(ligne));
+    majBoutons();
   }
 
   function afficherErreurs(erreurs) {
@@ -101,20 +117,25 @@ function editeurEmplacements({ genre }) {
     zone.querySelectorAll('[data-erreur]').forEach((p) => { p.textContent = ''; });
     erreurGenerale.textContent = '';
     if (Object.keys(erreurs).length) { afficherErreurs(erreurs); toast('Corrige les erreurs avant d’enregistrer', { type: 'erreur' }); return; }
+    enCours = true;
+    majBoutons();
     try {
       if (etape) await D.enregistrerEtapes(brouillon, role); else await D.enregistrerPhases(brouillon, role);
-      sale = false;
+      reference = empreinte();
       toast(etape ? 'Étapes enregistrées' : 'Phases enregistrées');
-    } catch (e) { console.warn(e); toast('Enregistrement impossible', { type: 'erreur' }); }
+    } catch (e) { console.warn(e); toast('Enregistrement impossible', { type: 'erreur' }); } // le brouillon reste modifié : le bouton reste jaune
+    finally { enCours = false; majBoutons(); }
   }
 
-  sec.append(zone, erreurGenerale, h('div', { class: 'ligne-boutons' },
-    h('button', { type: 'button', class: 'bouton bouton-principal', dataset: { action: `enregistrer-${genre}` }, onclick: enregistrer }, icone('check', { taille: 16 }), 'Enregistrer'),
-    h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: `annuler-${genre}` }, onclick: () => { charger(); rendre(); erreurGenerale.textContent = ''; } }, 'Annuler les changements')));
+  boutonEnregistrer = h('button', { type: 'button', class: 'bouton bouton-principal', disabled: true, dataset: { action: `enregistrer-${genre}` }, onclick: enregistrer }, icone('check', { taille: 16 }), 'Enregistrer');
+  boutonAnnuler = h('button', { type: 'button', class: 'bouton bouton-secondaire', disabled: true, dataset: { action: `annuler-${genre}` }, onclick: () => { charger(); rendre(); erreurGenerale.textContent = ''; } }, 'Annuler les changements');
+  sec.append(zone, erreurGenerale, h('div', { class: 'ligne-boutons' }, boutonEnregistrer, boutonAnnuler));
+  // Quitter la page avec un brouillon non enregistré : le routeur demande confirmation (voir ajouterGardeSortie).
+  ajouterGardeSortie(() => sec.isConnected && modifie(), { message: `Les changements des ${etape ? 'étapes de vente' : 'phases de projet'} ne sont pas enregistrés.` });
 
   function rafraichir() {
     // Un brouillon en cours n'est jamais écrasé par un changement venu d'ailleurs.
-    if (sale || sec.contains(document.activeElement)) return;
+    if (modifie() || sec.contains(document.activeElement)) return;
     charger();
     rendre();
   }
@@ -128,6 +149,7 @@ function sectionOptions() {
   const sec = section('reglages-options', 'Options du CRM', 'settings',
     'Allume seulement ce dont tu as besoin. Éteindre une option cache ses écrans et empêche d’en créer de nouveaux éléments ; rien de ce qui existe n’est effacé.');
   const corps = h('div', { class: 'pile' });
+  sec.querySelector('h2').after(h('p', { class: 'aide', dataset: { role: 'aide-auto-enregistrement' } }, 'Chaque case s’enregistre toute seule.'));
   sec.append(corps);
 
   function interrupteur({ cle, titre, aide, desactive = false }) {

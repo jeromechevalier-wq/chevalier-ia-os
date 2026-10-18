@@ -78,3 +78,39 @@ export function suivreLiensDuPrefixe() {
   document.addEventListener('click', surClic);
   return () => document.removeEventListener('click', surClic);
 }
+
+// ---------------------------------------------------------------- garde de sortie
+// Une page avec un brouillon non enregistré (Réglages) déclare une garde : tant qu'elle répond « modifié », un changement d'adresse est annulé
+// puis une fenêtre demande « Quitter sans enregistrer ? ». Sans brouillon modifié, la navigation n'est jamais touchée.
+const gardes = new Set();
+let derniereAdresse = typeof location === 'undefined' ? '' : location.hash;
+let sortieConfirmee = false;
+
+/** `modifie()` : vrai s'il y a un brouillon non enregistré. Une garde dont la page a disparu doit répondre faux (elle est alors retirée). */
+export function ajouterGardeSortie(modifie, { message = 'Des changements ne sont pas enregistrés.' } = {}) {
+  const g = { modifie, message };
+  gardes.add(g);
+  return () => gardes.delete(g);
+}
+
+function gardeActive() {
+  return [...gardes].find((g) => g.modifie());
+}
+
+if (typeof window !== 'undefined') {
+  // Enregistré à l'import du routeur, donc avant les écouteurs de la coque : stopImmediatePropagation empêche le changement de page.
+  window.addEventListener('hashchange', async (e) => {
+    const nouvelle = location.hash;
+    if (sortieConfirmee) { sortieConfirmee = false; derniereAdresse = nouvelle; return; }
+    const garde = nouvelle === derniereAdresse ? null : gardeActive();
+    if (!garde) { derniereAdresse = nouvelle; return; }
+    e.stopImmediatePropagation();
+    history.replaceState(null, '', `${location.pathname}${location.search}${derniereAdresse}`);
+    const { confirmer } = await import('./ui.js');
+    if (await confirmer('Quitter sans enregistrer ?', `${garde.message} Si tu quittes, ils seront perdus.`, { libelleOk: 'Quitter sans enregistrer', danger: true })) {
+      sortieConfirmee = true;
+      location.hash = nouvelle;
+    }
+  });
+  window.addEventListener('beforeunload', (e) => { if (gardeActive()) { e.preventDefault(); e.returnValue = ''; } });
+}

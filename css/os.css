@@ -50,6 +50,8 @@ img { max-width: 100%; }
 .bouton:disabled { opacity: .45; cursor: not-allowed; }
 .bouton-principal { background: var(--accent); color: var(--sur-accent); }
 .bouton-principal:hover:not(:disabled) { background: var(--accent-survol); }
+/* Enregistrer sans rien à enregistrer : gris (consignes-ui.md, 2026-10-18), jamais un jaune pâle. */
+.bouton-principal[data-action^="enregistrer"]:disabled { background: var(--gris); border-color: var(--gris); color: #fff; }
 .bouton-secondaire { background: transparent; border-color: var(--bordure-forte); color: var(--texte); }
 .bouton-secondaire:hover:not(:disabled) { border-color: var(--accent-trait); }
 .bouton-discret { background: transparent; color: var(--texte2); padding: 6px 10px; }

@@ -1,3 +1,7 @@
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { homedir } from 'node:os';
+import { fileURLToPath } from 'node:url';
 // Tests C : écran Projets (étape 2 : Kanban par phase, liste, fiche), formats 1440 × 900 et 390 × 844.
 import {
   test, expect, connecter, allerA, allerAuxReglagesCrm, creerPersonne, creerOrganisation, creerAffaire, creerProjet, creerTacheProjet, creerActivite, lireDocument, listerDocuments, ecrireDocument,
@@ -1637,6 +1641,101 @@ test('C38 Réglages : étapes de vente configurables — renommer, expliquer (ic
   await aller(page, '#/crm/affaires/a1');
   await expect(page.locator('.barre-etapes-fiche [data-role="info"]')).toHaveCount(1);
   await expect(page.locator('.barre-etapes-fiche [data-role="bulle-info"]')).toHaveText('Le prospect vient de nous écrire.');
+});
+
+// ---------------------------------------------------------------- Boutons Enregistrer des Réglages (consignes-ui.md, 2026-10-18)
+const JAUNE_ENREGISTRER = 'rgb(236, 188, 6)';
+const DOSSIER_CAPTURES = join(homedir(), 'chantiers-crm', 'captures-reglages-enregistrer');
+async function capturer(page, cible, nom, theme) {
+  await page.evaluate((t) => document.documentElement.setAttribute('data-theme', t), theme);
+  await page.waitForTimeout(300);
+  await cible.screenshot({ path: join(DOSSIER_CAPTURES, `${nom}-${theme}${estTelephone(page) ? '-tel' : ''}.png`), animations: 'disabled' });
+}
+const fond = (loc) => loc.evaluate((el) => getComputedStyle(el).backgroundColor);
+
+for (const genre of ['etape', 'phase']) {
+  test(`1 Réglages ${genre === 'etape' ? 'étapes de vente' : 'phases de projet'} : Enregistrer et Annuler sont grisés sans modification, jaunes dès qu'on change quelque chose, grisés de nouveau après l'enregistrement`, async ({ page }) => {
+    await connecter(page);
+    await allerAuxReglagesCrm(page);
+    const sec = page.locator(genre === 'etape' ? '#reglages-etapes' : '#reglages-phases');
+    const enregistrer = sec.locator(`[data-action="enregistrer-${genre}"]`);
+    const annuler = sec.locator(`[data-action="annuler-${genre}"]`);
+    await expect(enregistrer).toBeDisabled();
+    await expect(annuler).toBeDisabled();
+    for (const t of ['clair', 'sombre']) await capturer(page, sec.locator('.ligne-boutons'), `1-${genre}-grise`, t);
+    const nom = sec.getByLabel('Nom de l’emplacement 1');
+    const ancien = await nom.inputValue();
+    await nom.fill(`${ancien} bis`);
+    await expect(enregistrer).toBeEnabled();
+    await expect(annuler).toBeEnabled();
+    await expect.poll(() => fond(enregistrer)).toBe(JAUNE_ENREGISTRER);
+    for (const t of ['clair', 'sombre']) await capturer(page, sec.locator('.ligne-boutons'), `1-${genre}-jaune`, t);
+    // on remet la valeur d'origine : plus rien à enregistrer, donc grisé
+    await nom.fill(ancien);
+    await expect(enregistrer).toBeDisabled();
+    await nom.fill(`${ancien} bis`);
+    await enregistrer.click();
+    await expect(page.locator('.toast', { hasText: genre === 'etape' ? 'Étapes enregistrées' : 'Phases enregistrées' })).toBeVisible();
+    await expect(enregistrer).toBeDisabled();
+    await expect(annuler).toBeDisabled();
+    // « Annuler les changements » ramène le brouillon et regrise
+    await nom.fill('Autre nom');
+    await annuler.click();
+    await expect(nom).toHaveValue(`${ancien} bis`);
+    await expect(enregistrer).toBeDisabled();
+  });
+}
+
+test('1 Réglages cas d’erreur : un enregistrement refusé laisse Enregistrer jaune et affiche le message d’erreur existant', async ({ page }) => {
+  await creerAffaire('a1', { titre: 'Dans Rendez vous', etape: 'rdv_fixe' });
+  await connecter(page);
+  await allerAuxReglagesCrm(page);
+  const sec = page.locator('#reglages-etapes');
+  await sec.locator('.emplacement[data-emplacement="rdv_fixe"] [data-role="actif"]').uncheck();
+  const enregistrer = sec.locator('[data-action="enregistrer-etape"]');
+  await enregistrer.click();
+  await expect(sec.locator('[data-erreur="rdv_fixe"]')).toContainText('contient 1 fiche');
+  await expect(enregistrer).toBeEnabled();
+  await page.mouse.move(0, 0); // sort du survol (le jaune de survol est plus clair)
+  await expect.poll(() => fond(enregistrer)).toBe(JAUNE_ENREGISTRER);
+  await capturer(page, sec, '1-erreur-refus', 'clair');
+});
+
+test('2 Réglages : la carte « Options du CRM » dit sous son titre « Chaque case s’enregistre toute seule. »', async ({ page }) => {
+  await connecter(page);
+  await allerAuxReglagesCrm(page);
+  const sec = page.locator('#reglages-options');
+  await expect(sec.locator('h2 + p[data-role="aide-auto-enregistrement"]')).toHaveText('Chaque case s’enregistre toute seule.');
+  for (const t of ['clair', 'sombre']) await capturer(page, sec, '2-options-aide', t);
+});
+
+test('3 Réglages : quitter la page avec un brouillon non enregistré demande confirmation ; sans modification, on part sans question', async ({ page }) => {
+  await connecter(page);
+  await allerAuxReglagesCrm(page);
+  const sec = page.locator('#reglages-etapes');
+  // rien de modifié : aucune fenêtre
+  await aller(page, '#/crm/personnes');
+  await expect(dialogue(page)).toHaveCount(0);
+  await expect(page).toHaveURL(/#\/crm\/personnes$/);
+  await allerAuxReglagesCrm(page);
+  await sec.getByLabel('Nom de l’emplacement 1').fill('Brouillon');
+  await aller(page, '#/crm/personnes');
+  await expect(dialogue(page)).toContainText('Quitter sans enregistrer ?');
+  await capturer(page, dialogue(page), '3-confirmation-sortie', 'clair');
+  await expect(page).toHaveURL(/#\/reglages\/crm$/);
+  await dialogue(page).getByRole('button', { name: 'Annuler' }).click(); // on reste, le brouillon est intact
+  await expect(sec.getByLabel('Nom de l’emplacement 1')).toHaveValue('Brouillon');
+  await aller(page, '#/crm/personnes');
+  await dialogue(page).getByRole('button', { name: 'Quitter sans enregistrer' }).click();
+  await expect(page).toHaveURL(/#\/crm\/personnes$/);
+  await allerAuxReglagesCrm(page);
+  await expect(page.locator('#reglages-etapes').getByLabel('Nom de l’emplacement 1')).not.toHaveValue('Brouillon');
+});
+
+test('4 La règle « Enregistrer grisé / jaune, cases qui s’enregistrent toutes seules » est écrite dans docs/consignes-ui.md', async () => {
+  const texte = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'docs', 'consignes-ui.md'), 'utf8');
+  expect(texte).toContain('grisé tant qu\'il n\'y a rien à enregistrer et jaune dès qu\'une modification est faite');
+  expect(texte).toContain('s\'enregistrent toutes seules');
 });
 
 test('C39 Réglages : options du CRM — suivi des paiements, extraction de valeur, dossier Drive : éteindre cache les écrans associés', async ({ page }) => {
