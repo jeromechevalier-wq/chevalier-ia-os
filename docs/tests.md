@@ -13,6 +13,12 @@
 
 Pendant le travail, Claude ne lance que les tests du module qu'il touche (`npm run test:module projets`, par exemple).
 
+## Trois machines en même temps (depuis le 18/10/2026)
+
+Sur GitHub, un run « Tests » (PR) ou « Tests de nuit » lance **trois jobs en parallèle** : « Navigateur 1/2 » et « Navigateur 2/2 » (les tests navigateur coupés en deux avec `--shard` de Playwright), et « Règles, logique, plateforme » (tout le reste, une seule fois). Un dernier job, **« Tests »** (« Tests de nuit » la nuit), attend les trois et n'est vert que si les trois le sont : **c'est lui la coche qui autorise la fusion**. Si une partie échoue, clique sur le job rouge pour voir laquelle ; les captures sont dans « tests-echec-navigateur-1 », « -2 » ou « tests-echec-reste ».
+
+Pour relancer une seule part sur ta machine : `node lancer-tout.js --navigateur-shard 1/2` (navigateur) ou `node lancer-tout.js --hors-navigateur` (le reste), depuis `tests/`.
+
 ## Où lire le résultat
 
 - Sur une PR : en bas de la page de la PR, la ligne **« Tests »** : coche verte = tout va bien, croix rouge = quelque chose a échoué. Clique « Details » pour voir lequel.

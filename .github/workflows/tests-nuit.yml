@@ -9,10 +9,14 @@ on:
 permissions:
   contents: read
 jobs:
-  nuit:
-    name: Tests de nuit
+  navigateur:
+    name: Navigateur ${{ matrix.part }}/2
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [1, 2]
     env:
       CI: 'true'
       # Le navigateur de test est réglé sur Europe/Paris ; le processus Node doit l'être aussi (sinon les heures attendues par certains tests sont décalées de 2 h).
@@ -46,14 +50,14 @@ jobs:
       - name: Installer le navigateur de test
         run: npx playwright install chromium --with-deps
         working-directory: tests
-      - name: Suite de nuit (ordinateur et téléphone)
-        run: npm run test:nuit
+      - name: Tests navigateur de nuit (part ${{ matrix.part }}/2, ordinateur et téléphone)
+        run: node lancer-tout.js --nuit --navigateur-shard ${{ matrix.part }}/2
         working-directory: tests
-      - name: Rapport et captures
-        if: always()
+      - name: Captures et rapport en cas d'échec
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: tests-nuit
+          name: tests-nuit-navigateur-${{ matrix.part }}
           path: |
             tests/test-results
             tests/playwright-report
@@ -61,3 +65,64 @@ jobs:
           retention-days: 14
           include-hidden-files: true
           if-no-files-found: ignore
+  reste:
+    name: Règles, logique, plateforme
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CI: 'true'
+      # Le navigateur de test est réglé sur Europe/Paris ; le processus Node doit l'être aussi (sinon les heures attendues par certains tests sont décalées de 2 h).
+      TZ: Europe/Paris
+      TESTS_WORKERS: '2'
+      # 1 seul passage : à 3 passages, le run dépasse 2 h (essai du 18/10/2026) et épuiserait à lui seul le quota de 2 000 minutes par mois.
+      TESTS_REPETER: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            tests/package-lock.json
+            functions/package-lock.json
+            functions-plateforme/package-lock.json
+            scripts/plateforme/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Installer les dépendances (versions figées par package-lock.json)
+        run: |
+          npm ci --prefix tests
+          npm ci --prefix functions
+          npm ci --prefix functions-plateforme
+          npm ci --prefix scripts/plateforme
+      - name: Tests de nuit hors navigateur
+        run: node lancer-tout.js --nuit --hors-navigateur
+        working-directory: tests
+      - name: Captures et rapport en cas d'échec
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tests-nuit-reste
+          path: |
+            tests/test-results
+            tests/playwright-report
+            tests/.config-ports/*.log
+          retention-days: 14
+          include-hidden-files: true
+          if-no-files-found: ignore
+  nuit:
+    name: Tests de nuit
+    # Seule cette coche autorise la fusion : verte seulement si les deux parts du navigateur ET le reste sont verts.
+    needs: [navigateur, reste]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Vérifier que tout est vert
+        run: |
+          echo "navigateur : ${{ needs.navigateur.result }} ; reste : ${{ needs.reste.result }}"
+          [ "${{ needs.navigateur.result }}" = "success" ] && [ "${{ needs.reste.result }}" = "success" ]

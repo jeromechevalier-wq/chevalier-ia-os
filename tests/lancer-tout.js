@@ -24,6 +24,12 @@ const PROJETS = NUIT ? `--repeat-each=${Number(process.env.TESTS_REPETER) || 3}`
 const POS_E2E = process.argv.indexOf('--e2e');
 const ARGS_E2E = POS_E2E === -1 ? null : process.argv.slice(POS_E2E + 1).map((a) => `'${a.replace(/'/g, `'\\''`)}'`).join(' ');
 
+// Répartition sur plusieurs machines GitHub : `--navigateur-shard N/M` = seulement la part N (sur M) des tests navigateur ; `--hors-navigateur` = tout le reste (noyau, storage, outil-client, automatisations), une seule fois.
+const POS_SHARD = process.argv.indexOf('--navigateur-shard');
+const SHARD = POS_SHARD === -1 ? null : (process.argv[POS_SHARD + 1] || '');
+if (SHARD !== null && !/^[1-9]\d*\/[1-9]\d*$/.test(SHARD)) { console.error('Usage : --navigateur-shard N/M  (ex. : 1/2)'); process.exit(2); }
+const HORS_NAVIGATEUR = process.argv.includes('--hors-navigateur');
+
 // Java : le même que celui de la session de Jérôme s'il n'est pas déjà dans le PATH.
 const JDK = join(homedir(), '.local/jdk-21/Contents/Home');
 const env = { ...process.env };
@@ -102,8 +108,9 @@ function definirSeries() {
       etape('fonctions', sansPreparer('test:fonctions')), etape('porte', 'npm run test:porte')] })];
   }
   if (MODULE !== null) return seriesModule(MODULE, onlyStorage, cmdStorage, onlyOutil, cmdOutil, onlyAuto, cmdAuto);
-  return [
-    serie({ nom: 'e2e', config: 'firebase.json', only: 'auth,firestore', etapes: [etape('e2e', `npx playwright test ${PROJETS}`)] }),
+  const navigateur = serie({ nom: 'e2e', config: 'firebase.json', only: 'auth,firestore', etapes: [etape('e2e', `npx playwright test ${PROJETS}${SHARD ? ` --shard=${SHARD}` : ''}`)] });
+  if (SHARD) return [navigateur];
+  const reste = [
     serie({ nom: 'noyau', config: 'firebase.json', only: 'auth,firestore', etapes: [
       etape('regles', 'npm run test:regles'), etape('logique', 'npm run test:logique'), etape('statique', 'npm run test:statique'),
       etape('fonctions', sansPreparer('test:fonctions')), etape('porte', 'npm run test:porte')] }),
@@ -111,6 +118,7 @@ function definirSeries() {
     serie({ nom: 'outil-client', config: 'firebase.plateforme.json', only: onlyOutil, etapes: [etape('outil-client', cmdOutil)] }),
     serie({ nom: 'automatisations', config: 'firebase.plateforme.json', only: onlyAuto, etapes: [etape('automatisations', cmdAuto)] }),
   ];
+  return HORS_NAVIGATEUR ? reste : [navigateur, ...reste];
 }
 
 function lancer(s) {
@@ -162,7 +170,7 @@ async function principal() {
   const prep = spawnSync('npm', ['run', '--silent', 'preparer'], { cwd: TESTS, env, encoding: 'utf8' });
   if (prep.status !== 0) { console.error(prep.stdout, prep.stderr); process.exit(1); }
 
-  console.log(`${RAPIDE ? 'Palier rapide' : MODULE !== null ? `Module « ${MODULE} »` : ARGS_E2E !== null ? 'Navigateur seul' : NUIT ? 'Suite de nuit' : 'Palier complet'} : ${series.length} séries en même temps (TESTS_DECALAGE=${d}).`);
+  console.log(`${RAPIDE ? 'Palier rapide' : MODULE !== null ? `Module « ${MODULE} »` : ARGS_E2E !== null ? 'Navigateur seul' : SHARD ? `Navigateur, part ${SHARD}` : HORS_NAVIGATEUR ? 'Tout sauf le navigateur' : NUIT ? 'Suite de nuit' : 'Palier complet'} : ${series.length} séries en même temps (TESTS_DECALAGE=${d}).`);
   const debut = Date.now();
   const resultats = await Promise.all(series.map(async (s) => {
     const r = await lancer(s);
