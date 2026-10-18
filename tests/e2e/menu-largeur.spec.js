@@ -63,6 +63,10 @@ test(`1 poignée sur le bord droit : tirer à la souris change la largeur en con
   await expect.poll(() => largeurMenu(page)).toBe(404);
   await page.keyboard.press('Home');
   await expect.poll(() => largeurMenu(page)).toBe(200);
+  await expect(poignee).toHaveAttribute('aria-valuetext', '200 px');
+  await attendreStable(page);
+  expect(await page.locator('.menu').evaluate((m) => m.scrollWidth <= m.clientWidth), 'rien ne déborde du menu à 200 px').toBe(true);
+  await capture(page, '1-minimum-200', { clip: { x: 0, y: 0, width: 700, height: 600 } });
   await page.keyboard.press('ArrowRight');
   await expect.poll(() => largeurMenu(page)).toBe(216);
   await page.keyboard.press('End');
@@ -71,7 +75,6 @@ test(`1 poignée sur le bord droit : tirer à la souris change la largeur en con
   await page.keyboard.press('ArrowLeft'); // déjà au minimum : reste à 200
   await expect.poll(() => largeurMenu(page)).toBe(200);
   await tirer(page, 300);
-  await capture(page, '1-etroit-200', { clip: { x: 0, y: 0, width: 700, height: 600 } });
   await tirer(page, 380);
   await expect.poll(() => largeurMenu(page)).toBe(380);
   await capture(page, '1-large-380');
@@ -208,4 +211,45 @@ test(`6 fenêtre étroite : le maximum ne dépasse jamais la moitié de la fenê
   await page.setViewportSize({ width: 1000, height: 800 }); // la fenêtre regrandit : la valeur mémorisée (400, rognée au glissement) reste
   await expect.poll(() => largeurMenu(page)).toBe(400);
   await capture(page, '6-fenetre-800-max-400', { clip: { x: 0, y: 0, width: 800, height: 600 } });
+});
+
+test(`2 Échap pendant un tirage annule : retour à la largeur d'avant, rien de mémorisé ${sansTelephone}`, async ({ page }) => {
+  await connecter(page, JEROME);
+  await deplier(page);
+  await tirer(page, 300);
+  await expect.poll(() => memorisee(page)).toBe('300');
+  const b = await page.locator('.menu-poignee').boundingBox();
+  await page.mouse.move(b.x + 3, b.y + 300);
+  await page.mouse.down();
+  await page.mouse.move(400, b.y + 300, { steps: 4 });
+  await expect.poll(() => largeurMenu(page)).toBe(400);
+  await page.keyboard.press('Escape');
+  await expect.poll(() => largeurMenu(page)).toBe(300);
+  await expect(page.locator('.coquille.menu-glisse')).toHaveCount(0);
+  await page.mouse.move(500, b.y + 300, { steps: 3 }); // le bouton est encore enfoncé : plus aucun effet
+  await page.mouse.up();
+  await expect.poll(() => largeurMenu(page)).toBe(300);
+  expect(await memorisee(page)).toBe('300');
+});
+
+test(`3 pendant un tirage Ctrl+B est ignoré ; si la poignée disparaît (fenêtre sous 768 px) le tirage se termine proprement ${sansTelephone}`, async ({ page }) => {
+  await connecter(page, JEROME);
+  await deplier(page);
+  await tirer(page, 300);
+  const b = await page.locator('.menu-poignee').boundingBox();
+  await page.mouse.move(b.x + 3, b.y + 300);
+  await page.mouse.down();
+  await page.mouse.move(380, b.y + 300, { steps: 3 });
+  await page.keyboard.press('Control+b');
+  await expect(page.locator('.coquille[data-menu="elargi"]')).toHaveCount(1); // pas de repli
+  await page.setViewportSize({ width: 700, height: 800 }); // téléphone : la poignée disparaît
+  await expect(page.locator('.menu-poignee')).toHaveCount(0);
+  await expect(page.locator('.coquille.menu-glisse')).toHaveCount(0);
+  await page.mouse.up();
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(page.locator('.menu-poignee')).toHaveCount(1);
+  await expect.poll(() => largeurMenu(page)).toBe(300); // le tirage interrompu n'a rien changé
+  await page.mouse.move(600, 400, { steps: 3 }); // un simple survol ne redimensionne rien
+  await expect.poll(() => largeurMenu(page)).toBe(300);
+  expect(await memorisee(page)).toBe('300');
 });

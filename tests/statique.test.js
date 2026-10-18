@@ -523,3 +523,18 @@ describe('D5 Serveur MCP (étape 2) : déploiement, versions figées, sécurité
     assert.doesNotMatch(blocs[1], /via == 'ecran'/);
   });
 });
+
+describe('C Largeur du menu : bornes identiques dans index.html et shell.js', () => {
+  test('C1 les bornes 200/420, le défaut 240 et la forme de la valeur (3 chiffres) sont les mêmes dans le script de index.html, js/os/shell.js et css/tokens.css', () => {
+    const shell = lire('js/os/shell.js');
+    const m = /MENU_LARGEUR = \{ min: (\d+), max: (\d+), defaut: (\d+)/.exec(shell);
+    assert.ok(m, 'MENU_LARGEUR introuvable dans shell.js');
+    const [, min, max, defaut] = m;
+    const index = lire('index.html');
+    assert.ok(index.includes('/^\\d{3}$/.test(l)'), 'index.html : forme de la valeur');
+    assert.ok(shell.includes('/^\\d{3}$/.test(String(brut))'), 'shell.js : forme de la valeur');
+    assert.ok(index.includes(`+l >= ${min} && +l <= ${max}`), `index.html : bornes ${min}-${max}`);
+    assert.ok(new RegExp(`--menu-elargi:\\s*${defaut}px`).test(lire('css/tokens.css')), 'css/tokens.css : défaut');
+    assert.ok(index.includes("'chevalier-os.menu-largeur'") && shell.includes("'menu-largeur'"), 'même clé');
+  });
+});

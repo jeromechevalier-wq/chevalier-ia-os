@@ -178,9 +178,13 @@ body.page-connexion {
 }
 .coquille[data-menu='elargi'] .zone { margin-left: min(var(--menu-largeur, var(--menu-elargi)), 50vw); }
 /* Poignée de redimensionnement : fine zone sur le bord droit du menu déplié, trait discret au survol, au clavier et pendant le glissement. */
+/* Le menu déplié laisse 6 px à droite de la liste (marge de .menu-nav) : la poignée ne masque pas son ascenseur. */
+.coquille[data-menu='elargi'] .menu-nav { margin-right: 6px; }
 .menu-poignee { position: absolute; top: 0; bottom: 0; right: 0; width: 6px; z-index: 5; cursor: col-resize; touch-action: none; outline: none; }
 .menu-poignee::after { content: ''; position: absolute; top: 0; bottom: 0; right: 0; width: 2px; background: transparent; transition: background var(--transition); }
-.menu-poignee:hover::after, .menu-poignee:focus-visible::after, .coquille.menu-glisse .menu-poignee::after { background: var(--accent-trait); }
+.menu-poignee:hover::after, .coquille.menu-glisse .menu-poignee::after { background: var(--accent-trait); }
+.menu-poignee:focus-visible::after { width: 4px; background: var(--accent-trait); box-shadow: 0 0 0 2px var(--panneau), 0 0 0 4px var(--accent-trait); }
+@media (pointer: coarse) { .menu-poignee { width: 24px; } } /* au doigt : zone de prise de 24 px, trait inchangé */
 .coquille.menu-glisse .menu, .coquille.menu-glisse .zone { transition: none; }
 .coquille.menu-glisse, .coquille.menu-glisse * { cursor: col-resize !important; user-select: none !important; -webkit-user-select: none !important; }
 .contenu { flex: 1; min-width: 0; outline: none; }
@@ -271,6 +275,7 @@ body.page-connexion {
   .coquille .menu .menu-marque-nom .menu-texte { display: inline !important; }
   .coquille .menu [data-infobulle]:hover::after { display: none; }
   .menu-repli, .menu-poignee { display: none; }
+  .coquille[data-menu='elargi'] .menu-nav { margin-right: 0; }
   .voile-menu { position: fixed; inset: 0; z-index: 35; background: var(--voile); }
   .coquille.menu-ouvert .voile-menu { display: block; }
   .zone, .coquille[data-menu='elargi'] .zone { margin-left: 0; min-height: calc(100vh - 56px); }

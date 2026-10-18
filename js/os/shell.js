@@ -175,6 +175,7 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
     poignee.setAttribute('aria-valuemin', String(MENU_LARGEUR.min));
     poignee.setAttribute('aria-valuemax', String(maxFenetre()));
     poignee.setAttribute('aria-valuenow', String(largeurAffichee()));
+    poignee.setAttribute('aria-valuetext', `${largeurAffichee()} px`);
   }
   function definirLargeur(n, { memoriser = true } = {}) {
     largeur = Math.min(borneLargeur(n), maxFenetre());
@@ -183,25 +184,39 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
     majPoignee();
   }
   let glisse = false;
+  let largeurAvant = largeur;
+  let pointeur = null;
+  /** Fin d'un tirage : valide la largeur atteinte, ou revient à celle d'avant (Échap, perte du pointeur, poignée disparue). */
+  function finGlisse({ annuler = false } = {}) {
+    if (!glisse) return;
+    glisse = false;
+    coquille.classList.remove('menu-glisse');
+    document.removeEventListener('keydown', surToucheGlisse, true);
+    try { if (pointeur !== null) poignee.releasePointerCapture(pointeur); } catch { /* déjà relâché */ }
+    pointeur = null;
+    if (annuler) definirLargeur(largeurAvant, { memoriser: false }); else definirLargeur(largeur);
+  }
+  function surToucheGlisse(e) {
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); finGlisse({ annuler: true }); }
+    else if ((e.ctrlKey || e.metaKey) && String(e.key).toLowerCase() === 'b') { e.preventDefault(); e.stopPropagation(); } // pas de repli pendant un tirage
+  }
   poignee.addEventListener('pointerdown', (e) => {
     if (e.button !== 0 && e.pointerType === 'mouse') return;
     e.preventDefault();
     glisse = true;
+    largeurAvant = largeurAffichee();
+    pointeur = e.pointerId;
     poignee.setPointerCapture(e.pointerId);
     coquille.classList.add('menu-glisse');
+    document.addEventListener('keydown', surToucheGlisse, true);
   });
   poignee.addEventListener('pointermove', (e) => { if (glisse) definirLargeur(e.clientX - menu.getBoundingClientRect().left, { memoriser: false }); });
-  const finGlisse = (e) => {
-    if (!glisse) return;
-    glisse = false;
-    coquille.classList.remove('menu-glisse');
-    try { poignee.releasePointerCapture(e.pointerId); } catch { /* déjà relâché */ }
-    definirLargeur(largeur);
-  };
-  poignee.addEventListener('pointerup', finGlisse);
-  poignee.addEventListener('pointercancel', finGlisse);
+  poignee.addEventListener('pointerup', () => finGlisse());
+  poignee.addEventListener('pointercancel', () => finGlisse({ annuler: true }));
+  poignee.addEventListener('lostpointercapture', () => finGlisse({ annuler: true }));
   poignee.addEventListener('dblclick', () => definirLargeur(MENU_LARGEUR.defaut));
   poignee.addEventListener('keydown', (e) => {
+    if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
     const cible = { ArrowLeft: largeurAffichee() - MENU_LARGEUR.pas, ArrowRight: largeurAffichee() + MENU_LARGEUR.pas, Home: MENU_LARGEUR.min, End: maxFenetre() }[e.key];
     if (cible === undefined) return;
     e.preventDefault();
@@ -272,7 +287,7 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
     boutonRepli.setAttribute('aria-expanded', String(v));
     boutonRepli.dataset.infobulle = libelle;
     // La poignée n'existe que dans l'état déplié (et jamais sur téléphone, où le menu glisse).
-    if (v && !estTelephone()) { if (!poignee.isConnected) menu.append(poignee); majPoignee(); } else poignee.remove();
+    if (v && !estTelephone()) { if (!poignee.isConnected) menu.append(poignee); majPoignee(); } else { finGlisse({ annuler: true }); poignee.remove(); }
   }
   function ouvrirMobile(v) {
     coquille.classList.toggle('menu-ouvert', v);
