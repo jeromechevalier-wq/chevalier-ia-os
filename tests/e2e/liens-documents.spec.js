@@ -638,6 +638,7 @@ test.describe('Google branché (simulé)', () => {
   });
 
   test('P6 le dossier parent créé tout seul est recréé, avec un message, s\'il a été supprimé dans Drive ; un parent choisi par l\'utilisateur est conservé', async ({ page }) => {
+    test.info().annotations.push({ type: 'erreurs-reseau-attendues' }); // le faux Drive répond 404 pour le dossier parent « supprimé » : le navigateur le note dans sa console
     await creerProjet('pr1', { titre: 'Un' });
     await creerProjet('pr2', { titre: 'Deux' });
     await connecter(page);

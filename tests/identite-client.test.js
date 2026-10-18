@@ -163,6 +163,7 @@ describe('inventaire des textes d\'identité de Jérôme dans le code de l\'inte
     'js/modules/projets/logique.js': 'modèles de départ de Jérôme (semés seulement à la racine)',
     'js/modules/projets/taches.js': 'champ « Confiée à » : membres de l’espace, caché s’il n’y en a qu’un',
     'js/modules/projets/fiche-projet.js': 'lanceurs masqués chez un client',
+    'js/os/google-drive.js': 'nom du dossier parent créé tout seul : « Chevalier IA OS » à la racine, « Chevalier IA - <nom de l\'espace> » chez un client (voulu)',
     'js/modules/projets/projets.js': 'GitHub / célébration de clôture coupée chez un client',
   };
   const MOTS = /Chevalier|Jérôme|Jerome|Charles|Hermes|Claude Code/;
