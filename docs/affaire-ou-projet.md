@@ -23,7 +23,7 @@
 
 1. On crée l'**affaire** quand on parle à un prospect, et on la fait avancer.
 2. Quand elle passe en **Gagné**, l'appli propose de créer un **projet** avec les tâches d'un modèle.
-3. Quand le **projet** se termine, l'appli crée toute seule un **projet d'extraction** pour garder ce qu'on a appris (règles, erreurs, documentation marketing). Une affaire **perdue** en crée un aussi.
+3. Quand le **projet** se termine, il passe dans les archives.
 
 ## Un projet peut aussi vivre seul
 

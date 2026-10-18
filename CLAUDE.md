@@ -7,6 +7,10 @@ Ce fichier est lu au début de chaque session. Il garde les décisions de Jérô
 - **RGPD (04/10/2026)** : la base de Chevalier IA OS est **interne**. Jérôme choisit de **ne prendre aucune mesure RGPD** pour l'instant. Les journaux d'audit **ne s'effacent jamais** : on garde tout, y compris les valeurs reçues (noms, e-mails, notes) et les copies « avant ». Plus de règle de durée de vie (TTL) de 90 jours (Jérôme a supprimé la règle dans la console le 04/10/2026). **Quand le RGPD deviendra nécessaire, Jérôme le dira** : ne le réintroduis pas, ne le propose pas comme un « écart à corriger ».
 - **Aucune porte dérobée** dans le code du serveur MCP (décision du 02/10/2026) : accès de secours par l'identité Google de Jérôme, interrupteurs d'urgence dans `docs/securite-et-pannes.md`.
 
+- **Même code chez Jérôme et chez les clients (18/10/2026)** : toute nouvelle fonctionnalité existe **d'abord dans l'interface de Jérôme** (il est le bêta-testeur), puis s'ouvre aux clients. Jamais de fonctionnalité réservée aux clients que Jérôme ne voit pas chez lui, ni l'inverse (pas de `reserveAuxClients`, pas de section « client seulement »). Les différences qui existent encore sont à supprimer ; un audit complet est prévu plus tard.
+- **Le mot « CRM » n'est plus écrit dans ce que l'utilisateur voit (18/10/2026)** : voir `docs/consignes-ui.md`. Vocabulaire Pipedrive : étapes (affaires), phases (projets).
+- **Extraction de valeur : supprimée (18/10/2026)**. Idée d'avenir, pas à l'ordre du jour : des automatisations configurables par l'utilisateur (ex. afficher un message quand un projet se termine).
+
 ## Façon de travailler avec Jérôme
 
 - Explique simplement, comme à quelqu'un de 18 ans.

@@ -17,6 +17,8 @@ Ces règles viennent de Jérôme (non-développeur). Elles valent pour tous les 
 - Message d'erreur clair et qui dit quoi faire ; adresse web : `https://` est ajouté tout seul. *(2026-10-17)*
 - Cas vide, cas d'erreur et chargement de chaque écran sont décrits et testés. *(2026-10-17)*
 - Les compteurs qui changent chaque seconde ont des chiffres de largeur fixe (la ligne ne bouge pas). *(2026-10-17)*
+- On n'écrit plus le mot « CRM » dans ce que l'utilisateur voit (menu, titres, aides, messages) : c'est un jargon qui fait peur. On dit « Réglages », « Options », « Journal des modifications », « ton espace ». Les adresses (`#/crm/…`) et les noms de fichiers gardent le mot : un utilisateur ne les lit pas et les renommer casserait les signets. *(2026-10-18)*
+- On parle d'**étapes** pour les affaires et de **phases** pour les projets (mots de Pipedrive). *(2026-10-18)*
 - L'icône « i » explique ; elle marche au survol, au clavier et au toucher. *(2026-10-17)*
 
 ## Liens, documents et dossier de travail
