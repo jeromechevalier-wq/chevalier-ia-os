@@ -25,3 +25,6 @@ Ces règles viennent de Jérôme (non-développeur). Elles valent pour tous les 
 - Sans dossier de travail, « Ajouter un document » affiche seulement un message qui explique pourquoi on ne peut pas, avec « Fermer » : jamais de création ni de fenêtre qui s'ouvre et se ferme. *(2026-10-17)*
 - Case « Copier dans le dossier de travail » : cochée par défaut pour un fichier de Drive ; **grisée et cochée** pour un fichier de l'ordinateur (il est toujours envoyé dans le dossier) avec le message grisé. *(2026-10-17)*
 - Une adresse hors Google Drive se met dans « Ajouter un lien web », pas dans le dossier de travail. *(2026-10-17)*
+
+## Boutons Enregistrer
+- Un bouton « Enregistrer » est grisé tant qu'il n'y a rien à enregistrer et jaune dès qu'une modification est faite ; les cases à cocher d'une carte s'enregistrent toutes seules et la carte le dit (« Chaque case s'enregistre toute seule. »). « Annuler les changements » suit la même règle. Quitter la page avec un brouillon non enregistré demande confirmation. *(2026-10-18)*
