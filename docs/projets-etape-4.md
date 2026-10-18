@@ -1,5 +1,7 @@
 # Écran Projets, étape 4 sur 7 : les tâches des projets (06/10/2026)
 
+> **Note du 18/10/2026 : l'« Extraction de valeur » citée dans ce document a été supprimée** (décision de Jérôme, voir `cadrage-projets.md`) : plus d'option, de création de projet d'extraction, de modèle, de badge ni d'outil MCP `extraire_valeur_projet`. Les projets déjà créés restent lisibles comme des projets ordinaires. Le texte ci-dessous est conservé comme historique.
+
 Une tâche appartient à un projet et à une phase. Les tâches **datées et non faites** d'un projet **vivant** remontent dans « En retard » et « Aujourd'hui » de l'Accueil, avec le nom du projet : une seule liste du matin, sans mélanger les modèles de données (collection séparée `projets_taches`).
 
 ## Ce qui est construit

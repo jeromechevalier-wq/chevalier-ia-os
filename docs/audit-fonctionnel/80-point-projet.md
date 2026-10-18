@@ -1,5 +1,7 @@
 # Étape H : le point projet (audit fonctionnel, Chevalier IA OS 2.3.3)
 
+> **Note du 18/10/2026 : l'« Extraction de valeur » citée dans ce document a été supprimée** (décision de Jérôme, voir `cadrage-projets.md`) : plus d'option, de création de projet d'extraction, de modèle, de badge ni d'outil MCP `extraire_valeur_projet`. Les projets déjà créés restent lisibles comme des projets ordinaires. Le texte ci-dessous est conservé comme historique.
+
 ## Résumé en 5 lignes
 1. Le gros du travail annoncé « fait » existe vraiment dans le code et dans `main` : écran Projets (PR #32 à #38), facturation 2.2 (#40, #41), 19 outils MCP de projets (#42), Favoris et Journal lisible (#44 à #47), version 2.3.3 partout (`version.json` et `js/os/version.js`).
 2. Le serveur MCP compte bien 51 outils (13 lecteur, 44 bibliothécaire, 51 Claude Code), mais plusieurs documents donnent encore d'autres nombres (voir B-20, déjà signalé).

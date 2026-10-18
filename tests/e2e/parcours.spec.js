@@ -313,7 +313,7 @@ test('C9b aucune action suggérée par défaut : passer à « Proposition envoy�
   expect(await listerDocuments('crm_activites')).toHaveLength(0);
 });
 
-test('C10 Gagné : célébration, extraction ; la vente s’arrête là (plus d’étape de facturation, rien n’est encaissé ni archivé)', async ({ page }) => {
+test('C10 Gagné : célébration ; la vente s’arrête là (plus d’étape de facturation, rien n’est encaissé ni archivé)', async ({ page }) => {
   await creerPersonne('p1', { nom: 'Marie Durand' });
   await creerAffaire('a1', { titre: 'Atelier IA', etape: 'proposition_envoyee', montant: 1200, personneId: 'p1', offreId: 'audit' });
   await connecter(page);

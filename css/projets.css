@@ -4,10 +4,9 @@
 .carte-projet { border-left: 4px solid var(--couleur); }
 .carte-dates { font-variant-numeric: tabular-nums; }
 .carte-proprietaire { margin-left: auto; color: var(--texte2); font-size: 12px; }
-.badge-nature, .badge-pause {
+.badge-pause {
   display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 12px; font-weight: 600; background: var(--survol); color: var(--texte2);
 }
-.badge-nature { background: color-mix(in srgb, #b98ee0 22%, transparent); color: var(--texte); }
 .page-projets .kanban { min-height: 50vh; }
 
 .ligne-boutons { display: flex; gap: 8px; flex-wrap: wrap; }

@@ -10,13 +10,6 @@ import {
 } from './composants.js';
 import { barreFiltres } from './filtres.js';
 import { dialogueActivite } from './activites.js';
-import * as PD from '../projets/donnees.js';
-import { cheminProjet } from '../projets/composants.js';
-
-/** Un projet d'extraction vient d'être créé avec le changement : on le dit, avec un lien. */
-function annoncerExtraction(plan) {
-  if (plan?.extraction) toast('Projet d’extraction créé', { lien: { libelle: 'Ouvrir', href: cheminProjet(plan.extraction.id) }, duree: 6000 });
-}
 
 // État conservé pendant la session.
 let criteres = L.criteresComplets('affaires', {});
@@ -39,9 +32,8 @@ export async function ouvrirPerdue(a) {
     boutons: [{ libelle: 'Annuler', valeur: false }, {
       libelle: 'Marquer comme perdue', valeur: true, style: 'principal',
       avantFermeture: async () => {
-        const res = await PD.marquerAffairePerdue(a.id, { raison: raison.value, detail: detail.value });
+        const res = await D.marquerAffairePerdue(a.id, { raison: raison.value, detail: detail.value });
         if (res.erreurs?.raison) { erreur.textContent = res.erreurs.raison; raison.classList.add('invalide'); return false; }
-        annoncerExtraction(res);
         return true;
       },
     }],
@@ -78,9 +70,8 @@ export async function ouvrirPause(a) {
 export async function changerEtapeAvecBoites(a, etape) {
   const rouvre = a.statut === 'perdue' || a.statut === 'en_pause';
   if (a.etape === etape && !rouvre) return;
-  const r = await PD.changerEtapeAffaire(a.id, etape);
+  const r = await D.changerEtapeAffaire(a.id, etape);
   if (r.erreurs && Object.keys(r.erreurs).length) { toast('Changement impossible', { type: 'erreur' }); return; }
-  annoncerExtraction(r);
   if (L.estEtapeGagnee(etape, D.etat.config) && a.etape !== etape) celebrerGagne(messageBravo(), a.titre);
   if (r.suggestion) {
     await dialogueActivite({ liens: L.liensAffaire(a), titre: 'Action suggérée', valeurs: r.suggestion, libelleOk: 'Accepter', libelleFermer: 'Refuser' });

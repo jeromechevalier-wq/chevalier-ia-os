@@ -64,11 +64,10 @@ export const lister_affaires = {
 export const lister_projets = {
   nom: 'lister_projets',
   profils: TOUS,
-  description: "Liste les projets (livraison ou extraction de valeur) avec les filtres de l'écran : phase (identifiants dans lire_reglages, configuration.phases), statut (actif, en_pause, termine), nature (livraison, ou extraction si l'option « Extraction de valeur » est allumée). Par défaut les projets non archivés ; archive=true pour les archivés (dont les projets terminés). Chaque ligne donne l'avancement des tâches et, si l'option « Suivi des paiements » est allumée dans cet espace (lire_reglages, configuration.options), la facturation (facturé, payé, reste à payer, abandonné, impayé).",
+  description: "Liste les projets avec les filtres de l'écran : phase (identifiants dans lire_reglages, configuration.phases), statut (actif, en_pause, termine). Par défaut les projets non archivés ; archive=true pour les archivés (dont les projets terminés). Chaque ligne donne l'avancement des tâches et, si l'option « Suivi des paiements » est allumée dans cet espace (lire_reglages, configuration.options), la facturation (facturé, payé, reste à payer, abandonné, impayé).",
   schema: {
     phase: z.string().max(40).optional(),
     statut: z.string().max(40).optional(),
-    nature: z.string().max(40).optional(),
     archive: z.boolean().optional().describe('true : projets archivés (terminés compris) seulement.'),
     affaireId: id.optional(),
     personneId: id.optional(),
@@ -83,7 +82,7 @@ export const lister_projets = {
 export const lire_projet = {
   nom: 'lire_projet',
   profils: TOUS,
-  description: "Lit un projet avec son affaire, sa personne, son organisation, ses tâches (par phase), son avancement, ses factures (dans « projet.factures », si l'option « Suivi des paiements » est allumée dans cet espace : lire_reglages, configuration.options), son extraction de valeur (si l'option « Extraction de valeur » est allumée) et, si c'est une extraction, sa source ; avecFil ajoute le fil du projet (événements et notes).",
+  description: "Lit un projet avec son affaire, sa personne, son organisation, ses tâches (par phase), son avancement, ses factures (dans « projet.factures », si l'option « Suivi des paiements » est allumée dans cet espace : lire_reglages, configuration.options) ; avecFil ajoute le fil du projet (événements et notes).",
   schema: { id: id.describe('Identifiant du projet.'), avecFil },
   executer: ({ args, donnees }) => lecture.lireProjet(donnees, args),
 };

@@ -57,8 +57,8 @@ export async function terminerProjet(p, options = {}) {
   if (plan.erreurs?.factures) return sortirDuBlocage(p, plan, (q) => terminerProjet(q));
   if (Object.keys(plan.erreurs || {}).length) { toast(Object.values(plan.erreurs)[0], { type: 'erreur' }); return undefined; }
   const impaye = options.impaye ? ' avec impayé' : '';
-  toast(plan.extraction ? `Projet terminé${impaye} : son projet d’extraction est créé` : `Projet terminé${impaye}`, plan.extraction ? { lien: { libelle: 'Ouvrir l’extraction', href: cheminProjet(plan.extraction.id) }, duree: 6000 } : {});
-  if (plan.ecritures?.length) celebrerCloture(P.estExtraction(p) && P.extractionActive(cfg()) ? 'Extraction terminée !' : 'Projet terminé !', p.titre);
+  toast(`Projet terminé${impaye}`);
+  if (plan.ecritures?.length) celebrerCloture('Projet terminé !', p.titre);
   return undefined;
 }
 
@@ -87,17 +87,6 @@ export async function changerPhaseProjet(p, phase) {
   return undefined;
 }
 
-/** « Extraire la valeur » : crée l'extraction du projet, ou ouvre celle qui existe déjà (une seule par projet). */
-export async function extraireValeur(p) {
-  try {
-    const plan = await D.extraire(p.id);
-    if (plan.dejaExistante) { naviguer(`projets/projets/${plan.extraction.id}`); return; }
-    toast('Projet d’extraction créé', { lien: { libelle: 'Ouvrir l’extraction', href: cheminProjet(plan.extraction.id) }, duree: 6000 });
-  } catch (e) {
-    console.warn(e);
-    toast(e?.saisie ? e.message : 'Extraction impossible', { type: 'erreur' });
-  }
-}
 export async function mettreEnPause(p) {
   await D.mettreEnPause(p.id);
   toast('Projet en pause');
@@ -155,11 +144,11 @@ export async function demanderSuppressionProjet(p) {
 
 // ---------------------------------------------------------------- fenêtre « Ajouter un projet »
 
-/** Liste des modèles actifs : « Aucun modèle » (projet vide) ou l'un d'eux. Le modèle d'extraction n'est proposé que si l'option « Extraction de valeur » est allumée. */
+/** Liste des modèles actifs : « Aucun modèle » (projet vide) ou l'un d'eux. */
 function selectModele(valeur = '') {
   return h('select', { class: 'champ', 'aria-label': 'Modèle' },
     h('option', { value: '' }, 'Aucun modèle (projet vide)'),
-    P.modelesActifs(D.etat.modeles).filter((m) => P.extractionActive(cfg()) || m.nature !== 'extraction').map((m) => h('option', { value: m.id, selected: m.id === valeur }, m.nom)));
+    P.modelesActifs(D.etat.modeles).map((m) => h('option', { value: m.id, selected: m.id === valeur }, m.nom)));
 }
 
 /** Seul le titre est obligatoire. `lien` : { personneId, organisationId } à préremplir. Un modèle, si on en choisit un, donne ses tâches au projet. */
@@ -280,7 +269,6 @@ async function ouvrirFenetreFiltres() {
     contenu: h('div', { class: 'pile filtres-corps' },
       groupe('phases', 'Phase', P.phasesActives(cfg())),
       groupe('statuts', 'Statut', P.STATUTS_PROJET),
-      P.extractionActive(cfg()) ? groupe('natures', 'Nature', P.NATURES_PROJET) : null,
       h('label', { class: 'case case-seule' }, h('input', { type: 'checkbox', checked: c.enRetard, dataset: { cle: 'enRetard' }, onchange: (e) => { c.enRetard = e.target.checked; } }), 'En retard')),
     boutons: [{ libelle: 'Tout effacer', valeur: 'effacer' }, { libelle: 'Appliquer', valeur: 'appliquer', style: 'principal' }],
   });
@@ -295,7 +283,6 @@ function pastillesFiltres() {
   return [
     ...c.phases.map((v) => ({ libelle: `Phase : ${P.libellePhase(v, cfg())}`, retirer: () => sans('phases', v) })),
     ...c.statuts.map((v) => ({ libelle: `Statut : ${P.libelleStatutProjet(v)}`, retirer: () => sans('statuts', v) })),
-    ...c.natures.map((v) => ({ libelle: `Nature : ${P.libelleNature(v)}`, retirer: () => sans('natures', v) })),
     ...(c.enRetard ? [{ libelle: 'En retard', retirer: () => P.criteresProjetsComplets({ ...c, enRetard: false }) }] : []),
   ];
 }
@@ -323,7 +310,6 @@ function carte(p, rafraichir) {
   pers ? h('span', { class: 'carte-sous' }, icone('user', { taille: 12 }), pers.nom) : null,
   dates,
   h('div', { class: 'carte-pied' },
-    p.nature === 'extraction' && P.extractionActive(cfg()) ? h('span', { class: 'badge-nature' }, 'Extraction') : null,
     p.statut === 'en_pause' ? h('span', { class: 'badge-pause' }, 'En pause') : null,
     enRetard ? h('span', { class: 'badge-retard' }, 'En retard') : null,
     p.proprietaire ? h('span', { class: 'carte-proprietaire' }, nomCompte(p.proprietaire)) : null,

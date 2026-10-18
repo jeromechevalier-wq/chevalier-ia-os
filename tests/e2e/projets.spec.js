@@ -83,7 +83,7 @@ test('C29 menu « Projets » et bouton « + » : un projet se crée en ne tapant
   await dialogue(page).getByLabel('Titre', { exact: true }).press('Enter');
   await expect(dialogue(page)).toHaveCount(0);
   const p = await attendre('projets_projets', (d) => d.titre === 'Site chevalier-ia.fr');
-  expect(p).toMatchObject({ phase: 'lancement', statut: 'actif', nature: 'livraison', affaireId: null, archive: false, proprietaire: JEROME, dateDebut: jour(0) });
+  expect(p).toMatchObject({ phase: 'lancement', statut: 'actif', affaireId: null, archive: false, proprietaire: JEROME, dateDebut: jour(0) });
   await expect(page.locator(`.colonne[data-colonne="lancement"] .carte-projet[data-projet="${p.id}"]`)).toContainText('Site chevalier-ia.fr');
   for (const ph of ['decouverte', 'livraison', 'cloture']) await expect(page.locator(`.colonne[data-colonne="${ph}"] .carte-projet`)).toHaveCount(0);
   // fil et journal : l'événement « Projet créé » et les lignes d'audit (projet + événement, même lot)
@@ -155,21 +155,21 @@ test('C29 fiche : la barre des phases change la phase ; En pause, Reprendre, Ter
   await expect(page.locator('.barre-etapes-fiche .etape.courante')).toHaveText('Clôture');
   await expect(page.locator('.fiche-sous .badge-archive')).toBeVisible();
   await allerA(page, 'Projets');
-  // Le tableau ne montre que les projets actifs : la fin du projet crée son extraction (active, elle y est) et retire le projet terminé.
-  // On attend la carte de l'extraction (preuve que le tableau a reçu la mise à jour de Firestore) avant de vérifier que la carte terminée a disparu :
-  // « 0 carte » seul était vrai tant que le tableau n'était pas encore rempli (test instable en CI).
-  await expect(page.locator('.carte-projet[aria-label="Extraction : Audit Carrel"]')).toBeVisible();
-  await expect(page.locator('.carte-projet[data-projet="pr1"]')).toHaveCount(0);
-  await expect(page.locator('.carte-projet')).toHaveCount(1);
+  // Le tableau ne montre que les projets actifs : le projet terminé n'y est plus, et sa fin ne crée plus aucun projet (extraction supprimée le 18/10/2026).
+  // On attend d'abord le projet terminé dans les Archives (preuve que la liste a reçu Firestore) avant de vérifier que le tableau est vide.
   await page.locator('.bascule-vue[data-vue="archives"]').click();
   await expect(page.locator('.tableau-projets')).toContainText('Audit Carrel');
+  expect((await listerDocuments('projets_projets')).map((d) => d.titre)).toEqual(['Audit Carrel']);
+  await page.locator('.bascule-vue[data-vue="kanban"]').click();
+  await expect(page.locator('.carte-projet')).toHaveCount(0);
+  await page.locator('.bascule-vue[data-vue="archives"]').click();
   await page.locator('.tableau-projets a', { hasText: 'Audit Carrel' }).click();
   // rouvrir
   await page.locator('.fiche-actions [data-action="rouvrir"]').click();
   await champDoc('projets_projets', 'pr1', 'statut', 'actif');
   expect((await lireDocument('projets_projets/pr1')).archive).toBe(false);
   const types = (await listerDocuments('crm_evenements')).map((e) => e.type).sort();
-  expect(types).toEqual(['phase_changee', 'projet_cree', 'projet_en_pause', 'projet_repris', 'projet_rouvert', 'projet_termine']); // « projet_cree » : l'extraction de valeur créée à la fin du projet
+  expect(types).toEqual(['phase_changee', 'projet_en_pause', 'projet_repris', 'projet_rouvert', 'projet_termine']); // aucun « projet_cree » : la fin du projet ne crée plus d'extraction
 });
 
 test('C29 fiche : titre, dates (la fin ne précède pas le début), dossier de travail, liens et documents', async ({ page }) => {
@@ -344,12 +344,12 @@ test('C29 liste, filtres, recherche et recherche globale', async ({ page }) => {
   await creerPersonne('p1', { nom: 'Élodie Martin' });
   await creerProjet('pr1', { titre: 'Audit Carrel', phase: 'lancement', organisationId: 'o1' });
   await creerProjet('pr2', { titre: 'Accompagnement Martin', phase: 'livraison', personneId: 'p1', dateFin: jour(-3) });
-  await creerProjet('pr3', { titre: 'Extraction Carrel', phase: 'decouverte', nature: 'extraction', statut: 'en_pause' });
+  await creerProjet('pr3', { titre: 'Revue Carrel', phase: 'decouverte', statut: 'en_pause' });
   await creerProjet('pr4', { titre: 'Ancien chantier', phase: 'cloture', statut: 'termine', archive: true });
   await connecter(page);
   await allerA(page, 'Projets');
   await expect(page.locator('.compteur-liste')).toHaveText('3 projets');
-  await expect(page.locator('.carte-projet[data-projet="pr3"] .badge-nature')).toHaveText('Extraction');
+  await expect(page.locator('.carte-projet .badge-nature')).toHaveCount(0); // plus de badge « Extraction »
   await expect(page.locator('.carte-projet[data-projet="pr3"] .badge-pause')).toHaveText('En pause');
   await expect(page.locator('.carte-projet[data-projet="pr2"] .badge-retard')).toBeVisible();
   // recherche : par titre, par personne (sans accent), par organisation
@@ -363,10 +363,11 @@ test('C29 liste, filtres, recherche et recherche globale', async ({ page }) => {
   await recherche.fill('');
   // filtres : une pastille par filtre, retirable
   await page.locator('[data-action="filtres"]').click();
-  await dialogue(page).getByLabel('Extraction de valeur').check();
+  await expect(dialogue(page).getByText('Nature', { exact: true })).toHaveCount(0); // plus de filtre « Nature »
+  await dialogue(page).getByLabel('En pause').check();
   await dialogue(page).getByRole('button', { name: 'Appliquer' }).click();
   await expect(page.locator('.carte-projet')).toHaveCount(1);
-  await expect(page.locator('.pastille-filtre')).toContainText('Nature : Extraction de valeur');
+  await expect(page.locator('.pastille-filtre')).toContainText('Statut : En pause');
   await page.getByRole('button', { name: /Retirer le filtre/ }).click();
   await expect(page.locator('.carte-projet')).toHaveCount(3);
   await page.locator('[data-action="filtres"]').click();
@@ -382,7 +383,7 @@ test('C29 liste, filtres, recherche et recherche globale', async ({ page }) => {
   await expect(page.locator('.tableau-projets .ligne-liste')).toHaveCount(3);
   await expect(page.locator('.tableau-projets .ligne-liste').first()).toContainText('Accompagnement Martin');
   await page.locator('.tableau-projets th button', { hasText: 'Titre' }).click();
-  await expect(page.locator('.tableau-projets .ligne-liste').first()).toContainText('Extraction Carrel');
+  await expect(page.locator('.tableau-projets .ligne-liste').first()).toContainText('Revue Carrel');
   await page.locator('.tableau-projets .ligne-liste', { hasText: 'Audit Carrel' }).locator('a.cellule-nom').click();
   await expect(page).toHaveURL(/#\/projets\/projets\/pr1$/);
   // recherche globale : groupe « Projets », les projets archivés n'y sont pas
@@ -399,7 +400,7 @@ test('C29 liste, filtres, recherche et recherche globale', async ({ page }) => {
 test('C29 filtres enregistrés : enregistrer, effacer puis réappliquer, renommer et supprimer dans les Réglages ; ils ne paraissent pas dans les Affaires', async ({ page }) => {
   await creerProjet('pr1', { titre: 'Audit Carrel', phase: 'lancement' });
   await creerProjet('pr2', { titre: 'Accompagnement Martin', phase: 'livraison', dateFin: jour(-3) });
-  await creerProjet('pr3', { titre: 'Extraction Carrel', phase: 'decouverte', nature: 'extraction' });
+  await creerProjet('pr3', { titre: 'Revue Carrel', phase: 'decouverte', statut: 'en_pause' });
   await connecter(page);
   await allerA(page, 'Projets');
   await expect(page.locator('.carte-projet')).toHaveCount(3);
@@ -409,7 +410,7 @@ test('C29 filtres enregistrés : enregistrer, effacer puis réappliquer, renomme
   await page.keyboard.press('Escape');
   // poser deux filtres puis les enregistrer
   await page.locator('[data-action="filtres"]').click();
-  await dialogue(page).getByLabel('Extraction de valeur').check();
+  await dialogue(page).getByLabel('En pause').check();
   await dialogue(page).getByLabel('Découverte').check();
   await dialogue(page).getByRole('button', { name: 'Appliquer' }).click();
   await expect(page.locator('.carte-projet')).toHaveCount(1);
@@ -420,13 +421,13 @@ test('C29 filtres enregistrés : enregistrer, effacer puis réappliquer, renomme
   expect((await lireDocument('crm_parametres/filtres')).items.filter((f) => f.liste === 'projets')).toHaveLength(0);
   await page.locator('[data-action="filtres-enregistres"]').click();
   await page.locator('.menu-pop').getByRole('menuitem', { name: 'Enregistrer ce filtre…' }).click();
-  await dialogue(page).getByLabel('Nom du filtre').fill('Extractions à explorer');
+  await dialogue(page).getByLabel('Nom du filtre').fill('Revues en pause');
   await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
-  await expect.poll(async () => ((await lireDocument('crm_parametres/filtres'))?.items ?? []).some((f) => f.nom === 'Extractions à explorer' && f.liste === 'projets')).toBe(true);
+  await expect.poll(async () => ((await lireDocument('crm_parametres/filtres'))?.items ?? []).some((f) => f.nom === 'Revues en pause' && f.liste === 'projets')).toBe(true);
   // un nom déjà pris est refusé
   await page.locator('[data-action="filtres-enregistres"]').click();
   await page.locator('.menu-pop').getByRole('menuitem', { name: 'Enregistrer ce filtre…' }).click();
-  await dialogue(page).getByLabel('Nom du filtre').fill('extractions à explorer');
+  await dialogue(page).getByLabel('Nom du filtre').fill('revues en pause');
   await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
   await expect(page.locator('.toast', { hasText: 'Un filtre porte déjà ce nom.' })).toBeVisible();
   expect(((await lireDocument('crm_parametres/filtres')).items).filter((f) => f.liste === 'projets')).toHaveLength(1);
@@ -434,29 +435,29 @@ test('C29 filtres enregistrés : enregistrer, effacer puis réappliquer, renomme
   await page.getByRole('button', { name: 'Tout effacer' }).click();
   await expect(page.locator('.carte-projet')).toHaveCount(3);
   await page.locator('[data-action="filtres-enregistres"]').click();
-  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Extractions à explorer' }).click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Revues en pause' }).click();
   await expect(page.locator('.carte-projet')).toHaveCount(1);
   await expect(page.locator('.carte-projet[data-projet="pr3"]')).toBeVisible();
   await expect(page.locator('.pastille-filtre')).toHaveCount(2);
   // les filtres du CRM ne sont pas proposés ici, et celui-ci n'est pas proposé dans les Affaires
   await page.locator('[data-action="filtres-enregistres"]').click();
-  await expect(page.locator('.menu-pop').getByRole('menuitem')).toHaveText(['Extractions à explorer', 'Enregistrer ce filtre…']);
+  await expect(page.locator('.menu-pop').getByRole('menuitem')).toHaveText(['Revues en pause', 'Enregistrer ce filtre…']);
   await page.keyboard.press('Escape');
   await allerA(page, 'Affaires');
   await page.locator('[data-action="filtres-enregistres"]').click();
-  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Extractions à explorer' })).toHaveCount(0);
+  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Revues en pause' })).toHaveCount(0);
   await page.keyboard.press('Escape');
   // Réglages : renommer puis supprimer
   await allerAuxReglagesCrm(page);
-  const ligne = page.locator('.ligne-reglage', { hasText: 'Extractions à explorer' });
+  const ligne = page.locator('.ligne-reglage', { hasText: 'Revues en pause' });
   await expect(ligne).toContainText('Projets');
   await ligne.locator('[data-action="renommer-filtre"]').click();
-  await dialogue(page).getByLabel('Nom du filtre').fill('Extractions');
+  await dialogue(page).getByLabel('Nom du filtre').fill('Revues');
   await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
-  await expect(page.locator('.ligne-reglage', { hasText: 'Extractions' })).toContainText('Projets');
-  await page.locator('.ligne-reglage', { hasText: 'Extractions' }).locator('[data-action="supprimer-filtre"]').click();
+  await expect(page.locator('.ligne-reglage', { hasText: 'Revues' })).toContainText('Projets');
+  await page.locator('.ligne-reglage', { hasText: 'Revues' }).locator('[data-action="supprimer-filtre"]').click();
   await dialogue(page).getByRole('button', { name: 'Supprimer' }).click();
-  await expect(page.locator('.ligne-reglage', { hasText: 'Extractions' })).toHaveCount(0);
+  await expect(page.locator('.ligne-reglage', { hasText: 'Revues' })).toHaveCount(0);
 });
 
 test('C29 aucun défilement horizontal de la page Projets, de sa liste et d’une fiche, même avec des textes très longs', async ({ page }) => {
@@ -515,7 +516,7 @@ test('C30 fiche affaire : « Créer le projet » seulement pour une affaire gagn
   await expect(dialogue(page)).toHaveCount(0);
   const p = await attendre('projets_projets', (d) => d.affaireId === 'a1');
   expect(p).toMatchObject({
-    titre: 'Audit des Lilas', personneId: 'p1', organisationId: 'o1', phase: 'lancement', statut: 'actif', nature: 'livraison',
+    titre: 'Audit des Lilas', personneId: 'p1', organisationId: 'o1', phase: 'lancement', statut: 'actif',
     urlGithub: 'https://github.com/jeromechevalier-wq/client-lilas',
   });
   await champDoc('crm_affaires', 'a1', 'projetId', p.id);
@@ -638,14 +639,14 @@ test('C30 fiches personne et organisation : leurs projets en cartes, la section 
   await creerPersonne('p1', { nom: 'Camille Durand', organisationId: 'o1' });
   await creerPersonne('p2', { nom: 'Paul Martin' });
   await creerProjet('pr1', { titre: 'Audit des Lilas', personneId: 'p1', organisationId: 'o1', phase: 'livraison' });
-  await creerProjet('pr2', { titre: 'Extraction Lilas', personneId: 'p1', organisationId: 'o1', nature: 'extraction', statut: 'en_pause' });
+  await creerProjet('pr2', { titre: 'Revue Lilas', personneId: 'p1', organisationId: 'o1', statut: 'en_pause' });
   await creerProjet('pr3', { titre: 'Projet d’un autre', personneId: 'p2' });
   await connecter(page);
   await aller(page, '#/crm/personnes/p1');
   const section = page.locator('[data-section="personne-projets"]');
   await expect(section.locator('.carte-projet-mini')).toHaveCount(2);
   await expect(section).toContainText('Audit des Lilas');
-  await expect(section.locator('.carte-projet-mini', { hasText: 'Extraction Lilas' })).toContainText('En pause · Extraction');
+  await expect(section.locator('.carte-projet-mini', { hasText: 'Revue Lilas' })).toContainText('En pause');
   await expect(section.locator('.carte-projet-mini', { hasText: 'Audit des Lilas' })).toContainText('Livraison');
   await section.locator('.carte-projet-mini', { hasText: 'Audit des Lilas' }).click();
   await expect(page).toHaveURL(/#\/projets\/projets\/pr1$/);
@@ -897,20 +898,18 @@ test('C31 aucun défilement horizontal de la fiche projet avec des tâches aux t
 
 // ---------------------------------------------------------------- étape 5 : modèles de projet
 
-async function attendreModeles(n = 3) {
+async function attendreModeles(n = 2) {
   await expect.poll(async () => (await listerDocuments('projets_modeles')).length, { timeout: 15_000 }).toBe(n);
 }
 
-test('C32 premier lancement : les modèles Audit, Accompagnement et Extraction sont créés une seule fois, avec le contenu de Jérôme', { tag: '@sans-telephone' }, async ({ page }) => {
+test('C32 premier lancement : les modèles Audit et Accompagnement sont créés une seule fois, avec le contenu de Jérôme', { tag: '@sans-telephone' }, async ({ page }) => {
   await connecter(page);
   await attendreModeles();
   const modeles = Object.fromEntries((await listerDocuments('projets_modeles')).map((m) => [m.id, m]));
-  expect(Object.keys(modeles).sort()).toEqual(['accompagnement', 'audit', 'extraction']);
-  expect(modeles.audit).toMatchObject({ nom: 'Audit', offreId: 'audit', nature: 'livraison', actif: true });
+  expect(Object.keys(modeles).sort()).toEqual(['accompagnement', 'audit']);
+  expect(modeles.audit).toMatchObject({ nom: 'Audit', offreId: 'audit', actif: true });
   expect(modeles.audit.taches.map((t) => t.titre)).toEqual(['Interview', 'Créer le rapport', 'Débriefing avec le client']);
   expect(modeles.accompagnement.taches.map((t) => t.titre)).toEqual(['Rendez-vous de lancement']);
-  expect(modeles.extraction).toMatchObject({ nature: 'extraction', offreId: null });
-  expect(modeles.extraction.taches.map((t) => t.titre)).toEqual(['Tirer les règles', 'Comprendre les erreurs', 'Repérer ce qui est automatisable', 'Créer la documentation marketing']);
   expect(await lireDocument('crm_parametres/modeles_projet')).toEqual({ depart: true });
   // la création de départ n'est pas une action de Jérôme : aucune ligne de journal
   expect((await listerDocuments('crm_audit')).filter((l) => l.collection === 'projets_modeles')).toHaveLength(0);
@@ -919,7 +918,7 @@ test('C32 premier lancement : les modèles Audit, Accompagnement et Extraction s
   await page.reload();
   await expect(page.locator('.coquille')).toBeVisible();
   await page.waitForTimeout(1500);
-  expect((await listerDocuments('projets_modeles')).length).toBe(3);
+  expect((await listerDocuments('projets_modeles')).length).toBe(2);
   expect((await lireDocument('projets_modeles/audit')).nom).toBe('Audit modifié');
 });
 
@@ -929,20 +928,20 @@ test('C32 Modèles de projets (dans les Réglages, plus dans le menu) : la liste
   await expect(page.getByRole('link', { name: 'Modèles', exact: true })).toHaveCount(0);
   await aller(page, '#/reglages/crm');
   await expect(page.locator('#reglages-modeles-projets')).toBeVisible();
-  await expect(page.locator('.tableau-modeles .ligne-liste')).toHaveCount(3);
+  await expect(page.locator('.tableau-modeles .ligne-liste')).toHaveCount(2);
+  await expect(page.locator('.tableau-modeles th', { hasText: 'Nature' })).toHaveCount(0); // plus de colonne « Nature »
   await expect(page.locator('.tableau-modeles .ligne-liste[data-id="audit"]')).toContainText('Audit');
   await expect(page.locator('.tableau-modeles .ligne-liste[data-id="audit"]')).toContainText('3');
-  await expect(page.locator('.tableau-modeles .ligne-liste[data-id="extraction"]')).toContainText('Extraction de valeur');
   // nouveau modèle : le nom suffit, on arrive sur sa fiche
   await page.locator('[data-action="nouveau-modele"]').click();
   await dialogue(page).getByLabel('Nom du modèle').fill('Site vitrine');
   await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
   await expect(page).toHaveURL(/#\/projets\/modeles\/.+/);
   const m = await attendre('projets_modeles', (d) => d.nom === 'Site vitrine');
-  expect(m).toMatchObject({ offreId: null, nature: 'livraison', taches: [], actif: true, ordre: 4 });
+  expect(m).toMatchObject({ offreId: null, taches: [], actif: true, ordre: 3 });
   await expect(page.locator('.titre-editable')).toHaveValue('Site vitrine');
   await expect(page.locator('[data-section="modele-taches"]')).toContainText('n’a pas encore de tâche');
-  // renommer, offre, nature, désactiver
+  // renommer, offre, désactiver
   await page.locator('.titre-editable').fill('Site vitrine pro');
   await page.locator('.titre-editable').press('Enter');
   await champDoc('projets_modeles', m.id, 'nom', 'Site vitrine pro');
@@ -1019,19 +1018,19 @@ test('C32 fiche d’un modèle : tâches types par phase, délai, modifier, mont
   expect((await listerDocuments('crm_audit')).filter((l) => l.collection === 'projets_modeles' && l.docId === 'audit').length).toBe(5); // ajout, modification, déplacement vers le haut, changement de phase, suppression
 });
 
-test('C32 « + Projet » avec un modèle : le projet reçoit ses tâches, dates = début + délai, nature du modèle ; sans modèle, il démarre vide', async ({ page }) => {
+test('C32 « + Projet » avec un modèle : le projet reçoit ses tâches, dates = début + délai ; sans modèle, il démarre vide', async ({ page }) => {
   await connecter(page);
   await attendreModeles();
   await allerA(page, 'Projets');
   await page.locator('.page-actions [data-action="nouveau-projet"]').click();
   await expect(dialogue(page).getByLabel('Modèle')).toHaveValue('');
-  await expect(dialogue(page).getByLabel('Modèle').locator('option')).toHaveText(['Aucun modèle (projet vide)', 'Audit', 'Accompagnement', 'Extraction']);
+  await expect(dialogue(page).getByLabel('Modèle').locator('option')).toHaveText(['Aucun modèle (projet vide)', 'Audit', 'Accompagnement']);
   await dialogue(page).getByLabel('Titre', { exact: true }).fill('Audit Carrel');
   await dialogue(page).getByLabel('Modèle').selectOption('audit');
   await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
   await expect(dialogue(page)).toHaveCount(0);
   const p = await attendre('projets_projets', (d) => d.titre === 'Audit Carrel');
-  expect(p).toMatchObject({ modeleId: 'audit', nature: 'livraison', phase: 'lancement' });
+  expect(p).toMatchObject({ modeleId: 'audit', phase: 'lancement' });
   await expect.poll(async () => (await listerDocuments('projets_taches')).filter((t) => t.projetId === p.id).length).toBe(3);
   const taches = (await listerDocuments('projets_taches')).filter((t) => t.projetId === p.id);
   expect(taches.map((t) => [t.titre, t.phase, t.ordre, t.date, t.fait]).sort()).toEqual([
@@ -1044,18 +1043,8 @@ test('C32 « + Projet » avec un modèle : le projet reçoit ses tâches, dates 
   await expect(page.locator('[data-section="projet-taches"] .tache')).toHaveCount(3);
   await page.locator('[data-prop="modele"] a').click();
   await expect(page).toHaveURL(/#\/projets\/modeles\/audit$/);
-  // modèle d'extraction : projet d'extraction, tâches à J + 7
-  await allerA(page, 'Projets');
-  await page.locator('.page-actions [data-action="nouveau-projet"]').click();
-  await dialogue(page).getByLabel('Titre', { exact: true }).fill('Extraction Carrel');
-  await dialogue(page).getByLabel('Modèle').selectOption('extraction');
-  await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
-  const e = await attendre('projets_projets', (d) => d.titre === 'Extraction Carrel');
-  expect(e).toMatchObject({ modeleId: 'extraction', nature: 'extraction' });
-  await expect.poll(async () => (await listerDocuments('projets_taches')).filter((t) => t.projetId === e.id).length).toBe(4);
-  expect((await listerDocuments('projets_taches')).filter((t) => t.projetId === e.id).every((t) => t.date === jour(7))).toBe(true);
-  await expect(page.locator(`.carte-projet[data-projet="${e.id}"] .badge-nature`)).toHaveText('Extraction');
   // sans modèle : un projet vide
+  await allerA(page, 'Projets');
   await page.locator('.page-actions [data-action="nouveau-projet"]').click();
   await dialogue(page).getByLabel('Titre', { exact: true }).fill('Chantier interne');
   await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
@@ -1109,12 +1098,12 @@ test('C32 « Créer le projet » d’une affaire gagnée : le modèle de son off
 test('C32 un modèle inactif n’est plus proposé ; supprimer un modèle ne touche pas aux projets déjà créés', async ({ page }) => {
   await connecter(page);
   await attendreModeles();
-  await aller(page, '#/projets/modeles/extraction');
+  await aller(page, '#/projets/modeles/audit');
   await page.locator('[data-action="basculer-actif"]').click();
-  await champDoc('projets_modeles', 'extraction', 'actif', false);
+  await champDoc('projets_modeles', 'audit', 'actif', false);
   await allerA(page, 'Projets');
   await page.locator('.page-actions [data-action="nouveau-projet"]').click();
-  await expect(dialogue(page).getByLabel('Modèle').locator('option')).toHaveText(['Aucun modèle (projet vide)', 'Audit', 'Accompagnement']);
+  await expect(dialogue(page).getByLabel('Modèle').locator('option')).toHaveText(['Aucun modèle (projet vide)', 'Accompagnement']);
   await dialogue(page).getByLabel('Titre', { exact: true }).fill('Accompagnement Leroy');
   await dialogue(page).getByLabel('Modèle').selectOption('accompagnement');
   await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
@@ -1132,7 +1121,7 @@ test('C32 un modèle inactif n’est plus proposé ; supprimer un modèle ne tou
   await expect(page.locator('[data-prop="modele"]')).toContainText('Modèle supprimé');
   await expect(page.locator('[data-section="projet-taches"] .tache')).toHaveCount(1);
   await page.waitForTimeout(1200);
-  expect((await listerDocuments('projets_modeles')).map((m) => m.id).sort()).toEqual(['audit', 'extraction'], 'un modèle supprimé n’est pas recréé');
+  expect((await listerDocuments('projets_modeles')).map((m) => m.id).sort()).toEqual(['audit'], 'un modèle supprimé n’est pas recréé');
 });
 
 test('C32 aucun défilement horizontal de l’écran Modèles et d’une fiche de modèle, même avec des textes très longs', async ({ page }) => {
@@ -1186,264 +1175,6 @@ test('C32 enchaîner les tâches types au clavier : elles apparaissent tout de s
   await champ.press('Enter');
   await expect(section.locator('.tache-titre')).toHaveText(['Rendez-vous de lancement', 'Point mensuel', 'Bilan']);
   await expect(section.locator('.section-compteur')).toHaveText('3');
-});
-
-// ---------------------------------------------------------------- étape 6 : extraction de valeur
-
-/** Marque une affaire perdue depuis sa fiche (boîte « Perdue » : raison obligatoire). */
-async function marquerPerdue(page, raison = 'Prix', detail = '') {
-  await page.locator('.fiche-actions [data-action="perdue"]').click();
-  await dialogue(page).getByLabel('Raison', { exact: true }).selectOption(raison);
-  if (detail) await dialogue(page).getByLabel('Précision').fill(detail);
-  await dialogue(page).getByRole('button', { name: 'Marquer comme perdue' }).click();
-  await expect(dialogue(page)).toHaveCount(0);
-}
-
-/** Passe une affaire en « Gagné » depuis sa fiche : célébration (aucune action suggérée par défaut). */
-async function marquerGagnee(page) {
-  await page.locator('.fiche-actions [data-action="gagnee"]').click();
-  await expect(page.locator('.celebration')).toBeVisible();
-  await page.locator('.celebration').click();
-  await expect(page.locator('.celebration')).toHaveCount(0);
-  await expect(dialogue(page)).toHaveCount(0);
-}
-
-const extractionsDe = async (filtre) => (await listerDocuments('projets_projets')).filter((p) => p.nature === 'extraction' && filtre(p));
-
-test('C33 affaire perdue : son projet d’extraction est créé tout de suite, avec la raison de la perte, le dépôt, le dossier et les quatre tâches', async ({ page }) => {
-  await creerOrganisation('o1', { nom: 'Atelier des Lilas' });
-  await creerPersonne('p1', { nom: 'Camille Durand', organisationId: 'o1' });
-  await creerAffaire('a1', {
-    titre: 'Audit des Lilas', personneId: 'p1', organisationId: 'o1', etape: 'proposition_envoyee', offreId: 'audit',
-    urlGithub: 'https://github.com/jeromechevalier-wq/client-lilas', urlDossier: 'https://drive.google.com/drive/folders/lilas',
-    documents: [{ libelle: 'Devis', url: 'https://drive.google.com/file/d/devis/view' }],
-  });
-  await ecrireDocument('crm_notes/n1', { texte: 'Il trouvait le devis trop élevé', personneId: 'p1', organisationId: 'o1', affaireId: 'a1', auteur: JEROME, creeLe: new Date(), modifieLe: new Date() });
-  await connecter(page);
-  await aller(page, '#/crm/affaires/a1');
-  await expect(page.locator('[data-section="affaire-projet"]')).toHaveCount(0); // ni gagnée, ni extraction : rien à montrer
-  await marquerPerdue(page, 'Prix', 'Trop cher pour eux');
-  const e = (await attendre('projets_projets', (d) => d.nature === 'extraction'));
-  expect(e).toMatchObject({
-    titre: 'Extraction : Audit des Lilas', affaireId: 'a1', projetSourceId: null, phase: 'lancement', statut: 'actif', modeleId: 'extraction',
-    personneId: 'p1', organisationId: 'o1', offreId: 'audit', raisonPerdue: 'Prix', raisonPerdueDetail: 'Trop cher pour eux',
-    urlGithub: 'https://github.com/jeromechevalier-wq/client-lilas', urlDossier: 'https://drive.google.com/drive/folders/lilas',
-  });
-  await expect(page.locator('.toast', { hasText: 'Projet d’extraction créé' })).toBeVisible();
-  await expect.poll(async () => (await listerDocuments('projets_taches')).filter((t) => t.projetId === e.id).length).toBe(4);
-  const taches = (await listerDocuments('projets_taches')).filter((t) => t.projetId === e.id);
-  expect(taches.map((t) => t.titre).sort()).toEqual(['Comprendre les erreurs', 'Créer la documentation marketing', 'Repérer ce qui est automatisable', 'Tirer les règles']);
-  expect(taches.every((t) => t.date === jour(7) && !t.fait)).toBe(true);
-  // l'affaire perdue montre son extraction (pas de boutons « Créer le projet »), et n'a pas de projet
-  const section = page.locator('[data-section="affaire-projet"]');
-  await expect(section.locator('[data-bloc="extraction"] .carte-projet-mini')).toContainText('Extraction : Audit des Lilas');
-  await expect(section.locator('[data-action="creer-projet"]')).toHaveCount(0);
-  expect((await lireDocument('crm_affaires/a1')).projetId ?? null).toBeNull();
-  // une seule opération d'audit : l'affaire et son extraction
-  const operations = new Set((await listerDocuments('crm_audit')).filter((l) => l.outil === 'marquerAffairePerdue').map((l) => l.operationId));
-  expect(operations.size).toBe(1);
-  // la fiche de l'extraction : source, raison, documents et notes de l'affaire, tâches, badge ; carte avec son badge sur le Kanban
-  await section.locator('.carte-projet-mini').click();
-  await expect(page).toHaveURL(new RegExp(`#/projets/projets/${e.id}$`));
-  await expect(page.locator('[data-prop="source"]')).toContainText('Audit des Lilas');
-  await expect(page.locator('[data-prop="raison-perte"]')).toContainText('Prix : Trop cher pour eux');
-  await expect(page.locator('[data-prop="affaire"]')).toHaveCount(0); // pas de « Détacher » : l'affaire est sa source
-  await expect(page.locator('[data-prop="modele"] a')).toHaveText('Extraction');
-  await expect(page.locator('.fiche-sous .badge-nature')).toHaveText('Extraction');
-  await expect(page.locator('[data-section="projet-documents-affaire"]')).toContainText('Devis');
-  await expect(page.locator('.historique .fil-note')).toContainText('Il trouvait le devis trop élevé');
-  await expect(page.locator('[data-section="projet-taches"] .tache')).toHaveCount(4);
-  await allerA(page, 'Projets');
-  await expect(page.locator(`.carte-projet[data-projet="${e.id}"] .badge-nature`)).toHaveText('Extraction');
-  await expect(page.locator(`.colonne[data-colonne="lancement"] .carte-projet[data-projet="${e.id}"]`)).toBeVisible();
-  // fiche personne et organisation : le projet d'extraction y est aussi
-  await aller(page, '#/crm/personnes/p1');
-  await expect(page.locator('[data-section="personne-projets"] .carte-projet-mini')).toContainText('Extraction : Audit des Lilas');
-});
-
-test('C33 une seule extraction par source : rouvrir puis perdre de nouveau, ou gagner, n’en crée pas une seconde', async ({ page }) => {
-  await creerAffaire('a1', { titre: 'À perdre deux fois', etape: 'rdv_fixe' });
-  await connecter(page);
-  await aller(page, '#/crm/affaires/a1');
-  await marquerPerdue(page, 'Prix');
-  await attendre('projets_projets', (d) => d.nature === 'extraction');
-  await page.locator('.fiche-actions [data-action="rouvrir"]').click();
-  await champDoc('crm_affaires', 'a1', 'statut', 'ouverte');
-  await marquerPerdue(page, 'Concurrent');
-  await champDoc('crm_affaires', 'a1', 'raisonPerdue', 'Concurrent');
-  await page.waitForTimeout(500);
-  expect(await extractionsDe(() => true)).toHaveLength(1);
-  // rouvrir puis gagner : l'extraction faite à Perdu suffit
-  await page.locator('.fiche-actions [data-action="rouvrir"]').click();
-  await champDoc('crm_affaires', 'a1', 'statut', 'ouverte');
-  await marquerGagnee(page);
-  await champDoc('crm_affaires', 'a1', 'statut', 'gagnee');
-  await page.waitForTimeout(500);
-  expect(await extractionsDe(() => true)).toHaveLength(1);
-  expect((await listerDocuments('projets_taches')).length).toBe(4);
-});
-
-test('C33 affaire gagnée sans projet : extraction à Gagné ; un projet créé ensuite la range ; la fin du projet crée la vraie extraction, une seule vivante', async ({ page }) => {
-  await creerAffaire('a1', { titre: 'Audit des Lilas', etape: 'proposition_envoyee', offreId: 'audit' });
-  await connecter(page);
-  await attendreModeles();
-  await aller(page, '#/crm/affaires/a1');
-  await marquerGagnee(page);
-  const e1 = await attendre('projets_projets', (d) => d.nature === 'extraction');
-  expect(e1).toMatchObject({ titre: 'Extraction : Audit des Lilas', affaireId: 'a1', archive: false });
-  expect(e1.raisonPerdue).toBeUndefined();
-  expect((await lireDocument('crm_affaires/a1')).projetId ?? null).toBeNull(); // l'extraction n'est pas « le projet » de l'affaire
-  const section = page.locator('[data-section="affaire-projet"]');
-  await expect(section.locator('[data-bloc="extraction"]')).toContainText('Extraction : Audit des Lilas');
-  await expect(section.locator('[data-action="creer-projet"]')).toBeVisible(); // on peut toujours créer son vrai projet
-  // création du projet : l'extraction, intacte, est rangée
-  await section.locator('[data-action="creer-projet"]').click();
-  await dialogue(page).getByRole('button', { name: 'Créer le projet' }).click();
-  await expect(dialogue(page)).toHaveCount(0);
-  const projet = await attendre('projets_projets', (d) => d.nature === 'livraison' && d.affaireId === 'a1');
-  await champDoc('projets_projets', e1.id, 'archive', true);
-  const rangee = (await listerDocuments('crm_evenements')).find((ev) => ev.type === 'extraction_rangee');
-  expect(rangee).toMatchObject({ projetId: e1.id, affaireId: 'a1' });
-  await expect(section.locator('.carte-projet-mini').first()).toContainText('Audit des Lilas'); // le vrai projet d'abord
-  await expect(section.locator('[data-bloc="extraction"] .carte-projet-mini')).toContainText('Archivé');
-  await allerA(page, 'Projets');
-  await expect(page.locator(`.carte-projet[data-projet="${e1.id}"]`)).toHaveCount(0); // plus au tableau
-  await page.locator('.bascule-vue[data-vue="archives"]').click();
-  await expect(page.locator('.tableau-projets')).toContainText('Extraction : Audit des Lilas');
-  // fin du projet : sa vraie extraction, à son nom
-  await aller(page, `#/projets/projets/${projet.id}`);
-  await expect(page.locator('[data-prop="extraction"]')).toHaveCount(0);
-  await terminerDepuisFiche(page);
-  await expect(page.locator('.toast', { hasText: 'son projet d’extraction est créé' })).toBeVisible();
-  const e2 = await attendre('projets_projets', (d) => d.nature === 'extraction' && d.projetSourceId === projet.id);
-  expect(e2).toMatchObject({ titre: 'Extraction : Audit des Lilas', affaireId: null, archive: false, modeleId: 'extraction', offreId: 'audit' });
-  expect((await extractionsDe((p) => !p.archive))).toHaveLength(1);
-  await expect(page.locator('[data-prop="extraction"] a')).toHaveText('Extraction : Audit des Lilas');
-  await page.locator('[data-prop="extraction"] a').click();
-  await expect(page).toHaveURL(new RegExp(`#/projets/projets/${e2.id}$`));
-  await expect(page.locator('[data-prop="source"]')).toContainText('Projet : Audit des Lilas');
-});
-
-test('C33 une extraction qui a avancé n’est pas rangée quand le projet arrive ; une affaire qui a déjà son projet n’a pas d’extraction à Gagné', async ({ page }) => {
-  await creerAffaire('a1', { titre: 'Affaire avancée', etape: 'gagne', projetId: null });
-  await creerProjet('ex1', { titre: 'Extraction : Affaire avancée', nature: 'extraction', affaireId: 'a1', modeleId: 'extraction' });
-  await creerTacheProjet('t1', { titre: 'Tirer les règles', projetId: 'ex1', fait: true });
-  await creerAffaire('a2', { titre: 'Avec projet', etape: 'proposition_envoyee', projetId: 'pr2' });
-  await creerProjet('pr2', { titre: 'Avec projet', affaireId: 'a2' });
-  await connecter(page);
-  await attendreModeles();
-  await aller(page, '#/crm/affaires/a1');
-  await page.locator('[data-section="affaire-projet"] [data-action="creer-projet"]').click();
-  await dialogue(page).getByRole('button', { name: 'Créer le projet' }).click();
-  await attendre('projets_projets', (d) => d.nature === 'livraison' && d.affaireId === 'a1');
-  await page.waitForTimeout(600);
-  expect((await lireDocument('projets_projets/ex1')).archive).toBe(false);
-  expect((await listerDocuments('crm_evenements')).filter((ev) => ev.type === 'extraction_rangee')).toHaveLength(0);
-  // affaire qui a déjà son projet : passer à Gagné ne crée aucune extraction
-  await aller(page, '#/crm/affaires/a2');
-  await marquerGagnee(page);
-  await champDoc('crm_affaires', 'a2', 'statut', 'gagnee');
-  await page.waitForTimeout(500);
-  expect(await extractionsDe((p) => p.affaireId === 'a2' || p.projetSourceId === 'pr2')).toHaveLength(0);
-});
-
-test('C33 projet sans affaire terminé : extraction à son nom ; terminer une extraction ne crée rien (jamais de boucle) ; rouvrir puis terminer ne la double pas', async ({ page }) => {
-  await creerProjet('pr1', { titre: 'Chantier interne', phase: 'livraison', urlGithub: 'https://github.com/jeromechevalier-wq/chantier', urlDossier: 'https://drive.google.com/drive/folders/chantier' });
-  await connecter(page);
-  await attendreModeles();
-  await aller(page, '#/projets/projets/pr1');
-  await terminerDepuisFiche(page);
-  const e = await attendre('projets_projets', (d) => d.nature === 'extraction');
-  expect(e).toMatchObject({
-    titre: 'Extraction : Chantier interne', projetSourceId: 'pr1', affaireId: null, phase: 'lancement',
-    urlGithub: 'https://github.com/jeromechevalier-wq/chantier', urlDossier: 'https://drive.google.com/drive/folders/chantier',
-  });
-  await expect.poll(async () => (await listerDocuments('projets_taches')).filter((t) => t.projetId === e.id).length).toBe(4);
-  await champDoc('projets_projets', 'pr1', 'statut', 'termine');
-  // terminer l'extraction : aucune nouvelle extraction
-  await aller(page, `#/projets/projets/${e.id}`);
-  await terminerDepuisFiche(page);
-  await champDoc('projets_projets', e.id, 'statut', 'termine');
-  await expect(page.locator('.toast', { hasText: 'Projet terminé' }).last()).toBeVisible();
-  await page.waitForTimeout(500);
-  expect((await listerDocuments('projets_projets')).length).toBe(2);
-  // rouvrir le projet puis le terminer encore : toujours une seule extraction
-  await aller(page, '#/projets/projets/pr1');
-  await page.locator('.fiche-actions [data-action="rouvrir"]').click();
-  await champDoc('projets_projets', 'pr1', 'statut', 'actif');
-  await terminerDepuisFiche(page);
-  await champDoc('projets_projets', 'pr1', 'statut', 'termine');
-  await page.waitForTimeout(500);
-  expect(await extractionsDe(() => true)).toHaveLength(1);
-});
-
-test('C33 supprimer une affaire garde son extraction (lien vidé) ; supprimer le projet source garde l’extraction du projet', async ({ page }) => {
-  await creerAffaire('a1', { titre: 'Affaire à supprimer', etape: 'rdv_fixe' });
-  await creerProjet('ex1', { titre: 'Extraction : Affaire à supprimer', nature: 'extraction', affaireId: 'a1', modeleId: 'extraction' });
-  await creerProjet('pr2', { titre: 'Projet source', statut: 'termine', archive: true });
-  await creerProjet('ex2', { titre: 'Extraction : Projet source', nature: 'extraction', projetSourceId: 'pr2', modeleId: 'extraction' });
-  await connecter(page);
-  await aller(page, '#/crm/affaires/a1');
-  await page.locator('[data-action="menu-fiche"]').click();
-  await page.locator('.menu-pop').getByRole('menuitem', { name: /Supprimer définitivement/ }).click();
-  await dialogue(page).getByLabel(/Tape « Affaire à supprimer »/).fill('Affaire à supprimer');
-  await dialogue(page).getByRole('button', { name: 'Supprimer' }).click();
-  await expect.poll(async () => await lireDocument('crm_affaires/a1')).toBeNull();
-  await champDoc('projets_projets', 'ex1', 'affaireId', null);
-  await aller(page, '#/projets/projets/pr2');
-  await page.locator('[data-action="menu-fiche"]').click();
-  await page.locator('.menu-pop').getByRole('menuitem', { name: /Supprimer définitivement/ }).click();
-  await dialogue(page).getByLabel(/Tape « Projet source »/).fill('Projet source');
-  await dialogue(page).getByRole('button', { name: 'Supprimer' }).click();
-  await expect.poll(async () => await lireDocument('projets_projets/pr2')).toBeNull();
-  await champDoc('projets_projets', 'ex2', 'projetSourceId', null);
-  await aller(page, '#/projets/projets/ex2');
-  await expect(page.locator('[data-prop="source"]')).toContainText('Source supprimée');
-});
-
-test('C33 filtre « Extraction de valeur » : les projets d’extraction se retrouvent d’un clic ; aucune extraction dans « Lier un projet »', async ({ page }) => {
-  await creerAffaire('a1', { titre: 'Gagnée', etape: 'gagne' });
-  await creerProjet('pr1', { titre: 'Un vrai projet' });
-  await creerProjet('ex1', { titre: 'Extraction : Quelque chose', nature: 'extraction', projetSourceId: 'inconnu', modeleId: 'extraction' });
-  await connecter(page);
-  await attendreModeles();
-  await allerA(page, 'Projets');
-  await page.locator('[data-action="filtres"]').click();
-  await dialogue(page).getByLabel('Extraction de valeur').check();
-  await dialogue(page).getByRole('button', { name: 'Appliquer' }).click();
-  await expect(page.locator('.carte-projet')).toHaveCount(1);
-  await expect(page.locator('.carte-projet[data-projet="ex1"]')).toBeVisible();
-  await aller(page, '#/crm/affaires/a1');
-  await page.locator('[data-section="affaire-projet"] [data-action="lier-projet"]').click();
-  await expect(dialogue(page).getByLabel('Projet à lier').locator('option')).toHaveText(['Un vrai projet']);
-});
-
-test('C34 bouton « Extraire la valeur » : crée l’extraction en cours de projet, puis ouvre la même ; « Terminer » n’en crée pas une seconde', async ({ page }) => {
-  await creerProjet('pr1', { titre: 'Site vitrine', phase: 'livraison', urlDossier: 'https://drive.google.com/drive/folders/xyz' });
-  await connecter(page);
-  await attendreModeles();
-  await aller(page, '#/projets/projets/pr1');
-  const bouton = page.locator('.fiche-actions [data-action="extraire"]');
-  await expect(bouton).toHaveText('Extraire la valeur');
-  await bouton.click();
-  await expect(page.locator('.toast', { hasText: 'Projet d’extraction créé' })).toBeVisible();
-  const e1 = await attendre('projets_projets', (d) => d.nature === 'extraction' && d.projetSourceId === 'pr1');
-  expect(e1).toMatchObject({ titre: 'Extraction : Site vitrine', archive: false, modeleId: 'extraction', urlDossier: 'https://drive.google.com/drive/folders/xyz' });
-  expect((await listerDocuments('projets_taches')).filter((t) => t.projetId === e1.id)).toHaveLength(4);
-  expect((await lireDocument('projets_projets/pr1')).statut).toBe('actif'); // le projet continue
-  // le bouton devient « Ouvrir l'extraction » : même extraction, jamais de seconde
-  await expect(bouton).toHaveText('Ouvrir l’extraction');
-  await expect(page.locator('[data-prop="extraction"] a')).toHaveText('Extraction : Site vitrine');
-  await bouton.click();
-  await expect(page).toHaveURL(new RegExp(`#/projets/projets/${e1.id}$`));
-  await expect(page.locator('.fiche-actions [data-action="extraire"]')).toHaveCount(0); // une extraction ne s'extrait pas
-  // fin du projet : pas de seconde extraction
-  await aller(page, '#/projets/projets/pr1');
-  await terminerDepuisFiche(page);
-  await champDoc('projets_projets', 'pr1', 'statut', 'termine');
-  await page.waitForTimeout(600);
-  expect((await listerDocuments('projets_projets')).filter((p) => p.nature === 'extraction')).toHaveLength(1);
-  await expect(page.locator('.fiche-actions [data-action="extraire"]')).toHaveText('Ouvrir l’extraction'); // visible aussi sur un projet terminé
 });
 
 test('C35 menu « Archives » : les projets terminés ou archivés y sont ; la bascule revient au Kanban ; Kanban et Liste restent mémorisés', async ({ page }) => {
@@ -1743,24 +1474,20 @@ test('4 La règle « Enregistrer grisé / jaune, cases qui s’enregistrent tout
   expect(texte).toContain('s\'enregistrent toutes seules');
 });
 
-test('C39 Réglages : options du CRM — suivi des paiements, extraction de valeur, dossier Drive : éteindre cache les écrans associés', async ({ page }) => {
+test('C39 Réglages : options du CRM — suivi des paiements, dossier Drive : éteindre cache les écrans associés', async ({ page }) => {
   await creerProjet('pr1', { titre: 'Audit des Lilas' });
   await connecter(page);
   await attendreModeles();
   await aller(page, '#/projets/projets/pr1');
   await expect(page.locator('[data-section="projet-factures"]')).toHaveCount(1);
-  await expect(page.locator('.fiche-actions [data-action="extraire"]')).toHaveCount(1);
   await aller(page, '#/reglages/crm');
   const option = (cle) => page.locator(`[data-option="${cle}"]`);
   await expect(option('suiviPaiements')).toBeChecked();
   await option('suiviPaiements').uncheck();
-  await option('extractionValeur').uncheck();
   await expect.poll(async () => (await lireDocument('crm_parametres/reglages'))?.suiviPaiements).toBe(false);
-  await expect.poll(async () => (await lireDocument('crm_parametres/reglages'))?.extractionValeur).toBe(false);
   await expect(option('clotureBloquee')).toBeDisabled(); // sans suivi des paiements, la règle n'a plus d'objet
   await aller(page, '#/projets/projets/pr1');
   await expect(page.locator('[data-section="projet-factures"]')).toHaveCount(0);
-  await expect(page.locator('.fiche-actions [data-action="extraire"]')).toHaveCount(0);
   // « Créer un dossier dans Google Drive » : éteint, plus de section de réglages Drive ni de bouton ; le dossier de travail reste un lien libre
   await aller(page, '#/reglages/crm');
   await expect(page.locator('#reglages-projets')).toBeVisible();

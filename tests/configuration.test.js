@@ -1,4 +1,4 @@
-// Ménage du CRM (2026-10-16) : étapes de vente et phases de projet configurables, options (suivi des paiements, extraction de valeur…),
+// Ménage du CRM (2026-10-16) : étapes de vente et phases de projet configurables, options (suivi des paiements…),
 // objectifs, modèles d'affaires, membres assignables. Logique pure, partagée par l'écran et le serveur MCP : node --test configuration.test.js
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
@@ -35,7 +35,7 @@ describe('Configuration : six emplacements, valeurs de départ, migration douce'
     assert.equal(c.roleGagnee, 'gagne');
     assert.equal(c.roleCloture, 'cloture');
     assert.equal(c.options.suiviPaiements, true);
-    assert.equal(c.options.extractionValeur, true);
+    assert.equal('extractionValeur' in c.options, false, 'l’option « Extraction de valeur » n’existe plus');
     // une affaire existante de Jérôme (document tel qu’en 2.3.3) reste valide
     const ancienne = { id: 'x', titre: 'Ancienne', etape: 'gagne', statut: 'gagnee', datesEtapes: { gagne: new Date('2026-10-02T10:00:00Z') }, encaissements: [], montant: 500 };
     assert.equal(L.libelleEtape(ancienne.etape, c), 'Gagné');
@@ -43,11 +43,11 @@ describe('Configuration : six emplacements, valeurs de départ, migration douce'
     assert.equal(L.CALCULS.ca_signe.calculer({ affaires: [ancienne], config: c }, '2026-10'), 500);
   });
 
-  test('sans configuration, un espace client part du jeu neutre : suivi des paiements et extraction éteints, dossier Drive et célébrations allumés', () => {
+  test('sans configuration, un espace client part du jeu neutre : suivi des paiements éteint, dossier Drive et célébrations allumés', () => {
     const c = L.construireConfig({}, { racine: false });
     assert.equal(c.roleGagnee, 'etape_5');
     assert.equal(c.options.suiviPaiements, false);
-    assert.equal(c.options.extractionValeur, false);
+    assert.equal('extractionValeur' in c.options, false);
     assert.equal(c.options.boutonsDepot, true);
     assert.equal(c.options.celebrations, true);
     assert.equal(c.options.clotureBloquee, true);
@@ -58,7 +58,7 @@ describe('Configuration : six emplacements, valeurs de départ, migration douce'
     const c = L.construireConfig({
       etapes: { items: [{ libelle: '  Prise   de contact ', description: 'Premier échange', couleur: '#112233', actif: true }, {}, {}, { actif: false }, { libelle: 'Signé', actif: true }], roleGagnee: 'etape_5' },
       phases: { items: [], roleCloture: 'phase_3' },
-      reglages: { suiviPaiements: true, extractionValeur: 'oui', debutActivite: '2026-03' },
+      reglages: { suiviPaiements: true, extractionValeur: true, debutActivite: '2026-03' },
     }, { racine: false, membres: [{ id: 'a@x.fr', libelle: 'A', email: 'a@x.fr' }] });
     assert.deepEqual([c.etapes[0].libelle, c.etapes[0].description, c.etapes[0].couleur], ['Prise de contact', 'Premier échange', '#112233']);
     assert.equal(c.etapes[3].actif, false);
@@ -66,17 +66,17 @@ describe('Configuration : six emplacements, valeurs de départ, migration douce'
     assert.equal(c.roleGagnee, 'etape_5');
     assert.equal(c.roleCloture, 'phase_3');
     assert.equal(c.options.suiviPaiements, true);
-    assert.equal(c.options.extractionValeur, false, 'une valeur qui n’est pas vrai/faux est ignorée');
+    assert.equal('extractionValeur' in c.options, false, 'l’ancien réglage « extractionValeur » resté dans la base est ignoré, sans erreur');
     assert.equal(c.debutActivite, '2026-03');
     assert.equal(c.membres.length, 1);
   });
 
-  test('P1 un nouvel espace (aucun réglage enregistré) a « Créer un dossier dans Google Drive » et les célébrations allumés, l’extraction de valeur éteinte', () => {
-    assert.deepEqual({ ...L.OPTIONS_NEUTRES }, { suiviPaiements: false, clotureBloquee: true, extractionValeur: false, boutonsDepot: true, celebrations: true });
+  test('P1 un nouvel espace (aucun réglage enregistré) a « Créer un dossier dans Google Drive » et les célébrations allumés', () => {
+    assert.deepEqual({ ...L.OPTIONS_NEUTRES }, { suiviPaiements: false, clotureBloquee: true, boutonsDepot: true, celebrations: true });
     const c = L.construireConfig({ reglages: { debutActivite: '2026-03' } }, { racine: false });
     assert.equal(c.options.boutonsDepot, true);
     assert.equal(c.options.celebrations, true);
-    assert.equal(c.options.extractionValeur, false);
+    assert.equal('extractionValeur' in c.options, false);
   });
 
   test('P2 un booléen déjà enregistré garde la priorité ; seul le champ absent prend la nouvelle valeur par défaut (espace d’Ingrid : boutonsDepot=false écrit, inchangé)', () => {
@@ -129,7 +129,7 @@ describe('Configuration : contrôle avant enregistrement', () => {
   });
   test('comptage des fiches : toutes les affaires, archivées et perdues comprises', () => {
     assert.deepEqual(L.comptesParEtape([{ etape: 'a' }, { etape: 'a', archive: true }, { etape: 'b', statut: 'perdue' }]), { a: 2, b: 1 });
-    assert.deepEqual(P.comptesParPhase([{ phase: 'p' }, { phase: 'p', archive: true, nature: 'extraction' }]), { p: 2 });
+    assert.deepEqual(P.comptesParPhase([{ phase: 'p' }, { phase: 'p', archive: true }]), { p: 2 });
   });
   test('action suggérée : titre obligatoire, délai entier de 0 à 365, type connu pour une étape', () => {
     const items = six();
@@ -305,26 +305,6 @@ describe('Projets : phases configurables, clôture, options', () => {
     const impaye = P.terminerProjet(p, ctx(avec), { impaye: { raison: 'Client disparu' } });
     assert.equal(impaye.patch.factures[0].statut, 'abandonnee');
   });
-  test('extraction de valeur éteinte : aucun plan n’en crée ; allumée : comme avant', () => {
-    const off = N;
-    const on = avecOptions(L.construireConfig({ etapes: { roleGagnee: 'etape_5' } }, { racine: false }), { extractionValeur: true });
-    const a = affaire(on, { etape: 'etape_2' });
-    assert.equal(P.planChangerEtapeAvecExtraction({ affaire: a, etape: 'etape_5' }, ctx(off)).extraction, null);
-    assert.ok(P.planChangerEtapeAvecExtraction({ affaire: a, etape: 'etape_5' }, ctx(on)).extraction);
-    assert.equal(P.planMarquerPerdueAvecExtraction({ affaire: a, saisie: { raison: 'Prix' } }, ctx(off)).extraction, null);
-    assert.ok(P.planMarquerPerdueAvecExtraction({ affaire: a, saisie: { raison: 'Prix' } }, ctx(on)).extraction);
-    assert.equal(P.planTerminerProjetAvecExtraction({ projet: projet(off) }, ctx(off)).extraction, null);
-    assert.ok(P.planTerminerProjetAvecExtraction({ projet: projet(on) }, ctx(on)).extraction);
-    const manuel = P.planExtraireProjet({ projet: projet(off) }, ctx(off));
-    assert.ok(manuel.erreurs.projet);
-    assert.deepEqual(manuel.ecritures, []);
-    assert.ok(P.planExtraireProjet({ projet: projet(on) }, ctx(on)).extraction);
-    // l’extraction d’un espace client tombe dans des phases qui existent
-    const phases = new Set(P.phasesActives(on).map((p) => p.id));
-    const ecr = P.planTerminerProjetAvecExtraction({ projet: projet(on) }, ctx(on)).ecritures.filter((e) => e.collection === 'projets_taches');
-    assert.equal(ecr.length, 4);
-    assert.ok(ecr.every((e) => phases.has(e.donnees.phase)));
-  });
   test('action suggérée d’une phase : aucune par défaut, jamais créée toute seule', () => {
     assert.equal(P.changementPhase(projet(N), 'phase_2', ctx(N)).suggestion, null);
     const c = L.construireConfig({ phases: { items: [{}, { action: { titre: 'Point d’étape', delaiJours: 7 } }] } }, { racine: false });
@@ -342,7 +322,7 @@ describe('Projets : phases configurables, clôture, options', () => {
     const plan = P.planCreerProjet({ titre: 'Essai' }, ctx(N), { modele: P.MODELES_NEUTRES[0] });
     assert.deepEqual(plan.ecritures.filter((e) => e.collection === 'projets_taches').map((e) => e.donnees.phase), ['phase_1', 'phase_2', 'phase_3']);
     assert.deepEqual(P.planInitialiserModeles({ racine: false }).ecritures.map((e) => e.id), ['projet-type']);
-    assert.deepEqual(P.planInitialiserModeles({ racine: true }).ecritures.map((e) => e.id), ['audit', 'accompagnement', 'extraction']);
+    assert.deepEqual(P.planInitialiserModeles({ racine: true }).ecritures.map((e) => e.id), ['audit', 'accompagnement']);
   });
 });
 

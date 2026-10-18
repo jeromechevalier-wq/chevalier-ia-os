@@ -53,11 +53,11 @@ export const OUTILS_ECRITURE = [
     besoin: z.string().max(5000).optional(), urlGithub, urlDossier, archive: z.boolean().optional(),
   }, metier.modifierAffaire),
 
-  outil('changer_etape', "Change l'étape d'une affaire comme l'écran (si l'option « Extraction de valeur » est allumée dans cet espace — lire_reglages, configuration.options — une affaire qui devient gagnée sans avoir de projet reçoit son projet d'extraction de valeur : identifiant dans « extraction ») : statut, dates d'étapes, événements du fil ; l'étape « vente gagnée » est celle que la configuration désigne (lire_reglages). Renvoie l'action suggérée par l'étape, s'il y en a une (non créée : à créer avec creer_activite si pertinent).", {
+  outil('changer_etape', "Change l'étape d'une affaire comme l'écran : statut, dates d'étapes, événements du fil ; l'étape « vente gagnée » est celle que la configuration désigne (lire_reglages). Renvoie l'action suggérée par l'étape, s'il y en a une (non créée : à créer avec creer_activite si pertinent).", {
     id, etape: z.string().min(1).max(60),
   }, metier.changerEtape),
 
-  outil('marquer_perdue', `Marque une affaire perdue. Raison parmi : ${L.RAISONS_PERDUE.join(' ; ')}. Si l'option « Extraction de valeur » est allumée dans cet espace (lire_reglages, configuration.options), crée aussi le projet d'extraction de valeur de l'affaire (règles, erreurs, automatisable, documentation marketing), qui reprend la raison de la perte : la réponse donne son identifiant dans « extraction ».`, { id, raison: z.string().min(1).max(60), detail: z.string().max(1000).optional() }, metier.marquerPerdue),
+  outil('marquer_perdue', `Marque une affaire perdue. Raison parmi : ${L.RAISONS_PERDUE.join(' ; ')}.`, { id, raison: z.string().min(1).max(60), detail: z.string().max(1000).optional() }, metier.marquerPerdue),
   outil('mettre_en_pause', 'Met une affaire en pause jusqu\'à une date de réveil (AAAA-MM-JJ).', { id, dateReveil: jour }, metier.mettreEnPause),
   outil('rouvrir_affaire', 'Rouvre une affaire perdue ou en pause.', { id }, metier.rouvrirAffaire),
 
@@ -67,7 +67,7 @@ export const OUTILS_ECRITURE = [
     dateDebut: jour.optional(), dateFin: jour.optional(), urlGithub, urlDossier, proprietaire,
   }, metier.creerProjet),
 
-  outil('creer_projet_depuis_affaire', "Crée le projet d'une affaire GAGNÉE (comme « Créer le projet » de la fiche affaire) : reprend son titre, sa personne, son organisation, son offre, son dépôt et son dossier, lie l'affaire au projet (une affaire n'a qu'un projet) et range l'extraction faite à Gagné si rien n'y a été fait. modeleId : tâches du modèle.", {
+  outil('creer_projet_depuis_affaire', "Crée le projet d'une affaire GAGNÉE (comme « Créer le projet » de la fiche affaire) : reprend son titre, sa personne, son organisation, son offre, son dépôt et son dossier et lie l'affaire au projet (une affaire n'a qu'un projet). modeleId : tâches du modèle.", {
     affaireId: id, modeleId: id.optional(), titre: z.string().max(300).optional(), dateDebut: jour.optional(), dateFin: jour.optional(),
   }, metier.creerProjetDepuisAffaire),
 
@@ -87,11 +87,9 @@ export const OUTILS_ECRITURE = [
     id, archive: z.boolean().describe('true : archiver ; false : désarchiver.'),
   }, metier.archiverProjet),
 
-  outil('terminer_projet', "Termine un projet (phase de clôture de l'espace : lire_reglages, configuration.phases, roleCloture ; statut Terminé, archivé) et, si l'option « Extraction de valeur » est allumée dans cet espace (lire_reglages, configuration.options), crée son projet d'extraction de valeur (sauf pour une extraction, et une seule par projet : identifiant dans « extraction »). Si l'option « Suivi des paiements » est allumée, REFUSÉ tant qu'une facture du projet est à payer : le refus nomme les factures. Deux sorties : marquer la facture payée (marquer_facture_payee), ou recommencer avec impaye: { raison } : chaque facture restante passe à « abandonnee » avec cette raison, le projet se termine et garde sa pastille « Impayé ».", {
+  outil('terminer_projet', "Termine un projet (phase de clôture de l'espace : lire_reglages, configuration.phases, roleCloture ; statut Terminé, archivé). Si l'option « Suivi des paiements » est allumée, REFUSÉ tant qu'une facture du projet est à payer : le refus nomme les factures. Deux sorties : marquer la facture payée (marquer_facture_payee), ou recommencer avec impaye: { raison } : chaque facture restante passe à « abandonnee » avec cette raison, le projet se termine et garde sa pastille « Impayé ».", {
     id, impaye: z.object({ raison: z.string().min(1).max(500) }).optional().describe('Clôturer malgré des factures à payer : elles sont abandonnées, avec cette raison (obligatoire).'),
   }, metier.terminerProjet),
-
-  outil('extraire_valeur_projet', "Disponible seulement si l'option « Extraction de valeur » est allumée dans cet espace (lire_reglages, configuration.options). Déclenche à la main l'extraction de valeur d'un projet, sans attendre sa fin (utile quand le paiement tarde) : crée son projet d'extraction (modèle d'extraction, quatre tâches). Une seule extraction par projet : si elle existe déjà, rien n'est créé et son identifiant est rendu. Un projet d'extraction ne s'extrait pas.", { id }, metier.extraireProjet),
 
   outil('ajouter_tache_projet', "Ajoute une tâche à un projet (phase du projet par défaut ; date AAAA-MM-JJ et heure HH:MM facultatives ; assigneA : un membre de l'espace, voir lire_reglages, referentiels.projets.assignes).", {
     projetId: id, titre: z.string().min(1).max(300), phase: z.string().max(40).optional(), date: jour.optional(),

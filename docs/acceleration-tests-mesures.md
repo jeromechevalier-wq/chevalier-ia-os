@@ -1,5 +1,7 @@
 # Tests plus rapides : mesures avant / après (17/10/2026)
 
+> **Note du 18/10/2026 : l'« Extraction de valeur » citée dans ce document a été supprimée** (décision de Jérôme, voir `cadrage-projets.md`) : plus d'option, de création de projet d'extraction, de modèle, de badge ni d'outil MCP `extraire_valeur_projet`. Les projets déjà créés restent lisibles comme des projets ordinaires. Le texte ci-dessous est conservé comme historique.
+
 Branche `acceleration-tests`. Mac de Jérôme : 10 cœurs. **Le Mac n'a jamais été au repos pendant les mesures** : d'autres sessions lançaient leurs propres tests (charge de 4 à 17 sur 10 cœurs). Les chiffres sont donc des mesures « Mac chargé » ; au repos, ce sera plus court.
 
 ## Avant (3 mesures, `main`, ordre d'origine : tout en série, 1 navigateur)

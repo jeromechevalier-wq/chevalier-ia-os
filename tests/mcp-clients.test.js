@@ -58,7 +58,7 @@ function avecReglages(jeu, client, reglages) {
 function baseInitiale() {
   const a = donneesClient('a', 'ALPHA');
   return tout(
-    a, avecReglages(a, 'a', { suiviPaiements: true, extractionValeur: true }), donneesClient('b', 'BRAVO'), donneesClient('c', 'CHARLIE'),
+    a, avecReglages(a, 'a', { suiviPaiements: true }), donneesClient('b', 'BRAVO'), donneesClient('c', 'CHARLIE'),
     {
       marques: [
         fichier('a', 'Cabinet Alpha', { logo: 'https://exemple.test/alpha.png' }), fichier('b', 'Atelier Bravo', { couleur: '#aa3355' }),
@@ -560,7 +560,7 @@ describe('Suppressions MCP : double confirmation, plafond par document, annotati
       assert.ok(o.annotations, `${o.name} sans annotations`);
       assert.equal(o.annotations.openWorldHint, false, o.name);
       if (/^(supprimer_|restaurer_depuis_audit)/.test(o.name)) assert.deepEqual([o.annotations.readOnlyHint, o.annotations.destructiveHint], [false, true], o.name);
-      else if (/^(chercher|lire_|lister_|qui_suis_je|extraire_valeur)/.test(o.name) && o.name !== 'extraire_valeur_projet') assert.deepEqual([o.annotations.readOnlyHint, o.annotations.destructiveHint], [true, false], o.name);
+      else if (/^(chercher|lire_|lister_|qui_suis_je)/.test(o.name)) assert.deepEqual([o.annotations.readOnlyHint, o.annotations.destructiveHint], [true, false], o.name);
       else assert.deepEqual([o.annotations.readOnlyHint, o.annotations.destructiveHint], [false, false], o.name);
     }
     await c.close();
@@ -858,8 +858,7 @@ describe('Jérôme : son serveur ne change pas', () => {
 
 // --- textes des outils et liste selon les options (2.11.0) ----------------------------------------------------------------------------------
 const OUTILS_FACTURES = ['abandonner_facture', 'ajouter_facture', 'marquer_facture_payee'];
-const OUTIL_EXTRACTION = 'extraire_valeur_projet';
-const QUATRE = [...OUTILS_FACTURES, OUTIL_EXTRACTION].sort();
+const OUTIL_SUPPRIME = 'extraire_valeur_projet'; // supprimé le 18/10/2026 avec la fonctionnalité « Extraction de valeur »
 const reglerOptions = (client, options) => donnees.appliquer([{ type: 'set', collection: `clients/${client}/crm_parametres`, id: 'reglages', donnees: { id: 'reglages', delaiPaiementJours: 45, ...options } }]);
 const outilsDe = async (client, identite = 'ID-ALICE') => {
   const t = await connecter(client, identite);
@@ -873,7 +872,7 @@ const TEXTE_DE_JEROME = /\b(premier_contact|rdv_fixe|proposition_envoyee|gagne|l
 describe('Textes des outils : valables pour tout espace (Partie A)', () => {
   test('D1a aucun outil ne cite une étape, une phase, une offre ou une adresse propre à Jérôme (le test échoue bien sur l\'ancien texte)', () => {
     // Garde-fou du test lui-même : l'expression reconnaît les anciens textes, et laisse passer les mots légitimes.
-    for (const ancien of ['Étapes : premier_contact, rdv_fixe, proposition_envoyee, gagne', 'défaut : jerome.chevalier@gmail.com', 'Le propriétaire est Jérôme par défaut', 'Phase de départ : lancement', '(Audit, Accompagnement, Extraction…)', 'phases decouverte, cloture']) {
+    for (const ancien of ['Étapes : premier_contact, rdv_fixe, proposition_envoyee, gagne', 'défaut : jerome.chevalier@gmail.com', 'Le propriétaire est Jérôme par défaut', 'Phase de départ : lancement', '(Audit, Accompagnement, Étude…)', 'phases decouverte, cloture']) {
       assert.match(ancien, TEXTE_DE_JEROME, ancien);
     }
     for (const permis of ['une affaire gagnée', 'nature livraison', 'lire_audit : le journal d\'audit', 'phase de clôture']) assert.doesNotMatch(permis, TEXTE_DE_JEROME, permis);
@@ -904,39 +903,41 @@ describe('Textes des outils : valables pour tout espace (Partie A)', () => {
   });
 });
 
-describe('Outils factures et extraction : listés selon les options de l\'espace (Partie B)', () => {
-  test('D3a options éteintes : aucun des 4 outils (liste et qui_suis_je) ; ajouter_facture refusé, base identique, aucune ligne d\'audit', async () => {
+describe('Outils factures : listés selon les options de l\'espace (Partie B)', () => {
+  test('D3a options éteintes : aucun des 3 outils de factures (liste et qui_suis_je) ; ajouter_facture refusé, base identique, aucune ligne d\'audit', async () => {
     await reinitialiser();
     const { c, liste } = await outilsDe('c');
-    for (const n of QUATRE) assert.ok(!liste.includes(n), n);
+    for (const n of OUTILS_FACTURES) assert.ok(!liste.includes(n), n);
     assert.ok(liste.includes('creer_projet') && liste.includes('lister_projets'));
     const qui = resultat(await c.callTool({ name: 'qui_suis_je', arguments: {} }));
-    for (const n of QUATRE) assert.ok(!qui.outils.includes(n), `qui_suis_je : ${n}`);
+    for (const n of OUTILS_FACTURES) assert.ok(!qui.outils.includes(n), `qui_suis_je : ${n}`);
     const avant = await donneesDe('c');
-    for (const n of QUATRE) assert.ok(await refuse(c, n, { projetId: 'x', id: 'x', factureId: 'x', montant: 100, raison: 'x' }), n);
+    for (const n of OUTILS_FACTURES) assert.ok(await refuse(c, n, { projetId: 'x', id: 'x', factureId: 'x', montant: 100, raison: 'x' }), n);
     assert.deepEqual(await donneesDe('c'), avant, 'aucune écriture');
     assert.equal((await donnees.liste('clients/c/crm_audit')).length, avant['clients/c/crm_audit'].length, 'aucune ligne d\'audit');
     assert.ok(lignesJournal.some((l) => l.outil === 'inconnu'), 'le journal ne nomme pas un outil qui n\'est pas proposé');
     await c.close();
   });
 
-  test('D3a2 une seule option allumée : seuls ses outils sont là (factures sans extraction, puis extraction sans factures)', async () => {
+  test('D3a2 seul le suivi des paiements donne des outils ; un ancien réglage « extractionValeur » resté dans la base n\'en donne aucun', async () => {
     try {
       await reglerOptions('c', { suiviPaiements: true });
       let o = await outilsDe('c');
-      assert.deepEqual(QUATRE.filter((n) => o.liste.includes(n)), OUTILS_FACTURES);
+      assert.deepEqual(OUTILS_FACTURES.filter((n) => o.liste.includes(n)), OUTILS_FACTURES);
       await o.c.close();
-      await reglerOptions('c', { extractionValeur: true });
+      await reglerOptions('c', { suiviPaiements: false, extractionValeur: true });
       o = await outilsDe('c');
-      assert.deepEqual(QUATRE.filter((n) => o.liste.includes(n)), [OUTIL_EXTRACTION]);
+      assert.deepEqual(OUTILS_FACTURES.filter((n) => o.liste.includes(n)), []);
+      assert.ok(!o.liste.includes(OUTIL_SUPPRIME), 'X6 extraire_valeur_projet n\'existe plus');
       await o.c.close();
     } finally { await reinitialiser(); }
   });
 
-  test('D3b options allumées : les 4 outils sont listés et une facture s\'ajoute comme avant', async () => {
+  test('D3b options allumées : les 3 outils de factures sont listés et une facture s\'ajoute comme avant', async () => {
     await reinitialiser();
     const { c, liste } = await outilsDe('a');
-    for (const n of QUATRE) assert.ok(liste.includes(n), n);
+    for (const n of OUTILS_FACTURES) assert.ok(liste.includes(n), n);
+    assert.ok(!liste.includes(OUTIL_SUPPRIME), 'X6 extraire_valeur_projet n\'existe plus, même option ancienne allumée');
     const projet = resultat(await c.callTool({ name: 'creer_projet', arguments: { titre: 'Projet de facture' } }));
     const f = resultat(await c.callTool({ name: 'ajouter_facture', arguments: { projetId: projet.id, montant: 300, libelle: 'Acompte 30 %' } }));
     assert.ok(f.operationId);
@@ -946,22 +947,23 @@ describe('Outils factures et extraction : listés selon les options de l\'espace
     await reinitialiser();
   });
 
-  test('D3c lire_reglages indique configuration.options.suiviPaiements et .extractionValeur (faux sur c, vrai sur a)', async () => {
+  test('D3c lire_reglages indique configuration.options.suiviPaiements (faux sur c, vrai sur a) et plus extractionValeur', async () => {
     const eteint = await outilsDe('c');
     const allume = await outilsDe('a');
     const oe = resultat(await eteint.c.callTool({ name: 'lire_reglages', arguments: {} })).configuration.options;
     const oa = resultat(await allume.c.callTool({ name: 'lire_reglages', arguments: {} })).configuration.options;
     assert.equal(oe.suiviPaiements, false);
-    assert.equal(oe.extractionValeur, false);
+    assert.equal('extractionValeur' in oe, false);
     assert.equal(oa.suiviPaiements, true);
-    assert.equal(oa.extractionValeur, true);
+    assert.equal('extractionValeur' in oa, false);
     await eteint.c.close(); await allume.c.close();
   });
 
-  test('D3d table option -> outils : exactement les quatre outils, déclarée dans le gestionnaire des clients', () => {
-    assert.deepEqual(Object.keys(OUTILS_PAR_OPTION).sort(), ['extractionValeur', 'suiviPaiements']);
-    assert.deepEqual(Object.values(OUTILS_PAR_OPTION).flat().sort(), QUATRE);
-    for (const n of QUATRE) assert.ok(OUTILS.some((o) => o.nom === n), n);
+  test('D3d table option -> outils : exactement les trois outils de factures, déclarée dans le gestionnaire des clients', () => {
+    assert.deepEqual(Object.keys(OUTILS_PAR_OPTION).sort(), ['suiviPaiements']);
+    assert.deepEqual(Object.values(OUTILS_PAR_OPTION).flat().sort(), OUTILS_FACTURES);
+    for (const n of OUTILS_FACTURES) assert.ok(OUTILS.some((o) => o.nom === n), n);
+    assert.ok(!OUTILS.some((o) => o.nom === OUTIL_SUPPRIME), 'X6 l\'outil est supprimé du serveur');
   });
 
   test('D3e lecture des réglages en panne : 503 « indisponible », aucun outil servi, jamais « tous les outils »', async () => {
@@ -984,14 +986,14 @@ describe('Outils factures et extraction : listés selon les options de l\'espace
       const c1 = await assistant('/mcp/c', t.access_token);
       assert.ok(!noms(await c1.listTools()).includes('ajouter_facture'));
       await c1.close();
-      await reglerOptions('c', { suiviPaiements: true, extractionValeur: true });
+      await reglerOptions('c', { suiviPaiements: true });
       const c2 = await assistant('/mcp/c', t.access_token);
       const liste = noms(await c2.listTools());
-      for (const n of QUATRE) assert.ok(liste.includes(n), n);
+      for (const n of OUTILS_FACTURES) assert.ok(liste.includes(n), n);
       await c2.close();
-      await reglerOptions('c', { suiviPaiements: false, extractionValeur: false });
+      await reglerOptions('c', { suiviPaiements: false });
       const c3 = await assistant('/mcp/c', t.access_token);
-      for (const n of QUATRE) assert.ok(!noms(await c3.listTools()).includes(n), `éteint à nouveau : ${n}`);
+      for (const n of OUTILS_FACTURES) assert.ok(!noms(await c3.listTools()).includes(n), `éteint à nouveau : ${n}`);
       await c3.close();
     } finally { await reinitialiser(); }
   });

@@ -48,11 +48,10 @@ export function rendreModeles(conteneur, { page = true } = {}) {
     const lignes = modeles.map((m) => h('tr', { class: 'ligne-liste', dataset: { id: m.id }, onclick: (e) => { if (!e.target.closest('a, button')) naviguer(`projets/modeles/${m.id}`); } },
       h('td', { dataset: { libelle: 'Nom' } }, h('a', { class: 'cellule-nom', href: cheminModele(m.id) }, h('span', {}, m.nom))),
       h('td', { dataset: { libelle: 'Offre' } }, libelleOffre(m.offreId) || null),
-      h('td', { dataset: { libelle: 'Nature' } }, P.libelleNature(m.nature || 'livraison')),
       h('td', { dataset: { libelle: 'Tâches' } }, String((m.taches || []).length)),
       h('td', { dataset: { libelle: 'État' } }, m.actif === false ? h('span', { class: 'badge-pause' }, 'Inactif') : 'Actif')));
     remplir(zone, h('div', { class: 'zone-tableau' }, h('table', { class: 'tableau tableau-modeles' },
-      h('thead', {}, h('tr', {}, ['Nom', 'Offre', 'Nature', 'Tâches', 'État'].map((c) => h('th', { scope: 'col' }, h('span', { class: 'tri' }, c))))),
+      h('thead', {}, h('tr', {}, ['Nom', 'Offre', 'Tâches', 'État'].map((c) => h('th', { scope: 'col' }, h('span', { class: 'tri' }, c))))),
       h('tbody', {}, lignes))));
   }
 
@@ -127,8 +126,7 @@ export function rendreFicheModele(conteneur, id) {
       id: 'modele-parametres', titre: 'Paramètres',
       contenu: h('div', { class: 'proprietes' },
         champPropriete({ libelle: 'Offre', valeur: m.offreId || '', type: 'select', options: offres.map((o) => ({ valeur: o.id, libelle: o.nom })), surEnregistrer: (v) => D.majModele(m.id, { offreId: v || null }) }).element,
-        champPropriete({ libelle: 'Nature', valeur: m.nature || 'livraison', type: 'select', options: P.NATURES_PROJET.filter((n) => n.id !== 'extraction' || P.extractionActive(cfg()) || m.nature === 'extraction').map((n) => ({ valeur: n.id, libelle: n.libelle })), surEnregistrer: (v) => D.majModele(m.id, { nature: v || 'livraison' }) }).element,
-        h('p', { class: 'aide' }, 'Quand on crée un projet depuis une affaire gagnée, le modèle de son offre est proposé. Un projet créé depuis un modèle « Extraction de valeur » est un projet d’extraction.')),
+        h('p', { class: 'aide' }, 'Quand on crée un projet depuis une affaire gagnée, le modèle de son offre est proposé.')),
     });
 
     function ligne(t, g, i) {

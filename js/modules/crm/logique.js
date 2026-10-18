@@ -132,8 +132,8 @@ export const PHASES_JEROME = [
 ];
 
 /** Options du CRM d'un espace (interrupteurs, stockés dans `crm_parametres/reglages`). */
-export const OPTIONS_NEUTRES = Object.freeze({ suiviPaiements: false, clotureBloquee: true, extractionValeur: false, boutonsDepot: true, celebrations: true });
-export const OPTIONS_JEROME = Object.freeze({ suiviPaiements: true, clotureBloquee: true, extractionValeur: true, boutonsDepot: true, celebrations: true });
+export const OPTIONS_NEUTRES = Object.freeze({ suiviPaiements: false, clotureBloquee: true, boutonsDepot: true, celebrations: true });
+export const OPTIONS_JEROME = Object.freeze({ suiviPaiements: true, clotureBloquee: true, boutonsDepot: true, celebrations: true });
 export const CLES_OPTIONS = Object.freeze(Object.keys(OPTIONS_NEUTRES));
 
 /** Membres auxquels une tâche peut être confiée à la racine (le CRM de Jérôme n'a pas de liste de membres : c'est Jérôme et Charles). */

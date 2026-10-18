@@ -401,7 +401,7 @@ test('P2 « Supprimé · Annuler » : une FACTURE supprimée revient à l\'ident
 
 test('P2 « Supprimé · Annuler » : une TÂCHE TYPE et un MODÈLE DE PROJET supprimés reviennent à l\'identique', async ({ page }) => {
   await connecter(page);
-  await expect.poll(async () => (await listerDocuments('projets_modeles')).length, { timeout: 15_000 }).toBe(3);
+  await expect.poll(async () => (await listerDocuments('projets_modeles')).length, { timeout: 15_000 }).toBe(2);
   await aller(page, '#/projets/modeles/audit');
   const avant = await lireDocument('projets_modeles/audit');
   await page.locator('[data-action="menu-tache-modele"]').first().click();

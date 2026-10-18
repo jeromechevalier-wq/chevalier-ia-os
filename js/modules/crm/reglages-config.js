@@ -184,7 +184,6 @@ function sectionOptions() {
     remplir(corps,
       interrupteur({ cle: 'suiviPaiements', titre: 'Suivi des paiements', aide: 'Une liste de factures par projet (À payer, Payée, Abandonnée) et les objectifs « facturé » et « encaissé ».' }),
       interrupteur({ cle: 'clotureBloquee', titre: 'Clôture bloquée tant qu’une facture est à payer', aide: 'Un projet ne se termine pas tant qu’une facture est à payer. Sans effet si le suivi des paiements est éteint.', desactive: !o.suiviPaiements }),
-      interrupteur({ cle: 'extractionValeur', titre: 'Extraction de valeur', aide: 'Crée un projet d’extraction quand une affaire est perdue ou gagnée sans projet, ou un projet terminé.' }),
       interrupteur({ cle: 'celebrations', titre: 'Célébrations', aide: 'Feu d’artifice quand une affaire est gagnée, un projet terminé ou une facture payée (prénom et image au choix).' }),
       o.celebrations ? caseLogo : null,
       o.celebrations ? h('div', { class: 'ligne-champs' }, prenom, utiliserLogo ? null : image) : null,

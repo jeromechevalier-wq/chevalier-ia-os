@@ -433,8 +433,19 @@ async function appliquer(plan, outil) {
   return plan;
 }
 
-// Le changement d'étape et la perte d'une affaire sont dans projets/donnees.js (`changerEtapeAffaire`, `marquerAffairePerdue`) : ils créent aussi le
-// projet d'extraction de valeur, avec la même règle pour l'écran et le serveur MCP.
+/** Changement d'étape ; renvoie { erreurs, patch, evenements, suggestion }. */
+export async function changerEtapeAffaire(id, etape, options = {}) {
+  const a = affaire(id);
+  if (!a) throw new Error('Affaire introuvable');
+  return appliquer(L.planChangerEtape(a, etape, ctx(), options), 'changerEtape');
+}
+
+/** Affaire perdue ; renvoie { erreurs, patch, evenements }. */
+export async function marquerAffairePerdue(id, saisie) {
+  const a = affaire(id);
+  if (!a) throw new Error('Affaire introuvable');
+  return appliquer(L.planMarquerPerdue(a, saisie, ctx()), 'marquerAffairePerdue');
+}
 
 export async function mettreAffaireEnPause(id, saisie) {
   return appliquer(L.planMettreEnPause(affaire(id), saisie, ctx()), 'mettreAffaireEnPause');

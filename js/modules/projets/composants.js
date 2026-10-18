@@ -18,7 +18,7 @@ export function carteProjetMini(projet) {
   const etat = projet.statut === 'actif' ? P.libellePhase(projet.phase, cfg()) : P.libelleStatutProjet(projet.statut);
   return h('a', { class: 'carte-affaire-mini carte-projet-mini', href: cheminProjet(projet.id), dataset: { projet: projet.id } },
     h('span', { class: 'carte-affaire-titre' }, projet.titre),
-    h('span', { class: 'carte-affaire-meta' }, etat, projet.nature === 'extraction' && P.extractionActive(cfg()) ? ' · Extraction' : '', projet.archive ? ' · Archivé' : ''),
+    h('span', { class: 'carte-affaire-meta' }, etat, projet.archive ? ' · Archivé' : ''),
     barrePhases(projet));
 }
 

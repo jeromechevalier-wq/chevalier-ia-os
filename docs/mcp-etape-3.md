@@ -1,5 +1,7 @@
 # Étape 3 du serveur MCP : lecture du CRM (guide pour Jérôme)
 
+> **Note du 18/10/2026 : l'« Extraction de valeur » citée dans ce document a été supprimée** (décision de Jérôme, voir `cadrage-projets.md`) : plus d'option, de création de projet d'extraction, de modèle, de badge ni d'outil MCP `extraire_valeur_projet`. Les projets déjà créés restent lisibles comme des projets ordinaires. Le texte ci-dessous est conservé comme historique.
+
 Référence : `plan-mcp.md`, sections 5.1, 5.3 et 5.9. Après cette étape, **Claude Code peut lire ton CRM** par `https://chevalier-ia-os.web.app/mcp` : chercher, ouvrir une fiche, lister les affaires et les activités, lire les réglages et le journal d'audit. **Rien ne peut encore être écrit** : aucun outil d'écriture n'existe.
 
 ## Ce qui est livré

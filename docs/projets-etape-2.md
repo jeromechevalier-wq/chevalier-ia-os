@@ -1,5 +1,7 @@
 # Écran Projets, étape 2 sur 7 : le Kanban et la fiche projet (06/10/2026)
 
+> **Note du 18/10/2026 : l'« Extraction de valeur » citée dans ce document a été supprimée** (décision de Jérôme, voir `cadrage-projets.md`) : plus d'option, de création de projet d'extraction, de modèle, de badge ni d'outil MCP `extraire_valeur_projet`. Les projets déjà créés restent lisibles comme des projets ordinaires. Le texte ci-dessous est conservé comme historique.
+
 Premier écran visible : une entrée **Projets** dans le menu (`#/projets/projets`), un projet par fiche (`#/projets/projets/<id>`), et « Projet » dans le bouton « + ».
 
 ## Ce qui est construit
