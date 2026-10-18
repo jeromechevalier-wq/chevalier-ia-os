@@ -10,7 +10,7 @@ const id = z.string().min(1).max(200);
 const jour = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Attendu AAAA-MM-JJ').describe('Date AAAA-MM-JJ.');
 const contacts = z.array(z.object({ valeur: z.string().max(200), type: z.enum(L.TYPES_CONTACT.map((t) => t.id)).optional() })).max(10);
 const etiquettes = z.array(z.string().max(80)).max(30).describe('Identifiants d’étiquettes (voir lire_reglages, etiquettes).');
-const proprietaire = z.string().max(120).optional().describe(`Propriétaire de la fiche créée (défaut : ${metier.PROPRIETAIRE_PAR_DEFAUT}).`);
+const proprietaire = z.string().max(120).optional().describe('Propriétaire de la fiche créée (facultatif ; si absent, le propriétaire par défaut de l’espace).');
 const forcer = z.boolean().optional().describe('true : créer malgré un doublon possible (nom ou e-mail déjà connu), après avoir vérifié que c’est une autre fiche.');
 const texteCourt = z.string().max(300);
 const urlGithub = z.string().max(500).optional().describe('Ancien champ « dépôt de code » (https://github.com/compte/nom), facultatif ; chaîne vide pour l’effacer. Pour un nouveau lien, préférer joindre_lien (liste « Liens et documents »).');
@@ -21,7 +21,7 @@ const outil = (nom, description, schema, action, profils = PROFILS) => ({
 });
 
 export const OUTILS_ECRITURE = [
-  outil('creer_personne', "Crée une personne (seul le nom est obligatoire), avec son événement dans le fil. Refuse un doublon (même nom, accents et casse ignorés, ou même e-mail) sauf forcer: true. Le propriétaire est Jérôme par défaut.", {
+  outil('creer_personne', "Crée une personne (seul le nom est obligatoire), avec son événement dans le fil. Refuse un doublon (même nom, accents et casse ignorés, ou même e-mail) sauf forcer: true. Le propriétaire est celui par défaut de l'espace si on n'en donne pas.", {
     nom: z.string().min(1).max(200), organisationId: id.optional(), emails: contacts.optional(), telephones: contacts.optional(), etiquettes: etiquettes.optional(),
     ville: texteCourt.optional(), source: texteCourt.optional(), forcer, proprietaire,
   }, metier.creerPersonne),
@@ -53,16 +53,16 @@ export const OUTILS_ECRITURE = [
     besoin: z.string().max(5000).optional(), urlGithub, urlDossier, archive: z.boolean().optional(),
   }, metier.modifierAffaire),
 
-  outil('changer_etape', "Change l'étape d'une affaire comme l'écran (une affaire qui devient gagnée sans avoir de projet reçoit son projet d'extraction de valeur : identifiant dans « extraction ») : statut, dates d'étapes, événements du fil ; l'étape « vente gagnée » est celle que la configuration désigne (lire_reglages). Renvoie l'action suggérée par l'étape, s'il y en a une (non créée : à créer avec creer_activite si pertinent).", {
+  outil('changer_etape', "Change l'étape d'une affaire comme l'écran (si l'option « Extraction de valeur » est allumée dans cet espace — lire_reglages, configuration.options — une affaire qui devient gagnée sans avoir de projet reçoit son projet d'extraction de valeur : identifiant dans « extraction ») : statut, dates d'étapes, événements du fil ; l'étape « vente gagnée » est celle que la configuration désigne (lire_reglages). Renvoie l'action suggérée par l'étape, s'il y en a une (non créée : à créer avec creer_activite si pertinent).", {
     id, etape: z.string().min(1).max(60),
   }, metier.changerEtape),
 
-  outil('marquer_perdue', `Marque une affaire perdue. Raison parmi : ${L.RAISONS_PERDUE.join(' ; ')}. Crée aussi le projet d'extraction de valeur de l'affaire (règles, erreurs, automatisable, documentation marketing), qui reprend la raison de la perte : la réponse donne son identifiant dans « extraction ».`, { id, raison: z.string().min(1).max(60), detail: z.string().max(1000).optional() }, metier.marquerPerdue),
+  outil('marquer_perdue', `Marque une affaire perdue. Raison parmi : ${L.RAISONS_PERDUE.join(' ; ')}. Si l'option « Extraction de valeur » est allumée dans cet espace (lire_reglages, configuration.options), crée aussi le projet d'extraction de valeur de l'affaire (règles, erreurs, automatisable, documentation marketing), qui reprend la raison de la perte : la réponse donne son identifiant dans « extraction ».`, { id, raison: z.string().min(1).max(60), detail: z.string().max(1000).optional() }, metier.marquerPerdue),
   outil('mettre_en_pause', 'Met une affaire en pause jusqu\'à une date de réveil (AAAA-MM-JJ).', { id, dateReveil: jour }, metier.mettreEnPause),
   outil('rouvrir_affaire', 'Rouvre une affaire perdue ou en pause.', { id }, metier.rouvrirAffaire),
 
   // ---- Projets (2.1) et factures (2.2) : mêmes règles que l'écran
-  outil('creer_projet', `Crée un projet (seul le titre est obligatoire), avec son événement. modeleId (voir lister_modeles_projet) : le projet part avec les tâches du modèle, datées à partir de la date de début. Phase de départ : lancement. Pour le projet d'une affaire gagnée, préférer creer_projet_depuis_affaire.`, {
+  outil('creer_projet', `Crée un projet (seul le titre est obligatoire), avec son événement. modeleId (voir lister_modeles_projet) : le projet part avec les tâches du modèle, datées à partir de la date de début. Phase de départ : la première phase active de l'espace (voir lire_reglages, configuration.phases). Pour le projet d'une affaire gagnée, préférer creer_projet_depuis_affaire.`, {
     titre: z.string().min(1).max(300), personneId: id.optional(), organisationId: id.optional(), offreId: id.optional(), modeleId: id.optional(),
     dateDebut: jour.optional(), dateFin: jour.optional(), urlGithub, urlDossier, proprietaire,
   }, metier.creerProjet),
@@ -76,7 +76,7 @@ export const OUTILS_ECRITURE = [
     dateDebut: jour.nullable().optional(), dateFin: jour.nullable().optional(), urlGithub, urlDossier,
   }, metier.modifierProjet),
 
-  outil('changer_phase_projet', `Change la phase d'un projet, dans tous les sens (on peut revenir en arrière). Phases : celles de lire_reglages (configuration.phases). Vers la phase de clôture, refusé tant qu'une facture est à payer si le suivi des paiements et la règle de clôture bloquée sont allumés (voir terminer_projet pour la sortie « impayé »). Changer la phase d'un projet terminé le rouvre.`, {
+  outil('changer_phase_projet', `Change la phase d'un projet, dans tous les sens (on peut revenir en arrière). Phases : celles de lire_reglages (configuration.phases). Vers la phase de clôture, refusé tant qu'une facture est à payer si les options « Suivi des paiements » et « Clôture bloquée » sont allumées (lire_reglages, configuration.options) (voir terminer_projet pour la sortie « impayé »). Changer la phase d'un projet terminé le rouvre.`, {
     id, phase: z.string().min(1).max(40),
   }, metier.changerPhaseProjet),
 
@@ -87,11 +87,11 @@ export const OUTILS_ECRITURE = [
     id, archive: z.boolean().describe('true : archiver ; false : désarchiver.'),
   }, metier.archiverProjet),
 
-  outil('terminer_projet', "Termine un projet (phase Clôture, statut Terminé, archivé) et crée son projet d'extraction de valeur (sauf pour une extraction, et une seule par projet : identifiant dans « extraction »). REFUSÉ tant qu'une facture du projet est à payer : le refus nomme les factures. Deux sorties : marquer la facture payée (marquer_facture_payee), ou recommencer avec impaye: { raison } : chaque facture restante passe à « abandonnee » avec cette raison, le projet se termine et garde sa pastille « Impayé ».", {
+  outil('terminer_projet', "Termine un projet (phase de clôture de l'espace : lire_reglages, configuration.phases, roleCloture ; statut Terminé, archivé) et, si l'option « Extraction de valeur » est allumée dans cet espace (lire_reglages, configuration.options), crée son projet d'extraction de valeur (sauf pour une extraction, et une seule par projet : identifiant dans « extraction »). Si l'option « Suivi des paiements » est allumée, REFUSÉ tant qu'une facture du projet est à payer : le refus nomme les factures. Deux sorties : marquer la facture payée (marquer_facture_payee), ou recommencer avec impaye: { raison } : chaque facture restante passe à « abandonnee » avec cette raison, le projet se termine et garde sa pastille « Impayé ».", {
     id, impaye: z.object({ raison: z.string().min(1).max(500) }).optional().describe('Clôturer malgré des factures à payer : elles sont abandonnées, avec cette raison (obligatoire).'),
   }, metier.terminerProjet),
 
-  outil('extraire_valeur_projet', "Déclenche à la main l'extraction de valeur d'un projet, sans attendre sa fin (utile quand le paiement tarde) : crée son projet d'extraction (modèle « Extraction », quatre tâches). Une seule extraction par projet : si elle existe déjà, rien n'est créé et son identifiant est rendu. Un projet d'extraction ne s'extrait pas.", { id }, metier.extraireProjet),
+  outil('extraire_valeur_projet', "Disponible seulement si l'option « Extraction de valeur » est allumée dans cet espace (lire_reglages, configuration.options). Déclenche à la main l'extraction de valeur d'un projet, sans attendre sa fin (utile quand le paiement tarde) : crée son projet d'extraction (modèle d'extraction, quatre tâches). Une seule extraction par projet : si elle existe déjà, rien n'est créé et son identifiant est rendu. Un projet d'extraction ne s'extrait pas.", { id }, metier.extraireProjet),
 
   outil('ajouter_tache_projet', "Ajoute une tâche à un projet (phase du projet par défaut ; date AAAA-MM-JJ et heure HH:MM facultatives ; assigneA : un membre de l'espace, voir lire_reglages, referentiels.projets.assignes).", {
     projetId: id, titre: z.string().min(1).max(300), phase: z.string().max(40).optional(), date: jour.optional(),
@@ -102,15 +102,15 @@ export const OUTILS_ECRITURE = [
     id, fait: z.boolean().optional().describe('Défaut true.'),
   }, metier.terminerTacheProjet),
 
-  outil('ajouter_facture', "Ajoute une facture à un projet (une ligne par échéance : 30 % à la commande, 30 % en cours, 40 % à la fin = trois factures). montant en euros (> 0), libelle (ex. « Acompte 30 % »), dateEnvoi. Avec datePaiement, la facture est créée déjà payée. La clôture du projet attend que toutes soient payées ou abandonnées.", {
+  outil('ajouter_facture', "Disponible seulement si l'option « Suivi des paiements » est allumée dans cet espace (lire_reglages, configuration.options). Ajoute une facture à un projet (une ligne par échéance : 30 % à la commande, 30 % en cours, 40 % à la fin = trois factures). montant en euros (> 0), libelle (ex. « Acompte 30 % »), dateEnvoi. Avec datePaiement, la facture est créée déjà payée. La clôture du projet attend que toutes soient payées ou abandonnées.", {
     projetId: id, montant: z.number().positive().max(1e7), libelle: z.string().max(200).optional(), dateEnvoi: jour.optional(), datePaiement: jour.optional(),
   }, metier.ajouterFacture),
 
-  outil('marquer_facture_payee', "Marque une facture payée (date du jour par défaut ; montant seulement si le client a payé une autre somme) : elle compte alors dans le chiffre d'affaires encaissé du mois du paiement, avec son événement « Encaissement ». Une facture payée en deux fois se sépare en deux lignes.", {
+  outil('marquer_facture_payee', "Disponible seulement si l'option « Suivi des paiements » est allumée dans cet espace (lire_reglages, configuration.options). Marque une facture payée (date du jour par défaut ; montant seulement si le client a payé une autre somme) : elle compte alors dans le chiffre d'affaires encaissé du mois du paiement, avec son événement « Encaissement ». Une facture payée en deux fois se sépare en deux lignes.", {
     projetId: id, factureId: id, datePaiement: jour.optional(), montant: z.number().positive().max(1e7).optional(),
   }, metier.marquerFacturePayee),
 
-  outil('abandonner_facture', "Abandonne une facture qui ne sera jamais payée (raison obligatoire) : elle ne compte jamais dans l'encaissé et ne bloque plus la clôture ; le projet garde une pastille « Impayé ».", {
+  outil('abandonner_facture', "Disponible seulement si l'option « Suivi des paiements » est allumée dans cet espace (lire_reglages, configuration.options). Abandonne une facture qui ne sera jamais payée (raison obligatoire) : elle ne compte jamais dans l'encaissé et ne bloque plus la clôture ; le projet garde une pastille « Impayé ».", {
     projetId: id, factureId: id, raison: z.string().min(1).max(500),
   }, metier.abandonnerFacture),
 

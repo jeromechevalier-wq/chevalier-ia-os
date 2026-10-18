@@ -1,14 +1,14 @@
 // Reconnaissance d'un workflow n8n : à QUEL PROPRIÉTAIRE le ranger. Un propriétaire est un client (« audrey ») ou « interne » (Jérôme).
 // Trois signes doivent CONCORDER (décision de Jérôme, 17/10/2026) :
 //  (a) l'ÉTIQUETTE n8n : « client-<identifiant> » pour un client, « interne » pour Jérôme ;
-//  (b) le NOM du workflow commence par le même mot-clé : « interne-… » pour Jérôme ; pour un client, le nom peut commencer par son identifiant (« audrey-… »)
-//      mais ne l'exige pas (compatibilité : la doc n'a jamais imposé de nom aux clients) ;
+//  (b) le NOM du workflow commence par le même mot-clé : « interne-… » pour Jérôme, « client-<identifiant>-… » pour un client (exigé depuis le 18/10/2026,
+//      comme la porte : un nom « audrey-… » ou « PROD - … » est signalé « nom-different ») ;
 //  (c) la CLÉ DE LA PORTE : le credential n8n « Clé n8n - <propriétaire> » (voir docs/porte-cles.md) utilisé par les nœuds. Pour Jérôme : « Clé n8n - interne ».
 //      La comparaison est tolérante (majuscules, accents, espaces, tirets : « CLÉ N8N – Interne » = « Clé n8n - interne »).
 // Règles :
 //  - aucun signe : le workflow est ignoré, sans bruit (c'est le cas normal d'un workflow qui ne relève d'aucun propriétaire) ;
 //  - Jérôme (« interne ») : les TROIS signes sont exigés ; un manquant ou un désaccord = jamais copié et signalé (« À vérifier ») ;
-//  - client : l'étiquette est exigée ; le nom et la clé, SI présents, doivent désigner le même client (un désaccord = refusé et signalé) ;
+//  - client : l'étiquette ET le nom « client-<identifiant>-… » sont exigés ; la clé, SI présente, doit désigner le même client (un désaccord = refusé et signalé) ;
 //  - un signe qui désigne un propriétaire sans les autres (par exemple un nom « audrey-… » sans étiquette) est signalé aussi.
 // Chaque signalement porte un message en français simple (champ `message`), affiché à Jérôme.
 //
@@ -55,6 +55,12 @@ export const normaliser = (t) => String(t ?? '').normalize('NFD').replace(/[\u03
   .replace(/[\u2010-\u2015\u2212_]/g, '-').replace(/\s+/g, ' ').trim();
 /** Un identifiant de propriétaire réduit à ses lettres et chiffres : « Cabinet Martin », « cabinet-martin » et « cabinetmartin » se valent. */
 const reduit = (t) => normaliser(t).replace(/[^a-z0-9]/g, '');
+
+/** Le nom d'un workflow de client commence-t-il par « client-<identifiant> » suivi d'un séparateur (« client-audrey-charras-lire-la-fiche ») ? Même convention que la porte. */
+export function nomClientOk(nom, client) {
+  // Strictement comme la porte (scripts/porte/porte.js) : minuscules, puis « client-<identifiant>- » collé au début (pas de tolérance sur le séparateur).
+  return String(nom ?? '').toLowerCase().startsWith(`${PREFIXE_ETIQUETTE}${String(client).toLowerCase()}-`);
+}
 
 /** Nom du credential n8n attendu pour un propriétaire (pour les messages). */
 export const nomCleDe = (proprietaire) => `Clé n8n - ${proprietaire}`;
@@ -110,12 +116,15 @@ export function lignesDeSignes(w, s, proprietaire, exige) {
     signe: 'Étiquette', ok: tagOk,
     texte: tagOk ? `Étiquette « ${etiquette} » présente.` : `Étiquette « ${etiquette} » ${tags.includes(etiquette) ? 'présente, mais avec d’autres étiquettes de propriétaire' : 'absente'} (étiquettes du workflow : ${tags.length ? tags.join(', ') : 'aucune'}).`,
   }];
-  const nomOk = s.nom === moi || (!exige && s.nom === null);
+  // Le nom est exigé pour tous : « interne-… » pour Jérôme, « client-<identifiant>-… » pour un client (décision de Jérôme, 18/10/2026).
+  const interne = proprietaire === PROPRIETAIRE_INTERNE;
+  const nomOk = interne ? s.nom === moi : nomClientOk(w.name, proprietaire) && (s.nom === null || s.nom === moi);
+  const prefixeNom = interne ? `${proprietaire}-` : `${PREFIXE_ETIQUETTE}${proprietaire}-`;
   lignes.push({
     signe: 'Nom', ok: nomOk,
-    texte: s.nom === moi ? `Le nom commence par « ${proprietaire}- ».` : s.nom === null
-      ? (exige ? `Le nom ne commence pas par « ${proprietaire}- » (nom lu : « ${w.name ?? ''} »).` : 'Nom libre (aucune règle de nom pour un client).')
-      : `Le nom (« ${w.name ?? ''} ») commence par le mot d’un autre propriétaire.`,
+    texte: nomOk ? `Le nom commence par « ${prefixeNom} ».` : s.nom !== null && s.nom !== moi
+      ? `Le nom (« ${w.name ?? ''} ») commence par le mot d’un autre propriétaire.`
+      : `Le nom ne commence pas par « ${prefixeNom} » (nom lu : « ${w.name ?? ''} »).`,
   });
   const lus = (w.cles ?? []).filter(Boolean).map((c) => `« ${c} »`).join(', ');
   const cleOk = s.cles.includes(moi) && s.cles.every((c) => c === moi) || (!exige && s.cles.length === 0);
@@ -165,6 +174,8 @@ export function classer(workflows, { connus, actifs, idsCles = IDENTIFIANTS_CLES
     const id = etiquettes[0].slice(PREFIXE_ETIQUETTE.length).toLowerCase();
     if (!MOTIF_IDENTIFIANT_CLIENT.test(id)) { signalements.push(signal(w, 'etiquette-invalide', `L’étiquette « ${etiquettes[0]} » est mal écrite (lettres, chiffres, tirets, sans espace). Il n’est pas copié.`, etiquettes)); continue; }
     if (!connus.has(id)) { signalements.push(signal(w, 'client-inconnu', `L’étiquette « ${etiquettes[0]} » désigne un client qui n’existe pas. Il n’est pas copié.`, etiquettes, visee(id))); continue; }
+    // Un nom qui désigne un AUTRE propriétaire reste du ressort de « signes-differents » (plus bas) : ici, le nom sans propriétaire ou « audrey-… » à l'ancienne.
+    if (!nomClientOk(w.name, id) && (s.nom === null || s.nom === reduit(id))) { signalements.push(signal(w, 'nom-different', `Le nom de ce workflow (« ${w.name ?? ''} ») doit commencer par « ${PREFIXE_ETIQUETTE}${id}- », comme son étiquette. Il n’est pas copié tant que le nom n’est pas corrigé.`, etiquettes, visee(id))); continue; }
     if (!actifs.has(id)) {
       signalements.push(signal(w, 'sans-module', `Workflow en règle du client « ${id} », qui n’a pas (encore) le module Automatisations : il n’est pas copié. Rien à corriger dans n8n.`, etiquettes,
         { proprietaire: id, lignes: [...lignesDeSignes(w, s, id, false), { signe: 'Module', ok: false, texte: `Le module Automatisations n’est pas activé chez « ${id} ».` }] }));
@@ -181,6 +192,24 @@ export function classer(workflows, { connus, actifs, idsCles = IDENTIFIANTS_CLES
     parClient.get(id).push(w);
   }
   return { parClient, signalements };
+}
+
+/**
+ * Workflows SANS aucune étiquette de propriétaire (ni « interne », ni « client-… ») : on ne sait pas à qui ils sont, donc jamais copiés, et signalés (décision de Jérôme, 18/10/2026).
+ * Les workflows archivés sont ignorés (ils ne tournent plus). Ceux qui portent déjà un signal d'une autre règle (nom « interne-… » ou clé d'un client sans étiquette) sont
+ * déjà signalés par classerInterne() / classer() : l'appelant garde le premier signalement de chaque workflow.
+ */
+export function classerSansEtiquette(workflows) {
+  const signalements = [];
+  for (const w of workflows) {
+    if (w.archive === true || !MOTIF_ID_N8N.test(String(w.id))) continue;
+    const tags = (w.tags ?? []).map(String);
+    if (tags.some((t) => t.toLowerCase().startsWith(PREFIXE_ETIQUETTE) || normaliser(t) === ETIQUETTE_INTERNE)) continue;
+    signalements.push(signal(w, 'sans-etiquette',
+      `Ce workflow n’a ni l’étiquette « ${ETIQUETTE_INTERNE} » ni une étiquette « ${PREFIXE_ETIQUETTE}<identifiant> » : on ne sait pas à qui il est. Il n’est pas copié. Ajoute l’une des deux dans n8n, ou archive-le s’il ne sert plus.`,
+      [], { lignes: [{ signe: 'Étiquette', ok: false, texte: `Aucune étiquette de propriétaire (étiquettes du workflow : ${tags.length ? tags.join(', ') : 'aucune'}).` }] }));
+  }
+  return { signalements };
 }
 
 /**

@@ -6,13 +6,14 @@ import { test, describe, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { createHash, randomBytes } from 'node:crypto';
+import { z } from '../functions/node_modules/zod/index.js';
 import { Client } from '../functions/node_modules/@modelcontextprotocol/sdk/dist/esm/client/index.js';
 import { StreamableHTTPClientTransport } from '../functions/node_modules/@modelcontextprotocol/sdk/dist/esm/client/streamableHttp.js';
 import { creerAccesMemoire, avecBase } from '../functions/src/coeur/donnees.js';
 import { creerLimiteur } from '../functions/src/securite/limites.js';
 import { creerEspaces } from '../functions/src/clients/espaces.js';
 import { creerRouteurOauthClients } from '../functions/src/clients/routeur-oauth.js';
-import { creerGestionnaireClients, outilsDesModules } from '../functions/src/clients/gestionnaire.js';
+import { creerGestionnaireClients, outilsDesModules, OUTILS_PAR_OPTION } from '../functions/src/clients/gestionnaire.js';
 import { OUTILS } from '../functions/src/mcp/outils/index.js';
 import { EMETTEUR_PLATEFORME as EMETTEUR } from '../functions/src/clients/config.js';
 import { collections } from './_donnees-essai.js';
@@ -49,35 +50,46 @@ function donneesClient(client, marqueur) {
 }
 const tout = (...ensembles) => Object.assign({}, ...ensembles);
 const fichier = (client, nom, extra = {}) => ({ id: client, actif: true, nom, couleur: '#336699', ...extra });
+/** Même jeu d'essai, avec des réglages précis : « a » a les deux options allumées, « c » n'a rien réglé (valeurs neutres : options éteintes). */
+function avecReglages(jeu, client, reglages) {
+  const nom = `clients/${client}/crm_parametres`;
+  return { [nom]: jeu[nom].map((d) => (d.id === 'reglages' ? { ...d, ...reglages } : d)) };
+}
 function baseInitiale() {
+  const a = donneesClient('a', 'ALPHA');
   return tout(
-    donneesClient('a', 'ALPHA'), donneesClient('b', 'BRAVO'),
+    a, avecReglages(a, 'a', { suiviPaiements: true, extractionValeur: true }), donneesClient('b', 'BRAVO'), donneesClient('c', 'CHARLIE'),
     {
       marques: [
         fichier('a', 'Cabinet Alpha', { logo: 'https://exemple.test/alpha.png' }), fichier('b', 'Atelier Bravo', { couleur: '#aa3355' }),
-        fichier('sans-mcp', 'Sans MCP'), fichier('dormant', 'Dormant', { actif: false }),
+        fichier('sans-mcp', 'Sans MCP'), fichier('dormant', 'Dormant', { actif: false }), fichier('c', 'Cabinet Charlie'),
       ],
       clients: [
         { id: 'a', modules: { affaires: true, projets: true, mcp: true } },
         { id: 'b', modules: { affaires: true, projets: false, mcp: true } },
         { id: 'sans-mcp', modules: { affaires: true, projets: true, mcp: false } },
         { id: 'dormant', modules: { affaires: true, mcp: true } },
+        { id: 'c', modules: { affaires: true, projets: true, mcp: true } },
       ],
       'clients/a/membres': [{ id: ALICE, role: 'editeur', nom: 'Alice' }, { id: LEA, role: 'lecteur' }, { id: CLARA, role: 'editeur' }],
       'clients/b/membres': [{ id: BOB, role: 'editeur' }, { id: CLARA, role: 'lecteur' }],
       'clients/sans-mcp/membres': [{ id: ALICE, role: 'editeur' }],
       'clients/dormant/membres': [{ id: ALICE, role: 'editeur' }],
+      'clients/c/membres': [{ id: ALICE, role: 'editeur' }],
     },
   );
 }
 
-let serveur, base, donnees, lignesJournal, horloge, panne;
+let serveur, base, donnees, lignesJournal, horloge, panne, panneReglages;
 const maintenant = () => horloge;
 
 before(async () => {
   donnees = creerAccesMemoire(baseInitiale());
   const lire = donnees.document;
-  donnees.document = async (...a) => { if (panne) throw new Error('Firestore en panne : détail interne'); return lire(...a); };
+  donnees.document = async (...a) => {
+    if (panne || (panneReglages && String(a[0]).endsWith('/crm_parametres'))) throw new Error('Firestore en panne : détail interne');
+    return lire(...a);
+  };
   const oauth = creerRouteurOauthClients({
     donnees,
     espaces: creerEspaces({ donnees }),
@@ -104,7 +116,7 @@ before(async () => {
   base = `http://127.0.0.1:${serveur.address().port}`;
 });
 after(() => serveur.close());
-beforeEach(() => { horloge = Date.parse('2026-10-16T08:00:00Z'); lignesJournal = []; panne = false; });
+beforeEach(() => { horloge = Date.parse('2026-10-16T08:00:00Z'); lignesJournal = []; panne = false; panneReglages = false; });
 
 /** Remet la base dans son état de départ (les tests qui écrivent ou éteignent un module la restaurent). */
 async function reinitialiser() {
@@ -580,5 +592,146 @@ describe('Jérôme : son serveur ne change pas', () => {
     assert.match(p, /Autoriser Claude à accéder à Chevalier IA OS \?/);
     assert.match(p, /\/oauth\/approve/);
     assert.match(p, /supprimer<\/strong>/);
+  });
+});
+
+// --- textes des outils et liste selon les options (2.11.0) ----------------------------------------------------------------------------------
+const OUTILS_FACTURES = ['abandonner_facture', 'ajouter_facture', 'marquer_facture_payee'];
+const OUTIL_EXTRACTION = 'extraire_valeur_projet';
+const QUATRE = [...OUTILS_FACTURES, OUTIL_EXTRACTION].sort();
+const reglerOptions = (client, options) => donnees.appliquer([{ type: 'set', collection: `clients/${client}/crm_parametres`, id: 'reglages', donnees: { id: 'reglages', delaiPaiementJours: 45, ...options } }]);
+const outilsDe = async (client, identite = 'ID-ALICE') => {
+  const t = await connecter(client, identite);
+  const c = await assistant(`/mcp/${client}`, t.access_token);
+  return { c, liste: noms(await c.listTools()) };
+};
+/** Tous les textes d'un outil : nom, description, et description de chaque paramètre (schéma compris, y compris les paramètres imbriqués). */
+const textesDe = (o) => JSON.stringify([o.nom, o.description, o.schema ? z.toJSONSchema(z.object(o.schema)) : null]);
+const TEXTE_DE_JEROME = /\b(premier_contact|rdv_fixe|proposition_envoyee|gagne|lancement|decouverte|cloture)\b|Accompagnement|jerome\.chevalier|Jérôme|\bAudit\b/;
+
+describe('Textes des outils : valables pour tout espace (Partie A)', () => {
+  test('D1a aucun outil ne cite une étape, une phase, une offre ou une adresse propre à Jérôme (le test échoue bien sur l\'ancien texte)', () => {
+    // Garde-fou du test lui-même : l'expression reconnaît les anciens textes, et laisse passer les mots légitimes.
+    for (const ancien of ['Étapes : premier_contact, rdv_fixe, proposition_envoyee, gagne', 'défaut : jerome.chevalier@gmail.com', 'Le propriétaire est Jérôme par défaut', 'Phase de départ : lancement', '(Audit, Accompagnement, Extraction…)', 'phases decouverte, cloture']) {
+      assert.match(ancien, TEXTE_DE_JEROME, ancien);
+    }
+    for (const permis of ['une affaire gagnée', 'nature livraison', 'lire_audit : le journal d\'audit', 'phase de clôture']) assert.doesNotMatch(permis, TEXTE_DE_JEROME, permis);
+    assert.ok(OUTILS.length >= 50);
+    for (const o of OUTILS) assert.doesNotMatch(textesDe(o), TEXTE_DE_JEROME, `${o.nom} : ${textesDe(o).match(TEXTE_DE_JEROME)?.[0]}`);
+  });
+
+  test('D1b sur un espace client, lire_reglages rend etape_1…, phase_1… et leurs noms, sans identifiant de Jérôme', async () => {
+    const { c } = await outilsDe('c');
+    const r = resultat(await c.callTool({ name: 'lire_reglages', arguments: {} }));
+    const idsEtapes = r.configuration.etapes.map((e) => e.id);
+    assert.deepEqual(idsEtapes, ['etape_1', 'etape_2', 'etape_3', 'etape_4', 'etape_5', 'etape_6']);
+    assert.equal(r.configuration.etapes[0].libelle, 'Nouveau contact');
+    assert.deepEqual(r.configuration.phases.map((p) => p.id), ['phase_1', 'phase_2', 'phase_3', 'phase_4', 'phase_5', 'phase_6']);
+    assert.ok(r.referentiels.etapes.length > 0 && r.referentiels.projets.phases.length > 0);
+    assert.doesNotMatch(JSON.stringify({ configuration: r.configuration, referentiels: r.referentiels }), TEXTE_DE_JEROME);
+    await c.close();
+  });
+
+  test('D1c lister_affaires et creer_projet renvoient vers lire_reglages (vu par un vrai client MCP)', async () => {
+    const { c } = await outilsDe('c');
+    const outils = (await c.listTools()).tools;
+    const texte = (nom) => outils.find((o) => o.name === nom).description;
+    assert.match(texte('lister_affaires'), /lire_reglages/);
+    assert.match(texte('creer_projet'), /lire_reglages/);
+    for (const o of outils) assert.doesNotMatch(JSON.stringify(o), TEXTE_DE_JEROME, o.name);
+    await c.close();
+  });
+});
+
+describe('Outils factures et extraction : listés selon les options de l\'espace (Partie B)', () => {
+  test('D3a options éteintes : aucun des 4 outils (liste et qui_suis_je) ; ajouter_facture refusé, base identique, aucune ligne d\'audit', async () => {
+    await reinitialiser();
+    const { c, liste } = await outilsDe('c');
+    for (const n of QUATRE) assert.ok(!liste.includes(n), n);
+    assert.ok(liste.includes('creer_projet') && liste.includes('lister_projets'));
+    const qui = resultat(await c.callTool({ name: 'qui_suis_je', arguments: {} }));
+    for (const n of QUATRE) assert.ok(!qui.outils.includes(n), `qui_suis_je : ${n}`);
+    const avant = await donneesDe('c');
+    for (const n of QUATRE) assert.ok(await refuse(c, n, { projetId: 'x', id: 'x', factureId: 'x', montant: 100, raison: 'x' }), n);
+    assert.deepEqual(await donneesDe('c'), avant, 'aucune écriture');
+    assert.equal((await donnees.liste('clients/c/crm_audit')).length, avant['clients/c/crm_audit'].length, 'aucune ligne d\'audit');
+    assert.ok(lignesJournal.some((l) => l.outil === 'inconnu'), 'le journal ne nomme pas un outil qui n\'est pas proposé');
+    await c.close();
+  });
+
+  test('D3a2 une seule option allumée : seuls ses outils sont là (factures sans extraction, puis extraction sans factures)', async () => {
+    try {
+      await reglerOptions('c', { suiviPaiements: true });
+      let o = await outilsDe('c');
+      assert.deepEqual(QUATRE.filter((n) => o.liste.includes(n)), OUTILS_FACTURES);
+      await o.c.close();
+      await reglerOptions('c', { extractionValeur: true });
+      o = await outilsDe('c');
+      assert.deepEqual(QUATRE.filter((n) => o.liste.includes(n)), [OUTIL_EXTRACTION]);
+      await o.c.close();
+    } finally { await reinitialiser(); }
+  });
+
+  test('D3b options allumées : les 4 outils sont listés et une facture s\'ajoute comme avant', async () => {
+    await reinitialiser();
+    const { c, liste } = await outilsDe('a');
+    for (const n of QUATRE) assert.ok(liste.includes(n), n);
+    const projet = resultat(await c.callTool({ name: 'creer_projet', arguments: { titre: 'Projet de facture' } }));
+    const f = resultat(await c.callTool({ name: 'ajouter_facture', arguments: { projetId: projet.id, montant: 300, libelle: 'Acompte 30 %' } }));
+    assert.ok(f.operationId);
+    const factures = (await donnees.liste('clients/a/projets_factures').catch(() => [])).concat(await donnees.liste('clients/a/projets_projets'));
+    assert.ok(JSON.stringify(factures).includes('Acompte 30 %'), 'la facture est enregistrée');
+    await c.close();
+    await reinitialiser();
+  });
+
+  test('D3c lire_reglages indique configuration.options.suiviPaiements et .extractionValeur (faux sur c, vrai sur a)', async () => {
+    const eteint = await outilsDe('c');
+    const allume = await outilsDe('a');
+    const oe = resultat(await eteint.c.callTool({ name: 'lire_reglages', arguments: {} })).configuration.options;
+    const oa = resultat(await allume.c.callTool({ name: 'lire_reglages', arguments: {} })).configuration.options;
+    assert.equal(oe.suiviPaiements, false);
+    assert.equal(oe.extractionValeur, false);
+    assert.equal(oa.suiviPaiements, true);
+    assert.equal(oa.extractionValeur, true);
+    await eteint.c.close(); await allume.c.close();
+  });
+
+  test('D3d table option -> outils : exactement les quatre outils, déclarée dans le gestionnaire des clients', () => {
+    assert.deepEqual(Object.keys(OUTILS_PAR_OPTION).sort(), ['extractionValeur', 'suiviPaiements']);
+    assert.deepEqual(Object.values(OUTILS_PAR_OPTION).flat().sort(), QUATRE);
+    for (const n of QUATRE) assert.ok(OUTILS.some((o) => o.nom === n), n);
+  });
+
+  test('D3e lecture des réglages en panne : 503 « indisponible », aucun outil servi, jamais « tous les outils »', async () => {
+    const t = await connecter('c', 'ID-ALICE');
+    panneReglages = true;
+    for (const corps of [{ jsonrpc: '2.0', id: 1, method: 'tools/list' }, { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'qui_suis_je', arguments: {} } }]) {
+      const r = await brut('/mcp/c', t.access_token, corps);
+      assert.equal(r.status, 503);
+      const texte = await r.text();
+      assert.match(texte, /indisponible/);
+      assert.doesNotMatch(texte, /ajouter_facture|Firestore|détail interne/);
+    }
+    assert.ok(lignesJournal.some((l) => l.code === 'reglages_illisibles' && l.statut === 503));
+  });
+
+  test('D3f on allume l\'option entre deux appels : le deuxième listTools montre les outils (aucun cache)', async () => {
+    await reinitialiser();
+    try {
+      const t = await connecter('c', 'ID-ALICE');
+      const c1 = await assistant('/mcp/c', t.access_token);
+      assert.ok(!noms(await c1.listTools()).includes('ajouter_facture'));
+      await c1.close();
+      await reglerOptions('c', { suiviPaiements: true, extractionValeur: true });
+      const c2 = await assistant('/mcp/c', t.access_token);
+      const liste = noms(await c2.listTools());
+      for (const n of QUATRE) assert.ok(liste.includes(n), n);
+      await c2.close();
+      await reglerOptions('c', { suiviPaiements: false, extractionValeur: false });
+      const c3 = await assistant('/mcp/c', t.access_token);
+      for (const n of QUATRE) assert.ok(!noms(await c3.listTools()).includes(n), `éteint à nouveau : ${n}`);
+      await c3.close();
+    } finally { await reinitialiser(); }
   });
 });

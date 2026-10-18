@@ -96,7 +96,7 @@ export function creerLecteurN8n({ cle, url = URL_N8N, fetchImpl = globalThis.fet
       await parcourir('/workflows', { tags: etiquette, excludePinnedData: true }, (page) => {
         for (const w of page) {
           const tags = Array.isArray(w?.tags) ? w.tags.map((t) => texte(t?.name)).filter(Boolean) : [];
-          liste.push({ id: texte(w?.id), name: texte(w?.name) ?? '', active: w?.active === true, tags, ...credentialsDe(w?.nodes) });
+          liste.push({ id: texte(w?.id), name: texte(w?.name) ?? '', active: w?.active === true, archive: w?.isArchived === true, tags, ...credentialsDe(w?.nodes) });
         }
       });
       return liste.filter((w) => w.id);
