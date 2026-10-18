@@ -26,6 +26,8 @@ jobs:
           cache-dependency-path: |
             tests/package-lock.json
             functions/package-lock.json
+            functions-plateforme/package-lock.json
+            scripts/plateforme/package-lock.json
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -34,6 +36,8 @@ jobs:
         run: |
           npm ci --prefix tests
           npm ci --prefix functions
+          npm ci --prefix functions-plateforme
+          npm ci --prefix scripts/plateforme
       - name: Installer le navigateur de test
         run: npx playwright install chromium --with-deps
         working-directory: tests
@@ -50,4 +54,5 @@ jobs:
             tests/playwright-report
             tests/.config-ports/*.log
           retention-days: 7
+          include-hidden-files: true
           if-no-files-found: ignore
