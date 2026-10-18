@@ -19,8 +19,7 @@ export function pageAutorisationClient(demande, espace) {
     urlApprouver: adressesClient(client).approuver,
     configFirebase: CONFIG_FIREBASE_PLATEFORME,
     droits: `<p><strong>Cette application va pouvoir, selon ton rôle dans cet espace :</strong></p>
-    <p>si tu es <strong>lecteur</strong> : consulter les fiches, notes et projets ;<br>si tu es <strong>éditeur</strong> : les consulter, en créer et les modifier.</p>
-    <p>Elle ne peut <strong>jamais supprimer</strong> quoi que ce soit.</p>`,
+    <p>si tu es <strong>lecteur</strong> : consulter les fiches, notes et projets ;<br>si tu es <strong>éditeur</strong> : les consulter, en créer, les modifier et les <strong>supprimer</strong> (récupérable).</p>`,
     pied: `Pour couper cet accès, retire le connecteur dans ${assistant.nom}, ou demande à la personne qui gère ton espace de le couper.`,
   });
 }
