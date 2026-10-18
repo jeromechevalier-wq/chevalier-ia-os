@@ -8,6 +8,7 @@ import * as P from '../projets/logique.js';
 import { retirerAvecAnnulation } from '../../os/retrait.js';
 import { estChezClient, logoEspace } from '../../os/contexte.js';
 import { ajouterGardeSortie } from '../../os/router.js';
+import { zoneDossierParent } from './dossier-parent.js';
 
 function section(id, titre, nomIcone, aide) {
   return h('section', { class: 'carte-section', id },
@@ -152,13 +153,13 @@ function sectionOptions() {
   sec.querySelector('h2').after(h('p', { class: 'aide', dataset: { role: 'aide-auto-enregistrement' } }, 'Chaque case s’enregistre toute seule.'));
   sec.append(corps);
 
-  function interrupteur({ cle, titre, aide, desactive = false }) {
+  function interrupteur({ cle, titre, aide, desactive = false, suite = null }) {
     const reglages = D.etat.reglages;
     const case_ = h('input', { type: 'checkbox', checked: D.etat.config.options[cle] === true, disabled: desactive, dataset: { option: cle }, 'aria-label': titre,
       onchange: async (e) => {
         try { await D.enregistrerReglages({ [cle]: e.target.checked }); toast(e.target.checked ? `${titre} : allumé` : `${titre} : éteint`); } catch (err) { console.warn(err); toast('Enregistrement impossible', { type: 'erreur' }); e.target.checked = !e.target.checked; }
       } });
-    return h('div', { class: 'option-ligne', dataset: { ligne: cle } }, h('label', { class: 'case' }, case_, h('strong', {}, titre)), h('p', { class: 'aide' }, aide));
+    return h('div', { class: 'option-ligne', dataset: { ligne: cle } }, h('label', { class: 'case' }, case_, h('strong', {}, titre)), h('p', { class: 'aide' }, aide), suite);
   }
 
   function rendre() {
@@ -187,7 +188,7 @@ function sectionOptions() {
       interrupteur({ cle: 'celebrations', titre: 'Célébrations', aide: 'Un petit feu d’artifice quand une affaire est gagnée, un projet terminé, une facture payée ou un objectif atteint. Le message est neutre (« Bravo ! ») ; tu peux y ajouter un prénom et une image.' }),
       o.celebrations ? caseLogo : null,
       o.celebrations ? h('div', { class: 'ligne-champs' }, prenom, utiliserLogo ? null : image) : null,
-      interrupteur({ cle: 'boutonsDepot', titre: 'Créer un dossier dans Google Drive', aide: 'Affiche, sur les fiches affaire et projet, le bouton « Créer un dossier dans Google Drive » : il crée le dossier de la fiche et ses sous-dossiers dans Google Drive, puis enregistre son lien. Ajoute la section « Dossiers de projets dans Google Drive » plus bas. Nécessite que Google Drive soit branché.' }));
+      interrupteur({ cle: 'boutonsDepot', titre: 'Créer un dossier dans Google Drive', aide: 'Affiche, sur les fiches affaire et projet, le bouton « Créer un dossier dans Google Drive » : il crée le dossier de la fiche et ses sous-dossiers dans Google Drive, puis enregistre son lien. Ajoute la section « Dossiers de projets dans Google Drive » plus bas. Nécessite que Google Drive soit branché.', suite: o.boutonsDepot ? zoneDossierParent().element : null }));
   }
   rendre();
   return { element: sec, rafraichir: rendre };

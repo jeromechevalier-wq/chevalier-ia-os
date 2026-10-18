@@ -1759,8 +1759,10 @@ test('C39 Réglages : options du CRM — suivi des paiements, extraction de vale
   // « Créer un dossier dans Google Drive » : éteint, plus de section de réglages Drive ni de bouton ; le dossier de travail reste un lien libre
   await aller(page, '#/reglages/crm');
   await expect(page.locator('#reglages-projets')).toBeVisible();
+  await expect(page.locator('[data-ligne="boutonsDepot"] [data-role="zone-dossier-parent"]')).toBeVisible();
   await option('boutonsDepot').uncheck();
   await expect(page.locator('#reglages-projets')).toBeHidden();
+  await expect(page.locator('[data-role="zone-dossier-parent"]')).toHaveCount(0); // la zone du dossier parent disparaît avec la case
   await aller(page, '#/projets/projets/pr1');
   await expect(page.locator('[data-prop="github"], [data-action="creer-dossier-ouvrir"]')).toHaveCount(0);
   await expect(page.locator('[data-prop="dossier"]')).toBeVisible();

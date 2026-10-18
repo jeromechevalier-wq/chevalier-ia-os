@@ -1,13 +1,13 @@
-// Réglages du CRM : étapes, phases, options, modèles d'affaires, offres, secteurs, sources, étiquettes, filtres enregistrés, début d'activité, Google Drive : dossier parent et sous-dossiers (si l'option est allumée), export.
+// Réglages du CRM : étapes, phases, options, modèles d'affaires, offres, secteurs, sources, étiquettes, filtres enregistrés, début d'activité, Google Drive : sous-dossiers (si l'option est allumée ; le dossier parent est sous la case, dans les options), export.
 import { h, icone, vider, remplir, toast, confirmer, demanderTexte, dialogue } from '../../os/ui.js';
 import * as D from './donnees.js';
 import * as PD from '../projets/donnees.js';
 import { sectionsConfiguration } from './reglages-config.js';
 import * as L from './logique.js';
 import { exporterToutesLesDonnees } from './export.js';
-import { googleDisponible, ouvrirFenetreGoogle } from '../../os/google-picker.js';
+import { googleDisponible } from '../../os/google-picker.js';
 import { retirerAvecAnnulation } from '../../os/retrait.js';
-import { nettoyerNomDossier, nettoyerSousDossiers } from '../../os/google-drive.js';
+import { nettoyerSousDossiers } from '../../os/google-drive.js';
 
 function section(id, titre, nomIcone, aide) {
   return h('section', { class: 'carte-section', id },
@@ -73,33 +73,9 @@ export function rendreReglagesCrm(page) {
     } });
   sDebut.append(debut);
 
-  // Visible seulement si l'option « Créer un dossier dans Google Drive » est allumée : le dossier Drive parent (choisi UNE fois avec la fenêtre Google)
-  // et les sous-dossiers que « Créer un dossier dans Google Drive » crée dans chaque dossier de projet.
-  const sProjets = section('reglages-projets', 'Dossiers de projets dans Google Drive', 'folder-plus', 'Servent au bouton « Créer un dossier dans Google Drive » des fiches affaire et projet : le dossier Drive où ranger les dossiers créés, et les sous-dossiers créés dans chacun.');
+  // Visible seulement si l'option « Créer un dossier dans Google Drive » est allumée : les sous-dossiers que « Créer un dossier dans Google Drive » crée dans chaque dossier de projet.
+  const sProjets = section('reglages-projets', 'Dossiers de projets dans Google Drive', 'folder-plus', 'Servent au bouton « Créer un dossier dans Google Drive » des fiches affaire et projet : les sous-dossiers créés dans chaque dossier. Le dossier Drive parent se choisit dans Options du CRM, sous la case.');
   const etatGoogle = h('p', { class: 'aide', 'data-role': 'etat-google' });
-  const nomParent = h('span', { class: 'valeur-parent', 'data-role': 'dossier-parent' });
-  // (le nom complet reste lisible au survol quand il est tronqué)
-  const choisirParent = h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', 'data-action': 'choisir-dossier-parent', onclick: async () => {
-    choisirParent.disabled = true;
-    try {
-      const elus = await ouvrirFenetreGoogle({ mode: 'dossier', email: D.compteCourant()?.email || '', multiple: false });
-      const dossier = elus[0];
-      if (!dossier) return;
-      const { nom } = nettoyerNomDossier(dossier.nom);
-      await D.enregistrerReglages({ dossierParentDrive: { id: dossier.id, nom: nom || dossier.id } });
-      toast('Dossier parent enregistré');
-    } catch (e) {
-      if (!e?.annule) console.warn(e);
-      toast(e?.message || 'Choix impossible', { type: e?.annule ? 'info' : 'erreur' });
-    } finally { choisirParent.disabled = false; }
-  } }, icone('search', { taille: 14 }), 'Choisir dans Google Drive');
-  const retirerParent = h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', 'data-action': 'retirer-dossier-parent', onclick: () => {
-    const ancien = D.etat.reglages.dossierParentDrive || null;
-    return retirerAvecAnnulation({
-      titre: 'Retirer le dossier parent ?', message: 'Au prochain dossier, l’appli en créera un nouveau toute seule. Les dossiers déjà créés ne bougent pas.',
-      faire: () => D.enregistrerReglages({ dossierParentDrive: null }), defaire: () => D.enregistrerReglages({ dossierParentDrive: ancien }), messageFait: 'Dossier parent retiré',
-    });
-  } }, 'Retirer');
   const listeSousDossiers = h('div', { class: 'liste-reglages', 'data-role': 'sous-dossiers' });
   const enregistrerSousDossiers = async (noms) => {
     const { liste, erreur } = nettoyerSousDossiers(noms);
@@ -109,8 +85,6 @@ export function rendreReglagesCrm(page) {
   };
   sProjets.append(
     etatGoogle,
-    h('div', { class: 'ligne-parent-drive' }, h('span', { class: 'ligne-parent-libelle' }, 'Dossier Drive parent'), nomParent, choisirParent, retirerParent),
-    h('p', { class: 'aide' }, 'Dans la fenêtre Google, seuls les dossiers s’affichent (les fichiers sont cachés exprès) : « Aucun document » veut dire que ce dossier n’a pas de sous-dossier, clique alors sur « Sélectionner ». Sans dossier parent choisi, l’appli en crée un toute seule la première fois (« Chevalier IA - … ») et y range les dossiers. Renommer ou déplacer un dossier dans Drive ne casse pas son lien.'),
     h('h3', { class: 'sous-titre' }, 'Sous-dossiers de chaque projet'),
     listeSousDossiers,
     formulaireAjout('Nouveau sous-dossier (ex. Contrat, Livrables)', 'Ajouter', async (v) => { await enregistrerSousDossiers([...(D.etat.reglages.sousDossiersDrive || []), v]); }));
@@ -225,11 +199,6 @@ export function rendreReglagesCrm(page) {
   function rafraichir() {
     sProjets.hidden = !D.etat.config.options.boutonsDepot;
     config.rafraichir();
-    const parent = D.etat.reglages.dossierParentDrive;
-    nomParent.textContent = parent?.nom || 'Créé tout seul au premier dossier';
-    nomParent.title = parent?.nom || '';
-    retirerParent.hidden = !parent;
-    choisirParent.disabled = !googleDisponible();
     etatGoogle.textContent = googleDisponible() ? 'Google Drive est branché.' : 'Google Drive n’est pas encore branché : l’identifiant client Google manque (guide pas à pas : docs/google-drive.md). Les boutons Google restent cachés sur les fiches.';
     if (page.contains(document.activeElement) && document.activeElement.matches('.liste-reglages input')) return;
     remplir(listeSousDossiers, ...(D.etat.reglages.sousDossiersDrive || []).map((nom, i, liste) => ligneSousDossier(nom, i, liste)));
