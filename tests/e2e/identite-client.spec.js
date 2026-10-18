@@ -170,7 +170,7 @@ test('I5 aucun texte au nom de Jérôme sur les écrans d\'un client (accueil, l
   await expect(page.locator('.page-accueil')).toBeVisible();
   await verifier('accueil');
   await expect(page.locator('.rappel-export')).toHaveCount(0);
-  for (const lib of ['Personnes', 'Organisations', 'Affaires', 'Journal', 'Projets', 'Archives']) { // « Modèles » n'est plus dans le menu : il est dans les Réglages
+  for (const lib of ['Personnes', 'Organisations', 'Affaires', 'Journal des modifications', 'Projets']) { // « Modèles » n'est plus dans le menu : il est dans les Réglages
     await aller(page, lib);
     await verifier(lib);
   }

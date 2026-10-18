@@ -360,7 +360,7 @@ export function rendreReglagesObjectifs(conteneur) {
           h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Monter', disabled: index === 0, onclick: () => echanger(index - 1) }, icone('arrow-up', { taille: 16 })),
           h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Descendre', disabled: index === liste.length - 1, onclick: () => echanger(index + 1) }, icone('arrow-down', { taille: 16 })))),
       explication,
-      dispo ? null : h('p', { class: 'aide', dataset: { role: 'indisponible' } }, 'Indisponible pour le moment (une option du CRM est éteinte, ou l’étape suivie est désactivée) : l’objectif n’est pas affiché sur l’Accueil.'));
+      dispo ? null : h('p', { class: 'aide', dataset: { role: 'indisponible' } }, 'Indisponible pour le moment (une option est éteinte, ou l’étape suivie est désactivée) : l’objectif n’est pas affiché sur l’Accueil.'));
   }
 
   function maj() {

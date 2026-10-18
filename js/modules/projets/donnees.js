@@ -43,7 +43,7 @@ const empreinte = (docs) => JSON.stringify(docs, (cle, valeur) => (CHAMPS_VOLATI
 
 export function demarrer(base = '') {
   // Le CRM démarre d'abord (ordre de MODULES) et fixe le chemin ; on refuse un désaccord plutôt que d'écrire à deux endroits.
-  if (base !== CRM.cheminDeBase()) throw new Error('Le module Projets doit utiliser le même chemin de base que le CRM');
+  if (base !== CRM.cheminDeBase()) throw new Error('Le module Projets doit utiliser le même chemin de base que les affaires');
   // Un écouteur par collection pour toute la session (comme les activités du CRM) : les tâches servent à l'avancement, au retard et à l'Accueil.
   desabonnements.push(onSnapshot(collection(db, chemin('projets_projets')), (snap) => {
     const docs = snap.docs.map((d) => ({ ...d.data({ serverTimestamps: 'estimate' }), id: d.id }));

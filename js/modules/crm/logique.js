@@ -1282,7 +1282,7 @@ export const CALCULS = {
   nouveaux_contacts: {
     libelle: 'Nouveaux contacts',
     unite: '',
-    explication: 'Nombre de personnes créées dans le CRM pendant le mois.',
+    explication: 'Nombre de personnes créées dans ton espace pendant le mois.',
     calculer: ({ personnes = [] }, mois) => personnes.filter((p) => dansLeMois(p.creeLe, mois)).length,
   },
   rdv_tenus: {

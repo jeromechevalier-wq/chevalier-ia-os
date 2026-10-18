@@ -24,10 +24,10 @@ const copie = (items) => items.map((e) => ({ ...e, action: e.action ? { ...e.act
  * Éditeur des six emplacements (étapes de vente ou phases de projet) : nom, description (l'icône « i »), couleur, utilisé ou non, rôle
  * (« vente gagnée » / « clôture »), action suggérée. On modifie un brouillon, puis « Enregistrer » contrôle tout (règles de logique.js) avant d'écrire.
  */
-function editeurEmplacements({ genre }) {
+function editeurEmplacements({ genre, visible = true }) {
   const etape = genre === 'etape';
   const mot = etape ? 'étape' : 'phase';
-  const sec = section(etape ? 'reglages-etapes' : 'reglages-phases', etape ? 'Étapes de vente' : 'Phases de projet', etape ? 'square-kanban' : 'folder-kanban',
+  const sec = section(etape ? 'reglages-etapes' : 'reglages-phases', etape ? 'Étapes des affaires' : 'Phases des projets', etape ? 'square-kanban' : 'folder-kanban',
     etape
       ? 'Les étapes que parcourt une affaire, de gauche à droite. Six emplacements : tu les renommes, tu les colores, tu en désactives (au moins 3 restent utilisées). Une étape ne se désactive que si aucune affaire n’y est.'
       : 'Les phases que parcourt un projet, de gauche à droite. Six emplacements : tu les renommes, tu les colores, tu en désactives (au moins 3 restent utilisées). Une phase ne se désactive que si aucun projet n’y est.');
@@ -141,13 +141,14 @@ function editeurEmplacements({ genre }) {
     rendre();
   }
   rendre();
+  sec.hidden = !visible;
   return { element: sec, rafraichir };
 }
 
 // ---------------------------------------------------------------- options (interrupteurs)
 
-function sectionOptions() {
-  const sec = section('reglages-options', 'Options du CRM', 'settings',
+function sectionOptions({ avecProjets = true } = {}) {
+  const sec = section('reglages-options', 'Options', 'settings',
     'Allume seulement ce dont tu as besoin. Éteindre une option cache ses écrans et empêche d’en créer de nouveaux éléments ; rien de ce qui existe n’est effacé.');
   const corps = h('div', { class: 'pile' });
   sec.querySelector('h2').after(h('p', { class: 'aide', dataset: { role: 'aide-auto-enregistrement' } }, 'Chaque case s’enregistre toute seule.'));
@@ -182,8 +183,8 @@ function sectionOptions() {
         h('strong', {}, 'Utiliser le logo de mon espace')),
       h('p', { class: 'aide' }, logo ? 'Le logo de ton espace s’affiche dans l’animation (affaire gagnée, facture payée, projet terminé).' : 'Ton espace n’a pas encore de logo : ajoute-en un dans Réglages > Mon espace.')) : null;
     remplir(corps,
-      interrupteur({ cle: 'suiviPaiements', titre: 'Suivi des paiements', aide: 'Une liste de factures par projet (À payer, Payée, Abandonnée) et les objectifs « facturé » et « encaissé ».' }),
-      interrupteur({ cle: 'clotureBloquee', titre: 'Clôture bloquée tant qu’une facture est à payer', aide: 'Un projet ne se termine pas tant qu’une facture est à payer. Sans effet si le suivi des paiements est éteint.', desactive: !o.suiviPaiements }),
+      !avecProjets ? null : interrupteur({ cle: 'suiviPaiements', titre: 'Suivi des paiements', aide: 'Une liste de factures par projet (À payer, Payée, Abandonnée) et les objectifs « facturé » et « encaissé ».' }),
+      !avecProjets ? null : interrupteur({ cle: 'clotureBloquee', titre: 'Clôture bloquée tant qu’une facture est à payer', aide: 'Un projet ne se termine pas tant qu’une facture est à payer. Sans effet si le suivi des paiements est éteint.', desactive: !o.suiviPaiements }),
       interrupteur({ cle: 'celebrations', titre: 'Célébrations', aide: 'Feu d’artifice quand une affaire est gagnée, un projet terminé ou une facture payée (prénom et image au choix).' }),
       o.celebrations ? caseLogo : null,
       o.celebrations ? h('div', { class: 'ligne-champs' }, prenom, utiliserLogo ? null : image) : null,
@@ -299,10 +300,10 @@ function sectionModelesAffaire() {
  * Sections de configuration de la page Réglages du CRM, dans l'ordre : étapes, phases, options, modèles d'affaires.
  * Renvoie { elements, rafraichir } : `rafraichir()` est à rappeler quand les données changent.
  */
-export function sectionsConfiguration() {
+export function sectionsConfiguration({ avecProjets = true } = {}) {
   const etapes = editeurEmplacements({ genre: 'etape' });
-  const phases = editeurEmplacements({ genre: 'phase' });
-  const options = sectionOptions();
+  const phases = editeurEmplacements({ genre: 'phase', visible: avecProjets });
+  const options = sectionOptions({ avecProjets });
   const modeles = sectionModelesAffaire();
   const parties = [etapes, phases, options, modeles];
   return { elements: parties.map((p) => p.element), rafraichir: () => parties.forEach((p) => p.rafraichir()) };

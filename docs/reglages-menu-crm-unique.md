@@ -54,3 +54,16 @@ Un nouvel espace démarre avec « Créer un dossier dans Google Drive » et « C
 
 - Unitaires : `tests/registre.test.js` (menu en un bloc, interrupteur `crm`, sections déclarées = sections écrites, coque sans module, sections d'espace selon le rôle), `tests/outil-client.test.js` (A2d : `crm` dans l'outil).
 - Navigateur (Playwright, ordinateur et téléphone) : `tests/e2e/modules-client.spec.js` (R9 menu unique, R10 éditeur, R11 lecteur, R12 section inconnue) ; les parcours des Réglages existants (`parcours`, `projets`, `identite-crm`) passent maintenant par *Réglages > CRM* (`allerAuxReglagesCrm` dans `tests/e2e/outils.js`).
+
+---
+
+## Mise à jour du 18/10/2026 (version 2.12.0) : vocabulaire et registre du menu (PR A)
+
+Décisions de Jérôme : le mot « CRM » n'est plus écrit dans ce que l'utilisateur voit ; étapes pour les affaires, phases pour les projets. **Les adresses ne changent pas** (`#/crm/…`, `#/projets/…`, `#/reglages/crm`) : aucun signet ne casse.
+
+- Le bloc du menu, l'élément des Réglages et l'interrupteur « Modules actifs » s'appellent **« Affaires et projets »** (identifiant technique `crm` inchangé).
+- « Options du CRM » → **Options** ; « Réglages du CRM » → **Réglages** ; « Journal » → **Journal des modifications** (menu et titre de la page) ; « Étapes de vente » → **Étapes des affaires** ; « Phases de projet » → **Phases des projets**.
+- **« Archives » n'est plus une entrée du menu.** La page existe toujours (`#/projets/archives`) et le bouton « Archives » de l'écran Projets y mène. Le **Journal reste au menu** tant que le menu utilisateur n'existe pas (PR B).
+- Le raccourci `crm: true` d'une fiche client reste **lu** (il allume toujours affaires et projets, écrans et outils MCP) mais n'est plus proposé : pour une nouvelle fiche, écrire `affaires: true` et `projets: true` (voir `docs/activer-desactiver-modules.md`). Aucune fiche n'a été modifiée.
+- Chez un client **sans le module Projets** (« affaires seules »), la page Réglages cache « Phases des projets », « Dossiers Drive des projets », « Suivi des paiements » et « Clôture bloquée ». À la racine (chez Jérôme) tout est allumé : rien ne change.
+- Un test (`tests/menu-vocabulaire.test.js`) parcourt `js/**/*.js` et `index.html` et échoue si « CRM » réapparaît dans une chaîne affichée.

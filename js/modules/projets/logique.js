@@ -267,7 +267,7 @@ export function validerFacture(v = {}) {
 }
 
 const retour = (erreurs, extra = {}) => ({ erreurs, patch: {}, evenements: [], ...extra });
-export const MESSAGE_SUIVI_ETEINT = 'Le suivi des paiements est désactivé dans les réglages du CRM.';
+export const MESSAGE_SUIVI_ETEINT = 'Le suivi des paiements est désactivé dans les réglages.';
 const suiviEteint = (ctx) => (suiviPaiementsActif(configDe(ctx)) ? null : retour({ factures: MESSAGE_SUIVI_ETEINT }));
 const trouverFacture = (projet, id) => facturesDe(projet).find((f) => f.id === id) ?? null;
 const remplacerFacture = (projet, facture) => facturesDe(projet).map((f) => (f.id === facture.id ? facture : f));

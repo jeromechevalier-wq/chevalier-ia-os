@@ -44,7 +44,7 @@ export const MODULES_DECLARES = geler([
   {
     id: 'affaires',
     nom: 'Affaires',
-    libelleMenu: 'CRM',
+    libelleMenu: 'Affaires et projets',
     iconeMenu: 'users',
     prefixe: 'crm',
     groupe: 'crm',
@@ -53,14 +53,14 @@ export const MODULES_DECLARES = geler([
       { route: 'crm/personnes', libelle: 'Personnes', icone: 'user' },
       { route: 'crm/organisations', libelle: 'Organisations', icone: 'building-2' },
       { route: 'crm/affaires', libelle: 'Affaires', icone: 'briefcase' },
-      { route: 'crm/journal', libelle: 'Journal', icone: 'history' },
+      { route: 'crm/journal', libelle: 'Journal des modifications', icone: 'history' },
     ],
     // Sections de la page Réglages > CRM (id = identifiant de la section dans la page). La coque les range dans l'ordre de GROUPES_MENU.crm.ordreReglages.
     // Point d'accroche pour « Liens et documents » (Drive) : y ajouter { id: 'reglages-drive', libelle: '…' } et créer la section dans reglages() du module.
     reglages: {
       sections: [
-        { id: 'reglages-etapes', libelle: 'Étapes de vente' },
-        { id: 'reglages-phases', libelle: 'Phases de projet' },
+        { id: 'reglages-etapes', libelle: 'Étapes des affaires' },
+        { id: 'reglages-phases', libelle: 'Phases des projets' },
         { id: 'reglages-options', libelle: 'Options' },
         { id: 'reglages-modeles-affaire', libelle: 'Modèles d’affaires' },
         { id: 'reglages-objectifs', libelle: 'Objectifs du mois' },
@@ -93,7 +93,6 @@ export const MODULES_DECLARES = geler([
     groupe: 'crm',
     ecrans: [
       { route: 'projets/projets', libelle: 'Projets', icone: 'folder-kanban' },
-      { route: 'projets/archives', libelle: 'Archives', icone: 'archive' },
     ],
     reglages: { sections: [{ id: 'reglages-modeles-projets', libelle: 'Modèles de projets' }] },
     collections: ['projets_projets', 'projets_taches', 'projets_modeles'],
@@ -191,11 +190,11 @@ export const IDS_MODULES = geler(MODULES_DECLARES.map((m) => m.id));
 export const GROUPES_MENU = geler([
   {
     id: 'crm',
-    nom: 'CRM',
-    libelleMenu: 'CRM',
+    nom: 'Affaires et projets',
+    libelleMenu: 'Affaires et projets',
     iconeMenu: 'users',
     modules: ['affaires', 'projets'],
-    ordreMenu: ['crm/accueil', 'crm/personnes', 'crm/organisations', 'crm/affaires', 'projets/projets', 'crm/journal', 'projets/archives'],
+    ordreMenu: ['crm/accueil', 'crm/personnes', 'crm/organisations', 'crm/affaires', 'projets/projets', 'crm/journal'],
     ordreReglages: [
       'reglages-etapes', 'reglages-phases', 'reglages-options', 'reglages-modeles-affaire', 'reglages-modeles-projets', 'reglages-objectifs',
       'reglages-offres', 'reglages-secteurs', 'reglages-sources', 'reglages-etiquettes', 'reglages-filtres', 'reglages-debut', 'reglages-projets', 'reglages-export',

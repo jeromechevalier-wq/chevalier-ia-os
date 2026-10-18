@@ -52,9 +52,9 @@ export function rendreInfos(conteneur) {
         h('span', { class: `mcp-role mcp-role-${m.role}` }, m.libelle)))
       : h('li', { class: 'aide' }, 'Aucun membre trouvé.'));
     remplir(journal, actifs.includes('affaires')
-      ? [h('span', {}, 'Chaque modification faite par l\'assistant apparaît dans le Journal du CRM, avec son nom. '),
-        h('a', { href: lien('crm/journal') }, icone('history', { taille: 14 }), ' Ouvrir le Journal du CRM')]
-      : 'Le Journal du CRM n\'est pas activé dans ton espace.');
+      ? [h('span', {}, 'Chaque modification faite par l\'assistant apparaît dans le Journal des modifications, avec son nom. '),
+        h('a', { href: lien('crm/journal') }, icone('history', { taille: 14 }), ' Ouvrir le Journal des modifications')]
+      : 'Le Journal des modifications n\'est pas activé dans ton espace.');
   }).catch((e) => {
     console.warn('Page MCP : lecture impossible', e?.code);
     if (ferme) return;

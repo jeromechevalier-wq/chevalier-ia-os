@@ -26,7 +26,7 @@ const versModule = (d) => ({
   monter: MONTAGES[d.id],
 });
 
-// CRM de la racine : ses modules (un module marqué « reserveAuxClients », comme « mcp », n'y est ni monté ni affiché ; « automatisations » ne l'est plus depuis le 16/10/2026).
+// CRM de la racine : ses modules (un module marqué « reserveAuxClients », comme « mcp », n'y est ni monté ni affiché ; « automatisations » existe chez Jérôme depuis le 16/10/2026 : un module existe d'abord chez lui).
 export const MODULES = MODULES_DECLARES.filter((d) => d.reserveAuxClients !== true).map(versModule);
 // Espace d'un client de la plateforme : tous les modules possibles (espace-modules.js ne garde que ses modules actifs).
 export const MODULES_CLIENT = MODULES_DECLARES.map(versModule);

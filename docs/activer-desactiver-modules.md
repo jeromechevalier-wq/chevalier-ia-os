@@ -1,16 +1,16 @@
 # Activer et désactiver un module chez un client
 
-Un **module** est un bloc d'écrans (par exemple « Automatisations » ou « CRM »). Chaque client voit seulement les modules que tu as activés pour lui. Il y a **deux façons** de les gérer : à la main dans la console Firebase, ou avec une commande dans le Terminal. Les deux donnent le même résultat.
+Un **module** est un bloc d'écrans (par exemple « Automatisations » ou « Affaires et projets »). Chaque client voit seulement les modules que tu as activés pour lui. Il y a **deux façons** de les gérer : à la main dans la console Firebase, ou avec une commande dans le Terminal. Les deux donnent le même résultat.
 
 ## Les modules existants
 
 | Nom à écrire | Ce que le client voit | À savoir |
 |---|---|---|
-| `crm` | **l'interrupteur unique du CRM (2.6.0)** : allume `affaires` **et** `projets` d'un coup. Le client voit un seul bloc « CRM » dans son menu (Accueil, Personnes, Organisations, Affaires, Projets, Journal, Archives) | à privilégier pour un client |
-| `affaires` | le CRM sans les projets : personnes, organisations, affaires | réglage technique, encore accepté ; un client déjà réglé ainsi ne change pas |
-| `projets` | les projets | ne marche **que si `affaires` est aussi actif** |
+| `affaires` | « Affaires et projets », sans les projets : accueil, personnes, organisations, affaires, journal des modifications | **à écrire pour tout nouveau client** |
+| `projets` | les projets (et leurs archives, depuis le bouton « Archives » de l'écran Projets) | ne marche **que si `affaires` est aussi actif** : écris `affaires: true` **et** `projets: true` |
+| `crm` | **ancien raccourci (avant 2.12)** : `crm: true` allume `affaires` **et** `projets`. Il est toujours **lu** (une fiche qui le contient ne change pas, par exemple chez Ingrid), mais il n'est plus proposé : pour une nouvelle fiche, écris `affaires: true` + `projets: true` | ne plus l'écrire |
 | `veille` | « Veille » : contenus et sources suivies | |
-| `automatisations` | « Automatisations > Historique » (historique des workflows n8n) | l'identifiant du client doit faire 17 caractères au plus ; il faut aussi l'étiquette `client-<identifiant>` sur les workflows dans n8n. **Ancien nom : `journal`** (renommé le 16/10/2026) : une fiche qui dit encore `journal: true` marche toujours, sans rien changer ; pour un nouveau réglage, écris `automatisations`. Ne pas confondre avec l'écran « Journal » du CRM (historique des modifications), qui n'est pas un module à activer. |
+| `automatisations` | « Automatisations > Historique » (historique des workflows n8n) | l'identifiant du client doit faire 17 caractères au plus ; il faut aussi l'étiquette `client-<identifiant>` sur les workflows dans n8n. **Ancien nom : `journal`** (renommé le 16/10/2026) : une fiche qui dit encore `journal: true` marche toujours, sans rien changer ; pour un nouveau réglage, écris `automatisations`. Ne pas confondre avec l'écran « Journal des modifications » (historique des modifications), qui n'est pas un module à activer. |
 
 Ce que change un interrupteur : les **menus du client** (au prochain rechargement de sa page). Les **données ne sont jamais effacées** : si tu rallumes un module, tout est retrouvé. Pour `automatisations`, éteint, plus rien n'est copié depuis n8n pour ce client.
 
@@ -22,7 +22,7 @@ Ce que change un interrupteur : les **menus du client** (au prochain rechargemen
 2. Dans la colonne de droite, repère le champ **`modules`** (type *map*). Il contient une ligne par module, par exemple `affaires: true`.
 3. **Pour activer** un module qui n'est pas dans la liste :
    - survole la ligne `modules`, clique sur le **+** (« Ajouter un champ » dans le champ) ;
-   - **Nom du champ** : le nom du module (`crm`, `automatisations`, `veille`, `mcp`) ; `crm` allume affaires et projets ensemble (les anciens champs `affaires` et `projets` marchent toujours) ;
+   - **Nom du champ** : le nom du module (`affaires`, `projets`, `automatisations`, `veille`, `mcp`) ; pour « Affaires et projets », ajoute deux lignes : `affaires: true` et `projets: true` (l'ancien champ `crm: true` marche toujours, mais ne l'écris plus) ;
    - **Type** : *boolean* ; **Valeur** : `true` ;
    - clique sur **Ajouter**.
 4. **Pour désactiver** : clique sur la valeur `true` du module, mets **`false`**, puis valide par **Mettre à jour**.

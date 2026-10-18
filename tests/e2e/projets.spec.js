@@ -222,7 +222,7 @@ test('Favoris : l’étoile d’un document d’affaire ou de projet le met sur 
   await champDoc('crm_affaires', 'a1', 'documents', [{ libelle: 'Suivi veille', url: 'https://claude.ai/artifact/suivi', favori: true }]);
   await expect(page.getByRole('button', { name: 'Retirer Suivi veille des favoris' })).toHaveAttribute('aria-pressed', 'true');
   // le Journal le dit en clair
-  await allerA(page, 'Journal');
+  await allerA(page, 'Journal des modifications');
   await page.locator('.tableau-journal tbody tr').first().click();
   await expect(dialogue(page)).toContainText('Favori ajouté : Suivi veille');
   await dialogue(page).getByText('Fermer', { exact: true }).click();
@@ -1177,11 +1177,12 @@ test('C32 enchaîner les tâches types au clavier : elles apparaissent tout de s
   await expect(section.locator('.section-compteur')).toHaveText('3');
 });
 
-test('C35 menu « Archives » : les projets terminés ou archivés y sont ; la bascule revient au Kanban ; Kanban et Liste restent mémorisés', async ({ page }) => {
+test('C35 bouton « Archives » de l’écran Projets (plus d’entrée de menu) : les projets terminés ou archivés y sont ; la bascule revient au Kanban ; Kanban et Liste restent mémorisés', async ({ page }) => {
   await creerProjet('pr1', { titre: 'Projet vivant' });
   await creerProjet('pr2', { titre: 'Projet rangé', archive: true, statut: 'termine', phase: 'cloture' });
   await connecter(page);
-  await allerA(page, 'Archives');
+  await allerA(page, 'Projets');
+  await page.locator('.bascule-vue[data-vue="archives"]').click();
   await expect(page).toHaveURL(/#\/projets\/archives$/);
   await expect(page.locator('.tableau-projets')).toContainText('Projet rangé');
   await expect(page.locator('.tableau-projets')).not.toContainText('Projet vivant');
@@ -1324,7 +1325,8 @@ test('C36 déplacer une carte vers la Clôture avec une facture à payer : refus
   await expect(dialogue(page)).toHaveCount(0);
   await page.waitForTimeout(400);
   expect((await lireDocument('projets_projets/pr1')).phase).toBe('livraison');
-  await allerA(page, 'Archives');
+  await allerA(page, 'Projets');
+  await page.locator('.bascule-vue[data-vue="archives"]').click();
   await expect(page.locator('.tableau-projets')).toContainText('Projet clos avec impayé');
   await expect(page.locator('.tableau-projets [data-role="impaye"]')).toHaveText('Impayé');
 });
@@ -1437,7 +1439,7 @@ test('1 Réglages cas d’erreur : un enregistrement refusé laisse Enregistrer 
   await capturer(page, sec, '1-erreur-refus', 'clair');
 });
 
-test('2 Réglages : la carte « Options du CRM » dit sous son titre « Chaque case s’enregistre toute seule. »', async ({ page }) => {
+test('2 Réglages : la carte « Options » dit sous son titre « Chaque case s’enregistre toute seule. »', async ({ page }) => {
   await connecter(page);
   await allerAuxReglagesCrm(page);
   const sec = page.locator('#reglages-options');

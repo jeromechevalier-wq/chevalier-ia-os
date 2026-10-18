@@ -12,7 +12,7 @@ test('M23 les pages de Jérôme (racine, #/reglages) ne changent pas : Mon espac
   await connecter(page, JEROME);
   await allerA(page, 'Réglages');
   await expect(page).toHaveURL(/#\/reglages$/);
-  await expect(page.locator('.reglages-menu-lien')).toHaveText(['Mon espace', 'Modules actifs', 'CRM', 'Veille', 'Automatisations', 'Tableau de bord']);
+  await expect(page.locator('.reglages-menu-lien')).toHaveText(['Mon espace', 'Modules actifs', 'Affaires et projets', 'Veille', 'Automatisations', 'Tableau de bord']);
   await expect(page.locator('[data-info="nom"]')).toContainText('Chevalier IA OS');
   await expect(page.locator('#reglages-identite')).toContainText('L’identité de cet espace est celle de la coque de l’application : elle ne se règle pas ici.');
   await expect(page.locator('[data-role="mon-espace"], [data-champ], [data-role="fichier-logo"]')).toHaveCount(0);

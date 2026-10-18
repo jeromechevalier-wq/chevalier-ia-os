@@ -22,7 +22,7 @@ test('Automatisations chez l\'assistant (non administrateur) : menu visible, ét
   // Menu : un groupe « Automatisations » avec « Historique », à côté du CRM et de son écran « Journal » qui garde son nom.
   if (estTelephone(page)) await page.getByRole('button', { name: 'Ouvrir le menu' }).click();
   await expect(page.locator('.menu').getByRole('link', { name: 'Historique', exact: true })).toBeVisible();
-  await expect(page.locator('.menu').getByRole('link', { name: 'Journal', exact: true })).toHaveCount(1);
+  await expect(page.locator('.menu').getByRole('link', { name: 'Journal des modifications', exact: true })).toHaveCount(1);
   if (estTelephone(page)) await page.keyboard.press('Escape');
   await page.waitForTimeout(1500); // laisse passer au moins un « tic » : la mise à jour automatique ne doit rien demander
   expect(appels).toEqual([]);
