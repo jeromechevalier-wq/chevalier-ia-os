@@ -10,10 +10,10 @@ import { z } from '../functions/node_modules/zod/index.js';
 import { Client } from '../functions/node_modules/@modelcontextprotocol/sdk/dist/esm/client/index.js';
 import { StreamableHTTPClientTransport } from '../functions/node_modules/@modelcontextprotocol/sdk/dist/esm/client/streamableHttp.js';
 import { creerAccesMemoire, avecBase } from '../functions/src/coeur/donnees.js';
-import { creerLimiteur } from '../functions/src/securite/limites.js';
+import { creerLimiteur, LIMITES_PAR_DEFAUT } from '../functions/src/securite/limites.js';
 import { creerEspaces } from '../functions/src/clients/espaces.js';
 import { creerRouteurOauthClients } from '../functions/src/clients/routeur-oauth.js';
-import { creerGestionnaireClients, outilsDesModules, OUTILS_PAR_OPTION } from '../functions/src/clients/gestionnaire.js';
+import { creerGestionnaireClients, outilsDesModules, OUTILS_PAR_OPTION, NOM_SERVEUR_CLIENT } from '../functions/src/clients/gestionnaire.js';
 import { OUTILS } from '../functions/src/mcp/outils/index.js';
 import { EMETTEUR_PLATEFORME as EMETTEUR } from '../functions/src/clients/config.js';
 import { collections } from './_donnees-essai.js';
@@ -71,6 +71,8 @@ function baseInitiale() {
         { id: 'dormant', modules: { affaires: true, mcp: true } },
         { id: 'c', modules: { affaires: true, projets: true, mcp: true } },
       ],
+      'clients/b/crm_notes': [...donneesClient('b', 'BRAVO')['clients/b/crm_notes'], { id: 'n-seulement-b', texte: 'Note qui n’existe que chez Bravo.', personneId: 'p1' }],
+      'clients/b/crm_activites': [...donneesClient('b', 'BRAVO')['clients/b/crm_activites'], { id: 'ac-seulement-b', titre: 'Activité qui n’existe que chez Bravo', type: 'tache', date: '2026-10-20', fait: false, personneId: 'p1' }],
       'clients/a/membres': [{ id: ALICE, role: 'editeur', nom: 'Alice' }, { id: LEA, role: 'lecteur' }, { id: CLARA, role: 'editeur' }],
       'clients/b/membres': [{ id: BOB, role: 'editeur' }, { id: CLARA, role: 'lecteur' }],
       'clients/sans-mcp/membres': [{ id: ALICE, role: 'editeur' }],
@@ -121,7 +123,7 @@ beforeEach(() => { horloge = Date.parse('2026-10-16T08:00:00Z'); lignesJournal =
 /** Remet la base dans son état de départ (les tests qui écrivent ou éteignent un module la restaurent). */
 async function reinitialiser() {
   const neuf = baseInitiale();
-  for (const nom of new Set([...Object.keys(neuf), ...['mcp_oauth', 'mcp_limites', 'clients/a/crm_audit', 'clients/a/crm_audit_avant']])) {
+  for (const nom of new Set([...Object.keys(neuf), ...['mcp_oauth', 'mcp_limites', 'clients/a/mcp_codes', 'clients/a/crm_audit', 'clients/a/crm_audit_avant']])) {
     const ecritures = [
       ...(await donnees.liste(nom)).map((d) => ({ type: 'delete', collection: nom, id: d.id })),
       ...(neuf[nom] || []).map((d) => ({ type: 'set', collection: nom, id: d.id, donnees: d })),
@@ -158,6 +160,15 @@ const donneesDe = async (client) => Object.fromEntries(await Promise.all(Object.
 const resultat = (r) => JSON.parse(r.content[0].text);
 /** Un appel refusé par le serveur : soit une erreur de protocole, soit un résultat d'erreur (le SDK rend « outil inconnu » ainsi). */
 const refuse = async (c, name, args) => { try { const r = await c.callTool({ name, arguments: args }); return r.isError === true; } catch { return true; } };
+/** Suppression en deux temps, comme un assistant : aperçu (rien n'est supprimé), puis rappel avec le code. Rend la réponse de la suppression réelle. */
+const supprimer = async (c, name, args) => {
+  const apercu = await c.callTool({ name, arguments: args });
+  assert.ok(!apercu.isError, apercu.content[0].text);
+  const a = resultat(apercu);
+  assert.equal(a.apercu, true);
+  assert.match(a.code, /^[A-Z0-9]{4}-[A-Z0-9]{4}$/);
+  return resultat(await c.callTool({ name, arguments: { ...args, codeConfirmation: a.code } }));
+};
 const MOTS_ECRITURE = /^(creer_|modifier_|ajouter_|changer_|terminer_|marquer_|mettre_|rouvrir_|joindre_|retirer_|archiver_|reprendre_|abandonner_)/;
 const SUPPRESSIONS = /^(supprimer_|restaurer_)/;
 
@@ -281,6 +292,7 @@ describe('Rôles : le profil vient du rôle du membre', () => {
     const avant = await donneesDe('a');
     assert.ok(await refuse(c, 'creer_personne', { nom: 'Intrus' }));
     assert.ok(await refuse(c, 'supprimer_personne', { id: 'p1', confirmationNom: 'Camille ALPHA' }));
+    assert.ok(await refuse(c, 'restaurer_depuis_audit', { operationId: 'op-quelconque', apercu: false }), 'le lecteur ne peut pas restaurer');
     assert.deepEqual(await donneesDe('a'), avant);
     await c.close();
   });
@@ -299,28 +311,34 @@ describe('Rôles : le profil vient du rôle du membre', () => {
     await reinitialiser();
     const t = await connecter('a', 'ID-ALICE');
     const c = await assistant('/mcp/a', t.access_token);
-    const r = resultat(await c.callTool({ name: 'supprimer_personne', arguments: { id: 'p1', choix: 'conserver', confirmationNom: 'Camille ALPHA' } }));
+    const r = await supprimer(c, 'supprimer_personne', { id: 'p1', choix: 'conserver', confirmationNom: 'Camille ALPHA' });
     assert.ok(r.operationId, JSON.stringify(r));
     assert.ok(!(await donnees.liste('clients/a/crm_personnes')).some((p) => p.id === 'p1'));
     const audit = (await donnees.liste('clients/a/crm_audit')).filter((l) => l.operationId === r.operationId);
     assert.ok(audit.some((l) => l.action === 'supprimer' && l.acteur === 'claude-ai-alice'), JSON.stringify(audit));
-    assert.ok(audit.every((l) => l.acteur === 'claude-ai-alice'));
+    assert.ok(audit.every((l) => l.acteur === 'claude-ai-alice' && l.via === 'mcp'), 'canal mcp sur chaque ligne');
+    const ligne = audit.find((l) => l.action === 'supprimer' && l.collection === 'crm_personnes');
+    const copie = await donnees.document('clients/a/crm_audit_avant', ligne.id);
+    assert.equal(copie.avant.nom, 'Camille ALPHA', 'la copie « avant » est gardée');
+    assert.equal(copie.apres, null);
     await c.close();
     await reinitialiser();
   });
-  test('M7b membre éditeur de A et lecteur de B : la suppression chez B est refusée et les données de B ne changent pas', async () => {
+  test('M7b éditeur de A : une note ou une activité qui n\'existe que chez B est introuvable chez A (même avec le code), et B ne change pas', async () => {
     await reinitialiser();
-    const tb = await connecter('b', 'ID-CLARA');
-    const cb = await assistant('/mcp/b', tb.access_token);
-    assert.equal(resultat(await cb.callTool({ name: 'qui_suis_je', arguments: {} })).profil, 'lecteur');
-    const avantB = await donneesDe('b');
-    assert.ok(await refuse(cb, 'supprimer_personne', { id: 'p1', choix: 'conserver', confirmationNom: 'Camille BRAVO' }));
-    assert.deepEqual(await donneesDe('b'), avantB);
-    await cb.close();
     const ta = await connecter('a', 'ID-CLARA');
     const ca = await assistant('/mcp/a', ta.access_token);
-    assert.ok(await refuse(ca, 'supprimer_personne', { id: 'p1', choix: 'conserver', confirmationNom: 'Camille BRAVO' }), 'le nom de B ne vaut pas chez A');
+    const avantB = await donneesDe('b');
+    for (const [outil, id] of [['supprimer_note', 'n-seulement-b'], ['supprimer_activite', 'ac-seulement-b']]) {
+      for (const args of [{ id }, { id, codeConfirmation: 'ABCD-2345' }]) {
+        const r = await ca.callTool({ name: outil, arguments: args });
+        assert.equal(r.isError, true, `${outil} ${JSON.stringify(args)}`);
+        assert.match(r.content[0].text, /introuvable/);
+      }
+    }
     assert.deepEqual(await donneesDe('b'), avantB);
+    assert.ok((await donnees.liste('clients/b/crm_notes')).some((n) => n.id === 'n-seulement-b'));
+    assert.deepEqual(await donnees.liste('clients/a/mcp_codes'), [], 'aucun code émis pour une fiche introuvable');
     await ca.close();
     await reinitialiser();
   });
@@ -328,7 +346,7 @@ describe('Rôles : le profil vient du rôle du membre', () => {
     await reinitialiser();
     const t = await connecter('a', 'ID-ALICE');
     const c = await assistant('/mcp/a', t.access_token);
-    const { operationId } = resultat(await c.callTool({ name: 'supprimer_personne', arguments: { id: 'p1', choix: 'conserver', confirmationNom: 'Camille ALPHA' } }));
+    const { operationId } = await supprimer(c, 'supprimer_personne', { id: 'p1', choix: 'conserver', confirmationNom: 'Camille ALPHA' });
     assert.ok(!(await donnees.liste('clients/a/crm_personnes')).some((p) => p.id === 'p1'));
     const r = await c.callTool({ name: 'restaurer_depuis_audit', arguments: { operationId, apercu: false } });
     assert.ok(!r.isError, r.content[0].text);
@@ -340,7 +358,7 @@ describe('Rôles : le profil vient du rôle du membre', () => {
     await reinitialiser();
     const ta = await connecter('a', 'ID-ALICE');
     const ca = await assistant('/mcp/a', ta.access_token);
-    const { operationId } = resultat(await ca.callTool({ name: 'supprimer_personne', arguments: { id: 'p1', choix: 'conserver', confirmationNom: 'Camille ALPHA' } }));
+    const { operationId } = await supprimer(ca, 'supprimer_personne', { id: 'p1', choix: 'conserver', confirmationNom: 'Camille ALPHA' });
     await ca.close();
     const tb = await connecter('b', 'ID-BOB');
     const cb = await assistant('/mcp/b', tb.access_token);
@@ -358,7 +376,7 @@ describe('Rôles : le profil vient du rôle du membre', () => {
     const t = await connecter('a', 'ID-ALICE', { redirect: CHATGPT });
     const c = await assistant('/mcp/a', t.access_token);
     assert.equal(resultat(await c.callTool({ name: 'qui_suis_je', arguments: {} })).acteur, 'chatgpt-alice');
-    const r = resultat(await c.callTool({ name: 'supprimer_personne', arguments: { id: 'p1', choix: 'conserver', confirmationNom: 'Camille ALPHA' } }));
+    const r = await supprimer(c, 'supprimer_personne', { id: 'p1', choix: 'conserver', confirmationNom: 'Camille ALPHA' });
     const audit = (await donnees.liste('clients/a/crm_audit')).filter((l) => l.operationId === r.operationId);
     assert.ok(audit.some((l) => l.action === 'supprimer' && l.acteur === 'chatgpt-alice'), JSON.stringify(audit));
     await c.close();
@@ -381,6 +399,140 @@ describe('Rôles : le profil vient du rôle du membre', () => {
     assert.deepEqual(noms(await c2.listTools()).filter((n) => MOTS_ECRITURE.test(n)), []);
     await c2.close();
     await reinitialiser();
+  });
+});
+
+describe('Suppressions MCP : double confirmation, plafond par document, annotations, nom de serveur', () => {
+  const noms10 = (a) => a.noms.filter((n) => !n.startsWith('et '));
+  /** Une personne « p-gros » avec `n` notes, dans l'espace A (la suppression avec choix « conserver » emporte ses notes). */
+  const personneAvecNotes = async (id, nom, n) => {
+    await donnees.appliquer([
+      { type: 'set', collection: 'clients/a/crm_personnes', id, donnees: { nom, creeLe: new Date('2026-09-01T00:00:00Z') } },
+      ...Array.from({ length: n }, (_, k) => ({ type: 'set', collection: 'clients/a/crm_notes', id: `${id}-n${k}`, donnees: { texte: `Note ${k} de ${nom}`, personneId: id } })),
+    ]);
+  };
+  const compteurJour = async () => (await donnees.liste('mcp_limites')).find((d) => d.id.startsWith('a__'))?.jour?.n ?? 0;
+
+  test('1 le premier appel rend un aperçu (nombre par type, 10 premiers noms, « et N autres ») et un code, sans rien supprimer ; la suppression exige ce code, une seule fois', async () => {
+    await reinitialiser();
+    await personneAvecNotes('p-gros', 'Gros Dossier', 14);
+    const t = await connecter('a', 'ID-ALICE');
+    const c = await assistant('/mcp/a', t.access_token);
+    const avant = await donneesDe('a');
+    const args = { id: 'p-gros', choix: 'conserver', confirmationNom: 'Gros Dossier' };
+    const rep = await c.callTool({ name: 'supprimer_personne', arguments: args });
+    const a = resultat(rep);
+    assert.equal(a.apercu, true); assert.equal(a.supprime, false);
+    assert.deepEqual(a.supprimes, { crm_personnes: 1, crm_notes: 14 });
+    assert.equal(a.total, 15);
+    assert.equal(a.noms.length, 11); assert.equal(noms10(a).length, 10);
+    assert.match(a.noms[0], /Gros Dossier/); assert.equal(a.noms[10], 'et 5 autres');
+    assert.match(a.consigne, /RIEN n'a été supprimé/);
+    assert.deepEqual(await donneesDe('a'), avant, 'aucune donnée touchée par l\'aperçu');
+    assert.equal((await donnees.liste('clients/a/crm_audit')).length, avant['clients/a/crm_audit'].length, 'aucune ligne d\'audit pour un aperçu');
+    // refus : sans code autre que celui reçu, code faux, code d'une autre fiche
+    const faux = await c.callTool({ name: 'supprimer_personne', arguments: { ...args, codeConfirmation: 'ZZZZ-2222' } });
+    assert.equal(faux.isError, true); assert.match(faux.content[0].text, /code incorrect/);
+    // un code faux consomme le code : il faut un nouvel aperçu
+    const r2 = await c.callTool({ name: 'supprimer_personne', arguments: { ...args, codeConfirmation: a.code } });
+    assert.equal(r2.isError, true); assert.match(r2.content[0].text, /aucun aperçu en cours/);
+    const b = resultat(await c.callTool({ name: 'supprimer_personne', arguments: args }));
+    const autreFiche = await c.callTool({ name: 'supprimer_note', arguments: { id: 'n1', codeConfirmation: b.code } });
+    assert.equal(autreFiche.isError, true, 'le code d\'une autre fiche ne vaut pas');
+    const reel = resultat(await c.callTool({ name: 'supprimer_personne', arguments: { ...args, codeConfirmation: b.code } }));
+    assert.equal(reel.supprime, true);
+    assert.deepEqual(reel.supprimes, { crm_personnes: 1, crm_notes: 14 });
+    assert.ok(reel.noms.length <= 11, 'la réponse ne déverse pas toute la liste');
+    assert.match(reel.detail, new RegExp(`lire_audit avec operationId ${reel.operationId}`));
+    assert.ok(!(await donnees.liste('clients/a/crm_personnes')).some((p) => p.id === 'p-gros'));
+    const rejeu = await c.callTool({ name: 'supprimer_personne', arguments: { ...args, codeConfirmation: b.code } });
+    assert.equal(rejeu.isError, true, 'le code est à usage unique');
+    await c.close();
+    await reinitialiser();
+  });
+  test('1 un code expiré (5 minutes) ou devenu faux parce que le contenu a changé depuis l\'aperçu est refusé', async () => {
+    await reinitialiser();
+    await personneAvecNotes('p-gros', 'Gros Dossier', 3);
+    const t = await connecter('a', 'ID-ALICE');
+    const c = await assistant('/mcp/a', t.access_token);
+    const args = { id: 'p-gros', choix: 'conserver', confirmationNom: 'Gros Dossier' };
+    const a = resultat(await c.callTool({ name: 'supprimer_personne', arguments: args }));
+    horloge += 6 * 60_000;
+    const r = await c.callTool({ name: 'supprimer_personne', arguments: { ...args, codeConfirmation: a.code } });
+    assert.equal(r.isError, true); assert.match(r.content[0].text, /expiré/);
+    const b = resultat(await c.callTool({ name: 'supprimer_personne', arguments: args }));
+    await donnees.appliquer([{ type: 'set', collection: 'clients/a/crm_notes', id: 'p-gros-ajout', donnees: { texte: 'Ajoutée après l\'aperçu', personneId: 'p-gros' } }]);
+    const r2 = await c.callTool({ name: 'supprimer_personne', arguments: { ...args, codeConfirmation: b.code } });
+    assert.equal(r2.isError, true); assert.match(r2.content[0].text, /a changé depuis l'aperçu/);
+    assert.ok((await donnees.liste('clients/a/crm_personnes')).some((p) => p.id === 'p-gros'), 'rien supprimé');
+    await c.close();
+    await reinitialiser();
+  });
+  test('2 le plafond est de 50 suppressions par jour, compté par document supprimé ; une restauration qui supprime compte aussi ; le refus ne supprime rien', async () => {
+    assert.deepEqual(LIMITES_PAR_DEFAUT, { requetesParMinute: 120, ecrituresParHeure: 500, suppressionsParJour: 50 });
+    await reinitialiser();
+    await personneAvecNotes('p-30', 'Trente Docs', 29); // 30 documents
+    await personneAvecNotes('p-25', 'Vingt-cinq Docs', 24); // 25 documents
+    await personneAvecNotes('p-20', 'Vingt Docs', 19); // 20 documents
+    const t = await connecter('a', 'ID-ALICE');
+    const c = await assistant('/mcp/a', t.access_token);
+    const sup = (id, nom) => ({ id, choix: 'conserver', confirmationNom: nom });
+    assert.equal(await compteurJour(), 0);
+    const r1 = await supprimer(c, 'supprimer_personne', sup('p-30', 'Trente Docs'));
+    assert.equal(r1.supprime, true);
+    assert.equal(await compteurJour(), 30, 'un compte par document, pas par appel');
+    // 30 + 25 > 50 : refusé, rien supprimé, rien compté
+    const a25 = resultat(await c.callTool({ name: 'supprimer_personne', arguments: sup('p-25', 'Vingt-cinq Docs') }));
+    const refus = await c.callTool({ name: 'supprimer_personne', arguments: { ...sup('p-25', 'Vingt-cinq Docs'), codeConfirmation: a25.code } });
+    assert.equal(refus.isError, true); assert.match(refus.content[0].text, /Plafond atteint.*50 suppressions par jour/);
+    assert.ok((await donnees.liste('clients/a/crm_personnes')).some((p) => p.id === 'p-25'));
+    assert.equal(await compteurJour(), 30);
+    // 30 + 20 = 50 : passe
+    await supprimer(c, 'supprimer_personne', sup('p-20', 'Vingt Docs'));
+    assert.equal(await compteurJour(), 50);
+    // restaurer une SUPPRESSION ne compte pas ; restaurer une CRÉATION (= supprimer) compte et est refusé au plafond
+    const rest = await c.callTool({ name: 'restaurer_depuis_audit', arguments: { operationId: r1.operationId, apercu: false } });
+    assert.ok(!rest.isError, rest.content[0].text);
+    assert.equal(await compteurJour(), 50, 'recréer des documents n\'est pas une suppression');
+    const cree = resultat(await c.callTool({ name: 'creer_personne', arguments: { nom: 'Créée puis défaite' } }));
+    const defaire = await c.callTool({ name: 'restaurer_depuis_audit', arguments: { operationId: cree.operationId, apercu: false } });
+    assert.equal(defaire.isError, true); assert.match(defaire.content[0].text, /Plafond atteint.*50 suppressions par jour/);
+    assert.ok((await donnees.liste('clients/a/crm_personnes')).some((p) => p.nom === 'Créée puis défaite'));
+    // le lendemain (jour de Paris), ça repart ; la restauration de la création compte alors pour ses documents
+    horloge += 24 * 3_600_000;
+    await c.close();
+    const c2 = await assistant('/mcp/a', (await connecter('a', 'ID-ALICE')).access_token);
+    const defaire2 = await c2.callTool({ name: 'restaurer_depuis_audit', arguments: { operationId: cree.operationId, apercu: false } });
+    assert.ok(!defaire2.isError, defaire2.content[0].text);
+    assert.ok(await compteurJour() >= 1, 'la restauration qui supprime compte comme suppression');
+    assert.ok(!(await donnees.liste('clients/a/crm_personnes')).some((p) => p.nom === 'Créée puis défaite'));
+    await c2.close();
+    await reinitialiser();
+  });
+  test('3 chaque outil porte ses annotations : lecture seule pour la lecture, destructif pour supprimer_* et restaurer_depuis_audit, ni l\'un ni l\'autre pour les écritures', async () => {
+    const t = await connecter('a', 'ID-ALICE');
+    const c = await assistant('/mcp/a', t.access_token);
+    const { tools } = await c.listTools();
+    assert.ok(tools.length > 20);
+    for (const o of tools) {
+      assert.ok(o.annotations, `${o.name} sans annotations`);
+      assert.equal(o.annotations.openWorldHint, false, o.name);
+      if (/^(supprimer_|restaurer_depuis_audit)/.test(o.name)) assert.deepEqual([o.annotations.readOnlyHint, o.annotations.destructiveHint], [false, true], o.name);
+      else if (/^(chercher|lire_|lister_|qui_suis_je|extraire_valeur)/.test(o.name) && o.name !== 'extraire_valeur_projet') assert.deepEqual([o.annotations.readOnlyHint, o.annotations.destructiveHint], [true, false], o.name);
+      else assert.deepEqual([o.annotations.readOnlyHint, o.annotations.destructiveHint], [false, false], o.name);
+    }
+    await c.close();
+    const tl = await connecter('a', 'ID-LEA');
+    const cl = await assistant('/mcp/a', tl.access_token);
+    assert.ok((await cl.listTools()).tools.every((o) => o.annotations.readOnlyHint === true), 'tout ce que voit un lecteur est en lecture seule');
+    await cl.close();
+  });
+  test('4 le serveur d\'un espace client se présente sous un nom neutre, pas « chevalier-ia-os »', async () => {
+    const t = await connecter('a', 'ID-ALICE');
+    const c = await assistant('/mcp/a', t.access_token);
+    assert.equal(c.getServerVersion().name, 'espace-client');
+    assert.equal(NOM_SERVEUR_CLIENT, 'espace-client');
+    await c.close();
   });
 });
 
@@ -588,7 +740,7 @@ describe('Étanchéité entre clients (plan M1 à M15)', () => {
   });
   test('M15 balayage final : rien de B sous A et inversement ; aucune écriture hors clients/<client>/… sauf mcp_oauth et mcp_limites', async () => {
     const attendu = baseInitiale();
-    const toutes = new Set([...Object.keys(attendu), 'mcp_oauth', 'mcp_limites', 'clients/a/crm_audit', 'clients/a/crm_audit_avant', 'clients/b/crm_audit', 'clients/b/crm_audit_avant']);
+    const toutes = new Set([...Object.keys(attendu), 'mcp_oauth', 'mcp_limites', 'clients/a/mcp_codes', 'clients/a/crm_audit', 'clients/a/crm_audit_avant', 'clients/b/crm_audit', 'clients/b/crm_audit_avant']);
     for (const nom of toutes) {
       const docs = await donnees.liste(nom);
       const texte = JSON.stringify(docs);

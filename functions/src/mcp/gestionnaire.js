@@ -7,7 +7,7 @@ import { journaliser } from '../securite/journaux.js';
 import { ErreurLimite, limitesDuJeton } from '../securite/limites.js';
 import { executerEcritures, ErreurEcriture } from '../coeur/ecriture.js';
 import { restaurerOperation } from '../coeur/restaurer.js';
-import { OUTILS, outilsAutorises } from './outils/index.js';
+import { OUTILS, outilsAutorises, annotationsDe } from './outils/index.js';
 import { VERSION_SERVEUR } from '../version.js';
 import { ORIGINES_AUTORISEES as ORIGINES, URL_METADONNEES_RESSOURCE } from '../oauth/config.js';
 
@@ -27,6 +27,12 @@ export function descriptionAppel(corps, outils) {
   const outil = methodeMcp === 'tools/call' ? (outils.some((o) => o.nom === nom) ? nom : 'inconnu') : undefined;
   return { methodeMcp, outil };
 }
+
+/** Nom du serveur affiché par Claude et ChatGPT : celui de Jérôme ; les espaces clients en reçoivent un neutre (clients/gestionnaire.js). */
+export const NOM_SERVEUR_CRM = 'chevalier-ia-os';
+
+/** Documents supprimés par des opérations d'écriture : c'est l'unité des plafonds de suppression. */
+export const compterSuppressions = (operations) => (operations ?? []).filter((op) => op.type === 'supprimer' || (op.type === 'remplacer' && !op.donnees)).length;
 
 /** Une erreur d'écriture rendue au client : message clair, avec l'opération à retrouver dans lire_audit. */
 function messageEcriture(e) {
@@ -80,7 +86,7 @@ export function creerGestionnaire({ magasin, donnees, limiteur = null, oauth = n
  * Partagé par le serveur de Jérôme (creerGestionnaire) et par celui des clients (clients/gestionnaire.js). `jeton.jeton` est la clé des plafonds ;
  * `donnees` est ce que les outils voient (chez un client : l'espace du client seulement, voir avecBase) ; `outils` est déjà limité aux modules actifs.
  */
-export async function servirMcp({ req, res, infos, jeton, outils, donnees, limiteur, maintenant }) {
+export async function servirMcp({ req, res, infos, jeton, outils, donnees, limiteur, maintenant, nomServeur = NOM_SERVEUR_CRM }) {
   const limites = limitesDuJeton(jeton);
   try {
     limiteur?.requete(jeton.jeton, limites);
@@ -91,11 +97,11 @@ export async function servirMcp({ req, res, infos, jeton, outils, donnees, limit
   }
 
   const permis = outilsAutorises(jeton.profil, outils);
-  const serveur = new McpServer({ name: 'chevalier-ia-os', version: VERSION_SERVEUR });
+  const serveur = new McpServer({ name: nomServeur, version: VERSION_SERVEUR });
   // Contexte d'écriture de CET appel : acteur du jeton, canal « mcp », heure du serveur. Les plafonds d'écriture sont réservés ici, juste avant d'écrire.
   const ctxEcriture = { acteur: jeton.acteur, jeton: jeton.jeton, via: 'mcp', maintenant: new Date(maintenant()) };
-  const ecrire = async ({ operations, parametres, suppression = false, outil }) => {
-    await limiteur?.reserver(jeton.jeton, limites, { suppression });
+  const ecrire = async ({ operations, parametres, outil }) => {
+    await limiteur?.reserver(jeton.jeton, limites, { suppressions: compterSuppressions(operations) });
     try {
       const r = await executerEcritures({ donnees, ctx: ctxEcriture, outil, parametres, operations });
       if (r.operationId) infos.operationId = r.operationId;
@@ -110,9 +116,11 @@ export async function servirMcp({ req, res, infos, jeton, outils, donnees, limit
     }
   };
   const restaurer = async ({ operationId, apercu, forcer }) => {
-    if (!apercu) await limiteur?.reserver(jeton.jeton, limites, { suppression: false });
     try {
-      const r = await restaurerOperation({ donnees, ctx: ctxEcriture, operationId, apercu, forcer });
+      const r = await restaurerOperation({
+        donnees, ctx: ctxEcriture, operationId, apercu, forcer,
+        reserver: (operations) => limiteur?.reserver(jeton.jeton, limites, { suppressions: compterSuppressions(operations) }),
+      });
       if (r.operationRestauration) infos.operationId = r.operationRestauration;
       return r;
     } catch (e) {
@@ -121,7 +129,7 @@ export async function servirMcp({ req, res, infos, jeton, outils, donnees, limit
     }
   };
   for (const outil of permis) {
-    serveur.registerTool(outil.nom, { description: outil.description, ...(outil.schema ? { inputSchema: outil.schema } : {}) }, async (args) => {
+    serveur.registerTool(outil.nom, { description: outil.description, annotations: annotationsDe(outil), ...(outil.schema ? { inputSchema: outil.schema } : {}) }, async (args) => {
       const contexte = {
         acteur: jeton.acteur, profil: jeton.profil, jeton: jeton.jeton, outilsAutorises: permis.map((o) => o.nom), args, donnees, maintenant: ctxEcriture.maintenant,
         ecrire: (demande) => ecrire({ ...demande, outil: outil.nom }),
