@@ -780,7 +780,7 @@ describe('B16 Formats et réglages de départ', () => {
     assert.deepEqual(L.REGLAGES_NEUTRES, {
       debutActivite: null, dernierExport: null, dernierExportContacts: null, proprietaireGithub: '', cheminProjets: '',
       dossierParentDrive: null, sousDossiersDrive: [],
-      suiviPaiements: false, clotureBloquee: true, boutonsDepot: false, celebrations: false,
+      suiviPaiements: false, clotureBloquee: true, boutonsDepot: true, celebrations: true,
       prenomCelebration: '', imageCelebration: '',
     });
     assert.equal('delaiPaiementJours' in L.REGLAGES_JEROME, false, 'le réglage « Délai de paiement » (2.2) est supprimé');

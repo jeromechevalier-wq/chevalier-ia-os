@@ -50,7 +50,7 @@ function donneesClient(client, marqueur) {
 }
 const tout = (...ensembles) => Object.assign({}, ...ensembles);
 const fichier = (client, nom, extra = {}) => ({ id: client, actif: true, nom, couleur: '#336699', ...extra });
-/** Même jeu d'essai, avec des réglages précis : « a » a les deux options allumées, « c » n'a rien réglé (valeurs neutres : options éteintes). */
+/** Même jeu d'essai, avec des réglages précis : « a » a les deux options allumées, « c » n'a rien réglé (valeurs neutres : suivi des paiements et extraction éteints, dossier Drive et célébrations allumés). */
 function avecReglages(jeu, client, reglages) {
   const nom = `clients/${client}/crm_parametres`;
   return { [nom]: jeu[nom].map((d) => (d.id === 'reglages' ? { ...d, ...reglages } : d)) };

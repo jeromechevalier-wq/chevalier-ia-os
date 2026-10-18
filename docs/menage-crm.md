@@ -13,7 +13,7 @@ Chantier 1 des décisions du 16/10/2026 (fiche « Décisions de cadrage du CRM c
 7. **Modèles** : plus dans le menu, dans les Réglages : « Modèles d'affaires » (nouveau) et « Modèles de projets ».
 8. **Célébrations** : option ; message neutre « Bravo ! », prénom et image en réglage (chez Jérôme : « Jérôme » et l'image de Charles).
 9. **Tâches** : « Confiée à » vient des membres de l'espace ; membre retiré = son nom + « (ancien membre) », tâches jamais supprimées ; un seul membre = pas de choix ; le dernier éditeur ne peut plus être retiré (ni rétrogradé) par l'outil `nouveau-client`.
-10. **GitHub / dossier** : boutons « Créer le GitHub / Créer le répertoire » et réglages GitHub derrière l'interrupteur « Dépôt de code et dossier » (allumé chez Jérôme, éteint par défaut chez un client). Le chantier Drive / liens est fait en 2.6.1 : voir `google-drive.md` (le bouton « Créer le répertoire » crée maintenant le dossier dans Google Drive ; plus de « Créer le GitHub » ni de prompt).
+10. **GitHub / dossier** : boutons « Créer le GitHub / Créer le répertoire » et réglages GitHub derrière l'interrupteur « Dépôt de code et dossier » (allumé chez Jérôme ; allumé par défaut chez un nouveau client depuis 2.11.8, réglable). Le chantier Drive / liens est fait en 2.6.1 : voir `google-drive.md` (le bouton « Créer le répertoire » crée maintenant le dossier dans Google Drive ; plus de « Créer le GitHub » ni de prompt).
 
 ## Où sont stockées les choses (aucune nouvelle collection)
 
@@ -39,7 +39,7 @@ Chantier 1 des décisions du 16/10/2026 (fiche « Décisions de cadrage du CRM c
 - Objectifs de départ d'un client : cibles 5 / 2 / 2 ; « Passages à l'étape » démarre sur la 3e étape active. Les objectifs facturé / encaissé n'existent que si le suivi des paiements est allumé ; un objectif « Passages à l'étape » dont l'étape est désactivée est indisponible.
 - Phase d'arrivée d'une action suggérée : l'action d'une phase est toujours une **tâche du projet** (dans cette phase) ; celle d'une étape est une activité (appel, rendez-vous, e-mail, tâche).
 - « Confiée à » : seuls les **éditeurs** sont proposés ; le nom affiché vient de l'adresse (partie avant @), car les fiches d'appartenance ne portent pas de nom. Le nom est mémorisé sur la tâche (`assigneNom`) pour l'afficher après un retrait.
-- Célébrations éteintes par défaut chez un client (option activable).
+- Célébrations : allumées par défaut chez un nouveau client depuis 2.11.8 (éteintes auparavant), éteignables ; un réglage déjà enregistré garde la priorité.
 - Les modèles d'affaires ne sont pas encore proposés par le serveur MCP (écran seulement) ; le plan `planCreerAffaire` accepte déjà un modèle.
 - Le graphique du chiffre d'affaires encaissé de l'Accueil n'est montré que si le suivi des paiements est allumé.
 - Les pages `#/projets/modeles/<id>` (fiche d'un modèle) existent toujours ; seule l'entrée de menu a disparu (retour vers les Réglages).

@@ -203,7 +203,19 @@ test('I6 tâche de projet : pas de « Confiée à » (Jérôme / Charles) chez u
   expect((await listerDocuments('clients/studio/projets_taches')).find((t) => t.id === 't1').assigneA, 'le champ existant n\'est pas touché').toBe('jerome');
 });
 
-test('I7 pas de célébration (Charles, « Bravo Jérôme ! ») quand une affaire est gagnée chez un client', async ({ page }) => {
+test('I7 célébration neutre (« Bravo ! », sans Charles ni « Bravo Jérôme ! ») quand une affaire est gagnée chez un client : allumée par défaut', async ({ page }) => {
+  await ouvrir(page, 'studio', 'crm/affaires/a1');
+  await expect(page.locator('input.titre-editable')).toHaveValue('Audit du lac');
+  await page.locator('[data-action="gagnee"]').click();
+  await expect.poll(async () => (await listerDocuments('clients/studio/crm_affaires')).find((a) => a.id === 'a1').statut).toBe('gagnee');
+  await expect(page.locator('.celebration')).toBeVisible();
+  await expect(page.locator('.celebration')).toContainText('Bravo');
+  expect(await page.locator('.celebration').innerText()).not.toMatch(IDENTITE_JEROME);
+  await expect(page.locator('.charles-content')).toHaveCount(0);
+});
+
+test('I7b chez un client dont le réglage « celebrations » est écrit à false : aucune célébration (le booléen enregistré garde la priorité)', async ({ page }) => {
+  await ecrireDocument('clients/studio/crm_parametres/reglages', { celebrations: false });
   await ouvrir(page, 'studio', 'crm/affaires/a1');
   await expect(page.locator('input.titre-editable')).toHaveValue('Audit du lac');
   await page.locator('[data-action="gagnee"]').click();
@@ -211,6 +223,7 @@ test('I7 pas de célébration (Charles, « Bravo Jérôme ! ») quand une affair
   await page.waitForTimeout(600);
   await expect(page.locator('.celebration, .charles-content')).toHaveCount(0);
   await expect(page.locator('body')).not.toContainText('Bravo');
+  expect((await lireDocument('clients/studio/crm_parametres/reglages')).celebrations).toBe(false);
 });
 
 test('I8 réglages de départ écrits chez un client : sans le compte GitHub ni le dossier de Jérôme', { tag: '@sans-telephone' }, async ({ page }) => {
@@ -233,11 +246,12 @@ test('I9 la page de connexion du client (avant la connexion) n\'a aucune identit
   expect(await page.evaluate(() => document.head.querySelector('link[rel="apple-touch-icon"]')?.getAttribute('href') || '')).not.toContain('assets/icons');
 });
 
-test('I10 chez un client : « Ajouter un document » (Google branché) et dossier de travail libre ; « Créer un dossier dans Google Drive » seulement si l\'interrupteur est allumé, dans l\'espace du client', async ({ page, context }) => {
+test('I10 chez un client : « Ajouter un document » (Google branché) et dossier de travail libre ; « Créer un dossier dans Google Drive » allumé par défaut, absent quand le réglage est écrit à false, dans l\'espace du client', async ({ page, context }) => {
   const drive = await brancherGoogle(context);
+  // Réglage écrit à false (comme chez Ingrid) AVANT d'ouvrir la fiche : le dossier de travail est un lien libre, pas de création ; la fenêtre Google d'ajout de document est là.
+  await ecrireDocument('clients/studio/crm_parametres/reglages', { boutonsDepot: false });
   await ouvrir(page, 'studio', 'projets/projets/pr1');
   await expect(page.locator('input.titre-editable')).toHaveValue('Site du lac');
-  // Interrupteur éteint par défaut : le dossier de travail est un lien libre, pas de création ; la fenêtre Google d'ajout de document est là.
   await expect(page.locator('[data-action="creer-dossier-ouvrir"]')).toHaveCount(0);
   await expect(page.locator('[data-action="lier-dossier"]')).toBeVisible();
   await expect(page.locator('[data-section="projet-documents"]')).toContainText('Liens et documents');

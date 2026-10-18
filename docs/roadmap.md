@@ -4,6 +4,10 @@ Tenue à jour à chaque discussion sur l'évolution de l'appli. Dernière mise �
 
 Légende : **décidé** = validé par Jérôme ; **piste** = à trancher avant le cahier des charges.
 
+## Options par défaut des nouveaux espaces (18/10/2026, PR 122, version 2.11.x)
+
+Un nouvel espace démarre avec « Créer un dossier dans Google Drive » et « Célébrations » **allumés** (extraction de valeur éteinte) ; le dossier Drive parent se choisit sous la case, dans Réglages > Options du CRM. Un booléen déjà enregistré garde la priorité (Ingrid : `boutonsDepot=false` reste). **Vigilance avant de déployer la plateforme** : `initialiserParametres` écrit les champs absents avec la nouvelle valeur (true) au prochain chargement ; vérifier dans Firestore (`clients/<client>/crm_parametres/reglages`) que les espaces existants ont bien `celebrations` et `boutonsDepot` écrits (sinon ils passent à allumé). Détail : `google-drive.md`.
+
 ## Mon espace modifiable (17/10/2026, version 2.10.0)
 
 **Décidé (17/10/2026)** : Ingrid Atamian (et tout client) règle elle-même le nom, la couleur, le logo, les images de la page de connexion et le texte d'accueil de son espace ; les **éditeurs** gèrent aussi les membres (on ne retire ni ne rétrograde jamais le dernier éditeur) ; **les modules restent à Jérôme seul** (écran en lecture seule : « Pour changer de module, contacte ton administrateur »). Le logo de l'espace sert d'image aux célébrations (case « Utiliser le logo de mon espace »). **Écrit et testé, PR en attente du « fusionne »** : fonction serveur `espaceReglages` (compte de service dédié `espace-reglages`, **à créer avant le déploiement**), écrans Réglages > Mon espace et Membres et rôles. Les règles Firestore et Storage ne changent pas. Détail, étapes de déploiement et ce qui n'est pas vérifié en réel : `mon-espace.md`.

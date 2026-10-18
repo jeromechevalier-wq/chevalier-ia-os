@@ -15,7 +15,7 @@ import * as P from './logique.js';
 import { sectionTaches } from './taches.js';
 import { sectionFactures } from './factures.js';
 import { cheminModele } from './modeles.js';
-import { anneauProgression, cheminProjet } from './composants.js';
+import { anneauProgression } from './composants.js';
 import { pastilleStatutProjet, pastilleImpaye, terminerProjet, changerPhaseProjet, mettreEnPause, reprendre, rouvrir, demanderSuppressionProjet } from './projets.js';
 const cfg = () => CRM.etat.config;
 const EXPLICATION_STATUT_PROJET = {
