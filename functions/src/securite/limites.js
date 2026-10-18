@@ -48,6 +48,14 @@ export function creerLimiteur({ donnees, maintenant = () => Date.now() }) {
       minutes.set(jeton, { fenetre, n });
     },
 
+    /** Suppressions encore permises aujourd'hui (jour de Paris) pour ce jeton ; lecture seule, ne compte rien. */
+    async suppressionsRestantes(jeton, limites) {
+      const courant = await donnees.document(C.limites, jeton);
+      const jour = L.aujourdhuiParis(new Date(maintenant()));
+      const deja = courant?.jour?.fenetre === jour ? courant.jour.n : 0;
+      return Math.max(0, limites.suppressionsParJour - deja);
+    },
+
     /**
      * Réserve une écriture (et `suppressions` suppressions : le nombre de documents supprimés) avant d'écrire. Atomique entre instances.
      * Lève ErreurLimite si un plafond est atteint (rien n'est alors compté).

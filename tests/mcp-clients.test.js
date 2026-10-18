@@ -342,6 +342,19 @@ describe('Rôles : le profil vient du rôle du membre', () => {
     await ca.close();
     await reinitialiser();
   });
+  test('M7b-bis Clara, lectrice chez B (éditrice chez A) : la suppression chez B est refusée et B ne change pas', async () => {
+    await reinitialiser();
+    const tb = await connecter('b', 'ID-CLARA');
+    const cb = await assistant('/mcp/b', tb.access_token);
+    assert.equal(resultat(await cb.callTool({ name: 'qui_suis_je', arguments: {} })).profil, 'lecteur');
+    const avantB = await donneesDe('b');
+    assert.ok(await refuse(cb, 'supprimer_personne', { id: 'p1', choix: 'conserver', confirmationNom: 'Camille BRAVO' }));
+    assert.ok(await refuse(cb, 'supprimer_note', { id: 'n1' }));
+    assert.deepEqual(await donneesDe('b'), avantB);
+    assert.deepEqual(await donnees.liste('clients/b/mcp_codes'), [], 'aucun code émis chez B');
+    await cb.close();
+    await reinitialiser();
+  });
   test('M7c restaurer_depuis_audit avec l\'operationId de M7a chez A : la personne réapparaît', async () => {
     await reinitialiser();
     const t = await connecter('a', 'ID-ALICE');
@@ -468,6 +481,27 @@ describe('Suppressions MCP : double confirmation, plafond par document, annotati
     await c.close();
     await reinitialiser();
   });
+  test('1 le code d\'un autre acteur du même client, ou d\'un autre outil pour le même identifiant, est refusé ; le bon code passe ensuite', async () => {
+    await reinitialiser();
+    await donnees.appliquer([
+      { type: 'set', collection: 'clients/a/crm_notes', id: 'dup1', donnees: { texte: 'Note jumelle', personneId: 'p1' } },
+      { type: 'set', collection: 'clients/a/crm_activites', id: 'dup1', donnees: { titre: 'Activité jumelle', type: 'tache', date: '2026-10-20', fait: false, personneId: 'p1' } },
+    ]);
+    const alice = await assistant('/mcp/a', (await connecter('a', 'ID-ALICE')).access_token);
+    const clara = await assistant('/mcp/a', (await connecter('a', 'ID-CLARA')).access_token);
+    const code = resultat(await alice.callTool({ name: 'supprimer_note', arguments: { id: 'dup1' } })).code;
+    const parClara = await clara.callTool({ name: 'supprimer_note', arguments: { id: 'dup1', codeConfirmation: code } });
+    assert.equal(parClara.isError, true, 'le code d\'Alice ne vaut pas pour Clara');
+    // le refus de Clara n'a rien consommé du code d'Alice
+    const autreOutil = await alice.callTool({ name: 'supprimer_activite', arguments: { id: 'dup1', codeConfirmation: code } });
+    assert.equal(autreOutil.isError, true, 'le code d\'un outil ne vaut pas pour un autre, même identifiant');
+    assert.ok((await donnees.liste('clients/a/crm_notes')).some((n) => n.id === 'dup1') && (await donnees.liste('clients/a/crm_activites')).some((n) => n.id === 'dup1'));
+    const code2 = resultat(await alice.callTool({ name: 'supprimer_note', arguments: { id: 'dup1' } })).code;
+    assert.equal(resultat(await alice.callTool({ name: 'supprimer_note', arguments: { id: 'dup1', codeConfirmation: code2 } })).supprime, true);
+    assert.ok((await donnees.liste('clients/a/crm_activites')).some((n) => n.id === 'dup1'), 'l\'activité jumelle est restée');
+    await alice.close(); await clara.close();
+    await reinitialiser();
+  });
   test('2 le plafond est de 50 suppressions par jour, compté par document supprimé ; une restauration qui supprime compte aussi ; le refus ne supprime rien', async () => {
     assert.deepEqual(LIMITES_PAR_DEFAUT, { requetesParMinute: 120, ecrituresParHeure: 500, suppressionsParJour: 50 });
     await reinitialiser();
@@ -483,12 +517,20 @@ describe('Suppressions MCP : double confirmation, plafond par document, annotati
     assert.equal(await compteurJour(), 30, 'un compte par document, pas par appel');
     // 30 + 25 > 50 : refusé, rien supprimé, rien compté
     const a25 = resultat(await c.callTool({ name: 'supprimer_personne', arguments: sup('p-25', 'Vingt-cinq Docs') }));
-    const refus = await c.callTool({ name: 'supprimer_personne', arguments: { ...sup('p-25', 'Vingt-cinq Docs'), codeConfirmation: a25.code } });
+    assert.equal(a25.depassePlafond, true, 'l\'aperçu prévient avant de donner un code'); assert.equal(a25.code, undefined); assert.equal(a25.suppressionsRestantesAujourdhui, 20); assert.equal(a25.total, 25);
+    // un code obtenu quand il restait de la place ne passe plus une fois la place prise
+    const a20 = resultat(await c.callTool({ name: 'supprimer_personne', arguments: sup('p-20', 'Vingt Docs') }));
+    assert.ok(a20.code);
+    await personneAvecNotes('p-1', 'Un Seul', 0);
+    const consomme = await supprimer(c, 'supprimer_personne', sup('p-1', 'Un Seul'));
+    assert.equal(consomme.supprime, true);
+    assert.equal(await compteurJour(), 31);
+    await personneAvecNotes('p-19', 'Dix-neuf Docs', 18); // 19 documents : passe (31 + 19 = 50)
+    await supprimer(c, 'supprimer_personne', sup('p-19', 'Dix-neuf Docs'));
+    assert.equal(await compteurJour(), 50);
+    const refus = await c.callTool({ name: 'supprimer_personne', arguments: { ...sup('p-20', 'Vingt Docs'), codeConfirmation: a20.code } });
     assert.equal(refus.isError, true); assert.match(refus.content[0].text, /Plafond atteint.*50 suppressions par jour/);
-    assert.ok((await donnees.liste('clients/a/crm_personnes')).some((p) => p.id === 'p-25'));
-    assert.equal(await compteurJour(), 30);
-    // 30 + 20 = 50 : passe
-    await supprimer(c, 'supprimer_personne', sup('p-20', 'Vingt Docs'));
+    assert.ok((await donnees.liste('clients/a/crm_personnes')).some((p) => p.id === 'p-25' || p.id === 'p-20'));
     assert.equal(await compteurJour(), 50);
     // restaurer une SUPPRESSION ne compte pas ; restaurer une CRÉATION (= supprimer) compte et est refusé au plafond
     const rest = await c.callTool({ name: 'restaurer_depuis_audit', arguments: { operationId: r1.operationId, apercu: false } });

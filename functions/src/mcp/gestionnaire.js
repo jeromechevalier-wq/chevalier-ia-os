@@ -134,6 +134,7 @@ export async function servirMcp({ req, res, infos, jeton, outils, donnees, limit
         acteur: jeton.acteur, profil: jeton.profil, jeton: jeton.jeton, outilsAutorises: permis.map((o) => o.nom), args, donnees, maintenant: ctxEcriture.maintenant,
         ecrire: (demande) => ecrire({ ...demande, outil: outil.nom }),
         restaurer,
+        suppressionsRestantes: () => (limiteur ? limiteur.suppressionsRestantes(jeton.jeton, limites) : Infinity),
       };
       let resultat;
       try {

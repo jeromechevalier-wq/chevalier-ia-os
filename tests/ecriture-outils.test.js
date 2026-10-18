@@ -524,17 +524,30 @@ describe('Plafonds de débit (test 13)', () => {
     refuse(await s.appeler('biblio', 'ajouter_note', { texte: 'c', affaireId: 'a1' }), /Plafond/);
   });
 
-  test('suppressions par jour : la suivante est refusée et rien n’est supprimé ; le lendemain (jour de Paris) repart ; les restaurations ne comptent pas comme suppressions', async () => {
+  test('suppressions par jour : la suivante est refusée et rien n’est supprimé ; le lendemain (jour de Paris) repart ; une restauration qui supprime compte comme suppression, une qui recrée non', async () => {
     const s = await demarrer({ jetonsExtra: { code: { limites: { suppressionsParJour: 2 } } } });
     const op1 = ok(await s.supprimer('code', 'supprimer_note', { id: 'n1' }));
     ok(await s.supprimer('code', 'supprimer_note', { id: 'n2' }));
     const avant = s.vue();
-    refuse(await s.supprimer('code', 'supprimer_activite', { id: 'ac4' }), /Plafond atteint.*2 suppressions par jour/);
+    // l'aperçu prévient AVANT de donner un code quand le plafond restant ne suffit pas
+    const sansCode = ok(await s.appeler('code', 'supprimer_activite', { id: 'ac4' }));
+    assert.equal(sansCode.depassePlafond, true); assert.equal(sansCode.code, undefined); assert.equal(sansCode.suppressionsRestantesAujourdhui, 0);
     assert.deepEqual(s.vue(), avant);
     ok(await s.appeler('code', 'restaurer_depuis_audit', { operationId: op1.operationId, apercu: false }));
     ok(await s.appeler('code', 'modifier_affaire', { id: 'a1', montant: 5 })); // une écriture ordinaire ne compte pas comme suppression
     s.horloge.t += 24 * 3_600_000;
     ok(await s.supprimer('code', 'supprimer_activite', { id: 'ac4' }));
+  });
+
+  test('un code obtenu avant que le plafond soit atteint ne passe pas ensuite : Plafond atteint, rien supprimé', async () => {
+    const s = await demarrer({ jetonsExtra: { code: { limites: { suppressionsParJour: 2 } } } });
+    const apercu = ok(await s.appeler('code', 'supprimer_activite', { id: 'ac4' }));
+    assert.ok(apercu.code && !apercu.depassePlafond);
+    ok(await s.supprimer('code', 'supprimer_note', { id: 'n1' }));
+    ok(await s.supprimer('code', 'supprimer_note', { id: 'n2' }));
+    const avant = s.vue();
+    refuse(await s.appeler('code', 'supprimer_activite', { id: 'ac4', codeConfirmation: apercu.code }), /Plafond atteint.*2 suppressions par jour/);
+    assert.deepEqual(s.vue(), avant);
   });
 
   test('limites illisibles dans le secret : valeurs par défaut', async () => {
