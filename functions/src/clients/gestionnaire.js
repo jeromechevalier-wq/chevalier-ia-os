@@ -15,6 +15,8 @@ import { FORMAT_CLIENT, ORIGINES_PLATEFORME, adressesClient } from './config.js'
 import { MODULES_DECLARES, OUTILS_COMMUNS } from '../../partage/registre.js';
 import { cheminBaseClient } from '../../partage/chemins.js';
 
+/** Nom de serveur neutre : le client ne voit pas le nom interne du CRM de Jérôme. */
+export const NOM_SERVEUR_CLIENT = 'espace-client';
 const MOTIF_LIEN = /^\/mcp\/([^/]+)$/;
 
 /** Outils proposés à un client : les outils communs et ceux des modules actifs (le profil du membre filtre ensuite). */
@@ -75,6 +77,6 @@ export function creerGestionnaireClients({ donnees, oauth, limiteur = null, outi
     }
     const proposes = outilsSelonOptions(outilsDesModules(jeton.actifs ?? [], outils), options);
     Object.assign(infos, { jeton: jeton.jeton, acteur: jeton.acteur, profil: jeton.profil, role: jeton.role }, descriptionAppel(req.body, proposes));
-    return servirMcp({ req, res, infos, jeton, outils: proposes, donnees: donneesClient, limiteur, maintenant });
+    return servirMcp({ req, res, infos, jeton, outils: proposes, donnees: donneesClient, limiteur, maintenant, nomServeur: NOM_SERVEUR_CLIENT });
   };
 }

@@ -62,8 +62,15 @@ async function demarrer({ limites = {}, jetonsExtra = {} } = {}) {
     try { data = JSON.parse(texte); } catch { data = undefined; }
     return { isError: !!corps.result.isError, texte, data };
   };
-  const vue = () => Object.fromEntries(Object.entries(collections).filter(([k]) => !['crm_audit', 'crm_audit_avant', 'mcp_limites'].includes(k)).map(([k, v]) => [k, structuredClone(v).sort((a, b) => a.id.localeCompare(b.id))]));
-  return { collections, donnees, appeler, brut, horloge, lignesJournal, vue, doc: (nom, id) => collections[nom]?.find((d) => d.id === id) };
+  /** Suppression en deux temps (double confirmation) : aperçu, puis rappel avec le code. Rend la réponse du second appel (ou du premier s'il est refusé). */
+  const supprimer = async (jeton, nom, args) => {
+    const apercu = await appeler(jeton, nom, args);
+    if (apercu.isError) return apercu;
+    assert.equal(apercu.data.apercu, true, apercu.texte);
+    return appeler(jeton, nom, { ...args, codeConfirmation: apercu.data.code });
+  };
+  const vue = () => Object.fromEntries(Object.entries(collections).filter(([k]) => !['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_codes'].includes(k)).map(([k, v]) => [k, structuredClone(v).sort((a, b) => a.id.localeCompare(b.id))]));
+  return { collections, donnees, appeler, supprimer, brut, horloge, lignesJournal, vue, doc: (nom, id) => collections[nom]?.find((d) => d.id === id) };
 }
 const ok = (r) => { assert.equal(r.isError, false, r.texte); return r.data; };
 const refuse = (r, motif) => { assert.equal(r.isError, true, `devait être refusé : ${r.texte}`); if (motif) assert.match(r.texte, motif); };
@@ -329,7 +336,7 @@ describe('Suppression et restauration (tests 6 et 10)', () => {
   test('test 6 : supprimer une personne avec « affaires » puis restaurer_depuis_audit redonne EXACTEMENT les mêmes documents (mêmes identifiants, mêmes liens)', async () => {
     const s = await demarrer();
     const avant = s.vue();
-    const r = ok(await s.appeler('code', 'supprimer_personne', { id: 'p1', choix: 'affaires', confirmationNom: 'camille durand' }));
+    const r = ok(await s.supprimer('code', 'supprimer_personne', { id: 'p1', choix: 'affaires', confirmationNom: 'camille durand' }));
     assert.equal(s.doc('crm_personnes', 'p1'), undefined);
     assert.deepEqual(r.supprimes, { crm_personnes: 1, crm_affaires: 2, crm_activites: 2, crm_notes: 2, crm_evenements: 2 });
     assert.match(r.restaurable, /restaurer_depuis_audit/);
@@ -348,7 +355,7 @@ describe('Suppression et restauration (tests 6 et 10)', () => {
     const s = await demarrer();
     const avant = s.vue();
     refuse(await s.appeler('code', 'supprimer_personne', { id: 'p1', confirmationNom: 'Camille Durand' }), /choix = "affaires".*"conserver"/);
-    const r = ok(await s.appeler('code', 'supprimer_personne', { id: 'p1', choix: 'conserver', confirmationNom: 'Camille Durand' }));
+    const r = ok(await s.supprimer('code', 'supprimer_personne', { id: 'p1', choix: 'conserver', confirmationNom: 'Camille Durand' }));
     assert.equal(s.doc('crm_affaires', 'a1').personneId, null);
     assert.ok(s.doc('crm_affaires', 'a1'), 'l’affaire est conservée');
     assert.equal(s.doc('crm_activites', 'ac1').personneId, null);
@@ -361,7 +368,7 @@ describe('Suppression et restauration (tests 6 et 10)', () => {
     s.collections.projets_projets = [{ id: 'pr1', titre: 'Audit Lilas', affaireId: 'a1', personneId: 'p1', organisationId: 'org1', phase: 'lancement', statut: 'actif', archive: false }];
     s.collections.crm_evenements.push({ id: 'ev-pr1', type: 'projet_cree', texte: 'Projet créé : Audit Lilas', projetId: 'pr1', affaireId: 'a1', personneId: 'p1', organisationId: 'org1', auteur: 'x' });
     const avant = s.vue();
-    const r = ok(await s.appeler('code', 'supprimer_affaire', { id: 'a1', confirmationNom: 'Site vitrine Atelier des Lilas' }));
+    const r = ok(await s.supprimer('code', 'supprimer_affaire', { id: 'a1', confirmationNom: 'Site vitrine Atelier des Lilas' }));
     assert.equal(s.doc('crm_affaires', 'a1'), undefined);
     assert.deepEqual([s.doc('projets_projets', 'pr1').affaireId, s.doc('projets_projets', 'pr1').personneId], [null, 'p1'], 'projet gardé, seul le lien vers l’affaire est vidé');
     assert.equal(s.doc('crm_evenements', 'ev-pr1').affaireId, null, 'le fil du projet est gardé, détaché de l’affaire');
@@ -369,7 +376,7 @@ describe('Suppression et restauration (tests 6 et 10)', () => {
     ok(await s.appeler('code', 'restaurer_depuis_audit', { operationId: r.operationId, apercu: false }));
     assert.deepEqual(s.vue(), avant);
 
-    const r2 = ok(await s.appeler('code', 'supprimer_personne', { id: 'p1', choix: 'affaires', confirmationNom: 'Camille Durand' }));
+    const r2 = ok(await s.supprimer('code', 'supprimer_personne', { id: 'p1', choix: 'affaires', confirmationNom: 'Camille Durand' }));
     assert.equal(s.doc('crm_personnes', 'p1'), undefined);
     assert.deepEqual([s.doc('projets_projets', 'pr1').affaireId, s.doc('projets_projets', 'pr1').personneId, s.doc('projets_projets', 'pr1').organisationId], [null, null, 'org1']);
     assert.ok(s.doc('crm_evenements', 'ev-pr1'), 'le fil du projet survit à la personne et à ses affaires');
@@ -436,7 +443,7 @@ describe('Suppression et restauration (tests 6 et 10)', () => {
     ok(await s.appeler('code', 'creer_organisation', { nom: 'Vide Totale' }));
     const o = s.collections.crm_organisations.find((x) => x.nom === 'Vide Totale');
     const avant2 = s.vue();
-    const r = ok(await s.appeler('code', 'supprimer_organisation', { id: o.id, confirmationNom: 'vide totale' }));
+    const r = ok(await s.supprimer('code', 'supprimer_organisation', { id: o.id, confirmationNom: 'vide totale' }));
     assert.equal(s.doc('crm_organisations', o.id), undefined);
     assert.equal(r.supprimes.crm_evenements, 1, 'son événement de création part avec elle');
     ok(await s.appeler('code', 'restaurer_depuis_audit', { operationId: r.operationId, apercu: false }));
@@ -446,11 +453,11 @@ describe('Suppression et restauration (tests 6 et 10)', () => {
   test('supprimer une affaire, une note, une activité : récupérables ; la restauration est refusée si quelqu’un a modifié entre-temps, forcer l’écrase (test 7)', async () => {
     const s = await demarrer();
     const avant = s.vue();
-    const a = ok(await s.appeler('code', 'supprimer_affaire', { id: 'a1', confirmationNom: 'site vitrine atelier des lilas' }));
+    const a = ok(await s.supprimer('code', 'supprimer_affaire', { id: 'a1', confirmationNom: 'site vitrine atelier des lilas' }));
     assert.equal(s.doc('crm_affaires', 'a1'), undefined);
     assert.equal(s.doc('crm_activites', 'ac1'), undefined, 'son fil part avec elle');
-    const n = ok(await s.appeler('code', 'supprimer_note', { id: 'n2' }));
-    const ac = ok(await s.appeler('code', 'supprimer_activite', { id: 'ac4' }));
+    const n = ok(await s.supprimer('code', 'supprimer_note', { id: 'n2' }));
+    const ac = ok(await s.supprimer('code', 'supprimer_activite', { id: 'ac4' }));
     for (const op of [ac, n, a]) ok(await s.appeler('code', 'restaurer_depuis_audit', { operationId: op.operationId, apercu: false }));
     assert.deepEqual(s.vue(), avant);
 
@@ -465,14 +472,14 @@ describe('Suppression et restauration (tests 6 et 10)', () => {
 
   test('test 8 : copie « avant » expirée : message clair', async () => {
     const s = await demarrer();
-    const r = ok(await s.appeler('code', 'supprimer_note', { id: 'n1' }));
+    const r = ok(await s.supprimer('code', 'supprimer_note', { id: 'n1' }));
     s.collections.crm_audit_avant = [];
     refuse(await s.appeler('code', 'restaurer_depuis_audit', { operationId: r.operationId, apercu: false }), /n’existent plus.*90 jours.*sauvegarde/);
   });
 
   test('une suppression du bibliothécaire créée par erreur par Claude Code se retrouve dans lire_audit (outil, acteur, action « supprimer »)', async () => {
     const s = await demarrer();
-    const r = ok(await s.appeler('code', 'supprimer_activite', { id: 'ac2' }));
+    const r = ok(await s.supprimer('code', 'supprimer_activite', { id: 'ac2' }));
     const audit = ok(await s.appeler('biblio', 'lire_audit', { operationId: r.operationId }));
     assert.deepEqual(audit.lignes.map((l) => [l.outil, l.acteur, l.action, l.collection, l.docId]), [['supprimer_activite', 'claude-code-jerome', 'supprimer', 'crm_activites', 'ac2']]);
   });
@@ -517,17 +524,30 @@ describe('Plafonds de débit (test 13)', () => {
     refuse(await s.appeler('biblio', 'ajouter_note', { texte: 'c', affaireId: 'a1' }), /Plafond/);
   });
 
-  test('suppressions par jour : la suivante est refusée et rien n’est supprimé ; le lendemain (jour de Paris) repart ; les restaurations ne comptent pas comme suppressions', async () => {
+  test('suppressions par jour : la suivante est refusée et rien n’est supprimé ; le lendemain (jour de Paris) repart ; une restauration qui supprime compte comme suppression, une qui recrée non', async () => {
     const s = await demarrer({ jetonsExtra: { code: { limites: { suppressionsParJour: 2 } } } });
-    const op1 = ok(await s.appeler('code', 'supprimer_note', { id: 'n1' }));
-    ok(await s.appeler('code', 'supprimer_note', { id: 'n2' }));
+    const op1 = ok(await s.supprimer('code', 'supprimer_note', { id: 'n1' }));
+    ok(await s.supprimer('code', 'supprimer_note', { id: 'n2' }));
     const avant = s.vue();
-    refuse(await s.appeler('code', 'supprimer_activite', { id: 'ac4' }), /Plafond atteint.*2 suppressions par jour/);
+    // l'aperçu prévient AVANT de donner un code quand le plafond restant ne suffit pas
+    const sansCode = ok(await s.appeler('code', 'supprimer_activite', { id: 'ac4' }));
+    assert.equal(sansCode.depassePlafond, true); assert.equal(sansCode.code, undefined); assert.equal(sansCode.suppressionsRestantesAujourdhui, 0);
     assert.deepEqual(s.vue(), avant);
     ok(await s.appeler('code', 'restaurer_depuis_audit', { operationId: op1.operationId, apercu: false }));
     ok(await s.appeler('code', 'modifier_affaire', { id: 'a1', montant: 5 })); // une écriture ordinaire ne compte pas comme suppression
     s.horloge.t += 24 * 3_600_000;
-    ok(await s.appeler('code', 'supprimer_activite', { id: 'ac4' }));
+    ok(await s.supprimer('code', 'supprimer_activite', { id: 'ac4' }));
+  });
+
+  test('un code obtenu avant que le plafond soit atteint ne passe pas ensuite : Plafond atteint, rien supprimé', async () => {
+    const s = await demarrer({ jetonsExtra: { code: { limites: { suppressionsParJour: 2 } } } });
+    const apercu = ok(await s.appeler('code', 'supprimer_activite', { id: 'ac4' }));
+    assert.ok(apercu.code && !apercu.depassePlafond);
+    ok(await s.supprimer('code', 'supprimer_note', { id: 'n1' }));
+    ok(await s.supprimer('code', 'supprimer_note', { id: 'n2' }));
+    const avant = s.vue();
+    refuse(await s.appeler('code', 'supprimer_activite', { id: 'ac4', codeConfirmation: apercu.code }), /Plafond atteint.*2 suppressions par jour/);
+    assert.deepEqual(s.vue(), avant);
   });
 
   test('limites illisibles dans le secret : valeurs par défaut', async () => {
@@ -779,7 +799,7 @@ describe('Outils des projets : mêmes règles que l’écran, avec audit et rest
     refuse(await s.appeler('code', 'supprimer_projet', { id: r.id }));
     refuse(await s.appeler('code', 'supprimer_projet', { id: r.id, confirmationNom: 'Mauvais titre' }), /non confirmée/);
     assert.deepEqual(s.vue(), avant, 'rien n’est supprimé sans confirmation');
-    const sup = ok(await s.appeler('code', 'supprimer_projet', { id: r.id, confirmationNom: 'application de commande boulangerie' }));
+    const sup = ok(await s.supprimer('code', 'supprimer_projet', { id: r.id, confirmationNom: 'application de commande boulangerie' }));
     assert.equal(s.doc('projets_projets', r.id), undefined);
     assert.equal(s.collections.projets_taches.filter((t) => t.projetId === r.id).length, 0);
     assert.equal(s.doc('crm_affaires', 'a2').projetId, null, 'l’affaire est gardée, son lien vidé');

@@ -63,6 +63,13 @@ async function refus(titre, promesse, motif) {
 }
 
 // 0. Qui suis-je ?
+/** Suppression en deux temps (double confirmation) : l'aperçu ne supprime rien et donne un code ; le rappel avec ce code supprime. */
+async function supprimerAvecCode(args) {
+  const apercu = await appeler('supprimer_organisation', args);
+  if (apercu.erreur || apercu.data?.apercu !== true || !apercu.data.code) return { erreur: apercu.erreur || `pas d'aperçu avec code : ${JSON.stringify(apercu.data).slice(0, 150)}` };
+  return appeler('supprimer_organisation', { ...args, codeConfirmation: apercu.data.code });
+}
+
 const moi = await attendu('0. Connexion', appeler('qui_suis_je'), (d) => {
   if (d.profil !== 'claude-code') return `ce jeton est « ${d.profil} » : il faut le jeton Claude Code`;
   if (!d.outils.includes('creer_organisation')) return 'le serveur n’offre pas encore les outils d’écriture (déploiement de l’étape 4 pas terminé ?)';
@@ -96,7 +103,7 @@ await attendu('6. L\'organisation est toujours là après les refus', appeler('l
 bon('intacte');
 
 // 5. Suppression
-const suppr = await attendu('7. Supprimer (confirmation par le nom)', appeler('supprimer_organisation', { id: organisationId, confirmationNom: NOM }), (d) => (d.operationId ? null : 'pas d\'identifiant d\'opération'));
+const suppr = await attendu('7. Supprimer (nom de confirmation, puis aperçu et code)', supprimerAvecCode({ id: organisationId, confirmationNom: NOM }), (d) => (d.operationId ? null : 'pas d\'identifiant d\'opération'));
 bon(`supprimée (opération ${suppr.operationId}) : ${JSON.stringify(suppr.supprimes)}`);
 await refus('8. Elle a bien disparu', appeler('lire_organisation', { id: organisationId }), /introuvable/);
 
@@ -114,7 +121,7 @@ await attendu('12. Revenue, avec le même identifiant', appeler('lire_organisati
 bon(`« ${NOM} » est revenue (id ${organisationId}) avec son événement « Organisation créée »`);
 
 // 7. Nettoyage
-const nettoyage = await attendu('13. Nettoyage : suppression définitive', appeler('supprimer_organisation', { id: organisationId, confirmationNom: NOM }), (d) => (d.operationId ? null : 'pas d\'identifiant d\'opération'));
+const nettoyage = await attendu('13. Nettoyage : suppression définitive', supprimerAvecCode({ id: organisationId, confirmationNom: NOM }), (d) => (d.operationId ? null : 'pas d\'identifiant d\'opération'));
 bon(`supprimée de nouveau (opération ${nettoyage.operationId})`);
 await refus('14. Plus rien', appeler('lire_organisation', { id: organisationId }), /introuvable/);
 organisationId = null;

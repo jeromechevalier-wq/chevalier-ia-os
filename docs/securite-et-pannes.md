@@ -42,7 +42,7 @@ Depuis l'étape 4 : la fonction lit et **écrit** la base (créer, modifier ; su
 | Règles Firestore | `crm_audit` lisible mais jamais modifiable depuis l'appli ; `crm_audit_avant` et `mcp_limites` fermés | **[en place]** (publiées le 03/10/2026, jeu actif vérifié ; appli vérifiée) |
 | 3 instances au plus | Borne le coût et l'emballement | **[en place]** |
 | Budget 5 €/mois avec alertes 50, 90 et 100 % | Prévient, **ne coupe rien** | **[en place]** (console) |
-| Plafonds par jeton | 120 requêtes/min (mémoire de chaque instance : au pire 3 × 120), **500 écritures/heure** et **20 suppressions/jour** (compteurs exacts dans `mcp_limites`) ; réglables par jeton dans `MCP_JETONS` (`"limites"`) | **[en place]** (étape 4) |
+| Plafonds par jeton | 120 requêtes/min (mémoire de chaque instance : au pire 3 × 120), **500 écritures/heure** et **50 suppressions/jour** (par document supprimé) (compteurs exacts dans `mcp_limites`) ; réglables par jeton dans `MCP_JETONS` (`"limites"`) | **[en place]** (étape 4) |
 | Sauvegardes Google : copie complète **quotidienne gardée 98 jours** et **récupération à la minute sur 7 jours** | Retour en arrière si des données sont abîmées, indépendamment du code du serveur ; une restauration crée une **nouvelle** base, jamais d'écrasement | **[en place]** (activées le 03/10/2026 par Jérôme) ; **première sauvegarde à constater** ; **aucun essai de restauration fait** |
 | Copies chiffrées dans **Backblaze B2 (Europe)** : bases de données chaque semaine, GitHub chaque jour, tout Drive chaque semaine | Copie hors de Google et hors de GitHub, indépendante du Mac ; remplace l'ancien export JSON par Drive (décision du 04/10/2026) | **[prévu]** (voir la carte globale, ci-dessous) |
 

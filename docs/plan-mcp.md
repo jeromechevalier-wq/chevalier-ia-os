@@ -171,7 +171,7 @@ Collisions de règles : l'écran impose la confirmation par le nom pour une supp
 - **Comparaison** : à temps constant ; le jeton est transmis en `Authorization: Bearer`, jamais dans l'adresse.
 - **Rotation** : ajouter une 2e ligne pour le même acteur, mettre à jour le client, puis passer l'ancienne à `actif: false`. Garder au plus 6 versions actives du secret (au-delà, ~0,06 $/version/mois).
 - **Révocation** : `actif: false` (< 1 min). **Coupure d'urgence** : désactiver la version du secret (toute requête est refusée) ou retirer l'invocation publique du service dans Cloud Run.
-- **Débit** : par jeton, 120 requêtes/min, 500 écritures/heure, 20 suppressions/jour (valeurs modifiables dans l'entrée du jeton) ; compteurs gardés dans `mcp_limites` (collection fermée à l'appli par les règles) ; dépassement = erreur 429 explicite. 3 instances au plus bornent le reste.
+- **Débit** : par jeton, 120 requêtes/min, 500 écritures/heure, 50 suppressions/jour (par document supprimé) (valeurs modifiables dans l'entrée du jeton) ; compteurs gardés dans `mcp_limites` (collection fermée à l'appli par les règles) ; dépassement = erreur 429 explicite. 3 instances au plus bornent le reste.
 - **Journaux Google** : on enregistre date, nom du jeton, acteur, outil, `operationId`, durée, statut, code d'erreur. **Jamais** : le jeton ou l'en-tête d'autorisation, les paramètres, les contenus de fiches (noms, e-mails, notes), les réponses, les jetons Drive. Un test vérifie, en espionnant la sortie, que le jeton n'y apparaît pas même lors d'une erreur.
 
 ### 5.5 Règles Firestore proposées (texte exact, que tu valides et publies)

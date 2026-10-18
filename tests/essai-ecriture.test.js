@@ -36,7 +36,7 @@ async function demarrer(extra = (c) => c) {
     const env = { PATH: process.env.PATH, CHEVALIER_MCP_URL: url, ...(jeton ? { CHEVALIER_MCP_TOKEN: jeton } : {}) };
     execFile(process.execPath, [SCRIPT], { env }, (erreur, stdout, stderr) => ok({ code: erreur ? erreur.code : 0, stdout, stderr }));
   });
-  const vue = () => Object.fromEntries(Object.entries(collections).filter(([k]) => !['crm_audit', 'crm_audit_avant', 'mcp_limites'].includes(k)).map(([k, v]) => [k, structuredClone(v).sort((a, b) => a.id.localeCompare(b.id))]));
+  const vue = () => Object.fromEntries(Object.entries(collections).filter(([k]) => !['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_codes'].includes(k)).map(([k, v]) => [k, structuredClone(v).sort((a, b) => a.id.localeCompare(b.id))]));
   return { collections, lancer, vue };
 }
 

@@ -151,11 +151,15 @@ describe('Moteur d’écriture et audit sur Firestore (émulateur)', { skip: emu
     const instantane = async () => Object.fromEntries(await Promise.all(Object.keys(collections).filter((n) => n !== 'crm_audit').map(async (nom) => [nom, Object.fromEntries((await db.collection(nom).get()).docs.map((d) => [d.id, d.data()]))])));
     const avant = await instantane();
     const c = {
-      donnees, acteur: 'claude-code-jerome', maintenant: MAINTENANT,
-      ecrire: ({ operations, parametres, suppression }) => executerEcritures({ donnees, ctx: ctx({ acteur: 'claude-code-jerome', jeton: 'claude-code-jerome' }), outil: 'essai', parametres, operations, suppression }),
+      donnees, acteur: 'claude-code-jerome', jeton: 'claude-code-jerome', maintenant: MAINTENANT,
+      ecrire: ({ operations, parametres }) => executerEcritures({ donnees, ctx: ctx({ acteur: 'claude-code-jerome', jeton: 'claude-code-jerome' }), outil: 'essai', parametres, operations }),
       restaurer: (a) => restaurerOperation({ donnees, ctx: ctx({ acteur: 'claude-code-jerome', jeton: 'claude-code-jerome' }), ...a }),
     };
-    const r = await metier.supprimerPersonne(c, { id: 'p1', choix: 'affaires', confirmationNom: 'camille durand' });
+    const args = { id: 'p1', choix: 'affaires', confirmationNom: 'camille durand' };
+    const apercu = await metier.supprimerPersonne(c, args); // double confirmation : l'aperçu ne supprime rien, le code (stocké dans Firestore) autorise la suite
+    assert.equal(apercu.apercu, true);
+    assert.deepEqual(await instantane(), avant);
+    const r = await metier.supprimerPersonne(c, { ...args, codeConfirmation: apercu.code });
     assert.deepEqual(r.supprimes, { crm_personnes: 1, crm_affaires: 2, crm_activites: 2, crm_notes: 2, crm_evenements: 2 });
     assert.equal(await brut('crm_personnes', 'p1'), null);
     assert.equal(await brut('crm_affaires', 'a1'), null);
@@ -173,9 +177,9 @@ describe('Moteur d’écriture et audit sur Firestore (émulateur)', { skip: emu
   test('plafonds sur Firestore : écritures par heure et suppressions par jour réservées dans mcp_limites, refusées au-delà sans rien compter de plus', async () => {
     const limiteur = creerLimiteur({ donnees, maintenant: () => MAINTENANT.getTime() });
     const limites = { ...LIMITES_PAR_DEFAUT, ecrituresParHeure: 3, suppressionsParJour: 2 };
-    await limiteur.reserver('jeton-essai', limites, { suppression: true });
-    await limiteur.reserver('jeton-essai', limites, { suppression: true });
-    await assert.rejects(() => limiteur.reserver('jeton-essai', limites, { suppression: true }), (e) => e instanceof ErreurLimite && e.limite === 'suppressions_jour');
+    await limiteur.reserver('jeton-essai', limites, { suppressions: 1 });
+    await limiteur.reserver('jeton-essai', limites, { suppressions: 1 });
+    await assert.rejects(() => limiteur.reserver('jeton-essai', limites, { suppressions: 1 }), (e) => e instanceof ErreurLimite && e.limite === 'suppressions_jour');
     await limiteur.reserver('jeton-essai', limites); // une écriture ordinaire passe : 3e de l'heure
     await assert.rejects(() => limiteur.reserver('jeton-essai', limites), (e) => e instanceof ErreurLimite && e.limite === 'ecritures_heure');
     const compteur = await brut('mcp_limites', 'jeton-essai');
