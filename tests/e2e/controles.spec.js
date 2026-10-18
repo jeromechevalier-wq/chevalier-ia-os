@@ -7,7 +7,7 @@ const HOTES_AUTORISES = [
   /^apis\.google\.com$/, /^accounts\.google\.com$/, /(^|\.)firebaseapp\.com$/, /^chevalier-ia-os\.web\.app$/, // connexion Google
 ];
 
-test('D1 aucun service worker enregistré, manifeste valide et icônes servies', async ({ page, request }) => {
+test('D1 aucun service worker enregistré, manifeste valide et icônes servies', { tag: '@sans-telephone' }, async ({ page, request }) => {
   await connecter(page);
   expect(await page.evaluate(async () => (navigator.serviceWorker ? (await navigator.serviceWorker.getRegistrations()).length : 0))).toBe(0);
   expect(await page.evaluate(() => !!navigator.serviceWorker?.controller)).toBe(false);

@@ -92,7 +92,7 @@ test('R1 le menu contient le bloc « Tableau de bord » chez Jérôme, et sa pre
 
 // ---------------------------------------------------------------- R2, R3, R4
 
-test('R2 un « vert » au relevé périmé s\'affiche gris « Relevé trop ancien » ; un « rouge » reste rouge même périmé', async ({ page }, info) => {
+test('R2 un « vert » au relevé périmé s\'affiche gris « Relevé trop ancien » ; un « rouge » reste rouge même périmé', { tag: '@sans-telephone' }, async ({ page }, info) => {
   await jeuStandard();
   await ouvrir(page, 'technique');
   await expect(ligne(page, 'perimee')).toHaveAttribute('data-niveau', 'gris');
@@ -104,7 +104,7 @@ test('R2 un « vert » au relevé périmé s\'affiche gris « Relevé trop ancie
   await capturer(page, info, 'R2-gris-et-rouge-perime');
 });
 
-test('R3 une échéance dans 12 jours affiche « À surveiller » même si le script a écrit « vert » ; une échéance passée affiche « Panne »', async ({ page }, info) => {
+test('R3 une échéance dans 12 jours affiche « À surveiller » même si le script a écrit « vert » ; une échéance passée affiche « Panne »', { tag: '@sans-telephone' }, async ({ page }, info) => {
   await jeuStandard();
   await ouvrir(page, 'technique');
   await expect(ligne(page, 'echeance12').locator('[data-pastille]')).toHaveText('À surveiller');
@@ -193,6 +193,7 @@ test('R5 les filtres se combinent (À traiter + famille) et chaque liste ne prop
 test('R6 Général : phrase d\'état, compteurs et liste « À traiter en premier » cohérents avec Technique', async ({ page }, info) => {
   await jeuStandard();
   await ouvrir(page, 'technique');
+  await expect(page.locator('.td-ligne')).toHaveCount(14); // attend que les indicateurs soient affichés avant de les compter
   const technique = {};
   for (const n of await niveaux(page)) technique[n] = (technique[n] ?? 0) + 1;
   expect(technique).toEqual(COMPTES_STANDARD);
@@ -325,7 +326,7 @@ test('R8 erreur de lecture : message clair et « Réessayer » sur Général et 
 
 // ---------------------------------------------------------------- R9
 
-test('R9 mise à jour en direct : un indicateur modifié dans la base change à l\'écran sans recharger', async ({ page }, info) => {
+test('R9 mise à jour en direct : un indicateur modifié dans la base change à l\'écran sans recharger', { tag: '@sans-telephone' }, async ({ page }, info) => {
   await indicateur('a', { nom: 'Clé A', message: 'Répond' });
   await indicateur('b', { nom: 'Clé B', message: 'Répond' });
   await ouvrir(page, 'technique');
@@ -346,7 +347,7 @@ test('R9 mise à jour en direct : un indicateur modifié dans la base change à 
   await capturer(page, info, 'R9-direct');
 });
 
-test('R9 le « relevé il y a … » et le gris se recalculent chaque minute, sans recharger', async ({ page }, info) => {
+test('R9 le « relevé il y a … » et le gris se recalculent chaque minute, sans recharger', { tag: '@sans-telephone' }, async ({ page }, info) => {
   await page.clock.install({ time: new Date() });
   await indicateur('court', { nom: 'Relevé de 30 minutes', releveLe: avant(10 * MIN), perimeApresMinutes: 30 });
   await ouvrir(page, 'technique');

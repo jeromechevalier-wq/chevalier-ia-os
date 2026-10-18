@@ -180,3 +180,25 @@ describe('Journaux sans secret', () => {
     assert.equal(ligne.intrus, undefined);
   });
 });
+
+describe('Serveur de Jérôme : la liste des outils ne change pas (D3d)', () => {
+  // Listes écrites à la main, relevées sur main (2.10.0) : ni le nom ni le nombre d'outils de Jérôme ne doivent bouger.
+  const LECTURE = ['chercher', 'lire_affaire', 'lire_audit', 'lire_organisation', 'lire_personne', 'lire_projet', 'lire_reglages', 'lister_activites', 'lister_affaires', 'lister_documents', 'lister_modeles_projet', 'lister_projets', 'qui_suis_je'];
+  const ECRITURE = ['abandonner_facture', 'ajouter_facture', 'ajouter_note', 'ajouter_tache_projet', 'archiver_projet', 'changer_etape', 'changer_phase_projet', 'creer_activite', 'creer_affaire', 'creer_organisation', 'creer_personne', 'creer_projet', 'creer_projet_depuis_affaire', 'extraire_valeur_projet', 'joindre_lien', 'marquer_facture_payee', 'marquer_perdue', 'mettre_en_pause', 'mettre_projet_en_pause', 'modifier_affaire', 'modifier_note', 'modifier_organisation', 'modifier_personne', 'modifier_projet', 'reprendre_projet', 'retirer_document', 'rouvrir_affaire', 'rouvrir_projet', 'terminer_activite', 'terminer_projet', 'terminer_tache_projet'];
+  const SUPPRESSION = ['restaurer_depuis_audit', 'supprimer_activite', 'supprimer_affaire', 'supprimer_note', 'supprimer_organisation', 'supprimer_personne', 'supprimer_projet'];
+  const attendu = {
+    lecteur: LECTURE,
+    biblio: [...LECTURE, ...ECRITURE].sort(),
+    code: [...LECTURE, ...ECRITURE, ...SUPPRESSION].sort(),
+  };
+  for (const [profil, liste] of Object.entries(attendu)) {
+    test(`D3d profil « ${profil} » : exactement les mêmes outils que sur main, factures et extraction comprises (même sans option dans les réglages)`, async () => {
+      const c = await client(JETON[profil]);
+      // outil_reserve : outil d'essai de ce fichier, absent du vrai serveur.
+      const recus = (await c.listTools()).tools.map((t) => t.name).filter((n) => n !== OUTIL_RESERVE.nom).sort();
+      await c.close();
+      assert.deepEqual(recus, liste);
+      assert.deepEqual(nomsPour(profil === 'biblio' ? 'bibliothecaire' : profil === 'code' ? 'claude-code' : 'lecteur'), liste);
+    });
+  }
+});

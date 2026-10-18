@@ -106,7 +106,7 @@ test('compte Google non autorisé : message clair, on reste sur la page, aucun c
   await expect(page.getByRole('button', { name: 'Autoriser', exact: true })).toBeEnabled();
 });
 
-test('demande piégée (adresse de retour inconnue) : page d’erreur, aucun bouton de connexion', async ({ page }) => {
+test('demande piégée (adresse de retour inconnue) : page d’erreur, aucun bouton de connexion', { tag: '@sans-telephone' }, async ({ page }) => {
   await preparer(page, { jeton: 'ID-JEROME', email: 'jerome.chevalier@gmail.com' });
   const p = pkce();
   await page.goto(adresse(p).replace(encodeURIComponent(CALLBACK), encodeURIComponent('https://attaquant.example/rappel')));

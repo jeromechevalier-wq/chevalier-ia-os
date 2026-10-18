@@ -19,3 +19,6 @@ dist/
 
 # Copie du serveur MCP pour la plateforme clients (scripts/preparer-fonctions.js)
 functions-plateforme/serveur/
+
+# Copies de configuration générées pour les tests (ports décalés)
+tests/.config-ports/

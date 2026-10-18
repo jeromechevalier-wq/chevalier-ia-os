@@ -2,9 +2,20 @@
 
 Écrit le 04/10/2026, mis à jour le 07/10/2026 à la fin du chantier Projets, pour qu'une session neuve reprenne sans que Jérôme ait à recoller quoi que ce soit. **À mettre à jour ou à supprimer une fois les points faits.**
 
+## Deux actions pour Jérôme : tests sur GitHub (18/10/2026)
+
+1. **Exiger la coche « Tests » avant toute fusion** : **impossible sur le forfait gratuit** (vérifié le 18/10/2026 : GitHub répond « Upgrade to GitHub Pro or make this repository public » pour les règles de branche d'un dépôt privé). Décision de Jérôme à prendre : rester en gratuit (la règle « on ne fusionne que si la coche Tests est verte » est alors tenue par Claude, sans verrou technique) ou passer à GitHub Pro (environ 4 $ par mois, résiliable à tout moment, 3 000 minutes d'Actions). Avec le Pro : https://github.com/settings/billing/plans (« Upgrade » sur la ligne Pro), puis https://github.com/jeromechevalier-wq/chevalier-ia-os/settings/rules/new?target=branch : nom « main », statut « Active », « Add target » > « Include default branch », cocher « Require status checks to pass », « Add checks » > « Tests », « Create ».
+2. **Sortir le dépôt de Google Drive** : dans le Terminal, `mkdir -p ~/Code-Chevalier-IA && git clone https://github.com/jeromechevalier-wq/chevalier-ia-os.git ~/Code-Chevalier-IA/chevalier-ia-os`, puis ouvre ce dossier dans Claude Code et ne touche plus à la copie qui est dans Drive (Drive et Git se disputent les fichiers).
+
 ## Mon espace modifiable (17/10/2026) : branche mon-espace-modifiable, version 2.10.0
 
 Code et tests écrits, **rien déployé**, PR en attente du « fusionne ». Lire `mon-espace.md` : qui peut quoi, la fonction `espaceReglages`, les **étapes de Jérôme avant le déploiement** (créer le compte de service `espace-reglages` et lui donner deux droits, vérifier le nom « Chevalier IA - Serveur 1 » en haut de chaque page de la console, puis choisir « fonctions » dans le workflow, qui publie aussi les automatisations et exige la clé n8n) et ce qui n'est pas vérifié en réel (vrai Storage, vrai appel, iPhone). Les règles Firestore et Storage ne changent pas. Captures de recette : `~/chantiers-crm/captures-mon-espace/`.
+
+## Tests plus rapides, plusieurs sessions en même temps (17/10/2026) : branche acceleration-tests
+
+Les tests sont maintenant en paliers (rapide, smoke, complet) et la suite complète tourne sur GitHub à chaque PR et chaque nuit : voir `docs/tests.md`. Dans la session, on ne lance que le test du module touché, puis `npm run test:rapide` et `npm run test:smoke` ; on ne lance ni n'attend la suite complète. Mode d'emploi du lanceur : `tests/README.md`.
+
+**Reste à faire** : les scénarios `L10`, `L14` (et par moments `L16`, `L17`, `L19`, `L20`) de `liens-documents.spec.js` échouent au hasard, **déjà avant ce chantier** (L14 : 2 mesures sur 3 sur `main`). Cause trouvée : l'écran se redessine quand Firestore renvoie la fiche, parfois avant la fin de `ecrireDossier` (`js/modules/crm/lanceurs.js`) ou de `choisirDansGoogle` (`js/modules/crm/liens-documents.js`) ; la suite de l'action écrit alors sur un morceau d'écran déjà remplacé (un vrai utilisateur verrait un formulaire resté ouvert). Correctif à écrire dans l'appli (pas dans les tests) : effacer l'état du formulaire avant l'écriture, et faire lire `formulaires` par l'écran redessiné.
 
 ## Automatisations de Jérôme + vue administrateur (17/10/2026) : branche automatisations-admin, version 2.7.0
 
@@ -39,15 +50,15 @@ Code, tests (Google simulé) et guide écrits ; **rien déployé**. Lire `google
 
 ## Réglages à menu latéral + menu CRM unique (16/10/2026) : branche reglages-menu-crm-unique, version 2.6.0
 
-Code écrit, suite complète lancée sous émulateurs, **rien déployé**, PR en attente du « fusionne ». Voir `reglages-menu-crm-unique.md` : ce que Jérôme voit, le choix de la méthode A, comment un module déclare ses réglages, et ce qui reste en lecture seule chez un client (nom, logo, membres, modules : les règles Firestore interdisent l'écriture depuis le navigateur). Reste à décider avec Jérôme : si un éditeur doit pouvoir les modifier (règles ou fonction serveur). La section Drive de « Liens et documents » s'ajoute par une déclaration dans `registre.js` (point d'accroche décrit dans la doc).
+Code écrit, tests écrits, **rien déployé**, PR en attente du « fusionne ». Voir `reglages-menu-crm-unique.md` : ce que Jérôme voit, le choix de la méthode A, comment un module déclare ses réglages, et ce qui reste en lecture seule chez un client (nom, logo, membres, modules : les règles Firestore interdisent l'écriture depuis le navigateur). Reste à décider avec Jérôme : si un éditeur doit pouvoir les modifier (règles ou fonction serveur). La section Drive de « Liens et documents » s'ajoute par une déclaration dans `registre.js` (point d'accroche décrit dans la doc).
 
 ## Ménage du CRM (16/10/2026) : branche menage-crm-clients, version 2.5.0
 
-Code écrit, **suite complète verte sous émulateurs** (PR n° 73). Voir `menage-crm.md` : ce qui est fait, les choix faits, ce qui touche les données de Jérôme. Reste : relecture de la PR, « fusionne » de Jérôme. Chantiers suivants : Réglages à menu latéral, fusion du menu CRM, Drive / liens.
+Code écrit, **tests verts** (PR n° 73). Voir `menage-crm.md` : ce qui est fait, les choix faits, ce qui touche les données de Jérôme. Reste : relecture de la PR, « fusionne » de Jérôme. Chantiers suivants : Réglages à menu latéral, fusion du menu CRM, Drive / liens.
 
 ## MCP pour tous les clients (16/10/2026) : PR en attente du « fusionne »
 
-Construit et testé (suite complète verte), **rien déployé**. Lire `mcp-clients.md` : ce qui est fait, l'isolation entre clients, les trois déploiements à lancer dans l'ordre (règles, fonctions, site, par le workflow « Déploiement plateforme clients »), et ce qui n'est **pas** vérifié (vrai claude.ai, vrai ChatGPT). Première chose à faire après le déploiement : allumer le module chez un client d'essai (`activer-module <client> mcp --ecrire`) et brancher Claude sur son lien.
+Construit et testé (tests verts), **rien déployé**. Lire `mcp-clients.md` : ce qui est fait, l'isolation entre clients, les trois déploiements à lancer dans l'ordre (règles, fonctions, site, par le workflow « Déploiement plateforme clients »), et ce qui n'est **pas** vérifié (vrai claude.ai, vrai ChatGPT). Première chose à faire après le déploiement : allumer le module chez un client d'essai (`activer-module <client> mcp --ecrire`) et brancher Claude sur son lien.
 
 ## Chantier 14 : module Automatisations, ex-« journal d'activité des workflows » (11/10/2026 ; renommé le 16/10/2026)
 
@@ -120,7 +131,7 @@ La règle Firestore **exige** `expireAt`, et l'écran comme le serveur l'écrive
 1. Garder aussi les **valeurs reçues** dans `crm_audit` (paramètres, y compris noms, e-mails, notes, tronqués à 2 000 caractères comme prévu au plan 5.2), à la place des seuls noms de champs.
 2. Allonger la durée des copies comme ci-dessus, adapter les textes (« gardée 90 jours », « expiré », « Récupérable 90 jours », `copie_expiree`), les descriptions d'outils et les tests.
 3. Mettre à jour `plan-mcp.md` (section 5.2, écarts de l'étape 4, risque R10), `roadmap.md` (retirer « À confirmer » de l'étape 4), `securite-et-pannes.md`, `playbook-mcp-firebase.md`, `mcp-etape-4.md`, `audit-ecran.md` et `journal-ecran.md`, qui parlent encore du RGPD et des 90 jours.
-4. Lancer la suite complète de tests dans la session (parcours Playwright compris : l'écran est touché), puis une PR pour Jérôme.
+4. Lancer les tests du module touché, `npm run test:rapide` et `npm run test:smoke`, puis une PR pour Jérôme (la suite complète tourne sur GitHub).
 
 ## 2. Reste du plan du serveur MCP, dans l'ordre (voir `roadmap.md`)
 

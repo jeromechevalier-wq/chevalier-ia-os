@@ -213,7 +213,7 @@ Avec tout l'historique, comme pour les clients (pas de lecture à la volée). Le
 | Signe | Pour toi (`interne`) | Pour un client (`audrey`) |
 |---|---|---|
 | **(a) Étiquette n8n** | `interne` | `client-audrey` (comme avant) |
-| **(b) Nom du workflow** | commence par `interne-` (exigé) | peut commencer par `audrey-` ou `client-audrey-` (convention de la porte) ; **pas exigé** (compatibilité : la doc n'a jamais imposé de nom) |
+| **(b) Nom du workflow** | commence par `interne-` (exigé) | commence par `client-<identifiant>-` (**exigé depuis le 18/10/2026**, convention de la porte) ; un nom libre, « PROD - … » ou `audrey-…` est signalé « nom-different » et le workflow n'est pas copié |
 | **(c) Clé de la porte** : le credential que les nœuds utilisent | `Clé n8n - interne` (exigé) | `Clé n8n - audrey` ; **pas exigé** (compatibilité), mais s'il y en a un il doit être le bon |
 
 Le nom du credential est comparé **sans tenir compte** des majuscules, des accents, des espaces ni du type de tiret : « Clé n8n - interne », « CLE N8N – Interne » et « cle n8n-interne » sont le même. Seuls les **noms** des credentials sont lus dans n8n (jamais leur contenu).

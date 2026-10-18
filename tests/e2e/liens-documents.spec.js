@@ -607,24 +607,24 @@ test.describe('Google branché (simulé)', () => {
     const info = page.locator('[data-section="projet-documents"] .section-tete [data-role="info"]');
     await expect(info).toHaveCount(1);
     const bulle = info.locator('[data-role="bulle-info"]');
+    await page.waitForTimeout(1500); // l'écran se redessine quand Firestore renvoie la fiche (voir docs/acceleration-tests-mesures.md) : on attend qu'il soit stable
     await expect(bulle).toBeHidden();
     await expect(bulle).toContainText('copie le fichier dans le dossier de travail'.replace('copie le fichier', 'le copie'));
     // Clavier : le focus affiche la bulle, Échap la ferme.
-    await info.focus();
-    await expect(bulle).toBeVisible();
+    await expect(async () => { await info.focus(); await expect(bulle).toBeVisible({ timeout: 2000 }); }).toPass({ timeout: 15_000 });
     await page.keyboard.press('Escape');
     await expect(bulle).toBeHidden();
     // Toucher / clic : affiche, un second clic ferme.
-    await info.dispatchEvent('click');
-    await expect(bulle).toBeVisible();
-    // Dans l'écran, jamais coupée.
-    const largeurEcran = await page.evaluate(() => window.innerWidth);
-    // Si la fiche est redessinée pendant la mesure, la bulle (ouverte à la main) est refermée avec l'ancienne fiche : on la rouvre et on remesure.
+    // (reprise possible : si l'écran se redessine entre-temps, le bouton est remplacé et le clic doit être refait)
     await expect(async () => {
-      if (!(await bulle.isVisible())) await info.dispatchEvent('click');
+      await info.dispatchEvent('click');
+      await expect(bulle).toBeVisible({ timeout: 2000 });
+      // Dans l'écran, jamais coupée.
       const b = await bulle.boundingBox();
-      expect(b && b.x >= 0 && b.x + b.width <= largeurEcran).toBe(true); // jamais coupée
-    }).toPass({ timeout: 10_000 });
+      const largeurEcran = await page.evaluate(() => window.innerWidth);
+      expect(b.x).toBeGreaterThanOrEqual(0);
+      expect(b.x + b.width).toBeLessThanOrEqual(largeurEcran);
+    }).toPass({ timeout: 15_000 });
     await page.locator('.titre-editable').click(); // ailleurs : elle se ferme
     await expect(bulle).toBeHidden();
     // Survol (souris, ordinateur seulement) : même bulle, même texte, aussi pour l'icône du Dossier de travail.

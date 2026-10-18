@@ -32,7 +32,7 @@ Chevalier IA OS devient ton CRM (tu quittes Notion). Claude Code (Mac) et des ag
 | Téléphone | **Jeton Drive fourni par la fonction** (pas d'écran Google sur le téléphone) ; le consentement direct reste un repli |
 | Jetons | Un secret Secret Manager (`MCP_JETONS`) contenant les **empreintes**, jamais le jeton en clair |
 | Audit | Traces illimitées sans contenu ; **copies « avant » effacées après 90 jours** (TTL) |
-| Tests sur PR | **Non** : tests sur ton Mac avant fusion (voir risque R3) |
+| Tests sur PR | **Oui**, workflow `tests.yml` (18/10/2026) |
 
 ## 3. Écarts trouvés (cahier, code, consignes) et ce que je propose
 
@@ -329,7 +329,7 @@ Usage supposé : quelques milliers d'appels par mois. Fonctions : 2 millions de 
 |---|---|---|
 | R1 | Un jeton volé donne l'accès en écriture à toute la base | jetons longs, profils, plafonds, révocation < 1 min, copies Google, audit |
 | R2 | Un agent boucle ou écrit massivement de mauvaises données | plafonds, audit, restauration par opération, PITR |
-| R3 | Fusion « rouge » publiée (pas de tests sur PR, ton choix) | `npm test` avant chaque fusion, étape par étape ; je peux ajouter le workflow plus tard |
+| R3 | Fusion « rouge » publiée | Tests sur PR : oui, workflow `tests.yml` (18/10/2026) ; on fusionne quand la coche « Tests » est verte |
 | R4 | Le prototype Drive échoue (visibilité commune, session de téléversement) | repli par lien / relais ≤ 20 Mo |
 | R5 | Rôles Google du compte de service incomplets : déploiements en échec | un rôle à la fois, messages du CLI |
 | R6 | Écran de consentement resté en « Test » : accès Drive coupé après 7 jours | passer « En production », contrôle avant la clôture |
