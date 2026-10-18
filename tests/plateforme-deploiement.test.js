@@ -119,7 +119,7 @@ describe('La plateforme prend sa propre configuration', () => {
   });
   test('rien de privé dans le paquet : ni tests, ni docs, ni règles, ni fonctions, ni outils', () => {
     const fichiers = listerFichiers(paquet);
-    assert.ok(!fichiers.some((f) => /^(tests|docs|functions|outils|scripts|ressources|dist)\//.test(f) || /rules$|^firebase|^\.|CLAUDE|README/.test(f)));
+    assert.ok(!fichiers.some((f) => /^(tests|docs|wiki|functions|outils|scripts|ressources|dist)\//.test(f) || /rules$|^firebase|^\.|CLAUDE|README/.test(f)));
   });
   test('le point d\'entrée de la plateforme est un projet connu, vérifié (mauvaise config refusée)', () => {
     assert.throws(() => lireConfigProjet('inconnu'), /Projet inconnu/);

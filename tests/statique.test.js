@@ -13,7 +13,7 @@ const json = (chemin) => JSON.parse(lire(chemin));
 function fichiersAppli(dossier = '', liste = []) {
   for (const nom of readdirSync(join(RACINE, dossier))) {
     const rel = join(dossier, nom);
-    if (/^(\.|node_modules$|tests$|docs$|ressources$|outils$|scripts$|functions$|functions-plateforme$)/.test(nom)) continue;
+    if (/^(\.|node_modules$|tests$|docs$|wiki$|ressources$|outils$|scripts$|functions$|functions-plateforme$)/.test(nom)) continue;
     if (statSync(join(RACINE, rel)).isDirectory()) fichiersAppli(rel, liste);
     else liste.push(rel);
   }
@@ -105,9 +105,9 @@ describe('D2 Aucune ressource externe hors Google', () => {
 
 describe('D3 firebase.json, en têtes, indexation', () => {
   const fb = json('firebase.json');
-  test('D3 tests/, docs/, outils/, scripts/, functions/, README.md (et ressources/) non publiés', () => {
+  test('D3 tests/, docs/, wiki/, outils/, scripts/, functions/, README.md (et ressources/) non publiés', () => {
     const ignore = fb.hosting.ignore;
-    for (const x of ['tests/**', 'docs/**', 'README.md', 'CLAUDE.md', 'ressources/**', 'outils/**', 'scripts/**', 'functions/**', '**/node_modules/**', '**/.*']) assert.ok(ignore.includes(x), x);
+    for (const x of ['tests/**', 'docs/**', 'wiki/**', 'README.md', 'CLAUDE.md', 'ressources/**', 'outils/**', 'scripts/**', 'functions/**', '**/node_modules/**', '**/.*']) assert.ok(ignore.includes(x), x);
   });
   test('D3 en têtes de sécurité présents', () => {
     const tous = fb.hosting.headers.find((h) => h.source === '**').headers;
