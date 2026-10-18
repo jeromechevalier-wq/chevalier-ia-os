@@ -1,0 +1,61 @@
+# Tests sur chaque PR vers main : palier « complet », format ordinateur seulement (le format téléphone tourne la nuit, voir tests-nuit.yml).
+# Le résultat est la coche GitHub « Tests » : on fusionne quand elle est verte. Aucun secret : émulateurs Firebase, projet demo-chevalier-ia-os.
+name: Tests
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+concurrency:
+  group: tests-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  tests:
+    name: Tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CI: 'true'
+      # Le navigateur de test est réglé sur Europe/Paris ; le processus Node doit l'être aussi (sinon les heures attendues par certains tests sont décalées de 2 h).
+      TZ: Europe/Paris
+      TESTS_WORKERS: '2'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            tests/package-lock.json
+            functions/package-lock.json
+            functions-plateforme/package-lock.json
+            scripts/plateforme/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Installer les dépendances (versions figées par package-lock.json)
+        run: |
+          npm ci --prefix tests
+          npm ci --prefix functions
+          npm ci --prefix functions-plateforme
+          npm ci --prefix scripts/plateforme
+      - name: Installer le navigateur de test
+        run: npx playwright install chromium --with-deps
+        working-directory: tests
+      - name: Palier complet (ordinateur)
+        run: npm run test:complet
+        working-directory: tests
+      - name: Captures et rapport en cas d'échec
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tests-echec
+          path: |
+            tests/test-results
+            tests/playwright-report
+            tests/.config-ports/*.log
+          retention-days: 7
+          include-hidden-files: true
+          if-no-files-found: ignore

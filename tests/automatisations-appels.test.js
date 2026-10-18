@@ -47,8 +47,8 @@ beforeEach(async () => {
     await db.doc(`clients/${c}/membres/${e}`).set({ role });
   }
   faux.etat.workflows = [
-    { id: 'wfA1', name: 'Lire une fiche', active: true, tags: ['client-audrey'] },
-    { id: 'wfB1', name: 'Rapport Boris', active: true, tags: ['client-boris'] },
+    { id: 'wfA1', name: 'client-audrey-lire-une-fiche', active: true, tags: ['client-audrey'] },
+    { id: 'wfB1', name: 'client-boris-rapport', active: true, tags: ['client-boris'] },
     { id: 'wfDouble', name: 'Deux clients', active: true, tags: ['client-audrey', 'client-boris'] },
   ];
   faux.etat.executions = [
@@ -181,7 +181,7 @@ describe('N. Renommer : éditeurs du bon client, un seul champ', () => {
     assert.equal((await lire('clients/audrey/workflows/wfA1')).libelle, 'Mon nom <b>x</b>');
     await renommer({ db, auth: id(ALICE), donnees: demande({ libelle: '   ' }) });
     assert.equal((await lire('clients/audrey/workflows/wfA1')).libelle, undefined);
-    assert.equal((await lire('clients/audrey/workflows/wfA1')).nom, 'Lire une fiche');
+    assert.equal((await lire('clients/audrey/workflows/wfA1')).nom, 'client-audrey-lire-une-fiche');
   });
   test('N8 un workflow inconnu n\'est pas créé par un renommage', async () => {
     await copier();
@@ -191,12 +191,12 @@ describe('N. Renommer : éditeurs du bon client, un seul champ', () => {
   test('N9 la copie horaire n\'écrase JAMAIS le nom choisi, et les nouvelles exécutions l\'utilisent', async () => {
     await copier();
     await renommer({ db, auth: id(ALICE), donnees: demande() });
-    faux.etat.workflows[0].name = 'Nom changé dans n8n';
+    faux.etat.workflows[0].name = 'client-audrey-nom-change';
     faux.etat.executions.push({ id: '102', workflowId: 'wfA1', status: 'success', startedAt: il_y_a(MIN), stoppedAt: il_y_a(MIN - 500) });
     await copieHoraire({ db, n8n: n8n(), maintenant: T0 + 60 * MIN });
     const w = await lire('clients/audrey/workflows/wfA1');
     assert.equal(w.libelle, 'Présences du matin');
-    assert.equal(w.nom, 'Nom changé dans n8n', 'le nom d\'origine suit n8n');
+    assert.equal(w.nom, 'client-audrey-nom-change', 'le nom d\'origine suit n8n');
     assert.equal((await lire('clients/audrey/executions/102')).workflowLabel, 'Présences du matin');
   });
 });

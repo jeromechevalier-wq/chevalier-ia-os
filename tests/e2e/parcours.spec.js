@@ -6,6 +6,9 @@ import {
   jour, estTelephone, valeurObjectif, JEROME, CHARLES,
 } from './outils.js';
 
+// Les scénarios de ce fichier sont indépendants (chacun repart d'une base vide) : ils se répartissent sur plusieurs workers.
+test.describe.configure({ mode: 'parallel' });
+
 const dialogue = (page) => page.getByRole('dialog');
 const suggestions = (page, nom = 'Organisation') => dialogue(page).locator(`ul.suggestions[aria-label="Suggestions : ${nom}"]`);
 
@@ -35,7 +38,7 @@ async function fermerCelebration(page) {
 
 // ---------------------------------------------------------------- connexion
 
-test('C1 connexion avec Jérôme : arrivée sur l’Accueil, 6 objectifs, graphique limité aux mois depuis le début d’activité', async ({ page }) => {
+test('C1 connexion avec Jérôme : arrivée sur l’Accueil, 6 objectifs, graphique limité aux mois depuis le début d’activité', { tag: '@smoke' }, async ({ page }) => {
   await connecter(page, JEROME);
   await expect(page).toHaveURL(/#\/crm\/accueil$/);
   await expect(page.getByRole('heading', { name: 'Bonjour Jérôme' })).toBeVisible();
@@ -61,7 +64,7 @@ test('C1 connexion avec Charles : mêmes données, nom et avatar de Charles', as
   await expect(page.locator('.tableau-personnes')).toContainText('Marie Durand');
 });
 
-test('C2 un compte non autorisé : accès refusé, retour à la connexion, aucune donnée affichée', async ({ page }) => {
+test('C2 un compte non autorisé : accès refusé, retour à la connexion, aucune donnée affichée', { tag: '@sans-telephone' }, async ({ page }) => {
   await creerPersonne('p1', { nom: 'Secret Défense' });
   await connecter(page, 'intrus@gmail.com', { attendreAccueil: false });
   await expect(page.locator('.message-refus')).toContainText('Accès refusé');
@@ -71,7 +74,7 @@ test('C2 un compte non autorisé : accès refusé, retour à la connexion, aucun
 
 // ---------------------------------------------------------------- création minimale
 
-test('C3 créer une personne en ne tapant que le nom : curseur dans « Nom », Entrée enregistre, aucun champ obligatoire de plus', async ({ page }) => {
+test('C3 créer une personne en ne tapant que le nom : curseur dans « Nom », Entrée enregistre, aucun champ obligatoire de plus', { tag: '@smoke' }, async ({ page }) => {
   await connecter(page);
   await ouvrirCreation(page, 'personne');
   const nom = dialogue(page).getByLabel('Nom', { exact: true });
@@ -245,7 +248,7 @@ test('C6 organisation : la créer, la lier à une personne depuis sa fiche, la r
   await expect(page.locator('.ligne-simple[data-personne="p1"]')).toContainText('Marie Durand');
 });
 
-test('C7 « + Affaire » depuis la fiche d’une personne : titre prérempli, enregistrer sans rien taper', async ({ page }) => {
+test('C7 « + Affaire » depuis la fiche d’une personne : titre prérempli, enregistrer sans rien taper', { tag: '@smoke' }, async ({ page }) => {
   await creerOrganisation('o1', { nom: 'Fleurs de Provence' });
   await creerPersonne('p1', { nom: 'Marie Durand', organisationId: 'o1' });
   await connecter(page);
@@ -530,7 +533,7 @@ test('C15 objectif flyers : « +10 » met à jour la barre et persiste après re
   expect(saisies[0].id).toMatch(/^flyers_\d{4}-\d{2}$/);
 });
 
-test('C15 les objectifs calculés suivent les nouveaux contacts et les propositions', async ({ page }) => {
+test('C15 les objectifs calculés suivent les nouveaux contacts et les propositions', { tag: '@sans-telephone' }, async ({ page }) => {
   await creerPersonne('p1', { nom: 'Marie Durand' });
   await creerPersonne('p2', { nom: 'Paul Martin' });
   await creerAffaire('a1', { titre: 'Proposée', etape: 'proposition_envoyee', datesEtapes: { proposition_envoyee: new Date() } });

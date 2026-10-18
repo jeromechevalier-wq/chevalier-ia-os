@@ -55,6 +55,7 @@ export function projetsUtilisantDossier(url, sauf = null) {
 
 const EXPLICATION = 'Le dossier où ranger les fichiers de cette fiche : un dossier créé dans Google Drive, ou un dossier Google Drive qui existe déjà. Une adresse web (serveur, NAS, site) se met dans « Liens et documents ».';
 const formulaires = new Map(); // formulaire ouvert (la fiche est redessinée quand des données arrivent : il ne doit pas disparaître)
+const afficheurs = new Map(); // fiche → fonction qui redessine la ligne la plus récente (la fiche peut être redessinée pendant une écriture : on redessine alors la nouvelle ligne, pas l'ancienne)
 
 /**
  * La ligne « Dossier de travail » de la section Détails (affaire et projet, identique).
@@ -86,7 +87,8 @@ export function creerLanceurs({ fiche, typeFiche = 'affaire', nomSuggere = '', e
     try {
       await enregistrer({ urlDossier: url });
       etat.urlDossier = url;
-      afficherDossier();
+      formulaires.delete(cle);
+      (afficheurs.get(cle) || afficherDossier)();
       return true;
     } catch (e) {
       if (ouvert) formulaires.set(cle, ouvert);
@@ -170,6 +172,7 @@ export function creerLanceurs({ fiche, typeFiche = 'affaire', nomSuggere = '', e
       !peutCreer && !google ? h('p', { class: 'aide', dataset: { role: 'google-absent' } }, 'Aucun dossier de travail. Google Drive n’est pas branché ici : ajoute une adresse dans « Liens et documents ».') : null);
   }
 
+  afficheurs.set(cle, afficherDossier);
   afficherDossier();
   return { github: null, dossier: ligneDossier };
 }
