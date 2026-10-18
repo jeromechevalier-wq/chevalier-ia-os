@@ -104,3 +104,24 @@ test('6 chez un client, l’en-tête a la même forme que chez Jérôme : nom, b
   await expect(page.locator('img.avatar')).toHaveCount(0);
   await capture(page, '6-en-tete-client', estTelephone(page) ? {} : { clip: { x: 0, y: 0, width: 260, height: 900 } });
 });
+
+test('5 PR C chez un client : la même poignée de largeur du menu, la largeur choisie est mémorisée et le repli la respecte @sans-telephone', async ({ page }) => {
+  await ouvrir(page, 'assistant');
+  await deplier(page);
+  const poignee = page.getByRole('separator', { name: 'Largeur du menu' });
+  await expect(poignee).toHaveAttribute('aria-valuenow', '240');
+  await expect.poll(async () => (await poignee.boundingBox()).x, { intervals: [200, 200, 300] }).toBe(233); // fin de l'animation d'ouverture
+  const b = await poignee.boundingBox();
+  await page.mouse.move(b.x + 3, b.y + 300);
+  await page.mouse.down();
+  await page.mouse.move(340, b.y + 300, { steps: 5 });
+  await page.mouse.up();
+  await expect.poll(() => page.locator('.menu').evaluate((m) => Math.round(m.getBoundingClientRect().width))).toBe(340);
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('chevalier-os.menu-largeur'))).toBe('340');
+  await page.getByRole('button', { name: 'Replier le menu' }).click();
+  await expect(page.locator('.menu-poignee')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Élargir le menu' }).click();
+  await expect.poll(() => page.locator('.menu').evaluate((m) => Math.round(m.getBoundingClientRect().width))).toBe(340);
+  await mkdir(join(homedir(), 'chantiers-crm', 'captures-menu-C'), { recursive: true });
+  await page.screenshot({ path: join(homedir(), 'chantiers-crm', 'captures-menu-C', '5-client-340.png'), animations: 'disabled', clip: { x: 0, y: 0, width: 700, height: 600 } });
+});
