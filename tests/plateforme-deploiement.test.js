@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
-  RACINE, ELEMENTS_PUBLIES, PROJETS, lireConfigProjet, contenuConfigFirebase, construire, listerFichiers,
+  RACINE, ELEMENTS_PUBLIES, PROJETS, MODELE_ACCUEIL, FICHIER_APPLICATION, lireConfigProjet, contenuConfigFirebase, construire, listerFichiers,
 } from '../scripts/hebergement.js';
 
 const lire = (f) => readFileSync(join(RACINE, f), 'utf8');
@@ -111,10 +111,10 @@ describe('La plateforme prend sa propre configuration', () => {
     const fichiers = listerFichiers(paquet);
     assert.ok(fichiers.length > 50);
     for (const f of fichiers) {
-      if (f === 'js/os/firebase-config.js' || f === 'js/os/google-config.js') continue;
-      assert.ok(readFileSync(join(paquet, f)).equals(readFileSync(join(RACINE, f))), f);
+      if (f === 'js/os/firebase-config.js' || f === 'js/os/google-config.js' || f === 'index.html') continue; // index.html : accueil neutre (voir « Accueil neutre »)
+      assert.ok(readFileSync(join(paquet, f)).equals(readFileSync(join(RACINE, f === FICHIER_APPLICATION ? 'index.html' : f))), f);
     }
-    const attendus = ELEMENTS_PUBLIES.flatMap((e) => (statSync(join(RACINE, e)).isDirectory() ? listerFichiers(join(RACINE, e)).map((f) => `${e}/${f}`) : [e])).sort();
+    const attendus = ELEMENTS_PUBLIES.flatMap((e) => (statSync(join(RACINE, e)).isDirectory() ? listerFichiers(join(RACINE, e)).map((f) => `${e}/${f}`) : [e])).concat(FICHIER_APPLICATION).sort();
     assert.deepEqual(fichiers, attendus);
   });
   test('rien de privé dans le paquet : ni tests, ni docs, ni règles, ni fonctions, ni outils', () => {
@@ -263,5 +263,57 @@ describe('Aucun secret dans le dépôt (fichiers de ce chantier)', () => {
       const t = lire(`.github/workflows/${f}`);
       assert.ok(!/client_email"\s*:\s*"[^"]+@/.test(t) && !/private_key/.test(t.replace(/#.*$/gm, '')), f);
     }
+  });
+});
+
+describe('Accueil neutre de la plateforme (chevalier-ia-app.web.app/)', () => {
+  const accueil = () => readFileSync(join(paquet, 'index.html'), 'utf8');
+  const visible = (h) => h.replace(/<(script|style)[\s\S]*?<\/\1>/gi, '').replace(/<[^>]+>/g, ' ');
+  test('1. la racine du paquet est une page « Chevalier IA APP » sans « Chevalier IA OS », « Jérôme », « Charles » ni bouton de connexion', () => {
+    const h = accueil();
+    assert.match(h, /<title>Chevalier IA APP<\/title>/);
+    assert.match(h, /<h1>Chevalier IA APP<\/h1>/);
+    assert.ok(!/Chevalier IA OS|Chevalier OS|Jérôme|Jerome|Charles/i.test(h));
+    assert.ok(!/<button|<input|Google|Se connecter|Connexion|firebase|js\/main\.js|type="module"/i.test(h));
+    assert.ok(!/<img|<link rel="manifest"/i.test(h));
+  });
+  test('2. le texte dit d\'utiliser le lien de son espace, de la forme /espace/…', () => {
+    const t = visible(accueil()).replace(/\s+/g, ' ');
+    assert.match(t, /Pour entrer, utilisez le lien de votre espace, celui qui vous a été envoyé\./);
+    assert.match(t, /Il ressemble à \/espace\/nom-de-votre-espace/);
+    assert.match(t, /Vous n'avez pas ce lien \? Demandez-le à la personne qui vous accompagne\./);
+  });
+  test('3. les liens /espace/<client> marchent toujours : l\'application est dans app.html (copie exacte du CRM) et l\'accueil y renvoie toute adresse avec « # »', () => {
+    assert.ok(readFileSync(join(paquet, FICHIER_APPLICATION)).equals(readFileSync(join(RACINE, 'index.html'))));
+    assert.ok(readFileSync(join(paquet, 'espace/index.html')).equals(readFileSync(join(RACINE, 'espace/index.html'))));
+    assert.match(lire('espace/index.html'), /location\.replace\('\/' \+ \(m \? '#\/espace\/'/);
+    // Simule le script de l'accueil dans le navigateur : avec un « # », renvoi vers app.html ; sans, rien.
+    const script = /<script>([\s\S]*?)<\/script>/.exec(accueil())[1];
+    const jouer = (hash, search = '') => {
+      let cible = null;
+      new Function('location', script)({ hash, search, replace: (u) => { cible = u; } });
+      return cible;
+    };
+    assert.equal(jouer('#/espace/acme'), 'app.html#/espace/acme');
+    assert.equal(jouer('#/espace/acme', '?x=1'), 'app.html?x=1#/espace/acme');
+    assert.equal(jouer(''), null);
+    assert.equal(jouer('#'), null);
+  });
+  test('4. le CRM n\'est pas touché : son index.html garde « Chevalier IA OS », le gabarit d\'accueil n\'est pas publié par le CRM', () => {
+    assert.match(lire('index.html'), /<title>Chevalier IA OS<\/title>/);
+    assert.ok(!/Chevalier IA APP/.test(lire('index.html')));
+    assert.ok(!ELEMENTS_PUBLIES.includes('scripts'));
+    assert.equal(json('firebase.json').hosting.public, '.');
+    assert.ok(existsSync(join(RACINE, MODELE_ACCUEIL)));
+    assert.ok(readFileSync(join(paquet, 'index.html')).equals(readFileSync(join(RACINE, MODELE_ACCUEIL))));
+  });
+  test('5. thème clair et sombre automatiques, lisible sur téléphone (375 px), sans ressource externe', () => {
+    const h = accueil();
+    assert.match(h, /name="viewport" content="width=device-width, initial-scale=1"/);
+    assert.match(h, /prefers-color-scheme: dark/);
+    assert.match(h, /name="color-scheme" content="light dark"/);
+    assert.ok(!/https?:\/\//.test(h), 'aucune adresse externe dans la page');
+    assert.match(h, /max-width: 480px/);
+    assert.match(h, /overflow-wrap: anywhere/);
   });
 });

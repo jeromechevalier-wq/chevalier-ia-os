@@ -5,7 +5,7 @@
 // dist/<projet>/ : copie exacte des fichiers du site, SAUF js/os/firebase-config.js (et js/os/google-config.js), remplacés par des fichiers générés depuis
 // scripts/projets/<projet>.json. Le même code, la même version (version.json et js/os/version.js sont copiés tels quels),
 // une configuration par projet choisie au moment de construire, jamais devinée dans le navigateur.
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -13,6 +13,10 @@ export const RACINE = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 /** Ce que le paquet reprend de la racine du dépôt (le reste : tests, docs, outils, règles, fonctions… n'est jamais publié). */
 export const ELEMENTS_PUBLIES = ['index.html', 'manifest.webmanifest', 'version.json', 'robots.txt', 'css', 'js', 'assets', 'espace'];
+
+/** Dans le paquet de la plateforme : la page d'accueil neutre remplace index.html, et l'application du CRM devient app.html. */
+export const MODELE_ACCUEIL = 'scripts/modeles/accueil-plateforme.html';
+export const FICHIER_APPLICATION = 'app.html';
 
 /** Projets construits par ce script. Le CRM n'y figure pas : il est publié depuis la racine, sans construction. */
 export const PROJETS = {
@@ -87,6 +91,10 @@ export function construire(projet, { racine = RACINE, sortie } = {}) {
     if (!existsSync(source)) throw new Error(`Élément à publier introuvable : ${element}`);
     cpSync(source, join(dossier, element), { recursive: true });
   }
+  // La racine de la plateforme est une page d'accueil neutre (jamais l'écran du CRM) : l'application (copie exacte de index.html) est publiée
+  // dans app.html, et l'accueil y renvoie les adresses avec « # » (liens /espace/<client>). Le CRM, lui, garde son index.html.
+  copyFileSync(join(racine, 'index.html'), join(dossier, FICHIER_APPLICATION));
+  copyFileSync(join(racine, MODELE_ACCUEIL), join(dossier, 'index.html'));
   writeFileSync(join(dossier, 'js', 'os', 'firebase-config.js'), config);
   writeFileSync(join(dossier, 'js', 'os', 'google-config.js'), configGoogle);
   return dossier;
