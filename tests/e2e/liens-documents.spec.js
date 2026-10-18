@@ -86,9 +86,11 @@ test.describe('Google branché (simulé)', () => {
     await champDoc('crm_parametres', 'reglages', 'sousDossiersDrive', ['Contrat', 'Livrables', 'Échanges']);
     await section.locator('[data-sous-dossier="Échanges"]').getByRole('button', { name: 'Monter' }).click();
     await champDoc('crm_parametres', 'reglages', 'sousDossiersDrive', ['Contrat', 'Échanges', 'Livrables']);
+    await expect(section.locator('[data-sous-dossier]').nth(1)).toHaveAttribute('data-sous-dossier', 'Échanges'); // idem : l'écran a reçu le nouvel ordre
     await section.locator('[data-sous-dossier="Échanges"]').getByRole('button', { name: 'Retirer Échanges' }).click();
     await dialogue(page).getByRole('button', { name: 'Retirer' }).click(); // confirmation d'abord
     await champDoc('crm_parametres', 'reglages', 'sousDossiersDrive', ['Contrat', 'Livrables']);
+    await expect(section.locator('[data-sous-dossier]')).toHaveCount(2); // l'écran a reçu la liste (sinon le renommage partirait de l'ancienne liste)
     // Renommer
     await section.getByLabel('Renommer le sous-dossier Livrables').fill('Livrables finaux');
     await section.getByLabel('Renommer le sous-dossier Livrables').blur();
@@ -102,7 +104,8 @@ test.describe('Google branché (simulé)', () => {
     await zone.locator('[data-action="retirer-dossier-parent"]').click();
     await dialogue(page).getByRole('button', { name: 'Retirer' }).click();
     await champDoc('crm_parametres', 'reglages', 'dossierParentDrive', null);
-    await page.locator('.toast [data-action="toast-action"]').last().click(); // « Retiré · Annuler » : on remet
+    // « Retiré · Annuler » : on remet. On vise le message du dossier parent : la base est écrite avant que l'appli affiche son message, et « .last() » prenait alors celui du sous-dossier retiré plus haut.
+    await page.locator('.toast', { hasText: 'Dossier parent retiré' }).locator('[data-action="toast-action"]').click();
     await champDoc('crm_parametres', 'reglages', 'dossierParentDrive', { id: PARENT, nom: 'Clients 2026' });
     await zone.locator('[data-action="retirer-dossier-parent"]').click();
     await dialogue(page).getByRole('button', { name: 'Retirer' }).click();
