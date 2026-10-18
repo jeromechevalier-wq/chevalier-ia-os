@@ -66,7 +66,7 @@ test('R1 un client avec « affaires » seul : menu et écrans du CRM, aucun écr
   await expect(page).toHaveURL(/#\/espace\/cabinet\/crm\/accueil$/);
   await expect(page).toHaveTitle('Cabinet Martin');
   await ouvrirMenu(page);
-  for (const lib of ['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Journal']) await expect(menu(page).getByRole('link', { name: lib, exact: true })).toHaveCount(1);
+  for (const lib of ['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Journal des modifications']) await expect(menu(page).getByRole('link', { name: lib, exact: true })).toHaveCount(1);
   for (const lib of ['Projets', 'Archives', 'Modèles']) await expect(menu(page).getByRole('link', { name: lib, exact: true })).toHaveCount(0);
   await expect(menu(page).getByRole('link', { name: 'Réglages', exact: true })).toHaveCount(1); // la page Réglages existe aussi chez un client (2.6.0)
   await expect(menu(page)).toContainText('Cabinet Martin');
@@ -107,9 +107,11 @@ test('R4 un client avec « affaires » et « projets » : les deux groupes, et l
   await ouvrir(page, 'studio');
   await expect(page.locator('.coquille')).toBeVisible();
   await ouvrirMenu(page);
-  for (const lib of ['Personnes', 'Projets', 'Archives']) await expect(menu(page).getByRole('link', { name: lib, exact: true })).toHaveCount(1);
+  for (const lib of ['Personnes', 'Projets']) await expect(menu(page).getByRole('link', { name: lib, exact: true })).toHaveCount(1);
   await expect(menu(page).getByRole('link', { name: 'Modèles', exact: true })).toHaveCount(0); // « Modèles » est dans les Réglages
-  await menu(page).getByRole('link', { name: 'Archives', exact: true }).click();
+  await expect(menu(page).getByRole('link', { name: 'Archives', exact: true })).toHaveCount(0); // Archives n'est plus au menu (PR A) : on y va par le bouton de l'écran Projets
+  await menu(page).getByRole('link', { name: 'Projets', exact: true }).click();
+  await page.locator('.bascule-vue[data-vue="archives"]').click();
   await expect(page).toHaveURL(/#\/espace\/studio\/projets\/archives$/);
   await expect(page.getByRole('heading', { name: 'Page introuvable' })).toHaveCount(0);
   await expect(page.locator('.coquille')).toContainText('Archives');
@@ -160,9 +162,9 @@ test('R9 menu CRM unique : un seul groupe « CRM », sept entrées dans l\'ordre
   await ouvrir(page, 'studio');
   await expect(page.locator('.coquille')).toBeVisible();
   await ouvrirMenu(page);
-  await expect(menu(page).locator('.menu-groupe-titre .menu-texte')).toHaveText(['CRM']);
-  await expect(menu(page).locator('.menu-groupe[data-bloc="crm"] .menu-entree')).toHaveText(['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Projets', 'Journal', 'Archives']);
-  for (const [lib, adresse, chemin] of [['Projets', /#\/espace\/studio\/projets\/projets$/, 'projets/projets'], ['Archives', /#\/espace\/studio\/projets\/archives$/, 'projets/archives'], ['Journal', /#\/espace\/studio\/crm\/journal$/, 'crm/journal'], ['Affaires', /#\/espace\/studio\/crm\/affaires$/, 'crm/affaires']]) {
+  await expect(menu(page).locator('.menu-groupe-titre .menu-texte')).toHaveText(['Affaires et projets']);
+  await expect(menu(page).locator('.menu-groupe[data-bloc="crm"] .menu-entree')).toHaveText(['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Projets', 'Journal des modifications']);
+  for (const [lib, adresse, chemin] of [['Projets', /#\/espace\/studio\/projets\/projets$/, 'projets/projets'], ['Journal des modifications', /#\/espace\/studio\/crm\/journal$/, 'crm/journal'], ['Affaires', /#\/espace\/studio\/crm\/affaires$/, 'crm/affaires']]) {
     if (estTelephone(page) && !(await page.locator('.coquille.menu-ouvert').count())) await page.getByRole('button', { name: 'Ouvrir le menu' }).click(); // sur téléphone le menu se referme après chaque clic
     await menu(page).getByRole('link', { name: lib, exact: true }).click();
     await expect(page).toHaveURL(adresse);
@@ -191,7 +193,7 @@ test('R10 Réglages chez un éditeur : l\'espace d\'abord (Mon espace, Membres, 
     await page.locator('.reglages-menu-bouton').click();
   }
   const liens = page.locator('.reglages-menu-lien');
-  await expect(liens).toHaveText(['Mon espace', 'Membres et rôles', 'Modules actifs', 'CRM', 'Veille', 'Automatisations', 'Assistant (MCP)']);
+  await expect(liens).toHaveText(['Mon espace', 'Membres et rôles', 'Modules actifs', 'Affaires et projets', 'Veille', 'Automatisations', 'Assistant (MCP)']);
   await expect(page.locator('.reglages-menu-titre')).toHaveText(['Espace', 'Modules']);
   // Mon espace (modifiable par un éditeur depuis la 2.8.0 : tests/e2e/mon-espace.spec.js) : le nom et la couleur lus dans la fiche de marque, le thème de l'appareil
   await expect(page.locator('[data-champ="nom"]')).toHaveValue('Maison Pleine');
@@ -212,7 +214,7 @@ test('R10 Réglages chez un éditeur : l\'espace d\'abord (Mon espace, Membres, 
   await expect(page.locator('[data-interrupteur="mcp"]')).toBeChecked();
   await expect(page.locator('[data-interrupteur="affaires"], [data-interrupteur="projets"]')).toHaveCount(0);
   // CRM : toutes les sections du CRM, plus les modèles de projets (module Projets), mais pas les objectifs de Jérôme
-  await ouvrirSectionReglages(page, 'CRM');
+  await ouvrirSectionReglages(page, 'Affaires et projets');
   await expect(page).toHaveURL(/#\/espace\/plein\/reglages\/crm$/);
   for (const id of [...IDS_CRM, 'reglages-modeles-projets']) await expect(page.locator(`#${id}`), id).toBeAttached();
   await expect(page.locator('#reglages-objectifs')).toHaveCount(0);
@@ -235,12 +237,12 @@ test('R11 Réglages chez un lecteur : pas de sections d\'espace réservées aux 
   await ouvrir(page, 'plein', LEA);
   await expect(page.locator('.coquille')).toBeVisible();
   await page.evaluate(() => { location.hash = '#/espace/plein/reglages'; });
-  await expect(page.locator('.reglages-menu-lien')).toHaveText(['Mon espace', 'CRM', 'Veille', 'Automatisations', 'Assistant (MCP)']);
+  await expect(page.locator('.reglages-menu-lien')).toHaveText(['Mon espace', 'Affaires et projets', 'Veille', 'Automatisations', 'Assistant (MCP)']);
   await page.evaluate(() => { location.hash = '#/espace/plein/reglages/membres'; }); // réservé aux éditeurs : retour à la page d'arrivée
   await expect(page).toHaveURL(/#\/espace\/plein\/reglages$/);
   await page.evaluate(() => { location.hash = '#/espace/plein/reglages/modules'; });
   await expect(page).toHaveURL(/#\/espace\/plein\/reglages$/);
-  await ouvrirSectionReglages(page, 'CRM');
+  await ouvrirSectionReglages(page, 'Affaires et projets');
   await expect(page.locator('.reglages-lecture')).toContainText('lecteur');
   await expect(page.locator('fieldset.reglages-sections')).toHaveAttribute('disabled', '');
   await expect(page.locator('#reglages-etiquettes').getByRole('button', { name: 'Ajouter' })).toBeDisabled();

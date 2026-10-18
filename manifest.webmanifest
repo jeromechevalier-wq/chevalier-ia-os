@@ -1,7 +1,7 @@
 {
   "name": "Chevalier IA OS",
   "short_name": "Chevalier OS",
-  "description": "Espace de travail de Chevalier IA : CRM de prospection.",
+  "description": "Espace de travail de Chevalier IA : affaires, projets et prospection.",
   "lang": "fr",
   "dir": "ltr",
   "start_url": "./#/crm/accueil",

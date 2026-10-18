@@ -73,7 +73,7 @@ export function messageErreurDrive(statut, corps) {
   if (statut === 401) return 'Google a refusé l’autorisation (elle a peut-être expiré). Réessaie : la fenêtre d’autorisation se rouvrira.';
   if (statut === 403 && /accessNotConfigured|SERVICE_DISABLED/i.test(`${raison} ${corps?.error?.message ?? ''}`)) return 'L’API Google Drive n’est pas activée dans le projet Google (voir docs/google-drive.md).';
   if (statut === 403) return 'Google refuse la création ici (droits insuffisants sur le dossier parent).';
-  if (statut === 404) return 'Le dossier parent est introuvable : choisis-le de nouveau dans Réglages > Options du CRM, sous la case « Créer un dossier dans Google Drive ».';
+  if (statut === 404) return 'Le dossier parent est introuvable : choisis-le de nouveau dans Réglages > Options, sous la case « Créer un dossier dans Google Drive ».';
   if (statut === 429) return 'Google demande de patienter un peu : réessaie dans une minute.';
   return `Google Drive a répondu une erreur (${statut}).`;
 }

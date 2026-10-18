@@ -4,11 +4,11 @@ Chantiers 2 et 3 des décisions du 16/10/2026 (fiche « Décisions de cadrage du
 
 ## Ce que Jérôme voit de différent
 
-1. **Un seul bloc « CRM » dans le menu**, avec les sept écrans dans cet ordre : Accueil, Personnes, Organisations, Affaires, Projets, Journal, Archives. Avant, « Projets » et « Archives » formaient un second bloc. « Modèles » reste dans les Réglages. Les adresses (`#/crm/affaires`, `#/projets/projets`…) sont **exactement les mêmes** : favoris et liens directs marchent sans rien faire.
+1. *(Depuis le 18/10/2026 le bloc s'appelle « Affaires et projets », « Journal » est devenu « Journal des modifications » et « Archives » n'est plus au menu : voir la mise à jour en bas de page.)* **Un seul bloc « CRM » dans le menu**, avec les sept écrans dans cet ordre : Accueil, Personnes, Organisations, Affaires, Projets, Journal, Archives. Avant, « Projets » et « Archives » formaient un second bloc. « Modèles » reste dans les Réglages. Les adresses (`#/crm/affaires`, `#/projets/projets`…) sont **exactement les mêmes** : favoris et liens directs marchent sans rien faire.
 2. **Une page Réglages à menu à gauche**, chez Jérôme **et** chez les clients :
    - **Espace** (réglages de la coque) : *Mon espace* (nom, logo, couleur, thème de l'appareil), *Membres et rôles*, *Modules actifs* ;
    - **Modules** : un élément par module allumé : *CRM*, *Veille*, *Automatisations*, *Assistant (MCP)* (chez un client).
-   Cliquer sur *CRM* montre **tous** les réglages qui existaient (étapes de vente, phases de projet, options, modèles d'affaires, modèles de projets, objectifs, offres, secteurs, sources, étiquettes, filtres, début d'activité, GitHub si l'option est allumée, sauvegarde). Des raccourcis en haut de la page permettent d'aller à une section.
+   Cliquer sur *CRM* (aujourd'hui *Affaires et projets*) montre **tous** les réglages qui existaient (étapes de vente, phases de projet, options, modèles d'affaires, modèles de projets, objectifs, offres, secteurs, sources, étiquettes, filtres, début d'activité, GitHub si l'option est allumée, sauvegarde). Des raccourcis en haut de la page permettent d'aller à une section.
 3. **Sur téléphone**, le menu de la page Réglages se replie en un bouton qui montre la section ouverte ; on le touche pour voir la liste.
 4. **Chez Jérôme**, en cliquant sur « Réglages » on arrive sur *Mon espace* (la première ligne du menu) : les réglages du CRM sont un clic plus loin (*CRM*). Adresse directe : `#/reglages/crm`. Le thème clair/sombre, qui était tout en bas de l'ancienne page, est maintenant dans *Mon espace*. Les objectifs du mois sont dans *CRM* (ils sont propres au CRM de Jérôme).
 5. **Chez un client** (`#/espace/<client>/reglages`) : la page existe maintenant, avec les sections d'espace réservées aux éditeurs (*Membres et rôles*, *Modules actifs*) ; un **lecteur** ne les voit pas et, dans *CRM*, tout est visible mais grisé (il ne modifie rien).
@@ -54,3 +54,16 @@ Un nouvel espace démarre avec « Créer un dossier dans Google Drive » et « C
 
 - Unitaires : `tests/registre.test.js` (menu en un bloc, interrupteur `crm`, sections déclarées = sections écrites, coque sans module, sections d'espace selon le rôle), `tests/outil-client.test.js` (A2d : `crm` dans l'outil).
 - Navigateur (Playwright, ordinateur et téléphone) : `tests/e2e/modules-client.spec.js` (R9 menu unique, R10 éditeur, R11 lecteur, R12 section inconnue) ; les parcours des Réglages existants (`parcours`, `projets`, `identite-crm`) passent maintenant par *Réglages > CRM* (`allerAuxReglagesCrm` dans `tests/e2e/outils.js`).
+
+---
+
+## Mise à jour du 18/10/2026 (version 2.12.0) : vocabulaire et registre du menu (PR A)
+
+Décisions de Jérôme : le mot « CRM » n'est plus écrit dans ce que l'utilisateur voit ; étapes pour les affaires, phases pour les projets. **Les adresses ne changent pas** (`#/crm/…`, `#/projets/…`, `#/reglages/crm`) : aucun signet ne casse.
+
+- Le bloc du menu, l'élément des Réglages et l'interrupteur « Modules actifs » s'appellent **« Affaires et projets »** (identifiant technique `crm` inchangé).
+- « Options du CRM » → **Options** ; « Réglages du CRM » → **Réglages** ; « Journal » → **Journal des modifications** (menu et titre de la page) ; « Étapes de vente » → **Étapes des affaires** ; « Phases de projet » → **Phases des projets**.
+- **« Archives » n'est plus une entrée du menu.** La page existe toujours (`#/projets/archives`) et le bouton « Archives » de l'écran Projets y mène. Le **Journal reste au menu** tant que le menu utilisateur n'existe pas (PR B).
+- Le raccourci `crm: true` d'une fiche client reste **lu** (il allume toujours affaires et projets, écrans et outils MCP) mais n'est plus proposé : pour une nouvelle fiche, écrire `affaires: true` et `projets: true` (voir `docs/activer-desactiver-modules.md`). Aucune fiche n'a été modifiée.
+- Chez un client **sans le module Projets** (« affaires seules »), la page Réglages cache « Phases des projets », « Dossiers Drive des projets », « Suivi des paiements » et « Clôture bloquée ». À la racine (chez Jérôme) tout est allumé : rien ne change.
+- Un test (`tests/menu-vocabulaire.test.js`) parcourt `js/**/*.js` et `index.html` et échoue si « CRM » réapparaît dans une chaîne affichée.

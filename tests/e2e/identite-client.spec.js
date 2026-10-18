@@ -170,10 +170,13 @@ test('I5 aucun texte au nom de Jérôme sur les écrans d\'un client (accueil, l
   await expect(page.locator('.page-accueil')).toBeVisible();
   await verifier('accueil');
   await expect(page.locator('.rappel-export')).toHaveCount(0);
-  for (const lib of ['Personnes', 'Organisations', 'Affaires', 'Journal', 'Projets', 'Archives']) { // « Modèles » n'est plus dans le menu : il est dans les Réglages
+  for (const lib of ['Personnes', 'Organisations', 'Affaires', 'Journal des modifications', 'Projets']) { // « Modèles » n'est plus dans le menu : il est dans les Réglages
     await aller(page, lib);
     await verifier(lib);
   }
+  // « Archives » n'est plus au menu : on y va par le bouton de l'écran Projets
+  await page.locator('.bascule-vue[data-vue="archives"]').click();
+  await verifier('Archives');
   await page.evaluate(() => { location.hash = '#/espace/studio/crm/affaires/a1'; });
   await expect(page.locator('input.titre-editable')).toHaveValue('Audit du lac');
   await verifier('fiche affaire');

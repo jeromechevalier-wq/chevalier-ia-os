@@ -30,7 +30,9 @@ function formulaireAjout(placeholder, libelleBouton, surAjout) {
   } }, champ, h('button', { type: 'submit', class: 'bouton bouton-secondaire' }, icone('plus', { taille: 16 }), libelleBouton));
 }
 
-export function rendreReglagesCrm(page) {
+export function rendreReglagesCrm(page, ctx = {}) {
+  // Sans le module Projets (client « affaires seules »), les réglages qui ne servent qu'aux projets sont cachés. Sans information (`actifs` absent), tout reste visible.
+  const avecProjets = !Array.isArray(ctx.actifs) || ctx.actifs.includes('projets');
   const sOffres = section('reglages-offres', 'Offres', 'briefcase', 'Une offre archivée reste lisible sur les anciennes fiches.');
   const listeOffres = h('div', { class: 'liste-reglages' });
   sOffres.append(listeOffres, formulaireAjout('Nom de la nouvelle offre', 'Ajouter une offre', async (nom) => {
@@ -74,7 +76,7 @@ export function rendreReglagesCrm(page) {
   sDebut.append(debut);
 
   // Visible seulement si l'option « Créer un dossier dans Google Drive » est allumée : les sous-dossiers que « Créer un dossier dans Google Drive » crée dans chaque dossier de projet.
-  const sProjets = section('reglages-projets', 'Dossiers de projets dans Google Drive', 'folder-plus', 'Les sous-dossiers créés dans chaque dossier. Le dossier parent se règle dans Options du CRM, sous la case.');
+  const sProjets = section('reglages-projets', 'Dossiers de projets dans Google Drive', 'folder-plus', 'Les sous-dossiers créés dans chaque dossier. Le dossier parent se règle dans Options, sous la case.');
   const etatGoogle = h('p', { class: 'aide', 'data-role': 'etat-google' });
   const listeSousDossiers = h('div', { class: 'liste-reglages', 'data-role': 'sous-dossiers' });
   const enregistrerSousDossiers = async (noms) => {
@@ -105,7 +107,7 @@ export function rendreReglagesCrm(page) {
     h('label', { class: 'ligne-export-contacts' }, h('span', {}, 'Dernier export des contacts'), dateContacts, viderDateContacts),
     h('p', { class: 'aide' }, 'Le bouton Exporter de l’écran Personnes envoie les contacts créés ou modifiés depuis cette date. Recule-la pour en renvoyer plus, ou efface-la pour tout renvoyer.'));
 
-  const config = sectionsConfiguration();
+  const config = sectionsConfiguration({ avecProjets });
 
   page.append(...config.elements, sOffres, sSecteurs, sSources, sEtiquettes, sFiltres, sDebut, sProjets, sExport);
 
@@ -197,7 +199,7 @@ export function rendreReglagesCrm(page) {
   }
 
   function rafraichir() {
-    sProjets.hidden = !D.etat.config.options.boutonsDepot;
+    sProjets.hidden = !avecProjets || !D.etat.config.options.boutonsDepot;
     config.rafraichir();
     etatGoogle.textContent = googleDisponible() ? 'Google Drive est branché.' : 'Google Drive n’est pas encore branché : l’identifiant client Google manque (guide pas à pas : docs/google-drive.md). Les boutons Google restent cachés sur les fiches.';
     if (page.contains(document.activeElement) && document.activeElement.matches('.liste-reglages input')) return;

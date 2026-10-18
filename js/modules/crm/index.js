@@ -106,7 +106,7 @@ export function afficher(conteneur, segs, ctx) {
  * la section n'est donc ajoutée que là. Rien n'est stocké ailleurs qu'avant.
  */
 export function reglages(page, ctx = {}) {
-  const arrets = [rendreReglagesCrm(page)];
+  const arrets = [rendreReglagesCrm(page, ctx)];
   if (!ctx.chezClient) {
     const sectionObjectifs = h('section', { class: 'carte-section', id: 'reglages-objectifs' },
       h('h2', {}, icone('target', { taille: 18 }), 'Objectifs du mois'),

@@ -82,12 +82,12 @@ test('K5 célébration « Bravo Jérôme ! » toujours montrée quand une affair
 test('K5 Réglages à menu latéral chez Jérôme : l\'espace d\'abord, puis les modules ; le CRM garde tous ses réglages ; menu CRM en un seul bloc', async ({ page }) => {
   await connecter(page, JEROME);
   // menu principal : un seul bloc « CRM » avec ses sept écrans dans l'ordre (Modèles est dans les Réglages)
-  await expect(page.locator('.menu .menu-groupe[data-bloc="crm"] .menu-entree')).toHaveText(['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Projets', 'Journal', 'Archives']);
+  await expect(page.locator('.menu .menu-groupe[data-bloc="crm"] .menu-entree')).toHaveText(['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Projets', 'Journal des modifications']);
   await expect(page.locator('.menu .menu-groupe[data-bloc="projets"]')).toHaveCount(0);
   await allerA(page, 'Réglages');
   await expect(page).toHaveURL(/#\/reglages$/);
   await expect(page.getByRole('heading', { name: 'Réglages', level: 1 })).toBeVisible();
-  await expect(page.locator('.reglages-menu-lien')).toHaveText(['Mon espace', 'Modules actifs', 'CRM', 'Veille', 'Automatisations', 'Tableau de bord']); // ni membres (racine) ni MCP (clients)
+  await expect(page.locator('.reglages-menu-lien')).toHaveText(['Mon espace', 'Modules actifs', 'Affaires et projets', 'Veille', 'Automatisations', 'Tableau de bord']); // ni membres (racine) ni MCP (clients)
   await expect(page.locator('.reglages-menu-lien[aria-current="page"]')).toHaveText('Mon espace');
   await expect(page.locator('[data-info="nom"]')).toContainText('Chevalier IA OS');
   await expect(page.locator('#reglages-theme')).toBeVisible();
@@ -95,7 +95,7 @@ test('K5 Réglages à menu latéral chez Jérôme : l\'espace d\'abord, puis les
   await ouvrirSectionReglages(page, 'Modules actifs');
   await expect(page.locator('[data-interrupteur="crm"]')).toBeChecked();
   await expect(page.locator('[data-interrupteur="mcp"]')).toHaveCount(0); // réservé aux clients
-  await ouvrirSectionReglages(page, 'CRM');
+  await ouvrirSectionReglages(page, 'Affaires et projets');
   await expect(page).toHaveURL(/#\/reglages\/crm$/);
   for (const id of ['etapes', 'phases', 'options', 'modeles-affaire', 'modeles-projets', 'objectifs', 'offres', 'secteurs', 'sources', 'etiquettes', 'filtres', 'debut', 'export']) await expect(page.locator(`#reglages-${id}`), id).toBeVisible();
   await expect(page.locator('.reglages-raccourcis .reglages-raccourci').first()).toBeVisible();

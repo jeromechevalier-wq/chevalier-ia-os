@@ -213,7 +213,7 @@ export async function ouvrirSectionReglages(page, nom) {
 /** Réglages du CRM : menu principal « Réglages », puis « CRM » dans le menu de gauche (tout ce que le CRM règle est dans cette page). */
 export async function allerAuxReglagesCrm(page) {
   await allerA(page, 'Réglages');
-  await ouvrirSectionReglages(page, 'CRM');
+  await ouvrirSectionReglages(page, 'Affaires et projets');
 }
 
 export async function valeurObjectif(page, id) {

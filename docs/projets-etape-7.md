@@ -6,7 +6,7 @@ Dernière étape de l'écran Projets (version 2.1).
 
 ## Ce qui est construit
 
-- **Entrée de menu « Archives »** (sous « Projets », avant « Modèles ») : elle ouvre la liste des projets archivés ou terminés (`#/projets/archives`). Les boutons Kanban / Liste / Archives en haut de l'écran restent : « Archives » mène au même endroit, « Kanban » et « Liste » ramènent aux projets vivants. **Kanban ou Liste est mémorisé** ; Archives ne l'est pas (l'entrée « Projets » rouvre toujours les projets vivants).
+- *(Depuis le 18/10/2026, 2.12.0 : « Archives » n'est plus une entrée de menu ; on y va par le bouton « Archives » de l'écran Projets, l'adresse ne change pas.)* **Entrée de menu « Archives »** (sous « Projets », avant « Modèles ») : elle ouvre la liste des projets archivés ou terminés (`#/projets/archives`). Les boutons Kanban / Liste / Archives en haut de l'écran restent : « Archives » mène au même endroit, « Kanban » et « Liste » ramènent aux projets vivants. **Kanban ou Liste est mémorisé** ; Archives ne l'est pas (l'entrée « Projets » rouvre toujours les projets vivants).
 - **Célébration de clôture** : quand tu termines un projet (bouton « Terminer » de la fiche, ou « Terminer » du menu d'une carte), un petit feu d'artifice avec Charles s'affiche (« Projet terminé ! », ou « Extraction terminée ! » pour une extraction). Plus sobre que celle de « Gagné ». Un clic ou Échap la ferme ; elle n'apparaît pas si ton appareil demande de réduire les animations.
 - **Recherche** : la recherche de la barre du haut trouve déjà les projets vivants (construite à l'étape 2). Les projets archivés se cherchent dans la vue Archives (champ de recherche et filtres de l'écran).
 - **Version 2.1.0** (`version.json` et `js/os/version.js`, vérifiées ensemble par le test D1).

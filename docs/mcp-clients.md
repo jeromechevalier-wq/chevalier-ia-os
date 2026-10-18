@@ -10,8 +10,8 @@
 - **Qui peut se connecter** : les membres de l'espace (`clients/<client>/membres/<e-mail>`). Le rôle donne le profil : **lecteur** = consultation seule ; **éditeur** = consultation, modification, suppression et restauration (profil `claude-code`, décidé le 17/10/2026), comme dans son écran. Les suppressions sont journalisées et restaurables (`restaurer_depuis_audit`), plafond de **50 par jour** (compté par document supprimé), **double confirmation** (un premier appel donne l'aperçu de ce qui serait supprimé et un code à usage unique de 5 minutes, le second supprime ; voir [portes-et-droits-mcp.md](portes-et-droits-mcp.md)), et un client ne supprime que dans **son** espace.
 - **Outils proposés** : ceux des modules **actifs** du client (CRM = `affaires` + `projets`), d'après `js/os/registre.js`. Un client sans le module Projets ne voit aucun outil de projet.
 - **Module « mcp »** : interrupteur par client, comme `affaires`, `projets`, `veille`. Éteint (ou absent) : le lien ne répond plus, la connexion est refusée, un accès déjà accordé est coupé **à l'appel suivant**.
-- **Noms d'acteur** : `claude-ai-<compte>` ou `chatgpt-<compte>` (selon l'adresse de retour), dans le Journal du CRM et l'audit.
-- **Page d'information** dans le module (route `mcp/infos`, lecture seule, aucun réglage) : lien à copier, mode d'emploi en trois lignes, membres avec leur rôle, lien vers le Journal du CRM.
+- **Noms d'acteur** : `claude-ai-<compte>` ou `chatgpt-<compte>` (selon l'adresse de retour), dans le Journal des modifications et l'audit.
+- **Page d'information** dans le module (route `mcp/infos`, lecture seule, aucun réglage) : lien à copier, mode d'emploi en trois lignes, membres avec leur rôle, lien vers le Journal des modifications.
 
 ## Comment l'isolation est assurée (le serveur contourne les règles Firestore)
 1. **Le client vient de l'adresse du lien**, jamais d'un paramètre. Il est écrit dans la connexion (code, jeton d'accès, jeton de renouvellement) et **revérifié à chaque lecture** : un jeton d'un autre client est refusé comme un jeton inconnu.

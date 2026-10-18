@@ -1,5 +1,5 @@
 // Module « Accès MCP » dans le navigateur, sur les émulateurs et avec les RÈGLES DE LA PLATEFORME : page d'information en lecture seule
-// (lien de connexion, mode d'emploi, membres et rôles, lien vers le Journal du CRM). Un module éteint n'est pas accessible.
+// (lien de connexion, mode d'emploi, membres et rôles, lien vers le Journal des modifications). Un module éteint n'est pas accessible.
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { test, expect, ecrireDocument, PROJET, FIRESTORE, URL_APP } from './outils.js';
@@ -54,7 +54,7 @@ test('MCP1 la page montre le lien du client, le mode d\'emploi en trois lignes, 
   await expect(membres.filter({ hasText: 'Alice Martin' })).toContainText('Éditeur : consulte et modifie');
   await expect(membres.filter({ hasText: LEA })).toContainText('Lecteur : consulte seulement');
   await expect(page.locator('.page-mcp')).not.toContainText(BOB);
-  await expect(page.locator('.page-mcp a', { hasText: 'Journal du CRM' })).toHaveAttribute('href', /#\/espace\/cabinet\/crm\/journal$/);
+  await expect(page.locator('.page-mcp a', { hasText: 'Journal des modifications' })).toHaveAttribute('href', /#\/espace\/cabinet\/crm\/journal$/);
 });
 
 test('MCP2 un lecteur voit la même page ; la page n\'a aucun champ à modifier à part le lien copiable', async ({ page }) => {
@@ -70,8 +70,8 @@ test('MCP3 module éteint : la page est introuvable, même par son adresse ; mod
   await expect(page.locator('.page-mcp')).toHaveCount(0);
   await ouvrir(page, 'seulmcp', '');
   await expect(page).toHaveURL(/#\/espace\/seulmcp\/mcp\/infos$/);
-  await expect(page.locator('.page-mcp a', { hasText: 'Journal du CRM' })).toHaveCount(0);
-  await expect(page.locator('.page-mcp')).toContainText("Le Journal du CRM n'est pas activé");
+  await expect(page.locator('.page-mcp a', { hasText: 'Journal des modifications' })).toHaveCount(0);
+  await expect(page.locator('.page-mcp')).toContainText("Le Journal des modifications n'est pas activé");
 });
 
 test('MCP4 un compte d\'un autre client ne voit pas la page de celui-ci', async ({ page }) => {

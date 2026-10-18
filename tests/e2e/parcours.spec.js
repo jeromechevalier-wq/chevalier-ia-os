@@ -1281,9 +1281,9 @@ test('C28 Journal : ce que je fais dans l’appli y apparaît avec la copie avan
   await expect.poll(async () => (await listerDocuments('crm_audit')).filter((l) => l.outil === 'supprimerPersonne').length).toBeGreaterThanOrEqual(2);
   const nbLignes = (await listerDocuments('crm_audit')).length;
 
-  await allerA(page, 'Journal');
+  await allerA(page, 'Journal des modifications');
   await expect(page).toHaveURL(/#\/crm\/journal$/);
-  await expect(page.getByRole('heading', { name: 'Journal' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Journal des modifications' })).toBeVisible();
   const lignes = page.locator('.tableau-journal tbody tr');
   await expect(lignes).toHaveCount(4); // suppression de la personne (avec son événement), sa création, ligne MCP réussie, ligne MCP à vérifier
   await expect(lignes.first()).toContainText(/Suppression de 1 événement, 1 personne/);

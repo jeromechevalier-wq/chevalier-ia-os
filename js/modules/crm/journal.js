@@ -165,7 +165,7 @@ export function rendreJournal(conteneur) {
     h('div', { class: 'barre-filtres-ligne' }, h('div', { class: 'champ-avec-icone' }, icone('search', { taille: 16 }), champTexte), choixCanal, choixDate,
       h('label', { class: 'case-seule' }, caseAVerifier, ' À vérifier seulement')));
   const entete = h('header', { class: 'page-tete' },
-    h('div', {}, h('p', { class: 'etiquette' }, 'Lecture seule'), h('h1', {}, 'Journal'), compteur),
+    h('div', {}, h('p', { class: 'etiquette' }, 'Lecture seule'), h('h1', {}, 'Journal des modifications'), compteur),
     h('div', { class: 'page-actions' }, boutonActualiser));
   conteneur.append(h('div', { class: 'page page-liste page-journal' }, entete,
     h('p', { class: 'aide' }, estChezClient()

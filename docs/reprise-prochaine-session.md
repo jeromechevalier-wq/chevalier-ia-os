@@ -2,13 +2,17 @@
 
 Écrit le 04/10/2026, mis à jour le 07/10/2026 à la fin du chantier Projets, pour qu'une session neuve reprenne sans que Jérôme ait à recoller quoi que ce soit. **À mettre à jour ou à supprimer une fois les points faits.**
 
+## Vocabulaire et registre du menu (18/10/2026) : PR 127, version 2.12.0
+
+PR A faite, en attente du « fusionne » (voir `reglages-menu-crm-unique.md`, section du 18/10/2026). **À faire ensuite : la PR B** (coque du menu, menu utilisateur où partira « Journal des modifications », bouton de repli).
+
 ## Extraction de valeur supprimée (18/10/2026)
 
 Retirée partout (voir `cadrage-projets.md`, section « La vision de Jérôme »). **Après la fusion de la PR, Jérôme doit** : (1) déployer le MCP des clients (workflow plateforme, choix `mcp`) pour que l'outil `extraire_valeur_projet` disparaisse ; son CRM se met à jour tout seul ; (2) fermer le ticket GitHub n° 28 ; (3) si Hermes est branché, remplacer sa liste d'outils par celle de `branchement-mcp.md` (43 outils).
 
 ## Options par défaut des nouveaux espaces (18/10/2026) : PR 122
 
-Dossier Drive et célébrations allumés par défaut chez un nouveau client ; zone « Dossier Drive parent » sous la case (Réglages > Options du CRM). PR en attente du « fusionne » de Jérôme (visible dans Réglages). **Avant de déployer la plateforme** : vérifier dans Firestore (`clients/<client>/crm_parametres/reglages`) que les espaces existants ont `celebrations` et `boutonsDepot` écrits, car les champs absents prennent la nouvelle valeur (true). Voir `roadmap.md` et `google-drive.md`.
+Dossier Drive et célébrations allumés par défaut chez un nouveau client ; zone « Dossier Drive parent » sous la case (Réglages > Options). PR en attente du « fusionne » de Jérôme (visible dans Réglages). **Avant de déployer la plateforme** : vérifier dans Firestore (`clients/<client>/crm_parametres/reglages`) que les espaces existants ont `celebrations` et `boutonsDepot` écrits, car les champs absents prennent la nouvelle valeur (true). Voir `roadmap.md` et `google-drive.md`.
 
 ## Deux actions pour Jérôme : tests sur GitHub (18/10/2026)
 

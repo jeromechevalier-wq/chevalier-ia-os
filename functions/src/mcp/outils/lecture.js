@@ -121,7 +121,7 @@ export const lister_documents = {
 export const lire_reglages = {
   nom: 'lire_reglages',
   profils: TOUS,
-  description: "Lit les réglages du CRM : offres, secteurs, sources, étiquettes, réglages, et les référentiels (étapes, statuts, rôles, types d'activité, priorités).",
+  description: "Lit les réglages de l'espace : offres, secteurs, sources, étiquettes, réglages, et les référentiels (étapes, statuts, rôles, types d'activité, priorités).",
   schema: {},
   executer: ({ donnees }) => lecture.lireReglages(donnees),
 };

@@ -105,7 +105,7 @@ function sectionsDuModule(item, ctx, arrets) {
   const tampon = h('div', {});
   for (const idModule of item.modules) {
     const api = ctx.apis.get(idModule);
-    const arret = api?.reglages?.(tampon, { chezClient: ctx.chezClient, compte: ctx.compte, lecture: !ctx.editeur });
+    const arret = api?.reglages?.(tampon, { chezClient: ctx.chezClient, compte: ctx.compte, lecture: !ctx.editeur, actifs: ctx.actifs });
     if (typeof arret === 'function') arrets.push(arret);
   }
   const rang = (el) => { const i = item.sections.findIndex((s) => s.id === el.id); return i === -1 ? item.sections.length : i; };
