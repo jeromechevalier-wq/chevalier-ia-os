@@ -37,8 +37,8 @@ export const actionsRapides = [
 let arretSignal = null;
 let montee = null; // { cle, quitter }
 
-export function demarrer({ compte, cheminBase = '', equipe = null }) {
-  D.demarrer(compte, cheminBase, { equipe });
+export function demarrer({ compte, cheminBase = '', equipe = null, nomEspace = '' }) {
+  D.demarrer(compte, cheminBase, { equipe, nomEspace });
   const calculs = {};
   for (const [id, c] of Object.entries(L.CALCULS)) {
     calculs[id] = {

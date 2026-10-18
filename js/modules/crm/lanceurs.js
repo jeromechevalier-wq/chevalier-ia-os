@@ -10,7 +10,7 @@ import * as PD from '../projets/donnees.js';
 import { iconeInfo } from './composants.js';
 import { googleDisponible, preparerGoogle, obtenirJeton, oublierJeton, ouvrirFenetreGoogle } from '../../os/google-picker.js';
 import { retirerAvecAnnulation } from '../../os/retrait.js';
-import { creerArborescence, nettoyerNomDossier, idDossierDrive, trouverDossierDeMemeNom, adresseDossierDrive } from '../../os/google-drive.js';
+import { creerArborescence, nettoyerNomDossier, idDossierDrive, trouverDossierDeMemeNom, adresseDossierDrive, preparerDossierParent, nomDossierParentAuto } from '../../os/google-drive.js';
 
 function boutonPetit(libelle, nomIcone, action, onclick) {
   return h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', dataset: { action }, onclick }, icone(nomIcone, { taille: 14 }), libelle);
@@ -27,11 +27,14 @@ export async function creerRepertoireDrive({ nom }) {
   let jeton;
   try { jeton = await obtenirJeton({ email: D.compteCourant()?.email || '' }); } catch (e) { throw Object.assign(e, { saisie: e.annule === true }); }
   try {
+    // Où ranger : le parent choisi dans les Réglages, sinon un dossier « Chevalier IA - <espace> » créé UNE FOIS tout seul (et recréé s'il a été supprimé).
+    const prepare = await preparerDossierParent({ jeton, parent: reglages.dossierParentDrive, nomAuto: nomDossierParentAuto(D.nomDeLEspace(), D.cheminDeBase() === '') });
     // Un dossier de ce nom créé par l'appli (ou montré à l'appli) existe déjà : on ne crée pas de doublon. (Un dossier créé à la main dans Drive n'est pas visible avec la portée drive.file.)
-    const existant = await trouverDossierDeMemeNom({ jeton, nom: propre, parentId: reglages.dossierParentDrive?.id || '' });
+    const existant = await trouverDossierDeMemeNom({ jeton, nom: propre, parentId: prepare.parentId });
     if (existant) throw Object.assign(new Error('Un dossier de ce nom existe déjà. Utilise « Lier un dossier Google Drive existant ».'), { saisie: true });
-    const r = await creerArborescence({ jeton, nom: propre, parentId: reglages.dossierParentDrive?.id || '', sousDossiers: reglages.sousDossiersDrive || [] });
-    return { url: r.dossier.url, nom: r.dossier.nom, manquants: r.manquants };
+    const r = await creerArborescence({ jeton, nom: propre, parentId: prepare.parentId, sousDossiers: reglages.sousDossiersDrive || [] });
+    if (prepare.cree) { try { await D.enregistrerReglages({ dossierParentDrive: prepare.parent }); } catch (e) { console.warn(e); } } // enregistré comme si l'utilisateur l'avait choisi
+    return { url: r.dossier.url, nom: r.dossier.nom, manquants: r.manquants, parentCree: prepare.cree ? prepare.parent.nom : '', parentRecree: prepare.recree };
   } catch (e) {
     if (e?.statut === 401) oublierJeton();
     throw e;
@@ -39,10 +42,12 @@ export async function creerRepertoireDrive({ nom }) {
 }
 
 /** Message après création : les sous-dossiers qui n'ont pas pu être créés sont nommés (le dossier principal, lui, existe). */
-export function messageCreation({ nom, manquants }) {
-  return manquants.length
+export function messageCreation({ nom, manquants, parentCree = '', parentRecree = false }) {
+  const rangement = parentRecree ? ` Le dossier « ${parentCree} » avait été supprimé de ton Drive : il a été recréé pour le ranger.`
+    : parentCree ? ` Il est rangé dans « ${parentCree} », créé pour toi dans ton Google Drive.` : '';
+  return (manquants.length
     ? `Dossier « ${nom} » créé, mais ces sous-dossiers n'ont pas pu l'être : ${manquants.join(', ')}.`
-    : `Dossier « ${nom} » créé dans Google Drive.`;
+    : `Dossier « ${nom} » créé dans Google Drive.`) + rangement;
 }
 
 /** Les projets (autres que `sauf`) qui utilisent déjà ce dossier de travail : [{ id, titre }]. Même dossier = même adresse, ou même identifiant Drive. */

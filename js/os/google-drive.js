@@ -116,6 +116,41 @@ export async function trouverDossierDeMemeNom({ jeton, nom, parentId = '', appel
 }
 
 /**
+ * Ce dossier existe-t-il encore dans Drive (et n'est-il pas à la corbeille) ? Renvoie true / false, ou null si Google ne répond pas (on ne conclut rien).
+ * Avec la portée drive.file, un dossier que l'appli a créé reste visible pour elle.
+ */
+export async function dossierExisteEncore({ jeton, id, appelFetch = globalThis.fetch }) {
+  if (!IDENTIFIANT.test(id || '')) return false;
+  try {
+    const reponse = await appelFetch(`${API_FICHIERS}/${id}?fields=id,trashed&supportsAllDrives=true`, { headers: { Authorization: `Bearer ${jeton}` } });
+    if (reponse.status === 404) return false;
+    if (!reponse.ok) return null;
+    const corps = await reponse.json();
+    return corps?.trashed !== true;
+  } catch { return null; }
+}
+
+/** Nom du dossier que l'appli crée toute seule pour ranger les dossiers de l'espace : « Chevalier IA OS » à la racine, « Chevalier IA - <espace> » chez un client. */
+export const nomDossierParentAuto = (espace, racine) => (racine ? 'Chevalier IA OS' : `Chevalier IA - ${String(espace || 'Mon espace').trim()}`);
+
+/**
+ * Où ranger le dossier d'un projet ? Renvoie { parentId, parent, cree, recree } :
+ * - un parent CHOISI par l'utilisateur est conservé tel quel ;
+ * - un parent créé automatiquement (`auto: true`) est vérifié : supprimé ou à la corbeille → recréé (`recree: true`) ;
+ * - sans parent, un dossier est créé UNE FOIS dans Mon Drive (ou retrouvé s'il existe déjà, par son nom) et son id est à enregistrer (`cree: true`).
+ */
+export async function preparerDossierParent({ jeton, parent, nomAuto, appelFetch = globalThis.fetch }) {
+  if (parent?.id && parent.auto !== true) return { parentId: parent.id, parent, cree: false, recree: false };
+  if (parent?.id && parent.auto === true) {
+    const existe = await dossierExisteEncore({ jeton, id: parent.id, appelFetch });
+    if (existe !== false) return { parentId: parent.id, parent, cree: false, recree: false }; // présent, ou impossible à savoir : on garde
+  }
+  const trouve = await trouverDossierDeMemeNom({ jeton, nom: nomAuto, parentId: '', appelFetch });
+  const dossier = trouve || await creerDossier({ jeton, nom: nomAuto, appelFetch });
+  return { parentId: dossier.id, parent: { id: dossier.id, nom: dossier.nom, auto: true }, cree: true, recree: !!parent?.id };
+}
+
+/**
  * Où est ce fichier et depuis quand ? (files.get : parents, createdTime). Deux signaux pour reconnaître un fichier que « Importer » vient de déposer :
  * il est DANS le dossier de travail (parents) et il a été créé À L'INSTANT (createdTime). Renvoie { parents, creeLe } ou null si Google ne répond pas.
  */

@@ -55,7 +55,7 @@ test.describe('Google branché (simulé)', () => {
     await allerAuxReglagesCrm(page);
     const section = page.locator('#reglages-projets');
     await expect(section.locator('[data-role="etat-google"]')).toHaveText('Google Drive est branché.');
-    await expect(section.locator('[data-role="dossier-parent"]')).toHaveText('Racine de Mon Drive');
+    await expect(section.locator('[data-role="dossier-parent"]')).toHaveText('Créé tout seul au premier dossier');
     // Choisir le dossier parent : la fenêtre standard, vue « dossiers », un seul choix, autorisation drive.file au nom de Jérôme.
     await choisirDansGoogle(page, [unDocument(PARENT, 'Clients 2026', `https://drive.google.com/drive/folders/${PARENT}`, 'application/vnd.google-apps.folder')]);
     await section.locator('[data-action="choisir-dossier-parent"]').click();
@@ -93,7 +93,7 @@ test.describe('Google branché (simulé)', () => {
     await section.getByLabel('Renommer le sous-dossier Livrables').blur();
     await champDoc('crm_parametres', 'reglages', 'sousDossiersDrive', ['Contrat', 'Livrables finaux']);
     await expect(section.locator('[data-action="tester-google"]')).toHaveCount(0); // plus de bouton « Tester la fenêtre Google » (inutile pour un client)
-    // Retirer le parent : retour à la racine de Mon Drive.
+    // Retirer le parent : l'appli en recréera un toute seule au prochain dossier.
     await section.locator('[data-action="retirer-dossier-parent"]').click();
     await expect(dialogue(page)).toContainText('Retirer le dossier parent');
     await dialogue(page).getByRole('button', { name: 'Annuler' }).click(); // la confirmation d'abord : annuler ne retire rien
@@ -106,7 +106,7 @@ test.describe('Google branché (simulé)', () => {
     await section.locator('[data-action="retirer-dossier-parent"]').click();
     await dialogue(page).getByRole('button', { name: 'Retirer' }).click();
     await champDoc('crm_parametres', 'reglages', 'dossierParentDrive', null);
-    await expect(section.locator('[data-role="dossier-parent"]')).toHaveText('Racine de Mon Drive');
+    await expect(section.locator('[data-role="dossier-parent"]')).toHaveText('Créé tout seul au premier dossier');
     expect(drive.requetes).toHaveLength(0); // les réglages ne créent rien dans Drive
   });
 
@@ -132,6 +132,7 @@ test.describe('Google branché (simulé)', () => {
       { name: 'Livrables', mimeType: 'application/vnd.google-apps.folder', parents: ['DOSSIER_1_abcdefghij'] },
     ]);
     expect(new Set(drive.requetes.map((r) => r.autorisation))).toEqual(new Set(['Bearer ya29.SIMULE']));
+    expect((await lireDocument('crm_parametres/reglages')).dossierParentDrive).toEqual({ id: PARENT, nom: 'Clients 2026' }); // le parent CHOISI est conservé tel quel (pas de parent automatique)
     await expect(page.locator('.toast').last()).toContainText('« Carrel 2026 – Site » créé dans Google Drive');
     await expect(page.locator('[data-prop="dossier"] a.prop-lien')).toHaveAttribute('href', dossierDrive(1));
     await expect(page.locator('[data-action="creer-dossier"], [data-action="creer-dossier-ouvrir"]')).toHaveCount(0);
@@ -139,19 +140,28 @@ test.describe('Google branché (simulé)', () => {
     expect((await lireGoogle(page)).autorisations).toHaveLength(1);
   });
 
-  test('L4 « Créer un dossier dans Google Drive » sans dossier parent ni sous-dossier : créé à la racine de Mon Drive ; l\'autorisation n\'est demandée qu\'une fois', async ({ page }) => {
+  test('L4 « Créer un dossier dans Google Drive » sans dossier parent ni sous-dossier : l\'appli crée toute seule « Chevalier IA OS » puis y range le dossier ; l\'autorisation n\'est demandée qu\'une fois', async ({ page }) => {
     await creerProjet('pr1', { titre: 'Un' });
     await creerProjet('pr2', { titre: 'Deux' });
     await connecter(page);
     await aller(page, FICHE);
     await page.locator('[data-action="creer-dossier-ouvrir"]').click();
     await page.locator('[data-action="creer-dossier"]').click();
-    await champDoc('projets_projets', 'pr1', 'urlDossier', dossierDrive(1));
-    expect(drive.requetes.map((r) => r.corps)).toEqual([{ name: 'Un', mimeType: 'application/vnd.google-apps.folder' }]);
+    // Premier besoin, aucun parent choisi : « Chevalier IA OS » est créé dans Mon Drive, puis le dossier du projet DEDANS.
+    await champDoc('projets_projets', 'pr1', 'urlDossier', dossierDrive(2));
+    expect(drive.requetes.map((r) => r.corps)).toEqual([
+      { name: 'Chevalier IA OS', mimeType: 'application/vnd.google-apps.folder' },
+      { name: 'Un', mimeType: 'application/vnd.google-apps.folder', parents: ['DOSSIER_1_abcdefghij'] },
+    ]);
+    await champDoc('crm_parametres', 'reglages', 'dossierParentDrive', { id: 'DOSSIER_1_abcdefghij', nom: 'Chevalier IA OS', auto: true }); // enregistré comme si on l'avait choisi
+    await expect(page.locator('.toast', { hasText: 'rangé dans « Chevalier IA OS »' })).toBeVisible();
+    // Deuxième besoin : le même parent est réutilisé (il n'est créé qu'UNE fois).
     await aller(page, '#/projets/projets/pr2');
     await page.locator('[data-action="creer-dossier-ouvrir"]').click();
     await page.locator('[data-action="creer-dossier"]').click();
-    await champDoc('projets_projets', 'pr2', 'urlDossier', dossierDrive(2));
+    await champDoc('projets_projets', 'pr2', 'urlDossier', dossierDrive(3));
+    expect(drive.requetes.map((r) => r.corps.name)).toEqual(['Chevalier IA OS', 'Un', 'Deux']);
+    expect(drive.requetes[2].corps.parents).toEqual(['DOSSIER_1_abcdefghij']);
     expect((await lireGoogle(page)).autorisations).toHaveLength(1);
   });
 
@@ -553,8 +563,8 @@ test.describe('Google branché (simulé)', () => {
     await aller(page, FICHE);
     await page.locator('[data-action="creer-dossier-ouvrir"]').click();
     await page.locator('[data-action="creer-dossier"]').click();
-    await champDoc('projets_projets', 'pr1', 'urlDossier', dossierDrive(1));
-    expect(drive.recherches.at(-1)).toEqual({ nom: 'Refonte', parent: 'root' }); // l'appli cherche d'abord un dossier de ce nom (dans le parent des Réglages, ici la racine)
+    await champDoc('projets_projets', 'pr1', 'urlDossier', dossierDrive(2));
+    expect(drive.recherches.at(-1)).toEqual({ nom: 'Refonte', parent: 'DOSSIER_1_abcdefghij' }); // l'appli cherche d'abord un dossier de ce nom, dans le parent (ici celui qu'elle a créé toute seule)
     const avant = drive.requetes.length;
     await aller(page, '#/projets/projets/pr2');
     await page.locator('[data-action="creer-dossier-ouvrir"]').click();
@@ -566,7 +576,7 @@ test.describe('Google branché (simulé)', () => {
     // Un autre nom passe.
     await page.locator('[data-champ="nom-dossier"]').fill('Refonte 2');
     await page.locator('[data-action="creer-dossier"]').click();
-    await champDoc('projets_projets', 'pr2', 'urlDossier', dossierDrive(2));
+    await champDoc('projets_projets', 'pr2', 'urlDossier', dossierDrive(3));
   });
 
   test('L19 liens web : « www.monsite.fr » et « monsite.fr » reçoivent https:// ; « http:www.monsite.fr » devient http://www.monsite.fr ; un texte refusé donne un message clair', async ({ page }) => {
@@ -625,5 +635,28 @@ test.describe('Google branché (simulé)', () => {
       await page.mouse.move(5, 5);
       await expect(infoDossier.locator('[data-role="bulle-info"]')).toBeHidden();
     }
+  });
+
+  test('P6 le dossier parent créé tout seul est recréé, avec un message, s\'il a été supprimé dans Drive ; un parent choisi par l\'utilisateur est conservé', async ({ page }) => {
+    test.info().annotations.push({ type: 'erreurs-reseau-attendues' }); // le faux Drive répond 404 pour le dossier parent « supprimé » : le navigateur le note dans sa console
+    await creerProjet('pr1', { titre: 'Un' });
+    await creerProjet('pr2', { titre: 'Deux' });
+    await connecter(page);
+    await aller(page, FICHE);
+    await page.locator('[data-action="creer-dossier-ouvrir"]').click();
+    await page.locator('[data-action="creer-dossier"]').click();
+    await champDoc('crm_parametres', 'reglages', 'dossierParentDrive', { id: 'DOSSIER_1_abcdefghij', nom: 'Chevalier IA OS', auto: true });
+    // L'utilisateur supprime « Chevalier IA OS » dans son Drive : au prochain dossier, il est recréé et l'appli le dit.
+    drive.supprimes.add('DOSSIER_1_abcdefghij');
+    await aller(page, '#/projets/projets/pr2');
+    await page.locator('[data-action="creer-dossier-ouvrir"]').click();
+    await page.locator('[data-action="creer-dossier"]').click();
+    await champDoc('crm_parametres', 'reglages', 'dossierParentDrive', { id: 'DOSSIER_3_abcdefghij', nom: 'Chevalier IA OS', auto: true });
+    await expect(page.locator('.toast', { hasText: 'avait été supprimé de ton Drive : il a été recréé' })).toBeVisible();
+    expect(drive.requetes.map((r) => r.corps.name)).toEqual(['Chevalier IA OS', 'Un', 'Chevalier IA OS', 'Deux']);
+    expect(drive.requetes[3].corps.parents).toEqual(['DOSSIER_3_abcdefghij']);
+    await champDoc('projets_projets', 'pr2', 'urlDossier', dossierDrive(4));
+    await page.waitForTimeout(350);
+    await page.screenshot({ path: `${process.env.HOME}/chantiers-crm/captures-corrections-dossiers-2/P6-parent-recree${page.viewportSize().width < 768 ? '-telephone' : ''}.png`, animations: 'disabled' });
   });
 });

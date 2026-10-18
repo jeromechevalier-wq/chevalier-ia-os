@@ -173,6 +173,63 @@ describe('G6 que faire de la case « Copier » (import reconnu par deux signaux)
   });
 });
 
+describe('G7 dossier parent créé tout seul au premier besoin', () => {
+  /** Faux Drive : annuaire de dossiers (créés par l'appli) ; `supprimes` : identifiants qui n'existent plus. */
+  const faux = ({ existants = [], supprimes = [] } = {}) => {
+    const appels = []; let n = 0;
+    const appelFetch = async (url, options = {}) => {
+      appels.push({ url, methode: options.method || 'GET', corps: options.body ? JSON.parse(options.body) : null });
+      if (!options.method) { // GET : files.list (par nom) ou files.get (existence)
+        const q = decodeURIComponent(new URL(url).searchParams.get('q') || '');
+        if (q) { const nom = /name = '(.*?)' and/.exec(q)[1]; return { ok: true, status: 200, json: async () => ({ files: existants.filter((e) => e.name === nom) }) }; }
+        const id = /files\/([^/?]+)\?/.exec(url)[1];
+        return supprimes.includes(id) ? { ok: false, status: 404, json: async () => ({}) } : { ok: true, status: 200, json: async () => ({ id, trashed: false }) };
+      }
+      n += 1;
+      return { ok: true, status: 200, json: async () => ({ id: `NOUVEAU_DOSSIER_${n}_xyz`, name: JSON.parse(options.body).name }) };
+    };
+    return { appels, appelFetch };
+  };
+  test('G7 nom du dossier : « Chevalier IA OS » à la racine, « Chevalier IA - <espace> » chez un client', () => {
+    assert.equal(G.nomDossierParentAuto('Ingrid Atamian', false), 'Chevalier IA - Ingrid Atamian');
+    assert.equal(G.nomDossierParentAuto('Chevalier IA OS', true), 'Chevalier IA OS');
+    assert.equal(G.nomDossierParentAuto('', false), 'Chevalier IA - Mon espace');
+  });
+  test('G7 aucun parent : créé UNE fois dans Mon Drive (sans champ parents), enregistré avec auto: true', async () => {
+    const { appels, appelFetch } = faux();
+    const r = await G.preparerDossierParent({ jeton: 'j', parent: null, nomAuto: 'Chevalier IA - Ingrid Atamian', appelFetch });
+    assert.deepEqual(r.parent, { id: 'NOUVEAU_DOSSIER_1_xyz', nom: 'Chevalier IA - Ingrid Atamian', auto: true });
+    assert.equal(r.cree, true);
+    assert.equal(r.recree, false);
+    const creation = appels.find((a) => a.methode === 'POST');
+    assert.deepEqual(creation.corps, { name: 'Chevalier IA - Ingrid Atamian', mimeType: 'application/vnd.google-apps.folder' });
+  });
+  test('G7 un dossier de ce nom déjà connu de l\'appli est réutilisé (pas de doublon)', async () => {
+    const { appels, appelFetch } = faux({ existants: [{ id: 'DEJA_LA_0123456789', name: 'Chevalier IA OS' }] });
+    const r = await G.preparerDossierParent({ jeton: 'j', parent: null, nomAuto: 'Chevalier IA OS', appelFetch });
+    assert.equal(r.parentId, 'DEJA_LA_0123456789');
+    assert.equal(appels.some((a) => a.methode === 'POST'), false);
+  });
+  test('G7 un parent CHOISI par l\'utilisateur est conservé sans rien demander à Drive', async () => {
+    const { appels, appelFetch } = faux();
+    const parent = { id: 'CHOISI_0123456789', nom: 'Clients 2026' };
+    const r = await G.preparerDossierParent({ jeton: 'j', parent, nomAuto: 'Chevalier IA OS', appelFetch });
+    assert.deepEqual([r.parentId, r.cree, r.recree], ['CHOISI_0123456789', false, false]);
+    assert.equal(appels.length, 0);
+  });
+  test('G7 un parent automatique encore là est gardé ; supprimé (404) ou à la corbeille : recréé (recree: true) ; Drive muet : on garde', async () => {
+    const auto = { id: 'AUTO_DOSSIER_0123456', nom: 'Chevalier IA OS', auto: true };
+    assert.equal((await G.preparerDossierParent({ jeton: 'j', parent: auto, nomAuto: 'Chevalier IA OS', appelFetch: faux().appelFetch })).cree, false);
+    const recree = await G.preparerDossierParent({ jeton: 'j', parent: auto, nomAuto: 'Chevalier IA OS', appelFetch: faux({ supprimes: [auto.id] }).appelFetch });
+    assert.deepEqual([recree.cree, recree.recree, recree.parent.auto], [true, true, true]);
+    assert.notEqual(recree.parentId, auto.id);
+    const muet = await G.preparerDossierParent({ jeton: 'j', parent: auto, nomAuto: 'Chevalier IA OS', appelFetch: async () => ({ ok: false, status: 500, json: async () => ({}) }) });
+    assert.deepEqual([muet.parentId, muet.cree], [auto.id, false]);
+    const corbeille = await G.preparerDossierParent({ jeton: 'j', parent: auto, nomAuto: 'Chevalier IA OS', appelFetch: async (u, o = {}) => (o.method ? { ok: true, status: 200, json: async () => ({ id: 'NEUF_0123456789', name: 'Chevalier IA OS' }) } : /q=/.test(u) ? { ok: true, json: async () => ({ files: [] }) } : { ok: true, status: 200, json: async () => ({ id: auto.id, trashed: true }) }) });
+    assert.equal(corbeille.recree, true);
+  });
+});
+
 describe('G4 document choisi dans la fenêtre Google', () => {
   test('G4 un document Drive ou Docs entre dans la liste avec son nom ; autre chose est écarté', () => {
     assert.deepEqual(G.documentDepuisChoix({ nom: ' Devis  signé.pdf ', url: 'https://drive.google.com/file/d/abc/view?usp=drive_web' }), { libelle: 'Devis signé.pdf', url: 'https://drive.google.com/file/d/abc/view?usp=drive_web' });
