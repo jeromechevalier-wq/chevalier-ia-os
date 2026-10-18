@@ -49,3 +49,9 @@ Dans GitHub : <https://github.com/jeromechevalier-wq/chevalier-ia-os/actions/wor
 - La liste des membres devient lisible par les autres membres du même espace (règle Firestore modifiée, écriture toujours interdite).
 - Pas de page Réglages : la page est dans le module (les espaces clients n'ont pas encore de Réglages).
 - Le propriétaire par défaut des fiches créées par un outil reste « Jérôme » (liste des tâches assignables à tirer des membres : chantier à part, voir la fiche de cadrage).
+
+## Textes des outils et options (2.11.0)
+- Les textes des outils ne citent plus rien de propre à Jérôme (étapes, phases, offres, adresse e-mail) : ils renvoient vers `lire_reglages` (`configuration.etapes`, `configuration.phases`, `configuration.options`). Un test verrou (D1a) fait échouer la suite si un de ces mots revient.
+- Les outils `ajouter_facture`, `marquer_facture_payee`, `abandonner_facture` (option « Suivi des paiements ») et `extraire_valeur_projet` (option « Extraction de valeur ») ne sont **listés** que si l'option est allumée dans les réglages du client (`OUTILS_PAR_OPTION`, `functions/src/clients/gestionnaire.js`). Les réglages sont relus à chaque appel (trois documents de `crm_parametres` du client en plus), sans cache ; si la lecture échoue : 503 « indisponible ». Le serveur de Jérôme ne passe pas par là : sa liste d'outils ne change pas. Les refus dans la logique (« … est désactivé dans les réglages du CRM. ») restent la deuxième barrière.
+- Un client déjà connecté à claude.ai doit **republier** le MCP (workflow plateforme, choix « mcp ») pour voir le changement, puis rafraîchir la liste des outils.
+- Question ouverte : le propriétaire enregistré sur une fiche créée par un outil dans un espace client reste Jérôme (`PROPRIETAIRE_PAR_DEFAUT`), seul le texte a été corrigé.
