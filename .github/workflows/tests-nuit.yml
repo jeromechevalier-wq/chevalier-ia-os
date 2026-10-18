@@ -15,6 +15,9 @@ jobs:
     timeout-minutes: 120
     env:
       CI: 'true'
+      # Le navigateur de test est réglé sur Europe/Paris ; le processus Node doit l'être aussi (sinon les heures attendues par certains tests sont décalées de 2 h).
+      TZ: Europe/Paris
+      TESTS_WORKERS: '2'
     steps:
       - uses: actions/checkout@v4
         with:

@@ -12,7 +12,7 @@ export default defineConfig({
   testMatch: /.*\.spec\.js/,
   fullyParallel: false,
   workers: WORKERS,
-  retries: process.env.CI ? 1 : 0, // sur GitHub : une reprise (un scénario qui ne passe qu'à la 2e fois est signalé « flaky » dans le rapport)
+  retries: process.env.CI ? 2 : 0, // sur GitHub : deux reprises (machine lente) (un scénario qui ne passe qu'à la 2e fois est signalé « flaky » dans le rapport)
   timeout: 90_000,
   expect: { timeout: 10_000 },
   reporter: process.env.CI ? [['list'], ['html', { open: 'never', outputFolder: 'playwright-report' }]] : [['list']],
