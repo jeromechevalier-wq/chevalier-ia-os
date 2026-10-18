@@ -213,7 +213,7 @@ test('I7 pas de célébration (Charles, « Bravo Jérôme ! ») quand une affair
   await expect(page.locator('body')).not.toContainText('Bravo');
 });
 
-test('I8 réglages de départ écrits chez un client : sans le compte GitHub ni le dossier de Jérôme', async ({ page }) => {
+test('I8 réglages de départ écrits chez un client : sans le compte GitHub ni le dossier de Jérôme', { tag: '@sans-telephone' }, async ({ page }) => {
   await ouvrir(page, 'studio');
   await expect.poll(async () => (await listerDocuments('clients/studio/crm_parametres')).map((d) => d.id).includes('reglages')).toBe(true);
   const r = (await listerDocuments('clients/studio/crm_parametres')).find((d) => d.id === 'reglages');
@@ -222,7 +222,7 @@ test('I8 réglages de départ écrits chez un client : sans le compte GitHub ni 
   expect(JSON.stringify(Object.values(r))).not.toMatch(IDENTITE_JEROME);
 });
 
-test('I9 la page de connexion du client (avant la connexion) n\'a aucune identité de Jérôme, même avant la lecture de la marque', async ({ page }) => {
+test('I9 la page de connexion du client (avant la connexion) n\'a aucune identité de Jérôme, même avant la lecture de la marque', { tag: '@sans-telephone' }, async ({ page }) => {
   await page.route('https://images.exemple.test/**', (route) => route.fulfill({ status: 200, body: PNG_1X1, headers: { 'Content-Type': 'image/png' } }));
   await page.goto(`${URL_APP}#/espace/studio`);
   await expect(page.getByRole('button', { name: 'Se connecter avec Google' })).toBeVisible();

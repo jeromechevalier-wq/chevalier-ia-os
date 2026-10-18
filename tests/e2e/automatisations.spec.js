@@ -73,7 +73,7 @@ async function ouvrir(page, client, email = ALICE) {
 }
 const lignes = (page) => page.locator('.autom-ligne');
 
-test('J1 écran : quatre compteurs, liste, état « à vérifier » avec son explication, ligne d\'erreur avec étape et message', async ({ page }) => {
+test('J1 écran : quatre compteurs, liste, état « à vérifier » avec son explication, ligne d\'erreur avec étape et message', { tag: '@rapide' }, async ({ page }) => {
   await ouvrir(page, 'cabinet');
   await expect(page).toHaveURL(/#\/espace\/cabinet\/automatisations\/historique$/);
   await expect(page.locator('.autom-resume')).toHaveText(/1\s*en cours\s*1\s*en erreur\s*1\s*exécutions à vérifier\s*2\s*terminées/);
@@ -107,7 +107,7 @@ test('J2 filtres par automatisation et par état', async ({ page }) => {
   await expect(page.locator('.autom-vide')).toContainText('Aucun résultat pour ces filtres');
 });
 
-test('J3 isolation : le journal d\'un autre client n\'apparaît jamais ; un autre client voit le sien seul', async ({ page }) => {
+test('J3 isolation : le journal d\'un autre client n\'apparaît jamais ; un autre client voit le sien seul', { tag: '@sans-telephone' }, async ({ page }) => {
   await ouvrir(page, 'cabinet');
   await expect(lignes(page)).toHaveCount(5);
   await expect(page.locator('body')).not.toContainText('Secret du studio');
@@ -124,7 +124,7 @@ test('J4 bandeau jaune quand n8n ne répond pas, avec l\'heure des dernières do
   await expect(lignes(page)).toHaveCount(5);
 });
 
-test('J5 mise à jour en direct : une exécution écrite par le serveur apparaît sans recharger, et « en cours » devient « terminée »', async ({ page }) => {
+test('J5 mise à jour en direct : une exécution écrite par le serveur apparaît sans recharger, et « en cours » devient « terminée »', { tag: '@sans-telephone' }, async ({ page }) => {
   await ouvrir(page, 'cabinet');
   await expect(lignes(page)).toHaveCount(5);
   await ecrireDocument('clients/cabinet/executions/106', exe(106, 'wf1', 'running', 1000));
@@ -149,7 +149,7 @@ test('J6 mise à jour automatique : une demande à l\'ouverture, la case la coup
   expect(appelsRafraichir).toBe(avant + 1); // case décochée : plus de demande automatique
 });
 
-test('J7 aucune demande envoyée au serveur ne porte un identifiant de client (le serveur le déduit de l\'identité)', async ({ page }) => {
+test('J7 aucune demande envoyée au serveur ne porte un identifiant de client (le serveur le déduit de l\'identité)', { tag: '@sans-telephone' }, async ({ page }) => {
   let corps = null;
   await page.route('**/automatisationsRafraichir', async (route) => {
     if (route.request().method() === 'POST') corps = route.request().postData();
@@ -208,7 +208,7 @@ test('J12 compatibilité : un client activé avec l\'ancien identifiant « journ
   await expect(page.locator('.autom-liste')).toContainText('Ancienne automatisation');
 });
 
-test('J11 le navigateur ne peut écrire dans aucune collection des automatisations (règles)', async ({ page }) => {
+test('J11 le navigateur ne peut écrire dans aucune collection des automatisations (règles)', { tag: '@sans-telephone' }, async ({ page }) => {
   await ouvrir(page, 'cabinet');
   const resultat = await page.evaluate(async () => {
     const m = await import('https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js');

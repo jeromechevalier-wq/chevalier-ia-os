@@ -4,6 +4,9 @@ import {
   jour, estTelephone, valeurObjectif, JEROME,
 } from './outils.js';
 
+// Les scénarios de ce fichier sont indépendants (chacun repart d'une base vide) : ils se répartissent sur plusieurs workers.
+test.describe.configure({ mode: 'parallel' });
+
 const dialogue = (page) => page.getByRole('dialog');
 const LIBELLES = { lancement: 'Lancement', decouverte: 'Découverte', livraison: 'Livraison', cloture: 'Clôture' };
 
@@ -56,7 +59,7 @@ async function deplacer(page, id, phase) {
   }
 }
 
-test('C29 menu « Projets » et bouton « + » : un projet se crée en ne tapant que le titre, au bon endroit, avec sa trace dans le journal', async ({ page }) => {
+test('C29 menu « Projets » et bouton « + » : un projet se crée en ne tapant que le titre, au bon endroit, avec sa trace dans le journal', { tag: '@rapide' }, async ({ page }) => {
   await connecter(page);
   await allerA(page, 'Projets');
   await expect(page).toHaveURL(/#\/projets\/projets$/);
@@ -889,7 +892,7 @@ async function attendreModeles(n = 3) {
   await expect.poll(async () => (await listerDocuments('projets_modeles')).length, { timeout: 15_000 }).toBe(n);
 }
 
-test('C32 premier lancement : les modèles Audit, Accompagnement et Extraction sont créés une seule fois, avec le contenu de Jérôme', async ({ page }) => {
+test('C32 premier lancement : les modèles Audit, Accompagnement et Extraction sont créés une seule fois, avec le contenu de Jérôme', { tag: '@sans-telephone' }, async ({ page }) => {
   await connecter(page);
   await attendreModeles();
   const modeles = Object.fromEntries((await listerDocuments('projets_modeles')).map((m) => [m.id, m]));
@@ -1588,7 +1591,7 @@ test('C36 déplacer une carte vers la Clôture avec une facture à payer : refus
 
 // ---------------------------------------------------------------- configuration du CRM (ménage du 16/10/2026)
 
-test('C37 Réglages : les restes de la 2.2 ont disparu (migration, délai de paiement, encaissements de la fiche affaire)', async ({ page }) => {
+test('C37 Réglages : les restes de la 2.2 ont disparu (migration, délai de paiement, encaissements de la fiche affaire)', { tag: '@sans-telephone' }, async ({ page }) => {
   await creerAffaire('a1', { titre: 'Audit payé', etape: 'gagne', statut: 'gagnee', montant: 800, encaissements: [{ date: new Date(), montant: 800, offreId: null }] });
   await connecter(page);
   await attendreModeles();

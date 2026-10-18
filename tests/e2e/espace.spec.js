@@ -35,7 +35,7 @@ test.beforeEach(async ({ context }) => {
 
 const aller = (page, client) => page.goto(`${URL_APP}#/espace/${client}`);
 
-test('E1 client inconnu, fiche inactive ou adresse mal formée : même page neutre, aucun bouton de connexion', async ({ page }) => {
+test('E1 client inconnu, fiche inactive ou adresse mal formée : même page neutre, aucun bouton de connexion', { tag: '@sans-telephone' }, async ({ page }) => {
   for (const client of ['inconnu', 'dormant', 'a%20b']) {
     await page.goto('about:blank');
     await aller(page, client);
@@ -65,7 +65,7 @@ test('E2 la page prend le nom, le texte, le logo et les images de la fiche ; la 
   if (estTelephone(page)) expect(taille.width).toBeLessThanOrEqual(390);
 });
 
-test('E3 un membre du client se connecte et arrive sur son accueil ; il peut se déconnecter', async ({ page }) => {
+test('E3 un membre du client se connecte et arrive sur son accueil ; il peut se déconnecter', { tag: '@rapide' }, async ({ page }) => {
   await aller(page, 'atelier');
   await page.waitForFunction(() => !!window.__chevalierTest);
   await page.evaluate((e) => window.__chevalierTest.connecter(e, true), ALICE);
@@ -75,7 +75,7 @@ test('E3 un membre du client se connecte et arrive sur son accueil ; il peut se 
   await expect(page.getByRole('button', { name: 'Se connecter avec Google' })).toBeVisible();
 });
 
-test("E4 refus IDENTIQUE pour un compte inconnu et pour un membre d'un autre client, sans rien révéler", async ({ page }) => {
+test("E4 refus IDENTIQUE pour un compte inconnu et pour un membre d'un autre client, sans rien révéler", { tag: '@sans-telephone' }, async ({ page }) => {
   const messages = [];
   for (const email of [ZOE, BOB]) {
     await page.goto('about:blank');
@@ -93,7 +93,7 @@ test("E4 refus IDENTIQUE pour un compte inconnu et pour un membre d'un autre cli
   expect(messages[0]).toBe(REFUS);
 });
 
-test("E5 le CRM de Jérôme à la racine n'est pas touché : sans lien /espace/, l'écran de connexion habituel s'affiche", async ({ page }) => {
+test("E5 le CRM de Jérôme à la racine n'est pas touché : sans lien /espace/, l'écran de connexion habituel s'affiche", { tag: '@sans-telephone' }, async ({ page }) => {
   await page.goto(`${URL_APP}#/crm/accueil`);
   await expect(page.getByRole('heading', { name: 'Chevalier IA OS' })).toBeVisible();
   await expect(page.locator('img.espace-fond')).toHaveCount(0);

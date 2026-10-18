@@ -29,7 +29,7 @@ test('Automatisations chez l\'assistant (non administrateur) : menu visible, ét
   expect(erreursConsole).toEqual([]);
 });
 
-test('Automatisations chez l\'assistant : si des workflows sont présents à la racine, ils s\'affichent (lecture seule, renommage absent)', async ({ page, erreursConsole }) => {
+test('Automatisations chez l\'assistant : si des workflows sont présents à la racine, ils s\'affichent (lecture seule, renommage absent)', { tag: '@sans-telephone' }, async ({ page, erreursConsole }) => {
   await ecrireDocument('workflows/wf1', { workflowId: 'wf1', nom: 'Mon workflow', active: true, stepsPlan: [] });
   await ecrireDocument('executions/501', {
     executionId: '501', workflowId: 'wf1', workflowLabel: 'Mon workflow', status: 'success', stale: false, mode: 'webhook',
@@ -135,7 +135,7 @@ test('Automatisations chez Jérôme administrateur : filtre par propriétaire, p
   expect(erreursConsole.filter((e) => !/automatisationsAdmin/.test(e))).toEqual([]);
 });
 
-test('Automatisations chez Jérôme administrateur : si la fonction n\'est pas encore en service, ses propres workflows restent affichés avec une explication', async ({ page }) => {
+test('Automatisations chez Jérôme administrateur : si la fonction n\'est pas encore en service, ses propres workflows restent affichés avec une explication', { tag: '@sans-telephone' }, async ({ page }) => {
   test.info().annotations.push({ type: 'erreurs-reseau-attendues' }); // la fonction répond 404 : le navigateur le note dans sa console
   await page.route('**/automatisationsAdmin', async (route) => {
     if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
