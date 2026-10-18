@@ -3,16 +3,40 @@
 name: Tests de nuit
 on:
   schedule:
-    # Essai d'UNE seule nuit (décision de Jérôme, 18/10/2026) : le 19 octobre à 0 h 17 UTC = 2 h 17 à Paris (heure d'été).
-    # Les minutes ≠ 0 évitent l'heure pile, où GitHub retarde ou saute des runs. Le jour et le mois reviennent chaque année :
-    # après l'essai, soit remettre '17 0 * * *' (toutes les nuits), soit supprimer cette ligne (sinon il se relancera le 19/10/2027).
-    - cron: '17 0 19 10 *'
+    # Chaque nuit à 0 h 17 UTC = 2 h 17 à Paris en heure d'été (1 h 17 en hiver). Les minutes ≠ 0 évitent l'heure pile, où GitHub retarde ou saute des runs.
+    # Le job « changement » ne laisse la suite tourner que si `main` a reçu un commit dans les 26 dernières heures (décision de Jérôme, 18/10/2026 :
+    # il ne développe pas tous les jours, et une nuit sans nouveau commit ne sert à rien et mange le quota de 2 000 minutes).
+    - cron: '17 0 * * *'
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
+  changement:
+    name: Main a-t-il changé ?
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      lancer: ${{ steps.verif.outputs.lancer }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+      - id: verif
+        run: |
+          # Lancement à la main : toujours. Nuit : seulement si un commit est arrivé sur main depuis ~26 h.
+          if [ "${{ github.event_name }}" != "schedule" ]; then
+            echo "lancer=true" >> "$GITHUB_OUTPUT"
+          elif [ -n "$(git log --since='26 hours ago' --oneline)" ]; then
+            echo "lancer=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "lancer=false" >> "$GITHUB_OUTPUT"
+            echo "Aucun commit sur main depuis 26 h : pas de tests cette nuit."
+          fi
   nuit:
     name: Tests de nuit
+    needs: changement
+    if: needs.changement.outputs.lancer == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
