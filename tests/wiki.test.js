@@ -38,10 +38,10 @@ describe('Wiki local', () => {
     assert.equal(apres.match(/<a href="([^"]*)"/)[1], 'portes-et-droits-mcp.html');
   });
 
-  test('W3 dans portes-et-droits-mcp.html, les deux tableaux ont un <tbody> de 2 et de 7 lignes', () => {
+  test('W3 dans portes-et-droits-mcp.html, les deux tableaux ont un <tbody> de 2 et de 6 lignes', () => {
     const h = generer({ docs: DOCS, sommaire: SOMMAIRE }).get('portes-et-droits-mcp.html');
     const corps = [...h.matchAll(/<tbody>([\s\S]*?)<\/tbody>/g)].map((m) => (m[1].match(/<tr>/g) || []).length);
-    assert.deepEqual(corps, [2, 7]);
+    assert.deepEqual(corps, [2, 6]);
     assert.equal((h.match(/<thead>/g) || []).length, 2);
     assert.equal((h.match(/<div class="tableau">/g) || []).length, 2);
     assert.match(h, /mcp\/&lt;client&gt;/, 'le HTML du texte est échappé (/mcp/<client> reste visible)');
