@@ -44,3 +44,5 @@ Mesures du 18/10/2026 (machine GitHub Ubuntu, petite : 2 workers) :
 ## Scénarios connus pour échouer « au hasard »
 
 Voir `docs/acceleration-tests-mesures.md`, section « Instabilités ». Sur GitHub, un scénario est repris une fois automatiquement ; s'il passe à la 2e fois, le rapport le marque « flaky » mais la coche reste verte.
+
+<!-- essai -->
