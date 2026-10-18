@@ -14,7 +14,7 @@ jobs:
   nuit:
     name: Tests de nuit
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 45
     env:
       CI: 'true'
       # Le navigateur de test est réglé sur Europe/Paris ; le processus Node doit l'être aussi (sinon les heures attendues par certains tests sont décalées de 2 h).
