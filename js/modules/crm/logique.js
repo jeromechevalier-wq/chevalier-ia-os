@@ -1936,6 +1936,25 @@ export const planSupprimerNote = (id) => ({ ecritures: [ecritureSupprimer(C.note
 // ses valeurs « serveur » (horodatage Firebase, e-mail du compte), les tests des dates ordinaires.
 
 export const JOURS_COPIES_AUDIT = 90;
+/**
+ * Écrit `total` actions par lots de `tailleLot` (chaque lot est atomique, mais pas l'ensemble). `ecrireLot(debut, fin)` écrit un lot ;
+ * si un lot échoue APRÈS d'autres lots déjà écrits, `signalerEchec(faites, erreur)` laisse une trace dans le Journal et l'erreur rendue dit
+ * que l'opération est à moitié faite (`saisie` : le message est fait pour être montré). Si le tout premier lot échoue, rien n'est écrit : l'erreur est rendue telle quelle.
+ */
+export async function ecrireParLots(total, tailleLot, ecrireLot, signalerEchec) {
+  for (let debut = 0; debut < total; debut += tailleLot) {
+    try {
+      await ecrireLot(debut, Math.min(debut + tailleLot, total));
+    } catch (e) {
+      if (debut === 0) throw e;
+      try { await signalerEchec(debut, e); } catch (e2) { console.warn(e2); } // la trace est un plus : l'erreur d'origine compte davantage
+      const incomplete = new Error(`L’opération s’est arrêtée à moitié (${debut} actions faites sur ${total}). Recommence-la pour la terminer.`, { cause: e });
+      incomplete.saisie = true;
+      throw incomplete;
+    }
+  }
+}
+
 export const CANAL_ECRAN = 'ecran';
 
 /** Document « après » d'une écriture : null pour une suppression ; `avant` sert pour une modification (champs fusionnés, comme Firestore). */

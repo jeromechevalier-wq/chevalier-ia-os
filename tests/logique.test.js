@@ -938,6 +938,36 @@ describe('B17 Plans d’écriture : modifications', () => {
   });
 });
 
+describe('B17 Écriture par lots : une opération coupée à moitié le dit', () => {
+  test('B17 tous les lots passent : 300 actions par lots de 130 = trois lots, aucun signalement', async () => {
+    const lots = []; const signales = [];
+    await L.ecrireParLots(300, 130, async (d, f) => { lots.push([d, f]); }, async (n) => { signales.push(n); });
+    assert.deepEqual(lots, [[0, 130], [130, 260], [260, 300]]);
+    assert.deepEqual(signales, []);
+  });
+  test('B17 le premier lot échoue : rien n’est écrit, l’erreur d’origine est rendue telle quelle, aucun signalement', async () => {
+    const origine = new Error('réseau'); const signales = [];
+    await assert.rejects(L.ecrireParLots(300, 130, async () => { throw origine; }, async (n) => { signales.push(n); }), (e) => e === origine);
+    assert.deepEqual(signales, []);
+  });
+  test('B17 un lot échoue après d’autres : le Journal est prévenu (actions déjà faites), le message dit « à moitié » et peut être montré à l’écran', async () => {
+    const origine = new Error('quota'); const signales = [];
+    let n = 0;
+    await assert.rejects(
+      L.ecrireParLots(300, 130, async () => { if (++n === 2) throw origine; }, async (faites, e) => { signales.push([faites, e]); }),
+      (e) => e.saisie === true && e.cause === origine && /130 actions faites sur 300/.test(e.message) && /Recommence/.test(e.message),
+    );
+    assert.deepEqual(signales, [[130, origine]]);
+  });
+  test('B17 si le signalement lui-même échoue, l’erreur « à moitié » est quand même rendue', async () => {
+    let n = 0;
+    await assert.rejects(
+      L.ecrireParLots(300, 130, async () => { if (++n === 3) throw new Error('x'); }, async () => { throw new Error('journal indisponible'); }),
+      (e) => e.saisie === true && /260 actions faites sur 300/.test(e.message),
+    );
+  });
+});
+
 describe('B17 Plans d’écriture : suppressions', () => {
   const affaires = [affaire({ id: 'a1', personneId: 'p1' }), affaire({ id: 'a2', personneId: 'p1' }), affaire({ id: 'a3', personneId: 'p2' })];
   const liens = [
