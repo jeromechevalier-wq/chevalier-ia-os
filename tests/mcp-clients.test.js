@@ -268,6 +268,7 @@ describe('Connexion : comptes lus dans les membres, un seul refus pour tout', ()
       const c = await assistant('/mcp/a', t.access_token);
       const moi = resultat(await c.callTool({ name: 'qui_suis_je', arguments: {} }));
       assert.equal(moi.acteur, attendu);
+      assert.equal(moi.serveur.nom, 'espace-client'); // jamais le nom du serveur de Jérôme chez un client
       await c.close();
     }
   });
