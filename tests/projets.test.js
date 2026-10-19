@@ -481,6 +481,21 @@ describe('B28 Affaire gagnée : créer ou lier un projet', () => {
     const ev = e['creer:crm_evenements'].donnees;
     assert.deepEqual([ev.type, ev.projetId, ev.affaireId, ev.personneId, ev.organisationId], ['projet_cree', 'projets_projets_1', 'a1', 'p1', 'o1']);
   });
+  test('TL1 le texte libre de l’affaire est repris par le projet créé (ou lié s’il n’en a pas) ; celui du projet n’est jamais écrasé', () => {
+    const affaire = gagnee({ description: 'Appli de commande pour la boulangerie.\nDevis envoyé.' });
+    const doc = par(P.planCreerProjetDepuisAffaire({ affaire }, c()).ecritures)['creer:projets_projets'].donnees;
+    assert.equal(doc.description, 'Appli de commande pour la boulangerie.\nDevis envoyé.');
+    const sans = par(P.planCreerProjetDepuisAffaire({ affaire: gagnee() }, c()).ecritures)['creer:projets_projets'].donnees;
+    assert.equal(sans.description, '');
+    assert.equal(P.planLierProjet({ affaire, projet: libre() }, c()).patch.description, 'Appli de commande pour la boulangerie.\nDevis envoyé.');
+    assert.equal(P.planLierProjet({ affaire, projet: libre({ description: 'Le mien' }) }, c()).patch.description, undefined);
+  });
+  test('TL2 une nouvelle affaire et un nouveau projet ont un texte libre vide par défaut ; les retours à la ligne sont gardés', () => {
+    assert.equal(L.nouvelleAffaire({ titre: 'x' }, ctx()).description, '');
+    assert.equal(P.nouveauProjet({ titre: 'x' }, ctx()).description, '');
+    assert.equal(L.nouvelleAffaire({ titre: 'x', description: '  ligne 1\r\nligne 2  ' }, ctx()).description, 'ligne 1\nligne 2');
+    assert.equal(L.nettoyerDescription('a'.repeat(6000)).length, 5000);
+  });
   test('B28 créer : les valeurs données l’emportent sur celles de l’affaire', () => {
     const plan = P.planCreerProjetDepuisAffaire({ affaire: gagnee(), valeurs: { titre: 'Autre titre', dateFin: '2026-12-31' } }, c());
     const doc = par(plan.ecritures)['creer:projets_projets'].donnees;

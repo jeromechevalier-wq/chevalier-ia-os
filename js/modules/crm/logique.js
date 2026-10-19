@@ -574,6 +574,12 @@ export function nettoyerEspaces(texte) {
   return String(texte ?? '').replace(/\s+/g, ' ').trim();
 }
 
+/** Description libre d'une affaire ou d'un projet : les retours à la ligne sont gardés, les espaces de début et de fin retirés, 5000 caractères au plus. */
+export const LONGUEUR_MAX_TEXTE_LIBRE = 5000;
+export function nettoyerDescription(texte) {
+  return String(texte ?? '').replace(/\r\n?/g, '\n').trim().slice(0, LONGUEUR_MAX_TEXTE_LIBRE);
+}
+
 /** "Marie Durand" -> { prenom: "Marie", nomFamille: "Durand" } ; un seul mot -> nom de famille seul. */
 export function decouperNom(nom) {
   const t = nettoyerEspaces(nom);
@@ -820,6 +826,7 @@ export function nouvelleAffaire(valeurs, ctx) {
     dureeJours: valeurs.dureeJours ?? null,
     source: valeurs.source || '',
     besoin: valeurs.besoin || '',
+    description: nettoyerDescription(valeurs.description),
     dateEntreeEtape: ctx.maintenant,
     datesEtapes: { [etape]: ctx.maintenant },
     raisonPerdue: '',
