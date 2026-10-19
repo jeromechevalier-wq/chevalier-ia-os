@@ -20,7 +20,7 @@ Les agents (Claude Code, Hermes) peuvent maintenant lire et faire avancer les pr
 |---|---|
 | `creer_projet` | Titre obligatoire, modèle (tâches datées à partir du début), dates, offre. |
 | `creer_projet_depuis_affaire` | « Créer le projet » d'une affaire **gagnée** : lie l'affaire (un seul projet). |
-| `modifier_projet` | Titre, personne, organisation, offre, dates, dépôt, dossier. |
+| `modifier_projet` | Titre, personne, organisation, offre, dates, texte libre (`description`), dépôt, dossier. |
 | `changer_phase_projet` | Dans tous les sens ; **vers Clôture, refusé tant qu'une facture est à payer**. |
 | `mettre_projet_en_pause`, `reprendre_projet`, `rouvrir_projet`, `archiver_projet` | Comme les boutons de la fiche. |
 | `terminer_projet` | Clôture (statut Terminé, archivé). **Refusé tant qu'une facture est à payer** : le refus nomme les factures. Sortie : `impaye: { raison }` (les factures restantes passent à « abandonnee », le projet garde sa pastille « Impayé »). |

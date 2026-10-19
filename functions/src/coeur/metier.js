@@ -176,6 +176,7 @@ export async function modifierAffaire(c, args) {
   if (champs.offreId !== undefined) { await verifierOffre(c, champs.offreId); patch.offreId = champs.offreId || null; }
   if (champs.dureeJours !== undefined) patch.dureeJours = champs.dureeJours;
   for (const cle of ['source', 'besoin']) if (champs[cle] !== undefined) patch[cle] = cle === 'besoin' ? String(champs[cle]).trim() : texte(champs[cle]);
+  if (champs.description !== undefined) patch.description = L.nettoyerDescription(champs.description);
   if (champs.urlGithub !== undefined) { const r = L.majUrlGithub(champs.urlGithub); verifierMessages(r.erreurs); Object.assign(patch, r.patch); }
   if (champs.urlDossier !== undefined) { const r = L.majUrlDossier(champs.urlDossier); verifierMessages(r.erreurs); Object.assign(patch, r.patch); }
   if (champs.archive !== undefined) patch.archive = champs.archive;
@@ -296,6 +297,7 @@ export async function modifierProjet(c, args) {
   const debut = patch.dateDebut !== undefined ? patch.dateDebut : p.dateDebut;
   const fin = patch.dateFin !== undefined ? patch.dateFin : p.dateFin;
   verifierMessages(PL.validerProjet({ titre: patch.titre ?? p.titre, dateDebut: debut, dateFin: fin }));
+  if (champs.description !== undefined) patch.description = L.nettoyerDescription(champs.description);
   if (champs.urlGithub !== undefined) { const r = L.majUrlGithub(champs.urlGithub); verifierMessages(r.erreurs); Object.assign(patch, r.patch); }
   if (champs.urlDossier !== undefined) { const r = L.majUrlDossier(champs.urlDossier); verifierMessages(r.erreurs); Object.assign(patch, r.patch); }
   if (!Object.keys(patch).length) refuser('saisie_invalide', 'Aucun champ à modifier (la phase et le statut passent par changer_phase_projet, mettre_projet_en_pause, reprendre_projet, terminer_projet, rouvrir_projet, archiver_projet).');
