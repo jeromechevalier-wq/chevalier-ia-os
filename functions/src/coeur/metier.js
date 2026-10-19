@@ -7,7 +7,7 @@ import { COLLECTIONS as C } from './donnees.js';
 import { lireConfig as lireConfigEspace } from './config.js';
 import { emettreCode, consommerCode, empreinteApercu } from '../securite/codes.js';
 
-/** Propriétaire des fiches créées par un agent, sauf si l'appel en donne un autre (plan-mcp.md, écart 11). */
+/** Propriétaire des fiches créées par un jeton « cia_… » (sans e-mail) sur le serveur de Jérôme, sauf si l'appel en donne un autre (plan-mcp.md, écart 11). */
 export const PROPRIETAIRE_PAR_DEFAUT = 'jerome.chevalier@gmail.com';
 
 /** Saisie refusée : l'appelant doit corriger et recommencer (code : saisie_invalide | introuvable | doublon | confirmation | integrite). */
@@ -24,11 +24,21 @@ const refuser = (code, message, details) => { throw new ErreurMetier(code, messa
 /** Configuration de l'espace pour cet appel (voir config.js) : `c.racine` (par défaut : pas de base = CRM de Jérôme), `c.membres` = membres assignables d'un espace client. */
 const lireConfig = (c) => lireConfigEspace(c.donnees, { racine: c.racine, membres: c.membres ?? null });
 
+/**
+ * Propriétaire d'une fiche créée par un outil : celui qu'on donne (écrit tel quel), sinon l'e-mail de la personne connectée (connexion Google, `c.email`,
+ * jamais déduit de l'acteur), sinon Jérôme SEULEMENT sur son serveur (accès sans base : jetons « cia_… »). Chez un client sans e-mail : vide, jamais Jérôme.
+ */
+export function proprietaireParDefaut(c, donne) {
+  if (donne) return donne;
+  if (typeof c.email === 'string' && c.email.trim()) return c.email.trim();
+  return c.donnees.base ? '' : PROPRIETAIRE_PAR_DEFAUT;
+}
+
 async function contexte(c, proprietaire) {
   return {
     maintenant: c.maintenant,
     auteur: c.acteur,
-    proprietaire: proprietaire || PROPRIETAIRE_PAR_DEFAUT,
+    proprietaire: proprietaireParDefaut(c, proprietaire),
     aujourdhui: L.aujourdhuiParis(c.maintenant),
     config: await lireConfig(c),
     nouvelId: (nom) => c.donnees.nouvelId(nom),

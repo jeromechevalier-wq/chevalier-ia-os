@@ -55,3 +55,6 @@ Claude et ChatGPT classent les outils d'après leurs **annotations** (lecture se
 - Jetons, profils, plafonds, interrupteurs d'urgence : [securite-et-pannes.md](securite-et-pannes.md).
 - Brancher Claude Code ou Hermes avec un jeton : [branchement-mcp.md](branchement-mcp.md).
 - MCP des espaces clients : [mcp-clients.md](mcp-clients.md).
+
+## Propriétaire par défaut des fiches créées (2.15.3)
+Le contrôle d'accès rend l'**e-mail de la connexion** (`email`) en plus de l'acteur ; il va au contexte des outils et sert de propriétaire par défaut. Il n'est pas écrit dans le journal ni rendu par `qui_suis_je`. La revérification d'appartenance à chaque appel est inchangée.

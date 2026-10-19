@@ -51,7 +51,7 @@ export const pkceValide = (verifier, challenge) => typeof verifier === 'string' 
  *    Appelé à l'échange du code, à chaque renouvellement et à chaque appel : retirer un membre ou éteindre le module coupe l'accès tout de suite.
  */
 export function creerMagasinOauth({ donnees, maintenant = () => Date.now(), client = null, controleCompte = null }) {
-  const controle = controleCompte ?? (async (email) => (compteAutorise(email) ? { acteur: acteurDuCompte(email), profil: PROFIL_OAUTH } : null));
+  const controle = controleCompte ?? (async (email) => (compteAutorise(email) ? { acteur: acteurDuCompte(email), profil: PROFIL_OAUTH, email: email.toLowerCase() } : null));
   const marque = client ? { client } : {};
   const memeClient = (doc) => !client || doc.client === client;
   const ecrire = (ecritures) => donnees.appliquer(ecritures);
@@ -155,7 +155,7 @@ export function creerMagasinOauth({ donnees, maintenant = () => Date.now(), clie
       if (!connexion || connexion.revoque || connexion.expireLe < t || !memeClient(acces) || !memeClient(connexion)) return null;
       const compte = await controle(connexion.email, connexion);
       if (!compte) return null;
-      return client ? { ...compte, actif: true } : { jeton: compte.acteur, acteur: compte.acteur, profil: compte.profil, actif: true };
+      return client ? { ...compte, actif: true } : { jeton: compte.acteur, acteur: compte.acteur, profil: compte.profil, email: compte.email, actif: true };
     },
 
     revoquer,

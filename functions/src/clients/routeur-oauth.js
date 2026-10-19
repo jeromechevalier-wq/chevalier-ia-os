@@ -41,7 +41,7 @@ export function creerRouteurOauthClients({ donnees, verifierIdToken, espaces, ma
     if (!membre) return null;
     const assistant = connexion?.assistant === 'chatgpt' ? 'chatgpt' : 'claude-ai';
     const acteur = acteurClient(assistant, email);
-    return { jeton: `${client}__${acteur}`, acteur, profil: PROFIL_PAR_ROLE[membre.role], client, role: membre.role, actifs: espace.actifs };
+    return { jeton: `${client}__${acteur}`, acteur, email: String(email).toLowerCase(), profil: PROFIL_PAR_ROLE[membre.role], client, role: membre.role, actifs: espace.actifs };
   };
   const magasinDe = (client) => creerMagasinOauth({ donnees, maintenant, client, controleCompte: controle(client) });
 

@@ -278,6 +278,18 @@ describe('Consentement (POST /oauth/approve) : seul un compte Google autorisé o
   });
 });
 
+describe('Propriétaire par défaut sur le serveur de Jérôme (point 2)', () => {
+  test('P2 une connexion Google crée une fiche au nom du compte connecté (Jérôme ou Charles, comme à l’écran)', async () => {
+    for (const [identite, email] of [['ID-JEROME', JERO], ['ID-CHARLES', 'jeromebot.chevalierbot@gmail.com']]) {
+      const t = await ouvrirSession({ identite });
+      const c = await client(t.access_token);
+      const r = JSON.parse((await c.callTool({ name: 'creer_personne', arguments: { nom: `Fiche de ${identite}` } })).content[0].text);
+      assert.equal((await donnees.liste('crm_personnes')).find((d) => d.id === r.id).proprietaire, email);
+      await c.close();
+    }
+  });
+});
+
 describe('Jetons (POST /oauth/token) : code + PKCE, puis accès à /mcp', () => {
   test('parcours complet : le jeton d’accès ouvre /mcp avec TOUS les droits (profil claude-code, suppression comprise), acteur nommé d’après le compte', async () => {
     const t = await ouvrirSession();
