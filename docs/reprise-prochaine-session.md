@@ -2,6 +2,17 @@
 
 Écrit le 04/10/2026, mis à jour le 07/10/2026 à la fin du chantier Projets, pour qu'une session neuve reprenne sans que Jérôme ait à recoller quoi que ce soit. **À mettre à jour ou à supprimer une fois les points faits.**
 
+## Champ texte libre sur les affaires et les projets (19/10/2026) : décidé, à développer
+
+Décision de Jérôme, maquette validée le 19/10/2026 (rien n'est développé). **Règle voulue par Jérôme : une capture ou une maquette avant tout développement d'un écran.**
+
+- **Quoi** : un champ texte de plusieurs lignes, **sans titre**, tout en haut de la colonne de gauche de la fiche d'une **affaire** et d'un **projet**, **au-dessus du bloc « Résumé »** (qui reste la liste des champs clés). Jérôme ou Claude le tiennent à jour pour dire de quoi parle l'affaire ou le projet. Il s'agrandit quand le texte s'allonge ; la hauteur de départ reste à confirmer.
+- **Texte d'invitation** : quand le champ est vide, il affiche un texte gris qui **disparaît dès le clic** (et revient si le champ est vidé). Sur une affaire : « Cette affaire concerne… (le besoin du client, ce qu'on lui propose, où on en est) ». Sur un projet : « Ce projet concerne… (ce qu'on construit, pour qui, où on en est) ».
+- **Outils MCP** : ils doivent savoir lire et écrire ce champ sur une affaire et sur un projet. L'outil `ajouter_note` ne sait pas écrire dans un projet, et une note n'est pas le bon endroit (journal daté). Un projet créé depuis une affaire peut reprendre son texte.
+- **Pas de tags** sur les affaires et les projets (décision du 19/10/2026) : le préfixe du dossier dit déjà pour qui.
+- **Chantier lié** : allègement des fiches Affaires et Projets (trop de champs affichés). Point de départ : un inventaire champ par champ (« je le regarde » / « jamais »), puis décision avec Jérôme.
+- **Détail et raisons** : dans le second cerveau, fiches `Plateforme clients - décisions du module Automatisations et de la veille` et `Idée - affaires et projets dans le CRM de Chevalier IA OS`.
+
 ## Vocabulaire et registre du menu (18/10/2026) : PR 127, version 2.12.0
 
 PR A faite, en attente du « fusionne » (voir `reglages-menu-crm-unique.md`, section du 18/10/2026). **PR B fusionnée (2.13.0, nouvelle coque du menu).** **PR C faite (2.14.0, poignée de largeur du menu), en attente du « fusionne »** : voir `roadmap.md`. Reste à Jérôme : regarder les captures de `~/chantiers-crm/captures-menu-C/` (et `captures-menu-B/` : garde-t-il sa photo ? sinon rien à faire ; pour la garder, annuler le commit « avatar = initiale »). **PR D faite (2.15.0, look compact, PR 139), en attente du jugement de Jérôme sur `~/chantiers-crm/captures-look-compact/` (avant / apres) ; ne pas fusionner avant son accord.** **Plus tard** : l'audit complet des différences entre l'espace de Jérôme et ceux des clients.
