@@ -308,7 +308,7 @@ export function modifierFacture(projet, id, valeurs, ctx) {
   if (f.statut === 'abandonnee') return retour({ facture: 'Une facture abandonnée ne se modifie pas.' });
   const suivante = { ...f, ...valeurs };
   const erreurs = validerFacture({ ...suivante, datePaiement: f.statut === 'payee' ? suivante.datePaiement : null });
-  if (f.statut === 'payee' && !suivante.datePaiement) erreurs.datePaiement = 'Une facture payée garde sa date de paiement.'; // sans date, elle sortirait du chiffre d’affaires
+  if (f.statut === 'payee' && !suivante.datePaiement) erreurs.datePaiement = 'Une facture payée garde sa date de paiement : pour l’enlever, remets-la à payer.'; // sans date, elle sortirait du chiffre d’affaires
   if (Object.keys(erreurs).length) return retour(erreurs);
   const nette = {
     ...f,

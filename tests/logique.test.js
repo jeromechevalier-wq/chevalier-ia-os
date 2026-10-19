@@ -939,6 +939,11 @@ describe('B17 Plans d’écriture : modifications', () => {
 });
 
 describe('B17 Écriture par lots : une opération coupée à moitié le dit', () => {
+  test('B17 la ligne « échec » du Journal se lit en français : « Échec · opération », sans nom interne', () => {
+    assert.equal(L.libelleActionJournal('echec'), 'Échec');
+    assert.equal(L.libelleDocumentJournal('crm_audit'), 'opération');
+    assert.equal(L.statutOperationJournal([{ statut: 'succes' }, { statut: 'echec' }]), 'echec');
+  });
   test('B17 tous les lots passent : 300 actions par lots de 130 = trois lots, aucun signalement', async () => {
     const lots = []; const signales = [];
     await L.ecrireParLots(300, 130, async (d, f) => { lots.push([d, f]); }, async (n) => { signales.push(n); });
@@ -955,7 +960,7 @@ describe('B17 Écriture par lots : une opération coupée à moitié le dit', ()
     let n = 0;
     await assert.rejects(
       L.ecrireParLots(300, 130, async () => { if (++n === 2) throw origine; }, async (faites, e) => { signales.push([faites, e]); }),
-      (e) => e.saisie === true && e.cause === origine && /130 actions faites sur 300/.test(e.message) && /Recommence/.test(e.message),
+      (e) => e.saisie === true && e.cause === origine && /130 éléments sur 300 ont été traités/.test(e.message) && /Recommence/.test(e.message),
     );
     assert.deepEqual(signales, [[130, origine]]);
   });
@@ -963,7 +968,7 @@ describe('B17 Écriture par lots : une opération coupée à moitié le dit', ()
     let n = 0;
     await assert.rejects(
       L.ecrireParLots(300, 130, async () => { if (++n === 3) throw new Error('x'); }, async () => { throw new Error('journal indisponible'); }),
-      (e) => e.saisie === true && /260 actions faites sur 300/.test(e.message),
+      (e) => e.saisie === true && /260 éléments sur 300 ont été traités/.test(e.message),
     );
   });
 });

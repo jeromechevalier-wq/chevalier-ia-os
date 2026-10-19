@@ -150,5 +150,5 @@ Voir la PR : tests de règles (le journal et les copies s'ajoutent à son nom, n
 ## Limites connues
 
 - Le document « avant » est lu juste avant l'écriture ; si un autre appareil modifie la même fiche dans l'intervalle (quelques millisecondes), la copie « avant » peut être légèrement en retard. Le serveur MCP, lui, refuse dans ce cas (transaction) ; l'écran ne le fait pas.
-- Une action qui touche plus de 130 documents est découpée en plusieurs lots : chaque lot est atomique, l'ensemble ne l'est pas (comme avant pour les suppressions de plus de 400 documents).
+- Une action qui touche plus de 130 documents est découpée en plusieurs lots : chaque lot est atomique, l'ensemble ne l'est pas (comme avant pour les suppressions de plus de 400 documents). Depuis la 2.15.3, si un lot échoue après d'autres, le Journal le signale (opération en « Échec », avec le nombre d'éléments traités) et l'écran dit de recommencer l'opération.
 - Les copies « avant / après » contiennent des données de personnes : elles s'effacent après 90 jours (règle TTL créée le 03/10/2026).

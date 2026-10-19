@@ -1772,7 +1772,7 @@ export const planMajOrganisation = (id, patch) => ({ ecritures: modifierSiPatch(
 export function planSupprimerOrganisation({ organisationId, personnes, affaires, liens = [], projets = [] }) {
   const verif = verifierSuppressionOrganisation(organisationId, { personnes, affaires });
   if (!verif.ok) return { refus: verif.raison, ecritures: [] };
-  const siens = liens.filter((l) => l.organisationId === organisationId);
+  const siens = [...new Map(liens.filter((l) => l.organisationId === organisationId).map((l) => [`${l.collection}/${l.id}`, l])).values()]; // un document trouvé par deux requêtes n'est traité qu'une fois
   const detachements = [
     ...detacherProjets(projets, { organisationId }),
     ...siens.filter((l) => l.projetId).flatMap((l) => modifierSiPatch(l.collection, l.id, liensVides(l, { organisationId }))),
@@ -1948,7 +1948,7 @@ export async function ecrireParLots(total, tailleLot, ecrireLot, signalerEchec) 
     } catch (e) {
       if (debut === 0) throw e;
       try { await signalerEchec(debut, e); } catch (e2) { console.warn(e2); } // la trace est un plus : l'erreur d'origine compte davantage
-      const incomplete = new Error(`L’opération s’est arrêtée à moitié (${debut} actions faites sur ${total}). Recommence-la pour la terminer.`, { cause: e });
+      const incomplete = new Error(`L’opération s’est arrêtée en cours de route : ${debut} éléments sur ${total} ont été traités. Recommence-la pour la terminer.`, { cause: e });
       incomplete.saisie = true;
       throw incomplete;
     }
@@ -2000,9 +2000,9 @@ export function construireAudit(ecritures, avants, { acteur, outil, operationId,
 const NOMS_DOCUMENTS = {
   crm_personnes: ['personne', 'personnes'], crm_organisations: ['organisation', 'organisations'], crm_affaires: ['affaire', 'affaires'],
   crm_activites: ['activité', 'activités'], crm_notes: ['note', 'notes'], crm_evenements: ['événement', 'événements'],
-  projets_projets: ['projet', 'projets'], projets_taches: ['tâche de projet', 'tâches de projet'], projets_modeles: ['modèle de projet', 'modèles de projet'],
+  crm_audit: ['opération', 'opérations'], projets_projets: ['projet', 'projets'], projets_taches: ['tâche de projet', 'tâches de projet'], projets_modeles: ['modèle de projet', 'modèles de projet'],
 };
-const ACTIONS_JOURNAL = { creer: 'Création', modifier: 'Modification', supprimer: 'Suppression', restaurer: 'Restauration' };
+const ACTIONS_JOURNAL = { creer: 'Création', modifier: 'Modification', supprimer: 'Suppression', restaurer: 'Restauration', echec: 'Échec' };
 
 export function libelleDocumentJournal(collection, pluriel = false) {
   const n = NOMS_DOCUMENTS[collection];

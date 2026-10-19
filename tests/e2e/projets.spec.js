@@ -1329,7 +1329,7 @@ test('C41.3 une facture payée garde sa date de paiement : la vider est refusé 
   await page.locator('.menu-pop').getByRole('menuitem', { name: 'Modifier…' }).click();
   await dialogue(page).getByLabel('Date du paiement').fill('');
   await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
-  await expect(dialogue(page)).toContainText('Une facture payée garde sa date de paiement.');
+  await expect(dialogue(page)).toContainText('Une facture payée garde sa date de paiement');
   await capturerFacture(page, 'C41-3-date-paiement-obligatoire');
   expect((await lireDocument('projets_projets/pr1')).factures[0].datePaiement).toBe(jour(-2));
 });

@@ -314,11 +314,12 @@ export async function executer(ecritures, outil = 'ecran') {
       audit[k].forEach((a) => ecrireDansLot(lot, a));
     }
     await lot.commit();
-  }, async () => {
+  }, async (faites) => {
     // Des lots précédents sont déjà écrits : l'opération est à moitié faite. Le Journal le dit (ligne « echec »).
     await setDoc(doc(collection(db, chemin('crm_audit'))), {
       operationId, ordre: ecritures.length + 1, acteur: compte?.email || '', jeton: L.CANAL_ECRAN, via: L.CANAL_ECRAN, outil,
       collection: 'crm_audit', docId: operationId, action: 'echec', statut: 'echec', champsModifies: [], parametresRecus: [], date: serverTimestamp(),
+      erreur: `Opération arrêtée en cours de route : ${faites} éléments sur ${ecritures.length} ont été traités. Recommence-la pour la terminer.`,
     });
   });
 }
