@@ -1,10 +1,22 @@
-# Tests sur chaque PR vers main : palier « complet », format ordinateur seulement (le format téléphone tourne la nuit, voir tests-nuit.yml).
+# Tests sur chaque PR vers main : RAPIDE par défaut (niveau « rapide » puis « smoke », environ 3 à 4 minutes avec l'installation).
+# Le palier COMPLET (format ordinateur) ne tourne que dans trois cas (décision de Jérôme, 19/10/2026, avis de Fable) :
+#   1. la PR touche des fichiers sensibles (fonctions du serveur, règles de sécurité, configuration Firebase, workflows GitHub, tests) ;
+#   2. la PR porte l'étiquette « tests-complets » ;
+#   3. lancement à la main avec « complet » coché (par défaut).
+# Le test complet (ordinateur + téléphone) rejoue tout chaque nuit : voir tests-nuit.yml (alerte par issue GitHub si la nuit est rouge).
 # Le résultat est la coche GitHub « Tests » : on fusionne quand elle est verte. Aucun secret : émulateurs Firebase, projet demo-chevalier-ia-os.
 name: Tests
 on:
   pull_request:
     branches: [main]
+    # « labeled » : ajouter l'étiquette « tests-complets » relance le test en complet.
+    types: [opened, synchronize, reopened, labeled]
   workflow_dispatch:
+    inputs:
+      complet:
+        description: Lancer le palier complet (sinon rapide + smoke)
+        type: boolean
+        default: true
 concurrency:
   group: tests-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -22,6 +34,31 @@ jobs:
       TESTS_WORKERS: '2'
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Choisir le niveau de test (rapide ou complet)
+        id: niveau
+        env:
+          EVENEMENT: ${{ github.event_name }}
+          COMPLET_DEMANDE: ${{ inputs.complet }}
+          ETIQUETTES: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          complet=false
+          if [ "$EVENEMENT" = "workflow_dispatch" ]; then
+            [ "$COMPLET_DEMANDE" = "true" ] && complet=true
+            echo "Lancement à la main : complet=$complet"
+          else
+            case ",$ETIQUETTES," in *,tests-complets,*) complet=true; echo "Étiquette tests-complets : palier complet." ;; esac
+            # Fichiers sensibles : fonctions du serveur, règles de sécurité, configuration Firebase, workflows GitHub, tests.
+            sensibles=$(git diff --name-only "$BASE" HEAD | grep -E '^(functions/|functions-plateforme/|firestore\.rules$|storage\.rules$|firebase[^/]*\.json$|\.github/workflows/|tests/)' || true)
+            if [ -n "$sensibles" ]; then
+              complet=true
+              echo "Fichiers sensibles touchés : palier complet."
+              echo "$sensibles"
+            fi
+          fi
+          echo "complet=$complet" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -44,7 +81,16 @@ jobs:
       - name: Installer le navigateur de test
         run: npx playwright install chromium --with-deps
         working-directory: tests
+      - name: Niveau rapide (règles, logique, statique, fonctions)
+        if: steps.niveau.outputs.complet != 'true'
+        run: npm run test:rapide
+        working-directory: tests
+      - name: Smoke (5 parcours essentiels dans le navigateur)
+        if: steps.niveau.outputs.complet != 'true'
+        run: npm run test:smoke
+        working-directory: tests
       - name: Palier complet (ordinateur)
+        if: steps.niveau.outputs.complet == 'true'
         run: npm run test:complet
         working-directory: tests
       - name: Captures et rapport en cas d'échec
