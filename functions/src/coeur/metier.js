@@ -7,7 +7,7 @@ import { COLLECTIONS as C } from './donnees.js';
 import { lireConfig as lireConfigEspace } from './config.js';
 import { emettreCode, consommerCode, empreinteApercu } from '../securite/codes.js';
 
-/** Propriétaire des fiches créées par un jeton « cia_… » (sans e-mail) sur le serveur de Jérôme, sauf si l'appel en donne un autre (plan-mcp.md, écart 11). */
+/** Propriétaire des fiches créées par un jeton « cia_… » (sans e-mail) sur le serveur de Jérôme, sauf si l'appel en donne un autre (plan-mcp.md, écart 11, réglé en 2.15.3 pour les connexions Google et les clients). */
 export const PROPRIETAIRE_PAR_DEFAUT = 'jerome.chevalier@gmail.com';
 
 /** Saisie refusée : l'appelant doit corriger et recommencer (code : saisie_invalide | introuvable | doublon | confirmation | integrite). */

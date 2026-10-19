@@ -16,6 +16,7 @@ import {
 } from './config.js';
 import { pageAutorisationClient } from './page.js';
 import { MESSAGE_REFUS_ESPACE } from '../../partage/marque.js';
+import { emailNormalise } from '../../partage/membres.js';
 
 const OPTIONS_DEMANDE = Object.freeze({ redirectionAutorisee, origine: EMETTEUR_PLATEFORME, messageRedirection: "Adresse de retour non autorisée : seuls Claude et ChatGPT peuvent se connecter." });
 const MESSAGE_INDISPONIBLE = "Ce lien de connexion n'est pas disponible.";
@@ -41,7 +42,7 @@ export function creerRouteurOauthClients({ donnees, verifierIdToken, espaces, ma
     if (!membre) return null;
     const assistant = connexion?.assistant === 'chatgpt' ? 'chatgpt' : 'claude-ai';
     const acteur = acteurClient(assistant, email);
-    return { jeton: `${client}__${acteur}`, acteur, email: String(email).toLowerCase(), profil: PROFIL_PAR_ROLE[membre.role], client, role: membre.role, actifs: espace.actifs };
+    return { jeton: `${client}__${acteur}`, acteur, email: emailNormalise(email), profil: PROFIL_PAR_ROLE[membre.role], client, role: membre.role, actifs: espace.actifs };
   };
   const magasinDe = (client) => creerMagasinOauth({ donnees, maintenant, client, controleCompte: controle(client) });
 

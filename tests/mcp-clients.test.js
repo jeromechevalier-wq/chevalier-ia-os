@@ -880,6 +880,28 @@ describe('Propriétaire par défaut : la personne connectée, jamais Jérôme ch
     await c.close();
     await reinitialiser();
   });
+  test('P1 creer_projet_depuis_affaire chez un client : le propriétaire du projet est l\'e-mail du membre', async () => {
+    await reinitialiser();
+    const t = await connecter('a', 'ID-ALICE');
+    const c = await assistant('/mcp/a', t.access_token);
+    const r = resultat(await c.callTool({ name: 'creer_projet_depuis_affaire', arguments: { affaireId: 'a2' } }));
+    assert.ok(r.id, JSON.stringify(r));
+    assert.equal((await donnees.liste('clients/a/projets_projets')).find((d) => d.id === r.id).proprietaire, ALICE);
+    await c.close();
+    await reinitialiser();
+  });
+  test('P1 l\'e-mail du membre ne figure pas dans le journal du serveur d\'un appel client (création comprise)', async () => {
+    await reinitialiser();
+    lignesJournal.length = 0;
+    const t = await connecter('a', 'ID-ALICE');
+    const c = await assistant('/mcp/a', t.access_token);
+    await c.callTool({ name: 'creer_personne', arguments: { nom: 'Personne Journal' } });
+    await c.callTool({ name: 'qui_suis_je', arguments: {} });
+    await c.close();
+    assert.ok(lignesJournal.length > 0);
+    assert.ok(!JSON.stringify(lignesJournal).includes(ALICE), 'journal serveur : pas d\'e-mail');
+    await reinitialiser();
+  });
   test('P3 un propriétaire fourni est écrit tel quel, même étranger à l\'espace (aucune validation, comme avant)', async () => {
     await reinitialiser();
     const t = await connecter('a', 'ID-ALICE');
