@@ -13,7 +13,11 @@ Légende : **décidé** = validé par Jérôme ; **piste** = à trancher avant l
 
 **Décidé (18/10/2026)** : le mot « CRM » n'est plus écrit dans ce que l'utilisateur voit ; le bloc du menu s'appelle « Affaires et projets » (id technique `crm`, adresses inchangées) ; étapes pour les affaires, phases pour les projets ; « Archives » sort du menu (bouton de l'écran Projets) ; le raccourci `crm` des fiches reste lu mais n'est plus proposé ; un client sans Projets ne voit plus les réglages des projets. **Reste** (PR B) : coque du menu, menu utilisateur (où partira le Journal), bouton de repli. Détail : `reglages-menu-crm-unique.md`.
 
-## Nouvelle coque du menu (18/10/2026, PR B, version 2.13.0)
+## Largeur du menu réglable (18/10/2026, PR C, version 2.14.0)
+
+**Décidé (18/10/2026)** : le menu déplié a une poignée sur son bord droit (souris, stylet, doigt, clavier : flèches par pas de 16 px, Début/Fin) ; largeur de 200 à 420 px (jamais plus de la moitié de la fenêtre), mémorisée dans `chevalier-os.menu-largeur` et appliquée avant le premier affichage (script de `index.html`) ; double-clic = 240 px ; Échap annule un tirage ; le repli (bouton, Cmd/Ctrl+B) rouvre à la largeur choisie ; pas de poignée repliée ni sur téléphone. Même code chez Jérôme et chez les clients. Tests : `menu-largeur.spec.js`, `menu-coque-client.spec.js` (C1, C5), `statique.test.js` (C1, bornes identiques dans `index.html` et `shell.js`). Captures : `~/chantiers-crm/captures-menu-C/`.
+
+## Nouvelle coque du menu (18/10/2026, PR B, version 2.13.0, fusionnée)
 
 **Décidé (18/10/2026)** : menu de gauche sans titres de groupes (fines lignes : Accueil | Personnes, Organisations | Affaires, Projets | Veille | Automatisations | Tableau de bord) ; Réglages, Journal des modifications et « Connecter mon assistant » dans le **menu utilisateur** (en bas à gauche, s'ouvre vers le haut, avec l'adresse e-mail, le thème et « Se déconnecter ») ; bouton de repli à droite du nom de l'espace (Cmd/Ctrl+B) ; « Connecter mon assistant » existe chez Jérôme aussi (plus de module réservé aux clients) ; même en-tête chez Jérôme et chez un client (avatar = initiale, commit séparé : on peut rendre sa photo à Jérôme en annulant ce commit). La route `#/crm/journal` reste servie (signets). Ne change pas : « Membres et rôles » (clients seulement), « Objectifs du mois », « Modules actifs ». **Audit complet des différences Jérôme / clients : plus tard.**
 

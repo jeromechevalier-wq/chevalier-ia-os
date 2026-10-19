@@ -95,6 +95,17 @@ function logoEspace(logo, taille, classe) {
  * Menu principal : blocs d'entrées séparés par de fines lignes, sans titres de groupes. Réglages, Journal des modifications, « Connecter mon assistant », thème
  * et déconnexion sont dans le menu utilisateur (clic sur le nom, en bas à gauche). Le bouton de repli est à droite du nom de l'espace (Cmd/Ctrl+B).
  */
+// Largeur du menu déplié : bornes et défaut (le même défaut que --menu-elargi dans css/tokens.css ; le script de index.html applique la valeur mémorisée avant le premier rendu).
+export const MENU_LARGEUR = { min: 200, max: 420, defaut: 240, pas: 16 };
+const borneLargeur = (n) => Math.min(MENU_LARGEUR.max, Math.max(MENU_LARGEUR.min, Math.round(n)));
+/** Largeur mémorisée ; absente, illisible ou hors bornes -> la largeur par défaut. */
+export function largeurMemorisee() {
+  const brut = lirePreference('menu-largeur', null);
+  const n = /^\d{3}$/.test(String(brut)) ? Number(brut) : NaN;
+  return n >= MENU_LARGEUR.min && n <= MENU_LARGEUR.max ? n : MENU_LARGEUR.defaut;
+}
+const poserLargeur = (n) => document.documentElement.style.setProperty('--menu-largeur', `${n}px`);
+
 export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(), modules = MODULES, client = ESPACE_RACINE, accueil = 'crm/accueil' }) {
   vider(racine);
   document.body.classList.remove('page-connexion');
@@ -155,6 +166,67 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
     fermerCompte = ouvrirMenu(boutonCompte, items, { placement: 'haut', id: 'menu-utilisateur' });
   });
 
+  // Poignée de redimensionnement (bord droit du menu déplié, ordinateur seulement) : souris, stylet, doigt (pointer events) et clavier.
+  let largeur = largeurMemorisee();
+  const poignee = h('div', { class: 'menu-poignee', role: 'separator', 'aria-orientation': 'vertical', 'aria-label': 'Largeur du menu', tabindex: '0', dataset: { role: 'poignee-menu' } });
+  const maxFenetre = () => Math.max(MENU_LARGEUR.min, Math.min(MENU_LARGEUR.max, Math.floor(window.innerWidth / 2))); // jamais plus de la moitié de la fenêtre
+  const largeurAffichee = () => Math.min(largeur, maxFenetre());
+  function majPoignee() {
+    poignee.setAttribute('aria-valuemin', String(MENU_LARGEUR.min));
+    poignee.setAttribute('aria-valuemax', String(maxFenetre()));
+    poignee.setAttribute('aria-valuenow', String(largeurAffichee()));
+    poignee.setAttribute('aria-valuetext', `${largeurAffichee()} px`);
+  }
+  function definirLargeur(n, { memoriser = true } = {}) {
+    largeur = Math.min(borneLargeur(n), maxFenetre());
+    poserLargeur(largeur);
+    if (memoriser) ecrirePreference('menu-largeur', String(largeur));
+    majPoignee();
+  }
+  let glisse = false;
+  let largeurAvant = largeur;
+  let pointeur = null;
+  /** Fin d'un tirage : valide la largeur atteinte, ou revient à celle d'avant (Échap, perte du pointeur, poignée disparue). */
+  function finGlisse({ annuler = false } = {}) {
+    if (!glisse) return;
+    glisse = false;
+    coquille.classList.remove('menu-glisse');
+    document.removeEventListener('keydown', surToucheGlisse, true);
+    try { if (pointeur !== null) poignee.releasePointerCapture(pointeur); } catch { /* déjà relâché */ }
+    pointeur = null;
+    if (annuler) definirLargeur(largeurAvant, { memoriser: false }); else definirLargeur(largeur);
+  }
+  function surToucheGlisse(e) {
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); finGlisse({ annuler: true }); }
+    else if ((e.ctrlKey || e.metaKey) && String(e.key).toLowerCase() === 'b') { e.preventDefault(); e.stopPropagation(); } // pas de repli pendant un tirage
+  }
+  poignee.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
+    e.preventDefault();
+    glisse = true;
+    largeurAvant = largeurAffichee();
+    pointeur = e.pointerId;
+    poignee.setPointerCapture(e.pointerId);
+    coquille.classList.add('menu-glisse');
+    document.addEventListener('keydown', surToucheGlisse, true);
+  });
+  poignee.addEventListener('pointermove', (e) => { if (glisse) definirLargeur(e.clientX - menu.getBoundingClientRect().left, { memoriser: false }); });
+  poignee.addEventListener('pointerup', () => finGlisse());
+  poignee.addEventListener('pointercancel', () => finGlisse({ annuler: true }));
+  poignee.addEventListener('lostpointercapture', () => finGlisse({ annuler: true }));
+  poignee.addEventListener('dblclick', () => definirLargeur(MENU_LARGEUR.defaut));
+  poignee.addEventListener('keydown', (e) => {
+    if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    const cible = { ArrowLeft: largeurAffichee() - MENU_LARGEUR.pas, ArrowRight: largeurAffichee() + MENU_LARGEUR.pas, Home: MENU_LARGEUR.min, End: maxFenetre() }[e.key];
+    if (cible === undefined) return;
+    e.preventDefault();
+    definirLargeur(cible);
+  });
+  const surRedimension = () => majPoignee();
+  window.addEventListener('resize', surRedimension);
+  poserLargeur(largeur);
+  majPoignee();
+
   const menu = h('aside', { class: 'menu', id: 'menu', 'aria-label': 'Menu principal' },
     h('div', { class: 'menu-marque' }, marqueNom, boutonRepli),
     nav,
@@ -214,12 +286,16 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
     boutonRepli.setAttribute('aria-label', libelle);
     boutonRepli.setAttribute('aria-expanded', String(v));
     boutonRepli.dataset.infobulle = libelle;
+    // La poignée n'existe que dans l'état déplié (et jamais sur téléphone, où le menu glisse).
+    if (v && !estTelephone()) { if (!poignee.isConnected) menu.append(poignee); majPoignee(); } else { finGlisse({ annuler: true }); poignee.remove(); }
   }
   function ouvrirMobile(v) {
     coquille.classList.toggle('menu-ouvert', v);
     boutonMobile.setAttribute('aria-expanded', String(v));
   }
   majRepli();
+  const surBascule = window.matchMedia('(max-width: 767px)');
+  surBascule.addEventListener?.('change', majRepli);
   nav.addEventListener('click', (e) => { if (e.target.closest('a') && estTelephone()) ouvrirMobile(false); });
 
   const ignorerTouche = (e) => {
@@ -261,5 +337,5 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
     remplirMarque();
     remplirMarqueHaut();
   }
-  return { contenu, activer, majClient, arreter: () => { document.removeEventListener('keydown', surTouche); document.removeEventListener('keydown', surToucheRepli); } };
+  return { contenu, activer, majClient, arreter: () => { document.removeEventListener('keydown', surTouche); document.removeEventListener('keydown', surToucheRepli); window.removeEventListener('resize', surRedimension); surBascule.removeEventListener?.('change', majRepli); } };
 }
