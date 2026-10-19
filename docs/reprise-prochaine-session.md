@@ -4,7 +4,7 @@
 
 ## Champ texte libre sur les affaires et les projets (19/10/2026) : décidé, à développer
 
-Décision de Jérôme, maquette validée le 19/10/2026 (rien n'est développé). **Règle voulue par Jérôme : une capture ou une maquette avant tout développement d'un écran.**
+Décision de Jérôme, maquette validée le 19/10/2026. **Développé le 19/10/2026 (version 2.16.0, PR « champ-texte-libre »), en attente du « fusionne » de Jérôme** : champ `description` sur les affaires et les projets (écran `champDescription` dans `composants.js`, outils MCP `creer_affaire`/`modifier_affaire`/`creer_projet`/`modifier_projet`/`creer_projet_depuis_affaire`, le projet créé ou lié reprend le texte de l'affaire), tests TL1 à TL6, captures dans `~/chantiers-crm/captures-texte-libre/`. Hauteur de départ : 4 lignes, à confirmer avec Jérôme. **Règle voulue par Jérôme : une capture ou une maquette avant tout développement d'un écran.**
 
 - **Quoi** : un champ texte de plusieurs lignes, **sans titre**, tout en haut de la colonne de gauche de la fiche d'une **affaire** et d'un **projet**, **au-dessus du bloc « Résumé »** (qui reste la liste des champs clés). Jérôme ou Claude le tiennent à jour pour dire de quoi parle l'affaire ou le projet. Il s'agrandit quand le texte s'allonge ; la hauteur de départ reste à confirmer.
 - **Texte d'invitation** : quand le champ est vide, il affiche un texte gris qui **disparaît dès le clic** (et revient si le champ est vidé). Sur une affaire : « Cette affaire concerne… (le besoin du client, ce qu'on lui propose, où on en est) ». Sur un projet : « Ce projet concerne… (ce qu'on construit, pour qui, où on en est) ».

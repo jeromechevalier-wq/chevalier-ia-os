@@ -632,6 +632,25 @@ describe('Outils des projets : mêmes règles que l’écran, avec audit et rest
     refuse(await s.appeler('biblio', 'creer_projet_depuis_affaire', { affaireId: 'fantome' }), /Affaire introuvable/);
   });
 
+  test('TL3 le texte libre se lit et s’écrit sur une affaire et sur un projet (création, modification, projet créé depuis une affaire)', async () => {
+    const s = await avecModeles();
+    const a = ok(await s.appeler('biblio', 'creer_affaire', { titre: 'Boulangerie', description: 'Besoin : une appli de commande.' }));
+    assert.equal(s.doc('crm_affaires', a.id).description, 'Besoin : une appli de commande.');
+    ok(await s.appeler('biblio', 'modifier_affaire', { id: 'a2', description: '  Devis signé le 12.\nDémarrage en novembre.  ' }));
+    assert.equal(s.doc('crm_affaires', 'a2').description, 'Devis signé le 12.\nDémarrage en novembre.');
+    assert.equal(ok(await s.appeler('biblio', 'lire_affaire', { id: 'a2' })).affaire.description, 'Devis signé le 12.\nDémarrage en novembre.');
+    const r = ok(await s.appeler('biblio', 'creer_projet_depuis_affaire', { affaireId: 'a2' }));
+    assert.equal(s.doc('projets_projets', r.id).description, 'Devis signé le 12.\nDémarrage en novembre.');
+    ok(await s.appeler('biblio', 'modifier_projet', { id: r.id, description: 'On construit l’appli de commande.' }));
+    assert.equal(ok(await s.appeler('biblio', 'lire_projet', { id: r.id })).projet.description, 'On construit l’appli de commande.');
+    assert.equal(s.doc('crm_affaires', 'a2').description, 'Devis signé le 12.\nDémarrage en novembre.', 'le texte de l’affaire reste à elle');
+    ok(await s.appeler('biblio', 'modifier_projet', { id: r.id, description: '' }));
+    assert.equal(s.doc('projets_projets', r.id).description, '');
+    const p = ok(await s.appeler('biblio', 'creer_projet', { titre: 'Site', description: 'Refonte du site vitrine.' }));
+    assert.equal(s.doc('projets_projets', p.id).description, 'Refonte du site vitrine.');
+    refuse(await s.appeler('biblio', 'modifier_projet', { id: p.id, description: 'x'.repeat(5001) }));
+  });
+
   test('phase, pause, reprise, archivage, modification : mêmes règles que l’écran ; « rien à faire » n’écrit rien', async () => {
     const s = await avecModeles();
     const { id } = ok(await s.appeler('biblio', 'creer_projet', { titre: 'Site' }));
