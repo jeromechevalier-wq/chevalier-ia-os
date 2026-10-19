@@ -588,7 +588,7 @@ body.page-espace { background: #241b2e; color: #fff; }
 .espace h1 { font-size: clamp(30px, 7vw, 46px); color: #fff; overflow-wrap: anywhere; }
 .espace-accueil { margin-top: 14px; color: #ece7ef; font-size: 17px; line-height: 1.55; overflow-wrap: anywhere; }
 .espace-bouton {
-  margin-top: 27px; min-height: 52px; min-width: min(100%, 260px); padding: var(--esp-6) 22px; font-size: 16px;
+  margin-top: 27px; min-height: 52px; min-width: min(100%, 260px); padding: var(--esp-6) 22px; font-size: var(--fs-section);
   background: var(--marque); color: var(--marque-texte); border: 2px solid var(--marque-lisible); border-radius: var(--rayon); cursor: pointer;
 }
 .espace-bouton:hover:not(:disabled) { filter: brightness(1.08); }
