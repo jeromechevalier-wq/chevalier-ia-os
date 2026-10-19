@@ -2,7 +2,7 @@
 // Ports : voir ports.js (TESTS_DECALAGE). Workers : TESTS_WORKERS (défaut : la moitié des cœurs, 3 au plus : 3 workers vont aussi vite que 4 sur le Mac de Jérôme et se gênent moins).
 import os from 'node:os';
 import { defineConfig } from '@playwright/test';
-import { portsCourants, decalage } from './ports.js';
+import { portsCourants, decalage, rangCourant } from './ports.js';
 
 const ports = portsCourants();
 const WORKERS = Number(process.env.TESTS_WORKERS) || Math.max(1, Math.min(3, Math.floor(os.cpus().length / 2)));
@@ -15,8 +15,8 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0, // sur GitHub : deux reprises (machine lente) (un scénario qui ne passe qu'à la 2e fois est signalé « flaky » dans le rapport)
   timeout: 90_000,
   expect: { timeout: 10_000 },
-  reporter: process.env.CI ? [['list'], ['html', { open: 'never', outputFolder: 'playwright-report' }]] : [['list']],
-  outputDir: `./test-results/${decalage()}`, // un dossier par session : deux suites en même temps ne s'effacent pas
+  reporter: process.env.CI ? [['list'], ['html', { open: 'never', outputFolder: `playwright-report/${rangCourant()}` }]] : [['list']],
+  outputDir: `./test-results/${decalage()}-${rangCourant()}`, // un dossier par session et par série : deux suites (ou les deux séries de la nuit) ne s'effacent pas
   use: {
     baseURL: `http://localhost:${ports.serveur}`,
     locale: 'fr-FR',
