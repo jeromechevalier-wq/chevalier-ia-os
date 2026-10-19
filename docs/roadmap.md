@@ -9,7 +9,7 @@ Légende : **décidé** = validé par Jérôme ; **piste** = à trancher avant l
 - **Aide client lisible, publiée** : un site d'aide public en français (accueil avec recherche, catégories, articles courts, captures de notre appli), inspiré de l'organisation du centre d'aide de Pipedrive sans recopier ses textes, séparé du wiki technique. Découpage proposé : squelette + 3 articles, articles CRM, article de connexion de l'assistant, lien « Aide » dans l'appli. Pages publiques relues par Fable. À trancher : adresse (`/aide` sur la plateforme ou domaine à Jérôme). En attendant : `affaire-ou-projet.md`.
 - **Lever la dépendance Projets -> Affaires** à l'activation des modules (`js/os/registre.js`) : les données n'obligent déjà plus un projet à avoir une affaire (décision du 03/10/2026) ; PR dédiée avec test de l'écran Projets sans le module Affaires.
 
-## Propriétaire par défaut (19/10/2026, 2.15.3, PR 144)
+## Propriétaire par défaut (19/10/2026, 2.16.1, PR 144)
 
 Une fiche créée par l'assistant sans `proprietaire` reçoit l'e-mail de la personne connectée (jamais Jérôme chez un client) ; jetons `cia_…` = Jérôme. Fiches déjà créées non modifiées (voir `mcp-clients.md`). Le MCP des clients doit être redéployé après la fusion.
 
