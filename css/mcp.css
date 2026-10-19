@@ -1,13 +1,13 @@
 /* Module « Accès MCP » : page d'information. Couleurs de l'interface seulement (accent du client, jetons de tokens.css). */
 .page-mcp { max-width: 760px; }
-.mcp-bloc { background: var(--panneau); border: 1px solid var(--bordure); border-radius: 10px; padding: 14px 16px; margin: 12px 0; }
-.mcp-bloc h2 { font-size: 16px; margin: 0 0 8px; }
-.mcp-copie { display: flex; flex-wrap: wrap; gap: 8px; }
-.mcp-lien { flex: 1 1 260px; min-width: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 14px; }
-.mcp-etapes { margin: 0; padding-left: 20px; display: grid; gap: 8px; }
-.mcp-membres { list-style: none; margin: 8px 0 0; padding: 0; }
-.mcp-membre { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 16px; padding: 9px 0; border-bottom: 1px solid var(--bordure); }
+.mcp-bloc { background: var(--panneau); border: 1px solid var(--bordure); border-radius: var(--rayon-carte); padding: var(--esp-6) var(--esp-7); margin: var(--esp-5) 0; }
+.mcp-bloc h2 { font-size: var(--fs-section); margin: 0 0 var(--esp-3); }
+.mcp-copie { display: flex; flex-wrap: wrap; gap: var(--esp-3); }
+.mcp-lien { flex: 1 1 260px; min-width: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--fs-texte); }
+.mcp-etapes { margin: 0; padding-left: var(--esp-8); display: grid; gap: var(--esp-3); }
+.mcp-membres { list-style: none; margin: var(--esp-3) 0 0; padding: 0; }
+.mcp-membre { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--esp-1) var(--esp-7); padding: 8px 0; border-bottom: 1px solid var(--bordure); }
 .mcp-membre:last-child { border-bottom: 0; }
 .mcp-membre-nom { overflow-wrap: anywhere; }
-.mcp-role { font-size: 14px; color: var(--texte2); }
-.mcp-role-editeur { color: var(--accent-trait, var(--accent)); font-weight: 600; }
+.mcp-role { font-size: var(--fs-texte); color: var(--texte2); }
+.mcp-role-editeur { color: var(--accent-trait, var(--accent)); font-weight: var(--poids-moyen); }
