@@ -152,6 +152,7 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 .tableau tbody tr:last-child td { border-bottom: 0; }
 .tableau a { color: var(--texte); text-decoration: none; }
 .tableau a:hover { text-decoration: underline; text-decoration-color: var(--accent-trait); }
+.tableau a[href^="tel:"] { white-space: nowrap; }
 .ligne-liste { cursor: pointer; transition: background var(--transition); }
 .ligne-liste:hover { background: var(--survol); }
 .cellule-nom { display: flex; align-items: center; gap: var(--esp-4); min-width: 170px; font-weight: var(--poids-moyen); }
