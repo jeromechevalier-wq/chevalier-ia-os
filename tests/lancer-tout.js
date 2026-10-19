@@ -19,7 +19,7 @@ const MODULE = POS_MODULE === -1 ? null : (process.argv[POS_MODULE + 1] || '');
 // Palier « complet » = format ordinateur seulement (ce que GitHub lance sur chaque PR) ; `--nuit` = ordinateur et téléphone, chaque scénario TESTS_REPETER fois (3 par défaut, 1 sur GitHub).
 const NUIT = process.argv.includes('--nuit');
 // TESTS_REPETER : nombre de passages de la suite de nuit (3 par défaut ; le workflow GitHub met 1 pour rester dans le quota de minutes).
-const PROJETS = NUIT ? `--repeat-each=${Number(process.env.TESTS_REPETER) || 3}` : '--project=ordinateur';
+const REPETER = `--repeat-each=${Number(process.env.TESTS_REPETER) || 3}`;
 // `node lancer-tout.js --e2e <arguments de playwright>` : seulement la série navigateur (un fichier de spec, --repeat-each…), mêmes ports et mêmes émulateurs.
 const POS_E2E = process.argv.indexOf('--e2e');
 const ARGS_E2E = POS_E2E === -1 ? null : process.argv.slice(POS_E2E + 1).map((a) => `'${a.replace(/'/g, `'\\''`)}'`).join(' ');
@@ -103,7 +103,11 @@ function definirSeries() {
   }
   if (MODULE !== null) return seriesModule(MODULE, onlyStorage, cmdStorage, onlyOutil, cmdOutil, onlyAuto, cmdAuto);
   return [
-    serie({ nom: 'e2e', config: 'firebase.json', only: 'auth,firestore', etapes: [etape('e2e', `npx playwright test ${PROJETS}`)] }),
+    // Nuit : un émulateur par format (ordinateur, téléphone). Une seule série de 33 min faisait caler l'émulateur Firestore en fin de course (19/10/2026).
+    ...(NUIT ? [
+      serie({ nom: 'e2e', config: 'firebase.json', only: 'auth,firestore', etapes: [etape('e2e', `npx playwright test --project=ordinateur ${REPETER}`)] }),
+      serie({ nom: 'e2e-telephone', config: 'firebase.json', only: 'auth,firestore', etapes: [etape('e2e-telephone', `npx playwright test --project=telephone ${REPETER}`)] }),
+    ] : [serie({ nom: 'e2e', config: 'firebase.json', only: 'auth,firestore', etapes: [etape('e2e', `npx playwright test --project=ordinateur`)] })]),
     serie({ nom: 'noyau', config: 'firebase.json', only: 'auth,firestore', etapes: [
       etape('regles', 'npm run test:regles'), etape('logique', 'npm run test:logique'), etape('statique', 'npm run test:statique'),
       etape('fonctions', sansPreparer('test:fonctions')), etape('porte', 'npm run test:porte')] }),

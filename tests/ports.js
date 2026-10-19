@@ -6,7 +6,7 @@ import net from 'node:net';
 export const BASES = { auth: 9099, firestore: 8080, websocket: 9150, storage: 9199, hub: 4400, logging: 4500, serveur: 5050 };
 
 /** Rang de chaque série lancée par `npm test` (une série = un démarrage d'émulateurs). */
-export const RANGS = { e2e: 0, noyau: 1, storage: 2, 'outil-client': 3, automatisations: 4 };
+export const RANGS = { e2e: 0, noyau: 1, storage: 2, 'outil-client': 3, automatisations: 4, 'e2e-telephone': 5 };
 
 export function decalage(env = process.env) {
   const brut = env.TESTS_DECALAGE;
