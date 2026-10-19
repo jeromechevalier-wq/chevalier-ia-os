@@ -49,6 +49,7 @@ async function parcours(page, theme) {
 }
 
 test('5 captures des écrans clés en sombre puis en clair (mêmes données avant et après)', async ({ page }) => {
+  test.info().annotations.push({ type: 'erreurs-reseau-attendues' }); // test de captures : le SDK peut noter un 400 sur Listen quand l'émulateur vient d'être rempli
   test.setTimeout(180_000);
   await donnees();
   await connecter(page);
@@ -82,6 +83,7 @@ test('1 inventaire : l’échelle (texte, poids, interligne, espacements, hauteu
 });
 
 test('2 échelle compacte : texte 14 px, interligne 1,45, titres 20 px, poids ≤ 500, rien ne déborde, zones de clic ≥ 32 px (ordinateur) / 44 px (téléphone)', async ({ page }) => {
+  test.info().annotations.push({ type: 'erreurs-reseau-attendues' }); // même 400 « Listen » occasionnel du SDK après remplissage de l'émulateur ; les mesures ci-dessous restent strictes
   await donnees();
   await connecter(page);
   const tel = estTelephone(page);
