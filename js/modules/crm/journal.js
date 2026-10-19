@@ -42,7 +42,7 @@ function blocLigne(ligne, ouvert) {
     ? h('a', { class: 'lien-fiche', href: `#/crm/${CHEMINS[ligne.collection]}/${ligne.docId}` }, 'Ouvrir la fiche') : null;
   let charge = false;
   async function charger() {
-    if (charge) return;
+    if (charge || ligne.action === 'echec') return; // une ligne « échec » n'a pas de copie : son message suffit
     charge = true;
     remplir(corps, h('p', { class: 'aide' }, 'Chargement de la copie…'));
     try {

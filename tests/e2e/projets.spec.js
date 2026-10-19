@@ -1244,14 +1244,13 @@ test('C36 factures 30 % + 30 % + 40 % : trois lignes, des paiements successifs, 
   await allerA(page, 'Accueil');
   await expect.poll(() => valeurObjectif(page, 'ca_encaisse')).toBe(300);
   await aller(page, '#/projets/projets/pr1');
-  // deuxième paiement avec un montant différent de celui prévu
+  // deuxième paiement : une facture se paie en entier (la fenêtre n'a plus de champ « Montant reçu »)
   await section.locator('.ligne-facture', { hasText: 'En cours 30 %' }).locator('[data-action="payer-facture"]').click();
-  await expect(dialogue(page).getByLabel('Date du paiement')).toBeFocused(); // l'autofocus du dialogue arrive en dernier : on attend avant de saisir
-  await dialogue(page).getByLabel('Montant reçu en euros').fill('250');
-  await expect(dialogue(page).getByLabel('Montant reçu en euros')).toHaveValue('250');
+  await expect(dialogue(page).getByLabel('Date du paiement')).toBeFocused(); // l'autofocus du dialogue arrive en dernier : on attend avant de continuer
+  await expect(dialogue(page).getByLabel('Montant reçu en euros')).toHaveCount(0);
   await dialogue(page).getByRole('button', { name: 'Encaisser' }).click();
   await fermerCelebrations(page, ['celebration-paiement']);
-  await expect(section.locator('[data-role="totaux-factures"]')).toContainText('payé 550 € · reste à payer 400 €');
+  await expect(section.locator('[data-role="totaux-factures"]')).toContainText('payé 600 € · reste à payer 400 €');
   // le solde n'est pas payé : « Terminer » est bloqué, avec les deux sorties
   await page.locator('.fiche-actions [data-action="terminer"]').click();
   await expect(dialogue(page)).toContainText('Clôture bloquée');
@@ -1265,10 +1264,74 @@ test('C36 factures 30 % + 30 % + 40 % : trois lignes, des paiements successifs, 
   await champDoc('projets_projets', 'pr1', 'statut', 'termine');
   const fini = await lireDocument('projets_projets/pr1');
   expect(fini.factures.map((f) => f.statut)).toEqual(['payee', 'payee', 'payee']);
-  expect(fini.factures.map((f) => f.montant)).toEqual([300, 250, 400]);
+  expect(fini.factures.map((f) => f.montant)).toEqual([300, 300, 400]);
   await expect(page.locator('[data-role="impaye"]')).toHaveCount(0);
   const types = (await listerDocuments('crm_evenements')).map((e) => e.type);
   expect(types.filter((t) => t === 'encaissement')).toHaveLength(3);
+});
+
+// ---------------------------------------------------------------- Factures : règles de relecture (C41, 2.15.3)
+const CAPTURES_FACTURES = join(homedir(), 'chantiers-crm', 'captures-factures-2-15-3');
+const capturerFacture = (page, nom) => page.screenshot({ path: join(CAPTURES_FACTURES, `${nom}${estTelephone(page) ? '-tel' : ''}.png`), animations: 'disabled' });
+
+test('C41.1 une facture se paie en entier : « Marquer payée » n’a plus de champ montant et dit la somme attendue', async ({ page }) => {
+  await creerProjet('pr1', { titre: 'Audit Lilas', phase: 'livraison', factures: [
+    { id: 'f1', libelle: 'Solde', montant: 700, dateEnvoi: jour(-5), datePaiement: null, statut: 'a_payer' },
+  ] });
+  await connecter(page);
+  await attendreModeles();
+  await aller(page, '#/projets/projets/pr1');
+  await page.locator('.ligne-facture', { hasText: 'Solde' }).locator('[data-action="payer-facture"]').click();
+  await expect(dialogue(page).getByLabel('Date du paiement')).toBeFocused();
+  await expect(dialogue(page).getByLabel('Montant reçu en euros')).toHaveCount(0);
+  await expect(dialogue(page)).toContainText('Une facture se paie en entier');
+  await expect(dialogue(page)).toContainText('700');
+  await capturerFacture(page, 'C41-1-paiement-en-entier');
+  await dialogue(page).getByRole('button', { name: 'Encaisser' }).click();
+  await fermerCelebrations(page, ['celebration-paiement']);
+  expect((await lireDocument('projets_projets/pr1')).factures[0]).toMatchObject({ statut: 'payee', montant: 700 });
+});
+
+test('C41.2 projet terminé : « Remettre à payer » et « Ajouter » une facture à payer sont refusés (« rouvre-le d’abord ») ; après « Rouvrir », ils passent', async ({ page }) => {
+  await creerProjet('pr1', { titre: 'Audit Carrel', phase: 'cloture', statut: 'termine', archive: true, factures: [
+    { id: 'f1', libelle: 'Solde', montant: 400, dateEnvoi: jour(-9), datePaiement: jour(-2), statut: 'payee' },
+  ] });
+  await connecter(page);
+  await attendreModeles();
+  await aller(page, '#/projets/projets/pr1');
+  const ligne = page.locator('.ligne-facture', { hasText: 'Solde' });
+  await ligne.locator('[data-action="menu-facture"]').click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Remettre à payer' }).click();
+  await expect(page.locator('.toast-erreur').last()).toContainText('Ce projet est terminé : rouvre-le d’abord.');
+  await capturerFacture(page, 'C41-2-projet-termine-refus');
+  expect((await lireDocument('projets_projets/pr1')).factures[0].statut).toBe('payee');
+  await page.getByLabel('Libellé de la facture').fill('Complément');
+  await page.getByLabel('Montant de la facture en euros').fill('100');
+  await page.locator('[data-action="ajouter-facture"]').click();
+  await expect(page.locator('.toast-erreur').last()).toContainText('rouvre-le d’abord');
+  expect((await lireDocument('projets_projets/pr1')).factures).toHaveLength(1);
+  // après « Rouvrir », le même geste passe
+  await page.locator('.fiche-actions [data-action="rouvrir"]').click();
+  await champDoc('projets_projets', 'pr1', 'statut', 'actif');
+  await ligne.locator('[data-action="menu-facture"]').click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Remettre à payer' }).click();
+  await expect.poll(async () => (await lireDocument('projets_projets/pr1')).factures[0].statut, { timeout: 10_000 }).toBe('a_payer');
+});
+
+test('C41.3 une facture payée garde sa date de paiement : la vider est refusé avec un message, rien n’est changé', async ({ page }) => {
+  await creerProjet('pr1', { titre: 'Audit Lilas', phase: 'livraison', factures: [
+    { id: 'f1', libelle: 'Acompte', montant: 300, dateEnvoi: jour(-9), datePaiement: jour(-2), statut: 'payee' },
+  ] });
+  await connecter(page);
+  await attendreModeles();
+  await aller(page, '#/projets/projets/pr1');
+  await page.locator('.ligne-facture', { hasText: 'Acompte' }).locator('[data-action="menu-facture"]').click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Modifier…' }).click();
+  await dialogue(page).getByLabel('Date du paiement').fill('');
+  await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(dialogue(page)).toContainText('Une facture payée garde sa date de paiement');
+  await capturerFacture(page, 'C41-3-date-paiement-obligatoire');
+  expect((await lireDocument('projets_projets/pr1')).factures[0].datePaiement).toBe(jour(-2));
 });
 
 test('C36 clôturer avec impayé : raison obligatoire, la facture est abandonnée, pastille « Impayé » ; on peut rouvrir si le client finit par payer', async ({ page }) => {

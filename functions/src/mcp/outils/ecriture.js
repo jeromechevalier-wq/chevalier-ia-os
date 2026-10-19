@@ -105,8 +105,8 @@ export const OUTILS_ECRITURE = [
     projetId: id, montant: z.number().positive().max(1e7), libelle: z.string().max(200).optional(), dateEnvoi: jour.optional(), datePaiement: jour.optional(),
   }, metier.ajouterFacture),
 
-  outil('marquer_facture_payee', "Disponible seulement si l'option « Suivi des paiements » est allumée dans cet espace (lire_reglages, configuration.options). Marque une facture payée (date du jour par défaut ; montant seulement si le client a payé une autre somme) : elle compte alors dans le chiffre d'affaires encaissé du mois du paiement, avec son événement « Encaissement ». Une facture payée en deux fois se sépare en deux lignes.", {
-    projetId: id, factureId: id, datePaiement: jour.optional(), montant: z.number().positive().max(1e7).optional(),
+  outil('marquer_facture_payee', "Disponible seulement si l'option « Suivi des paiements » est allumée dans cet espace (lire_reglages, configuration.options). Marque une facture payée (date du jour par défaut ; une facture se paie en entier : le montant, s'il est donné, doit être celui de la facture, sinon l'outil refuse) : elle compte alors dans le chiffre d'affaires encaissé du mois du paiement, avec son événement « Encaissement ». Une facture payée en deux fois se sépare en deux lignes.", {
+    projetId: id, factureId: id, datePaiement: jour.optional(), montant: z.number().positive().max(1e7).optional().describe('Facultatif. Doit être égal au montant de la facture (une facture se paie en entier) ; une autre somme est refusée.'),
   }, metier.marquerFacturePayee),
 
   outil('abandonner_facture', "Disponible seulement si l'option « Suivi des paiements » est allumée dans cet espace (lire_reglages, configuration.options). Abandonne une facture qui ne sera jamais payée (raison obligatoire) : elle ne compte jamais dans l'encaissé et ne bloque plus la clôture ; le projet garde une pastille « Impayé ».", {

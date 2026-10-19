@@ -302,18 +302,26 @@ const ACTIONS_PAR_LOT = 130;
 export async function executer(ecritures, outil = 'ecran') {
   if (!ecritures.length) return;
   const avants = await lireAvants(ecritures);
+  const operationId = doc(collection(db, chemin('crm_audit'))).id;
   const audit = L.construireAudit(ecritures, avants, {
-    acteur: compte?.email || '', outil, operationId: doc(collection(db, chemin('crm_audit'))).id, maintenant: new Date(),
+    acteur: compte?.email || '', outil, operationId, maintenant: new Date(),
     horodatage: serverTimestamp(), nouvelId: (nom) => doc(collection(db, chemin(nom))).id,
   });
-  for (let i = 0; i < ecritures.length; i += ACTIONS_PAR_LOT) {
+  await L.ecrireParLots(ecritures.length, ACTIONS_PAR_LOT, async (debut, fin) => {
     const lot = writeBatch(db);
-    for (let k = i; k < Math.min(i + ACTIONS_PAR_LOT, ecritures.length); k++) {
+    for (let k = debut; k < fin; k++) {
       ecrireDansLot(lot, ecritures[k]);
       audit[k].forEach((a) => ecrireDansLot(lot, a));
     }
     await lot.commit();
-  }
+  }, async (faites) => {
+    // Des lots précédents sont déjà écrits : l'opération est à moitié faite. Le Journal le dit (ligne « echec »).
+    await setDoc(doc(collection(db, chemin('crm_audit'))), {
+      operationId, ordre: ecritures.length + 1, acteur: compte?.email || '', jeton: L.CANAL_ECRAN, via: L.CANAL_ECRAN, outil,
+      collection: 'crm_audit', docId: operationId, action: 'echec', statut: 'echec', champsModifies: [], parametresRecus: [], date: serverTimestamp(),
+      erreur: `Opération arrêtée en cours de route : ${faites} éléments sur ${ecritures.length} ont été traités. Recommence-la pour la terminer.`,
+    });
+  });
 }
 
 /** Activités, notes et événements qui portent un lien `champ` = id : [{ collection, id, personneId, organisationId, affaireId }]. */

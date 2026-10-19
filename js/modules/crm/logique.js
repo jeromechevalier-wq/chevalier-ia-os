@@ -1752,8 +1752,8 @@ export function planSupprimerPersonne({ personneId, choix, affaires, liens = [],
     if (l.projetId) { // fil d'un projet : gardé, ses liens vers ce qui disparaît sont vidés
       detachements.push(...modifierSiPatch(l.collection, l.id, liensVides(l, { affaireIds: supprimees, personneId })));
     } else if (supprimees.has(l.affaireId)) suppressions.push(ecritureSupprimer(l.collection, l.id)); // fil d'une affaire supprimée
-    else if (l.personneId === personneId && gardees.has(l.affaireId)) detachements.push(ecritureModifier(l.collection, l.id, { personneId: null }));
-    else if (l.personneId === personneId) suppressions.push(ecritureSupprimer(l.collection, l.id));
+    else if (l.personneId === personneId && l.affaireId) detachements.push(ecritureModifier(l.collection, l.id, { personneId: null })); // fil d'une affaire qui reste (même réattribuée à quelqu'un d'autre) : gardé
+    else if (l.personneId === personneId) suppressions.push(ecritureSupprimer(l.collection, l.id)); // fil de la personne seule
   }
   for (const aid of supprimees) suppressions.push(ecritureSupprimer(C.affaires, aid));
   suppressions.push(ecritureSupprimer(C.personnes, personneId));
@@ -1779,12 +1779,15 @@ export const planMajOrganisation = (id, patch) => ({ ecritures: modifierSiPatch(
 export function planSupprimerOrganisation({ organisationId, personnes, affaires, liens = [], projets = [] }) {
   const verif = verifierSuppressionOrganisation(organisationId, { personnes, affaires });
   if (!verif.ok) return { refus: verif.raison, ecritures: [] };
-  const siens = liens.filter((l) => l.organisationId === organisationId);
+  const siens = [...new Map(liens.filter((l) => l.organisationId === organisationId).map((l) => [`${l.collection}/${l.id}`, l])).values()]; // un document trouvé par deux requêtes n'est traité qu'une fois
   const detachements = [
     ...detacherProjets(projets, { organisationId }),
     ...siens.filter((l) => l.projetId).flatMap((l) => modifierSiPatch(l.collection, l.id, liensVides(l, { organisationId }))),
   ];
-  const suppressions = siens.filter((l) => !l.projetId).map((l) => ecritureSupprimer(l.collection, l.id));
+  // Ce qui porte encore une personne ou une affaire (qui ont quitté l'organisation) est gardé : on le détache ; seul le fil de l'organisation seule est supprimé.
+  const sansProjet = siens.filter((l) => !l.projetId);
+  detachements.push(...sansProjet.filter((l) => l.personneId || l.affaireId).map((l) => ecritureModifier(l.collection, l.id, { organisationId: null })));
+  const suppressions = sansProjet.filter((l) => !l.personneId && !l.affaireId).map((l) => ecritureSupprimer(l.collection, l.id));
   return { ecritures: [...detachements, ...suppressions, ecritureSupprimer(C.organisations, organisationId)] };
 }
 
@@ -1940,6 +1943,25 @@ export const planSupprimerNote = (id) => ({ ecritures: [ecritureSupprimer(C.note
 // ses valeurs « serveur » (horodatage Firebase, e-mail du compte), les tests des dates ordinaires.
 
 export const JOURS_COPIES_AUDIT = 90;
+/**
+ * Écrit `total` actions par lots de `tailleLot` (chaque lot est atomique, mais pas l'ensemble). `ecrireLot(debut, fin)` écrit un lot ;
+ * si un lot échoue APRÈS d'autres lots déjà écrits, `signalerEchec(faites, erreur)` laisse une trace dans le Journal et l'erreur rendue dit
+ * que l'opération est à moitié faite (`saisie` : le message est fait pour être montré). Si le tout premier lot échoue, rien n'est écrit : l'erreur est rendue telle quelle.
+ */
+export async function ecrireParLots(total, tailleLot, ecrireLot, signalerEchec) {
+  for (let debut = 0; debut < total; debut += tailleLot) {
+    try {
+      await ecrireLot(debut, Math.min(debut + tailleLot, total));
+    } catch (e) {
+      if (debut === 0) throw e;
+      try { await signalerEchec(debut, e); } catch (e2) { console.warn(e2); } // la trace est un plus : l'erreur d'origine compte davantage
+      const incomplete = new Error(`L’opération s’est arrêtée en cours de route : ${debut} éléments sur ${total} ont été traités. Recommence-la pour la terminer.`, { cause: e });
+      incomplete.saisie = true;
+      throw incomplete;
+    }
+  }
+}
+
 export const CANAL_ECRAN = 'ecran';
 
 /** Document « après » d'une écriture : null pour une suppression ; `avant` sert pour une modification (champs fusionnés, comme Firestore). */
@@ -1985,9 +2007,9 @@ export function construireAudit(ecritures, avants, { acteur, outil, operationId,
 const NOMS_DOCUMENTS = {
   crm_personnes: ['personne', 'personnes'], crm_organisations: ['organisation', 'organisations'], crm_affaires: ['affaire', 'affaires'],
   crm_activites: ['activité', 'activités'], crm_notes: ['note', 'notes'], crm_evenements: ['événement', 'événements'],
-  projets_projets: ['projet', 'projets'], projets_taches: ['tâche de projet', 'tâches de projet'], projets_modeles: ['modèle de projet', 'modèles de projet'],
+  crm_audit: ['opération', 'opérations'], projets_projets: ['projet', 'projets'], projets_taches: ['tâche de projet', 'tâches de projet'], projets_modeles: ['modèle de projet', 'modèles de projet'],
 };
-const ACTIONS_JOURNAL = { creer: 'Création', modifier: 'Modification', supprimer: 'Suppression', restaurer: 'Restauration' };
+const ACTIONS_JOURNAL = { creer: 'Création', modifier: 'Modification', supprimer: 'Suppression', restaurer: 'Restauration', echec: 'Échec' };
 
 export function libelleDocumentJournal(collection, pluriel = false) {
   const n = NOMS_DOCUMENTS[collection];

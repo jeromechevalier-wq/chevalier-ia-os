@@ -938,6 +938,41 @@ describe('B17 Plans d’écriture : modifications', () => {
   });
 });
 
+describe('B17 Écriture par lots : une opération coupée à moitié le dit', () => {
+  test('B17 la ligne « échec » du Journal se lit en français : « Échec · opération », sans nom interne', () => {
+    assert.equal(L.libelleActionJournal('echec'), 'Échec');
+    assert.equal(L.libelleDocumentJournal('crm_audit'), 'opération');
+    assert.equal(L.statutOperationJournal([{ statut: 'succes' }, { statut: 'echec' }]), 'echec');
+  });
+  test('B17 tous les lots passent : 300 actions par lots de 130 = trois lots, aucun signalement', async () => {
+    const lots = []; const signales = [];
+    await L.ecrireParLots(300, 130, async (d, f) => { lots.push([d, f]); }, async (n) => { signales.push(n); });
+    assert.deepEqual(lots, [[0, 130], [130, 260], [260, 300]]);
+    assert.deepEqual(signales, []);
+  });
+  test('B17 le premier lot échoue : rien n’est écrit, l’erreur d’origine est rendue telle quelle, aucun signalement', async () => {
+    const origine = new Error('réseau'); const signales = [];
+    await assert.rejects(L.ecrireParLots(300, 130, async () => { throw origine; }, async (n) => { signales.push(n); }), (e) => e === origine);
+    assert.deepEqual(signales, []);
+  });
+  test('B17 un lot échoue après d’autres : le Journal est prévenu (actions déjà faites), le message dit « à moitié » et peut être montré à l’écran', async () => {
+    const origine = new Error('quota'); const signales = [];
+    let n = 0;
+    await assert.rejects(
+      L.ecrireParLots(300, 130, async () => { if (++n === 2) throw origine; }, async (faites, e) => { signales.push([faites, e]); }),
+      (e) => e.saisie === true && e.cause === origine && /130 éléments sur 300 ont été traités/.test(e.message) && /Recommence/.test(e.message),
+    );
+    assert.deepEqual(signales, [[130, origine]]);
+  });
+  test('B17 si le signalement lui-même échoue, l’erreur « à moitié » est quand même rendue', async () => {
+    let n = 0;
+    await assert.rejects(
+      L.ecrireParLots(300, 130, async () => { if (++n === 3) throw new Error('x'); }, async () => { throw new Error('journal indisponible'); }),
+      (e) => e.saisie === true && /260 éléments sur 300 ont été traités/.test(e.message),
+    );
+  });
+});
+
 describe('B17 Plans d’écriture : suppressions', () => {
   const affaires = [affaire({ id: 'a1', personneId: 'p1' }), affaire({ id: 'a2', personneId: 'p1' }), affaire({ id: 'a3', personneId: 'p2' })];
   const liens = [
@@ -967,6 +1002,37 @@ describe('B17 Plans d’écriture : suppressions', () => {
     assert.ok(details['supprimer:crm_activites/ac-libre'], 'une activité sans affaire disparaît avec la personne');
     assert.ok(details['supprimer:crm_personnes/p1']);
     assert.equal(par(plan.ecritures, 'supprimer').length, 2);
+    assert.equal(plan.ecritures.findIndex((e) => e.type === 'supprimer') > plan.ecritures.findLastIndex((e) => e.type === 'modifier'), true, 'détachements avant suppressions');
+  });
+  test('B17 supprimer une personne : le fil d’une affaire passée à quelqu’un d’autre est gardé (détaché de la personne), seul le fil de la personne seule disparaît', () => {
+    const affs = [affaire({ id: 'a1', personneId: 'p2' })]; // a1 a été réattribuée de p1 à p2 : ses anciens éléments portent encore personneId p1
+    const lens = [
+      { collection: 'crm_activites', id: 'ac-ancien', personneId: 'p1', affaireId: 'a1' },
+      { collection: 'crm_notes', id: 'n-ancien', personneId: 'p1', affaireId: 'a1' },
+      { collection: 'crm_notes', id: 'n-libre', personneId: 'p1', affaireId: null },
+    ];
+    const plan = L.planSupprimerPersonne({ personneId: 'p1', choix: 'conserver', affaires: affs, liens: lens });
+    const d = Object.fromEntries(plan.ecritures.map((e) => [`${e.type}:${e.collection}/${e.id}`, e]));
+    assert.deepEqual(d['modifier:crm_activites/ac-ancien'].patch, { personneId: null });
+    assert.deepEqual(d['modifier:crm_notes/n-ancien'].patch, { personneId: null });
+    assert.equal(d['supprimer:crm_activites/ac-ancien'], undefined);
+    assert.equal(d['supprimer:crm_notes/n-ancien'], undefined);
+    assert.ok(d['supprimer:crm_notes/n-libre'], 'le fil de la personne seule disparaît avec elle');
+    assert.ok(d['supprimer:crm_personnes/p1']);
+  });
+  test('B17 supprimer une organisation vide : ce qui porte encore une personne ou une affaire (qui ont changé d’organisation) est gardé, seul le fil de l’organisation seule est supprimé', () => {
+    const lo = [
+      { collection: 'crm_notes', id: 'n-seule', organisationId: 'o1' },
+      { collection: 'crm_notes', id: 'n-perso', personneId: 'p1', organisationId: 'o1' },
+      { collection: 'crm_activites', id: 'ac-affaire', affaireId: 'a1', organisationId: 'o1' },
+    ];
+    const plan = L.planSupprimerOrganisation({ organisationId: 'o1', personnes: [personne({ id: 'p1', organisationId: 'o2' })], affaires: [affaire({ id: 'a1', organisationId: 'o2' })], liens: lo });
+    const d = Object.fromEntries(plan.ecritures.map((e) => [`${e.type}:${e.collection}/${e.id}`, e]));
+    assert.deepEqual(d['modifier:crm_notes/n-perso'].patch, { organisationId: null });
+    assert.deepEqual(d['modifier:crm_activites/ac-affaire'].patch, { organisationId: null });
+    assert.equal(d['supprimer:crm_notes/n-perso'], undefined);
+    assert.equal(d['supprimer:crm_activites/ac-affaire'], undefined);
+    assert.ok(d['supprimer:crm_notes/n-seule'] && d['supprimer:crm_organisations/o1']);
     assert.equal(plan.ecritures.findIndex((e) => e.type === 'supprimer') > plan.ecritures.findLastIndex((e) => e.type === 'modifier'), true, 'détachements avant suppressions');
   });
   test('B17 personne avec des affaires : le choix est obligatoire ; sans affaire, il ne sert pas', () => {

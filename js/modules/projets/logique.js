@@ -269,6 +269,7 @@ export function validerFacture(v = {}) {
 
 const retour = (erreurs, extra = {}) => ({ erreurs, patch: {}, evenements: [], ...extra });
 export const MESSAGE_SUIVI_ETEINT = 'Le suivi des paiements est désactivé dans les réglages.';
+export const MESSAGE_PROJET_TERMINE = 'Ce projet est terminé : rouvre-le d’abord.';
 const suiviEteint = (ctx) => (suiviPaiementsActif(configDe(ctx)) ? null : retour({ factures: MESSAGE_SUIVI_ETEINT }));
 const trouverFacture = (projet, id) => facturesDe(projet).find((f) => f.id === id) ?? null;
 const remplacerFacture = (projet, facture) => facturesDe(projet).map((f) => (f.id === facture.id ? facture : f));
@@ -286,6 +287,7 @@ export function ajouterFacture(projet, valeurs, ctx) {
   const erreurs = validerFacture(valeurs);
   if (Object.keys(erreurs).length) return retour(erreurs);
   const payee = !!valeurs.datePaiement;
+  if (!payee && estProjetTermine(projet)) return retour({ projet: MESSAGE_PROJET_TERMINE }); // un impayé ne se cache pas dans un projet terminé
   const facture = {
     id: ctx.nouvelId('factures'),
     libelle: nettoyerEspaces(valeurs.libelle),
@@ -307,6 +309,7 @@ export function modifierFacture(projet, id, valeurs, ctx) {
   if (f.statut === 'abandonnee') return retour({ facture: 'Une facture abandonnée ne se modifie pas.' });
   const suivante = { ...f, ...valeurs };
   const erreurs = validerFacture({ ...suivante, datePaiement: f.statut === 'payee' ? suivante.datePaiement : null });
+  if (f.statut === 'payee' && !suivante.datePaiement) erreurs.datePaiement = 'Une facture payée garde sa date de paiement : pour l’enlever, remets-la à payer.'; // sans date, elle sortirait du chiffre d’affaires
   if (Object.keys(erreurs).length) return retour(erreurs);
   const nette = {
     ...f,
@@ -319,7 +322,7 @@ export function modifierFacture(projet, id, valeurs, ctx) {
   return { erreurs: {}, patch: { factures: remplacerFacture(projet, nette) }, evenements: [evenementProjet('facture_modifiee', `Facture modifiée : ${libelleFacture(nette)} (${formatEuros(nette.montant)})`, projet, ctx)], facture: nette };
 }
 
-/** Marque une facture payée (date du jour par défaut ; `montant` seulement si le client a payé une autre somme). Compte dans l'encaissé du mois du paiement. */
+/** Marque une facture payée (date du jour par défaut). Une facture se paie en entier : `montant`, s'il est donné, doit être celui de la facture, sinon refus. Compte dans l'encaissé du mois du paiement. */
 export function marquerFacturePayee(projet, id, { datePaiement = null, montant = null } = {}, ctx) {
   { const eteint = suiviEteint(ctx); if (eteint) return eteint; }
   const f = trouverFacture(projet, id);
@@ -327,10 +330,16 @@ export function marquerFacturePayee(projet, id, { datePaiement = null, montant =
   if (f.statut === 'payee') return sansEffet;
   if (f.statut === 'abandonnee') return retour({ facture: 'Cette facture est abandonnée : remets-la d’abord à payer.' });
   const jour = datePaiement || aujourdhuiParis(ctx.maintenant);
-  const somme = montant === null || montant === '' ? f.montant : montant;
-  const erreurs = validerFacture({ montant: somme, dateEnvoi: f.dateEnvoi, datePaiement: jour });
+  if (montant !== null && montant !== undefined && montant !== '') {
+    const erreurMontant = validerFacture({ montant }).montant;
+    if (erreurMontant) return retour({ montant: erreurMontant });
+    if (Math.round(lireMontant(montant) * 100) !== Math.round(lireMontant(f.montant) * 100)) {
+      return retour({ montant: `Le montant reçu (${formatEuros(lireMontant(montant))}) ne correspond pas à la facture (${formatEuros(f.montant)}) : une facture se paie en entier. Modifie son montant ou sépare-la en deux lignes.` });
+    }
+  }
+  const erreurs = validerFacture({ montant: f.montant, dateEnvoi: f.dateEnvoi, datePaiement: jour });
   if (Object.keys(erreurs).length) return retour(erreurs);
-  const payee = { ...f, montant: Math.round(lireMontant(somme) * 100) / 100, datePaiement: jour, statut: 'payee' };
+  const payee = { ...f, montant: Math.round(lireMontant(f.montant) * 100) / 100, datePaiement: jour, statut: 'payee' };
   delete payee.raison;
   delete payee.dateAbandon;
   return { erreurs: {}, patch: { factures: remplacerFacture(projet, payee) }, evenements: [evenementEncaissement(projet, payee, ctx)], facture: payee };
@@ -342,6 +351,7 @@ export function remettreFactureAPayer(projet, id, ctx) {
   const f = trouverFacture(projet, id);
   if (!f) return retour({ facture: 'Facture introuvable.' });
   if (f.statut === 'a_payer') return sansEffet;
+  if (estProjetTermine(projet)) return retour({ projet: MESSAGE_PROJET_TERMINE });
   const { raison, dateAbandon, ...reste } = f;
   const nette = { ...reste, datePaiement: null, statut: 'a_payer' };
   return { erreurs: {}, patch: { factures: remplacerFacture(projet, nette) }, evenements: [evenementProjet('facture_remise_a_payer', `Facture remise à payer : ${libelleFacture(nette)}`, projet, ctx)], facture: nette };
