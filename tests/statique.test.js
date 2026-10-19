@@ -60,10 +60,10 @@ describe('D1 Manifeste, icônes, service worker, versions', () => {
     }
     assert.ok(!existsSync(join(RACINE, 'sw.js')) && !existsSync(join(RACINE, 'service-worker.js')));
   });
-  test('D1 versions identiques dans version.json et js/os/version.js (2.15.0)', () => {
+  test('D1 versions identiques dans version.json et js/os/version.js (2.15.1)', () => {
     const v = json('version.json').version;
     const m = /VERSION = '([^']+)'/.exec(lire('js/os/version.js'));
-    assert.equal(v, '2.15.0');
+    assert.equal(v, '2.15.1');
     assert.equal(m[1], v);
   });
   test('D1 portraits réduits (512 px de large au plus)', () => {
@@ -514,6 +514,10 @@ describe('D5 Serveur MCP (étape 2) : déploiement, versions figées, sécurité
     const bloc = /include: \[([^\]]+)\]/.exec(lire('docs/branchement-mcp.md'))[1].split(',').map((x) => x.trim());
     assert.deepEqual([...bloc].sort(), outilsAutorises('bibliothecaire', OUTILS).map((o) => o.nom).sort());
   });
+  test('D8b un numéro de téléphone d\'un tableau ne passe jamais à la ligne (règle css/crm.css)', () => {
+    assert.match(lire('css/crm.css'), /\.tableau a\[href\^="tel:"\] \{ white-space: nowrap; \}/);
+  });
+
   test('D6 le texte des règles à coller dans la console, dans le guide audit-ecran.md, est identique à firestore.rules', () => {
     const guide = lire('docs/audit-ecran.md');
     const blocs = [...guide.matchAll(/```\n(rules_version[\s\S]*?)```/g)].map((m) => m[1]);
