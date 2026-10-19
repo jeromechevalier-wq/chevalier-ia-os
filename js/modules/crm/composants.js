@@ -398,7 +398,7 @@ export function titreEditable({ valeur, libelle, surEnregistrer }) {
  */
 export function champDescription({ valeur = '', invitation, libelle, surEnregistrer }) {
   let enregistre = valeur ?? '';
-  const champ = h('textarea', { class: 'champ-description', rows: 4, 'aria-label': libelle, placeholder: invitation, spellcheck: true, value: enregistre, 'data-champ': 'description' });
+  const champ = h('textarea', { class: 'champ-description', rows: 4, maxlength: 5000, 'aria-label': libelle, placeholder: invitation, spellcheck: true, value: enregistre, 'data-champ': 'description' });
   const ajuster = () => { champ.style.height = 'auto'; champ.style.height = `${champ.scrollHeight}px`; };
   champ.addEventListener('focus', () => { champ.placeholder = ''; });
   champ.addEventListener('input', ajuster);
@@ -407,9 +407,9 @@ export function champDescription({ valeur = '', invitation, libelle, surEnregist
     champ.placeholder = invitation;
     const v = champ.value.trim();
     if (v === enregistre) { champ.value = v; ajuster(); return; }
-    try { await surEnregistrer(v); enregistre = v; champ.value = v; } catch (e) {
+    try { await surEnregistrer(v); enregistre = v; if (document.activeElement !== champ) champ.value = v; } catch (e) {
       console.warn(e);
-      champ.value = enregistre;
+      if (document.activeElement !== champ) champ.value = enregistre; // si on a déjà repris la frappe, on ne l'écrase pas
       toast(e?.saisie ? e.message : 'Enregistrement impossible', { type: 'erreur' });
     }
     ajuster();
