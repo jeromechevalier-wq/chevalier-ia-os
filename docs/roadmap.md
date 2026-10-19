@@ -9,6 +9,14 @@ Légende : **décidé** = validé par Jérôme ; **piste** = à trancher avant l
 - **Aide client lisible, publiée** : un site d'aide public en français (accueil avec recherche, catégories, articles courts, captures de notre appli), inspiré de l'organisation du centre d'aide de Pipedrive sans recopier ses textes, séparé du wiki technique. Découpage proposé : squelette + 3 articles, articles CRM, article de connexion de l'assistant, lien « Aide » dans l'appli. Pages publiques relues par Fable. À trancher : adresse (`/aide` sur la plateforme ou domaine à Jérôme). En attendant : `affaire-ou-projet.md`.
 - **Lever la dépendance Projets -> Affaires** à l'activation des modules (`js/os/registre.js`) : les données n'obligent déjà plus un projet à avoir une affaire (décision du 03/10/2026) ; PR dédiée avec test de l'écran Projets sans le module Affaires.
 
+## Menu, poignée et look compact (18-19/10/2026, versions 2.13.0 à 2.15.1)
+
+**Fait et en ligne chez Jérôme et chez les clients** : menu sans titres de groupes, menu utilisateur en bas à gauche (Réglages, Journal des modifications, Connecter mon assistant, thème, Se déconnecter), bouton de repli et Cmd/Ctrl+B (PR 133, 2.13.0) ; poignée de redimensionnement mémorisée, bornes 200-420 px (PR 136, 2.14.0) ; look compact façon Claude et ChatGPT, polices inchangées (PR 139, 2.15.0) ; numéro de téléphone sur une ligne (PR 140, 2.15.1). Plateforme déployée en 2.15.1 le 19/10/2026.
+
+**Idées mises en pause (décision de Jérôme, 19/10/2026)** : choix automatique des ports de test et « guichet » (une seule suite d'écran à la fois). Les sessions ne lancent plus que de petits tests en développement et les gros tests tournent sur GitHub ; à reconsidérer seulement si les collisions reviennent (signes dans la fiche « Sessions en parallèle et tests » du second cerveau).
+
+**Reste à faire** : audit complet « ce qui diffère entre mon espace et un espace client » (section Membres, Objectifs du mois, options par défaut) ; second passage du look compact (valeurs en dur hors barème) ; aide client publique ; audit de sécurité Fable avant le vendredi 23/10/2026 07h00 ; chantier ChatGPT sur le MCP de Jérôme ; e-mail à Ingrid le mercredi 21/10/2026, après l'essai réel de Jérôme.
+
 ## Vocabulaire et registre du menu (18/10/2026, PR 127, version 2.12.0)
 
 **Décidé (18/10/2026)** : le mot « CRM » n'est plus écrit dans ce que l'utilisateur voit ; le bloc du menu s'appelle « Affaires et projets » (id technique `crm`, adresses inchangées) ; étapes pour les affaires, phases pour les projets ; « Archives » sort du menu (bouton de l'écran Projets) ; le raccourci `crm` des fiches reste lu mais n'est plus proposé ; un client sans Projets ne voit plus les réglages des projets. **Reste** (PR B) : coque du menu, menu utilisateur (où partira le Journal), bouton de repli. Détail : `reglages-menu-crm-unique.md`.
