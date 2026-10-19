@@ -843,6 +843,89 @@ describe('Écran d\'autorisation : aux couleurs du client, neutre pour tout ce q
   });
 });
 
+describe('Propriétaire par défaut : la personne connectée, jamais Jérôme chez un client', () => {
+  const JEROME = 'jerome.chevalier@gmail.com';
+  /** Crée les quatre sortes de fiche SANS propriétaire et rend les propriétaires écrits. */
+  async function creerQuatre(c, suffixe) {
+    const p = resultat(await c.callTool({ name: 'creer_personne', arguments: { nom: `Personne Defaut ${suffixe}` } }));
+    const o = resultat(await c.callTool({ name: 'creer_organisation', arguments: { nom: `Organisation Defaut ${suffixe}` } }));
+    const a = resultat(await c.callTool({ name: 'creer_affaire', arguments: { titre: `Affaire Defaut ${suffixe}` } }));
+    const pr = resultat(await c.callTool({ name: 'creer_projet', arguments: { titre: `Projet Defaut ${suffixe}` } }));
+    const lire = async (nom, id) => (await donnees.liste(`clients/a/${nom}`)).find((d) => d.id === id);
+    return [(await lire('crm_personnes', p.id)).proprietaire, (await lire('crm_organisations', o.id)).proprietaire, (await lire('crm_affaires', a.id)).proprietaire, (await lire('projets_projets', pr.id)).proprietaire];
+  }
+  test('P1 un éditeur crée une personne, une organisation, une affaire et un projet sans propriétaire : c\'est son e-mail, jamais celui de Jérôme, avec Claude comme avec ChatGPT', async () => {
+    await reinitialiser();
+    for (const [redirect, suffixe] of [[CLAUDE, 'Claude'], [CHATGPT, 'ChatGPT']]) {
+      const t = await connecter('a', 'ID-ALICE', { redirect });
+      const c = await assistant('/mcp/a', t.access_token);
+      assert.deepEqual(await creerQuatre(c, suffixe), [ALICE, ALICE, ALICE, ALICE], suffixe);
+      await c.close();
+    }
+    // L'e-mail est celui de la connexion (en minuscules), pas l'acteur tronqué (« claude-ai-alice »).
+    const t = await connecter('a', 'ID-ALICE-MAJUSCULES');
+    const c = await assistant('/mcp/a', t.access_token);
+    assert.deepEqual(await creerQuatre(c, 'Majuscules'), [ALICE, ALICE, ALICE, ALICE]);
+    await c.close();
+    const tout = JSON.stringify(await donnees.liste('clients/a/crm_personnes'));
+    assert.ok(!tout.includes(JEROME), 'aucune trace de Jérôme dans les fiches créées');
+    await reinitialiser();
+  });
+  test('P1 l\'e-mail n\'est pas écrit dans le journal des appels ni rendu par qui_suis_je', async () => {
+    await reinitialiser();
+    const t = await connecter('a', 'ID-ALICE');
+    const c = await assistant('/mcp/a', t.access_token);
+    const qui = JSON.stringify(resultat(await c.callTool({ name: 'qui_suis_je', arguments: {} })));
+    assert.ok(!qui.includes(ALICE), qui);
+    await c.close();
+    await reinitialiser();
+  });
+  test('P1 creer_projet_depuis_affaire chez un client : le propriétaire du projet est l\'e-mail du membre', async () => {
+    await reinitialiser();
+    const t = await connecter('a', 'ID-ALICE');
+    const c = await assistant('/mcp/a', t.access_token);
+    const r = resultat(await c.callTool({ name: 'creer_projet_depuis_affaire', arguments: { affaireId: 'a2' } }));
+    assert.ok(r.id, JSON.stringify(r));
+    assert.equal((await donnees.liste('clients/a/projets_projets')).find((d) => d.id === r.id).proprietaire, ALICE);
+    await c.close();
+    await reinitialiser();
+  });
+  test('P1 l\'e-mail du membre ne figure pas dans le journal du serveur d\'un appel client (création comprise)', async () => {
+    await reinitialiser();
+    lignesJournal.length = 0;
+    const t = await connecter('a', 'ID-ALICE');
+    const c = await assistant('/mcp/a', t.access_token);
+    await c.callTool({ name: 'creer_personne', arguments: { nom: 'Personne Journal' } });
+    await c.callTool({ name: 'qui_suis_je', arguments: {} });
+    await c.close();
+    assert.ok(lignesJournal.length > 0);
+    assert.ok(!JSON.stringify(lignesJournal).includes(ALICE), 'journal serveur : pas d\'e-mail');
+    await reinitialiser();
+  });
+  test('P3 un propriétaire fourni est écrit tel quel, même étranger à l\'espace (aucune validation, comme avant)', async () => {
+    await reinitialiser();
+    const t = await connecter('a', 'ID-ALICE');
+    const c = await assistant('/mcp/a', t.access_token);
+    const r = resultat(await c.callTool({ name: 'creer_personne', arguments: { nom: 'Personne Etrangere', proprietaire: 'etranger@autre.example' } }));
+    assert.equal((await donnees.liste('clients/a/crm_personnes')).find((d) => d.id === r.id).proprietaire, 'etranger@autre.example');
+    await c.close();
+    await reinitialiser();
+  });
+  test('P4 cas d\'erreur : une connexion sans e-mail (document abîmé) est refusée comme un jeton inconnu, rien n\'est écrit', async () => {
+    await reinitialiser();
+    const t = await connecter('a', 'ID-ALICE');
+    const connexions = (await donnees.liste('mcp_oauth')).filter((d) => d.id.startsWith('connexion_'));
+    assert.equal(connexions.length, 1);
+    const { email, ...sansEmail } = connexions[0];
+    await donnees.appliquer([{ type: 'set', collection: 'mcp_oauth', id: connexions[0].id, donnees: sansEmail }]);
+    const avant = (await donnees.liste('clients/a/crm_personnes')).length;
+    const r = await brut('/mcp/a', t.access_token, { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'creer_personne', arguments: { nom: 'Sans Courriel' } } });
+    assert.equal(r.status, 401);
+    assert.equal((await donnees.liste('clients/a/crm_personnes')).length, avant);
+    await reinitialiser();
+  });
+});
+
 describe('Jérôme : son serveur ne change pas', () => {
   test('le serveur de Jérôme garde ses adresses, sa liste de comptes et son profil unique', async () => {
     const c = await import('../functions/src/oauth/config.js');

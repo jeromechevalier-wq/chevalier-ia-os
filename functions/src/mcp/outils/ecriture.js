@@ -10,7 +10,7 @@ const id = z.string().min(1).max(200);
 const jour = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Attendu AAAA-MM-JJ').describe('Date AAAA-MM-JJ.');
 const contacts = z.array(z.object({ valeur: z.string().max(200), type: z.enum(L.TYPES_CONTACT.map((t) => t.id)).optional() })).max(10);
 const etiquettes = z.array(z.string().max(80)).max(30).describe('Identifiants d’étiquettes (voir lire_reglages, etiquettes).');
-const proprietaire = z.string().max(120).optional().describe('Propriétaire de la fiche créée (facultatif ; si absent, le propriétaire par défaut de l’espace).');
+const proprietaire = z.string().max(120).optional().describe('Propriétaire de la fiche créée (facultatif ; si absent, par défaut la personne connectée).');
 const forcer = z.boolean().optional().describe('true : créer malgré un doublon possible (nom ou e-mail déjà connu), après avoir vérifié que c’est une autre fiche.');
 const texteCourt = z.string().max(300);
 const description = z.string().max(5000).describe("Texte libre, en haut de la fiche, qui dit de quoi parle l'affaire ou le projet : le besoin, ce qu'on propose ou construit, où on en est. Sans titre ; ce n'est pas le journal daté (les notes).");
@@ -22,7 +22,7 @@ const outil = (nom, description, schema, action, profils = PROFILS) => ({
 });
 
 export const OUTILS_ECRITURE = [
-  outil('creer_personne', "Crée une personne (seul le nom est obligatoire), avec son événement dans le fil. Refuse un doublon (même nom, accents et casse ignorés, ou même e-mail) sauf forcer: true. Le propriétaire est celui par défaut de l'espace si on n'en donne pas.", {
+  outil('creer_personne', "Crée une personne (seul le nom est obligatoire), avec son événement dans le fil. Refuse un doublon (même nom, accents et casse ignorés, ou même e-mail) sauf forcer: true. Le propriétaire est, par défaut, la personne connectée si on n'en donne pas.", {
     nom: z.string().min(1).max(200), organisationId: id.optional(), emails: contacts.optional(), telephones: contacts.optional(), etiquettes: etiquettes.optional(),
     ville: texteCourt.optional(), source: texteCourt.optional(), forcer, proprietaire,
   }, metier.creerPersonne),

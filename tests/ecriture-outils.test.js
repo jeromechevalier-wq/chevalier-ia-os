@@ -6,6 +6,7 @@ import { createServer } from 'node:http';
 import * as L from '../functions/partage/logique.js';
 import * as PL from '../functions/partage/projets.js';
 import { OUTILS_ECRITURE } from '../functions/src/mcp/outils/ecriture.js';
+import { proprietaireParDefaut } from '../functions/src/coeur/metier.js';
 import { creerGestionnaire } from '../functions/src/mcp/gestionnaire.js';
 import { empreinte, creerMagasin } from '../functions/src/securite/jetons.js';
 import { creerLimiteur, LIMITES_PAR_DEFAUT } from '../functions/src/securite/limites.js';
@@ -99,6 +100,23 @@ describe('Droits par profil (test 5)', () => {
     refuse(await s.appeler('lecteur', 'creer_personne', { nom: 'Intrus Total' }));
     assert.deepEqual(s.vue(), avant);
     assert.equal(s.collections.crm_audit.length, 3, 'aucune trace écrite pour un refus (il va dans les journaux Google)');
+  });
+});
+
+describe('Propriétaire par défaut (points 2 et 4)', () => {
+  test('P2 serveur de Jérôme : un jeton « cia_… » (claude-code, sans e-mail) donne Jérôme comme propriétaire', async () => {
+    const s = await demarrer();
+    const p = ok(await s.appeler('code', 'creer_personne', { nom: 'Fiche Par Jeton Code' }));
+    assert.equal(s.doc('crm_personnes', p.id).proprietaire, 'jerome.chevalier@gmail.com');
+  });
+  test('P4 chez un client (accès avec base) sans e-mail de jeton : propriétaire vide, jamais Jérôme ; sur le serveur de Jérôme, Jérôme', () => {
+    const chezClient = { donnees: { base: 'clients/a' } };
+    assert.equal(proprietaireParDefaut(chezClient, undefined), '');
+    assert.equal(proprietaireParDefaut({ ...chezClient, email: '   ' }, ''), '');
+    assert.equal(proprietaireParDefaut({ ...chezClient, email: 'alice@exemple.test' }, undefined), 'alice@exemple.test');
+    assert.equal(proprietaireParDefaut({ ...chezClient, email: 'alice@exemple.test' }, 'autre@exemple.test'), 'autre@exemple.test');
+    assert.equal(proprietaireParDefaut({ donnees: {} }, undefined), 'jerome.chevalier@gmail.com');
+    assert.equal(proprietaireParDefaut({ donnees: {}, email: 'charles@exemple.test' }, undefined), 'charles@exemple.test');
   });
 });
 

@@ -131,7 +131,7 @@ export async function servirMcp({ req, res, infos, jeton, outils, donnees, limit
   for (const outil of permis) {
     serveur.registerTool(outil.nom, { description: outil.description, annotations: annotationsDe(outil), ...(outil.schema ? { inputSchema: outil.schema } : {}) }, async (args) => {
       const contexte = {
-        acteur: jeton.acteur, profil: jeton.profil, jeton: jeton.jeton, outilsAutorises: permis.map((o) => o.nom), nomServeur, args, donnees, maintenant: ctxEcriture.maintenant,
+        acteur: jeton.acteur, email: jeton.email, profil: jeton.profil, jeton: jeton.jeton, outilsAutorises: permis.map((o) => o.nom), nomServeur, args, donnees, maintenant: ctxEcriture.maintenant,
         ecrire: (demande) => ecrire({ ...demande, outil: outil.nom }),
         restaurer,
         suppressionsRestantes: () => (limiteur ? limiteur.suppressionsRestantes(jeton.jeton, limites) : Infinity),
