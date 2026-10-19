@@ -6,7 +6,7 @@
 import {
   COLLECTIONS_PLAN, MARQUES_CREATION, MARQUES_MODIFICATION,
   ecritureCreer, ecritureModifier, ecritureSupprimer, evenements, modifierSiPatch, evenementCreation,
-  nettoyerEspaces, aujourdhuiParis, validerUrlGithub, validerUrlDossier, urlOuVide, normaliser, ajouterJours,
+  nettoyerEspaces, nettoyerDescription, aujourdhuiParis, validerUrlGithub, validerUrlDossier, urlOuVide, normaliser, ajouterJours,
   planChangerEtape, planMarquerPerdue, formatEuros, configDe, TYPES_ACTIVITE,
 } from '../crm/logique.js';
 
@@ -93,6 +93,7 @@ export function nouveauProjet(valeurs, ctx) {
     dateFin: estJour(valeurs.dateFin) ? valeurs.dateFin : null,
     modeleId: valeurs.modeleId || null,
     offreId: valeurs.offreId || null,
+    description: nettoyerDescription(valeurs.description),
     dateEntreePhase: ctx.maintenant,
     datesPhases: { [phase]: ctx.maintenant },
     documents: [],
@@ -742,7 +743,7 @@ export function planCreerProjetDepuisAffaire({ affaire, projets = [], valeurs = 
   const id = ctx.nouvelId(C.projets);
   const fiche = nouveauProjet({
     titre: affaire.titre, personneId: affaire.personneId, organisationId: affaire.organisationId, offreId: affaire.offreId,
-    urlGithub: affaire.urlGithub, urlDossier: affaire.urlDossier, ...valeurs, affaireId: affaire.id,
+    urlGithub: affaire.urlGithub, urlDossier: affaire.urlDossier, description: affaire.description, ...valeurs, affaireId: affaire.id,
     ...(modele ? { modeleId: modele.id } : {}),
   }, ctx);
   return {
@@ -767,7 +768,7 @@ export function planLierProjet({ affaire, projet, projets = [] }, ctx) {
   if (Object.keys(erreurs).length) return { erreurs, ecritures: [] };
   const patch = { affaireId: affaire.id };
   for (const champ of ['personneId', 'organisationId', 'offreId']) if (!projet[champ] && affaire[champ]) patch[champ] = affaire[champ];
-  for (const champ of ['urlGithub', 'urlDossier']) if (!projet[champ] && affaire[champ]) patch[champ] = affaire[champ];
+  for (const champ of ['urlGithub', 'urlDossier', 'description']) if (!projet[champ] && affaire[champ]) patch[champ] = affaire[champ];
   return {
     erreurs: {},
     patch,
