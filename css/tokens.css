@@ -50,11 +50,39 @@
   --police-titre: Poppins, 'Trebuchet MS', sans-serif;
   --police-texte: 'Be Vietnam Pro', Arial, sans-serif;
 
-  --rayon: 10px;
-  --rayon-petit: 6px;
+  /* Échelle compacte (PR D, 19/10/2026) : tout passe par ces variables, un seul endroit à régler. Polices inchangées. */
+  --fs-micro: 11px;   /* étiquettes en capitales, très petits repères */
+  --fs-petit: 12px;   /* petit texte, notes, compteurs */
+  --fs-menu: 13px;    /* menus, boutons discrets, aides */
+  --fs-texte: 14px;   /* texte courant */
+  --fs-section: 16px; /* titres de section */
+  --fs-page: 20px;    /* titres de page */
+  --fs-chiffre: 22px; /* grands chiffres (objectifs, montant d'une fiche) */
+  --poids-normal: 400;
+  --poids-moyen: 500; /* le plus lourd utilisé (plus de 600 / 700, sauf le logo) */
+  --interligne: 1.45;
+
+  /* Espacements : l'ancienne échelle (4, 6, 8, 10, 12, 14, 16, 20, 24 px) réduite d'environ 15 % */
+  --esp-1: 3px; --esp-2: 5px; --esp-3: 7px; --esp-4: 9px; --esp-5: 10px; --esp-6: 12px; --esp-7: 14px; --esp-8: 17px; --esp-9: 20px;
+
+  /* Hauteurs des zones de clic (ordinateur ; le téléphone les agrandit plus bas) */
+  --h-ctrl: 34px;       /* bouton, champ, entrée du menu utilisateur */
+  --h-ctrl-petit: 32px; /* petit bouton */
+  --h-liste: 38px;      /* ligne de suggestions */
+  --h-menu-ligne: 36px; /* entrée du menu de gauche */
+  --h-menu-compte: 42px;
+
+  --rayon-petit: 6px;  /* petits éléments, pastilles carrées */
+  --rayon: 8px;        /* boutons, champs, entrées de menu */
+  --rayon-carte: 10px; /* cartes, boîtes de dialogue */
   --menu-replie: 64px;
   --menu-elargi: 240px;
   --transition: 200ms ease;
+}
+
+/* Téléphone : les zones de clic ne rétrécissent pas (44 px, comme les consignes tactiles) */
+@media (max-width: 767px) {
+  :root { --h-ctrl: 44px; --h-ctrl-petit: 36px; --h-liste: 44px; --h-menu-ligne: 44px; --h-menu-compte: 48px; }
 }
 
 /* Thème sombre (défaut) */
@@ -65,10 +93,12 @@
   --panneau: #29292c;
   --panneau2: #232226;
   --survol: #36353a;
-  --texte: #ffffff;
-  --texte2: #c3c1c1;
+  --texte: #ececee;
+  --texte2: #b0aeb3;
   --bordure: #ffffff1a;
   --bordure-forte: #ffffff33;
+  --bordure-champ: #7a787f; /* contour des champs et boutons secondaires : au moins 3:1 (WCAG 1.4.11) */
+  --placeholder: #9b99a0;   /* texte d'aide dans les champs : au moins 4,5:1 */
   --accent: var(--jaune);
   --sur-accent: #29292c;
   --lien: var(--jaune);
@@ -76,7 +106,7 @@
   --retard-fond: #ff8f8622;
   --succes: #6ddba0;
   --ombre: 0 18px 40px #00000066;
-  --halo: radial-gradient(ellipse 70% 45% at 50% -8%, #5a3c7266 0%, #3c285033 45%, transparent 75%);
+  --halo: radial-gradient(ellipse 70% 45% at 50% -8%, #5a3c7240 0%, #3c285022 45%, transparent 75%);
   --voile: #0c0b0fb3;
   --barre-fond: #ffffff14;
 }
@@ -92,6 +122,8 @@
   --texte2: #69696d;
   --bordure: #dcdcd6;
   --bordure-forte: #c4c4bd;
+  --bordure-champ: #7f7f79;
+  --placeholder: #66656b;
   --accent: var(--jaune);
   --sur-accent: #29292c;
   --lien: #7a5f00;
@@ -99,7 +131,7 @@
   --retard-fond: #b3261e14;
   --succes: #1d7a4b;
   --ombre: 0 18px 40px #29292c26;
-  --halo: radial-gradient(ellipse 70% 45% at 50% -8%, #e3cdee88 0%, #e3cdee33 45%, transparent 75%);
+  --halo: radial-gradient(ellipse 70% 45% at 50% -8%, #e3cdee55 0%, #e3cdee22 45%, transparent 75%);
   --voile: #29292c66;
   --barre-fond: #29292c12;
 }

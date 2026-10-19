@@ -3,28 +3,28 @@
 
 .carte-projet { border-left: 4px solid var(--couleur); }
 .carte-dates { font-variant-numeric: tabular-nums; }
-.carte-proprietaire { margin-left: auto; color: var(--texte2); font-size: 12px; }
+.carte-proprietaire { margin-left: auto; color: var(--texte2); font-size: var(--fs-petit); }
 .badge-pause {
-  display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 12px; font-weight: 600; background: var(--survol); color: var(--texte2);
+  display: inline-block; padding: 2px var(--esp-3); border-radius: var(--rayon-petit); font-size: var(--fs-petit); font-weight: var(--poids-moyen); background: var(--survol); color: var(--texte2);
 }
 .page-projets .kanban { min-height: 50vh; }
 
-.ligne-boutons { display: flex; gap: 8px; flex-wrap: wrap; }
+.ligne-boutons { display: flex; gap: var(--esp-3); flex-wrap: wrap; }
 .fil-note-affaire { opacity: .85; }
 
 /* Avancement et tâches */
 .anneau-progression { display: inline-flex; align-items: center; }
 .carte-projet .anneau-progression { margin-left: 2px; }
-.ajout-tache { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: start; }
+.ajout-tache { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--esp-3); align-items: start; }
 .ajout-tache .champ { min-width: 0; }
 .ajout-tache .selecteur-date, .ajout-tache button[data-action="ajouter-tache"] { grid-column: 1 / -1; }
 .ajout-tache button[data-action="ajouter-tache"] { justify-self: start; }
-.groupe-taches .sous-titre { display: flex; align-items: center; gap: 8px; margin: 12px 0 6px; }
-.groupe-taches .compteur { color: var(--texte2); font-size: 12px; font-weight: 600; }
+.groupe-taches .sous-titre { display: flex; align-items: center; gap: var(--esp-3); margin: var(--esp-5) 0 var(--esp-2); }
+.groupe-taches .compteur { color: var(--texte2); font-size: var(--fs-petit); font-weight: var(--poids-moyen); }
 .case-fait.faite { border-color: var(--succes); background: #6ddba02e; color: var(--succes); }
 .tache-faite .tache-titre { text-decoration: line-through; color: var(--texte2); }
-.badge-assigne { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 999px; background: var(--survol); font-size: 12px; font-weight: 600; }
-.avancement { display: inline-flex; align-items: center; gap: 8px; }
+.badge-assigne { display: inline-flex; align-items: center; gap: var(--esp-1); padding: 1px var(--esp-3); border-radius: 999px; background: var(--survol); font-size: var(--fs-petit); font-weight: var(--poids-moyen); }
+.avancement { display: inline-flex; align-items: center; gap: var(--esp-3); }
 
 /* Modèles */
 .fiche-pleine { max-width: 760px; }
@@ -37,14 +37,14 @@
 }
 
 /* Factures du projet (2.2) */
-.factures-totaux { margin: 0; color: var(--texte2); font-size: 13px; font-weight: 600; }
-.liste-factures { gap: 8px; }
-.ligne-facture { display: flex; align-items: center; gap: 6px 12px; flex-wrap: wrap; padding: 8px 10px; border: 1px solid var(--bordure); border-radius: 10px; }
+.factures-totaux { margin: 0; color: var(--texte2); font-size: var(--fs-menu); font-weight: var(--poids-moyen); }
+.liste-factures { gap: var(--esp-3); }
+.ligne-facture { display: flex; align-items: center; gap: var(--esp-2) var(--esp-5); flex-wrap: wrap; padding: var(--esp-3) var(--esp-4); border: 1px solid var(--bordure); border-radius: var(--rayon-carte); }
 .ligne-facture .facture-texte { display: flex; flex-direction: column; gap: 2px; flex: 1 1 200px; min-width: 0; overflow-wrap: anywhere; }
-.ligne-facture .facture-montant { font-weight: 700; white-space: nowrap; }
+.ligne-facture .facture-montant { font-weight: var(--poids-moyen); white-space: nowrap; }
 .ligne-facture.statut-abandonnee .facture-texte strong, .ligne-facture.statut-abandonnee .facture-montant { text-decoration: line-through; color: var(--texte2); }
 .ligne-ajout-facture .champ-court { flex: 0 1 150px; }
-.pastille-statut.statut-impaye { margin-left: 6px; }
+.pastille-statut.statut-impaye { margin-left: var(--esp-2); }
 @media (max-width: 767px) {
   .ligne-ajout-facture .champ-court { flex: 1 1 100%; }
 }

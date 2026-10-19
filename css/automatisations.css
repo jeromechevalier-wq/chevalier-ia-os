@@ -4,30 +4,30 @@
 :root[data-theme='clair'] { --au-attention: #8a5300; --au-attention-fond: #f3d9a633; }
 
 .page-automatisations { max-width: 960px; }
-.autom-bandeau { background: var(--au-attention-fond); color: var(--au-attention); border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; font-weight: 600; }
-.autom-barre { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-.autom-resume { display: flex; flex-wrap: wrap; gap: 8px; }
-.autom-puce { display: inline-flex; align-items: baseline; gap: 6px; padding: 4px 12px; border-radius: 999px; background: var(--panneau); border: 1px solid var(--bordure); font-size: 14px; }
-.autom-puce b { font-size: 16px; font-variant-numeric: tabular-nums; }
+.autom-bandeau { background: var(--au-attention-fond); color: var(--au-attention); border-radius: var(--rayon); padding: var(--esp-4) var(--esp-6); margin-bottom: var(--esp-5); font-weight: var(--poids-moyen); }
+.autom-barre { display: flex; flex-wrap: wrap; gap: var(--esp-5) var(--esp-7); align-items: center; justify-content: space-between; margin-bottom: var(--esp-5); }
+.autom-resume { display: flex; flex-wrap: wrap; gap: var(--esp-3); }
+.autom-puce { display: inline-flex; align-items: baseline; gap: var(--esp-2); padding: var(--esp-1) var(--esp-5); border-radius: 999px; background: var(--panneau); border: 1px solid var(--bordure); font-size: var(--fs-texte); }
+.autom-puce b { font-size: var(--fs-section); font-variant-numeric: tabular-nums; }
 .autom-puce.run b { color: var(--accent); }
 .autom-puce.ko b { color: var(--retard); }
 .autom-puce.chk b { color: var(--au-attention); }
 .autom-puce.ok b { color: var(--succes); }
-.autom-actions { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; font-size: 14px; color: var(--texte2); }
-.autom-case { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
-.autom-filtres { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.autom-actions { display: flex; flex-wrap: wrap; gap: var(--esp-3) var(--esp-6); align-items: center; font-size: var(--fs-texte); color: var(--texte2); }
+.autom-case { display: inline-flex; gap: var(--esp-2); align-items: center; cursor: pointer; }
+.autom-filtres { display: flex; flex-wrap: wrap; gap: var(--esp-3); margin: var(--esp-5) 0; }
 .autom-filtres select { max-width: 100%; }
 
-.autom-liste { list-style: none; margin: 0; padding: 0; background: var(--panneau); border: 1px solid var(--bordure); border-radius: 10px; overflow: hidden; }
-.autom-ligne { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 6px 16px; padding: 13px 16px; border-bottom: 1px solid var(--bordure); }
+.autom-liste { list-style: none; margin: 0; padding: 0; background: var(--panneau); border: 1px solid var(--bordure); border-radius: var(--rayon-carte); overflow: hidden; }
+.autom-ligne { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: var(--esp-2) var(--esp-7); padding: 11px var(--esp-7); border-bottom: 1px solid var(--bordure); }
 .autom-ligne:last-child { border-bottom: 0; }
 .autom-principal { flex: 1 1 260px; min-width: 0; }
-.autom-nom { font-weight: 600; overflow-wrap: anywhere; }
-.autom-nom-editable { background: none; border: 0; padding: 0; color: inherit; font: inherit; font-weight: 600; text-align: left; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
+.autom-nom { font-weight: var(--poids-moyen); overflow-wrap: anywhere; }
+.autom-nom-editable { background: none; border: 0; padding: 0; color: inherit; font: inherit; font-weight: var(--poids-moyen); text-align: left; cursor: pointer; display: inline-flex; gap: var(--esp-2); align-items: center; }
 .autom-nom-editable svg { opacity: .5; }
 .autom-nom-editable:hover svg, .autom-nom-editable:focus-visible svg { opacity: 1; }
-.autom-meta { color: var(--texte2); font-size: 14px; font-variant-numeric: tabular-nums; }
-.autom-pastille { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 7px; font-size: 14px; font-weight: 600; padding: 3px 11px; border-radius: 999px; white-space: nowrap; }
+.autom-meta { color: var(--texte2); font-size: var(--fs-texte); font-variant-numeric: tabular-nums; }
+.autom-pastille { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-texte); font-weight: var(--poids-moyen); padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
 .autom-point { width: 9px; height: 9px; border-radius: 50%; background: currentColor; display: inline-block; }
 .autom-pastille.etat-running, .autom-pastille.etat-new { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
 .autom-pastille.etat-success { background: color-mix(in srgb, var(--succes) 18%, transparent); color: var(--succes); }
@@ -42,23 +42,23 @@
 @media (prefers-reduced-motion: reduce) {
   .autom-pastille.etat-running .autom-point, .autom-pastille.etat-new .autom-point { animation: none; border-radius: 2px; }
 }
-.autom-erreur { flex: 1 1 100%; background: var(--retard-fond); border-radius: 6px; padding: 9px 12px; font-size: 14px; }
-.autom-erreur-cle { color: var(--retard); font-weight: 600; }
-.autom-erreur code { font-family: ui-monospace, Menlo, monospace; font-size: 13px; overflow-wrap: anywhere; background: none; padding: 0; }
-.autom-indice { flex: 1 1 100%; font-size: 14px; color: var(--au-attention); }
-.autom-vide { padding: 28px 16px; text-align: center; color: var(--texte2); }
+.autom-erreur { flex: 1 1 100%; background: var(--retard-fond); border-radius: var(--rayon-petit); padding: 8px var(--esp-5); font-size: var(--fs-texte); }
+.autom-erreur-cle { color: var(--retard); font-weight: var(--poids-moyen); }
+.autom-erreur code { font-family: ui-monospace, Menlo, monospace; font-size: var(--fs-menu); overflow-wrap: anywhere; background: none; padding: 0; }
+.autom-indice { flex: 1 1 100%; font-size: var(--fs-texte); color: var(--au-attention); }
+.autom-vide { padding: 24px var(--esp-7); text-align: center; color: var(--texte2); }
 
 /* Vue administrateur (Chevalier IA OS, compte de Jérôme) : pastille du propriétaire sur chaque ligne et rappel des workflows « à vérifier ». */
-.autom-proprio { flex: 0 0 auto; align-self: flex-start; font-size: 13px; padding: 3px 10px; border-radius: 999px; background: var(--survol); color: var(--texte2); border: 1px solid var(--bordure); white-space: nowrap; }
-.autom-alerte-verifier { display: block; width: 100%; margin: 0 0 12px; text-align: left; font: inherit; font-weight: 600; cursor: pointer; background: var(--au-attention-fond); color: var(--au-attention); border: 0; border-radius: 8px; padding: 10px 14px; }
+.autom-proprio { flex: 0 0 auto; align-self: flex-start; font-size: var(--fs-menu); padding: 3px var(--esp-4); border-radius: 999px; background: var(--survol); color: var(--texte2); border: 1px solid var(--bordure); white-space: nowrap; }
+.autom-alerte-verifier { display: block; width: 100%; margin: 0 0 var(--esp-5); text-align: left; font: inherit; font-weight: var(--poids-moyen); cursor: pointer; background: var(--au-attention-fond); color: var(--au-attention); border: 0; border-radius: var(--rayon); padding: var(--esp-4) var(--esp-6); }
 .autom-alerte-verifier[hidden] { display: none; }
 .autom-alerte-verifier:hover, .autom-alerte-verifier:focus-visible { text-decoration: underline; }
 .autom-averifier .autom-indice { color: var(--texte); }
-.autom-signes { flex: 1 1 100%; list-style: none; margin: 4px 0 0; padding: 0; font-size: 14px; display: grid; gap: 3px; }
+.autom-signes { flex: 1 1 100%; list-style: none; margin: var(--esp-1) 0 0; padding: 0; font-size: var(--fs-texte); display: grid; gap: 3px; }
 .autom-signes .ok b { color: var(--succes); }
 .autom-signes .ko b { color: var(--retard); }
 .autom-resume[hidden], .autom-filtres select[hidden] { display: none; }
-.autom-aucun-resultat { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+.autom-aucun-resultat { display: flex; flex-wrap: wrap; gap: var(--esp-3) var(--esp-6); align-items: center; }
 
 /* Les compteurs (« il y a 2 s », durées) changent chaque seconde : chiffres de largeur fixe et zone réservée, pour que la ligne ne bouge plus. */
 .autom-maj { display: inline-block; min-width: 14ch; font-variant-numeric: tabular-nums; }
