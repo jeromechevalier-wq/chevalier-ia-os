@@ -76,7 +76,7 @@ test('1 inventaire : l’échelle (texte, poids, interligne, espacements, hauteu
     if (nom === 'tokens.css') continue;
     texte.split('\n').forEach((ligne, i) => {
       if (EXEMPTEES.test(ligne)) return;
-      if (/font-size: *\d+px|font: *(\d{3} )?\d+px|font-weight: *[5-9]00\b|font: *[5-9]00 /.test(ligne)) enDur.push(`${nom}:${i + 1} ${ligne.trim().slice(0, 90)}`);
+      if (/font-size: *\d+px|font-weight: *[5-9]00\b|font: *[^;}]*?\b\d+px\b|font: *[5-9]00 /.test(ligne)) enDur.push(`${nom}:${i + 1} ${ligne.trim().slice(0, 90)}`);
     });
   }
   expect(enDur, 'taille ou poids de texte écrit en dur').toEqual([]);
@@ -120,7 +120,41 @@ test('2 échelle compacte : texte 14 px, interligne 1,45, titres 20 px, poids �
   expect(m.debordeX).toBe(false);
   expect(m.poidsMax).toBeLessThanOrEqual(500);
   await capture(page, '2-fiche-affaire-echelle-compacte', 'sombre');
+  if (tel) await verifierTactile(page);
 });
+
+const ZONES = '.champ-petit, .champ-saisie, .pastille-type, .case, .td-segment button, .bouton-icone, .carte-menu, .prop-modifier, .case-fait, .bouton-copier, .bouton-info, .pastille-retrait';
+/** Téléphone : champs ≥ 16 px (sinon l'iPhone zoome au toucher) et zones de clic ≥ 44 px (taille réelle, ou zone invisible qui reçoit le doigt : on teste ce que touche le doigt). */
+async function verifierTactile(page) {
+  const lire = (racine = 'body') => page.evaluate(([zones, racine]) => {
+    const visibles = (sel) => [...document.querySelector(racine).querySelectorAll(sel)].filter((e) => e.offsetParent !== null || getComputedStyle(e).position === 'fixed');
+    const petitsChamps = visibles('input:not([type=checkbox]):not([type=radio]):not([type=hidden]), select, textarea').filter((e) => parseFloat(getComputedStyle(e).fontSize) < 16).map((e) => e.className || e.tagName);
+    const zonesTrop = visibles(zones).filter((e) => {
+      const r = e.getBoundingClientRect();
+      if (Math.min(r.width, r.height) >= 44 || r.width === 0) return false;
+      const [cx, cy] = [r.left + r.width / 2, r.top + r.height / 2];
+      if (cy < 0 || cy > innerHeight || cx < 0 || cx > innerWidth) return false;
+      return ![[-21, 0], [21, 0], [0, -21], [0, 21]].every(([dx, dy]) => { const t = document.elementFromPoint(cx + dx, cy + dy); return t && e.contains(t); });
+    }).map((e) => e.className);
+    return { petitsChamps, zonesTrop };
+  }, [ZONES, racine]);
+  if (await page.locator('.coquille.menu-ouvert').count()) await page.locator('.voile-menu').click({ position: { x: 380, y: 400 } });
+  const ecrans = ['#/crm/affaires', '#/crm/affaires/a1', '#/crm/personnes/p1', '#/projets/projets/pr1'];
+  const echecs = { petitsChamps: new Set(), zonesTrop: new Set() };
+  for (const hash of ecrans) {
+    await aller(page, hash); await attendreCalme(page);
+    const m = await lire();
+    m.petitsChamps.forEach((c) => echecs.petitsChamps.add(`${hash} ${c}`)); m.zonesTrop.forEach((c) => echecs.zonesTrop.add(`${hash} ${c}`));
+  }
+  await aller(page, '#/crm/personnes'); await page.locator('.page-actions [data-action="nouvelle-personne"]').click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  const d = await lire('[role=dialog]');
+  d.petitsChamps.forEach((c) => echecs.petitsChamps.add(`dialogue ${c}`)); d.zonesTrop.forEach((c) => echecs.zonesTrop.add(`dialogue ${c}`));
+  expect([...echecs.petitsChamps], 'champs sous 16 px sur téléphone').toEqual([]);
+  expect([...echecs.zonesTrop], 'zones de clic sous 44 px sur téléphone').toEqual([]);
+  expect(await page.getByRole('dialog').getByLabel('Nom', { exact: true }).evaluate((el) => getComputedStyle(el, '::placeholder').color)).not.toBe('');
+  await capture(page, '2-dialogue-champs-16px', 'sombre');
+}
 
 test('3 contrastes WCAG AA (≥ 4,5) du texte, du texte secondaire, des liens, des retards et du bouton jaune en clair et en sombre ; accent jaune inchangé', { tag: '@sans-telephone' }, async () => {
   const tokens = await readFile(join(CSS, 'tokens.css'), 'utf8');
@@ -133,6 +167,10 @@ test('3 contrastes WCAG AA (≥ 4,5) du texte, du texte secondaire, des liens, d
       const a = t === '--sur-accent' && f === '--accent' ? [val(b, '--sur-accent'), '#ecbc06'] : [val(b, t), val(b, f)];
       expect(contraste(...a), `${nom} ${t} sur ${f}`).toBeGreaterThanOrEqual(4.5);
     }
+  }
+  for (const [nom, b] of [['sombre', sombre], ['clair', clair]]) {
+    for (const fond of ['--panneau2', '--panneau', '--fond']) expect(contraste(val(b, '--bordure-champ'), val(b, fond)), `${nom} contour des champs et boutons secondaires sur ${fond} (WCAG 1.4.11, 3:1)`).toBeGreaterThanOrEqual(3);
+    expect(contraste(val(b, '--placeholder'), val(b, '--panneau2')), `${nom} texte d'aide des champs`).toBeGreaterThanOrEqual(4.5);
   }
   expect(await readFile(join(CSS, 'tokens.css'), 'utf8')).toContain('--jaune: #ecbc06');
 });

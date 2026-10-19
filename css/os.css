@@ -53,7 +53,7 @@ img { max-width: 100%; }
 .bouton-principal:hover:not(:disabled) { background: var(--accent-survol); }
 /* Enregistrer sans rien à enregistrer : gris (consignes-ui.md, 2026-10-18), jamais un jaune pâle. */
 .bouton-principal[data-action^="enregistrer"]:disabled { background: var(--gris); border-color: var(--gris); color: #fff; }
-.bouton-secondaire { background: transparent; border-color: var(--bordure-forte); color: var(--texte); }
+.bouton-secondaire { background: transparent; border-color: var(--bordure-champ); color: var(--texte); }
 .bouton-secondaire:hover:not(:disabled) { border-color: var(--accent-trait); }
 .bouton-discret { background: transparent; color: var(--texte2); padding: var(--esp-2) var(--esp-4); }
 .bouton-discret:hover:not(:disabled) { color: var(--texte); background: var(--survol); }
@@ -74,11 +74,12 @@ img { max-width: 100%; }
 .champ {
   width: 100%; min-height: var(--h-ctrl); padding: var(--esp-3) var(--esp-5);
   background: var(--panneau2); color: var(--texte);
-  border: 1px solid var(--bordure); border-radius: var(--rayon-petit);
+  border: 1px solid var(--bordure-champ); border-radius: var(--rayon-petit);
   transition: border-color var(--transition), box-shadow var(--transition);
 }
 textarea.champ { resize: vertical; min-height: 64px; line-height: 1.5; }
 .champ:focus { outline: none; border-color: var(--accent-trait); box-shadow: 0 0 0 3px var(--accent-a33); }
+::placeholder { color: var(--placeholder); opacity: 1; }
 .champ.invalide, .groupe-cases.invalide { border-color: var(--retard); }
 .champ-court { width: 110px; }
 select.champ { appearance: none; background-image: linear-gradient(45deg, transparent 50%, var(--texte2) 50%), linear-gradient(135deg, var(--texte2) 50%, transparent 50%); background-position: calc(100% - 17px) 55%, calc(100% - 12px) 55%; background-size: 5px 5px; background-repeat: no-repeat; padding-right: 32px; }
@@ -191,7 +192,7 @@ body.page-connexion {
 .contenu { flex: 1; min-width: 0; outline: none; }
 
 .menu-marque { display: flex; align-items: center; justify-content: space-between; gap: var(--esp-4); height: 64px; padding: 0 var(--esp-5) 0 16px; white-space: nowrap; font: 700 16px/1 var(--police-titre); letter-spacing: -.02em; border-bottom: 1px solid var(--bordure); flex: none; }
-.menu-marque b { color: var(--jaune); font-weight: var(--poids-moyen); }
+.menu-marque b { color: var(--jaune); font-weight: 700; }
 :root[data-theme='clair'] .menu-marque b { color: var(--lien); }
 .menu-marque-nom { display: flex; align-items: center; gap: var(--esp-4); min-width: 0; overflow: hidden; }
 .menu-repli { -webkit-tap-highlight-color: transparent; position: relative; flex: none; width: 36px; height: 36px; border-radius: var(--rayon); color: var(--texte2); }
@@ -263,7 +264,7 @@ body.page-connexion {
     border-bottom: 1px solid var(--bordure);
   }
   .barre-haut-marque { display: inline-flex; align-items: center; gap: var(--esp-3); color: var(--texte); text-decoration: none; font: 700 16px/1 var(--police-titre); letter-spacing: -.02em; flex: 1; }
-  .barre-haut-marque b { color: var(--jaune); }
+  .barre-haut-marque b { color: var(--jaune); font-weight: 700; }
   :root[data-theme='clair'] .barre-haut-marque b { color: var(--lien); }
   .barre-haut .avatar { width: 30px; height: 30px; }
   .barre-haut-logo { width: 22px; height: 22px; object-fit: contain; flex: none; }
@@ -602,3 +603,16 @@ body.page-espace { background: #241b2e; color: #fff; }
 .toast .toast-action { pointer-events: auto; margin-left: var(--esp-1); padding: 2px var(--esp-4); border: 1px solid rgba(255,255,255,.5); border-radius: 999px; background: none; color: #fff; font: var(--poids-moyen) var(--fs-menu) var(--police-texte); cursor: pointer; }
 .toast .toast-action:hover, .toast .toast-action:focus-visible { background: rgba(255,255,255,.18); }
 .toast:has(.toast-action) { pointer-events: auto; }
+
+/* ---------------------------------------------------------------- téléphone et écrans tactiles (PR D)
+   1) Champs à 16 px au moins : en dessous, l'iPhone zoome sur la page quand on touche un champ.
+   2) Zones de clic de 44 px : les petits éléments gardent leur dessin, seule la zone qui reçoit le doigt grandit (pseudo-élément invisible). */
+@media (max-width: 767px), (pointer: coarse) {
+  input, select, textarea, .champ, .champ.champ-petit, .champ.champ-saisie, .champ-intelligent .champ-intelligent-saisie { font-size: max(16px, var(--fs-texte)); }
+  .champ.champ-petit, .champ.champ-saisie, .pastille-type.pastille-type, .case { min-height: 44px; }
+  .td-segment button { min-height: 44px; }
+  .bouton-icone, .menu-repli, .carte-menu, .prop-modifier, .case-fait, .bouton-copier, .bouton-info, .pastille-retrait { position: relative; }
+  .bouton-icone::after, .menu-repli::after, .carte-menu::after, .prop-modifier::after, .case-fait::after, .bouton-copier::after, .bouton-info::after, .pastille-retrait::after {
+    content: ''; position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; transform: translate(-50%, -50%);
+  }
+}

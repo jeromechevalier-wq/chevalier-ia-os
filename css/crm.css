@@ -181,7 +181,7 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
   .tri { padding: var(--esp-2) var(--esp-5); }
   .tableau tr.ligne-liste { display: grid; grid-template-columns: 1fr 1fr; gap: var(--esp-3) var(--esp-5); padding: var(--esp-6) var(--esp-7); margin-top: var(--esp-4); background: var(--panneau); border: 1px solid var(--bordure); border-radius: var(--rayon-carte); position: relative; }
   .tableau td { display: block; padding: 0; border: 0; min-width: 0; overflow-wrap: anywhere; }
-  .tableau td[data-libelle]::before { content: attr(data-libelle); display: block; font: var(--poids-moyen) 10px/1.4 var(--police-texte); letter-spacing: .14em; text-transform: uppercase; color: var(--texte2); margin-bottom: 2px; }
+  .tableau td[data-libelle]::before { content: attr(data-libelle); display: block; font: var(--poids-moyen) var(--fs-micro)/1.4 var(--police-texte); letter-spacing: .14em; text-transform: uppercase; color: var(--texte2); margin-bottom: 2px; }
   .tableau td:first-child { grid-column: 1 / -1; }
   .tableau td:first-child::before { display: none; }
   .tableau td:empty { display: none; }
@@ -279,7 +279,7 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 .fiche-tete { display: flex; flex-direction: column; gap: var(--esp-5); }
 .fiche-tete-ligne { display: flex; align-items: center; gap: var(--esp-6); flex-wrap: wrap; }
 .fiche-titre { flex: 1 1 280px; min-width: 0; display: flex; flex-direction: column; gap: var(--esp-2); }
-.titre-editable { width: 100%; font: var(--poids-moyen) var(--fs-page)/1.2 var(--police-titre); letter-spacing: -.03em; color: var(--texte); background: transparent; border: 1px solid transparent; border-radius: var(--rayon); padding: 2px var(--esp-3); margin-left: -8px; }
+.titre-editable { width: 100%; font: var(--poids-moyen) var(--fs-page)/1.2 var(--police-titre); letter-spacing: -.03em; color: var(--texte); background: transparent; border: 1px solid transparent; border-radius: var(--rayon); padding: 2px var(--esp-3); margin-left: calc(-1 * var(--esp-3)); }
 .titre-editable:hover { border-color: var(--bordure); }
 .titre-editable:focus { outline: none; border-color: var(--accent-trait); background: var(--panneau); }
 .fiche-sous { display: flex; align-items: center; gap: var(--esp-5); flex-wrap: wrap; color: var(--texte2); font-size: var(--fs-texte); }
@@ -393,7 +393,7 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 .dialogue.dialogue-journal { width: min(820px, 100%); }
 .journal-detail { display: flex; flex-direction: column; gap: var(--esp-5); }
 .journal-entete { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: var(--esp-3) var(--esp-7); margin: 0; }
-.journal-entete dt { font: var(--poids-moyen) 10px/1.4 var(--police-texte); letter-spacing: .14em; text-transform: uppercase; color: var(--texte2); }
+.journal-entete dt { font: var(--poids-moyen) var(--fs-micro)/1.4 var(--police-texte); letter-spacing: .14em; text-transform: uppercase; color: var(--texte2); }
 .journal-entete dd { margin: 0; overflow-wrap: anywhere; }
 .journal-ligne { border: 1px solid var(--bordure); border-radius: var(--rayon-petit); padding: var(--esp-3) var(--esp-5); }
 .journal-ligne summary { cursor: pointer; }

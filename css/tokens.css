@@ -95,8 +95,10 @@
   --survol: #36353a;
   --texte: #ececee;
   --texte2: #b0aeb3;
-  --bordure: #ffffff14;
-  --bordure-forte: #ffffff29;
+  --bordure: #ffffff1a;
+  --bordure-forte: #ffffff33;
+  --bordure-champ: #7a787f; /* contour des champs et boutons secondaires : au moins 3:1 (WCAG 1.4.11) */
+  --placeholder: #9b99a0;   /* texte d'aide dans les champs : au moins 4,5:1 */
   --accent: var(--jaune);
   --sur-accent: #29292c;
   --lien: var(--jaune);
@@ -118,8 +120,10 @@
   --survol: #efeee9;
   --texte: #29292c;
   --texte2: #69696d;
-  --bordure: #e3e3dd;
-  --bordure-forte: #cbcbc4;
+  --bordure: #dcdcd6;
+  --bordure-forte: #c4c4bd;
+  --bordure-champ: #7f7f79;
+  --placeholder: #66656b;
   --accent: var(--jaune);
   --sur-accent: #29292c;
   --lien: #7a5f00;
