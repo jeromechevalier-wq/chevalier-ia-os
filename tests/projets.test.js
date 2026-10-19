@@ -912,16 +912,24 @@ describe('B33 Factures du projet (2.2) : liste, paiements partiels, blocage de l
     assert.deepEqual(P.totauxFactures(p), { facture: 1000, paye: 600, aPayer: 400, abandonne: 0 });
     assert.equal(P.facturesAPayer(p).length, 1);
   });
-  test('B33 marquer payée : date du jour par défaut, montant corrigé si le client a payé autre chose, un encaissement ; deux fois = sans effet', () => {
+  test('B33 marquer payée : date du jour par défaut, un encaissement ; deux fois = sans effet ; une facture se paie en entier (un autre montant est refusé, le montant exact est accepté)', () => {
     const p = avec(f({ dateEnvoi: '2026-10-10' }));
-    const plan = P.planMarquerFacturePayee(p, 'f1', { montant: 280 }, c());
-    assert.deepEqual([plan.facture.statut, plan.facture.montant, plan.facture.datePaiement], ['payee', 280, '2026-10-20']);
+    const plan = P.planMarquerFacturePayee(p, 'f1', {}, c());
+    assert.deepEqual([plan.facture.statut, plan.facture.montant, plan.facture.datePaiement], ['payee', 300, '2026-10-20']);
     assert.deepEqual(plan.evenements.map((e) => e.type), ['encaissement']);
-    assert.match(plan.evenements[0].texte, /280/);
+    assert.match(plan.evenements[0].texte, /300/);
     const deja = P.planMarquerFacturePayee(appliquer(p, plan), 'f1', {}, c());
     assert.deepEqual(deja.ecritures, []);
     assert.ok(P.planMarquerFacturePayee(p, 'f1', { datePaiement: '2026-10-01' }, c()).erreurs.datePaiement, 'avant l’envoi');
     assert.ok(P.planMarquerFacturePayee(p, 'nope', {}, c()).erreurs.facture);
+    // 1.1 paiement partiel : refusé avec un message clair, rien n'est écrit
+    const partiel = P.planMarquerFacturePayee(p, 'f1', { montant: 280 }, c());
+    assert.match(partiel.erreurs.montant, /280.*300.*se paie en entier/s);
+    assert.deepEqual(partiel.ecritures, []);
+    assert.ok(P.planMarquerFacturePayee(p, 'f1', { montant: 'abc' }, c()).erreurs.montant, 'un montant illisible est refusé aussi');
+    // le montant exact (virgule acceptée) passe
+    assert.equal(P.planMarquerFacturePayee(p, 'f1', { montant: '300,00' }, c()).facture.statut, 'payee');
+    assert.equal(P.planMarquerFacturePayee(p, 'f1', { montant: 300 }, c()).facture.montant, 300);
   });
   test('B33 modifier : libellé, montant, date d’envoi ; une facture abandonnée ne se modifie pas ; sans changement, rien n’est écrit', () => {
     const p = avec(f(), f({ id: 'f2', statut: 'abandonnee', raison: 'x' }));
@@ -930,6 +938,15 @@ describe('B33 Factures du projet (2.2) : liste, paiements partiels, blocage de l
     assert.deepEqual(P.planModifierFacture(p, 'f1', { montant: 300 }, c()).ecritures, []);
     assert.ok(P.planModifierFacture(p, 'f1', { montant: 0 }, c()).erreurs.montant);
     assert.ok(P.planModifierFacture(p, 'f2', { montant: 10 }, c()).erreurs.facture);
+  });
+  test('B33 une facture payée garde sa date de paiement : la vider est refusé (sinon elle sortirait du chiffre d’affaires), la changer reste possible', () => {
+    const p = avec(f({ statut: 'payee', datePaiement: '2026-10-15' }));
+    assert.match(P.planModifierFacture(p, 'f1', { datePaiement: '' }, c()).erreurs.datePaiement, /garde sa date/);
+    assert.match(P.planModifierFacture(p, 'f1', { datePaiement: null }, c()).erreurs.datePaiement, /garde sa date/);
+    const ok = P.planModifierFacture(p, 'f1', { datePaiement: '2026-10-18' }, c());
+    assert.deepEqual(ok.erreurs, {});
+    assert.equal(ok.facture.datePaiement, '2026-10-18');
+    assert.deepEqual(P.planModifierFacture(avec(f()), 'f1', { montant: 350 }, c()).erreurs, {}, 'une facture À payer n’a pas de date de paiement : rien à exiger');
   });
   test('B33 la Clôture est bloquée tant qu’une facture est À payer : « Terminer » et le passage en phase Clôture, avec le message qui nomme les factures', () => {
     const p = avec(f({ libelle: 'Solde 40 %', montant: 400 }), f({ id: 'f2', statut: 'payee', datePaiement: '2026-10-01' }));
@@ -988,6 +1005,21 @@ describe('B33 Factures du projet (2.2) : liste, paiements partiels, blocage de l
     const fin = P.planTerminerProjet(cl, c('2026-12-01T10:00:00Z'));
     assert.deepEqual(fin.erreurs, {});
     assert.equal(P.aUnImpaye({ ...cl, ...fin.patch }), false);
+  });
+  test('B33 projet terminé : ni ajouter une facture À payer ni remettre une facture à payer (« rouvre-le d’abord ») ; payer, abandonner et ajouter une facture déjà payée restent possibles ; après Rouvrir, tout est permis', () => {
+    const p = avec(f({ id: 'f1', statut: 'payee', datePaiement: '2026-10-15' }), f({ id: 'f2', statut: 'abandonnee', raison: 'x' }));
+    const termine = { ...p, statut: 'termine', archive: true };
+    assert.match(P.planAjouterFacture(termine, { montant: 100 }, c()).erreurs.projet, /rouvre-le d.abord/);
+    assert.match(P.planRemettreFactureAPayer(termine, 'f1', c()).erreurs.projet, /rouvre-le d.abord/);
+    assert.match(P.planRemettreFactureAPayer(termine, 'f2', c()).erreurs.projet, /rouvre-le d.abord/);
+    assert.deepEqual(P.planAjouterFacture(termine, { montant: 100, datePaiement: '2026-10-18' }, c()).erreurs, {}, 'une facture déjà payée n’est pas un impayé');
+    const rouvert = appliquer(termine, P.planRouvrirProjet(termine, c()));
+    assert.deepEqual(P.planAjouterFacture(rouvert, { montant: 100 }, c()).erreurs, {});
+    assert.deepEqual(P.planRemettreFactureAPayer(rouvert, 'f1', c()).erreurs, {});
+    // « Clôture bloquée » éteinte : un projet terminé peut garder une facture à payer, qu'on peut encore payer ou abandonner
+    const garde = { ...termine, factures: [f({ id: 'f3' })] };
+    assert.deepEqual(P.planMarquerFacturePayee(garde, 'f3', {}, c()).erreurs, {});
+    assert.deepEqual(P.planAbandonnerFacture(garde, 'f3', 'client parti', c()).erreurs, {});
   });
   test('B33 supprimer une facture : elle sort de la liste, un événement', () => {
     const p = avec(f(), f({ id: 'f2' }));

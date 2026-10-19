@@ -302,8 +302,9 @@ const ACTIONS_PAR_LOT = 130;
 export async function executer(ecritures, outil = 'ecran') {
   if (!ecritures.length) return;
   const avants = await lireAvants(ecritures);
+  const operationId = doc(collection(db, chemin('crm_audit'))).id;
   const audit = L.construireAudit(ecritures, avants, {
-    acteur: compte?.email || '', outil, operationId: doc(collection(db, chemin('crm_audit'))).id, maintenant: new Date(),
+    acteur: compte?.email || '', outil, operationId, maintenant: new Date(),
     horodatage: serverTimestamp(), nouvelId: (nom) => doc(collection(db, chemin(nom))).id,
   });
   for (let i = 0; i < ecritures.length; i += ACTIONS_PAR_LOT) {
@@ -312,7 +313,19 @@ export async function executer(ecritures, outil = 'ecran') {
       ecrireDansLot(lot, ecritures[k]);
       audit[k].forEach((a) => ecrireDansLot(lot, a));
     }
-    await lot.commit();
+    try {
+      await lot.commit();
+    } catch (e) {
+      if (i === 0) throw e; // le premier lot est atomique : rien n'a été écrit, l'opération n'a pas eu lieu
+      // Des lots précédents sont déjà écrits : l'opération est à moitié faite. Le Journal le dit (ligne « echec »), l'écran aussi.
+      await setDoc(doc(collection(db, chemin('crm_audit'))), {
+        operationId, ordre: ecritures.length + 1, acteur: compte?.email || '', jeton: L.CANAL_ECRAN, via: L.CANAL_ECRAN, outil,
+        collection: 'crm_audit', docId: operationId, action: 'echec', statut: 'echec', champsModifies: [], parametresRecus: [], date: serverTimestamp(),
+      }).catch((e2) => console.warn(e2));
+      const incomplete = new Error(`L’opération s’est arrêtée à moitié (${i} actions faites sur ${ecritures.length}). Recommence-la pour la terminer.`, { cause: e });
+      incomplete.saisie = true;
+      throw incomplete;
+    }
   }
 }
 

@@ -20,10 +20,9 @@ async function ou(action, defaut) {
 /** Chiffre d'affaires encaissé du mois courant (avant/après un paiement : compteur de la célébration). */
 const encaisseDuMois = () => L.CALCULS.ca_encaisse.calculer({ affaires: CRM.etat.affaires, projets: D.etat.projets }, L.moisCourant());
 
-/** Marque une facture payée (date et montant proposés, modifiables) puis célèbre le paiement. Rend true quand c'est fait. */
+/** Marque une facture payée (date proposée, modifiable ; une facture se paie en entier) puis célèbre le paiement. Rend true quand c'est fait. */
 export async function marquerPayee(p, f) {
   const date = h('input', { class: 'champ', type: 'date', 'aria-label': 'Date du paiement', value: aujourdhui(), autofocus: true });
-  const montant = h('input', { class: 'champ', type: 'number', min: '0', step: '0.01', inputmode: 'decimal', 'aria-label': 'Montant reçu en euros', value: f.montant });
   const erreur = h('p', { class: 'erreur', role: 'alert' });
   let reussi = false;
   const avant = encaisseDuMois();
@@ -31,19 +30,19 @@ export async function marquerPayee(p, f) {
     titre: `Facture payée : ${P.libelleFacture(f)}`,
     contenu: h('div', { class: 'pile' },
       h('label', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Date du paiement'), date),
-      h('label', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Montant reçu (€)'), montant),
+      h('p', { class: 'aide' }, `Montant de la facture : ${L.formatEuros(f.montant)}. Une facture se paie en entier.`),
       erreur),
     boutons: [{ libelle: 'Annuler', valeur: false }, {
       libelle: 'Encaisser', valeur: true, style: 'principal',
       avantFermeture: async () => {
-        const plan = await ou(() => D.marquerFacturePayee(p.id, f.id, { datePaiement: date.value, montant: montant.value }), 'Paiement impossible');
+        const plan = await ou(() => D.marquerFacturePayee(p.id, f.id, { datePaiement: date.value }), 'Paiement impossible');
         if (!plan) return false;
         if (Object.keys(plan.erreurs || {}).length) { erreur.textContent = premiereErreur(plan.erreurs); return false; }
         reussi = true;
         return true;
       },
     }],
-    auMontage: ({ boutons }) => [date, montant].forEach((c) => c.addEventListener('keydown', (e) => { if (e.key === 'Enter') boutons.at(-1).click(); })),
+    auMontage: ({ boutons }) => [date].forEach((c) => c.addEventListener('keydown', (e) => { if (e.key === 'Enter') boutons.at(-1).click(); })),
   });
   if (!r || !reussi) return false;
   toast('Paiement enregistré');
@@ -117,7 +116,9 @@ async function retirer(p, f) {
 
 async function remettre(p, f) {
   const plan = await ou(() => D.remettreFactureAPayer(p.id, f.id), 'Changement impossible');
-  if (plan && !Object.keys(plan.erreurs || {}).length) toast('Facture remise à payer');
+  if (!plan) return;
+  if (Object.keys(plan.erreurs || {}).length) { toast(premiereErreur(plan.erreurs), { type: 'erreur' }); return; }
+  toast('Facture remise à payer');
 }
 
 function menuFacture(p, f) {

@@ -1745,8 +1745,8 @@ export function planSupprimerPersonne({ personneId, choix, affaires, liens = [],
     if (l.projetId) { // fil d'un projet : gardé, ses liens vers ce qui disparaît sont vidés
       detachements.push(...modifierSiPatch(l.collection, l.id, liensVides(l, { affaireIds: supprimees, personneId })));
     } else if (supprimees.has(l.affaireId)) suppressions.push(ecritureSupprimer(l.collection, l.id)); // fil d'une affaire supprimée
-    else if (l.personneId === personneId && gardees.has(l.affaireId)) detachements.push(ecritureModifier(l.collection, l.id, { personneId: null }));
-    else if (l.personneId === personneId) suppressions.push(ecritureSupprimer(l.collection, l.id));
+    else if (l.personneId === personneId && l.affaireId) detachements.push(ecritureModifier(l.collection, l.id, { personneId: null })); // fil d'une affaire qui reste (même réattribuée à quelqu'un d'autre) : gardé
+    else if (l.personneId === personneId) suppressions.push(ecritureSupprimer(l.collection, l.id)); // fil de la personne seule
   }
   for (const aid of supprimees) suppressions.push(ecritureSupprimer(C.affaires, aid));
   suppressions.push(ecritureSupprimer(C.personnes, personneId));
@@ -1777,7 +1777,10 @@ export function planSupprimerOrganisation({ organisationId, personnes, affaires,
     ...detacherProjets(projets, { organisationId }),
     ...siens.filter((l) => l.projetId).flatMap((l) => modifierSiPatch(l.collection, l.id, liensVides(l, { organisationId }))),
   ];
-  const suppressions = siens.filter((l) => !l.projetId).map((l) => ecritureSupprimer(l.collection, l.id));
+  // Ce qui porte encore une personne ou une affaire (qui ont quitté l'organisation) est gardé : on le détache ; seul le fil de l'organisation seule est supprimé.
+  const sansProjet = siens.filter((l) => !l.projetId);
+  detachements.push(...sansProjet.filter((l) => l.personneId || l.affaireId).map((l) => ecritureModifier(l.collection, l.id, { organisationId: null })));
+  const suppressions = sansProjet.filter((l) => !l.personneId && !l.affaireId).map((l) => ecritureSupprimer(l.collection, l.id));
   return { ecritures: [...detachements, ...suppressions, ecritureSupprimer(C.organisations, organisationId)] };
 }
 

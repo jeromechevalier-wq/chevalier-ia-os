@@ -701,8 +701,11 @@ describe('Outils des projets : mêmes règles que l’écran, avec audit et rest
     ok(await s.appeler('biblio', 'ajouter_facture', { projetId: id, montant: 400, libelle: 'Solde 40 %' }));
     assert.deepEqual(s.doc('projets_projets', id).factures.map((f) => [f.libelle, f.montant, f.statut]), [['Acompte 30 %', 300, 'a_payer'], ['En cours 30 %', 300, 'a_payer'], ['Solde 40 %', 400, 'a_payer']]);
     ok(await s.appeler('biblio', 'marquer_facture_payee', { projetId: id, factureId: f1.factureId, datePaiement: '2026-10-04' }));
-    ok(await s.appeler('biblio', 'marquer_facture_payee', { projetId: id, factureId: f2.factureId, montant: 250 }));
-    assert.deepEqual(s.doc('projets_projets', id).factures.map((f) => [f.statut, f.montant]), [['payee', 300], ['payee', 250], ['a_payer', 400]]);
+    // une facture se paie en entier : un autre montant est refusé (message clair), rien n'est écrit ; le montant exact passe
+    refuse(await s.appeler('biblio', 'marquer_facture_payee', { projetId: id, factureId: f2.factureId, montant: 250 }), /se paie en entier/);
+    assert.deepEqual(s.doc('projets_projets', id).factures.map((f) => [f.statut, f.montant]), [['payee', 300], ['a_payer', 300], ['a_payer', 400]]);
+    ok(await s.appeler('biblio', 'marquer_facture_payee', { projetId: id, factureId: f2.factureId, montant: 300 }));
+    assert.deepEqual(s.doc('projets_projets', id).factures.map((f) => [f.statut, f.montant]), [['payee', 300], ['payee', 300], ['a_payer', 400]]);
     assert.equal(ok(await s.appeler('biblio', 'marquer_facture_payee', { projetId: id, factureId: f1.factureId })).rien, true);
     assert.equal(s.collections.crm_evenements.filter((e) => e.type === 'encaissement' && e.projetId === id).length, 2);
     // clôture refusée : message de l'écran + factures nommées

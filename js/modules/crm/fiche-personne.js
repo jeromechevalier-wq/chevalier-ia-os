@@ -40,7 +40,7 @@ export async function demanderSuppressionPersonne(p) {
     return true;
   } catch (e) {
     console.warn(e);
-    toast('Suppression impossible', { type: 'erreur' });
+    toast(e?.saisie ? e.message : 'Suppression impossible', { type: 'erreur' });
     return false;
   }
 }
