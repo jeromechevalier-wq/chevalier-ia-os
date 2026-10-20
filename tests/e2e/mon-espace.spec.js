@@ -36,8 +36,15 @@ test.beforeEach(async ({ page }) => {
 /** Capture de l'écran (page entière) dans le dossier des captures ; le format téléphone porte « -tel ». */
 async function capturer(page, nom, { fenetre = false, element = null } = {}) {
   const chemin = join(DOSSIER_CAPTURES, `${nom}${estTelephone(page) ? '-tel' : ''}.png`);
-  if (element) await element.screenshot({ path: chemin }); // un bloc seul, lisible
-  else await page.screenshot({ path: chemin, fullPage: !fenetre }); // fenetre : ce qu'on voit à l'écran (les messages en bas, comme « Retiré · Annuler »)
+  if (element) {
+    // Un bloc seul, lisible. L'écran se redessine quand Firestore renvoie les réglages : l'élément peut être remplacé pendant la prise de vue
+    // (« Element is not attached to the DOM »). On attend qu'il soit de nouveau là, puis on reprend (2 reprises au plus), sans délai fixe.
+    for (let essai = 0; ; essai++) {
+      try { await element.waitFor({ state: 'visible' }); await element.screenshot({ path: chemin }); break; } catch (e) {
+        if (essai >= 2 || !/not attached to the DOM/.test(String(e?.message))) throw e;
+      }
+    }
+  } else await page.screenshot({ path: chemin, fullPage: !fenetre }); // fenetre : ce qu'on voit à l'écran (les messages en bas, comme « Retiré · Annuler »)
 }
 
 async function ouvrir(page, reste = 'reglages', { client = 'studio', email = ALICE } = {}) {
