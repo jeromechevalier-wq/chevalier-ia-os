@@ -19,8 +19,10 @@ const afficheurs = new Map(); // fiche → fonction qui redessine le formulaire 
 /**
  * - id : identifiant de la section (data-section) ; typeFiche : 'projet' | 'affaire'
  * - courant() : la fiche à jour ; enregistrer(patch) : l'écrit
+ * - enOnglet : renvoie { element, compteur } pour l'onglet « Documents » de la fiche (au lieu d'une section repliable) ;
+ *   `avant` : éléments mis au-dessus de la liste (le dossier de travail), `apres` : au-dessous (les documents de l'affaire, sur un projet).
  */
-export function sectionLiensEtDocuments({ id, typeFiche, entite, courant, enregistrer }) {
+export function sectionLiensEtDocuments({ id, typeFiche, entite, courant, enregistrer, enOnglet = false, avant = [], apres = [] }) {
   const cle = `${typeFiche}:${entite.id}`;
   const liens = L.liensEtDocuments(entite);
   const google = googleDisponible();
@@ -101,7 +103,7 @@ export function sectionLiensEtDocuments({ id, typeFiche, entite, courant, enregi
         // Pas de dossier de travail : un message d'information, rien d'autre (aucune création, aucune fenêtre Google).
         await dialogue({
           titre: 'Pas de dossier de travail',
-          contenu: h('p', {}, 'Cette fiche n’a pas de dossier de travail : on ne peut pas y ajouter de document. Crée ou relie d’abord le dossier de travail de cette fiche (bloc Détails).'),
+          contenu: h('p', {}, 'Cette fiche n’a pas de dossier de travail : on ne peut pas y ajouter de document. Crée ou relie d’abord le dossier de travail de cette fiche (bloc « Dossier de travail de cette fiche », en haut de cet onglet).'),
           boutons: [{ libelle: 'Fermer', valeur: null, style: 'principal' }],
         });
         return;
@@ -176,6 +178,15 @@ export function sectionLiensEtDocuments({ id, typeFiche, entite, courant, enregi
     icone('link', { taille: 14 }), 'Ajouter un lien web');
   afficherFormulaire();
 
+  if (enOnglet) {
+    return {
+      compteur: liens.length,
+      element: h('div', { class: 'pile', dataset: { section: id } }, ...avant,
+        h('div', { class: 'onglet-documents-tete' }, h('h2', { class: 'sous-titre' }, 'Liens et documents'), iconeInfo(EXPLICATION, 'Liens et documents')),
+        liste, liens.length ? null : h('p', { class: 'aide', dataset: { role: 'aucun-document' } }, 'Aucun document ni lien pour le moment.'),
+        h('div', { class: 'boutons-liens' }, boutonGoogle, boutonLien), zoneFormulaire, ...apres),
+    };
+  }
   return sectionRepliable({
     id, titre: 'Liens et documents', compteur: liens.length, actions: [iconeInfo(EXPLICATION, 'Liens et documents')],
     contenu: h('div', { class: 'pile' }, liste, h('div', { class: 'boutons-liens' }, boutonGoogle, boutonLien), zoneFormulaire),

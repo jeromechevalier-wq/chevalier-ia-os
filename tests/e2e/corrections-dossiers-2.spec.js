@@ -2,7 +2,7 @@
 //  P1 tâches : mêmes gestes que les activités (clic sur la date) ; P2 « Supprimé · Annuler » 8 s pour chaque retrait réversible ;
 //  P3 « Ajouter un document » sans dossier de travail : un message, rien d'autre ; P4 libellé « Dossier de travail de cette fiche » ;
 //  P5 fichier importé : case grisée et cochée (reconnu par Drive).
-import { test, expect, attendreCalme, connecter, allerAuxReglagesCrm, creerProjet, creerAffaire, creerPersonne, creerOrganisation, creerTacheProjet, creerActivite, lireDocument, ecrireDocument, listerDocuments, jour, JEROME } from './outils.js';
+import { test, expect, attendreCalme, connecter, allerAuxReglagesCrm, creerProjet, creerAffaire, creerPersonne, creerOrganisation, creerTacheProjet, creerActivite, lireDocument, ecrireDocument, listerDocuments, jour, JEROME , ouvrirDocumentsSiPresent } from './outils.js';
 import { brancherGoogle, lireGoogle, choisirDansGoogle, PARENT } from './google-simule.js';
 
 const dialogue = (page) => page.getByRole('dialog');
@@ -14,7 +14,7 @@ async function capturer(page, nom, cible = null) {
     try { await page.waitForTimeout(350); /* fin des animations d'ouverture des fenêtres */ if (cible) await cible.screenshot({ path: fichier, animations: 'disabled' }); else await page.screenshot({ path: fichier, animations: 'disabled' }); return; } catch (e) { if (essai >= 5) throw e; await page.waitForTimeout(300); }
   }
 }
-async function aller(page, hash) { await page.evaluate((h) => { location.hash = h; }, hash); await attendreCalme(page); }
+async function aller(page, hash) { await page.evaluate((h) => { location.hash = h; }, hash); await attendreCalme(page); await ouvrirDocumentsSiPresent(page); } // ces tests parlent des documents : l'onglet « Documents » est ouvert d'office
 async function champDoc(collection, id, cle, attendu) {
   await expect.poll(async () => (await lireDocument(`${collection}/${id}`))?.[cle], { timeout: 10_000 }).toEqual(attendu);
 }
@@ -256,7 +256,7 @@ for (const [libelle, hash, collection, id, creer] of [
     await connecter(page);
     await aller(page, hash);
     await page.locator('[data-action="ajouter-document-google"]').click();
-    await expect(dialogue(page)).toContainText('Cette fiche n’a pas de dossier de travail : on ne peut pas y ajouter de document. Crée ou relie d’abord le dossier de travail de cette fiche (bloc Détails).');
+    await expect(dialogue(page)).toContainText('Cette fiche n’a pas de dossier de travail : on ne peut pas y ajouter de document. Crée ou relie d’abord le dossier de travail de cette fiche (bloc « Dossier de travail de cette fiche », en haut de cet onglet).');
     const boutons = dialogue(page).locator('.dialogue-pied button');
     await expect(boutons).toHaveCount(1);
     await expect(boutons).toHaveText('Fermer');

@@ -30,19 +30,19 @@ test('F1 la bande des étapes (affaire) et des phases (projet) n\'est plus cliqu
   await expect(page.locator('.barre-etapes-fiche .etape.courante')).toHaveText('Livraison');
 });
 
-test('F2 même ordre des sections sur les deux fiches : Résumé, (Tâches, Factures : projets), Liens et documents, puis Détails', async ({ page }) => {
+test('F2 même ordre sur les deux fiches : colonne de gauche Résumé, (Tâches : projets), Détails (affaire seulement) ; « Documents » est le troisième onglet à droite, après Activité et Notes, sur les deux', async ({ page }) => {
   await creerAffaire('a1', { titre: 'Audit des Lilas' });
   await creerProjet('pr1', { titre: 'Refonte site' });
   await connecter(page);
   await aller(page, '#/crm/affaires/a1');
-  await expect(page.locator('[data-section="affaire-documents"]')).toBeVisible();
-  expect(await dessus(page, 'affaire-resume', 'affaire-documents')).toBe(true);
-  expect(await dessus(page, 'affaire-documents', 'affaire-details')).toBe(true);
+  await expect(page.locator('.compositeur [role="tab"]')).toHaveText([/Activité/, /Notes/, /Documents/]);
+  await expect(page.locator('[data-section="affaire-details"]')).toBeVisible();
+  expect(await dessus(page, 'affaire-resume', 'affaire-details')).toBe(true);
   await aller(page, '#/projets/projets/pr1');
-  await expect(page.locator('[data-section="projet-documents"]')).toBeVisible();
+  await expect(page.locator('.compositeur [role="tab"]')).toHaveText([/Activité/, /Notes/, /Documents/]);
+  await expect(page.locator('[data-section="projet-taches"]')).toBeVisible();
   expect(await dessus(page, 'projet-resume', 'projet-taches')).toBe(true);
-  expect(await dessus(page, 'projet-taches', 'projet-documents')).toBe(true);
-  expect(await dessus(page, 'projet-documents', 'projet-details')).toBe(true);
+  await expect(page.locator('[data-section="projet-details"]')).toHaveCount(0); // le dossier de travail est passé dans l'onglet Documents : plus de « Détails » sur le projet
   void estTelephone;
 });
 

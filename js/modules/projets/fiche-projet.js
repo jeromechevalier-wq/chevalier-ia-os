@@ -1,4 +1,4 @@
-// Fiche d'un projet : barre des phases, résumé, détails (dossier de travail), liens et documents ; notes et historique à droite.
+// Fiche d'un projet : barre des phases, résumé, tâches, factures ; à droite : activité, notes et documents (onglets, avec le dossier de travail), points clés, historique.
 import { h, icone, remplir, ouvrirMenu, toast, confirmer } from '../../os/ui.js';
 import * as CRM from '../crm/donnees.js';
 import * as L from '../crm/logique.js';
@@ -136,10 +136,6 @@ export function rendreFicheProjet(conteneur, id) {
       fiche: p, typeFiche: 'projet', nomSuggere: p.titre,
       enregistrer: (patch) => D.majProjet(p.id, patch),
     });
-    const details = sectionRepliable({ id: 'projet-details', titre: 'Détails', contenu: h('div', { class: 'proprietes' }, lanceurs.dossier) });
-
-    // ---- Liens et documents : composant commun aux projets et aux affaires (liens web, documents choisis dans la fenêtre Google, notes).
-    const sectionDocuments = sectionLiensEtDocuments({ id: 'projet-documents', typeFiche: 'projet', entite: p, courant: () => D.projet(p.id) || p, enregistrer: (patch) => D.majProjet(p.id, patch) });
 
     // ---- Tâches
     const taches = sectionTaches(p);
@@ -151,14 +147,16 @@ export function rendreFicheProjet(conteneur, id) {
 
     // ---- Documents de l'affaire : montrés ici, pas déplacés (ils restent sur l'affaire)
     const documentsAffaire = aff?.documents || [];
-    const sectionDocumentsAffaire = aff && documentsAffaire.length ? sectionRepliable({
-      id: 'projet-documents-affaire', titre: 'Documents de l’affaire', compteur: documentsAffaire.length,
-      contenu: h('div', { class: 'pile' },
-        h('p', { class: 'aide' }, 'Ces documents restent sur l’affaire : ', lienAffaire(aff), '.'),
-        h('ul', { class: 'liste-simple' }, documentsAffaire.map((d, i) => h('li', { class: 'ligne-simple' }, icone('link', { taille: 14 }),
-          boutonEtoile({ favori: d.favori === true, libelle: d.libelle, surBascule: () => CRM.majAffaire(aff.id, L.basculerFavoriDocument(aff, i)) }),
-          h('a', { href: d.url, target: '_blank', rel: 'noopener noreferrer' }, d.libelle))))),
-    }) : null;
+    const sectionDocumentsAffaire = aff && documentsAffaire.length ? h('div', { class: 'pile', dataset: { section: 'projet-documents-affaire' } },
+      h('div', { class: 'onglet-documents-tete' }, h('h2', { class: 'sous-titre' }, 'Documents de l’affaire'), h('span', { class: 'section-compteur' }, String(documentsAffaire.length))),
+      h('p', { class: 'aide' }, 'Ces documents restent sur l’affaire : ', lienAffaire(aff), '.'),
+      h('ul', { class: 'liste-simple' }, documentsAffaire.map((d, i) => h('li', { class: 'ligne-simple' }, icone('link', { taille: 14 }),
+        boutonEtoile({ favori: d.favori === true, libelle: d.libelle, surBascule: () => CRM.majAffaire(aff.id, L.basculerFavoriDocument(aff, i)) }),
+        h('a', { href: d.url, target: '_blank', rel: 'noopener noreferrer' }, d.libelle))))) : null;
+    // Documents : onglet à droite (à côté d'Activité et Notes), avec le dossier de travail et, plus bas, les documents de l'affaire liée.
+    // (Le projet n'a plus de section « Détails » : le dossier de travail était son seul contenu.)
+    const documents = sectionLiensEtDocuments({ id: 'projet-documents', typeFiche: 'projet', entite: p, courant: () => D.projet(p.id) || p, enregistrer: (patch) => D.majProjet(p.id, patch),
+      enOnglet: true, avant: [h('div', { class: 'proprietes' }, lanceurs.dossier)], apres: [sectionDocumentsAffaire] });
 
     // Le panneau suit l'affaire liée : il est refait quand le projet est lié ou détaché.
     if (panneau && panneauAffaireId !== (p.affaireId || null)) { panneau.arreter(); panneau = null; }
@@ -166,11 +164,13 @@ export function rendreFicheProjet(conteneur, id) {
       panneauAffaireId = p.affaireId || null;
       panneau = panneauActivite({
         lien: { projetId: p.id }, liensCreation: () => P.liensProjet(D.projet(p.id) || p),
+        avecDocuments: true,
         typesActivite: ['appel', 'rendez_vous', 'email'], // pas de « Tâche » libre : un projet a sa section Tâches
         affaireLiee: panneauAffaireId ? { affaireId: panneauAffaireId, fusionnerNotes: (notes, notesAffaire) => P.notesDuProjet(notes, notesAffaire, p.id) } : null,
       });
     }
-    remplir(racine, gabaritFiche({ entete, gauche: [description, resume.element, taches.element, factures?.element, sectionDocuments.element, details.element, sectionDocumentsAffaire?.element].filter(Boolean), droite: panneau.element }));
+    panneau.majDocuments(documents);
+    remplir(racine, gabaritFiche({ entete, gauche: [description, resume.element, taches.element, factures?.element].filter(Boolean), droite: panneau.element }));
   }
 
   function reconstruire() {

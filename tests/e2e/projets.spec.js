@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 // Tests C : écran Projets (étape 2 : Kanban par phase, liste, fiche), formats 1440 × 900 et 390 × 844.
 import {
   test, expect, connecter, allerA, allerAuxReglagesCrm, creerPersonne, creerOrganisation, creerAffaire, creerProjet, creerTacheProjet, creerActivite, lireDocument, listerDocuments, ecrireDocument,
-  jour, estTelephone, valeurObjectif, JEROME,
+  jour, estTelephone, valeurObjectif, JEROME, ouvrirDocuments,
 } from './outils.js';
 
 // Les scénarios de ce fichier sont indépendants (chacun repart d'une base vide) : ils se répartissent sur plusieurs workers.
@@ -194,6 +194,7 @@ test('C29 fiche : titre, dates (la fin ne précède pas le début), dossier de t
   await expect(page.locator('[data-champ="github"], [data-action="creer-github"]')).toHaveCount(0);
   await expect(page.locator('[data-champ="dossier"]')).toHaveCount(0); // plus de champ pour coller une adresse : une adresse web va dans « Liens et documents »
   // Liens et documents (la section s'appelait « Documents »)
+  await ouvrirDocuments(page);
   await expect(page.locator('[data-section="projet-documents"]')).toContainText('Liens et documents');
   await page.locator('[data-action="ajouter-lien"]').click();
   await page.getByLabel('Lien web', { exact: true }).fill('https://drive.google.com/file/d/abc/view');
@@ -218,6 +219,7 @@ test('Favoris : l’étoile d’un document d’affaire ou de projet le met sur 
   await expect(page.locator('.section-favoris')).toContainText('Aucun favori');
   // étoile sur le document de l'affaire
   await aller(page, '#/crm/affaires/a1');
+  await ouvrirDocuments(page);
   await page.getByRole('button', { name: 'Mettre Suivi veille en favori' }).click();
   await champDoc('crm_affaires', 'a1', 'documents', [{ libelle: 'Suivi veille', url: 'https://claude.ai/artifact/suivi', favori: true }]);
   await expect(page.getByRole('button', { name: 'Retirer Suivi veille des favoris' })).toHaveAttribute('aria-pressed', 'true');
@@ -229,6 +231,7 @@ test('Favoris : l’étoile d’un document d’affaire ou de projet le met sur 
   await expect(dialogue(page)).toHaveCount(0);
   // étoile sur le document du projet
   await aller(page, '#/projets/projets/pr1');
+  await ouvrirDocuments(page);
   await page.getByRole('button', { name: 'Mettre Planning en favori' }).click();
   await champDoc('projets_projets', 'pr1', 'documents', [{ libelle: 'Planning', url: 'https://claude.ai/artifact/planning', favori: true }]);
   // les deux sont sur l'accueil, par ordre alphabétique, avec un lien vers le document
@@ -281,7 +284,7 @@ test('C29 notes d’un projet : onglets Activité et Notes ; la note est aussi d
   await connecter(page);
   await aller(page, '#/projets/projets/pr1');
   const panneau = page.locator('.panneau-activite');
-  await expect(panneau.getByRole('tab')).toHaveCount(2);
+  await expect(panneau.getByRole('tab')).toHaveCount(3); // Activité, Notes, Documents
   await expect(panneau.getByRole('tab', { name: 'Activité' })).toHaveAttribute('aria-selected', 'true');
   await panneau.getByRole('tab', { name: 'Notes' }).click();
   await expect(panneau.getByRole('tab', { name: 'Notes' })).toHaveAttribute('aria-selected', 'true');
@@ -601,10 +604,11 @@ test('C30 le projet montre les documents et les notes de son affaire, sans les d
   await ecrireDocument('crm_notes/n2', { texte: 'Note écrite sur le projet', personneId: null, organisationId: null, affaireId: 'a1', projetId: 'pr1', auteur: JEROME, creeLe: new Date(), modifieLe: new Date() });
   await connecter(page);
   await aller(page, '#/projets/projets/pr1');
+  await ouvrirDocuments(page);
   // documents : ceux du projet (modifiables) et, à part, ceux de l'affaire (lecture seule)
   const docsProjet = page.locator('[data-section="projet-documents"]');
   await expect(docsProjet).toContainText('Rapport');
-  await expect(docsProjet).not.toContainText('Devis signé');
+  await expect(docsProjet.locator('.liste-liens')).not.toContainText('Devis signé'); // la liste du projet ; ceux de l'affaire sont à part, plus bas
   const docsAffaire = page.locator('[data-section="projet-documents-affaire"]');
   await expect(docsAffaire).toContainText('Devis signé');
   await expect(docsAffaire.getByRole('link', { name: 'Devis signé' })).toHaveAttribute('href', 'https://drive.google.com/file/d/devis/view');
@@ -1561,6 +1565,7 @@ test('C39 Réglages : options du CRM — suivi des paiements, dossier Drive : é
   await expect(page.locator('#reglages-projets')).toBeHidden();
   await expect(page.locator('[data-role="zone-dossier-parent"]')).toHaveCount(0); // la zone du dossier parent disparaît avec la case
   await aller(page, '#/projets/projets/pr1');
+  await ouvrirDocuments(page);
   await expect(page.locator('[data-prop="github"], [data-action="creer-dossier-ouvrir"]')).toHaveCount(0);
   await expect(page.locator('[data-prop="dossier"]')).toBeVisible();
 });

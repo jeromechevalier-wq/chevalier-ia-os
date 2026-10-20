@@ -899,6 +899,20 @@ describe('B17 Plans d’écriture : modifications', () => {
     assert.equal(L.planMajActivite('x', { titre: 'T' }).ecritures[0].signer, undefined);
     assert.deepEqual(L.planMajNote('n', '  texte ').ecritures[0].patch, { texte: 'texte' });
   });
+  test('B17 documents joints ou retirés : le fil le dit (« Document joint : X »), sans ligne pour un favori ; rien sans `suite` ni sans `documents` dans le patch', () => {
+    const c = ctxPlan();
+    const avant = { id: 'a1', personneId: 'p1', organisationId: 'o1', documents: [{ libelle: 'Vieux', url: 'https://x.fr/vieux' }] };
+    const apres = [{ libelle: 'Vieux', url: 'https://x.fr/vieux', favori: true }, { libelle: 'Devis', url: 'https://x.fr/devis' }];
+    const ecritures = L.planMajAffaire('a1', { documents: apres }, { avant, ctx: c }).ecritures;
+    assert.equal(ecritures.length, 2); // la modification + UN événement (le favori n'en fait pas)
+    assert.deepEqual([ecritures[1].type, ecritures[1].collection, ecritures[1].donnees.type, ecritures[1].donnees.texte], ['creer', 'crm_evenements', 'document', 'Document joint : Devis']);
+    assert.deepEqual([ecritures[1].donnees.affaireId, ecritures[1].donnees.personneId, ecritures[1].donnees.organisationId], ['a1', 'p1', 'o1']);
+    const retrait = L.planMajAffaire('a1', { documents: [] }, { avant, ctx: c }).ecritures;
+    assert.equal(retrait[1].donnees.texte, 'Document retiré : Vieux');
+    assert.equal(L.planMajAffaire('a1', { documents: apres }).ecritures.length, 1); // sans `suite`
+    assert.equal(L.planMajAffaire('a1', { montant: 5 }, { avant, ctx: c }).ecritures.length, 1); // pas de documents dans le patch
+    assert.deepEqual(L.entreesHistorique({ evenements: [{ type: 'document', texte: 'Document joint : Devis', date: new Date() }, { type: 'etape_changee', texte: 'Étape', date: new Date() }] }, 'documents').map((e) => e.element.type), ['document']);
+  });
   test('B17 épingler une note : patch { epinglee } + date de modification ; notesEpinglees garde les épinglées, la plus récente d’abord', () => {
     const e = L.planEpinglerNote('n', true).ecritures[0];
     assert.deepEqual([e.type, e.collection, e.patch, e.horodater], ['modifier', 'crm_notes', { epinglee: true }, ['modifieLe']]);

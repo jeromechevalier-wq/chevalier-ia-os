@@ -304,7 +304,7 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
   .compositeur { order: 2; }
   .points-cles, .section[data-section='projet-taches'] { order: 3; }
   .section[data-section='affaire-encaissements'], .section[data-section='organisation-personnes'] { order: 4; }
-  .section[data-section='affaire-documents'], .section[data-section$='-affaires'], .section[data-section$='-projets'], .section[data-section='affaire-projet'], .section[data-section^='projet-documents'] { order: 5; }
+  .section[data-section$='-affaires'], .section[data-section$='-projets'], .section[data-section='affaire-projet'] { order: 5; }
   .section[data-section='personne-organisation'] { order: 6; }
   .section[data-section$='-details'] { order: 7; }
   .historique { order: 8; }
@@ -487,3 +487,6 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 .champ-description { display: block; width: 100%; box-sizing: border-box; height: calc(4 * 1.5em + 2 * var(--esp-3) + 2px); resize: none; overflow-y: auto; font-family: inherit; line-height: 1.5; color: var(--texte); background: transparent; border: 1px solid var(--bordure); border-radius: var(--rayon); padding: var(--esp-3); }
 .champ-description::placeholder { color: var(--placeholder); }
 .champ-description:focus { outline: none; border-color: var(--accent-trait); background: var(--panneau); }
+.onglet-documents-tete { display: flex; align-items: center; justify-content: space-between; gap: var(--esp-4); }
+.onglet-documents-tete .sous-titre { margin-bottom: 0; }
+.onglet .compteur { margin-left: var(--esp-1); }
