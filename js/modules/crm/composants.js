@@ -221,7 +221,7 @@ export function champPropriete({ libelle, valeur = '', type = 'texte', options =
       zone.replaceChildren(ci.element);
       lire = () => ci.texte();
     } else {
-      champ = h('input', { class: 'champ', type: type === 'nombre' ? 'number' : type === 'date' ? 'date' : type === 'url' ? 'url' : 'text', step: pas, inputmode: type === 'nombre' ? 'decimal' : null, 'aria-label': libelle, value: courant, placeholder });
+      champ = h('input', { class: 'champ', type: type === 'nombre' ? 'number' : type === 'date' ? 'date' : type === 'url' ? 'url' : type === 'email' ? 'email' : type === 'tel' ? 'tel' : 'text', step: pas, inputmode: type === 'nombre' ? 'decimal' : type === 'email' ? 'email' : type === 'tel' ? 'tel' : null, 'aria-label': libelle, value: courant, placeholder });
       lire = () => champ.value.trim();
     }
     if (type !== 'intelligent') zone.replaceChildren(champ);
