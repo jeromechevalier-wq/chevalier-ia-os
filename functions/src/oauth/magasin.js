@@ -31,10 +31,10 @@ const egal = (a, b) => {
   return x.length === y.length && timingSafeEqual(x, y);
 };
 
-/** Nom d'acteur d'une connexion OAuth : « claude-ai- » + partie locale de l'adresse (lettres, chiffres, tirets). */
-export function acteurDuCompte(email) {
+/** Nom d'acteur d'une connexion OAuth : « claude-ai- » (ou « chatgpt- ») + partie locale de l'adresse (lettres, chiffres, tirets). */
+export function acteurDuCompte(email, assistant = 'claude-ai') {
   const local = String(email).toLowerCase().split('@')[0].replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30);
-  return `claude-ai-${local || 'compte'}`;
+  return `${assistant === 'chatgpt' ? 'chatgpt' : 'claude-ai'}-${local || 'compte'}`;
 }
 
 export const compteAutorise = (email) => typeof email === 'string' && COMPTES_AUTORISES.includes(email.toLowerCase());
@@ -51,7 +51,7 @@ export const pkceValide = (verifier, challenge) => typeof verifier === 'string' 
  *    Appelé à l'échange du code, à chaque renouvellement et à chaque appel : retirer un membre ou éteindre le module coupe l'accès tout de suite.
  */
 export function creerMagasinOauth({ donnees, maintenant = () => Date.now(), client = null, controleCompte = null }) {
-  const controle = controleCompte ?? (async (email) => (compteAutorise(email) ? { acteur: acteurDuCompte(email), profil: PROFIL_OAUTH, email: email.toLowerCase() } : null));
+  const controle = controleCompte ?? (async (email, doc) => (compteAutorise(email) ? { acteur: acteurDuCompte(email, doc?.assistant), profil: PROFIL_OAUTH, email: email.toLowerCase() } : null));
   const marque = client ? { client } : {};
   const memeClient = (doc) => !client || doc.client === client;
   const ecrire = (ecritures) => donnees.appliquer(ecritures);
