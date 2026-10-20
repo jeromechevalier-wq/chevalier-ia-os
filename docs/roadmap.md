@@ -166,3 +166,6 @@ Jérôme veut offrir à ses clients une interface graphique **et** un accès MCP
 
 ## Hors périmètre de la 2.0 (rappel)
 Import CSV, fusion de doublons, prévisions en euros, envoi d'e-mails depuis la fiche, mode hors ligne.
+
+### Notes épinglées et « Développer tout » (demandé par Jérôme le 20/10/2026) : faite, PR en attente du « fusionne » (version 2.17.0)
+Inspiré de Pipedrive. Une note s'épingle depuis l'Historique ; elle apparaît en carte jaune en haut des Points clés (3 lignes, bouton « Développer tout » / « Réduire tout »). Le champ `epinglee` est sur la note : elle se voit sur toutes les fiches où la note apparaît (affaire, personne, organisation, projet lié). Pas encore d'épinglage par le serveur MCP (`modifier_note` ne prend que le texte). À venir, dans des PR séparées : formulaire d'activité replié (PR 151) et onglet « Documents » à côté d'Activité et Notes (affaire et projet, avec compteur).

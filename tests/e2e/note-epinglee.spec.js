@@ -25,7 +25,6 @@ test('E2 « Épingler » dans le fil place la note en carte jaune dans les Point
   await page.locator('.fil-note [data-action="epingler-note"]').click();
   await expect.poll(async () => (await lireDocument('crm_notes/n1')).epinglee).toBe(true);
   await expect(page.locator('.points-cles .note-epinglee')).toContainText('Rappeler après le 27 octobre');
-  await expect(page.locator('.points-cles')).not.toContainText('Aucune activité à faire.');
   await expect(page.locator('.fil-note [data-action="desepingler-note"]')).toBeVisible();
   await page.screenshot({ path: `test-results/note-epinglee-${info.project.name}.png`, fullPage: true });
   await page.locator('.points-cles [data-action="desepingler-note"]').click();
@@ -48,4 +47,28 @@ test('E3 « Développer tout » : le texte d\'une note épinglée est coupé à 
   await page.locator('[data-action="developper-tout"]').click();
   await expect(page.locator('[data-action="developper-tout"]')).toHaveText('Développer tout');
   expect(await hauteur()).toBe(replie);
+});
+
+test('E4 le message « Aucune activité à faire. » reste affiché sous une note épinglée ; le bouton du fil redevient « Épingler » après la croix', async ({ page }) => {
+  await creerAffaire('a1', { titre: 'Audit des Lilas' });
+  await note('n1', 'Note importante', { epinglee: true });
+  await connecter(page);
+  await ouvrir(page);
+  await expect(page.locator('.points-cles .note-epinglee')).toHaveCount(1);
+  await expect(page.locator('.points-cles')).toContainText('Aucune activité à faire.');
+  await page.locator('.points-cles [data-action="desepingler-note"]').click();
+  await expect(page.locator('.fil-note [data-action="epingler-note"]')).toHaveText('Épingler');
+});
+
+test('E5 note épinglée d\'une affaire vue depuis le projet lié : « note de l\'affaire », sans croix', async ({ page }) => {
+  await creerAffaire('a1', { titre: 'Audit des Lilas' });
+  await ecrireDocument('projets_projets/pr1', { titre: 'Projet lié', affaireId: 'a1', phase: 'lancement', statut: 'en_cours', personneId: null, organisationId: null, archive: false, etiquettes: [], proprietaire: JEROME, creeLe: new Date(), modifieLe: new Date() });
+  await note('n1', 'Épinglée côté affaire', { epinglee: true });
+  await connecter(page);
+  await page.evaluate(() => { location.hash = '#/projets/projets/pr1'; });
+  await attendreCalme(page);
+  const carte = page.locator('.points-cles .note-epinglee');
+  await expect(carte).toContainText('Épinglée côté affaire');
+  await expect(carte).toContainText('note de l’affaire');
+  await expect(carte.locator('[data-action="desepingler-note"]')).toHaveCount(0);
 });
