@@ -1,6 +1,6 @@
 # Tests sur chaque PR vers main : RAPIDE par défaut (niveau « rapide » puis « smoke », environ 3 à 4 minutes avec l'installation).
 # Le palier COMPLET (format ordinateur) ne tourne que dans trois cas (décision de Jérôme, 19/10/2026, avis de Fable) :
-#   1. la PR touche des fichiers sensibles (fonctions du serveur, règles de sécurité, configuration Firebase, workflows GitHub, tests) ;
+#   1. la PR touche des fichiers sensibles (fonctions de la plateforme, règles de sécurité, configuration Firebase, workflows GitHub, tests) ; functions/ n'en fait plus partie (19/10/2026) : le niveau rapide en teste déjà les fonctions (test:fonctions) ;
 #   2. la PR porte l'étiquette « tests-complets » ;
 #   3. lancement à la main avec « complet » coché (par défaut).
 # Le test complet (ordinateur + téléphone) rejoue tout chaque nuit : voir tests-nuit.yml (alerte par issue GitHub si la nuit est rouge).
@@ -50,8 +50,8 @@ jobs:
             echo "Lancement à la main : complet=$complet"
           else
             case ",$ETIQUETTES," in *,tests-complets,*) complet=true; echo "Étiquette tests-complets : palier complet." ;; esac
-            # Fichiers sensibles : fonctions du serveur, règles de sécurité, configuration Firebase, workflows GitHub, tests.
-            sensibles=$(git diff --name-only "$BASE" HEAD | grep -E '^(functions/|functions-plateforme/|firestore\.rules$|storage\.rules$|firebase[^/]*\.json$|\.github/workflows/|tests/)' || true)
+            # Fichiers sensibles : fonctions de la plateforme, règles de sécurité, configuration Firebase, workflows GitHub, tests.
+            sensibles=$(git diff --name-only "$BASE" HEAD | grep -E '^(functions-plateforme/|firestore\.rules$|storage\.rules$|firebase[^/]*\.json$|\.github/workflows/|tests/)' || true)
             if [ -n "$sensibles" ]; then
               complet=true
               echo "Fichiers sensibles touchés : palier complet."
