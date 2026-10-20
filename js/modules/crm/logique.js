@@ -752,6 +752,8 @@ export function nouvelleOrganisation(valeurs, ctx) {
     adresse: nettoyerEspaces(valeurs.adresse),
     ville: nettoyerEspaces(valeurs.ville),
     siteWeb: '',
+    telephone: '',
+    email: '',
     secteur: valeurs.secteur || '',
     taille: '',
     etiquettes: [...(valeurs.etiquettes || [])],
