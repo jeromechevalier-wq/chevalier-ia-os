@@ -89,3 +89,21 @@ jobs:
           retention-days: 14
           include-hidden-files: true
           if-no-files-found: ignore
+  alerte:
+    # Nuit rouge : ouvre une issue GitHub (GitHub t'envoie un email) pour que tu le saches sans aller dans Actions.
+    name: Alerte si la nuit est rouge
+    needs: nuit
+    if: failure()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: Ouvrir une issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LIEN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh issue create --repo "${{ github.repository }}" \
+            --title "Tests de nuit rouges ($(date -u +%F))" \
+            --body "Le test de nuit a échoué. Détail et captures : $LIEN. Chercher quelle fusion de la journée est en cause ; au besoin, annuler cette fusion (revert) puis fusionner, ce qui redéploie le CRM."

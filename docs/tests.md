@@ -8,8 +8,10 @@
 |---|---|---|---|
 | **Rapide** | Les règles, la logique et les contrôles, sans navigateur | moins d'une minute | Claude, dans la session, avant d'ouvrir une PR |
 | **Smoke** (« fumée ») | 5 parcours essentiels dans un vrai navigateur : connexion, créer une personne, une affaire, un projet, ajouter des factures. Format ordinateur seulement | environ 15 secondes | Claude, dans la session, avant d'ouvrir une PR |
-| **Complet** | Tous les tests, dont tous les parcours navigateur. Format ordinateur seulement | voir « Durée réelle » ci-dessous | **GitHub**, automatiquement, sur chaque PR |
+| **Complet** | Tous les tests, dont tous les parcours navigateur. Format ordinateur seulement | voir « Durée réelle » ci-dessous | **GitHub**, sur une PR seulement si elle touche des fichiers sensibles (voir ci-dessous), porte l'étiquette `tests-complets`, ou si on le lance à la main |
 | **De nuit** | Tout, ordinateur **et téléphone**, chaque scénario une fois (3 fois si on règle `TESTS_REPETER=3`, trop long pour le quota gratuit) | plus long | **GitHub**, chaque nuit vers 2 h 17 (heure de Paris), **seulement si `main` a reçu un commit depuis environ 26 heures** |
+
+**Sur chaque PR (décision de Jérôme du 19/10/2026, avis de Fable)** : GitHub lance **rapide + smoke** (environ 3 à 4 minutes avec l'installation, estimation non mesurée). Il lance le **complet** à la place quand la PR touche `functions/`, `functions-plateforme/`, `firestore.rules`, `storage.rules`, `firebase*.json`, `.github/workflows/` ou `tests/`, ou porte l'étiquette `tests-complets`. Lancement à la main (Actions > Tests > Run workflow) : complet par défaut. Risque accepté : un défaut d'écran hors des 5 parcours passe la coche, est déployé à la fusion et n'est vu que par le test de nuit. Si la nuit est rouge, une issue GitHub s'ouvre (email) ; retrouver la fusion en cause et la défaire (revert puis fusion). Avant d'ouvrir une PR qui modifie un écran du CRM, Claude lance `npm run test:complet` en local.
 
 Pendant le travail, Claude ne lance que les tests du module qu'il touche (`npm run test:module projets`, par exemple).
 
@@ -37,7 +39,7 @@ Estimation : voir « Durée réelle » ci-dessous (mise à jour avec les premier
 
 Mesures du 18/10/2026 (machine GitHub Ubuntu, petite : 2 workers) :
 
-- **Run « Tests » sur une PR** (complet, ordinateur) : **10 à 14 minutes** (14 min 0 s sur la PR 111, 9 min 47 s sur la PR 112).
+- **Run « Tests » sur une PR, palier complet** (ordinateur ; avant le 19/10/2026 c'était le seul niveau) : **10 à 14 minutes** (14 min 0 s sur la PR 111, 9 min 47 s sur la PR 112).
 - **Run de nuit** (ordinateur + téléphone, 1 passage) : **23 min 30 s** (mesuré sur le run du 18/10/2026, qui s'est terminé en échec : la durée d'un run entièrement vert peut être un peu plus longue).
 - Coût par mois, à titre d'ordre de grandeur : une PR avec 3 poussées ≈ 40 minutes ; 20 PR ≈ 800 minutes ; la nuit ≈ 30 × 24 = 720 minutes au maximum (moins si `main` ne change pas tous les jours). Le total (~1 500 minutes) tient dans les 2 000 minutes, mais sans grande marge : si le quota se vide, passer la nuit à un jour sur deux ou rendre le dépôt public (minutes gratuites).
 
