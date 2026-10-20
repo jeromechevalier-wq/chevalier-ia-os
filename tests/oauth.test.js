@@ -172,6 +172,49 @@ describe('Enregistrement du client (DCR)', () => {
   });
 });
 
+describe('ChatGPT (20/10/2026) : adresse de retour acceptée, nommée chatgpt-<compte>', () => {
+  const CHATGPT = 'https://chatgpt.com/connector/oauth/abc123_DEF-456';
+  const enregistrer = (corps) => fetch(`${base}/oauth/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corps) });
+  test('enregistrement : l’adresse de ChatGPT (avec identifiant) et l’ancienne adresse fixe sont acceptées', async () => {
+    for (const uri of [CHATGPT, 'https://chatgpt.com/connector_platform_oauth_redirect']) {
+      const r = await enregistrer({ client_name: 'ChatGPT', redirect_uris: [uri], token_endpoint_auth_method: 'none' });
+      assert.equal(r.status, 201, uri);
+      assert.deepEqual((await r.json()).redirect_uris, [uri]);
+    }
+  });
+  test('enregistrement : adresses imitant ChatGPT refusées (autre hôte, sous-domaine, chemin voisin, http, identifiant vide ou piégé)', async () => {
+    for (const uri of ['https://chatgpt.com.pirate.example/connector/oauth/x', 'https://pirate.chatgpt.com/connector/oauth/x', 'https://chatgpt.com/connector/oauth/',
+      'https://chatgpt.com/connector/oauth/a/b', 'https://chatgpt.com/connector/oauth/a?x=1', 'https://chatgpt.com/autre', 'http://chatgpt.com/connector/oauth/x', 'https://chatgpt.com@pirate.example/connector/oauth/x']) {
+      assert.equal((await enregistrer({ redirect_uris: [uri] })).status, 400, uri);
+    }
+  });
+  test('parcours complet depuis ChatGPT : la page dit ChatGPT, le compte autorisé obtient un jeton, l’acteur est chatgpt-<compte>, les droits sont ceux de Claude', async () => {
+    const p = pkce();
+    const demande = demandeValide(p, { redirect_uri: CHATGPT });
+    const page = await (await fetch(`${base}/oauth/authorize?${new URLSearchParams(demande)}`)).text();
+    assert.match(page, /Autoriser ChatGPT à accéder à Chevalier IA OS/);
+    const { code, adresse } = await obtenirCode({ demande, p });
+    assert.equal(adresse.origin + adresse.pathname, CHATGPT);
+    const r = await jeton({ grant_type: 'authorization_code', code, redirect_uri: CHATGPT, client_id: 'cli_essai', code_verifier: p.verifier });
+    assert.equal(r.status, 200, await r.clone().text());
+    const t = await r.json();
+    const c = await client(t.access_token);
+    const qui = JSON.parse((await c.callTool({ name: 'qui_suis_je', arguments: {} })).content[0].text);
+    assert.equal(qui.acteur, 'chatgpt-jerome-chevalier');
+    assert.equal(qui.profil, 'claude-code');
+    await c.close();
+    const r2 = await jeton({ grant_type: 'refresh_token', refresh_token: t.refresh_token, client_id: 'cli_essai' });
+    const c2 = await client((await r2.json()).access_token);
+    assert.equal(JSON.parse((await c2.callTool({ name: 'qui_suis_je', arguments: {} })).content[0].text).acteur, 'chatgpt-jerome-chevalier');
+    await c2.close();
+  });
+  test('un autre compte Google que ceux de Jérôme reste refusé, même depuis ChatGPT', async () => {
+    const r = await approuver({ ...demandeValide(pkce(), { redirect_uri: CHATGPT }), decision: 'allow', id_token: 'ID-INCONNU' });
+    assert.equal(r.status, 403);
+    assert.equal((await documents('code_')).length, 0);
+  });
+});
+
 describe('Page d’autorisation (GET /oauth/authorize)', () => {
   const page = (params) => fetch(`${base}/oauth/authorize?${new URLSearchParams(params)}`);
   test('demande valide : page de connexion + consentement, jamais encadrable ni mise en cache', async () => {
