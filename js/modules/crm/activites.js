@@ -239,14 +239,19 @@ export function panneauActivite({ lien, liensCreation, avecActivites = true, aff
       champHeure.value = '';
       date.champ.value = D.ctx().aujourdhui;
       toast('Activité ajoutée');
+      replier(true);
     } catch (e) {
       console.warn(e);
       toast('Ajout impossible', { type: 'erreur' });
     }
     boutonActivite.disabled = false;
   }
-  const panneauActiviteSaisie = h('div', { class: 'compositeur-corps', role: 'tabpanel', 'aria-label': 'Activité' },
+  const panneauActiviteSaisie = h('div', { class: 'compositeur-corps replie', role: 'tabpanel', 'aria-label': 'Activité' },
     types, champTitre, h('div', { class: 'ligne-date' }, date.element, champHeure), h('div', { class: 'compositeur-actions' }, boutonActivite));
+  // Formulaire replié : une seule ligne « Clique ici… » ; les raccourcis, la date, l'heure et le bouton apparaissent dès qu'on y met le focus.
+  function replier(oui) { panneauActiviteSaisie.classList.toggle('replie', oui); }
+  panneauActiviteSaisie.addEventListener('focusin', () => replier(false));
+  champTitre.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !champTitre.value) { replier(true); champTitre.blur(); } });
 
   const champNote = h('textarea', { class: 'champ', rows: 3, 'aria-label': 'Nouvelle note', placeholder: 'Écris une note (la dictée du clavier fonctionne ici)…' });
   const boutonNote = h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'ajouter-note', onclick: async () => {
