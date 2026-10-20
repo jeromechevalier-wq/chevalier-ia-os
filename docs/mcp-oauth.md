@@ -19,7 +19,7 @@ Le serveur MCP avait une seule porte : un jeton secret `cia_…` dans l'en-tête
 3. Claude ouvre `/oauth/authorize` dans un navigateur : **la même connexion Google que l'appli** (Firebase Auth), puis un écran « Autoriser Claude à accéder à Chevalier IA OS ? » qui dit clairement que les droits incluent la suppression.
 4. Quand tu appuies sur **Autoriser**, la page envoie au serveur la preuve de ta connexion Google. Le serveur la **revérifie lui-même** (signature, adresse e-mail vérifiée par Google, compte dans la liste des deux comptes autorisés, la même que dans `firestore.rules`). Seulement alors, il rend un **code à usage unique valable 60 secondes**.
 5. Claude échange ce code (avec une preuve PKCE, qui empêche de voler le code en chemin) contre un **jeton d'accès d'une heure** et un **jeton de renouvellement**. Il renouvelle tout seul : chaque renouvellement repousse l'échéance de 30 jours (« 30 jours glissants »). Après 30 jours sans aucun usage, il faut se reconnecter.
-6. Le jeton d'accès entre sur `/mcp` avec le profil `claude-code`. Dans l'audit, l'acteur s'appelle **`claude-ai-jerome-chevalier`** (pour le compte `jeromebot…` : `claude-ai-jeromebot-chevalierbot`).
+6. Le jeton d'accès entre sur `/mcp` avec le profil `claude-code`. Dans l'audit, l'acteur s'appelle **`claude-ai-jerome-chevalier`** (pour le compte `jeromebot…` : `claude-ai-jeromebot-chevalierbot`). Depuis ChatGPT (adresse de retour `https://chatgpt.com/connector/oauth/<identifiant>`, ajoutée le 20/10/2026), le préfixe est `chatgpt-` : `chatgpt-jerome-chevalier`. Le serveur le calcule lui-même d'après l'adresse de retour, le client ne peut pas le choisir ; ce nom a ses propres plafonds sur `/mcp`.
 
 ## Ce qui est protégé, et comment
 

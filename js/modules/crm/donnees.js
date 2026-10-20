@@ -507,6 +507,10 @@ export async function majNote(id, texte) {
   await executer(L.planMajNote(id, texte).ecritures, 'majNote');
 }
 
+export async function epinglerNote(id, epinglee) {
+  await executer(L.planEpinglerNote(id, epinglee).ecritures, 'epinglerNote');
+}
+
 /** « Annuler » après une suppression : la fiche supprimée revient telle qu'elle était (même identifiant). */
 export async function restaurerActivite(a) { const { etat: _calcule, ...activite } = a; await executer(L.planRestaurerDocument(L.COLLECTIONS_PLAN.activites, activite).ecritures, 'restaurerActivite'); } // `etat` est calculé à l'affichage : il n'est pas rangé dans la base
 export async function restaurerNote(n) { const { deAffaire, ...note } = n; await executer(L.planRestaurerDocument(L.COLLECTIONS_PLAN.notes, note).ecritures, 'restaurerNote'); }

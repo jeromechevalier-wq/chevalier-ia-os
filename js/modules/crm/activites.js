@@ -240,14 +240,19 @@ export function panneauActivite({ lien, liensCreation, avecActivites = true, aff
       champHeure.value = '';
       date.champ.value = D.ctx().aujourdhui;
       toast('Activité ajoutée');
+      replier(true);
     } catch (e) {
       console.warn(e);
       toast('Ajout impossible', { type: 'erreur' });
     }
     boutonActivite.disabled = false;
   }
-  const panneauActiviteSaisie = h('div', { class: 'compositeur-corps', role: 'tabpanel', 'aria-label': 'Activité' },
+  const panneauActiviteSaisie = h('div', { class: 'compositeur-corps replie', role: 'tabpanel', 'aria-label': 'Activité' },
     types, champTitre, h('div', { class: 'ligne-date' }, date.element, champHeure), h('div', { class: 'compositeur-actions' }, boutonActivite));
+  // Formulaire replié : une seule ligne « Clique ici… » ; les raccourcis, la date, l'heure et le bouton apparaissent dès qu'on y met le focus.
+  function replier(oui) { panneauActiviteSaisie.classList.toggle('replie', oui); }
+  panneauActiviteSaisie.addEventListener('focusin', () => replier(false));
+  champTitre.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !champTitre.value) { replier(true); champTitre.blur(); } });
 
   const champNote = h('textarea', { class: 'champ', rows: 3, 'aria-label': 'Nouvelle note', placeholder: 'Écris une note (la dictée du clavier fonctionne ici)…' });
   const boutonNote = h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'ajouter-note', onclick: async () => {
@@ -294,18 +299,36 @@ export function panneauActivite({ lien, liensCreation, avecActivites = true, aff
   const compositeur = h('div', { class: 'compositeur' }, h('div', { class: 'onglets', role: 'tablist' }, avecActivites ? ongletActivite : null, ongletNotes, ongletDocuments), panneauActiviteSaisie, panneauNoteSaisie, panneauDocuments);
 
   // ---- points clés et historique
+  const notesDeLaFiche = () => (affaireLiee ? affaireLiee.fusionnerNotes(fil.notes, filAffaire.notes) : fil.notes);
+  let toutDeploye = false;
   function rendrePointsCles() {
     const aujourdhui = D.ctx().aujourdhui;
     const liste = L.pointsClesFiche(D.activitesDe(lien), aujourdhui);
+    const epinglees = L.notesEpinglees(notesDeLaFiche());
     remplir(zonePointsCles,
-      h('h3', { class: 'sous-titre' }, 'Points clés'),
+      h('div', { class: 'points-cles-tete' },
+        h('h3', { class: 'sous-titre' }, 'Points clés'),
+        epinglees.length ? h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', 'data-action': 'developper-tout',
+          onclick: () => { toutDeploye = !toutDeploye; rendrePointsCles(); } }, toutDeploye ? 'Réduire tout' : 'Développer tout') : null),
+      epinglees.length ? h('ul', { class: 'liste-notes-epinglees' }, epinglees.map(ligneNoteEpinglee)) : null,
       liste.length
         ? h('ul', { class: 'liste-activites' }, liste.map((a) => ligneActivite(a, aujourdhui)))
         : h('p', { class: 'aide' }, 'Aucune activité à faire.'));
   }
 
+  /** Note épinglée : carte jaune en haut des Points clés ; le texte est coupé à 3 lignes tant qu'on n'a pas cliqué « Développer tout ». */
+  function ligneNoteEpinglee(n) {
+    return h('li', { class: `note-epinglee${toutDeploye ? ' deployee' : ''}`, dataset: { note: n.id } },
+      icone('pin', { taille: 14 }),
+      h('div', { class: 'note-epinglee-corps' }, h('p', { class: 'note-texte' }, n.texte),
+        h('span', { class: 'fil-meta' }, L.formatDateHeure(versDateNote(n)), n.auteur ? ` · ${nomCompte(n.auteur)}` : '', n.deAffaire ? ' · note de l’affaire' : '')),
+      n.deAffaire ? null : h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Désépingler la note', title: 'Désépingler', 'data-action': 'desepingler-note',
+        onclick: () => D.epinglerNote(n.id, false).then(() => toast('Note désépinglée')).catch((e) => { console.warn(e); toast('Modification impossible', { type: 'erreur' }); }) }, icone('x', { taille: 14 })));
+  }
+  const versDateNote = (n) => L.versDate(n.creeLe);
+
   function rendreHistorique() {
-    const notes = affaireLiee ? affaireLiee.fusionnerNotes(fil.notes, filAffaire.notes) : fil.notes;
+    const notes = notesDeLaFiche();
     const entrees = L.entreesHistorique({ activites: D.activitesDe(lien), notes, evenements: fil.evenements }, filtre);
     remplir(zoneHistorique,
       h('h3', { class: 'sous-titre' }, 'Historique'),
@@ -332,6 +355,9 @@ export function panneauActivite({ lien, liensCreation, avecActivites = true, aff
     const carte = h('li', { class: `fil-ligne fil-note${n.deAffaire ? ' fil-note-affaire' : ''}`, dataset: { genre: 'note', note: n.id } }, h('span', { class: 'fil-puce' }, icone('sticky-note', { taille: 14 })),
       h('div', { class: 'fil-texte note-carte' }, texte, meta,
         n.deAffaire ? null : h('div', { class: 'note-actions' },
+          avecActivites ? h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', 'data-action': n.epinglee ? 'desepingler-note' : 'epingler-note',
+            onclick: () => D.epinglerNote(n.id, !n.epinglee).then(() => toast(n.epinglee ? 'Note désépinglée' : 'Note épinglée')).catch((e) => { console.warn(e); toast('Modification impossible', { type: 'erreur' }); }) },
+            icone('pin', { taille: 14 }), n.epinglee ? 'Désépingler' : 'Épingler') : null,
           h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', 'data-action': 'modifier-note', onclick: () => modifier() }, icone('pencil', { taille: 14 }), 'Modifier'),
           h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', 'data-action': 'supprimer-note', onclick: () => retirerAvecAnnulation({
             titre: 'Supprimer cette note ?', message: '', libelleOk: 'Supprimer', danger: true,
@@ -348,16 +374,19 @@ export function panneauActivite({ lien, liensCreation, avecActivites = true, aff
     return carte;
   }
 
+  // Pas de nouveau rendu pendant la modification d'une note (sinon le texte en cours serait perdu).
+  function rendreHistoriqueSiPasEdition() {
+    if (!(document.activeElement?.tagName === 'TEXTAREA' && zoneHistorique.contains(document.activeElement))) rendreHistorique();
+  }
   racine.append(...[compositeur, avecActivites ? zonePointsCles : null, zoneHistorique].filter(Boolean));
   if (avecActivites) rendrePointsCles();
   rendreHistorique();
 
-  const arretFil = D.ecouterFil(lien, (donnees) => { fil = donnees; rendreHistorique(); });
-  const arretFilAffaire = affaireLiee ? D.ecouterFil({ affaireId: affaireLiee.affaireId }, (donnees) => { filAffaire = donnees; rendreHistorique(); }) : () => {};
+  const arretFil = D.ecouterFil(lien, (donnees) => { fil = donnees; if (avecActivites) rendrePointsCles(); rendreHistoriqueSiPasEdition(); });
+  const arretFilAffaire = affaireLiee ? D.ecouterFil({ affaireId: affaireLiee.affaireId }, (donnees) => { filAffaire = donnees; if (avecActivites) rendrePointsCles(); rendreHistoriqueSiPasEdition(); }) : () => {};
   const arretDonnees = D.surChangement(() => {
     if (avecActivites) rendrePointsCles();
-    // Pas de nouveau rendu pendant la modification d'une note (sinon le texte en cours serait perdu).
-    if (!(document.activeElement?.tagName === 'TEXTAREA' && zoneHistorique.contains(document.activeElement))) rendreHistorique();
+    rendreHistoriqueSiPasEdition();
   });
   return {
     element: racine,
