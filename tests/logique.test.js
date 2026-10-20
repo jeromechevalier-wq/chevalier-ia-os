@@ -899,6 +899,14 @@ describe('B17 Plans d’écriture : modifications', () => {
     assert.equal(L.planMajActivite('x', { titre: 'T' }).ecritures[0].signer, undefined);
     assert.deepEqual(L.planMajNote('n', '  texte ').ecritures[0].patch, { texte: 'texte' });
   });
+  test('B17 épingler une note : patch { epinglee } + date de modification ; notesEpinglees garde les épinglées, la plus récente d’abord', () => {
+    const e = L.planEpinglerNote('n', true).ecritures[0];
+    assert.deepEqual([e.type, e.collection, e.patch, e.horodater], ['modifier', 'crm_notes', { epinglee: true }, ['modifieLe']]);
+    assert.deepEqual(L.planEpinglerNote('n', 0).ecritures[0].patch, { epinglee: false });
+    const notes = [{ id: 'a', epinglee: true, creeLe: new Date('2026-10-01') }, { id: 'b', creeLe: new Date('2026-10-05') }, { id: 'c', epinglee: true, creeLe: new Date('2026-10-03') }];
+    assert.deepEqual(L.notesEpinglees(notes).map((n) => n.id), ['c', 'a']);
+    assert.deepEqual(L.notesEpinglees([]), []);
+  });
   test('B17 changement d’étape : même patch et mêmes événements que la règle, dans le plan ; une erreur n’écrit rien', () => {
     const a = affaire({ id: 'a1', etape: 'premier_contact' });
     const c = ctxPlan();

@@ -1228,6 +1228,11 @@ export function nouvelleNote(texte, liens, ctx) {
   };
 }
 
+/** Notes épinglées d'une fiche, les plus récentes d'abord. */
+export function notesEpinglees(notes) {
+  return notes.filter((n) => n.epinglee).sort((a, b) => (versDate(b.creeLe)?.getTime() ?? 0) - (versDate(a.creeLe)?.getTime() ?? 0));
+}
+
 /** Mention du canal à la suite de l'auteur dans le fil : « · via MCP » pour ce qu'un agent a créé par le serveur MCP, sinon rien. */
 export function mentionCanal(element) {
   return element?.via === 'mcp' ? ' · via MCP' : '';
@@ -1935,6 +1940,8 @@ export function planCreerNote(texte, liens, ctx) {
 }
 
 export const planMajNote = (id, texte) => ({ ecritures: [ecritureModifier(C.notes, id, { texte: String(texte).trim() }, { horodater: ['modifieLe'] })] });
+/** Épingler ou désépingler une note : une note épinglée reste en haut, dans les Points clés de la fiche. */
+export const planEpinglerNote = (id, epinglee) => ({ ecritures: [ecritureModifier(C.notes, id, { epinglee: !!epinglee }, { horodater: ['modifieLe'] })] });
 export const planSupprimerNote = (id) => ({ ecritures: [ecritureSupprimer(C.notes, id)] });
 
 // ---------------------------------------------------------------- audit des écritures faites à l'écran
