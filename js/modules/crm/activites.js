@@ -284,18 +284,36 @@ export function panneauActivite({ lien, liensCreation, avecActivites = true, aff
   const compositeur = h('div', { class: 'compositeur' }, h('div', { class: 'onglets', role: 'tablist' }, avecActivites ? ongletActivite : null, ongletNotes), panneauActiviteSaisie, panneauNoteSaisie);
 
   // ---- points clés et historique
+  const notesDeLaFiche = () => (affaireLiee ? affaireLiee.fusionnerNotes(fil.notes, filAffaire.notes) : fil.notes);
+  let toutDeploye = false;
   function rendrePointsCles() {
     const aujourdhui = D.ctx().aujourdhui;
     const liste = L.pointsClesFiche(D.activitesDe(lien), aujourdhui);
+    const epinglees = L.notesEpinglees(notesDeLaFiche());
     remplir(zonePointsCles,
-      h('h3', { class: 'sous-titre' }, 'Points clés'),
+      h('div', { class: 'points-cles-tete' },
+        h('h3', { class: 'sous-titre' }, 'Points clés'),
+        epinglees.length ? h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', 'data-action': 'developper-tout', 'aria-pressed': String(toutDeploye),
+          onclick: () => { toutDeploye = !toutDeploye; rendrePointsCles(); } }, toutDeploye ? 'Réduire tout' : 'Développer tout') : null),
+      epinglees.length ? h('ul', { class: 'liste-notes-epinglees' }, epinglees.map(ligneNoteEpinglee)) : null,
       liste.length
         ? h('ul', { class: 'liste-activites' }, liste.map((a) => ligneActivite(a, aujourdhui)))
-        : h('p', { class: 'aide' }, 'Aucune activité à faire.'));
+        : (epinglees.length ? null : h('p', { class: 'aide' }, 'Aucune activité à faire.')));
   }
 
+  /** Note épinglée : carte jaune en haut des Points clés ; le texte est coupé à 3 lignes tant qu'on n'a pas cliqué « Développer tout ». */
+  function ligneNoteEpinglee(n) {
+    return h('li', { class: `note-epinglee${toutDeploye ? ' deployee' : ''}`, dataset: { note: n.id } },
+      icone('pin', { taille: 14 }),
+      h('div', { class: 'note-epinglee-corps' }, h('p', { class: 'note-texte' }, n.texte),
+        h('span', { class: 'fil-meta' }, L.formatDateHeure(versDateNote(n)), n.auteur ? ` · ${nomCompte(n.auteur)}` : '', n.deAffaire ? ' · note de l’affaire' : '')),
+      n.deAffaire ? null : h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Désépingler la note', title: 'Désépingler', 'data-action': 'desepingler-note',
+        onclick: () => D.epinglerNote(n.id, false).catch((e) => { console.warn(e); toast('Modification impossible', { type: 'erreur' }); }) }, icone('x', { taille: 14 })));
+  }
+  const versDateNote = (n) => L.versDate(n.creeLe);
+
   function rendreHistorique() {
-    const notes = affaireLiee ? affaireLiee.fusionnerNotes(fil.notes, filAffaire.notes) : fil.notes;
+    const notes = notesDeLaFiche();
     const entrees = L.entreesHistorique({ activites: D.activitesDe(lien), notes, evenements: fil.evenements }, filtre);
     remplir(zoneHistorique,
       h('h3', { class: 'sous-titre' }, 'Historique'),
@@ -322,6 +340,9 @@ export function panneauActivite({ lien, liensCreation, avecActivites = true, aff
     const carte = h('li', { class: `fil-ligne fil-note${n.deAffaire ? ' fil-note-affaire' : ''}`, dataset: { genre: 'note', note: n.id } }, h('span', { class: 'fil-puce' }, icone('sticky-note', { taille: 14 })),
       h('div', { class: 'fil-texte note-carte' }, texte, meta,
         n.deAffaire ? null : h('div', { class: 'note-actions' },
+          avecActivites ? h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', 'data-action': n.epinglee ? 'desepingler-note' : 'epingler-note', 'aria-pressed': String(!!n.epinglee),
+            onclick: () => D.epinglerNote(n.id, !n.epinglee).then(() => toast(n.epinglee ? 'Note désépinglée' : 'Note épinglée')).catch((e) => { console.warn(e); toast('Modification impossible', { type: 'erreur' }); }) },
+            icone('pin', { taille: 14 }), n.epinglee ? 'Désépingler' : 'Épingler') : null,
           h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', 'data-action': 'modifier-note', onclick: () => modifier() }, icone('pencil', { taille: 14 }), 'Modifier'),
           h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', 'data-action': 'supprimer-note', onclick: () => retirerAvecAnnulation({
             titre: 'Supprimer cette note ?', message: '', libelleOk: 'Supprimer', danger: true,
@@ -342,8 +363,8 @@ export function panneauActivite({ lien, liensCreation, avecActivites = true, aff
   if (avecActivites) rendrePointsCles();
   rendreHistorique();
 
-  const arretFil = D.ecouterFil(lien, (donnees) => { fil = donnees; rendreHistorique(); });
-  const arretFilAffaire = affaireLiee ? D.ecouterFil({ affaireId: affaireLiee.affaireId }, (donnees) => { filAffaire = donnees; rendreHistorique(); }) : () => {};
+  const arretFil = D.ecouterFil(lien, (donnees) => { fil = donnees; if (avecActivites) rendrePointsCles(); rendreHistorique(); });
+  const arretFilAffaire = affaireLiee ? D.ecouterFil({ affaireId: affaireLiee.affaireId }, (donnees) => { filAffaire = donnees; if (avecActivites) rendrePointsCles(); rendreHistorique(); }) : () => {};
   const arretDonnees = D.surChangement(() => {
     if (avecActivites) rendrePointsCles();
     // Pas de nouveau rendu pendant la modification d'une note (sinon le texte en cours serait perdu).
