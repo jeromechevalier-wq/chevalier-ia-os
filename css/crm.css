@@ -471,8 +471,8 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 .case-grisee { opacity: .6; cursor: default; }
 .case-grisee input { cursor: not-allowed; }
 
-/* Description libre d'une affaire ou d'un projet : pas de titre, un cadre discret, le texte d'invitation est grisé. */
+/* Description libre d'une affaire ou d'un projet : hauteur FIXE de 4 lignes (au-delà, un ascenseur ; la taille de police vient de la règle « téléphone » : 16 px au moins), pas de titre, un cadre discret, le texte d'invitation est grisé. */
 .description-fiche { margin-bottom: var(--esp-4); }
-.champ-description { display: block; width: 100%; box-sizing: border-box; min-height: 6.5em; resize: none; overflow: hidden; font: inherit; line-height: 1.5; color: var(--texte); background: transparent; border: 1px solid var(--bordure); border-radius: var(--rayon); padding: var(--esp-3); }
+.champ-description { display: block; width: 100%; box-sizing: border-box; height: calc(4 * 1.5em + 2 * var(--esp-3) + 2px); resize: none; overflow-y: auto; font-family: inherit; line-height: 1.5; color: var(--texte); background: transparent; border: 1px solid var(--bordure); border-radius: var(--rayon); padding: var(--esp-3); }
 .champ-description::placeholder { color: var(--placeholder); }
 .champ-description:focus { outline: none; border-color: var(--accent-trait); background: var(--panneau); }
