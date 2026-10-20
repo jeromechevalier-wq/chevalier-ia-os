@@ -131,7 +131,7 @@ export async function creerProjet(valeurs, { modeleId = null } = {}) {
 }
 
 export async function majProjet(id, patch) {
-  await appliquer(P.planMajProjet(id, patch), 'majProjet');
+  await appliquer(P.planMajProjet(id, patch, { avant: projet(id), ctx: ctx() }), 'majProjet');
 }
 
 function regle(id, planFn, outil) {

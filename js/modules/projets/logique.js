@@ -5,7 +5,7 @@
 // et le même audit s'appliquent.
 import {
   COLLECTIONS_PLAN, MARQUES_CREATION, MARQUES_MODIFICATION,
-  ecritureCreer, ecritureModifier, ecritureSupprimer, evenements, modifierSiPatch, evenementCreation,
+  ecritureCreer, ecritureModifier, ecritureSupprimer, evenements, modifierSiPatch, evenementCreation, evenementsDocuments,
   nettoyerEspaces, nettoyerDescription, aujourdhuiParis, validerUrlGithub, validerUrlDossier, urlOuVide, normaliser, ajouterJours,
   planChangerEtape, planMarquerPerdue, formatEuros, configDe, TYPES_ACTIVITE,
 } from '../crm/logique.js';
@@ -901,7 +901,14 @@ export function planCreerProjet(valeurs, ctx, { modele = null } = {}) {
   };
 }
 
-export const planMajProjet = (id, patch) => ({ ecritures: modifierSiPatch(C.projets, id, patch, MARQUES_MODIFICATION) });
+/** `suite` (facultatif) : { avant: le projet avant, ctx } ; si le patch change les documents, le fil le dit (filtre « Documents »). */
+export const planMajProjet = (id, patch, suite = null) => ({
+  ecritures: [
+    ...modifierSiPatch(C.projets, id, patch, MARQUES_MODIFICATION),
+    ...(suite?.avant && patch?.documents !== undefined
+      ? evenements(evenementsDocuments(suite.avant.documents, patch.documents, suite.avant, suite.ctx, (type, texte, projet, c) => evenementProjet(type, texte, projet, c)), suite.ctx) : []),
+  ],
+});
 
 /** Applique le résultat d'une règle de projet ({ erreurs?, patch, evenements }) : le patch sur le projet, puis les événements du fil. */
 export function planResultatProjet(projetId, resultat, ctx) {

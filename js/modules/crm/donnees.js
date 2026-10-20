@@ -433,7 +433,7 @@ export async function creerAffaire(valeurs, { modeleId = null } = {}) {
 }
 
 export async function majAffaire(id, patch) {
-  await executer(L.planMajAffaire(id, patch).ecritures, 'majAffaire');
+  await executer(L.planMajAffaire(id, patch, { avant: affaire(id), ctx: ctx() }).ecritures, 'majAffaire');
 }
 
 async function appliquer(plan, outil) {

@@ -16,6 +16,7 @@ export const ICONES = {
   "panel-left-close": '<rect width="18" height="18" x="3" y="3" rx="2"/> <path d="M9 3v18"/> <path d="m16 15-3-3 3-3"/>',
   "menu": '<path d="M4 5h16"/> <path d="M4 12h16"/> <path d="M4 19h16"/>',
   "x": '<path d="M18 6 6 18"/> <path d="m6 6 12 12"/>',
+  "paperclip": '<path d="m16 6-8.414 8.586a2 2 0 0 0 2.829 2.829l8.414-8.586a4 4 0 1 0-5.657-5.657l-8.379 8.551a6 6 0 1 0 8.485 8.485l8.379-8.551"/>',
   "plus": '<path d="M5 12h14"/> <path d="M12 5v14"/>',
   "search": '<path d="m21 21-4.34-4.34"/> <circle cx="11" cy="11" r="8"/>',
   "funnel": '<path d="M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z"/>',

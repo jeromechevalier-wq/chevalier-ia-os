@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { debrancherGoogle } from './google-simule.js';
 import {
   test, expect, connecter, allerA, allerAuxReglagesCrm, choisirDansMenuUtilisateur, basculerThemeParMenu, creerPersonne, creerOrganisation, creerAffaire, creerActivite, lireDocument, listerDocuments, ecrireDocument,
-  jour, estTelephone, valeurObjectif, JEROME, CHARLES,
+  jour, estTelephone, valeurObjectif, JEROME, CHARLES, ouvrirDocuments,
 } from './outils.js';
 
 // Les scénarios de ce fichier sont indépendants (chacun repart d'une base vide) : ils se répartissent sur plusieurs workers.
@@ -894,6 +894,7 @@ test('C21 fiche affaire : barre des étapes, Gagnée, montant modifiable, docume
   await expect(page.locator('.barre-etapes-fiche .etape.courante')).toHaveText('Gagné');
   await champDoc('crm_affaires', 'a1', 'statut', 'gagnee');
   // Document
+  await ouvrirDocuments(page);
   await page.locator('[data-action="ajouter-lien"]').click();
   await page.getByLabel('Lien web', { exact: true }).fill('https://drive.google.com/devis');
   await page.getByLabel('Nom (facultatif)').fill('Devis');
@@ -1122,6 +1123,7 @@ test('C24 plus de champ GitHub ni de « Créer le GitHub » : une ancienne adres
   await fixtureEliot();
   await connecter(page);
   await aller(page, '#/crm/affaires/a1');
+  await ouvrirDocuments(page);
   // Sans adresse : aucune ligne GitHub, aucun champ, aucun bouton, aucun prompt.
   await expect(page.locator('[data-prop="dossier"]')).toBeVisible();
   await expect(page.locator('[data-prop="github"]')).toHaveCount(0);
@@ -1131,6 +1133,7 @@ test('C24 plus de champ GitHub ni de « Créer le GitHub » : une ancienne adres
   await ecrireDocument('crm_affaires/a1', { ...(await lireDocument('crm_affaires/a1')), urlGithub: 'https://github.com/jeromechevalier-wq/eliot-devis-depannage' });
   await aller(page, '#/crm/affaires');
   await aller(page, '#/crm/affaires/a1');
+  await ouvrirDocuments(page);
   const liens = page.locator('[data-section="affaire-documents"]');
   await expect(liens).toContainText('Liens et documents');
   await expect(liens.getByRole('link', { name: 'GitHub' })).toHaveAttribute('href', 'https://github.com/jeromechevalier-wq/eliot-devis-depannage');
@@ -1151,6 +1154,7 @@ test('C25 dossier de travail d\'une affaire : sans Google, aucun champ ; un anci
   await connecter(page);
   // Sans dossier et sans Google : aucun champ pour coller une adresse, aucun bouton ; le texte renvoie vers « Liens et documents ».
   await aller(page, '#/crm/affaires/a3');
+  await ouvrirDocuments(page);
   const ligne = page.locator('[data-prop="dossier"]');
   await expect(ligne.locator('.prop-libelle')).toContainText('Dossier de travail');
   await expect(ligne.locator('[data-role="info"]')).toHaveCount(1); // l'explication tient dans une icône « i »
@@ -1158,10 +1162,12 @@ test('C25 dossier de travail d\'une affaire : sans Google, aucun champ ; un anci
   await expect(ligne.locator('[data-role="google-absent"]')).toContainText('« Liens et documents »');
   // Un ancien dossier de NAS : affiché en texte (un navigateur n'ouvre pas smb://), pas de « Modifier », « Retirer » seulement.
   await aller(page, '#/crm/affaires/a1');
+  await ouvrirDocuments(page);
   await expect(ligne).toContainText('smb://nas/clients/carrel');
   await expect(ligne.locator('[data-action="modifier-dossier"]')).toHaveCount(0);
   // Un ancien lien web : « Ouvrir le dossier ».
   await aller(page, '#/crm/affaires/a2');
+  await ouvrirDocuments(page);
   await expect(ligne.locator('[data-action="ouvrir-dossier"]')).toHaveAttribute('href', 'https://exemple.fr/espace/carrel');
   // Retirer : confirmation d'abord (annuler ne retire rien), puis « Retiré · Annuler ».
   await ligne.locator('[data-action="retirer-dossier"]').click();

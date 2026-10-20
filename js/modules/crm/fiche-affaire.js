@@ -149,14 +149,16 @@ export function rendreFicheAffaire(conteneur, id) {
         champPropriete({ libelle: 'Durée (jours)', valeur: a.dureeJours ?? '', type: 'nombre', pas: '0.5', surEnregistrer: (v) => D.majAffaire(a.id, { dureeJours: v }) }).element,
         champPropriete({ libelle: 'Source', valeur: a.source || '', type: 'liste', fournir: () => D.etat.sources,
           surEnregistrer: async (v) => { if (v) await D.ajouterValeurListe('sources', v); await D.majAffaire(a.id, { source: v }); } }).element,
-        lanceurs.github, lanceurs.dossier),
+        lanceurs.github),
     });
 
-    // ---- Liens et documents : même composant que la fiche projet
-    const sectionDocuments = sectionLiensEtDocuments({ id: 'affaire-documents', typeFiche: 'affaire', entite: a, courant: () => D.affaire(a.id) || a, enregistrer: (patch) => D.majAffaire(a.id, patch) });
+    // ---- Documents : onglet à droite (à côté d'Activité et Notes), avec le dossier de travail ; même composant que la fiche projet
+    const documents = sectionLiensEtDocuments({ id: 'affaire-documents', typeFiche: 'affaire', entite: a, courant: () => D.affaire(a.id) || a, enregistrer: (patch) => D.majAffaire(a.id, patch),
+      enOnglet: true, avant: [h('div', { class: 'proprietes' }, lanceurs.dossier)] });
 
-    if (!panneau) panneau = panneauActivite({ lien: { affaireId: a.id }, liensCreation: () => L.liensAffaire(D.affaire(a.id) || a) });
-    remplir(racine, gabaritFiche({ entete, gauche: [description, resume.element, sectionProjet?.element, sectionDocuments.element, details.element].filter(Boolean), droite: panneau.element }));
+    if (!panneau) panneau = panneauActivite({ lien: { affaireId: a.id }, liensCreation: () => L.liensAffaire(D.affaire(a.id) || a), avecDocuments: true });
+    panneau.majDocuments(documents);
+    remplir(racine, gabaritFiche({ entete, gauche: [description, resume.element, sectionProjet?.element, details.element].filter(Boolean), droite: panneau.element }));
   }
 
   function reconstruire() {

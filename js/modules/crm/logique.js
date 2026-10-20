@@ -1235,6 +1235,7 @@ export const FILTRES_HISTORIQUE = [
   { id: 'tous', libelle: 'Tous' },
   { id: 'activites', libelle: 'Activités' },
   { id: 'notes', libelle: 'Notes' },
+  { id: 'documents', libelle: 'Documents' },
   { id: 'affaires', libelle: 'Affaires' },
   { id: 'evenements', libelle: 'Événements' },
 ];
@@ -1253,6 +1254,7 @@ export function entreesHistorique({ activites = [], notes = [], evenements = [] 
   const gardees = entrees.filter((e) => {
     if (filtre === 'activites') return e.genre === 'activite';
     if (filtre === 'notes') return e.genre === 'note';
+    if (filtre === 'documents') return e.genre === 'evenement' && e.element.type === 'document';
     if (filtre === 'affaires') return e.genre === 'evenement' && TYPES_EVENEMENT_AFFAIRE.has(e.element.type);
     if (filtre === 'evenements') return e.genre === 'evenement';
     return true;
@@ -1880,7 +1882,20 @@ export function nouveauModeleAffaire(valeurs, { id, ordre = 1 } = {}) {
 
 export const modelesAffaireActifs = (modeles) => (modeles || []).filter((m) => m.actif !== false).sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
 
-export const planMajAffaire = (id, patch) => ({ ecritures: modifierSiPatch(C.affaires, id, patch, MARQUES_MODIFICATION) });
+/**
+ * Documents joints ou retirés : une ligne « Document joint : Devis » / « Document retiré : Devis » dans le fil (filtre « Documents »).
+ * Les favoris ne laissent pas de trace dans le fil (ils sont dans le Journal des modifications).
+ */
+export function evenementsDocuments(avant, apres, liens, ctx, fabrique = evenement) {
+  return changementsDocumentsJournal(avant, apres).filter((phrase) => !phrase.startsWith('Favori')).map((phrase) => fabrique('document', phrase, liens, ctx));
+}
+/** `suite` (facultatif) : { avant: l'affaire avant, ctx } ; si le patch change les documents, le fil le dit. */
+export const planMajAffaire = (id, patch, suite = null) => ({
+  ecritures: [
+    ...modifierSiPatch(C.affaires, id, patch, MARQUES_MODIFICATION),
+    ...(suite?.avant && patch?.documents !== undefined ? evenements(evenementsDocuments(suite.avant.documents, patch.documents, liensAffaire(suite.avant), suite.ctx), suite.ctx) : []),
+  ],
+});
 
 /** Applique le résultat d'une règle d'affaire ({ erreurs?, patch, evenements }) : le patch sur l'affaire puis les événements du fil. */
 export function planResultatAffaire(affaireId, resultat, ctx) {

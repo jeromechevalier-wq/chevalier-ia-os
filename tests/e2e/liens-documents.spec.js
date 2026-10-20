@@ -1,6 +1,6 @@
 // Chantier « Liens et documents » : fenêtre standard de Google (Picker), « Créer un dossier dans Google Drive » par l'API Google Drive, liens libres.
 // Google est SIMULÉ (voir google-simule.js) : on vérifie ce que l'appli demande à Google et ce qu'elle enregistre, pas Google lui-même.
-import { test, expect, attendreCalme, connecter, allerAuxReglagesCrm, creerProjet, creerAffaire, lireDocument, ecrireDocument, estTelephone, JEROME } from './outils.js';
+import { test, expect, attendreCalme, ouvrirDocumentsSiPresent, connecter, allerAuxReglagesCrm, creerProjet, creerAffaire, lireDocument, ecrireDocument, estTelephone, JEROME } from './outils.js';
 import { debrancherGoogle, brancherGoogle, lireGoogle, choisirDansGoogle, refuserAutorisation, ID_CLIENT, PARENT } from './google-simule.js';
 
 const dialogue = (page) => page.getByRole('dialog');
@@ -11,6 +11,7 @@ const dossierDrive = (n) => `https://drive.google.com/drive/folders/DOSSIER_${n}
 async function aller(page, hash) {
   await page.evaluate((h) => { location.hash = h; }, hash);
   await attendreCalme(page);
+  await ouvrirDocumentsSiPresent(page); // ces tests parlent des documents : l'onglet « Documents » est ouvert d'office
 }
 async function champDoc(collection, id, cle, attendu) {
   await expect.poll(async () => (await lireDocument(`${collection}/${id}`))?.[cle], { timeout: 10_000 }).toEqual(attendu);
@@ -608,7 +609,7 @@ test.describe('Google branché (simulé)', () => {
     await creerProjet('pr1', { titre: 'Refonte' });
     await connecter(page);
     await aller(page, FICHE);
-    const info = page.locator('[data-section="projet-documents"] .section-tete [data-role="info"]');
+    const info = page.locator('[data-section="projet-documents"] .onglet-documents-tete [data-role="info"]');
     await expect(info).toHaveCount(1);
     const bulle = info.locator('[data-role="bulle-info"]');
     await page.waitForTimeout(1500); // l'écran se redessine quand Firestore renvoie la fiche (voir docs/acceleration-tests-mesures.md) : on attend qu'il soit stable

@@ -164,6 +164,18 @@ export async function creerActivite(id, valeurs = {}) {
 
 // ---------------------------------------------------------------- connexion (vrai parcours Google via l'émulateur Auth)
 
+/** Ouvre l'onglet « Documents » du panneau de droite (fiche affaire ou projet) : liste, boutons d'ajout et dossier de travail y sont. */
+export async function ouvrirDocuments(page) {
+  const onglet = page.locator('.compositeur [data-onglet="documents"]');
+  if ((await onglet.getAttribute('aria-selected')) !== 'true') await onglet.click();
+  await expect(page.locator('.compositeur [role="tabpanel"][aria-label="Documents"]')).toBeVisible();
+}
+
+/** Sur une fiche affaire ou projet : ouvre l'onglet « Documents » s'il existe (les autres fiches n'en ont pas). */
+export async function ouvrirDocumentsSiPresent(page) {
+  if (await page.locator('.compositeur [data-onglet="documents"]').count()) await ouvrirDocuments(page);
+}
+
 export function estTelephone(page) {
   return (page.viewportSize()?.width || 1440) < 768;
 }

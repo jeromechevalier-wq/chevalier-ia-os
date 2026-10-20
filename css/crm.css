@@ -476,3 +476,6 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 .champ-description { display: block; width: 100%; box-sizing: border-box; height: calc(4 * 1.5em + 2 * var(--esp-3) + 2px); resize: none; overflow-y: auto; font-family: inherit; line-height: 1.5; color: var(--texte); background: transparent; border: 1px solid var(--bordure); border-radius: var(--rayon); padding: var(--esp-3); }
 .champ-description::placeholder { color: var(--placeholder); }
 .champ-description:focus { outline: none; border-color: var(--accent-trait); background: var(--panneau); }
+.onglet-documents-tete { display: flex; align-items: center; justify-content: space-between; gap: var(--esp-4); }
+.onglet-documents-tete .sous-titre { margin-bottom: 0; }
+.onglet .compteur { margin-left: var(--esp-1); }

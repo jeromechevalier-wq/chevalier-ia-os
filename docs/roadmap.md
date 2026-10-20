@@ -166,3 +166,6 @@ Jérôme veut offrir à ses clients une interface graphique **et** un accès MCP
 
 ## Hors périmètre de la 2.0 (rappel)
 Import CSV, fusion de doublons, prévisions en euros, envoi d'e-mails depuis la fiche, mode hors ligne.
+
+### Onglet « Documents » sur l'affaire et le projet (demandé par Jérôme le 20/10/2026) : fait, PR en attente du « fusionne » (version 2.18.0)
+Inspiré de Pipedrive. À droite, après « Activité » et « Notes » : onglet « Documents » (pastille de compteur) avec le dossier de travail, les liens et documents et, sur un projet, les documents de l'affaire. La section « Liens et documents » quitte la colonne de gauche ; le projet n'a plus de « Détails » (le dossier de travail en était le seul contenu). Joindre ou retirer un document laisse une ligne dans l'Historique (filtre « Documents »). Les favoris n'y laissent pas de ligne (ils restent dans le Journal des modifications). Pas de changement côté serveur MCP : un document joint par un assistant ne laisse pas encore de ligne dans l'Historique.

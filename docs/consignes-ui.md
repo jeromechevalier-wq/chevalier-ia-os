@@ -23,6 +23,7 @@ Ces règles viennent de Jérôme (non-développeur). Elles valent pour tous les 
 - L'icône « i » explique ; elle marche au survol, au clavier et au toucher. *(2026-10-17)*
 
 ## Liens, documents et dossier de travail
+- Sur l'affaire et le projet, tout ça est dans l'**onglet « Documents »** de la colonne de droite, après « Activité » et « Notes » (pastille de compteur) : le « Dossier de travail de cette fiche » en haut, puis « Liens et documents », puis (projet) « Documents de l'affaire ». Plus de section « Liens et documents » dans la colonne de gauche. Ajouter ou retirer un document laisse une ligne dans l'Historique (filtre « Documents »). *(2026-10-20)*
 - « Liens et documents » : deux boutons côte à côte, « Ajouter un document » et « Ajouter un lien web » ; nom et note facultatifs. *(2026-10-17)*
 - Bloc « Dossier de travail de cette fiche » identique sur l'affaire et le projet : « Créer un dossier dans Google Drive » et « Lier un dossier Google Drive existant ». *(2026-10-17)*
 - Sans dossier de travail, « Ajouter un document » affiche seulement un message qui explique pourquoi on ne peut pas, avec « Fermer » : jamais de création ni de fenêtre qui s'ouvre et se ferme. *(2026-10-17)*

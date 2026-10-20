@@ -199,9 +199,10 @@ export function ligneActivite(a, aujourdhui, { avecAffaire = true, tousRattachem
  * `affaireLiee: { affaireId, fusionnerNotes(notesDeLaFiche, notesDeLAffaire) }` (fiche projet) : montre aussi les notes de l'affaire, en lecture seule
  * (les notes marquées `deAffaire` n'ont ni « Modifier » ni « Supprimer » : elles restent sur l'affaire).
  * `avecActivites: false` : ni onglet « Activité », ni Points clés, seulement les notes et l'historique (plus utilisé : la fiche projet a retrouvé ses activités).
+ * `avecDocuments` : ajoute un onglet « Documents » (après Notes) ; la fiche y met son contenu par `majDocuments({ element, compteur })` (appelée à chaque fois que la fiche est redessinée).
  * `typesActivite` : identifiants des types proposés dans l'onglet Activité (par défaut tous). La fiche projet n'offre pas « Tâche » : un projet a ses propres tâches.
  */
-export function panneauActivite({ lien, liensCreation, avecActivites = true, affaireLiee = null, typesActivite = null }) {
+export function panneauActivite({ lien, liensCreation, avecActivites = true, affaireLiee = null, typesActivite = null, avecDocuments = false }) {
   let fil = { notes: [], evenements: [] };
   let filAffaire = { notes: [] };
   let filtre = 'tous';
@@ -266,22 +267,31 @@ export function panneauActivite({ lien, liensCreation, avecActivites = true, aff
 
   const ongletActivite = h('button', { type: 'button', role: 'tab', class: 'onglet actif', 'aria-selected': 'true', onclick: () => choisirOnglet('activite') }, icone('calendar', { taille: 16 }), 'Activité');
   const ongletNotes = h('button', { type: 'button', role: 'tab', class: 'onglet', 'aria-selected': 'false', onclick: () => choisirOnglet('notes') }, icone('sticky-note', { taille: 16 }), 'Notes');
+  // ---- onglet Documents (affaire et projet) : le contenu est fourni par la fiche
+  const compteurDocuments = h('span', { class: 'compteur', dataset: { role: 'compteur-documents' } }, '0');
+  const ongletDocuments = avecDocuments ? h('button', { type: 'button', role: 'tab', class: 'onglet', 'aria-selected': 'false', 'data-onglet': 'documents', onclick: () => choisirOnglet('documents') },
+    icone('paperclip', { taille: 16 }), 'Documents', compteurDocuments) : null;
+  const zoneDocuments = h('div', { class: 'pile' });
+  const panneauDocuments = avecDocuments ? h('div', { class: 'compositeur-corps', role: 'tabpanel', 'aria-label': 'Documents', hidden: true }, zoneDocuments) : null;
   function choisirOnglet(o) {
     onglet = o;
-    for (const [b, id] of [[ongletActivite, 'activite'], [ongletNotes, 'notes']]) {
+    for (const [b, id] of [[ongletActivite, 'activite'], [ongletNotes, 'notes'], [ongletDocuments, 'documents']]) {
+      if (!b) continue;
       b.classList.toggle('actif', id === o);
       b.setAttribute('aria-selected', String(id === o));
     }
     panneauActiviteSaisie.hidden = o !== 'activite';
     panneauNoteSaisie.hidden = o !== 'notes';
-    (o === 'activite' ? champTitre : champNote).focus();
+    if (panneauDocuments) panneauDocuments.hidden = o !== 'documents';
+    if (o === 'activite') champTitre.focus();
+    else if (o === 'notes') champNote.focus();
   }
   if (!avecActivites) {
     ongletNotes.classList.add('actif');
     ongletNotes.setAttribute('aria-selected', 'true');
     panneauActiviteSaisie.hidden = true;
   }
-  const compositeur = h('div', { class: 'compositeur' }, h('div', { class: 'onglets', role: 'tablist' }, avecActivites ? ongletActivite : null, ongletNotes), panneauActiviteSaisie, panneauNoteSaisie);
+  const compositeur = h('div', { class: 'compositeur' }, h('div', { class: 'onglets', role: 'tablist' }, avecActivites ? ongletActivite : null, ongletNotes, ongletDocuments), panneauActiviteSaisie, panneauNoteSaisie, panneauDocuments);
 
   // ---- points clés et historique
   function rendrePointsCles() {
@@ -354,6 +364,7 @@ export function panneauActivite({ lien, liensCreation, avecActivites = true, aff
     arreter() { arretFil(); arretFilAffaire(); arretDonnees(); },
     focusActivite() { choisirOnglet('activite'); },
     focusNote() { choisirOnglet('notes'); },
+    majDocuments({ element, compteur }) { remplir(zoneDocuments, element); compteurDocuments.textContent = String(compteur); },
   };
 }
 

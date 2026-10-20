@@ -4,11 +4,11 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { test, expect, attendreCalme, connecter, allerAuxReglagesCrm, creerProjet, creerAffaire, creerTacheProjet, creerActivite, lireDocument, jour } from './outils.js';
+import { test, expect, attendreCalme, connecter, allerAuxReglagesCrm, creerProjet, creerAffaire, creerTacheProjet, creerActivite, lireDocument, jour , ouvrirDocumentsSiPresent } from './outils.js';
 import { brancherGoogle, lireGoogle, choisirDansGoogle, PARENT } from './google-simule.js';
 
 const dialogue = (page) => page.getByRole('dialog');
-async function aller(page, hash) { await page.evaluate((h) => { location.hash = h; }, hash); await attendreCalme(page); }
+async function aller(page, hash) { await page.evaluate((h) => { location.hash = h; }, hash); await attendreCalme(page); await ouvrirDocumentsSiPresent(page); } // ces tests parlent des documents : l'onglet « Documents » est ouvert d'office
 async function champDoc(collection, id, cle, attendu) { await expect.poll(async () => (await lireDocument(`${collection}/${id}`))?.[cle], { timeout: 10_000 }).toEqual(attendu); }
 const DOSSIER = '1AbC_dEf-1234567';
 const URL_DOSSIER = `https://drive.google.com/drive/folders/${DOSSIER}`;
@@ -19,15 +19,16 @@ const FICHES = [
 const fichierDrive = (id, nom, parents, type = 'application/pdf') => ({ id, name: nom, url: `https://drive.google.com/file/d/${id}/view`, mimeType: type, parents });
 
 for (const f of FICHES) {
-  test(`Affaire et projet fonctionnent pareil : sur ${f.nom}, « Liens et documents » avant « Détails », deux boutons côte à côte, et le bloc « Dossier de travail de cette fiche » a les mêmes deux boutons`, async ({ page, context }) => {
+  test(`Affaire et projet fonctionnent pareil : sur ${f.nom}, « Liens et documents » est dans l'onglet « Documents » à droite, deux boutons côte à côte, et le bloc « Dossier de travail de cette fiche » a les mêmes deux boutons`, async ({ page, context }) => {
     await brancherGoogle(context);
     await f.creer();
     await connecter(page);
     await aller(page, f.hash);
     const liens = page.locator(`[data-section="${f.section}"]`);
     await expect(liens).toContainText('Liens et documents');
-    expect(await page.evaluate(([a, b]) => document.querySelector(`[data-section="${a}"]`).getBoundingClientRect().top < document.querySelector(`[data-section="${b}"]`).getBoundingClientRect().top, [f.section, f.details])).toBe(true);
-    await expect(liens.locator('.boutons-liens button')).toHaveText(['Ajouter un document', 'Ajouter un lien web']);
+    await expect(page.locator('.compositeur [data-onglet="documents"]')).toHaveAttribute('aria-selected', 'true');
+    await expect(page.locator('.section', { hasText: 'Liens et documents' })).toHaveCount(0); // plus de section dans la colonne de gauche
+    await expect(liens.locator(':scope > .boutons-liens button')).toHaveText(['Ajouter un document', 'Ajouter un lien web']); // (le dossier de travail, dans le même onglet, a ses propres boutons)
     // La fiche est redessinée quand des données arrivent : on réessaie la mesure jusqu'à ce que les deux boutons soient mesurables.
     await expect.poll(async () => {
       const b1 = await liens.locator('[data-action="ajouter-document-google"]').boundingBox();
@@ -179,7 +180,7 @@ for (const f of FICHES) {
     await f.creer();
     await connecter(page);
     await aller(page, f.hash);
-    for (const icone of [page.locator(`[data-section="${f.section}"] .section-tete [data-role="info"]`), page.locator('[data-prop="dossier"] [data-role="info"]')]) {
+    for (const icone of [page.locator(`[data-section="${f.section}"] .onglet-documents-tete [data-role="info"]`), page.locator('[data-prop="dossier"] [data-role="info"]')]) {
       const bulle = icone.locator('[data-role="bulle-info"]');
       await expect(bulle).toBeHidden();
       await icone.focus(); // clavier

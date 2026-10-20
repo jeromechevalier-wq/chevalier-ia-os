@@ -2,7 +2,7 @@
 // ne montre rien qui soit propre à Jérôme. Émulateurs, règles de la plateforme (chargées le temps de ce fichier).
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { test, expect, ecrireDocument, lireDocument, listerDocuments, estTelephone, basculerThemeParMenu, allerA, PROJET, FIRESTORE, URL_APP, jour } from './outils.js';
+import { test, expect, ecrireDocument, lireDocument, listerDocuments, estTelephone, basculerThemeParMenu, allerA, PROJET, FIRESTORE, URL_APP, jour, ouvrirDocuments } from './outils.js';
 import { brancherGoogle, lireGoogle, choisirDansGoogle, ID_CLIENT } from './google-simule.js';
 
 const ALICE = 'alice@exemple.test';
@@ -178,6 +178,7 @@ test('I5 aucun texte au nom de Jérôme sur les écrans d\'un client (accueil, l
   await verifier('fiche affaire');
   // Le dossier de travail est un lien libre (utile à tous) ; ni GitHub, ni « Créer un dossier dans Google Drive » tant que l'interrupteur est éteint (éteint par défaut chez un client).
   await expect(page.locator('[data-prop="github"], [data-action="creer-dossier"]')).toHaveCount(0);
+  await ouvrirDocuments(page);
   await expect(page.locator('[data-prop="dossier"]')).toBeVisible();
   await expect(page.locator('select[aria-label="Propriétaire"]')).toHaveCount(0);
   await expect(page.locator('.proprietaire')).toContainText(ALICE);
@@ -185,6 +186,7 @@ test('I5 aucun texte au nom de Jérôme sur les écrans d\'un client (accueil, l
   await expect(page.locator('input.titre-editable')).toHaveValue('Site du lac');
   await verifier('fiche projet');
   await expect(page.locator('[data-prop="github"], [data-action="creer-dossier"]')).toHaveCount(0);
+  await ouvrirDocuments(page);
   await expect(page.locator('[data-prop="dossier"]')).toBeVisible();
 });
 
@@ -251,6 +253,7 @@ test('I10 chez un client : « Ajouter un document » (Google branché) et dossie
   await ecrireDocument('clients/studio/crm_parametres/reglages', { boutonsDepot: false });
   await ouvrir(page, 'studio', 'projets/projets/pr1');
   await expect(page.locator('input.titre-editable')).toHaveValue('Site du lac');
+  await ouvrirDocuments(page);
   await expect(page.locator('[data-action="creer-dossier-ouvrir"]')).toHaveCount(0);
   await expect(page.locator('[data-action="lier-dossier"]')).toBeVisible();
   await expect(page.locator('[data-section="projet-documents"]')).toContainText('Liens et documents');
@@ -301,6 +304,7 @@ test('P6 chez un client : « Créer un dossier dans Google Drive » crée TOUT S
   await ouvrir(page, 'studio', 'projets/projets/pr1');
   await expect.poll(async () => (await lireDocument('clients/studio/crm_parametres/reglages')) !== null).toBe(true);
   await ecrireDocument('clients/studio/crm_parametres/reglages', { ...(await lireDocument('clients/studio/crm_parametres/reglages')), boutonsDepot: true });
+  await ouvrirDocuments(page);
   await page.locator('[data-action="creer-dossier-ouvrir"]').click();
   await page.locator('[data-action="creer-dossier"]').click();
   await expect.poll(async () => (await lireDocument('clients/studio/projets_projets/pr1')).urlDossier).toMatch(/DOSSIER_2_/);
