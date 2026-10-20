@@ -6,9 +6,9 @@
 //   POST /oauth/approve                                appelé par cette page, avec le jeton d'identité Google
 //   POST /oauth/token                                  échange du code, renouvellement
 // Sécurité du client : le `client_id` n'est pas un secret et n'est PAS stocké. La protection repose sur : adresse de retour exactement dans
-// la liste (claude.ai / claude.com), PKCE S256 obligatoire, compte Google autorisé revérifié côté serveur, consentement explicite.
+// la liste (claude.ai / claude.com) ou de la forme de ChatGPT (voir config.js), PKCE S256 obligatoire, compte Google autorisé revérifié côté serveur, consentement explicite.
 import { randomBytes } from 'node:crypto';
-import { EMETTEUR, ORIGINES_AUTORISEES, REDIRECTIONS_AUTORISEES, RESSOURCE } from './config.js';
+import { EMETTEUR, ORIGINES_AUTORISEES, RESSOURCE, assistantDeRedirection, redirectionAutorisee as redirectionDeJerome } from './config.js';
 import { ErreurOauth, compteAutorise, creerMagasinOauth } from './magasin.js';
 import { ENTETES_PAGE, pageAutorisation, pageErreur } from './page.js';
 
@@ -40,7 +40,7 @@ export const objet = (x) => (x && typeof x === 'object' && !Array.isArray(x) ? x
 export const texte = (x) => (typeof x === 'string' ? x : undefined);
 
 /** Valide une demande d'autorisation. Renvoie { demande } ou { erreur } (message pour la page, jamais de détail interne). */
-export function validerDemande(p, { redirectionAutorisee = (u) => REDIRECTIONS_AUTORISEES.includes(u), origine = EMETTEUR, messageRedirection = "Adresse de retour non autorisée : seule l'application Claude peut se connecter." } = {}) {
+export function validerDemande(p, { redirectionAutorisee = redirectionDeJerome, origine = EMETTEUR, messageRedirection = 'Adresse de retour non autorisée : seuls Claude et ChatGPT peuvent se connecter.' } = {}) {
   const q = objet(p);
   if (q.response_type !== 'code') return { erreur: 'Type de réponse non pris en charge.' };
   if (!texte(q.client_id) || !FORMAT_CLIENT.test(q.client_id)) return { erreur: 'Client inconnu.' };
@@ -99,7 +99,7 @@ export function creerRouteurOauth({ donnees, verifierIdToken, maintenant = () =>
       infos.code = 'oauth_compte_refuse';
       return repondre(res, 403, { error: 'compte_non_autorise', message: "Ce compte Google n'est pas autorisé." });
     }
-    const code = await magasin.creerCode({ email: identite.email.toLowerCase(), clientId: demande.client_id, redirectUri: demande.redirect_uri, challenge: demande.code_challenge });
+    const code = await magasin.creerCode({ email: identite.email.toLowerCase(), clientId: demande.client_id, redirectUri: demande.redirect_uri, challenge: demande.code_challenge, assistant: assistantDeRedirection(demande.redirect_uri) });
     infos.code = 'oauth_autorise';
     return repondre(res, 200, { redirect: adresseRetour(demande, { code }) });
   }
@@ -128,7 +128,7 @@ export function creerRouteurOauth({ donnees, verifierIdToken, maintenant = () =>
   function enregistrer(req, res, infos) {
     const p = objet(req.body);
     const uris = Array.isArray(p.redirect_uris) ? p.redirect_uris : [];
-    if (!uris.length || uris.length > 5 || !uris.every((u) => REDIRECTIONS_AUTORISEES.includes(u))) {
+    if (!uris.length || uris.length > 5 || !uris.every(redirectionDeJerome)) {
       infos.code = 'oauth_enregistrement_refuse';
       return repondre(res, 400, { error: 'invalid_redirect_uri', error_description: "Adresse de retour non autorisée." });
     }
@@ -174,7 +174,7 @@ export function creerRouteurOauth({ donnees, verifierIdToken, maintenant = () =>
         const { demande, erreur } = validerDemande(Object.fromEntries(searchParams));
         infos.code = demande ? 'oauth_page' : 'oauth_demande';
         res.writeHead(demande ? 200 : 400, ENTETES_PAGE);
-        res.end(demande ? pageAutorisation(demande) : pageErreur(erreur));
+        res.end(demande ? pageAutorisation(demande, assistantDeRedirection(demande.redirect_uri) === 'chatgpt' ? { titre: 'Autoriser ChatGPT à accéder à Chevalier IA OS ?', titreOnglet: 'Autoriser ChatGPT' } : {}) : pageErreur(erreur));
         return true;
       }
       const cibles = { '/oauth/register': enregistrer, '/oauth/approve': approuver, '/oauth/token': jetons };
