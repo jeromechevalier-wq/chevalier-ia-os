@@ -139,7 +139,11 @@ export async function modifierOrganisation(c, args) {
   const o = await lire(c, C.organisations, id, 'Organisation');
   const patch = {};
   if (champs.nom !== undefined) { verifierMessages(L.validerOrganisation({ nom: champs.nom })); patch.nom = texte(champs.nom); }
-  for (const cle of ['adresse', 'ville', 'siteWeb', 'secteur']) if (champs[cle] !== undefined) patch[cle] = texte(champs[cle]);
+  for (const cle of ['adresse', 'ville', 'siteWeb', 'telephone', 'secteur']) if (champs[cle] !== undefined) patch[cle] = texte(champs[cle]);
+  if (champs.email !== undefined) {
+    if (champs.email !== '' && !L.emailValide(champs.email)) refuser('saisie_invalide', 'Adresse email invalide.');
+    patch.email = L.normaliserEmail(champs.email);
+  }
   if (champs.taille !== undefined) {
     if (champs.taille !== '' && !L.TAILLES.includes(champs.taille)) refuser('saisie_invalide', `Taille inconnue (valeurs : ${L.TAILLES.join(', ')} ou vide).`);
     patch.taille = champs.taille;
