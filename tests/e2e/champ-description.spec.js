@@ -41,7 +41,7 @@ for (const f of FICHES) {
     expect((await lireDocument(f.collection)).description ?? '').toBe('');
   });
 
-  test(`TL5 ${f.genre} : le texte tapé s’enregistre en quittant le champ, garde ses retours à la ligne, grandit avec le texte et se retrouve à la réouverture`, async ({ page }, info) => {
+  test(`TL5 ${f.genre} : le texte tapé s’enregistre en quittant le champ, garde ses retours à la ligne, garde une hauteur fixe de 4 lignes (ascenseur au-delà) et se retrouve à la réouverture`, async ({ page }, info) => {
     await creerAffaire('a1', { titre: 'Audit des Lilas' });
     await creerProjet('pr1', { titre: 'Refonte site' });
     await connecter(page);
@@ -51,14 +51,15 @@ for (const f of FICHES) {
     const texte = Array.from({ length: 14 }, (_, i) => `Ligne ${i + 1} : ce dont parle cette fiche.`).join('\n');
     await champ.click();
     await champ.fill(texte);
-    expect((await champ.boundingBox()).height).toBeGreaterThan(hauteurVide + 100); // il s'agrandit
+    expect((await champ.boundingBox()).height).toBe(hauteurVide); // hauteur fixe : il ne grandit pas
+    expect(await champ.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true); // un ascenseur apparaît
     await page.locator('.fiche-titre input.titre-editable').click(); // quitter le champ
     await expect.poll(async () => (await lireDocument(f.collection)).description).toBe(texte);
     await page.screenshot({ path: join(DOSSIER_CAPTURES, `${f.genre}-rempli-${info.project.name}.png`) });
     await aller(page, '#/crm/accueil');
     await aller(page, f.hash);
     await expect(page.locator('[data-champ="description"]')).toHaveValue(texte);
-    expect((await page.locator('[data-champ="description"]').boundingBox()).height).toBeGreaterThan(hauteurVide + 100);
+    expect((await page.locator('[data-champ="description"]').boundingBox()).height).toBe(hauteurVide);
     // Vider le champ : la valeur est effacée et l'invitation revient.
     await page.locator('[data-champ="description"]').click();
     await page.locator('[data-champ="description"]').fill('');
