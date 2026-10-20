@@ -1,4 +1,4 @@
-// Fiche d'un projet : barre des phases, résumé, détails (dossier de travail), liens et documents ; notes et historique à droite.
+// Fiche d'un projet : barre des phases, résumé, tâches, factures ; à droite : activité, notes et documents (onglets, avec le dossier de travail), points clés, historique.
 import { h, icone, remplir, ouvrirMenu, toast, confirmer } from '../../os/ui.js';
 import * as CRM from '../crm/donnees.js';
 import * as L from '../crm/logique.js';

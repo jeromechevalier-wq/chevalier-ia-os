@@ -63,7 +63,7 @@ const formulaires = new Map(); // formulaire ouvert (la fiche est redessinée qu
 const afficheurs = new Map(); // fiche → fonction qui redessine la ligne la plus récente (la fiche peut être redessinée pendant une écriture : on redessine alors la nouvelle ligne, pas l'ancienne)
 
 /**
- * La ligne « Dossier de travail » de la section Détails (affaire et projet, identique).
+ * La ligne « Dossier de travail de cette fiche », en haut de l'onglet « Documents » (affaire et projet, identique).
  * - fiche : l'affaire ou le projet ; enregistrer(patch) l'écrit ; typeFiche : 'affaire' ou 'projet' ; nomSuggere : nom proposé pour le dossier à créer.
  * Renvoie { github: null, dossier } (l'ancienne adresse GitHub est dans la liste « Liens et documents », avec le libellé « GitHub »).
  */

@@ -256,7 +256,7 @@ for (const [libelle, hash, collection, id, creer] of [
     await connecter(page);
     await aller(page, hash);
     await page.locator('[data-action="ajouter-document-google"]').click();
-    await expect(dialogue(page)).toContainText('Cette fiche n’a pas de dossier de travail : on ne peut pas y ajouter de document. Crée ou relie d’abord le dossier de travail de cette fiche (bloc Détails).');
+    await expect(dialogue(page)).toContainText('Cette fiche n’a pas de dossier de travail : on ne peut pas y ajouter de document. Crée ou relie d’abord le dossier de travail de cette fiche (bloc « Dossier de travail de cette fiche », en haut de cet onglet).');
     const boutons = dialogue(page).locator('.dialogue-pied button');
     await expect(boutons).toHaveCount(1);
     await expect(boutons).toHaveText('Fermer');

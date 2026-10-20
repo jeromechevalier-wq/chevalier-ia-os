@@ -1,4 +1,4 @@
-// Fiche d'une affaire : barre des étapes, résumé, détails, documents ; activité à droite.
+// Fiche d'une affaire : barre des étapes, résumé, détails ; à droite : activité, notes et documents (onglets), points clés, historique.
 import { h, icone, remplir, ouvrirMenu, toast, dialogue, confirmer } from '../../os/ui.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';

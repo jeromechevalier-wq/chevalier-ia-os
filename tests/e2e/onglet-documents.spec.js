@@ -18,9 +18,11 @@ for (const f of FICHES) {
     await expect(onglets.last().locator('[data-role="compteur-documents"]')).toHaveText('0');
     await expect(page.locator('.section', { hasText: 'Liens et documents' })).toHaveCount(0); // plus de section dans la colonne de gauche
     await expect(page.locator(`[data-section="${f.section}"]`)).toBeHidden(); // l'onglet n'est pas ouvert
-    await onglets.last().click();
+    await onglets.last().focus(); // clavier : l'onglet est un vrai bouton
+    await page.keyboard.press('Enter');
     const zone = page.locator(`[data-section="${f.section}"]`);
     await expect(zone).toBeVisible();
+    await expect(zone.locator('[data-role="aucun-document"]')).toHaveText('Aucun document ni lien pour le moment.'); // cas vide
     await expect(zone.locator('[data-action="ajouter-lien"]')).toBeVisible();
     await expect(zone.locator('[data-prop="dossier"]')).toBeVisible(); // le dossier de travail est dans l'onglet
     await expect(page.locator('[data-section$="-details"] [data-prop="dossier"]')).toHaveCount(0);
@@ -42,6 +44,12 @@ for (const f of FICHES) {
     await expect(zone).toContainText('Devis signé');
     await page.locator('[data-filtre="documents"]').click();
     await expect(page.locator('.fil [data-genre="evenement"]')).toContainText('Document joint : Devis signé');
+    // Retirer : confirmation, puis « Document retiré » dans le fil
+    await zone.getByRole('button', { name: 'Retirer Devis signé' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Retirer', exact: true }).click();
+    await expect.poll(async () => ((await lireDocument(`${f.collection}/${f.id}`)).documents || []).length).toBe(0);
+    await expect(page.locator('[data-role="compteur-documents"]')).toHaveText('0');
+    await expect(page.locator('.fil [data-genre="evenement"]').first()).toContainText('Document retiré : Devis signé');
     await page.locator('[data-filtre="notes"]').click();
     await expect(page.locator('.fil [data-genre="evenement"]')).toHaveCount(0);
   });

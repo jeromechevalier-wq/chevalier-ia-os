@@ -103,7 +103,7 @@ export function sectionLiensEtDocuments({ id, typeFiche, entite, courant, enregi
         // Pas de dossier de travail : un message d'information, rien d'autre (aucune création, aucune fenêtre Google).
         await dialogue({
           titre: 'Pas de dossier de travail',
-          contenu: h('p', {}, 'Cette fiche n’a pas de dossier de travail : on ne peut pas y ajouter de document. Crée ou relie d’abord le dossier de travail de cette fiche (bloc Détails).'),
+          contenu: h('p', {}, 'Cette fiche n’a pas de dossier de travail : on ne peut pas y ajouter de document. Crée ou relie d’abord le dossier de travail de cette fiche (bloc « Dossier de travail de cette fiche », en haut de cet onglet).'),
           boutons: [{ libelle: 'Fermer', valeur: null, style: 'principal' }],
         });
         return;

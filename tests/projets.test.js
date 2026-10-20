@@ -225,6 +225,15 @@ describe('B24 Projets : plans d’écriture', () => {
     assert.deepEqual([e.type, e.collection, e.id, e.patch, e.horodater, e.signer], ['modifier', 'projets_projets', 'pr1', { titre: 'Nouveau' }, ['modifieLe'], ['modifiePar']]);
     assert.deepEqual(P.planMajProjet('pr1', {}).ecritures, []);
   });
+  test('B24 documents d’un projet : « Document joint » avec projetId et affaireId dans le fil ; favori sans ligne ; rien sans `suite`', () => {
+    const avant = { id: 'pr1', personneId: 'p1', organisationId: 'o1', affaireId: 'a1', documents: [] };
+    const c = ctx();
+    const ecritures = P.planMajProjet('pr1', { documents: [{ libelle: 'Planning', url: 'https://x.fr/p', favori: true }] }, { avant, ctx: c }).ecritures;
+    assert.equal(ecritures.length, 2);
+    assert.deepEqual([ecritures[1].donnees.type, ecritures[1].donnees.texte, ecritures[1].donnees.projetId, ecritures[1].donnees.affaireId], ['document', 'Document joint (en favori) : Planning', 'pr1', 'a1']);
+    assert.equal(P.planMajProjet('pr1', { documents: [] }, { avant: { ...avant, documents: [{ libelle: 'Planning', url: 'https://x.fr/p' }] }, ctx: c }).ecritures[1].donnees.texte, 'Document retiré : Planning');
+    assert.equal(P.planMajProjet('pr1', { documents: [] }).ecritures.length, 1);
+  });
   test('B24 changer de phase, mettre en pause, terminer : le projet puis ses événements ; une erreur de règle n’écrit rien', () => {
     const plan = P.planChangerPhase(projet(), 'livraison', ctx());
     assert.deepEqual(plan.ecritures.map((e) => `${e.type}:${e.collection}`), ['modifier:projets_projets', 'creer:crm_evenements']);
