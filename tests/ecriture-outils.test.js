@@ -632,23 +632,44 @@ describe('Outils des projets : mêmes règles que l’écran, avec audit et rest
     refuse(await s.appeler('biblio', 'creer_projet_depuis_affaire', { affaireId: 'fantome' }), /Affaire introuvable/);
   });
 
-  test('TL3 le texte libre se lit et s’écrit sur une affaire et sur un projet (création, modification, projet créé depuis une affaire)', async () => {
+  test('I5 (TL3) plus de champ description dans les outils ; creer_affaire, creer_projet et creer_projet_depuis_affaire créent une note épinglée de départ (vide, ou copie de celle de l’affaire), journalisée, absente du fil tant qu’elle est vide', async () => {
     const s = await avecModeles();
-    const a = ok(await s.appeler('biblio', 'creer_affaire', { titre: 'Boulangerie', description: 'Besoin : une appli de commande.' }));
-    assert.equal(s.doc('crm_affaires', a.id).description, 'Besoin : une appli de commande.');
-    ok(await s.appeler('biblio', 'modifier_affaire', { id: 'a2', description: '  Devis signé le 12.\nDémarrage en novembre.  ' }));
-    assert.equal(s.doc('crm_affaires', 'a2').description, 'Devis signé le 12.\nDémarrage en novembre.');
-    assert.equal(ok(await s.appeler('biblio', 'lire_affaire', { id: 'a2' })).affaire.description, 'Devis signé le 12.\nDémarrage en novembre.');
-    const r = ok(await s.appeler('biblio', 'creer_projet_depuis_affaire', { affaireId: 'a2' }));
-    assert.equal(s.doc('projets_projets', r.id).description, 'Devis signé le 12.\nDémarrage en novembre.');
-    ok(await s.appeler('biblio', 'modifier_projet', { id: r.id, description: 'On construit l’appli de commande.' }));
-    assert.equal(ok(await s.appeler('biblio', 'lire_projet', { id: r.id })).projet.description, 'On construit l’appli de commande.');
-    assert.equal(s.doc('crm_affaires', 'a2').description, 'Devis signé le 12.\nDémarrage en novembre.', 'le texte de l’affaire reste à elle');
-    ok(await s.appeler('biblio', 'modifier_projet', { id: r.id, description: '' }));
-    assert.equal(s.doc('projets_projets', r.id).description, '');
-    const p = ok(await s.appeler('biblio', 'creer_projet', { titre: 'Site', description: 'Refonte du site vitrine.' }));
-    assert.equal(s.doc('projets_projets', p.id).description, 'Refonte du site vitrine.');
-    refuse(await s.appeler('biblio', 'modifier_projet', { id: p.id, description: 'x'.repeat(5001) }));
+    for (const nom of ['creer_affaire', 'modifier_affaire', 'creer_projet', 'modifier_projet', 'creer_projet_depuis_affaire']) {
+      const o = OUTILS_ECRITURE.find((x) => x.nom === nom);
+      assert.equal('description' in o.schema, false, `${nom} : plus de paramètre description`);
+      assert.doesNotMatch(o.description, /texte libre|description \(/, `${nom} : la description de l’outil ne parle plus du texte libre`);
+    }
+    // creer_affaire : une note épinglée vide, rendue dans noteEpingleeId, même moteur (journal) que les autres écritures.
+    const a = ok(await s.appeler('biblio', 'creer_affaire', { titre: 'Boulangerie', personneId: 'p1', description: 'ignoré' }));
+    assert.equal('description' in s.doc('crm_affaires', a.id), false, 'un ancien paramètre description est ignoré');
+    const noteA = s.doc('crm_notes', a.noteEpingleeId);
+    assert.deepEqual([noteA.texte, noteA.epinglee, noteA.affaireId, noteA.personneId, noteA.auteur, noteA.via], ['', true, a.id, 'p1', 'hermes-bibliothecaire', 'mcp']);
+    assert.ok(s.collections.crm_audit.some((l) => l.docId === a.noteEpingleeId && l.collection === 'crm_notes' && l.action === 'creer' && l.outil === 'creer_affaire'));
+    // Lecture : la note vide ne pollue pas le fil ; un ancien champ description resté en base est ignoré.
+    const lue = ok(await s.appeler('biblio', 'lire_affaire', { id: a.id, avecFil: true }));
+    assert.equal(lue.fil.some((e) => e.genre === 'note'), false);
+    s.doc('crm_affaires', 'a2').description = 'Ancien texte libre resté en base';
+    assert.equal('description' in ok(await s.appeler('biblio', 'lire_affaire', { id: 'a2' })).affaire, false);
+    refuse(await s.appeler('biblio', 'modifier_affaire', { id: 'a2', description: 'x' }), /Aucun champ/);
+    // L'agent remplit la note avec modifier_note : elle apparaît alors dans le fil.
+    ok(await s.appeler('biblio', 'modifier_note', { id: a.noteEpingleeId, texte: 'Besoin : une appli de commande.' }));
+    assert.equal(ok(await s.appeler('biblio', 'lire_affaire', { id: a.id, avecFil: true })).fil.filter((e) => e.genre === 'note').length, 1);
+    // Projet depuis une affaire gagnée : copie du texte de la note épinglée de l'affaire ; l'originale reste à l'affaire.
+    s.collections.crm_notes.push({ id: 'n-a2', texte: 'Devis signé le 12.\nDémarrage en novembre.', epinglee: true, affaireId: 'a2', personneId: null, organisationId: null, auteur: 'x', creeLe: MAINTENANT, modifieLe: MAINTENANT });
+    const r = ok(await s.appeler('biblio', 'creer_projet_depuis_affaire', { affaireId: 'a2', description: 'ignoré' }));
+    const noteP = s.doc('crm_notes', r.noteEpingleeId);
+    assert.deepEqual([noteP.texte, noteP.epinglee, noteP.projetId, noteP.affaireId], ['Devis signé le 12.\nDémarrage en novembre.', true, r.id, 'a2']);
+    assert.notEqual(r.noteEpingleeId, 'n-a2');
+    assert.equal(s.doc('crm_notes', 'n-a2').texte, 'Devis signé le 12.\nDémarrage en novembre.', 'la note de l’affaire reste à elle');
+    assert.equal('description' in s.doc('projets_projets', r.id), false);
+    // creer_projet : note vide ; lire_projet n'a ni description ni note vide dans le fil.
+    const p = ok(await s.appeler('biblio', 'creer_projet', { titre: 'Site', description: 'ignoré' }));
+    const noteVide = s.doc('crm_notes', p.noteEpingleeId);
+    assert.deepEqual([noteVide.texte, noteVide.epinglee, noteVide.projetId], ['', true, p.id]);
+    const lp = ok(await s.appeler('biblio', 'lire_projet', { id: p.id, avecFil: true }));
+    assert.equal('description' in lp.projet, false);
+    assert.equal(lp.fil.some((e) => e.genre === 'note'), false);
+    refuse(await s.appeler('biblio', 'modifier_projet', { id: p.id, description: 'x' }), /Aucun champ/);
   });
 
   test('phase, pause, reprise, archivage, modification : mêmes règles que l’écran ; « rien à faire » n’écrit rien', async () => {

@@ -175,7 +175,7 @@ export async function creerAffaire(c, args) {
   const organisation = await lireSiDonne(c, C.organisations, valeurs.organisationId || personne?.organisationId, 'Organisation');
   const plan = L.planCreerAffaire(valeurs, { personnes: personne ? [personne] : [], organisations: organisation ? [organisation] : [] }, ctx);
   verifierMessages(L.validerAffaire({ titre: plan.titre }));
-  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: plan.id, titre: plan.titre });
+  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: plan.id, titre: plan.titre, noteEpingleeId: plan.noteId });
 }
 
 export async function modifierAffaire(c, args) {
@@ -190,7 +190,6 @@ export async function modifierAffaire(c, args) {
   if (champs.offreId !== undefined) { await verifierOffre(c, champs.offreId); patch.offreId = champs.offreId || null; }
   if (champs.dureeJours !== undefined) patch.dureeJours = champs.dureeJours;
   for (const cle of ['source', 'besoin']) if (champs[cle] !== undefined) patch[cle] = cle === 'besoin' ? String(champs[cle]).trim() : texte(champs[cle]);
-  if (champs.description !== undefined) patch.description = L.nettoyerDescription(champs.description);
   if (champs.urlGithub !== undefined) { const r = L.majUrlGithub(champs.urlGithub); verifierMessages(r.erreurs); Object.assign(patch, r.patch); }
   if (champs.urlDossier !== undefined) { const r = L.majUrlDossier(champs.urlDossier); verifierMessages(r.erreurs); Object.assign(patch, r.patch); }
   if (champs.archive !== undefined) patch.archive = champs.archive;
@@ -281,7 +280,7 @@ export async function creerProjet(c, args) {
   await lireSiDonne(c, C.organisations, valeurs.organisationId || personne?.organisationId, 'Organisation');
   const modele = await modeleDemande(c, modeleId);
   const plan = PL.planCreerProjet({ ...valeurs, organisationId: valeurs.organisationId || personne?.organisationId || null }, ctx, { modele });
-  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: plan.id, titre: plan.titre, modeleId: modele?.id ?? null });
+  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: plan.id, titre: plan.titre, modeleId: modele?.id ?? null, noteEpingleeId: plan.noteId });
 }
 
 /** Crée le projet d'une affaire GAGNÉE (reprend l'affaire et la lie), comme « Créer le projet » de l'écran. */
@@ -289,10 +288,10 @@ export async function creerProjetDepuisAffaire(c, args) {
   const { affaireId, modeleId, ...valeurs } = args;
   const a = await lire(c, C.affaires, affaireId, 'Affaire');
   verifierMessages(PL.validerProjet({ titre: valeurs.titre || a.titre, dateDebut: valeurs.dateDebut, dateFin: valeurs.dateFin }, (await contexte(c)).config));
-  const [projets, modele] = await Promise.all([c.donnees.liste(C.projets), modeleDemande(c, modeleId)]);
-  const plan = PL.planCreerProjetDepuisAffaire({ affaire: a, projets, valeurs, modele }, await contexte(c));
+  const [projets, modele, notesAffaire] = await Promise.all([c.donnees.liste(C.projets), modeleDemande(c, modeleId), c.donnees.liste(C.notes, { champ: 'affaireId', valeur: a.id })]);
+  const plan = PL.planCreerProjetDepuisAffaire({ affaire: a, projets, valeurs, modele, notesAffaire }, await contexte(c));
   verifierMessages(plan.erreurs);
-  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: plan.id, titre: plan.titre, affaireId, modeleId: modele?.id ?? null });
+  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: plan.id, titre: plan.titre, affaireId, modeleId: modele?.id ?? null, noteEpingleeId: plan.noteId });
 }
 
 export async function modifierProjet(c, args) {
@@ -311,7 +310,6 @@ export async function modifierProjet(c, args) {
   const debut = patch.dateDebut !== undefined ? patch.dateDebut : p.dateDebut;
   const fin = patch.dateFin !== undefined ? patch.dateFin : p.dateFin;
   verifierMessages(PL.validerProjet({ titre: patch.titre ?? p.titre, dateDebut: debut, dateFin: fin }));
-  if (champs.description !== undefined) patch.description = L.nettoyerDescription(champs.description);
   if (champs.urlGithub !== undefined) { const r = L.majUrlGithub(champs.urlGithub); verifierMessages(r.erreurs); Object.assign(patch, r.patch); }
   if (champs.urlDossier !== undefined) { const r = L.majUrlDossier(champs.urlDossier); verifierMessages(r.erreurs); Object.assign(patch, r.patch); }
   if (!Object.keys(patch).length) refuser('saisie_invalide', 'Aucun champ à modifier (la phase et le statut passent par changer_phase_projet, mettre_projet_en_pause, reprendre_projet, terminer_projet, rouvrir_projet, archiver_projet).');

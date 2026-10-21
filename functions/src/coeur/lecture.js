@@ -94,9 +94,13 @@ export async function lireOrganisation(donnees, { id, avecFil }) {
   });
 }
 
+// L'ancien champ « description » (texte libre, supprimé par I5 : remplacé par la note épinglée) peut rester dans les fiches anciennes : il est ignoré, jamais lu.
+const sansDescription = ({ description: _ancienChamp, ...fiche }) => fiche;
+
 export async function lireAffaire(donnees, { id, avecFil }) {
-  const affaire = await donnees.document(C.affaires, id);
-  if (!affaire) introuvable('Affaire');
+  const brute = await donnees.document(C.affaires, id);
+  if (!brute) introuvable('Affaire');
+  const affaire = sansDescription(brute);
   const [personne, organisation, activites] = await Promise.all([
     affaire.personneId ? donnees.document(C.personnes, affaire.personneId) : null,
     affaire.organisationId ? donnees.document(C.organisations, affaire.organisationId) : null,
@@ -179,8 +183,9 @@ export async function listerProjets(donnees, { phase, statut, archive, affaireId
 
 export async function lireProjet(donnees, { id, avecFil }, espace = {}) {
   const config = await lireConfig(donnees, espace);
-  const projet = await donnees.document(C.projets, id);
-  if (!projet) introuvable('Projet');
+  const brut = await donnees.document(C.projets, id);
+  if (!brut) introuvable('Projet');
+  const projet = sansDescription(brut);
   const [affaire, personne, organisation, taches] = await Promise.all([
     projet.affaireId ? donnees.document(C.affaires, projet.affaireId) : null,
     projet.personneId ? donnees.document(C.personnes, projet.personneId) : null,

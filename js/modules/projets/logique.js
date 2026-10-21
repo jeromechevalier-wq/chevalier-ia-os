@@ -5,9 +5,9 @@
 // et le même audit s'appliquent.
 import {
   COLLECTIONS_PLAN, MARQUES_CREATION, MARQUES_MODIFICATION,
-  ecritureCreer, ecritureModifier, ecritureSupprimer, evenements, modifierSiPatch, evenementCreation, evenementsDocuments,
-  nettoyerEspaces, nettoyerDescription, aujourdhuiParis, validerUrlGithub, validerUrlDossier, urlOuVide, normaliser, ajouterJours,
-  planChangerEtape, planMarquerPerdue, formatEuros, configDe, TYPES_ACTIVITE,
+  ecritureCreer, ecritureModifier, ecritureSupprimer, ecritureNoteDeDepart, evenements, modifierSiPatch, evenementCreation, evenementsDocuments,
+  nettoyerEspaces, aujourdhuiParis, validerUrlGithub, validerUrlDossier, urlOuVide, normaliser, ajouterJours,
+  planChangerEtape, planMarquerPerdue, formatEuros, configDe, TYPES_ACTIVITE, texteNoteEpingleeAffaire,
 } from '../crm/logique.js';
 
 const C = COLLECTIONS_PLAN;
@@ -93,7 +93,6 @@ export function nouveauProjet(valeurs, ctx) {
     dateFin: estJour(valeurs.dateFin) ? valeurs.dateFin : null,
     modeleId: valeurs.modeleId || null,
     offreId: valeurs.offreId || null,
-    description: nettoyerDescription(valeurs.description),
     dateEntreePhase: ctx.maintenant,
     datesPhases: { [phase]: ctx.maintenant },
     documents: [],
@@ -746,25 +745,29 @@ export const projetsLiables = (projets) => (projets || []).filter((p) => !p.affa
 /**
  * Crée le projet d'une affaire gagnée : il reprend le titre, la personne, l'organisation, l'offre, l'adresse GitHub et le dossier de l'affaire
  * (`valeurs` peut en changer). Même plan : l'affaire reçoit `projetId`. Refus : { erreurs, ecritures: [] }.
+ * `notesAffaire` : les notes de l'affaire ; le texte de sa note épinglée est COPIÉ dans la note épinglée de départ du projet (I5).
  */
-export function planCreerProjetDepuisAffaire({ affaire, projets = [], valeurs = {}, modele = null }, ctx) {
+export function planCreerProjetDepuisAffaire({ affaire, projets = [], valeurs = {}, modele = null, notesAffaire = [] }, ctx) {
   const erreurs = validerLienAffaire({ affaire, projets });
   if (Object.keys(erreurs).length) return { erreurs, ecritures: [] };
   const id = ctx.nouvelId(C.projets);
   const fiche = nouveauProjet({
     titre: affaire.titre, personneId: affaire.personneId, organisationId: affaire.organisationId, offreId: affaire.offreId,
-    urlGithub: affaire.urlGithub, urlDossier: affaire.urlDossier, description: affaire.description, ...valeurs, affaireId: affaire.id,
+    urlGithub: affaire.urlGithub, urlDossier: affaire.urlDossier, ...valeurs, affaireId: affaire.id,
     ...(modele ? { modeleId: modele.id } : {}),
   }, ctx);
+  const note = ecritureNoteDeDepart(liensProjet({ ...fiche, id }), ctx, texteNoteEpingleeAffaire(notesAffaire, affaire.id));
   return {
     erreurs: {},
     id,
     titre: fiche.titre,
+    noteId: note.id,
     ecritures: [
       ecritureCreer(C.projets, id, fiche, MARQUES_CREATION),
       ...ecrituresTachesModele(modele, { projetId: id, dateDebut: fiche.dateDebut }, ctx),
       ...modifierSiPatch(C.affaires, affaire.id, { projetId: id }, MARQUES_MODIFICATION),
       ...evenements([evenementProjet('projet_cree', `Projet créé : ${fiche.titre}`, { ...fiche, id }, ctx)], ctx),
+      note,
     ],
   };
 }
@@ -778,7 +781,7 @@ export function planLierProjet({ affaire, projet, projets = [] }, ctx) {
   if (Object.keys(erreurs).length) return { erreurs, ecritures: [] };
   const patch = { affaireId: affaire.id };
   for (const champ of ['personneId', 'organisationId', 'offreId']) if (!projet[champ] && affaire[champ]) patch[champ] = affaire[champ];
-  for (const champ of ['urlGithub', 'urlDossier', 'description']) if (!projet[champ] && affaire[champ]) patch[champ] = affaire[champ];
+  for (const champ of ['urlGithub', 'urlDossier']) if (!projet[champ] && affaire[champ]) patch[champ] = affaire[champ];
   return {
     erreurs: {},
     patch,
@@ -890,13 +893,16 @@ export const projetsDePhase = (projets, phase) => (projets || []).filter((p) => 
 export function planCreerProjet(valeurs, ctx, { modele = null } = {}) {
   const id = ctx.nouvelId(C.projets);
   const fiche = nouveauProjet(modele ? { ...valeurs, modeleId: modele.id } : valeurs, ctx);
+  const note = ecritureNoteDeDepart(liensProjet({ ...fiche, id }), ctx);
   return {
     id,
     titre: fiche.titre,
+    noteId: note.id,
     ecritures: [
       ecritureCreer(C.projets, id, fiche, MARQUES_CREATION),
       ...ecrituresTachesModele(modele, { projetId: id, dateDebut: fiche.dateDebut }, ctx),
       ...evenements([evenementProjet('projet_cree', `Projet créé : ${fiche.titre}`, { ...fiche, id }, ctx)], ctx),
+      note,
     ],
   };
 }

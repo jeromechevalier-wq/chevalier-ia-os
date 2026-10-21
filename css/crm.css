@@ -309,7 +309,7 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
   .section[data-section$='-details'] { order: 7; }
   .historique { order: 8; }
   .points-cles, .historique { padding: 0 2px; }
-  .fiche-grille .section, .fiche-grille .compositeur { width: 100%; box-sizing: border-box; min-width: 0; align-self: stretch; }
+  .fiche-grille .section, .fiche-grille .compositeur, .fiche-grille .points-cles { width: 100%; box-sizing: border-box; min-width: 0; align-self: stretch; }
 }
 @media (max-width: 767px) {
   .prop { grid-template-columns: 1fr; gap: 2px; padding: var(--esp-1) 0; }
@@ -360,6 +360,10 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 .note-epinglee { display: flex; align-items: flex-start; gap: var(--esp-3); padding: var(--esp-4) var(--esp-5); border-radius: var(--rayon-carte); background: var(--accent-a20); border: 1px solid var(--accent-trait); }
 .note-epinglee > svg { flex: none; margin-top: 3px; color: var(--accent); }
 .note-epinglee-corps { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--esp-1); }
+/* Note épinglée de départ encore vide (I5) : on écrit dedans ; invitation grisée qui disparaît au clic. */
+.champ-note-depart { display: block; width: 100%; box-sizing: border-box; min-height: calc(3 * 1.5em); resize: vertical; font: inherit; line-height: 1.5; color: var(--texte); background: transparent; border: 0; padding: 0; }
+.champ-note-depart::placeholder { color: var(--placeholder); }
+.champ-note-depart:focus { outline: none; }
 .note-epinglee:not(.deployee) .note-texte { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
 .note-actions { display: flex; gap: var(--esp-1); flex-wrap: wrap; margin-top: var(--esp-1); }
 
@@ -483,10 +487,6 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 .case-grisee input { cursor: not-allowed; }
 
 /* Description libre d'une affaire ou d'un projet : hauteur FIXE de 4 lignes (au-delà, un ascenseur ; la taille de police vient de la règle « téléphone » : 16 px au moins), pas de titre, un cadre discret, le texte d'invitation est grisé. */
-.description-fiche { margin-bottom: var(--esp-4); }
-.champ-description { display: block; width: 100%; box-sizing: border-box; height: calc(4 * 1.5em + 2 * var(--esp-3) + 2px); resize: none; overflow-y: auto; font-family: inherit; line-height: 1.5; color: var(--texte); background: transparent; border: 1px solid var(--bordure); border-radius: var(--rayon); padding: var(--esp-3); }
-.champ-description::placeholder { color: var(--placeholder); }
-.champ-description:focus { outline: none; border-color: var(--accent-trait); background: var(--panneau); }
 .onglet-documents-tete { display: flex; align-items: center; justify-content: space-between; gap: var(--esp-4); }
 .onglet-documents-tete .sous-titre { margin-bottom: 0; }
 .onglet .compteur { margin-left: var(--esp-1); }

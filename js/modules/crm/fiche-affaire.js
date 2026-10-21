@@ -3,7 +3,7 @@ import { h, icone, remplir, ouvrirMenu, toast, dialogue, confirmer } from '../..
 import * as D from './donnees.js';
 import * as L from './logique.js';
 import {
-  lienPersonne, lienOrganisation, champDescription, sectionRepliable, champPropriete, selecteurPersonne, selecteurOrganisation, titreEditable, selectProprietaire, gabaritFiche,
+  lienPersonne, lienOrganisation, sectionRepliable, champPropriete, selecteurPersonne, selecteurOrganisation, titreEditable, selectProprietaire, gabaritFiche,
   lienRetour, saisieEnCours, pastilleStatut, etatVide, planifier, iconeInfo, EXPLICATION_STATUT_AFFAIRE,
 } from './composants.js';
 import { panneauActivite } from './activites.js';
@@ -94,11 +94,6 @@ export function rendreFicheAffaire(conteneur, id) {
         h('div', { class: 'fiche-actions' }, actionsStatut, menu)),
       barreDesEtapes(a));
 
-    // ---- Description libre : en haut de la colonne, sans titre
-    const description = champDescription({ valeur: a.description || '', libelle: 'Description de l’affaire',
-      invitation: 'Cette affaire concerne… (le besoin du client, ce qu’on lui propose, où on en est)',
-      surEnregistrer: (v) => D.majAffaire(a.id, { description: v }) });
-
     // ---- Résumé
     const selPersonne = selecteurPersonne({ valeurId: a.personneId, surChoix: async (el) => {
       if (!el || el.id === a.personneId) return;
@@ -158,7 +153,7 @@ export function rendreFicheAffaire(conteneur, id) {
 
     if (!panneau) panneau = panneauActivite({ lien: { affaireId: a.id }, liensCreation: () => L.liensAffaire(D.affaire(a.id) || a), avecDocuments: true });
     panneau.majDocuments(documents);
-    remplir(racine, gabaritFiche({ entete, gauche: [description, resume.element, sectionProjet?.element, details.element].filter(Boolean), droite: panneau.element }));
+    remplir(racine, gabaritFiche({ entete, gauche: [resume.element, sectionProjet?.element, details.element].filter(Boolean), droite: panneau.element }));
   }
 
   function reconstruire() {
