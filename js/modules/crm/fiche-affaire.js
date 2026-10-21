@@ -162,7 +162,7 @@ export function rendreFicheAffaire(conteneur, id) {
 
     // ---- Documents : onglet à droite (à côté d'Activité et Notes), avec le dossier de travail ; même composant que la fiche projet
     const documents = sectionLiensEtDocuments({ id: 'affaire-documents', typeFiche: 'affaire', entite: a, courant: () => D.affaire(a.id) || a, enregistrer: (patch) => D.majAffaire(a.id, patch),
-      enOnglet: true, avant: [h('div', { class: 'proprietes' }, lanceurs.dossier)] });
+      avant: [h('div', { class: 'proprietes' }, lanceurs.dossier)] });
 
     if (!panneau) panneau = panneauActivite({ lien: { affaireId: a.id }, liensCreation: () => L.liensAffaire(D.affaire(a.id) || a), avecDocuments: true });
     panneau.majDocuments(documents);

@@ -19,23 +19,28 @@ const FICHES = [
 const fichierDrive = (id, nom, parents, type = 'application/pdf') => ({ id, name: nom, url: `https://drive.google.com/file/d/${id}/view`, mimeType: type, parents });
 
 for (const f of FICHES) {
-  test(`Affaire et projet fonctionnent pareil : sur ${f.nom}, « Liens et documents » est dans l'onglet « Documents » à droite, deux boutons côte à côte, et le bloc « Dossier de travail de cette fiche » a les mêmes deux boutons`, async ({ page, context }) => {
+  test(`Affaire et projet fonctionnent pareil : sur ${f.nom}, l'onglet « Documents » a le « Dossier de travail » puis la ligne « Documents  + Ajouter » (plus de titre « Liens et documents », plus de bouton « Ajouter un lien web »), et « + Ajouter » du dossier propose les deux mêmes choix`, async ({ page, context }) => {
     await brancherGoogle(context);
     await f.creer();
     await connecter(page);
     await aller(page, f.hash);
     const liens = page.locator(`[data-section="${f.section}"]`);
-    await expect(liens).toContainText('Liens et documents');
+    await expect(liens).not.toContainText('Liens et documents');
     await expect(page.locator('.compositeur [data-onglet="documents"]')).toHaveAttribute('aria-selected', 'true');
     await expect(page.locator('.section', { hasText: 'Liens et documents' })).toHaveCount(0); // plus de section dans la colonne de gauche
-    await expect(liens.locator(':scope > .boutons-liens button')).toHaveText(['Ajouter un document', 'Ajouter un lien web']); // (le dossier de travail, dans le même onglet, a ses propres boutons)
-    // La fiche est redessinée quand des données arrivent : on réessaie la mesure jusqu'à ce que les deux boutons soient mesurables.
+    await expect(liens.locator('[data-action="ajouter-lien"]')).toHaveCount(0);
+    await expect(liens.getByText('Ajouter un lien web')).toHaveCount(0);
+    await expect(liens.locator('[data-prop="documents"] .prop-libelle')).toContainText('Documents');
+    await expect(liens.locator('[data-prop="documents"] [data-action="ajouter-document-google"]')).toHaveText('Ajouter');
+    // Le dossier de travail est AU-DESSUS de la ligne « Documents ».
     await expect.poll(async () => {
-      const b1 = await liens.locator('[data-action="ajouter-document-google"]').boundingBox();
-      const b2 = await liens.locator('[data-action="ajouter-lien"]').boundingBox();
-      return b1 && b2 ? Math.abs((b1.y + b1.height / 2) - (b2.y + b2.height / 2)) < 3 : null;
+      const d = await liens.locator('[data-prop="dossier"]').boundingBox();
+      const t = await liens.locator('[data-prop="documents"]').boundingBox();
+      return d && t ? d.y < t.y : null;
     }).toBe(true);
-    await expect(page.locator('[data-prop="dossier"] .prop-libelle')).toContainText('Dossier de travail de cette fiche');
+    await expect(page.locator('[data-prop="dossier"] .prop-libelle')).toContainText('Dossier de travail');
+    await expect(page.locator('[data-prop="dossier"] [data-action="creer-dossier-ouvrir"]')).toHaveCount(0); // les choix n'apparaissent qu'après « + Ajouter »
+    await page.locator('[data-prop="dossier"] [data-action="ajouter-dossier"]').click();
     await expect(page.locator('[data-prop="dossier"] .boutons-liens button')).toHaveText(['Créer un dossier dans Google Drive', 'Lier un dossier Google Drive existant']);
   });
 
@@ -83,48 +88,45 @@ for (const f of FICHES) {
     await expect(page.locator('[data-champ="dossier"]')).toHaveCount(0); // pas de champ pour coller une adresse
   });
 
-  test(`Une adresse hors Google Drive se met dans « Ajouter un lien web », pas dans le dossier de travail : sur ${f.nom}, le dossier n'a pas de champ d'adresse et le lien web accepte un site`, async ({ page, context }) => {
+  test(`Une adresse hors Google Drive ne se met pas dans le dossier de travail : sur ${f.nom}, le dossier n'a pas de champ d'adresse, il n'y a plus de bouton « Ajouter un lien web » (les adresses passent par les notes), et un lien web déjà enregistré reste affiché`, async ({ page, context }) => {
     await brancherGoogle(context);
-    await f.creer();
+    await f.creer({ documents: [{ libelle: 'Espace client', url: 'https://exemple.fr/espace/client' }] });
     await connecter(page);
     await aller(page, f.hash);
     await expect(page.locator('[data-prop="dossier"] input')).toHaveCount(0);
-    await page.locator(`[data-section="${f.section}"] [data-action="ajouter-lien"]`).click();
-    await page.getByLabel('Lien web', { exact: true }).fill('https://exemple.fr/espace/client');
-    await page.locator('[data-action="valider-lien"]').click();
-    await champDoc(f.collection, f.id, 'documents', [{ libelle: 'exemple.fr', url: 'https://exemple.fr/espace/client' }]);
+    await page.locator('[data-prop="dossier"] [data-action="ajouter-dossier"]').click();
+    await expect(page.locator('[data-prop="dossier"] input')).toHaveCount(0);
+    await expect(page.locator(`[data-section="${f.section}"] [data-action="ajouter-lien"]`)).toHaveCount(0);
+    await expect(page.locator(`[data-section="${f.section}"]`).getByRole('link', { name: 'Espace client' })).toHaveAttribute('href', 'https://exemple.fr/espace/client');
   });
 
-  test(`Message d'erreur clair, et https:// ajouté tout seul : sur ${f.nom}, j'écris « monsite.fr » puis « bonjour »`, async ({ page }) => {
-    await f.creer();
+  test(`Message d'erreur clair, et https:// ajouté tout seul : sur ${f.nom}, plus de saisie d'adresse dans l'onglet « Documents » (la règle se vérifie dans les notes et dans la logique) ; un document ne peut venir que de la fenêtre Google, donc d'une adresse valide`, async ({ page, context }) => {
+    await brancherGoogle(context);
+    await f.creer({ urlDossier: URL_DOSSIER });
     await connecter(page);
     await aller(page, f.hash);
     const section = page.locator(`[data-section="${f.section}"]`);
-    await section.locator('[data-action="ajouter-lien"]').click();
-    await section.getByLabel('Lien web', { exact: true }).fill('monsite.fr');
-    await section.locator('[data-action="valider-lien"]').click();
-    await champDoc(f.collection, f.id, 'documents', [{ libelle: 'monsite.fr', url: 'https://monsite.fr' }]);
-    await section.locator('[data-action="ajouter-lien"]').click();
-    await section.getByLabel('Lien web', { exact: true }).fill('bonjour');
-    await section.locator('[data-action="valider-lien"]').click();
-    await expect(page.locator('.toast-erreur').last()).toHaveText('L\'adresse doit commencer par http:// ou https://');
-    await section.getByLabel('Lien web', { exact: true }).fill('http:www.monsite.fr');
-    await section.locator('[data-action="valider-lien"]').click();
-    await champDoc(f.collection, f.id, 'documents', [{ libelle: 'monsite.fr', url: 'https://monsite.fr' }, { libelle: 'monsite.fr', url: 'http://www.monsite.fr' }]);
+    await expect(section.getByLabel('Lien web', { exact: true })).toHaveCount(0);
+    await expect(section.locator('input[type="url"]')).toHaveCount(0);
+    // la règle « https:// ajouté tout seul » reste dans la logique partagée (chargée dans la page)
+    const r = await page.evaluate(async () => { const L = await import('/js/modules/crm/logique.js'); return [L.normaliserLienWeb('monsite.fr'), L.normaliserLienWeb('http:www.monsite.fr'), L.ajouterDocument({}, '', 'bonjour').erreurs.url]; });
+    expect(r).toEqual(['https://monsite.fr', 'http://www.monsite.fr', 'L\'adresse doit commencer par http:// ou https://']);
   });
 
-  test(`« Liens et documents » : nom et note facultatifs, sur ${f.nom} : j'ajoute un lien avec un nom et une note, je le retrouve avec la note en petit`, async ({ page }) => {
-    await f.creer();
+  test(`Nom et note facultatifs : sur ${f.nom}, je choisis un fichier dans Google, je garde le nom proposé, j'écris une note, je retrouve le document avec la note en petit et sa date d'ajout`, async ({ page, context }) => {
+    const drive = await brancherGoogle(context);
+    await f.creer({ urlDossier: URL_DOSSIER });
     await connecter(page);
     await aller(page, f.hash);
+    drive.fichiers.FICHIER_NOTE_001 = { parents: [DOSSIER] };
+    await choisirDansGoogle(page, [fichierDrive('FICHIER_NOTE_001', 'Portrait Chantal.pdf')]);
     const section = page.locator(`[data-section="${f.section}"]`);
-    await section.locator('[data-action="ajouter-lien"]').click();
-    await section.getByLabel('Lien web', { exact: true }).fill('https://exemple.fr/portrait');
-    await section.getByLabel('Nom (facultatif)').fill('Portrait Chantal');
+    await section.locator('[data-action="ajouter-document-google"]').click();
     await section.getByLabel('Note (facultative)').fill('envoyé au client');
     await section.locator('[data-action="valider-lien"]').click();
-    await expect(section.getByRole('link', { name: 'Portrait Chantal' })).toBeVisible();
+    await expect(section.getByRole('link', { name: 'Portrait Chantal.pdf' })).toBeVisible();
     await expect(section.locator('.lien-note')).toHaveText('envoyé au client');
+    await expect(section.locator('[data-role="date-ajout"]')).toContainText(/Ajouté le \d{2}\/\d{2}\/\d{4} \d{2}:\d{2}/);
   });
 
   test(`Sans dossier de travail, « Ajouter un document » affiche seulement un message avec « Fermer » : sur ${f.nom}, jamais de création ni de fenêtre qui s'ouvre et se ferme`, async ({ page, context }) => {
@@ -151,7 +153,7 @@ for (const f of FICHES) {
     await expect(page.locator('[data-champ="copier"]')).toBeChecked();
     await expect(page.locator('[data-champ="copier"]')).toBeEnabled();
     await page.locator('[data-action="valider-lien"]').click();
-    await champDoc(f.collection, f.id, 'documents', [{ libelle: 'Devis.pdf', url: 'https://drive.google.com/file/d/COPIE_1_abcdefghij/view' }]);
+    await champDoc(f.collection, f.id, 'documents', [{ libelle: 'Devis.pdf', url: 'https://drive.google.com/file/d/COPIE_1_abcdefghij/view', ajouteLe: expect.any(String) }]);
     expect(drive.copies[0].corps.parents).toEqual([DOSSIER]);
   });
 
@@ -171,16 +173,16 @@ for (const f of FICHES) {
     await importe.click({ force: true }); // un vrai clic de souris sur la case ou son texte (Playwright la juge « désactivée », d'où force) : rien ne change
     await expect(caseCopie).toBeChecked();
     await page.locator('[data-action="valider-lien"]').click();
-    await champDoc(f.collection, f.id, 'documents', [{ libelle: '1.png', url: 'https://drive.google.com/file/d/FICHIER_IMPORT_01/view' }]);
+    await champDoc(f.collection, f.id, 'documents', [{ libelle: '1.png', url: 'https://drive.google.com/file/d/FICHIER_IMPORT_01/view', ajouteLe: expect.any(String) }]);
     expect(drive.copies).toHaveLength(0);
   });
 
-  test(`L'icône « i » explique ; elle marche au survol, au clavier et au toucher : sur ${f.nom}, à côté de « Liens et documents » et du « Dossier de travail de cette fiche »`, async ({ page, context }, info) => {
+  test(`L'icône « i » explique ; elle marche au survol, au clavier et au toucher : sur ${f.nom}, à côté de « Documents » et du « Dossier de travail »`, async ({ page, context }, info) => {
     await brancherGoogle(context);
     await f.creer();
     await connecter(page);
     await aller(page, f.hash);
-    for (const icone of [page.locator(`[data-section="${f.section}"] .onglet-documents-tete [data-role="info"]`), page.locator('[data-prop="dossier"] [data-role="info"]')]) {
+    for (const icone of [page.locator(`[data-section="${f.section}"] [data-prop="documents"] [data-role="info"]`), page.locator('[data-prop="dossier"] [data-role="info"]')]) {
       const bulle = icone.locator('[data-role="bulle-info"]');
       await expect(bulle).toBeHidden();
       await icone.focus(); // clavier
