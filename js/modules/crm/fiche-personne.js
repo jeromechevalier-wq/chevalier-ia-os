@@ -100,8 +100,7 @@ export function rendreFichePersonne(conteneur, id) {
       h('div', { class: 'fiche-tete-ligne' },
         avatar(p.nom, 52),
         h('div', { class: 'fiche-titre' }, nom,
-          h('div', { class: 'fiche-sous' }, p.archive ? h('span', { class: 'badge-archive' }, 'Archivée') : null, p.oppositionProspection ? h('span', { class: 'badge-opposition' }, 'Opposition à la prospection') : null,
-            selectProprietaire({ valeur: p.proprietaire, surChoix: (v) => D.majPersonne(p.id, { proprietaire: v }) }))),
+          h('div', { class: 'fiche-sous' }, p.archive ? h('span', { class: 'badge-archive' }, 'Archivée') : null, p.oppositionProspection ? h('span', { class: 'badge-opposition' }, 'Opposition à la prospection') : null)),
         h('div', { class: 'fiche-actions' },
           h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'nouvelle-affaire', onclick: () => ouvrirCreationAffaire({ personneId: p.id }) }, icone('plus', { taille: 16 }), 'Affaire'),
           menu)));
@@ -139,7 +138,8 @@ export function rendreFichePersonne(conteneur, id) {
         prop('Site web', 'siteWeb', { type: 'url', lienVers: (v) => v }).element,
         champPropriete({ libelle: 'Source', valeur: p.source || '', type: 'liste', fournir: () => D.etat.sources,
           surEnregistrer: async (v) => { if (v) await D.ajouterValeurListe('sources', v); await D.majPersonne(p.id, { source: v }); } }).element,
-        opposition),
+        opposition,
+        selectProprietaire({ valeur: p.proprietaire, surChoix: (v) => D.majPersonne(p.id, { proprietaire: v }) })),
     });
 
     // ---- Organisation

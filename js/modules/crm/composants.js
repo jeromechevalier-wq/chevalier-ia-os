@@ -442,15 +442,18 @@ export function champDescription({ valeur = '', invitation, libelle, surEnregist
   return h('div', { class: 'description-fiche' }, champ);
 }
 
-/** Propriétaire d'une fiche : le compte qui l'a créée, modifiable. */
+/** Propriétaire d'une fiche : le compte qui l'a créée, modifiable. Ligne du Résumé (ou du premier bloc de champs), comme les autres propriétés. */
 export function selectProprietaire({ valeur, surChoix }) {
   // Chez un client, les comptes Jérôme et Charles ne sont pas ses comptes : le propriétaire s'affiche, sans liste de choix.
-  if (estChezClient()) return valeur ? h('p', { class: 'proprietaire' }, h('span', { class: 'etiquette' }, 'Propriétaire'), ' ', valeur) : null;
+  if (estChezClient()) {
+    return valeur ? h('div', { class: 'prop proprietaire', dataset: { prop: 'proprietaire' } }, h('span', { class: 'prop-libelle' }, 'Propriétaire'), h('div', { class: 'prop-valeur' }, valeur)) : null;
+  }
   const options = COMPTES.some((c) => c.email === valeur) ? COMPTES : [...COMPTES, { email: valeur, nom: valeur }];
-  return h('label', { class: 'proprietaire' },
-    h('span', { class: 'etiquette' }, 'Propriétaire'),
-    h('select', { class: 'champ champ-petit', 'aria-label': 'Propriétaire', onchange: (e) => surChoix(e.target.value) },
-      options.map((c) => h('option', { value: c.email, selected: c.email === valeur }, c.nom))));
+  return h('div', { class: 'prop proprietaire', dataset: { prop: 'proprietaire' } },
+    h('span', { class: 'prop-libelle' }, 'Propriétaire'),
+    h('div', { class: 'prop-valeur' },
+      h('select', { class: 'champ', 'aria-label': 'Propriétaire', onchange: (e) => surChoix(e.target.value) },
+        options.map((c) => h('option', { value: c.email, selected: c.email === valeur }, c.nom)))));
 }
 
 /** Gabarit commun : en tête, colonne de gauche (sections), colonne de droite (activité, notes, historique). */
