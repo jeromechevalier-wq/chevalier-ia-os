@@ -20,12 +20,15 @@ export function noeudsTexte(texte) {
  */
 function modifierNoteSurPlace(n, corps, fermer) {
   const zone = h('textarea', { class: 'champ', rows: 4, 'aria-label': 'Modifier la note', value: n.texte });
+  let boutonEnregistrer = null;
   const sauve = async () => {
     if (!L.nettoyerEspaces(zone.value)) { toast('Écris quelque chose, ou clique sur Annuler.', { type: 'erreur' }); return; }
-    try { await D.majNote(n.id, zone.value); fermer(); } catch (e) { console.warn(e); toast('Modification impossible', { type: 'erreur' }); }
+    boutonEnregistrer.disabled = true; // un double clic ne doit pas écrire deux fois
+    try { await D.majNote(n.id, zone.value); fermer(); } catch (e) { console.warn(e); boutonEnregistrer.disabled = false; toast('Modification impossible', { type: 'erreur' }); }
   };
+  boutonEnregistrer = h('button', { type: 'button', class: 'bouton bouton-principal bouton-petit', 'data-action': 'enregistrer-note', onclick: sauve }, 'Enregistrer');
   corps.replaceChildren(zone, h('div', { class: 'note-actions' },
-    h('button', { type: 'button', class: 'bouton bouton-principal bouton-petit', 'data-action': 'enregistrer-note', onclick: sauve }, 'Enregistrer'),
+    boutonEnregistrer,
     h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', onclick: fermer }, 'Annuler')));
   zone.focus();
 }
@@ -325,6 +328,17 @@ export function panneauActivite({ lien, liensCreation, avecActivites = true, aff
   // ---- points clés et historique
   const notesDeLaFiche = () => (affaireLiee ? affaireLiee.fusionnerNotes(fil.notes, filAffaire.notes) : fil.notes);
   let toutDeploye = false;
+  const boutonsPlier = new WeakMap(); // texte d'une note du fil -> son bouton Développer / Réduire
+  /** Le bouton n'existe que si le texte dépasse la limite ; une note dépliée dont le texte tient (fenêtre élargie) n'a plus de « Réduire ». */
+  function verifierNote(texte) {
+    const bouton = boutonsPlier.get(texte);
+    if (!bouton) return;
+    if (!texte.classList.contains('deployee')) { bouton.hidden = !(texte.scrollHeight > texte.clientHeight + 1); return; }
+    const style = getComputedStyle(texte);
+    const limite = Number(style.getPropertyValue('--lignes-max')) * parseFloat(style.lineHeight);
+    bouton.hidden = Number.isFinite(limite) && texte.getBoundingClientRect().height <= limite + 1;
+  }
+  const observateurNotes = typeof ResizeObserver !== 'undefined' ? new ResizeObserver((entrees) => entrees.forEach((e) => verifierNote(e.target))) : null;
   const notesDeployees = new Set(); // notes du fil dépliées (« Développer »), gardées d'un redessin à l'autre
   let epingleeEnEdition = null; // identifiant de la note épinglée en cours de modification (on ne redessine pas dessous)
   function rendrePointsCles() {
@@ -394,8 +408,8 @@ export function panneauActivite({ lien, liensCreation, avecActivites = true, aff
         boutonPlier.textContent = notesDeployees.has(n.id) ? 'Réduire' : 'Développer';
       } }, deployee ? 'Réduire' : 'Développer');
     // Le bouton n'existe que si le texte dépasse la limite de lignes (20 sur ordinateur, 12 sur téléphone : voir le CSS).
-    const verifier = () => { if (!texte.classList.contains('deployee')) boutonPlier.hidden = !(texte.scrollHeight > texte.clientHeight + 1); else boutonPlier.hidden = false; };
-    if (typeof ResizeObserver !== 'undefined') new ResizeObserver(verifier).observe(texte);
+    boutonsPlier.set(texte, boutonPlier);
+    observateurNotes?.observe(texte);
     const carte = h('li', { class: `fil-ligne fil-note${n.deAffaire ? ' fil-note-affaire' : ''}`, dataset: { genre: 'note', note: n.id } }, h('span', { class: 'fil-puce' }, icone('sticky-note', { taille: 14 })),
       h('div', { class: 'fil-texte note-carte' }, texte, boutonPlier, meta,
         n.deAffaire ? null : h('div', { class: 'note-actions' },
@@ -426,7 +440,7 @@ export function panneauActivite({ lien, liensCreation, avecActivites = true, aff
   });
   return {
     element: racine,
-    arreter() { arretFil(); arretFilAffaire(); arretDonnees(); },
+    arreter() { observateurNotes?.disconnect(); arretFil(); arretFilAffaire(); arretDonnees(); },
     focusActivite() { choisirOnglet('activite'); },
     focusNote() { choisirOnglet('notes'); },
     majDocuments({ element, compteur }) { remplir(zoneDocuments, element); compteurDocuments.textContent = String(compteur); },

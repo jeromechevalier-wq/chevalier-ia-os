@@ -38,4 +38,10 @@ describe('I6 : liens dans les notes', () => {
   test('I6 : le HTML saisi reste du texte simple', () => {
     assert.deepEqual(decouperLiens('<img src=x onerror=alert(1)>'), [{ texte: '<img src=x onerror=alert(1)>' }]);
   });
+  test('I6 : une adresse suivie de 20 000 parenthèses est découpée en moins de 200 ms', () => {
+    const debut = performance.now();
+    const m = decouperLiens(`https://x.fr/${')'.repeat(20000)}`);
+    assert.ok(performance.now() - debut < 200);
+    assert.equal(m[0].texte, 'https://x.fr/');
+  });
 });

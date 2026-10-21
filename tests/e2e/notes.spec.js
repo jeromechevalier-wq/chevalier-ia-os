@@ -1,7 +1,7 @@
 // Notes : I4 (Modifier sur la note épinglée), I6 (liens cliquables), I14 (notes longues coupées, Développer / Réduire).
 // Un test par critère ; une capture par critère dans tests/e2e/captures/notes/ (« -telephone » pour le format téléphone).
 import { mkdirSync } from 'node:fs';
-import { test, expect, attendreCalme, connecter, creerAffaire, ecrireDocument, lireDocument, JEROME } from './outils.js';
+import { test, expect, attendreCalme, connecter, creerAffaire, creerProjet, ecrireDocument, lireDocument, JEROME } from './outils.js';
 
 // Les notes n'ont pas besoin de Google : le script des fenêtres Google est remplacé par un fichier vide (pas d'erreur réseau dans la console hors connexion).
 test.beforeEach(async ({ context }) => {
@@ -20,9 +20,6 @@ async function note(id, texte, valeurs = {}) {
   await ecrireDocument(`crm_notes/${id}`, { texte, personneId: null, organisationId: null, affaireId: 'a1', auteur: JEROME, creeLe: new Date(), modifieLe: new Date(), ...valeurs });
 }
 async function ouvrir(page, hash = '#/crm/affaires/a1') { await page.evaluate((h) => { location.hash = h; }, hash); await attendreCalme(page); }
-async function creerProjet() {
-  await ecrireDocument('projets_projets/pr1', { titre: 'Projet des Lilas', affaireId: null, phase: 'lancement', statut: 'en_cours', personneId: null, organisationId: null, archive: false, etiquettes: [], proprietaire: JEROME, creeLe: new Date(), modifieLe: new Date() });
-}
 const LONG_COURT = 'Première ligne importante.\nDeuxième ligne.\nTroisième ligne.\nQuatrième ligne cachée au départ.\nCinquième ligne.';
 const lignes = (n) => Array.from({ length: n }, (_, i) => `Ligne ${i + 1}`).join('\n');
 /** Nombre de lignes visibles d'un paragraphe (hauteur / hauteur d'une ligne). */
@@ -65,7 +62,7 @@ test('I4 : la note épinglée de l’affaire a un bouton « Modifier » (visible
 
 test('I4 : même chose sur le projet ; pas de « Modifier » sur une note de l’affaire vue depuis le projet', async ({ page }) => {
   await creerAffaire('a1', { titre: 'Audit des Lilas' });
-  await creerProjet();
+  await creerProjet('pr1', { titre: 'Projet des Lilas' });
   await note('n1', 'Note du projet', { affaireId: null, projetId: 'pr1', epinglee: true });
   await connecter(page);
   await ouvrir(page, '#/projets/projets/pr1');

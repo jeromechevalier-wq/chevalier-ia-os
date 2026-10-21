@@ -8,17 +8,17 @@ const FERMANTES = { ')': '(', ']': '[', '}': '{' };
 
 /** Retire de la fin de l'adresse la ponctuation d'une phrase (point, virgule, parenthèse fermante sans ouvrante…). */
 function couperFin(adresse) {
-  let a = adresse;
-  for (;;) {
-    if (PONCTUATION_FINALE.test(a)) { a = a.slice(0, -1); continue; }
-    const dernier = a[a.length - 1];
-    if (FERMANTES[dernier]) {
-      const ouvrantes = a.split(FERMANTES[dernier]).length - 1;
-      const fermantes = a.split(dernier).length - 1;
-      if (fermantes > ouvrantes) { a = a.slice(0, -1); continue; }
-    }
-    return a;
+  // Les compteurs sont faits une seule fois puis tenus à jour : coût linéaire, même avec des milliers de parenthèses.
+  const compte = { '(': 0, ')': 0, '[': 0, ']': 0, '{': 0, '}': 0 };
+  for (const c of adresse) if (c in compte) compte[c] += 1;
+  let fin = adresse.length;
+  while (fin > 0) {
+    const dernier = adresse[fin - 1];
+    if (PONCTUATION_FINALE.test(dernier)) { fin -= 1; continue; }
+    if (FERMANTES[dernier] && compte[dernier] > compte[FERMANTES[dernier]]) { compte[dernier] -= 1; fin -= 1; continue; }
+    break;
   }
+  return adresse.slice(0, fin);
 }
 
 /** Une adresse est valable s'il reste quelque chose après son début (préfixe http, https ou www). */
