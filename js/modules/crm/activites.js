@@ -4,7 +4,34 @@ import { h, icone, remplir, dialogue, confirmer, ouvrirMenu, toast } from '../..
 import { retirerAvecAnnulation } from '../../os/retrait.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
+import { decouperLiens } from './liens-texte.js';
 import { iconeTypeActivite, lienAffaire, lienPersonne, lienOrganisation, nomCompte } from './composants.js';
+
+/** Texte d'une note en nœuds : texte simple et liens (nouvel onglet). Jamais d'innerHTML : le texte reste du texte. */
+export function noeudsTexte(texte) {
+  return decouperLiens(texte).map((m) => (m.href
+    ? h('a', { class: 'lien-note', href: m.href, target: '_blank', rel: 'noopener noreferrer' }, m.texte)
+    : document.createTextNode(m.texte)));
+}
+
+/**
+ * Modification d'une note sur place (note du fil et note épinglée) : un champ, « Enregistrer », « Annuler ».
+ * `corps` : l'élément dont le contenu est remplacé ; `fermer()` redessine la zone (après l'enregistrement ou l'annulation).
+ */
+function modifierNoteSurPlace(n, corps, fermer) {
+  const zone = h('textarea', { class: 'champ', rows: 4, 'aria-label': 'Modifier la note', value: n.texte });
+  let boutonEnregistrer = null;
+  const sauve = async () => {
+    if (!L.nettoyerEspaces(zone.value)) { toast('Écris quelque chose, ou clique sur Annuler.', { type: 'erreur' }); return; }
+    boutonEnregistrer.disabled = true; // un double clic ne doit pas écrire deux fois
+    try { await D.majNote(n.id, zone.value); fermer(); } catch (e) { console.warn(e); boutonEnregistrer.disabled = false; toast('Modification impossible', { type: 'erreur' }); }
+  };
+  boutonEnregistrer = h('button', { type: 'button', class: 'bouton bouton-principal bouton-petit', 'data-action': 'enregistrer-note', onclick: sauve }, 'Enregistrer');
+  corps.replaceChildren(zone, h('div', { class: 'note-actions' },
+    boutonEnregistrer,
+    h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', onclick: fermer }, 'Annuler')));
+  zone.focus();
+}
 
 const LIBELLES_ETAT = { retard: 'En retard', aujourdhui: "Aujourd'hui", avenir: '' };
 
@@ -301,7 +328,21 @@ export function panneauActivite({ lien, liensCreation, avecActivites = true, aff
   // ---- points clés et historique
   const notesDeLaFiche = () => (affaireLiee ? affaireLiee.fusionnerNotes(fil.notes, filAffaire.notes) : fil.notes);
   let toutDeploye = false;
+  const boutonsPlier = new WeakMap(); // texte d'une note du fil -> son bouton Développer / Réduire
+  /** Le bouton n'existe que si le texte dépasse la limite ; une note dépliée dont le texte tient (fenêtre élargie) n'a plus de « Réduire ». */
+  function verifierNote(texte) {
+    const bouton = boutonsPlier.get(texte);
+    if (!bouton) return;
+    if (!texte.classList.contains('deployee')) { bouton.hidden = !(texte.scrollHeight > texte.clientHeight + 1); return; }
+    const style = getComputedStyle(texte);
+    const limite = Number(style.getPropertyValue('--lignes-max')) * parseFloat(style.lineHeight);
+    bouton.hidden = Number.isFinite(limite) && texte.getBoundingClientRect().height <= limite + 1;
+  }
+  const observateurNotes = typeof ResizeObserver !== 'undefined' ? new ResizeObserver((entrees) => entrees.forEach((e) => verifierNote(e.target))) : null;
+  const notesDeployees = new Set(); // notes du fil dépliées (« Développer »), gardées d'un redessin à l'autre
+  let epingleeEnEdition = null; // identifiant de la note épinglée en cours de modification (on ne redessine pas dessous)
   function rendrePointsCles() {
+    if (epingleeEnEdition) return;
     const aujourdhui = D.ctx().aujourdhui;
     const liste = L.pointsClesFiche(D.activitesDe(lien), aujourdhui);
     const epinglees = L.notesEpinglees(notesDeLaFiche());
@@ -320,8 +361,14 @@ export function panneauActivite({ lien, liensCreation, avecActivites = true, aff
   function ligneNoteEpinglee(n) {
     return h('li', { class: `note-epinglee${toutDeploye ? ' deployee' : ''}`, dataset: { note: n.id } },
       icone('pin', { taille: 14 }),
-      h('div', { class: 'note-epinglee-corps' }, h('p', { class: 'note-texte' }, n.texte),
-        h('span', { class: 'fil-meta' }, L.formatDateHeure(versDateNote(n)), n.auteur ? ` · ${nomCompte(n.auteur)}` : '', n.deAffaire ? ' · note de l’affaire' : '')),
+      h('div', { class: 'note-epinglee-corps' }, h('p', { class: 'note-texte' }, noeudsTexte(n.texte)),
+        h('span', { class: 'fil-meta' }, L.formatDateHeure(versDateNote(n)), n.auteur ? ` · ${nomCompte(n.auteur)}` : '', n.deAffaire ? ' · note de l’affaire' : ''),
+        n.deAffaire ? null : h('div', { class: 'note-actions' },
+          h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', 'data-action': 'modifier-note-epinglee',
+            onclick: (e) => {
+              epingleeEnEdition = n.id;
+              modifierNoteSurPlace(n, e.currentTarget.closest('.note-epinglee-corps'), () => { epingleeEnEdition = null; rendrePointsCles(); });
+            } }, icone('pencil', { taille: 14 }), 'Modifier'))),
       n.deAffaire ? null : h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Désépingler la note', title: 'Désépingler', 'data-action': 'desepingler-note',
         onclick: () => D.epinglerNote(n.id, false).then(() => toast('Note désépinglée')).catch((e) => { console.warn(e); toast('Modification impossible', { type: 'erreur' }); }) }, icone('x', { taille: 14 })));
   }
@@ -351,9 +398,20 @@ export function panneauActivite({ lien, liensCreation, avecActivites = true, aff
   }
 
   function ligneNote(n, meta) {
-    const texte = h('p', { class: 'note-texte' }, n.texte);
+    const texte = h('p', { class: 'note-texte' }, noeudsTexte(n.texte));
+    const deployee = notesDeployees.has(n.id);
+    if (deployee) texte.classList.add('deployee');
+    const boutonPlier = h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', 'data-action': 'developper-note', hidden: true,
+      onclick: () => {
+        if (notesDeployees.has(n.id)) notesDeployees.delete(n.id); else notesDeployees.add(n.id);
+        texte.classList.toggle('deployee', notesDeployees.has(n.id));
+        boutonPlier.textContent = notesDeployees.has(n.id) ? 'Réduire' : 'Développer';
+      } }, deployee ? 'Réduire' : 'Développer');
+    // Le bouton n'existe que si le texte dépasse la limite de lignes (20 sur ordinateur, 12 sur téléphone : voir le CSS).
+    boutonsPlier.set(texte, boutonPlier);
+    observateurNotes?.observe(texte);
     const carte = h('li', { class: `fil-ligne fil-note${n.deAffaire ? ' fil-note-affaire' : ''}`, dataset: { genre: 'note', note: n.id } }, h('span', { class: 'fil-puce' }, icone('sticky-note', { taille: 14 })),
-      h('div', { class: 'fil-texte note-carte' }, texte, meta,
+      h('div', { class: 'fil-texte note-carte' }, texte, boutonPlier, meta,
         n.deAffaire ? null : h('div', { class: 'note-actions' },
           avecActivites ? h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', 'data-action': n.epinglee ? 'desepingler-note' : 'epingler-note',
             onclick: () => D.epinglerNote(n.id, !n.epinglee).then(() => toast(n.epinglee ? 'Note désépinglée' : 'Note épinglée')).catch((e) => { console.warn(e); toast('Modification impossible', { type: 'erreur' }); }) },
@@ -362,15 +420,7 @@ export function panneauActivite({ lien, liensCreation, avecActivites = true, aff
           h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', 'data-action': 'supprimer-note', onclick: () => retirerAvecAnnulation({
             titre: 'Supprimer cette note ?', message: '', libelleOk: 'Supprimer', danger: true,
             faire: () => D.supprimerNote(n.id), defaire: () => D.restaurerNote(n), messageFait: 'Note supprimée' }) }, icone('trash-2', { taille: 14 }), 'Supprimer'))));
-    function modifier() {
-      const zone = h('textarea', { class: 'champ', rows: 4, 'aria-label': 'Modifier la note', value: n.texte });
-      const corps = carte.querySelector('.fil-texte');
-      const sauve = async () => { if (L.nettoyerEspaces(zone.value)) await D.majNote(n.id, zone.value); };
-      corps.replaceChildren(zone, h('div', { class: 'note-actions' },
-        h('button', { type: 'button', class: 'bouton bouton-principal bouton-petit', onclick: sauve }, 'Enregistrer'),
-        h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', onclick: rendreHistorique }, 'Annuler')));
-      zone.focus();
-    }
+    function modifier() { modifierNoteSurPlace(n, carte.querySelector('.fil-texte'), rendreHistorique); }
     return carte;
   }
 
@@ -390,7 +440,7 @@ export function panneauActivite({ lien, liensCreation, avecActivites = true, aff
   });
   return {
     element: racine,
-    arreter() { arretFil(); arretFilAffaire(); arretDonnees(); },
+    arreter() { observateurNotes?.disconnect(); arretFil(); arretFilAffaire(); arretDonnees(); },
     focusActivite() { choisirOnglet('activite'); },
     focusNote() { choisirOnglet('notes'); },
     majDocuments({ element, compteur }) { remplir(zoneDocuments, element); compteurDocuments.textContent = String(compteur); },

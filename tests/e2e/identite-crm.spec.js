@@ -33,13 +33,15 @@ for (const theme of ['sombre', 'clair']) {
       if (estTelephone(page)) await page.locator('.voile-menu').click({ position: { x: 380, y: 400 } });
     }
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
-    expect(await couleurDe(page, '.page-accueil .bouton-principal')).toBe(JAUNE);
-    expect(await couleurDe(page, '.page-accueil .bouton-principal', 'color')).toBe('rgb(41, 41, 44)');
     expect(await couleurDe(page, '.bouton-plus')).toBe(JAUNE);
     expect(await couleurDe(page, '.menu-entree.actif', 'backgroundColor')).toBe('rgba(236, 188, 6, 0.15)');
     expect(await couleurDe(page, '.menu-entree.actif', 'backgroundColor', '::before')).toBe(JAUNE);
     expect(await couleurDe(page, '.menu-entree.actif .icone', 'color')).toBe(theme === 'sombre' ? JAUNE : 'rgb(122, 95, 0)');
     expect(await couleurDe(page, '.section-tete h2 .icone', 'color')).toBe(theme === 'sombre' ? JAUNE : 'rgb(122, 95, 0)');
+    // I18 (21/10/2026) : l'Accueil n'a plus de bouton « + Personne » ; le bouton principal se lit sur la page Personnes.
+    await allerA(page, 'Personnes');
+    expect(await couleurDe(page, '.page-actions .bouton-principal')).toBe(JAUNE);
+    expect(await couleurDe(page, '.page-actions .bouton-principal', 'color')).toBe('rgb(41, 41, 44)');
     const jetons = await page.evaluate(() => {
       const s = getComputedStyle(document.documentElement);
       return Object.fromEntries(['--accent', '--sur-accent', '--accent-survol', '--accent-trait', '--lien', '--accent-a1f', '--accent-a26', '--accent-a33', '--accent-a99'].map((j) => [j, s.getPropertyValue(j).trim()]));
