@@ -245,6 +245,8 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 .prop-valeur .champ, .prop-valeur .champ-intelligent { width: 100%; }
 .prop-vide { display: inline-flex; align-items: center; gap: var(--esp-1); border: 0; background: none; padding: var(--esp-1) 0; color: var(--lien); font-weight: var(--poids-moyen); cursor: pointer; }
 .prop-vide:hover { text-decoration: underline; }
+/* Montant fantôme (« 999 € ») : un exemple gris, jamais une vraie valeur. */
+.prop-vide.prop-fantome { color: var(--placeholder); font-weight: inherit; }
 .prop-modifier { opacity: 0; width: 28px; height: 28px; }
 .prop:hover .prop-modifier, .prop-modifier:focus-visible { opacity: 1; }
 .prop-lien { color: var(--lien); }
