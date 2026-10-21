@@ -145,11 +145,11 @@ export function rendreFichePersonne(conteneur, id) {
     // ---- Organisation
     let contenuOrg;
     if (org && !editionOrganisation) {
-      contenuOrg = h('div', { class: 'contact-ligne' }, icone('building-2', { taille: 15 }), lienOrganisation(org),
+      contenuOrg = h('div', { class: 'contact-ligne ligne-organisation' }, icone('building-2', { taille: 15 }), lienOrganisation(org),
         h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', 'data-action': 'detacher-organisation', onclick: () => retirerAvecAnnulation({
           titre: 'Détacher l’organisation ?', message: `« ${org.nom} » ne sera plus associée à ${p.nom}. La personne et l’organisation sont conservées.`, libelleOk: 'Détacher',
           faire: () => D.lierPersonneOrganisation(p.id, null), defaire: () => D.lierPersonneOrganisation(p.id, org.id), messageFait: 'Organisation détachée' }) }, 'Détacher'),
-        h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', onclick: () => { editionOrganisation = true; reconstruire(); } }, 'Changer'));
+        h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', 'data-action': 'changer-organisation', onclick: () => { editionOrganisation = true; reconstruire(); } }, 'Changer'));
     } else {
       const sel = selecteurOrganisation({ valeurId: org?.id || null, surChoix: async (el) => { if (el) { editionOrganisation = false; await D.lierPersonneOrganisation(p.id, el.id); } } });
       contenuOrg = h('div', { class: 'pile' }, org ? null : h('p', { class: 'aide' }, 'Aucune organisation n’est associée à cette personne.'), sel.element);
