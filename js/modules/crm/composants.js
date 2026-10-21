@@ -32,6 +32,25 @@ export function lienPersonne(p) {
 export function lienOrganisation(o) {
   return o ? lien(cheminOrganisation(o.id), o.nom) : null;
 }
+/**
+ * Liens « personne » et « organisation » de l'en-tête d'une fiche (à côté de l'étiquette d'état).
+ * `lire()` renvoie { personneId, organisationId } à jour. `maj()` ne redessine que ce bloc : on s'en sert quand la fiche n'est pas refaite
+ * parce qu'une saisie est en cours (le choix dans le Résumé garde le focus), sinon le lien n'apparaissait qu'après un rechargement.
+ */
+export function liensEntete(lire) {
+  const element = h('div', { class: 'fiche-liens', dataset: { zone: 'liens-entete' } });
+  const maj = () => {
+    const { personneId, organisationId } = lire() || {};
+    const p = personneId ? D.personne(personneId) : null;
+    const o = organisationId ? D.organisation(organisationId) : null;
+    remplir(element,
+      p ? h('span', {}, icone('user', { taille: 14 }), lienPersonne(p)) : null,
+      o ? h('span', {}, icone('building-2', { taille: 14 }), lienOrganisation(o)) : null);
+  };
+  maj();
+  return { element, maj };
+}
+
 export function lienAffaire(a) {
   return a ? lien(cheminAffaire(a.id), a.titre) : null;
 }
