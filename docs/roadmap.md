@@ -4,6 +4,10 @@ Tenue à jour à chaque discussion sur l'évolution de l'appli. Dernière mise �
 
 Légende : **décidé** = validé par Jérôme ; **piste** = à trancher avant le cahier des charges.
 
+## Nuit du 21 au 22/10/2026 : idées Affaires et Projets (version 2.19.0)
+
+Revue des idées avec Jérôme (`docs/idees-affaires-projets.md`), puis code en autonomie (« GO NUIT », protocole dans `CLAUDE.md`) : PR 160 à 166 (liens personne/organisation en direct, notes cliquables et coupées, Factures/Tâches/Documents en « + Ajouter », montant fantôme, Propriétaire dans le Résumé, note de départ à la place du champ description avec le MCP, onglet Documents version 2 avec date d'ajout, bouton « Filtres » de l'Historique). Rapport complet : `docs/reprise-prochaine-session.md`. **Reste** : I15 (aligner les autres filtres), I16 (aligner les boutons), audit de sécurité Fable (semaine prochaine).
+
 ## Pistes notées le 18/10/2026 (à planifier après la recette MCP et l'audit de sécurité)
 
 - **Aide client lisible, publiée** : un site d'aide public en français (accueil avec recherche, catégories, articles courts, captures de notre appli), inspiré de l'organisation du centre d'aide de Pipedrive sans recopier ses textes, séparé du wiki technique. Découpage proposé : squelette + 3 articles, articles CRM, article de connexion de l'assistant, lien « Aide » dans l'appli. Pages publiques relues par Fable. À trancher : adresse (`/aide` sur la plateforme ou domaine à Jérôme). En attendant : `affaire-ou-projet.md`.

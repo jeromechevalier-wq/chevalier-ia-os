@@ -2,6 +2,41 @@
 
 Écrit le 04/10/2026, mis à jour le 21/10/2026, pour qu'une session neuve reprenne sans que Jérôme ait à recoller quoi que ce soit. **À mettre à jour ou à supprimer une fois les points faits.**
 
+## Rapport du matin : nuit « GO NUIT » du 21 au 22/10/2026 (version 2.19.0)
+
+Jérôme a donné « GO NUIT » le 21/10/2026 au soir ; Claude a codé les idées de `docs/idees-affaires-projets.md` (revue faite avec Jérôme) en autonomie, un sujet par PR, relue par Fable avant chaque fusion, fusionnée seule quand la coche « Tests » est verte (protocole dans `CLAUDE.md`). **Rien n'a eu besoin de la liste d'arrêt** : aucune règle Firestore, aucune migration, aucun déploiement de la plateforme clients (le CRM d'Ingrid n'a pas bougé : il ne se met à jour que par le workflow manuel).
+
+| Sujet | PR | État |
+|---|---|---|
+| I2, I13, I18 : liens personne/organisation en direct, alignement, Accueil sans « + Personne » | 160 | fusionnée |
+| I4, I6, I14 : bouton Modifier, liens cliquables, notes longues | 161 | fusionnée |
+| I17, I12, I11 : montant fantôme, Factures et Tâches en une ligne | 162 | fusionnée |
+| I7 : Propriétaire dans le Résumé | 163 | fusionnée |
+| I5 (et I8) : note de départ à la place du champ description (MCP compris) | 164 | fusionnée |
+| I10 : onglet Documents version 2 | 165 | fusionnée |
+| I9, I15 (début) : bouton « Filtres » de l'Historique ; bouton commun | 166 | voir `gh`/GitHub : fusionnée si la coche était verte |
+| Docs, version 2.19.0, tests remis dans la liste, workflow | cette PR | – |
+
+**À regarder à l'écran (recette de Jérôme)** : les « 5 vérifications » de chaque PR sont dans leur description (160 à 166). Les plus importantes : (1) créer une affaire : une carte « Cette affaire concerne… » grise apparaît dans les Points clés ; (2) une adresse `www.exemple.fr` dans une note est cliquable ; (3) Documents : « Dossier de travail … + Ajouter » et « Documents + Ajouter », date d'ajout ; (4) Propriétaire dans le Résumé ; (5) bouton « Filtres » de l'Historique.
+
+**Ce qui n'a pas pu être vérifié avec le vrai système** : tout a été testé sur émulateurs et avec le navigateur de test ; pas de vraies données, pas de vrai téléphone, pas de vrai Google (Picker/Drive simulé), pas de vrais clients MCP (ChatGPT, Hermes) ; Safari et Firefox non testés (`-webkit-line-clamp` des notes longues).
+
+**Ce que la nuit a révélé et corrigé ou noté** :
+- **Régression de la PR 160** (retrait de « + Personne » sur l'Accueil) : les tests K2 (`identite-crm`) et I3 (`identite-client`) lisaient la couleur de ce bouton ; l'étage léger de la PR ne les lance pas ; corrigé dans la PR 161 (ils lisent le bouton principal de la page Personnes).
+- **Coche de PR trop longue** : tout fichier sous `tests/` déclenchait la suite complète (11 à 17 minutes) ; corrigé le 21/10 (PR 158), puis `tests/package.json` aussi (cette PR) ; mesures de la nuit : 3 à 6 minutes par PR de code.
+- **Fenêtre horaire 22 h–minuit UTC** : P1 (`corrections-dossiers-2`) et C12 (`parcours`) échouent sur `main` aussi, dans cette fenêtre (voir `docs/tests.md`, « Pièges connus »). À corriger dans le test, pas dans l'appli.
+- **Réglages de l'environnement cloud** (faits par Jérôme le 21/10) : auto-merge, domaines du navigateur de test, Setup script : Chromium et les dépendances étaient présents dans la session de nuit.
+- **Budget Fable** : relue chaque PR en entier ; budget hebdomadaire suivi (vendredi 07h00 = réinitialisation). L'audit de sécurité Fable est **décalé à la semaine prochaine** (décision de Jérôme).
+
+**Reste à faire, dans l'ordre proposé** :
+1. **Décisions de Jérôme** (liste dans `docs/idees-affaires-projets.md`, « État au matin ») : bouton « Filtres » à 44 px sur téléphone ; fenêtre « Filtres » qui propose les 6 valeurs ; date d'ajout des documents joints par l'assistant ; I15 suite (Journal, Veille, Automatisations, Tableau de bord au bouton « Filtres »).
+2. **I16 : aligner les boutons restants** (liste dans `docs/consignes-ui.md`, section « Boutons »), dont la zone de clic des « + Ajouter » sur téléphone (30 px au lieu de 44).
+3. Les anciens défauts de tests : P1 et C12 (fenêtre horaire) ; C30 téléphone de `projets.spec.js` (cherche `[data-section="projet-details"]`, une section qui n'existe plus) ; `ports-et-isolation.test.js` (impose le décalage 7).
+4. `js/modules/crm/journal.js` ~l.172 écrit encore « gardée 90 jours » : contraire à la décision du 04/10/2026 (point 1 plus bas : « Appliquer la décision pas de RGPD »).
+5. **I11 suite, I12 suite** : rien ; **I1, I3** abandonnées.
+6. Audit de sécurité Fable (semaine prochaine), audit des différences Jérôme / clients, second passage du look compact, aide client publique, chantier ChatGPT sur le MCP, allègement des fiches.
+7. Retours d'Ingrid (premier client réel depuis le 21/10/2026).
+
 ## État au 21/10/2026
 
 - **Premier client réel en service (21/10/2026)** : Ingrid utilise désormais le CRM. Appel téléphonique fait par Jérôme ce jour ; les 8 tâches de préparation du projet « Accompagnement Ingrid » étaient faites. L'e-mail prévu ce jour n'est plus à envoyer (l'appel l'a remplacé). Elle remontera ce qu'elle remarque : traiter ses retours en petites PR. Aucun détail de client dans ce dépôt public.
