@@ -4,6 +4,7 @@ import { h, icone, remplir, dialogue, demanderTexte, toast, ouvrirMenu, lirePref
 import { naviguer } from '../../os/router.js';
 import { celebrerCloture } from '../../os/celebrations.js';
 import * as CRM from '../crm/donnees.js';
+import { boutonFiltres as boutonFiltresCommun } from '../crm/filtres.js';
 import * as L from '../crm/logique.js';
 import {
   lienPersonne, lienOrganisation, pastilleActivite, selecteurPersonne, selecteurOrganisation, organisationChoisieOuSaisie, etatVide, planifier, nomCompte,
@@ -369,10 +370,11 @@ export function rendreProjets(conteneur, { archives: surArchives = false } = {})
 
   const champRecherche = h('input', { class: 'champ', type: 'search', 'aria-label': 'Rechercher un projet', placeholder: 'Rechercher un projet', autocomplete: 'off', value: criteres.recherche,
     oninput: (e) => majCriteres({ ...criteres, recherche: e.target.value }) });
-  const boutonFiltres = h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'filtres', onclick: async () => {
+  const boutonFiltres_ = boutonFiltresCommun({ auClic: async () => {
     const r = await ouvrirFenetreFiltres();
     if (r) majCriteres(r);
   } });
+  const boutonFiltres = boutonFiltres_.element;
   async function enregistrerFiltre() {
     const nom = await demanderTexte('Enregistrer ce filtre', { libelle: 'Nom du filtre' });
     if (!nom) return;
@@ -391,7 +393,7 @@ export function rendreProjets(conteneur, { archives: surArchives = false } = {})
 
   function majFiltres() {
     const actifs = pastillesFiltres();
-    remplir(boutonFiltres, icone('funnel', { taille: 16 }), 'Filtres', actifs.length ? h('span', { class: 'compteur-filtres' }, String(actifs.length)) : null);
+    boutonFiltres_.majCompte(actifs.length);
     remplir(zonePastilles,
       actifs.map((a) => h('span', { class: 'pastille-filtre' }, a.libelle,
         h('button', { type: 'button', class: 'pastille-retrait', 'aria-label': `Retirer le filtre : ${a.libelle}`, onclick: () => majCriteres(a.retirer()) }, icone('x', { taille: 12 })))),

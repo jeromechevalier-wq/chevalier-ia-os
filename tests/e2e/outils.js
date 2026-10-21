@@ -297,4 +297,11 @@ test.afterEach(async ({ erreursConsole }, info) => {
   expect(reelles, 'Erreurs dans la console du navigateur').toEqual([]);
 });
 
+/** Historique d'une fiche : ouvre le bouton « Filtres », choisit la pastille, clique « Appliquer » (I9). */
+export async function filtrerHistorique(page, id) {
+  await page.locator('.historique [data-action="filtres"]').click();
+  await page.getByRole('dialog').locator(`[data-filtre="${id}"]`).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Appliquer' }).click();
+}
+
 export { expect };
