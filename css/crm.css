@@ -361,6 +361,12 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 .note-epinglee > svg { flex: none; margin-top: 3px; color: var(--accent); }
 .note-epinglee-corps { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--esp-1); }
 .note-epinglee:not(.deployee) .note-texte { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
+/* Note du fil : coupée à 20 lignes sur ordinateur, 12 sur téléphone, avec « … » ; « Développer » la déplie. */
+.fil-note .note-texte { --lignes-max: 20; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: var(--lignes-max); overflow: hidden; }
+.fil-note .note-texte.deployee { display: block; overflow: visible; -webkit-line-clamp: unset; }
+.fil-note [data-action="developper-note"] { align-self: flex-start; }
+@media (max-width: 767px) { .fil-note .note-texte { --lignes-max: 12; } }
+.lien-note { color: inherit; text-decoration: underline; text-underline-offset: 2px; overflow-wrap: anywhere; }
 .note-actions { display: flex; gap: var(--esp-1); flex-wrap: wrap; margin-top: var(--esp-1); }
 
 /* Objectifs compacts sur téléphone : deux par ligne */
