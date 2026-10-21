@@ -1,5 +1,5 @@
 // Onglet « Documents » à côté d'Activité et Notes (affaire et projet) : liste, boutons d'ajout, dossier de travail, compteur, trace dans l'Historique.
-import { test, expect, attendreCalme, connecter, creerAffaire, creerProjet, lireDocument, listerDocuments, ecrireDocument, JEROME } from './outils.js';
+import { test, expect, attendreCalme, connecter, creerAffaire, creerProjet, lireDocument, listerDocuments, ecrireDocument, JEROME, filtrerHistorique } from './outils.js';
 
 async function aller(page, hash) { await page.evaluate((h) => { location.hash = h; }, hash); await attendreCalme(page); }
 const FICHES = [
@@ -42,7 +42,7 @@ for (const f of FICHES) {
     await expect.poll(async () => ((await lireDocument(`${f.collection}/${f.id}`)).documents || []).length).toBe(1);
     await expect(page.locator('[data-role="compteur-documents"]')).toHaveText('1');
     await expect(zone).toContainText('Devis signé');
-    await page.locator('[data-filtre="documents"]').click();
+    await filtrerHistorique(page, 'documents');
     await expect(page.locator('.fil [data-genre="evenement"]')).toContainText('Document joint : Devis signé');
     // Retirer : confirmation, puis « Document retiré » dans le fil
     await zone.getByRole('button', { name: 'Retirer Devis signé' }).click();
@@ -50,7 +50,7 @@ for (const f of FICHES) {
     await expect.poll(async () => ((await lireDocument(`${f.collection}/${f.id}`)).documents || []).length).toBe(0);
     await expect(page.locator('[data-role="compteur-documents"]')).toHaveText('0');
     await expect(page.locator('.fil [data-genre="evenement"]').first()).toContainText('Document retiré : Devis signé');
-    await page.locator('[data-filtre="notes"]').click();
+    await filtrerHistorique(page, 'notes');
     await expect(page.locator('.fil [data-genre="evenement"]')).toHaveCount(0);
   });
 }
