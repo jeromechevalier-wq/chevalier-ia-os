@@ -75,8 +75,7 @@ export function rendreFicheProjet(conteneur, id) {
       h('div', { class: 'fiche-tete-ligne' },
         h('div', { class: 'fiche-titre' }, titre,
           h('div', { class: 'fiche-sous' }, pastilleStatutProjet(p), iconeInfo(EXPLICATION_STATUT_PROJET[p.statut], 'État du projet'), pastilleImpaye(p), p.archive ? h('span', { class: 'badge-archive' }, 'Archivé') : null,
-            liens.element,
-            selectProprietaire({ valeur: p.proprietaire, surChoix: (v) => D.majProjet(p.id, { proprietaire: v }) }))),
+            liens.element)),
         h('div', { class: 'fiche-actions' }, actions, menu)),
       barreDesPhases(p));
 
@@ -141,7 +140,8 @@ export function rendreFicheProjet(conteneur, id) {
           D.modele(p.modeleId) ? h('a', { class: 'prop-lien', href: cheminModele(p.modeleId) }, D.modele(p.modeleId).nom) : h('span', { class: 'aide' }, 'Modèle supprimé'))) : null,
         h('div', { class: 'prop', dataset: { prop: 'phase' } }, h('span', { class: 'prop-libelle' }, 'Phase'), h('div', { class: 'prop-valeur' }, selectPhase)),
         champPropriete({ libelle: 'Début', valeur: p.dateDebut || '', type: 'date', surEnregistrer: enregistrerDate('dateDebut') }).element,
-        champPropriete({ libelle: 'Fin prévue', valeur: p.dateFin || '', type: 'date', surEnregistrer: enregistrerDate('dateFin') }).element),
+        champPropriete({ libelle: 'Fin prévue', valeur: p.dateFin || '', type: 'date', surEnregistrer: enregistrerDate('dateFin') }).element,
+        selectProprietaire({ valeur: p.proprietaire, surChoix: (v) => D.majProjet(p.id, { proprietaire: v }) })),
     });
 
     // ---- Détails
