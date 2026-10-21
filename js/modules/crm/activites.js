@@ -434,6 +434,7 @@ export function panneauActivite({ lien, liensCreation, avecActivites = true, aff
     const entrees = L.entreesHistorique({ activites: D.activitesDe(lien), notes, evenements: fil.evenements }, filtre);
     filtresHistorique.majCompte(filtre === 'tous' ? 0 : 1);
     const actif = L.FILTRES_HISTORIQUE.find((f) => f.id === filtre);
+    const avaitFocus = document.activeElement === filtresHistorique.element; // le redessin détache le bouton : on lui rend le focus (clavier)
     remplir(zoneHistorique,
       h('div', { class: 'points-cles-tete' }, h('h3', { class: 'sous-titre' }, 'Historique'), filtresHistorique.element),
       filtre !== 'tous' && actif ? h('div', { class: 'pastilles-actives' }, h('span', { class: 'pastille-filtre' }, actif.libelle,
@@ -441,6 +442,7 @@ export function panneauActivite({ lien, liensCreation, avecActivites = true, aff
       entrees.length
         ? h('ol', { class: 'fil' }, entrees.map(ligneHistorique))
         : h('p', { class: 'aide' }, filtre === 'tous' ? 'Rien à afficher pour le moment.' : 'Rien à afficher avec ce filtre.'));
+    if (avaitFocus) filtresHistorique.element.focus();
   }
 
   function ligneHistorique(e) {

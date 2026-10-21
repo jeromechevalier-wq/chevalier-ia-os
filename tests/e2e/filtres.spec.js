@@ -97,7 +97,7 @@ test('I9 téléphone et ordinateur : la fenêtre des filtres de l’historique t
   expect(boite.x).toBeGreaterThanOrEqual(0);
   expect(boite.x + boite.width).toBeLessThanOrEqual(vue.width + 1);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  for (const b of await dialogue(page).locator('[data-filtre]').all()) expect((await b.boundingBox()).height).toBeGreaterThanOrEqual(estTelephone(page) ? 40 : 28);
+  for (const b of await dialogue(page).locator('[data-filtre]').all()) expect((await b.boundingBox()).height).toBeGreaterThanOrEqual(estTelephone(page) ? 43 : 31); // 44 et 32 px nominaux, moins l’arrondi du navigateur
   await expect(dialogue(page).getByRole('button', { name: 'Appliquer' })).toBeVisible();
   await expect(dialogue(page).getByRole('button', { name: 'Tout effacer' })).toBeVisible();
   await capture(page, 'I9-fenetre');
@@ -122,4 +122,15 @@ test('I15 le bouton « Filtres » des Projets est le même que celui des Personn
   await dialogue(page).getByRole('button', { name: 'Appliquer' }).click();
   await expect(boutonProjets.locator('.compteur-filtres')).toHaveText('1');
   await capture(page, 'I15-projets');
+});
+
+test('I9 clavier : après « Appliquer », le focus revient sur le bouton « Filtres » de l\'Historique (comme sur les Personnes)', async ({ page }) => {
+  await fichePleine();
+  await connecter(page);
+  await aller(page, '#/crm/personnes/p1');
+  await boutonHistorique(page).click();
+  await dialogue(page).locator('[data-filtre="notes"]').click();
+  await dialogue(page).getByRole('button', { name: 'Appliquer' }).click();
+  await expect(dialogue(page)).toHaveCount(0);
+  await expect(boutonHistorique(page)).toBeFocused();
 });
