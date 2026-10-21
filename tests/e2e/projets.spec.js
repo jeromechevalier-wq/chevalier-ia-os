@@ -192,24 +192,16 @@ test('C29 fiche : titre, dates (la fin ne précède pas le début), dossier de t
   await champDoc('projets_projets', 'pr1', 'dateFin', '2026-11-30');
   // Détails : le dossier de travail accepte n'importe quel lien ; plus de champ GitHub ni de « Créer le GitHub »
   await expect(page.locator('[data-champ="github"], [data-action="creer-github"]')).toHaveCount(0);
-  await expect(page.locator('[data-champ="dossier"]')).toHaveCount(0); // plus de champ pour coller une adresse : une adresse web va dans « Liens et documents »
-  // Liens et documents (la section s'appelait « Documents »)
+  await expect(page.locator('[data-champ="dossier"]')).toHaveCount(0); // plus de champ pour coller une adresse : une adresse web va dans une note
+  // Documents : la ligne « Documents  + Ajouter » ; plus de bouton « Ajouter un lien web » (les adresses passent par les notes), un lien déjà enregistré reste affiché avec sa note.
+  await ecrireDocument('projets_projets/pr1', { ...(await lireDocument('projets_projets/pr1')), documents: [{ libelle: 'Devis signé', url: 'https://drive.google.com/file/d/abc/view', note: 'envoyé au client' }] });
   await ouvrirDocuments(page);
-  await expect(page.locator('[data-section="projet-documents"]')).toContainText('Liens et documents');
-  await page.locator('[data-action="ajouter-lien"]').click();
-  await page.getByLabel('Lien web', { exact: true }).fill('https://drive.google.com/file/d/abc/view');
-  await page.getByLabel('Nom (facultatif)').fill('Devis signé');
-  await page.getByLabel('Note (facultative)').fill('envoyé au client');
-  await page.locator('[data-action="valider-lien"]').click();
-  await expect.poll(async () => (await lireDocument('projets_projets/pr1')).documents).toEqual([{ libelle: 'Devis signé', url: 'https://drive.google.com/file/d/abc/view', note: 'envoyé au client' }]);
+  await expect(page.locator('[data-section="projet-documents"]')).not.toContainText('Liens et documents');
+  await expect(page.locator('[data-section="projet-documents"] [data-prop="documents"] .prop-libelle')).toContainText('Documents');
+  await expect(page.locator('[data-action="ajouter-lien"]')).toHaveCount(0);
   await expect(page.locator('[data-section="projet-documents"]')).toContainText('Devis signé');
   await expect(page.locator('[data-section="projet-documents"] .lien-note')).toHaveText('envoyé au client');
-  // Un lien qui n'en est pas un est refusé
-  await page.locator('[data-action="ajouter-lien"]').click();
-  await page.getByLabel('Lien web', { exact: true }).fill('pas un lien');
-  await page.locator('[data-action="valider-lien"]').click();
-  await expect(page.locator('.toast-erreur').last()).toContainText('http');
-  expect((await lireDocument('projets_projets/pr1')).documents).toHaveLength(1);
+  await expect(page.locator('[data-section="projet-documents"] [data-role="date-ajout"]')).toHaveCount(0); // un ancien document sans date n'en affiche pas
 });
 
 test('Favoris : l’étoile d’un document d’affaire ou de projet le met sur l’accueil ; l’étoile de l’accueil le retire', async ({ page }) => {

@@ -302,7 +302,7 @@ test('P5 un fichier IMPORTÉ depuis l\'ordinateur est reconnu (Drive dit qu\'il 
   expect(drive.lectures).toContain('FICHIER_IMPORT_01');
   await capturer(page, 'P5', page.locator('[data-section="projet-documents"]'));
   await page.locator('[data-role="form-lien"] [data-action="valider-lien"]').click();
-  await champDoc('projets_projets', 'pr1', 'documents', [{ libelle: '1.png', url: 'https://drive.google.com/file/d/FICHIER_IMPORT_01/view' }]);
+  await champDoc('projets_projets', 'pr1', 'documents', [{ libelle: '1.png', url: 'https://drive.google.com/file/d/FICHIER_IMPORT_01/view', ajouteLe: expect.any(String) }]);
   expect(drive.copies).toHaveLength(0); // le fichier est déjà dans le dossier : pas de copie
   // Un fichier choisi dans « Google Drive » (ailleurs) : case active et cochée par défaut, qu'on peut décocher.
   drive.fichiers.FICHIER_AUTRE_001 = { parents: ['AUTRE_DOSSIER_123'] };
@@ -342,7 +342,7 @@ test('P5 (déjà rangé) un fichier de Drive ANCIEN qui est déjà dans le dossi
   await expect(page.locator('[data-role="case-deja-dans"] input')).toBeDisabled();
   await expect(page.locator('[data-role="case-importe"]')).toHaveCount(0);
   await page.locator('[data-action="valider-lien"]').click();
-  await champDoc('projets_projets', 'pr1', 'documents', [{ libelle: 'Ancien.pdf', url: 'https://drive.google.com/file/d/FICHIER_ANCIEN_01/view' }]);
+  await champDoc('projets_projets', 'pr1', 'documents', [{ libelle: 'Ancien.pdf', url: 'https://drive.google.com/file/d/FICHIER_ANCIEN_01/view', ajouteLe: expect.any(String) }]);
   expect(drive.copies).toHaveLength(0);
 });
 
@@ -360,7 +360,7 @@ test('P5 (prudence) si Drive ne répond pas et que la fenêtre Google ne dit rie
   await expect(incertaine.locator('input')).toBeDisabled();
   await expect(incertaine.locator('input')).not.toBeChecked();
   await page.locator('[data-action="valider-lien"]').click();
-  await champDoc('projets_projets', 'pr1', 'documents', [{ libelle: 'Inconnu.pdf', url: 'https://drive.google.com/file/d/FICHIER_INCONNU_1/view' }]);
+  await champDoc('projets_projets', 'pr1', 'documents', [{ libelle: 'Inconnu.pdf', url: 'https://drive.google.com/file/d/FICHIER_INCONNU_1/view', ajouteLe: expect.any(String) }]);
   expect(drive.copies).toHaveLength(0);
 });
 

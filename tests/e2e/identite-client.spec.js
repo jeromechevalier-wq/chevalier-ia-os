@@ -254,9 +254,10 @@ test('I10 chez un client : « Ajouter un document » (Google branché) et dossie
   await ouvrir(page, 'studio', 'projets/projets/pr1');
   await expect(page.locator('input.titre-editable')).toHaveValue('Site du lac');
   await ouvrirDocuments(page);
+  await page.locator('[data-action="ajouter-dossier"]').click(); // « + Ajouter » ouvre les choix du dossier de travail
   await expect(page.locator('[data-action="creer-dossier-ouvrir"]')).toHaveCount(0);
   await expect(page.locator('[data-action="lier-dossier"]')).toBeVisible();
-  await expect(page.locator('[data-section="projet-documents"]')).toContainText('Liens et documents');
+  await expect(page.locator('[data-section="projet-documents"] [data-prop="documents"]')).toContainText('Documents');
   // Sans dossier de travail : « Ajouter un document » l'explique et ne propose que « Créer le dossier » ou « Annuler » (plus de « Parcourir seulement »).
   await page.locator('[data-action="ajouter-document-google"]').click();
   await expect(page.getByRole('dialog')).toContainText('Cette fiche n’a pas de dossier de travail');
@@ -266,6 +267,7 @@ test('I10 chez un client : « Ajouter un document » (Google branché) et dossie
   // « Lier un dossier Google Drive existant » : la fenêtre Google en mode « choisir un dossier » ; aucun champ pour coller une adresse.
   await expect(page.locator('[data-champ="dossier"]')).toHaveCount(0);
   await choisirDansGoogle(page, [{ id: 'DOSSIER_LUNE_1234', name: 'Lune', url: 'https://drive.google.com/drive/folders/DOSSIER_LUNE_1234', mimeType: 'application/vnd.google-apps.folder' }]);
+  if (!(await page.locator('[data-role="choix-dossier"]').count())) await page.locator('[data-action="ajouter-dossier"]').click(); // « + Ajouter » ouvre les deux choix
   await page.locator('[data-action="lier-dossier"]').click();
   await expect.poll(async () => (await lireDocument('clients/studio/projets_projets/pr1')).urlDossier).toBe('https://drive.google.com/drive/folders/DOSSIER_LUNE_1234');
   const g = await lireGoogle(page);
@@ -279,7 +281,7 @@ test('I10 chez un client : « Ajouter un document » (Google branché) et dossie
   await expect(page.locator('[data-role="case-importe"] input')).toBeDisabled();
   await expect(page.locator('[data-role="case-importe"] input')).toBeChecked();
   await page.locator('[data-role="form-lien"] [data-action="valider-lien"]').click();
-  await expect.poll(async () => (await lireDocument('clients/studio/projets_projets/pr1')).documents).toEqual([{ libelle: 'Contrat.pdf', url: 'https://drive.google.com/file/d/F1/view' }]);
+  await expect.poll(async () => (await lireDocument('clients/studio/projets_projets/pr1')).documents).toEqual([{ libelle: 'Contrat.pdf', url: 'https://drive.google.com/file/d/F1/view', ajouteLe: expect.any(String) }]);
   expect(drive.copies).toHaveLength(0);
   // Retirer le dossier de travail : confirmation, puis « Annuler » pendant 8 secondes (ici on l'utilise), puis retrait définitif.
   await page.locator('[data-action="retirer-dossier"]').click();
@@ -293,6 +295,7 @@ test('I10 chez un client : « Ajouter un document » (Google branché) et dossie
   // On allume l'interrupteur (comme dans les Réglages) : « Créer un dossier dans Google Drive » apparaît et crée dans Drive.
   await expect.poll(async () => (await lireDocument('clients/studio/crm_parametres/reglages')) !== null).toBe(true);
   await ecrireDocument('clients/studio/crm_parametres/reglages', { ...(await lireDocument('clients/studio/crm_parametres/reglages')), boutonsDepot: true, sousDossiersDrive: ['Contrat'] });
+  if (!(await page.locator('[data-role="choix-dossier"]').count())) await page.locator('[data-action="ajouter-dossier"]').click(); // « + Ajouter » ouvre les deux choix
   await page.locator('[data-action="creer-dossier-ouvrir"]').click();
   await page.locator('[data-action="creer-dossier"]').click();
   await expect.poll(async () => (await lireDocument('clients/studio/projets_projets/pr1')).urlDossier).toBe('https://drive.google.com/drive/folders/DOSSIER_2_abcdefghij');
@@ -305,6 +308,7 @@ test('P6 chez un client : « Créer un dossier dans Google Drive » crée TOUT S
   await expect.poll(async () => (await lireDocument('clients/studio/crm_parametres/reglages')) !== null).toBe(true);
   await ecrireDocument('clients/studio/crm_parametres/reglages', { ...(await lireDocument('clients/studio/crm_parametres/reglages')), boutonsDepot: true });
   await ouvrirDocuments(page);
+  if (!(await page.locator('[data-role="choix-dossier"]').count())) await page.locator('[data-action="ajouter-dossier"]').click(); // « + Ajouter » ouvre les deux choix
   await page.locator('[data-action="creer-dossier-ouvrir"]').click();
   await page.locator('[data-action="creer-dossier"]').click();
   await expect.poll(async () => (await lireDocument('clients/studio/projets_projets/pr1')).urlDossier).toMatch(/DOSSIER_2_/);

@@ -156,7 +156,7 @@ export function rendreFicheProjet(conteneur, id) {
     // Documents : onglet à droite (à côté d'Activité et Notes), avec le dossier de travail et, plus bas, les documents de l'affaire liée.
     // (Le projet n'a plus de section « Détails » : le dossier de travail était son seul contenu.)
     const documents = sectionLiensEtDocuments({ id: 'projet-documents', typeFiche: 'projet', entite: p, courant: () => D.projet(p.id) || p, enregistrer: (patch) => D.majProjet(p.id, patch),
-      enOnglet: true, avant: [h('div', { class: 'proprietes' }, lanceurs.dossier)], apres: [sectionDocumentsAffaire] });
+      avant: [h('div', { class: 'proprietes' }, lanceurs.dossier)], apres: [sectionDocumentsAffaire] });
 
     // Le panneau suit l'affaire liée : il est refait quand le projet est lié ou détaché.
     if (panneau && panneauAffaireId !== (p.affaireId || null)) { panneau.arreter(); panneau = null; }
