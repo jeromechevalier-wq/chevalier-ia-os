@@ -144,7 +144,11 @@ export function sectionFactures(p) {
   const champEnvoi = h('input', { class: 'champ champ-court', type: 'date', 'aria-label': 'Date d’envoi de la facture', value: '' });
   // « Factures  + Ajouter » : le formulaire n'apparaît qu'après le clic (une facture à la fois), et se referme dès qu'elle est ajoutée.
   const ouvrirAjout = () => { ajout.hidden = false; ligneOuvrir.hidden = true; champLibelle.focus(); };
-  const fermerAjout = () => { ajout.hidden = true; ligneOuvrir.hidden = false; };
+  const fermerAjout = () => {
+    [champLibelle, champMontant, champEnvoi].forEach((c) => { c.value = ''; });
+    champMontant.classList.remove('invalide');
+    ajout.hidden = true; ligneOuvrir.hidden = false;
+  };
   const ligneOuvrir = ligneAjouter({ libelle: 'Factures', libelleAria: 'Ajouter une facture', surClic: ouvrirAjout, action: 'ouvrir-ajout-facture' });
   const sec = sectionRepliable({ id: 'projet-factures', titre: 'Factures', compteur: P.facturesDe(p).length, contenu: h('div', { class: 'pile' }, ligneOuvrir, zoneListe) });
 
@@ -186,7 +190,7 @@ export function sectionFactures(p) {
     h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', 'data-action': 'ajouter-facture', onclick: ajouter }, 'Ajouter'),
     h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', 'data-action': 'annuler-ajout-facture', onclick: fermerAjout }, 'Annuler'));
   [champLibelle, champMontant, champEnvoi].forEach((c) => c.addEventListener('keydown', (e) => { if (e.key === 'Enter') ajouter(); else if (e.key === 'Escape') fermerAjout(); }));
-  sec.corps.append(ajout);
+  ligneOuvrir.after(ajout); // le formulaire prend la place de la ligne « + Ajouter »
 
   function majListe() {
     const courant = D.projet(p.id) ?? p;

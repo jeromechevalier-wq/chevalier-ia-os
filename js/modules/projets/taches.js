@@ -146,7 +146,7 @@ export function sectionTaches(projet) {
   zoneAjout.addEventListener('focusin', () => zoneAjout.classList.remove('replie'));
   titre.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') { e.preventDefault(); ajouter(); }
-    else if (e.key === 'Escape' && !titre.value) { zoneAjout.classList.add('replie'); titre.blur(); }
+    else if (e.key === 'Escape' && !titre.value) { date.champ.value = ''; phase.value = projet.phase; titre.classList.remove('invalide'); zoneAjout.classList.add('replie'); titre.blur(); }
   });
 
   // La liste se redessine seule (sans toucher au formulaire) : on peut taper la tâche suivante pendant que la précédente apparaît.

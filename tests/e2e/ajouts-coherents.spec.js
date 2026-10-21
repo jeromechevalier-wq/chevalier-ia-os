@@ -27,6 +27,11 @@ test('I17 Montant de l’affaire : « 999 € » fantôme gris quand il est vide
   expect(gris).not.toBe(jaune);
   expect((await lireDocument('crm_affaires/a1')).montant ?? null).toBeNull(); // le fantôme n'est jamais une valeur
   await capturer(page, info, 'I17-montant-fantome');
+  // clic puis Échap : rien n'est enregistré et le fantôme reste là
+  await fantome.click();
+  await page.getByLabel('Montant', { exact: true }).press('Escape');
+  await expect(zone.locator('.prop-fantome')).toBeVisible();
+  expect((await lireDocument('crm_affaires/a1')).montant ?? null).toBeNull();
   await fantome.click();
   await page.getByLabel('Montant', { exact: true }).fill('1500');
   await page.getByLabel('Montant', { exact: true }).press('Enter');
@@ -59,6 +64,8 @@ test('I12 Factures : ligne « Factures  + Ajouter », le formulaire n’apparaî
   await expect(section.locator('.ligne-facture', { hasText: 'Acompte' })).toBeVisible();
   await expect(section.locator('.ligne-ajout-facture')).toBeHidden(); // une à une : le formulaire se referme
   await expect(ligne).toBeVisible();
+  await expect(page.locator('.toast')).toHaveCount(0, { timeout: 15000 });
+  await page.evaluate(() => window.scrollTo(0, 0));
   await capturer(page, info, 'I12-facture-ajoutee');
 });
 
@@ -97,4 +104,39 @@ test('I11 Tâches : une seule ligne « Clique ici pour ajouter une tâche… »,
   await section.locator('[data-action="ajouter-tache"]').click();
   await expect.poll(async () => (await tout()).length).toBe(3);
   expect((await tout()).find((d) => d.titre === 'Envoyer le devis').date).toBe(jour(1));
+});
+
+test('I12 Factures : Annuler vide le formulaire (aucun brouillon ni montant rouge qui revient) et le formulaire prend la place de la ligne « + Ajouter »', async ({ page }) => {
+  await creerProjet('pr1', { titre: 'Audit Lilas', phase: 'livraison' });
+  await connecter(page);
+  await ouvrir(page, '#/projets/projets/pr1');
+  const section = page.locator('[data-section="projet-factures"]');
+  await section.locator('.prop-ajouter .prop-vide').click();
+  const yLigne = await section.locator('.ligne-ajout-facture').evaluate((el) => el.getBoundingClientRect().top);
+  const yTitre = await section.locator('.section-titre, h2, h3').first().evaluate((el) => el.getBoundingClientRect().bottom);
+  expect(yLigne - yTitre).toBeLessThan(120); // juste sous le titre, là où était la ligne
+  await page.getByLabel('Libellé de la facture').fill('Brouillon');
+  await page.locator('[data-action="ajouter-facture"]').click(); // montant manquant : champ rouge
+  await expect(page.getByLabel('Montant de la facture en euros')).toHaveClass(/invalide/);
+  await page.locator('[data-action="annuler-ajout-facture"]').click();
+  await section.locator('.prop-ajouter .prop-vide').click();
+  await expect(page.getByLabel('Libellé de la facture')).toHaveValue('');
+  await expect(page.getByLabel('Montant de la facture en euros')).not.toHaveClass(/invalide/);
+});
+
+test('I11 Tâches : Échap sur un titre vide remet la date et la phase à zéro', async ({ page }) => {
+  await creerProjet('pr1', { titre: 'Audit des Lilas', phase: 'decouverte' });
+  await connecter(page);
+  await ouvrir(page, '#/projets/projets/pr1');
+  const section = page.locator('[data-section="projet-taches"]');
+  const champ = section.getByLabel('Nouvelle tâche');
+  await champ.click();
+  await section.locator('[data-date-rapide="demain"]').click();
+  await section.getByLabel('Phase de la tâche').selectOption('livraison');
+  await champ.click();
+  await champ.press('Escape');
+  await expect(section.getByLabel('Phase de la tâche')).toBeHidden();
+  await champ.click();
+  await expect(section.getByLabel('Date', { exact: true })).toHaveValue('');
+  await expect(section.getByLabel('Phase de la tâche')).toHaveValue('decouverte');
 });
