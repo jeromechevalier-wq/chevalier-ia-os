@@ -54,7 +54,8 @@ export async function chercher(donnees, { texte, types, limite }) {
 
 async function fil(donnees, champ, id, activites) {
   const [notes, evenements] = await Promise.all([C.notes, C.evenements].map((nom) => donnees.liste(nom, { champ, valeur: id })));
-  return L.entreesHistorique({ activites, notes, evenements }, 'tous')
+  // Sans la copie en double (I5 : note épinglée d'un projet créé depuis une affaire = copie de celle de l'affaire).
+  return L.entreesHistorique({ activites, notes: L.sansCopiesDeNote(notes, { [champ]: id }), evenements }, 'tous')
     .map((e) => ({ genre: e.genre, date: e.date ? e.date.toISOString() : null, ...serialiser(e.element) }));
 }
 

@@ -666,6 +666,11 @@ describe('Outils des projets : mêmes règles que l’écran, avec audit et rest
     assert.notEqual(r.noteEpingleeId, 'n-a2');
     assert.equal(s.doc('crm_notes', 'n-a2').texte, 'Devis signé le 12.\nDémarrage en novembre.', 'la note de l’affaire reste à elle');
     assert.equal('description' in s.doc('projets_projets', r.id), false);
+    // Fil MCP de l'affaire : l'originale seulement, pas aussi la copie du projet (même affaireId, même texte).
+    const filA2 = ok(await s.appeler('biblio', 'lire_affaire', { id: 'a2', avecFil: true })).fil.filter((e) => e.genre === 'note');
+    assert.deepEqual(filA2.map((e) => e.id), ['n-a2']);
+    const filP = ok(await s.appeler('biblio', 'lire_projet', { id: r.id, avecFil: true })).fil.filter((e) => e.genre === 'note');
+    assert.deepEqual(filP.map((e) => e.id), [r.noteEpingleeId]);
     // creer_projet : note vide ; lire_projet n'a ni description ni note vide dans le fil.
     const p = ok(await s.appeler('biblio', 'creer_projet', { titre: 'Site' }));
     const noteVide = s.doc('crm_notes', p.noteEpingleeId);
@@ -693,6 +698,10 @@ describe('Outils des projets : mêmes règles que l’écran, avec audit et rest
     const n = s.doc('crm_notes', r.noteEpingleeId);
     assert.equal(n.texte, 'Texte donné par l’agent', 'le texte donné l’emporte sur la copie');
     assert.equal('copieDeNoteId' in n, false);
+    // Chaîne vide envoyée par un ancien client : « non donné », la note de l'affaire est copiée.
+    s.doc('projets_projets', r.id).affaireId = null; s.doc('crm_affaires', 'a2').projetId = null;
+    const r2 = ok(await s.appeler('biblio', 'creer_projet_depuis_affaire', { affaireId: 'a2', description: '' }));
+    assert.deepEqual([s.doc('crm_notes', r2.noteEpingleeId).texte, s.doc('crm_notes', r2.noteEpingleeId).copieDeNoteId], ['Note de l’affaire', 'n-a2']);
     refuse(await s.appeler('biblio', 'creer_affaire', { titre: 'Trop long', description: 'x'.repeat(20001) }));
   });
 

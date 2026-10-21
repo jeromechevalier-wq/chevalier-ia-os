@@ -757,8 +757,8 @@ export function planCreerProjetDepuisAffaire({ affaire, projets = [], valeurs = 
     ...(modele ? { modeleId: modele.id } : {}),
   }, ctx);
   // `texteNote` (ancien paramètre MCP `description`) l'emporte sur la copie de la note de l'affaire.
-  const originale = texteNote !== undefined && texteNote !== null ? null : noteEpingleeAffaire(notesAffaire, affaire.id);
-  const note = ecritureNoteDeDepart(liensProjet({ ...fiche, id }), ctx, originale?.texte ?? texteNote ?? '', { copieDeNoteId: originale?.id ?? null });
+  const originale = texteNote ? null : noteEpingleeAffaire(notesAffaire, affaire.id); // chaîne vide = « non donné » : on copie
+  const note = ecritureNoteDeDepart(liensProjet({ ...fiche, id }), ctx, originale?.texte ?? (texteNote || ''), { copieDeNoteId: originale?.id ?? null });
   return {
     erreurs: {},
     id,

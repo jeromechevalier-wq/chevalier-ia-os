@@ -504,6 +504,11 @@ describe('B28 Affaire gagnée : créer ou lier un projet', () => {
       ['Appli de commande pour la boulangerie.\nDevis envoyé.', true, plan.id, 'a1', 'p1', 'o1', 'n1']);
     assert.deepEqual(note.horodater, ['creeLe', 'modifieLe']);
     assert.equal(par(plan.ecritures)['creer:projets_projets'].donnees.description, undefined, 'le champ description n’existe plus');
+    // Ancien paramètre MCP `description` : une chaîne vide vaut « non donné » (on copie) ; un texte l'emporte sur la copie.
+    const videDonne = par(P.planCreerProjetDepuisAffaire({ affaire, notesAffaire, texteNote: '' }, c()).ecritures)['creer:crm_notes'].donnees;
+    assert.deepEqual([videDonne.texte, videDonne.copieDeNoteId], ['Appli de commande pour la boulangerie.\nDevis envoyé.', 'n1']);
+    const donne = par(P.planCreerProjetDepuisAffaire({ affaire, notesAffaire, texteNote: 'Texte de l’agent' }, c()).ecritures)['creer:crm_notes'].donnees;
+    assert.deepEqual([donne.texte, 'copieDeNoteId' in donne], ['Texte de l’agent', false]);
     const sans = par(P.planCreerProjetDepuisAffaire({ affaire: gagnee() }, c()).ecritures)['creer:crm_notes'].donnees;
     assert.deepEqual([sans.texte, sans.epinglee, 'copieDeNoteId' in sans], ['', true, false]);
     const videAffaire = par(P.planCreerProjetDepuisAffaire({ affaire: gagnee(), notesAffaire: [{ id: 'nv', texte: '', epinglee: true, affaireId: 'a1' }] }, c()).ecritures)['creer:crm_notes'].donnees;
