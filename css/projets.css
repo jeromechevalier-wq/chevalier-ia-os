@@ -17,6 +17,9 @@
 .carte-projet .anneau-progression { margin-left: 2px; }
 .ajout-tache { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--esp-3); align-items: start; }
 .ajout-tache .champ { min-width: 0; }
+/* Replié : une seule ligne « Clique ici pour ajouter une tâche… » ; la phase, les dates rapides et le bouton apparaissent au focus. */
+.ajout-tache.replie { grid-template-columns: minmax(0, 1fr); }
+.ajout-tache.replie > :not(input) { display: none; }
 .ajout-tache .selecteur-date, .ajout-tache button[data-action="ajouter-tache"] { grid-column: 1 / -1; }
 .ajout-tache button[data-action="ajouter-tache"] { justify-self: start; }
 .groupe-taches .sous-titre { display: flex; align-items: center; gap: var(--esp-3); margin: var(--esp-5) 0 var(--esp-2); }

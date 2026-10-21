@@ -67,7 +67,7 @@ export function rendreFicheAffaire(conteneur, id) {
     majLiens = liens.maj;
     const vivante = a.statut === 'ouverte' || a.statut === 'gagnee';
     const titre = titreEditable({ valeur: a.titre, libelle: 'Titre', surEnregistrer: (v) => D.majAffaire(a.id, { titre: v }) });
-    const montant = champPropriete({ libelle: 'Montant', valeur: a.montant ?? '', type: 'nombre', pas: '0.01', formater: (v) => L.formatEuros(v), surEnregistrer: (v) => D.majAffaire(a.id, { montant: v }) });
+    const montant = champPropriete({ libelle: 'Montant', valeur: a.montant ?? '', type: 'nombre', pas: '0.01', formater: (v) => L.formatEuros(v), fantome: L.formatEuros(999), surEnregistrer: (v) => D.majAffaire(a.id, { montant: v }) });
     const menu = h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Plus d’actions', 'data-action': 'menu-fiche',
       onclick: (e) => ouvrirMenu(e.currentTarget, [
         ...(a.statut === 'perdue' || a.statut === 'en_pause' ? [{ libelle: 'Rouvrir', icone: 'rotate-ccw', action: () => D.rouvrir(a.id) }] : []),
@@ -90,8 +90,7 @@ export function rendreFicheAffaire(conteneur, id) {
             a.statut === 'perdue' ? h('span', { class: 'aide' }, `${a.raisonPerdue}${a.raisonPerdueDetail ? ` : ${a.raisonPerdueDetail}` : ''}`) : null,
             a.statut === 'en_pause' ? h('span', { class: 'aide' }, `jusqu’au ${L.formatJour(a.dateReveil)}`) : null,
             a.archive ? h('span', { class: 'badge-archive' }, 'Archivée') : null,
-            liens.element,
-            selectProprietaire({ valeur: a.proprietaire, surChoix: (v) => D.majAffaire(a.id, { proprietaire: v }) }))),
+            liens.element)),
         h('div', { class: 'fiche-montant' }, montant.element),
         h('div', { class: 'fiche-actions' }, actionsStatut, menu)),
       barreDesEtapes(a));
@@ -128,7 +127,8 @@ export function rendreFicheAffaire(conteneur, id) {
         h('div', { class: 'prop' }, h('span', { class: 'prop-libelle' }, 'Organisation'), h('div', { class: 'prop-valeur' }, selOrg.element)),
         champPropriete({ libelle: 'Offre', valeur: a.offreId || '', type: 'select', options: offres.map((x) => ({ valeur: x.id, libelle: x.nom })), surEnregistrer: (v) => D.majAffaire(a.id, { offreId: v || null }) }).element,
         champPropriete({ libelle: 'Priorité', valeur: a.priorite || 'tiede', type: 'select', options: L.PRIORITES.map((x) => ({ valeur: x.id, libelle: x.libelle })), surEnregistrer: (v) => D.majAffaire(a.id, { priorite: v || 'tiede' }) }).element,
-        h('div', { class: 'prop', dataset: { prop: 'etape' } }, h('span', { class: 'prop-libelle' }, 'Étape'), h('div', { class: 'prop-valeur' }, selectEtape))),
+        h('div', { class: 'prop', dataset: { prop: 'etape' } }, h('span', { class: 'prop-libelle' }, 'Étape'), h('div', { class: 'prop-valeur' }, selectEtape)),
+        selectProprietaire({ valeur: a.proprietaire, surChoix: (v) => D.majAffaire(a.id, { proprietaire: v }) })),
     });
 
     // ---- Projet (affaire gagnée : créer ou lier ; au plus un projet par affaire)

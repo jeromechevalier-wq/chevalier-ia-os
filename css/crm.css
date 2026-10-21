@@ -245,6 +245,8 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 .prop-valeur .champ, .prop-valeur .champ-intelligent { width: 100%; }
 .prop-vide { display: inline-flex; align-items: center; gap: var(--esp-1); border: 0; background: none; padding: var(--esp-1) 0; color: var(--lien); font-weight: var(--poids-moyen); cursor: pointer; }
 .prop-vide:hover { text-decoration: underline; }
+/* Montant fantôme (« 999 € ») : un exemple gris, jamais une vraie valeur. */
+.prop-vide.prop-fantome { color: var(--placeholder); font-weight: inherit; }
 .prop-modifier { opacity: 0; width: 28px; height: 28px; }
 .prop:hover .prop-modifier, .prop-modifier:focus-visible { opacity: 1; }
 .prop-lien { color: var(--lien); }
@@ -285,7 +287,6 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 .titre-editable:focus { outline: none; border-color: var(--accent-trait); background: var(--panneau); }
 .fiche-sous { display: flex; align-items: center; gap: var(--esp-5); flex-wrap: wrap; color: var(--texte2); font-size: var(--fs-texte); }
 .fiche-sous > span { display: inline-flex; align-items: center; gap: var(--esp-2); }
-.proprietaire { display: inline-flex; align-items: center; gap: var(--esp-3); }
 .champ-petit { min-height: 32px; padding: 3px 24px 3px var(--esp-4); font-size: var(--fs-menu); width: auto; }
 .fiche-actions { display: flex; align-items: center; gap: var(--esp-3); flex-wrap: wrap; }
 .fiche-montant { min-width: 150px; font: var(--poids-moyen) var(--fs-chiffre)/1 var(--police-titre); }

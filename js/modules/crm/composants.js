@@ -180,7 +180,20 @@ export function sectionRepliable({ id, titre, contenu, actions = [], ouverte = t
  *  type : texte | url | nombre | date | select | zone | intelligent (texte libre avec suggestions : fournir)
  *         | liste (liste fermée de textes donnée par `fournir`, dont la dernière ligne « + Nouvelle valeur… » ouvre un champ avec un bouton Créer)
  */
-export function champPropriete({ libelle, valeur = '', type = 'texte', options = [], surEnregistrer, placeholder = '', formater = null, lienVers = null, fournir = null, pas = null }) {
+/**
+ * La ligne « Étiquette  + Ajouter » (texte jaune sans cadre) : le style unique pour ajouter à une liste ou à un champ.
+ * `fantome` (facultatif) : un texte gris d'exemple (ex. « 999 € ») affiché à la place de « + Ajouter » ; ce n'est jamais une vraie valeur.
+ */
+export function boutonAjouter({ libelleAria, surClic, fantome = null, action = null }) {
+  return h('button', { type: 'button', class: `prop-vide${fantome ? ' prop-fantome' : ''}`, onclick: surClic, 'aria-label': libelleAria, 'data-action': action },
+    ...(fantome ? [fantome] : [icone('plus', { taille: 14 }), 'Ajouter']));
+}
+export function ligneAjouter({ libelle, libelleAria, surClic, action = null }) {
+  return h('div', { class: 'prop prop-ajouter' }, h('span', { class: 'prop-libelle' }, libelle),
+    h('div', { class: 'prop-valeur' }, boutonAjouter({ libelleAria: libelleAria || `Ajouter : ${libelle}`, surClic, action })));
+}
+
+export function champPropriete({ libelle, valeur = '', type = 'texte', options = [], surEnregistrer, placeholder = '', formater = null, lienVers = null, fournir = null, pas = null, fantome = null }) {
   let courant = valeur ?? '';
   let enEdition = false;
   let creation = false;
@@ -199,7 +212,7 @@ export function champPropriete({ libelle, valeur = '', type = 'texte', options =
     const vide = courant === '' || courant === null || courant === undefined;
     const ouvrirEdition = () => editer();
     if (vide) {
-      remplir(zone, h('button', { type: 'button', class: 'prop-vide', onclick: ouvrirEdition, 'aria-label': `Ajouter : ${libelle}` }, icone('plus', { taille: 14 }), 'Ajouter'));
+      remplir(zone, boutonAjouter({ libelleAria: `Ajouter : ${libelle}`, surClic: ouvrirEdition, fantome }));
       return;
     }
     const texte = texteAffiche();
@@ -419,15 +432,28 @@ export function titreEditable({ valeur, libelle, surEnregistrer }) {
   return champ;
 }
 
-/** Propriétaire d'une fiche : le compte qui l'a créée, modifiable. */
+/** Propriétaire d'une fiche : le compte qui l'a créée, modifiable. Ligne du Résumé (ou du premier bloc de champs), comme les autres propriétés. */
 export function selectProprietaire({ valeur, surChoix }) {
   // Chez un client, les comptes Jérôme et Charles ne sont pas ses comptes : le propriétaire s'affiche, sans liste de choix.
-  if (estChezClient()) return valeur ? h('p', { class: 'proprietaire' }, h('span', { class: 'etiquette' }, 'Propriétaire'), ' ', valeur) : null;
-  const options = COMPTES.some((c) => c.email === valeur) ? COMPTES : [...COMPTES, { email: valeur, nom: valeur }];
-  return h('label', { class: 'proprietaire' },
-    h('span', { class: 'etiquette' }, 'Propriétaire'),
-    h('select', { class: 'champ champ-petit', 'aria-label': 'Propriétaire', onchange: (e) => surChoix(e.target.value) },
-      options.map((c) => h('option', { value: c.email, selected: c.email === valeur }, c.nom))));
+  if (estChezClient()) {
+    return valeur ? h('div', { class: 'prop', dataset: { prop: 'proprietaire' } }, h('span', { class: 'prop-libelle' }, 'Propriétaire'), h('div', { class: 'prop-valeur' }, valeur)) : null;
+  }
+  const options = !valeur || COMPTES.some((c) => c.email === valeur) ? COMPTES : [...COMPTES, { email: valeur, nom: valeur }];
+  return h('div', { class: 'prop', dataset: { prop: 'proprietaire' } },
+    h('span', { class: 'prop-libelle' }, 'Propriétaire'),
+    h('div', { class: 'prop-valeur' },
+      h('select', { class: 'champ', 'aria-label': 'Propriétaire',
+        onchange: async (e) => {
+          const avant = valeur;
+          try { await surChoix(e.target.value); valeur = e.target.value; } catch (err) {
+            console.warn(err);
+            e.target.value = avant || '';
+            toast('Enregistrement impossible : vérifie ta connexion, puis choisis de nouveau.', { type: 'erreur' });
+          }
+        } },
+        // Sans propriétaire : une première ligne « — » sélectionnée mais non choisissable (on n'écrit jamais de propriétaire vide).
+        valeur ? null : h('option', { value: '', selected: true, disabled: true }, '—'),
+        options.map((c) => h('option', { value: c.email, selected: c.email === valeur }, c.nom)))));
 }
 
 /** Gabarit commun : en tête, colonne de gauche (sections), colonne de droite (activité, notes, historique). */
