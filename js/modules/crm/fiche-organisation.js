@@ -41,7 +41,7 @@ export function rendreFicheOrganisation(conteneur, id) {
       lienRetour('#/crm/organisations', 'Organisations'),
       h('div', { class: 'fiche-tete-ligne' },
         avatar(o.nom, 52, 'avatar-organisation'),
-        h('div', { class: 'fiche-titre' }, nom, h('div', { class: 'fiche-sous' }, o.archive ? h('span', { class: 'badge-archive' }, 'Archivée') : null)),
+        h('div', { class: 'fiche-titre' }, nom, o.archive ? h('div', { class: 'fiche-sous' }, h('span', { class: 'badge-archive' }, 'Archivée')) : null),
         h('div', { class: 'fiche-actions' },
           h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'nouvelle-personne', onclick: () => ouvrirCreationPersonne({ organisationId: o.id }) }, icone('plus', { taille: 16 }), 'Personne'),
           h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'nouvelle-affaire', onclick: () => ouvrirCreationAffaire({ organisationId: o.id }) }, icone('plus', { taille: 16 }), 'Affaire'),

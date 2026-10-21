@@ -121,7 +121,8 @@ export function rendreFichePersonne(conteneur, id) {
         h('div', { class: 'actions-email' },
           emailOk ? h('a', { class: 'bouton bouton-secondaire bouton-petit', href: `mailto:${L.premierEmail(p)}`, 'data-action': 'ecrire-email' }, icone('mail', { taille: 15 }), 'Écrire un email')
             : h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', disabled: true, 'data-action': 'ecrire-email', title: p.oppositionProspection ? 'Opposition à la prospection' : 'Pas d’adresse email' }, icone('mail', { taille: 15 }), 'Écrire un email'),
-          h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', disabled: !emailOk, 'data-action': 'email-envoye', onclick: async () => { await D.emailEnvoye(p.id); toast('Email noté dans l’historique'); } }, icone('mail-check', { taille: 15 }), 'Email envoyé'))),
+          h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', disabled: !emailOk, 'data-action': 'email-envoye', onclick: async () => { await D.emailEnvoye(p.id); toast('Email noté dans l’historique'); } }, icone('mail-check', { taille: 15 }), 'Email envoyé')),
+        h('div', { class: 'proprietes' }, selectProprietaire({ valeur: p.proprietaire, surChoix: (v) => D.majPersonne(p.id, { proprietaire: v }) }))),
     });
 
     // ---- Détails
@@ -138,8 +139,7 @@ export function rendreFichePersonne(conteneur, id) {
         prop('Site web', 'siteWeb', { type: 'url', lienVers: (v) => v }).element,
         champPropriete({ libelle: 'Source', valeur: p.source || '', type: 'liste', fournir: () => D.etat.sources,
           surEnregistrer: async (v) => { if (v) await D.ajouterValeurListe('sources', v); await D.majPersonne(p.id, { source: v }); } }).element,
-        opposition,
-        selectProprietaire({ valeur: p.proprietaire, surChoix: (v) => D.majPersonne(p.id, { proprietaire: v }) })),
+        opposition),
     });
 
     // ---- Organisation

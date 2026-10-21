@@ -1,5 +1,5 @@
 // Propriétaire dans le Résumé (nuit du 21/10/2026) : I7. Le menu « Propriétaire » quitte l'en-tête et passe dans le Résumé (affaire, projet)
-// ou dans le premier bloc de champs (personne : « Détails » ; organisation : « Résumé »). Un test par fiche (nom commençant par I7), une capture par test
+// ou dans le premier bloc de champs (personne : « Résumé » ; organisation : « Résumé »). Un test par fiche (nom commençant par I7), une capture par test
 // dans tests/e2e/captures/proprietaire-resume/.
 import { test, expect, attendreCalme, connecter, creerAffaire, creerProjet, creerPersonne, creerOrganisation, lireDocument, estTelephone, JEROME, CHARLES } from './outils.js';
 
@@ -14,7 +14,7 @@ async function aller(page, hash) { await page.evaluate((h) => { location.hash = 
 for (const [nomFiche, creer, hash, chemin, bloc] of [
   ['affaire', () => creerAffaire('a1', { titre: 'Audit des Lilas' }), '#/crm/affaires/a1', 'crm_affaires/a1', 'Résumé'],
   ['projet', () => creerProjet('pr1', { titre: 'Refonte du site' }), '#/projets/projets/pr1', 'projets_projets/pr1', 'Résumé'],
-  ['personne', () => creerPersonne('p1', { nom: 'Sophie Martin' }), '#/crm/personnes/p1', 'crm_personnes/p1', 'Détails'],
+  ['personne', () => creerPersonne('p1', { nom: 'Sophie Martin' }), '#/crm/personnes/p1', 'crm_personnes/p1', 'Résumé'],
   ['organisation', () => creerOrganisation('o1', { nom: 'Atelier Lumière' }), '#/crm/organisations/o1', 'crm_organisations/o1', 'Résumé'],
 ]) {
   test(`I7 ${nomFiche} : « Propriétaire » n'est plus dans l'en-tête, c'est un menu modifiable du bloc « ${bloc} » ; le choix s'applique tout de suite`, async ({ page }) => {
@@ -58,4 +58,35 @@ test('I7 cas vide : un propriétaire inconnu de la liste est quand même propos�
   const menu = page.locator('.prop[data-prop="proprietaire"] select');
   await expect(menu).toHaveValue('ancien.compte@exemple.fr');
   await expect(page.locator('.fiche-tete')).not.toContainText('Propriétaire');
+  await menu.scrollIntoViewIfNeeded();
+  await capture(page, 'I7-cas-vide');
+});
+
+test('I7 cas vide (aucun propriétaire) : une ligne « — » non choisissable est sélectionnée, on ne peut pas écrire un propriétaire vide', async ({ page }) => {
+  await creerAffaire('a1', { titre: 'Audit des Lilas', proprietaire: '' });
+  await connecter(page);
+  await aller(page, '#/crm/affaires/a1');
+  const menu = page.locator('.prop[data-prop="proprietaire"] select');
+  await expect(menu).toHaveValue('');
+  await expect(menu.locator('option').first()).toHaveText('—');
+  await expect(menu.locator('option').first()).toBeDisabled();
+});
+
+test('I7 cas d\'erreur : si l\'enregistrement échoue, un message apparaît et le menu revient à la valeur réelle', async ({ page }) => {
+  await connecter(page);
+  // Test du composant dans la page (une écriture Firestore qui échoue n'est pas simulable de façon fiable : hors ligne, le SDK met l'écriture en attente sans la refuser).
+  await page.evaluate(async () => {
+    const { selectProprietaire } = await import('/js/modules/crm/composants.js');
+    const zone = document.createElement('div');
+    zone.id = 'essai-proprietaire';
+    zone.className = 'proprietes';
+    zone.style.cssText = 'position:fixed;top:80px;left:80px;width:420px;z-index:50;background:var(--fond, #1c1c1e);padding:16px';
+    zone.append(selectProprietaire({ valeur: 'jerome.chevalier@gmail.com', surChoix: async () => { throw new Error('refus'); } }));
+    document.body.append(zone);
+  });
+  const menu = page.locator('#essai-proprietaire select');
+  await menu.selectOption({ index: 1 });
+  await expect(page.getByText('Enregistrement impossible : vérifie ta connexion, puis choisis de nouveau.')).toBeVisible();
+  await expect(menu).toHaveValue(JEROME);
+  await capture(page, 'I7-cas-erreur');
 });
