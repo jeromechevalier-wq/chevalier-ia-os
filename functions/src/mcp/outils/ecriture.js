@@ -13,7 +13,9 @@ const etiquettes = z.array(z.string().max(80)).max(30).describe('Identifiants d�
 const proprietaire = z.string().max(120).optional().describe('Propriétaire de la fiche créée (facultatif ; si absent, par défaut la personne connectée).');
 const forcer = z.boolean().optional().describe('true : créer malgré un doublon possible (nom ou e-mail déjà connu), après avoir vérifié que c’est une autre fiche.');
 const texteCourt = z.string().max(300);
-const description = z.string().max(5000).describe("Texte libre, en haut de la fiche, qui dit de quoi parle l'affaire ou le projet : le besoin, ce qu'on propose ou construit, où on en est. Sans titre ; ce n'est pas le journal daté (les notes).");
+// Ancien paramètre « description » (texte libre supprimé par I5) : accepté sans être documenté, pour les clients MCP qui ont gardé l'ancienne liste d'outils.
+// À la création, il devient le texte de la note épinglée de départ ; en modification, il est refusé avec l'explication (modifier_note).
+const descriptionAncienne = z.string().max(20000).optional();
 const urlGithub = z.string().max(500).optional().describe('Ancien champ « dépôt de code » (https://github.com/compte/nom), facultatif ; chaîne vide pour l’effacer. Pour un nouveau lien, préférer joindre_lien (liste « Liens et documents »).');
 const urlDossier = z.string().max(500).optional().describe('Lien du dossier de travail : n’importe quel lien complet (Google Drive, serveur ou NAS en smb://, site…) ; chaîne vide pour l’effacer.');
 
@@ -42,16 +44,16 @@ export const OUTILS_ECRITURE = [
     taille: z.string().max(20).optional(), etiquettes: etiquettes.optional(), archive: z.boolean().optional(), forcer,
   }, metier.modifierOrganisation),
 
-  outil('creer_affaire', `Crée une affaire avec son événement. Le titre par défaut est le nom de l'organisation, sinon de la personne ; l'organisation de la personne est reprise si aucune n'est donnée. Étape (défaut : la première étape active) parmi celles de lire_reglages (configuration.etapes, referentiels.etapes). Priorité : ${L.PRIORITES.map((p) => p.id).join(', ')}.`, {
+  outil('creer_affaire', `Crée une affaire avec son événement. Le titre par défaut est le nom de l'organisation, sinon de la personne ; l'organisation de la personne est reprise si aucune n'est donnée. Étape (défaut : la première étape active) parmi celles de lire_reglages (configuration.etapes, referentiels.etapes). Priorité : ${L.PRIORITES.map((p) => p.id).join(', ')}. L'affaire part avec une note épinglée vide (de quoi parle l'affaire) : son identifiant est rendu dans noteEpingleeId ; l'écrire avec modifier_note.`, {
     titre: z.string().max(300).optional(), personneId: id.optional(), organisationId: id.optional(), etape: z.string().max(60).optional(), priorite: z.string().max(40).optional(),
     montant: z.number().min(0).max(1e9).nullable().optional().describe('Montant en euros.'), offreId: id.optional(), dureeJours: z.number().int().min(0).max(36500).nullable().optional(),
-    source: texteCourt.optional(), besoin: z.string().max(5000).optional(), description: description.optional(), urlGithub, urlDossier, proprietaire,
+    source: texteCourt.optional(), besoin: z.string().max(5000).optional(), urlGithub, urlDossier, proprietaire, description: descriptionAncienne,
   }, metier.creerAffaire),
 
-  outil('modifier_affaire', "Modifie des champs d'une affaire : titre, personneId et organisationId (null pour détacher), montant, priorite, offreId, dureeJours, source, besoin, description (le texte libre en haut de la fiche : de quoi parle l'affaire ; chaîne vide pour l'effacer), urlGithub, urlDossier, archive. Pour l'étape ou le statut, utiliser changer_etape, marquer_perdue, mettre_en_pause, rouvrir_affaire.", {
+  outil('modifier_affaire', "Modifie des champs d'une affaire : titre, personneId et organisationId (null pour détacher), montant, priorite, offreId, dureeJours, source, besoin, urlGithub, urlDossier, archive. Pour l'étape ou le statut, utiliser changer_etape, marquer_perdue, mettre_en_pause, rouvrir_affaire.", {
     id, titre: z.string().min(1).max(300).optional(), personneId: id.nullable().optional(), organisationId: id.nullable().optional(), montant: z.number().min(0).max(1e9).nullable().optional(),
     priorite: z.string().max(40).optional(), offreId: id.nullable().optional(), dureeJours: z.number().int().min(0).max(36500).nullable().optional(), source: texteCourt.optional(),
-    besoin: z.string().max(5000).optional(), description: description.optional(), urlGithub, urlDossier, archive: z.boolean().optional(),
+    besoin: z.string().max(5000).optional(), urlGithub, urlDossier, archive: z.boolean().optional(), description: descriptionAncienne,
   }, metier.modifierAffaire),
 
   outil('changer_etape', "Change l'étape d'une affaire comme l'écran : statut, dates d'étapes, événements du fil ; l'étape « vente gagnée » est celle que la configuration désigne (lire_reglages). Renvoie l'action suggérée par l'étape, s'il y en a une (non créée : à créer avec creer_activite si pertinent).", {
@@ -63,18 +65,18 @@ export const OUTILS_ECRITURE = [
   outil('rouvrir_affaire', 'Rouvre une affaire perdue ou en pause.', { id }, metier.rouvrirAffaire),
 
   // ---- Projets (2.1) et factures (2.2) : mêmes règles que l'écran
-  outil('creer_projet', `Crée un projet (seul le titre est obligatoire), avec son événement. modeleId (voir lister_modeles_projet) : le projet part avec les tâches du modèle, datées à partir de la date de début. Phase de départ : la première phase active de l'espace (voir lire_reglages, configuration.phases). Pour le projet d'une affaire gagnée, préférer creer_projet_depuis_affaire.`, {
+  outil('creer_projet', `Crée un projet (seul le titre est obligatoire), avec son événement. modeleId (voir lister_modeles_projet) : le projet part avec les tâches du modèle, datées à partir de la date de début. Phase de départ : la première phase active de l'espace (voir lire_reglages, configuration.phases). Pour le projet d'une affaire gagnée, préférer creer_projet_depuis_affaire. Le projet part avec une note épinglée vide (de quoi parle le projet) : son identifiant est rendu dans noteEpingleeId ; l'écrire avec modifier_note.`, {
     titre: z.string().min(1).max(300), personneId: id.optional(), organisationId: id.optional(), offreId: id.optional(), modeleId: id.optional(),
-    dateDebut: jour.optional(), dateFin: jour.optional(), description: description.optional(), urlGithub, urlDossier, proprietaire,
+    dateDebut: jour.optional(), dateFin: jour.optional(), urlGithub, urlDossier, proprietaire, description: descriptionAncienne,
   }, metier.creerProjet),
 
-  outil('creer_projet_depuis_affaire', "Crée le projet d'une affaire GAGNÉE (comme « Créer le projet » de la fiche affaire) : reprend son titre, sa personne, son organisation, son offre, son dépôt, son dossier et son texte libre (description) et lie l'affaire au projet (une affaire n'a qu'un projet). modeleId : tâches du modèle.", {
-    affaireId: id, modeleId: id.optional(), titre: z.string().max(300).optional(), dateDebut: jour.optional(), dateFin: jour.optional(), description: description.optional(),
+  outil('creer_projet_depuis_affaire', "Crée le projet d'une affaire GAGNÉE (comme « Créer le projet » de la fiche affaire) : reprend son titre, sa personne, son organisation, son offre, son dépôt, son dossier, et lie l'affaire au projet (une affaire n'a qu'un projet). Le projet part avec une note épinglée qui copie le texte de la note épinglée de l'affaire (vide si elle n'en a pas) : identifiant rendu dans noteEpingleeId. modeleId : tâches du modèle.", {
+    affaireId: id, modeleId: id.optional(), titre: z.string().max(300).optional(), dateDebut: jour.optional(), dateFin: jour.optional(), description: descriptionAncienne,
   }, metier.creerProjetDepuisAffaire),
 
-  outil('modifier_projet', "Modifie des champs d'un projet : titre, personneId et organisationId (null pour détacher), offreId, dateDebut, dateFin (null pour effacer), description (le texte libre en haut de la fiche : de quoi parle le projet ; chaîne vide pour l'effacer), urlGithub, urlDossier. La phase et le statut passent par changer_phase_projet, mettre_projet_en_pause, reprendre_projet, terminer_projet, rouvrir_projet, archiver_projet.", {
+  outil('modifier_projet', "Modifie des champs d'un projet : titre, personneId et organisationId (null pour détacher), offreId, dateDebut, dateFin (null pour effacer), urlGithub, urlDossier. La phase et le statut passent par changer_phase_projet, mettre_projet_en_pause, reprendre_projet, terminer_projet, rouvrir_projet, archiver_projet.", {
     id, titre: z.string().min(1).max(300).optional(), personneId: id.nullable().optional(), organisationId: id.nullable().optional(), offreId: id.nullable().optional(),
-    dateDebut: jour.nullable().optional(), dateFin: jour.nullable().optional(), description: description.optional(), urlGithub, urlDossier,
+    dateDebut: jour.nullable().optional(), dateFin: jour.nullable().optional(), urlGithub, urlDossier, description: descriptionAncienne,
   }, metier.modifierProjet),
 
   outil('changer_phase_projet', `Change la phase d'un projet, dans tous les sens (on peut revenir en arrière). Phases : celles de lire_reglages (configuration.phases). Vers la phase de clôture, refusé tant qu'une facture est à payer si les options « Suivi des paiements » et « Clôture bloquée » sont allumées (lire_reglages, configuration.options) (voir terminer_projet pour la sortie « impayé »). Changer la phase d'un projet terminé le rouvre.`, {

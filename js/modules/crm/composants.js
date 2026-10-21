@@ -432,29 +432,6 @@ export function titreEditable({ valeur, libelle, surEnregistrer }) {
   return champ;
 }
 
-/**
- * Champ « de quoi parle cette fiche » : texte libre de plusieurs lignes, sans titre, en haut de la colonne de gauche d'une affaire ou d'un projet.
- * Vide, il montre un texte d'invitation grisé qui disparaît dès le clic (et revient si on le laisse vide). Sa hauteur reste fixe à 4 lignes (un ascenseur apparaît au-delà)
- * et il s'enregistre en quittant le champ ; Échap annule la frappe.
- */
-export function champDescription({ valeur = '', invitation, libelle, surEnregistrer }) {
-  let enregistre = valeur ?? '';
-  const champ = h('textarea', { class: 'champ-description', rows: 4, maxlength: 5000, 'aria-label': libelle, placeholder: invitation, spellcheck: true, value: enregistre, 'data-champ': 'description' });
-  champ.addEventListener('focus', () => { champ.placeholder = ''; });
-  champ.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); champ.value = enregistre; champ.blur(); } });
-  champ.addEventListener('blur', async () => {
-    champ.placeholder = invitation;
-    const v = champ.value.trim();
-    if (v === enregistre) { champ.value = v; return; }
-    try { await surEnregistrer(v); enregistre = v; if (document.activeElement !== champ) champ.value = v; } catch (e) {
-      console.warn(e);
-      if (document.activeElement !== champ) champ.value = enregistre; // si on a déjà repris la frappe, on ne l'écrase pas
-      toast(e?.saisie ? e.message : 'Enregistrement impossible', { type: 'erreur' });
-    }
-  });
-  return h('div', { class: 'description-fiche' }, champ);
-}
-
 /** Propriétaire d'une fiche : le compte qui l'a créée, modifiable. Ligne du Résumé (ou du premier bloc de champs), comme les autres propriétés. */
 export function selectProprietaire({ valeur, surChoix }) {
   // Chez un client, les comptes Jérôme et Charles ne sont pas ses comptes : le propriétaire s'affiche, sans liste de choix.

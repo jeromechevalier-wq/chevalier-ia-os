@@ -197,9 +197,17 @@ async function appliquerLien(plan, outil) {
 
 const affaireOuErreur = (id) => CRM.affaire(id) ?? (() => { throw new Error('Affaire introuvable'); })();
 
+/** Notes de l'affaire (lues une fois) : le texte de sa note épinglée est copié dans la note de départ du projet (I5). */
+async function notesDeLAffaire(affaireId) {
+  const r = await getDocs(query(collection(db, chemin('crm_notes')), where('affaireId', '==', affaireId)));
+  return r.docs.map((d) => ({ ...d.data({ serverTimestamps: 'estimate' }), id: d.id }));
+}
+
 /** Crée le projet d'une affaire gagnée (reprend l'affaire) ; renvoie l'identifiant du projet. */
 export async function creerProjetDepuisAffaire(affaireId, valeurs = {}, { modeleId = null } = {}) {
-  const plan = P.planCreerProjetDepuisAffaire({ affaire: affaireOuErreur(affaireId), projets: etat.projets, valeurs, modele: modeleId ? modele(modeleId) : null }, ctx());
+  const affaire = affaireOuErreur(affaireId);
+  const notesAffaire = await notesDeLAffaire(affaireId);
+  const plan = P.planCreerProjetDepuisAffaire({ affaire, projets: etat.projets, valeurs, modele: modeleId ? modele(modeleId) : null, notesAffaire }, ctx());
   await appliquerLien(plan, 'creerProjetDepuisAffaire');
   return plan.id;
 }

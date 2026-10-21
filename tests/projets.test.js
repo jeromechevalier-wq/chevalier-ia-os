@@ -481,7 +481,7 @@ describe('B28 Affaire gagnée : créer ou lier un projet', () => {
     assert.equal(plan.id, 'projets_projets_1');
     assert.equal(plan.titre, 'Audit des Lilas');
     const e = par(plan.ecritures);
-    assert.equal(plan.ecritures.length, 3);
+    assert.equal(plan.ecritures.length, 4); // + la note épinglée de départ du projet (I5)
     const doc = e['creer:projets_projets'].donnees;
     assert.deepEqual([doc.titre, doc.affaireId, doc.personneId, doc.organisationId, doc.offreId, doc.phase, doc.statut], ['Audit des Lilas', 'a1', 'p1', 'o1', 'off1', 'lancement', 'actif']);
     assert.deepEqual([doc.urlGithub, doc.urlDossier], ['https://github.com/jeromechevalier-wq/client-lilas', 'https://drive.google.com/drive/folders/abc']);
@@ -490,20 +490,46 @@ describe('B28 Affaire gagnée : créer ou lier un projet', () => {
     const ev = e['creer:crm_evenements'].donnees;
     assert.deepEqual([ev.type, ev.projetId, ev.affaireId, ev.personneId, ev.organisationId], ['projet_cree', 'projets_projets_1', 'a1', 'p1', 'o1']);
   });
-  test('TL1 le texte libre de l’affaire est repris par le projet créé (ou lié s’il n’en a pas) ; celui du projet n’est jamais écrasé', () => {
-    const affaire = gagnee({ description: 'Appli de commande pour la boulangerie.\nDevis envoyé.' });
-    const doc = par(P.planCreerProjetDepuisAffaire({ affaire }, c()).ecritures)['creer:projets_projets'].donnees;
-    assert.equal(doc.description, 'Appli de commande pour la boulangerie.\nDevis envoyé.');
-    const sans = par(P.planCreerProjetDepuisAffaire({ affaire: gagnee() }, c()).ecritures)['creer:projets_projets'].donnees;
-    assert.equal(sans.description, '');
-    assert.equal(P.planLierProjet({ affaire, projet: libre() }, c()).patch.description, 'Appli de commande pour la boulangerie.\nDevis envoyé.');
-    assert.equal(P.planLierProjet({ affaire, projet: libre({ description: 'Le mien' }) }, c()).patch.description, undefined);
+  test('I5 (TL1) projet créé depuis une affaire : sa note épinglée de départ COPIE le texte de la note épinglée de l’affaire ; sans note, elle est vide ; lier un projet existant ne crée rien', () => {
+    const affaire = gagnee({ description: 'Ancien texte libre, ignoré' });
+    const notesAffaire = [
+      { id: 'n1', texte: 'Appli de commande pour la boulangerie.\nDevis envoyé.', epinglee: true, affaireId: 'a1', creeLe: new Date('2026-10-02') },
+      { id: 'n2', texte: 'Note non épinglée, plus récente', affaireId: 'a1', creeLe: new Date('2026-10-05') },
+      { id: 'n3', texte: 'Note épinglée d’un autre projet', epinglee: true, affaireId: 'a1', projetId: 'autre', creeLe: new Date('2026-10-06') },
+    ];
+    const plan = P.planCreerProjetDepuisAffaire({ affaire, notesAffaire }, c());
+    const note = par(plan.ecritures)['creer:crm_notes'];
+    assert.equal(plan.noteId, note.id);
+    assert.deepEqual([note.donnees.texte, note.donnees.epinglee, note.donnees.projetId, note.donnees.affaireId, note.donnees.personneId, note.donnees.organisationId, note.donnees.copieDeNoteId],
+      ['Appli de commande pour la boulangerie.\nDevis envoyé.', true, plan.id, 'a1', 'p1', 'o1', 'n1']);
+    assert.deepEqual(note.horodater, ['creeLe', 'modifieLe']);
+    assert.equal(par(plan.ecritures)['creer:projets_projets'].donnees.description, undefined, 'le champ description n’existe plus');
+    // Ancien paramètre MCP `description` : une chaîne vide vaut « non donné » (on copie) ; un texte l'emporte sur la copie.
+    const videDonne = par(P.planCreerProjetDepuisAffaire({ affaire, notesAffaire, texteNote: '' }, c()).ecritures)['creer:crm_notes'].donnees;
+    assert.deepEqual([videDonne.texte, videDonne.copieDeNoteId], ['Appli de commande pour la boulangerie.\nDevis envoyé.', 'n1']);
+    const donne = par(P.planCreerProjetDepuisAffaire({ affaire, notesAffaire, texteNote: 'Texte de l’agent' }, c()).ecritures)['creer:crm_notes'].donnees;
+    assert.deepEqual([donne.texte, 'copieDeNoteId' in donne], ['Texte de l’agent', false]);
+    const sans = par(P.planCreerProjetDepuisAffaire({ affaire: gagnee() }, c()).ecritures)['creer:crm_notes'].donnees;
+    assert.deepEqual([sans.texte, sans.epinglee, 'copieDeNoteId' in sans], ['', true, false]);
+    const videAffaire = par(P.planCreerProjetDepuisAffaire({ affaire: gagnee(), notesAffaire: [{ id: 'nv', texte: '', epinglee: true, affaireId: 'a1' }] }, c()).ecritures)['creer:crm_notes'].donnees;
+    assert.equal(videAffaire.texte, '');
+    const lien = P.planLierProjet({ affaire, projet: libre() }, c());
+    assert.equal(lien.patch.description, undefined);
+    assert.equal(lien.ecritures.some((e) => e.collection === 'crm_notes'), false, 'un projet existant ne reçoit pas de note');
   });
-  test('TL2 une nouvelle affaire et un nouveau projet ont un texte libre vide par défaut ; les retours à la ligne sont gardés', () => {
-    assert.equal(L.nouvelleAffaire({ titre: 'x' }, ctx()).description, '');
-    assert.equal(P.nouveauProjet({ titre: 'x' }, ctx()).description, '');
-    assert.equal(L.nouvelleAffaire({ titre: 'x', description: '  ligne 1\r\nligne 2  ' }, ctx()).description, 'ligne 1\nligne 2');
-    assert.equal(L.nettoyerDescription('a'.repeat(6000)).length, 5000);
+  test('I5 (TL2) une nouvelle affaire et un nouveau projet n’ont plus de champ description ; chacun part avec UNE note épinglée vide, rattachée comme les autres notes', () => {
+    assert.equal('description' in L.nouvelleAffaire({ titre: 'x', description: 'ignoré' }, ctx()), false);
+    assert.equal('description' in P.nouveauProjet({ titre: 'x', description: 'ignoré' }, ctx()), false);
+    assert.equal(L.nettoyerDescription, undefined);
+    const pa = L.planCreerAffaire({ titre: 'Boulangerie', personneId: 'p1' }, { personnes: [{ id: 'p1', organisationId: 'o1' }] }, ctx());
+    const notesA = pa.ecritures.filter((e) => e.collection === 'crm_notes');
+    assert.equal(notesA.length, 1);
+    assert.deepEqual([notesA[0].type, notesA[0].id, notesA[0].donnees.texte, notesA[0].donnees.epinglee, notesA[0].donnees.affaireId, notesA[0].donnees.personneId, notesA[0].donnees.organisationId, notesA[0].donnees.auteur],
+      ['creer', pa.noteId, '', true, pa.id, 'p1', 'o1', JEROME]);
+    const pp = P.planCreerProjet({ titre: 'Site', personneId: 'p1' }, ctx());
+    const notesP = pp.ecritures.filter((e) => e.collection === 'crm_notes');
+    assert.equal(notesP.length, 1);
+    assert.deepEqual([notesP[0].id, notesP[0].donnees.texte, notesP[0].donnees.epinglee, notesP[0].donnees.projetId], [pp.noteId, '', true, pp.id]);
   });
   test('B28 créer : les valeurs données l’emportent sur celles de l’affaire', () => {
     const plan = P.planCreerProjetDepuisAffaire({ affaire: gagnee(), valeurs: { titre: 'Autre titre', dateFin: '2026-12-31' } }, c());
@@ -796,14 +822,14 @@ describe('B30 Modèles de projet', () => {
     const audit = P.planCreerProjet({ titre: 'Audit' }, c(), { modele: P.MODELES_JEROME[0] });
     assert.deepEqual(audit.ecritures.filter((e) => e.collection === 'projets_taches').map((e) => e.donnees.date), [null, null, null]);
     const vide = P.planCreerProjet({ titre: 'Chantier' }, c());
-    assert.deepEqual(vide.ecritures.map((e) => e.collection), ['projets_projets', 'crm_evenements']);
+    assert.deepEqual(vide.ecritures.map((e) => e.collection), ['projets_projets', 'crm_evenements', 'crm_notes']); // + la note épinglée de départ (I5)
     assert.equal(vide.ecritures[0].donnees.modeleId, null);
   });
   test('B30 depuis une affaire gagnée : le modèle ajoute ses tâches dans le même plan, l’affaire reçoit toujours son projetId', () => {
     const affaire = { ...L.nouvelleAffaire({ titre: 'Audit des Lilas', etape: 'gagne', offreId: 'audit' }, c()), id: 'a1' };
     const plan = P.planCreerProjetDepuisAffaire({ affaire, modele: P.MODELES_JEROME[0] }, c());
     assert.deepEqual(plan.erreurs, {});
-    assert.deepEqual(plan.ecritures.map((e) => `${e.type}:${e.collection}`), ['creer:projets_projets', 'creer:projets_taches', 'creer:projets_taches', 'creer:projets_taches', 'modifier:crm_affaires', 'creer:crm_evenements']);
+    assert.deepEqual(plan.ecritures.map((e) => `${e.type}:${e.collection}`), ['creer:projets_projets', 'creer:projets_taches', 'creer:projets_taches', 'creer:projets_taches', 'modifier:crm_affaires', 'creer:crm_evenements', 'creer:crm_notes']);
     assert.equal(plan.ecritures[0].donnees.modeleId, 'audit');
     assert.equal(plan.ecritures.filter((e) => e.collection === 'projets_taches').every((e) => e.donnees.projetId === plan.id), true);
     const refus = P.planCreerProjetDepuisAffaire({ affaire: { ...affaire, statut: 'perdue' }, modele: P.MODELES_JEROME[0] }, c());
@@ -877,7 +903,7 @@ describe('X Extraction de valeur supprimée (18/10/2026) : plus de création, an
     assert.deepEqual(P.validerLienAffaire({ affaire: gagnee, projets: [e] }), {});
     const plan = P.planCreerProjetDepuisAffaire({ affaire: gagnee, projets: [e] }, c());
     assert.deepEqual(plan.erreurs, {});
-    assert.deepEqual(plan.ecritures.map((x) => `${x.type}:${x.collection}`), ['creer:projets_projets', 'modifier:crm_affaires', 'creer:crm_evenements'], 'aucune écriture sur l’ancienne extraction');
+    assert.deepEqual(plan.ecritures.map((x) => `${x.type}:${x.collection}`), ['creer:projets_projets', 'modifier:crm_affaires', 'creer:crm_evenements', 'creer:crm_notes'], 'aucune écriture sur l’ancienne extraction');
   });
   test('X7 supprimer le projet source d’une ancienne extraction : seule l’affaire est détachée, l’extraction n’est pas modifiée', () => {
     const plan = P.planSupprimerProjet({ projet: projet({ id: 'pr9', affaireId: 'a1' }), affaire: { id: 'a1', projetId: 'pr9' }, extractions: [{ id: 'ex1', projetSourceId: 'pr9' }] });

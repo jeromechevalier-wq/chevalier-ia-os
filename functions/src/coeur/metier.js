@@ -163,8 +163,12 @@ export async function modifierOrganisation(c, args) {
 const verifierEtape = (config, etape) => { if (!L.etapeActive(etape, config)) refuser('saisie_invalide', `Étape inconnue ou désactivée : ${etape} (valeurs : ${L.etapesActives(config).map((e) => e.id).join(', ')}).`); };
 const verifierPriorite = (p) => { if (!L.PRIORITES.some((x) => x.id === p)) refuser('saisie_invalide', `Priorité inconnue : ${p} (valeurs : ${L.PRIORITES.map((x) => x.id).join(', ')}).`); };
 
+/** Ancien paramètre `description` (I5) : refusé seul en modification, ignoré avec un avertissement à côté d'autres champs. */
+const MESSAGE_DESCRIPTION = 'Le paramètre description n’existe plus : le texte libre est devenu la note épinglée : utilise modifier_note (son identifiant est dans noteEpingleeId à la création, sinon dans le fil de lire_affaire / lire_projet avec avecFil).';
+const avertissementDescription = (champs) => (champs.description !== undefined ? { avertissement: `description ignoré. ${MESSAGE_DESCRIPTION}` } : {});
+
 export async function creerAffaire(c, args) {
-  const { proprietaire, ...valeurs } = args;
+  const { proprietaire, description, ...valeurs } = args;
   const ctx = await contexte(c, proprietaire);
   if (valeurs.etape !== undefined) verifierEtape(ctx.config, valeurs.etape);
   if (valeurs.priorite !== undefined) verifierPriorite(valeurs.priorite);
@@ -173,9 +177,9 @@ export async function creerAffaire(c, args) {
   await verifierOffre(c, valeurs.offreId);
   const personne = await lireSiDonne(c, C.personnes, valeurs.personneId, 'Personne');
   const organisation = await lireSiDonne(c, C.organisations, valeurs.organisationId || personne?.organisationId, 'Organisation');
-  const plan = L.planCreerAffaire(valeurs, { personnes: personne ? [personne] : [], organisations: organisation ? [organisation] : [] }, ctx);
+  const plan = L.planCreerAffaire(valeurs, { personnes: personne ? [personne] : [], organisations: organisation ? [organisation] : [], texteNote: description ?? '' }, ctx);
   verifierMessages(L.validerAffaire({ titre: plan.titre }));
-  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: plan.id, titre: plan.titre });
+  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: plan.id, titre: plan.titre, noteEpingleeId: plan.noteId });
 }
 
 export async function modifierAffaire(c, args) {
@@ -190,13 +194,12 @@ export async function modifierAffaire(c, args) {
   if (champs.offreId !== undefined) { await verifierOffre(c, champs.offreId); patch.offreId = champs.offreId || null; }
   if (champs.dureeJours !== undefined) patch.dureeJours = champs.dureeJours;
   for (const cle of ['source', 'besoin']) if (champs[cle] !== undefined) patch[cle] = cle === 'besoin' ? String(champs[cle]).trim() : texte(champs[cle]);
-  if (champs.description !== undefined) patch.description = L.nettoyerDescription(champs.description);
   if (champs.urlGithub !== undefined) { const r = L.majUrlGithub(champs.urlGithub); verifierMessages(r.erreurs); Object.assign(patch, r.patch); }
   if (champs.urlDossier !== undefined) { const r = L.majUrlDossier(champs.urlDossier); verifierMessages(r.erreurs); Object.assign(patch, r.patch); }
   if (champs.archive !== undefined) patch.archive = champs.archive;
-  if (!Object.keys(patch).length) refuser('saisie_invalide', 'Aucun champ à modifier (l’étape et le statut passent par changer_etape, marquer_perdue, mettre_en_pause, rouvrir_affaire).');
+  if (!Object.keys(patch).length) refuser('saisie_invalide', `Aucun champ à modifier (l’étape et le statut passent par changer_etape, marquer_perdue, mettre_en_pause, rouvrir_affaire).${champs.description !== undefined ? ` ${MESSAGE_DESCRIPTION}` : ''}`);
   const plan = L.planMajAffaire(id, patch);
-  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id, champsModifies: Object.keys(patch) });
+  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id, champsModifies: Object.keys(patch), ...avertissementDescription(champs) });
 }
 
 /** Applique un plan de règle d'affaire ; une erreur de règle (saisie) est rendue telle quelle, sans écriture. */
@@ -271,7 +274,7 @@ async function modeleDemande(c, modeleId) {
 }
 
 export async function creerProjet(c, args) {
-  const { modeleId, proprietaire, ...valeurs } = args;
+  const { modeleId, proprietaire, description, ...valeurs } = args;
   const ctx = await contexte(c, proprietaire);
   verifierMessages(PL.validerProjet(valeurs, ctx.config));
   if (valeurs.urlGithub !== undefined) verifierMessages(L.validerUrlGithub(valeurs.urlGithub));
@@ -280,19 +283,19 @@ export async function creerProjet(c, args) {
   const personne = await lireSiDonne(c, C.personnes, valeurs.personneId, 'Personne');
   await lireSiDonne(c, C.organisations, valeurs.organisationId || personne?.organisationId, 'Organisation');
   const modele = await modeleDemande(c, modeleId);
-  const plan = PL.planCreerProjet({ ...valeurs, organisationId: valeurs.organisationId || personne?.organisationId || null }, ctx, { modele });
-  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: plan.id, titre: plan.titre, modeleId: modele?.id ?? null });
+  const plan = PL.planCreerProjet({ ...valeurs, organisationId: valeurs.organisationId || personne?.organisationId || null }, ctx, { modele, texteNote: description ?? '' });
+  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: plan.id, titre: plan.titre, modeleId: modele?.id ?? null, noteEpingleeId: plan.noteId });
 }
 
 /** Crée le projet d'une affaire GAGNÉE (reprend l'affaire et la lie), comme « Créer le projet » de l'écran. */
 export async function creerProjetDepuisAffaire(c, args) {
-  const { affaireId, modeleId, ...valeurs } = args;
+  const { affaireId, modeleId, description, ...valeurs } = args;
   const a = await lire(c, C.affaires, affaireId, 'Affaire');
   verifierMessages(PL.validerProjet({ titre: valeurs.titre || a.titre, dateDebut: valeurs.dateDebut, dateFin: valeurs.dateFin }, (await contexte(c)).config));
-  const [projets, modele] = await Promise.all([c.donnees.liste(C.projets), modeleDemande(c, modeleId)]);
-  const plan = PL.planCreerProjetDepuisAffaire({ affaire: a, projets, valeurs, modele }, await contexte(c));
+  const [projets, modele, notesAffaire] = await Promise.all([c.donnees.liste(C.projets), modeleDemande(c, modeleId), c.donnees.liste(C.notes, { champ: 'affaireId', valeur: a.id })]);
+  const plan = PL.planCreerProjetDepuisAffaire({ affaire: a, projets, valeurs, modele, notesAffaire, texteNote: description }, await contexte(c));
   verifierMessages(plan.erreurs);
-  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: plan.id, titre: plan.titre, affaireId, modeleId: modele?.id ?? null });
+  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: plan.id, titre: plan.titre, affaireId, modeleId: modele?.id ?? null, noteEpingleeId: plan.noteId });
 }
 
 export async function modifierProjet(c, args) {
@@ -311,12 +314,11 @@ export async function modifierProjet(c, args) {
   const debut = patch.dateDebut !== undefined ? patch.dateDebut : p.dateDebut;
   const fin = patch.dateFin !== undefined ? patch.dateFin : p.dateFin;
   verifierMessages(PL.validerProjet({ titre: patch.titre ?? p.titre, dateDebut: debut, dateFin: fin }));
-  if (champs.description !== undefined) patch.description = L.nettoyerDescription(champs.description);
   if (champs.urlGithub !== undefined) { const r = L.majUrlGithub(champs.urlGithub); verifierMessages(r.erreurs); Object.assign(patch, r.patch); }
   if (champs.urlDossier !== undefined) { const r = L.majUrlDossier(champs.urlDossier); verifierMessages(r.erreurs); Object.assign(patch, r.patch); }
-  if (!Object.keys(patch).length) refuser('saisie_invalide', 'Aucun champ à modifier (la phase et le statut passent par changer_phase_projet, mettre_projet_en_pause, reprendre_projet, terminer_projet, rouvrir_projet, archiver_projet).');
+  if (!Object.keys(patch).length) refuser('saisie_invalide', `Aucun champ à modifier (la phase et le statut passent par changer_phase_projet, mettre_projet_en_pause, reprendre_projet, terminer_projet, rouvrir_projet, archiver_projet).${champs.description !== undefined ? ` ${MESSAGE_DESCRIPTION}` : ''}`);
   const plan = PL.planMajProjet(id, patch);
-  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id, champsModifies: Object.keys(patch) });
+  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id, champsModifies: Object.keys(patch), ...avertissementDescription(champs) });
 }
 
 export async function changerPhaseProjet(c, args) {

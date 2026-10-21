@@ -85,7 +85,8 @@ describe('Actions de l’écran dans le journal, puis restauration par le serveu
     const a = e.lire('crm_affaires', pa.id);
     const op3 = await e.executer(L.planChangerEtape(a, 'rdv_fixe', e.ctxPlan(new Date('2026-10-06T08:00:00Z'))).ecritures, 'changerEtape', new Date('2026-10-06T08:00:00Z'));
     const tout = await lecture.lireAudit(e.donnees, { acteur: JEROME });
-    assert.equal(tout.total, 2 + 2 + 2, 'personne+événement, affaire+événement, changement d’étape+son événement');
+    assert.equal(tout.total, 2 + 3 + 2, 'personne+événement, affaire+événement+note épinglée de départ (I5), changement d’étape+son événement');
+    assert.ok(tout.lignes.some((l) => l.outil === 'creerAffaire' && l.collection === 'crm_notes' && l.docId === pa.noteId), 'I5 : la note de départ passe par le même journal');
     assert.ok(tout.lignes.every((l) => l.via === 'ecran' && l.statut === 'succes'));
     assert.deepEqual([...new Set(tout.lignes.map((l) => l.outil))].sort(), ['changerEtape', 'creerAffaire', 'creerPersonne']);
     assert.equal(tout.aVerifier, 0);

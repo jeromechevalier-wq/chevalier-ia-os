@@ -326,7 +326,8 @@ export function panneauActivite({ lien, liensCreation, avecActivites = true, aff
   const compositeur = h('div', { class: 'compositeur' }, h('div', { class: 'onglets', role: 'tablist' }, avecActivites ? ongletActivite : null, ongletNotes, ongletDocuments), panneauActiviteSaisie, panneauNoteSaisie, panneauDocuments);
 
   // ---- points clés et historique
-  const notesDeLaFiche = () => (affaireLiee ? affaireLiee.fusionnerNotes(fil.notes, filAffaire.notes) : fil.notes);
+  // Sans les copies en double (I5 : la note épinglée d'un projet créé depuis une affaire copie celle de l'affaire).
+  const notesDeLaFiche = () => L.sansCopiesDeNote(affaireLiee ? affaireLiee.fusionnerNotes(fil.notes, filAffaire.notes) : fil.notes, lien);
   let toutDeploye = false;
   const boutonsPlier = new WeakMap(); // texte d'une note du fil -> son bouton Développer / Réduire
   /** Le bouton n'existe que si le texte dépasse la limite ; une note dépliée dont le texte tient (fenêtre élargie) n'a plus de « Réduire ». */
@@ -341,17 +342,21 @@ export function panneauActivite({ lien, liensCreation, avecActivites = true, aff
   const observateurNotes = typeof ResizeObserver !== 'undefined' ? new ResizeObserver((entrees) => entrees.forEach((e) => verifierNote(e.target))) : null;
   const notesDeployees = new Set(); // notes du fil dépliées (« Développer »), gardées d'un redessin à l'autre
   let epingleeEnEdition = null; // identifiant de la note épinglée en cours de modification (on ne redessine pas dessous)
+  let pointsClesEnAttente = false;
   function rendrePointsCles() {
     if (epingleeEnEdition) return;
+    // Pas de nouveau rendu pendant qu'on écrit dans la note de départ vide (I5) : sinon le texte en cours serait perdu ; il est fait en quittant le champ.
+    if (document.activeElement?.classList?.contains('champ-note-depart') && zonePointsCles.contains(document.activeElement)) { pointsClesEnAttente = true; return; }
+    pointsClesEnAttente = false;
     const aujourdhui = D.ctx().aujourdhui;
     const liste = L.pointsClesFiche(D.activitesDe(lien), aujourdhui);
-    const epinglees = L.notesEpinglees(notesDeLaFiche());
+    const epinglees = L.notesEpinglees(notesDeLaFiche(), lien);
     remplir(zonePointsCles,
       h('div', { class: 'points-cles-tete' },
         h('h3', { class: 'sous-titre' }, 'Points clés'),
-        epinglees.length ? h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', 'data-action': 'developper-tout',
+        epinglees.some((n) => !L.estNoteVide(n)) ? h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', 'data-action': 'developper-tout',
           onclick: () => { toutDeploye = !toutDeploye; rendrePointsCles(); } }, toutDeploye ? 'Réduire tout' : 'Développer tout') : null),
-      epinglees.length ? h('ul', { class: 'liste-notes-epinglees' }, epinglees.map(ligneNoteEpinglee)) : null,
+      epinglees.length ? h('ul', { class: 'liste-notes-epinglees' }, epinglees.map((n) => (L.estNoteVide(n) ? ligneNoteDeDepart(n) : ligneNoteEpinglee(n)))) : null,
       liste.length
         ? h('ul', { class: 'liste-activites' }, liste.map((a) => ligneActivite(a, aujourdhui)))
         : h('p', { class: 'aide' }, 'Aucune activité à faire.'));
@@ -373,6 +378,36 @@ export function panneauActivite({ lien, liensCreation, avecActivites = true, aff
         onclick: () => D.epinglerNote(n.id, false).then(() => toast('Note désépinglée')).catch((e) => { console.warn(e); toast('Modification impossible', { type: 'erreur' }); }) }, icone('x', { taille: 14 })));
   }
   const versDateNote = (n) => L.versDate(n.creeLe);
+
+  /**
+   * Note épinglée de départ encore vide (I5, à la place de l'ancien champ « description ») : on écrit directement dedans. Le texte d'invitation grisé
+   * disparaît au clic et revient si on ne tape rien ; le texte s'enregistre en quittant le champ (la note devient alors une note épinglée ordinaire) ; Échap annule.
+   */
+  function ligneNoteDeDepart(n) {
+    const invitation = lien.projetId ? L.INVITATION_NOTE_PROJET : L.INVITATION_NOTE_AFFAIRE;
+    const champ = h('textarea', { class: 'champ-note-depart', rows: 3, maxlength: '20000', spellcheck: true, placeholder: invitation, 'data-champ': 'note-depart',
+      'aria-label': lien.projetId ? 'De quoi parle ce projet' : 'De quoi parle cette affaire' });
+    champ.addEventListener('focus', () => { champ.placeholder = ''; });
+    champ.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); champ.value = ''; champ.blur(); } });
+    champ.addEventListener('blur', async () => {
+      champ.placeholder = invitation;
+      if (!L.nettoyerEspaces(champ.value)) { champ.value = ''; if (pointsClesEnAttente) rendrePointsCles(); return; }
+      try { await D.majNote(n.id, champ.value); } catch (e) {
+        console.warn(e);
+        toast('Enregistrement impossible : vérifie ta connexion, puis clique dans la note et quitte-la pour réessayer.', { type: 'erreur' });
+        return; // le texte tapé reste dans le champ
+      }
+      if (pointsClesEnAttente) rendrePointsCles();
+    });
+    return h('li', { class: 'note-epinglee note-epinglee-vide', dataset: { note: n.id } },
+      icone('pin', { taille: 14 }),
+      h('div', { class: 'note-epinglee-corps' }, champ),
+      // Sur une note VIDE, la croix la supprime (désépinglée, elle resterait en base sans jamais s'afficher) ; confirmation puis « Annuler » pendant 8 s.
+      h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Supprimer la note vide', title: 'Supprimer', 'data-action': 'supprimer-note-vide',
+        onclick: () => retirerAvecAnnulation({
+          titre: 'Supprimer cette note vide ?', message: 'Elle ne reviendra pas : tu pourras toujours écrire une note dans l’onglet « Notes ».', libelleOk: 'Supprimer', danger: true,
+          faire: () => D.supprimerNote(n.id), defaire: () => D.restaurerNote(n), messageFait: 'Note supprimée' }) }, icone('x', { taille: 14 })));
+  }
 
   function rendreHistorique() {
     const notes = notesDeLaFiche();

@@ -54,7 +54,8 @@ export async function chercher(donnees, { texte, types, limite }) {
 
 async function fil(donnees, champ, id, activites) {
   const [notes, evenements] = await Promise.all([C.notes, C.evenements].map((nom) => donnees.liste(nom, { champ, valeur: id })));
-  return L.entreesHistorique({ activites, notes, evenements }, 'tous')
+  // Sans la copie en double (I5 : note épinglée d'un projet créé depuis une affaire = copie de celle de l'affaire).
+  return L.entreesHistorique({ activites, notes: L.sansCopiesDeNote(notes, { [champ]: id }), evenements }, 'tous')
     .map((e) => ({ genre: e.genre, date: e.date ? e.date.toISOString() : null, ...serialiser(e.element) }));
 }
 
@@ -94,9 +95,13 @@ export async function lireOrganisation(donnees, { id, avecFil }) {
   });
 }
 
+// L'ancien champ « description » (texte libre, supprimé par I5 : remplacé par la note épinglée) peut rester dans les fiches anciennes : il est ignoré, jamais lu.
+const sansDescription = ({ description: _ancienChamp, ...fiche }) => fiche;
+
 export async function lireAffaire(donnees, { id, avecFil }) {
-  const affaire = await donnees.document(C.affaires, id);
-  if (!affaire) introuvable('Affaire');
+  const brute = await donnees.document(C.affaires, id);
+  if (!brute) introuvable('Affaire');
+  const affaire = sansDescription(brute);
   const [personne, organisation, activites] = await Promise.all([
     affaire.personneId ? donnees.document(C.personnes, affaire.personneId) : null,
     affaire.organisationId ? donnees.document(C.organisations, affaire.organisationId) : null,
@@ -127,7 +132,7 @@ export async function listerAffaires(donnees, { etape, statut, archive, personne
     sansAction: !!sansAction,
   };
   const gardees = L.filtrerAffaires(affaires, criteres, { activites, personnes, organisations, aujourdhui });
-  const lignes = gardees.map((a) => ({ ...a, personne: nomDe(personnes, a.personneId), organisation: nomDe(organisations, a.organisationId) }));
+  const lignes = gardees.map((a) => ({ ...sansDescription(a), personne: nomDe(personnes, a.personneId), organisation: nomDe(organisations, a.organisationId) }));
   const { total, tronque, elements } = borne(lignes, Math.min(limite ?? MAX_LIGNES, MAX_LIGNES));
   return serialiser({ total, tronque, affaires: elements });
 }
@@ -170,7 +175,7 @@ export async function listerProjets(donnees, { phase, statut, archive, affaireId
   if (personneId) gardes = gardes.filter((p) => p.personneId === personneId);
   if (organisationId) gardes = gardes.filter((p) => p.organisationId === organisationId);
   const lignes = L.trier(gardes, (p) => L.normaliser(p.titre)).map((p) => ({
-    ...p, personne: nomDe(personnes, p.personneId), organisation: nomDe(organisations, p.organisationId),
+    ...sansDescription(p), personne: nomDe(personnes, p.personneId), organisation: nomDe(organisations, p.organisationId),
     avancement: PL.progressionProjet(PL.tachesDuProjet(taches, p.id, config)), facturation: config.options.suiviPaiements ? resumeFacturation(p) : null,
   }));
   const { total, tronque, elements } = borne(lignes, Math.min(limite ?? MAX_LIGNES, MAX_LIGNES));
@@ -179,8 +184,9 @@ export async function listerProjets(donnees, { phase, statut, archive, affaireId
 
 export async function lireProjet(donnees, { id, avecFil }, espace = {}) {
   const config = await lireConfig(donnees, espace);
-  const projet = await donnees.document(C.projets, id);
-  if (!projet) introuvable('Projet');
+  const brut = await donnees.document(C.projets, id);
+  if (!brut) introuvable('Projet');
+  const projet = sansDescription(brut);
   const [affaire, personne, organisation, taches] = await Promise.all([
     projet.affaireId ? donnees.document(C.affaires, projet.affaireId) : null,
     projet.personneId ? donnees.document(C.personnes, projet.personneId) : null,
