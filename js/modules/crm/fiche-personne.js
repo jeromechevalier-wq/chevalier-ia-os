@@ -100,8 +100,7 @@ export function rendreFichePersonne(conteneur, id) {
       h('div', { class: 'fiche-tete-ligne' },
         avatar(p.nom, 52),
         h('div', { class: 'fiche-titre' }, nom,
-          h('div', { class: 'fiche-sous' }, p.archive ? h('span', { class: 'badge-archive' }, 'Archivée') : null, p.oppositionProspection ? h('span', { class: 'badge-opposition' }, 'Opposition à la prospection') : null,
-            selectProprietaire({ valeur: p.proprietaire, surChoix: (v) => D.majPersonne(p.id, { proprietaire: v }) }))),
+          h('div', { class: 'fiche-sous' }, p.archive ? h('span', { class: 'badge-archive' }, 'Archivée') : null, p.oppositionProspection ? h('span', { class: 'badge-opposition' }, 'Opposition à la prospection') : null)),
         h('div', { class: 'fiche-actions' },
           h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'nouvelle-affaire', onclick: () => ouvrirCreationAffaire({ personneId: p.id }) }, icone('plus', { taille: 16 }), 'Affaire'),
           menu)));
@@ -122,7 +121,8 @@ export function rendreFichePersonne(conteneur, id) {
         h('div', { class: 'actions-email' },
           emailOk ? h('a', { class: 'bouton bouton-secondaire bouton-petit', href: `mailto:${L.premierEmail(p)}`, 'data-action': 'ecrire-email' }, icone('mail', { taille: 15 }), 'Écrire un email')
             : h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', disabled: true, 'data-action': 'ecrire-email', title: p.oppositionProspection ? 'Opposition à la prospection' : 'Pas d’adresse email' }, icone('mail', { taille: 15 }), 'Écrire un email'),
-          h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', disabled: !emailOk, 'data-action': 'email-envoye', onclick: async () => { await D.emailEnvoye(p.id); toast('Email noté dans l’historique'); } }, icone('mail-check', { taille: 15 }), 'Email envoyé'))),
+          h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', disabled: !emailOk, 'data-action': 'email-envoye', onclick: async () => { await D.emailEnvoye(p.id); toast('Email noté dans l’historique'); } }, icone('mail-check', { taille: 15 }), 'Email envoyé')),
+        h('div', { class: 'proprietes' }, selectProprietaire({ valeur: p.proprietaire, surChoix: (v) => D.majPersonne(p.id, { proprietaire: v }) }))),
     });
 
     // ---- Détails

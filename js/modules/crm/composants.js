@@ -455,15 +455,28 @@ export function champDescription({ valeur = '', invitation, libelle, surEnregist
   return h('div', { class: 'description-fiche' }, champ);
 }
 
-/** Propriétaire d'une fiche : le compte qui l'a créée, modifiable. */
+/** Propriétaire d'une fiche : le compte qui l'a créée, modifiable. Ligne du Résumé (ou du premier bloc de champs), comme les autres propriétés. */
 export function selectProprietaire({ valeur, surChoix }) {
   // Chez un client, les comptes Jérôme et Charles ne sont pas ses comptes : le propriétaire s'affiche, sans liste de choix.
-  if (estChezClient()) return valeur ? h('p', { class: 'proprietaire' }, h('span', { class: 'etiquette' }, 'Propriétaire'), ' ', valeur) : null;
-  const options = COMPTES.some((c) => c.email === valeur) ? COMPTES : [...COMPTES, { email: valeur, nom: valeur }];
-  return h('label', { class: 'proprietaire' },
-    h('span', { class: 'etiquette' }, 'Propriétaire'),
-    h('select', { class: 'champ champ-petit', 'aria-label': 'Propriétaire', onchange: (e) => surChoix(e.target.value) },
-      options.map((c) => h('option', { value: c.email, selected: c.email === valeur }, c.nom))));
+  if (estChezClient()) {
+    return valeur ? h('div', { class: 'prop', dataset: { prop: 'proprietaire' } }, h('span', { class: 'prop-libelle' }, 'Propriétaire'), h('div', { class: 'prop-valeur' }, valeur)) : null;
+  }
+  const options = !valeur || COMPTES.some((c) => c.email === valeur) ? COMPTES : [...COMPTES, { email: valeur, nom: valeur }];
+  return h('div', { class: 'prop', dataset: { prop: 'proprietaire' } },
+    h('span', { class: 'prop-libelle' }, 'Propriétaire'),
+    h('div', { class: 'prop-valeur' },
+      h('select', { class: 'champ', 'aria-label': 'Propriétaire',
+        onchange: async (e) => {
+          const avant = valeur;
+          try { await surChoix(e.target.value); valeur = e.target.value; } catch (err) {
+            console.warn(err);
+            e.target.value = avant || '';
+            toast('Enregistrement impossible : vérifie ta connexion, puis choisis de nouveau.', { type: 'erreur' });
+          }
+        } },
+        // Sans propriétaire : une première ligne « — » sélectionnée mais non choisissable (on n'écrit jamais de propriétaire vide).
+        valeur ? null : h('option', { value: '', selected: true, disabled: true }, '—'),
+        options.map((c) => h('option', { value: c.email, selected: c.email === valeur }, c.nom)))));
 }
 
 /** Gabarit commun : en tête, colonne de gauche (sections), colonne de droite (activité, notes, historique). */
