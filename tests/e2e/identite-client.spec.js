@@ -123,7 +123,9 @@ test('I3 accent de l\'interface = couleur de marque, contraste vérifié, dans l
     }
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
     const a = await calculer(page, COULEUR, theme);
-    const bouton = '.page-accueil .bouton-principal';
+    // I18 (21/10/2026) : l'Accueil n'a plus de bouton « + Personne » ; le bouton principal se lit sur la page Personnes.
+    await allerA(page, 'Personnes');
+    const bouton = '.page-actions .bouton-principal';
     const fond = await couleurFinale(page, bouton, 'backgroundColor');
     expect(fond, `${theme} : fond du bouton`).toBe(rgb(a.accent));
     expect(fond).not.toBe(JAUNE_JEROME);
