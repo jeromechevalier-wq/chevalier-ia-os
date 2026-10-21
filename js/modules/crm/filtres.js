@@ -85,6 +85,19 @@ async function ouvrirFenetreFiltres(liste, criteres) {
 }
 
 /**
+ * Bouton « Filtres » commun à toutes les listes et à l'historique des fiches : icône entonnoir, texte « Filtres », pastille de compte
+ * quand des filtres sont posés. `majCompte(n)` met la pastille à jour ; `petit` donne la version compacte (titre d'un bloc).
+ */
+export function boutonFiltres({ auClic, petit = false }) {
+  const element = h('button', { type: 'button', class: `bouton bouton-secondaire${petit ? ' bouton-petit' : ''}`, 'data-action': 'filtres', onclick: auClic });
+  function majCompte(n = 0) {
+    remplir(element, icone('funnel', { taille: 16 }), 'Filtres', n ? h('span', { class: 'compteur-filtres' }, String(n)) : null);
+  }
+  majCompte(0);
+  return { element, majCompte };
+}
+
+/**
  * Barre de filtres d'une liste.
  * options : { liste, lireCriteres(), ecrireCriteres(c), contexte() (pour les libellés des pastilles) }
  * Renvoie { element, rafraichir() }.
@@ -93,10 +106,11 @@ export function barreFiltres({ liste, lireCriteres, ecrireCriteres, contexte = (
   const champRecherche = h('input', { class: 'champ', type: 'search', 'aria-label': placeholder, placeholder, autocomplete: 'off', value: lireCriteres().recherche || '',
     oninput: (e) => ecrireCriteres({ ...L.criteresComplets(liste, lireCriteres()), recherche: e.target.value }) });
   const zonePastilles = h('div', { class: 'pastilles-actives' });
-  const boutonFiltres = h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'filtres', onclick: async () => {
+  const boutonFiltres_ = boutonFiltres({ auClic: async () => {
     const r = await ouvrirFenetreFiltres(liste, lireCriteres());
     if (r) ecrireCriteres(r);
   } });
+  const boutonF = boutonFiltres_.element;
   const boutonEnregistres = h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'filtres-enregistres', 'aria-label': 'Filtres enregistrés',
     onclick: (e) => {
       const saved = D.etat.filtres.filter((f) => (f.liste || 'affaires') === liste);
@@ -116,14 +130,14 @@ export function barreFiltres({ liste, lireCriteres, ecrireCriteres, contexte = (
     const c = lireCriteres();
     if (champRecherche.value !== (c.recherche || '') && document.activeElement !== champRecherche) champRecherche.value = c.recherche || '';
     const actifs = L.pastillesFiltres(liste, c, contexte()).filter((p) => p.cle !== 'recherche');
-    remplir(boutonFiltres, icone('funnel', { taille: 16 }), 'Filtres', actifs.length ? h('span', { class: 'compteur-filtres' }, String(actifs.length)) : null);
+    boutonFiltres_.majCompte(actifs.length);
     remplir(zonePastilles,
       actifs.map((p) => h('span', { class: 'pastille-filtre' }, p.libelle,
         h('button', { type: 'button', class: 'pastille-retrait', 'aria-label': `Retirer le filtre : ${p.libelle}`, onclick: () => ecrireCriteres(L.retirerCritere(liste, c, p.cle, p.valeur)) }, icone('x', { taille: 12 })))),
       actifs.length > 1 || (actifs.length && c.recherche) ? h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', onclick: () => ecrireCriteres(L.criteresComplets(liste, {})) }, 'Tout effacer') : null);
   }
   const element = h('div', { class: 'barre-filtres' },
-    h('div', { class: 'barre-filtres-ligne' }, h('div', { class: 'champ-avec-icone' }, icone('search', { taille: 16 }), champRecherche), boutonFiltres, boutonEnregistres),
+    h('div', { class: 'barre-filtres-ligne' }, h('div', { class: 'champ-avec-icone' }, icone('search', { taille: 16 }), champRecherche), boutonF, boutonEnregistres),
     zonePastilles);
   rafraichir();
   return { element, rafraichir };

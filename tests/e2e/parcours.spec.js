@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { debrancherGoogle } from './google-simule.js';
 import {
   test, expect, connecter, allerA, allerAuxReglagesCrm, choisirDansMenuUtilisateur, basculerThemeParMenu, creerPersonne, creerOrganisation, creerAffaire, creerActivite, lireDocument, listerDocuments, ecrireDocument,
-  jour, estTelephone, valeurObjectif, JEROME, CHARLES, ouvrirDocuments,
+  jour, estTelephone, valeurObjectif, JEROME, CHARLES, ouvrirDocuments, filtrerHistorique,
 } from './outils.js';
 
 // Les scénarios de ce fichier sont indépendants (chacun repart d'une base vide) : ils se répartissent sur plusieurs workers.
@@ -504,7 +504,7 @@ test('C14 historique : les cinq filtres', async ({ page }) => {
   await aller(page, '#/crm/personnes/p1');
   const lignes = page.locator('.historique .fil-ligne');
   await expect(lignes).toHaveCount(4);
-  const filtre = async (id) => page.locator(`.historique [data-filtre="${id}"]`).click();
+  const filtre = async (id) => filtrerHistorique(page, id);
   await filtre('activites');
   await expect(lignes).toHaveCount(1);
   await filtre('notes');
