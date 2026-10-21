@@ -125,10 +125,11 @@ export function sectionTaches(projet) {
   }
 
   // ---- ajout rapide
-  const titre = h('input', { class: 'champ', type: 'text', 'aria-label': 'Nouvelle tâche', placeholder: 'Ajouter une tâche…', autocomplete: 'off' });
+  const titre = h('input', { class: 'champ', type: 'text', 'aria-label': 'Nouvelle tâche', placeholder: 'Clique ici pour ajouter une tâche…', autocomplete: 'off' });
   const phase = h('select', { class: 'champ', 'aria-label': 'Phase de la tâche' }, P.phasesActives(cfg()).map((ph) => h('option', { value: ph.id, selected: ph.id === projet.phase }, ph.libelle)));
   const date = selecteurDate('');
-  const bouton = h('button', { type: 'button', class: 'bouton bouton-principal bouton-petit', 'data-action': 'ajouter-tache', onclick: ajouter }, icone('plus', { taille: 14 }), 'Ajouter la tâche');
+  // Pas de gros bouton jaune : un petit bouton à contour dans la zone ouverte (ou la touche Entrée).
+  const bouton = h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', 'data-action': 'ajouter-tache', onclick: ajouter }, 'Ajouter');
   async function ajouter() {
     if (!L.nettoyerEspaces(titre.value)) { toast('Le titre est obligatoire.', { type: 'erreur' }); titre.classList.add('invalide'); titre.focus(); return; }
     // Le formulaire se vide tout de suite (on peut taper la tâche suivante sans attendre la réponse du serveur) ; si l'ajout échoue, ce qui était tapé revient.
@@ -140,7 +141,13 @@ export function sectionTaches(projet) {
     const ok = await ou(() => D.creerTache(projet.id, saisie), 'Ajout impossible');
     if (!ok && !titre.value) { titre.value = saisie.titre; date.champ.value = saisie.date; }
   }
-  titre.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); ajouter(); } });
+  // Comme la zone d'activité de l'affaire : une seule ligne tant qu'on n'y a pas mis le focus ; phase, dates rapides, date et bouton apparaissent au clic.
+  const zoneAjout = h('div', { class: 'ajout-tache replie', 'data-saisie': '' }, titre, phase, date.element, bouton);
+  zoneAjout.addEventListener('focusin', () => zoneAjout.classList.remove('replie'));
+  titre.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); ajouter(); }
+    else if (e.key === 'Escape' && !titre.value) { zoneAjout.classList.add('replie'); titre.blur(); }
+  });
 
   // La liste se redessine seule (sans toucher au formulaire) : on peut taper la tâche suivante pendant que la précédente apparaît.
   const zoneGroupes = h('div', { class: 'pile zone-groupes-taches' });
@@ -159,7 +166,7 @@ export function sectionTaches(projet) {
   }
   const section = sectionRepliable({
     id: 'projet-taches', titre: 'Tâches', compteur: 0,
-    contenu: h('div', { class: 'pile' }, h('div', { class: 'ajout-tache', 'data-saisie': '' }, titre, phase, date.element, bouton), zoneGroupes),
+    contenu: h('div', { class: 'pile' }, zoneAjout, zoneGroupes),
   });
   compteur = section.element.querySelector('.section-compteur');
   rendreGroupes();

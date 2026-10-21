@@ -152,7 +152,20 @@ export function sectionRepliable({ id, titre, contenu, actions = [], ouverte = t
  *  type : texte | url | nombre | date | select | zone | intelligent (texte libre avec suggestions : fournir)
  *         | liste (liste fermée de textes donnée par `fournir`, dont la dernière ligne « + Nouvelle valeur… » ouvre un champ avec un bouton Créer)
  */
-export function champPropriete({ libelle, valeur = '', type = 'texte', options = [], surEnregistrer, placeholder = '', formater = null, lienVers = null, fournir = null, pas = null }) {
+/**
+ * La ligne « Étiquette  + Ajouter » (texte jaune sans cadre) : le style unique pour ajouter à une liste ou à un champ.
+ * `fantome` (facultatif) : un texte gris d'exemple (ex. « 999 € ») affiché à la place de « + Ajouter » ; ce n'est jamais une vraie valeur.
+ */
+export function boutonAjouter({ libelleAria, surClic, fantome = null, action = null }) {
+  return h('button', { type: 'button', class: `prop-vide${fantome ? ' prop-fantome' : ''}`, onclick: surClic, 'aria-label': libelleAria, 'data-action': action },
+    ...(fantome ? [fantome] : [icone('plus', { taille: 14 }), 'Ajouter']));
+}
+export function ligneAjouter({ libelle, libelleAria, surClic, action = null }) {
+  return h('div', { class: 'prop prop-ajouter' }, h('span', { class: 'prop-libelle' }, libelle),
+    h('div', { class: 'prop-valeur' }, boutonAjouter({ libelleAria: libelleAria || `Ajouter : ${libelle}`, surClic, action })));
+}
+
+export function champPropriete({ libelle, valeur = '', type = 'texte', options = [], surEnregistrer, placeholder = '', formater = null, lienVers = null, fournir = null, pas = null, fantome = null }) {
   let courant = valeur ?? '';
   let enEdition = false;
   let creation = false;
@@ -171,7 +184,7 @@ export function champPropriete({ libelle, valeur = '', type = 'texte', options =
     const vide = courant === '' || courant === null || courant === undefined;
     const ouvrirEdition = () => editer();
     if (vide) {
-      remplir(zone, h('button', { type: 'button', class: 'prop-vide', onclick: ouvrirEdition, 'aria-label': `Ajouter : ${libelle}` }, icone('plus', { taille: 14 }), 'Ajouter'));
+      remplir(zone, boutonAjouter({ libelleAria: `Ajouter : ${libelle}`, surClic: ouvrirEdition, fantome }));
       return;
     }
     const texte = texteAffiche();

@@ -675,7 +675,9 @@ test('C31 fiche projet : ajouter des tâches (titre seul, ou avec phase et date 
   const section = page.locator('[data-section="projet-taches"]');
   await expect(section).toContainText('Aucune tâche pour le moment');
   await expect(page.locator('[data-prop="avancement"]')).toContainText('Aucune tâche');
-  // titre vide : refusé
+  // une seule ligne « Clique ici… » tant qu'on n'y a pas cliqué ; titre vide : refusé
+  await expect(section.locator('[data-action="ajouter-tache"]')).toBeHidden();
+  await section.getByLabel('Nouvelle tâche').click();
   await section.locator('[data-action="ajouter-tache"]').click();
   await expect(page.locator('.toast', { hasText: 'Le titre est obligatoire.' })).toBeVisible();
   expect(await listerDocuments('projets_taches')).toHaveLength(0);
@@ -1219,6 +1221,7 @@ async function fermerCelebrations(page, classes) {
 }
 
 async function ajouterFacture(page, libelle, montant, envoi = '') {
+  await page.locator('[data-action="ouvrir-ajout-facture"]').click(); // « Factures  + Ajouter » ouvre le formulaire
   await page.getByLabel('Libellé de la facture').fill(libelle);
   await page.getByLabel('Montant de la facture en euros').fill(String(montant));
   if (envoi) await page.getByLabel('Date d’envoi de la facture').fill(envoi);
@@ -1237,8 +1240,9 @@ test('C36 factures 30 % + 30 % + 40 % : trois lignes, des paiements successifs, 
   await ajouterFacture(page, 'En cours 30 %', 300);
   await ajouterFacture(page, 'Solde 40 %', 400);
   await expect(section.locator('[data-role="totaux-factures"]')).toContainText('Facturé 1 000 € · payé 0 € · reste à payer 1 000 €');
-  const docs = (await lireDocument('projets_projets/pr1')).factures;
-  expect(docs.map((f) => [f.libelle, f.montant, f.statut])).toEqual([['Acompte 30 %', 300, 'a_payer'], ['En cours 30 %', 300, 'a_payer'], ['Solde 40 %', 400, 'a_payer']]);
+  // l'écran montre la facture avant que le serveur ait fini d'écrire : on attend l'écriture (sinon la lecture arrive parfois trop tôt)
+  await expect.poll(async () => ((await lireDocument('projets_projets/pr1')).factures || []).map((f) => [f.libelle, f.montant, f.statut]))
+    .toEqual([['Acompte 30 %', 300, 'a_payer'], ['En cours 30 %', 300, 'a_payer'], ['Solde 40 %', 400, 'a_payer']]);
   // l'acompte est payé : le chiffre d'affaires encaissé du mois le compte, avec sa célébration
   await section.locator('.ligne-facture', { hasText: 'Acompte 30 %' }).locator('[data-action="payer-facture"]').click();
   await dialogue(page).getByRole('button', { name: 'Encaisser' }).click();
@@ -1309,6 +1313,7 @@ test('C41.2 projet terminé : « Remettre à payer » et « Ajouter » une factu
   await expect(page.locator('.toast-erreur').last()).toContainText('Ce projet est terminé : rouvre-le d’abord.');
   await capturerFacture(page, 'C41-2-projet-termine-refus');
   expect((await lireDocument('projets_projets/pr1')).factures[0].statut).toBe('payee');
+  await page.locator('[data-action="ouvrir-ajout-facture"]').click();
   await page.getByLabel('Libellé de la facture').fill('Complément');
   await page.getByLabel('Montant de la facture en euros').fill('100');
   await page.locator('[data-action="ajouter-facture"]').click();

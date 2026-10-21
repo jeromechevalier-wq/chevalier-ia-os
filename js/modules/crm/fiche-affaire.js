@@ -65,7 +65,7 @@ export function rendreFicheAffaire(conteneur, id) {
     const o = D.organisation(a.organisationId);
     const vivante = a.statut === 'ouverte' || a.statut === 'gagnee';
     const titre = titreEditable({ valeur: a.titre, libelle: 'Titre', surEnregistrer: (v) => D.majAffaire(a.id, { titre: v }) });
-    const montant = champPropriete({ libelle: 'Montant', valeur: a.montant ?? '', type: 'nombre', pas: '0.01', formater: (v) => L.formatEuros(v), surEnregistrer: (v) => D.majAffaire(a.id, { montant: v }) });
+    const montant = champPropriete({ libelle: 'Montant', valeur: a.montant ?? '', type: 'nombre', pas: '0.01', formater: (v) => L.formatEuros(v), fantome: L.formatEuros(999), surEnregistrer: (v) => D.majAffaire(a.id, { montant: v }) });
     const menu = h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Plus d’actions', 'data-action': 'menu-fiche',
       onclick: (e) => ouvrirMenu(e.currentTarget, [
         ...(a.statut === 'perdue' || a.statut === 'en_pause' ? [{ libelle: 'Rouvrir', icone: 'rotate-ccw', action: () => D.rouvrir(a.id) }] : []),

@@ -2,7 +2,7 @@
 // Aucune règle métier ici : les règles sont dans logique.js (plans), exécutés par donnees.js.
 import { h, icone, remplir, dialogue, confirmer, ouvrirMenu, toast } from '../../os/ui.js';
 import { retirerAvecAnnulation } from '../../os/retrait.js';
-import { sectionRepliable } from '../crm/composants.js';
+import { sectionRepliable, ligneAjouter } from '../crm/composants.js';
 import { celebrerPaiement } from '../../os/celebrations.js';
 import * as L from '../crm/logique.js';
 import * as CRM from '../crm/donnees.js';
@@ -142,7 +142,11 @@ export function sectionFactures(p) {
   const champLibelle = h('input', { class: 'champ', type: 'text', 'aria-label': 'Libellé de la facture', placeholder: 'Libellé (ex. Acompte 30 %)' });
   const champMontant = h('input', { class: 'champ champ-court', type: 'number', min: '0', step: '0.01', inputmode: 'decimal', 'aria-label': 'Montant de la facture en euros', placeholder: 'Montant (€)' });
   const champEnvoi = h('input', { class: 'champ champ-court', type: 'date', 'aria-label': 'Date d’envoi de la facture', value: '' });
-  const sec = sectionRepliable({ id: 'projet-factures', titre: 'Factures', compteur: P.facturesDe(p).length, contenu: h('div', { class: 'pile' }, zoneListe) });
+  // « Factures  + Ajouter » : le formulaire n'apparaît qu'après le clic (une facture à la fois), et se referme dès qu'elle est ajoutée.
+  const ouvrirAjout = () => { ajout.hidden = false; ligneOuvrir.hidden = true; champLibelle.focus(); };
+  const fermerAjout = () => { ajout.hidden = true; ligneOuvrir.hidden = false; };
+  const ligneOuvrir = ligneAjouter({ libelle: 'Factures', libelleAria: 'Ajouter une facture', surClic: ouvrirAjout, action: 'ouvrir-ajout-facture' });
+  const sec = sectionRepliable({ id: 'projet-factures', titre: 'Factures', compteur: P.facturesDe(p).length, contenu: h('div', { class: 'pile' }, ligneOuvrir, zoneListe) });
 
   function ligne(courant, f) {
     return h('li', { class: `ligne-facture statut-${f.statut}`, dataset: { facture: f.id, statut: f.statut } },
@@ -174,12 +178,14 @@ export function sectionFactures(p) {
     champMontant.value = '';
     champEnvoi.value = '';
     champMontant.classList.remove('invalide');
+    fermerAjout();
     toast('Facture ajoutée');
     majListe();
   }
-  const ajout = h('div', { class: 'ligne-ajout ligne-ajout-facture' }, champLibelle, champMontant, champEnvoi,
-    h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', 'data-action': 'ajouter-facture', onclick: ajouter }, 'Ajouter'));
-  [champLibelle, champMontant, champEnvoi].forEach((c) => c.addEventListener('keydown', (e) => { if (e.key === 'Enter') ajouter(); }));
+  const ajout = h('div', { class: 'ligne-ajout ligne-ajout-facture', hidden: true }, champLibelle, champMontant, champEnvoi,
+    h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', 'data-action': 'ajouter-facture', onclick: ajouter }, 'Ajouter'),
+    h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', 'data-action': 'annuler-ajout-facture', onclick: fermerAjout }, 'Annuler'));
+  [champLibelle, champMontant, champEnvoi].forEach((c) => c.addEventListener('keydown', (e) => { if (e.key === 'Enter') ajouter(); else if (e.key === 'Escape') fermerAjout(); }));
   sec.corps.append(ajout);
 
   function majListe() {
