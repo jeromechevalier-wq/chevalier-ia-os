@@ -8,7 +8,6 @@ import { etatVide, lienAffaire, pastilleEtape, boutonEtoile, lien, cheminAffaire
 import { ligneActivite, faireActivite, dialogueActivite, proposerProchaineActivite } from './activites.js';
 import { exporterToutesLesDonnees } from './export.js';
 import { estChezClient } from '../../os/contexte.js';
-import { ouvrirCreationPersonne } from './personnes.js';
 import * as PD from '../projets/donnees.js';
 import * as P from '../projets/logique.js';
 import { ligneTachePointsCles } from '../projets/taches.js';
@@ -34,8 +33,8 @@ export function rendreAccueil(conteneur, { compte, objectifs = true }) {
 
   const page = h('div', { class: 'page page-accueil' },
     h('header', { class: 'page-tete' },
-      h('div', {}, h('p', { class: 'etiquette' }, jour), h('h1', {}, `Bonjour ${compte.nom}`)),
-      h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'nouvelle-personne', onclick: () => ouvrirCreationPersonne() }, icone('plus', { taille: 16 }), 'Personne')),
+      // Pas de bouton « Personne » ici : le bouton rond « + » de la barre du haut crée une personne (I18).
+      h('div', {}, h('p', { class: 'etiquette' }, jour), h('h1', {}, `Bonjour ${compte.nom}`))),
     rappel,
     objectifs ? h('section', { class: 'carte-section section-objectifs', 'aria-labelledby': 'titre-objectifs' },
       h('div', { class: 'section-tete' },
@@ -163,7 +162,7 @@ function rendrePointsCles(zone) {
   const pc = L.pointsCles({ activites: D.etat.activites, affaires: D.etat.affaires }, aujourdhui);
   const tp = P.tachesPointsCles(PD.etat.taches, PD.etat.projets, aujourdhui);
   if (!D.etat.affaires.length && !D.etat.personnes.length && !D.etat.activites.length && !PD.etat.projets.length) {
-    zone.append(etatVide('Ajoute ta première personne, il suffit de son nom.', { action: h('button', { type: 'button', class: 'bouton bouton-principal', onclick: () => ouvrirCreationPersonne() }, icone('plus', { taille: 16 }), 'Personne') }));
+    zone.append(etatVide('Ajoute ta première personne avec le bouton rond « + » en haut de l’écran, il suffit de son nom.'));
     return;
   }
   const nombreRetard = pc.enRetard.length + tp.enRetard.length;

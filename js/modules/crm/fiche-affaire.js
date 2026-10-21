@@ -3,7 +3,7 @@ import { h, icone, remplir, ouvrirMenu, toast, dialogue, confirmer } from '../..
 import * as D from './donnees.js';
 import * as L from './logique.js';
 import {
-  lienPersonne, lienOrganisation, champDescription, sectionRepliable, champPropriete, selecteurPersonne, selecteurOrganisation, titreEditable, selectProprietaire, gabaritFiche,
+  liensEntete, afficherSelecteur, champDescription, sectionRepliable, champPropriete, selecteurPersonne, selecteurOrganisation, titreEditable, selectProprietaire, gabaritFiche,
   lienRetour, saisieEnCours, pastilleStatut, etatVide, planifier, iconeInfo, EXPLICATION_STATUT_AFFAIRE,
 } from './composants.js';
 import { panneauActivite } from './activites.js';
@@ -41,6 +41,8 @@ async function ouvrirLiaisonProjet(a) {
 
 export function rendreFicheAffaire(conteneur, id) {
   let panneau = null;
+  let majSelecteurs = null; // met à jour l'affichage des cellules Personne / Organisation du Résumé (sans écrire)
+  let majLiens = null; // redessine seulement les liens personne / organisation de l'en-tête
   const racine = h('div', { class: 'fiche-conteneur' });
   conteneur.append(racine);
 
@@ -61,8 +63,8 @@ export function rendreFicheAffaire(conteneur, id) {
   }
 
   function construire(a) {
-    const p = D.personne(a.personneId);
-    const o = D.organisation(a.organisationId);
+    const liens = liensEntete(() => D.affaire(a.id) || a);
+    majLiens = liens.maj;
     const vivante = a.statut === 'ouverte' || a.statut === 'gagnee';
     const titre = titreEditable({ valeur: a.titre, libelle: 'Titre', surEnregistrer: (v) => D.majAffaire(a.id, { titre: v }) });
     const montant = champPropriete({ libelle: 'Montant', valeur: a.montant ?? '', type: 'nombre', pas: '0.01', formater: (v) => L.formatEuros(v), fantome: L.formatEuros(999), surEnregistrer: (v) => D.majAffaire(a.id, { montant: v }) });
@@ -88,7 +90,7 @@ export function rendreFicheAffaire(conteneur, id) {
             a.statut === 'perdue' ? h('span', { class: 'aide' }, `${a.raisonPerdue}${a.raisonPerdueDetail ? ` : ${a.raisonPerdueDetail}` : ''}`) : null,
             a.statut === 'en_pause' ? h('span', { class: 'aide' }, `jusqu’au ${L.formatJour(a.dateReveil)}`) : null,
             a.archive ? h('span', { class: 'badge-archive' }, 'Archivée') : null,
-            p ? h('span', {}, icone('user', { taille: 14 }), lienPersonne(p)) : null, o ? h('span', {}, icone('building-2', { taille: 14 }), lienOrganisation(o)) : null,
+            liens.element,
             selectProprietaire({ valeur: a.proprietaire, surChoix: (v) => D.majAffaire(a.id, { proprietaire: v }) }))),
         h('div', { class: 'fiche-montant' }, montant.element),
         h('div', { class: 'fiche-actions' }, actionsStatut, menu)),
@@ -100,12 +102,23 @@ export function rendreFicheAffaire(conteneur, id) {
       surEnregistrer: (v) => D.majAffaire(a.id, { description: v }) });
 
     // ---- Résumé
-    const selPersonne = selecteurPersonne({ valeurId: a.personneId, surChoix: async (el) => {
-      if (!el || el.id === a.personneId) return;
+    // Retirer (croix) écrit null ; taper dans la cellule ne retire rien (surChoix(null) sans `effacement`).
+    const selPersonne = selecteurPersonne({ valeurId: a.personneId, surChoix: async (el, info) => {
+      if (!el) { if (info?.effacement && D.affaire(a.id)?.personneId) await D.majAffaire(a.id, { personneId: null }); return; }
+      const courant = D.affaire(a.id) || a;
+      if (el.id === courant.personneId) return;
       const nouveau = D.personne(el.id);
-      await D.majAffaire(a.id, { personneId: el.id, ...(nouveau?.organisationId && !a.organisationId ? { organisationId: nouveau.organisationId } : {}) });
+      await D.majAffaire(a.id, { personneId: el.id, ...(nouveau?.organisationId && !courant.organisationId ? { organisationId: nouveau.organisationId } : {}) });
     } });
-    const selOrg = selecteurOrganisation({ valeurId: a.organisationId, surChoix: async (el) => { if (el && el.id !== a.organisationId) await D.majAffaire(a.id, { organisationId: el.id }); } });
+    const selOrg = selecteurOrganisation({ valeurId: a.organisationId, surChoix: async (el, info) => {
+      if (!el) { if (info?.effacement && D.affaire(a.id)?.organisationId) await D.majAffaire(a.id, { organisationId: null }); return; }
+      if (el.id !== (D.affaire(a.id) || a).organisationId) await D.majAffaire(a.id, { organisationId: el.id });
+    } });
+    majSelecteurs = () => {
+      const c = D.affaire(a.id) || a;
+      afficherSelecteur(selPersonne, c.personneId ? D.personne(c.personneId) : null, (x) => ({ id: x.id, libelle: x.nom }));
+      afficherSelecteur(selOrg, c.organisationId ? D.organisation(c.organisationId) : null, (x) => ({ id: x.id, libelle: x.nom }));
+    };
     const offres = D.etat.offres.filter((x) => x.actif !== false || x.id === a.offreId);
     /** L'étape, modifiable comme la phase d'un projet : même fonction que le Kanban (boîtes de dialogue, célébration, action suggérée). */
     const selectEtape = h('select', { class: 'champ', 'aria-label': 'Étape', 'data-action': 'choisir-etape',
@@ -166,7 +179,11 @@ export function rendreFicheAffaire(conteneur, id) {
     if (!a) { introuvable(); return; }
     construire(a);
   }
-  const rafraichir = planifier(() => { if (!saisieEnCours(racine)) reconstruire(); });
+  const rafraichir = planifier(() => {
+    if (!saisieEnCours(racine)) { reconstruire(); return; }
+    majSelecteurs?.();
+    majLiens?.(); // une saisie est en cours (le choix dans le Résumé garde le focus) : la fiche n'est pas refaite, mais les liens du haut suivent
+  });
   reconstruire();
   const arrets = [D.surChangement(rafraichir), PD.surChangement(rafraichir)];
   return () => { arrets.forEach((f) => f()); panneau?.arreter(); };
