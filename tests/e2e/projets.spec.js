@@ -86,12 +86,12 @@ test('C29 menu « Projets » et bouton « + » : un projet se crée en ne tapant
   expect(p).toMatchObject({ phase: 'lancement', statut: 'actif', affaireId: null, archive: false, proprietaire: JEROME, dateDebut: jour(0) });
   await expect(page.locator(`.colonne[data-colonne="lancement"] .carte-projet[data-projet="${p.id}"]`)).toContainText('Site chevalier-ia.fr');
   for (const ph of ['decouverte', 'livraison', 'cloture']) await expect(page.locator(`.colonne[data-colonne="${ph}"] .carte-projet`)).toHaveCount(0);
-  // fil et journal : l'événement « Projet créé » et les lignes d'audit (projet + événement, même lot)
+  // fil et journal : l'événement « Projet créé » et les lignes d'audit (projet + événement + note épinglée de départ (I5), même lot)
   const ev = await attendre('crm_evenements', (e) => e.type === 'projet_cree');
   expect(ev).toMatchObject({ projetId: p.id, texte: 'Projet créé : Site chevalier-ia.fr' });
-  await expect.poll(async () => (await listerDocuments('crm_audit')).filter((l) => l.outil === 'creerProjet').length).toBe(2);
+  await expect.poll(async () => (await listerDocuments('crm_audit')).filter((l) => l.outil === 'creerProjet').length).toBe(3);
   const lignes = (await listerDocuments('crm_audit')).filter((l) => l.outil === 'creerProjet');
-  expect(lignes.map((l) => l.collection).sort()).toEqual(['crm_evenements', 'projets_projets']);
+  expect(lignes.map((l) => l.collection).sort()).toEqual(['crm_evenements', 'crm_notes', 'projets_projets']);
   const copie = await lireDocument(`crm_audit_avant/${lignes.find((l) => l.collection === 'projets_projets').id}`);
   expect(copie.apres.titre).toBe('Site chevalier-ia.fr');
 });
@@ -535,11 +535,11 @@ test('C30 fiche affaire : « Créer le projet » seulement pour une affaire gagn
   await expect(page).toHaveURL(new RegExp(`#/projets/projets/${p.id}$`));
   await expect(page.locator('[data-prop="affaire"]')).toContainText('Audit des Lilas');
   await expect(page.locator(`.colonne[data-colonne="lancement"] .carte-projet`)).toHaveCount(0); // (la fiche est ouverte, pas le tableau)
-  // audit : projet, affaire et événement écrits dans le même lot
-  await expect.poll(async () => (await listerDocuments('crm_audit')).filter((l) => l.outil === 'creerProjetDepuisAffaire').length).toBe(3);
+  // audit : projet, affaire, événement et note épinglée de départ (I5) écrits dans le même lot
+  await expect.poll(async () => (await listerDocuments('crm_audit')).filter((l) => l.outil === 'creerProjetDepuisAffaire').length).toBe(4);
   const lignes = (await listerDocuments('crm_audit')).filter((l) => l.outil === 'creerProjetDepuisAffaire');
   expect(new Set(lignes.map((l) => l.operationId)).size).toBe(1);
-  expect(lignes.map((l) => l.collection).sort()).toEqual(['crm_affaires', 'crm_evenements', 'projets_projets']);
+  expect(lignes.map((l) => l.collection).sort()).toEqual(['crm_affaires', 'crm_evenements', 'crm_notes', 'projets_projets']);
 });
 
 test('C30 « Lier un projet » : seuls les projets sans affaire sont proposés ; le projet garde ses informations et reprend ce qui lui manque', async ({ page }) => {
