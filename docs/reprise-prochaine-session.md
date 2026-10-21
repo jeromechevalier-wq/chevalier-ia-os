@@ -14,7 +14,7 @@ Jérôme a donné « GO NUIT » le 21/10/2026 au soir ; Claude a codé les idée
 | I7 : Propriétaire dans le Résumé | 163 | fusionnée |
 | I5 (et I8) : note de départ à la place du champ description (MCP compris) | 164 | fusionnée |
 | I10 : onglet Documents version 2 | 165 | fusionnée |
-| I9, I15 (début) : bouton « Filtres » de l'Historique ; bouton commun | 166 | voir `gh`/GitHub : fusionnée si la coche était verte |
+| I9, I15 (début) : bouton « Filtres » de l'Historique ; bouton commun | 166 | fusionnée |
 | Docs, version 2.19.0, tests remis dans la liste, workflow | cette PR | – |
 
 **À regarder à l'écran (recette de Jérôme)** : les « 5 vérifications » de chaque PR sont dans leur description (160 à 166). Les plus importantes : (1) créer une affaire : une carte « Cette affaire concerne… » grise apparaît dans les Points clés ; (2) une adresse `www.exemple.fr` dans une note est cliquable ; (3) Documents : « Dossier de travail … + Ajouter » et « Documents + Ajouter », date d'ajout ; (4) Propriétaire dans le Résumé ; (5) bouton « Filtres » de l'Historique.
