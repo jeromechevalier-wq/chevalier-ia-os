@@ -1,8 +1,9 @@
 # Tests sur chaque PR vers main : RAPIDE par défaut (niveau « rapide » puis « smoke », environ 3 à 4 minutes avec l'installation).
 # Le palier COMPLET (format ordinateur) ne tourne que dans trois cas (décision de Jérôme, 19/10/2026, avis de Fable) :
-#   1. la PR touche des fichiers sensibles (fonctions de la plateforme, règles de sécurité, configuration Firebase, workflows GitHub, tests) ; functions/ n'en fait plus partie (19/10/2026) : le niveau rapide en teste déjà les fonctions (test:fonctions) ;
+#   1. la PR touche des fichiers sensibles (fonctions de la plateforme, règles de sécurité, configuration Firebase, workflows GitHub, outillage des tests) ; functions/ n'en fait plus partie (19/10/2026) : le niveau rapide en teste déjà les fonctions (test:fonctions) ; un simple fichier de test ajouté ou modifié (tests/*.test.js, tests/e2e/*.spec.js) n'en fait plus partie (21/10/2026, voir la 4e étape ci-dessous) ;
 #   2. la PR porte l'étiquette « tests-complets » ;
 #   3. lancement à la main avec « complet » coché (par défaut).
+# En plus du rapide et du smoke, la PR rejoue SES propres parcours navigateur : les fichiers tests/e2e/*.spec.js qu'elle ajoute ou modifie (format ordinateur). Les fichiers de test unitaires modifiés tournent déjà dans le niveau rapide.
 # Le test complet (ordinateur + téléphone) rejoue tout chaque nuit : voir tests-nuit.yml (alerte par issue GitHub si la nuit est rouge).
 # Le résultat est la coche GitHub « Tests » : on fusionne quand elle est verte. Aucun secret : émulateurs Firebase, projet demo-chevalier-ia-os.
 name: Tests
@@ -50,8 +51,8 @@ jobs:
             echo "Lancement à la main : complet=$complet"
           else
             case ",$ETIQUETTES," in *,tests-complets,*) complet=true; echo "Étiquette tests-complets : palier complet." ;; esac
-            # Fichiers sensibles : fonctions de la plateforme, règles de sécurité, configuration Firebase, workflows GitHub, tests.
-            sensibles=$(git diff --name-only "$BASE" HEAD | grep -E '^(functions-plateforme/|firestore\.rules$|storage\.rules$|firebase[^/]*\.json$|\.github/workflows/|tests/)' || true)
+            # Fichiers sensibles : fonctions de la plateforme, règles de sécurité, configuration Firebase, workflows GitHub, outillage des tests (pas les fichiers de test eux-mêmes).
+            sensibles=$(git diff --name-only "$BASE" HEAD | grep -E '^(functions-plateforme/|firestore\.rules$|storage\.rules$|firebase[^/]*\.json$|\.github/workflows/|tests/(lancer-tout\.js|ports\.js|playwright\.config\.js|package\.json|package-lock\.json|e2e/outils\.js|e2e/serveur\.js)$)' || true)
             if [ -n "$sensibles" ]; then
               complet=true
               echo "Fichiers sensibles touchés : palier complet."
@@ -59,6 +60,13 @@ jobs:
             fi
           fi
           echo "complet=$complet" >> "$GITHUB_OUTPUT"
+          # Parcours navigateur ajoutés ou modifiés par la PR (chemins relatifs au dossier tests/, séparés par des espaces).
+          specs=""
+          if [ "$EVENEMENT" = "pull_request" ]; then
+            specs=$(git diff --name-only --diff-filter=AM "$BASE" HEAD | grep -E '^tests/e2e/[A-Za-z0-9._-]+\.spec\.js$' | sed 's#^tests/##' | tr '\n' ' ' || true)
+          fi
+          echo "specs=$specs" >> "$GITHUB_OUTPUT"
+          echo "Parcours de la PR : ${specs:-aucun}"
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -88,6 +96,13 @@ jobs:
       - name: Smoke (5 parcours essentiels dans le navigateur)
         if: steps.niveau.outputs.complet != 'true'
         run: npm run test:smoke
+        working-directory: tests
+      - name: Parcours de cette PR (fichiers tests/e2e/*.spec.js ajoutés ou modifiés, ordinateur)
+        if: steps.niveau.outputs.complet != 'true' && steps.niveau.outputs.specs != ''
+        env:
+          SPECS: ${{ steps.niveau.outputs.specs }}
+        # $SPECS non entouré de guillemets exprès : une liste de fichiers séparés par des espaces (noms limités à [A-Za-z0-9._-] plus haut).
+        run: node lancer-tout.js --e2e $SPECS --project=ordinateur
         working-directory: tests
       - name: Palier complet (ordinateur)
         if: steps.niveau.outputs.complet == 'true'
