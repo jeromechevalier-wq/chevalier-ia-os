@@ -3,7 +3,7 @@ import { h, icone, remplir, ouvrirMenu, toast, confirmer } from '../../os/ui.js'
 import * as CRM from '../crm/donnees.js';
 import * as L from '../crm/logique.js';
 import {
-  liensEntete, lienAffaire, champDescription, sectionRepliable, champPropriete, selecteurPersonne, selecteurOrganisation, titreEditable, selectProprietaire,
+  liensEntete, afficherSelecteur, lienAffaire, champDescription, sectionRepliable, champPropriete, selecteurPersonne, selecteurOrganisation, titreEditable, selectProprietaire,
   gabaritFiche, lienRetour, saisieEnCours, etatVide, planifier, boutonEtoile, iconeInfo,
 } from '../crm/composants.js';
 import { panneauActivite } from '../crm/activites.js';
@@ -27,6 +27,7 @@ const EXPLICATION_STATUT_PROJET = {
 export function rendreFicheProjet(conteneur, id) {
   let panneau = null;
   let panneauAffaireId = null;
+  let majSelecteurs = null; // met à jour l'affichage des cellules Personne / Organisation du Résumé (sans écrire)
   let majLiens = null; // redessine seulement les liens personne / organisation de l'en-tête
   let majFactures = null; // redessine la liste des factures seule, pendant une saisie dans le formulaire d'ajout
   let majTaches = null; // redessine la liste des tâches seule, quand on est en train de taper ailleurs dans la fiche
@@ -85,16 +86,23 @@ export function rendreFicheProjet(conteneur, id) {
       surEnregistrer: (v) => D.majProjet(p.id, { description: v }) });
 
     // ---- Résumé
-    const selPersonne = selecteurPersonne({ valeurId: p.personneId, surChoix: async (el) => {
-      if (!el) { if (D.projet(p.id)?.personneId) await D.majProjet(p.id, { personneId: null }); return; } // la croix retire la personne
-      if (el.id === p.personneId) return;
+    // Retirer (croix) écrit null ; taper dans la cellule ne retire rien (surChoix(null) sans `effacement`).
+    const selPersonne = selecteurPersonne({ valeurId: p.personneId, surChoix: async (el, info) => {
+      if (!el) { if (info?.effacement && D.projet(p.id)?.personneId) await D.majProjet(p.id, { personneId: null }); return; }
+      const courant = D.projet(p.id) || p;
+      if (el.id === courant.personneId) return;
       const nouveau = CRM.personne(el.id);
-      await D.majProjet(p.id, { personneId: el.id, ...(nouveau?.organisationId && !p.organisationId ? { organisationId: nouveau.organisationId } : {}) });
+      await D.majProjet(p.id, { personneId: el.id, ...(nouveau?.organisationId && !courant.organisationId ? { organisationId: nouveau.organisationId } : {}) });
     } });
-    const selOrg = selecteurOrganisation({ valeurId: p.organisationId, surChoix: async (el) => {
-      if (!el) { if (D.projet(p.id)?.organisationId) await D.majProjet(p.id, { organisationId: null }); return; } // la croix retire l'organisation
-      if (el.id !== p.organisationId) await D.majProjet(p.id, { organisationId: el.id });
+    const selOrg = selecteurOrganisation({ valeurId: p.organisationId, surChoix: async (el, info) => {
+      if (!el) { if (info?.effacement && D.projet(p.id)?.organisationId) await D.majProjet(p.id, { organisationId: null }); return; }
+      if (el.id !== (D.projet(p.id) || p).organisationId) await D.majProjet(p.id, { organisationId: el.id });
     } });
+    majSelecteurs = () => {
+      const c = D.projet(p.id) || p;
+      afficherSelecteur(selPersonne, c.personneId ? CRM.personne(c.personneId) : null, (x) => ({ id: x.id, libelle: x.nom }));
+      afficherSelecteur(selOrg, c.organisationId ? CRM.organisation(c.organisationId) : null, (x) => ({ id: x.id, libelle: x.nom }));
+    };
     const offres = CRM.etat.offres.filter((x) => x.actif !== false || x.id === p.offreId);
     /** Une date facultative : vide = effacer ; la fin ne précède pas le début (règle de logique.js, le message est celui de la règle). */
     const enregistrerDate = (champ) => async (v) => {
@@ -185,6 +193,7 @@ export function rendreFicheProjet(conteneur, id) {
   }
   const rafraichir = planifier(() => {
     if (!saisieEnCours(racine)) { reconstruire(); return; }
+    majSelecteurs?.();
     majLiens?.(); // les liens personne / organisation du haut suivent le choix fait dans le Résumé
     majFactures?.();
     majTaches?.(); // une saisie est en cours : la fiche n'est pas refaite, mais la liste des tâches suit (une tâche ajoutée apparaît tout de suite)

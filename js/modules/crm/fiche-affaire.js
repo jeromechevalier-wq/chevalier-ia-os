@@ -3,7 +3,7 @@ import { h, icone, remplir, ouvrirMenu, toast, dialogue, confirmer } from '../..
 import * as D from './donnees.js';
 import * as L from './logique.js';
 import {
-  liensEntete, champDescription, sectionRepliable, champPropriete, selecteurPersonne, selecteurOrganisation, titreEditable, selectProprietaire, gabaritFiche,
+  liensEntete, afficherSelecteur, champDescription, sectionRepliable, champPropriete, selecteurPersonne, selecteurOrganisation, titreEditable, selectProprietaire, gabaritFiche,
   lienRetour, saisieEnCours, pastilleStatut, etatVide, planifier, iconeInfo, EXPLICATION_STATUT_AFFAIRE,
 } from './composants.js';
 import { panneauActivite } from './activites.js';
@@ -41,6 +41,7 @@ async function ouvrirLiaisonProjet(a) {
 
 export function rendreFicheAffaire(conteneur, id) {
   let panneau = null;
+  let majSelecteurs = null; // met à jour l'affichage des cellules Personne / Organisation du Résumé (sans écrire)
   let majLiens = null; // redessine seulement les liens personne / organisation de l'en-tête
   const racine = h('div', { class: 'fiche-conteneur' });
   conteneur.append(racine);
@@ -101,16 +102,23 @@ export function rendreFicheAffaire(conteneur, id) {
       surEnregistrer: (v) => D.majAffaire(a.id, { description: v }) });
 
     // ---- Résumé
-    const selPersonne = selecteurPersonne({ valeurId: a.personneId, surChoix: async (el) => {
-      if (!el) { if (D.affaire(a.id)?.personneId) await D.majAffaire(a.id, { personneId: null }); return; } // la croix retire la personne
-      if (el.id === a.personneId) return;
+    // Retirer (croix) écrit null ; taper dans la cellule ne retire rien (surChoix(null) sans `effacement`).
+    const selPersonne = selecteurPersonne({ valeurId: a.personneId, surChoix: async (el, info) => {
+      if (!el) { if (info?.effacement && D.affaire(a.id)?.personneId) await D.majAffaire(a.id, { personneId: null }); return; }
+      const courant = D.affaire(a.id) || a;
+      if (el.id === courant.personneId) return;
       const nouveau = D.personne(el.id);
-      await D.majAffaire(a.id, { personneId: el.id, ...(nouveau?.organisationId && !a.organisationId ? { organisationId: nouveau.organisationId } : {}) });
+      await D.majAffaire(a.id, { personneId: el.id, ...(nouveau?.organisationId && !courant.organisationId ? { organisationId: nouveau.organisationId } : {}) });
     } });
-    const selOrg = selecteurOrganisation({ valeurId: a.organisationId, surChoix: async (el) => {
-      if (!el) { if (D.affaire(a.id)?.organisationId) await D.majAffaire(a.id, { organisationId: null }); return; } // la croix retire l'organisation
-      if (el.id !== a.organisationId) await D.majAffaire(a.id, { organisationId: el.id });
+    const selOrg = selecteurOrganisation({ valeurId: a.organisationId, surChoix: async (el, info) => {
+      if (!el) { if (info?.effacement && D.affaire(a.id)?.organisationId) await D.majAffaire(a.id, { organisationId: null }); return; }
+      if (el.id !== (D.affaire(a.id) || a).organisationId) await D.majAffaire(a.id, { organisationId: el.id });
     } });
+    majSelecteurs = () => {
+      const c = D.affaire(a.id) || a;
+      afficherSelecteur(selPersonne, c.personneId ? D.personne(c.personneId) : null, (x) => ({ id: x.id, libelle: x.nom }));
+      afficherSelecteur(selOrg, c.organisationId ? D.organisation(c.organisationId) : null, (x) => ({ id: x.id, libelle: x.nom }));
+    };
     const offres = D.etat.offres.filter((x) => x.actif !== false || x.id === a.offreId);
     /** L'étape, modifiable comme la phase d'un projet : même fonction que le Kanban (boîtes de dialogue, célébration, action suggérée). */
     const selectEtape = h('select', { class: 'champ', 'aria-label': 'Étape', 'data-action': 'choisir-etape',
@@ -173,6 +181,7 @@ export function rendreFicheAffaire(conteneur, id) {
   }
   const rafraichir = planifier(() => {
     if (!saisieEnCours(racine)) { reconstruire(); return; }
+    majSelecteurs?.();
     majLiens?.(); // une saisie est en cours (le choix dans le Résumé garde le focus) : la fiche n'est pas refaite, mais les liens du haut suivent
   });
   reconstruire();

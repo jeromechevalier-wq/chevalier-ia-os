@@ -51,6 +51,15 @@ export function liensEntete(lire) {
   return { element, maj };
 }
 
+/** Met à jour la valeur affichée d'un sélecteur (Personne, Organisation) sans rien écrire, sauf si on est en train de taper dedans. */
+export function afficherSelecteur(selecteur, element, versChoix) {
+  if (document.activeElement === selecteur.entree) return;
+  const actuel = selecteur.choix();
+  const voulu = element ? versChoix(element) : null;
+  if ((actuel?.id ?? null) === (voulu?.id ?? null)) return;
+  selecteur.afficher(voulu);
+}
+
 export function lienAffaire(a) {
   return a ? lien(cheminAffaire(a.id), a.titre) : null;
 }

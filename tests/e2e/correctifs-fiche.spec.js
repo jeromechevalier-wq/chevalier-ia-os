@@ -45,6 +45,7 @@ for (const [nomFiche, creer, hash, chemin] of [
 
     await choisirDansResume(page, 'Personne', 'Sophie', 'Sophie Martin');
     await expect(liens.getByRole('link', { name: 'Sophie Martin' })).toBeVisible();
+    await expect(cellule(page, 'Personne').locator('input')).toBeFocused(); // le champ garde le focus après le choix
     await choisirDansResume(page, 'Organisation', 'Atelier', 'Atelier Lumière');
     await expect(liens.getByRole('link', { name: 'Atelier Lumière' })).toBeVisible();
     expect(await memeEntete(page)).toBe(true);
@@ -58,6 +59,32 @@ for (const [nomFiche, creer, hash, chemin] of [
     expect(await memeEntete(page)).toBe(true);
     await expect.poll(async () => { const d = await lireDocument(chemin); return [d.personneId, d.organisationId]; }).toEqual([null, null]);
   });
+}
+
+for (const [nomFiche, creer, hash, chemin, liaison] of [
+  ['affaire', () => creerAffaire('a1', { titre: 'Audit des Lilas', personneId: 'p1', organisationId: 'o1' }), '#/crm/affaires/a1', 'crm_affaires/a1', ['Personne', 'Organisation']],
+  ['projet', () => creerProjet('pr1', { titre: 'Refonte du site', personneId: 'p1', organisationId: 'o1' }), '#/projets/projets/pr1', 'projets_projets/pr1', ['Personne', 'Organisation']],
+]) {
+  for (const libelle of liaison) {
+    if (nomFiche === 'projet' && libelle === 'Organisation') continue; // sur le projet, la personne suffit (la même règle sert aux deux)
+    test(`I2 ${nomFiche} : taper dans la cellule « ${libelle} » déjà remplie puis Échap ne retire pas le lien`, async ({ page }) => {
+      await creerPersonne('p1', { nom: 'Sophie Martin' });
+      await creerOrganisation('o1', { nom: 'Atelier Lumière' });
+      await creer();
+      await connecter(page);
+      await aller(page, hash);
+      const nom = libelle === 'Personne' ? 'Sophie Martin' : 'Atelier Lumière';
+      const liens = page.locator('.fiche-tete .fiche-sous');
+      await expect(liens.getByRole('link', { name: nom })).toBeVisible();
+      await cellule(page, libelle).locator('input').click();
+      await page.keyboard.type('x');
+      await page.keyboard.press('Escape');
+      await attendreCalme(page);
+      await expect(liens.getByRole('link', { name: nom })).toBeVisible();
+      const d = await lireDocument(chemin);
+      expect([d.personneId, d.organisationId]).toEqual(['p1', 'o1']);
+    });
+  }
 }
 
 test('I13 fiche personne : le nom de l\'organisation, « Détacher » et « Changer » sont alignés sur la même ligne', async ({ page }) => {
@@ -92,7 +119,10 @@ test('I18 Accueil : plus de bouton « + Personne » dans l\'en-tête ni dans le 
   // Le « + » du haut propose « Personne » et ouvre la création d'une personne.
   await page.locator(estTelephone(page) ? '.bouton-plus-mobile' : '.bouton-plus:not(.bouton-plus-mobile)').click();
   await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Personne' })).toBeVisible();
-  await capture(page, 'I18-accueil-plus');
+  await page.keyboard.press('Escape');
+  await page.locator('.page-accueil .etat-vide', { hasText: 'Ajoute ta première personne' }).scrollIntoViewIfNeeded();
+  await capture(page, 'I18-accueil-vide-sans-bouton-personne');
+  await page.locator(estTelephone(page) ? '.bouton-plus-mobile' : '.bouton-plus:not(.bouton-plus-mobile)').click();
   await page.locator('.menu-pop').getByRole('menuitem', { name: 'Personne' }).click();
   await expect(dialogue(page)).toContainText('Ajouter une personne');
   await page.keyboard.press('Escape');
