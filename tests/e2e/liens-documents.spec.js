@@ -430,14 +430,12 @@ test.describe('Google branché (simulé)', () => {
       await ligne.locator('[data-action="ajouter-dossier"]').click();
       await expect(ligne.locator('.boutons-liens button')).toHaveText(['Créer un dossier dans Google Drive', 'Lier un dossier Google Drive existant']);
       // « Créer un dossier dans Google Drive » : nom prérempli (celui de la fiche), modifiable ; crée le dossier et les sous-dossiers des Réglages.
-      if (!(await page.locator('[data-role="choix-dossier"]').count())) await page.locator('[data-action="ajouter-dossier"]').click(); // « + Ajouter » ouvre les deux choix
       await ligne.locator('[data-action="creer-dossier-ouvrir"]').click();
       await expect(page.locator('[data-champ="nom-dossier"]')).toHaveValue(titre);
       await ligne.locator('[data-action="annuler-dossier"]').click();
       await expect(ligne.locator('[data-action="lier-dossier"]')).toHaveCount(0); // annuler referme aussi les choix : retour à « + Ajouter »
       await ligne.locator('[data-action="ajouter-dossier"]').click();
       await expect(ligne.locator('[data-action="lier-dossier"]')).toBeVisible();
-      if (!(await page.locator('[data-role="choix-dossier"]').count())) await page.locator('[data-action="ajouter-dossier"]').click(); // « + Ajouter » ouvre les deux choix
       await ligne.locator('[data-action="creer-dossier-ouvrir"]').click();
       await ligne.locator('[data-action="creer-dossier"]').click();
       await champDoc(collection, id, 'urlDossier', dossierDrive(numero === 1 ? 1 : 4));

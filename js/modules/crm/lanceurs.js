@@ -7,7 +7,7 @@ import { h, icone, remplir, toast } from '../../os/ui.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
 import * as PD from '../projets/donnees.js';
-import { iconeInfo } from './composants.js';
+import { iconeInfo, boutonAjouter } from './composants.js';
 import { googleDisponible, preparerGoogle, obtenirJeton, oublierJeton, ouvrirFenetreGoogle } from '../../os/google-picker.js';
 import { retirerAvecAnnulation } from '../../os/retrait.js';
 import { creerArborescence, nettoyerNomDossier, idDossierDrive, trouverDossierDeMemeNom, adresseDossierDrive, preparerDossierParent, nomDossierParentAuto } from '../../os/google-drive.js';
@@ -105,7 +105,14 @@ export function creerLanceurs({ fiche, typeFiche = 'affaire', nomSuggere = '', e
 
   const annuler = () => { formulaires.delete(cle); afficherDossier(); };
   const ouvrir = (mode, valeur) => { formulaires.set(cle, { mode, valeur }); afficherDossier(); };
-  const basculerChoix = () => { if (formulaires.get(cle)?.mode === 'choix') formulaires.delete(cle); else formulaires.set(cle, { mode: 'choix' }); afficherDossier(); };
+  // Ouvre ou referme les deux choix ; le bouton « + Ajouter » est redessiné, donc on remet le focus clavier (sur le premier choix à l'ouverture, sur « + Ajouter » à la fermeture).
+  const basculerChoix = () => {
+    const ouvrait = formulaires.get(cle)?.mode === 'choix';
+    if (ouvrait) formulaires.delete(cle); else formulaires.set(cle, { mode: 'choix' });
+    afficherDossier();
+    if (ouvrait) zoneDossier.querySelector('[data-action="ajouter-dossier"]')?.focus();
+    else zoneDossier.querySelector('[data-role="choix-dossier"] button')?.focus();
+  };
 
   function formulaireCreation(etatForm) {
     const champNom = h('input', { class: 'champ', type: 'text', 'aria-label': 'Nom du dossier à créer', value: etatForm.valeur, maxlength: '200', dataset: { champ: 'nom-dossier' }, autocapitalize: 'off', spellcheck: false });
@@ -180,8 +187,8 @@ export function creerLanceurs({ fiche, typeFiche = 'affaire', nomSuggere = '', e
     const lier = google ? boutonPetit('Lier un dossier Google Drive existant', 'link', 'lier-dossier', (e) => lierDossierExistant(e.currentTarget)) : null;
     const choix = ouvert?.mode === 'choix'
       ? h('div', { class: 'boutons-liens', dataset: { role: 'choix-dossier' } }, peutCreer ? boutonPetit('Créer un dossier dans Google Drive', 'folder-plus', 'creer-dossier-ouvrir', () => ouvrir('creer', nomSuggere)) : null, lier) : null;
-    remplir(zoneDossier, h('button', { type: 'button', class: 'prop-vide', dataset: { action: 'ajouter-dossier' }, 'aria-label': 'Ajouter un dossier de travail', 'aria-expanded': String(!!choix), onclick: basculerChoix },
-      icone('plus', { taille: 14 }), 'Ajouter'), choix);
+    choix?.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); basculerChoix(); } });
+    remplir(zoneDossier, boutonAjouter({ libelleAria: 'Ajouter un dossier de travail', action: 'ajouter-dossier', surClic: basculerChoix, attributs: { 'aria-expanded': String(!!choix) } }), choix);
   }
 
   afficheurs.set(cle, afficherDossier);

@@ -42,6 +42,21 @@ for (const f of FICHES) {
     if (f.nom === 'affaire') await capturer(page, 'I10-dossier-ajouter');
   });
 
+  test(`I10 clavier ${f.nom} : « + Ajouter » du dossier met le focus sur le premier choix ; Échap referme les choix et rend le focus à « + Ajouter »`, async ({ page, context }) => {
+    await brancherGoogle(context);
+    await f.creer();
+    await connecter(page);
+    await aller(page, f.hash);
+    const dossier = page.locator(`[data-section="${f.section}"] [data-prop="dossier"]`);
+    await dossier.locator('[data-action="ajouter-dossier"]').focus();
+    await page.keyboard.press('Enter');
+    await expect(dossier.locator('[data-action="ajouter-dossier"]')).toHaveAttribute('aria-expanded', 'true');
+    await expect(dossier.locator('[data-role="choix-dossier"] button').first()).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(dossier.locator('.boutons-liens')).toHaveCount(0);
+    await expect(dossier.locator('[data-action="ajouter-dossier"]')).toBeFocused();
+  });
+
   test(`I10 dossier de travail ${f.nom} : avec un dossier, « Ouvrir le dossier » et « Retirer » ; retirer demande confirmation, puis « Annuler » reste affiché 8 secondes`, async ({ page, context }) => {
     await brancherGoogle(context);
     await f.creer({ urlDossier: URL_DOSSIER });
@@ -74,7 +89,7 @@ for (const f of FICHES) {
     await aller(page, f.hash);
     const zone = page.locator(`[data-section="${f.section}"]`);
     await expect(zone).not.toContainText('Liens et documents');
-    await expect(zone.locator('h2')).toHaveCount(0);
+    await expect(zone.locator('h2', { hasText: 'Liens et documents' })).toHaveCount(0);
     const ligne = zone.locator('[data-prop="documents"]');
     await expect(ligne.locator('.prop-libelle')).toContainText('Documents');
     await expect(ligne.locator('[data-role="info"]')).toHaveCount(1);

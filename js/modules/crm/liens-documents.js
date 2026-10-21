@@ -7,7 +7,7 @@
 import { h, icone, remplir, toast, dialogue } from '../../os/ui.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
-import { boutonEtoile, iconeInfo } from './composants.js';
+import { boutonEtoile, iconeInfo, boutonAjouter } from './composants.js';
 import { retirerAvecAnnulation } from '../../os/retrait.js';
 import { googleDisponible, preparerGoogle, ouvrirFenetreGoogle, obtenirJeton } from '../../os/google-picker.js';
 import { idDossierDrive, documentDepuisChoix, copierFichier, infoFichier, etatCopie, TYPE_DOSSIER } from '../../os/google-drive.js';
@@ -172,8 +172,7 @@ export function sectionLiensEtDocuments({ id, typeFiche, entite, courant, enregi
   remplir(liste, ...lignes());
 
   // Ligne « Documents  + Ajouter » : toujours au-dessus de la liste. Sans Google branché, aucun ajout possible : une phrase le dit.
-  const boutonGoogle = google ? h('button', { type: 'button', class: 'prop-vide', dataset: { action: 'ajouter-document-google' }, 'aria-label': 'Ajouter un document', onclick: () => choisirDansGoogle(boutonGoogle) },
-    icone('plus', { taille: 14 }), 'Ajouter') : h('span', { class: 'aide', dataset: { role: 'google-absent-documents' } }, 'Google Drive n’est pas branché ici : on ne peut pas ajouter de document.');
+  const boutonGoogle = google ? boutonAjouter({ libelleAria: 'Ajouter un document', action: 'ajouter-document-google', surClic: () => choisirDansGoogle(boutonGoogle) }) : h('span', { class: 'aide', dataset: { role: 'google-absent-documents' } }, 'Google Drive n’est pas branché ici : on ne peut pas ajouter de document.');
   afficherFormulaire();
 
   const ligneDocuments = h('div', { class: 'prop', dataset: { prop: 'documents' } },
