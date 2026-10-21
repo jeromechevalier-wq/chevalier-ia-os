@@ -973,12 +973,14 @@ export function nomCourtLien(url) {
 /** Note facultative d'un lien ou d'un document : texte court, une seule ligne, 300 caractères au plus. */
 export const nettoyerNote = (note) => nettoyerEspaces(note).slice(0, LONGUEUR_MAX_NOTE);
 
-export function ajouterDocument(affaire, libelle, url, favori = false, note = '') {
+/** `ajouteLe` (facultatif) : date et heure de l'ajout (texte ISO), gardées avec le document ; les anciens documents n'en ont pas. */
+export function ajouterDocument(affaire, libelle, url, favori = false, note = '', ajouteLe = '') {
   const u = nettoyerEspaces(url);
   if (!/^https?:\/\//i.test(u)) return { erreurs: { url: "L'adresse doit commencer par http:// ou https://" }, patch: {} };
   const doc = { libelle: nettoyerEspaces(libelle) || nomCourtLien(u), url: u };
   if (nettoyerNote(note)) doc.note = nettoyerNote(note);
   if (favori === true) doc.favori = true;
+  if (typeof ajouteLe === 'string' && versDate(ajouteLe)) doc.ajouteLe = ajouteLe;
   return { erreurs: {}, patch: { documents: [...(affaire.documents || []), doc] } };
 }
 
@@ -1053,9 +1055,9 @@ export function majUrlDossier(url) {
  */
 export function liensEtDocuments(entite) {
   const documents = entite?.documents || [];
-  const liens = documents.map((d, index) => ({ libelle: d.libelle || nomCourtLien(d.url), url: d.url, note: d.note || '', favori: d.favori === true, index }));
+  const liens = documents.map((d, index) => ({ libelle: d.libelle || nomCourtLien(d.url), url: d.url, note: d.note || '', favori: d.favori === true, ajouteLe: typeof d.ajouteLe === 'string' ? d.ajouteLe : '', index }));
   const github = nettoyerEspaces(entite?.urlGithub);
-  if (github && !Object.keys(validerUrlGithub(github)).length && !documents.some((d) => d.url === github)) liens.push({ libelle: 'GitHub', url: github, note: '', favori: false, index: -1 });
+  if (github && !Object.keys(validerUrlGithub(github)).length && !documents.some((d) => d.url === github)) liens.push({ libelle: 'GitHub', url: github, note: '', favori: false, ajouteLe: '', index: -1 });
   return liens;
 }
 

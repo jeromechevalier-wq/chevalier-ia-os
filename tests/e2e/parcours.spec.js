@@ -895,10 +895,10 @@ test('C21 fiche affaire : barre des étapes, Gagnée, montant modifiable, docume
   await champDoc('crm_affaires', 'a1', 'statut', 'gagnee');
   // Document
   await ouvrirDocuments(page);
-  await page.locator('[data-action="ajouter-lien"]').click();
-  await page.getByLabel('Lien web', { exact: true }).fill('https://drive.google.com/devis');
-  await page.getByLabel('Nom (facultatif)').fill('Devis');
-  await page.locator('[data-action="valider-lien"]').click();
+  // Plus de bouton « Ajouter un lien web » : le lien d'essai est écrit directement dans la base, et il reste affiché.
+  await expect(page.locator('[data-action="ajouter-lien"]')).toHaveCount(0);
+  await ecrireDocument('crm_affaires/a1', { ...(await lireDocument('crm_affaires/a1')), documents: [{ libelle: 'Devis', url: 'https://drive.google.com/devis' }] });
+  await expect(page.locator('[data-section="affaire-documents"]').getByRole('link', { name: 'Devis' })).toHaveAttribute('href', 'https://drive.google.com/devis');
   await champDoc('crm_affaires', 'a1', 'documents', [{ libelle: 'Devis', url: 'https://drive.google.com/devis' }]);
   // Plus d'encaissement manuel sur l'affaire (2.2) : l'argent se saisit sur les factures du projet
   await expect(page.locator('[data-action="ajouter-encaissement"]')).toHaveCount(0);
@@ -1119,7 +1119,7 @@ async function fixtureEliot(extra = {}) {
   await creerAffaire('a1', { titre: 'création appli devis dépannage', personneId: 'p1', organisationId: 'o1', ...extra });
 }
 
-test('C24 plus de champ GitHub ni de « Créer le GitHub » : une ancienne adresse reste visible dans « Liens et documents » (lien « GitHub »), se retire sans toucher au reste', async ({ page }) => {
+test('C24 plus de champ GitHub ni de « Créer le GitHub » : une ancienne adresse reste visible dans l’onglet « Documents » (lien « GitHub »), se retire sans toucher au reste', async ({ page }) => {
   await fixtureEliot();
   await connecter(page);
   await aller(page, '#/crm/affaires/a1');
@@ -1135,7 +1135,8 @@ test('C24 plus de champ GitHub ni de « Créer le GitHub » : une ancienne adres
   await aller(page, '#/crm/affaires/a1');
   await ouvrirDocuments(page);
   const liens = page.locator('[data-section="affaire-documents"]');
-  await expect(liens).toContainText('Liens et documents');
+  await expect(liens).not.toContainText('Liens et documents'); // le titre a disparu ; la ligne s'appelle « Documents »
+  await expect(liens.locator('[data-prop="documents"] .prop-libelle')).toContainText('Documents');
   await expect(liens.getByRole('link', { name: 'GitHub' })).toHaveAttribute('href', 'https://github.com/jeromechevalier-wq/eliot-devis-depannage');
   await expect(page.locator('[data-prop="github"]')).toHaveCount(0); // plus de ligne à part dans « Détails »
   expect((await lireDocument('crm_affaires/a1')).urlGithub).toBe('https://github.com/jeromechevalier-wq/eliot-devis-depannage');
@@ -1152,14 +1153,15 @@ test('C25 dossier de travail d\'une affaire : sans Google, aucun champ ; un anci
   await creerAffaire('a2', { titre: 'Autre affaire', urlDossier: 'https://exemple.fr/espace/carrel' });
   await creerAffaire('a3', { titre: 'Sans dossier' });
   await connecter(page);
-  // Sans dossier et sans Google : aucun champ pour coller une adresse, aucun bouton ; le texte renvoie vers « Liens et documents ».
+  // Sans dossier et sans Google : aucun champ pour coller une adresse, aucun bouton ; le texte dit que Google Drive n'est pas branché.
   await aller(page, '#/crm/affaires/a3');
   await ouvrirDocuments(page);
   const ligne = page.locator('[data-prop="dossier"]');
   await expect(ligne.locator('.prop-libelle')).toContainText('Dossier de travail');
   await expect(ligne.locator('[data-role="info"]')).toHaveCount(1); // l'explication tient dans une icône « i »
   await expect(page.locator('[data-champ="dossier"], [data-action="enregistrer-dossier"], [data-action="lier-dossier"], [data-action="creer-dossier-ouvrir"]')).toHaveCount(0);
-  await expect(ligne.locator('[data-role="google-absent"]')).toContainText('« Liens et documents »');
+  await expect(ligne.locator('[data-role="google-absent"]')).toContainText('Google Drive n’est pas branché ici');
+  await expect(ligne.locator('[data-action="ajouter-dossier"]')).toHaveCount(0);
   // Un ancien dossier de NAS : affiché en texte (un navigateur n'ouvre pas smb://), pas de « Modifier », « Retirer » seulement.
   await aller(page, '#/crm/affaires/a1');
   await ouvrirDocuments(page);

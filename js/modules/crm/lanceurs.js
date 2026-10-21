@@ -1,13 +1,13 @@
 // « Dossier de travail » d'une affaire OU d'un projet : le même composant pour les deux.
-// Sans dossier : deux boutons, « Créer un dossier dans Google Drive » (si l'option « Créer un dossier dans Google Drive » est allumée et que Google est branché :
-// crée le dossier et ses sous-dossiers des Réglages, puis enregistre son lien) et « Lier un dossier existant » (n'importe quel lien : Drive, serveur, NAS, site…).
-// Avec un dossier : Ouvrir, Modifier, Retirer.
-// L'ancienne « Adresse GitHub » n'est plus un champ : elle est reprise comme lien « GitHub » dans la liste « Liens et documents » (projet et affaire).
+// Ligne « Dossier de travail  + Ajouter ». Sans dossier, « + Ajouter » propose deux choix : « Créer un dossier dans Google Drive » (si l'option « Créer un dossier dans Google Drive »
+// est allumée et que Google est branché : crée le dossier et ses sous-dossiers des Réglages, puis enregistre son lien) et « Lier un dossier Google Drive existant ».
+// Avec un dossier : « Ouvrir le dossier » et « Retirer » (confirmation, puis « Retiré · Annuler » 8 secondes).
+// L'ancienne « Adresse GitHub » n'est plus un champ : elle est reprise comme lien « GitHub » dans la liste des documents (projet et affaire).
 import { h, icone, remplir, toast } from '../../os/ui.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
 import * as PD from '../projets/donnees.js';
-import { iconeInfo } from './composants.js';
+import { iconeInfo, boutonAjouter } from './composants.js';
 import { googleDisponible, preparerGoogle, obtenirJeton, oublierJeton, ouvrirFenetreGoogle } from '../../os/google-picker.js';
 import { retirerAvecAnnulation } from '../../os/retrait.js';
 import { creerArborescence, nettoyerNomDossier, idDossierDrive, trouverDossierDeMemeNom, adresseDossierDrive, preparerDossierParent, nomDossierParentAuto } from '../../os/google-drive.js';
@@ -58,14 +58,14 @@ export function projetsUtilisantDossier(url, sauf = null) {
   return (PD.etat.projets || []).filter((p) => p.id !== sauf && p.urlDossier && (p.urlDossier === cible || (idCible && idDossierDrive(p.urlDossier) === idCible))).map((p) => ({ id: p.id, titre: p.titre }));
 }
 
-const EXPLICATION = 'Le dossier où ranger les fichiers de cette fiche : un dossier créé dans Google Drive, ou un dossier Google Drive qui existe déjà. Une adresse web (serveur, NAS, site) se met dans « Liens et documents ».';
+const EXPLICATION = 'Le dossier où ranger les fichiers de cette fiche : un dossier créé dans Google Drive, ou un dossier Google Drive qui existe déjà. Une adresse web (serveur, NAS, site) se met dans une note.';
 const formulaires = new Map(); // formulaire ouvert (la fiche est redessinée quand des données arrivent : il ne doit pas disparaître)
 const afficheurs = new Map(); // fiche → fonction qui redessine la ligne la plus récente (la fiche peut être redessinée pendant une écriture : on redessine alors la nouvelle ligne, pas l'ancienne)
 
 /**
  * La ligne « Dossier de travail de cette fiche », en haut de l'onglet « Documents » (affaire et projet, identique).
  * - fiche : l'affaire ou le projet ; enregistrer(patch) l'écrit ; typeFiche : 'affaire' ou 'projet' ; nomSuggere : nom proposé pour le dossier à créer.
- * Renvoie { github: null, dossier } (l'ancienne adresse GitHub est dans la liste « Liens et documents », avec le libellé « GitHub »).
+ * Renvoie { github: null, dossier } (l'ancienne adresse GitHub est dans la liste des documents, avec le libellé « GitHub »).
  */
 export function creerLanceurs({ fiche, typeFiche = 'affaire', nomSuggere = '', enregistrer }) {
   const etat = { urlDossier: fiche.urlDossier || '' };
@@ -105,6 +105,14 @@ export function creerLanceurs({ fiche, typeFiche = 'affaire', nomSuggere = '', e
 
   const annuler = () => { formulaires.delete(cle); afficherDossier(); };
   const ouvrir = (mode, valeur) => { formulaires.set(cle, { mode, valeur }); afficherDossier(); };
+  // Ouvre ou referme les deux choix ; le bouton « + Ajouter » est redessiné, donc on remet le focus clavier (sur le premier choix à l'ouverture, sur « + Ajouter » à la fermeture).
+  const basculerChoix = () => {
+    const ouvrait = formulaires.get(cle)?.mode === 'choix';
+    if (ouvrait) formulaires.delete(cle); else formulaires.set(cle, { mode: 'choix' });
+    afficherDossier();
+    if (ouvrait) zoneDossier.querySelector('[data-action="ajouter-dossier"]')?.focus();
+    else zoneDossier.querySelector('[data-role="choix-dossier"] button')?.focus();
+  };
 
   function formulaireCreation(etatForm) {
     const champNom = h('input', { class: 'champ', type: 'text', 'aria-label': 'Nom du dossier à créer', value: etatForm.valeur, maxlength: '200', dataset: { champ: 'nom-dossier' }, autocapitalize: 'off', spellcheck: false });
@@ -162,7 +170,7 @@ export function creerLanceurs({ fiche, typeFiche = 'affaire', nomSuggere = '', e
 
   function afficherDossier() {
     const ouvert = formulaires.get(cle);
-    if (ouvert) { remplir(zoneDossier, formulaireCreation(ouvert)); return; }
+    if (ouvert && ouvert.mode === 'creer') { remplir(zoneDossier, formulaireCreation(ouvert)); return; }
     if (etat.urlDossier) {
       // Un ancien lien (serveur, NAS, site) reste affiché et ouvrable comme avant ; seule une adresse web est un lien cliquable.
       const sure = !Object.keys(L.validerUrlDossier(etat.urlDossier)).length && /^https?:/i.test(etat.urlDossier);
@@ -171,10 +179,16 @@ export function creerLanceurs({ fiche, typeFiche = 'affaire', nomSuggere = '', e
         boutonPetit('Retirer', 'x', 'retirer-dossier', retirerDossier)));
       return;
     }
+    if (!peutCreer && !google) {
+      remplir(zoneDossier, h('p', { class: 'aide', dataset: { role: 'google-absent' } }, 'Aucun dossier de travail. Google Drive n’est pas branché ici : on ne peut ni créer ni lier de dossier.'));
+      return;
+    }
+    // « + Ajouter » (comme « Offre  + Ajouter » du Résumé) ouvre les deux choix ; le même clic les referme.
     const lier = google ? boutonPetit('Lier un dossier Google Drive existant', 'link', 'lier-dossier', (e) => lierDossierExistant(e.currentTarget)) : null;
-    remplir(zoneDossier, h('div', { class: 'boutons-liens' },
-      peutCreer ? boutonPetit('Créer un dossier dans Google Drive', 'folder-plus', 'creer-dossier-ouvrir', () => ouvrir('creer', nomSuggere)) : null, lier),
-      !peutCreer && !google ? h('p', { class: 'aide', dataset: { role: 'google-absent' } }, 'Aucun dossier de travail. Google Drive n’est pas branché ici : ajoute une adresse dans « Liens et documents ».') : null);
+    const choix = ouvert?.mode === 'choix'
+      ? h('div', { class: 'boutons-liens', dataset: { role: 'choix-dossier' } }, peutCreer ? boutonPetit('Créer un dossier dans Google Drive', 'folder-plus', 'creer-dossier-ouvrir', () => ouvrir('creer', nomSuggere)) : null, lier) : null;
+    choix?.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); basculerChoix(); } });
+    remplir(zoneDossier, boutonAjouter({ libelleAria: 'Ajouter un dossier de travail', action: 'ajouter-dossier', surClic: basculerChoix, attributs: { 'aria-expanded': String(!!choix) } }), choix);
   }
 
   afficheurs.set(cle, afficherDossier);

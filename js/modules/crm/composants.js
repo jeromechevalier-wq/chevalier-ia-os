@@ -184,11 +184,11 @@ export function sectionRepliable({ id, titre, contenu, actions = [], ouverte = t
  * La ligne « Étiquette  + Ajouter » (texte jaune sans cadre) : le style unique pour ajouter à une liste ou à un champ.
  * `fantome` (facultatif) : un texte gris d'exemple (ex. « 999 € ») affiché à la place de « + Ajouter » ; ce n'est jamais une vraie valeur.
  */
-export function boutonAjouter({ libelleAria, surClic, fantome = null, action = null }) {
-  return h('button', { type: 'button', class: `prop-vide${fantome ? ' prop-fantome' : ''}`, onclick: surClic, 'aria-label': libelleAria, 'data-action': action },
+export function boutonAjouter({ libelleAria, surClic, fantome = null, action = null, attributs = {} }) {
+  return h('button', { type: 'button', class: `prop-vide${fantome ? ' prop-fantome' : ''}`, onclick: surClic, 'aria-label': libelleAria, 'data-action': action, ...attributs },
     ...(fantome ? [fantome] : [icone('plus', { taille: 14 }), 'Ajouter']));
 }
-export function ligneAjouter({ libelle, libelleAria, surClic, action = null }) {
+export function ligneAjouter({ libelle, libelleAria, surClic, action = null }) { // (sans icône « i » : voir liens-documents.js pour une ligne avec « i »)
   return h('div', { class: 'prop prop-ajouter' }, h('span', { class: 'prop-libelle' }, libelle),
     h('div', { class: 'prop-valeur' }, boutonAjouter({ libelleAria: libelleAria || `Ajouter : ${libelle}`, surClic, action })));
 }

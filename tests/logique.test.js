@@ -1152,9 +1152,9 @@ describe('B19 Liens et documents, dossier de travail (affaires et projets)', () 
   test('B19 « Liens et documents » : les documents, puis l\'ancienne adresse GitHub (libellé « GitHub ») sans rien écrire ; pas de doublon', () => {
     const projet = { documents: [{ libelle: 'Devis', url: 'https://drive.google.com/file/d/abc/view', favori: true }, { url: 'https://exemple.fr/x' }], urlGithub: 'https://github.com/a/b' };
     assert.deepEqual(L.liensEtDocuments(projet), [
-      { libelle: 'Devis', url: 'https://drive.google.com/file/d/abc/view', note: '', favori: true, index: 0 },
-      { libelle: 'exemple.fr', url: 'https://exemple.fr/x', note: '', favori: false, index: 1 }, // sans nom : le nom du site
-      { libelle: 'GitHub', url: 'https://github.com/a/b', note: '', favori: false, index: -1 },
+      { libelle: 'Devis', url: 'https://drive.google.com/file/d/abc/view', note: '', favori: true, ajouteLe: '', index: 0 },
+      { libelle: 'exemple.fr', url: 'https://exemple.fr/x', note: '', favori: false, ajouteLe: '', index: 1 }, // sans nom : le nom du site
+      { libelle: 'GitHub', url: 'https://github.com/a/b', note: '', favori: false, ajouteLe: '', index: -1 },
     ]);
     assert.equal(projet.urlGithub, 'https://github.com/a/b', 'la donnée ancienne n\'est pas modifiée');
     assert.deepEqual(L.liensEtDocuments({ documents: [{ libelle: 'Dépôt', url: 'https://github.com/a/b' }], urlGithub: 'https://github.com/a/b' }).map((l) => l.libelle), ['Dépôt'], 'déjà dans la liste : pas deux fois');

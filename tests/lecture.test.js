@@ -138,6 +138,12 @@ describe('Listes', () => {
     assert.equal((await lecture.listerDocuments(donnees, { affaireId: 'a2' })).total, 0);
     assert.equal((await lecture.listerDocuments(donnees, { projetId: 'inconnu' })).total, 0, 'un projet inconnu ne renvoie rien');
   });
+  test('I10 lister_documents renvoie la date d’ajout (ajouteLe) quand elle existe, et rien pour un ancien document', async () => {
+    const faux = { liste: async () => [{ id: 'a9', titre: 'Essai', documents: [{ libelle: 'Neuf', url: 'https://exemple.test/n', ajouteLe: '2026-10-21T20:30:00.000Z' }, { libelle: 'Ancien', url: 'https://exemple.test/a' }] }], document: async () => null };
+    const r = await lecture.listerDocuments(faux, {});
+    assert.equal(r.documents[0].ajouteLe, '2026-10-21T20:30:00.000Z');
+    assert.equal('ajouteLe' in r.documents[1], false);
+  });
 });
 
 describe('Réglages et audit', () => {
