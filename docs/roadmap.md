@@ -19,7 +19,7 @@ Une fiche créée par l'assistant sans `proprietaire` reçoit l'e-mail de la per
 
 **Idées mises en pause (décision de Jérôme, 19/10/2026)** : choix automatique des ports de test et « guichet » (une seule suite d'écran à la fois). Les sessions ne lancent plus que de petits tests en développement et les gros tests tournent sur GitHub ; à reconsidérer seulement si les collisions reviennent (signes dans la fiche « Sessions en parallèle et tests » du second cerveau).
 
-**Reste à faire** : audit complet « ce qui diffère entre mon espace et un espace client » (section Membres, Objectifs du mois, options par défaut) ; second passage du look compact (valeurs en dur hors barème) ; aide client publique ; audit de sécurité Fable avant le vendredi 23/10/2026 07h00 ; chantier ChatGPT sur le MCP de Jérôme ; e-mail à Ingrid le mercredi 21/10/2026, après l'essai réel de Jérôme.
+**Reste à faire** : audit complet « ce qui diffère entre mon espace et un espace client » (section Membres, Objectifs du mois, options par défaut) ; second passage du look compact (valeurs en dur hors barème) ; aide client publique ; audit de sécurité Fable avant le vendredi 23/10/2026 07h00 ; chantier ChatGPT sur le MCP de Jérôme ; e-mail à Ingrid : fait le 21/10/2026 par un appel téléphonique, Ingrid utilise désormais le CRM.
 
 ## Vocabulaire et registre du menu (18/10/2026, PR 127, version 2.12.0)
 

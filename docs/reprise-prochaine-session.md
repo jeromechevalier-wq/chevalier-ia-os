@@ -1,17 +1,14 @@
 # À faire au début de la prochaine session
 
-Écrit le 04/10/2026, mis à jour le 07/10/2026 à la fin du chantier Projets, pour qu'une session neuve reprenne sans que Jérôme ait à recoller quoi que ce soit. **À mettre à jour ou à supprimer une fois les points faits.**
+Écrit le 04/10/2026, mis à jour le 21/10/2026, pour qu'une session neuve reprenne sans que Jérôme ait à recoller quoi que ce soit. **À mettre à jour ou à supprimer une fois les points faits.**
 
-## Champ texte libre sur les affaires et les projets (19/10/2026) : décidé, à développer
+## État au 21/10/2026
 
-Décision de Jérôme, maquette validée le 19/10/2026. **Développé le 19/10/2026 (version 2.16.0, PR « champ-texte-libre »), en attente du « fusionne » de Jérôme** : champ `description` sur les affaires et les projets (écran `champDescription` dans `composants.js`, outils MCP `creer_affaire`/`modifier_affaire`/`creer_projet`/`modifier_projet`/`creer_projet_depuis_affaire`, le projet créé ou lié reprend le texte de l'affaire), tests TL1 à TL6, captures dans `~/chantiers-crm/captures-texte-libre/`. Hauteur de départ : 4 lignes, à confirmer avec Jérôme. **Règle voulue par Jérôme : une capture ou une maquette avant tout développement d'un écran.**
-
-- **Quoi** : un champ texte de plusieurs lignes, **sans titre**, tout en haut de la colonne de gauche de la fiche d'une **affaire** et d'un **projet**, **au-dessus du bloc « Résumé »** (qui reste la liste des champs clés). Jérôme ou Claude le tiennent à jour pour dire de quoi parle l'affaire ou le projet. Sa hauteur est **fixe à 4 lignes** (décision de Jérôme du 20/10/2026) : au-delà, un ascenseur apparaît, le champ ne grandit pas. Police d'au moins 16 px sur téléphone.
-- **Texte d'invitation** : quand le champ est vide, il affiche un texte gris qui **disparaît dès le clic** (et revient si le champ est vidé). Sur une affaire : « Cette affaire concerne… (le besoin du client, ce qu'on lui propose, où on en est) ». Sur un projet : « Ce projet concerne… (ce qu'on construit, pour qui, où on en est) ».
-- **Outils MCP** : ils doivent savoir lire et écrire ce champ sur une affaire et sur un projet. L'outil `ajouter_note` ne sait pas écrire dans un projet, et une note n'est pas le bon endroit (journal daté). Un projet créé depuis une affaire peut reprendre son texte.
-- **Pas de tags** sur les affaires et les projets (décision du 19/10/2026) : le préfixe du dossier dit déjà pour qui.
-- **Chantier lié** : allègement des fiches Affaires et Projets (trop de champs affichés). Point de départ : un inventaire champ par champ (« je le regarde » / « jamais »), puis décision avec Jérôme.
-- **Détail et raisons** : dans le second cerveau, fiches `Plateforme clients - décisions du module Automatisations et de la veille` et `Idée - affaires et projets dans le CRM de Chevalier IA OS`.
+- **Premier client réel en service (21/10/2026)** : Ingrid utilise désormais le CRM. Appel téléphonique fait par Jérôme ce jour ; les 8 tâches de préparation du projet « Accompagnement Ingrid » étaient faites. L'e-mail prévu ce jour n'est plus à envoyer (l'appel l'a remplacé). Elle remontera ce qu'elle remarque : traiter ses retours en petites PR. Aucun détail de client dans ce dépôt public.
+- **Synchronisation GitHub vérifiée le 21/10/2026** : `main` est au commit 66dbc52 (PR 155), la branche de session le contient, rien n'est en retard.
+- **Champ texte libre : fusionné** (PR 145 en 2.16.0, PR 149 en 2.16.2 : hauteur fixe de 4 lignes avec ascenseur, 16 px au moins sur téléphone). Plus rien à reprendre. **Reste du chantier lié** : allègement des fiches Affaires et Projets (trop de champs affichés), inventaire champ par champ (« je le regarde » / « jamais ») puis décision avec Jérôme. Pas de tags sur les affaires et projets (décision du 19/10/2026). Détail : second cerveau, fiches `Plateforme clients - décisions du module Automatisations et de la veille` et `Idée - affaires et projets dans le CRM de Chevalier IA OS`. Règle de Jérôme : une capture ou une maquette avant tout développement d'un écran.
+- **En premier : idées d'amélioration du module Affaires et Projets.** Jérôme va les soumettre. Méthode convenue : (1) numéroter chaque idée (I1, I2…) ; (2) questionner Jérôme sur chacune jusqu'à la comprendre (cas vide, cas d'erreur, ce qu'il voit à l'écran) ; (3) les prioriser avec toutes les autres pistes de `roadmap.md` (audit des différences Jérôme / clients, second passage du look compact, aide client publique, audit de sécurité Fable avant le 23/10/2026 07h00, chantier ChatGPT sur le MCP, allègement des fiches). Le tableau des idées numérotées vivra dans `docs/idees-affaires-projets.md` (à créer à la première idée).
+- **En attente de Jérôme** : jugement sur les captures du look compact (`~/chantiers-crm/captures-look-compact/`) ; PR 115 (CLAUDE.md, emplacement du clone).
 
 ## Vocabulaire et registre du menu (18/10/2026) : PR 127, version 2.12.0
 
