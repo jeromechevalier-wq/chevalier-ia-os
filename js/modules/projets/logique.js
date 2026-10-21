@@ -7,7 +7,7 @@ import {
   COLLECTIONS_PLAN, MARQUES_CREATION, MARQUES_MODIFICATION,
   ecritureCreer, ecritureModifier, ecritureSupprimer, ecritureNoteDeDepart, evenements, modifierSiPatch, evenementCreation, evenementsDocuments,
   nettoyerEspaces, aujourdhuiParis, validerUrlGithub, validerUrlDossier, urlOuVide, normaliser, ajouterJours,
-  planChangerEtape, planMarquerPerdue, formatEuros, configDe, TYPES_ACTIVITE, texteNoteEpingleeAffaire,
+  planChangerEtape, planMarquerPerdue, formatEuros, configDe, TYPES_ACTIVITE, noteEpingleeAffaire,
 } from '../crm/logique.js';
 
 const C = COLLECTIONS_PLAN;
@@ -747,7 +747,7 @@ export const projetsLiables = (projets) => (projets || []).filter((p) => !p.affa
  * (`valeurs` peut en changer). Même plan : l'affaire reçoit `projetId`. Refus : { erreurs, ecritures: [] }.
  * `notesAffaire` : les notes de l'affaire ; le texte de sa note épinglée est COPIÉ dans la note épinglée de départ du projet (I5).
  */
-export function planCreerProjetDepuisAffaire({ affaire, projets = [], valeurs = {}, modele = null, notesAffaire = [] }, ctx) {
+export function planCreerProjetDepuisAffaire({ affaire, projets = [], valeurs = {}, modele = null, notesAffaire = [], texteNote }, ctx) {
   const erreurs = validerLienAffaire({ affaire, projets });
   if (Object.keys(erreurs).length) return { erreurs, ecritures: [] };
   const id = ctx.nouvelId(C.projets);
@@ -756,7 +756,9 @@ export function planCreerProjetDepuisAffaire({ affaire, projets = [], valeurs = 
     urlGithub: affaire.urlGithub, urlDossier: affaire.urlDossier, ...valeurs, affaireId: affaire.id,
     ...(modele ? { modeleId: modele.id } : {}),
   }, ctx);
-  const note = ecritureNoteDeDepart(liensProjet({ ...fiche, id }), ctx, texteNoteEpingleeAffaire(notesAffaire, affaire.id));
+  // `texteNote` (ancien paramètre MCP `description`) l'emporte sur la copie de la note de l'affaire.
+  const originale = texteNote !== undefined && texteNote !== null ? null : noteEpingleeAffaire(notesAffaire, affaire.id);
+  const note = ecritureNoteDeDepart(liensProjet({ ...fiche, id }), ctx, originale?.texte ?? texteNote ?? '', { copieDeNoteId: originale?.id ?? null });
   return {
     erreurs: {},
     id,
@@ -890,10 +892,10 @@ export const projetsDePhase = (projets, phase) => (projets || []).filter((p) => 
  * `ctx.nouvelId(collection)` donne un identifiant frais. L'appelant valide d'abord (`validerProjet`).
  * `modele` (facultatif) : le projet part avec les tâches du modèle (dates calculées d'après le début du projet).
  */
-export function planCreerProjet(valeurs, ctx, { modele = null } = {}) {
+export function planCreerProjet(valeurs, ctx, { modele = null, texteNote = '' } = {}) {
   const id = ctx.nouvelId(C.projets);
   const fiche = nouveauProjet(modele ? { ...valeurs, modeleId: modele.id } : valeurs, ctx);
-  const note = ecritureNoteDeDepart(liensProjet({ ...fiche, id }), ctx);
+  const note = ecritureNoteDeDepart(liensProjet({ ...fiche, id }), ctx, texteNote);
   return {
     id,
     titre: fiche.titre,

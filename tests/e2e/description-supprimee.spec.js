@@ -108,34 +108,40 @@ test('I5 projet créé depuis une affaire : il reçoit une COPIE du texte de la 
   await capture(page, '3-copie');
 });
 
-test('I5 désépinglée ou supprimée, la note vide ne revient pas (ni après un rechargement)', async ({ page }) => {
+test('I5 supprimée (croix d’une note vide) ou désépinglée (note écrite), la note ne revient pas (ni après un rechargement)', async ({ page }) => {
   await creerAffaire('a1', { titre: 'Audit des Lilas' });
   await creerProjet('pr1', { titre: 'Refonte site' });
   await noteVide('nv1', { affaireId: 'a1' });
-  await ecrireDocument('crm_notes/nv2', { texte: 'Épinglée puis supprimée', epinglee: true, personneId: null, organisationId: null, affaireId: null, projetId: 'pr1', auteur: JEROME, creeLe: new Date(), modifieLe: new Date() });
+  await ecrireDocument('crm_notes/nv2', { texte: 'Note de départ déjà écrite', epinglee: true, personneId: null, organisationId: null, affaireId: null, projetId: 'pr1', auteur: JEROME, creeLe: new Date(), modifieLe: new Date() });
   await connecter(page);
   await aller(page, '#/crm/affaires/a1');
-  await page.locator('.points-cles [data-action="desepingler-note"]').click();
-  await expect.poll(async () => (await lireDocument('crm_notes/nv1')).epinglee).toBe(false);
+  // Note VIDE : la croix la supprime (pas de document orphelin), après confirmation ; « Annuler » est proposé pendant 8 s.
+  await expect(page.locator('.points-cles [data-action="desepingler-note"]')).toHaveCount(0);
+  await page.locator('.points-cles [data-action="supprimer-note-vide"]').click();
+  await expect(dialogue(page)).toContainText('Supprimer cette note vide ?');
+  await dialogue(page).getByRole('button', { name: 'Supprimer' }).click();
+  await expect.poll(async () => lireDocument('crm_notes/nv1')).toBeNull();
+  await expect(page.locator('.toast', { hasText: 'Note supprimée' })).toContainText('Annuler');
   await expect(page.locator('.points-cles .note-epinglee')).toHaveCount(0);
   await expect(page.locator('.historique .fil-note')).toHaveCount(0);
   await page.reload();
   await attendreCalme(page);
   await expect(page.locator('.points-cles')).toBeVisible();
   await expect(page.locator('.points-cles .note-epinglee')).toHaveCount(0);
-  await capture(page, '4-desepinglee');
-  // Projet : on supprime la note depuis l'historique ; elle ne revient pas non plus.
+  await capture(page, '4-supprimee');
+  // Note écrite : la croix la désépingle ; elle reste dans l'historique et ne revient pas en haut.
   await aller(page, '#/projets/projets/pr1');
-  await page.locator('.historique .fil-note [data-action="supprimer-note"]').click();
-  await dialogue(page).getByRole('button', { name: 'Supprimer' }).click();
-  await expect.poll(async () => (await listerDocuments('crm_notes')).some((d) => d.id === 'nv2')).toBe(false);
+  await page.locator('.points-cles [data-action="desepingler-note"]').click();
+  await expect.poll(async () => (await lireDocument('crm_notes/nv2')).epinglee).toBe(false);
   await expect(page.locator('.points-cles .note-epinglee')).toHaveCount(0);
   await page.reload();
   await attendreCalme(page);
   await expect(page.locator('.points-cles')).toBeVisible();
   await expect(page.locator('.points-cles .note-epinglee')).toHaveCount(0);
+  await expect(page.locator('.historique .fil-note')).toContainText('Note de départ déjà écrite');
   expect((await listerDocuments('crm_notes')).filter((d) => d.epinglee).length).toBe(0);
 });
+
 
 test('I5 cas vide : une affaire ou un projet déjà existant ne reçoit pas de note, même ouvert ; un ancien texte « description » resté en base n’est plus affiché', async ({ page }) => {
   await creerAffaire('a1', { titre: 'Audit des Lilas', description: 'Ancien texte libre' });
@@ -163,6 +169,7 @@ test('I5 cas d’erreur : si l’enregistrement échoue, un message le dit et le
   await champ.fill('Texte à garder');
   // La note disparaît de la base pendant la frappe (supprimée ailleurs) : l'enregistrement est refusé.
   await fetch(`${FIRESTORE}/v1/projects/${PROJET}/databases/(default)/documents/crm_notes/nv1`, { method: 'DELETE', headers: { Authorization: 'Bearer owner' } });
+  await page.waitForTimeout(1500); // la suppression arrive à l'écran pendant la frappe : le rendu attend qu'on quitte le champ
   await page.locator('.fiche-titre input.titre-editable').click();
   await expect(page.locator('.toast', { hasText: 'Enregistrement impossible' })).toBeVisible();
   await expect(champ).toHaveValue('Texte à garder');

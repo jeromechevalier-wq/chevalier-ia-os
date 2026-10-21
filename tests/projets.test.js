@@ -500,12 +500,12 @@ describe('B28 Affaire gagnée : créer ou lier un projet', () => {
     const plan = P.planCreerProjetDepuisAffaire({ affaire, notesAffaire }, c());
     const note = par(plan.ecritures)['creer:crm_notes'];
     assert.equal(plan.noteId, note.id);
-    assert.deepEqual([note.donnees.texte, note.donnees.epinglee, note.donnees.projetId, note.donnees.affaireId, note.donnees.personneId, note.donnees.organisationId],
-      ['Appli de commande pour la boulangerie.\nDevis envoyé.', true, plan.id, 'a1', 'p1', 'o1']);
+    assert.deepEqual([note.donnees.texte, note.donnees.epinglee, note.donnees.projetId, note.donnees.affaireId, note.donnees.personneId, note.donnees.organisationId, note.donnees.copieDeNoteId],
+      ['Appli de commande pour la boulangerie.\nDevis envoyé.', true, plan.id, 'a1', 'p1', 'o1', 'n1']);
     assert.deepEqual(note.horodater, ['creeLe', 'modifieLe']);
     assert.equal(par(plan.ecritures)['creer:projets_projets'].donnees.description, undefined, 'le champ description n’existe plus');
     const sans = par(P.planCreerProjetDepuisAffaire({ affaire: gagnee() }, c()).ecritures)['creer:crm_notes'].donnees;
-    assert.deepEqual([sans.texte, sans.epinglee], ['', true]);
+    assert.deepEqual([sans.texte, sans.epinglee, 'copieDeNoteId' in sans], ['', true, false]);
     const videAffaire = par(P.planCreerProjetDepuisAffaire({ affaire: gagnee(), notesAffaire: [{ id: 'nv', texte: '', epinglee: true, affaireId: 'a1' }] }, c()).ecritures)['creer:crm_notes'].donnees;
     assert.equal(videAffaire.texte, '');
     const lien = P.planLierProjet({ affaire, projet: libre() }, c());

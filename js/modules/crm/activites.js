@@ -355,8 +355,11 @@ export function panneauActivite({ lien, liensCreation, avecActivites = true, aff
     return h('li', { class: 'note-epinglee note-epinglee-vide', dataset: { note: n.id } },
       icone('pin', { taille: 14 }),
       h('div', { class: 'note-epinglee-corps' }, champ),
-      h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Désépingler la note', title: 'Désépingler', 'data-action': 'desepingler-note',
-        onclick: () => D.epinglerNote(n.id, false).then(() => toast('Note désépinglée')).catch((e) => { console.warn(e); toast('Modification impossible', { type: 'erreur' }); }) }, icone('x', { taille: 14 })));
+      // Sur une note VIDE, la croix la supprime (désépinglée, elle resterait en base sans jamais s'afficher) ; confirmation puis « Annuler » pendant 8 s.
+      h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Supprimer la note vide', title: 'Supprimer', 'data-action': 'supprimer-note-vide',
+        onclick: () => retirerAvecAnnulation({
+          titre: 'Supprimer cette note vide ?', message: 'Elle ne reviendra pas : tu pourras toujours écrire une note dans l’onglet « Notes ».', libelleOk: 'Supprimer', danger: true,
+          faire: () => D.supprimerNote(n.id), defaire: () => D.restaurerNote(n), messageFait: 'Note supprimée' }) }, icone('x', { taille: 14 })));
   }
 
   function rendreHistorique() {

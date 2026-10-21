@@ -27,14 +27,14 @@ describe('I5 note épinglée de départ', () => {
     assert.deepEqual(L.notesEpinglees([{ ...vide, epinglee: false }], { affaireId: 'a1' }), []);
   });
 
-  test('I5 la copie faite à la création du projet et la note de l’affaire (même texte) ne s’affichent qu’une fois : celle de la fiche est gardée', () => {
-    const originale = note('orig', { texte: 'Besoin : une appli.', epinglee: true, creeLe: new Date('2026-10-01') });
-    const copie = note('copie', { texte: 'Besoin : une appli.', epinglee: true, projetId: 'pr1', creeLe: new Date('2026-10-05') });
-    assert.deepEqual(L.notesEpinglees([originale, copie], { affaireId: 'a1' }).map((n) => n.id), ['orig']);
-    assert.deepEqual(L.notesEpinglees([originale, copie], { projetId: 'pr1' }).map((n) => n.id), ['copie']);
-    assert.equal(L.notesEpinglees([originale, copie], { personneId: 'p1' }).length, 1);
-    // Textes différents : les deux restent.
-    assert.equal(L.notesEpinglees([originale, { ...copie, texte: 'Modifiée' }], { affaireId: 'a1' }).length, 2);
+  test('I5 (a) deux vraies notes épinglées « OK » de la même affaire, sans lien de copie : les deux restent (Points clés et historique)', () => {
+    const n1 = note('ok1', { texte: 'OK', epinglee: true, creeLe: new Date('2026-10-01') });
+    const n2 = note('ok2', { texte: 'OK', epinglee: true, creeLe: new Date('2026-10-02') });
+    const visibles = L.sansCopiesDeNote([n1, n2], { affaireId: 'a1' });
+    assert.deepEqual(L.notesEpinglees(visibles, { affaireId: 'a1' }).map((n) => n.id), ['ok2', 'ok1']);
+    assert.deepEqual(L.entreesHistorique({ notes: visibles }).map((e) => e.element.id), ['ok2', 'ok1']);
+    // Même avec une note de projet au même texte, sans lien de copie : rien n'est masqué.
+    assert.equal(L.sansCopiesDeNote([n1, note('p', { texte: 'OK', epinglee: true, projetId: 'pr1' })], { affaireId: 'a1' }).length, 2);
   });
 
   test('I5 texte copié vers le projet : la note épinglée de l’affaire la plus ANCIENNE qui a un texte ; jamais une note d’un projet ni une note non épinglée', () => {
@@ -63,15 +63,16 @@ describe('I5 note épinglée de départ', () => {
     assert.equal(audit[0][0].donnees.docId, 'crm_notes_1');
   });
 
-  test('I5 pas de doublon visible : la copie (projet) et l’originale (affaire) au même texte ne s’affichent qu’une fois, dans les Points clés comme dans l’historique', () => {
+  test('I5 (b) originale de l’affaire + copie du projet (copieDeNoteId) au même texte : une seule s’affiche, celle de la fiche ouverte (sinon l’originale)', () => {
     const originale = note('orig', { texte: 'Besoin : une appli.', epinglee: true, creeLe: new Date('2026-10-01') });
-    const copie = note('copie', { texte: 'Besoin : une appli.', epinglee: true, projetId: 'pr1', creeLe: new Date('2026-10-05') });
+    const copie = note('copie', { texte: 'Besoin : une appli.', epinglee: true, projetId: 'pr1', copieDeNoteId: 'orig', creeLe: new Date('2026-10-05') });
     const libre = note('libre', { texte: 'Besoin : une appli.', creeLe: new Date('2026-10-06') });
     const ids = (liste) => liste.map((n) => n.id).sort();
     assert.deepEqual(ids(L.sansCopiesDeNote([originale, copie, libre], { affaireId: 'a1' })), ['libre', 'orig']);
     assert.deepEqual(ids(L.sansCopiesDeNote([copie, { ...originale, deAffaire: true }, libre], { projetId: 'pr1' })), ['copie', 'libre']);
-    assert.deepEqual(ids(L.sansCopiesDeNote([originale, copie], { personneId: 'p1' })), ['orig'], 'ailleurs : la plus ancienne');
-    assert.deepEqual(ids(L.sansCopiesDeNote([originale, { ...copie, texte: 'Modifiée' }], { affaireId: 'a1' })), ['copie', 'orig']);
+    assert.deepEqual(ids(L.sansCopiesDeNote([originale, copie], { personneId: 'p1' })), ['orig'], 'ailleurs : l’originale');
+    assert.deepEqual(ids(L.sansCopiesDeNote([originale, { ...copie, texte: 'Modifiée' }], { affaireId: 'a1' })), ['copie', 'orig'], 'textes différents : les deux');
+    assert.deepEqual(ids(L.sansCopiesDeNote([originale, { ...copie, epinglee: false }], { affaireId: 'a1' })), ['copie', 'orig'], 'copie désépinglée : les deux');
     assert.deepEqual(L.sansCopiesDeNote([]), []);
   });
 

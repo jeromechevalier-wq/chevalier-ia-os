@@ -2,6 +2,10 @@
 // TL4 à TL6 sont adaptés : ils vérifient sur cette note ce qu'ils vérifiaient sur le champ (invitation grisée, enregistrement en quittant, Échap).
 import { test, expect, attendreCalme, connecter, creerAffaire, creerProjet, ecrireDocument, lireDocument, JEROME } from './outils.js';
 
+// Ce bac à sable n'a pas accès à apis.google.com : le script est remplacé par un fichier vide (sinon « erreur console » sans rapport avec le test).
+test.beforeEach(async ({ context }) => {
+  await context.route('https://apis.google.com/**', (route) => route.fulfill({ status: 200, body: '', headers: { 'Content-Type': 'text/javascript' } }));
+});
 async function aller(page, hash) { await page.evaluate((h) => { location.hash = h; }, hash); await attendreCalme(page); }
 const noteVide = (id, liens) => ecrireDocument(`crm_notes/${id}`, { texte: '', epinglee: true, personneId: null, organisationId: null, affaireId: null, auteur: JEROME, creeLe: new Date(), modifieLe: new Date(), ...liens });
 

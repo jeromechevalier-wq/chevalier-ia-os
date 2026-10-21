@@ -131,7 +131,7 @@ export async function listerAffaires(donnees, { etape, statut, archive, personne
     sansAction: !!sansAction,
   };
   const gardees = L.filtrerAffaires(affaires, criteres, { activites, personnes, organisations, aujourdhui });
-  const lignes = gardees.map((a) => ({ ...a, personne: nomDe(personnes, a.personneId), organisation: nomDe(organisations, a.organisationId) }));
+  const lignes = gardees.map((a) => ({ ...sansDescription(a), personne: nomDe(personnes, a.personneId), organisation: nomDe(organisations, a.organisationId) }));
   const { total, tronque, elements } = borne(lignes, Math.min(limite ?? MAX_LIGNES, MAX_LIGNES));
   return serialiser({ total, tronque, affaires: elements });
 }
@@ -174,7 +174,7 @@ export async function listerProjets(donnees, { phase, statut, archive, affaireId
   if (personneId) gardes = gardes.filter((p) => p.personneId === personneId);
   if (organisationId) gardes = gardes.filter((p) => p.organisationId === organisationId);
   const lignes = L.trier(gardes, (p) => L.normaliser(p.titre)).map((p) => ({
-    ...p, personne: nomDe(personnes, p.personneId), organisation: nomDe(organisations, p.organisationId),
+    ...sansDescription(p), personne: nomDe(personnes, p.personneId), organisation: nomDe(organisations, p.organisationId),
     avancement: PL.progressionProjet(PL.tachesDuProjet(taches, p.id, config)), facturation: config.options.suiviPaiements ? resumeFacturation(p) : null,
   }));
   const { total, tronque, elements } = borne(lignes, Math.min(limite ?? MAX_LIGNES, MAX_LIGNES));
