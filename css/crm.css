@@ -496,3 +496,9 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 .onglet-documents-tete { display: flex; align-items: center; justify-content: space-between; gap: var(--esp-4); }
 .onglet-documents-tete .sous-titre { margin-bottom: 0; }
 .onglet .compteur { margin-left: var(--esp-1); }
+/* Liens personne / organisation de l'en-tête : le bloc se redessine seul, il ne change pas la mise en page. */
+.fiche-sous > .fiche-liens { display: contents; }
+.fiche-sous .fiche-liens > span { display: inline-flex; align-items: center; gap: var(--esp-2); }
+/* Fiche personne, section Organisation : le nom et les boutons « Détacher » / « Changer » sont centrés sur la même ligne (I13). */
+.contact-ligne.ligne-organisation { align-items: center; flex-wrap: wrap; }
+.contact-ligne.ligne-organisation .icone { margin-top: 0; }

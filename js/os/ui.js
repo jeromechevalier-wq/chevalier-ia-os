@@ -343,7 +343,7 @@ export function ouvrirMenu(ancre, items, { placement = 'bas', id = null } = {}) 
  * options :
  *  - fournir(saisie) : { resultats: [{ id, libelle, sousTitre?, segments }], creer?: texte } ou
  *                      { groupes: [{ titre, resultats }], creer?: texte }
- *  - surChoix(element) : appelé quand on choisit un résultat (null quand le choix est effacé)
+ *  - surChoix(element, info) : appelé quand on choisit un résultat (null quand le choix est effacé ; info.effacement = vrai quand c'est la croix ou effacer(), faux si on a seulement tapé)
  *  - surCreation(texte) : (async) crée la valeur et renvoie un élément { id, libelle } (ou null)
  *  - multiple : plusieurs valeurs, affichées en pastilles ; valeur : élément initial (ou liste si multiple)
  *  - libre : le texte tapé est la valeur (ville) ; texteInitial
@@ -368,7 +368,7 @@ export function champIntelligent({
   const liste = h('ul', { class: 'suggestions', id: idListe, role: 'listbox', 'aria-label': `Suggestions : ${etiquette || placeholder || 'liste'}`, hidden: true });
   const pastilles = h('span', { class: 'champ-intelligent-pastilles' });
   const effacer = h('button', { type: 'button', class: 'champ-intelligent-effacer', 'aria-label': 'Effacer', hidden: true, tabindex: '-1',
-    onclick: () => { definir(null); entree.focus(); } }, icone('x', { taille: 14 }));
+    onclick: () => { definir(null, { effacement: true }); entree.focus(); } }, icone('x', { taille: 14 }));
   const racine = h('div', { class: `champ-intelligent${multiple ? ' multiple' : ''} ${classe}` },
     nomIcone ? icone(nomIcone, { taille: 16, classe: 'champ-intelligent-icone' }) : null,
     multiple ? h('div', { class: 'champ-intelligent-zone champ' }, pastilles, entree) : entree,
@@ -463,11 +463,18 @@ export function champIntelligent({
       surChoix(el);
     }
   }
-  function definir(el) {
+  /** `info` (facultatif) est transmis à surChoix : { effacement: true } = le choix a été retiré exprès (croix, effacer()), pas par la frappe. */
+  function definir(el, info) {
     choix = multiple ? (el || []) : el;
     if (!multiple && !el) entree.value = '';
     synchroniser();
-    surChoix(choix);
+    surChoix(choix, info);
+  }
+  /** Change ce qui est affiché SANS appeler surChoix (la valeur vient d'ailleurs, rien à enregistrer). */
+  function afficher(el) {
+    choix = multiple ? (el || []) : el;
+    if (!multiple && !el) entree.value = '';
+    synchroniser();
   }
 
   entree.addEventListener('focus', () => clearTimeout(minuteurBlur));
@@ -511,7 +518,8 @@ export function champIntelligent({
     choix: () => choix,
     texte: () => entree.value.trim(),
     definir,
-    effacer: () => definir(multiple ? [] : null),
+    afficher,
+    effacer: () => definir(multiple ? [] : null, { effacement: true }),
     focus: () => entree.focus(),
     fermer: fermerListe,
   };
