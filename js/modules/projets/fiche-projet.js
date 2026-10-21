@@ -3,7 +3,7 @@ import { h, icone, remplir, ouvrirMenu, toast, confirmer } from '../../os/ui.js'
 import * as CRM from '../crm/donnees.js';
 import * as L from '../crm/logique.js';
 import {
-  liensEntete, afficherSelecteur, lienAffaire, champDescription, sectionRepliable, champPropriete, selecteurPersonne, selecteurOrganisation, titreEditable, selectProprietaire,
+  liensEntete, afficherSelecteur, lienAffaire, sectionRepliable, champPropriete, selecteurPersonne, selecteurOrganisation, titreEditable, selectProprietaire,
   gabaritFiche, lienRetour, saisieEnCours, etatVide, planifier, boutonEtoile, iconeInfo,
 } from '../crm/composants.js';
 import { panneauActivite } from '../crm/activites.js';
@@ -78,11 +78,6 @@ export function rendreFicheProjet(conteneur, id) {
             liens.element)),
         h('div', { class: 'fiche-actions' }, actions, menu)),
       barreDesPhases(p));
-
-    // ---- Description libre : en haut de la colonne, sans titre
-    const description = champDescription({ valeur: p.description || '', libelle: 'Description du projet',
-      invitation: 'Ce projet concerne… (ce qu’on construit, pour qui, où on en est)',
-      surEnregistrer: (v) => D.majProjet(p.id, { description: v }) });
 
     // ---- Résumé
     // Retirer (croix) écrit null ; taper dans la cellule ne retire rien (surChoix(null) sans `effacement`).
@@ -183,7 +178,7 @@ export function rendreFicheProjet(conteneur, id) {
       });
     }
     panneau.majDocuments(documents);
-    remplir(racine, gabaritFiche({ entete, gauche: [description, resume.element, taches.element, factures?.element].filter(Boolean), droite: panneau.element }));
+    remplir(racine, gabaritFiche({ entete, gauche: [resume.element, taches.element, factures?.element].filter(Boolean), droite: panneau.element }));
   }
 
   function reconstruire() {

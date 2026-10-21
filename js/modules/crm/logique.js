@@ -574,12 +574,6 @@ export function nettoyerEspaces(texte) {
   return String(texte ?? '').replace(/\s+/g, ' ').trim();
 }
 
-/** Description libre d'une affaire ou d'un projet : les retours à la ligne sont gardés, les espaces de début et de fin retirés, 5000 caractères au plus. */
-export const LONGUEUR_MAX_TEXTE_LIBRE = 5000;
-export function nettoyerDescription(texte) {
-  return String(texte ?? '').replace(/\r\n?/g, '\n').trim().slice(0, LONGUEUR_MAX_TEXTE_LIBRE);
-}
-
 /** "Marie Durand" -> { prenom: "Marie", nomFamille: "Durand" } ; un seul mot -> nom de famille seul. */
 export function decouperNom(nom) {
   const t = nettoyerEspaces(nom);
@@ -828,7 +822,6 @@ export function nouvelleAffaire(valeurs, ctx) {
     dureeJours: valeurs.dureeJours ?? null,
     source: valeurs.source || '',
     besoin: valeurs.besoin || '',
-    description: nettoyerDescription(valeurs.description),
     dateEntreeEtape: ctx.maintenant,
     datesEtapes: { [etape]: ctx.maintenant },
     raisonPerdue: '',
@@ -1230,9 +1223,67 @@ export function nouvelleNote(texte, liens, ctx) {
   };
 }
 
-/** Notes épinglées d'une fiche, les plus récentes d'abord. */
-export function notesEpinglees(notes) {
-  return notes.filter((n) => n.epinglee).sort((a, b) => (versDate(b.creeLe)?.getTime() ?? 0) - (versDate(a.creeLe)?.getTime() ?? 0));
+/** Textes d'invitation (grisés) de la note épinglée de départ, tant qu'elle est vide (I5). */
+export const INVITATION_NOTE_AFFAIRE = 'Cette affaire concerne… (le besoin du client, ce qu’on lui propose, où on en est)';
+export const INVITATION_NOTE_PROJET = 'Ce projet concerne… (ce qu’on construit, pour qui, où on en est)';
+
+/** Une note sans texte : la note épinglée de départ d'une affaire ou d'un projet tant qu'on n'y a rien écrit (I5). */
+export const estNoteVide = (n) => !nettoyerEspaces(n?.texte);
+
+/**
+ * La note appartient-elle à la fiche ouverte (`lien` : { affaireId } ou { projetId }) ? Une note de projet porte aussi l'affaire du projet :
+ * sur la fiche affaire, elle n'est pas « à elle ». Sur une personne ou une organisation, aucune note n'est « à elle » au sens de I5.
+ */
+export function estNoteDeLaFiche(n, lien = {}) {
+  if (lien?.projetId) return n.projetId === lien.projetId;
+  if (lien?.affaireId) return n.affaireId === lien.affaireId && !n.projetId;
+  return false;
+}
+
+/**
+ * Notes épinglées d'une fiche, les plus récentes d'abord. Une note vide (note de départ, I5) n'apparaît que sur SA fiche (`lien`), jamais sur la personne,
+ * l'organisation ou le projet lié. (Le doublon « note de l'affaire / sa copie dans le projet » est retiré avant, par `sansCopiesDeNote`.)
+ */
+export function notesEpinglees(notes, lien = null) {
+  return notes.filter((n) => n.epinglee && (!estNoteVide(n) || estNoteDeLaFiche(n, lien)))
+    .sort((a, b) => (versDate(b.creeLe)?.getTime() ?? 0) - (versDate(a.creeLe)?.getTime() ?? 0));
+}
+
+/**
+ * Note épinglée de départ, créée vide avec chaque nouvelle affaire ou chaque nouveau projet (I5, remplace l'ancien champ « description ») : même collection,
+ * mêmes liens et même moteur d'écriture que les autres notes. `texte` : celui de l'affaire quand un projet est créé depuis elle (copie), sinon vide.
+ */
+export function ecritureNoteDeDepart(liens, ctx, texte = '', { copieDeNoteId = null } = {}) {
+  return ecritureCreer(C.notes, ctx.nouvelId(C.notes), {
+    ...nouvelleNote(texte, liens, ctx), epinglee: true,
+    // Copie de la note de l'affaire (projet créé depuis elle) : on garde l'identifiant de l'originale, pour ne pas afficher les deux en double.
+    ...(copieDeNoteId ? { copieDeNoteId } : {}),
+  }, { horodater: ['creeLe', 'modifieLe'] });
+}
+
+/** Note à copier dans la note de départ d'un projet créé depuis une affaire : la note épinglée de l'affaire (la plus ANCIENNE qui a un texte), sinon null. */
+export function noteEpingleeAffaire(notesAffaire = [], affaireId) {
+  return notesEpinglees(notesAffaire, { affaireId }).filter((x) => estNoteDeLaFiche(x, { affaireId }) && !estNoteVide(x)).at(-1) ?? null;
+}
+export function texteNoteEpingleeAffaire(notesAffaire = [], affaireId) {
+  const n = noteEpingleeAffaire(notesAffaire, affaireId);
+  return n ? String(n.texte).trim() : '';
+}
+
+/**
+ * Notes d'une fiche sans le doublon visible (I5) : la note épinglée d'un projet créé depuis une affaire est une COPIE de celle de l'affaire (`copieDeNoteId`).
+ * Tant que la copie et l'originale sont épinglées et ont le même texte, une seule s'affiche (Points clés et Historique) : celle de la fiche ouverte (`lien`),
+ * sinon l'originale. Deux vraies notes au même texte (sans lien de copie) restent toutes les deux.
+ */
+export function sansCopiesDeNote(notes = [], lien = null) {
+  const parId = new Map(notes.map((n) => [n.id, n]));
+  const masquees = new Set();
+  for (const copie of notes) {
+    const originale = copie.copieDeNoteId ? parId.get(copie.copieDeNoteId) : null;
+    if (!originale || !copie.epinglee || !originale.epinglee || estNoteVide(copie) || String(copie.texte).trim() !== String(originale.texte).trim()) continue;
+    masquees.add(estNoteDeLaFiche(copie, lien) && !estNoteDeLaFiche(originale, lien) ? originale.id : copie.id);
+  }
+  return notes.filter((n) => !masquees.has(n.id));
 }
 
 /** Mention du canal à la suite de l'auteur dans le fil : « · via MCP » pour ce qu'un agent a créé par le serveur MCP, sinon rien. */
@@ -1257,7 +1308,8 @@ const TYPES_EVENEMENT_AFFAIRE = new Set([
 export function entreesHistorique({ activites = [], notes = [], evenements = [] }, filtre = 'tous') {
   const entrees = [
     ...activites.filter((a) => a.fait).map((a) => ({ genre: 'activite', date: versDate(a.dateFait) ?? versDate(a.date), element: a })),
-    ...notes.map((n) => ({ genre: 'note', date: versDate(n.creeLe), element: n })),
+    // Une note vide (note épinglée de départ pas encore écrite, I5) n'est pas une entrée de l'historique (ni à l'écran, ni dans la lecture du serveur MCP).
+    ...notes.filter((n) => !estNoteVide(n)).map((n) => ({ genre: 'note', date: versDate(n.creeLe), element: n })),
     ...evenements.map((e) => ({ genre: 'evenement', date: versDate(e.date), element: e })),
   ];
   const gardees = entrees.filter((e) => {
@@ -1832,8 +1884,9 @@ function ecrituresActivitesModeleAffaire(modele, liens, ctx) {
 /**
  * `personnes` et `organisations` : les fiches connues de l'appelant (l'organisation de la personne est héritée si aucune n'est donnée).
  * `modele` (facultatif) : un modèle d'affaire ; il préremplit l'affaire et en crée les activités types.
+ * `texteNote` (facultatif) : texte de la note épinglée de départ (vide par défaut ; l'ancien paramètre MCP `description` y est versé).
  */
-export function planCreerAffaire(valeurs, { personnes = [], organisations = [], modele = null } = {}, ctx) {
+export function planCreerAffaire(valeurs, { personnes = [], organisations = [], modele = null, texteNote = '' } = {}, ctx) {
   const plein = valeursDepuisModeleAffaire(modele, valeurs, configDe(ctx));
   const p = plein.personneId ? personnes.find((x) => x.id === plein.personneId) || null : null;
   const organisationId = plein.organisationId || p?.organisationId || null;
@@ -1841,13 +1894,16 @@ export function planCreerAffaire(valeurs, { personnes = [], organisations = [], 
   const titre = nettoyerEspaces(plein.titre) || titreParDefaut({ organisation: org, personne: p });
   const fiche = nouvelleAffaire({ ...plein, titre, organisationId }, ctx);
   const id = ctx.nouvelId(C.affaires);
+  const note = ecritureNoteDeDepart({ personneId: fiche.personneId, organisationId, affaireId: id }, ctx, texteNote);
   return {
     id,
     titre,
+    noteId: note.id,
     ecritures: [
       ecritureCreer(C.affaires, id, fiche, MARQUES_CREATION),
       ...evenements([evenementCreation('affaire_creee', `Affaire créée : ${titre}`, { personneId: fiche.personneId, organisationId, affaireId: id }, ctx)], ctx),
       ...ecrituresActivitesModeleAffaire(modele, { personneId: fiche.personneId, organisationId, affaireId: id }, ctx),
+      note,
     ],
   };
 }

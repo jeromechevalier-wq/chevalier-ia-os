@@ -482,7 +482,7 @@ describe('B10 Activités, notes, historique', () => {
     assert.deepEqual(ids('evenements'), ['e', 'e2']);
   });
   test('B10 historique limité aux 500 lignes les plus récentes', () => {
-    const notes = Array.from({ length: 600 }, (_, i) => ({ id: `n${i}`, texte: '', creeLe: new Date(2026, 0, 1, 0, i) }));
+    const notes = Array.from({ length: 600 }, (_, i) => ({ id: `n${i}`, texte: `Note ${i}`, creeLe: new Date(2026, 0, 1, 0, i) }));
     const r = L.entreesHistorique({ notes });
     assert.equal(r.length, 500);
     assert.equal(r[0].element.id, 'n599');
@@ -917,7 +917,7 @@ describe('B17 Plans d’écriture : modifications', () => {
     const e = L.planEpinglerNote('n', true).ecritures[0];
     assert.deepEqual([e.type, e.collection, e.patch, e.horodater], ['modifier', 'crm_notes', { epinglee: true }, ['modifieLe']]);
     assert.deepEqual(L.planEpinglerNote('n', 0).ecritures[0].patch, { epinglee: false });
-    const notes = [{ id: 'a', epinglee: true, creeLe: new Date('2026-10-01') }, { id: 'b', creeLe: new Date('2026-10-05') }, { id: 'c', epinglee: true, creeLe: new Date('2026-10-03') }];
+    const notes = [{ id: 'a', texte: 'A', epinglee: true, creeLe: new Date('2026-10-01') }, { id: 'b', texte: 'B', creeLe: new Date('2026-10-05') }, { id: 'c', texte: 'C', epinglee: true, creeLe: new Date('2026-10-03') }];
     assert.deepEqual(L.notesEpinglees(notes).map((n) => n.id), ['c', 'a']);
     assert.deepEqual(L.notesEpinglees([]), []);
   });
