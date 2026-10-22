@@ -64,7 +64,7 @@ export const MODULES_DECLARES = geler([
         { id: 'reglages-phases', libelle: 'Phases des projets' },
         { id: 'reglages-options', libelle: 'Options' },
         { id: 'reglages-modeles-affaire', libelle: 'Modèles d’affaires' },
-        { id: 'reglages-objectifs', libelle: 'Objectifs du mois' },
+        { id: 'reglages-objectifs', libelle: 'Indicateurs' },
         { id: 'reglages-offres', libelle: 'Offres' },
         { id: 'reglages-secteurs', libelle: 'Secteurs' },
         { id: 'reglages-sources', libelle: 'Sources' },
@@ -147,11 +147,11 @@ export const MODULES_DECLARES = geler([
     // (routes tableaudebord/finance et tableaudebord/stocks) n'apparaissent que si un indicateur les porte : ils ne sont donc pas des entrées du menu.
     // Chez un client, il n'existe pas encore de porte qui écrit : le module s'affiche vide (attendu).
     id: 'tableaudebord',
-    nom: 'Tableau de bord',
-    libelleMenu: 'Tableau de bord',
+    nom: 'Maintenance',
+    libelleMenu: 'Maintenance',
     iconeMenu: 'layout-dashboard',
     prefixe: 'tableaudebord',
-    reglages: { sections: [], resume: 'Le tableau de bord se lit : ses indicateurs sont écrits par les scripts de surveillance. Aucun réglage à faire ici pour l’instant.' },
+    reglages: { sections: [], resume: 'La maintenance se lit : ses indicateurs sont écrits par les scripts de surveillance. Aucun réglage à faire ici pour l’instant.' },
     ecrans: [
       { route: 'tableaudebord/general', libelle: 'Général', icone: 'layout-dashboard' },
       { route: 'tableaudebord/technique', libelle: 'Technique', icone: 'shield-check' },

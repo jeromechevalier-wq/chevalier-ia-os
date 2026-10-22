@@ -171,7 +171,7 @@ export function rendreTableau(conteneur, tableau) {
   // Confirmation d'une saisie : hors de `contenu`, car la ligne saisie peut disparaître de la liste (un indicateur redevenu OK quitte « À traiter en premier »).
   const avis = h('div', { class: 'td-avis', role: 'status' });
   conteneur.append(h('div', { class: 'page page-tableaudebord' },
-    h('header', { class: 'page-tete' }, h('h1', {}, 'Tableau de bord')),
+    h('header', { class: 'page-tete' }, h('h1', {}, 'Maintenance')),
     onglets, avis, contenu));
   let signature = '';
   let signatureOnglets = '';

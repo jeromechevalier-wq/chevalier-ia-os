@@ -38,7 +38,7 @@ export function rendreAccueil(conteneur, { compte, objectifs = true }) {
     rappel,
     objectifs ? h('section', { class: 'carte-section section-objectifs', 'aria-labelledby': 'titre-objectifs' },
       h('div', { class: 'section-tete' },
-        h('h2', { id: 'titre-objectifs' }, icone('target', { taille: 18 }), 'Objectifs du mois'),
+        h('h2', { id: 'titre-objectifs' }, icone('target', { taille: 18 }), 'Indicateurs'),
         h('div', { class: 'selecteur-mois' }, precedent, libelleMois, suivant)),
       zoneObjectifs) : null,
     h('section', { class: 'carte-section section-favoris', 'aria-labelledby': 'titre-favoris' },
