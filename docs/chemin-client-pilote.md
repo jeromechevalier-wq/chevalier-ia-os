@@ -102,6 +102,19 @@ Pour un client sans CRM, le MCP ne listerait que `qui_suis_je` : ces outils lui 
 - Les déploiements de la plateforme sont manuels (choix `regles`, `fonctions`, `hosting`, `mcp`, `espace` du workflow ; `tout` = page et règles seulement, jamais les fonctions) ; rien n'est utilisable par un client avant.
 - La copie de l'historique ne garde jamais le contenu des données (test « D. Aucun contenu, aucune définition, aucun secret dans Firebase » de `tests/automatisations-synchro.test.js`). Une proposition, elle, contient par nature des noms et des adresses : le dire dans la doc du module. Elle passe par la porte, comme `veille_contenus`.
 
+## Où en est la construction (nuit du 22 au 23/10/2026, version 2.24.0)
+
+| Sujet | PR | État |
+|---|---|---|
+| Documents du plan | 187 | fusionnée |
+| États et transitions (fichier pur) | 188 | fusionnée |
+| Actions de la porte (`propositions.*`) | 189 | fusionnée |
+| Fonction `automatisationsDecider` + 5 outils MCP | 190 | fusionnée |
+| Écran « À valider » | 191 | fusionnée (voir le rapport de reprise) |
+| Règles Firestore (liste d'arrêt) | voir `docs/reprise-prochaine-session.md` | à fusionner par Jérôme |
+
+**Pas fait** : le Logger (point de conception à trancher, `automatisations-n8n.md` partie 9), les canaux e-mail et SMS, la porte de la base 2 (plateforme clients), le workflow B réel (rien n'est créé dans un CRM : « appliquée » change seulement l'état), les KPI. **Rien n'est utilisable par un client avant** la publication des règles et les déploiements manuels.
+
 ## Découpage proposé en PR
 
 1. Code Chevalier IA OS : états et transitions (fichier pur, partagé par l'écran et le MCP), action de la porte, écran « À valider », fonction de validation, outils MCP, frise d'étapes dérivée de l'état (une proposition = une ligne). Fusionnable la nuit.

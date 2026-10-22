@@ -182,9 +182,11 @@ Le choix `tout` du workflow ne déploie **jamais** les fonctions.
 - L'écran affiche les **300 exécutions les plus récentes**.
 - n8n garde 14 jours d'historique : avec une copie toutes les heures, rien ne se perd.
 
-## 9. Phase 3 (pas faite)
+## 9. Phase 3 (en partie faite le 22/10/2026)
 
-Le Logger dans les workflows et la frise d'étapes. Rien à changer pour l'ajouter plus tard : la sous-collection `steps` et le champ `runGroupId` existent déjà, vides ; la règle Firestore ferme déjà `steps` à l'écriture navigateur.
+**Faite** : la frise d'une automatisation « une proposition = une ligne » (écran « À valider », `docs/chemin-client-pilote.md`). Elle vient de l'**état de la proposition**, pas de la sous-collection `steps` : un traitement traverse plusieurs exécutions n8n, alors que `steps` est rangée sous une seule. Les numéros d'exécution (`proposer`, `appliquer`, `refuser`) sont gardés dans la proposition. La copie de l'historique ne change pas.
+
+**Pas faite** : le **Logger** (le workflow écrit lui-même ses sous-étapes). La sous-collection `steps` et le champ `runGroupId` restent vides, la règle Firestore ferme déjà `steps` à l'écriture navigateur. Décision de Jérôme : étapes copiées dans la proposition (`etapes`, 10 au plus, champ déjà prévu, vide). **Point de conception à trancher avant de le faire** : les étapes du workflow A (« e-mail lu », « contrôle ok ») ont lieu **avant** que la proposition existe ; pour les voir pendant que A tourne, il faudrait créer la proposition plus tôt (un état « en préparation », que le propriétaire ne peut pas valider), ou n'afficher les étapes de A qu'une fois la proposition déposée (A les envoie avec `propositions.ajouter`).
 
 ## Alerte e-mail quand n8n tombe (mise en place le 11/10/2026)
 

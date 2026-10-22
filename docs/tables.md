@@ -35,7 +35,7 @@ Le code est le même (règle du 18/10/2026) : un module a les mêmes collections
 
 ## Prévu
 
-- `automatisations_propositions` : la file « À valider » (`docs/chemin-client-pilote.md`). Elle suit la règle des nouveaux noms (`<module>_<table>`). **Elle doit être fermée à l'écriture depuis le navigateur dans les deux bases** : `firestore.plateforme.rules` (aujourd'hui toute collection non listée est écrivable par un éditeur) et `firestore.rules` (liste d'exclusion du joker, test D4 de `tests/statique.test.js`). Modification de règles : PR laissée à Jérôme.
+- `automatisations_propositions` : la file « À valider » (`docs/chemin-client-pilote.md`), **déjà écrite par la porte** (2.24.0) et lue par l'écran (`js/modules/automatisations/a-valider.js`, écoute en direct, aucune écriture depuis le navigateur). Champs : `id`, `type`, `titre`, `resume`, `champsProposes`, `champsValides`, `lien`, `etat`, `creeLe`, `expireLe`, `valideePar`, `valideeLe`, `canal`, `refuseePar`, `refuseeLe`, `raison`, `tentatives`, `derniereErreur`, `executions` (`proposer`, `appliquer`, `refuser`), `etapes` (vide), `source`, `ecritPar`, et `relanceeLe` après une relance ; tous les horodatages sont des `Date` (Timestamp). **Elle n'est pas encore déclarée dans le registre ni fermée à l'écriture depuis le navigateur dans les deux bases** : c'est la PR des règles (liste d'arrêt, laissée à Jérôme), qui doit déclarer la collection au registre en même temps (un test compare le registre aux règles). Tant qu'elle n'est pas publiée, un éditeur (base 2) ou un des deux comptes de Jérôme (base 1) pourrait écrire dans la file depuis le navigateur.
 - Tables d'indicateurs (KPI), voir plus bas.
 
 ## Nommage des tables
