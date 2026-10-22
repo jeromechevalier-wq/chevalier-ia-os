@@ -31,6 +31,14 @@ describe('veille : filtres à cases à cocher', () => {
     assert.equal(L.nombreFiltres({ sources: ['s1'], types: ['Podcast', 'Newsletter'], etats: ['echec'] }), 4);
     assert.equal(L.nombreFiltres(), 0);
   });
+  test('nettoyerCriteres : retire les sources, types et états qui n\'existent plus ; même objet si rien à retirer', () => {
+    const c = { sources: ['s1', 'fantome'], types: ['Podcast', 'YouTube'], etats: ['echec', 'resume'], texte: 'x' };
+    const seul = [contenus[2]]; // s1, Podcast, échec
+    assert.deepEqual(L.nettoyerCriteres(c, seul), { sources: ['s1'], types: ['Podcast'], etats: ['echec'], texte: 'x' });
+    const propre = { sources: ['s1'], types: ['Podcast'], etats: ['echec'], texte: '' };
+    assert.equal(L.nettoyerCriteres(propre, seul), propre);
+    assert.deepEqual(L.nettoyerCriteres(c, []), { sources: [], types: [], etats: [], texte: 'x' });
+  });
   test('seules les valeurs qui existent sont proposées', () => {
     assert.deepEqual(L.typesPresents(contenus), ['YouTube', 'Podcast', 'Newsletter']); // le type vide vaut YouTube
     assert.deepEqual(L.typesPresents([contenus[0]]), ['Podcast']);

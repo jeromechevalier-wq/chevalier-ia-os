@@ -135,6 +135,27 @@ export const typesPresents = (contenus) => TYPES.filter((t) => contenus.some((x)
 export const etatsPresents = (contenus) => OPTIONS_ETAT_CASES.filter((o) => contenus.some((x) => normaliserEtat(x.etat) === o.valeur));
 
 /**
+ * Retire des critères les cases qui n'existent plus dans les contenus (source, type ou état disparus) : elles ne resteraient ni visibles ni décochables.
+ * Renvoie le MÊME objet s'il n'y a rien à retirer (pas de nouveau rendu pour rien).
+ */
+export function nettoyerCriteres(criteres, contenus) {
+  const permis = {
+    sources: new Set(contenus.map((x) => x.sourceId).filter(Boolean)),
+    types: new Set(typesPresents(contenus)),
+    etats: new Set(etatsPresents(contenus).map((o) => o.valeur)),
+  };
+  let change = false;
+  const r = { ...criteres };
+  for (const cle of ['sources', 'types', 'etats']) {
+    const avant = enListe(criteres[cle]);
+    const apres = avant.filter((v) => permis[cle].has(v));
+    if (apres.length !== avant.length) change = true;
+    r[cle] = apres;
+  }
+  return change ? r : criteres;
+}
+
+/**
  * Liste filtrée et triée : les plus récents d'abord. `sources`, `types` et `etats` sont des tableaux (OU dans un groupe, ET entre groupes) ;
  * l'ancienne forme à valeur unique (`sourceId`, `type`, `etat`) reste acceptée. `texte` : mot cherché dans le titre.
  */

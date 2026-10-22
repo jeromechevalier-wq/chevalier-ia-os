@@ -1,8 +1,8 @@
 // Veille : même bouton « Filtres » et même fenêtre à cases à cocher que les autres listes (nuit du 22 au 23/10/2026, sujet filtres-veille).
-// Un test par critère (nom commençant par le numéro), UNE capture par critère dans tests/e2e/captures/filtres-veille/ (suffixe -telephone sur téléphone).
+// Un test par critère (nom commençant par le numéro), UNE capture par critère dans tests/e2e/captures/veille-filtres/ (suffixe -telephone sur téléphone).
 import { test, expect, attendreCalme, connecter, choisirDansMenuUtilisateur, ecrireDocument, estTelephone, JEROME } from './outils.js';
 
-const CAPTURES = 'e2e/captures/filtres-veille';
+const CAPTURES = 'e2e/captures/veille-filtres';
 const capture = (page, nom) => page.screenshot({ path: `${CAPTURES}/${nom}${estTelephone(page) ? '-telephone' : ''}.png`, animations: 'disabled' });
 // Cet écran n'utilise pas Google : le script de l'API est remplacé par un fichier vide (sans réseau, il ne produit pas d'erreur de console).
 test.beforeEach(async ({ context }) => {
@@ -111,8 +111,10 @@ test('I4 les filtres restent quand on change d\'écran et revient, disparaissent
   await case_(page, 'etats', 'echec').check();
   await appliquer(page);
   await expect(lignes(page)).toHaveCount(1);
+  await page.getByLabel('Chercher dans les titres').fill('épisode'); // la recherche est mémorisée avec les filtres
   await aller(page, '#/veille/sources');
   await aller(page, '#/veille/contenus');
+  await expect(page.getByLabel('Chercher dans les titres')).toHaveValue('épisode');
   await expect(lignes(page)).toHaveCount(1);
   await expect(compte(page)).toHaveText('2');
   await bouton(page).click();

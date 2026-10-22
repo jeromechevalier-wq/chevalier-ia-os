@@ -100,11 +100,8 @@ export function rendreContenus(conteneur) {
     h('div', { class: 'barre-filtres-ligne veille-filtres' }, h('div', { class: 'champ-avec-icone' }, icone('search', { taille: 16 }), recherche), boutonF.element),
     liste));
 
-  // Une source qui n'existe plus (ou sans contenu) ne reste pas cochée en cachette.
-  function nettoyerFiltres() {
-    const ids = new Set(optionsSources().map((o) => o.id));
-    if (filtres.sources.some((id) => !ids.has(id))) filtres = { ...filtres, sources: filtres.sources.filter((id) => ids.has(id)) };
-  }
+  // Une source, un type ou un état qui n'existe plus dans les contenus ne reste pas coché en cachette.
+  const nettoyerFiltres = () => { filtres = L.nettoyerCriteres(filtres, D.etat.contenus); };
 
   function ligne(x, derniers) {
     const etat = L.normaliserEtat(x.etat);
