@@ -13,13 +13,15 @@ function controles(liste) {
   const cases = (cle, libelle, options) => ({ cle, libelle, type: 'cases', options });
   const oui = (cle, libelle) => ({ cle, libelle, type: 'oui' });
   const etiquettes = D.etat.etiquettes.map((e) => ({ valeur: e.id, libelle: e.nom }));
-  const sources = unique([...D.etat.sources, ...D.etat.personnes.map((p) => p.source), ...D.etat.affaires.map((a) => a.source)]);
+  // Source = la liste des Réglages, rien d'autre (L2). Ville = texte libre, regroupé par clé normalisée (L3).
+  const sources = unique(D.etat.sources);
+  const villes = (valeurs) => L.regrouperVilles(valeurs).map((v) => ({ valeur: v.cle, libelle: v.libelle }));
   if (liste === 'personnes') {
     return [
       cases('etiquettes', 'Étiquettes', etiquettes),
       { cle: 'organisations', libelle: 'Organisations', type: 'organisations' },
       cases('sources', 'Source', sources.map((s) => ({ valeur: s, libelle: s }))),
-      cases('villes', 'Ville', unique(D.etat.personnes.map((p) => p.ville)).map((v) => ({ valeur: v, libelle: v }))),
+      cases('villes', 'Ville', villes(D.etat.personnes.map((p) => p.ville))),
       oui('archives', 'Archivées seulement'),
     ];
   }
@@ -27,7 +29,7 @@ function controles(liste) {
     return [
       cases('etiquettes', 'Étiquettes', etiquettes),
       cases('secteurs', 'Secteur', unique([...D.etat.secteurs, ...D.etat.organisations.map((o) => o.secteur)]).map((v) => ({ valeur: v, libelle: v }))),
-      cases('villes', 'Ville', unique(D.etat.organisations.map((o) => o.ville)).map((v) => ({ valeur: v, libelle: v }))),
+      cases('villes', 'Ville', villes(D.etat.organisations.map((o) => o.ville))),
       oui('archives', 'Archivées seulement'),
     ];
   }
@@ -45,8 +47,9 @@ function controles(liste) {
 
 async function ouvrirFenetreFiltres(liste, criteres) {
   const c = L.criteresComplets(liste, criteres);
+  c.villes = [...new Set((c.villes || []).map(L.cleVille))]; // les cases Ville portent la clé normalisée (une ancienne valeur « Manosque » coche la case « manosque »)
   const corps = h('div', { class: 'pile filtres-corps' });
-  let organisationsChoisies = [...c.organisations];
+  let organisationsChoisies = [...(c.organisations || [])]; // (la liste des Organisations n'a pas ce critère)
   let selecteurOrgs = null;
   for (const ctl of controles(liste)) {
     if (ctl.type === 'cases') {
@@ -80,7 +83,7 @@ async function ouvrirFenetreFiltres(liste, criteres) {
     ],
   });
   if (r === 'effacer') return { ...L.criteresComplets(liste, { recherche: c.recherche }) };
-  if (r === 'appliquer') return { ...c, organisations: organisationsChoisies };
+  if (r === 'appliquer') return liste === 'organisations' ? { ...c } : { ...c, organisations: organisationsChoisies };
   return null;
 }
 
@@ -129,7 +132,7 @@ export function barreFiltres({ liste, lireCriteres, ecrireCriteres, contexte = (
   function rafraichir() {
     const c = lireCriteres();
     if (champRecherche.value !== (c.recherche || '') && document.activeElement !== champRecherche) champRecherche.value = c.recherche || '';
-    const actifs = L.pastillesFiltres(liste, c, contexte()).filter((p) => p.cle !== 'recherche');
+    const actifs = L.pastillesFiltres(liste, c, { ...contexte(), villes: L.regrouperVilles(liste === 'organisations' ? D.etat.organisations.map((o) => o.ville) : D.etat.personnes.map((p) => p.ville)) }).filter((p) => p.cle !== 'recherche');
     boutonFiltres_.majCompte(actifs.length);
     remplir(zonePastilles,
       actifs.map((p) => h('span', { class: 'pastille-filtre' }, p.libelle,

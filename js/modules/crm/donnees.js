@@ -60,21 +60,12 @@ export function surChangement(rappel) {
 
 function notifier() {
   abonnes.forEach((f) => { try { f(); } catch (e) { console.warn(e); } });
-  if (estPret() && parametresCrees && !migrationRolesLancee && compte?.ecrit !== false) { migrationRolesLancee = true; migrerRoles().then(completerSources).catch((e) => console.warn('Conversion des anciennes données', e)); }
+  if (estPret() && parametresCrees && !migrationRolesLancee && compte?.ecrit !== false) { migrationRolesLancee = true; migrerRoles().catch((e) => console.warn('Conversion des anciennes données', e)); }
 }
 
 let migrationRolesLancee = false;
 /** Vrai quand les listes et les étiquettes existent déjà (les valeurs de départ sont posées) : on ne convertit rien avant, sinon on les écraserait. */
 let parametresCrees = false;
-
-/** Les sources déjà tapées à la main sur des fiches entrent dans la liste des sources (le champ est maintenant une liste fermée). Sans rien de nouveau, ne fait rien. */
-async function completerSources() {
-  const toutes = [...etat.sources];
-  for (const s of [...etat.personnes, ...etat.affaires].map((x) => L.nettoyerEspaces(x.source)).filter(Boolean)) {
-    if (!toutes.some((x) => L.normaliserNom(x) === L.normaliserNom(s))) toutes.push(s);
-  }
-  if (toutes.length !== etat.sources.length) await enregistrerListes({ sources: toutes });
-}
 
 /**
  * Les rôles des personnes (Prospect, Partenaire, Interviewé JTBD) et la date d'interview JTBD n'existent plus. Une fois, à l'ouverture :

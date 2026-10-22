@@ -193,7 +193,7 @@ export function ligneAjouter({ libelle, libelleAria, surClic, action = null }) {
     h('div', { class: 'prop-valeur' }, boutonAjouter({ libelleAria: libelleAria || `Ajouter : ${libelle}`, surClic, action })));
 }
 
-export function champPropriete({ libelle, valeur = '', type = 'texte', options = [], surEnregistrer, placeholder = '', formater = null, lienVers = null, fournir = null, pas = null, fantome = null }) {
+export function champPropriete({ libelle, valeur = '', type = 'texte', options = [], surEnregistrer, placeholder = '', formater = null, lienVers = null, fournir = null, pas = null, fantome = null, autoriserCreation = true, aideListeVide = '' }) {
   let courant = valeur ?? '';
   let enEdition = false;
   let creation = false;
@@ -233,9 +233,16 @@ export function champPropriete({ libelle, valeur = '', type = 'texte', options =
       champ = h('textarea', { class: 'champ', rows: 3, 'aria-label': libelle, value: courant });
       lire = () => champ.value.trim();
     } else if (type === 'liste') {
-      const choix = [...new Set([...(fournir?.() ?? []), ...(courant ? [courant] : [])])];
+      // `autoriserCreation: false` (la Source) : on choisit seulement dans la liste des Réglages ; une ancienne valeur absente de la liste reste affichée,
+      // grisée « (valeur à changer) », et n'est pas perdue tant qu'on ne choisit pas autre chose.
+      const liste = fournir?.() ?? [];
+      const absente = autoriserCreation || !courant || liste.some((v) => L.normaliserNom(v) === L.normaliserNom(courant)) ? null : courant;
+      const choix = [...new Set([...liste, ...(courant && autoriserCreation ? [courant] : [])])];
       champ = h('select', { class: 'champ', 'aria-label': libelle }, h('option', { value: '' }, '—'),
-        choix.map((v) => h('option', { value: v, selected: v === courant }, v)), h('option', { value: NOUVEAU }, '+ Nouvelle valeur…'));
+        choix.map((v) => h('option', { value: v, selected: v === courant }, v)),
+        absente ? h('option', { value: absente, selected: true, disabled: true }, `${absente} (valeur à changer)`) : null,
+        !autoriserCreation && !choix.length && aideListeVide ? h('option', { value: '', disabled: true }, aideListeVide) : null,
+        autoriserCreation ? h('option', { value: NOUVEAU }, '+ Nouvelle valeur…') : null);
       lire = () => champ.value;
       champ.addEventListener('change', () => {
         if (champ.value !== NOUVEAU) { valider(); return; }
@@ -377,6 +384,11 @@ export function fournisseurTexte(valeurs, { creer = false } = {}) {
 }
 
 export const villesConnues = () => [...D.etat.personnes.map((p) => p.ville), ...D.etat.organisations.map((o) => o.ville)];
+
+/** Suggestions de villes déjà utilisées (même regroupement que le filtre : « manosque », « Manosque  » = une seule proposition) ; un nouveau nom reste possible (L4). */
+export function fournisseurVilles() {
+  return (saisie) => L.rechercherSuggestions(saisie, L.regrouperVilles(villesConnues()).map((v) => ({ id: v.libelle, libelle: v.libelle })), { creer: false });
+}
 
 /** Contacts à plusieurs lignes (téléphones, emails) : valeur + type, "+ Ajouter". */
 export function listeContacts({ libelle, ajout, valeurs = [], type = 'texte', surChangement, placeholder = '' }) {
