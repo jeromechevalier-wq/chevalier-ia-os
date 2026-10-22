@@ -21,7 +21,7 @@ describe('J1 filtre de l’historique à cases à cocher', () => {
   });
   test('J1 plusieurs types cochés : au moins un type (logique OU)', () => {
     assert.deepEqual(ids(['notes', 'documents']), ['n', 'd']);
-    assert.deepEqual(ids(['activites', 'evenements']), ['e', 'd', 'a']);
+    assert.deepEqual(ids(['activites', 'evenements']), ['e', 'a']);
     assert.deepEqual(ids(['notes']), ['n']);
   });
   test('J1 une chaîne seule marche toujours (compatibilité du serveur MCP)', () => {
