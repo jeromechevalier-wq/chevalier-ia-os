@@ -248,7 +248,7 @@ test('Favoris : l’étoile d’un document d’affaire ou de projet le met sur 
   await expect(page.locator('.section-favoris li')).toHaveCount(1);
 });
 
-test('C29 fiche projet : phase modifiable depuis le Résumé (sans ligne Statut) ; appel, rendez vous et email rattachés au projet, sans tâche libre', async ({ page }) => {
+test('C29 fiche projet : phase modifiable depuis le Résumé (sans ligne Statut) ; appel, rendez vous et email rattachés au projet (avec la pastille Tâche, J4)', async ({ page }) => {
   await creerPersonne('p1', { nom: 'Camille Durand' });
   await creerProjet('pr1', { titre: 'Audit des Lilas', personneId: 'p1' });
   await connecter(page);
@@ -259,7 +259,7 @@ test('C29 fiche projet : phase modifiable depuis le Résumé (sans ligne Statut)
   await champDoc('projets_projets', 'pr1', 'phase', 'decouverte');
   await expect(page.locator('.barre-etapes-fiche .etape.courante')).toHaveText('Découverte');
   const panneau = page.locator('.panneau-activite');
-  await expect(panneau.getByRole('group', { name: 'Type d’activité' }).getByRole('button')).toHaveText(['Appel', 'Rendez vous', 'Email']);
+  await expect(panneau.getByRole('group', { name: 'Type d’activité' }).getByRole('button')).toHaveText(['Appel', 'Rendez vous', 'Email', 'Tâche']);
   await panneau.getByRole('button', { name: 'Rendez vous' }).click();
   await panneau.getByLabel('Titre de l’activité').fill('Point de lancement');
   await panneau.locator('[data-action="enregistrer-activite"]').click();
