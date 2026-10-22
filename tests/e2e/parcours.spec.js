@@ -872,7 +872,7 @@ test('C21 fiche personne : emails et téléphones avec leur type, étiquettes cr
   await page.locator('.resume').getByRole('button', { name: 'Étiquettes', exact: true }).click();
   await dialogue(page).getByLabel('Nom de la nouvelle étiquette').fill('Très motivée');
   await dialogue(page).getByRole('button', { name: 'Créer', exact: true }).click();
-  await dialogue(page).getByRole('button', { name: 'Fermer', exact: true }).click();
+  await dialogue(page).locator('.dialogue-pied').getByRole('button', { name: 'Fermer', exact: true }).click();
   await expect.poll(async () => ((await lireDocument('crm_parametres/etiquettes'))?.items ?? []).map((e) => e.nom)).toContain('Très motivée');
   await expect.poll(async () => (await lireDocument('crm_personnes/p1'))?.etiquettes?.length).toBe(1);
   await expect(page.locator('.resume .pastille-choix')).toContainText('Très motivée');
