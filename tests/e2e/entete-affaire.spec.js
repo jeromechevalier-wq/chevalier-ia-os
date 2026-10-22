@@ -62,12 +62,21 @@ test('J2 (montant réel) un montant enregistré suit les mêmes règles d’alig
   await expect(texte).toContainText(/1\s?500\s€/);
   await verifierAlignement(page, info, texte);
   await capturer(page, info, 'J2-montant-reel');
-  // le crayon de modification reste utilisable sans décaler le montant
+  // le crayon de modification est visible, entièrement dans la fenêtre, ne recouvre pas le titre, ne décale pas le montant, et s'ouvre au clic
   const avant = await texte.boundingBox();
   await page.locator('.fiche-montant').hover();
-  await expect(page.locator('.fiche-montant .prop-modifier')).toBeVisible();
+  const crayon = page.locator('.fiche-montant .prop-modifier');
+  await expect.poll(() => crayon.evaluate((el) => getComputedStyle(el).opacity)).toBe('1');
+  const c = await crayon.boundingBox();
+  const fenetre = page.viewportSize();
+  expect(c.x).toBeGreaterThanOrEqual(0);
+  expect(c.x + c.width).toBeLessThanOrEqual(fenetre.width);
+  expect(intersecte(c, await page.locator('input.titre-editable').boundingBox()), 'le crayon ne recouvre pas le titre').toBe(false);
+  expect(intersecte(c, await page.locator('.fiche-titre').boundingBox()), 'ni la zone du titre').toBe(false);
   const apres = await texte.boundingBox();
   expect(Math.abs(apres.x - avant.x)).toBeLessThanOrEqual(1);
+  await crayon.click();
+  await expect(page.getByLabel('Montant', { exact: true })).toBeVisible();
 });
 
 test('J9 l’en-tête d’une affaire ouverte montre « Perdue », « En pause » et « … », plus de « Gagnée » ; la liste « Étape » gagne l’affaire et propose le projet', async ({ page }, info) => {

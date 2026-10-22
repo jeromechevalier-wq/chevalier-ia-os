@@ -290,7 +290,7 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 .champ-petit { min-height: 32px; padding: 3px 24px 3px var(--esp-4); font-size: var(--fs-menu); width: auto; }
 .fiche-actions { display: flex; align-items: center; gap: var(--esp-3); flex-wrap: wrap; }
 .fiche-tete-droite { display: flex; align-items: center; gap: var(--esp-3); flex-wrap: wrap; }
-.fiche-montant { position: relative; font: var(--poids-moyen) var(--fs-chiffre)/1 var(--police-titre); }
+.fiche-montant { position: relative; margin-left: 24px; /* place réservée au crayon : il ne recouvre jamais le titre */ font: var(--poids-moyen) var(--fs-chiffre)/1 var(--police-titre); }
 /* Le crayon ne prend pas de place : l'espace montant / premier bouton reste égal à l'espace entre deux boutons. */
 .fiche-montant .prop-modifier { position: absolute; right: 100%; top: 50%; transform: translateY(-50%); width: 24px; height: 24px; }
 .fiche-montant .prop { grid-template-columns: 1fr; }
@@ -319,6 +319,8 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
   .prop { grid-template-columns: 1fr; gap: 2px; padding: var(--esp-1) 0; }
   .titre-editable { font-size: var(--fs-page); }
   .fiche-tete-droite { width: 100%; }
+  .fiche-montant { margin-left: 0; }
+  .fiche-montant .prop-modifier { position: static; transform: none; width: 28px; height: 28px; }
   .fiche-actions { width: 100%; }
 }
 .barre-etapes-fiche { display: flex; gap: var(--esp-1); list-style: none; margin: 0; padding: 0; overflow-x: auto; }

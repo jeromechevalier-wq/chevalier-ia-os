@@ -877,7 +877,7 @@ test('C21 fiche personne : emails et téléphones avec leur type, étiquettes cr
   await expect(page.locator('.resume .pastille-choix')).toContainText('Très motivée');
 });
 
-test('C21 fiche affaire : barre des étapes, Gagnée, montant modifiable, documents ; plus d’encaissement manuel', async ({ page }) => {
+test('C21 fiche affaire : barre des étapes, Gagné par la liste Étape, montant modifiable, documents ; plus d’encaissement manuel', async ({ page }) => {
   await creerPersonne('p1', { nom: 'Marie Durand' });
   await creerAffaire('a1', { titre: 'Atelier IA', personneId: 'p1', etape: 'proposition_envoyee', montant: 900 });
   await connecter(page);
