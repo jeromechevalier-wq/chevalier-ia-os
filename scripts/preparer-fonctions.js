@@ -22,10 +22,17 @@ console.log("functions/partage/projets.js mis à jour (copie de js/modules/proje
 
 // La porte des workflows n8n (scripts/porte/) : la logique (clés, contrôles, actions de la veille, accès Firestore, lecteur n8n) est copiée telle quelle,
 // sans l'outil en ligne de commande (outil.js), qui reste sur le Mac de Jérôme. Même principe : un seul exemplaire du code, testé, utilisé par la fonction.
-const FICHIERS_PORTE = ['cles.js', 'validation.js', 'actions-veille.js', 'n8n.js', 'adaptateur.js', 'porte.js', 'cles-tableau.js', 'actions-tableaudebord.js', 'porte-tableau.js', 'saisie-tableaudebord.js'];
+const FICHIERS_PORTE = ['cles.js', 'validation.js', 'actions-veille.js', 'n8n.js', 'adaptateur.js', 'porte.js', 'cles-tableau.js', 'actions-tableaudebord.js', 'porte-tableau.js', 'saisie-tableaudebord.js', 'actions-automatisations.js'];
 const destinationPorte = join(destination, 'porte');
 mkdirSync(destinationPorte, { recursive: true });
-for (const f of FICHIERS_PORTE) copyFileSync(join(racine, 'scripts', 'porte', f), join(destinationPorte, f));
+// actions-automatisations.js importe le fichier pur des propositions par son chemin dans le dépôt ; dans functions/partage/ il est un dossier plus haut.
+const IMPORT_PROPOSITIONS = "from '../../js/modules/automatisations/propositions.js'";
+for (const f of FICHIERS_PORTE) {
+  if (f !== 'actions-automatisations.js') { copyFileSync(join(racine, 'scripts', 'porte', f), join(destinationPorte, f)); continue; }
+  const source = readFileSync(join(racine, 'scripts', 'porte', f), 'utf8');
+  if (!source.includes(IMPORT_PROPOSITIONS)) throw new Error('scripts/porte/actions-automatisations.js : import des propositions introuvable');
+  writeFileSync(join(destinationPorte, f), source.replaceAll(IMPORT_PROPOSITIONS, "from '../propositions.js'"));
+}
 console.log(`functions/partage/porte/ mis à jour (${FICHIERS_PORTE.length} fichiers copiés de scripts/porte/)`);
 
 // Le lien YouTube collé à la main (reconnaissance d'un épisode ou d'une chaîne, lecture du flux) : écrit une seule fois pour l'écran et pour le serveur.

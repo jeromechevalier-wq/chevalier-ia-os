@@ -12,10 +12,11 @@
 //   7. validation stricte des données, puis l'action (tables veille_* du propriétaire seulement).
 import { extraireBearer, verifierCle, doitNoterUsage } from './cles.js';
 import { ACTIONS_VEILLE, ErreurAction, lancerAction } from './actions-veille.js';
+import { ACTIONS_AUTOMATISATIONS } from './actions-automatisations.js';
 import { ErreurValidation } from './validation.js';
 import { ErreurN8n } from './n8n.js';
 
-export const MODULES_DE_LA_PORTE = Object.freeze({ veille: ACTIONS_VEILLE });
+export const MODULES_DE_LA_PORTE = Object.freeze({ veille: ACTIONS_VEILLE, automatisations: ACTIONS_AUTOMATISATIONS });
 export const OCTETS_MAX = 256 * 1024;
 export const REQUETES_PAR_MINUTE = 120;
 export const DUREE_CACHE_INTEGRITE_MS = 60_000;

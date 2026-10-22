@@ -205,3 +205,100 @@ describe('Saisie du tableau de bord et Firestore (émulateur)', { skip: emulateu
     assert.equal(await donnees.majDoc(CHEM, { message: 'C' }), true, 'sans option : comme avant');
   });
 });
+
+// File « À valider » (actions propositions.*) avec le VRAI accès Firestore : création sans écrasement, vraies dates, ordre et limite, précondition, isolation entre deux propriétaires.
+describe('Porte, automatisations et Firestore (émulateur)', { skip: emulateur ? false : 'émulateur Firestore non démarré (lancer npm test)' }, () => {
+  let app; let db; let donnees; let plateforme; let crm; const cles = {};
+  const T = Date.parse('2026-10-22T09:00:00Z');
+  const flows = {
+    wA: { id: 'wA', nom: 'client-audrey-propositions', etiquettes: ['client-audrey'] },
+    wM: { id: 'wM', nom: 'client-martin-propositions', etiquettes: ['client-martin'] },
+    wI: { id: 'wI', nom: 'interne-propositions', etiquettes: ['interne'] },
+  };
+  const n8n = { async lireWorkflow(id) { if (!flows[id]) throw new ErreurN8n('introuvable', 'non'); return flows[id]; } };
+  const appel = (porte, cle, action, d, workflowId) => porte({ methode: 'POST', authorization: `Bearer ${cle}`, corps: { module: 'automatisations', action, workflowId, donnees: d } });
+  const P = { id: 'p1', type: 'Nouveau contact', titre: 'Ajouter une personne', resume: 'Reçu par e-mail.', champs: [{ nom: 'Nom', valeur: 'Alice Exemple' }], executionId: '42' };
+  const chemA = (id) => `clients/audrey/automatisations_propositions/${id}`;
+
+  before(async () => {
+    assert.ok(PROJET.startsWith('demo-'), 'projet de démonstration uniquement');
+    app = initializeApp({ projectId: PROJET }, 'test-porte-autom');
+    db = getFirestore(app);
+    donnees = creerAdaptateur({ db });
+    for (const c of ['plateforme_cles', 'automatisations_propositions', 'clients']) await db.recursiveDelete(db.collection(c));
+    for (const p of ['audrey', 'martin', 'interne']) {
+      const cle = genererCle(p);
+      const e = enregistrementDe(cle, p, new Date());
+      await db.collection(TABLE_CLES).doc(e.id).set({ ...e.donnees, creeLe: Timestamp.fromDate(e.donnees.creeLe) });
+      cles[p] = { cle, id: e.id };
+    }
+    const modulesActifs = async () => ['automatisations'];
+    plateforme = creerPorte({ contexte: 'plateforme', donnees, n8n, modulesActifs, maintenant: () => T });
+    crm = creerPorte({ contexte: 'crm', donnees, n8n, modulesActifs, maintenant: () => T });
+  });
+  after(async () => { await deleteApp(app); });
+
+  test('1 création sans écrasement : vraies dates, rejeu sans doublon ni modification', async () => {
+    const r = await appel(plateforme, cles.audrey.cle, 'propositions.ajouter', P, 'wA');
+    assert.deepEqual(r.corps.resultat, { id: 'p1', cree: true, etat: 'a_valider' });
+    const d = (await db.doc(chemA('p1')).get()).data();
+    assert.ok(d.creeLe instanceof Timestamp && d.expireLe instanceof Timestamp);
+    assert.equal(d.expireLe.toMillis() - d.creeLe.toMillis(), 30 * 86_400_000);
+    assert.equal(d.etat, 'a_valider');
+    await db.doc(chemA('p1')).update({ etat: 'validee', valideeLe: Timestamp.fromMillis(T - 1000) });
+    const r2 = await appel(plateforme, cles.audrey.cle, 'propositions.ajouter', { ...P, titre: 'Autre' }, 'wA');
+    assert.deepEqual(r2.corps.resultat, { id: 'p1', cree: false, etat: 'validee' });
+    assert.equal((await db.doc(chemA('p1')).get()).data().titre, 'Ajouter une personne');
+    assert.equal((await db.collection('clients/audrey/automatisations_propositions').get()).size, 1);
+  });
+
+  test('3 « lireValidees » : seulement les validées, les plus anciennes d\'abord, limite respectée, dates en texte', async () => {
+    for (const [id, ms] of [['p-b', T - 2000], ['p-a', T - 9000], ['p-c', T - 500]]) {
+      await appel(plateforme, cles.audrey.cle, 'propositions.ajouter', { ...P, id }, 'wA');
+      await db.doc(chemA(id)).update({ etat: 'validee', valideeLe: Timestamp.fromMillis(ms) });
+    }
+    await appel(plateforme, cles.audrey.cle, 'propositions.ajouter', { ...P, id: 'p-attente' }, 'wA');
+    const tout = (await appel(plateforme, cles.audrey.cle, 'propositions.lireValidees', {}, 'wA')).corps.resultat.propositions;
+    assert.deepEqual(tout.map((p) => p.id), ['p-a', 'p-b', 'p1', 'p-c']);
+    assert.equal(typeof tout[0].valideeLe, 'string');
+    assert.deepEqual((await appel(plateforme, cles.audrey.cle, 'propositions.lireValidees', { limite: 2 }, 'wA')).corps.resultat.propositions.map((p) => p.id), ['p-a', 'p-b']);
+  });
+
+  test('4 « marquerAppliquee » seulement depuis « validee » ; « marquerEchec » compte les tentatives', async () => {
+    const refus = await appel(plateforme, cles.audrey.cle, 'propositions.marquerAppliquee', { id: 'p-attente' }, 'wA');
+    assert.equal(refus.statut, 409);
+    assert.equal((await db.doc(chemA('p-attente')).get()).data().etat, 'a_valider');
+    const ok = await appel(plateforme, cles.audrey.cle, 'propositions.marquerAppliquee', { id: 'p-a', executionId: '99' }, 'wA');
+    assert.deepEqual(ok.corps.resultat, { id: 'p-a', etat: 'appliquee', deja: false });
+    const a = (await db.doc(chemA('p-a')).get()).data();
+    assert.equal(a.etat, 'appliquee');
+    assert.equal(a.executions.appliquer, '99');
+    assert.equal(a.executions.proposer, '42', 'le reste de « executions » est gardé');
+    assert.equal(a.titre, 'Ajouter une personne', 'les autres champs ne bougent pas');
+    const e = await appel(plateforme, cles.audrey.cle, 'propositions.marquerEchec', { id: 'p-b', erreur: 'Le serveur a répondu 500' }, 'wA');
+    assert.deepEqual(e.corps.resultat, { id: 'p-b', etat: 'echec', tentatives: 1, deja: false });
+    assert.equal((await db.doc(chemA('p-b')).get()).data().derniereErreur, 'Le serveur a répondu 500');
+    assert.equal((await appel(plateforme, cles.audrey.cle, 'propositions.marquerAppliquee', { id: 'p-b' }, 'wA')).statut, 409, 'une proposition en échec doit d\'abord être relancée');
+  });
+
+  test('4 bis deux « marquerAppliquee » en même temps : une seule écriture, l\'autre appel répond deja:true (précondition sur le document lu)', async () => {
+    await appel(plateforme, cles.audrey.cle, 'propositions.ajouter', { ...P, id: 'p-course' }, 'wA');
+    await db.doc(chemA('p-course')).update({ etat: 'validee', valideeLe: Timestamp.fromMillis(T) });
+    const rs = await Promise.all([1, 2].map((n) => appel(plateforme, cles.audrey.cle, 'propositions.marquerAppliquee', { id: 'p-course', executionId: String(n) }, 'wA')));
+    assert.deepEqual(rs.map((r) => r.statut), [200, 200]);
+    assert.deepEqual(rs.map((r) => r.corps.resultat.deja).sort(), [false, true]);
+  });
+
+  test('5 isolation : Martin et la racine ne voient rien d\'Audrey, et chacun écrit dans sa propre base', async () => {
+    assert.equal((await appel(plateforme, cles.martin.cle, 'propositions.lireValidees', {}, 'wM')).corps.resultat.propositions.length, 0);
+    assert.equal((await appel(plateforme, cles.martin.cle, 'propositions.marquerAppliquee', { id: 'p1' }, 'wM')).statut, 404);
+    assert.equal((await appel(plateforme, cles.martin.cle, 'propositions.lireValidees', {}, 'wA')).statut, 403, 'le workflow d\'Audrey n\'ouvre rien avec la clé de Martin');
+    assert.equal((await appel(plateforme, cles.martin.cle, 'propositions.ajouter', { ...P, titre: 'Pour Martin' }, 'wM')).statut, 200);
+    assert.equal((await db.doc('clients/martin/automatisations_propositions/p1').get()).data().titre, 'Pour Martin');
+    assert.equal((await db.doc(chemA('p1')).get()).data().titre, 'Ajouter une personne');
+    assert.equal((await appel(crm, cles.interne.cle, 'propositions.ajouter', { ...P, titre: 'Pour Jérôme' }, 'wI')).statut, 200);
+    assert.equal((await db.doc('automatisations_propositions/p1').get()).data().titre, 'Pour Jérôme');
+    assert.equal((await appel(crm, cles.interne.cle, 'propositions.lireValidees', {}, 'wI')).corps.resultat.propositions.length, 0, 'rien de validé à la racine');
+    assert.equal((await appel(crm, cles.audrey.cle, 'propositions.lireValidees', {}, 'wA')).statut, 403, 'une clé de client n\'ouvre pas la base 1');
+  });
+});
