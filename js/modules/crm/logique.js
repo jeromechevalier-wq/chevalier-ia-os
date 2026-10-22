@@ -1123,6 +1123,16 @@ export function validerActivite(v) {
   return erreurs;
 }
 
+/**
+ * Saisie d'une activité à la main dans l'interface : en plus du type et de la date, le titre doit contenir au moins un caractère visible.
+ * (`validerActivite` reste tel quel : les modèles, le serveur MCP et la configuration gardent leur titre par défaut.)
+ */
+export function validerSaisieActivite(v) {
+  const erreurs = validerActivite(v);
+  if (!nettoyerEspaces(v.titre)) erreurs.titre = 'Écris au moins un mot pour l\'activité.';
+  return erreurs;
+}
+
 export function nouvelleActivite(valeurs, ctx) {
   const type = TYPES_ACTIVITE.some((t) => t.id === valeurs.type) ? valeurs.type : 'tache';
   return {

@@ -86,14 +86,16 @@ test('I11 Tâches : une seule ligne « Clique ici pour ajouter un livrable… »
   await expect(section.getByLabel('Phase du livrable')).toHaveValue('decouverte'); // phase en cours par défaut
   await expect(section.locator('[data-date-rapide]').first()).toBeVisible();
   await expect(section.getByLabel('Date', { exact: true })).toBeVisible();
-  await expect(section.locator('.bouton-principal')).toHaveText('Enregistrer le livrable'); // N2 : bouton jaune plein
+  await expect(section.locator('[data-action="ajouter-tache"]')).toHaveText('Enregistrer le livrable');
+  await expect(section.locator('[data-action="ajouter-tache"]')).toBeDisabled(); // nuit 4 : grisé sans texte, jaune plein dès la première lettre
   await capturer(page, info, 'I11-tache-zone-ouverte');
-  // cas d'erreur : titre vide refusé
-  await section.locator('[data-action="ajouter-tache"]').click();
+  // cas d'erreur : titre vide refusé (Entrée)
+  await champ.press('Enter');
   await expect(page.locator('.toast', { hasText: 'Le titre est obligatoire.' })).toBeVisible();
   expect(await listerDocuments('projets_taches')).toHaveLength(1);
   // titre seul + Entrée : phase en cours, sans date
   await champ.fill('Appeler le client');
+  await expect(section.locator('.bouton-principal')).toHaveText('Enregistrer le livrable'); // N2 : jaune plein une fois du texte saisi
   await champ.press('Enter');
   await expect.poll(async () => (await listerDocuments('projets_taches')).length).toBe(2);
   const tout = async () => (await listerDocuments('projets_taches')).map((d) => d.data ?? d);

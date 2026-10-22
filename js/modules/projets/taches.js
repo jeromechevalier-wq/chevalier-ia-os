@@ -1,6 +1,6 @@
 // Tâches d'un projet : section de la fiche projet (par phase) et ligne des Points clés de l'Accueil.
 // Aucune règle métier ici : les règles sont dans logique.js (plans), exécutés par donnees.js.
-import { h, icone, remplir, dialogue, confirmer, ouvrirMenu, toast } from '../../os/ui.js';
+import { h, icone, remplir, dialogue, confirmer, ouvrirMenu, toast, boutonSelonTexte } from '../../os/ui.js';
 import { retirerAvecAnnulation } from '../../os/retrait.js';
 import { sectionRepliable, lien } from '../crm/composants.js';
 import { selecteurDate, dialogueDecalage } from '../crm/activites.js';
@@ -130,16 +130,18 @@ export function sectionTaches(projet) {
   const date = selecteurDate('');
   // Comme « Enregistrer l'activité » : bouton jaune plein dans la zone ouverte (ou la touche Entrée).
   const bouton = h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'ajouter-tache', onclick: ajouter }, 'Enregistrer le livrable');
+  const majBouton = boutonSelonTexte(bouton, titre); // grisé tant que le titre est vide, jaune dès la première lettre
   async function ajouter() {
     if (!L.nettoyerEspaces(titre.value)) { toast('Le titre est obligatoire.', { type: 'erreur' }); titre.classList.add('invalide'); titre.focus(); return; }
     // Le formulaire se vide tout de suite (on peut taper la tâche suivante sans attendre la réponse du serveur) ; si l'ajout échoue, ce qui était tapé revient.
     const saisie = { titre: titre.value, phase: phase.value, date: date.valeur() };
     titre.value = '';
+    majBouton();
     date.champ.value = '';
     titre.classList.remove('invalide');
     titre.focus();
     const ok = await ou(() => D.creerTache(projet.id, saisie), 'Livrable non ajouté : vérifie ta connexion, puis réessaie');
-    if (!ok && !titre.value) { titre.value = saisie.titre; date.champ.value = saisie.date; }
+    if (!ok && !titre.value) { titre.value = saisie.titre; date.champ.value = saisie.date; majBouton(); }
   }
   // Comme la zone d'activité de l'affaire : une seule ligne tant qu'on n'y a pas mis le focus ; phase, dates rapides, date et bouton apparaissent au clic.
   const zoneAjout = h('div', { class: 'ajout-tache replie', 'data-saisie': '' }, titre, phase, date.element, bouton);

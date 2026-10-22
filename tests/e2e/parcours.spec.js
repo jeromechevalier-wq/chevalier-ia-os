@@ -461,6 +461,7 @@ test('C12 activité créée depuis une fiche : type, titre prérempli, boutons d
   const panneau = page.locator('.panneau-activite');
   await panneau.getByRole('button', { name: 'Appel', exact: true }).click();
   await panneau.locator('[data-date-rapide="3j"]').click();
+  await panneau.getByLabel('Titre de l’activité').fill('Appel'); // nuit 4 : un titre est obligatoire (le bouton est grisé sans texte)
   await panneau.getByRole('button', { name: 'Enregistrer l’activité' }).click();
   const a = await attendre(page, 'crm_activites', (d) => d.personneId === 'p1');
   expect(a).toMatchObject({ type: 'appel', titre: 'Appel', date: jour(3), fait: false });

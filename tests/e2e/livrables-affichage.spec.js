@@ -42,7 +42,7 @@ test('N1 titres des groupes : « Livrable Lancement » (1) et « Livrables Déco
   await expect(titres.nth(0).locator('.compteur')).toHaveText('0/2');
 });
 
-test('N2 le bouton d’ajout d’un livrable est jaune plein « Enregistrer le livrable » ; titre vide refusé ; l’ajout fonctionne', async ({ page }, info) => {
+test('N2 le bouton d’ajout d’un livrable « Enregistrer le livrable » est grisé sans titre, jaune plein dès la première lettre ; Entrée sans titre refusée ; l’ajout fonctionne', async ({ page }, info) => {
   await creerProjet('pr1', { titre: 'Audit des Lilas', phase: 'decouverte' });
   await connecter(page);
   await ouvrir(page, '#/projets/projets/pr1');
@@ -50,14 +50,17 @@ test('N2 le bouton d’ajout d’un livrable est jaune plein « Enregistrer le l
   await section.getByLabel('Nouveau livrable').click();
   const bouton = section.locator('[data-action="ajouter-tache"]');
   await expect(bouton).toHaveText('Enregistrer le livrable');
-  await expect(bouton).toHaveClass(/bouton-principal/);
-  await capturer(page, info, 'N2-bouton-enregistrer');
-  // cas d'erreur : titre vide
-  await bouton.click();
+  await expect(bouton).toBeDisabled(); // nuit 4 : grisé tant que le titre est vide
+  await expect(bouton).toHaveClass(/bouton-secondaire/);
+  // cas d'erreur : titre vide (Entrée)
+  await section.getByLabel('Nouveau livrable').press('Enter');
   await expect(page.locator('.toast', { hasText: 'Le titre est obligatoire.' })).toBeVisible();
   expect(await listerDocuments('projets_taches')).toHaveLength(0);
-  // ajout
+  // ajout : jaune plein dès la première lettre
   await section.getByLabel('Nouveau livrable').fill('Rapport final');
+  await expect(bouton).toBeEnabled();
+  await expect(bouton).toHaveClass(/bouton-principal/);
+  await capturer(page, info, 'N2-bouton-enregistrer');
   await bouton.click();
   await expect.poll(async () => (await listerDocuments('projets_taches')).map((d) => d.titre)).toEqual(['Rapport final']);
   await expect(section.locator('.groupe-taches .titre-livrables')).toContainText('Livrable Découverte');

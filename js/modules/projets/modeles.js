@@ -1,6 +1,6 @@
 // Modèles de projet : la liste (dans les Réglages, section « Modèles de projets ») et la fiche d'un modèle (ses livrables types par phase).
 // Aucune règle métier ici : les règles sont dans logique.js (plans), exécutés par donnees.js.
-import { h, icone, remplir, dialogue, confirmer, demanderTexte, ouvrirMenu, toast } from '../../os/ui.js';
+import { h, icone, remplir, dialogue, confirmer, demanderTexte, ouvrirMenu, toast, boutonSelonTexte } from '../../os/ui.js';
 import { naviguer } from '../../os/router.js';
 import { retirerAvecAnnulation } from '../../os/retrait.js';
 import * as CRM from '../crm/donnees.js';
@@ -150,16 +150,18 @@ export function rendreFicheModele(conteneur, id) {
     const phase = h('select', { class: 'champ', 'aria-label': 'Phase du livrable type' }, P.phasesActives(cfg()).map((ph) => h('option', { value: ph.id }, ph.libelle)));
     const delai = h('input', { class: 'champ champ-court', type: 'number', min: '0', step: '1', inputmode: 'numeric', 'aria-label': 'Délai en jours (vide = sans date)', placeholder: 'Délai (jours)' });
     const bouton = h('button', { type: 'button', class: 'bouton bouton-principal bouton-petit', 'data-action': 'ajouter-tache-modele', onclick: ajouter }, icone('plus', { taille: 14 }), 'Ajouter le livrable type');
+    const majBouton = boutonSelonTexte(bouton, titre); // grisé tant que le titre est vide, jaune dès la première lettre
     async function ajouter() {
       if (!L.nettoyerEspaces(titre.value)) { toast('Le titre est obligatoire.', { type: 'erreur' }); titre.classList.add('invalide'); titre.focus(); return; }
       // Le formulaire se vide tout de suite ; si l'ajout échoue, ce qui était tapé revient.
       const saisie = { titre: titre.value, phase: phase.value, delaiJours: delai.value };
       titre.value = '';
+      majBouton();
       delai.value = '';
       titre.classList.remove('invalide');
       titre.focus();
       const ok = await ou(() => D.ajouterTacheModele(m.id, saisie), 'Livrable type non ajouté : vérifie ta connexion, puis réessaie');
-      if (!ok && !titre.value) { titre.value = saisie.titre; delai.value = saisie.delaiJours; }
+      if (!ok && !titre.value) { titre.value = saisie.titre; delai.value = saisie.delaiJours; majBouton(); }
     }
     titre.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); ajouter(); } });
 
