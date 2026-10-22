@@ -131,3 +131,12 @@ test('H5 la même fenêtre s’ouvre dans l’écran (téléphone comme ordinate
   expect(debordement).toBeLessThanOrEqual(1); // pas de défilement horizontal de la page
   await capture(page, 'H5-liste');
 });
+
+test('H1 journal vide : la fenêtre « Filtres » propose quand même les deux canaux et « À vérifier seulement »', async ({ page }) => {
+  await connecter(page);
+  await allerA(page, 'Journal des modifications');
+  await expect(page.getByText('Le journal est vide')).toBeVisible();
+  await bouton(page).click();
+  await expect(dialogue(page).locator('input[data-cle="canaux"]')).toHaveCount(2);
+  await expect(dialogue(page).locator('input[data-cle="aVerifier"]')).toBeVisible();
+});

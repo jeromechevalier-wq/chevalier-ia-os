@@ -107,13 +107,11 @@ export function rendreJournal(conteneur) {
   const nbFiltres = () => criteres.canaux.length + (criteres.aVerifier ? 1 : 0);
 
   async function ouvrirFiltres() {
-    const toutes = L.grouperJournal(lignes);
+    // Toujours proposés (même journal vide, en chargement ou en erreur) : les deux canaux et la case « À vérifier seulement ».
     const libelleMcp = estChezClient() ? 'Assistant IA (MCP)' : 'MCP (Claude Code, Hermes)';
-    // Seules les valeurs qui existent dans les lignes chargées sont proposées (plus celles déjà cochées).
-    const canauxPresents = [['ecran', 'Appli', 'Appli'], ['mcp', libelleMcp, 'MCP']].filter(([v, , nom]) => criteres.canaux.includes(v) || toutes.some((o) => o.canal === nom));
     const controles = [
-      { cle: 'canaux', libelle: 'Canal', type: 'cases', options: canauxPresents.map(([valeur, libelle]) => ({ valeur, libelle })) },
-      ...(criteres.aVerifier || toutes.some((o) => o.statut !== 'succes') ? [{ cle: 'aVerifier', libelle: 'À vérifier seulement', type: 'oui' }] : []),
+      { cle: 'canaux', libelle: 'Canal', type: 'cases', options: [{ valeur: 'ecran', libelle: 'Appli' }, { valeur: 'mcp', libelle: libelleMcp }] },
+      { cle: 'aVerifier', libelle: 'À vérifier seulement', type: 'oui' },
     ];
     const r = await fenetreFiltres({ controles, criteres: { canaux: criteres.canaux, aVerifier: criteres.aVerifier },
       effacer: () => ({ canaux: [], aVerifier: false }) });

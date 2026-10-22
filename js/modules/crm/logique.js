@@ -2192,7 +2192,7 @@ export function grouperJournal(lignes) {
   }).sort((a, b) => b.date - a.date);
 }
 
-/** criteres : { canal: 'tous' | 'ecran' | 'mcp', aVerifier: bool, depuis: 'AAAA-MM-JJ', texte } ; le texte cherche dans qui, quel outil, quel type de fiche */
+/** criteres : { canaux: ['ecran', 'mcp'] (tableau, OU entre les valeurs, vide = tous) ou, ancienne forme, canal: 'tous' | 'ecran' | 'mcp', aVerifier: bool, depuis: 'AAAA-MM-JJ', texte } ; le texte cherche dans qui, quel outil, quel type de fiche */
 export function filtrerJournal(operations, { canal = 'tous', canaux = [], aVerifier = false, depuis = '', texte = '' } = {}) {
   // `canaux` : tableau de cases cochées (OU entre elles, vide = tous) ; `canal` (une chaîne) reste accepté.
   const choisis = canaux.length ? canaux : (canal === 'ecran' || canal === 'mcp' ? [canal] : []);
