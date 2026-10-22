@@ -230,7 +230,7 @@ Le module `automatisations` est un module de la porte (`MODULES_DE_LA_PORTE` dan
 
 | Action | Corps | Réponse |
 |---|---|---|
-| `propositions.ajouter` | `id` (choisi par le workflow : minuscules, chiffres, `_` `-`, 100 caractères au plus), `type` (libellé court, 40), `titre` (120), `resume` (facultatif, 2 000), `champs` (1 à 40 `{nom, valeur}`, valeur 500 au plus, noms uniques), `lien` (https, facultatif), `executionId` (facultatif) | `{id, cree, etat}` ; rejouer le même `id` ne crée rien (`cree:false`) |
+| `propositions.ajouter` | `id` (choisi par le workflow : minuscules, chiffres, `_` `-`, 100 caractères au plus), `type` (libellé court, 40), `titre` (120), `resume` (facultatif, 2 000), `champs` (1 à 40 `{nom, valeur}`, valeur 500 au plus, noms uniques), `lien` (adresse http ou https, facultatif ; l'écran ne rend cliquable que https), `executionId` (facultatif) | `{id, cree, etat}` ; rejouer le même `id` ne crée rien (`cree:false`) |
 | `propositions.lireValidees` | `limite` (facultatif, 50 par défaut, 100 au plus) | `{propositions: [...]}`, plus anciennes d'abord (tri en mémoire, aucun index ; au-delà de 100 validées, les plus anciennes peuvent manquer), dates en texte ISO |
 | `propositions.marquerAppliquee` | `id`, `executionId` (facultatif) | `{id, etat, deja}` : rejouable, `deja:true` si c'était déjà fait |
 | `propositions.marquerEchec` | `id`, `erreur` | `{id, etat, tentatives, deja}` : rejouable, sans compter une tentative de plus ; l'erreur est masquée si elle ressemble à un secret |
