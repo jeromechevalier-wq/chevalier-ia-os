@@ -601,7 +601,7 @@ export async function lireJournal({ taille = 200, apres = null } = {}) {
   };
 }
 
-/** Copie « avant / après » d'une ligne du journal (même identifiant que la ligne) : { avant, apres } ou null si elle a expiré (90 jours). */
+/** Copie « avant / après » d'une ligne du journal (même identifiant que la ligne) : { avant, apres } ou null si elle manque. */
 export async function lireCopieJournal(idLigne) {
   const d = await getDoc(doc(db, chemin('crm_audit_avant'), idLigne));
   if (!d.exists()) return null;

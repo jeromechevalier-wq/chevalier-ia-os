@@ -4,7 +4,7 @@
 //  - suppression annulée = recréation avec le MÊME identifiant (les liens personneId, affaireId… restent valides).
 // Un document qui a changé depuis l'opération (état actuel ≠ état « après » gardé dans l'audit) n'est pas touché, sauf `forcer`.
 // La restauration passe par le même moteur que toute écriture : elle laisse sa propre trace (action « restaurer ») et peut elle-même
-// être restaurée. Au-delà de 90 jours la copie n'existe plus (règle TTL) : message clair, et la sauvegarde prend le relais.
+// être restaurée. Si une copie manque réellement (écriture échouée, copie perdue), message clair, et la sauvegarde prend le relais.
 import { COLLECTIONS as C } from './donnees.js';
 import { egal, sansId } from './canonique.js';
 import { ErreurEcriture, executerEcritures } from './ecriture.js';
@@ -32,7 +32,7 @@ export async function restaurerOperation({ donnees, ctx, operationId, apercu = t
   const copies = await Promise.all(lignesAudit.map((l) => donnees.document(C.auditAvant, l.id)));
   const perimees = lignesAudit.filter((_, i) => !copies[i]);
   if (perimees.length) {
-    throw new ErreurEcriture('copie_expiree', `Les copies « avant » de cette opération n’existent plus (gardées 90 jours) : ${perimees.length} ligne(s) sur ${lignesAudit.length}. Utiliser une sauvegarde (copie Google ou export JSON).`, { perimees: perimees.length });
+    throw new ErreurEcriture('copie_expiree', `Les copies « avant » de cette opération manquent : ${perimees.length} ligne(s) sur ${lignesAudit.length}. Utiliser une sauvegarde (copie Google ou export JSON).`, { perimees: perimees.length });
   }
   const courants = await Promise.all(lignesAudit.map((l) => donnees.document(l.collection, l.docId)));
   const lignes = lignesAudit.map((l, i) => {

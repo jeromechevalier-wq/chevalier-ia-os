@@ -38,7 +38,7 @@ describe('Moteur d’écriture et audit sur Firestore (émulateur)', { skip: emu
     for (const [nom, docs] of Object.entries(collections).filter(([n]) => n !== 'crm_audit')) for (const { id, ...reste } of docs) await db.collection(nom).doc(id).set(enTimestamps(reste));
   });
 
-  test('créer, modifier, supprimer : données, lignes « succes », copies avant et après, expiration à 90 jours (Timestamp pour la règle TTL)', async () => {
+  test('créer, modifier, supprimer : données, lignes « succes », copies avant et après, date expireAt à +90 jours (champ inerte, Timestamp)', async () => {
     const r = await executerEcritures({
       donnees, ctx: ctx(), outil: 'essai', parametres: { a: 1 },
       operations: [
@@ -120,7 +120,7 @@ describe('Moteur d’écriture et audit sur Firestore (émulateur)', { skip: emu
     assert.deepEqual(await brut('crm_activites', 'ac4'), avantAc4);
   });
 
-  test('restauration refusée si le document a changé depuis (Timestamp compris) ; forcer la permet ; copie expirée : message clair', async () => {
+  test('restauration refusée si le document a changé depuis (Timestamp compris) ; forcer la permet ; copie manquante : message clair', async () => {
     const r = await executerEcritures({ donnees, ctx: ctx(), outil: 'essai', operations: [{ type: 'modifier', collection: 'crm_personnes', id: 'p2', patch: { ville: 'Brest' }, horodater: ['modifieLe'] }] });
     await db.collection('crm_personnes').doc('p2').update({ ville: 'Rennes' });
     await assert.rejects(() => restaurerOperation({ donnees, ctx: ctx(), operationId: r.operationId, apercu: false }), (e) => e.code === 'restauration_refusee');
