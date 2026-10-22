@@ -66,5 +66,25 @@ Décisions que Jérôme doit encore trancher : bouton « Filtres » de l'Histori
 
 **I18.** Le bouton « + Personne » de l'écran Accueil est retiré (le bouton rond « + » du haut sert à créer). Vérifier avant que ce « + » permet bien de créer une personne.
 
+## Revue du 22/10/2026 (suite) et nuit « GO NUIT » du 22/10/2026 au 23/10/2026
+
+Jérôme a donné ses réponses le 22/10/2026 ; les sujets ont été codés la même nuit. Numérotation de cette revue (J, K, L, M, AF) pour ne pas la confondre avec I1 à I18.
+
+| N° | Décision de Jérôme | État | PR |
+|---|---|---|---|
+| J1 | Historique : plusieurs filtres à la fois (cases à cocher, « ou »), mémorisés jusqu'au rechargement | **Fait** | 174 |
+| J2 | Montant « 999 € » : même zone, alignement et espacement corrigés | **Fait** | 172 |
+| J3 | Kanban « ouvertes seulement » | **Abandonné** : la dernière colonne (gagnée) sert au suivi (document signé, banque…) ; les colonnes Perdues et En pause restent. À rediscuter si « trop de colonnes » | – |
+| J4 | Tâche : le mot reste le type d'activité des deux fiches | **Fait** | 169 |
+| J4b | Tâches de projet → **livrables** (mots : projet → phases → livrables ; affaire → étapes) | **Fait** (outils MCP renommés, sans alias) | 171 |
+| J5 | Filtres harmonisés partout (cases, pastille, mémoire jusqu'au rechargement) | **Fait** pour Personnes, Organisations, Affaires, Projets, Historique, Journal, Veille, Automatisations ; Tableau de bord : pas un filtre de liste | 174, 175, 176, 177 |
+| J6 | Date d'ajout des documents : toujours automatique | Déjà vrai pour les nouveaux documents (`ajouteLe`) | 165 |
+| J7 | Source = liste fixe (Réglages) ; Ville = texte libre propre | **Fait** ; migration des 4 phrases de source faite à la main avec les outils MCP (phrase d'origine gardée dans une note) | 170 |
+| J8 | Type d'activité de départ = Appel dans l'affaire et le projet | **Fait** | 169 |
+| J9 | Bouton « Gagnée » retiré de l'en-tête de l'affaire | **Fait** | 172 |
+| M1 à M3 | Textes « 90 jours » retirés (Journal, outils MCP) | **Faits** | 173 |
+
+Reste : **I16** (aligner les boutons ; décisions à prendre avec Jérôme sur les pastilles de choix, « Créer le projet », le style discret) ; configuration des types d'activité par l'utilisateur (« visite », « démonstration »…) : idée d'avenir.
+
 ## Autres pistes à placer
 Retours d'Ingrid (premier client réel depuis le 21/10/2026) ; audit complet des différences entre l'espace de Jérôme et ceux des clients ; second passage du look compact ; aide client publique ; chantier ChatGPT sur le MCP ; **audit de sécurité Fable : décalé à la semaine prochaine** (décision de Jérôme du 21/10/2026) ; allègement des fiches.

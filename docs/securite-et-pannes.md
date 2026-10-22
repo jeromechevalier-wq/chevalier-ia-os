@@ -145,7 +145,7 @@ Ces messages arrivent comme **erreur d'outil** (réponse 200 avec `isError`), ja
 | `Écriture refusée, rien n'a été écrit (un document a été modifié entre-temps : recommencer)` | Quelqu'un (toi, sur l'écran) a modifié le même document entre la lecture et l'écriture | Relire la fiche et recommencer |
 | `Écriture interrompue : N document(s) sur M écrits. Opération XXX…` | Panne au milieu d'une grosse opération (plusieurs paquets de 400) | `restaurer_depuis_audit` avec cet identifiant d'opération (aperçu d'abord) remet les documents déjà écrits dans l'état d'avant |
 | `Écriture faite, mais le journal n'a pas pu être complété…` (champ `auditIncomplet`) | Les données sont écrites, mais la ligne d'audit est restée « en_cours » | Rien à défaire. `lire_audit` avec `incompletes: true` montre ces lignes ; elles restent restaurables |
-| `Les copies « avant » de cette opération n'existent plus (gardées 90 jours)` | La restauration est demandée trop tard | Passer par une sauvegarde (copie Google, étape 5) |
+| `Les copies « avant » de cette opération manquent : N ligne(s) sur M. Utiliser une sauvegarde…` | La restauration est demandée trop tard | Passer par une sauvegarde (copie Google, étape 5) |
 | `N document(s) ont changé depuis cette opération : rien n'a été restauré` | Quelqu'un a modifié depuis ; la restauration n'écrase pas | Lire l'aperçu ; si l'écrasement est voulu, `forcer: true` |
 | `PERMISSION_DENIED` à l'écriture alors que la lecture marche | Rôle « Utilisateur Cloud Datastore » retiré ou compte d'exécution changé | Voir la ligne `PERMISSION_DENIED` plus haut |
 | Une fiche a un contenu inattendu après le passage d'un agent | Un agent a écrit autre chose que prévu | `lire_audit` (par `acteur` ou `docId`), puis `restaurer_depuis_audit` |
