@@ -24,8 +24,10 @@ Les agents (Claude Code, Hermes) peuvent maintenant lire et faire avancer les pr
 | `changer_phase_projet` | Dans tous les sens ; **vers Clôture, refusé tant qu'une facture est à payer**. |
 | `mettre_projet_en_pause`, `reprendre_projet`, `rouvrir_projet`, `archiver_projet` | Comme les boutons de la fiche. |
 | `terminer_projet` | Clôture (statut Terminé, archivé). **Refusé tant qu'une facture est à payer** : le refus nomme les factures. Sortie : `impaye: { raison }` (les factures restantes passent à « abandonnee », le projet garde sa pastille « Impayé »). |
-| `ajouter_tache_projet`, `terminer_tache_projet` | Phase du projet par défaut ; la tâche faite écrit son événement. |
+| `ajouter_livrable_projet`, `terminer_livrable_projet` | Phase du projet par défaut ; le livrable fait écrit son événement (« Livrable fait : … », type technique `tache_faite` inchangé). Renommés le 22/10/2026 (anciens noms `ajouter_tache_projet` / `terminer_tache_projet` retirés, sans alias) ; `lire_projet` et `lister_modeles_projet` renvoient la clé `livrables`. |
 | `ajouter_facture`, `marquer_facture_payee`, `abandonner_facture` | Une ligne par échéance ; une facture payée compte dans l'encaissé du mois du paiement ; l'abandon exige une raison. |
+
+> **Source (22/10/2026)** : le paramètre `source` de `creer_personne`, `modifier_personne`, `creer_affaire` et `modifier_affaire` doit être une valeur de la liste des Réglages (`lire_reglages`, clé `sources`) ; la comparaison ignore la casse et les accents ; un texte libre est refusé avec la liste des sources valides (le détail va dans une note) ; une chaîne vide efface la source. `creer_activite` ne sait toujours pas rattacher une activité à un projet (pas de paramètre `projetId`) : seul l'écran crée une activité « Tâche » sur un projet.
 
 > **Outil supprimé le 18/10/2026 : `extraire_valeur_projet`** (avec la fonctionnalité « Extraction de valeur »). `changer_etape`, `marquer_perdue`, `creer_projet_depuis_affaire` et `terminer_projet` ne créent ni ne rangent plus aucun projet d'extraction et ne rendent plus de champ `extraction` ; `lire_projet` ne rend plus `extraction` ni `source`, `lister_projets` n'a plus le filtre `nature`. Les anciens projets d'extraction restent lisibles (leurs champs `nature`, `projetSourceId` sont montrés tels quels).
 

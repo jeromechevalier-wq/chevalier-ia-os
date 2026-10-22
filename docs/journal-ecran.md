@@ -10,17 +10,17 @@ Menu de gauche, sous « Affaires » : **Journal** (icône d'horloge fléchée). 
 
 - Une **ligne par opération** (une action faite dans l'appli, ou un appel d'outil de Claude Code ou de Hermes), la plus récente en haut : quand, qui (Jérôme, Charles, ou le nom du jeton comme `claude-code-jerome`), canal (**Appli** ou **MCP**), ce qui s'est passé (« Suppression de 1 événement, 1 affaire »), et l'outil employé.
 - Une pastille **À vérifier** quand une opération est restée « en cours » (le serveur s'est arrêté au milieu : à contrôler), ou **Échec**.
-- En cliquant sur une ligne : le **détail document par document**, avec un tableau **champ / avant / après** (la copie « avant / après », gardée 90 jours). Pour un document supprimé, on voit tout ce qu'il contenait. Pour un document créé, « avant » est vide. Quand le document existe encore, un lien « Ouvrir la fiche » est proposé.
+- En cliquant sur une ligne : le **détail document par document**, avec un tableau **champ / avant / après** (la copie « avant / après », gardée sans limite de durée). Pour un document supprimé, on voit tout ce qu'il contenait. Pour un document créé, « avant » est vide. Quand le document existe encore, un lien « Ouvrir la fiche » est proposé.
 
 ## Filtres
 
-Recherche (qui, outil, type de document, identifiant ; **pas** le contenu des documents, le journal n'en garde pas dans ses lignes), canal (Tous, Appli, MCP), date de début, « À vérifier seulement ». Le bouton **Actualiser** relit le journal ; **Charger les lignes plus anciennes** va plus loin que les 200 dernières lignes.
+Recherche (qui, outil, type de document, identifiant ; **pas** le contenu des documents, le journal n'en garde pas dans ses lignes), date de début ; le bouton commun « Filtres » (22/10/2026) ouvre une fenêtre à cases à cocher : canal (Appli, MCP) et « À vérifier seulement » ; les filtres sont gardés jusqu'au rechargement de la page. Le bouton **Actualiser** relit le journal ; **Charger les lignes plus anciennes** va plus loin que les 200 dernières lignes.
 
 ## Ce que l'écran ne fait pas
 
 - Il **ne restaure pas**. Pour défaire une opération : dans Claude Code, « restaure l'opération `<identifiant>` (aperçu d'abord) » (`restaurer_depuis_audit`). L'identifiant est affiché dans le détail.
 - Il ne montre que ce que le journal contient (voir `audit-ecran.md` : les réglages et les modifications faites à la main dans la console Firestore n'y sont pas ; les sauvegardes Google couvrent ce cas).
-- Les copies de plus de 90 jours sont effacées automatiquement : le détail dit alors « Pas de copie ».
+- Les copies ne s'effacent pas ; si une ligne n'a pas de copie (elle n'a pas pu être écrite), le détail dit « Pas de copie ».
 
 ## Sécurité
 

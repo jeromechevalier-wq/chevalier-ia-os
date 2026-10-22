@@ -61,6 +61,13 @@ Jérôme ne veut pas être le goulot d'étranglement : GitHub permet de revenir 
 - Une PR en brouillon ne peut pas être armée en auto-merge : la passer en « prête » d'abord ; si toutes les vérifications sont déjà vertes, fusionner directement.
 - Les sous-agents travaillent chacun dans un répertoire de travail isolé (`isolation: worktree`) sur une branche locale ; seule la session principale pousse, une PR à la fois, sur la branche désignée de la session ; relecture Fable avant la fusion de chaque PR ; chaque nouvelle PR fusionne d'abord `origin/main`.
 
+### Leçons de la deuxième nuit (22 au 23/10/2026)
+- Une branche poussée sur le nom de la session écrase la PR précédente tant qu'elle n'est pas fusionnée : **une PR à la fois**, ne pousser la suivante qu'après la fusion (vérifier `merged` avant).
+- Chaque nouvelle PR fusionne d'abord `origin/main` ; les ajouts « une ligne » dans `js/main.js`, `js/os/espace.js` et `tests/package.json` (liste `test:logique`) provoquent des conflits à résoudre **en gardant toutes les lignes**.
+- Une coche rouge sans test en échec (émulateur Firestore qui s'arrête au démarrage) : relancer une fois (`rerun_failed_jobs`) avant de chercher.
+- Une relecture Fable des briefs avant l'envoi a trouvé des erreurs à chaque fois (dépôt local en retard, lignes inexactes, collisions entre PR) : la garder.
+- Données de Jérôme modifiées pendant la nuit : seulement avec son accord écrit dans la session, avec les outils MCP, après la fusion du code, sans rien écrire dans le dépôt public (ni noms ni phrases).
+
 ## Au démarrage d'une session
 
 1. Lis `docs/roadmap.md` (état et décisions).

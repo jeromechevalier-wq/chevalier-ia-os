@@ -4,7 +4,7 @@ Demande du 04/10/2026 : **l'audit doit tracer aussi ce que tu fais toi-même dan
 
 ## En clair
 
-Avant : quand tu créais, modifiais ou supprimais quelque chose à l'écran, rien n'était noté (seul le serveur MCP tenait un journal). Maintenant, **chaque action de l'écran écrit, dans le même envoi que la donnée**, une ligne dans le journal (`crm_audit` : qui, quand, quelle action, quel document, quels champs) et une copie « avant / après » du document (`crm_audit_avant`, effacée après 90 jours). « Dans le même envoi » veut dire **tout ou rien** : jamais une modification sans trace, jamais une trace sans modification. Le même schéma que le serveur MCP : `lire_audit` voit les actions de l'écran (canal `ecran`), et `restaurer_depuis_audit` peut les défaire.
+Avant : quand tu créais, modifiais ou supprimais quelque chose à l'écran, rien n'était noté (seul le serveur MCP tenait un journal). Maintenant, **chaque action de l'écran écrit, dans le même envoi que la donnée**, une ligne dans le journal (`crm_audit` : qui, quand, quelle action, quel document, quels champs) et une copie « avant / après » du document (`crm_audit_avant`, gardée sans limite de durée depuis la décision du 04/10/2026). « Dans le même envoi » veut dire **tout ou rien** : jamais une modification sans trace, jamais une trace sans modification. Le même schéma que le serveur MCP : `lire_audit` voit les actions de l'écran (canal `ecran`), et `restaurer_depuis_audit` peut les défaire.
 
 **Ce qui est couvert** : toutes les créations, modifications et suppressions des personnes, organisations, affaires, activités, notes et événements, faites depuis l'appli (y compris la suppression en cascade, le changement d'étape, l'encaissement, l'archivage, les documents et les adresses GitHub / dossier).
 **Ce qui n'est pas couvert** : les **réglages** (offres, étiquettes, secteurs, sources, filtres, objectifs saisis à la main), qui n'ont pas la même mécanique d'écriture ; ce qui est modifié **à la main dans la console Firestore** (les sauvegardes Google couvrent ce cas).
@@ -43,7 +43,7 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // Copies « avant / après » (effacées après 90 jours) : lisibles par l'appli (écran Journal), ajout seul depuis l'appli.
+    // Copies « avant / après » (jamais effacées ; la date expireAt est inerte, exigée par les règles) : lisibles par l'appli (écran Journal), ajout seul depuis l'appli.
     match /crm_audit_avant/{id} {
       allow read: if compteAutorise();
       allow create: if compteAutorise() && request.resource.data.expireAt is timestamp;
@@ -151,4 +151,4 @@ Voir la PR : tests de règles (le journal et les copies s'ajoutent à son nom, n
 
 - Le document « avant » est lu juste avant l'écriture ; si un autre appareil modifie la même fiche dans l'intervalle (quelques millisecondes), la copie « avant » peut être légèrement en retard. Le serveur MCP, lui, refuse dans ce cas (transaction) ; l'écran ne le fait pas.
 - Une action qui touche plus de 130 documents est découpée en plusieurs lots : chaque lot est atomique, l'ensemble ne l'est pas (comme avant pour les suppressions de plus de 400 documents). Depuis la 2.15.3, si un lot échoue après d'autres, le Journal le signale (opération en « Échec », avec le nombre d'éléments traités) et l'écran dit de recommencer l'opération.
-- Les copies « avant / après » contiennent des données de personnes : elles s'effacent après 90 jours (règle TTL créée le 03/10/2026).
+- Les copies « avant / après » contiennent des données de personnes : elles sont gardées sans limite de durée (la règle TTL du 03/10/2026 a été supprimée le 04/10/2026 ; décision de Jérôme : base interne, aucune mesure RGPD pour l'instant).

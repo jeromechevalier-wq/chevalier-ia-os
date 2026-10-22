@@ -4,6 +4,9 @@ Tenue à jour à chaque discussion sur l'évolution de l'appli. Dernière mise �
 
 Légende : **décidé** = validé par Jérôme ; **piste** = à trancher avant le cahier des charges.
 
+## Nuit du 22 au 23/10/2026 : vocabulaire, filtres, source (version 2.20.0)
+Neuf PR (169 à 177) : « Appel » par défaut et pastille « Tâche » sur le projet ; **livrables** à la place des tâches de projet (outils MCP `ajouter_livrable_projet` / `terminer_livrable_projet`, sans alias) ; Source en liste fixe et Ville regroupée ; en-tête de l'affaire sans bouton « Gagnée » et montant aligné ; textes « 90 jours » retirés ; **un seul composant de filtres** pour toute l'appli (Personnes, Organisations, Affaires, Projets, Historique, Journal, Veille, Automatisations), cases à cocher, mémorisé jusqu'au rechargement. Vocabulaire : `docs/vocabulaire.md`. Détail et reste à faire : `docs/reprise-prochaine-session.md` et `docs/idees-affaires-projets.md` (« Revue du 22/10/2026 »). **À faire** : alignement des boutons (I16), roadmap : déplacer `fenetreFiltres` dans `js/os/ui.js`.
+
 ## Nuit du 21 au 22/10/2026 : idées Affaires et Projets (version 2.19.0)
 
 Revue des idées avec Jérôme (`docs/idees-affaires-projets.md`), puis code en autonomie (« GO NUIT », protocole dans `CLAUDE.md`) : PR 160 à 166 (liens personne/organisation en direct, notes cliquables et coupées, Factures/Tâches/Documents en « + Ajouter », montant fantôme, Propriétaire dans le Résumé, note de départ à la place du champ description avec le MCP, onglet Documents version 2 avec date d'ajout, bouton « Filtres » de l'Historique). Rapport complet : `docs/reprise-prochaine-session.md`. **Reste** : I15 (aligner les autres filtres), I16 (aligner les boutons), audit de sécurité Fable (semaine prochaine).

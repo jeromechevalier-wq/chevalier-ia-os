@@ -1,6 +1,38 @@
 # À faire au début de la prochaine session
 
-Écrit le 04/10/2026, mis à jour le 21/10/2026, pour qu'une session neuve reprenne sans que Jérôme ait à recoller quoi que ce soit. **À mettre à jour ou à supprimer une fois les points faits.**
+Écrit le 04/10/2026, mis à jour le 22/10/2026, pour qu'une session neuve reprenne sans que Jérôme ait à recoller quoi que ce soit. **À mettre à jour ou à supprimer une fois les points faits.**
+
+## Rapport du matin : nuit « GO NUIT » du 22 au 23/10/2026 (version 2.20.0)
+
+Jérôme a validé ses décisions le 22/10/2026 puis écrit « GO NUIT ». Claude a codé en autonomie, un sujet par PR, relue par Fable, fusionnée seule quand la coche « Tests » est verte.
+
+| Sujet | PR | État |
+|---|---|---|
+| J8, J4 : « Appel » par défaut ; pastille « Tâche » sur le projet | 169 | fusionnée |
+| J7 : Source en liste fixe, Ville regroupée | 170 | fusionnée |
+| J4b : tâches de projet → livrables, outils MCP renommés | 171 | fusionnée |
+| J2, J9 : montant aligné, bouton « Gagnée » retiré | 172 | fusionnée |
+| M1 à M3 : textes « 90 jours » retirés | 173 | fusionnée |
+| J1, J5 : un seul composant de filtres ; historique à plusieurs cases | 174 | fusionnée |
+| J5 : filtres de la Veille | 175 | fusionnée |
+| J5 : filtres du Journal | 176 | fusionnée |
+| J5 : filtres des Automatisations | 177 | fusionnée selon la coche (voir la PR) |
+| Docs, version 2.20.0, vocabulaire | cette PR | – |
+
+**À regarder à l'écran (recette de Jérôme)** : les « 5 vérifications » de chaque PR sont dans leur description (169 à 177). Les plus importantes : (1) une affaire : plus de bouton « Gagnée », le « 999 € » est à la hauteur des boutons « Perdue / En pause » ; (2) un projet : « Livrables 0/1 », « Clique ici pour ajouter un livrable… » et la pastille « Tâche » dans l'activité ; (3) l'Historique d'une fiche : « Filtres », coche deux types, la pastille indique 2, le filtre reste quand on ouvre une autre fiche ; (4) Personnes : la Source ne propose que la liste des Réglages, la Ville n'a plus de doublon ; (5) Journal, Veille, Automatisations : le même bouton « Filtres » partout.
+
+**Données de Jérôme modifiées pendant la nuit (accord explicite de Jérôme)** : les phrases de source qui n'étaient pas dans la liste (4 affaires, 2 personnes) ont été remplacées par une valeur de la liste, et la phrase d'origine a été gardée dans une note de la fiche (le journal des modifications garde les copies « avant »). **À faire par Jérôme** : une phrase de source n'a pas pu être retrouvée sur une fiche avec les outils disponibles ; dans Personnes, filtre « Source » pour la repérer, la remplacer, puis **retirer les phrases de la liste dans Réglages, Sources** (le code ne recopie plus rien dans cette liste). Rien n'a été modifié chez Ingrid (plateforme clients non déployée : ses changements arrivent au prochain déploiement manuel).
+
+**Ce qui n'a pas pu être vérifié avec le vrai système** : tout a été testé sur émulateurs et avec le navigateur de test ; pas de vraie base de Jérôme ni de vrai téléphone, pas de vrais clients MCP (les outils renommés `ajouter_livrable_projet` et `terminer_livrable_projet` ne sont visibles dans l'assistant qu'après redéploiement du serveur MCP et reconnexion), pas de plateforme clients. Le test J4 des Automatisations et « assistant non administrateur » échouent en local pour des causes déjà connues (fuseau du bac à sable, erreur 409 de l'émulateur) ; ils passent sur GitHub.
+
+**Ce que la nuit a révélé** : (1) une première coche rouge de la PR 169 venait de l'émulateur Firestore (téléchargement de son fichier au démarrage) : relancée une fois, verte ; (2) l'analyse a changé d'avis en cours de route : l'idée « gagnée = simple statut » (I19) a été abandonnée parce que la dernière colonne sert au suivi après la vente ; (3) un oubli de `completerSources` aurait annulé la migration des sources : supprimé dans la PR 170.
+
+**Reste à faire, dans l'ordre proposé** :
+1. **Jérôme** : retirer les phrases de la liste Réglages > Sources (voir plus haut) ; confirmer ou non la suppression des colonnes « Perdues » / « En pause » du kanban (« trop de colonnes »).
+2. **I16 : aligner les boutons restants** (liste dans `docs/consignes-ui.md`, section « Boutons »), à discuter avec Jérôme : pastilles Appel / Rendez-vous / Email / Tâche (un 4e style ?), « Créer le projet », le style discret ; zone de clic des « + Ajouter » sur téléphone (44 px).
+3. Anciens défauts de tests : P1 et C12 (fenêtre 22 h–minuit UTC) ; C30 téléphone de `projets.spec.js` ; `ports-et-isolation.test.js` ; le test « assistant non administrateur » (erreur 409 à filtrer comme dans `filtres-commun.spec.js`).
+4. Roadmap : `boutonFiltres` / `fenetreFiltres` vivent dans `js/modules/crm/filtres.js` mais servent à tout (leur place logique serait `js/os/ui.js`).
+5. Audit de sécurité Fable (cette semaine ou la suivante, décision de Jérôme), audit des différences Jérôme / clients, configuration des types d'activité par l'utilisateur, retours d'Ingrid.
 
 ## Rapport du matin : nuit « GO NUIT » du 21 au 22/10/2026 (version 2.19.0)
 
