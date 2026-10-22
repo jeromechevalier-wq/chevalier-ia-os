@@ -21,13 +21,15 @@ export function rendreAValider(conteneur) {
   const bandeau = h('div', { class: 'autom-bandeau', role: 'alert', hidden: true });
   const zoneAValider = h('ol', { class: 'prop-liste', 'aria-label': 'Propositions à valider' });
   const zoneRecentes = h('ol', { class: 'prop-liste', 'aria-label': 'Traitements récents' });
+  const limite = h('p', { class: 'autom-meta prop-limite' }, `Les ${NB_RECENTES_MAX} plus récents sont affichés.`);
+  limite.hidden = true;
   const compte = h('span', { class: 'prop-compte', 'aria-live': 'polite' });
 
   conteneur.append(h('div', { class: 'page page-liste page-automatisations page-a-valider' },
     h('header', { class: 'page-tete' }, h('h1', {}, 'À valider'), compte),
     bandeau,
     h('section', { class: 'prop-zone', dataset: { zone: 'a-valider' } }, zoneAValider),
-    h('section', { class: 'prop-zone', dataset: { zone: 'recentes' } }, h('h2', { class: 'prop-titre-zone' }, 'Traitements récents'), zoneRecentes)));
+    h('section', { class: 'prop-zone', dataset: { zone: 'recentes' } }, h('h2', { class: 'prop-titre-zone' }, 'Traitements récents'), zoneRecentes, limite)));
 
   const etatDe = (id) => {
     if (!etats.has(id)) etats.set(id, { editing: false, valeurs: {}, refus: false, raison: '', occupe: false, attente: false });
@@ -181,9 +183,7 @@ export function rendreAValider(conteneur) {
     for (const id of [...cartes.keys()]) if (!vues.has(id)) { cartes.delete(id); etats.delete(id); }
     synchroniser(zoneAValider, elsA, h('li', { class: 'autom-vide', dataset: { vide: 'a-valider' } }, MESSAGE_VIDE));
     synchroniser(zoneRecentes, elsR, h('li', { class: 'autom-vide', dataset: { vide: 'recentes' } }, 'Aucun traitement récent pour l’instant.'));
-    if (recentes.length > visiblesRecentes.length && !zoneRecentes.nextElementSibling) {
-      zoneRecentes.after(h('p', { class: 'autom-meta prop-limite' }, `Les ${NB_RECENTES_MAX} plus récents sont affichés.`));
-    }
+    limite.hidden = recentes.length <= visiblesRecentes.length; // la mention disparaît quand la liste redescend sous la limite
     // La carte en cours de saisie a pu être reconstruite : on remet le curseur dans son champ.
     if (idActif && champActif) {
       const retrouve = conteneur.querySelector(`[data-id="${CSS.escape(idActif)}"] [data-champ="${CSS.escape(champActif)}"]`);
