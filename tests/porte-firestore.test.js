@@ -301,4 +301,38 @@ describe('Porte, automatisations et Firestore (émulateur)', { skip: emulateur ?
     assert.equal((await appel(crm, cles.interne.cle, 'propositions.lireValidees', {}, 'wI')).corps.resultat.propositions.length, 0, 'rien de validé à la racine');
     assert.equal((await appel(crm, cles.audrey.cle, 'propositions.lireValidees', {}, 'wA')).statut, 403, 'une clé de client n\'ouvre pas la base 1');
   });
+
+  test('6 Logger : demarrer, étapes (vraies dates), finalisation atomique par « ajouter » (deux dépôts en même temps : une seule finalisation), puis abandon', async () => {
+    const plan = [{ cle: 'a-lire', libelle: 'Lire' }, { cle: 'a-extraire', libelle: 'Extraire' }, { cle: 'a-deposer', libelle: 'Déposer' }];
+    const r = await appel(plateforme, cles.audrey.cle, 'propositions.demarrer', { id: 'p-logger', type: 'Essai', plan, executionId: '5' }, 'wA');
+    assert.deepEqual(r.corps.resultat, { id: 'p-logger', cree: true, etat: 'en_preparation' });
+    const d0 = (await db.doc(chemA('p-logger')).get()).data();
+    assert.ok(d0.creeLe instanceof Timestamp); assert.equal(d0.expireLe, null);
+    assert.deepEqual(d0.etapes, plan.map((e) => ({ ...e, etat: 'a_venir' })));
+    // Deux étapes écrites en même temps : les deux arrivent (la précondition force la relecture).
+    const es = await Promise.all([['a-lire', 'fait'], ['a-extraire', 'en_cours']].map(([cle, etat]) => appel(plateforme, cles.audrey.cle, 'propositions.etape', { id: 'p-logger', cle, libelle: cle, etat }, 'wA')));
+    assert.deepEqual(es.map((x) => x.statut), [200, 200]);
+    const d1 = (await db.doc(chemA('p-logger')).get()).data();
+    assert.deepEqual(d1.etapes.map((e) => e.etat), ['fait', 'en_cours', 'a_venir']);
+    assert.ok(d1.etapes[0].le instanceof Timestamp);
+    // Deux dépôts en même temps : une seule finalisation, l'autre répond cree:false.
+    const rs = await Promise.all([1, 2].map(() => appel(plateforme, cles.audrey.cle, 'propositions.ajouter', { ...P, id: 'p-logger' }, 'wA')));
+    assert.deepEqual(rs.map((x) => x.statut), [200, 200]);
+    assert.deepEqual(rs.map((x) => x.corps.resultat.cree).sort(), [false, true]);
+    const d2 = (await db.doc(chemA('p-logger')).get()).data();
+    assert.equal(d2.etat, 'a_valider'); assert.equal(d2.titre, P.titre);
+    assert.ok(d2.expireLe instanceof Timestamp);
+    assert.equal(d2.expireLe.toMillis() - d2.creeLe.toMillis(), 30 * 86_400_000);
+    assert.deepEqual(d2.etapes.map((e) => e.etat), ['fait', 'en_cours', 'a_venir'], 'les étapes restent après la finalisation');
+    // Une ligne déposée ne s'abandonne pas ; une autre ligne en préparation, si.
+    assert.equal((await appel(plateforme, cles.audrey.cle, 'propositions.abandonner', { id: 'p-logger', erreur: 'x' }, 'wA')).statut, 409);
+    await appel(plateforme, cles.audrey.cle, 'propositions.demarrer', { id: 'p-plante', type: 'Essai', plan }, 'wA');
+    await appel(plateforme, cles.audrey.cle, 'propositions.etape', { id: 'p-plante', cle: 'a-lire', libelle: 'Lire', etat: 'en_cours' }, 'wA');
+    const ab = await appel(plateforme, cles.audrey.cle, 'propositions.abandonner', { id: 'p-plante', erreur: 'Panne du modèle' }, 'wA');
+    assert.deepEqual(ab.corps.resultat, { id: 'p-plante', etat: 'abandonnee', deja: false });
+    const d3 = (await db.doc(chemA('p-plante')).get()).data();
+    assert.deepEqual(d3.etapes.map((e) => e.etat), ['echec', 'ignoree', 'ignoree']);
+    assert.equal(d3.derniereErreur, 'Panne du modèle');
+    assert.equal((await appel(plateforme, cles.audrey.cle, 'propositions.abandonner', { id: 'p-plante', erreur: 'Panne du modèle' }, 'wA')).corps.resultat.deja, true);
+  });
 });

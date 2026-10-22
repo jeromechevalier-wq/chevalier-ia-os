@@ -1,9 +1,10 @@
 // Module Automatisations (chantier 14, anciennement « journal » ; ne pas confondre avec l'écran « Journal » du CRM) : historique des exécutions
-// des workflows n8n, en lecture seule. Route : automatisations/historique. Présent chez Jérôme (racine) et chez les clients qui l'ont activé.
+// des workflows n8n, en lecture seule (automatisations/historique), et file « À valider » des propositions des workflows (automatisations/a-valider). Présent chez Jérôme (racine) et chez les clients qui l'ont activé.
 import { vider } from '../../os/ui.js';
 import { naviguer } from '../../os/router.js';
 import * as D from './donnees.js';
 import { rendreHistorique } from './ecran.js';
+import { rendreAValider } from './a-valider.js';
 
 // Feuille de style propre au module, ajoutée au premier affichage (index.html du CRM reste inchangé).
 function ajouterFeuille() {
@@ -34,15 +35,16 @@ function quitter() {
 }
 
 export function afficher(conteneur, segs) {
-  if (segs[0] !== 'historique') {
+  const ecran = segs[0] === 'a-valider' ? 'a-valider' : segs[0] === 'historique' ? 'historique' : null;
+  if (!ecran) {
     naviguer('automatisations/historique', { remplacer: true });
     return quitter;
   }
-  if (montee && conteneur.firstChild) return quitter;
+  if (montee && montee.ecran === ecran && conteneur.firstChild) return quitter;
   ajouterFeuille();
   quitter();
   vider(conteneur);
-  montee = { quitter: rendreHistorique(conteneur) };
+  montee = { ecran, quitter: (ecran === 'a-valider' ? rendreAValider : rendreHistorique)(conteneur) };
   conteneur.scrollTop = 0;
   return quitter;
 }

@@ -680,6 +680,194 @@ describe('porte : automatisations (propositions)', () => {
     for (const a of ['propositions.decider', 'propositions.valider', 'propositions.refuser', 'propositions.relancer']) assert.equal((await prop(m, m.cles.audrey.cle, a, { id: 'p1' })).corps.erreur, 'action_inconnue', a);
   });
 
+  // --- Le Logger : demarrer / etape / abandonner / ajouter qui finalise ---
+  const PLAN = [{ cle: 'a-lire', libelle: 'Lire le message' }, { cle: 'a-extraire', libelle: 'Extraire' }, { cle: 'a-deposer', libelle: 'Déposer' }];
+  const CH = 'clients/audrey/automatisations_propositions/p1';
+  const demarrer = (m, donnees = {}, cle = m.cles.audrey.cle) => prop(m, cle, 'propositions.demarrer', { id: 'p1', type: 'Nouveau contact', executionId: '42', plan: PLAN, ...donnees });
+  const etape = (m, donnees, cle = m.cles.audrey.cle) => prop(m, cle, 'propositions.etape', { id: 'p1', ...donnees });
+
+  test('1 « demarrer » crée la ligne en préparation avec son plan ; rejouer (même avec un autre plan) ne change rien', async () => {
+    const m = monde({ modules: AUTOM });
+    const r = await demarrer(m);
+    assert.equal(r.statut, 200);
+    assert.deepEqual(r.corps.resultat, { id: 'p1', cree: true, etat: 'en_preparation' });
+    const d = m.base.docs.get(CH);
+    assert.equal(d.etat, 'en_preparation'); assert.equal(d.titre, 'Nouveau contact', 'titre facultatif : le type');
+    assert.deepEqual(d.champsProposes, []); assert.equal(d.expireLe, null); assert.equal(d.source, 'porte');
+    assert.ok(d.creeLe instanceof Date && d.creeLe.getTime() === T0);
+    assert.deepEqual(d.etapes, PLAN.map((e) => ({ ...e, etat: 'a_venir' })));
+    assert.equal(d.executions.proposer, '42');
+    assert.match(d.ecritPar, /^porte:/);
+    assert.ok(!('id' in d) && !('proprietaire' in d));
+    const rejeu = await demarrer(m, { titre: 'Autre', plan: [{ cle: 'zz', libelle: 'Autre plan' }] });
+    assert.deepEqual(rejeu.corps.resultat, { id: 'p1', cree: false, etat: 'en_preparation' });
+    assert.deepEqual(m.base.docs.get(CH).etapes, PLAN.map((e) => ({ ...e, etat: 'a_venir' })), 'le plan d\'origine est conservé');
+    assert.equal(m.base.docs.get(CH).titre, 'Nouveau contact');
+    // Plan invalide : clé en double, trop long, clé invalide, libellé secret, champ inconnu, liste vide : 400 et rien d'écrit.
+    const m2 = monde({ modules: AUTOM });
+    const essais = [
+      { plan: [PLAN[0], PLAN[0]] },
+      { plan: Array.from({ length: 11 }, (_, i) => ({ cle: `e${i}`, libelle: 'x' })) },
+      { plan: [{ cle: 'Pas Bon', libelle: 'x' }] },
+      { plan: [{ cle: 'ok', libelle: 'ghp_' + 'a'.repeat(30) }] },
+      { plan: [{ cle: 'ok', libelle: 'x', en_plus: 1 }] },
+      { plan: [] },
+      { etat: 'a_valider' },
+      { type: 'x'.repeat(41) },
+    ];
+    for (const e of essais) assert.equal((await demarrer(m2, e)).statut, 400, JSON.stringify(e).slice(0, 60));
+    assert.equal(m2.base.docs.size, 0);
+    // Sans plan ni titre ni executionId : la ligne naît quand même.
+    const m3 = monde({ modules: AUTOM });
+    assert.equal((await prop(m3, m3.cles.audrey.cle, 'propositions.demarrer', { id: 'p9', type: 'Brouillon' })).statut, 200);
+    assert.deepEqual(m3.base.docs.get('clients/audrey/automatisations_propositions/p9').etapes, []);
+  });
+
+  test('2 « etape » met à jour par clé, ajoute hors plan, refuse la 11e, rejoue sans écrire et ne recule pas', async () => {
+    const m = monde({ modules: AUTOM });
+    assert.equal((await etape(m, { cle: 'a-lire', libelle: 'Lire le message', etat: 'en_cours' })).statut, 404, 'ligne inconnue');
+    await demarrer(m);
+    const r = await etape(m, { cle: 'a-lire', libelle: 'Lire le message', etat: 'en_cours' });
+    assert.deepEqual(r.corps.resultat, { id: 'p1', etat: 'en_preparation', etapes: 3 });
+    assert.deepEqual(m.base.docs.get(CH).etapes.map((e) => e.etat), ['en_cours', 'a_venir', 'a_venir']);
+    assert.equal(m.base.docs.get(CH).etapes[0].le.getTime(), T0);
+    assert.equal((await etape(m, { cle: 'a-lire', libelle: 'Lire le message', etat: 'fait' })).statut, 200);
+    // Rejeu à l'identique : succès, aucune écriture (le document garde sa valeur, même si on le marque pour le vérifier).
+    const avant = m.base.docs.get(CH);
+    const marque = { ...avant, temoin: 1 };
+    m.base.docs.set(CH, marque);
+    assert.equal((await etape(m, { cle: 'a-lire', libelle: 'Lire le message', etat: 'fait' })).statut, 200);
+    assert.equal(m.base.docs.get(CH).temoin, 1);
+    assert.deepEqual(m.base.docs.get(CH).etapes, avant.etapes);
+    // Ne recule pas : 409. A_venir par la porte : 400 (il n'entre que par « demarrer »). État inconnu : 400.
+    assert.equal((await etape(m, { cle: 'a-lire', libelle: 'Lire le message', etat: 'en_cours' })).statut, 409);
+    assert.equal((await etape(m, { cle: 'a-extraire', libelle: 'Extraire', etat: 'a_venir' })).statut, 400);
+    assert.equal((await etape(m, { cle: 'a-extraire', libelle: 'Extraire', etat: 'termine' })).statut, 400);
+    assert.equal((await etape(m, { cle: 'a-extraire', libelle: 'x'.repeat(61), etat: 'fait' })).statut, 400);
+    assert.equal((await etape(m, { cle: 'Pas Bon', libelle: 'x', etat: 'fait' })).statut, 400);
+    assert.equal((await etape(m, { cle: 'a-extraire', libelle: 'Extraire', etat: 'fait', proprietaire: 'martin' })).statut, 400);
+    // Hors plan : ajoutée à la fin, jusqu'à 10 au total.
+    for (let i = 0; i < 7; i++) assert.equal((await etape(m, { cle: `h${i}`, libelle: `Hors plan ${i}`, etat: 'fait' })).statut, 200);
+    assert.equal(m.base.docs.get(CH).etapes.length, 10);
+    assert.equal(m.base.docs.get(CH).etapes[3].cle, 'h0');
+    assert.equal((await etape(m, { cle: 'h-de-trop', libelle: 'Trop', etat: 'fait' })).statut, 400);
+    assert.equal((await etape(m, { cle: 'a-extraire', libelle: 'Extraire', etat: 'fait' })).statut, 200, 'une clé du plan se met toujours à jour');
+    // Permis aussi pour le workflow B quand la ligne est validée ; refusé quand elle est à valider ou terminée.
+    const m2 = monde({ modules: AUTOM });
+    await demarrer(m2);
+    await prop(m2, m2.cles.audrey.cle, 'propositions.ajouter', { ...PROPOSITION });
+    assert.equal((await etape(m2, { cle: 'a-lire', libelle: 'Lire', etat: 'fait' })).statut, 409, 'a_valider : pas d\'étape');
+    m2.base.docs.set(CH, { ...m2.base.docs.get(CH), etat: 'validee' });
+    assert.equal((await etape(m2, { cle: 'b-creer', libelle: 'Créer', etat: 'en_cours' })).statut, 200, 'validee : étapes de B');
+    m2.base.docs.set(CH, { ...m2.base.docs.get(CH), etat: 'appliquee' });
+    assert.equal((await etape(m2, { cle: 'b-creer', libelle: 'Créer', etat: 'fait' })).statut, 409);
+  });
+
+  test('3 « ajouter » finalise la ligne en préparation (sans la dupliquer) ; rejouer est sans effet ; une ligne décidée répond son état', async () => {
+    const m = monde({ modules: AUTOM });
+    await demarrer(m);
+    await etape(m, { cle: 'a-lire', libelle: 'Lire le message', etat: 'fait' });
+    const r = await prop(m, m.cles.audrey.cle, 'propositions.ajouter', { ...PROPOSITION, executionId: '43' });
+    assert.equal(r.statut, 200);
+    assert.deepEqual(r.corps.resultat, { id: 'p1', cree: true, etat: 'a_valider' });
+    const d = m.base.docs.get(CH);
+    assert.equal(d.etat, 'a_valider'); assert.equal(d.titre, 'Ajouter une personne'); assert.equal(d.resume, 'Reçu par e-mail.');
+    assert.deepEqual(d.champsProposes, PROPOSITION.champs); assert.equal(d.lien, 'https://exemple.test/mail/1');
+    assert.equal(d.expireLe.getTime(), T0 + 30 * 86_400_000);
+    assert.equal(d.executions.proposer, '43');
+    assert.deepEqual(d.etapes.map((e) => e.etat), ['fait', 'a_venir', 'a_venir'], 'les étapes restent');
+    assert.equal(d.type, 'Nouveau contact', 'le type reste celui du démarrage');
+    assert.equal([...m.base.docs.keys()].filter((c) => c.includes('automatisations_propositions')).length, 1);
+    // Rejeu : idempotent, rien n'est écrasé.
+    const rejeu = await prop(m, m.cles.audrey.cle, 'propositions.ajouter', { ...PROPOSITION, titre: 'Autre titre' });
+    assert.deepEqual(rejeu.corps.resultat, { id: 'p1', cree: false, etat: 'a_valider', deja: true });
+    assert.equal(m.base.docs.get(CH).titre, 'Ajouter une personne');
+    // Ligne déjà décidée ou abandonnée : réponse sans erreur, état courant, rien d'écrit.
+    for (const etat of ['validee', 'refusee', 'abandonnee']) {
+      m.base.docs.set(CH, { ...m.base.docs.get(CH), etat });
+      const x = await prop(m, m.cles.audrey.cle, 'propositions.ajouter', { ...PROPOSITION, titre: 'Tardif' });
+      assert.equal(x.statut, 200, etat); assert.deepEqual(x.corps.resultat, { id: 'p1', cree: false, etat }, etat);
+      assert.equal(m.base.docs.get(CH).titre, 'Ajouter une personne');
+    }
+    // Sans « demarrer » : la création directe fonctionne comme avant.
+    const m2 = monde({ modules: AUTOM });
+    assert.deepEqual((await prop(m2, m2.cles.audrey.cle, 'propositions.ajouter', PROPOSITION)).corps.resultat, { id: 'p1', cree: true, etat: 'a_valider' });
+    assert.deepEqual(m2.base.docs.get(CH).etapes, []);
+  });
+
+  test('4 « abandonner » passe la ligne à abandonnee (en_cours vers echec, a_venir vers ignoree), est rejouable, masque un secret et refuse hors préparation', async () => {
+    const m = monde({ modules: AUTOM });
+    await demarrer(m);
+    await etape(m, { cle: 'a-lire', libelle: 'Lire le message', etat: 'fait' });
+    await etape(m, { cle: 'a-extraire', libelle: 'Extraire', etat: 'en_cours' });
+    const r = await prop(m, m.cles.audrey.cle, 'propositions.abandonner', { id: 'p1', erreur: 'Le modèle n\'a pas répondu' });
+    assert.deepEqual(r.corps.resultat, { id: 'p1', etat: 'abandonnee', deja: false });
+    const d = m.base.docs.get(CH);
+    assert.equal(d.etat, 'abandonnee'); assert.equal(d.derniereErreur, 'Le modèle n\'a pas répondu');
+    assert.deepEqual(d.etapes.map((e) => e.etat), ['fait', 'echec', 'ignoree']);
+    assert.deepEqual((await prop(m, m.cles.audrey.cle, 'propositions.abandonner', { id: 'p1', erreur: 'autre' })).corps.resultat, { id: 'p1', etat: 'abandonnee', deja: true });
+    assert.equal(m.base.docs.get(CH).derniereErreur, 'Le modèle n\'a pas répondu', 'le rejeu ne réécrit rien');
+    assert.equal((await etape(m, { cle: 'a-deposer', libelle: 'Déposer', etat: 'fait' })).statut, 409, 'plus d\'étape sur une ligne abandonnée');
+    assert.equal((await prop(m, m.cles.audrey.cle, 'propositions.abandonner', { id: 'absente', erreur: 'x' })).statut, 404);
+    // Une ligne déjà déposée ne s'abandonne pas.
+    const m2 = monde({ modules: AUTOM });
+    await prop(m2, m2.cles.audrey.cle, 'propositions.ajouter', PROPOSITION);
+    assert.equal((await prop(m2, m2.cles.audrey.cle, 'propositions.abandonner', { id: 'p1', erreur: 'x' })).statut, 409);
+    // Erreur qui ressemble à un secret : masquée, 200, jamais renvoyée ni journalisée.
+    const m3 = monde({ modules: AUTOM });
+    await demarrer(m3);
+    const secret = 'ghp_' + 'b'.repeat(30);
+    const s3 = await prop(m3, m3.cles.audrey.cle, 'propositions.abandonner', { id: 'p1', erreur: `Plantage ${secret}` });
+    assert.equal(s3.statut, 200);
+    assert.match(m3.base.docs.get(CH).derniereErreur, /masqué/);
+    assert.ok(!JSON.stringify([...m3.base.docs.values()]).includes(secret) && !JSON.stringify(s3).includes(secret) && !JSON.stringify(m3.journaux).includes(secret));
+  });
+
+  test('4 bis « marquerAppliquee » et « marquerEchec » règlent aussi les étapes de la ligne (fait / ignorée, échec)', async () => {
+    const m = monde({ modules: AUTOM });
+    await demarrer(m, { plan: [{ cle: 'a-lire', libelle: 'Lire' }, { cle: 'b-creer', libelle: 'Créer' }, { cle: 'b-prevenir', libelle: 'Prévenir' }] });
+    await etape(m, { cle: 'a-lire', libelle: 'Lire', etat: 'fait' });
+    await prop(m, m.cles.audrey.cle, 'propositions.ajouter', PROPOSITION);
+    m.base.docs.set(CH, { ...m.base.docs.get(CH), etat: 'validee', valideeLe: new Date(T0), valideePar: 'a@exemple.test', canal: 'interface', champsValides: PROPOSITION.champs });
+    await etape(m, { cle: 'b-creer', libelle: 'Créer', etat: 'en_cours' });
+    const echec = await prop(m, m.cles.audrey.cle, 'propositions.marquerEchec', { id: 'p1', erreur: 'panne' });
+    assert.equal(echec.statut, 200);
+    assert.deepEqual(m.base.docs.get(CH).etapes.map((e) => e.etat), ['fait', 'echec', 'a_venir'], 'les étapes à venir restent pour la reprise');
+    m.base.docs.set(CH, { ...m.base.docs.get(CH), etat: 'validee' }); // relancer (fonction appelable) : echec -> validee
+    await etape(m, { cle: 'b-creer', libelle: 'Créer', etat: 'fait' });
+    await prop(m, m.cles.audrey.cle, 'propositions.marquerAppliquee', { id: 'p1', executionId: '9' });
+    assert.deepEqual(m.base.docs.get(CH).etapes.map((e) => e.etat), ['fait', 'fait', 'ignoree']);
+  });
+
+  test('6 isolation : un autre propriétaire ne voit ni ne modifie les lignes en préparation, et le journal ne contient aucun libellé d\'étape', async () => {
+    const m = monde({ modules: AUTOM });
+    await demarrer(m, { titre: 'TITRE-SECRET-123', plan: [{ cle: 'a-lire', libelle: 'ETAPE-SECRETE-PLAN' }] });
+    await etape(m, { cle: 'a-lire', libelle: 'ETAPE-SECRETE-LIVE', etat: 'en_cours' });
+    assert.equal((await etape(m, { cle: 'a-lire', libelle: 'x', etat: 'fait' }, m.cles.martin.cle)).statut, 403, 'workflow d\'Audrey avec la clé de Martin');
+    assert.equal((await prop(m, m.cles.martin.cle, 'propositions.etape', { id: 'p1', cle: 'a-lire', libelle: 'x', etat: 'fait' }, 'wM1')).statut, 404, 'la ligne d\'Audrey n\'existe pas chez Martin');
+    assert.equal((await prop(m, m.cles.martin.cle, 'propositions.abandonner', { id: 'p1', erreur: 'x' }, 'wM1')).statut, 404);
+    assert.equal((await prop(m, m.cles.martin.cle, 'propositions.abandonner', { id: 'p1', erreur: 'x', proprietaire: 'audrey' }, 'wM1')).statut, 400);
+    assert.equal((await prop(m, m.cles.martin.cle, 'propositions.demarrer', { id: 'p1', type: 'Pour Martin', proprietaire: 'audrey' }, 'wM1')).statut, 400);
+    await prop(m, m.cles.martin.cle, 'propositions.demarrer', { id: 'p1', type: 'Pour Martin' }, 'wM1');
+    assert.equal(m.base.docs.get('clients/martin/automatisations_propositions/p1').type, 'Pour Martin');
+    assert.equal(m.base.docs.get(CH).etat, 'en_preparation');
+    assert.equal(m.base.docs.get(CH).type, 'Nouveau contact');
+    await prop(m, m.cles.audrey.cle, 'propositions.abandonner', { id: 'p1', erreur: 'ERREUR-SECRETE-111' });
+    const texte = JSON.stringify(m.journaux);
+    assert.ok(m.journaux.length >= 5);
+    for (const interdit of ['ETAPE-SECRETE', 'TITRE-SECRET', 'ERREUR-SECRETE']) assert.ok(!texte.includes(interdit), interdit);
+    // Chez Jérôme (base 1) : racine, jamais sous clients/.
+    const j = monde({ modules: AUTOM, contexte: 'crm' });
+    assert.equal((await prop(j, j.cles.interne.cle, 'propositions.demarrer', { id: 'p1', type: 'T', plan: PLAN }, 'wI1')).statut, 200);
+    assert.ok(j.base.docs.has('automatisations_propositions/p1'));
+    // Module inactif : 403 pour les trois nouvelles actions.
+    const k = monde({ modules: AUTOM });
+    for (const [a, d] of [['propositions.demarrer', { id: 'p1', type: 'T' }], ['propositions.etape', { id: 'p1', cle: 'a', libelle: 'x', etat: 'fait' }], ['propositions.abandonner', { id: 'p1', erreur: 'x' }]]) {
+      assert.equal((await prop(k, k.cles.sansveille.cle, a, d, 'wA1')).statut, 403, a);
+    }
+    assert.equal(k.base.docs.size, 0);
+  });
+
   test('le nom de la table est écrit dans le code, et les transitions viennent du fichier pur', () => {
     const c = readFileSync(new URL('../scripts/porte/actions-automatisations.js', import.meta.url), 'utf8').replace(/^\s*\/\/.*$/gm, '');
     assert.deepEqual([...c.matchAll(/'(automatisations_[a-z]+)'/g)].map((x) => x[1]), ['automatisations_propositions']);
