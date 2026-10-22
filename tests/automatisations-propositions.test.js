@@ -70,18 +70,20 @@ describe('propositions : transitions', () => {
       ]) {
         const r = agir(base(etat));
         if (peutPasser(etat, vers) && (nom !== 'relancer' || etat === 'echec')) assert.equal(r.ok, true, `${nom} depuis ${etat}`);
+        else if (nom === 'relancer' && etat === 'en_preparation') { assert.equal(r.ok, false); assert.equal(r.code, 'pas_prete'); }
+        else if (nom === 'relancer' && etat === 'abandonnee') { assert.equal(r.ok, false); assert.equal(r.code, 'abandonnee'); }
         else { assert.equal(r.ok, false, `${nom} depuis ${etat}`); assert.equal(r.code, 'transition_interdite', `${nom} depuis ${etat}`); }
       }
     }
-    // La table : seules 5 transitions existent.
+    // La table : seules 7 transitions existent (les 5 d'origine + en_preparation vers a_valider et vers abandonnee).
     let n = 0;
     for (const de of tous) for (const vers of tous) if (peutPasser(de, vers)) n++;
-    assert.equal(n, 5);
+    assert.equal(n, 7);
     assert.equal(peutPasser('appliquee', 'validee'), false);
     assert.equal(peutPasser('refusee', 'validee'), false);
     assert.equal(peutPasser('a_valider', 'appliquee'), false);
     assert.equal(peutPasser('inconnu', 'validee'), false);
-    assert.deepEqual([...ETATS_TERMINAUX].sort(), ['appliquee', 'refusee']);
+    assert.deepEqual([...ETATS_TERMINAUX].sort(), ['abandonnee', 'appliquee', 'refusee']);
     assert.equal(libelleEtat('echec'), 'En échec'); assert.equal(libelleEtat('zzz'), 'Inconnu');
   });
 
@@ -143,7 +145,7 @@ describe('propositions : transitions', () => {
     assert.equal(refuser(p, { ...DECIDE, raison: '' }).proposition.raison, null);
   });
 
-  test('6. frise donne la bonne étape en cours pour chacun des 5 états, et echec / relancer bouclent', () => {
+  test('6. frise donne la bonne étape en cours pour chacun des 7 états, et echec / relancer bouclent', () => {
     const etats = (p, t) => frise(p, t).map((e) => e.etat);
     assert.deepEqual(frise(base()).map((e) => e.libelle), ['Reçu', 'Proposé', 'En attente de validation', 'Validé ou Refusé', 'Appliqué ou En échec']);
     assert.deepEqual(etats(base('a_valider')), ['fait', 'fait', 'en_cours', 'a_venir', 'a_venir']);
@@ -151,6 +153,10 @@ describe('propositions : transitions', () => {
     assert.deepEqual(etats(base('appliquee')), ['fait', 'fait', 'fait', 'fait', 'fait']);
     assert.deepEqual(etats(base('refusee')), ['fait', 'fait', 'fait', 'fait', 'ignoree']);
     assert.deepEqual(etats(base('echec')), ['fait', 'fait', 'fait', 'fait', 'echec']);
+    assert.deepEqual(etats(base('en_preparation')), ['fait', 'en_cours', 'a_venir', 'a_venir', 'a_venir']);
+    assert.deepEqual(etats(base('abandonnee')), ['fait', 'echec', 'ignoree', 'ignoree', 'ignoree']);
+    assert.equal(frise(base('en_preparation'))[1].detail, 'En préparation');
+    assert.equal(frise(base('abandonnee'))[1].detail, 'Abandonné');
     assert.equal(frise(base('refusee'))[3].detail, 'Refusé');
     assert.equal(frise(base('validee'))[3].detail, 'Validé');
     assert.equal(frise(base(), T0 + 31 * JOUR)[2].detail, 'Périmée');
