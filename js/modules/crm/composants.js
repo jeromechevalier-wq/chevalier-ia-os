@@ -193,7 +193,8 @@ export function ligneAjouter({ libelle, libelleAria, surClic, action = null }) {
     h('div', { class: 'prop-valeur' }, boutonAjouter({ libelleAria: libelleAria || `Ajouter : ${libelle}`, surClic, action })));
 }
 
-export function champPropriete({ libelle, valeur = '', type = 'texte', options = [], surEnregistrer, placeholder = '', formater = null, lienVers = null, fournir = null, pas = null, fantome = null, autoriserCreation = true, aideListeVide = '' }) {
+export function champPropriete({ libelle, valeur = '', type = 'texte', options = [], surEnregistrer, placeholder = '', formater = null, lienVers = null, fournir = null, pas = null, fantome = null, autoriserCreation = true, aideListeVide = '', sansVide = false, messageErreur = '' }) {
+  // `sansVide` (Propriétaire) : « — » n'est jamais un choix ; une valeur vide s'affiche « — » (au lieu du bouton « Ajouter »). `messageErreur` : texte du message si l'enregistrement échoue.
   let courant = valeur ?? '';
   let enEdition = false;
   let creation = false;
@@ -211,11 +212,11 @@ export function champPropriete({ libelle, valeur = '', type = 'texte', options =
     enEdition = false;
     const vide = courant === '' || courant === null || courant === undefined;
     const ouvrirEdition = () => editer();
-    if (vide) {
+    if (vide && !sansVide) {
       remplir(zone, boutonAjouter({ libelleAria: `Ajouter : ${libelle}`, surClic: ouvrirEdition, fantome }));
       return;
     }
-    const texte = texteAffiche();
+    const texte = vide ? '—' : texteAffiche();
     const contenu = lienVers
       ? h('a', { class: 'prop-lien', href: lienVers(courant), target: type === 'url' ? '_blank' : null, rel: type === 'url' ? 'noopener noreferrer' : null }, texte)
       : h('span', {}, texte);
@@ -227,7 +228,7 @@ export function champPropriete({ libelle, valeur = '', type = 'texte', options =
     let lire;
     let fini = false;
     if (type === 'select') {
-      champ = h('select', { class: 'champ', 'aria-label': libelle }, h('option', { value: '' }, '—'), options.map((o) => h('option', { value: o.valeur, selected: o.valeur === courant }, o.libelle)));
+      champ = h('select', { class: 'champ', 'aria-label': libelle }, sansVide ? (courant ? null : h('option', { value: '', selected: true, disabled: true }, '—')) : h('option', { value: '' }, '—'), options.map((o) => h('option', { value: o.valeur, selected: o.valeur === courant }, o.libelle)));
       lire = () => champ.value;
     } else if (type === 'zone') {
       champ = h('textarea', { class: 'champ', rows: 3, 'aria-label': libelle, value: courant });
@@ -286,7 +287,7 @@ export function champPropriete({ libelle, valeur = '', type = 'texte', options =
       } catch (e) {
         console.warn(e);
         // Une saisie refusée par une règle (erreur marquée `saisie`) montre son message ; la valeur affichée reste celle qui est enregistrée.
-        toast(e?.saisie ? e.message : "Enregistrement impossible", { type: 'erreur' });
+        toast(e?.saisie ? e.message : (messageErreur || "Enregistrement impossible"), { type: 'erreur' });
       }
       afficher();
     };
@@ -543,22 +544,13 @@ export function selectProprietaire({ valeur, surChoix }) {
   if (estChezClient()) {
     return valeur ? h('div', { class: 'prop', dataset: { prop: 'proprietaire' } }, h('span', { class: 'prop-libelle' }, 'Propriétaire'), h('div', { class: 'prop-valeur' }, valeur)) : null;
   }
-  const options = !valeur || COMPTES.some((c) => c.email === valeur) ? COMPTES : [...COMPTES, { email: valeur, nom: valeur }];
-  return h('div', { class: 'prop', dataset: { prop: 'proprietaire' } },
-    h('span', { class: 'prop-libelle' }, 'Propriétaire'),
-    h('div', { class: 'prop-valeur' },
-      h('select', { class: 'champ', 'aria-label': 'Propriétaire',
-        onchange: async (e) => {
-          const avant = valeur;
-          try { await surChoix(e.target.value); valeur = e.target.value; } catch (err) {
-            console.warn(err);
-            e.target.value = avant || '';
-            toast('Enregistrement impossible : vérifie ta connexion, puis choisis de nouveau.', { type: 'erreur' });
-          }
-        } },
-        // Sans propriétaire : une première ligne « — » sélectionnée mais non choisissable (on n'écrit jamais de propriétaire vide).
-        valeur ? null : h('option', { value: '', selected: true, disabled: true }, '—'),
-        options.map((c) => h('option', { value: c.email, selected: c.email === valeur }, c.nom)))));
+  const options = (!valeur || COMPTES.some((c) => c.email === valeur) ? COMPTES : [...COMPTES, { email: valeur, nom: valeur }]).map((c) => ({ valeur: c.email, libelle: c.nom }));
+  // Même comportement que la Source et la Priorité : valeur en texte + crayon, un clic ouvre la liste, le choix s'enregistre.
+  // Sans propriétaire : « — » s'affiche et n'est pas un choix (on n'écrit jamais de propriétaire vide).
+  const champ = champPropriete({ libelle: 'Propriétaire', type: 'select', valeur: valeur || '', options, sansVide: true,
+    messageErreur: 'Enregistrement impossible : vérifie ta connexion, puis choisis de nouveau.', surEnregistrer: surChoix });
+  champ.element.dataset.prop = 'proprietaire';
+  return champ.element;
 }
 
 /** Gabarit commun : en tête, colonne de gauche (sections), colonne de droite (activité, notes, historique). */
