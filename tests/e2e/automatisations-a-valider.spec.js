@@ -209,7 +209,7 @@ test('8 le même écran existe dans un espace client (menu, route, données du c
   await expect(page.getByRole('heading', { name: 'À valider', level: 1 })).toBeVisible();
   await expect(carte(page, 'c1').locator('.prop-titre')).toHaveText('Proposition du cabinet');
   await expect(page.locator('.prop-carte')).toHaveCount(1);
-  if (!estTelephone(page)) await expect(page.locator('.menu').getByRole('link', { name: 'Automatisations', exact: true })).toHaveAttribute('aria-current', 'page'); // une seule entrée de menu, allumée sur l'onglet À valider
+  if (!estTelephone(page)) await expect(page.locator('.menu').getByRole('link', { name: /^Automatisations/ })).toHaveAttribute('aria-current', 'page'); // une seule entrée de menu (son nom peut finir par « 1 à valider » : la pastille), allumée sur l'onglet À valider
   await carte(page, 'c1').getByRole('button', { name: 'Valider', exact: true }).click();
   await expect(zoneRecentes(page).locator('.prop-carte[data-id="c1"]')).toBeVisible();
   expect((await lireDocument('clients/cabinet/automatisations_propositions/c1')).etat).toBe('validee');

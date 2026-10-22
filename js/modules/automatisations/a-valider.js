@@ -34,7 +34,7 @@ export function rendreAValider(conteneur) {
 
   conteneur.append(h('div', { class: 'page page-liste page-automatisations page-a-valider' },
     h('header', { class: 'page-tete' }, h('h1', {}, 'À valider'), compte),
-    barreOnglets({ onglets: ongletsDuModule('automatisations'), actif: 'automatisations/a-valider', etiquette: 'Écrans des automatisations' }),
+    barreOnglets({ onglets: ongletsDuModule('automatisations'), actif: 'automatisations/a-valider', etiquette: 'Écrans des automatisations', module: 'automatisations' }),
     bandeau,
     sectionPreparation,
     h('section', { class: 'prop-zone', dataset: { zone: 'a-valider' } }, zoneAValider),

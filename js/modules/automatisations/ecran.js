@@ -44,7 +44,7 @@ export function rendreHistorique(conteneur) {
 
   conteneur.append(h('div', { class: 'page page-liste page-automatisations' },
     h('header', { class: 'page-tete' }, h('h1', {}, 'Automatisations')),
-    barreOnglets({ onglets: ongletsDuModule('automatisations'), actif: 'automatisations/historique', etiquette: 'Écrans des automatisations' }),
+    barreOnglets({ onglets: ongletsDuModule('automatisations'), actif: 'automatisations/historique', etiquette: 'Écrans des automatisations', module: 'automatisations' }),
     bandeau,
     h('section', { class: 'autom-barre' }, resume,
       h('div', { class: 'autom-actions' }, miseAJour,

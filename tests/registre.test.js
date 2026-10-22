@@ -9,8 +9,9 @@ import {
   modulesActifsDuClient, moduleAccessible, premiereRoute, ecransActifs,
   ANCIENS_IDENTIFIANTS, ANCIENS_PREFIXES, identifiantActuel, routeModernisee,
   GROUPES_MENU, INTERRUPTEURS, modulesDeNom, groupeDuModule, blocsDuMenu, reglagesDesModules, ongletsDuModule,
-  SECTIONS_ESPACE, sectionsEspaceVisibles, interrupteursDuClient, cibleReglages,
+  SECTIONS_ESPACE, sectionsEspaceVisibles, interrupteursDuClient, cibleReglages, badgeDuModule, routeArriveeMenu,
 } from '../js/os/registre.js';
+import { badgeDe, definirBadge, reinitialiserBadges, surBadge, texteBadge, phraseBadge, nombreValide } from '../js/os/badges.js';
 import { MODULES } from '../js/os/modules.js';
 
 const RACINE = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -446,5 +447,74 @@ describe('Réglages à menu latéral (2.6.0) : ce que chaque module déclare', (
     assert.deepEqual(moduleDeclare('affaires').collections, ['crm_personnes', 'crm_organisations', 'crm_affaires', 'crm_activites', 'crm_notes', 'crm_evenements', 'crm_parametres']);
     assert.deepEqual(moduleDeclare('projets').collections, ['projets_projets', 'projets_taches', 'projets_modeles']);
     assert.ok(!/firestore|setDoc|updateDoc|getDoc/.test(lire('js/os/reglages.js')), 'la page Réglages de la coque ne lit ni n\'écrit aucune donnée');
+  });
+});
+
+describe('pastille « à valider » du menu (22/10/2026) : déclarée par le module, rendue par la coque', () => {
+  const entreeAutomatisations = (actifs = ['automatisations']) => blocsDuMenu(actifs).flatMap((b) => b.entrees).find((e) => e.chemin === 'automatisations/historique');
+
+  test('seul le module Automatisations déclare un badge ({ ecran, texte }) ; l\'écran du badge est un de ses écrans, ses onglets le contiennent', () => {
+    const avecBadge = MODULES_DECLARES.filter((m) => m.badge);
+    assert.deepEqual(avecBadge.map((m) => m.id), ['automatisations']);
+    const b = badgeDuModule('automatisations');
+    assert.equal(b.texte, 'à valider');
+    assert.ok(moduleDeclare('automatisations').ecrans.some((e) => e.route === b.ecran));
+    assert.ok(ongletsDuModule('automatisations').some((o) => o.route === b.ecran));
+    assert.equal(badgeDuModule('veille'), null);
+    assert.equal(badgeDuModule('inconnu'), null);
+  });
+
+  test('l\'entrée de menu porte le badge et le module ; un module sans badge ne change pas ; sans le module, pas d\'entrée', () => {
+    const e = entreeAutomatisations();
+    assert.equal(e.module, 'automatisations');
+    assert.deepEqual(e.badge, badgeDuModule('automatisations'));
+    const veille = blocsDuMenu(['veille']).flatMap((b) => b.entrees).find((x) => x.chemin === 'veille/contenus');
+    assert.equal('badge' in veille, false);
+    assert.equal('module' in veille, false);
+    assert.equal(entreeAutomatisations(['veille']), undefined);
+  });
+
+  test('route d\'arrivée : À valider quand le nombre est > 0, sinon Historique ; ecrans[0] et premiereRoute restent l\'Historique', () => {
+    const e = entreeAutomatisations();
+    assert.equal(routeArriveeMenu(e, 3), 'automatisations/a-valider');
+    assert.equal(routeArriveeMenu(e, 1), 'automatisations/a-valider');
+    assert.equal(routeArriveeMenu(e, 0), 'automatisations/historique');
+    assert.equal(routeArriveeMenu(e, -2), 'automatisations/historique');
+    const veille = blocsDuMenu(['veille']).flatMap((b) => b.entrees).find((x) => x.chemin === 'veille/contenus');
+    assert.equal(routeArriveeMenu(veille, 5), 'veille/contenus', 'sans badge, jamais de redirection');
+    assert.equal(moduleDeclare('automatisations').ecrans[0].route, 'automatisations/historique');
+    assert.equal(premiereRoute(['automatisations']), 'automatisations/historique');
+  });
+
+  test('magasin des pastilles : nombre par module, 0 par défaut, abonnés prévenus seulement si le nombre change, arrêt et remise à zéro', () => {
+    reinitialiserBadges();
+    const vus = [];
+    const arret = surBadge((id, n) => vus.push([id, n]));
+    assert.equal(badgeDe('automatisations'), 0);
+    definirBadge('automatisations', 3);
+    definirBadge('automatisations', 3);
+    definirBadge('automatisations', 'x');
+    definirBadge('automatisations', -1);
+    definirBadge('automatisations', 4.7);
+    assert.deepEqual(vus, [['automatisations', 3], ['automatisations', 0], ['automatisations', 4]]);
+    reinitialiserBadges();
+    assert.equal(badgeDe('automatisations'), 0);
+    arret();
+    definirBadge('automatisations', 2);
+    assert.equal(vus.length, 4, 'plus prévenu après l\'arrêt');
+    reinitialiserBadges();
+  });
+
+  test('textes : 1 à 9 tels quels, « 9+ » au-delà ; phrase pour les lecteurs d\'écran « n à valider »', () => {
+    assert.deepEqual([1, 2, 9, 10, 250].map(texteBadge), ['1', '2', '9', '9+', '9+']);
+    assert.equal(phraseBadge(3, 'à valider'), '3 à valider');
+    assert.deepEqual([0, -1, NaN, 'a', undefined, 2.9].map(nombreValide), [0, 0, 0, 0, 0, 2]);
+  });
+
+  test('la coque est générique : shell.js et onglets.js ne nomment aucun module ni écran en dur', () => {
+    for (const f of ['js/os/shell.js', 'js/os/onglets.js', 'js/os/badges.js']) {
+      const code = lire(f).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/ .*$/gm, ''); // le code, sans les commentaires
+      assert.doesNotMatch(code, /automatisations|a-valider|à valider/i, `${f} ne doit pas connaître Automatisations`);
+    }
   });
 });

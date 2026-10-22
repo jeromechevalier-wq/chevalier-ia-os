@@ -49,6 +49,11 @@ export function afficher(conteneur, segs) {
   return quitter;
 }
 
+/** Pastille « à valider » du menu (registre.js, champ `badge`) : la coque appelle ceci une fois, à son montage, et arrête l'écoute à sa fermeture. */
+export function ecouterBadge(rappel) {
+  return D.ecouterNombreAValider(rappel);
+}
+
 /** Pas de recherche globale pour ce module. */
 export function rechercher() {
   return { groupes: [] };

@@ -3,6 +3,11 @@
 
 import { estPerimee } from './propositions.js';
 
+/** Nombre de propositions à valider qui ne sont pas périmées (état `a_valider`, expireLe pas passé) : c'est le nombre de la pastille du menu. */
+export function compterAValider(liste, maintenant) {
+  return (liste ?? []).filter((p) => p && p.etat === 'a_valider' && !estPerimee(p, maintenant)).length;
+}
+
 export const DELAI_STALE_MS = 10 * 60 * 1000; // « en cours » depuis plus de 10 minutes = à vérifier
 export const DELAI_RAFRAICHIR_MS = 10 * 1000; // entre deux rafraîchissements (bouton) et intervalle de la mise à jour automatique
 export const LIBELLES_ETAT = {
