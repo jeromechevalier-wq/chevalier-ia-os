@@ -124,6 +124,9 @@ describe('B21 Projets : phase, fin, archivage', () => {
     assert.equal(P.terminerProjet(vieux, ctx()).patch.statut, 'termine', 'un ancien projet en pause peut être terminé');
     assert.equal(P.changementPhase(vieux, 'livraison', ctx()).patch.phase, 'livraison', 'et changer de phase');
   });
+  test('B21 un filtre enregistré avec en_pause se lit comme Actif, sans doublon', () => {
+    assert.deepEqual(P.criteresProjetsComplets({ statuts: ['en_pause', 'actif', 'termine'] }).statuts, ['actif', 'termine']);
+  });
   test('B21 terminer : Clôture, Terminé, archivé, un événement ; rien ne bloque en 2.1 ; déjà terminé : rien à faire', () => {
     const c = ctx('2026-12-01T10:00:00Z');
     const r = P.terminerProjet(projet({ phase: 'livraison' }), c);

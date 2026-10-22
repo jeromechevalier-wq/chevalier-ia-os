@@ -36,5 +36,6 @@ Dans une phase, le groupe s'appelle « Livrable <Phase> » avec 0 ou 1 livrable 
 - Ce qui est stocké ne change pas : la collection `projets_taches`, le type d'événement `tache_faite` et les identifiants. Les événements déjà dans l'Historique gardent leur ancien texte (« Tâche faite : … »). Aucune donnée n'a été migrée.
 
 ## À savoir
+- 22/10/2026 : plus de pause (décision de Jérôme) : une affaire est ouverte, gagnée ou perdue ; un projet est actif ou terminé ; pour relancer plus tard, planifier une activité.
 - « Livrables » est aussi le nom de sous-dossier proposé par défaut dans Google Drive : aucun conflit technique.
 - Les mots à ne pas écrire dans ce que l'utilisateur voit : « CRM », « répertoire » (on dit « dossier »).

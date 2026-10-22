@@ -826,7 +826,8 @@ export function criteresProjetsComplets(c = {}) {
   return {
     recherche: c.recherche ?? '',
     phases: [...(c.phases ?? [])],
-    statuts: [...(c.statuts ?? [])],
+    // un filtre enregistré avant la suppression de la pause peut contenir « en_pause » : il se lit comme « actif » (sans doublon)
+    statuts: [...new Set((c.statuts ?? []).map((s) => (s === 'en_pause' ? 'actif' : s)))],
     enRetard: !!c.enRetard,
   };
 }

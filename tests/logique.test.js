@@ -250,6 +250,10 @@ describe('P6 Plus de pause : une affaire ancienne « en_pause » reste utilisabl
     assert.equal(rouverte.patch.statut, 'ouverte');
     assert.equal(rouverte.patch.dateReveil, null);
   });
+  test('P6 un filtre enregistré avec en_pause se lit comme Ouverte, sans doublon', () => {
+    assert.deepEqual(L.criteresComplets('affaires', { statuts: ['en_pause', 'ouverte', 'perdue'] }).statuts, ['ouverte', 'perdue']);
+    assert.equal(L.libelleStatut(L.criteresComplets('affaires', { statuts: ['en_pause'] }).statuts[0]), 'Ouverte');
+  });
   test('P6 elle peut passer perdue', () => {
     const r = L.marquerPerdue(ancienne(), { raison: 'Prix' }, ctx());
     assert.equal(r.patch.statut, 'perdue');

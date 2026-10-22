@@ -1590,6 +1590,8 @@ export function criteresComplets(liste, c = {}) {
   for (const [cle, valeur] of Object.entries(base)) {
     complet[cle] = Array.isArray(valeur) ? [...(c[cle] || [])] : (c[cle] ?? valeur);
   }
+  // Un filtre enregistré avant la suppression de la pause peut contenir « en_pause » : il se lit comme « ouverte » (sans doublon).
+  if (liste === 'affaires') complet.statuts = [...new Set(complet.statuts.map((s) => (s === 'en_pause' ? 'ouverte' : s)))];
   return complet;
 }
 
