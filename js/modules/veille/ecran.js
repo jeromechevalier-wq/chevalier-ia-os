@@ -4,6 +4,8 @@
 // Seule exception voulue : la page HTML d'un résumé, affichée dans un cadre isolé (iframe sandbox, aucun script) pour qu'elle soit belle à lire.
 import { h, icone, remplir, toast, dialogue } from '../../os/ui.js';
 import { estChezClient } from '../../os/contexte.js';
+import { barreOnglets } from '../../os/onglets.js';
+import { ongletsDuModule } from '../../os/registre.js';
 import { boutonFiltres, fenetreFiltres } from '../crm/filtres.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
@@ -29,6 +31,9 @@ const pastille = (etat) => h('span', { class: `veille-pastille etat-${etat}` }, 
 // Filtres mémorisés jusqu'au rechargement de la page (variable de module, aucun stockage du navigateur) ; remis à zéro à la déconnexion.
 let filtres = { ...L.criteresVides(), texte: '' };
 export function oublierFiltresVeille() { filtres = { ...L.criteresVides(), texte: '' }; }
+
+/** Onglets du module (Contenus | Sources) : le menu n'a qu'une entrée « Veille ». */
+const ongletsVeille = (actif) => barreOnglets({ onglets: ongletsDuModule('veille'), actif, etiquette: 'Écrans de la veille' });
 
 export function rendreContenus(conteneur) {
   let signature = '';
@@ -95,6 +100,7 @@ export function rendreContenus(conteneur) {
 
   conteneur.append(h('div', { class: 'page page-liste page-veille' },
     h('header', { class: 'page-tete' }, h('h1', {}, 'Veille')),
+    ongletsVeille('veille/contenus'),
     formulaireAjout,
     resume,
     h('div', { class: 'barre-filtres-ligne veille-filtres' }, h('div', { class: 'champ-avec-icone' }, icone('search', { taille: 16 }), recherche), boutonF.element),
@@ -163,7 +169,7 @@ export function rendreContenus(conteneur) {
 export function rendreSources(conteneur) {
   const liste = h('ol', { class: 'veille-liste' });
   conteneur.append(h('div', { class: 'page page-liste page-veille' },
-    h('header', { class: 'page-tete' }, h('h1', {}, 'Sources suivies')), liste));
+    h('header', { class: 'page-tete' }, h('h1', {}, 'Sources suivies')), ongletsVeille('veille/sources'), liste));
 
   function rendre() {
     if (!D.etat.pret) { remplir(liste, h('li', { class: 'veille-vide' }, 'Chargement…')); return; }

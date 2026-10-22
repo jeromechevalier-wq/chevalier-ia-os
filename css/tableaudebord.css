@@ -9,11 +9,6 @@
 
 .page-tableaudebord { max-width: 1040px; }
 
-.td-onglets { display: flex; flex-wrap: wrap; gap: var(--esp-1); border-bottom: 1px solid var(--bordure); }
-.td-onglet { padding: var(--esp-4) var(--esp-6); margin-bottom: -1px; border-bottom: 3px solid transparent; color: var(--texte2); font-weight: var(--poids-moyen); text-decoration: none; }
-.td-onglet:hover { color: var(--texte); }
-.td-onglet[aria-current='page'] { color: var(--texte); border-bottom-color: var(--accent); }
-.td-onglet:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
 .td-contenu { display: grid; gap: var(--esp-7); min-width: 0; }
 .td-panneau { background: var(--panneau); border: 1px solid var(--bordure); border-radius: var(--rayon-carte); padding: var(--esp-7); display: grid; gap: var(--esp-5); min-width: 0; }

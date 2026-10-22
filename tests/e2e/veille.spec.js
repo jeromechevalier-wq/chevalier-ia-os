@@ -41,10 +41,11 @@ test('Veille : contenus, filtres, liens sûrs, coût visible chez Jérôme, sour
   await page.evaluate(() => { location.hash = '#/veille/contenus'; });
   await expect(page.locator('.veille-ligne')).toHaveCount(4);
   await page.screenshot({ path: `test-results/veille-contenus-${info.project.name}.png`, fullPage: true }); // avant d'ouvrir le menu (sur téléphone il masque l'écran)
-  // Menu : un groupe « Veille » avec ses deux écrans.
+  // Menu : UNE entrée « Veille » (allumée) ; Contenus et Sources sont des onglets de la page.
   if (estTelephone(page)) await page.getByRole('button', { name: 'Ouvrir le menu' }).click();
-  await expect(page.locator('.menu').getByRole('link', { name: 'Contenus', exact: true })).toBeVisible();
-  await expect(page.locator('.menu').getByRole('link', { name: 'Sources', exact: true })).toBeVisible();
+  await expect(page.locator('.menu').getByRole('link', { name: 'Veille', exact: true })).toHaveAttribute('aria-current', 'page');
+  await expect(page.locator('.menu').getByRole('link', { name: 'Contenus', exact: true })).toHaveCount(0);
+  await expect(page.locator('.menu').getByRole('link', { name: 'Sources', exact: true })).toHaveCount(0);
   if (estTelephone(page)) await page.keyboard.press('Escape');
   // Compteurs (un contenu dans chaque état) et ordre : le plus récent d'abord.
   await expect(page.locator('.veille-resume')).toContainText('1 nouveau');

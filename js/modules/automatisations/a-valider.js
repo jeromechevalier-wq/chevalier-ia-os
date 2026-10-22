@@ -4,6 +4,8 @@
 // Valider, refuser et relancer passent par la fonction appelable automatisationsDecider (le serveur revérifie le compte, l'état et les champs) ; l'écran n'écrit rien.
 // Même écran chez Jérôme et chez un client. Tout texte venu d'une proposition (type, titre, résumé, champs, erreur, lien) passe par h() : jamais d'HTML injecté.
 import { h, remplir } from '../../os/ui.js';
+import { barreOnglets } from '../../os/onglets.js';
+import { ongletsDuModule } from '../../os/registre.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
 import { frise, libelleEtat, estPerimee, estBloquee, enMs } from './propositions.js';
@@ -32,6 +34,7 @@ export function rendreAValider(conteneur) {
 
   conteneur.append(h('div', { class: 'page page-liste page-automatisations page-a-valider' },
     h('header', { class: 'page-tete' }, h('h1', {}, 'À valider'), compte),
+    barreOnglets({ onglets: ongletsDuModule('automatisations'), actif: 'automatisations/a-valider', etiquette: 'Écrans des automatisations' }),
     bandeau,
     sectionPreparation,
     h('section', { class: 'prop-zone', dataset: { zone: 'a-valider' } }, zoneAValider),

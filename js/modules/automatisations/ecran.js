@@ -6,6 +6,8 @@
 // Chez Jérôme avec un autre compte (assistant) : aucune fonction, aucun bouton, un état vide qui le dit.
 // Texte affiché : toujours en texte simple (h() ne fabrique jamais de HTML), même pour un nom ou un message d'erreur venus de n8n.
 import { h, icone, remplir, toast, lirePreference, ecrirePreference, demanderTexte } from '../../os/ui.js';
+import { barreOnglets } from '../../os/onglets.js';
+import { ongletsDuModule } from '../../os/registre.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
 import { boutonFiltres, fenetreFiltres } from '../crm/filtres.js';
@@ -42,6 +44,7 @@ export function rendreHistorique(conteneur) {
 
   conteneur.append(h('div', { class: 'page page-liste page-automatisations' },
     h('header', { class: 'page-tete' }, h('h1', {}, 'Automatisations')),
+    barreOnglets({ onglets: ongletsDuModule('automatisations'), actif: 'automatisations/historique', etiquette: 'Écrans des automatisations' }),
     bandeau,
     h('section', { class: 'autom-barre' }, resume,
       h('div', { class: 'autom-actions' }, miseAJour,

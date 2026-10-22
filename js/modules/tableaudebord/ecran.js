@@ -5,7 +5,7 @@
 // Saisie : un indicateur « manuel » ou « semi » a un bouton « Saisir la date » (ou « Saisir la valeur ») qui ouvre une zone SOUS sa ligne. L'écran n'écrit jamais lui-même
 // dans la base : « Enregistrer » appelle la fonction du serveur (D.saisir), et le niveau change tout seul par la lecture en direct.
 import { h, remplir } from '../../os/ui.js';
-import { lien } from '../../os/router.js';
+import { barreOnglets } from '../../os/onglets.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
 
@@ -166,7 +166,7 @@ function vueHistorique(saisies, indicateurs) {
 // ---------------------------------------------------------------- montage
 /** Monte l'écran d'un tableau ('general', 'technique', 'finance', 'stocks') ou l'onglet 'historique'. Renvoie la fonction qui l'arrête. */
 export function rendreTableau(conteneur, tableau) {
-  const onglets = h('nav', { class: 'td-onglets', 'aria-label': 'Tableaux' });
+  const onglets = h('nav', { class: 'onglets td-onglets', 'aria-label': 'Tableaux' });
   const contenu = h('div', { class: 'td-contenu' });
   // Confirmation d'une saisie : hors de `contenu`, car la ligne saisie peut disparaître de la liste (un indicateur redevenu OK quitte « À traiter en premier »).
   const avis = h('div', { class: 'td-avis', role: 'status' });
@@ -222,9 +222,11 @@ export function rendreTableau(conteneur, tableau) {
     if (sig === signatureOnglets) return;
     signatureOnglets = sig;
     // « Historique des saisies » : un onglet seulement (aucune entrée de menu), toujours présent, après les tableaux.
-    remplir(onglets, [...liste, { id: 'historique', libelle: LIBELLE_ONGLET_HISTORIQUE }].map((t) => h('a', {
-      class: 'td-onglet', href: lien(`tableaudebord/${t.id}`), dataset: { onglet: t.id }, 'aria-current': t.id === tableau ? 'page' : null,
-    }, t.libelle)));
+    const barre = barreOnglets({
+      onglets: [...liste, { id: 'historique', libelle: LIBELLE_ONGLET_HISTORIQUE }].map((t) => ({ id: t.id, route: `tableaudebord/${t.id}`, libelle: t.libelle })),
+      actif: `tableaudebord/${tableau}`, etiquette: 'Tableaux', classeBarre: 'td-onglets', classeOnglet: 'td-onglet',
+    });
+    remplir(onglets, ...barre.children);
   }
 
   function etatSimple(classe, texte, role, bouton = null) {

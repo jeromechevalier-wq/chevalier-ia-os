@@ -616,3 +616,11 @@ body.page-espace { background: #241b2e; color: #fff; }
     content: ''; position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; transform: translate(-50%, -50%);
   }
 }
+
+
+/* Barre d'onglets d'un module (js/os/onglets.js) : le menu n'a qu'une entrée par module, ses écrans se rejoignent par ces onglets. */
+.onglets { display: flex; flex-wrap: wrap; gap: var(--esp-1); border-bottom: 1px solid var(--bordure); }
+.onglet { padding: var(--esp-4) var(--esp-6); margin-bottom: -1px; border-bottom: 3px solid transparent; color: var(--texte2); font-weight: var(--poids-moyen); text-decoration: none; }
+.onglet:hover { color: var(--texte); }
+.onglet[aria-current='page'] { color: var(--texte); border-bottom-color: var(--accent); }
+.onglet:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }

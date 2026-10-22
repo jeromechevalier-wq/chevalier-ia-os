@@ -27,7 +27,9 @@ test('1 menu principal sans titres de groupes : blocs séparés par une fine lig
   await connecter(page, JEROME);
   await deplier(page);
   await expect(page.locator('.menu .menu-groupe-titre')).toHaveCount(0);
-  await expect(page.locator('.menu .menu-entree')).toHaveText(['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Projets', 'Contenus', 'Sources', 'Historique', 'À valider', 'Général', 'Technique']);
+  await expect(page.locator('.menu .menu-entree')).toHaveText(['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Projets', 'Veille', 'Automatisations', 'Maintenance']);
+  // Le menu aligne des modules : une entrée par module, jamais ses écrans (ils sont des onglets dans la page du module).
+  for (const ecran of ['Contenus', 'Sources', 'Historique', 'À valider', 'Général', 'Technique']) await expect(page.locator('.menu').getByRole('link', { name: ecran, exact: true })).toHaveCount(0);
   for (const absent of ['Journal des modifications', 'Réglages', 'Connecter mon assistant', 'Assistant']) await expect(page.locator('.menu').getByRole('link', { name: absent })).toHaveCount(0);
   // Accueil | Personnes, Organisations | Affaires, Projets : trois sections dans le bloc, séparées par une ligne
   await expect(page.locator('.menu .menu-groupe[data-bloc="crm"] .menu-section')).toHaveCount(3);

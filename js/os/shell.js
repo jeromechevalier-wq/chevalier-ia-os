@@ -122,7 +122,7 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
     for (const liste of m.sections) {
       const section = h('div', { class: 'menu-section' });
       for (const e of liste) {
-        const a = h('a', { class: 'menu-entree', href: lien(e.chemin), dataset: { infobulle: e.libelle, chemin: e.chemin } },
+        const a = h('a', { class: 'menu-entree', href: lien(e.chemin), dataset: { infobulle: e.libelle, chemin: e.chemin, ...(e.prefixe ? { prefixe: e.prefixe } : {}) } },
           icone(e.icone), h('span', { class: 'menu-texte' }, e.libelle));
         entrees.push(a);
         section.append(a);
@@ -326,7 +326,9 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
     for (const a of entrees) {
       // Les pages d'un module qui n'ont pas (ou plus) d'entrée de menu allument l'entrée de leur écran principal : archives et modèles -> Projets.
       const chemin = ROUTES_SOUS_ENTREE.find(([prefixe]) => route === prefixe || route.startsWith(`${prefixe}/`))?.[1];
-      const actif = route === a.dataset.chemin || route.startsWith(`${a.dataset.chemin}/`) || chemin === a.dataset.chemin;
+      // Entrée d'un module à onglets (data-prefixe) : allumée sur tous les écrans du module, quel que soit l'onglet.
+      const actif = route === a.dataset.chemin || route.startsWith(`${a.dataset.chemin}/`) || chemin === a.dataset.chemin
+        || Boolean(a.dataset.prefixe && route.startsWith(`${a.dataset.prefixe}/`));
       a.classList.toggle('actif', actif);
       if (actif) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
     }

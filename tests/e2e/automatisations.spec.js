@@ -199,7 +199,7 @@ test('J9 animation : la pastille « en cours » pulse, et cesse de pulser si l\'
 test('J10 un client sans le module n\'a ni menu ni écran des automatisations (page introuvable)', async ({ page }) => {
   await ouvrir(page, 'sansauto');
   if (estTelephone(page)) await page.getByRole('button', { name: 'Ouvrir le menu' }).click();
-  await expect(page.locator('.menu').getByRole('link', { name: 'Historique', exact: true })).toHaveCount(0);
+  await expect(page.locator('.menu').getByRole('link', { name: 'Automatisations', exact: true })).toHaveCount(0);
   await page.goto(`${URL_APP}#/espace/sansauto/automatisations/historique`);
   await expect(page.getByText('Page introuvable')).toBeVisible();
 });
