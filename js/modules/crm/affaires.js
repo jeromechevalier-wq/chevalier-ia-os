@@ -16,7 +16,6 @@ let criteres = L.criteresComplets('affaires', {});
 let vue = lirePreference('vue.affaires', 'kanban'); // kanban | liste | archives
 let triKanban = lirePreference('tri.kanban', 'activite');
 let triListe = { colonne: 'titre', sens: 'asc' };
-const colonnesSortiesOuvertes = new Set();
 let enDeplacement = false;
 
 // ---------------------------------------------------------------- boîtes de dialogue
@@ -224,11 +223,10 @@ function carte(a) {
   return el;
 }
 
-function colonne({ id, titre, couleur, affaires, repliable = false, onDrop }) {
+function colonne({ id, titre, couleur, affaires, onDrop }) {
   const totaux = L.totauxColonne(affaires);
-  const ouverte = !repliable || colonnesSortiesOuvertes.has(id);
-  const corps = h('div', { class: 'colonne-corps' }, ouverte ? trierCartes(affaires).map(carte) : null);
-  const el = h('section', { class: `colonne${repliable ? ' colonne-sortie' : ''}${ouverte ? '' : ' repliee'}`, dataset: { colonne: id }, 'aria-label': titre, style: { '--couleur': couleur },
+  const corps = h('div', { class: 'colonne-corps' }, trierCartes(affaires).map(carte));
+  const el = h('section', { class: 'colonne', dataset: { colonne: id }, 'aria-label': titre, style: { '--couleur': couleur },
     ondragover: (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; el.classList.add('cible'); },
     ondragleave: (e) => { if (!el.contains(e.relatedTarget)) el.classList.remove('cible'); },
     ondrop: (e) => {
@@ -239,10 +237,8 @@ function colonne({ id, titre, couleur, affaires, repliable = false, onDrop }) {
       if (a) onDrop(a);
     } },
   h('header', { class: 'colonne-tete' },
-    repliable
-      ? h('button', { type: 'button', class: 'colonne-bascule', 'aria-expanded': String(ouverte), onclick: () => { if (colonnesSortiesOuvertes.has(id)) colonnesSortiesOuvertes.delete(id); else colonnesSortiesOuvertes.add(id); rafraichir(); } }, h('h2', {}, titre))
-      : h('h2', {}, titre),
-    h('span', { class: 'colonne-totaux' }, repliable ? `${totaux.nombre}` : `${totaux.montant ? `${L.formatEuros(totaux.montant)} · ` : ''}${totaux.nombre} ${totaux.nombre > 1 ? 'affaires' : 'affaire'}`)),
+    h('h2', {}, titre),
+    h('span', { class: 'colonne-totaux' }, `${totaux.montant ? `${L.formatEuros(totaux.montant)} · ` : ''}${totaux.nombre} ${totaux.nombre > 1 ? 'affaires' : 'affaire'}`)),
   corps);
   return el;
 }
@@ -292,11 +288,7 @@ export function rendreAffaires(conteneur) {
       const liste = vivantes.filter((a) => a.etape === e.id);
       return colonne({ id: e.id, titre: e.libelle, couleur: e.couleur, affaires: liste, onDrop: (a) => changerEtapeAvecBoites(a, e.id) });
     });
-    const sorties = [
-      colonne({ id: 'perdue', titre: 'Perdues', couleur: '#8d8993', affaires: ouvertes.filter((a) => a.statut === 'perdue'), repliable: true, onDrop: (a) => ouvrirPerdue(a) }),
-      colonne({ id: 'en_pause', titre: 'En pause', couleur: '#8a9bb4', affaires: ouvertes.filter((a) => a.statut === 'en_pause'), repliable: true, onDrop: (a) => ouvrirPause(a) }),
-    ];
-    remplir(zone, h('div', { class: 'kanban' }, colonnes, h('div', { class: 'kanban-sorties' }, sorties)));
+    remplir(zone, h('div', { class: 'kanban' }, colonnes));
   }
 
   const COLONNES_LISTE = [
@@ -336,7 +328,7 @@ export function rendreAffaires(conteneur) {
   }
 
   const entete = h('header', { class: 'page-tete' },
-    h('div', {}, h('p', { class: 'etiquette' }, 'Commercial'), h('h1', {}, 'Affaires'), compteur),
+    h('div', {}, h('h1', {}, 'Affaires'), compteur),
     h('div', { class: 'page-actions' },
       zoneBascule,
       h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'nouvelle-affaire', onclick: () => ouvrirCreationAffaire() }, icone('plus', { taille: 16 }), 'Affaire')));
