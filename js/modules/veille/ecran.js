@@ -4,6 +4,7 @@
 // Seule exception voulue : la page HTML d'un résumé, affichée dans un cadre isolé (iframe sandbox, aucun script) pour qu'elle soit belle à lire.
 import { h, icone, remplir, toast, dialogue } from '../../os/ui.js';
 import { estChezClient } from '../../os/contexte.js';
+import { boutonFiltres, fenetreFiltres } from '../crm/filtres.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
 import { analyserLien } from './lien.js';
@@ -25,18 +26,34 @@ async function lireResume(resume, titre) {
 
 const pastille = (etat) => h('span', { class: `veille-pastille etat-${etat}` }, h('i', { class: 'veille-point' }), L.LIBELLES_ETAT[etat]);
 
+// Filtres mémorisés jusqu'au rechargement de la page (variable de module, aucun stockage du navigateur) ; remis à zéro à la déconnexion.
+let filtres = { ...L.criteresVides(), texte: '' };
+export function oublierFiltresVeille() { filtres = { ...L.criteresVides(), texte: '' }; }
+
 export function rendreContenus(conteneur) {
-  const filtres = { sourceId: '', type: '', etat: '', texte: '' };
   let signature = '';
 
   const resume = h('div', { class: 'veille-resume', 'aria-live': 'polite' });
-  const selSource = h('select', { class: 'champ', 'aria-label': 'Filtrer par source', onchange: (e) => { filtres.sourceId = e.target.value; signature = ''; rendre(); } });
-  const selType = h('select', { class: 'champ', 'aria-label': 'Filtrer par type', onchange: (e) => { filtres.type = e.target.value; signature = ''; rendre(); } },
-    h('option', { value: '' }, 'Tous les types'), L.TYPES.map((t) => h('option', { value: t }, t)));
-  const selEtat = h('select', { class: 'champ', 'aria-label': 'Filtrer par état', onchange: (e) => { filtres.etat = e.target.value; signature = ''; rendre(); } },
-    L.OPTIONS_ETAT.map((o) => h('option', { value: o.valeur }, o.libelle)));
-  const recherche = h('input', { type: 'search', class: 'champ', placeholder: 'Chercher dans les titres', 'aria-label': 'Chercher dans les titres', oninput: (e) => { filtres.texte = e.target.value; signature = ''; rendre(); } });
+  const recherche = h('input', { type: 'search', class: 'champ', placeholder: 'Chercher dans les titres', 'aria-label': 'Chercher dans les titres', value: filtres.texte, oninput: (e) => { filtres.texte = e.target.value; signature = ''; rendre(); } });
   const liste = h('ol', { class: 'veille-liste' });
+
+  // Bouton « Filtres » commun à toutes les listes : même fenêtre à cases à cocher (OU dans un groupe, ET entre groupes), pastille = nombre de cases cochées.
+  const optionsSources = () => { const avecContenu = new Set(D.etat.contenus.map((x) => x.sourceId)); return L.optionsSources(D.etat.sources, D.etat.contenus).filter((o) => avecContenu.has(o.id)); };
+  const boutonF = boutonFiltres({ auClic: async () => {
+    const r = await fenetreFiltres({
+      controles: [
+        { cle: 'sources', libelle: 'Source', type: 'cases', options: optionsSources().map((o) => ({ valeur: o.id, libelle: o.nom })) },
+        { cle: 'types', libelle: 'Type', type: 'cases', options: L.typesPresents(D.etat.contenus).map((t) => ({ valeur: t, libelle: t })) },
+        { cle: 'etats', libelle: 'État', type: 'cases', options: L.etatsPresents(D.etat.contenus).map((o) => ({ valeur: o.valeur, libelle: o.libelle })) },
+      ],
+      criteres: filtres,
+      effacer: () => ({ ...L.criteresVides(), texte: filtres.texte }), // « Tout effacer » garde la recherche
+    });
+    boutonF.element.focus();
+    if (!r) return;
+    filtres = { ...filtres, sources: r.sources, types: r.types, etats: r.etats };
+    signature = ''; rendre();
+  } });
 
 
   async function resumer(contenu, bouton) {
@@ -80,18 +97,11 @@ export function rendreContenus(conteneur) {
     h('header', { class: 'page-tete' }, h('h1', {}, 'Veille')),
     formulaireAjout,
     resume,
-    h('div', { class: 'veille-filtres' }, selSource, selType, selEtat, recherche),
+    h('div', { class: 'barre-filtres-ligne veille-filtres' }, h('div', { class: 'champ-avec-icone' }, icone('search', { taille: 16 }), recherche), boutonF.element),
     liste));
 
-  function remplirFiltreSources() {
-    const options = L.optionsSources(D.etat.sources, D.etat.contenus);
-    const sig = JSON.stringify(options);
-    if (selSource.dataset.sig === sig) return;
-    selSource.dataset.sig = sig;
-    remplir(selSource, h('option', { value: '' }, 'Toutes les sources'), options.map((o) => h('option', { value: o.id }, o.nom)));
-    selSource.value = options.some((o) => o.id === filtres.sourceId) ? filtres.sourceId : '';
-    filtres.sourceId = selSource.value;
-  }
+  // Une source, un type ou un état qui n'existe plus dans les contenus ne reste pas coché en cachette.
+  const nettoyerFiltres = () => { filtres = L.nettoyerCriteres(filtres, D.etat.contenus); };
 
   function ligne(x, derniers) {
     const etat = L.normaliserEtat(x.etat);
@@ -122,7 +132,9 @@ export function rendreContenus(conteneur) {
 
   function rendre() {
     if (!D.etat.pret) { remplir(liste, h('li', { class: 'veille-vide' }, 'Chargement…')); return; }
-    remplirFiltreSources();
+    nettoyerFiltres();
+    boutonF.majCompte(L.nombreFiltres(filtres));
+    boutonF.element.disabled = !D.etat.contenus.length; // rien à filtrer (aucun contenu, ou lecture impossible) : le bouton est grisé
     const visibles = L.filtrer(D.etat.contenus, filtres);
     const sig = JSON.stringify([filtres, D.etat.sources.map((s) => s.nom), visibles.map((x) => [x.id, x.etat, x.titre]), D.etat.resumes.map((r) => [r.id, r.contenuId, r.pageDisponible === true])]);
     if (sig === signature) return;
@@ -135,7 +147,7 @@ export function rendreContenus(conteneur) {
       h('span', { class: 'veille-puce ko' }, h('b', {}, String(c.echec)), c.echec > 1 ? ' échecs' : ' échec'));
     if (!visibles.length) {
       remplir(liste, h('li', { class: 'veille-vide' }, D.etat.contenus.length
-        ? 'Aucun contenu ne correspond à ces filtres.'
+        ? 'Rien à afficher avec ces filtres. Décoche un filtre.'
         : 'Aucun contenu pour le moment. Les contenus détectés par la veille apparaîtront ici.'));
       return;
     }
