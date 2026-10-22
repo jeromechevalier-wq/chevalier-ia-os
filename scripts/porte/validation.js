@@ -17,7 +17,7 @@ const MOTIF_ETIQUETTE = /^[a-z0-9][a-z0-9_-]{0,59}$/; // noms d'étiquettes (cl�
 // Ce qui ressemble à une clé ou à un secret : jamais accepté dans un texte libre (nom, message, procédure…), même collé par erreur.
 // MOTIF_SECRET_PRECIS : les formes connues de clés. MOTIF_SECRET y ajoute « un mot de 40 caractères ou plus » (texte libre) ; il ne convient pas aux identifiants, qui font jusqu'à 80 caractères.
 const MOTIF_SECRET_PRECIS = /cle-(n8n|tdb)\.|\bcia_[A-Za-z0-9_-]{10,}|ghp_[A-Za-z0-9]{20,}|github_pat_|-----BEGIN|AKIA[0-9A-Z]{12,}|AIza[0-9A-Za-z_-]{35}|\bK00[0-9A-Za-z]{20,}/;
-const MOTIF_SECRET = new RegExp(`${MOTIF_SECRET_PRECIS.source}|[A-Za-z0-9_+/=-]{40,}`);
+export const MOTIF_SECRET = new RegExp(`${MOTIF_SECRET_PRECIS.source}|[A-Za-z0-9_+/=-]{40,}`);
 const MOTIF_ID_SUR = /^[a-z0-9][a-z0-9_-]{0,99}$/; // identifiant en minuscules seulement : une clé en base64 (majuscules) ne passe jamais pour un identifiant
 const MOTIF_MODELE = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,79}$/;
 

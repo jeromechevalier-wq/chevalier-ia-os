@@ -47,7 +47,7 @@ export function creerGestionnairePorteCrm({ db, lireSecret = lireSecretJetons({ 
     contexte: 'crm',
     donnees: creerAdaptateur({ db }),
     n8n: creerN8nDepuisSecret({ lireSecret, urlN8n }),
-    modulesActifs: async () => ['veille'],
+    modulesActifs: async () => ['veille', 'automatisations'],
     journal: (entree) => sortie(ligneDeJournal(entree)),
   });
   return creerGestionnaireHttp(porte);
