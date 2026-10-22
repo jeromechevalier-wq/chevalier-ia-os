@@ -33,11 +33,13 @@ export const DUREE_VALIDITE_MS = 30 * 24 * 60 * 60 * 1000; // une proposition no
 // Tout caractère de contrôle est refusé, sauf la tabulation et les retours à la ligne (une valeur peut tenir sur plusieurs lignes).
 const CARACTERE_DE_CONTROLE = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/;
 
-const copie = (x) => JSON.parse(JSON.stringify(x));
+// Copie superficielle : les sous-objets plats sont recopiés, les horodatages (Date, Timestamp Firestore) restent tels quels.
+const copie = (p) => ({ ...p, champsProposes: (p.champsProposes || []).map((c) => ({ ...c })), champsValides: p.champsValides ? p.champsValides.map((c) => ({ ...c })) : p.champsValides, executions: { ...(p.executions || {}) }, etapes: (p.etapes || []).map((e) => ({ ...e })) });
+const copieChamps = (liste) => liste.map((c) => ({ ...c }));
 const refus = (code, message) => ({ ok: false, code, message });
 
-/** Horodatage (nombre, Date ou objet Firestore) -> millisecondes, ou null. */
-function enMs(v) {
+/** Horodatage (nombre, Date ou objet Firestore) -> millisecondes, ou null. Tous les horodatages d'une proposition sont écrits en `Date` (donc en Timestamp Firestore) ; le serveur et l'écran les lisent avec cette fonction. */
+export function enMs(v) {
   if (v == null) return null;
   if (typeof v === 'number') return Number.isFinite(v) ? v : null;
   if (v instanceof Date) return v.getTime();
@@ -67,9 +69,10 @@ function dejaDecidee(p) {
 }
 
 const texteOk = (v) => typeof v === 'string' && v.trim() !== '';
-function controleDecideur(par, canal) {
+function controleDecideur(par, canal, maintenant) {
   if (!texteOk(par)) return refus('champs_invalides', 'Le compte qui décide est obligatoire.');
   if (!CANAUX.includes(canal)) return refus('champs_invalides', 'Le canal doit être « interface » ou « mcp ».');
+  if (enMs(maintenant) == null) return refus('champs_invalides', 'La date de la décision est illisible.');
   return null;
 }
 
@@ -90,10 +93,10 @@ function controleChamps(proposes, champs) {
 }
 
 /** a_valider -> validee. `champs` (facultatif) = valeurs corrigées, mises dans champsValides ; champsProposes ne change jamais. */
-export function valider(proposition, { par, canal, champs, maintenant } = {}) {
+export function valider(proposition, { par, canal, champs, maintenant = Date.now() } = {}) {
   if (proposition.etat !== 'a_valider') return dejaDecidee(proposition);
   if (estPerimee(proposition, maintenant)) return refus('perimee', 'Cette proposition est périmée : elle ne peut plus être validée.');
-  const erreurDecideur = controleDecideur(par, canal);
+  const erreurDecideur = controleDecideur(par, canal, maintenant);
   if (erreurDecideur) return erreurDecideur;
   const proposes = proposition.champsProposes || [];
   if (champs != null) {
@@ -101,18 +104,18 @@ export function valider(proposition, { par, canal, champs, maintenant } = {}) {
     if (erreur) return erreur;
   }
   const suivante = copie(proposition);
-  suivante.champsValides = copie(champs != null ? champs : proposes);
+  suivante.champsValides = copieChamps(champs != null ? champs : proposes);
   suivante.etat = 'validee';
   suivante.valideePar = par;
-  suivante.valideeLe = enMs(maintenant);
+  suivante.valideeLe = new Date(enMs(maintenant));
   suivante.canal = canal;
   return { ok: true, proposition: suivante };
 }
 
 /** a_valider -> refusee. Reste possible quand la proposition est périmée. */
-export function refuser(proposition, { par, canal, raison, maintenant } = {}) {
+export function refuser(proposition, { par, canal, raison, maintenant = Date.now() } = {}) {
   if (proposition.etat !== 'a_valider') return dejaDecidee(proposition);
-  const erreurDecideur = controleDecideur(par, canal);
+  const erreurDecideur = controleDecideur(par, canal, maintenant);
   if (erreurDecideur) return erreurDecideur;
   if (raison != null && (typeof raison !== 'string' || raison.length > LONGUEUR_RAISON_MAX || CARACTERE_DE_CONTROLE.test(raison))) {
     return refus('champs_invalides', `La raison est invalide (${LONGUEUR_RAISON_MAX} caractères au plus, sans caractère interdit).`);
@@ -120,7 +123,7 @@ export function refuser(proposition, { par, canal, raison, maintenant } = {}) {
   const suivante = copie(proposition);
   suivante.etat = 'refusee';
   suivante.refuseePar = par;
-  suivante.refuseeLe = enMs(maintenant);
+  suivante.refuseeLe = new Date(enMs(maintenant));
   suivante.canal = canal;
   suivante.raison = raison != null && raison.trim() !== '' ? raison.trim() : null;
   return { ok: true, proposition: suivante };
@@ -149,12 +152,13 @@ export function marquerEchec(proposition, { erreur } = {}) {
 }
 
 /** echec -> validee : le workflow pourra la reprendre ; les tentatives repartent de 0. */
-export function relancer(proposition) {
+export function relancer(proposition, { maintenant = Date.now() } = {}) {
   if (!peutPasser(proposition.etat, 'validee') || proposition.etat !== 'echec') return interdite(proposition, 'validee');
   const suivante = copie(proposition);
   suivante.etat = 'validee';
   suivante.tentatives = 0;
   suivante.derniereErreur = null;
+  suivante.relanceeLe = new Date(enMs(maintenant)); // l'alerte « validée mais pas appliquée » se calcule sur relanceeLe, sinon valideeLe
   return { ok: true, proposition: suivante };
 }
 

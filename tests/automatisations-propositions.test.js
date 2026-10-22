@@ -39,13 +39,25 @@ describe('propositions : transitions', () => {
       assert.notEqual(r.proposition, p);
     }
     const r = valider(base(), DECIDE).proposition;
-    assert.equal(r.valideePar, DECIDE.par); assert.equal(r.valideeLe, DECIDE.maintenant); assert.equal(r.canal, 'interface');
+    assert.equal(r.valideePar, DECIDE.par); assert.equal(r.valideeLe.getTime(), DECIDE.maintenant); assert.equal(r.canal, 'interface');
     assert.equal(marquerAppliquee(base('validee'), { executionId: 'e9' }).proposition.executions.appliquer, 'e9');
     const e = marquerEchec(base('validee'), { erreur: 'x'.repeat(500) }).proposition;
     assert.equal(e.tentatives, 1); assert.equal(e.derniereErreur.length, 200);
     const re = relancer(base('echec', { tentatives: 3, derniereErreur: 'x' })).proposition;
     assert.equal(re.tentatives, 0); assert.equal(re.derniereErreur, null);
     assert.equal(refuser(base(), { ...DECIDE, raison: 'pas bon' }).proposition.raison, 'pas bon');
+    // Les horodatages ne sont jamais détruits par la copie : une Date ou un objet Firestore (toMillis) ressort inchangé.
+    const fin = new Date(T0 + 30 * JOUR);
+    assert.equal(valider(base('a_valider', { expireLe: fin }), DECIDE).proposition.expireLe, fin);
+    const horodatage = { seconds: 1, nanoseconds: 0, toMillis: () => T0 + 30 * JOUR };
+    const apres = valider(base('a_valider', { expireLe: horodatage }), DECIDE).proposition;
+    assert.equal(apres.expireLe, horodatage);
+    assert.equal(estPerimee(apres, T0 + 31 * JOUR), true, 'la péremption reste détectée après une transition');
+    // Sans date fournie, la date du jour est prise ; une date illisible est refusée.
+    assert.ok(valider(base(), { par: 'a@b.c', canal: 'interface' }).proposition.valideeLe instanceof Date);
+    assert.equal(valider(base(), { par: 'a@b.c', canal: 'interface', maintenant: 'n’importe quoi' }).code, 'champs_invalides');
+    // relancer pose relanceeLe (l'alerte des 30 minutes se calcule dessus).
+    assert.equal(relancer(base('echec'), { maintenant: T0 }).proposition.relanceeLe.getTime(), T0);
   });
 
   test('2. toute autre transition renvoie transition_interdite', () => {
