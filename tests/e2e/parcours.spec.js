@@ -517,7 +517,8 @@ test('C14 historique : les cinq filtres', async ({ page }) => {
   await expect(lignes).toHaveCount(1);
   await expect(lignes).toContainText('Affaire créée');
   await filtre('evenements');
-  await expect(lignes).toHaveCount(2);
+  await expect(lignes).toHaveCount(1); // N3 : l'affaire créée est dans « Affaires », plus dans « Événements »
+  await expect(lignes).toContainText('Email envoyé');
   await filtre('tous');
   await expect(lignes).toHaveCount(4);
 });
