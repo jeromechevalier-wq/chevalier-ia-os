@@ -52,3 +52,11 @@ Ces règles viennent de Jérôme (non-développeur). Elles valent pour tous les 
 ## Boutons Enregistrer
 - **Formulaires d'ajout (livrable, activité, note, livrable type, « Planifier »)** : le bouton est visible mais grisé tant que le champ texte est vide, jaune dès le premier caractère non blanc, grisé de nouveau si on efface. Une activité saisie à la main ne s'enregistre pas sans titre (Entrée affiche « Écris au moins un mot pour l'activité. ») ; le serveur MCP garde son titre par défaut. Ainsi, sauf cas rare, un seul bouton jaune est visible à la fois. Pas encore appliqué : « Ajouter un membre » (à discuter). *(2026-10-22, nuit 4)*
 - Un bouton « Enregistrer » est grisé tant qu'il n'y a rien à enregistrer et jaune dès qu'une modification est faite ; les cases à cocher d'une carte s'enregistrent toutes seules et la carte le dit (« Chaque case s'enregistre toute seule. »). « Annuler les changements » suit la même règle. Quitter la page avec un brouillon non enregistré demande confirmation. *(2026-10-18)*
+
+## Écran « À valider » (22/10/2026)
+
+Module Automatisations, route `automatisations/a-valider`. Deux zones (« À valider », « Traitements récents »), une frise de 5 étapes par proposition, **un seul bouton jaune par écran** (le « Valider » de la première proposition possible), « Corriger » et « Refuser » à contour, boutons de 44 px sur téléphone. Le mot « CRM » n'y apparaît pas. Tout texte venu d'une proposition est affiché par `h()` (c'est du contenu d'e-mail, non fiable).
+
+### La chaîne d'étapes (Logger, 22/10/2026)
+Zone « En préparation » au-dessus de « À valider » (masquée si vide). Les étapes d'une ligne sont une **chaîne de nœuds reliés** : à venir (contour gris), en cours (jaune qui pulse), fait (vert, trait coloré), échec (rouge), ignorée (pointillé). Horizontale sur ordinateur, verticale à 640 px et moins, sans défilement horizontal ; mouvement réduit respecté. Structure stable pour l'animation future : `ol.etape-chaine > li.etape-noeud[data-cle][data-etat] > i.etape-point + span.etape-libelle`. Bouton gris « Classer sans suite » seulement si la ligne est bloquée (jamais jaune). Tout libellé d'étape passe par `h()`.
+

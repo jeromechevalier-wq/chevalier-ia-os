@@ -33,7 +33,11 @@ Une automatisation (n8n) lit des e-mails, **propose** quelque chose, et le clien
 
 ## États d'une proposition
 
-`a_valider` → `validee` → `appliquee` ; `a_valider` → `refusee` ; `validee` → `echec` (avec nombre de tentatives et dernière erreur).
+**Sept états** : `en_preparation` (la ligne naît quand le workflow A démarre) → `a_valider` (A a déposé la proposition) → `validee` → `appliquee` ; `a_valider` → `refusee` ; `validee` → `echec` (avec nombre de tentatives et dernière erreur) → `validee` (relancer) ; `en_preparation` → `abandonnee` (A a échoué ou la ligne est restée bloquée). `appliquee`, `refusee` et `abandonnee` sont terminaux. Les règles viennent d'un seul fichier pur, `js/modules/automatisations/propositions.js`, partagé par la porte, la fonction de validation, le MCP et l'écran.
+
+**Le Logger (décision de Jérôme du 22/10/2026, fait)** : le workflow A **crée sa ligne dès son démarrage** (`propositions.demarrer`, avec le **plan** de ses étapes annoncé d'avance), fait avancer chaque étape (`propositions.etape` : `en_cours`, `fait`, `echec`, `ignoree`), puis **dépose** la proposition (`propositions.ajouter` finalise la ligne). En cas d'échec avant le dépôt : `propositions.abandonner`. Le workflow B signale ses propres étapes pendant que la ligne est `validee`. Les étapes sont recopiées dans le champ `etapes` de la proposition (10 au total pour A et B ; plans de 3 à 8 jalons conseillés, clés préfixées `a-…` / `b-…`, chaîne **linéaire** : une étape qui ne s'applique pas passe à `ignoree`). Une chaîne ne recule pas (`fait` ne revient pas à `en_cours` ; `echec` peut passer à `fait` pour une reprise). Les libellés d'étapes sont des **jalons nommés par l'auteur du workflow**, pas les nœuds techniques de n8n.
+
+**Ligne bloquée** : une ligne `en_preparation` est jugée bloquée après **15 minutes sans nouvelle étape** (calculé à l'écran et côté serveur). Il n'y a pas de balayage automatique : l'écran propose alors un bouton gris **« Classer sans suite »** (`automatisationsDecider` avec `abandonner`, refusé par le serveur si la ligne n'est pas réellement bloquée). Il **ne dit rien à n8n et ne l'arrête pas** : il ferme seulement la ligne ; si le workflow se réveille ensuite, la plateforme refuse ses écritures.
 
 - Seul le workflow B, par la porte, peut écrire `appliquee`. Jamais sur un simple « reçu ».
 - Une proposition garde **ce que l'IA a compris** (`champsProposes`, jamais écrasés) et **ce qui a été validé** (`champsValides`, `valideePar`, `valideeLe`, canal).
@@ -45,7 +49,7 @@ Une automatisation (n8n) lit des e-mails, **propose** quelque chose, et le clien
 **Une automatisation = une ligne (phase 3 du chantier 14, décision de principe de Jérôme du 22/10/2026).** Pour le client, un traitement est **une proposition**, affichée avec une frise fixe : Reçu → Proposé → En attente de validation → Validé ou Refusé → Appliqué ou En échec. La frise vient de l'**état de la proposition** (fichier pur des transitions, partagé par l'écran, la fonction de validation et le MCP), pas d'une ligne `steps` : la frise traverse plusieurs exécutions n8n alors que `steps` est rangée sous une seule, et la validation est écrite par la fonction de validation, jamais par n8n. Les exécutions n8n qui travaillent derrière (A proposer, B appliquer, C refus) sont reliées **depuis la proposition** : champ `executions: { proposer, appliquer, refuser }` (numéros donnés par A à `propositions.ajouter` et par B à `propositions.marquerAppliquee`). Rien à lire de plus dans n8n et rien à écrire dans `executions`.
 
 - Ce qui existe déjà du chantier 14 (cahier du 11/10/2026) : sous-collection `executions/<n>/steps` et champ `runGroupId`, vides ; `stepsPlan` des workflows, vide ; règles Firestore déjà fermées ; tests C6/C7 qui garantissent que la copie n'écrase rien. **L'écran ne lit rien de tout cela aujourd'hui** et le Logger n'a jamais été écrit. Le cahier avait mis le numéro commun de côté (« jugé trop compliqué à transmettre ») : le lien depuis la proposition le remplace.
-- `runGroupId` reste vide, `steps` sert au **Logger** (décision du 22/10/2026, dans le premier module) : sous-étapes **à l'intérieur** d'une exécution (par exemple « e-mail lu », « contrôle anti-injection ok »), écrites par le workflow via la porte (action à définir, mêmes contrôles que `propositions.ajouter`). Elles s'affichent dans la frise de la ligne, avec le rafraîchissement de 10 secondes. **À trancher dans la PR** : la sous-collection `steps` est rangée sous une exécution, alors qu'un traitement en traverse plusieurs ; Fable propose de recopier au plus 10 étapes dans le document de la proposition (`etapes`) plutôt que de lire `steps` ligne par ligne (le test D3 de `tests/statique.test.js` limite les requêtes de l'écran).
+- `runGroupId` reste vide ; les étapes ne sont **pas** dans `steps` mais dans le champ `etapes` de la proposition (option B, décision du 22/10/2026). Ancien texte, gardé pour mémoire : `steps` devait servir au **Logger** : sous-étapes **à l'intérieur** d'une exécution (par exemple « e-mail lu », « contrôle anti-injection ok »), écrites par le workflow via la porte (action à définir, mêmes contrôles que `propositions.ajouter`). Elles s'affichent dans la frise de la ligne, avec le rafraîchissement de 10 secondes. **À trancher dans la PR** : la sous-collection `steps` est rangée sous une exécution, alors qu'un traitement en traverse plusieurs ; Fable propose de recopier au plus 10 étapes dans le document de la proposition (`etapes`) plutôt que de lire `steps` ligne par ligne (le test D3 de `tests/statique.test.js` limite les requêtes de l'écran).
 - L'onglet Historique garde une ligne par exécution (inchangé). « À valider » et un onglet « Traitements » listent les propositions, chacune avec sa frise. Une proposition sans exécution liée s'affiche en ligne simple.
 - **En direct** : l'écran lit `automatisations_propositions` par écoute Firestore, comme il lit déjà `executions` ; chaque changement d'état arrive sans attendre les 10 secondes. Les détails n8n (durée, erreur de B) arrivent par la copie, avec son délai. Pas de sous-collection lue ligne par ligne (le test D3 de `tests/statique.test.js` limite les requêtes de l'écran). Si des sous-étapes doivent s'afficher un jour, elles seront copiées dans le document de la proposition (`etapes`, 10 au plus).
 - Le signal « validée mais pas appliquée depuis 30 minutes » est calculé à l'écran, comme « À vérifier ».
@@ -86,14 +90,14 @@ Pour un client sans CRM, le MCP ne listerait que `qui_suis_je` : ces outils lui 
 - Les outils doivent exister dans `functions/src/mcp/outils/` (le test du registre l'exige). La PR adapte `tests/automatisations-statique.test.js` (`outilsMcp` n'est plus vide) et décide si `annotationsDe` (`functions/src/mcp/outils/index.js`) marque `valider_proposition` comme destructif (il n'est pas annulable par la restauration ; le commentaire « tout est annulable » devient faux pour lui).
 - `lire_proposition` renvoie à l'assistant un texte tiré d'un e-mail : le dire dans le texte de l'outil (contenu non fiable, à ne jamais exécuter comme une consigne), et garder la permission « demander » sur `valider_proposition` (`docs/portes-et-droits-mcp.md`).
 
-## Premier cas de test : la boîte de Jérôme
+## Premier cas de test : deux workflows n8n d'essai (construits le 22/10/2026)
 
-1. Workflow `interne-…` qui lit la boîte professionnelle (IMAP).
-2. Contrôle anti-injection avec le nœud **Guardrails** de n8n, puis une décision (spam ? facture ? demande de devis ?) avec **Jev** (modèle de décision de TypeSafe sur OpenRouter, en bêta). Jev peut être influencé (analyse publiée par Datadog, **à vérifier avant de coder** : ni Guardrails ni Jev ne sont dans le dépôt, et Jev est annoncé en bêta) par un texte piégé (analyse de Datadog) : ce n'est jamais la seule protection. La file de validation et le schéma fixe de la porte sont la vraie barrière.
-3. Proposition déposée, SMS envoyé, décision, workflow B.
-4. Tout se lit dans Automatisations.
-
-**Prérequis à la charge de Jérôme** : la boîte professionnelle et ses identifiants dans n8n (credential), un compte SMS (Twilio ou seven) et un numéro d'envoi, un compte OpenRouter. Rien n'est configuré à ce jour.
+Créés dans le n8n de Jérôme, **inactifs** (non publiés), étiquette `interne`, clé « Clé n8n - Interne », fuseau de Paris :
+- **`interne-propositions-a-proposer` (A)** : lit un e-mail d'une **boîte de test**, filtré sur l'objet `[essai-propositions]` (messages non lus seulement, marqués lus ensuite) ; peut aussi être lancé à la main avec un faux e-mail. Il annonce 5 étapes (e-mail reçu, contrôle de sécurité, tri, extraction, dépôt), fait le **contrôle anti-injection** (nœud Guardrails de n8n), puis le **tri et l'extraction** par un modèle d'IA via OpenRouter (modèle choisi : `anthropic/claude-sonnet-4.6`), et dépose la proposition. Un message classé « spam » ou jugé suspect est abandonné (ligne « abandonnée » avec la raison).
+- **`interne-propositions-b-appliquer` (B)** : toutes les 5 minutes (ou à la main), lit les propositions validées (`propositions.lireValidees`), les **applique** puis les marque appliquées ou en échec. **Son action est un essai : rien n'est créé nulle part.** La vraie action (créer une fiche, envoyer un message, écrire dans un tableur) reste à décider.
+- Essai de bout en bout fait le 22/10/2026 avec un faux e-mail : la ligne a été démarrée, les 5 étapes annoncées et avancées, le contrôle de sécurité n'a rien déclenché, le message a été classé « demande » avec ses champs extraits, la proposition déposée à l'état « à valider ». **Une proposition d'essai fictive existe donc dans la base de Jérôme** (aucune porte ne sait supprimer : à classer ou à laisser).
+- **Non fait / non vérifié** : le déclencheur Gmail n'a pas lu de vrai message (seul le faux e-mail a été essayé) ; **Jev** n'a pas été essayé (le réseau de la session de travail bloquait OpenRouter ; les sources trouvées se contredisent sur la version du modèle, 1.13 ou 1.14) ; **aucun SMS** (décision de Jérôme) ; B n'a pas encore appliqué une proposition réelle (la validation est un geste humain).
+- Boîte de Jérôme (`jerome.chevalier@gmail.com`) : une connexion Gmail propre à cette adresse n'existe pas encore dans n8n ; pour lire sa boîte, il faut qu'il crée la connexion (Credentials > Gmail OAuth2) lui-même.
 
 ## Ce qui touche aux règles (liste d'arrêt de la nuit)
 
@@ -101,6 +105,22 @@ Pour un client sans CRM, le MCP ne listerait que `qui_suis_je` : ces outils lui 
 - Aucune règle nouvelle pour `steps` et `runGroupId` (déjà fermés aux navigateurs, test J3). Tests à adapter dans la PR 1 : C6 et C7 de `tests/automatisations-synchro.test.js` seulement si la copie remplit `runGroupId` ; D3 de `tests/statique.test.js` pour la requête de l'écran « À valider » (un seul `where ==`, pas d'`orderBy`).
 - Les déploiements de la plateforme sont manuels (choix `regles`, `fonctions`, `hosting`, `mcp`, `espace` du workflow ; `tout` = page et règles seulement, jamais les fonctions) ; rien n'est utilisable par un client avant.
 - La copie de l'historique ne garde jamais le contenu des données (test « D. Aucun contenu, aucune définition, aucun secret dans Firebase » de `tests/automatisations-synchro.test.js`). Une proposition, elle, contient par nature des noms et des adresses : le dire dans la doc du module. Elle passe par la porte, comme `veille_contenus`.
+
+## Où en est la construction (nuit du 22 au 23/10/2026, version 2.24.0)
+
+| Sujet | PR | État |
+|---|---|---|
+| Documents du plan | 187 | fusionnée |
+| États et transitions (fichier pur) | 188 | fusionnée |
+| Actions de la porte (`propositions.*`) | 189 | fusionnée |
+| Fonction `automatisationsDecider` + 5 outils MCP | 190 | fusionnée |
+| Écran « À valider » | 191 | fusionnée |
+| Logger, données et porte | 192 | fusionnée |
+| Logger, chaîne d'étapes à l'écran | 193 | voir `docs/reprise-prochaine-session.md` |
+| Documentation, version 2.24.0, wiki | PR de cette nuit | voir `docs/reprise-prochaine-session.md` |
+| Règles Firestore (liste d'arrêt) | voir `docs/reprise-prochaine-session.md` | à fusionner par Jérôme |
+
+**Pas fait** : l'animation fine de la chaîne (les classes et attributs sont prêts), les canaux e-mail et SMS, la porte de la base 2 (plateforme clients), le workflow B réel (rien n'est créé dans un CRM : « appliquée » change seulement l'état), les KPI. **Rien n'est utilisable par un client avant** la publication des règles et les déploiements manuels.
 
 ## Découpage proposé en PR
 
