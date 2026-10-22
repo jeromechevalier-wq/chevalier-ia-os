@@ -69,7 +69,7 @@ test('I12 Factures : ligne « Factures  + Ajouter », le formulaire n’apparaî
   await capturer(page, info, 'I12-facture-ajoutee');
 });
 
-test('I11 Tâches : une seule ligne « Clique ici pour ajouter un livrable… », qui s’ouvre avec phase, dates rapides et date ; titre seul = phase en cours sans date ; plus de gros bouton jaune', async ({ page }, info) => {
+test('I11 Tâches : une seule ligne « Clique ici pour ajouter un livrable… », qui s’ouvre avec phase, dates rapides et date ; titre seul = phase en cours sans date ; bouton jaune « Enregistrer le livrable » seulement à l’ouverture', async ({ page }, info) => {
   await creerProjet('pr1', { titre: 'Audit des Lilas', phase: 'decouverte' });
   await creerTacheProjet('t0', { titre: 'Déjà là' });
   await connecter(page);
@@ -79,14 +79,14 @@ test('I11 Tâches : une seule ligne « Clique ici pour ajouter un livrable… »
   await expect(champ).toHaveAttribute('placeholder', 'Clique ici pour ajouter un livrable…');
   await expect(section.getByLabel('Phase du livrable')).toBeHidden();
   await expect(section.locator('[data-date-rapide]').first()).toBeHidden();
-  await expect(section.locator('.bouton-principal')).toHaveCount(0); // plus de gros bouton jaune
+  await expect(section.locator('.bouton-principal')).toBeHidden(); // le bouton jaune n'apparaît qu'à l'ouverture de la ligne
   await capturer(page, info, 'I11-tache-ligne-fermee');
   await champ.click();
   await expect(section.getByLabel('Phase du livrable')).toBeVisible();
   await expect(section.getByLabel('Phase du livrable')).toHaveValue('decouverte'); // phase en cours par défaut
   await expect(section.locator('[data-date-rapide]').first()).toBeVisible();
   await expect(section.getByLabel('Date', { exact: true })).toBeVisible();
-  await expect(section.locator('.bouton-principal')).toHaveCount(0);
+  await expect(section.locator('.bouton-principal')).toHaveText('Enregistrer le livrable'); // N2 : bouton jaune plein
   await capturer(page, info, 'I11-tache-zone-ouverte');
   // cas d'erreur : titre vide refusé
   await section.locator('[data-action="ajouter-tache"]').click();

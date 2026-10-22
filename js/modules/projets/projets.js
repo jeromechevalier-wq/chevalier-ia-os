@@ -446,7 +446,7 @@ export function rendreProjets(conteneur, { archives: surArchives = false } = {})
   }
 
   const entete = h('header', { class: 'page-tete' },
-    h('div', {}, h('p', { class: 'etiquette' }, 'Livraison'), h('h1', {}, 'Projets'), compteur),
+    h('div', {}, h('h1', {}, 'Projets'), compteur),
     h('div', { class: 'page-actions' },
       zoneBascule,
       h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'nouveau-projet', onclick: () => ouvrirCreationProjet() }, icone('plus', { taille: 16 }), 'Projet')));
