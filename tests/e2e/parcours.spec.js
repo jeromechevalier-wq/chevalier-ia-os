@@ -1319,15 +1319,22 @@ test('C28 Journal : ce que je fais dans l’appli y apparaît avec la copie avan
   await dialogue(page).getByRole('button', { name: 'Fermer', exact: true }).and(page.locator('.bouton-principal')).click();
 
   // filtres
-  await page.locator('[data-role="filtre-canal"]').selectOption('mcp');
+  await page.locator('[data-action="filtres"]').click();
+  await dialogue(page).locator('input[data-cle="canaux"][data-valeur="mcp"]').check();
+  await dialogue(page).getByRole('button', { name: 'Appliquer' }).click();
   await expect(lignes).toHaveCount(2);
-  await page.locator('[data-role="filtre-canal"]').selectOption('tous');
-  await page.locator('[data-role="filtre-a-verifier"]').check();
+  await page.locator('[data-action="filtres"]').click();
+  await dialogue(page).getByRole('button', { name: 'Tout effacer' }).click();
+  await expect(lignes).toHaveCount(4);
+  await page.locator('[data-action="filtres"]').click();
+  await dialogue(page).locator('input[data-cle="aVerifier"]').check();
+  await dialogue(page).getByRole('button', { name: 'Appliquer' }).click();
   await expect(lignes).toHaveCount(1);
   await expect(lignes.first()).toContainText('Suppression de 1 affaire');
-  await page.locator('[data-role="filtre-a-verifier"]').uncheck();
+  await page.locator('[data-action="filtres"]').click();
+  await dialogue(page).getByRole('button', { name: 'Tout effacer' }).click();
   await page.getByLabel('Rechercher dans le journal').fill('lyon-inconnu');
-  await expect(page.getByText('Aucune opération ne correspond')).toBeVisible();
+  await expect(page.getByText('Rien à afficher avec ces filtres')).toBeVisible();
   await page.getByLabel('Rechercher dans le journal').fill('Lyon');
   await expect(page.locator('.tableau-journal tbody tr')).toHaveCount(0); // le texte saisi ne cherche pas dans le contenu des documents
 
