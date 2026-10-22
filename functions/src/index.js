@@ -15,6 +15,7 @@ import { creerVerificateurIdentite } from './oauth/identite-google.js';
 import { creerGestionnairePorteCrm } from './porte.js';
 import { creerGestionnaireTableauCrm } from './tableaudebord.js';
 import { creerAppelSaisie, ligneDeJournalSaisie } from './tableaudebord-saisie.js';
+import { creerAppelDecider, ligneDeJournalDecision } from './automatisations/decider-appel.js';
 import { creerAdaptateur } from '../partage/porte/adaptateur.js';
 import { creerServiceVeille } from './veille/service.js';
 import { creerAppelVeille } from './veille/appel.js';
@@ -77,6 +78,17 @@ export const tableaudebordSaisir = onCall(
   (requete) => {
     if (!getApps().length) initializeApp();
     return creerAppelSaisie({ donnees: creerAdaptateur({ db: getFirestore() }), journal: (e) => process.stdout.write(`${ligneDeJournalSaisie(e)}\n`) })(requete);
+  },
+);
+
+// `automatisationsDecider` : appelée par l'écran « À valider » du module Automatisations (valider, refuser ou relancer une proposition). Contrôle l'appelant (mêmes comptes que `veille`),
+// puis décide en une lecture-modification-écriture atomique (functions/src/coeur/propositions.js, le même code que les outils MCP). Même région, mêmes limites et même compte
+// de service que `tableaudebordSaisir` : aucun droit de plus, aucun secret lu, rien de nouveau à créer avant le déploiement.
+export const automatisationsDecider = onCall(
+  { region: 'europe-west9', maxInstances: 3, memory: '256MiB', timeoutSeconds: 60, serviceAccount: 'porte-serveur@chevalier-ia-os.iam.gserviceaccount.com' },
+  (requete) => {
+    if (!getApps().length) initializeApp();
+    return creerAppelDecider({ donnees: creerAccesFirestore(), journal: (e) => process.stdout.write(`${ligneDeJournalDecision(e)}\n`) })(requete);
   },
 );
 

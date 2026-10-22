@@ -10,6 +10,7 @@ import * as lecture from '../functions/src/coeur/lecture.js';
 import { serialiser } from '../functions/src/coeur/serialisation.js';
 import { OUTILS } from '../functions/src/mcp/outils/index.js';
 import { OUTILS_LECTURE } from '../functions/src/mcp/outils/lecture.js';
+import { OUTILS_PROPOSITIONS_LECTURE } from '../functions/src/mcp/outils/propositions.js';
 import { qui_suis_je } from '../functions/src/mcp/outils/identite.js';
 import { collections, MAINTENANT } from './_donnees-essai.js';
 
@@ -234,7 +235,8 @@ describe('Lecture seule (garantie)', () => {
     const parcourir = (d) => readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? parcourir(join(d, e.name)) : [join(d, e.name)]));
     // Les actions métier (metier.js) et le gestionnaire ne font que tirer des identifiants et confier l'écriture au moteur : jamais appliquer/mettreAJour.
     // oauth/magasin.js : seulement sa propre collection fermée `mcp_oauth` (jetons OAuth) ; un test statique (D8) vérifie qu'il ne touche à aucune donnée du CRM.
-    const autorises = ['coeur/donnees.js', 'coeur/ecriture.js', 'coeur/restaurer.js', 'securite/limites.js', 'securite/codes.js', 'oauth/magasin.js'];
+    const autorises = ['coeur/donnees.js', 'coeur/ecriture.js', 'coeur/restaurer.js', 'securite/limites.js', 'securite/codes.js', 'oauth/magasin.js', 'coeur/propositions.js'];
+    // coeur/propositions.js : la décision d'une proposition (file « À valider »), une seule lecture-modification-écriture atomique, sans le moteur d'audit (voir functions/src/mcp/outils/propositions.js).
     for (const f of parcourir(dossier).filter((x) => /\.appliquer\(|\.mettreAJour\(/.test(readFileSync(x, 'utf8')))) {
       assert.ok(autorises.some((a) => f.endsWith(a)), `écriture hors du moteur : ${f}`);
     }
@@ -243,9 +245,10 @@ describe('Lecture seule (garantie)', () => {
     }
   });
   test('tous les outils de lecture sont ouverts aux trois profils, et ne sont pas les seuls outils enregistrés', () => {
-    const noms = [qui_suis_je, ...OUTILS_LECTURE].map((o) => o.nom).sort();
-    assert.deepEqual(noms, ['chercher', 'lire_affaire', 'lire_audit', 'lire_organisation', 'lire_personne', 'lire_projet', 'lire_reglages', 'lister_activites', 'lister_affaires', 'lister_documents', 'lister_modeles_projet', 'lister_projets', 'qui_suis_je']);
-    for (const o of [qui_suis_je, ...OUTILS_LECTURE]) assert.deepEqual(o.profils, ['lecteur', 'bibliothecaire', 'claude-code'], o.nom);
+    const lecteurs = [qui_suis_je, ...OUTILS_LECTURE, ...OUTILS_PROPOSITIONS_LECTURE];
+    const noms = lecteurs.map((o) => o.nom).sort();
+    assert.deepEqual(noms, ['chercher', 'lire_affaire', 'lire_audit', 'lire_organisation', 'lire_personne', 'lire_projet', 'lire_proposition', 'lire_reglages', 'lister_activites', 'lister_affaires', 'lister_automatisations', 'lister_documents', 'lister_modeles_projet', 'lister_projets', 'lister_propositions', 'qui_suis_je']);
+    for (const o of lecteurs) assert.deepEqual(o.profils, ['lecteur', 'bibliothecaire', 'claude-code'], o.nom);
     for (const o of OUTILS.filter((x) => !noms.includes(x.nom))) assert.ok(!o.profils.includes('lecteur'), `${o.nom} : le lecteur n’a aucun droit d’écriture`);
   });
   test('le code des fonctions ne référence jamais l’ancienne collection crm_prospects', () => {

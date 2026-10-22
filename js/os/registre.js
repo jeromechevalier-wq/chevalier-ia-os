@@ -137,7 +137,7 @@ export const MODULES_DECLARES = geler([
       { route: 'automatisations/historique', libelle: 'Historique', icone: 'activity' },
     ],
     collections: ['workflows', 'executions', 'sync'],
-    outilsMcp: [],
+    outilsMcp: ['lister_propositions', 'lire_proposition', 'lister_automatisations', 'valider_proposition', 'refuser_proposition'],
     dependances: [],
   },
   {
