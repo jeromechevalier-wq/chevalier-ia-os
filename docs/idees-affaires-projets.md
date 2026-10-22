@@ -16,6 +16,24 @@ Revue faite avec Jérôme, une idée à la fois, sans code. Chaque idée a un **
 6. I15 puis I9 : filtres.
 La montée de version et le wiki : dans la dernière PR seulement.
 
+## État au matin du 22/10/2026 (nuit « GO NUIT » du 21 au 22/10/2026)
+
+| N° | État | PR |
+|---|---|---|
+| I1, I3 | Abandonnées | – |
+| I8 | Absorbée par I5 | – |
+| I2, I13, I18 | **Faits** | 160 |
+| I4, I6, I14 | **Faits** | 161 (corrections de tests : I3 et K2 lisent le bouton principal sur la page Personnes) |
+| I17, I12, I11 | **Faits** (règle I16 appliquée à ces trois endroits) | 162 |
+| I7 | **Fait** | 163 |
+| I5 | **Fait** (note de départ vide ; `copieDeNoteId` ; MCP : `noteEpingleeId`, ancien paramètre `description` toléré) | 164 |
+| I10 | **Fait** (`ajouteLe` sur les nouveaux documents) | 165 |
+| I9 | **Fait** | 166 |
+| I15 | **Partiel** : inventaire fait, bouton « Filtres » des Projets aligné ; reste Journal, Veille, Automatisations, Tableau de bord Technique, et l'unification des deux fenêtres de filtres | 166 |
+| I16 | **Règle écrite** dans `docs/consignes-ui.md` (section « Boutons ») et appliquée à Factures, Tâches, Documents, Dossier de travail, Montant ; **reste à aligner** : voir la liste de cette section | 162, 165 |
+
+Décisions que Jérôme doit encore trancher : bouton « Filtres » de l'Historique à 44 px sur téléphone (36 px aujourd'hui, comme les autres petits boutons) ; fenêtre « Filtres » qui propose les 6 valeurs même quand l'une ne peut rien donner ; date d'ajout des documents joints par l'assistant (aucune aujourd'hui) ; passage de Journal, Veille, Automatisations et Tableau de bord au bouton « Filtres » (I15 suite).
+
 ## Critères d'acceptation
 
 **I2 (bogue).** Sur une affaire ou un projet, dès que je choisis une personne ou une organisation dans le Résumé et que je quitte la cellule, son lien apparaît en haut à côté de l'étiquette d'état, sans recharger la page (seul ce bloc se met à jour). Si je la retire avec la croix, le lien disparaît aussi tout de suite.

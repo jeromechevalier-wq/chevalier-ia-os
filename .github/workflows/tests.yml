@@ -51,8 +51,8 @@ jobs:
             echo "Lancement à la main : complet=$complet"
           else
             case ",$ETIQUETTES," in *,tests-complets,*) complet=true; echo "Étiquette tests-complets : palier complet." ;; esac
-            # Fichiers sensibles : fonctions de la plateforme, règles de sécurité, configuration Firebase, workflows GitHub, outillage des tests (pas les fichiers de test eux-mêmes).
-            sensibles=$(git diff --name-only "$BASE" HEAD | grep -E '^(functions-plateforme/|firestore\.rules$|storage\.rules$|firebase[^/]*\.json$|\.github/workflows/|tests/(lancer-tout\.js|ports\.js|playwright\.config\.js|package\.json|package-lock\.json|e2e/outils\.js|e2e/serveur\.js)$)' || true)
+            # Fichiers sensibles : fonctions de la plateforme, règles de sécurité, configuration Firebase, workflows GitHub, outillage des tests (pas les fichiers de test eux-mêmes, ni la liste de tests de tests/package.json : ajouter un test à une liste ne doit pas déclencher les 10 minutes du palier complet).
+            sensibles=$(git diff --name-only "$BASE" HEAD | grep -E '^(functions-plateforme/|firestore\.rules$|storage\.rules$|firebase[^/]*\.json$|\.github/workflows/|tests/(lancer-tout\.js|ports\.js|playwright\.config\.js|package-lock\.json|e2e/outils\.js|e2e/serveur\.js)$)' || true)
             if [ -n "$sensibles" ]; then
               complet=true
               echo "Fichiers sensibles touchés : palier complet."

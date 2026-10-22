@@ -54,6 +54,13 @@ Jérôme ne veut pas être le goulot d'étranglement : GitHub permet de revenir 
 10. **Captures de recette** : si le navigateur de test ne peut pas tourner, écrire « captures impossibles : <raison> » dans la PR au lieu de s'arrêter.
 11. **Rapport du matin** : mettre à jour `docs/reprise-prochaine-session.md` (tableau sujet / PR / état : fusionnée seule, à fusionner par Jérôme, sautée avec la raison ; état de la nuit GitHub ; ce qui n'a pas pu être vérifié) et le résumer en tête de la dernière réponse.
 
+### Leçons de la première nuit (21 au 22/10/2026)
+- La coche de PR (« rapide + smoke + parcours de la PR ») ne lance **pas** les anciens parcours : avant de retirer ou déplacer un élément d'écran, chercher par `grep` dans `tests/e2e/` les tests qui lisent son sélecteur (la PR 160 a cassé K2 et I3 en retirant « + Personne » de l'Accueil) et les adapter dans la même PR.
+- `TESTS_DECALAGE` : jamais 2 (port 10080 interdit par le navigateur) ni 7 (le test de ports l'impose) ; voir `docs/tests.md`, « Pièges connus ».
+- Entre 22 h et minuit UTC, P1 (`corrections-dossiers-2`) et C12 (`parcours`) échouent sur `main` aussi : ne pas chercher l'erreur dans la PR, relancer après minuit UTC.
+- Une PR en brouillon ne peut pas être armée en auto-merge : la passer en « prête » d'abord ; si toutes les vérifications sont déjà vertes, fusionner directement.
+- Les sous-agents travaillent chacun dans un répertoire de travail isolé (`isolation: worktree`) sur une branche locale ; seule la session principale pousse, une PR à la fois, sur la branche désignée de la session ; relecture Fable avant la fusion de chaque PR ; chaque nouvelle PR fusionne d'abord `origin/main`.
+
 ## Au démarrage d'une session
 
 1. Lis `docs/roadmap.md` (état et décisions).

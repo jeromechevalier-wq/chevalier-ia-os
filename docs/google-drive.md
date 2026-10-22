@@ -1,5 +1,7 @@
 # Liens et documents, Google Drive (version 2.6.5, 17/10/2026)
 
+> **Mise à jour du 22/10/2026 (version 2.19.0, I10) : l'onglet Documents a changé.** Les sections ci-dessous gardent l'historique des chantiers du 16 et 17/10/2026 ; pour l'état actuel, lire d'abord la section « Onglet Documents, version 2 » plus bas. En particulier : plus de titre « Liens et documents », plus de bouton « Ajouter un lien web », et les deux boutons du dossier de travail passent derrière « + Ajouter ».
+
 Chantier « Liens et documents » des décisions du 16/10/2026. **Rien n'est déployé.** Les règles Firestore ne sont **pas** modifiées. Aucune donnée existante n'est modifiée ni migrée.
 
 ## Ce que Jérôme verra
@@ -59,6 +61,14 @@ Premier essai réel (plateforme, espace clientdemo) : le Picker s'ouvre, mais le
 - **Choisir le dossier parent** : vue `DocsView(DOCS)` avec `setParent('root')`, `setIncludeFolders(true)`, `setSelectFolderEnabled(true)` et le filtre « dossiers » : on part de la racine de Mon Drive et on descend dossier par dossier.
 - **« Ajouter un document »** : l'onglet Mon Drive démarre **dans le dossier de travail** s'il est dans Drive, sinon à la **racine de Mon Drive** ; « Importer » reste dans le dossier de travail.
 - Toujours la fenêtre standard de Google, aucun écran sur mesure. Vérifié ici avec un Google simulé (ce qu'on demande au Picker) ; l'affichage réel de ces vues n'a pas pu être vu sans jeton valide : à confirmer par Jérôme.
+
+## Onglet Documents, version 2 (22/10/2026, I10)
+
+- **Dossier de travail** : ligne « Dossier de travail de cette fiche  + Ajouter ». Sans dossier, « + Ajouter » propose « Créer un dossier dans Google Drive » et « Lier un dossier Google Drive existant » ; un second clic, Échap ou « Annuler » referme (le focus clavier va sur le premier choix à l'ouverture et revient sur « + Ajouter » à la fermeture). Avec un dossier : « Ouvrir le dossier » et « Retirer » (confirmation, puis « Annuler » pendant 8 secondes).
+- **Documents** : plus de titre « Liens et documents » ; une ligne « Documents  + Ajouter » (avec le « i ») est toujours en haut de la liste. Sans dossier de travail, « + Ajouter » explique pourquoi on ne peut pas (Fermer) ; sans Google branché, un message le dit et aucun bouton n'apparaît.
+- **Date et heure d'ajout** : chaque document ajouté depuis l'écran porte `ajouteLe` (texte ISO) et affiche « Ajouté le jj/mm/aaaa hh:mm » (heure de Paris). Les anciens documents n'en ont pas et n'en affichent pas. `joindre_lien` (MCP) n'écrit pas ce champ ; `lister_documents` le renvoie quand il existe.
+- **Plus de bouton « Ajouter un lien web »** : les adresses web se mettent dans une note (lien cliquable, I6). Les liens web déjà enregistrés restent affichés, avec crayon, étoile et croix.
+- Tests : `tests/e2e/onglet-documents-v2.spec.js` et `tests/onglet-documents-v2.test.js` ; plusieurs tests des sections ci-dessous ont été adaptés (les liens web s'y créent par des données écrites en base).
 
 ## Liens et documents, version 2.6.3 (retours de l'essai réel)
 
