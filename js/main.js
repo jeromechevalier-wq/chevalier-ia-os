@@ -92,6 +92,7 @@ function fermerSession() {
   arreterObjectifs();
   import('./modules/crm/activites.js').then((m) => m.oublierFiltresHistorique()).catch(() => {}); // chargement à la demande : pas de dépendance circulaire
   import('./modules/crm/journal.js').then((m) => m.oublierFiltresJournal()).catch(() => {});
+  import('./modules/veille/ecran.js').then((m) => m.oublierFiltresVeille()).catch(() => {});
   session = null;
 }
 

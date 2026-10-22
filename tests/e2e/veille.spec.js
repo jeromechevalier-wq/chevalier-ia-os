@@ -71,15 +71,19 @@ test('Veille : contenus, filtres, liens sûrs, coût visible chez Jérôme, sour
   await expect(c3).toContainText('Étape en échec : Transcription');
   await expect(c3.locator('a.veille-titre')).toHaveCount(0);
   // Filtres.
-  await page.getByLabel('Filtrer par état').selectOption('echec');
-  await expect(page.locator('.veille-ligne')).toHaveCount(1);
-  await page.getByLabel('Filtrer par état').selectOption('');
-  await page.getByLabel('Filtrer par source').selectOption('s-pme');
-  await expect(page.locator('.veille-ligne')).toHaveCount(2);
-  await page.getByLabel('Filtrer par source').selectOption('');
-  await page.getByLabel('Filtrer par type').selectOption('YouTube');
-  await expect(page.locator('.veille-ligne')).toHaveCount(2);
-  await page.getByLabel('Filtrer par type').selectOption('');
+  // Filtres : bouton commun « Filtres » (fenêtre à cases à cocher) ; chaque essai se termine par « Tout effacer ».
+  const unFiltre = async (cle, valeur, attendu) => {
+    await page.locator('[data-action="filtres"]').click();
+    await page.getByRole('dialog').locator(`input[data-cle="${cle}"][data-valeur="${valeur}"]`).check();
+    await page.getByRole('dialog').getByRole('button', { name: 'Appliquer' }).click();
+    await expect(page.locator('.veille-ligne')).toHaveCount(attendu);
+    await page.locator('[data-action="filtres"]').click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Tout effacer' }).click();
+    await expect(page.locator('.veille-ligne')).toHaveCount(4);
+  };
+  await unFiltre('etats', 'echec', 1);
+  await unFiltre('sources', 's-pme', 2);
+  await unFiltre('types', 'YouTube', 2);
   await page.getByLabel('Chercher dans les titres').fill('NOUVEAU');
   await expect(page.locator('.veille-ligne')).toHaveCount(1);
   await page.screenshot({ path: `test-results/veille-contenus-filtre-${info.project.name}.png` });

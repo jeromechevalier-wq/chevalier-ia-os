@@ -116,14 +116,59 @@ export function compteurs(contenus) {
 /** Date de tri d'un contenu : publication, sinon détection. */
 const dateDeTri = (x) => enMs(x.datePublication) ?? enMs(x.detecteLe) ?? 0;
 
-/** Liste filtrée (source, type, état, texte dans le titre) et triée : les plus récents d'abord. */
-export function filtrer(contenus, { sourceId = '', type = '', etat = '', texte = '' } = {}) {
+/** Valeur de filtre -> tableau de valeurs cochées (accepte l'ancienne valeur unique : chaîne, vide = aucun filtre). */
+const enListe = (v) => (Array.isArray(v) ? v : v ? [v] : []).filter(Boolean);
+
+/** Critères vides de l'écran : un tableau de cases cochées par groupe (OU dans un groupe, ET entre groupes). */
+export const criteresVides = () => ({ sources: [], types: [], etats: [] });
+
+/** Nombre de cases cochées (valeur de la pastille du bouton « Filtres »). */
+export const nombreFiltres = (c = {}) => enListe(c.sources).length + enListe(c.types).length + enListe(c.etats).length;
+
+/** États proposés en cases à cocher (sans « Tous les états »). */
+export const OPTIONS_ETAT_CASES = OPTIONS_ETAT.filter((o) => o.valeur);
+
+/** Types qui existent vraiment dans les contenus, dans l'ordre de `TYPES` (pas de case sans résultat possible). */
+export const typesPresents = (contenus) => TYPES.filter((t) => contenus.some((x) => normaliserType(x.type) === t));
+
+/** États qui existent vraiment dans les contenus, dans l'ordre de `OPTIONS_ETAT_CASES`. */
+export const etatsPresents = (contenus) => OPTIONS_ETAT_CASES.filter((o) => contenus.some((x) => normaliserEtat(x.etat) === o.valeur));
+
+/**
+ * Retire des critères les cases qui n'existent plus dans les contenus (source, type ou état disparus) : elles ne resteraient ni visibles ni décochables.
+ * Renvoie le MÊME objet s'il n'y a rien à retirer (pas de nouveau rendu pour rien).
+ */
+export function nettoyerCriteres(criteres, contenus) {
+  const permis = {
+    sources: new Set(contenus.map((x) => x.sourceId).filter(Boolean)),
+    types: new Set(typesPresents(contenus)),
+    etats: new Set(etatsPresents(contenus).map((o) => o.valeur)),
+  };
+  let change = false;
+  const r = { ...criteres };
+  for (const cle of ['sources', 'types', 'etats']) {
+    const avant = enListe(criteres[cle]);
+    const apres = avant.filter((v) => permis[cle].has(v));
+    if (apres.length !== avant.length) change = true;
+    r[cle] = apres;
+  }
+  return change ? r : criteres;
+}
+
+/**
+ * Liste filtrée et triée : les plus récents d'abord. `sources`, `types` et `etats` sont des tableaux (OU dans un groupe, ET entre groupes) ;
+ * l'ancienne forme à valeur unique (`sourceId`, `type`, `etat`) reste acceptée. `texte` : mot cherché dans le titre.
+ */
+export function filtrer(contenus, { sources, sourceId, types, type, etats, etat, texte = '' } = {}) {
   const mot = sansAccent(texte);
+  const lesSources = enListe(sources ?? sourceId);
+  const lesTypes = enListe(types ?? type);
+  const lesEtats = enListe(etats ?? etat);
   return contenus
     .filter((x) => {
-      if (sourceId && x.sourceId !== sourceId) return false;
-      if (type && normaliserType(x.type) !== type) return false;
-      if (etat && normaliserEtat(x.etat) !== etat) return false;
+      if (lesSources.length && !lesSources.includes(x.sourceId)) return false;
+      if (lesTypes.length && !lesTypes.includes(normaliserType(x.type))) return false;
+      if (lesEtats.length && !lesEtats.includes(normaliserEtat(x.etat))) return false;
       if (mot && !sansAccent(x.titre).includes(mot)) return false;
       return true;
     })
