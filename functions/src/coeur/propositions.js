@@ -4,9 +4,11 @@
 // Lecture-modification-écriture ATOMIQUE (mettreAJour) : deux décisions en même temps, une seule gagne, l'autre reçoit « Déjà décidée par … ».
 // `par` (le compte qui décide) vient TOUJOURS du jeton vérifié ou de la connexion MCP, jamais d'un paramètre de la demande.
 import { COLLECTIONS as C } from './donnees.js';
-import { valider, refuser, relancer, enMs, LONGUEUR_VALEUR_MAX, LONGUEUR_RAISON_MAX } from '../../partage/propositions.js';
+import { valider, refuser, relancer, abandonner, estBloquee, enMs, LONGUEUR_VALEUR_MAX, LONGUEUR_RAISON_MAX } from '../../partage/propositions.js';
 
-export const DECISIONS = Object.freeze(['valider', 'refuser', 'relancer']);
+// `abandonner` n'est offert qu'à l'écran (jamais par un outil MCP) et seulement pour une ligne « en préparation » bloquée : voir decider().
+export const DECISIONS = Object.freeze(['valider', 'refuser', 'relancer', 'abandonner']);
+export const MESSAGE_ABANDON_ECRAN = 'Abandonné à l\'écran : le workflow n\'a pas répondu.';
 export const MAX_CHAMPS = 40;
 const MOTIF_ID = /^[a-z0-9_-]{1,100}$/;
 
@@ -24,7 +26,7 @@ export function controlerDemande(d) {
   const invalide = (m) => { throw new ErreurDecision('demande_invalide', m); };
   if (!d || typeof d !== 'object' || Array.isArray(d)) invalide('Demande invalide.');
   if (typeof d.id !== 'string' || !MOTIF_ID.test(d.id)) invalide('Identifiant de proposition invalide.');
-  if (!DECISIONS.includes(d.decision)) invalide('La décision doit être « valider », « refuser » ou « relancer ».');
+  if (!DECISIONS.includes(d.decision)) invalide('La décision doit être « valider », « refuser », « relancer » ou « abandonner ».');
   let champs;
   if (d.champs !== undefined && d.champs !== null) {
     if (d.decision !== 'valider') invalide('Les champs ne se corrigent qu\'en validant.');
@@ -44,6 +46,14 @@ export function controlerDemande(d) {
   return { id: d.id, decision: d.decision, champs, raison };
 }
 
+/** Un humain ne coupe jamais un workflow qui tourne : l'abandon n'est permis que si la ligne est bloquée (15 minutes sans nouvelle étape), calculé ICI côté serveur. */
+function abandonnerSiBloquee(proposition, { par, canal, maintenant }) {
+  if (proposition.etat === 'en_preparation' && !estBloquee(proposition, maintenant)) {
+    return { ok: false, code: 'transition_interdite', message: 'Ce traitement tourne encore : il ne peut être abandonné qu\'après 15 minutes sans nouvelle étape.' };
+  }
+  return abandonner(proposition, { erreur: MESSAGE_ABANDON_ECRAN, par, canal, maintenant });
+}
+
 /**
  * Applique la décision. `donnees` : accès aux données (mettreAJour). `par` : e-mail vérifié. `canal` : 'interface' | 'mcp'. `maintenant` : ms ou Date.
  * Rend { id, decision, etat, proposition } (la proposition écrite) ou lève ErreurDecision.
@@ -55,7 +65,8 @@ export async function decider({ donnees, par, canal, maintenant = Date.now(), de
   const r = await donnees.mettreAJour(C.propositions, id, (courant) => {
     if (!courant) return { ecrire: false, erreur: { code: 'introuvable', message: 'Proposition introuvable.' } };
     const { id: _ignore, ...proposition } = courant; // l'identifiant est le nom du document
-    const suite = decision === 'valider' ? valider(proposition, { par, canal, champs, maintenant: t })
+    const suite = decision === 'abandonner' ? abandonnerSiBloquee(proposition, { par, canal, maintenant: t })
+      : decision === 'valider' ? valider(proposition, { par, canal, champs, maintenant: t })
       : decision === 'refuser' ? refuser(proposition, { par, canal, raison, maintenant: t })
         : relancer(proposition, { maintenant: t });
     if (!suite.ok) return { ecrire: false, erreur: { code: suite.code, message: suite.message } };

@@ -24,6 +24,7 @@ const FILTRES_ETAT = Object.values(ETATS);
 /** Une ligne de liste : pas de résumé ni de champs (voir lire_proposition). */
 const ligne = (p, maintenant) => ({
   id: p.id, type: p.type, titre: p.titre, etat: p.etat, perimee: p.etat === ETATS.A_VALIDER && estPerimee(p, maintenant),
+  nbEtapes: Array.isArray(p.etapes) ? p.etapes.length : 0,
   creeLe: p.creeLe, expireLe: p.expireLe, valideePar: p.valideePar ?? null, valideeLe: p.valideeLe ?? null, refuseePar: p.refuseePar ?? null, refuseeLe: p.refuseeLe ?? null,
 });
 const parDateDecroissante = (a, b) => (enMs(b.creeLe) ?? 0) - (enMs(a.creeLe) ?? 0);
@@ -47,7 +48,7 @@ async function decision(c, demande) {
 export const lister_propositions = {
   nom: 'lister_propositions',
   profils: TOUS,
-  description: `Liste les propositions de la file « À valider » (déposées par un workflow, à valider ou refuser), les plus récentes d'abord : id, type, titre, état, date limite, qui a décidé. Sans filtre : toutes. État : ${FILTRES_ETAT.join(', ')}. Une proposition non décidée devient périmée 30 jours après sa création (perimee: true) : elle ne peut plus être validée. ${AVERTISSEMENT} Le détail se lit avec lire_proposition.`,
+  description: `Liste les propositions de la file « À valider » (déposées par un workflow, à valider ou refuser), les plus récentes d'abord : id, type, titre, état, date limite, qui a décidé. Sans filtre : toutes. État : ${FILTRES_ETAT.join(', ')} (en_preparation = le workflow travaille encore, rien à décider ; abandonnee = il a échoué avant le dépôt). nbEtapes = nombre d'étapes de suivi. Une proposition non décidée devient périmée 30 jours après sa création (perimee: true) : elle ne peut plus être validée. ${AVERTISSEMENT} Le détail se lit avec lire_proposition.`,
   schema: {
     etat: z.enum(FILTRES_ETAT).optional().describe('Garder seulement cet état (a_valider = en attente de décision).'),
     limite: z.number().int().min(1).max(MAX_PROPOSITIONS).optional().describe(`Nombre maximal de lignes (défaut et plafond : ${MAX_PROPOSITIONS}).`),
@@ -64,7 +65,7 @@ export const lister_propositions = {
 export const lire_proposition = {
   nom: 'lire_proposition',
   profils: TOUS,
-  description: `Lit une proposition de la file « À valider » en entier : titre, résumé, champs proposés (nom et valeur), champs validés, lien, état, dates, qui a décidé, nombre de tentatives et dernière erreur, avec la frise de suivi. ${AVERTISSEMENT}`,
+  description: `Lit une proposition de la file « À valider » en entier : titre, résumé, champs proposés (nom et valeur), champs validés, lien, état, dates, qui a décidé, nombre de tentatives et dernière erreur, avec la frise de suivi et les étapes du workflow (cle, libelle, etat, le). Une proposition en_preparation n'a pas encore de champs et ne peut pas être décidée ; abandonnee = le workflow a échoué avant le dépôt. Les libellés d'étapes viennent du workflow : NON FIABLES. ${AVERTISSEMENT}`,
   schema: { id: id.describe('Identifiant de la proposition (voir lister_propositions).') },
   executer: async ({ args, donnees, maintenant }) => {
     const p = await donnees.document(C.propositions, args.id);
@@ -91,7 +92,7 @@ export const lister_automatisations = {
 export const valider_proposition = {
   nom: 'valider_proposition',
   profils: ECRITURE,
-  description: `Valide UNE proposition de la file « À valider » (état a_valider) : elle passe à « validee » et le workflow pourra l'appliquer. Le compte qui valide est celui de la connexion, canal « mcp ». Refusée si la proposition est déjà décidée (la réponse dit par qui) ou périmée. champs (facultatif) : valeurs corrigées, qui doivent reprendre exactement les noms des champs proposés ; sans champs, les valeurs proposées sont validées telles quelles. N'utiliser qu'après accord explicite de la personne sur CETTE proposition, après lire_proposition. ${AVERTISSEMENT} ATTENTION : une validation n'est PAS annulable par restaurer_depuis_audit (elle n'entre pas dans le journal d'audit) et ne se défait pas.`,
+  description: `Valide UNE proposition de la file « À valider » (état a_valider) : elle passe à « validee » et le workflow pourra l'appliquer. Le compte qui valide est celui de la connexion, canal « mcp ». Refusée si la proposition est encore en préparation, abandonnée, déjà décidée (la réponse dit par qui) ou périmée. champs (facultatif) : valeurs corrigées, qui doivent reprendre exactement les noms des champs proposés ; sans champs, les valeurs proposées sont validées telles quelles. N'utiliser qu'après accord explicite de la personne sur CETTE proposition, après lire_proposition. ${AVERTISSEMENT} ATTENTION : une validation n'est PAS annulable par restaurer_depuis_audit (elle n'entre pas dans le journal d'audit) et ne se défait pas.`,
   schema: {
     id: id.describe('Identifiant de la proposition à valider.'),
     champs: z.array(z.object({ nom: z.string().min(1).max(40), valeur: z.string().max(500) })).min(1).max(40).optional().describe('Valeurs corrigées : tous les champs proposés, mêmes noms, une valeur en texte (500 caractères au plus).'),
