@@ -83,16 +83,16 @@ describe('R1 branchement dans la coque', () => {
     const ids = MODULES_DECLARES.map((m) => m.id);
     assert.equal(ids.indexOf('tableaudebord'), ids.indexOf('automatisations') + 1);
     const m = moduleDeclare('tableaudebord');
-    assert.equal(m.nom, 'Tableau de bord');
+    assert.equal(m.nom, 'Maintenance');
     assert.equal(m.reserveAuxClients, undefined);
     assert.deepEqual(m.collections, ['tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes']);
     assert.deepEqual(m.ecrans.map((e) => [e.route, e.libelle]), [['tableaudebord/general', 'Général'], ['tableaudebord/technique', 'Technique']]);
     assert.deepEqual(m.reglages.sections, []);
-    assert.ok(m.reglages.resume.startsWith('Le tableau de bord se lit'));
+    assert.ok(m.reglages.resume.startsWith('La maintenance se lit'));
   });
-  test('R1 chez Jérôme (racine), le menu contient le bloc « Tableau de bord » dont la première entrée est « Général »', () => {
+  test('R1 chez Jérôme (racine), le menu contient le bloc « Maintenance » dont la première entrée est « Général »', () => {
     const racine = MODULES.find((m) => m.id === 'tableaudebord');
-    assert.equal(racine.libelle, 'Tableau de bord');
+    assert.equal(racine.libelle, 'Maintenance');
     assert.equal(typeof racine.monter, 'function');
     assert.equal(racine.entrees[0].libelle, 'Général');
     assert.equal(racine.entrees[0].chemin, 'tableaudebord/general');

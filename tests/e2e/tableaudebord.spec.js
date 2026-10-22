@@ -50,7 +50,7 @@ const COMPTES_STANDARD = { rouge: 3, orange: 3, gris: 1, vert: 7 };
 
 async function ouvrir(page, ecran = 'general') {
   await connecter(page, undefined, { route: `tableaudebord/${ecran}` });
-  await expect(page.getByRole('heading', { name: 'Tableau de bord', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Maintenance', level: 1 })).toBeVisible();
 }
 const aller = (page, ecran) => page.evaluate((e) => { location.hash = `#/tableaudebord/${e}`; }, ecran);
 const ligne = (page, id) => page.locator(`.td-ligne[data-id="${id}"]`);
@@ -71,7 +71,7 @@ const rendreLesVraiesRegles = async () => chargerRegles(await readFile(fileURLTo
 
 // ---------------------------------------------------------------- R1
 
-test('R1 le menu contient le bloc « Tableau de bord » chez Jérôme, et sa première entrée « Général » ouvre l\'écran Général', async ({ page }, info) => {
+test('R1 le menu contient le bloc « Maintenance » chez Jérôme, et sa première entrée « Général » ouvre l\'écran Général', async ({ page }, info) => {
   await jeuStandard();
   await connecter(page);
   if (estTelephone(page)) await page.getByRole('button', { name: 'Ouvrir le menu' }).click();
@@ -81,7 +81,7 @@ test('R1 le menu contient le bloc « Tableau de bord » chez Jérôme, et sa pre
   await capturer(page, info, 'R1-menu');
   await bloc.getByRole('link', { name: 'Général', exact: true }).click();
   await expect(page).toHaveURL(/#\/tableaudebord\/general$/);
-  await expect(page.getByRole('heading', { name: 'Tableau de bord', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Maintenance', level: 1 })).toBeVisible();
   await expect(page.locator('.td-onglet[aria-current="page"]')).toHaveText('Général');
   await expect(page.locator('.td-phrase')).toBeVisible();
   // Une adresse inconnue du module revient sur Général ; les onglets Finance et Stocks sont acceptés même absents du menu.

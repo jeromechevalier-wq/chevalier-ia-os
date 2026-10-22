@@ -109,7 +109,7 @@ export function reglages(page, ctx = {}) {
   const arrets = [rendreReglagesCrm(page, ctx)];
   if (!ctx.chezClient) {
     const sectionObjectifs = h('section', { class: 'carte-section', id: 'reglages-objectifs' },
-      h('h2', {}, icone('target', { taille: 18 }), 'Objectifs du mois'),
+      h('h2', {}, icone('target', { taille: 18 }), 'Indicateurs'),
       h('p', { class: 'aide' }, 'Cibles, couleurs, ordre et affichage. Chaque indicateur calculé explique comment il est calculé ; tu peux en ajouter (chiffre d’affaires signé, facturé, encaissé, passages à une étape…) et créer des objectifs manuels.'));
     arrets.push(rendreReglagesObjectifs(sectionObjectifs));
     page.append(sectionObjectifs);

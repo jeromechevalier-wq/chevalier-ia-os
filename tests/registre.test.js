@@ -155,7 +155,7 @@ describe('registre : le menu de Jérôme (modules, routes, écrans ; Archives et
       { chemin: 'automatisations/a-valider', libelle: 'À valider', icone: 'inbox' }, // file des propositions des workflows (nuit du 22/10/2026) : après l'Historique
     ] },
     // Ajout voulu (17/10/2026) : le module Tableau de bord (écrans en lecture seule) est chez Jérôme dès le départ ; ses onglets Finance et Stocks ne sont pas dans le menu.
-    { id: 'tableaudebord', libelle: 'Tableau de bord', icone: 'layout-dashboard', prefixe: 'tableaudebord', entrees: [
+    { id: 'tableaudebord', libelle: 'Maintenance', icone: 'layout-dashboard', prefixe: 'tableaudebord', entrees: [
       { chemin: 'tableaudebord/general', libelle: 'Général', icone: 'layout-dashboard' },
       { chemin: 'tableaudebord/technique', libelle: 'Technique', icone: 'shield-check' },
     ] },
