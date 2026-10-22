@@ -35,6 +35,9 @@ console.log('functions/partage/veille-lien.js mis à jour (copie exacte de js/mo
 // (couleurs de l'écran d'autorisation) et les rôles des membres : mêmes fichiers que l'appli, copiés à plat dans functions/partage/ (aucun n'importe autre chose que ses voisins).
 for (const f of ['registre.js', 'marque.js', 'chemins.js', 'membres.js']) copyFileSync(join(racine, 'js', 'os', f), join(destination, f));
 console.log('functions/partage/ : registre.js, marque.js, chemins.js, membres.js copiés de js/os/');
+// États et transitions de la file « À valider » (module Automatisations) : fichier pur, le même pour l'écran et pour le serveur.
+copyFileSync(join(racine, 'js', 'modules', 'automatisations', 'propositions.js'), join(destination, 'propositions.js'));
+console.log('functions/partage/propositions.js mis à jour (copie exacte de js/modules/automatisations/propositions.js)');
 
 // Le même serveur tourne aussi sur la plateforme clients (projet chevalier-ia-app, codebase « plateforme ») : on y copie le code du serveur tel quel, à côté de ses fonctions.
 // Le déploiement n'envoie que le dossier functions-plateforme/ ; les imports relatifs (../../partage/…) restent valables dans la copie. Dossier ignoré par git.
@@ -44,7 +47,7 @@ for (const dossier of ['coeur', 'mcp', 'oauth', 'securite', 'clients']) cpSync(j
 mkdirSync(join(destinationServeur, 'src'), { recursive: true });
 copyFileSync(join(racine, 'functions', 'src', 'version.js'), join(destinationServeur, 'src', 'version.js'));
 copyFileSync(join(racine, 'functions', 'package.json'), join(destinationServeur, 'package.json')); // version.js lit la version du serveur ici
-for (const f of ['logique.js', 'projets.js', 'registre.js', 'marque.js', 'chemins.js', 'membres.js']) {
+for (const f of ['logique.js', 'projets.js', 'registre.js', 'marque.js', 'chemins.js', 'membres.js', 'propositions.js']) {
   mkdirSync(join(destinationServeur, 'partage'), { recursive: true });
   copyFileSync(join(destination, f), join(destinationServeur, 'partage', f));
 }
