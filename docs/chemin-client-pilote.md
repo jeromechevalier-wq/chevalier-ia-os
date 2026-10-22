@@ -38,6 +38,15 @@ Une automatisation (n8n) lit des e-mails, **propose** quelque chose, et le clien
 - L'identifiant de la proposition est **fourni par le workflow A** (par exemple dérivé de l'identifiant du message) : rejouer A ne crée pas de doublon.
 - Une proposition « validée mais pas appliquée » depuis plus de 30 minutes est signalée (passage horaire de la copie) et peut être relancée par un bouton.
 
+**Une automatisation = une ligne (phase 3 du chantier 14, décision de principe de Jérôme du 22/10/2026).** Pour le client, un traitement est **une proposition**, affichée avec une frise fixe : Reçu → Proposé → En attente de validation → Validé ou Refusé → Appliqué ou En échec. La frise vient de l'**état de la proposition** (fichier pur des transitions, partagé par l'écran, la fonction de validation et le MCP), pas d'une ligne `steps` : la frise traverse plusieurs exécutions n8n alors que `steps` est rangée sous une seule, et la validation est écrite par la fonction de validation, jamais par n8n. Les exécutions n8n qui travaillent derrière (A proposer, B appliquer, C refus) sont reliées **depuis la proposition** : champ `executions: { proposer, appliquer, refuser }` (numéros donnés par A à `propositions.ajouter` et par B à `propositions.marquerAppliquee`). Rien à lire de plus dans n8n et rien à écrire dans `executions`.
+
+- Ce qui existe déjà du chantier 14 (cahier du 11/10/2026) : sous-collection `executions/<n>/steps` et champ `runGroupId`, vides ; `stepsPlan` des workflows, vide ; règles Firestore déjà fermées ; tests C6/C7 qui garantissent que la copie n'écrase rien. **L'écran ne lit rien de tout cela aujourd'hui** et le Logger n'a jamais été écrit. Le cahier avait mis le numéro commun de côté (« jugé trop compliqué à transmettre ») : le lien depuis la proposition le remplace.
+- `runGroupId` reste vide, `steps` reste réservé à un futur Logger **à l'intérieur** d'une exécution (sous-étapes de A, par exemple « e-mail lu », « contrôle anti-injection ok »), phase ultérieure.
+- L'onglet Historique garde une ligne par exécution (inchangé). « À valider » et un onglet « Traitements » listent les propositions, chacune avec sa frise. Une proposition sans exécution liée s'affiche en ligne simple.
+- **En direct** : l'écran lit `automatisations_propositions` par écoute Firestore, comme il lit déjà `executions` ; chaque changement d'état arrive sans attendre les 10 secondes. Les détails n8n (durée, erreur de B) arrivent par la copie, avec son délai. Pas de sous-collection lue ligne par ligne (le test D3 de `tests/statique.test.js` limite les requêtes de l'écran). Si des sous-étapes doivent s'afficher un jour, elles seront copiées dans le document de la proposition (`etapes`, 10 au plus).
+- Le signal « validée mais pas appliquée depuis 30 minutes » est calculé à l'écran, comme « À vérifier ».
+- Documents à mettre à jour dans la PR : `docs/automatisations-n8n.md`, partie 9.
+
 ## La porte d'entrée (existe déjà)
 
 Pas de nouvelle porte ni de jeton maison : la porte de `docs/porte-cles.md` fait déjà le travail (clé par propriétaire dont seule l'empreinte est stockée, module actif vérifié, intégrité du workflow, validation stricte, création sans écrasement). Elle tourne pour la base 1. À faire :
@@ -76,12 +85,13 @@ Pour un client sans CRM, le MCP ne listerait que `qui_suis_je` : ces outils lui 
 ## Ce qui touche aux règles (liste d'arrêt de la nuit)
 
 - La collection `automatisations_propositions` doit être **fermée à l'écriture depuis le navigateur dans les deux bases** : `firestore.plateforme.rules` (liste `collectionDuJournal`, test « les collections du module sont exactement celles que les règles ferment » de `tests/automatisations-statique.test.js`) **et** `firestore.rules` (liste d'exclusion du joker, qui donne aujourd'hui lecture et écriture aux deux comptes de Jérôme sur toute collection non exclue ; test D4 de `tests/statique.test.js`). Sans cela, la validation serait contournable depuis la console du navigateur, même chez Jérôme. Modification de règles = PR laissée ouverte pour Jérôme.
+- Aucune règle nouvelle pour `steps` et `runGroupId` (déjà fermés aux navigateurs, test J3). Tests à adapter dans la PR 1 : C6 et C7 de `tests/automatisations-synchro.test.js` seulement si la copie remplit `runGroupId` ; D3 de `tests/statique.test.js` pour la requête de l'écran « À valider » (un seul `where ==`, pas d'`orderBy`).
 - Les déploiements de la plateforme sont manuels (choix `regles`, `fonctions`, `hosting`, `mcp`, `espace` du workflow ; `tout` = page et règles seulement, jamais les fonctions) ; rien n'est utilisable par un client avant.
 - La copie de l'historique ne garde jamais le contenu des données (test « D. Aucun contenu, aucune définition, aucun secret dans Firebase » de `tests/automatisations-synchro.test.js`). Une proposition, elle, contient par nature des noms et des adresses : le dire dans la doc du module. Elle passe par la porte, comme `veille_contenus`.
 
 ## Découpage proposé en PR
 
-1. Code Chevalier IA OS : états et transitions (fichier pur, partagé par l'écran et le MCP), action de la porte, écran « À valider », fonction de validation, outils MCP. Fusionnable la nuit.
+1. Code Chevalier IA OS : états et transitions (fichier pur, partagé par l'écran et le MCP), action de la porte, écran « À valider », fonction de validation, outils MCP, frise d'étapes dérivée de l'état (une proposition = une ligne). Fusionnable la nuit.
 2. Règles Firestore et déploiement : **liste d'arrêt**, PR verte laissée à Jérôme.
 3. Canaux e-mail et SMS (page de confirmation, liens signés).
 4. Plateforme clients : porte de la base 2, déploiement manuel.
