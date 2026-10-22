@@ -73,7 +73,7 @@ describe('Cohérence : registre, règles, fonctions, déploiement', () => {
     assert.ok(IDS_MODULES.includes('automatisations'));
     assert.ok(!IDS_MODULES.includes('journal'), 'l\'ancien identifiant n\'est plus un module : seulement un alias');
     assert.deepEqual(m.dependances, []);
-    assert.deepEqual(m.outilsMcp, []);
+    assert.deepEqual(m.outilsMcp, ['lister_propositions', 'lire_proposition', 'lister_automatisations', 'valider_proposition', 'refuser_proposition']);
     assert.deepEqual(m.ecrans.map((e) => e.route), ['automatisations/historique', 'automatisations/a-valider']);
   });
   test('les fonctions et l\'application lisent le champ « modules » de la même façon (nouvelle clé, ancienne clé « journal », conflits)', () => {

@@ -596,7 +596,8 @@ describe('Modules : les outils suivent les modules actifs du client', () => {
     const seuls = (actifs) => outilsDesModules(actifs, OUTILS).map((o) => o.nom);
     assert.deepEqual(seuls([]), ['qui_suis_je']);
     assert.ok(seuls(['affaires']).includes('chercher') && !seuls(['affaires']).includes('lister_projets'));
-    assert.equal(seuls(['affaires', 'projets']).length, OUTILS.length);
+    assert.equal(seuls(['affaires', 'projets']).length, OUTILS.length - 5, 'sans le module Automatisations : les 5 outils de la file À valider manquent');
+    assert.equal(seuls(['affaires', 'projets', 'automatisations']).length, OUTILS.length);
   });
   test('M9 module « mcp » éteint, ou client désactivé : l\'accès déjà accordé est coupé tout de suite, et la connexion n\'est plus possible', async () => {
     await reinitialiser();
@@ -960,7 +961,7 @@ describe('Textes des outils : valables pour tout espace (Partie A)', () => {
       assert.match(ancien, TEXTE_DE_JEROME, ancien);
     }
     for (const permis of ['une affaire gagnée', 'nature livraison', 'lire_audit : le journal d\'audit', 'phase de clôture']) assert.doesNotMatch(permis, TEXTE_DE_JEROME, permis);
-    assert.equal(OUTILS.length, 47); // 50 avant la suppression de la pause (22/10/2026) : moins mettre_en_pause, mettre_projet_en_pause, reprendre_projet
+    assert.equal(OUTILS.length, 52); // 50 avant la suppression de la pause (22/10/2026) : moins 3 outils de pause, plus 5 outils de la file « À valider » (module Automatisations)
     for (const o of OUTILS) assert.doesNotMatch(textesDe(o), TEXTE_DE_JEROME, `${o.nom} : ${textesDe(o).match(TEXTE_DE_JEROME)?.[0]}`);
   });
 
