@@ -85,11 +85,22 @@ describe('L5 source = liste des Réglages (MCP)', () => {
     assert.ok(contient(ecrites, 'Flyer'));
   });
 
-  test('L5 : une source vide (effacer) reste permise ; un appel sans source n’est pas contrôlé', async () => {
+  test('L5 : une source vide (effacer) reste permise ; sans source, rien n’est contrôlé ni lu (pas de lecture de la liste, pas de champ source écrit)', async () => {
     const { c, ecrites } = essai(LISTE);
     await M.modifierPersonne(c, { id: 'p1', source: '' });
-    await M.creerPersonne(c, { nom: 'Sans Source' });
-    assert.ok(ecrites.length > 0);
+    assert.ok(contient(ecrites, ''), 'effacer écrit une source vide');
+    ecrites.length = 0;
+    await M.modifierPersonne(c, { id: 'p1', ville: 'Gap' });
+    assert.ok(!JSON.stringify(ecrites).includes('"source"'), 'source absente du patch');
+    // Création sans source, sur des données SANS liste : passe (la liste n'est pas consultée).
+    const sans = essai(undefined);
+    let lectures = 0;
+    const lireOrigine = sans.c.donnees.document.bind(sans.c.donnees);
+    sans.c.donnees.document = (...a) => { if (a[1] === 'listes') lectures += 1; return lireOrigine(...a); };
+    await M.creerPersonne(sans.c, { nom: 'Sans Source' });
+    await M.creerAffaire(sans.c, { titre: 'Sans source non plus' });
+    assert.equal(lectures, 0);
+    assert.ok(sans.ecrites.length > 0);
   });
 
   test('L5 cas vide : liste des Réglages vide ou absente = toute source est refusée, avec l’indication d’en ajouter dans Réglages, Sources', async () => {

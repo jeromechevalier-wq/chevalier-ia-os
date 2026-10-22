@@ -236,10 +236,11 @@ export function champPropriete({ libelle, valeur = '', type = 'texte', options =
       // `autoriserCreation: false` (la Source) : on choisit seulement dans la liste des Réglages ; une ancienne valeur absente de la liste reste affichée,
       // grisée « (valeur à changer) », et n'est pas perdue tant qu'on ne choisit pas autre chose.
       const liste = fournir?.() ?? [];
-      const absente = autoriserCreation || !courant || liste.some((v) => L.normaliserNom(v) === L.normaliserNom(courant)) ? null : courant;
+      const exacte = courant ? liste.find((v) => v === courant) ?? (autoriserCreation ? undefined : liste.find((v) => L.normaliserNom(v) === L.normaliserNom(courant))) : undefined;
+      const absente = autoriserCreation || !courant || exacte !== undefined ? null : courant;
       const choix = [...new Set([...liste, ...(courant && autoriserCreation ? [courant] : [])])];
       champ = h('select', { class: 'champ', 'aria-label': libelle }, h('option', { value: '' }, '—'),
-        choix.map((v) => h('option', { value: v, selected: v === courant }, v)),
+        choix.map((v) => h('option', { value: v, selected: autoriserCreation ? v === courant : v === exacte }, v)),
         absente ? h('option', { value: absente, selected: true, disabled: true }, `${absente} (valeur à changer)`) : null,
         !autoriserCreation && !choix.length && aideListeVide ? h('option', { value: '', disabled: true }, aideListeVide) : null,
         autoriserCreation ? h('option', { value: NOUVEAU }, '+ Nouvelle valeur…') : null);

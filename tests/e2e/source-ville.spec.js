@@ -53,6 +53,26 @@ test('L1 fiche personne : la Source se choisit dans la liste des Réglages, sans
   expect(await SOURCES()).toEqual(avant);
 });
 
+test('L1 clic ailleurs (blur) : une ancienne valeur absente de la liste est conservée ; « flyer » pour « Flyer » n’est pas effacée et devient « Flyer »', async ({ page }) => {
+  await creerPersonne('p1', { nom: 'Marie Durand', source: 'Recommandation de mon cousin Paul' });
+  await creerPersonne('p2', { nom: 'Paul Martin', source: 'flyer' });
+  await connecter(page);
+  await expect.poll(async () => (await SOURCES()).includes('Flyer')).toBe(true);
+  const avant = await SOURCES();
+  for (const [id, valeurFinale] of [['p1', 'Recommandation de mon cousin Paul'], ['p2', 'Flyer']]) {
+    await aller(page, `#/crm/personnes/${id}`);
+    const details = page.locator('.section[data-section="personne-details"]');
+    const ligne = details.locator('.prop', { hasText: 'Source' });
+    await ligne.locator('.prop-modifier').click();
+    await expect(details.getByLabel('Source', { exact: true })).toBeVisible();
+    await details.locator('.prop', { hasText: 'Prénom' }).locator('.prop-libelle').click(); // clic ailleurs : le champ perd le focus
+    await expect(details.getByLabel('Source', { exact: true })).toHaveCount(0);
+    await expect(ligne).toContainText(valeurFinale);
+    await champDoc(`crm_personnes/${id}`, 'source', valeurFinale);
+  }
+  expect(await SOURCES()).toEqual(avant);
+});
+
 test('L1 fiche affaire : même liste fermée ; liste des Réglages vide = la liste dit où en ajouter (cas vide)', async ({ page }) => {
   await creerAffaire('a1', { titre: 'Site de la boulangerie', source: 'Bouche à oreille' });
   await connecter(page);

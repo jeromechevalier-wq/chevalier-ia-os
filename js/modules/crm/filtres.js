@@ -47,7 +47,7 @@ function controles(liste) {
 
 async function ouvrirFenetreFiltres(liste, criteres) {
   const c = L.criteresComplets(liste, criteres);
-  c.villes = [...new Set((c.villes || []).map(L.cleVille))]; // les cases Ville portent la clé normalisée (une ancienne valeur « Manosque » coche la case « manosque »)
+  if (liste !== 'affaires') c.villes = [...new Set((c.villes || []).map(L.cleVille))]; // les cases Ville portent la clé normalisée (une ancienne valeur « Manosque » coche la case « manosque »)
   const corps = h('div', { class: 'pile filtres-corps' });
   let organisationsChoisies = [...(c.organisations || [])]; // (la liste des Organisations n'a pas ce critère)
   let selecteurOrgs = null;
@@ -132,7 +132,7 @@ export function barreFiltres({ liste, lireCriteres, ecrireCriteres, contexte = (
   function rafraichir() {
     const c = lireCriteres();
     if (champRecherche.value !== (c.recherche || '') && document.activeElement !== champRecherche) champRecherche.value = c.recherche || '';
-    const actifs = L.pastillesFiltres(liste, c, { ...contexte(), villes: L.regrouperVilles(liste === 'organisations' ? D.etat.organisations.map((o) => o.ville) : D.etat.personnes.map((p) => p.ville)) }).filter((p) => p.cle !== 'recherche');
+    const actifs = L.pastillesFiltres(liste, c, { ...contexte(), villes: liste === 'affaires' ? [] : L.regrouperVilles(liste === 'organisations' ? D.etat.organisations.map((o) => o.ville) : D.etat.personnes.map((p) => p.ville)) }).filter((p) => p.cle !== 'recherche');
     boutonFiltres_.majCompte(actifs.length);
     remplir(zonePastilles,
       actifs.map((p) => h('span', { class: 'pastille-filtre' }, p.libelle,
