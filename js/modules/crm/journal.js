@@ -5,12 +5,18 @@ import { h, icone, remplir, dialogue } from '../../os/ui.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
 import { etatVide } from './composants.js';
+import { boutonFiltres, fenetreFiltres } from './filtres.js';
 import { estChezClient } from '../../os/contexte.js';
 
 const TAILLE_PAGE = 200;
 const CHEMINS = { crm_personnes: 'personnes', crm_organisations: 'organisations', crm_affaires: 'affaires' };
 
-let criteres = { canal: 'tous', aVerifier: false, depuis: '', texte: '' };
+// Critères posés : mémorisés jusqu'au rechargement de la page (variable de module, pas de stockage navigateur).
+// canaux : cases cochées de la fenêtre « Filtres » ('ecran', 'mcp') ; aVerifier : case de la fenêtre ; depuis et texte restent dans la barre.
+const CRITERES_VIDES = { canaux: [], aVerifier: false, depuis: '', texte: '' };
+let criteres = { ...CRITERES_VIDES };
+/** Remet les filtres du Journal à zéro : appelée à la déconnexion, pour qu'un autre compte connecté dans le même onglet ne hérite pas des filtres du précédent. */
+export function oublierFiltresJournal() { criteres = { ...CRITERES_VIDES }; }
 
 const TEXTES_STATUT = { averifier: 'À vérifier', echec: 'Échec' };
 
@@ -95,13 +101,24 @@ export function rendreJournal(conteneur) {
 
   const champTexte = h('input', { class: 'champ', type: 'search', 'aria-label': 'Rechercher dans le journal', placeholder: 'Rechercher (qui, outil, identifiant…)', value: criteres.texte,
     oninput: (e) => { criteres = { ...criteres, texte: e.target.value }; rendre(); } });
-  const choixCanal = h('select', { class: 'champ champ-petit', 'aria-label': 'Canal', dataset: { role: 'filtre-canal' },
-    onchange: (e) => { criteres = { ...criteres, canal: e.target.value }; rendre(); } },
-  [['tous', 'Tous les canaux'], ['ecran', 'Appli'], ['mcp', estChezClient() ? 'Assistant IA (MCP)' : 'MCP (Claude Code, Hermes)']].map(([v, t]) => h('option', { value: v, selected: criteres.canal === v }, t)));
   const choixDate = h('input', { class: 'champ champ-petit', type: 'date', 'aria-label': 'Depuis le', value: criteres.depuis, dataset: { role: 'filtre-depuis' },
     onchange: (e) => { criteres = { ...criteres, depuis: e.target.value }; rendre(); } });
-  const caseAVerifier = h('input', { type: 'checkbox', checked: criteres.aVerifier, dataset: { role: 'filtre-a-verifier' },
-    onchange: (e) => { criteres = { ...criteres, aVerifier: e.target.checked }; rendre(); } });
+  const bouton = boutonFiltres({ auClic: ouvrirFiltres });
+  const nbFiltres = () => criteres.canaux.length + (criteres.aVerifier ? 1 : 0);
+
+  async function ouvrirFiltres() {
+    // Toujours proposés (même journal vide, en chargement ou en erreur) : les deux canaux et la case « À vérifier seulement ».
+    const libelleMcp = estChezClient() ? 'Assistant IA (MCP)' : 'MCP (Claude Code, Hermes)';
+    const controles = [
+      { cle: 'canaux', libelle: 'Canal', type: 'cases', options: [{ valeur: 'ecran', libelle: 'Appli' }, { valeur: 'mcp', libelle: libelleMcp }] },
+      { cle: 'aVerifier', libelle: 'À vérifier seulement', type: 'oui' },
+    ];
+    const r = await fenetreFiltres({ controles, criteres: { canaux: criteres.canaux, aVerifier: criteres.aVerifier },
+      effacer: () => ({ canaux: [], aVerifier: false }) });
+    if (!r) return;
+    criteres = { ...criteres, canaux: r.canaux || [], aVerifier: !!r.aVerifier };
+    rendre();
+  }
 
   const boutonActualiser = h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'actualiser-journal', onclick: () => charger(true) },
     icone('refresh-cw', { taille: 16 }), 'Actualiser');
@@ -128,6 +145,7 @@ export function rendreJournal(conteneur) {
   }
 
   function rendre() {
+    bouton.majCompte(nbFiltres());
     if (etat === 'chargement') {
       remplir(compteur, '');
       remplir(zone, h('div', { class: 'chargement', role: 'status' }, h('span', { class: 'rond-chargement' })));
@@ -144,7 +162,7 @@ export function rendreJournal(conteneur) {
     const operations = L.filtrerJournal(toutes, criteres);
     remplir(compteur, `${operations.length} ${operations.length > 1 ? 'opérations' : 'opération'}${operations.length !== toutes.length ? ` sur ${toutes.length} chargées` : ''}`);
     if (!operations.length) {
-      remplir(zone, etatVide(toutes.length ? 'Aucune opération ne correspond à ces filtres.' : 'Le journal est vide : rien n’a encore été écrit.'));
+      remplir(zone, etatVide(toutes.length ? 'Rien à afficher avec ces filtres. Décoche un filtre.' : 'Le journal est vide : rien n’a encore été écrit.'));
     } else {
       const entete = h('tr', {}, ['Quand', 'Qui', 'Canal', 'Ce qui s’est passé', 'État'].map((t) => h('th', { scope: 'col' }, h('span', { class: 'tri' }, t))));
       const corps = operations.map((o) => h('tr', { class: 'ligne-liste', tabindex: '0', dataset: { operation: o.operationId },
@@ -162,8 +180,7 @@ export function rendreJournal(conteneur) {
   }
 
   const barre = h('div', { class: 'barre-filtres' },
-    h('div', { class: 'barre-filtres-ligne' }, h('div', { class: 'champ-avec-icone' }, icone('search', { taille: 16 }), champTexte), choixCanal, choixDate,
-      h('label', { class: 'case-seule' }, caseAVerifier, ' À vérifier seulement')));
+    h('div', { class: 'barre-filtres-ligne' }, h('div', { class: 'champ-avec-icone' }, icone('search', { taille: 16 }), champTexte), bouton.element, choixDate));
   const entete = h('header', { class: 'page-tete' },
     h('div', {}, h('p', { class: 'etiquette' }, 'Lecture seule'), h('h1', {}, 'Journal des modifications'), compteur),
     h('div', { class: 'page-actions' }, boutonActualiser));

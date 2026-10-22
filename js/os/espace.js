@@ -120,6 +120,7 @@ export async function demarrerEspace(racine) {
     } else {
       fermer?.(); fermer = null; emailOuvert = null;
       import('../modules/crm/activites.js').then((m) => m.oublierFiltresHistorique()).catch(() => {}); // le filtre de l'historique ne passe pas d'un compte à l'autre
+      import('../modules/crm/journal.js').then((m) => m.oublierFiltresJournal()).catch(() => {});
       import('../modules/veille/ecran.js').then((m) => m.oublierFiltresVeille()).catch(() => {});
       document.body.classList.add('page-espace');
       if (ev.etat === 'deconnecte') pageConnexion(racine, marque, { message: ev.refus ? MESSAGE_REFUS_ESPACE : '', surConnexion: seConnecter });
