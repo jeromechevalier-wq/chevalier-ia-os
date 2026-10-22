@@ -29,9 +29,41 @@ describe('À valider : tri de la file', () => {
     const r = L.separerPropositions([null, 'x', { etat: 'a_valider' }, prop('ok')], NOW);
     assert.deepEqual(r.aValider.map((p) => p.id), ['ok']);
   });
-  test('liste vide ou absente : deux listes vides', () => {
-    assert.deepEqual(L.separerPropositions([], NOW), { aValider: [], recentes: [] });
-    assert.deepEqual(L.separerPropositions(undefined, NOW), { aValider: [], recentes: [] });
+  test('liste vide ou absente : trois listes vides', () => {
+    assert.deepEqual(L.separerPropositions([], NOW), { enPreparation: [], aValider: [], recentes: [] });
+    assert.deepEqual(L.separerPropositions(undefined, NOW), { enPreparation: [], aValider: [], recentes: [] });
+  });
+});
+
+describe('À valider : la zone « En préparation » et la chaîne d’étapes', () => {
+  test('les lignes en préparation forment leur propre liste (la plus ancienne d’abord) ; les abandonnées vont dans les traitements récents', () => {
+    const liste = [
+      prop('neuve', { etat: 'en_preparation', creeLe: new Date(NOW - MIN) }),
+      prop('vieille', { etat: 'en_preparation', creeLe: new Date(NOW - 9 * MIN) }),
+      prop('abandonnee', { etat: 'abandonnee', creeLe: new Date(NOW - 60 * MIN) }),
+      prop('ok'),
+    ];
+    const r = L.separerPropositions(liste, NOW);
+    assert.deepEqual(r.enPreparation.map((p) => p.id), ['vieille', 'neuve']);
+    assert.deepEqual(r.aValider.map((p) => p.id), ['ok']);
+    assert.deepEqual(r.recentes.map((p) => p.id), ['abandonnee']);
+  });
+  test('une étape récente remonte la ligne dans les traitements récents', () => {
+    const a = prop('a', { etat: 'abandonnee', creeLe: new Date(NOW - 60 * MIN) });
+    const b = prop('b', { etat: 'echec', creeLe: new Date(NOW - 90 * MIN), etapes: [{ cle: 'x', libelle: 'X', etat: 'fait', le: new Date(NOW - MIN) }] });
+    assert.deepEqual(L.separerPropositions([a, b], NOW).recentes.map((p) => p.id), ['b', 'a']);
+  });
+  test('etapesAffichees garde l’ordre du plan, écarte les entrées mal formées et ramène un état inconnu à « à venir »', () => {
+    const r = L.etapesAffichees({ etapes: [{ cle: 'a', libelle: 'Lire', etat: 'fait', le: new Date(NOW) }, null, { libelle: 'sans clé' }, { cle: 'b', libelle: 'Écrire', etat: 'bizarre' }, { cle: 'c', etat: 'en_cours' }] });
+    assert.deepEqual(r.map((e) => [e.cle, e.libelle, e.etat]), [['a', 'Lire', 'fait'], ['b', 'Écrire', 'a_venir'], ['c', 'c', 'en_cours']]);
+    assert.deepEqual(L.etapesAffichees({}), []);
+    assert.deepEqual(L.etapesAffichees(null), []);
+  });
+  test('chaque état d’étape a un mot (la couleur ne suffit pas) et la chaîne s’ouvre quand une étape tourne ou échoue', () => {
+    for (const etat of ['a_venir', 'en_cours', 'fait', 'echec', 'ignoree']) assert.ok(L.MOT_ETAT_ETAPE[etat], etat);
+    assert.equal(L.etapesAOuvrir([{ etat: 'fait' }, { etat: 'en_cours' }]), true);
+    assert.equal(L.etapesAOuvrir([{ etat: 'fait' }, { etat: 'echec' }]), true);
+    assert.equal(L.etapesAOuvrir([{ etat: 'fait' }, { etat: 'a_venir' }, { etat: 'ignoree' }]), false);
   });
 });
 
@@ -91,6 +123,21 @@ describe('À valider : garde-fous du code de l’écran', () => {
     assert.doesNotMatch(bloc, /email|valideePar/i);
     // Le SDK Firebase ajoute « [400] » au message du serveur : l'écran le retire pour afficher exactement « Déjà décidée par … ».
     assert.match(bloc, /replace\(\/\\s\*\\\[\\d\{3\}\\\]\\s\*\$\/, ''\)/);
+  });
+  test('le bouton « Classer sans suite » est gris (jamais jaune), n’existe que si la ligne est bloquée et envoie la décision « abandonner »', () => {
+    assert.match(ecran, /'Classer sans suite'/);
+    assert.match(ecran, /decider\(p, 'abandonner'\)/);
+    assert.match(ecran, /if \(bloquee\) \{\s*boutons\.push\(h\('button', \{ type: 'button', class: 'bouton',/);
+    assert.match(ecran, /Ne l’arrête pas dans n8n : ferme seulement cette ligne\./);
+  });
+  test('la chaîne a la structure figée (ol.etape-chaine > li.etape-noeud[data-cle][data-etat] > i.etape-point + span.etape-libelle) et le CSS respecte prefers-reduced-motion', () => {
+    assert.match(ecran, /'etape-chaine'/);
+    assert.match(ecran, /'etape-noeud'/);
+    assert.match(ecran, /'etape-point'/);
+    assert.match(ecran, /'etape-libelle'/);
+    const css = lire('css/automatisations.css');
+    const reduit = css.slice(css.indexOf('prefers-reduced-motion'));
+    assert.match(reduit, /\.etape-noeud\[data-etat='en_cours'\] \.etape-point \{ animation: none/);
   });
   test('la case « Mise à jour automatique » de l’Historique n’est pas branchée sur cet écran', () => {
     assert.doesNotMatch(ecran, /CLE_AUTO|autom-auto|doitRafraichirAuto/);

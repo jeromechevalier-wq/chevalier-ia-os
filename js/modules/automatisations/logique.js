@@ -121,6 +121,9 @@ export function formaterDuree(ms) {
   return `${Math.floor(s / 3600)} h ${pad(Math.floor((s % 3600) / 60))} min`;
 }
 
+/** Heure locale d'un instant (HH:MM), pour l'info-bulle d'une étape. */
+export const heure = (ms) => new Date(ms).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+
 /** « il y a 12 s », « il y a 5 min », « aujourd'hui 09:41 », « hier 18:02 », « 3 oct. 08:15 ». */
 export function depuis(ms, maintenant) {
   const s = Math.round((maintenant - ms) / 1000);
@@ -247,22 +250,39 @@ export function nonAppliqueeDepuisTropLongtemps(p, maintenant) {
 
 /** Dernier événement connu d'une proposition (pour trier les traitements récents). */
 export function dernierEvenement(p) {
-  return Math.max(enMs(p.creeLe) ?? 0, enMs(p.valideeLe) ?? 0, enMs(p.refuseeLe) ?? 0, enMs(p.relanceeLe) ?? 0);
+  const etapes = Array.isArray(p.etapes) ? p.etapes.map((e) => enMs(e?.le) ?? 0) : [];
+  return Math.max(enMs(p.creeLe) ?? 0, enMs(p.valideeLe) ?? 0, enMs(p.refuseeLe) ?? 0, enMs(p.relanceeLe) ?? 0, ...etapes);
 }
 
 /**
- * Sépare la file : « à valider » (non périmées d'abord, les plus anciennes en premier) et « traitements récents » (tous les autres états, le plus récent d'abord).
+ * Sépare la file en trois : « en préparation » (le workflow tourne encore, la plus ancienne d'abord), « à valider » (non périmées d'abord, les plus anciennes en premier)
+ * et « traitements récents » (tous les autres états, y compris « abandonnee », le plus récent d'abord).
  * Le tri se fait ici, côté client : la requête Firestore n'a ni orderBy ni condition.
  */
 export function separerPropositions(liste, maintenant) {
   const valides = (liste || []).filter((p) => p && typeof p === 'object' && typeof p.id === 'string');
+  const enPreparation = valides.filter((p) => p.etat === 'en_preparation').sort((a, b) => (enMs(a.creeLe) ?? 0) - (enMs(b.creeLe) ?? 0));
   const aValider = valides.filter((p) => p.etat === 'a_valider')
     .map((p) => ({ p, perimee: estPerimee(p, maintenant) }))
     .sort((a, b) => Number(a.perimee) - Number(b.perimee) || (enMs(a.p.creeLe) ?? 0) - (enMs(b.p.creeLe) ?? 0))
     .map((x) => x.p);
-  const recentes = valides.filter((p) => p.etat !== 'a_valider').sort((a, b) => dernierEvenement(b) - dernierEvenement(a));
-  return { aValider, recentes };
+  const recentes = valides.filter((p) => p.etat !== 'a_valider' && p.etat !== 'en_preparation').sort((a, b) => dernierEvenement(b) - dernierEvenement(a));
+  return { enPreparation, aValider, recentes };
 }
+
+/** Les étapes d'une proposition, en liste sûre : seules les entrées { cle, libelle, etat } bien formées, l'état inconnu devient « a_venir ». L'ordre est celui du plan. */
+export function etapesAffichees(p) {
+  const ETATS = ['a_venir', 'en_cours', 'fait', 'echec', 'ignoree'];
+  return (Array.isArray(p?.etapes) ? p.etapes : [])
+    .filter((e) => e && typeof e === 'object' && typeof e.cle === 'string' && e.cle)
+    .map((e) => ({ cle: e.cle, libelle: String(e.libelle ?? e.cle), etat: ETATS.includes(e.etat) ? e.etat : 'a_venir', le: enMs(e.le) }));
+}
+
+/** Mots dits à voix haute (et cachés à l'œil) pour chaque état d'une étape : la couleur ne suffit pas. */
+export const MOT_ETAT_ETAPE = Object.freeze({ a_venir: 'à venir', en_cours: 'en cours', fait: 'fait', echec: 'en échec', ignoree: 'ignorée' });
+
+/** Vrai si la chaîne d'étapes doit être ouverte d'office : une étape tourne ou a échoué. */
+export const etapesAOuvrir = (etapes) => etapes.some((e) => e.etat === 'en_cours' || e.etat === 'echec');
 
 /** Une adresse n'est cliquable que si elle commence par https:// (jamais javascript:, data:, http:). Renvoie l'adresse nettoyée ou null. */
 export function lienSur(valeur) {
