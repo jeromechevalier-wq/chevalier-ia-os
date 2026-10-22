@@ -62,6 +62,19 @@ async function verifierOffre(c, offreId) {
   const offres = (await c.donnees.document(C.parametres, 'offres'))?.items || [];
   if (!offres.some((o) => o.id === offreId)) refuser('saisie_invalide', `Offre inconnue : ${offreId} (voir lire_reglages, offres).`);
 }
+/**
+ * Source (L5) : une liste fixe, celle des Réglages (crm_parametres/listes). Une valeur hors liste est REFUSÉE (message avec les valeurs valides : le détail
+ * d'une recommandation va dans une note). La comparaison ignore casse, accents et espaces en trop ; on enregistre le libellé exact de la liste.
+ * Vide = effacer la source (permis). Rend le texte à enregistrer.
+ */
+async function verifierSource(c, valeur) {
+  const demande = texte(valeur);
+  if (!demande) return '';
+  const sources = (await c.donnees.document(C.parametres, 'listes'))?.sources || [];
+  const trouvee = sources.find((s) => L.normaliserNom(s) === L.normaliserNom(demande));
+  if (trouvee) return trouvee;
+  refuser('saisie_invalide', `Source « ${demande} » absente de la liste des Réglages. Sources valides : ${sources.length ? sources.join(', ') : '(aucune : en ajouter dans Réglages, Sources)'}. Choisis l’une d’elles et mets le détail (par exemple « recommandé par … ») dans une note avec ajouter_note.`, { sourcesValides: sources });
+}
 const verifierMessages = (erreurs) => {
   if (Object.keys(erreurs || {}).length) refuser('saisie_invalide', Object.values(erreurs).join(' '), { erreurs });
 };
@@ -87,6 +100,7 @@ export async function creerPersonne(c, args) {
   const { forcer, proprietaire, ...valeurs } = args;
   verifierMessages(L.validerPersonne(valeurs));
   await verifierEtiquettes(c, valeurs.etiquettes);
+  if (valeurs.source !== undefined) valeurs.source = await verifierSource(c, valeurs.source);
   await lireSiDonne(c, C.organisations, valeurs.organisationId, 'Organisation');
   if (!forcer) refuserDoublons(L.trouverDoublonsPersonne(await c.donnees.liste(C.personnes), { nom: valeurs.nom, emails: valeurs.emails }), 'Personne', 'une autre personne');
   const plan = L.planCreerPersonne(valeurs, await contexte(c, proprietaire));
@@ -111,7 +125,8 @@ export async function modifierPersonne(c, args) {
     patch.organisationId = champs.organisationId || null;
   }
   if (champs.etiquettes !== undefined) { await verifierEtiquettes(c, champs.etiquettes); patch.etiquettes = [...champs.etiquettes]; }
-  for (const cle of ['ville', 'source', 'linkedin', 'siteWeb']) if (champs[cle] !== undefined) patch[cle] = texte(champs[cle]);
+  for (const cle of ['ville', 'linkedin', 'siteWeb']) if (champs[cle] !== undefined) patch[cle] = texte(champs[cle]);
+  if (champs.source !== undefined) patch.source = await verifierSource(c, champs.source);
   if (champs.archive !== undefined) patch.archive = champs.archive;
   if (!Object.keys(patch).length) refuser('saisie_invalide', 'Aucun champ à modifier.');
   if (!forcer && (patch.nom || patch.emails)) {
@@ -175,6 +190,7 @@ export async function creerAffaire(c, args) {
   verifierMessages(L.validerUrlGithub(valeurs.urlGithub));
   verifierMessages(L.validerUrlDossier(valeurs.urlDossier));
   await verifierOffre(c, valeurs.offreId);
+  if (valeurs.source !== undefined) valeurs.source = await verifierSource(c, valeurs.source);
   const personne = await lireSiDonne(c, C.personnes, valeurs.personneId, 'Personne');
   const organisation = await lireSiDonne(c, C.organisations, valeurs.organisationId || personne?.organisationId, 'Organisation');
   const plan = L.planCreerAffaire(valeurs, { personnes: personne ? [personne] : [], organisations: organisation ? [organisation] : [], texteNote: description ?? '' }, ctx);
@@ -193,7 +209,8 @@ export async function modifierAffaire(c, args) {
   if (champs.priorite !== undefined) { verifierPriorite(champs.priorite); patch.priorite = champs.priorite; }
   if (champs.offreId !== undefined) { await verifierOffre(c, champs.offreId); patch.offreId = champs.offreId || null; }
   if (champs.dureeJours !== undefined) patch.dureeJours = champs.dureeJours;
-  for (const cle of ['source', 'besoin']) if (champs[cle] !== undefined) patch[cle] = cle === 'besoin' ? String(champs[cle]).trim() : texte(champs[cle]);
+  if (champs.besoin !== undefined) patch.besoin = String(champs.besoin).trim();
+  if (champs.source !== undefined) patch.source = await verifierSource(c, champs.source);
   if (champs.urlGithub !== undefined) { const r = L.majUrlGithub(champs.urlGithub); verifierMessages(r.erreurs); Object.assign(patch, r.patch); }
   if (champs.urlDossier !== undefined) { const r = L.majUrlDossier(champs.urlDossier); verifierMessages(r.erreurs); Object.assign(patch, r.patch); }
   if (champs.archive !== undefined) patch.archive = champs.archive;

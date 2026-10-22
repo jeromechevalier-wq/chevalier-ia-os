@@ -19,6 +19,8 @@ const descriptionAncienne = z.string().max(20000).optional();
 const urlGithub = z.string().max(500).optional().describe('Ancien champ « dépôt de code » (https://github.com/compte/nom), facultatif ; chaîne vide pour l’effacer. Pour un nouveau lien, préférer joindre_lien (liste « Liens et documents »).');
 const urlDossier = z.string().max(500).optional().describe('Lien du dossier de travail : n’importe quel lien complet (Google Drive, serveur ou NAS en smb://, site…) ; chaîne vide pour l’effacer.');
 
+const sourceListe = texteCourt.optional().describe('Source = une valeur de la liste des Réglages (voir lire_reglages, sources), jamais un texte libre : une autre valeur est refusée ; le détail (par exemple « recommandé par … ») va dans une note. Chaîne vide pour l’effacer.');
+
 const outil = (nom, description, schema, action, profils = PROFILS) => ({
   nom, profils, description, schema, executer: ({ args, ...c }) => action(c, args),
 });
@@ -26,12 +28,12 @@ const outil = (nom, description, schema, action, profils = PROFILS) => ({
 export const OUTILS_ECRITURE = [
   outil('creer_personne', "Crée une personne (seul le nom est obligatoire), avec son événement dans le fil. Refuse un doublon (même nom, accents et casse ignorés, ou même e-mail) sauf forcer: true. Le propriétaire est, par défaut, la personne connectée si on n'en donne pas.", {
     nom: z.string().min(1).max(200), organisationId: id.optional(), emails: contacts.optional(), telephones: contacts.optional(), etiquettes: etiquettes.optional(),
-    ville: texteCourt.optional(), source: texteCourt.optional(), forcer, proprietaire,
+    ville: texteCourt.optional(), source: sourceListe, forcer, proprietaire,
   }, metier.creerPersonne),
 
   outil('modifier_personne', "Modifie des champs d'une personne (seuls les champs donnés changent) : nom, organisationId (null pour détacher), emails, telephones, etiquettes, ville, source, linkedin, siteWeb, archive. Ne supprime jamais. Refuse un nom ou e-mail qui ferait doublon avec une autre personne sauf forcer: true.", {
     id, nom: z.string().min(1).max(200).optional(), organisationId: id.nullable().optional(), emails: contacts.optional(), telephones: contacts.optional(), etiquettes: etiquettes.optional(),
-    ville: texteCourt.optional(), source: texteCourt.optional(), linkedin: z.string().max(300).optional(), siteWeb: z.string().max(300).optional(),
+    ville: texteCourt.optional(), source: sourceListe, linkedin: z.string().max(300).optional(), siteWeb: z.string().max(300).optional(),
     archive: z.boolean().optional().describe('true : archiver ; false : désarchiver.'), forcer,
   }, metier.modifierPersonne),
 
@@ -47,12 +49,12 @@ export const OUTILS_ECRITURE = [
   outil('creer_affaire', `Crée une affaire avec son événement. Le titre par défaut est le nom de l'organisation, sinon de la personne ; l'organisation de la personne est reprise si aucune n'est donnée. Étape (défaut : la première étape active) parmi celles de lire_reglages (configuration.etapes, referentiels.etapes). Priorité : ${L.PRIORITES.map((p) => p.id).join(', ')}. L'affaire part avec une note épinglée vide (de quoi parle l'affaire) : son identifiant est rendu dans noteEpingleeId ; l'écrire avec modifier_note.`, {
     titre: z.string().max(300).optional(), personneId: id.optional(), organisationId: id.optional(), etape: z.string().max(60).optional(), priorite: z.string().max(40).optional(),
     montant: z.number().min(0).max(1e9).nullable().optional().describe('Montant en euros.'), offreId: id.optional(), dureeJours: z.number().int().min(0).max(36500).nullable().optional(),
-    source: texteCourt.optional(), besoin: z.string().max(5000).optional(), urlGithub, urlDossier, proprietaire, description: descriptionAncienne,
+    source: sourceListe, besoin: z.string().max(5000).optional(), urlGithub, urlDossier, proprietaire, description: descriptionAncienne,
   }, metier.creerAffaire),
 
   outil('modifier_affaire', "Modifie des champs d'une affaire : titre, personneId et organisationId (null pour détacher), montant, priorite, offreId, dureeJours, source, besoin, urlGithub, urlDossier, archive. Pour l'étape ou le statut, utiliser changer_etape, marquer_perdue, mettre_en_pause, rouvrir_affaire.", {
     id, titre: z.string().min(1).max(300).optional(), personneId: id.nullable().optional(), organisationId: id.nullable().optional(), montant: z.number().min(0).max(1e9).nullable().optional(),
-    priorite: z.string().max(40).optional(), offreId: id.nullable().optional(), dureeJours: z.number().int().min(0).max(36500).nullable().optional(), source: texteCourt.optional(),
+    priorite: z.string().max(40).optional(), offreId: id.nullable().optional(), dureeJours: z.number().int().min(0).max(36500).nullable().optional(), source: sourceListe,
     besoin: z.string().max(5000).optional(), urlGithub, urlDossier, archive: z.boolean().optional(), description: descriptionAncienne,
   }, metier.modifierAffaire),
 

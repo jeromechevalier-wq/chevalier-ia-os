@@ -54,7 +54,7 @@ export function rendreReglagesCrm(page, ctx = {}) {
   const sSources = section('reglages-sources', 'Sources', 'sparkles');
   const listeSources = h('div', { class: 'liste-reglages' });
   sSources.append(listeSources, formulaireAjout('Nouvelle source', 'Ajouter', async (v) => {
-    if (D.etat.sources.includes(v)) return;
+    if (D.etat.sources.some((x) => L.normaliserNom(x) === L.normaliserNom(v))) { toast(`La source « ${v} » existe déjà (la casse et les accents ne comptent pas).`, { type: 'erreur' }); return; }
     await D.enregistrerListes({ sources: [...D.etat.sources, v] });
   }));
 

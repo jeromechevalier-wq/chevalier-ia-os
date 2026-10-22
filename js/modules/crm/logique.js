@@ -569,6 +569,32 @@ export function normaliserNom(texte) {
   return normaliser(texte).replace(/\s+/g, ' ');
 }
 
+/** Clé de regroupement d'une ville : minuscules, accents retirés, espaces réduits (« Manosque  » = « manosque » = « Mánosque »). */
+export const cleVille = (ville) => normaliserNom(ville);
+
+/**
+ * Villes regroupées par clé normalisée, pour le filtre et les suggestions : [{ cle, libelle }] triées par libellé.
+ * Le libellé est la forme (espaces nettoyés) la plus fréquente ; à égalité, la première par ordre alphabétique.
+ */
+export function regrouperVilles(valeurs) {
+  const groupes = new Map();
+  for (const v of valeurs || []) {
+    const propre = String(v ?? '').replace(/\s+/g, ' ').trim();
+    const cle = cleVille(propre);
+    if (!cle) continue;
+    if (!groupes.has(cle)) groupes.set(cle, new Map());
+    const formes = groupes.get(cle);
+    formes.set(propre, (formes.get(propre) || 0) + 1);
+  }
+  return [...groupes].map(([cle, formes]) => {
+    const [libelle] = [...formes].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))[0]; // à égalité : ordre des caractères (la majuscule d'abord)
+    return { cle, libelle };
+  }).sort((a, b) => a.libelle.localeCompare(b.libelle, 'fr'));
+}
+
+/** Vrai si la ville d'une fiche correspond à l'une des villes cochées (clés normalisées ; une ancienne valeur enregistrée telle quelle marche aussi). */
+export const villeCorrespond = (cochees, ville) => !cochees.length || cochees.some((v) => cleVille(v) === cleVille(ville));
+
 /** Espaces en trop retirés, casse conservée. */
 export function nettoyerEspaces(texte) {
   return String(texte ?? '').replace(/\s+/g, ' ').trim();
@@ -1575,7 +1601,7 @@ export function filtrerPersonnes(personnes, criteres, { organisations = [] } = {
     if (!interAvec(c.etiquettes, p.etiquettes)) return false;
     if (!inter(c.organisations, p.organisationId)) return false;
     if (!inter(c.sources, p.source)) return false;
-    if (!inter(c.villes, p.ville)) return false;
+    if (!villeCorrespond(c.villes, p.ville)) return false;
     return true;
   });
 }
@@ -1587,7 +1613,7 @@ export function filtrerOrganisations(organisations, criteres) {
     if (!correspond(normaliser([o.nom, o.ville, o.adresse].join(' \u0001 ')), c.recherche)) return false;
     if (!interAvec(c.etiquettes, o.etiquettes)) return false;
     if (!inter(c.secteurs, o.secteur)) return false;
-    if (!inter(c.villes, o.ville)) return false;
+    if (!villeCorrespond(c.villes, o.ville)) return false;
     return true;
   });
 }
@@ -1617,7 +1643,7 @@ export function filtrerAffaires(affaires, criteres, { activites = [], personnes 
   });
 }
 
-export function pastillesFiltres(liste, criteres, { offres = [], etiquettes = [], personnes = [], organisations = [], config } = {}) {
+export function pastillesFiltres(liste, criteres, { offres = [], etiquettes = [], personnes = [], organisations = [], villes = [], config } = {}) {
   const c = criteresComplets(liste, criteres);
   const p = [];
   const nomPersonne = (id) => personnes.find((x) => x.id === id)?.nom ?? id;
@@ -1627,7 +1653,7 @@ export function pastillesFiltres(liste, criteres, { offres = [], etiquettes = []
   (c.organisations || []).forEach((v) => p.push({ cle: 'organisations', valeur: v, libelle: `Organisation : ${nomOrg(v)}` }));
   (c.sources || []).forEach((v) => p.push({ cle: 'sources', valeur: v, libelle: `Source : ${v}` }));
   (c.secteurs || []).forEach((v) => p.push({ cle: 'secteurs', valeur: v, libelle: `Secteur : ${v}` }));
-  (c.villes || []).forEach((v) => p.push({ cle: 'villes', valeur: v, libelle: `Ville : ${v}` }));
+  (c.villes || []).forEach((v) => p.push({ cle: 'villes', valeur: v, libelle: `Ville : ${villes.find((x) => x.cle === cleVille(v))?.libelle ?? v}` }));
   (c.etapes || []).forEach((v) => p.push({ cle: 'etapes', valeur: v, libelle: `Étape : ${libelleEtape(v, config)}` }));
   (c.statuts || []).forEach((v) => p.push({ cle: 'statuts', valeur: v, libelle: `Statut : ${libelleStatut(v)}` }));
   (c.priorites || []).forEach((v) => p.push({ cle: 'priorites', valeur: v, libelle: `Priorité : ${libellePriorite(v)}` }));

@@ -4,7 +4,7 @@ import * as D from './donnees.js';
 import * as L from './logique.js';
 import {
   avatar, lien, cheminPersonne, sectionRepliable, champPropriete, selecteurEtiquettes, titreEditable, selectProprietaire, gabaritFiche, lienRetour,
-  saisieEnCours, carteAffaireMini, fournisseurTexte, villesConnues, etatVide, planifier,
+  saisieEnCours, carteAffaireMini, fournisseurTexte, fournisseurVilles, etatVide, planifier,
 } from './composants.js';
 import { panneauActivite } from './activites.js';
 import { ouvrirCreationAffaire } from './affaires.js';
@@ -67,7 +67,7 @@ export function rendreFicheOrganisation(conteneur, id) {
         champPropriete({ libelle: 'Secteur', valeur: o.secteur || '', type: 'intelligent', fournir: fournisseurTexte(() => [...D.etat.secteurs, ...D.etat.organisations.map((x) => x.secteur)]),
           surEnregistrer: async (v) => { if (v) await D.ajouterValeurListe('secteurs', v); await D.majOrganisation(o.id, { secteur: v }); } }).element,
         champPropriete({ libelle: 'Taille', valeur: o.taille || '', type: 'select', options: L.TAILLES.map((t) => ({ valeur: t, libelle: t })), surEnregistrer: (v) => D.majOrganisation(o.id, { taille: v }) }).element,
-        prop('Ville', 'ville', { type: 'intelligent', fournir: fournisseurTexte(villesConnues) })),
+        prop('Ville', 'ville', { type: 'intelligent', fournir: fournisseurVilles() })),
     });
     const sectionPersonnes = sectionRepliable({
       id: 'organisation-personnes', titre: 'Personnes', compteur: personnes.length,
