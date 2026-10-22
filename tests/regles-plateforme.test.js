@@ -327,6 +327,15 @@ describe('J. Journal des workflows : lecture seule pour tous les navigateurs', (
     await assertFails(deleteDoc(doc(db, 'clients', 'a', 'executions', 'existant', 'steps', 's1')));
     await assertFails(getDoc(doc(ctx(BOB), 'clients', 'a', 'executions', 'existant', 'steps', 's1')));
   });
+  test('J6 automatisations_propositions (file « À valider ») : un éditeur et un lecteur la LISENT, aucun navigateur n\'y écrit ; un autre client ou un visiteur n\'y a aucun droit', async () => {
+    await env.withSecurityRulesDisabled(async (c) => {
+      await setDoc(doc(c.firestore(), 'clients', 'a', 'automatisations_propositions', 'existant'), { valeur: 1 });
+    });
+    await lectureSeule(ctx(ALICE), 'a', 'automatisations_propositions');
+    await lectureSeule(ctx(LEA), 'a', 'automatisations_propositions');
+    await aucunDroit(ctx(BOB), 'a', 'automatisations_propositions');
+    await aucunDroit(env.unauthenticatedContext().firestore(), 'a', 'automatisations_propositions');
+  });
   test('J4 clara (éditrice chez A, lectrice chez B) lit les deux journaux et écrit dans aucun', async () => {
     await lectureSeule(ctx(CLARA), 'a', 'executions');
     await lectureSeule(ctx(CLARA), 'b', 'executions');

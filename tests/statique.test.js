@@ -233,8 +233,8 @@ describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
     assert.match(r, /email_verified == true/);
     assert.match(r, /jerome\.chevalier@gmail\.com/);
     assert.match(r, /jeromebot\.chevalierbot@gmail\.com/);
-    assert.match(r, /!\(collection in \['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes'\]\)/);
-    for (const t of ['tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes']) {
+    assert.match(r, /!\(collection in \['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions'\]\)/);
+    for (const t of ['tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions']) {
       assert.match(r, new RegExp(`match /${t}/\\{id\\} \\{\\s+allow read: if compteAutorise\\(\\);\\s+allow write: if false;`), `${t} : lecture seule pour l'écran`);
     }
     assert.match(r, /match \/plateforme_cles\/\{id\} \{\s+allow read, write: if false;/); // clés de la porte : fermées à tout navigateur

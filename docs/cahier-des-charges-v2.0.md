@@ -429,10 +429,16 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // File « À valider » des automatisations : l'écran LIT (les deux comptes autorisés), les écritures passent par la porte et la fonction de validation (serveur).
+    match /automatisations_propositions/{id} {
+      allow read: if compteAutorise();
+      allow write: if false;
+    }
+
     // Tout le reste : comme avant (les deux comptes autorisés), sauf les collections ci-dessus.
     match /{collection}/{document=**} {
       allow read, write: if compteAutorise()
-        && !(collection in ['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes']);
+        && !(collection in ['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions']);
     }
   }
 }

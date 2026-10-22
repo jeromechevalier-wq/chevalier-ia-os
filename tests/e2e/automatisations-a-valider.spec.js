@@ -25,11 +25,11 @@ async function chargerRegles(fichier, retouche = (t) => t) {
   });
   if (!r.ok) throw new Error(`Règles non chargées (${fichier}) : ${await r.text()}`);
 }
-// Cas d'erreur de lecture : la copie des règles chargée dans l'émulateur ajoute cette collection à celles que le compte n'a pas le droit de lire (les fichiers du dépôt ne sont pas touchés).
+// Cas d'erreur de lecture : la copie des règles chargée dans l'émulateur refuse la lecture de cette collection au compte (les fichiers du dépôt ne sont pas touchés).
 const REFUSER_PROPOSITIONS = (t) => {
-  const avant = "'plateforme_cles', ";
-  if (!t.includes(avant)) throw new Error('Liste des collections fermées introuvable dans firestore.rules : adapter ce test.');
-  return t.replace(avant, "'plateforme_cles', 'automatisations_propositions', ");
+  const bloc = "match /automatisations_propositions/{id} {\n      allow read: if compteAutorise();";
+  if (!t.includes(bloc)) throw new Error('Bloc automatisations_propositions introuvable dans firestore.rules : adapter ce test.');
+  return t.replace(bloc, "match /automatisations_propositions/{id} {\n      allow read: if false;");
 };
 test.beforeEach(() => chargerRegles('firestore.rules'));
 test.afterAll(() => chargerRegles('firestore.rules'));
