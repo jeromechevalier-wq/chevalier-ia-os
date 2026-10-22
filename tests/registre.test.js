@@ -152,6 +152,7 @@ describe('registre : le menu de Jérôme (modules, routes, écrans ; Archives et
     // Ajout voulu (16/10/2026) : le module n8n (ex-« journal », menu « Automatisations ») n'est plus réservé aux clients ; il est chez Jérôme aussi (règle « tout module existe d'abord chez Jérôme »).
     { id: 'automatisations', libelle: 'Automatisations', icone: 'activity', prefixe: 'automatisations', entrees: [
       { chemin: 'automatisations/historique', libelle: 'Historique', icone: 'activity' },
+      { chemin: 'automatisations/a-valider', libelle: 'À valider', icone: 'inbox' }, // file des propositions des workflows (nuit du 22/10/2026) : après l'Historique
     ] },
     // Ajout voulu (17/10/2026) : le module Tableau de bord (écrans en lecture seule) est chez Jérôme dès le départ ; ses onglets Finance et Stocks ne sont pas dans le menu.
     { id: 'tableaudebord', libelle: 'Tableau de bord', icone: 'layout-dashboard', prefixe: 'tableaudebord', entrees: [
@@ -294,7 +295,7 @@ describe('menu CRM unique (méthode A, 2.6.0) : un seul groupe « CRM », deux m
   });
   test('les routes (donc les signets et les liens) sont celles d\'avant : aucune adresse ne change', () => {
     const routes = blocsDuMenu(IDS_MODULES).flatMap((b) => b.entrees.map((e) => e.chemin));
-    for (const r of ['crm/accueil', 'crm/personnes', 'crm/organisations', 'crm/affaires', 'projets/projets', 'veille/contenus', 'automatisations/historique']) assert.ok(routes.includes(r), r);
+    for (const r of ['crm/accueil', 'crm/personnes', 'crm/organisations', 'crm/affaires', 'projets/projets', 'veille/contenus', 'automatisations/historique', 'automatisations/a-valider']) assert.ok(routes.includes(r), r);
     assert.equal(moduleDeRoute('crm').id, 'affaires');
     assert.equal(moduleDeRoute('projets').id, 'projets');
   });

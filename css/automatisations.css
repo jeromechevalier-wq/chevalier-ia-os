@@ -65,3 +65,43 @@
 /* Les compteurs (« il y a 2 s », durées) changent chaque seconde : chiffres de largeur fixe et zone réservée, pour que la ligne ne bouge plus. */
 .autom-maj { display: inline-block; min-width: 14ch; font-variant-numeric: tabular-nums; }
 .autom-liste, .autom-barre { font-variant-numeric: tabular-nums; }
+
+/* Écran « À valider » : cartes de propositions (type, titre, résumé, champs), frise de suivi, boutons de décision. Lisible à 390 px. */
+.page-a-valider .page-tete { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--esp-3) var(--esp-6); }
+.prop-compte { color: var(--texte2); font-size: var(--fs-texte); }
+.prop-zone { margin-bottom: var(--esp-8); }
+.prop-titre-zone { font-size: var(--fs-section); margin: 0 0 var(--esp-4); }
+.prop-liste { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--esp-5); }
+.prop-liste > .autom-vide { background: var(--panneau); border: 1px solid var(--bordure); border-radius: var(--rayon-carte); }
+.prop-carte { background: var(--panneau); border: 1px solid var(--bordure); border-radius: var(--rayon-carte); padding: var(--esp-6) var(--esp-7); display: grid; gap: var(--esp-4); min-width: 0; }
+.prop-perimee { opacity: .85; }
+.prop-tete { display: flex; flex-wrap: wrap; align-items: center; gap: var(--esp-2) var(--esp-4); }
+.prop-type { font-size: var(--fs-menu); padding: 3px var(--esp-4); border-radius: 999px; background: var(--survol); color: var(--texte2); border: 1px solid var(--bordure); overflow-wrap: anywhere; }
+.prop-age { margin-left: auto; }
+.prop-titre { margin: 0; font-size: var(--fs-section); font-weight: var(--poids-moyen); overflow-wrap: anywhere; }
+.prop-resume { margin: 0; color: var(--texte2); overflow-wrap: anywhere; white-space: pre-wrap; }
+.prop-champs { margin: 0; display: grid; grid-template-columns: minmax(80px, max-content) minmax(0, 1fr); gap: var(--esp-2) var(--esp-6); font-size: var(--fs-texte); }
+.prop-champs dt { color: var(--texte2); overflow-wrap: anywhere; }
+.prop-champs dd { margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.prop-lien { margin: 0; font-size: var(--fs-texte); overflow-wrap: anywhere; }
+.prop-correction { display: grid; gap: var(--esp-3); }
+.prop-correction-ligne { display: grid; gap: 2px; }
+.prop-correction-ligne .champ, .prop-refus .champ { width: 100%; }
+.prop-actions { display: flex; flex-wrap: wrap; gap: var(--esp-3); }
+.prop-message { margin: 0; background: var(--retard-fond); color: var(--retard); border-radius: var(--rayon-petit); padding: 8px var(--esp-5); font-size: var(--fs-texte); overflow-wrap: anywhere; }
+.prop-frise { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--esp-2) var(--esp-5); font-size: var(--fs-menu); }
+.prop-etape { display: inline-flex; align-items: center; gap: 6px; color: var(--texte2); }
+.prop-etape-point { width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid currentColor; display: inline-block; }
+.prop-etape.etape-fait { color: var(--succes); }
+.prop-etape.etape-fait .prop-etape-point { background: currentColor; }
+.prop-etape.etape-en_cours { color: var(--accent); font-weight: var(--poids-moyen); }
+.prop-etape.etape-en_cours .prop-etape-point { background: currentColor; border-radius: 2px; }
+.prop-etape.etape-echec { color: var(--retard); font-weight: var(--poids-moyen); }
+.prop-etape.etape-echec .prop-etape-point { background: currentColor; }
+.prop-etape.etape-ignoree { text-decoration: line-through; opacity: .6; }
+@media (max-width: 640px) {
+  .prop-carte { padding: var(--esp-5); }
+  .prop-champs { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .prop-champs dd { margin-bottom: var(--esp-3); }
+  .prop-actions .bouton { flex: 1 1 auto; justify-content: center; min-height: 44px; }
+}
