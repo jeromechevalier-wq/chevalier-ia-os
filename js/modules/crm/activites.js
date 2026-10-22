@@ -109,7 +109,7 @@ export function proposerProchaineActivite(liens) {
 export async function faireActivite(activite, { proposer = true } = {}) {
   await D.marquerActiviteFaite(activite.id);
   if (proposer) {
-    const liens = { personneId: activite.personneId ?? null, organisationId: activite.organisationId ?? null, affaireId: activite.affaireId ?? null };
+    const liens = { personneId: activite.personneId ?? null, organisationId: activite.organisationId ?? null, affaireId: activite.affaireId ?? null, ...(activite.projetId ? { projetId: activite.projetId } : {}) };
     await proposerProchaineActivite(liens);
   }
 }
@@ -242,7 +242,7 @@ export function panneauActivite({ lien, liensCreation, avecActivites = true, aff
   const racine = h('div', { class: 'panneau-activite' });
 
   // ---- compositeur (onglets Activité / Notes)
-  let type = typesProposes[0].id; // le premier type de la liste (Appel), sur l’affaire comme sur le projet
+  let type = typesProposes.length ? typesProposes[0].id : L.TYPES_ACTIVITE[0].id; // le premier type de la liste (Appel), sur l’affaire comme sur le projet
   let titreModifie = false;
   const champTitre = h('input', { class: 'champ', type: 'text', 'aria-label': 'Titre de l’activité', placeholder: 'Clique ici pour ajouter une activité…', value: '',
     oninput: () => { titreModifie = true; } });
