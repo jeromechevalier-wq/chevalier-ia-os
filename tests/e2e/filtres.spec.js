@@ -30,25 +30,26 @@ test('I9 le bouton « Filtres » est à côté du titre « Historique », avec l
   await expect(boutonHistorique(page)).toContainText('Filtres');
   await expect(page.locator('.historique h3.sous-titre')).toHaveText('Historique');
   expect(await boutonHistorique(page).locator('svg').first().innerHTML()).toBe(entonnoirListe); // même icône
-  await expect(page.locator('.historique [data-filtre]')).toHaveCount(0); // pastilles cachées au repos
+  await expect(page.locator('.historique .pastille-filtre')).toHaveCount(0); // pastilles cachées au repos
   await expect(page.locator('.historique .compteur-filtres')).toHaveCount(0); // « Tous » : pas de pastille de compte
   await boutonHistorique(page).click();
   await expect(dialogue(page)).toBeVisible();
-  await expect(dialogue(page).locator('[data-filtre]')).toHaveText(['Tous', 'Activités', 'Notes', 'Documents', 'Affaires', 'Événements']);
+  await expect(dialogue(page).locator('input[data-cle="types"]')).toHaveCount(5);
+  await expect(dialogue(page).locator('label.case')).toHaveText(['Activités', 'Notes', 'Documents', 'Affaires', 'Événements']); // plus de « Tous » : rien de coché = tout
   await capture(page, 'I9-ouvert');
   await page.keyboard.press('Escape'); // fermeture comme la liste : rien ne change
   await expect(dialogue(page)).toHaveCount(0);
   await expect(lignes(page)).toHaveCount(3);
 });
 
-test('I9 choisir un filtre puis « Appliquer » filtre l’historique et montre la pastille de compte ; « Tout effacer » et la croix reviennent sur « Tous »', async ({ page }) => {
+test('I9 choisir un filtre puis « Appliquer » filtre l’historique et montre la pastille de compte ; « Tout effacer » et la croix remettent tout', async ({ page }) => {
   await fichePleine();
   await connecter(page);
   await aller(page, '#/crm/personnes/p1');
   await expect(lignes(page)).toHaveCount(3);
   await boutonHistorique(page).click();
-  await dialogue(page).locator('[data-filtre="notes"]').click();
-  await expect(dialogue(page).locator('[data-filtre="notes"]')).toHaveAttribute('aria-pressed', 'true');
+  await dialogue(page).locator('input[data-cle="types"][data-valeur="notes"]').check();
+  await expect(dialogue(page).locator('input[data-cle="types"][data-valeur="notes"]')).toBeChecked();
   await expect(lignes(page)).toHaveCount(3); // rien n'est appliqué avant « Appliquer »
   await dialogue(page).getByRole('button', { name: 'Appliquer' }).click();
   await expect(dialogue(page)).toHaveCount(0);
@@ -63,26 +64,30 @@ test('I9 choisir un filtre puis « Appliquer » filtre l’historique et montre 
   await expect(page.locator('.historique .compteur-filtres')).toHaveCount(0);
   // la croix de la pastille retire aussi le filtre
   await boutonHistorique(page).click();
-  await dialogue(page).locator('[data-filtre="activites"]').click();
+  await dialogue(page).locator('input[data-cle="types"][data-valeur="activites"]').check();
   await dialogue(page).getByRole('button', { name: 'Appliquer' }).click();
   await expect(lignes(page)).toHaveCount(1);
   await page.getByRole('button', { name: 'Retirer le filtre : Activités' }).click();
   await expect(lignes(page)).toHaveCount(3);
 });
 
-test('I9 cas vide : un filtre sans résultat dit « Rien à afficher avec ce filtre. » ; le filtre revient sur « Tous » en quittant la fiche', async ({ page }) => {
+test('I9 cas vide : un filtre sans résultat dit « Rien à afficher avec ces filtres. Décoche un filtre. » ; le filtre reste en changeant de fiche (mémorisé jusqu’au rechargement) et revient à zéro après rechargement', async ({ page }) => {
   await fichePleine();
   await connecter(page);
   await aller(page, '#/crm/personnes/p1');
   await boutonHistorique(page).click();
-  await dialogue(page).locator('[data-filtre="documents"]').click();
+  await dialogue(page).locator('input[data-cle="types"][data-valeur="documents"]').check();
   await dialogue(page).getByRole('button', { name: 'Appliquer' }).click();
   await expect(lignes(page)).toHaveCount(0);
-  await expect(page.locator('.historique')).toContainText('Rien à afficher avec ce filtre.');
+  await expect(page.locator('.historique')).toContainText('Rien à afficher avec ces filtres. Décoche un filtre.');
   await expect(boutonHistorique(page).locator('.compteur-filtres')).toHaveText('1');
   await aller(page, '#/crm/personnes');
   await aller(page, '#/crm/personnes/p1');
-  await expect(lignes(page)).toHaveCount(3);
+  await expect(lignes(page)).toHaveCount(0); // le filtre reste en changeant de fiche
+  await expect(boutonHistorique(page).locator('.compteur-filtres')).toHaveText('1');
+  await page.reload();
+  await attendreCalme(page);
+  await expect(lignes(page)).toHaveCount(3); // le rechargement remet tout à zéro
   await expect(page.locator('.historique .compteur-filtres')).toHaveCount(0);
 });
 
@@ -97,7 +102,7 @@ test('I9 téléphone et ordinateur : la fenêtre des filtres de l’historique t
   expect(boite.x).toBeGreaterThanOrEqual(0);
   expect(boite.x + boite.width).toBeLessThanOrEqual(vue.width + 1);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  for (const b of await dialogue(page).locator('[data-filtre]').all()) expect((await b.boundingBox()).height).toBeGreaterThanOrEqual(estTelephone(page) ? 43 : 31); // 44 et 32 px nominaux, moins l’arrondi du navigateur
+  for (const b of await dialogue(page).locator('label.case').all()) expect((await b.boundingBox()).height).toBeGreaterThanOrEqual(estTelephone(page) ? 43 : 31); // 44 et 32 px nominaux, moins l’arrondi du navigateur
   await expect(dialogue(page).getByRole('button', { name: 'Appliquer' })).toBeVisible();
   await expect(dialogue(page).getByRole('button', { name: 'Tout effacer' })).toBeVisible();
   await capture(page, 'I9-fenetre');
@@ -129,7 +134,7 @@ test('I9 clavier : après « Appliquer », le focus revient sur le bouton « Fil
   await connecter(page);
   await aller(page, '#/crm/personnes/p1');
   await boutonHistorique(page).click();
-  await dialogue(page).locator('[data-filtre="notes"]').click();
+  await dialogue(page).locator('input[data-cle="types"][data-valeur="notes"]').check();
   await dialogue(page).getByRole('button', { name: 'Appliquer' }).click();
   await expect(dialogue(page)).toHaveCount(0);
   await expect(boutonHistorique(page)).toBeFocused();

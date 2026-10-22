@@ -297,11 +297,19 @@ test.afterEach(async ({ erreursConsole }, info) => {
   expect(reelles, 'Erreurs dans la console du navigateur').toEqual([]);
 });
 
-/** Historique d'une fiche : ouvre le bouton « Filtres », choisit la pastille, clique « Appliquer » (I9). */
-export async function filtrerHistorique(page, id) {
+/**
+ * Historique d'une fiche : ouvre le bouton « Filtres », « Tout effacer » (le choix est mémorisé jusqu'au rechargement, J1), coche les types donnés, « Appliquer ».
+ * `'tous'` (ou aucun type) = « Tout effacer » seul.
+ */
+export async function filtrerHistorique(page, ...ids) {
+  const dialogue = page.getByRole('dialog');
   await page.locator('.historique [data-action="filtres"]').click();
-  await page.getByRole('dialog').locator(`[data-filtre="${id}"]`).click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Appliquer' }).click();
+  await dialogue.getByRole('button', { name: 'Tout effacer' }).click();
+  const types = ids.filter((id) => id !== 'tous');
+  if (!types.length) return;
+  await page.locator('.historique [data-action="filtres"]').click();
+  for (const id of types) await dialogue.locator(`input[data-cle="types"][data-valeur="${id}"]`).check();
+  await dialogue.getByRole('button', { name: 'Appliquer' }).click();
 }
 
 export { expect };

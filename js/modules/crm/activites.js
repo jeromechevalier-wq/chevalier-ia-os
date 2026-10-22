@@ -5,7 +5,7 @@ import { retirerAvecAnnulation } from '../../os/retrait.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
 import { decouperLiens } from './liens-texte.js';
-import { boutonFiltres } from './filtres.js';
+import { boutonFiltres, fenetreFiltres } from './filtres.js';
 import { iconeTypeActivite, lienAffaire, lienPersonne, lienOrganisation, nomCompte } from './composants.js';
 
 /** Texte d'une note en nœuds : texte simple et liens (nouvel onglet). Jamais d'innerHTML : le texte reste du texte. */
@@ -221,6 +221,9 @@ export function ligneActivite(a, aujourdhui, { avecAffaire = true, tousRattachem
     menu);
 }
 
+// Types cochés dans la fenêtre « Filtres » de l'historique (J1) : mémorisés jusqu'au rechargement de la page, partagés par toutes les fiches (pas de stockage navigateur).
+let typesHistorique = [];
+
 /**
  * Panneau complet. lien : { personneId } | { organisationId } | { affaireId } (filtre de la fiche).
  * liensCreation() : liens à poser sur ce qu'on crée (personneId, organisationId, affaireId).
@@ -233,7 +236,6 @@ export function ligneActivite(a, aujourdhui, { avecAffaire = true, tousRattachem
 export function panneauActivite({ lien, liensCreation, avecActivites = true, affaireLiee = null, typesActivite = null, avecDocuments = false }) {
   let fil = { notes: [], evenements: [] };
   let filAffaire = { notes: [] };
-  let filtre = 'tous';
   let onglet = avecActivites ? 'activite' : 'notes';
   const typesProposes = L.TYPES_ACTIVITE.filter((t) => !typesActivite || typesActivite.includes(t.id));
 
@@ -410,38 +412,34 @@ export function panneauActivite({ lien, liensCreation, avecActivites = true, aff
           faire: () => D.supprimerNote(n.id), defaire: () => D.restaurerNote(n), messageFait: 'Note supprimée' }) }, icone('x', { taille: 14 })));
   }
 
-  // Bouton « Filtres » de l'historique : le même que celui des listes (Personnes…), même fenêtre (Tout effacer / Appliquer) sur ordinateur et sur téléphone.
+  // Bouton « Filtres » de l'historique : le même que celui des listes (Personnes…), la même fenêtre (cases à cocher, Tout effacer / Appliquer), logique « OU ».
   async function ouvrirFiltresHistorique() {
-    let choisi = filtre;
-    const pastilles = h('div', { class: 'pastilles-filtre', role: 'group', 'aria-label': 'Filtrer l’historique' });
-    const dessiner = () => remplir(pastilles, L.FILTRES_HISTORIQUE.map((f) => h('button', { type: 'button', class: `pastille-type${f.id === choisi ? ' actif' : ''}`, 'aria-pressed': String(f.id === choisi),
-      dataset: { filtre: f.id }, onclick: () => { choisi = f.id; dessiner(); } }, f.libelle)));
-    dessiner();
-    const r = await dialogue({
-      titre: 'Filtres', classe: 'dialogue-formulaire dialogue-filtres',
-      contenu: h('div', { class: 'pile filtres-corps' }, pastilles),
-      boutons: [{ libelle: 'Tout effacer', valeur: 'effacer' }, { libelle: 'Appliquer', valeur: 'appliquer', style: 'principal' }],
+    const r = await fenetreFiltres({
+      controles: [{ cle: 'types', libelle: 'Type', type: 'cases', options: L.TYPES_FILTRE_HISTORIQUE.map((f) => ({ valeur: f.id, libelle: f.libelle })) }],
+      criteres: { types: typesHistorique },
+      effacer: () => ({ types: [] }),
     });
-    if (r === 'effacer') filtre = 'tous';
-    else if (r === 'appliquer') filtre = choisi;
-    else return;
+    if (!r) return;
+    typesHistorique = L.typesHistoriqueValides(r.types);
     rendreHistorique();
   }
   const filtresHistorique = boutonFiltres({ auClic: ouvrirFiltresHistorique, petit: true });
 
   function rendreHistorique() {
     const notes = notesDeLaFiche();
-    const entrees = L.entreesHistorique({ activites: D.activitesDe(lien), notes, evenements: fil.evenements }, filtre);
-    filtresHistorique.majCompte(filtre === 'tous' ? 0 : 1);
-    const actif = L.FILTRES_HISTORIQUE.find((f) => f.id === filtre);
+    const entrees = L.entreesHistorique({ activites: D.activitesDe(lien), notes, evenements: fil.evenements }, typesHistorique);
+    filtresHistorique.majCompte(typesHistorique.length);
+    const actifs = L.TYPES_FILTRE_HISTORIQUE.filter((f) => typesHistorique.includes(f.id));
     const avaitFocus = document.activeElement === filtresHistorique.element; // le redessin détache le bouton : on lui rend le focus (clavier)
     remplir(zoneHistorique,
       h('div', { class: 'points-cles-tete' }, h('h3', { class: 'sous-titre' }, 'Historique'), filtresHistorique.element),
-      filtre !== 'tous' && actif ? h('div', { class: 'pastilles-actives' }, h('span', { class: 'pastille-filtre' }, actif.libelle,
-        h('button', { type: 'button', class: 'pastille-retrait', 'aria-label': `Retirer le filtre : ${actif.libelle}`, onclick: () => { filtre = 'tous'; rendreHistorique(); } }, icone('x', { taille: 12 })))) : null,
+      actifs.length ? h('div', { class: 'pastilles-actives' },
+        actifs.map((f) => h('span', { class: 'pastille-filtre' }, f.libelle,
+          h('button', { type: 'button', class: 'pastille-retrait', 'aria-label': `Retirer le filtre : ${f.libelle}`, onclick: () => { typesHistorique = typesHistorique.filter((t) => t !== f.id); rendreHistorique(); } }, icone('x', { taille: 12 })))),
+        actifs.length > 1 ? h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', onclick: () => { typesHistorique = []; rendreHistorique(); } }, 'Tout effacer') : null) : null,
       entrees.length
         ? h('ol', { class: 'fil' }, entrees.map(ligneHistorique))
-        : h('p', { class: 'aide' }, filtre === 'tous' ? 'Rien à afficher pour le moment.' : 'Rien à afficher avec ce filtre.'));
+        : h('p', { class: 'aide' }, actifs.length ? 'Rien à afficher avec ces filtres. Décoche un filtre.' : 'Rien à afficher pour le moment.'));
     if (avaitFocus) filtresHistorique.element.focus();
   }
 
