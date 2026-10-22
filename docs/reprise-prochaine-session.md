@@ -14,7 +14,7 @@ Jérôme a donné « GO NUIT » le 22/10/2026 après une longue conception avec 
 | Fonction `automatisationsDecider` + 5 outils MCP | 190 | fusionnée |
 | Écran « À valider » | 191 | fusionnée |
 | Logger : données et porte (états « en préparation » et « abandonnée », plan d'étapes) | 192 | fusionnée |
-| Logger : chaîne d'étapes à l'écran, « Classer sans suite » | 193 | voir GitHub (fusion automatique armée) |
+| Logger : chaîne d'étapes à l'écran, « Classer sans suite » | 193 | fusionnée |
 | Documentation, version 2.24.0, wiki | cette PR | – |
 | Règles Firestore (`automatisations_propositions` fermée à l'écriture dans les deux bases) | **à fusionner par Jérôme** | étiquette `a-fusionner-par-jerome` |
 

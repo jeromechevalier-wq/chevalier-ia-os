@@ -116,7 +116,7 @@ Créés dans le n8n de Jérôme, **inactifs** (non publiés), étiquette `intern
 | Fonction `automatisationsDecider` + 5 outils MCP | 190 | fusionnée |
 | Écran « À valider » | 191 | fusionnée |
 | Logger, données et porte | 192 | fusionnée |
-| Logger, chaîne d'étapes à l'écran | 193 | voir `docs/reprise-prochaine-session.md` |
+| Logger, chaîne d'étapes à l'écran | 193 | fusionnée |
 | Documentation, version 2.24.0, wiki | PR de cette nuit | voir `docs/reprise-prochaine-session.md` |
 | Règles Firestore (liste d'arrêt) | voir `docs/reprise-prochaine-session.md` | à fusionner par Jérôme |
 
