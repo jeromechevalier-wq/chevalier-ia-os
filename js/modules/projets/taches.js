@@ -128,8 +128,8 @@ export function sectionTaches(projet) {
   const titre = h('input', { class: 'champ', type: 'text', 'aria-label': 'Nouveau livrable', placeholder: 'Clique ici pour ajouter un livrable…', autocomplete: 'off' });
   const phase = h('select', { class: 'champ', 'aria-label': 'Phase du livrable' }, P.phasesActives(cfg()).map((ph) => h('option', { value: ph.id, selected: ph.id === projet.phase }, ph.libelle)));
   const date = selecteurDate('');
-  // Pas de gros bouton jaune : un petit bouton à contour dans la zone ouverte (ou la touche Entrée).
-  const bouton = h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', 'data-action': 'ajouter-tache', onclick: ajouter }, 'Ajouter');
+  // Comme « Enregistrer l'activité » : bouton jaune plein dans la zone ouverte (ou la touche Entrée).
+  const bouton = h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'ajouter-tache', onclick: ajouter }, 'Enregistrer le livrable');
   async function ajouter() {
     if (!L.nettoyerEspaces(titre.value)) { toast('Le titre est obligatoire.', { type: 'erreur' }); titre.classList.add('invalide'); titre.focus(); return; }
     // Le formulaire se vide tout de suite (on peut taper la tâche suivante sans attendre la réponse du serveur) ; si l'ajout échoue, ce qui était tapé revient.
@@ -159,7 +159,7 @@ export function sectionTaches(projet) {
     const avecTaches = groupes.filter((g) => g.taches.length);
     remplir(zoneGroupes, avecTaches.length
       ? avecTaches.map((g) => h('div', { class: 'groupe-taches', dataset: { phase: g.phase.id } },
-        h('h3', { class: 'sous-titre' }, g.phase.libelle, h('span', { class: 'compteur' }, `${g.faites}/${g.taches.length}`)),
+        h('h3', { class: 'sous-titre titre-livrables' }, `${g.taches.length >= 2 ? 'Livrables' : 'Livrable'} ${g.phase.libelle}`, h('span', { class: 'compteur' }, `${g.faites}/${g.taches.length}`)),
         h('ul', { class: 'liste-activites' }, g.taches.map((t, i) => ligne(t, g, i)))))
       : h('p', { class: 'aide' }, 'Aucun livrable pour le moment. Ajoute le premier ci-dessus.'));
     if (compteur) compteur.textContent = toutes.length ? `${progression.faites}/${progression.total}` : '0';
