@@ -365,7 +365,7 @@ describe('B25 Intégrité des liens : une fiche du CRM disparaît, ses projets r
   test('B25 le Journal sait nommer les documents des projets', () => {
     assert.equal(L.libelleDocumentJournal('projets_projets'), 'projet');
     assert.equal(L.libelleDocumentJournal('projets_projets', true), 'projets');
-    assert.equal(L.libelleDocumentJournal('projets_taches', true), 'tâches de projet');
+    assert.equal(L.libelleDocumentJournal('projets_taches', true), 'livrables de projet');
     assert.equal(L.libelleDocumentJournal('projets_modeles'), 'modèle de projet');
   });
 });
@@ -613,7 +613,7 @@ describe('B28 Affaire gagnée : créer ou lier un projet', () => {
   });
 });
 
-describe('B29 Tâches d’un projet', () => {
+describe('B29 Livrables d’un projet', () => {
   const c = (iso = '2026-10-20T09:00:00Z') => ctx(iso);
   const tache = (extra = {}) => ({ ...P.nouvelleTache({ titre: 'Écrire le rapport', projetId: 'pr1', phase: 'livraison', ordre: 1 }, c()), id: 't1', ...extra });
 
@@ -660,7 +660,7 @@ describe('B29 Tâches d’un projet', () => {
     assert.deepEqual(plan.ecritures.map((e) => `${e.type}:${e.collection}`), ['modifier:projets_taches', 'creer:crm_evenements']);
     assert.deepEqual(plan.ecritures[0].patch, { fait: true, dateFait: c().maintenant });
     const ev = plan.ecritures[1].donnees;
-    assert.deepEqual([ev.type, ev.texte, ev.projetId, ev.affaireId, ev.personneId], ['tache_faite', 'Tâche faite : Écrire le rapport', 'pr1', 'a1', 'p1']);
+    assert.deepEqual([ev.type, ev.texte, ev.projetId, ev.affaireId, ev.personneId], ['tache_faite', 'Livrable fait : Écrire le rapport', 'pr1', 'a1', 'p1']);
     assert.deepEqual(P.planTacheFaite({ tache: tache({ fait: true }), projet: p }, c()).ecritures, []);
     assert.deepEqual(P.planTacheNonFaite({ tache: tache({ fait: true, dateFait: new Date() }) }).ecritures[0].patch, { fait: false, dateFait: null });
     assert.deepEqual(P.planTacheNonFaite({ tache: tache() }).ecritures, []);

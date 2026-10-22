@@ -99,7 +99,7 @@ export const MODULES_DECLARES = geler([
     collections: ['projets_projets', 'projets_taches', 'projets_modeles'],
     outilsMcp: [
       'lister_projets', 'lire_projet', 'lister_modeles_projet',
-      'creer_projet', 'creer_projet_depuis_affaire', 'modifier_projet', 'ajouter_tache_projet', 'terminer_tache_projet', 'changer_phase_projet',
+      'creer_projet', 'creer_projet_depuis_affaire', 'modifier_projet', 'ajouter_livrable_projet', 'terminer_livrable_projet', 'changer_phase_projet',
       'mettre_projet_en_pause', 'reprendre_projet', 'terminer_projet', 'rouvrir_projet', 'archiver_projet',
       'ajouter_facture', 'marquer_facture_payee', 'abandonner_facture', 'supprimer_projet',
     ],

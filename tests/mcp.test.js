@@ -182,9 +182,9 @@ describe('Journaux sans secret', () => {
 });
 
 describe('Serveur de Jérôme : la liste des outils ne change pas (D3d)', () => {
-  // Listes écrites à la main, relevées sur main (2.10.0) : ni le nom ni le nombre d'outils de Jérôme ne doivent bouger.
+  // Listes écrites à la main, relevées sur main (2.10.0), puis ajustées le 23/10/2026 : « tâche de projet » est devenue « livrable » (ajouter_livrable_projet, terminer_livrable_projet, anciens noms retirés). Ni les autres noms ni le nombre d'outils ne doivent bouger.
   const LECTURE = ['chercher', 'lire_affaire', 'lire_audit', 'lire_organisation', 'lire_personne', 'lire_projet', 'lire_reglages', 'lister_activites', 'lister_affaires', 'lister_documents', 'lister_modeles_projet', 'lister_projets', 'qui_suis_je'];
-  const ECRITURE = ['abandonner_facture', 'ajouter_facture', 'ajouter_note', 'ajouter_tache_projet', 'archiver_projet', 'changer_etape', 'changer_phase_projet', 'creer_activite', 'creer_affaire', 'creer_organisation', 'creer_personne', 'creer_projet', 'creer_projet_depuis_affaire', 'joindre_lien', 'marquer_facture_payee', 'marquer_perdue', 'mettre_en_pause', 'mettre_projet_en_pause', 'modifier_affaire', 'modifier_note', 'modifier_organisation', 'modifier_personne', 'modifier_projet', 'reprendre_projet', 'retirer_document', 'rouvrir_affaire', 'rouvrir_projet', 'terminer_activite', 'terminer_projet', 'terminer_tache_projet'];
+  const ECRITURE = ['abandonner_facture', 'ajouter_facture', 'ajouter_note', 'ajouter_livrable_projet', 'archiver_projet', 'changer_etape', 'changer_phase_projet', 'creer_activite', 'creer_affaire', 'creer_organisation', 'creer_personne', 'creer_projet', 'creer_projet_depuis_affaire', 'joindre_lien', 'marquer_facture_payee', 'marquer_perdue', 'mettre_en_pause', 'mettre_projet_en_pause', 'modifier_affaire', 'modifier_note', 'modifier_organisation', 'modifier_personne', 'modifier_projet', 'reprendre_projet', 'retirer_document', 'rouvrir_affaire', 'rouvrir_projet', 'terminer_activite', 'terminer_projet', 'terminer_livrable_projet'];
   const SUPPRESSION = ['restaurer_depuis_audit', 'supprimer_activite', 'supprimer_affaire', 'supprimer_note', 'supprimer_organisation', 'supprimer_personne', 'supprimer_projet'];
   const attendu = {
     lecteur: LECTURE,

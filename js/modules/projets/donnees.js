@@ -242,7 +242,7 @@ export async function creerTache(projetId, valeurs) {
   return plan.id;
 }
 
-const tacheOuErreur = (id) => tache(id) ?? (() => { throw new Error('Tâche introuvable'); })();
+const tacheOuErreur = (id) => tache(id) ?? (() => { throw new Error('Livrable introuvable'); })();
 
 export const majTache = (id, patch) => appliquerTache(P.planMajTache({ tache: tacheOuErreur(id), patch, taches: etat.taches, config: CRM.etat.config }), 'majTache');
 export const faireTache = (id) => appliquerTache(P.planTacheFaite({ tache: tacheOuErreur(id), projet: projet(tacheOuErreur(id).projetId) }, ctx()), 'faireTache');

@@ -497,7 +497,7 @@ export function planTacheFaite({ tache, projet = null }, ctx) {
   return {
     ecritures: [
       ...modifierSiPatch(C.projetsTaches, tache.id, { fait: true, dateFait: ctx.maintenant }),
-      ...(projet ? evenements([evenementProjet('tache_faite', `Tâche faite : ${tache.titre}`, projet, ctx)], ctx) : []),
+      ...(projet ? evenements([evenementProjet('tache_faite', `Livrable fait : ${tache.titre}`, projet, ctx)], ctx) : []),
     ],
   };
 }
@@ -667,7 +667,7 @@ export function planAjouterTacheModele({ modele, valeurs }, ctx) {
 /** Modifie une tâche type (titre, délai, phase). Changer de phase la place à la fin de la nouvelle phase. */
 export function planMajTacheModele({ modele, tacheId, patch, config }) {
   const tache = (modele.taches || []).find((t) => t.id === tacheId);
-  if (!tache) return { erreurs: { tache: 'Tâche introuvable.' }, ecritures: [] };
+  if (!tache) return { erreurs: { tache: 'Livrable introuvable.' }, ecritures: [] };
   const erreurs = validerTacheModele({ titre: tache.titre, ...patch }, config);
   if (Object.keys(erreurs).length) return { erreurs, ecritures: [] };
   const net = { ...patch };

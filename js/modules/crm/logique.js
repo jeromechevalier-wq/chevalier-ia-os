@@ -2089,7 +2089,7 @@ export function construireAudit(ecritures, avants, { acteur, outil, operationId,
 const NOMS_DOCUMENTS = {
   crm_personnes: ['personne', 'personnes'], crm_organisations: ['organisation', 'organisations'], crm_affaires: ['affaire', 'affaires'],
   crm_activites: ['activité', 'activités'], crm_notes: ['note', 'notes'], crm_evenements: ['événement', 'événements'],
-  crm_audit: ['opération', 'opérations'], projets_projets: ['projet', 'projets'], projets_taches: ['tâche de projet', 'tâches de projet'], projets_modeles: ['modèle de projet', 'modèles de projet'],
+  crm_audit: ['opération', 'opérations'], projets_projets: ['projet', 'projets'], projets_taches: ['livrable de projet', 'livrables de projet'], projets_modeles: ['modèle de projet', 'modèles de projet'],
 };
 const ACTIONS_JOURNAL = { creer: 'Création', modifier: 'Modification', supprimer: 'Suppression', restaurer: 'Restauration', echec: 'Échec' };
 

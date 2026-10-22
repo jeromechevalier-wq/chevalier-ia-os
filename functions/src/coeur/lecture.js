@@ -198,7 +198,7 @@ export async function lireProjet(donnees, { id, avecFil }, espace = {}) {
     affaire: affaire ? { id: affaire.id, titre: affaire.titre, etape: affaire.etape, statut: affaire.statut } : null,
     personne: personne ? { id: personne.id, nom: personne.nom } : null,
     organisation: organisation ? { id: organisation.id, nom: organisation.nom } : null,
-    taches: PL.tachesDuProjet(taches, id, config),
+    livrables: PL.tachesDuProjet(taches, id, config), // le stockage garde le nom « projets_taches » (aucune migration)
     avancement: PL.progressionProjet(taches),
     facturation: config.options.suiviPaiements ? resumeFacturation(projet) : null,
     ...(avecFil ? { fil: await fil(donnees, 'projetId', id, []) } : {}),
@@ -207,7 +207,7 @@ export async function lireProjet(donnees, { id, avecFil }, espace = {}) {
 
 export async function listerModelesProjet(donnees) {
   const modeles = await donnees.liste(C.projetsModeles);
-  return serialiser({ total: modeles.length, modeles: [...modeles].sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0)) });
+  return serialiser({ total: modeles.length, modeles: [...modeles].sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0)).map(({ taches, ...m }) => ({ ...m, livrables: taches || [] })) });
 }
 
 // ---------------------------------------------------------------- réglages

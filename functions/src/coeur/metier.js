@@ -353,7 +353,7 @@ export async function terminerProjet(c, args) {
   return appliquerRegle(c, plan, args, () => ({ id: p.id, statut: 'termine', abandonnees: args.impaye ? PL.facturesAPayer(p).map((f) => f.id) : [] }), 'le projet');
 }
 
-export async function ajouterTacheProjet(c, args) {
+export async function ajouterLivrableProjet(c, args) {
   const { projetId, ...valeurs } = args;
   const ctx = await contexte(c);
   if (valeurs.phase !== undefined) verifierPhase(ctx.config, valeurs.phase);
@@ -364,12 +364,12 @@ export async function ajouterTacheProjet(c, args) {
   return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: plan.id, projetId });
 }
 
-export async function terminerTacheProjet(c, args) {
-  const tache = await lire(c, C.projetsTaches, args.id, 'Tâche de projet');
+export async function terminerLivrableProjet(c, args) {
+  const tache = await lire(c, C.projetsTaches, args.id, 'Livrable de projet');
   const projet = await c.donnees.document(C.projets, tache.projetId);
   const faite = args.fait !== false;
   const plan = faite ? PL.planTacheFaite({ tache, projet }, await contexte(c)) : PL.planTacheNonFaite({ tache });
-  if (!plan.ecritures.length) return { operationId: null, rien: true, message: faite ? 'Rien à changer : la tâche est déjà faite.' : 'Rien à changer : la tâche n’est pas faite.' };
+  if (!plan.ecritures.length) return { operationId: null, rien: true, message: faite ? 'Rien à changer : le livrable est déjà fait.' : 'Rien à changer : le livrable n’est pas fait.' };
   return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: tache.id, fait: faite });
 }
 
