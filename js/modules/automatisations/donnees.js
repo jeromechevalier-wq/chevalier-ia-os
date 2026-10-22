@@ -105,3 +105,50 @@ export async function renommer(workflowId, libelle) {
   const r = await httpsCallable(fonctions(), 'automatisationsRenommer')({ client, workflowId, libelle });
   return r.data;
 }
+
+// ---------------------------------------------------------------- file « À valider » (propositions déposées par les workflows)
+// Lecture en direct de la collection, ouverte seulement quand l'écran « À valider » est affiché (rien ne change pour l'Historique).
+// Pas de where ni d'orderBy : le tri se fait côté client (logique.js). L'écran n'ÉCRIT rien dans Firestore : valider, refuser et relancer passent par la fonction
+// appelable automatisationsDecider, qui revérifie le compte, l'état et les champs.
+export const propositions = { liste: [], pret: false, erreur: false };
+
+/** Ouvre l'écoute en direct ; `rappel` est appelé à chaque changement. Renvoie la fonction qui arrête l'écoute. */
+export function ecouterPropositions(rappel) {
+  propositions.liste = []; propositions.pret = false; propositions.erreur = false;
+  let arret = () => {};
+  try {
+    arret = onSnapshot(collection(db, chemin('automatisations_propositions')), (snap) => {
+      propositions.liste = snap.docs.map((d) => ({ ...d.data(), id: d.id }));
+      propositions.pret = true; propositions.erreur = false; rappel();
+    }, (e) => {
+      console.warn('propositions indisponibles', e.code);
+      propositions.liste = []; propositions.pret = true; propositions.erreur = true; rappel();
+    });
+  } catch (e) {
+    console.warn('propositions indisponibles', e?.code);
+    propositions.pret = true; propositions.erreur = true; rappel();
+  }
+  return () => { arret(); propositions.liste = []; propositions.pret = false; propositions.erreur = false; };
+}
+
+/**
+ * Valide, refuse ou relance une proposition (le serveur revérifie tout). decision : 'valider' | 'refuser' | 'relancer'.
+ * `champs` (valider, facultatif) : valeurs corrigées [{ nom, valeur }] ; `raison` (refuser, facultative).
+ * Renvoie { ok: true } ou { ok: false, message } : le message du serveur (« Déjà décidée par … ») est repris tel quel.
+ */
+export async function decider(id, decision, { champs, raison } = {}) {
+  const corps = { id, decision };
+  if (champs) corps.champs = champs;
+  if (raison) corps.raison = raison;
+  try {
+    await httpsCallable(fonctions(), 'automatisationsDecider')(corps);
+    return { ok: true };
+  } catch (e) {
+    console.warn('Décision impossible', e?.code);
+    const precise = ['functions/failed-precondition', 'functions/invalid-argument', 'functions/not-found', 'functions/permission-denied', 'functions/aborted'].includes(e?.code);
+    // Le SDK ajoute le code HTTP au bout du message du serveur (« … [400] ») : on le retire pour afficher exactement le texte du serveur.
+    const texte = typeof e?.message === 'string' ? e.message.replace(/\s*\[\d{3}\]\s*$/, '').trim() : '';
+    const message = precise && texte ? texte : 'Impossible de joindre le serveur pour le moment. Rien n’a été changé : réessaie dans un instant.';
+    return { ok: false, message };
+  }
+}
