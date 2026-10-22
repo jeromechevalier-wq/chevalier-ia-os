@@ -29,7 +29,7 @@ export function creerAppelDecider({ donnees, comptes = COMPTES_AUTORISES, journa
     const demande = requete.data;
     const decision = typeof demande?.decision === 'string' && /^[a-z]{1,10}$/.test(demande.decision) ? demande.decision : undefined;
     try {
-      const r = await decider({ donnees, par: jeton.email, canal: 'interface', maintenant: maintenant(), demande });
+      const r = await decider({ donnees, par: jeton.email.toLowerCase(), canal: 'interface', maintenant: maintenant(), demande });
       journal({ action: 'decider', statut: 'ok', decision: r.decision, dureeMs: maintenant() - debut });
       return { ok: true, etat: r.etat };
     } catch (e) {

@@ -53,6 +53,7 @@ export const lister_propositions = {
     limite: z.number().int().min(1).max(MAX_PROPOSITIONS).optional().describe(`Nombre maximal de lignes (défaut et plafond : ${MAX_PROPOSITIONS}).`),
   },
   executer: async ({ args, donnees, maintenant }) => {
+    // Lit toute la collection puis coupe à 100 : volume faible, acceptable (donnees.liste ne sait pas limiter).
     const toutes = await donnees.liste(C.propositions, args.etat ? { champ: 'etat', valeur: args.etat } : undefined);
     const triees = toutes.sort(parDateDecroissante);
     const max = args.limite ?? MAX_PROPOSITIONS;
