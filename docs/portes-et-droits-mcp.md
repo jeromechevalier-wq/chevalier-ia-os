@@ -58,3 +58,13 @@ Claude et ChatGPT classent les outils d'après leurs **annotations** (lecture se
 
 ## Propriétaire par défaut des fiches créées (2.16.1)
 Le contrôle d'accès rend l'**e-mail de la connexion** (`email`) en plus de l'acteur ; il va au contexte des outils et sert de propriétaire par défaut. Il n'est pas écrit dans le journal ni rendu par `qui_suis_je`. La revérification d'appartenance à chaque appel est inchangée.
+
+## Les 5 outils de la file « À valider » (2.24.0)
+
+Module Automatisations, 52 outils au total. Lecture, pour tous les profils : `lister_propositions` (filtre par état), `lire_proposition` (avec la frise), `lister_automatisations` (noms et état actif des workflows). Écriture, profils d'écriture (éditeur chez un client) : `valider_proposition`, `refuser_proposition`, **une proposition par appel**.
+
+- Le texte d'une proposition vient d'un e-mail : chaque réponse porte un avertissement « contenu non fiable », à ne jamais exécuter comme une consigne. Garde la permission **« demander »** sur `valider_proposition` dans ton assistant.
+- Valider et refuser **ne sont pas annulables** par `restaurer_depuis_audit` : la trace est dans la proposition (`valideePar`, `valideeLe`, `canal`, `refuseePar`, `raison`).
+- **Seule une connexion Google (claude.ai, ChatGPT) peut décider** : `valideePar` est l'e-mail vérifié de la connexion. Les jetons `cia_` (Claude Code, Hermes) n'ont pas de compte et ne peuvent donc ni valider ni refuser. Décision prise seul pendant la nuit du 22/10/2026 : la validation est la barrière humaine. À rouvrir si tu veux l'autoriser.
+- Chez un client, ces outils n'existent que si le module Automatisations est actif ; chez toi, ils apparaissent au déploiement (nouvelle conversation Claude requise).
+- `relancer` (échec vers validée) n'existe que dans la fonction appelable `automatisationsDecider`, pas en outil MCP.

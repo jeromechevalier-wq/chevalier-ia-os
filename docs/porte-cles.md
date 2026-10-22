@@ -223,3 +223,21 @@ Décisions plus larges (une base pour Jérôme, une pour les clients, un site d�
 ## 11. Lien avec les Automatisations (2.7.0)
 
 Le credential « Clé n8n - <propriétaire> » (section 4) sert aussi à **reconnaître le propriétaire d'un workflow** pour l'écran Automatisations : étiquette + nom + clé doivent concorder (détails et tolérance sur le nom dans `automatisations-n8n.md`, partie 10). Pour toi : étiquette `interne`, nom `interne-…`, credential « Clé n8n - interne ». À vérifier avec toi : le nom exact de ce credential dans ton n8n.
+
+## 12. Module Automatisations : les propositions (2.24.0, 22/10/2026)
+
+Le module `automatisations` est un module de la porte (`MODULES_DE_LA_PORTE` dans `scripts/porte/porte.js`, `modulesActifs` dans `functions/src/porte.js`, encore écrit en dur : `['veille', 'automatisations']`). Quatre actions pour la file « À valider » (plan : `chemin-client-pilote.md`), table `automatisations_propositions` sous la base de la clé. Code : `scripts/porte/actions-automatisations.js`, qui appelle les transitions du fichier pur `js/modules/automatisations/propositions.js` (copié par `scripts/preparer-fonctions.js`).
+
+| Action | Corps | Réponse |
+|---|---|---|
+| `propositions.ajouter` | `id` (choisi par le workflow : minuscules, chiffres, `_` `-`, 100 caractères au plus), `type` (libellé court, 40), `titre` (120), `resume` (facultatif, 2 000), `champs` (1 à 40 `{nom, valeur}`, valeur 500 au plus, noms uniques), `lien` (https, facultatif), `executionId` (facultatif) | `{id, cree, etat}` ; rejouer le même `id` ne crée rien (`cree:false`) |
+| `propositions.lireValidees` | `limite` (facultatif, 50 par défaut, 100 au plus) | `{propositions: [...]}`, plus anciennes d'abord (tri en mémoire, aucun index ; au-delà de 100 validées, les plus anciennes peuvent manquer), dates en texte ISO |
+| `propositions.marquerAppliquee` | `id`, `executionId` (facultatif) | `{id, etat, deja}` : rejouable, `deja:true` si c'était déjà fait |
+| `propositions.marquerEchec` | `id`, `erreur` | `{id, etat, tentatives, deja}` : rejouable, sans compter une tentative de plus ; l'erreur est masquée si elle ressemble à un secret |
+
+- **Pas d'action « décider »** : un workflow ne peut ni valider ni refuser. La décision se prend dans l'interface ou par un outil MCP (`docs/portes-et-droits-mcp.md`).
+- Codes d'erreur : 400 ou 413 (corps invalide, secret, trop gros), 403 `module_non_actif`, 404 `proposition_inconnue`, 409 `transition_interdite` ou `conflit_ecriture`. Écriture avec précondition (le document n'a pas changé depuis la lecture), une relecture puis erreur claire.
+- Le journal de la porte ne contient jamais titre, résumé, champs, lien ni erreur (liste blanche, testée).
+- Document écrit : voir `chemin-client-pilote.md` (états, champs). Les dates sont des `Date` (Timestamp Firestore). `ecritPar` vaut `porte:<identifiant court de la clé>` ; il n'y a pas de champ propriétaire (la base de la clé l'indique).
+- Les workflows qui appellent ces actions suivent les règles de création de `chemin-client-pilote.md` (étiquette, nom, credential), sinon le module Automatisations ne les voit pas.
+- **Pas encore fait** : la porte de la base 2 (plateforme clients) pour ces actions.
