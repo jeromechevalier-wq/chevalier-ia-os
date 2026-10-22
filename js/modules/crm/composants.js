@@ -74,7 +74,7 @@ export function avatar(nom, taille = 36, classe = '') {
 }
 
 export function pastilleEtiquette(e) {
-  return h('span', { class: 'pastille-etiquette', style: { '--couleur': e.couleur || '#b98ee0' } }, e.nom);
+  return h('span', { class: 'pastille-etiquette', style: { '--couleur': e.couleur || L.COULEURS_ETIQUETTES[0] } }, e.nom);
 }
 
 export function pastillesEtiquettes(ids) {
@@ -373,10 +373,11 @@ export function selecteurEtiquettes({ valeurIds = [], surChoix = () => {}, creer
     icone('tag', { taille: 14 }), 'Étiquettes');
   const element = h('div', { class: 'selecteur-etiquettes' }, zone, bouton);
   let rafraichirFenetre = () => {};
-  const choisies = () => ids.map((id) => D.etat.etiquettes.find((e) => e.id === id)).filter(Boolean).map((e) => ({ id: e.id, libelle: e.nom, couleur: e.couleur }));
+  const creees = new Map(); // étiquettes créées depuis ce champ : { id, nom, couleur }
+  const choisies = () => ids.map((id) => D.etat.etiquettes.find((e) => e.id === id) || creees.get(id)).filter(Boolean).map((e) => ({ id: e.id, libelle: e.nom, couleur: e.couleur }));
 
   function rendre() {
-    remplir(zone, ...choisies().map((el) => h('span', { class: 'pastille-choix', 'data-etiquette': el.id, style: { '--couleur': el.couleur || '#b98ee0' } },
+    remplir(zone, ...choisies().map((el) => h('span', { class: 'pastille-choix', 'data-etiquette': el.id, style: { '--couleur': el.couleur || L.COULEURS_ETIQUETTES[0] } },
       el.libelle,
       h('button', { type: 'button', class: 'pastille-retrait', 'aria-label': `Retirer ${el.libelle}`, onclick: () => appliquer(ids.filter((x) => x !== el.id)) }, icone('x', { taille: 12 })))));
   }
@@ -398,6 +399,7 @@ export function selecteurEtiquettes({ valeurIds = [], surChoix = () => {}, creer
   }
 
   function ouvrir() {
+    const zoneEcran = element.closest('#app') || document.body; // la fiche se refait : on retrouve le nouveau bouton dans l'écran, pas dans le document entier
     const liste = h('div', { class: 'liste-etiquettes', role: 'group', 'aria-label': 'Étiquettes' });
     const message = h('p', { class: 'erreur', role: 'alert' });
     const nom = h('input', { type: 'text', class: 'champ', 'aria-label': 'Nom de la nouvelle étiquette', placeholder: 'Nom de l’étiquette', autocomplete: 'off', maxlength: '60' });
@@ -407,7 +409,7 @@ export function selecteurEtiquettes({ valeurIds = [], surChoix = () => {}, creer
       remplir(liste, ...(toutes.length
         ? toutes.map((e) => h('label', { class: 'case ligne-etiquette', 'data-etiquette': e.id },
           h('input', { type: 'checkbox', checked: ids.includes(e.id), onchange: (ev) => appliquer(ev.target.checked ? [...ids, e.id] : ids.filter((x) => x !== e.id)) }),
-          h('span', { class: 'puce-couleur', style: { background: e.couleur || '#b98ee0' } }), e.nom))
+          h('span', { class: 'puce-couleur', style: { background: e.couleur || L.COULEURS_ETIQUETTES[0] } }), e.nom))
         : [h('p', { class: 'vide-liste' }, 'Aucune étiquette pour le moment.')]));
     }
     rafraichirFenetre = rendreListe;
@@ -421,7 +423,10 @@ export function selecteurEtiquettes({ valeurIds = [], surChoix = () => {}, creer
       if (L.etiquetteEnDoublon(texte, D.etat.etiquettes)) { message.textContent = 'Cette étiquette existe déjà.'; return; }
       enCours = true;
       try {
+        const couleur = L.couleurEtiquetteSuivante(D.etat.etiquettes);
         const id = await creer(texte);
+        // L'étiquette qu'on vient de créer est connue d'ici même : on ne dépend pas du moment où la liste des Réglages se met à jour.
+        creees.set(id, { id, nom: texte, couleur });
         nom.value = '';
         creerBouton.disabled = true;
         await appliquer([...ids, id]);
@@ -455,7 +460,7 @@ export function selecteurEtiquettes({ valeurIds = [], surChoix = () => {}, creer
     }).then(() => {
       rafraichirFenetre = () => {};
       // La fiche se refait après chaque enregistrement : le bouton d'avant n'existe plus, le focus revient sur le nouveau.
-      if (!bouton.isConnected) document.querySelector('[data-action="choisir-etiquettes"]')?.focus();
+      if (!bouton.isConnected) zoneEcran.querySelector('[data-action="choisir-etiquettes"]')?.focus();
     });
   }
 

@@ -1339,7 +1339,7 @@ function entreeDuType(e, type) {
   if (type === 'notes') return e.genre === 'note';
   if (type === 'documents') return e.genre === 'evenement' && e.element.type === 'document';
   if (type === 'affaires') return e.genre === 'evenement' && TYPES_EVENEMENT_AFFAIRE.has(e.element.type);
-  if (type === 'evenements') return e.genre === 'evenement';
+  if (type === 'evenements') return e.genre === 'evenement' && e.element.type !== 'document' && !TYPES_EVENEMENT_AFFAIRE.has(e.element.type);
   return false;
 }
 
