@@ -2,6 +2,14 @@
 
 Écrit le 04/10/2026, mis à jour le 22/10/2026, pour qu'une session neuve reprenne sans que Jérôme ait à recoller quoi que ce soit. **À mettre à jour ou à supprimer une fois les points faits.**
 
+## Rapport du matin : 4e nuit « GO NUIT » (version 2.22.0)
+
+Un seul sujet : le bouton d'enregistrement ne devient jaune qu'après la première lettre tapée (livrable, activité, note, « Planifier », livrable type) ; une activité saisie à la main ne s'enregistre plus sans titre. Une PR, relue par Fable (aucun défaut), fusionnée quand la coche « Tests » est verte. Rien sur la liste d'arrêt.
+
+**À regarder à l'écran** : (1) activité d'une affaire ou d'un projet : bouton gris dès qu'on clique dans le champ, jaune à la 1re lettre ; (2) Entrée sur un titre vide : message « Écris au moins un mot pour l'activité. », rien n'est créé ; (3) onglet Notes : « Ajouter la note » gris tant que la note est vide ; (4) fiche projet, formulaires livrable et activité ouverts : seul « Terminer » est jaune ; (5) Accueil, « Planifier » : effacer le titre prérempli grise le bouton.
+
+**À discuter** : « Ajouter un membre » (Mon espace) pas modifié (test clavier) ; la pastille de type d'activité choisie reste jaune pleine ; double clic rapide sur « Planifier » pouvant créer deux activités (déjà le cas avant, hors de cette PR). Les 4 phrases de Sources restent dans Réglages : Jérôme choisit de les ignorer.
+
 ## Rapport du matin : 3e nuit « GO NUIT » (version 2.21.0)
 
 Décisions N1 à N7 de Jérôme, un sujet par PR, relues par Fable, fusionnées seules quand la coche « Tests » est verte. Rien sur la liste d'arrêt (pas de règles, pas de migration, plateforme clients non déployée).
