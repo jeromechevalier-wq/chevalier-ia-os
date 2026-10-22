@@ -345,14 +345,17 @@ test('C11 Perdue (raison obligatoire), En pause (date de réveil), Rouvrir', asy
   await expect(dialogue(page)).toHaveCount(0);
   await champDoc('crm_affaires', 'a1', 'statut', 'perdue');
   expect(await lireDocument('crm_affaires/a1')).toMatchObject({ etape: 'rdv_fixe', raisonPerdue: 'Prix' });
-  await page.locator('.colonne[data-colonne="perdue"] .colonne-bascule').click();
-  const carte = page.locator('.colonne[data-colonne="perdue"] .carte-affaire[data-affaire="a1"]');
-  await expect(carte).toBeVisible();
-  await carte.locator('.carte-menu').click();
+  // Plus de colonne « Perdues » : l'affaire perdue se retrouve dans la vue Liste, d'où on la rouvre.
+  await expect(page.locator('.carte-affaire[data-affaire="a1"]')).toHaveCount(0);
+  await page.locator('.bascule-vue[data-vue="liste"]').click();
+  const ligne = page.locator('tr.ligne-liste[data-id="a1"]');
+  await expect(ligne).toBeVisible();
+  await ligne.getByRole('button', { name: /^Actions/ }).click();
   await page.locator('.menu-pop').getByRole('menuitem', { name: 'Rouvrir' }).click();
   await champDoc('crm_affaires', 'a1', 'statut', 'ouverte');
   expect((await lireDocument('crm_affaires/a1')).raisonPerdue).toBe('');
-  // En pause
+  // En pause (retour au kanban)
+  await page.locator('.bascule-vue[data-vue="kanban"]').click();
   await page.locator('.carte-affaire[data-affaire="a2"] .carte-menu').click();
   await page.locator('.menu-pop').getByRole('menuitem', { name: 'En pause…' }).click();
   const date = dialogue(page).getByLabel('Date de réveil');
@@ -998,9 +1001,6 @@ test('C22 Kanban des affaires : colonnes avec total en € et nombre d’affaire
   await expect(colonne.locator('.carte-affaire[data-affaire="a2"] .pastille-activite.grise')).toBeVisible();
   // Tri par activité suivante : les retards d'abord
   await expect(colonne.locator('.carte-affaire').first()).toHaveAttribute('data-affaire', 'a1');
-  // Colonnes repliées Perdues et En pause
-  await expect(page.locator('.colonne[data-colonne="perdue"]')).toHaveClass(/repliee/);
-  await expect(page.locator('.colonne[data-colonne="en_pause"]')).toHaveClass(/repliee/);
 });
 
 test('C23 menu : replié par défaut, élargi au clic, état conservé ; sur 390 px, panneau par dessus le contenu', async ({ page }) => {
