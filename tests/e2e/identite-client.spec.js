@@ -209,7 +209,7 @@ test('I6 tâche de projet : pas de « Confiée à » (Jérôme / Charles) chez u
 test('I7 célébration neutre (« Bravo ! », sans Charles ni « Bravo Jérôme ! ») quand une affaire est gagnée chez un client : allumée par défaut', async ({ page }) => {
   await ouvrir(page, 'studio', 'crm/affaires/a1');
   await expect(page.locator('input.titre-editable')).toHaveValue('Audit du lac');
-  await page.locator('[data-action="gagnee"]').click();
+  await page.locator('[data-action="choisir-etape"]').selectOption({ label: 'Gagné' }); // J9 : plus de bouton « Gagnée », on passe par la liste « Étape »
   await expect.poll(async () => (await listerDocuments('clients/studio/crm_affaires')).find((a) => a.id === 'a1').statut).toBe('gagnee');
   await expect(page.locator('.celebration')).toBeVisible();
   await expect(page.locator('.celebration')).toContainText('Bravo');
@@ -221,7 +221,7 @@ test('I7b chez un client dont le réglage « celebrations » est écrit à false
   await ecrireDocument('clients/studio/crm_parametres/reglages', { celebrations: false });
   await ouvrir(page, 'studio', 'crm/affaires/a1');
   await expect(page.locator('input.titre-editable')).toHaveValue('Audit du lac');
-  await page.locator('[data-action="gagnee"]').click();
+  await page.locator('[data-action="choisir-etape"]').selectOption({ label: 'Gagné' }); // J9 : plus de bouton « Gagnée », on passe par la liste « Étape »
   await expect.poll(async () => (await listerDocuments('clients/studio/crm_affaires')).find((a) => a.id === 'a1').statut).toBe('gagnee');
   await page.waitForTimeout(600);
   await expect(page.locator('.celebration, .charles-content')).toHaveCount(0);

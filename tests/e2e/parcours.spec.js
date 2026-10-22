@@ -889,7 +889,7 @@ test('C21 fiche affaire : barre des étapes, Gagnée, montant modifiable, docume
   await page.getByLabel('Montant', { exact: true }).press('Enter');
   await champDoc('crm_affaires', 'a1', 'montant', 1500.5);
   // Gagnée
-  await page.locator('[data-action="gagnee"]').click();
+  await page.locator('[data-action="choisir-etape"]').selectOption({ label: 'Gagné' }); // J9 : plus de bouton « Gagnée », on passe par la liste « Étape »
   await fermerCelebration(page);
   await expect(page.locator('.barre-etapes-fiche .etape.courante')).toHaveText('Gagné');
   await champDoc('crm_affaires', 'a1', 'statut', 'gagnee');
