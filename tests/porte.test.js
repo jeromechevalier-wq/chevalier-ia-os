@@ -494,13 +494,173 @@ describe('porte : le code', () => {
     assert.match(a, /\.update\(partiel\)/);
     assert.match(a, /\.update\(partiel, \{ lastUpdateTime \}\)/);
     assert.equal((a.match(/\.update\(partiel/g) || []).length, 3);
-    for (const f of ['porte.js', 'actions-veille.js', 'validation.js', 'cles.js']) assert.doesNotMatch(lire(f), /\bdb\b|firebase|firestore|recursiveDelete/i, `${f} ne touche pas à la base directement`);
+    for (const f of ['porte.js', 'actions-veille.js', 'actions-automatisations.js', 'validation.js', 'cles.js']) assert.doesNotMatch(lire(f), /\bdb\b|firebase|firestore|recursiveDelete/i, `${f} ne touche pas à la base directement`);
   });
   test('pas de console, de variable d\'environnement, d\'eval ni de processus dans les fichiers de la porte', () => {
-    for (const f of ['adaptateur.js', 'porte.js', 'actions-veille.js', 'validation.js', 'cles.js', 'n8n.js']) assert.doesNotMatch(lire(f), /console\.|process\.env|eval\(|new Function|child_process/, f);
+    for (const f of ['adaptateur.js', 'porte.js', 'actions-veille.js', 'actions-automatisations.js', 'validation.js', 'cles.js', 'n8n.js']) assert.doesNotMatch(lire(f), /console\.|process\.env|eval\(|new Function|child_process/, f);
   });
   test('le nom des tables est écrit dans le code, jamais reçu du workflow', () => {
     const c = lire('actions-veille.js');
     assert.deepEqual([...c.matchAll(/'(veille_[a-z]+)'/g)].map((m) => m[1]).sort(), ['veille_contenus', 'veille_pages', 'veille_resumes', 'veille_sources']);
+  });
+});
+
+// --- Module Automatisations : la file « À valider » (actions propositions.*) ---
+const AUTOM = { audrey: ['veille', 'automatisations'], martin: ['automatisations'], interne: ['automatisations'], sansveille: ['veille'] };
+const PROPOSITION = { id: 'p1', type: 'Nouveau contact', titre: 'Ajouter une personne', resume: 'Reçu par e-mail.', champs: [{ nom: 'Nom', valeur: 'Alice Exemple' }, { nom: 'Ville', valeur: 'Lyon' }], lien: 'https://exemple.test/mail/1', executionId: '42' };
+
+describe('porte : automatisations (propositions)', () => {
+  const prop = (m, cle, action, donnees, workflowId = 'wA1') => m.appeler(cle, { module: 'automatisations', action, workflowId, donnees });
+
+  test('1 rejouer « ajouter » ne crée aucun doublon et répond cree:false', async () => {
+    const m = monde({ modules: AUTOM });
+    const r1 = await prop(m, m.cles.audrey.cle, 'propositions.ajouter', PROPOSITION);
+    assert.equal(r1.statut, 200);
+    assert.deepEqual(r1.corps.resultat, { id: 'p1', cree: true, etat: 'a_valider' });
+    const d = m.base.docs.get('clients/audrey/automatisations_propositions/p1');
+    assert.equal(d.etat, 'a_valider');
+    assert.ok(d.creeLe instanceof Date && d.expireLe instanceof Date);
+    assert.equal(d.expireLe.getTime() - d.creeLe.getTime(), 30 * 86_400_000);
+    assert.deepEqual(d.champsProposes, PROPOSITION.champs);
+    assert.equal(d.executions.proposer, '42');
+    m.base.docs.set('clients/audrey/automatisations_propositions/p1', { ...d, etat: 'validee' });
+    const r2 = await prop(m, m.cles.audrey.cle, 'propositions.ajouter', { ...PROPOSITION, titre: 'Autre titre' });
+    assert.deepEqual(r2.corps.resultat, { id: 'p1', cree: false, etat: 'validee' });
+    assert.equal(m.base.docs.get('clients/audrey/automatisations_propositions/p1').titre, 'Ajouter une personne', 'rien n\'est écrasé');
+    assert.equal([...m.base.docs.keys()].filter((c) => c.includes('automatisations_propositions')).length, 1);
+  });
+
+  test('2 un champ inconnu, un secret, un objet libre, une liste vide ou trop grande sont refusés (rien n\'est écrit)', async () => {
+    const m = monde({ modules: AUTOM });
+    const essais = [
+      { ...PROPOSITION, etat: 'validee' },
+      { ...PROPOSITION, proprietaire: 'martin' },
+      { ...PROPOSITION, titre: 'cia_' + 'a'.repeat(30) },
+      { ...PROPOSITION, resume: 'A'.repeat(45) },
+      { ...PROPOSITION, champs: [{ nom: 'Nom', valeur: 'ghp_' + 'a'.repeat(30) }] },
+      { ...PROPOSITION, champs: [{ nom: 'Nom', valeur: 'x', autre: 'y' }] },
+      { ...PROPOSITION, champs: [{ nom: 'Nom', valeur: { a: 1 } }] },
+      { ...PROPOSITION, champs: { Nom: 'x' } },
+      { ...PROPOSITION, champs: [] },
+      { ...PROPOSITION, champs: Array.from({ length: 41 }, (_, i) => ({ nom: `n${i}`, valeur: 'x' })) },
+      { ...PROPOSITION, champs: [{ nom: 'Nom', valeur: 'a' }, { nom: 'Nom', valeur: 'b' }] },
+      { ...PROPOSITION, id: 'P1 / ../x' },
+      { ...PROPOSITION, lien: 'javascript:alert(1)' },
+      { ...PROPOSITION, type: 'T'.repeat(41) },
+      { ...PROPOSITION, titre: '' },
+    ];
+    for (const e of essais) assert.equal((await prop(m, m.cles.audrey.cle, 'propositions.ajouter', e)).statut, 400, JSON.stringify(e).slice(0, 60));
+    assert.equal(m.base.docs.size, 0);
+  });
+
+  test('2 bis un corps de plus de 256 Ko est refusé par la passerelle (413), avant toute écriture', async () => {
+    const m = monde({ modules: AUTOM });
+    const s = createServer(creerGestionnaireHttp(m.porte));
+    await new Promise((r) => s.listen(0, '127.0.0.1', r));
+    try {
+      const corps = { module: 'automatisations', action: 'propositions.ajouter', workflowId: 'wA1', donnees: { ...PROPOSITION, champs: Array.from({ length: 40 }, (_, i) => ({ nom: `n${i}`, valeur: 'a'.repeat(8000) })) } };
+      const r = await fetch(`http://127.0.0.1:${s.address().port}/porte`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${m.cles.audrey.cle}` }, body: JSON.stringify(corps) });
+      assert.equal(r.status, 413);
+      assert.equal(m.base.docs.size, 0);
+    } finally { await new Promise((r) => s.close(r)); }
+  });
+
+  const deposer = async (m, id, valideeLe) => {
+    await prop(m, m.cles.audrey.cle, 'propositions.ajouter', { ...PROPOSITION, id });
+    const c = `clients/audrey/automatisations_propositions/${id}`;
+    if (valideeLe) m.base.docs.set(c, { ...m.base.docs.get(c), etat: 'validee', valideeLe: new Date(valideeLe), champsValides: PROPOSITION.champs, valideePar: 'a@exemple.test', canal: 'interface' });
+  };
+
+  test('3 « lireValidees » ne renvoie que les validées, les plus anciennes d\'abord, avec une limite', async () => {
+    const m = monde({ modules: AUTOM });
+    await deposer(m, 'p-nouvelle', T0);
+    await deposer(m, 'p-b', T0 - 1000);
+    await deposer(m, 'p-a', T0 - 5000);
+    await deposer(m, 'p-attente');
+    await deposer(m, 'p-c', T0 - 3000);
+    const tout = (await prop(m, m.cles.audrey.cle, 'propositions.lireValidees', {})).corps.resultat.propositions;
+    assert.deepEqual(tout.map((p) => p.id), ['p-a', 'p-c', 'p-b', 'p-nouvelle']);
+    assert.equal(tout[0].valideeLe, new Date(T0 - 5000).toISOString(), 'dates en texte');
+    assert.ok(!('ecritPar' in tout[0]) && !('proprietaire' in tout[0]));
+    assert.deepEqual((await prop(m, m.cles.audrey.cle, 'propositions.lireValidees', { limite: 2 })).corps.resultat.propositions.map((p) => p.id), ['p-a', 'p-c']);
+    assert.equal((await prop(m, m.cles.audrey.cle, 'propositions.lireValidees', { limite: 101 })).statut, 400);
+    assert.equal((await prop(m, m.cles.martin.cle, 'propositions.lireValidees', {}, 'wM1')).corps.resultat.propositions.length, 0);
+  });
+
+  test('4 « marquerAppliquee » sur une proposition non validée est refusé ; depuis « validee » elle passe, une seule fois', async () => {
+    const m = monde({ modules: AUTOM });
+    await deposer(m, 'p1');
+    const c = 'clients/audrey/automatisations_propositions/p1';
+    const r = await prop(m, m.cles.audrey.cle, 'propositions.marquerAppliquee', { id: 'p1', executionId: '77' });
+    assert.equal(r.statut, 409);
+    assert.equal(r.corps.erreur, 'transition_interdite');
+    assert.equal(m.base.docs.get(c).etat, 'a_valider');
+    assert.equal((await prop(m, m.cles.audrey.cle, 'propositions.marquerEchec', { id: 'p1', erreur: 'x' })).statut, 409);
+    assert.equal((await prop(m, m.cles.audrey.cle, 'propositions.marquerAppliquee', { id: 'absente' })).statut, 404);
+    m.base.docs.set(c, { ...m.base.docs.get(c), etat: 'validee' });
+    assert.deepEqual((await prop(m, m.cles.audrey.cle, 'propositions.marquerAppliquee', { id: 'p1', executionId: '77' })).corps.resultat, { id: 'p1', etat: 'appliquee' });
+    assert.equal(m.base.docs.get(c).etat, 'appliquee');
+    assert.equal(m.base.docs.get(c).executions.appliquer, '77');
+    assert.equal((await prop(m, m.cles.audrey.cle, 'propositions.marquerAppliquee', { id: 'p1' })).statut, 409, 'état terminal');
+  });
+
+  test('4 bis « marquerEchec » depuis « validee » compte la tentative et garde l\'erreur coupée à 200 caractères', async () => {
+    const m = monde({ modules: AUTOM });
+    await deposer(m, 'p1', T0);
+    const r = await prop(m, m.cles.audrey.cle, 'propositions.marquerEchec', { id: 'p1', erreur: 'E'.repeat(500) });
+    assert.deepEqual(r.corps.resultat, { id: 'p1', etat: 'echec', tentatives: 1 });
+    const d = m.base.docs.get('clients/audrey/automatisations_propositions/p1');
+    assert.equal(d.etat, 'echec');
+    assert.equal(d.derniereErreur.length, 200);
+  });
+
+  test('5 un propriétaire ne voit ni ne modifie jamais les propositions d\'un autre (corps sans propriétaire, chemin écrit dans le code)', async () => {
+    const m = monde({ modules: AUTOM });
+    await deposer(m, 'p1', T0);
+    assert.equal((await prop(m, m.cles.martin.cle, 'propositions.marquerAppliquee', { id: 'p1' }, 'wM1')).statut, 404);
+    assert.equal((await prop(m, m.cles.martin.cle, 'propositions.marquerAppliquee', { id: 'p1', proprietaire: 'audrey' }, 'wM1')).statut, 400);
+    assert.equal((await prop(m, m.cles.martin.cle, 'propositions.lireValidees', {}, 'wM1')).corps.resultat.propositions.length, 0);
+    await prop(m, m.cles.martin.cle, 'propositions.ajouter', { ...PROPOSITION, titre: 'Pour Martin' }, 'wM1');
+    assert.equal(m.base.docs.get('clients/martin/automatisations_propositions/p1').titre, 'Pour Martin');
+    assert.equal(m.base.docs.get('clients/audrey/automatisations_propositions/p1').titre, 'Ajouter une personne');
+    // Un workflow d'Audrey avec la clé de Martin est refusé par le contrôle d'intégrité.
+    assert.equal((await prop(m, m.cles.martin.cle, 'propositions.lireValidees', {}, 'wA1')).statut, 403);
+    // Chez Jérôme (base 1) : racine, jamais sous clients/.
+    const j = monde({ modules: AUTOM, contexte: 'crm' });
+    assert.equal((await prop(j, j.cles.interne.cle, 'propositions.ajouter', PROPOSITION, 'wI1')).statut, 200);
+    assert.ok(j.base.docs.has('automatisations_propositions/p1'));
+  });
+
+  test('6 le journal de la porte ne contient aucun contenu de proposition', async () => {
+    const m = monde({ modules: AUTOM });
+    await prop(m, m.cles.audrey.cle, 'propositions.ajouter', { ...PROPOSITION, titre: 'TITRE-SECRET-123', resume: 'RESUME-SECRET-456', champs: [{ nom: 'NOM-SECRET-789', valeur: 'VALEUR-SECRET-000' }], lien: 'https://lien-secret.test/x' });
+    await prop(m, m.cles.audrey.cle, 'propositions.lireValidees', {});
+    await prop(m, m.cles.audrey.cle, 'propositions.marquerEchec', { id: 'p1', erreur: 'ERREUR-SECRETE-111' });
+    const texte = JSON.stringify(m.journaux);
+    assert.ok(m.journaux.length >= 3);
+    for (const interdit of ['TITRE-SECRET', 'RESUME-SECRET', 'NOM-SECRET', 'VALEUR-SECRET', 'lien-secret', 'ERREUR-SECRETE']) assert.ok(!texte.includes(interdit), interdit);
+    assert.deepEqual(Object.keys(m.journaux[0]).sort(), ['action', 'dureeMs', 'idCourt', 'module', 'proprietaire', 'statut', 'workflowId']);
+  });
+
+  test('7 module « automatisations » inactif pour ce propriétaire : refus 403, rien n\'est écrit', async () => {
+    const m = monde({ modules: AUTOM });
+    const r = await prop(m, m.cles.sansveille.cle, 'propositions.ajouter', PROPOSITION, 'wA1');
+    assert.equal(r.statut, 403);
+    const r2 = await prop(m, m.cles.sansveille.cle, 'propositions.lireValidees', {}, 'wA1');
+    assert.equal(r2.statut, 403);
+    assert.equal(r2.corps.erreur, 'module_non_actif');
+    assert.equal(m.base.docs.size, 0);
+  });
+
+  test('7 bis aucune action « decider » : un workflow ne peut ni valider ni refuser', async () => {
+    const m = monde({ modules: AUTOM });
+    for (const a of ['propositions.decider', 'propositions.valider', 'propositions.refuser', 'propositions.relancer']) assert.equal((await prop(m, m.cles.audrey.cle, a, { id: 'p1' })).corps.erreur, 'action_inconnue', a);
+  });
+
+  test('le nom de la table est écrit dans le code, et les transitions viennent du fichier pur', () => {
+    const c = readFileSync(new URL('../scripts/porte/actions-automatisations.js', import.meta.url), 'utf8').replace(/^\s*\/\/.*$/gm, '');
+    assert.deepEqual([...c.matchAll(/'(automatisations_[a-z]+)'/g)].map((x) => x[1]), ['automatisations_propositions']);
+    assert.match(c, /from '\.\.\/\.\.\/js\/modules\/automatisations\/propositions\.js'/);
+    assert.doesNotMatch(c, /etat: '(validee|appliquee|echec)'/, 'les états de destination viennent des transitions pures');
   });
 });
