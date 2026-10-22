@@ -80,7 +80,7 @@ test('K5 célébration « Bravo Jérôme ! » toujours montrée quand une affair
   await connecter(page, JEROME);
   await page.evaluate(() => { location.hash = '#/crm/affaires/a1'; });
   await expect(page.locator('input.titre-editable')).toHaveValue('Audit du lac');
-  await page.locator('[data-action="gagnee"]').click();
+  await page.locator('[data-action="choisir-etape"]').selectOption({ label: 'Gagné' }); // J9 : plus de bouton « Gagnée », on passe par la liste « Étape »
   await expect(page.locator('.celebration')).toContainText('Bravo Jérôme !');
 });
 
