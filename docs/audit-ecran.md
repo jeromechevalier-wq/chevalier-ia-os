@@ -43,7 +43,7 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // Copies « avant / après » (jamais effacées ; la date expireAt est inerte, exigée par les règles) : lisibles par l'appli (écran Journal), ajout seul depuis l'appli.
+    // Copies « avant / après » (effacées après 90 jours) : lisibles par l'appli (écran Journal), ajout seul depuis l'appli.
     match /crm_audit_avant/{id} {
       allow read: if compteAutorise();
       allow create: if compteAutorise() && request.resource.data.expireAt is timestamp;
