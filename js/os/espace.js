@@ -119,6 +119,7 @@ export async function demarrerEspace(racine) {
       ouvrir(ev.compte);
     } else {
       fermer?.(); fermer = null; emailOuvert = null;
+      import('../modules/crm/activites.js').then((m) => m.oublierFiltresHistorique()).catch(() => {}); // le filtre de l'historique ne passe pas d'un compte à l'autre
       document.body.classList.add('page-espace');
       if (ev.etat === 'deconnecte') pageConnexion(racine, marque, { message: ev.refus ? MESSAGE_REFUS_ESPACE : '', surConnexion: seConnecter });
       else if (ev.etat === 'erreur') pageConnexion(racine, marque, { message: ev.message, surConnexion: seConnecter });

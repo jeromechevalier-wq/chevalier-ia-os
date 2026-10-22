@@ -45,13 +45,20 @@ function controles(liste) {
   ];
 }
 
-async function ouvrirFenetreFiltres(liste, criteres) {
-  const c = L.criteresComplets(liste, criteres);
-  if (liste !== 'affaires') c.villes = [...new Set((c.villes || []).map(L.cleVille))]; // les cases Ville portent la clé normalisée (une ancienne valeur « Manosque » coche la case « manosque »)
+/**
+ * Fenêtre « Filtres » COMMUNE (Personnes, Organisations, Affaires, Projets, historique des fiches) : cases à cocher par groupe, « Tout effacer », « Appliquer ».
+ * controles : [{ cle, libelle, type: 'cases' (options [{ valeur, libelle }]) | 'oui' | 'choix' | 'organisations' }] ;
+ * criteres : les critères complets (chaque clé 'cases' est un tableau de valeurs cochées) ; effacer() : critères après « Tout effacer ».
+ * Renvoie les nouveaux critères, ou null si on ferme sans choisir.
+ */
+export async function fenetreFiltres({ controles: ctls, criteres, effacer }) {
+  const c = { ...criteres };
+  for (const ctl of ctls) if (ctl.type === 'cases') c[ctl.cle] = [...(c[ctl.cle] || [])];
   const corps = h('div', { class: 'pile filtres-corps' });
-  let organisationsChoisies = [...(c.organisations || [])]; // (la liste des Organisations n'a pas ce critère)
+  let organisationsChoisies = [...(c.organisations || [])];
+  let avecOrganisations = false;
   let selecteurOrgs = null;
-  for (const ctl of controles(liste)) {
+  for (const ctl of ctls) {
     if (ctl.type === 'cases') {
       if (!ctl.options.length) continue;
       corps.append(h('fieldset', { class: 'groupe-cases' }, h('legend', { class: 'etiquette' }, ctl.libelle),
@@ -64,6 +71,7 @@ async function ouvrirFenetreFiltres(liste, criteres) {
       corps.append(h('label', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, ctl.libelle),
         h('select', { class: 'champ', dataset: { cle: ctl.cle }, onchange: (e) => { c[ctl.cle] = e.target.value; } }, ctl.options.map((o) => h('option', { value: o.valeur, selected: c[ctl.cle] === o.valeur }, o.libelle)))));
     } else if (ctl.type === 'organisations') {
+      avecOrganisations = true;
       const valeur = organisationsChoisies.map((id) => D.organisation(id)).filter(Boolean).map((o) => ({ id: o.id, libelle: o.nom }));
       selecteurOrgs = champIntelligent({
         etiquette: 'Organisations', placeholder: 'Choisir des organisations', icone: 'building-2', multiple: true, valeur,
@@ -82,9 +90,15 @@ async function ouvrirFenetreFiltres(liste, criteres) {
       { libelle: 'Appliquer', valeur: 'appliquer', style: 'principal' },
     ],
   });
-  if (r === 'effacer') return { ...L.criteresComplets(liste, { recherche: c.recherche }) };
-  if (r === 'appliquer') return liste === 'organisations' ? { ...c } : { ...c, organisations: organisationsChoisies };
+  if (r === 'effacer') return effacer();
+  if (r === 'appliquer') return avecOrganisations ? { ...c, organisations: organisationsChoisies } : c;
   return null;
+}
+
+function ouvrirFenetreFiltres(liste, criteres) {
+  const c = L.criteresComplets(liste, criteres);
+  if (liste !== 'affaires') c.villes = [...new Set((c.villes || []).map(L.cleVille))]; // les cases Ville portent la clé normalisée (une ancienne valeur « Manosque » coche la case « manosque »)
+  return fenetreFiltres({ controles: controles(liste), criteres: c, effacer: () => ({ ...L.criteresComplets(liste, { recherche: c.recherche }) }) });
 }
 
 /**

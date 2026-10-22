@@ -4,7 +4,7 @@ import { h, icone, remplir, dialogue, demanderTexte, toast, ouvrirMenu, lirePref
 import { naviguer } from '../../os/router.js';
 import { celebrerCloture } from '../../os/celebrations.js';
 import * as CRM from '../crm/donnees.js';
-import { boutonFiltres as boutonFiltresCommun } from '../crm/filtres.js';
+import { boutonFiltres as boutonFiltresCommun, fenetreFiltres } from '../crm/filtres.js';
 import * as L from '../crm/logique.js';
 import {
   lienPersonne, lienOrganisation, pastilleActivite, selecteurPersonne, selecteurOrganisation, organisationChoisieOuSaisie, etatVide, planifier, nomCompte,
@@ -260,21 +260,16 @@ export async function ouvrirCreationProjetDepuisAffaire(affaire) {
 
 async function ouvrirFenetreFiltres() {
   const c = P.criteresProjetsComplets(criteres);
-  const groupe = (cle, libelle, options) => h('fieldset', { class: 'groupe-cases' }, h('legend', { class: 'etiquette' }, libelle),
-    h('div', { class: 'cases' }, options.map((o) => h('label', { class: 'case' },
-      h('input', { type: 'checkbox', checked: c[cle].includes(o.id), dataset: { cle, valeur: o.id },
-        onchange: (e) => { c[cle] = e.target.checked ? [...c[cle], o.id] : c[cle].filter((v) => v !== o.id); } }), o.libelle))));
-  const r = await dialogue({
-    titre: 'Filtres',
-    classe: 'dialogue-formulaire dialogue-filtres',
-    contenu: h('div', { class: 'pile filtres-corps' },
-      groupe('phases', 'Phase', P.phasesActives(cfg())),
-      groupe('statuts', 'Statut', P.STATUTS_PROJET),
-      h('label', { class: 'case case-seule' }, h('input', { type: 'checkbox', checked: c.enRetard, dataset: { cle: 'enRetard' }, onchange: (e) => { c.enRetard = e.target.checked; } }), 'En retard')),
-    boutons: [{ libelle: 'Tout effacer', valeur: 'effacer' }, { libelle: 'Appliquer', valeur: 'appliquer', style: 'principal' }],
+  const options = (liste) => liste.map((o) => ({ valeur: o.id, libelle: o.libelle }));
+  return fenetreFiltres({
+    controles: [
+      { cle: 'phases', libelle: 'Phase', type: 'cases', options: options(P.phasesActives(cfg())) },
+      { cle: 'statuts', libelle: 'Statut', type: 'cases', options: options(P.STATUTS_PROJET) },
+      { cle: 'enRetard', libelle: 'En retard', type: 'oui' },
+    ],
+    criteres: c,
+    effacer: () => P.criteresProjetsComplets({ recherche: c.recherche }),
   });
-  if (r === 'effacer') return P.criteresProjetsComplets({ recherche: c.recherche });
-  return r === 'appliquer' ? c : null;
 }
 
 /** Pastilles des filtres posés : [{ libelle, retirer() }]. */
