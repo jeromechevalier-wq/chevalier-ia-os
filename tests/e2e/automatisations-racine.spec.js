@@ -171,33 +171,43 @@ test('Automatisations chez Jérôme administrateur : les filtres se combinent, n
   await connecter(page);
   await page.evaluate(() => { location.hash = '#/automatisations/historique'; });
   const proprio = page.getByLabel('Filtrer par propriétaire');
-  const auto = page.getByLabel('Filtrer par automatisation');
-  const etat = page.getByLabel('Filtrer par état');
+  const dlg = page.getByRole('dialog');
+  const ouvrirFenetre = () => page.locator('[data-action="filtres"]').click();
+  const case_ = (cle, valeur) => dlg.locator(`input[data-cle="${cle}"][data-valeur="${valeur}"]`);
+  const appliquer = () => dlg.getByRole('button', { name: 'Appliquer' }).click();
   await expect(page.locator('.autom-ligne')).toHaveCount(3);
   // (a) les filtres se combinent (ET) : automatisation d'Audrey + état « Terminées » = rien, avec message et bouton
-  await auto.selectOption({ label: 'Rapport Audrey' });
+  await ouvrirFenetre();
+  await case_('workflowIds', 'wfa').check();
+  await appliquer();
   await expect(page.locator('.autom-ligne')).toHaveCount(1);
-  await etat.selectOption('success');
+  await ouvrirFenetre();
+  await case_('etats', 'success').check();
+  await appliquer();
   await expect(page.locator('.autom-ligne')).toHaveCount(0);
-  await expect(page.locator('.autom-aucun-resultat')).toContainText('Aucun résultat pour ces filtres');
+  await expect(page.locator('.autom-aucun-resultat')).toContainText('Rien à afficher avec ces filtres. Décoche un filtre.');
   await page.getByRole('button', { name: 'Réinitialiser les filtres' }).click();
   await expect(page.locator('.autom-ligne')).toHaveCount(3);
-  await expect(auto).toHaveValue('');
-  await expect(etat).toHaveValue('');
-  // (b) changer de propriétaire vide les deux autres filtres, qui ne proposent que les valeurs de CE propriétaire
-  await etat.selectOption('success');
+  await expect(page.locator('[data-action="filtres"] .compteur-filtres')).toHaveCount(0);
+  // (b) changer de propriétaire vide les cases cochées, et la fenêtre ne propose que les valeurs de CE propriétaire
+  await ouvrirFenetre();
+  await case_('etats', 'success').check();
+  await appliquer();
   await expect(page.locator('.autom-ligne')).toHaveCount(2);
   await proprio.selectOption('audrey');
-  await expect(etat).toHaveValue('');
-  await expect(auto.locator('option')).toHaveText(['Toutes les automatisations', 'Rapport Audrey']);
-  await expect(etat.locator('option')).toHaveText(['Tous les états', 'En erreur']);
+  await expect(page.locator('[data-action="filtres"] .compteur-filtres')).toHaveCount(0);
+  await ouvrirFenetre();
+  await expect(dlg.locator('input[data-cle="workflowIds"]')).toHaveCount(1);
+  await expect(dlg.getByText('Rapport Audrey')).toBeVisible();
+  await expect(dlg.locator('input[data-cle="etats"]')).toHaveCount(1);
+  await expect(dlg.locator('input[data-cle="etats"][data-valeur="error"]')).toHaveCount(1);
+  await dlg.getByRole('button', { name: 'Tout effacer' }).click();
   await expect(page.locator('.autom-ligne')).toHaveCount(1);
   // vue « workflows non reconnus » : pas de liste d'exécutions, les filtres d'automatisation et d'état sont masqués
   await proprio.selectOption('a-verifier');
-  await expect(auto).toBeHidden();
-  await expect(etat).toBeHidden();
+  await expect(page.locator('[data-action="filtres"]')).toBeHidden();
   await expect(page.locator('.autom-averifier')).toHaveCount(2);
   await proprio.selectOption('interne');
-  await expect(auto).toBeVisible();
+  await expect(page.locator('[data-action="filtres"]')).toBeVisible();
   await expect(page.locator('.autom-ligne')).toHaveCount(1);
 });

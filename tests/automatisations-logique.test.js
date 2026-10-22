@@ -31,6 +31,23 @@ describe('états et compteurs', () => {
     assert.deepEqual(L.filtrer(l, { workflowId: 'w1', etat: 'error' }, T).map((e) => e.id), ['2']);
     assert.deepEqual(L.filtrer(l, { workflowId: 'inconnu' }, T), []);
   });
+  test('plusieurs cases : « OU » dans un groupe, « ET » entre les groupes, « en cours » englobe « démarrée »', () => {
+    const l = [exe(1, 'success', 3 * MIN), exe(2, 'error', MIN), exe(3, 'running', 2 * MIN, { workflowId: 'w2' }), exe(4, 'running', 30 * MIN), exe(5, 'new', 1000, { workflowId: 'w2' })];
+    assert.deepEqual(L.filtrer(l, { etats: ['error', 'success'] }, T).map((e) => e.id), ['2', '1']);
+    assert.deepEqual(L.filtrer(l, { etats: ['running'] }, T).map((e) => e.id), ['5', '3']);
+    assert.deepEqual(L.filtrer(l, { etats: ['running', 'stale'] }, T).map((e) => e.id), ['5', '3', '4']);
+    assert.deepEqual(L.filtrer(l, { workflowIds: ['w1', 'w2'], etats: ['error', 'running'] }, T).map((e) => e.id), ['5', '2', '3']);
+    assert.deepEqual(L.filtrer(l, { workflowIds: ['w2'], etats: ['error'] }, T), []);
+    assert.deepEqual(L.filtrer(l, { workflowIds: [], etats: [] }, T).length, 5);
+  });
+  test('critères : compte des cases, cases disparues retirées, états sans « Tous les états »', () => {
+    assert.equal(L.compterCriteres(L.criteresVides()), 0);
+    assert.equal(L.compterCriteres({ workflowIds: ['a', 'b'], etats: ['error'] }), 3);
+    assert.deepEqual(L.nettoyerCriteres({ workflowIds: ['a', 'zz'], etats: ['error', 'stale'] }, [{ id: 'a' }], [{ valeur: 'error' }]), { workflowIds: ['a'], etats: ['error'] });
+    const l = [exe(1, 'success', MIN), exe(2, 'error', MIN)];
+    assert.deepEqual(L.optionsEtatCases(l, T).map((o) => o.valeur), ['success', 'error']);
+    assert.deepEqual(L.optionsEtatCases([], T), []);
+  });
 });
 
 describe('textes', () => {

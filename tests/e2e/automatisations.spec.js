@@ -93,18 +93,31 @@ test('J1 écran : quatre compteurs, liste, état « à vérifier » avec son exp
   await expect(page.locator('.autom-liste')).not.toContainText('Mon mois');
 });
 
-test('J2 filtres par automatisation et par état', async ({ page }) => {
+/** Ouvre la fenêtre commune « Filtres », coche ces cases (cle = groupe, valeurs = cases), puis « Appliquer ». */
+async function filtrerAvec(page, cases) {
+  await page.locator('[data-action="filtres"]').click();
+  for (const [cle, valeur] of cases) await page.getByRole('dialog').locator(`input[data-cle="${cle}"][data-valeur="${valeur}"]`).check();
+  await page.getByRole('dialog').getByRole('button', { name: 'Appliquer' }).click();
+}
+async function toutEffacer(page) {
+  await page.locator('[data-action="filtres"]').click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Tout effacer' }).click();
+}
+
+test('J2 filtres par automatisation et par état (fenêtre « Filtres » à cases à cocher)', async ({ page }) => {
   await ouvrir(page, 'cabinet');
   await expect(lignes(page)).toHaveCount(5);
-  await page.getByLabel('Filtrer par état').selectOption('error');
+  await filtrerAvec(page, [['etats', 'error']]);
   await expect(lignes(page)).toHaveCount(1);
-  await page.getByLabel('Filtrer par état').selectOption('stale');
+  await toutEffacer(page);
+  await filtrerAvec(page, [['etats', 'stale']]);
   await expect(lignes(page)).toHaveCount(1);
-  await page.getByLabel('Filtrer par état').selectOption('');
-  await page.getByLabel('Filtrer par automatisation').selectOption('wf1');
+  await toutEffacer(page);
+  await expect(lignes(page)).toHaveCount(5);
+  await filtrerAvec(page, [['workflowIds', 'wf1']]);
   await expect(lignes(page)).toHaveCount(2);
-  await page.getByLabel('Filtrer par état').selectOption('running');
-  await expect(page.locator('.autom-vide')).toContainText('Aucun résultat pour ces filtres');
+  await filtrerAvec(page, [['etats', 'running']]);
+  await expect(page.locator('.autom-vide')).toContainText('Rien à afficher avec ces filtres. Décoche un filtre.');
 });
 
 test('J3 isolation : le journal d\'un autre client n\'apparaît jamais ; un autre client voit le sien seul', { tag: '@sans-telephone' }, async ({ page }) => {
