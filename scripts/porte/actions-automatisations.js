@@ -7,6 +7,7 @@
 // valider ou refuser se fait à l'écran ou par MCP, jamais par un workflow. Le propriétaire vient de la clé, jamais du corps.
 // Le journal de la porte ne reçoit jamais le titre, le résumé, les champs ni le lien (liste blanche dans functions/src/porte.js).
 import { ErreurAction } from './actions-veille.js';
+import { MOTIF_SECRET } from './validation.js';
 // Dans functions/partage/porte/, cet import est réécrit en '../propositions.js' (scripts/preparer-fonctions.js).
 import { DUREE_VALIDITE_MS, ETATS, enMs, marquerAppliquee, marquerEchec } from '../../js/modules/automatisations/propositions.js';
 
@@ -36,19 +37,21 @@ function versJson(doc) {
  * Lit la proposition, applique la transition PURE, écrit seulement les champs qui changent avec la précondition « le document n'a pas changé depuis ma lecture ».
  * Si la précondition échoue (une décision est arrivée entre-temps), on relit UNE fois et on réapplique la règle ; un deuxième échec est une erreur claire.
  */
-async function transition({ base, donnees, auteur }, id, appliquer, champsEcrits) {
+async function transition({ base, donnees, auteur }, id, appliquer, champsEcrits, dejaFait) {
   const chem = chemin(base, id);
   for (let essai = 1; essai <= 2; essai++) {
     const existant = await donnees.lireDoc(chem);
     if (!existant) throw new ErreurAction('proposition_inconnue', 'Proposition inconnue.', 404);
     const { updateTime, ...proposition } = existant;
+    // Idempotence : rappeler la même action (le workflow rejoue après un délai réseau) ne change rien et réussit avec deja: true.
+    if (proposition.etat === dejaFait) return { proposition, deja: true };
     const r = appliquer(proposition);
     if (!r.ok) throw new ErreurAction(r.code, r.message, 409);
     const maj = { ...Object.fromEntries(champsEcrits.map((c) => [c, r.proposition[c]])), ecritPar: auteur };
     const ecrit = await donnees.majDoc(chem, maj, updateTime ? { lastUpdateTime: updateTime } : undefined);
     if (ecrit === false) throw new ErreurAction('proposition_inconnue', 'Proposition inconnue.', 404);
     if (ecrit?.preconditionEchouee === true) continue;
-    return r.proposition;
+    return { proposition: r.proposition, deja: false };
   }
   throw new ErreurAction('conflit_ecriture', 'La proposition a changé pendant l\'écriture : réessayer.', 409);
 }
@@ -85,6 +88,7 @@ export const ACTIONS_AUTOMATISATIONS = Object.freeze({
     schema: { limite: { type: 'nombre', min: 1, max: MAX_LECTURE_VALIDEES } },
     async executer({ base, donnees }, { limite = 50 }) {
       // Un seul filtre (état) et une limite : aucun index composite. On lit toujours le maximum permis puis on trie en mémoire, pour que « limite » garde bien les plus anciennes.
+      // Au-delà de 100 validées, les plus anciennes peuvent manquer (volume faible, acceptable).
       const liste = await donnees.lister(chemin(base), { etat: ETATS.VALIDEE, limite: MAX_LECTURE_VALIDEES });
       liste.sort((a, b) => (enMs(a.valideeLe) ?? 0) - (enMs(b.valideeLe) ?? 0));
       return { propositions: liste.slice(0, Math.floor(limite)).map(versJson) };
@@ -95,8 +99,8 @@ export const ACTIONS_AUTOMATISATIONS = Object.freeze({
     ecrit: true,
     schema: { id: { type: 'idsur', requis: true }, executionId: { type: 'id' } },
     async executer(ctx, { id, executionId }) {
-      const p = await transition(ctx, id, (x) => marquerAppliquee(x, { executionId }), ['etat', 'executions', 'derniereErreur']);
-      return { id, etat: p.etat };
+      const { proposition: p, deja } = await transition(ctx, id, (x) => marquerAppliquee(x, { executionId }), ['etat', 'executions', 'derniereErreur'], ETATS.APPLIQUEE);
+      return { id, etat: p.etat, deja };
     },
   },
 
@@ -104,8 +108,10 @@ export const ACTIONS_AUTOMATISATIONS = Object.freeze({
     ecrit: true,
     schema: { id: { type: 'idsur', requis: true }, erreur: { type: 'texte', max: 1000, min: 1, requis: true } },
     async executer(ctx, { id, erreur }) {
-      const p = await transition(ctx, id, (x) => marquerEchec(x, { erreur }), ['etat', 'tentatives', 'derniereErreur']);
-      return { id, etat: p.etat, tentatives: p.tentatives };
+      // Le type « texte » ne filtre pas les secrets, et un refus (400) laisserait la proposition bloquée en « validée » : on masque au lieu de refuser.
+      const sure = MOTIF_SECRET.test(erreur) ? 'Erreur du workflow (détail masqué : il ressemblait à un secret).' : erreur;
+      const { proposition: p, deja } = await transition(ctx, id, (x) => marquerEchec(x, { erreur: sure }), ['etat', 'tentatives', 'derniereErreur'], ETATS.ECHEC);
+      return { id, etat: p.etat, tentatives: p.tentatives, deja };
     },
   },
 });

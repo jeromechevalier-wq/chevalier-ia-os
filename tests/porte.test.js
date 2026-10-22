@@ -598,18 +598,41 @@ describe('porte : automatisations (propositions)', () => {
     assert.equal((await prop(m, m.cles.audrey.cle, 'propositions.marquerEchec', { id: 'p1', erreur: 'x' })).statut, 409);
     assert.equal((await prop(m, m.cles.audrey.cle, 'propositions.marquerAppliquee', { id: 'absente' })).statut, 404);
     m.base.docs.set(c, { ...m.base.docs.get(c), etat: 'validee' });
-    assert.deepEqual((await prop(m, m.cles.audrey.cle, 'propositions.marquerAppliquee', { id: 'p1', executionId: '77' })).corps.resultat, { id: 'p1', etat: 'appliquee' });
+    assert.deepEqual((await prop(m, m.cles.audrey.cle, 'propositions.marquerAppliquee', { id: 'p1', executionId: '77' })).corps.resultat, { id: 'p1', etat: 'appliquee', deja: false });
     assert.equal(m.base.docs.get(c).etat, 'appliquee');
     assert.equal(m.base.docs.get(c).executions.appliquer, '77');
-    assert.equal((await prop(m, m.cles.audrey.cle, 'propositions.marquerAppliquee', { id: 'p1' })).statut, 409, 'état terminal');
+    assert.deepEqual((await prop(m, m.cles.audrey.cle, 'propositions.marquerAppliquee', { id: 'p1', executionId: '88' })).corps.resultat, { id: 'p1', etat: 'appliquee', deja: true }, 'rejeu : succès sans rien changer');
+    assert.equal(m.base.docs.get(c).executions.appliquer, '77');
+    assert.equal((await prop(m, m.cles.audrey.cle, 'propositions.marquerEchec', { id: 'p1', erreur: 'x' })).statut, 409, 'appliquee puis échec : interdit');
+  });
+
+  test('4 rejouer « marquerEchec » ne compte pas une tentative de plus ; echec puis appliquee reste interdit', async () => {
+    const m = monde({ modules: AUTOM });
+    await deposer(m, 'p1', T0);
+    const c = 'clients/audrey/automatisations_propositions/p1';
+    assert.deepEqual((await prop(m, m.cles.audrey.cle, 'propositions.marquerEchec', { id: 'p1', erreur: 'panne' })).corps.resultat, { id: 'p1', etat: 'echec', tentatives: 1, deja: false });
+    assert.deepEqual((await prop(m, m.cles.audrey.cle, 'propositions.marquerEchec', { id: 'p1', erreur: 'panne' })).corps.resultat, { id: 'p1', etat: 'echec', tentatives: 1, deja: true });
+    assert.equal(m.base.docs.get(c).tentatives, 1);
+    assert.equal((await prop(m, m.cles.audrey.cle, 'propositions.marquerAppliquee', { id: 'p1' })).statut, 409);
+  });
+
+  test('4 une erreur qui ressemble à un secret est enregistrée masquée (200), jamais renvoyée ni journalisée', async () => {
+    const m = monde({ modules: AUTOM });
+    await deposer(m, 'p1', T0);
+    const secret = 'ghp_' + 'a'.repeat(30);
+    const r = await prop(m, m.cles.audrey.cle, 'propositions.marquerEchec', { id: 'p1', erreur: `Échec avec ${secret}` });
+    assert.equal(r.statut, 200);
+    assert.match(m.base.docs.get('clients/audrey/automatisations_propositions/p1').derniereErreur, /masqué/);
+    assert.ok(!JSON.stringify(m.base.docs.get('clients/audrey/automatisations_propositions/p1')).includes(secret));
+    assert.ok(!JSON.stringify(r).includes(secret) && !JSON.stringify(m.journaux).includes(secret));
   });
 
   test('4 bis « marquerEchec » depuis « validee » compte la tentative et garde l\'erreur coupée à 200 caractères', async () => {
     const m = monde({ modules: AUTOM });
     await deposer(m, 'p1', T0);
-    const r = await prop(m, m.cles.audrey.cle, 'propositions.marquerEchec', { id: 'p1', erreur: 'E'.repeat(500) });
-    assert.deepEqual(r.corps.resultat, { id: 'p1', etat: 'echec', tentatives: 1 });
-    const d = m.base.docs.get('clients/audrey/automatisations_propositions/p1');
+    const r = await prop(m, m.cles.audrey.cle, 'propositions.marquerEchec', { id: 'p1', erreur: 'erreur '.repeat(70) });
+    assert.deepEqual(r.corps.resultat, { id: 'p1', etat: 'echec', tentatives: 1, deja: false });
+    const d =m.base.docs.get('clients/audrey/automatisations_propositions/p1');
     assert.equal(d.etat, 'echec');
     assert.equal(d.derniereErreur.length, 200);
   });

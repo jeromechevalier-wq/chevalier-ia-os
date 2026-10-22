@@ -269,23 +269,24 @@ describe('Porte, automatisations et Firestore (émulateur)', { skip: emulateur ?
     assert.equal(refus.statut, 409);
     assert.equal((await db.doc(chemA('p-attente')).get()).data().etat, 'a_valider');
     const ok = await appel(plateforme, cles.audrey.cle, 'propositions.marquerAppliquee', { id: 'p-a', executionId: '99' }, 'wA');
-    assert.deepEqual(ok.corps.resultat, { id: 'p-a', etat: 'appliquee' });
+    assert.deepEqual(ok.corps.resultat, { id: 'p-a', etat: 'appliquee', deja: false });
     const a = (await db.doc(chemA('p-a')).get()).data();
     assert.equal(a.etat, 'appliquee');
     assert.equal(a.executions.appliquer, '99');
     assert.equal(a.executions.proposer, '42', 'le reste de « executions » est gardé');
     assert.equal(a.titre, 'Ajouter une personne', 'les autres champs ne bougent pas');
     const e = await appel(plateforme, cles.audrey.cle, 'propositions.marquerEchec', { id: 'p-b', erreur: 'Le serveur a répondu 500' }, 'wA');
-    assert.deepEqual(e.corps.resultat, { id: 'p-b', etat: 'echec', tentatives: 1 });
+    assert.deepEqual(e.corps.resultat, { id: 'p-b', etat: 'echec', tentatives: 1, deja: false });
     assert.equal((await db.doc(chemA('p-b')).get()).data().derniereErreur, 'Le serveur a répondu 500');
     assert.equal((await appel(plateforme, cles.audrey.cle, 'propositions.marquerAppliquee', { id: 'p-b' }, 'wA')).statut, 409, 'une proposition en échec doit d\'abord être relancée');
   });
 
-  test('4 bis deux « marquerAppliquee » en même temps : une seule passe (précondition sur le document lu)', async () => {
+  test('4 bis deux « marquerAppliquee » en même temps : une seule écriture, l\'autre appel répond deja:true (précondition sur le document lu)', async () => {
     await appel(plateforme, cles.audrey.cle, 'propositions.ajouter', { ...P, id: 'p-course' }, 'wA');
     await db.doc(chemA('p-course')).update({ etat: 'validee', valideeLe: Timestamp.fromMillis(T) });
     const rs = await Promise.all([1, 2].map((n) => appel(plateforme, cles.audrey.cle, 'propositions.marquerAppliquee', { id: 'p-course', executionId: String(n) }, 'wA')));
-    assert.deepEqual(rs.map((r) => r.statut).sort(), [200, 409]);
+    assert.deepEqual(rs.map((r) => r.statut), [200, 200]);
+    assert.deepEqual(rs.map((r) => r.corps.resultat.deja).sort(), [false, true]);
   });
 
   test('5 isolation : Martin et la racine ne voient rien d\'Audrey, et chacun écrit dans sa propre base', async () => {
