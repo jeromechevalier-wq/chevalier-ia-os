@@ -464,7 +464,7 @@ describe('Suppression et restauration (tests 6 et 10)', () => {
     assert.equal(s.doc('crm_affaires', 'a2').montant, undefined);
   });
 
-  test('test 8 : copie « avant » expirée : message clair', async () => {
+  test('test 8 : copie « avant » manquante : message clair', async () => {
     const s = await demarrer();
     const r = ok(await s.supprimer('code', 'supprimer_note', { id: 'n1' }));
     s.collections.crm_audit_avant = [];

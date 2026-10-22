@@ -2050,6 +2050,7 @@ export const planSupprimerNote = (id) => ({ ecritures: [ecritureSupprimer(C.note
 // restaurer_depuis_audit comprennent aussi les actions de l'écran. Les fonctions ci-dessous sont pures : l'écran leur donne
 // ses valeurs « serveur » (horodatage Firebase, e-mail du compte), les tests des dates ordinaires.
 
+// Date exigée par les règles, inerte : aucune règle d'effacement n'existe (décision de Jérôme du 04/10/2026).
 export const JOURS_COPIES_AUDIT = 90;
 /**
  * Écrit `total` actions par lots de `tailleLot` (chaque lot est atomique, mais pas l'ensemble). `ecrireLot(debut, fin)` écrit un lot ;

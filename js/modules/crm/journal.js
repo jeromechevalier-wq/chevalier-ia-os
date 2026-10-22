@@ -48,7 +48,7 @@ function blocLigne(ligne, ouvert) {
     try {
       const copie = await D.lireCopieJournal(ligne.id);
       remplir(corps, copie ? tableauDifferences(copie)
-        : h('p', { class: 'aide' }, 'Pas de copie « avant / après » pour cette ligne : elle n’a pas pu être écrite.'));
+        : h('p', { class: 'aide' }, 'Pas de copie « avant / après » pour cette ligne.'));
     } catch (e) {
       console.warn(e);
       charge = false;

@@ -78,7 +78,7 @@ describe('Écriture avec audit : le cas normal', () => {
     assert.equal(doc(collections, 'crm_notes', 'n1').via, undefined, 'via marque la création, pas les modifications');
   });
 
-  test('la trace ne contient pas le contenu : paramètres reçus = noms seulement ; contenu et copies dans crm_audit_avant, avec expiration à 90 jours', async () => {
+  test('la trace ne contient pas le contenu : paramètres reçus = noms seulement ; contenu et copies dans crm_audit_avant, avec date expireAt à +90 jours (champ inerte)', async () => {
     const { collections, donnees } = nouveau();
     const r = await executerEcritures({ donnees, ctx: ctx(), outil: 'essai', parametres: { nom: 'Marie Secrète', note: 'x'.repeat(5000) }, operations: [{ type: 'creer', collection: 'crm_personnes', donnees: { nom: 'Marie Secrète' } }] });
     const [l] = lignesAudit(collections, r.operationId);
@@ -274,10 +274,10 @@ describe('Restauration d’une opération', () => {
     await assert.rejects(() => restaurerOperation({ donnees, ctx: ctx(), operationId: r.operationId, apercu: false }), (e) => e.code === 'restauration_refusee');
   });
 
-  test('test 8 : copie « avant » expirée : message clair, rien n’est touché', async () => {
+  test('test 8 : copie « avant » manquante : message clair, rien n’est touché', async () => {
     const { collections, donnees } = nouveau();
     const r = await faire(donnees, [{ type: 'supprimer', collection: 'crm_notes', id: 'n2' }]);
-    collections.crm_audit_avant = []; // la règle TTL de Google les a effacées
+    collections.crm_audit_avant = []; // copies absentes (simulation)
     await assert.rejects(() => restaurerOperation({ donnees, ctx: ctx(), operationId: r.operationId, apercu: false }), (e) => e.code === 'copie_expiree' && /manquent/.test(e.message) && /sauvegarde/.test(e.message));
     assert.equal(doc(collections, 'crm_notes', 'n2'), undefined);
   });
