@@ -14,6 +14,8 @@ Une automatisation (n8n) lit des e-mails, **propose** quelque chose, et le clien
 - Valider et refuser par MCP : **dans la première version**.
 - Premier cas de test : un workflow qui surveille la boîte professionnelle de Jérôme, avec un contrôle anti-spam et anti-injection, une demande de validation par SMS, et l'état visible dans Automatisations.
 - **Étapes en direct (22/10/2026)** : Jérôme veut voir les étapes d'une automatisation pendant qu'elle tourne, y compris à l'intérieur d'un workflow long (3 à 4 minutes). « En direct » = le rafraîchissement forcé toutes les 10 secondes **tant que la page est ouverte**, déjà en place dans le module. Le **Logger** (écriture des étapes par le workflow, via la porte) est donc **dans le premier module**, pas repoussé.
+- **Qui peut valider chez Jérôme** : ses deux comptes autorisés. L'onglet s'appelle « À valider » et vit dans Automatisations.
+- **Ce que fait « appliquer »** : c'est l'affaire du workflow B de chaque automatisation (écrire dans un tableur, envoyer une confirmation…), pas de la plateforme. Elle n'a aucune action qui crée une fiche CRM. Dans la première nuit, « appliquée » ne fait que changer l'état de la proposition.
 - **Corriger une proposition : seulement connecté à l'interface**, jamais par SMS ni par e-mail (décision de Jérôme).
 - Les indicateurs (KPI) : chantier séparé, voir `docs/tables.md`.
 
@@ -64,7 +66,7 @@ Pas de nouvelle porte ni de jeton maison : la porte de `docs/porte-cles.md` fait
 - pour Chevalier IA OS : ajouter `automatisations` dans `MODULES_DE_LA_PORTE` (`scripts/porte/porte.js:18`) **et** dans la liste `modulesActifs` de `functions/src/porte.js:50` (écrite en dur à `['veille']`), avec les actions `propositions.ajouter`, `propositions.lireValidees`, `propositions.marquerAppliquee` (et `propositions.decider` pour le SMS, voir plus bas) ;
 - pour la plateforme (plus tard) : assembler la porte de la base 2 (`docs/porte-cles.md`, partie 6), avec sa propre clé par client, un compte de service dédié et une réécriture d'adresse.
 
-**Forme d'une proposition** (schéma fixe, aucun objet libre) : `type` (liste), `titre` (120 caractères), `resume` (2 000), `champs` (40 au plus, chacun `{nom, valeur}`), `lien` facultatif, `idsur`. Taille limitée à 256 Ko ; champs inconnus et secrets refusés par la porte.
+**Forme d'une proposition** (schéma fixe, aucun objet libre) : `type` (libellé court écrit par le workflow, 40 caractères, sans liste fermée : la plateforme ne connaît aucun objet métier), `titre` (120 caractères), `resume` (2 000), `champs` (40 au plus, chacun `{nom, valeur}`), `lien` facultatif, `idsur`. Taille limitée à 256 Ko ; champs inconnus et secrets refusés par la porte.
 
 ## Valider sans ouvrir l'interface
 
