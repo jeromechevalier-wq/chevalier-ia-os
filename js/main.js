@@ -90,6 +90,7 @@ function fermerSession() {
   session.coquille?.arreter?.();
   for (const api of session.apis.values()) api.arreter();
   arreterObjectifs();
+  import('./modules/crm/activites.js').then((m) => m.oublierFiltresHistorique()).catch(() => {}); // chargement à la demande : pas de dépendance circulaire
   session = null;
 }
 

@@ -223,6 +223,8 @@ export function ligneActivite(a, aujourdhui, { avecAffaire = true, tousRattachem
 
 // Types cochés dans la fenêtre « Filtres » de l'historique (J1) : mémorisés jusqu'au rechargement de la page, partagés par toutes les fiches (pas de stockage navigateur).
 let typesHistorique = [];
+/** Remet le filtre de l'historique à zéro : appelée à la déconnexion, pour qu'un autre compte connecté dans le même onglet ne hérite pas du filtre du précédent. */
+export function oublierFiltresHistorique() { typesHistorique = []; }
 
 /**
  * Panneau complet. lien : { personneId } | { organisationId } | { affaireId } (filtre de la fiche).
@@ -435,8 +437,8 @@ export function panneauActivite({ lien, liensCreation, avecActivites = true, aff
       h('div', { class: 'points-cles-tete' }, h('h3', { class: 'sous-titre' }, 'Historique'), filtresHistorique.element),
       actifs.length ? h('div', { class: 'pastilles-actives' },
         actifs.map((f) => h('span', { class: 'pastille-filtre' }, f.libelle,
-          h('button', { type: 'button', class: 'pastille-retrait', 'aria-label': `Retirer le filtre : ${f.libelle}`, onclick: () => { typesHistorique = typesHistorique.filter((t) => t !== f.id); rendreHistorique(); } }, icone('x', { taille: 12 })))),
-        actifs.length > 1 ? h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', onclick: () => { typesHistorique = []; rendreHistorique(); } }, 'Tout effacer') : null) : null,
+          h('button', { type: 'button', class: 'pastille-retrait', 'aria-label': `Retirer le filtre : ${f.libelle}`, onclick: () => { typesHistorique = typesHistorique.filter((t) => t !== f.id); rendreHistorique(); filtresHistorique.element.focus(); } }, icone('x', { taille: 12 })))),
+        actifs.length > 1 ? h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', onclick: () => { typesHistorique = []; rendreHistorique(); filtresHistorique.element.focus(); } }, 'Tout effacer') : null) : null,
       entrees.length
         ? h('ol', { class: 'fil' }, entrees.map(ligneHistorique))
         : h('p', { class: 'aide' }, actifs.length ? 'Rien à afficher avec ces filtres. Décoche un filtre.' : 'Rien à afficher pour le moment.'));
