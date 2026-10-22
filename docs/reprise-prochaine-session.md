@@ -2,6 +2,39 @@
 
 Écrit le 04/10/2026, mis à jour le 22/10/2026, pour qu'une session neuve reprenne sans que Jérôme ait à recoller quoi que ce soit. **À mettre à jour ou à supprimer une fois les points faits.**
 
+## Rapport du matin : 5e nuit « GO NUIT » (22 au 23/10/2026, version 2.24.0) : la file « À valider »
+
+Jérôme a donné « GO NUIT » le 22/10/2026 après une longue conception avec Fable (plan : `docs/chemin-client-pilote.md`, tables : `docs/tables.md`). Un sujet par PR, chaque PR relue par Fable avant l'armement de la fusion automatique, fusionnée seule quand la coche « Tests » est verte. **La PR des règles Firestore est sur la liste d'arrêt : elle est laissée ouverte pour Jérôme.**
+
+| Sujet | PR | État |
+|---|---|---|
+| Plan, tables | 187 | fusionnée |
+| États et transitions (fichier pur) | 188 | fusionnée |
+| Porte : actions `propositions.*` | 189 | fusionnée |
+| Fonction `automatisationsDecider` + 5 outils MCP | 190 | fusionnée |
+| Écran « À valider » | 191 | fusionnée |
+| Logger : données et porte (états « en préparation » et « abandonnée », plan d'étapes) | 192 | fusionnée |
+| Logger : chaîne d'étapes à l'écran, « Classer sans suite » | 193 | fusionnée |
+| Documentation, version 2.24.0, wiki | cette PR | – |
+| Règles Firestore (`automatisations_propositions` fermée à l'écriture dans les deux bases) | **à fusionner par Jérôme** | étiquette `a-fusionner-par-jerome` |
+
+**Déjà en ligne chez Jérôme** (chaque fusion déploie les fonctions et le site de son CRM) : la porte avec ses actions, la fonction de validation, les 5 outils MCP (nouvelle conversation Claude nécessaire pour les voir), l'écran Automatisations > À valider. **Pas chez Ingrid** (plateforme clients non déployée).
+
+**À regarder à l'écran (recette de Jérôme)** : (1) Automatisations > « À valider » : une proposition d'essai fictive attend (prénom Alex) ; la valider, puis lancer à la main le workflow `interne-propositions-b-appliquer` : la ligne passe à « appliquée » ; (2) lancer à la main `interne-propositions-a-proposer` (faux e-mail) : une ligne « En préparation » apparaît avec sa chaîne de 5 étapes qui s'allument (peut être rapide : une dizaine de secondes) puis passe dans « À valider » ; (3) « Corriger » une valeur puis valider ; (4) « Refuser » avec une raison ; (5) sur téléphone, la chaîne est verticale sans défilement horizontal. **Cas vide** : « Rien à valider pour l'instant. » ; la zone « En préparation » n'existe pas quand elle est vide. **Cas d'erreur** : message du serveur sous la carte (« Déjà décidée par … »), lecture impossible → bandeau.
+
+**À faire par Jérôme, dans l'ordre** :
+1. **Publier les règles Firestore à la main** après avoir fusionné la PR des règles : console Firebase du projet `chevalier-ia-os` (<https://console.firebase.google.com/project/chevalier-ia-os/firestore/databases/-default-/rules>), coller le contenu de `firestore.rules`. Tant que ce n'est pas fait, la file peut être écrite depuis le navigateur par ses deux comptes (acceptable pour sa propre base). Pour la plateforme clients : rien à déployer cette nuit (la porte de la base 2 et la fonction de validation n'y existent pas). Le choix `regles` du workflow manuel peut être lancé seul, plus tard, pour fermer la collection d'avance.
+2. Réponses aux questions sur les indicateurs (voir `docs/tables.md`, « EN DISCUSSION ») : où vivent les saisies à la main, « Indicateurs » ou « KPI » à l'écran, libellé du module technique, Ingrid (compteurs ou cibles).
+3. S'il veut lire **sa** boîte `jerome.chevalier@gmail.com` : créer la connexion Gmail dans n8n (Credentials > Gmail OAuth2) ; le workflow A utilise aujourd'hui une boîte de test.
+
+**Proposition d'essai restée dans ta base** : la refuser à l'écran (elle passe dans « Traitements récents ») ou la supprimer dans la console Firestore ; aucune porte ni outil MCP ne supprime.
+
+**Décisions prises seul pendant la nuit** : (1) les jetons `cia_` (Claude Code, Hermes) ne peuvent **ni valider ni refuser** par MCP (la validation est la barrière humaine ; seules les connexions Google peuvent décider ; à rouvrir si Jérôme veut ; l'alternative « accepter `jeton:<acteur>` comme décideur pour son seul CRM » a été proposée et écartée) ; (2) le bouton « Classer sans suite » ne dit rien à n8n ; (3) le type d'une proposition est un libellé libre, la plateforme ne connaît aucun objet métier ; (4) l'application réelle d'une proposition (créer une fiche, envoyer un message) est l'affaire du workflow B : l'essai ne crée rien ; (5) modèle d'IA des workflows : `anthropic/claude-sonnet-4.6` (à remplacer par un modèle moins cher ou Jev après essai) ; (6) les décisions MCP ne passent pas par le journal d'audit des outils (elles ne sont pas annulables par la restauration ; la trace est dans la proposition).
+
+**Ce qui n'a pas pu être vérifié avec le vrai système** : l'animation sur un vrai téléphone ; la lecture d'une **vraie** boîte par le déclencheur Gmail ; **Jev** (OpenRouter est bloqué depuis la session de travail ; les sources se contredisent sur la version du modèle) ; la fonction de validation et les 5 outils MCP depuis un vrai Claude ; la plateforme clients.
+
+**Reste à faire** : l'animation fine de la chaîne ; la vraie action du workflow B ; les canaux e-mail et SMS (liens signés, page de confirmation publique : chantier de sécurité à relire) ; la porte de la base 2 ; les indicateurs et le libellé « Maintenance » du Tableau de bord (voir `docs/tables.md`) ; en base 2, `crm_audit` et `mcp_codes` sont écrivables par un éditeur depuis le navigateur (à fermer) ; la plateforme clients (déploiement manuel). **Rien sur les indicateurs, les objectifs ou la plateforme clients ne se fait tant que tout n'a pas été testé sur la plateforme de Jérôme.**
+
 ## Rapport : suppression de la fonctionnalité « En pause » (version 2.23.0)
 
 Décision de Jérôme (22/10/2026) : plus de pause, ni pour les affaires ni pour les projets. Une affaire est ouverte, gagnée ou perdue ; un projet est actif ou terminé ; pour relancer plus tard, on planifie une activité (comme dans Pipedrive). Retiré : bouton et menu « En pause », boîte « Date de réveil », filtre « Statut : En pause », bloc « Reprendre contact » de l'Accueil, outils MCP `mettre_en_pause`, `mettre_projet_en_pause`, `reprendre_projet` (sans alias ; 40 outils pour le profil bibliothécaire). Les 4 affaires de Jérôme qui étaient en pause ont été rouvertes avec `rouvrir_affaire` (accord écrit de Jérôme) ; Ingrid n'en a aucune. Tolérance : un document ancien au statut `en_pause` s'affiche comme ouvert (affaire) ou actif (projet), un filtre enregistré avec « En pause » se lit comme « Ouverte » / « Actif », et les anciens événements « Affaire en pause jusqu'au … » restent dans l'Historique (filtre « Affaires »). Règles Firestore non touchées.
