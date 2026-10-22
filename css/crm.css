@@ -249,6 +249,7 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 .prop-vide.prop-fantome { color: var(--placeholder); font-weight: inherit; }
 .prop-modifier { opacity: 0; width: 28px; height: 28px; }
 .prop:hover .prop-modifier, .prop-modifier:focus-visible { opacity: 1; }
+@media (hover: none) { .prop[data-prop="proprietaire"] .prop-modifier { opacity: 1; } } /* au doigt, pas de survol : le crayon du Propriétaire reste visible (avant, le menu était toujours visible) */
 .prop-lien { color: var(--lien); }
 .resume { gap: var(--esp-4); }
 .ligne-creation { display: flex; align-items: center; gap: var(--esp-3); }
