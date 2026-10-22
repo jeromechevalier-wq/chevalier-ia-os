@@ -6,7 +6,7 @@ import * as D from './donnees.js';
 import * as L from './logique.js';
 import {
   avatar, lienOrganisation, sectionRepliable, champPropriete, selecteurOrganisation, selecteurEtiquettes, listeContacts, titreEditable, selectProprietaire,
-  telecharger, gabaritFiche, lienRetour, saisieEnCours, lignesContact, carteAffaireMini, fournisseurTexte, villesConnues, etatVide, planifier,
+  telecharger, gabaritFiche, lienRetour, saisieEnCours, lignesContact, carteAffaireMini, fournisseurVilles, etatVide, planifier,
 } from './composants.js';
 import { panneauActivite } from './activites.js';
 import { ouvrirCreationAffaire } from './affaires.js';
@@ -134,11 +134,11 @@ export function rendreFichePersonne(conteneur, id) {
       contenu: h('div', { class: 'proprietes' },
         champPropriete({ libelle: 'Prénom', valeur: p.prenom || '', surEnregistrer: (v) => D.majPersonne(p.id, L.patchNomDetaille(v, p.nomFamille)) }).element,
         champPropriete({ libelle: 'Nom de famille', valeur: p.nomFamille || '', surEnregistrer: (v) => D.majPersonne(p.id, L.patchNomDetaille(p.prenom, v)) }).element,
-        prop('Ville', 'ville', { type: 'intelligent', fournir: fournisseurTexte(villesConnues) }).element,
+        prop('Ville', 'ville', { type: 'intelligent', fournir: fournisseurVilles() }).element,
         prop('LinkedIn', 'linkedin', { type: 'url', lienVers: (v) => v }).element,
         prop('Site web', 'siteWeb', { type: 'url', lienVers: (v) => v }).element,
-        champPropriete({ libelle: 'Source', valeur: p.source || '', type: 'liste', fournir: () => D.etat.sources,
-          surEnregistrer: async (v) => { if (v) await D.ajouterValeurListe('sources', v); await D.majPersonne(p.id, { source: v }); } }).element,
+        champPropriete({ libelle: 'Source', valeur: p.source || '', type: 'liste', autoriserCreation: false, fournir: () => D.etat.sources, aideListeVide: 'Aucune source dans la liste : ajoute-en dans Réglages, Sources.',
+          surEnregistrer: (v) => D.majPersonne(p.id, { source: v }) }).element,
         opposition),
     });
 

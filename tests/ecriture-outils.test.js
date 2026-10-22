@@ -652,7 +652,7 @@ describe('Outils des projets : mêmes règles que l’écran, avec audit et rest
     s.doc('crm_affaires', 'a2').description = 'Ancien texte libre resté en base';
     assert.equal('description' in ok(await s.appeler('biblio', 'lire_affaire', { id: 'a2' })).affaire, false);
     refuse(await s.appeler('biblio', 'modifier_affaire', { id: 'a2', description: 'x' }), /Aucun champ.*note épinglée.*modifier_note/);
-    const avec = ok(await s.appeler('biblio', 'modifier_affaire', { id: 'a2', source: 'Salon', description: 'x' }));
+    const avec = ok(await s.appeler('biblio', 'modifier_affaire', { id: 'a2', source: '', description: 'x' }));
     assert.match(avec.avertissement, /description ignoré.*modifier_note/);
     assert.equal(s.doc('crm_affaires', 'a2').description, 'Ancien texte libre resté en base', 'rien n’est écrit dans l’ancien champ');
     // L'agent remplit la note avec modifier_note : elle apparaît alors dans le fil.
