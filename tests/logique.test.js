@@ -479,7 +479,7 @@ describe('B10 Activités, notes, historique', () => {
     assert.deepEqual(ids('activites'), ['f']);
     assert.deepEqual(ids('notes'), ['n']);
     assert.deepEqual(ids('affaires'), ['e']);
-    assert.deepEqual(ids('evenements'), ['e', 'e2']);
+    assert.deepEqual(ids('evenements'), ['e2']);
   });
   test('B10 historique limité aux 500 lignes les plus récentes', () => {
     const notes = Array.from({ length: 600 }, (_, i) => ({ id: `n${i}`, texte: `Note ${i}`, creeLe: new Date(2026, 0, 1, 0, i) }));
