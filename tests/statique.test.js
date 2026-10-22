@@ -263,7 +263,7 @@ describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
   });
 
   test('D4 le code publié (appli) n’utilise ni Cloud Function ni Cloud Storage : le serveur MCP vit dans functions/, jamais publié', () => {
-    // Deux exceptions : le module Automatisations (n8n) appelle deux fonctions du serveur (rafraîchir, renommer), et la veille en appelle une seule,
+    // Deux exceptions : le module Automatisations (n8n) appelle trois fonctions du serveur (rafraîchir, renommer, décider d'une proposition), et la veille en appelle une seule,
     // `veille` (ajouter un lien collé, lancer un résumé : 2026-10-15), et le tableau de bord en appelle une seule, `tableaudebordSaisir`
     // (saisir une date ou une valeur : le serveur contrôle, écrit et journalise) ; aucun Cloud Storage.
     const AVEC_FONCTIONS = ['js/modules/automatisations/donnees.js', 'js/modules/veille/donnees.js', 'js/modules/tableaudebord/donnees.js', 'js/os/mon-espace-donnees.js'];
@@ -272,7 +272,7 @@ describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
       assert.doesNotMatch(t, /firebase-functions|firebase-storage|getStorage|httpsCallable/, f);
     }
     const appels = [...lire('js/modules/automatisations/donnees.js').matchAll(/httpsCallable\(fonctions\(\), '([A-Za-z]+)'\)/g)].map((m) => m[1]);
-    assert.deepEqual([...new Set(appels)].sort(), ['automatisationsAdmin', 'automatisationsRafraichir', 'automatisationsRenommer']); // Admin : compte de Jérôme seulement (vue de tous les propriétaires)
+    assert.deepEqual([...new Set(appels)].sort(), ['automatisationsAdmin', 'automatisationsDecider', 'automatisationsRafraichir', 'automatisationsRenommer']); // Admin : compte de Jérôme seulement (vue de tous les propriétaires) ; Decider : valider, refuser ou relancer une proposition de l'écran « À valider » (le serveur revérifie tout)
     const appelsVeille = [...lire('js/modules/veille/donnees.js').matchAll(/httpsCallable\(fonctions\(\), '([A-Za-z]+)'\)/g)].map((m) => m[1]);
     assert.deepEqual(appelsVeille, ['veille']);
     const appelsTableau = [...lire('js/modules/tableaudebord/donnees.js').matchAll(/httpsCallable\(fonctions\(\), '([A-Za-z]+)'\)/g)].map((m) => m[1]);
