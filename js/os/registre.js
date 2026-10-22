@@ -135,6 +135,7 @@ export const MODULES_DECLARES = geler([
     reglages: { sections: [], resume: 'L’historique se lit : il est rempli par les workflows n8n. Aucun réglage à faire ici pour l’instant.' },
     ecrans: [
       { route: 'automatisations/historique', libelle: 'Historique', icone: 'activity' },
+      { route: 'automatisations/a-valider', libelle: 'À valider', icone: 'inbox' }, // file des propositions des workflows (ajoutée APRÈS l'Historique : la première route du module ne change pas)
     ],
     collections: ['workflows', 'executions', 'sync'],
     outilsMcp: [],

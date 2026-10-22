@@ -1,6 +1,8 @@
 // Module Automatisations (workflows n8n) : règles d'affichage (états, compteurs, filtres, durées, textes). Aucune dépendance (ni Firebase ni DOM) :
 // ce fichier se teste seul (tests/automatisations-logique.test.js). Les libellés viennent du cahier des charges de Jérôme (11/10/2026).
 
+import { estPerimee } from './propositions.js';
+
 export const DELAI_STALE_MS = 10 * 60 * 1000; // « en cours » depuis plus de 10 minutes = à vérifier
 export const DELAI_RAFRAICHIR_MS = 10 * 1000; // entre deux rafraîchissements (bouton) et intervalle de la mise à jour automatique
 export const LIBELLES_ETAT = {
@@ -230,4 +232,49 @@ export function texteBandeauAdmin({ synchroInterne, admin, filtre }) {
     else for (const p of admin?.proprietaires ?? []) if ((filtre === 'tous' || estCategorieWorkflows(filtre) || filtre === p.id) && p.synchro && p.synchro.n8nOk === false) lignes.push(`${p.nom || p.id} : n8n ne répond pas, les données datent de ${enMs(p.synchro.lastSuccessAt) === null ? '—' : hhmmss(enMs(p.synchro.lastSuccessAt))}.`);
   }
   return lignes.length ? lignes.join(' ') : null;
+}
+
+// ---------------------------------------------------------------- écran « À valider » (file de propositions)
+
+export const DELAI_NON_APPLIQUEE_MS = 30 * 60 * 1000; // validée mais pas appliquée depuis plus de 30 minutes = à surveiller (calculé à l'écran, jamais écrit)
+
+/** Une proposition validée (ou relancée) depuis plus de 30 minutes sans être appliquée. Compte depuis `relanceeLe`, sinon `valideeLe`. */
+export function nonAppliqueeDepuisTropLongtemps(p, maintenant) {
+  if (!p || p.etat !== 'validee') return false;
+  const depart = enMs(p.relanceeLe) ?? enMs(p.valideeLe);
+  return depart !== null && maintenant - depart > DELAI_NON_APPLIQUEE_MS;
+}
+
+/** Dernier événement connu d'une proposition (pour trier les traitements récents). */
+export function dernierEvenement(p) {
+  return Math.max(enMs(p.creeLe) ?? 0, enMs(p.valideeLe) ?? 0, enMs(p.refuseeLe) ?? 0, enMs(p.relanceeLe) ?? 0);
+}
+
+/**
+ * Sépare la file : « à valider » (non périmées d'abord, les plus anciennes en premier) et « traitements récents » (tous les autres états, le plus récent d'abord).
+ * Le tri se fait ici, côté client : la requête Firestore n'a ni orderBy ni condition.
+ */
+export function separerPropositions(liste, maintenant) {
+  const valides = (liste || []).filter((p) => p && typeof p === 'object' && typeof p.id === 'string');
+  const aValider = valides.filter((p) => p.etat === 'a_valider')
+    .map((p) => ({ p, perimee: estPerimee(p, maintenant) }))
+    .sort((a, b) => Number(a.perimee) - Number(b.perimee) || (enMs(a.p.creeLe) ?? 0) - (enMs(b.p.creeLe) ?? 0))
+    .map((x) => x.p);
+  const recentes = valides.filter((p) => p.etat !== 'a_valider').sort((a, b) => dernierEvenement(b) - dernierEvenement(a));
+  return { aValider, recentes };
+}
+
+/** Une adresse n'est cliquable que si elle commence par https:// (jamais javascript:, data:, http:). Renvoie l'adresse nettoyée ou null. */
+export function lienSur(valeur) {
+  if (typeof valeur !== 'string') return null;
+  try {
+    const u = new URL(valeur.trim());
+    return u.protocol === 'https:' ? u.href : null;
+  } catch { return null; }
+}
+
+/** Numéros d'exécution n8n présents dans une proposition, en mots (liste vide s'il n'y en a aucun). */
+export function executionsAffichees(p) {
+  const e = p?.executions || {};
+  return [['proposer', 'proposée'], ['appliquer', 'appliquée'], ['refuser', 'refusée']].filter(([cle]) => e[cle] != null && e[cle] !== '').map(([cle, mot]) => `${mot} n° ${e[cle]}`);
 }
