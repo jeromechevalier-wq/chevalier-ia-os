@@ -670,7 +670,8 @@ test('C31 fiche projet : ajouter des tâches (titre seul, ou avec phase et date 
   // une seule ligne « Clique ici… » tant qu'on n'y a pas cliqué ; titre vide : refusé
   await expect(section.locator('[data-action="ajouter-tache"]')).toBeHidden();
   await section.getByLabel('Nouveau livrable').click();
-  await section.locator('[data-action="ajouter-tache"]').click();
+  await expect(section.locator('[data-action="ajouter-tache"]')).toBeDisabled(); // nuit 4 : grisé sans texte ; Entrée affiche le message
+  await section.getByLabel('Nouveau livrable').press('Enter');
   await expect(page.locator('.toast', { hasText: 'Le titre est obligatoire.' })).toBeVisible();
   expect(await listerDocuments('projets_taches')).toHaveLength(0);
   // titre seul (Entrée) : dans la phase du projet, à Jérôme, sans date
@@ -972,7 +973,8 @@ test('C32 fiche d’un modèle : tâches types par phase, délai, modifier, mont
   await expect(section.locator('.groupe-taches[data-phase="livraison"] .tache-titre')).toHaveText(['Créer le rapport', 'Débriefing avec le client']);
   await expect(section.locator('[data-tache-modele="audit-interview"]')).toContainText('Sans date');
   // ajouter : titre obligatoire, délai invalide refusé
-  await section.locator('[data-action="ajouter-tache-modele"]').click();
+  await expect(section.locator('[data-action="ajouter-tache-modele"]')).toBeDisabled(); // nuit 4 : grisé sans texte ; Entrée affiche le message
+  await section.getByLabel('Nouveau livrable type').press('Enter');
   await expect(page.locator('.toast', { hasText: 'Le titre est obligatoire.' })).toBeVisible();
   await section.getByLabel('Nouveau livrable type').fill('Envoyer la facture');
   await section.getByLabel('Phase du livrable type').selectOption('cloture');

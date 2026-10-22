@@ -66,18 +66,20 @@ test('J4 la fiche projet propose les 4 pastilles ; une activité Tâche créée 
   expect((await lireDocument('projets_taches/t1')).fait).toBe(false);
 });
 
-test('J4 cas d’erreur : une activité Tâche sans date est refusée avec un message ; sans titre elle prend le titre par défaut comme les autres types', async ({ page }) => {
+test('J4 cas d’erreur : une activité Tâche sans date est refusée avec un message ; sans titre le bouton est grisé (nuit 4 : plus de titre par défaut à la saisie)', async ({ page }) => {
   await creerProjet('pr1', { titre: 'Audit des Lilas' });
   await connecter(page);
   await aller(page, '#/projets/projets/pr1');
   const panneau = page.locator('.panneau-activite');
   await panneau.getByRole('button', { name: 'Tâche' }).click();
   await panneau.getByLabel('Titre de l’activité').click();
+  await expect(panneau.locator('[data-action="enregistrer-activite"]')).toBeDisabled(); // sans titre : grisé
+  await panneau.getByLabel('Titre de l’activité').fill('Envoyer le devis');
   await panneau.locator('input[type="date"]:visible').fill('');
   await panneau.locator('[data-action="enregistrer-activite"]').click();
   await expect(page.getByText('Choisis une date.')).toBeVisible();
   expect(await listerDocuments('crm_activites')).toHaveLength(0);
   await panneau.locator('input[type="date"]:visible').fill('2026-11-05');
   await panneau.locator('[data-action="enregistrer-activite"]').click();
-  await expect.poll(async () => (await listerDocuments('crm_activites'))[0]).toMatchObject({ type: 'tache', titre: 'Tâche', projetId: 'pr1' });
+  await expect.poll(async () => (await listerDocuments('crm_activites'))[0]).toMatchObject({ type: 'tache', titre: 'Envoyer le devis', projetId: 'pr1' });
 });

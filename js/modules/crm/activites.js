@@ -1,6 +1,6 @@
 // Colonne de droite des fiches : onglets Activité / Notes, Points clés, Historique.
 // Partagée par les fiches personne, organisation et affaire.
-import { h, icone, remplir, dialogue, confirmer, ouvrirMenu, toast } from '../../os/ui.js';
+import { h, icone, remplir, dialogue, confirmer, ouvrirMenu, toast, boutonSelonTexte } from '../../os/ui.js';
 import { retirerAvecAnnulation } from '../../os/retrait.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
@@ -68,10 +68,12 @@ export async function dialogueActivite({ liens, titre = 'Planifier une activité
       onclick: () => {
         if (champTitre.value === L.titreActiviteParDefaut(type)) champTitre.value = L.titreActiviteParDefaut(t.id);
         type = t.id;
+        majPlanifier();
         rendreTypes();
       },
     }, iconeTypeActivite(t.id), t.libelle)));
   }
+  let majPlanifier = () => {}; // branchée au bouton quand la fenêtre est montée
   rendreTypes();
   let identifiant = null;
   const r = await dialogue({
@@ -81,13 +83,17 @@ export async function dialogueActivite({ liens, titre = 'Planifier une activité
       h('label', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Titre'), champTitre),
       h('div', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Date'), date.element),
       h('label', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Heure'), heure)),
+    // Titre prérempli mais effaçable : vide, « Planifier » est grisé (comme « Enregistrer l’activité »).
+    auMontage: ({ boutons }) => { majPlanifier = boutonSelonTexte(boutons.at(-1), champTitre); },
     boutons: [
       { libelle: libelleFermer, valeur: null },
       {
         libelle: libelleOk, valeur: true, style: 'principal',
         avantFermeture: async () => {
           const v = { type, titre: champTitre.value, date: date.valeur(), heure: heure.value, ...liens };
-          if (Object.keys(L.validerActivite(v)).length) { toast('Choisis une date.', { type: 'erreur' }); return false; }
+          const erreurs = L.validerSaisieActivite(v);
+          if (erreurs.titre) { toast(erreurs.titre, { type: 'erreur' }); champTitre.focus(); return false; }
+          if (Object.keys(erreurs).length) { toast('Choisis une date.', { type: 'erreur' }); return false; }
           identifiant = await D.creerActivite(v);
           return true;
         },
@@ -256,14 +262,21 @@ export function panneauActivite({ lien, liensCreation, avecActivites = true, aff
   function rendreTypes() {
     remplir(types, typesProposes.map((t) => h('button', {
       type: 'button', class: `pastille-type${t.id === type ? ' actif' : ''}`, 'aria-pressed': String(t.id === type),
-      onclick: () => { type = t.id; if (!titreModifie) champTitre.value = ''; rendreTypes(); champTitre.focus(); },
+      onclick: () => { type = t.id; if (!titreModifie) champTitre.value = ''; majBoutonActivite(); rendreTypes(); champTitre.focus(); },
     }, iconeTypeActivite(t.id), t.libelle)));
   }
   rendreTypes();
   const boutonActivite = h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'enregistrer-activite', onclick: enregistrerActivite }, 'Enregistrer l’activité');
+  // Grisé tant que le titre est vide, jaune dès la première lettre (consignes-ui.md, 2026-10-22, nuit 4).
+  const majBoutonActivite = boutonSelonTexte(boutonActivite, champTitre);
+  let activiteEnCours = false; // Entrée ou double clic pendant l'écriture ne doivent pas créer deux activités
   async function enregistrerActivite() {
+    if (activiteEnCours) return;
     const v = { type, titre: champTitre.value, date: date.valeur(), heure: champHeure.value, ...liensCreation() };
-    if (Object.keys(L.validerActivite(v)).length) { toast('Choisis une date.', { type: 'erreur' }); return; }
+    const erreurs = L.validerSaisieActivite(v);
+    if (erreurs.titre) { toast(erreurs.titre, { type: 'erreur' }); champTitre.focus(); return; }
+    if (Object.keys(erreurs).length) { toast('Choisis une date.', { type: 'erreur' }); return; }
+    activiteEnCours = true;
     boutonActivite.disabled = true;
     try {
       await D.creerActivite(v);
@@ -277,14 +290,18 @@ export function panneauActivite({ lien, liensCreation, avecActivites = true, aff
       console.warn(e);
       toast('Ajout impossible', { type: 'erreur' });
     }
-    boutonActivite.disabled = false;
+    activiteEnCours = false;
+    majBoutonActivite(); // vide après l'ajout : grisé ; texte conservé après un échec : jaune
   }
   const panneauActiviteSaisie = h('div', { class: 'compositeur-corps replie', role: 'tabpanel', 'aria-label': 'Activité' },
     types, champTitre, h('div', { class: 'ligne-date' }, date.element, champHeure), h('div', { class: 'compositeur-actions' }, boutonActivite));
   // Formulaire replié : une seule ligne « Clique ici… » ; les raccourcis, la date, l'heure et le bouton apparaissent dès qu'on y met le focus.
   function replier(oui) { panneauActiviteSaisie.classList.toggle('replie', oui); }
   panneauActiviteSaisie.addEventListener('focusin', () => replier(false));
-  champTitre.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !champTitre.value) { replier(true); champTitre.blur(); } });
+  champTitre.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); enregistrerActivite(); } // sans texte : le message d'erreur, rien n'est créé
+    else if (e.key === 'Escape' && !champTitre.value) { replier(true); champTitre.blur(); }
+  });
 
   const champNote = h('textarea', { class: 'champ', rows: 3, 'aria-label': 'Nouvelle note', placeholder: 'Écris une note (la dictée du clavier fonctionne ici)…' });
   const boutonNote = h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'ajouter-note', onclick: async () => {
@@ -298,8 +315,9 @@ export function panneauActivite({ lien, liensCreation, avecActivites = true, aff
       console.warn(e);
       toast('Ajout impossible', { type: 'erreur' });
     }
-    boutonNote.disabled = false;
+    majBoutonNote(); // vide après l'ajout : grisé ; texte conservé après un échec : jaune
   } }, 'Ajouter la note');
+  const majBoutonNote = boutonSelonTexte(boutonNote, champNote);
   const panneauNoteSaisie = h('div', { class: 'compositeur-corps', role: 'tabpanel', 'aria-label': 'Notes', hidden: avecActivites }, champNote, h('div', { class: 'compositeur-actions' }, boutonNote));
 
   const ongletActivite = h('button', { type: 'button', role: 'tab', class: 'onglet actif', 'aria-selected': 'true', onclick: () => choisirOnglet('activite') }, icone('calendar', { taille: 16 }), 'Activité');

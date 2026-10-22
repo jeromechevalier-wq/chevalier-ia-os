@@ -60,7 +60,8 @@ test('K1d ajout : le livrable apparaît dans sa phase ; cas d’erreur : titre v
   const section = page.locator('[data-section="projet-taches"]');
   const champ = section.getByLabel('Nouveau livrable');
   await champ.click();
-  await section.locator('[data-action="ajouter-tache"]').click();
+  await expect(section.locator('[data-action="ajouter-tache"]')).toBeDisabled(); // nuit 4 : grisé sans texte ; Entrée affiche le message
+  await champ.press('Enter');
   await expect(page.locator('.toast', { hasText: 'Le titre est obligatoire.' })).toBeVisible();
   await champ.fill('Rapport final');
   await champ.press('Enter');

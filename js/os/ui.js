@@ -244,6 +244,24 @@ export async function confirmer(titre, message, { libelleOk = 'Confirmer', dange
   return r === true;
 }
 
+/**
+ * Bouton d'enregistrement d'un formulaire d'ajout : grisé (style secondaire, `disabled`) tant que le champ ne contient aucun
+ * caractère visible, jaune (`bouton-principal`) et cliquable dès la première lettre. Suit le champ à chaque frappe.
+ * Renvoie `maj()` : à rappeler après un vidage ou un remplissage du champ par programme (la valeur posée par le code
+ * ne déclenche pas d'événement `input`).
+ */
+export function boutonSelonTexte(bouton, champ) {
+  const maj = () => {
+    const plein = /\S/.test(String(champ.value ?? ''));
+    bouton.disabled = !plein;
+    bouton.classList.toggle('bouton-principal', plein);
+    bouton.classList.toggle('bouton-secondaire', !plein);
+  };
+  champ.addEventListener('input', maj);
+  maj();
+  return maj;
+}
+
 /** Demande un texte (ex. nom d'un filtre). Renvoie la chaîne ou null. */
 export async function demanderTexte(titre, { libelle = '', valeur = '', libelleOk = 'Enregistrer' } = {}) {
   const champ = h('input', { type: 'text', class: 'champ', value: valeur, 'aria-label': libelle || titre, autofocus: true });
