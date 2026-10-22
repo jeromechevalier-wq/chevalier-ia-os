@@ -1,6 +1,6 @@
 // Composants du module CRM partagés par les listes et les fiches : sections repliables, propriétés à
 // compléter ("+ Ajouter"), pastilles, liens, sélecteurs intelligents (organisation, personne, étiquettes…).
-import { h, icone, remplir, champIntelligent, lirePreference, ecrirePreference, toast } from '../../os/ui.js';
+import { h, icone, remplir, champIntelligent, dialogue, lirePreference, ecrirePreference, toast } from '../../os/ui.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
 import { estChezClient } from '../../os/contexte.js';
@@ -74,7 +74,7 @@ export function avatar(nom, taille = 36, classe = '') {
 }
 
 export function pastilleEtiquette(e) {
-  return h('span', { class: 'pastille-etiquette', style: { '--couleur': e.couleur || '#b98ee0' } }, e.nom);
+  return h('span', { class: 'pastille-etiquette', style: { '--couleur': e.couleur || L.COULEURS_ETIQUETTES[0] } }, e.nom);
 }
 
 export function pastillesEtiquettes(ids) {
@@ -312,7 +312,6 @@ const elementsPersonnes = () => D.etat.personnes.filter((p) => !p.archive).map((
   const org = D.organisation(p.organisationId);
   return { id: p.id, libelle: p.nom, sousTitre: org?.nom || L.premierEmail(p), extra: [org?.nom, ...(p.emails || []).map((e) => e.valeur)].filter(Boolean) };
 });
-const elementsEtiquettes = () => D.etat.etiquettes.map((e) => ({ id: e.id, libelle: e.nom, couleur: e.couleur }));
 
 /** Champ "Organisation" : choisir une existante ou la créer à la volée. */
 export function selecteurOrganisation({ valeurId = null, surChoix = () => {}, etiquette = 'Organisation', placeholder = 'Organisation' } = {}) {
@@ -358,22 +357,115 @@ export function selecteurPersonne({ valeurId = null, surChoix = () => {}, etique
   });
 }
 
-/** Champ "Étiquettes" à choix multiple, avec création à la volée. */
-export function selecteurEtiquettes({ valeurIds = [], surChoix = () => {} } = {}) {
-  const valeur = valeurIds.map((id) => elementsEtiquettes().find((e) => e.id === id)).filter(Boolean);
-  return champIntelligent({
-    etiquette: 'Étiquettes', placeholder: 'Ajouter des étiquettes', icone: 'tag', multiple: true, valeur,
-    fournir: (saisie) => {
-      const r = L.rechercherSuggestions(saisie, elementsEtiquettes(), { creer: true });
-      return r;
-    },
-    surCreation: async (texte) => {
-      const id = await D.creerEtiquette(texte);
-      const e = D.etat.etiquettes.find((x) => x.id === id);
-      return { id, libelle: L.nettoyerEspaces(texte), couleur: e?.couleur };
-    },
-    surChoix,
-  });
+const MESSAGE_ETIQUETTE_NON_ENREGISTREE = 'Étiquette non enregistrée : vérifie ta connexion, puis réessaie.';
+
+/**
+ * Champ « Étiquettes » : les étiquettes choisies en pastilles (la croix retire de la fiche, sans toucher aux Réglages) et un bouton « Étiquettes »
+ * qui ouvre la liste de TOUTES les étiquettes à cocher, avec « + Nouvelle étiquette » en bas. Chaque case s'enregistre toute seule : `surChoix(liste)`
+ * est appelé à chaque changement avec les étiquettes choisies ([{ id, libelle, couleur }]) ; s'il échoue, le choix revient en arrière et un message le dit.
+ * `creer(nom)` crée l'étiquette dans les Réglages et renvoie son id (D.creerEtiquette par défaut ; réglable pour les essais).
+ * Renvoie { element, ids() }.
+ */
+export function selecteurEtiquettes({ valeurIds = [], surChoix = () => {}, creer = (nom) => D.creerEtiquette(nom) } = {}) {
+  let ids = valeurIds.filter((id) => D.etat.etiquettes.some((e) => e.id === id));
+  const zone = h('span', { class: 'etiquettes-choisies' });
+  const bouton = h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', 'data-action': 'choisir-etiquettes', onclick: () => ouvrir() },
+    icone('tag', { taille: 14 }), 'Étiquettes');
+  const element = h('div', { class: 'selecteur-etiquettes' }, zone, bouton);
+  let rafraichirFenetre = () => {};
+  const creees = new Map(); // étiquettes créées depuis ce champ : { id, nom, couleur }
+  const choisies = () => ids.map((id) => D.etat.etiquettes.find((e) => e.id === id) || creees.get(id)).filter(Boolean).map((e) => ({ id: e.id, libelle: e.nom, couleur: e.couleur }));
+
+  function rendre() {
+    remplir(zone, ...choisies().map((el) => h('span', { class: 'pastille-choix', 'data-etiquette': el.id, style: { '--couleur': el.couleur || L.COULEURS_ETIQUETTES[0] } },
+      el.libelle,
+      h('button', { type: 'button', class: 'pastille-retrait', 'aria-label': `Retirer ${el.libelle}`, onclick: () => appliquer(ids.filter((x) => x !== el.id)) }, icone('x', { taille: 12 })))));
+  }
+  /** Enregistre le nouveau choix tout de suite ; en cas d'échec, revient au choix d'avant et le dit. */
+  async function appliquer(nouveaux) {
+    const avant = ids;
+    ids = nouveaux;
+    rendre();
+    try {
+      await surChoix(choisies());
+      return true;
+    } catch {
+      ids = avant;
+      rendre();
+      rafraichirFenetre();
+      toast(MESSAGE_ETIQUETTE_NON_ENREGISTREE, { type: 'erreur' });
+      return false;
+    }
+  }
+
+  function ouvrir() {
+    const zoneEcran = element.closest('#app') || document.body; // la fiche se refait : on retrouve le nouveau bouton dans l'écran, pas dans le document entier
+    const liste = h('div', { class: 'liste-etiquettes', role: 'group', 'aria-label': 'Étiquettes' });
+    const message = h('p', { class: 'erreur', role: 'alert' });
+    const nom = h('input', { type: 'text', class: 'champ', 'aria-label': 'Nom de la nouvelle étiquette', placeholder: 'Nom de l’étiquette', autocomplete: 'off', maxlength: '60' });
+    const creerBouton = h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'creer-etiquette', disabled: true }, 'Créer');
+    function rendreListe() {
+      const toutes = D.etat.etiquettes;
+      remplir(liste, ...(toutes.length
+        ? toutes.map((e) => h('label', { class: 'case ligne-etiquette', 'data-etiquette': e.id },
+          h('input', { type: 'checkbox', checked: ids.includes(e.id), onchange: (ev) => appliquer(ev.target.checked ? [...ids, e.id] : ids.filter((x) => x !== e.id)) }),
+          h('span', { class: 'puce-couleur', style: { background: e.couleur || L.COULEURS_ETIQUETTES[0] } }), e.nom))
+        : [h('p', { class: 'vide-liste' }, 'Aucune étiquette pour le moment.')]));
+    }
+    rafraichirFenetre = rendreListe;
+    rendreListe();
+    nom.addEventListener('input', () => { creerBouton.disabled = !L.nettoyerEspaces(nom.value); message.textContent = ''; });
+    let enCours = false;
+    async function creerEtCocher() {
+      const texte = L.nettoyerEspaces(nom.value);
+      if (!texte || enCours) return;
+      message.textContent = '';
+      if (L.etiquetteEnDoublon(texte, D.etat.etiquettes)) { message.textContent = 'Cette étiquette existe déjà.'; return; }
+      enCours = true;
+      try {
+        const couleur = L.couleurEtiquetteSuivante(D.etat.etiquettes);
+        const id = await creer(texte);
+        // L'étiquette qu'on vient de créer est connue d'ici même : on ne dépend pas du moment où la liste des Réglages se met à jour.
+        creees.set(id, { id, nom: texte, couleur });
+        nom.value = '';
+        creerBouton.disabled = true;
+        await appliquer([...ids, id]);
+        rendreListe();
+        nom.focus();
+      } catch {
+        message.textContent = 'Étiquette non créée : vérifie ta connexion, puis réessaie.';
+      } finally {
+        enCours = false;
+      }
+    }
+    creerBouton.addEventListener('click', creerEtCocher);
+    nom.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); creerEtCocher(); } });
+    const contenu = h('div', { class: 'pile' }, liste,
+      h('div', { class: 'nouvelle-etiquette' }, h('span', { class: 'etiquette' }, '+ Nouvelle étiquette'),
+        h('div', { class: 'ligne-creation' }, nom, creerBouton), message));
+    dialogue({
+      titre: 'Étiquettes', classe: 'dialogue-formulaire dialogue-etiquettes', contenu,
+      boutons: [{ libelle: 'Fermer', valeur: true, style: 'principal' }],
+      // dialogue() gère Échap mais pas Tab : on garde le focus dans la fenêtre.
+      auMontage: ({ boite }) => boite.addEventListener('keydown', (e) => {
+        if (e.key !== 'Tab') return;
+        const cibles = [...boite.querySelectorAll('button, input, select, textarea, a[href]')].filter((x) => !x.disabled && !x.hidden && x.getClientRects().length);
+        if (!cibles.length) return;
+        const premier = cibles[0];
+        const dernier = cibles.at(-1);
+        if (!boite.contains(document.activeElement)) { e.preventDefault(); premier.focus(); }
+        else if (e.shiftKey && document.activeElement === premier) { e.preventDefault(); dernier.focus(); }
+        else if (!e.shiftKey && document.activeElement === dernier) { e.preventDefault(); premier.focus(); }
+      }),
+    }).then(() => {
+      rafraichirFenetre = () => {};
+      // La fiche se refait après chaque enregistrement : le bouton d'avant n'existe plus, le focus revient sur le nouveau.
+      if (!bouton.isConnected) zoneEcran.querySelector('[data-action="choisir-etiquettes"]')?.focus();
+    });
+  }
+
+  rendre();
+  return { element, ids: () => [...ids] };
 }
 
 /** Suggestions pour un texte libre à partir de valeurs existantes (ville, secteur, source). */

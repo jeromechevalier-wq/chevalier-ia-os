@@ -505,3 +505,11 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 /* Fiche personne, section Organisation : le nom et les boutons « Détacher » / « Changer » sont centrés sur la même ligne (I13). */
 .contact-ligne.ligne-organisation { align-items: center; flex-wrap: wrap; }
 .contact-ligne.ligne-organisation .icone { margin-top: 0; }
+/* Étiquettes à cocher (N5) : pastilles choisies + bouton « Étiquettes » ; fenêtre avec la liste de toutes les étiquettes. */
+.selecteur-etiquettes { display: flex; flex-wrap: wrap; align-items: center; gap: var(--esp-3); min-width: 0; }
+.etiquettes-choisies { display: contents; }
+.liste-etiquettes { display: flex; flex-direction: column; gap: var(--esp-1); max-height: min(50vh, 360px); overflow-y: auto; }
+.ligne-etiquette { padding: 0 var(--esp-2); border-radius: var(--rayon-petit); }
+.ligne-etiquette:hover { background: var(--survol); }
+.vide-liste { margin: 0; color: var(--texte2); }
+.nouvelle-etiquette { display: flex; flex-direction: column; gap: var(--esp-2); padding-top: var(--esp-4); border-top: 1px solid var(--bordure); }
