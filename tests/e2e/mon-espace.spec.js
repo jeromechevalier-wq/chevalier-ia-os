@@ -519,7 +519,7 @@ test('M18 « Utiliser le logo de mon espace » : cochée par défaut avec un log
   // « Gagnée » : le logo de l'espace dans l'animation
   await page.evaluate(() => { location.hash = '#/espace/studio/crm/affaires/a1'; });
   await expect(page.locator('input.titre-editable')).toHaveValue('Audit du lac');
-  await page.locator('[data-action="gagnee"]').click();
+  await page.locator('[data-action="choisir-etape"]').selectOption({ label: 'Gagné' }); // J9 : plus de bouton « Gagnée », on passe par la liste « Étape »
   const animation = page.locator('.celebration');
   await expect(animation).toBeVisible();
   await expect(animation.locator('img')).toHaveAttribute('src', url);
@@ -532,7 +532,7 @@ test('M18 « Utiliser le logo de mon espace » : cochée par défaut avec un log
   await ecrireDocument('clients/studio/crm_parametres/reglages', { ...(await lireDocument('clients/studio/crm_parametres/reglages')), imageCelebration: 'assets/charles-portrait.png', logoCelebration: false });
   await ouvrir(page, 'crm/affaires/a2');
   await expect(page.locator('input.titre-editable')).toHaveValue('Audit de la rivière');
-  await page.locator('[data-action="gagnee"]').click();
+  await page.locator('[data-action="choisir-etape"]').selectOption({ label: 'Gagné' }); // J9 : plus de bouton « Gagnée », on passe par la liste « Étape »
   await expect(page.locator('.celebration')).toBeVisible();
   await page.waitForTimeout(500);
   await expect(page.locator('.celebration img')).toHaveCount(0);

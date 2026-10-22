@@ -52,7 +52,7 @@ test('X2 une affaire perdue ou gagnée sans projet ne crée aucun projet d’ext
   await expect(page.locator('[data-bloc="extraction"]')).toHaveCount(0);
   // affaire gagnée sans projet : seuls « Créer le projet » et « Lier un projet » sont proposés
   await aller(page, '#/crm/affaires/a2');
-  await page.locator('.fiche-actions [data-action="gagnee"]').click();
+  await page.locator('[data-action="choisir-etape"]').selectOption('gagne'); // J9 : par la liste « Étape » du Résumé
   await expect(page.locator('.celebration')).toBeVisible();
   await page.locator('.celebration').click();
   await expect.poll(async () => (await lireDocument('crm_affaires/a2'))?.statut).toBe('gagnee');

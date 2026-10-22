@@ -57,7 +57,7 @@ export function rendreFicheAffaire(conteneur, id) {
     const vivante = a.statut === 'ouverte' || a.statut === 'gagnee';
     return h('ol', { class: `barre-etapes-fiche${vivante ? '' : ' inactive'}`, 'aria-label': 'Étapes de l’affaire' },
       etapes.map((e, i) => h('li', { class: i <= index ? 'passee' : '', style: { '--couleur': e.couleur } },
-        // Simple indicateur : on change l'étape avec la liste « Étape » du Résumé (ou « Gagnée », « Perdue »).
+        // Simple indicateur : on change l'étape avec la liste « Étape » du Résumé (ou « Perdue » ; la dernière étape = affaire gagnée).
         h('span', { class: `etape${i === index ? ' courante' : ''}`, 'aria-current': i === index && vivante ? 'step' : null, dataset: { etape: e.id }, title: i === index ? `Étape actuelle : ${e.libelle}` : e.libelle }, e.libelle),
         iconeInfo(e.description, e.libelle))));
   }
@@ -76,7 +76,6 @@ export function rendreFicheAffaire(conteneur, id) {
       ]) }, icone('ellipsis', { taille: 20 }));
     const actionsStatut = vivante
       ? [
-        a.statut === 'gagnee' ? null : h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'gagnee', onclick: () => changerEtapeAvecBoites(a, L.etapeGagnee(D.etat.config)) }, icone('trophy', { taille: 16 }), 'Gagnée'),
         h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'perdue', onclick: () => ouvrirPerdue(a) }, 'Perdue'),
         h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'en-pause', onclick: () => ouvrirPause(a) }, 'En pause'),
       ]
@@ -91,8 +90,10 @@ export function rendreFicheAffaire(conteneur, id) {
             a.statut === 'en_pause' ? h('span', { class: 'aide' }, `jusqu’au ${L.formatJour(a.dateReveil)}`) : null,
             a.archive ? h('span', { class: 'badge-archive' }, 'Archivée') : null,
             liens.element)),
-        h('div', { class: 'fiche-montant' }, montant.element),
-        h('div', { class: 'fiche-actions' }, actionsStatut, menu)),
+        // Le montant et les boutons forment une seule zone : même axe vertical, même espace entre voisins.
+        h('div', { class: 'fiche-tete-droite' },
+          h('div', { class: 'fiche-montant' }, montant.element),
+          h('div', { class: 'fiche-actions' }, actionsStatut, menu))),
       barreDesEtapes(a));
 
     // ---- Résumé

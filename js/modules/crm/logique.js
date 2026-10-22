@@ -1330,22 +1330,38 @@ const TYPES_EVENEMENT_AFFAIRE = new Set([
   'affaire_creee', 'etape_changee', 'affaire_gagnee', 'affaire_perdue', 'affaire_en_pause', 'affaire_rouverte', 'encaissement',
 ]);
 
-/** Fil d'historique : activités faites, notes et événements, du plus récent au plus ancien. */
+/** Types cochables dans la fenêtre « Filtres » de l'historique (« Tous » n'est pas une case : rien de coché = tout). */
+export const TYPES_FILTRE_HISTORIQUE = FILTRES_HISTORIQUE.filter((f) => f.id !== 'tous');
+
+/** Une entrée du fil correspond-elle à ce type de filtre ? */
+function entreeDuType(e, type) {
+  if (type === 'activites') return e.genre === 'activite';
+  if (type === 'notes') return e.genre === 'note';
+  if (type === 'documents') return e.genre === 'evenement' && e.element.type === 'document';
+  if (type === 'affaires') return e.genre === 'evenement' && TYPES_EVENEMENT_AFFAIRE.has(e.element.type);
+  if (type === 'evenements') return e.genre === 'evenement';
+  return false;
+}
+
+/** Types de filtre valides, dans l'ordre de la fenêtre. Accepte un tableau ou une chaîne (« tous » ou un type) ; inconnu, vide ou « tous » = []. */
+export function typesHistoriqueValides(filtre) {
+  const liste = Array.isArray(filtre) ? filtre : [filtre];
+  return TYPES_FILTRE_HISTORIQUE.map((f) => f.id).filter((id) => liste.includes(id));
+}
+
+/**
+ * Fil d'historique : activités faites, notes et événements, du plus récent au plus ancien.
+ * `filtre` : une chaîne (« tous », « notes »…) ou un tableau de types (logique OU : au moins un type coché) ; [], undefined et « tous » = tout.
+ */
 export function entreesHistorique({ activites = [], notes = [], evenements = [] }, filtre = 'tous') {
+  const types = typesHistoriqueValides(filtre);
   const entrees = [
     ...activites.filter((a) => a.fait).map((a) => ({ genre: 'activite', date: versDate(a.dateFait) ?? versDate(a.date), element: a })),
     // Une note vide (note épinglée de départ pas encore écrite, I5) n'est pas une entrée de l'historique (ni à l'écran, ni dans la lecture du serveur MCP).
     ...notes.filter((n) => !estNoteVide(n)).map((n) => ({ genre: 'note', date: versDate(n.creeLe), element: n })),
     ...evenements.map((e) => ({ genre: 'evenement', date: versDate(e.date), element: e })),
   ];
-  const gardees = entrees.filter((e) => {
-    if (filtre === 'activites') return e.genre === 'activite';
-    if (filtre === 'notes') return e.genre === 'note';
-    if (filtre === 'documents') return e.genre === 'evenement' && e.element.type === 'document';
-    if (filtre === 'affaires') return e.genre === 'evenement' && TYPES_EVENEMENT_AFFAIRE.has(e.element.type);
-    if (filtre === 'evenements') return e.genre === 'evenement';
-    return true;
-  });
+  const gardees = types.length ? entrees.filter((e) => types.some((t) => entreeDuType(e, t))) : entrees;
   gardees.sort((a, b) => (b.date?.getTime() ?? 0) - (a.date?.getTime() ?? 0));
   return gardees.slice(0, MAX_HISTORIQUE);
 }
@@ -2046,10 +2062,11 @@ export const planSupprimerNote = (id) => ({ ecritures: [ecritureSupprimer(C.note
 // ---------------------------------------------------------------- audit des écritures faites à l'écran
 //
 // Chaque action de l'écran écrit, DANS LE MÊME LOT que les données, une ligne dans crm_audit (qui, quand, quoi, quel document) et une
-// copie « avant / après » dans crm_audit_avant (effacée après 90 jours). Même schéma que le serveur MCP : lire_audit et
+// copie « avant / après » dans crm_audit_avant (gardée sans limite de durée). Même schéma que le serveur MCP : lire_audit et
 // restaurer_depuis_audit comprennent aussi les actions de l'écran. Les fonctions ci-dessous sont pures : l'écran leur donne
 // ses valeurs « serveur » (horodatage Firebase, e-mail du compte), les tests des dates ordinaires.
 
+// Date exigée par les règles, inerte : aucune règle d'effacement n'existe (décision de Jérôme du 04/10/2026).
 export const JOURS_COPIES_AUDIT = 90;
 /**
  * Écrit `total` actions par lots de `tailleLot` (chaque lot est atomique, mais pas l'ensemble). `ecrireLot(debut, fin)` écrit un lot ;
