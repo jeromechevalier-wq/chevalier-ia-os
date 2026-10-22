@@ -32,6 +32,14 @@ test('N1 titres des groupes : « Livrable Lancement » (1) et « Livrables Déco
   await expect(titres.nth(0).locator('.compteur')).toHaveText('0/1');
   await expect(titres.nth(1).locator('.compteur')).toHaveText('0/2');
   await capturer(page, info, 'N1-titres-groupes');
+  // un 2e livrable ajouté dans l'écran : « Livrable Lancement » devient « Livrables Lancement » sans recharger
+  await section.getByLabel('Nouveau livrable').click();
+  await section.getByLabel('Phase du livrable').selectOption('lancement');
+  await section.getByLabel('Nouveau livrable').fill('Réunion de lancement');
+  await section.locator('[data-action="ajouter-tache"]').click();
+  await expect(section.locator('.groupe-taches[data-phase="lancement"] .tache')).toHaveCount(2);
+  await expect(titres.nth(0)).toContainText('Livrables Lancement');
+  await expect(titres.nth(0).locator('.compteur')).toHaveText('0/2');
 });
 
 test('N2 le bouton d’ajout d’un livrable est jaune plein « Enregistrer le livrable » ; titre vide refusé ; l’ajout fonctionne', async ({ page }, info) => {

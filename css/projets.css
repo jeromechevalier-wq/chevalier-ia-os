@@ -23,7 +23,7 @@
 .ajout-tache .selecteur-date, .ajout-tache button[data-action="ajouter-tache"] { grid-column: 1 / -1; }
 .ajout-tache button[data-action="ajouter-tache"] { justify-self: start; }
 .groupe-taches .sous-titre { display: flex; align-items: center; gap: var(--esp-3); margin: var(--esp-5) 0 var(--esp-2); }
-.groupe-taches .titre-livrables { text-transform: none; }
+.groupe-taches .titre-livrables { text-transform: none; letter-spacing: normal; }
 .groupe-taches .compteur { color: var(--texte2); font-size: var(--fs-petit); font-weight: var(--poids-moyen); }
 .case-fait.faite { border-color: var(--succes); background: #6ddba02e; color: var(--succes); }
 .tache-faite .tache-titre { text-decoration: line-through; color: var(--texte2); }
