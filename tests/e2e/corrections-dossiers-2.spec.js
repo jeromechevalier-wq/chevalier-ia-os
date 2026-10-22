@@ -114,14 +114,14 @@ test('P2 « Supprimé · Annuler » : une TÂCHE supprimée revient à l\'identi
   const avant = await lireDocument('projets_taches/t1');
   await page.locator('.tache[data-tache="t1"] [data-action="menu-tache"]').click();
   await page.locator('.menu-pop').getByRole('menuitem', { name: 'Supprimer' }).click();
-  await expect(dialogue(page)).toContainText('Supprimer cette tâche');
+  await expect(dialogue(page)).toContainText('Supprimer ce livrable');
   await dialogue(page).getByRole('button', { name: 'Annuler' }).click(); // d'abord la confirmation : annuler ne supprime rien
   expect(await lireDocument('projets_taches/t1')).not.toBeNull();
   await page.locator('.tache[data-tache="t1"] [data-action="menu-tache"]').click();
   await page.locator('.menu-pop').getByRole('menuitem', { name: 'Supprimer' }).click();
   await confirmer(page, 'Supprimer');
   await expect.poll(async () => await lireDocument('projets_taches/t1')).toBeNull();
-  await expect(page.locator('.toast', { hasText: 'Tâche supprimée' })).toBeVisible();
+  await expect(page.locator('.toast', { hasText: 'Livrable supprimé' })).toBeVisible();
   await capturer(page, 'P2');
   await annulerLeRetrait(page);
   await expect.poll(async () => await lireDocument('projets_taches/t1')).toEqual(avant);
@@ -406,7 +406,7 @@ test('P2 « Supprimé · Annuler » : une TÂCHE TYPE et un MODÈLE DE PROJET su
   const avant = await lireDocument('projets_modeles/audit');
   await page.locator('[data-action="menu-tache-modele"]').first().click();
   await page.locator('.menu-pop').getByRole('menuitem', { name: 'Supprimer' }).click();
-  await expect(dialogue(page)).toContainText('Supprimer cette tâche type');
+  await expect(dialogue(page)).toContainText('Supprimer ce livrable type');
   await confirmer(page, 'Supprimer');
   await expect.poll(async () => (await lireDocument('projets_modeles/audit')).taches.length).toBe(avant.taches.length - 1);
   await annulerLeRetrait(page);

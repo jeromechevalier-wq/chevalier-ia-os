@@ -192,15 +192,15 @@ test('I5 aucun texte au nom de Jérôme sur les écrans d\'un client (accueil, l
   await expect(page.locator('[data-prop="dossier"]')).toBeVisible();
 });
 
-test('I6 tâche de projet : pas de « Confiée à » (Jérôme / Charles) chez un client', async ({ page }) => {
+test('I6 tâche de projet : pas de « Confié à » (Jérôme / Charles) chez un client', async ({ page }) => {
   await ouvrir(page, 'studio', 'projets/projets/pr1');
   const ligne = page.locator('.tache[data-tache="t1"]');
   await expect(ligne).toBeVisible();
   await ligne.locator('[data-action="menu-tache"]').click();
   await page.locator('.menu-pop').getByRole('menuitem', { name: 'Modifier…' }).click();
-  await expect(page.getByRole('dialog').getByLabel('Titre de la tâche')).toBeVisible();
-  await expect(page.getByRole('dialog').getByLabel('Confiée à')).toHaveCount(0);
-  await page.getByRole('dialog').getByLabel('Titre de la tâche').fill('Maquette validée');
+  await expect(page.getByRole('dialog').getByLabel('Titre du livrable')).toBeVisible();
+  await expect(page.getByRole('dialog').getByLabel('Confié à')).toHaveCount(0);
+  await page.getByRole('dialog').getByLabel('Titre du livrable').fill('Maquette validée');
   await page.getByRole('dialog').getByRole('button', { name: 'Enregistrer' }).click();
   await expect.poll(async () => (await listerDocuments('clients/studio/projets_taches')).find((t) => t.id === 't1')?.titre).toBe('Maquette validée');
   expect((await listerDocuments('clients/studio/projets_taches')).find((t) => t.id === 't1').assigneA, 'le champ existant n\'est pas touché').toBe('jerome');

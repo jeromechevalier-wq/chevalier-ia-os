@@ -25,25 +25,25 @@ const texteDate = (t, aujourdhui) => (t.date ? `${L.formatJourCourt(t.date, aujo
 // ---------------------------------------------------------------- modifier une tâche
 
 export async function dialogueTache(t) {
-  const titre = h('input', { class: 'champ', type: 'text', 'aria-label': 'Titre de la tâche', value: t.titre, autofocus: true });
+  const titre = h('input', { class: 'champ', type: 'text', 'aria-label': 'Titre du livrable', value: t.titre, autofocus: true });
   const date = selecteurDate(t.date || '');
   const heure = h('input', { class: 'champ champ-court', type: 'time', 'aria-label': 'Heure (facultatif)', value: t.heure || '' });
-  // « Confiée à » : les membres de l'espace. Un seul membre : pas de choix. Un membre retiré reste affiché « Nom (ancien membre) » tant qu'on ne change pas.
+  // « Confié à » : les membres de l'espace. Un seul membre : pas de choix. Un membre retiré reste affiché « Nom (ancien membre) » tant qu'on ne change pas.
   const membres = P.membresAssignables(cfg());
   const choixVisible = P.choixAssigneVisible(cfg());
   const ancien = t.assigneA && !membres.some((m) => m.id === t.assigneA) ? { id: t.assigneA, libelle: P.libelleAssigne(t.assigneA, cfg(), t.assigneNom) } : null;
-  const assigne = h('select', { class: 'champ', 'aria-label': 'Confiée à' },
+  const assigne = h('select', { class: 'champ', 'aria-label': 'Confié à' },
     [...(ancien ? [ancien] : []), ...membres].map((a) => h('option', { value: a.id, selected: a.id === (t.assigneA || membres[0]?.id) }, a.libelle)));
   const erreur = h('p', { class: 'erreur', role: 'alert' });
   return dialogue({
-    titre: 'Modifier la tâche',
+    titre: 'Modifier le livrable',
     classe: 'dialogue-formulaire',
     contenu: h('div', { class: 'pile' },
       h('label', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Titre'), titre),
       h('div', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Date (facultative)'), date.element,
         h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', 'data-action': 'effacer-date', onclick: () => { date.champ.value = ''; heure.value = ''; } }, 'Sans date')),
       h('label', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Heure (facultative)'), heure),
-      choixVisible ? h('label', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Confiée à'), assigne) : null,
+      choixVisible ? h('label', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Confié à'), assigne) : null,
       erreur),
     boutons: [{ libelle: 'Annuler', valeur: false }, {
       libelle: 'Enregistrer', valeur: true, style: 'principal',
@@ -68,7 +68,7 @@ export async function dialogueTache(t) {
 function titreModifiable(t) {
   const el = h('strong', { class: 'tache-titre activite-titre-modifiable', tabindex: '0', role: 'button', title: 'Cliquer pour modifier le texte', dataset: { role: 'titre-tache' } }, t.titre);
   function editer() {
-    const champ = h('input', { class: 'champ', type: 'text', 'aria-label': 'Modifier le texte de la tâche', value: t.titre, maxlength: '300' });
+    const champ = h('input', { class: 'champ', type: 'text', 'aria-label': 'Modifier le texte du livrable', value: t.titre, maxlength: '300' });
     let fini = false;
     const terminer = async (enregistrer) => {
       if (fini) return;
@@ -98,7 +98,7 @@ export function sectionTaches(projet) {
 
   function ligne(t, g, i) {
     const faite = t.fait;
-    const case_ = h('button', { type: 'button', class: `case-fait${faite ? ' faite' : ''}`, 'aria-pressed': String(faite), 'aria-label': faite ? `Remettre à faire : ${t.titre}` : `Marquer comme faite : ${t.titre}`,
+    const case_ = h('button', { type: 'button', class: `case-fait${faite ? ' faite' : ''}`, 'aria-pressed': String(faite), 'aria-label': faite ? `Remettre à faire : ${t.titre}` : `Marquer comme fait : ${t.titre}`,
       dataset: { action: faite ? 'defaire-tache' : 'faire-tache' }, onclick: () => ou(() => (faite ? D.defaireTache(t.id) : D.faireTache(t.id)), 'Enregistrement impossible') }, icone('check', { taille: 14 }));
     const etat = faite ? 'avenir' : etatDe(t, aujourdhui);
     const menu = h('button', { type: 'button', class: 'bouton-icone', 'aria-label': `Actions : ${t.titre}`, dataset: { action: 'menu-tache' },
@@ -108,8 +108,8 @@ export function sectionTaches(projet) {
         { libelle: 'Descendre', icone: 'arrow-down', desactive: i === g.taches.length - 1, action: () => ou(() => D.deplacerTache(t.id, 1), 'Déplacement impossible') },
         ...P.phasesActives(cfg()).map((ph) => ({ libelle: `Déplacer vers : ${ph.libelle}`, icone: 'arrow-right-left', desactive: ph.id === t.phase, action: () => ou(() => D.majTache(t.id, { phase: ph.id }), 'Déplacement impossible') })),
         { libelle: 'Supprimer', icone: 'trash-2', danger: true, action: () => retirerAvecAnnulation({
-          titre: 'Supprimer cette tâche ?', message: t.titre, libelleOk: 'Supprimer', danger: true, messageErreur: 'Suppression impossible',
-          faire: () => D.supprimerTache(t.id), defaire: () => D.restaurerTache(t), messageFait: 'Tâche supprimée' }) },
+          titre: 'Supprimer ce livrable ?', message: t.titre, libelleOk: 'Supprimer', danger: true, messageErreur: 'Suppression impossible',
+          faire: () => D.supprimerTache(t.id), defaire: () => D.restaurerTache(t), messageFait: 'Livrable supprimé' }) },
       ]) }, icone('ellipsis', { taille: 16 }));
     return h('li', { class: `activite tache activite-${etat}${faite ? ' tache-faite' : ''}`, dataset: { tache: t.id } },
       case_,
@@ -125,8 +125,8 @@ export function sectionTaches(projet) {
   }
 
   // ---- ajout rapide
-  const titre = h('input', { class: 'champ', type: 'text', 'aria-label': 'Nouvelle tâche', placeholder: 'Clique ici pour ajouter une tâche…', autocomplete: 'off' });
-  const phase = h('select', { class: 'champ', 'aria-label': 'Phase de la tâche' }, P.phasesActives(cfg()).map((ph) => h('option', { value: ph.id, selected: ph.id === projet.phase }, ph.libelle)));
+  const titre = h('input', { class: 'champ', type: 'text', 'aria-label': 'Nouveau livrable', placeholder: 'Clique ici pour ajouter un livrable…', autocomplete: 'off' });
+  const phase = h('select', { class: 'champ', 'aria-label': 'Phase du livrable' }, P.phasesActives(cfg()).map((ph) => h('option', { value: ph.id, selected: ph.id === projet.phase }, ph.libelle)));
   const date = selecteurDate('');
   // Pas de gros bouton jaune : un petit bouton à contour dans la zone ouverte (ou la touche Entrée).
   const bouton = h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', 'data-action': 'ajouter-tache', onclick: ajouter }, 'Ajouter');
@@ -138,7 +138,7 @@ export function sectionTaches(projet) {
     date.champ.value = '';
     titre.classList.remove('invalide');
     titre.focus();
-    const ok = await ou(() => D.creerTache(projet.id, saisie), 'Ajout impossible');
+    const ok = await ou(() => D.creerTache(projet.id, saisie), 'Livrable non ajouté : vérifie ta connexion, puis réessaie');
     if (!ok && !titre.value) { titre.value = saisie.titre; date.champ.value = saisie.date; }
   }
   // Comme la zone d'activité de l'affaire : une seule ligne tant qu'on n'y a pas mis le focus ; phase, dates rapides, date et bouton apparaissent au clic.
@@ -161,11 +161,11 @@ export function sectionTaches(projet) {
       ? avecTaches.map((g) => h('div', { class: 'groupe-taches', dataset: { phase: g.phase.id } },
         h('h3', { class: 'sous-titre' }, g.phase.libelle, h('span', { class: 'compteur' }, `${g.faites}/${g.taches.length}`)),
         h('ul', { class: 'liste-activites' }, g.taches.map((t, i) => ligne(t, g, i)))))
-      : h('p', { class: 'aide' }, 'Aucune tâche pour le moment. Ajoute la première ci-dessus.'));
+      : h('p', { class: 'aide' }, 'Aucun livrable pour le moment. Ajoute le premier ci-dessus.'));
     if (compteur) compteur.textContent = toutes.length ? `${progression.faites}/${progression.total}` : '0';
   }
   const section = sectionRepliable({
-    id: 'projet-taches', titre: 'Tâches', compteur: 0,
+    id: 'projet-taches', titre: 'Livrables', compteur: 0,
     contenu: h('div', { class: 'pile' }, zoneAjout, zoneGroupes),
   });
   compteur = section.element.querySelector('.section-compteur');
@@ -178,7 +178,7 @@ export function sectionTaches(projet) {
 /** Ligne d'une tâche de projet dans « En retard » ou « Aujourd'hui » : case à cocher, titre, date, lien vers le projet. `t.projet` : le projet. */
 export function ligneTachePointsCles(t, aujourdhui, { surFait = null } = {}) {
   const etat = etatDe(t, aujourdhui);
-  const bouton = h('button', { type: 'button', class: 'case-fait', 'aria-label': `Marquer comme faite : ${t.titre}`, title: 'Fait', dataset: { action: 'faire-tache' },
+  const bouton = h('button', { type: 'button', class: 'case-fait', 'aria-label': `Marquer comme fait : ${t.titre}`, title: 'Fait', dataset: { action: 'faire-tache' },
     onclick: () => (surFait ? surFait(t) : D.faireTache(t.id)) }, icone('check', { taille: 14 }));
   return h('li', { class: `activite tache activite-${etat}`, dataset: { tache: t.id } },
     bouton,

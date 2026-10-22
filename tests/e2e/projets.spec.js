@@ -665,29 +665,29 @@ test('C31 fiche projet : ajouter des tâches (titre seul, ou avec phase et date 
   await connecter(page);
   await aller(page, '#/projets/projets/pr1');
   const section = page.locator('[data-section="projet-taches"]');
-  await expect(section).toContainText('Aucune tâche pour le moment');
-  await expect(page.locator('[data-prop="avancement"]')).toContainText('Aucune tâche');
+  await expect(section).toContainText('Aucun livrable pour le moment');
+  await expect(page.locator('[data-prop="avancement"]')).toContainText('Aucun livrable');
   // une seule ligne « Clique ici… » tant qu'on n'y a pas cliqué ; titre vide : refusé
   await expect(section.locator('[data-action="ajouter-tache"]')).toBeHidden();
-  await section.getByLabel('Nouvelle tâche').click();
+  await section.getByLabel('Nouveau livrable').click();
   await section.locator('[data-action="ajouter-tache"]').click();
   await expect(page.locator('.toast', { hasText: 'Le titre est obligatoire.' })).toBeVisible();
   expect(await listerDocuments('projets_taches')).toHaveLength(0);
   // titre seul (Entrée) : dans la phase du projet, à Jérôme, sans date
-  await section.getByLabel('Nouvelle tâche').fill('Interview Carrel');
-  await section.getByLabel('Nouvelle tâche').press('Enter');
+  await section.getByLabel('Nouveau livrable').fill('Interview Carrel');
+  await section.getByLabel('Nouveau livrable').press('Enter');
   const t1 = await attendre('projets_taches', (d) => d.titre === 'Interview Carrel');
   expect(t1).toMatchObject({ projetId: 'pr1', phase: 'decouverte', ordre: 1, date: null, fait: false, assigneA: 'jerome', auteur: JEROME });
   // autre phase et date rapide « Demain »
-  await section.getByLabel('Nouvelle tâche').fill('Rédiger le rapport');
-  await section.getByLabel('Phase de la tâche').selectOption('livraison');
+  await section.getByLabel('Nouveau livrable').fill('Rédiger le rapport');
+  await section.getByLabel('Phase du livrable').selectOption('livraison');
   await section.locator('[data-date-rapide="demain"]').click();
   await section.locator('[data-action="ajouter-tache"]').click();
   const t2 = await attendre('projets_taches', (d) => d.titre === 'Rédiger le rapport');
   expect(t2).toMatchObject({ phase: 'livraison', ordre: 1, date: jour(1) });
   // une deuxième tâche dans la même phase passe après la première
-  await section.getByLabel('Nouvelle tâche').fill('Débriefing');
-  await section.getByLabel('Phase de la tâche').selectOption('livraison');
+  await section.getByLabel('Nouveau livrable').fill('Débriefing');
+  await section.getByLabel('Phase du livrable').selectOption('livraison');
   await section.locator('[data-action="ajouter-tache"]').click();
   expect((await attendre('projets_taches', (d) => d.titre === 'Débriefing')).ordre).toBe(2);
   // groupes par phase, dans l'ordre des phases
@@ -695,7 +695,7 @@ test('C31 fiche projet : ajouter des tâches (titre seul, ou avec phase et date 
   await expect(section.locator('.groupe-taches').nth(0)).toHaveAttribute('data-phase', 'decouverte');
   await expect(section.locator('.groupe-taches[data-phase="livraison"] .tache')).toHaveText([/Rédiger le rapport/, /Débriefing/]);
   await expect(section.locator('.groupe-taches[data-phase="livraison"] .compteur')).toHaveText('0/2');
-  await expect(page.locator('[data-prop="avancement"]')).toContainText('0 / 3 tâches');
+  await expect(page.locator('[data-prop="avancement"]')).toContainText('0 / 3 livrables');
   await expect(section.locator('.section-compteur')).toHaveText('0/3');
   // audit : la création laisse sa trace
   expect((await listerDocuments('crm_audit')).filter((l) => l.outil === 'creerTache' && l.collection === 'projets_taches')).toHaveLength(3);
@@ -714,22 +714,22 @@ test('C31 cocher une tâche : fait, date, événement dans l’historique du pro
   await expect(ligne).toHaveClass(/tache-faite/);
   await expect(ligne.locator('.case-fait')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('[data-prop="avancement"] .anneau-progression')).toHaveAttribute('data-faites', '1');
-  await expect(page.locator('[data-prop="avancement"]')).toContainText('1 / 2 tâches');
+  await expect(page.locator('[data-prop="avancement"]')).toContainText('1 / 2 livrables');
   const ev = await attendre('crm_evenements', (e) => e.type === 'tache_faite');
-  expect(ev).toMatchObject({ projetId: 'pr1', texte: 'Tâche faite : Interview Carrel' });
-  await expect(page.locator('.historique')).toContainText('Tâche faite : Interview Carrel');
+  expect(ev).toMatchObject({ projetId: 'pr1', texte: 'Livrable fait : Interview Carrel' });
+  await expect(page.locator('.historique')).toContainText('Livrable fait : Interview Carrel');
   // le Kanban montre le cercle d'avancement
   await allerA(page, 'Projets');
   const anneau = page.locator('.carte-projet[data-projet="pr1"] .anneau-progression');
   await expect(anneau).toHaveAttribute('data-faites', '1');
   await expect(anneau).toHaveAttribute('data-total', '2');
-  await expect(anneau).toHaveAttribute('aria-label', '1 tâche faite sur 2');
+  await expect(anneau).toHaveAttribute('aria-label', '1 livrable fait sur 2');
   // décocher
   await aller(page, '#/projets/projets/pr1');
   await page.locator('.tache[data-tache="t1"] .case-fait').click();
   await champDoc('projets_taches', 't1', 'fait', false);
   expect((await lireDocument('projets_taches/t1')).dateFait).toBeNull();
-  await expect(page.locator('[data-prop="avancement"]')).toContainText('0 / 2 tâches');
+  await expect(page.locator('[data-prop="avancement"]')).toContainText('0 / 2 livrables');
 });
 
 test('C31 le cercle d’avancement n’existe que s’il y a des tâches ; modifier une tâche : titre, date, heure, personne ; « Sans date »', async ({ page }) => {
@@ -746,8 +746,8 @@ test('C31 le cercle d’avancement n’existe que s’il y a des tâches ; modif
   await expect(ligne).toContainText('9 h 30');
   await ligne.locator('[data-action="menu-tache"]').click();
   await page.locator('.menu-pop').getByRole('menuitem', { name: 'Modifier…' }).click();
-  await dialogue(page).getByLabel('Titre de la tâche').fill('Interview Carrel et Martin');
-  await dialogue(page).getByLabel('Confiée à').selectOption('charles');
+  await dialogue(page).getByLabel('Titre du livrable').fill('Interview Carrel et Martin');
+  await dialogue(page).getByLabel('Confié à').selectOption('charles');
   await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
   await expect(dialogue(page)).toHaveCount(0);
   expect(await lireDocument('projets_taches/t1')).toMatchObject({ titre: 'Interview Carrel et Martin', assigneA: 'charles', date: jour(2), heure: '09:30' });
@@ -755,7 +755,7 @@ test('C31 le cercle d’avancement n’existe que s’il y a des tâches ; modif
   // titre vide : message dans la fenêtre, rien n'est écrit
   await ligne.locator('[data-action="menu-tache"]').click();
   await page.locator('.menu-pop').getByRole('menuitem', { name: 'Modifier…' }).click();
-  await dialogue(page).getByLabel('Titre de la tâche').fill('   ');
+  await dialogue(page).getByLabel('Titre du livrable').fill('   ');
   await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
   await expect(dialogue(page).getByRole('alert')).toContainText('Le titre est obligatoire.');
   await dialogue(page).getByRole('button', { name: 'Annuler' }).click();
@@ -938,7 +938,7 @@ test('C32 Modèles de projets (dans les Réglages, plus dans le menu) : la liste
   const m = await attendre('projets_modeles', (d) => d.nom === 'Site vitrine');
   expect(m).toMatchObject({ offreId: null, taches: [], actif: true, ordre: 3 });
   await expect(page.locator('.titre-editable')).toHaveValue('Site vitrine');
-  await expect(page.locator('[data-section="modele-taches"]')).toContainText('n’a pas encore de tâche');
+  await expect(page.locator('[data-section="modele-taches"]')).toContainText('n’a pas encore de livrable');
   // renommer, offre, désactiver
   await page.locator('.titre-editable').fill('Site vitrine pro');
   await page.locator('.titre-editable').press('Enter');
@@ -974,8 +974,8 @@ test('C32 fiche d’un modèle : tâches types par phase, délai, modifier, mont
   // ajouter : titre obligatoire, délai invalide refusé
   await section.locator('[data-action="ajouter-tache-modele"]').click();
   await expect(page.locator('.toast', { hasText: 'Le titre est obligatoire.' })).toBeVisible();
-  await section.getByLabel('Nouvelle tâche type').fill('Envoyer la facture');
-  await section.getByLabel('Phase de la tâche type').selectOption('cloture');
+  await section.getByLabel('Nouveau livrable type').fill('Envoyer la facture');
+  await section.getByLabel('Phase du livrable type').selectOption('cloture');
   await section.getByLabel('Délai en jours (vide = sans date)').fill('5');
   await section.locator('[data-action="ajouter-tache-modele"]').click();
   await expect.poll(async () => (await lireDocument('projets_modeles/audit')).taches.length).toBe(4);
@@ -988,12 +988,12 @@ test('C32 fiche d’un modèle : tâches types par phase, délai, modifier, mont
     await page.locator('.menu-pop').getByRole('menuitem', { name: entree, exact: true }).click();
   };
   await menu('audit-interview', 'Modifier…');
-  await expect(dialogue(page).getByLabel('Titre de la tâche type')).toBeFocused(); // la fenêtre a fini de s'ouvrir (son champ de départ a le curseur)
+  await expect(dialogue(page).getByLabel('Titre du livrable type')).toBeFocused(); // la fenêtre a fini de s'ouvrir (son champ de départ a le curseur)
   await dialogue(page).getByLabel('Délai en jours après le début').fill('-3');
   await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
   await expect(dialogue(page).getByRole('alert')).toContainText('nombre de jours');
   await dialogue(page).getByLabel('Délai en jours après le début').fill('0');
-  await dialogue(page).getByLabel('Titre de la tâche type').fill('Interview du client');
+  await dialogue(page).getByLabel('Titre du livrable type').fill('Interview du client');
   await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
   await expect(dialogue(page)).toHaveCount(0);
   await expect.poll(async () => (await lireDocument('projets_modeles/audit')).taches.find((t) => t.id === 'audit-interview').titre).toBe('Interview du client');
@@ -1144,7 +1144,7 @@ test('C31 enchaîner les tâches au clavier : la tâche ajoutée apparaît tout 
   await connecter(page);
   await aller(page, '#/projets/projets/pr1');
   const section = page.locator('[data-section="projet-taches"]');
-  const champ = section.getByLabel('Nouvelle tâche');
+  const champ = section.getByLabel('Nouveau livrable');
   await champ.fill('Première');
   await champ.press('Enter');
   await expect(champ).toHaveValue('');
@@ -1164,7 +1164,7 @@ test('C32 enchaîner les tâches types au clavier : elles apparaissent tout de s
   await attendreModeles();
   await aller(page, '#/projets/modeles/accompagnement');
   const section = page.locator('[data-section="modele-taches"]');
-  const champ = section.getByLabel('Nouvelle tâche type');
+  const champ = section.getByLabel('Nouveau livrable type');
   await champ.fill('Point mensuel');
   await champ.press('Enter');
   await expect(champ).toHaveValue('');

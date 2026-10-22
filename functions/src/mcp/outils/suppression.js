@@ -21,7 +21,7 @@ export const OUTILS_SUPPRESSION = [
   outil('supprimer_affaire', "Supprime définitivement une affaire, ses activités, notes et événements. Récupérable 90 jours.", {
     id, confirmationNom: confirmation('Le titre exact de l’affaire'), codeConfirmation,
   }, metier.supprimerAffaire),
-  outil('supprimer_projet', "Supprime définitivement un projet, ses tâches et son fil (événements, notes). L'affaire d'origine est gardée, son lien vidé. L'archivage (archiver_projet) est la voie normale. Récupérable 90 jours.", {
+  outil('supprimer_projet', "Supprime définitivement un projet, ses livrables et son fil (événements, notes). L'affaire d'origine est gardée, son lien vidé. L'archivage (archiver_projet) est la voie normale. Récupérable 90 jours.", {
     id, confirmationNom: confirmation('Le titre exact du projet'), codeConfirmation,
   }, metier.supprimerProjet),
   outil('supprimer_note', 'Supprime une note (aperçu puis code, comme les autres). Récupérable 90 jours.', { id, codeConfirmation }, metier.supprimerNote),

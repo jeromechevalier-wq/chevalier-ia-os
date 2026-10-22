@@ -593,7 +593,7 @@ describe('Outils des projets : mêmes règles que l’écran, avec audit et rest
   test('droits : lecture pour les trois profils, écriture pour le bibliothécaire et Claude Code, suppression pour Claude Code seul', async () => {
     const s = await demarrer();
     const noms = async (j) => (await (await s.brut(j, 'tools/list')).json()).result.tools.map((t) => t.name);
-    const ecriture = ['creer_projet', 'creer_projet_depuis_affaire', 'modifier_projet', 'changer_phase_projet', 'mettre_projet_en_pause', 'reprendre_projet', 'rouvrir_projet', 'archiver_projet', 'terminer_projet', 'ajouter_tache_projet', 'terminer_tache_projet', 'ajouter_facture', 'marquer_facture_payee', 'abandonner_facture'];
+    const ecriture = ['creer_projet', 'creer_projet_depuis_affaire', 'modifier_projet', 'changer_phase_projet', 'mettre_projet_en_pause', 'reprendre_projet', 'rouvrir_projet', 'archiver_projet', 'terminer_projet', 'ajouter_livrable_projet', 'terminer_livrable_projet', 'ajouter_facture', 'marquer_facture_payee', 'abandonner_facture'];
     const lecture = ['lister_projets', 'lire_projet', 'lister_modeles_projet'];
     const lecteur = await noms('lecteur'); const biblio = await noms('biblio'); const code = await noms('code');
     for (const o of lecture) assert.ok(lecteur.includes(o) && biblio.includes(o) && code.includes(o), o);
@@ -764,22 +764,26 @@ describe('Outils des projets : mêmes règles que l’écran, avec audit et rest
     assert.equal(projets(s).length, 1);
   });
 
-  test('tâches : ajouter (phase du projet par défaut), valider, terminer avec son événement, remettre à faire', async () => {
+  test('K3 livrables : ajouter_livrable_projet et terminer_livrable_projet (anciens noms retirés), phase du projet par défaut, validation, événement « Livrable fait », remettre à faire', async () => {
     const s = await avecModeles();
     const { id } = ok(await s.appeler('biblio', 'creer_projet', { titre: 'Site', modeleId: 'accompagnement' }));
-    refuse(await s.appeler('biblio', 'ajouter_tache_projet', { projetId: id, titre: ' ' }), /titre/i);
-    refuse(await s.appeler('biblio', 'ajouter_tache_projet', { projetId: id, titre: 'X', phase: 'bidon' }), /Phase inconnue/);
-    refuse(await s.appeler('biblio', 'ajouter_tache_projet', { projetId: id, titre: 'X', assigneA: 'fantome' }), /inconnue/);
-    refuse(await s.appeler('biblio', 'ajouter_tache_projet', { projetId: 'fantome', titre: 'X' }), /Projet introuvable/);
-    const t = ok(await s.appeler('biblio', 'ajouter_tache_projet', { projetId: id, titre: 'Envoyer le devis', date: '2026-10-09', assigneA: 'charles' }));
+    refuse(await s.appeler('biblio', 'ajouter_livrable_projet', { projetId: id, titre: ' ' }), /titre/i);
+    refuse(await s.appeler('biblio', 'ajouter_livrable_projet', { projetId: id, titre: 'X', phase: 'bidon' }), /Phase inconnue/);
+    refuse(await s.appeler('biblio', 'ajouter_livrable_projet', { projetId: id, titre: 'X', assigneA: 'fantome' }), /inconnue/);
+    refuse(await s.appeler('biblio', 'ajouter_livrable_projet', { projetId: 'fantome', titre: 'X' }), /Projet introuvable/);
+    const t = ok(await s.appeler('biblio', 'ajouter_livrable_projet', { projetId: id, titre: 'Envoyer le devis', date: '2026-10-09', assigneA: 'charles' }));
     const tache = s.doc('projets_taches', t.id);
     assert.deepEqual([tache.phase, tache.fait, tache.date, tache.assigneA, tache.projetId], ['lancement', false, '2026-10-09', 'charles', id]);
-    ok(await s.appeler('biblio', 'terminer_tache_projet', { id: t.id }));
+    ok(await s.appeler('biblio', 'terminer_livrable_projet', { id: t.id }));
     assert.equal(s.doc('projets_taches', t.id).fait, true);
     assert.ok(s.collections.crm_evenements.some((e) => e.type === 'tache_faite' && e.projetId === id));
-    assert.equal(ok(await s.appeler('biblio', 'terminer_tache_projet', { id: t.id })).rien, true);
-    ok(await s.appeler('biblio', 'terminer_tache_projet', { id: t.id, fait: false }));
+    assert.equal(ok(await s.appeler('biblio', 'terminer_livrable_projet', { id: t.id })).rien, true);
+    ok(await s.appeler('biblio', 'terminer_livrable_projet', { id: t.id, fait: false }));
     assert.equal(s.doc('projets_taches', t.id).fait, false);
+    // K3 : les anciens noms d'outils n'existent plus (décision de Jérôme : aucun alias)
+    refuse(await s.appeler('biblio', 'ajouter_tache_projet', { projetId: id, titre: 'X' }));
+    refuse(await s.appeler('biblio', 'terminer_tache_projet', { id: t.id }));
+    assert.ok(s.collections.crm_evenements.some((e) => e.texte === 'Livrable fait : Envoyer le devis'));
   });
 
   test('factures : 30 % + 30 % + 40 %, la Clôture est refusée tant qu’une facture est à payer (message avec les factures), deux sorties', async () => {
@@ -828,7 +832,7 @@ describe('Outils des projets : mêmes règles que l’écran, avec audit et rest
     assert.equal(s.doc('projets_projets', id).statut, 'termine');
   });
 
-  test('lecture : lister_projets (filtres, avancement, facturation), lire_projet (tâches, factures, fil), lister_modeles_projet', async () => {
+  test('K3 lecture : lister_projets (filtres, avancement, facturation), lire_projet (clé « livrables », factures, fil), lister_modeles_projet (clé « livrables »)', async () => {
     const s = await avecModeles();
     const a = ok(await s.appeler('biblio', 'creer_projet', { titre: 'Audit des Lilas', personneId: 'p1', modeleId: 'audit' }));
     const b = ok(await s.appeler('biblio', 'creer_projet', { titre: 'Autre projet' }));
@@ -844,10 +848,14 @@ describe('Outils des projets : mêmes règles que l’écran, avec audit et rest
     assert.equal(ok(await s.appeler('lecteur', 'lister_projets', { archive: true })).total, 0);
     const fiche = ok(await s.appeler('lecteur', 'lire_projet', { id: a.id, avecFil: true }));
     assert.equal(fiche.projet.titre, 'Audit des Lilas');
-    assert.equal(fiche.taches.length, 3);
+    assert.equal(fiche.livrables.length, 3);
     assert.equal(fiche.projet.factures.length, 1);
     assert.deepEqual([fiche.personne.nom, 'extraction' in fiche, fiche.fil.some((e) => e.type === 'projet_cree')], ['Camille Durand', false, true]);
     assert.equal(ok(await s.appeler('lecteur', 'lister_modeles_projet', {})).total, 2);
+    // K3 : les modèles et la fiche d'un projet parlent de « livrables » (le stockage garde `taches`, aucune migration)
+    const modeles = ok(await s.appeler('lecteur', 'lister_modeles_projet', {})).modeles;
+    assert.ok(modeles.every((m) => Array.isArray(m.livrables) && !('taches' in m)));
+    assert.ok(!('taches' in fiche));
     assert.ok(ok(await s.appeler('lecteur', 'lire_reglages', {})).referentiels.projets.phases.some((p) => p.id === 'cloture'));
   });
 

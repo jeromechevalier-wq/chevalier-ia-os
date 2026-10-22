@@ -210,7 +210,7 @@ test('Tâche, activité et point clé fonctionnent pareil : sur le projet, je cl
   await connecter(page);
   await aller(page, '#/projets/projets/pr1');
   for (const [ligne, collection, id, titreSel, champTexte, nouveau] of [
-    [page.locator('.tache[data-tache="t1"]'), 'projets_taches', 't1', '[data-role="titre-tache"]', 'Modifier le texte de la tâche', 'Écrire le devis final'],
+    [page.locator('.tache[data-tache="t1"]'), 'projets_taches', 't1', '[data-role="titre-tache"]', 'Modifier le texte du livrable', 'Écrire le devis final'],
     [page.locator('.activite[data-activite="ac1"]'), 'crm_activites', 'ac1', '.activite-titre-modifiable', 'Modifier le texte de l’activité', 'Appeler le client demain'],
   ]) {
     await ligne.locator(titreSel).click(); // clic sur le texte = modifier sur place
