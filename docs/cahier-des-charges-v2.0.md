@@ -91,7 +91,7 @@ Base `(default)`, région `europe-west9` (Paris). Chaque module préfixe ses col
 | `personneId` | Personne | string ou null | non | à renseigner presque toujours ; automatique quand l'affaire naît d'une fiche personne |
 | `organisationId` | Organisation | string ou null | non | reprise de la personne, modifiable |
 | `etape` | Étape | string | auto | une des 6 étapes (section 4) ; défaut `premier_contact` |
-| `statut` | Statut | string | auto | `ouverte`, `gagnee`, `perdue`, `en_pause` ; **dérivé** (section 4) |
+| `statut` | Statut | string | auto | `ouverte`, `gagnee`, `perdue` ; **dérivé** (la pause a été supprimée le 22/10/2026 : une ancienne affaire restée `en_pause` s'affiche comme ouverte) (section 4) |
 | `priorite` | Priorité | string | non | `chaud`, `tiede`, `froid` ; défaut `tiede` |
 | `montant` | Montant (€) | number | non | estimé, puis facturé |
 | `offreId` | Offre envisagée | string | non | identifiant du catalogue `crm_parametres/offres` |
@@ -101,7 +101,7 @@ Base `(default)`, région `europe-west9` (Paris). Chaque module préfixe ses col
 | `dateEntreeEtape` | | timestamp | auto | à chaque changement d'étape |
 | `datesEtapes` | | map étape vers timestamp | auto | première date de chaque étape atteinte |
 | `raisonPerdue`, `raisonPerdueDetail` | Raison si perdue | string | si statut `perdue` | Prix, Pas le moment, Pas de besoin, Concurrent, Sans réponse, Autre |
-| `dateReveil` | Date de réveil | date | si statut `en_pause` | préremplie à +3 mois |
+| ~~`dateReveil`~~ | (supprimé le 22/10/2026 avec la pause) | | | un ancien champ est effacé au prochain changement de l'affaire |
 | `encaissements` | Encaissements | liste de {date, montant, offreId} | auto | ajouté quand l'affaire passe en `facture_payee` |
 | `documents` | Documents | liste de {libelle, url} | non | liens Google Drive |
 | `projetId` | | string ou null | réservé | pour la version 2.1 (Projets) ; toujours vide en 2.0 |
@@ -127,7 +127,7 @@ Base `(default)`, région `europe-west9` (Paris). Chaque module préfixe ses col
 
 ### 3.7 Collection `crm_evenements` (journal automatique)
 
-`type`, `texte` (phrase lisible), `personneId`, `organisationId`, `affaireId`, `auteur`, `date` (timestamp). Types : `personne_creee`, `organisation_creee`, `affaire_creee`, `etape_changee`, `affaire_gagnee`, `affaire_perdue`, `affaire_en_pause`, `affaire_rouverte`, `activite_faite`, `email_envoye`, `encaissement`, `opposition`. Le journal n'enregistre **pas** chaque modification de champ (pour limiter les écritures). Limité à 500 lignes affichées par fiche (les plus récentes).
+`type`, `texte` (phrase lisible), `personneId`, `organisationId`, `affaireId`, `auteur`, `date` (timestamp). Types : `personne_creee`, `organisation_creee`, `affaire_creee`, `etape_changee`, `affaire_gagnee`, `affaire_perdue`, `affaire_en_pause` (anciens événements, encore affichés ; plus créé depuis le 22/10/2026), `affaire_rouverte`, `activite_faite`, `email_envoye`, `encaissement`, `opposition`. Le journal n'enregistre **pas** chaque modification de champ (pour limiter les écritures). Limité à 500 lignes affichées par fiche (les plus récentes).
 
 ### 3.8 Collection `crm_parametres` (un document par réglage)
 
@@ -168,11 +168,11 @@ La collection `crm_prospects` de la version 1.0.0 **n'est ni lue, ni modifiée, 
 2. **Statut dérivé de l'étape**, calculé par `logique.js` à chaque changement et enregistré dans `statut` :
    1. étapes 1 à 3 : `ouverte` ;
    2. étapes 4 à 6 : `gagnee` ;
-   3. **Perdue** et **En pause** sont des statuts posés explicitement (boîte de dialogue) : Perdue exige une raison ; En pause exige une date de réveil, préremplie à +3 mois ;
-   4. une affaire **perdue ou en pause conserve la dernière étape atteinte** (on peut ainsi mesurer où on perd les affaires) ;
-   5. "Rouvrir" une affaire perdue ou en pause la remet en statut dérivé de son étape et efface raison et date de réveil.
+   3. **Perdue** est un statut posé explicitement (boîte de dialogue) : il exige une raison. Il n'y a pas de pause (décision de Jérôme, 22/10/2026) : pour relancer plus tard, on planifie une activité ;
+   4. une affaire **perdue conserve la dernière étape atteinte** (on peut ainsi mesurer où on perd les affaires) ;
+   5. "Rouvrir" une affaire perdue la remet en statut dérivé de son étape et efface la raison.
 3. **Facture payée** : ajoute un encaissement `{date, montant, offreId}` (montant de l'affaire, modifiable dans la boîte de dialogue), met `archive = true` après l'animation ; l'affaire disparaît du Kanban, reste dans la vue Archives et dans les statistiques. Un bouton "Nouvelle affaire" sur la fiche de la personne en crée une autre (rien n'est effacé).
-4. **Sorties** : plus de colonnes « Perdues » et « En pause » dans le Kanban depuis le 22/10/2026 (filtres de la liste). À la date de réveil, l'affaire apparaît dans "Aujourd'hui" (Points clés) avec l'action "Reprendre contact" ; "Fait" la remet en statut dérivé de son étape et ouvre le choix de la prochaine activité.
+4. **Sorties** : plus de colonne « Perdues » dans le Kanban depuis le 22/10/2026 (filtres de la liste). Il n'y a plus de pause ni de « Reprendre contact » : pour relancer plus tard, on planifie une activité.
 5. **Glisser déposer** dans tous les sens, y compris en arrière ; sur téléphone, menu "Déplacer vers…" sur la carte.
 6. **Pastille d'activité** sur chaque carte et chaque ligne de liste : rouge si une activité non faite est en retard, verte si une activité est prévue (aujourd'hui ou plus tard), grise s'il n'y en a aucune. Tri par défaut du Kanban : "Activité suivante" (la plus proche d'abord, les retards en tête).
 7. **"Sans action prévue"** : affaire `ouverte` ou `gagnee` non archivée, sans aucune activité non faite.
@@ -212,7 +212,7 @@ La collection `crm_prospects` de la version 1.0.0 **n'est ni lue, ni modifiée, 
 ### 6.2 Accueil
 
 1. Objectifs du mois (6.1).
-2. **Points clés** en trois groupes, avec bouton "Fait" en ligne : **En retard** (activités non faites dont la date est passée), **Aujourd'hui** (activités du jour, affaires en pause dont la date de réveil est atteinte), **Sans action prévue** (7 de la section 4, avec bouton "Planifier"). Quand tout est fait : félicitation de Charles.
+2. **Points clés** en trois groupes, avec bouton "Fait" en ligne : **En retard** (activités non faites dont la date est passée), **Aujourd'hui** (activités du jour), **Sans action prévue** (7 de la section 4, avec bouton "Planifier"). Quand tout est fait : félicitation de Charles.
 3. **Graphique du chiffre d'affaires encaissé, depuis le début de l'activité** : il part du mois `reglages.debutActivite` (**octobre 2026**) et n'affiche que les mois écoulés depuis ce début, **jusqu'à 6 mois** ; la fenêtre ne glisse qu'ensuite. Aucun mois antérieur au début n'est jamais montré (pas de rangée de zéros). Au premier mois, une seule barre.
 4. Statistiques : nombre d'affaires par étape (barres), toutes affaires comprises.
 5. Rappel d'export : si `dernierExport` date de plus de 30 jours ou n'existe pas, message "Pense à ta sauvegarde mensuelle" avec bouton Exporter.
@@ -270,7 +270,7 @@ Même principe. Colonne de gauche : **Résumé** (étiquettes, adresse, site web
 
 ### 7.7 Fiche affaire
 
-1. **En tête** : titre (modifiable), montant (modifiable), personne et organisation (liens), **barre des 6 étapes** (clic sur une étape = changement d'étape, avec la suggestion douce de 4.8), boutons **Gagnée** (passe en Gagné), **Perdue** et **En pause** (boîtes de la section 4), menu "⋯" (Archiver, Rouvrir, Supprimer définitivement).
+1. **En tête** : titre (modifiable), montant (modifiable), personne et organisation (liens), **barre des 6 étapes** (clic sur une étape = changement d'étape, avec la suggestion douce de 4.8), bouton **Perdue** (boîte de la section 4 ; on gagne une affaire avec la liste « Étape »), menu "⋯" (Archiver, Rouvrir, Supprimer définitivement).
 2. **Colonne de gauche** : **Résumé** (personne, organisation, offre, priorité, statut), **Détails** (besoin identifié, durée en jours, source), **Encaissements** (liste ; en statut gagné, bouton "Ajouter un encaissement"), **Documents** (liens Drive : libellé et URL).
 3. **Colonne de droite** : Activité, Notes, Points clés, Historique.
 4. Sur téléphone : une seule colonne, en tête avec barre d'étapes défilante.
@@ -278,7 +278,7 @@ Même principe. Colonne de gauche : **Résumé** (étiquettes, adresse, site web
 ### 7.8 Affaires
 
 1. Barre : compteur ("6 affaires"), bouton vert **"+ Affaire"**, bascule de vue **Kanban / Liste / Archives**, tri ("Trier par : Activité suivante"), recherche et filtres (section 9).
-2. **Kanban** : 6 colonnes, chacune avec son **total en euros et son nombre d'affaires** ; carte : titre, organisation, personne, montant, priorité, pastille d'activité (4.6), badge "En retard" le cas échéant ; plus de colonnes Perdues ni En pause (supprimées le 22/10/2026). "Facture payée" n'affiche que les affaires payées du mois en cours (les autres sont archivées).
+2. **Kanban** : 6 colonnes, chacune avec son **total en euros et son nombre d'affaires** ; carte : titre, organisation, personne, montant, priorité, pastille d'activité (4.6), badge "En retard" le cas échéant ; plus de colonne Perdues (supprimée le 22/10/2026), plus de pause. "Facture payée" n'affiche que les affaires payées du mois en cours (les autres sont archivées).
 3. **Liste** : tableau (Titre, Personne, Organisation, Étape, Montant, Priorité, Prochaine activité) ; compact sur ordinateur, cartes sur téléphone ; export CSV des affaires filtrées.
 4. **Archives** : affaires archivées (payées, ou archivées à la main).
 
@@ -536,7 +536,7 @@ L'appli n'est "terminée" que lorsque **tous les tests automatiques passent** et
 1. **Nom** : découpage prénom / nom de famille (deux mots, plusieurs mots, un seul mot, espaces en trop) ; `nom` recalculé après modification.
 2. **Doublons** : détection par email (casse, espaces) et par nom (accents, casse) ; aucune alerte pour deux personnes différentes.
 3. **Recherche intelligente** : moins de 2 lettres = aucune suggestion ; sous chaîne n'importe où ; accents et casse ignorés ; mots commençant par la saisie classés d'abord ; 8 résultats au plus ; option "Créer" présente seulement si aucune valeur identique ; recherche par email et par organisation pour les personnes.
-4. **Statut dérivé** : étapes 1 à 3 donnent `ouverte`, 4 à 6 donnent `gagnee` ; perdue et en pause **conservent l'étape** ; réouverture ; raison obligatoire pour perdue, date de réveil obligatoire pour en pause.
+4. **Statut dérivé** : étapes 1 à 3 donnent `ouverte`, 4 à 6 donnent `gagnee` ; perdue **conserve l'étape** ; réouverture ; raison obligatoire pour perdue ; pas de pause (supprimée le 22/10/2026).
 5. **Facture payée** : ajoute un encaissement du bon montant et archive ; "Nouvelle affaire" ne supprime rien.
 6. **En retard**, **sans action prévue**, pastille d'activité (rouge, verte, grise) : bornes (aujourd'hui, hier, demain), activités faites ignorées.
 7. **Dates rapides** : Demain, +3 jours, +1 semaine, +2 semaines, y compris changement de mois et d'heure d'été.
@@ -558,7 +558,7 @@ L'appli n'est "terminée" que lorsque **tous les tests automatiques passent** et
 8. Glisser une carte de Premier contact à Rendez vous fixé puis revenir en arrière (sur ordinateur à la souris ; sur téléphone par "Déplacer vers…") ; `datesEtapes` et événements à jour.
 9. Passer en Proposition envoyée : suggestion affichée ; la fermer ne change rien ; la valider crée l'activité "Relancer la proposition".
 10. Passer en Gagné : célébration visible, fermée au clic. Passer en Facture payée : affaire retirée du Kanban, visible dans Archives, objectif chiffre d'affaires augmenté.
-11. **Perdue** (raison obligatoire), **En pause** (date de réveil), puis **Rouvrir**.
+11. **Perdue** (raison obligatoire), puis **Rouvrir** (plus de pause depuis le 22/10/2026).
 12. Activité : créer, "Fait" (disparaît des Points clés, apparaît dans l'historique, boîte de prochaine activité) ; un rendez vous fait augmente l'objectif "Rendez vous tenus".
 13. Notes : ajouter, modifier, supprimer ; une note écrite sur une affaire apparaît aussi dans l'historique de la personne et de l'organisation.
 14. Historique : les cinq filtres.

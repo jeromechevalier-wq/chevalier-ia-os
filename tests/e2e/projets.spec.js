@@ -131,7 +131,7 @@ test('C29 glisser un projet de Lancement à Découverte puis revenir : phase, da
   expect((await listerDocuments('crm_evenements')).every((e) => e.projetId === 'pr1')).toBe(true);
 });
 
-test('C29 fiche : la barre des phases change la phase ; En pause, Reprendre, Terminer (archivé, hors du tableau) et Rouvrir', async ({ page }) => {
+test('C29 fiche : la barre des phases change la phase ; Terminer (archivé, hors du tableau) et Rouvrir', async ({ page }) => {
   await creerProjet('pr1', { titre: 'Audit Carrel' });
   await connecter(page);
   await aller(page, '#/projets/projets/pr1');
@@ -141,12 +141,7 @@ test('C29 fiche : la barre des phases change la phase ; En pause, Reprendre, Ter
   await page.locator('[data-action="choisir-phase"]').selectOption('livraison'); // la bande du haut n'est plus qu'un indicateur
   await champDoc('projets_projets', 'pr1', 'phase', 'livraison');
   await expect(page.locator('.barre-etapes-fiche .etape.courante')).toHaveText('Livraison');
-  // pause et reprise
-  await page.locator('.fiche-actions [data-action="en-pause"]').click();
-  await champDoc('projets_projets', 'pr1', 'statut', 'en_pause');
-  await expect(page.locator('.fiche-sous .pastille-statut')).toHaveText('En pause');
-  await page.locator('.fiche-actions [data-action="reprendre"]').click();
-  await champDoc('projets_projets', 'pr1', 'statut', 'actif');
+  await expect(page.locator('.fiche-sous .pastille-statut')).toHaveText('Actif');
   // terminer : Clôture, Terminé, archivé
   await terminerDepuisFiche(page);
   await champDoc('projets_projets', 'pr1', 'statut', 'termine');
@@ -169,7 +164,7 @@ test('C29 fiche : la barre des phases change la phase ; En pause, Reprendre, Ter
   await champDoc('projets_projets', 'pr1', 'statut', 'actif');
   expect((await lireDocument('projets_projets/pr1')).archive).toBe(false);
   const types = (await listerDocuments('crm_evenements')).map((e) => e.type).sort();
-  expect(types).toEqual(['phase_changee', 'projet_en_pause', 'projet_repris', 'projet_rouvert', 'projet_termine']); // aucun « projet_cree » : la fin du projet ne crée plus d'extraction
+  expect(types).toEqual(['phase_changee', 'projet_rouvert', 'projet_termine']); // aucun « projet_cree » : la fin du projet ne crée plus d'extraction
 });
 
 test('C29 fiche : titre, dates (la fin ne précède pas le début), dossier de travail, liens et documents', async ({ page }) => {
@@ -339,13 +334,13 @@ test('C29 liste, filtres, recherche et recherche globale', async ({ page }) => {
   await creerPersonne('p1', { nom: 'Élodie Martin' });
   await creerProjet('pr1', { titre: 'Audit Carrel', phase: 'lancement', organisationId: 'o1' });
   await creerProjet('pr2', { titre: 'Accompagnement Martin', phase: 'livraison', personneId: 'p1', dateFin: jour(-3) });
-  await creerProjet('pr3', { titre: 'Revue Carrel', phase: 'decouverte', statut: 'en_pause' });
+  await creerProjet('pr3', { titre: 'Revue Carrel', phase: 'decouverte', statut: 'termine' });
   await creerProjet('pr4', { titre: 'Ancien chantier', phase: 'cloture', statut: 'termine', archive: true });
   await connecter(page);
   await allerA(page, 'Projets');
   await expect(page.locator('.compteur-liste')).toHaveText('3 projets');
   await expect(page.locator('.carte-projet .badge-nature')).toHaveCount(0); // plus de badge « Extraction »
-  await expect(page.locator('.carte-projet[data-projet="pr3"] .badge-pause')).toHaveText('En pause');
+  await expect(page.locator('.carte-projet .badge-pause')).toHaveCount(0); // plus de badge « En pause »
   await expect(page.locator('.carte-projet[data-projet="pr2"] .badge-retard')).toBeVisible();
   // recherche : par titre, par personne (sans accent), par organisation
   const recherche = page.getByLabel('Rechercher un projet');
@@ -359,10 +354,10 @@ test('C29 liste, filtres, recherche et recherche globale', async ({ page }) => {
   // filtres : une pastille par filtre, retirable
   await page.locator('[data-action="filtres"]').click();
   await expect(dialogue(page).getByText('Nature', { exact: true })).toHaveCount(0); // plus de filtre « Nature »
-  await dialogue(page).getByLabel('En pause').check();
+  await dialogue(page).getByLabel('Terminé').check();
   await dialogue(page).getByRole('button', { name: 'Appliquer' }).click();
   await expect(page.locator('.carte-projet')).toHaveCount(1);
-  await expect(page.locator('.pastille-filtre')).toContainText('Statut : En pause');
+  await expect(page.locator('.pastille-filtre')).toContainText('Statut : Terminé');
   await page.getByRole('button', { name: /Retirer le filtre/ }).click();
   await expect(page.locator('.carte-projet')).toHaveCount(3);
   await page.locator('[data-action="filtres"]').click();
@@ -395,7 +390,7 @@ test('C29 liste, filtres, recherche et recherche globale', async ({ page }) => {
 test('C29 filtres enregistrés : enregistrer, effacer puis réappliquer, renommer et supprimer dans les Réglages ; ils ne paraissent pas dans les Affaires', async ({ page }) => {
   await creerProjet('pr1', { titre: 'Audit Carrel', phase: 'lancement' });
   await creerProjet('pr2', { titre: 'Accompagnement Martin', phase: 'livraison', dateFin: jour(-3) });
-  await creerProjet('pr3', { titre: 'Revue Carrel', phase: 'decouverte', statut: 'en_pause' });
+  await creerProjet('pr3', { titre: 'Revue Carrel', phase: 'decouverte', statut: 'termine' });
   await connecter(page);
   await allerA(page, 'Projets');
   await expect(page.locator('.carte-projet')).toHaveCount(3);
@@ -405,7 +400,7 @@ test('C29 filtres enregistrés : enregistrer, effacer puis réappliquer, renomme
   await page.keyboard.press('Escape');
   // poser deux filtres puis les enregistrer
   await page.locator('[data-action="filtres"]').click();
-  await dialogue(page).getByLabel('En pause').check();
+  await dialogue(page).getByLabel('Terminé').check();
   await dialogue(page).getByLabel('Découverte').check();
   await dialogue(page).getByRole('button', { name: 'Appliquer' }).click();
   await expect(page.locator('.carte-projet')).toHaveCount(1);
@@ -416,13 +411,13 @@ test('C29 filtres enregistrés : enregistrer, effacer puis réappliquer, renomme
   expect((await lireDocument('crm_parametres/filtres')).items.filter((f) => f.liste === 'projets')).toHaveLength(0);
   await page.locator('[data-action="filtres-enregistres"]').click();
   await page.locator('.menu-pop').getByRole('menuitem', { name: 'Enregistrer ce filtre…' }).click();
-  await dialogue(page).getByLabel('Nom du filtre').fill('Revues en pause');
+  await dialogue(page).getByLabel('Nom du filtre').fill('Revues terminées');
   await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
-  await expect.poll(async () => ((await lireDocument('crm_parametres/filtres'))?.items ?? []).some((f) => f.nom === 'Revues en pause' && f.liste === 'projets')).toBe(true);
+  await expect.poll(async () => ((await lireDocument('crm_parametres/filtres'))?.items ?? []).some((f) => f.nom === 'Revues terminées' && f.liste === 'projets')).toBe(true);
   // un nom déjà pris est refusé
   await page.locator('[data-action="filtres-enregistres"]').click();
   await page.locator('.menu-pop').getByRole('menuitem', { name: 'Enregistrer ce filtre…' }).click();
-  await dialogue(page).getByLabel('Nom du filtre').fill('revues en pause');
+  await dialogue(page).getByLabel('Nom du filtre').fill('revues terminées');
   await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
   await expect(page.locator('.toast', { hasText: 'Un filtre porte déjà ce nom.' })).toBeVisible();
   expect(((await lireDocument('crm_parametres/filtres')).items).filter((f) => f.liste === 'projets')).toHaveLength(1);
@@ -430,21 +425,21 @@ test('C29 filtres enregistrés : enregistrer, effacer puis réappliquer, renomme
   await page.getByRole('button', { name: 'Tout effacer' }).click();
   await expect(page.locator('.carte-projet')).toHaveCount(3);
   await page.locator('[data-action="filtres-enregistres"]').click();
-  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Revues en pause' }).click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Revues terminées' }).click();
   await expect(page.locator('.carte-projet')).toHaveCount(1);
   await expect(page.locator('.carte-projet[data-projet="pr3"]')).toBeVisible();
   await expect(page.locator('.pastille-filtre')).toHaveCount(2);
   // les filtres du CRM ne sont pas proposés ici, et celui-ci n'est pas proposé dans les Affaires
   await page.locator('[data-action="filtres-enregistres"]').click();
-  await expect(page.locator('.menu-pop').getByRole('menuitem')).toHaveText(['Revues en pause', 'Enregistrer ce filtre…']);
+  await expect(page.locator('.menu-pop').getByRole('menuitem')).toHaveText(['Revues terminées', 'Enregistrer ce filtre…']);
   await page.keyboard.press('Escape');
   await allerA(page, 'Affaires');
   await page.locator('[data-action="filtres-enregistres"]').click();
-  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Revues en pause' })).toHaveCount(0);
+  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Revues terminées' })).toHaveCount(0);
   await page.keyboard.press('Escape');
   // Réglages : renommer puis supprimer
   await allerAuxReglagesCrm(page);
-  const ligne = page.locator('.ligne-reglage', { hasText: 'Revues en pause' });
+  const ligne = page.locator('.ligne-reglage', { hasText: 'Revues terminées' });
   await expect(ligne).toContainText('Projets');
   await ligne.locator('[data-action="renommer-filtre"]').click();
   await dialogue(page).getByLabel('Nom du filtre').fill('Revues');
@@ -635,14 +630,14 @@ test('C30 fiches personne et organisation : leurs projets en cartes, la section 
   await creerPersonne('p1', { nom: 'Camille Durand', organisationId: 'o1' });
   await creerPersonne('p2', { nom: 'Paul Martin' });
   await creerProjet('pr1', { titre: 'Audit des Lilas', personneId: 'p1', organisationId: 'o1', phase: 'livraison' });
-  await creerProjet('pr2', { titre: 'Revue Lilas', personneId: 'p1', organisationId: 'o1', statut: 'en_pause' });
+  await creerProjet('pr2', { titre: 'Revue Lilas', personneId: 'p1', organisationId: 'o1', statut: 'termine' });
   await creerProjet('pr3', { titre: 'Projet d’un autre', personneId: 'p2' });
   await connecter(page);
   await aller(page, '#/crm/personnes/p1');
   const section = page.locator('[data-section="personne-projets"]');
   await expect(section.locator('.carte-projet-mini')).toHaveCount(2);
   await expect(section).toContainText('Audit des Lilas');
-  await expect(section.locator('.carte-projet-mini', { hasText: 'Revue Lilas' })).toContainText('En pause');
+  await expect(section.locator('.carte-projet-mini', { hasText: 'Revue Lilas' })).toContainText('Terminé');
   await expect(section.locator('.carte-projet-mini', { hasText: 'Audit des Lilas' })).toContainText('Livraison');
   await section.locator('.carte-projet-mini', { hasText: 'Audit des Lilas' }).click();
   await expect(page).toHaveURL(/#\/projets\/projets\/pr1$/);
@@ -811,14 +806,14 @@ test('C31 monter, descendre, changer de phase, supprimer une tâche', async ({ p
 
 test('C31 Accueil : les tâches de projet en retard et du jour sont dans les Points clés avec leur projet, mêlées aux activités ; « Fait » les coche', async ({ page }) => {
   await creerProjet('pr1', { titre: 'Audit des Lilas' });
-  await creerProjet('pr2', { titre: 'Chantier en pause', statut: 'en_pause' });
+  await creerProjet('pr2', { titre: 'Chantier terminé', statut: 'termine' });
   await creerProjet('pr3', { titre: 'Projet rangé', archive: true, statut: 'termine' });
   await creerTacheProjet('retard', { titre: 'Relire le devis', date: jour(-3) });
   await creerTacheProjet('jour', { titre: 'Appeler Carrel', date: jour(0), heure: '14:00' });
   await creerTacheProjet('futur', { titre: 'Dans une semaine', date: jour(7) });
   await creerTacheProjet('sans', { titre: 'Sans date' });
   await creerTacheProjet('faite', { titre: 'Déjà faite', date: jour(-1), fait: true });
-  await creerTacheProjet('pause', { titre: 'Tâche d’un projet en pause', projetId: 'pr2', date: jour(-1) });
+  await creerTacheProjet('termine', { titre: 'Tâche d’un projet terminé', projetId: 'pr2', date: jour(-1) });
   await creerTacheProjet('rangee', { titre: 'Tâche d’un projet rangé', projetId: 'pr3', date: jour(-1) });
   await creerPersonne('p1', { nom: 'Marie Durand' });
   await creerActivite('x1', { titre: 'Activité du matin', date: jour(0), heure: '08:00', personneId: 'p1' });
@@ -832,7 +827,7 @@ test('C31 Accueil : les tâches de projet en retard et du jour sont dans les Poi
   const jourJ = page.locator('[data-groupe="aujourdhui"]');
   await expect(jourJ.locator('.compteur')).toHaveText('2');
   await expect(jourJ.locator('.activite')).toHaveText([/Activité du matin/, /Appeler Carrel/]); // mêlées par heure
-  for (const absente of ['Dans une semaine', 'Sans date', 'Déjà faite', 'Tâche d’un projet en pause', 'Tâche d’un projet rangé']) {
+  for (const absente of ['Dans une semaine', 'Sans date', 'Déjà faite', 'Tâche d’un projet terminé', 'Tâche d’un projet rangé']) {
     await expect(page.locator('.section-a-faire')).not.toContainText(absente);
   }
   // « Fait » depuis l'Accueil

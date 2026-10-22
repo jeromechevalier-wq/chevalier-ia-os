@@ -22,7 +22,7 @@ Les agents (Claude Code, Hermes) peuvent maintenant lire et faire avancer les pr
 | `creer_projet_depuis_affaire` | « Créer le projet » d'une affaire **gagnée** : lie l'affaire (un seul projet). |
 | `modifier_projet` | Titre, personne, organisation, offre, dates, dépôt, dossier. Le texte libre (`description`) n'existe plus (22/10/2026) : c'est la note épinglée du projet (`creer_projet` rend `noteEpingleeId` ; la modifier avec `modifier_note`). Un ancien client qui envoie `description` à `creer_*` la voit devenir le texte de la note de départ ; seul dans `modifier_*`, il est refusé avec ce message. |
 | `changer_phase_projet` | Dans tous les sens ; **vers Clôture, refusé tant qu'une facture est à payer**. |
-| `mettre_projet_en_pause`, `reprendre_projet`, `rouvrir_projet`, `archiver_projet` | Comme les boutons de la fiche. |
+| `rouvrir_projet`, `archiver_projet` (la pause a été supprimée le 22/10/2026 : `mettre_projet_en_pause` et `reprendre_projet` n'existent plus) | Comme les boutons de la fiche. |
 | `terminer_projet` | Clôture (statut Terminé, archivé). **Refusé tant qu'une facture est à payer** : le refus nomme les factures. Sortie : `impaye: { raison }` (les factures restantes passent à « abandonnee », le projet garde sa pastille « Impayé »). |
 | `ajouter_livrable_projet`, `terminer_livrable_projet` | Phase du projet par défaut ; le livrable fait écrit son événement (« Livrable fait : … », type technique `tache_faite` inchangé). Renommés le 22/10/2026 (anciens noms `ajouter_tache_projet` / `terminer_tache_projet` retirés, sans alias) ; `lire_projet` et `lister_modeles_projet` renvoient la clé `livrables`. |
 | `ajouter_facture`, `marquer_facture_payee`, `abandonner_facture` | Une ligne par échéance ; une facture payée compte dans l'encaissé du mois du paiement ; l'abandon exige une raison. |
@@ -41,4 +41,4 @@ Les agents (Claude Code, Hermes) peuvent maintenant lire et faire avancer les pr
 
 ## Tests
 
-`ecriture-outils.test.js` : droits par profil, création (règles, modèle, événement), projet d'une affaire gagnée, phases et pauses, fin de projet, ancien projet « extraction » lu comme un projet ordinaire, tâches, factures 30/30/40 avec refus de clôture et sortie impayé, abandon, lecture (filtres, fiche, fil, modèles, référentiels), suppression avec restauration à l'identique, restauration d'une création.
+`ecriture-outils.test.js` : droits par profil, création (règles, modèle, événement), projet d'une affaire gagnée, phases, fin de projet, ancien projet « extraction » lu comme un projet ordinaire, tâches, factures 30/30/40 avec refus de clôture et sortie impayé, abandon, lecture (filtres, fiche, fil, modèles, référentiels), suppression avec restauration à l'identique, restauration d'une création.

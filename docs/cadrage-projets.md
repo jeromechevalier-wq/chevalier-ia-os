@@ -139,11 +139,11 @@ C'est la décision la plus structurante. Aujourd'hui, Accueil et Points clés mo
 
 - Aujourd'hui, « Facture payée » **archive** l'affaire (elle quitte le Kanban). Le projet peut durer bien plus longtemps que le règlement.
 - **Proposition** : le lien `projetId` **survit à l'archivage** ; la fiche projet affiche l'affaire même archivée ; l'archivage de l'affaire n'archive jamais le projet. Un projet s'archive seulement à la main ou quand il est terminé (voir 3.8).
-- **Proposition** : si une affaire passe en « Perdue » ou « En pause » après la création de son projet, le projet n'est pas touché ; une pastille d'alerte sur la fiche projet signale « Affaire perdue » ou « En pause ».
+- **Proposition** : si une affaire passe en « Perdue » après la création de son projet, le projet n'est pas touché ; une pastille d'alerte sur la fiche projet signale « Affaire perdue ».
 
 ### 3.8 Statut et avancement
 
-- **Proposition** : un projet a un **statut** `actif`, `en_pause`, `termine` (dérivé : `termine` quand il est archivé en Clôture) et une **phase**. Le cercle de progression de la carte = tâches faites divisé par tâches du projet.
+- **Proposition** : un projet a un **statut** `actif`, `termine` (la pause a été supprimée le 22/10/2026 ; dérivé : `termine` quand il est archivé en Clôture) et une **phase**. Le cercle de progression de la carte = tâches faites divisé par tâches du projet.
 - **Proposition** : pas de statut « Annulé » ; on archive.
 - Retard : un projet est « en retard » si sa **date de fin prévue** est dépassée sans qu'il soit terminé, ou si une de ses tâches est en retard (même logique de pastille rouge, verte, grise que les affaires, calculée dans le navigateur).
 
@@ -171,7 +171,7 @@ Conventions du cahier 2.0 (3.1) reprises telles quelles : identifiants automatiq
 | `affaireId` | Affaire | string ou null | non | au plus un projet par affaire ; voir 3.3 |
 | `personneId`, `organisationId` | | string ou null | non | repris de l'affaire à la création, modifiables |
 | `phase` | Phase | string | auto | identifiant d'une phase de la liste unique du code (3.1) ; défaut `lancement` |
-| `statut` | Statut | string | auto | `actif`, `en_pause`, `termine` |
+| `statut` | Statut | string | auto | `actif`, `termine` (un ancien `en_pause` s'affiche comme `actif`) |
 | `dateDebut`, `dateFin` | Début, Fin prévue | date | non | début préremplie à aujourd'hui |
 | `modeleId` | Modèle d'origine | string ou null | non | pour information |
 | `offreId` | Offre | string ou null | non | reprise de l'affaire |
@@ -210,7 +210,7 @@ Même modèle que le CRM (Pipedrive pour la structure, DA chevalier-ia.fr pour l
    - glisser déposer dans tous les sens, y compris en arrière ; sur téléphone, menu « Déplacer vers… » comme les affaires ;
    - **Liste** : Titre, Personne, Organisation, Phase, Début, Fin, Avancement ; cartes sur téléphone.
 2. **Fiche projet** (`#/projets/projets/<id>`) : deux colonnes sur ordinateur, une sur téléphone, mêmes composants que la fiche affaire.
-   - **En tête** : titre modifiable, personne et organisation (liens), lien « Affaire d'origine », **barre des phases** (clic = changement de phase), boutons **Terminer** et **En pause**, menu « ⋯ » (Archiver, Supprimer définitivement) ;
+   - **En tête** : titre modifiable, personne et organisation (liens), lien « Affaire d'origine », **barre des phases** (clic = changement de phase), bouton **Terminer** (pas de pause depuis le 22/10/2026), menu « ⋯ » (Archiver, Supprimer définitivement) ;
    - **Gauche** : Résumé (affaire, personne, organisation, offre, statut, dates) ; **Détails** (adresse GitHub `urlGithub` avec son bouton « Créer le GitHub », puis dossier de travail `urlDossier` avec son bouton « Créer le répertoire ») ; **Tâches** par phase (cocher, ajouter, glisser pour réordonner, date rapide : Demain, +3 jours, +1 semaine) ; Documents ;
    - **Droite** : Activité et Notes (les notes se rattachent au projet **et** à ses liens), Points clés, Historique.
 3. **Modèles** (`#/projets/modeles`) : liste ; fiche d'un modèle avec ses tâches par phase.

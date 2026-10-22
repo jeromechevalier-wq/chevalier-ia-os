@@ -11,7 +11,7 @@ Version essayée : 2.3.3, branche `claude/fervent-mayer-gme1rw`. Essais faits **
 - Lecture de `02-format-des-constats.md`, de `CLAUDE.md`, de `03-decisions-facturation.md` et des titres des constats A, B, C, D, E, G, H déjà écrits.
 - Quatre petits scripts hors du dépôt (dossier de travail de la session), qui réutilisent `tests/e2e/outils.js` (connexion de test, écriture dans l'émulateur) :
   1. un grand parcours qui enchaîne tout, lancé sur ordinateur puis sur téléphone ;
-  2. des essais complémentaires (affaire en pause, recherche sans résultat, perdre puis rouvrir, suppression d'une tâche, fermeture d'une fenêtre, durée de création) ;
+  2. des essais complémentaires (recherche sans résultat, perdre puis rouvrir, suppression d'une tâche, fermeture d'une fenêtre, durée de création) ;
   3. un essai ciblé sur le message vert qui se pose sur un bouton (téléphone) ;
   4. des captures propres (on attend la fin des animations).
 - À chaque étape, le script note : la durée, les messages de confirmation (les « toasts »), le débordement horizontal (`scrollWidth > innerWidth`), les boutons et liens de moins de 44 px, les textes coupés, et les erreurs de la console du navigateur (`console` de type `error` et `pageerror`).
@@ -29,9 +29,9 @@ Version essayée : 2.3.3, branche `claude/fervent-mayer-gme1rw`. Essais faits **
 | 6 | Ajouter deux factures, encaisser la première | marche, message « Paiement enregistré » + célébration, totaux « payé 500 € · reste à payer 700 € » |
 | 7 | Clôturer avec une facture à payer | bloqué avec le message « Clôture bloquée » et les deux sorties (« Marquer payée… », « Clôturer avec impayé… ») ; sortie 1 : paye puis la clôture se fait toute seule ; sortie 2 (sur un autre projet) : raison obligatoire, projet terminé avec pastille « Impayé » |
 | 8 | Perdre une affaire (raison, projet d'extraction) | marche : « La raison est obligatoire. » sans raison, puis « Projet d'extraction créé » + « Affaire marquée comme perdue » |
-| 9 | Mettre une affaire en pause avec date de réveil | marche, date proposée par défaut = aujourd'hui + environ 3 mois (2027-01-09 le jour de l'essai) |
+| 9 | ~~Mettre une affaire en pause avec date de réveil~~ | sans objet : la pause a été supprimée le 22/10/2026 (décision de Jérôme ; pour relancer plus tard, on planifie une activité) |
 | 10 | Favoris : étoile d'un document d'affaire et de projet, bloc Favoris de l'accueil, retrait, remise | marche (voir « Vérifié et conforme ») |
-| 11 | Recherche globale | marche (personne, affaire, projet, affaire en pause trouvés) |
+| 11 | Recherche globale | marche (personne, affaire, projet trouvés) |
 | 12 | Écran Journal (liste + détail d'une ligne) | marche |
 | 13 | Réglages | s'ouvre, aucun débordement |
 
@@ -117,7 +117,7 @@ Rien de lent à l'usage hors cas F-01. Sur des vraies données et un vrai résea
 - **Règle ou décision concernée** : aucune.
 - **Preuve** : essai F2 : après « xyzzy », `ul.suggestions[aria-label="Suggestions : Rechercher"]` a `hidden=true` et un texte vide, sur ordinateur et sur téléphone. Capture : `captures/f-telephone-recherche-sans-resultat.png`.
 
-### F-05 · La carte d'une affaire « En pause » n'affiche pas sa date de réveil
+### F-05 · (clos le 22/10/2026 : la pause n'existe plus) La carte d'une affaire « En pause » n'affichait pas sa date de réveil
 - **Gravité** : MINEUR
 - **Confiance** : CONFIRMÉ
 - **Ce qui se passe** : après « Mettre en pause », la carte, dans la colonne « En pause » du Kanban, montre seulement le titre et la personne. La date de réveil ne se lit que dans la fiche de l'affaire (« En pause jusqu'au 08/11/2026 »). La vue Liste dit seulement « En pause ». Sur le Kanban, la colonne « En pause » est de plus repliée par défaut : il faut cliquer pour voir les cartes.
@@ -144,7 +144,7 @@ Rien de lent à l'usage hors cas F-01. Sur des vraies données et un vrai résea
 - **Règle ou décision concernée** : aucune.
 - **Preuve** : mesure `scrollWidth 129 > clientWidth 120` sur téléphone, `150 > 150` (pas coupé) sur ordinateur. Capture : `captures/f-telephone-stats-texte-coupe.png`.
 
-### F-08 · « Rouvrir » une affaire perdue ou en pause ne dit rien, et le projet d'extraction reste actif avec la raison de la perte
+### F-08 · « Rouvrir » une affaire perdue ne dit rien (la pause n'existe plus depuis le 22/10/2026), et le projet d'extraction reste actif avec la raison de la perte
 - **Gravité** : MINEUR
 - **Confiance** : CONFIRMÉ
 - **Ce qui se passe** : sur la fiche d'une affaire perdue, « Rouvrir » remet l'affaire en cours sans aucun message. Son projet d'extraction (créé à la perte) reste en place, « Actif », avec « Raison de la perte : Prix » sur sa fiche, alors que l'affaire est de nouveau ouverte. C'est cohérent avec le test C33 (« rouvrir puis perdre de nouveau n'en crée pas une seconde »), mais l'écran ne l'explique nulle part.
@@ -175,15 +175,15 @@ Rien de lent à l'usage hors cas F-01. Sur des vraies données et un vrai résea
 
 - **Les 13 parcours demandés se font de bout en bout**, sur ordinateur et sur téléphone, sans erreur dans la console (0 erreur sur 4 lancements).
 - **Aucun débordement horizontal de la page** sur aucune étape, ni sur ordinateur ni sur téléphone, y compris fiche projet avec factures, Réglages, Journal et le menu ouvert.
-- **Retours visibles** : création d'une personne, d'une affaire, d'un projet, d'une facture, d'un paiement, d'une perte, d'une pause, d'une clôture : un message vert à chaque fois (avec un lien « Ouvrir la fiche » / « Ouvrir le projet » quand c'est utile). Gagner, encaisser et clôturer donnent en plus une célébration qui se ferme seule (2,4 à 2,8 s) ou au clic.
+- **Retours visibles** : création d'une personne, d'une affaire, d'un projet, d'une facture, d'un paiement, d'une perte, d'une clôture : un message vert à chaque fois (avec un lien « Ouvrir la fiche » / « Ouvrir le projet » quand c'est utile). Gagner, encaisser et clôturer donnent en plus une célébration qui se ferme seule (2,4 à 2,8 s) ou au clic.
 - **Clôture bloquée** : avec une facture « à payer », « Terminer » ouvre « Clôture bloquée » avec la facture en cause, « Marquer payée… » et « Clôturer avec impayé… », et le projet reste « actif » tant qu'on n'a pas choisi. Sortie 1 : après paiement la clôture se fait toute seule. Sortie 2 : la raison est obligatoire (« Dis en quelques mots pourquoi. »). Capture : `captures/f-telephone-cloture-bloquee.png` (la fenêtre tient dans l'écran du téléphone).
 - **Perte d'une affaire** : la raison est obligatoire (« La raison est obligatoire. »), le projet d'extraction est créé tout de suite avec son message et son lien.
-- **Pause** : la date de réveil est proposée par défaut (environ 3 mois) ; la fiche écrit « En pause jusqu'au … ».
+- **Pause** : supprimée le 22/10/2026 (décision de Jérôme) ; ce point de l'audit n'a plus d'objet.
 - **Favoris** : l'étoile d'un document d'affaire ou de projet répond en 150 à 210 ms ; les deux apparaissent sur l'Accueil par ordre alphabétique avec le nom du projet ou de l'affaire ; **le retrait depuis l'Accueil est annulable d'un geste** : le document retiré reste affiché en grisé avec une étoile vide, et un toucher sur l'étoile le remet (il n'y a pas de bouton nommé « Défaire », c'est ce geste qui défait ; le retrait n'est confirmé par aucun message). Capture : `captures/f-telephone-favori-retire.png`. Les étoiles font 36 × 36 (voir F-02).
 - **Suppression d'une tâche** : demande confirmation (« Supprimer cette tâche ? ») avec « Annuler » et « Supprimer » ; « Annuler » laisse la tâche.
 - **Menu d'une facture payée** : « Modifier… », « Remettre à payer », « Supprimer… ».
 - **Fenêtres** : Échap les ferme ; sur ordinateur un clic en dehors aussi (le texte tapé est perdu sans avertissement ; sur téléphone la fenêtre prend tout l'écran, donc pas de clic « en dehors »). Rien d'irréparable : ce ne sont que des formulaires courts.
-- **Recherche globale** : trouve personnes, affaires (y compris en pause) et projets (y compris d'extraction), groupés par type ; Entrée ouvre le premier résultat.
+- **Recherche globale** : trouve personnes, affaires et projets (y compris d'extraction), groupés par type ; Entrée ouvre le premier résultat.
 - **Création d'une personne** : 5 champs seulement (Nom, Organisation, Téléphone, Email, Étiquettes), aucun obligatoire sauf le nom ; Entrée enregistre.
 - **Création du projet depuis l'affaire gagnée** : le titre est repris, un modèle peut être choisi, la section de l'affaire montre ensuite le projet et un bouton « Détacher le projet ».
 - **Journal** : s'ouvre vite, détail d'une ligne lisible, lecture seule, bouton « Actualiser ».

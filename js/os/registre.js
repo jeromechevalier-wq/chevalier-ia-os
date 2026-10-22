@@ -80,7 +80,7 @@ export const MODULES_DECLARES = geler([
       'chercher', 'lire_personne', 'lire_organisation', 'lire_affaire', 'lister_affaires', 'lister_activites', 'lister_documents', 'lire_reglages', 'lire_audit',
       'creer_personne', 'creer_organisation', 'creer_affaire', 'creer_activite', 'ajouter_note', 'joindre_lien',
       'modifier_personne', 'modifier_organisation', 'modifier_affaire', 'modifier_note', 'changer_etape', 'terminer_activite',
-      'marquer_perdue', 'mettre_en_pause', 'rouvrir_affaire', 'retirer_document',
+      'marquer_perdue', 'rouvrir_affaire', 'retirer_document',
       'supprimer_personne', 'supprimer_organisation', 'supprimer_affaire', 'supprimer_activite', 'supprimer_note', 'restaurer_depuis_audit',
     ],
     dependances: [],
@@ -100,7 +100,7 @@ export const MODULES_DECLARES = geler([
     outilsMcp: [
       'lister_projets', 'lire_projet', 'lister_modeles_projet',
       'creer_projet', 'creer_projet_depuis_affaire', 'modifier_projet', 'ajouter_livrable_projet', 'terminer_livrable_projet', 'changer_phase_projet',
-      'mettre_projet_en_pause', 'reprendre_projet', 'terminer_projet', 'rouvrir_projet', 'archiver_projet',
+      'terminer_projet', 'rouvrir_projet', 'archiver_projet',
       'ajouter_facture', 'marquer_facture_payee', 'abandonner_facture', 'supprimer_projet',
     ],
     dependances: ['affaires'],

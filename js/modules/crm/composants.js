@@ -92,7 +92,6 @@ export const EXPLICATION_STATUT_AFFAIRE = {
   ouverte: 'L’affaire est en cours : elle avance d’étape en étape.',
   gagnee: 'L’affaire est gagnée : la vente est conclue.',
   perdue: 'L’affaire est perdue : elle ne bouge plus. On peut la rouvrir.',
-  en_pause: 'L’affaire est mise de côté jusqu’à sa date de réveil. On peut la rouvrir.',
 };
 
 export function pastilleEtape(etape) {
@@ -506,7 +505,7 @@ export function listeContacts({ libelle, ajout, valeurs = [], type = 'texte', su
 export function barreEtapes(affaire) {
   const etapes = L.etapesActives(D.etat.config);
   const index = etapes.findIndex((e) => e.id === affaire.etape);
-  return h('span', { class: `barre-etapes statut-${affaire.statut}`, role: 'img', 'aria-label': `Étape : ${L.libelleEtape(affaire.etape, D.etat.config)}` },
+  return h('span', { class: `barre-etapes statut-${L.statutAffiche(affaire)}`, role: 'img', 'aria-label': `Étape : ${L.libelleEtape(affaire.etape, D.etat.config)}` },
     etapes.map((e, i) => h('span', { class: `segment${i <= index ? ' plein' : ''}`, style: { '--couleur': e.couleur } })));
 }
 
@@ -514,7 +513,7 @@ export function barreEtapes(affaire) {
 export function carteAffaireMini(a) {
   return h('a', { class: 'carte-affaire-mini', href: cheminAffaire(a.id), dataset: { affaire: a.id } },
     h('span', { class: 'carte-affaire-titre' }, a.titre),
-    h('span', { class: 'carte-affaire-meta' }, a.montant !== null && a.montant !== undefined ? L.formatEuros(a.montant) : '—', ' · ', a.statut === 'ouverte' || a.statut === 'gagnee' ? L.libelleEtape(a.etape, D.etat.config) : L.libelleStatut(a.statut)),
+    h('span', { class: 'carte-affaire-meta' }, a.montant !== null && a.montant !== undefined ? L.formatEuros(a.montant) : '—', ' · ', L.estVivante(a) ? L.libelleEtape(a.etape, D.etat.config) : L.libelleStatut(a.statut)),
     barreEtapes(a));
 }
 

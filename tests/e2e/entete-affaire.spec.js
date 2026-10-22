@@ -79,17 +79,17 @@ test('J2 (montant réel) un montant enregistré suit les mêmes règles d’alig
   await expect(page.getByLabel('Montant', { exact: true })).toBeVisible();
 });
 
-test('J9 l’en-tête d’une affaire ouverte montre « Perdue », « En pause » et « … », plus de « Gagnée » ; la liste « Étape » gagne l’affaire et propose le projet', async ({ page }, info) => {
+test('J9 l’en-tête d’une affaire ouverte montre « Perdue » et « … », plus de « Gagnée » ni de « En pause » ; la liste « Étape » gagne l’affaire et propose le projet', async ({ page }, info) => {
   await creerAffaire('a1', { titre: 'Audit des Lilas', etape: 'proposition_envoyee' });
   await connecter(page);
   await ouvrir(page, '#/crm/affaires/a1');
   const actions = page.locator('.fiche-tete .fiche-actions');
   await expect(actions.getByRole('button', { name: 'Perdue' })).toBeVisible();
-  await expect(actions.getByRole('button', { name: 'En pause' })).toBeVisible();
+  await expect(actions.getByRole('button', { name: 'En pause' })).toHaveCount(0); // la pause est supprimée (22/10/2026)
   await expect(actions.getByRole('button', { name: 'Plus d’actions' })).toBeVisible();
   await expect(actions.getByRole('button', { name: 'Gagnée' })).toHaveCount(0);
   await expect(page.locator('[data-action="gagnee"]')).toHaveCount(0);
-  await expect(actions.locator('> *')).toHaveCount(3);
+  await expect(actions.locator('> *')).toHaveCount(2);
   await capturer(page, info, 'J9-sans-gagnee');
   // Gagner par la liste « Étape » du Résumé : même chemin qu'avant (célébration, statut, création du projet proposée)
   await page.locator('[data-action="choisir-etape"]').selectOption('gagne');

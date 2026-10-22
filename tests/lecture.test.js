@@ -17,6 +17,24 @@ const RACINE = fileURLToPath(new URL('../', import.meta.url));
 const donnees = creerAccesMemoire(collections);
 const ids = (liste) => liste.map((x) => x.id);
 
+describe('Plus de pause : une ancienne donnée « en_pause » est rendue comme ouverte / active', () => {
+  const base = structuredClone(collections);
+  base.crm_affaires = [...base.crm_affaires, { ...structuredClone(base.crm_affaires[0]), id: 'vieille', statut: 'en_pause', dateReveil: '2026-12-01', archive: false }];
+  base.projets_projets = [...(base.projets_projets || []), { id: 'pr-vieux', titre: 'Vieux projet', statut: 'en_pause', phase: 'lancement', archive: false, affaireId: null, personneId: null, organisationId: null, factures: [] }];
+  const d = creerAccesMemoire(base);
+  test('lire_affaire et lister_affaires rendent « ouverte » ; lire_projet et lister_projets rendent « actif »', async () => {
+    assert.equal((await lecture.lireAffaire(d, { id: 'vieille' })).affaire.statut, 'ouverte');
+    const l = (await lecture.listerAffaires(d, {}, MAINTENANT)).affaires.find((x) => x.id === 'vieille');
+    assert.equal(l.statut, 'ouverte');
+    assert.equal((await lecture.lireProjet(d, { id: 'pr-vieux' })).projet.statut, 'actif');
+    assert.equal((await lecture.listerProjets(d, {}, MAINTENANT)).projets.find((x) => x.id === 'pr-vieux').statut, 'actif');
+  });
+  test('un filtre statut ouverte / actif les trouve', async () => {
+    assert.ok(ids((await lecture.listerAffaires(d, { statut: 'ouverte' }, MAINTENANT)).affaires).includes('vieille'));
+    assert.ok(ids((await lecture.listerProjets(d, { statut: 'actif' }, MAINTENANT)).projets).includes('pr-vieux'));
+  });
+});
+
 describe('Copie partagée de logique.js (test 12)', () => {
   test('functions/partage/logique.js est identique, octet pour octet, à js/modules/crm/logique.js', () => {
     assert.equal(readFileSync(join(RACINE, 'functions/partage/logique.js'), 'utf8'), readFileSync(join(RACINE, 'js/modules/crm/logique.js'), 'utf8'));
@@ -158,7 +176,7 @@ describe('Réglages et audit', () => {
     assert.deepEqual(r.configuration.phases.filter((p) => p.roleCloture).map((p) => p.id), ['cloture']);
     assert.equal(r.configuration.options.suiviPaiements, true, 'à la racine : les valeurs de Jérôme tant que rien n’est enregistré');
     assert.deepEqual(r.referentiels.projets.assignes.map((a) => a.id), ['jerome', 'charles']);
-    assert.deepEqual(r.referentiels.statuts.map((s) => s.id), ['ouverte', 'gagnee', 'perdue', 'en_pause']);
+    assert.deepEqual(r.referentiels.statuts.map((s) => s.id), ['ouverte', 'gagnee', 'perdue']);
   });
   test('lire_reglages sur une base vide : valeurs de départ, aucune erreur', async () => {
     const r = await lecture.lireReglages(creerAccesMemoire({}));

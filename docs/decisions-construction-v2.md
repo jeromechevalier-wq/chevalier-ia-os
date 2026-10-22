@@ -19,7 +19,7 @@ Construction dans la session de travail, sur la branche `v2` créée à partir d
 8. La fenêtre « Ajouter une personne » et celle des affaires créent à la volée une organisation ou une personne dont le nom a été tapé sans choisir « Créer » : si une organisation de même nom existe déjà, elle est utilisée.
 9. Le bouton « + » de la barre supérieure est visible en permanence sur ordinateur ; sur téléphone la recherche passe derrière une icône et le « + » reste dans la barre du haut.
 10. Les filtres de colonnes (choix des colonnes d'une liste) sont mémorisés sur l'appareil.
-11. Le Kanban des affaires n'a plus de colonnes « Perdues » ni « En pause » (décision du 22/10/2026) : il ne montre que les affaires ouvertes et la dernière colonne (gagnée). Les affaires perdues ou en pause se retrouvent par les filtres de la liste.
+11. Le Kanban des affaires n'a plus de colonnes « Perdues » ni « En pause » (décision du 22/10/2026) : il ne montre que les affaires ouvertes et la dernière colonne (gagnée). Les affaires perdues se retrouvent par les filtres de la liste. La pause elle-même est supprimée (décision de Jérôme, 22/10/2026) : pas de pause ni de date de réveil, pour relancer plus tard on planifie une activité ; une ancienne affaire restée « en pause » dans une base non migrée s'affiche comme ouverte.
 12. La colonne « Facture payée » du Kanban affiche les affaires payées du mois en cours ; les autres sont dans la vue Archives.
 13. Les raccourcis clavier `n` et `/` ne s'activent pas quand le curseur est dans un champ de texte ni quand une fenêtre est ouverte.
 14. Le graphique du chiffre d'affaires est limité aux mois écoulés depuis `reglages.debutActivite` et à six mois au plus ; avant le début d'activité il montre le mois de début.

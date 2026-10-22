@@ -41,33 +41,13 @@ export async function ouvrirPerdue(a) {
   return !!r;
 }
 
-/** En pause : la date de réveil est obligatoire, préremplie à +3 mois. */
-export async function ouvrirPause(a) {
-  const date = h('input', { class: 'champ', type: 'date', 'aria-label': 'Date de réveil', value: L.dateReveilParDefaut(D.ctx().aujourdhui), autofocus: true });
-  const erreur = h('p', { class: 'erreur', role: 'alert' });
-  const r = await dialogue({
-    titre: 'Mettre en pause',
-    contenu: h('div', { class: 'pile' }, h('p', { class: 'aide' }, 'L’affaire reviendra dans tes Points clés à cette date.'), h('label', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Date de réveil'), date), erreur),
-    boutons: [{ libelle: 'Annuler', valeur: false }, {
-      libelle: 'Mettre en pause', valeur: true, style: 'principal',
-      avantFermeture: async () => {
-        const res = await D.mettreAffaireEnPause(a.id, { dateReveil: date.value });
-        if (res.erreurs?.dateReveil) { erreur.textContent = res.erreurs.dateReveil; return false; }
-        return true;
-      },
-    }],
-  });
-  if (r) toast('Affaire mise en pause');
-  return !!r;
-}
-
 /**
  * Changement d'étape avec ses boîtes et ses animations :
  *  - étape « vente gagnée » : feu d'artifice (si les célébrations sont allumées) ;
  *  - action suggérée par l'étape (réglage, aucune par défaut) : fenêtre où l'on accepte ou refuse, jamais créée toute seule.
  */
 export async function changerEtapeAvecBoites(a, etape) {
-  const rouvre = a.statut === 'perdue' || a.statut === 'en_pause';
+  const rouvre = a.statut === 'perdue';
   if (a.etape === etape && !rouvre) return;
   const r = await D.changerEtapeAffaire(a.id, etape);
   if (r.erreurs && Object.keys(r.erreurs).length) { toast('Changement impossible', { type: 'erreur' }); return; }
@@ -79,17 +59,16 @@ export async function changerEtapeAvecBoites(a, etape) {
 
 /** Entrées du menu "Déplacer vers…" d'une affaire. */
 export function entreesDeplacement(a) {
-  const entrees = L.etapesActives(D.etat.config).map((e) => ({ libelle: `Déplacer vers : ${e.libelle}`, icone: 'arrow-right-left', desactive: a.etape === e.id && (a.statut === 'ouverte' || a.statut === 'gagnee'), action: () => changerEtapeAvecBoites(a, e.id) }));
+  const entrees = L.etapesActives(D.etat.config).map((e) => ({ libelle: `Déplacer vers : ${e.libelle}`, icone: 'arrow-right-left', desactive: a.etape === e.id && L.estVivante(a), action: () => changerEtapeAvecBoites(a, e.id) }));
   entrees.push({ libelle: 'Perdue…', icone: 'x', action: () => ouvrirPerdue(a) });
-  entrees.push({ libelle: 'En pause…', icone: 'clock', action: () => ouvrirPause(a) });
-  if (a.statut === 'perdue' || a.statut === 'en_pause') entrees.push({ libelle: 'Rouvrir', icone: 'rotate-ccw', action: () => D.rouvrir(a.id) });
+  if (a.statut === 'perdue') entrees.push({ libelle: 'Rouvrir', icone: 'rotate-ccw', action: () => D.rouvrir(a.id) });
   return entrees;
 }
 
 export function menuAffaire(a) {
   return [
     { libelle: 'Ouvrir la fiche', icone: 'briefcase', action: () => naviguer(`crm/affaires/${a.id}`) },
-    ...(a.statut === 'perdue' || a.statut === 'en_pause' ? [{ libelle: 'Rouvrir', icone: 'rotate-ccw', action: () => D.rouvrir(a.id) }] : []),
+    ...(a.statut === 'perdue' ? [{ libelle: 'Rouvrir', icone: 'rotate-ccw', action: () => D.rouvrir(a.id) }] : []),
     { libelle: a.archive ? 'Désarchiver' : 'Archiver', icone: a.archive ? 'archive-restore' : 'archive', action: () => D.archiverAffaire(a.id, !a.archive) },
     { libelle: 'Supprimer définitivement…', icone: 'trash-2', danger: true, action: () => demanderSuppressionAffaire(a) },
   ];
@@ -207,7 +186,7 @@ function carte(a) {
   const o = D.organisation(a.organisationId);
   const priorite = a.priorite && a.priorite !== 'tiede' ? h('span', { class: `badge-priorite ${a.priorite}` }, L.libellePriorite(a.priorite)) : null;
   const menu = h('button', { type: 'button', class: 'bouton-icone carte-menu', 'aria-label': `Actions : ${a.titre}`, onclick: (e) => { e.stopPropagation(); ouvrirMenu(e.currentTarget, entreesDeplacement(a)); } }, icone('ellipsis', { taille: 16 }));
-  const el = h('article', { class: `carte-affaire statut-${a.statut}`, draggable: 'true', tabindex: '0', dataset: { affaire: a.id }, 'aria-label': a.titre,
+  const el = h('article', { class: `carte-affaire statut-${L.statutAffiche(a)}`, draggable: 'true', tabindex: '0', dataset: { affaire: a.id }, 'aria-label': a.titre,
     onclick: (e) => { if (!e.target.closest('a, button')) naviguer(`crm/affaires/${a.id}`); },
     onkeydown: (e) => { if (e.key === 'Enter' && e.target === el) naviguer(`crm/affaires/${a.id}`); },
     ondragstart: (e) => { enDeplacement = true; e.dataTransfer.setData('text/plain', a.id); e.dataTransfer.effectAllowed = 'move'; el.classList.add('en-deplacement'); },
@@ -277,7 +256,7 @@ export function rendreAffaires(conteneur) {
   function rendreKanban() {
     const ctxF = contexteFiltres();
     const ouvertes = L.filtrerAffaires(D.etat.affaires, { ...criteres, archives: false }, ctxF);
-    const vivantes = ouvertes.filter((a) => a.statut === 'ouverte' || a.statut === 'gagnee');
+    const vivantes = ouvertes.filter((a) => L.estVivante(a));
     remplir(compteur, `${vivantes.length} ${vivantes.length > 1 ? 'affaires' : 'affaire'}`);
     if (!D.etat.affaires.length) {
       remplir(zone, etatVide('Ajoute ta première affaire depuis la fiche d’une personne, ou avec le bouton ci-dessous.', { action: h('button', { type: 'button', class: 'bouton bouton-principal', onclick: () => ouvrirCreationAffaire() }, icone('plus', { taille: 16 }), 'Affaire') }));
@@ -318,7 +297,7 @@ export function rendreAffaires(conteneur) {
         h('td', { dataset: { libelle: 'Titre' } }, h('a', { class: 'cellule-nom', href: cheminAffaire(a.id) }, h('span', {}, a.titre))),
         h('td', { dataset: { libelle: 'Personne' } }, lienPersonne(D.personne(a.personneId))),
         h('td', { dataset: { libelle: 'Organisation' } }, lienOrganisation(D.organisation(a.organisationId))),
-        h('td', { dataset: { libelle: 'Étape' } }, a.statut === 'ouverte' || a.statut === 'gagnee' ? pastilleEtape(a.etape) : pastilleStatut(a.statut)),
+        h('td', { dataset: { libelle: 'Étape' } }, L.estVivante(a) ? pastilleEtape(a.etape) : pastilleStatut(L.statutAffiche(a))),
         h('td', { dataset: { libelle: 'Montant' } }, a.montant !== null && a.montant !== undefined ? L.formatEuros(a.montant) : null),
         h('td', { dataset: { libelle: 'Priorité' } }, L.libellePriorite(a.priorite)),
         h('td', { dataset: { libelle: 'Prochaine activité' } }, p ? h('span', { class: 'activite-liste' }, pastilleActivite(L.pastilleActivite([p], aujourdhui)), `${p.titre} · ${L.formatJourCourt(p.date, aujourdhui)}`) : null),

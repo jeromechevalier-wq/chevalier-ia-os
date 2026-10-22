@@ -2,6 +2,12 @@
 
 Écrit le 04/10/2026, mis à jour le 22/10/2026, pour qu'une session neuve reprenne sans que Jérôme ait à recoller quoi que ce soit. **À mettre à jour ou à supprimer une fois les points faits.**
 
+## Rapport : suppression de la fonctionnalité « En pause » (version 2.23.0)
+
+Décision de Jérôme (22/10/2026) : plus de pause, ni pour les affaires ni pour les projets. Une affaire est ouverte, gagnée ou perdue ; un projet est actif ou terminé ; pour relancer plus tard, on planifie une activité (comme dans Pipedrive). Retiré : bouton et menu « En pause », boîte « Date de réveil », filtre « Statut : En pause », bloc « Reprendre contact » de l'Accueil, outils MCP `mettre_en_pause`, `mettre_projet_en_pause`, `reprendre_projet` (sans alias ; 40 outils pour le profil bibliothécaire). Les 4 affaires de Jérôme qui étaient en pause ont été rouvertes avec `rouvrir_affaire` (accord écrit de Jérôme) ; Ingrid n'en a aucune. Tolérance : un document ancien au statut `en_pause` s'affiche comme ouvert (affaire) ou actif (projet), un filtre enregistré avec « En pause » se lit comme « Ouverte » / « Actif », et les anciens événements « Affaire en pause jusqu'au … » restent dans l'Historique (filtre « Affaires »). Règles Firestore non touchées.
+
+**À regarder à l'écran** : (1) fiche d'une affaire : menu « … » = Archiver / Supprimer, plus de « En pause » ; (2) Affaires, Liste, Filtres : Statut = Ouverte, Gagnée, Perdue ; (3) Accueil : plus de « Reprendre contact » ; (4) Projets : fiche (« Terminer » seul), menu d'une carte, Filtres (Actif, Terminé) ; (5) Historique d'une affaire qui a eu une pause : l'ancienne phrase s'affiche toujours. **Pas pu vérifier** : plateforme clients réelle, téléphone, Journal des modifications sur un vieil événement. **Annotations d'audit à faire** : `docs/audit-fonctionnel/` (constats A-04, C-20, E-14 : « pause supprimée le 22/10/2026 »), `docs/roadmap.md`.
+
 ## Rapport du matin : 4e nuit « GO NUIT » (version 2.22.0)
 
 Un seul sujet : le bouton d'enregistrement ne devient jaune qu'après la première lettre tapée (livrable, activité, note, « Planifier », livrable type) ; une activité saisie à la main ne s'enregistre plus sans titre. Une PR, relue par Fable (aucun défaut), fusionnée quand la coche « Tests » est verte. Rien sur la liste d'arrêt.
@@ -115,7 +121,7 @@ PR A faite, en attente du « fusionne » (voir `reglages-menu-crm-unique.md`, se
 
 ## Extraction de valeur supprimée (18/10/2026)
 
-Retirée partout (voir `cadrage-projets.md`, section « La vision de Jérôme »). **Après la fusion de la PR, Jérôme doit** : (1) déployer le MCP des clients (workflow plateforme, choix `mcp`) pour que l'outil `extraire_valeur_projet` disparaisse ; son CRM se met à jour tout seul ; (2) fermer le ticket GitHub n° 28 ; (3) si Hermes est branché, remplacer sa liste d'outils par celle de `branchement-mcp.md` (43 outils).
+Retirée partout (voir `cadrage-projets.md`, section « La vision de Jérôme »). **Après la fusion de la PR, Jérôme doit** : (1) déployer le MCP des clients (workflow plateforme, choix `mcp`) pour que l'outil `extraire_valeur_projet` disparaisse ; son CRM se met à jour tout seul ; (2) fermer le ticket GitHub n° 28 ; (3) si Hermes est branché, remplacer sa liste d'outils par celle de `branchement-mcp.md` (40 outils).
 
 ## Options par défaut des nouveaux espaces (18/10/2026) : PR 122
 
@@ -194,7 +200,7 @@ PR 49 **fusionnée et déployée le 10/10/2026**, règles Firestore publiées, e
 ## Pour mémoire : le chantier Projets est terminé (07/10/2026)
 
 Rien à reprendre de ce côté, tout est fusionné sur `main` et le déploiement est vert : écran Projets en 7 étapes (PR #32 à #38, version 2.1.0), facturation 2.2 (PR #40 et #41, version 2.2.0 : factures dans le projet, Clôture bloquée tant qu'une facture est à payer, sortie « clôturer avec impayé », la vente s'arrête à « Gagné », migration des anciennes affaires dans Réglages) et 16 outils MCP des projets (PR #42, détail dans `mcp-projets.md`). Jérôme a essayé l'écran et dit que tout fonctionne ; **il remontera ce qu'il remarque à l'usage** : traiter ces retours en petites PR.
-- **Hermes n'est pas encore configuré** (Jérôme, 07/10/2026). Au moment de le brancher, la liste des **43 outils** à autoriser (44 avant la suppression de `extraire_valeur_projet`, le 18/10/2026) est dans `branchement-mcp.md` (vérifiée par un test) : ne pas reprendre une ancienne liste (`ajouter_encaissement` n'existe plus).
+- **Hermes n'est pas encore configuré** (Jérôme, 07/10/2026). Au moment de le brancher, la liste des **40 outils** à autoriser (44 avant la suppression de `extraire_valeur_projet`, le 18/10/2026) est dans `branchement-mcp.md` (vérifiée par un test) : ne pas reprendre une ancienne liste (`ajouter_encaissement` n'existe plus).
 - Décisions de Jérôme à ne pas rouvrir : une affaire Gagnée n'est **pas** archivée automatiquement (il l'archive à la main) ; une facture se paie en entier ; pas de délai de paiement.
 - Non faits volontairement : outils MCP de modification ou de suppression de facture et de gestion des modèles (ils restent à l'écran) ; blocage du passage de phase tant que les tâches de la phase ne sont pas faites (proposé à Jérôme, pas demandé).
 

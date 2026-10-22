@@ -10,7 +10,7 @@ import { panneauActivite } from './activites.js';
 import { creerLanceurs } from './lanceurs.js';
 import { retirerAvecAnnulation } from '../../os/retrait.js';
 import { sectionLiensEtDocuments } from './liens-documents.js';
-import { changerEtapeAvecBoites, ouvrirPerdue, ouvrirPause, demanderSuppressionAffaire } from './affaires.js';
+import { changerEtapeAvecBoites, ouvrirPerdue, demanderSuppressionAffaire } from './affaires.js';
 import * as PD from '../projets/donnees.js';
 import * as P from '../projets/logique.js';
 import { carteProjetMini } from '../projets/composants.js';
@@ -54,7 +54,7 @@ export function rendreFicheAffaire(conteneur, id) {
   function barreDesEtapes(a) {
     const etapes = L.etapesActives(D.etat.config);
     const index = etapes.findIndex((e) => e.id === a.etape);
-    const vivante = a.statut === 'ouverte' || a.statut === 'gagnee';
+    const vivante = L.estVivante(a);
     return h('ol', { class: `barre-etapes-fiche${vivante ? '' : ' inactive'}`, 'aria-label': 'Étapes de l’affaire' },
       etapes.map((e, i) => h('li', { class: i <= index ? 'passee' : '', style: { '--couleur': e.couleur } },
         // Simple indicateur : on change l'étape avec la liste « Étape » du Résumé (ou « Perdue » ; la dernière étape = affaire gagnée).
@@ -65,19 +65,18 @@ export function rendreFicheAffaire(conteneur, id) {
   function construire(a) {
     const liens = liensEntete(() => D.affaire(a.id) || a);
     majLiens = liens.maj;
-    const vivante = a.statut === 'ouverte' || a.statut === 'gagnee';
+    const vivante = L.estVivante(a);
     const titre = titreEditable({ valeur: a.titre, libelle: 'Titre', surEnregistrer: (v) => D.majAffaire(a.id, { titre: v }) });
     const montant = champPropriete({ libelle: 'Montant', valeur: a.montant ?? '', type: 'nombre', pas: '0.01', formater: (v) => L.formatEuros(v), fantome: L.formatEuros(999), surEnregistrer: (v) => D.majAffaire(a.id, { montant: v }) });
     const menu = h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Plus d’actions', 'data-action': 'menu-fiche',
       onclick: (e) => ouvrirMenu(e.currentTarget, [
-        ...(a.statut === 'perdue' || a.statut === 'en_pause' ? [{ libelle: 'Rouvrir', icone: 'rotate-ccw', action: () => D.rouvrir(a.id) }] : []),
+        ...(a.statut === 'perdue' ? [{ libelle: 'Rouvrir', icone: 'rotate-ccw', action: () => D.rouvrir(a.id) }] : []),
         { libelle: a.archive ? 'Désarchiver' : 'Archiver', icone: a.archive ? 'archive-restore' : 'archive', action: () => D.archiverAffaire(a.id, !a.archive) },
         { libelle: 'Supprimer définitivement…', icone: 'trash-2', danger: true, action: () => demanderSuppressionAffaire(a) },
       ]) }, icone('ellipsis', { taille: 20 }));
     const actionsStatut = vivante
       ? [
         h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'perdue', onclick: () => ouvrirPerdue(a) }, 'Perdue'),
-        h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'en-pause', onclick: () => ouvrirPause(a) }, 'En pause'),
       ]
       : [h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'rouvrir', onclick: () => D.rouvrir(a.id) }, icone('rotate-ccw', { taille: 16 }), 'Rouvrir')];
 
@@ -85,9 +84,8 @@ export function rendreFicheAffaire(conteneur, id) {
       lienRetour('#/crm/affaires', 'Affaires'),
       h('div', { class: 'fiche-tete-ligne' },
         h('div', { class: 'fiche-titre' }, titre,
-          h('div', { class: 'fiche-sous' }, pastilleStatut(a.statut), iconeInfo(EXPLICATION_STATUT_AFFAIRE[a.statut], 'État de l’affaire'),
+          h('div', { class: 'fiche-sous' }, pastilleStatut(L.statutAffiche(a)), iconeInfo(EXPLICATION_STATUT_AFFAIRE[L.statutAffiche(a)], 'État de l’affaire'),
             a.statut === 'perdue' ? h('span', { class: 'aide' }, `${a.raisonPerdue}${a.raisonPerdueDetail ? ` : ${a.raisonPerdueDetail}` : ''}`) : null,
-            a.statut === 'en_pause' ? h('span', { class: 'aide' }, `jusqu’au ${L.formatJour(a.dateReveil)}`) : null,
             a.archive ? h('span', { class: 'badge-archive' }, 'Archivée') : null,
             liens.element)),
         // Le montant et les boutons forment une seule zone : même axe vertical, même espace entre voisins.

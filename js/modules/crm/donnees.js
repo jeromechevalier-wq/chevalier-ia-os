@@ -446,10 +446,6 @@ export async function marquerAffairePerdue(id, saisie) {
   return appliquer(L.planMarquerPerdue(a, saisie, ctx()), 'marquerAffairePerdue');
 }
 
-export async function mettreAffaireEnPause(id, saisie) {
-  return appliquer(L.planMettreEnPause(affaire(id), saisie, ctx()), 'mettreAffaireEnPause');
-}
-
 export async function rouvrir(id) {
   return appliquer(L.planRouvrirAffaire(affaire(id), ctx()), 'rouvrir');
 }

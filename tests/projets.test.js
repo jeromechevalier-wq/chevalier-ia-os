@@ -35,7 +35,7 @@ describe('B20 Projets : phases, statuts et création', () => {
     assert.deepEqual(P.phasesActives(L.CONFIG_JEROME).map((p) => p.libelle), ['Lancement', 'Découverte', 'Livraison', 'Clôture']);
     assert.equal(L.CONFIG_JEROME.phases.length, 6);
     assert.equal(P.phaseCloture(L.CONFIG_JEROME), 'cloture');
-    assert.deepEqual(P.STATUTS_PROJET.map((s) => s.id), ['actif', 'en_pause', 'termine']);
+    assert.deepEqual(P.STATUTS_PROJET.map((s) => s.id), ['actif', 'termine']);
     assert.equal(P.libellePhase('decouverte', L.CONFIG_JEROME), 'Découverte');
     assert.equal(P.libellePhase('inconnue', L.CONFIG_JEROME), 'inconnue', 'un identifiant inconnu s’affiche tel quel');
   });
@@ -83,7 +83,7 @@ describe('B20 Projets : phases, statuts et création', () => {
   });
 });
 
-describe('B21 Projets : phase, pause, fin, archivage', () => {
+describe('B21 Projets : phase, fin, archivage', () => {
   test('B21 changer de phase : patch, date d’entrée, première date de chaque phase gardée, événement avec projetId', () => {
     const c = ctx('2026-10-20T09:00:00Z');
     const p = projet({ affaireId: 'a1', personneId: 'p1', organisationId: 'o1' });
@@ -113,17 +113,19 @@ describe('B21 Projets : phase, pause, fin, archivage', () => {
     assert.deepEqual([r.patch.phase, r.patch.statut, r.patch.archive], ['livraison', 'actif', false]);
     assert.deepEqual(r.evenements.map((e) => e.type), ['projet_rouvert', 'phase_changee']);
   });
-  test('B21 pause et reprise ; un projet terminé ne se met pas en pause', () => {
-    const p = projet();
-    const pause = P.mettreProjetEnPause(p, ctx());
-    assert.equal(pause.patch.statut, 'en_pause');
-    assert.equal(pause.evenements[0].type, 'projet_en_pause');
-    assert.deepEqual(P.mettreProjetEnPause({ ...p, statut: 'en_pause' }, ctx()).patch, {});
-    const repris = P.reprendreProjet({ ...p, statut: 'en_pause' }, ctx());
-    assert.equal(repris.patch.statut, 'actif');
-    assert.equal(repris.evenements[0].type, 'projet_repris');
-    assert.deepEqual(P.reprendreProjet(p, ctx()).patch, {}, 'un projet actif ne se « reprend » pas');
-    assert.ok(P.mettreProjetEnPause({ ...p, statut: 'termine' }, ctx()).erreurs.statut);
+  test('B21 plus de pause : ni règle de pause, ni règle de reprise ; un projet ancien « en_pause » est traité comme actif', () => {
+    assert.equal(typeof P.mettreProjetEnPause, 'undefined');
+    assert.equal(typeof P.reprendreProjet, 'undefined');
+    assert.equal(typeof P.planMettreProjetEnPause, 'undefined');
+    assert.equal(P.statutProjetAffiche(projet({ statut: 'en_pause' })), 'actif', 'donnée ancienne tolérée');
+    assert.equal(P.statutProjetAffiche(projet({ statut: 'termine' })), 'termine');
+    assert.equal(P.libelleStatutProjet('en_pause'), 'Actif');
+    const vieux = projet({ statut: 'en_pause' });
+    assert.equal(P.terminerProjet(vieux, ctx()).patch.statut, 'termine', 'un ancien projet en pause peut être terminé');
+    assert.equal(P.changementPhase(vieux, 'livraison', ctx()).patch.phase, 'livraison', 'et changer de phase');
+  });
+  test('B21 un filtre enregistré avec en_pause se lit comme Actif, sans doublon', () => {
+    assert.deepEqual(P.criteresProjetsComplets({ statuts: ['en_pause', 'actif', 'termine'] }).statuts, ['actif', 'termine']);
   });
   test('B21 terminer : Clôture, Terminé, archivé, un événement ; rien ne bloque en 2.1 ; déjà terminé : rien à faire', () => {
     const c = ctx('2026-12-01T10:00:00Z');
@@ -171,11 +173,14 @@ describe('B22 Projets : avancement, retard, pastille', () => {
     assert.equal(P.estProjetEnRetard(projet(), [t(false, '2026-10-14')], ajd), true);
     assert.equal(P.estProjetEnRetard(projet(), [t(true, '2026-10-14'), t(false, '2026-10-15'), t(false, null)], ajd), false);
   });
-  test('B22 un projet terminé, archivé ou en pause n’est jamais en retard', () => {
-    for (const etat of [{ statut: 'termine' }, { archive: true }, { statut: 'en_pause' }]) {
+  test('B22 un projet terminé ou archivé n’est jamais en retard', () => {
+    for (const etat of [{ statut: 'termine' }, { archive: true }]) {
       assert.equal(P.estProjetEnRetard(projet({ dateFin: '2026-01-01', ...etat }), [t(false, '2026-01-01')], '2026-10-15'), false);
       assert.equal(P.pastilleProjet(projet({ dateFin: '2026-01-01', ...etat }), [t(false, '2026-01-01')], '2026-10-15'), 'grise');
     }
+  });
+  test('B22 un ancien projet « en_pause » est actif : il peut être en retard (donnée ancienne tolérée)', () => {
+    assert.equal(P.estProjetEnRetard(projet({ dateFin: '2026-01-01', statut: 'en_pause' }), [], '2026-10-15'), true);
   });
   test('B22 pastille : rouge (en retard), verte (une tâche à faire), grise (rien)', () => {
     const ajd = '2026-10-15';
@@ -185,10 +190,11 @@ describe('B22 Projets : avancement, retard, pastille', () => {
     assert.equal(P.pastilleProjet(projet(), [t(true, '2026-10-01')], ajd), 'grise');
     assert.equal(P.pastilleProjet(projet(), [], ajd), 'grise');
   });
-  test('B22 estProjetActif : ni archivé, ni en pause, ni terminé', () => {
+  test('B22 estProjetActif : ni archivé, ni terminé (un ancien « en_pause » compte comme actif)', () => {
     assert.equal(P.estProjetActif(projet()), true);
     assert.equal(P.estProjetActif(projet({ archive: true })), false);
-    assert.equal(P.estProjetActif(projet({ statut: 'en_pause' })), false);
+    assert.equal(P.estProjetActif(projet({ statut: 'termine' })), false);
+    assert.equal(P.estProjetActif(projet({ statut: 'en_pause' })), true);
     assert.equal(P.estProjetActif(null), false);
   });
 });
@@ -234,14 +240,13 @@ describe('B24 Projets : plans d’écriture', () => {
     assert.equal(P.planMajProjet('pr1', { documents: [] }, { avant: { ...avant, documents: [{ libelle: 'Planning', url: 'https://x.fr/p' }] }, ctx: c }).ecritures[1].donnees.texte, 'Document retiré : Planning');
     assert.equal(P.planMajProjet('pr1', { documents: [] }).ecritures.length, 1);
   });
-  test('B24 changer de phase, mettre en pause, terminer : le projet puis ses événements ; une erreur de règle n’écrit rien', () => {
+  test('B24 changer de phase, terminer : le projet puis ses événements ; une erreur de règle n’écrit rien', () => {
     const plan = P.planChangerPhase(projet(), 'livraison', ctx());
     assert.deepEqual(plan.ecritures.map((e) => `${e.type}:${e.collection}`), ['modifier:projets_projets', 'creer:crm_evenements']);
     const erreur = P.planChangerPhase(projet(), 'nimporte', ctx());
     assert.deepEqual(erreur.ecritures, []);
     assert.ok(erreur.erreurs.phase);
     assert.deepEqual(P.planChangerPhase(projet(), 'lancement', ctx()).ecritures, []);
-    assert.equal(P.planMettreProjetEnPause(projet(), ctx()).ecritures.length, 2);
     assert.equal(P.planTerminerProjet(projet(), ctx()).ecritures.length, 2);
   });
   test('B24 supprimer un projet : son fil, ses tâches puis lui ; l’affaire est détachée ; rien aux autres', () => {
@@ -376,7 +381,7 @@ describe('B26 Projets : filtres et recherche de l’écran', () => {
   const projets = [
     projet({ id: 'a', titre: 'Audit Carrel', personneId: 'p1', organisationId: 'o1', phase: 'lancement' }),
     projet({ id: 'b', titre: 'Accompagnement Martin', personneId: 'p2', phase: 'livraison', dateFin: '2026-10-01' }),
-    projet({ id: 'c', titre: 'Étude Carrel', phase: 'decouverte', statut: 'en_pause' }),
+    projet({ id: 'c', titre: 'Étude Carrel', phase: 'decouverte', statut: 'termine' }),
     projet({ id: 'd', titre: 'Ancien chantier', phase: 'cloture', statut: 'termine', archive: true }),
   ];
   const ids = (liste) => liste.map((p) => p.id);
@@ -394,13 +399,15 @@ describe('B26 Projets : filtres et recherche de l’écran', () => {
   });
   test('B26 phase et statut se combinent (et)', () => {
     assert.deepEqual(ids(P.filtrerProjets(projets, { phases: ['lancement', 'livraison'] }, contexte)), ['a', 'b']);
-    assert.deepEqual(ids(P.filtrerProjets(projets, { statuts: ['en_pause'] }, contexte)), ['c']);
-    assert.deepEqual(ids(P.filtrerProjets(projets, { statuts: ['en_pause'], phases: ['livraison'] }, contexte)), []);
+    assert.deepEqual(ids(P.filtrerProjets(projets, { statuts: ['termine'] }, contexte)), ['c']);
+    assert.deepEqual(ids(P.filtrerProjets(projets, { statuts: ['termine'], phases: ['livraison'] }, contexte)), []);
+    assert.deepEqual(ids(P.filtrerProjets(projets, { statuts: ['actif'] }, contexte)), ['a', 'b']);
+    assert.deepEqual(ids(P.filtrerProjets([...projets, projet({ id: 'vieux', statut: 'en_pause' })], { statuts: ['actif'] }, contexte)), ['a', 'b', 'vieux'], 'un ancien « en_pause » est filtré comme actif');
   });
-  test('B26 en retard : fin dépassée ou tâche en retard ; jamais un projet en pause ou terminé', () => {
+  test('B26 en retard : fin dépassée ou tâche en retard ; jamais un projet terminé', () => {
     assert.deepEqual(ids(P.filtrerProjets(projets, { enRetard: true }, contexte)), ['b']);
     const avecTache = { ...contexte, taches: [{ projetId: 'a', fait: false, date: '2026-10-02' }, { projetId: 'c', fait: false, date: '2026-10-02' }] };
-    assert.deepEqual(ids(P.filtrerProjets(projets, { enRetard: true }, avecTache)), ['a', 'b'], 'c est en pause : jamais en retard');
+    assert.deepEqual(ids(P.filtrerProjets(projets, { enRetard: true }, avecTache)), ['a', 'b'], 'c est terminé : jamais en retard');
   });
   test('B26 recherche : titre, personne, organisation, sans accents ni casse, tous les mots', () => {
     assert.deepEqual(ids(P.filtrerProjets(projets, { recherche: 'carrel' }, contexte)), ['a', 'c']);
@@ -463,8 +470,8 @@ describe('B28 Affaire gagnée : créer ou lier un projet', () => {
   const c = () => ctx('2026-10-20T09:00:00Z');
   const par = (ecritures) => Object.fromEntries(ecritures.map((e) => [`${e.type}:${e.collection}`, e]));
 
-  test('B28 seule une affaire gagnée peut avoir un projet (en cours, perdue, en pause : refus)', () => {
-    for (const a of [L.nouvelleAffaire({ titre: 'x' }, ctx()), gagnee({ statut: 'perdue' }), gagnee({ statut: 'en_pause' })]) {
+  test('B28 seule une affaire gagnée peut avoir un projet (en cours, perdue : refus)', () => {
+    for (const a of [L.nouvelleAffaire({ titre: 'x' }, ctx()), gagnee({ statut: 'perdue' })]) {
       const plan = P.planCreerProjetDepuisAffaire({ affaire: { ...a, id: 'a1' } }, c());
       assert.deepEqual(plan.erreurs, { affaire: 'Seule une affaire gagnée peut avoir un projet.' });
       assert.deepEqual(plan.ecritures, []);
@@ -694,12 +701,12 @@ describe('B29 Livrables d’un projet', () => {
     assert.deepEqual(P.progressionProjet(P.tachesDuProjet(taches, 'pr1', L.CONFIG_JEROME)), { faites: 1, total: 3, ratio: 1 / 3 });
   });
   test('B29 Accueil : tâches datées, non faites, de projets vivants ; en retard et du jour, par date et heure, avec leur projet', () => {
-    const projets = [projet({ id: 'pr1' }), projet({ id: 'pause', statut: 'en_pause' }), projet({ id: 'fini', statut: 'termine', archive: true }), projet({ id: 'rangé', archive: true })];
+    const projets = [projet({ id: 'pr1' }), projet({ id: 'termine', statut: 'termine' }), projet({ id: 'fini', statut: 'termine', archive: true }), projet({ id: 'rangé', archive: true })];
     const t = (id, projetId, date, extra = {}) => tache({ id, projetId, date, ...extra });
     const taches = [
       t('r2', 'pr1', '2026-10-10'), t('r1', 'pr1', '2026-10-01'), t('j2', 'pr1', '2026-10-15', { heure: '15:00' }), t('j1', 'pr1', '2026-10-15', { heure: '09:00' }),
       t('futur', 'pr1', '2026-10-16'), t('sans', 'pr1', null), t('faite', 'pr1', '2026-10-01', { fait: true }),
-      t('p', 'pause', '2026-10-01'), t('f', 'fini', '2026-10-01'), t('a', 'rangé', '2026-10-01'), t('orpheline', 'disparu', '2026-10-01'),
+      t('p', 'termine', '2026-10-01'), t('f', 'fini', '2026-10-01'), t('a', 'rangé', '2026-10-01'), t('orpheline', 'disparu', '2026-10-01'),
     ];
     const r = P.tachesPointsCles(taches, projets, '2026-10-15');
     assert.deepEqual(r.enRetard.map((x) => x.id), ['r1', 'r2']);

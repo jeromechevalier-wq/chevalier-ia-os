@@ -318,7 +318,7 @@ test('C10 Gagné : célébration ; la vente s’arrête là (plus d’étape de 
   await creerAffaire('a1', { titre: 'Atelier IA', etape: 'proposition_envoyee', montant: 1200, personneId: 'p1', offreId: 'audit' });
   await connecter(page);
   await allerA(page, 'Affaires');
-  await expect(page.locator('.colonne[data-colonne]:not([data-colonne="perdue"]):not([data-colonne="en_pause"])')).toHaveCount(4);
+  await expect(page.locator('.colonne[data-colonne]:not([data-colonne="perdue"])')).toHaveCount(4);
   await expect(page.locator('.colonne[data-colonne="facture_envoyee"], .colonne[data-colonne="facture_payee"]')).toHaveCount(0);
   await deplacer(page, 'a1', 'gagne');
   await fermerCelebration(page);
@@ -331,9 +331,8 @@ test('C10 Gagné : célébration ; la vente s’arrête là (plus d’étape de 
   await expect.poll(() => valeurObjectif(page, 'ca_encaisse')).toBe(0);
 });
 
-test('C11 Perdue (raison obligatoire), En pause (date de réveil), Rouvrir', async ({ page }) => {
+test('C11 Perdue (raison obligatoire), Rouvrir ; plus de pause', async ({ page }) => {
   await creerAffaire('a1', { titre: 'À perdre', etape: 'rdv_fixe' });
-  await creerAffaire('a2', { titre: 'À mettre en pause', etape: 'rdv_fixe' });
   await connecter(page);
   await allerA(page, 'Affaires');
   await page.locator('.carte-affaire[data-affaire="a1"] .carte-menu').click();
@@ -354,18 +353,10 @@ test('C11 Perdue (raison obligatoire), En pause (date de réveil), Rouvrir', asy
   await page.locator('.menu-pop').getByRole('menuitem', { name: 'Rouvrir' }).click();
   await champDoc('crm_affaires', 'a1', 'statut', 'ouverte');
   expect((await lireDocument('crm_affaires/a1')).raisonPerdue).toBe('');
-  // En pause (retour au kanban)
+  // Plus de pause (22/10/2026) : le menu d'une carte du kanban ne propose plus « En pause… »
   await page.locator('.bascule-vue[data-vue="kanban"]').click();
-  await page.locator('.carte-affaire[data-affaire="a2"] .carte-menu').click();
-  await page.locator('.menu-pop').getByRole('menuitem', { name: 'En pause…' }).click();
-  const date = dialogue(page).getByLabel('Date de réveil');
-  await expect(date).toHaveValue(/^\d{4}-\d{2}-\d{2}$/);
-  await dialogue(page).getByRole('button', { name: 'Mettre en pause' }).click();
-  await expect(dialogue(page)).toHaveCount(0);
-  await champDoc('crm_affaires', 'a2', 'statut', 'en_pause');
-  const a2 = await lireDocument('crm_affaires/a2');
-  expect(a2.etape).toBe('rdv_fixe');
-  expect(a2.dateReveil > jour(80)).toBe(true);
+  await page.locator('.carte-affaire[data-affaire="a1"] .carte-menu').click();
+  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: /pause/i })).toHaveCount(0);
 });
 
 // ---------------------------------------------------------------- activités, notes, historique, Points clés

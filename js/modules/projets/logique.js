@@ -19,7 +19,6 @@ const C = COLLECTIONS_PLAN;
 
 export const STATUTS_PROJET = [
   { id: 'actif', libelle: 'Actif', couleur: '#b98ee0' },
-  { id: 'en_pause', libelle: 'En pause', couleur: '#8a9bb4' },
   { id: 'termine', libelle: 'Terminé', couleur: '#3fbf7f' },
 ];
 
@@ -61,7 +60,7 @@ export function assigneParDefaut(config, auteur = '') {
   return (membres.find((m) => normaliser(m.email) === a) ?? membres[0])?.id ?? '';
 }
 
-export const libelleStatutProjet = (id) => STATUTS_PROJET.find((s) => s.id === id)?.libelle ?? id ?? '';
+export const libelleStatutProjet = (id) => STATUTS_PROJET.find((s) => s.id === (id === 'en_pause' ? 'actif' : id))?.libelle ?? id ?? '';
 
 const estJour = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v || '') && !Number.isNaN(Date.parse(`${v}T12:00:00Z`));
 
@@ -114,8 +113,13 @@ function evenementProjet(type, texte, projet, ctx) {
 const sansEffet = { erreurs: {}, patch: {}, evenements: [] };
 
 export const estProjetTermine = (p) => p?.statut === 'termine';
-/** Projet « vivant » : ni archivé, ni en pause, ni terminé. */
-export const estProjetActif = (p) => !!p && !p.archive && p.statut === 'actif';
+/**
+ * Statut à afficher et à compter. Il n'y a plus de pause (décision du 22/10/2026) : un projet ancien resté au statut « en_pause » dans une base non
+ * migrée est traité comme « actif » (donnée ancienne tolérée : il ne disparaît d'aucune liste et s'ouvre normalement).
+ */
+export const statutProjetAffiche = (p) => (p?.statut === 'en_pause' ? 'actif' : p?.statut);
+/** Projet « vivant » : ni archivé, ni terminé. */
+export const estProjetActif = (p) => !!p && !p.archive && statutProjetAffiche(p) === 'actif';
 
 /** Patch d'entrée dans une phase : la première date d'entrée de chaque phase est gardée (comme pour les étapes des affaires). */
 function entreeDansPhase(projet, phase, ctx) {
@@ -156,17 +160,6 @@ export function changementPhase(projet, phase, ctx) {
 export function suggestionPourPhase(phase, aujourdhui, config) {
   const a = phaseDe(phase, config)?.action;
   return a ? { type: 'tache', titre: a.titre, date: ajouterJours(aujourdhui, a.delaiJours || 0) } : null;
-}
-
-export function mettreProjetEnPause(projet, ctx) {
-  if (projet.statut === 'en_pause') return sansEffet;
-  if (estProjetTermine(projet)) return { erreurs: { statut: 'Un projet terminé ne se met pas en pause : rouvre-le d’abord.' }, patch: {}, evenements: [] };
-  return { erreurs: {}, patch: { statut: 'en_pause' }, evenements: [evenementProjet('projet_en_pause', `Projet en pause : ${projet.titre}`, projet, ctx)] };
-}
-
-export function reprendreProjet(projet, ctx) {
-  if (projet.statut !== 'en_pause') return sansEffet;
-  return { erreurs: {}, patch: { statut: 'actif' }, evenements: [evenementProjet('projet_repris', `Projet repris : ${projet.titre}`, projet, ctx)] };
 }
 
 /**
@@ -388,7 +381,7 @@ export function progressionProjet(taches = []) {
 
 export const tacheEnRetard = (t, aujourdhui) => !t.fait && !!t.date && t.date < aujourdhui;
 
-/** En retard : fin prévue dépassée sans être terminé, ou une tâche non faite dont la date est passée. Un projet terminé, archivé ou en pause n'est jamais en retard. */
+/** En retard : fin prévue dépassée sans être terminé, ou une tâche non faite dont la date est passée. Un projet terminé ou archivé n'est jamais en retard. */
 export function estProjetEnRetard(projet, taches = [], aujourdhui) {
   if (!estProjetActif(projet)) return false;
   if (projet.dateFin && projet.dateFin < aujourdhui) return true;
@@ -521,7 +514,7 @@ export function planDeplacerTache({ tache, taches = [], sens }) {
 }
 
 /**
- * Tâches à montrer dans les Points clés de l'Accueil : non faites, datées, d'un projet vivant (ni en pause, ni terminé, ni archivé).
+ * Tâches à montrer dans les Points clés de l'Accueil : non faites, datées, d'un projet vivant (ni terminé, ni archivé).
  * { enRetard, aujourdhui } triés par date puis heure ; chaque tâche est rendue avec son projet : { ...tache, projet }.
  */
 export function tachesPointsCles(taches, projets, aujourdhui) {
@@ -833,7 +826,8 @@ export function criteresProjetsComplets(c = {}) {
   return {
     recherche: c.recherche ?? '',
     phases: [...(c.phases ?? [])],
-    statuts: [...(c.statuts ?? [])],
+    // un filtre enregistré avant la suppression de la pause peut contenir « en_pause » : il se lit comme « actif » (sans doublon)
+    statuts: [...new Set((c.statuts ?? []).map((s) => (s === 'en_pause' ? 'actif' : s)))],
     enRetard: !!c.enRetard,
   };
 }
@@ -875,7 +869,7 @@ export function filtrerProjets(projets, criteres, { personnes = [], organisation
   return (projets || []).filter((p) => {
     if (!!p.archive !== !!archives) return false;
     if (c.phases.length && !c.phases.includes(p.phase)) return false;
-    if (c.statuts.length && !c.statuts.includes(p.statut)) return false;
+    if (c.statuts.length && !c.statuts.includes(statutProjetAffiche(p))) return false;
     if (c.enRetard && !estProjetEnRetard(p, taches.filter((t) => t.projetId === p.id), aujourdhui)) return false;
     if (!mots.length) return true;
     const foin = normaliser([p.titre, nomPersonne.get(p.personneId), nomOrganisation.get(p.organisationId)].filter(Boolean).join(' '));
@@ -924,8 +918,6 @@ export function planResultatProjet(projetId, resultat, ctx) {
   return { ...resultat, ecritures: [...modifierSiPatch(C.projets, projetId, resultat.patch, MARQUES_MODIFICATION), ...evenements(resultat.evenements, ctx)] };
 }
 export const planChangerPhase = (projet, phase, ctx) => planResultatProjet(projet.id, changementPhase(projet, phase, ctx), ctx);
-export const planMettreProjetEnPause = (projet, ctx) => planResultatProjet(projet.id, mettreProjetEnPause(projet, ctx), ctx);
-export const planReprendreProjet = (projet, ctx) => planResultatProjet(projet.id, reprendreProjet(projet, ctx), ctx);
 export const planTerminerProjet = (projet, ctx, options = {}) => planResultatProjet(projet.id, terminerProjet(projet, ctx, options), ctx);
 export const planRouvrirProjet = (projet, ctx) => planResultatProjet(projet.id, rouvrirProjet(projet, ctx), ctx);
 export const planAjouterFacture = (projet, valeurs, ctx) => planResultatProjet(projet.id, ajouterFacture(projet, valeurs, ctx), ctx);

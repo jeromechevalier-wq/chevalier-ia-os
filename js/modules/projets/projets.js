@@ -31,8 +31,9 @@ const taches = () => D.etat.taches;
 // ---------------------------------------------------------------- pastilles et actions communes
 
 export function pastilleStatutProjet(p) {
-  const s = P.STATUTS_PROJET.find((x) => x.id === p.statut);
-  return h('span', { class: `pastille-statut statut-${p.statut}`, style: { '--couleur': s?.couleur || '#8d8993' } }, P.libelleStatutProjet(p.statut));
+  const statut = P.statutProjetAffiche(p);
+  const s = P.STATUTS_PROJET.find((x) => x.id === statut);
+  return h('span', { class: `pastille-statut statut-${statut}`, style: { '--couleur': s?.couleur || '#8d8993' } }, P.libelleStatutProjet(statut));
 }
 
 export function pastillePhase(phase) {
@@ -52,7 +53,7 @@ async function sortirDuBlocage(p, plan, relancer) {
   return undefined;
 }
 
-/** Terminer, mettre en pause, reprendre, rouvrir : la règle est dans logique.js, ici seulement le message. `options.impaye` : { raison } pour clôturer malgré des factures à payer. */
+/** Terminer, rouvrir : la règle est dans logique.js, ici seulement le message. `options.impaye` : { raison } pour clôturer malgré des factures à payer. */
 export async function terminerProjet(p, options = {}) {
   const plan = await D.terminer(p.id, options);
   if (plan.erreurs?.factures) return sortirDuBlocage(p, plan, (q) => terminerProjet(q));
@@ -88,14 +89,6 @@ export async function changerPhaseProjet(p, phase) {
   return undefined;
 }
 
-export async function mettreEnPause(p) {
-  await D.mettreEnPause(p.id);
-  toast('Projet en pause');
-}
-export async function reprendre(p) {
-  await D.reprendre(p.id);
-  toast('Projet repris');
-}
 export async function rouvrir(p) {
   await D.rouvrir(p.id);
   toast('Projet rouvert');
@@ -115,9 +108,6 @@ export function menuProjet(p) {
     ...(P.estProjetTermine(p)
       ? [{ libelle: 'Rouvrir', icone: 'rotate-ccw', action: () => rouvrir(p) }]
       : [
-        p.statut === 'en_pause'
-          ? { libelle: 'Reprendre', icone: 'rotate-ccw', action: () => reprendre(p) }
-          : { libelle: 'Mettre en pause', icone: 'clock', action: () => mettreEnPause(p) },
         { libelle: 'Terminer', icone: 'circle-check', action: () => terminerProjet(p) },
       ]),
     { libelle: p.archive ? 'Désarchiver' : 'Archiver', icone: p.archive ? 'archive-restore' : 'archive', action: () => D.archiver(p.id, !p.archive) },
@@ -296,7 +286,7 @@ function carte(p, rafraichir) {
   const dates = p.dateDebut || p.dateFin
     ? h('span', { class: 'carte-sous carte-dates' }, icone('calendar', { taille: 12 }), [p.dateDebut ? L.formatJour(p.dateDebut) : '…', p.dateFin ? L.formatJour(p.dateFin) : '…'].join(' → '))
     : null;
-  const el = h('article', { class: `carte-projet carte-affaire statut-${p.statut}`, draggable: 'true', tabindex: '0', dataset: { projet: p.id }, 'aria-label': p.titre, style: { '--couleur': P.couleurPhase(p.phase, cfg()) },
+  const el = h('article', { class: `carte-projet carte-affaire statut-${P.statutProjetAffiche(p)}`, draggable: 'true', tabindex: '0', dataset: { projet: p.id }, 'aria-label': p.titre, style: { '--couleur': P.couleurPhase(p.phase, cfg()) },
     onclick: (e) => { if (!e.target.closest('a, button')) naviguer(`projets/projets/${p.id}`); },
     onkeydown: (e) => { if (e.key === 'Enter' && e.target === el) naviguer(`projets/projets/${p.id}`); },
     ondragstart: (e) => { enDeplacement = true; e.dataTransfer.setData('text/plain', p.id); e.dataTransfer.effectAllowed = 'move'; el.classList.add('en-deplacement'); },
@@ -306,7 +296,6 @@ function carte(p, rafraichir) {
   pers ? h('span', { class: 'carte-sous' }, icone('user', { taille: 12 }), pers.nom) : null,
   dates,
   h('div', { class: 'carte-pied' },
-    p.statut === 'en_pause' ? h('span', { class: 'badge-pause' }, 'En pause') : null,
     enRetard ? h('span', { class: 'badge-retard' }, 'En retard') : null,
     p.proprietaire ? h('span', { class: 'carte-proprietaire' }, nomCompte(p.proprietaire)) : null,
     anneauProgression(P.progressionProjet(D.tachesDe(p.id))),
@@ -419,7 +408,7 @@ export function rendreProjets(conteneur, { archives: surArchives = false } = {})
     { id: 'personne', libelle: 'Personne', tri: (p) => L.normaliser(CRM.personne(p.personneId)?.nom) },
     { id: 'organisation', libelle: 'Organisation', tri: (p) => L.normaliser(CRM.organisation(p.organisationId)?.nom) },
     { id: 'phase', libelle: 'Phase', tri: (p) => P.rangPhase(p.phase, cfg()) },
-    { id: 'statut', libelle: 'Statut', tri: (p) => P.STATUTS_PROJET.findIndex((x) => x.id === p.statut) },
+    { id: 'statut', libelle: 'Statut', tri: (p) => P.STATUTS_PROJET.findIndex((x) => x.id === P.statutProjetAffiche(p)) },
     { id: 'debut', libelle: 'Début', tri: (p) => p.dateDebut || null },
     { id: 'fin', libelle: 'Fin prévue', tri: (p) => p.dateFin || null },
   ];

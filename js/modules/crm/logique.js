@@ -1,6 +1,6 @@
 // Règles métier pures du module CRM (version 2.0) : aucune dépendance à Firebase ni au navigateur.
 // Conventions :
-//  - les champs "date" (date d'une activité, dateReveil) sont des chaînes "AAAA-MM-JJ"
+//  - les champs "date" (date d'une activité) sont des chaînes "AAAA-MM-JJ"
 //    (jour civil, sans fuseau) ; les heures sont "HH:MM" ; les mois "AAAA-MM" ;
 //  - les champs "timestamp" sont des Timestamp Firestore (ou des Date côté tests) : versDate() lit les deux ;
 //  - les fonctions qui modifient un document renvoient un "patch" (champs à écrire) et, quand il y a lieu,
@@ -19,8 +19,16 @@ export const STATUTS = [
   { id: 'ouverte', libelle: 'Ouverte', couleur: '#b98ee0' },
   { id: 'gagnee', libelle: 'Gagnée', couleur: '#ecbc06' },
   { id: 'perdue', libelle: 'Perdue', couleur: '#8d8993' },
-  { id: 'en_pause', libelle: 'En pause', couleur: '#8a9bb4' },
 ];
+
+/**
+ * Statut à afficher et à compter. Il n'y a plus de pause (décision du 22/10/2026) : une affaire ancienne restée au statut « en_pause » dans une
+ * base non migrée est traitée comme « ouverte » (donnée ancienne tolérée : elle ne disparaît d'aucune liste et s'ouvre normalement).
+ */
+export function statutAffiche(affaire) {
+  const s = affaire?.statut;
+  return s === 'en_pause' ? 'ouverte' : s;
+}
 
 export const TYPES_CONTACT = [
   { id: 'travail', libelle: 'Travail' },
@@ -53,6 +61,7 @@ export const DATES_RAPIDES = [
 ];
 
 export function libelleStatut(id) {
+  if (id === 'en_pause') id = 'ouverte'; // donnée ancienne tolérée
   return STATUTS.find((s) => s.id === id)?.libelle ?? id ?? '';
 }
 export function libellePriorite(id) {
@@ -852,7 +861,6 @@ export function nouvelleAffaire(valeurs, ctx) {
     datesEtapes: { [etape]: ctx.maintenant },
     raisonPerdue: '',
     raisonPerdueDetail: '',
-    dateReveil: null,
     documents: [],
     projetId: null,
     urlGithub: urlOuVide(validerUrlGithub, valeurs.urlGithub),
@@ -890,14 +898,14 @@ export function liensAffaire(affaire) {
 
 /**
  * Changement d'étape : renvoie { patch, evenements, suggestion } (la suggestion vient de la configuration de l'étape : aucune par défaut).
- * Changer d'étape rouvre une affaire perdue ou en pause (raison et date de réveil effacées).
+ * Changer d'étape rouvre une affaire perdue (la raison est effacée ; une ancienne affaire « en pause » est aussi rouverte : donnée ancienne tolérée).
  */
 export function changementEtape(affaire, etape, ctx, options = {}) {
   const config = configDe(ctx);
   const erreurs = validerChangementEtape(etape, config);
   if (Object.keys(erreurs).length) return { erreurs, patch: {}, evenements: [], suggestion: null };
   const liens = liensAffaire(affaire);
-  const rouvre = affaire.statut === 'perdue' || affaire.statut === 'en_pause';
+  const rouvre = affaire.statut === 'perdue' || affaire.statut === 'en_pause'; // « en_pause » : donnée ancienne tolérée
   if (etape === affaire.etape && !rouvre) return { erreurs: {}, patch: {}, evenements: [], suggestion: null };
 
   // La date d'entrée dans chaque étape est celle du PREMIER passage, sauf l'étape « vente gagnée » : elle porte la date de la signature
@@ -940,25 +948,8 @@ export function marquerPerdue(affaire, { raison, detail = '' }, ctx) {
   };
 }
 
-/** Date de réveil proposée pour une affaire en pause : +3 mois, au même jour du mois. */
-export function dateReveilParDefaut(aujourdhui) {
-  const [a, m, j] = aujourdhui.split('-').map(Number);
-  const cible = new Date(Date.UTC(a, m - 1 + 3, 1));
-  const dernier = new Date(Date.UTC(cible.getUTCFullYear(), cible.getUTCMonth() + 1, 0)).getUTCDate();
-  cible.setUTCDate(Math.min(j, dernier));
-  return cible.toISOString().slice(0, 10);
-}
-
-export function mettreEnPause(affaire, { dateReveil }, ctx) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateReveil || '')) return { erreurs: { dateReveil: 'La date de réveil est obligatoire.' }, patch: {}, evenements: [] };
-  return {
-    erreurs: {},
-    patch: { statut: 'en_pause', dateReveil, raisonPerdue: '', raisonPerdueDetail: '' },
-    evenements: [evenement('affaire_en_pause', `Affaire en pause jusqu'au ${formatJour(dateReveil)} : ${affaire.titre}`, liensAffaire(affaire), ctx)],
-  };
-}
-
 export function rouvrirAffaire(affaire, ctx) {
+  // « en_pause » : donnée ancienne tolérée (plus de pause depuis le 22/10/2026)
   if (affaire.statut !== 'perdue' && affaire.statut !== 'en_pause') return { patch: {}, evenements: [] };
   return {
     patch: { statut: statutPourEtape(affaire.etape, configDe(ctx)), raisonPerdue: '', raisonPerdueDetail: '', dateReveil: null },
@@ -970,9 +961,15 @@ export function estArchivee(x) {
   return x.archive === true;
 }
 
-/** Affaire "vivante" : ni archivée, ni perdue, ni en pause. */
+/** Statut ouvert ou gagné (une ancienne « en pause » compte comme ouverte). */
+export function estVivante(a) {
+  const s = statutAffiche(a);
+  return s === 'ouverte' || s === 'gagnee';
+}
+
+/** Affaire "vivante" : ni archivée, ni perdue. */
 export function estAffaireActive(a) {
-  return !estArchivee(a) && (a.statut === 'ouverte' || a.statut === 'gagnee');
+  return !estArchivee(a) && estVivante(a);
 }
 
 export const LONGUEUR_MAX_NOTE = 300;
@@ -1213,13 +1210,9 @@ export function estSansAction(affaire, activites) {
   return estAffaireActive(affaire) && !activitesDeAffaire(activitesAVenir(activites), affaire.id).length;
 }
 
-export function estAReveiller(affaire, aujourdhui) {
-  return affaire.statut === 'en_pause' && !!affaire.dateReveil && affaire.dateReveil <= aujourdhui && !estArchivee(affaire);
-}
-
 /**
- * Points clés : activités non faites (en retard, aujourd'hui), affaires à réveiller, affaires sans action.
- * Les activités rattachées à une affaire perdue, en pause ou archivée sont ignorées.
+ * Points clés : activités non faites (en retard, aujourd'hui), affaires sans action.
+ * Les activités rattachées à une affaire perdue ou archivée sont ignorées.
  */
 export function pointsCles({ activites = [], affaires = [] }, aujourdhui) {
   const vivantes = new Set(affaires.filter(estAffaireActive).map((a) => a.id));
@@ -1228,7 +1221,6 @@ export function pointsCles({ activites = [], affaires = [] }, aujourdhui) {
   return {
     enRetard: ouvertes.filter((a) => estActiviteEnRetard(a, aujourdhui)),
     aujourdhui: ouvertes.filter((a) => a.date === aujourdhui),
-    reveils: affaires.filter((a) => estAReveiller(a, aujourdhui)),
     sansAction: affaires.filter((a) => estSansAction(a, activites)),
   };
 }
@@ -1337,7 +1329,7 @@ export const FILTRES_HISTORIQUE = [
 ];
 
 const TYPES_EVENEMENT_AFFAIRE = new Set([
-  'affaire_creee', 'etape_changee', 'affaire_gagnee', 'affaire_perdue', 'affaire_en_pause', 'affaire_rouverte', 'encaissement',
+  'affaire_creee', 'etape_changee', 'affaire_gagnee', 'affaire_perdue', 'affaire_en_pause' /* anciens événements, encore affichés */, 'affaire_rouverte', 'encaissement',
 ]);
 
 /** Types cochables dans la fenêtre « Filtres » de l'historique (« Tous » n'est pas une case : rien de coché = tout). */
@@ -1598,6 +1590,8 @@ export function criteresComplets(liste, c = {}) {
   for (const [cle, valeur] of Object.entries(base)) {
     complet[cle] = Array.isArray(valeur) ? [...(c[cle] || [])] : (c[cle] ?? valeur);
   }
+  // Un filtre enregistré avant la suppression de la pause peut contenir « en_pause » : il se lit comme « ouverte » (sans doublon).
+  if (liste === 'affaires') complet.statuts = [...new Set(complet.statuts.map((s) => (s === 'en_pause' ? 'ouverte' : s)))];
   return complet;
 }
 
@@ -1655,7 +1649,7 @@ export function filtrerAffaires(affaires, criteres, { activites = [], personnes 
     const botte = normaliser([a.titre, pers.get(a.personneId)?.nom, orgs.get(a.organisationId)?.nom].join(' \u0001 '));
     if (!correspond(botte, c.recherche)) return false;
     if (!inter(c.etapes, a.etape)) return false;
-    if (!inter(c.statuts, a.statut)) return false;
+    if (!inter(c.statuts, statutAffiche(a))) return false;
     if (!inter(c.priorites, a.priorite)) return false;
     if (!inter(c.offres, a.offreId)) return false;
     if (!inter(c.sources, a.source)) return false;
@@ -2021,7 +2015,6 @@ export function planResultatAffaire(affaireId, resultat, ctx) {
 }
 export const planChangerEtape = (affaire, etape, ctx, options = {}) => planResultatAffaire(affaire.id, changementEtape(affaire, etape, ctx, options), ctx);
 export const planMarquerPerdue = (affaire, saisie, ctx) => planResultatAffaire(affaire.id, marquerPerdue(affaire, saisie, ctx), ctx);
-export const planMettreEnPause = (affaire, saisie, ctx) => planResultatAffaire(affaire.id, mettreEnPause(affaire, saisie, ctx), ctx);
 export const planRouvrirAffaire = (affaire, ctx) => planResultatAffaire(affaire.id, rouvrirAffaire(affaire, ctx), ctx);
 
 /**

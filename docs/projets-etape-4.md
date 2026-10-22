@@ -10,14 +10,14 @@ Une tâche appartient à un projet et à une phase. Les tâches **datées et non
 - **Cocher une tâche** : elle passe à « faite » avec sa date, un événement « Tâche faite : … » entre dans l'historique du projet, on peut la décocher. Une tâche déplacée dans une autre phase se place à la fin de cette phase.
 - **Avancement** : une ligne « Avancement » dans le Résumé du projet (« 2 / 5 tâches » et un cercle), et un **cercle d'avancement sur la carte** du Kanban (il n'existe que si le projet a des tâches).
 - **Retard** : un projet actif est « en retard » si sa fin prévue est dépassée **ou** si une de ses tâches non faites a une date passée (badge « En retard » et pastille rouge sur la carte, filtre « En retard »).
-- **Accueil** : les tâches en retard et du jour apparaissent parmi les activités du CRM, mêlées par date et heure, avec un lien vers le projet. « Fait » les coche (et Charles félicite quand tout est fait, comme pour les activités). Ne comptent pas : les tâches sans date, à venir, déjà faites, et celles d'un projet en pause, terminé ou archivé.
+- **Accueil** : les tâches en retard et du jour apparaissent parmi les activités du CRM, mêlées par date et heure, avec un lien vers le projet. « Fait » les coche (et Charles félicite quand tout est fait, comme pour les activités). Ne comptent pas : les tâches sans date, à venir, déjà faites, et celles d'un projet terminé ou archivé.
 - Toutes les écritures passent par des plans testés (`projets/logique.js`) et laissent leur trace dans le Journal. Supprimer un projet supprime ses tâches. Les tâches sont déjà dans l'export JSON complet.
 
 ## Choix faits, à contredire si besoin
 
 - **Monter / Descendre par le menu** plutôt que glisser déposer pour réordonner : cela marche pareil sur téléphone et au clavier. Le glisser déposer pourra venir si tu le veux.
 - **Toutes les tâches sont montrées à Jérôme comme à Charles** dans l'Accueil (comme les activités du CRM) : le champ « confiée à » est enregistré et affiché, mais ne filtre rien pour l'instant.
-- Les tâches d'un projet **en pause** ne remontent pas dans l'Accueil (comme les activités d'une affaire en pause) ; elles y reviennent à la reprise.
+- Il n'y a plus de pause (supprimée le 22/10/2026) : un ancien projet resté « en pause » est traité comme actif, ses tâches remontent dans l'Accueil.
 - Pas de tâche sans projet, pas d'heure sans date (l'heure est effacée avec la date).
 
 ## À faire dans les étapes suivantes
