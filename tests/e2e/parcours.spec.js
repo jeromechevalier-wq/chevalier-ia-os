@@ -609,7 +609,7 @@ test('C17 filtres : combiner deux filtres, enregistrer, appliquer, renommer et s
   await allerA(page, 'Personnes');
   await expect(page.locator('.tableau-personnes tbody tr')).toHaveCount(3);
   await page.locator('[data-action="filtres"]').click();
-  await dialogue(page).locator('input[data-cle="villes"][data-valeur="Manosque"]').check();
+  await dialogue(page).locator('input[data-cle="villes"][data-valeur="manosque"]').check();
   await dialogue(page).locator('input[data-cle="sources"][data-valeur="Flyer"]').check();
   await dialogue(page).getByRole('button', { name: 'Appliquer' }).click();
   await expect(page.locator('.tableau-personnes tbody tr')).toHaveCount(1);
@@ -1363,30 +1363,19 @@ test('C29 les anciens rôles et dates JTBD sont convertis à l’ouverture en é
   await expect(page.locator('.tableau-personnes')).toContainText('Paul Martin');
 });
 
-test('C30 source d’une personne : liste fermée, dernière ligne « Nouvelle valeur » avec bouton Créer ; les sources tapées à la main entrent dans la liste', async ({ page }) => {
+test('C30 source d’une personne : liste fermée aux Réglages, plus de « Nouvelle valeur », une ancienne valeur reste affichée et ne s’ajoute plus à la liste (L1)', async ({ page }) => {
   await creerPersonne('p1', { nom: 'Marie Durand', source: 'Salon du livre' });
   await creerPersonne('p2', { nom: 'Paul Martin' });
   await connecter(page);
-  await expect.poll(async () => ((await lireDocument('crm_parametres/listes'))?.sources ?? [])).toContain('Salon du livre');
+  // La source tapée à la main n'entre plus toute seule dans la liste des Réglages (l'ancienne copie automatique est supprimée).
+  await page.waitForTimeout(1500);
+  expect(((await lireDocument('crm_parametres/listes'))?.sources ?? [])).not.toContain('Salon du livre');
   await aller(page, '#/crm/personnes/p2');
   const details = page.locator('.section[data-section="personne-details"]');
   await details.locator('.prop', { hasText: 'Source' }).getByRole('button', { name: /Ajouter/ }).click();
   const liste = details.getByLabel('Source', { exact: true });
   await expect(liste.locator('option', { hasText: 'LinkedIn' })).toHaveCount(1);
-  await expect(liste.locator('option').last()).toHaveText('+ Nouvelle valeur…');
+  await expect(liste.locator('option', { hasText: 'Nouvelle valeur' })).toHaveCount(0);
   await liste.selectOption('LinkedIn');
   await champDoc('crm_personnes', 'p2', 'source', 'LinkedIn');
-  // Nouvelle source : même écriture à l'accent et à la casse près -> l'existante est reprise, pas de doublon
-  await details.locator('.prop', { hasText: 'Source' }).locator('.prop-modifier').click();
-  await details.getByLabel('Source', { exact: true }).selectOption({ label: '+ Nouvelle valeur…' });
-  await details.getByLabel('Nouvelle valeur : Source').fill('salon du livre');
-  await details.locator('[data-action="creer-valeur"]').click();
-  await champDoc('crm_personnes', 'p2', 'source', 'Salon du livre');
-  await details.locator('.prop', { hasText: 'Source' }).locator('.prop-modifier').click();
-  await details.getByLabel('Source', { exact: true }).selectOption({ label: '+ Nouvelle valeur…' });
-  await details.getByLabel('Nouvelle valeur : Source').fill('Bouche à oreille');
-  await details.locator('[data-action="creer-valeur"]').click();
-  await champDoc('crm_personnes', 'p2', 'source', 'Bouche à oreille');
-  await expect.poll(async () => ((await lireDocument('crm_parametres/listes'))?.sources ?? []).filter((s) => /salon du livre/i.test(s)).length).toBe(1);
-  await expect.poll(async () => ((await lireDocument('crm_parametres/listes'))?.sources ?? [])).toContain('Bouche à oreille');
 });

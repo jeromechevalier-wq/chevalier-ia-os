@@ -36,6 +36,6 @@ export function anneauProgression({ faites, total, ratio }, { taille = 22 } = {}
   tpl.innerHTML = `<svg xmlns="${SVG_NS}" width="${taille}" height="${taille}" viewBox="0 0 24 24" fill="none" stroke-width="3" aria-hidden="true">`
     + `<circle cx="12" cy="12" r="${rayon}" stroke="var(--barre-fond)"/>`
     + `<circle cx="12" cy="12" r="${rayon}" stroke="var(--succes)" stroke-linecap="round" stroke-dasharray="${(circonference * ratio).toFixed(2)} ${circonference.toFixed(2)}" transform="rotate(-90 12 12)"/></svg>`;
-  const libelle = `${faites} tâche${faites > 1 ? 's' : ''} faite${faites > 1 ? 's' : ''} sur ${total}`;
+  const libelle = `${faites} livrable${faites > 1 ? 's' : ''} fait${faites > 1 ? 's' : ''} sur ${total}`;
   return h('span', { class: 'anneau-progression', role: 'img', 'aria-label': libelle, title: libelle, dataset: { faites: String(faites), total: String(total) } }, tpl.content.firstElementChild);
 }

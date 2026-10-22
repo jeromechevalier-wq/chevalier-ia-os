@@ -156,8 +156,8 @@ export function rendreFicheAffaire(conteneur, id) {
       contenu: h('div', { class: 'proprietes' },
         champPropriete({ libelle: 'Besoin identifié', valeur: a.besoin || '', type: 'zone', surEnregistrer: (v) => D.majAffaire(a.id, { besoin: v }) }).element,
         champPropriete({ libelle: 'Durée (jours)', valeur: a.dureeJours ?? '', type: 'nombre', pas: '0.5', surEnregistrer: (v) => D.majAffaire(a.id, { dureeJours: v }) }).element,
-        champPropriete({ libelle: 'Source', valeur: a.source || '', type: 'liste', fournir: () => D.etat.sources,
-          surEnregistrer: async (v) => { if (v) await D.ajouterValeurListe('sources', v); await D.majAffaire(a.id, { source: v }); } }).element,
+        champPropriete({ libelle: 'Source', valeur: a.source || '', type: 'liste', autoriserCreation: false, fournir: () => D.etat.sources, aideListeVide: 'Aucune source dans la liste : ajoute-en dans Réglages, Sources.',
+          surEnregistrer: (v) => D.majAffaire(a.id, { source: v }) }).element,
         lanceurs.github),
     });
 

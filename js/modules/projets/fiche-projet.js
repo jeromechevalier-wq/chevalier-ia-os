@@ -1,4 +1,4 @@
-// Fiche d'un projet : barre des phases, résumé, tâches, factures ; à droite : activité, notes et documents (onglets, avec le dossier de travail), points clés, historique.
+// Fiche d'un projet : barre des phases, résumé, livrables, factures ; à droite : activité, notes et documents (onglets, avec le dossier de travail), points clés, historique.
 import { h, icone, remplir, ouvrirMenu, toast, confirmer } from '../../os/ui.js';
 import * as CRM from '../crm/donnees.js';
 import * as L from '../crm/logique.js';
@@ -30,7 +30,7 @@ export function rendreFicheProjet(conteneur, id) {
   let majSelecteurs = null; // met à jour l'affichage des cellules Personne / Organisation du Résumé (sans écrire)
   let majLiens = null; // redessine seulement les liens personne / organisation de l'en-tête
   let majFactures = null; // redessine la liste des factures seule, pendant une saisie dans le formulaire d'ajout
-  let majTaches = null; // redessine la liste des tâches seule, quand on est en train de taper ailleurs dans la fiche
+  let majTaches = null; // redessine la liste des livrables seule, quand on est en train de taper ailleurs dans la fiche
   const racine = h('div', { class: 'fiche-conteneur' });
   conteneur.append(racine);
 
@@ -110,13 +110,13 @@ export function rendreFicheProjet(conteneur, id) {
         await changerPhaseProjet(p, selectPhase.value);
         selectPhase.value = D.projet(p.id)?.phase ?? p.phase; // refus ou annulation : on revient à la phase réelle
       } }, P.phasesActives(cfg()).map((ph) => h('option', { value: ph.id, selected: ph.id === p.phase }, ph.libelle)));
-    /** L'avancement (cercle et « 2 / 5 tâches ») : redessiné seul quand une tâche change pendant qu'on tape dans la fiche. */
+    /** L'avancement (cercle et « 2 / 5 livrables ») : redessiné seul quand un livrable change pendant qu'on tape dans la fiche. */
     const zoneAvancement = h('div', { class: 'prop-valeur' });
     const rendreAvancement = () => {
       const avancement = P.progressionProjet(D.tachesDe(p.id));
       remplir(zoneAvancement, avancement.total
-        ? h('span', { class: 'avancement' }, anneauProgression(avancement, { taille: 20 }), `${avancement.faites} / ${avancement.total} tâche${avancement.total > 1 ? 's' : ''}`)
-        : h('span', { class: 'aide' }, 'Aucune tâche'));
+        ? h('span', { class: 'avancement' }, anneauProgression(avancement, { taille: 20 }), `${avancement.faites} / ${avancement.total} livrable${avancement.total > 1 ? 's' : ''}`)
+        : h('span', { class: 'aide' }, 'Aucun livrable'));
     };
     rendreAvancement();
     const resume = sectionRepliable({
@@ -145,7 +145,7 @@ export function rendreFicheProjet(conteneur, id) {
       enregistrer: (patch) => D.majProjet(p.id, patch),
     });
 
-    // ---- Tâches
+    // ---- Livrables
     const taches = sectionTaches(p);
     majTaches = () => { taches.majListe(); rendreAvancement(); };
 
@@ -173,7 +173,6 @@ export function rendreFicheProjet(conteneur, id) {
       panneau = panneauActivite({
         lien: { projetId: p.id }, liensCreation: () => P.liensProjet(D.projet(p.id) || p),
         avecDocuments: true,
-        typesActivite: ['appel', 'rendez_vous', 'email'], // pas de « Tâche » libre : un projet a sa section Tâches
         affaireLiee: panneauAffaireId ? { affaireId: panneauAffaireId, fusionnerNotes: (notes, notesAffaire) => P.notesDuProjet(notes, notesAffaire, p.id) } : null,
       });
     }
@@ -191,7 +190,7 @@ export function rendreFicheProjet(conteneur, id) {
     majSelecteurs?.();
     majLiens?.(); // les liens personne / organisation du haut suivent le choix fait dans le Résumé
     majFactures?.();
-    majTaches?.(); // une saisie est en cours : la fiche n'est pas refaite, mais la liste des tâches suit (une tâche ajoutée apparaît tout de suite)
+    majTaches?.(); // une saisie est en cours : la fiche n'est pas refaite, mais la liste des livrables suit (un livrable ajouté apparaît tout de suite)
   });
   reconstruire();
   const arrets = [D.surChangement(rafraichir), CRM.surChangement(rafraichir)];

@@ -69,21 +69,21 @@ test('I12 Factures : ligne « Factures  + Ajouter », le formulaire n’apparaî
   await capturer(page, info, 'I12-facture-ajoutee');
 });
 
-test('I11 Tâches : une seule ligne « Clique ici pour ajouter une tâche… », qui s’ouvre avec phase, dates rapides et date ; titre seul = phase en cours sans date ; plus de gros bouton jaune', async ({ page }, info) => {
+test('I11 Tâches : une seule ligne « Clique ici pour ajouter un livrable… », qui s’ouvre avec phase, dates rapides et date ; titre seul = phase en cours sans date ; plus de gros bouton jaune', async ({ page }, info) => {
   await creerProjet('pr1', { titre: 'Audit des Lilas', phase: 'decouverte' });
   await creerTacheProjet('t0', { titre: 'Déjà là' });
   await connecter(page);
   await ouvrir(page, '#/projets/projets/pr1');
   const section = page.locator('[data-section="projet-taches"]');
-  const champ = section.getByLabel('Nouvelle tâche');
-  await expect(champ).toHaveAttribute('placeholder', 'Clique ici pour ajouter une tâche…');
-  await expect(section.getByLabel('Phase de la tâche')).toBeHidden();
+  const champ = section.getByLabel('Nouveau livrable');
+  await expect(champ).toHaveAttribute('placeholder', 'Clique ici pour ajouter un livrable…');
+  await expect(section.getByLabel('Phase du livrable')).toBeHidden();
   await expect(section.locator('[data-date-rapide]').first()).toBeHidden();
   await expect(section.locator('.bouton-principal')).toHaveCount(0); // plus de gros bouton jaune
   await capturer(page, info, 'I11-tache-ligne-fermee');
   await champ.click();
-  await expect(section.getByLabel('Phase de la tâche')).toBeVisible();
-  await expect(section.getByLabel('Phase de la tâche')).toHaveValue('decouverte'); // phase en cours par défaut
+  await expect(section.getByLabel('Phase du livrable')).toBeVisible();
+  await expect(section.getByLabel('Phase du livrable')).toHaveValue('decouverte'); // phase en cours par défaut
   await expect(section.locator('[data-date-rapide]').first()).toBeVisible();
   await expect(section.getByLabel('Date', { exact: true })).toBeVisible();
   await expect(section.locator('.bouton-principal')).toHaveCount(0);
@@ -129,14 +129,14 @@ test('I11 Tâches : Échap sur un titre vide remet la date et la phase à zéro'
   await connecter(page);
   await ouvrir(page, '#/projets/projets/pr1');
   const section = page.locator('[data-section="projet-taches"]');
-  const champ = section.getByLabel('Nouvelle tâche');
+  const champ = section.getByLabel('Nouveau livrable');
   await champ.click();
   await section.locator('[data-date-rapide="demain"]').click();
-  await section.getByLabel('Phase de la tâche').selectOption('livraison');
+  await section.getByLabel('Phase du livrable').selectOption('livraison');
   await champ.click();
   await champ.press('Escape');
-  await expect(section.getByLabel('Phase de la tâche')).toBeHidden();
+  await expect(section.getByLabel('Phase du livrable')).toBeHidden();
   await champ.click();
   await expect(section.getByLabel('Date', { exact: true })).toHaveValue('');
-  await expect(section.getByLabel('Phase de la tâche')).toHaveValue('decouverte');
+  await expect(section.getByLabel('Phase du livrable')).toHaveValue('decouverte');
 });

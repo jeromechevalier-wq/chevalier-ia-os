@@ -109,7 +109,7 @@ export function proposerProchaineActivite(liens) {
 export async function faireActivite(activite, { proposer = true } = {}) {
   await D.marquerActiviteFaite(activite.id);
   if (proposer) {
-    const liens = { personneId: activite.personneId ?? null, organisationId: activite.organisationId ?? null, affaireId: activite.affaireId ?? null };
+    const liens = { personneId: activite.personneId ?? null, organisationId: activite.organisationId ?? null, affaireId: activite.affaireId ?? null, ...(activite.projetId ? { projetId: activite.projetId } : {}) };
     await proposerProchaineActivite(liens);
   }
 }
@@ -228,7 +228,7 @@ export function ligneActivite(a, aujourdhui, { avecAffaire = true, tousRattachem
  * (les notes marquées `deAffaire` n'ont ni « Modifier » ni « Supprimer » : elles restent sur l'affaire).
  * `avecActivites: false` : ni onglet « Activité », ni Points clés, seulement les notes et l'historique (plus utilisé : la fiche projet a retrouvé ses activités).
  * `avecDocuments` : ajoute un onglet « Documents » (après Notes) ; la fiche y met son contenu par `majDocuments({ element, compteur })` (appelée à chaque fois que la fiche est redessinée).
- * `typesActivite` : identifiants des types proposés dans l'onglet Activité (par défaut tous). La fiche projet n'offre pas « Tâche » : un projet a ses propres tâches.
+ * `typesActivite` : identifiants des types proposés dans l'onglet Activité (par défaut tous, dans l'ordre de `L.TYPES_ACTIVITE`). Le type choisi au départ est le premier (Appel).
  */
 export function panneauActivite({ lien, liensCreation, avecActivites = true, affaireLiee = null, typesActivite = null, avecDocuments = false }) {
   let fil = { notes: [], evenements: [] };
@@ -242,7 +242,7 @@ export function panneauActivite({ lien, liensCreation, avecActivites = true, aff
   const racine = h('div', { class: 'panneau-activite' });
 
   // ---- compositeur (onglets Activité / Notes)
-  let type = typesProposes.some((t) => t.id === 'tache') ? 'tache' : typesProposes[0].id;
+  let type = typesProposes.length ? typesProposes[0].id : L.TYPES_ACTIVITE[0].id; // le premier type de la liste (Appel), sur l’affaire comme sur le projet
   let titreModifie = false;
   const champTitre = h('input', { class: 'champ', type: 'text', 'aria-label': 'Titre de l’activité', placeholder: 'Clique ici pour ajouter une activité…', value: '',
     oninput: () => { titreModifie = true; } });

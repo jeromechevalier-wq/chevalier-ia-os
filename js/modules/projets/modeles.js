@@ -1,4 +1,4 @@
-// Modèles de projet : la liste (dans les Réglages, section « Modèles de projets ») et la fiche d'un modèle (ses tâches types par phase).
+// Modèles de projet : la liste (dans les Réglages, section « Modèles de projets ») et la fiche d'un modèle (ses livrables types par phase).
 // Aucune règle métier ici : les règles sont dans logique.js (plans), exécutés par donnees.js.
 import { h, icone, remplir, dialogue, confirmer, demanderTexte, ouvrirMenu, toast } from '../../os/ui.js';
 import { naviguer } from '../../os/router.js';
@@ -48,15 +48,15 @@ export function rendreModeles(conteneur, { page = true } = {}) {
     const lignes = modeles.map((m) => h('tr', { class: 'ligne-liste', dataset: { id: m.id }, onclick: (e) => { if (!e.target.closest('a, button')) naviguer(`projets/modeles/${m.id}`); } },
       h('td', { dataset: { libelle: 'Nom' } }, h('a', { class: 'cellule-nom', href: cheminModele(m.id) }, h('span', {}, m.nom))),
       h('td', { dataset: { libelle: 'Offre' } }, libelleOffre(m.offreId) || null),
-      h('td', { dataset: { libelle: 'Tâches' } }, String((m.taches || []).length)),
+      h('td', { dataset: { libelle: 'Livrables' } }, String((m.taches || []).length)),
       h('td', { dataset: { libelle: 'État' } }, m.actif === false ? h('span', { class: 'badge-pause' }, 'Inactif') : 'Actif')));
     remplir(zone, h('div', { class: 'zone-tableau' }, h('table', { class: 'tableau tableau-modeles' },
-      h('thead', {}, h('tr', {}, ['Nom', 'Offre', 'Tâches', 'État'].map((c) => h('th', { scope: 'col' }, h('span', { class: 'tri' }, c))))),
+      h('thead', {}, h('tr', {}, ['Nom', 'Offre', 'Livrables', 'État'].map((c) => h('th', { scope: 'col' }, h('span', { class: 'tri' }, c))))),
       h('tbody', {}, lignes))));
   }
 
   const boutonNouveau = h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'nouveau-modele', onclick: nouveau }, icone('plus', { taille: 16 }), 'Modèle');
-  const aide = h('p', { class: 'aide' }, 'Un modèle donne à un projet ses tâches de départ. Il se choisit à la création du projet ; celui de l’offre de l’affaire est proposé d’office.');
+  const aide = h('p', { class: 'aide' }, 'Un modèle donne à un projet ses livrables de départ. Il se choisit à la création du projet ; celui de l’offre de l’affaire est proposé d’office.');
   conteneur.append(page
     ? h('div', { class: 'page page-affaires page-modeles' },
       h('header', { class: 'page-tete' },
@@ -73,12 +73,12 @@ export function rendreModeles(conteneur, { page = true } = {}) {
 // ---------------------------------------------------------------- fiche d'un modèle
 
 async function dialogueTacheModele(modele, t) {
-  const titre = h('input', { class: 'champ', type: 'text', 'aria-label': 'Titre de la tâche type', value: t.titre, autofocus: true });
+  const titre = h('input', { class: 'champ', type: 'text', 'aria-label': 'Titre du livrable type', value: t.titre, autofocus: true });
   const phase = h('select', { class: 'champ', 'aria-label': 'Phase' }, P.phasesActives(cfg()).map((ph) => h('option', { value: ph.id, selected: ph.id === t.phase }, ph.libelle)));
   const delai = h('input', { class: 'champ champ-court', type: 'number', min: '0', step: '1', inputmode: 'numeric', 'aria-label': 'Délai en jours après le début', value: t.delaiJours ?? '' });
   const erreur = h('p', { class: 'erreur', role: 'alert' });
   return dialogue({
-    titre: 'Modifier la tâche type',
+    titre: 'Modifier le livrable type',
     classe: 'dialogue-formulaire',
     contenu: h('div', { class: 'pile' },
       h('label', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Titre'), titre),
@@ -100,7 +100,7 @@ async function dialogueTacheModele(modele, t) {
 
 export function rendreFicheModele(conteneur, id) {
   const racine = h('div', { class: 'fiche-conteneur' });
-  let majTaches = null; // redessine la liste des tâches seule, quand on tape dans le formulaire d'ajout
+  let majTaches = null; // redessine la liste des livrables seule, quand on tape dans le formulaire d'ajout
   conteneur.append(racine);
 
   function introuvable() {
@@ -137,8 +137,8 @@ export function rendreFicheModele(conteneur, id) {
           { libelle: 'Descendre', icone: 'arrow-down', desactive: i === g.taches.length - 1, action: () => ou(() => D.deplacerTacheModele(m.id, t.id, 1), 'Déplacement impossible') },
           ...P.phasesActives(cfg()).map((ph) => ({ libelle: `Déplacer vers : ${ph.libelle}`, icone: 'arrow-right-left', desactive: ph.id === t.phase, action: () => ou(() => D.majTacheModele(m.id, t.id, { phase: ph.id }), 'Déplacement impossible') })),
           { libelle: 'Supprimer', icone: 'trash-2', danger: true, action: () => retirerAvecAnnulation({
-            titre: 'Supprimer cette tâche type ?', message: t.titre, libelleOk: 'Supprimer', danger: true, messageErreur: 'Suppression impossible',
-            faire: () => D.supprimerTacheModele(m.id, t.id), defaire: () => D.restaurerTachesModele(m.id, m.taches || []), messageFait: 'Tâche type supprimée' }) },
+            titre: 'Supprimer ce livrable type ?', message: t.titre, libelleOk: 'Supprimer', danger: true, messageErreur: 'Suppression impossible',
+            faire: () => D.supprimerTacheModele(m.id, t.id), defaire: () => D.restaurerTachesModele(m.id, m.taches || []), messageFait: 'Livrable type supprimé' }) },
         ]) }, icone('ellipsis', { taille: 16 }));
       return h('li', { class: 'activite tache', dataset: { tacheModele: t.id } },
         h('span', { class: 'activite-type' }, icone('circle', { taille: 14 })),
@@ -146,10 +146,10 @@ export function rendreFicheModele(conteneur, id) {
         menuTache);
     }
 
-    const titre = h('input', { class: 'champ', type: 'text', 'aria-label': 'Nouvelle tâche type', placeholder: 'Ajouter une tâche type…', autocomplete: 'off' });
-    const phase = h('select', { class: 'champ', 'aria-label': 'Phase de la tâche type' }, P.phasesActives(cfg()).map((ph) => h('option', { value: ph.id }, ph.libelle)));
+    const titre = h('input', { class: 'champ', type: 'text', 'aria-label': 'Nouveau livrable type', placeholder: 'Ajouter un livrable type…', autocomplete: 'off' });
+    const phase = h('select', { class: 'champ', 'aria-label': 'Phase du livrable type' }, P.phasesActives(cfg()).map((ph) => h('option', { value: ph.id }, ph.libelle)));
     const delai = h('input', { class: 'champ champ-court', type: 'number', min: '0', step: '1', inputmode: 'numeric', 'aria-label': 'Délai en jours (vide = sans date)', placeholder: 'Délai (jours)' });
-    const bouton = h('button', { type: 'button', class: 'bouton bouton-principal bouton-petit', 'data-action': 'ajouter-tache-modele', onclick: ajouter }, icone('plus', { taille: 14 }), 'Ajouter la tâche type');
+    const bouton = h('button', { type: 'button', class: 'bouton bouton-principal bouton-petit', 'data-action': 'ajouter-tache-modele', onclick: ajouter }, icone('plus', { taille: 14 }), 'Ajouter le livrable type');
     async function ajouter() {
       if (!L.nettoyerEspaces(titre.value)) { toast('Le titre est obligatoire.', { type: 'erreur' }); titre.classList.add('invalide'); titre.focus(); return; }
       // Le formulaire se vide tout de suite ; si l'ajout échoue, ce qui était tapé revient.
@@ -158,12 +158,12 @@ export function rendreFicheModele(conteneur, id) {
       delai.value = '';
       titre.classList.remove('invalide');
       titre.focus();
-      const ok = await ou(() => D.ajouterTacheModele(m.id, saisie), 'Ajout impossible');
+      const ok = await ou(() => D.ajouterTacheModele(m.id, saisie), 'Livrable type non ajouté : vérifie ta connexion, puis réessaie');
       if (!ok && !titre.value) { titre.value = saisie.titre; delai.value = saisie.delaiJours; }
     }
     titre.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); ajouter(); } });
 
-    // La liste se redessine seule (sans toucher au formulaire d'ajout) : on peut taper la tâche suivante pendant que la précédente apparaît.
+    // La liste se redessine seule (sans toucher au formulaire d'ajout) : on peut taper le livrable suivant pendant que le précédent apparaît.
     const zoneGroupes = h('div', { class: 'pile zone-groupes-taches' });
     let compteur = null;
     function rendreGroupes() {
@@ -174,11 +174,11 @@ export function rendreFicheModele(conteneur, id) {
         ? avecTaches.map((g) => h('div', { class: 'groupe-taches', dataset: { phase: g.phase.id } },
           h('h3', { class: 'sous-titre' }, g.phase.libelle, h('span', { class: 'compteur' }, String(g.taches.length))),
           h('ul', { class: 'liste-activites' }, g.taches.map((t, i) => ligne(t, g, i)))))
-        : h('p', { class: 'aide' }, 'Ce modèle n’a pas encore de tâche : un projet créé avec lui démarre vide.'));
+        : h('p', { class: 'aide' }, 'Ce modèle n’a pas encore de livrable : un projet créé avec lui démarre vide.'));
       if (compteur) compteur.textContent = String(groupes.reduce((n, g) => n + g.taches.length, 0));
     }
     const taches = sectionRepliable({
-      id: 'modele-taches', titre: 'Tâches du modèle', compteur: 0,
+      id: 'modele-taches', titre: 'Livrables du modèle', compteur: 0,
       contenu: h('div', { class: 'pile' }, h('div', { class: 'ajout-tache ajout-tache-modele' }, titre, phase, delai, bouton), zoneGroupes),
     });
     compteur = taches.element.querySelector('.section-compteur');

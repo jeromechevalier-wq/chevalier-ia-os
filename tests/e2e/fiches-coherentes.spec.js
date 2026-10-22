@@ -88,13 +88,13 @@ test('F5 tâches (projet) et points clés (affaire) : même comportement — un 
   await aller(page, '#/projets/projets/pr1');
   const tache = page.locator('.tache[data-tache="t1"]');
   await tache.locator('[data-role="titre-tache"]').click();
-  await tache.getByLabel('Modifier le texte de la tâche').fill('Écrire le devis final');
-  await tache.getByLabel('Modifier le texte de la tâche').press('Enter');
+  await tache.getByLabel('Modifier le texte du livrable').fill('Écrire le devis final');
+  await tache.getByLabel('Modifier le texte du livrable').press('Enter');
   await expect.poll(async () => (await lireDocument('projets_taches/t1')).titre).toBe('Écrire le devis final');
   // Échap annule.
   await tache.locator('[data-role="titre-tache"]').click();
-  await tache.getByLabel('Modifier le texte de la tâche').fill('Autre texte');
-  await tache.getByLabel('Modifier le texte de la tâche').press('Escape');
+  await tache.getByLabel('Modifier le texte du livrable').fill('Autre texte');
+  await tache.getByLabel('Modifier le texte du livrable').press('Escape');
   await expect(tache.locator('[data-role="titre-tache"]')).toHaveText('Écrire le devis final');
   expect((await lireDocument('projets_taches/t1')).titre).toBe('Écrire le devis final');
   // Le menu ne garde que les actions rares (réglages, ordre, déplacement, suppression) : pas de modification du texte.

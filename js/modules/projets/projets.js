@@ -71,12 +71,12 @@ async function proposerActionPhase(p, phase, suggestion) {
   const accepte = await dialogue({
     titre: 'Action suggérée',
     contenu: h('div', { class: 'pile', dataset: { role: 'action-suggeree' } },
-      h('p', {}, `Le projet arrive en « ${P.libellePhase(phase, cfg())} ». Ajouter cette tâche ?`),
+      h('p', {}, `Le projet arrive en « ${P.libellePhase(phase, cfg())} ». Ajouter ce livrable ?`),
       h('p', {}, h('strong', {}, suggestion.titre), h('span', { class: 'aide' }, ` · pour le ${L.formatJour(suggestion.date)}`))),
     boutons: [{ libelle: 'Refuser', valeur: false }, { libelle: 'Accepter', valeur: true, style: 'principal' }],
   });
   if (!accepte) return;
-  try { await D.creerTache(p.id, { titre: suggestion.titre, date: suggestion.date, phase }); toast('Tâche ajoutée'); } catch (e) { console.warn(e); toast('Ajout impossible', { type: 'erreur' }); }
+  try { await D.creerTache(p.id, { titre: suggestion.titre, date: suggestion.date, phase }); toast('Livrable ajouté'); } catch (e) { console.warn(e); toast('Ajout impossible', { type: 'erreur' }); }
 }
 
 /** Changement de phase. Vers la Clôture, des factures à payer bloquent (si le suivi des paiements et la règle sont allumés) : même message et mêmes sorties que « Terminer ». */
@@ -130,7 +130,7 @@ export async function demanderSuppressionProjet(p) {
   const r = await dialogue({
     titre: 'Supprimer définitivement ?',
     contenu: h('div', { class: 'pile' },
-      h('p', {}, `Pour supprimer « ${p.titre} » avec ses tâches, notes et événements, tape son titre ci-dessous. Cette action est définitive. L’affaire liée n’est pas touchée.`), champ),
+      h('p', {}, `Pour supprimer « ${p.titre} » avec ses livrables, notes et événements, tape son titre ci-dessous. Cette action est définitive. L’affaire liée n’est pas touchée.`), champ),
     boutons: [{ libelle: 'Annuler', valeur: false }, {
       libelle: 'Supprimer', valeur: true, style: 'danger',
       avantFermeture: () => L.confirmationValide(champ.value, p.titre) || (champ.classList.add('invalide'), false),
