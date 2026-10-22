@@ -48,7 +48,7 @@ function blocLigne(ligne, ouvert) {
     try {
       const copie = await D.lireCopieJournal(ligne.id);
       remplir(corps, copie ? tableauDifferences(copie)
-        : h('p', { class: 'aide' }, 'Pas de copie « avant / après » : elle a expiré (gardée 90 jours) ou n’a pas pu être écrite.'));
+        : h('p', { class: 'aide' }, 'Pas de copie « avant / après » pour cette ligne.'));
     } catch (e) {
       console.warn(e);
       charge = false;
@@ -169,8 +169,8 @@ export function rendreJournal(conteneur) {
     h('div', { class: 'page-actions' }, boutonActualiser));
   conteneur.append(h('div', { class: 'page page-liste page-journal' }, entete,
     h('p', { class: 'aide' }, estChezClient()
-      ? 'Chaque création, modification ou suppression faite dans l’appli ou par un assistant IA laisse une ligne ici, avec une copie du document avant et après (gardée 90 jours).'
-      : 'Chaque création, modification ou suppression faite dans l’appli ou par Claude Code laisse une ligne ici, avec une copie du document avant et après (gardée 90 jours). Pour défaire une opération, demande-le à Claude Code (restaurer_depuis_audit).'),
+      ? 'Chaque création, modification ou suppression faite dans l’appli ou par un assistant IA laisse une ligne ici, avec une copie du document avant et après (gardée sans limite de durée).'
+      : 'Chaque création, modification ou suppression faite dans l’appli ou par Claude Code laisse une ligne ici, avec une copie du document avant et après (gardée sans limite de durée). Pour défaire une opération, demande-le à Claude Code (restaurer_depuis_audit).'),
     barre, zone, pied));
   rendre();
   charger(false);

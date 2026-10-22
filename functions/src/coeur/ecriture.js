@@ -20,6 +20,7 @@ export const COLLECTIONS_ECRITES = [C.personnes, C.organisations, C.affaires, C.
 export const MAX_ECRITURES = 1000;
 export const TAILLE_PAQUET_DONNEES = 400;
 export const TAILLE_PAQUET_AUDIT = 200; // deux documents par ligne : 400 documents par lot
+// Date exigée par les règles, inerte : aucune règle d'effacement n'existe (décision de Jérôme du 04/10/2026).
 export const JOURS_COPIES = 90;
 export const MAX_PARAMETRES = 2000;
 
