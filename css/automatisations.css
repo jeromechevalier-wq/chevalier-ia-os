@@ -43,6 +43,7 @@
 /* Appareil réglé pour réduire les animations : plus de pulsation, un carré fixe à la place. */
 @media (prefers-reduced-motion: reduce) {
   .autom-pastille.etat-running .autom-point, .autom-pastille.etat-new .autom-point { animation: none; border-radius: 2px; }
+  .etape-noeud[data-etat='en_cours'] .etape-point { animation: none; border-radius: 2px; }
 }
 .autom-erreur { flex: 1 1 100%; background: var(--retard-fond); border-radius: var(--rayon-petit); padding: 8px var(--esp-5); font-size: var(--fs-texte); }
 .autom-erreur-cle { color: var(--retard); font-weight: var(--poids-moyen); }
@@ -99,6 +100,33 @@
 .prop-etape.etape-echec { color: var(--retard); font-weight: var(--poids-moyen); }
 .prop-etape.etape-echec .prop-etape-point { background: currentColor; }
 .prop-etape.etape-ignoree { text-decoration: line-through; opacity: .6; }
+/* La chaîne d'étapes (le « Logger ») : un nœud par jalon, reliés par des traits. L'état se lit dans data-etat (couleur + texte caché), pas seulement dans la classe.
+   Le trait qui précède un nœud est le ::before de ce nœud ; il prend la couleur « fait » quand le nœud est fait. Les noms de classes et d'attributs sont stables (animation à venir). */
+.etape-chaine { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--esp-3) 0; font-size: var(--fs-menu); }
+.etape-noeud { --etape-couleur: var(--texte2); display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; color: var(--etape-couleur); }
+.etape-noeud::before { content: ''; flex: 0 0 auto; width: 26px; height: 2px; margin-right: 2px; background: var(--bordure); border-radius: 1px; }
+.etape-noeud:first-child::before { display: none; }
+.etape-point { flex: 0 0 auto; width: 12px; height: 12px; border-radius: 50%; border: 2px solid currentColor; box-sizing: border-box; display: inline-block; }
+.etape-libelle { overflow-wrap: anywhere; min-width: 0; }
+.etape-noeud[data-etat='a_venir'] .etape-point { background: transparent; }
+.etape-noeud[data-etat='en_cours'] { --etape-couleur: var(--au-attention); font-weight: var(--poids-moyen); }
+.etape-noeud[data-etat='en_cours'] .etape-point { background: currentColor; animation: autom-pulse 1.3s ease-in-out infinite; }
+.etape-noeud[data-etat='fait'] { --etape-couleur: var(--succes); }
+.etape-noeud[data-etat='fait'] .etape-point { background: currentColor; }
+.etape-noeud[data-etat='fait']::before { background: var(--succes); }
+.etape-noeud[data-etat='echec'] { --etape-couleur: var(--retard); font-weight: var(--poids-moyen); }
+.etape-noeud[data-etat='echec'] .etape-point { background: currentColor; }
+.etape-noeud[data-etat='ignoree'] { opacity: .6; }
+.etape-noeud[data-etat='ignoree'] .etape-point { border-style: dashed; background: transparent; }
+.etape-noeud[data-etat='ignoree'] .etape-libelle { text-decoration: line-through; }
+.prop-etapes > summary { cursor: pointer; font-size: var(--fs-texte); color: var(--texte2); margin-bottom: var(--esp-3); }
+@media (max-width: 640px) {
+  /* Téléphone : la chaîne se lit de haut en bas, trait vertical, jamais de défilement horizontal. */
+  .etape-chaine { flex-direction: column; flex-wrap: nowrap; gap: 14px; }
+  .etape-noeud { position: relative; align-items: flex-start; display: flex; }
+  .etape-point { margin-top: 3px; }
+  .etape-noeud::before { position: absolute; left: 5px; top: -14px; width: 2px; height: 14px; margin: 0; }
+}
 @media (max-width: 640px) {
   .prop-carte { padding: var(--esp-5); }
   .prop-champs { grid-template-columns: minmax(0, 1fr); gap: 0; }

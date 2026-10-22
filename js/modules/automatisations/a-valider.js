@@ -1,17 +1,20 @@
 // Écran « À valider » du module Automatisations : la file des propositions déposées par les workflows n8n (via la porte).
-// Deux zones : « À valider » (état a_valider) et « Traitements récents » (tous les autres états, une ligne par proposition avec sa frise de suivi).
+// Trois zones : « En préparation » (le workflow tourne : sa chaîne d'étapes s'allume en direct), « À valider » (état a_valider) et « Traitements récents » (tous les autres états, une ligne par proposition avec sa frise de suivi).
 // Il lit Firestore en direct (donnees.js, ecouterPropositions) : une proposition qui arrive ou change apparaît sans recharger. Aucune copie n8n n'est demandée.
 // Valider, refuser et relancer passent par la fonction appelable automatisationsDecider (le serveur revérifie le compte, l'état et les champs) ; l'écran n'écrit rien.
 // Même écran chez Jérôme et chez un client. Tout texte venu d'une proposition (type, titre, résumé, champs, erreur, lien) passe par h() : jamais d'HTML injecté.
 import { h, remplir } from '../../os/ui.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
-import { frise, libelleEtat, estPerimee, enMs } from './propositions.js';
+import { frise, libelleEtat, estPerimee, estBloquee, enMs } from './propositions.js';
 
 export const MESSAGE_VIDE = 'Rien à valider pour l’instant.';
 const MESSAGE_ERREUR_LECTURE = 'Impossible de lire les propositions pour le moment. Recharge la page ; si cela continue, réessaie un peu plus tard.';
+const MOT_ETAT = L.MOT_ETAT_ETAPE;
 const MESSAGE_ATTENTE = 'Décision envoyée. Mise à jour en cours…';
-const CLASSE_ETAT = { a_valider: 'etat-waiting', validee: 'etat-new', appliquee: 'etat-success', refusee: 'etat-canceled', echec: 'etat-error' };
+const MESSAGE_BLOQUEE = 'Bloqué depuis plus de 15 minutes : le workflow n’a pas répondu.';
+const INDICATION_CLASSER = 'Ne l’arrête pas dans n8n : ferme seulement cette ligne.';
+const CLASSE_ETAT = { en_preparation: 'etat-running', abandonnee: 'etat-canceled', a_valider: 'etat-waiting', validee: 'etat-new', appliquee: 'etat-success', refusee: 'etat-canceled', echec: 'etat-error' };
 const NB_RECENTES_MAX = 30;
 
 export function rendreAValider(conteneur) {
@@ -19,15 +22,18 @@ export function rendreAValider(conteneur) {
   const cartes = new Map(); // id -> { sig, el } : une carte n'est reconstruite que si quelque chose a changé (le focus et la saisie sont gardés)
 
   const bandeau = h('div', { class: 'autom-bandeau', role: 'alert', hidden: true });
+  const zonePreparation = h('ol', { class: 'prop-liste', 'aria-label': 'En préparation' });
   const zoneAValider = h('ol', { class: 'prop-liste', 'aria-label': 'Propositions à valider' });
   const zoneRecentes = h('ol', { class: 'prop-liste', 'aria-label': 'Traitements récents' });
   const limite = h('p', { class: 'autom-meta prop-limite' }, `Les ${NB_RECENTES_MAX} plus récents sont affichés.`);
   limite.hidden = true;
+  const sectionPreparation = h('section', { class: 'prop-zone', hidden: true, dataset: { zone: 'en-preparation' } }, h('h2', { class: 'prop-titre-zone' }, 'En préparation'), zonePreparation);
   const compte = h('span', { class: 'prop-compte', 'aria-live': 'polite' });
 
   conteneur.append(h('div', { class: 'page page-liste page-automatisations page-a-valider' },
     h('header', { class: 'page-tete' }, h('h1', {}, 'À valider'), compte),
     bandeau,
+    sectionPreparation,
     h('section', { class: 'prop-zone', dataset: { zone: 'a-valider' } }, zoneAValider),
     h('section', { class: 'prop-zone', dataset: { zone: 'recentes' } }, h('h2', { class: 'prop-titre-zone' }, 'Traitements récents'), zoneRecentes, limite)));
 
@@ -76,6 +82,22 @@ export function rendreAValider(conteneur) {
     }));
   }
 
+  /** La chaîne d'étapes : des nœuds reliés par des traits, un par jalon annoncé par le workflow. Les états sont lus par l'attribut data-etat (la couleur ne suffit pas : un texte caché le dit aussi). */
+  function chaineEtapes(etapes) {
+    return h('ol', { class: 'etape-chaine', 'aria-label': 'Étapes du traitement' }, etapes.map((x) => h('li', {
+      class: 'etape-noeud', dataset: { cle: x.cle, etat: x.etat }, title: x.le ? `${MOT_ETAT[x.etat]} · ${L.heure(x.le)}` : MOT_ETAT[x.etat], ...(x.etat === 'en_cours' ? { 'aria-current': 'step' } : {}),
+    }, h('i', { class: 'etape-point' }), h('span', { class: 'etape-libelle' }, x.libelle), h('span', { class: 'sr-only' }, ` (${MOT_ETAT[x.etat]})`))));
+  }
+
+  /** Sur une ligne en préparation : la chaîne seule. Ailleurs : la chaîne repliée sous « Étapes (n) », ouverte quand une étape tourne ou a échoué. */
+  function blocEtapes(p, etapes) {
+    if (!etapes.length) return p.etat === 'en_preparation' ? h('p', { class: 'autom-meta', dataset: { aucune: 'etape' } }, 'Aucune étape annoncée pour l’instant.') : null;
+    if (p.etat === 'en_preparation') return chaineEtapes(etapes);
+    const d = h('details', { class: 'prop-etapes' }, h('summary', {}, `Étapes (${etapes.length})`), chaineEtapes(etapes));
+    if (L.etapesAOuvrir(etapes)) d.open = true;
+    return d;
+  }
+
   function carte(p, maintenant, principal) {
     const e = etatDe(p.id);
     const perimee = p.etat === 'a_valider' && estPerimee(p, maintenant);
@@ -96,6 +118,11 @@ export function rendreAValider(conteneur) {
           onclick: () => { e.editing = !e.editing; if (!e.editing) e.valeurs = {}; rendre(); } }, e.editing ? 'Annuler la correction' : 'Corriger'));
       }
       boutons.push(h('button', { type: 'button', class: 'bouton', dataset: { action: 'refuser' }, disabled: !libre, onclick: () => { e.refus = true; e.editing = false; rendre(); } }, 'Refuser'));
+    }
+    const bloquee = estBloquee(p, maintenant);
+    const etapes = L.etapesAffichees(p);
+    if (bloquee) {
+      boutons.push(h('button', { type: 'button', class: 'bouton', dataset: { action: 'classer' }, disabled: !libre, onclick: () => decider(p, 'abandonner') }, 'Classer sans suite'));
     }
     if (p.etat === 'echec') {
       boutons.push(h('button', { type: 'button', class: 'bouton', dataset: { action: 'relancer' }, disabled: !libre, onclick: () => decider(p, 'relancer') }, 'Relancer'));
@@ -124,10 +151,13 @@ export function rendreAValider(conteneur) {
       corrigees ? h('p', { class: 'autom-meta' }, 'Valeurs corrigées avant la validation.') : null,
       p.lien ? h('p', { class: 'prop-lien' }, 'Lien : ', lien ? h('a', { href: lien, target: '_blank', rel: 'noopener noreferrer' }, lien) : String(p.lien)) : null,
       perimee ? h('p', { class: 'autom-indice' }, 'Cette proposition est périmée (plus de 30 jours) : elle ne peut plus être validée, seulement refusée.') : null,
-      p.etat !== 'a_valider' ? frisePour(p, maintenant) : null,
+      p.etat !== 'a_valider' && p.etat !== 'en_preparation' ? frisePour(p, maintenant) : null,
+      blocEtapes(p, etapes),
+      bloquee ? h('p', { class: 'autom-indice', dataset: { alerte: 'bloquee' } }, MESSAGE_BLOQUEE) : null,
+      bloquee ? h('p', { class: 'autom-meta', dataset: { indication: 'classer' } }, INDICATION_CLASSER) : null,
       executions.length ? h('p', { class: 'autom-meta prop-executions' }, `Exécutions n8n : ${executions.join(' · ')}`) : null,
       retard ? h('p', { class: 'autom-indice', dataset: { alerte: 'non-appliquee' } }, 'Validée mais pas appliquée depuis plus de 30 minutes : vérifie que le workflow tourne.') : null,
-      p.etat === 'echec' ? h('div', { class: 'autom-erreur' }, h('span', { class: 'autom-erreur-cle' }, 'Dernière erreur : '), h('code', {}, String(p.derniereErreur || 'inconnue'))) : null,
+      p.etat === 'echec' || p.etat === 'abandonnee' ? h('div', { class: 'autom-erreur' }, h('span', { class: 'autom-erreur-cle' }, 'Dernière erreur : '), h('code', {}, String(p.derniereErreur || 'inconnue'))) : null,
       formulaireRefus,
       boutons.length ? h('div', { class: 'prop-actions' }, boutons) : null,
       e.attente && !e.message ? h('p', { class: 'autom-meta', role: 'status' }, MESSAGE_ATTENTE) : null,
@@ -148,13 +178,13 @@ export function rendreAValider(conteneur) {
     const P = D.propositions;
     bandeau.hidden = !P.erreur;
     bandeau.textContent = P.erreur ? MESSAGE_ERREUR_LECTURE : '';
-    if (!P.pret) { synchroniser(zoneAValider, [], h('li', { class: 'autom-vide' }, 'Chargement…')); synchroniser(zoneRecentes, [], h('li', { class: 'autom-vide' }, 'Chargement…')); return; }
+    if (!P.pret) { sectionPreparation.hidden = true; synchroniser(zoneAValider, [], h('li', { class: 'autom-vide' }, 'Chargement…')); synchroniser(zoneRecentes, [], h('li', { class: 'autom-vide' }, 'Chargement…')); return; }
     if (P.erreur) {
       const vide = () => h('li', { class: 'autom-vide' }, 'Aucune proposition à afficher.');
-      synchroniser(zoneAValider, [], vide()); synchroniser(zoneRecentes, [], vide()); compte.textContent = '';
+      sectionPreparation.hidden = true; synchroniser(zoneAValider, [], vide()); synchroniser(zoneRecentes, [], vide()); compte.textContent = '';
       return;
     }
-    const { aValider, recentes } = L.separerPropositions(P.liste, maintenant);
+    const { enPreparation, aValider, recentes } = L.separerPropositions(P.liste, maintenant);
     const visiblesRecentes = recentes.slice(0, NB_RECENTES_MAX);
     const premiere = aValider.find((p) => !estPerimee(p, maintenant));
     const principal = premiere ? premiere.id : null;
@@ -166,7 +196,7 @@ export function rendreAValider(conteneur) {
       // La proposition a changé d'état (la décision est arrivée) : le brouillon et l'attente n'ont plus de sens ; le message (ex. « Déjà décidée par … ») reste affiché sous la carte.
       if (e.etatVu !== undefined && e.etatVu !== p.etat) Object.assign(e, { editing: false, valeurs: {}, refus: false, raison: '', occupe: false, attente: false });
       e.etatVu = p.etat;
-      const sig = JSON.stringify([p, { editing: e.editing, refus: e.refus, occupe: e.occupe, attente: e.attente, message: e.message }, estPerimee(p, maintenant), L.nonAppliqueeDepuisTropLongtemps(p, maintenant), principal === p.id]);
+      const sig = JSON.stringify([p, { editing: e.editing, refus: e.refus, occupe: e.occupe, attente: e.attente, message: e.message }, estPerimee(p, maintenant), L.nonAppliqueeDepuisTropLongtemps(p, maintenant), estBloquee(p, maintenant), principal === p.id]);
       const en = cartes.get(p.id);
       if (en && en.sig === sig) return en.el;
       const el = carte(p, maintenant, principal);
@@ -178,9 +208,12 @@ export function rendreAValider(conteneur) {
     const idActif = actif?.closest?.('[data-id]')?.dataset?.id;
     const champActif = actif?.dataset?.champ;
     const positionCurseur = actif?.selectionStart;
+    const elsP = enPreparation.map(fabriquer);
     const elsA = aValider.map(fabriquer);
     const elsR = visiblesRecentes.map(fabriquer);
     for (const id of [...cartes.keys()]) if (!vues.has(id)) { cartes.delete(id); etats.delete(id); }
+    sectionPreparation.hidden = !elsP.length; // visible seulement quand elle contient des lignes : pas de message de zone vide
+    if (elsP.length) synchroniser(zonePreparation, elsP, h('li')); else zonePreparation.replaceChildren();
     synchroniser(zoneAValider, elsA, h('li', { class: 'autom-vide', dataset: { vide: 'a-valider' } }, MESSAGE_VIDE));
     synchroniser(zoneRecentes, elsR, h('li', { class: 'autom-vide', dataset: { vide: 'recentes' } }, 'Aucun traitement récent pour l’instant.'));
     limite.hidden = recentes.length <= visiblesRecentes.length; // la mention disparaît quand la liste redescend sous la limite
