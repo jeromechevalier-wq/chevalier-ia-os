@@ -90,7 +90,7 @@ export const lire_projet = {
 export const lister_modeles_projet = {
   nom: 'lister_modeles_projet',
   profils: TOUS,
-  description: "Liste les modèles de projet avec leurs livrables types (clé « livrables ») : l'identifiant du modèle se donne à la création d'un projet pour partir avec ses tâches.",
+  description: "Liste les modèles de projet avec leurs livrables types (clé « livrables ») : l'identifiant du modèle se donne à la création d'un projet pour partir avec ses livrables.",
   schema: {},
   executer: ({ donnees }) => lecture.listerModelesProjet(donnees),
 };

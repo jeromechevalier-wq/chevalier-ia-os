@@ -65,7 +65,7 @@ export const OUTILS_ECRITURE = [
   outil('rouvrir_affaire', 'Rouvre une affaire perdue ou en pause.', { id }, metier.rouvrirAffaire),
 
   // ---- Projets (2.1) et factures (2.2) : mêmes règles que l'écran
-  outil('creer_projet', `Crée un projet (seul le titre est obligatoire), avec son événement. modeleId (voir lister_modeles_projet) : le projet part avec les livrables du modèle, datées à partir de la date de début. Phase de départ : la première phase active de l'espace (voir lire_reglages, configuration.phases). Pour le projet d'une affaire gagnée, préférer creer_projet_depuis_affaire. Le projet part avec une note épinglée vide (de quoi parle le projet) : son identifiant est rendu dans noteEpingleeId ; l'écrire avec modifier_note.`, {
+  outil('creer_projet', `Crée un projet (seul le titre est obligatoire), avec son événement. modeleId (voir lister_modeles_projet) : le projet part avec les livrables du modèle, datés à partir de la date de début. Phase de départ : la première phase active de l'espace (voir lire_reglages, configuration.phases). Pour le projet d'une affaire gagnée, préférer creer_projet_depuis_affaire. Le projet part avec une note épinglée vide (de quoi parle le projet) : son identifiant est rendu dans noteEpingleeId ; l'écrire avec modifier_note.`, {
     titre: z.string().min(1).max(300), personneId: id.optional(), organisationId: id.optional(), offreId: id.optional(), modeleId: id.optional(),
     dateDebut: jour.optional(), dateFin: jour.optional(), urlGithub, urlDossier, proprietaire, description: descriptionAncienne,
   }, metier.creerProjet),
