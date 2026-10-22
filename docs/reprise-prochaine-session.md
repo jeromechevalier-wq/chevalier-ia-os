@@ -2,6 +2,27 @@
 
 Écrit le 04/10/2026, mis à jour le 22/10/2026, pour qu'une session neuve reprenne sans que Jérôme ait à recoller quoi que ce soit. **À mettre à jour ou à supprimer une fois les points faits.**
 
+## Rapport du matin : 3e nuit « GO NUIT » (version 2.21.0)
+
+Décisions N1 à N7 de Jérôme, un sujet par PR, relues par Fable, fusionnées seules quand la coche « Tests » est verte. Rien sur la liste d'arrêt (pas de règles, pas de migration, plateforme clients non déployée).
+
+| Sujet | PR | État |
+|---|---|---|
+| N3 : filtre « Événements » de l'Historique sans recoupement | 179 | fusionnée |
+| N6, N7 : colonnes Perdues / En pause retirées, surtitres retirés | 180 | fusionnée |
+| N1, N2 : « Livrable Lancement », bouton jaune « Enregistrer le livrable » | 181 | fusionnée |
+| N5 : étiquettes à cocher, « + Nouvelle étiquette », couleur automatique | 182 | fusionnée |
+| N4 : Propriétaire comme Source (valeur + crayon, clic = liste) | 183 | fusionnée |
+| Docs, version 2.21.0 | cette PR | – |
+
+**À regarder à l'écran** : (1) projet : « Livrable Lancement » sans majuscules et bouton jaune « Enregistrer le livrable » ; (2) Historique : « Événements » ne contient ni documents ni affaires ; (3) Affaires : plus de colonnes Perdues ni En pause, plus de surtitre « Commercial » (ni « Contacts », « Livraison ») ; (4) fiche personne ou organisation : Étiquettes en cases à cocher, « + Nouvelle étiquette » ; (5) affaire : Propriétaire avec un crayon, un clic ouvre la liste (Étape, Phase, Priorité inchangées).
+
+**Cas vide / erreur** : étiquettes, aucune existante → seul « + Nouvelle étiquette » ; nom vide ou en double → message sous le champ. Livrable : « Le titre est obligatoire. ». Propriétaire : jamais vide ; en cas d'échec d'écriture, l'ancienne valeur reste.
+
+**Pas pu vérifier avec le vrai système** : vraie base, téléphone réel, plateforme clients (Ingrid), outils MCP renommés (visibles après redéploiement et reconnexion).
+
+**Reste à faire** : voir la liste de la nuit précédente ci-dessous (phrases de Sources dans Réglages, I16 boutons, place de `boutonFiltres`, anciens défauts de tests). Le crayon de Propriétaire reste visible sur écran tactile (seulement lui). Le focus clavier n'est pas rendu après un choix dans la liste (comportement existant de Source).
+
 ## Rapport du matin : nuit « GO NUIT » du 22 au 23/10/2026 (version 2.20.0)
 
 Jérôme a validé ses décisions le 22/10/2026 puis écrit « GO NUIT ». Claude a codé en autonomie, un sujet par PR, relue par Fable, fusionnée seule quand la coche « Tests » est verte.

@@ -18,6 +18,9 @@ Un mot = une seule chose. Cette page dit quel mot désigne quoi (décision de J�
 | Une chose à produire dans une phase de projet | **Livrable** | section « Livrables », Résumé « Avancement » | `ajouter_livrable_projet`, `terminer_livrable_projet` |
 | Un événement daté dans le fil | **Activité** (type Appel, Rendez-vous, Email, **Tâche**) | onglet Activité, Points clés | `creer_activite`, `terminer_activite` |
 
+## Titres des livrables
+Dans une phase, le groupe s'appelle « Livrable <Phase> » avec 0 ou 1 livrable et « Livrables <Phase> » avec 2 ou plus, sans majuscules.
+
 ## Ce qui a changé le 22/10/2026
 | Avant | Maintenant |
 |---|---|

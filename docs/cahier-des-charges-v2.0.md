@@ -172,7 +172,7 @@ La collection `crm_prospects` de la version 1.0.0 **n'est ni lue, ni modifiée, 
    4. une affaire **perdue ou en pause conserve la dernière étape atteinte** (on peut ainsi mesurer où on perd les affaires) ;
    5. "Rouvrir" une affaire perdue ou en pause la remet en statut dérivé de son étape et efface raison et date de réveil.
 3. **Facture payée** : ajoute un encaissement `{date, montant, offreId}` (montant de l'affaire, modifiable dans la boîte de dialogue), met `archive = true` après l'animation ; l'affaire disparaît du Kanban, reste dans la vue Archives et dans les statistiques. Un bouton "Nouvelle affaire" sur la fiche de la personne en crée une autre (rien n'est effacé).
-4. **Sorties** : colonnes repliées à droite du Kanban, **Perdues** et **En pause**. À la date de réveil, l'affaire apparaît dans "Aujourd'hui" (Points clés) avec l'action "Reprendre contact" ; "Fait" la remet en statut dérivé de son étape et ouvre le choix de la prochaine activité.
+4. **Sorties** : plus de colonnes « Perdues » et « En pause » dans le Kanban depuis le 22/10/2026 (filtres de la liste). À la date de réveil, l'affaire apparaît dans "Aujourd'hui" (Points clés) avec l'action "Reprendre contact" ; "Fait" la remet en statut dérivé de son étape et ouvre le choix de la prochaine activité.
 5. **Glisser déposer** dans tous les sens, y compris en arrière ; sur téléphone, menu "Déplacer vers…" sur la carte.
 6. **Pastille d'activité** sur chaque carte et chaque ligne de liste : rouge si une activité non faite est en retard, verte si une activité est prévue (aujourd'hui ou plus tard), grise s'il n'y en a aucune. Tri par défaut du Kanban : "Activité suivante" (la plus proche d'abord, les retards en tête).
 7. **"Sans action prévue"** : affaire `ouverte` ou `gagnee` non archivée, sans aucune activité non faite.
@@ -278,7 +278,7 @@ Même principe. Colonne de gauche : **Résumé** (étiquettes, adresse, site web
 ### 7.8 Affaires
 
 1. Barre : compteur ("6 affaires"), bouton vert **"+ Affaire"**, bascule de vue **Kanban / Liste / Archives**, tri ("Trier par : Activité suivante"), recherche et filtres (section 9).
-2. **Kanban** : 6 colonnes, chacune avec son **total en euros et son nombre d'affaires** ; carte : titre, organisation, personne, montant, priorité, pastille d'activité (4.6), badge "En retard" le cas échéant ; colonnes repliées **Perdues** et **En pause** à droite. "Facture payée" n'affiche que les affaires payées du mois en cours (les autres sont archivées).
+2. **Kanban** : 6 colonnes, chacune avec son **total en euros et son nombre d'affaires** ; carte : titre, organisation, personne, montant, priorité, pastille d'activité (4.6), badge "En retard" le cas échéant ; plus de colonnes Perdues ni En pause (supprimées le 22/10/2026). "Facture payée" n'affiche que les affaires payées du mois en cours (les autres sont archivées).
 3. **Liste** : tableau (Titre, Personne, Organisation, Étape, Montant, Priorité, Prochaine activité) ; compact sur ordinateur, cartes sur téléphone ; export CSV des affaires filtrées.
 4. **Archives** : affaires archivées (payées, ou archivées à la main).
 
