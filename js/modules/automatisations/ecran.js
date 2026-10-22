@@ -8,11 +8,16 @@
 import { h, icone, remplir, toast, lirePreference, ecrirePreference, demanderTexte } from '../../os/ui.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
+import { boutonFiltres, fenetreFiltres } from '../crm/filtres.js';
 
 const CLE_AUTO = 'automatisations.auto';
 
+// Cases cochées de la fenêtre « Filtres » : gardées tant que la page n'est pas rechargée (variable de module, aucun stockage navigateur) et oubliées à la déconnexion.
+let criteres = L.criteresVides();
+export function oublierFiltresAutomatisations() { criteres = L.criteresVides(); }
+
 export function rendreHistorique(conteneur) {
-  let filtres = { workflowId: '', etat: '', proprietaire: 'tous' };
+  let filtres = { proprietaire: 'tous' }; // seul le propriétaire (administrateur) reste hors de la fenêtre « Filtres »
   const admin = D.estAdmin();
   let derniereLecture = 0; // dernière lecture des clients (vue administrateur)
   const copiePossible = D.peutRafraichir();
@@ -29,9 +34,8 @@ export function rendreHistorique(conteneur) {
   const miseAJour = h('span', { class: 'autom-maj' }, 'Mis à jour…');
   const caseAuto = h('input', { type: 'checkbox', id: 'autom-auto', checked: auto, onchange: (e) => { auto = e.target.checked; ecrirePreference(CLE_AUTO, auto ? '1' : '0'); } });
   const bouton = h('button', { type: 'button', class: 'bouton bouton-principal', onclick: () => demander(true) }, 'Rafraîchir l’historique');
-  const selAutomatisation = h('select', { class: 'champ', 'aria-label': 'Filtrer par automatisation', onchange: (e) => { filtres.workflowId = e.target.value; signature = ''; rendre(); } });
-  const selEtat = h('select', { class: 'champ', 'aria-label': 'Filtrer par état', onchange: (e) => { filtres.etat = e.target.value; signature = ''; rendre(); } },
-    L.OPTIONS_ETAT.map((o) => h('option', { value: o.valeur }, o.libelle)));
+  const boutonF = boutonFiltres({ auClic: ouvrirFiltres });
+  boutonF.element.hidden = true; // caché tant que les données ne sont pas là (sinon la fenêtre s'ouvrirait sans aucune case)
   const liste = h('ol', { class: 'autom-liste' });
   const selProprietaire = h('select', { class: 'champ', 'aria-label': 'Filtrer par propriétaire', onchange: (e) => changerProprietaire(e.target.value) });
   const alerteVerifier = h('button', { type: 'button', class: 'autom-alerte-verifier', hidden: true, onclick: () => changerProprietaire('a-verifier') });
@@ -43,7 +47,7 @@ export function rendreHistorique(conteneur) {
       h('div', { class: 'autom-actions' }, miseAJour,
         copiePossible ? h('label', { for: 'autom-auto', class: 'autom-case' }, caseAuto, 'Mise à jour automatique (10 s)') : null,
         copiePossible ? bouton : null)),
-    h('div', { class: 'autom-filtres' }, admin ? selProprietaire : null, selAutomatisation, selEtat),
+    h('div', { class: 'autom-filtres' }, admin ? selProprietaire : null, boutonF.element),
     admin ? alerteVerifier : null,
     liste));
 
@@ -82,7 +86,8 @@ export function rendreHistorique(conteneur) {
   }
 
   function changerProprietaire(valeur) {
-    filtres = { workflowId: '', etat: '', proprietaire: valeur }; // changer de propriétaire vide les deux autres filtres
+    filtres = { proprietaire: valeur }; // changer de propriétaire vide les cases cochées
+    criteres = L.criteresVides();
     signature = '';
     selProprietaire.value = valeur;
     if (valeur !== L.PROPRIETAIRE_INTERNE && !L.estCategorieWorkflows(valeur)) lireClients(true);
@@ -109,35 +114,30 @@ export function rendreHistorique(conteneur) {
       i.lignes?.length ? h('ul', { class: 'autom-signes' }, i.lignes.map((l) => h('li', { class: l.ok ? 'ok' : 'ko' }, h('b', {}, `${l.ok ? '✔' : '✘'} ${l.signe} : `), l.texte))) : null);
   }
 
-  /** Ne propose que les états qui existent chez le propriétaire choisi ; un état devenu impossible est vidé. */
-  function remplirFiltreEtats(maintenant) {
-    const options = L.optionsEtatPossibles(vue.executions, maintenant);
-    const sig = JSON.stringify(options);
-    if (selEtat.dataset.sig !== sig) {
-      selEtat.dataset.sig = sig;
-      remplir(selEtat, options.map((o) => h('option', { value: o.valeur }, o.libelle)));
-    }
-    selEtat.value = options.some((o) => o.valeur === filtres.etat) ? filtres.etat : '';
-    filtres.etat = selEtat.value;
-  }
-
-  function reinitialiserFiltres() {
-    filtres = { workflowId: '', etat: '', proprietaire: 'tous' };
-    selProprietaire.value = 'tous';
-    selAutomatisation.value = '';
+  /** Fenêtre « Filtres » commune : une case par automatisation et par état qui existent chez le propriétaire choisi. */
+  async function ouvrirFiltres() {
+    const maintenant = Date.now();
+    const r = await fenetreFiltres({
+      controles: [
+        { cle: 'workflowIds', libelle: 'Automatisation', type: 'cases', options: L.optionsAutomatisations(vue.workflows, vue.executions).map((o) => ({ valeur: o.id, libelle: o.nom })) },
+        { cle: 'etats', libelle: 'État', type: 'cases', options: L.optionsEtatCases(vue.executions, maintenant).map((o) => ({ valeur: o.valeur, libelle: o.libelle })) },
+      ],
+      criteres,
+      effacer: L.criteresVides,
+    });
+    if (!r) return;
+    criteres = { workflowIds: r.workflowIds, etats: r.etats };
     signature = '';
-    lireClients(true);
     rendre();
   }
 
-  function remplirFiltreAutomatisations() {
-    const options = L.optionsAutomatisations(vue.workflows, vue.executions);
-    const sig = JSON.stringify(options);
-    if (selAutomatisation.dataset.sig === sig) return;
-    selAutomatisation.dataset.sig = sig;
-    remplir(selAutomatisation, h('option', { value: '' }, 'Toutes les automatisations'), options.map((o) => h('option', { value: o.id }, o.nom)));
-    selAutomatisation.value = options.some((o) => o.id === filtres.workflowId) ? filtres.workflowId : '';
-    filtres.workflowId = selAutomatisation.value;
+  function reinitialiserFiltres() {
+    filtres = { proprietaire: 'tous' };
+    criteres = L.criteresVides();
+    selProprietaire.value = 'tous';
+    signature = '';
+    lireClients(true);
+    rendre();
   }
 
   /** Clic sur le nom : un éditeur le change (le serveur vérifie qu'il l'est). Texte vide = revenir au nom d'origine. */
@@ -187,15 +187,23 @@ export function rendreHistorique(conteneur) {
     if (admin) remplirFiltreProprietaires();
     // Vue « workflows non reconnus » ou « clients sans le module » : ce sont des workflows, pas des exécutions ; les filtres d'automatisation et d'état n'ont pas de sens.
     const categorie = admin && L.estCategorieWorkflows(filtres.proprietaire);
-    selAutomatisation.hidden = categorie; selEtat.hidden = categorie; resume.hidden = categorie;
-    if (!categorie) { remplirFiltreAutomatisations(); remplirFiltreEtats(maintenant); }
+    resume.hidden = categorie;
+    if (!categorie) {
+      // Une case dont l'automatisation ou l'état n'existe plus (chez ce propriétaire) est décochée toute seule ; sans aucune case possible, le bouton se cache.
+      const optionsAutos = L.optionsAutomatisations(vue.workflows, vue.executions);
+      const optionsEtats = L.optionsEtatCases(vue.executions, maintenant);
+      criteres = L.nettoyerCriteres(criteres, optionsAutos, optionsEtats);
+      boutonF.element.hidden = !optionsAutos.length && !optionsEtats.length;
+    } else boutonF.element.hidden = true;
+    const nbCases = L.compterCriteres(criteres);
+    if (boutonF.element.dataset.compte !== String(nbCases)) { boutonF.element.dataset.compte = String(nbCases); boutonF.majCompte(nbCases); }
     const nbVerifier = admin ? L.signalementsDe(D.etat.admin.aVerifier, L.FILTRE_A_VERIFIER).length : 0;
     alerteVerifier.hidden = !(admin && nbVerifier > 0 && filtres.proprietaire !== L.FILTRE_A_VERIFIER);
     alerteVerifier.textContent = `${nbVerifier} workflow${nbVerifier > 1 ? 's' : ''} non reconnu${nbVerifier > 1 ? 's' : ''} : voir pourquoi`;
     const c = L.compteurs(vue.executions, maintenant);
-    const visibles = L.filtrer(vue.executions, filtres, maintenant);
+    const visibles = L.filtrer(vue.executions, criteres, maintenant);
     // On ne reconstruit la liste que si quelque chose a changé (évite de perdre le focus et de faire clignoter).
-    const sig = JSON.stringify([c, filtres, [...vue.workflows.values()].map((w) => w.libelle || w.nom), admin && D.etat.admin.aVerifier, visibles.map((e) => [e.id, L.etatAffiche(e, maintenant), e.stoppedAt && L.enMs(e.stoppedAt), e.errorMessage, e.failedStep])]);
+    const sig = JSON.stringify([c, filtres, criteres, [...vue.workflows.values()].map((w) => w.libelle || w.nom), admin && D.etat.admin.aVerifier, visibles.map((e) => [e.id, L.etatAffiche(e, maintenant), e.stoppedAt && L.enMs(e.stoppedAt), e.errorMessage, e.failedStep])]);
     if (sig === signature) return;
     signature = sig;
     remplir(resume,
@@ -211,9 +219,9 @@ export function rendreHistorique(conteneur) {
       return;
     }
     if (!visibles.length) {
-      const filtreActif = filtres.workflowId || filtres.etat || (admin && filtres.proprietaire !== 'tous');
+      const filtreActif = L.compterCriteres(criteres) || (admin && filtres.proprietaire !== 'tous');
       if (filtreActif) {
-        remplir(liste, h('li', { class: 'autom-vide autom-aucun-resultat' }, 'Aucun résultat pour ces filtres. ',
+        remplir(liste, h('li', { class: 'autom-vide autom-aucun-resultat' }, 'Rien à afficher avec ces filtres. Décoche un filtre. ',
           h('button', { type: 'button', class: 'bouton', onclick: reinitialiserFiltres }, 'Réinitialiser les filtres')));
         return;
       }

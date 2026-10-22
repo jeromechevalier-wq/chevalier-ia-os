@@ -15,8 +15,10 @@
 .autom-puce.ok b { color: var(--succes); }
 .autom-actions { display: flex; flex-wrap: wrap; gap: var(--esp-3) var(--esp-6); align-items: center; font-size: var(--fs-texte); color: var(--texte2); }
 .autom-case { display: inline-flex; gap: var(--esp-2); align-items: center; cursor: pointer; }
-.autom-filtres { display: flex; flex-wrap: wrap; gap: var(--esp-3); margin: var(--esp-5) 0; }
+.autom-filtres { display: flex; flex-wrap: wrap; gap: var(--esp-3); align-items: center; margin: var(--esp-5) 0; } /* même rythme que .barre-filtres-ligne (crm.css) */
 .autom-filtres select { max-width: 100%; }
+.autom-filtres [hidden] { display: none; }
+@media (max-width: 640px) { .autom-filtres select, .autom-filtres .bouton { flex: 1 1 100%; justify-content: center; } }
 
 .autom-liste { list-style: none; margin: 0; padding: 0; background: var(--panneau); border: 1px solid var(--bordure); border-radius: var(--rayon-carte); overflow: hidden; }
 .autom-ligne { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: var(--esp-2) var(--esp-7); padding: 11px var(--esp-7); border-bottom: 1px solid var(--bordure); }
@@ -57,7 +59,7 @@
 .autom-signes { flex: 1 1 100%; list-style: none; margin: var(--esp-1) 0 0; padding: 0; font-size: var(--fs-texte); display: grid; gap: 3px; }
 .autom-signes .ok b { color: var(--succes); }
 .autom-signes .ko b { color: var(--retard); }
-.autom-resume[hidden], .autom-filtres select[hidden] { display: none; }
+.autom-resume[hidden] { display: none; }
 .autom-aucun-resultat { display: flex; flex-wrap: wrap; gap: var(--esp-3) var(--esp-6); align-items: center; }
 
 /* Les compteurs (« il y a 2 s », durées) changent chaque seconde : chiffres de largeur fixe et zone réservée, pour que la ligne ne bouge plus. */
