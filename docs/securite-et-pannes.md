@@ -220,3 +220,7 @@ Procédure de mise à jour : changer **une** version à la fois sur une branche,
 - **Fenêtre ouverte tant que les règles ne sont pas publiées** : dans ta base, `automatisations_propositions` n'est pas encore fermée à l'écriture depuis le navigateur (joker de `firestore.rules`). La PR des règles est laissée ouverte pour toi ; après sa fusion il faut publier les règles à la main dans la console Firebase (les règles de la base 1 ne se déploient pas avec la fusion), puis choisir `regles` dans le workflow de la plateforme. Même chose en base 2.
 - La réponse « Déjà décidée par <e-mail> » révèle l'e-mail de l'autre compte : acceptable (les deux comptes sont les tiens), à revoir avant la plateforme clients.
 - Hors de cette nuit, à ne pas oublier : en base 2, `crm_audit` et `mcp_codes` sont écrivables par un éditeur depuis le navigateur (`docs/tables.md`).
+
+### Lignes « en préparation » restées bloquées (Logger, 22/10/2026)
+Si un workflow A plante après `demarrer`, sa ligne reste « en préparation ». Aucune fonction ne les balaie : après 15 minutes sans nouvelle étape, l'écran propose le bouton gris « Classer sans suite » (deux comptes autorisés ; le serveur vérifie qu'elle est bien bloquée). Ce geste **ne dit rien à n8n** : si le workflow tourne encore, il verra ses écritures refusées. Un jeton `cia_` ne peut pas classer sans suite (pas de compte).
+

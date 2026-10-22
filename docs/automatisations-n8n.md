@@ -182,11 +182,11 @@ Le choix `tout` du workflow ne déploie **jamais** les fonctions.
 - L'écran affiche les **300 exécutions les plus récentes**.
 - n8n garde 14 jours d'historique : avec une copie toutes les heures, rien ne se perd.
 
-## 9. Phase 3 (en partie faite le 22/10/2026)
+## 9. Phase 3 : frise d'étapes et Logger (faits le 22/10/2026)
 
-**Faite** : la frise d'une automatisation « une proposition = une ligne » (écran « À valider », `docs/chemin-client-pilote.md`). Elle vient de l'**état de la proposition**, pas de la sous-collection `steps` : un traitement traverse plusieurs exécutions n8n, alors que `steps` est rangée sous une seule. Les numéros d'exécution (`proposer`, `appliquer`, `refuser`) sont gardés dans la proposition. La copie de l'historique ne change pas.
+**Fait** : une automatisation = **une ligne**, la proposition (écran « À valider », `docs/chemin-client-pilote.md`). Sa frise vient de l'**état de la proposition** et de ses **étapes**, pas de la sous-collection `steps` : un traitement traverse plusieurs exécutions n8n, alors que `steps` est rangée sous une seule. Le workflow annonce son plan d'étapes au démarrage (`propositions.demarrer`) et les fait avancer (`propositions.etape`) ; l'écran les dessine comme une **chaîne de nœuds reliés** qui s'allument en direct (état de chaque étape : à venir, en cours, fait, échec, ignorée). Les numéros d'exécution (`proposer`, `appliquer`, `refuser`) sont gardés dans la proposition. La copie de l'historique ne change pas.
 
-**Pas faite** : le **Logger** (le workflow écrit lui-même ses sous-étapes). La sous-collection `steps` et le champ `runGroupId` restent vides, la règle Firestore ferme déjà `steps` à l'écriture navigateur. Décision de Jérôme : étapes copiées dans la proposition (`etapes`, 10 au plus, champ déjà prévu, vide). **Point de conception à trancher avant de le faire** : les étapes du workflow A (« e-mail lu », « contrôle ok ») ont lieu **avant** que la proposition existe ; pour les voir pendant que A tourne, il faudrait créer la proposition plus tôt (un état « en préparation », que le propriétaire ne peut pas valider), ou n'afficher les étapes de A qu'une fois la proposition déposée (A les envoie avec `propositions.ajouter`).
+**Reste vide** : la sous-collection `steps` et le champ `runGroupId` (les règles Firestore les ferment déjà aux navigateurs). **À faire plus tard** : l'animation fine de la chaîne (structure et attributs stables déjà en place) et un éventuel petit sous-workflow réutilisable « Logger » pour ne pas répéter les appels dans chaque workflow.
 
 ## Alerte e-mail quand n8n tombe (mise en place le 11/10/2026)
 
