@@ -214,7 +214,7 @@ export async function modifierAffaire(c, args) {
   if (champs.urlGithub !== undefined) { const r = L.majUrlGithub(champs.urlGithub); verifierMessages(r.erreurs); Object.assign(patch, r.patch); }
   if (champs.urlDossier !== undefined) { const r = L.majUrlDossier(champs.urlDossier); verifierMessages(r.erreurs); Object.assign(patch, r.patch); }
   if (champs.archive !== undefined) patch.archive = champs.archive;
-  if (!Object.keys(patch).length) refuser('saisie_invalide', `Aucun champ à modifier (l’étape et le statut passent par changer_etape, marquer_perdue, mettre_en_pause, rouvrir_affaire).${champs.description !== undefined ? ` ${MESSAGE_DESCRIPTION}` : ''}`);
+  if (!Object.keys(patch).length) refuser('saisie_invalide', `Aucun champ à modifier (l’étape et le statut passent par changer_etape, marquer_perdue, rouvrir_affaire).${champs.description !== undefined ? ` ${MESSAGE_DESCRIPTION}` : ''}`);
   const plan = L.planMajAffaire(id, patch);
   return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id, champsModifies: Object.keys(patch), ...avertissementDescription(champs) });
 }
@@ -235,11 +235,6 @@ export async function marquerPerdue(c, args) {
   const a = await lire(c, C.affaires, args.id, 'Affaire');
   const plan = L.planMarquerPerdue(a, { raison: args.raison, detail: args.detail }, await contexte(c));
   return appliquerRegle(c, plan, args, (p) => ({ id: a.id, statut: 'perdue' }));
-}
-export async function mettreEnPause(c, args) {
-  const a = await lire(c, C.affaires, args.id, 'Affaire');
-  if (args.dateReveil && !jourValide(args.dateReveil)) refuser('saisie_invalide', 'dateReveil : attendu AAAA-MM-JJ.');
-  return appliquerRegle(c, L.planMettreEnPause(a, { dateReveil: args.dateReveil }, await contexte(c)), args, () => ({ id: a.id, statut: 'en_pause', dateReveil: args.dateReveil }));
 }
 export async function rouvrirAffaire(c, args) {
   const a = await lire(c, C.affaires, args.id, 'Affaire');
@@ -333,7 +328,7 @@ export async function modifierProjet(c, args) {
   verifierMessages(PL.validerProjet({ titre: patch.titre ?? p.titre, dateDebut: debut, dateFin: fin }));
   if (champs.urlGithub !== undefined) { const r = L.majUrlGithub(champs.urlGithub); verifierMessages(r.erreurs); Object.assign(patch, r.patch); }
   if (champs.urlDossier !== undefined) { const r = L.majUrlDossier(champs.urlDossier); verifierMessages(r.erreurs); Object.assign(patch, r.patch); }
-  if (!Object.keys(patch).length) refuser('saisie_invalide', `Aucun champ à modifier (la phase et le statut passent par changer_phase_projet, mettre_projet_en_pause, reprendre_projet, terminer_projet, rouvrir_projet, archiver_projet).${champs.description !== undefined ? ` ${MESSAGE_DESCRIPTION}` : ''}`);
+  if (!Object.keys(patch).length) refuser('saisie_invalide', `Aucun champ à modifier (la phase et le statut passent par changer_phase_projet, terminer_projet, rouvrir_projet, archiver_projet).${champs.description !== undefined ? ` ${MESSAGE_DESCRIPTION}` : ''}`);
   const plan = PL.planMajProjet(id, patch);
   return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id, champsModifies: Object.keys(patch), ...avertissementDescription(champs) });
 }
@@ -344,14 +339,6 @@ export async function changerPhaseProjet(c, args) {
   const plan = PL.planChangerPhase(p, args.phase, await contexte(c));
   refusFactures(plan);
   return appliquerRegle(c, plan, args, () => ({ id: p.id, phase: args.phase }), 'le projet');
-}
-export async function mettreProjetEnPause(c, args) {
-  const p = await lireProjet(c, args.id);
-  return appliquerRegle(c, PL.planMettreProjetEnPause(p, await contexte(c)), args, () => ({ id: p.id, statut: 'en_pause' }), 'le projet');
-}
-export async function reprendreProjet(c, args) {
-  const p = await lireProjet(c, args.id);
-  return appliquerRegle(c, PL.planReprendreProjet(p, await contexte(c)), args, () => ({ id: p.id, statut: 'actif' }), 'le projet');
 }
 export async function rouvrirProjet(c, args) {
   const p = await lireProjet(c, args.id);

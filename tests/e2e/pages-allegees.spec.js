@@ -1,4 +1,4 @@
-// Pages allégées (N6, N7) : le kanban des Affaires perd les colonnes « Perdues » et « En pause » ; quatre pages perdent leur surtitre gris.
+// Pages allégées (N6, N7) : le kanban des Affaires perd les colonnes « Perdues » et « En pause » (la pause elle-même est supprimée le 22/10/2026) ; quatre pages perdent leur surtitre gris.
 // Les captures vont dans tests/e2e/captures/pages-allegees/ (aucune donnée réelle).
 import { fileURLToPath } from 'node:url';
 import { test, expect, attendreCalme, connecter, creerAffaire, creerPersonne, creerOrganisation, creerProjet, estTelephone } from './outils.js';
@@ -12,28 +12,30 @@ test.beforeEach(async ({ page }) => {
   await page.route('https://apis.google.com/js/api.js', (route) => route.fulfill({ status: 200, contentType: 'application/javascript', body: '' }));
 });
 
-test('N6 : le kanban n’a plus de colonnes Perdues ni En pause, la Liste les montre', async ({ page }, info) => {
+test('N6 : le kanban n’a plus de colonnes Perdues ni En pause, la Liste montre les perdues ; une ancienne affaire en pause reste visible comme ouverte', async ({ page }, info) => {
   test.skip(estTelephone(page), 'Le kanban se vérifie sur ordinateur.');
   await creerAffaire('a1', { titre: 'Affaire ouverte', etape: 'rdv_fixe' });
   await creerAffaire('a2', { titre: 'Affaire perdue', etape: 'rdv_fixe', statut: 'perdue', raisonPerdue: 'Prix' });
-  await creerAffaire('a3', { titre: 'Affaire en pause', etape: 'rdv_fixe', statut: 'en_pause' });
+  await creerAffaire('a3', { titre: 'Ancienne affaire en pause', etape: 'rdv_fixe', statut: 'en_pause', dateReveil: '2027-01-15' });
   await connecter(page);
   await aller(page, '#/crm/affaires');
   await page.locator('.bascule-vue[data-vue="kanban"]').click();
   await expect(page.locator('.carte-affaire[data-affaire="a1"]')).toBeVisible();
-  // plus de colonne de sortie, ni de zone de dépôt, ni de carte perdue ou en pause
+  // plus de colonne de sortie, ni de zone de dépôt, ni de carte perdue ; l'ancienne affaire en pause (donnée ancienne tolérée) est une carte ouverte
   await expect(page.locator('.colonne[data-colonne="perdue"], .colonne[data-colonne="en_pause"], .kanban-sorties')).toHaveCount(0);
   await expect(page.locator('.colonne h2', { hasText: /^(Perdues|En pause)$/ })).toHaveCount(0);
-  await expect(page.locator('.carte-affaire[data-affaire="a2"], .carte-affaire[data-affaire="a3"]')).toHaveCount(0);
-  // le compteur ne compte que les affaires vivantes
-  await expect(page.locator('.compteur-liste')).toHaveText('1 affaire');
+  await expect(page.locator('.carte-affaire[data-affaire="a2"]')).toHaveCount(0);
+  await expect(page.locator('.carte-affaire[data-affaire="a3"]')).toBeVisible();
+  // le compteur ne compte que les affaires vivantes (a1 et l'ancienne a3)
+  await expect(page.locator('.compteur-liste')).toHaveText('2 affaires');
   await capturer(page, info, 'N6-kanban');
   // la vue Liste les montre, avec leur statut
   await page.locator('.bascule-vue[data-vue="liste"]').click();
   await expect(page.locator('tr.ligne-liste[data-id="a2"]')).toBeVisible();
   await expect(page.locator('tr.ligne-liste[data-id="a3"]')).toBeVisible();
   await expect(page.locator('tr.ligne-liste[data-id="a2"]')).toContainText('Perdue');
-  await expect(page.locator('tr.ligne-liste[data-id="a3"]')).toContainText('En pause');
+  await expect(page.locator('tr.ligne-liste[data-id="a3"]')).not.toContainText('En pause');
+  await expect(page.locator('tr.ligne-liste[data-id="a3"]')).toContainText(((await page.locator('tr.ligne-liste[data-id="a1"] td[data-libelle="Étape"]').textContent()) || '').trim());
 });
 
 test('N6 : cas vide du kanban inchangé', async ({ page }) => {

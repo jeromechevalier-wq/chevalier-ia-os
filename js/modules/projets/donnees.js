@@ -142,8 +142,6 @@ function regle(id, planFn, outil) {
 
 /** Changement de phase ; renvoie { erreurs, patch, evenements }. */
 export const changerPhase = (id, phase) => regle(id, (p) => P.planChangerPhase(p, phase, ctx()), 'changerPhase');
-export const mettreEnPause = (id) => regle(id, (p) => P.planMettreProjetEnPause(p, ctx()), 'mettreProjetEnPause');
-export const reprendre = (id) => regle(id, (p) => P.planReprendreProjet(p, ctx()), 'reprendreProjet');
 /** `impaye` : { raison } pour clôturer malgré des factures non payées (elles passent à « Abandonnée »). Sans lui, une facture à payer bloque : le plan rend `erreurs.factures`. */
 export const terminer = (id, { impaye = null } = {}) => regle(id, (p) => P.planTerminerProjet(p, ctx(), impaye ? { impaye } : {}), 'terminerProjet');
 // Factures du projet (2.2) : chaque fonction rend le plan { erreurs, facture?, ... } ; sans erreur, c'est écrit.

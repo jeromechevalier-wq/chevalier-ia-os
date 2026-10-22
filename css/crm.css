@@ -215,7 +215,7 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 .carte-sous { display: flex; align-items: center; gap: var(--esp-2); color: var(--texte2); font-size: var(--fs-menu); min-width: 0; overflow-wrap: anywhere; }
 .carte-pied { display: flex; align-items: center; gap: var(--esp-3); flex-wrap: wrap; }
 .carte-montant { font-weight: var(--poids-moyen); font-size: var(--fs-menu); margin-right: auto; }
-.statut-perdue.carte-affaire, .statut-en_pause.carte-affaire { opacity: .85; }
+.statut-perdue.carte-affaire { opacity: .85; }
 @media (max-width: 767px) {
   .colonne { flex: 0 0 82vw; max-width: none; max-height: none; }
 }
@@ -267,7 +267,7 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 .barre-etapes { display: flex; gap: var(--esp-1); }
 .barre-etapes .segment { flex: 1; height: 5px; border-radius: 3px; background: var(--barre-fond); }
 .barre-etapes .segment.plein { background: var(--couleur); }
-.barre-etapes.statut-perdue .segment.plein, .barre-etapes.statut-en_pause .segment.plein { background: var(--bordure-forte); }
+.barre-etapes.statut-perdue .segment.plein { background: var(--bordure-forte); }
 
 /* ---------------------------------------------------------------- fiches */
 

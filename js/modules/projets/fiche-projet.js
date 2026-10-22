@@ -16,11 +16,10 @@ import { sectionTaches } from './taches.js';
 import { sectionFactures } from './factures.js';
 import { cheminModele } from './modeles.js';
 import { anneauProgression } from './composants.js';
-import { pastilleStatutProjet, pastilleImpaye, terminerProjet, changerPhaseProjet, mettreEnPause, reprendre, rouvrir, demanderSuppressionProjet } from './projets.js';
+import { pastilleStatutProjet, pastilleImpaye, terminerProjet, changerPhaseProjet, rouvrir, demanderSuppressionProjet } from './projets.js';
 const cfg = () => CRM.etat.config;
 const EXPLICATION_STATUT_PROJET = {
   actif: 'Le projet est en cours : il avance de phase en phase.',
-  en_pause: 'Le projet est mis de côté. On peut le reprendre.',
   termine: 'Le projet est terminé (phase de clôture). On peut le rouvrir.',
 };
 
@@ -65,16 +64,13 @@ export function rendreFicheProjet(conteneur, id) {
       ? [h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'rouvrir', onclick: () => rouvrir(p) }, icone('rotate-ccw', { taille: 16 }), 'Rouvrir')]
       : [
         h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'terminer', onclick: () => terminerProjet(p) }, icone('circle-check', { taille: 16 }), 'Terminer'),
-        p.statut === 'en_pause'
-          ? h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'reprendre', onclick: () => reprendre(p) }, 'Reprendre')
-          : h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'en-pause', onclick: () => mettreEnPause(p) }, 'En pause'),
       ];
 
     const entete = h('header', { class: 'fiche-tete' },
       lienRetour('#/projets/projets', 'Projets'),
       h('div', { class: 'fiche-tete-ligne' },
         h('div', { class: 'fiche-titre' }, titre,
-          h('div', { class: 'fiche-sous' }, pastilleStatutProjet(p), iconeInfo(EXPLICATION_STATUT_PROJET[p.statut], 'État du projet'), pastilleImpaye(p), p.archive ? h('span', { class: 'badge-archive' }, 'Archivé') : null,
+          h('div', { class: 'fiche-sous' }, pastilleStatutProjet(p), iconeInfo(EXPLICATION_STATUT_PROJET[P.statutProjetAffiche(p)], 'État du projet'), pastilleImpaye(p), p.archive ? h('span', { class: 'badge-archive' }, 'Archivé') : null,
             liens.element)),
         h('div', { class: 'fiche-actions' }, actions, menu)),
       barreDesPhases(p));

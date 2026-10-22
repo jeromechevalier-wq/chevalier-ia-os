@@ -12,9 +12,9 @@ Un mot = une seule chose. Cette page dit quel mot désigne quoi (décision de J�
 | Ce que c'est | Mot | Où on le voit | Outils MCP |
 |---|---|---|---|
 | Une case du pipeline des affaires (Premier contact, Rendez-vous fixé…) | **Étape** | kanban des affaires, liste « Étape » du Résumé | `changer_etape` |
-| L'état d'une affaire | **Statut** : Ouverte, Gagnée, Perdue, En pause | étiquette sous le titre | `marquer_perdue`, `mettre_en_pause`, `rouvrir_affaire` |
+| L'état d'une affaire | **Statut** : Ouverte, Gagnée, Perdue | étiquette sous le titre | `marquer_perdue`, `rouvrir_affaire` |
 | Une case du pipeline des projets (Lancement, Découverte, Livraison, Clôture) | **Phase** | fiche projet, liste « Phase » du Résumé | `changer_phase_projet` |
-| L'état d'un projet | **Statut** : Actif, En pause, Terminé | étiquette sous le titre | `mettre_projet_en_pause`, `reprendre_projet`, `terminer_projet`, `rouvrir_projet` |
+| L'état d'un projet | **Statut** : Actif, Terminé | étiquette sous le titre | `terminer_projet`, `rouvrir_projet` |
 | Une chose à produire dans une phase de projet | **Livrable** | section « Livrables », Résumé « Avancement » | `ajouter_livrable_projet`, `terminer_livrable_projet` |
 | Un événement daté dans le fil | **Activité** (type Appel, Rendez-vous, Email, **Tâche**) | onglet Activité, Points clés | `creer_activite`, `terminer_activite` |
 

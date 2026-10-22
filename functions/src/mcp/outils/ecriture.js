@@ -52,7 +52,7 @@ export const OUTILS_ECRITURE = [
     source: sourceListe, besoin: z.string().max(5000).optional(), urlGithub, urlDossier, proprietaire, description: descriptionAncienne,
   }, metier.creerAffaire),
 
-  outil('modifier_affaire', "Modifie des champs d'une affaire : titre, personneId et organisationId (null pour détacher), montant, priorite, offreId, dureeJours, source, besoin, urlGithub, urlDossier, archive. Pour l'étape ou le statut, utiliser changer_etape, marquer_perdue, mettre_en_pause, rouvrir_affaire.", {
+  outil('modifier_affaire', "Modifie des champs d'une affaire : titre, personneId et organisationId (null pour détacher), montant, priorite, offreId, dureeJours, source, besoin, urlGithub, urlDossier, archive. Pour l'étape ou le statut, utiliser changer_etape, marquer_perdue, rouvrir_affaire.", {
     id, titre: z.string().min(1).max(300).optional(), personneId: id.nullable().optional(), organisationId: id.nullable().optional(), montant: z.number().min(0).max(1e9).nullable().optional(),
     priorite: z.string().max(40).optional(), offreId: id.nullable().optional(), dureeJours: z.number().int().min(0).max(36500).nullable().optional(), source: sourceListe,
     besoin: z.string().max(5000).optional(), urlGithub, urlDossier, archive: z.boolean().optional(), description: descriptionAncienne,
@@ -63,8 +63,7 @@ export const OUTILS_ECRITURE = [
   }, metier.changerEtape),
 
   outil('marquer_perdue', `Marque une affaire perdue. Raison parmi : ${L.RAISONS_PERDUE.join(' ; ')}.`, { id, raison: z.string().min(1).max(60), detail: z.string().max(1000).optional() }, metier.marquerPerdue),
-  outil('mettre_en_pause', 'Met une affaire en pause jusqu\'à une date de réveil (AAAA-MM-JJ).', { id, dateReveil: jour }, metier.mettreEnPause),
-  outil('rouvrir_affaire', 'Rouvre une affaire perdue ou en pause.', { id }, metier.rouvrirAffaire),
+  outil('rouvrir_affaire', 'Rouvre une affaire perdue.', { id }, metier.rouvrirAffaire),
 
   // ---- Projets (2.1) et factures (2.2) : mêmes règles que l'écran
   outil('creer_projet', `Crée un projet (seul le titre est obligatoire), avec son événement. modeleId (voir lister_modeles_projet) : le projet part avec les livrables du modèle, datés à partir de la date de début. Phase de départ : la première phase active de l'espace (voir lire_reglages, configuration.phases). Pour le projet d'une affaire gagnée, préférer creer_projet_depuis_affaire. Le projet part avec une note épinglée vide (de quoi parle le projet) : son identifiant est rendu dans noteEpingleeId ; l'écrire avec modifier_note.`, {
@@ -76,7 +75,7 @@ export const OUTILS_ECRITURE = [
     affaireId: id, modeleId: id.optional(), titre: z.string().max(300).optional(), dateDebut: jour.optional(), dateFin: jour.optional(), description: descriptionAncienne,
   }, metier.creerProjetDepuisAffaire),
 
-  outil('modifier_projet', "Modifie des champs d'un projet : titre, personneId et organisationId (null pour détacher), offreId, dateDebut, dateFin (null pour effacer), urlGithub, urlDossier. La phase et le statut passent par changer_phase_projet, mettre_projet_en_pause, reprendre_projet, terminer_projet, rouvrir_projet, archiver_projet.", {
+  outil('modifier_projet', "Modifie des champs d'un projet : titre, personneId et organisationId (null pour détacher), offreId, dateDebut, dateFin (null pour effacer), urlGithub, urlDossier. La phase et le statut passent par changer_phase_projet, terminer_projet, rouvrir_projet, archiver_projet.", {
     id, titre: z.string().min(1).max(300).optional(), personneId: id.nullable().optional(), organisationId: id.nullable().optional(), offreId: id.nullable().optional(),
     dateDebut: jour.nullable().optional(), dateFin: jour.nullable().optional(), urlGithub, urlDossier, description: descriptionAncienne,
   }, metier.modifierProjet),
@@ -85,8 +84,6 @@ export const OUTILS_ECRITURE = [
     id, phase: z.string().min(1).max(40),
   }, metier.changerPhaseProjet),
 
-  outil('mettre_projet_en_pause', 'Met un projet en pause (un projet terminé ne se met pas en pause : le rouvrir d’abord).', { id }, metier.mettreProjetEnPause),
-  outil('reprendre_projet', 'Reprend un projet en pause.', { id }, metier.reprendreProjet),
   outil('rouvrir_projet', 'Rouvre un projet terminé : il redevient actif et sort des archives, sans changer de phase.', { id }, metier.rouvrirProjet),
   outil('archiver_projet', "Archive un projet (archive: true) ou le sort des archives (archive: false), avec son événement. L'archivage est la voie normale pour ranger un projet : il ne le termine pas.", {
     id, archive: z.boolean().describe('true : archiver ; false : désarchiver.'),

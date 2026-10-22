@@ -146,7 +146,7 @@ Profils : **L** lecteur · **B** bibliothécaire (L + écriture + pièces jointe
 | `creer_organisation`, `modifier_organisation` | idem | idem | oui | B C |
 | `creer_affaire`, `modifier_affaire` | champs, `proprietaire?` | `nouvelleAffaire`, titre par défaut, organisation héritée, événement ; depuis le 22/10/2026 : plus de paramètre `description` documenté, `creer_*` rend `noteEpingleeId` (la note épinglée de départ, à remplir avec `modifier_note`) | oui | B C |
 | `changer_etape` | `id`, `etape`, `montantEncaisse?` | `changementEtape` (événements, statut) | oui | B C |
-| `marquer_perdue`, `mettre_en_pause`, `rouvrir_affaire` | `id`, raison / date | règles de l'écran | oui | B C |
+| `marquer_perdue`, `rouvrir_affaire` | `id`, raison (`mettre_en_pause` supprimé le 22/10/2026) | règles de l'écran | oui | B C |
 | `ajouter_encaissement` | `id`, `montant`, `date?` | `ajouterEncaissement` | oui | B C |
 | `ajouter_note`, `modifier_note` | liens, `texte` | notes (jamais modifiées automatiquement) | oui | B C |
 | `creer_activite`, `terminer_activite` | champs / `id` | `nouvelleActivite`, `activiteFaite` | oui | B C |
@@ -262,7 +262,7 @@ Nouveaux fichiers : `tests/fonctions.test.js` (couche métier, audit, outils), `
 8. **Copie « avant » expirée** : message clair.
 9. **Doublons** : créer une personne de même nom/e-mail est refusé (`trouverDoublonsPersonne`), comme sur l'écran ; `forcer` documenté.
 10. **Intégrité** : supprimer une organisation qui a des personnes est refusé (`verifierSuppressionOrganisation`) ; la confirmation par le nom est exigée.
-11. **Règles de `logique.js` appliquées** : changement d'étape (événements, statut, archive en « Facture payée »), perdue/en pause/rouvrir, encaissement, dates Paris ; **test de parité** : mêmes scénarios exécutés par les fonctions et par les fonctions pures de l'écran donnent les mêmes documents.
+11. **Règles de `logique.js` appliquées** : changement d'étape (événements, statut, archive en « Facture payée »), perdue/rouvrir (la pause a été supprimée le 22/10/2026), encaissement, dates Paris ; **test de parité** : mêmes scénarios exécutés par les fonctions et par les fonctions pures de l'écran donnent les mêmes documents.
 12. **Copie de `logique.js` identique à la source** (octet pour octet).
 13. **Débit** : le 121e appel d'une minute reçoit 429 ; le plafond de suppressions est respecté.
 14. **Journaux sans secret** : aucune sortie ne contient le jeton, l'en-tête, des contenus de fiches.
@@ -314,7 +314,7 @@ Chaque fusion déploie seule ; je ne lance jamais de déploiement, ne publie jam
         Authorization: "Bearer ${env:CHEVALIER_MCP_TOKEN}"
       timeout: 120
       tools:
-        include: [qui_suis_je, chercher, lire_personne, lire_organisation, lire_affaire, lister_affaires, lister_activites, lister_documents, lire_reglages, lire_audit, creer_personne, modifier_personne, creer_organisation, modifier_organisation, creer_affaire, modifier_affaire, changer_etape, marquer_perdue, mettre_en_pause, rouvrir_affaire, ajouter_note, modifier_note, creer_activite, terminer_activite, joindre_lien, retirer_document, preparer_televersement, joindre_fichier_drive, sauvegarder, lister_sauvegardes, purger_sauvegardes]
+        include: [qui_suis_je, chercher, lire_personne, lire_organisation, lire_affaire, lister_affaires, lister_activites, lister_documents, lire_reglages, lire_audit, creer_personne, modifier_personne, creer_organisation, modifier_organisation, creer_affaire, modifier_affaire, changer_etape, marquer_perdue, rouvrir_affaire, ajouter_note, modifier_note, creer_activite, terminer_activite, joindre_lien, retirer_document, preparer_televersement, joindre_fichier_drive, sauvegarder, lister_sauvegardes, purger_sauvegardes]
   ```
   Transport par défaut = Streamable HTTP ; `include` prime sur `exclude` ; les noms de la liste sont les noms natifs du serveur. Le jeton va dans le fichier d'environnement du VPS (permissions 600), pas dans le YAML. **Je n'ai trouvé aucune version minimale ni de numéro de version à jour : lance `hermes --version` sur le VPS et envoie-moi le résultat** ; l'exacte forme du préfixe des noms d'outils vus par l'agent est à confirmer à la première connexion.
 - **Claude Code** : `claude mcp add --transport http chevalier-ia-os https://chevalier-ia-os.web.app/mcp --header "Authorization: Bearer $CHEVALIER_MCP_TOKEN"` [syntaxe à confirmer dans l'aide de ta version] ; le jeton reste dans une variable d'environnement de ton Mac, **jamais** dans un fichier du dossier synchronisé avec Drive.
@@ -342,7 +342,7 @@ Usage supposé : quelques milliers d'appels par mois. Fonctions : 2 millions de 
 
 ## 8. Fichiers existants à réutiliser
 
-`js/modules/crm/logique.js` (toutes les règles pures : `nouvellePersonne`, `nouvelleAffaire`, `changementEtape`, `marquerPerdue`, `mettreEnPause`, `rouvrirAffaire`, `ajouterEncaissement`, `ajouterDocument`, `trouverDoublonsPersonne`, `trouverDoublonsOrganisation`, `planSuppressionPersonne`, `verifierSuppressionOrganisation`, `confirmationValide`, `exportJson`, `nomFichierExport`, `rechercherSuggestions`, `filtrerAffaires`) ; `donnees.js` (modèle d'orchestration à extraire) ; `tests/logique.test.js` (772 lignes de cas à rejouer sur la copie) ; `tests/regles.test.js` (modèle des tests A) ; `tests/e2e/serveur.js` (serveur statique de test) ; `activites.js` ligne 214 (affichage `auteur`, à compléter par `via`).
+`js/modules/crm/logique.js` (toutes les règles pures : `nouvellePersonne`, `nouvelleAffaire`, `changementEtape`, `marquerPerdue`, `rouvrirAffaire`, `ajouterEncaissement`, `ajouterDocument`, `trouverDoublonsPersonne`, `trouverDoublonsOrganisation`, `planSuppressionPersonne`, `verifierSuppressionOrganisation`, `confirmationValide`, `exportJson`, `nomFichierExport`, `rechercherSuggestions`, `filtrerAffaires`) ; `donnees.js` (modèle d'orchestration à extraire) ; `tests/logique.test.js` (772 lignes de cas à rejouer sur la copie) ; `tests/regles.test.js` (modèle des tests A) ; `tests/e2e/serveur.js` (serveur statique de test) ; `activites.js` ligne 214 (affichage `auteur`, à compléter par `via`).
 
 ## 9. Recette manuelle (toi) et définition de « terminé »
 

@@ -158,7 +158,7 @@ describe('Réglages et audit', () => {
     assert.deepEqual(r.configuration.phases.filter((p) => p.roleCloture).map((p) => p.id), ['cloture']);
     assert.equal(r.configuration.options.suiviPaiements, true, 'à la racine : les valeurs de Jérôme tant que rien n’est enregistré');
     assert.deepEqual(r.referentiels.projets.assignes.map((a) => a.id), ['jerome', 'charles']);
-    assert.deepEqual(r.referentiels.statuts.map((s) => s.id), ['ouverte', 'gagnee', 'perdue', 'en_pause']);
+    assert.deepEqual(r.referentiels.statuts.map((s) => s.id), ['ouverte', 'gagnee', 'perdue']);
   });
   test('lire_reglages sur une base vide : valeurs de départ, aucune erreur', async () => {
     const r = await lecture.lireReglages(creerAccesMemoire({}));

@@ -64,7 +64,7 @@ export const lister_affaires = {
 export const lister_projets = {
   nom: 'lister_projets',
   profils: TOUS,
-  description: "Liste les projets avec les filtres de l'écran : phase (identifiants dans lire_reglages, configuration.phases), statut (actif, en_pause, termine). Par défaut les projets non archivés ; archive=true pour les archivés (dont les projets terminés). Chaque ligne donne l'avancement des livrables et, si l'option « Suivi des paiements » est allumée dans cet espace (lire_reglages, configuration.options), la facturation (facturé, payé, reste à payer, abandonné, impayé).",
+  description: "Liste les projets avec les filtres de l'écran : phase (identifiants dans lire_reglages, configuration.phases), statut (actif, termine). Par défaut les projets non archivés ; archive=true pour les archivés (dont les projets terminés). Chaque ligne donne l'avancement des livrables et, si l'option « Suivi des paiements » est allumée dans cet espace (lire_reglages, configuration.options), la facturation (facturé, payé, reste à payer, abandonné, impayé).",
   schema: {
     phase: z.string().max(40).optional(),
     statut: z.string().max(40).optional(),

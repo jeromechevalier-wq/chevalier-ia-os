@@ -5,7 +5,7 @@ import { animerCompteur, charlesContent } from '../../os/celebrations.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
 import { etatVide, lienAffaire, pastilleEtape, boutonEtoile, lien, cheminAffaire } from './composants.js';
-import { ligneActivite, faireActivite, dialogueActivite, proposerProchaineActivite } from './activites.js';
+import { ligneActivite, faireActivite, dialogueActivite } from './activites.js';
 import { exporterToutesLesDonnees } from './export.js';
 import { estChezClient } from '../../os/contexte.js';
 import * as PD from '../projets/donnees.js';
@@ -126,7 +126,7 @@ function resteAFaire() {
   const aujourdhui = D.ctx().aujourdhui;
   const pc = L.pointsCles({ activites: D.etat.activites, affaires: D.etat.affaires }, aujourdhui);
   const tp = P.tachesPointsCles(PD.etat.taches, PD.etat.projets, aujourdhui);
-  return pc.enRetard.length + pc.aujourdhui.length + pc.reveils.length + tp.enRetard.length + tp.aujourdhui.length;
+  return pc.enRetard.length + pc.aujourdhui.length + tp.enRetard.length + tp.aujourdhui.length;
 }
 
 async function faireTache(tache) {
@@ -166,18 +166,13 @@ function rendrePointsCles(zone) {
     return;
   }
   const nombreRetard = pc.enRetard.length + tp.enRetard.length;
-  const duJour = pc.aujourdhui.length + pc.reveils.length + tp.aujourdhui.length;
+  const duJour = pc.aujourdhui.length + tp.aujourdhui.length;
   if (!nombreRetard && !duJour) zone.append(etatVide(D.etat.reglages.imageCelebration ? 'Aucune relance aujourd’hui, Charles veille' : 'Aucune relance aujourd’hui.'));
   if (nombreRetard) {
     zone.append(groupe('En retard', 'retard', nombreRetard, h('ul', { class: 'liste-activites' }, lignesMelees(pc.enRetard, tp.enRetard, aujourdhui)), 'groupe-retard'));
   }
   if (duJour) {
     zone.append(groupe('Aujourd’hui', 'aujourdhui', duJour, h('ul', { class: 'liste-activites' },
-      pc.reveils.map((a) => h('li', { class: 'activite activite-aujourdhui', dataset: { reveil: a.id } },
-        h('button', { type: 'button', class: 'case-fait', 'aria-label': `Fait : reprendre contact (${a.titre})`, title: 'Fait',
-          onclick: async () => { await D.rouvrir(a.id); await proposerProchaineActivite(L.liensAffaire(a)); } }, icone('check', { taille: 14 })),
-        h('span', { class: 'activite-type' }, icone('clock', { taille: 16 })),
-        h('div', { class: 'activite-texte' }, h('strong', {}, 'Reprendre contact'), h('span', { class: 'activite-meta' }, lienAffaire(a))))),
       lignesMelees(pc.aujourdhui, tp.aujourdhui, aujourdhui))));
   }
   zone.append(groupe('Sans action prévue', 'sans-action', pc.sansAction.length,

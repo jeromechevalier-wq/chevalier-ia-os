@@ -26,7 +26,7 @@ Claude Code (Mac de Jérôme) et des agents (premier : **agent bibliothécaire**
 ## 4. Outils (première liste)
 
 - **Lecture** : chercher (personnes, organisations, affaires), lire une personne / organisation / affaire avec son fil, lister affaires et tâches, lister les documents joints (pour contrôle des liens), lire les réglages.
-- **Écriture** : créer et modifier personne, organisation, affaire ; changer l'étape ; gagnée / perdue / en pause ; ajouter note, activité, encaissement ; terminer une activité ; joindre un document par lien ; téléverser un document dans Drive puis le joindre ; supprimer personne, organisation, affaire.
+- **Écriture** : créer et modifier personne, organisation, affaire ; changer l'étape ; gagnée / perdue (pas de pause depuis le 22/10/2026) ; ajouter note, activité, encaissement ; terminer une activité ; joindre un document par lien ; téléverser un document dans Drive puis le joindre ; supprimer personne, organisation, affaire.
 - **Sauvegarde** : exporter toutes les collections en JSON (même format que « Exporter mes données »).
 - **Audit** : lire le journal d'audit ; **restaurer** un document depuis une entrée d'audit.
 

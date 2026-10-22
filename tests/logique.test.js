@@ -193,7 +193,7 @@ describe('B4 Statut dérivé de l’étape', () => {
   });
 });
 
-describe('B5 Perdue, en pause, réouverture', () => {
+describe('B5 Perdue, réouverture', () => {
   test('B5 perdue : raison obligatoire, étape conservée', () => {
     const a = affaire({ etape: 'proposition_envoyee' });
     assert.ok(L.marquerPerdue(a, { raison: '' }, ctx()).erreurs.raison);
@@ -204,20 +204,7 @@ describe('B5 Perdue, en pause, réouverture', () => {
     assert.equal('etape' in r.patch, false);
     assert.equal(r.evenements[0].type, 'affaire_perdue');
   });
-  test('B5 en pause : date de réveil obligatoire, étape conservée', () => {
-    const a = affaire({ etape: 'rdv_fixe' });
-    assert.ok(L.mettreEnPause(a, { dateReveil: '' }, ctx()).erreurs.dateReveil);
-    const r = L.mettreEnPause(a, { dateReveil: '2027-01-15' }, ctx());
-    assert.equal(r.patch.statut, 'en_pause');
-    assert.equal(r.patch.dateReveil, '2027-01-15');
-    assert.equal('etape' in r.patch, false);
-  });
-  test('B5 date de réveil proposée : +3 mois, fin de mois respectée', () => {
-    assert.equal(L.dateReveilParDefaut('2026-10-15'), '2027-01-15');
-    assert.equal(L.dateReveilParDefaut('2026-11-30'), '2027-02-28');
-    assert.equal(L.dateReveilParDefaut('2026-11-30').slice(0, 7), '2027-02');
-  });
-  test('B5 rouvrir : statut redérivé de l’étape, raison et réveil effacés', () => {
+  test('B5 rouvrir : statut redérivé de l’étape, raison effacée', () => {
     const perdue = affaire({ etape: 'gagne', statut: 'perdue', raisonPerdue: 'Prix', raisonPerdueDetail: 'x' });
     const r = L.rouvrirAffaire(perdue, ctx());
     assert.equal(r.patch.statut, 'gagnee');
@@ -230,6 +217,52 @@ describe('B5 Perdue, en pause, réouverture', () => {
     const r = L.changementEtape(perdue, 'rdv_fixe', ctx());
     assert.equal(r.patch.statut, 'ouverte');
     assert.equal(r.evenements[0].type, 'affaire_rouverte');
+  });
+});
+
+describe('P6 Plus de pause : une affaire ancienne « en_pause » reste utilisable', () => {
+  const ancienne = (extra = {}) => affaire({ id: 'vieille', etape: 'rdv_fixe', statut: 'en_pause', dateReveil: '2026-12-01', ...extra });
+  test('P6 le statut affiché d’une ancienne affaire en pause est « ouverte »', () => {
+    assert.equal(L.statutAffiche(ancienne()), 'ouverte');
+    assert.equal(L.statutAffiche(affaire({ statut: 'perdue' })), 'perdue');
+    assert.equal(L.statutAffiche(affaire({ statut: 'gagnee' })), 'gagnee');
+    assert.equal(L.libelleStatut('en_pause'), 'Ouverte');
+    assert.deepEqual(L.STATUTS.map((s) => s.id), ['ouverte', 'gagnee', 'perdue'], 'la liste des statuts ne propose plus « En pause »');
+  });
+  test('P6 elle est vivante, compte dans les points clés et ses activités ne sont pas ignorées', () => {
+    assert.equal(L.estVivante(ancienne()), true);
+    assert.equal(L.estAffaireActive(ancienne()), true);
+    const pc = L.pointsCles({ activites: [activite({ id: '1', affaireId: 'vieille', date: '2026-10-10' })], affaires: [ancienne()] }, '2026-10-15');
+    assert.deepEqual(pc.enRetard.map((x) => x.id), ['1']);
+    assert.deepEqual(pc.sansAction.map((x) => x.id), []);
+    assert.deepEqual(L.pointsCles({ activites: [], affaires: [ancienne()] }, '2026-10-15').sansAction.map((x) => x.id), ['vieille']);
+  });
+  test('P6 le filtre « Statut : Ouverte » la trouve, le filtre « Perdue » non', () => {
+    const ctxF = { personnes: [], organisations: [], activites: [], aujourdhui: '2026-10-15' };
+    assert.deepEqual(L.filtrerAffaires([ancienne()], { statuts: ['ouverte'] }, ctxF).map((a) => a.id), ['vieille']);
+    assert.deepEqual(L.filtrerAffaires([ancienne()], { statuts: ['perdue'] }, ctxF).map((a) => a.id), []);
+  });
+  test('P6 la changer d’étape la remet à un statut normal et efface l’ancienne date', () => {
+    const r = L.changementEtape(ancienne(), 'proposition_envoyee', ctx());
+    assert.equal(r.patch.statut, 'ouverte');
+    assert.equal(r.patch.dateReveil, null);
+    const rouverte = L.rouvrirAffaire(ancienne(), ctx());
+    assert.equal(rouverte.patch.statut, 'ouverte');
+    assert.equal(rouverte.patch.dateReveil, null);
+  });
+  test('P6 elle peut passer perdue', () => {
+    const r = L.marquerPerdue(ancienne(), { raison: 'Prix' }, ctx());
+    assert.equal(r.patch.statut, 'perdue');
+    assert.equal(r.patch.dateReveil, null);
+  });
+  test('P6 une affaire neuve n’a plus de champ de date de réveil, et l’ancien type d’événement reste affiché dans l’historique', () => {
+    assert.equal('dateReveil' in L.nouvelleAffaire({ titre: 'Neuve' }, ctx()), false);
+    assert.equal(typeof L.mettreEnPause, 'undefined');
+    assert.equal(typeof L.estAReveiller, 'undefined');
+    const vieux = { type: 'affaire_en_pause', texte: 'Affaire en pause jusqu’au 01/12/2026 : X', date: new Date('2026-10-01T08:00:00Z'), affaireId: 'a' };
+    assert.equal(L.entreesHistorique({ evenements: [vieux] }, ['affaires']).length, 1, 'un ancien événement de pause apparaît toujours avec le filtre Affaires');
+    assert.equal(L.entreesHistorique({ evenements: [vieux] }, 'tous').length, 1);
+    assert.equal(L.entreesHistorique({ evenements: [vieux] }, ['evenements']).length, 0, 'et ne glisse pas dans « Événements »');
   });
 });
 
@@ -321,17 +354,14 @@ describe('B7 Retard, sans action, pastille', () => {
     assert.equal(L.estSansAction(a, [activite({ affaireId: 'a', fait: true })]), true);
     assert.equal(L.estSansAction(a, [activite({ affaireId: 'autre' })]), true);
   });
-  test('B7 sans action : perdue, en pause et archivée exclues', () => {
+  test('B7 sans action : perdue et archivée exclues', () => {
     assert.equal(L.estSansAction(affaire({ statut: 'perdue' }), []), false);
-    assert.equal(L.estSansAction(affaire({ statut: 'en_pause' }), []), false);
     assert.equal(L.estSansAction(affaire({ archive: true, statut: 'gagnee' }), []), false);
   });
-  test('B7 points clés : retard, aujourd’hui, réveil, sans action', () => {
+  test('B7 points clés : retard, aujourd’hui, sans action', () => {
     const affaires = [
       affaire({ id: 'a', titre: 'A' }),
       affaire({ id: 'b', titre: 'B' }),
-      affaire({ id: 'c', statut: 'en_pause', dateReveil: '2026-10-15' }),
-      affaire({ id: 'd', statut: 'en_pause', dateReveil: '2026-12-01' }),
       affaire({ id: 'e', statut: 'perdue' }),
     ];
     const activites = [
@@ -345,7 +375,7 @@ describe('B7 Retard, sans action, pastille', () => {
     const pc = L.pointsCles({ activites, affaires }, auj);
     assert.deepEqual(pc.enRetard.map((x) => x.id), ['1', '5']);
     assert.deepEqual(pc.aujourdhui.map((x) => x.id), ['2']);
-    assert.deepEqual(pc.reveils.map((x) => x.id), ['c']);
+    assert.equal('reveils' in pc, false, 'plus de « Reprendre contact » : la pause n’existe plus');
     assert.deepEqual(pc.sansAction.map((x) => x.id), ['b']);
   });
   test('B7 points clés d’une fiche : états et tri', () => {
@@ -934,12 +964,10 @@ describe('B17 Plans d’écriture : modifications', () => {
     assert.deepEqual(mauvais.ecritures, []);
     assert.ok(mauvais.erreurs.etape);
   });
-  test('B17 perdue, pause, rouvrir : une écriture sur l’affaire puis les événements ; erreurs de saisie sans écriture', () => {
+  test('B17 perdue, rouvrir : une écriture sur l’affaire puis les événements ; erreurs de saisie sans écriture', () => {
     const a = affaire({ id: 'a1' });
     assert.equal(L.planMarquerPerdue(a, { raison: 'Prix' }, ctxPlan()).ecritures.length, 2);
     assert.deepEqual(L.planMarquerPerdue(a, { raison: 'Inconnue' }, ctxPlan()).ecritures, []);
-    assert.equal(L.planMettreEnPause(a, { dateReveil: '2027-01-15' }, ctxPlan()).ecritures[0].patch.statut, 'en_pause');
-    assert.deepEqual(L.planMettreEnPause(a, { dateReveil: '' }, ctxPlan()).ecritures, []);
     assert.deepEqual(L.planRouvrirAffaire(a, ctxPlan()).ecritures, [], 'une affaire ouverte ne se rouvre pas');
     assert.equal(L.planRouvrirAffaire(affaire({ id: 'a1', statut: 'perdue' }), ctxPlan()).ecritures.length, 2);
   });

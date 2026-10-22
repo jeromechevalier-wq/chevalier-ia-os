@@ -59,7 +59,7 @@ async function fil(donnees, champ, id, activites) {
     .map((e) => ({ genre: e.genre, date: e.date ? e.date.toISOString() : null, ...serialiser(e.element) }));
 }
 
-const resumeAffaire = (a) => ({ id: a.id, titre: a.titre, etape: a.etape, statut: a.statut, archive: !!a.archive });
+const resumeAffaire = (a) => ({ id: a.id, titre: a.titre, etape: a.etape, statut: L.statutAffiche(a), archive: !!a.archive });
 
 export async function lirePersonne(donnees, { id, avecFil }) {
   const personne = await donnees.document(C.personnes, id);
@@ -195,7 +195,7 @@ export async function lireProjet(donnees, { id, avecFil }, espace = {}) {
   ]);
   return serialiser({
     projet,
-    affaire: affaire ? { id: affaire.id, titre: affaire.titre, etape: affaire.etape, statut: affaire.statut } : null,
+    affaire: affaire ? { id: affaire.id, titre: affaire.titre, etape: affaire.etape, statut: L.statutAffiche(affaire) } : null,
     personne: personne ? { id: personne.id, nom: personne.nom } : null,
     organisation: organisation ? { id: organisation.id, nom: organisation.nom } : null,
     livrables: PL.tachesDuProjet(taches, id, config), // le stockage garde le nom « projets_taches » (aucune migration)

@@ -244,7 +244,7 @@ describe('Création et modification (tests 9 et 11)', () => {
     assert.equal(apres.titre, avant.titre);
   });
 
-  test('test 11 : perdue, pause, rouvrir, avec les mêmes contrôles de saisie que l’écran', async () => {
+  test('test 11 : perdue, rouvrir, avec les mêmes contrôles de saisie que l’écran', async () => {
     const s = await demarrer();
     refuse(await s.appeler('biblio', 'marquer_perdue', { id: 'a1', raison: 'Parce que' }), /raison est obligatoire/);
     ok(await s.appeler('biblio', 'marquer_perdue', { id: 'a1', raison: 'Prix', detail: ' trop cher ' }));
@@ -253,9 +253,17 @@ describe('Création et modification (tests 9 et 11)', () => {
     ok(await s.appeler('biblio', 'rouvrir_affaire', { id: 'a1' }));
     assert.equal(s.doc('crm_affaires', 'a1').statut, 'ouverte');
     assert.equal(ok(await s.appeler('biblio', 'rouvrir_affaire', { id: 'a1' })).rien, true, 'une affaire ouverte ne se rouvre pas');
-    refuse(await s.appeler('biblio', 'mettre_en_pause', { id: 'a1', dateReveil: '2027-13-45' }));
-    ok(await s.appeler('biblio', 'mettre_en_pause', { id: 'a1', dateReveil: '2027-01-15' }));
-    assert.deepEqual([s.doc('crm_affaires', 'a1').statut, s.doc('crm_affaires', 'a1').dateReveil], ['en_pause', '2027-01-15']);
+    // plus de pause (22/10/2026) : les trois outils n'existent plus, sans alias
+    for (const nom of ['mettre_en_pause', 'mettre_projet_en_pause', 'reprendre_projet']) {
+      const r = await s.appeler('code', nom, { id: 'a1', dateReveil: '2027-01-15' });
+      assert.ok(r.isError || /inconnu|unknown|not found/i.test(JSON.stringify(r)), nom);
+    }
+    // une ancienne affaire restée « en_pause » (base non migrée) se rouvre et s'affiche comme ouverte
+    s.collections.crm_affaires.push({ ...structuredClone(s.doc('crm_affaires', 'a1')), id: 'a-vieille', statut: 'en_pause', dateReveil: '2026-12-01' });
+    const rouverte = ok(await s.appeler('biblio', 'rouvrir_affaire', { id: 'a-vieille' }));
+    assert.equal(rouverte.statut, 'ouverte');
+    assert.equal(s.doc('crm_affaires', 'a-vieille').statut, 'ouverte');
+    assert.equal(s.doc('crm_affaires', 'a-vieille').dateReveil, null, 'l’ancienne date de réveil est effacée');
     // l'ajout d'un encaissement sur l'affaire n'existe plus (2.2) : l'argent se saisit sur les factures des projets
     const inconnu = await s.appeler('biblio', 'ajouter_encaissement', { id: 'a2', montant: 250 });
     assert.ok(inconnu.isError || /inconnu|unknown|not found/i.test(JSON.stringify(inconnu)));
@@ -593,7 +601,7 @@ describe('Outils des projets : mêmes règles que l’écran, avec audit et rest
   test('droits : lecture pour les trois profils, écriture pour le bibliothécaire et Claude Code, suppression pour Claude Code seul', async () => {
     const s = await demarrer();
     const noms = async (j) => (await (await s.brut(j, 'tools/list')).json()).result.tools.map((t) => t.name);
-    const ecriture = ['creer_projet', 'creer_projet_depuis_affaire', 'modifier_projet', 'changer_phase_projet', 'mettre_projet_en_pause', 'reprendre_projet', 'rouvrir_projet', 'archiver_projet', 'terminer_projet', 'ajouter_livrable_projet', 'terminer_livrable_projet', 'ajouter_facture', 'marquer_facture_payee', 'abandonner_facture'];
+    const ecriture = ['creer_projet', 'creer_projet_depuis_affaire', 'modifier_projet', 'changer_phase_projet', 'rouvrir_projet', 'archiver_projet', 'terminer_projet', 'ajouter_livrable_projet', 'terminer_livrable_projet', 'ajouter_facture', 'marquer_facture_payee', 'abandonner_facture'];
     const lecture = ['lister_projets', 'lire_projet', 'lister_modeles_projet'];
     const lecteur = await noms('lecteur'); const biblio = await noms('biblio'); const code = await noms('code');
     for (const o of lecture) assert.ok(lecteur.includes(o) && biblio.includes(o) && code.includes(o), o);
@@ -705,17 +713,13 @@ describe('Outils des projets : mêmes règles que l’écran, avec audit et rest
     refuse(await s.appeler('biblio', 'creer_affaire', { titre: 'Trop long', description: 'x'.repeat(20001) }));
   });
 
-  test('phase, pause, reprise, archivage, modification : mêmes règles que l’écran ; « rien à faire » n’écrit rien', async () => {
+  test('phase, archivage, modification : mêmes règles que l’écran ; « rien à faire » n’écrit rien', async () => {
     const s = await avecModeles();
     const { id } = ok(await s.appeler('biblio', 'creer_projet', { titre: 'Site' }));
     refuse(await s.appeler('biblio', 'changer_phase_projet', { id, phase: 'bidon' }), /Phase inconnue/);
     ok(await s.appeler('biblio', 'changer_phase_projet', { id, phase: 'livraison' }));
     assert.equal(s.doc('projets_projets', id).phase, 'livraison');
     assert.equal(ok(await s.appeler('biblio', 'changer_phase_projet', { id, phase: 'livraison' })).rien, true);
-    ok(await s.appeler('biblio', 'mettre_projet_en_pause', { id }));
-    assert.equal(s.doc('projets_projets', id).statut, 'en_pause');
-    assert.equal(ok(await s.appeler('biblio', 'mettre_projet_en_pause', { id })).rien, true);
-    ok(await s.appeler('biblio', 'reprendre_projet', { id }));
     assert.equal(s.doc('projets_projets', id).statut, 'actif');
     ok(await s.appeler('biblio', 'archiver_projet', { id, archive: true }));
     assert.equal(s.doc('projets_projets', id).archive, true);
