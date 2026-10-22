@@ -96,7 +96,7 @@ export function optionsAutomatisations(workflows, executions) {
   return [...m].map(([id, nom]) => ({ id, nom })).sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
 }
 
-/** Options de l'état qui ont au moins une exécution dans `liste` (« Tous les états » toujours là) : une liste déroulante ne propose que du possible. */
+/** Options de l'état qui ont au moins une exécution dans `liste` (l'entrée vide « Tous les états » est conservée ici ; `optionsEtatCases` la retire pour la fenêtre de filtres) : on ne propose que du possible. */
 export function optionsEtatPossibles(liste, maintenant) {
   return OPTIONS_ETAT.filter((o) => o.valeur === '' || filtrer(liste, { etat: o.valeur }, maintenant).length > 0);
 }
