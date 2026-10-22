@@ -55,7 +55,7 @@ Valables pour A, B, C et tout workflow du chemin (`docs/automatisations-n8n.md`,
 - **Étiquette n8n** : `interne` (workflows de Jérôme) ou `client-<identifiant>` (identifiant de 17 caractères au plus).
 - **Nom** : commence par `interne-` ou `client-<identifiant>-` (exigé depuis le 18/10/2026).
 - **Credential de la porte** : « Clé n8n - interne » (exigé pour Jérôme) ou « Clé n8n - <identifiant> » (pas exigé chez un client, mais s'il y en a un il doit être le bon). Le nom est comparé sans tenir compte des majuscules, accents, espaces et types de tiret ; l'identifiant du credential passe avant son nom.
-- Un signe manquant ou qui en désigne un autre : le workflow n'est **jamais copié** et apparaît dans « À vérifier » avec la raison. Le nom exact du credential `interne` dans le n8n de Jérôme reste à confirmer (`automatisations-n8n.md`, partie 10).
+- Un signe manquant ou qui en désigne un autre : le workflow n'est **jamais copié** et apparaît dans « À vérifier » avec la raison. Vérifié le 22/10/2026 dans le n8n de Jérôme (noms seulement, jamais les secrets) : le credential s'appelle « Clé n8n - Interne » (type en-tête HTTP), ce qui correspond à la règle (la casse ne compte pas). Il n'existe pas encore de clé pour un client.
 - Un workflow du chemin qui ne respecte pas ces règles ne ferait donc pas partie de la ligne unique : à tester dès le premier workflow.
 
 ## La porte d'entrée (existe déjà)
