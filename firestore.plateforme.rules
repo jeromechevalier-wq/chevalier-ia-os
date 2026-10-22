@@ -48,10 +48,10 @@ service cloud.firestore {
     }
 
     // Collections du journal d'activité des workflows (chantier 14) : workflows, executions (et leurs « steps »), sync.
-    // Lisibles par les membres, mais écrites par le SERVEUR seulement (la copie horaire et la fonction « renommer »), jamais par un navigateur,
+    // Lisibles par les membres, mais écrites par le SERVEUR seulement (la copie horaire, la fonction « renommer », la porte et la fonction de validation des propositions), jamais par un navigateur,
     // même par un éditeur : sinon un navigateur pourrait fausser l'historique ou le verrou de copie.
     function collectionDuJournal(collection) {
-      return collection in ['workflows', 'executions', 'sync'];
+      return collection in ['workflows', 'executions', 'sync', 'automatisations_propositions'];
     }
 
     // Tableau de bord : lisible par les membres, écrit par le SERVEUR seulement (la porte des scripts GitHub et les fonctions de saisie), jamais par un navigateur,
