@@ -468,7 +468,7 @@ describe('Suppression et restauration (tests 6 et 10)', () => {
     const s = await demarrer();
     const r = ok(await s.supprimer('code', 'supprimer_note', { id: 'n1' }));
     s.collections.crm_audit_avant = [];
-    refuse(await s.appeler('code', 'restaurer_depuis_audit', { operationId: r.operationId, apercu: false }), /n’existent plus.*90 jours.*sauvegarde/);
+    refuse(await s.appeler('code', 'restaurer_depuis_audit', { operationId: r.operationId, apercu: false }), /manquent.*sauvegarde/);
   });
 
   test('une suppression du bibliothécaire créée par erreur par Claude Code se retrouve dans lire_audit (outil, acteur, action « supprimer »)', async () => {

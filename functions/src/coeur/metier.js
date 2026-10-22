@@ -539,7 +539,7 @@ async function supprimerAvecCode(c, outil, args, cible, plan, parametres) {
   }
   const r = await c.ecrire({ operations: plan.ecritures, parametres });
   return sortie(r, {
-    supprime: true, ...apercu, restaurable: 'restaurer_depuis_audit (90 jours)',
+    supprime: true, ...apercu, restaurable: 'restaurer_depuis_audit',
     detail: `Détail complet de l'opération : lire_audit avec operationId ${r.operationId}.`,
   });
 }

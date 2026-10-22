@@ -2046,7 +2046,7 @@ export const planSupprimerNote = (id) => ({ ecritures: [ecritureSupprimer(C.note
 // ---------------------------------------------------------------- audit des écritures faites à l'écran
 //
 // Chaque action de l'écran écrit, DANS LE MÊME LOT que les données, une ligne dans crm_audit (qui, quand, quoi, quel document) et une
-// copie « avant / après » dans crm_audit_avant (effacée après 90 jours). Même schéma que le serveur MCP : lire_audit et
+// copie « avant / après » dans crm_audit_avant (gardée sans limite de durée). Même schéma que le serveur MCP : lire_audit et
 // restaurer_depuis_audit comprennent aussi les actions de l'écran. Les fonctions ci-dessous sont pures : l'écran leur donne
 // ses valeurs « serveur » (horodatage Firebase, e-mail du compte), les tests des dates ordinaires.
 

@@ -278,7 +278,7 @@ describe('Restauration d’une opération', () => {
     const { collections, donnees } = nouveau();
     const r = await faire(donnees, [{ type: 'supprimer', collection: 'crm_notes', id: 'n2' }]);
     collections.crm_audit_avant = []; // la règle TTL de Google les a effacées
-    await assert.rejects(() => restaurerOperation({ donnees, ctx: ctx(), operationId: r.operationId, apercu: false }), (e) => e.code === 'copie_expiree' && /90 jours/.test(e.message) && /sauvegarde/.test(e.message));
+    await assert.rejects(() => restaurerOperation({ donnees, ctx: ctx(), operationId: r.operationId, apercu: false }), (e) => e.code === 'copie_expiree' && /manquent/.test(e.message) && /sauvegarde/.test(e.message));
     assert.equal(doc(collections, 'crm_notes', 'n2'), undefined);
   });
 
