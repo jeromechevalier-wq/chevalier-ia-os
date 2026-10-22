@@ -49,16 +49,37 @@ export function compteurs(liste, maintenant) {
   return c;
 }
 
-/** Liste filtrée par automatisation (workflowId) et par état ('' = tous ; running / success / error / stale). Plus récentes d'abord. */
-export function filtrer(liste, { workflowId = '', etat = '' } = {}, maintenant) {
+/** Une valeur ou un tableau -> tableau de valeurs non vides. */
+const enTableau = (v) => (Array.isArray(v) ? v : v ? [v] : []).filter(Boolean);
+
+/**
+ * Liste filtrée par automatisation (workflowId / workflowIds) et par état (etat / etats : running, success, error, stale). Plus récentes d'abord.
+ * Une chaîne ou un tableau : dans un même groupe, il suffit d'en avoir une (« OU ») ; entre les deux groupes il faut les deux (« ET »). Rien de coché = tout.
+ * « En cours » (running) englobe « Démarrée » (new).
+ */
+export function filtrer(liste, { workflowId = '', workflowIds = [], etat = '', etats = [] } = {}, maintenant) {
+  const ids = [...enTableau(workflowId), ...enTableau(workflowIds)];
+  const lesEtats = [...enTableau(etat), ...enTableau(etats)];
   return liste
     .filter((e) => {
-      if (workflowId && e.workflowId !== workflowId) return false;
-      if (!etat) return true;
+      if (ids.length && !ids.includes(e.workflowId)) return false;
+      if (!lesEtats.length) return true;
       const s = etatAffiche(e, maintenant);
-      return etat === 'running' ? s === 'running' || s === 'new' : s === etat;
+      return lesEtats.some((x) => (x === 'running' ? s === 'running' || s === 'new' : s === x));
     })
     .sort((a, b) => (enMs(b.startedAt) ?? 0) - (enMs(a.startedAt) ?? 0) || Number(b.executionId ?? b.id) - Number(a.executionId ?? a.id));
+}
+
+/** Critères de la fenêtre « Filtres » : { workflowIds: [], etats: [] }. */
+export const criteresVides = () => ({ workflowIds: [], etats: [] });
+/** Nombre de cases cochées (la pastille du bouton « Filtres »). */
+export const compterCriteres = (c) => (c?.workflowIds?.length || 0) + (c?.etats?.length || 0);
+
+/** Retire des critères les cases qui n'existent plus (une automatisation disparue, un état qui n'a plus d'exécution). */
+export function nettoyerCriteres(c, optionsWorkflows, optionsEtats) {
+  const ids = new Set(optionsWorkflows.map((o) => o.id));
+  const etats = new Set(optionsEtats.map((o) => o.valeur));
+  return { workflowIds: (c?.workflowIds || []).filter((i) => ids.has(i)), etats: (c?.etats || []).filter((e) => etats.has(e)) };
 }
 
 /** Nom affiché d'une automatisation : le nom choisi par le client, sinon celui de n8n, sinon celui recopié dans l'exécution. */
@@ -75,10 +96,13 @@ export function optionsAutomatisations(workflows, executions) {
   return [...m].map(([id, nom]) => ({ id, nom })).sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
 }
 
-/** Options de l'état qui ont au moins une exécution dans `liste` (« Tous les états » toujours là) : une liste déroulante ne propose que du possible. */
+/** Options de l'état qui ont au moins une exécution dans `liste` (l'entrée vide « Tous les états » est conservée ici ; `optionsEtatCases` la retire pour la fenêtre de filtres) : on ne propose que du possible. */
 export function optionsEtatPossibles(liste, maintenant) {
   return OPTIONS_ETAT.filter((o) => o.valeur === '' || filtrer(liste, { etat: o.valeur }, maintenant).length > 0);
 }
+
+/** Les mêmes, sans « Tous les états » : ce sont les cases à cocher de la fenêtre « Filtres ». */
+export const optionsEtatCases = (liste, maintenant) => optionsEtatPossibles(liste, maintenant).filter((o) => o.valeur !== '');
 
 export function hhmmss(ms) {
   const d = new Date(ms);
