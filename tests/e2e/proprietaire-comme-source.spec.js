@@ -62,6 +62,9 @@ test('N4 clavier : Entrée sur le crayon ouvre la liste, Échap l\'annule sans r
   await expect(ligne.locator('select')).toHaveCount(0);
   await expect(ligne.locator('.prop-valeur')).toContainText('Jérôme');
   expect((await lireDocument('crm_affaires/a1')).proprietaire).toBe(JEROME);
+  // Après Échap la ligne est redessinée et le focus ne revient pas au crayon (comme pour la Source) : on repart d'une page rechargée.
+  await page.reload();
+  await attendreCalme(page);
   // Entrée : le choix du clavier est enregistré.
   await ligne.locator('.prop-modifier').focus();
   await page.keyboard.press('Enter');
