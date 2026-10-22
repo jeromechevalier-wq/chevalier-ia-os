@@ -183,6 +183,7 @@ test('I5 aucun texte au nom de Jérôme sur les écrans d\'un client (accueil, l
   await ouvrirDocuments(page);
   await expect(page.locator('[data-prop="dossier"]')).toBeVisible();
   await expect(page.locator('select[aria-label="Propriétaire"]')).toHaveCount(0);
+  await expect(page.locator('[data-prop="proprietaire"] .prop-modifier')).toHaveCount(0); // lecture seule : ni liste ni crayon
   await expect(page.locator('[data-prop="proprietaire"]')).toContainText(ALICE);
   await page.evaluate(() => { location.hash = '#/espace/studio/projets/projets/pr1'; });
   await expect(page.locator('input.titre-editable')).toHaveValue('Site du lac');

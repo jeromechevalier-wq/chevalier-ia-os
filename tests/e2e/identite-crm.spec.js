@@ -69,6 +69,7 @@ test('K4 réglages, comptes Jérôme / Charles dans les listes, dossier de trava
   await expect(page.locator('#reglages-objectifs')).toBeVisible();
   await page.evaluate(() => { location.hash = '#/crm/affaires/a1'; });
   await expect(page.locator('input.titre-editable')).toHaveValue('Audit du lac');
+  await page.locator('[data-prop="proprietaire"] .prop-modifier').click();
   await expect(page.locator('select[aria-label="Propriétaire"] option')).toHaveText(['Jérôme', 'Charles']);
   await expect(page.locator('[data-prop="dossier"]')).toHaveCount(1);
   await expect(page.locator('[data-prop="github"]')).toHaveCount(0); // plus de champ GitHub (une ancienne adresse serait reprise comme lien)

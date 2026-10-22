@@ -31,18 +31,23 @@ for (const [nomFiche, creer, hash, chemin, bloc] of [
     // Le bloc qui la contient porte le bon titre.
     const titreBloc = await ligne.evaluate((el) => el.closest('section')?.querySelector('h2, h3, .section-titre, summary, button')?.textContent?.trim() ?? '');
     expect(titreBloc).toContain(bloc);
+    // Au repos : la valeur en texte (N4), pas de menu natif ; un clic sur le crayon ouvre la liste.
+    await expect(ligne.locator('select')).toHaveCount(0);
+    await expect(ligne.locator('.prop-valeur')).toContainText('Jérôme');
+    await ligne.locator('.prop-modifier').click();
     const menu = ligne.locator('select');
     await expect(menu).toHaveValue(JEROME);
     // Mise à jour immédiate, sans rechargement de la page (la fiche peut se redessiner, le menu doit montrer le nouveau choix).
     await page.evaluate(() => { window.__sansRechargement = true; });
     await menu.selectOption(CHARLES);
     await expect.poll(async () => (await lireDocument(chemin)).proprietaire).toBe(CHARLES);
-    await expect(menu).toHaveValue(CHARLES);
+    await expect(ligne.locator('.prop-valeur')).toContainText('Charles');
+    await expect(ligne.locator('select')).toHaveCount(0);
     expect(await page.evaluate(() => window.__sansRechargement === true)).toBe(true);
     // Téléphone et ordinateur : la ligne ne déborde pas (ni la ligne, ni la page).
     const depasse = await ligne.evaluate((el) => {
       const r = el.getBoundingClientRect();
-      const s = el.querySelector('select').getBoundingClientRect();
+      const s = el.querySelector('.prop-valeur').getBoundingClientRect();
       return r.right > window.innerWidth + 0.5 || s.right > window.innerWidth + 0.5 || document.documentElement.scrollWidth > window.innerWidth + 0.5;
     });
     expect(depasse).toBe(false);
@@ -55,7 +60,10 @@ test('I7 cas vide : un propriétaire inconnu de la liste est quand même propos�
   await creerAffaire('a1', { titre: 'Audit des Lilas', proprietaire: 'ancien.compte@exemple.fr' });
   await connecter(page);
   await aller(page, '#/crm/affaires/a1');
-  const menu = page.locator('.prop[data-prop="proprietaire"] select');
+  const ligne = page.locator('.prop[data-prop="proprietaire"]');
+  await expect(ligne.locator('.prop-valeur')).toContainText('ancien.compte@exemple.fr');
+  await ligne.locator('.prop-modifier').click();
+  const menu = ligne.locator('select');
   await expect(menu).toHaveValue('ancien.compte@exemple.fr');
   await expect(page.locator('.fiche-tete')).not.toContainText('Propriétaire');
   await menu.scrollIntoViewIfNeeded();
@@ -66,7 +74,10 @@ test('I7 cas vide (aucun propriétaire) : une ligne « — » non choisissable e
   await creerAffaire('a1', { titre: 'Audit des Lilas', proprietaire: '' });
   await connecter(page);
   await aller(page, '#/crm/affaires/a1');
-  const menu = page.locator('.prop[data-prop="proprietaire"] select');
+  const ligne = page.locator('.prop[data-prop="proprietaire"]');
+  await expect(ligne.locator('.prop-valeur')).toContainText('—');
+  await ligne.locator('.prop-modifier').click();
+  const menu = ligne.locator('select');
   await expect(menu).toHaveValue('');
   await expect(menu.locator('option').first()).toHaveText('—');
   await expect(menu.locator('option').first()).toBeDisabled();
@@ -84,9 +95,10 @@ test('I7 cas d\'erreur : si l\'enregistrement échoue, un message apparaît et l
     zone.append(selectProprietaire({ valeur: 'jerome.chevalier@gmail.com', surChoix: async () => { throw new Error('refus'); } }));
     document.body.append(zone);
   });
+  await page.locator('#essai-proprietaire .prop-modifier').click();
   const menu = page.locator('#essai-proprietaire select');
   await menu.selectOption({ index: 1 });
   await expect(page.getByText('Enregistrement impossible : vérifie ta connexion, puis choisis de nouveau.')).toBeVisible();
-  await expect(menu).toHaveValue(JEROME);
+  await expect(page.locator('#essai-proprietaire .prop-valeur')).toContainText('Jérôme');
   await capture(page, 'I7-cas-erreur');
 });
