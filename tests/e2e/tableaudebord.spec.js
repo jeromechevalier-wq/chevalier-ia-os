@@ -71,18 +71,19 @@ const rendreLesVraiesRegles = async () => chargerRegles(await readFile(fileURLTo
 
 // ---------------------------------------------------------------- R1
 
-test('R1 le menu contient le bloc « Maintenance » chez Jérôme, et sa première entrée « Général » ouvre l\'écran Général', async ({ page }, info) => {
+test('R1 le menu contient UNE entrée « Maintenance » chez Jérôme (Général et Technique sont des onglets) ; elle ouvre l\'écran Général', async ({ page }, info) => {
   await jeuStandard();
   await connecter(page);
   if (estTelephone(page)) await page.getByRole('button', { name: 'Ouvrir le menu' }).click();
   const bloc = page.locator('.menu-groupe[data-bloc="tableaudebord"]');
   await expect(bloc.locator('.menu-groupe-titre')).toHaveCount(0); // PR B : plus de titres de groupes
-  await expect(bloc.locator('.menu-entree')).toHaveText(['Général', 'Technique']);
+  await expect(bloc.locator('.menu-entree')).toHaveText(['Maintenance']);
   await capturer(page, info, 'R1-menu');
-  await bloc.getByRole('link', { name: 'Général', exact: true }).click();
+  await bloc.getByRole('link', { name: 'Maintenance', exact: true }).click();
   await expect(page).toHaveURL(/#\/tableaudebord\/general$/);
   await expect(page.getByRole('heading', { name: 'Maintenance', level: 1 })).toBeVisible();
   await expect(page.locator('.td-onglet[aria-current="page"]')).toHaveText('Général');
+  await expect(bloc.locator('.menu-entree')).toHaveAttribute('aria-current', 'page');
   await expect(page.locator('.td-phrase')).toBeVisible();
   // Une adresse inconnue du module revient sur Général ; les onglets Finance et Stocks sont acceptés même absents du menu.
   await aller(page, 'nimportequoi');

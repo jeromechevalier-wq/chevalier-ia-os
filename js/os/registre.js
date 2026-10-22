@@ -37,6 +37,9 @@ export const OUTILS_COMMUNS = geler(['qui_suis_je']);
  *  prefixe     : premier morceau des routes du module (#/crm/…) ;
  *  ecrans      : { route, libelle, icone } ; collections : noms « nus » (sous clients/<client>/ chez un client) ;
  *  outilsMcp   : outils MCP du module (déclaration seulement) ; dependances : modules à activer avant celui-ci ;
+ *  entreeMenu  : route d'arrivée de l'UNIQUE entrée du menu principal du module (libellé = libelleMenu, icône = iconeMenu). Le menu aligne des modules, pas des écrans (22/10/2026) :
+ *                les écrans du module sont alors hors menu (leurs routes restent servies) et se rejoignent par une barre d'onglets (js/os/onglets.js) ; l'entrée est allumée sur tout écran du module ;
+ *  ordreOnglets: routes des écrans dans l'ordre des onglets (sinon l'ordre de `ecrans`) ;
  *  horsMenu    : `true` = le module n'a pas d'entrée dans le menu principal (il s'ouvre depuis le menu utilisateur) mais garde ses écrans et son interrupteur ;
  *                Tous les modules existent chez Jérôme comme chez les clients (décision du 18/10/2026) : plus de champ « réservé aux clients ».
  */
@@ -115,6 +118,7 @@ export const MODULES_DECLARES = geler([
     iconeMenu: 'globe',
     prefixe: 'veille',
     reglages: { sections: [], resume: 'La veille se lit : ses sources sont suivies par les workflows n8n. Aucun réglage à faire ici pour l’instant.' },
+    entreeMenu: 'veille/contenus',
     ecrans: [
       { route: 'veille/contenus', libelle: 'Contenus', icone: 'file-text' },
       { route: 'veille/sources', libelle: 'Sources', icone: 'link' },
@@ -133,6 +137,8 @@ export const MODULES_DECLARES = geler([
     iconeMenu: 'activity',
     prefixe: 'automatisations',
     reglages: { sections: [], resume: 'L’historique se lit : il est rempli par les workflows n8n. Aucun réglage à faire ici pour l’instant.' },
+    entreeMenu: 'automatisations/historique', // l'arrivée sur « À valider » quand il y en a viendra avec le badge
+    ordreOnglets: ['automatisations/a-valider', 'automatisations/historique'],
     ecrans: [
       { route: 'automatisations/historique', libelle: 'Historique', icone: 'activity' },
       { route: 'automatisations/a-valider', libelle: 'À valider', icone: 'inbox' }, // file des propositions des workflows (ajoutée APRÈS l'Historique : la première route du module ne change pas)
@@ -152,6 +158,7 @@ export const MODULES_DECLARES = geler([
     iconeMenu: 'layout-dashboard',
     prefixe: 'tableaudebord',
     reglages: { sections: [], resume: 'La maintenance se lit : ses indicateurs sont écrits par les scripts de surveillance. Aucun réglage à faire ici pour l’instant.' },
+    entreeMenu: 'tableaudebord/general',
     ecrans: [
       { route: 'tableaudebord/general', libelle: 'Général', icone: 'layout-dashboard' },
       { route: 'tableaudebord/technique', libelle: 'Technique', icone: 'shield-check' },
@@ -323,6 +330,15 @@ export function premiereRoute(actifs) {
   return m ? m.ecrans[0].route : null;
 }
 
+/** Onglets d'un module (barre en tête de ses écrans) : [{ route, libelle }], dans `ordreOnglets` s'il existe, sinon dans l'ordre de `ecrans`. Module inconnu : []. */
+export function ongletsDuModule(idModule) {
+  const m = moduleDeclare(idModule);
+  if (!m) return [];
+  const liste = m.ecrans.map((e) => ({ route: e.route, libelle: e.libelle }));
+  if (!m.ordreOnglets) return liste;
+  return [...liste].sort((a, b) => rangOu(m.ordreOnglets, a.route) - rangOu(m.ordreOnglets, b.route));
+}
+
 /** Toutes les routes d'écran des modules actifs (pour le menu et les tests). */
 export function ecransActifs(actifs) {
   return MODULES_DECLARES.filter((m) => actifs.includes(m.id)).flatMap((m) => m.ecrans);
@@ -347,7 +363,13 @@ export function blocsDuMenu(actifs) {
       blocs.push(bloc);
     }
     bloc.modules.push(m.id);
-    bloc.entrees.push(...m.ecrans.map((e) => ({ chemin: e.route, libelle: e.libelle, icone: e.icone, ...(m.horsMenu ? { horsMenu: true } : {}) })));
+    if (m.entreeMenu) {
+      // Une seule entrée pour tout le module ; `prefixe` sert à l'allumer sur chacun de ses écrans. Les écrans restent déclarés (routes servies, onglets) mais hors menu.
+      bloc.entrees.push({ chemin: m.entreeMenu, libelle: m.libelleMenu, icone: m.iconeMenu, prefixe: m.prefixe, ...(m.horsMenu ? { horsMenu: true } : {}) });
+      bloc.entrees.push(...m.ecrans.filter((e) => e.route !== m.entreeMenu).map((e) => ({ chemin: e.route, libelle: e.libelle, icone: e.icone, horsMenu: true })));
+    } else {
+      bloc.entrees.push(...m.ecrans.map((e) => ({ chemin: e.route, libelle: e.libelle, icone: e.icone, ...(m.horsMenu ? { horsMenu: true } : {}) })));
+    }
   }
   for (const bloc of blocs) {
     const groupe = GROUPES_MENU.find((g) => g.id === bloc.id);

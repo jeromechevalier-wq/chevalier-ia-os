@@ -8,7 +8,7 @@ import {
   MODULES_DECLARES, IDS_MODULES, OUTILS_COMMUNS, moduleDeclare, moduleDeRoute, lireModulesDemandes, verifierActivation,
   modulesActifsDuClient, moduleAccessible, premiereRoute, ecransActifs,
   ANCIENS_IDENTIFIANTS, ANCIENS_PREFIXES, identifiantActuel, routeModernisee,
-  GROUPES_MENU, INTERRUPTEURS, modulesDeNom, groupeDuModule, blocsDuMenu, reglagesDesModules,
+  GROUPES_MENU, INTERRUPTEURS, modulesDeNom, groupeDuModule, blocsDuMenu, reglagesDesModules, ongletsDuModule,
   SECTIONS_ESPACE, sectionsEspaceVisibles, interrupteursDuClient, cibleReglages,
 } from '../js/os/registre.js';
 import { MODULES } from '../js/os/modules.js';
@@ -298,6 +298,34 @@ describe('menu CRM unique (méthode A, 2.6.0) : un seul groupe « CRM », deux m
     for (const r of ['crm/accueil', 'crm/personnes', 'crm/organisations', 'crm/affaires', 'projets/projets', 'veille/contenus', 'automatisations/historique', 'automatisations/a-valider']) assert.ok(routes.includes(r), r);
     assert.equal(moduleDeRoute('crm').id, 'affaires');
     assert.equal(moduleDeRoute('projets').id, 'projets');
+  });
+  test('le menu aligne des MODULES : une seule entrée pour Veille, Automatisations et Maintenance, leurs écrans sont des onglets hors menu (22/10/2026)', () => {
+    const blocs = blocsDuMenu(IDS_MODULES);
+    const entree = (id) => blocs.find((b) => b.id === id).sections.flat();
+    assert.deepEqual(entree('veille').map((e) => [e.libelle, e.chemin, e.prefixe]), [['Veille', 'veille/contenus', 'veille']]);
+    assert.deepEqual(entree('automatisations').map((e) => [e.libelle, e.chemin, e.prefixe]), [['Automatisations', 'automatisations/historique', 'automatisations']]);
+    assert.deepEqual(entree('tableaudebord').map((e) => [e.libelle, e.chemin, e.prefixe]), [['Maintenance', 'tableaudebord/general', 'tableaudebord']]);
+    // Toutes les routes d'écran restent servies (signets) : elles sont dans `entrees`, marquées hors menu sauf l'arrivée.
+    const horsMenu = (id) => blocs.find((b) => b.id === id).entrees.filter((e) => e.horsMenu).map((e) => e.chemin);
+    assert.deepEqual(horsMenu('veille'), ['veille/sources']);
+    assert.deepEqual(horsMenu('automatisations'), ['automatisations/a-valider']);
+    assert.deepEqual(horsMenu('tableaudebord'), ['tableaudebord/technique']);
+    // Menu complet : une entrée par module, dans l'ordre.
+    assert.deepEqual(blocs.flatMap((b) => b.sections.flat().map((e) => e.libelle)), ['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Projets', 'Veille', 'Automatisations', 'Maintenance']);
+    // Chez un client sans le module : pas d'entrée.
+    assert.deepEqual(blocsDuMenu(['affaires', 'projets', 'veille']).flatMap((b) => b.sections.flat().map((e) => e.libelle)), ['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Projets', 'Veille']);
+    // La route d'arrivée de l'entrée est un écran du module, et le préfixe est celui du module.
+    for (const m of MODULES_DECLARES.filter((x) => x.entreeMenu)) {
+      assert.ok(m.ecrans.some((e) => e.route === m.entreeMenu), m.id);
+      assert.ok(m.entreeMenu.startsWith(`${m.prefixe}/`), m.id);
+    }
+  });
+  test('onglets d\'un module : ordre déclaré (Automatisations : « À valider » en premier), sinon ordre des écrans ; module inconnu : aucun', () => {
+    assert.deepEqual(ongletsDuModule('veille'), [{ route: 'veille/contenus', libelle: 'Contenus' }, { route: 'veille/sources', libelle: 'Sources' }]);
+    assert.deepEqual(ongletsDuModule('automatisations').map((o) => o.libelle), ['À valider', 'Historique']);
+    assert.deepEqual(ongletsDuModule('automatisations').map((o) => o.route), ['automatisations/a-valider', 'automatisations/historique']);
+    assert.deepEqual(ongletsDuModule('inconnu'), []);
+    assert.equal(premiereRoute(['automatisations']), 'automatisations/historique', 'la route d\'arrivée ne change pas (le badge viendra plus tard)');
   });
   test('un client avec « affaires » seul : le bloc « Affaires et projets » existe sans Projets', () => {
     const [bloc] = blocsDuMenu(['affaires']);

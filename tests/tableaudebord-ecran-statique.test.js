@@ -4,7 +4,7 @@ import { test, describe } from 'node:test';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { MODULES_DECLARES, moduleDeclare, blocsDuMenu } from '../js/os/registre.js';
+import { MODULES_DECLARES, moduleDeclare, blocsDuMenu, ongletsDuModule } from '../js/os/registre.js';
 import { MODULES } from '../js/os/modules.js';
 
 const RACINE = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -90,14 +90,16 @@ describe('R1 branchement dans la coque', () => {
     assert.deepEqual(m.reglages.sections, []);
     assert.ok(m.reglages.resume.startsWith('La maintenance se lit'));
   });
-  test('R1 chez Jérôme (racine), le menu contient le bloc « Maintenance » dont la première entrée est « Général »', () => {
+  test('R1 chez Jérôme (racine), le menu contient UNE entrée « Maintenance » (arrivée Général) ; Général et Technique sont des onglets, hors menu', () => {
     const racine = MODULES.find((m) => m.id === 'tableaudebord');
     assert.equal(racine.libelle, 'Maintenance');
     assert.equal(typeof racine.monter, 'function');
     assert.equal(racine.entrees[0].libelle, 'Général');
     assert.equal(racine.entrees[0].chemin, 'tableaudebord/general');
     const bloc = blocsDuMenu(MODULES.map((m) => m.id)).find((b) => b.id === 'tableaudebord');
-    assert.deepEqual(bloc.entrees.map((e) => e.libelle), ['Général', 'Technique']);
+    assert.deepEqual(bloc.sections.flat().map((e) => [e.libelle, e.chemin]), [['Maintenance', 'tableaudebord/general']]);
+    assert.deepEqual(bloc.entrees.filter((e) => e.horsMenu).map((e) => e.libelle), ['Technique'], 'Technique reste servi (signet) mais hors menu');
+    assert.deepEqual(ongletsDuModule('tableaudebord').map((o) => o.libelle), ['Général', 'Technique'], 'les onglets viennent du registre (Finance, Stocks et Historique des saisies s\'y ajoutent à l\'écran)');
   });
   test('R1 la feuille de style est chargée au premier affichage, comme Automatisations', () => {
     assert.match(lire(`${DOSSIER}/index.js`), /css\/tableaudebord\.css/);
