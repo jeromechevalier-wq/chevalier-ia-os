@@ -90,7 +90,7 @@ export function rendreOrganisations(conteneur) {
   }
 
   const entete = h('header', { class: 'page-tete' },
-    h('div', {}, h('p', { class: 'etiquette' }, 'Contacts'), h('h1', {}, 'Organisations'), compteur),
+    h('div', {}, h('h1', {}, 'Organisations'), compteur),
     h('div', { class: 'page-actions' },
       h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'nouvelle-organisation', onclick: () => ouvrirCreationOrganisation() }, icone('plus', { taille: 16 }), 'Organisation')));
   conteneur.append(h('div', { class: 'page page-liste' }, entete, filtres.element, zoneTableau));

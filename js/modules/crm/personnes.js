@@ -109,7 +109,7 @@ export function rendrePersonnes(conteneur) {
     infoContacts.textContent = d ? `Dernier export : ${L.formatDateHeure(d)}` : 'Aucun export pour le moment.';
   }
   const entete = h('header', { class: 'page-tete' },
-    h('div', {}, h('p', { class: 'etiquette' }, 'Contacts'), h('h1', {}, 'Personnes'), compteur),
+    h('div', {}, h('h1', {}, 'Personnes'), compteur),
     h('div', { class: 'page-actions' },
       h('div', { class: 'export-contacts' },
         h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'exporter-personnes', 'aria-label': 'Exporter les contacts', title: 'Exporter les contacts', onclick: exporterContactsTelephone }, icone('download', { taille: 16 })),
