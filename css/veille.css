@@ -11,9 +11,9 @@
 .veille-puce.run b { color: var(--accent); }
 .veille-puce.ko b { color: var(--retard); }
 .veille-puce.ok b { color: var(--succes); }
-.veille-filtres { display: flex; flex-wrap: wrap; gap: var(--esp-3); margin: var(--esp-5) 0; }
-.veille-filtres select, .veille-filtres input { flex: 1 1 180px; width: auto; min-width: 0; max-width: 100%; }
-.veille-filtres input[type='search'] { flex-basis: 240px; }
+/* Barre de recherche + bouton « Filtres » : même présentation que les listes (.barre-filtres-ligne de crm.css, chargé pour toute l'appli). */
+.veille-filtres { margin: var(--esp-5) 0; }
+.veille-filtres input[type='search'] { width: 100%; min-width: 0; }
 
 .veille-liste { list-style: none; margin: 0; padding: 0; background: var(--panneau); border: 1px solid var(--bordure); border-radius: var(--rayon-carte); overflow: hidden; }
 .veille-ligne { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: var(--esp-2) var(--esp-7); padding: 11px var(--esp-7); border-bottom: 1px solid var(--bordure); }

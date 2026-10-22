@@ -1259,6 +1259,14 @@ describe('B20 Journal : regroupement, filtres et comparaison avant / après', ()
     assert.equal(L.filtrerJournal(ops, {}).length, 3);
   });
 
+  test('H2 filtres du Journal en cases : canaux en OU (tableau), vide = tous, ET avec « à vérifier »', () => {
+    const ops = L.grouperJournal(lignes);
+    assert.deepEqual(L.filtrerJournal(ops, { canaux: ['mcp'] }).map((o) => o.operationId), ['op2']);
+    assert.deepEqual(L.filtrerJournal(ops, { canaux: ['mcp', 'ecran'] }).map((o) => o.operationId).sort(), ['op1', 'op2', 'op3']);
+    assert.equal(L.filtrerJournal(ops, { canaux: [] }).length, 3);
+    assert.deepEqual(L.filtrerJournal(ops, { canaux: ['ecran'], aVerifier: true }).map((o) => o.operationId), ['op3']);
+  });
+
   test('B20 comparaison avant / après : seuls les champs qui diffèrent, dates comparées par valeur, document absent géré', () => {
     const d = new Date('2026-10-04T10:00:00Z');
     const diffs = L.differencesJournal(

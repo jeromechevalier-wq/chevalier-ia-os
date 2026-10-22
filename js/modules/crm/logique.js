@@ -2192,13 +2192,14 @@ export function grouperJournal(lignes) {
   }).sort((a, b) => b.date - a.date);
 }
 
-/** criteres : { canal: 'tous' | 'ecran' | 'mcp', aVerifier: bool, depuis: 'AAAA-MM-JJ', texte } ; le texte cherche dans qui, quel outil, quel type de fiche */
-export function filtrerJournal(operations, { canal = 'tous', aVerifier = false, depuis = '', texte = '' } = {}) {
+/** criteres : { canaux: ['ecran', 'mcp'] (tableau, OU entre les valeurs, vide = tous) ou, ancienne forme, canal: 'tous' | 'ecran' | 'mcp', aVerifier: bool, depuis: 'AAAA-MM-JJ', texte } ; le texte cherche dans qui, quel outil, quel type de fiche */
+export function filtrerJournal(operations, { canal = 'tous', canaux = [], aVerifier = false, depuis = '', texte = '' } = {}) {
+  // `canaux` : tableau de cases cochées (OU entre elles, vide = tous) ; `canal` (une chaîne) reste accepté.
+  const choisis = canaux.length ? canaux : (canal === 'ecran' || canal === 'mcp' ? [canal] : []);
   const seuil = depuis ? versDate(`${depuis}T00:00`)?.getTime() ?? 0 : 0;
   const mots = normaliser(texte).split(/\s+/).filter(Boolean);
   return operations.filter((o) => {
-    if (canal === 'ecran' && o.canal !== 'Appli') return false;
-    if (canal === 'mcp' && o.canal !== 'MCP') return false;
+    if (choisis.length && !choisis.some((c) => (c === 'ecran' && o.canal === 'Appli') || (c === 'mcp' && o.canal === 'MCP'))) return false;
     if (aVerifier && o.statut === 'succes') return false;
     if (seuil && o.date < seuil) return false;
     if (!mots.length) return true;
