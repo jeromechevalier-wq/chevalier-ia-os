@@ -173,7 +173,6 @@ export function rendreFicheProjet(conteneur, id) {
       panneau = panneauActivite({
         lien: { projetId: p.id }, liensCreation: () => P.liensProjet(D.projet(p.id) || p),
         avecDocuments: true,
-        typesActivite: ['appel', 'rendez_vous', 'email'], // pas de « Tâche » libre : un projet a sa section Tâches
         affaireLiee: panneauAffaireId ? { affaireId: panneauAffaireId, fusionnerNotes: (notes, notesAffaire) => P.notesDuProjet(notes, notesAffaire, p.id) } : null,
       });
     }
