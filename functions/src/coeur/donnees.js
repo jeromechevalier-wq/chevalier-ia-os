@@ -29,6 +29,8 @@ export const COLLECTIONS = {
   auditAvant: 'crm_audit_avant',
   limites: 'mcp_limites',
   codes: 'mcp_codes',
+  propositions: 'automatisations_propositions',
+  workflows: 'workflows',
 };
 
 /** Erreur de contrôle de concurrence : un document a changé entre la lecture et l'écriture. */
