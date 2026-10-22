@@ -13,6 +13,8 @@ Une automatisation (n8n) lit des e-mails, **propose** quelque chose, et le clien
 - **D'abord dans Chevalier IA OS** (chez Jérôme, qui est le bêta-testeur), puis la plateforme clients (règle du 18/10/2026).
 - Valider et refuser par MCP : **dans la première version**.
 - Premier cas de test : un workflow qui surveille la boîte professionnelle de Jérôme, avec un contrôle anti-spam et anti-injection, une demande de validation par SMS, et l'état visible dans Automatisations.
+- **Étapes en direct (22/10/2026)** : Jérôme veut voir les étapes d'une automatisation pendant qu'elle tourne, y compris à l'intérieur d'un workflow long (3 à 4 minutes). « En direct » = le rafraîchissement forcé toutes les 10 secondes **tant que la page est ouverte**, déjà en place dans le module. Le **Logger** (écriture des étapes par le workflow, via la porte) est donc **dans le premier module**, pas repoussé.
+- **Corriger une proposition : seulement connecté à l'interface**, jamais par SMS ni par e-mail (décision de Jérôme).
 - Les indicateurs (KPI) : chantier séparé, voir `docs/tables.md`.
 
 ## Le flux
@@ -41,11 +43,20 @@ Une automatisation (n8n) lit des e-mails, **propose** quelque chose, et le clien
 **Une automatisation = une ligne (phase 3 du chantier 14, décision de principe de Jérôme du 22/10/2026).** Pour le client, un traitement est **une proposition**, affichée avec une frise fixe : Reçu → Proposé → En attente de validation → Validé ou Refusé → Appliqué ou En échec. La frise vient de l'**état de la proposition** (fichier pur des transitions, partagé par l'écran, la fonction de validation et le MCP), pas d'une ligne `steps` : la frise traverse plusieurs exécutions n8n alors que `steps` est rangée sous une seule, et la validation est écrite par la fonction de validation, jamais par n8n. Les exécutions n8n qui travaillent derrière (A proposer, B appliquer, C refus) sont reliées **depuis la proposition** : champ `executions: { proposer, appliquer, refuser }` (numéros donnés par A à `propositions.ajouter` et par B à `propositions.marquerAppliquee`). Rien à lire de plus dans n8n et rien à écrire dans `executions`.
 
 - Ce qui existe déjà du chantier 14 (cahier du 11/10/2026) : sous-collection `executions/<n>/steps` et champ `runGroupId`, vides ; `stepsPlan` des workflows, vide ; règles Firestore déjà fermées ; tests C6/C7 qui garantissent que la copie n'écrase rien. **L'écran ne lit rien de tout cela aujourd'hui** et le Logger n'a jamais été écrit. Le cahier avait mis le numéro commun de côté (« jugé trop compliqué à transmettre ») : le lien depuis la proposition le remplace.
-- `runGroupId` reste vide, `steps` reste réservé à un futur Logger **à l'intérieur** d'une exécution (sous-étapes de A, par exemple « e-mail lu », « contrôle anti-injection ok »), phase ultérieure.
+- `runGroupId` reste vide, `steps` sert au **Logger** (décision du 22/10/2026, dans le premier module) : sous-étapes **à l'intérieur** d'une exécution (par exemple « e-mail lu », « contrôle anti-injection ok »), écrites par le workflow via la porte (action à définir, mêmes contrôles que `propositions.ajouter`). Elles s'affichent dans la frise de la ligne, avec le rafraîchissement de 10 secondes. **À trancher dans la PR** : la sous-collection `steps` est rangée sous une exécution, alors qu'un traitement en traverse plusieurs ; Fable propose de recopier au plus 10 étapes dans le document de la proposition (`etapes`) plutôt que de lire `steps` ligne par ligne (le test D3 de `tests/statique.test.js` limite les requêtes de l'écran).
 - L'onglet Historique garde une ligne par exécution (inchangé). « À valider » et un onglet « Traitements » listent les propositions, chacune avec sa frise. Une proposition sans exécution liée s'affiche en ligne simple.
 - **En direct** : l'écran lit `automatisations_propositions` par écoute Firestore, comme il lit déjà `executions` ; chaque changement d'état arrive sans attendre les 10 secondes. Les détails n8n (durée, erreur de B) arrivent par la copie, avec son délai. Pas de sous-collection lue ligne par ligne (le test D3 de `tests/statique.test.js` limite les requêtes de l'écran). Si des sous-étapes doivent s'afficher un jour, elles seront copiées dans le document de la proposition (`etapes`, 10 au plus).
 - Le signal « validée mais pas appliquée depuis 30 minutes » est calculé à l'écran, comme « À vérifier ».
 - Documents à mettre à jour dans la PR : `docs/automatisations-n8n.md`, partie 9.
+
+## Règles de création des workflows (sinon le module ne les voit pas)
+
+Valables pour A, B, C et tout workflow du chemin (`docs/automatisations-n8n.md`, partie 10) :
+- **Étiquette n8n** : `interne` (workflows de Jérôme) ou `client-<identifiant>` (identifiant de 17 caractères au plus).
+- **Nom** : commence par `interne-` ou `client-<identifiant>-` (exigé depuis le 18/10/2026).
+- **Credential de la porte** : « Clé n8n - interne » (exigé pour Jérôme) ou « Clé n8n - <identifiant> » (pas exigé chez un client, mais s'il y en a un il doit être le bon). Le nom est comparé sans tenir compte des majuscules, accents, espaces et types de tiret ; l'identifiant du credential passe avant son nom.
+- Un signe manquant ou qui en désigne un autre : le workflow n'est **jamais copié** et apparaît dans « À vérifier » avec la raison. Le nom exact du credential `interne` dans le n8n de Jérôme reste à confirmer (`automatisations-n8n.md`, partie 10).
+- Un workflow du chemin qui ne respecte pas ces règles ne ferait donc pas partie de la ligne unique : à tester dès le premier workflow.
 
 ## La porte d'entrée (existe déjà)
 
