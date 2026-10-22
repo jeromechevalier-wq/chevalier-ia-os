@@ -2345,3 +2345,22 @@ export function rappelExportVisible(dernierExport, maintenant = new Date()) {
   if (!d) return true;
   return maintenant.getTime() - d.getTime() > JOURS_RAPPEL_EXPORT * 86400000;
 }
+
+// ---------------------------------------------------------------- étiquettes à cocher
+
+/** Couleurs proposées aux étiquettes créées depuis une fiche ou l'import (dans cet ordre). */
+export const COULEURS_ETIQUETTES = ['#b98ee0', '#fd6455', '#ecbc06', '#3fbf7f', '#8a9bb4', '#e3cdee'];
+
+/** Couleur d'une nouvelle étiquette : la première de la palette pas encore utilisée, sinon on repart du début de la palette. */
+export function couleurEtiquetteSuivante(etiquettes) {
+  const liste = etiquettes || [];
+  const utilisees = new Set(liste.map((e) => String(e.couleur || '').toLowerCase()));
+  return COULEURS_ETIQUETTES.find((c) => !utilisees.has(c)) || COULEURS_ETIQUETTES[liste.length % COULEURS_ETIQUETTES.length];
+}
+
+/** L'étiquette qui porte déjà ce nom (casse, accents et espaces ignorés), ou undefined. */
+export function etiquetteEnDoublon(nom, etiquettes) {
+  const cle = normaliserNom(nom);
+  if (!cle) return undefined;
+  return (etiquettes || []).find((e) => normaliserNom(e.nom) === cle);
+}

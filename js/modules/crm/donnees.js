@@ -82,7 +82,7 @@ async function migrerRoles() {
   const idPour = (nom, idSouhaite) => {
     const existante = etiquettes.find((e) => L.normaliserNom(e.nom) === L.normaliserNom(nom) || e.id === idSouhaite);
     if (existante) return existante.id;
-    etiquettes.push({ id: idSouhaite, nom, couleur: COULEURS_ETIQUETTES[etiquettes.length % COULEURS_ETIQUETTES.length] });
+    etiquettes.push({ id: idSouhaite, nom, couleur: L.COULEURS_ETIQUETTES[etiquettes.length % L.COULEURS_ETIQUETTES.length] });
     return idSouhaite;
   };
   const idAInterviewer = () => idPour('À interviewer JTBD', 'a_interviewer_jtbd');
@@ -537,8 +537,6 @@ export async function enregistrerEtiquettes(items) {
   await majParametre('etiquettes', { items: items.map((e, i) => ({ ...e, ordre: i + 1 })) });
 }
 
-const COULEURS_ETIQUETTES = ['#b98ee0', '#fd6455', '#ecbc06', '#3fbf7f', '#8a9bb4', '#e3cdee'];
-
 /** Crée une étiquette à la volée ; renvoie son identifiant. */
 export async function creerEtiquette(nom) {
   const n = L.nettoyerEspaces(nom);
@@ -547,7 +545,7 @@ export async function creerEtiquette(nom) {
   const base = L.normaliser(n).replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'etiquette';
   let id = base;
   for (let i = 2; etat.etiquettes.some((e) => e.id === id); i++) id = `${base}_${i}`;
-  await enregistrerEtiquettes([...etat.etiquettes, { id, nom: n, couleur: COULEURS_ETIQUETTES[etat.etiquettes.length % COULEURS_ETIQUETTES.length] }]);
+  await enregistrerEtiquettes([...etat.etiquettes, { id, nom: n, couleur: L.couleurEtiquetteSuivante(etat.etiquettes) }]);
   return id;
 }
 
