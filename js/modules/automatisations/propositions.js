@@ -289,7 +289,7 @@ export function finaliser(proposition, { titre, resume, champs, lien, executionI
     if (noms.has(c.nom)) return refus('champs_invalides', 'Deux champs portent le même nom.');
     noms.add(c.nom);
   }
-  if (lien != null && (typeof lien !== 'string' || lien.length > 2000 || !/^https?:\/\//i.test(lien))) return refus('champs_invalides', 'Le lien doit commencer par http:// ou https://.');
+  if (lien != null && (typeof lien !== 'string' || lien.length > 2000 || !/^https?:[/][/]/i.test(lien))) return refus('champs_invalides', 'Le lien doit être une adresse web (http ou https).');
   if (enMs(maintenant) == null) return refus('champs_invalides', 'La date est illisible.');
   const suivante = copie(proposition);
   suivante.etat = 'a_valider';
