@@ -155,8 +155,13 @@ test('L3 un filtre enregistré avec l’ancienne forme « Manosque » marche enc
   await allerA(page, 'Personnes');
   await page.evaluate(() => { location.hash = '#/crm/personnes'; });
   await ecrireDocument('crm_parametres/filtres', { version: 2, items: [{ id: 'ancien', nom: 'Anciens de Manosque', liste: 'personnes', criteres: { villes: ['Manosque'] }, ordre: 1 }] });
-  await page.locator('[data-action="filtres-enregistres"]').click();
-  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Anciens de Manosque' }).click();
+  // Le menu se construit à l'ouverture avec les filtres déjà reçus : si la mise à jour en direct n'est pas arrivée, on le referme et on le rouvre.
+  const entree = page.locator('.menu-pop').getByRole('menuitem', { name: 'Anciens de Manosque' });
+  await expect(async () => {
+    await page.locator('[data-action="filtres-enregistres"]').click();
+    await expect(entree).toBeVisible({ timeout: 2000 });
+  }).toPass({ timeout: 20_000 });
+  await entree.click();
   await expect(page.locator('.tableau-personnes tbody tr')).toHaveCount(1);
   await expect(page.locator('.tableau-personnes')).toContainText('Alice Un');
   await page.locator('[data-action="filtres"]').click();
