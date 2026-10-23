@@ -1,6 +1,6 @@
 # Déployer chez un nouveau client : la checklist
 
-Écrit le 23/10/2026 à partir de la liste de Jérôme. **Les points marqués « ? » restent à trancher avec lui** : ils sont écrits comme des questions, pas comme des règles. Les commandes détaillées sont dans `docs/nouveau-client.md` ; le déploiement de la plateforme est dans `docs/deploiement-plateforme.md`.
+Écrit le 23/10/2026 à partir de la liste de Jérôme. Jérôme a tranché le MCP, le dossier Drive et la visio le 23/10/2026 ; **le seul point « ? » restant est l'accord écrit sur les données**. Les commandes détaillées sont dans `docs/nouveau-client.md` ; le déploiement de la plateforme est dans `docs/deploiement-plateforme.md`.
 
 Chemin du dépôt sur le Mac de Jérôme (à utiliser dans chaque commande) : `/Users/jeromechevalier/Code-Chevalier-IA/chevalier-ia-os`.
 
@@ -18,13 +18,13 @@ Chemin du dépôt sur le Mac de Jérôme (à utiliser dans chaque commande) : `/
 | 1 | **Créer l'espace client** | Jérôme, au Terminal | `nouveau-client.js` en **simulation**, relire, puis `--ecrire`. Identifiant du client : 17 caractères au plus s'il aura des automatisations. Puis `node scripts/nouveau-client.js afficher <client>`. |
 | 2 | **Vérifier la connexion** | Jérôme + client | Ouvrir `https://chevalier-ia-app.web.app/espace/<client>`, se connecter avec **son** compte Google, voir son espace, créer une fiche de test puis la supprimer. Sans ça, on ne sait pas si l'espace marche. |
 | 3 | **E-mail de bienvenue** | Jérôme | Modèle à rédiger une fois (adresse de l'espace, mode d'emploi court, comment demander de l'aide). Envoyé pendant ou juste après la séance. |
-| 4 | **Dossier racine Google Drive**, avec lui | Jérôme + client | Créer le dossier racine de ses projets dans **son** Drive ; régler le chemin dans ses Réglages. ? Même nom d'un client à l'autre (par exemple « Chevalier-AI/Projets ») ? |
-| 5 | **Configurer le MCP** | Jérôme | ? Pour que le **client** utilise Claude avec ses données, ou seulement pour Jérôme ? Cela décide si l'étape est pour tous les clients ou optionnelle (voir `docs/mcp-clients.md`). |
+| 4 | **Dossier racine Google Drive**, avec lui | Jérôme + client | Créer **à la main** le dossier racine de ses projets dans **son** Drive, avec le même nom chez tous les clients (par défaut `Chevalier-IA/Projets`) ; régler le chemin dans ses Réglages. Rien à coder. |
+| 5 | **Configurer le MCP** | Jérôme | **Pour tous les clients** : c'est ce qui permet au client d'utiliser Claude avec ses propres données (voir `docs/mcp-clients.md`). |
 | 6 | **Installer l'appli sur son téléphone** | Jérôme + client | Ouvrir l'adresse de l'espace sur le téléphone, puis « Ajouter à l'écran d'accueil ». |
 | 7 | **Raccourci épinglé sur téléphone et ordinateur** | Jérôme + client | Épingler l'adresse (marque-page ou raccourci du bureau) pour qu'elle soit à un clic. |
 | 8 | **Rendez-vous de suivi** | Jérôme | À fixer **avant de partir**, par exemple dans une semaine, pour voir ce qui bloque. |
 
-? Qui est présent aux étapes 4, 6 et 7 (visio ou présentiel) : cela change les consignes à donner au client.
+Les étapes 4, 6 et 7 se font **à deux, en visio** : Jérôme guide, le client agit sur son propre ordinateur et téléphone.
 
 ## Après la séance
 
