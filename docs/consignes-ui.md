@@ -67,3 +67,7 @@ Module Automatisations, route `automatisations/a-valider`. Deux zones (« À val
 ### La chaîne d'étapes (Logger, 22/10/2026)
 Zone « En préparation » au-dessus de « À valider » (masquée si vide). Les étapes d'une ligne sont une **chaîne de nœuds reliés** : à venir (contour gris), en cours (jaune qui pulse), fait (vert, trait coloré), échec (rouge), ignorée (pointillé). Horizontale sur ordinateur, verticale à 640 px et moins, sans défilement horizontal ; mouvement réduit respecté. Structure stable pour l'animation future : `ol.etape-chaine > li.etape-noeud[data-cle][data-etat] > i.etape-point + span.etape-libelle`. Bouton gris « Classer sans suite » seulement si la ligne est bloquée (jamais jaune). Tout libellé d'étape passe par `h()`.
 
+
+
+### Réglages compacts (23/10/2026)
+Indicateurs : une ligne basse par indicateur, l'explication « Comment c'est calculé » est derrière l'icône « i » (survol, clavier, toucher ; `iconeInfo` est dans `js/os/ui.js`). Phases des projets et Étapes des affaires : une ligne par emplacement, explication sur une ligne qui grandit avec le texte, à côté de la case « Proposer une action ». Mesuré à 1280 px : −41 % et −38 % ; sur téléphone jamais plus haut qu'avant, zones de clic de 44 px. Le menu « Trier par » dit « Date de création ».

@@ -2,6 +2,16 @@
 
 Écrit le 04/10/2026, mis à jour le 23/10/2026, pour qu'une session neuve reprenne sans que Jérôme ait à recoller quoi que ce soit. **À mettre à jour ou à supprimer une fois les points faits.**
 
+## Point du 23/10/2026 soir : **remplace le point de l'après-midi sur les PR en attente**
+
+- Fusionnées depuis : PR 210 (menu « Trier par » : « Date de création ») et PR 211 (Réglages compacts : Indicateurs −41 %, Phases des projets −38 %, Étapes des affaires ; l'explication des indicateurs est derrière l'icône « i », celle des phases sur une ligne qui grandit).
+- Suite de nuit sur `main` : verte le 23/10 à 14:06 (après la PR 209) ; alertes n°199 et n°206 fermées. **Relancée à 17:50 après les PR 210 et 211 : lire le résultat en premier** (workflow « Tests de nuit »).
+- **Abandonné par Jérôme** : afficher le chemin complet du dossier Drive parent dans les Réglages (le droit `drive.file` ne le permet pas sans élargir les droits de l'appli).
+- **Décisions de Jérôme pour `docs/deploiement-client.md`** : le MCP est configuré pour **tous** les clients (pour qu'ils utilisent leurs données) ; le dossier Drive racine est créé **à la main** avec le client, rien à coder ; les étapes 4, 6 et 7 se font **à deux en visio**. Reste ouvert : l'accord écrit sur les données stockées.
+- À vérifier par Jérôme : contrôle 4 de la PR 204 dans la console Firebase (`os_kpi_saisies` change, pas `os_objectifs_saisies`) ; refuser la proposition d'essai dans sa base ; regarder les Réglages Indicateurs et Phases à l'écran (5 vérifications dans la PR 211).
+- Non vérifié avec le vrai système : vrai téléphone, thème clair, lecteur d'écran (PR 211).
+- Consommation de tokens élevée sur la session du 22-23/10 : repartir d'une **session neuve**, un seul sous-agent par lot, relecture Fable du code seulement pour les changements d'interface.
+
 ## Point du 23/10/2026 après-midi (version 2.26.0) : **remplace les points 1 et 2 du rapport ci-dessous**
 
 | Sujet | PR | État |
