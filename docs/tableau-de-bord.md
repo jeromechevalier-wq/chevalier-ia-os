@@ -1,5 +1,7 @@
 # Module Tableau de bord : la porte des scripts GitHub (étape 3 du chantier)
 
+> **Depuis le 23/10/2026, ce module s'affiche « Maintenance »** (identifiant, routes, tables et fonctions inchangés), en **un seul écran** sans onglets : phrase d'état, « À traiter en premier », « Tous les indicateurs » par famille (blocs repliables, bouton « Filtres »), « Historique des saisies » replié en bas. Les adresses `technique`, `finance`, `stocks` et `historique` ouvrent le même écran. Le nom « Tableau de bord » est réservé au futur module d'analyse des indicateurs (voir `docs/tables.md`).
+
 > **État au 2026-10-17 : code et tests écrits, rien déployé.** Conception complète : fiche « Module Tableau de bord - conception » du second cerveau (modèle d'un indicateur, historique, objectifs mois par mois, rafraîchissement, traçabilité).
 
 ## 1. À quoi ça sert
@@ -51,4 +53,4 @@ Les tests tournent en mémoire (faux Firestore). Les règles Firestore (émulate
 Pour un indicateur de méthode `manuel` ou `semi`, l'écran montre « Saisir la date » (état) ou « Saisir la valeur » (mesure). L'écran n'écrit jamais dans la base : il appelle la fonction `tableaudebordSaisir` (`functions/src/tableaudebord-saisie.js`, logique pure dans `scripts/porte/saisie-tableaudebord.js`), qui contrôle l'appelant (mêmes comptes que `veille`), la forme de la demande, la méthode de l'indicateur et le type de donnée, calcule le niveau (vert à 30 jours ou plus, orange à moins de 30 jours, rouge si dépassée), puis écrit **en un seul lot atomique** l'indicateur (`echeance` ou `valeur`, `niveau`, `message` = « Saisi par <adresse> », `saisiPar`, `saisiLe`, `perimeApresMinutes` = 100 jours) ET une ligne de `tableaudebord_releves` (`saisie: true`, `avant`, `commentaire`). Elle est déclarée dans `functions/src/index.js` (région Paris, compte `porte-serveur`) : **à déployer avec la fusion**, rien d'autre à créer.
 - **Le script quotidien n'écrase pas une saisie** : si l'indicateur porte `saisiPar` et que le script l'envoie en `manuel` ou `semi`, il est ignoré (compté dans `ignores`). Un indicateur `auto` est toujours réécrit, et perd alors sa trace de saisie. Les champs `saisie`, `saisiPar`, `saisiLe` sont refusés à un script.
 - **100 jours** (choix) : passé ce délai sans nouvelle saisie, l'indicateur passe en gris « Relevé trop ancien », même si l'échéance saisie est lointaine.
-- L'onglet « Historique des saisies » (`#/tableaudebord/historique`) liste les 200 dernières saisies : date et heure, adresse, indicateur, « avant → après », note.
+- Le bloc replié « Historique des saisies » (`#/tableaudebord/historique` l'ouvre et y descend) liste les 200 dernières saisies : date et heure, adresse, indicateur, « avant → après », note.
