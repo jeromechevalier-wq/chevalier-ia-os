@@ -128,3 +128,25 @@ describe('Vue administrateur : fusion des propriétaires, options du filtre, ban
     assert.match(M.texteBandeauAdmin({ synchroInterne: null, admin: { ...admin, lecturePossible: false, proprietaires: [] }, filtre: 'tous' }), /droit de lecture/);
   });
 });
+
+describe('pastille du menu : compter les propositions à valider non périmées', () => {
+  const MAINTENANT = Date.UTC(2026, 9, 22, 12, 0, 0);
+  const apres = new Date(MAINTENANT + 86400000);
+  const avant = new Date(MAINTENANT - 1000);
+  test('seul l\'état a_valider compte, et pas une proposition périmée (expireLe passé)', () => {
+    const liste = [
+      { id: 'a', etat: 'a_valider', expireLe: apres }, { id: 'b', etat: 'a_valider', expireLe: apres }, { id: 'c', etat: 'a_valider', expireLe: apres },
+      { id: 'd', etat: 'a_valider', expireLe: avant }, { id: 'e', etat: 'validee', expireLe: apres }, { id: 'f', etat: 'refusee', expireLe: apres },
+    ];
+    assert.equal(L.compterAValider(liste, MAINTENANT), 3);
+  });
+  test('expireLe absent ou illisible : comptée (comme estPerimee) ; liste vide, absente ou avec des trous : 0', () => {
+    assert.equal(L.compterAValider([{ etat: 'a_valider' }, { etat: 'a_valider', expireLe: 'n\'importe quoi' }], MAINTENANT), 2);
+    assert.equal(L.compterAValider([], MAINTENANT), 0);
+    assert.equal(L.compterAValider(undefined, MAINTENANT), 0);
+    assert.equal(L.compterAValider([null, undefined], MAINTENANT), 0);
+  });
+  test('expireLe exactement maintenant : pas encore périmée', () => {
+    assert.equal(L.compterAValider([{ etat: 'a_valider', expireLe: new Date(MAINTENANT) }], MAINTENANT), 1);
+  });
+});

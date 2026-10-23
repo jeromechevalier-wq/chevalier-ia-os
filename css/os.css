@@ -215,6 +215,12 @@ body.page-connexion {
 .menu-entree.actif .icone { color: var(--accent-trait); }
 .menu-entree.actif::before { content: ''; position: absolute; left: -10px; top: 9px; bottom: 9px; width: 3px; border-radius: 0 3px 3px 0; background: var(--accent-trait); }
 :root[data-theme='clair'] .menu-entree.actif .icone { color: var(--lien); }
+/* Pastille « à valider » (22/10/2026) : ronde, rouge (--retard), jamais jaune (réservé à l'action principale). À droite de la ligne dans le menu déplié, sur l'icône dans le menu replié. */
+.menu-badge { margin-left: auto; flex: none; display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 var(--esp-2); border-radius: 999px; background: var(--retard); color: var(--sur-retard); font-size: var(--fs-petit); font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+.menu-badge[hidden] { display: none; }
+.coquille[data-menu='replie'] .menu-badge { position: absolute; top: 3px; left: calc(var(--esp-5) + 10px); margin: 0; min-width: 16px; height: 16px; padding: 0 3px; font-size: 10px; box-shadow: 0 0 0 2px var(--panneau); }
+@media (max-width: 767px) { .coquille[data-menu='replie'] .menu-badge { position: static; margin-left: auto; min-width: 20px; height: 20px; padding: 0 var(--esp-2); font-size: var(--fs-petit); box-shadow: none; } }
+.onglet-badge { font-variant-numeric: tabular-nums; }
 .menu-texte { overflow: hidden; text-overflow: ellipsis; transition: opacity var(--transition); }
 .coquille[data-menu='replie'] .menu .menu-texte { opacity: 0; pointer-events: none; }
 .menu-bas { padding: var(--esp-4); border-top: 1px solid var(--bordure); display: flex; flex-direction: column; gap: 2px; flex: none; }

@@ -4,12 +4,12 @@
 //  - automatisationsRenommer : change le nom affiché d'une automatisation (éditeurs seulement, vérifié côté serveur) ;
 //  - automatisationsAdmin (Chevalier IA OS, compte de Jérôme seulement, revérifié par le serveur) : « lire » = la vue de tous les propriétaires, en lecture seule
 //    (les clients sont dans l'autre base) ; « rafraichir » = recopier tes propres workflows maintenant. Tes workflows « interne » se lisent en direct dans ta base.
-import { collection, doc, onSnapshot, query, orderBy, limit } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
+import { collection, doc, onSnapshot, query, orderBy, limit, where } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-functions.js';
 import { db, app } from '../../os/firebase.js';
 import { cheminCollection } from '../../os/chemins.js';
 import { estAdministrateur } from '../../os/administrateur.js';
-import { fusionnerVues } from './logique.js';
+import { fusionnerVues, compterAValider } from './logique.js';
 
 const NB_MAX_EXECUTIONS = 300; // les plus récentes
 export const etat = {
@@ -104,6 +104,31 @@ export async function renommer(workflowId, libelle) {
   const client = base.split('/')[1];
   const r = await httpsCallable(fonctions(), 'automatisationsRenommer')({ client, workflowId, libelle });
   return r.data;
+}
+
+// ---------------------------------------------------------------- pastille « à valider » du menu
+/**
+ * Pastille du menu : écoute permanente des seules propositions `a_valider` (UN where, jamais de requête composée) ; `rappel(n)` reçoit le nombre de celles qui ne sont pas périmées.
+ * Lecture refusée ou en échec : `rappel(0)` (pas de pastille, pas d'erreur montrée). Une proposition qui devient périmée est décomptée au plus une minute plus tard. Renvoie la fonction qui arrête tout.
+ */
+export function ecouterNombreAValider(rappel) {
+  let liste = [];
+  const envoyer = () => { try { rappel(compterAValider(liste, Date.now())); } catch (e) { console.warn(e); } };
+  let arret = () => {};
+  try {
+    arret = onSnapshot(query(collection(db, chemin('automatisations_propositions')), where('etat', '==', 'a_valider')), (snap) => {
+      liste = snap.docs.map((d) => d.data());
+      envoyer();
+    }, (e) => {
+      console.warn('pastille à valider indisponible', e.code);
+      liste = []; envoyer();
+    });
+  } catch (e) {
+    console.warn('pastille à valider indisponible', e?.code);
+    return () => {};
+  }
+  const minuterie = setInterval(envoyer, 60000);
+  return () => { clearInterval(minuterie); arret(); liste = []; };
 }
 
 // ---------------------------------------------------------------- file « À valider » (propositions déposées par les workflows)

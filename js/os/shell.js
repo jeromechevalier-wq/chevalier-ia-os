@@ -1,7 +1,8 @@
 // Coquille de l'OS : menu latéral repliable, thèmes sombre et clair, profil, écran de connexion.
 import { h, icone, vider, remplir, lirePreference, ecrirePreference, estTelephone, champIntelligent, ouvrirMenu } from './ui.js';
 import { MODULES } from './modules.js';
-import { blocsDuMenu } from './registre.js';
+import { blocsDuMenu, routeArriveeMenu } from './registre.js';
+import { badgeDe, definirBadge, surBadge, texteBadge, phraseBadge } from './badges.js';
 import { naviguer, lien } from './router.js';
 
 // Routes sans entrée de menu -> entrée allumée à leur place (l'écran principal de leur module).
@@ -113,6 +114,7 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
   const idsModules = modules.map((x) => x.id);
 
   const entrees = [];
+  const entreesBadge = []; // [{ a, entree, pastille, lu }] : les entrées dont le module déclare une pastille (registre.js, champ `badge`) ; la coque ne connaît aucun module en particulier
   const nav = h('nav', { class: 'menu-nav', 'aria-label': 'Navigation' });
   // Un bloc du menu par module ou groupe de modules (le CRM réunit affaires et projets : registre.js, blocsDuMenu), lui-même coupé en sections ;
   // une fine ligne sépare deux sections (CSS), jamais de titre. Un module sans entrée de menu (Connecter mon assistant) n'a pas de bloc.
@@ -124,6 +126,12 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
       for (const e of liste) {
         const a = h('a', { class: 'menu-entree', href: lien(e.chemin), dataset: { infobulle: e.libelle, chemin: e.chemin, ...(e.prefixe ? { prefixe: e.prefixe } : {}) } },
           icone(e.icone), h('span', { class: 'menu-texte' }, e.libelle));
+        if (e.badge) {
+          // Pastille ronde rouge : le nombre est vu à l'œil (aria-hidden), la phrase « n à valider » est lue par les lecteurs d'écran (texte masqué).
+          const pastille = h('span', { class: 'menu-badge', hidden: true, dataset: { role: 'badge-menu' } }, h('span', { 'aria-hidden': 'true', class: 'menu-badge-nombre' }), h('span', { class: 'sr-only' }));
+          a.append(pastille);
+          entreesBadge.push({ a, entree: e, pastille });
+        }
         entrees.push(a);
         section.append(a);
       }
@@ -131,6 +139,22 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
     }
     nav.append(groupe);
   }
+
+  /** Met à jour la pastille et le lien d'une entrée : le lien arrive sur l'écran du badge quand il y a quelque chose à traiter, sinon sur l'entrée habituelle. */
+  function majBadgeEntree({ a, entree, pastille }) {
+    const n = badgeDe(entree.module);
+    pastille.hidden = n === 0;
+    pastille.firstChild.textContent = n > 0 ? texteBadge(n) : '';
+    pastille.lastChild.textContent = n > 0 ? phraseBadge(n, entree.badge.texte) : '';
+    a.setAttribute('href', lien(routeArriveeMenu(entree, n)));
+    a.dataset.badge = String(n);
+  }
+  entreesBadge.forEach(majBadgeEntree);
+  const arretAffichageBadges = surBadge((id) => entreesBadge.filter((x) => x.entree.module === id).forEach(majBadgeEntree));
+  // Écoute permanente tant que la coque existe : chaque module à pastille fournit `ecouterBadge(rappel)` dans son API (le rappel reçoit un nombre) ; arrêtée avec la coque.
+  const arretsEcoutes = entreesBadge.map(({ entree }) => {
+    try { return apis.get(entree.module)?.ecouterBadge?.((n) => definirBadge(entree.module, n)) ?? null; } catch (e) { console.warn('badge indisponible', e?.code); return null; }
+  });
 
   const boutonRepli = h('button', {
     type: 'button', class: 'bouton-icone menu-repli', dataset: { role: 'bascule-menu' },
@@ -339,5 +363,5 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
     remplirMarque();
     remplirMarqueHaut();
   }
-  return { contenu, activer, majClient, arreter: () => { document.removeEventListener('keydown', surTouche); document.removeEventListener('keydown', surToucheRepli); window.removeEventListener('resize', surRedimension); surBascule.removeEventListener?.('change', majRepli); } };
+  return { contenu, activer, majClient, arreter: () => { arretsEcoutes.forEach((f) => { try { f?.(); } catch { /* déjà arrêtée */ } }); arretAffichageBadges(); for (const { entree } of entreesBadge) definirBadge(entree.module, 0); document.removeEventListener('keydown', surTouche); document.removeEventListener('keydown', surToucheRepli); window.removeEventListener('resize', surRedimension); surBascule.removeEventListener?.('change', majRepli); } };
 }

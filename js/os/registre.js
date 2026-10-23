@@ -40,6 +40,9 @@ export const OUTILS_COMMUNS = geler(['qui_suis_je']);
  *  entreeMenu  : route d'arrivée de l'UNIQUE entrée du menu principal du module (libellé = libelleMenu, icône = iconeMenu). Le menu aligne des modules, pas des écrans (22/10/2026) :
  *                les écrans du module sont alors hors menu (leurs routes restent servies) et se rejoignent par une barre d'onglets (js/os/onglets.js) ; l'entrée est allumée sur tout écran du module ;
  *  ordreOnglets: routes des écrans dans l'ordre des onglets (sinon l'ordre de `ecrans`) ;
+ *  badge       : pastille rouge « à valider » du module (facultatif, 22/10/2026) : { ecran, texte }. `ecran` = route de l'écran où se trouvent les choses à traiter (l'entrée de menu y arrive quand le nombre est > 0,
+ *                et son onglet affiche le nombre) ; `texte` = fin de la phrase lue par les lecteurs d'écran (« 3 à valider »). La coque est GÉNÉRIQUE : le module fournit l'écoute dans son API (`ecouterBadge(rappel)`, le rappel reçoit un nombre) ;
+ *                un module sans `badge` ne change rien ;
  *  horsMenu    : `true` = le module n'a pas d'entrée dans le menu principal (il s'ouvre depuis le menu utilisateur) mais garde ses écrans et son interrupteur ;
  *                Tous les modules existent chez Jérôme comme chez les clients (décision du 18/10/2026) : plus de champ « réservé aux clients ».
  */
@@ -137,7 +140,8 @@ export const MODULES_DECLARES = geler([
     iconeMenu: 'activity',
     prefixe: 'automatisations',
     reglages: { sections: [], resume: 'L’historique se lit : il est rempli par les workflows n8n. Aucun réglage à faire ici pour l’instant.' },
-    entreeMenu: 'automatisations/historique', // l'arrivée sur « À valider » quand il y en a viendra avec le badge
+    entreeMenu: 'automatisations/historique', // l'entrée arrive sur « À valider » quand le badge compte quelque chose (voir `badge`), sinon sur l'Historique
+    badge: { ecran: 'automatisations/a-valider', texte: 'à valider' },
     ordreOnglets: ['automatisations/a-valider', 'automatisations/historique'],
     ecrans: [
       { route: 'automatisations/historique', libelle: 'Historique', icone: 'activity' },
@@ -339,6 +343,16 @@ export function ongletsDuModule(idModule) {
   return [...liste].sort((a, b) => rangOu(m.ordreOnglets, a.route) - rangOu(m.ordreOnglets, b.route));
 }
 
+/** Badge déclaré par un module ({ ecran, texte }) ou null. */
+export function badgeDuModule(idModule) {
+  return moduleDeclare(idModule)?.badge ?? null;
+}
+
+/** Route d'arrivée de l'entrée de menu d'un module à badge : l'écran du badge quand `nombre` > 0, sinon l'entrée habituelle. Un lien direct vers un autre écran n'est jamais redirigé. */
+export function routeArriveeMenu(entree, nombre) {
+  return entree?.badge && nombre > 0 ? entree.badge.ecran : entree?.chemin;
+}
+
 /** Toutes les routes d'écran des modules actifs (pour le menu et les tests). */
 export function ecransActifs(actifs) {
   return MODULES_DECLARES.filter((m) => actifs.includes(m.id)).flatMap((m) => m.ecrans);
@@ -365,7 +379,7 @@ export function blocsDuMenu(actifs) {
     bloc.modules.push(m.id);
     if (m.entreeMenu) {
       // Une seule entrée pour tout le module ; `prefixe` sert à l'allumer sur chacun de ses écrans. Les écrans restent déclarés (routes servies, onglets) mais hors menu.
-      bloc.entrees.push({ chemin: m.entreeMenu, libelle: m.libelleMenu, icone: m.iconeMenu, prefixe: m.prefixe, ...(m.horsMenu ? { horsMenu: true } : {}) });
+      bloc.entrees.push({ chemin: m.entreeMenu, libelle: m.libelleMenu, icone: m.iconeMenu, prefixe: m.prefixe, ...(m.badge ? { module: m.id, badge: m.badge } : {}), ...(m.horsMenu ? { horsMenu: true } : {}) });
       bloc.entrees.push(...m.ecrans.filter((e) => e.route !== m.entreeMenu).map((e) => ({ chemin: e.route, libelle: e.libelle, icone: e.icone, horsMenu: true })));
     } else {
       bloc.entrees.push(...m.ecrans.map((e) => ({ chemin: e.route, libelle: e.libelle, icone: e.icone, ...(m.horsMenu ? { horsMenu: true } : {}) })));

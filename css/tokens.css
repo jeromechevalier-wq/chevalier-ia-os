@@ -104,6 +104,7 @@
   --lien: var(--jaune);
   --retard: #ff8f86;
   --retard-fond: #ff8f8622;
+  --sur-retard: #29292c; /* texte sur fond --retard (pastille rouge du menu) */
   --succes: #6ddba0;
   --ombre: 0 18px 40px #00000066;
   --halo: radial-gradient(ellipse 70% 45% at 50% -8%, #5a3c7240 0%, #3c285022 45%, transparent 75%);
@@ -129,6 +130,7 @@
   --lien: #7a5f00;
   --retard: #b3261e;
   --retard-fond: #b3261e14;
+  --sur-retard: #fff;
   --succes: #1d7a4b;
   --ombre: 0 18px 40px #29292c26;
   --halo: radial-gradient(ellipse 70% 45% at 50% -8%, #e3cdee55 0%, #e3cdee22 45%, transparent 75%);
