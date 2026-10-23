@@ -157,8 +157,7 @@ describe('registre : le menu de Jérôme (modules, routes, écrans ; Archives et
     ] },
     // Ajout voulu (17/10/2026) : le module Tableau de bord (écrans en lecture seule) est chez Jérôme dès le départ ; ses onglets Finance et Stocks ne sont pas dans le menu.
     { id: 'tableaudebord', libelle: 'Maintenance', icone: 'layout-dashboard', prefixe: 'tableaudebord', entrees: [
-      { chemin: 'tableaudebord/general', libelle: 'Général', icone: 'layout-dashboard' },
-      { chemin: 'tableaudebord/technique', libelle: 'Technique', icone: 'shield-check' },
+      { chemin: 'tableaudebord/general', libelle: 'Maintenance', icone: 'layout-dashboard' }, // un seul écran, sans onglets (23/10/2026) ; les autres routes restent servies par le module
     ] },
     // Ajout voulu (PR B, 18/10/2026) : « Connecter mon assistant » est chez Jérôme aussi (il s'ouvre depuis le menu utilisateur, pas depuis le menu principal).
     { id: 'mcp', libelle: 'Connecter mon assistant', icone: 'link', prefixe: 'mcp', entrees: [
@@ -300,7 +299,7 @@ describe('menu CRM unique (méthode A, 2.6.0) : un seul groupe « CRM », deux m
     assert.equal(moduleDeRoute('crm').id, 'affaires');
     assert.equal(moduleDeRoute('projets').id, 'projets');
   });
-  test('le menu aligne des MODULES : une seule entrée pour Veille, Automatisations et Maintenance, leurs écrans sont des onglets hors menu (22/10/2026)', () => {
+  test('le menu aligne des MODULES : une seule entrée pour Veille, Automatisations et Maintenance ; leurs écrans sont des onglets hors menu, sauf Maintenance qui a un seul écran (22/10/2026, 23/10/2026)', () => {
     const blocs = blocsDuMenu(IDS_MODULES);
     const entree = (id) => blocs.find((b) => b.id === id).sections.flat();
     assert.deepEqual(entree('veille').map((e) => [e.libelle, e.chemin, e.prefixe]), [['Veille', 'veille/contenus', 'veille']]);
@@ -310,7 +309,7 @@ describe('menu CRM unique (méthode A, 2.6.0) : un seul groupe « CRM », deux m
     const horsMenu = (id) => blocs.find((b) => b.id === id).entrees.filter((e) => e.horsMenu).map((e) => e.chemin);
     assert.deepEqual(horsMenu('veille'), ['veille/sources']);
     assert.deepEqual(horsMenu('automatisations'), ['automatisations/a-valider']);
-    assert.deepEqual(horsMenu('tableaudebord'), ['tableaudebord/technique']);
+    assert.deepEqual(horsMenu('tableaudebord'), [], 'Maintenance : un seul écran, plus aucune route déclarée hors menu (technique, finance, stocks, historique sont servies par le module)');
     // Menu complet : une entrée par module, dans l'ordre.
     assert.deepEqual(blocs.flatMap((b) => b.sections.flat().map((e) => e.libelle)), ['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Projets', 'Veille', 'Automatisations', 'Maintenance']);
     // Chez un client sans le module : pas d'entrée.

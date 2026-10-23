@@ -153,8 +153,8 @@ export const MODULES_DECLARES = geler([
   },
   {
     // Tableau de bord (étape 2 : écrans en lecture seule) : état des indicateurs de surveillance (clés, plus tard sauvegardes, finances, stocks).
-    // Les indicateurs sont écrits par la porte des scripts de surveillance (tableaudebord_indicateurs) ; l'écran les lit. Les onglets Finance et Stocks
-    // (routes tableaudebord/finance et tableaudebord/stocks) n'apparaissent que si un indicateur les porte : ils ne sont donc pas des entrées du menu.
+    // Les indicateurs sont écrits par la porte des scripts de surveillance (tableaudebord_indicateurs) ; l'écran les lit. UN SEUL écran, sans onglets ni sous-onglets
+    // (23/10/2026) : les routes tableaudebord/technique, finance, stocks et historique restent SERVIES par le module (signets) et ouvrent ce même écran, au bloc concerné.
     // Chez un client, il n'existe pas encore de porte qui écrit : le module s'affiche vide (attendu).
     id: 'tableaudebord',
     nom: 'Maintenance',
@@ -164,8 +164,7 @@ export const MODULES_DECLARES = geler([
     reglages: { sections: [], resume: 'La maintenance se lit : ses indicateurs sont écrits par les scripts de surveillance. Aucun réglage à faire ici pour l’instant.' },
     entreeMenu: 'tableaudebord/general',
     ecrans: [
-      { route: 'tableaudebord/general', libelle: 'Général', icone: 'layout-dashboard' },
-      { route: 'tableaudebord/technique', libelle: 'Technique', icone: 'shield-check' },
+      { route: 'tableaudebord/general', libelle: 'Maintenance', icone: 'layout-dashboard' },
     ],
     collections: ['tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes'],
     outilsMcp: [],
