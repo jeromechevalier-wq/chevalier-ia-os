@@ -2,6 +2,24 @@
 
 Écrit le 04/10/2026, mis à jour le 23/10/2026, pour qu'une session neuve reprenne sans que Jérôme ait à recoller quoi que ce soit. **À mettre à jour ou à supprimer une fois les points faits.**
 
+## Point du 23/10/2026 après-midi (version 2.26.0) : **remplace les points 1 et 2 du rapport ci-dessous**
+
+| Sujet | PR | État |
+|---|---|---|
+| Interrupteur `os_kpi` allumé (repli seulement si ancienne table non vide ; modification refusée en repli) | 204 | fusionnée avec l'accord de Jérôme ; sa copie (7 objectifs, 1 saisie) était faite et vérifiée |
+| Téléphone : Échap ferme le tiroir du menu, zone de clic du crayon du montant | 205 | fusionnée |
+| Tri uniforme (menu « Trier par » + flèche) sur Affaires, Projets, Personnes, Organisations | 207 | fusionnée |
+| Tests téléphone de la nuit corrigés (S7, « À faire » ×2, C30, I18) : défauts de test | 208 | fusionnée |
+| Documentation 2.26.0 : fonctionnement du travail, bouton de workflow, déploiement client, décision webhook | cette PR | à fusionner |
+
+- **Décision de Jérôme** : le bouton « Générer devis » passera par un **webhook n8n, un workflow par client** (`docs/actions-de-fiche.md`). L'API d'administration de n8n est écartée.
+- **Déjà fait par Jérôme** : la copie des objectifs sur son Mac. **À regarder à l'écran après la PR 204** (5 vérifications) : l'Accueil affiche ses 7 objectifs ; une modification s'enregistre ; elle survit au rechargement ; la console Firebase montre le changement dans `os_kpi*` et pas dans `os_objectifs*` ; chez un client rien ne change. Les anciennes tables `os_objectifs*` restent intactes ; elles ne se suppriment que sur ordre de Jérôme.
+- **Suite de nuit sur `main`** : rouge le 23/10 à 05:00 (5 échecs téléphone), à 13:00 (4 échecs + 1 instable, tous des défauts de test, corrigés par la PR 208). **À relancer sur `main` après la fusion de cette PR** pour confirmer le vert (alertes GitHub n°199 et n°206 à fermer si vert).
+- **À trancher avec Jérôme** : `docs/deploiement-client.md` (points « ? » : MCP du client, dossier Drive racine, qui est présent aux étapes 4, 6 et 7, accord écrit sur les données).
+- **Chemin réel du dépôt sur le Mac de Jérôme** : `/Users/jeromechevalier/Code-Chevalier-IA/chevalier-ia-os` (l'ancien chemin Google Drive n'est plus à utiliser ; corrigé dans `docs/activer-desactiver-modules.md`).
+- **Non vérifié avec le vrai système** : le rendu sur un vrai téléphone ; le comportement de l'Accueil sur la vraie base après la PR 204 ; l'instabilité réelle d'I18 (non reproduit).
+- **Encore à faire** (rien n'est codé) : refuser à l'écran la proposition d'essai restée dans sa base ; relevé hebdomadaire des indicateurs et réglages d'Ingrid ; renommage des fonctions et du module `tableaudebord` (de jour, avec alias) ; légende de la pastille d'activité ; chaîne d'étapes visible dans l'Historique ; simplifier le doublon « à traiter » de Maintenance.
+
 ## Rapport du matin : 5e et 6e nuit « GO NUIT » (22 au 23/10/2026, version 2.25.0)
 
 Jérôme a donné « GO NUIT » le 22/10/2026 après une longue conception avec Fable. Un sujet par PR, chaque PR relue par Fable avant la fusion, fusionnée seule quand la coche « Tests » est verte, sauf la PR des règles Firestore (liste d'arrêt), que Jérôme a publiée et fusionnée lui-même après avoir collé le texte dans la console. Plans : `docs/chemin-client-pilote.md` (file « À valider »), `docs/tables.md` (indicateurs), `docs/actions-de-fiche.md` (bouton « Générer devis », idée).

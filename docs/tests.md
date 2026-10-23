@@ -84,3 +84,12 @@ Voir `docs/acceleration-tests-mesures.md`, section « Instabilités ». Sur GitH
 
 `tests/e2e/automatisations-a-valider-chaine.spec.js` (critères 7 à 14 du Logger) : la chaîne s'allume sans recharger, finalisation, ligne bloquée, abandon, libellé piégé, 390 px, `data-etat`. `automatisationsDecider` y est simulée comme dans `automatisations-a-valider.spec.js`.
 
+## Pièges connus (journée du 23/10/2026)
+- **Tout nouveau test d'écran se lance aussi en format téléphone** (`--project=telephone`) avant la PR : la coche de PR ne le fait pas, seule la suite de nuit l'attrape (quatre tests l'ont fait rougir le 23/10).
+- Un test qui ouvre le tiroir du menu sur téléphone doit le refermer (Échap) avant de cliquer ailleurs : le voile intercepte les clics.
+- `.panneau-activite` est en `display: contents` sous 1024 px : on ne peut pas le photographier sur téléphone (utiliser `.fiche-grille`).
+- Après « Détacher » sur une fiche projet, le panneau est recréé et l'onglet Documents se referme : le rouvrir avant de mesurer.
+- `npm ci` aussi dans `functions/` et `functions-plateforme/` (puis `node scripts/preparer-fonctions.js`) avant `test:module registre` ou `statique`.
+- En bac à sable, `apis.google.com` est injoignable : les parcours qui chargent le sélecteur de fichiers Google échouent sur l'erreur console `ERR_TUNNEL_CONNECTION_FAILED`. Ce n'est pas un défaut du code ; la coche GitHub fait foi.
+- Deux suites de tests en même temps sur la même machine font échouer au hasard (veille-filtres, tableaudebord, porte) : relancer seul.
+- La suite de nuit peut être relancée à la main (GitHub, Actions, « Tests de nuit », « Run workflow ») pour vérifier un correctif sans attendre la nuit.

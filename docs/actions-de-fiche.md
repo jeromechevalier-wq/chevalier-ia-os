@@ -9,10 +9,14 @@
 - **Déclenchement** : le bouton n'appelle jamais n8n directement. Une fonction appelable du serveur (`crmLancerAction { actionId, ficheId }`) relit la ligne `crm_actions` **elle-même** (jamais le `workflowId` envoyé par la page), vérifie le rôle (éditeur) et `actif`, journalise (liste blanche : client, action, fiche, statut, durée), puis appelle n8n. Le workflow reçoit seulement `{ client, ficheId, actionId, demandePar, demandeLe }`, **jamais le contenu de la fiche** : il la relit par la porte du client.
 - **Retour** : le brouillon e-mail est l'affaire du workflow ; la copie en document joint passe par une nouvelle action de la porte (`affaires.joindreLien`, qui réutilise `joindreLien` du serveur MCP : l'onglet Documents existe déjà) ; l'état du bouton (« Devis demandé », « Devis joint ») vient d'une table fermée aux navigateurs (`crm_actions_lancements`) que la fonction écrit et que le workflow clôt par la porte. Pas de passage par « À valider » : c'est la personne qui a cliqué. Protection contre les doublons : un lancement en cours désactive le bouton quelques minutes.
 
-## Décision de Jérôme à prendre avant de construire (désaccord à trancher)
-Aujourd'hui l'application ne fait **aucun appel sortant vers n8n** (règle « lecture seule » et un test dans `tests/automatisations-statique.test.js`). Le bouton demande d'en ouvrir **un seul**, dans **un seul fichier**, borné par un test (seul ce fichier fait un POST, vers un chemin fixe, avec un identifiant lu dans `crm_actions`). Deux façons :
-1. **Webhook n8n par workflow** (avis de Claude : le plus courant et le plus simple à tester). Inconvénient : une adresse + un secret à ranger côté serveur **par client** (Secret Manager), jamais dans la page.
-2. **API d'administration de n8n** avec la clé déjà rangée (avis de Fable : pas de secret de plus par client). **À vérifier d'abord dans le n8n de Jérôme** que l'API permet bien de lancer un workflow à la demande ; sinon seul le webhook reste.
+## Décision de Jérôme (23/10/2026) : webhook, un workflow par client
+Aujourd'hui l'application ne fait **aucun appel sortant vers n8n** (règle « lecture seule » et un test dans `tests/automatisations-statique.test.js`). Le bouton demande d'en ouvrir **un seul**, dans **un seul fichier**, borné par un test (seul ce fichier fait un POST, vers un chemin fixe, avec un identifiant lu dans `crm_actions`).
+
+**Choix : webhook n8n, un workflow par client.** Constat dans le n8n de Jérôme : les workflows des clients existants fonctionnent déjà ainsi (adresse web protégée par un secret). L'API d'administration de n8n est écartée : sa clé ouvrirait tout le n8n, alors qu'un secret par webhook limite les dégâts à un seul workflow.
+- Une adresse + un secret **par client**, rangés côté serveur (Secret Manager), jamais dans la page ni dans le dépôt.
+- Le JSON envoyé contient l'identifiant du client, de l'action et de la fiche ; le workflow relit la fiche par la porte, donc toujours à jour. Des champs de contexte en plus (texte) restent possibles **seulement dans une liste fermée choisie à la configuration**, à décider avant de coder ; la règle actuelle reste « identifiants seulement ».
+- Un webhook peut aussi être appelé par un site web ou un fichier Excel d'un client. Chaque porte d'entrée a alors **son propre webhook et son propre secret**, avec le minimum de droits : ne jamais mettre le secret du bouton dans une page web ou un Excel partagé.
+- Le retour dans l'interface est un choix du workflow (il écrit par la porte), pas une obligation du webhook.
 
 ## Prérequis, dans l'ordre (Fable)
 1. **La porte des workflows côté plateforme clients (base 2)** : elle n'existe pas encore (`docs/porte-cles.md` section 6). Prérequis absolu, déploiement manuel (liste d'arrêt).
