@@ -47,7 +47,7 @@ test('C1 connexion avec Jérôme : arrivée sur l’Accueil, 6 objectifs, graphi
     await expect(page.locator('.objectif-libelle', { hasText: libelle })).toBeVisible();
   }
   await expect.poll(async () => (await listerDocuments('crm_parametres')).map((d) => d.id).sort()).toEqual(['etapes', 'etiquettes', 'filtres', 'listes', 'modeles_affaire', 'modeles_projet', 'offres', 'phases', 'reglages']);
-  await expect.poll(async () => (await listerDocuments('os_objectifs')).length).toBe(5);
+  await expect.poll(async () => (await listerDocuments('os_kpi')).length).toBe(5);
   // Graphique : aucun mois avant le début d'activité (octobre 2026), jamais plus de 6 mois
   const mois = await page.locator('.colonne-ca').evaluateAll((els) => els.map((e) => e.dataset.mois));
   expect(mois.length).toBeGreaterThanOrEqual(1);
@@ -521,10 +521,10 @@ test('C15 objectif flyers : « +10 » met à jour la barre et persiste après re
   await carte.getByRole('button', { name: 'Ajouter 10 à Flyers distribués' }).click();
   await expect.poll(() => valeurObjectif(page, 'flyers')).toBe(10);
   await expect(carte.locator('.objectif-pct')).toHaveText('10 %');
-  await expect.poll(async () => (await listerDocuments('os_objectifs_saisies'))[0]?.valeur).toBe(10);
+  await expect.poll(async () => (await listerDocuments('os_kpi_saisies'))[0]?.valeur).toBe(10);
   await page.reload();
   await expect(page.locator('.objectif[data-objectif="flyers"] .objectif-pct')).toHaveText('10 %');
-  const saisies = await listerDocuments('os_objectifs_saisies');
+  const saisies = await listerDocuments('os_kpi_saisies');
   expect(saisies).toHaveLength(1);
   expect(saisies[0].id).toMatch(/^flyers_\d{4}-\d{2}$/);
 });
@@ -1100,7 +1100,7 @@ test('C23 navigation : lien direct vers une fiche, route inconnue, déconnexion'
   await expect(page.locator('.etat-vide')).toContainText('n’existe plus');
   // Premier lancement : on laisse l'initialisation des réglages et des objectifs se terminer avant de se déconnecter
   await expect.poll(async () => (await listerDocuments('crm_parametres')).length).toBe(9); // listes, offres, étiquettes, filtres, réglages, étapes, phases, modèles d'affaire + le repère des modèles de projet
-  await expect.poll(async () => (await listerDocuments('os_objectifs')).length).toBe(5);
+  await expect.poll(async () => (await listerDocuments('os_kpi')).length).toBe(5);
   await choisirDansMenuUtilisateur(page, 'Se déconnecter');
   await expect(page.getByRole('button', { name: 'Se connecter avec Google' })).toBeVisible();
 });
@@ -1341,7 +1341,7 @@ test('C28 Journal : ce que je fais dans l’appli y apparaît avec la copie avan
 test('C29 les anciens rôles et dates JTBD sont convertis à l’ouverture en étiquettes ; la vue et l’objectif suivent', async ({ page }) => {
   await ecrireDocument('crm_parametres/etiquettes', { items: [{ id: 'partenaire', nom: 'Partenaire', couleur: '#3fbf7f', ordre: 1 }] });
   await ecrireDocument('crm_parametres/filtres', { version: 2, items: [{ id: 'jtbd_a_faire', nom: 'Interviews JTBD à faire', liste: 'personnes', criteres: { roles: ['interview_jtbd'], jtbd: 'non_faite' }, ordre: 1 }] });
-  await ecrireDocument('os_objectifs/interviews_jtbd', { id: 'interviews_jtbd', libelle: 'Interviews JTBD réalisées', type: 'calcule', calcul: 'interviews_jtbd', cible: 10, unite: '', couleur: '#e3cdee', ordre: 1, actif: true });
+  await ecrireDocument('os_kpi/interviews_jtbd', { id: 'interviews_jtbd', libelle: 'Interviews JTBD réalisées', type: 'calcule', calcul: 'interviews_jtbd', cible: 10, unite: '', couleur: '#e3cdee', ordre: 1, actif: true });
   await creerPersonne('p1', { nom: 'Marie Durand', roles: ['partenaire'] });
   await creerPersonne('p2', { nom: 'Paul Martin', roles: ['interview_jtbd'] });
   await creerPersonne('p3', { nom: 'Éric Léon', roles: ['interview_jtbd'], dateInterviewJtbd: '2026-10-02' });
@@ -1356,7 +1356,7 @@ test('C29 les anciens rôles et dates JTBD sont convertis à l’ouverture en é
   await champDoc('crm_personnes', 'p3', 'dateInterviewJtbd', null);
   await expect.poll(async () => ((await lireDocument('crm_parametres/etiquettes'))?.items ?? []).map((e) => e.nom).sort()).toEqual(['Interviewé JTBD', 'Partenaire', 'À interviewer JTBD']);
   await expect.poll(async () => ((await lireDocument('crm_parametres/filtres'))?.items ?? [])[0]?.criteres).toEqual({ etiquettes: ['a_interviewer_jtbd'] });
-  await champDoc('os_objectifs', 'interviews_jtbd', 'type', 'manuel');
+  await champDoc('os_kpi', 'interviews_jtbd', 'type', 'manuel');
   await allerA(page, 'Personnes');
   await page.locator('[data-action="filtres-enregistres"]').click();
   await page.locator('.menu-pop').getByRole('menuitem', { name: 'Interviews JTBD à faire' }).click();

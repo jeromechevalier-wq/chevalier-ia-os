@@ -1,6 +1,6 @@
 // Objectifs communs de l'OS : calculés (fournis par les modules) et manuels (saisis chaque mois).
 import {
-  collection, doc, onSnapshot, setDoc, updateDoc, runTransaction, serverTimestamp, increment,
+  collection, doc, onSnapshot, getDocs, setDoc, updateDoc, runTransaction, serverTimestamp, increment,
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { db } from './firebase.js';
 import { h, icone, vider, remplir, toast } from './ui.js';
@@ -11,8 +11,9 @@ const etat = { objectifs: [], saisies: [], pretObjectifs: false, pretSaisies: fa
 const abonnes = new Set();
 const calculateurs = {}; // id de calcul → { libelle, unite, calculer(mois) }
 let desabonnements = [];
+let generation = 0; // change à chaque arrêt : une vérification de repli en retard est ignorée
 let repli = { definitions: false, saisies: false }; // true = la nouvelle table était vide au montage, on lit l'ancienne (interrupteur allumé seulement)
-const nomLecture = (cle) => nomCollection(cle, { repli });
+const nomLecture = (cle, ancienne = false) => nomCollection(cle, { repli: ancienne ? { [cle]: true } : repli });
 const nomEcriture = (cle) => nomCollection(cle, { ecriture: true });
 let compte = null;
 let objectifsDepart = [];
@@ -113,17 +114,28 @@ export function demarrerObjectifs(compteConnecte, departs = []) {
   }, 'Saisies indisponibles');
 }
 
-/** Écoute une table. Interrupteur allumé : si la nouvelle table est vide au premier retour du serveur, on bascule UNE fois sur l'ancienne (lecture seule). */
+const reference = (cle, ancienne = false) => collection(db, nomLecture(cle, ancienne));
+
+/**
+ * Écoute une table. Interrupteur allumé : si la nouvelle table est vide au premier retour du serveur, on regarde l'ancienne ;
+ * on bascule UNE fois sur elle (lecture seule) seulement si elle n'est PAS vide. Les deux vides (espace neuf) : on reste sur la nouvelle.
+ */
 function suivre(cle, traiter, messageErreur) {
   let decide = !TABLE_KPI_ACTIVE;
   let arret = () => {};
-  const ecouter = () => onSnapshot(collection(db, nomLecture(cle)), (snap) => {
+  const maGeneration = generation;
+  const ecouter = () => onSnapshot(reference(cle), (snap) => {
     if (!decide && !snap.metadata.fromCache) {
       decide = true;
-      if (faut_repli({ nouvelleVide: snap.empty })) {
-        repli[cle] = true;
-        arret();
-        arret = ecouter();
+      if (snap.empty) {
+        getDocs(reference(cle, true)).then((ancienne) => ancienne.empty, () => undefined).then((ancienneVide) => {
+          if (maGeneration !== generation) return;
+          if (faut_repli({ nouvelleVide: true, ancienneVide })) {
+            repli[cle] = true;
+            arret();
+            arret = ecouter();
+          } else traiter(snap);
+        });
         return;
       }
     }
@@ -134,6 +146,7 @@ function suivre(cle, traiter, messageErreur) {
 }
 
 export function arreterObjectifs() {
+  generation += 1;
   desabonnements.forEach((f) => f());
   desabonnements = [];
   etat.objectifs = [];
@@ -171,6 +184,8 @@ export async function definirSaisie(objectifId, mois, valeurSaisie) {
 }
 
 export async function majObjectif(id, patch) {
+  // Repli (nouvelle table vide, ancienne lue) : le document n'existe pas encore dans la nouvelle table, un updateDoc échouerait. On refuse proprement, sans écrire dans l'ancienne.
+  if (repli.definitions) throw new Error('Copie des objectifs pas encore faite');
   await updateDoc(doc(db, nomEcriture('definitions'), id), patch);
 }
 
@@ -305,6 +320,7 @@ function signature(liste) {
 // ---------------------------------------------------------------- réglages des objectifs
 
 export function rendreReglagesObjectifs(conteneur) {
+  const modifier = (id, patch) => majObjectif(id, patch).catch((e) => { console.warn(e); toast('Modification impossible', { type: 'erreur' }); });
   const corps = h('div', { class: 'liste-reglages' });
   const formulaireAjout = (() => {
     const libelle = h('input', { type: 'text', class: 'champ', placeholder: 'Ex. Posts LinkedIn publiés', 'aria-label': 'Libellé du nouvel objectif' });
@@ -356,22 +372,22 @@ export function rendreReglagesObjectifs(conteneur) {
     const libelle = libelleCalcule
       ? h('span', { class: 'libelle-calcule', dataset: { role: 'libelle-objectif' } }, regles.libelle(o))
       : h('input', { type: 'text', class: 'champ', value: o.libelle, 'aria-label': 'Libellé',
-        onchange: (e) => e.target.value.trim() && majObjectif(o.id, { libelle: e.target.value.trim() }) });
+        onchange: (e) => e.target.value.trim() && modifier(o.id, { libelle: e.target.value.trim() }) });
     const etape = libelleCalcule
-      ? h('select', { class: 'champ', 'aria-label': `Étape suivie : ${regles.libelle(o)}`, onchange: (e) => majObjectif(o.id, { etapeId: e.target.value }) },
+      ? h('select', { class: 'champ', 'aria-label': `Étape suivie : ${regles.libelle(o)}`, onchange: (e) => modifier(o.id, { etapeId: e.target.value }) },
         regles.etapes().map((e) => h('option', { value: e.id, selected: e.id === o.etapeId }, e.libelle)))
       : null;
     const cible = h('input', { type: 'number', class: 'champ champ-court', min: '1', value: String(o.cible), 'aria-label': `Cible : ${regles.libelle(o)}`,
-      onchange: (e) => majObjectif(o.id, { cible: Math.max(1, Number(e.target.value) || 1) }) });
+      onchange: (e) => modifier(o.id, { cible: Math.max(1, Number(e.target.value) || 1) }) });
     const couleur = h('input', { type: 'color', class: 'champ-couleur', value: o.couleur || '#ecbc06', 'aria-label': `Couleur : ${regles.libelle(o)}`,
-      onchange: (e) => majObjectif(o.id, { couleur: e.target.value }) });
+      onchange: (e) => modifier(o.id, { couleur: e.target.value }) });
     const actif = h('input', { type: 'checkbox', checked: o.actif !== false, 'aria-label': `Afficher : ${regles.libelle(o)}`,
-      onchange: (e) => majObjectif(o.id, { actif: e.target.checked }) });
+      onchange: (e) => modifier(o.id, { actif: e.target.checked }) });
     const echanger = async (j) => {
       const autre = liste[j];
       if (!autre) return;
-      await majObjectif(o.id, { ordre: autre.ordre ?? j });
-      await majObjectif(autre.id, { ordre: o.ordre ?? index });
+      await modifier(o.id, { ordre: autre.ordre ?? j });
+      await modifier(autre.id, { ordre: o.ordre ?? index });
     };
     const explication = c?.explication
       ? h('p', { class: 'aide explication-objectif', dataset: { role: 'explication' } }, h('strong', {}, 'Comment c’est calculé : '), c.explication)
