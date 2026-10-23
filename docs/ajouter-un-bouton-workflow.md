@@ -25,7 +25,7 @@
 | 3 | **Table `crm_actions`** (une ligne par bouton : libellé, cible, workflow, actif, confirmation), bouton à contour sur la fiche, commande de configuration dans `scripts/nouveau-client.js` (simulation puis `--ecrire`). | Claude (sous-agent), relu par Fable |
 | 4 | **Fonction de lancement** `crmLancerAction` : relit la ligne elle-même, vérifie le rôle, journalise (client, action, fiche, statut, durée), appelle le webhook. **Un seul fichier** a le droit de faire un POST vers n8n, vers un chemin fixe ; un test le borne. | Claude |
 | 5 | **Adresse et secret du webhook** du client : le secret va dans Secret Manager (côté serveur), **jamais** dans la page ni dans le dépôt. | Jérôme |
-| 6 | **Workflow du client** dans le n8n de Charles : webhook protégé par secret, lit la fiche par la porte, crée le brouillon, joint la copie, clôt le lancement par la porte. | Claude + Jérôme (identifiants) |
+| 6 | **Workflow du client** dans le n8n de Jérôme : webhook protégé par secret, lit la fiche par la porte, crée le brouillon, joint la copie, clôt le lancement par la porte. | Claude + Jérôme (identifiants) |
 | 7 | **Déploiement de la plateforme** (règles, fonctions, hébergement, MCP : quatre lancements du workflow manuel « Déploiement plateforme clients »). Liste d'arrêt : jamais sans Jérôme. | Jérôme |
 | 8 | **Configurer le bouton** pour ce client : `ajouter-action <client> --cible affaire --libelle "Générer devis" --workflow <identifiant>` (simulation, relire, `--ecrire`). | Jérôme |
 | 9 | **Essai avec le client** : un clic, le brouillon arrive, la copie est jointe. Vérifier le cas d'erreur (workflow éteint : message clair, pas de double devis). | Jérôme + client |

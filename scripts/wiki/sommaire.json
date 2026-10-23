@@ -5,10 +5,10 @@
     { "titre": "Serveur MCP : plans et étapes", "pages": ["plan-mcp", "cahier-mcp", "playbook-mcp-firebase", "mcp-etape-2", "mcp-etape-3", "mcp-etape-4", "mcp-projets", "mcp-multi-clients-en-reserve", "porte-cles", "PROMPT-PLAN-MCP"] },
     { "titre": "Écran Projets et facturation", "pages": ["cadrage-projets", "projets-etape-1", "projets-etape-2", "projets-etape-3", "projets-etape-4", "projets-etape-5", "projets-etape-6", "projets-etape-7", "projets-facturation-2-2-a", "projets-facturation-2-2-b", "demande-evolution-ca-signe", "convention-dossiers", "modele-prompt-creation-dossier", "prompt-reprise-crm-projets"] },
     { "titre": "Écrans et modules du CRM", "pages": ["consignes-ui", "audit-ecran", "journal-ecran", "audit-boutons-destructifs", "google-drive", "prototype-drive", "mon-espace", "reglages-menu-crm-unique", "tableau-de-bord", "veille-ajout-et-resume", "automatisations-n8n", "activer-desactiver-modules", "menage-crm", "pipedrive-reference", "affaire-ou-projet"] },
-    { "titre": "Clients et déploiement", "pages": ["nouveau-client", "deploiement-plateforme", "etude-reutilisation-coque", "briefing-mise-en-ligne-v2", "journal-mise-en-ligne-v2"] },
+    { "titre": "Clients et déploiement", "pages": ["nouveau-client", "deploiement-client", "deploiement-plateforme", "ajouter-un-bouton-workflow", "etude-reutilisation-coque", "briefing-mise-en-ligne-v2", "journal-mise-en-ligne-v2"] },
     { "titre": "Tests", "pages": ["tests", "acceleration-tests-mesures", "rapport-phase-1-tests"] },
     { "titre": "Vision, cahiers des charges et décisions", "pages": ["vision-chevalier-ia-os", "synthese-chevalier-ia-os", "cahier-des-charges", "cahier-des-charges-v2.0", "crm-decisions-entretien", "decisions-construction", "decisions-construction-v2", "PROMPT-CONSTRUCTION-v2.0"] },
     { "titre": "Rapports et journaux de chantier", "pages": ["rapport-construction", "rapport-construction-v2", "journal-chantier-6", "journal-chantier-7", "journal-chantier-13", "journal-chantier-14", "retours-ux-2026-10-04"] },
-    { "titre": "Suivi et mode d'emploi", "pages": ["roadmap", "reprise-prochaine-session", "wiki"] }
+    { "titre": "Suivi et mode d'emploi", "pages": ["roadmap", "reprise-prochaine-session", "fonctionnement-du-travail", "wiki"] }
   ]
 }

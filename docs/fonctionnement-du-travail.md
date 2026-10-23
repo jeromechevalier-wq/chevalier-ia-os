@@ -34,7 +34,7 @@
 
 - Pendant le travail : le test du module touché seulement.
 - Avant la PR : `npm run test:rapide`, puis `npm run test:smoke`.
-- Sur GitHub : la coche « Tests » de la PR (rapide, smoke, et les parcours **de la PR**), et la **suite de nuit** sur `main` (tout, ordinateur et téléphone, environ 30 minutes).
+- Sur GitHub : la coche « Tests » de la PR (rapide, smoke, et les parcours **de la PR**), et la **suite de nuit** sur `main` (tout, ordinateur et téléphone, moins de 45 minutes, délai du workflow).
 
 Conséquence à retenir : **la coche de PR ne lance pas les anciens parcours ni le format téléphone des nouveaux tests**. C'est la suite de nuit qui les attrape. Voir `docs/tests.md`.
 

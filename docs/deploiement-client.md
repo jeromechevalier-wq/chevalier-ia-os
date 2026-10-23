@@ -9,7 +9,7 @@ Chemin du dépôt sur le Mac de Jérôme (à utiliser dans chaque commande) : `/
 1. **Cadrage** : ce que le client veut voir dans son espace, les modules à activer (`affaires`, `projets`, `automatisations`), qui sont les personnes à faire entrer (adresse Google de chacune, éditeur ou lecteur). ? **Accord écrit sur les données stockées** : déjà couvert par le contrat, ou à ajouter ?
 2. **Récupérer l'adresse Google** de chaque personne (en minuscules). Elle doit être un compte Google : c'est ce qui sert à se connecter.
 3. **Vérifier la plateforme** : si du code a changé depuis le dernier client, le workflow manuel « Déploiement plateforme clients » est à lancer par Jérôme (jamais par Claude).
-4. Préparer le logo et au plus 4 images (png, jpg, webp ou gif, 2 Mo au plus chacune) dans un dossier du Mac, **hors du dépôt**.
+4. Préparer le logo et au plus 4 images (png, jpg, webp ou gif ; 2 Mo au plus par l'outil de Jérôme, 1,5 Mo par image si le client les ajoute lui-même depuis « Mon espace ») dans un dossier du Mac, **hors du dépôt**.
 
 ## Pendant la séance
 
