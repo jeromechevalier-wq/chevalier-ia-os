@@ -804,7 +804,7 @@ test('C31 monter, descendre, changer de phase, supprimer une tâche', async ({ p
   await expect.poll(async () => await lireDocument('projets_taches/b')).toBeNull();
 });
 
-test('C31 Accueil : les tâches de projet en retard et du jour sont dans les Points clés avec leur projet, mêlées aux activités ; « Fait » les coche', async ({ page }) => {
+test('C31 Accueil : les tâches de projet en retard et du jour sont dans le bloc « À faire » avec leur projet, mêlées aux activités ; « Fait » les coche', async ({ page }) => {
   await creerProjet('pr1', { titre: 'Audit des Lilas' });
   await creerProjet('pr2', { titre: 'Chantier terminé', statut: 'termine' });
   await creerProjet('pr3', { titre: 'Projet rangé', archive: true, statut: 'termine' });

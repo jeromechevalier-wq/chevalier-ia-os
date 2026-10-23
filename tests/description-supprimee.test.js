@@ -27,7 +27,7 @@ describe('I5 note épinglée de départ', () => {
     assert.deepEqual(L.notesEpinglees([{ ...vide, epinglee: false }], { affaireId: 'a1' }), []);
   });
 
-  test('I5 (a) deux vraies notes épinglées « OK » de la même affaire, sans lien de copie : les deux restent (Points clés et historique)', () => {
+  test('I5 (a) deux vraies notes épinglées « OK » de la même affaire, sans lien de copie : les deux restent (Notes épinglées et historique)', () => {
     const n1 = note('ok1', { texte: 'OK', epinglee: true, creeLe: new Date('2026-10-01') });
     const n2 = note('ok2', { texte: 'OK', epinglee: true, creeLe: new Date('2026-10-02') });
     const visibles = L.sansCopiesDeNote([n1, n2], { affaireId: 'a1' });

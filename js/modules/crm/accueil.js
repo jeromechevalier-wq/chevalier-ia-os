@@ -1,4 +1,4 @@
-// Accueil : objectifs du mois, Favoris (documents), Points clés (En retard, Aujourd'hui, Sans action prévue), statistiques, rappel d'export.
+// Accueil : objectifs du mois, Favoris (documents), À faire (En retard, Aujourd'hui, Sans action prévue), statistiques, rappel d'export.
 import { h, icone, vider, remplir } from '../../os/ui.js';
 import { rendreObjectifs, surObjectifs, moisCourantParis } from '../../os/objectifs.js';
 import { animerCompteur, charlesContent } from '../../os/celebrations.js';
@@ -45,7 +45,7 @@ export function rendreAccueil(conteneur, { compte, objectifs = true }) {
       h('div', { class: 'section-tete' }, h('h2', { id: 'titre-favoris' }, icone('star', { taille: 18 }), 'Favoris')),
       zoneFavoris),
     h('section', { class: 'carte-section section-a-faire', 'aria-labelledby': 'titre-points-cles' },
-      h('div', { class: 'section-tete' }, h('h2', { id: 'titre-points-cles' }, icone('check-check', { taille: 18 }), 'Points clés')),
+      h('div', { class: 'section-tete' }, h('h2', { id: 'titre-points-cles' }, icone('check-check', { taille: 18 }), 'À faire')),
       zonePoints),
     h('section', { class: 'carte-section section-stats', 'aria-labelledby': 'titre-stats' },
       h('div', { class: 'section-tete' }, h('h2', { id: 'titre-stats' }, icone('chart-column', { taille: 18 }), 'Statistiques')),
