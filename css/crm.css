@@ -470,7 +470,7 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 .libelle-calcule { flex: 1 1 200px; font-weight: var(--poids-moyen); }
 /* Téléphone et écrans tactiles : zones de clic de 44 px au moins, sur la zone elle-même (mesurable) */
 @media (max-width: 767px), (pointer: coarse) {
-  .ligne-objectif-champs .bouton-info { width: 44px; height: 44px; }
+  .ligne-objectif-champs .bouton-info { width: var(--h-ctrl); height: var(--h-ctrl); }
 }
 .ajout-calcule { margin-top: var(--esp-5); }
 

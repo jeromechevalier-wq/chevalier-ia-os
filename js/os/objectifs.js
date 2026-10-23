@@ -407,7 +407,7 @@ export function rendreReglagesObjectifs(conteneur) {
   }
 
   function maj() {
-    if (conteneur.contains(document.activeElement) && document.activeElement.matches('input[type=text], input[type=number], .bouton-info')) return; // pas de redessin pendant une saisie, ni pendant que la bulle « i » est ouverte
+    if (conteneur.contains(document.activeElement) && document.activeElement.matches('input[type=text], input[type=number], .bouton-info.ouvert')) return; // pas de redessin pendant une saisie, ni pendant que la bulle « i » est ouverte
     vider(corps);
     const liste = tousLesObjectifs();
     liste.forEach((o, i) => corps.append(ligne(o, i, liste)));

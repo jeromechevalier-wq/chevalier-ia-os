@@ -81,7 +81,7 @@ function editeurEmplacements({ genre, visible = true }) {
       oninput: (ev) => { modifier({ description: ev.target.value }); ajuster(description); } });
     description.value = e.description || '';
     requestAnimationFrame(() => ajuster(description)); // une seule ligne ; elle grandit quand le texte est plus long
-    if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => ajuster(description)).observe(description); // section cachée puis affichée, ou largeur qui change
+    if (typeof ResizeObserver !== 'undefined') { const obs = new ResizeObserver(() => { if (!description.isConnected) { obs.disconnect(); return; } ajuster(description); }); obs.observe(description); } // section cachée puis affichée, ou largeur qui change
 
     const aAction = !!e.action;
     const caseAction = h('input', { type: 'checkbox', checked: aAction, dataset: { role: 'action-active' }, 'aria-label': `Action suggérée : emplacement ${i + 1}`,
