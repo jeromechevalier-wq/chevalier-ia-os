@@ -104,7 +104,7 @@ button.badge-etat { border: 0; font-family: inherit; cursor: pointer; }
 @media (max-width: 767px) { .barres-horizontales li { grid-template-columns: 120px minmax(0, 1fr) 28px; } }
 
 
-/* Points clés et activités */
+/* Bloc « À faire », notes épinglées et activités */
 .groupe-a-faire { display: flex; flex-direction: column; gap: var(--esp-2); }
 .groupe-a-faire + .groupe-a-faire { margin-top: var(--esp-6); }
 .groupe-a-faire h3 { display: flex; align-items: center; font-family: var(--police-texte); font-weight: var(--poids-moyen); font-size: var(--fs-menu); letter-spacing: .08em; text-transform: uppercase; color: var(--texte2); }
@@ -295,20 +295,20 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 .fiche-gauche { background: var(--panneau); border: 1px solid var(--bordure); border-radius: var(--rayon-carte); padding: var(--esp-2) 15px; }
 @media (max-width: 1023px) {
   /* Une seule colonne : les blocs sont remis dans l'ordre voulu, quelle que soit leur colonne d'origine.
-     Personne : Résumé, Activité et Notes, Points clés, Affaires, Organisation, Détails, Historique. */
+     Personne : Résumé, Activité et Notes, Notes épinglées, À faire, Affaires, Organisation, Détails, Historique. */
   .fiche-grille { display: flex; flex-direction: column; gap: var(--esp-6); }
   .fiche-grille .fiche-gauche, .fiche-grille .fiche-droite, .fiche-grille .panneau-activite { display: contents; }
   .section { background: var(--panneau); border: 1px solid var(--bordure); border-radius: var(--rayon-carte); padding: var(--esp-2) var(--esp-6); }
   .section[data-section$='-resume'] { order: 1; }
   .compositeur { order: 2; }
-  .points-cles, .section[data-section='projet-taches'] { order: 3; }
+  .notes-epinglees-zone, .points-cles, .section[data-section='projet-taches'] { order: 3; }
   .section[data-section='affaire-encaissements'], .section[data-section='organisation-personnes'] { order: 4; }
   .section[data-section$='-affaires'], .section[data-section$='-projets'], .section[data-section='affaire-projet'] { order: 5; }
   .section[data-section='personne-organisation'] { order: 6; }
   .section[data-section$='-details'] { order: 7; }
   .historique { order: 8; }
-  .points-cles, .historique { padding: 0 2px; }
-  .fiche-grille .section, .fiche-grille .compositeur, .fiche-grille .points-cles { width: 100%; box-sizing: border-box; min-width: 0; align-self: stretch; }
+  .notes-epinglees-zone, .points-cles, .historique { padding: 0 2px; }
+  .fiche-grille .section, .fiche-grille .compositeur, .fiche-grille .notes-epinglees-zone, .fiche-grille .points-cles { width: 100%; box-sizing: border-box; min-width: 0; align-self: stretch; }
 }
 @media (max-width: 767px) {
   .prop { grid-template-columns: 1fr; gap: 2px; padding: var(--esp-1) 0; }

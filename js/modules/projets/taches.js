@@ -1,4 +1,4 @@
-// Tâches d'un projet : section de la fiche projet (par phase) et ligne des Points clés de l'Accueil.
+// Tâches d'un projet : section de la fiche projet (par phase) et ligne du bloc « À faire » de l'Accueil.
 // Aucune règle métier ici : les règles sont dans logique.js (plans), exécutés par donnees.js.
 import { h, icone, remplir, dialogue, confirmer, ouvrirMenu, toast, boutonSelonTexte } from '../../os/ui.js';
 import { retirerAvecAnnulation } from '../../os/retrait.js';
@@ -175,7 +175,7 @@ export function sectionTaches(projet) {
   return { ...section, majListe: rendreGroupes };
 }
 
-// ---------------------------------------------------------------- Points clés de l'Accueil
+// ---------------------------------------------------------------- Bloc « À faire » de l'Accueil
 
 /** Ligne d'une tâche de projet dans « En retard » ou « Aujourd'hui » : case à cocher, titre, date, lien vers le projet. `t.projet` : le projet. */
 export function ligneTachePointsCles(t, aujourdhui, { surFait = null } = {}) {

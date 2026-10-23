@@ -22,7 +22,7 @@ for (const f of FICHES) {
     await connecter(page);
     await aller(page, f.hash);
     await expect(page.locator('[data-champ="description"], .description-fiche')).toHaveCount(0);
-    const champ = page.locator('.points-cles [data-champ="note-depart"]');
+    const champ = page.locator('.notes-epinglees-zone [data-champ="note-depart"]');
     await expect(champ).toBeVisible();
     await expect(champ).toHaveAttribute('placeholder', f.invitation);
     await expect(champ).toHaveValue('');
@@ -40,15 +40,15 @@ for (const f of FICHES) {
     await connecter(page);
     await aller(page, f.hash);
     const texte = 'Ligne 1 : ce dont parle cette fiche.\nLigne 2 : où on en est.';
-    const champ = page.locator('.points-cles [data-champ="note-depart"]');
+    const champ = page.locator('.notes-epinglees-zone [data-champ="note-depart"]');
     await champ.click();
     await champ.fill(texte);
     await page.locator('.fiche-titre input.titre-editable').click();
     await expect.poll(async () => (await lireDocument('crm_notes/n1')).texte).toBe(texte);
     await aller(page, '#/crm/accueil');
     await aller(page, f.hash);
-    await expect(page.locator('.points-cles .note-epinglee .note-texte')).toHaveText(texte);
-    await expect(page.locator('.points-cles [data-champ="note-depart"]')).toHaveCount(0);
+    await expect(page.locator('.notes-epinglees-zone .note-epinglee .note-texte')).toHaveText(texte);
+    await expect(page.locator('.notes-epinglees-zone [data-champ="note-depart"]')).toHaveCount(0);
   });
 }
 
@@ -57,7 +57,7 @@ test('TL6 (I5) Échap annule la frappe dans la note vide : rien n’est enregist
   await noteVide('n1', { affaireId: 'a1' });
   await connecter(page);
   await aller(page, '#/crm/affaires/a1');
-  const champ = page.locator('.points-cles [data-champ="note-depart"]');
+  const champ = page.locator('.notes-epinglees-zone [data-champ="note-depart"]');
   await champ.click();
   await champ.fill('Texte abandonné');
   await champ.press('Escape');

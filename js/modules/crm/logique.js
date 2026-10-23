@@ -1211,7 +1211,7 @@ export function estSansAction(affaire, activites) {
 }
 
 /**
- * Points clés : activités non faites (en retard, aujourd'hui), affaires sans action.
+ * Bloc « À faire » de l'Accueil : activités non faites (en retard, aujourd'hui), affaires sans action.
  * Les activités rattachées à une affaire perdue ou archivée sont ignorées.
  */
 export function pointsCles({ activites = [], affaires = [] }, aujourdhui) {
@@ -1225,7 +1225,7 @@ export function pointsCles({ activites = [], affaires = [] }, aujourdhui) {
   };
 }
 
-/** Points clés d'une fiche : ses activités non faites, les plus proches d'abord. */
+/** Bloc « À faire » d'une fiche : ses activités non faites, les plus proches d'abord. */
 export function pointsClesFiche(activites, aujourdhui) {
   return trierActivites(activitesAVenir(activites)).map((a) => ({
     ...a,
@@ -1300,7 +1300,7 @@ export function texteNoteEpingleeAffaire(notesAffaire = [], affaireId) {
 
 /**
  * Notes d'une fiche sans le doublon visible (I5) : la note épinglée d'un projet créé depuis une affaire est une COPIE de celle de l'affaire (`copieDeNoteId`).
- * Tant que la copie et l'originale sont épinglées et ont le même texte, une seule s'affiche (Points clés et Historique) : celle de la fiche ouverte (`lien`),
+ * Tant que la copie et l'originale sont épinglées et ont le même texte, une seule s'affiche (Notes épinglées et Historique) : celle de la fiche ouverte (`lien`),
  * sinon l'originale. Deux vraies notes au même texte (sans lien de copie) restent toutes les deux.
  */
 export function sansCopiesDeNote(notes = [], lien = null) {
@@ -2058,7 +2058,7 @@ export function planCreerNote(texte, liens, ctx) {
 }
 
 export const planMajNote = (id, texte) => ({ ecritures: [ecritureModifier(C.notes, id, { texte: String(texte).trim() }, { horodater: ['modifieLe'] })] });
-/** Épingler ou désépingler une note : une note épinglée reste en haut, dans les Points clés de la fiche. */
+/** Épingler ou désépingler une note : une note épinglée reste en haut, dans la section « Notes épinglées » de la fiche. */
 export const planEpinglerNote = (id, epinglee) => ({ ecritures: [ecritureModifier(C.notes, id, { epinglee: !!epinglee }, { horodater: ['modifieLe'] })] });
 export const planSupprimerNote = (id) => ({ ecritures: [ecritureSupprimer(C.notes, id)] });
 

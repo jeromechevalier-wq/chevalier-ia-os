@@ -359,9 +359,9 @@ test('C11 Perdue (raison obligatoire), Rouvrir ; plus de pause', async ({ page }
   await expect(page.locator('.menu-pop').getByRole('menuitem', { name: /pause/i })).toHaveCount(0);
 });
 
-// ---------------------------------------------------------------- activités, notes, historique, Points clés
+// ---------------------------------------------------------------- activités, notes, historique, bloc « À faire »
 
-test('C12 « Fait » sur une activité du jour : elle disparaît des Points clés, entre dans l’historique, la boîte « Prochaine activité » s’ouvre', async ({ page }) => {
+test('C12 « Fait » sur une activité du jour : elle disparaît du bloc « À faire », entre dans l’historique, la boîte « Prochaine activité » s’ouvre', async ({ page }) => {
   await creerPersonne('p1', { nom: 'Marie Durand' });
   await creerActivite('a1', { titre: 'Appeler Marie', type: 'appel', date: jour(0), personneId: 'p1' });
   await connecter(page);
@@ -389,7 +389,7 @@ test('C12 « Fait » ouvre la prochaine activité : la planifier crée une nouve
   expect(suite).toMatchObject({ titre: 'Relancer', date: jour(7), fait: false, personneId: 'p1' });
 });
 
-test('C12 Accueil : les Points clés regroupent En retard, Aujourd’hui et Sans action prévue', async ({ page }) => {
+test('C12 Accueil : le bloc « À faire » regroupe En retard, Aujourd’hui et Sans action prévue', async ({ page }) => {
   await creerPersonne('p1', { nom: 'Marie Durand' });
   await creerAffaire('a1', { titre: 'Atelier IA', personneId: 'p1', etape: 'rdv_fixe' });
   await creerAffaire('a2', { titre: 'Sans suite', etape: 'rdv_fixe' });
@@ -918,10 +918,10 @@ test('C22 fiche personne : deux colonnes sur ordinateur, une seule colonne sur t
   // La fiche est redessinée à chaque lot de données qui arrive de Firestore (personne, organisations, paramètres) : on ne mesure donc pas une seule fois
   // un élément qui peut être remplacé à cet instant (boundingBox renvoie alors null), on attend une mesure complète et juste (réessayée jusqu'à la bonne).
   if (estTelephone(page)) {
-    // Une seule colonne, dans l'ordre du cahier : Résumé, Activité et Notes, Points clés, Affaires, Organisation, Détails, Historique
+    // Une seule colonne, dans l'ordre du cahier : Résumé, Activité et Notes, Notes épinglées, À faire, Affaires, Organisation, Détails, Historique
     const mesurerOrdre = () => page.evaluate(() => {
       const blocs = [
-        ['résumé', '.section[data-section="personne-resume"]'], ['activité', '.compositeur'], ['points clés', '.points-cles'],
+        ['résumé', '.section[data-section="personne-resume"]'], ['activité', '.compositeur'], ['à faire', '.points-cles'],
         ['affaires', '.section[data-section="personne-affaires"]'], ['organisation', '.section[data-section="personne-organisation"]'],
         ['détails', '.section[data-section="personne-details"]'], ['historique', '.historique'],
       ];
@@ -929,7 +929,7 @@ test('C22 fiche personne : deux colonnes sur ordinateur, une seule colonne sur t
       if (elements.some(([, el]) => !el)) return null; // fiche en cours de redessin
       return elements.map(([nom, el]) => { const r = el.getBoundingClientRect(); return { nom, x: Math.round(r.x), y: r.y }; }).sort((a, b) => a.y - b.y);
     });
-    await expect.poll(async () => (await mesurerOrdre())?.map((b) => b.nom)).toEqual(['résumé', 'activité', 'points clés', 'affaires', 'organisation', 'détails', 'historique']);
+    await expect.poll(async () => (await mesurerOrdre())?.map((b) => b.nom)).toEqual(['résumé', 'activité', 'à faire', 'affaires', 'organisation', 'détails', 'historique']);
     expect(new Set((await mesurerOrdre()).map((b) => b.x)).size).toBeLessThanOrEqual(2); // même colonne (au pixel près)
   } else {
     const cotesACotes = async () => {

@@ -116,7 +116,7 @@ test('K1g historique : cocher un livrable écrit « Livrable fait : … » dans 
   await creerTacheProjet('t1', { titre: 'Interview Carrel' });
   await creerTacheProjet('t2', { titre: 'Relire le devis', ordre: 2, date: jour(-2) });
   await connecter(page);
-  // Accueil : la ligne du livrable en retard (Points clés)
+  // Accueil : la ligne du livrable en retard (bloc « À faire »)
   const retard = page.locator('[data-groupe="retard"]');
   await expect(retard.locator('.tache[data-tache="t2"]')).toContainText('Relire le devis');
   await expect(retard.getByRole('button', { name: 'Marquer comme fait : Relire le devis' })).toBeVisible();

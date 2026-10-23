@@ -1,4 +1,4 @@
-// Colonne de droite des fiches : onglets Activité / Notes, Points clés, Historique.
+// Colonne de droite des fiches : onglets Activité / Notes, Notes épinglées, À faire, Historique.
 // Partagée par les fiches personne, organisation et affaire.
 import { h, icone, remplir, dialogue, confirmer, ouvrirMenu, toast, boutonSelonTexte } from '../../os/ui.js';
 import { retirerAvecAnnulation } from '../../os/retrait.js';
@@ -198,7 +198,7 @@ function titreModifiable(a) {
 
 const LIENS_RATTACHEMENT = { affaire: lienAffaire, personne: lienPersonne, organisation: lienOrganisation };
 
-/** Ligne d'activité à faire (Points clés). `tousRattachements` (accueil) : affaire, sinon personne, sinon organisation. */
+/** Ligne d'activité à faire (bloc « À faire »). `tousRattachements` (accueil) : affaire, sinon personne, sinon organisation. */
 export function ligneActivite(a, aujourdhui, { avecAffaire = true, tousRattachements = false, surFait = null } = {}) {
   const etat = L.estActiviteEnRetard(a, aujourdhui) ? 'retard' : a.date === aujourdhui ? 'aujourdhui' : 'avenir';
   const rattachement = tousRattachements
@@ -237,7 +237,7 @@ export function oublierFiltresHistorique() { typesHistorique = []; }
  * liensCreation() : liens à poser sur ce qu'on crée (personneId, organisationId, affaireId).
  * `affaireLiee: { affaireId, fusionnerNotes(notesDeLaFiche, notesDeLAffaire) }` (fiche projet) : montre aussi les notes de l'affaire, en lecture seule
  * (les notes marquées `deAffaire` n'ont ni « Modifier » ni « Supprimer » : elles restent sur l'affaire).
- * `avecActivites: false` : ni onglet « Activité », ni Points clés, seulement les notes et l'historique (plus utilisé : la fiche projet a retrouvé ses activités).
+ * `avecActivites: false` : ni onglet « Activité », ni « À faire », seulement les notes et l'historique (plus utilisé : la fiche projet a retrouvé ses activités).
  * `avecDocuments` : ajoute un onglet « Documents » (après Notes) ; la fiche y met son contenu par `majDocuments({ element, compteur })` (appelée à chaque fois que la fiche est redessinée).
  * `typesActivite` : identifiants des types proposés dans l'onglet Activité (par défaut tous, dans l'ordre de `L.TYPES_ACTIVITE`). Le type choisi au départ est le premier (Appel).
  */
@@ -247,7 +247,8 @@ export function panneauActivite({ lien, liensCreation, avecActivites = true, aff
   let onglet = avecActivites ? 'activite' : 'notes';
   const typesProposes = L.TYPES_ACTIVITE.filter((t) => !typesActivite || typesActivite.includes(t.id));
 
-  const zonePointsCles = h('div', { class: 'points-cles' });
+  const zoneNotesEpinglees = h('div', { class: 'notes-epinglees-zone' }); // « Notes épinglées » : seulement s'il y a une note épinglée
+  const zonePointsCles = h('div', { class: 'points-cles' }); // bloc « À faire » (la classe garde son ancien nom : les tests la lisent)
   const zoneHistorique = h('div', { class: 'historique' });
   const racine = h('div', { class: 'panneau-activite' });
 
@@ -369,23 +370,27 @@ export function panneauActivite({ lien, liensCreation, avecActivites = true, aff
   function rendrePointsCles() {
     if (epingleeEnEdition) return;
     // Pas de nouveau rendu pendant qu'on écrit dans la note de départ vide (I5) : sinon le texte en cours serait perdu ; il est fait en quittant le champ.
-    if (document.activeElement?.classList?.contains('champ-note-depart') && zonePointsCles.contains(document.activeElement)) { pointsClesEnAttente = true; return; }
+    if (document.activeElement?.classList?.contains('champ-note-depart') && zoneNotesEpinglees.contains(document.activeElement)) { pointsClesEnAttente = true; return; }
     pointsClesEnAttente = false;
     const aujourdhui = D.ctx().aujourdhui;
     const liste = L.pointsClesFiche(D.activitesDe(lien), aujourdhui);
     const epinglees = L.notesEpinglees(notesDeLaFiche(), lien);
-    remplir(zonePointsCles,
+    remplir(zoneNotesEpinglees, epinglees.length ? [
       h('div', { class: 'points-cles-tete' },
-        h('h3', { class: 'sous-titre' }, 'Points clés'),
+        h('h3', { class: 'sous-titre' }, 'Notes épinglées'),
         epinglees.some((n) => !L.estNoteVide(n)) ? h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', 'data-action': 'developper-tout',
           onclick: () => { toutDeploye = !toutDeploye; rendrePointsCles(); } }, toutDeploye ? 'Réduire tout' : 'Développer tout') : null),
-      epinglees.length ? h('ul', { class: 'liste-notes-epinglees' }, epinglees.map((n) => (L.estNoteVide(n) ? ligneNoteDeDepart(n) : ligneNoteEpinglee(n)))) : null,
+      h('ul', { class: 'liste-notes-epinglees' }, epinglees.map((n) => (L.estNoteVide(n) ? ligneNoteDeDepart(n) : ligneNoteEpinglee(n))))] : null);
+    zoneNotesEpinglees.hidden = !epinglees.length;
+    // Le bloc « À faire » est toujours là, même vide : la colonne ne se décale pas.
+    remplir(zonePointsCles,
+      h('div', { class: 'points-cles-tete' }, h('h3', { class: 'sous-titre' }, 'À faire')),
       liste.length
         ? h('ul', { class: 'liste-activites' }, liste.map((a) => ligneActivite(a, aujourdhui)))
         : h('p', { class: 'aide' }, 'Aucune activité à faire.'));
   }
 
-  /** Note épinglée : carte jaune en haut des Points clés ; le texte est coupé à 3 lignes tant qu'on n'a pas cliqué « Développer tout ». */
+  /** Note épinglée : carte jaune de la section « Notes épinglées » ; le texte est coupé à 3 lignes tant qu'on n'a pas cliqué « Développer tout ». */
   function ligneNoteEpinglee(n) {
     return h('li', { class: `note-epinglee${toutDeploye ? ' deployee' : ''}`, dataset: { note: n.id } },
       icone('pin', { taille: 14 }),
@@ -504,7 +509,7 @@ export function panneauActivite({ lien, liensCreation, avecActivites = true, aff
   function rendreHistoriqueSiPasEdition() {
     if (!(document.activeElement?.tagName === 'TEXTAREA' && zoneHistorique.contains(document.activeElement))) rendreHistorique();
   }
-  racine.append(...[compositeur, avecActivites ? zonePointsCles : null, zoneHistorique].filter(Boolean));
+  racine.append(...[compositeur, avecActivites ? zoneNotesEpinglees : null, avecActivites ? zonePointsCles : null, zoneHistorique].filter(Boolean));
   if (avecActivites) rendrePointsCles();
   rendreHistorique();
 

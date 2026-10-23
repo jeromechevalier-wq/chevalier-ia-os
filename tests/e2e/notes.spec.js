@@ -30,7 +30,7 @@ test('I4 : la note épinglée de l’affaire a un bouton « Modifier » (visible
   await note('n1', LONG_COURT, { epinglee: true });
   await connecter(page);
   await ouvrir(page);
-  const carte = page.locator('.points-cles .note-epinglee');
+  const carte = page.locator('.notes-epinglees-zone .note-epinglee');
   const modifier = carte.locator('[data-action="modifier-note-epinglee"]');
   await expect(modifier).toHaveCount(1);
   await expect(modifier).toBeVisible();
@@ -66,7 +66,7 @@ test('I4 : même chose sur le projet ; pas de « Modifier » sur une note de l�
   await note('n1', 'Note du projet', { affaireId: null, projetId: 'pr1', epinglee: true });
   await connecter(page);
   await ouvrir(page, '#/projets/projets/pr1');
-  const carte = page.locator('.points-cles .note-epinglee');
+  const carte = page.locator('.notes-epinglees-zone .note-epinglee');
   await expect(carte).toContainText('Note du projet');
   await expect(carte.locator('[data-action="modifier-note-epinglee"]')).toBeVisible();
   await expect(carte.getByRole('button', { name: /Supprimer/ })).toHaveCount(0);
@@ -83,7 +83,7 @@ test('I4 cas d’erreur : un texte vide n’est pas enregistré et la note garde
   await note('n1', 'Texte à garder', { epinglee: true });
   await connecter(page);
   await ouvrir(page);
-  const carte = page.locator('.points-cles .note-epinglee');
+  const carte = page.locator('.notes-epinglees-zone .note-epinglee');
   await carte.locator('[data-action="modifier-note-epinglee"]').click();
   await carte.getByLabel('Modifier la note').fill('   ');
   await carte.getByRole('button', { name: 'Enregistrer' }).click();
@@ -110,12 +110,12 @@ test('I6 : une adresse dans une note du fil et dans une note épinglée est un l
   }
   // Le texte autour (point, virgule, mots) n'est pas cliquable.
   await expect(page.locator('.fil-note[data-note="n1"] .note-texte')).toHaveText(texte);
-  const epinglee = page.locator('.points-cles .note-epinglee a');
+  const epinglee = page.locator('.notes-epinglees-zone .note-epinglee a');
   await expect(epinglee).toHaveCount(1);
   await expect(epinglee).toHaveAttribute('href', 'http://exemple.net/x');
   await expect(epinglee).toHaveAttribute('rel', 'noopener noreferrer');
   expect((await lireDocument('crm_notes/n1')).texte).toBe(texte);
-  await capture(page, 'I6-liens', page.locator('.points-cles .note-epinglee'));
+  await capture(page, 'I6-liens', page.locator('.notes-epinglees-zone .note-epinglee'));
 });
 
 test('I6 : du code saisi dans une note (balise img avec onerror) reste du texte : rien ne s’exécute', async ({ page }) => {
@@ -169,7 +169,7 @@ test('I14 : jusqu’à la limite, pas de bouton ; la note épinglée du haut res
   await expect(page.locator('.fil-note[data-note="n1"] [data-action="developper-note"]')).toBeHidden();
   await expect(page.locator('.fil-note[data-note="n2"] [data-action="developper-note"]')).toBeHidden();
   // La note n3 est épinglée : elle est aussi dans le fil (coupée à la limite) et en haut (3 lignes).
-  expect(await lignesVisibles(page.locator('.points-cles .note-epinglee .note-texte'))).toBe(3);
-  await expect(page.locator('.points-cles .note-epinglee [data-action="developper-note"]')).toHaveCount(0);
+  expect(await lignesVisibles(page.locator('.notes-epinglees-zone .note-epinglee .note-texte'))).toBe(3);
+  await expect(page.locator('.notes-epinglees-zone .note-epinglee [data-action="developper-note"]')).toHaveCount(0);
   await capture(page, 'I14-limite', page.locator('.fil-note[data-note="n1"]'));
 });
