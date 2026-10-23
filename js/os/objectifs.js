@@ -5,11 +5,15 @@ import {
 import { db } from './firebase.js';
 import { h, icone, vider, remplir, toast } from './ui.js';
 import { animerCompteur, celebrerObjectif } from './celebrations.js';
+import { TABLE_KPI_ACTIVE, nomCollection, faut_repli } from './objectifs-tables.js';
 
 const etat = { objectifs: [], saisies: [], pretObjectifs: false, pretSaisies: false };
 const abonnes = new Set();
 const calculateurs = {}; // id de calcul → { libelle, unite, calculer(mois) }
 let desabonnements = [];
+let repli = { definitions: false, saisies: false }; // true = la nouvelle table était vide au montage, on lit l'ancienne (interrupteur allumé seulement)
+const nomLecture = (cle) => nomCollection(cle, { repli });
+const nomEcriture = (cle) => nomCollection(cle, { ecriture: true });
 let compte = null;
 let objectifsDepart = [];
 let referenceFranchissement = null; // { cle: pourcentage } relevé pendant la session
@@ -95,17 +99,38 @@ export function demarrerObjectifs(compteConnecte, departs = []) {
   compte = compteConnecte;
   objectifsDepart = departs;
   referenceFranchissement = null;
-  desabonnements.push(onSnapshot(collection(db, 'os_objectifs'), (snap) => {
+  repli = { definitions: false, saisies: false };
+  suivre('definitions', (snap) => {
     etat.objectifs = snap.docs.map((d) => ({ ...d.data(), id: d.id }));
     etat.pretObjectifs = true;
-    if (!snap.metadata.fromCache) initialiserSiBesoin(snap.docs.map((d) => d.id));
+    if (!snap.metadata.fromCache && !repli.definitions) initialiserSiBesoin(snap.docs.map((d) => d.id));
     notifier();
-  }, (e) => console.warn('Objectifs indisponibles', e.code)));
-  desabonnements.push(onSnapshot(collection(db, 'os_objectifs_saisies'), (snap) => {
+  }, 'Objectifs indisponibles');
+  suivre('saisies', (snap) => {
     etat.saisies = snap.docs.map((d) => ({ ...d.data(), id: d.id }));
     etat.pretSaisies = true;
     notifier();
-  }, (e) => console.warn('Saisies indisponibles', e.code)));
+  }, 'Saisies indisponibles');
+}
+
+/** Écoute une table. Interrupteur allumé : si la nouvelle table est vide au premier retour du serveur, on bascule UNE fois sur l'ancienne (lecture seule). */
+function suivre(cle, traiter, messageErreur) {
+  let decide = !TABLE_KPI_ACTIVE;
+  let arret = () => {};
+  const ecouter = () => onSnapshot(collection(db, nomLecture(cle)), (snap) => {
+    if (!decide && !snap.metadata.fromCache) {
+      decide = true;
+      if (faut_repli({ nouvelleVide: snap.empty })) {
+        repli[cle] = true;
+        arret();
+        arret = ecouter();
+        return;
+      }
+    }
+    traiter(snap);
+  }, (e) => console.warn(messageErreur, e.code));
+  arret = ecouter();
+  desabonnements.push(() => arret());
 }
 
 export function arreterObjectifs() {
@@ -123,7 +148,7 @@ async function initialiserSiBesoin(idsExistants) {
   if (initialisationFaite || idsExistants.length > 0) return;
   initialisationFaite = true;
   for (const o of objectifsDepart) {
-    const ref = doc(db, 'os_objectifs', o.id);
+    const ref = doc(db, nomEcriture('definitions'), o.id);
     await runTransaction(db, async (t) => {
       const s = await t.get(ref);
       if (!s.exists()) t.set(ref, o);
@@ -134,19 +159,19 @@ async function initialiserSiBesoin(idsExistants) {
 // ---------------------------------------------------------------- écritures
 
 export async function ajouterASaisie(objectifId, mois, delta) {
-  await setDoc(doc(db, 'os_objectifs_saisies', `${objectifId}_${mois}`), {
+  await setDoc(doc(db, nomEcriture('saisies'), `${objectifId}_${mois}`), {
     objectifId, mois, valeur: increment(delta), maj: serverTimestamp(),
   }, { merge: true });
 }
 
 export async function definirSaisie(objectifId, mois, valeurSaisie) {
-  await setDoc(doc(db, 'os_objectifs_saisies', `${objectifId}_${mois}`), {
+  await setDoc(doc(db, nomEcriture('saisies'), `${objectifId}_${mois}`), {
     objectifId, mois, valeur: Math.max(0, Number(valeurSaisie) || 0), maj: serverTimestamp(),
   }, { merge: true });
 }
 
 export async function majObjectif(id, patch) {
-  await updateDoc(doc(db, 'os_objectifs', id), patch);
+  await updateDoc(doc(db, nomEcriture('definitions'), id), patch);
 }
 
 /** Ajoute un objectif calculé choisi dans la liste des indicateurs proposés (nouveaux contacts, chiffre d'affaires signé, passages à une étape…). */
@@ -155,7 +180,7 @@ export async function ajouterObjectifCalcule({ calcul, etapeId = null, cible, co
   if (!c) throw new Error('Indicateur inconnu');
   const id = `${calcul}${etapeId ? `_${etapeId}` : ''}_${Date.now().toString(36)}`;
   const ordre = Math.max(0, ...etat.objectifs.map((o) => o.ordre ?? 0)) + 1;
-  await setDoc(doc(db, 'os_objectifs', id), {
+  await setDoc(doc(db, nomEcriture('definitions'), id), {
     id, libelle: c.libelle, type: 'calcule', calcul, ...(c.etape ? { etapeId } : {}), cible: Number(cible) || 1, unite: c.unite || '', couleur, ordre, actif: true,
   });
 }
@@ -163,7 +188,7 @@ export async function ajouterObjectifCalcule({ calcul, etapeId = null, cible, co
 export async function ajouterObjectifManuel({ libelle, cible, unite = '', couleur = '#b98ee0' }) {
   const id = `manuel_${Date.now().toString(36)}`;
   const ordre = Math.max(0, ...etat.objectifs.map((o) => o.ordre ?? 0)) + 1;
-  await setDoc(doc(db, 'os_objectifs', id), {
+  await setDoc(doc(db, nomEcriture('definitions'), id), {
     id, libelle, type: 'manuel', calcul: null, cible: Number(cible) || 1, unite, couleur, ordre, actif: true,
   });
 }
