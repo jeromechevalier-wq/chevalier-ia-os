@@ -42,7 +42,7 @@ Pour voir le résultat : ouvre `https://chevalier-ia-app.web.app/espace/<identif
 Dans le Terminal, dans le dossier du projet :
 
 ```bash
-cd "/Users/jeromechevalier/Library/CloudStorage/GoogleDrive-jerome.chevalier@gmail.com/Mon Drive/Chevalier-AI/Projets/chevalier-ia-os"
+cd "/Users/jeromechevalier/Code-Chevalier-IA/chevalier-ia-os"
 ```
 
 Activer :
