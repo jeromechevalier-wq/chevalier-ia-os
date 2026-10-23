@@ -68,7 +68,7 @@ Jérôme ne veut pas être le goulot d'étranglement : GitHub permet de revenir 
 - Une relecture Fable des briefs avant l'envoi a trouvé des erreurs à chaque fois (dépôt local en retard, lignes inexactes, collisions entre PR) : la garder.
 - Données de Jérôme modifiées pendant la nuit : seulement avec son accord écrit dans la session, avec les outils MCP, après la fusion du code, sans rien écrire dans le dépôt public (ni noms ni phrases).
 
-### Leçons de la troisième nuit (22 au 23/10/2026)
+### Leçons des 5e et 6e nuits « GO NUIT » (22 au 23/10/2026, suite des leçons ci-dessus)
 - La coche de PR ne lance **pas** `look-compact` (taille ou poids de texte en dur) : toute PR qui touche du CSS lance `npm run test:module look-compact` avant l'ouverture (la PR du badge l'avait fait rougir sans le voir).
 - Le hook « commit non poussé » est un faux positif juste après la recréation de la branche de session depuis `main` : pousser la branche (identique à `main`) le calme, sans rien publier.
 - Fable a une limite d'usage : si elle est atteinte, la relecture attend la levée, la fusion de la PR concernée aussi (jamais de « non relue par Fable » sans le dire).
