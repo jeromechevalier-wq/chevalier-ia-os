@@ -16,7 +16,7 @@ Un mot = une seule chose. Cette page dit quel mot désigne quoi (décision de J�
 | Une case du pipeline des projets (Lancement, Découverte, Livraison, Clôture) | **Phase** | fiche projet, liste « Phase » du Résumé | `changer_phase_projet` |
 | L'état d'un projet | **Statut** : Actif, Terminé | étiquette sous le titre | `terminer_projet`, `rouvrir_projet` |
 | Une chose à produire dans une phase de projet | **Livrable** | section « Livrables », Résumé « Avancement » | `ajouter_livrable_projet`, `terminer_livrable_projet` |
-| Un événement daté dans le fil | **Activité** (type Appel, Rendez-vous, Email, **Tâche**) | onglet Activité, Points clés | `creer_activite`, `terminer_activite` |
+| Un événement daté dans le fil | **Activité** (type Appel, Rendez-vous, Email, **Tâche**) | onglet Activité, bloc « À faire » | `creer_activite`, `terminer_activite` |
 
 ## Titres des livrables
 Dans une phase, le groupe s'appelle « Livrable <Phase> » avec 0 ou 1 livrable et « Livrables <Phase> » avec 2 ou plus, sans majuscules.
@@ -34,6 +34,14 @@ Dans une phase, le groupe s'appelle « Livrable <Phase> » avec 0 ou 1 livrable 
 - Le type d'activité **« Tâche »** (pastille, `creer_activite`, `terminer_activite`) : il est maintenant proposé aussi sur la fiche projet.
 - Les **étapes** d'affaires et les **phases** de projets gardent leur nom.
 - Ce qui est stocké ne change pas : la collection `projets_taches`, le type d'événement `tache_faite` et les identifiants. Les événements déjà dans l'Historique gardent leur ancien texte (« Tâche faite : … »). Aucune donnée n'a été migrée.
+
+## Mots de l'écran changés le 23/10/2026 (aucun identifiant ni donnée ne change)
+| Avant | Maintenant | Remarque |
+|---|---|---|
+| « Tableau de bord » (module technique : clés, sauvegardes, surveillance) | **Maintenance** | identifiant `tableaudebord`, routes `#/tableaudebord/…` et tables `tableaudebord_*` inchangés pour l'instant (renommage technique prévu, avec alias) ; « Tableau de bord » est gardé pour le futur module d'analyse des indicateurs |
+| « Objectifs du mois » | **Indicateurs** | la cible chiffrée d'un indicateur reste un « objectif » |
+| « Points clés » | **À faire** (activités) et **Notes épinglées** (notes) | deux blocs séparés dans la colonne de droite des fiches |
+| (proposé) « Prospection » à la place de « Affaires » | **refusé** : on garde « Affaires » | une affaire gagnée n'est plus de la prospection ; vocabulaire de Pipedrive ; le bouton « + Affaire » et les fiches gardent le mot |
 
 ## À savoir
 - 22/10/2026 : plus de pause (décision de Jérôme) : une affaire est ouverte, gagnée ou perdue ; un projet est actif ou terminé ; pour relancer plus tard, planifier une activité.
