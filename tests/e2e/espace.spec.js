@@ -2,7 +2,7 @@
 // (chargées le temps de ce fichier, puis les règles du CRM sont remises pour les parcours suivants).
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { test, expect, ecrireDocument, estTelephone, PROJET, FIRESTORE, URL_APP } from './outils.js';
+import { test, expect, ecrireDocument, listerDocuments, estTelephone, PROJET, FIRESTORE, URL_APP } from './outils.js';
 
 const ALICE = 'alice@exemple.test';
 const ZOE = 'zoe@exemple.test';
@@ -73,6 +73,16 @@ test('E3 un membre du client se connecte et arrive sur son accueil ; il peut se 
   await expect(page.getByText(`${ALICE} · éditeur`)).toBeVisible();
   await page.getByRole('button', { name: 'Se déconnecter' }).click();
   await expect(page.getByRole('button', { name: 'Se connecter avec Google' })).toBeVisible();
+});
+
+test("KPI4 chez un client (base 2) : pas de section « Indicateurs », aucune table d'objectifs lue ni créée", async ({ page }) => {
+  await aller(page, 'atelier');
+  await page.waitForFunction(() => !!window.__chevalierTest);
+  await page.evaluate((e) => window.__chevalierTest.connecter(e, true), ALICE);
+  await expect(page.getByText(`${ALICE} · éditeur`)).toBeVisible();
+  await expect(page.locator('.grille-objectifs, #reglages-objectifs')).toHaveCount(0);
+  await expect(page.locator('body')).not.toContainText('Indicateurs');
+  for (const table of ['os_kpi', 'os_kpi_saisies', 'os_objectifs', 'os_objectifs_saisies']) expect(await listerDocuments(table)).toHaveLength(0);
 });
 
 test("E4 refus IDENTIQUE pour un compte inconnu et pour un membre d'un autre client, sans rien révéler", { tag: '@sans-telephone' }, async ({ page }) => {
