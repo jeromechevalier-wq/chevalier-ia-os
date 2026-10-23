@@ -36,9 +36,11 @@ describe('R11 aucune écriture', () => {
     const [, liste] = /import \{([^}]*)\} from 'https:\/\/www\.gstatic\.com\/firebasejs\/[^/]+\/firebase-firestore\.js'/.exec(t);
     assert.deepEqual(liste.split(',').map((x) => x.trim()).filter(Boolean).sort(), ['collection', 'onSnapshot', 'query', 'where']);
   });
-  test('R11 boutons de l\'écran : « Réessayer », les filtres, et la saisie (Saisir, Enregistrer, Annuler) ; ni rafraîchir, ni suppression', () => {
+  test('R11 boutons de l\'écran : « Réessayer », « Filtres » (et ses puces), et la saisie (Saisir, Enregistrer, Annuler) ; ni rafraîchir, ni suppression', () => {
     const ecran = lire(`${DOSSIER}/ecran.js`);
-    assert.doesNotMatch(ecran, /Rafraîchir|Supprimer|Retirer|<input/);
+    assert.doesNotMatch(ecran, /Rafraîchir|Supprimer|<input/);
+    // « Retirer » n'existe que pour retirer une puce de FILTRE (jamais une donnée) : aucune suppression dans la base.
+    for (const m of ecran.matchAll(/Retirer[^`'"]*/g)) assert.match(m[0], /^Retirer le filtre/, m[0]);
     assert.match(ecran, /Enregistrer/);
     assert.match(ecran, /Annuler/);
     assert.match(lire(`${DOSSIER}/logique.js`), /Saisir la date/);
@@ -86,20 +88,23 @@ describe('R1 branchement dans la coque', () => {
     assert.equal(m.nom, 'Maintenance');
     assert.equal(m.reserveAuxClients, undefined);
     assert.deepEqual(m.collections, ['tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes']);
-    assert.deepEqual(m.ecrans.map((e) => [e.route, e.libelle]), [['tableaudebord/general', 'Général'], ['tableaudebord/technique', 'Technique']]);
+    assert.deepEqual(m.ecrans.map((e) => [e.route, e.libelle]), [['tableaudebord/general', 'Maintenance']]);
     assert.deepEqual(m.reglages.sections, []);
     assert.ok(m.reglages.resume.startsWith('La maintenance se lit'));
   });
-  test('R1 chez Jérôme (racine), le menu contient UNE entrée « Maintenance » (arrivée Général) ; Général et Technique sont des onglets, hors menu', () => {
+  test('R1 chez Jérôme (racine), le menu contient UNE entrée « Maintenance » (arrivée tableaudebord/general) et le module ne déclare qu\'un écran : aucun onglet', () => {
     const racine = MODULES.find((m) => m.id === 'tableaudebord');
     assert.equal(racine.libelle, 'Maintenance');
     assert.equal(typeof racine.monter, 'function');
-    assert.equal(racine.entrees[0].libelle, 'Général');
+    assert.equal(racine.entrees[0].libelle, 'Maintenance');
     assert.equal(racine.entrees[0].chemin, 'tableaudebord/general');
     const bloc = blocsDuMenu(MODULES.map((m) => m.id)).find((b) => b.id === 'tableaudebord');
     assert.deepEqual(bloc.sections.flat().map((e) => [e.libelle, e.chemin]), [['Maintenance', 'tableaudebord/general']]);
-    assert.deepEqual(bloc.entrees.filter((e) => e.horsMenu).map((e) => e.libelle), ['Technique'], 'Technique reste servi (signet) mais hors menu');
-    assert.deepEqual(ongletsDuModule('tableaudebord').map((o) => o.libelle), ['Général', 'Technique'], 'les onglets viennent du registre (Finance, Stocks et Historique des saisies s\'y ajoutent à l\'écran)');
+    assert.deepEqual(bloc.entrees.filter((e) => e.horsMenu), [], 'aucun écran déclaré hors menu : un seul écran');
+    assert.equal(ongletsDuModule('tableaudebord').length, 1, 'un seul écran déclaré : pas de barre d\'onglets');
+    // Les routes de signets restent SERVIES par le module même si le registre n'en déclare qu\'une : elles ouvrent le même écran.
+    assert.match(lire(`${DOSSIER}/index.js`), /const ECRANS = \['general', 'technique', 'finance', 'stocks', 'historique'\]/);
+    assert.doesNotMatch(lire(`${DOSSIER}/ecran.js`), /barreOnglets|onglets\.js|td-onglet|td-segment|aria-pressed/, 'ni barre d\'onglets ni segment « Tout voir / À traiter » dans l\'écran');
   });
   test('R1 la feuille de style est chargée au premier affichage, comme Automatisations', () => {
     assert.match(lire(`${DOSSIER}/index.js`), /css\/tableaudebord\.css/);

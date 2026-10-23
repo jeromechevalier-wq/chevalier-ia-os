@@ -1,6 +1,6 @@
-// Module Tableau de bord (écrans, saisie d'une date ou d'une valeur par la fonction du serveur, onglet « Historique des saisies ») : état des indicateurs de surveillance (clés, plus tard sauvegardes, finances, stocks).
-// Routes : tableaudebord/general, tableaudebord/technique ; tableaudebord/finance et tableaudebord/stocks existent aussi (onglets montrés seulement
-// si un indicateur les porte) ; tableaudebord/historique est un onglet seulement (pas d'entrée de menu). Présent à la racine et chez les clients qui l'ont activé ; les données se lisent sous le chemin de base de la coque.
+// Module Maintenance (id technique « tableaudebord ») : UN SEUL écran (saisie d'une date ou d'une valeur par la fonction du serveur, bloc replié « Historique des saisies »),
+// état des indicateurs de surveillance (clés, sauvegardes, plus tard finances, stocks).
+// Routes servies : tableaudebord/general, technique, finance, stocks, historique : elles ouvrent toutes le même écran (signets, liens existants) et descendent au bloc concerné. Présent à la racine et chez les clients qui l'ont activé ; les données se lisent sous le chemin de base de la coque.
 import { vider } from '../../os/ui.js';
 import { naviguer } from '../../os/router.js';
 import * as D from './donnees.js';
@@ -44,7 +44,11 @@ export function afficher(conteneur, segs) {
     naviguer('tableaudebord/general', { remplacer: true });
     return quitter;
   }
-  if (montee && ecranMonte === ecran && conteneur.firstChild) return quitter;
+  if (montee && conteneur.firstChild) { // déjà monté : un seul écran, on change seulement de bloc
+    ecranMonte = ecran;
+    montee.quitter.aller?.(ecran);
+    return quitter;
+  }
   ajouterFeuille();
   quitter();
   vider(conteneur);

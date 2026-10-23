@@ -123,7 +123,7 @@ test('2 échelle compacte : texte 14 px, interligne 1,45, titres 20 px, poids �
   if (tel) await verifierTactile(page);
 });
 
-const ZONES = '.champ-petit, .champ-saisie, .pastille-type, .case, .td-segment button, .bouton-icone, .carte-menu, .prop-modifier, .case-fait, .bouton-copier, .bouton-info, .pastille-retrait';
+const ZONES = '.champ-petit, .champ-saisie, .pastille-type, .case, .bouton-icone, .carte-menu, .prop-modifier, .case-fait, .bouton-copier, .bouton-info, .pastille-retrait';
 /** Téléphone : champs ≥ 16 px (sinon l'iPhone zoome au toucher) et zones de clic ≥ 44 px (taille réelle, ou zone invisible qui reçoit le doigt : on teste ce que touche le doigt). */
 async function verifierTactile(page) {
   const lire = (racine = 'body') => page.evaluate(([zones, racine]) => {
