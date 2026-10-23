@@ -120,7 +120,10 @@ test('I18 Accueil : plus de bouton « + Personne » dans l\'en-tête ni dans le 
   await page.locator(estTelephone(page) ? '.bouton-plus-mobile' : '.bouton-plus:not(.bouton-plus-mobile)').click();
   await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Personne' })).toBeVisible();
   await page.keyboard.press('Escape');
-  await page.locator('.page-accueil .etat-vide', { hasText: 'Ajoute ta première personne' }).scrollIntoViewIfNeeded();
+  // l'Accueil se re-rend après Échap : le nœud peut être remplacé entre deux instructions, on réessaie jusqu'à ce que le défilement passe
+  const messageVide = page.locator('.page-accueil .etat-vide', { hasText: 'Ajoute ta première personne' });
+  await expect(messageVide).toBeVisible();
+  await expect(async () => { await messageVide.scrollIntoViewIfNeeded({ timeout: 2000 }); }).toPass();
   await capture(page, 'I18-accueil-vide-sans-bouton-personne');
   await page.locator(estTelephone(page) ? '.bouton-plus-mobile' : '.bouton-plus:not(.bouton-plus-mobile)').click();
   await page.locator('.menu-pop').getByRole('menuitem', { name: 'Personne' }).click();

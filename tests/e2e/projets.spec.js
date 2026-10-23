@@ -618,6 +618,7 @@ test('C30 le projet montre les documents et les notes de son affaire, sans les d
   await expect(notes.filter({ hasText: 'Note écrite sur le projet' })).toHaveCount(1);
   if (estTelephone(page)) {
     // une seule colonne : le résumé en premier, puis les documents (la section « Détails » n'existe plus : le dossier de travail est dans l'onglet Documents)
+    await ouvrirDocuments(page); // le détachement recrée le panneau : l'onglet Documents s'est refermé
     const ordre = await page.evaluate(() => ['projet-resume', 'projet-documents'].map((s) => document.querySelector(`[data-section="${s}"]`).getBoundingClientRect().top));
     expect(ordre[0]).toBeLessThan(ordre[1]);
     await expect(page.locator('[data-section="projet-details"]')).toHaveCount(0);

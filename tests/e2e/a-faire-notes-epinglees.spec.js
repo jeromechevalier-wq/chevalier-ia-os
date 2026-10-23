@@ -6,6 +6,8 @@ import {
 
 const CAPTURES = 'e2e/captures/a-faire-notes-epinglees';
 const capture = (page, nom, cible = page) => cible.screenshot({ path: `${CAPTURES}/${nom}${estTelephone(page) ? '-telephone' : ''}.png`, animations: 'disabled' });
+// Sous 1024 px, .panneau-activite est en display: contents (pas de cadre à capturer) : on prend la grille de la fiche.
+const cadreActivite = (page) => page.locator(estTelephone(page) ? '.fiche-grille' : '.panneau-activite');
 async function aller(page, hash) { await page.evaluate((h) => { location.hash = h; }, hash); await attendreCalme(page); }
 async function note(id, texte, valeurs = {}) {
   await ecrireDocument(`crm_notes/${id}`, { texte, personneId: null, organisationId: null, affaireId: null, auteur: JEROME, creeLe: new Date(), modifieLe: new Date(), ...valeurs });
@@ -30,7 +32,7 @@ test('1 la fiche projet a un bloc « À faire » (plus de « Points clés ») av
   const haut = await page.locator('.notes-epinglees-zone').boundingBox();
   const bas = await page.locator('.points-cles').boundingBox();
   expect(haut.y).toBeLessThan(bas.y); // « Notes épinglées » au-dessus de « À faire »
-  await capture(page, '1-fiche-projet-avec-note', page.locator('.panneau-activite'));
+  await capture(page, '1-fiche-projet-avec-note', cadreActivite(page));
 });
 
 test('2 sans note épinglée : pas de section « Notes épinglées » (ni titre vide, ni bouton « Développer tout »), mais « À faire » est là, même vide', async ({ page }) => {
@@ -45,7 +47,7 @@ test('2 sans note épinglée : pas de section « Notes épinglées » (ni titre 
   await expect(page.locator('.points-cles h3')).toHaveText('À faire');
   await expect(page.locator('.points-cles')).toBeVisible();
   await expect(page.locator('.points-cles')).toContainText('Aucune activité à faire.');
-  await capture(page, '2-fiche-affaire-sans-note-epinglee', page.locator('.panneau-activite'));
+  await capture(page, '2-fiche-affaire-sans-note-epinglee', cadreActivite(page));
 });
 
 test('3 la note épinglée garde Modifier (sur place), Désépingler et Développer tout ; la section disparaît quand on désépingle ; l’onglet Notes garde toutes les notes', async ({ page }) => {

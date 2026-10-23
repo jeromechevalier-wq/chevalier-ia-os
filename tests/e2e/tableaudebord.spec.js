@@ -709,6 +709,10 @@ test('S7 Historique des saisies : bloc replié en bas de page (fermé par défau
   // Un bloc de l'écran seulement : aucune entrée de menu pour l'historique
   if (estTelephone(page)) await page.getByRole('button', { name: 'Ouvrir le menu' }).click();
   await expect(page.locator('.menu').getByRole('link', { name: 'Historique des saisies' })).toHaveCount(0);
+  if (estTelephone(page)) { // on referme le tiroir : son voile intercepterait les clics suivants
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.voile-menu')).toBeHidden();
+  }
   // On le referme : la liste disparaît ; on le rouvre : elle revient
   await ouvrirHistorique(page);
   await expect(page.locator('.td-h-ligne')).toHaveCount(0);
