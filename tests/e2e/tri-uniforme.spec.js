@@ -218,12 +218,19 @@ test('5 Le choix de tri est mémorisé par écran, relu après rechargement, et 
   // Un sens inversé est mémorisé aussi.
   await fleche(page).click();
   expect(JSON.parse(await preference(page, 'tri.affaires'))).toEqual({ critere: 'titre', sens: 'desc' });
+  // On attend que le menu de l'écran visé soit en place avant de choisir : sinon le choix peut tomber sur le menu de l'écran précédent.
   await allerA(page, 'Projets');
+  await expect(optionsDuMenu(page).first()).toHaveText('Trier par : Titre');
   await menuTri(page).selectOption('creation');
+  await expect.poll(() => preference(page, 'tri.projets')).not.toBeNull();
   await allerA(page, 'Personnes');
+  await expect(optionsDuMenu(page).first()).toHaveText('Trier par : Nom');
   await menuTri(page).selectOption('ville');
+  await expect.poll(() => preference(page, 'tri.personnes')).not.toBeNull();
   await allerA(page, 'Organisations');
+  await expect(optionsDuMenu(page).filter({ hasText: 'Affaires en cours' })).toHaveCount(1);
   await menuTri(page).selectOption('affaires');
+  await expect.poll(() => preference(page, 'tri.organisations')).not.toBeNull();
   // Clés distinctes par écran.
   expect(JSON.parse(await preference(page, 'tri.projets'))).toEqual({ critere: 'creation', sens: 'desc' });
   expect(JSON.parse(await preference(page, 'tri.personnes'))).toEqual({ critere: 'ville', sens: 'asc' });
