@@ -32,15 +32,23 @@
 .td-t-orange { color: var(--td-orange); }
 .td-t-rouge { color: var(--td-rouge); }
 
-/* Filtres */
-.td-filtres { display: flex; flex-wrap: wrap; gap: var(--esp-3) var(--esp-5); align-items: center; justify-content: space-between; }
-.td-segment { display: inline-flex; border: 1px solid var(--bordure); border-radius: var(--rayon-petit); overflow: hidden; }
-.td-segment button { background: none; border: 0; padding: var(--esp-2) var(--esp-6); min-height: 36px; cursor: pointer; color: var(--texte2); font: inherit; }
-.td-segment button[aria-pressed='true'] { background: var(--accent); color: var(--sur-accent); font-weight: var(--poids-moyen); }
-.td-filtres select { width: auto; min-width: 220px; max-width: 100%; }
+/* Filtres : le bouton commun de la coque + les puces des filtres actifs */
+.td-filtres { display: flex; flex-wrap: wrap; gap: var(--esp-3) var(--esp-5); align-items: center; margin-bottom: var(--esp-5); }
+.td-pastilles { min-width: 0; }
 
 /* Familles et lignes */
-.td-famille > header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--esp-3) var(--esp-5); }
+/* Blocs repliables (<details>) : un par famille, plus « Historique des saisies » en bas, fermé au départ */
+details.td-panneau { display: block; }
+.td-resume-bloc { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--esp-3) var(--esp-5); cursor: pointer; list-style: none; min-height: 36px; }
+.td-resume-bloc::-webkit-details-marker { display: none; }
+.td-resume-bloc::before { content: ''; flex: none; width: 8px; height: 8px; border-right: 2px solid var(--texte2); border-bottom: 2px solid var(--texte2); transform: rotate(-45deg); transition: transform .15s; }
+details[open] > .td-resume-bloc::before { transform: rotate(45deg); }
+.td-resume-bloc h2 { margin: 0; flex: 1 1 auto; min-width: 0; }
+.td-resume-bloc:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--rayon-petit); }
+details[open] > .td-resume-bloc { margin-bottom: var(--esp-5); }
+.td-zone { display: contents; }
+.td-tous { display: grid; gap: var(--esp-5); min-width: 0; }
+.td-titre-section { margin: 0; }
 .td-liste { list-style: none; margin: 0; padding: 0; display: grid; }
 .td-ligne { display: grid; grid-template-columns: minmax(150px, 1.4fr) 172px minmax(0, 1.6fr) auto; gap: var(--esp-2) var(--esp-6); align-items: center; padding: var(--esp-4) 0; border-top: 1px solid var(--bordure); }
 .td-ligne > * { min-width: 0; }
@@ -83,7 +91,6 @@
 
 @media (max-width: 640px) {
   .td-ligne { grid-template-columns: minmax(0, 1fr) auto; }
-  .td-filtres select { min-width: 0; flex: 1 1 100%; }
   .td-detail { grid-column: 1 / -1; order: 3; }
   .td-outils { grid-column: 1 / -1; order: 4; justify-content: flex-start; }
   .td-phrase { font-size: var(--fs-section); }

@@ -76,11 +76,11 @@ test('3 Automatisations : onglets « À valider » puis « Historique », naviga
   await expect(page).toHaveURL(/#\/automatisations\/historique$/);
 });
 
-test('4 Maintenance : l\'entrée unique s\'allume sur Général, Technique et l\'Historique des saisies ; ses onglets restent', async ({ page }) => {
+test('4 Maintenance : l\'entrée unique s\'allume sur toutes les routes du module (general, technique, historique) ; il n\'y a plus d\'onglets (un seul écran)', async ({ page }) => {
   await connecter(page, JEROME);
   await aller(page, '#/tableaudebord/technique');
-  await expect(page.locator('.td-onglet[aria-current="page"]')).toHaveText('Technique');
-  await expect(page.locator('.td-onglet')).toContainText(['Général', 'Technique', 'Historique des saisies']);
+  await expect(page.getByRole('heading', { name: 'Maintenance', level: 1 })).toBeVisible();
+  await expect(page.locator('.td-onglets, .td-onglet, .td-segment')).toHaveCount(0);
   await ouvrirMenu(page);
   await expect(page.locator('.menu .menu-entree[data-chemin="tableaudebord/general"]')).toHaveAttribute('aria-current', 'page');
   if (estTelephone(page)) await page.keyboard.press('Escape');
@@ -94,7 +94,9 @@ test('5 les anciennes adresses (signets) marchent toujours et l\'entrée du modu
   for (const [hash, entree] of [['#/veille/sources', 'veille/contenus'], ['#/automatisations/a-valider', 'automatisations/historique'], ['#/tableaudebord/technique', 'tableaudebord/general']]) {
     await aller(page, hash);
     await expect(page.getByText('Page introuvable')).toHaveCount(0);
-    await expect(page.locator('.page .onglets').first()).toBeVisible();
+    // Maintenance n'a plus d'onglets (un seul écran) : on attend son titre ; Veille et Automatisations gardent leur barre.
+    if (hash.includes('tableaudebord')) await expect(page.getByRole('heading', { name: 'Maintenance', level: 1 })).toBeVisible();
+    else await expect(page.locator('.page .onglets').first()).toBeVisible();
     await ouvrirMenu(page);
     await expect(page.locator(`.menu .menu-entree[data-chemin="${entree}"]`)).toHaveAttribute('aria-current', 'page');
     if (estTelephone(page)) await page.keyboard.press('Escape');

@@ -1,4 +1,6 @@
-// Module Tableau de bord (écrans en lecture seule) dans le navigateur, sur les émulateurs : critères R1 à R10 du brief (R11 et R12 sont dans test:logique).
+// Module Maintenance (id technique « tableaudebord ») dans le navigateur, sur les émulateurs : critères R1 à R10 du brief (R11 et R12 sont dans test:logique).
+// Depuis le 23/10/2026 : UN SEUL écran, sans onglets ni sous-onglets « Tout voir / À traiter » (règle de Jérôme). Les tests U1 à U5 portent sur cette structure ;
+// les tests R, S6 et S7 gardent leur exigence métier sur la nouvelle structure (blocs par famille, bouton « Filtres », « Historique des saisies » replié).
 // Les indicateurs d'essai sont fabriqués ici (jamais lus dans la vraie base). Les captures vont dans tests/e2e/captures/tableaudebord/.
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -18,6 +20,12 @@ const DOSSIER_CAPTURES = fileURLToPath(new URL('./captures/tableaudebord/', impo
 /** Capture de l'état obtenu, nommée d'après le critère et le format (ordinateur ou téléphone). */
 async function capturer(page, info, nom) {
   await page.screenshot({ path: `${DOSSIER_CAPTURES}${nom}-${info.project.name}.png`, fullPage: true });
+}
+
+/** Captures de recette de l'écran unique (au plus 4 : écran complet sur ordinateur et téléphone, filtres ouverts, historique ouvert), dans captures/maintenance-un-ecran/. */
+const DOSSIER_RECETTE = fileURLToPath(new URL('./captures/maintenance-un-ecran/', import.meta.url));
+async function capturerRecette(page, info, nom) {
+  await page.screenshot({ path: `${DOSSIER_RECETTE}${nom}-${info.project.name}.png`, fullPage: true });
 }
 
 /** Un indicateur comme la porte l'écrit : tous les champs, les facultatifs absents valent null. */
@@ -53,8 +61,20 @@ async function ouvrir(page, ecran = 'general') {
   await expect(page.getByRole('heading', { name: 'Maintenance', level: 1 })).toBeVisible();
 }
 const aller = (page, ecran) => page.evaluate((e) => { location.hash = `#/tableaudebord/${e}`; }, ecran);
-const ligne = (page, id) => page.locator(`.td-ligne[data-id="${id}"]`);
-const niveaux = (page, portee = '.td-contenu') => page.locator(`${portee} .td-ligne`).evaluateAll((els) => els.map((e) => e.dataset.niveau));
+// Une ligne d'un bloc de famille (tous les indicateurs) ; `ligneATraiter` = la même ligne dans « À traiter en premier » (en haut de l'écran).
+const ligne = (page, id) => page.locator(`.td-famille .td-ligne[data-id="${id}"]`);
+const ligneATraiter = (page, id) => page.locator(`[data-liste="a-traiter"] .td-ligne[data-id="${id}"]`);
+const niveaux = (page, portee = '.td-famille') => page.locator(`${portee} .td-ligne`).evaluateAll((els) => els.map((e) => e.dataset.niveau));
+/** Ouvre la fenêtre commune « Filtres », règle « À traiter seulement » (true/false) et coche ces familles, puis « Appliquer ». */
+async function filtrerAvec(page, { traiter = null, familles = [] } = {}) {
+  await page.locator('[data-action="filtres"]').click();
+  const fenetre = page.getByRole('dialog');
+  if (traiter !== null) await fenetre.locator('input[data-cle="traiter"]').setChecked(traiter);
+  for (const f of familles) await fenetre.locator(`input[data-cle="familles"][data-valeur="${f}"]`).check();
+  await fenetre.getByRole('button', { name: 'Appliquer' }).click();
+}
+const puces = (page) => page.locator('.td-pastilles .pastille-filtre');
+const AUCUN_ONGLET = '.td-onglets, .td-onglet, .td-segment, [aria-label="Tableaux"]';
 const SANS_DEBORDEMENT = () => document.documentElement.scrollWidth <= document.documentElement.clientWidth && document.body.scrollWidth <= document.body.clientWidth;
 const avecReglesQuiRefusent = async () => {
   const contenu = (await readFile(fileURLToPath(new URL('../../firestore.rules', import.meta.url)), 'utf8'))
@@ -71,7 +91,7 @@ const rendreLesVraiesRegles = async () => chargerRegles(await readFile(fileURLTo
 
 // ---------------------------------------------------------------- R1
 
-test('R1 le menu contient UNE entrée « Maintenance » chez Jérôme (Général et Technique sont des onglets) ; elle ouvre l\'écran Général', async ({ page }, info) => {
+test('R1 le menu contient UNE entrée « Maintenance » chez Jérôme ; elle ouvre l\'écran unique (aucun onglet)', async ({ page }, info) => {
   await jeuStandard();
   await connecter(page);
   if (estTelephone(page)) await page.getByRole('button', { name: 'Ouvrir le menu' }).click();
@@ -82,10 +102,10 @@ test('R1 le menu contient UNE entrée « Maintenance » chez Jérôme (Général
   await bloc.getByRole('link', { name: 'Maintenance', exact: true }).click();
   await expect(page).toHaveURL(/#\/tableaudebord\/general$/);
   await expect(page.getByRole('heading', { name: 'Maintenance', level: 1 })).toBeVisible();
-  await expect(page.locator('.td-onglet[aria-current="page"]')).toHaveText('Général');
+  await expect(page.locator(AUCUN_ONGLET)).toHaveCount(0);
   await expect(bloc.locator('.menu-entree')).toHaveAttribute('aria-current', 'page');
   await expect(page.locator('.td-phrase')).toBeVisible();
-  // Une adresse inconnue du module revient sur Général ; les onglets Finance et Stocks sont acceptés même absents du menu.
+  // Une adresse inconnue du module revient sur l'arrivée (general) ; technique, finance, stocks et historique sont acceptées (signets) : voir U3.
   await aller(page, 'nimportequoi');
   await expect(page).toHaveURL(/#\/tableaudebord\/general$/);
   await capturer(page, info, 'R1-general');
@@ -115,22 +135,20 @@ test('R3 une échéance dans 12 jours affiche « À surveiller » même si le sc
   await capturer(page, info, 'R3-echeances');
 });
 
-test('R4 chaque pastille a une icône ET un mot (aucun élément d\'état sans texte), sur Général comme sur Technique ; une mesure sans niveau n\'a pas de pastille', async ({ page }, info) => {
+test('R4 chaque pastille a une icône ET un mot (aucun élément d\'état sans texte), dans toutes les zones de l\'écran unique ; une mesure sans niveau n\'a pas de pastille', async ({ page }, info) => {
   await jeuStandard();
   await indicateur('mesure-sans-niveau', { tableau: 'technique', famille: 'cles', nom: 'Jours avant renouvellement', type: 'mesure', niveau: null, valeur: 42, unite: 'jours', message: null });
   await ouvrir(page, 'technique');
-  for (const ecran of ['technique', 'general']) {
-    await aller(page, ecran);
-    await expect(page.locator('[data-pastille]').first()).toBeVisible();
-    const pastilles = await page.locator('[data-pastille]').evaluateAll((els) => els.map((e) => ({ svg: e.querySelectorAll('svg').length, texte: e.textContent.trim(), niveau: e.dataset.pastille })));
-    expect(pastilles.length).toBeGreaterThan(8);
-    for (const p of pastilles) {
-      expect(p.svg, JSON.stringify(p)).toBe(1);
-      expect(p.texte.length, JSON.stringify(p)).toBeGreaterThan(1);
-    }
-    await capturer(page, info, `R4-pastilles-${ecran}`);
+  // Un seul écran : la phrase d'état, « À traiter en premier » et les blocs par famille portent tous des pastilles (icône ET mot).
+  await expect(page.locator('[data-pastille]').first()).toBeVisible();
+  const pastilles = await page.locator('[data-pastille]').evaluateAll((els) => els.map((e) => ({ svg: e.querySelectorAll('svg').length, texte: e.textContent.trim(), niveau: e.dataset.pastille })));
+  expect(pastilles.length).toBeGreaterThan(8);
+  for (const p of pastilles) {
+    expect(p.svg, JSON.stringify(p)).toBe(1);
+    expect(p.texte.length, JSON.stringify(p)).toBeGreaterThan(1);
   }
-  await aller(page, 'technique');
+  await expect(page.locator('.td-phrase [data-pastille], [data-liste="a-traiter"] [data-pastille]').first()).toBeVisible();
+  await capturer(page, info, 'R4-pastilles');
   const mesure = ligne(page, 'mesure-sans-niveau');
   await expect(mesure).toHaveAttribute('data-niveau', 'sans');
   await expect(mesure.locator('[data-pastille]')).toHaveCount(0);
@@ -139,7 +157,7 @@ test('R4 chaque pastille a une icône ET un mot (aucun élément d\'état sans t
 
 // ---------------------------------------------------------------- R5
 
-test('R5 Technique : blocs par famille (clés d\'abord, puis alphabétique), tri rouge puis orange puis gris puis vert, filtre « À traiter » masque les verts', async ({ page }, info) => {
+test('R5 blocs par famille (clés d\'abord, puis alphabétique), tri rouge puis orange puis gris puis vert, le filtre « À traiter seulement » (bouton Filtres) masque les verts', async ({ page }, info) => {
   await jeuStandard();
   await ouvrir(page, 'technique');
   await expect(page.locator('.td-famille h2')).toHaveText(['Clés et autorisations', 'Automatisations', 'Sauvegardes']);
@@ -159,53 +177,59 @@ test('R5 Technique : blocs par famille (clés d\'abord, puis alphabétique), tri
   await expect(l.locator('a')).toHaveCount(0);
   await expect(ligne(page, 'echeance12').locator('.td-methode')).toHaveText('semi');
   await expect(ligne(page, 'github').locator('.td-methode')).toHaveText('auto');
-  await capturer(page, info, 'R5-technique-tout-voir');
-  // Filtre « À traiter » : plus aucun vert, les blocs sans rien à traiter disparaissent
-  await page.getByRole('button', { name: 'À traiter', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'À traiter', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await capturer(page, info, 'R5-tout-voir');
+  // Filtre « À traiter seulement » : plus aucun vert, les blocs sans rien à traiter disparaissent
+  await filtrerAvec(page, { traiter: true });
+  await expect(puces(page)).toHaveText(['À traiter seulement']);
+  await expect(page.locator('[data-action="filtres"] .compteur-filtres')).toHaveText('1');
   expect((await niveaux(page)).filter((n) => n === 'vert')).toHaveLength(0);
   expect((await niveaux(page)).length).toBe(7);
   await expect(page.locator('.td-famille h2')).toHaveText(['Clés et autorisations', 'Sauvegardes']);
   // Les compteurs d'un bloc restent ceux de tout le bloc
   await expect(page.locator('.td-famille[data-famille="cles"] [data-compteur="vert"]')).toHaveText('3 OK');
-  await capturer(page, info, 'R5-technique-a-traiter');
-  await page.getByRole('button', { name: 'Tout voir', exact: true }).click();
+  await capturer(page, info, 'R5-a-traiter');
+  await page.getByRole('button', { name: 'Retirer le filtre : À traiter seulement' }).click();
   expect((await niveaux(page)).length).toBe(14);
+  await expect(puces(page)).toHaveCount(0);
 });
 
 test('R5 les filtres se combinent (À traiter + famille) et chaque liste ne propose que les valeurs possibles', async ({ page }) => {
   await jeuStandard();
   await ouvrir(page, 'technique');
-  const famille = page.getByLabel('Filtrer par famille');
-  await expect(famille.locator('option')).toHaveText(['Toutes les familles', 'Clés et autorisations', 'Automatisations', 'Sauvegardes']);
-  await page.getByRole('button', { name: 'À traiter', exact: true }).click();
-  await expect(famille.locator('option')).toHaveText(['Toutes les familles', 'Clés et autorisations', 'Sauvegardes'], { useInnerText: true }); // « Automatisations » n'a rien à traiter
-  await famille.selectOption('sauvegardes');
-  await expect(page.locator('.td-ligne')).toHaveCount(1);
-  await expect(page.locator('.td-ligne .td-nom')).toHaveText('Essai de restauration');
-  await page.getByRole('button', { name: 'Tout voir', exact: true }).click();
-  await expect(page.locator('.td-ligne')).toHaveCount(3); // la famille reste choisie
-  await famille.selectOption('');
-  await expect(page.locator('.td-ligne')).toHaveCount(14);
+  const casesFamille = () => page.getByRole('dialog').locator('input[data-cle="familles"]').evaluateAll((els) => els.map((e) => e.closest('label').textContent.trim()));
+  await page.locator('[data-action="filtres"]').click();
+  expect(await casesFamille()).toEqual(['Clés et autorisations', 'Automatisations', 'Sauvegardes']);
+  await page.getByRole('dialog').getByRole('button', { name: 'Appliquer' }).click();
+  await filtrerAvec(page, { traiter: true });
+  await page.locator('[data-action="filtres"]').click();
+  expect(await casesFamille()).toEqual(['Clés et autorisations', 'Sauvegardes']); // « Automatisations » n'a rien à traiter : elle n'est plus proposée
+  await page.getByRole('dialog').locator('input[data-cle="familles"][data-valeur="sauvegardes"]').check();
+  await page.getByRole('dialog').getByRole('button', { name: 'Appliquer' }).click();
+  await expect(page.locator('.td-famille .td-ligne')).toHaveCount(1);
+  await expect(page.locator('.td-famille .td-ligne .td-nom')).toHaveText('Essai de restauration');
+  await expect(puces(page)).toHaveText(['À traiter seulement', 'Sauvegardes']);
+  await page.getByRole('button', { name: 'Retirer le filtre : À traiter seulement' }).click();
+  await expect(page.locator('.td-famille .td-ligne')).toHaveCount(3); // la famille reste choisie
+  await page.getByRole('button', { name: 'Retirer le filtre : Sauvegardes' }).click();
+  await expect(page.locator('.td-famille .td-ligne')).toHaveCount(14);
 });
 
 // ---------------------------------------------------------------- R6
 
-test('R6 Général : phrase d\'état, compteurs et liste « À traiter en premier » cohérents avec Technique', async ({ page }, info) => {
+test('R6 en haut de l\'écran : phrase d\'état, compteurs et liste « À traiter en premier » cohérents avec les blocs par famille', async ({ page }, info) => {
   await jeuStandard();
-  await ouvrir(page, 'technique');
-  await expect(page.locator('.td-ligne')).toHaveCount(14); // attend que les indicateurs soient affichés avant de les compter
+  await ouvrir(page, 'general');
+  await expect(page.locator('.td-famille .td-ligne')).toHaveCount(14); // attend que les indicateurs soient affichés avant de les compter
   const technique = {};
   for (const n of await niveaux(page)) technique[n] = (technique[n] ?? 0) + 1;
   expect(technique).toEqual(COMPTES_STANDARD);
-  const idsATraiter = await page.locator('.td-ligne:not([data-niveau="vert"])').evaluateAll((els) => els.map((e) => e.dataset.id).sort());
-  await aller(page, 'general');
+  const idsATraiter = await page.locator('.td-famille .td-ligne:not([data-niveau="vert"])').evaluateAll((els) => els.map((e) => e.dataset.id).sort());
   await expect(page.locator('.td-phrase')).toHaveText('3 pannes à traiter');
   await expect(page.locator('.td-phrase')).toHaveAttribute('data-niveau', 'rouge');
-  await expect(page.locator('[data-compteur="rouge"]')).toHaveText('3 pannes');
-  await expect(page.locator('[data-compteur="orange"]')).toHaveText('3 À surveiller');
-  await expect(page.locator('[data-compteur="gris"]')).toHaveText('1 relevé trop ancien');
-  await expect(page.locator('[data-compteur="vert"]')).toHaveText('7 OK');
+  await expect(page.locator('.td-global [data-compteur="rouge"]')).toHaveText('3 pannes');
+  await expect(page.locator('.td-global [data-compteur="orange"]')).toHaveText('3 À surveiller');
+  await expect(page.locator('.td-global [data-compteur="gris"]')).toHaveText('1 relevé trop ancien');
+  await expect(page.locator('.td-global [data-compteur="vert"]')).toHaveText('7 OK');
   await expect(page.getByRole('heading', { name: 'À traiter en premier' })).toBeVisible();
   const general = await page.locator('[data-liste="a-traiter"] .td-ligne').evaluateAll((els) => els.map((e) => [e.dataset.id, e.dataset.niveau]));
   expect(general.map((x) => x[0]).sort()).toEqual(idsATraiter);
@@ -216,7 +240,7 @@ test('R6 Général : phrase d\'état, compteurs et liste « À traiter en premie
   await capturer(page, info, 'R6-general');
 });
 
-test('R6 Général : « Une panne à traiter » au singulier, « Tout marche, quelques points à surveiller », « Tout fonctionne », et « Rien à traiter. »', async ({ page }, info) => {
+test('R6 phrase d\'état : « Une panne à traiter » au singulier, « Tout marche, quelques points à surveiller », « Tout fonctionne », et « Rien à traiter. »', async ({ page }, info) => {
   await indicateur('a', { nom: 'A' });
   await indicateur('b', { nom: 'B', famille: 'sauvegardes' });
   await ouvrir(page, 'general');
@@ -233,49 +257,46 @@ test('R6 Général : « Une panne à traiter » au singulier, « Tout marche, qu
 
 // ---------------------------------------------------------------- R7
 
-test('R7 les onglets Finance et Stocks sont absents quand aucun indicateur ne les porte, présents sinon (et la page s\'ouvre)', async ({ page }, info) => {
+test('R7 Finance et Stocks sont des blocs de famille comme les autres, présents seulement quand un indicateur les porte (aucun onglet)', async ({ page }, info) => {
   await jeuStandard();
   await ouvrir(page, 'general');
-  await expect(page.locator('.td-onglet')).toHaveText(['Général', 'Technique', 'Historique des saisies']);
-  await capturer(page, info, 'R7-onglets-sans-finance-ni-stocks');
+  await expect(page.locator(AUCUN_ONGLET)).toHaveCount(0);
+  await expect(page.locator('.td-famille h2')).toHaveText(['Clés et autorisations', 'Automatisations', 'Sauvegardes']);
+  await capturer(page, info, 'R7-sans-finance-ni-stocks');
   await indicateur('marge', { tableau: 'finance', famille: 'finance', nom: 'Marge du mois', type: 'mesure', niveau: null, valeur: 1240, unite: '€', message: 'Marge brute' });
-  await expect(page.locator('.td-onglet')).toHaveText(['Général', 'Technique', 'Finance', 'Historique des saisies']);
+  await expect(page.locator('.td-famille h2')).toHaveText(['Clés et autorisations', 'Automatisations', 'Finance', 'Sauvegardes']);
   await indicateur('stock-papier', { tableau: 'stocks', famille: 'papier', nom: 'Rames de papier', niveau: 'orange', message: 'Il en reste 4' });
-  await expect(page.locator('.td-onglet')).toHaveText(['Général', 'Technique', 'Finance', 'Stocks', 'Historique des saisies']);
-  await page.locator('.td-onglet', { hasText: 'Finance' }).click();
-  await expect(page).toHaveURL(/#\/tableaudebord\/finance$/);
-  await expect(page.locator('.td-onglet[aria-current="page"]')).toHaveText('Finance');
+  await expect(page.locator('.td-famille h2')).toHaveText(['Clés et autorisations', 'Automatisations', 'Finance', 'Papier', 'Sauvegardes']);
+  await expect(page.locator(AUCUN_ONGLET)).toHaveCount(0);
   await expect(ligne(page, 'marge').locator('.td-valeur')).toHaveText(`${new Intl.NumberFormat('fr-FR').format(1240)} €`);
   await expect(ligne(page, 'marge').locator('[data-pastille]')).toHaveCount(0);
-  await expect(page.locator('.td-ligne')).toHaveCount(1); // chaque tableau ne montre que ses indicateurs
-  await capturer(page, info, 'R7-onglets-avec-finance-et-stocks');
-  await page.locator('.td-onglet', { hasText: 'Stocks' }).click();
   await expect(ligne(page, 'stock-papier').locator('[data-pastille]')).toHaveText('À surveiller');
-  // Général compte tous les tableaux confondus (14 + 2 = 16 indicateurs, dont une mesure sans pastille)
-  await page.locator('.td-onglet', { hasText: 'Général' }).click();
-  await expect(page.locator('[data-compteur="orange"]')).toHaveText('4 À surveiller');
-  await expect(page.locator('[data-compteur="vert"]')).toHaveText('7 OK');
+  await expect(page.locator('.td-famille .td-ligne')).toHaveCount(16); // tout est sur le même écran
+  // Les compteurs du haut comptent tous les indicateurs (14 + 2 = 16, dont une mesure sans pastille)
+  await expect(page.locator('.td-global [data-compteur="orange"]')).toHaveText('4 À surveiller');
+  await expect(page.locator('.td-global [data-compteur="vert"]')).toHaveText('7 OK');
+  await capturer(page, info, 'R7-avec-finance-et-stocks');
 });
 
 // ---------------------------------------------------------------- R8
 
-test('R8 vide : aucun indicateur, Général et Technique disent pourquoi', async ({ page }, info) => {
+test('R8 vide : aucun indicateur, l\'écran dit pourquoi (Maintenance, et les routes technique et général)', async ({ page }, info) => {
   await ouvrir(page, 'general');
   const MESSAGE = 'Aucun indicateur pour l\'instant. Les relevés arrivent chaque jour, après le premier passage des scripts de surveillance.';
   await expect(page.locator('.td-etat-ecran.td-vide')).toHaveText(MESSAGE);
   await expect(page.locator('.td-phrase')).toHaveCount(0);
-  await capturer(page, info, 'R8-vide-general');
+  await expect(page.locator('[data-action="filtres"]')).toBeDisabled(); // rien à filtrer
+  await expect(page.locator(AUCUN_ONGLET)).toHaveCount(0);
+  await capturer(page, info, 'R8-vide');
   await aller(page, 'technique');
   await expect(page.locator('.td-etat-ecran.td-vide')).toHaveText(MESSAGE);
-  await expect(page.locator('.td-onglet')).toHaveText(['Général', 'Technique', 'Historique des saisies']);
-  await capturer(page, info, 'R8-vide-technique');
   // Un indicateur arrive : l'écran vide cède la place sans rechargement
   await indicateur('premier');
   await expect(page.locator('.td-etat-ecran')).toHaveCount(0);
   await expect(ligne(page, 'premier')).toBeVisible();
 });
 
-test('R8 chargement : « Chargement des indicateurs… » tant que la base n\'a pas répondu, sur Général et sur Technique', async ({ page }, info) => {
+test('R8 chargement : « Chargement des indicateurs… » tant que la base n\'a pas répondu, sur l\'écran unique', async ({ page }, info) => {
   // La base « ne répond pas » : on sert le fichier de lecture du module avec une écoute qui ne rappelle jamais l'écran (seul ce fichier est modifié, dans ce test).
   await page.route('**/js/modules/tableaudebord/donnees.js', async (route) => {
     const source = await readFile(fileURLToPath(new URL('../../js/modules/tableaudebord/donnees.js', import.meta.url)), 'utf8');
@@ -289,12 +310,13 @@ test('R8 chargement : « Chargement des indicateurs… » tant que la base n\'a 
     await expect(page.locator('.td-etat-ecran.td-chargement')).toHaveText('Chargement des indicateurs…');
     await expect(page.locator('.td-etat-ecran.td-chargement')).toHaveAttribute('role', 'status');
     await expect(page.locator('.td-ligne, .td-phrase, .td-erreur')).toHaveCount(0);
-    await expect(page.locator('.td-onglet')).toHaveText(['Général', 'Technique', 'Historique des saisies']);
-    await capturer(page, info, `R8-chargement-${ecran}`);
+    await expect(page.locator('[data-action="filtres"]')).toBeDisabled();
+    await expect(page.locator(AUCUN_ONGLET)).toHaveCount(0);
   }
+  await capturer(page, info, 'R8-chargement');
 });
 
-test('R8 erreur de lecture : message clair et « Réessayer » sur Général et sur Technique ; le bouton relit la base', async ({ page }, info) => {
+test('R8 erreur de lecture : message clair et « Réessayer » ; le bouton relit la base', async ({ page }, info) => {
   test.info().annotations.push({ type: 'erreurs-reseau-attendues' }); // la lecture refusée est notée dans la console du navigateur
   await jeuStandard();
   await avecReglesQuiRefusent();
@@ -305,14 +327,14 @@ test('R8 erreur de lecture : message clair et « Réessayer » sur Général et 
     await expect(erreur).toContainText('clique sur « Réessayer »');
     await expect(erreur.getByRole('button', { name: 'Réessayer' })).toBeVisible();
     await expect(page.locator('.td-phrase')).toHaveCount(0);
-    await capturer(page, info, 'R8-erreur-general');
+    await expect(page.locator('[data-action="filtres"]')).toBeDisabled();
+    await capturer(page, info, 'R8-erreur');
     // Toujours refusé : « Réessayer » relit, l'erreur revient (le bouton n'invente rien)
     await erreur.getByRole('button', { name: 'Réessayer' }).click();
     await expect(erreur.getByRole('button', { name: 'Réessayer' })).toBeVisible();
     await aller(page, 'technique');
     await expect(erreur).toContainText('Impossible de lire les indicateurs pour le moment.');
     await expect(erreur.getByRole('button', { name: 'Réessayer' })).toBeVisible();
-    await capturer(page, info, 'R8-erreur-technique');
     // La base redevient lisible : « Réessayer » affiche les indicateurs
     await rendreLesVraiesRegles();
     await erreur.getByRole('button', { name: 'Réessayer' }).click();
@@ -340,7 +362,6 @@ test('R9 mise à jour en direct : un indicateur modifié dans la base change à 
   expect(await niveaux(page)).toEqual(['rouge', 'vert']); // le tri suit
   await indicateur('c', { nom: 'Clé C', message: 'Nouvelle clé' }); // un indicateur nouveau apparaît
   await expect(ligne(page, 'c')).toBeVisible();
-  await aller(page, 'general');
   await expect(page.locator('.td-phrase')).toHaveText('Une panne à traiter');
   await indicateur('a', { nom: 'Clé A', niveau: 'vert', message: 'Répond de nouveau' });
   await expect(page.locator('.td-phrase')).toHaveText('Tout fonctionne');
@@ -366,25 +387,22 @@ test('R9 le « relevé il y a … » et le gris se recalculent chaque minute, sa
 // ---------------------------------------------------------------- R10
 
 for (const theme of ['sombre', 'clair']) {
-  test(`R10 thème ${theme} : Général et Technique lisibles, sans défilement horizontal de la page`, async ({ page }, info) => {
+  test(`R10 thème ${theme} : l\'écran unique est lisible, sans défilement horizontal de la page`, async ({ page }, info) => {
     await jeuStandard();
     await indicateur('mesure', { nom: 'Jours avant renouvellement', type: 'mesure', niveau: null, valeur: 42, unite: 'jours', message: null });
     await ouvrir(page, 'general');
     await page.evaluate((t) => { document.documentElement.dataset.theme = t; }, theme);
     await expect(page.locator('.td-phrase')).toBeVisible();
-    expect(await page.evaluate(SANS_DEBORDEMENT), 'Général : défilement horizontal').toBe(true);
-    await capturer(page, info, `R10-general-${theme}`);
-    await aller(page, 'technique');
     await expect(page.locator('.td-famille').first()).toBeVisible();
-    expect(await page.evaluate(SANS_DEBORDEMENT), 'Technique : défilement horizontal').toBe(true);
+    expect(await page.evaluate(SANS_DEBORDEMENT), 'écran : défilement horizontal').toBe(true);
     // Les couleurs d'état viennent bien de la feuille du module, selon le thème
     const couleurs = await page.evaluate(() => Object.fromEntries(['vert', 'orange', 'rouge', 'gris'].map((n) => [n, getComputedStyle(document.documentElement).getPropertyValue(`--td-${n}`).trim()])));
     expect(couleurs).toEqual(theme === 'sombre'
       ? { vert: '#5fd39a', orange: '#f5a524', rouge: '#f0506e', gris: '#9a98a0' }
       : { vert: '#1d7a4b', orange: '#9a6200', rouge: '#b3123f', gris: '#6b6a70' });
-    await capturer(page, info, `R10-technique-${theme}`);
-    await page.getByRole('button', { name: 'À traiter', exact: true }).click();
-    expect(await page.evaluate(SANS_DEBORDEMENT), 'Technique filtrée : défilement horizontal').toBe(true);
+    await capturer(page, info, `R10-ecran-${theme}`);
+    await filtrerAvec(page, { traiter: true });
+    expect(await page.evaluate(SANS_DEBORDEMENT), 'écran filtré : défilement horizontal').toBe(true);
   });
 }
 
@@ -394,14 +412,14 @@ test('R10 aucune écriture : en parcourant les écrans, le navigateur n\'envoie 
   page.on('request', (r) => { if (/:commit|\/documents.*(PATCH|POST|DELETE)/.test(r.url()) && r.method() !== 'GET' && /tableaudebord/.test(r.postData() ?? '')) ecritures.push(r.url()); });
   await ouvrir(page, 'general');
   await aller(page, 'technique');
-  await page.getByRole('button', { name: 'À traiter', exact: true }).click();
+  await filtrerAvec(page, { traiter: true });
   await page.waitForTimeout(500);
   expect(ecritures).toEqual([]);
-  // Les seuls boutons : les filtres et « Saisir la date » (indicateurs manuels ou semi, jamais « auto »). Aucun n'écrit dans la base : la saisie passe par le serveur.
+  // Les seuls boutons du contenu : « Saisir la date » (indicateurs manuels ou semi, jamais « auto »). Aucun n'écrit dans la base : la saisie passe par le serveur.
+  // Les filtres sont dans la barre du haut (bouton « Filtres », puces retirables).
   const boutons = await page.evaluate(() => [...document.querySelectorAll('.td-contenu button')].map((b) => b.textContent.trim()));
-  expect(boutons.slice(0, 2)).toEqual(['Tout voir', 'À traiter']);
-  expect(boutons.slice(2).length).toBeGreaterThan(0);
-  expect(new Set(boutons.slice(2))).toEqual(new Set(['Saisir la date']));
+  expect(boutons.length).toBeGreaterThan(0);
+  expect(new Set(boutons)).toEqual(new Set(['Saisir la date']));
 });
 
 // ---------------------------------------------------------------- S6 saisie d'une date ou d'une valeur
@@ -445,7 +463,7 @@ async function jeuSaisie() {
   await indicateur('stock', { tableau: 'stocks', famille: 'stock', nom: 'Bouteilles de Bordeaux', type: 'mesure', niveau: null, valeur: 42, unite: 'bouteilles', message: null, methode: 'manuel', echeance: null });
 }
 
-test('S6 « Saisir la date » sur un indicateur manuel ou semi, « Saisir la valeur » sur une mesure, rien sur un indicateur auto (Technique, Général et Stocks)', async ({ page }, info) => {
+test('S6 « Saisir la date » sur un indicateur manuel ou semi, « Saisir la valeur » sur une mesure, rien sur un indicateur auto (dans les blocs de famille et dans « À traiter en premier »)', async ({ page }, info) => {
   await jeuSaisie();
   await ouvrir(page, 'technique');
   await expect(boutonSaisir(page, 'n8n')).toHaveText('Saisir la date');
@@ -455,10 +473,9 @@ test('S6 « Saisir la date » sur un indicateur manuel ou semi, « Saisir la val
     await expect(ligne(page, auto)).toBeVisible();
     await expect(boutonSaisir(page, auto)).toHaveCount(0);
   }
-  await capturer(page, info, 'S6-boutons-technique');
-  await aller(page, 'general');
-  await expect(ligne(page, 'n8n').locator('[data-saisir]')).toHaveText('Saisir la date');
-  await expect(ligne(page, 'backblaze').locator('[data-saisir]')).toHaveCount(0);
+  await capturer(page, info, 'S6-boutons');
+  await expect(ligneATraiter(page, 'n8n').locator('[data-saisir]')).toHaveText('Saisir la date'); // aussi dans « À traiter en premier »
+  await expect(ligneATraiter(page, 'backblaze').locator('[data-saisir]')).toHaveCount(0);
   await aller(page, 'stocks');
   await expect(boutonSaisir(page, 'stock')).toHaveText('Saisir la valeur');
   await capturer(page, info, 'S6-bouton-valeur-stocks');
@@ -512,14 +529,18 @@ test('S6 saisir une valeur : le nombre est envoyé et la valeur affichée change
   await capturer(page, info, 'S6-valeur-enregistree');
 });
 
-test('S6 sur Général : la ligne saisie quitte « À traiter en premier » mais « Enregistré » reste affiché', async ({ page }) => {
+test('S6 depuis « À traiter en premier » : la zone s\'ouvre dans cette liste (une seule à l\'écran), la ligne la quitte une fois saisie mais « Enregistré » reste affiché', async ({ page }) => {
   await jeuSaisie();
   await simulerSaisie(page);
   await ouvrir(page, 'general');
-  await boutonSaisir(page, 'n8n').click();
+  await ligneATraiter(page, 'n8n').locator('[data-saisir]').click();
+  await expect(ligneATraiter(page, 'n8n').locator('.td-saisie')).toHaveCount(1);
+  await expect(page.locator('.td-saisie')).toHaveCount(1); // pas de seconde zone dans le bloc de famille
+  await expect(boutonSaisir(page, 'n8n')).toHaveCount(0); // le bouton de la même ligne est remplacé aussi dans le bloc de famille
   await zone(page, 'n8n').getByLabel('Nouvelle date d\'échéance').fill(jour(200));
   await zone(page, 'n8n').getByRole('button', { name: 'Enregistrer' }).click();
-  await expect(ligne(page, 'n8n')).toHaveCount(0);
+  await expect(ligneATraiter(page, 'n8n')).toHaveCount(0);
+  await expect(ligne(page, 'n8n')).toHaveAttribute('data-niveau', 'vert'); // elle reste dans son bloc de famille
   await expect(page.locator('.td-avis')).toContainText('Enregistré');
 });
 
@@ -657,12 +678,18 @@ async function jeuHistorique() {
   await ecrireDocument('tableaudebord_releves/github_20261017T100000', { indicateurId: 'github', releveLe: avant(14 * MIN), niveau: 'vert', saisiPar: 'github:abcd1234', proprietaire: 'interne' });
 }
 
-test('S7 Historique des saisies : onglet sans entrée de menu, tri du plus récent au plus ancien, « avant → après » lisible, note, scripts exclus', async ({ page }, info) => {
+const blocHistorique = (page) => page.locator('details[data-role="historique"]');
+const ouvrirHistorique = (page) => blocHistorique(page).locator('summary').click();
+
+test('S7 Historique des saisies : bloc replié en bas de page (fermé par défaut), tri du plus récent au plus ancien, « avant → après » lisible, note, scripts exclus', async ({ page }, info) => {
   await jeuHistorique();
-  await ouvrir(page, 'technique');
-  await expect(page.locator('.td-onglet').last()).toHaveText('Historique des saisies');
-  await page.locator('.td-onglet', { hasText: 'Historique des saisies' }).click();
-  await expect(page.locator('.td-onglet[aria-current="page"]')).toHaveText('Historique des saisies');
+  await ouvrir(page, 'general');
+  await expect(page.locator('.td-famille').first()).toBeVisible();
+  await expect(blocHistorique(page).locator('summary h2')).toHaveText('Historique des saisies');
+  await expect(blocHistorique(page)).not.toHaveAttribute('open', ''); // fermé par défaut
+  await expect(page.locator('.td-h-ligne')).toHaveCount(0);
+  expect(await page.locator('.td-contenu > *').last().evaluate((el) => el.matches('details[data-role="historique"]'))).toBe(true); // tout en bas
+  await ouvrirHistorique(page);
   await expect(page.locator('.td-h-ligne')).toHaveCount(3);
   expect(await page.locator('.td-h-ligne').evaluateAll((els) => els.map((e) => e.dataset.id))).toEqual(['stock_20261016T153000', 'n8n_20261010T101500', 'n8n_20261001T080000']);
   const stock = page.locator('.td-h-ligne[data-id="stock_20261016T153000"]');
@@ -678,10 +705,15 @@ test('S7 Historique des saisies : onglet sans entrée de menu, tri du plus réce
   await expect(page.locator('.td-h-ligne[data-id="n8n_20261010T101500"] .td-h-note')).toHaveCount(0);
   await expect(page.locator('body')).not.toContainText('github:abcd1234');
   expect(await page.evaluate(SANS_DEBORDEMENT)).toBe(true);
-  await capturer(page, info, 'S7-historique');
-  // Onglet seulement : aucune entrée de menu pour l'historique
+  await capturerRecette(page, info, '3-historique-ouvert');
+  // Un bloc de l'écran seulement : aucune entrée de menu pour l'historique
   if (estTelephone(page)) await page.getByRole('button', { name: 'Ouvrir le menu' }).click();
   await expect(page.locator('.menu').getByRole('link', { name: 'Historique des saisies' })).toHaveCount(0);
+  // On le referme : la liste disparaît ; on le rouvre : elle revient
+  await ouvrirHistorique(page);
+  await expect(page.locator('.td-h-ligne')).toHaveCount(0);
+  await ouvrirHistorique(page);
+  await expect(page.locator('.td-h-ligne')).toHaveCount(3);
 });
 
 test('S7 une saisie faite à l\'écran apparaît aussitôt dans l\'historique, en tête de liste', async ({ page }) => {
@@ -693,7 +725,7 @@ test('S7 une saisie faite à l\'écran apparaît aussitôt dans l\'historique, e
   await zone(page, 'n8n').getByLabel('Note (facultatif)').fill('Renouvelée');
   await zone(page, 'n8n').getByRole('button', { name: 'Enregistrer' }).click();
   await expect(page.locator('.td-avis')).toContainText('Enregistré');
-  await page.locator('.td-onglet', { hasText: 'Historique des saisies' }).click();
+  await ouvrirHistorique(page);
   await expect(page.locator('.td-h-ligne')).toHaveCount(4);
   const premiere = page.locator('.td-h-ligne').first();
   await expect(premiere.locator('.td-h-nom')).toHaveText('Clé API de n8n');
@@ -704,9 +736,9 @@ test('S7 une saisie faite à l\'écran apparaît aussitôt dans l\'historique, e
 test('S7 vide : phrase qui explique, sans liste', async ({ page }, info) => {
   await jeuSaisie();
   await ouvrir(page, 'historique');
-  await expect(page.locator('.td-etat-ecran.td-vide')).toHaveText(MESSAGE_VIDE_HISTORIQUE);
+  await expect(blocHistorique(page)).toHaveAttribute('open', ''); // la route historique ouvre le bloc
+  await expect(blocHistorique(page).locator('.td-etat-ecran.td-vide')).toHaveText(MESSAGE_VIDE_HISTORIQUE);
   await expect(page.locator('.td-h-ligne')).toHaveCount(0);
-  await expect(page.locator('.td-onglet[aria-current="page"]')).toHaveText('Historique des saisies');
   await capturer(page, info, 'S7-historique-vide');
 });
 
@@ -718,8 +750,8 @@ test('S7 chargement : « Chargement des saisies… » tant que la base n\'a pas 
   });
   await jeuHistorique();
   await ouvrir(page, 'historique');
-  await expect(page.locator('.td-etat-ecran.td-chargement')).toHaveText('Chargement des saisies…');
-  await expect(page.locator('.td-etat-ecran.td-chargement')).toHaveAttribute('role', 'status');
+  await expect(blocHistorique(page).locator('.td-etat-ecran.td-chargement')).toHaveText('Chargement des saisies…');
+  await expect(blocHistorique(page).locator('.td-etat-ecran.td-chargement')).toHaveAttribute('role', 'status');
   await expect(page.locator('.td-h-ligne')).toHaveCount(0);
   await capturer(page, info, 'S7-historique-chargement');
 });
@@ -733,7 +765,7 @@ test('S7 erreur de lecture : message clair et « Réessayer » ; le bouton relit
   await chargerRegles(contenu);
   try {
     await ouvrir(page, 'historique');
-    const erreur = page.locator('.td-etat-ecran.td-erreur');
+    const erreur = blocHistorique(page).locator('.td-etat-ecran.td-erreur');
     await expect(erreur).toContainText('Impossible de lire l\'historique des saisies pour le moment.');
     await expect(erreur).toContainText('clique sur « Réessayer »');
     await capturer(page, info, 'S7-historique-erreur');
@@ -742,7 +774,7 @@ test('S7 erreur de lecture : message clair et « Réessayer » ; le bouton relit
     await rendreLesVraiesRegles();
     await erreur.getByRole('button', { name: 'Réessayer' }).click();
     await expect(page.locator('.td-h-ligne')).toHaveCount(3);
-    await expect(page.locator('.td-erreur')).toHaveCount(0);
+    await expect(blocHistorique(page).locator('.td-erreur')).toHaveCount(0);
   } finally {
     await rendreLesVraiesRegles();
   }
@@ -758,7 +790,7 @@ test('S7 au plus 200 saisies affichées, les plus récentes', async ({ page }) =
 });
 
 for (const theme of ['sombre', 'clair']) {
-  test(`S8 thème ${theme} : Historique des saisies lisible, sans défilement horizontal`, async ({ page }, info) => {
+  test(`S8 thème ${theme} : Historique des saisies (bloc ouvert) lisible, sans défilement horizontal`, async ({ page }, info) => {
     await jeuHistorique();
     await ouvrir(page, 'historique');
     await page.evaluate((x) => { document.documentElement.dataset.theme = x; }, theme);
@@ -767,3 +799,125 @@ for (const theme of ['sombre', 'clair']) {
     await capturer(page, info, `S8-historique-${theme}`);
   });
 }
+
+// ---------------------------------------------------------------- U1 à U5 : un seul écran (23/10/2026)
+
+test('U1 un seul écran « Maintenance » : ni barre d\'onglets ni segment « Tout voir / À traiter » ; phrase d\'état, « À traiter en premier », tous les indicateurs par famille, historique replié en bas, dans cet ordre', async ({ page }, info) => {
+  await jeuStandard();
+  await ouvrir(page, 'general');
+  await expect(page.locator('.td-ligne').first()).toBeVisible();
+  await expect(page.locator(AUCUN_ONGLET)).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Tout voir', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'À traiter', exact: true })).toHaveCount(0);
+  await expect(page.locator('.page-tableaudebord select')).toHaveCount(0); // plus de liste de familles dans la page : elle est dans la fenêtre « Filtres »
+  const ordre = await page.locator('.td-contenu h2').evaluateAll((els) => els.map((e) => e.textContent));
+  expect(ordre).toEqual(['3 pannes à traiter', 'À traiter en premier', 'Tous les indicateurs', 'Clés et autorisations', 'Automatisations', 'Sauvegardes', 'Historique des saisies']);
+  await expect(page.locator('.td-famille')).toHaveCount(3);
+  // Blocs repliables : on replie une famille, on la rouvre
+  const cles = page.locator('.td-famille[data-famille="cles"]');
+  await expect(cles).toHaveAttribute('open', '');
+  await cles.locator('summary').click();
+  await expect(cles).not.toHaveAttribute('open', '');
+  await expect(cles.locator('.td-ligne').first()).toBeHidden();
+  await cles.locator('summary').click();
+  await expect(cles.locator('.td-ligne').first()).toBeVisible();
+  await expect(blocHistorique(page)).not.toHaveAttribute('open', '');
+  await capturerRecette(page, info, '1-ecran-complet');
+});
+
+test('U2 le bouton « Filtres » a deux critères (familles, « À traiter seulement ») ; pastille de compte, puces retirables, « Tout effacer » ; les filtres restent en changeant de route', async ({ page }, info) => {
+  await jeuStandard();
+  await ouvrir(page, 'general');
+  await expect(page.locator('.td-famille')).toHaveCount(3);
+  const bouton = page.locator('[data-action="filtres"]');
+  await expect(bouton).toHaveText('Filtres');
+  await bouton.click();
+  const fenetre = page.getByRole('dialog');
+  await expect(fenetre.locator('legend')).toHaveText(['Famille']);
+  await expect(fenetre.locator('input[data-cle="traiter"]')).toBeVisible();
+  await expect(fenetre.getByText('À traiter seulement')).toBeVisible();
+  await capturerRecette(page, info, '2-filtres-ouverts');
+  await fenetre.locator('input[data-cle="familles"][data-valeur="cles"]').check();
+  await fenetre.locator('input[data-cle="familles"][data-valeur="sauvegardes"]').check();
+  await fenetre.locator('input[data-cle="traiter"]').check();
+  await fenetre.getByRole('button', { name: 'Appliquer' }).click();
+  await expect(bouton.locator('.compteur-filtres')).toHaveText('3');
+  await expect(puces(page)).toHaveText(['À traiter seulement', 'Clés et autorisations', 'Sauvegardes']);
+  await expect(page.locator('.td-famille')).toHaveCount(2); // « et » entre critères, « ou » entre familles
+  expect((await niveaux(page)).filter((n) => n === 'vert')).toHaveLength(0);
+  await expect(page.locator('.td-phrase')).toHaveText('3 pannes à traiter'); // le haut de l'écran garde la vue d'ensemble
+  await aller(page, 'technique'); // changer de route ne remet pas les filtres à zéro
+  await expect(puces(page)).toHaveCount(3);
+  await page.getByRole('button', { name: 'Retirer le filtre : Sauvegardes' }).click();
+  await expect(page.locator('.td-famille')).toHaveCount(1);
+  await expect(bouton.locator('.compteur-filtres')).toHaveText('2');
+  await page.getByRole('button', { name: 'Tout effacer' }).click();
+  await expect(puces(page)).toHaveCount(0);
+  await expect(bouton.locator('.compteur-filtres')).toHaveCount(0);
+  await expect(page.locator('.td-famille')).toHaveCount(3);
+  // Chaque liste ne propose que les valeurs possibles : une famille cochée qui n'a rien à traiter est retirée d'office
+  await filtrerAvec(page, { traiter: true, familles: ['automatisations'] });
+  await expect(puces(page)).toHaveText(['À traiter seulement']);
+  await expect(page.locator('.td-famille')).toHaveCount(2);
+});
+
+test('U3 les routes technique, finance, stocks et historique ouvrent le même écran et descendent au bloc concerné (en l\'ouvrant s\'il était replié) ; une route inconnue revient à general', async ({ page }, info) => {
+  await jeuStandard();
+  await indicateur('marge', { tableau: 'finance', famille: 'finance', nom: 'Marge du mois', type: 'mesure', niveau: null, valeur: 1240, unite: '€', message: 'Marge brute' });
+  await indicateur('stock-papier', { tableau: 'stocks', famille: 'papier', nom: 'Rames de papier', niveau: 'orange', message: 'Il en reste 4' });
+  const visibleDansLaFenetre = (loc) => loc.evaluate((el) => { const r = el.getBoundingClientRect(); return r.top >= -1 && r.top < window.innerHeight; });
+  await ouvrir(page, 'general');
+  for (const route of ['technique', 'finance', 'stocks']) {
+    await aller(page, route);
+    await expect(page).toHaveURL(new RegExp(`#/tableaudebord/${route}$`));
+    await expect(page.locator(AUCUN_ONGLET)).toHaveCount(0);
+    await expect(page.locator('.td-phrase')).toBeVisible(); // c'est bien le même écran (phrase d'état en haut)
+    await expect(page.locator('.td-famille .td-ligne')).toHaveCount(16);
+    const bloc = page.locator(`.td-famille[data-tableaux~="${route}"]`).first();
+    await expect.poll(() => visibleDansLaFenetre(bloc)).toBe(true);
+  }
+  // Un bloc replié par l'utilisateur est rouvert par la route qui y mène
+  await aller(page, 'general');
+  const finance = page.locator('.td-famille[data-famille="finance"]');
+  await finance.locator('summary').click();
+  await expect(finance).not.toHaveAttribute('open', '');
+  await aller(page, 'finance');
+  await expect(finance).toHaveAttribute('open', '');
+  await expect.poll(() => visibleDansLaFenetre(finance)).toBe(true);
+  await capturer(page, info, 'U3-route-finance');
+  // Historique : le bloc s'ouvre et on y descend
+  await aller(page, 'historique');
+  await expect(blocHistorique(page)).toHaveAttribute('open', '');
+  await expect.poll(() => visibleDansLaFenetre(blocHistorique(page))).toBe(true);
+  await expect(page.locator('.td-phrase')).toHaveCount(1);
+  // Route inconnue
+  await aller(page, 'nimportequoi');
+  await expect(page).toHaveURL(/#\/tableaudebord\/general$/);
+});
+
+test('U4 le menu n\'a toujours qu\'une entrée « Maintenance », allumée sur chaque route du module ; la page n\'a pas de barre d\'onglets', async ({ page }) => {
+  await jeuStandard();
+  await ouvrir(page, 'technique');
+  if (estTelephone(page)) await page.getByRole('button', { name: 'Ouvrir le menu' }).click();
+  const bloc = page.locator('.menu-groupe[data-bloc="tableaudebord"]');
+  await expect(bloc.locator('.menu-entree')).toHaveText(['Maintenance']);
+  await expect(bloc.locator('.menu-entree')).toHaveAttribute('aria-current', 'page');
+  await expect(page.locator(AUCUN_ONGLET)).toHaveCount(0);
+});
+
+test('U5 accessibilité : les blocs repliables se manipulent au clavier (Entrée), le bouton « Filtres » est un bouton nommé, les puces ont un nom de retrait', async ({ page }) => {
+  await jeuStandard();
+  await ouvrir(page, 'general');
+  await expect(page.locator('.td-famille').first()).toBeVisible();
+  const premier = page.locator('.td-famille').first();
+  await premier.locator('summary').focus();
+  await page.keyboard.press('Enter');
+  await expect(premier).not.toHaveAttribute('open', '');
+  await page.keyboard.press('Enter');
+  await expect(premier).toHaveAttribute('open', '');
+  await expect(page.getByRole('button', { name: 'Filtres' })).toBeVisible();
+  await filtrerAvec(page, { traiter: true });
+  await expect(page.getByRole('button', { name: 'Retirer le filtre : À traiter seulement' })).toBeVisible();
+  await page.getByRole('button', { name: 'Retirer le filtre : À traiter seulement' }).click();
+  await expect(page.getByRole('button', { name: 'Filtres' })).toBeFocused(); // le focus revient au bouton après un retrait
+});
