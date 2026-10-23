@@ -54,7 +54,7 @@ test('1 Projets : le menu « Trier par » existe en Kanban ET en Liste ; le Kanb
   await connecter(page);
   await allerA(page, 'Projets');
   await expect(menuTri(page)).toBeVisible();
-  await expect(optionsDuMenu(page)).toHaveText(['Trier par : Titre', 'Trier par : Création', 'Trier par : Début', 'Trier par : Fin prévue']);
+  await expect(optionsDuMenu(page)).toHaveText(['Trier par : Titre', 'Trier par : Date de création', 'Trier par : Début', 'Trier par : Fin prévue']);
   await expect(menuTri(page)).toHaveValue('titre');
   // Départ inchangé : titre croissant, sans tenir compte des accents (Émile entre Beta et Gamma).
   await expect(titresKanbanProjets(page)).toHaveText(['Alpha', 'Beta', 'Émile', 'Gamma']);
@@ -90,7 +90,7 @@ test('2 Affaires : le menu « Trier par » est aussi en Liste et en Archives, av
   await allerA(page, 'Affaires');
   await expect(menuTri(page)).toBeVisible();
   await expect(menuTri(page)).toHaveValue('activite'); // départ inchangé
-  await expect(optionsDuMenu(page)).toHaveText(['Trier par : Activité suivante', 'Trier par : Montant', 'Trier par : Titre', 'Trier par : Création']);
+  await expect(optionsDuMenu(page)).toHaveText(['Trier par : Activité suivante', 'Trier par : Montant', 'Trier par : Titre', 'Trier par : Date de création']);
   // Kanban : le sens s'applique aussi (Montant : le plus gros d'abord, sans montant à la fin).
   await menuTri(page).selectOption('montant');
   await expect(titresKanbanAffaires(page)).toHaveText(['Alpha', 'Delta', 'Charlie']);
@@ -137,7 +137,7 @@ test('3 Personnes : menu « Trier par » (Nom, Organisation, Ville, Création) l
   await allerA(page, 'Personnes');
   const noms = page.locator('.tableau-personnes tbody tr .cellule-nom > span:not(.avatar-initiales):not(.badge-opposition)');
   await expect(menuTri(page)).toBeVisible();
-  await expect(optionsDuMenu(page)).toHaveText(['Trier par : Nom', 'Trier par : Organisation', 'Trier par : Ville', 'Trier par : Création']);
+  await expect(optionsDuMenu(page)).toHaveText(['Trier par : Nom', 'Trier par : Organisation', 'Trier par : Ville', 'Trier par : Date de création']);
   await expect(menuTri(page)).toHaveValue('nom');
   await expect(noms).toHaveText(['Adam Roux', 'Élodie Blanc', 'Sans Date', 'Zoé Lemaire']); // départ inchangé, accents ignorés
   await expect(fleche(page)).toHaveAttribute('data-sens', 'asc');
@@ -178,7 +178,7 @@ test('4 Organisations : menu « Trier par » (Nom, Ville, Secteur, Affaires en c
   await allerA(page, 'Organisations');
   const noms = page.locator('.tableau-organisations tbody tr .cellule-nom > span:not(.avatar-initiales):not(.badge-opposition)');
   await expect(menuTri(page)).toBeVisible();
-  await expect(optionsDuMenu(page)).toHaveText(['Trier par : Nom', 'Trier par : Ville', 'Trier par : Secteur', 'Trier par : Affaires en cours', 'Trier par : Création']);
+  await expect(optionsDuMenu(page)).toHaveText(['Trier par : Nom', 'Trier par : Ville', 'Trier par : Secteur', 'Trier par : Affaires en cours', 'Trier par : Date de création']);
   await expect(noms).toHaveText(['Atelier Nord', 'Bio Sud', 'Zèbre SA']); // départ inchangé
   await menuTri(page).selectOption('affaires');
   await expect(noms).toHaveText(['Bio Sud', 'Atelier Nord', 'Zèbre SA']); // le plus d'affaires en cours d'abord

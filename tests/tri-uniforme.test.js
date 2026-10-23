@@ -10,15 +10,15 @@ const noms = (lignes) => lignes.map((l) => l.nom);
 
 describe('1 à 4 : table des critères de chaque écran', () => {
   const ids = (ecran, tout = false) => T.TRIS[ecran].criteres.filter((c) => tout || c.menu !== false).map((c) => c.id);
-  test('1 projets : le menu propose Titre, Création, Début, Fin prévue (Phase et Statut restent des colonnes)', () => {
+  test('1 projets : le menu propose Titre, Date de création, Début, Fin prévue (Phase et Statut restent des colonnes)', () => {
     assert.deepEqual(ids('projets'), ['titre', 'creation', 'debut', 'fin']);
     assert.ok(ids('projets', true).includes('phase') && ids('projets', true).includes('statut'));
   });
-  test('2 affaires : le menu garde Activité suivante, Montant, Titre, Création', () => {
+  test('2 affaires : le menu garde Activité suivante, Montant, Titre, Date de création', () => {
     assert.deepEqual(ids('affaires'), ['activite', 'montant', 'titre', 'creation']);
-    assert.deepEqual(T.TRIS.affaires.criteres.slice(0, 4).map((c) => c.libelle), ['Activité suivante', 'Montant', 'Titre', 'Création']);
+    assert.deepEqual(T.TRIS.affaires.criteres.slice(0, 4).map((c) => c.libelle), ['Activité suivante', 'Montant', 'Titre', 'Date de création']);
   });
-  test('3 personnes : le menu propose Nom, Organisation, Ville, Création', () => {
+  test('3 personnes : le menu propose Nom, Organisation, Ville, Date de création', () => {
     assert.deepEqual(ids('personnes'), ['nom', 'organisation', 'ville', 'creation']);
   });
   test('4 organisations : le menu propose Nom, Ville, Secteur, Affaires en cours, Création', () => {
