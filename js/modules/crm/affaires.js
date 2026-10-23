@@ -6,16 +6,17 @@ import * as D from './donnees.js';
 import * as L from './logique.js';
 import {
   lienPersonne, lienOrganisation, cheminAffaire, pastilleActivite, pastilleStatut, pastilleEtape, selecteurPersonne, selecteurOrganisation,
-  organisationChoisieOuSaisie, etatVide, planifier,
+  organisationChoisieOuSaisie, etatVide, planifier, selecteurTri,
 } from './composants.js';
+import * as T from './tri.js';
 import { barreFiltres } from './filtres.js';
 import { dialogueActivite } from './activites.js';
 
 // État conservé pendant la session.
 let criteres = L.criteresComplets('affaires', {});
 let vue = lirePreference('vue.affaires', 'kanban'); // kanban | liste | archives
-let triKanban = lirePreference('tri.kanban', 'activite');
-let triListe = { colonne: 'titre', sens: 'asc' };
+// Un seul tri pour le Kanban, la Liste et les Archives : { critere, sens }, mémorisé sous `tri.affaires` (l'ancienne clé `tri.kanban` est lue une fois).
+let tri = T.lireTriMemorise('affaires', lirePreference);
 let enDeplacement = false;
 
 // ---------------------------------------------------------------- boîtes de dialogue
@@ -171,11 +172,22 @@ function prochaine(a) {
   return L.prochaineActivite(L.activitesDeAffaire(D.etat.activites, a.id));
 }
 
+const prochaineCle = (a) => { const p = prochaine(a); return p ? `${p.date}T${p.heure || '00:00'}` : null; };
+
+/** Clés de tri des affaires : les mêmes pour les cartes du Kanban et pour les lignes de la Liste. */
+const CLES_TRI = {
+  activite: prochaineCle,
+  montant: (a) => (a.montant === null || a.montant === undefined ? null : Number(a.montant)),
+  titre: (a) => L.normaliser(a.titre),
+  creation: T.cleCreation,
+  personne: (a) => L.normaliser(D.personne(a.personneId)?.nom),
+  organisation: (a) => L.normaliser(D.organisation(a.organisationId)?.nom),
+  etape: (a) => D.etat.config.etapes.findIndex((e) => e.id === a.etape),
+  priorite: (a) => L.PRIORITES.findIndex((p) => p.id === a.priorite),
+};
+
 function trierCartes(affaires) {
-  if (triKanban === 'montant') return L.trier(affaires, (a) => (a.montant === null || a.montant === undefined ? null : -Number(a.montant)));
-  if (triKanban === 'titre') return L.trier(affaires, (a) => L.normaliser(a.titre));
-  if (triKanban === 'creation') return L.trier(affaires, (a) => -(L.versDate(a.creeLe)?.getTime() ?? 0));
-  return L.trier(affaires, (a) => { const p = prochaine(a); return p ? `${p.date}T${p.heure || '00:00'}` : null; });
+  return T.trierSelon(affaires, tri, CLES_TRI);
 }
 
 function carte(a) {
@@ -242,12 +254,16 @@ export function rendreAffaires(conteneur) {
     }, icone(ic, { taille: 16 }), h('span', {}, libelle))));
   }
   const zoneBascule = h('div', {});
-  const selectTri = h('select', { class: 'champ champ-tri', 'aria-label': 'Trier par', onchange: (e) => { triKanban = e.target.value; ecrirePreference('tri.kanban', triKanban); rendre(); } },
-    [['activite', 'Trier par : Activité suivante'], ['montant', 'Trier par : Montant'], ['titre', 'Trier par : Titre'], ['creation', 'Trier par : Création']].map(([v, l]) => h('option', { value: v, selected: v === triKanban }, l)));
+  const choixTri = selecteurTri({ options: T.optionsMenu('affaires', tri.critere), valeur: tri.critere, sens: tri.sens, surChangement: (nouveau) => changerTri(nouveau) });
+  function changerTri(nouveau) {
+    tri = nouveau;
+    ecrirePreference('tri.affaires', T.texteTri(tri));
+    rendre();
+  }
 
   function rendre() {
     remplir(zoneBascule, bascule());
-    selectTri.hidden = vue !== 'kanban';
+    choixTri.maj(T.optionsMenu('affaires', tri.critere), tri.critere, tri.sens);
     if (!D.estPret()) { remplir(zone, h('div', { class: 'chargement', role: 'status' }, h('span', { class: 'rond-chargement' }))); return; }
     if (vue === 'kanban') rendreKanban();
     else rendreListe(vue === 'archives');
@@ -270,27 +286,27 @@ export function rendreAffaires(conteneur) {
     remplir(zone, h('div', { class: 'kanban' }, colonnes));
   }
 
+  // Colonnes de la Liste : l'identifiant est celui du critère de tri (voir tri.js).
   const COLONNES_LISTE = [
-    { id: 'titre', libelle: 'Titre', tri: (a) => L.normaliser(a.titre) },
-    { id: 'personne', libelle: 'Personne', tri: (a) => L.normaliser(D.personne(a.personneId)?.nom) },
-    { id: 'organisation', libelle: 'Organisation', tri: (a) => L.normaliser(D.organisation(a.organisationId)?.nom) },
-    { id: 'etape', libelle: 'Étape', tri: (a) => D.etat.config.etapes.findIndex((e) => e.id === a.etape) },
-    { id: 'montant', libelle: 'Montant', tri: (a) => (a.montant === null || a.montant === undefined ? null : Number(a.montant)) },
-    { id: 'priorite', libelle: 'Priorité', tri: (a) => L.PRIORITES.findIndex((p) => p.id === a.priorite) },
-    { id: 'activite', libelle: 'Prochaine activité', tri: (a) => { const p = prochaine(a); return p ? `${p.date}T${p.heure || '00:00'}` : null; } },
+    { id: 'titre', libelle: 'Titre' },
+    { id: 'personne', libelle: 'Personne' },
+    { id: 'organisation', libelle: 'Organisation' },
+    { id: 'etape', libelle: 'Étape' },
+    { id: 'montant', libelle: 'Montant' },
+    { id: 'priorite', libelle: 'Priorité' },
+    { id: 'activite', libelle: 'Prochaine activité' },
   ];
 
   function rendreListe(archives) {
     const ctxF = contexteFiltres();
     let lignes = L.filtrerAffaires(D.etat.affaires, { ...criteres, archives }, ctxF);
-    const col = COLONNES_LISTE.find((c) => c.id === triListe.colonne) || COLONNES_LISTE[0];
-    lignes = L.trier(lignes, col.tri, triListe.sens);
+    lignes = trierCartes(lignes);
     remplir(compteur, `${lignes.length} ${lignes.length > 1 ? 'affaires' : 'affaire'}${archives ? ' archivées' : ''}`);
     if (!lignes.length) { remplir(zone, etatVide(archives ? 'Aucune affaire archivée.' : 'Aucune affaire ne correspond.')); return; }
     const aujourdhui = D.ctx().aujourdhui;
-    const entete = h('tr', {}, COLONNES_LISTE.map((c) => h('th', { scope: 'col', 'aria-sort': triListe.colonne === c.id ? (triListe.sens === 'asc' ? 'ascending' : 'descending') : 'none' },
-      h('button', { type: 'button', class: 'tri', onclick: () => { triListe = { colonne: c.id, sens: triListe.colonne === c.id && triListe.sens === 'asc' ? 'desc' : 'asc' }; rendre(); } },
-        c.libelle, triListe.colonne === c.id ? icone(triListe.sens === 'asc' ? 'arrow-up' : 'arrow-down', { taille: 12 }) : null))), h('th', { class: 'col-actions' }));
+    const entete = h('tr', {}, COLONNES_LISTE.map((c) => h('th', { scope: 'col', 'aria-sort': tri.critere === c.id ? (tri.sens === 'asc' ? 'ascending' : 'descending') : 'none' },
+      h('button', { type: 'button', class: 'tri', onclick: () => changerTri(T.triApresClicColonne('affaires', tri, c.id)) },
+        c.libelle, tri.critere === c.id ? icone(tri.sens === 'asc' ? 'arrow-up' : 'arrow-down', { taille: 12 }) : null))), h('th', { class: 'col-actions' }));
     const corps = lignes.map((a) => {
       const p = prochaine(a);
       return h('tr', { class: 'ligne-liste', dataset: { id: a.id }, onclick: (e) => { if (!e.target.closest('a, button')) naviguer(`crm/affaires/${a.id}`); } },
@@ -311,7 +327,7 @@ export function rendreAffaires(conteneur) {
     h('div', { class: 'page-actions' },
       zoneBascule,
       h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'nouvelle-affaire', onclick: () => ouvrirCreationAffaire() }, icone('plus', { taille: 16 }), 'Affaire')));
-  conteneur.append(h('div', { class: 'page page-affaires' }, entete, h('div', { class: 'barre-affaires' }, filtres.element, selectTri), zone));
+  conteneur.append(h('div', { class: 'page page-affaires' }, entete, h('div', { class: 'barre-affaires' }, filtres.element, choixTri.element), zone));
 
   const planifie = planifier(() => { if (enDeplacement) return; rendre(); filtres.rafraichir(); });
   rafraichir = () => planifie();

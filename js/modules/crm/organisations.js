@@ -3,11 +3,13 @@ import { h, icone, remplir, dialogue, toast, ouvrirMenu, lirePreference, ecrireP
 import { naviguer } from '../../os/router.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
-import { avatar, cheminOrganisation, pastillesEtiquettes, selecteurEtiquettes, etatVide, planifier } from './composants.js';
+import { avatar, cheminOrganisation, pastillesEtiquettes, selecteurEtiquettes, etatVide, planifier, selecteurTri } from './composants.js';
+import * as T from './tri.js';
 import { barreFiltres } from './filtres.js';
 
 let criteres = L.criteresComplets('organisations', {});
-let tri = { colonne: 'nom', sens: 'asc' };
+// Un seul tri : { critere, sens }, piloté par le menu de tri, la flèche et les en-têtes ; mémorisé sous `tri.organisations`.
+let tri = T.lireTriMemorise('organisations', lirePreference);
 
 const nbPersonnes = (o) => L.personnesDeLOrganisation(D.etat.personnes, o.id).length;
 const nbAffairesEnCours = (o) => D.etat.affaires.filter((a) => a.organisationId === o.id && L.estAffaireActive(a)).length;
@@ -21,6 +23,8 @@ const COLONNES = [
   { id: 'etiquettes', libelle: 'Étiquettes', tri: (o) => (o.etiquettes || []).length },
 ];
 const COLONNES_DEFAUT = COLONNES.map((c) => c.id);
+/** Clés de tri : celles des colonnes (même identifiant), plus la création (sans colonne). */
+const CLES_TRI = { ...Object.fromEntries(COLONNES.map((c) => [c.id, c.tri])), creation: T.cleCreation };
 
 function colonnesVisibles() {
   try {
@@ -64,10 +68,17 @@ export function rendreOrganisations(conteneur) {
       })));
     } }, icone('columns-3', { taille: 18 }));
 
+  const choixTri = selecteurTri({ options: T.optionsMenu('organisations', tri.critere), valeur: tri.critere, sens: tri.sens, surChangement: (nouveau) => changerTri(nouveau) });
+  function changerTri(nouveau) {
+    tri = nouveau;
+    ecrirePreference('tri.organisations', T.texteTri(tri));
+    rendre();
+  }
+
   function rendre() {
+    choixTri.maj(T.optionsMenu('organisations', tri.critere), tri.critere, tri.sens);
     let lignes = L.filtrerOrganisations(D.etat.organisations, criteres);
-    const col = COLONNES.find((c) => c.id === tri.colonne) || COLONNES[0];
-    lignes = L.trier(lignes, col.tri, tri.sens);
+    lignes = T.trierSelon(lignes, tri, CLES_TRI);
     remplir(compteur, `${lignes.length} ${lignes.length > 1 ? 'organisations' : 'organisation'}`);
     if (!D.estPret()) { remplir(zoneTableau, h('div', { class: 'chargement', role: 'status' }, h('span', { class: 'rond-chargement' }))); return; }
     if (!lignes.length) {
@@ -77,9 +88,9 @@ export function rendreOrganisations(conteneur) {
       return;
     }
     const visibles = COLONNES.filter((c) => colonnesVisibles().includes(c.id));
-    const entete = h('tr', {}, visibles.map((c) => h('th', { scope: 'col', 'aria-sort': tri.colonne === c.id ? (tri.sens === 'asc' ? 'ascending' : 'descending') : 'none' },
-      h('button', { type: 'button', class: 'tri', onclick: () => { tri = { colonne: c.id, sens: tri.colonne === c.id && tri.sens === 'asc' ? 'desc' : 'asc' }; rendre(); } },
-        c.libelle, tri.colonne === c.id ? icone(tri.sens === 'asc' ? 'arrow-up' : 'arrow-down', { taille: 12 }) : null))),
+    const entete = h('tr', {}, visibles.map((c) => h('th', { scope: 'col', 'aria-sort': tri.critere === c.id ? (tri.sens === 'asc' ? 'ascending' : 'descending') : 'none' },
+      h('button', { type: 'button', class: 'tri', onclick: () => changerTri(T.triApresClicColonne('organisations', tri, c.id)) },
+        c.libelle, tri.critere === c.id ? icone(tri.sens === 'asc' ? 'arrow-up' : 'arrow-down', { taille: 12 }) : null))),
     h('th', { class: 'col-actions' }, boutonColonnes));
     const corps = lignes.map((o) => h('tr', { class: 'ligne-liste', dataset: { id: o.id },
       onclick: (e) => { if (!e.target.closest('a, button')) naviguer(`crm/organisations/${o.id}`); } },
@@ -93,7 +104,7 @@ export function rendreOrganisations(conteneur) {
     h('div', {}, h('h1', {}, 'Organisations'), compteur),
     h('div', { class: 'page-actions' },
       h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'nouvelle-organisation', onclick: () => ouvrirCreationOrganisation() }, icone('plus', { taille: 16 }), 'Organisation')));
-  conteneur.append(h('div', { class: 'page page-liste' }, entete, filtres.element, zoneTableau));
+  conteneur.append(h('div', { class: 'page page-liste' }, entete, h('div', { class: 'barre-affaires' }, filtres.element, choixTri.element), zoneTableau));
 
   const rafraichir = planifier(() => { rendre(); filtres.rafraichir(); });
   rendre();

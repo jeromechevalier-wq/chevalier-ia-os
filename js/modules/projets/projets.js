@@ -7,8 +7,9 @@ import * as CRM from '../crm/donnees.js';
 import { boutonFiltres as boutonFiltresCommun, fenetreFiltres } from '../crm/filtres.js';
 import * as L from '../crm/logique.js';
 import {
-  lienPersonne, lienOrganisation, pastilleActivite, selecteurPersonne, selecteurOrganisation, organisationChoisieOuSaisie, etatVide, planifier, nomCompte,
+  lienPersonne, lienOrganisation, pastilleActivite, selecteurPersonne, selecteurOrganisation, organisationChoisieOuSaisie, etatVide, planifier, nomCompte, selecteurTri,
 } from '../crm/composants.js';
+import * as T from '../crm/tri.js';
 import * as D from './donnees.js';
 import * as P from './logique.js';
 import { proposerSorties } from './factures.js';
@@ -22,11 +23,25 @@ export { cheminProjet };
 let criteres = P.criteresProjetsComplets();
 let vue = 'kanban'; // kanban | liste | archives (Kanban et Liste sont mémorisés ; Archives a sa propre entrée de menu et son propre chemin)
 const vueMemorisee = () => { const v = lirePreference('vue.projets', 'kanban'); return v === 'liste' ? 'liste' : 'kanban'; };
-let triListe = { colonne: 'titre', sens: 'asc' };
+// Un seul tri pour le Kanban (à l'intérieur de chaque colonne), la Liste et les Archives : { critere, sens }, mémorisé sous `tri.projets`.
+let tri = T.lireTriMemorise('projets', lirePreference);
 let enDeplacement = false;
 
 const aujourdhui = () => CRM.ctx().aujourdhui;
 const taches = () => D.etat.taches;
+
+/** Clés de tri des projets : les mêmes pour les cartes du Kanban et pour les lignes de la Liste. */
+const CLES_TRI = {
+  titre: (p) => L.normaliser(p.titre),
+  creation: T.cleCreation,
+  debut: (p) => p.dateDebut || null,
+  fin: (p) => p.dateFin || null,
+  personne: (p) => L.normaliser(CRM.personne(p.personneId)?.nom),
+  organisation: (p) => L.normaliser(CRM.organisation(p.organisationId)?.nom),
+  phase: (p) => P.rangPhase(p.phase, cfg()),
+  statut: (p) => P.STATUTS_PROJET.findIndex((x) => x.id === P.statutProjetAffiche(p)),
+};
+const trierProjets = (projets) => T.trierSelon(projets, tri, CLES_TRI);
 
 // ---------------------------------------------------------------- pastilles et actions communes
 
@@ -315,7 +330,7 @@ function colonne(phase, projets, rafraichir) {
       if (p) changerPhaseProjet(p, phase.id);
     } },
   h('header', { class: 'colonne-tete' }, h('h2', {}, phase.libelle), h('span', { class: 'colonne-totaux' }, `${projets.length} ${projets.length > 1 ? 'projets' : 'projet'}`)),
-  h('div', { class: 'colonne-corps' }, L.trier(projets, (p) => L.normaliser(p.titre)).map((p) => carte(p, rafraichir))));
+  h('div', { class: 'colonne-corps' }, trierProjets(projets).map((p) => carte(p, rafraichir))));
   return el;
 }
 
@@ -385,16 +400,24 @@ export function rendreProjets(conteneur, { archives: surArchives = false } = {})
     if (champRecherche.value !== criteres.recherche && document.activeElement !== champRecherche) champRecherche.value = criteres.recherche;
   }
 
+  const choixTri = selecteurTri({ options: T.optionsMenu('projets', tri.critere), valeur: tri.critere, sens: tri.sens, surChangement: (nouveau) => changerTri(nouveau) });
+  function changerTri(nouveau) {
+    tri = nouveau;
+    ecrirePreference('tri.projets', T.texteTri(tri));
+    rendre();
+  }
+
   function rendre() {
     remplir(zoneBascule, bascule());
     majFiltres();
+    choixTri.maj(T.optionsMenu('projets', tri.critere), tri.critere, tri.sens);
     if (!(D.estPret() && CRM.estPret())) { remplir(zone, h('div', { class: 'chargement', role: 'status' }, h('span', { class: 'rond-chargement' }))); return; }
     if (vue === 'kanban') rendreKanban();
     else rendreListe(vue === 'archives');
   }
 
   function rendreKanban() {
-    const projets = L.trier(P.filtrerProjets(D.etat.projets, criteres, contexteFiltres(false)), (p) => L.normaliser(p.titre));
+    const projets = trierProjets(P.filtrerProjets(D.etat.projets, criteres, contexteFiltres(false)));
     remplir(compteur, `${projets.length} ${projets.length > 1 ? 'projets' : 'projet'}`);
     if (!D.etat.projets.length) {
       remplir(zone, etatVide('Ajoute ton premier projet avec le bouton ci-dessous.', { action: h('button', { type: 'button', class: 'bouton bouton-principal', onclick: () => ouvrirCreationProjet() }, icone('plus', { taille: 16 }), 'Projet') }));
@@ -403,25 +426,24 @@ export function rendreProjets(conteneur, { archives: surArchives = false } = {})
     remplir(zone, h('div', { class: 'kanban' }, P.phasesActives(cfg()).map((ph) => colonne(ph, P.projetsDePhase(projets, ph.id), rafraichir))));
   }
 
+  // Colonnes de la Liste : l'identifiant est celui du critère de tri (voir tri.js).
   const COLONNES_LISTE = [
-    { id: 'titre', libelle: 'Titre', tri: (p) => L.normaliser(p.titre) },
-    { id: 'personne', libelle: 'Personne', tri: (p) => L.normaliser(CRM.personne(p.personneId)?.nom) },
-    { id: 'organisation', libelle: 'Organisation', tri: (p) => L.normaliser(CRM.organisation(p.organisationId)?.nom) },
-    { id: 'phase', libelle: 'Phase', tri: (p) => P.rangPhase(p.phase, cfg()) },
-    { id: 'statut', libelle: 'Statut', tri: (p) => P.STATUTS_PROJET.findIndex((x) => x.id === P.statutProjetAffiche(p)) },
-    { id: 'debut', libelle: 'Début', tri: (p) => p.dateDebut || null },
-    { id: 'fin', libelle: 'Fin prévue', tri: (p) => p.dateFin || null },
+    { id: 'titre', libelle: 'Titre' },
+    { id: 'personne', libelle: 'Personne' },
+    { id: 'organisation', libelle: 'Organisation' },
+    { id: 'phase', libelle: 'Phase' },
+    { id: 'statut', libelle: 'Statut' },
+    { id: 'debut', libelle: 'Début' },
+    { id: 'fin', libelle: 'Fin prévue' },
   ];
 
   function rendreListe(archives) {
-    let lignes = P.filtrerProjets(D.etat.projets, criteres, contexteFiltres(archives));
-    const col = COLONNES_LISTE.find((c) => c.id === triListe.colonne) || COLONNES_LISTE[0];
-    lignes = L.trier(lignes, col.tri, triListe.sens);
+    const lignes = trierProjets(P.filtrerProjets(D.etat.projets, criteres, contexteFiltres(archives)));
     remplir(compteur, `${lignes.length} ${lignes.length > 1 ? 'projets' : 'projet'}${archives ? ' archivés' : ''}`);
     if (!lignes.length) { remplir(zone, etatVide(archives ? 'Aucun projet archivé.' : 'Aucun projet ne correspond.')); return; }
-    const entete = h('tr', {}, COLONNES_LISTE.map((c) => h('th', { scope: 'col', 'aria-sort': triListe.colonne === c.id ? (triListe.sens === 'asc' ? 'ascending' : 'descending') : 'none' },
-      h('button', { type: 'button', class: 'tri', onclick: () => { triListe = { colonne: c.id, sens: triListe.colonne === c.id && triListe.sens === 'asc' ? 'desc' : 'asc' }; rendre(); } },
-        c.libelle, triListe.colonne === c.id ? icone(triListe.sens === 'asc' ? 'arrow-up' : 'arrow-down', { taille: 12 }) : null))), h('th', { class: 'col-actions' }));
+    const entete = h('tr', {}, COLONNES_LISTE.map((c) => h('th', { scope: 'col', 'aria-sort': tri.critere === c.id ? (tri.sens === 'asc' ? 'ascending' : 'descending') : 'none' },
+      h('button', { type: 'button', class: 'tri', onclick: () => changerTri(T.triApresClicColonne('projets', tri, c.id)) },
+        c.libelle, tri.critere === c.id ? icone(tri.sens === 'asc' ? 'arrow-up' : 'arrow-down', { taille: 12 }) : null))), h('th', { class: 'col-actions' }));
     const corps = lignes.map((p) => h('tr', { class: 'ligne-liste', dataset: { id: p.id }, onclick: (e) => { if (!e.target.closest('a, button')) naviguer(`projets/projets/${p.id}`); } },
       h('td', { dataset: { libelle: 'Titre' } }, h('a', { class: 'cellule-nom', href: cheminProjet(p.id) }, h('span', {}, p.titre))),
       h('td', { dataset: { libelle: 'Personne' } }, lienPersonne(CRM.personne(p.personneId))),
@@ -439,7 +461,7 @@ export function rendreProjets(conteneur, { archives: surArchives = false } = {})
     h('div', { class: 'page-actions' },
       zoneBascule,
       h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'nouveau-projet', onclick: () => ouvrirCreationProjet() }, icone('plus', { taille: 16 }), 'Projet')));
-  conteneur.append(h('div', { class: 'page page-affaires page-projets' }, entete, h('div', { class: 'barre-affaires' }, zoneFiltres), zone));
+  conteneur.append(h('div', { class: 'page page-affaires page-projets' }, entete, h('div', { class: 'barre-affaires' }, zoneFiltres, choixTri.element), zone));
 
   const planifie = planifier(() => { if (enDeplacement) return; rendre(); });
   rafraichir = planifie;

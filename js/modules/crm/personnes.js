@@ -5,14 +5,16 @@ import * as D from './donnees.js';
 import * as L from './logique.js';
 import {
   avatar, lien, cheminPersonne, cheminOrganisation, pastillesEtiquettes, selecteurOrganisation, selecteurEtiquettes,
-  organisationChoisieOuSaisie, listeContacts, etatVide, telecharger, planifier,
+  organisationChoisieOuSaisie, listeContacts, etatVide, telecharger, planifier, selecteurTri,
 } from './composants.js';
+import * as T from './tri.js';
 import { barreFiltres } from './filtres.js';
 import { demanderSuppressionPersonne } from './fiche-personne.js';
 
 // Filtres et tri conservés pendant la session.
 let criteres = L.criteresComplets('personnes', {});
-let tri = { colonne: 'nom', sens: 'asc' };
+// Un seul tri : { critere, sens }, piloté par le menu de tri, la flèche et les en-têtes ; mémorisé sous `tri.personnes`.
+let tri = T.lireTriMemorise('personnes', lirePreference);
 
 const COLONNES = [
   { id: 'nom', libelle: 'Nom', tri: (p) => L.normaliser(p.nom), fixe: true },
@@ -23,6 +25,8 @@ const COLONNES = [
   { id: 'ville', libelle: 'Ville', tri: (p) => L.normaliser(p.ville) },
 ];
 const COLONNES_DEFAUT = ['nom', 'organisation', 'email', 'telephone', 'etiquettes'];
+/** Clés de tri : celles des colonnes (même identifiant), plus la création (sans colonne). */
+const CLES_TRI = { ...Object.fromEntries(COLONNES.map((c) => [c.id, c.tri])), creation: T.cleCreation };
 
 function colonnesVisibles() {
   try {
@@ -76,11 +80,18 @@ export function rendrePersonnes(conteneur) {
       })));
     } }, icone('columns-3', { taille: 18 }));
 
+  const choixTri = selecteurTri({ options: T.optionsMenu('personnes', tri.critere), valeur: tri.critere, sens: tri.sens, surChangement: (nouveau) => changerTri(nouveau) });
+  function changerTri(nouveau) {
+    tri = nouveau;
+    ecrirePreference('tri.personnes', T.texteTri(tri));
+    rendre();
+  }
+
   function rendre() {
+    choixTri.maj(T.optionsMenu('personnes', tri.critere), tri.critere, tri.sens);
     const contexte = { organisations: D.etat.organisations };
     let lignes = L.filtrerPersonnes(D.etat.personnes, criteres, contexte);
-    const col = COLONNES.find((c) => c.id === tri.colonne) || COLONNES[0];
-    lignes = L.trier(lignes, col.tri, tri.sens);
+    lignes = T.trierSelon(lignes, tri, CLES_TRI);
     const total = D.etat.personnes.filter((p) => !p.archive).length;
     remplir(compteur, `${lignes.length} ${lignes.length > 1 ? 'contacts' : 'contact'}`, lignes.length !== total && !criteres.archives ? ` sur ${total}` : '');
     if (!D.estPret()) { remplir(zoneTableau, h('div', { class: 'chargement', role: 'status' }, h('span', { class: 'rond-chargement' }))); return; }
@@ -91,9 +102,9 @@ export function rendrePersonnes(conteneur) {
       return;
     }
     const visibles = COLONNES.filter((c) => colonnesVisibles().includes(c.id));
-    const entete = h('tr', {}, visibles.map((c) => h('th', { scope: 'col', 'aria-sort': tri.colonne === c.id ? (tri.sens === 'asc' ? 'ascending' : 'descending') : 'none' },
-      h('button', { type: 'button', class: 'tri', onclick: () => { tri = { colonne: c.id, sens: tri.colonne === c.id && tri.sens === 'asc' ? 'desc' : 'asc' }; rendre(); } },
-        c.libelle, tri.colonne === c.id ? icone(tri.sens === 'asc' ? 'arrow-up' : 'arrow-down', { taille: 12 }) : null))),
+    const entete = h('tr', {}, visibles.map((c) => h('th', { scope: 'col', 'aria-sort': tri.critere === c.id ? (tri.sens === 'asc' ? 'ascending' : 'descending') : 'none' },
+      h('button', { type: 'button', class: 'tri', onclick: () => changerTri(T.triApresClicColonne('personnes', tri, c.id)) },
+        c.libelle, tri.critere === c.id ? icone(tri.sens === 'asc' ? 'arrow-up' : 'arrow-down', { taille: 12 }) : null))),
     h('th', { class: 'col-actions' }, boutonColonnes));
     const corps = lignes.map((p) => h('tr', { class: 'ligne-liste', dataset: { id: p.id },
       onclick: (e) => { if (!e.target.closest('a, button')) naviguer(`crm/personnes/${p.id}`); } },
@@ -115,7 +126,7 @@ export function rendrePersonnes(conteneur) {
         h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'exporter-personnes', 'aria-label': 'Exporter les contacts', title: 'Exporter les contacts', onclick: exporterContactsTelephone }, icone('download', { taille: 16 })),
         infoContacts),
       h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'nouvelle-personne', onclick: () => ouvrirCreationPersonne() }, icone('plus', { taille: 16 }), 'Personne')));
-  conteneur.append(h('div', { class: 'page page-liste' }, entete, filtres.element, zoneTableau));
+  conteneur.append(h('div', { class: 'page page-liste' }, entete, h('div', { class: 'barre-affaires' }, filtres.element, choixTri.element), zoneTableau));
 
   async function exporterContactsTelephone() {
     const { nouvelles, modifiees } = L.personnesAExporterVcf(D.etat.personnes, D.etat.reglages.dernierExportContacts);
