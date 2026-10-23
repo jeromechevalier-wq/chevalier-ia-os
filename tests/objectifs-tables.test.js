@@ -7,8 +7,8 @@ import { TABLE_KPI_ACTIVE, TABLES_ANCIENNES, TABLES_KPI, nomCollection, faut_rep
 const SOURCE = readFileSync(new URL('../js/os/objectifs.js', import.meta.url), 'utf8');
 
 describe('tables des objectifs : interrupteur', () => {
-  test("l'interrupteur livré est éteint (le passage à true est une PR à part, après la copie des données)", () => {
-    assert.equal(TABLE_KPI_ACTIVE, false);
+  test("l'interrupteur livré est allumé (PR du 23/10/2026, après la copie des données de Jérôme)", () => {
+    assert.equal(TABLE_KPI_ACTIVE, true);
   });
 
   test('interrupteur éteint : lecture et écriture dans les anciens noms, repli ignoré', () => {
@@ -18,7 +18,7 @@ describe('tables des objectifs : interrupteur', () => {
       assert.equal(nomCollection(cle, { actif: false, repli: { [cle]: true } }), TABLES_ANCIENNES[cle]);
     }
     assert.deepEqual(TABLES_ANCIENNES, { definitions: 'os_objectifs', saisies: 'os_objectifs_saisies' });
-    assert.equal(nomCollection('definitions'), 'os_objectifs'); // défaut = interrupteur du module
+    assert.equal(nomCollection('definitions'), 'os_kpi'); // défaut = interrupteur du module (allumé)
   });
 
   test('interrupteur allumé : nouveaux noms en lecture et en écriture', () => {
@@ -36,11 +36,22 @@ describe('tables des objectifs : interrupteur', () => {
     assert.equal(nomCollection('saisies', { actif: true, repli, ecriture: true }), 'os_kpi_saisies');
   });
 
-  test("le repli ne se décide qu'une fois, interrupteur allumé et nouvelle table vide", () => {
-    assert.equal(faut_repli({ actif: true, nouvelleVide: true }), true);
-    assert.equal(faut_repli({ actif: true, nouvelleVide: false }), false);
-    assert.equal(faut_repli({ actif: true, nouvelleVide: true, deja: true }), false);
-    assert.equal(faut_repli({ actif: false, nouvelleVide: true }), false);
+  test("le repli ne se décide qu'une fois : nouvelle vide ET ancienne PAS vide", () => {
+    assert.equal(faut_repli({ actif: true, nouvelleVide: true, ancienneVide: false }), true);
+    assert.equal(faut_repli({ actif: true, nouvelleVide: false, ancienneVide: false }), false);
+    assert.equal(faut_repli({ actif: true, nouvelleVide: true, ancienneVide: false, deja: true }), false);
+    assert.equal(faut_repli({ actif: false, nouvelleVide: true, ancienneVide: false }), false);
+  });
+
+  test("les deux tables vides (espace neuf), ou ancienne illisible : pas de repli, on reste sur la nouvelle", () => {
+    assert.equal(faut_repli({ actif: true, nouvelleVide: true, ancienneVide: true }), false);
+    assert.equal(faut_repli({ actif: true, nouvelleVide: true, ancienneVide: undefined }), false);
+    assert.equal(faut_repli({ actif: true, nouvelleVide: true }), false);
+  });
+
+  test("objectifs.js : en repli, modifier un objectif est refusé (jamais d'écriture dans l'ancienne table)", () => {
+    assert.match(SOURCE, /if \(repli\.definitions\) throw/);
+    assert.match(SOURCE, /Modification impossible/);
   });
 
   test('table inconnue : erreur', () => {

@@ -1575,8 +1575,8 @@ test('C40 Réglages : objectifs — chaque indicateur calculé explique son calc
   await sec.getByLabel('Indicateur calculé à ajouter').selectOption('ca_signe');
   await expect(sec.locator('[data-role="explication-ajout"]')).toContainText('vente gagnée');
   await sec.locator('[data-action="ajouter-calcule"]').click();
-  await expect.poll(async () => (await listerDocuments('os_objectifs')).some((o) => o.calcul === 'ca_signe')).toBe(true);
-  const objectif = (await listerDocuments('os_objectifs')).find((o) => o.calcul === 'ca_signe');
+  await expect.poll(async () => (await listerDocuments('os_kpi')).some((o) => o.calcul === 'ca_signe')).toBe(true);
+  const objectif = (await listerDocuments('os_kpi')).find((o) => o.calcul === 'ca_signe');
   await allerA(page, 'Accueil');
   await expect.poll(() => valeurObjectif(page, objectif.id)).toBe(1200);
 });
