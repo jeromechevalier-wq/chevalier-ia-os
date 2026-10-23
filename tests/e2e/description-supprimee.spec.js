@@ -23,7 +23,7 @@ async function attendre(collection, predicat) {
 test.beforeEach(async ({ context }) => {
   await context.route('https://apis.google.com/**', (route) => route.fulfill({ status: 200, body: '', headers: { 'Content-Type': 'text/javascript' } }));
 });
-const champNote = (page) => page.locator('.points-cles [data-champ="note-depart"]');
+const champNote = (page) => page.locator('.notes-epinglees-zone [data-champ="note-depart"]');
 /** Note épinglée vide, comme celle que crée l'écran à la création d'une fiche. */
 const noteVide = (id, liens) => ecrireDocument(`crm_notes/${id}`, { texte: '', epinglee: true, personneId: null, organisationId: null, affaireId: null, auteur: JEROME, creeLe: new Date(), modifieLe: new Date(), ...liens });
 
@@ -60,7 +60,7 @@ test('I5 affaire créée à l’écran : une note épinglée vide, texte d’inv
   await champ.fill('Besoin : une appli de commande.\nDevis à envoyer.');
   await page.locator('.fiche-titre input.titre-editable').click();
   await expect.poll(async () => (await lireDocument(`crm_notes/${n.id}`)).texte).toBe('Besoin : une appli de commande.\nDevis à envoyer.');
-  await expect(page.locator('.points-cles .note-epinglee .note-texte')).toContainText('Besoin : une appli de commande.');
+  await expect(page.locator('.notes-epinglees-zone .note-epinglee .note-texte')).toContainText('Besoin : une appli de commande.');
   await expect(page.locator('.historique .fil-note')).toHaveCount(1);
 });
 
@@ -97,14 +97,14 @@ test('I5 projet créé depuis une affaire : il reçoit une COPIE du texte de la 
   expect(copie.id).not.toBe('na1');
   expect((await lireDocument('crm_notes/na1')).texte).toBe('Besoin : audit du site.\nDevis signé.');
   // Sur l'affaire comme sur le projet : une seule carte et une seule ligne d'historique (la copie et l'originale ont le même texte).
-  await expect(page.locator('.points-cles .note-epinglee')).toHaveCount(1);
+  await expect(page.locator('.notes-epinglees-zone .note-epinglee')).toHaveCount(1);
   await expect(page.locator('.historique .fil-note')).toHaveCount(1);
   await aller(page, `#/projets/projets/${p.id}`);
-  await expect(page.locator('.points-cles .note-epinglee')).toHaveCount(1);
+  await expect(page.locator('.notes-epinglees-zone .note-epinglee')).toHaveCount(1);
   await expect(page.locator('.historique .fil-note')).toHaveCount(1);
   await expect(page.locator('.historique')).not.toContainText('note de l’affaire');
-  await expect(page.locator('.points-cles .note-epinglee')).toContainText('Besoin : audit du site.');
-  await expect(page.locator('.points-cles .note-epinglee')).not.toContainText('note de l’affaire');
+  await expect(page.locator('.notes-epinglees-zone .note-epinglee')).toContainText('Besoin : audit du site.');
+  await expect(page.locator('.notes-epinglees-zone .note-epinglee')).not.toContainText('note de l’affaire');
   await capture(page, '3-copie');
 });
 
@@ -116,28 +116,28 @@ test('I5 supprimée (croix d’une note vide) ou désépinglée (note écrite), 
   await connecter(page);
   await aller(page, '#/crm/affaires/a1');
   // Note VIDE : la croix la supprime (pas de document orphelin), après confirmation ; « Annuler » est proposé pendant 8 s.
-  await expect(page.locator('.points-cles [data-action="desepingler-note"]')).toHaveCount(0);
-  await page.locator('.points-cles [data-action="supprimer-note-vide"]').click();
+  await expect(page.locator('.notes-epinglees-zone [data-action="desepingler-note"]')).toHaveCount(0);
+  await page.locator('.notes-epinglees-zone [data-action="supprimer-note-vide"]').click();
   await expect(dialogue(page)).toContainText('Supprimer cette note vide ?');
   await dialogue(page).getByRole('button', { name: 'Supprimer' }).click();
   await expect.poll(async () => lireDocument('crm_notes/nv1')).toBeNull();
   await expect(page.locator('.toast', { hasText: 'Note supprimée' })).toContainText('Annuler');
-  await expect(page.locator('.points-cles .note-epinglee')).toHaveCount(0);
+  await expect(page.locator('.notes-epinglees-zone .note-epinglee')).toHaveCount(0);
   await expect(page.locator('.historique .fil-note')).toHaveCount(0);
   await page.reload();
   await attendreCalme(page);
   await expect(page.locator('.points-cles')).toBeVisible();
-  await expect(page.locator('.points-cles .note-epinglee')).toHaveCount(0);
+  await expect(page.locator('.notes-epinglees-zone .note-epinglee')).toHaveCount(0);
   await capture(page, '4-supprimee');
   // Note écrite : la croix la désépingle ; elle reste dans l'historique et ne revient pas en haut.
   await aller(page, '#/projets/projets/pr1');
-  await page.locator('.points-cles [data-action="desepingler-note"]').click();
+  await page.locator('.notes-epinglees-zone [data-action="desepingler-note"]').click();
   await expect.poll(async () => (await lireDocument('crm_notes/nv2')).epinglee).toBe(false);
-  await expect(page.locator('.points-cles .note-epinglee')).toHaveCount(0);
+  await expect(page.locator('.notes-epinglees-zone .note-epinglee')).toHaveCount(0);
   await page.reload();
   await attendreCalme(page);
   await expect(page.locator('.points-cles')).toBeVisible();
-  await expect(page.locator('.points-cles .note-epinglee')).toHaveCount(0);
+  await expect(page.locator('.notes-epinglees-zone .note-epinglee')).toHaveCount(0);
   await expect(page.locator('.historique .fil-note')).toContainText('Note de départ déjà écrite');
   expect((await listerDocuments('crm_notes')).filter((d) => d.epinglee).length).toBe(0);
 });
@@ -149,11 +149,11 @@ test('I5 cas vide : une affaire ou un projet déjà existant ne reçoit pas de n
   await connecter(page);
   await aller(page, '#/crm/affaires/a1');
   await expect(page.locator('.points-cles')).toContainText('Aucune activité à faire.');
-  await expect(page.locator('.points-cles .note-epinglee')).toHaveCount(0);
+  await expect(page.locator('.notes-epinglees-zone .note-epinglee')).toHaveCount(0);
   await expect(page.locator('.fiche')).not.toContainText('Ancien texte libre');
   await capture(page, '5-existante');
   await aller(page, '#/projets/projets/pr1');
-  await expect(page.locator('.points-cles .note-epinglee')).toHaveCount(0);
+  await expect(page.locator('.notes-epinglees-zone .note-epinglee')).toHaveCount(0);
   await expect(page.locator('.fiche')).not.toContainText('Ancien texte du projet');
   expect(await listerDocuments('crm_notes')).toEqual([]);
   expect((await lireDocument('crm_affaires/a1')).description).toBe('Ancien texte libre'); // rien n'est migré ni effacé
@@ -182,7 +182,7 @@ test('I5 sur téléphone, la note épinglée prend toute la largeur, comme le bl
   await noteVide('nv1', { projetId: 'pr1' });
   await connecter(page);
   await aller(page, '#/projets/projets/pr1');
-  const carte = page.locator('.points-cles .note-epinglee');
+  const carte = page.locator('.notes-epinglees-zone .note-epinglee');
   const factures = page.locator('[data-section="projet-factures"]');
   await expect(carte).toBeVisible();
   await expect(factures).toBeVisible();

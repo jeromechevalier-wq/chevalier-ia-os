@@ -514,7 +514,7 @@ export function planDeplacerTache({ tache, taches = [], sens }) {
 }
 
 /**
- * Tâches à montrer dans les Points clés de l'Accueil : non faites, datées, d'un projet vivant (ni terminé, ni archivé).
+ * Tâches à montrer dans le bloc « À faire » de l'Accueil : non faites, datées, d'un projet vivant (ni terminé, ni archivé).
  * { enRetard, aujourdhui } triés par date puis heure ; chaque tâche est rendue avec son projet : { ...tache, projet }.
  */
 export function tachesPointsCles(taches, projets, aujourdhui) {
