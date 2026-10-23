@@ -119,3 +119,26 @@ test('6 les onglets sont des liens focalisables au clavier (focus puis Entrée),
   const debord = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
   expect(debord).toBe(false);
 });
+
+test('7 téléphone : Échap referme le tiroir du menu (il ne recouvre plus la page), toucher une entrée le referme aussi, et le clic sur un onglet de la page marche ensuite', async ({ page }) => {
+  test.skip(!estTelephone(page), 'tiroir du menu : format téléphone seulement');
+  await connecter(page, CHARLES);
+  await aller(page, '#/automatisations/historique');
+  const barre = onglets(page, 'Écrans des automatisations');
+  await expect(barre).toHaveText(['À valider', 'Historique']);
+  await page.getByRole('button', { name: 'Ouvrir le menu' }).click();
+  await expect(page.locator('.coquille.menu-ouvert')).toHaveCount(1);
+  await mkdir('e2e/captures/menu-telephone', { recursive: true });
+  await page.screenshot({ path: 'e2e/captures/menu-telephone/7-tiroir-ouvert-telephone.png', animations: 'disabled' });
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.coquille.menu-ouvert')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Ouvrir le menu' })).toHaveAttribute('aria-expanded', 'false');
+  await barre.nth(0).click(); // le clic atteint l'onglet de la page, pas le menu
+  await expect(page).toHaveURL(/#\/automatisations\/a-valider$/);
+  await page.screenshot({ path: 'e2e/captures/menu-telephone/7-page-apres-navigation-telephone.png', animations: 'disabled' });
+  // toucher une entrée du menu referme le tiroir
+  await page.getByRole('button', { name: 'Ouvrir le menu' }).click();
+  await page.locator('.menu .menu-entree[data-chemin="veille/contenus"]').click();
+  await expect(page).toHaveURL(/#\/veille\/contenus$/);
+  await expect(page.locator('.coquille.menu-ouvert')).toHaveCount(0);
+});

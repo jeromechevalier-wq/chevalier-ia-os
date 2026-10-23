@@ -617,10 +617,10 @@ test('C30 le projet montre les documents et les notes de son affaire, sans les d
   await expect(notes.filter({ hasText: 'Note écrite sur l’affaire' })).toHaveCount(0);
   await expect(notes.filter({ hasText: 'Note écrite sur le projet' })).toHaveCount(1);
   if (estTelephone(page)) {
-    // une seule colonne : le résumé en premier, puis les documents, puis les détails
-    const ordre = await page.evaluate(() => ['projet-resume', 'projet-documents', 'projet-details'].map((s) => document.querySelector(`[data-section="${s}"]`).getBoundingClientRect().top));
+    // une seule colonne : le résumé en premier, puis les documents (la section « Détails » n'existe plus : le dossier de travail est dans l'onglet Documents)
+    const ordre = await page.evaluate(() => ['projet-resume', 'projet-documents'].map((s) => document.querySelector(`[data-section="${s}"]`).getBoundingClientRect().top));
     expect(ordre[0]).toBeLessThan(ordre[1]);
-    expect(ordre[1]).toBeLessThan(ordre[2]);
+    await expect(page.locator('[data-section="projet-details"]')).toHaveCount(0);
   }
 });
 

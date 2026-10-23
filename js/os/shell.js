@@ -343,7 +343,15 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
     e.preventDefault();
     definirElargi(coquille.dataset.menu !== 'elargi');
   }
+  // Téléphone : Échap referme le tiroir du menu (sauf si une fenêtre ou le menu utilisateur est ouvert : eux d'abord).
+  function surToucheTiroir(e) {
+    if (e.key !== 'Escape' || e.defaultPrevented || !coquille.classList.contains('menu-ouvert')) return;
+    if (document.querySelector('.voile-dialogue, .menu-pop')) return;
+    ouvrirMobile(false);
+    boutonMobile.focus?.();
+  }
   document.addEventListener('keydown', surTouche);
+  document.addEventListener('keydown', surToucheTiroir);
   document.addEventListener('keydown', surToucheRepli);
 
   function activer(route) {
@@ -363,5 +371,5 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
     remplirMarque();
     remplirMarqueHaut();
   }
-  return { contenu, activer, majClient, arreter: () => { arretsEcoutes.forEach((f) => { try { f?.(); } catch { /* déjà arrêtée */ } }); arretAffichageBadges(); for (const { entree } of entreesBadge) definirBadge(entree.module, 0); document.removeEventListener('keydown', surTouche); document.removeEventListener('keydown', surToucheRepli); window.removeEventListener('resize', surRedimension); surBascule.removeEventListener?.('change', majRepli); } };
+  return { contenu, activer, majClient, arreter: () => { arretsEcoutes.forEach((f) => { try { f?.(); } catch { /* déjà arrêtée */ } }); arretAffichageBadges(); for (const { entree } of entreesBadge) definirBadge(entree.module, 0); document.removeEventListener('keydown', surTouche); document.removeEventListener('keydown', surToucheTiroir); document.removeEventListener('keydown', surToucheRepli); window.removeEventListener('resize', surRedimension); surBascule.removeEventListener?.('change', majRepli); } };
 }

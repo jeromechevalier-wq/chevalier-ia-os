@@ -315,7 +315,7 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
   .titre-editable { font-size: var(--fs-page); }
   .fiche-tete-droite { width: 100%; }
   .fiche-montant { margin-left: 0; }
-  .fiche-montant .prop-modifier { position: static; transform: none; width: 28px; height: 28px; }
+  .fiche-montant .prop-modifier { position: relative; right: auto; top: auto; transform: none; width: 28px; height: 28px; } /* relative (et non static) : la zone de clic de 44 px (::after, os.css) se centre sur le crayon, pas sur le montant */
   .fiche-actions { width: 100%; }
 }
 .barre-etapes-fiche { display: flex; gap: var(--esp-1); list-style: none; margin: 0; padding: 0; overflow-x: auto; }

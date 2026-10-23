@@ -130,7 +130,8 @@ async function verifierTactile(page) {
     const visibles = (sel) => [...document.querySelector(racine).querySelectorAll(sel)].filter((e) => e.offsetParent !== null || getComputedStyle(e).position === 'fixed');
     const petitsChamps = visibles('input:not([type=checkbox]):not([type=radio]):not([type=hidden]), select, textarea').filter((e) => parseFloat(getComputedStyle(e).fontSize) < 16).map((e) => e.className || e.tagName);
     const zonesTrop = visibles(zones).filter((e) => {
-      const r = e.getBoundingClientRect();
+      let r = e.getBoundingClientRect();
+      if (r.top + r.height / 2 > innerHeight - 30) { window.scrollBy({ top: r.top + r.height / 2 - innerHeight / 2, behavior: 'instant' }); r = e.getBoundingClientRect(); } // trop près du bas de l'écran : elementFromPoint renvoie null hors fenêtre, donc on remonte l'élément (défilement vertical seulement)
       if (Math.min(r.width, r.height) >= 44 || r.width === 0) return false;
       const [cx, cy] = [r.left + r.width / 2, r.top + r.height / 2];
       if (cy < 0 || cy > innerHeight || cx < 0 || cx > innerWidth) return false;
