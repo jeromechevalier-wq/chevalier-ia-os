@@ -18,7 +18,7 @@ const [hote, port] = (process.env.FIRESTORE_EMULATOR_HOST || '127.0.0.1:8080').s
 // Collections de l'appli : comportement identique à celui d'avant l'étape 4 (cas A1 à A5, pour chaque collection de la liste).
 const COLLECTIONS = [
   'crm_personnes', 'crm_organisations', 'crm_affaires', 'crm_activites', 'crm_notes', 'crm_evenements',
-  'crm_parametres', 'os_objectifs', 'os_objectifs_saisies',
+  'crm_parametres', 'os_objectifs', 'os_objectifs_saisies', 'os_kpi', 'os_kpi_saisies',
   // Module Projets (version 2.1) : couvertes par le joker, sans règle à publier ; mêmes droits que le CRM.
   'projets_projets', 'projets_taches', 'projets_modeles',
 ];
