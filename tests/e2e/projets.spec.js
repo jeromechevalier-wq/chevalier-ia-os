@@ -1571,7 +1571,11 @@ test('C40 Réglages : objectifs — chaque indicateur calculé explique son calc
   await attendreModeles();
   await aller(page, '#/reglages/crm');
   const sec = page.locator('#reglages-objectifs');
-  await expect(sec.locator('[data-role="explication"]').first()).toBeVisible();
+  // L'explication est repliée derrière l'icône « i » : on l'ouvre (focus clavier) avant de la lire.
+  await sec.locator('.ligne-objectif [data-role="info"]').first().focus();
+  await expect(sec.locator('[data-role="explication"]:visible').first()).toBeVisible();
+  await sec.locator('.ligne-objectif[data-objectif="ca_encaisse"] [data-role="info"]').focus();
+  await expect(sec.locator('.ligne-objectif[data-objectif="ca_encaisse"] [data-role="explication"]')).toBeVisible();
   await expect(sec.locator('.ligne-objectif[data-objectif="ca_encaisse"] [data-role="explication"]')).toContainText('marquées payées');
   await sec.getByLabel('Indicateur calculé à ajouter').selectOption('ca_signe');
   await expect(sec.locator('[data-role="explication-ajout"]')).toContainText('vente gagnée');

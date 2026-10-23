@@ -1,6 +1,6 @@
 // Composants du module CRM partagés par les listes et les fiches : sections repliables, propriétés à
 // compléter ("+ Ajouter"), pastilles, liens, sélecteurs intelligents (organisation, personne, étiquettes…).
-import { h, icone, remplir, champIntelligent, dialogue, lirePreference, ecrirePreference, toast } from '../../os/ui.js';
+import { h, icone, remplir, champIntelligent, dialogue, lirePreference, ecrirePreference, toast, iconeInfo } from '../../os/ui.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
 import { estChezClient } from '../../os/contexte.js';
@@ -98,35 +98,8 @@ export function pastilleEtape(etape) {
   return h('span', { class: 'pastille-statut', style: { '--couleur': L.couleurEtape(etape, D.etat.config) } }, L.libelleEtape(etape, D.etat.config));
 }
 
-/**
- * Petite icône « i » qui explique une étape ou une phase (le texte écrit dans les Réglages) : au survol sur ordinateur, au toucher sur téléphone
- * (un clic affiche le texte). Rien si l'explication est vide.
- */
-export function iconeInfo(texte, nom = '') {
-  const t = L.nettoyerEspaces(texte);
-  if (!t) return null;
-  // Même comportement partout : la bulle s'affiche au survol (souris), au focus (clavier) et au toucher (téléphone) ; Échap ou un clic ailleurs la ferme.
-  const bulle = h('span', { class: 'bulle-info', role: 'tooltip', dataset: { role: 'bulle-info' } }, t);
-  const bouton = h('button', { type: 'button', class: 'bouton-info', 'aria-label': `Explication${nom ? ` : ${nom}` : ''} : ${t}`, 'data-role': 'info' }, icone('info', { taille: 14 }), bulle);
-  const placer = () => { // la bulle reste dans l'écran (téléphone : l'icône peut être près d'un bord)
-    const r = bouton.getBoundingClientRect();
-    const largeur = Math.min(280, window.innerWidth - 24);
-    bulle.style.width = `${largeur}px`;
-    bulle.style.left = `${Math.max(12, Math.min(r.left + r.width / 2 - largeur / 2, window.innerWidth - largeur - 12))}px`;
-    bulle.style.top = `${r.bottom + 8}px`;
-  };
-  // Au toucher, un appui ailleurs ferme la bulle (le « blur » n'arrive pas toujours sur un téléphone).
-  const fermerSiAilleurs = (e) => { if (!bouton.contains(e.target)) fermer(); };
-  const ouvrir = () => { placer(); bouton.classList.add('ouvert'); document.addEventListener('pointerdown', fermerSiAilleurs, true); };
-  function fermer() { bouton.classList.remove('ouvert'); document.removeEventListener('pointerdown', fermerSiAilleurs, true); }
-  bouton.addEventListener('mouseenter', ouvrir);
-  bouton.addEventListener('mouseleave', () => { if (document.activeElement !== bouton) fermer(); });
-  bouton.addEventListener('focus', ouvrir);
-  bouton.addEventListener('blur', fermer);
-  bouton.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); fermer(); } });
-  bouton.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); if (bouton.classList.contains('ouvert') && document.activeElement !== bouton) fermer(); else ouvrir(); });
-  return bouton;
-}
+// Déplacée dans la coque (js/os/ui.js) pour servir aussi aux Indicateurs ; ré-exportée ici : les modules du CRM l'importent d'ici.
+export { iconeInfo };
 
 export function pastilleActivite(couleur) {
   const libelles = { rouge: 'Activité en retard', verte: 'Activité prévue', grise: 'Aucune activité' };
