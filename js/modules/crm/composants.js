@@ -133,6 +133,36 @@ export function pastilleActivite(couleur) {
   return h('span', { class: `pastille-activite ${couleur}`, role: 'img', 'aria-label': libelles[couleur], title: libelles[couleur] });
 }
 
+/**
+ * Menu « Trier par : <critère> » et bouton flèche qui inverse le sens : le même sur Affaires, Projets, Personnes et Organisations.
+ * `options` : [{ id, libelle }] ; `surChangement({ critere, sens })` est appelé quand on choisit un critère ou quand on inverse.
+ * Renvoie { element, maj(options, valeur, sens) } : `maj` remet le menu à l'état réel (après un clic de colonne, par exemple).
+ */
+export function selecteurTri({ options, valeur, sens, surChangement }) {
+  let etat = { critere: valeur, sens };
+  let courantes = options;
+  const menu = h('select', { class: 'champ champ-tri', 'aria-label': 'Trier par', onchange: (e) => {
+    const c = courantes.find((o) => o.id === e.target.value);
+    etat = { critere: e.target.value, sens: c?.sens || 'asc' };
+    surChangement({ ...etat });
+  } });
+  const fleche = h('button', { type: 'button', class: 'bouton-icone bouton-tri-sens', 'data-action': 'inverser-tri',
+    onclick: () => { etat = { critere: etat.critere, sens: etat.sens === 'asc' ? 'desc' : 'asc' }; maj(courantes, etat.critere, etat.sens); surChangement({ ...etat }); } });
+  function maj(nouvelles, critere, sensActuel) {
+    courantes = nouvelles;
+    etat = { critere, sens: sensActuel };
+    remplir(menu, courantes.map((o) => h('option', { value: o.id, selected: o.id === critere }, `Trier par : ${o.libelle}`)));
+    menu.value = critere;
+    const texte = sensActuel === 'asc' ? 'croissant' : 'décroissant';
+    fleche.setAttribute('aria-label', `Sens du tri : ${texte}. Inverser le sens`);
+    fleche.title = `Sens du tri : ${texte}`;
+    fleche.dataset.sens = sensActuel;
+    remplir(fleche, icone(sensActuel === 'asc' ? 'arrow-up' : 'arrow-down', { taille: 16 }));
+  }
+  maj(options, valeur, sens);
+  return { element: h('div', { class: 'selecteur-tri' }, menu, fleche), maj };
+}
+
 export function iconeTypeActivite(type) {
   const icones = { appel: 'phone', rendez_vous: 'calendar', email: 'mail', tache: 'circle-check' };
   return icone(icones[type] || 'circle-check', { taille: 16 });

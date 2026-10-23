@@ -161,6 +161,7 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 .zone-affaires { min-width: 0; }
 .barre-affaires { display: flex; gap: var(--esp-4); align-items: flex-start; flex-wrap: wrap; }
 .champ-tri { width: auto; min-width: 200px; }
+.selecteur-tri { display: inline-flex; align-items: center; gap: var(--esp-2); }
 .bascule-vues { display: inline-flex; border: 1px solid var(--bordure-forte); border-radius: var(--rayon); overflow: hidden; }
 .bascule-vue { display: inline-flex; align-items: center; gap: var(--esp-2); padding: var(--esp-3) var(--esp-5); border: 0; background: transparent; color: var(--texte2); cursor: pointer; font-weight: var(--poids-moyen); font-size: var(--fs-texte); }
 .bascule-vue + .bascule-vue { border-left: 1px solid var(--bordure-forte); }
@@ -395,6 +396,8 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
   .barre-filtres-ligne .champ-avec-icone { flex: 1 1 100%; }
   .barre-affaires { flex-direction: column; align-items: stretch; }
   .champ-tri { width: 100%; }
+  .selecteur-tri { display: flex; width: 100%; }
+  .selecteur-tri .champ-tri { flex: 1 1 auto; }
   .page-actions { width: 100%; }
   .page-actions .bouton { flex: 1 1 auto; justify-content: center; }
   .page-tete > div:first-child { min-width: 0; }
