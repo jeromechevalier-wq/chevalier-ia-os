@@ -74,6 +74,13 @@ Jérôme ne veut pas être le goulot d'étranglement : GitHub permet de revenir 
 - Fable a une limite d'usage : si elle est atteinte, la relecture attend la levée, la fusion de la PR concernée aussi (jamais de « non relue par Fable » sans le dire).
 - Les captures de recette régénérées par le bac à sable se rendent un peu différemment : ne committer que celles du dossier de la PR en cours.
 
+### Leçons du 23/10/2026 (journée après les nuits)
+- **Tout nouveau test d'écran se lance aussi en format téléphone** (`--project=telephone`) avant la PR : la coche de PR ne le fait pas (quatre tests n'ont été vus rouges que par la suite de nuit). Un test qui ouvre le tiroir du menu le referme (Échap) avant de cliquer ailleurs.
+- Après une série de PR qui touchent l'interface, **relancer la suite de nuit à la main** sur `main` (workflow « Tests de nuit ») pour savoir s'il reste du rouge, sans attendre la nuit.
+- Un test instable ne se prouve pas corrigé par un seul passage vert : le dire dans la PR.
+- La relecture Fable de chaque brief et de chaque PR reste la règle ; un sous-agent qui se réveille sans fin (tâche de fond) est arrêté (`TaskStop`) une fois son travail fusionné.
+- Mode d'emploi pour Jérôme : `docs/fonctionnement-du-travail.md` ; bouton qui lance un workflow : `docs/ajouter-un-bouton-workflow.md` ; déploiement chez un client : `docs/deploiement-client.md`.
+
 ## Au démarrage d'une session
 
 1. Lis `docs/roadmap.md` (état et décisions).
