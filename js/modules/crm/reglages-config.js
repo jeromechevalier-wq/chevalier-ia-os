@@ -61,6 +61,13 @@ function editeurEmplacements({ genre, visible = true }) {
     majBoutons();
   }
 
+  /** Le champ d'explication tient sur une ligne et grandit avec son texte (jamais de barre de défilement interne). */
+  function ajuster(zoneTexte) {
+    if (!zoneTexte.isConnected) return;
+    zoneTexte.style.height = 'auto';
+    if (zoneTexte.scrollHeight > 0) zoneTexte.style.height = `${zoneTexte.scrollHeight + 2}px`; // 0 = écran caché : on réajuste à l'affichage (ResizeObserver)
+  }
+
   function ligne(e, i) {
     const nb = comptes()[e.id] || 0;
     const modifier = (patch) => { Object.assign(e, patch); majBoutons(); };
@@ -70,9 +77,11 @@ function editeurEmplacements({ genre, visible = true }) {
       onchange: (ev) => { modifier({ actif: ev.target.checked }); rendre(); } });
     const roleRadio = h('input', { type: 'radio', name: `role-${genre}`, checked: role === e.id, disabled: !e.actif, dataset: { role: 'role' }, 'aria-label': `${etape ? 'Vente gagnée' : 'Clôture'} : emplacement ${i + 1}`,
       onchange: () => { role = e.id; majBoutons(); } });
-    const description = h('textarea', { class: 'champ', rows: 2, maxlength: '300', placeholder: `Explication de cette ${mot}, affichée avec l’icône « i »`, 'aria-label': `Description de l’emplacement ${i + 1}`,
-      oninput: (ev) => modifier({ description: ev.target.value }) });
+    const description = h('textarea', { class: 'champ champ-explication', rows: 1, maxlength: '300', placeholder: `Explication de cette ${mot} (icône « i »)`, 'aria-label': `Description de l’emplacement ${i + 1}`,
+      oninput: (ev) => { modifier({ description: ev.target.value }); ajuster(description); } });
     description.value = e.description || '';
+    requestAnimationFrame(() => ajuster(description)); // une seule ligne ; elle grandit quand le texte est plus long
+    if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => ajuster(description)).observe(description); // section cachée puis affichée, ou largeur qui change
 
     const aAction = !!e.action;
     const caseAction = h('input', { type: 'checkbox', checked: aAction, dataset: { role: 'action-active' }, 'aria-label': `Action suggérée : emplacement ${i + 1}`,
@@ -93,8 +102,9 @@ function editeurEmplacements({ genre, visible = true }) {
         h('label', { class: 'case' }, actif, h('span', {}, 'Utilisée')),
         h('label', { class: 'case' }, roleRadio, h('span', {}, etape ? 'Vente gagnée' : 'Clôture')),
         nb ? h('span', { class: 'aide' }, `${nb} fiche${nb > 1 ? 's' : ''}`) : null),
-      description,
-      h('label', { class: 'case' }, caseAction, h('span', {}, `Proposer une action quand une fiche arrive dans cette ${mot}`)),
+      h('div', { class: 'ligne-champs ligne-explication' },
+        description,
+        h('label', { class: 'case' }, caseAction, h('span', {}, `Proposer une action quand une fiche arrive dans cette ${mot}`))),
       detailAction,
       h('p', { class: 'erreur', role: 'alert', dataset: { erreur: e.id } }));
   }

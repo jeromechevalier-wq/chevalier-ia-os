@@ -3,7 +3,7 @@ import {
   collection, doc, onSnapshot, getDocs, setDoc, updateDoc, runTransaction, serverTimestamp, increment,
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { db } from './firebase.js';
-import { h, icone, vider, remplir, toast } from './ui.js';
+import { h, icone, vider, remplir, toast, iconeInfo } from './ui.js';
 import { animerCompteur, celebrerObjectif } from './celebrations.js';
 import { TABLE_KPI_ACTIVE, nomCollection, faut_repli } from './objectifs-tables.js';
 
@@ -389,9 +389,11 @@ export function rendreReglagesObjectifs(conteneur) {
       await modifier(o.id, { ordre: autre.ordre ?? j });
       await modifier(autre.id, { ordre: o.ordre ?? index });
     };
-    const explication = c?.explication
-      ? h('p', { class: 'aide explication-objectif', dataset: { role: 'explication' } }, h('strong', {}, 'Comment c’est calculé : '), c.explication)
-      : (calcule ? null : h('p', { class: 'aide explication-objectif', dataset: { role: 'explication' } }, 'Compteur à tenir à la main : tu ajoutes +1, +10 ou tu saisis la valeur sur l’Accueil.'));
+    // L'explication est repliée derrière l'icône « i » (survol, clavier, toucher) : la ligne reste basse. Le texte garde data-role="explication" (dans la bulle).
+    const texteExplication = c?.explication
+      ? `Comment c’est calculé : ${c.explication}`
+      : (calcule ? '' : 'Compteur à tenir à la main : tu ajoutes +1, +10 ou tu saisis la valeur sur l’Accueil.');
+    const explication = iconeInfo(texteExplication, regles.libelle(o), { roleTexte: 'explication' });
     return h('div', { class: `ligne-reglage ligne-objectif${dispo ? '' : ' archivee'}`, dataset: { objectif: o.id } },
       h('div', { class: 'ligne-objectif-champs' },
         h('span', { class: `badge ${o.type === 'manuel' ? 'badge-manuel' : 'badge-calcule'}` }, o.type === 'manuel' ? 'Manuel' : 'Calculé'),
@@ -399,13 +401,13 @@ export function rendreReglagesObjectifs(conteneur) {
         h('label', { class: 'case' }, actif, h('span', {}, 'Actif')),
         h('div', { class: 'groupe-boutons' },
           h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Monter', disabled: index === 0, onclick: () => echanger(index - 1) }, icone('arrow-up', { taille: 16 })),
-          h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Descendre', disabled: index === liste.length - 1, onclick: () => echanger(index + 1) }, icone('arrow-down', { taille: 16 })))),
-      explication,
+          h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Descendre', disabled: index === liste.length - 1, onclick: () => echanger(index + 1) }, icone('arrow-down', { taille: 16 }))),
+        explication),
       dispo ? null : h('p', { class: 'aide', dataset: { role: 'indisponible' } }, 'Indisponible pour le moment (une option est éteinte, ou l’étape suivie est désactivée) : l’objectif n’est pas affiché sur l’Accueil.'));
   }
 
   function maj() {
-    if (conteneur.contains(document.activeElement) && document.activeElement.matches('input[type=text], input[type=number]')) return;
+    if (conteneur.contains(document.activeElement) && document.activeElement.matches('input[type=text], input[type=number], .bouton-info')) return; // pas de redessin pendant une saisie, ni pendant que la bulle « i » est ouverte
     vider(corps);
     const liste = tousLesObjectifs();
     liste.forEach((o, i) => corps.append(ligne(o, i, liste)));
