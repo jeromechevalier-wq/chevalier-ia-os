@@ -8,7 +8,7 @@ import { naviguer, lien } from './router.js';
 // Routes sans entrée de menu -> entrée allumée à leur place (l'écran principal de leur module).
 /** Écrans qui gardent la barre de recherche et le bouton « + » du haut (les autres : Devis, Veille, Automatisations, Maintenance, réglages, journal, assistant…). */
 const PAGES_AVEC_OUTILS = ['crm/accueil', 'crm/personnes', 'crm/organisations', 'crm/affaires', 'projets/'];
-const ROUTES_SOUS_ENTREE =[['projets/archives', 'projets/projets'], ['projets/modeles', 'projets/projets']];
+const ROUTES_SOUS_ENTREE = [['projets/archives', 'projets/projets'], ['projets/modeles', 'projets/projets']];
 
 // ---------------------------------------------------------------- thème
 
@@ -333,7 +333,7 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (ignorerTouche(e)) return;
     if (e.key === '/') { if (coquille.classList.contains('sans-outils')) return; e.preventDefault(); recherche.focus(); }
-    else if (e.key === 'n') {
+    else if (e.key === 'n' && !coquille.classList.contains('sans-outils')) {
       const a = actions.find((x) => x.raccourci === 'n');
       if (a) { e.preventDefault(); a.action(); }
     }

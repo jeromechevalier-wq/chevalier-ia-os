@@ -41,14 +41,24 @@ test('2 Devis, Veille, Automatisations, Maintenance, journal et connexion de l�
   await capture(page, '2-devis-sans-barre');
 });
 
-test('3 la touche « / » ne fait rien là où la recherche est cachée, et la barre revient en retournant sur Affaires', async ({ page }) => {
+test('3 les touches « / » et « n » ne font rien là où la barre est cachée, et fonctionnent sur Affaires', async ({ page }) => {
   await connecter(page, JEROME);
+  // Un écouteur lit si l'application a pris la touche (preventDefault) : c'est ce qui prouve que le raccourci est actif ou non.
+  await page.evaluate(() => { window.__prises = []; window.addEventListener('keydown', (e) => window.__prises.push([e.key, e.defaultPrevented])); });
+  const prise = async (touche) => {
+    await page.evaluate(() => { window.__prises = []; });
+    await page.keyboard.press(touche);
+    return page.evaluate(() => window.__prises.at(-1)?.[1] ?? null);
+  };
   await aller(page, '#/devis/liste');
-  await page.locator('main').click({ position: { x: 5, y: 5 } });
-  await page.keyboard.press('/');
-  await expect(page.locator('[data-role="recherche-globale"]')).not.toBeFocused();
+  expect(await prise('/')).toBe(false);
+  expect(await prise('n')).toBe(false);
   await aller(page, '#/crm/affaires');
   const { recherche, plus } = await barreVisible(page);
   await expect(recherche).toBeVisible();
   await expect(plus).toBeVisible();
+  if (!estTelephone(page)) {
+    expect(await prise('/')).toBe(true);
+    await page.keyboard.press('Escape');
+  }
 });
