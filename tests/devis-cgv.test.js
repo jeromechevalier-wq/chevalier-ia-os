@@ -26,7 +26,7 @@ describe('G cgv', () => {
   });
   test('G2 les valeurs saisies apparaissent dans le texte', () => {
     const x = tout(base);
-    for (const v of ['35 %', '21 jours', '45 jours', 'le tribunal judiciaire de Ville', 'Médiateur Test', 'mediation@exemple.test', 'contact@exemple.test']) assert.ok(x.includes(v), v);
+    for (const v of ['35\u00a0%', '21 jours', '45 jours', 'le tribunal judiciaire de Ville', 'Médiateur Test', 'mediation@exemple.test', 'contact@exemple.test']) assert.ok(x.includes(v), v);
     assert.match(x, /réclamation écrite/);
   });
   test('G3 les pénalités n\'apparaissent que si demandées', () => {
@@ -57,6 +57,7 @@ describe('G cgv', () => {
   test('G6 aucune ressource externe ni JavaScript', () => {
     const h = cgvHtml({ ...base, mediateur: { nom: 'M', email: 'm@exemple.test' } });
     assert.ok(!/<script|<link|<img|<iframe|@import|url\(|src=|https?:\/\//i.test(h));
+    assert.ok(!/<script|<link|<img|<iframe|@import|url\(|\ssrc=|\shref=/i.test(cgvHtml(base)));
     assert.ok(!/\son\w+=/i.test(h));
   });
   test('G7 la couleur sert à l\'accent des titres', () => {
@@ -64,6 +65,9 @@ describe('G cgv', () => {
     assert.match(h, /--accent: #aa1122/);
     assert.match(h, /h2 \{[^}]*var\(--accent\)/);
     assert.match(cgvHtml(base), /--accent: #333333/);
+    const rouge = cgvHtml({ ...base, couleur: 'red' });
+    assert.match(rouge, /--accent: #333333/);
+    assert.ok(!/<style>[\s\S]*\bred\b[\s\S]*<\/style>/.test(rouge));
   });
   test('G8 le texte n\'est pas encore relu par un juriste', () => assert.equal(CGV_RELUES_PAR_JURISTE, false));
   test('G9 aucun nom de logiciel concurrent ni de client', () => {

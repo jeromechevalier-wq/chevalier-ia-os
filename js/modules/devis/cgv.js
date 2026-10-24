@@ -4,6 +4,8 @@
 // Seuls chiffres légaux écrits : le délai de rétractation de 14 jours et l'indemnité forfaitaire de recouvrement de 40 € (client professionnel).
 // Le taux des pénalités de retard n'est pas chiffré : « au taux prévu par la loi ».
 //
+// Points à trancher par le juriste : acompte à la signature et délai légal hors établissement ; point de départ de la rétractation ; garanties et assurance décennale ; pénalités de retard (mention obligatoire entre professionnels, ici facultative) ; délais « de bonne foi » face à un consommateur.
+//
 // Décisions prises seul :
 // - Livraison, Réception et Réserve de propriété dépendent du type de prestations.
 // - La rétractation est toujours rédigée avec la condition « contrat conclu hors établissement avec un particulier ».
@@ -25,6 +27,7 @@ const COULEUR_DEFAUT = '#333333';
 const MAIL = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
 
 const nombreOu = (v, defaut) => (v === undefined || v === null || v === '' ? defaut : Number(v));
+const nb = (n) => String(n).replace('.', ',');
 const chaine = (v) => String(v ?? '').trim();
 const parametres = (p = {}) => ({
   type: TYPES_CGV.includes(p.typePrestations) ? p.typePrestations : 'travaux_fournitures',
@@ -65,29 +68,29 @@ export function sectionsCgv(params) {
   const ajoute = (titre, paragraphes) => S.push({ titre, paragraphes });
 
   ajoute('Comment ça marche', [
-    { texte: `Ces conditions s'appliquent au devis de ${p.pro.nom || 'le professionnel'} et, en cas de différence, le devis l'emporte. L'accord prend effet quand le client a signé le devis${p.acompte > 0 ? ` et versé l'acompte de ${p.acompte} %` : ''}. Le devis est valable ${p.validite} jours.${travaux ? ' Aucun travail ne commence avant la signature du devis.' : ''}` },
+    { texte: `Ces conditions s'appliquent au devis de ${p.pro.nom || 'le professionnel'} et, en cas de différence, le devis l'emporte. L'accord prend effet quand le client a signé le devis${p.acompte > 0 ? ` et versé l'acompte de ${nb(p.acompte)}\u00a0%` : ''}. Le devis est valable ${p.validite} ${p.validite > 1 ? 'jours' : 'jour'}.${travaux ? ' Aucun travail ne commence avant la signature du devis.' : ''}` },
   ]);
 
   ajoute('Prix', [
     { texte: 'Le prix est celui du devis. Il couvre seulement ce qui y est décrit. Toute modification demandée par le client donne lieu à un supplément de prix, accepté par écrit avant d\'être réalisée.' },
-    { intitule: 'Paiement', texte: `${p.acompte > 0 ? `Un acompte de ${p.acompte} % est dû à la signature. ` : ''}Le solde est payable dans un délai de ${p.delai} jours après la facture. En cas de non-paiement, le professionnel peut suspendre ses prestations après une relance restée sans effet.` },
-    ...(p.penalites ? [{ intitule: 'Pénalités de retard', texte: 'Toute somme payée en retard produit des pénalités, au taux prévu par la loi. Si le client est un professionnel, il doit en plus l\'indemnité forfaitaire de 40 € pour frais de recouvrement.' }] : []),
+    { intitule: 'Paiement', texte: `${p.acompte > 0 ? `Un acompte de ${nb(p.acompte)}\u00a0% est dû à la signature, sauf si la loi interdit tout paiement avant un certain délai après la signature (contrat conclu hors établissement avec un consommateur). ` : ''}Le solde est payable ${p.delai > 0 ? `dans un délai de ${p.delai} ${p.delai > 1 ? 'jours' : 'jour'} après la facture` : 'à réception de la facture'}. En cas de non-paiement, le professionnel peut suspendre ses prestations après une relance restée sans effet.` },
+    ...(p.penalites ? [{ intitule: 'Pénalités de retard', texte: 'Toute somme payée en retard produit des pénalités, au taux prévu par la loi. Si le client est un professionnel, il doit en plus l\'indemnité forfaitaire de 40\u00a0€ pour frais de recouvrement.' }] : []),
   ]);
 
   ajoute('Prestations incluses', [
-    { texte: 'Le professionnel réalise ce que liste le devis, et seulement cela. Le client fournit l\'eau, l\'électricité et un endroit sûr où stocker le matériel. Le professionnel peut confier une partie du travail à un sous-traitant, dont il reste responsable.' },
+    { texte: 'Le professionnel réalise ce que liste le devis, et seulement cela. ' + (travaux ? 'Le client fournit l\'eau, l\'électricité et un endroit sûr où stocker le matériel. Le professionnel peut confier une partie du travail à un sous-traitant, dont il reste responsable.' : '') },
   ]);
 
   ajoute('Délais', [
-    { texte: 'Les délais du devis sont indicatifs. Le démarrage se fixe ensemble une fois le devis signé. Un événement hors du contrôle du professionnel (force majeure, par exemple une intempérie exceptionnelle) suspend les délais, et il en prévient le client. Si le retard devient important par sa faute, le client peut le mettre en demeure par écrit de s\'exécuter.' },
+    { texte: 'Les délais indiqués sur le devis sont donnés de bonne foi. Le démarrage se fixe ensemble une fois le devis signé. Un événement hors du contrôle du professionnel (force majeure, par exemple une intempérie exceptionnelle) suspend les délais, et il en prévient le client. Si le retard devient important par sa faute, le client peut le mettre en demeure par écrit de s\'exécuter.' },
   ]);
 
-  ajoute('Propriété intellectuelle', [
+  if (travaux) ajoute('Propriété intellectuelle', [
     { texte: 'Les plans, dessins et documents préparés par le professionnel restent sa propriété. Le client les utilise pour son projet uniquement.' },
   ]);
 
   if (fournitures) ajoute('Livraison', [
-    { texte: 'Les fournitures sont livrées à l\'adresse et aux dates convenues. Le client vérifie leur état à l\'arrivée et signale par écrit tout défaut ou manque dans les 3 jours.' },
+    { texte: 'Les fournitures sont livrées à l\'adresse et aux dates convenues. Le client vérifie leur état à l\'arrivée et signale par écrit, dans les 3 jours, les dommages ou manques visibles à la livraison. Cela ne limite pas les garanties légales.' },
   ]);
 
   if (travaux) ajoute('Réception', [
@@ -99,11 +102,11 @@ export function sectionsCgv(params) {
   ]);
 
   ajoute('Dommages sur les prestations', [
-    { texte: 'Avant la réception, le professionnel répare à ses frais les dégâts causés par son fait. Les dégâts venant d\'un tiers ou d\'un événement extérieur font l\'objet d\'un nouveau devis.' },
+    { texte: `Avant la ${travaux ? 'réception' : 'livraison'}, le professionnel répare à ses frais les dégâts causés par son fait. Les dégâts venant d\'un tiers ou d\'un événement extérieur font l'objet d'un nouveau devis.` },
   ]);
 
   ajoute('Garanties', [
-    { texte: 'Le professionnel est tenu des garanties légales. Ne sont pas couverts l\'usure normale, le mauvais usage, le défaut d\'entretien et les modifications faites par un tiers.' },
+    { texte: `Le professionnel reste tenu des garanties prévues par la loi${fournitures ? ' (garantie légale de conformité et garantie des vices cachés pour les fournitures vendues à un consommateur)' : ''}${travaux ? ' (garanties applicables aux travaux, dont les garanties de parfait achèvement, biennale et décennale lorsqu\'elles s\'appliquent à l\'ouvrage)' : ''}. Ne sont pas couverts l\'usure normale, le mauvais usage, le défaut d\'entretien et les modifications faites par un tiers.` },
   ]);
 
   ajoute('Résiliation', [
@@ -116,11 +119,11 @@ export function sectionsCgv(params) {
 
   const med = [p.med.nom, p.med.email, p.med.site].filter(Boolean).join(', ');
   ajoute('En cas de problème', [
-    { texte: `Le client écrit d'abord au professionnel pour chercher une solution à l'amiable. Si le client est un consommateur et qu'aucun accord n'est trouvé, il peut saisir gratuitement le médiateur de la consommation : ${med}. Le médiateur n'est saisi qu'après une réclamation écrite adressée d'abord au professionnel. À défaut d'accord, le litige relève de ${p.tribunal || 'la juridiction compétente'}. Le droit français s'applique.` },
+    { texte: `Le client écrit d'abord au professionnel pour chercher une solution à l'amiable. Si le client est un consommateur et qu'aucun accord n'est trouvé, il peut saisir gratuitement le médiateur de la consommation : ${med}. Le médiateur n'est saisi qu'après une réclamation écrite adressée d'abord au professionnel. À défaut d'accord, le tribunal compétent est : ${p.tribunal || 'la juridiction compétente'}. Le droit français s'applique.` },
   ]);
 
   ajoute('Rétractation', [
-    { texte: `Si le contrat est conclu hors de l'établissement du professionnel avec un particulier, le client peut se rétracter sous 14 jours à compter de la signature, sans motif, en écrivant à ${p.pro.nom || 'le professionnel'}${p.pro.email ? ` (${p.pro.email})` : ''}.` },
+    { texte: `Si le contrat est conclu hors de l'établissement du professionnel avec un consommateur, le client peut se rétracter sous 14 jours à compter ${fournitures ? 'de la signature (travaux) ou de la réception des fournitures (vente), selon le cas' : 'de la signature'}, sans motif, en écrivant à ${p.pro.nom || 'le professionnel'}${p.pro.email ? ` (${p.pro.email})` : ''}.` },
     { intitule: 'Modèle de courrier', texte: `« Je soussigné(e) [nom, adresse], déclare me rétracter du contrat signé le [date] avec ${p.pro.nom || '[professionnel]'} pour [prestation]. Date et signature. »` },
   ]);
   return S;
