@@ -50,6 +50,20 @@ export const ERREUR_MARGE_100 = 'La marge sur le prix de vente doit être infér
 export const DUREE_VALIDITE_DEFAUT = 90;
 /** Types de remise (visible du client, contrairement à la marge) : `devis.remise = { type, valeur }` ou null. */
 export const TYPES_REMISE = ['pourcentage', 'montant'];
+/** Moments de l'acompte et leurs textes imprimés (le moment « libre » prend `texteMoment`). */
+export const MOMENTS_ACOMPTE = [
+  { id: 'signature', libelle: 'à la signature' },
+  { id: 'debut_travaux', libelle: 'au début des travaux' },
+  { id: 'mi_travaux', libelle: 'à la moitié des travaux' },
+  { id: 'libre', libelle: 'à un moment libre' },
+];
+/** Types de déchets du chantier et leurs libellés imprimés. */
+export const TYPES_DECHETS = [
+  { id: 'inertes', libelle: 'Déchets inertes' },
+  { id: 'non_dangereux', libelle: 'Déchets non dangereux et non inertes' },
+  { id: 'dangereux', libelle: 'Déchets dangereux' },
+  { id: 'specifiques', libelle: 'Déchets spécifiques' },
+];
 /** Clés qui ne sortent JAMAIS vers le client (voir vueClient). */
 export const CLES_INTERDITES_CLIENT = ['prixAchat', 'marge', 'coefficient', 'modeMarge'];
 
@@ -147,6 +161,45 @@ function erreurRemise(devis, brutHt) {
   return null;
 }
 
+// ---- conditions : acompte, primes, retenue de garantie (tous facultatifs ; une valeur invalide compte pour 0 ici, la finalisation la refuse)
+const objet = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+const texteNonVide = (v) => typeof v === 'string' && v.trim() !== '';
+
+/** Montant français : 3 451,63 € (espaces insécables). Utilisé par les libellés prêts à imprimer et par le document. */
+export function montantFr(n) {
+  const c = Math.round(Math.abs(Number.isFinite(n) ? n : 0) * 100);
+  const entier = String(Math.floor(c / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0');
+  return `${n < 0 && c !== 0 ? '-' : ''}${entier},${String(c % 100).padStart(2, '0')}\u00a0€`;
+}
+/** Pourcentage à deux décimales : 30,00 %. */
+const pourcent2 = (n) => `${(Math.round(n * 100) / 100).toFixed(2).replace('.', ',')}\u00a0%`;
+/** Date AAAA-MM-JJ vers JJ/MM/AAAA. */
+const dateFrDe = (j) => `${j.slice(8, 10)}/${j.slice(5, 7)}/${j.slice(0, 4)}`;
+
+/** Acompte en centimes sur le Total TTC, ou null s'il est absent ou invalide (type, valeur). */
+function acompteEnCentimes(a, ttcC) {
+  if (!objet(a) || !estNombre(a.valeur) || ttcC <= 0) return null;
+  if (a.type === 'pourcentage') return a.valeur > 0 && a.valeur <= 100 ? arrondiDemi(ttcC * (Math.round(a.valeur * 100) / 100) / 100) : null;
+  if (a.type === 'montant') { const c = versCentimes(a.valeur); return c > 0 && c <= ttcC ? c : null; }
+  return null;
+}
+/** Texte du moment de l'acompte, ou null s'il est inconnu ou si le moment libre n'a pas de texte. */
+function momentAcompte(a) {
+  if (a?.moment === 'libre') return texteNonVide(a.texteMoment) ? a.texteMoment.trim() : null;
+  return MOMENTS_ACOMPTE.find((m) => m.id === a?.moment && m.id !== 'libre')?.libelle ?? null;
+}
+/** Primes valides : libellé non vide et montant > 0 (un montant nul n'est pas listé). */
+function primesValides(devis) {
+  if (!Array.isArray(devis?.primes)) return [];
+  return devis.primes.filter((p) => objet(p) && texteNonVide(p.libelle) && estNombre(p.montant) && versCentimes(p.montant) > 0)
+    .map((p) => ({ libelle: p.libelle.trim(), montant: versEuros(versCentimes(p.montant)) }));
+}
+/** Retenue de garantie en centimes sur le Total TTC (0 si absente ou invalide). */
+function retenueEnCentimes(r, ttcC) {
+  if (!objet(r) || !estNombre(r.pourcentage) || r.pourcentage <= 0 || r.pourcentage >= 100 || ttcC <= 0) return 0;
+  return arrondiDemi(ttcC * (Math.round(r.pourcentage * 100) / 100) / 100);
+}
+
 /** Totaux d'un devis, tout en euros, calculés en centimes. Les lignes invalides comptent pour 0 (la validation les signale). */
 export function totauxDevis(devis) {
   const franchise = devis?.regimeTva === 'franchise';
@@ -186,9 +239,19 @@ export function totauxDevis(devis) {
   const mentions = [];
   if (franchise) mentions.push(MENTION_FRANCHISE);
   if (autoliquidation) mentions.push(MENTION_AUTOLIQUIDATION);
+  // Conditions de paiement : l'acompte et le reste se lisent sur le Total TTC ; primes et retenue se déduisent du Net à payer.
+  const ttcC = netC + tvaC;
+  const acompteC = acompteEnCentimes(devis?.acompte, ttcC);
+  const primes = primesValides(devis);
+  const primesC = primes.reduce((s, p) => s + versCentimes(p.montant), 0);
+  const retenueC = retenueEnCentimes(devis?.retenueGarantie, ttcC);
   return {
     sections, lignes, totalBrutHt: versEuros(htC), remiseHt: versEuros(remiseC), totalHt: versEuros(netC),
-    ht: versEuros(netC), tvaParTaux, tva: versEuros(tvaC), ttc: versEuros(netC + tvaC), mentions,
+    ht: versEuros(netC), tvaParTaux, tva: versEuros(tvaC), ttc: versEuros(ttcC), mentions,
+    acompteTtc: acompteC === null ? null : versEuros(acompteC),
+    resteAFacturerTtc: acompteC === null ? null : versEuros(ttcC - acompteC),
+    primes, totalPrimes: versEuros(primesC), retenueGarantieMontant: versEuros(retenueC),
+    netAPayer: versEuros(Math.max(0, ttcC - primesC - retenueC)),
   };
 }
 
@@ -258,6 +321,59 @@ const EMAIL = /^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]{2,}$/;
 const emailDe = (d) => (typeof d === 'string' ? d : d?.email ?? '').trim();
 export const emailValide = (s) => EMAIL.test(String(s ?? '').trim());
 
+/** Messages pour l'acompte, les primes, la retenue de garantie, les déchets, les textes. Rien d'absent n'est une erreur. */
+function erreursConditions(devis, t) {
+  const e = [];
+  const ttcC = versCentimes(t.ttc);
+  const a = devis.acompte;
+  if (!absent(a)) {
+    if (!objet(a) || !['pourcentage', 'montant'].includes(a.type)) e.push('L\'acompte doit être un pourcentage ou un montant.');
+    else if (!estNombre(a.valeur)) e.push('La valeur de l\'acompte doit être un nombre.');
+    else if (a.type === 'pourcentage' && (a.valeur <= 0 || a.valeur > 100)) e.push('L\'acompte en pourcentage doit être supérieur à 0 et au plus 100 %.');
+    else if (a.type === 'montant' && a.valeur <= 0) e.push('Le montant de l\'acompte doit être supérieur à zéro.');
+    else if (a.type === 'montant' && versCentimes(a.valeur) > ttcC) e.push('Le montant de l\'acompte ne peut pas dépasser le total TTC du devis.');
+    if (objet(a)) {
+      if (!MOMENTS_ACOMPTE.some((m) => m.id === a.moment)) e.push('Choisis le moment de l\'acompte (signature, début des travaux, moitié des travaux ou texte libre).');
+      else if (a.moment === 'libre' && !texteNonVide(a.texteMoment)) e.push('Écris le moment de l\'acompte (texte libre).');
+    }
+  }
+  if (!absent(devis.primes)) {
+    if (!Array.isArray(devis.primes)) e.push('Les primes doivent former une liste.');
+    else {
+      for (const p of devis.primes) {
+        if (!objet(p) || !texteNonVide(p.libelle)) e.push('Une prime n\'a pas de libellé : écris son nom (par exemple « Prime rénov »).');
+        if (!objet(p) || !estNombre(p.montant)) e.push(`Prime « ${objet(p) && p.libelle ? p.libelle : 'sans libellé'} » : le montant doit être un nombre.`);
+        else if (p.montant < 0) e.push(`Prime « ${p.libelle || 'sans libellé'} » : le montant ne peut pas être négatif.`);
+      }
+      const idsPrimes = devis.primes.filter(objet).map((p) => p.id).filter((id) => !absent(id) && id !== '');
+      if (new Set(idsPrimes).size !== idsPrimes.length) e.push('Deux primes ont le même identifiant : recharge le devis ou recrée l\'une d\'elles.');
+    }
+  }
+  const r = devis.retenueGarantie;
+  if (!absent(r)) {
+    if (!objet(r) || !estNombre(r.pourcentage) || r.pourcentage < 0 || r.pourcentage >= 100) e.push('La retenue de garantie doit être un pourcentage compris entre 0 et 100 % (100 % exclu).');
+    if (objet(r) && estNombre(r.pourcentage) && r.pourcentage > 0 && !estJour(r.echeance)) e.push('La date de fin de la retenue de garantie est illisible : indique une date valide.');
+  }
+  const net = ttcC - versCentimes(t.totalPrimes) - versCentimes(t.retenueGarantieMontant);
+  if (net < 0) e.push('Les primes et la retenue de garantie dépassent le total TTC : le net à payer serait négatif.');
+  const d = devis.dechets;
+  if (!absent(d)) {
+    if (!objet(d)) e.push('Les informations sur les déchets sont invalides.');
+    else {
+      if (!absent(d.types) && (!Array.isArray(d.types) || d.types.some((x) => !TYPES_DECHETS.some((y) => y.id === x)))) e.push('Un type de déchets est inconnu.');
+      if (!absent(d.pointCollecte) && typeof d.pointCollecte !== 'string') e.push('Le point de collecte des déchets doit être un texte.');
+      for (const [cle, nom] of [['volumeMin', 'Le volume minimum de déchets'], ['volumeMax', 'Le volume maximum de déchets'], ['coutTtcParM3', 'Le coût des déchets par m³']]) {
+        if (!absent(d[cle]) && (!estNombre(d[cle]) || d[cle] < 0)) e.push(`${nom} doit être un nombre positif ou nul.`);
+      }
+      if (estNombre(d.volumeMin) && estNombre(d.volumeMax) && d.volumeMin > d.volumeMax) e.push('Le volume minimum de déchets dépasse le volume maximum.');
+      if (!absent(d.unite) && d.unite !== 'm3') e.push('L\'unité du volume de déchets doit être le m³.');
+    }
+  }
+  if (!absent(devis.texteLibre) && typeof devis.texteLibre !== 'string') e.push('Le texte libre du devis doit être un texte.');
+  if (!absent(devis.notesBasDePage) && typeof devis.notesBasDePage !== 'string') e.push('Les notes de bas de page doivent être un texte.');
+  return e;
+}
+
 /** Liste de messages (en français, qui disent quoi faire). Vide = on peut finaliser. Aucun accès réseau ni base. */
 export function erreursFinalisation(devis) {
   const erreurs = [];
@@ -291,6 +407,7 @@ export function erreursFinalisation(devis) {
   }
   const erreurDeRemise = erreurRemise(devis, totauxDevis(devis).totalBrutHt);
   if (erreurDeRemise) erreurs.push(erreurDeRemise);
+  erreurs.push(...erreursConditions(devis, totauxDevis(devis)));
   return erreurs;
 }
 
@@ -393,6 +510,57 @@ function attestationNecessaire(devis) {
   return (devis.sections ?? []).some((s) => (s.lignes ?? []).some((l) => [10, 5.5].includes(tauxDeLigne(devis, l))));
 }
 
+/** Phrase d'acompte prête à imprimer, ou null (acompte absent, invalide ou sans moment lisible). */
+function acomptePhrase(devis, t, franchise) {
+  const moment = momentAcompte(devis?.acompte);
+  if (t.acompteTtc === null || moment === null) return null;
+  const a = devis.acompte;
+  const ttc = franchise ? '' : ' TTC';
+  return a.type === 'pourcentage'
+    ? `Acompte de ${pourcent2(a.valeur)} ${moment} soit ${montantFr(t.acompteTtc)}${ttc}`
+    : `Acompte de ${montantFr(t.acompteTtc)} ${moment}`;
+}
+
+/** Blocs facultatifs de la vue client : acompte, primes, retenue de garantie, déchets, textes. Aucune clé si rien n'est renseigné. */
+function conditionsDeVue(devis, t, franchise) {
+  const v = {};
+  const phrase = acomptePhrase(devis, t, franchise);
+  if (phrase) v.acompte = { libelle: phrase, montantTtc: t.acompteTtc, resteAFacturerTtc: t.resteAFacturerTtc, libelleReste: `Reste à facturer : ${montantFr(t.resteAFacturerTtc)}${franchise ? '' : ' TTC'}` };
+  if (t.primes.length) v.primes = t.primes.map((p) => ({ libelle: p.libelle, montant: p.montant }));
+  if (t.retenueGarantieMontant > 0) {
+    const r = devis.retenueGarantie;
+    v.retenueGarantie = {
+      pourcentage: r.pourcentage, montant: t.retenueGarantieMontant, echeance: estJour(r.echeance) ? r.echeance : null,
+      libelle: `Retenue de garantie ${pourcent2(r.pourcentage)}`,
+      phrase: estJour(r.echeance) ? `Retenue de garantie de ${pourcent2(r.pourcentage)} due au ${dateFrDe(r.echeance)}` : null,
+    };
+  }
+  const dechets = dechetsDeVue(devis.dechets);
+  if (dechets) v.dechets = dechets;
+  if (texteNonVide(devis.texteLibre)) v.texteLibre = devis.texteLibre;
+  if (texteNonVide(devis.notesBasDePage)) v.notesBasDePage = devis.notesBasDePage;
+  return v;
+}
+
+/** Bloc « Gestion des déchets » : les données valides et une phrase par donnée renseignée. Null s'il n'y a rien à imprimer. */
+function dechetsDeVue(d) {
+  if (!objet(d)) return null;
+  const types = (Array.isArray(d.types) ? d.types : []).map((x) => TYPES_DECHETS.find((y) => y.id === x)?.libelle).filter(Boolean);
+  const point = texteNonVide(d.pointCollecte) ? d.pointCollecte.trim() : '';
+  const min = estNombre(d.volumeMin) && d.volumeMin >= 0 ? d.volumeMin : null;
+  const max = estNombre(d.volumeMax) && d.volumeMax >= 0 ? d.volumeMax : null;
+  const cout = estNombre(d.coutTtcParM3) && d.coutTtcParM3 >= 0 ? d.coutTtcParM3 : null;
+  const lignes = [];
+  if (types.length) lignes.push(`Type de déchets collectés : ${types.join(', ')}`);
+  if (point) lignes.push(`Point de collecte : ${point}`);
+  if (min !== null && max !== null) lignes.push(min === max ? `Volume estimé de ${nombre(min)} m³` : `Volume estimé entre ${nombre(min)} et ${nombre(max)} m³`);
+  else if (min !== null) lignes.push(`Volume estimé : au moins ${nombre(min)} m³`);
+  else if (max !== null) lignes.push(`Volume estimé : au plus ${nombre(max)} m³`);
+  if (cout !== null) lignes.push(`Coûts associés de ${montantFr(cout)} TTC par m³`);
+  if (!lignes.length) return null;
+  return { types, pointCollecte: point || null, volumeMin: min, volumeMax: max, unite: 'm3', coutTtcParM3: cout, lignes };
+}
+
 /** Ce que le client voit : aucun prix d'achat, aucune marge, aucun coefficient, aucun mode de marge, à aucun niveau. */
 export function vueClient(devis, contexte = {}) {
   const t = totauxDevis(devis);
@@ -417,6 +585,7 @@ export function vueClient(devis, contexte = {}) {
     client: { nom: contexte.clientNom ?? null },
     sections: (devis.sections ?? []).map((s, i) => ({
       id: s.id,
+      ...(s.sautDePageAvant === true ? { sautDePageAvant: true } : {}),
       numero: String(i + 1), // une seule profondeur de section en v1
       titre: s.titre ?? '',
       sousTotalHT: t.sections[i].sousTotalHT,
@@ -432,15 +601,20 @@ export function vueClient(devis, contexte = {}) {
         tauxTva: sansTva ? 0 : tauxDeLigne(devis, l),
       })),
     })),
-    totaux: { totalBrutHt: t.totalBrutHt, ht: t.ht, tvaParTaux: t.tvaParTaux, tva: t.tva, ttc: t.ttc },
+    totaux: {
+      totalBrutHt: t.totalBrutHt, ht: t.ht, tvaParTaux: t.tvaParTaux, tva: t.tva, ttc: t.ttc,
+      acompteTtc: t.acompteTtc, resteAFacturerTtc: t.resteAFacturerTtc, totalPrimes: t.totalPrimes,
+      retenueGarantieMontant: t.retenueGarantieMontant, netAPayer: t.netAPayer,
+    },
     regimeTva: devis.regimeTva ?? 'assujetti',
     autoliquidation: devis.autoliquidation === true,
     mentions: t.mentions,
     ...(t.remiseHt > 0 ? { remise: { libelle: devis.remise.type === 'pourcentage' ? `Remise ${nombre(devis.remise.valeur)} %` : 'Remise', montantHt: t.remiseHt } } : {}),
+    ...conditionsDeVue(devis, t, devis.regimeTva === 'franchise'),
     conditions: {
       debutTravaux: devis.debutTravaux ?? null,
       dureeEstimee: devis.dureeEstimee ?? null,
-      acompte: devis.acompte ?? null,
+      acompte: acomptePhrase(devis, t, devis.regimeTva === 'franchise'),
       paiement: devis.conditionsPaiement ?? null,
     },
     conditionsPaiement: devis.conditionsPaiement ?? null,
@@ -470,6 +644,10 @@ function pied(t) {
   l.push(`Total HT : ${euros(t.ht)}`);
   for (const x of t.tvaParTaux) l.push(`TVA ${pct(x.taux)} sur ${euros(x.baseHT)} : ${euros(x.montant)}`);
   l.push(`Total TTC : ${euros(t.ttc)}`);
+  for (const p of t.primes ?? []) l.push(`Prime ${p.libelle} : -${euros(p.montant)}`);
+  if (t.retenueGarantieMontant > 0) l.push(`Retenue de garantie : -${euros(t.retenueGarantieMontant)}`);
+  if (t.netAPayer !== undefined && t.netAPayer !== t.ttc) l.push(`Net à payer : ${euros(t.netAPayer)}`);
+  if (t.acompteTtc != null) l.push(`Acompte : ${euros(t.acompteTtc)}`, `Reste à facturer : ${euros(t.resteAFacturerTtc)}`);
   for (const m of t.mentions) l.push(m);
   return l;
 }

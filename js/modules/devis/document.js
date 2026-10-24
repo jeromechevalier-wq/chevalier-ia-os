@@ -1,6 +1,6 @@
 // Pagination : Chromium ignore les boîtes de marge @page ; le numéro « Page n / N » viendra des gabarits d'en-tête/pied du convertisseur serveur.
 // Clés de `vue.emetteur` lues ici (convention pour la PR des réglages) : adresse, telephone, email, siret, tvaIntracommunautaire, formeJuridique.
-// `conditions.acompte` est affiché tel quel : l'unité (pourcentage ou euros) sera tranchée avec l'écran du devis.
+// L'acompte, les primes, la retenue de garantie, les déchets, le texte libre et les notes viennent de la vue client (libellés déjà prêts, échappés ici).
 // Document « Devis » en HTML imprimable (A4). Module pur : aucun DOM, aucun réseau, aucun JavaScript dans la page produite.
 // Il reçoit la « vue client » (vueClient de logique.js, donc jamais de prix d'achat, de marge ni de coefficient) et rend une chaîne HTML
 // complète. Usage : aperçu et impression dans le navigateur (« Imprimer » puis « Enregistrer au format PDF ») ; plus tard, un
@@ -13,7 +13,7 @@
 // - Les données viennent toutes de `vue` ; le nom du destinataire est `vue.client.nom` (fourni par l'appelant dans le contexte de vueClient).
 // - Franchise : lignes sans colonne de TVA chiffrée (« - »), pas de tableau de TVA, pas de ligne TVA/TTC. Autoliquidation : TVA à 0.
 // - L'en-tête et le pied répétés sur chaque page passent par thead/tfoot d'une table de mise en page (repli simple qui marche partout).
-import { ATTESTATION_TVA_REDUITE } from './logique.js';
+import { ATTESTATION_TVA_REDUITE, montantFr } from './logique.js';
 
 export { ATTESTATION_TVA_REDUITE };
 
@@ -27,12 +27,7 @@ export function echapper(v) {
 const texte = (v) => echapper(v).replace(/\r\n|\r|\n/g, '<br>');
 
 /** Montant français : 3 451,63 € (espaces insécables). */
-export function formaterMontant(n) {
-  const c = Math.round(Math.abs(Number.isFinite(n) ? n : 0) * 100);
-  const entier = String(Math.floor(c / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, NBSP);
-  const signe = n < 0 && c !== 0 ? '-' : '';
-  return `${signe}${entier},${String(c % 100).padStart(2, '0')}${NBSP}€`;
-}
+export const formaterMontant = montantFr;
 const nombre = (n) => (Number.isFinite(n) ? String(Math.round(n * 10000) / 10000).replace('.', ',') : '');
 const pourcent = (n) => `${nombre(n)}${NBSP}%`;
 const dateFr = (j) => (/^\d{4}-\d{2}-\d{2}/.test(j ?? '') ? `${j.slice(8, 10)}/${j.slice(5, 7)}/${j.slice(0, 4)}` : '');
@@ -64,6 +59,7 @@ h1 { font-size: 20pt; margin: 0 0 1mm; }
 .lignes tr { page-break-inside: avoid; break-inside: avoid; }
 .lignes .num { width: 11mm; white-space: nowrap; }
 .lignes .d { text-align: right; white-space: nowrap; }
+.lignes tr.saut-avant { break-before: page; page-break-before: always; }
 .lignes .bandeau td { background: #f1f3f5; font-weight: bold; border-top: 0.3mm solid #999; }
 .lignes .sous-total td { text-align: right; font-style: italic; border-bottom: 0.3mm solid #999; }
 .lignes .description { font-size: 8.5pt; color: #444; margin-top: 0.8mm; }
@@ -78,6 +74,10 @@ h1 { font-size: 20pt; margin: 0 0 1mm; }
 .paiement, .mentions { margin-top: 6mm; line-height: 1.4; page-break-inside: avoid; break-inside: avoid; }
 .paiement h2 { font-size: 9.5pt; margin: 0 0 1mm; }
 .paiement ul { margin: 0; padding-left: 5mm; }
+.dechets { margin-top: 6mm; line-height: 1.4; page-break-inside: avoid; break-inside: avoid; }
+.dechets h2, .notes h2 { font-size: 9.5pt; margin: 0 0 1mm; }
+.texte-libre { margin-top: 4mm; line-height: 1.4; }
+.notes { margin-top: 6mm; line-height: 1.4; font-size: 8pt; color: #444; }
 .mentions p { margin: 0 0 1.5mm; font-size: 8.5pt; }
 .client { margin-top: 6mm; border: 0.3mm solid #666; padding: 3mm 4mm; min-height: 38mm; page-break-inside: avoid; break-inside: avoid; }
 .client .titre { font-weight: bold; margin-bottom: 1mm; }
@@ -105,8 +105,10 @@ function blocDestinataire(vue) {
 
 function tableauLignes(vue, sansTva) {
   const lignes = [];
-  for (const s of vue.sections ?? []) {
-    lignes.push(`<tr class="bandeau"><td class="num">${texte(s.numero)}</td><td colspan="6">${texte(s.titre || 'Prestations')}</td></tr>`);
+  for (const [k, s] of (vue.sections ?? []).entries()) {
+    // Saut de page demandé : jamais sur la première section (la page est déjà neuve).
+    const saut = s.sautDePageAvant === true && k > 0 ? ' saut-avant' : '';
+    lignes.push(`<tr class="bandeau${saut}"><td class="num">${texte(s.numero)}</td><td colspan="6">${texte(s.titre || 'Prestations')}</td></tr>`);
     for (const l of s.lignes ?? []) {
       const tva = sansTva && vue.regimeTva === 'franchise' ? '-' : pourcent(l.tauxTva ?? 0);
       lignes.push(`<tr><td class="num">${texte(l.numero)}</td><td>${texte(l.libelle)}${l.description ? `<div class="description">${texte(l.description)}</div>` : ''}</td>`
@@ -147,7 +149,10 @@ export function devisHtml(vue, options = {}) {
     lignesTotaux.push(`<tr><td>TVA</td><td class="d">${formaterMontant(t.tva)}</td></tr>`);
     lignesTotaux.push(`<tr><td>Total TTC</td><td class="d">${formaterMontant(t.ttc)}</td></tr>`);
   }
-  lignesTotaux.push(`<tr class="net"><td>Net à payer</td><td class="d">${formaterMontant(franchise ? t.ht : t.ttc)}</td></tr>`);
+  const moins = (montant) => `\u2212${NBSP}${formaterMontant(montant)}`;
+  for (const p of v.primes ?? []) lignesTotaux.push(`<tr><td>${texte(p.libelle)}</td><td class="d">${moins(p.montant)}</td></tr>`);
+  if (v.retenueGarantie) lignesTotaux.push(`<tr><td>${texte(v.retenueGarantie.libelle)}</td><td class="d">${moins(v.retenueGarantie.montant)}</td></tr>`);
+  lignesTotaux.push(`<tr class="net"><td>Net à payer</td><td class="d">${formaterMontant(t.netAPayer ?? (franchise ? t.ht : t.ttc))}</td></tr>`);
 
   const tableauTaux = sansTva || !(t.tvaParTaux ?? []).length ? '<div></div>'
     : `<table class="taux"><thead><tr><th>Taux TVA</th><th class="d">Base HT</th><th class="d">Total TVA</th></tr></thead><tbody>${t.tvaParTaux.map((x) => `<tr><td>${pourcent(x.taux)}</td><td class="d">${formaterMontant(x.baseHT)}</td><td class="d">${formaterMontant(x.montant)}</td></tr>`).join('')}</tbody></table>`;
@@ -159,8 +164,14 @@ export function devisHtml(vue, options = {}) {
   const details = [];
   if (c.debutTravaux) details.push(`Début des travaux${NBSP}: ${texte(c.debutTravaux)}`);
   if (c.dureeEstimee) details.push(`Durée estimée${NBSP}: ${texte(c.dureeEstimee)}`);
-  if (c.acompte) details.push(`Acompte${NBSP}: ${texte(c.acompte)}`);
+  if (v.acompte) details.push(texte(v.acompte.libelle), texte(v.acompte.libelleReste));
+  if (v.retenueGarantie?.phrase) details.push(texte(v.retenueGarantie.phrase));
   if (details.length) paiement.push(`<p>${details.join('<br>')}</p>`);
+  if (v.texteLibre) paiement.push(`<div class="texte-libre">${texte(v.texteLibre)}</div>`);
+
+  const dechets = v.dechets?.lignes?.length
+    ? `<div class="dechets"><h2>Gestion des déchets</h2>${v.dechets.lignes.map((l) => `<div>${texte(l)}</div>`).join('')}</div>` : '';
+  const notes = v.notesBasDePage ? `<div class="notes"><h2>Notes de bas de page</h2>${texte(v.notesBasDePage)}</div>` : '';
 
   const mentions = [...(v.mentions ?? [])];
   if (v.attestationTvaReduite && !sansTva) mentions.push(v.attestationTvaReduite);
@@ -171,8 +182,10 @@ export function devisHtml(vue, options = {}) {
     tableauLignes(v, sansTva),
     `<div class="bas">${tableauTaux}<table class="totaux"><tbody>${lignesTotaux.join('')}</tbody></table></div>`,
     paiement.length ? `<div class="paiement"><h2>Conditions et modes de paiement</h2>${paiement.join('')}</div>` : '',
+    dechets,
     mentions.length ? `<div class="mentions">${mentions.map((m) => `<p>${texte(m)}</p>`).join('')}</div>` : '',
     `<div class="client"><div class="titre">Pour le client</div><div>${texte(v.mentionSignature ?? '')}</div></div>`,
+    notes,
   ].filter(Boolean).join('\n');
 
   return `<!doctype html>
