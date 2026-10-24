@@ -44,6 +44,7 @@ test('P1 une tâche se traite comme une activité : un clic sur la date (ou sur 
   await expect(dialogue(page).getByLabel('Heure (facultatif)')).toBeVisible();
   await expect(dialogue(page).locator('[data-date-rapide]')).toHaveCount(4);
   await dialogue(page).locator('[data-date-rapide="demain"]').click();
+  await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
   await champDoc('crm_activites', 'ac1', 'date', jour(1));
   // Tâche en retard : un clic sur la date ouvre EXACTEMENT la même fenêtre.
   const retard = page.locator('.tache[data-tache="t2"]');
@@ -55,6 +56,7 @@ test('P1 une tâche se traite comme une activité : un clic sur la date (ou sur 
   await expect(dialogue(page).getByLabel('Heure (facultatif)')).toBeVisible();
   await expect(dialogue(page).locator('[data-date-rapide]')).toHaveCount(4);
   await dialogue(page).locator('[data-date-rapide="3j"]').click();
+  await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
   await champDoc('projets_taches', 't2', 'date', jour(3));
   // Le badge « En retard » ouvre aussi la fenêtre (même chose que sur une activité).
   await creerTacheProjet('t3', { titre: 'Autre retard', projetId: 'pr1', ordre: 3, date: jour(-5) });
@@ -62,15 +64,19 @@ test('P1 une tâche se traite comme une activité : un clic sur la date (ou sur 
   await page.locator('.tache[data-tache="t3"] [data-action="badge-date-tache"]').click();
   await expect(dialogue(page)).toContainText('Changer la date');
   await dialogue(page).locator('[data-date-rapide="1sem"]').click();
+  await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
   await champDoc('projets_taches', 't3', 'date', jour(7));
   // Tâche sans date : « Sans date » est cliquable et donne une date ; « Sans date » dans la fenêtre l'efface (ce que les activités n'ont pas : elles ont toujours une date).
   const sans = page.locator('.tache[data-tache="t1"]');
   await expect(sans.locator('[data-action="date-tache"]')).toHaveText('Sans date');
   await sans.locator('[data-action="date-tache"]').click();
   await dialogue(page).locator('[data-date-rapide="demain"]').click();
+  await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
   await champDoc('projets_taches', 't1', 'date', jour(1));
   await sans.locator('[data-action="date-tache"]').click();
   await dialogue(page).locator('[data-action="effacer-date"]').click();
+  await expect(dialogue(page)).toContainText('Changer la date'); // la fenêtre reste ouverte
+  await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
   await champDoc('projets_taches', 't1', 'date', null);
   await expect(sans.locator('[data-action="date-tache"]')).toHaveText('Sans date');
 });
@@ -84,6 +90,7 @@ test('P1 (toucher) sur téléphone, toucher la date d\'une tâche ouvre la fenê
   if (info.project.name === 'telephone') await date.tap(); else await date.click();
   await expect(dialogue(page)).toContainText('Changer la date');
   await dialogue(page).locator('[data-date-rapide="demain"]').tap().catch(() => dialogue(page).locator('[data-date-rapide="demain"]').click());
+  await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
   await champDoc('projets_taches', 't1', 'date', jour(1));
 });
 

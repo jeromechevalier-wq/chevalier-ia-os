@@ -171,9 +171,10 @@ test('Q4 une activité ne s’enregistre plus sans texte : bouton grisé, Entré
   await capturer(page, info, 'Q4-cree');
 });
 
-test('Q4 fenêtre « Prochaine activité ? » après un Fait : le titre prérempli peut être effacé ; vide, « Planifier » est grisé et rien n’est créé', async ({ page }, info) => {
+test('Q4 fenêtre « Plus aucune activité prévue » après un Fait : le titre prérempli peut être effacé ; vide, « Planifier » est grisé et rien n’est créé', async ({ page }, info) => {
   await creerPersonne('p1', { nom: 'Marie Durand' });
-  await creerActivite('a1', { titre: 'Appeler Marie', type: 'appel', personneId: 'p1' });
+  await creerAffaire('af1', { titre: 'Audit des Lilas', personneId: 'p1' });
+  await creerActivite('a1', { titre: 'Appeler Marie', type: 'appel', personneId: 'p1', affaireId: 'af1' });
   await connecter(page);
   await ouvrir(page, '#/crm/personnes/p1');
   await page.locator('.points-cles .activite[data-activite="a1"]').getByRole('button', { name: /Marquer comme fait/ }).click();
