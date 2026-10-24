@@ -404,3 +404,27 @@ test('7 téléphone : les menus s’ouvrent en feuille collée en bas de l’éc
   await expect(page.locator('[data-zone="bibliotheque"]')).toHaveCount(0);
   expect((await listerDocuments('devis_devis')).length).toBe(1);
 });
+
+test('2 le bouton « Catalogue » d’une ligne libre ouvre la Bibliothèque et l’article choisi prend la place de cette ligne', async ({ page }) => {
+  await semer();
+  await ouvrir(page, await devis('d9', [{ id: 's1', titre: 'Cuisine', lignes: [ligne('l1', 'Texte à remplacer', 1, 10), ligne('l2', 'Autre ligne', 1, 20)] }]));
+  const bouton = page.locator('tr[data-id="l1"] [data-action="catalogue-ligne"]');
+  await expect(bouton).toBeVisible();
+  await bouton.click();
+  const panneau = page.locator('[data-zone="bibliotheque"]');
+  await expect(panneau).toBeVisible();
+  await panneau.locator('input[aria-label="Choisir Carrelage 60 x 60"]').check();
+  await panneau.locator('[data-action="ajouter-bibliotheque"]').click();
+  await expect(lignes(page)).toHaveCount(2); // remplacée, pas ajoutée
+  await expect(page.locator('tr[data-id="l1"] [data-champ="libelle"]')).toHaveValue('Carrelage 60 x 60');
+  await expect(page.locator('tr[data-id="l1"] [data-action="catalogue-ligne"]')).toHaveCount(0); // la ligne vient maintenant d'un article
+  await expect(page.locator('tr[data-id="l2"] [data-champ="libelle"]')).toHaveValue('Autre ligne');
+});
+
+test('2 l’unité d’une ligne venue d’un article est verrouillée (elle se choisit à la création de l’article) ; celle d’une ligne libre se choisit dans la liste', async ({ page }) => {
+  await semer();
+  await ouvrir(page, await devis('d10', [{ id: 's1', titre: 'Cuisine', lignes: [ligne('l1', 'Colle à carrelage', 1, 10, { articleId: 'a1' }), ligne('l2', 'Ligne libre', 1, 20)] }]));
+  await expect(page.locator('tr[data-id="l1"] select[data-champ="unite"]')).toBeDisabled();
+  await expect(page.locator('tr[data-id="l1"] select[data-champ="unite"]')).toHaveValue('u');
+  await expect(page.locator('tr[data-id="l2"] select[data-champ="unite"]')).toBeEnabled();
+});
