@@ -365,15 +365,15 @@ test('5 le menu « Finaliser » : Finaliser marche, « et imprimer » finalise p
     }).observe(document, { childList: true, subtree: true });
   });
   await ouvrir(page, id);
-  await page.locator('[data-action="menu-finaliser"]').click();
+  await page.locator('[data-action="envoyer"]').click();
   const menu = page.locator('.menu-pop');
-  await expect(menu.getByRole('menuitem')).toHaveText(['Finaliser', 'Finaliser et imprimer', /Finaliser et télécharger/, /Finaliser et envoyer par e-mail/]);
-  for (const nom of ['Finaliser et télécharger', 'Finaliser et envoyer par e-mail']) {
+  await expect(menu.getByRole('menuitem')).toHaveText([/Envoyer par e-mail/, /Télécharger/, 'Imprimer']);
+  for (const nom of ['Envoyer par e-mail', 'Télécharger']) {
     await expect(menu.getByRole('menuitem', { name: nom })).toBeDisabled();
     await expect(menu.getByRole('menuitem', { name: nom })).toContainText('bientôt disponible');
   }
   await capturer(page, info, '5-menu-finaliser');
-  await menu.getByRole('menuitem', { name: 'Finaliser et imprimer' }).click();
+  await menu.getByRole('menuitem', { name: 'Imprimer' }).click();
   await dialogue(page).getByRole('button', { name: 'Finaliser' }).click();
   await expect(page.locator('.toast').first()).toContainText('Devis finalisé');
   expect(appels).toEqual([{ devisId: id }]);
@@ -409,6 +409,7 @@ test('2 le bouton « Catalogue » d’une ligne libre ouvre la Bibliothèque et 
   await semer();
   await ouvrir(page, await devis('d9', [{ id: 's1', titre: 'Cuisine', lignes: [ligne('l1', 'Texte à remplacer', 1, 10), ligne('l2', 'Autre ligne', 1, 20)] }]));
   const bouton = page.locator('tr[data-id="l1"] [data-action="catalogue-ligne"]');
+  await page.locator('tr[data-id="l1"]').hover(); // sur ordinateur le bouton n'apparaît qu'au survol de la ligne (il ne gêne pas la désignation)
   await expect(bouton).toBeVisible();
   await bouton.click();
   const panneau = page.locator('[data-zone="bibliotheque"]');
@@ -427,4 +428,13 @@ test('2 l’unité d’une ligne venue d’un article est verrouillée (elle se 
   await expect(page.locator('tr[data-id="l1"] select[data-champ="unite"]')).toBeDisabled();
   await expect(page.locator('tr[data-id="l1"] select[data-champ="unite"]')).toHaveValue('u');
   await expect(page.locator('tr[data-id="l2"] select[data-champ="unite"]')).toBeEnabled();
+});
+
+test('5 la croix en haut à droite ferme le devis (retour à la liste) ; « Finaliser » n’existe plus, remplacé par « Envoyer »', async ({ page }) => {
+  await semer();
+  await ouvrir(page, await devis('d11', [{ id: 's1', titre: 'Cuisine', lignes: [ligne('l1', 'Carrelage', 2, 50)] }]));
+  await expect(page.locator('[data-action="finaliser"]')).toHaveCount(0);
+  await expect(page.locator('[data-action="envoyer"]')).toContainText('Envoyer');
+  await page.locator('[data-action="fermer"]').click();
+  await expect(page).toHaveURL(/#\/devis\/liste/);
 });

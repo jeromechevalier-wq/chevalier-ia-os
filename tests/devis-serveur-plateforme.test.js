@@ -89,6 +89,6 @@ describe('C7 plateforme : qui peut appeler les quatre fonctions de devis', () =>
     m.collections['clients/a/devis_devis'].push({ ...nouveauDevis({}, { id: 'vide', maintenant: new Date(MAINTENANT), auteur: ALICE }, {}) });
     const r = await appeler(m, 'finaliser', ALICE, { client: 'a', devisId: 'vide' });
     assert.equal(r.ok, false);
-    assert.ok(r.erreurs.length >= 2);
+    assert.ok(r.erreurs.length >= 1); // sans ligne (l'adresse e-mail n'est plus obligatoire)
   });
 });
