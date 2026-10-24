@@ -224,3 +224,9 @@ Procédure de mise à jour : changer **une** version à la fois sur une branche,
 ### Lignes « en préparation » restées bloquées (Logger, 22/10/2026)
 Si un workflow A plante après `demarrer`, sa ligne reste « en préparation ». Aucune fonction ne les balaie : après 15 minutes sans nouvelle étape, l'écran propose le bouton gris « Classer sans suite » (deux comptes autorisés ; le serveur vérifie qu'elle est bien bloquée). Ce geste **ne dit rien à n8n** : si le workflow tourne encore, il verra ses écritures refusées. « Classer sans suite » n'existe qu'à l'écran, jamais par MCP.
 
+## 11. Module Devis : outil `finaliser_devis` (24/10/2026)
+
+- `finaliser_devis` est une **écriture sensible** : elle **consomme un numéro** de devis (compteur global) et verrouille la version. Seul le profil Claude Code (Jérôme) peut l'appeler ; le bibliothécaire ne l'a pas.
+- Le code de confirmation (lié à l'empreinte du devis, valable 5 minutes, usage unique) ne peut pas être rejoué. Le **plafond d'écriture du jeton est appliqué avant la consommation du code** : un jeton qui a atteint son plafond est refusé sans brûler le code.
+- Une finalisation ne se défait pas par `restaurer_depuis_audit` (refusée pour tout devis non brouillon). Si un numéro a été consommé par erreur, on crée la version suivante ; un trou dans les numéros n'est pas grave (un devis n'est pas un document légal).
+- Interrupteurs d'urgence : ceux du serveur MCP (section 4) coupent aussi les outils Devis.

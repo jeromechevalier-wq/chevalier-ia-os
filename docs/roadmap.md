@@ -4,6 +4,9 @@ Tenue à jour à chaque discussion sur l'évolution de l'appli. Dernière mise �
 
 Légende : **décidé** = validé par Jérôme ; **piste** = à trancher avant le cahier des charges.
 
+## Module Devis (nuit du 24/10/2026)
+Cadrage : `docs/cadrage-devis.md`. Évolutions envisagées, dans l'ordre où on a envie de les faire : `docs/roadmap-evolutions-devis.md`. Idée **« pilotage »** (tableaux de bord de ventes : devis envoyés, signés, taux de signature, chiffre d'affaires par mois) : reportée, car elle a besoin de la facturation pour être complète ; le module Devis aura sa propre table d'indicateurs.
+
 ## Nuit du 22 au 23/10/2026 : vocabulaire, filtres, source (version 2.20.0)
 Neuf PR (169 à 177) : « Appel » par défaut et pastille « Tâche » sur le projet ; **livrables** à la place des tâches de projet (outils MCP `ajouter_livrable_projet` / `terminer_livrable_projet`, sans alias) ; Source en liste fixe et Ville regroupée ; en-tête de l'affaire sans bouton « Gagnée » et montant aligné ; textes « 90 jours » retirés ; **un seul composant de filtres** pour toute l'appli (Personnes, Organisations, Affaires, Projets, Historique, Journal, Veille, Automatisations), cases à cocher, mémorisé jusqu'au rechargement. Vocabulaire : `docs/vocabulaire.md`. Détail et reste à faire : `docs/reprise-prochaine-session.md` et `docs/idees-affaires-projets.md` (« Revue du 22/10/2026 »). **À faire** : alignement des boutons (I16), roadmap : déplacer `fenetreFiltres` dans `js/os/ui.js`.
 

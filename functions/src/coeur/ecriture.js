@@ -16,7 +16,7 @@ import { COLLECTIONS as C } from './donnees.js';
 import { sansId } from './canonique.js';
 
 /** Collections de données du CRM que le moteur a le droit d'écrire (jamais l'audit, les limites ni les paramètres). */
-export const COLLECTIONS_ECRITES = [C.personnes, C.organisations, C.affaires, C.activites, C.notes, C.evenements, C.projets, C.projetsTaches, C.projetsModeles, C.devisArticles];
+export const COLLECTIONS_ECRITES = [C.personnes, C.organisations, C.affaires, C.activites, C.notes, C.evenements, C.projets, C.projetsTaches, C.projetsModeles, C.devisArticles, C.devis];
 export const MAX_ECRITURES = 1000;
 export const TAILLE_PAQUET_DONNEES = 400;
 export const TAILLE_PAQUET_AUDIT = 200; // deux documents par ligne : 400 documents par lot
@@ -90,6 +90,8 @@ async function preparer(donnees, ctx, operations) {
       ecriture = { type: 'set', donnees: contenu };
     } else if (type === 'modifier') {
       if (!avant) throw new ErreurEcriture('introuvable', `Document introuvable : ${l.collection}/${l.id}`);
+      // `exigerStatut` : la modification n'a lieu que si le document a ce statut. Ce contrôle porte sur l'état lu ici, et l'écriture est ensuite vérifiée contre ce même état (attendus) : pas de fenêtre de course.
+      if (op.exigerStatut && avant.statut !== op.exigerStatut) throw new ErreurEcriture('conflit', `Le document ${l.collection}/${l.id} n'a plus le statut « ${op.exigerStatut} » : rien n'a été écrit.`);
       apres = { ...avant, ...contenu };
       ecriture = { type: 'update', donnees: contenu };
     } else if (type === 'supprimer') {

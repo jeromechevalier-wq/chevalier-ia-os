@@ -163,4 +163,26 @@ export const chercher_article = {
   executer: ({ args, donnees }) => lecture.chercherArticle(donnees, args),
 };
 
-export const OUTILS_LECTURE = [chercher, lire_personne, lire_organisation, lire_affaire, lister_affaires, lister_projets, lire_projet, lister_modeles_projet, lister_activites, lister_documents, lire_reglages, lire_audit, lister_articles, chercher_article];
+export const lister_devis = {
+  nom: 'lister_devis',
+  profils: TOUS,
+  description: "Liste les devis du module Devis, du plus récent au plus ancien : id, numéro (vide tant que c'est un brouillon), version, statut (brouillon, en_attente_envoi = Finalisé, envoye, accepte = Signé, refuse, remplace, et expire, CALCULÉ quand la date de validité est dépassée), objet, client, total HT et TTC en euros, dates. Ne montre jamais de prix d'achat ni de marge (lire_devis donne les lignes). Filtres : statut ('tous' par défaut), affaireId, texte (numéro, objet ou client), archives: true pour inclure les devis archivés.",
+  schema: {
+    statut: z.enum(['tous', 'brouillon', 'en_attente_envoi', 'envoye', 'accepte', 'refuse', 'expire', 'remplace']).optional().describe("Défaut : tous."),
+    affaireId: id.optional().describe("Seulement les devis de cette affaire."),
+    texte: z.string().max(200).optional().describe("Mots cherchés dans le numéro, l'objet ou le nom du client."),
+    archives: z.boolean().optional().describe("true : inclure les devis archivés (exclus par défaut)."),
+    limite,
+  },
+  executer: ({ args, donnees, maintenant }) => lecture.listerDevis(donnees, args, maintenant),
+};
+
+export const lire_devis = {
+  nom: 'lire_devis',
+  profils: TOUS,
+  description: "Lit un devis complet, côté artisan : client, affaire, destinataires, chantier, sections et lignes (quantité, unité, prix d'achat, marge, prix de vente unitaire et total HT de chaque ligne, comme lister_articles montre les prix d'achat), remise, acompte et totaux (brut, remise, HT, TVA, TTC). Pour un brouillon, erreursFinalisation liste ce qui manque avant finaliser_devis (vide = prêt). Ne sert jamais à écrire au client : la vue client sans marge est celle du document.",
+  schema: { id: id.describe('Identifiant du devis (voir lister_devis).') },
+  executer: ({ args, donnees, maintenant }) => lecture.lireDevis(donnees, args, maintenant),
+};
+
+export const OUTILS_LECTURE = [chercher, lire_personne, lire_organisation, lire_affaire, lister_affaires, lister_projets, lire_projet, lister_modeles_projet, lister_activites, lister_documents, lire_reglages, lire_audit, lister_articles, chercher_article, lister_devis, lire_devis];

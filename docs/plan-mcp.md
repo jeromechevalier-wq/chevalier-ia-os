@@ -159,6 +159,20 @@ Profils : **L** lecteur · **B** bibliothécaire (L + écriture + pièces jointe
 | `supprimer_note`, `supprimer_activite`, `supprimer_organisation`, `supprimer_personne`, `supprimer_affaire` | `id`, `choix?`, `confirmationNom` | règles d'intégrité 3.10 (refus si l'organisation a encore des personnes ; choix pour les affaires d'une personne) ; **confirmation du nom exigée** comme l'écran (`confirmationValide`) | oui (avec copies) | C |
 | `restaurer_depuis_audit` | `operationId`, `apercu`, `forcer` | voir 5.2 | oui | C |
 
+#### Outils du module Devis (24/10/2026)
+
+| Outil | Effet | Profils |
+|---|---|---|
+| `lister_devis` | liste des devis avec **les totaux seuls** (HT, TVA, TTC), jamais les lignes ni la marge | L B C |
+| `lire_devis` | un devis complet, lignes et **marge visibles**, comme `lister_articles` montre le prix d'achat | L B C |
+| `creer_devis_brouillon` | crée un brouillon depuis une affaire | B C |
+| `modifier_devis_brouillon` | modifie un brouillon seulement (refusé si le devis est finalisé) | B C |
+| `finaliser_devis` | attribue le numéro, fige les prix, verrouille la version | C seulement |
+
+- **Finalisation en deux temps** : le premier appel ne finalise pas, il rend un **code** et résume le devis ; le second appel, avec ce code, finalise. Le code est **lié à l'empreinte du devis** (si le devis change entre les deux, le code ne marche plus), **expire au bout de 5 minutes** et ne sert **qu'une fois**. Cela force l'assistant à montrer le devis à l'humain avant de finaliser.
+- **Limite connue** : une finalisation ne se défait **pas** avec `restaurer_depuis_audit`, qui refuse tout devis qui n'est plus un brouillon (un numéro attribué ne se reprend pas). Pour corriger, on crée la version suivante.
+- Aucun outil n'envoie d'e-mail.
+
 Collisions de règles : l'écran impose la confirmation par le nom pour une suppression ; les outils font de même, pour qu'un agent ne puisse pas supprimer « par erreur d'un seul paramètre ».
 **Deux niveaux de protection pour Hermes** : (1) côté Hermes, `tools.include` liste exactement les outils du profil B ; (2) côté serveur, l'empreinte du jeton porte son profil : un outil hors profil est refusé même si Hermes est mal configuré.
 

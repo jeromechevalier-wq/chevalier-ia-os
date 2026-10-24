@@ -9,6 +9,9 @@ import { COLLECTIONS as C } from './donnees.js';
 import { egal, sansId } from './canonique.js';
 import { ErreurEcriture, executerEcritures } from './ecriture.js';
 
+/** Opérations de devis qui figent le devis (fonctions du serveur, voir coeur/devis.js) : jamais restaurées. */
+const OUTILS_DEVIS_FIGES = ['devisFinaliser', 'devisChangerStatut'];
+
 /** Ce qu'il faudrait faire pour défaire une ligne : 'supprimer' | 'remplacer' | 'recreer' | 'rien' | 'conflit'. */
 function decider(courant, ligne) {
   if (egal(courant, ligne.apres)) return ligne.avant ? (courant ? 'remplacer' : 'recreer') : 'supprimer';
@@ -29,12 +32,19 @@ export async function restaurerOperation({ donnees, ctx, operationId, apercu = t
   if (!lignesAudit.length) {
     throw new ErreurEcriture('introuvable', 'Aucune écriture réussie pour cette opération (identifiant inconnu, ou toutes ont échoué).');
   }
+  // Une finalisation (numéro consommé, prix figés) ou un changement de statut d'un devis ne se défait pas d'après le journal : créer la version suivante depuis l'écran.
+  if (lignesAudit.some((l) => OUTILS_DEVIS_FIGES.includes(l.outil))) {
+    throw new ErreurEcriture('restauration_refusee', 'Cette opération a finalisé ou changé le statut d’un devis : elle ne se défait pas avec le journal (le numéro serait perdu). Pour corriger un devis finalisé, créer la version suivante depuis l’écran.');
+  }
   const copies = await Promise.all(lignesAudit.map((l) => donnees.document(C.auditAvant, l.id)));
   const perimees = lignesAudit.filter((_, i) => !copies[i]);
   if (perimees.length) {
     throw new ErreurEcriture('copie_expiree', `Les copies « avant » de cette opération manquent : ${perimees.length} ligne(s) sur ${lignesAudit.length}. Utiliser une sauvegarde (copie Google ou export JSON).`, { perimees: perimees.length });
   }
   const courants = await Promise.all(lignesAudit.map((l) => donnees.document(l.collection, l.docId)));
+  // Même avec `forcer` : un devis qui n'est plus un brouillon (finalisé à l'écran après sa création par l'assistant, par exemple) ne se supprime ni ne se remet en brouillon par le journal.
+  const figee = lignesAudit.find((l, i) => l.collection === C.devis && courants[i] && courants[i].statut !== 'brouillon');
+  if (figee) throw new ErreurEcriture('restauration_refusee', 'Un devis de cette opération n’est plus un brouillon : il ne se restaure pas avec le journal, même avec forcer. Pour corriger un devis finalisé, créer la version suivante depuis l’écran.');
   const lignes = lignesAudit.map((l, i) => {
     const copie = copies[i];
     const courant = sansId(courants[i]);
