@@ -341,6 +341,7 @@ test('4 la marge et la remise du devis se règlent depuis le bouton « Définir 
   await page.getByRole('menuitem', { name: 'Remise' }).click();
   await page.locator('[data-champ="remise-valeur-menu"]').fill('10');
   await expect.poll(async () => (await listerDocuments('devis_devis'))[0].remise?.valeur).toBe(10);
+});
 
 test('2 l’éditeur est compact sur ordinateur : la feuille est centrée (largeur limitée) et une ligne d’article fait moins de 46 px de haut', async ({ page }) => {
   test.skip(estTelephone(page), 'compact : ordinateur seulement (le téléphone garde des cibles de 44 px)');
