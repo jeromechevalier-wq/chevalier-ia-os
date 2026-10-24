@@ -36,6 +36,9 @@ export const TYPES_CONTACT = [
   { id: 'autre', libelle: 'Autre' },
 ];
 
+/** Nombre maximal d'emails (et de téléphones) sur une fiche : le même à l'écran et pour l'assistant (MCP). */
+export const MAX_CONTACTS = 10;
+
 export const TYPES_ACTIVITE = [
   { id: 'appel', libelle: 'Appel', titre: 'Appel' },
   { id: 'rendez_vous', libelle: 'Rendez vous', titre: 'Rendez vous' },
@@ -628,6 +631,18 @@ export function normaliserEmail(email) {
 
 export function emailValide(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(email ?? '').trim());
+}
+
+/** Lien `mailto:` d'une adresse valide, sinon null (jamais de paramètres `?subject=` ou `&bcc=` venus d'une valeur enregistrée). */
+export function lienEmail(email) {
+  const e = normaliserEmail(email);
+  return emailValide(e) && !/[?&#%]/.test(e) ? `mailto:${e}` : null;
+}
+
+/** Lien `tel:` : seuls les chiffres et le + sont gardés ; null s'il n'en reste aucun. */
+export function lienTel(tel) {
+  const t = String(tel ?? '').replace(/[^\d+]/g, '');
+  return t ? `tel:${t}` : null;
 }
 
 /** Liste des emails normalisés, sans doublon ni valeur vide. */

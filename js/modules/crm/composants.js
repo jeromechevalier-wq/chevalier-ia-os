@@ -4,6 +4,7 @@ import { h, icone, remplir, champIntelligent, dialogue, lirePreference, ecrirePr
 import * as D from './donnees.js';
 import * as L from './logique.js';
 import { estChezClient } from '../../os/contexte.js';
+import { retirerAvecAnnulation } from '../../os/retrait.js';
 
 // ---------------------------------------------------------------- liens et pastilles
 
@@ -578,15 +579,112 @@ export function saisieEnCours(conteneur) {
   return ['INPUT', 'SELECT', 'TEXTAREA'].includes(a.tagName) && !['checkbox', 'radio', 'button'].includes(a.type);
 }
 
-/** Ligne "Email" ou "Téléphone" d'un résumé : liens avec leur type. */
-export function lignesContact(liste, genre) {
-  return (liste || []).map((c) => h('div', { class: 'contact-ligne' }, icone(genre === 'email' ? 'mail' : 'phone', { taille: 15 }),
-    h('a', { href: genre === 'email' ? `mailto:${c.valeur}` : `tel:${c.valeur.replace(/\s+/g, '')}` }, c.valeur),
-    h('span', { class: 'contact-type' }, `(${L.libelleTypeContact(c.type)})`),
-    genre === 'email' ? h('button', { type: 'button', class: 'bouton-icone bouton-copier', 'aria-label': `Copier ${c.valeur}`, title: 'Copier l’adresse',
-      onclick: async () => {
-        try { await navigator.clipboard.writeText(c.valeur); toast('Adresse copiée'); } catch (e) { console.warn(e); toast('Copie impossible', { type: 'erreur' }); }
-      } }, icone('copy', { taille: 14 })) : null));
+/**
+ * Ligne « Email » ou « Téléphone » d'une fiche (personne ou organisation) : libellé à gauche, les valeurs à droite l'une sous l'autre
+ * (lien, type, copier pour un email, crayon au survol, croix), puis toujours « + Ajouter » (jusqu'à L.MAX_CONTACTS).
+ * Tout se fait sur place, sans fenêtre : le crayon d'une valeur et « + Ajouter » ouvrent un champ (Entrée ou sortie = enregistre, Échap = annule).
+ * `valeurs` : la liste [{ valeur, type }] ; `surEnregistrer(liste)` reçoit la liste complète (async, peut échouer).
+ */
+export function champContacts({ libelle, genre, valeurs = [], surEnregistrer }) {
+  const email = genre === 'email';
+  const minuscule = libelle.toLowerCase();
+  const cle = (v) => (email ? L.normaliserEmail(v) : String(v ?? '').replace(/[^\d+]/g, '')); // deux écritures du même email ou numéro = un doublon
+  let liste = valeurs.map((v) => ({ valeur: v.valeur, type: v.type }));
+  const zone = h('div', { class: 'prop-valeur prop-contacts' });
+  const racine = h('div', { class: 'prop prop-contacts-ligne', dataset: { contacts: genre } }, h('span', { class: 'prop-libelle' }, libelle), zone);
+
+  /** Affiche la nouvelle liste tout de suite (le champ en saisie disparaît avant l'écriture, pour que la fiche se rafraîchisse) ; si l'écriture échoue, l'ancienne revient. */
+  async function ecrire(nouvelle, { apres = null } = {}) {
+    const avant = liste;
+    liste = nouvelle.map((c) => ({ ...c }));
+    afficher(apres);
+    try {
+      await surEnregistrer(liste.map((c) => ({ ...c })));
+      return true;
+    } catch (e) {
+      console.warn(e);
+      liste = avant;
+      afficher(apres);
+      toast(e?.saisie ? e.message : 'Enregistrement impossible', { type: 'erreur' });
+      return false;
+    }
+  }
+  function formulaire(index) { // index : numéro de la valeur modifiée, ou -1 pour une nouvelle
+    const courant = index >= 0 ? liste[index] : { valeur: '', type: 'travail' };
+    const champ = h('input', { class: 'champ', type: email ? 'email' : 'tel', inputmode: email ? 'email' : 'tel', autocomplete: 'off', maxlength: '200', 'aria-label': index >= 0 ? `${libelle} ${index + 1}` : `Nouveau : ${minuscule}`, value: courant.valeur });
+    const type = h('select', { class: 'champ champ-type', 'aria-label': `Type de ${minuscule}` }, L.TYPES_CONTACT.map((t) => h('option', { value: t.id, selected: t.id === courant.type }, t.libelle)));
+    const erreur = h('p', { class: 'erreur', role: 'alert' });
+    const bloc = h('div', { class: 'contact-edition' }, h('div', { class: 'ligne-contact ligne-contact-edition' }, champ, type), erreur);
+    let fini = false;
+    const apres = index >= 0 ? { modifier: index } : { ajouter: true };
+    const valider = async (sortie) => {
+      if (fini) return;
+      const v = L.nettoyerEspaces(champ.value);
+      const sansChangement = index >= 0 && v === courant.valeur && type.value === courant.type;
+      const doublon = liste.some((c, i) => i !== index && cle(c.valeur) === cle(v));
+      if (!v || sansChangement || doublon) { fini = true; afficher(apres); return; }
+      if (email && !L.emailValide(v)) {
+        if (!sortie) { erreur.textContent = 'Cette adresse email n’est pas valide (exemple : contact@exemple.fr).'; return; } // Entrée : le message reste sous le champ
+        fini = true; afficher(); toast('Cette adresse email n’est pas valide (exemple : contact@exemple.fr).', { type: 'erreur' }); return; // on est parti ailleurs : rien n'est enregistré
+      }
+      fini = true;
+      const nouvelle = liste.map((c) => ({ ...c }));
+      if (index >= 0) nouvelle[index] = { valeur: v, type: type.value }; else nouvelle.push({ valeur: v, type: type.value });
+      await ecrire(nouvelle, { apres });
+    };
+    bloc.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); valider(false); }
+      if (e.key === 'Escape') { e.stopPropagation(); fini = true; afficher(apres); }
+    });
+    bloc.addEventListener('focusout', (e) => { if (!bloc.contains(e.relatedTarget)) setTimeout(() => valider(true), 0); });
+    return { bloc, champ };
+  }
+  function ligneValeur(c, i) {
+    const href = email ? L.lienEmail(c.valeur) : L.lienTel(c.valeur);
+    return h('div', { class: 'contact-ligne contact-valeur', dataset: { contact: String(i) } },
+      href ? h('a', { href }, c.valeur) : h('span', {}, c.valeur),
+      h('span', { class: 'contact-type' }, `(${L.libelleTypeContact(c.type)})`),
+      email ? h('button', { type: 'button', class: 'bouton-icone bouton-copier', 'aria-label': `Copier ${c.valeur}`, title: 'Copier l’adresse',
+        onclick: async () => {
+          try { await navigator.clipboard.writeText(c.valeur); toast('Adresse copiée'); } catch (e) { console.warn(e); toast('Copie impossible', { type: 'erreur' }); }
+        } }, icone('copy', { taille: 14 })) : null,
+      h('button', { type: 'button', class: 'bouton-icone prop-modifier contact-modifier', 'aria-label': `Modifier : ${c.valeur}`, dataset: { action: 'modifier-contact' }, onclick: () => editer(i) }, icone('pencil', { taille: 14 })),
+      h('button', { type: 'button', class: 'bouton-icone contact-retirer', 'aria-label': `Retirer : ${c.valeur}`, dataset: { action: 'retirer-contact' }, onclick: () => retirer(i) }, icone('x', { taille: 14 })));
+  }
+  async function retirer(i) {
+    const retire = { ...liste[i] };
+    await retirerAvecAnnulation({
+      titre: email ? 'Retirer cette adresse ?' : 'Retirer ce numéro ?', message: retire.valeur, messageErreur: 'Retrait impossible',
+      faire: async () => { if (!(await ecrire(liste.filter((c) => cle(c.valeur) !== cle(retire.valeur))))) throw new Error('écriture refusée'); },
+      // « Annuler » remet seulement la valeur retirée dans la liste d'aujourd'hui : un ajout fait entre-temps n'est pas perdu.
+      defaire: async () => {
+        if (liste.some((c) => cle(c.valeur) === cle(retire.valeur))) return;
+        const nouvelle = liste.map((c) => ({ ...c }));
+        nouvelle.splice(Math.min(i, nouvelle.length), 0, retire);
+        if (!(await ecrire(nouvelle))) throw new Error('écriture refusée');
+      },
+    });
+  }
+  function editer(i) {
+    const f = formulaire(i);
+    remplir(zone, h('div', { class: 'contacts-pile' }, liste.map((c, k) => (k === i ? f.bloc : ligneValeur(c, k)))));
+    f.champ.focus();
+  }
+  function ajouter() {
+    const f = formulaire(-1);
+    remplir(zone, h('div', { class: 'contacts-pile' }, liste.map(ligneValeur), f.bloc));
+    f.champ.focus();
+  }
+  /** `apres` : où remettre le focus au clavier (le crayon de la valeur modifiée, ou « + Ajouter »). */
+  function afficher(apres = null) {
+    remplir(zone, h('div', { class: 'contacts-pile' }, liste.map(ligneValeur),
+      liste.length < L.MAX_CONTACTS ? boutonAjouter({ libelleAria: `Ajouter : ${minuscule}`, surClic: ajouter, action: 'ajouter-contact' }) : null));
+    if (!apres) return;
+    const cible = apres.modifier !== undefined ? zone.querySelectorAll('[data-action="modifier-contact"]').item(apres.modifier) : zone.querySelector('[data-action="ajouter-contact"]');
+    cible?.focus({ preventScroll: true });
+  }
+  afficher();
+  return { element: racine };
 }
 
 // ---------------------------------------------------------------- aides diverses
