@@ -112,6 +112,24 @@ export const MODULES_DECLARES = geler([
     dependances: ['affaires'],
   },
   {
+    // Devis (cadrage-devis.md, 24/10/2026) : le bordereau de prix (articles) et les réglages du module, en attendant les devis eux-mêmes.
+    // Dépend des seules Affaires (le client pilote n'a ni Projets ni facturation). Présent chez Jérôme comme chez les clients (même code).
+    // Les collections `devis_devis` et `devis_compteurs` du cadrage ne sont PAS déclarées tant qu'aucun écran ni aucune règle ne les utilise.
+    id: 'devis',
+    nom: 'Devis',
+    libelleMenu: 'Devis',
+    iconeMenu: 'file-text',
+    prefixe: 'devis',
+    reglages: { sections: [{ id: 'reglages-devis', libelle: 'Réglages des devis' }] },
+    entreeMenu: 'devis/bordereau',
+    ecrans: [
+      { route: 'devis/bordereau', libelle: 'Bordereau', icone: 'list' },
+    ],
+    collections: ['devis_articles', 'devis_parametres'],
+    outilsMcp: ['lister_articles', 'chercher_article', 'creer_article', 'modifier_article', 'desactiver_article'],
+    dependances: ['affaires'],
+  },
+  {
     // Veille (étape 1, lecture seule) : sources suivies, contenus détectés (vidéos, épisodes, articles) et résumés produits.
     // Les trois tables suivent la règle `module_table`. Elles sont remplies par les workflows n8n (la « porte » viendra à l'étape 2).
     // Pour l'instant seul le CRM de Jérôme (base 1) s'en sert ; un client ne la voit que si Jérôme l'active dans sa fiche.

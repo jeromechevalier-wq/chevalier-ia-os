@@ -145,6 +145,10 @@ describe('registre : le menu de Jérôme (modules, routes, écrans ; Archives et
       // « Archives » est sorti du menu (PR A, 18/10/2026) : la route projets/archives existe toujours (bouton « Archives » de l'écran Projets).
       // « Modèles » est sorti du menu (chantier ménage du CRM, 2026-10-16) : il se règle dans les Réglages (modèles de projets et modèles d'affaires).
     ] },
+    // Ajout voulu (24/10/2026) : le module Devis (bordereau de prix), une entrée de menu après Projets ; il ne dépend que des Affaires.
+    { id: 'devis', libelle: 'Devis', icone: 'file-text', prefixe: 'devis', entrees: [
+      { chemin: 'devis/bordereau', libelle: 'Bordereau', icone: 'list' },
+    ] },
     // Ajout voulu (veille vendable en module, étape 1, 2026-10-14) : le menu du CRM gagne « Veille » après Projets.
     { id: 'veille', libelle: 'Veille', icone: 'globe', prefixe: 'veille', entrees: [
       { chemin: 'veille/contenus', libelle: 'Contenus', icone: 'file-text' },
@@ -311,7 +315,7 @@ describe('menu CRM unique (méthode A, 2.6.0) : un seul groupe « CRM », deux m
     assert.deepEqual(horsMenu('automatisations'), ['automatisations/a-valider']);
     assert.deepEqual(horsMenu('tableaudebord'), [], 'Maintenance : un seul écran, plus aucune route déclarée hors menu (technique, finance, stocks, historique sont servies par le module)');
     // Menu complet : une entrée par module, dans l'ordre.
-    assert.deepEqual(blocs.flatMap((b) => b.sections.flat().map((e) => e.libelle)), ['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Projets', 'Veille', 'Automatisations', 'Maintenance']);
+    assert.deepEqual(blocs.flatMap((b) => b.sections.flat().map((e) => e.libelle)), ['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Projets', 'Devis', 'Veille', 'Automatisations', 'Maintenance']);
     // Chez un client sans le module : pas d'entrée.
     assert.deepEqual(blocsDuMenu(['affaires', 'projets', 'veille']).flatMap((b) => b.sections.flat().map((e) => e.libelle)), ['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Projets', 'Veille']);
     // La route d'arrivée de l'entrée est un écran du module, et le préfixe est celui du module.
@@ -367,7 +371,7 @@ describe('menu CRM unique (méthode A, 2.6.0) : un seul groupe « CRM », deux m
   });
   test('l\'interface déclare un interrupteur par bloc (CRM = affaires + projets)', () => {
     const lignes = interrupteursDuClient(['affaires', 'projets', 'mcp']);
-    assert.deepEqual(lignes.map((l) => [l.id, l.actif, l.complet]), [['crm', true, true], ['veille', false, false], ['automatisations', false, false], ['tableaudebord', false, false], ['mcp', true, true]]);
+    assert.deepEqual(lignes.map((l) => [l.id, l.actif, l.complet]), [['crm', true, true], ['devis', false, false], ['veille', false, false], ['automatisations', false, false], ['tableaudebord', false, false], ['mcp', true, true]]);
     assert.deepEqual(interrupteursDuClient(['affaires']).find((l) => l.id === 'crm'), { id: 'crm', libelle: 'Affaires et projets', modules: ['affaires', 'projets'], actif: true, complet: false });
     assert.deepEqual(interrupteursDuClient([]).filter((l) => l.actif), []);
   });

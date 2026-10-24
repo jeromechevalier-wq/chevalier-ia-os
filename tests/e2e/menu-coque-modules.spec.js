@@ -23,7 +23,7 @@ const onglets = (page, nom) => page.getByRole('navigation', { name: nom }).locat
 test('1 le menu a une seule entrée par module (Veille, Automatisations, Maintenance), sans les écrans du module', async ({ page }) => {
   await connecter(page, JEROME);
   await ouvrirMenu(page);
-  await expect(page.locator('.menu .menu-entree')).toHaveText(['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Projets', 'Veille', 'Automatisations', 'Maintenance']);
+  await expect(page.locator('.menu .menu-entree')).toHaveText(['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Projets', 'Devis', 'Veille', 'Automatisations', 'Maintenance']);
   for (const ecran of ['Contenus', 'Sources', 'Historique', 'À valider', 'Général', 'Technique']) await expect(page.locator('.menu').getByRole('link', { name: ecran, exact: true })).toHaveCount(0);
   await expect(page.locator('.menu .menu-entree[data-chemin="veille/contenus"]')).toHaveText('Veille');
   await expect(page.locator('.menu .menu-entree[data-chemin="automatisations/historique"]')).toHaveText('Automatisations');

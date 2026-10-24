@@ -2,6 +2,7 @@
 // Toutes les fonctions reçoivent l'accès aux données (Firestore ou mémoire) et renvoient des valeurs JSON (dates en texte).
 import * as L from '../../partage/logique.js';
 import * as PL from '../../partage/projets.js';
+import * as DA from '../../partage/devis-articles.js';
 import { COLLECTIONS as C } from './donnees.js';
 import { serialiser } from './serialisation.js';
 import { lireConfig } from './config.js';
@@ -261,4 +262,21 @@ export async function lireAudit(donnees, { acteur, docId, operationId, depuis, i
   lignes.sort((a, b) => (L.versDate(b.date)?.getTime() ?? 0) - (L.versDate(a.date)?.getTime() ?? 0) || (a.ordre ?? 0) - (b.ordre ?? 0));
   const { total, tronque, elements } = borne(lignes, Math.min(limite ?? MAX_LIGNES, MAX_LIGNES));
   return serialiser({ total, tronque, lignes: elements, aVerifier: lignes.filter((l) => l.statut === 'en_cours').length });
+}
+
+// ---------------------------------------------------------------- Devis : bordereau
+
+/** Les articles du bordereau, comme l'écran : actifs par défaut (statut : 'actifs' | 'desactives' | 'tous'), triés par libellé. */
+export async function listerArticles(donnees, { statut, limite }) {
+  const lignes = DA.filtrerArticles(await donnees.liste(C.devisArticles), { statut: statut ?? 'actifs' });
+  const { total, tronque, elements } = borne(lignes, Math.min(limite ?? MAX_LIGNES, MAX_LIGNES));
+  return serialiser({ total, tronque, articles: elements });
+}
+
+/** Recherche dans le code et le libellé des articles ACTIFS (accents et casse ignorés). */
+export async function chercherArticle(donnees, { texte, limite }) {
+  if (L.normaliserNom(texte).length < L.MIN_LETTRES) return { articles: [], total: 0, message: `Saisir au moins ${L.MIN_LETTRES} lettres.` };
+  const lignes = DA.filtrerArticles(await donnees.liste(C.devisArticles), { recherche: texte, statut: 'actifs' });
+  const { total, tronque, elements } = borne(lignes, Math.min(limite ?? 20, MAX_LIGNES));
+  return serialiser({ total, tronque, articles: elements });
 }

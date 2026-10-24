@@ -3,6 +3,7 @@
 // `c` : { donnees, acteur, maintenant, ecrire({ operations, parametres, suppression }), restaurer({ operationId, apercu, forcer }) }.
 import * as L from '../../partage/logique.js';
 import * as PL from '../../partage/projets.js';
+import * as DA from '../../partage/devis-articles.js';
 import { COLLECTIONS as C } from './donnees.js';
 import { lireConfig as lireConfigEspace } from './config.js';
 import { emettreCode, consommerCode, empreinteApercu } from '../securite/codes.js';
@@ -610,6 +611,35 @@ export async function supprimerNote(c, args) {
 export async function supprimerActivite(c, args) {
   await lire(c, C.activites, args.id, 'Activité');
   return supprimerAvecCode(c, 'supprimer_activite', args, { collection: C.activites, id: args.id }, L.planSupprimerActivite(args.id), parametresDe(args));
+}
+
+// ---------------------------------------------------------------- Devis : bordereau (articles)
+// Mêmes plans que l'écran (partage/devis-articles.js). Les prix d'achat sont des euros donnés par l'humain : l'assistant n'en invente jamais.
+
+export async function creerArticle(c, args) {
+  const { proprietaire, ...valeurs } = args;
+  const plan = DA.planCreerArticle(valeurs, await contexte(c, proprietaire), { articles: await c.donnees.liste(C.devisArticles) });
+  verifierMessages(plan.erreurs);
+  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: plan.id, libelle: plan.libelle });
+}
+
+export async function modifierArticle(c, args) {
+  const { id, ...champs } = args;
+  await lire(c, C.devisArticles, id, 'Article');
+  const plan = DA.planMajArticle(id, champs, { articles: await c.donnees.liste(C.devisArticles) });
+  verifierMessages(plan.erreurs);
+  if (!Object.keys(plan.patch).length) refuser('saisie_invalide', 'Aucun champ à modifier (libelle, unite, prixAchat, code, tauxTva). Pour désactiver ou réactiver un article, utiliser desactiver_article.');
+  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id, champsModifies: Object.keys(plan.patch) });
+}
+
+/** Désactive un article (jamais de suppression) ; `reactiver: true` le remet en service (refusé si son code est pris par un article actif). */
+export async function desactiverArticle(c, args) {
+  const a = await lire(c, C.devisArticles, args.id, 'Article');
+  const actif = args.reactiver === true;
+  if ((a.actif !== false) === actif) refuser('saisie_invalide', actif ? 'Cet article est déjà actif.' : 'Cet article est déjà désactivé.');
+  const plan = DA.planActiverArticle(args.id, actif, { articles: await c.donnees.liste(C.devisArticles) });
+  verifierMessages(plan.erreurs);
+  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: args.id, actif });
 }
 
 export async function restaurer(c, args) {

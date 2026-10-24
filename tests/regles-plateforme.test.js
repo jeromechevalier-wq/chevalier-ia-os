@@ -19,7 +19,9 @@ const BOB = 'bob@exemple.test';
 const CLARA = 'clara@exemple.test';
 const LEA = 'lea@exemple.test';
 const ZOE = 'zoe@exemple.test';
-const DONNEES = ['crm_personnes', 'crm_affaires', 'projets_projets'];
+const DONNEES = ['crm_personnes', 'crm_affaires', 'projets_projets', 'devis_parametres'];
+// Bordereau du module Devis : lu par les membres, créé et modifié par les éditeurs, jamais supprimé (un article se désactive).
+const SANS_SUPPRESSION = ['devis_articles'];
 
 let env;
 
@@ -39,7 +41,7 @@ beforeEach(async () => {
     await membre('b', BOB, 'editeur');
     await membre('b', CLARA, 'lecteur');
     for (const client of ['a', 'b']) {
-      for (const c of DONNEES) await setDoc(doc(db, 'clients', client, c, 'existant'), { valeur: 1 });
+      for (const c of [...DONNEES, ...SANS_SUPPRESSION]) await setDoc(doc(db, 'clients', client, c, 'existant'), { valeur: 1 });
     }
     await setDoc(doc(db, 'crm_personnes', 'existant'), { valeur: 1 });
     await setDoc(doc(db, 'clients', 'a'), { nom: 'Client A', modules: { affaires: true, projets: false } });
@@ -93,6 +95,32 @@ describe('P. Règles de la plateforme clients', () => {
       const db = ctx(CLARA);
       await droitsComplets(db, 'a', c);
       await lectureSeule(db, 'b', c);
+    });
+  }
+
+  // B8 : le bordereau du module Devis
+  async function droitsSansSuppression(db, client, c) {
+    await assertSucceeds(getDoc(doc(db, 'clients', client, c, 'existant')));
+    await assertSucceeds(getDocs(collection(db, 'clients', client, c)));
+    await assertSucceeds(setDoc(doc(db, 'clients', client, c, 'nouveau'), { valeur: 2 }));
+    await assertSucceeds(updateDoc(doc(db, 'clients', client, c, 'existant'), { valeur: 3 }));
+    await assertFails(deleteDoc(doc(db, 'clients', client, c, 'existant')));
+    await assertFails(deleteDoc(doc(db, 'clients', client, c, 'nouveau')));
+  }
+  for (const c of SANS_SUPPRESSION) {
+    test(`B8 l'éditrice du client A lit, crée et modifie chez A (${c}) mais ne supprime jamais`, async () => { await droitsSansSuppression(ctx(ALICE), 'a', c); });
+    test(`B8 l'éditrice du client A est refusée chez B, un non-membre et un visiteur partout (${c})`, async () => {
+      await aucunDroit(ctx(ALICE), 'b', c);
+      for (const client of ['a', 'b']) { await aucunDroit(ctx(ZOE), client, c); await aucunDroit(env.unauthenticatedContext().firestore(), client, c); }
+      await aucunDroit(ctx(ALICE, false), 'a', c);
+    });
+    test(`B8 la lectrice lit chez A mais n'écrit pas (${c})`, async () => { await lectureSeule(ctx(LEA), 'a', c); });
+    test(`B8 le compte membre de A (éditeur) et de B (lecteur) : lecture et écriture sans suppression chez A, lecture seule chez B (${c})`, async () => {
+      await droitsSansSuppression(ctx(CLARA), 'a', c);
+      await lectureSeule(ctx(CLARA), 'b', c);
+    });
+    test(`B8 une sous-collection du bordereau n'ouvre pas de suppression (${c})`, async () => {
+      await assertFails(deleteDoc(doc(ctx(ALICE), 'clients', 'a', c, 'x', 'sous', 'y')));
     });
   }
 

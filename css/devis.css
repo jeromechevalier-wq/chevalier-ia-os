@@ -1,0 +1,25 @@
+/* Module Devis : bordereau de prix. Le tableau, les pastilles, les boutons et les champs viennent de crm.css et os.css (mêmes composants) ;
+   seuls les éléments propres au bordereau sont ici (valeur modifiable sur place). Uniquement des variables de tokens.css. */
+
+.valeur-editable {
+  display: inline-block; min-height: var(--h-ctrl-petit); max-width: 100%; padding: 2px var(--esp-3); margin: 0 calc(-1 * var(--esp-3)); border: 0; border-radius: var(--rayon-petit);
+  background: transparent; color: inherit; font: inherit; text-align: left; cursor: text; overflow-wrap: anywhere;
+}
+.valeur-editable:hover, .valeur-editable:focus-visible { background: var(--survol); }
+.valeur-editable.valeur-vide { color: var(--texte2); }
+.tableau-articles .titre-colonne, .tableau-articles .titre-colonne:hover { cursor: default; color: var(--texte2); } /* en-têtes sans tri : même style que les autres tableaux, sans l'effet de clic */
+.tableau-articles .ligne-liste { cursor: default; }
+.tableau-articles .ligne-liste:hover { background: transparent; }
+.article-desactive td { color: var(--texte2); }
+.erreur-cellule { margin: var(--esp-2) 0 0; font-size: var(--fs-petit); }
+.tableau-articles td .champ { min-width: 90px; }
+@media (min-width: 768px) {
+  .page-devis .barre-affaires .champ[type="search"] { flex: 1 1 260px; max-width: 420px; } /* sur téléphone la barre est une colonne : la recherche prend sa hauteur normale */
+}
+.reglages-devis .cases { display: flex; gap: var(--esp-7); flex-wrap: wrap; }
+
+@media (max-width: 767px) {
+  .tableau-articles thead { display: none; } /* pas de tri sur ce tableau : chaque carte porte déjà ses libellés, les pastilles d'en-tête ne serviraient à rien */
+  .valeur-editable { min-height: 44px; display: inline-flex; align-items: center; }
+  .tableau-articles td.col-actions .bouton { min-height: 44px; }
+}

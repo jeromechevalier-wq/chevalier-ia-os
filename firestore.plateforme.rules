@@ -60,10 +60,21 @@ service cloud.firestore {
       return collection in ['tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes'];
     }
 
+    // Bordereau du module Devis (24/10/2026) : les membres lisent ; les éditeurs créent et modifient les articles, mais ne les SUPPRIMENT jamais
+    // (un article se désactive : les devis déjà faits en gardent une copie). Un autre client n'y a aucun accès (chemin sous clients/<client>).
+    function collectionSansSuppression(collection) {
+      return collection in ['devis_articles'];
+    }
+    match /clients/{client}/devis_articles/{id} {
+      allow read: if roleDe(client) in ['editeur', 'lecteur'];
+      allow create, update: if roleDe(client) == 'editeur';
+      allow delete: if false;
+    }
+
     // Les données du client (tout sauf les fiches d'appartenance, traitées ci-dessus).
     match /clients/{client}/{collection}/{reste=**} {
       allow read: if collection != 'membres' && roleDe(client) in ['editeur', 'lecteur'];
-      allow write: if collection != 'membres' && !collectionDuJournal(collection) && !collectionDuTableauDeBord(collection) && roleDe(client) == 'editeur';
+      allow write: if collection != 'membres' && !collectionDuJournal(collection) && !collectionDuTableauDeBord(collection) && !collectionSansSuppression(collection) && roleDe(client) == 'editeur';
     }
 
     // Tout le reste (racine, autres collections) : refusé.
