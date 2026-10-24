@@ -22,7 +22,7 @@ const texteCourt = z.string().max(300);
 const typeArticle = z.enum(DA.TYPES_ARTICLE.map((t) => t.id));
 const composants = z.array(z.object({ articleId: id, quantite: z.number() })).max(30).describe("Composants d'un ouvrage : [{ articleId, quantite }], 1 à 30, quantité > 0 (3 décimales au plus).");
 // Devis : lignes d'un brouillon (copiées des articles du bordereau) et remise.
-const ligneDevis = z.object({ articleId: id.optional(), reference: z.string().min(1).max(120).optional(), quantite: z.number().min(0).max(1_000_000).optional() })
+const ligneDevis = z.object({ articleId: id.optional(), reference: z.string().min(1).max(120).optional(), quantite: z.number().positive().max(1_000_000).refine((n) => Math.abs(n * 1000 - Math.round(n * 1000)) < 1e-6, '3 décimales au plus').optional() })
   .describe("Une ligne : articleId OU reference (référence ou code de l'article), et quantite (> 0 ; inutile pour un article de type texte).");
 const lignesDevis = z.array(ligneDevis).max(200).describe("Lignes à plat, copiées des articles du bordereau.");
 const sectionsDevis = z.array(z.object({ titre: z.string().max(200).optional(), lignes: z.array(ligneDevis).max(200) })).max(50).describe("Sections [{ titre, lignes }].");

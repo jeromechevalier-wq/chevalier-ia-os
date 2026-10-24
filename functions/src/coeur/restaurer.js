@@ -42,6 +42,9 @@ export async function restaurerOperation({ donnees, ctx, operationId, apercu = t
     throw new ErreurEcriture('copie_expiree', `Les copies « avant » de cette opération manquent : ${perimees.length} ligne(s) sur ${lignesAudit.length}. Utiliser une sauvegarde (copie Google ou export JSON).`, { perimees: perimees.length });
   }
   const courants = await Promise.all(lignesAudit.map((l) => donnees.document(l.collection, l.docId)));
+  // Même avec `forcer` : un devis qui n'est plus un brouillon (finalisé à l'écran après sa création par l'assistant, par exemple) ne se supprime ni ne se remet en brouillon par le journal.
+  const figee = lignesAudit.find((l, i) => l.collection === C.devis && courants[i] && courants[i].statut !== 'brouillon');
+  if (figee) throw new ErreurEcriture('restauration_refusee', 'Un devis de cette opération n’est plus un brouillon : il ne se restaure pas avec le journal, même avec forcer. Pour corriger un devis finalisé, créer la version suivante depuis l’écran.');
   const lignes = lignesAudit.map((l, i) => {
     const copie = copies[i];
     const courant = sansId(courants[i]);

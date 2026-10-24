@@ -90,6 +90,8 @@ async function preparer(donnees, ctx, operations) {
       ecriture = { type: 'set', donnees: contenu };
     } else if (type === 'modifier') {
       if (!avant) throw new ErreurEcriture('introuvable', `Document introuvable : ${l.collection}/${l.id}`);
+      // `exigerStatut` : la modification n'a lieu que si le document a ce statut. Ce contrôle porte sur l'état lu ici, et l'écriture est ensuite vérifiée contre ce même état (attendus) : pas de fenêtre de course.
+      if (op.exigerStatut && avant.statut !== op.exigerStatut) throw new ErreurEcriture('conflit', `Le document ${l.collection}/${l.id} n'a plus le statut « ${op.exigerStatut} » : rien n'a été écrit.`);
       apres = { ...avant, ...contenu };
       ecriture = { type: 'update', donnees: contenu };
     } else if (type === 'supprimer') {

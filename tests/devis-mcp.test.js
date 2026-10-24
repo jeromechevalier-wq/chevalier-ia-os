@@ -8,10 +8,13 @@ import { createServer } from 'node:http';
 import { creerGestionnaire } from '../functions/src/mcp/gestionnaire.js';
 import { empreinte, creerMagasin } from '../functions/src/securite/jetons.js';
 import { creerAccesMemoire } from '../functions/src/coeur/donnees.js';
+import { creerLimiteur } from '../functions/src/securite/limites.js';
+import { empreinteApercu } from '../functions/src/securite/codes.js';
+import { canonique, sansId } from '../functions/src/coeur/canonique.js';
 import { collections as base, MAINTENANT } from './_donnees-essai.js';
 
 const JETONS = { lecteur: `cia_${'L'.repeat(43)}`, biblio: `cia_${'H'.repeat(43)}`, code: `cia_${'C'.repeat(43)}` };
-const entree = (jeton, nom, profil) => ({ jeton: nom, acteur: nom, profil, empreinte: empreinte(jeton), actif: true });
+const entree = (jeton, nom, profil, extra = {}) => ({ jeton: nom, acteur: nom, profil, empreinte: empreinte(jeton), actif: true, ...extra });
 const EMAIL = ['client@exemple.test'];
 
 const arrets = [];
@@ -24,14 +27,15 @@ const devisEnregistre = (id, extra = {}) => ({
   sections: [{ id: `s-${id}`, titre: '', lignes: [{ id: `l-${id}`, libelle: 'Peinture', unite: 'm²', quantite: 10, prixAchat: 8 }] }], ...extra,
 });
 
-async function demarrer({ devis = [] } = {}) {
+async function demarrer({ devis = [], jetonsExtra = {} } = {}) {
   const collections = structuredClone(base);
   Object.assign(collections, { devis_articles: [], devis_devis: devis.map((d) => structuredClone(d)), devis_compteurs: [], devis_parametres: [{ id: 'reglages', regimeTva: 'assujetti', marge: 20, modeMarge: 'majoration' }] });
   const donnees = creerAccesMemoire(collections);
   const horloge = { t: MAINTENANT.getTime() };
-  const secret = JSON.stringify([entree(JETONS.lecteur, 'lecteur-essai', 'lecteur'), entree(JETONS.biblio, 'hermes-bibliothecaire', 'bibliothecaire'), entree(JETONS.code, 'claude-code-jerome', 'claude-code')]);
+  const secret = JSON.stringify([entree(JETONS.lecteur, 'lecteur-essai', 'lecteur'), entree(JETONS.biblio, 'hermes-bibliothecaire', 'bibliothecaire'), entree(JETONS.code, 'claude-code-jerome', 'claude-code', jetonsExtra.code)]);
   const magasin = creerMagasin({ lire: async () => secret, dureeCacheMs: 0 });
-  const gestionnaire = creerGestionnaire({ magasin, donnees, maintenant: () => horloge.t, journal: () => {} });
+  const limiteur = creerLimiteur({ donnees, maintenant: () => horloge.t });
+  const gestionnaire = creerGestionnaire({ magasin, donnees, limiteur, maintenant: () => horloge.t, journal: () => {} });
   const serveur = createServer((req, res) => {
     const m = [];
     req.on('data', (x) => m.push(x));
@@ -180,7 +184,9 @@ describe('M3 creer_devis_brouillon : lignes tirées des articles, totaux justes,
     refuse(await s.appeler('biblio', 'creer_devis_brouillon', { affaireId: 'a1', lignes: [{ articleId: 'nope', quantite: 1 }] }), /introuvable/i);
     refuse(await s.appeler('biblio', 'creer_devis_brouillon', { affaireId: 'a1', lignes: [{ reference: 'zzz', quantite: 1 }] }), /Aucun article actif/);
     refuse(await s.appeler('biblio', 'creer_devis_brouillon', { affaireId: 'a1', lignes: [{ articleId: ids.a, reference: 'CAR', quantite: 1 }] }), /OU/);
-    refuse(await s.appeler('biblio', 'creer_devis_brouillon', { affaireId: 'a1', lignes: [{ articleId: ids.a, quantite: 0 }] }), /supérieur à zéro/);
+    refuse(await s.appeler('biblio', 'creer_devis_brouillon', { affaireId: 'a1', lignes: [{ articleId: ids.a, quantite: 0 }] }));
+    refuse(await s.appeler('biblio', 'creer_devis_brouillon', { affaireId: 'a1', lignes: [{ articleId: ids.a, quantite: 1.2345 }] }));
+    refuse(await s.appeler('biblio', 'creer_devis_brouillon', { affaireId: 'a1', organisationId: 'org1', personneId: 'p1' }), /un seul client/);
     refuse(await s.appeler('biblio', 'creer_devis_brouillon', { affaireId: 'a1', lignes: [{ articleId: ids.a }] }), /supérieur à zéro/);
     refuse(await s.appeler('biblio', 'creer_devis_brouillon', { affaireId: 'a1', lignes: lignesDeBase(ids), remise: { type: 'pourcentage', valeur: 100 } }), /100 % exclu/);
     refuse(await s.appeler('biblio', 'creer_devis_brouillon', { affaireId: 'a1', lignes: lignesDeBase(ids), remise: { type: 'montant', valeur: 5000 } }), /dépasser le total/);
@@ -314,6 +320,93 @@ describe('M7 trace d’audit', () => {
     refuse(await s.appeler('code', 'restaurer_depuis_audit', { operationId: f.operationId, apercu: false }), /ne se défait pas/);
     assert.equal(s.doc('devis_devis', r.id).statut, 'en_attente_envoi');
     const creation = lignes.find((l) => l.outil === 'creer_devis_brouillon');
-    assert.equal(ok(await s.appeler('code', 'restaurer_depuis_audit', { operationId: creation.operationId })).apercu, true, 'la création d’un brouillon reste restaurable (aperçu)');
+    refuse(await s.appeler('code', 'restaurer_depuis_audit', { operationId: creation.operationId }), /n’est plus un brouillon/);
+    const neuf = ok(await s.appeler('biblio', 'creer_devis_brouillon', { affaireId: 'a1', destinataires: EMAIL }));
+    const op = s.collections.crm_audit.find((l) => l.docId === neuf.id).operationId;
+    assert.equal(ok(await s.appeler('code', 'restaurer_depuis_audit', { operationId: op })).apercu, true, 'la création d’un brouillon reste restaurable (aperçu)');
+  });
+});
+
+describe('Relecture : garde-fous supplémentaires', () => {
+  const prets = async (s) => {
+    const ids = await articlesDeBase(s);
+    return ok(await s.appeler('biblio', 'creer_devis_brouillon', { affaireId: 'a1', objet: 'X', destinataires: EMAIL, lignes: [{ articleId: ids.a, quantite: 1 }] }));
+  };
+
+  test('R1 un devis finalisé à l’écran après sa création ne se restaure pas, même avec forcer', async () => {
+    const s = await demarrer();
+    const r = await prets(s);
+    const creation = s.collections.crm_audit.find((l) => l.docId === r.id && l.outil === 'creer_devis_brouillon');
+    s.doc('devis_devis', r.id).statut = 'en_attente_envoi'; // finalisation faite à l’écran
+    refuse(await s.appeler('code', 'restaurer_depuis_audit', { operationId: creation.operationId, apercu: false, forcer: true }), /n’est plus un brouillon/);
+    assert.ok(s.doc('devis_devis', r.id), 'le devis est toujours là');
+    assert.equal(s.doc('devis_devis', r.id).statut, 'en_attente_envoi');
+  });
+
+  test('R2 changer de client d’un brouillon recalcule les adresses ; les deux clients ensemble sont refusés', async () => {
+    const s = await demarrer();
+    s.collections.crm_organisations.find((o) => o.id === 'org1').adresses = [{ id: 'x', libelle: 'Siège', adresse: '1 rue des Lilas', parDefaut: true }];
+    s.collections.crm_organisations.find((o) => o.id === 'org2').adresses = [{ id: 'y', libelle: 'Siège', adresse: '2 rue du Pain', parDefaut: true }];
+    const r = ok(await s.appeler('biblio', 'creer_devis_brouillon', { affaireId: 'a1', destinataires: EMAIL }));
+    assert.equal(s.doc('devis_devis', r.id).adresses.commanditaire.texte, '1 rue des Lilas');
+    assert.equal(s.doc('devis_devis', r.id).adresses.chantier.texte, '1 rue des Lilas');
+    refuse(await s.appeler('biblio', 'modifier_devis_brouillon', { id: r.id, organisationId: 'org2', personneId: 'p2' }), /un seul client/);
+    ok(await s.appeler('biblio', 'modifier_devis_brouillon', { id: r.id, organisationId: 'org2' }));
+    const d = s.doc('devis_devis', r.id);
+    assert.equal(d.organisationId, 'org2');
+    assert.equal(d.personneId, null);
+    assert.equal(d.adresses.commanditaire.texte, '2 rue du Pain');
+    assert.equal(d.adresses.facturation.texte, '2 rue du Pain');
+    assert.equal(d.adresses.chantier.texte, '2 rue du Pain', 'le chantier suivait l’ancien client');
+    assert.deepEqual(d.destinataires, EMAIL, 'les destinataires déjà choisis restent');
+  });
+
+  test('R3 l’empreinte de l’aperçu ne dépend pas de l’ordre des clés', () => {
+    const a = { id: 'd1', objet: 'x', sections: [{ id: 's', lignes: [{ id: 'l', quantite: 1, prixAchat: 2 }] }] };
+    const b = { sections: [{ lignes: [{ prixAchat: 2, quantite: 1, id: 'l' }], id: 's' }], objet: 'x', id: 'autre' };
+    const e = (d) => empreinteApercu([JSON.stringify({ devis: canonique(sansId(d)) })]);
+    assert.equal(e(a), e(b));
+  });
+
+  test('R3 un réglage qui joue sur le figeage (régime de TVA) change le code : il ne vaut plus', async () => {
+    const s = await demarrer();
+    const r = await prets(s);
+    const apercu = ok(await s.appeler('code', 'finaliser_devis', { id: r.id }));
+    s.doc('devis_parametres', 'reglages').regimeTva = 'franchise';
+    refuse(await s.appeler('code', 'finaliser_devis', { id: r.id, codeConfirmation: apercu.code }), /a changé/);
+    assert.equal(s.doc('devis_devis', r.id).statut, 'brouillon');
+  });
+
+  test('R4 le plafond d’écriture est vérifié avant de consommer le code : après un refus, le même code sert encore', async () => {
+    const s = await demarrer({ jetonsExtra: { code: { limites: { ecrituresParHeure: 1 } } } });
+    const r1 = await prets(s);
+    const r2 = ok(await s.appeler('biblio', 'creer_devis_brouillon', { affaireId: 'a1', destinataires: EMAIL, lignes: [{ reference: 'car', quantite: 2 }] }));
+    const a1 = ok(await s.appeler('code', 'finaliser_devis', { id: r1.id }));
+    ok(await s.appeler('code', 'finaliser_devis', { id: r1.id, codeConfirmation: a1.code }));
+    const a2 = ok(await s.appeler('code', 'finaliser_devis', { id: r2.id }));
+    refuse(await s.appeler('code', 'finaliser_devis', { id: r2.id, codeConfirmation: a2.code }), /Plafond atteint/);
+    assert.equal(s.doc('devis_devis', r2.id).statut, 'brouillon');
+    assert.equal(s.collections.mcp_codes.length, 1, 'le code n’a pas été consommé');
+    s.horloge.t += 2 * 3_600_000; // le plafond se libère (le code, lui, a expiré : nouvel aperçu)
+    const a3 = ok(await s.appeler('code', 'finaliser_devis', { id: r2.id }));
+    assert.equal(ok(await s.appeler('code', 'finaliser_devis', { id: r2.id, codeConfirmation: a3.code })).finalise, true);
+  });
+
+  test('R5 le journal de la finalisation porte l’identifiant du jeton', async () => {
+    const s = await demarrer();
+    const r = await prets(s);
+    const a = ok(await s.appeler('code', 'finaliser_devis', { id: r.id }));
+    const f = ok(await s.appeler('code', 'finaliser_devis', { id: r.id, codeConfirmation: a.code }));
+    const ligne = s.collections.crm_audit.find((l) => l.operationId === f.operationId);
+    assert.equal(ligne.jeton, 'claude-code-jerome');
+    assert.equal(ligne.acteur, 'claude-code-jerome');
+  });
+
+  test('R7 le moteur refuse la modification si le devis n’est plus un brouillon au moment d’écrire (exigerStatut)', async () => {
+    const { executerEcritures } = await import('../functions/src/coeur/ecriture.js');
+    const s = await demarrer({ devis: [devisEnregistre('f1', { statut: 'en_attente_envoi' })] });
+    const donnees = creerAccesMemoire(s.collections);
+    await assert.rejects(() => executerEcritures({ donnees, ctx: { acteur: 'x', jeton: 'x', via: 'mcp', maintenant: MAINTENANT }, outil: 'essai', operations: [{ type: 'modifier', collection: 'devis_devis', id: 'f1', patch: { objet: 'Z' }, exigerStatut: 'brouillon' }] }), /n'a plus le statut/);
+    assert.notEqual(s.doc('devis_devis', 'f1').objet, 'Z');
   });
 });
