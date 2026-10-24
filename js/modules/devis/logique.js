@@ -65,7 +65,7 @@ export const TYPES_DECHETS = [
   { id: 'specifiques', libelle: 'Déchets spécifiques' },
 ];
 /** Clés qui ne sortent JAMAIS vers le client (voir vueClient). */
-export const CLES_INTERDITES_CLIENT = ['prixAchat', 'marge', 'coefficient', 'modeMarge'];
+export const CLES_INTERDITES_CLIENT = ['prixAchat', 'marge', 'coefficient', 'modeMarge', 'ajustement'];
 
 const idsModes = MODES_MARGE.map((m) => m.id);
 const estNombre = (v) => typeof v === 'number' && Number.isFinite(v);
@@ -124,6 +124,75 @@ export function prixVenteDeLigne(devis, section, ligne) {
   // Un brouillon se recalcule toujours : un prix figé périmé (restauration, copie) n'est pas honoré.
   if (devis?.statut !== 'brouillon' && estNombre(ligne?.prixVente)) return ligne.prixVente;
   return prixVenteUnitaire(ligne?.prixAchat, margeEffective({ devis, section, ligne }), devis?.modeMarge);
+}
+
+// ---------------------------------------------------------------- ajustement global (coefficient interne, jamais montré au client)
+/** Coefficient de l'ajustement global du devis : `devis.ajustement.coefficient` ; absent, illisible ou ≤ 0 = 1 (aucun ajustement). */
+export function coefficientAjustement(devis) {
+  const c = devis?.ajustement?.coefficient;
+  return estNombre(c) && c > 0 ? c : 1;
+}
+/** Un ajustement est-il actif ? (coefficient différent de 1) */
+export const ajustementActif = (devis) => coefficientAjustement(devis) !== 1;
+/** Prix de vente unitaire ajusté : prix × coefficient, arrondi au centime. Sans ajustement, le prix tel quel. */
+export function prixAjuste(prixVente, coefficient) {
+  if (!estNombre(prixVente)) return null;
+  return coefficient === 1 || !estNombre(coefficient) ? prixVente : arrondiCentime(prixVente * coefficient);
+}
+/** Copie du devis sans son ajustement (ni les prix ajustés figés) : sert à calculer le total « avant ». */
+function sansAjustement(devis) {
+  return { ...devis, ajustement: undefined, sections: (devis?.sections ?? []).map((s) => ({ ...s, lignes: (s.lignes ?? []).map(({ prixVenteAjuste: _p, ...l }) => l) })) };
+}
+/** Prix de vente unitaire AJUSTÉ d'une ligne (celui qui sert aux totaux et au client). Un devis finalisé garde le prix ajusté figé à la finalisation. */
+export function prixVenteAjusteDeLigne(devis, section, ligne) {
+  const base = prixVenteDeLigne(devis, section, ligne);
+  if (base === null) return null;
+  if (devis?.statut !== 'brouillon' && estNombre(ligne?.prixVenteAjuste)) return ligne.prixVenteAjuste;
+  return prixAjuste(base, coefficientAjustement(devis));
+}
+/**
+ * Les trois valeurs liées de l'ajustement : pourcentage, montant (différence des totaux HT bruts, avant remise) et coefficient.
+ * Un devis sans ajustement donne { pourcentage: 0, montant: 0, coefficient: 1 }.
+ */
+export function valeursAjustement(devis) {
+  const coefficient = coefficientAjustement(devis);
+  const avant = totauxDevis(sansAjustement(devis)).totalBrutHt;
+  const apres = totauxDevis(devis).totalBrutHt;
+  return { coefficient, pourcentage: arrondiCentime((coefficient - 1) * 100), montant: arrondiCentime(apres - avant), totalAvant: avant, totalApres: apres };
+}
+/** Coefficient (4 décimales) d'un pourcentage d'ajustement. { coefficient, erreur } : erreur si le résultat est ≤ 0. */
+export function coefficientDepuisPourcentage(pourcentage) {
+  if (!estNombre(pourcentage)) return { coefficient: null, erreur: 'Écris un pourcentage (exemple : 10 ou -5,5).' };
+  const coefficient = Math.round((1 + pourcentage / 100) * 10000) / 10000;
+  return coefficient > 0 ? { coefficient, erreur: null } : { coefficient: null, erreur: 'Le pourcentage doit laisser un prix supérieur à 0 (pas moins de -100 %).' };
+}
+/** Coefficient (4 décimales) qui ajoute `montant` euros au total HT brut du devis (sans son ajustement actuel). */
+export function coefficientDepuisMontant(devis, montant) {
+  if (!estNombre(montant)) return { coefficient: null, erreur: 'Écris un montant en euros (exemple : 150 ou -20,50).' };
+  const avant = totauxDevis(sansAjustement(devis)).totalBrutHt;
+  if (!(avant > 0)) return { coefficient: null, erreur: 'Le devis n’a pas encore de total : ajoute d’abord des lignes avec un prix.' };
+  const coefficient = Math.round(((avant + montant) / avant) * 10000) / 10000;
+  return coefficient > 0 ? { coefficient, erreur: null } : { coefficient: null, erreur: 'Ce montant ferait tomber le total à 0 € ou moins : choisis un montant plus petit.' };
+}
+/** Coefficient écrit directement : doit être un nombre > 0 (arrondi à 4 décimales). */
+export function coefficientDepuisSaisie(coefficient) {
+  if (!estNombre(coefficient)) return { coefficient: null, erreur: 'Écris un coefficient (exemple : 1,10).' };
+  if (!(coefficient > 0)) return { coefficient: null, erreur: 'Le coefficient doit être plus grand que 0 (exemple : 1,10).' };
+  return { coefficient: Math.round(coefficient * 10000) / 10000, erreur: null };
+}
+
+// ---------------------------------------------------------------- affichage du devis (cases du menu « Options »)
+/** Valeurs d'un devis qui a un objet `affichage` (les cases non écrites sont décochées). */
+export const AFFICHAGE_DEFAUT = Object.freeze({
+  afficherMarges: false, afficherReferences: false, cacherDechets: false,
+  cacherTotauxSections: false, cacherQuantiteUnite: false, cacherTva: false, cacherElementsOuvrage: false, afficherPrixElementsOuvrage: false,
+  afficherTelephone: false, afficherEmail: false, afficherNumeroTva: false, afficherSiren: false,
+});
+/** Affichage d'un devis. Un ancien devis (sans `affichage`) garde l'affichage d'avant : le calcul des marges est visible. */
+export function affichageDe(devis) {
+  const brut = devis?.affichage;
+  if (!brut || typeof brut !== 'object') return { ...AFFICHAGE_DEFAUT, afficherMarges: true };
+  return Object.fromEntries(Object.keys(AFFICHAGE_DEFAUT).map((k) => [k, brut[k] === true]));
 }
 
 /** Mention « vendu à perte » (jamais un blocage). Le prix de vente vient de la ligne figée, ou du 2e paramètre. */
@@ -248,7 +317,7 @@ export function totauxDevis(devis) {
   for (const section of devis?.sections ?? []) {
     let sousC = 0;
     for (const ligne of section.lignes ?? []) {
-      const pv = prixVenteDeLigne(devis, section, ligne);
+      const pv = prixVenteAjusteDeLigne(devis, section, ligne);
       const totalC = pv === null ? 0 : arrondiDemi((estNombre(ligne.quantite) ? ligne.quantite : 0) * versCentimes(pv));
       sousC += totalC;
       const taux = tauxDeLigne(devis, ligne);
@@ -579,6 +648,7 @@ export function nouveauDevis(valeurs = {}, ctx = {}, reglages = {}) {
     tauxTvaDefaut: taux,
     regimeTva: regime,
     autoliquidation: false,
+    affichage: { afficherMarges: false }, // un devis neuf cache le calcul des marges ; un ancien devis sans `affichage` le montre
     sections: [],
     archive: false,
     creePar: ctx.auteur ?? '',
@@ -603,6 +673,7 @@ export function figerPourFinalisation(devis, { numero, finaliseLe, reglages = {}
   for (const section of copie.sections) {
     for (const ligne of section.lignes ?? []) {
       ligne.prixVente = prixVenteDeLigne(copie, section, ligne);
+      if (ajustementActif(copie)) ligne.prixVenteAjuste = prixAjuste(ligne.prixVente, coefficientAjustement(copie)); // le prix ajusté est figé lui aussi
       ligne.tauxTva = tauxDeLigne(copie, ligne);
     }
   }
@@ -618,7 +689,7 @@ export function figerPourFinalisation(devis, { numero, finaliseLe, reglages = {}
 export function nouvelleVersion(devis, { id, creeLe, joursValidite = devis?.dureeValiditeJours ?? DUREE_VALIDITE_DEFAUT } = {}) {
   const copie = structuredClone(devis);
   for (const cle of ['finaliseLe', 'envoyeLe', 'accepteLe', 'refuseLe', 'totaux', 'finalisation', 'envoiN8nCopie', 'raisonRefus']) delete copie[cle];
-  for (const section of copie.sections ?? []) for (const ligne of section.lignes ?? []) delete ligne.prixVente; // recalculé tant que brouillon
+  for (const section of copie.sections ?? []) for (const ligne of section.lignes ?? []) { delete ligne.prixVente; delete ligne.prixVenteAjuste; } // recalculés tant que brouillon
   return {
     ...copie,
     id,
@@ -633,7 +704,7 @@ export function nouvelleVersion(devis, { id, creeLe, joursValidite = devis?.dure
 }
 
 // ---------------------------------------------------------------- vue client (JSON pour n8n)
-const cleInterdite = (cle) => /marge|coefficient|prixachat/i.test(cle);
+const cleInterdite = (cle) => /marge|coefficient|prixachat|ajustement/i.test(cle);
 /** Copie profonde sans aucune clé qui parle de marge, de coefficient ou de prix d'achat (ceinture de sécurité). */
 function sansCles(valeur) {
   if (Array.isArray(valeur)) return valeur.map(sansCles);
@@ -701,6 +772,25 @@ function dechetsDeVue(d) {
   return { types, pointCollecte: point || null, volumeMin: min, volumeMax: max, unite: 'm3', coutTtcParM3: cout, lignes };
 }
 
+/** Coordonnées du client que l'aperçu peut montrer (cases du menu Options) : seulement les valeurs lisibles. */
+function coordonneesClient(c) {
+  if (!objet(c)) return {};
+  const sortie = {};
+  for (const cle of ['telephone', 'email', 'numeroTva', 'siren']) if (texteNonVide(c[cle])) sortie[cle] = String(c[cle]).trim();
+  return sortie;
+}
+
+/** Éléments d'une ligne d'ouvrage pour le client : libellé, quantité (× quantité de la ligne), unité, prix de vente unitaire ajusté. Jamais de prix d'achat. */
+function elementsOuvrage(ligne, coefficient) {
+  const liste = ligne?.ouvrage?.composants;
+  if (!Array.isArray(liste) || !liste.length) return null;
+  const q = estNombre(ligne.quantite) && ligne.quantite > 0 ? ligne.quantite : 1;
+  return liste.map((c) => ({
+    libelle: c.libelle ?? '', quantite: estNombre(c.quantite) ? Math.round(c.quantite * q * 1000) / 1000 : 0, unite: c.unite ?? '',
+    prixUnitaireHT: estNombre(c.prixVenteUnitaire) ? prixAjuste(c.prixVenteUnitaire, coefficient) : null,
+  }));
+}
+
 /** Ce que le client voit : aucun prix d'achat, aucune marge, aucun coefficient, aucun mode de marge, à aucun niveau. */
 export function vueClient(devis, contexte = {}) {
   const t = totauxDevis(devis);
@@ -724,7 +814,7 @@ export function vueClient(devis, contexte = {}) {
     },
     objet: devis.objet ?? null,
     ...(chantierDeVue(devis.chantier) ? { chantier: chantierDeVue(devis.chantier) } : {}),
-    client: { nom: contexte.clientNom ?? null },
+    client: { nom: contexte.clientNom ?? null, ...coordonneesClient(contexte.client) },
     sections: (devis.sections ?? []).map((s, i) => ({
       id: s.id,
       ...(s.sautDePageAvant === true ? { sautDePageAvant: true } : {}),
@@ -739,9 +829,11 @@ export function vueClient(devis, contexte = {}) {
         description: typeof l.description === 'string' ? l.description : '',
         quantite: l.quantite,
         unite: l.unite ?? '',
-        prixUnitaireHT: pos[i][j]?.prixVenteUnitaire ?? null,
+        prixUnitaireHT: pos[i][j]?.prixVenteUnitaire ?? null, // prix AJUSTÉ (jamais le coefficient)
         totalHT: pos[i][j]?.totalHT ?? 0,
         tauxTva: sansTva ? 0 : tauxDeLigne(devis, l),
+        ...(texteNonVide(l.reference ?? l.code) ? { reference: String(l.reference ?? l.code).trim() } : {}),
+        ...(elementsOuvrage(l, coefficientAjustement(devis)) ? { elements: elementsOuvrage(l, coefficientAjustement(devis)) } : {}),
       })),
     })),
     totaux: {

@@ -16,6 +16,7 @@
 //   ne change jamais de section de niveau 1 en se déplaçant (elle reste entre ses sœurs). Un devis sans `niveau` se comporte exactement comme avant.
 import {
   coefficientDeMarge, prixVenteUnitaire, prixVenteDeLigne, totauxDevis, versCentimes, erreursChantier, numerosDevis,
+  coefficientDepuisPourcentage, coefficientDepuisMontant, coefficientDepuisSaisie,
 } from './logique.js';
 import { descriptionOuvrage, figerOuvragePourLigne, articlesParId, TYPE_OUVRAGE } from './ouvrages.js';
 import { TYPE_TEXTE, lireNombre } from './articles.js';
@@ -25,7 +26,7 @@ export const TYPE_LIGNE_LIBRE = 'libre';
 /** Champs du devis que l'éditeur enregistre (jamais numéro, statut, version, totaux… : ils sont protégés). */
 export const CHAMPS_ENREGISTRES = Object.freeze([
   'affaireId', 'organisationId', 'personneId', 'adresses', 'chantier', 'destinataires', 'objet', 'sections', 'remise', 'marge', 'modeMarge',
-  'tauxTvaDefaut', 'acompte', 'texteLibre', 'notesBasDePage', 'expireLe',
+  'tauxTvaDefaut', 'acompte', 'texteLibre', 'notesBasDePage', 'expireLe', 'ajustement', 'affichage', 'autoliquidation',
 ]);
 export const AVERTISSEMENTS = Object.freeze({
   aucuneLigne: 'Ce devis n’a encore aucune ligne.',
@@ -161,6 +162,67 @@ export function ajouterElement(sections, element, apres = null, idSection = null
     return [...avant, ...nouveaux, ...els.slice(place)];
   });
 }
+
+/**
+ * Ajoute un élément juste AU-DESSUS de l'élément `avantId` (menu « Insérer au-dessus »). Même règle que `ajouterElement` pour une sous-section sans section avant elle.
+ * Si `avantId` est introuvable, l'élément va au bout.
+ */
+export function ajouterAvant(sections, element, avantId, idSection = null) {
+  return surElements(sections, (els) => {
+    const i = indexDe(els, avantId);
+    const place = i === -1 ? els.length : i;
+    const avant = els.slice(0, place);
+    const nouveaux = [element];
+    if (estSection(element) && element.niveau === 2 && !avant.some(estSection)) nouveaux.unshift(sectionNeuve(idSection ?? `${element.id}-s`));
+    return [...avant, ...nouveaux, ...els.slice(place)];
+  });
+}
+
+/**
+ * Ajoute plusieurs éléments à la FIN de la section `idSection` (ses propres lignes, avant la section suivante, sous-sections comprises) ;
+ * sans section (ou identifiant inconnu), à la fin du devis. Sert à la Bibliothèque.
+ */
+export function ajouterFinDeSection(sections, elements, idSection = null) {
+  return surElements(sections, (els) => {
+    const i = idSection ? indexDe(els, idSection) : -1;
+    if (i === -1 || !estSection(els[i])) return [...els, ...elements];
+    let fin = i + 1;
+    while (fin < els.length && !estSection(els[fin])) fin += 1;
+    return [...els.slice(0, fin), ...elements, ...els.slice(fin)];
+  });
+}
+
+/** Section qui contient l'élément `id` (lui-même si c'est une section) ; la dernière section du devis si `id` est absent ; null s'il n'y a aucune section. */
+export function sectionDe(sections, id = null) {
+  const els = aplatir(sections);
+  const i = id ? indexDe(els, id) : els.length - 1;
+  for (let k = i === -1 ? els.length - 1 : i; k >= 0; k -= 1) if (estSection(els[k])) return els[k].id;
+  return null;
+}
+
+/**
+ * Change les éléments d'une ligne d'ouvrage (menu « Configurer les éléments de l'ouvrage ») : recalcule la composition figée, le prix et la description.
+ * `ouvrage` : { composants: [{ articleId, quantite }], prixVenteForce? }. La ligne garde son identifiant, sa quantité, sa TVA et son libellé.
+ */
+export function ligneAvecComposants(ligne, ouvrage, { articles = [], devis = {} } = {}) {
+  const fige = figerOuvragePourLigne(ouvrage, articlesParId(articles), { marge: devis.marge, modeMarge: devis.modeMarge });
+  const base = { ...ligne, ouvrage: { composants: fige.composants, prixVenteHT: fige.prixVenteHT, deboursSecHT: fige.deboursSecHT } };
+  const reglee = avecPrixVente({ ...base, prixAchat: fige.deboursSecHT }, fige.prixVenteHT, devis.modeMarge);
+  return { ...reglee, description: descriptionDeLigne(reglee) };
+}
+
+/**
+ * Ajustement global saisi dans l'un des trois champs liés : `champ` = 'pourcentage' | 'montant' | 'coefficient', `texte` = ce qui est écrit.
+ * Rend { coefficient, erreur } : en cas d'erreur (texte illisible, coefficient ≤ 0), rien n'est enregistré.
+ */
+export function ajustementDepuisSaisie(devis, champ, texte) {
+  const n = lireNombre(texte);
+  if (champ === 'pourcentage') return coefficientDepuisPourcentage(n);
+  if (champ === 'montant') return coefficientDepuisMontant(devis, n);
+  return coefficientDepuisSaisie(n);
+}
+/** Valeur à enregistrer pour un coefficient : aucun ajustement quand il vaut 1. */
+export const ajustementAEnregistrer = (coefficient) => (coefficient === 1 ? null : { coefficient });
 
 /** Monte (-1) ou descend (+1) un élément d'un cran ; une section emporte ses lignes (et ses sous-sections). Aux bornes : rien ne change. */
 export function deplacerElement(sections, id, sens) {

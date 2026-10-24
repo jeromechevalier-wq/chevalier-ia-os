@@ -8,9 +8,9 @@ import { naviguer } from '../../os/router.js';
 import * as CRM from '../crm/donnees.js';
 import * as D from './donnees.js';
 import * as Li from './liste.js';
-import { vueClient } from './logique.js';
+import { vueClient, affichageDe } from './logique.js';
 import { devisHtml, formaterMontant } from './document.js';
-import { dupliquerDevis, creerVariante } from './editeur-ecran.js';
+import { dupliquerDevis, creerVariante, infosClientDuDevis } from './editeur-ecran.js';
 import { creerFiche } from './fiche-ecran.js';
 
 const ERREUR_LECTURE = 'La liste des devis n’a pas pu être mise à jour. La dernière version reste affichée : vérifie ta connexion puis recharge la page.';
@@ -80,8 +80,8 @@ async function changerStatut(d, action, libelle) {
 async function voir(d) {
   let corps;
   try {
-    const vue = vueClient(d, { clientNom: nomsDe(d).client || null });
-    corps = h('iframe', { class: 'apercu-devis', title: `Aperçu du devis ${d.numero ?? ''}`.trim(), sandbox: '', srcdoc: devisHtml(vue, { brouillon: d.statut === 'brouillon' }) });
+    const vue = vueClient(d, { clientNom: nomsDe(d).client || null, client: infosClientDuDevis(d) ?? undefined });
+    corps = h('iframe', { class: 'apercu-devis', title: `Aperçu du devis ${d.numero ?? ''}`.trim(), sandbox: '', srcdoc: devisHtml(vue, { brouillon: d.statut === 'brouillon', affichage: affichageDe(d) }) });
   } catch (e) {
     console.warn(e);
     corps = h('p', { class: 'erreur', role: 'alert' }, 'L’aperçu n’a pas pu être préparé : ce devis est incomplet. Termine-le, puis rouvre l’aperçu.');

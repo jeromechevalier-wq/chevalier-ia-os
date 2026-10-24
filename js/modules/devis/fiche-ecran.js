@@ -7,7 +7,7 @@ import * as D from './donnees.js';
 import * as Li from './liste.js';
 import * as Fi from './fiche.js';
 import { formaterMontant } from './document.js';
-import { dupliquerDevis } from './editeur-ecran.js';
+import { dupliquerDevis, imprimerLeDevis } from './editeur-ecran.js';
 import { naviguer } from '../../os/router.js';
 
 const euros = (n) => (typeof n === 'number' ? formaterMontant(n) : '—');
@@ -139,7 +139,10 @@ export function creerFiche({ nomsDe, changerStatut, fermer: demanderFermeture, a
     const voirItems = [];
     if (f.modifier) voirItems.push({ libelle: 'Modifier', icone: 'pencil', desactive: !f.modifier.actif, action: () => naviguer(`devis/editeur/${d.id}`) });
     if (f.voirDevis) voirItems.push({ libelle: 'Voir le devis', icone: 'external-link', action: () => naviguer(`devis/editeur/${d.id}`) });
-    voirItems.push({ libelle: f.apercuPdf.actif ? 'Aperçu PDF' : `Aperçu PDF (${Fi.MESSAGE_PDF_ABSENT})`, icone: 'file-text', desactive: !f.apercuPdf.actif, action: () => window.open(f.apercuPdf.lien, '_blank', 'noopener') });
+    // Avec un PDF du serveur : on l'ouvre. Sans PDF : le devis s'imprime (ou s'enregistre en PDF) depuis le navigateur, avec son numéro (solution provisoire, voir imprimer.js).
+    voirItems.push(f.apercuPdf.actif
+      ? { libelle: 'Aperçu PDF', icone: 'file-text', action: () => window.open(f.apercuPdf.lien, '_blank', 'noopener') }
+      : { libelle: 'Imprimer / Enregistrer en PDF', icone: 'file-text', action: () => { const r = imprimerLeDevis(d); if (r.erreur) toast(r.erreur, { type: 'erreur', duree: 8000 }); } });
     const voirBouton = boutonMenu('Voir', 'voir-fiche', voirItems);
 
     const dupliquer = h('button', { type: 'button', class: 'bouton bouton-secondaire', disabled: !f.dupliquer.actif, title: f.dupliquer.actif ? null : Li.MESSAGE_BIENTOT, dataset: { action: 'dupliquer-fiche' }, onclick: () => dupliquerDevis(d) }, icone('copy', { taille: 16 }), 'Dupliquer');

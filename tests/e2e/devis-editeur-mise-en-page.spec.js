@@ -99,7 +99,9 @@ test('1 la barre d’actions reste en haut quand on défile : titre « Brouillon
   } else {
     await page.locator('[data-action="options"]').click();
   }
-  await expect(page.locator('[data-zone="options"]')).toBeVisible();
+  // Options est maintenant un menu à cases à cocher ; ce vieux devis (sans `affichage`) garde l'affichage d'avant : la carte « Marges du devis » reste visible.
+  await expect(page.locator('.menu-devis-options')).toBeVisible();
+  await expect(page.locator('[data-zone="marges"]')).toBeVisible();
   await expect(page.locator('[data-champ="marge"]')).toBeVisible();
 });
 
