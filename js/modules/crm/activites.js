@@ -130,8 +130,8 @@ export async function faireActivite(activite, { proposer = true } = {}) {
 
 /**
  * Clic sur « En retard » ou sur la date : fenêtre pour déplacer l'activité.
- * Un clic sur un raccourci (Demain, +3 jours…) enregistre et ferme. Une date tapée ou choisie dans le calendrier,
- * comme l'heure, ne ferme jamais la fenêtre : il faut cliquer sur « Enregistrer » (24/10/2026).
+ * Les raccourcis (Demain, +3 jours…), une date tapée ou choisie et l'heure ne font que remplir les champs :
+ * il faut cliquer sur « Enregistrer » pour fermer (24/10/2026), comme sur la fiche activité et la fiche projet.
  */
 export async function dialogueDecalage(a, { enregistrerPatch = (patch) => D.majActivite(a.id, patch), sansDate = false } = {}) {
   const date = selecteurDate(a.date);
@@ -152,11 +152,6 @@ export async function dialogueDecalage(a, { enregistrerPatch = (patch) => D.majA
       return false;
     }
   }
-  // Un clic sur un raccourci (le bouton a déjà posé la date) enregistre tout de suite. Une date tapée ou choisie dans le calendrier ne ferme rien.
-  date.element.addEventListener('click', async (e) => {
-    if (!e.target.closest('[data-date-rapide]')) return;
-    if (await enregistrer()) fermerFenetre(null);
-  });
   await dialogue({
     titre: 'Changer la date',
     classe: 'dialogue-formulaire',

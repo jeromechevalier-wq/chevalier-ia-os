@@ -221,6 +221,7 @@ test('Tâche, activité et point clé fonctionnent pareil : sur le projet, je cl
     await ligne.locator('.activite-date-modifiable').click(); // clic sur la date = changer la date
     await expect(dialogue(page)).toContainText('Changer la date');
     await dialogue(page).locator('[data-date-rapide="demain"]').click();
+    await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
     await champDoc(collection, id, 'date', jour(1));
   }
   // Le menu « … » : actions rares seulement.
@@ -250,6 +251,7 @@ test('Tâche, activité et point clé fonctionnent pareil : sur l\'affaire, le p
   await champDoc('crm_activites', 'ac1', 'titre', 'Appeler le client demain');
   await ligne.locator('.activite-date-modifiable').click();
   await dialogue(page).locator('[data-date-rapide="3j"]').click();
+  await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
   await champDoc('crm_activites', 'ac1', 'date', jour(3));
   await ligne.getByRole('button', { name: /Actions/ }).click();
   expect(await page.locator('.menu-pop [role="menuitem"]').allInnerTexts()).toEqual(['Supprimer']);
