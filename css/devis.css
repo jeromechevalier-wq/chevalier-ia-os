@@ -75,3 +75,14 @@
   .carte-devis .carte-menu { min-height: 44px; min-width: 44px; }
 }
 .carte-devis .carte-titre { font-weight: var(--poids-moyen); }
+/* Familles, « Plus… » / « Moins… » et fenêtre « Sélection de la famille ». */
+.bouton-lien { min-height: var(--h-ctrl-petit); padding: 0 var(--esp-3); border: 0; background: transparent; color: var(--accent-trait); font: inherit; cursor: pointer; text-align: left; }
+.bouton-lien:hover, .bouton-lien:focus-visible { text-decoration: underline; }
+.champ-famille { cursor: pointer; }
+.liste-familles { display: flex; flex-direction: column; gap: var(--esp-2); max-height: 320px; overflow-y: auto; }
+.famille-option { display: flex; align-items: center; gap: var(--esp-4); min-height: var(--h-ctrl-petit); padding: 0 var(--esp-3); border-radius: var(--rayon-petit); cursor: pointer; }
+.famille-option:hover { background: var(--survol); }
+.famille-desactivee { color: var(--texte2); }
+.entete-familles { justify-content: space-between; }
+.ligne-champs-egale > .bloc-champ { flex: 1 1 200px; min-width: 0; }
+.tableau-articles td[data-colonne="reference"], .tableau-articles td[data-colonne="marque"] { min-width: 110px; }

@@ -73,7 +73,7 @@ describe('C9 donnees.js : ce que le navigateur lit, écrit et appelle', () => {
   test('C9 le navigateur n’écrit un devis que par les plans de brouillon (jamais setDoc/updateDoc/deleteDoc sur devis_devis), ne supprime rien et ne touche jamais le compteur', () => {
     assert.doesNotMatch(code, /deleteDoc|ecritureSupprimer|type: 'supprimer'/);
     assert.doesNotMatch(code, /devis_compteurs/);
-    assert.equal((code.match(/setDoc\(/g) || []).length, 1, 'seul setDoc existant : les réglages du module');
+    assert.equal((code.match(/setDoc\(/g) || []).length, 2, 'seuls setDoc existants : les réglages du module et la liste des familles (devis_parametres)');
     assert.doesNotMatch(code, /updateDoc|addDoc|writeBatch|runTransaction/);
   });
   test('C9 les quatre transitions appellent les quatre fonctions du serveur, et le client n’est envoyé que chez un client (jamais chez Jérôme)', () => {

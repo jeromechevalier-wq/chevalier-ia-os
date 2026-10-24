@@ -4,6 +4,7 @@
 import * as L from '../../partage/logique.js';
 import * as PL from '../../partage/projets.js';
 import * as DA from '../../partage/devis-articles.js';
+import * as DF from '../../partage/devis-familles.js';
 import { COLLECTIONS as C } from './donnees.js';
 import { lireConfig as lireConfigEspace } from './config.js';
 import { emettreCode, consommerCode, empreinteApercu } from '../securite/codes.js';
@@ -616,9 +617,16 @@ export async function supprimerActivite(c, args) {
 // ---------------------------------------------------------------- Devis : bordereau (articles)
 // Mêmes plans que l'écran (partage/devis-articles.js). Les prix d'achat sont des euros donnés par l'humain : l'assistant n'en invente jamais.
 
+/** Familles d'articles du Bordereau (document devis_parametres/familles ; absent = les sept familles par défaut). */
+async function famillesDevis(c) {
+  let brut = null;
+  try { brut = await c.donnees.document('devis_parametres', DF.ID_DOCUMENT_FAMILLES); } catch { brut = null; }
+  return DF.famillesDe(brut);
+}
+
 export async function creerArticle(c, args) {
   const { proprietaire, ...valeurs } = args;
-  const plan = DA.planCreerArticle(valeurs, await contexte(c, proprietaire), { articles: await c.donnees.liste(C.devisArticles) });
+  const plan = DA.planCreerArticle(valeurs, await contexte(c, proprietaire), { articles: await c.donnees.liste(C.devisArticles), familles: await famillesDevis(c) });
   verifierMessages(plan.erreurs);
   return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: plan.id, libelle: plan.libelle });
 }
@@ -626,9 +634,9 @@ export async function creerArticle(c, args) {
 export async function modifierArticle(c, args) {
   const { id, ...champs } = args;
   await lire(c, C.devisArticles, id, 'Article');
-  const plan = DA.planMajArticle(id, champs, { articles: await c.donnees.liste(C.devisArticles) });
+  const plan = DA.planMajArticle(id, champs, { articles: await c.donnees.liste(C.devisArticles), familles: await famillesDevis(c) });
   verifierMessages(plan.erreurs);
-  if (!Object.keys(plan.patch).length) refuser('saisie_invalide', 'Aucun champ à modifier (libelle, unite, prixAchat, code, tauxTva, type, composants, prixVenteForce, marge). Pour désactiver ou réactiver un article, utiliser desactiver_article.');
+  if (!Object.keys(plan.patch).length) refuser('saisie_invalide', 'Aucun champ à modifier (libelle, unite, prixAchat, code, tauxTva, type, composants, prixVenteForce, marge, reference, marque, familleId). Pour désactiver ou réactiver un article, utiliser desactiver_article.');
   return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id, champsModifies: Object.keys(plan.patch) });
 }
 

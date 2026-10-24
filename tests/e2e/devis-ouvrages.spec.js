@@ -89,12 +89,12 @@ test('O10 le prix de vente forcé et le filtre par type', async ({ page }, info)
   await expect(page.locator('.ligne-article[data-id="o1"] [data-colonne="prixVente"]')).toContainText('12,00 €');
   // Filtre « Type » : Ouvrage seulement, puis un type sans article (cas vide).
   await page.locator('[data-action="filtres"]').click();
-  await dialogue(page).getByLabel('Ouvrage', { exact: true }).check();
+  await dialogue(page).locator('[data-cle="types"][data-valeur="ouvrage"]').check();
   await dialogue(page).getByRole('button', { name: 'Appliquer' }).click();
   await expect(page.locator('.ligne-article')).toHaveCount(1);
   await page.locator('[data-action="filtres"]').click();
-  await dialogue(page).getByLabel('Ouvrage', { exact: true }).uncheck();
-  await dialogue(page).getByLabel('Divers', { exact: true }).check();
+  await dialogue(page).locator('[data-cle="types"][data-valeur="ouvrage"]').uncheck();
+  await dialogue(page).locator('[data-cle="types"][data-valeur="divers"]').check();
   await dialogue(page).getByRole('button', { name: 'Appliquer' }).click();
   await expect(page.locator('.etat-vide')).toContainText('Aucun article de ce type');
 });
