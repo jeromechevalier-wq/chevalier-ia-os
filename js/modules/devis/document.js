@@ -59,7 +59,7 @@ h1 { font-size: 20pt; margin: 0 0 1mm; }
 .lignes tr { page-break-inside: avoid; break-inside: avoid; }
 .lignes .num { width: 11mm; white-space: nowrap; }
 .lignes .d { text-align: right; white-space: nowrap; }
-.lignes .saut-avant td { break-before: page; page-break-before: always; }
+.lignes tr.saut-avant { break-before: page; page-break-before: always; }
 .lignes .bandeau td { background: #f1f3f5; font-weight: bold; border-top: 0.3mm solid #999; }
 .lignes .sous-total td { text-align: right; font-style: italic; border-bottom: 0.3mm solid #999; }
 .lignes .description { font-size: 8.5pt; color: #444; margin-top: 0.8mm; }

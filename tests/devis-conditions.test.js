@@ -223,3 +223,24 @@ describe('Conditions de paiement', () => {
     assert.deepEqual(D.erreursFinalisation(d), []);
   });
 });
+
+describe('C11 relecture : texte lisible, pourcentages, retenue sans date', () => {
+  test('C11 le texte « tel qu\'envoyé » reprend primes, retenue, net à payer et acompte', () => {
+    const s = D.texteVueClient(figer(devis({ acompte: acompte30, primes: [prime], retenueGarantie: retenue5 })));
+    for (const x of ['Prime Prime rénov', 'Retenue de garantie', 'Net à payer', 'Acompte', 'Reste à facturer']) assert.ok(s.includes(x), x);
+  });
+  test('C11 un pourcentage à 3 décimales est arrondi à 2 avant le calcul (33,333 % = 33,33 %)', () => {
+    const t = D.totauxDevis(devis({ acompte: { type: 'pourcentage', valeur: 33.333, moment: 'signature' } }));
+    assert.equal(t.acompteTtc, 1306.19);
+  });
+  test('C11 retenue à 0 % sans date acceptée ; avec un pourcentage, la date reste obligatoire', () => {
+    const base = { ...devis(), statut: 'brouillon' };
+    const ok = D.erreursFinalisation({ ...base, retenueGarantie: { pourcentage: 0 } }, reglages);
+    assert.ok(!ok.some((m) => /retenue/i.test(m)));
+    const ko = D.erreursFinalisation({ ...base, retenueGarantie: { pourcentage: 5 } }, reglages);
+    assert.ok(ko.some((m) => /retenue/i.test(m)));
+  });
+  test('C11 une prime de 0,004 € n\'est pas listée', () => {
+    assert.deepEqual(D.totauxDevis(devis({ primes: [{ id: 'p', libelle: 'Mini', montant: 0.004 }] })).primes, []);
+  });
+});

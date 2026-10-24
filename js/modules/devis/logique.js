@@ -176,7 +176,7 @@ const dateFrDe = (j) => `${j.slice(8, 10)}/${j.slice(5, 7)}/${j.slice(0, 4)}`;
 /** Acompte en centimes sur le Total TTC, ou null s'il est absent ou invalide (type, valeur). */
 function acompteEnCentimes(a, ttcC) {
   if (!objet(a) || !estNombre(a.valeur) || ttcC <= 0) return null;
-  if (a.type === 'pourcentage') return a.valeur > 0 && a.valeur <= 100 ? arrondiDemi(ttcC * a.valeur / 100) : null;
+  if (a.type === 'pourcentage') return a.valeur > 0 && a.valeur <= 100 ? arrondiDemi(ttcC * (Math.round(a.valeur * 100) / 100) / 100) : null;
   if (a.type === 'montant') { const c = versCentimes(a.valeur); return c > 0 && c <= ttcC ? c : null; }
   return null;
 }
@@ -188,13 +188,13 @@ function momentAcompte(a) {
 /** Primes valides : libellé non vide et montant > 0 (un montant nul n'est pas listé). */
 function primesValides(devis) {
   if (!Array.isArray(devis?.primes)) return [];
-  return devis.primes.filter((p) => objet(p) && texteNonVide(p.libelle) && estNombre(p.montant) && p.montant > 0)
+  return devis.primes.filter((p) => objet(p) && texteNonVide(p.libelle) && estNombre(p.montant) && versCentimes(p.montant) > 0)
     .map((p) => ({ libelle: p.libelle.trim(), montant: versEuros(versCentimes(p.montant)) }));
 }
 /** Retenue de garantie en centimes sur le Total TTC (0 si absente ou invalide). */
 function retenueEnCentimes(r, ttcC) {
   if (!objet(r) || !estNombre(r.pourcentage) || r.pourcentage <= 0 || r.pourcentage >= 100 || ttcC <= 0) return 0;
-  return arrondiDemi(ttcC * r.pourcentage / 100);
+  return arrondiDemi(ttcC * (Math.round(r.pourcentage * 100) / 100) / 100);
 }
 
 /** Totaux d'un devis, tout en euros, calculés en centimes. Les lignes invalides comptent pour 0 (la validation les signale). */
@@ -349,7 +349,7 @@ function erreursConditions(devis, t) {
   const r = devis.retenueGarantie;
   if (!absent(r)) {
     if (!objet(r) || !estNombre(r.pourcentage) || r.pourcentage < 0 || r.pourcentage >= 100) e.push('La retenue de garantie doit être un pourcentage compris entre 0 et 100 % (100 % exclu).');
-    if (!objet(r) || !estJour(r.echeance)) e.push('La date de fin de la retenue de garantie est illisible : indique une date valide.');
+    if (objet(r) && estNombre(r.pourcentage) && r.pourcentage > 0 && !estJour(r.echeance)) e.push('La date de fin de la retenue de garantie est illisible : indique une date valide.');
   }
   const net = ttcC - versCentimes(t.totalPrimes) - versCentimes(t.retenueGarantieMontant);
   if (net < 0) e.push('Les primes et la retenue de garantie dépassent le total TTC : le net à payer serait négatif.');
@@ -641,6 +641,10 @@ function pied(t) {
   l.push(`Total HT : ${euros(t.ht)}`);
   for (const x of t.tvaParTaux) l.push(`TVA ${pct(x.taux)} sur ${euros(x.baseHT)} : ${euros(x.montant)}`);
   l.push(`Total TTC : ${euros(t.ttc)}`);
+  for (const p of t.primes ?? []) l.push(`Prime ${p.libelle} : -${euros(p.montant)}`);
+  if (t.retenueGarantieMontant > 0) l.push(`Retenue de garantie : -${euros(t.retenueGarantieMontant)}`);
+  if (t.netAPayer !== undefined && t.netAPayer !== t.ttc) l.push(`Net à payer : ${euros(t.netAPayer)}`);
+  if (t.acompteTtc != null) l.push(`Acompte : ${euros(t.acompteTtc)}`, `Reste à facturer : ${euros(t.resteAFacturerTtc)}`);
   for (const m of t.mentions) l.push(m);
   return l;
 }
