@@ -93,6 +93,12 @@ h1 { font-size: 20pt; margin: 0 0 1mm; color: var(--accent-titre); }
 .filigrane { position: fixed; top: 38%; left: 0; right: 0; text-align: center; font-size: 90pt; font-weight: bold; letter-spacing: 6mm; color: rgba(150, 150, 150, 0.16); transform: rotate(-30deg); pointer-events: none; z-index: 0; }
 `;
 
+// Mise en forme des sous-sections : ajoutée seulement quand le devis en a (un devis sans sous-section produit exactement le même document qu'avant).
+const CSS_SOUS_SECTIONS = `
+.lignes .sous-bandeau td { background: #f8f9fa; border-top: 0.2mm solid #bbb; }
+.lignes .sous-total-sous td { font-size: 8.5pt; border-bottom: 0.2mm solid #bbb; }
+`;
+
 const GRIS = '#666666';
 /** Couleur d'accent : seulement #rrggbb (jamais de texte libre dans le CSS), sinon gris. */
 export const couleurValide = (c) => (typeof c === 'string' && /^#[0-9a-fA-F]{6}$/.test(c) ? c : GRIS);
@@ -127,17 +133,25 @@ function blocDestinataire(vue) {
 
 function tableauLignes(vue, sansTva) {
   const lignes = [];
-  for (const [k, s] of (vue.sections ?? []).entries()) {
+  const liste = vue.sections ?? [];
+  // Le sous-total d'une section de niveau 1 vient après ses sous-sections (il les compte) : sans sous-section, il suit tout de suite ses lignes, comme avant.
+  let enAttente = null;
+  const fermer = () => { if (enAttente) lignes.push(enAttente); enAttente = null; };
+  for (const [k, s] of liste.entries()) {
+    const sous = s.niveau === 2;
+    if (!sous) fermer();
     // Saut de page demandé : jamais sur la première section (la page est déjà neuve).
     const saut = s.sautDePageAvant === true && k > 0 ? ' saut-avant' : '';
-    lignes.push(`<tr class="bandeau${saut}"><td class="num">${texte(s.numero)}</td><td colspan="6">${texte(s.titre || 'Prestations')}</td></tr>`);
+    lignes.push(`<tr class="bandeau${sous ? ' sous-bandeau' : ''}${saut}"><td class="num">${texte(s.numero)}</td><td colspan="6">${texte(s.titre || 'Prestations')}</td></tr>`);
     for (const l of s.lignes ?? []) {
       const tva = sansTva && vue.regimeTva === 'franchise' ? '-' : pourcent(l.tauxTva ?? 0);
       lignes.push(`<tr><td class="num">${texte(l.numero)}</td><td>${texte(l.libelle)}${l.description ? `<div class="description">${texte(l.description)}</div>` : ''}</td>`
         + `<td class="d">${texte(nombre(l.quantite))}</td><td>${texte(l.unite)}</td><td class="d">${formaterMontant(l.prixUnitaireHT)}</td><td class="d">${tva}</td><td class="d">${formaterMontant(l.totalHT)}</td></tr>`);
     }
-    lignes.push(`<tr class="sous-total"><td colspan="7">Sous-total ${texte(s.numero)}${NBSP}: ${formaterMontant(s.sousTotalHT)}</td></tr>`);
+    const sousTotal = `<tr class="sous-total${sous ? ' sous-total-sous' : ''}"><td colspan="7">Sous-total ${texte(s.numero)}${NBSP}: ${formaterMontant(s.sousTotalHT)}</td></tr>`;
+    if (sous) lignes.push(sousTotal); else enAttente = sousTotal;
   }
+  fermer();
   return `<table class="lignes"><thead><tr><th class="num">N°</th><th>Désignation</th><th class="d">Qté</th><th>Unité</th><th class="d">Prix U.${NBSP}HT</th><th class="d">TVA</th><th class="d">Total${NBSP}HT</th></tr></thead><tbody>${lignes.join('')}</tbody></table>`;
 }
 
@@ -249,7 +263,7 @@ export function devisHtml(vue, options = {}) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${texte(titre)}</title>
-<style>:root { --accent: ${accent}; --accent-titre: ${/^#[0-9a-fA-F]{6}$/.test(String(emetteur.couleur ?? '').trim()) ? accent : '#1b1b1b'}; }${CSS}</style>
+<style>:root { --accent: ${accent}; --accent-titre: ${/^#[0-9a-fA-F]{6}$/.test(String(emetteur.couleur ?? '').trim()) ? accent : '#1b1b1b'}; }${CSS}${(v.sections ?? []).some((x) => x.niveau === 2) ? CSS_SOUS_SECTIONS : ''}</style>
 </head>
 <body>
 ${options.brouillon === true ? '<div class="filigrane">BROUILLON</div>' : ''}

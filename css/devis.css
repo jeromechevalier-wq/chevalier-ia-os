@@ -89,78 +89,143 @@
 .ligne-champs-egale > .bloc-champ { flex: 1 1 200px; min-width: 0; }
 .tableau-articles td[data-colonne="reference"], .tableau-articles td[data-colonne="marque"] { min-width: 110px; }
 
-/* Éditeur de devis. */
-.page-editeur-devis { max-width: none; }
+/* Éditeur de devis : la disposition d'un devis papier (barre d'actions fixe, en-tête à deux colonnes, tableau à trois niveaux, boutons d'ajout, bas de page). Uniquement des variables de tokens.css. */
+.page-editeur-devis { max-width: none; gap: var(--esp-6); }
 .titre-devis { display: flex; align-items: center; gap: var(--esp-5); flex-wrap: wrap; }
 .titre-devis h1 { margin: 0; }
 .indicateur-enregistrement { color: var(--texte2); font-size: var(--fs-menu); }
 .indicateur-enregistrement[data-etat="erreur"] { color: var(--retard); }
-.compteur-manquants { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; margin-left: var(--esp-3); padding: 0 var(--esp-2); border-radius: 999px; background: var(--retard); color: #fff; font-size: var(--fs-micro); }
+.compteur-manquants { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; margin-left: var(--esp-3); padding: 0 var(--esp-2); border-radius: 999px; background: var(--retard); color: var(--sur-retard); font-size: var(--fs-micro); }
 .bandeau-lecture-seule { margin: 0; padding: var(--esp-5) var(--esp-6); border: 1px solid var(--bordure); border-radius: var(--rayon-petit); background: var(--panneau2); }
-.onglets-editeur { display: flex; gap: var(--esp-2); border-bottom: 1px solid var(--bordure); }
+
+/* Barre d'actions : reste en haut de l'écran quand on défile. */
+.barre-devis { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: var(--esp-6); flex-wrap: wrap; padding: var(--esp-4) 0; background: var(--fond); border-bottom: 1px solid var(--bordure); }
+.barre-devis-gauche { display: flex; align-items: center; gap: var(--esp-8); flex-wrap: wrap; min-width: 0; }
+.barre-devis-droite { display: flex; align-items: center; gap: var(--esp-4); flex-wrap: wrap; }
+.bouton-plus-actions { display: none; }
+.onglets-editeur { display: flex; gap: var(--esp-2); }
 .onglets-editeur[hidden] { display: none; }
 .onglet-editeur { min-height: var(--h-ctrl); padding: 0 var(--esp-6); border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--texte2); font: inherit; cursor: pointer; }
 .onglet-editeur.actif { color: var(--texte); border-bottom-color: var(--accent-trait); }
-.editeur-grille { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: var(--esp-7); align-items: start; }
-.editeur-grille[hidden], .editeur-apercu[hidden] { display: none; }
-.devis-lecture-seule .editeur-grille { grid-template-columns: minmax(0, 1fr); }
-.editeur-principal { display: flex; flex-direction: column; gap: var(--esp-6); min-width: 0; }
+.editeur-edition { display: flex; flex-direction: column; gap: var(--esp-6); min-width: 0; }
+.editeur-edition[hidden], .editeur-apercu[hidden] { display: none; }
 .carte-editeur, .panneau-total { padding: var(--esp-6) var(--esp-7); background: var(--panneau); border: 1px solid var(--bordure); border-radius: var(--rayon-carte); }
 .titre-bloc { margin: 0 0 var(--esp-5); font-size: var(--fs-texte); font-weight: var(--poids-moyen); }
 .grille-champs { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--esp-5) var(--esp-6); }
 .texte-discret { margin: 0; color: var(--texte2); font-size: var(--fs-menu); }
 .champ-nombre { width: 100px; min-width: 0; text-align: right; font-variant-numeric: tabular-nums; }
 .champ-unite { width: 80px; min-width: 0; }
-.recherche-bordereau { display: flex; flex-direction: column; gap: var(--esp-3); margin-bottom: var(--esp-5); }
+
+/* La feuille du devis. */
+.document-devis { display: flex; flex-direction: column; gap: var(--esp-8); padding: var(--esp-8) var(--esp-9); background: var(--panneau); border: 1px solid var(--bordure); border-radius: var(--rayon-carte); min-width: 0; }
+.entete-document { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 460px); gap: var(--esp-9); align-items: start; }
+.entete-gauche { display: flex; flex-direction: column; gap: var(--esp-2); min-width: 0; }
+.entete-droite { display: flex; flex-direction: column; gap: var(--esp-5); min-width: 0; }
+.titre-document { margin: 0 0 var(--esp-3); font-size: var(--fs-page); }
+.ligne-entete { min-height: calc(var(--h-ctrl) - var(--esp-3)); margin: 0; display: flex; align-items: center; gap: var(--esp-3); flex-wrap: wrap; }
+.ligne-entete .champ { min-height: calc(var(--h-ctrl) - var(--esp-3)); padding-top: 0; padding-bottom: 0; }
+.valeur-sur-place, .valeur-saisie { display: inline-flex; align-items: center; gap: var(--esp-3); }
+.valeur-saisie .champ:not(.champ-court):not(.champ-date) { width: auto; }
+.ligne-entete .bouton-lien, .lien-description { min-height: 0; padding: 0; }
+.lien-renseigne { color: var(--texte); text-decoration: underline dotted; text-underline-offset: 3px; }
+.champ-date { width: 160px; min-width: 0; }
+.lien-description { display: inline-flex; align-items: center; gap: var(--esp-2); margin-top: var(--esp-4); align-self: flex-start; }
+.entete-gauche textarea.champ { margin-top: var(--esp-3); }
+.champ-grand { min-height: calc(var(--h-ctrl) + var(--esp-3)); }
+
+/* Recherche dans le Bordereau (ouverte par « + Fourniture », « + Main d'œuvre », « + Ouvrage »…). */
+.recherche-bordereau { display: flex; flex-direction: column; gap: var(--esp-3); padding: var(--esp-5); border: 1px solid var(--bordure); border-radius: var(--rayon-petit); background: var(--panneau2); }
+.recherche-bordereau[hidden] { display: none; }
 .resultats-bordereau { list-style: none; margin: 0; padding: 0; border: 1px solid var(--bordure); border-radius: var(--rayon-petit); }
 .resultats-bordereau li { padding: var(--esp-3) var(--esp-5); }
 .resultats-bordereau li + li { border-top: 1px solid var(--bordure); }
 .resultat-bordereau { display: flex; justify-content: space-between; gap: var(--esp-6); width: 100%; min-height: var(--h-ctrl-petit); padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .resultat-bordereau:hover, .resultat-bordereau:focus-visible { background: var(--survol); }
 .resultat-prix { white-space: nowrap; font-variant-numeric: tabular-nums; }
-.barre-ajouts { display: flex; gap: var(--esp-4); flex-wrap: wrap; margin-bottom: var(--esp-5); }
-.etat-vide-ligne { padding: var(--esp-7); text-align: center; color: var(--texte2); border: 1px dashed var(--bordure); border-radius: var(--rayon-petit); }
+.etat-vide-ligne { padding: var(--esp-8); text-align: center; color: var(--texte2); border: 1px dashed var(--bordure); border-radius: var(--rayon-petit); }
 .etat-vide-ligne[hidden], .zone-lignes-devis[hidden] { display: none; }
+
+/* Rangée de boutons d'ajout : les types à gauche, la structure à droite. */
+.barre-ajouts { display: flex; justify-content: space-between; align-items: center; gap: var(--esp-5); flex-wrap: wrap; }
+.ajouts-types, .ajouts-structure { display: flex; gap: var(--esp-3); flex-wrap: wrap; }
+.ajouts-types .bouton { color: var(--lien); }
+.ajouts-types .bouton .icone { margin-right: var(--esp-1); }
+
+/* Tableau des lignes : section (1), sous-section (1.1), ligne (1.1.1). */
 .zone-lignes-devis { overflow-x: auto; }
-.tableau-lignes-devis { width: 100%; border-collapse: collapse; }
-.tableau-lignes-devis th { text-align: left; padding: var(--esp-3) var(--esp-3); color: var(--texte2); font-weight: var(--poids-moyen); font-size: var(--fs-micro); text-transform: uppercase; letter-spacing: .08em; }
+.tableau-lignes-devis { width: 100%; min-width: 880px; border-collapse: collapse; table-layout: fixed; }
+.tableau-lignes-devis th { text-align: left; padding: var(--esp-4) var(--esp-3); background: var(--accent); color: var(--sur-accent); font-weight: var(--poids-moyen); font-size: var(--fs-menu); }
+.tableau-lignes-devis th:first-child { border-top-left-radius: var(--rayon-petit); }
+.tableau-lignes-devis th:last-child { border-top-right-radius: var(--rayon-petit); }
+.tableau-lignes-devis th:nth-child(1) { width: 40px; }
+.tableau-lignes-devis th:nth-child(2) { width: 62px; }
+.tableau-lignes-devis th:nth-child(4) { width: 86px; }
+.tableau-lignes-devis th:nth-child(5) { width: 100px; }
+.tableau-lignes-devis th:nth-child(6) { width: 112px; }
+.tableau-lignes-devis th:nth-child(7) { width: 128px; }
+.tableau-lignes-devis th:nth-child(8) { width: 116px; }
+.tableau-lignes-devis th:nth-child(9) { width: 48px; }
 .tableau-lignes-devis th.d, .tableau-lignes-devis td.d { text-align: right; }
-.tableau-lignes-devis td { padding: var(--esp-3); border-top: 1px solid var(--bordure); vertical-align: top; }
-.tableau-lignes-devis .num { white-space: nowrap; color: var(--texte2); font-variant-numeric: tabular-nums; }
-.ligne-section-devis td { background: var(--panneau2); }
+.tableau-lignes-devis td { padding: var(--esp-3); border-top: 1px solid var(--bordure); vertical-align: top; min-width: 0; }
+.tableau-lignes-devis .num { white-space: nowrap; color: var(--texte2); font-variant-numeric: tabular-nums; padding-top: var(--esp-5); }
+.ligne-section-devis td { background: var(--accent-a33); vertical-align: middle; }
+.ligne-section-devis .num { color: var(--texte); padding-top: var(--esp-3); }
+.sous-section-devis td { background: var(--accent-a1f); }
+.ligne-section-devis .titre-section { font-size: var(--fs-section); font-weight: var(--poids-moyen); }
+.sous-section-devis .titre-section { font-size: var(--fs-texte); }
+.ligne-section-devis .ligne-champs { flex-wrap: nowrap; }
+.ligne-section-devis .ligne-champs > .champ { flex: 1 1 auto; }
+.ligne-devis-edition:focus-within td { background: var(--accent-a1f); }
 .case-saut { display: inline-flex; align-items: center; gap: var(--esp-2); white-space: nowrap; color: var(--texte2); font-size: var(--fs-menu); }
+.etiquette-sous-total { color: var(--texte2); }
 .col-actions-lignes { white-space: nowrap; text-align: right; }
 .total-ligne, .sous-total-section { font-variant-numeric: tabular-nums; white-space: nowrap; }
-.composition-ouvrage { margin: var(--esp-2) 0 0; font: inherit; color: var(--texte2); font-size: var(--fs-menu); white-space: pre-wrap; }
-.panneau-total { position: sticky; top: var(--esp-6); }
+.total-ligne { display: inline-block; padding-top: var(--esp-3); }
+.composition-ouvrage { margin: var(--esp-2) 0 0; padding: 0 var(--esp-3); font: inherit; color: var(--texte2); font-size: var(--fs-menu); white-space: pre-wrap; }
+
+/* Édition sur place : les champs ressemblent à du texte et prennent un cadre au survol ou au clic. */
+.champ-surplace { background: transparent; border-color: transparent; padding: var(--esp-2) var(--esp-3); width: 100%; min-width: 0; }
+.champ-surplace:hover { border-color: var(--bordure-champ); }
+.champ-surplace:focus { background: var(--panneau2); }
+select.champ-surplace:not(:hover):not(:focus), .menu-unite .champ:not(:hover):not(:focus) { background-image: none; }
+select.champ-surplace { padding-right: var(--esp-3); }
+textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ctrl-petit); }
+.description-ligne { font-size: var(--fs-petit); color: var(--texte2); }
+.tableau-lignes-devis .champ-nombre { width: 100%; }
+.tableau-lignes-devis .menu-unite { min-width: 0; }
+.tableau-lignes-devis .menu-unite .champ { width: 100%; padding-left: var(--esp-3); background-color: transparent; border-color: transparent; }
+.tableau-lignes-devis .menu-unite .champ:hover { border-color: var(--bordure-champ); }
+
+/* Poignée de déplacement (deux flèches) et petit bouton rond des actions de la ligne. */
+.poignee-devis { text-align: center; padding-left: var(--esp-1); padding-right: var(--esp-1); }
+.ligne-section-devis .poignee-devis { vertical-align: middle; }
+.bouton-poignee { display: block; width: 24px; height: 18px; margin: 0 auto; padding: 0; border: 0; border-radius: var(--rayon-petit); background: transparent; color: var(--texte2); cursor: pointer; line-height: 0; }
+.bouton-poignee:hover:not(:disabled) { background: var(--survol); color: var(--texte); }
+.bouton-poignee:disabled { opacity: .3; cursor: not-allowed; }
+.bouton-rond { width: 28px; height: 28px; border: 1px solid var(--bordure-champ); border-radius: 50%; }
+.bouton-replier { width: 28px; height: 28px; border: 1px solid var(--bordure-champ); border-radius: 50%; }
+
+/* Bas de page : conditions à gauche, totaux à droite, puis NET À PAYER (collé en bas de l'écran), le tableau de TVA et les notes. */
+.bas-devis { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 420px); gap: var(--esp-9); align-items: start; }
+.bas-gauche { display: flex; flex-direction: column; gap: var(--esp-4); min-width: 0; }
+.titre-ligne { display: flex; align-items: baseline; gap: var(--esp-5); flex-wrap: wrap; }
+.titre-ligne .titre-bloc { margin: 0; }
+.attestation-tva { margin: 0; line-height: 1.5; }
+.attestation-tva[hidden] { display: none; }
+.bandeau-net { position: sticky; bottom: 0; z-index: 10; align-self: flex-end; display: flex; justify-content: space-between; align-items: center; gap: var(--esp-6); width: min(100%, 420px); padding: var(--esp-5) var(--esp-6); border-radius: var(--rayon-petit); background: var(--accent); color: var(--sur-accent); font-size: var(--fs-section); font-weight: var(--poids-moyen); }
+.bandeau-net-montant { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tableau-tva { align-self: flex-end; width: min(100%, 420px); border-collapse: collapse; border: 1px solid var(--bordure); }
+.tableau-tva th, .tableau-tva td { padding: var(--esp-3) var(--esp-5); text-align: left; font-variant-numeric: tabular-nums; }
+.tableau-tva th.d, .tableau-tva td.d { text-align: right; }
+.tableau-tva tbody td { border-top: 1px solid var(--bordure); }
+.notes-bas-page textarea { width: 100%; }
 .liste-totaux { margin: 0; display: flex; flex-direction: column; gap: var(--esp-3); }
 .ligne-total { display: flex; justify-content: space-between; align-items: baseline; gap: var(--esp-4); }
 .ligne-total dt { color: var(--texte2); }
 .ligne-total dd { margin: 0; font-variant-numeric: tabular-nums; text-align: right; }
 .ligne-remise dd, .ligne-acompte dd { display: flex; flex-direction: column; align-items: flex-end; gap: var(--esp-2); }
-.ligne-net { padding-top: var(--esp-3); border-top: 1px solid var(--bordure); font-weight: var(--poids-moyen); }
-.ligne-net dt { color: var(--texte); }
-.ligne-tva dt { font-size: var(--fs-menu); }
-.tva-par-taux { display: flex; flex-direction: column; gap: var(--esp-2); }
 .avertissements-devis { list-style: none; margin: var(--esp-5) 0 0; padding: 0; display: flex; flex-direction: column; gap: var(--esp-2); color: var(--texte2); font-size: var(--fs-menu); }
 .avertissements-devis:empty { display: none; }
-@media (max-width: 1023px) {
-  .editeur-grille { grid-template-columns: minmax(0, 1fr); }
-  .panneau-total { position: static; }
-}
-@media (max-width: 767px) {
-  .tableau-lignes-devis thead { display: none; }
-  .tableau-lignes-devis, .tableau-lignes-devis tbody { display: block; }
-  .tableau-lignes-devis tr { display: grid; grid-template-columns: 1fr 1fr; gap: var(--esp-3) var(--esp-5); padding: var(--esp-5) 0; border-top: 1px solid var(--bordure); }
-  .tableau-lignes-devis td { display: block; border: 0; padding: 0; min-width: 0; }
-  .tableau-lignes-devis td[data-libelle]::before { content: attr(data-libelle); display: block; font: var(--poids-moyen) var(--fs-micro)/1.4 var(--police-texte); letter-spacing: .14em; text-transform: uppercase; color: var(--texte2); margin-bottom: 2px; }
-  .tableau-lignes-devis td:nth-child(2), .tableau-lignes-devis td[colspan], .tableau-lignes-devis td.col-actions-lignes { grid-column: 1 / -1; }
-  .tableau-lignes-devis td.d, .tableau-lignes-devis .champ-nombre { text-align: left; }
-  .tableau-lignes-devis .champ-nombre, .tableau-lignes-devis .champ-unite { width: 100%; }
-  .tableau-lignes-devis td.col-actions-lignes { text-align: left; }
-  .tableau-lignes-devis .bouton-icone, .resultat-bordereau, .onglet-editeur { min-height: 44px; min-width: 44px; }
-  .carte-editeur, .panneau-total { padding: var(--esp-5); }
-}
 .panneau-total .ligne-champs { flex-wrap: nowrap; justify-content: flex-end; }
 .panneau-total .ligne-champs > .champ:not(.champ-court) { flex: 1 1 0; min-width: 0; }
 .panneau-total .ligne-champs > .champ-court { flex: 0 0 90px; }
@@ -169,6 +234,54 @@
 .ligne-acompte .ligne-champs { flex-direction: column; align-items: stretch; }
 .ligne-acompte .ligne-champs > .champ-court { flex: 0 0 auto; width: 100%; }
 .ligne-acompte .ligne-champs > .champ[hidden] { display: none; }
+@media (max-width: 1023px) {
+  .entete-document { grid-template-columns: minmax(0, 1fr); }
+  .bas-devis { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 767px) { .barre-devis { top: 56px; } } /* sous la barre du menu du téléphone */
+
+/* Téléphone (version proposée sans modèle) : une carte par ligne (désignation en haut, puis Qté / Unité / Prix / TVA / Total sur deux rangées), sections en bandes pleine largeur. */
+@media (max-width: 700px) {
+  .barre-devis-droite { width: 100%; }
+  .barre-devis-droite .bouton { flex: 1 1 auto; }
+  .bouton-options { display: none; }
+  .bouton-plus-actions { display: inline-grid; min-height: 44px; min-width: 44px; }
+  .document-devis { padding: var(--esp-6); gap: var(--esp-7); }
+  .barre-ajouts { flex-direction: column; align-items: stretch; }
+  .ajouts-types .bouton, .ajouts-structure .bouton { flex: 1 1 auto; min-height: 44px; }
+  .zone-lignes-devis { overflow-x: visible; }
+  .tableau-lignes-devis { min-width: 0; }
+  .tableau-lignes-devis thead { display: none; }
+  .tableau-lignes-devis, .tableau-lignes-devis tbody { display: block; }
+  .tableau-lignes-devis tr { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--esp-3) var(--esp-5); padding: var(--esp-5) var(--esp-3); border-top: 1px solid var(--bordure); }
+  .ligne-devis-edition { grid-template-areas: "poi num act" "des des des" "qte uni pri" "tva tot tot"; }
+  .ligne-section-devis { grid-template-areas: "poi num act" "des des des" "tot tot tot"; background: var(--accent-a33); border-radius: var(--rayon-petit); }
+  .sous-section-devis { background: var(--accent-a1f); }
+  .tableau-lignes-devis td { display: block; border: 0; padding: 0; min-width: 0; background: transparent; }
+  .ligne-section-devis td, .sous-section-devis td, .ligne-devis-edition:focus-within td { background: transparent; }
+  .tableau-lignes-devis td.c-poi { grid-area: poi; display: flex; gap: var(--esp-2); }
+  .tableau-lignes-devis td.c-num { grid-area: num; padding-top: var(--esp-3); align-self: center; }
+  .tableau-lignes-devis td.c-des { grid-area: des; }
+  .tableau-lignes-devis td.c-qte { grid-area: qte; }
+  .tableau-lignes-devis td.c-uni { grid-area: uni; }
+  .tableau-lignes-devis td.c-pri { grid-area: pri; }
+  .tableau-lignes-devis td.c-tva { grid-area: tva; }
+  .tableau-lignes-devis td.c-tot { grid-area: tot; text-align: left; }
+  .tableau-lignes-devis td.c-act { grid-area: act; text-align: right; }
+  .tableau-lignes-devis td[data-libelle]::before { content: attr(data-libelle); display: block; font: var(--poids-moyen) var(--fs-micro)/1.4 var(--police-texte); letter-spacing: .14em; text-transform: uppercase; color: var(--texte2); margin-bottom: 2px; }
+  .tableau-lignes-devis td.c-num::before, .tableau-lignes-devis td.c-des::before, .ligne-section-devis td.c-tot::before { display: none; }
+  .tableau-lignes-devis td.d, .tableau-lignes-devis .champ-nombre { text-align: left; }
+  .tableau-lignes-devis .total-ligne { padding-top: var(--esp-3); }
+  .ligne-section-devis .ligne-champs { flex-wrap: wrap; }
+  .ligne-section-devis .ligne-champs > .champ { flex: 1 1 0; min-width: 0; }
+  .ligne-section-devis .case-saut { flex: 1 0 100%; }
+  .bouton-poignee { width: 44px; height: 44px; }
+  .bouton-rond, .bouton-replier { width: 44px; height: 44px; }
+  .resultat-bordereau, .onglet-editeur { min-height: 44px; min-width: 44px; }
+  .carte-editeur, .panneau-total { padding: var(--esp-5); }
+  .bandeau-net { width: 100%; }
+  .tableau-tva { width: 100%; }
 
 /* ======== Fiche d'un devis (panneau latéral depuis la liste) : section propre à la fiche, ajoutée en fin de fichier. ======== */
 .tableau-devis .ligne-devis, .carte-devis[tabindex] { cursor: pointer; }

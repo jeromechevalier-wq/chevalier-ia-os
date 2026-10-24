@@ -12,6 +12,7 @@ import { editeurOuvrage } from './editeur-ouvrage.js';
 import { selectionFamille } from './selection-famille.js';
 import { cheminFamille, familleEffective, typeDeFamille, arbreFamilles, idsAvecSousFamilles } from './familles.js';
 import { menuUnite } from './menu-unite.js';
+import { menuTaux } from './menu-taux.js';
 
 const ERREUR_ECRITURE = 'Enregistrement impossible : ton compte n’a peut-être que le droit de lire cet espace, ou la connexion est coupée. Réessaie dans un instant, ou demande à un éditeur de l’espace.';
 const ERREUR_LECTURE = 'La liste n’a pas pu être mise à jour. La dernière version reste affichée : vérifie ta connexion puis recharge la page.';
@@ -61,9 +62,12 @@ function celluleEditable(a, colonne, surFin) {
     let fini = false;
     const message = h('p', { class: 'erreur erreur-cellule', role: 'alert', dataset: { erreur: colonne.id } });
     // L'unité se choisit dans un menu qui montre toujours toutes les unités (« Autre… » pour écrire la sienne) ; les autres champs sont des champs de texte.
+    const libelleChamp = `${colonne.libelle} : ${a.libelle}`;
     const champ = colonne.id === 'unite'
-      ? menuUnite({ valeur: a.unite ?? '', libelle: `${colonne.libelle} : ${a.libelle}`, surChoix: () => valider() })
-      : h('input', {
+      ? menuUnite({ valeur: a.unite ?? '', libelle: libelleChamp, surChoix: () => valider() })
+      : colonne.id === 'tauxTva'
+        ? menuTaux({ valeur: a.tauxTva, tauxDevis: D.etat.reglages.tauxTvaDefaut, libelle: libelleChamp, surChoix: () => valider() })
+        : h('input', {
         type: 'text', class: 'champ', value: valeurPourSaisie(a, colonne.id), 'aria-label': `${colonne.libelle} : ${a.libelle}`,
         inputmode: colonne.id === 'prixAchat' || colonne.id === 'tauxTva' ? 'decimal' : 'text', autocomplete: 'off', dataset: { champ: colonne.id },
       });
@@ -249,7 +253,9 @@ export async function ouvrirCreationArticle() {
     plus.textContent = rares.hidden ? 'Plus…' : 'Moins…';
     plus.setAttribute('aria-expanded', String(!rares.hidden));
   } }, 'Plus…');
-  const tva = champ('tauxTva', 'TVA de cet article (facultatif)', { inputmode: 'decimal', placeholder: `Sinon, le taux du devis (${A.formaterTaux(reglages.tauxTvaDefaut)})`, list: 'taux-bordereau' });
+  // TVA : un menu qui montre toujours tous les taux, avec « Sinon, le taux du devis » (aucun taux propre) et « Autre… ».
+  const tvaMenu = menuTaux({ valeur: null, tauxDevis: reglages.tauxTvaDefaut, id: 'article-tauxTva', libelle: 'TVA de cet article (facultatif)' });
+  const tva = { input: tvaMenu, bloc: h('div', { class: 'bloc-champ' }, h('label', { class: 'etiquette', for: 'article-tauxTva' }, 'TVA de cet article (facultatif)'), tvaMenu, h('p', { class: 'erreur erreur-champ', role: 'alert', dataset: { erreur: 'tauxTva' } })) };
   const general = h('p', { class: 'erreur', role: 'alert', dataset: { erreur: 'general' } });
   const editeur = editeurOuvrage({});
   editeur.element.hidden = true;
@@ -259,8 +265,7 @@ export async function ouvrirCreationArticle() {
   majFamille();
   const corps = h('div', { class: 'pile formulaire-creation' },
     libelle.bloc, famille.bloc, h('div', { class: 'ligne-champs' }, unite.bloc, prix.bloc), editeur.element,
-    h('div', { class: 'ligne-champs ligne-champs-egale' }, code.bloc, tva.bloc), plus, rares, general,
-    tauxListe(reglages));
+    h('div', { class: 'ligne-champs ligne-champs-egale' }, code.bloc, tva.bloc), plus, rares, general);
   const champs = { libelle, familleId: famille, type: famille, unite, prixAchat: prix, code, tauxTva: tva, reference, marque };
 
   let identifiant = null;
@@ -321,10 +326,6 @@ export async function ouvrirCreationArticle() {
   });
   if (r && identifiant) { toast('Article ajouté'); return identifiant; }
   return null;
-}
-
-function tauxListe(reglages) {
-  return h('datalist', { id: 'taux-bordereau' }, reglages.tauxProposes.map((t) => h('option', { value: String(t).replace('.', ',') })));
 }
 
 // ---------------------------------------------------------------- écran
