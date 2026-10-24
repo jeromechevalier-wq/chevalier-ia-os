@@ -99,11 +99,13 @@ test('1 la barre d’actions reste en haut quand on défile : titre « Brouillon
   } else {
     await page.locator('[data-action="options"]').click();
   }
-  await expect(page.locator('[data-zone="options"]')).toBeVisible();
+  // Options est maintenant un menu à cases à cocher ; ce vieux devis (sans `affichage`) garde l'affichage d'avant : la carte « Marges du devis » reste visible.
+  await expect(page.locator('.menu-devis-options')).toBeVisible();
+  await expect(page.locator('[data-zone="marges"]')).toBeVisible();
   await expect(page.locator('[data-champ="marge"]')).toBeVisible();
 });
 
-test('2 l’en-tête a deux colonnes : dates et « définir » à gauche, client puis affaire à droite ; « Ajouter une description » montre le champ', async ({ page }, info) => {
+test('2 l’en-tête a deux colonnes : dates et « définir » à gauche, affaire puis client à droite ; « Ajouter une description » montre le champ', async ({ page }, info) => {
   await semer();
   await ouvrir(page, await devisLong());
   const gauche = page.locator('.entete-gauche');
@@ -128,10 +130,10 @@ test('2 l’en-tête a deux colonnes : dates et « définir » à gauche, client
   await expect(page.locator('[data-action="description"]')).toContainText('Ajouter une description');
   await page.locator('[data-action="description"]').click();
   await expect(page.locator('[data-champ="objet"]')).toBeVisible();
-  // À droite : le client, puis l'affaire, l'un sous l'autre (côte à côte du texte sur grand écran, empilés sur téléphone).
+  // À droite : l'affaire, puis le client, l'un sous l'autre (côte à côte du texte sur grand écran, empilés sur téléphone).
   const client = await page.locator('[data-champ="client"]').boundingBox();
   const affaire = await page.locator('[data-champ="affaire"]').boundingBox();
-  expect(client.y).toBeLessThan(affaire.y);
+  expect(affaire.y).toBeLessThan(client.y); // on choisit d'abord l'affaire, puis le client
   if (!estTelephone(page)) expect((await gauche.boundingBox()).x + 100).toBeLessThan(client.x);
   await expect(page.locator('[data-champ="client"]')).toHaveValue('organisation:o1');
   await expect(page.locator('[data-champ="affaire"]')).toHaveValue('a1');
@@ -297,4 +299,17 @@ test('6 sur téléphone : une carte par ligne (désignation en haut, puis Qté /
   // Rien ne déborde de la largeur de l'écran.
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   await capturer(page, info, '6-telephone');
+});
+
+test('2 la date « En date du » se modifie sur place, s’enregistre et se retrouve dans l’aperçu', async ({ page }) => {
+  await semer();
+  await ouvrir(page, await devisLong());
+  await page.locator('[data-definir="dateEmission"]').click();
+  await page.locator('[data-champ="dateEmission"]').fill('2026-12-15');
+  await page.locator('.titre-document').click();
+  await expect(page.locator('[data-definir="dateEmission"]')).toHaveText('15/12/2026');
+  await expect(page.locator('[data-valeur="enregistrement"]')).toHaveText('Enregistré');
+  expect((await listerDocuments('devis_devis'))[0].dateEmission).toBe('2026-12-15');
+  await page.locator('[data-onglet="apercu"]').click();
+  await expect(page.locator('iframe[data-zone="apercu"]').contentFrame().locator('body')).toContainText('15/12/2026');
 });
