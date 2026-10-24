@@ -115,6 +115,10 @@ function celluleFamille(a) {
     onclick: async () => {
       const r = await selectionFamille({ courante: familleEffective(a) });
       if (!r || r.id === familleEffective(a)) return;
+      if (a.type === 'ouvrage' && typeDeFamille(D.etat.familles, r.id) !== 'ouvrage') {
+        toast('Un ouvrage reste dans la famille « Ouvrages » (ou une de ses sous-familles). Pour en faire une fourniture, crée un nouvel article.', { type: 'erreur', duree: 7000 });
+        return;
+      }
       if (typeDeFamille(D.etat.familles, r.id) === 'ouvrage' && a.type !== 'ouvrage') { await ouvrirComposition(a, { devenirOuvrage: true, familleId: r.id }); return; }
       try {
         const m = await D.majArticle(a.id, { familleId: r.id });

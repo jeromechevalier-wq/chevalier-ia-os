@@ -187,3 +187,12 @@ describe('F9 assistant (MCP)', () => {
     await assert.rejects(() => metier.modifierArticle(c, { id: 'a1', type: 'divers' }), /ne va pas avec la famille/);
   });
 });
+
+describe('F10 le type ne s’efface pas tant que la famille en porte un', () => {
+  test('F10 modifier un article rangé dans « Fournitures » avec type vide est refusé ; sans famille il reste permis', () => {
+    const articles = [{ id: 'a1', libelle: 'Tube', unite: 'u', prixAchat: 3, type: 'fourniture', familleId: 'famille-1', actif: true }];
+    const refus = A.planMajArticle('a1', { type: null }, { articles, familles: defauts() });
+    assert.match(refus.erreurs.type ?? '', /se déduit de la famille/);
+    assert.deepEqual(refus.ecritures, []);
+  });
+});

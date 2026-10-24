@@ -228,6 +228,11 @@ export function planMajArticle(id, patch, { articles = [], familles } = {}) {
   if (!courant) return { erreurs: { general: 'Article introuvable : recharge la page.' }, patch: {}, ecritures: [] };
   const donnes = Object.fromEntries(Object.entries(patch ?? {}).filter(([k]) => CHAMPS_MODIFIABLES.includes(k)));
   if (!Object.keys(donnes).length) return { erreurs: {}, patch: {}, ecritures: [] };
+  // Le type se déduit de la famille : on ne peut pas l'effacer tant que l'article est rangé dans une famille qui en porte un.
+  const familleVisee = 'familleId' in donnes ? donnes.familleId : familleEffective(courant);
+  if ('type' in donnes && !donnes.type && familleVisee && typeDeFamille(familles ?? FAMILLES_PAR_DEFAUT, familleVisee)) {
+    return { erreurs: { type: 'Le type se déduit de la famille : change la famille de l’article plutôt que son type.' }, patch: {}, ecritures: [] };
+  }
   // Si l'article quitte le type « ouvrage », ses composants et son prix forcé s'effacent (ils ne comptent plus dans la validation).
   // Le type peut aussi changer parce que la famille change : il se déduit de la famille de premier niveau (voir validerArticle).
   const typeDeLaFamille = 'familleId' in donnes && donnes.familleId ? typeDeFamille(familles ?? FAMILLES_PAR_DEFAUT, donnes.familleId) : null;
