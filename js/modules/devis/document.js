@@ -1,3 +1,6 @@
+// Pagination : Chromium ignore les boîtes de marge @page ; le numéro « Page n / N » viendra des gabarits d'en-tête/pied du convertisseur serveur.
+// Clés de `vue.emetteur` lues ici (convention pour la PR des réglages) : adresse, telephone, email, siret, tvaIntracommunautaire, formeJuridique.
+// `conditions.acompte` est affiché tel quel : l'unité (pourcentage ou euros) sera tranchée avec l'écran du devis.
 // Document « Devis » en HTML imprimable (A4). Module pur : aucun DOM, aucun réseau, aucun JavaScript dans la page produite.
 // Il reçoit la « vue client » (vueClient de logique.js, donc jamais de prix d'achat, de marge ni de coefficient) et rend une chaîne HTML
 // complète. Usage : aperçu et impression dans le navigateur (« Imprimer » puis « Enregistrer au format PDF ») ; plus tard, un
@@ -37,7 +40,7 @@ const dateFr = (j) => (/^\d{4}-\d{2}-\d{2}/.test(j ?? '') ? `${j.slice(8, 10)}/$
 const adresseTexte = (a) => (typeof a === 'string' ? a : a?.texte ?? '');
 
 const CSS = `
-@page { size: A4; margin: 14mm 14mm 16mm 14mm; @bottom-center { content: "Page " counter(page) " / " counter(pages); font: 8pt sans-serif; color: #666; } }
+@page { size: A4; margin: 14mm 14mm 16mm 14mm; }
 * { box-sizing: border-box; }
 html { font-family: Helvetica, Arial, sans-serif; font-size: 9.5pt; color: #1b1b1b; }
 body { margin: 0; }

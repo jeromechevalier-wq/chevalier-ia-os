@@ -13,7 +13,7 @@ function fabriquer() {
   return JSON.parse(execFileSync(process.execPath, [ESSAI], { encoding: 'utf8', maxBuffer: 10_000_000 }));
 }
 
-test('H8 capture A4 du devis d\'essai, et un PDF de 2 pages au plus avec « Net à payer »', async ({ page }) => {
+test('H8 capture A4 du devis d\'essai, et un PDF de 2 pages au plus avec « Net à payer »', { tag: '@sans-telephone' }, async ({ page }) => {
   mkdirSync(DOSSIER, { recursive: true });
   const { html, lignes } = fabriquer();
   expect(lignes).toBe(8);
