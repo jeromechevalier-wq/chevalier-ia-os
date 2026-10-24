@@ -110,3 +110,16 @@ test('J9 (menu et état) le menu « … » garde ses actions et la liste « Éta
   await page.keyboard.press('Escape');
   await expect(page.locator('[data-action="choisir-etape"]')).toHaveValue('proposition_envoyee');
 });
+
+test('la bande des étapes suit tout de suite un changement fait avec la liste « Étape » (la liste garde le focus)', async ({ page }) => {
+  await creerAffaire('a1', { titre: 'Audit des Lilas', etape: 'proposition_envoyee' });
+  await connecter(page);
+  await ouvrir(page, '#/crm/affaires/a1');
+  const avant = await page.locator('.barre-etapes-fiche .etape.courante').textContent();
+  const liste = page.locator('[data-action="choisir-etape"]');
+  const autre = await liste.locator('option').evaluateAll((os, v) => os.map((o) => o.value).filter((x) => x && x !== v && x !== 'gagne' && x !== 'perdue')[0], 'proposition_envoyee');
+  await liste.focus();
+  await liste.selectOption(autre);
+  await expect(liste).toBeFocused();
+  await expect(page.locator('.barre-etapes-fiche .etape.courante')).not.toHaveText(avant);
+});

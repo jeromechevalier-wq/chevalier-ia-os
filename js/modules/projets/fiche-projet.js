@@ -29,6 +29,7 @@ export function rendreFicheProjet(conteneur, id) {
   let majSelecteurs = null; // met à jour l'affichage des cellules Personne / Organisation du Résumé (sans écrire)
   let majLiens = null; // redessine seulement les liens personne / organisation de l'en-tête
   let majFactures = null; // redessine la liste des factures seule, pendant une saisie dans le formulaire d'ajout
+  let barrePhases = null; // la bande des phases sous le titre : redessinée seule quand la fiche n'est pas refaite (la liste « Phase » a le focus)
   let majTaches = null; // redessine la liste des livrables seule, quand on est en train de taper ailleurs dans la fiche
   const racine = h('div', { class: 'fiche-conteneur' });
   conteneur.append(racine);
@@ -73,7 +74,7 @@ export function rendreFicheProjet(conteneur, id) {
           h('div', { class: 'fiche-sous' }, pastilleStatutProjet(p), iconeInfo(EXPLICATION_STATUT_PROJET[P.statutProjetAffiche(p)], 'État du projet'), pastilleImpaye(p), p.archive ? h('span', { class: 'badge-archive' }, 'Archivé') : null,
             liens.element)),
         h('div', { class: 'fiche-actions' }, actions, menu)),
-      barreDesPhases(p));
+      (barrePhases = barreDesPhases(p)));
 
     // ---- Résumé
     // Retirer (croix) écrit null ; taper dans la cellule ne retire rien (surChoix(null) sans `effacement`).
@@ -181,9 +182,17 @@ export function rendreFicheProjet(conteneur, id) {
     if (!p) { introuvable(); return; }
     construire(p);
   }
+  function majBarrePhases() {
+    const p = D.projet(id);
+    if (!p || !barrePhases?.isConnected) return;
+    const neuve = barreDesPhases(p);
+    barrePhases.replaceWith(neuve);
+    barrePhases = neuve;
+  }
   const rafraichir = planifier(() => {
     if (!saisieEnCours(racine)) { reconstruire(); return; }
     majSelecteurs?.();
+    majBarrePhases();
     majLiens?.(); // les liens personne / organisation du haut suivent le choix fait dans le Résumé
     majFactures?.();
     majTaches?.(); // une saisie est en cours : la fiche n'est pas refaite, mais la liste des livrables suit (un livrable ajouté apparaît tout de suite)
