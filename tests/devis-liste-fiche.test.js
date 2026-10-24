@@ -27,7 +27,7 @@ describe('F3 identité', () => {
     assert.equal(Fi.libelleModifie({ creeLe: new Date(MAINT - 2 * 3600000) }, MAINT), 'Modifié il y a 2 h'); // retombe sur la création
   });
   test('F3 adresse du chantier : celle du chantier d’abord, sinon celle des adresses ; sur une ligne', () => {
-    assert.equal(Fi.adresseChantier({ chantier: { adresse: { ligne1: '236 av. de la République', codePostal: '49800', ville: 'Trélazé' } } }), '236 av. de la République, 49800 Trélazé');
+    assert.equal(Fi.adresseChantier({ chantier: { adresse: { ligne1: '12 rue des Lilas', codePostal: '49000', ville: 'Angers' } } }), '12 rue des Lilas, 49000 Angers');
     assert.equal(Fi.adresseChantier({ adresses: { chantier: '12 rue des Lilas\n75000 Paris' } }), '12 rue des Lilas, 75000 Paris');
     assert.equal(Fi.adresseChantier({}), '');
   });

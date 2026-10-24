@@ -161,7 +161,7 @@ export function creerFiche({ nomsDe, changerStatut, fermer: demanderFermeture, a
       return;
     }
     if (a.action === 'archiver') {
-      const ok = await confirmer('Archiver ce devis ?', 'Le devis sort des listes courantes ; il reste consultable dans les archives.', { libelleOk: 'Archiver' });
+      const ok = await confirmer('Archiver ce devis ?', 'Le devis est marqué comme archivé. Il reste visible dans la liste pour l’instant, mais il ne pourra plus être modifié ni annulé.', { libelleOk: 'Archiver' });
       if (!ok) return;
       try { await D.archiver(d.id, true); toast('Devis archivé'); } catch (e) { console.warn(e); toast(e?.message || D.MESSAGE_RESEAU_DEVIS, { type: 'erreur', duree: 8000 }); }
     }

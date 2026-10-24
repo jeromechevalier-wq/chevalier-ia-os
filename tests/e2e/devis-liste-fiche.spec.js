@@ -28,13 +28,13 @@ async function devis(id, valeurs = {}) {
   await ecrireDocument(`devis_devis/${id}`, {
     racineId: id, version: 1, numero: null, statut: 'brouillon', affaireId: 'a1', personneId: null, organisationId: 'o1', modeMarge: 'majoration', marge: 25, tauxTvaDefaut: 20,
     regimeTva: 'assujetti', autoliquidation: false, archive: false, dureeValiditeJours: 90, expireLe: jourDansLe(60), objet: 'Rénovation restaurant',
-    chantier: { adresse: { ligne1: '236 av. de la République', codePostal: '49800', ville: 'Trélazé' } },
+    chantier: { adresse: { ligne1: '12 rue des Lilas', codePostal: '49000', ville: 'Angers' } },
     sections: [{ id: 's1', titre: 'Cuisine', lignes: LIGNES }],
     creePar: JEROME, modifiePar: JEROME, proprietaire: JEROME, creeLe: maintenant, modifieLe: new Date(Date.now() - 5 * 3600000), ...valeurs,
   });
 }
 async function donnees() {
-  await creerOrganisation('o1', { nom: 'M. Jean-Marc Demo' });
+  await creerOrganisation('o1', { nom: 'M. Paul Exemple' });
   await creerAffaire('a1', { titre: 'Rénovation cuisine', organisationId: 'o1' });
   await devis('dBrouillon');
   await devis('dFinalise', { numero: 'DEV-2026-10-02-001', statut: 'en_attente_envoi', finaliseLe: new Date(Date.now() - 2 * 86400000), expireLe: jourDansLe(30) });
@@ -248,8 +248,8 @@ test('3 bloc identité : client en gros, adresse du chantier avec icône, « En 
   await ouvrir(page);
   await ouvrirFiche(page, 'dSigne');
   const b = bloc(page, 'identite');
-  await expect(b.locator('[data-valeur="client"]')).toHaveText('M. Jean-Marc Demo');
-  await expect(b.locator('[data-valeur="adresse"]')).toContainText('236 av. de la République, 49800 Trélazé');
+  await expect(b.locator('[data-valeur="client"]')).toHaveText('M. Paul Exemple');
+  await expect(b.locator('[data-valeur="adresse"]')).toContainText('12 rue des Lilas, 49000 Angers');
   await expect(b.locator('[data-valeur="adresse"] svg')).toHaveCount(1);
   await expect(b.locator('[data-valeur="date"]')).toHaveText(/^En date du \d{2}\/\d{2}\/\d{4}$/);
   await expect(b.locator('[data-valeur="validite"]')).toHaveText(/^Valable jusqu’au \d{2}\/\d{2}\/\d{4}$/);
