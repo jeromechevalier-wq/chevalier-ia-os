@@ -4,6 +4,9 @@ Rédigé le 24/10/2026 avec Jérôme (discussion complète), relu deux fois par 
 
 > **Dépôt public** : aucun nom de client, aucune donnée d'entreprise (SIRET, assurance, RIB, tarifs, modèle de devis) ne vit ici ni dans le code. Tout ce qui est propre à un client est une **donnée de son espace** (réglages du module, bordereau) ou vit dans **son** workflow n8n. Un test statique le vérifie (voir « Critères d'acceptation », D26).
 
+## Mise à jour du 24/10/2026 (éditeur, parties 2 et 3, version 2.29.0)
+Menus de ligne et de section (insérer au début, à la fin, au-dessus, en dessous ; dupliquer ; supprimer), **saut de page visuel** (une bande entre deux lignes ou deux sections, placée où l'utilisateur veut ; un ancien « Nouvelle page avant » est converti à l'ouverture), Bibliothèque d'articles, **ajustement global** de marge et de remise depuis « Définir un ajustement », menu **Options** (cases d'affichage), bouton **Envoyer** (e-mail, télécharger, imprimer) à la place de « Finaliser », e-mail du destinataire facultatif, croix pour fermer, éditeur compact (feuille centrée). Le PDF réel reste en pause (PR 235).
+
 ## Mise à jour du 24/10/2026 (après la première nuit de code)
 
 **Ce qui est fait** : logique et totaux, remise, conditions, adresses, ouvrages, familles, chantier et émetteur, générateur de CGV, écran liste, éditeur, Bordereau, fonction de PDF, outils MCP (voir `docs/plan-mcp.md`). Ce qui reste est dans `docs/reprise-prochaine-session.md` et `docs/roadmap-evolutions-devis.md`.

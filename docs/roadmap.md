@@ -4,6 +4,9 @@ Tenue à jour à chaque discussion sur l'évolution de l'appli. Dernière mise �
 
 Légende : **décidé** = validé par Jérôme ; **piste** = à trancher avant le cahier des charges.
 
+## Vocabulaire configurable par client (24/10/2026) : **décidé**
+Chaque client choisit ses mots (affaire → vente, projet → chantier, etc.), partout dans l'écran, avec les accords. Plan et inventaire : `docs/vocabulaire-configurable.md`. Le remplacement se fait dans une session dédiée.
+
 ## Module Devis (nuit du 24/10/2026)
 Cadrage : `docs/cadrage-devis.md`. Évolutions envisagées, dans l'ordre où on a envie de les faire : `docs/roadmap-evolutions-devis.md`. Idée **« pilotage »** (tableaux de bord de ventes : devis envoyés, signés, taux de signature, chiffre d'affaires par mois) : reportée, car elle a besoin de la facturation pour être complète ; le module Devis aura sa propre table d'indicateurs.
 
