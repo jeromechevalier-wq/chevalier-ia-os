@@ -423,11 +423,11 @@ export function rendreEditeurDevis(conteneur, id) {
    * Une valeur qui s'écrit sur place : un lien « définir » (ou la valeur déjà saisie) ; un clic le remplace par le champ, qui redevient lien quand on le quitte.
    * Les champs ne sont jamais retirés de la page, seulement cachés (retirer une liste au moment où elle perd le focus fait une erreur dans le navigateur).
    */
-  function valeurSurPlace({ nom, texte, champs }) {
+  function valeurSurPlace({ nom, texte, champs, etiquette = '' }) {
     const lien = h('button', { type: 'button', class: 'bouton-lien lien-definir', dataset: { definir: nom } });
     const saisie = h('span', { class: 'valeur-saisie', hidden: true }, champs());
     const zone = h('span', { class: 'valeur-sur-place' }, lien, saisie);
-    const montrerLien = () => { const t = texte(); lien.textContent = t || 'définir'; lien.classList.toggle('lien-renseigne', Boolean(t)); saisie.hidden = true; lien.hidden = false; };
+    const montrerLien = () => { const t = texte(); lien.textContent = t || 'définir'; if (etiquette) lien.setAttribute('aria-label', `${etiquette.trim()} : ${t || 'à définir'}`); lien.classList.toggle('lien-renseigne', Boolean(t)); saisie.hidden = true; lien.hidden = false; };
     lien.addEventListener('click', () => { lien.hidden = true; saisie.hidden = false; saisie.querySelector('input, select')?.focus(); });
     // On referme un peu après avoir quitté le champ : le champ qui disparaît tout de suite décalerait la page entre l'appui et le relâchement d'un clic (le clic sur le lien voisin serait perdu).
     let minuteurFermeture = null;
@@ -481,10 +481,10 @@ export function rendreEditeurDevis(conteneur, id) {
     const gauche = h('div', { class: 'entete-gauche' },
       ref.numeroDocument,
       h('p', { class: 'ligne-entete' }, `En date du ${dateDuDevis()}`),
-      ligne('Valable jusqu’au ', valeurSurPlace({ nom: 'expireLe', texte: () => jourFr(travail.expireLe), champs: champDate('expireLe', () => travail.expireLe, (v) => { travail.expireLe = v; }, 'Valable jusqu’au') })),
-      ligne('Début des travaux le ', valeurSurPlace({ nom: 'debutTravaux', texte: () => jourFr(travail.chantier?.debutTravaux), champs: champDate('debutTravaux', () => travail.chantier?.debutTravaux, ecrireChantier('debutTravaux'), 'Début des travaux') })),
-      ligne('Durée estimée à ', valeurSurPlace({ nom: 'duree', texte: () => dureeEnTexte(travail.chantier?.dureeEstimee) ?? '', champs: champsDuree })),
-      ligne('Date limite de fin de chantier le ', valeurSurPlace({ nom: 'finChantierAu', texte: () => jourFr(travail.chantier?.finChantierAu), champs: champDate('finChantierAu', () => travail.chantier?.finChantierAu, ecrireChantier('finChantierAu'), 'Date limite de fin de chantier') })),
+      ligne('Valable jusqu’au ', valeurSurPlace({ etiquette: 'Valable jusqu’au ', nom: 'expireLe', texte: () => jourFr(travail.expireLe), champs: champDate('expireLe', () => travail.expireLe, (v) => { travail.expireLe = v; }, 'Valable jusqu’au') })),
+      ligne('Début des travaux le ', valeurSurPlace({ etiquette: 'Début des travaux le ', nom: 'debutTravaux', texte: () => jourFr(travail.chantier?.debutTravaux), champs: champDate('debutTravaux', () => travail.chantier?.debutTravaux, ecrireChantier('debutTravaux'), 'Début des travaux') })),
+      ligne('Durée estimée à ', valeurSurPlace({ etiquette: 'Durée estimée à ', nom: 'duree', texte: () => dureeEnTexte(travail.chantier?.dureeEstimee) ?? '', champs: champsDuree })),
+      ligne('Date limite de fin de chantier le ', valeurSurPlace({ etiquette: 'Date limite de fin de chantier le ', nom: 'finChantierAu', texte: () => jourFr(travail.chantier?.finChantierAu), champs: champDate('finChantierAu', () => travail.chantier?.finChantierAu, ecrireChantier('finChantierAu'), 'Date limite de fin de chantier') })),
       ref.erreursChantier,
       ref.lienDescription,
       ref.objet);
@@ -729,7 +729,7 @@ export function rendreEditeurDevis(conteneur, id) {
     const sous = niveau === 2;
     const repliee = replies.has(e.id);
     const replier = h('button', { type: 'button', class: 'bouton-icone bouton-replier', dataset: { action: 'replier' }, 'aria-expanded': String(!repliee), 'aria-label': `${repliee ? 'Déplier' : 'Replier'} ${sous ? 'la sous-section' : 'la section'} ${numeros[e.id]}`,
-      onclick: () => { if (replies.has(e.id)) replies.delete(e.id); else replies.add(e.id); rendreLignes(); } }, icone(repliee ? 'plus' : 'minus', { taille: 14 }));
+      onclick: () => { if (replies.has(e.id)) replies.delete(e.id); else replies.add(e.id); rendreLignes(); document.querySelector(`tr[data-id="${e.id}"] [data-action="replier"]`)?.focus(); } }, icone(repliee ? 'plus' : 'minus', { taille: 14 }));
     const titre = h('input', { class: 'champ champ-surplace titre-section', type: 'text', value: e.titre ?? '', placeholder: sous ? 'Titre de la sous-section (exemple : Coin bar)' : 'Titre de la section (exemple : Cuisine)', 'aria-label': `Titre de ${sous ? 'la sous-section' : 'la section'} ${numeros[e.id]}`, dataset: { champ: 'libelle' }, oninput: (ev) => changerLigne(e.id, { titre: ev.target.value }) });
     const saut = h('label', { class: 'case-saut' }, h('input', { type: 'checkbox', checked: e.sautDePageAvant === true, dataset: { champ: 'saut-de-page' }, onchange: (ev) => changerLigne(e.id, { sautDePageAvant: ev.target.checked || undefined }) }), ' Nouvelle page avant');
     return h('tr', { class: `ligne-section-devis ${sous ? 'sous-section-devis' : ''}`, hidden: masque, dataset: { id: e.id, genre: 'section', niveau: String(niveau) } },

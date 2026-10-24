@@ -195,7 +195,9 @@ export function deplacementsPossibles(sections, id) {
   if (i === -1) return { monter: false, descendre: false };
   const apres = deplacerElement(sections, id, 1);
   const avant = deplacerElement(sections, id, -1);
-  const meme = (autre) => JSON.stringify(autre) === JSON.stringify(sections);
+  // On compare à la version normalisée : un devis écrit à la main (sans `titre` ou `lignes`) ne doit pas griser à tort les flèches.
+  const reference = JSON.stringify(assembler(aplatir(sections)));
+  const meme = (autre) => JSON.stringify(autre) === reference;
   return { monter: !meme(avant), descendre: !meme(apres) };
 }
 
