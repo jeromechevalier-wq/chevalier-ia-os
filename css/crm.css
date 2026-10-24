@@ -252,6 +252,7 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 .contacts-pile { display: flex; flex-direction: column; gap: var(--esp-1); min-width: 0; width: 100%; }
 .contact-valeur { align-items: center; min-height: var(--h-ctrl); }
 .contact-valeur .contact-modifier, .contact-valeur .contact-retirer { width: 28px; height: 28px; flex: none; }
+.prop-contacts-ligne:hover .contact-modifier { opacity: 0; } /* seul le crayon de la valeur survolée apparaît */
 .contact-valeur:hover .contact-modifier, .contact-valeur .contact-modifier:focus-visible { opacity: 1; }
 .contact-valeur .contact-retirer { color: var(--texte2); }
 .contact-edition .ligne-contact { width: 100%; }
