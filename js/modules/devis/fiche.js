@@ -100,6 +100,7 @@ export function ventilationParFamille(devis, articles = [], familles = []) {
   let nb = 0;
   for (const [i, s] of (devis?.sections ?? []).entries()) {
     for (const [j, l] of (s.lignes ?? []).entries()) {
+      if (l?.type === 'saut') continue; // un saut de page n'est ni un montant ni une ligne
       nb += 1;
       const vl = vue.sections?.[i]?.lignes?.[j] ?? {};
       const ht = Math.round((estNombre(vl.totalHT) ? vl.totalHT : 0) * 100);

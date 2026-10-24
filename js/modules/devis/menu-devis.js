@@ -31,7 +31,7 @@ export function ouvrirFenetreMenu(ancre, construire, { classe = '', nom = 'Menu'
     if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
     if (/^(input|textarea|select)$/i.test(document.activeElement?.tagName ?? '')) return; // dans un champ, les flèches restent au champ
     e.preventDefault();
-    const liste = [...menu.querySelectorAll('button:not(:disabled), input[type="checkbox"]:not(:disabled)')];
+    const liste = [...menu.querySelectorAll('button:not(:disabled), input[type="checkbox"]:not(:disabled)')].filter((el) => el.offsetParent !== null); // pas les entrées d'un sous-menu replié
     const i = liste.indexOf(document.activeElement);
     liste[(i + (e.key === 'ArrowDown' ? 1 : -1) + liste.length) % liste.length]?.focus();
   }
