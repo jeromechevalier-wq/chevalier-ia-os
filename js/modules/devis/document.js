@@ -136,7 +136,13 @@ export function devisHtml(vue, options = {}) {
   const chantier = adresseTexte(v.adresses?.chantier);
   if (chantier) infos.push(`<div>Adresse du chantier${NBSP}: ${texte(chantier)}</div>`);
 
-  const lignesTotaux = [`<tr><td>Total net HT</td><td class="d">${formaterMontant(t.ht)}</td></tr>`];
+  const lignesTotaux = [];
+  if (v.remise && v.remise.montantHt > 0) {
+    const lib = String(v.remise.libelle ?? 'Remise').replace(/^Remise (.+)$/, 'Remise ($1)');
+    lignesTotaux.push(`<tr><td>Total HT brut</td><td class="d">${formaterMontant(t.totalBrutHt)}</td></tr>`);
+    lignesTotaux.push(`<tr><td>${texte(lib)}</td><td class="d">\u2212${NBSP}${formaterMontant(v.remise.montantHt)}</td></tr>`);
+  }
+  lignesTotaux.push(`<tr><td>Total net HT</td><td class="d">${formaterMontant(t.ht)}</td></tr>`);
   if (!franchise) {
     lignesTotaux.push(`<tr><td>TVA</td><td class="d">${formaterMontant(t.tva)}</td></tr>`);
     lignesTotaux.push(`<tr><td>Total TTC</td><td class="d">${formaterMontant(t.ttc)}</td></tr>`);
