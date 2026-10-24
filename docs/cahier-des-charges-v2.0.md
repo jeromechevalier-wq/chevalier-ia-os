@@ -78,6 +78,7 @@ Base `(default)`, région `europe-west9` (Paris). Chaque module préfixe ses col
 |---|---|---|---|---|
 | `nom` | Nom | string | **oui** | |
 | `adresse`, `ville`, `siteWeb` | | string | non | |
+| `emails`, `telephones` | Email, Téléphone | liste de {valeur, type} | non | comme les personnes (types Travail, Perso, Autre ; 10 au plus ; format de l'email vérifié ; pas de doublon d'email). Les anciens champs texte `email` et `telephone` sont lus comme une première valeur tant que la liste n'existe pas ; la première écriture de la liste les vide |
 | `secteur` | Secteur | string | non | liste `crm_parametres/listes.secteurs` |
 | `taille` | Taille | string | non | Solo, 2 à 10, 11 à 50, Plus de 50 |
 | `etiquettes` | Étiquettes | liste d'identifiants | non | |

@@ -37,12 +37,12 @@ export const OUTILS_ECRITURE = [
     archive: z.boolean().optional().describe('true : archiver ; false : désarchiver.'), forcer,
   }, metier.modifierPersonne),
 
-  outil('creer_organisation', "Crée une organisation (seul le nom est obligatoire), avec son événement dans le fil. Refuse un doublon de nom sauf forcer: true.", {
-    nom: z.string().min(1).max(200), adresse: texteCourt.optional(), ville: texteCourt.optional(), secteur: texteCourt.optional(), etiquettes: etiquettes.optional(), forcer, proprietaire,
+  outil('creer_organisation', "Crée une organisation (seul le nom est obligatoire ; emails et telephones : listes de { valeur, type }, 10 au plus), avec son événement dans le fil. Refuse un doublon de nom sauf forcer: true.", {
+    nom: z.string().min(1).max(200), adresse: texteCourt.optional(), ville: texteCourt.optional(), secteur: texteCourt.optional(), emails: contacts.optional(), telephones: contacts.optional(), etiquettes: etiquettes.optional(), forcer, proprietaire,
   }, metier.creerOrganisation),
 
-  outil('modifier_organisation', "Modifie des champs d'une organisation : nom, adresse, ville, siteWeb, telephone, email, secteur, taille (Solo, 2 à 10, 11 à 50, Plus de 50, ou vide), etiquettes, archive. Ne supprime jamais.", {
-    id, nom: z.string().min(1).max(200).optional(), adresse: texteCourt.optional(), ville: texteCourt.optional(), siteWeb: z.string().max(300).optional(), telephone: texteCourt.optional(), email: z.string().max(200).optional(), secteur: texteCourt.optional(),
+  outil('modifier_organisation', "Modifie des champs d'une organisation : nom, adresse, ville, siteWeb, emails et telephones (listes { valeur, type } de 10 au plus, qui REMPLACENT la liste actuelle ; [] la vide), secteur, taille (Solo, 2 à 10, 11 à 50, Plus de 50, ou vide), etiquettes, archive. Les anciens champs texte email et telephone sont gardés : une valeur donnée est AJOUTÉE à la liste (jamais perdue ; pour vider, passer emails: []). Ne supprime jamais.", {
+    id, nom: z.string().min(1).max(200).optional(), adresse: texteCourt.optional(), ville: texteCourt.optional(), siteWeb: z.string().max(300).optional(), emails: contacts.optional(), telephones: contacts.optional(), telephone: texteCourt.optional(), email: z.string().max(200).optional(), secteur: texteCourt.optional(),
     taille: z.string().max(20).optional(), etiquettes: etiquettes.optional(), archive: z.boolean().optional(), forcer,
   }, metier.modifierOrganisation),
 

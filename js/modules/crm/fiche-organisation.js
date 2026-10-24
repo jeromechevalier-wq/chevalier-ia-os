@@ -3,7 +3,7 @@ import { h, icone, remplir, ouvrirMenu } from '../../os/ui.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
 import {
-  avatar, lien, cheminPersonne, sectionRepliable, champPropriete, selecteurEtiquettes, titreEditable, selectProprietaire, gabaritFiche, lienRetour,
+  avatar, lien, cheminPersonne, sectionRepliable, champPropriete, champContacts, selecteurEtiquettes, titreEditable, selectProprietaire, gabaritFiche, lienRetour,
   saisieEnCours, carteAffaireMini, fournisseurTexte, fournisseurVilles, etatVide, planifier,
 } from './composants.js';
 import { panneauActivite } from './activites.js';
@@ -53,12 +53,8 @@ export function rendreFicheOrganisation(conteneur, id) {
       id: 'organisation-resume', titre: 'Résumé',
       contenu: h('div', { class: 'pile resume' }, h('div', { class: 'resume-ligne' }, etiquettes.element),
         h('div', { class: 'proprietes' }, prop('Adresse', 'adresse'), prop('Site web', 'siteWeb', { type: 'url', lienVers: (v) => v }),
-          prop('Téléphone', 'telephone', { type: 'tel', lienVers: (v) => `tel:${v.replace(/[^\d+]/g, '')}` }),
-          prop('Email', 'email', { type: 'email', lienVers: (v) => `mailto:${L.normaliserEmail(v)}`,
-            surEnregistrer: (v) => {
-              if (v && !L.emailValide(v)) throw Object.assign(new Error('Cette adresse email n’est pas valide (exemple : contact@exemple.fr).'), { saisie: true });
-              return D.majOrganisation(o.id, { email: L.normaliserEmail(v) });
-            } }),
+          champContacts({ libelle: 'Téléphone', genre: 'tel', valeurs: L.contactsOrganisation(o, 'telephones'), surEnregistrer: (liste) => D.majOrganisation(o.id, L.patchContactsOrganisation('telephones', liste)) }).element,
+          champContacts({ libelle: 'Email', genre: 'email', valeurs: L.contactsOrganisation(o, 'emails'), surEnregistrer: (liste) => D.majOrganisation(o.id, L.patchContactsOrganisation('emails', liste)) }).element,
           selectProprietaire({ valeur: o.proprietaire, surChoix: (v) => D.majOrganisation(o.id, { proprietaire: v }) }))),
     });
     const details = sectionRepliable({

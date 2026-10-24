@@ -87,7 +87,7 @@ export async function lireOrganisation(donnees, { id, avecFil }) {
     donnees.liste(C.activites, { champ: 'organisationId', valeur: id }),
   ]);
   return serialiser({
-    organisation,
+    organisation: { ...organisation, emails: L.contactsOrganisation(organisation, 'emails'), telephones: L.contactsOrganisation(organisation, 'telephones') },
     personnes: personnes.map((p) => ({ id: p.id, nom: p.nom, archive: !!p.archive })),
     affaires: affaires.map(resumeAffaire),
     activites,

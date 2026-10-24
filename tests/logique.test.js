@@ -1360,3 +1360,33 @@ describe('Export des contacts pour le téléphone (.vcf)', () => {
     assert.equal(L.nomFichierExport(new Date('2026-10-20T10:00:00Z'), 'contacts'), 'chevalier-ia-contacts-2026-10-20.vcf');
   });
 });
+
+describe('Emails et téléphones d\'une organisation (contactsOrganisation, patchContactsOrganisation)', () => {
+  test('2 une organisation ancienne (champ texte) est lue comme une première valeur ; une liste déjà là n\'est pas doublée ; une fiche restaurée sans liste fonctionne', () => {
+    assert.deepEqual(L.contactsOrganisation({ email: ' contact@x.fr ' }, 'emails'), [{ valeur: 'contact@x.fr', type: 'travail' }]);
+    assert.deepEqual(L.contactsOrganisation({ email: 'A@x.fr', emails: [{ valeur: 'a@X.fr', type: 'perso' }] }, 'emails'), [{ valeur: 'a@X.fr', type: 'perso' }]);
+    assert.deepEqual(L.contactsOrganisation({ telephone: '04 92 00 00 00' }, 'telephones'), [{ valeur: '04 92 00 00 00', type: 'travail' }]);
+    assert.deepEqual(L.contactsOrganisation({ email: '', emails: undefined }, 'emails'), []);
+    assert.deepEqual(L.contactsOrganisation(organisation(), 'emails'), []);
+  });
+  test('2 écrire la liste vide l\'ancien champ, retire les doublons d\'emails et borne à MAX_CONTACTS', () => {
+    assert.deepEqual(L.patchContactsOrganisation('emails', [{ valeur: 'a@x.fr' }, { valeur: ' A@X.fr ' }, { valeur: '' }]), { emails: [{ valeur: 'a@x.fr', type: 'travail' }], email: '' });
+    assert.deepEqual(L.patchContactsOrganisation('telephones', [{ valeur: '04', type: 'autre' }]), { telephones: [{ valeur: '04', type: 'autre' }], telephone: '' });
+    assert.equal(L.patchContactsOrganisation('telephones', Array.from({ length: 15 }, (_, i) => ({ valeur: `0${i}` }))).telephones.length, L.MAX_CONTACTS);
+  });
+  test('2 une nouvelle organisation part avec des listes vides, et refuse un email invalide', () => {
+    const o = L.nouvelleOrganisation({ nom: 'X', emails: [{ valeur: 'a@x.fr', type: 'perso' }] }, ctx('2026-10-01T08:00:00Z'));
+    assert.deepEqual(o.emails, [{ valeur: 'a@x.fr', type: 'perso' }]);
+    assert.deepEqual(o.telephones, []);
+    assert.equal('email' in o, false);
+    assert.deepEqual(L.validerOrganisation({ nom: 'X', emails: [{ valeur: 'pas' }] }), { emails: "Cette adresse email n'est pas valide." });
+  });
+  test('2 liens : mailto seulement pour une adresse valide sans paramètre, tel avec chiffres et + seulement', () => {
+    assert.equal(L.lienEmail('Contact@X.fr'), 'mailto:contact@x.fr');
+    assert.equal(L.lienEmail('a@x.fr?bcc=b@y.fr'), null);
+    assert.equal(L.lienEmail('javascript:alert(1)'), null);
+    assert.equal(L.lienTel('+33 4 92-00.00.00'), 'tel:+33492000000');
+    assert.equal(L.lienTel('abc'), null);
+  });
+});
+

@@ -149,16 +149,32 @@ export async function creerOrganisation(c, args) {
   return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: plan.id });
 }
 
+/**
+ * Emails et téléphones d'une organisation. `emails` / `telephones` REMPLACENT la liste actuelle ; les anciens champs texte `email` / `telephone`
+ * (clients qui ne connaissent pas encore les listes) sont AJOUTÉS à la liste (donnée ou actuelle) s'ils n'y sont pas déjà. Au plus L.MAX_CONTACTS.
+ */
+function contactsOrganisationModifies(o, champs) {
+  const patch = {};
+  for (const [genre, liste, ancien] of [['emails', champs.emails, champs.email], ['telephones', champs.telephones, champs.telephone]]) {
+    if (liste === undefined && ancien === undefined) continue;
+    const contacts = (liste ?? L.contactsOrganisation(o, genre)).map((x) => ({ valeur: x.valeur, type: x.type }));
+    if (ancien !== undefined && texte(ancien)) contacts.push({ valeur: texte(ancien), type: 'travail' });
+    if (genre === 'emails') {
+      if (contacts.some((x) => texte(x.valeur) && !L.emailValide(texte(x.valeur)))) refuser('saisie_invalide', 'Adresse email invalide.');
+    }
+    if (L.sansDoublonsContacts(genre, contacts).length > L.MAX_CONTACTS) refuser('saisie_invalide', `Au plus ${L.MAX_CONTACTS} ${genre === 'emails' ? 'emails' : 'téléphones'} par organisation.`);
+    Object.assign(patch, L.patchContactsOrganisation(genre, contacts));
+  }
+  return patch;
+}
+
 export async function modifierOrganisation(c, args) {
   const { id, forcer, ...champs } = args;
   const o = await lire(c, C.organisations, id, 'Organisation');
   const patch = {};
   if (champs.nom !== undefined) { verifierMessages(L.validerOrganisation({ nom: champs.nom })); patch.nom = texte(champs.nom); }
-  for (const cle of ['adresse', 'ville', 'siteWeb', 'telephone', 'secteur']) if (champs[cle] !== undefined) patch[cle] = texte(champs[cle]);
-  if (champs.email !== undefined) {
-    if (champs.email !== '' && !L.emailValide(champs.email)) refuser('saisie_invalide', 'Adresse email invalide.');
-    patch.email = L.normaliserEmail(champs.email);
-  }
+  for (const cle of ['adresse', 'ville', 'siteWeb', 'secteur']) if (champs[cle] !== undefined) patch[cle] = texte(champs[cle]);
+  Object.assign(patch, contactsOrganisationModifies(o, champs));
   if (champs.taille !== undefined) {
     if (champs.taille !== '' && !L.TAILLES.includes(champs.taille)) refuser('saisie_invalide', `Taille inconnue (valeurs : ${L.TAILLES.join(', ')} ou vide).`);
     patch.taille = champs.taille;
