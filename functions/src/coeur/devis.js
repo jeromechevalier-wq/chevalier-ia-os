@@ -122,7 +122,9 @@ export async function finaliser({ donnees, ctx, devisId }) {
     apres.finalisation = { n8n: 'en_attente' };
 
     // Seuls les champs que la finalisation change sont écrits (les autres, dates comprises, ne sont pas retouchés).
-    const changements = [modifier(devis, Object.fromEntries(CHAMPS_FIGES.map((k) => [k, apres[k]])))];
+    // Un client Firestore direct a pu poser archive ou des dates sur le brouillon : on les remet à zéro à la finalisation.
+    const remisesAZero = { archive: false, archiveLe: null, envoyeLe: null, accepteLe: null, refuseLe: null, remplaceLe: null };
+    const changements = [modifier(devis, { ...Object.fromEntries(CHAMPS_FIGES.map((k) => [k, apres[k]])), ...remisesAZero })];
     // Les versions plus anciennes encore vivantes (finalisée ou envoyée) sont remplacées par celle-ci, dans la même transaction.
     const remplaces = versions.filter((v) => v.id !== devis.id && (v.version ?? 1) < (devis.version ?? 1) && D.transitionPossible(v.statut, 'remplacer'));
     for (const v of remplaces) changements.push(modifier(v, { statut: D.statutApres(v.statut, 'remplacer'), remplaceLe: ctx.maintenant }));
@@ -180,7 +182,12 @@ export async function nouvelleVersion({ donnees, ctx, devisId }) {
       donnees, ctx, outil: 'devisNouvelleVersion', parametres: { devisId },
       changements: [{ id, action: 'creer', avant: null, apres: copie, champs: Object.keys(copie) }],
     });
-    tx.ecrire([{ type: 'set', collection: C.devis, id, donnees: copie }, ...j.ecritures]);
+    // La source est aussi écrite (champ anodin) : deux demandes simultanées lisent et écrivent le même document, la perdante est relancée et voit le brouillon de la première.
+    tx.ecrire([
+      { type: 'update', collection: C.devis, id: source.id, donnees: { versionSuivanteCreeLe: ctx.maintenant } },
+      { type: 'set', collection: C.devis, id, donnees: sansId(copie) },
+      ...j.ecritures,
+    ]);
     return { ok: true, devis: { ...copie, id }, operationId: j.operationId };
   });
 }

@@ -108,11 +108,16 @@ service cloud.firestore {
     match /devis_compteurs/{id} {
       allow read, write: if false;
     }
+    // Le bordereau du module Devis : un article se désactive, il ne se supprime jamais.
+    match /devis_articles/{id} {
+      allow read, create, update: if compteAutorise();
+      allow delete: if false;
+    }
 
     // Tout le reste : comme avant (les deux comptes autorisés), sauf les collections ci-dessus.
     match /{collection}/{document=**} {
       allow read, write: if compteAutorise()
-        && !(collection in ['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions', 'devis_devis', 'devis_compteurs']);
+        && !(collection in ['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions', 'devis_devis', 'devis_compteurs', 'devis_articles']);
     }
   }
 }

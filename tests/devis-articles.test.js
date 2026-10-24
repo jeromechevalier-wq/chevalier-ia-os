@@ -230,9 +230,11 @@ describe('B8 règles Firestore : déclaration (les parcours sont dans regles-pla
     assert.match(r2, /match \/clients\/\{client\}\/devis_devis\/\{id\}/);
     assert.doesNotMatch(r2, /devis_parametres/, 'les réglages du module restent sous la règle générale des données du client');
   });
-  test('B8 les règles de la base de Jérôme ne disent rien du bordereau ni des réglages (le joker donne aux deux comptes autorisés la lecture et l\'écriture) ; aucun outil ni écran ne supprime un article', () => {
+  test('B8 les règles de la base de Jérôme interdisent la suppression d\'un article (les réglages restent sous le joker) ; aucun outil ni écran ne supprime un article', () => {
     // Seuls les devis eux-mêmes (devis_devis, devis_compteurs) ont des règles dans firestore.rules : voir devis-regles.test.js (C1).
-    assert.doesNotMatch(lire('firestore.rules'), /devis_articles|devis_parametres/);
+    const r = lire('firestore.rules');
+    assert.match(r, /match \/devis_articles\/\{id\} \{\s+allow read, create, update: if compteAutorise\(\);\s+allow delete: if false;/); // ni suppression, même depuis la console du navigateur
+    assert.doesNotMatch(r, /devis_parametres/);
     const ecrans = ['bordereau.js', 'donnees.js', 'reglages.js', 'index.js', 'articles.js'].map((f) => lire(`js/modules/devis/${f}`)).join('\n').replace(/\/\/.*$/gm, '');
     assert.doesNotMatch(ecrans, /deleteDoc|lot\.delete|ecritureSupprimer|type: 'supprimer'/, 'un article ne se supprime jamais');
     assert.doesNotMatch(lire('functions/src/mcp/outils/ecriture.js') + lire('functions/src/mcp/outils/suppression.js'), /supprimer_article/);
