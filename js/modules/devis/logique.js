@@ -39,6 +39,10 @@ export const REGIMES_TVA = [
 ];
 export const MENTION_FRANCHISE = 'TVA non applicable, article 293 B du CGI';
 export const MENTION_AUTOLIQUIDATION = 'Autoliquidation de la TVA (article 283-2 nonies du CGI)';
+export const MENTION_SIGNATURE = 'Reçu avant l\'exécution des travaux, bon pour accord. Date et signature du client :';
+// Attestation de TVA réduite (texte écrit pour ce module, dans l'esprit de l'article 257 du CGI ; voir aussi document.js).
+// À faire valider par l'expert-comptable du client avant mise en production.
+export const ATTESTATION_TVA_REDUITE = 'Attestation du client (preneur de la prestation) : je certifie que les travaux décrits dans ce devis concernent un local à usage d\'habitation achevé depuis plus de deux ans, qu\'ils n\'ont pas pour effet d\'accroître la surface de plancher de plus de 10 %, et que ce local est affecté à l\'habitation à l\'issue des travaux. Je m\'engage à régler la différence de TVA si ces conditions ne sont pas respectées.';
 export const ERREUR_MARGE_100 = 'La marge sur le prix de vente doit être inférieure à 100 %.';
 export const DUREE_VALIDITE_DEFAUT = 90;
 /** Clés qui ne sortent JAMAIS vers le client (voir vueClient). */
@@ -342,6 +346,12 @@ function sansCles(valeur) {
   return valeur;
 }
 
+/** L'attestation de TVA réduite ne s'applique qu'en régime assujetti, hors autoliquidation, avec au moins une ligne à 10 % ou 5,5 %. */
+function attestationNecessaire(devis) {
+  if (devis.regimeTva === 'franchise' || devis.autoliquidation === true) return false;
+  return (devis.sections ?? []).some((s) => (s.lignes ?? []).some((l) => [10, 5.5].includes(tauxDeLigne(devis, l))));
+}
+
 /** Ce que le client voit : aucun prix d'achat, aucune marge, aucun coefficient, aucun mode de marge, à aucun niveau. */
 export function vueClient(devis, contexte = {}) {
   const t = totauxDevis(devis);
@@ -362,13 +372,18 @@ export function vueClient(devis, contexte = {}) {
       facturation: devis.adresses?.facturation ?? null,
       chantier: devis.adresses?.chantier ?? null,
     },
+    objet: devis.objet ?? null,
+    client: { nom: contexte.clientNom ?? null },
     sections: (devis.sections ?? []).map((s, i) => ({
       id: s.id,
+      numero: String(i + 1), // une seule profondeur de section en v1
       titre: s.titre ?? '',
       sousTotalHT: t.sections[i].sousTotalHT,
       lignes: (s.lignes ?? []).map((l, j) => ({
         id: l.id,
+        numero: `${i + 1}.${j + 1}`,
         libelle: l.libelle ?? '',
+        description: typeof l.description === 'string' ? l.description : '',
         quantite: l.quantite,
         unite: l.unite ?? '',
         prixUnitaireHT: pos[i][j]?.prixVenteUnitaire ?? null,
@@ -386,6 +401,10 @@ export function vueClient(devis, contexte = {}) {
       acompte: devis.acompte ?? null,
       paiement: devis.conditionsPaiement ?? null,
     },
+    conditionsPaiement: devis.conditionsPaiement ?? null,
+    modesPaiement: (Array.isArray(devis.modesPaiement) ? devis.modesPaiement : []).filter((m) => typeof m === 'string' && m.trim()),
+    mentionSignature: MENTION_SIGNATURE,
+    attestationTvaReduite: attestationNecessaire(devis) ? ATTESTATION_TVA_REDUITE : null,
     dossierDriveId: contexte.dossierDriveId ?? null,
     cleIdempotence: `${devis.id}:${devis.version}`,
   };
