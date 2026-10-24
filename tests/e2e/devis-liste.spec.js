@@ -155,3 +155,14 @@ test('E4 recherche et filtre de statut ; cas vide « Aucun devis pour l’instan
   await expect(lignes(page).first()).toHaveAttribute('data-id', 'd2');
   await expect(page.locator('[data-action="filtres"]')).toContainText('1');
 });
+
+test('un bouton « Modifier » est visible dans la ligne sans ouvrir le menu « … » : brouillon = éditeur, devis envoyé = « Variante »', async ({ page }) => {
+  await deuxDevis();
+  await ouvrir(page);
+  await expect(page.locator('[data-id="d1"] [data-action="modifier-devis"]')).toContainText('Variante');
+  const bouton = page.locator('[data-id="d2"] [data-action="modifier-devis"]');
+  await expect(bouton).toBeVisible();
+  await expect(bouton).toContainText('Modifier');
+  await bouton.click();
+  await expect(page).toHaveURL(/#\/devis\/editeur\/d2$/);
+});

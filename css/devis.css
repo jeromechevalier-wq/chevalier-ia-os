@@ -70,9 +70,13 @@
 .dialogue-apercu-devis { width: min(900px, 100%); }
 .apercu-devis { width: 100%; height: min(70vh, 720px); border: 1px solid var(--bordure); border-radius: var(--rayon-petit); background: #fff; }
 .liste-erreurs-devis { margin: 0; padding-left: var(--esp-7); }
+/* Bouton « Modifier » visible à côté du menu « … » (ligne du tableau et carte du kanban). */
+.actions-devis { display: inline-flex; align-items: center; gap: var(--esp-3); }
+.tableau-devis td.col-actions { width: auto; white-space: nowrap; }
 @media (max-width: 767px) {
   .tableau-devis td.montant { text-align: left; }
-  .tableau-devis td.col-actions .bouton-icone { min-height: 44px; min-width: 44px; }
+  .tableau-devis td.col-actions .bouton-icone, .tableau-devis td.col-actions .bouton, .carte-devis .actions-devis .bouton { min-height: 44px; }
+  .tableau-devis td.col-actions .bouton-icone { min-width: 44px; }
   .carte-devis .carte-menu { min-height: 44px; min-width: 44px; }
 }
 .carte-devis .carte-titre { font-weight: var(--poids-moyen); }
@@ -156,14 +160,14 @@
 .tableau-lignes-devis th { text-align: left; padding: var(--esp-4) var(--esp-3); background: var(--accent); color: var(--sur-accent); font-weight: var(--poids-moyen); font-size: var(--fs-menu); }
 .tableau-lignes-devis th:first-child { border-top-left-radius: var(--rayon-petit); }
 .tableau-lignes-devis th:last-child { border-top-right-radius: var(--rayon-petit); }
-.tableau-lignes-devis th:nth-child(1) { width: 40px; }
-.tableau-lignes-devis th:nth-child(2) { width: 62px; }
-.tableau-lignes-devis th:nth-child(4) { width: 86px; }
-.tableau-lignes-devis th:nth-child(5) { width: 100px; }
-.tableau-lignes-devis th:nth-child(6) { width: 112px; }
-.tableau-lignes-devis th:nth-child(7) { width: 128px; }
-.tableau-lignes-devis th:nth-child(8) { width: 116px; }
-.tableau-lignes-devis th:nth-child(9) { width: 48px; }
+.tableau-lignes-devis th.col-poi { width: 40px; }
+.tableau-lignes-devis th.col-num { width: 62px; }
+.tableau-lignes-devis th.col-qte { width: 86px; }
+.tableau-lignes-devis th.col-uni { width: 100px; }
+.tableau-lignes-devis th.col-pri { width: 112px; }
+.tableau-lignes-devis th.col-tva { width: 128px; }
+.tableau-lignes-devis th.col-tot { width: 116px; }
+.tableau-lignes-devis th.col-act { width: 48px; }
 .tableau-lignes-devis th.d, .tableau-lignes-devis td.d { text-align: right; }
 .tableau-lignes-devis td { padding: var(--esp-3); border-top: 1px solid var(--bordure); vertical-align: top; min-width: 0; }
 .tableau-lignes-devis .num { white-space: nowrap; color: var(--texte2); font-variant-numeric: tabular-nums; padding-top: var(--esp-5); }
@@ -281,6 +285,7 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
   .carte-editeur, .panneau-total { padding: var(--esp-5); }
   .bandeau-net { width: 100%; }
   .tableau-tva { width: 100%; }
+}
 
 /* ======== Fiche d'un devis (panneau latéral depuis la liste) : section propre à la fiche, ajoutée en fin de fichier. ======== */
 .tableau-devis .ligne-devis, .carte-devis[tabindex] { cursor: pointer; }
@@ -358,6 +363,91 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
   .fiche-fermer, .fiche-statut-menu, .fiche-statut-fixe, .fiche-onglet { min-height: 44px; min-width: 44px; }
   .fiche-tete-ligne { flex-wrap: wrap; }
   .fiche-titre { flex-basis: 100%; order: 3; }
+}
+
+/* ======== Éditeur de devis, partie 2 : menus, Bibliothèque, ajustement global, Options, impression. Uniquement des variables de tokens.css. ======== */
+
+/* Menus de l'éditeur (ligne, Options, ajustement, Finaliser) : sous-menus qui se déplient sur place, cases à cocher, champs. */
+.menu-devis { min-width: 260px; max-width: min(360px, calc(100vw - 16px)); }
+.menu-devis-liste { display: flex; flex-direction: column; gap: 2px; }
+.menu-devis-libelle { flex: 1 1 auto; min-width: 0; }
+.menu-devis-parent .menu-devis-fleche { margin-left: auto; transition: transform .15s ease; }
+.menu-devis-parent[aria-expanded="true"] .menu-devis-fleche { transform: rotate(90deg); }
+.menu-devis-sous { display: flex; flex-direction: column; margin-left: var(--esp-5); padding-left: var(--esp-3); border-left: 2px solid var(--bordure); }
+.menu-devis-sous[hidden] { display: none; }
+.menu-devis-titre { padding: var(--esp-3) var(--esp-4) var(--esp-1); color: var(--texte2); font-size: var(--fs-petit); font-weight: var(--poids-moyen); text-transform: uppercase; letter-spacing: .08em; }
+.menu-devis-bientot { margin-left: auto; color: var(--texte2); font-size: var(--fs-petit); white-space: nowrap; }
+.menu-devis-case, .menu-devis-champ { display: flex; align-items: center; gap: var(--esp-4); min-height: var(--h-ctrl); padding: var(--esp-2) var(--esp-4); border-radius: var(--rayon-petit); cursor: pointer; }
+.menu-devis-case:hover:not(.grisee) { background: var(--survol); }
+.menu-devis-case.grisee { opacity: .55; cursor: not-allowed; }
+.menu-devis-champ { cursor: default; justify-content: space-between; }
+.menu-devis-champ .champ { width: auto; min-width: 90px; }
+.menu-devis-options { max-height: min(80dvh, 640px); }
+.menu-pop-entree:disabled .menu-devis-bientot { opacity: 1; }
+
+/* Ajustement global : trois champs liés. */
+.ajust-zone { display: flex; flex-direction: column; gap: var(--esp-4); padding: var(--esp-3) var(--esp-4) var(--esp-4); }
+.ajust-zone[hidden] { display: none; }
+.ajust-champ { display: grid; grid-template-columns: 1fr 120px; align-items: center; gap: var(--esp-2) var(--esp-4); }
+.ajust-champ .erreur { grid-column: 1 / -1; margin: 0; }
+.ajust-champ .champ { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Finaliser : un bouton et son menu, collés. */
+.bouton-groupe { display: inline-flex; }
+.bouton-groupe > .bouton:first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.bouton-groupe > .bouton-groupe-menu { border-top-left-radius: 0; border-bottom-left-radius: 0; border-left: 1px solid var(--sur-accent); padding-left: var(--esp-3); padding-right: var(--esp-3); }
+
+/* Calcul des marges, références, prix ajusté, configuration d'un ouvrage. */
+.calcul-marge { display: none; padding: 0 var(--esp-3); color: var(--texte2); font-size: var(--fs-petit); font-variant-numeric: tabular-nums; }
+.page-editeur-devis[data-marges="oui"] .calcul-marge { display: block; }
+.reference-ligne { padding: 0 var(--esp-3); font-size: var(--fs-petit); }
+.prix-ajuste { padding: 0 var(--esp-3); color: var(--texte2); font-size: var(--fs-petit); font-variant-numeric: tabular-nums; text-align: right; }
+.bouton-configurer-ouvrage { display: none; margin: var(--esp-2) var(--esp-3) 0; min-height: 0; padding: 0; }
+.tableau-lignes-devis td.c-des:focus-within .bouton-configurer-ouvrage { display: inline-flex; }
+.ligne-ajustement dd { display: flex; align-items: baseline; justify-content: flex-end; gap: var(--esp-4); }
+
+/* Aperçu : barre avec le bouton « Imprimer / Enregistrer en PDF ». */
+.barre-apercu { display: flex; align-items: center; justify-content: space-between; gap: var(--esp-5); flex-wrap: wrap; margin-bottom: var(--esp-4); }
+
+/* Bibliothèque : bouton sous la barre, panneau à droite (deux colonnes : familles, articles). */
+.rangee-bibliotheque { display: flex; justify-content: flex-start; }
+.bibliotheque-panneau { position: fixed; top: 0; right: 0; bottom: 0; z-index: 40; display: flex; flex-direction: column; width: min(680px, 100%); background: var(--fond); color: var(--texte); border-left: 1px solid var(--bordure); box-shadow: var(--ombre); }
+.bibliotheque-tete { display: flex; align-items: center; gap: var(--esp-4); padding: var(--esp-5) var(--esp-6); border-bottom: 1px solid var(--bordure); }
+.bibliotheque-titre { margin: 0; flex: 1; font-size: var(--fs-section); font-weight: var(--poids-moyen); }
+.bibliotheque-retour { display: none; }
+.bibliotheque-corps { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(200px, 1fr) minmax(0, 2fr); }
+.bibliotheque-gauche { display: flex; flex-direction: column; gap: var(--esp-4); min-height: 0; padding: var(--esp-5); border-right: 1px solid var(--bordure); overflow-y: auto; }
+.bibliotheque-arbre { display: flex; flex-direction: column; gap: 2px; }
+.bibliotheque-famille { min-height: var(--h-ctrl-petit); padding: var(--esp-2) var(--esp-4); border: 0; border-radius: var(--rayon-petit); background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.bibliotheque-famille.niveau-2 { margin-left: var(--esp-6); color: var(--texte2); }
+.bibliotheque-famille:hover, .bibliotheque-famille:focus-visible { background: var(--survol); }
+.bibliotheque-famille.choisie { background: var(--accent-a26); color: var(--texte); font-weight: var(--poids-moyen); }
+.bibliotheque-droite { display: flex; flex-direction: column; min-height: 0; padding: var(--esp-5); overflow-y: auto; }
+.bibliotheque-liste { list-style: none; margin: 0; padding: 0; }
+.bibliotheque-article + .bibliotheque-article { border-top: 1px solid var(--bordure); }
+.bibliotheque-ligne { display: flex; align-items: center; gap: var(--esp-4); min-height: var(--h-ctrl); padding: var(--esp-2) var(--esp-2); cursor: pointer; }
+.bibliotheque-ligne:hover { background: var(--survol); }
+.bibliotheque-nom { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.bibliotheque-prix { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.bibliotheque-fin { margin-top: var(--esp-5); text-align: center; }
+.bibliotheque-pied { display: flex; justify-content: flex-end; padding: var(--esp-5) var(--esp-6); border-top: 1px solid var(--bordure); }
+@media (min-width: 1280px) { .page-editeur-devis.avec-bibliotheque { padding-right: 680px; } }
+
+/* Téléphone : les menus deviennent des feuilles collées en bas ; la Bibliothèque occupe tout l'écran avec un bouton retour. */
+@media (max-width: 700px) {
+  .menu-devis { left: 0; right: 0; bottom: 0; top: auto; max-width: none; width: 100%; max-height: 80dvh; border-radius: var(--rayon-carte) var(--rayon-carte) 0 0; z-index: 95; }
+  .menu-devis .menu-pop-entree, .menu-devis-case, .menu-devis-champ { min-height: 44px; }
+  .bibliotheque-panneau { inset: 0; width: 100%; z-index: 60; border-left: 0; }
+  .bibliotheque-retour { display: inline-grid; min-width: 44px; min-height: 44px; }
+  .bibliotheque-fermer { min-width: 44px; min-height: 44px; }
+  .bibliotheque-corps { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); overflow-y: auto; }
+  .bibliotheque-gauche { border-right: 0; border-bottom: 1px solid var(--bordure); max-height: 40dvh; }
+  .bibliotheque-ligne, .bibliotheque-famille { min-height: 44px; }
+  .bibliotheque-pied .bouton { width: 100%; min-height: 44px; }
+  .bouton-groupe { flex: 1 1 auto; }
+  .bouton-groupe > .bouton:first-child { flex: 1 1 auto; }
+  .bouton-groupe > .bouton-groupe-menu { flex: 0 0 auto; min-width: 44px; }
+  .bouton-configurer-ouvrage { display: inline-flex; min-height: 44px; align-items: center; }
 }
 
 /* La liste du champ « Famille » du tableau déborde de la cellule : on lève le rognage horizontal du cadre le temps de l'édition (sur ordinateur). */
