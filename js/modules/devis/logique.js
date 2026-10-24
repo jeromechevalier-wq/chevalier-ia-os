@@ -374,6 +374,99 @@ function erreursConditions(devis, t) {
   return e;
 }
 
+// ---------------------------------------------------------------- chantier (adresse, dates, durée) et émetteur
+/** Unités de durée du chantier : singulier, pluriel (le « mois » ne change pas). */
+export const UNITES_DUREE = [
+  { id: 'heure', singulier: 'heure', pluriel: 'heures' },
+  { id: 'jour', singulier: 'jour', pluriel: 'jours' },
+  { id: 'semaine', singulier: 'semaine', pluriel: 'semaines' },
+  { id: 'mois', singulier: 'mois', pluriel: 'mois' },
+  { id: 'annee', singulier: 'an', pluriel: 'ans' },
+];
+const deuxDecimalesAuPlus = (v) => Math.abs(v * 100 - Math.round(v * 100)) < 1e-9;
+
+/** Durée imprimable : « 1 semaine », « 3 semaines », « 1,5 jour » (pluriel à partir de 2). Null si illisible. */
+export function dureeEnTexte(d) {
+  const u = objet(d) ? UNITES_DUREE.find((x) => x.id === d.unite) : null;
+  if (!u || !estNombre(d.valeur) || d.valeur <= 0) return null;
+  return `${nombre(d.valeur)} ${d.valeur >= 2 ? u.pluriel : u.singulier}`;
+}
+
+/** Messages pour le bloc `chantier` (facultatif : absent = aucune erreur). Un message par problème. */
+export function erreursChantier(chantier) {
+  const e = [];
+  if (absent(chantier)) return e;
+  if (!objet(chantier)) return ['Les informations du chantier sont invalides.'];
+  const a = chantier.adresse;
+  if (!absent(a)) {
+    if (!objet(a)) e.push('L\'adresse du chantier est invalide.');
+    else if (!absent(a.codePostal) && a.codePostal !== '' && !/^\d{5}$/.test(String(a.codePostal))) e.push('Le code postal du chantier doit avoir 5 chiffres.');
+  }
+  const debutOk = absent(chantier.debutTravaux) || chantier.debutTravaux === '' ? null : estJour(chantier.debutTravaux);
+  if (debutOk === false) e.push('La date de début des travaux est illisible : indique une date valide.');
+  const finOk = absent(chantier.finChantierAu) || chantier.finChantierAu === '' ? null : estJour(chantier.finChantierAu);
+  if (finOk === false) e.push('La date de fin de chantier est illisible : indique une date valide.');
+  if (debutOk && finOk && chantier.finChantierAu < chantier.debutTravaux) e.push('La fin de chantier ne peut pas être avant le début des travaux.');
+  const d = chantier.dureeEstimee;
+  if (!absent(d)) {
+    if (!objet(d) || !estNombre(d.valeur) || d.valeur <= 0) e.push('La durée estimée du chantier doit être un nombre supérieur à zéro.');
+    else if (!deuxDecimalesAuPlus(d.valeur)) e.push('La durée estimée du chantier ne peut pas avoir plus de deux décimales.');
+    if (objet(d) && !UNITES_DUREE.some((u) => u.id === d.unite)) e.push('L\'unité de la durée du chantier est inconnue (heure, jour, semaine, mois ou année).');
+  }
+  return e;
+}
+
+/** Texte d'une adresse { ligne1, codePostal, ville } (ou texte simple). */
+export function adresseEnTexte(a) {
+  if (typeof a === 'string') return a.trim();
+  if (!objet(a)) return '';
+  const fin = [a.codePostal, a.ville].filter((x) => texteNonVide(String(x ?? ''))).join(' ');
+  return [a.ligne1, fin].filter((x) => texteNonVide(String(x ?? ''))).join('\n');
+}
+
+/** Bloc « Chantier » prêt à imprimer : seulement les lignes renseignées et lisibles. Null s'il n'y a rien. */
+export function chantierDeVue(chantier) {
+  if (!objet(chantier)) return null;
+  const adresse = adresseEnTexte(chantier.adresse);
+  const debut = estJour(chantier.debutTravaux) ? dateFrDe(chantier.debutTravaux) : '';
+  const duree = dureeEnTexte(chantier.dureeEstimee);
+  const fin = estJour(chantier.finChantierAu) ? dateFrDe(chantier.finChantierAu) : '';
+  const lignes = [];
+  if (adresse) lignes.push(adresse);
+  if (debut) lignes.push(`Début des travaux : ${debut}`);
+  if (duree) lignes.push(`Durée estimée : ${duree}`);
+  if (fin) lignes.push(`Fin de chantier au plus tard le ${fin}`);
+  if (!lignes.length) return null;
+  return { adresse: adresse || null, debutTravaux: debut || null, dureeEstimee: duree, finChantierAu: fin || null, lignes };
+}
+
+/**
+ * Mentions manquantes dans les réglages de l'entreprise (`emetteur`), pour un bandeau « mentions manquantes » et des champs en rouge.
+ * Retourne `{ mentions, champs, nombre }` : `mentions` = messages en français, `champs` = clés en erreur
+ * (nom, siret, adresse, email, telephone, assurance, mediateur). L'assurance n'est exigée que pour un métier du bâtiment
+ * (option `metierBatiment`, ou `emetteur.metierBatiment`, vrai par défaut).
+ */
+export function erreursEmetteur(emetteur, { metierBatiment } = {}) {
+  const e = objet(emetteur) ? emetteur : {};
+  const mentions = [];
+  const champs = [];
+  const manque = (cle, message) => { champs.push(cle); mentions.push(message); };
+  const plein = (v) => texteNonVide(String(v ?? ''));
+  if (!plein(e.nom)) manque('nom', 'Le nom de l\'entreprise est manquant.');
+  if (!plein(e.siret)) manque('siret', 'Le numéro SIRET est manquant.');
+  if (!plein(adresseEnTexte(e.adresse))) manque('adresse', 'L\'adresse de l\'entreprise est manquante.');
+  if (!plein(e.email) && !plein(e.telephone)) {
+    champs.push('email', 'telephone');
+    mentions.push('Indique au moins un e-mail ou un numéro de téléphone pour joindre l\'entreprise.');
+  }
+  const bati = metierBatiment ?? e.metierBatiment ?? true;
+  const a = objet(e.assurance) ? e.assurance : {};
+  if (bati && !(plein(a.garantie) && plein(a.assureur))) manque('assurance', 'L\'assurance professionnelle est incomplète : indique la garantie et l\'assureur.');
+  const m = objet(e.mediateur) ? e.mediateur : {};
+  if (!plein(m.nom) || !(plein(m.email) || plein(m.site))) manque('mediateur', 'Le médiateur de la consommation est incomplet : indique son nom et son e-mail ou son site.');
+  return { mentions, champs, nombre: mentions.length };
+}
+
 /** Liste de messages (en français, qui disent quoi faire). Vide = on peut finaliser. Aucun accès réseau ni base. */
 export function erreursFinalisation(devis) {
   const erreurs = [];
@@ -408,6 +501,7 @@ export function erreursFinalisation(devis) {
   const erreurDeRemise = erreurRemise(devis, totauxDevis(devis).totalBrutHt);
   if (erreurDeRemise) erreurs.push(erreurDeRemise);
   erreurs.push(...erreursConditions(devis, totauxDevis(devis)));
+  erreurs.push(...erreursChantier(devis.chantier));
   return erreurs;
 }
 
@@ -582,6 +676,7 @@ export function vueClient(devis, contexte = {}) {
       chantier: devis.adresses?.chantier ?? null,
     },
     objet: devis.objet ?? null,
+    ...(chantierDeVue(devis.chantier) ? { chantier: chantierDeVue(devis.chantier) } : {}),
     client: { nom: contexte.clientNom ?? null },
     sections: (devis.sections ?? []).map((s, i) => ({
       id: s.id,
