@@ -405,7 +405,7 @@ describe('3 saut de page : hors totaux, sans numéro, fidèle à l’ancien rég
     // Parent avec deux sous-sections, saut en fin de la première : « Sous-total 1 » vient APRÈS la sous-section 1.2 (relecture Fable).
     const imbriquees = devisHtml(vue([{ id: 's1', titre: 'Toit', lignes: [] }, { id: 'ss1', titre: 'Un', niveau: 2, lignes: [ligne('a', 10, 1), saut('p')] }, { id: 'ss2', titre: 'Deux', niveau: 2, lignes: [ligne('b', 10, 1)] }]));
     assert.ok(imbriquees.indexOf('Sous-total 1.1') < imbriquees.indexOf('<tr class="saut-page"') && imbriquees.indexOf('<tr class="saut-page"') < imbriquees.indexOf('>Article b<'));
-    assert.ok(imbriquees.indexOf('Sous-total 1<') > imbriquees.indexOf('>Article b<') || imbriquees.lastIndexOf('Sous-total 1') > imbriquees.indexOf('>Article b<'));
+    assert.ok(imbriquees.search(/Sous-total 1[\s\u00a0]*:/) > imbriquees.indexOf('>Article b<'));
     // Sans saut : aucun élément de saut dans le document.
     assert.equal((devisHtml(vue([{ id: 's1', titre: 'A', lignes: [ligne('a', 10, 1)] }])).match(/<tr class="saut-page"/g) ?? []).length, 0);
   });
