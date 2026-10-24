@@ -961,3 +961,67 @@ describe('Configuration de l’espace lue par le serveur : la même que l’écr
     assert.equal(s.doc('projets_projets', id).phase, 'livraison');
   });
 });
+
+describe('Emails et téléphones multiples d’une organisation (critère 8)', () => {
+  test('8a modifier_organisation : emails et telephones (listes avec type) remplacent la liste, l’ancien champ est vidé, lire_organisation les rend', async () => {
+    const s = await demarrer();
+    const r = ok(await s.appeler('biblio', 'modifier_organisation', { id: 'org1', emails: [{ valeur: 'contact@exemple.test', type: 'travail' }, { valeur: 'compta@exemple.test', type: 'autre' }], telephones: [{ valeur: '04 00 00 00 00' }] }));
+    assert.deepEqual(r.champsModifies.sort(), ['email', 'emails', 'telephone', 'telephones']);
+    const o = s.doc('crm_organisations', 'org1');
+    assert.deepEqual(o.emails, [{ valeur: 'contact@exemple.test', type: 'travail' }, { valeur: 'compta@exemple.test', type: 'autre' }]);
+    assert.deepEqual(o.telephones, [{ valeur: '04 00 00 00 00', type: 'travail' }]);
+    assert.equal(o.email, '');
+    const lue = ok(await s.appeler('lecteur', 'lire_organisation', { id: 'org1' }));
+    assert.equal(lue.organisation.emails.length, 2);
+    assert.equal(lue.organisation.telephones[0].valeur, '04 00 00 00 00');
+  });
+
+  test('8b un email invalide est refusé (saisie_invalide) et rien n’est écrit ; plus de 10 valeurs est refusé', async () => {
+    const s = await demarrer();
+    const avant = s.vue();
+    refuse(await s.appeler('biblio', 'modifier_organisation', { id: 'org1', emails: [{ valeur: 'pas-un-email' }] }), /invalide/i);
+    refuse(await s.appeler('biblio', 'modifier_organisation', { id: 'org1', email: 'pas-un-email' }), /invalide/i);
+    refuse(await s.appeler('biblio', 'modifier_organisation', { id: 'org1', emails: Array.from({ length: 11 }, (_, i) => ({ valeur: `e${i}@exemple.test` })) }));
+    assert.deepEqual(s.vue(), avant);
+  });
+
+  test('8c les anciens champs texte email et telephone sont AJOUTÉS à la liste (jamais perdus), sans doublon', async () => {
+    const s = await demarrer();
+    ok(await s.appeler('biblio', 'modifier_organisation', { id: 'org1', emails: [{ valeur: 'un@exemple.test' }] }));
+    ok(await s.appeler('biblio', 'modifier_organisation', { id: 'org1', email: 'Deux@Exemple.test', telephone: '04 11 11 11 11' }));
+    ok(await s.appeler('biblio', 'modifier_organisation', { id: 'org1', email: 'deux@exemple.test' })); // déjà là : pas de doublon
+    const o = s.doc('crm_organisations', 'org1');
+    assert.deepEqual(o.emails.map((e) => e.valeur), ['un@exemple.test', 'Deux@Exemple.test']);
+    assert.deepEqual(o.telephones.map((t) => t.valeur), ['04 11 11 11 11']);
+    ok(await s.appeler('biblio', 'modifier_organisation', { id: 'org1', telephone: '04.11.11.11.11' })); // mêmes chiffres : pas de doublon
+    assert.equal(s.doc('crm_organisations', 'org1').telephones.length, 1);
+  });
+
+  test('8f une liste déjà pleine (10) refuse un email donné par l\'ancien champ ; la création sans doublon d\'email ; une valeur blanche est ignorée', async () => {
+    const s = await demarrer();
+    ok(await s.appeler('biblio', 'modifier_organisation', { id: 'org1', emails: Array.from({ length: 10 }, (_, i) => ({ valeur: `e${i}@exemple.test` })) }));
+    refuse(await s.appeler('biblio', 'modifier_organisation', { id: 'org1', email: 'onzieme@exemple.test' }), /Au plus 10/);
+    assert.equal(s.doc('crm_organisations', 'org1').emails.length, 10);
+    const o = ok(await s.appeler('biblio', 'creer_organisation', { nom: 'Sans Doublon', emails: [{ valeur: 'a@exemple.test' }, { valeur: 'A@Exemple.test' }, { valeur: ' ' }] }));
+    assert.deepEqual(s.doc('crm_organisations', o.id).emails.map((e) => e.valeur), ['a@exemple.test']);
+  });
+
+  test('8d une organisation non convertie (ancien champ email) : lire_organisation le rend comme première valeur ; la liste vide [] efface tout', async () => {
+    const s = await demarrer();
+    s.collections.crm_organisations.find((o) => o.id === 'org1').email = 'ancien@exemple.test';
+    const lue = ok(await s.appeler('lecteur', 'lire_organisation', { id: 'org1' }));
+    assert.deepEqual(lue.organisation.emails, [{ valeur: 'ancien@exemple.test', type: 'travail' }]);
+    ok(await s.appeler('biblio', 'modifier_organisation', { id: 'org1', emails: [] }));
+    const o = s.doc('crm_organisations', 'org1');
+    assert.deepEqual(o.emails, []);
+    assert.equal(o.email, '');
+  });
+
+  test('8e creer_organisation accepte emails et telephones, refuse un email invalide', async () => {
+    const s = await demarrer();
+    const o = ok(await s.appeler('biblio', 'creer_organisation', { nom: 'Boutique Neuve', emails: [{ valeur: 'neuve@exemple.test', type: 'perso' }], telephones: [{ valeur: '04 22 22 22 22' }] }));
+    assert.deepEqual(s.doc('crm_organisations', o.id).emails, [{ valeur: 'neuve@exemple.test', type: 'perso' }]);
+    assert.equal(s.doc('crm_organisations', o.id).telephones.length, 1);
+    refuse(await s.appeler('biblio', 'creer_organisation', { nom: 'Autre Boutique', emails: [{ valeur: 'x' }] }), /pas valide|invalide/i);
+  });
+});

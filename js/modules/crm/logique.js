@@ -756,13 +756,31 @@ export function validerPersonne(v) {
 }
 
 export function validerOrganisation(v) {
-  return nettoyerEspaces(v.nom) ? {} : { nom: 'Le nom est obligatoire.' };
+  const erreurs = nettoyerEspaces(v.nom) ? {} : { nom: 'Le nom est obligatoire.' };
+  for (const e of v.emails || []) {
+    if (nettoyerEspaces(e.valeur) && !emailValide(e.valeur)) erreurs.emails = "Cette adresse email n'est pas valide."; // une valeur blanche est ignorée, comme à l'écran
+  }
+  return erreurs;
 }
 
-function contactsNettoyes(liste) {
+function contactsPropres(liste) {
   return (liste || [])
     .map((c) => ({ valeur: nettoyerEspaces(c.valeur), type: TYPES_CONTACT.some((t) => t.id === c.type) ? c.type : 'travail' }))
     .filter((c) => c.valeur);
+}
+function contactsNettoyes(liste) {
+  return contactsPropres(liste).slice(0, MAX_CONTACTS);
+}
+
+/** Emails (même adresse sans la casse) ou téléphones (mêmes chiffres) : la première occurrence est gardée. Pas de limite ici (voir MAX_CONTACTS). */
+export function sansDoublonsContacts(genre, contacts) {
+  const vus = new Set();
+  return contactsPropres(contacts).filter((c) => {
+    const k = genre === 'telephones' ? c.valeur.replace(/[^\d+]/g, '') || c.valeur : normaliserEmail(c.valeur);
+    if (vus.has(k)) return false;
+    vus.add(k);
+    return true;
+  });
 }
 
 /** Document d'une nouvelle personne. Seul le nom est requis. */
@@ -796,8 +814,8 @@ export function nouvelleOrganisation(valeurs, ctx) {
     adresse: nettoyerEspaces(valeurs.adresse),
     ville: nettoyerEspaces(valeurs.ville),
     siteWeb: '',
-    telephone: '',
-    email: '',
+    telephones: sansDoublonsContacts('telephones', valeurs.telephones).slice(0, MAX_CONTACTS),
+    emails: sansDoublonsContacts('emails', valeurs.emails).slice(0, MAX_CONTACTS),
     secteur: valeurs.secteur || '',
     taille: '',
     etiquettes: [...(valeurs.etiquettes || [])],
@@ -817,6 +835,24 @@ export function patchNomDetaille(prenom, nomFamille) {
 export function patchNomAffiche(nom) {
   const n = nettoyerEspaces(nom);
   return { nom: n, ...decouperNom(n) };
+}
+
+/**
+ * Emails ou téléphones d'une organisation : la liste `emails` / `telephones`. Les anciennes fiches n'ont qu'un champ texte `email` / `telephone` :
+ * il est lu comme une première valeur (type Travail) tant qu'il n'a pas été converti (la première écriture de la liste le vide).
+ */
+export function contactsOrganisation(organisation, genre) {
+  const cle = genre === 'telephones' ? 'telephones' : 'emails';
+  const ancien = nettoyerEspaces(organisation?.[cle === 'emails' ? 'email' : 'telephone']);
+  const liste = Array.isArray(organisation?.[cle]) ? organisation[cle].map((c) => ({ valeur: c.valeur, type: c.type })) : [];
+  const dejaLa = (v) => liste.some((c) => (cle === 'emails' ? normaliserEmail(c.valeur) === normaliserEmail(v) : String(c.valeur).replace(/[^\d+]/g, '') === String(v).replace(/[^\d+]/g, '')));
+  return ancien && !dejaLa(ancien) ? [{ valeur: ancien, type: 'travail' }, ...liste] : liste;
+}
+
+/** Patch d'une organisation après modification de sa liste d'emails ou de téléphones : la liste est écrite, l'ancien champ texte est vidé. */
+export function patchContactsOrganisation(genre, contacts) {
+  const propres = sansDoublonsContacts(genre, contacts).slice(0, MAX_CONTACTS);
+  return genre === 'telephones' ? { telephones: propres, telephone: '' } : { emails: propres, email: '' };
 }
 
 /** Patch après modification des emails : la liste normalisée suit. */
