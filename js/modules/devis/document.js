@@ -125,13 +125,34 @@ function blocEmetteur(e, logo) {
   return `<div class="emetteur">${l.join('')}</div>`;
 }
 
-function blocDestinataire(vue) {
+function blocDestinataire(vue, aff = {}) {
   const adr = adresseTexte(vue.adresses?.facturation) || adresseTexte(vue.adresses?.commanditaire);
   const nom = vue.client?.nom;
-  return `<div class="destinataire"><div class="etiquette">Destinataire</div>${nom ? `<div class="nom">${texte(nom)}</div>` : ''}${adr ? `<div>${texte(adr)}</div>` : ''}</div>`;
+  // Coordonnées du client : seulement celles que les cases du menu Options demandent ET que la fiche du client contient.
+  const c = vue.client ?? {};
+  const coordonnees = [
+    aff.afficherTelephone && c.telephone ? `<div>${texte(c.telephone)}</div>` : '',
+    aff.afficherEmail && c.email ? `<div>${texte(c.email)}</div>` : '',
+    aff.afficherNumeroTva && c.numeroTva ? `<div>${texte(`TVA ${c.numeroTva}`)}</div>` : '',
+    aff.afficherSiren && c.siren ? `<div>${texte(`SIREN ${c.siren}`)}</div>` : '',
+  ].join('');
+  return `<div class="destinataire"><div class="etiquette">Destinataire</div>${nom ? `<div class="nom">${texte(nom)}</div>` : ''}${adr ? `<div>${texte(adr)}</div>` : ''}${coordonnees}</div>`;
 }
 
-function tableauLignes(vue, sansTva) {
+/** Description d'une ligne : celle de la vue, ou (cases du menu Options) masquée / détaillée avec les prix des éléments d'un ouvrage. */
+function descriptionDeLigne(l, aff) {
+  const lignes = [];
+  if (Array.isArray(l.elements) && l.elements.length) {
+    if (aff.cacherElementsOuvrage) { /* éléments cachés */ } else if (aff.afficherPrixElementsOuvrage) {
+      lignes.push(l.elements.map((e) => `- ${e.libelle} (${nombre(e.quantite)}${e.unite ? ` ${e.unite}` : ''})${Number.isFinite(e.prixUnitaireHT) ? ` : ${formaterMontant(e.prixUnitaireHT)}${NBSP}HT` : ''}`).join('\n'));
+    } else if (l.description) lignes.push(l.description);
+  } else if (l.description) lignes.push(l.description);
+  if (aff.afficherReferences && l.reference) lignes.push(`Réf.${NBSP}: ${l.reference}`);
+  return lignes.map((d) => `<div class="description">${texte(d)}</div>`).join('');
+}
+
+function tableauLignes(vue, sansTva, aff = {}) {
+  const colonnes = 7 - (aff.cacherQuantiteUnite ? 2 : 0) - (aff.cacherTva ? 1 : 0);
   const lignes = [];
   const liste = vue.sections ?? [];
   // Le sous-total d'une section de niveau 1 vient après ses sous-sections (il les compte) : sans sous-section, il suit tout de suite ses lignes, comme avant.
@@ -142,23 +163,26 @@ function tableauLignes(vue, sansTva) {
     if (!sous) fermer();
     // Saut de page demandé : jamais sur la première section (la page est déjà neuve).
     const saut = s.sautDePageAvant === true && k > 0 ? ' saut-avant' : '';
-    lignes.push(`<tr class="bandeau${sous ? ' sous-bandeau' : ''}${saut}"><td class="num">${texte(s.numero)}</td><td colspan="6">${texte(s.titre || 'Prestations')}</td></tr>`);
+    lignes.push(`<tr class="bandeau${sous ? ' sous-bandeau' : ''}${saut}"><td class="num">${texte(s.numero)}</td><td colspan="${colonnes - 1}">${texte(s.titre || 'Prestations')}</td></tr>`);
     for (const l of s.lignes ?? []) {
       const tva = sansTva && vue.regimeTva === 'franchise' ? '-' : pourcent(l.tauxTva ?? 0);
-      lignes.push(`<tr><td class="num">${texte(l.numero)}</td><td>${texte(l.libelle)}${l.description ? `<div class="description">${texte(l.description)}</div>` : ''}</td>`
-        + `<td class="d">${texte(nombre(l.quantite))}</td><td>${texte(l.unite)}</td><td class="d">${formaterMontant(l.prixUnitaireHT)}</td><td class="d">${tva}</td><td class="d">${formaterMontant(l.totalHT)}</td></tr>`);
+      lignes.push(`<tr><td class="num">${texte(l.numero)}</td><td>${texte(l.libelle)}${descriptionDeLigne(l, aff)}</td>`
+        + `${aff.cacherQuantiteUnite ? '' : `<td class="d">${texte(nombre(l.quantite))}</td><td>${texte(l.unite)}</td>`}<td class="d">${formaterMontant(l.prixUnitaireHT)}</td>${aff.cacherTva ? '' : `<td class="d">${tva}</td>`}<td class="d">${formaterMontant(l.totalHT)}</td></tr>`);
     }
-    const sousTotal = `<tr class="sous-total${sous ? ' sous-total-sous' : ''}"><td colspan="7">Sous-total ${texte(s.numero)}${NBSP}: ${formaterMontant(s.sousTotalHT)}</td></tr>`;
+    const sousTotal = aff.cacherTotauxSections ? null : `<tr class="sous-total${sous ? ' sous-total-sous' : ''}"><td colspan="${colonnes}">Sous-total ${texte(s.numero)}${NBSP}: ${formaterMontant(s.sousTotalHT)}</td></tr>`;
+    if (!sousTotal) continue;
     if (sous) lignes.push(sousTotal); else enAttente = sousTotal;
   }
   fermer();
-  return `<table class="lignes"><thead><tr><th class="num">N°</th><th>Désignation</th><th class="d">Qté</th><th>Unité</th><th class="d">Prix U.${NBSP}HT</th><th class="d">TVA</th><th class="d">Total${NBSP}HT</th></tr></thead><tbody>${lignes.join('')}</tbody></table>`;
+  return `<table class="lignes"><thead><tr><th class="num">N°</th><th>Désignation</th>${aff.cacherQuantiteUnite ? '' : '<th class="d">Qté</th><th>Unité</th>'}<th class="d">Prix U.${NBSP}HT</th>${aff.cacherTva ? '' : '<th class="d">TVA</th>'}<th class="d">Total${NBSP}HT</th></tr></thead><tbody>${lignes.join('')}</tbody></table>`;
 }
 
 /**
  * HTML complet du devis. `vue` : résultat de vueClient. Options : `brouillon` (filigrane), `logo` (data URL ou null),
  * `pagesAvant` (tableau de fragments HTML DÉJÀ échappés par l'appelant (voir `fragmentDePage`), chacun sur sa page A4, placés avant le chiffrage)
  * et `blocSignature` (fragment HTML déjà échappé, placé en dernière page, après les CGV). Absentes : rendu inchangé.
+ * `affichage` (cases du menu « Options » du devis, voir affichageDe de logique.js : totaux de section, quantité et unité, TVA, éléments d'ouvrage, références,
+ * coordonnées du client, déchets). Sans `affichage`, le document est exactement le même qu'avant.
  */
 export function devisHtml(vue, options = {}) {
   const v = vue ?? {};
@@ -169,6 +193,7 @@ export function devisHtml(vue, options = {}) {
   const titre = `Devis ${v.numero ?? ''}`.trim();
   // Réglages de l'entreprise : fournis à côté du devis (options.emetteur) ou portés par la vue.
   const emetteur = options.emetteur ?? v.emetteur ?? {};
+  const aff = options.affichage ?? {};
   const accent = couleurValide(emetteur.couleur);
 
   const infos = [`<h1>Devis</h1>`];
@@ -242,13 +267,13 @@ export function devisHtml(vue, options = {}) {
 
   const corps = [
     ...pagesAvant,
-    `<div class="haut">${blocEmetteur(emetteur, options.logo)}${blocDestinataire(v)}</div>`,
+    `<div class="haut">${blocEmetteur(emetteur, options.logo)}${blocDestinataire(v, aff)}</div>`,
     `<div class="infos">${infos.join('')}</div>`,
     blocChantier,
-    tableauLignes(v, sansTva),
+    tableauLignes(v, sansTva, aff),
     `<div class="bas">${tableauTaux}<table class="totaux"><tbody>${lignesTotaux.join('')}</tbody></table></div>`,
     paiement.length ? `<div class="paiement"><h2>Conditions et modes de paiement</h2>${paiement.join('')}</div>` : '',
-    dechets,
+    aff.cacherDechets ? '' : dechets,
     mentions.length ? `<div class="mentions">${mentions.map((m) => `<p>${texte(m)}</p>`).join('')}</div>` : '',
     `<div class="client"><div class="titre">Pour le client</div><div>${texte(v.mentionSignature ?? '')}</div></div>`,
     notes,

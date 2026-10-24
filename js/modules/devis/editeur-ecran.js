@@ -13,10 +13,16 @@ import * as A from './articles.js';
 import { arbreFamilles, cheminFamille } from './familles.js';
 import * as Ed from './editeur-logique.js';
 import {
-  totauxDevis, vueClient, erreursFinalisation, erreursChantier, STATUTS_DEVIS, MODES_MARGE, UNITES_DUREE, MOMENTS_ACOMPTE, transitionPossible, TAUX_TVA_DEFAUT, niveauSection, dureeEnTexte,
+  totauxDevis, erreursFinalisation, erreursChantier, STATUTS_DEVIS, MODES_MARGE, UNITES_DUREE, MOMENTS_ACOMPTE, transitionPossible, TAUX_TVA_DEFAUT, niveauSection, dureeEnTexte,
+  affichageDe, ajustementActif, valeursAjustement, margeEffective, vueClient,
 } from './logique.js';
-import { devisHtml, formaterMontant } from './document.js';
+import { formaterMontant } from './document.js';
 import { menuUnite } from './menu-unite.js';
+import { ouvrirFenetreMenu, contenuMenu, caseMenu, donnees as donneesDe } from './menu-devis.js';
+import { ouvrirBibliotheque } from './bibliotheque.js';
+import { imprimerDevis, htmlDuDevis } from './imprimer.js';
+import { editeurOuvrage } from './editeur-ouvrage.js';
+import * as O from './ouvrages.js';
 
 const ERREUR_ECRITURE = 'Enregistrement impossible : ton compte n’a peut-être que le droit de lire cet espace, ou la connexion est coupée. Réessaie dans un instant.';
 const ERREUR_LECTURE = 'Les devis n’ont pas pu être lus. Vérifie ta connexion puis recharge la page.';
@@ -42,6 +48,17 @@ function clientsDeAffaire(affaire) {
   return liste.map((c) => ({ ...c, adresse: (adressesDe(c.fiche).find((a) => a.parDefaut) ?? adressesDe(c.fiche)[0])?.adresse ?? '' }));
 }
 const clientDuDevis = (d) => (d.organisationId ? CRM.organisation(d.organisationId)?.nom : d.personneId ? CRM.personne(d.personneId)?.nom : '') || '';
+/** Coordonnées du client lues dans sa fiche (pour les cases « Afficher le téléphone… » du menu Options) ; une donnée absente de la fiche reste absente. */
+export function infosClientDuDevis(d) {
+  const fiche = d.organisationId ? CRM.organisation(d.organisationId) : d.personneId ? CRM.personne(d.personneId) : null;
+  if (!fiche) return null;
+  const telephone = (Array.isArray(fiche.telephones) ? fiche.telephones[0]?.valeur : '') || fiche.telephone || '';
+  return { telephone, email: Ed.emailsDeFiche(fiche)[0] ?? '', numeroTva: fiche.numeroTva ?? fiche.tva ?? '', siren: fiche.siren ?? '' };
+}
+/** Document complet du devis (le même pour l'aperçu, l'impression de l'éditeur et celle de la fiche). */
+export const htmlImpressionDevis = (d) => htmlDuDevis(d, { clientNom: clientDuDevis(d) || null, client: infosClientDuDevis(d) });
+/** Imprime le devis (ou l'enregistre en PDF) sans serveur. À appeler directement dans un clic. Rend { ok, erreur }. */
+export function imprimerLeDevis(d) { return imprimerDevis({ html: htmlImpressionDevis(d) }); }
 const affaires = () => CRM.etat.affaires.filter((a) => !a.archive).sort((a, b) => String(a.titre).localeCompare(String(b.titre), 'fr'));
 const libelleAffaire = (a) => {
   const c = clientsDeAffaire(a)[0]?.nom;
@@ -161,7 +178,8 @@ export function rendreEditeurDevis(conteneur, id) {
   let enCours = null;
   let minuteur = null;
   let onglet = 'edition';
-  let pointInsertion = null; // identifiant sous lequel s'ajoutera le prochain article du Bordereau
+  let pointInsertion = null; // identifiant sous lequel (ou au-dessus duquel, voir sensInsertion) s'ajoutera le prochain article du Bordereau
+  let sensInsertion = 'apres'; // 'apres' (en dessous) ou 'avant' (au-dessus)
   let rechercheBordereau = '';
   let filtreFamille = '';
   let moment = Date.now();
@@ -173,6 +191,9 @@ export function rendreEditeurDevis(conteneur, id) {
   let delaiIntrouvable = null;
   const ref = {}; // éléments à mettre à jour sans tout redessiner
   const replies = new Set(); // sections et sous-sections repliées (à l'écran seulement : rien n'est enregistré)
+  let bibliotheque = null; // le panneau « Bibliothèque » ouvert, ou null
+  let ligneActive = null; // la dernière ligne où l'utilisateur a cliqué ou écrit : la Bibliothèque ajoute à la fin de sa section
+  const affichage = () => affichageDe(travail);
 
   const devisCourant = () => D.devisParId(id);
 
@@ -274,10 +295,12 @@ export function rendreEditeurDevis(conteneur, id) {
     }
   }
   function ajouterLigne(element, { champ = 'libelle' } = {}) {
-    const apres = pointInsertion && Ed.aplatir(travail.sections).some((x) => x.id === pointInsertion) ? pointInsertion : null;
+    const cible = pointInsertion && Ed.aplatir(travail.sections).some((x) => x.id === pointInsertion) ? pointInsertion : null;
+    const avant = sensInsertion === 'avant' && cible;
     pointInsertion = null;
+    sensInsertion = 'apres';
     majPointInsertion();
-    appliquer(Ed.ajouterElement(travail.sections, element, apres, nouvelId()), { focus: element.id, champ });
+    appliquer(avant ? Ed.ajouterAvant(travail.sections, element, cible, nouvelId()) : Ed.ajouterElement(travail.sections, element, cible, nouvelId()), { focus: element.id, champ });
   }
   const changerLigne = (idLigne, patch) => { travail.sections = Ed.majElement(travail.sections, idLigne, patch); marquerModifie(); };
 
@@ -304,8 +327,10 @@ export function rendreEditeurDevis(conteneur, id) {
     ref.panneauEdition = h('div', { class: 'editeur-edition', dataset: { panneau: 'edition' } },
       lecture
         ? h('article', { class: 'document-devis' }, blocTotaux())
-        : [(ref.options = blocOptions()), h('article', { class: 'document-devis' }, enteteDocument(), blocLignes(), basDePage())]);
+        : [(ref.marges = blocMarges()), rangeeBibliotheque(), h('article', { class: 'document-devis' }, enteteDocument(), blocLignes(), basDePage())]);
     ref.panneauApercu = h('div', { class: 'editeur-apercu', dataset: { panneau: 'apercu' } });
+    bibliotheque?.fermer();
+    bibliotheque = null;
     racine.classList.toggle('devis-lecture-seule', lecture);
     remplir(racine, barre, lecture ? h('p', { class: 'bandeau-lecture-seule', dataset: { valeur: 'lecture-seule' } }, MESSAGE_LECTURE_SEULE) : ref.bandeauConflit, ref.erreurEnreg, ref.panneauEdition, ref.panneauApercu);
     if (!lecture) { rendreLignes(); majResultats(); }
@@ -327,24 +352,74 @@ export function rendreEditeurDevis(conteneur, id) {
     ];
   }
 
-  // Barre d'actions : Options (réglages du devis ; le menu complet viendra ensuite), Annuler, Enregistrer, Finaliser. Sur téléphone, Options passe dans le bouton « … ».
+  // Barre d'actions : Options (menu à cases à cocher), Annuler, Enregistrer, Finaliser (bouton à menu). Sur téléphone, Options passe dans le bouton « … ».
   function boutonsEdition() {
-    ref.boutonOptions = h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-options', dataset: { action: 'options' }, 'aria-expanded': 'false', 'aria-controls': 'options-devis', onclick: () => basculerOptions() }, 'Options', icone('chevron-down', { taille: 14 }));
+    ref.boutonOptions = h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-options', dataset: { action: 'options' }, 'aria-haspopup': 'menu', 'aria-expanded': 'false', onclick: (ev) => ouvrirOptions(ev.currentTarget) }, 'Options', icone('chevron-down', { taille: 14 }));
     return [
       ref.boutonOptions,
-      h('button', { type: 'button', class: 'bouton-icone bouton-plus-actions', dataset: { action: 'plus-actions' }, 'aria-haspopup': 'menu', 'aria-label': 'Autres actions', onclick: (ev) => ouvrirMenu(ev.currentTarget, [{ libelle: 'Options', icone: 'settings', action: () => basculerOptions(true) }]) }, icone('ellipsis', { taille: 16 })),
+      h('button', { type: 'button', class: 'bouton-icone bouton-plus-actions', dataset: { action: 'plus-actions' }, 'aria-haspopup': 'menu', 'aria-label': 'Autres actions', onclick: (ev) => { const ancre = ev.currentTarget; ouvrirMenu(ancre, [{ libelle: 'Options', icone: 'settings', action: () => ouvrirOptions(ancre) }]); } }, icone('ellipsis', { taille: 16 })),
       h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'annuler' }, onclick: () => naviguer('devis/liste') }, 'Annuler'),
       (ref.boutonEnregistrer = h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'enregistrer' }, onclick: async () => { const ok = await sauver(); toast(ok ? 'Devis enregistré' : messageEnreg || ERREUR_ECRITURE, { type: ok ? 'info' : 'erreur', duree: ok ? 2500 : 8000 }); } })),
-      h('button', { type: 'button', class: 'bouton bouton-principal', dataset: { action: 'finaliser' }, onclick: finaliser }, icone('check', { taille: 16 }), 'Finaliser'),
+      h('div', { class: 'bouton-groupe' },
+        h('button', { type: 'button', class: 'bouton bouton-principal', dataset: { action: 'finaliser' }, onclick: () => finaliser() }, icone('check', { taille: 16 }), 'Finaliser'),
+        h('button', { type: 'button', class: 'bouton bouton-principal bouton-groupe-menu', dataset: { action: 'menu-finaliser' }, 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-label': 'Autres façons de finaliser', onclick: (ev) => ouvrirMenuFinaliser(ev.currentTarget) }, icone('chevron-down', { taille: 14 }))),
     ];
   }
 
-  function basculerOptions(forcer) {
-    if (!ref.options) return;
-    const ouvert = forcer ?? ref.options.hidden;
-    ref.options.hidden = !ouvert;
-    ref.boutonOptions?.setAttribute('aria-expanded', String(ouvert));
-    if (ouvert) ref.options.scrollIntoView?.({ block: 'nearest' });
+  // Les trois groupes de cases du menu « Options » : Édition, Document, Clients (enregistrées dans `devis.affichage`), puis Import / Export (pas encore là).
+  function basculerAffichage(cle, valeur) {
+    travail.affichage = { ...affichageDe(travail), [cle]: valeur };
+    marquerModifie();
+    appliquerAffichage();
+  }
+  function appliquerAffichage() {
+    if (!ref.corpsLignes) return;
+    rendreEntetesTableau();
+    rendreLignes();
+    majMarges();
+    if (onglet === 'apercu') rendreApercu();
+  }
+  function ouvrirOptions(ancre) {
+    ouvrirFenetreMenu(ancre, (fermer) => {
+      const aff = affichage();
+      const c = (libelle, cle, extra = {}) => caseMenu({ libelle, cle, coche: aff[cle], surChangement: (v) => basculerAffichage(cle, v), ...extra });
+      const bientot = (libelle) => caseMenu({ libelle, bientot: true });
+      const taux = [...new Set([...D.etat.reglages.tauxProposes, ...TAUX_TVA_DEFAUT, travail.tauxTvaDefaut])].sort((a, b) => b - a);
+      const tva = h('select', { class: 'champ', id: 'devis-tva', dataset: { champ: 'tva-defaut' }, 'aria-label': 'Changer la TVA par défaut', onchange: (e) => { changer({ tauxTvaDefaut: Number(e.target.value) }); majTotaux(); } },
+        taux.map((t) => h('option', { value: String(t), selected: travail.tauxTvaDefaut === t }, `${saisieNombre(t)} %`)));
+      return contenuMenu([
+        { titre: 'Édition' },
+        { noeud: c('Afficher le calcul des marges', 'afficherMarges') },
+        { noeud: c('Afficher les références', 'afficherReferences') },
+        { noeud: caseMenu({ libelle: 'Attestation TVA', cle: 'attestationTva', coche: true, desactive: true, info: 'automatique' }) },
+        { noeud: caseMenu({ libelle: 'Autoliquidation', cle: 'autoliquidation', coche: travail.autoliquidation === true, surChangement: (v) => { changer({ autoliquidation: v }); majTotaux(); } }) },
+        { noeud: h('label', { class: 'menu-devis-champ' }, h('span', { class: 'menu-devis-libelle' }, 'Changer la TVA par défaut'), tva) },
+        { noeud: c('Cacher la gestion des déchets', 'cacherDechets') },
+        { noeud: bientot('Afficher les remises par ligne') }, { noeud: bientot('Afficher les stocks') },
+        { noeud: bientot('Numérotation personnalisée') }, { noeud: bientot('Date visite préalable') },
+        { separateur: true }, { titre: 'Document' },
+        { noeud: c('Cacher les totaux des sections', 'cacherTotauxSections') },
+        { noeud: c('Cacher les colonnes quantité et unité', 'cacherQuantiteUnite') },
+        { noeud: c('Cacher la colonne TVA', 'cacherTva') },
+        { noeud: c('Cacher les éléments d’ouvrage', 'cacherElementsOuvrage') },
+        { noeud: c('Afficher les prix des éléments d’ouvrage', 'afficherPrixElementsOuvrage') },
+        { noeud: bientot('Cacher l’annexe photos') }, { noeud: bientot('Cacher le reste à facturer') },
+        { separateur: true }, { titre: 'Clients' },
+        { noeud: c('Afficher le téléphone', 'afficherTelephone') }, { noeud: c('Afficher l’e-mail', 'afficherEmail') },
+        { noeud: c('Afficher le numéro de TVA', 'afficherNumeroTva') }, { noeud: c('Afficher le SIREN', 'afficherSiren') },
+        { separateur: true }, { titre: 'Import / Export' },
+        { libelle: 'Importer un devis', bientot: true, cle: 'importer' }, { libelle: 'Exporter des lignes', bientot: true, cle: 'exporter' },
+      ], fermer);
+    }, { classe: 'menu-devis-options', nom: 'Options du devis' });
+  }
+
+  function ouvrirMenuFinaliser(ancre) {
+    ouvrirFenetreMenu(ancre, (fermer) => contenuMenu([
+      { libelle: 'Finaliser', icone: 'check', cle: 'finaliser-seul', action: () => finaliser() },
+      { libelle: 'Finaliser et imprimer', icone: 'file-text', cle: 'finaliser-imprimer', action: () => finaliser({ imprimer: true }) },
+      { libelle: 'Finaliser et télécharger', icone: 'download', cle: 'finaliser-telecharger', bientot: true },
+      { libelle: 'Finaliser et envoyer par e-mail', icone: 'mail', cle: 'finaliser-envoyer', bientot: true },
+    ], fermer), { nom: 'Finaliser' });
   }
 
   function choisirOnglet(cle) {
@@ -358,14 +433,27 @@ export function rendreEditeurDevis(conteneur, id) {
 
   function rendreApercu() {
     let corps;
+    let html = '';
     try {
-      const vue = vueClient(travail, { clientNom: clientDuDevis(travail) || null });
-      corps = h('iframe', { class: 'apercu-devis', title: `Aperçu du devis ${travail.numero ?? ''}`.trim(), sandbox: '', srcdoc: devisHtml(vue, { brouillon: travail.statut === 'brouillon' }), dataset: { zone: 'apercu' } });
+      html = htmlImpressionDevis(travail);
+      // Le document est pur (aucun script) : « allow-same-origin » laisse l'application lancer son impression ; « allow-modals » ouvre la boîte d'impression.
+      corps = h('iframe', { class: 'apercu-devis', title: `Aperçu du devis ${travail.numero ?? ''}`.trim(), sandbox: 'allow-same-origin allow-modals', srcdoc: html, dataset: { zone: 'apercu' } });
     } catch (e) {
       console.warn(e);
       corps = h('p', { class: 'erreur', role: 'alert' }, 'L’aperçu n’a pas pu être préparé : le devis est incomplet. Termine-le, puis rouvre l’aperçu.');
     }
-    remplir(ref.panneauApercu, corps);
+    ref.iframeApercu = corps.tagName === 'IFRAME' ? corps : null;
+    ref.htmlApercu = html;
+    const imprimer = h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'imprimer' }, disabled: !html,
+      onclick: () => imprimerDepuisApercu() }, icone('file-text', { taille: 16 }), 'Imprimer / Enregistrer en PDF');
+    remplir(ref.panneauApercu, h('div', { class: 'barre-apercu' }, h('p', { class: 'texte-discret' }, 'Pour un PDF : choisis « Enregistrer au format PDF » et décoche « En-têtes et pieds de page ».'), imprimer), corps);
+  }
+
+  /** Clic sur « Imprimer / Enregistrer en PDF » : aucun `await` avant (le navigateur bloquerait l'onglet de repli de Safari). */
+  function imprimerDepuisApercu(options = {}) {
+    const r = imprimerDevis({ iframe: ref.iframeApercu, html: ref.htmlApercu, ...options });
+    if (r.erreur) toast(r.erreur, { type: 'erreur', duree: 8000 });
+    return r;
   }
 
   // ------------------------------------------------ barre du haut
@@ -392,28 +480,54 @@ export function rendreEditeurDevis(conteneur, id) {
     if (ref.erreurAffaire) { ref.erreurAffaire.hidden = Boolean(d.affaireId); }
   }
 
-  // ------------------------------------------------ options (réglages du devis) : le menu complet viendra ensuite
-  function blocOptions() {
+  // ------------------------------------------------ marges du devis : visibles seulement avec la case « Afficher le calcul des marges » du menu Options
+  const majMarges = () => { if (ref.marges) ref.marges.hidden = !affichage().afficherMarges; racine.dataset.marges = affichage().afficherMarges ? 'oui' : 'non'; };
+
+  function blocMarges() {
     const d = travail;
     const marge = h('input', { class: 'champ champ-court', id: 'devis-marge', type: 'text', inputmode: 'decimal', value: saisieNombre(d.marge), dataset: { champ: 'marge' }, 'aria-label': 'Marge du devis en pourcent',
       oninput: (e) => { const vide = e.target.value.trim() === ''; const v = vide ? 0 : Ed.lireSaisie(e.target.value); e.target.classList.toggle('invalide', v === null); if (v !== null) { changer({ marge: v }); majPrixAffiches(); } } });
     const mode = h('select', { class: 'champ', id: 'devis-mode', dataset: { champ: 'mode-marge' }, 'aria-label': 'Mode de calcul de la marge', onchange: (e) => { changer({ modeMarge: e.target.value }); majPrixAffiches(); } },
       MODES_MARGE.map((m) => h('option', { value: m.id, selected: d.modeMarge === m.id }, m.libelle)));
-    const tva = h('select', { class: 'champ', id: 'devis-tva', dataset: { champ: 'tva-defaut' }, onchange: (e) => changer({ tauxTvaDefaut: Number(e.target.value) }) },
-      [...new Set([...D.etat.reglages.tauxProposes, d.tauxTvaDefaut])].sort((a, b) => b - a).map((t) => h('option', { value: String(t), selected: d.tauxTvaDefaut === t }, `${saisieNombre(t)} %`)));
-    return h('section', { class: 'carte-editeur panneau-options', id: 'options-devis', hidden: true, dataset: { zone: 'options' } },
-      h('h2', { class: 'titre-bloc' }, 'Options du devis'),
+    return h('section', { class: 'carte-editeur panneau-options', id: 'options-devis', hidden: !affichage().afficherMarges, dataset: { zone: 'marges' } },
+      h('h2', { class: 'titre-bloc' }, 'Marges du devis'),
       h('div', { class: 'grille-champs' },
         champ('Marge du devis (%)', h('div', { class: 'ligne-champs' }, marge), { id: 'devis-marge', aide: h('p', { class: 'texte-discret' }, 'Elle s’applique aux lignes qui n’ont pas leur propre marge. Le client ne la voit jamais.') }),
-        champ('Mode de calcul', mode, { id: 'devis-mode' }),
-        champ('TVA par défaut', tva, { id: 'devis-tva' })));
+        champ('Mode de calcul', mode, { id: 'devis-mode' })));
+  }
+
+  // ------------------------------------------------ Bibliothèque : le bouton sous la barre, le panneau à droite
+  function rangeeBibliotheque() {
+    ref.boutonBibliotheque = h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'bibliotheque' }, 'aria-expanded': 'false', 'aria-controls': 'bibliotheque-devis',
+      onclick: () => (bibliotheque?.ouvert() ? bibliotheque.fermer() : ouvrirLaBibliotheque()) }, icone('list', { taille: 16 }), 'Bibliothèque');
+    return h('div', { class: 'rangee-bibliotheque' }, ref.boutonBibliotheque);
+  }
+  function ouvrirLaBibliotheque() {
+    bibliotheque = ouvrirBibliotheque(racine, {
+      articles: () => D.etat.articles,
+      familles: () => D.etat.familles,
+      prixAffiche: (a) => {
+        if (a.type === A.TYPE_TEXTE) return '';
+        const pv = Ed.prixVenteAffiche(travail, {}, Ed.ligneDepuisArticle(a, { id: 'essai', articles: D.etat.articles, devis: travail }));
+        return pv === null ? '' : `${euros(pv)} / ${a.unite || 'u'}`;
+      },
+      ajouter: (choisis) => {
+        const lignes = choisis.map((a) => Ed.ligneDepuisArticle(a, { id: nouvelId(), articles: D.etat.articles, devis: travail }));
+        const section = Ed.sectionDe(travail.sections, ligneActive);
+        appliquer(Ed.ajouterFinDeSection(travail.sections, lignes, section));
+        toast(`${lignes.length} ligne${lignes.length > 1 ? 's' : ''} ajoutée${lignes.length > 1 ? 's' : ''} au devis`, { duree: 2500 });
+      },
+    }, { surFermeture: () => { ref.boutonBibliotheque?.setAttribute('aria-expanded', 'false'); }, retour: ref.boutonBibliotheque });
+    ref.boutonBibliotheque?.setAttribute('aria-expanded', 'true');
   }
 
   const champ = (etiquette, controle, { id: idc = null, aide = null } = {}) => h('div', { class: 'bloc-champ' }, h('label', { class: 'etiquette', for: idc }, etiquette), controle, aide);
 
   // ------------------------------------------------ en-tête du document : à gauche les dates, à droite le client et l'affaire
   const jourFr = (j) => (/^\d{4}-\d{2}-\d{2}/.test(j ?? '') ? `${j.slice(8, 10)}/${j.slice(5, 7)}/${j.slice(0, 4)}` : '');
+  const jourIso = (fr) => (/^\d{2}\/\d{2}\/\d{4}$/.test(fr) ? `${fr.slice(6)}-${fr.slice(3, 5)}-${fr.slice(0, 2)}` : '');
   function dateDuDevis() {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(travail.dateEmission ?? '')) return jourFr(travail.dateEmission);
     const v = travail.finaliseLe ?? travail.creeLe;
     const date = v?.toDate ? v.toDate() : v instanceof Date ? v : new Date();
     return date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -480,7 +594,7 @@ export function rendreEditeurDevis(conteneur, id) {
     ref.erreursChantier = h('p', { class: 'erreur', role: 'alert', dataset: { erreur: 'chantier' }, hidden: true });
     const gauche = h('div', { class: 'entete-gauche' },
       ref.numeroDocument,
-      h('p', { class: 'ligne-entete' }, `En date du ${dateDuDevis()}`),
+      ligne('En date du ', valeurSurPlace({ etiquette: 'En date du ', nom: 'dateEmission', texte: () => dateDuDevis(), champs: champDate('dateEmission', () => travail.dateEmission ?? jourIso(dateDuDevis()), (v) => { travail.dateEmission = v; }, 'Date du devis') })),
       ligne('Valable jusqu’au ', valeurSurPlace({ etiquette: 'Valable jusqu’au ', nom: 'expireLe', texte: () => jourFr(travail.expireLe), champs: champDate('expireLe', () => travail.expireLe, (v) => { travail.expireLe = v; }, 'Valable jusqu’au') })),
       ligne('Début des travaux le ', valeurSurPlace({ etiquette: 'Début des travaux le ', nom: 'debutTravaux', texte: () => jourFr(travail.chantier?.debutTravaux), champs: champDate('debutTravaux', () => travail.chantier?.debutTravaux, ecrireChantier('debutTravaux'), 'Début des travaux') })),
       ligne('Durée estimée à ', valeurSurPlace({ etiquette: 'Durée estimée à ', nom: 'duree', texte: () => dureeEnTexte(travail.chantier?.dureeEstimee) ?? '', champs: champsDuree })),
@@ -506,8 +620,8 @@ export function rendreEditeurDevis(conteneur, id) {
       oninput: (e) => changer({ destinataires: e.target.value.trim() ? [e.target.value.trim()] : [] }),
     });
     const droite = h('div', { class: 'entete-droite' },
-      champ('Client', ref.selectClient, { id: 'devis-client' }),
       champ('Affaire *', ref.selectAffaire, { id: 'devis-affaire', aide: ref.erreurAffaire }),
+      champ('Client', ref.selectClient, { id: 'devis-client' }),
       champ('Adresse du chantier', ref.champAdresse, { id: 'devis-chantier-adresse' }),
       champ('E-mail du destinataire', destinataire, { id: 'devis-destinataire' }));
     return h('div', { class: 'entete-document' }, gauche, droite);
@@ -572,7 +686,23 @@ export function rendreEditeurDevis(conteneur, id) {
   }
 
   // ------------------------------------------------ lignes
-  const enteteTableau = ['', 'N°', 'Désignation', 'Qté', 'Unité', 'Prix U. HT', 'TVA', 'Total HT', ''];
+  // Colonnes du tableau (celles que le menu Options cache disparaissent) ; « Prix U. HT ajusté » quand un ajustement global est actif.
+  function colonnes() {
+    const aff = affichage();
+    return [
+      { cle: 'poi', texte: '' }, { cle: 'num', texte: 'N°' }, { cle: 'des', texte: 'Désignation' },
+      ...(aff.cacherQuantiteUnite ? [] : [{ cle: 'qte', texte: 'Qté', d: true }, { cle: 'uni', texte: 'Unité' }]),
+      { cle: 'pri', texte: ajustementActif(travail) ? 'Prix U. HT ajusté' : 'Prix U. HT', d: true },
+      ...(aff.cacherTva ? [] : [{ cle: 'tva', texte: 'TVA' }]),
+      { cle: 'tot', texte: 'Total HT', d: true }, { cle: 'act', texte: '' },
+    ];
+  }
+  /** Nombre de colonnes que la cellule de désignation d'une section (le total reste à part) ou d'un texte (il enjambe aussi le total) occupe. */
+  const colonnesDeLaDesignation = (totalAPart) => colonnes().length - 3 - (totalAPart ? 1 : 0);
+  function rendreEntetesTableau() {
+    if (!ref.enteteTableau) return;
+    remplir(ref.enteteTableau, h('tr', {}, colonnes().map((c) => h('th', { scope: 'col', class: `col-${c.cle}${c.d ? ' d' : ''}`, 'aria-label': c.texte || undefined }, c.texte))));
+  }
   function blocLignes() {
     ref.rechercheBordereau = h('input', {
       class: 'champ', type: 'search', placeholder: 'Libellé, code ou référence', autocomplete: 'off', 'aria-label': 'Rechercher dans le Bordereau', dataset: { champ: 'recherche-bordereau' },
@@ -587,10 +717,12 @@ export function rendreEditeurDevis(conteneur, id) {
         h('button', { type: 'button', class: 'bouton bouton-discret', dataset: { action: 'fermer-recherche' }, onclick: () => { ref.panneauRecherche.hidden = true; pointInsertion = null; majPointInsertion(); } }, 'Fermer')),
       ref.pointInsertion, ref.resultats);
     ref.corpsLignes = h('tbody', {});
+    // La Bibliothèque ajoute à la fin de la section de la dernière ligne touchée.
+    ref.corpsLignes.addEventListener('focusin', (e) => { const tr = e.target.closest?.('tr[data-id]'); if (tr) ligneActive = tr.dataset.id; });
+    ref.enteteTableau = h('thead', {});
+    rendreEntetesTableau();
     ref.vide = h('div', { class: 'etat-vide-ligne', dataset: { vide: 'lignes' } }, h('p', {}, 'Clique sur un des boutons ci-dessous pour ajouter un élément à ton devis.'));
-    ref.zoneTableau = h('div', { class: 'zone-tableau zone-lignes-devis' }, h('table', { class: 'tableau-lignes-devis' },
-      h('thead', {}, h('tr', {}, enteteTableau.map((t, i) => h('th', { scope: 'col', class: i >= 3 && i <= 7 && i !== 4 && i !== 6 ? 'd' : '', 'aria-label': t || undefined }, t)))),
-      ref.corpsLignes));
+    ref.zoneTableau = h('div', { class: 'zone-tableau zone-lignes-devis' }, h('table', { class: 'tableau-lignes-devis' }, ref.enteteTableau, ref.corpsLignes));
     const bouton = (libelle, action, onclick, { desactive = false, titre = null } = {}) => h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action }, disabled: desactive, title: titre ?? undefined, onclick }, libelle);
     const type = (libelle, familleId) => bouton([icone('plus', { taille: 14 }), libelle], `ajouter-${familleId}`, () => ouvrirRecherche(familleId));
     const barre = h('div', { class: 'barre-ajouts', dataset: { zone: 'ajouts' } },
@@ -626,7 +758,7 @@ export function rendreEditeurDevis(conteneur, id) {
     if (!ref.pointInsertion) return;
     const e = pointInsertion ? Ed.aplatir(travail.sections).find((x) => x.id === pointInsertion) : null;
     ref.pointInsertion.hidden = !e;
-    ref.pointInsertion.textContent = e ? `Le prochain article s’ajoutera sous « ${e.libelle || e.titre || 'cette ligne'} ».` : '';
+    ref.pointInsertion.textContent = e ? `Le prochain article s’ajoutera ${sensInsertion === 'avant' ? 'au-dessus de' : 'sous'} « ${e.libelle || e.titre || 'cette ligne'} ».` : '';
   }
 
   function majResultats() {
@@ -654,6 +786,7 @@ export function rendreEditeurDevis(conteneur, id) {
 
   function rendreLignes() {
     if (!ref.corpsLignes) return;
+    majMarges();
     const numeros = Ed.numerotation(travail.sections);
     const niveaux = Object.fromEntries(travail.sections.map((s, i) => [s.id, niveauSection(travail.sections, i)]));
     const elements = Ed.aplatir(travail.sections);
@@ -688,20 +821,58 @@ export function rendreEditeurDevis(conteneur, id) {
   function celluleActions(e, numero) {
     const nom = e.genre === 'section' ? `la section ${numero}` : `la ligne ${numero}`;
     return h('td', { class: 'c-act col-actions-lignes' },
-      h('button', { type: 'button', class: 'bouton-icone bouton-rond', dataset: { action: 'menu-ligne' }, 'aria-haspopup': 'menu', 'aria-label': `Actions pour ${nom}`, onclick: (ev) => ouvrirMenu(ev.currentTarget, menuLigne(e, nom)) }, icone('chevron-down', { taille: 16 })));
+      h('button', { type: 'button', class: 'bouton-icone bouton-rond', dataset: { action: 'menu-ligne' }, 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-label': `Actions pour ${nom}`, onclick: (ev) => { ligneActive = e.id; ouvrirMenuLigne(ev.currentTarget, e, nom); } }, icone('chevron-down', { taille: 16 })));
   }
 
-  function menuLigne(e, nom) {
+  /** Les entrées « Insérer au-dessus » / « Insérer en dessous » : un sous-menu avec les types d'éléments. `sens` : 'avant' ou 'apres'. */
+  function entreesInsertion(e, sens) {
+    const poser = (creer) => () => {
+      const element = creer();
+      const sections = sens === 'avant' ? Ed.ajouterAvant(travail.sections, element, e.id, nouvelId()) : Ed.ajouterElement(travail.sections, element, e.id, nouvelId());
+      appliquer(sections, { focus: element.id });
+    };
+    const chercher = (familleId) => () => { pointInsertion = e.id; sensInsertion = sens; ouvrirRecherche(familleId); majPointInsertion(); };
     return [
-      { libelle: 'Chercher un article au-dessous', icone: 'search', action: () => { pointInsertion = e.id; ouvrirRecherche(''); majPointInsertion(); } },
-      { libelle: 'Insérer une ligne libre au-dessous', icone: 'plus', action: () => appliquer(Ed.ajouterElement(travail.sections, Ed.ligneLibre(nouvelId()), e.id), { focus: null }) },
-      { libelle: 'Insérer une section au-dessous', icone: 'plus', action: () => appliquer(Ed.ajouterElement(travail.sections, Ed.sectionNeuve(nouvelId()), e.id)) },
-      { libelle: 'Insérer une sous-section au-dessous', icone: 'plus', action: () => appliquer(Ed.ajouterElement(travail.sections, Ed.sousSectionNeuve(nouvelId()), e.id, nouvelId())) },
-      { libelle: 'Insérer un texte au-dessous', icone: 'plus', action: () => appliquer(Ed.ajouterElement(travail.sections, Ed.ligneTexte(nouvelId()), e.id)) },
-      { separateur: true },
-      { libelle: 'Dupliquer', icone: 'copy', action: () => { const r = Ed.dupliquerElement(travail.sections, e.id, nouvelId); appliquer(r.sections); } },
-      { libelle: 'Supprimer', icone: 'trash-2', danger: true, action: () => supprimer(e, nom) },
+      { libelle: 'Fourniture', cle: `inserer-${sens}-fourniture`, action: chercher('famille-1') },
+      { libelle: 'Main d’œuvre', cle: `inserer-${sens}-main-oeuvre`, action: chercher('famille-2') },
+      { libelle: 'Ouvrage', cle: `inserer-${sens}-ouvrage`, action: chercher('famille-3') },
+      { libelle: 'Section', cle: `inserer-${sens}-section`, action: poser(() => Ed.sectionNeuve(nouvelId())) },
+      { libelle: 'Sous-section', cle: `inserer-${sens}-sous-section`, action: poser(() => Ed.sousSectionNeuve(nouvelId())) },
+      { libelle: 'Texte', cle: `inserer-${sens}-texte`, action: poser(() => Ed.ligneTexte(nouvelId())) },
+      { libelle: 'Ligne libre', cle: `inserer-${sens}-libre`, action: poser(() => Ed.ligneLibre(nouvelId())) },
     ];
+  }
+
+  function ouvrirMenuLigne(ancre, e, nom) {
+    const p = Ed.deplacementsPossibles(travail.sections, e.id);
+    ouvrirFenetreMenu(ancre, (fermer) => contenuMenu([
+      { libelle: 'Insérer au-dessus', cle: 'inserer-avant', sous: entreesInsertion(e, 'avant') },
+      { libelle: 'Insérer en dessous', cle: 'inserer-apres', sous: entreesInsertion(e, 'apres') },
+      ...(e.genre === 'section' ? [] : [{ libelle: 'Ajouter des photos', cle: 'photos', bientot: true }]),
+      { libelle: 'Dupliquer', icone: 'copy', cle: 'dupliquer', action: () => { const r = Ed.dupliquerElement(travail.sections, e.id, nouvelId); appliquer(r.sections); } },
+      { libelle: 'Monter', icone: 'arrow-up', cle: 'monter', desactive: !p.monter, action: () => appliquer(Ed.deplacerElement(travail.sections, e.id, -1)) },
+      { libelle: 'Descendre', icone: 'arrow-down', cle: 'descendre', desactive: !p.descendre, action: () => appliquer(Ed.deplacerElement(travail.sections, e.id, 1)) },
+      { separateur: true },
+      { libelle: 'Supprimer', icone: 'trash-2', cle: 'supprimer', danger: true, action: () => supprimer(e, nom) },
+    ], fermer), { classe: 'menu-devis-ligne', nom: `Actions pour ${nom}` });
+  }
+
+  /** Reconfigure les éléments d'une ligne d'ouvrage : la composition figée s'ouvre dans le même éditeur que celui du Bordereau, puis le prix et la description sont recalculés. */
+  async function configurerOuvrage(idLigne) {
+    const trouve = Ed.trouverLigne(travail.sections, idLigne);
+    if (!trouve?.ligne?.ouvrage) return;
+    const editeur = editeurOuvrage({ composants: trouve.ligne.ouvrage.composants.map((c) => ({ articleId: c.articleId, quantite: c.quantite })) });
+    const ok = await dialogue({
+      titre: 'Éléments de l’ouvrage', contenu: editeur.element,
+      boutons: [{ libelle: 'Annuler', valeur: false }, { libelle: 'Appliquer', valeur: true, style: 'principal' }],
+    });
+    if (ok !== true) return;
+    const valeurs = editeur.valeurs();
+    const ouvrage = { composants: valeurs.composants.map((c) => ({ articleId: c.articleId, quantite: c.quantite ?? 0 })), prixVenteForce: A.lireNombre(valeurs.prixVenteForce) ?? undefined };
+    const erreurs = O.erreursOuvrage(ouvrage, O.articlesParId(D.etat.articles));
+    if (erreurs.length) { toast(erreurs[0], { type: 'erreur', duree: 8000 }); return; }
+    const nouvelle = Ed.ligneAvecComposants(trouve.ligne, ouvrage, { articles: D.etat.articles, devis: travail });
+    appliquer(Ed.majElement(travail.sections, idLigne, { ouvrage: nouvelle.ouvrage, prixAchat: nouvelle.prixAchat, marge: nouvelle.marge, description: nouvelle.description }));
   }
 
   async function supprimer(e, nom) {
@@ -735,8 +906,8 @@ export function rendreEditeurDevis(conteneur, id) {
     return h('tr', { class: `ligne-section-devis ${sous ? 'sous-section-devis' : ''}`, hidden: masque, dataset: { id: e.id, genre: 'section', niveau: String(niveau) } },
       celluleDeplacement(e, numeros[e.id]),
       h('td', { class: 'c-num num', dataset: { libelle: 'N°' } }, numeros[e.id]),
-      h('td', { colspan: 5, class: 'c-des cellule-section', dataset: { libelle: sous ? 'Sous-section' : 'Section' } }, h('div', { class: 'ligne-champs' }, replier, titre, saut)),
-      h('td', { class: 'c-tot d', dataset: { libelle: 'Sous-total HT' } }, h('span', { class: 'etiquette-sous-total' }, 'Sous-total : '), h('span', { class: 'sous-total-section', dataset: { sousTotal: e.id } })),
+      h('td', { colspan: colonnesDeLaDesignation(true), class: 'c-des cellule-section', dataset: { libelle: sous ? 'Sous-section' : 'Section' } }, h('div', { class: 'ligne-champs' }, replier, titre, saut)),
+      h('td', { class: 'c-tot d', dataset: { libelle: 'Sous-total HT' } }, affichage().cacherTotauxSections ? null : [h('span', { class: 'etiquette-sous-total' }, 'Sous-total : '), h('span', { class: 'sous-total-section', dataset: { sousTotal: e.id } })]),
       celluleActions(e, numeros[e.id]));
   }
 
@@ -745,7 +916,7 @@ export function rendreEditeurDevis(conteneur, id) {
     return h('tr', { class: 'ligne-devis-edition ligne-texte-devis', hidden: masque, dataset: { id: e.id, genre: 'texte' } },
       celluleDeplacement(e, numeros[e.id]),
       h('td', { class: 'c-num num', dataset: { libelle: 'N°' } }, numeros[e.id]),
-      h('td', { colspan: 6, class: 'c-des', dataset: { libelle: 'Texte' } }, zone),
+      h('td', { colspan: colonnesDeLaDesignation(false), class: 'c-des', dataset: { libelle: 'Texte' } }, zone),
       celluleActions(e, numeros[e.id]));
   }
 
@@ -786,14 +957,20 @@ export function rendreEditeurDevis(conteneur, id) {
     const taux = [...new Set([...D.etat.reglages.tauxProposes, ...TAUX_TVA_DEFAUT])].sort((a, b) => b - a);
     const tva = h('select', { class: 'champ champ-surplace', 'aria-label': `TVA ${numeros[l.id]}`, dataset: { champ: 'tva' }, onchange: (ev) => changerLigne(l.id, { tauxTva: ev.target.value === '' ? undefined : Number(ev.target.value) }) },
       h('option', { value: '' }, `Défaut (${saisieNombre(travail.tauxTvaDefaut)} %)`), taux.map((t) => h('option', { value: String(t), selected: l.tauxTva === t }, `${saisieNombre(t)} %`)));
+    const aff = affichage();
+    // L'ouvrage se reconfigure depuis sa désignation (le bouton apparaît quand on y écrit) ; le calcul des marges et la référence sont de petites lignes sous la désignation.
+    const configurer = l.ouvrage ? h('button', { type: 'button', class: 'bouton-lien bouton-configurer-ouvrage', dataset: { action: 'configurer-ouvrage' }, onclick: () => configurerOuvrage(l.id) }, 'Configurer les éléments de l’ouvrage') : null;
+    const calculMarge = h('div', { class: 'calcul-marge', dataset: { calculMarge: l.id } });
+    const reference = aff.afficherReferences && (l.reference || l.code) ? h('div', { class: 'reference-ligne texte-discret', dataset: { valeur: 'reference' } }, `Réf. : ${l.reference || l.code}`) : null;
+    const prixAjuste = ajustementActif(travail) ? h('div', { class: 'prix-ajuste', dataset: { prixAjuste: l.id } }) : null;
     return h('tr', { class: 'ligne-devis-edition', hidden: masque, dataset: { id: l.id, genre: 'ligne' } },
       celluleDeplacement(e, numeros[l.id]),
       cellule('c-num num', 'N°', numeros[l.id]),
-      cellule('c-des', 'Désignation', libelle, description, composition),
-      cellule('c-qte', 'Qté', quantite),
-      cellule('c-uni', 'Unité', unite),
-      cellule('c-pri', 'Prix U. HT', prix),
-      cellule('c-tva', 'TVA', tva),
+      cellule('c-des', 'Désignation', libelle, description, composition, configurer, reference, calculMarge),
+      aff.cacherQuantiteUnite ? null : cellule('c-qte', 'Qté', quantite),
+      aff.cacherQuantiteUnite ? null : cellule('c-uni', 'Unité', unite),
+      cellule('c-pri', ajustementActif(travail) ? 'Prix U. HT ajusté' : 'Prix U. HT', prix, prixAjuste),
+      aff.cacherTva ? null : cellule('c-tva', 'TVA', tva),
       cellule('c-tot d', 'Total HT', h('span', { class: 'total-ligne', dataset: { total: l.id } })),
       celluleActions(e, numeros[l.id]));
   }
@@ -854,6 +1031,8 @@ export function rendreEditeurDevis(conteneur, id) {
     texteMoment.hidden = !d.acompte || (d.acompte?.moment ?? 'signature') !== 'libre';
     const totaux = h('aside', { class: 'panneau-total', 'aria-label': 'Total du devis', dataset: { zone: 'total' } },
       h('dl', { class: 'liste-totaux' },
+        h('div', { class: 'ligne-total ligne-ajustement', dataset: { ligne: 'ajustement' } }, h('dt', {}, 'Ajustement global'),
+          h('dd', {}, (ref.lienAjustement = h('button', { type: 'button', class: 'bouton-lien', dataset: { action: 'definir-ajustement' }, disabled: lecture, 'aria-haspopup': 'menu', 'aria-expanded': 'false', onclick: (ev) => ouvrirAjustement(ev.currentTarget) }, 'Définir un ajustement')), h('span', { dataset: { total: 'ajustement' } }))),
         ligneT('brut', 'Total brut HT'),
         h('div', { class: 'ligne-total ligne-remise' }, h('dt', {}, 'Remise client'), h('dd', {}, h('div', { class: 'ligne-champs' }, valeurRemise, typeRemise), h('span', { dataset: { total: 'remise' } }))),
         ligneT('ht', 'Total net HT'),
@@ -870,11 +1049,60 @@ export function rendreEditeurDevis(conteneur, id) {
     return [totaux, net, taux];
   }
 
+  // Le menu « Définir un ajustement » : « Ajustement global » (trois champs liés : %, €, coefficient), puis « Poste HT » (Remise, et deux choix pas encore là).
+  function ouvrirAjustement(ancre) {
+    ouvrirFenetreMenu(ancre, (fermer) => {
+      const champs = {};
+      const erreurs = {};
+      const fabriquer = (cle, libelle, unite) => {
+        champs[cle] = h('input', { class: 'champ champ-court', type: 'text', inputmode: 'decimal', autocomplete: 'off', id: `ajust-${cle}`, 'aria-label': libelle, 'aria-describedby': `ajust-erreur-${cle}`, dataset: { champ: `ajust-${cle}` },
+          oninput: (e) => saisir(cle, e.target.value) });
+        erreurs[cle] = h('p', { class: 'erreur erreur-champ', role: 'alert', id: `ajust-erreur-${cle}`, hidden: true, dataset: { erreur: `ajust-${cle}` } });
+        return h('div', { class: 'ajust-champ' }, h('label', { for: `ajust-${cle}` }, libelle, unite ? ` (${unite})` : ''), champs[cle], erreurs[cle]);
+      };
+      // Chaque champ qu'on change recalcule les deux autres ; un texte illisible ou un coefficient ≤ 0 affiche un message sous le champ et n'enregistre rien.
+      function saisir(cle, texte) {
+        const r = Ed.ajustementDepuisSaisie(travail, cle, texte);
+        champs[cle].classList.toggle('invalide', Boolean(r.erreur));
+        erreurs[cle].hidden = !r.erreur;
+        erreurs[cle].textContent = r.erreur ?? '';
+        if (r.erreur) return;
+        for (const k of Object.keys(erreurs)) if (k !== cle) { erreurs[k].hidden = true; champs[k].classList.remove('invalide'); }
+        changer({ ajustement: Ed.ajustementAEnregistrer(r.coefficient) });
+        appliquerAffichage();
+        remplirAutres(cle);
+      }
+      function remplirAutres(sauf) {
+        const v = valeursAjustement(travail);
+        const valeurs = { pourcentage: saisiePrix(v.pourcentage), montant: saisiePrix(v.montant), coefficient: v.coefficient.toFixed(4).replace('.', ',') };
+        for (const k of Object.keys(champs)) if (k !== sauf) champs[k].value = valeurs[k];
+      }
+      const zone = h('div', { class: 'ajust-zone', dataset: { zone: 'ajustement-global' } },
+        fabriquer('pourcentage', 'Pourcentage', '%'), fabriquer('montant', 'Montant', '€'), fabriquer('coefficient', 'Coefficient', 'coef.'),
+        h('button', { type: 'button', class: 'bouton-lien', dataset: { action: 'retirer-ajustement' }, onclick: () => { changer({ ajustement: null }); appliquerAffichage(); remplirAutres(null); Object.values(erreurs).forEach((p) => { p.hidden = true; }); } }, 'Retirer l’ajustement'));
+      remplirAutres(null);
+      const bloc = contenuMenu([
+        { libelle: 'Ajustement global', cle: 'ajustement-global', icone: 'arrow-up-down', reste: true, action: () => { zone.hidden = !zone.hidden; } },
+      ], fermer);
+      const reste = contenuMenu([
+        { titre: 'Poste HT' },
+        { libelle: 'Remise', cle: 'remise', action: () => { const c = racine.querySelector('[data-champ="remise-valeur"]'); c?.scrollIntoView?.({ block: 'center' }); c?.focus(); } },
+        { libelle: 'Compte prorata', cle: 'prorata', bientot: true },
+        { libelle: 'Poste libre HT', cle: 'poste-libre', bientot: true },
+      ], fermer);
+      return h('div', { class: 'menu-devis-liste' }, bloc, zone, reste);
+    }, { classe: 'menu-devis-ajustement', nom: 'Ajustement du devis' });
+  }
+
   function majTotaux() {
     if (!ref.panneauEdition) return;
     let t;
     try { t = totauxDevis(travail); } catch (e) { console.warn(e); return; }
     const mettre = (cle, texte) => { const el = racine.querySelector(`[data-total="${cle}"]`); if (el) el.textContent = texte; };
+    const aj = valeursAjustement(travail);
+    const signe = (n) => (n > 0 ? '+' : n < 0 ? '−' : '');
+    if (ref.lienAjustement) ref.lienAjustement.textContent = ajustementActif(travail) ? `Ajustement ${signe(aj.pourcentage)}${saisieNombre(Math.abs(aj.pourcentage))} %` : 'Définir un ajustement';
+    mettre('ajustement', ajustementActif(travail) ? `${signe(aj.montant)}${euros(Math.abs(aj.montant))}` : '');
     mettre('brut', euros(t.totalBrutHt));
     mettre('remise', t.remiseHt > 0 ? `− ${euros(t.remiseHt)}` : '');
     mettre('ht', euros(t.totalHt));
@@ -897,7 +1125,14 @@ export function rendreEditeurDevis(conteneur, id) {
       const el = racine.querySelector(`[data-total="${CSS.escape(l.id)}"]`);
       if (el) el.textContent = euros(l.totalHT);
       const champPrix = racine.querySelector(`tr[data-id="${CSS.escape(l.id)}"] [data-champ="prix-vente"]`);
-      if (champPrix && document.activeElement !== champPrix) champPrix.value = saisiePrix(l.prixVenteUnitaire);
+      // Le champ montre le prix de vente de la ligne (celui qu'on règle) ; avec un ajustement global, le prix ajusté s'affiche dessous.
+      const trouve = Ed.trouverLigne(travail.sections, l.id);
+      const base = trouve ? Ed.prixVenteAffiche(travail, trouve.section, trouve.ligne) : l.prixVenteUnitaire;
+      if (champPrix && document.activeElement !== champPrix) champPrix.value = saisiePrix(base);
+      const ajuste = racine.querySelector(`[data-prix-ajuste="${CSS.escape(l.id)}"]`);
+      if (ajuste) ajuste.textContent = typeof l.prixVenteUnitaire === 'number' ? `ajusté : ${euros(l.prixVenteUnitaire)}` : '';
+      const marge = racine.querySelector(`[data-calcul-marge="${CSS.escape(l.id)}"]`);
+      if (marge && trouve) marge.textContent = `Achat ${euros(trouve.ligne.prixAchat)} · Marge ${saisieNombre(margeEffective({ devis: travail, section: trouve.section, ligne: trouve.ligne }))} % · Vente ${euros(base)}`;
     }
     for (const s of t.sections) {
       const el = racine.querySelector(`[data-sous-total="${CSS.escape(s.id)}"]`);
@@ -920,7 +1155,7 @@ export function rendreEditeurDevis(conteneur, id) {
     await dialogue({ titre, contenu: h('ul', { class: 'liste-erreurs-devis', dataset: { zone: 'erreurs-finalisation' } }, erreurs.map((e) => h('li', {}, e))), boutons: [{ libelle: 'Compris', valeur: true, style: 'principal' }] });
   }
 
-  async function finaliser() {
+  async function finaliser({ imprimer = false } = {}) {
     clearTimeout(minuteur);
     if (!(await sauver())) { toast(messageEnreg || ERREUR_ECRITURE, { type: 'erreur', duree: 8000 }); return; }
     const locales = [...(travail.affaireId ? [] : ['Choisis l’affaire du devis.']), ...erreursFinalisation(travail)];
@@ -946,11 +1181,24 @@ export function rendreEditeurDevis(conteneur, id) {
       travail = { ...travail, statut: r?.statut ?? 'en_attente_envoi', numero: r?.numero ?? travail.numero };
       enregistre = structuredClone(travail);
       construire();
+      if (imprimer) imprimerApresFinalisation();
     } catch (e) {
       console.warn(e);
       verrou = false;
       toast(e?.message || D.MESSAGE_RESEAU_DEVIS, { type: 'erreur', duree: 8000 });
     }
+  }
+
+  /** « Finaliser et imprimer » : une fois le devis finalisé, l'aperçu (déjà à l'écran en lecture seule) est imprimé. Sans clic en cours, aucun onglet ne peut s'ouvrir : on le dit. */
+  async function imprimerApresFinalisation() {
+    // L'écran peut être reconstruit juste après la finalisation (le serveur vient d'écrire) : on attend un aperçu en place et chargé.
+    for (let i = 0; i < 30; i += 1) {
+      const cadre = ref.iframeApercu;
+      if (cadre?.isConnected && cadre.contentDocument?.body?.childElementCount) break;
+      await new Promise((fin) => { setTimeout(fin, 100); });
+    }
+    const r = imprimerDepuisApercu({ autoriserOnglet: false });
+    if (!r.ok) toast('Le devis est finalisé. Clique sur « Imprimer / Enregistrer en PDF » pour l’imprimer.', { duree: 8000 });
   }
 
   // ------------------------------------------------ démarrage

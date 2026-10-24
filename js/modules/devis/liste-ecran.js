@@ -8,9 +8,9 @@ import { naviguer } from '../../os/router.js';
 import * as CRM from '../crm/donnees.js';
 import * as D from './donnees.js';
 import * as Li from './liste.js';
-import { vueClient } from './logique.js';
+import { vueClient, affichageDe } from './logique.js';
 import { devisHtml, formaterMontant } from './document.js';
-import { dupliquerDevis, creerVariante } from './editeur-ecran.js';
+import { dupliquerDevis, creerVariante, infosClientDuDevis } from './editeur-ecran.js';
 import { creerFiche } from './fiche-ecran.js';
 
 const ERREUR_LECTURE = 'La liste des devis n’a pas pu être mise à jour. La dernière version reste affichée : vérifie ta connexion puis recharge la page.';
@@ -80,8 +80,8 @@ async function changerStatut(d, action, libelle) {
 async function voir(d) {
   let corps;
   try {
-    const vue = vueClient(d, { clientNom: nomsDe(d).client || null });
-    corps = h('iframe', { class: 'apercu-devis', title: `Aperçu du devis ${d.numero ?? ''}`.trim(), sandbox: '', srcdoc: devisHtml(vue, { brouillon: d.statut === 'brouillon' }) });
+    const vue = vueClient(d, { clientNom: nomsDe(d).client || null, client: infosClientDuDevis(d) ?? undefined });
+    corps = h('iframe', { class: 'apercu-devis', title: `Aperçu du devis ${d.numero ?? ''}`.trim(), sandbox: '', srcdoc: devisHtml(vue, { brouillon: d.statut === 'brouillon', affichage: affichageDe(d) }) });
   } catch (e) {
     console.warn(e);
     corps = h('p', { class: 'erreur', role: 'alert' }, 'L’aperçu n’a pas pu être préparé : ce devis est incomplet. Termine-le, puis rouvre l’aperçu.');
@@ -105,6 +105,20 @@ function entreesMenu(d) {
   if (d.statut === 'brouillon') { items.push({ separateur: true }); items.push({ libelle: libelle('Supprimer', a.supprimer), icone: 'trash-2', danger: true, desactive: grise(a.supprimer) }); }
   return items;
 }
+
+/** Bouton « Modifier » visible dans la ligne : brouillon = ouvre l'éditeur ; devis déjà finalisé = nouvelle variante (même action que le menu « … »). */
+function boutonModifier(d) {
+  const a = Li.actionsPermises(d);
+  const brouillon = d.statut === 'brouillon';
+  const permis = brouillon ? a.modifierVersionActuelle : a.nouvelleVariante;
+  if (!permis?.actif) return null;
+  return h('button', {
+    type: 'button', class: 'bouton bouton-secondaire bouton-petit', dataset: { action: 'modifier-devis' },
+    'aria-label': `${brouillon ? 'Modifier' : 'Nouvelle variante de'} ${d.numero ?? 'ce brouillon'}`,
+    onclick: (e) => { e.stopPropagation(); if (brouillon) naviguer(`devis/editeur/${d.id}`); else creerVariante(d); },
+  }, icone('pencil', { taille: 14 }), brouillon ? 'Modifier' : 'Variante');
+}
+const actionsDevis = (d) => h('div', { class: 'actions-devis' }, boutonModifier(d), boutonMenu(d));
 
 function boutonMenu(d) {
   return h('button', {
@@ -234,7 +248,7 @@ export function rendreListeDevis(conteneur, idFiche = null) {
         h('td', { dataset: { colonne: 'validite', libelle: 'Valable jusqu’au' } }, Li.dateFr(d.expireLe)),
         h('td', { class: 'montant', dataset: { colonne: 'ht', libelle: 'Total HT' } }, euros(t?.ht)),
         h('td', { class: 'montant', dataset: { colonne: 'ttc', libelle: 'Total TTC' } }, euros(t?.ttc)),
-        h('td', { class: 'col-actions' }, boutonMenu(d))), () => ouvrirFiche(d.id));
+        h('td', { class: 'col-actions' }, actionsDevis(d))), () => ouvrirFiche(d.id));
     });
     remplir(zone, h('div', { class: 'zone-tableau' }, h('table', { class: 'tableau tableau-devis' }, h('thead', {}, entete), h('tbody', {}, corps))));
     const taille = h('select', { class: 'champ champ-petit', 'aria-label': 'Éléments par page', dataset: { champ: 'par-page' }, onchange: (e) => { parPage = Number(e.target.value); page = 1; rendre(); } },
@@ -257,7 +271,7 @@ export function rendreListeDevis(conteneur, idFiche = null) {
   function carte(d, maintenant, aujourdhui) {
     const t = Li.totauxDe(d);
     return ouvrable(h('article', { class: 'carte-affaire carte-devis', dataset: { id: d.id, statut: Li.statutAffiche(d, aujourdhui) } },
-      h('div', { class: 'carte-ligne' }, h('strong', { class: 'carte-titre' }, intitule(d), d.version > 1 ? ` v${d.version}` : ''), boutonMenu(d)),
+      h('div', { class: 'carte-ligne' }, h('strong', { class: 'carte-titre' }, intitule(d), d.version > 1 ? ` v${d.version}` : ''), actionsDevis(d)),
       h('div', {}, pastille(d, aujourdhui)),
       celluleClient(d),
       h('div', { class: 'carte-sous' }, celluleModifie(d, maintenant)),

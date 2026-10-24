@@ -156,7 +156,8 @@ test('ED2 l’aperçu montre le devis comme le client le verra ; ordre des ligne
   await expect(lignes(page).last().locator('[data-action="descendre"]')).toBeDisabled();
   // Insérer une ligne libre au-dessous de la première, dupliquer la dernière.
   await lignes(page).nth(0).locator('[data-action="menu-ligne"]').click();
-  await page.getByRole('menuitem', { name: 'Insérer une ligne libre au-dessous' }).click();
+  await page.getByRole('menuitem', { name: 'Insérer en dessous' }).click();
+  await page.getByRole('menuitem', { name: 'Ligne libre' }).click();
   await expect(lignes(page)).toHaveCount(4);
   await lignes(page).nth(3).locator('[data-action="menu-ligne"]').click();
   await page.getByRole('menuitem', { name: 'Dupliquer' }).click();

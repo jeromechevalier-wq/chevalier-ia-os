@@ -136,8 +136,9 @@ test('2 en-tête : statut (menu = changements permis), titre, ✕ ; boutons Envo
   await page.keyboard.press('Escape');
   await fiche(page).locator('[data-action="voir-fiche"]').click();
   await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Modifier' })).toBeEnabled();
-  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: /Aperçu PDF/ })).toBeDisabled();
-  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: /Aperçu PDF/ })).toContainText('PDF pas encore généré');
+  // Sans PDF du serveur, l'entrée n'est plus grisée : le devis s'imprime (ou s'enregistre en PDF) depuis le navigateur (partie 2 de l'éditeur, point 5).
+  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: /Aperçu PDF/ })).toHaveCount(0);
+  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Imprimer / Enregistrer en PDF' })).toBeEnabled();
   await page.keyboard.press('Escape');
   await capturer(page, info, '2-fiche-brouillon');
   await page.keyboard.press('Escape'); // le menu est déjà fermé : cette touche ferme la fiche

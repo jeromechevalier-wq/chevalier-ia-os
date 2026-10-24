@@ -39,7 +39,7 @@ export function jourParis(v) {
 }
 
 /** « En date du » : le jour de finalisation, sinon le jour de création (un brouillon n'a pas été finalisé). */
-export const dateDuDevis = (d) => jourParis(d?.finaliseLe) ?? jourParis(d?.creeLe);
+export const dateDuDevis = (d) => (/^\d{4}-\d{2}-\d{2}$/.test(d?.dateEmission ?? '') ? d.dateEmission : null) ?? jourParis(d?.finaliseLe) ?? jourParis(d?.creeLe);
 /** Date de dernière modification en ms (retombe sur la création). */
 export const modifieMs = (d) => enMs(d?.modifieLe) ?? enMs(d?.creeLe) ?? 0;
 
