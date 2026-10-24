@@ -139,7 +139,7 @@ describe('M2 lire_devis : un devis complet côté artisan', () => {
     assert.equal(d.totaux.totalBrutHT, 96);
     assert.equal(d.totaux.remiseHT, 9.6);
     assert.equal(d.totaux.totalHT, 86.4);
-    assert.ok(d.erreursFinalisation.some((e) => /destinataire/.test(e)), 'le destinataire manque');
+    assert.ok(!d.erreursFinalisation.some((e) => /destinataire/.test(e)), 'le destinataire n’est plus obligatoire (impression et remise en main propre)');
   });
 
   test('M2 un devis inconnu est refusé', async () => {
@@ -263,16 +263,15 @@ describe('M5 finaliser_devis : aperçu sans écriture, puis écriture avec le bo
     assert.equal(lu.erreursFinalisation, undefined);
   });
 
-  test('M5 un devis incomplet est refusé, avec la liste des erreurs, sans code ni écriture', async () => {
+  test('M5 un devis sans ligne est refusé, avec la liste des erreurs, sans code ni écriture ; sans adresse e-mail il est accepté', async () => {
     const s = await demarrer();
     const ids = await articlesDeBase(s);
     const r = ok(await s.appeler('biblio', 'creer_devis_brouillon', { affaireId: 'a1', lignes: [{ articleId: ids.a, quantite: 1 }] })); // organisation sans e-mail : aucun destinataire
     const avant = JSON.stringify(s.collections.devis_devis);
     const rep = await s.appeler('code', 'finaliser_devis', { id: r.id });
-    refuse(rep, /destinataire/);
-    assert.match(rep.texte, /\(1\)/);
-    assert.equal(JSON.stringify(s.collections.devis_devis), avant);
-    assert.equal(s.collections.mcp_codes?.length ?? 0, 0, 'aucun code émis pour un devis qui ne peut pas être finalisé');
+    ok(rep); // sans adresse e-mail le devis peut être finalisé : l'aperçu est montré (c'est la finalisation qui exigera l'accord)
+    assert.equal(JSON.stringify(s.collections.devis_devis), avant); // l'aperçu n'écrit rien
+    assert.equal(rep.data.finalise, false);
     const vide = ok(await s.appeler('biblio', 'creer_devis_brouillon', { affaireId: 'a1', destinataires: EMAIL }));
     refuse(await s.appeler('code', 'finaliser_devis', { id: vide.id }), /au moins une ligne/);
   });
