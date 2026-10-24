@@ -502,7 +502,9 @@ export function rendreEditeurDevis(conteneur, id) {
       onclick: () => (bibliotheque?.ouvert() ? bibliotheque.fermer() : ouvrirLaBibliotheque()) }, icone('list', { taille: 16 }), 'Bibliothèque');
     return h('div', { class: 'rangee-bibliotheque' }, ref.boutonBibliotheque);
   }
-  function ouvrirLaBibliotheque() {
+  /** `remplacer` : identifiant d'une ligne (bouton « Catalogue » de sa désignation) : l'article choisi prend la place de cette ligne au lieu d'être ajouté à la fin. */
+  function ouvrirLaBibliotheque(remplacer = null) {
+    if (bibliotheque?.ouvert()) bibliotheque.fermer();
     bibliotheque = ouvrirBibliotheque(racine, {
       articles: () => D.etat.articles,
       familles: () => D.etat.familles,
@@ -512,6 +514,14 @@ export function rendreEditeurDevis(conteneur, id) {
         return pv === null ? '' : `${euros(pv)} / ${a.unite || 'u'}`;
       },
       ajouter: (choisis) => {
+        if (remplacer) {
+          const nouvelle = Ed.ligneDepuisArticle(choisis[0], { id: remplacer, articles: D.etat.articles, devis: travail });
+          delete nouvelle.genre;
+          appliquer(travail.sections.map((sec) => ({ ...sec, lignes: (sec.lignes ?? []).map((x) => (x.id === remplacer ? nouvelle : x)) })));
+          bibliotheque?.fermer();
+          toast('Ligne remplie depuis le catalogue', { duree: 2500 });
+          return;
+        }
         const lignes = choisis.map((a) => Ed.ligneDepuisArticle(a, { id: nouvelId(), articles: D.etat.articles, devis: travail }));
         const section = Ed.sectionDe(travail.sections, ligneActive);
         appliquer(Ed.ajouterFinDeSection(travail.sections, lignes, section));
@@ -924,6 +934,9 @@ export function rendreEditeurDevis(conteneur, id) {
     const l = e;
     const cellule = (classe, libelle, ...contenu) => h('td', { class: classe, dataset: { libelle } }, ...contenu);
     const libelle = ajusterHauteur(h('textarea', { class: 'champ champ-surplace', rows: 1, value: l.libelle ?? '', placeholder: 'Désignation', 'aria-label': `Désignation ${numeros[l.id]}`, dataset: { champ: 'libelle' }, oninput: (ev) => changerLigne(l.id, { libelle: ev.target.value }) }));
+    // Petit bouton « Catalogue » à côté de la désignation d'une ligne qui ne vient pas encore d'un article : il remplit la ligne avec un article du Bordereau.
+    const catalogue = !l.articleId && !l.ouvrage && !masque
+      ? h('button', { type: 'button', class: 'bouton-lien bouton-catalogue-ligne', dataset: { action: 'catalogue-ligne' }, 'aria-label': `Choisir ${numeros[l.id]} dans le catalogue`, onclick: () => ouvrirLaBibliotheque(l.id) }, icone('list', { taille: 14 }), 'Catalogue') : null;
     const composition = l.ouvrage ? h('pre', { class: 'composition-ouvrage', dataset: { valeur: 'composition' } }, Ed.descriptionDeLigne(l)) : null;
     // Une description écrite à la main (hors ouvrage) se lit et se corrige sous la désignation, en petit.
     const description = !l.ouvrage && typeof l.description === 'string' && l.description.trim()
@@ -966,7 +979,7 @@ export function rendreEditeurDevis(conteneur, id) {
     return h('tr', { class: 'ligne-devis-edition', hidden: masque, dataset: { id: l.id, genre: 'ligne' } },
       celluleDeplacement(e, numeros[l.id]),
       cellule('c-num num', 'N°', numeros[l.id]),
-      cellule('c-des', 'Désignation', libelle, description, composition, configurer, reference, calculMarge),
+      cellule('c-des', 'Désignation', libelle, catalogue, description, composition, configurer, reference, calculMarge),
       aff.cacherQuantiteUnite ? null : cellule('c-qte', 'Qté', quantite),
       aff.cacherQuantiteUnite ? null : cellule('c-uni', 'Unité', unite),
       cellule('c-pri', ajustementActif(travail) ? 'Prix U. HT ajusté' : 'Prix U. HT', prix, prixAjuste),
