@@ -17,6 +17,7 @@ import {
 import {
   MODES_MARGE, REGIMES_TVA, TAUX_TVA_DEFAUT, DUREE_VALIDITE_DEFAUT, coefficientDeMarge,
 } from './logique.js';
+import { TYPE_OUVRAGE, erreursOuvrage, articlesParId, calculerOuvrage } from './ouvrages.js';
 
 // ---------------------------------------------------------------- constantes
 export const COLLECTION_ARTICLES = 'devis_articles';
@@ -32,6 +33,16 @@ export const MARGE_DEFAUT = 20;
 export const TAUX_TVA_DEFAUT_REGLAGE = TAUX_TVA_DEFAUT[0];
 export const LIMITES = { libelle: 200, code: 40, unite: 20, prixMax: 10_000_000, mention: 500, jours: 3650 };
 export const MESSAGE_DESACTIVER = 'Un article ne se supprime jamais : il se désactive. Les devis déjà faits ne changent pas, et tu pourras le réactiver quand tu veux.';
+/** Types d'article (facultatif : un article sans type est « non classé »). Un ouvrage est composé d'autres articles (voir ouvrages.js). */
+export const TYPES_ARTICLE = [
+  { id: 'fourniture', libelle: 'Fourniture' },
+  { id: 'main_oeuvre', libelle: 'Main d’œuvre' },
+  { id: TYPE_OUVRAGE, libelle: 'Ouvrage' },
+  { id: 'sous_traitance', libelle: 'Sous-traitance' },
+  { id: 'materiel', libelle: 'Matériel' },
+  { id: 'divers', libelle: 'Divers' },
+];
+export const libelleType = (type) => TYPES_ARTICLE.find((t) => t.id === type)?.libelle ?? '';
 export const FILTRES_ACTIF = [
   { id: 'actifs', libelle: 'Actifs' },
   { id: 'desactives', libelle: 'Désactivés' },
@@ -92,13 +103,52 @@ export function validerArticle(saisie, { articles = [], courant = null } = {}) {
   const unite = texte(base.unite) || (courant ? '' : UNITE_DEFAUT);
   if (!unite) erreurs.unite = 'Choisis une unité (exemple : m², h, forfait).';
   else if (unite.length > LIMITES.unite) erreurs.unite = `L’unité est trop longue (${LIMITES.unite} caractères au plus).`;
+  // Type (facultatif) : absent = non classé.
+  let type = null;
+  if (base.type !== undefined && base.type !== null && base.type !== '') {
+    if (TYPES_ARTICLE.some((t) => t.id === base.type)) type = base.type;
+    else erreurs.type = `Le type « ${String(base.type)} » n’existe pas. Choisis parmi : ${TYPES_ARTICLE.map((t) => t.libelle).join(', ')}.`;
+  }
+  const estOuvrage = type === TYPE_OUVRAGE;
   const brutPrix = base.prixAchat;
   let prixAchat = null;
-  if (brutPrix === undefined || brutPrix === null || (typeof brutPrix === 'string' && !brutPrix.trim())) erreurs.prixAchat = 'Indique le prix d’achat en euros (exemple : 12,50).';
+  const prixVide = brutPrix === undefined || brutPrix === null || (typeof brutPrix === 'string' && !brutPrix.trim());
+  if (estOuvrage) {
+    // Un ouvrage n'a pas de prix d'achat propre : il se calcule à partir de ses composants.
+    if (!prixVide && 'prixAchat' in saisie) erreurs.prixAchat = 'Un ouvrage n’a pas de prix d’achat : il se calcule à partir de ses composants.';
+  } else if (prixVide) erreurs.prixAchat = 'Indique le prix d’achat en euros (exemple : 12,50).';
   else {
     const r = lirePrixAchat(brutPrix);
     if (r.erreur) erreurs.prixAchat = r.erreur;
     else prixAchat = r.prix;
+  }
+  // Composants et prix de vente forcé : seulement pour un ouvrage.
+  let composants = null;
+  let prixVenteForce = null;
+  const aDesComposants = Array.isArray(base.composants) && base.composants.length > 0;
+  const aUnForce = base.prixVenteForce !== undefined && base.prixVenteForce !== null && !(typeof base.prixVenteForce === 'string' && !base.prixVenteForce.trim());
+  if (estOuvrage) {
+    if (aUnForce) {
+      const f = lireNombre(base.prixVenteForce);
+      if (f === null) erreurs.prixVenteForce = 'Le prix de vente forcé doit être un nombre en euros (exemple : 12,50).';
+      else if (f < 0) erreurs.prixVenteForce = 'Le prix de vente forcé ne peut pas être négatif.';
+      else if (f > LIMITES.prixMax) erreurs.prixVenteForce = 'Ce prix est trop grand : vérifie le nombre de zéros.';
+      else if (Math.abs(Math.round(f * 100) - f * 100) > 1e-6) erreurs.prixVenteForce = 'Le prix de vente forcé s’écrit avec 2 décimales au plus (exemple : 12,50).';
+      else prixVenteForce = Math.round(f * 100) / 100;
+    }
+    const problemes = erreursOuvrage({ id: courant?.id, composants: base.composants, prixVenteForce: prixVenteForce ?? undefined }, articlesParId(articles));
+    if (problemes.length) erreurs.composants = problemes.join(' ');
+    else composants = base.composants.map((c) => ({ articleId: c.articleId, quantite: c.quantite }));
+  } else {
+    if (aDesComposants) erreurs.composants = 'Seul un article de type « Ouvrage » peut avoir des composants.';
+    if (aUnForce) erreurs.prixVenteForce = 'Seul un ouvrage peut avoir un prix de vente forcé.';
+  }
+  // Marge propre à l'article (facultative, en %, dans le mode de marge des réglages) : sinon la marge des réglages s'applique.
+  let marge = null;
+  if (base.marge !== undefined && base.marge !== null && !(typeof base.marge === 'string' && !base.marge.trim())) {
+    const m = lireNombre(base.marge);
+    if (m === null || m < 0 || m > 1000) erreurs.marge = 'La marge de l’article est un pourcentage entre 0 et 1000 (exemple : 25), ou vide pour garder la marge des réglages.';
+    else marge = m;
   }
   const code = texte(base.code);
   if (code.length > LIMITES.code) erreurs.code = `Le code est trop long (${LIMITES.code} caractères au plus).`;
@@ -112,7 +162,7 @@ export function validerArticle(saisie, { articles = [], courant = null } = {}) {
     if (t === null || t < 0 || t > 100) erreurs.tauxTva = 'Le taux de TVA doit être un nombre entre 0 et 100 (exemple : 20).';
     else tauxTva = t;
   }
-  return { valeurs: { libelle, unite, prixAchat, code, tauxTva }, erreurs };
+  return { valeurs: { libelle, unite, prixAchat, code, tauxTva, type, composants, prixVenteForce, marge }, erreurs };
 }
 
 /** Document d'un article neuf. L'id, la date et l'auteur viennent de `ctx` (déterministe). */
@@ -123,6 +173,11 @@ export function nouvelArticle(valeurs, ctx = {}) {
     unite: valeurs.unite,
     prixAchat: valeurs.prixAchat,
     tauxTva: valeurs.tauxTva ?? null,
+    // Les champs du type, des composants et de la marge ne sont écrits que s'ils servent : les articles existants ne changent pas de forme.
+    ...(valeurs.type ? { type: valeurs.type } : {}),
+    ...(valeurs.composants ? { composants: valeurs.composants } : {}),
+    ...(valeurs.prixVenteForce !== null && valeurs.prixVenteForce !== undefined ? { prixVenteForce: valeurs.prixVenteForce } : {}),
+    ...(valeurs.marge !== null && valeurs.marge !== undefined ? { marge: valeurs.marge } : {}),
     actif: true,
     proprietaire: ctx.proprietaire ?? ctx.auteur ?? '',
   };
@@ -137,7 +192,7 @@ export function planCreerArticle(saisie, ctx, { articles = [] } = {}) {
 }
 
 /** Champs que `planMajArticle` accepte (jamais l'état actif/désactivé : voir planActiverArticle). */
-export const CHAMPS_MODIFIABLES = ['libelle', 'unite', 'prixAchat', 'code', 'tauxTva'];
+export const CHAMPS_MODIFIABLES = ['libelle', 'unite', 'prixAchat', 'code', 'tauxTva', 'type', 'composants', 'prixVenteForce', 'marge'];
 
 /** Modification de champs (seuls les champs donnés changent) : `{ erreurs, patch, ecritures }`. */
 export function planMajArticle(id, patch, { articles = [] } = {}) {
@@ -145,13 +200,31 @@ export function planMajArticle(id, patch, { articles = [] } = {}) {
   if (!courant) return { erreurs: { general: 'Article introuvable : recharge la page.' }, patch: {}, ecritures: [] };
   const donnes = Object.fromEntries(Object.entries(patch ?? {}).filter(([k]) => CHAMPS_MODIFIABLES.includes(k)));
   if (!Object.keys(donnes).length) return { erreurs: {}, patch: {}, ecritures: [] };
-  const { valeurs, erreurs } = validerArticle(donnes, { articles, courant: { ...courant, id } });
+  // Si l'article quitte le type « ouvrage », ses composants et son prix forcé s'effacent (ils ne comptent plus dans la validation).
+  const quitteOuvrage = 'type' in donnes && donnes.type !== TYPE_OUVRAGE;
+  const { composants: _c, prixVenteForce: _f, ...sansOuvrage } = courant;
+  const { valeurs, erreurs } = validerArticle(donnes, { articles, courant: { ...(quitteOuvrage ? sansOuvrage : courant), id } });
   // Seules les erreurs des champs touchés bloquent (un ancien article sans prix ne bloque pas la correction de son libellé).
-  const bloquantes = Object.fromEntries(Object.entries(erreurs).filter(([k]) => k in donnes));
+  const bloquantes = Object.fromEntries(Object.entries(erreurs).filter(([k]) => k in donnes || ('type' in donnes && (k === 'composants' || k === 'prixVenteForce'))));
   if (Object.keys(bloquantes).length) return { erreurs: bloquantes, patch: {}, ecritures: [] };
   const net = {};
+  const pareil = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
   for (const k of Object.keys(donnes)) {
-    if ((courant[k] ?? (k === 'code' ? '' : null)) !== valeurs[k]) net[k] = valeurs[k];
+    if (!pareil(courant[k] ?? (k === 'code' ? '' : null), valeurs[k])) net[k] = valeurs[k];
+  }
+  // Changer de type garde les champs cohérents : un ouvrage n'a pas de prix d'achat, un autre type n'a ni composants ni prix forcé.
+  if ('type' in donnes) {
+    if (valeurs.type === TYPE_OUVRAGE) {
+      const dansUnOuvrage = (articles ?? []).find((a) => a.type === TYPE_OUVRAGE && a.actif !== false && (a.composants ?? []).some((c) => c.articleId === id));
+      if (dansUnOuvrage) return { erreurs: { type: `Cet article est un composant de l’ouvrage « ${dansUnOuvrage.libelle} » : un ouvrage ne peut pas en contenir un autre. Retire-le d’abord de cet ouvrage.` }, patch: {}, ecritures: [] };
+      if (courant.prixAchat !== null && courant.prixAchat !== undefined) net.prixAchat = null;
+    } else {
+      if (courant.composants) net.composants = null;
+      if (courant.prixVenteForce !== null && courant.prixVenteForce !== undefined) net.prixVenteForce = null;
+      if (courant.type === TYPE_OUVRAGE && !('prixAchat' in donnes)) {
+        return { erreurs: { prixAchat: 'Indique le prix d’achat en euros (exemple : 12,50) : cet article n’est plus un ouvrage.' }, patch: {}, ecritures: [] };
+      }
+    }
   }
   return { erreurs: {}, patch: net, ecritures: Object.keys(net).length ? [ecritureModifier(COLLECTION_ARTICLES, id, net, MARQUES_MODIFICATION)] : [] };
 }
@@ -171,13 +244,21 @@ export function planActiverArticle(id, actif, { articles = [] } = {}) {
 /** Pour plus tard : un article « utilisé » par un devis demandera une confirmation de plus. Pour l'instant, aucun devis n'existe : jamais utilisé. */
 export const articleUtilise = () => false;
 
+/** Les articles tels qu'on les montre : un ouvrage porte son calcul (prix de vente, déboursé sec, marge) ; `toutes` : tout le Bordereau (les composants y sont cherchés). */
+export function avecCalculOuvrage(articles, toutes, reglages) {
+  const parId = articlesParId(toutes ?? articles);
+  const r = reglagesDevis(reglages);
+  return (articles ?? []).map((a) => (a.type === TYPE_OUVRAGE ? { ...a, calcul: calculerOuvrage(a, parId, { marge: r.marge, modeMarge: r.modeMarge }) } : a));
+}
+
 // ---------------------------------------------------------------- recherche, filtre, tri
 /** Articles filtrés (recherche dans le code et le libellé, sans accents ni casse ; `statut` : actifs | desactives | tous), triés par libellé. */
-export function filtrerArticles(articles, { recherche = '', statut = 'actifs' } = {}) {
+export function filtrerArticles(articles, { recherche = '', statut = 'actifs', type = '' } = {}) {
   const mots = normaliser(recherche).split(/\s+/).filter(Boolean);
   const gardes = (articles ?? []).filter((a) => {
     if (statut === 'actifs' && a.actif === false) return false;
     if (statut === 'desactives' && a.actif !== false) return false;
+    if (type === 'non_classe' ? !!a.type : (type && a.type !== type)) return false;
     if (!mots.length) return true;
     const cible = normaliser(`${a.code ?? ''} ${a.libelle ?? ''}`);
     return mots.every((m) => cible.includes(m));

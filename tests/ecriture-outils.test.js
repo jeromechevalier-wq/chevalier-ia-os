@@ -1186,3 +1186,54 @@ describe('B9 outils du bordereau (module Devis) : mêmes règles que l’écran,
     assert.equal(s.doc('devis_articles', b.id).prixAchat, 5, 'la restauration rétablit l’ancien prix');
   });
 });
+
+// ---------------------------------------------------------------- Devis : ouvrages (24/10/2026)
+
+describe('O9 outils du bordereau : un ouvrage se crée avec ses composants et se lit avec son calcul', () => {
+  /** Trois articles de référence : achats 5,75 / 1,90 / 1,39 avec des marges propres de 16,5 / 31,6 / 54 % (ventes 6,70 / 2,50 / 2,14). */
+  async function troisArticles(s) {
+    const a = ok(await s.appeler('biblio', 'creer_article', { libelle: 'BA13 standard', unite: 'm²', prixAchat: 5.75, marge: 16.5, type: 'fourniture' }));
+    const b = ok(await s.appeler('biblio', 'creer_article', { libelle: 'Rail', unite: 'ml', prixAchat: 1.9, marge: 31.6 }));
+    const c = ok(await s.appeler('biblio', 'creer_article', { libelle: 'Isolant', unite: 'm²', prixAchat: 1.39, marge: 54 }));
+    return [a.id, b.id, c.id];
+  }
+
+  test('O9 création d’un ouvrage sans prix d’achat, puis lecture avec le calcul (11,34 / 9,04 / 2,30 / 25,44 %)', async () => {
+    const s = await demarrer();
+    const [a, b, c] = await troisArticles(s);
+    const o = ok(await s.appeler('biblio', 'creer_article', {
+      libelle: 'Cloisons de séparation', unite: 'm²', type: 'ouvrage', composants: [{ articleId: a, quantite: 1 }, { articleId: b, quantite: 1 }, { articleId: c, quantite: 1 }],
+    }));
+    const doc = s.doc('devis_articles', o.id);
+    assert.equal(doc.type, 'ouvrage');
+    assert.equal(doc.prixAchat, null);
+    assert.equal(doc.composants.length, 3);
+    const liste = ok(await s.appeler('lecteur', 'lister_articles', {})).articles;
+    const ouvrage = liste.find((x) => x.id === o.id);
+    assert.equal(ouvrage.calcul.prixVenteHT, 11.34);
+    assert.equal(ouvrage.calcul.deboursSecHT, 9.04);
+    assert.equal(ouvrage.calcul.margeBruteHT, 2.3);
+    assert.equal(ouvrage.calcul.tauxMarge, 25.44);
+    assert.equal(liste.find((x) => x.id === a).type, 'fourniture');
+    assert.ok(!('calcul' in liste.find((x) => x.id === a)), 'un article simple n’a pas de calcul');
+    const trouve = ok(await s.appeler('lecteur', 'chercher_article', { texte: 'cloisons' })).articles;
+    assert.equal(trouve[0].calcul.prixVenteHT, 11.34);
+  });
+
+  test('O9 prix de vente forcé, modification des composants et refus (boucle, doublon, ouvrage dans un ouvrage, composant inconnu)', async () => {
+    const s = await demarrer();
+    const [a, b] = await troisArticles(s);
+    const o = ok(await s.appeler('biblio', 'creer_article', { libelle: 'Ouvrage', type: 'ouvrage', composants: [{ articleId: a, quantite: 2 }], prixVenteForce: 20 }));
+    assert.equal(ok(await s.appeler('lecteur', 'lister_articles', {})).articles.find((x) => x.id === o.id).calcul.prixVenteHT, 20);
+    ok(await s.appeler('biblio', 'modifier_article', { id: o.id, composants: [{ articleId: a, quantite: 1 }, { articleId: b, quantite: 3 }], prixVenteForce: null }));
+    assert.equal(s.doc('devis_articles', o.id).composants.length, 2);
+    refuse(await s.appeler('biblio', 'modifier_article', { id: o.id, composants: [{ articleId: o.id, quantite: 1 }] }), /se contenir lui-même/);
+    refuse(await s.appeler('biblio', 'creer_article', { libelle: 'Double', type: 'ouvrage', composants: [{ articleId: a, quantite: 1 }, { articleId: a, quantite: 2 }] }), /déjà dans l’ouvrage/);
+    refuse(await s.appeler('biblio', 'creer_article', { libelle: 'Poupée', type: 'ouvrage', composants: [{ articleId: o.id, quantite: 1 }] }), /déjà un ouvrage/);
+    refuse(await s.appeler('biblio', 'creer_article', { libelle: 'Fantôme', type: 'ouvrage', composants: [{ articleId: 'fantome', quantite: 1 }] }), /n’existe pas/);
+    refuse(await s.appeler('biblio', 'creer_article', { libelle: 'Vide', type: 'ouvrage', composants: [] }), /au moins un composant/);
+    refuse(await s.appeler('biblio', 'creer_article', { libelle: 'Sans prix', type: 'fourniture' }), /prix d’achat/);
+    refuse(await s.appeler('biblio', 'creer_article', { libelle: 'Faux', type: 'fourniture', prixAchat: 1, composants: [{ articleId: a, quantite: 1 }] }), /Seul un article de type/);
+    refuse(await s.appeler('lecteur', 'creer_article', { libelle: 'X', type: 'ouvrage', composants: [{ articleId: a, quantite: 1 }] }));
+  });
+});

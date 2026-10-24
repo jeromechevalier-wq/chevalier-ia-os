@@ -628,7 +628,7 @@ export async function modifierArticle(c, args) {
   await lire(c, C.devisArticles, id, 'Article');
   const plan = DA.planMajArticle(id, champs, { articles: await c.donnees.liste(C.devisArticles) });
   verifierMessages(plan.erreurs);
-  if (!Object.keys(plan.patch).length) refuser('saisie_invalide', 'Aucun champ à modifier (libelle, unite, prixAchat, code, tauxTva). Pour désactiver ou réactiver un article, utiliser desactiver_article.');
+  if (!Object.keys(plan.patch).length) refuser('saisie_invalide', 'Aucun champ à modifier (libelle, unite, prixAchat, code, tauxTva, type, composants, prixVenteForce, marge). Pour désactiver ou réactiver un article, utiliser desactiver_article.');
   return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id, champsModifies: Object.keys(plan.patch) });
 }
 
