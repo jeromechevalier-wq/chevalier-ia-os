@@ -200,6 +200,41 @@ function retenueEnCentimes(r, ttcC) {
   return arrondiDemi(ttcC * (Math.round(r.pourcentage * 100) / 100) / 100);
 }
 
+/**
+ * Niveau d'une section : 2 pour une sous-section (`niveau: 2`), rattachée à la section de niveau 1 qui la précède ; 1 sinon. Les anciens devis n'ont pas de `niveau` : tout est de niveau 1.
+ * Une sous-section en tête de liste (aucune section avant elle) n'a personne à qui se rattacher : elle compte comme une section de niveau 1.
+ */
+export const niveauSection = (sections, i) => (i > 0 && sections?.[i]?.niveau === 2 ? 2 : 1);
+
+/**
+ * Numéros d'un devis : un tableau par section, { numero, lignes: [numéro de chaque ligne] }.
+ * Section « 1 », sous-section « 1.1 », ligne « 1.1.1 ». Dans une section de niveau 1, les lignes posées avant la première sous-section et les sous-sections
+ * partagent le même compteur (ligne 1.1, sous-section 1.2, dont les lignes sont 1.2.1…). Sans sous-section : « 1 » puis « 1.1 », « 1.2 », comme avant.
+ */
+export function numerosDevis(sections) {
+  const liste = Array.isArray(sections) ? sections : [];
+  let n1 = 0;
+  let enfants = 0;
+  let racine = '';
+  let prefixe = '';
+  let ligneDansSection = 0;
+  return liste.map((s, i) => {
+    let numero;
+    if (niveauSection(liste, i) === 1) { n1 += 1; enfants = 0; racine = String(n1); numero = racine; } else { enfants += 1; numero = `${racine}.${enfants}`; }
+    prefixe = numero;
+    ligneDansSection = 0;
+    return {
+      numero,
+      lignes: (s?.lignes ?? []).map(() => {
+        // Ligne posée directement sous une section de niveau 1 : elle prend le prochain numéro du compteur partagé (1.1, 1.2…).
+        if (niveauSection(liste, i) === 1) { enfants += 1; return `${racine}.${enfants}`; }
+        ligneDansSection += 1;
+        return `${prefixe}.${ligneDansSection}`;
+      }),
+    };
+  });
+}
+
 /** Totaux d'un devis, tout en euros, calculés en centimes. Les lignes invalides comptent pour 0 (la validation les signale). */
 export function totauxDevis(devis) {
   const franchise = devis?.regimeTva === 'franchise';
@@ -208,6 +243,7 @@ export function totauxDevis(devis) {
   const sections = [];
   const lignes = [];
   const baseParTaux = new Map(); // taux -> centimes HT
+  const propresC = []; // centimes des seules lignes de chaque section
   let htC = 0;
   for (const section of devis?.sections ?? []) {
     let sousC = 0;
@@ -220,8 +256,16 @@ export function totauxDevis(devis) {
       lignes.push({ id: ligne.id, prixVenteUnitaire: pv, totalHT: versEuros(totalC), venduAPerte: estVendueAPerte(ligne, pv ?? undefined) });
     }
     htC += sousC;
+    propresC.push(sousC);
     sections.push({ id: section.id, sousTotalHT: versEuros(sousC) });
   }
+  // Le sous-total d'une section de niveau 1 compte ses lignes ET celles de ses sous-sections (rien n'est compté deux fois dans le total du devis).
+  const toutes = devis?.sections ?? [];
+  let parent = -1;
+  toutes.forEach((s, i) => {
+    if (niveauSection(toutes, i) === 1) { parent = i; return; }
+    sections[parent].sousTotalHT = versEuros(versCentimes(sections[parent].sousTotalHT) + propresC[i]);
+  });
   // Remise : après la marge et les sous-totaux, sur le total HT, répartie au prorata de chaque base de TVA.
   // Plus fort reste : chaque part est tronquée au centime, puis les centimes restants vont aux plus grands restes
   // (à égalité, au taux le plus élevé) : la somme des bases remisées vaut exactement net HT, sans base qui dépasse son brut.
@@ -371,6 +415,7 @@ function erreursConditions(devis, t) {
   }
   if (!absent(devis.texteLibre) && typeof devis.texteLibre !== 'string') e.push('Le texte libre du devis doit être un texte.');
   if (!absent(devis.notesBasDePage) && typeof devis.notesBasDePage !== 'string') e.push('Les notes de bas de page doivent être un texte.');
+  else if (typeof devis.notesBasDePage === 'string' && devis.notesBasDePage.length > 2000) e.push('Les notes de bas de page sont trop longues (2 000 caractères au plus).');
   return e;
 }
 
@@ -661,6 +706,7 @@ export function vueClient(devis, contexte = {}) {
   const t = totauxDevis(devis);
   const sansTva = t.mentions.length > 0 && (devis.regimeTva === 'franchise' || devis.autoliquidation === true);
   const pos = parPosition(devis, t);
+  const numeros = numerosDevis(devis.sections);
   const vue = {
     formatVersion: 1,
     espace: contexte.espace ?? null,
@@ -682,12 +728,13 @@ export function vueClient(devis, contexte = {}) {
     sections: (devis.sections ?? []).map((s, i) => ({
       id: s.id,
       ...(s.sautDePageAvant === true ? { sautDePageAvant: true } : {}),
-      numero: String(i + 1), // une seule profondeur de section en v1
+      ...(niveauSection(devis.sections, i) === 2 ? { niveau: 2 } : {}),
+      numero: numeros[i].numero, // « 1 », sous-section « 1.1 »
       titre: s.titre ?? '',
       sousTotalHT: t.sections[i].sousTotalHT,
       lignes: (s.lignes ?? []).map((l, j) => ({
         id: l.id,
-        numero: `${i + 1}.${j + 1}`,
+        numero: numeros[i].lignes[j],
         libelle: l.libelle ?? '',
         description: typeof l.description === 'string' ? l.description : '',
         quantite: l.quantite,

@@ -1,4 +1,4 @@
-// Éditeur de devis (route devis/editeur, devis/editeur/<id>) : choisir l'affaire, remplir le chantier, ajouter des lignes (Bordereau, ligne libre, section, texte),
+// Éditeur de devis (route devis/editeur, devis/editeur/<id>) : choisir l'affaire, remplir le chantier, ajouter des lignes (Bordereau, ligne libre, section, sous-section, texte),
 // régler la remise et l'acompte, voir le total en direct, l'aperçu, puis finaliser. Un brouillon s'enregistre tout seul (écriture directe, plans de brouillon.js) ;
 // finaliser passe par la fonction du serveur. Aucune règle ni aucun calcul ici : les fonctions pures sont dans editeur-logique.js et logique.js.
 // Un devis qui n'est plus un brouillon s'ouvre en lecture seule (aperçu + totaux) avec l'invitation à créer une variante.
@@ -13,9 +13,10 @@ import * as A from './articles.js';
 import { arbreFamilles, cheminFamille } from './familles.js';
 import * as Ed from './editeur-logique.js';
 import {
-  totauxDevis, vueClient, erreursFinalisation, erreursChantier, STATUTS_DEVIS, MODES_MARGE, UNITES_DUREE, MOMENTS_ACOMPTE, transitionPossible, TAUX_TVA_DEFAUT,
+  totauxDevis, vueClient, erreursFinalisation, erreursChantier, STATUTS_DEVIS, MODES_MARGE, UNITES_DUREE, MOMENTS_ACOMPTE, transitionPossible, TAUX_TVA_DEFAUT, niveauSection, dureeEnTexte,
 } from './logique.js';
 import { devisHtml, formaterMontant } from './document.js';
+import { menuUnite } from './menu-unite.js';
 
 const ERREUR_ECRITURE = 'Enregistrement impossible : ton compte n’a peut-être que le droit de lire cet espace, ou la connexion est coupée. Réessaie dans un instant.';
 const ERREUR_LECTURE = 'Les devis n’ont pas pu être lus. Vérifie ta connexion puis recharge la page.';
@@ -171,7 +172,7 @@ export function rendreEditeurDevis(conteneur, id) {
   let arretGarde = () => {};
   let delaiIntrouvable = null;
   const ref = {}; // éléments à mettre à jour sans tout redessiner
-  const datalist = h('datalist', { id: 'unites-devis' }, A.UNITES_PROPOSEES.map((u) => h('option', { value: u })));
+  const replies = new Set(); // sections et sous-sections repliées (à l'écran seulement : rien n'est enregistré)
 
   const devisCourant = () => D.devisParId(id);
 
@@ -276,38 +277,37 @@ export function rendreEditeurDevis(conteneur, id) {
     const apres = pointInsertion && Ed.aplatir(travail.sections).some((x) => x.id === pointInsertion) ? pointInsertion : null;
     pointInsertion = null;
     majPointInsertion();
-    appliquer(Ed.ajouterElement(travail.sections, element, apres), { focus: element.id, champ });
+    appliquer(Ed.ajouterElement(travail.sections, element, apres, nouvelId()), { focus: element.id, champ });
   }
   const changerLigne = (idLigne, patch) => { travail.sections = Ed.majElement(travail.sections, idLigne, patch); marquerModifie(); };
 
   // ------------------------------------------------ construction de la page
+  // Disposition d'un devis papier (barre d'actions fixe, en-tête à deux colonnes, tableau à trois niveaux, boutons d'ajout, bas de page) : css/devis.css, bloc « Éditeur de devis ».
   function construire() {
     montre = true;
     for (const k of Object.keys(ref)) delete ref[k];
     const d = travail;
-    const entete = h('header', { class: 'page-tete' },
-      h('div', {},
-        h('a', { class: 'lien-retour', href: '#/devis/liste' }, icone('chevron-left', { taille: 16 }), 'Devis'),
-        h('div', { class: 'titre-devis' },
-          (ref.titre = h('h1', {}, '')),
-          (ref.pastille = h('span', { class: 'pastille-statut', dataset: { valeur: 'statut' } })),
-          (ref.indicateur = h('span', { class: 'indicateur-enregistrement', role: 'status', 'aria-live': 'polite', dataset: { valeur: 'enregistrement' } })))),
-      h('div', { class: 'page-actions' }, lecture ? boutonsLecture(d) : [
-        (ref.boutonEnregistrer = h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'enregistrer' }, onclick: async () => { const ok = await sauver(); toast(ok ? 'Devis enregistré' : messageEnreg || ERREUR_ECRITURE, { type: ok ? 'info' : 'erreur', duree: ok ? 2500 : 8000 }); } })),
-        h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'finaliser' }, onclick: finaliser }, icone('check', { taille: 16 }), 'Finaliser'),
-      ]));
-    ref.bandeauConflit = h('p', { class: 'bandeau-lecture-seule', role: 'alert', hidden: !conflit, dataset: { valeur: 'conflit' } }, 'Ce devis a été modifié ailleurs. Tes changements ne sont pas enregistrés tant que tu n’as pas rechargé. ',
-      h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'recharger' }, onclick: () => { conflit = false; charger(); } }, 'Recharger'));
-    const erreurEnreg = (ref.erreurEnreg = h('p', { class: 'erreur', role: 'alert', dataset: { erreur: 'enregistrement' }, hidden: true }));
+    ref.titre = h('h1', { class: 'titre-barre-devis' }, '');
+    ref.pastille = h('span', { class: 'pastille-statut', dataset: { valeur: 'statut' } });
+    ref.indicateur = h('span', { class: 'indicateur-enregistrement', role: 'status', 'aria-live': 'polite', dataset: { valeur: 'enregistrement' } });
     const onglets = h('div', { class: 'onglets-editeur', role: 'tablist', 'aria-label': 'Affichage du devis', hidden: lecture },
-      [['edition', 'Édition'], ['apercu', 'Aperçu']].map(([cle, libelle]) => h('button', {
+      [['edition', 'Édition'], ['apercu', 'Prévisualisation']].map(([cle, libelle]) => h('button', {
         type: 'button', class: 'onglet-editeur', role: 'tab', dataset: { onglet: cle }, onclick: () => choisirOnglet(cle),
       }, libelle)));
     ref.onglets = onglets;
-    ref.panneauEdition = h('div', { class: 'editeur-grille', dataset: { panneau: 'edition' } }, lecture ? null : h('div', { class: 'editeur-principal' }, blocs()), panneauTotal());
+    const barre = h('header', { class: 'barre-devis' },
+      h('div', { class: 'barre-devis-gauche' }, h('div', { class: 'titre-devis' }, ref.titre, ref.pastille, ref.indicateur), onglets),
+      h('div', { class: 'barre-devis-droite' }, lecture ? boutonsLecture(d) : boutonsEdition()));
+    ref.bandeauConflit = h('p', { class: 'bandeau-lecture-seule', role: 'alert', hidden: !conflit, dataset: { valeur: 'conflit' } }, 'Ce devis a été modifié ailleurs. Tes changements ne sont pas enregistrés tant que tu n’as pas rechargé. ',
+      h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'recharger' }, onclick: () => { conflit = false; charger(); } }, 'Recharger'));
+    ref.erreurEnreg = h('p', { class: 'erreur', role: 'alert', dataset: { erreur: 'enregistrement' }, hidden: true });
+    ref.panneauEdition = h('div', { class: 'editeur-edition', dataset: { panneau: 'edition' } },
+      lecture
+        ? h('article', { class: 'document-devis' }, blocTotaux())
+        : [(ref.options = blocOptions()), h('article', { class: 'document-devis' }, enteteDocument(), blocLignes(), basDePage())]);
     ref.panneauApercu = h('div', { class: 'editeur-apercu', dataset: { panneau: 'apercu' } });
     racine.classList.toggle('devis-lecture-seule', lecture);
-    remplir(racine, datalist, entete, lecture ? h('p', { class: 'bandeau-lecture-seule', dataset: { valeur: 'lecture-seule' } }, MESSAGE_LECTURE_SEULE) : ref.bandeauConflit, erreurEnreg, onglets, ref.panneauEdition, ref.panneauApercu);
+    remplir(racine, barre, lecture ? h('p', { class: 'bandeau-lecture-seule', dataset: { valeur: 'lecture-seule' } }, MESSAGE_LECTURE_SEULE) : ref.bandeauConflit, ref.erreurEnreg, ref.panneauEdition, ref.panneauApercu);
     if (!lecture) { rendreLignes(); majResultats(); }
     arretGarde();
     arretGarde = ajouterGardeSortie(
@@ -323,7 +323,28 @@ export function rendreEditeurDevis(conteneur, id) {
     return [
       transitionPossible(d.statut, 'nouvelle_version') ? h('button', { type: 'button', class: 'bouton bouton-principal', dataset: { action: 'creer-variante' }, onclick: () => creerVariante(d) }, icone('pencil', { taille: 16 }), 'Créer une variante') : null,
       h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'dupliquer' }, onclick: () => dupliquerDevis(d) }, icone('copy', { taille: 16 }), 'Dupliquer'),
+      h('a', { class: 'bouton bouton-secondaire', href: '#/devis/liste', dataset: { action: 'fermer-lecture' } }, 'Fermer'),
     ];
+  }
+
+  // Barre d'actions : Options (réglages du devis ; le menu complet viendra ensuite), Annuler, Enregistrer, Finaliser. Sur téléphone, Options passe dans le bouton « … ».
+  function boutonsEdition() {
+    ref.boutonOptions = h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-options', dataset: { action: 'options' }, 'aria-expanded': 'false', 'aria-controls': 'options-devis', onclick: () => basculerOptions() }, 'Options', icone('chevron-down', { taille: 14 }));
+    return [
+      ref.boutonOptions,
+      h('button', { type: 'button', class: 'bouton-icone bouton-plus-actions', dataset: { action: 'plus-actions' }, 'aria-haspopup': 'menu', 'aria-label': 'Autres actions', onclick: (ev) => ouvrirMenu(ev.currentTarget, [{ libelle: 'Options', icone: 'settings', action: () => basculerOptions(true) }]) }, icone('ellipsis', { taille: 16 })),
+      h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'annuler' }, onclick: () => naviguer('devis/liste') }, 'Annuler'),
+      (ref.boutonEnregistrer = h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'enregistrer' }, onclick: async () => { const ok = await sauver(); toast(ok ? 'Devis enregistré' : messageEnreg || ERREUR_ECRITURE, { type: ok ? 'info' : 'erreur', duree: ok ? 2500 : 8000 }); } })),
+      h('button', { type: 'button', class: 'bouton bouton-principal', dataset: { action: 'finaliser' }, onclick: finaliser }, icone('check', { taille: 16 }), 'Finaliser'),
+    ];
+  }
+
+  function basculerOptions(forcer) {
+    if (!ref.options) return;
+    const ouvert = forcer ?? ref.options.hidden;
+    ref.options.hidden = !ouvert;
+    ref.boutonOptions?.setAttribute('aria-expanded', String(ouvert));
+    if (ouvert) ref.options.scrollIntoView?.({ block: 'nearest' });
   }
 
   function choisirOnglet(cle) {
@@ -347,13 +368,15 @@ export function rendreEditeurDevis(conteneur, id) {
     remplir(ref.panneauApercu, corps);
   }
 
-  // ------------------------------------------------ en-tête
+  // ------------------------------------------------ barre du haut
   function majEntete() {
     if (!ref.titre) return;
     const d = travail;
-    ref.titre.textContent = d.numero ? `Devis ${d.numero}${d.version > 1 ? ` · v${d.version}` : ''}` : 'Brouillon de devis';
+    ref.titre.textContent = d.numero ? `Devis ${d.numero}${d.version > 1 ? ` · v${d.version}` : ''}` : 'Brouillon';
     ref.pastille.textContent = libelleStatut(d.statut);
     ref.pastille.dataset.statut = d.statut;
+    ref.pastille.hidden = d.statut === 'brouillon' && !d.numero; // le titre dit déjà « Brouillon »
+    if (ref.numeroDocument) ref.numeroDocument.textContent = d.numero ? `Devis n° ${d.numero}${d.version > 1 ? ` · v${d.version}` : ''}` : 'Devis n° Brouillon';
     if (lecture) { ref.indicateur.textContent = ''; return; }
     ref.indicateur.textContent = Ed.libelleEnregistrement(etatEnreg);
     ref.indicateur.dataset.etat = etatEnreg;
@@ -369,42 +392,133 @@ export function rendreEditeurDevis(conteneur, id) {
     if (ref.erreurAffaire) { ref.erreurAffaire.hidden = Boolean(d.affaireId); }
   }
 
-  // ------------------------------------------------ blocs de saisie
-  const bloc = (titre, ...contenu) => h('section', { class: 'carte-editeur' }, h('h2', { class: 'titre-bloc' }, titre), ...contenu);
-  const champ = (etiquette, controle, { id: idc = null, aide = null } = {}) => h('div', { class: 'bloc-champ' }, h('label', { class: 'etiquette', for: idc }, etiquette), controle, aide);
-
-  function blocs() {
-    return [blocAffaire(), blocChantier(), blocLignes(), blocPrix(), blocConditions()];
+  // ------------------------------------------------ options (réglages du devis) : le menu complet viendra ensuite
+  function blocOptions() {
+    const d = travail;
+    const marge = h('input', { class: 'champ champ-court', id: 'devis-marge', type: 'text', inputmode: 'decimal', value: saisieNombre(d.marge), dataset: { champ: 'marge' }, 'aria-label': 'Marge du devis en pourcent',
+      oninput: (e) => { const vide = e.target.value.trim() === ''; const v = vide ? 0 : Ed.lireSaisie(e.target.value); e.target.classList.toggle('invalide', v === null); if (v !== null) { changer({ marge: v }); majPrixAffiches(); } } });
+    const mode = h('select', { class: 'champ', id: 'devis-mode', dataset: { champ: 'mode-marge' }, 'aria-label': 'Mode de calcul de la marge', onchange: (e) => { changer({ modeMarge: e.target.value }); majPrixAffiches(); } },
+      MODES_MARGE.map((m) => h('option', { value: m.id, selected: d.modeMarge === m.id }, m.libelle)));
+    const tva = h('select', { class: 'champ', id: 'devis-tva', dataset: { champ: 'tva-defaut' }, onchange: (e) => changer({ tauxTvaDefaut: Number(e.target.value) }) },
+      [...new Set([...D.etat.reglages.tauxProposes, d.tauxTvaDefaut])].sort((a, b) => b - a).map((t) => h('option', { value: String(t), selected: d.tauxTvaDefaut === t }, `${saisieNombre(t)} %`)));
+    return h('section', { class: 'carte-editeur panneau-options', id: 'options-devis', hidden: true, dataset: { zone: 'options' } },
+      h('h2', { class: 'titre-bloc' }, 'Options du devis'),
+      h('div', { class: 'grille-champs' },
+        champ('Marge du devis (%)', h('div', { class: 'ligne-champs' }, marge), { id: 'devis-marge', aide: h('p', { class: 'texte-discret' }, 'Elle s’applique aux lignes qui n’ont pas leur propre marge. Le client ne la voit jamais.') }),
+        champ('Mode de calcul', mode, { id: 'devis-mode' }),
+        champ('TVA par défaut', tva, { id: 'devis-tva' })));
   }
 
-  function blocAffaire() {
+  const champ = (etiquette, controle, { id: idc = null, aide = null } = {}) => h('div', { class: 'bloc-champ' }, h('label', { class: 'etiquette', for: idc }, etiquette), controle, aide);
+
+  // ------------------------------------------------ en-tête du document : à gauche les dates, à droite le client et l'affaire
+  const jourFr = (j) => (/^\d{4}-\d{2}-\d{2}/.test(j ?? '') ? `${j.slice(8, 10)}/${j.slice(5, 7)}/${j.slice(0, 4)}` : '');
+  function dateDuDevis() {
+    const v = travail.finaliseLe ?? travail.creeLe;
+    const date = v?.toDate ? v.toDate() : v instanceof Date ? v : new Date();
+    return date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  }
+
+  /**
+   * Une valeur qui s'écrit sur place : un lien « définir » (ou la valeur déjà saisie) ; un clic le remplace par le champ, qui redevient lien quand on le quitte.
+   * Les champs ne sont jamais retirés de la page, seulement cachés (retirer une liste au moment où elle perd le focus fait une erreur dans le navigateur).
+   */
+  function valeurSurPlace({ nom, texte, champs }) {
+    const lien = h('button', { type: 'button', class: 'bouton-lien lien-definir', dataset: { definir: nom } });
+    const saisie = h('span', { class: 'valeur-saisie', hidden: true }, champs());
+    const zone = h('span', { class: 'valeur-sur-place' }, lien, saisie);
+    const montrerLien = () => { const t = texte(); lien.textContent = t || 'définir'; lien.classList.toggle('lien-renseigne', Boolean(t)); saisie.hidden = true; lien.hidden = false; };
+    lien.addEventListener('click', () => { lien.hidden = true; saisie.hidden = false; saisie.querySelector('input, select')?.focus(); });
+    // On referme un peu après avoir quitté le champ : le champ qui disparaît tout de suite décalerait la page entre l'appui et le relâchement d'un clic (le clic sur le lien voisin serait perdu).
+    let minuteurFermeture = null;
+    zone.addEventListener('focusout', (e) => {
+      if (e.target === lien || saisie.hidden || (e.relatedTarget && zone.contains(e.relatedTarget))) return;
+      clearTimeout(minuteurFermeture);
+      minuteurFermeture = setTimeout(() => { if (!saisie.hidden && !zone.contains(document.activeElement)) montrerLien(); }, 250);
+    });
+    // Entrée ou Échap referme la saisie (la valeur est déjà prise en compte à chaque frappe) et rend le focus au lien.
+    zone.addEventListener('keydown', (e) => { if (!saisie.hidden && (e.key === 'Enter' || e.key === 'Escape')) { e.preventDefault(); montrerLien(); lien.focus(); } });
+    montrerLien();
+    return zone;
+  }
+  const champDate = (nom, lire, ecrire, etiquette) => () => [h('input', {
+    class: 'champ champ-date', type: 'date', value: lire() ?? '', 'aria-label': etiquette, dataset: { champ: nom },
+    oninput: (e) => { ecrire(e.target.value || null); marquerModifie(); majErreursChantier(); },
+  })];
+  const ecrireChantier = (cle) => (v) => { travail.chantier = { ...(travail.chantier ?? {}), [cle]: v }; };
+
+  function champsDuree() {
+    const c = travail.chantier ?? {};
+    const duree = h('input', { class: 'champ champ-court', type: 'text', inputmode: 'decimal', value: saisieNombre(c.dureeEstimee?.valeur), dataset: { champ: 'duree' }, 'aria-label': 'Durée estimée', oninput: () => majDuree() });
+    const unite = h('select', { class: 'champ', dataset: { champ: 'duree-unite' }, 'aria-label': 'Unité de la durée', onchange: () => majDuree() },
+      UNITES_DUREE.map((u) => h('option', { value: u.id, selected: (c.dureeEstimee?.unite ?? 'jour') === u.id }, u.pluriel)));
+    function majDuree() {
+      const v = Ed.lireSaisie(duree.value);
+      const base = { ...(travail.chantier ?? {}) };
+      if (!duree.value.trim()) delete base.dureeEstimee; else base.dureeEstimee = { valeur: v === null ? duree.value : v, unite: unite.value };
+      travail.chantier = base;
+      marquerModifie();
+      majErreursChantier();
+    }
+    return [duree, unite];
+  }
+
+  function enteteDocument() {
     const d = travail;
+    const c = d.chantier ?? {};
+    ref.adresseAuto = clientsDeAffaire(CRM.affaire(d.affaireId)).find((x) => (d.organisationId ? x.fiche.id === d.organisationId : x.fiche.id === d.personneId))?.adresse ?? '';
+    const ligne = (avant, zone, apres = '') => h('p', { class: 'ligne-entete' }, avant, zone, apres);
+    ref.numeroDocument = h('h2', { class: 'titre-document', dataset: { valeur: 'numero-devis' } }, '');
+    ref.objet = h('textarea', { class: 'champ', id: 'devis-objet', rows: 2, value: d.objet ?? '', placeholder: 'Exemple : Rénovation de la cuisine', 'aria-label': 'Description du devis', hidden: !(d.objet ?? '').trim(), dataset: { champ: 'objet' }, oninput: (e) => changer({ objet: e.target.value }) });
+    ref.lienDescription = h('button', { type: 'button', class: 'bouton-lien lien-description', dataset: { action: 'description' }, 'aria-expanded': String(!ref.objet.hidden), onclick: () => {
+      ref.objet.hidden = !ref.objet.hidden;
+      majLienDescription();
+      if (!ref.objet.hidden) ref.objet.focus();
+    } });
+    function majLienDescription() { remplir(ref.lienDescription, icone(ref.objet.hidden ? 'plus' : 'minus', { taille: 14 }), ref.objet.hidden ? 'Ajouter une description' : 'Masquer la description'); ref.lienDescription.setAttribute('aria-expanded', String(!ref.objet.hidden)); }
+    majLienDescription();
+    ref.erreursChantier = h('p', { class: 'erreur', role: 'alert', dataset: { erreur: 'chantier' }, hidden: true });
+    const gauche = h('div', { class: 'entete-gauche' },
+      ref.numeroDocument,
+      h('p', { class: 'ligne-entete' }, `En date du ${dateDuDevis()}`),
+      ligne('Valable jusqu’au ', valeurSurPlace({ nom: 'expireLe', texte: () => jourFr(travail.expireLe), champs: champDate('expireLe', () => travail.expireLe, (v) => { travail.expireLe = v; }, 'Valable jusqu’au') })),
+      ligne('Début des travaux le ', valeurSurPlace({ nom: 'debutTravaux', texte: () => jourFr(travail.chantier?.debutTravaux), champs: champDate('debutTravaux', () => travail.chantier?.debutTravaux, ecrireChantier('debutTravaux'), 'Début des travaux') })),
+      ligne('Durée estimée à ', valeurSurPlace({ nom: 'duree', texte: () => dureeEnTexte(travail.chantier?.dureeEstimee) ?? '', champs: champsDuree })),
+      ligne('Date limite de fin de chantier le ', valeurSurPlace({ nom: 'finChantierAu', texte: () => jourFr(travail.chantier?.finChantierAu), champs: champDate('finChantierAu', () => travail.chantier?.finChantierAu, ecrireChantier('finChantierAu'), 'Date limite de fin de chantier') })),
+      ref.erreursChantier,
+      ref.lienDescription,
+      ref.objet);
+
+    // À droite : le client puis l'affaire (deux grandes listes), puis l'adresse du chantier et l'e-mail du destinataire.
     const liste = affaires();
     const courante = liste.some((a) => a.id === d.affaireId) || !d.affaireId ? liste : [...liste, CRM.affaire(d.affaireId)].filter(Boolean);
-    ref.selectAffaire = h('select', { class: 'champ', id: 'devis-affaire', dataset: { champ: 'affaire' }, 'aria-required': 'true', onchange: (e) => changerAffaire(e.target.value) },
+    ref.selectAffaire = h('select', { class: 'champ champ-grand', id: 'devis-affaire', dataset: { champ: 'affaire' }, 'aria-required': 'true', 'aria-label': 'Affaire', onchange: (e) => changerAffaire(e.target.value) },
       h('option', { value: '' }, 'Choisis une affaire'), courante.map((a) => h('option', { value: a.id, selected: a.id === d.affaireId }, libelleAffaire(a))));
     ref.erreurAffaire = h('p', { class: 'erreur', role: 'alert', dataset: { erreur: 'affaire' }, hidden: Boolean(d.affaireId) }, 'Choisis l’affaire de ce devis : sans elle, il ne sera rattaché à aucun client.');
-    ref.selectClient = h('select', { class: 'champ', id: 'devis-client', dataset: { champ: 'client' }, onchange: (e) => changerClient(e.target.value) });
+    ref.selectClient = h('select', { class: 'champ champ-grand', id: 'devis-client', dataset: { champ: 'client' }, 'aria-label': 'Client', onchange: (e) => changerClient(e.target.value) });
     majClients();
+    ref.champAdresse = h('textarea', {
+      class: 'champ', id: 'devis-chantier-adresse', rows: 3, dataset: { champ: 'chantier-adresse' }, value: Ed.texteDeAdresse(c.adresse) || Ed.texteDeAdresse(d.adresses?.chantier),
+      oninput: (e) => { const t = e.target.value; travail.adresses = { ...(travail.adresses ?? {}), chantier: Ed.adresseTexteSimple(t) }; travail.chantier = Ed.chantierAvecAdresse(travail.chantier, t); marquerModifie(); majErreursChantier(); },
+    });
     const destinataire = h('input', {
       class: 'champ', id: 'devis-destinataire', type: 'email', inputmode: 'email', autocomplete: 'off', value: Ed.emailsDeFiche({ emails: d.destinataires })[0] ?? '', dataset: { champ: 'destinataire' },
       oninput: (e) => changer({ destinataires: e.target.value.trim() ? [e.target.value.trim()] : [] }),
     });
-    return bloc('Affaire et client',
-      h('div', { class: 'grille-champs' },
-        champ('Affaire *', ref.selectAffaire, { id: 'devis-affaire', aide: ref.erreurAffaire }),
-        champ('Client', ref.selectClient, { id: 'devis-client' }),
-        champ('Numéro', h('input', { class: 'champ', id: 'devis-numero', readonly: true, value: d.numero ?? '', placeholder: 'Attribué à la finalisation', dataset: { champ: 'numero' }, 'aria-describedby': 'devis-numero-aide' }), { id: 'devis-numero', aide: h('p', { class: 'texte-discret', id: 'devis-numero-aide' }, d.numero ? 'Ce numéro ne change pas d’une version à l’autre.' : 'Le numéro est donné automatiquement quand tu finalises.') }),
-        champ('Valable jusqu’au', h('input', { class: 'champ', id: 'devis-expire', type: 'date', value: d.expireLe ?? '', dataset: { champ: 'expireLe' }, oninput: (e) => changer({ expireLe: e.target.value || null }) }), { id: 'devis-expire' }),
-        champ('Objet du devis', h('input', { class: 'champ', id: 'devis-objet', type: 'text', value: d.objet ?? '', placeholder: 'Exemple : Rénovation de la cuisine', dataset: { champ: 'objet' }, oninput: (e) => changer({ objet: e.target.value }) }), { id: 'devis-objet' }),
-        champ('E-mail du destinataire', destinataire, { id: 'devis-destinataire' })));
+    const droite = h('div', { class: 'entete-droite' },
+      champ('Client', ref.selectClient, { id: 'devis-client' }),
+      champ('Affaire *', ref.selectAffaire, { id: 'devis-affaire', aide: ref.erreurAffaire }),
+      champ('Adresse du chantier', ref.champAdresse, { id: 'devis-chantier-adresse' }),
+      champ('E-mail du destinataire', destinataire, { id: 'devis-destinataire' }));
+    return h('div', { class: 'entete-document' }, gauche, droite);
   }
 
   function majClients() {
+    if (!ref.selectClient) return;
     const a = CRM.affaire(travail.affaireId);
     const clients = clientsDeAffaire(a);
     const valeur = travail.organisationId ? `organisation:${travail.organisationId}` : travail.personneId ? `personne:${travail.personneId}` : '';
-    const options = [h('option', { value: '' }, clients.length ? 'Aucun' : 'Aucun client sur cette affaire')];
+    const options = [h('option', { value: '' }, clients.length ? 'Sélectionner un client' : 'Aucun client sur cette affaire')];
     for (const c of clients) options.push(h('option', { value: `${c.type}:${c.fiche.id}`, selected: valeur === `${c.type}:${c.fiche.id}` }, `${c.type === 'organisation' ? 'Organisation' : 'Personne'} : ${c.nom}`));
     // Un client déjà choisi qui n'est plus sur l'affaire reste affiché (il ne disparaît pas en silence).
     if (valeur && !clients.some((c) => `${c.type}:${c.fiche.id}` === valeur)) options.push(h('option', { value: valeur, selected: true }, clientDuDevis(travail) || 'Client du devis'));
@@ -450,38 +564,6 @@ export function rendreEditeurDevis(conteneur, id) {
     marquerModifie();
   }
 
-  function blocChantier() {
-    const d = travail;
-    const c = d.chantier ?? {};
-    ref.adresseAuto = clientsDeAffaire(CRM.affaire(d.affaireId)).find((x) => (d.organisationId ? x.fiche.id === d.organisationId : x.fiche.id === d.personneId))?.adresse ?? '';
-    ref.champAdresse = h('textarea', {
-      class: 'champ', id: 'devis-chantier-adresse', rows: 3, dataset: { champ: 'chantier-adresse' }, value: Ed.texteDeAdresse(c.adresse) || Ed.texteDeAdresse(d.adresses?.chantier),
-      oninput: (e) => { const t = e.target.value; travail.adresses = { ...(travail.adresses ?? {}), chantier: Ed.adresseTexteSimple(t) }; travail.chantier = Ed.chantierAvecAdresse(travail.chantier, t); marquerModifie(); majErreursChantier(); },
-    });
-    const date = (cle, etiquette, idc) => champ(etiquette, h('input', { class: 'champ', id: idc, type: 'date', value: c[cle] ?? '', dataset: { champ: cle }, oninput: (e) => { travail.chantier = { ...(travail.chantier ?? {}), [cle]: e.target.value || null }; marquerModifie(); majErreursChantier(); } }), { id: idc });
-    const duree = h('input', {
-      class: 'champ champ-court', id: 'devis-duree', type: 'text', inputmode: 'decimal', value: saisieNombre(c.dureeEstimee?.valeur), dataset: { champ: 'duree' }, 'aria-label': 'Durée estimée',
-      oninput: () => majDuree(),
-    });
-    const unite = h('select', { class: 'champ', dataset: { champ: 'duree-unite' }, 'aria-label': 'Unité de la durée', onchange: () => majDuree() },
-      UNITES_DUREE.map((u) => h('option', { value: u.id, selected: (c.dureeEstimee?.unite ?? 'jour') === u.id }, u.pluriel)));
-    function majDuree() {
-      const v = Ed.lireSaisie(duree.value);
-      const base = { ...(travail.chantier ?? {}) };
-      if (!duree.value.trim()) delete base.dureeEstimee; else base.dureeEstimee = { valeur: v === null ? duree.value : v, unite: unite.value };
-      travail.chantier = base;
-      marquerModifie();
-      majErreursChantier();
-    }
-    ref.erreursChantier = h('p', { class: 'erreur', role: 'alert', dataset: { erreur: 'chantier' }, hidden: true });
-    return bloc('Chantier',
-      h('div', { class: 'grille-champs' },
-        champ('Adresse du chantier', ref.champAdresse, { id: 'devis-chantier-adresse' }),
-        date('debutTravaux', 'Début des travaux', 'devis-debut'),
-        champ('Durée estimée', h('div', { class: 'ligne-champs' }, duree, unite), { id: 'devis-duree' }),
-        date('finChantierAu', 'Fin de chantier au plus tard', 'devis-fin')),
-      ref.erreursChantier);
-  }
   function majErreursChantier() {
     if (!ref.erreursChantier) return;
     const e = erreursChantier(travail.chantier);
@@ -490,6 +572,7 @@ export function rendreEditeurDevis(conteneur, id) {
   }
 
   // ------------------------------------------------ lignes
+  const enteteTableau = ['', 'N°', 'Désignation', 'Qté', 'Unité', 'Prix U. HT', 'TVA', 'Total HT', ''];
   function blocLignes() {
     ref.rechercheBordereau = h('input', {
       class: 'champ', type: 'search', placeholder: 'Libellé, code ou référence', autocomplete: 'off', 'aria-label': 'Rechercher dans le Bordereau', dataset: { champ: 'recherche-bordereau' },
@@ -499,21 +582,44 @@ export function rendreEditeurDevis(conteneur, id) {
       h('option', { value: '' }, 'Toutes les familles'), arbreFamilles(D.etat.familles).flatMap(({ famille: f, enfants }) => [f, ...enfants]).filter((f) => f.actif).map((f) => h('option', { value: f.id }, cheminFamille(D.etat.familles, f.id))), h('option', { value: 'sans_famille' }, 'Sans famille'));
     ref.resultats = h('ul', { class: 'resultats-bordereau', dataset: { zone: 'resultats' } });
     ref.pointInsertion = h('p', { class: 'texte-discret', dataset: { valeur: 'point-insertion' }, hidden: true });
-    ref.avertissements = h('ul', { class: 'avertissements-devis', dataset: { zone: 'avertissements' } });
+    ref.panneauRecherche = h('div', { class: 'recherche-bordereau', hidden: true, dataset: { zone: 'recherche' } },
+      h('div', { class: 'ligne-champs' }, ref.rechercheBordereau, ref.filtreFamille,
+        h('button', { type: 'button', class: 'bouton bouton-discret', dataset: { action: 'fermer-recherche' }, onclick: () => { ref.panneauRecherche.hidden = true; pointInsertion = null; majPointInsertion(); } }, 'Fermer')),
+      ref.pointInsertion, ref.resultats);
     ref.corpsLignes = h('tbody', {});
-    ref.vide = h('div', { class: 'etat-vide-ligne', dataset: { vide: 'lignes' } }, h('p', {}, 'Ajoute une première ligne depuis ton Bordereau ou une ligne libre.'));
-    return bloc('Lignes du devis',
-      h('div', { class: 'recherche-bordereau' },
-        h('div', { class: 'ligne-champs' }, ref.rechercheBordereau, ref.filtreFamille),
-        ref.pointInsertion, ref.resultats),
-      h('div', { class: 'barre-ajouts' },
-        h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'ajouter-libre' }, onclick: () => ajouterLigne(Ed.ligneLibre(nouvelId())) }, icone('plus', { taille: 16 }), 'Ligne libre'),
-        h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'ajouter-section' }, onclick: () => ajouterLigne(Ed.sectionNeuve(nouvelId())) }, icone('plus', { taille: 16 }), 'Section'),
-        h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'ajouter-texte' }, onclick: () => ajouterLigne(Ed.ligneTexte(nouvelId())) }, icone('plus', { taille: 16 }), 'Texte')),
-      ref.vide,
-      h('div', { class: 'zone-tableau zone-lignes-devis' }, h('table', { class: 'tableau-lignes-devis' },
-        h('thead', {}, h('tr', {}, ['N°', 'Désignation', 'Qté', 'Unité', 'Prix de vente HT', 'TVA', 'Total HT', ''].map((t, i) => h('th', { scope: 'col', class: i > 1 && i < 7 && i !== 3 ? 'd' : '' }, t)))),
-        ref.corpsLignes)));
+    ref.vide = h('div', { class: 'etat-vide-ligne', dataset: { vide: 'lignes' } }, h('p', {}, 'Clique sur un des boutons ci-dessous pour ajouter un élément à ton devis.'));
+    ref.zoneTableau = h('div', { class: 'zone-tableau zone-lignes-devis' }, h('table', { class: 'tableau-lignes-devis' },
+      h('thead', {}, h('tr', {}, enteteTableau.map((t, i) => h('th', { scope: 'col', class: i >= 3 && i <= 7 && i !== 4 && i !== 6 ? 'd' : '', 'aria-label': t || undefined }, t)))),
+      ref.corpsLignes));
+    const bouton = (libelle, action, onclick, { desactive = false, titre = null } = {}) => h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action }, disabled: desactive, title: titre ?? undefined, onclick }, libelle);
+    const type = (libelle, familleId) => bouton([icone('plus', { taille: 14 }), libelle], `ajouter-${familleId}`, () => ouvrirRecherche(familleId));
+    const barre = h('div', { class: 'barre-ajouts', dataset: { zone: 'ajouts' } },
+      h('div', { class: 'ajouts-types' },
+        type('Fourniture', 'famille-1'), type('Main d’œuvre', 'famille-2'), type('Ouvrage', 'famille-3'),
+        h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'autres-ajouts' }, 'aria-haspopup': 'menu', 'aria-label': 'Autres types de lignes', onclick: (ev) => ouvrirMenu(ev.currentTarget, [
+          { libelle: 'Sous-traitance', action: () => ouvrirRecherche('famille-4') },
+          { libelle: 'Matériel', action: () => ouvrirRecherche('famille-5') },
+          { libelle: 'Divers', action: () => ouvrirRecherche('famille-7') },
+          { separateur: true },
+          { libelle: 'Ligne libre', icone: 'plus', action: () => ajouterLigne(Ed.ligneLibre(nouvelId())) },
+        ]) }, '…')),
+      h('div', { class: 'ajouts-structure' },
+        bouton('Section', 'ajouter-section', () => ajouterLigne(Ed.sectionNeuve(nouvelId()))),
+        bouton('Sous-section', 'ajouter-sous-section', () => ajouterLigne(Ed.sousSectionNeuve(nouvelId()))),
+        bouton('Texte', 'ajouter-texte', () => ajouterLigne(Ed.ligneTexte(nouvelId()))),
+        // Le saut de page se règle déjà par la case « Nouvelle page avant » d'une section ; un élément « Saut de page » à part viendra ensuite.
+        bouton('Saut de page', 'ajouter-saut', () => {}, { desactive: true, titre: 'Bientôt disponible : en attendant, coche « Nouvelle page avant » sur une section.' })));
+    return [ref.vide, ref.zoneTableau, barre, ref.panneauRecherche];
+  }
+
+  /** Ouvre la recherche dans le Bordereau, déjà filtrée sur une famille (« + Fourniture » → les fournitures). */
+  function ouvrirRecherche(familleId) {
+    filtreFamille = familleId && D.etat.familles.some((f) => f.id === familleId && f.actif !== false) ? familleId : '';
+    ref.filtreFamille.value = filtreFamille;
+    ref.panneauRecherche.hidden = false;
+    majResultats();
+    ref.rechercheBordereau.focus();
+    ref.panneauRecherche.scrollIntoView?.({ block: 'nearest' });
   }
 
   function majPointInsertion() {
@@ -549,27 +655,48 @@ export function rendreEditeurDevis(conteneur, id) {
   function rendreLignes() {
     if (!ref.corpsLignes) return;
     const numeros = Ed.numerotation(travail.sections);
+    const niveaux = Object.fromEntries(travail.sections.map((s, i) => [s.id, niveauSection(travail.sections, i)]));
     const elements = Ed.aplatir(travail.sections);
     ref.vide.hidden = elements.length > 0;
-    ref.corpsLignes.closest('.zone-lignes-devis').hidden = elements.length === 0;
-    remplir(ref.corpsLignes, elements.map((e) => (e.genre === 'section' ? ligneSection(e, numeros) : e.type === A.TYPE_TEXTE ? ligneDeTexte(e, numeros) : ligneDevis(e, numeros))));
+    ref.zoneTableau.hidden = elements.length === 0;
+    // Une section repliée cache ses lignes ; une section de niveau 1 repliée cache aussi ses sous-sections.
+    let replie1 = false;
+    let replie2 = false;
+    remplir(ref.corpsLignes, elements.map((e) => {
+      let masque;
+      if (e.genre === 'section') {
+        if (niveaux[e.id] === 1) { replie1 = replies.has(e.id); replie2 = false; masque = false; } else { masque = replie1; replie2 = replies.has(e.id); }
+        return ligneSection(e, numeros, niveaux[e.id], masque);
+      }
+      masque = replie1 || replie2;
+      return e.type === A.TYPE_TEXTE ? ligneDeTexte(e, numeros, masque) : ligneDevis(e, numeros, masque);
+    }));
     majPointInsertion();
+    majTotaux();
   }
 
-  function actionsLigne(e, numero) {
+  // Poignée à gauche : les deux flèches qui déplacent la ligne ou la section (le glisser-déposer n'est pas encore là).
+  function celluleDeplacement(e, numero) {
     const p = Ed.deplacementsPossibles(travail.sections, e.id);
     const nom = e.genre === 'section' ? `la section ${numero}` : `la ligne ${numero}`;
-    return h('td', { class: 'col-actions-lignes' },
-      h('button', { type: 'button', class: 'bouton-icone', dataset: { action: 'monter' }, disabled: !p.monter, 'aria-label': `Monter ${nom}`, onclick: () => appliquer(Ed.deplacerElement(travail.sections, e.id, -1)) }, icone('arrow-up', { taille: 16 })),
-      h('button', { type: 'button', class: 'bouton-icone', dataset: { action: 'descendre' }, disabled: !p.descendre, 'aria-label': `Descendre ${nom}`, onclick: () => appliquer(Ed.deplacerElement(travail.sections, e.id, 1)) }, icone('arrow-down', { taille: 16 })),
-      h('button', { type: 'button', class: 'bouton-icone', dataset: { action: 'menu-ligne' }, 'aria-haspopup': 'menu', 'aria-label': `Actions pour ${nom}`, onclick: (ev) => ouvrirMenu(ev.currentTarget, menuLigne(e, nom)) }, icone('ellipsis', { taille: 16 })));
+    return h('td', { class: 'c-poi poignee-devis' },
+      h('button', { type: 'button', class: 'bouton-poignee', dataset: { action: 'monter' }, disabled: !p.monter, 'aria-label': `Monter ${nom}`, onclick: () => appliquer(Ed.deplacerElement(travail.sections, e.id, -1)) }, icone('chevron-up', { taille: 14 })),
+      h('button', { type: 'button', class: 'bouton-poignee', dataset: { action: 'descendre' }, disabled: !p.descendre, 'aria-label': `Descendre ${nom}`, onclick: () => appliquer(Ed.deplacerElement(travail.sections, e.id, 1)) }, icone('chevron-down', { taille: 14 })));
+  }
+
+  // Petit bouton rond à droite : les actions de la ligne (le menu complet viendra ensuite).
+  function celluleActions(e, numero) {
+    const nom = e.genre === 'section' ? `la section ${numero}` : `la ligne ${numero}`;
+    return h('td', { class: 'c-act col-actions-lignes' },
+      h('button', { type: 'button', class: 'bouton-icone bouton-rond', dataset: { action: 'menu-ligne' }, 'aria-haspopup': 'menu', 'aria-label': `Actions pour ${nom}`, onclick: (ev) => ouvrirMenu(ev.currentTarget, menuLigne(e, nom)) }, icone('chevron-down', { taille: 16 })));
   }
 
   function menuLigne(e, nom) {
     return [
-      { libelle: 'Chercher un article au-dessous', icone: 'search', action: () => { pointInsertion = e.id; majPointInsertion(); ref.rechercheBordereau.focus(); } },
+      { libelle: 'Chercher un article au-dessous', icone: 'search', action: () => { pointInsertion = e.id; ouvrirRecherche(''); majPointInsertion(); } },
       { libelle: 'Insérer une ligne libre au-dessous', icone: 'plus', action: () => appliquer(Ed.ajouterElement(travail.sections, Ed.ligneLibre(nouvelId()), e.id), { focus: null }) },
       { libelle: 'Insérer une section au-dessous', icone: 'plus', action: () => appliquer(Ed.ajouterElement(travail.sections, Ed.sectionNeuve(nouvelId()), e.id)) },
+      { libelle: 'Insérer une sous-section au-dessous', icone: 'plus', action: () => appliquer(Ed.ajouterElement(travail.sections, Ed.sousSectionNeuve(nouvelId()), e.id, nouvelId())) },
       { libelle: 'Insérer un texte au-dessous', icone: 'plus', action: () => appliquer(Ed.ajouterElement(travail.sections, Ed.ligneTexte(nouvelId()), e.id)) },
       { separateur: true },
       { libelle: 'Dupliquer', icone: 'copy', action: () => { const r = Ed.dupliquerElement(travail.sections, e.id, nouvelId); appliquer(r.sections); } },
@@ -590,32 +717,48 @@ export function rendreEditeurDevis(conteneur, id) {
     });
   }
 
-  function ligneSection(e, numeros) {
-    const titre = h('input', { class: 'champ', type: 'text', value: e.titre ?? '', placeholder: 'Titre de la section (exemple : Cuisine)', 'aria-label': `Titre de la section ${numeros[e.id]}`, dataset: { champ: 'libelle' }, oninput: (ev) => changerLigne(e.id, { titre: ev.target.value }) });
+  /** Zone de texte qui grandit avec son contenu (une désignation s'écrit sur plusieurs lignes). */
+  function ajusterHauteur(zone) {
+    const regler = () => { zone.style.height = 'auto'; if (zone.scrollHeight) zone.style.height = `${zone.scrollHeight}px`; };
+    zone.addEventListener('input', regler);
+    requestAnimationFrame(regler);
+    return zone;
+  }
+
+  function ligneSection(e, numeros, niveau, masque) {
+    const sous = niveau === 2;
+    const repliee = replies.has(e.id);
+    const replier = h('button', { type: 'button', class: 'bouton-icone bouton-replier', dataset: { action: 'replier' }, 'aria-expanded': String(!repliee), 'aria-label': `${repliee ? 'Déplier' : 'Replier'} ${sous ? 'la sous-section' : 'la section'} ${numeros[e.id]}`,
+      onclick: () => { if (replies.has(e.id)) replies.delete(e.id); else replies.add(e.id); rendreLignes(); } }, icone(repliee ? 'plus' : 'minus', { taille: 14 }));
+    const titre = h('input', { class: 'champ champ-surplace titre-section', type: 'text', value: e.titre ?? '', placeholder: sous ? 'Titre de la sous-section (exemple : Coin bar)' : 'Titre de la section (exemple : Cuisine)', 'aria-label': `Titre de ${sous ? 'la sous-section' : 'la section'} ${numeros[e.id]}`, dataset: { champ: 'libelle' }, oninput: (ev) => changerLigne(e.id, { titre: ev.target.value }) });
     const saut = h('label', { class: 'case-saut' }, h('input', { type: 'checkbox', checked: e.sautDePageAvant === true, dataset: { champ: 'saut-de-page' }, onchange: (ev) => changerLigne(e.id, { sautDePageAvant: ev.target.checked || undefined }) }), ' Nouvelle page avant');
-    const sous = h('span', { class: 'sous-total-section', dataset: { sousTotal: e.id } });
-    return h('tr', { class: 'ligne-section-devis', dataset: { id: e.id, genre: 'section' } },
-      h('td', { class: 'num', dataset: { libelle: 'N°' } }, numeros[e.id]),
-      h('td', { colspan: 5, class: 'cellule-section', dataset: { libelle: 'Section' } }, h('div', { class: 'ligne-champs' }, titre, saut)),
-      h('td', { class: 'd', dataset: { libelle: 'Sous-total HT' } }, sous),
-      actionsLigne(e, numeros[e.id]));
+    return h('tr', { class: `ligne-section-devis ${sous ? 'sous-section-devis' : ''}`, hidden: masque, dataset: { id: e.id, genre: 'section', niveau: String(niveau) } },
+      celluleDeplacement(e, numeros[e.id]),
+      h('td', { class: 'c-num num', dataset: { libelle: 'N°' } }, numeros[e.id]),
+      h('td', { colspan: 5, class: 'c-des cellule-section', dataset: { libelle: sous ? 'Sous-section' : 'Section' } }, h('div', { class: 'ligne-champs' }, replier, titre, saut)),
+      h('td', { class: 'c-tot d', dataset: { libelle: 'Sous-total HT' } }, h('span', { class: 'etiquette-sous-total' }, 'Sous-total : '), h('span', { class: 'sous-total-section', dataset: { sousTotal: e.id } })),
+      celluleActions(e, numeros[e.id]));
   }
 
-  function ligneDeTexte(e, numeros) {
-    const zone = h('textarea', { class: 'champ', rows: 2, placeholder: 'Texte affiché sur le devis, sans prix', 'aria-label': `Texte ${numeros[e.id]}`, dataset: { champ: 'libelle' }, value: e.libelle ?? '', oninput: (ev) => changerLigne(e.id, { libelle: ev.target.value }) });
-    return h('tr', { class: 'ligne-devis-edition ligne-texte-devis', dataset: { id: e.id, genre: 'texte' } },
-      h('td', { class: 'num', dataset: { libelle: 'N°' } }, numeros[e.id]),
-      h('td', { colspan: 6, dataset: { libelle: 'Texte' } }, zone),
-      actionsLigne(e, numeros[e.id]));
+  function ligneDeTexte(e, numeros, masque) {
+    const zone = ajusterHauteur(h('textarea', { class: 'champ champ-surplace', rows: 2, placeholder: 'Texte affiché sur le devis, sans prix', 'aria-label': `Texte ${numeros[e.id]}`, dataset: { champ: 'libelle' }, value: e.libelle ?? '', oninput: (ev) => changerLigne(e.id, { libelle: ev.target.value }) }));
+    return h('tr', { class: 'ligne-devis-edition ligne-texte-devis', hidden: masque, dataset: { id: e.id, genre: 'texte' } },
+      celluleDeplacement(e, numeros[e.id]),
+      h('td', { class: 'c-num num', dataset: { libelle: 'N°' } }, numeros[e.id]),
+      h('td', { colspan: 6, class: 'c-des', dataset: { libelle: 'Texte' } }, zone),
+      celluleActions(e, numeros[e.id]));
   }
 
-  function ligneDevis(e, numeros) {
+  function ligneDevis(e, numeros, masque) {
     const l = e;
-    const cellule = (libelle, ...contenu) => h('td', { dataset: { libelle } }, ...contenu);
-    const libelle = h('input', { class: 'champ', type: 'text', value: l.libelle ?? '', placeholder: 'Désignation', 'aria-label': `Désignation ${numeros[l.id]}`, dataset: { champ: 'libelle' }, oninput: (ev) => changerLigne(l.id, { libelle: ev.target.value }) });
+    const cellule = (classe, libelle, ...contenu) => h('td', { class: classe, dataset: { libelle } }, ...contenu);
+    const libelle = ajusterHauteur(h('textarea', { class: 'champ champ-surplace', rows: 1, value: l.libelle ?? '', placeholder: 'Désignation', 'aria-label': `Désignation ${numeros[l.id]}`, dataset: { champ: 'libelle' }, oninput: (ev) => changerLigne(l.id, { libelle: ev.target.value }) }));
     const composition = l.ouvrage ? h('pre', { class: 'composition-ouvrage', dataset: { valeur: 'composition' } }, Ed.descriptionDeLigne(l)) : null;
+    // Une description écrite à la main (hors ouvrage) se lit et se corrige sous la désignation, en petit.
+    const description = !l.ouvrage && typeof l.description === 'string' && l.description.trim()
+      ? ajusterHauteur(h('textarea', { class: 'champ champ-surplace description-ligne', rows: 1, value: l.description, 'aria-label': `Description ${numeros[l.id]}`, dataset: { champ: 'description' }, oninput: (ev) => changerLigne(l.id, { description: ev.target.value }) })) : null;
     const quantite = h('input', {
-      class: 'champ champ-nombre', type: 'text', inputmode: 'decimal', value: saisieNombre(l.quantite), 'aria-label': `Quantité ${numeros[l.id]}`, dataset: { champ: 'quantite' },
+      class: 'champ champ-surplace champ-nombre', type: 'text', inputmode: 'decimal', value: saisieNombre(l.quantite), 'aria-label': `Quantité ${numeros[l.id]}`, dataset: { champ: 'quantite' },
       oninput: (ev) => {
         const q = Ed.lireSaisie(ev.target.value);
         const patch = { quantite: q };
@@ -624,9 +767,11 @@ export function rendreEditeurDevis(conteneur, id) {
         changerLigne(l.id, patch);
       },
     });
-    const unite = h('input', { class: 'champ champ-unite', type: 'text', value: l.unite ?? '', list: 'unites-devis', 'aria-label': `Unité ${numeros[l.id]}`, dataset: { champ: 'unite' }, oninput: (ev) => changerLigne(l.id, { unite: ev.target.value }) });
+    // L'unité se choisit dans la liste du Bordereau (ou « Autre… » pour écrire la sienne).
+    const unite = menuUnite({ valeur: l.unite ?? '', libelle: `Unité ${numeros[l.id]}`, champ: 'unite' });
+    unite.addEventListener('input', () => changerLigne(l.id, { unite: unite.value }));
     const prix = h('input', {
-      class: 'champ champ-nombre', type: 'text', inputmode: 'decimal', value: '', 'aria-label': `Prix de vente HT ${numeros[l.id]}`, dataset: { champ: 'prix-vente' },
+      class: 'champ champ-surplace champ-nombre', type: 'text', inputmode: 'decimal', value: '', 'aria-label': `Prix de vente HT ${numeros[l.id]}`, dataset: { champ: 'prix-vente' },
       onchange: (ev) => {
         const v = Ed.lireSaisie(ev.target.value);
         const lig = Ed.trouverLigne(travail.sections, l.id).ligne;
@@ -639,48 +784,46 @@ export function rendreEditeurDevis(conteneur, id) {
       },
     });
     const taux = [...new Set([...D.etat.reglages.tauxProposes, ...TAUX_TVA_DEFAUT])].sort((a, b) => b - a);
-    const tva = h('select', { class: 'champ', 'aria-label': `TVA ${numeros[l.id]}`, dataset: { champ: 'tva' }, onchange: (ev) => changerLigne(l.id, { tauxTva: ev.target.value === '' ? undefined : Number(ev.target.value) }) },
+    const tva = h('select', { class: 'champ champ-surplace', 'aria-label': `TVA ${numeros[l.id]}`, dataset: { champ: 'tva' }, onchange: (ev) => changerLigne(l.id, { tauxTva: ev.target.value === '' ? undefined : Number(ev.target.value) }) },
       h('option', { value: '' }, `Défaut (${saisieNombre(travail.tauxTvaDefaut)} %)`), taux.map((t) => h('option', { value: String(t), selected: l.tauxTva === t }, `${saisieNombre(t)} %`)));
-    return h('tr', { class: 'ligne-devis-edition', dataset: { id: l.id, genre: 'ligne' } },
-      cellule('N°', numeros[l.id]),
-      cellule('Désignation', libelle, composition),
-      cellule('Qté', quantite),
-      cellule('Unité', unite),
-      cellule('Prix de vente HT', prix),
-      cellule('TVA', tva),
-      cellule('Total HT', h('span', { class: 'total-ligne', dataset: { total: l.id } })),
-      actionsLigne(e, numeros[l.id]));
+    return h('tr', { class: 'ligne-devis-edition', hidden: masque, dataset: { id: l.id, genre: 'ligne' } },
+      celluleDeplacement(e, numeros[l.id]),
+      cellule('c-num num', 'N°', numeros[l.id]),
+      cellule('c-des', 'Désignation', libelle, description, composition),
+      cellule('c-qte', 'Qté', quantite),
+      cellule('c-uni', 'Unité', unite),
+      cellule('c-pri', 'Prix U. HT', prix),
+      cellule('c-tva', 'TVA', tva),
+      cellule('c-tot d', 'Total HT', h('span', { class: 'total-ligne', dataset: { total: l.id } })),
+      celluleActions(e, numeros[l.id]));
   }
 
-  // ------------------------------------------------ prix, conditions
-  function blocPrix() {
+  // ------------------------------------------------ bas de page : conditions à gauche, totaux à droite, puis les notes
+  function basDePage() {
     const d = travail;
-    const marge = h('input', { class: 'champ champ-court', id: 'devis-marge', type: 'text', inputmode: 'decimal', value: saisieNombre(d.marge), dataset: { champ: 'marge' }, 'aria-label': 'Marge du devis en pourcent',
-      oninput: (e) => { const vide = e.target.value.trim() === ''; const v = vide ? 0 : Ed.lireSaisie(e.target.value); e.target.classList.toggle('invalide', v === null); if (v !== null) { changer({ marge: v }); majPrixAffiches(); } } });
-    const mode = h('select', { class: 'champ', id: 'devis-mode', dataset: { champ: 'mode-marge' }, 'aria-label': 'Mode de calcul de la marge', onchange: (e) => { changer({ modeMarge: e.target.value }); majPrixAffiches(); } },
-      MODES_MARGE.map((m) => h('option', { value: m.id, selected: d.modeMarge === m.id }, m.libelle)));
-    const tva = h('select', { class: 'champ', id: 'devis-tva', dataset: { champ: 'tva-defaut' }, onchange: (e) => changer({ tauxTvaDefaut: Number(e.target.value) }) },
-      [...new Set([...D.etat.reglages.tauxProposes, d.tauxTvaDefaut])].sort((a, b) => b - a).map((t) => h('option', { value: String(t), selected: d.tauxTvaDefaut === t }, `${saisieNombre(t)} %`)));
-    return bloc('Prix et TVA',
-      h('div', { class: 'grille-champs' },
-        champ('Marge du devis (%)', h('div', { class: 'ligne-champs' }, marge), { id: 'devis-marge', aide: h('p', { class: 'texte-discret' }, 'Elle s’applique aux lignes qui n’ont pas leur propre marge. Le client ne la voit jamais.') }),
-        champ('Mode de calcul', mode, { id: 'devis-mode' }),
-        champ('TVA par défaut', tva, { id: 'devis-tva' })));
+    ref.attestation = h('p', { class: 'attestation-tva', dataset: { valeur: 'attestation-tva' }, hidden: true });
+    const texteLibre = h('textarea', { class: 'champ', id: 'devis-texte-libre', rows: 3, value: d.texteLibre ?? '', 'aria-label': 'Texte libre', hidden: !(d.texteLibre ?? '').trim(), dataset: { champ: 'texte-libre' }, oninput: (e) => changer({ texteLibre: e.target.value }) });
+    const lienTexte = h('button', { type: 'button', class: 'bouton-lien', dataset: { action: 'ajouter-texte-libre' }, hidden: !texteLibre.hidden, onclick: () => { texteLibre.hidden = false; lienTexte.hidden = true; texteLibre.focus(); } }, icone('plus', { taille: 14 }), 'Ajouter texte libre');
+    const lienCondition = h('button', { type: 'button', class: 'bouton-lien', dataset: { action: 'ajouter-condition' }, onclick: () => { const c = racine.querySelector('[data-champ="acompte-type"]'); c?.scrollIntoView?.({ block: 'center' }); c?.focus(); } }, icone('plus', { taille: 14 }), 'Ajouter une condition');
+    const gauche = h('div', { class: 'bas-gauche' },
+      h('div', { class: 'titre-ligne' }, h('h3', { class: 'titre-bloc' }, 'Conditions de paiement'), lienCondition),
+      ref.attestation,
+      h('p', { class: 'texte-discret', dataset: { valeur: 'methodes-paiement' } }, 'Méthodes de paiement acceptées : celles de ton entreprise (réglages).'),
+      texteLibre, lienTexte,
+      h('div', { class: 'titre-ligne' }, h('h3', { class: 'titre-bloc' }, 'Gestion des déchets'), h('button', { type: 'button', class: 'bouton-lien', disabled: true, title: 'Bientôt disponible', dataset: { action: 'definir-dechets' } }, 'Définir (bientôt)')));
+    const [totaux, net, taux] = blocTotaux();
+    const notes = h('div', { class: 'notes-bas-page' },
+      h('h3', { class: 'titre-bloc' }, 'Notes de bas de page'),
+      h('textarea', { class: 'champ', id: 'devis-notes', rows: 4, maxlength: 2000, value: d.notesBasDePage ?? '', 'aria-label': 'Notes de bas de page', dataset: { champ: 'notes' }, oninput: (e) => changer({ notesBasDePage: e.target.value }) }));
+    // Le bandeau « NET À PAYER » est un enfant direct de la feuille : il reste collé en bas de l'écran tant qu'on défile au-dessus de lui.
+    return [h('div', { class: 'bas-devis' }, gauche, totaux), net, taux, notes];
   }
 
-  function blocConditions() {
-    const d = travail;
-    return bloc('Texte et notes',
-      h('div', { class: 'grille-champs' },
-        champ('Texte libre', h('textarea', { class: 'champ', id: 'devis-texte-libre', rows: 3, value: d.texteLibre ?? '', dataset: { champ: 'texte-libre' }, oninput: (e) => changer({ texteLibre: e.target.value }) }), { id: 'devis-texte-libre' }),
-        champ('Notes de bas de page', h('textarea', { class: 'champ', id: 'devis-notes', rows: 3, value: d.notesBasDePage ?? '', dataset: { champ: 'notes' }, oninput: (e) => changer({ notesBasDePage: e.target.value }) }), { id: 'devis-notes' })));
-  }
-
-  // ------------------------------------------------ panneau Total
-  function panneauTotal() {
+  // ------------------------------------------------ totaux : [totaux, NET À PAYER, tableau de TVA]
+  function blocTotaux() {
     const d = travail;
     const ligneT = (cle, libelle) => h('div', { class: 'ligne-total', dataset: { ligne: cle } }, h('dt', {}, libelle), h('dd', { dataset: { total: cle } }));
-    ref.tva = h('div', { class: 'tva-par-taux', dataset: { zone: 'tva' } });
+    ref.tva = h('tbody', { dataset: { zone: 'tva' } });
     const typeRemise = h('select', { class: 'champ', 'aria-label': 'Type de remise', dataset: { champ: 'remise-type' }, disabled: lecture, onchange: () => majRemise() },
       h('option', { value: 'pourcentage', selected: d.remise?.type !== 'montant' }, '%'), h('option', { value: 'montant', selected: d.remise?.type === 'montant' }, '€'));
     const valeurRemise = h('input', { class: 'champ champ-court', type: 'text', inputmode: 'decimal', value: saisieNombre(d.remise?.valeur), placeholder: '0', disabled: lecture, 'aria-label': 'Valeur de la remise', dataset: { champ: 'remise-valeur' }, oninput: () => majRemise() });
@@ -709,20 +852,22 @@ export function rendreEditeurDevis(conteneur, id) {
     }
     valeurAcompte.hidden = momentAcompte.hidden = !d.acompte;
     texteMoment.hidden = !d.acompte || (d.acompte?.moment ?? 'signature') !== 'libre';
-    return h('aside', { class: 'panneau-total', 'aria-label': 'Total du devis', dataset: { zone: 'total' } },
-      h('h2', { class: 'titre-bloc' }, 'Total'),
+    const totaux = h('aside', { class: 'panneau-total', 'aria-label': 'Total du devis', dataset: { zone: 'total' } },
       h('dl', { class: 'liste-totaux' },
         ligneT('brut', 'Total brut HT'),
-        h('div', { class: 'ligne-total ligne-remise' }, h('dt', {}, 'Remise'), h('dd', {}, h('div', { class: 'ligne-champs' }, valeurRemise, typeRemise), h('span', { dataset: { total: 'remise' } }))),
-        ligneT('ht', 'Total HT'),
-        ref.tva,
+        h('div', { class: 'ligne-total ligne-remise' }, h('dt', {}, 'Remise client'), h('dd', {}, h('div', { class: 'ligne-champs' }, valeurRemise, typeRemise), h('span', { dataset: { total: 'remise' } }))),
+        ligneT('ht', 'Total net HT'),
+        ligneT('tva', 'TVA'),
         ligneT('ttc', 'Total TTC'),
-        h('div', { class: 'ligne-total ligne-acompte' }, h('dt', {}, 'Acompte'), h('dd', {}, h('div', { class: 'ligne-champs' }, typeAcompte, valeurAcompte, momentAcompte, texteMoment), h('span', { dataset: { total: 'acompte' } }))),
-        ligneT('reste', 'Reste à facturer'),
-        h('div', { class: 'ligne-total ligne-net', dataset: { ligne: 'net' } }, h('dt', {}, 'Net à payer'), h('dd', { dataset: { total: 'net' } }))),
+        h('div', { class: 'ligne-total ligne-acompte' }, h('dt', {}, 'Acompte demandé'), h('dd', {}, h('div', { class: 'ligne-champs' }, typeAcompte, valeurAcompte, momentAcompte, texteMoment), h('span', { dataset: { total: 'acompte' } }))),
+        ligneT('reste', 'Reste à facturer')),
       ref.erreurRemise, ref.erreurAcompte,
       (ref.avertissementsTotal = h('ul', { class: 'avertissements-devis', dataset: { zone: 'avertissements' } })),
       lecture ? null : h('p', { class: 'texte-discret' }, 'Primes, retenue de garantie et déchets viendront dans une prochaine version.'));
+    const net = h('div', { class: 'bandeau-net', dataset: { ligne: 'net' } }, h('span', { class: 'bandeau-net-titre' }, 'NET À PAYER'), h('span', { class: 'bandeau-net-montant', dataset: { total: 'net' } }));
+    const taux = h('table', { class: 'tableau-tva' },
+      h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Taux TVA'), h('th', { scope: 'col', class: 'd' }, 'Base HT'), h('th', { scope: 'col', class: 'd' }, 'Total'))), ref.tva);
+    return [totaux, net, taux];
   }
 
   function majTotaux() {
@@ -733,12 +878,20 @@ export function rendreEditeurDevis(conteneur, id) {
     mettre('brut', euros(t.totalBrutHt));
     mettre('remise', t.remiseHt > 0 ? `− ${euros(t.remiseHt)}` : '');
     mettre('ht', euros(t.totalHt));
+    mettre('tva', euros(t.tva));
     mettre('ttc', euros(t.ttc));
     mettre('acompte', t.acompteTtc === null ? '' : euros(t.acompteTtc));
     mettre('reste', t.resteAFacturerTtc === null ? '—' : euros(t.resteAFacturerTtc));
     mettre('net', euros(t.netAPayer));
-    remplir(ref.tva, t.tvaParTaux.map((x) => h('div', { class: 'ligne-total ligne-tva', dataset: { ligne: `tva-${x.taux}` } }, h('dt', {}, `TVA ${saisieNombre(x.taux)} % sur ${euros(x.baseHT)}`), h('dd', { dataset: { total: `tva-${x.taux}` } }, euros(x.montant)))));
-    if (t.mentions.length && !t.tvaParTaux.length) remplir(ref.tva, h('p', { class: 'texte-discret' }, t.mentions.join(' · ')));
+    remplir(ref.tva, t.tvaParTaux.map((x) => h('tr', { dataset: { ligne: `tva-${x.taux}` } }, h('td', {}, `${saisieNombre(x.taux)} %`), h('td', { class: 'd' }, euros(x.baseHT)), h('td', { class: 'd', dataset: { total: `tva-${x.taux}` } }, euros(x.montant)))));
+    if (t.mentions.length && !t.tvaParTaux.length) remplir(ref.tva, h('tr', {}, h('td', { colspan: 3, class: 'texte-discret' }, t.mentions.join(' · '))));
+    // Attestation de TVA réduite : le texte du devis imprimé, montré ici quand elle s'applique.
+    if (ref.attestation) {
+      let attestation = null;
+      try { attestation = vueClient(travail, {}).attestationTvaReduite ?? null; } catch { attestation = null; }
+      ref.attestation.hidden = !attestation;
+      ref.attestation.textContent = attestation ?? '';
+    }
     // Totaux de chaque ligne et de chaque section.
     for (const l of t.lignes) {
       const el = racine.querySelector(`[data-total="${CSS.escape(l.id)}"]`);

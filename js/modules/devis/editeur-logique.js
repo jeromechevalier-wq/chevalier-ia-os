@@ -12,8 +12,10 @@
 //   encore avec un prix à 0,00 € : à traiter dans document.js (hors de ce lot).
 // - Le saut de page est un réglage de section (`sautDePageAvant`, déjà lu par vueClient), pas un élément à part.
 // - Une section se déplace, se duplique et se supprime avec ses lignes (le groupe jusqu'à la section suivante).
+// - Trois niveaux (24/10/2026) : section (1), sous-section (1.1, `niveau: 2` dans `sections`), ligne (1.1.1). Une section de niveau 1 emporte ses sous-sections ; une sous-section
+//   ne change jamais de section de niveau 1 en se déplaçant (elle reste entre ses sœurs). Un devis sans `niveau` se comporte exactement comme avant.
 import {
-  coefficientDeMarge, prixVenteUnitaire, prixVenteDeLigne, totauxDevis, versCentimes, erreursChantier,
+  coefficientDeMarge, prixVenteUnitaire, prixVenteDeLigne, totauxDevis, versCentimes, erreursChantier, numerosDevis,
 } from './logique.js';
 import { descriptionOuvrage, figerOuvragePourLigne, articlesParId, TYPE_OUVRAGE } from './ouvrages.js';
 import { TYPE_TEXTE, lireNombre } from './articles.js';
@@ -66,17 +68,20 @@ export function assembler(elements) {
   return sections;
 }
 
+const niveauDe = (e) => (e?.niveau === 2 ? 2 : 1);
 const groupe = (elements, i) => {
-  // indices [i, fin[ : la section et ses lignes jusqu'à la section suivante ; une ligne seule = elle-même
+  // indices [i, fin[ : la section et ses lignes jusqu'à la section suivante de même niveau ou de niveau supérieur (une section de niveau 1 emporte ses sous-sections) ; une ligne seule = elle-même
   if (!estSection(elements[i])) return [i, i + 1];
+  const niveau = niveauDe(elements[i]);
   let fin = i + 1;
-  while (fin < elements.length && !estSection(elements[fin])) fin += 1;
+  while (fin < elements.length && !(estSection(elements[fin]) && niveauDe(elements[fin]) <= niveau)) fin += 1;
   return [i, fin];
 };
 const indexDe = (elements, id) => elements.findIndex((e) => e.id === id);
 
 // ---------------------------------------------------------------- création des éléments
 export const sectionNeuve = (id, titre = '') => ({ genre: 'section', id, titre });
+export const sousSectionNeuve = (id, titre = '') => ({ genre: 'section', id, titre, niveau: 2 });
 export const ligneLibre = (id) => ({ genre: 'ligne', id, type: TYPE_LIGNE_LIBRE, libelle: '', quantite: 1, unite: 'u', prixAchat: 0, marge: 0 });
 export const ligneTexte = (id) => ({ genre: 'ligne', id, type: TYPE_TEXTE, libelle: '', quantite: 1, unite: '', prixAchat: 0, marge: 0 });
 
@@ -142,33 +147,42 @@ export function ligneDepuisArticle(article, { id, articles = [], devis = {} } = 
 // ---------------------------------------------------------------- opérations sur la liste (chacune rend une NOUVELLE liste de sections)
 const surElements = (sections, f) => assembler(f(aplatir(sections)));
 
-/** Ajoute un élément au bout, ou juste au-dessous de l'élément `apres` (au début de sa section si c'est une section). */
-export function ajouterElement(sections, element, apres = null) {
+/**
+ * Ajoute un élément au bout, ou juste au-dessous de l'élément `apres` (au début de sa section si c'est une section).
+ * Une sous-section n'a de sens que sous une section : s'il n'y en a aucune avant le point d'insertion, une section de niveau 1 (`idSection`) est ajoutée juste avant.
+ */
+export function ajouterElement(sections, element, apres = null, idSection = null) {
   return surElements(sections, (els) => {
     const i = apres ? indexDe(els, apres) : -1;
-    if (i === -1) return [...els, element];
-    return [...els.slice(0, i + 1), element, ...els.slice(i + 1)];
+    const place = i === -1 ? els.length : i + 1;
+    const avant = els.slice(0, place);
+    const nouveaux = [element];
+    if (estSection(element) && element.niveau === 2 && !avant.some(estSection)) nouveaux.unshift(sectionNeuve(idSection ?? `${element.id}-s`));
+    return [...avant, ...nouveaux, ...els.slice(place)];
   });
 }
 
-/** Monte (-1) ou descend (+1) un élément d'un cran ; une section emporte ses lignes. Aux bornes : rien ne change. */
+/** Monte (-1) ou descend (+1) un élément d'un cran ; une section emporte ses lignes (et ses sous-sections). Aux bornes : rien ne change. */
 export function deplacerElement(sections, id, sens) {
   return surElements(sections, (els) => {
     const i = indexDe(els, id);
     if (i === -1 || (sens !== -1 && sens !== 1)) return els;
     const [d, f] = groupe(els, i);
+    const niveau = niveauDe(els[d]);
     if (sens === -1) {
       if (d === 0) return els;
-      // la ligne passe au-dessus de l'élément précédent ; une section passe au-dessus de la section précédente (groupe entier)
+      // la ligne passe au-dessus de l'élément précédent ; une section passe au-dessus de la section précédente de son niveau (groupe entier)
       let cible = d - 1;
       if (estSection(els[d])) {
-        while (cible > 0 && !estSection(els[cible])) cible -= 1;
+        while (cible > 0 && !(estSection(els[cible]) && niveauDe(els[cible]) <= niveau)) cible -= 1;
         if (!estSection(els[cible])) return els; // des lignes libres en tête : une section ne passe jamais au-dessus (elle les absorberait)
+        if (niveau === 2 && niveauDe(els[cible]) === 1) return els; // une sous-section ne passe jamais au-dessus de sa section
       }
       return [...els.slice(0, cible), ...els.slice(d, f), ...els.slice(cible, d), ...els.slice(f)];
     }
     if (f >= els.length) return els;
-    // une ligne descend d'un cran (sous l'en-tête de section suivant, elle entre dans cette section) ; une section passe sous la section suivante
+    // une ligne descend d'un cran (sous l'en-tête de section suivant, elle entre dans cette section) ; une section passe sous la section suivante de son niveau
+    if (estSection(els[d]) && niveau === 2 && !(estSection(els[f]) && niveauDe(els[f]) === 2)) return els; // dernière sous-section : elle reste dans sa section
     const [d2, f2] = estSection(els[d]) ? groupe(els, f) : [f, f + 1];
     return [...els.slice(0, d), ...els.slice(d2, f2), ...els.slice(d, f), ...els.slice(f2)];
   });
@@ -179,9 +193,10 @@ export function deplacementsPossibles(sections, id) {
   const els = aplatir(sections);
   const i = indexDe(els, id);
   if (i === -1) return { monter: false, descendre: false };
-  const [, f] = groupe(els, i);
-  const monter = i > 0 && (!estSection(els[i]) || els.slice(0, i).some(estSection));
-  return { monter, descendre: f < els.length };
+  const apres = deplacerElement(sections, id, 1);
+  const avant = deplacerElement(sections, id, -1);
+  const meme = (autre) => JSON.stringify(autre) === JSON.stringify(sections);
+  return { monter: !meme(avant), descendre: !meme(apres) };
 }
 
 /** Duplique un élément juste au-dessous (une section : avec ses lignes). `nouvelId()` donne un identifiant neuf à chaque appel. Rend { sections, ids }. */
@@ -233,13 +248,14 @@ export function trouverLigne(sections, id) {
   return null;
 }
 
-// ---------------------------------------------------------------- numérotation affichée (la même que celle du document : 1, 1.1, 1.2, 2…)
+// ---------------------------------------------------------------- numérotation affichée (la même que celle du document : 1, 1.1, 1.1.1, 1.2, 2…)
 /** { [id]: « 2 » ou « 2.3 » } : le numéro de section est sa position (la première section sans titre compte aussi), comme dans vueClient. */
 export function numerotation(sections) {
   const n = {};
+  const numeros = numerosDevis(sections);
   (sections ?? []).forEach((s, i) => {
-    n[s.id] = String(i + 1);
-    (s.lignes ?? []).forEach((l, j) => { n[l.id] = `${i + 1}.${j + 1}`; });
+    n[s.id] = numeros[i].numero;
+    (s.lignes ?? []).forEach((l, j) => { n[l.id] = numeros[i].lignes[j]; });
   });
   return n;
 }
