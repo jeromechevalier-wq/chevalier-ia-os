@@ -123,7 +123,9 @@ function celluleFamille(a, surFin = () => {}) {
 
   function ouvrir() {
     let fini = false;
-    const retablir = () => { if (fini) return; fini = true; remplir(cellule, bouton); surFin(); };
+    // Après la reconstruction du tableau, le focus revient sur le bouton de la même ligne (sinon un utilisateur au clavier repart du haut de la page).
+    const rendreFocus = () => setTimeout(() => document.querySelector(`tr[data-id="${a.id}"] [data-champ="familleId"]`)?.focus(), 0);
+    const retablir = () => { if (fini) return; fini = true; remplir(cellule, bouton); surFin(); rendreFocus(); };
     const champ = champFamille({ valeur: familleEffective(a), etiquette: `Famille : ${a.libelle}`, classe: 'champ-famille-cellule', surChoix: (id) => { if (id) choisir(id); } });
     async function choisir(id) {
       if (fini) return;
@@ -141,6 +143,7 @@ function celluleFamille(a, surFin = () => {}) {
         if (erreur) { toast(erreur, { type: 'erreur', duree: 7000 }); remplir(cellule, bouton); }
       } catch (e) { console.warn(e); toast(ERREUR_ECRITURE, { type: 'erreur', duree: 7000 }); remplir(cellule, bouton); }
       surFin();
+      rendreFocus();
     }
     champ.entree.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); retablir(); } });
     // Sortie du champ sans choix : on remet la valeur d'avant.

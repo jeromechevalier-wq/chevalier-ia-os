@@ -359,3 +359,6 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
   .fiche-tete-ligne { flex-wrap: wrap; }
   .fiche-titre { flex-basis: 100%; order: 3; }
 }
+
+/* La liste du champ « Famille » du tableau déborde de la cellule : on lève le rognage horizontal du cadre le temps de l'édition (sur ordinateur). */
+.zone-tableau:has(.champ-famille-cellule) { overflow: visible; }
