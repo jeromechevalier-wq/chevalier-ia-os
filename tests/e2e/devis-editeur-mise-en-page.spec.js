@@ -331,11 +331,14 @@ test('2 l’e-mail du destinataire suit le client choisi, sauf s’il a été é
   await expect(mail).toHaveValue('autre@exemple.test');
 });
 
-test('4 la marge du devis se règle dans le menu Options, sans afficher le calcul des marges', async ({ page }) => {
-  test.skip(estTelephone(page), 'sur téléphone Options est dans le menu « … » : couvert par le test de ce menu');
+test('4 la marge et la remise du devis se règlent depuis le bouton « Définir un ajustement », sans afficher le calcul des marges', async ({ page }) => {
   await semer();
   await ouvrir(page, await devisLong());
-  await page.locator('[data-action="options"]').click();
+  await page.locator('[data-action="definir-ajustement"]').click();
+  await page.getByRole('menuitem', { name: 'Marge du devis' }).click();
   await page.locator('[data-champ="marge-menu"]').fill('25');
   await expect.poll(async () => (await listerDocuments('devis_devis'))[0].marge).toBe(25);
+  await page.getByRole('menuitem', { name: 'Remise' }).click();
+  await page.locator('[data-champ="remise-valeur-menu"]').fill('10');
+  await expect.poll(async () => (await listerDocuments('devis_devis'))[0].remise?.valeur).toBe(10);
 });
