@@ -117,6 +117,26 @@ export const OUTILS_ECRITURE = [
     projetId: id, factureId: id, raison: z.string().min(1).max(500),
   }, metier.abandonnerFacture),
 
+  // ---- Devis : bordereau de prix (articles). Les prix d'achat viennent de l'humain : l'assistant n'en invente JAMAIS.
+  outil('creer_article', "Ajoute un article au bordereau de prix du module Devis. libelle et prixAchat sont obligatoires. prixAchat : le prix d'achat HT en euros, DONNÉ PAR L'HUMAIN (jamais inventé ni estimé : le demander s'il manque), un NOMBRE (12.5), 2 décimales au plus. unite : u, m, m², m³, ml, h, jour, km, forfait, kg (ou un texte libre ; défaut u). code : facultatif, unique parmi les articles actifs. tauxTva : taux de TVA propre à l'article, facultatif (en %). Chercher d'abord avec chercher_article pour éviter un doublon.", {
+    libelle: z.string().min(1).max(200),
+    prixAchat: z.number().min(0).max(10_000_000).describe("Prix d'achat HT en euros, donné par l'humain."),
+    unite: z.string().max(20).optional().describe('Défaut : u.'),
+    code: z.string().max(40).optional(),
+    tauxTva: z.number().min(0).max(100).optional().describe("Taux de TVA propre à l'article, en %."),
+    proprietaire,
+  }, metier.creerArticle),
+
+  outil('modifier_article', "Modifie des champs d'un article du bordereau : libelle, unite, prixAchat (euros, nombre donné par l'humain), code (chaîne vide pour l'effacer), tauxTva (null pour l'effacer). Ne change jamais l'état actif : voir desactiver_article. Ne supprime jamais.", {
+    id, libelle: z.string().min(1).max(200).optional(), unite: z.string().min(1).max(20).optional(),
+    prixAchat: z.number().min(0).max(10_000_000).optional().describe("Prix d'achat HT en euros, donné par l'humain."),
+    code: z.string().max(40).optional(), tauxTva: z.number().min(0).max(100).nullable().optional(),
+  }, metier.modifierArticle),
+
+  outil('desactiver_article', "Désactive un article du bordereau (un article ne se supprime jamais : il sort de la liste par défaut et les devis déjà faits ne changent pas). reactiver: true le remet en service (refusé si son code est déjà pris par un article actif).", {
+    id, reactiver: z.boolean().optional().describe('true : réactiver au lieu de désactiver.'),
+  }, metier.desactiverArticle),
+
   outil('ajouter_note', "Ajoute une note rattachée à une affaire (qui porte aussi sa personne et son organisation), à une personne ou à une organisation. Les notes ne sont jamais modifiées automatiquement.", {
     texte: z.string().min(1).max(20000), affaireId: id.optional(), personneId: id.optional(), organisationId: id.optional(),
   }, metier.ajouterNote),

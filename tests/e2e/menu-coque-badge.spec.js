@@ -184,7 +184,7 @@ test('3d cas d\'erreur : si la lecture est refusée, pas de pastille, pas de mes
   await expect(entree(page)).toBeVisible();
   await expect(pastille(page)).toBeHidden();
   await expect(page.getByRole('alert')).toHaveCount(0);
-  await expect(menu(page).locator('.menu-entree')).toHaveCount(8);
+  await expect(menu(page).locator('.menu-entree')).toHaveCount(9);
   await entree(page).click();
   await expect(page).toHaveURL(/#\/automatisations\/historique$/); // pas de nombre : l'Historique
   await expect(page.getByRole('heading', { name: 'Automatisations', level: 1 })).toBeVisible();

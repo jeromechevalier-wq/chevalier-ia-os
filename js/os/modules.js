@@ -11,6 +11,7 @@ import { MODULES_DECLARES } from './registre.js';
 const MONTAGES = {
   affaires: () => import('../modules/crm/index.js'),
   projets: () => import('../modules/projets/index.js'),
+  devis: () => import('../modules/devis/index.js'),
   veille: () => import('../modules/veille/index.js'),
   automatisations: () => import('../modules/automatisations/index.js'),
   tableaudebord: () => import('../modules/tableaudebord/index.js'),

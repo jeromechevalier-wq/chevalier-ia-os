@@ -137,7 +137,7 @@ describe('plateforme : fonction, adresses, configuration, règles', () => {
     assert.match(bloc, /allow list: if roleDe\(client\) in \['editeur', 'lecteur'\];/);
     assert.match(bloc, /allow write: if false;/);
     assert.match(r, /allow read: if collection != 'membres' && roleDe\(client\)/);
-    assert.match(r, /allow write: if collection != 'membres' && !collectionDuJournal\(collection\) && !collectionDuTableauDeBord\(collection\) && roleDe\(client\) == 'editeur';/);
+    assert.match(r, /allow write: if collection != 'membres' && !collectionDuJournal\(collection\) && !collectionDuTableauDeBord\(collection\) && !collectionSansSuppression\(collection\) && roleDe\(client\) == 'editeur';/);
     assert.match(r, /match \/\{document=\*\*\} \{\s+allow read, write: if false;/);
   });
   test('les compteurs et les connexions du MCP des clients sont à la racine de la base de la plateforme (fermée par défaut), pas sous clients/<client>/', () => {

@@ -141,4 +141,26 @@ export const lire_audit = {
   executer: ({ args, donnees }) => lecture.lireAudit(donnees, args),
 };
 
-export const OUTILS_LECTURE = [chercher, lire_personne, lire_organisation, lire_affaire, lister_affaires, lister_projets, lire_projet, lister_modeles_projet, lister_activites, lister_documents, lire_reglages, lire_audit];
+export const lister_articles = {
+  nom: 'lister_articles',
+  profils: TOUS,
+  description: "Liste les articles du bordereau de prix du module Devis (code, libellé, unité, prix d'achat HT en euros, taux de TVA propre s'il y en a un, actif). Par défaut les articles actifs ; statut: 'desactives' ou 'tous' pour les autres. Triés par libellé.",
+  schema: {
+    statut: z.enum(['actifs', 'desactives', 'tous']).optional().describe("Défaut : actifs."),
+    limite,
+  },
+  executer: ({ args, donnees }) => lecture.listerArticles(donnees, args),
+};
+
+export const chercher_article = {
+  nom: 'chercher_article',
+  profils: TOUS,
+  description: "Cherche un article ACTIF du bordereau par son code ou son libellé (accents et casse ignorés, 2 lettres au moins ; tous les mots doivent y être). Renvoie l'identifiant, le code, le libellé, l'unité et le prix d'achat en euros. À utiliser avant d'ajouter un article pour ne pas créer de doublon.",
+  schema: {
+    texte: z.string().min(1).max(200).describe('Mots cherchés dans le code ou le libellé.'),
+    limite: z.number().int().min(1).max(50).optional().describe('Résultats au plus (défaut 20).'),
+  },
+  executer: ({ args, donnees }) => lecture.chercherArticle(donnees, args),
+};
+
+export const OUTILS_LECTURE = [chercher, lire_personne, lire_organisation, lire_affaire, lister_affaires, lister_projets, lire_projet, lister_modeles_projet, lister_activites, lister_documents, lire_reglages, lire_audit, lister_articles, chercher_article];

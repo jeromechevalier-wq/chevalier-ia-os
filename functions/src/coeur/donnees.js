@@ -24,6 +24,7 @@ export const COLLECTIONS = {
   projets: 'projets_projets',
   projetsTaches: 'projets_taches',
   projetsModeles: 'projets_modeles',
+  devisArticles: 'devis_articles',
   parametres: 'crm_parametres',
   audit: 'crm_audit',
   auditAvant: 'crm_audit_avant',

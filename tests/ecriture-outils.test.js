@@ -1078,3 +1078,111 @@ describe('Adresses enregistrées d’une personne et d’une organisation (crit�
     assert.deepEqual(s.vue(), avant);
   });
 });
+
+// ---------------------------------------------------------------- Devis : bordereau de prix (24/10/2026)
+
+describe('B9 outils du bordereau (module Devis) : mêmes règles que l’écran, avec audit ; l’assistant n’invente jamais un prix', () => {
+  const articles = (s) => s.collections.devis_articles || [];
+
+  test('B9 droits : lecture pour les trois profils, écriture pour le bibliothécaire et Claude Code, aucune suppression', async () => {
+    const s = await demarrer();
+    const noms = async (j) => (await (await s.brut(j, 'tools/list')).json()).result.tools.map((t) => t.name);
+    const lecteur = await noms('lecteur'); const biblio = await noms('biblio'); const code = await noms('code');
+    for (const o of ['lister_articles', 'chercher_article']) assert.ok(lecteur.includes(o) && biblio.includes(o) && code.includes(o), o);
+    for (const o of ['creer_article', 'modifier_article', 'desactiver_article']) assert.ok(!lecteur.includes(o) && biblio.includes(o) && code.includes(o), o);
+    assert.ok(![...lecteur, ...biblio, ...code].includes('supprimer_article'), 'un article ne se supprime jamais');
+    refuse(await s.appeler('lecteur', 'creer_article', { libelle: 'X', prixAchat: 1 }));
+    assert.equal(articles(s).length, 0);
+  });
+
+  test('B9 l’assistant crée un article (euros, unité par défaut u), avec sa trace dans le journal et un propriétaire', async () => {
+    const s = await demarrer();
+    const r = ok(await s.appeler('biblio', 'creer_article', { libelle: ' Carrelage  60 x 60 ', prixAchat: 12.5, unite: 'm²', code: 'CAR-1', tauxTva: 10 }));
+    const a = s.doc('devis_articles', r.id);
+    assert.deepEqual([a.libelle, a.unite, a.prixAchat, a.code, a.tauxTva, a.actif], ['Carrelage 60 x 60', 'm²', 12.5, 'CAR-1', 10, true]);
+    assert.equal(a.creePar, 'hermes-bibliothecaire');
+    assert.ok(a.proprietaire, 'propriétaire par défaut');
+    const simple = ok(await s.appeler('biblio', 'creer_article', { libelle: 'Vis', prixAchat: 0.1 }));
+    assert.equal(s.doc('devis_articles', simple.id).unite, 'u');
+    const audit = s.collections.crm_audit.filter((l) => l.collection === 'devis_articles' && l.docId === r.id);
+    assert.deepEqual(audit.map((l) => [l.action, l.outil, l.statut]), [['creer', 'creer_article', 'succes']]);
+    assert.ok(s.lignesJournal.length > 0);
+  });
+
+  test('B9 un prix d’achat non numérique est refusé (texte, vide, absent, négatif, 3 décimales) : rien n’est écrit', async () => {
+    const s = await demarrer();
+    refuse(await s.appeler('biblio', 'creer_article', { libelle: 'X', prixAchat: 'douze' }));
+    refuse(await s.appeler('biblio', 'creer_article', { libelle: 'X', prixAchat: '12,5' }));
+    refuse(await s.appeler('biblio', 'creer_article', { libelle: 'X', prixAchat: '' }));
+    refuse(await s.appeler('biblio', 'creer_article', { libelle: 'X' }));
+    refuse(await s.appeler('biblio', 'creer_article', { libelle: 'X', prixAchat: null }));
+    refuse(await s.appeler('biblio', 'creer_article', { libelle: 'X', prixAchat: -3 }));
+    refuse(await s.appeler('biblio', 'creer_article', { libelle: 'X', prixAchat: 1.234 }), /2 décimales/);
+    refuse(await s.appeler('biblio', 'creer_article', { libelle: '   ', prixAchat: 5 }), /libellé est obligatoire/);
+    assert.equal(articles(s).length, 0, 'aucun refus n’écrit');
+  });
+
+  test('B9 un code déjà utilisé par un article actif est refusé avec le message de l’écran', async () => {
+    const s = await demarrer();
+    ok(await s.appeler('biblio', 'creer_article', { libelle: 'Carrelage', prixAchat: 10, code: 'CAR' }));
+    refuse(await s.appeler('biblio', 'creer_article', { libelle: 'Autre', prixAchat: 3, code: 'car' }), /déjà utilisé par l’article actif « Carrelage »/);
+    assert.equal(articles(s).length, 1);
+  });
+
+  test('B9 chercher et lister : par code ou libellé (accents et casse ignorés), actifs par défaut', async () => {
+    const s = await demarrer();
+    const a = ok(await s.appeler('biblio', 'creer_article', { libelle: 'Carrelage grès cérame', prixAchat: 20, code: 'GRES' }));
+    ok(await s.appeler('biblio', 'creer_article', { libelle: 'Peinture blanche', prixAchat: 8 }));
+    assert.deepEqual(ok(await s.appeler('lecteur', 'chercher_article', { texte: 'GRES' })).articles.map((x) => x.id), [a.id]);
+    assert.deepEqual(ok(await s.appeler('lecteur', 'chercher_article', { texte: 'gres cerame' })).articles.map((x) => x.id), [a.id]);
+    assert.deepEqual(ok(await s.appeler('lecteur', 'chercher_article', { texte: 'inconnu' })).articles, []);
+    assert.match(ok(await s.appeler('lecteur', 'chercher_article', { texte: 'a' })).message, /au moins/);
+    const liste = ok(await s.appeler('lecteur', 'lister_articles', {}));
+    assert.deepEqual(liste.articles.map((x) => x.libelle), ['Carrelage grès cérame', 'Peinture blanche']);
+    assert.equal(liste.articles[0].prixAchat, 20);
+    ok(await s.appeler('biblio', 'desactiver_article', { id: a.id }));
+    assert.deepEqual(ok(await s.appeler('lecteur', 'lister_articles', {})).articles.map((x) => x.libelle), ['Peinture blanche']);
+    assert.deepEqual(ok(await s.appeler('lecteur', 'lister_articles', { statut: 'desactives' })).articles.map((x) => x.libelle), ['Carrelage grès cérame']);
+    assert.equal(ok(await s.appeler('lecteur', 'lister_articles', { statut: 'tous' })).total, 2);
+    assert.deepEqual(ok(await s.appeler('lecteur', 'chercher_article', { texte: 'carrelage' })).articles, [], 'la recherche ne rend que les articles actifs');
+  });
+
+  test('B9 modifier : prix en euros, code, TVA ; un champ vide ou sans changement est refusé ; le prix doit rester numérique', async () => {
+    const s = await demarrer();
+    const a = ok(await s.appeler('biblio', 'creer_article', { libelle: 'Carrelage', prixAchat: 10, code: 'CAR', tauxTva: 20 }));
+    const r = ok(await s.appeler('biblio', 'modifier_article', { id: a.id, prixAchat: 12.75, tauxTva: null }));
+    assert.deepEqual(r.champsModifies, ['prixAchat', 'tauxTva']);
+    assert.deepEqual([s.doc('devis_articles', a.id).prixAchat, s.doc('devis_articles', a.id).tauxTva], [12.75, null]);
+    ok(await s.appeler('biblio', 'modifier_article', { id: a.id, code: '' }));
+    assert.equal(s.doc('devis_articles', a.id).code, '');
+    refuse(await s.appeler('biblio', 'modifier_article', { id: a.id, prixAchat: 'cher' }));
+    refuse(await s.appeler('biblio', 'modifier_article', { id: a.id }), /Aucun champ à modifier/);
+    refuse(await s.appeler('biblio', 'modifier_article', { id: a.id, prixAchat: 12.75 }), /Aucun champ à modifier/);
+    refuse(await s.appeler('biblio', 'modifier_article', { id: 'fantome', prixAchat: 1 }), /Article introuvable/);
+    ok(await s.appeler('biblio', 'creer_article', { libelle: 'Peinture', prixAchat: 5, code: 'PEI' }));
+    ok(await s.appeler('biblio', 'modifier_article', { id: a.id, code: 'CAR-2' }));
+    refuse(await s.appeler('biblio', 'modifier_article', { id: a.id, code: 'pei ' }), /déjà utilisé/);
+    assert.equal(s.doc('devis_articles', a.id).modifiePar, 'hermes-bibliothecaire');
+  });
+
+  test('B9 désactiver ne supprime jamais ; réactiver le remet ; réactiver est refusé si le code est repris ; restaurer_depuis_audit défait une modification', async () => {
+    const s = await demarrer();
+    const a = ok(await s.appeler('biblio', 'creer_article', { libelle: 'Carrelage', prixAchat: 10, code: 'CAR' }));
+    const off = ok(await s.appeler('biblio', 'desactiver_article', { id: a.id }));
+    assert.equal(off.actif, false);
+    assert.equal(s.doc('devis_articles', a.id).actif, false);
+    assert.equal(articles(s).length, 1, 'le document est toujours là');
+    refuse(await s.appeler('biblio', 'desactiver_article', { id: a.id }), /déjà désactivé/);
+    ok(await s.appeler('biblio', 'creer_article', { libelle: 'Nouveau carrelage', prixAchat: 11, code: 'CAR' }));
+    refuse(await s.appeler('biblio', 'desactiver_article', { id: a.id, reactiver: true }), /maintenant utilisé par l’article actif « Nouveau carrelage »/);
+    const b = ok(await s.appeler('biblio', 'creer_article', { libelle: 'Peinture', prixAchat: 5 }));
+    ok(await s.appeler('biblio', 'desactiver_article', { id: b.id }));
+    ok(await s.appeler('biblio', 'desactiver_article', { id: b.id, reactiver: true }));
+    assert.equal(s.doc('devis_articles', b.id).actif, true);
+    refuse(await s.appeler('biblio', 'desactiver_article', { id: b.id, reactiver: true }), /déjà actif/);
+    refuse(await s.appeler('biblio', 'desactiver_article', { id: 'fantome' }), /Article introuvable/);
+    const modif = ok(await s.appeler('biblio', 'modifier_article', { id: b.id, prixAchat: 99 }));
+    ok(await s.appeler('code', 'restaurer_depuis_audit', { operationId: modif.operationId, apercu: false }));
+    assert.equal(s.doc('devis_articles', b.id).prixAchat, 5, 'la restauration rétablit l’ancien prix');
+  });
+});
