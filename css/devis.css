@@ -17,6 +17,29 @@
   .page-devis .barre-affaires .champ[type="search"] { flex: 1 1 260px; max-width: 420px; } /* sur téléphone la barre est une colonne : la recherche prend sa hauteur normale */
 }
 .reglages-devis .cases { display: flex; gap: var(--esp-7); flex-wrap: wrap; }
+.valeur-calculee { display: inline-block; padding: 2px 0; }
+.tableau-articles .champ-type { min-width: 130px; }
+
+/* Éditeur de la composition d'un ouvrage (fenêtre « Ajouter un article » et fenêtre « Composition »). */
+.editeur-ouvrage .discret { color: var(--texte2); }
+.resultats-composants { list-style: none; margin: var(--esp-2) 0 0; padding: 0; border: 1px solid var(--bordure); border-radius: var(--rayon-petit); max-height: 220px; overflow-y: auto; }
+.resultats-composants li { padding: var(--esp-3) var(--esp-6); }
+.resultats-composants li + li { border-top: 1px solid var(--bordure); }
+.resultat-composant { display: flex; justify-content: space-between; gap: var(--esp-6); width: 100%; min-height: var(--h-ctrl-petit); padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.resultat-composant:hover, .resultat-composant:focus-visible { background: var(--survol); }
+.composants { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--esp-3); }
+.composant { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: var(--esp-6); padding: var(--esp-3) 0; border-bottom: 1px solid var(--bordure); }
+.composant-saisie, .composant-actions { display: flex; align-items: center; gap: var(--esp-3); }
+.champ-quantite { width: 80px; min-width: 0; text-align: right; }
+.total-composant { min-width: 70px; text-align: right; font-variant-numeric: tabular-nums; }
+.resume-ouvrage { display: grid; grid-template-columns: auto 1fr; gap: var(--esp-2) var(--esp-7); margin: 0; padding: var(--esp-5) var(--esp-6); background: var(--panneau2); border-radius: var(--rayon-petit); }
+.resume-ouvrage dt { color: var(--texte2); }
+.resume-ouvrage dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+@media (max-width: 767px) {
+  .composant { grid-template-columns: 1fr; }
+  .composant-saisie, .composant-actions { justify-content: space-between; }
+  .composant-actions .bouton-icone, .resultat-composant { min-height: 44px; min-width: 44px; }
+}
 
 @media (max-width: 767px) {
   .tableau-articles thead { display: none; } /* pas de tri sur ce tableau : chaque carte porte déjà ses libellés, les pastilles d'en-tête ne serviraient à rien */

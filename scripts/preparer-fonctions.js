@@ -28,8 +28,11 @@ for (const [nom, source] of [['logique.js', devisLogique], ['articles.js', devis
 }
 writeFileSync(join(destination, 'devis.js'), devisLogique.replaceAll(IMPORT_CRM, "from './logique.js'"));
 // Dans articles.js : d'abord l'import des calculs du Devis (./logique.js -> ./devis.js), ensuite celui du CRM (../crm/logique.js -> ./logique.js).
-writeFileSync(join(destination, 'devis-articles.js'), devisArticles.replaceAll("from './logique.js'", "from './devis.js'").replaceAll(IMPORT_CRM, "from './logique.js'"));
-console.log('functions/partage/devis.js et devis-articles.js mis à jour (copies de js/modules/devis/, imports réécrits)');
+// Les ouvrages (ouvrages.js) importent seulement les calculs du Devis : copie devis-ouvrages.js ; articles.js l'importe sous ce nom.
+const devisOuvrages = readFileSync(join(racine, 'js', 'modules', 'devis', 'ouvrages.js'), 'utf8');
+writeFileSync(join(destination, 'devis-ouvrages.js'), devisOuvrages.replaceAll("from './logique.js'", "from './devis.js'"));
+writeFileSync(join(destination, 'devis-articles.js'), devisArticles.replaceAll("from './logique.js'", "from './devis.js'").replaceAll("from './ouvrages.js'", "from './devis-ouvrages.js'").replaceAll(IMPORT_CRM, "from './logique.js'"));
+console.log('functions/partage/devis.js, devis-ouvrages.js et devis-articles.js mis à jour (copies de js/modules/devis/, imports réécrits)');
 
 // La porte des workflows n8n (scripts/porte/) : la logique (clés, contrôles, actions de la veille, accès Firestore, lecteur n8n) est copiée telle quelle,
 // sans l'outil en ligne de commande (outil.js), qui reste sur le Mac de Jérôme. Même principe : un seul exemplaire du code, testé, utilisé par la fonction.
@@ -65,7 +68,7 @@ for (const dossier of ['coeur', 'mcp', 'oauth', 'securite', 'clients']) cpSync(j
 mkdirSync(join(destinationServeur, 'src'), { recursive: true });
 copyFileSync(join(racine, 'functions', 'src', 'version.js'), join(destinationServeur, 'src', 'version.js'));
 copyFileSync(join(racine, 'functions', 'package.json'), join(destinationServeur, 'package.json')); // version.js lit la version du serveur ici
-for (const f of ['logique.js', 'projets.js', 'devis.js', 'devis-articles.js', 'registre.js', 'marque.js', 'chemins.js', 'membres.js', 'propositions.js']) {
+for (const f of ['logique.js', 'projets.js', 'devis.js', 'devis-articles.js', 'devis-ouvrages.js', 'registre.js', 'marque.js', 'chemins.js', 'membres.js', 'propositions.js']) {
   mkdirSync(join(destinationServeur, 'partage'), { recursive: true });
   copyFileSync(join(destination, f), join(destinationServeur, 'partage', f));
 }

@@ -3,6 +3,7 @@
 import { z } from 'zod';
 import * as L from '../../../partage/logique.js';
 import * as PL from '../../../partage/projets.js';
+import * as DA from '../../../partage/devis-articles.js';
 import * as metier from '../../coeur/metier.js';
 
 const PROFILS = ['bibliothecaire', 'claude-code'];
@@ -16,6 +17,9 @@ const etiquettes = z.array(z.string().max(80)).max(30).describe('Identifiants d�
 const proprietaire = z.string().max(120).optional().describe('Propriétaire de la fiche créée (facultatif ; si absent, par défaut la personne connectée).');
 const forcer = z.boolean().optional().describe('true : créer malgré un doublon possible (nom ou e-mail déjà connu), après avoir vérifié que c’est une autre fiche.');
 const texteCourt = z.string().max(300);
+// Devis : type d'article et composants d'un ouvrage (les règles fines sont dans devis-articles.js, les mêmes que l'écran).
+const typeArticle = z.enum(DA.TYPES_ARTICLE.map((t) => t.id));
+const composants = z.array(z.object({ articleId: id, quantite: z.number() })).max(30).describe("Composants d'un ouvrage : [{ articleId, quantite }], 1 à 30, quantité > 0 (3 décimales au plus).");
 // Ancien paramètre « description » (texte libre supprimé par I5) : accepté sans être documenté, pour les clients MCP qui ont gardé l'ancienne liste d'outils.
 // À la création, il devient le texte de la note épinglée de départ ; en modification, il est refusé avec l'explication (modifier_note).
 const descriptionAncienne = z.string().max(20000).optional();
@@ -118,19 +122,23 @@ export const OUTILS_ECRITURE = [
   }, metier.abandonnerFacture),
 
   // ---- Devis : bordereau de prix (articles). Les prix d'achat viennent de l'humain : l'assistant n'en invente JAMAIS.
-  outil('creer_article', "Ajoute un article au bordereau de prix du module Devis. libelle et prixAchat sont obligatoires. prixAchat : le prix d'achat HT en euros, DONNÉ PAR L'HUMAIN (jamais inventé ni estimé : le demander s'il manque), un NOMBRE (12.5), 2 décimales au plus. unite : u, m, m², m³, ml, h, jour, km, forfait, kg (ou un texte libre ; défaut u). code : facultatif, unique parmi les articles actifs. tauxTva : taux de TVA propre à l'article, facultatif (en %). Chercher d'abord avec chercher_article pour éviter un doublon.", {
+  outil('creer_article', "Ajoute un article au bordereau de prix du module Devis. libelle et prixAchat sont obligatoires. prixAchat : le prix d'achat HT en euros, DONNÉ PAR L'HUMAIN (jamais inventé ni estimé : le demander s'il manque), un NOMBRE (12.5), 2 décimales au plus. unite : u, m, m², m³, ml, h, jour, km, forfait, kg (ou un texte libre ; défaut u). code : facultatif, unique parmi les articles actifs. tauxTva : taux de TVA propre à l'article, facultatif (en %). type : facultatif (fourniture, main_oeuvre, ouvrage, sous_traitance, materiel, divers). Un OUVRAGE (type: 'ouvrage') est composé d'autres articles du bordereau : il n'a pas de prixAchat, mais composants (1 à 30 {articleId, quantite}, quantite > 0, 3 décimales au plus, jamais un autre ouvrage, jamais deux fois le même article ; chercher les identifiants avec chercher_article) et, facultatif, prixVenteForce (euros) pour imposer son prix de vente. marge : marge propre à l'article en %, facultative (sinon la marge des réglages). Chercher d'abord avec chercher_article pour éviter un doublon.", {
     libelle: z.string().min(1).max(200),
-    prixAchat: z.number().min(0).max(10_000_000).describe("Prix d'achat HT en euros, donné par l'humain."),
+    prixAchat: z.number().min(0).max(10_000_000).optional().describe("Prix d'achat HT en euros, donné par l'humain. Obligatoire sauf pour un ouvrage."),
+    type: typeArticle.optional(), composants: composants.optional(), prixVenteForce: z.number().min(0).max(10_000_000).optional().describe('Ouvrage seulement : prix de vente imposé, en euros.'),
+    marge: z.number().min(0).max(1000).optional().describe("Marge propre à l'article, en %."),
     unite: z.string().max(20).optional().describe('Défaut : u.'),
     code: z.string().max(40).optional(),
     tauxTva: z.number().min(0).max(100).optional().describe("Taux de TVA propre à l'article, en %."),
     proprietaire,
   }, metier.creerArticle),
 
-  outil('modifier_article', "Modifie des champs d'un article du bordereau : libelle, unite, prixAchat (euros, nombre donné par l'humain), code (chaîne vide pour l'effacer), tauxTva (null pour l'effacer). Ne change jamais l'état actif : voir desactiver_article. Ne supprime jamais.", {
+  outil('modifier_article', "Modifie des champs d'un article du bordereau : libelle, unite, prixAchat (euros, nombre donné par l'humain), code (chaîne vide pour l'effacer), tauxTva (null pour l'effacer), type, composants (remplace toute la liste d'un ouvrage), prixVenteForce et marge (null pour les effacer). Ne change jamais l'état actif : voir desactiver_article. Ne supprime jamais.", {
     id, libelle: z.string().min(1).max(200).optional(), unite: z.string().min(1).max(20).optional(),
     prixAchat: z.number().min(0).max(10_000_000).optional().describe("Prix d'achat HT en euros, donné par l'humain."),
     code: z.string().max(40).optional(), tauxTva: z.number().min(0).max(100).nullable().optional(),
+    type: typeArticle.nullable().optional(), composants: composants.nullable().optional(), prixVenteForce: z.number().min(0).max(10_000_000).nullable().optional(),
+    marge: z.number().min(0).max(1000).nullable().optional(),
   }, metier.modifierArticle),
 
   outil('desactiver_article', "Désactive un article du bordereau (un article ne se supprime jamais : il sort de la liste par défaut et les devis déjà faits ne changent pas). reactiver: true le remet en service (refusé si son code est déjà pris par un article actif).", {

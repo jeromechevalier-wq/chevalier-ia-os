@@ -268,15 +268,22 @@ export async function lireAudit(donnees, { acteur, docId, operationId, depuis, i
 
 /** Les articles du bordereau, comme l'écran : actifs par défaut (statut : 'actifs' | 'desactives' | 'tous'), triés par libellé. */
 export async function listerArticles(donnees, { statut, limite }) {
-  const lignes = DA.filtrerArticles(await donnees.liste(C.devisArticles), { statut: statut ?? 'actifs' });
+  const toutes = await donnees.liste(C.devisArticles);
+  const lignes = DA.filtrerArticles(toutes, { statut: statut ?? 'actifs' });
   const { total, tronque, elements } = borne(lignes, Math.min(limite ?? MAX_LIGNES, MAX_LIGNES));
-  return serialiser({ total, tronque, articles: elements });
+  return serialiser({ total, tronque, articles: DA.avecCalculOuvrage(elements, toutes, await reglagesDevis(donnees)) });
+}
+
+/** Réglages du module Devis (marge, mode) : valeurs par défaut si le document n'existe pas encore. */
+async function reglagesDevis(donnees) {
+  try { return await donnees.document('devis_parametres', 'reglages'); } catch { return null; }
 }
 
 /** Recherche dans le code et le libellé des articles ACTIFS (accents et casse ignorés). */
 export async function chercherArticle(donnees, { texte, limite }) {
   if (L.normaliserNom(texte).length < L.MIN_LETTRES) return { articles: [], total: 0, message: `Saisir au moins ${L.MIN_LETTRES} lettres.` };
-  const lignes = DA.filtrerArticles(await donnees.liste(C.devisArticles), { recherche: texte, statut: 'actifs' });
+  const toutes = await donnees.liste(C.devisArticles);
+  const lignes = DA.filtrerArticles(toutes, { recherche: texte, statut: 'actifs' });
   const { total, tronque, elements } = borne(lignes, Math.min(limite ?? 20, MAX_LIGNES));
-  return serialiser({ total, tronque, articles: elements });
+  return serialiser({ total, tronque, articles: DA.avecCalculOuvrage(elements, toutes, await reglagesDevis(donnees)) });
 }
