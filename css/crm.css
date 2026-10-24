@@ -246,6 +246,18 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 .prop:hover .prop-modifier, .prop-modifier:focus-visible { opacity: 1; }
 @media (hover: none) { .prop[data-prop="proprietaire"] .prop-modifier { opacity: 1; } } /* au doigt, pas de survol : le crayon du Propriétaire reste visible (avant, le menu était toujours visible) */
 .prop-lien { color: var(--lien); }
+/* Email et Téléphone (champContacts) : les valeurs l'une sous l'autre, « + Ajouter » toujours dessous. */
+.prop-contacts-ligne { align-items: start; }
+.prop-contacts { align-items: flex-start; }
+.contacts-pile { display: flex; flex-direction: column; gap: var(--esp-1); min-width: 0; width: 100%; }
+.contact-valeur { align-items: center; min-height: var(--h-ctrl); }
+.contact-valeur .contact-modifier, .contact-valeur .contact-retirer { width: 28px; height: 28px; flex: none; }
+.contact-valeur:hover .contact-modifier, .contact-valeur .contact-modifier:focus-visible { opacity: 1; }
+.contact-valeur .contact-retirer { color: var(--texte2); }
+.contact-edition .ligne-contact { width: 100%; }
+.contact-valeur .bouton-icone .icone { margin-top: 0; }
+@media (hover: none) { .contact-valeur .contact-modifier { opacity: 1; } }
+@media (max-width: 767px), (pointer: coarse) { .prop-contacts .prop-vide { min-height: 44px; } }
 .resume { gap: var(--esp-4); }
 .ligne-creation { display: flex; align-items: center; gap: var(--esp-3); }
 .ligne-creation .champ { flex: 1; min-width: 0; }

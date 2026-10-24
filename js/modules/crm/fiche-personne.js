@@ -5,8 +5,8 @@ import { naviguer } from '../../os/router.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
 import {
-  avatar, lienOrganisation, sectionRepliable, champPropriete, selecteurOrganisation, selecteurEtiquettes, listeContacts, titreEditable, selectProprietaire,
-  telecharger, gabaritFiche, lienRetour, saisieEnCours, lignesContact, carteAffaireMini, fournisseurVilles, etatVide, planifier,
+  avatar, lienOrganisation, sectionRepliable, champPropriete, selecteurOrganisation, selecteurEtiquettes, champContacts, titreEditable, selectProprietaire,
+  telecharger, gabaritFiche, lienRetour, saisieEnCours, carteAffaireMini, fournisseurVilles, etatVide, planifier,
 } from './composants.js';
 import { panneauActivite } from './activites.js';
 import { ouvrirCreationAffaire } from './affaires.js';
@@ -43,28 +43,6 @@ export async function demanderSuppressionPersonne(p) {
     toast(e?.saisie ? e.message : 'Suppression impossible', { type: 'erreur' });
     return false;
   }
-}
-
-/** Modification des emails et des téléphones d'une personne. */
-async function ouvrirEditionContacts(p) {
-  const telephones = listeContacts({ libelle: 'Téléphone', ajout: 'Ajouter un numéro de téléphone', type: 'tel', valeurs: p.telephones || [] });
-  const emails = listeContacts({ libelle: 'Email', ajout: 'Ajouter une adresse email', type: 'email', valeurs: p.emails || [] });
-  const erreur = h('p', { class: 'erreur', role: 'alert' });
-  await dialogue({
-    titre: 'Email et téléphone',
-    classe: 'dialogue-formulaire',
-    contenu: h('div', { class: 'pile' }, h('div', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Email'), emails.element), h('div', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Téléphone'), telephones.element), erreur),
-    boutons: [{ libelle: 'Annuler', valeur: false }, {
-      libelle: 'Enregistrer', valeur: true, style: 'principal',
-      avantFermeture: async () => {
-        const e = emails.valeurs();
-        const err = L.validerPersonne({ nom: p.nom, emails: e });
-        if (err.emails) { erreur.textContent = err.emails; return false; }
-        await D.majPersonne(p.id, { ...L.patchEmails(e), telephones: telephones.valeurs() });
-        return true;
-      },
-    }],
-  });
 }
 
 export function rendreFichePersonne(conteneur, id) {
@@ -110,11 +88,10 @@ export function rendreFichePersonne(conteneur, id) {
     const emailOk = L.emailActif(p);
     const resume = sectionRepliable({
       id: 'personne-resume', titre: 'Résumé',
-      actions: [h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Modifier les emails et les téléphones', 'data-action': 'modifier-contacts', onclick: () => ouvrirEditionContacts(p) }, icone('pencil', { taille: 16 }))],
       contenu: h('div', { class: 'pile resume' },
         h('div', { class: 'resume-ligne' }, etiquettes.element),
-        (p.emails || []).length ? lignesContact(p.emails, 'email') : h('button', { type: 'button', class: 'prop-vide', onclick: () => ouvrirEditionContacts(p) }, icone('plus', { taille: 14 }), 'Ajouter une adresse email'),
-        (p.telephones || []).length ? lignesContact(p.telephones, 'tel') : h('button', { type: 'button', class: 'prop-vide', onclick: () => ouvrirEditionContacts(p) }, icone('plus', { taille: 14 }), 'Ajouter un numéro de téléphone'),
+        champContacts({ libelle: 'Email', genre: 'email', valeurs: p.emails || [], surEnregistrer: (liste) => D.majPersonne(p.id, L.patchEmails(liste)) }).element,
+        champContacts({ libelle: 'Téléphone', genre: 'tel', valeurs: p.telephones || [], surEnregistrer: (liste) => D.majPersonne(p.id, L.patchTelephones(liste)) }).element,
         org
           ? h('div', { class: 'contact-ligne' }, icone('building-2', { taille: 15 }), lienOrganisation(org))
           : h('button', { type: 'button', class: 'prop-vide', 'data-action': 'ajouter-organisation', onclick: () => { editionOrganisation = true; reconstruire(); } }, icone('plus', { taille: 14 }), 'Organisation'),
