@@ -42,6 +42,7 @@ async function ouvrirLiaisonProjet(a) {
 export function rendreFicheAffaire(conteneur, id) {
   let panneau = null;
   let majSelecteurs = null; // met à jour l'affichage des cellules Personne / Organisation du Résumé (sans écrire)
+  let barreEtapes = null; // la bande des étapes sous le titre : redessinée seule quand la fiche n'est pas refaite (la liste « Étape » a le focus)
   let majLiens = null; // redessine seulement les liens personne / organisation de l'en-tête
   const racine = h('div', { class: 'fiche-conteneur' });
   conteneur.append(racine);
@@ -92,7 +93,7 @@ export function rendreFicheAffaire(conteneur, id) {
         h('div', { class: 'fiche-tete-droite' },
           h('div', { class: 'fiche-montant' }, montant.element),
           h('div', { class: 'fiche-actions' }, actionsStatut, menu))),
-      barreDesEtapes(a));
+      (barreEtapes = barreDesEtapes(a)));
 
     // ---- Résumé
     // Retirer (croix) écrit null ; taper dans la cellule ne retire rien (surChoix(null) sans `effacement`).
@@ -173,9 +174,17 @@ export function rendreFicheAffaire(conteneur, id) {
     if (!a) { introuvable(); return; }
     construire(a);
   }
+  function majBarreEtapes() {
+    const a = D.affaire(id);
+    if (!a || !barreEtapes?.isConnected) return;
+    const neuve = barreDesEtapes(a);
+    barreEtapes.replaceWith(neuve);
+    barreEtapes = neuve;
+  }
   const rafraichir = planifier(() => {
     if (!saisieEnCours(racine)) { reconstruire(); return; }
     majSelecteurs?.();
+    majBarreEtapes();
     majLiens?.(); // une saisie est en cours (le choix dans le Résumé garde le focus) : la fiche n'est pas refaite, mais les liens du haut suivent
   });
   reconstruire();

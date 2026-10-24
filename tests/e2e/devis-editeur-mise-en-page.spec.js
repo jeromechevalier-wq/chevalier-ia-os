@@ -2,7 +2,7 @@
 // Un test par point du brief (le nom commence par le numéro du point), une capture par point : tests/e2e/captures/devis-editeur-mise-en-page/ (ordinateur ET téléphone : la mise en page change).
 import { fileURLToPath } from 'node:url';
 import {
-  test, expect, connecter, attendreCalme, ecrireDocument, listerDocuments, creerOrganisation, creerAffaire, estTelephone, JEROME,
+  test, expect, connecter, attendreCalme, ecrireDocument, listerDocuments, creerOrganisation, creerAffaire, creerPersonne, estTelephone, JEROME,
 } from './outils.js';
 
 const DOSSIER = fileURLToPath(new URL('./captures/devis-editeur-mise-en-page/', import.meta.url));
@@ -312,4 +312,20 @@ test('2 la date « En date du » se modifie sur place, s’enregistre et se retr
   expect((await listerDocuments('devis_devis'))[0].dateEmission).toBe('2026-12-15');
   await page.locator('[data-onglet="apercu"]').click();
   await expect(page.locator('iframe[data-zone="apercu"]').contentFrame().locator('body')).toContainText('15/12/2026');
+});
+
+test('2 l’e-mail du destinataire suit le client choisi, sauf s’il a été écrit à la main', async ({ page }) => {
+  await semer();
+  await creerPersonne('p1', { nom: 'Julie Rubio', emails: [{ valeur: 'julie@exemple.test', type: 'travail' }] });
+  await creerAffaire('a1', { titre: 'Rénovation restaurant', organisationId: 'o1', personneId: 'p1' });
+  await ouvrir(page, await devisLong());
+  const mail = page.locator('[data-champ="destinataire"]');
+  await expect(mail).toHaveValue('contact@exemple.fr');
+  await page.locator('[data-champ="client"]').selectOption('personne:p1');
+  await expect(mail).toHaveValue('julie@exemple.test');
+  await page.locator('[data-champ="client"]').selectOption('organisation:o1');
+  await expect(mail).toHaveValue('contact@exemple.fr');
+  await mail.fill('autre@exemple.test'); // écrit à la main : le choix du client ne l'écrase plus
+  await page.locator('[data-champ="client"]').selectOption('personne:p1');
+  await expect(mail).toHaveValue('autre@exemple.test');
 });
