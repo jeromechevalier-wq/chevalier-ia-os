@@ -87,8 +87,8 @@ let derniereAdresse = typeof location === 'undefined' ? '' : location.hash;
 let sortieConfirmee = false;
 
 /** `modifie()` : vrai s'il y a un brouillon non enregistré. Une garde dont la page a disparu doit répondre faux (elle est alors retirée). */
-export function ajouterGardeSortie(modifie, { message = 'Des changements ne sont pas enregistrés.' } = {}) {
-  const g = { modifie, message };
+export function ajouterGardeSortie(modifie, { message = 'Des changements ne sont pas enregistrés.', enregistrer = null } = {}) {
+  const g = { modifie, message, enregistrer };
   gardes.add(g);
   return () => gardes.delete(g);
 }
@@ -106,8 +106,25 @@ if (typeof window !== 'undefined') {
     if (!garde) { derniereAdresse = nouvelle; return; }
     e.stopImmediatePropagation();
     history.replaceState(null, '', `${location.pathname}${location.search}${derniereAdresse}`);
-    const { confirmer } = await import('./ui.js');
-    if (await confirmer('Quitter sans enregistrer ?', `${garde.message} Si tu quittes, ils seront perdus.`, { libelleOk: 'Quitter sans enregistrer', danger: true })) {
+    const ui = await import('./ui.js');
+    // Une garde qui sait enregistrer (`enregistrer()` rend true si c'est fait) propose trois choix : Rester, Quitter, Enregistrer et quitter.
+    let quitter;
+    if (garde.enregistrer) {
+      const choix = await ui.dialogue({
+        titre: 'Quitter sans enregistrer ?',
+        contenu: ui.h('p', {}, `${garde.message} Si tu quittes sans enregistrer, ils seront perdus.`),
+        boutons: [
+          { libelle: 'Rester', valeur: 'rester' },
+          { libelle: 'Quitter', valeur: 'quitter', style: 'danger' },
+          { libelle: 'Enregistrer et quitter', valeur: 'enregistrer', style: 'principal' },
+        ],
+      });
+      quitter = choix === 'quitter' || (choix === 'enregistrer' && await garde.enregistrer());
+      if (choix === 'enregistrer' && !quitter) ui.toast('L’enregistrement a échoué : tu restes sur le devis.', { type: 'erreur', duree: 6000 });
+    } else {
+      quitter = await ui.confirmer('Quitter sans enregistrer ?', `${garde.message} Si tu quittes, ils seront perdus.`, { libelleOk: 'Quitter sans enregistrer', danger: true });
+    }
+    if (quitter) {
       sortieConfirmee = true;
       location.hash = nouvelle;
     }

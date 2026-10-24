@@ -3,8 +3,8 @@
 // Les règles de statut viennent de logique.js (TRANSITIONS, estExpire) : rien n'est redéfini ici.
 import { STATUTS_DEVIS, estExpire, transitionPossible, totauxDevis } from './logique.js';
 
-/** Tant que l'éditeur de devis n'existe pas, « Modifier », « Dupliquer » et « Nouveau devis » restent grisés (« bientôt disponible »). */
-export const EDITEUR_DISPONIBLE = false;
+/** L'éditeur de devis existe : « Nouveau devis », « Modifier » et « Dupliquer » sont actifs (false les grise « bientôt disponible »). */
+export const EDITEUR_DISPONIBLE = true;
 /** Aucune fonction serveur ne supprime un brouillon pour l'instant : « Supprimer » reste grisé. */
 export const SUPPRESSION_DISPONIBLE = false;
 export const TAILLES_PAGE = Object.freeze([10, 25, 50]);

@@ -146,7 +146,8 @@ describe('L6 expiré calculé', () => {
 });
 
 describe('L7 actions permises par statut', () => {
-  const act = (statut) => Li.actionsPermises(d('x', { statut }));
+  const act = (statut, options = {}) => Li.actionsPermises(d('x', { statut }), options);
+  const sansEditeur = { editeur: false };
   const actions = (statut) => act(statut).statuts.map((s) => s.action);
   test('L7 changements de statut : exactement les transitions du serveur', () => {
     assert.deepEqual(actions('brouillon'), ['finaliser']);
@@ -161,20 +162,24 @@ describe('L7 actions permises par statut', () => {
     assert.equal(Li.actionsPermises(d('x', { statut: 'envoye' }), { suppression: true }).supprimer.actif, false);
   });
   test('L7 Modifier : « version actuelle » seulement pour un brouillon, « variante » pour finalisé, envoyé ou refusé ; grisés sans éditeur, actifs avec', () => {
-    assert.equal(act('brouillon').modifierVersionActuelle.raison, Li.MESSAGE_BIENTOT);
+    assert.equal(act('brouillon', sansEditeur).modifierVersionActuelle.raison, Li.MESSAGE_BIENTOT);
+    assert.equal(act('brouillon').modifierVersionActuelle.actif, true, 'l’éditeur existe : actif par défaut');
     assert.equal(Li.actionsPermises(d('x'), { editeur: true }).modifierVersionActuelle.actif, true);
     for (const s of ['en_attente_envoi', 'envoye', 'refuse']) {
-      assert.equal(act(s).nouvelleVariante.raison, Li.MESSAGE_BIENTOT, s);
+      assert.equal(act(s, sansEditeur).nouvelleVariante.raison, Li.MESSAGE_BIENTOT, s);
+      assert.equal(act(s).nouvelleVariante.actif, true, s);
       assert.equal(Li.actionsPermises(d('x', { statut: s }), { editeur: true }).nouvelleVariante.actif, true, s);
       assert.equal(act(s).modifierVersionActuelle.actif, false, s);
     }
     for (const s of ['brouillon', 'accepte', 'remplace']) assert.equal(Li.actionsPermises(d('x', { statut: s }), { editeur: true }).nouvelleVariante.actif, false, s);
   });
-  test('L7 Voir toujours possible ; Facturer, Envoyer et Dupliquer grisés « bientôt »', () => {
+  test('L7 Voir toujours possible ; Facturer et Envoyer grisés « bientôt » ; Dupliquer actif avec l’éditeur, grisé sans', () => {
     for (const s of ['brouillon', 'envoye', 'accepte', 'remplace']) {
       const a = act(s);
       assert.equal(a.voir.actif, true, s);
-      for (const cle of ['facturer', 'envoyer', 'dupliquer']) { assert.equal(a[cle].actif, false, `${s} ${cle}`); assert.equal(a[cle].raison, Li.MESSAGE_BIENTOT); }
+      assert.equal(a.dupliquer.actif, true, s);
+      assert.equal(act(s, sansEditeur).dupliquer.raison, Li.MESSAGE_BIENTOT, s);
+      for (const cle of ['facturer', 'envoyer']) { assert.equal(a[cle].actif, false, `${s} ${cle}`); assert.equal(a[cle].raison, Li.MESSAGE_BIENTOT); }
     }
   });
 });
