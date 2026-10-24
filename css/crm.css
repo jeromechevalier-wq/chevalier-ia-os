@@ -269,6 +269,11 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 .contact-ligne .bouton-copier { width: 24px; height: 24px; flex: none; }
 .contact-ligne .bouton-copier .icone { margin-top: 0; }
 .contact-type { color: var(--texte2); font-size: var(--fs-menu); }
+.adresse-valeur { flex-wrap: wrap; align-items: baseline; }
+.adresse-texte { white-space: pre-line; min-width: 0; overflow-wrap: anywhere; }
+.contact-edition .champ-adresse { width: 100%; resize: vertical; margin-top: var(--esp-1); }
+.contact-edition .champ-type { width: 100%; }
+.adresse-defaut { display: flex; align-items: center; gap: var(--esp-2); margin-top: var(--esp-1); color: var(--texte2); font-size: var(--fs-menu); }
 .actions-email { display: flex; gap: var(--esp-3); flex-wrap: wrap; margin-top: var(--esp-1); }
 .liste-simple { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--esp-2); }
 .ligne-simple { display: flex; align-items: center; gap: var(--esp-1) var(--esp-4); min-width: 0; flex-wrap: wrap; }
