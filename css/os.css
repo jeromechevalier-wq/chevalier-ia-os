@@ -550,6 +550,8 @@ body.page-connexion {
 .suggestion-creer { color: var(--accent-trait); font-weight: var(--poids-moyen); }
 :root[data-theme='clair'] .suggestion-creer { color: var(--lien); }
 .suggestion-groupe { padding: var(--esp-3) var(--esp-4) var(--esp-1); font: var(--poids-moyen) var(--fs-micro)/1.3 var(--police-texte); letter-spacing: .14em; text-transform: uppercase; color: var(--texte2); }
+.suggestion-vide { padding: var(--esp-3) var(--esp-4); color: var(--texte2); font-size: var(--fs-petit); overflow-wrap: anywhere; }
+.suggestion-vide a { color: var(--lien); text-decoration: underline; }
 .puce-couleur { width: 10px; height: 10px; border-radius: 50%; flex: none; }
 
 /* ---------------------------------------------------------------- menu contextuel */

@@ -35,17 +35,12 @@ test('F1 la fenêtre « Ajouter un article » n’a plus de champ « Type » : u
   // F2 à l'écran : « Fournitures › Carrelage » enregistre un article de type fourniture.
   await dialogue(page).getByRole('textbox', { name: 'Libellé' }).fill('Carreau 60 x 60');
   await dialogue(page).getByRole('textbox', { name: /Prix d’achat/ }).fill('12,5');
-  await dialogue(page).locator('#article-familleId').click();
-  await dialogue(page).locator('.famille-option', { hasText: 'Fournitures' }).locator('input').check();
-  await dialogue(page).locator('[data-action="menu-familles"]').click();
-  await page.getByRole('menuitem', { name: 'Nouvelle sous-famille' }).click();
-  await dialogue(page).getByRole('textbox', { name: 'Nom de la famille' }).fill('Carrelage');
-  await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
-  await dialogue(page).getByRole('button', { name: 'Sélectionner' }).click();
-  await expect(dialogue(page).locator('#article-familleId')).toHaveValue('Fournitures › Carrelage');
+  await dialogue(page).locator('#article-familleId').fill('carrelage');
+  await dialogue(page).getByRole('option', { name: /Fournitures › Carrelage et revêtements/ }).click();
+  await expect(dialogue(page).locator('#article-familleId')).toHaveValue('Fournitures › Carrelage et revêtements');
   await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
   await expect(dialogue(page)).toHaveCount(0);
-  await expect(page.locator('.ligne-article', { hasText: 'Carreau 60 x 60' }).locator('[data-colonne="famille"]')).toHaveText('Fournitures › Carrelage');
+  await expect(page.locator('.ligne-article', { hasText: 'Carreau 60 x 60' }).locator('[data-colonne="famille"]')).toHaveText('Fournitures › Carrelage et revêtements');
   await expect(page.locator('th', { hasText: /^Type$/ })).toHaveCount(0);
   const doc = (await listerDocuments('devis_articles')).find((d) => d.libelle === 'Carreau 60 x 60');
   expect(doc).toMatchObject({ type: 'fourniture' });

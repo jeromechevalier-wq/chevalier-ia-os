@@ -47,9 +47,10 @@ describe('F2 texte et composants', () => {
 
 describe('F3 familles par défaut', () => {
   test('F3 sept familles par défaut, dans l’ordre, toutes actives ; document absent = défauts', () => {
-    assert.deepEqual(F.FAMILLES_PAR_DEFAUT.map((f) => f.nom), ['Fournitures', 'Main d’œuvre', 'Ouvrages', 'Sous-traitance', 'Matériels', 'Textes', 'Divers']);
+    assert.deepEqual(F.FAMILLES_PAR_DEFAUT.filter((f) => !f.parentId).map((f) => f.nom), ['Fournitures', 'Main d’œuvre', 'Ouvrages', 'Sous-traitance', 'Matériels', 'Textes', 'Divers']);
     assert.ok(F.FAMILLES_PAR_DEFAUT.every((f) => f.actif));
-    assert.equal(new Set(F.FAMILLES_PAR_DEFAUT.map((f) => f.id)).size, 7);
+    assert.equal(F.FAMILLES_PAR_DEFAUT.filter((f) => !f.parentId).length, 7);
+    assert.equal(new Set(F.FAMILLES_PAR_DEFAUT.map((f) => f.id)).size, F.FAMILLES_PAR_DEFAUT.length, 'identifiants tous différents');
     assert.deepEqual(F.famillesDe(null), F.FAMILLES_PAR_DEFAUT);
     assert.deepEqual(F.famillesDe({ liste: 'abîmé' }), F.FAMILLES_PAR_DEFAUT);
     // Les sept familles de départ sont toujours en tête (verrouillées) ; les familles libres de l'utilisateur suivent.
@@ -69,7 +70,7 @@ describe('F4 noms uniques', () => {
     assert.equal(F.erreursFamille('x'.repeat(60), liste()), null);
     const ok = F.planCreationFamille('  Plomberie  ', liste(), { nouvelId: () => 'n', parentId: 'famille-2' });
     assert.equal(ok.erreur, null);
-    assert.equal(ok.familles.length, 8);
+    assert.equal(ok.familles.length, F.FAMILLES_PAR_DEFAUT.length + 1);
     assert.deepEqual(ok.famille, { id: 'n', nom: 'Plomberie', actif: true, parentId: 'famille-2' });
   });
   test('F4 le nom d’une famille désactivée reste pris', () => {
@@ -84,7 +85,7 @@ describe('F5 renommer, désactiver', () => {
     const r = F.planRenommerFamille('p', 'Tuyaux', l);
     assert.equal(r.erreur, null);
     assert.deepEqual(r.famille, { id: 'p', nom: 'Tuyaux', actif: true, parentId: 'famille-1' });
-    assert.equal(r.familles.length, 9);
+    assert.equal(r.familles.length, F.FAMILLES_PAR_DEFAUT.length + 2);
     assert.equal(F.planRenommerFamille('p', 'PLOMBERIE', l).erreur, null);
     assert.ok(F.planRenommerFamille('p', 'peinture', l).erreur);
     assert.ok(F.planRenommerFamille('absente', 'Autre', l).erreur);
@@ -93,7 +94,7 @@ describe('F5 renommer, désactiver', () => {
   test('F5 désactiver puis réactiver ; jamais de suppression', () => {
     const l = [...F.famillesDe(null), { id: 'p', nom: 'Plomberie', actif: true, parentId: 'famille-2' }];
     const off = F.planDesactiverFamille('p', l);
-    assert.equal(off.familles.length, 8);
+    assert.equal(off.familles.length, F.FAMILLES_PAR_DEFAUT.length + 1);
     assert.equal(off.famille.actif, false);
     assert.equal(F.planDesactiverFamille('p', off.familles, true).famille.actif, true);
     assert.ok(F.planDesactiverFamille('absente', l).erreur);

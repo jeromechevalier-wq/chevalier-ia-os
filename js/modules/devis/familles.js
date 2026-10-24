@@ -10,30 +10,48 @@ const DEPART = [
   ['Fournitures', 'fourniture'], ['Main d’œuvre', 'main_oeuvre'], ['Ouvrages', 'ouvrage'], ['Sous-traitance', 'sous_traitance'],
   ['Matériels', 'materiel'], ['Textes', 'texte'], ['Divers', 'divers'],
 ];
-export const FAMILLES_PAR_DEFAUT = Object.freeze(DEPART.map(([nom], i) => Object.freeze({ id: `famille-${i + 1}`, nom, actif: true })));
+const PREMIER_NIVEAU = DEPART.map(([nom], i) => Object.freeze({ id: `famille-${i + 1}`, nom, actif: true }));
+/** Sous-familles de départ, par famille de premier niveau (même ordre que DEPART). Identifiants stables `famille-<n>-<m>`. L'utilisateur peut les renommer et les désactiver (son choix l'emporte). */
+const SOUS_DEPART = [
+  ['Gros œuvre et maçonnerie', 'Carrelage et revêtements', 'Étanchéité et isolation', 'Plâtrerie et cloisons', 'Peinture', 'Menuiserie', 'Plomberie et sanitaire', 'Électricité', 'Quincaillerie et visserie'],
+  ['Maçon', 'Carreleur', 'Étancheur', 'Plaquiste', 'Peintre', 'Menuisier', 'Plombier', 'Électricien', 'Aide de chantier'],
+  ['Sols', 'Murs et cloisons', 'Toiture et étanchéité', 'Plomberie', 'Électricité'],
+  ['Échafaudage', 'Terrassement', 'Électricité', 'Plomberie', 'Autres corps d’état'],
+  ['Location d’engins', 'Outillage'],
+  ['Introduction', 'Conditions et mentions'],
+  ['Déchets et évacuation', 'Déplacement', 'Protection de chantier'],
+];
+const SOUS_FAMILLES_DEPART = SOUS_DEPART.flatMap((noms, i) => noms.map((nom, j) => Object.freeze({ id: `famille-${i + 1}-${j + 1}`, nom, actif: true, parentId: `famille-${i + 1}` })));
+/** Les familles de départ : les sept de premier niveau (verrouillées), puis leurs sous-familles de départ (modifiables). */
+export const FAMILLES_PAR_DEFAUT = Object.freeze([...PREMIER_NIVEAU, ...SOUS_FAMILLES_DEPART]);
 /** Type d'article de chaque famille de départ (table en dur). */
 const TYPE_DE_DEPART = Object.freeze(Object.fromEntries(DEPART.map(([, type], i) => [`famille-${i + 1}`, type])));
 
 const espaces = (v) => String(v ?? '').replace(/[\s  ]+/g, ' ').trim();
 const cle = (v) => espaces(v).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
-/** Une famille de départ est verrouillée : ni renommée, ni désactivée. */
+/** Une famille de départ de premier niveau est verrouillée : ni renommée, ni désactivée. */
 export const estFamilleDepart = (id) => Object.hasOwn(TYPE_DE_DEPART, id);
+/** Une sous-famille de départ se renomme et se désactive comme une sous-famille libre (elle est seulement proposée d'office). */
+export const estSousFamilleDepart = (id) => SOUS_FAMILLES_DEPART.some((f) => f.id === id);
 /** Famille de premier niveau = sans `parentId`. */
 export const estPremierNiveau = (f) => !f?.parentId;
 
 /**
  * Liste lue dans la base (document absent ou illisible = familles par défaut). Toujours une liste valide : les sept familles de départ sont toujours là,
- * en tête, sous leur nom d'origine et actives (verrouillées) ; une famille dont le parent n'existe pas (ou n'est pas de premier niveau) est ramenée au premier niveau.
+ * en tête, sous leur nom d'origine et actives (verrouillées), suivies des sous-familles de départ (celles que l'utilisateur a renommées ou désactivées gardent son choix) ; une famille dont le parent n'existe pas (ou n'est pas de premier niveau) est ramenée au premier niveau.
  */
 export function famillesDe(brut) {
   const liste = brut && Array.isArray(brut.liste) ? brut.liste : null;
   if (!liste) return FAMILLES_PAR_DEFAUT.map((f) => ({ ...f }));
-  const lues = liste
-    .filter((f) => f && typeof f.id === 'string' && f.id && typeof f.nom === 'string' && espaces(f.nom) && !estFamilleDepart(f.id))
-    .map((f) => ({ id: f.id, nom: espaces(f.nom), actif: f.actif !== false, ...(typeof f.parentId === 'string' && f.parentId ? { parentId: f.parentId } : {}) }));
-  const premiers = new Set([...FAMILLES_PAR_DEFAUT.map((f) => f.id), ...lues.filter((f) => !f.parentId).map((f) => f.id)]);
-  return [...FAMILLES_PAR_DEFAUT.map((f) => ({ ...f })), ...lues.map((f) => (f.parentId && !premiers.has(f.parentId) ? { id: f.id, nom: f.nom, actif: f.actif } : f))];
+  const valides = liste.filter((f) => f && typeof f.id === 'string' && f.id && typeof f.nom === 'string' && espaces(f.nom) && !estFamilleDepart(f.id));
+  const lues = valides.map((f) => ({ id: f.id, nom: espaces(f.nom), actif: f.actif !== false, ...(typeof f.parentId === 'string' && f.parentId ? { parentId: f.parentId } : {}) }));
+  // Une sous-famille de départ stockée (renommée ou désactivée) l'emporte sur le départ ; son parent reste celui du départ.
+  const stockees = new Map(lues.filter((f) => estSousFamilleDepart(f.id)).map((f) => [f.id, f]));
+  const departs = FAMILLES_PAR_DEFAUT.map((f) => (stockees.has(f.id) ? { id: f.id, nom: stockees.get(f.id).nom, actif: stockees.get(f.id).actif, ...(f.parentId ? { parentId: f.parentId } : {}) } : { ...f }));
+  const libres = lues.filter((f) => !estSousFamilleDepart(f.id));
+  const premiers = new Set([...PREMIER_NIVEAU.map((f) => f.id), ...libres.filter((f) => !f.parentId).map((f) => f.id)]);
+  return [...departs, ...libres.map((f) => (f.parentId && !premiers.has(f.parentId) ? { id: f.id, nom: f.nom, actif: f.actif } : f))];
 }
 
 /** Famille qui porte ce nom (sans accents ni casse), hors `sauf`, parmi les familles de même parent (`parentId` vide = premier niveau). Actives ou non. */

@@ -34,9 +34,8 @@ test('O10 créer un ouvrage de 3 composants montre 11,34 € en direct, puis dan
   await page.locator('[data-action="nouvel-article"]').click();
   await dialogue(page).getByRole('textbox', { name: 'Libellé' }).fill('Cloisons de séparation');
   // La famille « Ouvrages » donne le type ouvrage (il n'y a plus de champ « Type »).
-  await dialogue(page).locator('#article-familleId').click();
-  await dialogue(page).locator('.famille-option', { hasText: 'Ouvrages' }).locator('input').check();
-  await dialogue(page).getByRole('button', { name: 'Sélectionner' }).click();
+  await dialogue(page).locator('#article-familleId').fill('Ouvrages');
+  await dialogue(page).getByRole('option', { name: /^Ouvrages$/ }).click();
   // Le prix d'achat disparaît, l'éditeur apparaît avec son cas vide.
   await expect(dialogue(page).locator('#article-prixAchat')).toBeHidden();
   await expect(dialogue(page).locator('[data-vide="composants"]')).toContainText('Aucun composant');

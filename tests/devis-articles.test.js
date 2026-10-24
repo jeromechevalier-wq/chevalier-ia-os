@@ -40,7 +40,7 @@ describe('B1 le module Devis est déclaré et ne dépend que des Affaires', () =
   });
   test('B1 les Réglages ont un bloc « Devis » avec sa section', () => {
     const bloc = reglagesDesModules(['affaires', 'devis']).find((b) => b.id === 'devis');
-    assert.deepEqual(bloc.sections.map((s) => s.id), ['reglages-devis']);
+    assert.deepEqual(bloc.sections.map((s) => s.id), ['reglages-devis', 'reglages-familles']);
   });
 });
 
