@@ -33,7 +33,10 @@ test('O10 créer un ouvrage de 3 composants montre 11,34 € en direct, puis dan
   await ouvrirBordereau(page);
   await page.locator('[data-action="nouvel-article"]').click();
   await dialogue(page).getByRole('textbox', { name: 'Libellé' }).fill('Cloisons de séparation');
-  await dialogue(page).locator('#article-type').selectOption('ouvrage');
+  // La famille « Ouvrages » donne le type ouvrage (il n'y a plus de champ « Type »).
+  await dialogue(page).locator('#article-familleId').click();
+  await dialogue(page).locator('.famille-option', { hasText: 'Ouvrages' }).locator('input').check();
+  await dialogue(page).getByRole('button', { name: 'Sélectionner' }).click();
   // Le prix d'achat disparaît, l'éditeur apparaît avec son cas vide.
   await expect(dialogue(page).locator('#article-prixAchat')).toBeHidden();
   await expect(dialogue(page).locator('[data-vide="composants"]')).toContainText('Aucun composant');
@@ -66,15 +69,16 @@ test('O10 créer un ouvrage de 3 composants montre 11,34 € en direct, puis dan
   const ligne = page.locator('.ligne-article', { hasText: 'Cloisons de séparation' });
   await expect(ligne.locator('[data-colonne="prixVente"]')).toContainText('11,34 €');
   await expect(ligne.locator('[data-colonne="prixAchat"]')).toContainText('9,04 €');
-  await expect(ligne.locator('[data-colonne="type"]')).toHaveText('Ouvrage');
+  await expect(ligne.locator('[data-colonne="famille"]')).toHaveText('Ouvrages');
   const docs = (await listerDocuments('devis_articles')).filter((d) => d.libelle === 'Cloisons de séparation');
   expect(docs).toHaveLength(1);
   expect(docs[0].type).toBe('ouvrage');
+  expect(docs[0].familleId).toBe('famille-3');
   expect(docs[0].composants).toHaveLength(3);
   await capturer(page, info, 'O10-liste-avec-ouvrage');
 });
 
-test('O10 le prix de vente forcé et le filtre par type', async ({ page }, info) => {
+test('O10 le prix de vente forcé et le filtre par famille', async ({ page }, info) => {
   await troisComposants();
   await article('o1', { libelle: 'Ouvrage existant', type: 'ouvrage', prixAchat: null, composants: [{ articleId: 'a1', quantite: 1 }, { articleId: 'a2', quantite: 1 }, { articleId: 'a3', quantite: 1 }] });
   await ouvrirBordereau(page);
@@ -87,14 +91,14 @@ test('O10 le prix de vente forcé et le filtre par type', async ({ page }, info)
   await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
   await expect(dialogue(page)).toBeHidden();
   await expect(page.locator('.ligne-article[data-id="o1"] [data-colonne="prixVente"]')).toContainText('12,00 €');
-  // Filtre « Type » : Ouvrage seulement, puis un type sans article (cas vide).
+  // Filtre « Famille » : Ouvrages seulement, puis une famille sans article (cas vide).
   await page.locator('[data-action="filtres"]').click();
-  await dialogue(page).locator('[data-cle="types"][data-valeur="ouvrage"]').check();
+  await dialogue(page).locator('[data-cle="familles"][data-valeur="famille-3"]').check();
   await dialogue(page).getByRole('button', { name: 'Appliquer' }).click();
   await expect(page.locator('.ligne-article')).toHaveCount(1);
   await page.locator('[data-action="filtres"]').click();
-  await dialogue(page).locator('[data-cle="types"][data-valeur="ouvrage"]').uncheck();
-  await dialogue(page).locator('[data-cle="types"][data-valeur="divers"]').check();
+  await dialogue(page).locator('[data-cle="familles"][data-valeur="famille-3"]').uncheck();
+  await dialogue(page).locator('[data-cle="familles"][data-valeur="famille-7"]').check();
   await dialogue(page).getByRole('button', { name: 'Appliquer' }).click();
-  await expect(page.locator('.etat-vide')).toContainText('Aucun article de ce type');
+  await expect(page.locator('.etat-vide')).toContainText('Aucun article dans cette famille');
 });

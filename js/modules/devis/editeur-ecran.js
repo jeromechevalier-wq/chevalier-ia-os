@@ -10,6 +10,7 @@ import { adressesDe } from '../crm/logique.js';
 import * as CRM from '../crm/donnees.js';
 import * as D from './donnees.js';
 import * as A from './articles.js';
+import { arbreFamilles, cheminFamille } from './familles.js';
 import * as Ed from './editeur-logique.js';
 import {
   totauxDevis, vueClient, erreursFinalisation, erreursChantier, STATUTS_DEVIS, MODES_MARGE, UNITES_DUREE, MOMENTS_ACOMPTE, transitionPossible, TAUX_TVA_DEFAUT,
@@ -162,7 +163,6 @@ export function rendreEditeurDevis(conteneur, id) {
   let pointInsertion = null; // identifiant sous lequel s'ajoutera le prochain article du Bordereau
   let rechercheBordereau = '';
   let filtreFamille = '';
-  let filtreType = '';
   let moment = Date.now();
   let conflit = false; // le devis a changé ailleurs : rien n'est écrasé tant que l'utilisateur n'a pas tranché
   let verrou = false; // finalisation en cours : plus aucun enregistrement automatique
@@ -496,9 +496,7 @@ export function rendreEditeurDevis(conteneur, id) {
       oninput: (e) => { rechercheBordereau = e.target.value; majResultats(); },
     });
     ref.filtreFamille = h('select', { class: 'champ', 'aria-label': 'Famille', dataset: { champ: 'filtre-famille' }, onchange: (e) => { filtreFamille = e.target.value; majResultats(); } },
-      h('option', { value: '' }, 'Toutes les familles'), D.etat.familles.filter((f) => f.actif).map((f) => h('option', { value: f.id }, f.nom)), h('option', { value: 'sans_famille' }, 'Sans famille'));
-    ref.filtreType = h('select', { class: 'champ', 'aria-label': 'Type', dataset: { champ: 'filtre-type' }, onchange: (e) => { filtreType = e.target.value; majResultats(); } },
-      h('option', { value: '' }, 'Tous les types'), A.TYPES_ARTICLE.map((t) => h('option', { value: t.id }, t.libelle)));
+      h('option', { value: '' }, 'Toutes les familles'), arbreFamilles(D.etat.familles).flatMap(({ famille: f, enfants }) => [f, ...enfants]).filter((f) => f.actif).map((f) => h('option', { value: f.id }, cheminFamille(D.etat.familles, f.id))), h('option', { value: 'sans_famille' }, 'Sans famille'));
     ref.resultats = h('ul', { class: 'resultats-bordereau', dataset: { zone: 'resultats' } });
     ref.pointInsertion = h('p', { class: 'texte-discret', dataset: { valeur: 'point-insertion' }, hidden: true });
     ref.avertissements = h('ul', { class: 'avertissements-devis', dataset: { zone: 'avertissements' } });
@@ -506,7 +504,7 @@ export function rendreEditeurDevis(conteneur, id) {
     ref.vide = h('div', { class: 'etat-vide-ligne', dataset: { vide: 'lignes' } }, h('p', {}, 'Ajoute une première ligne depuis ton Bordereau ou une ligne libre.'));
     return bloc('Lignes du devis',
       h('div', { class: 'recherche-bordereau' },
-        h('div', { class: 'ligne-champs' }, ref.rechercheBordereau, ref.filtreFamille, ref.filtreType),
+        h('div', { class: 'ligne-champs' }, ref.rechercheBordereau, ref.filtreFamille),
         ref.pointInsertion, ref.resultats),
       h('div', { class: 'barre-ajouts' },
         h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'ajouter-libre' }, onclick: () => ajouterLigne(Ed.ligneLibre(nouvelId())) }, icone('plus', { taille: 16 }), 'Ligne libre'),
@@ -532,8 +530,8 @@ export function rendreEditeurDevis(conteneur, id) {
       remplir(ref.resultats, h('li', { class: 'texte-discret', dataset: { vide: 'bordereau' } }, 'Ton Bordereau est vide : crée tes articles dans le Bordereau, ou utilise une ligne libre.', ' ', h('a', { href: '#/devis/bordereau' }, 'Ouvrir le Bordereau')));
       return;
     }
-    if (!rechercheBordereau.trim() && !filtreFamille && !filtreType) { remplir(ref.resultats, h('li', { class: 'texte-discret' }, 'Tape un mot pour chercher dans ton Bordereau, ou choisis une famille ou un type.')); return; }
-    const trouves = A.avecCalculOuvrage(A.filtrerArticles(actifs, { recherche: rechercheBordereau, statut: 'actifs', type: filtreType, familleId: filtreFamille }), D.etat.articles, D.etat.reglages).slice(0, 8);
+    if (!rechercheBordereau.trim() && !filtreFamille) { remplir(ref.resultats, h('li', { class: 'texte-discret' }, 'Tape un mot pour chercher dans ton Bordereau, ou choisis une famille.')); return; }
+    const trouves = A.avecCalculOuvrage(A.filtrerArticles(actifs, { recherche: rechercheBordereau, statut: 'actifs', familleId: filtreFamille, familles: D.etat.familles }), D.etat.articles, D.etat.reglages).slice(0, 8);
     if (!trouves.length) { remplir(ref.resultats, h('li', { class: 'texte-discret', dataset: { vide: 'resultats' } }, 'Aucun article ne correspond.')); return; }
     remplir(ref.resultats, trouves.map((a) => {
       const ligne = Ed.ligneDepuisArticle(a, { id: 'essai', articles: D.etat.articles, devis: travail });

@@ -52,48 +52,50 @@ describe('F3 familles par défaut', () => {
     assert.equal(new Set(F.FAMILLES_PAR_DEFAUT.map((f) => f.id)).size, 7);
     assert.deepEqual(F.famillesDe(null), F.FAMILLES_PAR_DEFAUT);
     assert.deepEqual(F.famillesDe({ liste: 'abîmé' }), F.FAMILLES_PAR_DEFAUT);
-    assert.deepEqual(F.famillesDe({ liste: [{ id: 'a', nom: ' Plomberie ', actif: false }, { nom: 'sans id' }] }), [{ id: 'a', nom: 'Plomberie', actif: false }]);
+    // Les sept familles de départ sont toujours en tête (verrouillées) ; les familles libres de l'utilisateur suivent.
+    assert.deepEqual(F.famillesDe({ liste: [{ id: 'a', nom: ' Plomberie ', actif: false }, { nom: 'sans id' }] }), [...F.FAMILLES_PAR_DEFAUT, { id: 'a', nom: 'Plomberie', actif: false }]);
   });
 });
 
 describe('F4 noms uniques', () => {
   const liste = () => F.famillesDe(null);
   test('F4 un nom en double est refusé sans accents ni casse ; vide et trop long aussi', () => {
-    assert.ok(F.planCreationFamille('  main d’ŒUVRE ', liste(), { nouvelId: () => 'n' }).erreur);
-    assert.ok(F.planCreationFamille('FOURNITURES', liste(), { nouvelId: () => 'n' }).erreur.includes('existe déjà'));
+    // Un nom pris par une famille de MÊME parent est refusé (le premier niveau n'a pas de création : on teste le nom sous une sous-famille déjà là).
+    const avec = F.planCreationFamille('Carrelage', liste(), { nouvelId: () => 'c', parentId: 'famille-1' }).familles;
+    assert.ok(F.planCreationFamille('  carrelAGE ', avec, { nouvelId: () => 'n', parentId: 'famille-1' }).erreur.includes('existe déjà'));
     assert.ok(F.erreursFamille('', liste()));
     assert.ok(F.erreursFamille('   ', liste()));
     assert.ok(F.erreursFamille('x'.repeat(61), liste()));
     assert.equal(F.erreursFamille('x'.repeat(60), liste()), null);
-    const ok = F.planCreationFamille('  Plomberie  ', liste(), { nouvelId: () => 'n' });
+    const ok = F.planCreationFamille('  Plomberie  ', liste(), { nouvelId: () => 'n', parentId: 'famille-2' });
     assert.equal(ok.erreur, null);
     assert.equal(ok.familles.length, 8);
-    assert.deepEqual(ok.famille, { id: 'n', nom: 'Plomberie', actif: true });
+    assert.deepEqual(ok.famille, { id: 'n', nom: 'Plomberie', actif: true, parentId: 'famille-2' });
   });
   test('F4 le nom d’une famille désactivée reste pris', () => {
-    const l = F.planDesactiverFamille('famille-7', liste()).familles;
-    assert.match(F.erreursFamille('divers', l), /désactivée/);
+    const l = F.planDesactiverFamille('sous', [...liste(), { id: 'sous', nom: 'Divers', actif: true, parentId: 'famille-1' }]).familles;
+    assert.match(F.erreursFamille('divers', l, { parentId: 'famille-1' }), /désactivée/);
   });
 });
 
 describe('F5 renommer, désactiver', () => {
   test('F5 renommer garde l’identifiant ; garder son propre nom (autre casse) est permis ; le nom d’une autre est refusé', () => {
-    const l = F.famillesDe(null);
-    const r = F.planRenommerFamille('famille-1', 'Matières', l);
+    const l = [...F.famillesDe(null), { id: 'p', nom: 'Plomberie', actif: true, parentId: 'famille-1' }, { id: 'q', nom: 'Peinture', actif: true, parentId: 'famille-1' }];
+    const r = F.planRenommerFamille('p', 'Tuyaux', l);
     assert.equal(r.erreur, null);
-    assert.deepEqual(r.famille, { id: 'famille-1', nom: 'Matières', actif: true });
-    assert.equal(r.familles.length, 7);
-    assert.equal(F.planRenommerFamille('famille-1', 'FOURNITURES', l).erreur, null);
-    assert.ok(F.planRenommerFamille('famille-1', 'Divers', l).erreur);
+    assert.deepEqual(r.famille, { id: 'p', nom: 'Tuyaux', actif: true, parentId: 'famille-1' });
+    assert.equal(r.familles.length, 9);
+    assert.equal(F.planRenommerFamille('p', 'PLOMBERIE', l).erreur, null);
+    assert.ok(F.planRenommerFamille('p', 'peinture', l).erreur);
     assert.ok(F.planRenommerFamille('absente', 'Autre', l).erreur);
-    assert.equal(l[0].nom, 'Fournitures', 'la liste d’origine n’est pas modifiée');
+    assert.equal(l.find((f) => f.id === 'p').nom, 'Plomberie', 'la liste d’origine n’est pas modifiée');
   });
   test('F5 désactiver puis réactiver ; jamais de suppression', () => {
-    const l = F.famillesDe(null);
-    const off = F.planDesactiverFamille('famille-2', l);
-    assert.equal(off.familles.length, 7);
+    const l = [...F.famillesDe(null), { id: 'p', nom: 'Plomberie', actif: true, parentId: 'famille-2' }];
+    const off = F.planDesactiverFamille('p', l);
+    assert.equal(off.familles.length, 8);
     assert.equal(off.famille.actif, false);
-    assert.equal(F.planDesactiverFamille('famille-2', off.familles, true).famille.actif, true);
+    assert.equal(F.planDesactiverFamille('p', off.familles, true).famille.actif, true);
     assert.ok(F.planDesactiverFamille('absente', l).erreur);
   });
 });
@@ -109,10 +111,10 @@ describe('F6 famille d’un article', () => {
     assert.ok(A.planCreerArticle({ libelle: 'X', prixAchat: 1, familleId: 'inconnue' }, ctx, { familles }).erreurs.familleId);
   });
   test('F6 une famille désactivée est refusée pour un autre article, mais l’article qui l’a déjà la garde', () => {
-    const familles = F.planDesactiverFamille('famille-1', F.famillesDe(null)).familles;
-    assert.ok(A.validerArticle({ libelle: 'X', prixAchat: 1, familleId: 'famille-1' }, { familles }).erreurs.familleId);
-    const articles = [{ id: 'a', libelle: 'X', prixAchat: 1, unite: 'u', familleId: 'famille-1', actif: true }];
-    assert.deepEqual(A.planMajArticle('a', { libelle: 'Y', familleId: 'famille-1' }, { articles, familles }).erreurs, {});
+    const familles = F.planDesactiverFamille('p', [...F.famillesDe(null), { id: 'p', nom: 'Plomberie', actif: true, parentId: 'famille-1' }]).familles;
+    assert.ok(A.validerArticle({ libelle: 'X', prixAchat: 1, familleId: 'p' }, { familles }).erreurs.familleId);
+    const articles = [{ id: 'a', libelle: 'X', prixAchat: 1, unite: 'u', type: 'fourniture', familleId: 'p', actif: true }];
+    assert.deepEqual(A.planMajArticle('a', { libelle: 'Y', familleId: 'p' }, { articles, familles }).erreurs, {});
     assert.deepEqual(A.planMajArticle('a', { familleId: '' }, { articles, familles }).patch, { familleId: '' });
   });
   test('F6 le filtre par famille et la recherche (référence, marque)', () => {
@@ -166,9 +168,10 @@ describe('F8 assistant (MCP)', () => {
     assert.equal(ecrites[0].donnees.familleId, 'famille-6');
     assert.equal(ecrites[0].donnees.reference, 'R1');
     await assert.rejects(() => metier.creerArticle(c, { libelle: 'Vis', prixAchat: 1, familleId: 'nulle-part' }), /famille/i);
-    collections.devis_parametres.push({ id: 'familles', liste: [{ id: 'f-perso', nom: 'Plomberie', actif: true }] });
+    collections.devis_parametres.push({ id: 'familles', liste: [{ id: 'f-perso', nom: 'Plomberie', actif: true, parentId: 'famille-1' }] });
     await metier.creerArticle(c, { libelle: 'Tube', prixAchat: 2, familleId: 'f-perso' });
     assert.equal(ecrites.at(-1).donnees.familleId, 'f-perso');
-    await assert.rejects(() => metier.creerArticle(c, { libelle: 'Vis2', prixAchat: 1, familleId: 'famille-1' }), /famille/i);
+    assert.equal(ecrites.at(-1).donnees.type, 'fourniture', 'le type se déduit de la famille de premier niveau');
+    await assert.rejects(() => metier.creerArticle(c, { libelle: 'Vis2', prixAchat: 1, familleId: 'f-inconnue' }), /famille/i);
   });
 });
