@@ -31,28 +31,33 @@ test('F9 créer une famille, l’affecter à un article, puis la retrouver dans 
   await expect(ligne.locator('[data-colonne="famille"]')).toHaveText('—');
   await ligne.locator('[data-champ="familleId"]').click();
   await expect(dialogue(page).getByRole('heading', { name: 'Sélection de la famille' })).toBeVisible();
-  // Les sept familles par défaut sont proposées, plus « Aucune famille ».
-  await expect(dialogue(page).locator('.famille-option')).toHaveCount(8);
+  // Les sept familles de départ sont proposées (premier niveau), sans « Aucune famille » : « Sélectionner » est grisé tant que rien n'est choisi.
+  await expect(dialogue(page).locator('.famille-option')).toHaveCount(7);
+  await expect(dialogue(page).getByRole('button', { name: 'Sélectionner' })).toBeDisabled();
+  await dialogue(page).locator('.famille-option', { hasText: 'Fournitures' }).locator('input').check();
   await dialogue(page).locator('[data-action="menu-familles"]').click();
-  await page.getByRole('menuitem', { name: 'Nouvelle famille' }).click();
-  // Erreurs : nom vide, puis nom déjà pris (sans accents ni casse).
+  await page.getByRole('menuitem', { name: 'Nouvelle sous-famille' }).click();
+  // Erreurs : nom vide, puis création de « Plomberie » sous Fournitures.
   await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
   await expect(dialogue(page).locator('[data-erreur="nomFamille"]')).toContainText('Écris le nom');
-  await dialogue(page).getByRole('textbox', { name: 'Nom de la famille' }).fill('MAIN D’ŒUVRE');
-  await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
-  await expect(dialogue(page).locator('[data-erreur="nomFamille"]')).toContainText('existe déjà');
   await dialogue(page).getByRole('textbox', { name: 'Nom de la famille' }).fill('Plomberie');
   await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
-  // La nouvelle famille est cochée dans la fenêtre de sélection.
-  await expect(dialogue(page).locator('.famille-option', { hasText: 'Plomberie' }).locator('input')).toBeChecked();
+  // La nouvelle sous-famille est cochée, en retrait sous Fournitures.
+  await expect(dialogue(page).locator('.famille-option[data-niveau="2"]', { hasText: 'Plomberie' }).locator('input')).toBeChecked();
+  // Un nom déjà pris sous le même parent est refusé (sans accents ni casse).
+  await dialogue(page).locator('[data-action="menu-familles"]').click();
+  await page.getByRole('menuitem', { name: 'Nouvelle sous-famille' }).click();
+  await dialogue(page).getByRole('textbox', { name: 'Nom de la famille' }).fill('PLOMBERIE');
+  await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(dialogue(page).locator('[data-erreur="nomFamille"]')).toContainText('existe déjà');
+  await dialogue(page).getByRole('button', { name: 'Annuler' }).click();
   await capturer(page, info, 'F9-selection-famille');
   await dialogue(page).getByRole('button', { name: 'Sélectionner' }).click();
-  await expect(ligne.locator('[data-colonne="famille"]')).toHaveText('Plomberie');
+  await expect(ligne.locator('[data-colonne="famille"]')).toHaveText('Fournitures › Plomberie');
   const familles = await lireDocument('devis_parametres/familles');
-  expect(familles.liste).toHaveLength(8);
-  expect(familles.liste.at(-1).nom).toBe('Plomberie');
+  expect(familles.liste.at(-1)).toMatchObject({ nom: 'Plomberie', parentId: 'famille-1', actif: true });
   const docs = await listerDocuments('devis_articles');
-  expect(docs.find((d) => d.libelle === 'Tube PVC').familleId).toBe(familles.liste.at(-1).id);
+  expect(docs.find((d) => d.libelle === 'Tube PVC')).toMatchObject({ familleId: familles.liste.at(-1).id, type: 'fourniture' });
   // Filtre « Famille » : Plomberie seulement, puis une famille sans article (cas vide).
   await article('a2', { libelle: 'Vis' });
   await page.locator('[data-action="filtres"]').click();
@@ -68,35 +73,43 @@ test('F9 créer une famille, l’affecter à un article, puis la retrouver dans 
   await capturer(page, info, 'F9-filtre-famille-vide');
 });
 
-test('F9 renommer puis désactiver une famille depuis le menu ; une famille désactivée ne se choisit plus', async ({ page }) => {
-  await article('a1', { libelle: 'Tube PVC', familleId: 'famille-7' });
+test('F9 renommer puis désactiver une sous-famille depuis le menu ; une famille désactivée ne se choisit plus ; les familles de départ n’ont ni Renommer ni Désactiver', async ({ page }) => {
+  await ecrireDocument('devis_parametres/familles', { liste: [{ id: 'sous-1', nom: 'Carrelage', actif: true, parentId: 'famille-1' }] });
+  await article('a1', { libelle: 'Tube PVC', type: 'fourniture', familleId: 'sous-1' });
   await ouvrirBordereau(page);
   await page.locator('.ligne-article[data-id="a1"] [data-champ="familleId"]').click();
-  // « Divers » est déjà cochée (famille de l'article).
-  await expect(dialogue(page).locator('.famille-option', { hasText: 'Divers' }).locator('input')).toBeChecked();
+  // « Carrelage » est déjà cochée (famille de l'article).
+  await expect(dialogue(page).locator('.famille-option', { hasText: 'Carrelage' }).locator('input')).toBeChecked();
   await dialogue(page).locator('[data-action="menu-familles"]').click();
   await page.getByRole('menuitem', { name: 'Renommer' }).click();
-  await dialogue(page).getByRole('textbox', { name: 'Nom de la famille' }).fill('Autres');
+  await dialogue(page).getByRole('textbox', { name: 'Nom de la famille' }).fill('Faïence');
   await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
-  await expect(dialogue(page).locator('.famille-option', { hasText: 'Autres' })).toBeVisible();
+  await expect(dialogue(page).locator('.famille-option', { hasText: 'Faïence' })).toBeVisible();
   await dialogue(page).locator('[data-action="menu-familles"]').click();
   await page.getByRole('menuitem', { name: 'Désactiver' }).click();
   await dialogue(page).getByRole('button', { name: 'Désactiver' }).click();
-  await expect(dialogue(page).locator('.famille-option', { hasText: 'Autres' })).toContainText('désactivée');
-  // Elle reste cochée (c'est celle de l'article) ; on en choisit une autre puis on revient dessus : « Sélectionner » est grisé.
-  await dialogue(page).locator('.famille-option', { hasText: 'Fournitures' }).locator('input').check();
-  await dialogue(page).locator('.famille-option', { hasText: 'Autres' }).locator('input').check();
-  await expect(dialogue(page).getByRole('button', { name: 'Sélectionner' })).toBeEnabled(); // c'est la famille actuelle de l'article : permise
+  await expect(dialogue(page).locator('.famille-option', { hasText: 'Faïence' })).toContainText('désactivée');
+  // Elle reste cochée (c'est celle de l'article) : « Sélectionner » reste permis. Une famille de départ n'a ni « Renommer » ni « Désactiver ».
+  await expect(dialogue(page).getByRole('button', { name: 'Sélectionner' })).toBeEnabled();
+  await dialogue(page).locator('.famille-option', { hasText: 'Divers' }).locator('input').check();
+  await dialogue(page).locator('[data-action="menu-familles"]').click();
+  await expect(page.getByRole('menuitem', { name: 'Nouvelle sous-famille' })).toBeVisible();
+  await expect(page.getByRole('menuitem', { name: 'Renommer' })).toHaveCount(0);
+  await expect(page.getByRole('menuitem', { name: 'Désactiver' })).toHaveCount(0);
+  await page.keyboard.press('Escape');
   await dialogue(page).getByRole('button', { name: 'Annuler' }).click();
   const familles = await lireDocument('devis_parametres/familles');
-  expect(familles.liste.find((f) => f.id === 'famille-7')).toMatchObject({ nom: 'Autres', actif: false });
+  expect(familles.liste.find((f) => f.id === 'sous-1')).toMatchObject({ nom: 'Faïence', actif: false, parentId: 'famille-1' });
 });
 
 test('F9 créer un article de type texte sans prix, avec référence et marque derrière « Plus… »', async ({ page }, info) => {
   await ouvrirBordereau(page);
   await page.locator('[data-action="nouvel-article"]').click();
   await dialogue(page).getByRole('textbox', { name: 'Libellé' }).fill('Travaux préparatoires');
-  await dialogue(page).locator('#article-type').selectOption('texte');
+  await expect(dialogue(page).locator('#article-type')).toHaveCount(0);
+  await dialogue(page).locator('#article-familleId').click();
+  await dialogue(page).locator('.famille-option', { hasText: 'Textes' }).locator('input').check();
+  await dialogue(page).getByRole('button', { name: 'Sélectionner' }).click();
   await expect(dialogue(page).locator('#article-prixAchat')).toBeHidden();
   await expect(dialogue(page).locator('#article-unite')).toBeHidden();
   // Référence et marque sont repliées ; « Plus… » les montre, « Moins… » les replie.
@@ -113,11 +126,11 @@ test('F9 créer un article de type texte sans prix, avec référence et marque d
   await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
   await expect(dialogue(page)).toBeHidden();
   const ligne = page.locator('.ligne-article', { hasText: 'Travaux préparatoires' });
-  await expect(ligne.locator('[data-colonne="type"]')).toContainText('Texte');
+  await expect(ligne.locator('[data-colonne="famille"]')).toContainText('Textes');
   await expect(ligne.locator('[data-colonne="prixAchat"]')).toHaveText('—');
   await expect(ligne.locator('[data-colonne="prixVente"]')).toHaveText('—');
   const doc = (await listerDocuments('devis_articles')).find((d) => d.libelle === 'Travaux préparatoires');
-  expect(doc).toMatchObject({ type: 'texte', reference: 'TP-01', marque: 'Maison', prixAchat: null, unite: '' });
+  expect(doc).toMatchObject({ type: 'texte', familleId: 'famille-6', reference: 'TP-01', marque: 'Maison', prixAchat: null, unite: '' });
   // « Plus… » de l'écran montre les colonnes Référence et Marque.
   await expect(page.locator('th', { hasText: 'Référence' })).toHaveCount(0);
   await page.locator('[data-action="colonnes-rares"]').click();

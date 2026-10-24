@@ -71,7 +71,7 @@ test('B2 créer un article l\'affiche tout de suite et il reste après rechargem
   await capturer(page, info, 'B2-libelle-vide');
   await dialogue(page).getByRole('textbox', { name: 'Libellé' }).fill('Carrelage 60 x 60');
   await expect(enregistrer).toBeEnabled();
-  await dialogue(page).locator('#article-unite').fill('m²'); // champ avec liste d'unités proposées : rôle « combobox »
+  await dialogue(page).locator('#article-unite').selectOption('m²'); // menu qui montre toutes les unités
   await dialogue(page).getByRole('textbox', { name: /Prix d’achat/ }).fill('12,5');
   await enregistrer.click();
   await expect(dialogue(page)).toHaveCount(0);
