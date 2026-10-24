@@ -525,7 +525,9 @@ export function rendreEditeurDevis(conteneur, id) {
 
   // ------------------------------------------------ en-tête du document : à gauche les dates, à droite le client et l'affaire
   const jourFr = (j) => (/^\d{4}-\d{2}-\d{2}/.test(j ?? '') ? `${j.slice(8, 10)}/${j.slice(5, 7)}/${j.slice(0, 4)}` : '');
+  const jourIso = (fr) => (/^\d{2}\/\d{2}\/\d{4}$/.test(fr) ? `${fr.slice(6)}-${fr.slice(3, 5)}-${fr.slice(0, 2)}` : '');
   function dateDuDevis() {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(travail.dateEmission ?? '')) return jourFr(travail.dateEmission);
     const v = travail.finaliseLe ?? travail.creeLe;
     const date = v?.toDate ? v.toDate() : v instanceof Date ? v : new Date();
     return date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -592,7 +594,7 @@ export function rendreEditeurDevis(conteneur, id) {
     ref.erreursChantier = h('p', { class: 'erreur', role: 'alert', dataset: { erreur: 'chantier' }, hidden: true });
     const gauche = h('div', { class: 'entete-gauche' },
       ref.numeroDocument,
-      h('p', { class: 'ligne-entete' }, `En date du ${dateDuDevis()}`),
+      ligne('En date du ', valeurSurPlace({ etiquette: 'En date du ', nom: 'dateEmission', texte: () => dateDuDevis(), champs: champDate('dateEmission', () => travail.dateEmission ?? jourIso(dateDuDevis()), (v) => { travail.dateEmission = v; }, 'Date du devis') })),
       ligne('Valable jusqu’au ', valeurSurPlace({ etiquette: 'Valable jusqu’au ', nom: 'expireLe', texte: () => jourFr(travail.expireLe), champs: champDate('expireLe', () => travail.expireLe, (v) => { travail.expireLe = v; }, 'Valable jusqu’au') })),
       ligne('Début des travaux le ', valeurSurPlace({ etiquette: 'Début des travaux le ', nom: 'debutTravaux', texte: () => jourFr(travail.chantier?.debutTravaux), champs: champDate('debutTravaux', () => travail.chantier?.debutTravaux, ecrireChantier('debutTravaux'), 'Début des travaux') })),
       ligne('Durée estimée à ', valeurSurPlace({ etiquette: 'Durée estimée à ', nom: 'duree', texte: () => dureeEnTexte(travail.chantier?.dureeEstimee) ?? '', champs: champsDuree })),

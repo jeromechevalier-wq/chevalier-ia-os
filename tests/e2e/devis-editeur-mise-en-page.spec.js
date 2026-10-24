@@ -300,3 +300,16 @@ test('6 sur téléphone : une carte par ligne (désignation en haut, puis Qté /
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   await capturer(page, info, '6-telephone');
 });
+
+test('2 la date « En date du » se modifie sur place, s’enregistre et se retrouve dans l’aperçu', async ({ page }) => {
+  await semer();
+  await ouvrir(page, await devisLong());
+  await page.locator('[data-definir="dateEmission"]').click();
+  await page.locator('[data-champ="dateEmission"]').fill('2026-12-15');
+  await page.locator('.titre-document').click();
+  await expect(page.locator('[data-definir="dateEmission"]')).toHaveText('15/12/2026');
+  await expect(page.locator('[data-valeur="enregistrement"]')).toHaveText('Enregistré');
+  expect((await listerDocuments('devis_devis'))[0].dateEmission).toBe('2026-12-15');
+  await page.locator('[data-onglet="apercu"]').click();
+  await expect(page.locator('iframe[data-zone="apercu"]').contentFrame().locator('body')).toContainText('15/12/2026');
+});

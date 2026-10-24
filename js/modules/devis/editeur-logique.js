@@ -26,7 +26,7 @@ export const TYPE_LIGNE_LIBRE = 'libre';
 /** Champs du devis que l'éditeur enregistre (jamais numéro, statut, version, totaux… : ils sont protégés). */
 export const CHAMPS_ENREGISTRES = Object.freeze([
   'affaireId', 'organisationId', 'personneId', 'adresses', 'chantier', 'destinataires', 'objet', 'sections', 'remise', 'marge', 'modeMarge',
-  'tauxTvaDefaut', 'acompte', 'texteLibre', 'notesBasDePage', 'expireLe', 'ajustement', 'affichage', 'autoliquidation',
+  'tauxTvaDefaut', 'acompte', 'texteLibre', 'notesBasDePage', 'expireLe', 'dateEmission', 'ajustement', 'affichage', 'autoliquidation',
 ]);
 export const AVERTISSEMENTS = Object.freeze({
   aucuneLigne: 'Ce devis n’a encore aucune ligne.',
@@ -427,6 +427,7 @@ export function copieDeDevis(source, nouvelId) {
   const sections = assembler(els).map((s) => ({ ...s, lignes: s.lignes.map((l) => { const { prixVente: _p, ...reste } = l; return reste; }) }));
   const patch = champsAEnregistrer({ ...source, sections });
   delete patch.expireLe;
+  delete patch.dateEmission;
   return patch;
 }
 
