@@ -1,10 +1,11 @@
-// Module Devis (cadrage-devis.md) : montage et routes. Deux écrans : le Bordereau (articles) et la liste des devis ; l'éditeur de devis viendra ensuite.
-// Routes : devis/bordereau, devis/liste (pas encore dans le menu : registre.js ne la déclare pas). Le module lit le CRM (étapes des affaires) : le CRM démarre avant lui (le module Devis dépend de « affaires », pas de « projets »).
+// Module Devis (cadrage-devis.md) : montage et routes. Trois écrans : le Bordereau (articles), la liste des devis et l'éditeur d'un devis.
+// Routes : devis/bordereau, devis/liste, devis/editeur (nouveau devis : choix de l'affaire), devis/editeur/<id> (non déclarée dans le menu : on y arrive par la liste). Le module lit le CRM (étapes des affaires) : le CRM démarre avant lui (le module Devis dépend de « affaires », pas de « projets »).
 import { vider } from '../../os/ui.js';
 import { naviguer } from '../../os/router.js';
 import * as D from './donnees.js';
 import { rendreBordereau } from './bordereau.js';
 import { rendreListeDevis } from './liste-ecran.js';
+import { rendreEditeurDevis } from './editeur-ecran.js';
 import { reglages as reglagesDuModule } from './reglages.js';
 
 // Feuille de style propre au module, ajoutée au premier affichage (index.html reste inchangé).
@@ -39,6 +40,7 @@ function quitter() {
 
 const VUES = {
   liste: (conteneur) => rendreListeDevis(conteneur),
+  editeur: (conteneur, segs) => rendreEditeurDevis(conteneur, segs[1] || null),
   bordereau: (conteneur) => rendreBordereau(conteneur),
 };
 
@@ -48,11 +50,11 @@ export function afficher(conteneur, segs) {
     naviguer('devis/bordereau', { remplacer: true });
     return quitter;
   }
-  const cle = vue;
+  const cle = vue === 'editeur' ? `editeur/${segs[1] ?? ''}` : vue; // un éditeur par devis
   if (montee?.cle === cle && conteneur.firstChild) return quitter;
   quitter();
   vider(conteneur);
-  const arret = VUES[vue](conteneur);
+  const arret = VUES[vue](conteneur, segs);
   montee = { cle, quitter: typeof arret === 'function' ? arret : null };
   conteneur.scrollTop = 0;
   window.scrollTo?.(0, 0);

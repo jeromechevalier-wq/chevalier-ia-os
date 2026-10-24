@@ -60,8 +60,8 @@ test('E1 la vue Liste montre les deux devis, le plus récemment modifié d’abo
   await expect(lignes(page).nth(0).locator('[data-colonne="ttc"]')).toContainText('150');
   await expect(page.locator('[data-valeur="pagination"]')).toHaveText('1 à 2 sur 2 éléments');
   await expect(page.locator('[data-champ="par-page"]')).toHaveValue('25');
-  await expect(page.locator('[data-action="nouveau-devis"]')).toBeDisabled();
-  await expect(page.locator('[data-action="nouveau-devis"]')).toContainText('bientôt disponible');
+  await expect(page.locator('[data-action="nouveau-devis"]')).toBeEnabled(); // l'éditeur existe
+  await expect(page.locator('[data-action="nouveau-devis"]')).not.toContainText('bientôt disponible');
   await capturer(page, info, 'E1-vue-liste');
 });
 
@@ -97,16 +97,17 @@ test('E3 le menu « … » : changements de statut par le serveur, entrées « b
     return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ result: { ok: true } }) });
   });
   await ouvrir(page);
-  // Devis envoyé : Signé et Refusé proposés, rien d'autre en statut ; Facturer, Envoyer, Dupliquer et la variante sont grisés.
+  // Devis envoyé : Signé et Refusé proposés, rien d'autre en statut ; Facturer et Envoyer sont grisés ; Dupliquer et la variante sont actifs (l'éditeur existe).
   await ouvrirMenuDe(page, 'd1');
   const menu = page.locator('.menu-pop');
   await expect(menu.getByRole('menuitem', { name: /Passer à « Signé »/ })).toBeEnabled();
   await expect(menu.getByRole('menuitem', { name: /Passer à « Refusé »/ })).toBeEnabled();
   await expect(menu.getByRole('menuitem', { name: /Passer à « Envoyé »/ })).toHaveCount(0);
-  for (const nom of [/Facturer/, /Envoyer/, /Dupliquer/, /Modifier : nouvelle variante/]) {
+  for (const nom of [/Facturer/, /Envoyer/]) {
     await expect(menu.getByRole('menuitem', { name: nom })).toBeDisabled();
     await expect(menu.getByRole('menuitem', { name: nom })).toContainText('bientôt disponible');
   }
+  for (const nom of [/Dupliquer/, /Modifier : nouvelle variante/]) await expect(menu.getByRole('menuitem', { name: nom })).toBeEnabled();
   await expect(menu.getByRole('menuitem', { name: /Supprimer/ })).toHaveCount(0); // seulement un brouillon
   await capturer(page, info, 'E3-menu-devis-envoye');
   // Signé : la demande part au serveur (jamais une écriture directe).
@@ -118,10 +119,10 @@ test('E3 le menu « … » : changements de statut par le serveur, entrées « b
   await ouvrirMenuDe(page, 'd1');
   await page.locator('.menu-pop').getByRole('menuitem', { name: /Passer à « Refusé »/ }).click();
   await expect(page.locator('.toast').last()).toContainText('Ce devis ne peut plus changer de statut.');
-  // Brouillon : Supprimer grisé « bientôt », Modifier : version actuelle grisé, Finalisé proposé.
+  // Brouillon : Supprimer grisé « bientôt », Modifier : version actuelle actif, Finalisé proposé.
   await ouvrirMenuDe(page, 'd2');
   await expect(page.locator('.menu-pop').getByRole('menuitem', { name: /Supprimer/ })).toBeDisabled();
-  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: /Modifier : version actuelle/ })).toBeDisabled();
+  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: /Modifier : version actuelle/ })).toBeEnabled();
   await expect(page.locator('.menu-pop').getByRole('menuitem', { name: /Passer à « Finalisé »/ })).toBeEnabled();
   await page.keyboard.press('Escape');
   // Voir : l'aperçu du devis dans une fenêtre.
@@ -136,7 +137,7 @@ test('E3 le menu « … » : changements de statut par le serveur, entrées « b
 test('E4 recherche et filtre de statut ; cas vide « Aucun devis pour l’instant. » ; aucun résultat', async ({ page }, info) => {
   await ouvrir(page);
   await expect(page.locator('.etat-vide')).toContainText('Aucun devis pour l’instant.');
-  await expect(page.locator('[data-action="nouveau-devis-vide"]')).toBeDisabled();
+  await expect(page.locator('[data-action="nouveau-devis-vide"]')).toBeEnabled();
   await capturer(page, info, 'E4-cas-vide');
   await deuxDevis();
   await expect(lignes(page)).toHaveCount(2);

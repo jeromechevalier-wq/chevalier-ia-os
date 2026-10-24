@@ -4,11 +4,13 @@
 import { h, icone, remplir, dialogue, toast, confirmer, ouvrirMenu, lirePreference, ecrirePreference } from '../../os/ui.js';
 import { boutonFiltres as boutonFiltresCommun, fenetreFiltres } from '../crm/filtres.js';
 import { etatVide, planifier } from '../crm/composants.js';
+import { naviguer } from '../../os/router.js';
 import * as CRM from '../crm/donnees.js';
 import * as D from './donnees.js';
 import * as Li from './liste.js';
 import { vueClient } from './logique.js';
 import { devisHtml, formaterMontant } from './document.js';
+import { dupliquerDevis, creerVariante } from './editeur-ecran.js';
 
 const ERREUR_LECTURE = 'La liste des devis n’a pas pu être mise à jour. La dernière version reste affichée : vérifie ta connexion puis recharge la page.';
 
@@ -94,9 +96,9 @@ function entreesMenu(d) {
   const items = a.statuts.map((c) => ({ libelle: `Passer à « ${c.libelle} »`, icone: 'check', action: () => changerStatut(d, c.action, c.libelle) }));
   if (items.length) items.push({ separateur: true });
   items.push({ libelle: 'Voir', icone: 'external-link', action: () => voir(d) });
-  if (d.statut === 'brouillon') items.push({ libelle: libelle('Modifier : version actuelle', a.modifierVersionActuelle), icone: 'pencil', desactive: grise(a.modifierVersionActuelle) });
-  else if (a.nouvelleVariante.actif || a.nouvelleVariante.raison === Li.MESSAGE_BIENTOT) items.push({ libelle: libelle('Modifier : nouvelle variante', a.nouvelleVariante), icone: 'pencil', desactive: grise(a.nouvelleVariante) });
-  items.push({ libelle: libelle('Dupliquer', a.dupliquer), icone: 'copy', desactive: grise(a.dupliquer) });
+  if (d.statut === 'brouillon') items.push({ libelle: libelle('Modifier : version actuelle', a.modifierVersionActuelle), icone: 'pencil', desactive: grise(a.modifierVersionActuelle), action: () => naviguer(`devis/editeur/${d.id}`) });
+  else if (a.nouvelleVariante.actif || a.nouvelleVariante.raison === Li.MESSAGE_BIENTOT) items.push({ libelle: libelle('Modifier : nouvelle variante', a.nouvelleVariante), icone: 'pencil', desactive: grise(a.nouvelleVariante), action: () => creerVariante(d) });
+  items.push({ libelle: libelle('Dupliquer', a.dupliquer), icone: 'copy', desactive: grise(a.dupliquer), action: () => dupliquerDevis(d) });
   items.push({ libelle: libelle('Facturer', a.facturer), icone: 'euro', desactive: grise(a.facturer) });
   items.push({ libelle: libelle('Envoyer', a.envoyer), icone: 'mail', desactive: grise(a.envoyer) });
   if (d.statut === 'brouillon') { items.push({ separateur: true }); items.push({ libelle: libelle('Supprimer', a.supprimer), icone: 'trash-2', danger: true, desactive: grise(a.supprimer) }); }
@@ -145,7 +147,7 @@ export function rendreListeDevis(conteneur) {
   } });
   const boutonNouveau = h('button', {
     type: 'button', class: `bouton ${Li.EDITEUR_DISPONIBLE ? 'bouton-principal' : 'bouton-secondaire'}`, disabled: !Li.EDITEUR_DISPONIBLE, title: Li.EDITEUR_DISPONIBLE ? null : Li.MESSAGE_BIENTOT,
-    dataset: { action: 'nouveau-devis' },
+    dataset: { action: 'nouveau-devis' }, onclick: () => naviguer('devis/editeur'),
   }, icone('plus', { taille: 16 }), 'Nouveau devis', Li.EDITEUR_DISPONIBLE ? null : h('span', { class: 'bientot' }, ' (bientôt disponible)'));
   const bascule = h('div', { class: 'bascule-vues', role: 'group', 'aria-label': 'Vue' });
 
@@ -175,7 +177,7 @@ export function rendreListeDevis(conteneur) {
     if (!lignes.length) {
       const vraimentVide = total === 0;
       remplir(zone, etatVide(vraimentVide ? 'Aucun devis pour l’instant.' : 'Aucun devis ne correspond.', {
-        action: vraimentVide ? h('button', { type: 'button', class: 'bouton bouton-secondaire', disabled: !Li.EDITEUR_DISPONIBLE, title: Li.EDITEUR_DISPONIBLE ? null : Li.MESSAGE_BIENTOT, dataset: { action: 'nouveau-devis-vide' } },
+        action: vraimentVide ? h('button', { type: 'button', class: 'bouton bouton-secondaire', disabled: !Li.EDITEUR_DISPONIBLE, title: Li.EDITEUR_DISPONIBLE ? null : Li.MESSAGE_BIENTOT, dataset: { action: 'nouveau-devis-vide' }, onclick: () => naviguer('devis/editeur') },
           icone('plus', { taille: 16 }), 'Nouveau devis', Li.EDITEUR_DISPONIBLE ? null : ' (bientôt disponible)') : null,
       }));
       return;
