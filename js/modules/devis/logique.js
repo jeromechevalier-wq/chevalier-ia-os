@@ -185,7 +185,7 @@ export function coefficientDepuisSaisie(coefficient) {
 /** Valeurs d'un devis qui a un objet `affichage` (les cases non écrites sont décochées). */
 export const AFFICHAGE_DEFAUT = Object.freeze({
   afficherMarges: false, afficherReferences: false, cacherDechets: false,
-  cacherTotauxSections: false, cacherQuantiteUnite: false, cacherTva: false, cacherElementsOuvrage: false, afficherPrixElementsOuvrage: false,
+  cacherTotauxSections: false, cacherQuantiteUnite: false, cacherTva: false, cacherElementsOuvrage: false, afficherPrixElementsOuvrage: false, cacherResteAFacturer: false,
   afficherTelephone: false, afficherEmail: false, afficherNumeroTva: false, afficherSiren: false,
 });
 /** Affichage d'un devis. Un ancien devis (sans `affichage`) garde l'affichage d'avant : le calcul des marges est visible. */

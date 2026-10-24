@@ -178,6 +178,15 @@ describe('4 Options : affichage du devis et du document', () => {
     assert.equal(devisHtml(L.vueClient(figer(), contexteVue), { affichage: {} }), html);
     assert.equal(devisHtml(L.vueClient(figer(), contexteVue), { affichage: L.AFFICHAGE_DEFAUT }), html);
   });
+  test('4 « Cacher le reste à facturer » retire cette phrase du document ; l’acompte demandé reste', () => {
+    const vue = L.vueClient(figer(), contexteVue);
+    assert.match(devisHtml(vue), /Reste à facturer/);
+    const sans = devisHtml(vue, { affichage: { cacherResteAFacturer: true } });
+    assert.doesNotMatch(sans, /Reste à facturer/);
+    assert.match(sans, new RegExp(vue.acompte.libelle.slice(0, 12)));
+    assert.equal(L.affichageDe({ affichage: { cacherResteAFacturer: true } }).cacherResteAFacturer, true);
+    assert.equal(L.affichageDe({ affichage: {} }).cacherResteAFacturer, false);
+  });
   test('4 un ancien devis (sans `affichage`) garde l’affichage d’avant : calcul des marges visible ; un devis neuf le cache', () => {
     assert.equal(L.affichageDe({}).afficherMarges, true);
     assert.equal(L.affichageDe(undefined).afficherMarges, true);
