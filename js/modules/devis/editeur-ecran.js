@@ -580,7 +580,9 @@ export function rendreEditeurDevis(conteneur, id) {
   function enteteDocument() {
     const d = travail;
     const c = d.chantier ?? {};
-    ref.adresseAuto = clientsDeAffaire(CRM.affaire(d.affaireId)).find((x) => (d.organisationId ? x.fiche.id === d.organisationId : x.fiche.id === d.personneId))?.adresse ?? '';
+    const clientActuel = clientsDeAffaire(CRM.affaire(d.affaireId)).find((x) => (d.organisationId ? x.fiche.id === d.organisationId : x.fiche.id === d.personneId));
+    ref.adresseAuto = clientActuel?.adresse ?? '';
+    ref.emailAuto = clientActuel ? Ed.emailsDeFiche(clientActuel.fiche)[0] ?? '' : '';
     const ligne = (avant, zone, apres = '') => h('p', { class: 'ligne-entete' }, avant, zone, apres);
     ref.numeroDocument = h('h2', { class: 'titre-document', dataset: { valeur: 'numero-devis' } }, '');
     ref.objet = h('textarea', { class: 'champ', id: 'devis-objet', rows: 2, value: d.objet ?? '', placeholder: 'Exemple : Rénovation de la cuisine', 'aria-label': 'Description du devis', hidden: !(d.objet ?? '').trim(), dataset: { champ: 'objet' }, oninput: (e) => changer({ objet: e.target.value }) });
@@ -671,10 +673,15 @@ export function rendreEditeurDevis(conteneur, id) {
       travail.chantier = Ed.chantierAvecAdresse(travail.chantier, adresse);
       if (ref.champAdresse) ref.champAdresse.value = adresse;
     }
-    if (c && remplacerEmail) {
-      const mail = Ed.emailsDeFiche(c.fiche)[0];
-      if (mail && !(travail.destinataires ?? []).length) { travail.destinataires = [mail]; const champ_ = racine.querySelector('[data-champ="destinataire"]'); if (champ_) champ_.value = mail; }
+    // L'e-mail du destinataire suit le client choisi, tant que l'utilisateur ne l'a pas écrit lui-même (même règle que l'adresse du chantier).
+    const mail = c ? Ed.emailsDeFiche(c.fiche)[0] ?? '' : '';
+    const actuel = (travail.destinataires ?? [])[0] ?? '';
+    if (!actuel || actuel === (ref.emailAuto ?? '')) {
+      travail.destinataires = mail ? [mail] : [];
+      const champMail = racine.querySelector('[data-champ="destinataire"]');
+      if (champMail) champMail.value = mail;
     }
+    ref.emailAuto = mail;
     marquerModifie();
   }
 
