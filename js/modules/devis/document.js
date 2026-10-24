@@ -153,21 +153,39 @@ function tableauLignes(vue, sansTva, aff = {}) {
   const liste = vue.sections ?? [];
   // Le sous-total d'une section de niveau 1 vient après ses sous-sections (il les compte) : sans sous-section, il suit tout de suite ses lignes, comme avant.
   let enAttente = null;
-  const fermer = () => { if (enAttente) lignes.push(enAttente); enAttente = null; };
+  // Un saut de page voulu par l'utilisateur est une ligne `{ type: 'saut' }` : la page se coupe à cet endroit exact (jamais en tête de devis, jamais deux de suite).
+  // Un saut avant la première ligne d'une section passe avant son bandeau ; un saut après sa dernière ligne passe après son sous-total.
+  let sautPose = false;
+  const poser = (ligne) => { lignes.push(ligne); sautPose = false; };
+  const poserSaut = () => { if (!sautPose && lignes.length) lignes.push(`<tr class="saut-page" style="break-before:page;page-break-before:always"><td colspan="${colonnes}" style="padding:0;border:0;height:0;line-height:0"></td></tr>`); sautPose = true; };
+  const fermer = () => { if (enAttente) poser(enAttente); enAttente = null; };
   for (const [k, s] of liste.entries()) {
     const sous = s.niveau === 2;
+    const contenu = s.lignes ?? [];
+    const premiere = contenu.findIndex((x) => x.type !== 'saut');
+    const derniere = contenu.reduce((n, x, j) => (x.type !== 'saut' ? j : n), -1);
     if (!sous) fermer();
-    // Saut de page demandé : jamais sur la première section (la page est déjà neuve).
+    if (contenu[0]?.type === 'saut') poserSaut(); // saut en tête de section (ou section faite de sauts seulement)
+    // Saut de page demandé (ancien réglage de section) : jamais sur la première section (la page est déjà neuve).
     const saut = s.sautDePageAvant === true && k > 0 ? ' saut-avant' : '';
-    lignes.push(`<tr class="bandeau${sous ? ' sous-bandeau' : ''}${saut}"><td class="num">${texte(s.numero)}</td><td colspan="${colonnes - 1}">${texte(s.titre || 'Prestations')}</td></tr>`);
-    for (const l of s.lignes ?? []) {
+    poser(`<tr class="bandeau${sous ? ' sous-bandeau' : ''}${saut}"><td class="num">${texte(s.numero)}</td><td colspan="${colonnes - 1}">${texte(s.titre || 'Prestations')}</td></tr>`);
+    for (const [j, l] of contenu.entries()) {
+      if (l.type === 'saut') {
+        if (premiere === -1 || j < premiere || j > derniere) continue; // posé avant le bandeau ou après le sous-total
+        poserSaut();
+        continue;
+      }
       const tva = sansTva && vue.regimeTva === 'franchise' ? '-' : pourcent(l.tauxTva ?? 0);
-      lignes.push(`<tr><td class="num">${texte(l.numero)}</td><td>${texte(l.libelle)}${descriptionDeLigne(l, aff)}</td>`
+      poser(`<tr><td class="num">${texte(l.numero)}</td><td>${texte(l.libelle)}${descriptionDeLigne(l, aff)}</td>`
         + `${aff.cacherQuantiteUnite ? '' : `<td class="d">${texte(nombre(l.quantite))}</td><td>${texte(l.unite)}</td>`}<td class="d">${formaterMontant(l.prixUnitaireHT)}</td>${aff.cacherTva ? '' : `<td class="d">${tva}</td>`}<td class="d">${formaterMontant(l.totalHT)}</td></tr>`);
     }
     const sousTotal = aff.cacherTotauxSections ? null : `<tr class="sous-total${sous ? ' sous-total-sous' : ''}"><td colspan="${colonnes}">Sous-total ${texte(s.numero)}${NBSP}: ${formaterMontant(s.sousTotalHT)}</td></tr>`;
-    if (!sousTotal) continue;
-    if (sous) lignes.push(sousTotal); else enAttente = sousTotal;
+    if (sousTotal) { if (sous) poser(sousTotal); else enAttente = sousTotal; }
+    // Sauts après la dernière ligne : après le sous-total de la section (si une sous-section suit, le saut reste juste avant elle).
+    if (premiere !== -1 && derniere < contenu.length - 1) {
+      if (liste[k + 1]?.niveau !== 2) fermer(); // jamais de sous-total du parent tant qu'une sous-section suit
+      poserSaut();
+    }
   }
   fermer();
   return `<table class="lignes"><thead><tr><th class="num">N°</th><th>Désignation</th>${aff.cacherQuantiteUnite ? '' : '<th class="d">Qté</th><th>Unité</th>'}<th class="d">Prix U.${NBSP}HT</th>${aff.cacherTva ? '' : '<th class="d">TVA</th>'}<th class="d">Total${NBSP}HT</th></tr></thead><tbody>${lignes.join('')}</tbody></table>`;
