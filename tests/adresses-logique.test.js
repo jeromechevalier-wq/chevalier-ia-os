@@ -76,3 +76,8 @@ describe('adresses enregistrées', () => {
     assert.deepEqual(L.validerOrganisation({ nom: 'Boutique', adresses: [a('1 rue A')] }), {});
   });
 });
+
+test('A2 deux lignes de même identifiant reçoivent des identifiants distincts', () => {
+  const { patch } = L.patchAdresses([{ id: 'x', adresse: '1 rue A' }, { id: 'x', adresse: '2 rue B' }]);
+  assert.equal(new Set(patch.adresses.map((a) => a.id)).size, 2);
+});

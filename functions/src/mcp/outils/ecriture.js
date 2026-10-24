@@ -9,7 +9,7 @@ const PROFILS = ['bibliothecaire', 'claude-code'];
 const id = z.string().min(1).max(200);
 const jour = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Attendu AAAA-MM-JJ').describe('Date AAAA-MM-JJ.');
 const adresses = z.array(z.object({
-  id: z.string().max(40).optional(), libelle: z.string().max(100).optional(), adresse: z.string().max(500), parDefaut: z.boolean().optional(),
+  id: z.string().max(40).optional(), libelle: z.string().max(60).optional(), adresse: z.string().max(500), parDefaut: z.boolean().optional(),
 })).max(L.MAX_ADRESSES).describe(`Adresses enregistrées (liste complète, qui REMPLACE l'actuelle ; ${L.MAX_ADRESSES} au plus) : { libelle (facultatif, « Adresse » par défaut), adresse (texte, plusieurs lignes possibles), parDefaut (une seule à true) }. Passer l'id d'une adresse existante la garde stable. [] la vide.`);
 const contacts = z.array(z.object({ valeur: z.string().max(200), type: z.enum(L.TYPES_CONTACT.map((t) => t.id)).optional() })).max(10);
 const etiquettes = z.array(z.string().max(80)).max(30).describe('Identifiants d’étiquettes (voir lire_reglages, etiquettes).');

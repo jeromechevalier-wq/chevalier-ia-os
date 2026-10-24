@@ -891,8 +891,15 @@ export function nouvelIdAdresse() {
 /** Liste nettoyée, sans rien refuser : adresses vides retirées, libellé par défaut, identifiant posé, un seul « par défaut » (le premier). */
 function adressesPropres(liste) {
   let defautPris = false;
+  const idsVus = new Set(); // deux lignes de même id feraient disparaître les deux d'un coup à la croix
+  const idUnique = (brut, i) => {
+    let id = nettoyerEspaces(brut) || `ad${i + 1}`;
+    while (idsVus.has(id)) id = nouvelIdAdresse();
+    idsVus.add(id);
+    return id;
+  };
   return (Array.isArray(liste) ? liste : []).map((a, i) => ({
-    id: nettoyerEspaces(a?.id) || `ad${i + 1}`,
+    id: idUnique(a?.id, i),
     libelle: nettoyerEspaces(a?.libelle) || LIBELLE_ADRESSE,
     adresse: nettoyerAdresse(a?.adresse),
     parDefaut: !!a?.parDefaut,
