@@ -100,7 +100,7 @@ describe('Document HTML du devis', () => {
       objet: piege,
       adresses: { commanditaire: { texte: piege }, facturation: { texte: piege }, chantier: { texte: piege } },
       conditionsPaiement: piege, modesPaiement: [piege],
-      debutTravaux: piege, dureeEstimee: piege, acompte: piege,
+      debutTravaux: piege, dureeEstimee: piege, acompte: { type: 'montant', valeur: 10, moment: 'libre', texteMoment: piege },
       sections: [{ id: 's', titre: piege, lignes: [ligne('a', 10, 1, { libelle: piege, description: piege, unite: piege })] }],
     });
     const h = devisHtml(D.vueClient(d, { clientNom: piege, emetteur: { nom: piege, adresse: piege, siret: piege } }), { logo: 'data:image/png;base64,AAAA"onerror=alert(3)' });
