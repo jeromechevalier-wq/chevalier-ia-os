@@ -377,6 +377,8 @@ export function rendreEditeurDevis(conteneur, id) {
     rendreEntetesTableau();
     rendreLignes();
     majMarges();
+    const ligneReste = racine.querySelector('[data-ligne="reste"]');
+    if (ligneReste) ligneReste.hidden = affichage().cacherResteAFacturer === true;
     if (onglet === 'apercu') rendreApercu();
   }
   function ouvrirOptions(ancre) {
@@ -403,7 +405,7 @@ export function rendreEditeurDevis(conteneur, id) {
         { noeud: c('Cacher la colonne TVA', 'cacherTva') },
         { noeud: c('Cacher les éléments d’ouvrage', 'cacherElementsOuvrage') },
         { noeud: c('Afficher les prix des éléments d’ouvrage', 'afficherPrixElementsOuvrage') },
-        { noeud: bientot('Cacher l’annexe photos') }, { noeud: bientot('Cacher le reste à facturer') },
+        { noeud: bientot('Cacher l’annexe photos') }, { noeud: c('Cacher le reste à facturer', 'cacherResteAFacturer') },
         { separateur: true }, { titre: 'Clients' },
         { noeud: c('Afficher le téléphone', 'afficherTelephone') }, { noeud: c('Afficher l’e-mail', 'afficherEmail') },
         { noeud: c('Afficher le numéro de TVA', 'afficherNumeroTva') }, { noeud: c('Afficher le SIREN', 'afficherSiren') },
@@ -1059,7 +1061,7 @@ export function rendreEditeurDevis(conteneur, id) {
         ligneT('tva', 'TVA'),
         ligneT('ttc', 'Total TTC'),
         h('div', { class: 'ligne-total ligne-acompte' }, h('dt', {}, 'Acompte demandé'), h('dd', {}, h('div', { class: 'ligne-champs' }, typeAcompte, valeurAcompte, momentAcompte, texteMoment), h('span', { dataset: { total: 'acompte' } }))),
-        ligneT('reste', 'Reste à facturer')),
+        Object.assign(ligneT('reste', 'Reste à facturer'), { hidden: affichage().cacherResteAFacturer === true })),
       ref.erreurRemise, ref.erreurAcompte,
       (ref.avertissementsTotal = h('ul', { class: 'avertissements-devis', dataset: { zone: 'avertissements' } })),
       lecture ? null : h('p', { class: 'texte-discret' }, 'Primes, retenue de garantie et déchets viendront dans une prochaine version.'));

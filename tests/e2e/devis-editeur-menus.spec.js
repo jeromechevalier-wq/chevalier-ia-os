@@ -226,11 +226,11 @@ test('4 le menu Options : trois groupes de cases (Édition, Document, Clients), 
   await ouvrirOptions(page);
   const menu = page.locator('.menu-devis-options');
   await expect(menu.locator('.menu-devis-titre')).toHaveText(['Édition', 'Document', 'Clients', 'Import / Export']);
-  for (const cle of ['afficherMarges', 'afficherReferences', 'attestationTva', 'autoliquidation', 'cacherDechets', 'cacherTotauxSections', 'cacherQuantiteUnite', 'cacherTva', 'cacherElementsOuvrage', 'afficherPrixElementsOuvrage',
+  for (const cle of ['afficherMarges', 'afficherReferences', 'attestationTva', 'autoliquidation', 'cacherDechets', 'cacherTotauxSections', 'cacherQuantiteUnite', 'cacherTva', 'cacherElementsOuvrage', 'afficherPrixElementsOuvrage', 'cacherResteAFacturer',
     'afficherTelephone', 'afficherEmail', 'afficherNumeroTva', 'afficherSiren']) await expect(menu.locator(`[data-option="${cle}"]`)).toBeVisible();
   await expect(menu.locator('[data-champ="tva-defaut"]')).toBeVisible();
   // Les choix pas encore prêts : grisés, avec l'information.
-  for (const nom of ['Afficher les remises par ligne', 'Afficher les stocks', 'Numérotation personnalisée', 'Date visite préalable', 'Cacher l’annexe photos', 'Cacher le reste à facturer']) {
+  for (const nom of ['Afficher les remises par ligne', 'Afficher les stocks', 'Numérotation personnalisée', 'Date visite préalable', 'Cacher l’annexe photos']) {
     const c = menu.locator('label.menu-devis-case').filter({ hasText: nom });
     await expect(c.locator('input')).toBeDisabled();
     await expect(c).toContainText('bientôt disponible');
@@ -255,6 +255,12 @@ test('4 le menu Options : trois groupes de cases (Édition, Document, Clients), 
   await expect(page.locator('th.col-uni')).toHaveCount(0);
   await menu.locator('[data-option="cacherTotauxSections"]').check();
   await expect(page.locator('[data-sous-total]')).toHaveCount(0);
+  // « Cacher le reste à facturer » retire la ligne des totaux (elle revient quand on décoche).
+  await expect(page.locator('[data-ligne="reste"]')).toBeVisible();
+  await menu.locator('[data-option="cacherResteAFacturer"]').check();
+  await expect(page.locator('[data-ligne="reste"]')).toBeHidden();
+  await menu.locator('[data-option="cacherResteAFacturer"]').uncheck();
+  await expect(page.locator('[data-ligne="reste"]')).toBeVisible();
   // Clients : le téléphone du client (01 23 45 67 89) apparaît dans l'aperçu seulement quand la case est cochée.
   await menu.locator('[data-option="afficherTelephone"]').check();
   // Autoliquidation : la TVA passe à 0.
