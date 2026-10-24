@@ -424,7 +424,7 @@ export const lireSaisie = (s) => lireNombre(s);
 /** Valeurs du brouillon qui copie un devis : tout le contenu sauf numéro, statut, version, totaux (nouveaux identifiants de section et de ligne). */
 export function copieDeDevis(source, nouvelId) {
   const els = aplatir(source.sections).map((e) => ({ ...copie(e), id: nouvelId() }));
-  const sections = assembler(els).map((s) => ({ ...s, lignes: s.lignes.map((l) => { const { prixVente: _p, ...reste } = l; return reste; }) }));
+  const sections = assembler(els).map((s) => ({ ...s, lignes: s.lignes.map((l) => { const { prixVente: _p, prixVenteAjuste: _a, ...reste } = l; return reste; }) }));
   const patch = champsAEnregistrer({ ...source, sections });
   delete patch.expireLe;
   delete patch.dateEmission;

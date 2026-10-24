@@ -674,6 +674,7 @@ export function figerPourFinalisation(devis, { numero, finaliseLe, reglages = {}
     for (const ligne of section.lignes ?? []) {
       ligne.prixVente = prixVenteDeLigne(copie, section, ligne);
       if (ajustementActif(copie)) ligne.prixVenteAjuste = prixAjuste(ligne.prixVente, coefficientAjustement(copie)); // le prix ajusté est figé lui aussi
+      else delete ligne.prixVenteAjuste; // un ancien prix ajusté (copie d'un devis ajusté) ne doit pas survivre
       ligne.tauxTva = tauxDeLigne(copie, ligne);
     }
   }

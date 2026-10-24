@@ -123,6 +123,15 @@ describe('3 ajustement global', () => {
     const sans = L.figerPourFinalisation({ ...base, ajustement: undefined }, { numero: 'DEV-1', finaliseLe: '2026-10-24T10:00:00Z', reglages: { regimeTva: 'assujetti' } });
     assert.equal(sans.devis.sections[0].lignes[0].prixVenteAjuste, undefined);
   });
+  test('3 un prix ajusté périmé (copie d’un devis ajusté, ajustement retiré) ne survit pas à la finalisation', () => {
+    const base = { ...L.nouveauDevis({ affaireId: 'a1', destinataires: [{ email: 'c@exemple.test' }] }, { maintenant: new Date('2026-10-24T10:00:00Z'), auteur: 'x@exemple.test', nouvelId: () => 'd1' }, { regimeTva: 'assujetti' }), ...trio(),
+      adresses: { commanditaire: { texte: '1 rue' }, facturation: null, chantier: { texte: '2 rue' } }, conditionsPaiement: '30 %' };
+    base.sections[0].lignes[0].prixVenteAjuste = 999; // reste d'une ancienne copie
+    const r = L.figerPourFinalisation(base, { numero: 'DEV-1', finaliseLe: '2026-10-24T10:00:00Z', reglages: { regimeTva: 'assujetti' } });
+    assert.equal(r.devis.sections[0].lignes[0].prixVenteAjuste, undefined);
+    const copie = Ed.copieDeDevis({ ...base, ajustement: { coefficient: 1.1 } }, () => 'n');
+    assert.equal(copie.sections[0].lignes[0].prixVenteAjuste, undefined);
+  });
   test('3 la valeur « avant » reste calculable sur un devis finalisé (le montant de l’ajustement ne retombe pas à 0)', () => {
     const base = { ...L.nouveauDevis({ affaireId: 'a1', destinataires: [{ email: 'c@exemple.test' }] }, { maintenant: new Date('2026-10-24T10:00:00Z'), auteur: 'x@exemple.test', nouvelId: () => 'd1' }, { regimeTva: 'assujetti' }), ...trio(), ajustement: { coefficient: 1.1 },
       adresses: { commanditaire: { texte: '1 rue' }, facturation: null, chantier: { texte: '2 rue' } }, conditionsPaiement: '30 %' };
