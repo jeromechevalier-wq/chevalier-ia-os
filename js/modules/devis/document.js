@@ -138,7 +138,9 @@ function tableauLignes(vue, sansTva) {
 }
 
 /**
- * HTML complet du devis. `vue` : résultat de vueClient. Options : `brouillon` (filigrane), `logo` (data URL ou null).
+ * HTML complet du devis. `vue` : résultat de vueClient. Options : `brouillon` (filigrane), `logo` (data URL ou null),
+ * `pagesAvant` (tableau de fragments HTML DÉJÀ échappés par l'appelant, chacun sur sa page A4, placés avant le chiffrage)
+ * et `blocSignature` (fragment HTML déjà échappé, placé en dernière page, après les CGV). Absentes : rendu inchangé.
  */
 export function devisHtml(vue, options = {}) {
   const v = vue ?? {};
@@ -214,7 +216,14 @@ export function devisHtml(vue, options = {}) {
   const cgv = emetteur.cgv?.afficher === true && typeof emetteur.cgv.texte === 'string' && emetteur.cgv.texte.trim()
     ? `<div class="cgv"><h2>Conditions générales de vente</h2>${texte(emetteur.cgv.texte)}</div>` : '';
 
+  // Pages ajoutées par l'appelant (texte déjà échappé) : chacune sur sa page A4.
+  const pagesAvant = (Array.isArray(options.pagesAvant) ? options.pagesAvant : []).filter((f) => typeof f === 'string' && f.trim())
+    .map((f) => `<div class="page-ajoutee" style="break-after:page;page-break-after:always">${f}</div>`);
+  const signature = typeof options.blocSignature === 'string' && options.blocSignature.trim()
+    ? `<div class="page-signature" style="break-before:page;page-break-before:always">${options.blocSignature}</div>` : '';
+
   const corps = [
+    ...pagesAvant,
     `<div class="haut">${blocEmetteur(emetteur, options.logo)}${blocDestinataire(v)}</div>`,
     `<div class="infos">${infos.join('')}</div>`,
     blocChantier,
@@ -227,6 +236,7 @@ export function devisHtml(vue, options = {}) {
     notes,
     pied,
     cgv,
+    signature,
   ].filter(Boolean).join('\n');
 
   return `<!doctype html>

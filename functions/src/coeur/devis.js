@@ -209,6 +209,21 @@ export async function archiver({ donnees, ctx, devisId, archive }) {
   });
 }
 
+/**
+ * Note sur le devis le PDF fabriqué par la fonction devisPdf : `pdf = { fileId, lien, sha256, genereLe }`, plus sa ligne de journal, dans UNE transaction.
+ * Ce champ n'est écrit que par ici. Un brouillon est refusé (il n'a pas de PDF officiel). Rien d'autre sur le devis n'est touché.
+ */
+export async function enregistrerPdf({ donnees, ctx, devisId, pdf }) {
+  return donnees.transaction(async (tx) => {
+    const devis = await lireDevis(tx, devisId);
+    if (devis.statut === 'brouillon') throw new ErreurDevis('transition_interdite', 'Ce devis est encore un brouillon : finalise-le avant de créer le PDF.');
+    const changement = modifier(devis, { pdf: { fileId: pdf.fileId, lien: pdf.lien, sha256: pdf.sha256, genereLe: ctx.maintenant } });
+    const j = journal({ donnees, ctx, outil: 'devisPdf', parametres: { devisId }, changements: [changement] });
+    tx.ecrire([changement.ecriture, ...j.ecritures]);
+    return { ok: true, devis: { ...devis, pdf: changement.apres.pdf }, operationId: j.operationId };
+  });
+}
+
 // ---------------------------------------------------------------- pour les fonctions appelables (les deux projets)
 /** Quelle transition, avec quels arguments tirés de la demande. `base` : { donnees, ctx }. */
 export const OPERATIONS = Object.freeze({

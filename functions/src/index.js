@@ -2,7 +2,7 @@
 // (réécriture Hosting). `porte` : porte des workflows n8n, jointe par https://chevalier-ia-os.web.app/porte (réécriture Hosting). L'invocation est publique côté Google : la porte est le jeton « cia_… » (securite/jetons.js) ou la connexion Google (oauth/).
 import { onRequest, onCall, HttpsError } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
-import { defineSecret } from 'firebase-functions/params';
+import { defineSecret, defineString } from 'firebase-functions/params';
 import { getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { creerGestionnaire } from './mcp/gestionnaire.js';
@@ -20,6 +20,7 @@ import { creerAdaptateur } from '../partage/porte/adaptateur.js';
 import { creerServiceVeille } from './veille/service.js';
 import { creerAppelVeille } from './veille/appel.js';
 import { creerAppelDevis, ligneDeJournalDevis } from './devis-appel.js';
+import { creerAppelDevisPdf, ligneDeJournalDevisPdf } from './devis/pdf-appel.js';
 import { copieInterne, administrateur, Refus } from './automatisations/appels.js';
 import { creerLecteurN8n } from '../partage/automatisations/n8n.js';
 
@@ -104,6 +105,19 @@ export const devisFinaliser = appelDevis('finaliser');
 export const devisChangerStatut = appelDevis('changerStatut');
 export const devisNouvelleVersion = appelDevis('nouvelleVersion');
 export const devisArchiver = appelDevis('archiver');
+
+// PDF d'un devis finalisé : Gotenberg privé (Cloud Run, UE) puis rangement dans Drive. Deux paramètres de la fonction, vides par défaut (jamais de secret) :
+// GOTENBERG_URL (adresse du service Gotenberg) et DRIVE_RACINE_DEVIS_ID (identifiant du dossier Drive racine). Vides : la fonction répond « PDF non configuré ».
+const GOTENBERG_URL = defineString('GOTENBERG_URL', { default: '' });
+const DRIVE_RACINE_DEVIS_ID = defineString('DRIVE_RACINE_DEVIS_ID', { default: '' });
+export const devisPdf = onCall({ ...OPTIONS_DEVIS, memory: '512MiB', timeoutSeconds: 120 }, (requete) => {
+  if (!getApps().length) initializeApp();
+  return creerAppelDevisPdf({
+    donnees: () => creerAccesFirestore(),
+    config: { gotenbergUrl: GOTENBERG_URL.value(), driveRacineId: DRIVE_RACINE_DEVIS_ID.value() },
+    journal: (e) => process.stdout.write(`${ligneDeJournalDevisPdf(e)}\n`),
+  })(requete);
+});
 
 // `veille` : appelée par l'appli (boutons « Ajouter » et « Résumer » du module Veille). Le jeton du bouton Résumer vit ici (Secret Manager),
 // jamais dans la page. Le secret VEILLE_JETON_RESUMER doit être créé avant le déploiement (docs/veille-ajout-et-resume.md).
