@@ -2,7 +2,7 @@
 // Les fonctions du serveur (devisFinaliser, devisNouvelleVersion) n'existent pas dans l'émulateur du navigateur : elles sont SIMULÉES par page.route, comme dans devis-liste.spec.js.
 import { fileURLToPath } from 'node:url';
 import {
-  test, expect, connecter, attendreCalme, ecrireDocument, lireDocument, listerDocuments, creerOrganisation, creerAffaire, JEROME, FIRESTORE, PROJET,
+  test, expect, connecter, attendreCalme, allerA, ecrireDocument, lireDocument, listerDocuments, creerOrganisation, creerAffaire, JEROME, FIRESTORE, PROJET,
 } from './outils.js';
 
 const DOSSIER = fileURLToPath(new URL('./captures/devis-editeur/', import.meta.url));
@@ -46,7 +46,19 @@ async function nouveauBrouillon(page) {
 }
 const enregistre = (page) => expect(page.locator('[data-valeur="enregistrement"]')).toHaveText('Enregistré');
 const total = (page, cle) => page.locator(`[data-total="${cle}"]`);
+/** Ligne libre : « … » sous le tableau, puis « Ligne libre ». */
+async function ajouterLibre(page) {
+  await page.locator('[data-action="autres-ajouts"]').click();
+  await page.getByRole('menuitem', { name: 'Ligne libre' }).click();
+}
+/** Une valeur du haut du devis (« définir ») s'écrit sur place : on clique le lien, le champ apparaît. */
+const definir = (page, nom) => page.locator(`[data-definir="${nom}"]`).click();
+/** Le champ « objet » se montre avec « Ajouter une description ». */
+async function ouvrirDescription(page) {
+  if (await page.locator('[data-champ="objet"]').isHidden()) await page.locator('[data-action="description"]').click();
+}
 async function chercherEtAjouter(page, mot, quantite) {
+  if (await page.locator('[data-zone="recherche"]').isHidden()) { await page.locator('[data-action="ajouter-famille-1"]').click(); await page.locator('[data-champ="filtre-famille"]').selectOption(''); }
   await page.getByRole('searchbox', { name: 'Rechercher dans le Bordereau' }).fill(mot);
   await page.locator('[data-action="ajouter-article"]').first().click();
   await page.locator('tr.ligne-devis-edition').last().locator('[data-champ="quantite"]').fill(quantite);
@@ -57,9 +69,8 @@ test('ED1 créer un devis pour une affaire, ajouter deux articles du Bordereau, 
   await semer();
   const id = await nouveauBrouillon(page);
   // Cas vide : aucune ligne, invitation claire ; le numéro n'est pas encore attribué ; le client et son adresse viennent de l'affaire.
-  await expect(page.locator('[data-vide="lignes"]')).toContainText('Ajoute une première ligne depuis ton Bordereau ou une ligne libre');
-  await expect(page.locator('[data-champ="numero"]')).toHaveAttribute('placeholder', 'Attribué à la finalisation');
-  await expect(page.locator('[data-champ="numero"]')).toHaveValue('');
+  await expect(page.locator('[data-vide="lignes"]')).toContainText('Clique sur un des boutons ci-dessous pour ajouter un élément à ton devis.');
+  await expect(page.locator('[data-valeur="numero-devis"]')).toContainText('Brouillon'); // le numéro DEV-… n'est attribué qu'à la finalisation
   await expect(page.locator('[data-champ="affaire"]')).toHaveValue('a1');
   await expect(page.locator('[data-champ="client"]')).toHaveValue('organisation:o1');
   await expect(page.locator('[data-champ="chantier-adresse"]')).toHaveValue('12 rue des Lilas\n75000 Paris');
@@ -67,10 +78,14 @@ test('ED1 créer un devis pour une affaire, ajouter deux articles du Bordereau, 
   await expect(page.locator('[data-avertissement="aucuneLigne"]')).toContainText('aucune ligne');
   await capturer(page, info, 'ED1-cas-vide');
   // Dates du chantier.
+  await definir(page, 'debutTravaux');
   await page.locator('[data-champ="debutTravaux"]').fill('2026-11-02');
+  await definir(page, 'duree');
   await page.locator('[data-champ="duree"]').fill('3');
   await page.locator('[data-champ="duree-unite"]').selectOption('semaine');
+  await definir(page, 'finChantierAu');
   await page.locator('[data-champ="finChantierAu"]').fill('2026-11-27');
+  await ouvrirDescription(page);
   await page.locator('[data-champ="objet"]').fill('Rénovation de la cuisine');
   // Section, puis deux articles du Bordereau (recherche par libellé et par code), puis une ligne libre.
   await page.locator('[data-action="ajouter-section"]').click();
@@ -81,7 +96,7 @@ test('ED1 créer un devis pour une affaire, ajouter deux articles du Bordereau, 
   await expect(page.locator('[data-action="ajouter-article"]')).toHaveCount(1);
   await page.getByRole('searchbox', { name: 'Rechercher dans le Bordereau' }).fill('zzz');
   await expect(page.locator('[data-vide="resultats"]')).toContainText('Aucun article ne correspond');
-  await page.locator('[data-action="ajouter-libre"]').click();
+  await ajouterLibre(page);
   const libre = lignes(page).last();
   await libre.locator('[data-champ="libelle"]').fill('Forfait déplacement');
   await libre.locator('[data-champ="prix-vente"]').fill('100');
@@ -132,7 +147,7 @@ test('ED2 l’aperçu montre le devis comme le client le verra ; ordre des ligne
   await nouveauBrouillon(page);
   await chercherEtAjouter(page, 'Carrelage', '2');
   await chercherEtAjouter(page, 'Pose', '3');
-  await page.locator('[data-action="ajouter-libre"]').click();
+  await ajouterLibre(page);
   await lignes(page).last().locator('[data-champ="libelle"]').fill('Divers');
   // Flèches : la ligne 1 descend ; la première ligne n'a pas de flèche « monter » active.
   await expect(lignes(page).nth(0).locator('[data-action="monter"]')).toBeDisabled();
@@ -191,7 +206,7 @@ test('ED3 finaliser : les erreurs de finalisation sont listées dans une fenêtr
   expect(appels).toEqual([]);
   // On corrige : destinataire, une ligne ; un avertissement non bloquant (quantité vide) est dit dans la fenêtre de confirmation.
   await page.locator('[data-champ="destinataire"]').fill('contact@exemple.fr');
-  await page.locator('[data-action="ajouter-libre"]').click();
+  await ajouterLibre(page);
   await lignes(page).last().locator('[data-champ="libelle"]').fill('Forfait');
   await lignes(page).last().locator('[data-champ="prix-vente"]').fill('250');
   await lignes(page).last().locator('[data-champ="prix-vente"]').press('Tab');
@@ -242,6 +257,8 @@ test('ED4 cas d’erreur : devis introuvable, devis déjà finalisé en lecture 
     regimeTva: 'assujetti', autoliquidation: false, archive: false, expireLe: '2027-01-01', destinataires: [], sections: [], creePar: JEROME, proprietaire: JEROME, creeLe: new Date(), modifieLe: new Date(),
   });
   await page.goto('/?emulateurs=1#/devis/editeur/brouillon');
+  await expect(page.locator('[data-action="description"]')).toBeVisible();
+  await ouvrirDescription(page);
   await expect(page.locator('[data-champ="objet"]')).toBeVisible();
   await attendreCalme(page);
   await fetch(`${FIRESTORE}/v1/projects/${PROJET}/databases/(default)/documents/devis_devis/brouillon`, { method: 'DELETE', headers: { Authorization: 'Bearer owner' } });
@@ -325,7 +342,7 @@ test('ED6 depuis la liste : Nouveau devis, Modifier ouvre l’éditeur, Duplique
   expect(copie).not.toBe('b1');
   await expect(page.locator('[data-champ="remise-valeur"]')).toHaveValue('10');
   await expect(lignes(page)).toHaveCount(1);
-  await expect(page.locator('[data-champ="numero"]')).toHaveValue('');
+  await expect(page.locator('[data-valeur="numero-devis"]')).toContainText('Brouillon');
   await expect(total(page, 'ht')).toHaveText(/^108,00\s€$/);
   // Nouvelle variante d'un devis envoyé : la fonction du serveur répond, l'éditeur ouvre la version 2.
   await page.evaluate(() => { location.hash = '#/devis/liste'; });
@@ -340,6 +357,7 @@ test('ED6 depuis la liste : Nouveau devis, Modifier ouvre l’éditeur, Duplique
 test('ED7 devis modifié ailleurs : un bandeau le dit, rien n’est écrasé ni enregistré ; « Recharger » reprend la dernière version', async ({ page }, info) => {
   await semer();
   const id = await nouveauBrouillon(page);
+  await ouvrirDescription(page);
   await page.locator('[data-champ="objet"]').fill('Version A');
   await enregistre(page);
   // Une autre session change l'objet.
@@ -354,4 +372,31 @@ test('ED7 devis modifié ailleurs : un bandeau le dit, rien n’est écrasé ni 
   await page.locator('[data-action="recharger"]').click();
   await expect(page.locator('[data-champ="objet"]')).toHaveValue('Version B');
   await expect(page.locator('[data-valeur="conflit"]')).toBeHidden();
+});
+
+test('ED8 quitter l’éditeur par le menu de gauche (« Affaires ») avec un changement non enregistré ouvre la fenêtre de sortie ; « Annuler » de la barre fait de même', async ({ page }) => {
+  await semer();
+  await nouveauBrouillon(page);
+  await ouvrirDescription(page);
+  // Le changement part dans le même instant que le clic : aucun enregistrement automatique n'a eu le temps de se faire.
+  await page.evaluate(() => {
+    const champ = document.querySelector('[data-champ="objet"]');
+    champ.value = 'Terrasse';
+    champ.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await allerA(page, 'Affaires');
+  await expect(dialogue(page)).toContainText('Quitter sans enregistrer ?');
+  await dialogue(page).getByRole('button', { name: 'Rester' }).click();
+  await expect(page.locator('.page-editeur-devis[data-devis]')).toBeVisible();
+  await expect(page.locator('[data-champ="objet"]')).toHaveValue('Terrasse');
+  // Même fenêtre avec « Annuler » (tant que le changement n'est pas enregistré).
+  await page.evaluate(() => {
+    const champ = document.querySelector('[data-champ="objet"]');
+    champ.value = 'Terrasse couverte';
+    champ.dispatchEvent(new Event('input', { bubbles: true }));
+    document.querySelector('[data-action="annuler"]').click();
+  });
+  await expect(dialogue(page)).toContainText('Quitter sans enregistrer ?');
+  await dialogue(page).getByRole('button', { name: 'Enregistrer et quitter' }).click();
+  await expect(page.locator('.page-liste-devis')).toBeVisible();
 });
