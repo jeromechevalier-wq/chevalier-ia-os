@@ -143,3 +143,14 @@ describe('Remise', () => {
     assert.ok(!devisHtml(D.vueClient(figer(simple({ remise: { type: 'montant', valeur: 0 } })))).includes('Remise'));
   });
 });
+
+describe('R11 plus fort reste et textes lisibles', () => {
+  test('R11 cinq bases égales, remise de 3 centimes : aucune base ne dépasse son brut, somme exacte', () => {
+    const lignes = [1, 2, 3, 4, 5].map((n) => ({ id: `l${n}`, designation: 'x', quantite: 1, unite: 'u', prixVente: 10, tauxTva: 10 + n }));
+    const t = D.totauxDevis({ statut: 'brouillon', tauxTvaDefaut: 20, remise: { type: 'montant', valeur: 0.03 }, sections: [{ id: 's', lignes }] });
+    assert.equal(t.remiseHt, 0.03);
+    const bases = t.tvaParTaux.map((x) => x.baseHT);
+    assert.ok(bases.every((b) => b <= 10 && b >= 9.99));
+    assert.equal(Math.round(bases.reduce((a, b) => a + b, 0) * 100), 4997);
+  });
+});

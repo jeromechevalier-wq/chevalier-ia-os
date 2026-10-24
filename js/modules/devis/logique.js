@@ -167,16 +167,16 @@ export function totauxDevis(devis) {
     sections.push({ id: section.id, sousTotalHT: versEuros(sousC) });
   }
   // Remise : après la marge et les sous-totaux, sur le total HT, répartie au prorata de chaque base de TVA.
-  // Chaque part est arrondie au centime ; l'écart d'arrondi va sur la plus grande base : la somme des bases remisées vaut exactement net HT.
+  // Plus fort reste : chaque part est tronquée au centime, puis les centimes restants vont aux plus grands restes
+  // (à égalité, au taux le plus élevé) : la somme des bases remisées vaut exactement net HT, sans base qui dépasse son brut.
   const remiseC = remiseEnCentimes(devis?.remise, htC);
   const netC = htC - remiseC;
   const entrees = [...baseParTaux.entries()].sort((a, b) => b[0] - a[0]);
-  const parts = entrees.map(([, baseC]) => (remiseC === 0 ? 0 : arrondiDemi(remiseC * baseC / htC)));
-  if (remiseC !== 0 && entrees.length) {
-    let plus = 0;
-    entrees.forEach(([, baseC], k) => { if (baseC > entrees[plus][1]) plus = k; });
-    parts[plus] += remiseC - parts.reduce((a, b) => a + b, 0);
-  }
+  const exact = entrees.map(([, baseC]) => (remiseC === 0 || htC === 0 ? 0 : remiseC * baseC / htC));
+  const parts = exact.map((x) => Math.floor(x + 1e-9));
+  let reste = remiseC - parts.reduce((a, b) => a + b, 0);
+  const ordre = exact.map((x, k) => k).sort((i, j) => (exact[j] - parts[j]) - (exact[i] - parts[i]) || i - j);
+  for (let n = 0; reste > 0 && ordre.length; n += 1, reste -= 1) parts[ordre[n % ordre.length]] += 1;
   const tvaParTaux = sansTva ? [] : entrees
     .map(([taux, baseC], k) => ({ taux, baseHT: versEuros(baseC - parts[k]), montant: versEuros(arrondiDemi((baseC - parts[k]) * taux / 100)) }));
   const tvaC = tvaParTaux.reduce((s, t) => s + versCentimes(t.montant), 0);
