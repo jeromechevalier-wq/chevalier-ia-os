@@ -76,16 +76,15 @@
   .carte-devis .carte-menu { min-height: 44px; min-width: 44px; }
 }
 .carte-devis .carte-titre { font-weight: var(--poids-moyen); }
-/* Familles, « Plus… » / « Moins… » et fenêtre « Sélection de la famille ». */
+/* Champ « Famille » et « Plus… » / « Moins… ». */
 .bouton-lien { min-height: var(--h-ctrl-petit); padding: 0 var(--esp-3); border: 0; background: transparent; color: var(--accent-trait); font: inherit; cursor: pointer; text-align: left; }
 .bouton-lien:hover, .bouton-lien:focus-visible { text-decoration: underline; }
-.champ-famille { cursor: pointer; }
-.liste-familles { display: flex; flex-direction: column; gap: var(--esp-2); max-height: 320px; overflow-y: auto; }
-.famille-option { display: flex; align-items: center; gap: var(--esp-4); min-height: var(--h-ctrl-petit); padding: 0 var(--esp-3); border-radius: var(--rayon-petit); cursor: pointer; }
-.famille-option:hover { background: var(--survol); }
-.famille-desactivee { color: var(--texte2); }
-.famille-niveau-2 { padding-left: var(--esp-8); }
-.entete-familles { justify-content: space-between; }
+.champ-famille-cellule { min-width: 220px; }
+/* Réglages > Familles d'articles : une famille de départ en tête, ses sous-familles en retrait dessous. */
+.liste-familles-reglages { gap: var(--esp-6); }
+.groupe-famille { display: flex; flex-direction: column; gap: var(--esp-2); }
+.groupe-famille > .ligne-reglage[data-niveau="2"] { padding-left: var(--esp-6); }
+.ligne-famille-depart { justify-content: space-between; }
 .ligne-champs-egale > .bloc-champ { flex: 1 1 200px; min-width: 0; }
 .tableau-articles td[data-colonne="reference"], .tableau-articles td[data-colonne="marque"] { min-width: 110px; }
 
@@ -446,3 +445,6 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
   .bouton-groupe > .bouton-groupe-menu { flex: 0 0 auto; min-width: 44px; }
   .bouton-configurer-ouvrage { display: inline-flex; min-height: 44px; align-items: center; }
 }
+
+/* La liste du champ « Famille » du tableau déborde de la cellule : on lève le rognage horizontal du cadre le temps de l'édition (sur ordinateur). */
+.zone-tableau:has(.champ-famille-cellule) { overflow: visible; }

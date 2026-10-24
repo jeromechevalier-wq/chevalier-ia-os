@@ -78,7 +78,7 @@ describe('F3 sous-familles', () => {
     const l = avecCarrelage();
     const arbre = F.arbreFamilles(l);
     assert.equal(arbre.length, 7);
-    assert.deepEqual(arbre[0].enfants.map((f) => f.nom), ['Carrelage']);
+    assert.deepEqual(arbre[0].enfants.map((f) => f.nom).at(-1), 'Carrelage', 'la sous-famille libre suit celles de départ');
     assert.equal(F.cheminFamille(l, 'famille-1'), 'Fournitures');
     const relues = F.famillesDe({ liste: l });
     assert.deepEqual(relues, l, 'le parentId survit à la lecture');
@@ -112,7 +112,7 @@ describe('F5 familles de départ verrouillées', () => {
     // Une base où une famille de départ a été renommée ou désactivée avant : elle revient à son nom et reste active.
     const abimee = F.famillesDe({ liste: [{ id: 'famille-7', nom: 'Autres', actif: false }] });
     assert.deepEqual(abimee.find((f) => f.id === 'famille-7'), { id: 'famille-7', nom: 'Divers', actif: true });
-    assert.equal(abimee.length, 7);
+    assert.equal(abimee.length, F.FAMILLES_PAR_DEFAUT.length);
   });
   test('F5 on peut renommer et désactiver une sous-famille', () => {
     const l = avecCarrelage();

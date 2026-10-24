@@ -121,7 +121,7 @@ export const MODULES_DECLARES = geler([
     libelleMenu: 'Devis',
     iconeMenu: 'file-text',
     prefixe: 'devis',
-    reglages: { sections: [{ id: 'reglages-devis', libelle: 'Réglages des devis' }] },
+    reglages: { sections: [{ id: 'reglages-devis', libelle: 'Réglages des devis' }, { id: 'reglages-familles', libelle: 'Familles d’articles' }] },
     entreeMenu: 'devis/liste',
     ecrans: [
       { route: 'devis/liste', libelle: 'Devis', icone: 'file-text' },
