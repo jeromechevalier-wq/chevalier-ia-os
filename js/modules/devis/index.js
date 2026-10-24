@@ -7,6 +7,7 @@ import { rendreBordereau } from './bordereau.js';
 import { rendreListeDevis } from './liste-ecran.js';
 import { rendreEditeurDevis } from './editeur-ecran.js';
 import { reglages as reglagesDuModule } from './reglages.js';
+import { retenirDevis } from './memoire.js';
 
 // Feuille de style propre au module, ajoutée au premier affichage (index.html reste inchangé).
 function ajouterFeuille() {
@@ -50,6 +51,7 @@ export function afficher(conteneur, segs) {
     naviguer('devis/bordereau', { remplacer: true });
     return quitter;
   }
+  if (vue === 'editeur') retenirDevis(segs[1]); // le Bordereau propose « Reprendre le devis en cours »
   const cle = vue === 'editeur' ? `editeur/${segs[1] ?? ''}` : vue; // un éditeur par devis
   if (montee?.cle === cle && conteneur.firstChild) { montee.surRoute?.(segs[1] || null); return quitter; } // la liste reste montée : seule la fiche change
   quitter();

@@ -153,3 +153,21 @@ test('B10 cas d\'erreur : un lecteur ne peut pas écrire ; le message dit quoi f
   await attendreCalme(page);
   if (estTelephone(page)) await page.keyboard.press('Escape');
 });
+
+test('P3 cas d\'erreur : une écriture refusée dans Réglages > Familles d\'articles dit quoi faire, et rien n\'est perdu', { tag: '@sans-telephone' }, async ({ page }, info) => {
+  test.info().annotations.push({ type: 'erreurs-reseau-attendues' }); // le SDK note dans la console une écriture refusée par les règles
+  await ouvrir(page, 'avecdevis', LEA, 'reglages');
+  await ouvrirSectionReglages(page, 'Devis');
+  await expect(page.locator('#reglages-familles')).toBeVisible();
+  await expect(page.locator('#reglages-familles [data-action="ajouter-sous-famille"]').first()).toBeDisabled(); // lecteur : tout est en lecture seule
+  // On force le bouton (comme le ferait un contournement de l'écran) : les règles refusent quand même, et l'écran le dit.
+  await page.evaluate(() => { document.querySelector('.reglages-sections').disabled = false; });
+  const fournitures = page.locator('#reglages-familles [data-groupe="famille-1"]');
+  await fournitures.locator('[data-champ="nouvelle-sous-famille"]').fill('Zinguerie');
+  await fournitures.locator('[data-action="ajouter-sous-famille"]').click();
+  await expect(fournitures.locator('[data-erreur="famille-famille-1"]')).toContainText('Enregistrement impossible');
+  await expect(fournitures.locator('[data-erreur="famille-famille-1"]')).toContainText('Rien n’a été changé');
+  await expect(fournitures.locator('[data-champ="nouvelle-sous-famille"]')).toHaveValue('Zinguerie'); // le texte tapé reste
+  expect(await lireDocument('clients/avecdevis/devis_parametres/familles')).toBeNull();
+  await capturer(page, info, 'P3-erreur-ecriture-familles');
+});
