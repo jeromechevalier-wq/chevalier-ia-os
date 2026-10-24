@@ -620,8 +620,8 @@ export function rendreEditeurDevis(conteneur, id) {
       oninput: (e) => changer({ destinataires: e.target.value.trim() ? [e.target.value.trim()] : [] }),
     });
     const droite = h('div', { class: 'entete-droite' },
-      champ('Client', ref.selectClient, { id: 'devis-client' }),
       champ('Affaire *', ref.selectAffaire, { id: 'devis-affaire', aide: ref.erreurAffaire }),
+      champ('Client', ref.selectClient, { id: 'devis-client' }),
       champ('Adresse du chantier', ref.champAdresse, { id: 'devis-chantier-adresse' }),
       champ('E-mail du destinataire', destinataire, { id: 'devis-destinataire' }));
     return h('div', { class: 'entete-document' }, gauche, droite);
