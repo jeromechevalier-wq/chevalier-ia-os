@@ -235,10 +235,15 @@ describe('Lecture seule (garantie)', () => {
     const parcourir = (d) => readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? parcourir(join(d, e.name)) : [join(d, e.name)]));
     // Les actions métier (metier.js) et le gestionnaire ne font que tirer des identifiants et confier l'écriture au moteur : jamais appliquer/mettreAJour.
     // oauth/magasin.js : seulement sa propre collection fermée `mcp_oauth` (jetons OAuth) ; un test statique (D8) vérifie qu'il ne touche à aucune donnée du CRM.
-    const autorises = ['coeur/donnees.js', 'coeur/ecriture.js', 'coeur/restaurer.js', 'securite/limites.js', 'securite/codes.js', 'oauth/magasin.js', 'coeur/propositions.js'];
+    // coeur/devis.js : les quatre transitions des devis (finaliser, changer de statut, nouvelle version, archiver), UNE transaction chacune (numéro, devis, version remplacée et journal
+    // ensemble) ; il tire des identifiants mais n'utilise ni appliquer ni mettreAJour, et seul lui (avec donnees.js) appelle `.transaction(`.
+    const autorises = ['coeur/donnees.js', 'coeur/ecriture.js', 'coeur/restaurer.js', 'securite/limites.js', 'securite/codes.js', 'oauth/magasin.js', 'coeur/propositions.js', 'coeur/devis.js'];
     // coeur/propositions.js : la décision d'une proposition (file « À valider »), une seule lecture-modification-écriture atomique, sans le moteur d'audit (voir functions/src/mcp/outils/propositions.js).
     for (const f of parcourir(dossier).filter((x) => /\.appliquer\(|\.mettreAJour\(/.test(readFileSync(x, 'utf8')))) {
       assert.ok(autorises.some((a) => f.endsWith(a)), `écriture hors du moteur : ${f}`);
+    }
+    for (const f of parcourir(dossier).filter((x) => /\.transaction\(/.test(readFileSync(x, 'utf8')))) {
+      assert.ok(['coeur/donnees.js', 'coeur/devis.js'].some((a) => f.endsWith(a)), `transaction hors de coeur/devis.js : ${f}`);
     }
     for (const f of parcourir(dossier).filter((x) => /\.nouvelId\(/.test(readFileSync(x, 'utf8')))) {
       assert.ok([...autorises, 'coeur/metier.js'].some((a) => f.endsWith(a)), `identifiants tirés hors du moteur et de metier.js : ${f}`);

@@ -12,6 +12,7 @@ import { creerLecteurN8n } from './n8n.js';
 import { copieHoraire, rafraichir, renommer, Refus } from './appels.js';
 import { creerMcpClients } from './mcp-clients.js';
 import { reglerEspace } from './espace.js';
+import { transitionDevis } from './devis.js';
 
 if (!getApps().length) initializeApp();
 const db = () => getFirestore();
@@ -68,3 +69,15 @@ export const espaceReglages = onCall(
     try { return await reglerEspace({ db: db(), bucket: getStorage().bucket(BUCKET), nomBucket: BUCKET, auth: requete.auth, donnees: requete.data }); } catch (e) { throw enHttps(e); }
   },
 );
+
+// Module Devis (24/10/2026) : les quatre transitions d'un devis se font ICI, jamais depuis le navigateur (les règles Firestore ne laissent écrire qu'un brouillon).
+// Le client est une cible vérifiée (éditeur du client, module « devis » actif), pas une confiance. Aucun secret, aucun appel à n8n dans cette version, aucun compte de service nouveau
+// (le compte par défaut de la fonction suffit à lire et écrire Firestore). Ces fonctions ne sont déployées que par le workflow MANUEL de la plateforme.
+const OPTIONS_DEVIS = { region: REGION, timeoutSeconds: 60, memory: '256MiB', maxInstances: 5 };
+const appelDevis = (operation) => onCall(OPTIONS_DEVIS, async (requete) => {
+  try { return await transitionDevis({ db: db(), auth: requete.auth, donnees: requete.data, operation }); } catch (e) { throw enHttps(e); }
+});
+export const devisFinaliser = appelDevis('finaliser');
+export const devisChangerStatut = appelDevis('changerStatut');
+export const devisNouvelleVersion = appelDevis('nouvelleVersion');
+export const devisArchiver = appelDevis('archiver');

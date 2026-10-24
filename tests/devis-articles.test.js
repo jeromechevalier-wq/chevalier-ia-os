@@ -23,7 +23,7 @@ describe('B1 le module Devis est déclaré et ne dépend que des Affaires', () =
     assert.deepEqual(devis.dependances, ['affaires']);
     assert.equal(devis.entreeMenu, 'devis/bordereau');
     assert.deepEqual(devis.ecrans.map((e) => e.route), ['devis/bordereau']);
-    assert.deepEqual(devis.collections, ['devis_articles', 'devis_parametres']);
+    assert.deepEqual(devis.collections, ['devis_articles', 'devis_parametres', 'devis_devis']);
     assert.ok(!('reserveAuxClients' in devis));
     assert.ok(MODULES_DECLARES.findIndex((m) => m.id === 'affaires') < MODULES_DECLARES.findIndex((m) => m.id === 'devis'), 'les dépendances viennent avant');
   });
@@ -225,12 +225,16 @@ describe('B8 règles Firestore : déclaration (les parcours sont dans regles-pla
     const r2 = lire('firestore.plateforme.rules');
     assert.match(r2, /match \/clients\/\{client\}\/devis_articles\/\{id\} \{[^}]*allow delete: if false;/);
     assert.match(r2, /function collectionSansSuppression\(collection\) \{\s+return collection in \['devis_articles'\];/);
-    assert.match(r2, /!collectionSansSuppression\(collection\) && roleDe\(client\) == 'editeur'/);
-    assert.doesNotMatch(r2, /devis_devis|devis_compteurs/, 'aucune règle pour les devis eux-mêmes dans cette PR');
+    assert.match(r2, /!collectionSansSuppression\(collection\) && (?:!collectionDesDevis\(collection\) && )?roleDe\(client\) == 'editeur'/);
+    // Les règles des devis eux-mêmes (devis_devis, devis_compteurs) sont arrivées avec la couche de données : elles sont testées dans devis-regles.test.js (C1).
+    assert.match(r2, /match \/clients\/\{client\}\/devis_devis\/\{id\}/);
+    assert.doesNotMatch(r2, /devis_parametres/, 'les réglages du module restent sous la règle générale des données du client');
   });
-  test('B8 les règles de la base de Jérôme ne changent pas : le joker donne déjà aux deux comptes autorisés la lecture et l\'écriture ; aucun outil ni écran ne supprime un article', () => {
-    // Décision prise seul (24/10/2026) : toucher firestore.rules oblige à recopier ses règles dans docs/audit-ecran.md et le cahier des charges (tests D3, D4, D6) ; on garde donc la base 1 telle quelle.
-    assert.doesNotMatch(lire('firestore.rules'), /devis_/);
+  test('B8 les règles de la base de Jérôme interdisent la suppression d\'un article (les réglages restent sous le joker) ; aucun outil ni écran ne supprime un article', () => {
+    // Seuls les devis eux-mêmes (devis_devis, devis_compteurs) ont des règles dans firestore.rules : voir devis-regles.test.js (C1).
+    const r = lire('firestore.rules');
+    assert.match(r, /match \/devis_articles\/\{id\} \{\s+allow read, create, update: if compteAutorise\(\);\s+allow delete: if false;/); // ni suppression, même depuis la console du navigateur
+    assert.doesNotMatch(r, /devis_parametres/);
     const ecrans = ['bordereau.js', 'donnees.js', 'reglages.js', 'index.js', 'articles.js'].map((f) => lire(`js/modules/devis/${f}`)).join('\n').replace(/\/\/.*$/gm, '');
     assert.doesNotMatch(ecrans, /deleteDoc|lot\.delete|ecritureSupprimer|type: 'supprimer'/, 'un article ne se supprime jamais');
     assert.doesNotMatch(lire('functions/src/mcp/outils/ecriture.js') + lire('functions/src/mcp/outils/suppression.js'), /supprimer_article/);

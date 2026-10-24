@@ -183,10 +183,38 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Devis (module Devis, 24/10/2026). L'appli lit les devis et peut créer un BROUILLON neuf (sans numéro, version 1), puis le modifier TANT QU'IL RESTE un brouillon
+    // (avant ET après), sans toucher à son numéro, sa racine, sa version, son statut ni sa date de finalisation. Finaliser, marquer envoyé, signer, refuser, créer la version
+    // suivante et archiver passent par les fonctions du serveur (devisFinaliser…), qui contournent les règles. Aucune suppression depuis un navigateur (jamais une version finalisée).
+    // Le compteur des numéros est réservé au serveur : ni lecture ni écriture.
+    function devisBrouillonNeuf(id) {
+      let d = request.resource.data;
+      return d.get('statut', '') == 'brouillon' &amp;&amp; d.get('numero', null) == null &amp;&amp; !('finaliseLe' in d)
+        &amp;&amp; d.get('racineId', '') == id &amp;&amp; d.get('version', 0) == 1;
+    }
+    function devisBrouillonModifie() {
+      return resource.data.get('statut', '') == 'brouillon' &amp;&amp; request.resource.data.get('statut', '') == 'brouillon'
+        &amp;&amp; !request.resource.data.diff(resource.data).affectedKeys().hasAny(['numero', 'racineId', 'version', 'statut', 'finaliseLe']);
+    }
+    match /devis_devis/{id} {
+      allow read: if compteAutorise();
+      allow create: if compteAutorise() &amp;&amp; devisBrouillonNeuf(id);
+      allow update: if compteAutorise() &amp;&amp; devisBrouillonModifie();
+      allow delete: if false;
+    }
+    match /devis_compteurs/{id} {
+      allow read, write: if false;
+    }
+    // Le bordereau du module Devis : un article se désactive, il ne se supprime jamais.
+    match /devis_articles/{id} {
+      allow read, create, update: if compteAutorise();
+      allow delete: if false;
+    }
+
     // Tout le reste : comme avant (les deux comptes autorisés), sauf les collections ci-dessus.
     match /{collection}/{document=**} {
       allow read, write: if compteAutorise()
-        &amp;&amp; !(collection in ['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions']);
+        &amp;&amp; !(collection in ['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions', 'devis_devis', 'devis_compteurs', 'devis_articles']);
     }
   }
 }</code></pre></li><li><strong>Contrôle dans l'interface</strong> : après connexion, si l'email n'est pas dans <code>COMPTES_AUTORISES</code> ou n'est pas vérifié, déconnexion immédiate et message d'accès refusé ; aucune donnée n'est demandée avant ce contrôle.</li><li><strong>Pas de mode hors ligne en version 2.0</strong> : cache Firestore en mémoire (réglage par défaut, pas de cache persistant). Sans réseau, bandeau &quot;Hors ligne : reconnecte toi pour continuer&quot; ; aucune modification n'est promise hors ligne.</li><li><strong>Lectures économes</strong> : un écouteur <code>onSnapshot</code> par collection de listes pour toute la session, filtrage et calculs côté navigateur ; requêtes ciblées à l'ouverture d'une fiche pour notes, événements et activités faites (section 3.1.6) ; aucune requête composite, donc aucun index à publier.</li><li><strong>PWA sans service worker</strong> : <code>manifest.webmanifest</code> (nom &quot;Chevalier IA OS&quot;, nom court &quot;Chevalier OS&quot;, <code>display: standalone</code>, couleurs du thème sombre, icônes 192, 512, maskable, apple touch à partir de la baguette) et balises Apple pour l'installation sur iPhone. <strong>Aucun service worker, aucune mise en cache de fichiers par l'appli.</strong> Version : fichier <code>version.json</code> (<code>{&quot;version&quot;: &quot;2.0.0&quot;}</code>) ; la version chargée est inscrite dans <code>js/os/version.js</code> ; à l'ouverture et à chaque retour sur l'onglet, l'appli lit <code>version.json</code> (sans cache) et, si elle diffère, affiche le bandeau &quot;Nouvelle version disponible&quot; avec &quot;Recharger&quot;. Chaque livraison augmente la version dans les deux fichiers.</li><li><strong>En têtes</strong> (<code>firebase.json</code>) : <code>X-Robots-Tag: noindex, nofollow</code>, <code>X-Content-Type-Options: nosniff</code>, <code>Referrer-Policy: strict-origin-when-cross-origin</code>, <code>Permissions-Policy</code> restrictive ; <code>Cache-Control: no-cache</code> pour tous les fichiers <code>.html</code>, <code>.js</code>, <code>.css</code>, <code>.json</code> et le manifeste (revalidation à chaque chargement, rien de périmé) ; cache long uniquement pour les polices et les images. <code>robots.txt</code> interdit tout. <code>&lt;meta name=&quot;robots&quot; content=&quot;noindex&quot;&gt;</code>.</li><li><strong>Routage</strong> par ancre : voir la section 7.2 (<code>#/crm/accueil</code> par défaut).</li><li><strong>Organisation modulaire</strong> : la coquille (<code>js/os/</code>) ne connaît les modules que par la liste <code>js/os/modules.js</code> (id, libellé, icône, routes, fonction de montage). Ajouter un module = un dossier <code>js/modules/&lt;nom&gt;/</code> + une entrée dans cette liste.</li><li><strong>Mode test</strong> : si l'appli est servie sur <code>localhost</code> avec <code>?emulateurs=1</code>, elle se connecte aux émulateurs Firebase (Auth 9099, Firestore 8080) au lieu de la production.</li></ol>
