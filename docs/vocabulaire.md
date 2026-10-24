@@ -47,3 +47,19 @@ Dans une phase, le groupe s'appelle « Livrable <Phase> » avec 0 ou 1 livrable 
 - 22/10/2026 : plus de pause (décision de Jérôme) : une affaire est ouverte, gagnée ou perdue ; un projet est actif ou terminé ; pour relancer plus tard, planifier une activité.
 - « Livrables » est aussi le nom de sous-dossier proposé par défaut dans Google Drive : aucun conflit technique.
 - Les mots à ne pas écrire dans ce que l'utilisateur voit : « CRM », « répertoire » (on dit « dossier »).
+
+## Module Devis (24/10/2026)
+| Mot | Sens |
+|---|---|
+| **Bordereau** | la liste de prix des articles (le nom affiché est un réglage) |
+| **Article** | une ligne du Bordereau (référence, marque, famille, prix) |
+| **Ouvrage** | un groupe d'articles réutilisable, glissé dans un devis comme un bloc |
+| **Famille** | le classement d'un article (une seule, pas de sous-famille) |
+| **Texte** | une ligne de devis sans prix : un paragraphe |
+| **Brouillon · Finalisé · Envoyé · Signé · Refusé · Remplacé** | les statuts d'un devis ; **Expiré** s'ajoute à l'affichage quand la date de validité est passée |
+| **Variante** | une autre version d'un même devis (option, autre choix) |
+| **Remise** | la réduction visible par le client (différente de la marge, qui reste interne) |
+| **Acompte** | la part payée à la signature, calculée sur le TTC |
+| **Retenue de garantie** | 5 % du TTC gardés par le client jusqu'à la fin de la garantie |
+| **Net à payer** | le montant final après acompte, primes et retenue |
+

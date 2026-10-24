@@ -10,6 +10,7 @@ Chemin du dépôt sur le Mac de Jérôme (à utiliser dans chaque commande) : `/
 2. **Récupérer l'adresse Google** de chaque personne (en minuscules). Elle doit être un compte Google : c'est ce qui sert à se connecter.
 3. **Vérifier la plateforme** : si du code a changé depuis le dernier client, le workflow manuel « Déploiement plateforme clients » est à lancer par Jérôme (jamais par Claude).
 4. Préparer le logo et au plus 4 images (png, jpg, webp ou gif ; 2 Mo au plus par l'outil de Jérôme, 1,5 Mo par image si le client les ajoute lui-même depuis « Mon espace ») dans un dossier du Mac, **hors du dépôt**.
+5. **Si le module Devis est activé : récupérer ses données existantes auprès du client** : le catalogue d'articles (tableur ou CSV) et **tous ses anciens devis** (gagnés, perdus, en attente ; en PDF si c'est le seul format), avec si possible un tableau récapitulatif (numéro, date, client, montant, statut). Sans eux, l'espace est vide le premier jour. Les fichiers restent **hors du dépôt**. Le client doit aussi avoir **une adresse Google** : s'il n'en a pas, lui en faire créer une avant la séance.
 
 ## Pendant la séance
 
@@ -23,8 +24,10 @@ Chemin du dépôt sur le Mac de Jérôme (à utiliser dans chaque commande) : `/
 | 6 | **Installer l'appli sur son téléphone** | Jérôme + client | Ouvrir l'adresse de l'espace sur le téléphone, puis « Ajouter à l'écran d'accueil ». |
 | 7 | **Raccourci épinglé sur téléphone et ordinateur** | Jérôme + client | Épingler l'adresse (marque-page ou raccourci du bureau) pour qu'elle soit à un clic. |
 | 8 | **Rendez-vous de suivi** | Jérôme | À fixer **avant de partir**, par exemple dans une semaine, pour voir ce qui bloque. |
+| 9 | **Importer le catalogue et les anciens devis** | Jérôme | Seulement si le module Devis est activé. Le catalogue va dans le Bordereau. Les anciens devis sont importés comme « importés » (lecture seule, numéro et statut d'origine) ; les chiffres d'affaires par mois alimentent les indicateurs. Toujours un essai à blanc d'abord ; écriture seulement avec l'accord de Jérôme. |
+| 10 | **Donner au compte de service de la fonction `devisPdf` l'accès au dossier Drive racine des devis** | Jérôme + client | Seulement si le module Devis est activé. Dans le Drive du client, partager le dossier racine des devis, en édition, avec le compte de service de `devisPdf` (aucune clé à créer). Sans ça, le PDF ne se range pas. |
 
-Les étapes 4, 6 et 7 se font **à deux, en visio** : Jérôme guide, le client agit sur son propre ordinateur et téléphone.
+Les étapes 4, 6, 7 et 10 se font **à deux, en visio** : Jérôme guide, le client agit sur son propre ordinateur et téléphone.
 
 ## Après la séance
 

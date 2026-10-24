@@ -1,8 +1,28 @@
 # Cadrage : module Devis
 
-Rédigé le 24/10/2026 avec Jérôme (discussion complète), relu deux fois par Fable. **Rien n'est codé.** Chaque point est marqué **Décidé** (par Jérôme), **Proposition** (choix par défaut de Claude, à confirmer) ou **À trancher**.
+Rédigé le 24/10/2026 avec Jérôme (discussion complète), relu deux fois par Fable. **État au 24/10/2026 (fin de la première nuit de code) : voir la section « Mise à jour » juste après ce paragraphe ; les sections 2 à 13 ci-dessous sont le cadrage d'origine, et la section « Mise à jour » l'emporte quand elles se contredisent.** Chaque point est marqué **Décidé** (par Jérôme), **Proposition** (choix par défaut de Claude, à confirmer) ou **À trancher**.
 
 > **Dépôt public** : aucun nom de client, aucune donnée d'entreprise (SIRET, assurance, RIB, tarifs, modèle de devis) ne vit ici ni dans le code. Tout ce qui est propre à un client est une **donnée de son espace** (réglages du module, bordereau) ou vit dans **son** workflow n8n. Un test statique le vérifie (voir « Critères d'acceptation », D26).
+
+## Mise à jour du 24/10/2026 (après la première nuit de code)
+
+**Ce qui est fait** : logique et totaux, remise, conditions, adresses, ouvrages, familles, chantier et émetteur, générateur de CGV, écran liste, éditeur, Bordereau, fonction de PDF, outils MCP (voir `docs/plan-mcp.md`). Ce qui reste est dans `docs/reprise-prochaine-session.md` et `docs/roadmap-evolutions-devis.md`.
+
+**Décisions qui remplacent ou précisent le cadrage d'origine**
+
+- **Pas de n8n en v1.** La mise en page, le PDF et le rangement ne passent plus par n8n (les sections 2 et 6 sont donc dépassées sur ce point). Le PDF = un **gabarit HTML maison** transformé par **Gotenberg** (service privé sur Cloud Run, région UE), puis rangé dans Google Drive par un **compte de service sans clé** : c'est la fonction `devisPdf`. Sa PR est ouverte et **à fusionner par Jérôme** (elle touche le déploiement) ; les étapes de console sont dans `docs/reprise-prochaine-session.md`. Un brouillon n'a pas de PDF.
+- **Emplacements prévus, pas développés** : `pagesAvant` (pages de présentation avant le chiffrage) et `blocSignature` (signature en fin de PDF).
+- **Remise client distincte de la marge** : la marge est interne (jamais visible du client) ; la remise est une ligne visible sur le devis.
+- **Conditions** : l'acompte se calcule sur le **TTC** ; les primes (énergie) sont **déduites** ; la **retenue de garantie** est de 5 % du TTC ; le total final s'appelle **« Net à payer »**.
+- **Chantier et réglages de l'émetteur** : l'identité de l'entreprise vit dans les réglages du module (donnée de l'espace, jamais dans le dépôt) ; le chantier est une adresse et une description sur le devis (pas d'entité « chantier »).
+- **Ouvrages** : un ouvrage regroupe des articles et se glisse dans un devis comme un bloc.
+- **Familles d'articles** : une seule famille par article, **pas de sous-familles**. Nouveau type de ligne **Texte** (paragraphe sans prix). Un article a une **référence** et une **marque**. Stocks et tarifs fournisseurs : hors v1.
+- **CGV** : un générateur produit le texte ; il est **à faire relire par un juriste** (constante `CGV_RELUES_PAR_JURISTE`, faux tant que ce n'est pas fait, avec avertissement à l'écran ; points à trancher listés en tête de `js/modules/devis/cgv.js`).
+- **Statuts** : Brouillon, Finalisé, Envoyé, Signé, Refusé, Remplacé ; **Expiré** se calcule à l'affichage (aucune écriture).
+- **Écrans** : la **liste des devis** (liste et tableau), l'**éditeur** (Édition / Aperçu), le **Bordereau**. Pas de glisser-déposer dans le tableau par statut.
+- **Pilotage reporté** : il nécessite la facturation.
+- **Hors v1** : étiquettes, styles de tableau et de totaux, ordre de l'en-tête, QR code, numérotation et titre modifiables, points de collecte, entité chantier, glisser-déposer des lignes, primes, retenue et déchets dans l'éditeur (ils existent dans le calcul, pas encore à l'écran).
+- **Outils MCP** : `lister_devis`, `lire_devis`, `creer_devis_brouillon`, `modifier_devis_brouillon`, `finaliser_devis` (en deux temps, avec code).
 
 ## 1. Le besoin
 

@@ -1,6 +1,69 @@
 # À faire au début de la prochaine session
 
-Écrit le 04/10/2026, mis à jour le 24/10/2026, pour qu'une session neuve reprenne sans que Jérôme ait à recoller quoi que ce soit. **À mettre à jour ou à supprimer une fois les points faits.**
+Mis à jour le 24/10/2026 au matin (nuit « GO NUIT » du module Devis). **À mettre à jour ou à supprimer une fois les points faits.**
+
+## Rapport du matin : nuit du 24/10/2026, module Devis (version 2.28.0)
+
+| Sujet | PR | État |
+|---|---|---|
+| Ouvrages | 229 | fusionnée seule, tests verts |
+| Générateur de CGV (sans écran, à relire par un juriste) | 230 | fusionnée seule, tests verts |
+| Chantier et réglages de l'émetteur (sans écran) | 231 | fusionnée seule, tests verts |
+| Type Texte, familles d'articles, référence et marque dans le Bordereau | 232 | fusionnée seule, tests verts |
+| Liste des devis (liste et tableau) | 233 | fusionnée seule, tests verts |
+| Éditeur de devis (première version) | 234 | fusionnée seule, tests verts |
+| Fonction `devisPdf` (PDF par Gotenberg, rangement Drive) | 235 | **à fusionner par Jérôme** (étiquette `a-fusionner-par-jerome`) : étapes de console ci-dessous |
+| Finale : outils MCP du module Devis, documentation, version 2.28.0, wiki | cette PR | fusionnée seule si la coche « Tests » est verte |
+
+### Les 6 étapes de console pour le PDF (dans l'ordre, PR 235)
+La fonction répond « PDF non configuré » tant qu'elles ne sont pas faites.
+1. **Cloud Run**, région `europe-west9` : déployer l'image `gotenberg/gotenberg:8` en service **privé** (« Require authentication »), avec les options `--chromium-deny-list` (plages privées, `.internal`, adresses de métadonnées) et `--chromium-disable-javascript=true`.
+2. Sur ce service, donner le rôle « Demandeur Cloud Run » au compte de service de la porte (`porte-serveur@…`, nom complet dans la description de la PR 235).
+3. Console Google Cloud, « API et services » : activer **Google Drive API**.
+4. **Google Drive** : créer le dossier racine des devis, le partager en « Éditeur » avec ce compte de service ; noter son identifiant (fin de l'adresse du dossier).
+5. Renseigner les deux paramètres de la fonction : `GOTENBERG_URL` (adresse du service, sans barre finale) et `DRIVE_RACINE_DEVIS_ID`, au déploiement ou dans `functions/.env.chevalier-ia-os` (non commité).
+6. Déployer les fonctions du projet `chevalier-ia-os` (pas la plateforme clients).
+
+Recette ensuite : finaliser un devis, appeler la fonction, trouver le PDF dans `Devis/` du dossier de l'affaire (sans prix d'achat ni marge) ; un second appel immédiat est refusé ; un brouillon est refusé.
+
+## À faire pour Jérôme
+- **Clics console du PDF** : les 6 étapes ci-dessus.
+- **Faire relire les CGV par un juriste** : les points à trancher sont listés en tête de `js/modules/devis/cgv.js` ; tant que ce n'est pas fait, `CGV_RELUES_PAR_JURISTE` reste faux et l'écran avertit.
+- **Expert-comptable** : faire valider l'attestation de TVA, l'autoliquidation et les mentions obligatoires.
+- **Questions pour le client pilote** : prime et retenue de garantie en détail ; la marge réelle qu'il veut ; ses ouvrages.
+- **Rendez-vous de lundi** : son adresse Gmail ; l'export de son catalogue et de ses anciens devis ; ce que son logiciel actuel sait exporter.
+- **Nettoyer les restes d'essai** : le workflow n8n `interne-devis-essai` (id 45QyeDyOgPtwoXtt), le dossier Drive `_devis-essai`, le brouillon Gmail dans la boîte d'essai.
+- **Durcir les règles Firestore** : ajouter `pdf` aux clés protégées d'un brouillon (PR de règles à part, dans la liste d'arrêt : Jérôme la fusionne).
+
+## Suites prévues
+- Éditeur : primes énergie, retenue, déchets, glisser-déposer des lignes, ajustement de marge à trois champs.
+- Écran des réglages de l'entreprise avec champs rouges et bandeau « mentions manquantes ».
+- Page de consultation en ligne (voir `docs/roadmap-evolutions-devis.md`).
+- Liens affaire et devis : carte verrouillée pendant un brouillon, indicateurs, historique de l'affaire, déclencheurs d'automatisations.
+- Import du catalogue et des anciens devis (à préparer avec `docs/deploiement-client.md`).
+- Fonction `devisPdf` pour la plateforme clients.
+
+## Ce qui n'a pas pu être vérifié
+- Les fonctions du serveur réelles (`devisFinaliser`, `devisNouvelleVersion`, `devisPdf`) et les outils MCP sur une vraie base.
+- Gotenberg et Google Drive réels.
+- Les règles Firestore de `devis_parametres/familles` sur la vraie base.
+- Le palier complet de tests : à lancer sur GitHub (suite de nuit).
+- Des captures d'autres dossiers sont peut-être à régénérer.
+- La relecture Fable des briefs n'a pas été faite, pour économiser le budget.
+
+## Décisions prises seul cette nuit
+- Pas de glisser-déposer dans le tableau par statut des devis : un statut change par un bouton.
+- Les actions pas encore prêtes sont grisées avec « bientôt disponible », pas cachées.
+- Pilotage et stocks reportés.
+- Pas de sous-familles : une seule famille par article.
+- Un brouillon n'a pas de PDF.
+- Les anciens devis importés ne se dupliquent pas.
+- `finaliser_devis` n'est pas donné au bibliothécaire.
+
+## État de la nuit GitHub
+Non consulté (commande : `gh run list --workflow "Tests de nuit" --limit 3`).
+
+## Points précédents (avant la nuit du 24/10/2026, gardés tels quels)
 
 ## Point du 23/10/2026 soir : **remplace le point de l'après-midi sur les PR en attente**
 
