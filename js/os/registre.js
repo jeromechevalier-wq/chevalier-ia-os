@@ -114,7 +114,8 @@ export const MODULES_DECLARES = geler([
   {
     // Devis (cadrage-devis.md, 24/10/2026) : le bordereau de prix (articles) et les réglages du module, en attendant les devis eux-mêmes.
     // Dépend des seules Affaires (le client pilote n'a ni Projets ni facturation). Présent chez Jérôme comme chez les clients (même code).
-    // Les collections `devis_devis` et `devis_compteurs` du cadrage ne sont PAS déclarées tant qu'aucun écran ni aucune règle ne les utilise.
+    // `devis_devis` (un document par version, règles Firestore : écrit par le navigateur tant que brouillon, sinon par les fonctions du serveur) est déclarée ici.
+    // `devis_compteurs` (compteur des numéros) ne l'est PAS : réservée au serveur, ni lue ni écrite par un navigateur, jamais dans l'export.
     id: 'devis',
     nom: 'Devis',
     libelleMenu: 'Devis',
@@ -125,7 +126,7 @@ export const MODULES_DECLARES = geler([
     ecrans: [
       { route: 'devis/bordereau', libelle: 'Bordereau', icone: 'list' },
     ],
-    collections: ['devis_articles', 'devis_parametres'],
+    collections: ['devis_articles', 'devis_parametres', 'devis_devis'],
     outilsMcp: ['lister_articles', 'chercher_article', 'creer_article', 'modifier_article', 'desactiver_article'],
     dependances: ['affaires'],
   },

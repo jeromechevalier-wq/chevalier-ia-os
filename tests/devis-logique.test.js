@@ -321,3 +321,20 @@ describe('Corrections de relecture', () => {
     assert.equal(v2.expireLe, D.dateExpiration(new Date('2026-10-24T10:00:00Z'), 30));
   });
 });
+
+describe('C8 libellés des statuts', () => {
+  test('C8 les libellés affichés sont Brouillon, Finalisé, Envoyé, Signé, Refusé, Expiré, Remplacé (les identifiants stockés ne changent pas)', () => {
+    assert.deepEqual(D.STATUTS_DEVIS.map((s) => s.libelle), ['Brouillon', 'Finalisé', 'Envoyé', 'Signé', 'Refusé', 'Expiré', 'Remplacé']);
+    const id = (libelle) => D.STATUTS_DEVIS.find((s) => s.libelle === libelle).id;
+    assert.equal(id('Finalisé'), 'en_attente_envoi');
+    assert.equal(id('Signé'), 'accepte');
+    assert.equal(id('Brouillon'), 'brouillon');
+    assert.equal(id('Envoyé'), 'envoye');
+    assert.equal(id('Refusé'), 'refuse');
+    assert.equal(id('Remplacé'), 'remplace');
+    // Expiré se calcule à l'affichage : aucune action ne mène à lui.
+    assert.equal(Object.values(D.TRANSITIONS).some((t) => t.vers === 'expire'), false);
+    assert.equal(D.STATUTS_DEVIS.some((s) => /attente|Accepté/i.test(s.libelle)), false);
+  });
+});
+
