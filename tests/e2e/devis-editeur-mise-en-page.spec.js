@@ -84,10 +84,9 @@ test('1 la barre d’actions reste en haut quand on défile : titre « Brouillon
   // En bas de la page, la barre est toujours à l'écran (collée en haut, sous la barre du téléphone).
   await defiler(page, false);
   await expect(barre).toBeInViewport({ ratio: 1 });
-  // Collée juste sous la barre de recherche (60 px sur ordinateur) ou du menu (56 px sur téléphone), et pas cachée derrière elle.
+  // Collée en haut de l'écran sur ordinateur (la recherche du haut n'existe plus sur Devis), juste sous la barre du menu (56 px) sur téléphone, et pas cachée derrière elle.
   const haut = (await barre.boundingBox()).y;
-  expect(haut).toBeGreaterThanOrEqual(52);
-  expect(haut).toBeLessThanOrEqual(64);
+  if (estTelephone(page)) { expect(haut).toBeGreaterThanOrEqual(52); expect(haut).toBeLessThanOrEqual(64); } else { expect(haut).toBeLessThanOrEqual(4); }
   const titre = await page.getByRole('heading', { level: 1 }).boundingBox();
   expect(await page.evaluate(({ x, y }) => Boolean(document.elementFromPoint(x, y)?.closest('.barre-devis')), { x: titre.x + titre.width / 2, y: titre.y + titre.height / 2 })).toBe(true);
   await capturer(page, info, '1-barre-fixe', { pleine: false });
