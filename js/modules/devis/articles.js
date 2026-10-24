@@ -18,14 +18,16 @@ import {
   MODES_MARGE, REGIMES_TVA, TAUX_TVA_DEFAUT, DUREE_VALIDITE_DEFAUT, coefficientDeMarge,
 } from './logique.js';
 import { TYPE_OUVRAGE, erreursOuvrage, articlesParId, calculerOuvrage } from './ouvrages.js';
-import { FAMILLES_PAR_DEFAUT, erreurFamilleArticle } from './familles.js';
+import {
+  FAMILLES_PAR_DEFAUT, erreurFamilleArticle, typeDeFamille, cheminFamille, familleEffective, idsAvecSousFamilles,
+} from './familles.js';
 
 // ---------------------------------------------------------------- constantes
 export const COLLECTION_ARTICLES = 'devis_articles';
 export const COLLECTION_PARAMETRES = 'devis_parametres';
 export const ID_REGLAGES = 'reglages';
-/** Unités proposées dans la liste (le texte libre reste permis). */
-export const UNITES_PROPOSEES = ['u', 'm', 'm²', 'm³', 'ml', 'h', 'jour', 'km', 'forfait', 'kg'];
+/** Unités proposées dans le menu (le texte libre reste permis, via « Autre… »). */
+export const UNITES_PROPOSEES = ['u', 'm', 'm²', 'm³', 'ml', 'h', 'jour', 'semaine', 'mois', 'forfait', 'lot', 'kg', 't', 'L', 'paire', 'ensemble'];
 export const UNITE_DEFAUT = 'u';
 /** Noms que l'utilisateur peut donner au bordereau (réglage du module). */
 export const NOMS_BORDEREAU = ['Bordereau de prix unitaires', 'Grille tarifaire', 'Catalogue'];
@@ -104,15 +106,25 @@ export function validerArticle(saisie, { articles = [], courant = null, familles
   const libelle = texte(base.libelle);
   if (!libelle) erreurs.libelle = 'Le libellé est obligatoire : écris le nom de l’article (exemple : Carrelage 60 x 60).';
   else if (libelle.length > LIMITES.libelle) erreurs.libelle = `Le libellé est trop long (${LIMITES.libelle} caractères au plus).`;
-  const unite = texte(base.unite) || (courant || base.type === TYPE_TEXTE ? '' : UNITE_DEFAUT);
-  if (!unite && base.type === TYPE_TEXTE) { /* une ligne de texte n'a pas d'unité */ } else if (!unite) erreurs.unite = 'Choisis une unité (exemple : m², h, forfait).';
-  else if (unite.length > LIMITES.unite) erreurs.unite = `L’unité est trop longue (${LIMITES.unite} caractères au plus).`;
-  // Type (facultatif) : absent = non classé.
+  // Type (facultatif) : absent = non classé. Il se DÉDUIT de la famille choisie (celle de premier niveau) ; un type donné à part doit s'accorder avec la famille.
+  const aType = (v) => v !== undefined && v !== null && v !== '';
+  const familleVisee = 'familleId' in saisie ? saisie.familleId : courant?.familleId;
+  const typeFamille = aType(familleVisee) ? typeDeFamille(familles, familleVisee) : null;
+  const familleDonnee = aType(saisie.familleId);
+  let typeBrut = base.type;
+  if (aType(saisie.type)) {
+    if (typeFamille && saisie.type !== typeFamille) {
+      erreurs.type = `Le type « ${libelleType(saisie.type) || String(saisie.type)} » ne va pas avec la famille « ${cheminFamille(familles, familleVisee)} » (type « ${libelleType(typeFamille)} »). Change la famille : le type s’en déduit.`;
+    }
+  } else if (familleDonnee && typeFamille) typeBrut = typeFamille; // famille choisie : le type suit
   let type = null;
-  if (base.type !== undefined && base.type !== null && base.type !== '') {
-    if (TYPES_ARTICLE.some((t) => t.id === base.type)) type = base.type;
-    else erreurs.type = `Le type « ${String(base.type)} » n’existe pas. Choisis parmi : ${TYPES_ARTICLE.map((t) => t.libelle).join(', ')}.`;
+  if (aType(typeBrut)) {
+    if (TYPES_ARTICLE.some((t) => t.id === typeBrut)) type = typeBrut;
+    else erreurs.type = `Le type « ${String(typeBrut)} » n’existe pas. Choisis parmi : ${TYPES_ARTICLE.map((t) => t.libelle).join(', ')}.`;
   }
+  const unite = texte(base.unite) || (courant || type === TYPE_TEXTE ? '' : UNITE_DEFAUT);
+  if (!unite && type === TYPE_TEXTE) { /* une ligne de texte n'a pas d'unité */ } else if (!unite) erreurs.unite = 'Choisis une unité (exemple : m², h, forfait).';
+  else if (unite.length > LIMITES.unite) erreurs.unite = `L’unité est trop longue (${LIMITES.unite} caractères au plus).`;
   const estOuvrage = type === TYPE_OUVRAGE;
   const estTexte = type === TYPE_TEXTE;
   const brutPrix = base.prixAchat;
@@ -216,20 +228,29 @@ export function planMajArticle(id, patch, { articles = [], familles } = {}) {
   if (!courant) return { erreurs: { general: 'Article introuvable : recharge la page.' }, patch: {}, ecritures: [] };
   const donnes = Object.fromEntries(Object.entries(patch ?? {}).filter(([k]) => CHAMPS_MODIFIABLES.includes(k)));
   if (!Object.keys(donnes).length) return { erreurs: {}, patch: {}, ecritures: [] };
+  // Le type se déduit de la famille : on ne peut pas l'effacer tant que l'article est rangé dans une famille qui en porte un.
+  const familleVisee = 'familleId' in donnes ? donnes.familleId : familleEffective(courant);
+  if ('type' in donnes && !donnes.type && familleVisee && typeDeFamille(familles ?? FAMILLES_PAR_DEFAUT, familleVisee)) {
+    return { erreurs: { type: 'Le type se déduit de la famille : change la famille de l’article plutôt que son type.' }, patch: {}, ecritures: [] };
+  }
   // Si l'article quitte le type « ouvrage », ses composants et son prix forcé s'effacent (ils ne comptent plus dans la validation).
-  const quitteOuvrage = 'type' in donnes && donnes.type !== TYPE_OUVRAGE;
+  // Le type peut aussi changer parce que la famille change : il se déduit de la famille de premier niveau (voir validerArticle).
+  const typeDeLaFamille = 'familleId' in donnes && donnes.familleId ? typeDeFamille(familles ?? FAMILLES_PAR_DEFAUT, donnes.familleId) : null;
+  const typeVise = 'type' in donnes ? (donnes.type || null) : (typeDeLaFamille ?? undefined);
+  const touchType = typeVise !== undefined;
+  const quitteOuvrage = touchType && typeVise !== TYPE_OUVRAGE;
   const { composants: _c, prixVenteForce: _f, ...sansOuvrage } = courant;
   const { valeurs, erreurs } = validerArticle(donnes, { articles, familles, courant: { ...(quitteOuvrage ? sansOuvrage : courant), id } });
   // Seules les erreurs des champs touchés bloquent (un ancien article sans prix ne bloque pas la correction de son libellé).
-  const bloquantes = Object.fromEntries(Object.entries(erreurs).filter(([k]) => k in donnes || ('type' in donnes && (k === 'composants' || k === 'prixVenteForce'))));
+  const bloquantes = Object.fromEntries(Object.entries(erreurs).filter(([k]) => k in donnes || (touchType && (k === 'composants' || k === 'prixVenteForce'))));
   if (Object.keys(bloquantes).length) return { erreurs: bloquantes, patch: {}, ecritures: [] };
   const net = {};
   const pareil = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
-  for (const k of Object.keys(donnes)) {
+  for (const k of new Set([...Object.keys(donnes), ...(touchType ? ['type'] : [])])) {
     if (!pareil(courant[k] ?? (['code', 'reference', 'marque', 'familleId'].includes(k) ? '' : null), valeurs[k])) net[k] = valeurs[k];
   }
   // Changer de type garde les champs cohérents : un ouvrage n'a pas de prix d'achat, un autre type n'a ni composants ni prix forcé.
-  if ('type' in donnes) {
+  if (touchType) {
     if (valeurs.type === TYPE_OUVRAGE) {
       const dansUnOuvrage = (articles ?? []).find((a) => a.type === TYPE_OUVRAGE && (a.composants ?? []).some((c) => c.articleId === id));
       if (dansUnOuvrage) return { erreurs: { type: `Cet article est un composant de l’ouvrage « ${dansUnOuvrage.libelle} » : un ouvrage ne peut pas en contenir un autre. Retire-le d’abord de cet ouvrage.` }, patch: {}, ecritures: [] };
@@ -268,14 +289,18 @@ export function avecCalculOuvrage(articles, toutes, reglages) {
 }
 
 // ---------------------------------------------------------------- recherche, filtre, tri
-/** Articles filtrés (recherche dans le code et le libellé, sans accents ni casse ; `statut` : actifs | desactives | tous), triés par libellé. */
-export function filtrerArticles(articles, { recherche = '', statut = 'actifs', type = '', familleId = '' } = {}) {
+/**
+ * Articles filtrés (recherche dans le code et le libellé, sans accents ni casse ; `statut` : actifs | desactives | tous), triés par libellé.
+ * `familleId` : une famille (sa famille de départ pour un article sans famille) ; un filtre sur une famille de premier niveau inclut ses sous-familles ; 'sans_famille' = aucune.
+ */
+export function filtrerArticles(articles, { recherche = '', statut = 'actifs', type = '', familleId = '', familles = FAMILLES_PAR_DEFAUT } = {}) {
+  const idsFamille = familleId && familleId !== 'sans_famille' ? idsAvecSousFamilles(familles, familleId) : null;
   const mots = normaliser(recherche).split(/\s+/).filter(Boolean);
   const gardes = (articles ?? []).filter((a) => {
     if (statut === 'actifs' && a.actif === false) return false;
     if (statut === 'desactives' && a.actif !== false) return false;
     if (type === 'non_classe' ? !!a.type : (type && a.type !== type)) return false;
-    if (familleId === 'sans_famille' ? !!a.familleId : (familleId && a.familleId !== familleId)) return false;
+    if (familleId === 'sans_famille' ? !!familleEffective(a) : (idsFamille && !idsFamille.includes(familleEffective(a)))) return false;
     if (!mots.length) return true;
     const cible = normaliser(`${a.code ?? ''} ${a.libelle ?? ''} ${a.reference ?? ''} ${a.marque ?? ''}`);
     return mots.every((m) => cible.includes(m));

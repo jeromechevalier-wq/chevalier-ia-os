@@ -153,8 +153,8 @@ async function ecrireFamilles(plan) {
   notifier();
   return { erreur: null, famille: plan.famille };
 }
-/** Crée une famille : `{ erreur, famille }` (l'erreur est un message à montrer). */
-export const creerFamille = (nom) => ecrireFamilles(F.planCreationFamille(nom, etat.familles, { nouvelId: () => CRM.ctx().nouvelId(A.COLLECTION_PARAMETRES) }));
+/** Crée une sous-famille sous `parentId` (une famille de premier niveau) : `{ erreur, famille }` (l'erreur est un message à montrer). */
+export const creerFamille = (nom, parentId) => ecrireFamilles(F.planCreationFamille(nom, etat.familles, { parentId, nouvelId: () => CRM.ctx().nouvelId(A.COLLECTION_PARAMETRES) }));
 export const renommerFamille = (id, nom) => ecrireFamilles(F.planRenommerFamille(id, nom, etat.familles));
 export const activerFamille = (id, actif) => ecrireFamilles(F.planDesactiverFamille(id, etat.familles, actif));
 

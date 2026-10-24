@@ -18,7 +18,8 @@
 }
 .reglages-devis .cases { display: flex; gap: var(--esp-7); flex-wrap: wrap; }
 .valeur-calculee { display: inline-block; padding: 2px 0; }
-.tableau-articles .champ-type { min-width: 130px; }
+.menu-unite { display: flex; flex-direction: column; gap: var(--esp-2); min-width: 90px; }
+.menu-unite.invalide .champ { border-color: var(--retard); }
 
 /* Éditeur de la composition d'un ouvrage (fenêtre « Ajouter un article » et fenêtre « Composition »). */
 .editeur-ouvrage .discret { color: var(--texte2); }
@@ -83,6 +84,7 @@
 .famille-option { display: flex; align-items: center; gap: var(--esp-4); min-height: var(--h-ctrl-petit); padding: 0 var(--esp-3); border-radius: var(--rayon-petit); cursor: pointer; }
 .famille-option:hover { background: var(--survol); }
 .famille-desactivee { color: var(--texte2); }
+.famille-niveau-2 { padding-left: var(--esp-8); }
 .entete-familles { justify-content: space-between; }
 .ligne-champs-egale > .bloc-champ { flex: 1 1 200px; min-width: 0; }
 .tableau-articles td[data-colonne="reference"], .tableau-articles td[data-colonne="marque"] { min-width: 110px; }
