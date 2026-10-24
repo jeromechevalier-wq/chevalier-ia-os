@@ -71,7 +71,7 @@ function journal({ donnees, ctx, outil, parametres, changements }) {
     ecritures.push({
       type: 'set', collection: C.audit, id: auditId,
       donnees: {
-        operationId, ordre: i + 1, date: ctx.maintenant, acteur: ctx.acteur, jeton: ctx.acteur, via: ctx.via || 'ecran', outil,
+        operationId, ordre: i + 1, date: ctx.maintenant, acteur: ctx.acteur, jeton: ctx.jeton ?? ctx.acteur, via: ctx.via || 'ecran', outil,
         collection: C.devis, docId: c.id, action: c.action, statut: 'succes', champsModifies: c.champs, parametresRecus: Object.keys(parametres ?? {}).slice(0, 40),
       },
     });

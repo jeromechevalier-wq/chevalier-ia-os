@@ -3,6 +3,7 @@
 import * as L from '../../partage/logique.js';
 import * as PL from '../../partage/projets.js';
 import * as DA from '../../partage/devis-articles.js';
+import * as D from '../../partage/devis.js';
 import { COLLECTIONS as C } from './donnees.js';
 import { serialiser } from './serialisation.js';
 import { lireConfig } from './config.js';
@@ -286,4 +287,80 @@ export async function chercherArticle(donnees, { texte, limite }) {
   const lignes = DA.filtrerArticles(toutes, { recherche: texte, statut: 'actifs' });
   const { total, tronque, elements } = borne(lignes, Math.min(limite ?? 20, MAX_LIGNES));
   return serialiser({ total, tronque, articles: DA.avecCalculOuvrage(elements, toutes, await reglagesDevis(donnees)) });
+}
+
+// ---------------------------------------------------------------- Devis (24/10/2026)
+// Les mêmes calculs que l'écran (partage/devis.js). « Expiré » n'est jamais stocké : il est calculé ici, comme à l'écran.
+// Règle de visibilité : lister_devis ne montre que les totaux (jamais de prix d'achat ni de marge) ; lire_devis montre les lignes comme lister_articles montre
+// les articles (prix d'achat et marge compris : c'est la vue de l'artisan, jamais celle du client).
+
+const statutAffiche = (devis, aujourdhui) => (D.estExpire(devis, aujourdhui) ? 'expire' : devis.statut);
+const libelleStatut = (id) => D.STATUTS_DEVIS.find((x) => x.id === id)?.libelle ?? id;
+
+/** Le client d'un devis : l'organisation d'abord, sinon la personne (même ordre que l'écran). */
+function clientDe(devis, organisations, personnes) {
+  const o = devis.organisationId ? organisations.find((x) => x.id === devis.organisationId) : null;
+  if (o) return { type: 'organisation', id: o.id, nom: o.nom };
+  const p = devis.personneId ? personnes.find((x) => x.id === devis.personneId) : null;
+  return p ? { type: 'personne', id: p.id, nom: p.nom } : null;
+}
+
+/** Totaux d'un devis : figés à la finalisation, recalculés tant que c'est un brouillon. */
+const totauxDe = (devis) => (devis.statut !== 'brouillon' && devis.totaux ? devis.totaux : D.totauxDevis(devis));
+
+/** Résumé d'un devis : numéro, version, statut, objet, client, totaux HT et TTC, dates. Jamais de prix d'achat ni de marge. */
+function resumeDevis(devis, { organisations, personnes, aujourdhui }) {
+  const t = totauxDe(devis);
+  const statut = statutAffiche(devis, aujourdhui);
+  return {
+    id: devis.id, numero: devis.numero ?? null, version: devis.version ?? 1, racineId: devis.racineId ?? devis.id,
+    statut, statutLibelle: libelleStatut(statut), objet: devis.objet ?? '', affaireId: devis.affaireId ?? null,
+    client: clientDe(devis, organisations, personnes), totalHT: t.totalHt, totalTTC: t.ttc,
+    creeLe: devis.creeLe ?? null, expireLe: devis.expireLe ?? null, finaliseLe: devis.finaliseLe ?? null, envoyeLe: devis.envoyeLe ?? null,
+    accepteLe: devis.accepteLe ?? null, refuseLe: devis.refuseLe ?? null, archive: devis.archive === true,
+  };
+}
+
+/** Les devis, du plus récent au plus ancien. Filtres : statut (brouillon, en_attente_envoi, envoye, accepte, refuse, expire, remplace ; expire = calculé), affaire, texte (numéro, objet, client). Archivés exclus sauf `archives: true`. */
+export async function listerDevis(donnees, { statut, affaireId, texte, archives, limite }, maintenant = new Date()) {
+  const aujourdhui = L.aujourdhuiParis(maintenant);
+  const [devis, organisations, personnes] = await Promise.all([C.devis, C.organisations, C.personnes].map((nom) => donnees.liste(nom)));
+  const contexte = { organisations, personnes, aujourdhui };
+  const mots = L.normaliserNom(texte ?? '').split(/\s+/).filter(Boolean);
+  const lignes = devis
+    .filter((d) => (archives === true || d.archive !== true) && (!affaireId || d.affaireId === affaireId))
+    .map((d) => resumeDevis(d, contexte))
+    .filter((r) => (!statut || statut === 'tous' || r.statut === statut))
+    .filter((r) => {
+      if (!mots.length) return true;
+      const cible = L.normaliserNom(`${r.numero ?? ''} ${r.objet} ${r.client?.nom ?? ''}`);
+      return mots.every((m) => cible.includes(m));
+    })
+    .sort((a, b) => (L.versDate(b.creeLe)?.getTime() ?? 0) - (L.versDate(a.creeLe)?.getTime() ?? 0) || String(b.id).localeCompare(String(a.id)));
+  const { total, tronque, elements } = borne(lignes, Math.min(limite ?? MAX_LIGNES, MAX_LIGNES));
+  return serialiser({ total, tronque, devis: elements });
+}
+
+/** Un devis complet côté artisan : en-tête, client, affaire, sections et lignes (avec prix de vente et total de chaque ligne), remise, acompte, chantier, totaux. */
+export async function lireDevis(donnees, { id }, maintenant = new Date()) {
+  const devis = await donnees.document(C.devis, id);
+  if (!devis) introuvable('Devis');
+  const [organisations, personnes] = await Promise.all([C.organisations, C.personnes].map((nom) => donnees.liste(nom)));
+  const aujourdhui = L.aujourdhuiParis(maintenant);
+  const t = totauxDe(devis);
+  const parLigne = new Map(t.lignes.map((l) => [l.id, l]));
+  const affaire = devis.affaireId ? await donnees.document(C.affaires, devis.affaireId) : null;
+  const { sections, totaux: _figes, ...reste } = devis;
+  return serialiser({
+    ...reste,
+    ...resumeDevis(devis, { organisations, personnes, aujourdhui }),
+    affaire: affaire ? { id: affaire.id, titre: affaire.titre } : null,
+    sections: (sections ?? []).map((s) => ({
+      ...s,
+      sousTotalHT: t.sections.find((x) => x.id === s.id)?.sousTotalHT ?? 0,
+      lignes: (s.lignes ?? []).map((l) => ({ ...l, prixVenteUnitaire: parLigne.get(l.id)?.prixVenteUnitaire ?? null, totalHT: parLigne.get(l.id)?.totalHT ?? 0, venduAPerte: parLigne.get(l.id)?.venduAPerte ?? false })),
+    })),
+    totaux: { totalBrutHT: t.totalBrutHt, remiseHT: t.remiseHt, totalHT: t.totalHt, tvaParTaux: t.tvaParTaux, tva: t.tva, totalTTC: t.ttc, acompteTTC: t.acompteTtc, resteAFacturerTTC: t.resteAFacturerTtc, netAPayer: t.netAPayer, mentions: t.mentions },
+    ...(devis.statut === 'brouillon' ? { erreursFinalisation: D.erreursFinalisation(devis) } : {}),
+  });
 }

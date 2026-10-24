@@ -243,7 +243,7 @@ describe('B8 règles Firestore : déclaration (les parcours sont dans regles-pla
 
 describe('B9 assistant : outils déclarés', () => {
   test('B9 le registre déclare les cinq outils du bordereau', () => {
-    assert.deepEqual(moduleDeclare('devis').outilsMcp, ['lister_articles', 'chercher_article', 'creer_article', 'modifier_article', 'desactiver_article']);
+    assert.deepEqual(moduleDeclare('devis').outilsMcp, ['lister_articles', 'chercher_article', 'creer_article', 'modifier_article', 'desactiver_article', 'lister_devis', 'lire_devis', 'creer_devis_brouillon', 'modifier_devis_brouillon', 'finaliser_devis']);
   });
 });
 
