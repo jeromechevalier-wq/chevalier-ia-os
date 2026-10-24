@@ -290,3 +290,119 @@ describe('5 impression depuis le navigateur', () => {
     assert.match(htmlDuDevis({ ...d, statut: 'brouillon' }), /BROUILLON/);
   });
 });
+
+// ---------------------------------------------------------------- partie 3 : menus des sections et saut de page visuel
+const saut = (id) => ({ id, type: 'saut' });
+const avecSous = () => [
+  { id: 'sec-debut', titre: '', lignes: [] },
+  { id: 's1', titre: 'Salle', lignes: [ligne('a', 10, 1)] }, { id: 'ss1', titre: 'Bar', niveau: 2, lignes: [ligne('b', 10, 1)] }, { id: 's2', titre: 'Cuisine', lignes: [ligne('c', 10, 1)] },
+];
+
+describe('1 menu d’une section : insérer au début, à la fin, au dessus, en dessous', () => {
+  test('1 au début : juste sous l’en-tête ; à la fin : après la dernière ligne, avant la section suivante', () => {
+    assert.deepEqual(ids(Ed.insererAutour(trois(), Ed.ligneTexte('x'), 's1', 'debut')), ['a', 's1', 'x', 'b', 'c', 's2', 'd']);
+    assert.deepEqual(ids(Ed.insererAutour(trois(), Ed.ligneTexte('x'), 's1', 'fin')), ['a', 's1', 'b', 'c', 'x', 's2', 'd']);
+  });
+  test('1 au dessus : avant la section ; en dessous : après la section ENTIÈRE (lignes comprises)', () => {
+    assert.deepEqual(ids(Ed.insererAutour(trois(), Ed.sectionNeuve('n'), 's1', 'avant')), ['a', 'n', 's1', 'b', 'c', 's2', 'd']);
+    assert.deepEqual(ids(Ed.insererAutour(trois(), Ed.sectionNeuve('n'), 's1', 'apres')), ['a', 's1', 'b', 'c', 'n', 's2', 'd']);
+    assert.deepEqual(ids(Ed.insererAutour(trois(), Ed.sectionNeuve('n'), 's2', 'apres')), ['a', 's1', 'b', 'c', 's2', 'd', 'n']);
+  });
+  test('1 une section de niveau 1 emporte ses sous-sections : « en dessous » passe après elles ; une sous-section créée au début ne vole aucune ligne', () => {
+    assert.deepEqual(ids(Ed.insererAutour(avecSous(), Ed.ligneTexte('x'), 's1', 'apres')), ['s1', 'a', 'ss1', 'b', 'x', 's2', 'c']);
+    assert.deepEqual(ids(Ed.insererAutour(avecSous(), Ed.sousSectionNeuve('n'), 's1', 'debut')), ['s1', 'a', 'n', 'ss1', 'b', 's2', 'c']);
+    assert.deepEqual(ids(Ed.insererAutour(avecSous(), Ed.sousSectionNeuve('n'), 's1', 'fin')), ['s1', 'a', 'ss1', 'b', 'n', 's2', 'c']);
+  });
+  test('1 autour d’une sous-section : au dessus / en dessous restent dans sa section ; début : sœur avant ; fin : sœur après', () => {
+    assert.deepEqual(ids(Ed.insererAutour(avecSous(), Ed.ligneTexte('x'), 'ss1', 'avant')), ['s1', 'a', 'x', 'ss1', 'b', 's2', 'c']);
+    assert.deepEqual(ids(Ed.insererAutour(avecSous(), Ed.sousSectionNeuve('n'), 'ss1', 'debut')), ['s1', 'a', 'n', 'ss1', 'b', 's2', 'c']);
+    assert.deepEqual(ids(Ed.insererAutour(avecSous(), Ed.sousSectionNeuve('n'), 'ss1', 'fin')), ['s1', 'a', 'ss1', 'b', 'n', 's2', 'c']);
+    assert.deepEqual(ids(Ed.insererAutour(avecSous(), Ed.ligneTexte('x'), 'ss1', 'debut')), ['s1', 'a', 'ss1', 'x', 'b', 's2', 'c']);
+  });
+  test('1 élément introuvable : rien ne change', () => {
+    assert.deepEqual(ids(Ed.insererAutour(trois(), Ed.ligneTexte('x'), 'zzz', 'fin')), ids(trois()));
+  });
+  test('1 dupliquer une section copie ses lignes avec de nouveaux identifiants ; supprimer la retire avec ses lignes', () => {
+    let n = 0;
+    const r = Ed.dupliquerElement(trois(), 's1', () => `c${n += 1}`);
+    assert.deepEqual(ids(r.sections), ['a', 's1', 'b', 'c', 'c1', 'c2', 'c3', 's2', 'd']);
+    assert.equal(new Set(ids(r.sections)).size, ids(r.sections).length);
+    assert.deepEqual(ids(Ed.supprimerElement(trois(), 's1')), ['a', 's2', 'd']);
+    assert.equal(Ed.lignesEmportees([{ id: 's', titre: 'A', lignes: [ligne('a', 1, 1), saut('p')] }], 's'), 1); // un saut n'est pas une ligne
+  });
+});
+
+describe('2 menu d’une ligne : même liste d’insertion, saut de page compris', () => {
+  test('2 un saut s’insère au dessus et en dessous d’une ligne', () => {
+    assert.deepEqual(ids(Ed.insererAutour(trois(), Ed.ligneSaut('p'), 'b', 'avant')), ['a', 's1', 'p', 'b', 'c', 's2', 'd']);
+    assert.deepEqual(ids(Ed.insererAutour(trois(), Ed.ligneSaut('p'), 'b', 'apres')), ['a', 's1', 'b', 'p', 'c', 's2', 'd']);
+  });
+});
+
+describe('3 saut de page : hors totaux, sans numéro, fidèle à l’ancien réglage', () => {
+  const avec = (n) => [{ id: 's1', titre: 'A', lignes: [ligne('a', 100, 1), ...(n > 0 ? [saut('p1')] : []), ligne('b', 50, 2), ...(n > 1 ? [saut('p2'), saut('p3')] : [])] }];
+  test('3 le net à payer, la TVA et les totaux restent les mêmes avec 0, 1 ou 3 sauts', () => {
+    const base = L.totauxDevis(devisDe(avec(0)));
+    for (const n of [1, 2]) {
+      const t = L.totauxDevis(devisDe(avec(n)));
+      assert.equal(t.netAPayer, base.netAPayer);
+      assert.equal(t.ttc, base.ttc);
+      assert.deepEqual(t.tvaParTaux, base.tvaParTaux);
+      assert.equal(t.sections[0].sousTotalHT, base.sections[0].sousTotalHT);
+    }
+    assert.equal(L.totauxDevis(devisDe(avec(2))).lignes.find((l) => l.id === 'p1').totalHT, 0);
+  });
+  test('3 un saut n’a pas de numéro et ne fait pas avancer le compteur', () => {
+    assert.deepEqual(L.numerosDevis(avec(2))[0].lignes, ['1.1', null, '1.2', null, null]);
+    assert.equal(Ed.numerotation(avec(1)).p1, null);
+  });
+  test('3 un saut ne déclenche aucune erreur de finalisation ni aucun avertissement', () => {
+    const d = devisDe(avec(2), { destinataires: ['a@b.fr'] });
+    assert.deepEqual(L.erreursFinalisation(d).filter((e) => /saut|quantité|prix|libellé/i.test(e)), []);
+    assert.deepEqual(Ed.avertissements(d).map((a) => a.code), []);
+    assert.deepEqual(Ed.avertissements(devisDe([{ id: 's', titre: 'A', lignes: [saut('p')] }])).map((a) => a.code), ['aucuneLigne']);
+    const fige = L.figerPourFinalisation(d, { numero: 'DEV-1', finaliseLe: '2026-10-24', reglages: { regimeTva: 'assujetti' } });
+    assert.deepEqual(fige.erreurs, []);
+    assert.deepEqual(fige.devis.sections[0].lignes[1], { id: 'p1', type: 'saut' });
+  });
+  test('3 la vue client donne la place du saut, rien d’autre ; le texte du devis l’ignore', () => {
+    const d = devisDe(avec(1));
+    const v = L.vueClient(d);
+    assert.deepEqual(v.sections[0].lignes[1], { id: 'p1', type: 'saut' });
+    assert.doesNotMatch(L.texteVueClient(d), /p1|saut/i);
+    assert.doesNotMatch(L.texteVueInterne(d), /p1|saut/i);
+  });
+  test('3 dupliquer un devis, créer une version et aplatir / assembler gardent les sauts', () => {
+    const d = devisDe(avec(1));
+    assert.deepEqual(Ed.assembler(Ed.aplatir(d.sections)), d.sections);
+    let n = 0;
+    const copie = Ed.copieDeDevis(d, () => `n${n += 1}`);
+    assert.equal(copie.sections[0].lignes.filter((l) => l.type === 'saut').length, 1);
+    const v2 = L.nouvelleVersion(d, { id: 'd2', creeLe: new Date('2026-10-24T10:00:00Z') });
+    assert.equal(v2.sections[0].lignes[1].type, 'saut');
+  });
+  test('3 un ancien devis « Nouvelle page avant » devient un saut posé avant la section, et le champ disparaît', () => {
+    const ancien = [{ id: 's1', titre: 'Un', sautDePageAvant: true, lignes: [ligne('a', 10, 1)] }, { id: 's2', titre: 'Deux', sautDePageAvant: true, lignes: [ligne('b', 10, 1)] }];
+    const neuf = Ed.convertirAnciensSauts(ancien);
+    assert.deepEqual(neuf.map((s) => s.sautDePageAvant), [undefined, undefined]);
+    assert.deepEqual(neuf[0].lignes.map((l) => l.id), ['a', 'saut-s2']); // rien sur la première section (la page est déjà neuve)
+    assert.equal(neuf[0].lignes[1].type, 'saut');
+    assert.deepEqual(ids(neuf), ['s1', 'a', 'saut-s2', 's2', 'b']);
+    assert.ok(Ed.memeContenu({ sections: ancien }, { sections: neuf }), 'ancien et converti sont le même contenu : pas de faux conflit');
+    assert.equal(ancien[1].sautDePageAvant, true, 'la source n’est pas modifiée');
+  });
+  test('3 document : un saut coupe la page à sa place exacte, jamais en tête, jamais deux de suite', () => {
+    const vue = (sections) => L.vueClient(devisDe(sections));
+    const html = devisHtml(vue([{ id: 's1', titre: 'A', lignes: [saut('p0'), ligne('a', 10, 1), saut('p1'), saut('p1b'), ligne('b', 10, 1)] }]));
+    assert.equal((html.match(/<tr class="saut-page"/g) ?? []).length, 1);
+    assert.ok(html.indexOf('>Article a<') < html.indexOf('<tr class="saut-page"') && html.indexOf('<tr class="saut-page"') < html.indexOf('>Article b<'));
+    assert.match(html, /<tr class="saut-page" style="break-before:page/);
+    // Saut en fin de section : après son sous-total ; en tête de section : avant son bandeau.
+    const deux = devisHtml(vue([{ id: 's1', titre: 'A', lignes: [ligne('a', 10, 1), saut('p')] }, { id: 's2', titre: 'B', lignes: [ligne('b', 10, 1)] }]));
+    assert.ok(deux.indexOf('Sous-total 1') < deux.indexOf('<tr class="saut-page"') && deux.indexOf('<tr class="saut-page"') < deux.indexOf('>B<'));
+    const tete = devisHtml(vue([{ id: 's1', titre: 'A', lignes: [ligne('a', 10, 1)] }, { id: 's2', titre: 'B', lignes: [saut('p'), ligne('b', 10, 1)] }]));
+    assert.ok(tete.indexOf('<tr class="saut-page"') > tete.indexOf('Sous-total 1') && tete.indexOf('<tr class="saut-page"') < tete.indexOf('>B<'));
+    // Sans saut : aucun élément de saut dans le document.
+    assert.equal((devisHtml(vue([{ id: 's1', titre: 'A', lignes: [ligne('a', 10, 1)] }])).match(/<tr class="saut-page"/g) ?? []).length, 0);
+  });
+});

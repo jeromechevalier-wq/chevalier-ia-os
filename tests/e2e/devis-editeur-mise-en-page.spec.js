@@ -209,7 +209,7 @@ test('4 sous le tableau : « + Fourniture », « + Main d’œuvre », « + Ouvr
   const types = page.locator('.ajouts-types .bouton');
   await expect(types).toHaveText(['Fourniture', 'Main d’œuvre', 'Ouvrage', '…']);
   await expect(page.locator('.ajouts-structure .bouton')).toHaveText(['Section', 'Sous-section', 'Texte', 'Saut de page']);
-  await expect(page.locator('[data-action="ajouter-saut"]')).toBeDisabled();
+  await expect(page.locator('[data-action="ajouter-saut"]')).toBeEnabled(); // le saut de page est un vrai élément du devis (voir devis-editeur-sections-saut.spec.js)
   const gauche = await page.locator('[data-action="ajouter-famille-1"]').boundingBox();
   const droite = await page.locator('[data-action="ajouter-section"]').boundingBox();
   if (!estTelephone(page)) {

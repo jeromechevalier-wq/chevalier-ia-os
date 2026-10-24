@@ -179,7 +179,10 @@
 .ligne-section-devis .ligne-champs { flex-wrap: nowrap; }
 .ligne-section-devis .ligne-champs > .champ { flex: 1 1 auto; }
 .ligne-devis-edition:focus-within td { background: var(--accent-a1f); }
-.case-saut { display: inline-flex; align-items: center; gap: var(--esp-2); white-space: nowrap; color: var(--texte2); font-size: var(--fs-menu); }
+/* Saut de page : une bande rayée en pointillés gris sur toute la largeur, au texte centré. */
+.bande-saut { display: flex; align-items: center; justify-content: center; min-height: 32px; border: 1px dashed var(--bordure-champ); border-radius: var(--rayon-petit); color: var(--texte2); font-size: var(--fs-menu); background: repeating-linear-gradient(135deg, transparent 0, transparent 8px, var(--survol) 8px, var(--survol) 16px); }
+.ligne-saut-devis td { vertical-align: middle; }
+.ligne-saut-devis .poignee-devis { vertical-align: middle; }
 .etiquette-sous-total { color: var(--texte2); }
 .col-actions-lignes { white-space: nowrap; text-align: right; }
 .total-ligne, .sous-total-section { font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -278,7 +281,7 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
   .tableau-lignes-devis .total-ligne { padding-top: var(--esp-3); }
   .ligne-section-devis .ligne-champs { flex-wrap: wrap; }
   .ligne-section-devis .ligne-champs > .champ { flex: 1 1 0; min-width: 0; }
-  .ligne-section-devis .case-saut { flex: 1 0 100%; }
+  .tableau-lignes-devis .ligne-saut-devis { grid-template-areas: "poi des act"; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; }
   .bouton-poignee { width: 44px; height: 44px; }
   .bouton-rond, .bouton-replier { width: 44px; height: 44px; }
   .resultat-bordereau, .onglet-editeur { min-height: 44px; min-width: 44px; }

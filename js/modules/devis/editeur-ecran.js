@@ -13,7 +13,7 @@ import * as A from './articles.js';
 import { arbreFamilles, cheminFamille } from './familles.js';
 import * as Ed from './editeur-logique.js';
 import {
-  totauxDevis, erreursFinalisation, erreursChantier, STATUTS_DEVIS, MODES_MARGE, UNITES_DUREE, MOMENTS_ACOMPTE, transitionPossible, TAUX_TVA_DEFAUT, niveauSection, dureeEnTexte,
+  TYPE_SAUT, totauxDevis, erreursFinalisation, erreursChantier, STATUTS_DEVIS, MODES_MARGE, UNITES_DUREE, MOMENTS_ACOMPTE, transitionPossible, TAUX_TVA_DEFAUT, niveauSection, dureeEnTexte,
   affichageDe, ajustementActif, valeursAjustement, margeEffective, vueClient,
 } from './logique.js';
 import { formaterMontant } from './document.js';
@@ -179,7 +179,7 @@ export function rendreEditeurDevis(conteneur, id) {
   let minuteur = null;
   let onglet = 'edition';
   let pointInsertion = null; // identifiant sous lequel (ou au-dessus duquel, voir sensInsertion) s'ajoutera le prochain article du Bordereau
-  let sensInsertion = 'apres'; // 'apres' (en dessous) ou 'avant' (au-dessus)
+  let sensInsertion = 'apres'; // 'apres' (en dessous), 'avant' (au-dessus), 'debut' ou 'fin' (dans la section)
   let rechercheBordereau = '';
   let filtreFamille = '';
   let moment = Date.now();
@@ -196,6 +196,8 @@ export function rendreEditeurDevis(conteneur, id) {
   const affichage = () => affichageDe(travail);
 
   const devisCourant = () => D.devisParId(id);
+  // Copie de travail : un ancien réglage « Nouvelle page avant » est montré comme un saut de page (enregistré ainsi au premier enregistrement).
+  const copieDeTravail = (d) => { const c = { ...d, ...Ed.champsAEnregistrer(d) }; if (c.sections) c.sections = Ed.convertirAnciensSauts(structuredClone(c.sections)); return c; };
 
   // ------------------------------------------------ chargement
   function charger() {
@@ -214,8 +216,8 @@ export function rendreEditeurDevis(conteneur, id) {
     }
     delete racine.dataset.etat;
     lecture = Ed.estLectureSeule(d);
-    travail = { ...d, ...Ed.champsAEnregistrer(d) };
-    enregistre = { ...d, ...Ed.champsAEnregistrer(d) };
+    travail = copieDeTravail(d);
+    enregistre = copieDeTravail(d);
     etatEnreg = 'enregistre';
     construire();
   }
@@ -231,8 +233,8 @@ export function rendreEditeurDevis(conteneur, id) {
       if (ref.bandeauConflit) ref.bandeauConflit.hidden = false;
       return;
     }
-    if (!lecture && d.statut !== 'brouillon') { clearTimeout(minuteur); lecture = true; travail = { ...d, ...Ed.champsAEnregistrer(d) }; enregistre = structuredClone(travail); construire(); return; }
-    if (lecture) { travail = { ...d, ...Ed.champsAEnregistrer(d) }; enregistre = structuredClone(travail); construire(); }
+    if (!lecture && d.statut !== 'brouillon') { clearTimeout(minuteur); lecture = true; travail = copieDeTravail(d); enregistre = structuredClone(travail); construire(); return; }
+    if (lecture) { travail = copieDeTravail(d); enregistre = structuredClone(travail); construire(); }
   }
 
   // ------------------------------------------------ enregistrement
@@ -291,16 +293,16 @@ export function rendreEditeurDevis(conteneur, id) {
     if (focus) {
       const champFocus = racine.querySelector(`tr[data-id="${focus}"] [data-champ="${champ}"]`);
       champFocus?.focus();
-      champFocus?.scrollIntoView?.({ block: 'nearest' });
+      (champFocus ?? racine.querySelector(`tr[data-id="${focus}"]`))?.scrollIntoView?.({ block: 'nearest' });
     }
   }
   function ajouterLigne(element, { champ = 'libelle' } = {}) {
     const cible = pointInsertion && Ed.aplatir(travail.sections).some((x) => x.id === pointInsertion) ? pointInsertion : null;
-    const avant = sensInsertion === 'avant' && cible;
+    const sens = sensInsertion;
     pointInsertion = null;
     sensInsertion = 'apres';
     majPointInsertion();
-    appliquer(avant ? Ed.ajouterAvant(travail.sections, element, cible, nouvelId()) : Ed.ajouterElement(travail.sections, element, cible, nouvelId()), { focus: element.id, champ });
+    appliquer(cible ? Ed.insererAutour(travail.sections, element, cible, sens, nouvelId()) : Ed.ajouterElement(travail.sections, element, null, nouvelId()), { focus: element.id, champ });
   }
   const changerLigne = (idLigne, patch) => { travail.sections = Ed.majElement(travail.sections, idLigne, patch); marquerModifie(); };
 
@@ -746,9 +748,15 @@ export function rendreEditeurDevis(conteneur, id) {
         bouton('Section', 'ajouter-section', () => ajouterLigne(Ed.sectionNeuve(nouvelId()))),
         bouton('Sous-section', 'ajouter-sous-section', () => ajouterLigne(Ed.sousSectionNeuve(nouvelId()))),
         bouton('Texte', 'ajouter-texte', () => ajouterLigne(Ed.ligneTexte(nouvelId()))),
-        // Le saut de page se règle déjà par la case « Nouvelle page avant » d'une section ; un élément « Saut de page » à part viendra ensuite.
-        bouton('Saut de page', 'ajouter-saut', () => {}, { desactive: true, titre: 'Bientôt disponible : en attendant, coche « Nouvelle page avant » sur une section.' })));
+        (ref.boutonSaut = bouton('Saut de page', 'ajouter-saut', ajouterSautEnFin))));
     return [ref.vide, ref.zoneTableau, barre, ref.panneauRecherche];
+  }
+
+  /** Le bouton « Saut de page » du bas : un saut à la fin de la section où l'on travaille (à la fin du devis s'il n'y a pas de section). */
+  function ajouterSautEnFin() {
+    const saut = Ed.ligneSaut(nouvelId());
+    const section = Ed.sectionDe(travail.sections, ligneActive);
+    appliquer(section ? Ed.insererAutour(travail.sections, saut, section, 'fin') : Ed.ajouterElement(travail.sections, saut, null, nouvelId()), { focus: saut.id });
   }
 
   /** Ouvre la recherche dans le Bordereau, déjà filtrée sur une famille (« + Fourniture » → les fournitures). */
@@ -765,7 +773,8 @@ export function rendreEditeurDevis(conteneur, id) {
     if (!ref.pointInsertion) return;
     const e = pointInsertion ? Ed.aplatir(travail.sections).find((x) => x.id === pointInsertion) : null;
     ref.pointInsertion.hidden = !e;
-    ref.pointInsertion.textContent = e ? `Le prochain article s’ajoutera ${sensInsertion === 'avant' ? 'au-dessus de' : 'sous'} « ${e.libelle || e.titre || 'cette ligne'} ».` : '';
+    const ou = { avant: 'au-dessus de', apres: 'sous', debut: 'au début de', fin: 'à la fin de' }[sensInsertion] ?? 'sous';
+    ref.pointInsertion.textContent = e ? `Le prochain article s’ajoutera ${ou} « ${e.libelle || e.titre || 'cette ligne'} ».` : '';
   }
 
   function majResultats() {
@@ -799,6 +808,7 @@ export function rendreEditeurDevis(conteneur, id) {
     const elements = Ed.aplatir(travail.sections);
     ref.vide.hidden = elements.length > 0;
     ref.zoneTableau.hidden = elements.length === 0;
+    if (ref.boutonSaut) { ref.boutonSaut.disabled = elements.length === 0; ref.boutonSaut.title = elements.length === 0 ? 'Ajoute d’abord un élément au devis : un saut de page se place entre deux éléments.' : ''; }
     // Une section repliée cache ses lignes ; une section de niveau 1 repliée cache aussi ses sous-sections.
     let replie1 = false;
     let replie2 = false;
@@ -809,16 +819,19 @@ export function rendreEditeurDevis(conteneur, id) {
         return ligneSection(e, numeros, niveaux[e.id], masque);
       }
       masque = replie1 || replie2;
+      if (e.type === TYPE_SAUT) return ligneDeSaut(e, masque);
       return e.type === A.TYPE_TEXTE ? ligneDeTexte(e, numeros, masque) : ligneDevis(e, numeros, masque);
     }));
     majPointInsertion();
     majTotaux();
   }
 
+  const nomDe = (e, numero) => (e.genre === 'section' ? `la section ${numero}` : e.type === TYPE_SAUT ? 'le saut de page' : `la ligne ${numero}`);
+
   // Poignée à gauche : les deux flèches qui déplacent la ligne ou la section (le glisser-déposer n'est pas encore là).
   function celluleDeplacement(e, numero) {
     const p = Ed.deplacementsPossibles(travail.sections, e.id);
-    const nom = e.genre === 'section' ? `la section ${numero}` : `la ligne ${numero}`;
+    const nom = nomDe(e, numero);
     return h('td', { class: 'c-poi poignee-devis' },
       h('button', { type: 'button', class: 'bouton-poignee', dataset: { action: 'monter' }, disabled: !p.monter, 'aria-label': `Monter ${nom}`, onclick: () => appliquer(Ed.deplacerElement(travail.sections, e.id, -1)) }, icone('chevron-up', { taille: 14 })),
       h('button', { type: 'button', class: 'bouton-poignee', dataset: { action: 'descendre' }, disabled: !p.descendre, 'aria-label': `Descendre ${nom}`, onclick: () => appliquer(Ed.deplacerElement(travail.sections, e.id, 1)) }, icone('chevron-down', { taille: 14 })));
@@ -826,42 +839,64 @@ export function rendreEditeurDevis(conteneur, id) {
 
   // Petit bouton rond à droite : les actions de la ligne (le menu complet viendra ensuite).
   function celluleActions(e, numero) {
-    const nom = e.genre === 'section' ? `la section ${numero}` : `la ligne ${numero}`;
+    const nom = nomDe(e, numero);
     return h('td', { class: 'c-act col-actions-lignes' },
       h('button', { type: 'button', class: 'bouton-icone bouton-rond', dataset: { action: 'menu-ligne' }, 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-label': `Actions pour ${nom}`, onclick: (ev) => { ligneActive = e.id; ouvrirMenuLigne(ev.currentTarget, e, nom); } }, icone('chevron-down', { taille: 16 })));
   }
 
-  /** Les entrées « Insérer au-dessus » / « Insérer en dessous » : un sous-menu avec les types d'éléments. `sens` : 'avant' ou 'apres'. */
-  function entreesInsertion(e, sens) {
+  /** Niveau (1 ou 2) de la section qui contient cet élément, ou qui est cet élément. */
+  function niveauDeSection(e) {
+    const idS = e.genre === 'section' ? e.id : Ed.sectionDe(travail.sections, e.id);
+    const k = travail.sections.findIndex((x) => x.id === idS);
+    return k === -1 ? 1 : niveauSection(travail.sections, k);
+  }
+
+  /**
+   * Le sous-menu « Insérer… » : les neuf choix. `ou` : 'avant' (au dessus), 'apres' (en dessous), 'debut' ou 'fin' (dans la section). Les six premiers ouvrent la recherche du Bordereau
+   * déjà filtrée ; « Section » crée une sous-section quand on insère DANS une section de niveau 1 (ou autour d'une sous-section), une section sinon.
+   */
+  function entreesInsertion(e, ou) {
+    const niveau = niveauDeSection(e);
+    const sousSection = e.genre === 'section' ? (niveau === 2 || ou === 'debut' || ou === 'fin') : niveau === 2;
     const poser = (creer) => () => {
       const element = creer();
-      const sections = sens === 'avant' ? Ed.ajouterAvant(travail.sections, element, e.id, nouvelId()) : Ed.ajouterElement(travail.sections, element, e.id, nouvelId());
-      appliquer(sections, { focus: element.id });
+      appliquer(Ed.insererAutour(travail.sections, element, e.id, ou, nouvelId()), { focus: element.id });
     };
-    const chercher = (familleId) => () => { pointInsertion = e.id; sensInsertion = sens; ouvrirRecherche(familleId); majPointInsertion(); };
+    const chercher = (familleId) => () => { pointInsertion = e.id; sensInsertion = ou; ouvrirRecherche(familleId); majPointInsertion(); };
     return [
-      { libelle: 'Fourniture', cle: `inserer-${sens}-fourniture`, action: chercher('famille-1') },
-      { libelle: 'Main d’œuvre', cle: `inserer-${sens}-main-oeuvre`, action: chercher('famille-2') },
-      { libelle: 'Ouvrage', cle: `inserer-${sens}-ouvrage`, action: chercher('famille-3') },
-      { libelle: 'Section', cle: `inserer-${sens}-section`, action: poser(() => Ed.sectionNeuve(nouvelId())) },
-      { libelle: 'Sous-section', cle: `inserer-${sens}-sous-section`, action: poser(() => Ed.sousSectionNeuve(nouvelId())) },
-      { libelle: 'Texte', cle: `inserer-${sens}-texte`, action: poser(() => Ed.ligneTexte(nouvelId())) },
-      { libelle: 'Ligne libre', cle: `inserer-${sens}-libre`, action: poser(() => Ed.ligneLibre(nouvelId())) },
+      { libelle: 'Fourniture', cle: `inserer-${ou}-fourniture`, action: chercher('famille-1') },
+      { libelle: 'Main d’œuvre', cle: `inserer-${ou}-main-oeuvre`, action: chercher('famille-2') },
+      { libelle: 'Ouvrage', cle: `inserer-${ou}-ouvrage`, action: chercher('famille-3') },
+      { libelle: 'Sous-traitance', cle: `inserer-${ou}-sous-traitance`, action: chercher('famille-4') },
+      { libelle: 'Matériel', cle: `inserer-${ou}-materiel`, action: chercher('famille-5') },
+      { libelle: 'Divers', cle: `inserer-${ou}-divers`, action: chercher('famille-7') },
+      { libelle: 'Section', cle: `inserer-${ou}-section`, action: poser(() => (sousSection ? Ed.sousSectionNeuve(nouvelId()) : Ed.sectionNeuve(nouvelId()))) },
+      { libelle: 'Texte', cle: `inserer-${ou}-texte`, action: poser(() => Ed.ligneTexte(nouvelId())) },
+      { libelle: 'Saut de page', cle: `inserer-${ou}-saut`, action: poser(() => Ed.ligneSaut(nouvelId())) },
     ];
   }
 
+  /** Menu de la flèche : une section ou sous-section (6 entrées), une ligne, un texte ou un saut de page (insérer, dupliquer, monter, descendre, supprimer). */
   function ouvrirMenuLigne(ancre, e, nom) {
     const p = Ed.deplacementsPossibles(travail.sections, e.id);
-    ouvrirFenetreMenu(ancre, (fermer) => contenuMenu([
-      { libelle: 'Insérer au-dessus', cle: 'inserer-avant', sous: entreesInsertion(e, 'avant') },
+    const dupliquer = { libelle: 'Dupliquer', icone: 'copy', cle: 'dupliquer', action: () => { const r = Ed.dupliquerElement(travail.sections, e.id, nouvelId); appliquer(r.sections); } };
+    const supprimerEntree = { libelle: 'Supprimer', icone: 'trash-2', cle: 'supprimer', danger: true, action: () => supprimer(e, nom) };
+    const entrees = e.genre === 'section' ? [
+      { libelle: 'Insérer au début', cle: 'inserer-debut', sous: entreesInsertion(e, 'debut') },
+      { libelle: 'Insérer à la fin', cle: 'inserer-fin', sous: entreesInsertion(e, 'fin') },
+      { libelle: 'Insérer au dessus', cle: 'inserer-avant', sous: entreesInsertion(e, 'avant') },
       { libelle: 'Insérer en dessous', cle: 'inserer-apres', sous: entreesInsertion(e, 'apres') },
-      ...(e.genre === 'section' ? [] : [{ libelle: 'Ajouter des photos', cle: 'photos', bientot: true }]),
-      { libelle: 'Dupliquer', icone: 'copy', cle: 'dupliquer', action: () => { const r = Ed.dupliquerElement(travail.sections, e.id, nouvelId); appliquer(r.sections); } },
+      dupliquer, supprimerEntree,
+    ] : [
+      { libelle: 'Insérer au dessus', cle: 'inserer-avant', sous: entreesInsertion(e, 'avant') },
+      { libelle: 'Insérer en dessous', cle: 'inserer-apres', sous: entreesInsertion(e, 'apres') },
+      dupliquer,
       { libelle: 'Monter', icone: 'arrow-up', cle: 'monter', desactive: !p.monter, action: () => appliquer(Ed.deplacerElement(travail.sections, e.id, -1)) },
       { libelle: 'Descendre', icone: 'arrow-down', cle: 'descendre', desactive: !p.descendre, action: () => appliquer(Ed.deplacerElement(travail.sections, e.id, 1)) },
       { separateur: true },
-      { libelle: 'Supprimer', icone: 'trash-2', cle: 'supprimer', danger: true, action: () => supprimer(e, nom) },
-    ], fermer), { classe: 'menu-devis-ligne', nom: `Actions pour ${nom}` });
+      supprimerEntree,
+    ];
+    ouvrirFenetreMenu(ancre, (fermer) => contenuMenu(entrees, fermer), { classe: 'menu-devis-ligne', nom: `Actions pour ${nom}` });
   }
 
   /** Reconfigure les éléments d'une ligne d'ouvrage : la composition figée s'ouvre dans le même éditeur que celui du Bordereau, puis le prix et la description sont recalculés. */
@@ -887,9 +922,9 @@ export function rendreEditeurDevis(conteneur, id) {
     const n = Ed.lignesEmportees(avant, e.id);
     const lourd = e.genre === 'section' && n > 0;
     await retirerAvecAnnulation({
-      titre: e.genre === 'section' ? 'Supprimer cette section ?' : 'Supprimer cette ligne ?',
+      titre: e.genre === 'section' ? 'Supprimer cette section ?' : e.type === TYPE_SAUT ? 'Supprimer ce saut de page ?' : 'Supprimer cette ligne ?',
       message: lourd ? `La section et ses ${n} ligne${n > 1 ? 's' : ''} seront retirées du devis.` : `Retirer ${nom} du devis.`,
-      libelleOk: 'Supprimer', danger: true, messageFait: lourd ? 'Section retirée' : 'Ligne retirée',
+      libelleOk: 'Supprimer', danger: true, messageFait: lourd ? 'Section retirée' : e.type === TYPE_SAUT ? 'Saut de page retiré' : 'Ligne retirée',
       faire: () => { appliquer(Ed.supprimerElement(travail.sections, e.id)); },
       defaire: () => { appliquer(avant); },
     });
@@ -909,13 +944,20 @@ export function rendreEditeurDevis(conteneur, id) {
     const replier = h('button', { type: 'button', class: 'bouton-icone bouton-replier', dataset: { action: 'replier' }, 'aria-expanded': String(!repliee), 'aria-label': `${repliee ? 'Déplier' : 'Replier'} ${sous ? 'la sous-section' : 'la section'} ${numeros[e.id]}`,
       onclick: () => { if (replies.has(e.id)) replies.delete(e.id); else replies.add(e.id); rendreLignes(); document.querySelector(`tr[data-id="${e.id}"] [data-action="replier"]`)?.focus(); } }, icone(repliee ? 'plus' : 'minus', { taille: 14 }));
     const titre = h('input', { class: 'champ champ-surplace titre-section', type: 'text', value: e.titre ?? '', placeholder: sous ? 'Titre de la sous-section (exemple : Coin bar)' : 'Titre de la section (exemple : Cuisine)', 'aria-label': `Titre de ${sous ? 'la sous-section' : 'la section'} ${numeros[e.id]}`, dataset: { champ: 'libelle' }, oninput: (ev) => changerLigne(e.id, { titre: ev.target.value }) });
-    const saut = h('label', { class: 'case-saut' }, h('input', { type: 'checkbox', checked: e.sautDePageAvant === true, dataset: { champ: 'saut-de-page' }, onchange: (ev) => changerLigne(e.id, { sautDePageAvant: ev.target.checked || undefined }) }), ' Nouvelle page avant');
     return h('tr', { class: `ligne-section-devis ${sous ? 'sous-section-devis' : ''}`, hidden: masque, dataset: { id: e.id, genre: 'section', niveau: String(niveau) } },
       celluleDeplacement(e, numeros[e.id]),
       h('td', { class: 'c-num num', dataset: { libelle: 'N°' } }, numeros[e.id]),
-      h('td', { colspan: colonnesDeLaDesignation(true), class: 'c-des cellule-section', dataset: { libelle: sous ? 'Sous-section' : 'Section' } }, h('div', { class: 'ligne-champs' }, replier, titre, saut)),
+      h('td', { colspan: colonnesDeLaDesignation(true), class: 'c-des cellule-section', dataset: { libelle: sous ? 'Sous-section' : 'Section' } }, h('div', { class: 'ligne-champs' }, replier, titre)),
       h('td', { class: 'c-tot d', dataset: { libelle: 'Sous-total HT' } }, affichage().cacherTotauxSections ? null : [h('span', { class: 'etiquette-sous-total' }, 'Sous-total : '), h('span', { class: 'sous-total-section', dataset: { sousTotal: e.id } })]),
       celluleActions(e, numeros[e.id]));
+  }
+
+  /** Un saut de page : une bande rayée en pointillés sur toute la largeur, sans numéro ni prix ; la poignée et le menu restent aux deux bouts. */
+  function ligneDeSaut(e, masque) {
+    return h('tr', { class: 'ligne-saut-devis', hidden: masque, dataset: { id: e.id, genre: 'saut' } },
+      celluleDeplacement(e, ''),
+      h('td', { colspan: colonnes().length - 2, class: 'c-des c-saut' }, h('div', { class: 'bande-saut', role: 'separator', 'aria-label': 'Saut de page' }, h('span', {}, 'Saut de page'))),
+      celluleActions(e, ''));
   }
 
   function ligneDeTexte(e, numeros, masque) {

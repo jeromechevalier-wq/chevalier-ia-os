@@ -62,7 +62,7 @@ async function ouvrirOptions(page) {
 }
 const enregistre = (page) => expect(page.locator('[data-valeur="enregistrement"]')).toHaveText('Enregistré');
 
-test('1 le menu de la ligne : insérer au-dessus et en dessous (sous-menu), photos grisées « bientôt disponible », dupliquer, monter, descendre, supprimer ; le bouton « Configurer les éléments de l’ouvrage » ouvre la composition', async ({ page }, info) => {
+test('1 le menu de la ligne : insérer au-dessus et en dessous (sous-menu), plus d’entrée « photos », dupliquer, monter, descendre, supprimer ; le bouton « Configurer les éléments de l’ouvrage » ouvre la composition', async ({ page }, info) => {
   await semer();
   const ouvrage = ligne('lo', 'Cloison', 1, 100, {
     marge: 20, type: 'ouvrage', description: '- Carrelage 60 x 60 (2 m²)',
@@ -72,22 +72,21 @@ test('1 le menu de la ligne : insérer au-dessus et en dessous (sous-menu), phot
   await page.locator('tr[data-id="l1"] [data-action="menu-ligne"]').click();
   const menu = page.locator('.menu-devis-ligne');
   await expect(menu).toBeVisible();
-  for (const nom of ['Insérer au-dessus', 'Insérer en dessous', 'Ajouter des photos', 'Dupliquer', 'Monter', 'Descendre', 'Supprimer']) await expect(menu.getByRole('menuitem', { name: nom })).toBeVisible();
-  await expect(menu.getByRole('menuitem', { name: 'Ajouter des photos' })).toBeDisabled();
-  await expect(menu.getByRole('menuitem', { name: 'Ajouter des photos' })).toContainText('bientôt disponible');
-  // Le sous-menu « Insérer en dessous » propose les sept types ; on l'ouvre pour la capture.
+  for (const nom of ['Insérer au dessus', 'Insérer en dessous', 'Dupliquer', 'Monter', 'Descendre', 'Supprimer']) await expect(menu.getByRole('menuitem', { name: nom })).toBeVisible();
+  await expect(menu.getByRole('menuitem', { name: 'Ajouter des photos' })).toHaveCount(0); // Jérôme : « on peut s’en passer »
+  // Le sous-menu « Insérer en dessous » propose les neuf choix ; on l'ouvre pour la capture.
   await menu.getByRole('menuitem', { name: 'Insérer en dessous' }).click();
-  for (const nom of ['Fourniture', 'Main d’œuvre', 'Ouvrage', 'Section', 'Sous-section', 'Texte', 'Ligne libre']) await expect(menu.locator(`[data-menu^="inserer-apres-"]`).filter({ hasText: nom }).first()).toBeVisible();
+  for (const nom of ['Fourniture', 'Main d’œuvre', 'Ouvrage', 'Sous-traitance', 'Matériel', 'Divers', 'Section', 'Texte', 'Saut de page']) await expect(menu.locator(`[data-menu^="inserer-apres-"]`).filter({ hasText: nom }).first()).toBeVisible();
   await capturer(page, info, '1-menu-ligne');
   // « Insérer au-dessus » : la nouvelle ligne se place avant la ligne choisie.
-  await menu.getByRole('menuitem', { name: 'Insérer au-dessus' }).click();
-  await menu.locator('[data-menu="inserer-avant-libre"]').click();
+  await menu.getByRole('menuitem', { name: 'Insérer au dessus' }).click();
+  await menu.locator('[data-menu="inserer-avant-texte"]').click();
   await expect(lignes(page)).toHaveCount(3);
   expect(await textes(page)).toEqual(['', 'Carrelage', 'Cloison']);
   // « Insérer en dessous » : juste après.
   await page.locator('tr[data-id="l1"] [data-action="menu-ligne"]').click();
   await page.getByRole('menuitem', { name: 'Insérer en dessous' }).click();
-  await page.locator('[data-menu="inserer-apres-libre"]').click();
+  await page.locator('[data-menu="inserer-apres-texte"]').click();
   expect(await textes(page)).toEqual(['', 'Carrelage', '', 'Cloison']);
   // Un ouvrage : le bouton apparaît quand on écrit dans sa désignation et ouvre la composition ; changer la quantité d'un élément recalcule le prix (3 × 60 = 180 €).
   await page.locator('tr[data-id="lo"] [data-champ="libelle"]').click();
