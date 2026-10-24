@@ -130,7 +130,7 @@ export async function faireActivite(activite, { proposer = true } = {}) {
 
 /**
  * Clic sur « En retard » ou sur la date : fenêtre pour déplacer l'activité.
- * Les raccourcis (Demain, +3 jours…), une date tapée ou choisie et l'heure ne font que remplir les champs :
+ * Les raccourcis (Demain, +3 jours…), « Sans date », une date tapée ou choisie et l'heure ne font que remplir les champs :
  * il faut cliquer sur « Enregistrer » pour fermer (24/10/2026), comme sur la fiche activité et la fiche projet.
  */
 export async function dialogueDecalage(a, { enregistrerPatch = (patch) => D.majActivite(a.id, patch), sansDate = false } = {}) {
@@ -159,7 +159,7 @@ export async function dialogueDecalage(a, { enregistrerPatch = (patch) => D.majA
     contenu: h('div', { class: 'pile' },
       h('label', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Heure'), heure),
       h('div', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Date'), date.element,
-        sansDate ? h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', dataset: { action: 'effacer-date' }, onclick: async () => { date.champ.value = ''; heure.value = ''; if (await enregistrer()) fermerFenetre(null); } }, 'Sans date') : null)),
+        sansDate ? h('button', { type: 'button', class: 'bouton bouton-discret bouton-petit', dataset: { action: 'effacer-date' }, onclick: () => { date.champ.value = ''; heure.value = ''; } }, 'Sans date') : null)),
     boutons: [
       { libelle: 'Annuler', valeur: null },
       { libelle: 'Enregistrer', valeur: true, style: 'principal', avantFermeture: enregistrer },

@@ -75,6 +75,8 @@ test('P1 une tâche se traite comme une activité : un clic sur la date (ou sur 
   await champDoc('projets_taches', 't1', 'date', jour(1));
   await sans.locator('[data-action="date-tache"]').click();
   await dialogue(page).locator('[data-action="effacer-date"]').click();
+  await expect(dialogue(page)).toContainText('Changer la date'); // la fenêtre reste ouverte
+  await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
   await champDoc('projets_taches', 't1', 'date', null);
   await expect(sans.locator('[data-action="date-tache"]')).toHaveText('Sans date');
 });
