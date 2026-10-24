@@ -243,7 +243,8 @@ test('5 le bas de page : conditions de paiement à gauche, totaux et NET À PAYE
   await ouvrir(page, await devisLong());
   const bas = page.locator('.bas-devis');
   await expect(bas).toContainText('Conditions de paiement');
-  await expect(bas.locator('[data-action="ajouter-condition"]')).toHaveText(/Ajouter une condition/);
+  await expect(bas.locator('[data-action="ajouter-condition"]')).toHaveText(/Ajouter une condition \(bientôt\)/);
+  await expect(bas.locator('[data-action="ajouter-condition"]')).toBeDisabled();
   await expect(bas).toContainText('Méthodes de paiement acceptées');
   await expect(bas.locator('[data-action="ajouter-texte-libre"]')).toHaveText(/Ajouter texte libre/);
   await expect(bas).toContainText('Gestion des déchets');
@@ -328,4 +329,13 @@ test('2 l’e-mail du destinataire suit le client choisi, sauf s’il a été é
   await mail.fill('autre@exemple.test'); // écrit à la main : le choix du client ne l'écrase plus
   await page.locator('[data-champ="client"]').selectOption('personne:p1');
   await expect(mail).toHaveValue('autre@exemple.test');
+});
+
+test('4 la marge du devis se règle dans le menu Options, sans afficher le calcul des marges', async ({ page }) => {
+  test.skip(estTelephone(page), 'sur téléphone Options est dans le menu « … » : couvert par le test de ce menu');
+  await semer();
+  await ouvrir(page, await devisLong());
+  await page.locator('[data-action="options"]').click();
+  await page.locator('[data-champ="marge-menu"]').fill('25');
+  await expect.poll(async () => (await listerDocuments('devis_devis'))[0].marge).toBe(25);
 });

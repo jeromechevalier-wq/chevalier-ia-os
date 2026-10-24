@@ -385,11 +385,15 @@ export function rendreEditeurDevis(conteneur, id) {
       const c = (libelle, cle, extra = {}) => caseMenu({ libelle, cle, coche: aff[cle], surChangement: (v) => basculerAffichage(cle, v), ...extra });
       const bientot = (libelle) => caseMenu({ libelle, bientot: true });
       const taux = [...new Set([...D.etat.reglages.tauxProposes, ...TAUX_TVA_DEFAUT, travail.tauxTvaDefaut])].sort((a, b) => b - a);
+      // La marge du devis se règle ici, sans avoir à afficher le calcul des marges (le client ne la voit jamais).
+      const margeMenu = h('input', { class: 'champ champ-court', type: 'text', inputmode: 'decimal', value: saisieNombre(travail.marge), dataset: { champ: 'marge-menu' }, 'aria-label': 'Marge du devis en pourcent',
+        oninput: (e) => { const vide = e.target.value.trim() === ''; const v = vide ? 0 : Ed.lireSaisie(e.target.value); e.target.classList.toggle('invalide', v === null); if (v !== null) { changer({ marge: v }); majPrixAffiches(); const autre = racine.querySelector('[data-champ="marge"]'); if (autre) autre.value = e.target.value; } } });
       const tva = h('select', { class: 'champ', id: 'devis-tva', dataset: { champ: 'tva-defaut' }, 'aria-label': 'Changer la TVA par défaut', onchange: (e) => { changer({ tauxTvaDefaut: Number(e.target.value) }); majTotaux(); } },
         taux.map((t) => h('option', { value: String(t), selected: travail.tauxTvaDefaut === t }, `${saisieNombre(t)} %`)));
       return contenuMenu([
         { titre: 'Édition' },
         { noeud: c('Afficher le calcul des marges', 'afficherMarges') },
+        { noeud: h('label', { class: 'menu-devis-champ' }, h('span', { class: 'menu-devis-libelle' }, 'Marge du devis (%)'), margeMenu) },
         { noeud: c('Afficher les références', 'afficherReferences') },
         { noeud: caseMenu({ libelle: 'Attestation TVA', cle: 'attestationTva', coche: true, desactive: true, info: 'automatique' }) },
         { noeud: caseMenu({ libelle: 'Autoliquidation', cle: 'autoliquidation', coche: travail.autoliquidation === true, surChangement: (v) => { changer({ autoliquidation: v }); majTotaux(); } }) },
@@ -988,7 +992,8 @@ export function rendreEditeurDevis(conteneur, id) {
     ref.attestation = h('p', { class: 'attestation-tva', dataset: { valeur: 'attestation-tva' }, hidden: true });
     const texteLibre = h('textarea', { class: 'champ', id: 'devis-texte-libre', rows: 3, value: d.texteLibre ?? '', 'aria-label': 'Texte libre', hidden: !(d.texteLibre ?? '').trim(), dataset: { champ: 'texte-libre' }, oninput: (e) => changer({ texteLibre: e.target.value }) });
     const lienTexte = h('button', { type: 'button', class: 'bouton-lien', dataset: { action: 'ajouter-texte-libre' }, hidden: !texteLibre.hidden, onclick: () => { texteLibre.hidden = false; lienTexte.hidden = true; texteLibre.focus(); } }, icone('plus', { taille: 14 }), 'Ajouter texte libre');
-    const lienCondition = h('button', { type: 'button', class: 'bouton-lien', dataset: { action: 'ajouter-condition' }, onclick: () => { const c = racine.querySelector('[data-champ="acompte-type"]'); c?.scrollIntoView?.({ block: 'center' }); c?.focus(); } }, icone('plus', { taille: 14 }), 'Ajouter une condition');
+    // Les vraies conditions de paiement (plusieurs échéances) ne sont pas encore faites : le bouton le dit au lieu de ne rien faire.
+    const lienCondition = h('button', { type: 'button', class: 'bouton-lien', disabled: true, title: 'Bientôt disponible : en attendant, utilise « Acompte demandé » dans les totaux.', dataset: { action: 'ajouter-condition' } }, icone('plus', { taille: 14 }), 'Ajouter une condition (bientôt)');
     const gauche = h('div', { class: 'bas-gauche' },
       h('div', { class: 'titre-ligne' }, h('h3', { class: 'titre-bloc' }, 'Conditions de paiement'), lienCondition),
       ref.attestation,
