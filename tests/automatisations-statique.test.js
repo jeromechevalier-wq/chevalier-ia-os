@@ -94,7 +94,7 @@ describe('Cohérence : registre, règles, fonctions, déploiement', () => {
     const regles = lire('firestore.plateforme.rules');
     const liste = regles.match(/collection in \[([^\]]*)\]/)[1].match(/'([a-z_]+)'/g).map((x) => x.replace(/'/g, ''));
     assert.deepEqual([...liste].sort(), [...m.collections].sort());
-    assert.match(regles, /!collectionDuJournal\(collection\) && !collectionDuTableauDeBord\(collection\) && !collectionSansSuppression\(collection\) && roleDe\(client\) == 'editeur'/); // + le bordereau du module Devis (24/10/2026) : jamais supprimé
+    assert.match(regles, /!collectionDuJournal\(collection\) && !collectionDuTableauDeBord\(collection\) && !collectionSansSuppression\(collection\) && !collectionDesDevis\(collection\) && roleDe\(client\) == 'editeur'/); // + les devis et leur compteur (24/10/2026, devis-regles.test.js) ; + le bordereau du module Devis (24/10/2026) : jamais supprimé
   });
   test('les fonctions n\'écrivent que dans les collections déclarées (et le signalement du serveur)', () => {
     const m = moduleDeclare('automatisations');
@@ -114,7 +114,7 @@ describe('Cohérence : registre, règles, fonctions, déploiement', () => {
     assert.equal(p.engines.node, '22');
     for (const v of Object.values(p.dependencies)) assert.match(v, /^\d+\.\d+\.\d+$/);
     assert.deepEqual(Object.keys(p.dependencies).sort(), ['@modelcontextprotocol/sdk', 'firebase-admin', 'firebase-functions', 'zod']); // + le MCP des clients (mcpclients)
-    assert.equal((code('index.js').match(/region:\s*REGION/g) || []).length, 5); // trois du journal + mcpclients + espaceReglages
+    assert.equal((code('index.js').match(/region:\s*REGION/g) || []).length, 6); // trois du journal + mcpclients + espaceReglages + les options communes des quatre fonctions de devis
     assert.match(code('index.js'), /REGION = 'europe-west9'/);
     assert.match(code('index.js'), /schedule: '0 \* \* \* \*'/);
   });
@@ -127,10 +127,10 @@ describe('Cohérence : registre, règles, fonctions, déploiement', () => {
 });
 
 describe('Les fonctions se chargent comme Firebase les chargera', () => {
-  test('cinq fonctions, région de Paris, planifiée toutes les heures, clé n8n liée par secret sur les deux qui lisent n8n, aucun secret pour « renommer »', async () => {
+  test('neuf fonctions (dont les quatre transitions de devis), région de Paris, planifiée toutes les heures, clé n8n liée par secret sur les deux qui lisent n8n, aucun secret pour « renommer »', async () => {
     process.env.GCLOUD_PROJECT ??= 'demo-chevalier-ia-os';
     const m = await import('../functions-plateforme/src/index.js');
-    assert.deepEqual(Object.keys(m).sort(), ['automatisationsCopieHoraire', 'automatisationsRafraichir', 'automatisationsRenommer', 'espaceReglages', 'mcpclients']);
+    assert.deepEqual(Object.keys(m).sort(), ['automatisationsCopieHoraire', 'automatisationsRafraichir', 'automatisationsRenommer', 'devisArchiver', 'devisChangerStatut', 'devisFinaliser', 'devisNouvelleVersion', 'espaceReglages', 'mcpclients']);
     for (const f of Object.values(m)) assert.deepEqual(f.__endpoint.region, ['europe-west9']);
     assert.equal(m.automatisationsCopieHoraire.__endpoint.scheduleTrigger.schedule, '0 * * * *');
     assert.deepEqual(m.automatisationsCopieHoraire.__endpoint.secretEnvironmentVariables, [{ key: 'N8N_API_KEY' }]);
@@ -142,6 +142,14 @@ describe('Les fonctions se chargent comme Firebase les chargera', () => {
     assert.equal(e.maxInstances, 5);
     assert.equal(e.secretEnvironmentVariables, undefined);
     assert.ok(e.callableTrigger, 'fonction appelable');
+    // Devis (24/10/2026) : quatre fonctions appelables, aucun secret, aucun appel à n8n, aucun compte de service nouveau (le compte par défaut suffit)
+    for (const nom of ['devisFinaliser', 'devisChangerStatut', 'devisNouvelleVersion', 'devisArchiver']) {
+      const d = m[nom].__endpoint;
+      assert.ok(d.callableTrigger, `${nom} : fonction appelable`);
+      assert.equal(d.secretEnvironmentVariables, undefined, `${nom} : aucun secret`);
+      assert.ok(d.serviceAccountEmail === undefined || d.serviceAccountEmail?.constructor?.name === 'ResetValue', `${nom} : aucun compte de service nouveau à créer avant le déploiement (compte par défaut)`);
+      assert.equal(d.maxInstances, 5, nom);
+    }
   });
   test('Mon espace (2.10.0) ne change AUCUNE règle de sécurité : un navigateur n\'écrit toujours ni la marque, ni les membres, ni la fiche du client, ni Storage', () => {
     const f = lire('firestore.plateforme.rules');

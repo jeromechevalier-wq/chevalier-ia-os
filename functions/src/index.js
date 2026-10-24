@@ -19,6 +19,7 @@ import { creerAppelDecider, ligneDeJournalDecision } from './automatisations/dec
 import { creerAdaptateur } from '../partage/porte/adaptateur.js';
 import { creerServiceVeille } from './veille/service.js';
 import { creerAppelVeille } from './veille/appel.js';
+import { creerAppelDevis, ligneDeJournalDevis } from './devis-appel.js';
 import { copieInterne, administrateur, Refus } from './automatisations/appels.js';
 import { creerLecteurN8n } from '../partage/automatisations/n8n.js';
 
@@ -91,6 +92,18 @@ export const automatisationsDecider = onCall(
     return creerAppelDecider({ donnees: creerAccesFirestore(), journal: (e) => process.stdout.write(`${ligneDeJournalDecision(e)}\n`) })(requete);
   },
 );
+
+// Module Devis (24/10/2026) : les quatre transitions d'un devis se font ICI, jamais depuis le navigateur (les règles Firestore ne laissent écrire qu'un brouillon).
+// Contrôle de l'appelant comme `automatisationsDecider` ; mêmes région, limites et compte de service ; aucun secret, aucun appel à n8n dans cette version.
+const OPTIONS_DEVIS = { region: 'europe-west9', maxInstances: 3, memory: '256MiB', timeoutSeconds: 60, serviceAccount: 'porte-serveur@chevalier-ia-os.iam.gserviceaccount.com' };
+const appelDevis = (operation) => onCall(OPTIONS_DEVIS, (requete) => {
+  if (!getApps().length) initializeApp();
+  return creerAppelDevis(operation, { donnees: () => creerAccesFirestore(), journal: (e) => process.stdout.write(`${ligneDeJournalDevis(e)}\n`) })(requete);
+});
+export const devisFinaliser = appelDevis('finaliser');
+export const devisChangerStatut = appelDevis('changerStatut');
+export const devisNouvelleVersion = appelDevis('nouvelleVersion');
+export const devisArchiver = appelDevis('archiver');
 
 // `veille` : appelée par l'appli (boutons « Ajouter » et « Résumer » du module Veille). Le jeton du bouton Résumer vit ici (Secret Manager),
 // jamais dans la page. Le secret VEILLE_JETON_RESUMER doit être créé avant le déploiement (docs/veille-ajout-et-resume.md).

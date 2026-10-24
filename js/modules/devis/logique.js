@@ -24,12 +24,15 @@ export const MODES_MARGE = [
   { id: 'majoration', libelle: 'Majoration sur le prix d\'achat' },
   { id: 'marge_vente', libelle: 'Marge sur le prix de vente' },
 ];
+// Noms affichés (24/10/2026) : Finalisé = `en_attente_envoi`, Signé = `accepte`. Les identifiants stockés ne changent pas.
+// « Expiré » n'est jamais stocké : il se calcule à l'affichage (estExpire), il est listé ici pour avoir un libellé.
 export const STATUTS_DEVIS = [
   { id: 'brouillon', libelle: 'Brouillon' },
-  { id: 'en_attente_envoi', libelle: 'En attente d\'envoi' },
+  { id: 'en_attente_envoi', libelle: 'Finalisé' },
   { id: 'envoye', libelle: 'Envoyé' },
-  { id: 'accepte', libelle: 'Accepté' },
+  { id: 'accepte', libelle: 'Signé' },
   { id: 'refuse', libelle: 'Refusé' },
+  { id: 'expire', libelle: 'Expiré' },
   { id: 'remplace', libelle: 'Remplacé' },
 ];
 export const TAUX_TVA_DEFAUT = [20, 10, 5.5];

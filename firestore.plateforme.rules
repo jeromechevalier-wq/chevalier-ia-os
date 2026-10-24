@@ -71,10 +71,36 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Devis (module Devis, 24/10/2026). Les membres LISENT les devis ; un éditeur peut créer un BROUILLON neuf (sans numéro, version 1), puis le modifier TANT QU'IL RESTE un
+    // brouillon (avant ET après), sans toucher à son numéro, sa racine, sa version, son statut ni sa date de finalisation. Finaliser, marquer envoyé, signer, refuser, créer la
+    // version suivante et archiver passent par les fonctions du serveur (devisFinaliser…), qui contournent les règles. Aucune suppression depuis un navigateur.
+    // Le compteur des numéros (devis_compteurs) est réservé au serveur : ni lecture ni écriture, même par un éditeur.
+    function devisBrouillonNeuf(id) {
+      let d = request.resource.data;
+      return d.get('statut', '') == 'brouillon' && d.get('numero', null) == null && !('finaliseLe' in d)
+        && d.get('racineId', '') == id && d.get('version', 0) == 1;
+    }
+    function devisBrouillonModifie() {
+      return resource.data.get('statut', '') == 'brouillon' && request.resource.data.get('statut', '') == 'brouillon'
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['numero', 'racineId', 'version', 'statut', 'finaliseLe']);
+    }
+    function collectionDesDevis(collection) {
+      return collection in ['devis_devis', 'devis_compteurs'];
+    }
+    match /clients/{client}/devis_devis/{id} {
+      allow read: if roleDe(client) in ['editeur', 'lecteur'];
+      allow create: if roleDe(client) == 'editeur' && devisBrouillonNeuf(id);
+      allow update: if roleDe(client) == 'editeur' && devisBrouillonModifie();
+      allow delete: if false;
+    }
+    match /clients/{client}/devis_compteurs/{id} {
+      allow read, write: if false;
+    }
+
     // Les données du client (tout sauf les fiches d'appartenance, traitées ci-dessus).
     match /clients/{client}/{collection}/{reste=**} {
-      allow read: if collection != 'membres' && roleDe(client) in ['editeur', 'lecteur'];
-      allow write: if collection != 'membres' && !collectionDuJournal(collection) && !collectionDuTableauDeBord(collection) && !collectionSansSuppression(collection) && roleDe(client) == 'editeur';
+      allow read: if collection != 'membres' && collection != 'devis_compteurs' && roleDe(client) in ['editeur', 'lecteur'];
+      allow write: if collection != 'membres' && !collectionDuJournal(collection) && !collectionDuTableauDeBord(collection) && !collectionSansSuppression(collection) && !collectionDesDevis(collection) && roleDe(client) == 'editeur';
     }
 
     // Tout le reste (racine, autres collections) : refusé.
