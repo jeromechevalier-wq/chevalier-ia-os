@@ -436,10 +436,38 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Devis (module Devis, 24/10/2026). L'appli lit les devis et peut créer un BROUILLON neuf (sans numéro, version 1), puis le modifier TANT QU'IL RESTE un brouillon
+    // (avant ET après), sans toucher à son numéro, sa racine, sa version, son statut ni sa date de finalisation. Finaliser, marquer envoyé, signer, refuser, créer la version
+    // suivante et archiver passent par les fonctions du serveur (devisFinaliser…), qui contournent les règles. Aucune suppression depuis un navigateur (jamais une version finalisée).
+    // Le compteur des numéros est réservé au serveur : ni lecture ni écriture.
+    function devisBrouillonNeuf(id) {
+      let d = request.resource.data;
+      return d.get('statut', '') == 'brouillon' && d.get('numero', null) == null && !('finaliseLe' in d)
+        && d.get('racineId', '') == id && d.get('version', 0) == 1;
+    }
+    function devisBrouillonModifie() {
+      return resource.data.get('statut', '') == 'brouillon' && request.resource.data.get('statut', '') == 'brouillon'
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['numero', 'racineId', 'version', 'statut', 'finaliseLe']);
+    }
+    match /devis_devis/{id} {
+      allow read: if compteAutorise();
+      allow create: if compteAutorise() && devisBrouillonNeuf(id);
+      allow update: if compteAutorise() && devisBrouillonModifie();
+      allow delete: if false;
+    }
+    match /devis_compteurs/{id} {
+      allow read, write: if false;
+    }
+    // Le bordereau du module Devis : un article se désactive, il ne se supprime jamais.
+    match /devis_articles/{id} {
+      allow read, create, update: if compteAutorise();
+      allow delete: if false;
+    }
+
     // Tout le reste : comme avant (les deux comptes autorisés), sauf les collections ci-dessus.
     match /{collection}/{document=**} {
       allow read, write: if compteAutorise()
-        && !(collection in ['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions']);
+        && !(collection in ['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions', 'devis_devis', 'devis_compteurs', 'devis_articles']);
     }
   }
 }

@@ -9,7 +9,11 @@
 //    attendus (facultatif) : [{ collection, id, avant }] ; chaque document doit être EXACTEMENT dans l'état `avant` (null = absent) au moment
 //    de l'écriture, sinon rien n'est écrit et l'erreur a le code `conflit` (contrôle de concurrence : quelqu'un a modifié entre-temps) ;
 //  - mettreAJour(collection, id, fn) : lecture-modification-écriture atomique ; fn(courant | null) -> { ecrire: bool, donnees, ...reste } ;
-//    renvoie ce que fn a renvoyé (compteurs de débit).
+//    renvoie ce que fn a renvoyé (compteurs de débit) ;
+//  - transaction(fn) : plusieurs lectures puis plusieurs écritures dans UNE transaction (module Devis : numéro, devis, version précédente).
+//    fn(tx) reçoit tx.document(collection, id), tx.liste(collection, { champ, valeur }?) et tx.ecrire([ecritures]) (même forme que `appliquer`) ;
+//    les écritures ne partent qu'à la fin de fn, toutes ensemble ; si fn lève une erreur, rien n'est écrit. Firestore relance fn en cas de concurrence :
+//    fn ne doit donc rien faire d'autre que lire et appeler tx.ecrire.
 import { initializeApp, getApps } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { egal, sansUndefined } from './canonique.js';
@@ -25,6 +29,9 @@ export const COLLECTIONS = {
   projetsTaches: 'projets_taches',
   projetsModeles: 'projets_modeles',
   devisArticles: 'devis_articles',
+  devis: 'devis_devis',
+  devisCompteurs: 'devis_compteurs',
+  devisParametres: 'devis_parametres',
   parametres: 'crm_parametres',
   audit: 'crm_audit',
   auditAvant: 'crm_audit_avant',
@@ -102,6 +109,26 @@ export function creerAccesFirestore({ projectId, db: dbFournie = null } = {}) {
         return r;
       });
     },
+    async transaction(fn) {
+      return base().runTransaction(async (t) => {
+        const aEcrire = [];
+        const tx = {
+          async document(nom, id) {
+            const s = await t.get(ref(nom, id));
+            return s.exists ? { ...s.data(), id: s.id } : null;
+          },
+          async liste(nom, filtre) {
+            const r = base().collection(nom);
+            const snap = await t.get(filtre ? r.where(filtre.champ, '==', filtre.valeur) : r);
+            return snap.docs.map((d) => ({ ...d.data(), id: d.id }));
+          },
+          ecrire(ecritures) { aEcrire.push(...ecritures); },
+        };
+        const resultat = await fn(tx);
+        appliquerA(t, aEcrire);
+        return resultat;
+      });
+    },
   };
 }
 
@@ -130,6 +157,11 @@ export function avecBase(acces, base) {
       { attendus: attendus.map((a) => ({ ...a, collection: nom(a.collection), id: exigerId(a.id) })) },
     ),
     mettreAJour: (n, id, fn) => acces.mettreAJour(nom(n), exigerId(id), fn),
+    transaction: (fn) => acces.transaction((tx) => fn({
+      document: (n, id) => (idSur(id) ? tx.document(nom(n), id) : Promise.resolve(null)),
+      liste: (n, filtre) => tx.liste(nom(n), filtre),
+      ecrire: (ecritures) => tx.ecrire(ecritures.map((e) => ({ ...e, collection: nom(e.collection), id: exigerId(e.id) }))),
+    })),
   };
 }
 
@@ -137,6 +169,7 @@ export function avecBase(acces, base) {
 export function creerAccesMemoire(collections = {}) {
   const copie = (x) => structuredClone(x);
   let compteur = 0;
+  let fileTransactions = Promise.resolve();
   const trouver = (nom, id) => (collections[nom] || []).find((x) => x.id === id);
   const contenu = (nom, id) => {
     const d = trouver(nom, id);
@@ -178,6 +211,26 @@ export function creerAccesMemoire(collections = {}) {
       const r = fn(contenu(nom, id));
       if (r.ecrire) await acces.appliquer([{ type: 'set', collection: nom, id, donnees: r.donnees }]);
       return r;
+    },
+    // Les transactions passent l'une après l'autre (comme Firestore qui relance la perdante) : jamais deux en même temps.
+    async transaction(fn) {
+      const attente = fileTransactions;
+      let libere;
+      fileTransactions = new Promise((ok) => { libere = ok; });
+      await attente;
+      try {
+        const aEcrire = [];
+        const tx = {
+          document: async (nom, id) => contenu(nom, id),
+          liste: async (nom, filtre) => copie(filtre ? (collections[nom] || []).filter((d) => d[filtre.champ] === filtre.valeur) : (collections[nom] || [])),
+          ecrire: (ecritures) => { aEcrire.push(...ecritures); },
+        };
+        const resultat = await fn(tx);
+        if (aEcrire.length) await acces.appliquer(aEcrire);
+        return resultat;
+      } finally {
+        libere();
+      }
     },
   };
   return acces;
