@@ -87,8 +87,8 @@ let derniereAdresse = typeof location === 'undefined' ? '' : location.hash;
 let sortieConfirmee = false;
 
 /** `modifie()` : vrai s'il y a un brouillon non enregistré. Une garde dont la page a disparu doit répondre faux (elle est alors retirée). */
-export function ajouterGardeSortie(modifie, { message = 'Des changements ne sont pas enregistrés.', enregistrer = null } = {}) {
-  const g = { modifie, message, enregistrer };
+export function ajouterGardeSortie(modifie, { message = 'Des changements ne sont pas enregistrés.', enregistrer = null, messageEchec = 'L’enregistrement a échoué : tu restes sur la page.' } = {}) {
+  const g = { modifie, message, enregistrer, messageEchec };
   gardes.add(g);
   return () => gardes.delete(g);
 }
@@ -120,7 +120,7 @@ if (typeof window !== 'undefined') {
         ],
       });
       quitter = choix === 'quitter' || (choix === 'enregistrer' && await garde.enregistrer());
-      if (choix === 'enregistrer' && !quitter) ui.toast('L’enregistrement a échoué : tu restes sur le devis.', { type: 'erreur', duree: 6000 });
+      if (choix === 'enregistrer' && !quitter) ui.toast(garde.messageEchec, { type: 'erreur', duree: 6000 });
     } else {
       quitter = await ui.confirmer('Quitter sans enregistrer ?', `${garde.message} Si tu quittes, ils seront perdus.`, { libelleOk: 'Quitter sans enregistrer', danger: true });
     }

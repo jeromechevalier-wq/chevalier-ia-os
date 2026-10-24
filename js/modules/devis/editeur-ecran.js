@@ -65,9 +65,12 @@ export async function dupliquerDevis(source) {
       destinataires: source.destinataires, copie: source.copie, modeMarge: source.modeMarge, marge: source.marge, tauxTvaDefaut: source.tauxTvaDefaut,
     });
     if (!r.id) throw new Error(Object.values(r.erreurs)[0] || ERREUR_ECRITURE);
-    if (!(await attendreDevis(r.id))) throw new Error(ERREUR_ECRITURE);
-    const m = await D.modifierBrouillon(r.id, contenu);
-    if (Object.keys(m.erreurs).length) throw new Error(Object.values(m.erreurs)[0]);
+    let copie = false;
+    try {
+      if (await attendreDevis(r.id)) { const m = await D.modifierBrouillon(r.id, contenu); copie = Object.keys(m.erreurs).length === 0; }
+    } catch (e) { console.warn(e); }
+    // Le brouillon existe même si la copie du contenu a échoué : on l'ouvre et on le dit.
+    if (!copie) toast('Le brouillon est créé, mais son contenu n’a pas pu être copié : ajoute les lignes à la main, ou réessaie depuis la liste.', { type: 'erreur', duree: 10000 });
     naviguer(`devis/editeur/${r.id}`);
   } catch (e) {
     console.warn(e);
@@ -161,6 +164,9 @@ export function rendreEditeurDevis(conteneur, id) {
   let filtreFamille = '';
   let filtreType = '';
   let moment = Date.now();
+  let conflit = false; // le devis a changé ailleurs : rien n'est écrasé tant que l'utilisateur n'a pas tranché
+  let verrou = false; // finalisation en cours : plus aucun enregistrement automatique
+  let enVol = null; // ce qu'un enregistrement en cours est en train d'écrire
   let montre = false; // la page est construite
   let arretGarde = () => {};
   let delaiIntrouvable = null;
@@ -197,6 +203,12 @@ export function rendreEditeurDevis(conteneur, id) {
     if (!montre) { charger(); return; }
     const d = devisCourant();
     if (!d) return;
+    if (!lecture && d.statut === 'brouillon' && !conflit && !Ed.memeContenu(d, enregistre) && !(enVol && Ed.memeContenu(d, enVol))) {
+      conflit = true;
+      clearTimeout(minuteur);
+      if (ref.bandeauConflit) ref.bandeauConflit.hidden = false;
+      return;
+    }
     if (!lecture && d.statut !== 'brouillon') { clearTimeout(minuteur); lecture = true; travail = { ...d, ...Ed.champsAEnregistrer(d) }; enregistre = structuredClone(travail); construire(); return; }
     if (lecture) { travail = { ...d, ...Ed.champsAEnregistrer(d) }; enregistre = structuredClone(travail); construire(); }
   }
@@ -207,7 +219,7 @@ export function rendreEditeurDevis(conteneur, id) {
     etatEnreg = 'attente';
     messageEnreg = '';
     clearTimeout(minuteur);
-    minuteur = setTimeout(() => { sauver(); }, DELAI_ENREGISTREMENT_MS);
+    if (!conflit && !verrou) minuteur = setTimeout(() => { sauver(); }, DELAI_ENREGISTREMENT_MS);
     majEntete();
     majTotaux();
   }
@@ -217,10 +229,12 @@ export function rendreEditeurDevis(conteneur, id) {
     clearTimeout(minuteur);
     minuteur = null;
     if (lecture || !travail) return true;
+    if (conflit) { messageEnreg = 'Ce devis a été modifié ailleurs : recharge-le avant d’enregistrer.'; return false; }
     if (enCours) await enCours;
     if (!Ed.aDesChangements(enregistre, travail)) { if (etatEnreg !== 'erreur') etatEnreg = 'enregistre'; majEntete(); return etatEnreg !== 'erreur'; }
     const instantane = Ed.champsAEnregistrer(travail);
     etatEnreg = 'enCours';
+    enVol = instantane;
     majEntete();
     enCours = (async () => {
       try {
@@ -240,8 +254,9 @@ export function rendreEditeurDevis(conteneur, id) {
     })();
     const ok = await enCours;
     enCours = null;
+    enVol = null;
     majEntete();
-    if (ok && etatEnreg === 'attente') { minuteur = setTimeout(() => { sauver(); }, DELAI_ENREGISTREMENT_MS); }
+    if (ok && etatEnreg === 'attente' && !verrou && !conflit) { minuteur = setTimeout(() => { sauver(); }, DELAI_ENREGISTREMENT_MS); }
     return ok;
   }
 
@@ -281,6 +296,8 @@ export function rendreEditeurDevis(conteneur, id) {
         (ref.boutonEnregistrer = h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'enregistrer' }, onclick: async () => { const ok = await sauver(); toast(ok ? 'Devis enregistré' : messageEnreg || ERREUR_ECRITURE, { type: ok ? 'info' : 'erreur', duree: ok ? 2500 : 8000 }); } })),
         h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'finaliser' }, onclick: finaliser }, icone('check', { taille: 16 }), 'Finaliser'),
       ]));
+    ref.bandeauConflit = h('p', { class: 'bandeau-lecture-seule', role: 'alert', hidden: !conflit, dataset: { valeur: 'conflit' } }, 'Ce devis a été modifié ailleurs. Tes changements ne sont pas enregistrés tant que tu n’as pas rechargé. ',
+      h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'recharger' }, onclick: () => { conflit = false; charger(); } }, 'Recharger'));
     const erreurEnreg = (ref.erreurEnreg = h('p', { class: 'erreur', role: 'alert', dataset: { erreur: 'enregistrement' }, hidden: true }));
     const onglets = h('div', { class: 'onglets-editeur', role: 'tablist', 'aria-label': 'Affichage du devis', hidden: lecture },
       [['edition', 'Édition'], ['apercu', 'Aperçu']].map(([cle, libelle]) => h('button', {
@@ -290,12 +307,12 @@ export function rendreEditeurDevis(conteneur, id) {
     ref.panneauEdition = h('div', { class: 'editeur-grille', dataset: { panneau: 'edition' } }, lecture ? null : h('div', { class: 'editeur-principal' }, blocs()), panneauTotal());
     ref.panneauApercu = h('div', { class: 'editeur-apercu', dataset: { panneau: 'apercu' } });
     racine.classList.toggle('devis-lecture-seule', lecture);
-    remplir(racine, datalist, entete, lecture ? h('p', { class: 'bandeau-lecture-seule', dataset: { valeur: 'lecture-seule' } }, MESSAGE_LECTURE_SEULE) : null, erreurEnreg, onglets, ref.panneauEdition, ref.panneauApercu);
+    remplir(racine, datalist, entete, lecture ? h('p', { class: 'bandeau-lecture-seule', dataset: { valeur: 'lecture-seule' } }, MESSAGE_LECTURE_SEULE) : ref.bandeauConflit, erreurEnreg, onglets, ref.panneauEdition, ref.panneauApercu);
     if (!lecture) { rendreLignes(); majResultats(); }
     arretGarde();
     arretGarde = ajouterGardeSortie(
       () => racine.isConnected && Ed.sortieAConfirmer({ enregistre, courant: travail, enCours: Boolean(enCours), lectureSeule: lecture }),
-      { message: 'Les changements de ce devis ne sont pas enregistrés.', enregistrer: sauver },
+      { message: 'Les changements de ce devis ne sont pas enregistrés.', enregistrer: sauver, messageEchec: 'L’enregistrement a échoué : tu restes sur le devis.' },
     );
     choisirOnglet(lecture ? 'apercu' : onglet);
     majEntete();
@@ -614,9 +631,10 @@ export function rendreEditeurDevis(conteneur, id) {
       class: 'champ champ-nombre', type: 'text', inputmode: 'decimal', value: '', 'aria-label': `Prix de vente HT ${numeros[l.id]}`, dataset: { champ: 'prix-vente' },
       onchange: (ev) => {
         const v = Ed.lireSaisie(ev.target.value);
-        if (v === null || v < 0) { ev.target.classList.add('invalide'); return; }
-        ev.target.classList.remove('invalide');
         const lig = Ed.trouverLigne(travail.sections, l.id).ligne;
+        if (v === null || !Ed.prixVenteReglable(lig, v, travail.modeMarge)) { ev.target.classList.add('invalide'); ev.target.title = 'Ce prix de vente est impossible avec le prix d’achat de cette ligne et ce mode de marge.'; return; }
+        ev.target.classList.remove('invalide');
+        ev.target.removeAttribute('title');
         const nouvelle = Ed.avecPrixVente(lig, v, travail.modeMarge);
         changerLigne(l.id, { prixAchat: nouvelle.prixAchat, marge: nouvelle.marge });
         ev.target.value = saisiePrix(v);
@@ -640,7 +658,7 @@ export function rendreEditeurDevis(conteneur, id) {
   function blocPrix() {
     const d = travail;
     const marge = h('input', { class: 'champ champ-court', id: 'devis-marge', type: 'text', inputmode: 'decimal', value: saisieNombre(d.marge), dataset: { champ: 'marge' }, 'aria-label': 'Marge du devis en pourcent',
-      oninput: (e) => { const v = Ed.lireSaisie(e.target.value); e.target.classList.toggle('invalide', v === null); if (v !== null) { changer({ marge: v }); majPrixAffiches(); } } });
+      oninput: (e) => { const vide = e.target.value.trim() === ''; const v = vide ? 0 : Ed.lireSaisie(e.target.value); e.target.classList.toggle('invalide', v === null); if (v !== null) { changer({ marge: v }); majPrixAffiches(); } } });
     const mode = h('select', { class: 'champ', id: 'devis-mode', dataset: { champ: 'mode-marge' }, 'aria-label': 'Mode de calcul de la marge', onchange: (e) => { changer({ modeMarge: e.target.value }); majPrixAffiches(); } },
       MODES_MARGE.map((m) => h('option', { value: m.id, selected: d.modeMarge === m.id }, m.libelle)));
     const tva = h('select', { class: 'champ', id: 'devis-tva', dataset: { champ: 'tva-defaut' }, onchange: (e) => changer({ tauxTvaDefaut: Number(e.target.value) }) },
@@ -752,6 +770,7 @@ export function rendreEditeurDevis(conteneur, id) {
   }
 
   async function finaliser() {
+    clearTimeout(minuteur);
     if (!(await sauver())) { toast(messageEnreg || ERREUR_ECRITURE, { type: 'erreur', duree: 8000 }); return; }
     const locales = [...(travail.affaireId ? [] : ['Choisis l’affaire du devis.']), ...erreursFinalisation(travail)];
     if (locales.length) { await listeErreurs('Ce devis ne peut pas encore être finalisé', locales); return; }
@@ -763,9 +782,13 @@ export function rendreEditeurDevis(conteneur, id) {
       boutons: [{ libelle: 'Annuler', valeur: false }, { libelle: 'Finaliser', valeur: true, style: 'principal' }],
     });
     if (ok !== true) return;
+    verrou = true; // plus aucun enregistrement automatique pendant et après la finalisation
+    clearTimeout(minuteur);
+    if (Ed.aDesChangements(enregistre, travail)) { verrou = false; if (!(await sauver())) { toast(messageEnreg || ERREUR_ECRITURE, { type: 'erreur', duree: 8000 }); return; } verrou = true; }
     try {
       const r = await D.finaliser(id);
-      if (r?.ok === false) { await listeErreurs('Ce devis ne peut pas encore être finalisé', r.erreurs ?? []); return; }
+      if (r?.ok === false) {
+        verrou = false; await listeErreurs('Ce devis ne peut pas encore être finalisé', r.erreurs ?? []); return; }
       toast(`Devis finalisé${r?.numero ? ` : ${r.numero}` : ''}`);
       clearTimeout(minuteur);
       lecture = true;
@@ -774,6 +797,7 @@ export function rendreEditeurDevis(conteneur, id) {
       construire();
     } catch (e) {
       console.warn(e);
+      verrou = false;
       toast(e?.message || D.MESSAGE_RESEAU_DEVIS, { type: 'erreur', duree: 8000 });
     }
   }

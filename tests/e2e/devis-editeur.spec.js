@@ -336,3 +336,22 @@ test('ED6 depuis la liste : Nouveau devis, Modifier ouvre l’éditeur, Duplique
   await expect(page.getByRole('heading', { level: 1 })).toContainText('v2');
   await capturer(page, info, 'ED6-variante');
 });
+
+test('ED7 devis modifié ailleurs : un bandeau le dit, rien n’est écrasé ni enregistré ; « Recharger » reprend la dernière version', async ({ page }, info) => {
+  await semer();
+  const id = await nouveauBrouillon(page);
+  await page.locator('[data-champ="objet"]').fill('Version A');
+  await enregistre(page);
+  // Une autre session change l'objet.
+  const actuel = await lireDocument(`devis_devis/${id}`);
+  await ecrireDocument(`devis_devis/${id}`, { ...actuel, objet: 'Version B', modifieLe: new Date() });
+  await expect(page.locator('[data-valeur="conflit"]')).toContainText('modifié ailleurs');
+  await expect(page.locator('[data-champ="objet"]')).toHaveValue('Version A'); // rien n'est écrasé à l'écran
+  await page.locator('[data-champ="objet"]').fill('Version C');
+  await page.waitForTimeout(1500); // plus long que l'enregistrement automatique : rien ne part
+  expect((await lireDocument(`devis_devis/${id}`)).objet).toBe('Version B');
+  await capturer(page, info, 'ED7-modifie-ailleurs');
+  await page.locator('[data-action="recharger"]').click();
+  await expect(page.locator('[data-champ="objet"]')).toHaveValue('Version B');
+  await expect(page.locator('[data-valeur="conflit"]')).toBeHidden();
+});

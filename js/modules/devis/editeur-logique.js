@@ -90,12 +90,22 @@ export function margePourPrixVente(prixAchat, prixVente, mode) {
   return versCentimes(prixVenteUnitaire(prixAchat, marge, mode)) === versCentimes(prixVente) ? marge : null;
 }
 
-/** Règle le prix de vente d'une ligne (voir « Décisions ») : renvoie la ligne modifiée. `prixVente` invalide : la ligne est rendue telle quelle. */
+const sansCout = (ligne) => ligne?.type === TYPE_LIGNE_LIBRE || !(estNombre(ligne?.prixAchat) && ligne.prixAchat > 0);
+
+/** Peut-on régler ce prix de vente ? Faux seulement pour une ligne dont le coût est connu et dont la marge serait impossible (ex. 0 € en marge sur le prix de vente) : la saisie est alors `invalide`, rien n'est effacé. */
+export function prixVenteReglable(ligne, prixVente, modeMarge) {
+  if (!estNombre(prixVente) || prixVente < 0) return false;
+  return sansCout(ligne) || margePourPrixVente(ligne.prixAchat, prixVente, modeMarge) !== null;
+}
+
+/**
+ * Règle le prix de vente d'une ligne (voir « Décisions ») : renvoie la ligne modifiée. Ligne libre ou sans coût connu : le prix saisi devient le prix d'achat, marge 0.
+ * Ligne du Bordereau : la marge propre est réglée ; si c'est impossible (`prixVenteReglable` faux), la ligne est rendue telle quelle.
+ */
 export function avecPrixVente(ligne, prixVente, modeMarge) {
-  if (!estNombre(prixVente) || prixVente < 0) return ligne;
-  const marge = margePourPrixVente(ligne.prixAchat, prixVente, modeMarge);
-  if (marge !== null) return { ...ligne, marge };
-  return { ...ligne, prixAchat: Math.round(prixVente * 100) / 100, marge: 0 };
+  if (!prixVenteReglable(ligne, prixVente, modeMarge)) return ligne;
+  if (sansCout(ligne)) return { ...ligne, prixAchat: Math.round(prixVente * 100) / 100, marge: 0 };
+  return { ...ligne, marge: margePourPrixVente(ligne.prixAchat, prixVente, modeMarge) };
 }
 
 /** Description d'une ligne d'ouvrage selon sa quantité (composition figée). Texte vide pour une autre ligne. */
@@ -151,7 +161,10 @@ export function deplacerElement(sections, id, sens) {
       if (d === 0) return els;
       // la ligne passe au-dessus de l'élément précédent ; une section passe au-dessus de la section précédente (groupe entier)
       let cible = d - 1;
-      if (estSection(els[d])) { while (cible > 0 && !estSection(els[cible])) cible -= 1; }
+      if (estSection(els[d])) {
+        while (cible > 0 && !estSection(els[cible])) cible -= 1;
+        if (!estSection(els[cible])) return els; // des lignes libres en tête : une section ne passe jamais au-dessus (elle les absorberait)
+      }
       return [...els.slice(0, cible), ...els.slice(d, f), ...els.slice(cible, d), ...els.slice(f)];
     }
     if (f >= els.length) return els;
@@ -167,7 +180,8 @@ export function deplacementsPossibles(sections, id) {
   const i = indexDe(els, id);
   if (i === -1) return { monter: false, descendre: false };
   const [, f] = groupe(els, i);
-  return { monter: i > 0, descendre: f < els.length };
+  const monter = i > 0 && (!estSection(els[i]) || els.slice(0, i).some(estSection));
+  return { monter, descendre: f < els.length };
 }
 
 /** Duplique un élément juste au-dessous (une section : avec ses lignes). `nouvelId()` donne un identifiant neuf à chaque appel. Rend { sections, ids }. */
@@ -342,4 +356,10 @@ export const estLectureSeule = (devis) => devis?.statut !== 'brouillon';
 /** Prix de vente unitaire affiché d'une ligne (nombre ou null), selon la marge du devis, de la section et de la ligne. */
 export function prixVenteAffiche(devis, section, ligne) {
   return prixVenteDeLigne({ ...devis, statut: 'brouillon' }, section, ligne);
+}
+
+/** Même contenu (champs enregistrés), quel que soit l'ordre des clés : sert à reconnaître un devis modifié ailleurs. */
+export function memeContenu(a, b) {
+  const stable = (v) => (Array.isArray(v) ? v.map(stable) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, stable(v[k])])) : v);
+  return JSON.stringify(stable(champsAEnregistrer(a))) === JSON.stringify(stable(champsAEnregistrer(b)));
 }

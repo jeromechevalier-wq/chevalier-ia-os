@@ -212,3 +212,38 @@ describe('E8 affaire, client et copie', () => {
     assert.equal(Ed.estLectureSeule({ statut: 'brouillon' }), false);
   });
 });
+
+describe('E9 prix de vente : ligne libre et marge impossible', () => {
+  test('E9 une ligne libre prend toujours le prix saisi comme prix d’achat, marge 0, même si elle avait un coût', () => {
+    const l = Ed.avecPrixVente({ ...Ed.ligneLibre('l'), prixAchat: 40, marge: 25 }, 90, 'majoration');
+    assert.equal(l.prixAchat, 90); assert.equal(l.marge, 0);
+  });
+  test('E9 ligne du Bordereau, marge impossible (0 € en marge sur prix de vente) : rien n’est effacé, la saisie est signalée non réglable', () => {
+    const l = L('a', { prixAchat: 50, marge: 10 });
+    assert.equal(Ed.prixVenteReglable(l, 0, 'marge_vente'), false);
+    assert.deepEqual(Ed.avecPrixVente(l, 0, 'marge_vente'), l);
+    assert.equal(Ed.prixVenteReglable(l, 0, 'majoration'), true);
+    assert.equal(Ed.prixVenteReglable(l, 80, 'marge_vente'), true);
+    assert.equal(Ed.prixVenteReglable(l, -1, 'majoration'), false);
+  });
+});
+
+describe('E10 une section ne monte jamais au-dessus des lignes de tête', () => {
+  test('E10 « Monter » est grisé pour la première section quand des lignes libres la précèdent, et déplacer ne fait rien', () => {
+    assert.equal(Ed.deplacementsPossibles(exemple(), 's1').monter, false);
+    assert.deepEqual(ids(Ed.deplacerElement(exemple(), 's1', -1)), ids(exemple()));
+    assert.equal(Ed.deplacementsPossibles(exemple(), 's2').monter, true);
+    const sansTete = [{ id: 's1', titre: 'A', lignes: [L('a')] }, { id: 's2', titre: 'B', lignes: [] }];
+    assert.equal(Ed.deplacementsPossibles(sansTete, 's1').monter, false);
+    assert.equal(Ed.deplacementsPossibles(sansTete, 's2').monter, true);
+  });
+});
+
+describe('E11 devis modifié ailleurs', () => {
+  test('E11 même contenu quel que soit l’ordre des clés ; un champ différent est reconnu', () => {
+    const a = { statut: 'brouillon', objet: 'x', chantier: { debutTravaux: '2026-11-02', adresse: { texte: 'r' } }, modifieLe: 1 };
+    const b = { objet: 'x', chantier: { adresse: { texte: 'r' }, debutTravaux: '2026-11-02' }, modifieLe: 2 };
+    assert.equal(Ed.memeContenu(a, b), true);
+    assert.equal(Ed.memeContenu(a, { ...b, objet: 'y' }), false);
+  });
+});
