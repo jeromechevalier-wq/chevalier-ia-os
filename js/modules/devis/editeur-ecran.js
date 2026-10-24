@@ -951,8 +951,8 @@ export function rendreEditeurDevis(conteneur, id) {
         changerLigne(l.id, patch);
       },
     });
-    // L'unité se choisit dans la liste du Bordereau (ou « Autre… » pour écrire la sienne).
-    const unite = menuUnite({ valeur: l.unite ?? '', libelle: `Unité ${numeros[l.id]}`, champ: 'unite' });
+    // Ligne libre : l'unité se choisit dans la liste (ou « Autre… »). Ligne venue d'un article : l'unité est celle de l'article, verrouillée.
+    const unite = menuUnite({ valeur: l.unite ?? '', libelle: `Unité ${numeros[l.id]}`, champ: 'unite', verrouille: Boolean(l.articleId) });
     unite.addEventListener('input', () => changerLigne(l.id, { unite: unite.value }));
     const prix = h('input', {
       class: 'champ champ-surplace champ-nombre', type: 'text', inputmode: 'decimal', value: '', 'aria-label': `Prix de vente HT ${numeros[l.id]}`, dataset: { champ: 'prix-vente' },
