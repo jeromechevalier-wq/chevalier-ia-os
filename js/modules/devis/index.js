@@ -1,9 +1,10 @@
-// Module Devis (cadrage-devis.md) : montage et routes. Pour l'instant un seul écran, le Bordereau (articles) ; les devis eux-mêmes viendront ensuite.
-// Route : devis/bordereau. Le module lit le CRM (étapes des affaires) : le CRM démarre avant lui (le module Devis dépend de « affaires », pas de « projets »).
+// Module Devis (cadrage-devis.md) : montage et routes. Deux écrans : le Bordereau (articles) et la liste des devis ; l'éditeur de devis viendra ensuite.
+// Routes : devis/bordereau, devis/liste (pas encore dans le menu : registre.js ne la déclare pas). Le module lit le CRM (étapes des affaires) : le CRM démarre avant lui (le module Devis dépend de « affaires », pas de « projets »).
 import { vider } from '../../os/ui.js';
 import { naviguer } from '../../os/router.js';
 import * as D from './donnees.js';
 import { rendreBordereau } from './bordereau.js';
+import { rendreListeDevis } from './liste-ecran.js';
 import { reglages as reglagesDuModule } from './reglages.js';
 
 // Feuille de style propre au module, ajoutée au premier affichage (index.html reste inchangé).
@@ -37,6 +38,7 @@ function quitter() {
 }
 
 const VUES = {
+  liste: (conteneur) => rendreListeDevis(conteneur),
   bordereau: (conteneur) => rendreBordereau(conteneur),
 };
 

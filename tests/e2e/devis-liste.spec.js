@@ -1,0 +1,156 @@
+// Module Devis, écran « Devis » (liste des devis). Chez Jérôme (racine). Captures dans tests/e2e/captures/devis-liste/ (ordinateur et téléphone : la mise en page change).
+// Les fonctions du serveur (devisFinaliser, devisChangerStatut…) n'existent pas dans l'émulateur du navigateur : elles sont SIMULÉES par page.route.
+import { fileURLToPath } from 'node:url';
+import { test, expect, connecter, attendreCalme, ecrireDocument, creerOrganisation, creerAffaire, JEROME } from './outils.js';
+
+const DOSSIER = fileURLToPath(new URL('./captures/devis-liste/', import.meta.url));
+async function capturer(page, info, nom) {
+  await page.screenshot({ path: `${DOSSIER}${nom}-${info.project.name}.png`, fullPage: true, animations: 'disabled' });
+}
+const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS' };
+const jourDansLe = (n) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
+
+/** Un devis déjà dans la base (contourne l'écran). */
+async function devis(id, valeurs = {}) {
+  const maintenant = new Date();
+  await ecrireDocument(`devis_devis/${id}`, {
+    racineId: id, version: 1, numero: null, statut: 'brouillon', affaireId: null, personneId: null, organisationId: null, modeMarge: 'majoration', marge: 25, tauxTvaDefaut: 20,
+    regimeTva: 'assujetti', autoliquidation: false, archive: false, dureeValiditeJours: 90, expireLe: jourDansLe(60),
+    sections: [{ id: 's1', titre: 'Cuisine', lignes: [{ id: 'l1', libelle: 'Carrelage', quantite: 2, unite: 'm²', prixAchat: 50 }] }],
+    creePar: JEROME, modifiePar: JEROME, proprietaire: JEROME, creeLe: maintenant, modifieLe: maintenant, ...valeurs,
+  });
+}
+async function deuxDevis() {
+  await creerOrganisation('o1', { nom: 'Société Exemple' });
+  await creerAffaire('a1', { titre: 'Rénovation cuisine', organisationId: 'o1' });
+  await devis('d1', {
+    numero: 'DEV-2026-10-02-001', statut: 'envoye', affaireId: 'a1', organisationId: 'o1', expireLe: jourDansLe(30), finaliseLe: new Date(Date.now() - 20 * 86400000),
+    totaux: { ht: 1000, tva: 200, ttc: 1200 }, creeLe: new Date(Date.now() - 22 * 86400000), modifieLe: new Date(Date.now() - 2 * 86400000),
+  });
+  await devis('d2', { affaireId: 'a1', organisationId: 'o1', modifieLe: new Date(Date.now() - 5 * 60000) });
+}
+async function ouvrir(page) {
+  await connecter(page, undefined, { route: 'devis/liste' });
+  await expect(page.locator('.page-liste-devis')).toBeVisible();
+  await attendreCalme(page);
+}
+const lignes = (page) => page.locator('tr.ligne-devis');
+const cartes = (page) => page.locator('.carte-devis');
+async function ouvrirMenuDe(page, id) {
+  await page.locator(`[data-id="${id}"] [data-action="menu-devis"]`).click();
+  await expect(page.locator('.menu-pop')).toBeVisible();
+}
+
+test('E1 la vue Liste montre les deux devis, le plus récemment modifié d’abord, avec client, affaire, totaux et « 1 à 2 sur 2 éléments »', { tag: '@smoke' }, async ({ page }, info) => {
+  await deuxDevis();
+  await ouvrir(page);
+  await expect(page.getByRole('heading', { name: 'Devis', level: 1 })).toBeVisible();
+  await expect(lignes(page)).toHaveCount(2);
+  await expect(lignes(page).nth(0)).toHaveAttribute('data-id', 'd2'); // modifié il y a 5 min
+  await expect(lignes(page).nth(1)).toHaveAttribute('data-id', 'd1');
+  await expect(lignes(page).nth(1).locator('[data-colonne="numero"]')).toContainText('DEV-2026-10-02-001');
+  await expect(lignes(page).nth(1).locator('[data-colonne="statut"]')).toContainText('Envoyé');
+  await expect(lignes(page).nth(0).locator('[data-colonne="statut"]')).toContainText('Brouillon');
+  await expect(lignes(page).nth(1).locator('[data-colonne="client"]')).toContainText('Société Exemple');
+  await expect(lignes(page).nth(1).locator('[data-colonne="client"]')).toContainText('Rénovation cuisine');
+  await expect(lignes(page).nth(1).locator('[data-colonne="modifie"]')).toContainText('il y a 2 j');
+  await expect(lignes(page).nth(1).locator('[data-colonne="modifie"]')).toContainText('JC');
+  await expect(lignes(page).nth(1).locator('[data-colonne="ht"]')).toContainText('1 000');
+  await expect(lignes(page).nth(0).locator('[data-colonne="ht"]')).toContainText('125');
+  await expect(lignes(page).nth(0).locator('[data-colonne="ttc"]')).toContainText('150');
+  await expect(page.locator('[data-valeur="pagination"]')).toHaveText('1 à 2 sur 2 éléments');
+  await expect(page.locator('[data-champ="par-page"]')).toHaveValue('25');
+  await expect(page.locator('[data-action="nouveau-devis"]')).toBeDisabled();
+  await expect(page.locator('[data-action="nouveau-devis"]')).toContainText('bientôt disponible');
+  await capturer(page, info, 'E1-vue-liste');
+});
+
+test('E2 la vue Tableau range chaque devis dans la colonne de son statut, sans glisser-déposer', async ({ page }, info) => {
+  await deuxDevis();
+  await devis('d3', { numero: 'DEV-2026-10-03-002', statut: 'accepte', finaliseLe: new Date(), totaux: { ht: 500, tva: 100, ttc: 600 } });
+  await devis('d4', { numero: 'DEV-2026-09-01-003', statut: 'en_attente_envoi', finaliseLe: new Date(Date.now() - 60 * 86400000), expireLe: jourDansLe(-5), totaux: { ht: 80, tva: 16, ttc: 96 } });
+  await ouvrir(page);
+  await page.locator('[data-vue="tableau"]').click();
+  await expect(page.locator('.colonne')).toHaveCount(6);
+  await expect(page.locator('.colonne h2')).toHaveText(['Brouillon', 'Finalisé', 'Envoyé', 'Signé', 'Refusé', 'Remplacé et expiré']);
+  await expect(page.locator('[data-colonne="brouillon"] .carte-devis')).toHaveCount(1);
+  await expect(page.locator('[data-colonne="envoye"] .carte-devis')).toHaveAttribute('data-id', 'd1');
+  await expect(page.locator('[data-colonne="accepte"] .carte-devis')).toHaveAttribute('data-id', 'd3');
+  await expect(page.locator('[data-colonne="en_attente_envoi"] .carte-devis')).toHaveCount(0); // d4 a dépassé sa validité : il est « Expiré »
+  await expect(page.locator('[data-colonne="clos"] .carte-devis')).toHaveAttribute('data-id', 'd4');
+  await expect(page.locator('[data-colonne="clos"] .carte-devis')).toContainText('Expiré');
+  await expect(page.locator('[data-colonne="envoye"] .carte-devis')).toContainText('Société Exemple');
+  await expect(page.locator('[data-colonne="envoye"] .carte-devis')).toContainText('Rénovation cuisine');
+  await expect(page.locator('[draggable="true"]')).toHaveCount(0);
+  await expect(cartes(page)).toHaveCount(4);
+  await capturer(page, info, 'E2-vue-tableau');
+});
+
+test('E3 le menu « … » : changements de statut par le serveur, entrées « bientôt disponible » grisées, Voir ouvre l’aperçu, erreur du serveur dite en clair', { annotation: { type: 'erreurs-reseau-attendues', description: 'le faux serveur répond 400, comme le vrai' } }, async ({ page }, info) => {
+  await deuxDevis();
+  const appels = [];
+  let refuser = false;
+  await page.route('**/devisChangerStatut', async (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+    appels.push(JSON.parse(route.request().postData()).data);
+    if (refuser) return route.fulfill({ status: 400, headers: cors, body: JSON.stringify({ error: { message: 'Ce devis ne peut plus changer de statut.', status: 'FAILED_PRECONDITION' } }) });
+    return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ result: { ok: true } }) });
+  });
+  await ouvrir(page);
+  // Devis envoyé : Signé et Refusé proposés, rien d'autre en statut ; Facturer, Envoyer, Dupliquer et la variante sont grisés.
+  await ouvrirMenuDe(page, 'd1');
+  const menu = page.locator('.menu-pop');
+  await expect(menu.getByRole('menuitem', { name: /Passer à « Signé »/ })).toBeEnabled();
+  await expect(menu.getByRole('menuitem', { name: /Passer à « Refusé »/ })).toBeEnabled();
+  await expect(menu.getByRole('menuitem', { name: /Passer à « Envoyé »/ })).toHaveCount(0);
+  for (const nom of [/Facturer/, /Envoyer/, /Dupliquer/, /Modifier : nouvelle variante/]) {
+    await expect(menu.getByRole('menuitem', { name: nom })).toBeDisabled();
+    await expect(menu.getByRole('menuitem', { name: nom })).toContainText('bientôt disponible');
+  }
+  await expect(menu.getByRole('menuitem', { name: /Supprimer/ })).toHaveCount(0); // seulement un brouillon
+  await capturer(page, info, 'E3-menu-devis-envoye');
+  // Signé : la demande part au serveur (jamais une écriture directe).
+  await menu.getByRole('menuitem', { name: /Passer à « Signé »/ }).click();
+  await expect(page.locator('.toast')).toContainText('Devis passé à « Signé »');
+  expect(appels).toEqual([{ devisId: 'd1', action: 'accepter' }]);
+  // Le serveur refuse : son message s'affiche en clair.
+  refuser = true;
+  await ouvrirMenuDe(page, 'd1');
+  await page.locator('.menu-pop').getByRole('menuitem', { name: /Passer à « Refusé »/ }).click();
+  await expect(page.locator('.toast').last()).toContainText('Ce devis ne peut plus changer de statut.');
+  // Brouillon : Supprimer grisé « bientôt », Modifier : version actuelle grisé, Finalisé proposé.
+  await ouvrirMenuDe(page, 'd2');
+  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: /Supprimer/ })).toBeDisabled();
+  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: /Modifier : version actuelle/ })).toBeDisabled();
+  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: /Passer à « Finalisé »/ })).toBeEnabled();
+  await page.keyboard.press('Escape');
+  // Voir : l'aperçu du devis dans une fenêtre.
+  await ouvrirMenuDe(page, 'd1');
+  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Voir' }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.getByRole('dialog').locator('iframe').contentFrame().locator('body')).toContainText('DEV-2026-10-02-001');
+  await capturer(page, info, 'E3-apercu');
+  await page.keyboard.press('Escape');
+});
+
+test('E4 recherche et filtre de statut ; cas vide « Aucun devis pour l’instant. » ; aucun résultat', async ({ page }, info) => {
+  await ouvrir(page);
+  await expect(page.locator('.etat-vide')).toContainText('Aucun devis pour l’instant.');
+  await expect(page.locator('[data-action="nouveau-devis-vide"]')).toBeDisabled();
+  await capturer(page, info, 'E4-cas-vide');
+  await deuxDevis();
+  await expect(lignes(page)).toHaveCount(2);
+  await page.getByRole('searchbox', { name: 'Rechercher un devis' }).fill('cuisine');
+  await expect(lignes(page)).toHaveCount(2); // l'affaire des deux devis
+  await page.getByRole('searchbox', { name: 'Rechercher un devis' }).fill('DEV-2026-10-02');
+  await expect(lignes(page)).toHaveCount(1);
+  await page.getByRole('searchbox', { name: 'Rechercher un devis' }).fill('zzz');
+  await expect(page.locator('.etat-vide')).toContainText('Aucun devis ne correspond.');
+  await page.getByRole('searchbox', { name: 'Rechercher un devis' }).fill('');
+  await page.locator('[data-action="filtres"]').click();
+  await page.getByRole('dialog').locator('input[data-cle="statuts"][data-valeur="brouillon"]').check();
+  await page.getByRole('dialog').getByRole('button', { name: 'Appliquer' }).click();
+  await expect(lignes(page)).toHaveCount(1);
+  await expect(lignes(page).first()).toHaveAttribute('data-id', 'd2');
+  await expect(page.locator('[data-action="filtres"]')).toContainText('1');
+});
