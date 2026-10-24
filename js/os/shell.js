@@ -6,6 +6,8 @@ import { badgeDe, definirBadge, surBadge, texteBadge, phraseBadge } from './badg
 import { naviguer, lien } from './router.js';
 
 // Routes sans entrée de menu -> entrée allumée à leur place (l'écran principal de leur module).
+/** Écrans qui gardent la barre de recherche et le bouton « + » du haut (les autres : Devis, Veille, Automatisations, Maintenance, réglages, journal, assistant…). */
+const PAGES_AVEC_OUTILS = ['crm/accueil', 'crm/personnes', 'crm/organisations', 'crm/affaires', 'projets/'];
 const ROUTES_SOUS_ENTREE = [['projets/archives', 'projets/projets'], ['projets/modeles', 'projets/projets']];
 
 // ---------------------------------------------------------------- thème
@@ -330,8 +332,8 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
   function surTouche(e) {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (ignorerTouche(e)) return;
-    if (e.key === '/') { e.preventDefault(); recherche.focus(); }
-    else if (e.key === 'n') {
+    if (e.key === '/') { if (coquille.classList.contains('sans-outils')) return; e.preventDefault(); recherche.focus(); }
+    else if (e.key === 'n' && !coquille.classList.contains('sans-outils')) {
       const a = actions.find((x) => x.raccourci === 'n');
       if (a) { e.preventDefault(); a.action(); }
     }
@@ -355,6 +357,10 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
   document.addEventListener('keydown', surToucheRepli);
 
   function activer(route) {
+    // La recherche du haut et le gros bouton « + » ne servent que sur l'Accueil, Personnes, Organisations, Affaires et Projets (24/10/2026).
+    const avecOutils = PAGES_AVEC_OUTILS.some((p) => route === p || route.startsWith(p.endsWith('/') ? p : `${p}/`));
+    coquille.classList.toggle('sans-outils', !avecOutils);
+    if (!avecOutils) coquille.classList.remove('recherche-ouverte');
     for (const a of entrees) {
       // Les pages d'un module qui n'ont pas (ou plus) d'entrée de menu allument l'entrée de leur écran principal : archives et modèles -> Projets.
       const chemin = ROUTES_SOUS_ENTREE.find(([prefixe]) => route === prefixe || route.startsWith(`${prefixe}/`))?.[1];

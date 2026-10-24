@@ -11,6 +11,7 @@ import * as Li from './liste.js';
 import { vueClient } from './logique.js';
 import { devisHtml, formaterMontant } from './document.js';
 import { dupliquerDevis, creerVariante } from './editeur-ecran.js';
+import { creerFiche } from './fiche-ecran.js';
 
 const ERREUR_LECTURE = 'La liste des devis n’a pas pu être mise à jour. La dernière version reste affichée : vérifie ta connexion puis recharge la page.';
 
@@ -124,7 +125,16 @@ function celluleModifie(d, maintenant) {
   return h('span', { class: 'devis-modifie' }, Li.depuis(Li.modifieMs(d), maintenant), qui ? h('span', { class: 'avatar-initiales', style: { '--taille': '22px' }, title: d.modifiePar ?? d.creePar ?? '', 'aria-label': `Modifié par ${qui}` }, qui) : null);
 }
 
-export function rendreListeDevis(conteneur) {
+/** Un clic (ou Entrée) sur une ligne ou une carte ouvre la fiche, sauf sur un bouton, un lien ou un champ de la ligne. */
+function ouvrable(el, ouvrir) {
+  el.tabIndex = 0;
+  el.addEventListener('click', (e) => { if (!e.target.closest('button, a, input, select, textarea, .menu-pop')) ouvrir(); });
+  el.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target === el) { e.preventDefault(); ouvrir(); } });
+  return el;
+}
+
+/** `idFiche` : le devis dont la fiche est ouverte par l'adresse #/devis/liste/<id> (null = aucune). Rend la fonction d'arrêt, avec `.surRoute(id)` pour les changements d'adresse. */
+export function rendreListeDevis(conteneur, idFiche = null) {
   const titre = h('h1', {}, 'Devis');
   const compteur = h('span', { class: 'compteur-liste', 'aria-live': 'polite' });
   const zone = h('div', { class: 'zone-devis' });
@@ -150,6 +160,19 @@ export function rendreListeDevis(conteneur) {
     dataset: { action: 'nouveau-devis' }, onclick: () => naviguer('devis/editeur'),
   }, icone('plus', { taille: 16 }), 'Nouveau devis', Li.EDITEUR_DISPONIBLE ? null : h('span', { class: 'bientot' }, ' (bientôt disponible)'));
   const bascule = h('div', { class: 'bascule-vues', role: 'group', 'aria-label': 'Vue' });
+
+  // Fiche d'un devis (panneau à droite). Ouvrir = changer l'adresse (#/devis/liste/<id>, lien partageable) ; fermer = revenir à la liste.
+  // Si la fiche a été ouverte par un clic, fermer revient en arrière dans l'historique (la touche « retour » du navigateur fait pareil, sans pile d'adresses qui grandit).
+  let idOuvertParClic = null;
+  const ouvrirFiche = (id) => { idOuvertParClic = id; naviguer(`devis/liste/${id}`); };
+  const fiche = creerFiche({
+    nomsDe, changerStatut, aujourdhui: () => CRM.ctx().aujourdhui,
+    fermer: ({ remplacer = false } = {}) => {
+      if (idOuvertParClic && !remplacer) { idOuvertParClic = null; history.back(); return; }
+      idOuvertParClic = null;
+      naviguer('devis/liste', { remplacer: true });
+    },
+  });
 
   function majBascule() {
     remplir(bascule, [['liste', 'Liste', 'list'], ['tableau', 'Tableau', 'columns-3']].map(([id, libelle, ic]) => h('button', {
@@ -201,7 +224,7 @@ export function rendreListeDevis(conteneur) {
       : h('th', { scope: 'col' }, h('span', { class: 'tri titre-colonne' }, c.libelle)))), h('th', { class: 'col-actions' }));
     const corps = p.lignes.map((d) => {
       const t = Li.totauxDe(d);
-      return h('tr', { class: 'ligne-liste ligne-devis', dataset: { id: d.id, statut: Li.statutAffiche(d, aujourdhui) } },
+      return ouvrable(h('tr', { class: 'ligne-liste ligne-devis', dataset: { id: d.id, statut: Li.statutAffiche(d, aujourdhui) } },
         h('td', { dataset: { colonne: 'numero', libelle: 'Numéro' } }, h('span', { class: `devis-numero${d.numero ? '' : ' devis-numero-vide'}` }, intitule(d)), d.version > 1 ? h('span', { class: 'devis-version' }, ` v${d.version}`) : null),
         h('td', { dataset: { colonne: 'statut', libelle: 'Statut' } }, pastille(d, aujourdhui)),
         h('td', { dataset: { colonne: 'documents', libelle: 'Documents' } }), // le PDF rangé viendra avec l'envoi
@@ -211,7 +234,7 @@ export function rendreListeDevis(conteneur) {
         h('td', { dataset: { colonne: 'validite', libelle: 'Valable jusqu’au' } }, Li.dateFr(d.expireLe)),
         h('td', { class: 'montant', dataset: { colonne: 'ht', libelle: 'Total HT' } }, euros(t?.ht)),
         h('td', { class: 'montant', dataset: { colonne: 'ttc', libelle: 'Total TTC' } }, euros(t?.ttc)),
-        h('td', { class: 'col-actions' }, boutonMenu(d)));
+        h('td', { class: 'col-actions' }, boutonMenu(d))), () => ouvrirFiche(d.id));
     });
     remplir(zone, h('div', { class: 'zone-tableau' }, h('table', { class: 'tableau tableau-devis' }, h('thead', {}, entete), h('tbody', {}, corps))));
     const taille = h('select', { class: 'champ champ-petit', 'aria-label': 'Éléments par page', dataset: { champ: 'par-page' }, onchange: (e) => { parPage = Number(e.target.value); page = 1; rendre(); } },
@@ -233,14 +256,14 @@ export function rendreListeDevis(conteneur) {
 
   function carte(d, maintenant, aujourdhui) {
     const t = Li.totauxDe(d);
-    return h('article', { class: 'carte-affaire carte-devis', dataset: { id: d.id, statut: Li.statutAffiche(d, aujourdhui) } },
+    return ouvrable(h('article', { class: 'carte-affaire carte-devis', dataset: { id: d.id, statut: Li.statutAffiche(d, aujourdhui) } },
       h('div', { class: 'carte-ligne' }, h('strong', { class: 'carte-titre' }, intitule(d), d.version > 1 ? ` v${d.version}` : ''), boutonMenu(d)),
       h('div', {}, pastille(d, aujourdhui)),
       celluleClient(d),
       h('div', { class: 'carte-sous' }, celluleModifie(d, maintenant)),
       h('div', { class: 'carte-sous' }, `En date du ${Li.dateFr(Li.dateDuDevis(d)) || '—'}`),
       d.expireLe ? h('div', { class: 'carte-sous' }, `Valable jusqu’au ${Li.dateFr(d.expireLe)}`) : null,
-      h('div', { class: 'carte-pied' }, h('span', { class: 'carte-montant' }, `HT ${euros(t?.ht)}`), h('span', { class: 'carte-sous' }, `TTC ${euros(t?.ttc)}`)));
+      h('div', { class: 'carte-pied' }, h('span', { class: 'carte-montant' }, `HT ${euros(t?.ht)}`), h('span', { class: 'carte-sous' }, `TTC ${euros(t?.ttc)}`))), () => ouvrirFiche(d.id));
   }
 
   const memorisee = lirePreference('vue.devis');
@@ -252,9 +275,16 @@ export function rendreListeDevis(conteneur) {
     avis, zone, pied));
 
   // Les « il y a … » avancent d'eux-mêmes ; tout changement de données (devis, clients, affaires) redessine la liste.
-  const rafraichir = planifier(() => rendre());
+  const rafraichir = planifier(() => { rendre(); fiche.maj(); });
   rendre();
+  if (idFiche) fiche.afficher(idFiche);
   const arrets = [D.surChangement(rafraichir), CRM.surChangement(rafraichir)];
-  const minuteur = setInterval(() => { if (!document.querySelector('.menu-pop')) rendre(); }, 60000);
-  return () => { arrets.forEach((f) => f()); clearInterval(minuteur); };
+  const minuteur = setInterval(() => { if (!document.querySelector('.menu-pop')) { rendre(); fiche.maj(); } }, 60000);
+  const arreter = () => { arrets.forEach((f) => f()); clearInterval(minuteur); fiche.detruire(); };
+  /** L'adresse a changé sans que la liste soit remontée : la fiche s'ouvre, change de devis ou se ferme. */
+  arreter.surRoute = (id) => {
+    if (id !== idOuvertParClic) idOuvertParClic = null; // ouverte autrement que par un clic (lien direct, signet)
+    fiche.afficher(id || null);
+  };
+  return arreter;
 }

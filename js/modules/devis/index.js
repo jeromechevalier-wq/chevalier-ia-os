@@ -1,5 +1,5 @@
 // Module Devis (cadrage-devis.md) : montage et routes. Trois écrans : le Bordereau (articles), la liste des devis et l'éditeur d'un devis.
-// Routes : devis/bordereau, devis/liste, devis/editeur (nouveau devis : choix de l'affaire), devis/editeur/<id> (non déclarée dans le menu : on y arrive par la liste). Le module lit le CRM (étapes des affaires) : le CRM démarre avant lui (le module Devis dépend de « affaires », pas de « projets »).
+// Routes : devis/bordereau, devis/liste, devis/liste/<id> (la liste avec la fiche d'un devis ouverte), devis/editeur (nouveau devis : choix de l'affaire), devis/editeur/<id> (non déclarée dans le menu : on y arrive par la liste). Le module lit le CRM (étapes des affaires) : le CRM démarre avant lui (le module Devis dépend de « affaires », pas de « projets »).
 import { vider } from '../../os/ui.js';
 import { naviguer } from '../../os/router.js';
 import * as D from './donnees.js';
@@ -39,7 +39,7 @@ function quitter() {
 }
 
 const VUES = {
-  liste: (conteneur) => rendreListeDevis(conteneur),
+  liste: (conteneur, segs) => rendreListeDevis(conteneur, segs[1] || null), // devis/liste/<id> : la liste avec la fiche de ce devis ouverte
   editeur: (conteneur, segs) => rendreEditeurDevis(conteneur, segs[1] || null),
   bordereau: (conteneur) => rendreBordereau(conteneur),
 };
@@ -51,11 +51,11 @@ export function afficher(conteneur, segs) {
     return quitter;
   }
   const cle = vue === 'editeur' ? `editeur/${segs[1] ?? ''}` : vue; // un éditeur par devis
-  if (montee?.cle === cle && conteneur.firstChild) return quitter;
+  if (montee?.cle === cle && conteneur.firstChild) { montee.surRoute?.(segs[1] || null); return quitter; } // la liste reste montée : seule la fiche change
   quitter();
   vider(conteneur);
   const arret = VUES[vue](conteneur, segs);
-  montee = { cle, quitter: typeof arret === 'function' ? arret : null };
+  montee = { cle, quitter: typeof arret === 'function' ? arret : null, surRoute: typeof arret?.surRoute === 'function' ? arret.surRoute : null };
   conteneur.scrollTop = 0;
   window.scrollTo?.(0, 0);
   return quitter;
