@@ -134,7 +134,13 @@ export async function ouvrirCreationArticle() {
   const champs = { libelle, unite, prixAchat: prix, code, tauxTva: tva };
 
   let identifiant = null;
+  let enCours = false; // deux Entrée rapides ne créent pas deux articles
   async function tenter() {
+    if (enCours) return false;
+    enCours = true;
+    try { return await tenterCreation(); } finally { enCours = false; }
+  }
+  async function tenterCreation() {
     for (const c of Object.values(champs)) { c.bloc.querySelector('[data-erreur]').textContent = ''; c.input.classList.remove('invalide'); }
     general.textContent = '';
     try {

@@ -209,7 +209,7 @@ export function reglagesDevis(brut) {
   return {
     nomBordereau: NOMS_BORDEREAU.includes(b.nomBordereau) ? b.nomBordereau : d.nomBordereau,
     modeMarge: MODES_MARGE.some((m) => m.id === b.modeMarge) ? b.modeMarge : d.modeMarge,
-    marge: estNombre(b.marge) ? b.marge : d.marge,
+    marge: estNombre(b.marge) && !(b.modeMarge === 'marge_vente' && b.marge >= 100) ? b.marge : d.marge,
     regimeTva: REGIMES_TVA.some((r) => r.id === b.regimeTva) ? b.regimeTva : d.regimeTva,
     tauxProposes: proposes,
     tauxTvaDefaut: proposes.includes(b.tauxTvaDefaut) ? b.tauxTvaDefaut : proposes[0],
