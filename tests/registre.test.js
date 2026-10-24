@@ -147,6 +147,7 @@ describe('registre : le menu de Jérôme (modules, routes, écrans ; Archives et
     ] },
     // Ajout voulu (24/10/2026) : le module Devis (bordereau de prix), une entrée de menu après Projets ; il ne dépend que des Affaires.
     { id: 'devis', libelle: 'Devis', icone: 'file-text', prefixe: 'devis', entrees: [
+      { chemin: 'devis/liste', libelle: 'Devis', icone: 'file-text' },
       { chemin: 'devis/bordereau', libelle: 'Bordereau', icone: 'list' },
     ] },
     // Ajout voulu (veille vendable en module, étape 1, 2026-10-14) : le menu du CRM gagne « Veille » après Projets.

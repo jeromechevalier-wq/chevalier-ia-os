@@ -60,6 +60,8 @@ test('B1 chez un client, « Devis » est au menu quand le module est actif avec 
   if (await elargir.count()) await elargir.click();
   await expect(page.locator('.menu .menu-entree')).toHaveText(['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Devis']);
   await page.locator('.menu').getByRole('link', { name: 'Devis', exact: true }).click();
+  await expect(page).toHaveURL(/#\/espace\/avecdevis\/devis\/liste$/);
+  await page.locator('[data-action="ouvrir-bordereau"]').click();
   await expect(page).toHaveURL(/#\/espace\/avecdevis\/devis\/bordereau$/);
   await expect(page.getByRole('heading', { name: 'Bordereau de prix unitaires', level: 1 })).toBeVisible();
   await expect(page.locator('.etat-vide')).toContainText('Aucun article');

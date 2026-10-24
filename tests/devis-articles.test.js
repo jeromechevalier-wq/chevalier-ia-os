@@ -18,18 +18,18 @@ const appliquer = (articles, plan) => [...articles, ...plan.ecritures.filter((e)
 
 describe('B1 le module Devis est déclaré et ne dépend que des Affaires', () => {
   const devis = moduleDeclare('devis');
-  test('B1 déclaration : dépend de « affaires » (pas de « projets »), une entrée de menu « Devis » qui ouvre le Bordereau, pas de réservé aux clients', () => {
+  test('B1 déclaration : dépend de « affaires » (pas de « projets »), une entrée de menu « Devis » qui ouvre la liste des devis, pas de réservé aux clients', () => {
     assert.ok(devis);
     assert.deepEqual(devis.dependances, ['affaires']);
-    assert.equal(devis.entreeMenu, 'devis/bordereau');
-    assert.deepEqual(devis.ecrans.map((e) => e.route), ['devis/bordereau']);
+    assert.equal(devis.entreeMenu, 'devis/liste');
+    assert.deepEqual(devis.ecrans.map((e) => e.route), ['devis/liste', 'devis/bordereau']);
     assert.deepEqual(devis.collections, ['devis_articles', 'devis_parametres', 'devis_devis']);
     assert.ok(!('reserveAuxClients' in devis));
     assert.ok(MODULES_DECLARES.findIndex((m) => m.id === 'affaires') < MODULES_DECLARES.findIndex((m) => m.id === 'devis'), 'les dépendances viennent avant');
   });
   test('B1 le menu montre « Devis » quand le module est actif (Affaires seules suffisent) et pas sans « affaires »', () => {
     const entrees = (actifs) => blocsDuMenu(actifs).flatMap((b) => b.sections.flat()).map((e) => [e.libelle, e.chemin]);
-    assert.deepEqual(entrees(['affaires', 'devis']).filter(([l]) => l === 'Devis'), [['Devis', 'devis/bordereau']]);
+    assert.deepEqual(entrees(['affaires', 'devis']).filter(([l]) => l === 'Devis'), [['Devis', 'devis/liste']]);
     assert.ok(!entrees(['affaires']).some(([l]) => l === 'Devis'));
     const sans = modulesActifsDuClient({ modules: { devis: true } });
     assert.deepEqual(sans.actifs, [], 'Devis sans Affaires est refusé');

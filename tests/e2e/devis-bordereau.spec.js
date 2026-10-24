@@ -40,13 +40,16 @@ async function ouvrirReglagesDevis(page) {
   await expect(page.locator('#reglages-devis')).toBeVisible();
 }
 
-test('B1 le module Devis apparaît au menu (après Projets) et ouvre le Bordereau, chez Jérôme', { tag: '@smoke' }, async ({ page }, info) => {
+test('B1 le module Devis apparaît au menu (après Projets) et ouvre la liste puis le Bordereau, chez Jérôme', { tag: '@smoke' }, async ({ page }, info) => {
   await connecter(page);
   if (estTelephone(page)) await page.getByRole('button', { name: 'Ouvrir le menu' }).click();
   else { const elargir = page.getByRole('button', { name: 'Élargir le menu' }); if (await elargir.count()) await elargir.click(); }
   await expect(page.locator('.menu .menu-entree')).toHaveText(['Accueil', 'Personnes', 'Organisations', 'Affaires', 'Projets', 'Devis', 'Veille', 'Automatisations', 'Maintenance']);
   if (estTelephone(page)) await page.keyboard.press('Escape');
   await allerA(page, 'Devis');
+  await expect(page).toHaveURL(/#\/devis\/liste$/);
+  await expect(page.getByRole('heading', { name: 'Devis', level: 1 })).toBeVisible();
+  await page.locator('[data-action="ouvrir-bordereau"]').click();
   await expect(page).toHaveURL(/#\/devis\/bordereau$/);
   await expect(page.getByRole('heading', { name: 'Bordereau de prix unitaires', level: 1 })).toBeVisible();
   if (estTelephone(page)) await page.getByRole('button', { name: 'Ouvrir le menu' }).click();
@@ -196,6 +199,7 @@ test('B6 le titre de l\'écran suit le nom de bordereau choisi dans les réglage
   await expect(page.locator('.toast')).toContainText('Réglages des devis enregistrés');
   await expect.poll(async () => (await lireDocument('devis_parametres/reglages'))?.nomBordereau).toBe('Catalogue');
   await allerA(page, 'Devis');
+  await page.locator('[data-action="ouvrir-bordereau"]').click();
   await expect(page.getByRole('heading', { name: 'Catalogue', level: 1 })).toBeVisible();
   await capturer(page, info, 'B6-titre-catalogue');
   await ecrireDocument('devis_parametres/reglages', { nomBordereau: 'Grille tarifaire' });
