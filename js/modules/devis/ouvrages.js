@@ -5,7 +5,7 @@
 // sinon la marge des réglages du module). Tout se calcule en centimes entiers, arrondi au demi supérieur.
 // Déboursé sec = somme des coûts d'achat. Marge brute = prix de vente - déboursé. Taux de marge = marge brute / déboursé.
 // Profondeur 1 en v1 : un composant ne peut pas être lui-même un ouvrage.
-import { prixVenteUnitaire, versCentimes, versEuros } from './logique.js';
+import { prixVenteUnitaire, versCentimes, versEuros, totalLigne } from './logique.js';
 
 export const TYPE_OUVRAGE = 'ouvrage';
 export const MAX_COMPOSANTS = 30;
@@ -68,8 +68,8 @@ export function calculerOuvrage(ouvrage, articles, reglages) {
       });
       continue;
     }
-    const totalVenteC = Math.round(quantite * versCentimes(pv));
-    const totalAchatC = Math.round(quantite * versCentimes(article.prixAchat));
+    const totalVenteC = versCentimes(totalLigne(quantite, pv));
+    const totalAchatC = versCentimes(totalLigne(quantite, article.prixAchat));
     venteC += totalVenteC;
     achatC += totalAchatC;
     composants.push({

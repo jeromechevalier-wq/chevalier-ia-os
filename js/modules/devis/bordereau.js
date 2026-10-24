@@ -122,7 +122,11 @@ function cellulePrixAchatOuvrage(a) {
 function cellulePrixVente(a) {
   const pv = a.type === 'ouvrage' ? a.calcul?.prixVenteHT : O.prixVenteArticle(a, D.etat.reglages);
   const cellule = h('td', { dataset: { colonne: 'prixVente', libelle: 'Prix de vente HT' } });
-  remplir(cellule, h('span', { class: 'valeur-calculee', dataset: { valeur: 'prix-vente' } }, typeof pv === 'number' ? A.formaterPrix(pv) : '—'));
+  const incomplet = a.type === 'ouvrage' && (a.calcul?.erreurs ?? []).length > 0;
+  remplir(cellule, h('span', {
+    class: 'valeur-calculee', dataset: { valeur: 'prix-vente' },
+    title: incomplet ? 'Un composant est désactivé ou introuvable : ce prix est incomplet. Ouvre « Composition » pour le corriger.' : null,
+  }, typeof pv === 'number' ? `${A.formaterPrix(pv)}${incomplet ? ' ⚠' : ''}` : '—'));
   return cellule;
 }
 
@@ -156,9 +160,13 @@ async function ouvrirComposition(a, { devenirOuvrage = false } = {}) {
 
 /** Désactiver : fenêtre de confirmation (le texte du cadrage), puis « Article désactivé · Annuler » pendant 8 secondes. */
 async function desactiver(a) {
+  const ouvragesConcernes = D.etat.articles.filter((x) => x.type === 'ouvrage' && x.actif !== false && (x.composants ?? []).some((c) => c.articleId === a.id));
+  const avertissement = ouvragesConcernes.length
+    ? ` Attention : il compose ${ouvragesConcernes.length > 1 ? 'les ouvrages' : 'l’ouvrage'} ${ouvragesConcernes.map((x) => `« ${x.libelle} »`).join(', ')} : ${ouvragesConcernes.length > 1 ? 'leurs prix seront incomplets' : 'son prix sera incomplet'} tant que tu ne le remplaces pas.`
+    : '';
   await retirerAvecAnnulation({
     titre: 'Désactiver cet article ?',
-    message: `« ${a.libelle} » : ${A.MESSAGE_DESACTIVER}`,
+    message: `« ${a.libelle} » : ${A.MESSAGE_DESACTIVER}${avertissement}`,
     libelleOk: 'Désactiver',
     faire: async () => { const r = await D.activerArticle(a.id, false); if (Object.keys(r.erreurs).length) throw new Error(Object.values(r.erreurs)[0]); },
     defaire: async () => { const r = await D.activerArticle(a.id, true); if (Object.keys(r.erreurs).length) throw new Error(Object.values(r.erreurs)[0]); },

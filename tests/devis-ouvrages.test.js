@@ -151,3 +151,20 @@ describe('O8 types d’article', () => {
     assert.ok(!('calcul' in vue.find((a) => a.id === 'vis')));
   });
 });
+
+describe('O11 relecture : arrondi des quantités, composant d\'un ouvrage désactivé', () => {
+  test('O11 quantité 2,675 × 1,00 € = 2,68 € (demi supérieur, comme une ligne de devis)', () => {
+    const articles = O.articlesParId([{ id: 'x', libelle: 'X', unite: 'u', prixAchat: 1, marge: 0, actif: true }]);
+    const c = O.calculerOuvrage({ composants: [{ articleId: 'x', quantite: 2.675 }] }, articles, REGLAGES);
+    assert.equal(c.prixVenteHT, 2.68);
+  });
+  test('O11 un composant d\'un ouvrage désactivé ne peut pas devenir ouvrage', () => {
+    const articles = [
+      { id: 'o', type: 'ouvrage', actif: false, libelle: 'Ancien', composants: [{ articleId: 'c', quantite: 1 }] },
+      { id: 'c', libelle: 'C', unite: 'u', prixAchat: 1, actif: true },
+      { id: 'y', libelle: 'Y', unite: 'u', prixAchat: 1, actif: true },
+    ];
+    const plan = A.planMajArticle('c', { type: 'ouvrage', composants: [{ articleId: 'y', quantite: 1 }] }, { articles });
+    assert.ok(plan.erreurs.type, 'refusé : il compose un ouvrage, même désactivé');
+  });
+});

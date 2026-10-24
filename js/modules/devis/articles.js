@@ -215,7 +215,7 @@ export function planMajArticle(id, patch, { articles = [] } = {}) {
   // Changer de type garde les champs cohérents : un ouvrage n'a pas de prix d'achat, un autre type n'a ni composants ni prix forcé.
   if ('type' in donnes) {
     if (valeurs.type === TYPE_OUVRAGE) {
-      const dansUnOuvrage = (articles ?? []).find((a) => a.type === TYPE_OUVRAGE && a.actif !== false && (a.composants ?? []).some((c) => c.articleId === id));
+      const dansUnOuvrage = (articles ?? []).find((a) => a.type === TYPE_OUVRAGE && (a.composants ?? []).some((c) => c.articleId === id));
       if (dansUnOuvrage) return { erreurs: { type: `Cet article est un composant de l’ouvrage « ${dansUnOuvrage.libelle} » : un ouvrage ne peut pas en contenir un autre. Retire-le d’abord de cet ouvrage.` }, patch: {}, ecritures: [] };
       if (courant.prixAchat !== null && courant.prixAchat !== undefined) net.prixAchat = null;
     } else {
