@@ -572,7 +572,7 @@ export function figerPourFinalisation(devis, { numero, finaliseLe, reglages = {}
 /** Nouveau brouillon copié d'un devis (même racine, version + 1, même numéro). L'original n'est pas modifié. */
 export function nouvelleVersion(devis, { id, creeLe, joursValidite = devis?.dureeValiditeJours ?? DUREE_VALIDITE_DEFAUT } = {}) {
   const copie = structuredClone(devis);
-  for (const cle of ['finaliseLe', 'envoyeLe', 'accepteLe', 'refuseLe', 'totaux', 'finalisation', 'envoiN8nCopie', 'raisonRefus']) delete copie[cle];
+  for (const cle of ['finaliseLe', 'envoyeLe', 'accepteLe', 'refuseLe', 'totaux', 'finalisation', 'envoiN8nCopie', 'raisonRefus', 'pdf']) delete copie[cle];
   for (const section of copie.sections ?? []) for (const ligne of section.lignes ?? []) delete ligne.prixVente; // recalculé tant que brouillon
   return {
     ...copie,

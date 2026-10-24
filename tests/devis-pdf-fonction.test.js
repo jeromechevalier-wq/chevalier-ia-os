@@ -8,6 +8,7 @@ import { creerAppelDevisPdf, MESSAGE_PDF_NON_CONFIGURE } from '../functions/src/
 import { nomFichierDevis } from '../functions/src/devis/drive.js';
 import { nouveauDevis } from '../functions/partage/devis.js';
 import { devisHtml } from '../functions/partage/devis-document.js';
+import { fragmentDePage } from '../js/modules/devis/document.js';
 import { devisHtml as devisHtmlNavigateur } from '../js/modules/devis/document.js';
 
 const ACTEUR = 'jerome.chevalier@gmail.com';
@@ -49,7 +50,7 @@ describe('Q1 devisPdf : seul un compte autorisé et vérifié appelle', () => {
     await assert.rejects(() => a(requete({ devisId: 'd1' }, 'intrus@exemple.test')), (e) => e.code === 'permission-denied');
     await assert.rejects(() => a(requete({ devisId: 'd1' }, ACTEUR, { email_verified: false })), (e) => e.code === 'permission-denied');
     assert.equal(f.vus.html.length + f.vus.ranges.length, 0);
-    assert.equal(m.collections[C.devis][0].pdf, undefined);
+    assert.equal(m.collections[C.devis][0].pdf, null); // la finalisation l'a remis à zéro
   });
 });
 
@@ -106,7 +107,7 @@ describe('Q4 devisPdf : chemin heureux', () => {
     const m2 = await monde();
     const casse = { ...faux(), convertir: async () => { throw new Error('PDF : le service de conversion a répondu 500.'); } };
     await assert.rejects(() => appel(m2, casse)(requete({ devisId: 'd1' })), (e) => e.code === 'internal' && /500/.test(e.message));
-    assert.equal(m2.collections[C.devis][0].pdf, undefined);
+    assert.equal(m2.collections[C.devis][0].pdf, null);
   });
 });
 
@@ -151,5 +152,49 @@ describe('Q7 devisPdf : le nom du fichier suit nomFichierDevis', () => {
     const devis = m.collections[C.devis][0];
     assert.equal(f.vus.ranges[0].nomFichier, nomFichierDevis({ numero: devis.numero, version: devis.version, objet: devis.objet }));
     assert.equal(f.vus.ranges[0].nomFichier, 'DEV-2026-10-24-001 v1 - Cuisine.pdf');
+  });
+});
+
+describe('Q8 devisPdf : le logo externe est retiré', () => {
+  test('Q8 un logo https disparaît du HTML envoyé, une image data:image est conservée', async () => {
+    const m = await monde();
+    m.collections[C.devisParametres][0].emetteur.logo = 'https://interne.exemple.test/logo.png';
+    const f = faux();
+    await appel(m, f)(requete({ devisId: 'd1' }));
+    assert.ok(!f.vus.html[0].includes('interne.exemple.test') && !f.vus.html[0].includes('<img'));
+    const m2 = await monde();
+    m2.collections[C.devisParametres][0].emetteur.logo = 'data:image/png;base64,iVBORw0KGgo=';
+    const f2 = faux();
+    await appel(m2, f2)(requete({ devisId: 'd1' }));
+    assert.ok(f2.vus.html[0].includes('<img src="data:image/png;base64,iVBORw0KGgo='));
+  });
+});
+
+describe('Q9 devisPdf : pas de double génération', () => {
+  test('Q9 un PDF généré il y a moins de 60 s est refusé, après 60 s c\'est permis', async () => {
+    const m = await monde();
+    const f = faux();
+    await appel(m, f)(requete({ devisId: 'd1' }));
+    await assert.rejects(() => appel(m, f)(requete({ devisId: 'd1' })), (e) => e.code === 'failed-precondition' && /réessaie dans une minute/.test(e.message));
+    assert.equal(f.vus.html.length, 1);
+    await appel(m, f, { maintenant: () => MAINTENANT.getTime() + 61000 })(requete({ devisId: 'd1' }));
+    assert.equal(f.vus.html.length, 2);
+  });
+  test('Q9 finaliser et nouvelle version remettent pdf à zéro', async () => {
+    const m = await monde({ finaliser: false });
+    m.collections[C.devis][0].pdf = { fileId: 'x' };
+    await S.finaliser({ donnees: m.donnees, ctx: { acteur: ACTEUR, via: 'ecran', maintenant: MAINTENANT }, devisId: 'd1' });
+    assert.equal(m.collections[C.devis][0].pdf, null);
+    m.collections[C.devis][0].pdf = { fileId: 'y' };
+    await S.nouvelleVersion({ donnees: m.donnees, ctx: { acteur: ACTEUR, via: 'ecran', maintenant: MAINTENANT }, devisId: 'd1' });
+    assert.equal(m.collections[C.devis].find((d) => d.version === 2).pdf, undefined);
+  });
+});
+
+describe('Q10 fragmentDePage', () => {
+  test('Q10 le texte est échappé et la page est coupée', () => {
+    const h = fragmentDePage('a <b> & c\nd');
+    assert.ok(h.includes('a &lt;b&gt; &amp; c<br>d') && h.includes('page-break-after:always'));
+    assert.ok(devisHtml({ numero: 'X' }, { pagesAvant: [h] }).includes(h));
   });
 });

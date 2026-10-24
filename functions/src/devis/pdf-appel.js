@@ -41,6 +41,14 @@ const enDates = (v) => {
   return v;
 };
 
+// SSRF : le logo ne sert que s'il est une image intégrée (data:) de taille raisonnable. Toute adresse https est retirée avant que Gotenberg ne charge la page.
+const LOGO_INTEGRE = /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/;
+export const LOGO_TAILLE_MAX = 1_500_000;
+export const DELAI_ENTRE_PDF_MS = 60_000;
+export function emetteurSansLogoExterne(emetteur) {
+  const { logo, ...reste } = emetteur ?? {};
+  return typeof logo === 'string' && logo.length <= LOGO_TAILLE_MAX && LOGO_INTEGRE.test(logo) ? { ...reste, logo } : reste;
+}
 const idDossierDrive = (url) => MOTIF_DOSSIER_DRIVE.exec(String(url ?? '').trim())?.[1] ?? '';
 
 /**
@@ -70,11 +78,16 @@ export function creerAppelDevisPdf({ donnees, config = {}, comptes = COMPTES_AUT
       if (devis.statut === 'brouillon') {
         throw refuser('brouillon', new HttpsError('failed-precondition', 'Ce devis est encore un brouillon : finalise-le avant de créer le PDF.', { code: 'brouillon' }));
       }
+      // Double génération : un PDF posé il y a moins d'une minute fait refuser la demande.
+      const ecoule = devis.pdf?.genereLe instanceof Date ? maintenant() - devis.pdf.genereLe.getTime() : Infinity;
+      if (ecoule >= 0 && ecoule < DELAI_ENTRE_PDF_MS) {
+        throw refuser('trop_tot', new HttpsError('failed-precondition', 'PDF déjà en cours ou généré à l\'instant, réessaie dans une minute.', { code: 'trop_tot' }));
+      }
       const affaire = devis.affaireId ? await base.document(C.affaires, devis.affaireId) : null;
       const reglages = await base.document(C.devisParametres, ID_REGLAGES);
       const fiche = devis.organisationId ? await base.document(C.organisations, devis.organisationId)
         : devis.personneId ? await base.document(C.personnes, devis.personneId) : null;
-      const emetteur = reglages?.emetteur && typeof reglages.emetteur === 'object' ? enDates(reglages.emetteur) : {};
+      const emetteur = emetteurSansLogoExterne(reglages?.emetteur && typeof reglages.emetteur === 'object' ? enDates(reglages.emetteur) : {});
       const dossierParentId = idDossierDrive(affaire?.urlDossier);
 
       // Vue client : jamais de prix d'achat, de marge ni de coefficient (garanti par vueClient, vérifié par les tests).

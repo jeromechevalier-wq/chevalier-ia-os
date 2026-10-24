@@ -23,6 +23,10 @@ const NBSP = ' ';
 export function echapper(v) {
   return String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\'': '&#39;' }[c]));
 }
+/** Fragment pour `pagesAvant` / `blocSignature` : le texte est échappé (sauts de ligne en <br>) et la page est coupée après. */
+export function fragmentDePage(t) {
+  return `<div style="break-after:page;page-break-after:always">${texte(t)}</div>`;
+}
 /** Échappe puis transforme les sauts de ligne en <br>. */
 const texte = (v) => echapper(v).replace(/\r\n|\r|\n/g, '<br>');
 
@@ -139,7 +143,7 @@ function tableauLignes(vue, sansTva) {
 
 /**
  * HTML complet du devis. `vue` : résultat de vueClient. Options : `brouillon` (filigrane), `logo` (data URL ou null),
- * `pagesAvant` (tableau de fragments HTML DÉJÀ échappés par l'appelant, chacun sur sa page A4, placés avant le chiffrage)
+ * `pagesAvant` (tableau de fragments HTML DÉJÀ échappés par l'appelant (voir `fragmentDePage`), chacun sur sa page A4, placés avant le chiffrage)
  * et `blocSignature` (fragment HTML déjà échappé, placé en dernière page, après les CGV). Absentes : rendu inchangé.
  */
 export function devisHtml(vue, options = {}) {
