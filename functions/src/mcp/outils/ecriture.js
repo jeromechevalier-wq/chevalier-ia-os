@@ -4,6 +4,7 @@ import { z } from 'zod';
 import * as L from '../../../partage/logique.js';
 import * as PL from '../../../partage/projets.js';
 import * as DA from '../../../partage/devis-articles.js';
+import * as DEVIS from '../../../partage/devis.js';
 import * as metier from '../../coeur/metier.js';
 
 const PROFILS = ['bibliothecaire', 'claude-code'];
@@ -20,6 +21,12 @@ const texteCourt = z.string().max(300);
 // Devis : type d'article et composants d'un ouvrage (les règles fines sont dans devis-articles.js, les mêmes que l'écran).
 const typeArticle = z.enum(DA.TYPES_ARTICLE.map((t) => t.id));
 const composants = z.array(z.object({ articleId: id, quantite: z.number() })).max(30).describe("Composants d'un ouvrage : [{ articleId, quantite }], 1 à 30, quantité > 0 (3 décimales au plus).");
+// Devis : lignes d'un brouillon (copiées des articles du bordereau) et remise.
+const ligneDevis = z.object({ articleId: id.optional(), reference: z.string().min(1).max(120).optional(), quantite: z.number().min(0).max(1_000_000).optional() })
+  .describe("Une ligne : articleId OU reference (référence ou code de l'article), et quantite (> 0 ; inutile pour un article de type texte).");
+const lignesDevis = z.array(ligneDevis).max(200).describe("Lignes à plat, copiées des articles du bordereau.");
+const sectionsDevis = z.array(z.object({ titre: z.string().max(200).optional(), lignes: z.array(ligneDevis).max(200) })).max(50).describe("Sections [{ titre, lignes }].");
+const remiseDevis = z.object({ type: z.enum(DEVIS.TYPES_REMISE), valeur: z.number().min(0).max(10_000_000) }).describe("Remise du devis : { type: 'pourcentage' | 'montant', valeur } (pourcentage de 0 à moins de 100 ; montant en euros).");
 // Ancien paramètre « description » (texte libre supprimé par I5) : accepté sans être documenté, pour les clients MCP qui ont gardé l'ancienne liste d'outils.
 // À la création, il devient le texte de la note épinglée de départ ; en modification, il est refusé avec l'explication (modifier_note).
 const descriptionAncienne = z.string().max(20000).optional();
@@ -146,6 +153,26 @@ export const OUTILS_ECRITURE = [
   outil('desactiver_article', "Désactive un article du bordereau (un article ne se supprime jamais : il sort de la liste par défaut et les devis déjà faits ne changent pas). reactiver: true le remet en service (refusé si son code est déjà pris par un article actif).", {
     id, reactiver: z.boolean().optional().describe('true : réactiver au lieu de désactiver.'),
   }, metier.desactiverArticle),
+
+  // ---- Devis : brouillons. Les prix viennent des articles du bordereau (jamais inventés) ; le numéro n'est donné qu'à la finalisation.
+  outil('creer_devis_brouillon', "Crée un BROUILLON de devis (jamais un devis finalisé), sans numéro : le numéro est donné par finaliser_devis. affaireId est obligatoire (voir chercher / lister_affaires). Le client et le destinataire viennent de l'affaire si on ne les donne pas (organisationId ou personneId, destinataires = adresses e-mail). Les lignes sont copiées des articles du bordereau (chercher_article) : chaque ligne donne articleId OU reference (la référence ou le code de l'article) et quantite (> 0) ; les prix, la marge et la TVA sont ceux de l'article et des réglages, calculés comme à l'écran. lignes = une liste à plat ; sections = [{ titre, lignes }] pour regrouper. remise : { type: 'pourcentage' | 'montant', valeur } (pourcentage de 0 à moins de 100 ; montant en euros). marge (%), modeMarge (majoration ou marge_vente) et tauxTvaDefaut sont facultatifs (sinon les réglages du module Devis). Renvoie l'identifiant et les totaux HT et TTC.", {
+    affaireId: id, objet: z.string().max(300).optional().describe("L'objet du devis (ex. « Rénovation de la cuisine »)."),
+    organisationId: id.optional(), personneId: id.optional(), destinataires: z.array(z.string().max(200)).max(10).optional().describe("Adresses e-mail des destinataires (défaut : la première adresse du client de l'affaire)."),
+    lignes: lignesDevis.optional(), sections: sectionsDevis.optional(), remise: remiseDevis.optional(),
+    marge: z.number().min(0).max(1000).optional().describe('Marge du devis, en %.'), modeMarge: z.enum(DEVIS.MODES_MARGE.map((m) => m.id)).optional(),
+    tauxTvaDefaut: z.number().min(0).max(100).optional().describe('Taux de TVA par défaut du devis, en %.'), proprietaire,
+  }, metier.creerDevisBrouillon),
+
+  outil('modifier_devis_brouillon', "Modifie un BROUILLON de devis (refusé pour un devis déjà finalisé : une nouvelle version se crée depuis l'écran). Champs : objet, organisationId, personneId, destinataires, remise (null pour l'enlever), marge, modeMarge, tauxTvaDefaut. Les lignes : lignes ou sections REMPLACENT tout le contenu du devis (les lignes libres faites à l'écran sont perdues : relire avec lire_devis avant) ; ajouterLignes AJOUTE à la fin sans toucher au reste. Mêmes lignes que creer_devis_brouillon (articleId OU reference, quantite > 0). Renvoie les totaux HT et TTC.", {
+    id, objet: z.string().max(300).optional(), organisationId: id.nullable().optional(), personneId: id.nullable().optional(), destinataires: z.array(z.string().max(200)).max(10).optional(),
+    lignes: lignesDevis.optional(), sections: sectionsDevis.optional(), ajouterLignes: lignesDevis.optional(), remise: remiseDevis.nullable().optional(),
+    marge: z.number().min(0).max(1000).optional(), modeMarge: z.enum(DEVIS.MODES_MARGE.map((m) => m.id)).optional(), tauxTvaDefaut: z.number().min(0).max(100).optional(),
+  }, metier.modifierDevisBrouillon),
+
+  // Écriture sensible : elle FIGE le devis et consomme un numéro. Réservée à Claude Code (rôle éditeur chez un client), avec la double confirmation des suppressions.
+  outil('finaliser_devis', "Finalise un BROUILLON de devis : attribue son numéro (DEV-AAAA-MM-JJ-NNN) et FIGE les prix, la TVA et les totaux (pour corriger ensuite, il faut créer la version suivante depuis l'écran). Même logique serveur que le bouton « Finaliser » de l'écran. N'envoie rien au client. Refusé, en listant ce qu'il faut corriger, si le devis n'est pas prêt (destinataire, lignes, quantités, marge, remise, chantier…). Le premier appel ne finalise RIEN : il rend un APERÇU (totaux, destinataires) et un code à usage unique ; après l'accord de l'utilisateur, le second appel (mêmes arguments + codeConfirmation) finalise.", {
+    id, codeConfirmation: z.string().max(40).optional().describe("Absent au premier appel : l'outil ne finalise rien, rend un APERÇU et un code. À donner au second appel, après accord de l'utilisateur."),
+  }, metier.finaliserDevis, ['claude-code']),
 
   outil('ajouter_note', "Ajoute une note rattachée à une affaire (qui porte aussi sa personne et son organisation), à une personne ou à une organisation. Les notes ne sont jamais modifiées automatiquement.", {
     texte: z.string().min(1).max(20000), affaireId: id.optional(), personneId: id.optional(), organisationId: id.optional(),
