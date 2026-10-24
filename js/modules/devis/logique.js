@@ -420,6 +420,7 @@ export function erreursChantier(chantier) {
 export function adresseEnTexte(a) {
   if (typeof a === 'string') return a.trim();
   if (!objet(a)) return '';
+  if (typeof a.texte === 'string') return a.texte.trim();
   const fin = [a.codePostal, a.ville].filter((x) => texteNonVide(String(x ?? ''))).join(' ');
   return [a.ligne1, fin].filter((x) => texteNonVide(String(x ?? ''))).join('\n');
 }

@@ -165,4 +165,13 @@ describe('Chantier et émetteur du devis', () => {
     assert.equal(f.chantier.debutTravaux, '2026-11-03');
     assert.equal(v2.statut, 'brouillon');
   });
+
+  test('H10 régressions : adresse {texte}, titre noir sans couleur, délai 0', () => {
+    const devis = fige({});
+    const h = html(devis, { nom: 'Atelier Test', adresse: { texte: '3 rue Z\n69001 Lyon' } });
+    assert.ok(h.includes('3 rue Z') && h.includes('69001 Lyon'));
+    assert.match(h, /--accent-titre: #1b1b1b/);
+    assert.match(html(devis, { nom: 'A', couleur: '#aa1122' }), /--accent-titre: #aa1122/);
+    assert.ok(html(devis, { nom: 'A', paiement: { delaiJours: 0 } }).includes('Paiement à réception'));
+  });
 });

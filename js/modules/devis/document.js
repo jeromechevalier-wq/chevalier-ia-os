@@ -1,5 +1,5 @@
 // Pagination : Chromium ignore les boîtes de marge @page ; le numéro « Page n / N » viendra des gabarits d'en-tête/pied du convertisseur serveur.
-// Clés de `vue.emetteur` lues ici (convention pour la PR des réglages) : adresse, telephone, email, siret, tvaIntracommunautaire, formeJuridique.
+// Clés de l'émetteur lues ici (options.emetteur ou vue.emetteur) : nom, forme, siret, tva, adresse, email, telephone, site, registreMetiers, assurance, mediateur, logo (https ou data:image), couleur, paiement, cgv. Les alias formeJuridique et tvaIntracommunautaire restent lus.
 // L'acompte, les primes, la retenue de garantie, les déchets, le texte libre et les notes viennent de la vue client (libellés déjà prêts, échappés ici).
 // Document « Devis » en HTML imprimable (A4). Module pur : aucun DOM, aucun réseau, aucun JavaScript dans la page produite.
 // Il reçoit la « vue client » (vueClient de logique.js, donc jamais de prix d'achat, de marge ni de coefficient) et rend une chaîne HTML
@@ -51,7 +51,7 @@ table { border-collapse: collapse; width: 100%; }
 .destinataire { width: 80mm; border: 0.3mm solid #999; padding: 3mm 4mm; line-height: 1.35; }
 .destinataire .etiquette { font-size: 7.5pt; text-transform: uppercase; color: #666; }
 .destinataire .nom { font-weight: bold; }
-h1 { font-size: 20pt; margin: 0 0 1mm; color: var(--accent); }
+h1 { font-size: 20pt; margin: 0 0 1mm; color: var(--accent-titre); }
 .infos { margin-bottom: 5mm; line-height: 1.5; }
 .infos .objet { font-size: 11pt; font-weight: bold; margin-top: 2mm; }
 .lignes th { background: #e9ecef; text-align: left; font-size: 8.5pt; padding: 1.6mm 2mm; border-bottom: 0.3mm solid var(--accent); }
@@ -97,7 +97,7 @@ const LOGO_HTTPS = /^https:\/\/[^\s"'<>\\]+$/;
 /** Le logo n'est une ressource externe que s'il est fourni explicitement (URL https ou image en data:). */
 const logoValide = (l) => typeof l === 'string' && (LOGO_DATA.test(l) || LOGO_HTTPS.test(l));
 
-/** Bloc de l'émetteur : logo (data URL image seulement) puis les champs connus de `vue.emetteur`. */
+/** Bloc de l'émetteur : logo (https ou data:image) puis les champs connus de l'émetteur. */
 function blocEmetteur(e, logo) {
   const l = [];
   const imageLogo = logoValide(logo) ? logo : e.logo;
@@ -183,7 +183,7 @@ export function devisHtml(vue, options = {}) {
   const paiement = [];
   if (v.conditionsPaiement) paiement.push(`<p>${texte(v.conditionsPaiement)}</p>`);
   const pe = emetteur.paiement ?? {};
-  if (!v.conditionsPaiement && Number.isFinite(pe.delaiJours) && pe.delaiJours >= 0) paiement.push(`<p>Paiement à ${texte(pe.delaiJours)} jour${pe.delaiJours >= 2 ? 's' : ''}.</p>`);
+  if (!v.conditionsPaiement && Number.isFinite(pe.delaiJours) && pe.delaiJours >= 0) paiement.push(pe.delaiJours === 0 ? '<p>Paiement à réception.</p>' : `<p>Paiement à ${texte(pe.delaiJours)} jour${pe.delaiJours >= 2 ? 's' : ''}.</p>`);
   const modes = (v.modesPaiement ?? []).length ? v.modesPaiement : (Array.isArray(pe.modes) ? pe.modes.filter((m) => typeof m === 'string' && m.trim()) : []);
   if (modes.length) paiement.push(`<ul>${modes.map((m) => `<li>${texte(m)}</li>`).join('')}</ul>`);
   if (pe.iban) paiement.push(`<p>IBAN${NBSP}: ${texte(pe.iban)}</p>`);
@@ -235,7 +235,7 @@ export function devisHtml(vue, options = {}) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${texte(titre)}</title>
-<style>:root { --accent: ${accent}; }${CSS}</style>
+<style>:root { --accent: ${accent}; --accent-titre: ${/^#[0-9a-fA-F]{6}$/.test(String(emetteur.couleur ?? '').trim()) ? accent : '#1b1b1b'}; }${CSS}</style>
 </head>
 <body>
 ${options.brouillon === true ? '<div class="filigrane">BROUILLON</div>' : ''}
