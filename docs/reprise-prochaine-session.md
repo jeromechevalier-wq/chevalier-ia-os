@@ -1,11 +1,11 @@
 # À faire au début de la prochaine session
 
-Écrit le 04/10/2026, mis à jour le 23/10/2026, pour qu'une session neuve reprenne sans que Jérôme ait à recoller quoi que ce soit. **À mettre à jour ou à supprimer une fois les points faits.**
+Écrit le 04/10/2026, mis à jour le 24/10/2026, pour qu'une session neuve reprenne sans que Jérôme ait à recoller quoi que ce soit. **À mettre à jour ou à supprimer une fois les points faits.**
 
 ## Point du 23/10/2026 soir : **remplace le point de l'après-midi sur les PR en attente**
 
 - Fusionnées depuis : PR 210 (menu « Trier par » : « Date de création ») et PR 211 (Réglages compacts : Indicateurs −41 %, Phases des projets −38 %, Étapes des affaires ; l'explication des indicateurs est derrière l'icône « i », celle des phases sur une ligne qui grandit).
-- Suite de nuit sur `main` : verte le 23/10 à 14:06 (après la PR 209) ; alertes n°199 et n°206 fermées. **Relancée à 17:50 après les PR 210 et 211 : lire le résultat en premier** (workflow « Tests de nuit »).
+- Suite de nuit sur `main` : rouge le 23/10 à 17:50 (run 12, 1 échec `tri-uniforme` n° 5 sur ordinateur, 1 instable `source-ville` L3, tous deux des défauts de test). Corrigés par la PR 214 (n° 5 : attendre le menu de l'écran visé avant de choisir le tri) et la PR 215 (L3 : rouvrir le menu des filtres enregistrés tant que l'entrée n'est pas arrivée), fusionnées le 23/10 ; causes **supposées, non reproduites** (aucun test local possible : le Chromium du conteneur de session ne correspond pas à Playwright). **Suite de nuit verte le 24/10** (run 13, programmée, commit de la PR 215, 6 séries vertes) ; le journal du lanceur n'indique pas les tests instables (détail dans l'archive `tests-nuit` du run, conservée 14 jours). Un seul vert ne prouve pas la correction de L3 : surveiller les prochaines nuits. Alertes n°199 et n°206 fermées (avant ce point) ; non revérifiées le 24/10.
 - **Abandonné par Jérôme** : afficher le chemin complet du dossier Drive parent dans les Réglages (le droit `drive.file` ne le permet pas sans élargir les droits de l'appli).
 - **Décisions de Jérôme pour `docs/deploiement-client.md`** : le MCP est configuré pour **tous** les clients (pour qu'ils utilisent leurs données) ; le dossier Drive racine est créé **à la main** avec le client, rien à coder ; les étapes 4, 6 et 7 se font **à deux en visio**. Reste ouvert : l'accord écrit sur les données stockées.
 - À vérifier par Jérôme : contrôle 4 de la PR 204 dans la console Firebase (`os_kpi_saisies` change, pas `os_objectifs_saisies`) ; refuser la proposition d'essai dans sa base ; regarder les Réglages Indicateurs et Phases à l'écran (5 vérifications dans la PR 211).
