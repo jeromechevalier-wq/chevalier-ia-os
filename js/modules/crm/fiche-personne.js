@@ -5,7 +5,7 @@ import { naviguer } from '../../os/router.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
 import {
-  avatar, lienOrganisation, sectionRepliable, champPropriete, selecteurOrganisation, selecteurEtiquettes, champContacts, titreEditable, selectProprietaire,
+  avatar, lienOrganisation, sectionRepliable, champPropriete, selecteurOrganisation, selecteurEtiquettes, champContacts, champAdresses, titreEditable, selectProprietaire,
   telecharger, gabaritFiche, lienRetour, saisieEnCours, carteAffaireMini, fournisseurVilles, etatVide, planifier,
 } from './composants.js';
 import { panneauActivite } from './activites.js';
@@ -92,6 +92,7 @@ export function rendreFichePersonne(conteneur, id) {
         h('div', { class: 'resume-ligne' }, etiquettes.element),
         champContacts({ libelle: 'Email', genre: 'email', valeurs: p.emails || [], surEnregistrer: (liste) => D.majPersonne(p.id, L.patchEmails(liste)) }).element,
         champContacts({ libelle: 'Téléphone', genre: 'tel', valeurs: p.telephones || [], surEnregistrer: (liste) => D.majPersonne(p.id, L.patchTelephones(liste)) }).element,
+        champAdresses({ valeurs: L.adressesDe(p), surEnregistrer: (patch) => D.majPersonne(p.id, patch), lireActuelles: () => L.adressesDe(D.personne(p.id) || p) }).element,
         org
           ? h('div', { class: 'contact-ligne' }, icone('building-2', { taille: 15 }), lienOrganisation(org))
           : h('button', { type: 'button', class: 'prop-vide', 'data-action': 'ajouter-organisation', onclick: () => { editionOrganisation = true; reconstruire(); } }, icone('plus', { taille: 14 }), 'Organisation'),

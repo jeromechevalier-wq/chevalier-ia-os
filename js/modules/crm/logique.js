@@ -752,6 +752,7 @@ export function validerPersonne(v) {
   for (const e of v.emails || []) {
     if (e.valeur && !emailValide(e.valeur)) erreurs.emails = "Cette adresse email n'est pas valide.";
   }
+  if (v.adresses !== undefined) { const { erreur } = patchAdresses(v.adresses); if (erreur) erreurs.adresses = erreur; }
   return erreurs;
 }
 
@@ -760,6 +761,7 @@ export function validerOrganisation(v) {
   for (const e of v.emails || []) {
     if (nettoyerEspaces(e.valeur) && !emailValide(e.valeur)) erreurs.emails = "Cette adresse email n'est pas valide."; // une valeur blanche est ignorée, comme à l'écran
   }
+  if (v.adresses !== undefined) { const { erreur } = patchAdresses(v.adresses); if (erreur) erreurs.adresses = erreur; }
   return erreurs;
 }
 
@@ -796,6 +798,7 @@ export function nouvellePersonne(valeurs, ctx) {
     telephones: contactsNettoyes(valeurs.telephones),
     emails,
     emailsNormalises: emailsNormalises(emails),
+    ...(valeurs.adresses?.length ? patchAdresses(valeurs.adresses).patch : {}),
     etiquettes: [...(valeurs.etiquettes || [])],
     ville: nettoyerEspaces(valeurs.ville),
     linkedin: '',
@@ -816,6 +819,7 @@ export function nouvelleOrganisation(valeurs, ctx) {
     siteWeb: '',
     telephones: sansDoublonsContacts('telephones', valeurs.telephones).slice(0, MAX_CONTACTS),
     emails: sansDoublonsContacts('emails', valeurs.emails).slice(0, MAX_CONTACTS),
+    ...(valeurs.adresses?.length ? patchAdresses(valeurs.adresses).patch : {}),
     secteur: valeurs.secteur || '',
     taille: '',
     etiquettes: [...(valeurs.etiquettes || [])],
@@ -864,6 +868,78 @@ export function patchEmails(emails) {
 /** Patch après modification des téléphones. */
 export function patchTelephones(telephones) {
   return { telephones: contactsNettoyes(telephones) };
+}
+
+// ---------------------------------------------------------------- adresses enregistrées (personnes et organisations)
+
+/** Nombre maximal d'adresses enregistrées sur une fiche : le même à l'écran et pour l'assistant (MCP). */
+export const MAX_ADRESSES = 10;
+export const LIBELLE_ADRESSE = 'Adresse';
+export const LIBELLE_ADRESSE_PRINCIPALE = 'Principale';
+
+/** Une adresse sur une ou plusieurs lignes : espaces nettoyés ligne par ligne, lignes vides retirées. */
+export function nettoyerAdresse(texte) {
+  return String(texte ?? '').split(/\r?\n/).map(nettoyerEspaces).filter(Boolean).join('\n');
+}
+const cleAdresse = (a) => nettoyerEspaces(a).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); // même adresse à la casse, aux accents et aux retours à la ligne près = un doublon
+
+/** Court identifiant stable d'une ligne d'adresse. */
+export function nouvelIdAdresse() {
+  return `ad${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+}
+
+/** Liste nettoyée, sans rien refuser : adresses vides retirées, libellé par défaut, identifiant posé, un seul « par défaut » (le premier). */
+function adressesPropres(liste) {
+  let defautPris = false;
+  return (Array.isArray(liste) ? liste : []).map((a, i) => ({
+    id: nettoyerEspaces(a?.id) || `ad${i + 1}`,
+    libelle: nettoyerEspaces(a?.libelle) || LIBELLE_ADRESSE,
+    adresse: nettoyerAdresse(a?.adresse),
+    parDefaut: !!a?.parDefaut,
+  })).filter((a) => a.adresse).map((a) => {
+    if (a.parDefaut && defautPris) return { ...a, parDefaut: false };
+    if (a.parDefaut) defautPris = true;
+    return a;
+  });
+}
+
+/**
+ * Adresses enregistrées d'une personne ou d'une organisation : la liste `adresses`. Une ancienne organisation n'a que les champs `adresse`
+ * (et `ville`) : elle est lue comme une première ligne « Principale », sans rien écrire (les anciens champs ne sont jamais modifiés).
+ */
+export function adressesDe(fiche) {
+  if (Array.isArray(fiche?.adresses)) return adressesPropres(fiche.adresses);
+  const ancienne = nettoyerAdresse(fiche?.adresse);
+  if (!ancienne) return [];
+  const ville = nettoyerEspaces(fiche?.ville);
+  const texte = ville && !cleAdresse(ancienne).includes(cleAdresse(ville)) ? `${ancienne}\n${ville}` : ancienne;
+  return [{ id: 'principale', libelle: LIBELLE_ADRESSE_PRINCIPALE, adresse: texte, parDefaut: true }];
+}
+
+/** Texte de toutes les adresses d'une fiche (pour la recherche). */
+export function texteAdresses(fiche) {
+  return adressesDe(fiche).map((a) => `${a.libelle} ${a.adresse}`).join(' \u0001 ');
+}
+
+/**
+ * Enregistrement de la liste d'adresses : { erreur, patch }. `erreur` (texte qui dit quoi faire) est vide si tout va bien ; sinon rien ne doit être écrit.
+ * Refus : adresse vide, doublon exact, plus de MAX_ADRESSES. Un seul « par défaut » : si plusieurs sont cochés, le dernier coché l'emporte
+ * (c'est celui que l'utilisateur vient de choisir). Les anciens champs `adresse` et `ville` ne sont jamais dans le patch.
+ */
+export function patchAdresses(liste) {
+  const brutes = Array.isArray(liste) ? liste : [];
+  if (brutes.some((a) => !nettoyerAdresse(a?.adresse))) return { erreur: 'Écrivez l’adresse (rue, code postal, ville), ou retirez cette ligne.', patch: {} };
+  const vues = new Set();
+  for (const a of brutes) {
+    const k = cleAdresse(nettoyerAdresse(a.adresse));
+    if (vues.has(k)) return { erreur: 'Cette adresse est déjà dans la liste : modifiez-la ou retirez le doublon.', patch: {} };
+    vues.add(k);
+  }
+  if (brutes.length > MAX_ADRESSES) return { erreur: `Au plus ${MAX_ADRESSES} adresses par fiche : retirez-en une avant d’en ajouter.`, patch: {} };
+  const coches = brutes.map((a, i) => (a.parDefaut ? i : -1)).filter((i) => i >= 0);
+  const garde = coches.length ? coches[coches.length - 1] : -1;
+  const propres = adressesPropres(brutes.map((a, i) => ({ ...a, id: a.id || nouvelIdAdresse(), parDefaut: i === garde })));
+  return { erreur: '', patch: { adresses: propres } };
 }
 
 export function emailActif(personne) {
@@ -1666,7 +1742,7 @@ const inter = (liste, valeur) => !liste.length || liste.includes(valeur);
 const interAvec = (liste, valeurs) => !liste.length || (valeurs || []).some((v) => liste.includes(v));
 
 function recherchePersonne(p, orgNom) {
-  return normaliser([p.nom, orgNom, p.ville, ...(p.emails || []).map((e) => e.valeur), ...(p.telephones || []).map((t) => t.valeur)].join(' \u0001 '));
+  return normaliser([p.nom, orgNom, p.ville, texteAdresses(p), ...(p.emails || []).map((e) => e.valeur), ...(p.telephones || []).map((t) => t.valeur)].join(' \u0001 '));
 }
 
 function correspond(botte, recherche) {
@@ -1692,7 +1768,7 @@ export function filtrerOrganisations(organisations, criteres) {
   const c = criteresComplets('organisations', criteres);
   return organisations.filter((o) => {
     if (c.archives ? !estArchivee(o) : estArchivee(o)) return false;
-    if (!correspond(normaliser([o.nom, o.ville, o.adresse].join(' \u0001 ')), c.recherche)) return false;
+    if (!correspond(normaliser([o.nom, o.ville, o.adresse, texteAdresses(o)].join(' \u0001 ')), c.recherche)) return false;
     if (!interAvec(c.etiquettes, o.etiquettes)) return false;
     if (!inter(c.secteurs, o.secteur)) return false;
     if (!villeCorrespond(c.villes, o.ville)) return false;

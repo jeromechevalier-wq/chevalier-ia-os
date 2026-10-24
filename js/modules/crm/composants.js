@@ -687,6 +687,119 @@ export function champContacts({ libelle, genre, valeurs = [], surEnregistrer }) 
   return { element: racine };
 }
 
+/**
+ * Ligne « Adresses » d'une fiche (personne ou organisation) : la liste des adresses enregistrées, modifiable sur place, comme `champContacts`
+ * (pas de fenêtre ; croix avec confirmation puis « Retiré · Annuler » ; Entrée ou sortie du champ enregistre, Échap annule).
+ * `valeurs` : [{ id, libelle, adresse, parDefaut }] (voir L.adressesDe) ; `surEnregistrer(patch)` écrit le patch { adresses } déjà validé (L.patchAdresses).
+ * `lireActuelles()` (facultatif) rend la liste d'aujourd'hui dans la base : « Annuler » repart d'elle, car la fiche a pu être redessinée (et complétée) depuis le retrait.
+ * Dans le champ de l'adresse, Entrée enregistre et Maj+Entrée passe à la ligne.
+ */
+export function champAdresses({ valeurs = [], surEnregistrer, lireActuelles = null }) {
+  let liste = valeurs.map((v) => ({ ...v }));
+  const zone = h('div', { class: 'prop-valeur prop-contacts' });
+  const racine = h('div', { class: 'prop prop-contacts-ligne', dataset: { contacts: 'adresses' } }, h('span', { class: 'prop-libelle' }, 'Adresses'), zone);
+
+  /** Affiche la nouvelle liste tout de suite ; si l'écriture échoue, l'ancienne revient avec un message. */
+  async function ecrire(nouvelle, { apres = null } = {}) {
+    const avant = liste;
+    liste = nouvelle.map((a) => ({ ...a }));
+    afficher(apres);
+    try {
+      const { erreur, patch } = L.patchAdresses(liste);
+      if (erreur) throw Object.assign(new Error(erreur), { saisie: true });
+      await surEnregistrer(patch);
+      return true;
+    } catch (e) {
+      console.warn(e);
+      liste = avant;
+      afficher(apres);
+      toast(e?.saisie ? e.message : 'Enregistrement impossible', { type: 'erreur' });
+      return false;
+    }
+  }
+  function formulaire(index) { // index : numéro de l'adresse modifiée, ou -1 pour une nouvelle
+    const courant = index >= 0 ? liste[index] : { id: '', libelle: '', adresse: '', parDefaut: false };
+    const libelle = h('input', { class: 'champ champ-type', type: 'text', maxlength: '60', placeholder: L.LIBELLE_ADRESSE, autocomplete: 'off', 'aria-label': 'Libellé de l’adresse', value: courant.libelle === L.LIBELLE_ADRESSE && index >= 0 ? '' : courant.libelle });
+    const champ = h('textarea', { class: 'champ champ-adresse', rows: '2', maxlength: '500', 'aria-label': index >= 0 ? `Adresse ${index + 1}` : 'Nouvelle adresse' });
+    champ.value = courant.adresse;
+    const defaut = h('input', { type: 'checkbox', checked: courant.parDefaut, 'aria-label': 'Adresse par défaut' });
+    const erreur = h('p', { class: 'erreur', role: 'alert' });
+    const bloc = h('div', { class: 'contact-edition' }, libelle, champ, h('label', { class: 'adresse-defaut' }, defaut, 'Adresse par défaut'), erreur);
+    let fini = false;
+    const apres = index >= 0 ? { modifier: index } : { ajouter: true };
+    const valider = async (sortie) => {
+      if (fini) return;
+      const adresse = L.nettoyerAdresse(champ.value);
+      const lib = L.nettoyerEspaces(libelle.value) || L.LIBELLE_ADRESSE;
+      const sansChangement = index >= 0 && adresse === courant.adresse && lib === courant.libelle && defaut.checked === courant.parDefaut;
+      if (index < 0 && !adresse && !L.nettoyerEspaces(libelle.value)) { fini = true; afficher(apres); return; } // rien tapé : on referme
+      if (sansChangement) { fini = true; afficher(apres); return; }
+      const ligne = { id: courant.id || L.nouvelIdAdresse(), libelle: lib, adresse, parDefaut: defaut.checked };
+      const nouvelle = liste.map((a) => ({ ...a, parDefaut: ligne.parDefaut ? false : a.parDefaut })); // une seule adresse par défaut : la dernière choisie
+      if (index >= 0) nouvelle[index] = ligne; else nouvelle.push(ligne);
+      const { erreur: message } = L.patchAdresses(nouvelle);
+      if (message) {
+        if (!sortie) { erreur.textContent = message; return; } // Entrée : le message reste sous le champ
+        fini = true; afficher(); toast(message, { type: 'erreur' }); return; // on est parti ailleurs : rien n'est enregistré
+      }
+      fini = true;
+      await ecrire(nouvelle, { apres });
+    };
+    bloc.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !(e.target === champ && e.shiftKey)) { e.preventDefault(); valider(false); }
+      if (e.key === 'Escape') { e.stopPropagation(); fini = true; afficher(apres); }
+    });
+    bloc.addEventListener('focusout', (e) => { if (!bloc.contains(e.relatedTarget)) setTimeout(() => valider(true), 0); });
+    return { bloc, champ };
+  }
+  function ligneAdresse(a, i) {
+    return h('div', { class: 'contact-ligne contact-valeur adresse-valeur', dataset: { contact: String(i), adresse: a.id } },
+      h('span', { class: 'contact-type adresse-libelle' }, a.libelle),
+      h('span', { class: 'adresse-texte' }, a.adresse),
+      a.parDefaut ? h('span', { class: 'contact-type adresse-par-defaut' }, '(par défaut)') : null,
+      h('button', { type: 'button', class: 'bouton-icone prop-modifier contact-modifier', 'aria-label': `Modifier : ${a.libelle}`, dataset: { action: 'modifier-contact' }, onclick: () => editer(i) }, icone('pencil', { taille: 14 })),
+      h('button', { type: 'button', class: 'bouton-icone contact-retirer', 'aria-label': `Retirer : ${a.libelle}`, dataset: { action: 'retirer-contact' }, onclick: () => retirer(i) }, icone('x', { taille: 14 })));
+  }
+  async function retirer(i) {
+    const retire = { ...liste[i] };
+    await retirerAvecAnnulation({
+      titre: 'Retirer cette adresse ?', message: retire.adresse, messageErreur: 'Retrait impossible',
+      faire: async () => { if (!(await ecrire(liste.filter((a) => a.id !== retire.id)))) throw new Error('écriture refusée'); },
+      // « Annuler » remet seulement l'adresse retirée dans la liste d'aujourd'hui : un ajout fait entre-temps n'est pas perdu.
+      defaire: async () => {
+        if (lireActuelles) liste = lireActuelles().map((a) => ({ ...a }));
+        if (liste.some((a) => a.id === retire.id)) return;
+        const nouvelle = liste.map((a) => ({ ...a, parDefaut: retire.parDefaut ? false : a.parDefaut }));
+        nouvelle.splice(Math.min(i, nouvelle.length), 0, retire);
+        if (!(await ecrire(nouvelle))) throw new Error('écriture refusée');
+      },
+    });
+  }
+  function editer(i) {
+    const f = formulaire(i);
+    remplir(zone, h('div', { class: 'contacts-pile' }, liste.map((a, k) => (k === i ? f.bloc : ligneAdresse(a, k)))));
+    f.champ.focus();
+  }
+  function ajouter() {
+    const f = formulaire(-1);
+    remplir(zone, h('div', { class: 'contacts-pile' }, liste.map(ligneAdresse), f.bloc));
+    f.champ.focus();
+  }
+  /** `apres` : où remettre le focus au clavier (le crayon de l'adresse modifiée, ou « + Ajouter »). */
+  function afficher(apres = null) {
+    const vide = !liste.length;
+    remplir(zone, h('div', { class: 'contacts-pile' }, liste.map(ligneAdresse),
+      liste.length < L.MAX_ADRESSES
+        ? h('button', { type: 'button', class: 'prop-vide', onclick: ajouter, 'aria-label': 'Ajouter : adresse', 'data-action': 'ajouter-contact' }, icone('plus', { taille: 14 }), vide ? 'Ajouter une adresse' : 'Ajouter')
+        : null));
+    if (!apres) return;
+    const cible = apres.modifier !== undefined ? zone.querySelectorAll('[data-action="modifier-contact"]').item(apres.modifier) : zone.querySelector('[data-action="ajouter-contact"]');
+    cible?.focus({ preventScroll: true });
+  }
+  afficher();
+  return { element: racine };
+}
+
 // ---------------------------------------------------------------- aides diverses
 
 /** Anime ou non le téléchargement d'un texte (export). */

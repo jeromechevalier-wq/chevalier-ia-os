@@ -70,7 +70,7 @@ export async function lirePersonne(donnees, { id, avecFil }) {
     donnees.liste(C.activites, { champ: 'personneId', valeur: id }),
   ]);
   return serialiser({
-    personne,
+    personne: { ...personne, adresses: L.adressesDe(personne) },
     organisation: organisation ? { id: organisation.id, nom: organisation.nom } : null,
     affaires: affaires.map(resumeAffaire),
     activites,
@@ -87,7 +87,7 @@ export async function lireOrganisation(donnees, { id, avecFil }) {
     donnees.liste(C.activites, { champ: 'organisationId', valeur: id }),
   ]);
   return serialiser({
-    organisation: { ...organisation, emails: L.contactsOrganisation(organisation, 'emails'), telephones: L.contactsOrganisation(organisation, 'telephones') },
+    organisation: { ...organisation, emails: L.contactsOrganisation(organisation, 'emails'), telephones: L.contactsOrganisation(organisation, 'telephones'), adresses: L.adressesDe(organisation) },
     personnes: personnes.map((p) => ({ id: p.id, nom: p.nom, archive: !!p.archive })),
     affaires: affaires.map(resumeAffaire),
     activites,

@@ -120,6 +120,7 @@ export async function modifierPersonne(c, args) {
     Object.assign(patch, L.patchEmails(champs.emails));
   }
   if (champs.telephones !== undefined) Object.assign(patch, L.patchTelephones(champs.telephones));
+  if (champs.adresses !== undefined) { verifierMessages(L.validerPersonne({ nom: 'x', adresses: champs.adresses })); Object.assign(patch, L.patchAdresses(champs.adresses).patch); }
   if (champs.organisationId !== undefined) {
     await lireSiDonne(c, C.organisations, champs.organisationId, 'Organisation');
     patch.organisationId = champs.organisationId || null;
@@ -174,6 +175,7 @@ export async function modifierOrganisation(c, args) {
   const patch = {};
   if (champs.nom !== undefined) { verifierMessages(L.validerOrganisation({ nom: champs.nom })); patch.nom = texte(champs.nom); }
   for (const cle of ['adresse', 'ville', 'siteWeb', 'secteur']) if (champs[cle] !== undefined) patch[cle] = texte(champs[cle]);
+  if (champs.adresses !== undefined) { verifierMessages(L.validerOrganisation({ nom: 'x', adresses: champs.adresses })); Object.assign(patch, L.patchAdresses(champs.adresses).patch); } // liste complète remplaçante ; `adresse` et `ville` restent comme ils sont
   Object.assign(patch, contactsOrganisationModifies(o, champs));
   if (champs.taille !== undefined) {
     if (champs.taille !== '' && !L.TAILLES.includes(champs.taille)) refuser('saisie_invalide', `Taille inconnue (valeurs : ${L.TAILLES.join(', ')} ou vide).`);

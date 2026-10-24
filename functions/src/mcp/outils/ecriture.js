@@ -8,6 +8,9 @@ import * as metier from '../../coeur/metier.js';
 const PROFILS = ['bibliothecaire', 'claude-code'];
 const id = z.string().min(1).max(200);
 const jour = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Attendu AAAA-MM-JJ').describe('Date AAAA-MM-JJ.');
+const adresses = z.array(z.object({
+  id: z.string().max(40).optional(), libelle: z.string().max(100).optional(), adresse: z.string().max(500), parDefaut: z.boolean().optional(),
+})).max(L.MAX_ADRESSES).describe(`Adresses enregistrées (liste complète, qui REMPLACE l'actuelle ; ${L.MAX_ADRESSES} au plus) : { libelle (facultatif, « Adresse » par défaut), adresse (texte, plusieurs lignes possibles), parDefaut (une seule à true) }. Passer l'id d'une adresse existante la garde stable. [] la vide.`);
 const contacts = z.array(z.object({ valeur: z.string().max(200), type: z.enum(L.TYPES_CONTACT.map((t) => t.id)).optional() })).max(10);
 const etiquettes = z.array(z.string().max(80)).max(30).describe('Identifiants d’étiquettes (voir lire_reglages, etiquettes).');
 const proprietaire = z.string().max(120).optional().describe('Propriétaire de la fiche créée (facultatif ; si absent, par défaut la personne connectée).');
@@ -27,22 +30,22 @@ const outil = (nom, description, schema, action, profils = PROFILS) => ({
 
 export const OUTILS_ECRITURE = [
   outil('creer_personne', "Crée une personne (seul le nom est obligatoire), avec son événement dans le fil. Refuse un doublon (même nom, accents et casse ignorés, ou même e-mail) sauf forcer: true. Le propriétaire est, par défaut, la personne connectée si on n'en donne pas.", {
-    nom: z.string().min(1).max(200), organisationId: id.optional(), emails: contacts.optional(), telephones: contacts.optional(), etiquettes: etiquettes.optional(),
+    nom: z.string().min(1).max(200), organisationId: id.optional(), emails: contacts.optional(), telephones: contacts.optional(), adresses: adresses.optional(), etiquettes: etiquettes.optional(),
     ville: texteCourt.optional(), source: sourceListe, forcer, proprietaire,
   }, metier.creerPersonne),
 
-  outil('modifier_personne', "Modifie des champs d'une personne (seuls les champs donnés changent) : nom, organisationId (null pour détacher), emails, telephones, etiquettes, ville, source, linkedin, siteWeb, archive. Ne supprime jamais. Refuse un nom ou e-mail qui ferait doublon avec une autre personne sauf forcer: true.", {
-    id, nom: z.string().min(1).max(200).optional(), organisationId: id.nullable().optional(), emails: contacts.optional(), telephones: contacts.optional(), etiquettes: etiquettes.optional(),
+  outil('modifier_personne', "Modifie des champs d'une personne (seuls les champs donnés changent) : nom, organisationId (null pour détacher), emails, telephones, adresses (liste qui remplace l'actuelle), etiquettes, ville, source, linkedin, siteWeb, archive. Ne supprime jamais. Refuse un nom ou e-mail qui ferait doublon avec une autre personne sauf forcer: true.", {
+    id, nom: z.string().min(1).max(200).optional(), organisationId: id.nullable().optional(), emails: contacts.optional(), telephones: contacts.optional(), adresses: adresses.optional(), etiquettes: etiquettes.optional(),
     ville: texteCourt.optional(), source: sourceListe, linkedin: z.string().max(300).optional(), siteWeb: z.string().max(300).optional(),
     archive: z.boolean().optional().describe('true : archiver ; false : désarchiver.'), forcer,
   }, metier.modifierPersonne),
 
-  outil('creer_organisation', "Crée une organisation (seul le nom est obligatoire ; emails et telephones : listes de { valeur, type }, 10 au plus), avec son événement dans le fil. Refuse un doublon de nom sauf forcer: true.", {
-    nom: z.string().min(1).max(200), adresse: texteCourt.optional(), ville: texteCourt.optional(), secteur: texteCourt.optional(), emails: contacts.optional(), telephones: contacts.optional(), etiquettes: etiquettes.optional(), forcer, proprietaire,
+  outil('creer_organisation', "Crée une organisation (seul le nom est obligatoire ; emails et telephones : listes de { valeur, type }, 10 au plus ; adresses : liste d'adresses enregistrées), avec son événement dans le fil. Refuse un doublon de nom sauf forcer: true.", {
+    nom: z.string().min(1).max(200), adresse: texteCourt.optional(), ville: texteCourt.optional(), secteur: texteCourt.optional(), emails: contacts.optional(), telephones: contacts.optional(), adresses: adresses.optional(), etiquettes: etiquettes.optional(), forcer, proprietaire,
   }, metier.creerOrganisation),
 
-  outil('modifier_organisation', "Modifie des champs d'une organisation : nom, adresse, ville, siteWeb, emails et telephones (listes { valeur, type } de 10 au plus, qui REMPLACENT la liste actuelle ; [] la vide), secteur, taille (Solo, 2 à 10, 11 à 50, Plus de 50, ou vide), etiquettes, archive. Les anciens champs texte email et telephone sont gardés : une valeur donnée est AJOUTÉE à la liste (jamais perdue ; pour vider, passer emails: []). Ne supprime jamais.", {
-    id, nom: z.string().min(1).max(200).optional(), adresse: texteCourt.optional(), ville: texteCourt.optional(), siteWeb: z.string().max(300).optional(), emails: contacts.optional(), telephones: contacts.optional(), telephone: texteCourt.optional(), email: z.string().max(200).optional(), secteur: texteCourt.optional(),
+  outil('modifier_organisation', "Modifie des champs d'une organisation : nom, adresse, ville, siteWeb, adresses (liste d'adresses enregistrées, qui REMPLACE l'actuelle ; les champs adresse et ville ne bougent pas), emails et telephones (listes { valeur, type } de 10 au plus, qui REMPLACENT la liste actuelle ; [] la vide), secteur, taille (Solo, 2 à 10, 11 à 50, Plus de 50, ou vide), etiquettes, archive. Les anciens champs texte email et telephone sont gardés : une valeur donnée est AJOUTÉE à la liste (jamais perdue ; pour vider, passer emails: []). Ne supprime jamais.", {
+    id, nom: z.string().min(1).max(200).optional(), adresse: texteCourt.optional(), ville: texteCourt.optional(), siteWeb: z.string().max(300).optional(), emails: contacts.optional(), telephones: contacts.optional(), adresses: adresses.optional(), telephone: texteCourt.optional(), email: z.string().max(200).optional(), secteur: texteCourt.optional(),
     taille: z.string().max(20).optional(), etiquettes: etiquettes.optional(), archive: z.boolean().optional(), forcer,
   }, metier.modifierOrganisation),
 

@@ -1025,3 +1025,56 @@ describe('Emails et téléphones multiples d’une organisation (critère 8)', (
     refuse(await s.appeler('biblio', 'creer_organisation', { nom: 'Autre Boutique', emails: [{ valeur: 'x' }] }), /pas valide|invalide/i);
   });
 });
+
+describe('Adresses enregistrées d’une personne et d’une organisation (critères A6 et A7)', () => {
+  const liste = [{ libelle: 'Siège', adresse: '12 rue des Lilas\n69001 Lyon', parDefaut: true }, { libelle: 'Atelier', adresse: '3 impasse des Roses, 69002 Lyon' }];
+
+  test('A6 creer_organisation et modifier_organisation acceptent adresses ; lire_organisation rend les mêmes adresses', async () => {
+    const s = await demarrer();
+    const cree = ok(await s.appeler('biblio', 'creer_organisation', { nom: 'Boutique Adresses', adresses: liste }));
+    const lue = ok(await s.appeler('lecteur', 'lire_organisation', { id: cree.id }));
+    assert.deepEqual(lue.organisation.adresses.map((x) => [x.libelle, x.adresse, x.parDefaut]), [['Siège', '12 rue des Lilas\n69001 Lyon', true], ['Atelier', '3 impasse des Roses, 69002 Lyon', false]]);
+    assert.ok(lue.organisation.adresses.every((x) => x.id));
+    ok(await s.appeler('biblio', 'modifier_organisation', { id: cree.id, adresses: [lue.organisation.adresses[1]] }));
+    assert.deepEqual(s.doc('crm_organisations', cree.id).adresses.map((x) => x.libelle), ['Atelier']);
+    ok(await s.appeler('biblio', 'modifier_organisation', { id: cree.id, adresses: [] }));
+    assert.deepEqual(s.doc('crm_organisations', cree.id).adresses, []);
+  });
+
+  test('A6 un ancien enregistrement sans liste est relu avec « Principale » et rien n’est écrit', async () => {
+    const s = await demarrer();
+    s.collections.crm_organisations.find((o) => o.id === 'org1').adresse = '8 quai du Port';
+    const avant = s.vue();
+    const lue = ok(await s.appeler('lecteur', 'lire_organisation', { id: 'org1' }));
+    assert.equal(lue.organisation.adresses.length, 1);
+    assert.equal(lue.organisation.adresses[0].libelle, 'Principale');
+    assert.match(lue.organisation.adresses[0].adresse, /8 quai du Port/);
+    assert.deepEqual(s.vue(), avant);
+  });
+
+  test('A7 modifier la liste ne change ni adresse ni ville de l’organisation', async () => {
+    const s = await demarrer();
+    s.collections.crm_organisations.find((o) => o.id === 'org1').adresse = '8 quai du Port';
+    const lue = ok(await s.appeler('biblio', 'lire_organisation', { id: 'org1' }));
+    ok(await s.appeler('biblio', 'modifier_organisation', { id: 'org1', adresses: [...lue.organisation.adresses, { libelle: 'Dépôt', adresse: '1 zone industrielle' }] }));
+    const o = s.doc('crm_organisations', 'org1');
+    assert.equal(o.adresse, '8 quai du Port');
+    assert.equal(o.ville, 'Lyon');
+    assert.deepEqual(o.adresses.map((x) => x.libelle), ['Principale', 'Dépôt']);
+  });
+
+  test('A6 personne : creer_personne, modifier_personne et lire_personne ; adresse vide, doublon et plus de 10 sont refusés sans rien écrire', async () => {
+    const s = await demarrer();
+    const p = ok(await s.appeler('biblio', 'creer_personne', { nom: 'Personne Adresses', adresses: liste }));
+    assert.equal(s.doc('crm_personnes', p.id).adresses.length, 2);
+    ok(await s.appeler('biblio', 'modifier_personne', { id: p.id, adresses: [{ libelle: 'Maison', adresse: '5 rue Basse' }] }));
+    const lue = ok(await s.appeler('lecteur', 'lire_personne', { id: p.id }));
+    assert.deepEqual(lue.personne.adresses.map((x) => x.libelle), ['Maison']);
+    const avant = s.vue();
+    refuse(await s.appeler('biblio', 'modifier_personne', { id: p.id, adresses: [{ adresse: '  ' }] }), /Écrivez l’adresse/);
+    refuse(await s.appeler('biblio', 'modifier_personne', { id: p.id, adresses: [{ adresse: '5 rue Basse' }, { adresse: '5 RUE basse' }] }), /déjà dans la liste/);
+    refuse(await s.appeler('biblio', 'modifier_personne', { id: p.id, adresses: Array.from({ length: 11 }, (_, i) => ({ adresse: `${i} rue Haute` })) }));
+    refuse(await s.appeler('biblio', 'creer_organisation', { nom: 'Refusée', adresses: [{ adresse: '' }] }), /Écrivez l’adresse/);
+    assert.deepEqual(s.vue(), avant);
+  });
+});
