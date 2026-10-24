@@ -180,7 +180,7 @@
 .ligne-section-devis .ligne-champs > .champ { flex: 1 1 auto; }
 .ligne-devis-edition:focus-within td { background: var(--accent-a1f); }
 /* Saut de page : une bande rayée en pointillés gris sur toute la largeur, au texte centré. */
-.bande-saut { display: flex; align-items: center; justify-content: center; min-height: 32px; border: 1px dashed var(--bordure-champ); border-radius: var(--rayon-petit); color: var(--texte2); font-size: var(--fs-menu); background: repeating-linear-gradient(135deg, transparent 0, transparent 8px, var(--survol) 8px, var(--survol) 16px); }
+.bande-saut { display: flex; align-items: center; justify-content: center; min-height: var(--h-ctrl-petit); border: 1px dashed var(--bordure-champ); border-radius: var(--rayon-petit); color: var(--texte2); font-size: var(--fs-menu); background: repeating-linear-gradient(135deg, transparent 0, transparent 8px, var(--survol) 8px, var(--survol) 16px); }
 .ligne-saut-devis td { vertical-align: middle; }
 .ligne-saut-devis .poignee-devis { vertical-align: middle; }
 .etiquette-sous-total { color: var(--texte2); }

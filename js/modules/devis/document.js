@@ -183,7 +183,7 @@ function tableauLignes(vue, sansTva, aff = {}) {
     if (sousTotal) { if (sous) poser(sousTotal); else enAttente = sousTotal; }
     // Sauts après la dernière ligne : après le sous-total de la section (si une sous-section suit, le saut reste juste avant elle).
     if (premiere !== -1 && derniere < contenu.length - 1) {
-      if (!(liste[k + 1]?.niveau === 2 && !sous)) fermer();
+      if (liste[k + 1]?.niveau !== 2) fermer(); // jamais de sous-total du parent tant qu'une sous-section suit
       poserSaut();
     }
   }
