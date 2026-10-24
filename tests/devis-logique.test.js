@@ -33,7 +33,7 @@ describe('Arrondi et argent', () => {
   });
   test('D6 arrondi : quantité 2,5 × 0,333 donne 0,83', () => {
     assert.equal(D.totalLigne(2.5, 0.333), 0.83);
-    const d = devisType({ sections: [{ id: 's', lignes: [ligne('a', 0.333, 2.5, { prixVente: 0.333 })] }] });
+    const d = devisType({ sections: [{ id: 's', lignes: [ligne('a', 0.333, 2.5, { marge: 0 })] }] });
     assert.equal(D.totauxDevis(d).lignes[0].totalHT, 0.83);
   });
 });
@@ -125,9 +125,9 @@ describe('Totaux et TVA', () => {
     modifie.marge = 99; modifie.modeMarge = 'marge_vente'; modifie.sections[0].lignes[0].prixAchat = 1;
     assert.deepEqual(D.totauxDevis(modifie), avant);
     // Les réglages ne sont jamais relus : on change le taux par défaut des réglages, rien ne bouge.
-    const autresReglages = { ...reglages, tauxTvaDefaut: 5.5, regimeTva: 'franchise' };
-    assert.equal(autresReglages.tauxTvaDefaut, 5.5);
-    assert.deepEqual(D.totauxDevis(fige), avant);
+    const autreTaux = structuredClone(fige);
+    autreTaux.tauxTvaDefaut = 5.5;
+    assert.deepEqual(D.totauxDevis(autreTaux), avant);
   });
   test('D8 le régime de TVA est figé à la finalisation, refus d\'un devis invalide', () => {
     const r = D.figerPourFinalisation(devisType(), { numero: 'N', finaliseLe: '2026-10-24', reglages: { regimeTva: 'franchise' } });
@@ -294,5 +294,30 @@ describe('Nouvelle version et montant d\'affaire', () => {
     assert.equal(D.montantAffaireDepuisDevis([], 0), 0);
     assert.equal(D.montantAffaireDepuisDevis([{ ...fige, statut: 'accepte' }], 5000), 1014.71);
     assert.equal(D.montantAffaireDepuisDevis([{ ...fige, statut: 'accepte' }, { ...fige, statut: 'accepte', archive: true }, { ...fige, statut: 'envoye' }], 5000), 2029.42);
+  });
+});
+
+describe('Corrections de relecture', () => {
+  test('D8 un prix de vente périmé sur un brouillon est recalculé, pas honoré', () => {
+    const d = devisType({ sections: [{ id: 's', lignes: [ligne('a', 50, 1, { marge: 20, prixVente: 120 })] }] });
+    assert.equal(D.totauxDevis(d).lignes[0].prixVenteUnitaire, 60);
+  });
+  test('D13 deux lignes sans identifiant ne se confondent pas, et la validation les refuse', () => {
+    const d = devisType({ regimeTva: 'franchise', sections: [{ id: 's', lignes: [ligne(undefined, 10, 1, { marge: 0 }), ligne(undefined, 90, 1, { marge: 0 })] }] });
+    assert.deepEqual(D.vueClient(d).sections[0].lignes.map((l) => l.totalHT), [10, 90]);
+    assert.ok(D.erreursFinalisation(d).some((e) => /identifiant/.test(e)));
+  });
+  test('D9 une marge qui rendrait le prix négatif est refusée à la finalisation', () => {
+    const d = devisType({ modeMarge: 'majoration', marge: -150 });
+    assert.ok(D.erreursFinalisation(d).some((e) => /négatif/.test(e)));
+  });
+  test('D39 une date ISO avec heure et une Date donnent le même jour', () => {
+    assert.equal(D.dateExpiration('2026-10-24T23:30:00Z', 0), D.dateExpiration(new Date('2026-10-24T23:30:00Z'), 0));
+  });
+  test('D18 la nouvelle version garde la durée de validité et oublie la raison de refus', () => {
+    const d = devisType({ dureeValiditeJours: 30, raisonRefus: 'trop cher' });
+    const v2 = D.nouvelleVersion(d, { id: 'x2', creeLe: new Date('2026-10-24T10:00:00Z') });
+    assert.equal(v2.raisonRefus, undefined);
+    assert.equal(v2.expireLe, D.dateExpiration(new Date('2026-10-24T10:00:00Z'), 30));
   });
 });

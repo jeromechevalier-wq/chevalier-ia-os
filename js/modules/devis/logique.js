@@ -98,7 +98,8 @@ export function margeEffective({ devis, section, ligne } = {}) {
 
 /** Prix de vente unitaire d'une ligne : le prix figé s'il existe (devis finalisé), sinon calculé. Null si impossible. */
 export function prixVenteDeLigne(devis, section, ligne) {
-  if (estNombre(ligne?.prixVente)) return ligne.prixVente;
+  // Un brouillon se recalcule toujours : un prix figé périmé (restauration, copie) n'est pas honoré.
+  if (devis?.statut !== 'brouillon' && estNombre(ligne?.prixVente)) return ligne.prixVente;
   return prixVenteUnitaire(ligne?.prixAchat, margeEffective({ devis, section, ligne }), devis?.modeMarge);
 }
 
@@ -127,7 +128,7 @@ export function totauxDevis(devis) {
     let sousC = 0;
     for (const ligne of section.lignes ?? []) {
       const pv = prixVenteDeLigne(devis, section, ligne);
-      const totalC = pv === null ? 0 : arrondiDemi((ligne.quantite ?? 0) * versCentimes(pv));
+      const totalC = pv === null ? 0 : arrondiDemi((estNombre(ligne.quantite) ? ligne.quantite : 0) * versCentimes(pv));
       sousC += totalC;
       const taux = tauxDeLigne(devis, ligne);
       baseParTaux.set(taux, (baseParTaux.get(taux) ?? 0) + totalC);
@@ -148,10 +149,17 @@ export function totauxDevis(devis) {
   };
 }
 
+/** Totaux de ligne rangés par section puis par position (les lignes n'ont pas forcément d'id unique). */
+const parPosition = (devis, t) => {
+  let k = 0;
+  return (devis.sections ?? []).map((s) => (s.lignes ?? []).map(() => t.lignes[k++]));
+};
+
 // ---------------------------------------------------------------- dates, numéro, expiration
 /** Jour calendaire AAAA-MM-JJ d'une date (Date ou texte ISO). Null si illisible. */
 function jourDe(v) {
   if (v instanceof Date) return Number.isNaN(v.getTime()) ? null : aujourdhuiParis(v);
+  if (typeof v === 'string' && v.includes('T')) return jourDe(new Date(v));
   if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}/.test(v)) return estJour(v.slice(0, 10)) ? v.slice(0, 10) : null;
   return null;
 }
@@ -217,6 +225,8 @@ export function erreursFinalisation(devis) {
   const destinataires = (devis.destinataires ?? []).map(emailDe);
   if (!destinataires.some(emailValide)) erreurs.push('Ajoute au moins un destinataire avec une adresse e-mail valide (une adresse en copie ne suffit pas).');
   else if (destinataires.some((e) => e && !emailValide(e))) erreurs.push('Une adresse e-mail de destinataire n\'est pas valide : corrige-la.');
+  const ids = (devis.sections ?? []).flatMap((s) => (s.lignes ?? []).map((l) => l.id));
+  if (ids.some((id) => absent(id) || id === '') || new Set(ids).size !== ids.length) erreurs.push('Une ligne du devis n\'a pas d\'identifiant unique : recharge le devis ou recrée cette ligne.');
   const lignes = (devis.sections ?? []).flatMap((s) => (s.lignes ?? []).map((l) => ({ s, l })));
   if (lignes.length === 0) erreurs.push('Ajoute au moins une ligne au devis avant de le finaliser.');
   for (const { s, l } of lignes) {
@@ -229,6 +239,10 @@ export function erreursFinalisation(devis) {
     else if (idsModes.includes(devis.modeMarge)) {
       const { erreur } = coefficientDeMarge(marge, devis.modeMarge);
       if (erreur) erreurs.push(`Ligne ${nom} : ${erreur}`);
+      else {
+        const pv = prixVenteUnitaire(l.prixAchat, marge, devis.modeMarge);
+        if (pv !== null && pv < 0) erreurs.push(`Ligne ${nom} : le prix de vente serait négatif, corrige la marge.`);
+      }
     }
     if (!absent(l.tauxTva) && (!estNombre(l.tauxTva) || l.tauxTva < 0)) erreurs.push(`Ligne ${nom} : le taux de TVA n'est pas valide.`);
   }
@@ -268,6 +282,7 @@ export function nouveauDevis(valeurs = {}, ctx = {}, reglages = {}) {
     creePar: ctx.auteur ?? '',
     proprietaire: ctx.proprietaire ?? ctx.auteur ?? '',
     creeLe,
+    dureeValiditeJours: jours,
     expireLe: estJour(valeurs.expireLe) ? valeurs.expireLe : dateExpiration(creeLe, jours),
   };
 }
@@ -298,9 +313,9 @@ export function figerPourFinalisation(devis, { numero, finaliseLe, reglages = {}
 }
 
 /** Nouveau brouillon copié d'un devis (même racine, version + 1, même numéro). L'original n'est pas modifié. */
-export function nouvelleVersion(devis, { id, creeLe, joursValidite = DUREE_VALIDITE_DEFAUT } = {}) {
+export function nouvelleVersion(devis, { id, creeLe, joursValidite = devis?.dureeValiditeJours ?? DUREE_VALIDITE_DEFAUT } = {}) {
   const copie = structuredClone(devis);
-  for (const cle of ['finaliseLe', 'envoyeLe', 'accepteLe', 'refuseLe', 'totaux', 'finalisation', 'envoiN8nCopie']) delete copie[cle];
+  for (const cle of ['finaliseLe', 'envoyeLe', 'accepteLe', 'refuseLe', 'totaux', 'finalisation', 'envoiN8nCopie', 'raisonRefus']) delete copie[cle];
   for (const section of copie.sections ?? []) for (const ligne of section.lignes ?? []) delete ligne.prixVente; // recalculé tant que brouillon
   return {
     ...copie,
@@ -331,7 +346,7 @@ function sansCles(valeur) {
 export function vueClient(devis, contexte = {}) {
   const t = totauxDevis(devis);
   const sansTva = t.mentions.length > 0 && (devis.regimeTva === 'franchise' || devis.autoliquidation === true);
-  const parId = new Map(t.lignes.map((l) => [l.id, l]));
+  const pos = parPosition(devis, t);
   const vue = {
     formatVersion: 1,
     espace: contexte.espace ?? null,
@@ -351,13 +366,13 @@ export function vueClient(devis, contexte = {}) {
       id: s.id,
       titre: s.titre ?? '',
       sousTotalHT: t.sections[i].sousTotalHT,
-      lignes: (s.lignes ?? []).map((l) => ({
+      lignes: (s.lignes ?? []).map((l, j) => ({
         id: l.id,
         libelle: l.libelle ?? '',
         quantite: l.quantite,
         unite: l.unite ?? '',
-        prixUnitaireHT: parId.get(l.id)?.prixVenteUnitaire ?? null,
-        totalHT: parId.get(l.id)?.totalHT ?? 0,
+        prixUnitaireHT: pos[i][j]?.prixVenteUnitaire ?? null,
+        totalHT: pos[i][j]?.totalHT ?? 0,
         tauxTva: sansTva ? 0 : tauxDeLigne(devis, l),
       })),
     })),
@@ -399,12 +414,12 @@ function pied(t) {
 /** Texte « tel qu'envoyé » : ce que voit le client, une ligne par article. Jamais de prix d'achat, de marge ni de coefficient. */
 export function texteVueClient(devis) {
   const t = totauxDevis(devis);
-  const parId = new Map(t.lignes.map((l) => [l.id, l]));
+  const pos = parPosition(devis, t);
   const l = enTete(devis);
-  for (const s of devis.sections ?? []) {
+  for (const [i, s] of (devis.sections ?? []).entries()) {
     l.push('', s.titre ? `${s.titre}` : 'Prestations');
-    for (const x of s.lignes ?? []) {
-      const c = parId.get(x.id);
+    for (const [j, x] of (s.lignes ?? []).entries()) {
+      const c = pos[i][j];
       l.push(`- ${x.libelle ?? ''} : ${nombre(x.quantite)} ${x.unite ?? ''} x ${euros(c?.prixVenteUnitaire)} = ${euros(c?.totalHT)}`.replace(/ {2,}/g, ' '));
     }
   }
@@ -414,13 +429,13 @@ export function texteVueClient(devis) {
 /** Vue interne : comme le texte client, plus prix d'achat, coefficient, marge et « vendu à perte ». */
 export function texteVueInterne(devis) {
   const t = totauxDevis(devis);
-  const parId = new Map(t.lignes.map((l) => [l.id, l]));
+  const pos = parPosition(devis, t);
   const l = [...enTete(devis), `Mode de marge : ${MODES_MARGE.find((m) => m.id === devis.modeMarge)?.libelle ?? 'inconnu'}`];
   let achatC = 0;
-  for (const s of devis.sections ?? []) {
+  for (const [i, s] of (devis.sections ?? []).entries()) {
     l.push('', s.titre ? `${s.titre}` : 'Prestations');
-    for (const x of s.lignes ?? []) {
-      const c = parId.get(x.id);
+    for (const [j, x] of (s.lignes ?? []).entries()) {
+      const c = pos[i][j];
       const marge = margeEffective({ devis, section: s, ligne: x });
       const { coefficient } = coefficientDeMarge(marge, devis.modeMarge);
       if (estNombre(x.prixAchat) && estNombre(x.quantite)) achatC += arrondiDemi(x.quantite * versCentimes(x.prixAchat));
