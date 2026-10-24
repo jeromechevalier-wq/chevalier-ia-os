@@ -45,6 +45,8 @@ export const MENTION_SIGNATURE = 'Reçu avant l\'exécution des travaux, bon pou
 export const ATTESTATION_TVA_REDUITE = 'Attestation du client (preneur de la prestation) : je certifie que les travaux décrits dans ce devis concernent un local à usage d\'habitation achevé depuis plus de deux ans, qu\'ils n\'ont pas pour effet d\'accroître la surface de plancher de plus de 10 %, et que ce local est affecté à l\'habitation à l\'issue des travaux. Je m\'engage à régler la différence de TVA si ces conditions ne sont pas respectées.';
 export const ERREUR_MARGE_100 = 'La marge sur le prix de vente doit être inférieure à 100 %.';
 export const DUREE_VALIDITE_DEFAUT = 90;
+/** Types de remise (visible du client, contrairement à la marge) : `devis.remise = { type, valeur }` ou null. */
+export const TYPES_REMISE = ['pourcentage', 'montant'];
 /** Clés qui ne sortent JAMAIS vers le client (voir vueClient). */
 export const CLES_INTERDITES_CLIENT = ['prixAchat', 'marge', 'coefficient', 'modeMarge'];
 
@@ -119,6 +121,29 @@ const tauxDeLigne = (devis, ligne) => {
   return TAUX_TVA_DEFAUT[0];
 };
 
+/**
+ * Remise d'un devis en centimes, pour un total HT brut donné. Une remise absente, nulle ou invalide vaut 0
+ * (la validation de finalisation, elle, refuse les remises invalides : voir `erreurRemise`).
+ */
+function remiseEnCentimes(remise, brutC) {
+  if (!remise || typeof remise !== 'object' || !estNombre(remise.valeur) || brutC <= 0) return 0;
+  if (remise.type === 'pourcentage') return remise.valeur > 0 && remise.valeur < 100 ? arrondiDemi(brutC * remise.valeur / 100) : 0;
+  if (remise.type === 'montant') { const c = versCentimes(remise.valeur); return c > 0 && c <= brutC ? c : 0; }
+  return 0;
+}
+
+/** Message d'erreur si la remise du devis est refusée, sinon null. Absente (null) ou 0 : acceptée. */
+function erreurRemise(devis, brutHt) {
+  const r = devis.remise;
+  if (absent(r)) return null;
+  if (typeof r !== 'object' || !TYPES_REMISE.includes(r.type)) return 'La remise doit être un pourcentage ou un montant.';
+  if (!estNombre(r.valeur)) return 'La valeur de la remise doit être un nombre.';
+  if (r.type === 'pourcentage' && (r.valeur < 0 || r.valeur >= 100)) return 'La remise en pourcentage doit être comprise entre 0 et 100 % (100 % exclu).';
+  if (r.type === 'montant' && r.valeur < 0) return 'Le montant de la remise ne peut pas être négatif.';
+  if (r.type === 'montant' && versCentimes(r.valeur) > versCentimes(brutHt)) return 'Le montant de la remise ne peut pas dépasser le total HT du devis.';
+  return null;
+}
+
 /** Totaux d'un devis, tout en euros, calculés en centimes. Les lignes invalides comptent pour 0 (la validation les signale). */
 export function totauxDevis(devis) {
   const franchise = devis?.regimeTva === 'franchise';
@@ -141,15 +166,26 @@ export function totauxDevis(devis) {
     htC += sousC;
     sections.push({ id: section.id, sousTotalHT: versEuros(sousC) });
   }
-  const tvaParTaux = sansTva ? [] : [...baseParTaux.entries()]
-    .sort((a, b) => b[0] - a[0])
-    .map(([taux, baseC]) => ({ taux, baseHT: versEuros(baseC), montant: versEuros(arrondiDemi(baseC * taux / 100)) }));
+  // Remise : après la marge et les sous-totaux, sur le total HT, répartie au prorata de chaque base de TVA.
+  // Plus fort reste : chaque part est tronquée au centime, puis les centimes restants vont aux plus grands restes
+  // (à égalité, au taux le plus élevé) : la somme des bases remisées vaut exactement net HT, sans base qui dépasse son brut.
+  const remiseC = remiseEnCentimes(devis?.remise, htC);
+  const netC = htC - remiseC;
+  const entrees = [...baseParTaux.entries()].sort((a, b) => b[0] - a[0]);
+  const exact = entrees.map(([, baseC]) => (remiseC === 0 || htC === 0 ? 0 : remiseC * baseC / htC));
+  const parts = exact.map((x) => Math.floor(x + 1e-9));
+  let reste = remiseC - parts.reduce((a, b) => a + b, 0);
+  const ordre = exact.map((x, k) => k).sort((i, j) => (exact[j] - parts[j]) - (exact[i] - parts[i]) || i - j);
+  for (let n = 0; reste > 0 && ordre.length; n += 1, reste -= 1) parts[ordre[n % ordre.length]] += 1;
+  const tvaParTaux = sansTva ? [] : entrees
+    .map(([taux, baseC], k) => ({ taux, baseHT: versEuros(baseC - parts[k]), montant: versEuros(arrondiDemi((baseC - parts[k]) * taux / 100)) }));
   const tvaC = tvaParTaux.reduce((s, t) => s + versCentimes(t.montant), 0);
   const mentions = [];
   if (franchise) mentions.push(MENTION_FRANCHISE);
   if (autoliquidation) mentions.push(MENTION_AUTOLIQUIDATION);
   return {
-    sections, lignes, ht: versEuros(htC), tvaParTaux, tva: versEuros(tvaC), ttc: versEuros(htC + tvaC), mentions,
+    sections, lignes, totalBrutHt: versEuros(htC), remiseHt: versEuros(remiseC), totalHt: versEuros(netC),
+    ht: versEuros(netC), tvaParTaux, tva: versEuros(tvaC), ttc: versEuros(netC + tvaC), mentions,
   };
 }
 
@@ -250,6 +286,8 @@ export function erreursFinalisation(devis) {
     }
     if (!absent(l.tauxTva) && (!estNombre(l.tauxTva) || l.tauxTva < 0)) erreurs.push(`Ligne ${nom} : le taux de TVA n'est pas valide.`);
   }
+  const erreurDeRemise = erreurRemise(devis, totauxDevis(devis).totalBrutHt);
+  if (erreurDeRemise) erreurs.push(erreurDeRemise);
   return erreurs;
 }
 
@@ -391,10 +429,11 @@ export function vueClient(devis, contexte = {}) {
         tauxTva: sansTva ? 0 : tauxDeLigne(devis, l),
       })),
     })),
-    totaux: { ht: t.ht, tvaParTaux: t.tvaParTaux, tva: t.tva, ttc: t.ttc },
+    totaux: { totalBrutHt: t.totalBrutHt, ht: t.ht, tvaParTaux: t.tvaParTaux, tva: t.tva, ttc: t.ttc },
     regimeTva: devis.regimeTva ?? 'assujetti',
     autoliquidation: devis.autoliquidation === true,
     mentions: t.mentions,
+    ...(t.remiseHt > 0 ? { remise: { libelle: devis.remise.type === 'pourcentage' ? `Remise ${nombre(devis.remise.valeur)} %` : 'Remise', montantHt: t.remiseHt } } : {}),
     conditions: {
       debutTravaux: devis.debutTravaux ?? null,
       dureeEstimee: devis.dureeEstimee ?? null,
@@ -423,7 +462,9 @@ function enTete(devis) {
   return l;
 }
 function pied(t) {
-  const l = ['', `Total HT : ${euros(t.ht)}`];
+  const l = [''];
+  if (t.remiseHt > 0) l.push(`Total HT brut : ${euros(t.totalBrutHt)}`, `Remise : -${euros(t.remiseHt)}`);
+  l.push(`Total HT : ${euros(t.ht)}`);
   for (const x of t.tvaParTaux) l.push(`TVA ${pct(x.taux)} sur ${euros(x.baseHT)} : ${euros(x.montant)}`);
   l.push(`Total TTC : ${euros(t.ttc)}`);
   for (const m of t.mentions) l.push(m);
