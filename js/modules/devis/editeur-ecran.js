@@ -314,9 +314,9 @@ export function rendreEditeurDevis(conteneur, id) {
     ref.pastille = h('span', { class: 'pastille-statut', dataset: { valeur: 'statut' } });
     ref.indicateur = h('span', { class: 'indicateur-enregistrement', role: 'status', 'aria-live': 'polite', dataset: { valeur: 'enregistrement' } });
     const onglets = h('div', { class: 'onglets-editeur', role: 'tablist', 'aria-label': 'Affichage du devis', hidden: lecture },
-      [['edition', 'Édition'], ['apercu', 'Prévisualisation']].map(([cle, libelle]) => h('button', {
+      [['edition', 'Édition', 'pencil'], ['apercu', 'Prévisualisation', 'eye']].map(([cle, libelle, pictogramme]) => h('button', {
         type: 'button', class: 'onglet-editeur', role: 'tab', dataset: { onglet: cle }, onclick: () => choisirOnglet(cle),
-      }, libelle)));
+      }, icone(pictogramme, { taille: 16 }), libelle)));
     ref.onglets = onglets;
     const barre = h('header', { class: 'barre-devis' },
       h('div', { class: 'barre-devis-gauche' }, h('div', { class: 'titre-devis' }, ref.titre, ref.pastille, ref.indicateur), onglets),
