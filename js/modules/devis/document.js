@@ -1,5 +1,5 @@
 // Pagination : Chromium ignore les boîtes de marge @page ; le numéro « Page n / N » viendra des gabarits d'en-tête/pied du convertisseur serveur.
-// Clés de `vue.emetteur` lues ici (convention pour la PR des réglages) : adresse, telephone, email, siret, tvaIntracommunautaire, formeJuridique.
+// Clés de l'émetteur lues ici (options.emetteur ou vue.emetteur) : nom, forme, siret, tva, adresse, email, telephone, site, registreMetiers, assurance, mediateur, logo (https ou data:image), couleur, paiement, cgv. Les alias formeJuridique et tvaIntracommunautaire restent lus.
 // L'acompte, les primes, la retenue de garantie, les déchets, le texte libre et les notes viennent de la vue client (libellés déjà prêts, échappés ici).
 // Document « Devis » en HTML imprimable (A4). Module pur : aucun DOM, aucun réseau, aucun JavaScript dans la page produite.
 // Il reçoit la « vue client » (vueClient de logique.js, donc jamais de prix d'achat, de marge ni de coefficient) et rend une chaîne HTML
@@ -13,7 +13,7 @@
 // - Les données viennent toutes de `vue` ; le nom du destinataire est `vue.client.nom` (fourni par l'appelant dans le contexte de vueClient).
 // - Franchise : lignes sans colonne de TVA chiffrée (« - »), pas de tableau de TVA, pas de ligne TVA/TTC. Autoliquidation : TVA à 0.
 // - L'en-tête et le pied répétés sur chaque page passent par thead/tfoot d'une table de mise en page (repli simple qui marche partout).
-import { ATTESTATION_TVA_REDUITE, montantFr } from './logique.js';
+import { ATTESTATION_TVA_REDUITE, montantFr, adresseEnTexte } from './logique.js';
 
 export { ATTESTATION_TVA_REDUITE };
 
@@ -51,10 +51,10 @@ table { border-collapse: collapse; width: 100%; }
 .destinataire { width: 80mm; border: 0.3mm solid #999; padding: 3mm 4mm; line-height: 1.35; }
 .destinataire .etiquette { font-size: 7.5pt; text-transform: uppercase; color: #666; }
 .destinataire .nom { font-weight: bold; }
-h1 { font-size: 20pt; margin: 0 0 1mm; }
+h1 { font-size: 20pt; margin: 0 0 1mm; color: var(--accent-titre); }
 .infos { margin-bottom: 5mm; line-height: 1.5; }
 .infos .objet { font-size: 11pt; font-weight: bold; margin-top: 2mm; }
-.lignes th { background: #e9ecef; text-align: left; font-size: 8.5pt; padding: 1.6mm 2mm; border-bottom: 0.3mm solid #666; }
+.lignes th { background: #e9ecef; text-align: left; font-size: 8.5pt; padding: 1.6mm 2mm; border-bottom: 0.3mm solid var(--accent); }
 .lignes td { padding: 1.4mm 2mm; border-bottom: 0.2mm solid #ddd; vertical-align: top; }
 .lignes tr { page-break-inside: avoid; break-inside: avoid; }
 .lignes .num { width: 11mm; white-space: nowrap; }
@@ -81,19 +81,37 @@ h1 { font-size: 20pt; margin: 0 0 1mm; }
 .mentions p { margin: 0 0 1.5mm; font-size: 8.5pt; }
 .client { margin-top: 6mm; border: 0.3mm solid #666; padding: 3mm 4mm; min-height: 38mm; page-break-inside: avoid; break-inside: avoid; }
 .client .titre { font-weight: bold; margin-bottom: 1mm; }
+.chantier { margin-bottom: 5mm; line-height: 1.45; page-break-inside: avoid; break-inside: avoid; }
+.chantier h2 { font-size: 9.5pt; margin: 0 0 1mm; color: var(--accent); }
+.assurance-mediation { margin-top: 4mm; font-size: 8pt; line-height: 1.4; color: #444; page-break-inside: avoid; break-inside: avoid; }
+.cgv { break-before: page; page-break-before: always; font-size: 8pt; line-height: 1.4; }
+.cgv h2 { font-size: 11pt; margin: 0 0 3mm; color: var(--accent); }
 .filigrane { position: fixed; top: 38%; left: 0; right: 0; text-align: center; font-size: 90pt; font-weight: bold; letter-spacing: 6mm; color: rgba(150, 150, 150, 0.16); transform: rotate(-30deg); pointer-events: none; z-index: 0; }
 `;
 
-/** Bloc de l'émetteur : logo (data URL image seulement) puis les champs connus de `vue.emetteur`. */
-function blocEmetteur(vue, logo) {
-  const e = vue.emetteur ?? {};
+const GRIS = '#666666';
+/** Couleur d'accent : seulement #rrggbb (jamais de texte libre dans le CSS), sinon gris. */
+export const couleurValide = (c) => (typeof c === 'string' && /^#[0-9a-fA-F]{6}$/.test(c) ? c : GRIS);
+const LOGO_DATA = /^data:image\/(png|jpeg|gif|webp|svg\+xml);base64,[A-Za-z0-9+/=]+$/;
+const LOGO_HTTPS = /^https:\/\/[^\s"'<>\\]+$/;
+/** Le logo n'est une ressource externe que s'il est fourni explicitement (URL https ou image en data:). */
+const logoValide = (l) => typeof l === 'string' && (LOGO_DATA.test(l) || LOGO_HTTPS.test(l));
+
+/** Bloc de l'émetteur : logo (https ou data:image) puis les champs connus de l'émetteur. */
+function blocEmetteur(e, logo) {
   const l = [];
-  if (typeof logo === 'string' && /^data:image\/(png|jpeg|gif|webp|svg\+xml);base64,[A-Za-z0-9+/=]+$/.test(logo)) l.push(`<img src="${echapper(logo)}" alt="">`);
+  const imageLogo = logoValide(logo) ? logo : e.logo;
+  if (logoValide(imageLogo)) l.push(`<img src="${echapper(imageLogo)}" alt="">`);
   if (e.nom) l.push(`<div class="nom">${texte(e.nom)}</div>`);
-  for (const cle of ['adresse', 'telephone', 'email', 'siret', 'tvaIntracommunautaire', 'formeJuridique']) {
-    const v = adresseTexte(e[cle]);
-    if (v) l.push(`<div>${texte(cle === 'siret' ? `SIRET ${v}` : v)}</div>`);
-  }
+  const forme = e.forme ?? e.formeJuridique;
+  if (forme) l.push(`<div>${texte(forme)}</div>`);
+  const adr = adresseEnTexte(e.adresse);
+  if (adr) l.push(`<div>${texte(adr)}</div>`);
+  for (const cle of ['telephone', 'email', 'site']) if (e[cle]) l.push(`<div>${texte(e[cle])}</div>`);
+  if (e.siret) l.push(`<div>${texte(`SIRET ${e.siret}`)}</div>`);
+  const tva = e.tva ?? e.tvaIntracommunautaire;
+  if (tva) l.push(`<div>${texte(`TVA ${tva}`)}</div>`);
+  if (e.registreMetiers) l.push(`<div>${texte(e.registreMetiers)}</div>`);
   return `<div class="emetteur">${l.join('')}</div>`;
 }
 
@@ -129,6 +147,9 @@ export function devisHtml(vue, options = {}) {
   const sansTva = franchise || autoliquidation;
   const t = v.totaux ?? {};
   const titre = `Devis ${v.numero ?? ''}`.trim();
+  // Réglages de l'entreprise : fournis à côté du devis (options.emetteur) ou portés par la vue.
+  const emetteur = options.emetteur ?? v.emetteur ?? {};
+  const accent = couleurValide(emetteur.couleur);
 
   const infos = [`<h1>Devis</h1>`];
   infos.push(`<div>Numéro${NBSP}: <strong>${texte(v.numero ?? 'brouillon')}</strong>${v.version > 1 ? ` (version ${texte(v.version)})` : ''}</div>`);
@@ -136,7 +157,9 @@ export function devisHtml(vue, options = {}) {
   if (v.dateValidite) infos.push(`<div>Valable jusqu'au${NBSP}: ${dateFr(v.dateValidite)}</div>`);
   if (v.objet) infos.push(`<div class="objet">${texte(v.objet)}</div>`);
   const chantier = adresseTexte(v.adresses?.chantier);
-  if (chantier) infos.push(`<div>Adresse du chantier${NBSP}: ${texte(chantier)}</div>`);
+  if (chantier && !v.chantier?.adresse) infos.push(`<div>Adresse du chantier${NBSP}: ${texte(chantier)}</div>`);
+  const blocChantier = v.chantier?.lignes?.length
+    ? `<div class="chantier"><h2>Chantier</h2>${v.chantier.lignes.map((x) => `<div>${texte(x)}</div>`).join('')}</div>` : '';
 
   const lignesTotaux = [];
   if (v.remise && v.remise.montantHt > 0) {
@@ -159,11 +182,15 @@ export function devisHtml(vue, options = {}) {
 
   const paiement = [];
   if (v.conditionsPaiement) paiement.push(`<p>${texte(v.conditionsPaiement)}</p>`);
-  if ((v.modesPaiement ?? []).length) paiement.push(`<ul>${v.modesPaiement.map((m) => `<li>${texte(m)}</li>`).join('')}</ul>`);
+  const pe = emetteur.paiement ?? {};
+  if (!v.conditionsPaiement && Number.isFinite(pe.delaiJours) && pe.delaiJours >= 0) paiement.push(pe.delaiJours === 0 ? '<p>Paiement à réception.</p>' : `<p>Paiement à ${texte(pe.delaiJours)} jour${pe.delaiJours >= 2 ? 's' : ''}.</p>`);
+  const modes = (v.modesPaiement ?? []).length ? v.modesPaiement : (Array.isArray(pe.modes) ? pe.modes.filter((m) => typeof m === 'string' && m.trim()) : []);
+  if (modes.length) paiement.push(`<ul>${modes.map((m) => `<li>${texte(m)}</li>`).join('')}</ul>`);
+  if (pe.iban) paiement.push(`<p>IBAN${NBSP}: ${texte(pe.iban)}</p>`);
   const c = v.conditions ?? {};
   const details = [];
-  if (c.debutTravaux) details.push(`Début des travaux${NBSP}: ${texte(c.debutTravaux)}`);
-  if (c.dureeEstimee) details.push(`Durée estimée${NBSP}: ${texte(c.dureeEstimee)}`);
+  if (c.debutTravaux && !v.chantier?.debutTravaux) details.push(`Début des travaux${NBSP}: ${texte(c.debutTravaux)}`);
+  if (c.dureeEstimee && !v.chantier?.dureeEstimee) details.push(`Durée estimée${NBSP}: ${texte(c.dureeEstimee)}`);
   if (v.acompte) details.push(texte(v.acompte.libelle), texte(v.acompte.libelleReste));
   if (v.retenueGarantie?.phrase) details.push(texte(v.retenueGarantie.phrase));
   if (details.length) paiement.push(`<p>${details.join('<br>')}</p>`);
@@ -176,9 +203,21 @@ export function devisHtml(vue, options = {}) {
   const mentions = [...(v.mentions ?? [])];
   if (v.attestationTvaReduite && !sansTva) mentions.push(v.attestationTvaReduite);
 
+  const ass = emetteur.assurance ?? {};
+  const med = emetteur.mediateur ?? {};
+  const lAss = [];
+  if (ass.garantie || ass.assureur) {
+    lAss.push(`Assurance professionnelle${NBSP}: ${[ass.garantie, ass.assureur ? `souscrite auprès de ${ass.assureur}` : '', ass.adresse, ass.zone ? `couverture géographique${NBSP}: ${ass.zone}` : ''].filter(Boolean).map(texte).join(', ')}.`);
+  }
+  if (med.nom) lAss.push(`Médiateur de la consommation${NBSP}: ${[med.nom, med.email, med.site].filter(Boolean).map(texte).join(', ')}.`);
+  const pied = lAss.length ? `<div class="assurance-mediation">${lAss.map((x) => `<div>${x}</div>`).join('')}</div>` : '';
+  const cgv = emetteur.cgv?.afficher === true && typeof emetteur.cgv.texte === 'string' && emetteur.cgv.texte.trim()
+    ? `<div class="cgv"><h2>Conditions générales de vente</h2>${texte(emetteur.cgv.texte)}</div>` : '';
+
   const corps = [
-    `<div class="haut">${blocEmetteur(v, options.logo)}${blocDestinataire(v)}</div>`,
+    `<div class="haut">${blocEmetteur(emetteur, options.logo)}${blocDestinataire(v)}</div>`,
     `<div class="infos">${infos.join('')}</div>`,
+    blocChantier,
     tableauLignes(v, sansTva),
     `<div class="bas">${tableauTaux}<table class="totaux"><tbody>${lignesTotaux.join('')}</tbody></table></div>`,
     paiement.length ? `<div class="paiement"><h2>Conditions et modes de paiement</h2>${paiement.join('')}</div>` : '',
@@ -186,6 +225,8 @@ export function devisHtml(vue, options = {}) {
     mentions.length ? `<div class="mentions">${mentions.map((m) => `<p>${texte(m)}</p>`).join('')}</div>` : '',
     `<div class="client"><div class="titre">Pour le client</div><div>${texte(v.mentionSignature ?? '')}</div></div>`,
     notes,
+    pied,
+    cgv,
   ].filter(Boolean).join('\n');
 
   return `<!doctype html>
@@ -194,7 +235,7 @@ export function devisHtml(vue, options = {}) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${texte(titre)}</title>
-<style>${CSS}</style>
+<style>:root { --accent: ${accent}; --accent-titre: ${/^#[0-9a-fA-F]{6}$/.test(String(emetteur.couleur ?? '').trim()) ? accent : '#1b1b1b'}; }${CSS}</style>
 </head>
 <body>
 ${options.brouillon === true ? '<div class="filigrane">BROUILLON</div>' : ''}
