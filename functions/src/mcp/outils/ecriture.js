@@ -122,23 +122,25 @@ export const OUTILS_ECRITURE = [
   }, metier.abandonnerFacture),
 
   // ---- Devis : bordereau de prix (articles). Les prix d'achat viennent de l'humain : l'assistant n'en invente JAMAIS.
-  outil('creer_article', "Ajoute un article au bordereau de prix du module Devis. libelle et prixAchat sont obligatoires. prixAchat : le prix d'achat HT en euros, DONNÉ PAR L'HUMAIN (jamais inventé ni estimé : le demander s'il manque), un NOMBRE (12.5), 2 décimales au plus. unite : u, m, m², m³, ml, h, jour, km, forfait, kg (ou un texte libre ; défaut u). code : facultatif, unique parmi les articles actifs. tauxTva : taux de TVA propre à l'article, facultatif (en %). type : facultatif (fourniture, main_oeuvre, ouvrage, sous_traitance, materiel, divers). Un OUVRAGE (type: 'ouvrage') est composé d'autres articles du bordereau : il n'a pas de prixAchat, mais composants (1 à 30 {articleId, quantite}, quantite > 0, 3 décimales au plus, jamais un autre ouvrage, jamais deux fois le même article ; chercher les identifiants avec chercher_article) et, facultatif, prixVenteForce (euros) pour imposer son prix de vente. marge : marge propre à l'article en %, facultative (sinon la marge des réglages). Chercher d'abord avec chercher_article pour éviter un doublon.", {
+  outil('creer_article', "Ajoute un article au bordereau de prix du module Devis. libelle et prixAchat sont obligatoires. prixAchat : le prix d'achat HT en euros, DONNÉ PAR L'HUMAIN (jamais inventé ni estimé : le demander s'il manque), un NOMBRE (12.5), 2 décimales au plus. unite : u, m, m², m³, ml, h, jour, km, forfait, kg (ou un texte libre ; défaut u). code : facultatif, unique parmi les articles actifs. tauxTva : taux de TVA propre à l'article, facultatif (en %). type : facultatif (fourniture, main_oeuvre, ouvrage, sous_traitance, materiel, divers, texte). Un article de type « texte » est une ligne de texte libre : prixAchat et unite facultatifs, pas de composants, il compte 0 dans un devis. reference et marque : facultatives (120 caractères). familleId : facultatif, l'identifiant d'une famille du bordereau. Un OUVRAGE (type: 'ouvrage') est composé d'autres articles du bordereau : il n'a pas de prixAchat, mais composants (1 à 30 {articleId, quantite}, quantite > 0, 3 décimales au plus, jamais un autre ouvrage, jamais deux fois le même article ; chercher les identifiants avec chercher_article) et, facultatif, prixVenteForce (euros) pour imposer son prix de vente. marge : marge propre à l'article en %, facultative (sinon la marge des réglages). Chercher d'abord avec chercher_article pour éviter un doublon.", {
     libelle: z.string().min(1).max(200),
     prixAchat: z.number().min(0).max(10_000_000).optional().describe("Prix d'achat HT en euros, donné par l'humain. Obligatoire sauf pour un ouvrage."),
     type: typeArticle.optional(), composants: composants.optional(), prixVenteForce: z.number().min(0).max(10_000_000).optional().describe('Ouvrage seulement : prix de vente imposé, en euros.'),
     marge: z.number().min(0).max(1000).optional().describe("Marge propre à l'article, en %."),
+    reference: z.string().max(120).optional().describe('Référence du fabricant.'), marque: z.string().max(120).optional(), familleId: z.string().max(100).optional().describe('Identifiant de la famille.'),
     unite: z.string().max(20).optional().describe('Défaut : u.'),
     code: z.string().max(40).optional(),
     tauxTva: z.number().min(0).max(100).optional().describe("Taux de TVA propre à l'article, en %."),
     proprietaire,
   }, metier.creerArticle),
 
-  outil('modifier_article', "Modifie des champs d'un article du bordereau : libelle, unite, prixAchat (euros, nombre donné par l'humain), code (chaîne vide pour l'effacer), tauxTva (null pour l'effacer), type, composants (remplace toute la liste d'un ouvrage), prixVenteForce et marge (null pour les effacer). Ne change jamais l'état actif : voir desactiver_article. Ne supprime jamais.", {
+  outil('modifier_article', "Modifie des champs d'un article du bordereau : libelle, unite, prixAchat (euros, nombre donné par l'humain), code (chaîne vide pour l'effacer), tauxTva (null pour l'effacer), type, composants (remplace toute la liste d'un ouvrage), prixVenteForce et marge (null pour les effacer), reference, marque, familleId. Ne change jamais l'état actif : voir desactiver_article. Ne supprime jamais.", {
     id, libelle: z.string().min(1).max(200).optional(), unite: z.string().min(1).max(20).optional(),
     prixAchat: z.number().min(0).max(10_000_000).optional().describe("Prix d'achat HT en euros, donné par l'humain."),
     code: z.string().max(40).optional(), tauxTva: z.number().min(0).max(100).nullable().optional(),
     type: typeArticle.nullable().optional(), composants: composants.nullable().optional(), prixVenteForce: z.number().min(0).max(10_000_000).nullable().optional(),
     marge: z.number().min(0).max(1000).nullable().optional(),
+    reference: z.string().max(120).optional().describe('Chaîne vide pour effacer.'), marque: z.string().max(120).optional(), familleId: z.string().max(100).optional().describe('Chaîne vide pour retirer la famille.'),
   }, metier.modifierArticle),
 
   outil('desactiver_article', "Désactive un article du bordereau (un article ne se supprime jamais : il sort de la liste par défaut et les devis déjà faits ne changent pas). reactiver: true le remet en service (refusé si son code est déjà pris par un article actif).", {

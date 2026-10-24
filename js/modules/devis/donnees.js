@@ -10,15 +10,17 @@ import { db, app } from '../../os/firebase.js';
 import * as CRM from '../crm/donnees.js';
 import * as A from './articles.js';
 import * as B from './brouillon.js';
+import * as F from './familles.js';
 
 export const etat = {
-  articles: [], reglages: A.reglagesDevis(null), pret: false, reglagesPrets: false, erreurLecture: false,
+  articles: [], familles: F.famillesDe(null), reglages: A.reglagesDevis(null), pret: false, reglagesPrets: false, erreurLecture: false,
   devis: [], devisPrets: false, erreurLectureDevis: false,
 };
 
 let desabonnements = [];
 let signature = '';
 let signatureReglages = '';
+let signatureFamilles = '';
 let signatureDevis = '';
 const abonnes = new Set();
 
@@ -88,12 +90,23 @@ export function demarrer(base = '') {
     etat.reglagesPrets = true;
     notifier();
   }));
+  // Familles d'articles : document `devis_parametres/familles` (absent = les sept familles par défaut). Une lecture refusée garde la liste affichée.
+  desabonnements.push(onSnapshot(doc(db, chemin(A.COLLECTION_PARAMETRES), F.ID_DOCUMENT_FAMILLES), (snap) => {
+    const brut = snap.exists() ? snap.data({ serverTimestamps: 'estimate' }) : null;
+    const sig = JSON.stringify(brut);
+    if (sig === signatureFamilles) return;
+    signatureFamilles = sig;
+    etat.familles = F.famillesDe(brut);
+    notifier();
+  }, (e) => { console.warn('devis_parametres/familles indisponible', e.code); }));
 }
 
 export function arreter() {
   desabonnements.forEach((f) => f());
   desabonnements = [];
   etat.articles = [];
+  etat.familles = F.famillesDe(null);
+  signatureFamilles = '';
   etat.reglages = A.reglagesDevis(null);
   etat.pret = false;
   etat.reglagesPrets = false;
@@ -110,7 +123,7 @@ export function arreter() {
 
 /** Crée un article. Renvoie `{ erreurs, id }` : des erreurs de saisie (messages à montrer) ne lèvent pas d'exception ; une écriture refusée lève. */
 export async function creerArticle(valeurs) {
-  const plan = A.planCreerArticle(valeurs, CRM.ctx(), { articles: etat.articles });
+  const plan = A.planCreerArticle(valeurs, CRM.ctx(), { articles: etat.articles, familles: etat.familles });
   if (Object.keys(plan.erreurs).length) return { erreurs: plan.erreurs, id: null };
   await CRM.executer(plan.ecritures, 'creerArticle');
   return { erreurs: {}, id: plan.id };
@@ -118,7 +131,7 @@ export async function creerArticle(valeurs) {
 
 /** Modifie des champs d'un article : `{ erreurs, patch }`. */
 export async function majArticle(id, patch) {
-  const plan = A.planMajArticle(id, patch, { articles: etat.articles });
+  const plan = A.planMajArticle(id, patch, { articles: etat.articles, familles: etat.familles });
   if (Object.keys(plan.erreurs).length) return { erreurs: plan.erreurs, patch: {} };
   await CRM.executer(plan.ecritures, 'majArticle');
   return { erreurs: {}, patch: plan.patch };
@@ -126,11 +139,24 @@ export async function majArticle(id, patch) {
 
 /** Désactive (actif = false) ou réactive (actif = true) : `{ erreurs }`. */
 export async function activerArticle(id, actif) {
-  const plan = A.planActiverArticle(id, actif, { articles: etat.articles });
+  const plan = A.planActiverArticle(id, actif, { articles: etat.articles, familles: etat.familles });
   if (Object.keys(plan.erreurs).length) return { erreurs: plan.erreurs };
   await CRM.executer(plan.ecritures, actif ? 'reactiverArticle' : 'desactiverArticle');
   return { erreurs: {} };
 }
+
+// ---------------------------------------------------------------- familles (liste complète réécrite à chaque changement, sans journal : comme les réglages)
+async function ecrireFamilles(plan) {
+  if (plan.erreur) return { erreur: plan.erreur, famille: null };
+  await setDoc(doc(db, chemin(A.COLLECTION_PARAMETRES), F.ID_DOCUMENT_FAMILLES), { liste: plan.familles });
+  etat.familles = plan.familles; // l'écran voit tout de suite le changement (l'écouteur confirme ensuite)
+  notifier();
+  return { erreur: null, famille: plan.famille };
+}
+/** Crée une famille : `{ erreur, famille }` (l'erreur est un message à montrer). */
+export const creerFamille = (nom) => ecrireFamilles(F.planCreationFamille(nom, etat.familles, { nouvelId: () => CRM.ctx().nouvelId(A.COLLECTION_PARAMETRES) }));
+export const renommerFamille = (id, nom) => ecrireFamilles(F.planRenommerFamille(id, nom, etat.familles));
+export const activerFamille = (id, actif) => ecrireFamilles(F.planDesactiverFamille(id, etat.familles, actif));
 
 /** Enregistre les réglages du module (document complet). `saisie` : les champs saisis ; renvoie `{ erreurs, reglages }`. */
 export async function enregistrerReglages(saisie) {
