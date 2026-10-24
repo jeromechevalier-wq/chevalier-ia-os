@@ -1000,7 +1000,8 @@ export function rendreEditeurDevis(conteneur, id) {
     ref.attestation = h('p', { class: 'attestation-tva', dataset: { valeur: 'attestation-tva' }, hidden: true });
     const texteLibre = h('textarea', { class: 'champ', id: 'devis-texte-libre', rows: 3, value: d.texteLibre ?? '', 'aria-label': 'Texte libre', hidden: !(d.texteLibre ?? '').trim(), dataset: { champ: 'texte-libre' }, oninput: (e) => changer({ texteLibre: e.target.value }) });
     const lienTexte = h('button', { type: 'button', class: 'bouton-lien', dataset: { action: 'ajouter-texte-libre' }, hidden: !texteLibre.hidden, onclick: () => { texteLibre.hidden = false; lienTexte.hidden = true; texteLibre.focus(); } }, icone('plus', { taille: 14 }), 'Ajouter texte libre');
-    const lienCondition = h('button', { type: 'button', class: 'bouton-lien', dataset: { action: 'ajouter-condition' }, onclick: () => { const c = racine.querySelector('[data-champ="acompte-type"]'); c?.scrollIntoView?.({ block: 'center' }); c?.focus(); } }, icone('plus', { taille: 14 }), 'Ajouter une condition');
+    // Les vraies conditions de paiement (plusieurs échéances) ne sont pas encore faites : le bouton le dit au lieu de ne rien faire.
+    const lienCondition = h('button', { type: 'button', class: 'bouton-lien', disabled: true, title: 'Bientôt disponible : en attendant, utilise « Acompte demandé » dans les totaux.', dataset: { action: 'ajouter-condition' } }, icone('plus', { taille: 14 }), 'Ajouter une condition (bientôt)');
     const gauche = h('div', { class: 'bas-gauche' },
       h('div', { class: 'titre-ligne' }, h('h3', { class: 'titre-bloc' }, 'Conditions de paiement'), lienCondition),
       ref.attestation,
@@ -1102,14 +1103,27 @@ export function rendreEditeurDevis(conteneur, id) {
       remplirAutres(null);
       const bloc = contenuMenu([
         { libelle: 'Ajustement global', cle: 'ajustement-global', icone: 'arrow-up-down', reste: true, action: () => { zone.hidden = !zone.hidden; } },
+        { libelle: 'Marge du devis', cle: 'marge-devis', reste: true, action: () => { zoneMarge.hidden = !zoneMarge.hidden; } },
       ], fermer);
+      // La marge et la remise se règlent ici (comme dans un logiciel du marché) ; les champs de la remise reprennent ceux des totaux et les pilotent.
+      const margeChamp = h('input', { class: 'champ champ-court', id: 'ajust-marge', type: 'text', inputmode: 'decimal', autocomplete: 'off', value: saisieNombre(travail.marge), 'aria-label': 'Marge du devis en pourcent', dataset: { champ: 'marge-menu' },
+        oninput: (e) => { const vide = e.target.value.trim() === ''; const v = vide ? 0 : Ed.lireSaisie(e.target.value); e.target.classList.toggle('invalide', v === null); if (v !== null) { changer({ marge: v }); majPrixAffiches(); const autre = racine.querySelector('[data-champ="marge"]'); if (autre) autre.value = e.target.value; } } });
+      const zoneMarge = h('div', { class: 'ajust-zone', dataset: { zone: 'marge-devis' } }, h('div', { class: 'ajust-champ' }, h('label', { for: 'ajust-marge' }, 'Marge du devis (%)'), margeChamp,
+        h('p', { class: 'texte-discret' }, 'Elle s’applique aux lignes qui n’ont pas leur propre marge. Le client ne la voit jamais.')));
+      const remiseTotaux = { type: racine.querySelector('[data-champ="remise-type"]'), valeur: racine.querySelector('[data-champ="remise-valeur"]') };
+      const remiseType = h('select', { class: 'champ', 'aria-label': 'Type de remise', dataset: { champ: 'remise-type-menu' }, onchange: (e) => { if (remiseTotaux.type) { remiseTotaux.type.value = e.target.value; remiseTotaux.type.dispatchEvent(new Event('change', { bubbles: true })); } } },
+        h('option', { value: 'pourcentage', selected: remiseTotaux.type?.value !== 'montant' }, '%'), h('option', { value: 'montant', selected: remiseTotaux.type?.value === 'montant' }, '€'));
+      const remiseValeur = h('input', { class: 'champ champ-court', type: 'text', inputmode: 'decimal', autocomplete: 'off', placeholder: '0', value: remiseTotaux.valeur?.value ?? '', 'aria-label': 'Valeur de la remise', dataset: { champ: 'remise-valeur-menu' },
+        oninput: (e) => { if (remiseTotaux.valeur) { remiseTotaux.valeur.value = e.target.value; remiseTotaux.valeur.dispatchEvent(new Event('input', { bubbles: true })); } } });
+      const zoneRemise = h('div', { class: 'ajust-zone', dataset: { zone: 'remise-devis' }, hidden: true }, h('div', { class: 'ajust-champ' }, h('label', {}, 'Remise client'), h('div', { class: 'ligne-champs' }, remiseValeur, remiseType)));
       const reste = contenuMenu([
         { titre: 'Poste HT' },
-        { libelle: 'Remise', cle: 'remise', action: () => { const c = racine.querySelector('[data-champ="remise-valeur"]'); c?.scrollIntoView?.({ block: 'center' }); c?.focus(); } },
+        { libelle: 'Remise', cle: 'remise', reste: true, action: () => { zoneRemise.hidden = !zoneRemise.hidden; } },
         { libelle: 'Compte prorata', cle: 'prorata', bientot: true },
         { libelle: 'Poste libre HT', cle: 'poste-libre', bientot: true },
       ], fermer);
-      return h('div', { class: 'menu-devis-liste' }, bloc, zone, reste);
+      zoneMarge.hidden = true;
+      return h('div', { class: 'menu-devis-liste' }, bloc, zone, zoneMarge, reste, zoneRemise);
     }, { classe: 'menu-devis-ajustement', nom: 'Ajustement du devis' });
   }
 
