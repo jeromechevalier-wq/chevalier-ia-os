@@ -9,6 +9,8 @@ import * as D from './donnees.js';
 import * as A from './articles.js';
 import * as O from './ouvrages.js';
 import { editeurOuvrage } from './editeur-ouvrage.js';
+import { selectionFamille } from './selection-famille.js';
+import { nomFamille } from './familles.js';
 
 const ERREUR_ECRITURE = 'Enregistrement impossible : ton compte n’a peut-être que le droit de lire cet espace, ou la connexion est coupée. Réessaie dans un instant, ou demande à un éditeur de l’espace.';
 const ERREUR_LECTURE = 'La liste n’a pas pu être mise à jour. La dernière version reste affichée : vérifie ta connexion puis recharge la page.';
@@ -16,12 +18,17 @@ const ERREUR_LECTURE = 'La liste n’a pas pu être mise à jour. La dernière v
 // Recherche et filtre conservés pendant la session (jusqu'au rechargement de la page, comme les autres listes).
 let recherche = '';
 let desactivesSeulement = false;
+let famillesFiltrees = []; // familles cochées dans « Filtres » (vide = toutes) ; « sans_famille » = articles sans famille
+let champsRares = false; // « Plus… » montre les colonnes Référence et Marque
 let typesFiltres = []; // types cochés dans « Filtres » (vide = tous) ; « non_classe » = articles sans type
 
 /** Les colonnes : `editable` = champ modifiable sur place ; `libelle` = en-tête (et libellé de la carte sur téléphone). */
 const COLONNES = [
   { id: 'libelle', libelle: 'Libellé', editable: true },
   { id: 'type', libelle: 'Type', editable: false },
+  { id: 'famille', libelle: 'Famille', editable: false },
+  { id: 'reference', libelle: 'Référence', editable: true, rare: true },
+  { id: 'marque', libelle: 'Marque', editable: true, rare: true },
   { id: 'code', libelle: 'Code', editable: true },
   { id: 'unite', libelle: 'Unité', editable: true },
   { id: 'prixAchat', libelle: 'Prix d’achat HT', editable: true },
@@ -111,6 +118,29 @@ function celluleType(a) {
   remplir(cellule, liste);
   return cellule;
 }
+
+/** Cellule « Famille » : un bouton qui ouvre la fenêtre « Sélection de la famille » (texte simple si l'article est désactivé). */
+function celluleFamille(a) {
+  const cellule = h('td', { dataset: { colonne: 'famille', libelle: 'Famille' } });
+  const nom = nomFamille(D.etat.familles, a.familleId);
+  if (a.actif === false) { remplir(cellule, nom || '—'); return cellule; }
+  remplir(cellule, h('button', {
+    type: 'button', class: `valeur-editable${nom ? '' : ' valeur-vide'}`, dataset: { champ: 'familleId' }, 'aria-label': `Famille : ${a.libelle}`,
+    onclick: async () => {
+      const r = await selectionFamille({ courante: a.familleId ?? '' });
+      if (!r || r.id === (a.familleId ?? '')) return;
+      try {
+        const m = await D.majArticle(a.id, { familleId: r.id });
+        const erreur = Object.values(m.erreurs)[0];
+        if (erreur) toast(erreur, { type: 'erreur', duree: 7000 });
+      } catch (e) { console.warn(e); toast(ERREUR_ECRITURE, { type: 'erreur', duree: 7000 }); }
+    },
+  }, nom || '—'));
+  return cellule;
+}
+
+/** Cellule sans prix : une ligne de texte n'a ni prix d'achat ni prix de vente. */
+const celluleSansPrix = (colonne) => h('td', { dataset: { colonne: colonne.id, libelle: colonne.libelle } }, h('span', { class: 'valeur-calculee valeur-vide' }, '—'));
 
 /** Prix d'achat d'un ouvrage : non modifiable, c'est son déboursé sec (somme des coûts de ses composants). */
 function cellulePrixAchatOuvrage(a) {
@@ -203,6 +233,26 @@ export async function ouvrirCreationArticle() {
   const unite = champ('unite', 'Unité', { value: A.UNITE_DEFAUT, list: 'unites-bordereau' });
   const prix = champ('prixAchat', 'Prix d’achat HT (en euros)', { inputmode: 'decimal', placeholder: 'Exemple : 12,50' });
   const code = champ('code', 'Code (facultatif)', { placeholder: 'Exemple : CAR-6060' });
+  const reference = champ('reference', 'Référence (facultatif)', { placeholder: 'Exemple : REF-4521' });
+  const marque = champ('marque', 'Marque (facultatif)', { maxlength: 400 });
+  // Famille : un champ en lecture seule qui ouvre la fenêtre « Sélection de la famille ».
+  let familleId = '';
+  const familleInput = h('input', { type: 'text', class: 'champ champ-famille', id: 'article-familleId', readonly: true, 'aria-label': 'Familles', placeholder: 'Aucune famille', dataset: { champ: 'familleId' },
+    onclick: () => choisirFamille(), onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); choisirFamille(); } } });
+  async function choisirFamille() {
+    const r = await selectionFamille({ courante: familleId });
+    if (!r) return;
+    familleId = r.id;
+    familleInput.value = nomFamille(D.etat.familles, familleId);
+  }
+  const famille = { input: familleInput, bloc: h('div', { class: 'bloc-champ' }, h('label', { class: 'etiquette', for: 'article-familleId' }, 'Familles (facultatif)'), familleInput, h('p', { class: 'erreur erreur-champ', role: 'alert', dataset: { erreur: 'familleId' } })) };
+  // « Plus… » replie les champs rares (référence, marque).
+  const rares = h('div', { class: 'pile champs-rares', hidden: true, dataset: { zone: 'rares' } }, reference.bloc, marque.bloc);
+  const plus = h('button', { type: 'button', class: 'bouton-lien', dataset: { action: 'plus-moins' }, 'aria-expanded': 'false', onclick: () => {
+    rares.hidden = !rares.hidden;
+    plus.textContent = rares.hidden ? 'Plus…' : 'Moins…';
+    plus.setAttribute('aria-expanded', String(!rares.hidden));
+  } }, 'Plus…');
   const tva = champ('tauxTva', 'TVA de cet article (facultatif)', { inputmode: 'decimal', placeholder: `Sinon, le taux du devis (${A.formaterTaux(reglages.tauxTvaDefaut)})`, list: 'taux-bordereau' });
   const general = h('p', { class: 'erreur', role: 'alert', dataset: { erreur: 'general' } });
   // Type (facultatif) : « Ouvrage » remplace le prix d'achat par l'éditeur de composants.
@@ -211,11 +261,12 @@ export async function ouvrirCreationArticle() {
   const type = { input: typeInput, bloc: h('div', { class: 'bloc-champ' }, h('label', { class: 'etiquette', for: 'article-type' }, 'Type (facultatif)'), typeInput, h('p', { class: 'erreur erreur-champ', role: 'alert', dataset: { erreur: 'type' } })) };
   const editeur = editeurOuvrage({});
   editeur.element.hidden = true;
-  const majType = () => { const ouvrage = typeInput.value === 'ouvrage'; editeur.element.hidden = !ouvrage; prix.bloc.hidden = ouvrage; };
+  const majType = () => { const ouvrage = typeInput.value === 'ouvrage'; const texteLibre = typeInput.value === 'texte'; editeur.element.hidden = !ouvrage; prix.bloc.hidden = ouvrage || texteLibre; unite.bloc.hidden = texteLibre; };
   const corps = h('div', { class: 'pile formulaire-creation' },
-    libelle.bloc, type.bloc, h('div', { class: 'ligne-champs' }, unite.bloc, prix.bloc), editeur.element, code.bloc, tva.bloc, general,
+    libelle.bloc, h('div', { class: 'ligne-champs ligne-champs-egale' }, type.bloc, famille.bloc), h('div', { class: 'ligne-champs' }, unite.bloc, prix.bloc), editeur.element,
+    h('div', { class: 'ligne-champs ligne-champs-egale' }, code.bloc, tva.bloc), plus, rares, general,
     tauxListe(reglages));
-  const champs = { libelle, type, unite, prixAchat: prix, code, tauxTva: tva };
+  const champs = { libelle, type, familleId: famille, unite, prixAchat: prix, code, tauxTva: tva, reference, marque };
 
   let identifiant = null;
   let enCours = false; // deux Entrée rapides ne créent pas deux articles
@@ -230,15 +281,17 @@ export async function ouvrirCreationArticle() {
     editeur.montrerErreurs({});
     try {
       const ouvrage = typeInput.value === 'ouvrage';
+      const texteLibre = typeInput.value === 'texte';
       const r = await D.creerArticle({
-        libelle: libelle.input.value, unite: unite.input.value, prixAchat: ouvrage ? undefined : prix.input.value, code: code.input.value, tauxTva: tva.input.value,
+        libelle: libelle.input.value, unite: texteLibre ? '' : unite.input.value, prixAchat: ouvrage || texteLibre ? undefined : prix.input.value, code: code.input.value, tauxTva: tva.input.value,
+        reference: reference.input.value, marque: marque.input.value, familleId,
         type: typeInput.value, ...(ouvrage ? editeur.valeurs() : {}),
       });
       const cles = Object.keys(r.erreurs);
       if (cles.length) {
         for (const cle of cles) {
           const c = champs[cle];
-          if (c) { c.bloc.querySelector('[data-erreur]').textContent = r.erreurs[cle]; c.input.classList.add('invalide'); } else if (!ouvrage || (cle !== 'composants' && cle !== 'prixVenteForce')) general.textContent = r.erreurs[cle];
+          if (c) { c.bloc.querySelector('[data-erreur]').textContent = r.erreurs[cle]; c.input.classList.add('invalide'); if (cle === 'reference' || cle === 'marque') { rares.hidden = false; plus.textContent = 'Moins…'; } } else if (!ouvrage || (cle !== 'composants' && cle !== 'prixVenteForce')) general.textContent = r.erreurs[cle];
         }
         if (ouvrage) editeur.montrerErreurs(r.erreurs);
         (champs[cles.find((k) => champs[k])]?.input ?? libelle.input).focus();
@@ -298,25 +351,30 @@ export function rendreBordereau(conteneur) {
     const r = await fenetreFiltres({
       controles: [
         { cle: 'types', libelle: 'Type', type: 'cases', options: [...A.TYPES_ARTICLE.map((t) => ({ valeur: t.id, libelle: t.libelle })), { valeur: 'non_classe', libelle: 'Non classé' }] },
+        { cle: 'familles', libelle: 'Famille', type: 'cases', options: [...D.etat.familles.map((f) => ({ valeur: f.id, libelle: f.nom })), { valeur: 'sans_famille', libelle: 'Sans famille' }] },
         { cle: 'desactives', libelle: 'Désactivés seulement', type: 'oui' },
       ],
-      criteres: { desactives: desactivesSeulement, types: typesFiltres },
-      effacer: () => ({ desactives: false, types: [] }),
+      criteres: { desactives: desactivesSeulement, types: typesFiltres, familles: famillesFiltrees },
+      effacer: () => ({ desactives: false, types: [], familles: [] }),
     });
-    if (r) { desactivesSeulement = !!r.desactives; typesFiltres = r.types ?? []; rendre(); }
+    if (r) { desactivesSeulement = !!r.desactives; typesFiltres = r.types ?? []; famillesFiltrees = r.familles ?? []; rendre(); }
   } });
+  const boutonPlus = h('button', { type: 'button', class: 'bouton-lien', dataset: { action: 'colonnes-rares' }, 'aria-pressed': 'false', onclick: () => { champsRares = !champsRares; rendre(); } }, 'Plus…');
   const boutonAjout = h('button', { type: 'button', class: 'bouton bouton-principal', dataset: { action: 'nouvel-article' }, onclick: () => ouvrirCreationArticle() }, icone('plus', { taille: 16 }), 'Article');
 
   function rendre() {
     const reglages = D.etat.reglages;
     remplir(titre, A.titreBordereau(reglages));
-    filtres.majCompte((desactivesSeulement ? 1 : 0) + typesFiltres.length);
+    remplir(boutonPlus, champsRares ? 'Moins…' : 'Plus…');
+    boutonPlus.setAttribute('aria-pressed', String(champsRares));
+    filtres.majCompte((desactivesSeulement ? 1 : 0) + typesFiltres.length + famillesFiltrees.length);
     avis.hidden = !D.etat.erreurLecture;
     avis.textContent = D.etat.erreurLecture ? ERREUR_LECTURE : '';
     const statut = desactivesSeulement ? 'desactives' : 'actifs';
     // Un ouvrage porte son calcul ; plusieurs types cochés = l'un ou l'autre.
     const avecCalcul = A.avecCalculOuvrage(D.etat.articles, D.etat.articles, D.etat.reglages);
-    const lignes = A.filtrerArticles(avecCalcul, { recherche, statut }).filter((a) => !typesFiltres.length || typesFiltres.includes(a.type || 'non_classe'));
+    const lignes = A.filtrerArticles(avecCalcul, { recherche, statut }).filter((a) => !typesFiltres.length || typesFiltres.includes(a.type || 'non_classe'))
+      .filter((a) => !famillesFiltrees.length || famillesFiltrees.includes(a.familleId || 'sans_famille'));
     const actifs = D.etat.articles.filter((a) => a.actif !== false).length;
     if (desactivesSeulement) remplir(compteur, `${lignes.length} ${lignes.length > 1 ? 'articles désactivés' : 'article désactivé'}`);
     else remplir(compteur, `${actifs} ${actifs > 1 ? 'articles actifs' : 'article actif'}`, lignes.length !== actifs ? ` · ${lignes.length} affiché${lignes.length > 1 ? 's' : ''}` : '');
@@ -325,14 +383,17 @@ export function rendreBordereau(conteneur) {
       const vraimentVide = !D.etat.articles.length;
       remplir(zoneTableau, etatVide(
         vraimentVide ? 'Aucun article. Un article est une ligne de ton bordereau de prix : un libellé, une unité et ton prix d’achat suffisent. Ajoute le premier.'
-          : (desactivesSeulement ? 'Aucun article désactivé.' : (typesFiltres.length ? 'Aucun article de ce type. Retire le filtre « Type » pour tout revoir.' : 'Aucun article ne correspond.')),
+          : (desactivesSeulement ? 'Aucun article désactivé.' : (typesFiltres.length ? 'Aucun article de ce type. Retire le filtre « Type » pour tout revoir.' : famillesFiltrees.length ? 'Aucun article dans cette famille. Retire le filtre « Famille » pour tout revoir.' : 'Aucun article ne correspond.')),
         { action: vraimentVide ? h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'nouvel-article-vide' }, onclick: () => ouvrirCreationArticle() }, icone('plus', { taille: 16 }), 'Article') : null }));
       return;
     }
-    const entete = h('tr', {}, COLONNES.map((c) => h('th', { scope: 'col' }, h('span', { class: 'tri titre-colonne' }, c.libelle))), h('th', { class: 'col-actions', 'aria-label': 'Actions' }));
+    const colonnes = COLONNES.filter((c) => !c.rare || champsRares);
+    const entete = h('tr', {}, colonnes.map((c) => h('th', { scope: 'col' }, h('span', { class: 'tri titre-colonne' }, c.libelle))), h('th', { class: 'col-actions', 'aria-label': 'Actions' }));
     const corps = lignes.map((a) => h('tr', { class: `ligne-liste ligne-article${a.actif === false ? ' article-desactive' : ''}`, dataset: { id: a.id } },
-      COLONNES.map((c) => {
+      colonnes.map((c) => {
         if (c.id === 'type') return celluleType(a);
+        if (c.id === 'famille') return celluleFamille(a);
+        if ((c.id === 'prixVente' || c.id === 'prixAchat') && a.type === 'texte') return celluleSansPrix(c);
         if (c.id === 'prixVente') return cellulePrixVente(a);
         if (c.id === 'prixAchat' && a.type === 'ouvrage') return cellulePrixAchatOuvrage(a);
         if (c.editable) return celluleEditable(a, c, rendre);
@@ -350,7 +411,7 @@ export function rendreBordereau(conteneur) {
     h('header', { class: 'page-tete' },
       h('div', {}, titre, compteur),
       h('div', { class: 'page-actions' }, boutonAjout)),
-    h('div', { class: 'barre-affaires' }, champRecherche, filtres.element),
+    h('div', { class: 'barre-affaires' }, champRecherche, filtres.element, boutonPlus),
     avis, zoneTableau, uniteListe()));
 
   // Pendant la frappe dans une cellule, on ne reconstruit pas (la saisie serait perdue) ; la liste se met à jour à la fin de la saisie.

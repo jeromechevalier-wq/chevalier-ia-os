@@ -108,9 +108,9 @@ describe('O7 copie figée', () => {
 describe('O8 types d’article', () => {
   let n = 0;
   const ctx = () => ({ auteur: 'a@exemple.test', nouvelId: (nom) => `${nom}_${++n}` });
-  test('O8 un article sans type reste valide ; un type inconnu est refusé ; six types avec libellés', () => {
-    assert.deepEqual(A.TYPES_ARTICLE.map((t) => t.id), ['fourniture', 'main_oeuvre', 'ouvrage', 'sous_traitance', 'materiel', 'divers']);
-    assert.deepEqual(A.TYPES_ARTICLE.map((t) => t.libelle), ['Fourniture', 'Main d’œuvre', 'Ouvrage', 'Sous-traitance', 'Matériel', 'Divers']);
+  test('O8 un article sans type reste valide ; un type inconnu est refusé ; sept types avec libellés', () => {
+    assert.deepEqual(A.TYPES_ARTICLE.map((t) => t.id), ['fourniture', 'main_oeuvre', 'ouvrage', 'sous_traitance', 'materiel', 'divers', 'texte']);
+    assert.deepEqual(A.TYPES_ARTICLE.map((t) => t.libelle), ['Fourniture', 'Main d’œuvre', 'Ouvrage', 'Sous-traitance', 'Matériel', 'Divers', 'Texte']);
     const p = A.planCreerArticle({ libelle: 'Vis', prixAchat: 1 }, ctx());
     assert.deepEqual(p.erreurs, {});
     assert.ok(!('type' in p.ecritures[0].donnees), 'pas de champ type écrit pour un article non classé');
