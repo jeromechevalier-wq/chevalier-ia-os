@@ -9,7 +9,9 @@ import * as D from './donnees.js';
 import * as A from './articles.js';
 import * as O from './ouvrages.js';
 import { editeurOuvrage } from './editeur-ouvrage.js';
-import { selectionFamille } from './selection-famille.js';
+import { champFamille } from './champ-famille.js';
+import { naviguer } from '../../os/router.js';
+import { devisOuvert } from './memoire.js';
 import { cheminFamille, familleEffective, typeDeFamille, arbreFamilles, idsAvecSousFamilles } from './familles.js';
 import { menuUnite } from './menu-unite.js';
 import { menuTaux } from './menu-taux.js';
@@ -107,30 +109,45 @@ function celluleEditable(a, colonne, surFin) {
 const cheminDe = (a) => cheminFamille(D.etat.familles, familleEffective(a));
 
 /**
- * Cellule « Famille » : un bouton qui ouvre la fenêtre « Sélection de la famille » (texte simple si l'article est désactivé). Le type de l'article suit la famille ;
- * choisir « Ouvrages » ouvre la composition (un ouvrage a besoin de composants).
+ * Cellule « Famille » : un bouton ; un clic le remplace par le champ intelligent des familles (on tape, on choisit, flèches et Entrée ; Échap annule). Texte simple si l'article est
+ * désactivé. Le type de l'article suit la famille ; choisir « Ouvrages » ouvre la composition (un ouvrage a besoin de composants).
  */
-function celluleFamille(a) {
+function celluleFamille(a, surFin = () => {}) {
   const cellule = h('td', { dataset: { colonne: 'famille', libelle: 'Famille' } });
   const nom = cheminDe(a);
   if (a.actif === false) { remplir(cellule, nom || '—'); return cellule; }
-  remplir(cellule, h('button', {
-    type: 'button', class: `valeur-editable${nom ? '' : ' valeur-vide'}`, dataset: { champ: 'familleId' }, 'aria-label': `Famille : ${a.libelle}`,
-    onclick: async () => {
-      const r = await selectionFamille({ courante: familleEffective(a) });
-      if (!r || r.id === familleEffective(a)) return;
-      if (a.type === 'ouvrage' && typeDeFamille(D.etat.familles, r.id) !== 'ouvrage') {
+  const bouton = h('button', {
+    type: 'button', class: `valeur-editable${nom ? '' : ' valeur-vide'}`, dataset: { champ: 'familleId' }, 'aria-label': `Famille : ${a.libelle}`, onclick: ouvrir,
+  }, nom || '—');
+  remplir(cellule, bouton);
+
+  function ouvrir() {
+    let fini = false;
+    const retablir = () => { if (fini) return; fini = true; remplir(cellule, bouton); surFin(); };
+    const champ = champFamille({ valeur: familleEffective(a), etiquette: `Famille : ${a.libelle}`, classe: 'champ-famille-cellule', surChoix: (id) => { if (id) choisir(id); } });
+    async function choisir(id) {
+      if (fini) return;
+      if (id === familleEffective(a)) { retablir(); return; }
+      if (a.type === 'ouvrage' && typeDeFamille(D.etat.familles, id) !== 'ouvrage') {
         toast('Un ouvrage reste dans la famille « Ouvrages » (ou une de ses sous-familles). Pour en faire une fourniture, crée un nouvel article.', { type: 'erreur', duree: 7000 });
+        retablir();
         return;
       }
-      if (typeDeFamille(D.etat.familles, r.id) === 'ouvrage' && a.type !== 'ouvrage') { await ouvrirComposition(a, { devenirOuvrage: true, familleId: r.id }); return; }
+      if (typeDeFamille(D.etat.familles, id) === 'ouvrage' && a.type !== 'ouvrage') { retablir(); await ouvrirComposition(a, { devenirOuvrage: true, familleId: id }); return; }
+      fini = true;
       try {
-        const m = await D.majArticle(a.id, { familleId: r.id });
+        const m = await D.majArticle(a.id, { familleId: id });
         const erreur = Object.values(m.erreurs)[0];
-        if (erreur) toast(erreur, { type: 'erreur', duree: 7000 });
-      } catch (e) { console.warn(e); toast(ERREUR_ECRITURE, { type: 'erreur', duree: 7000 }); }
-    },
-  }, nom || '—'));
+        if (erreur) { toast(erreur, { type: 'erreur', duree: 7000 }); remplir(cellule, bouton); }
+      } catch (e) { console.warn(e); toast(ERREUR_ECRITURE, { type: 'erreur', duree: 7000 }); remplir(cellule, bouton); }
+      surFin();
+    }
+    champ.entree.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); retablir(); } });
+    // Sortie du champ sans choix : on remet la valeur d'avant.
+    champ.entree.addEventListener('blur', () => { setTimeout(() => { if (!fini && !cellule.contains(document.activeElement)) retablir(); }, 400); });
+    remplir(cellule, champ.element);
+    champ.focus();
+  }
   return cellule;
 }
 
@@ -234,18 +251,11 @@ export async function ouvrirCreationArticle() {
   const code = champ('code', 'Code (facultatif)', { placeholder: 'Exemple : CAR-6060' });
   const reference = champ('reference', 'Référence (facultatif)', { placeholder: 'Exemple : REF-4521' });
   const marque = champ('marque', 'Marque (facultatif)', { maxlength: 400 });
-  // Famille (un seul champ : le type de l'article s'en déduit) : un champ en lecture seule qui ouvre la fenêtre « Sélection de la famille ». Proposée par défaut : Fournitures.
+  // Famille (un seul champ : le type de l'article s'en déduit) : le champ intelligent des familles. Proposée par défaut : Fournitures.
   let familleId = D.etat.familles.some((f) => f.id === FAMILLE_DEFAUT) ? FAMILLE_DEFAUT : '';
-  const familleInput = h('input', { type: 'text', class: 'champ champ-famille', id: 'article-familleId', readonly: true, 'aria-label': 'Famille', placeholder: 'Choisis une famille', value: cheminFamille(D.etat.familles, familleId), dataset: { champ: 'familleId' },
-    onclick: () => choisirFamille(), onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); choisirFamille(); } } });
-  async function choisirFamille() {
-    const r = await selectionFamille({ courante: familleId });
-    if (!r) return;
-    familleId = r.id;
-    familleInput.value = cheminFamille(D.etat.familles, familleId);
-    majFamille();
-  }
-  const famille = { input: familleInput, bloc: h('div', { class: 'bloc-champ' }, h('label', { class: 'etiquette', for: 'article-familleId' }, 'Famille'), familleInput, h('p', { class: 'erreur erreur-champ', role: 'alert', dataset: { erreur: 'familleId' } })) };
+  const familleChamp = champFamille({ valeur: familleId, id: 'article-familleId', classe: 'champ-famille', surChoix: (id) => { familleId = id; majFamille(); } });
+  const familleInput = familleChamp.entree;
+  const famille = { input: familleInput, bloc: h('div', { class: 'bloc-champ' }, h('label', { class: 'etiquette', for: 'article-familleId' }, 'Famille'), familleChamp.element, h('p', { class: 'erreur erreur-champ', role: 'alert', dataset: { erreur: 'familleId' } })) };
   // « Plus… » replie les champs rares (référence, marque).
   const rares = h('div', { class: 'pile champs-rares', hidden: true, dataset: { zone: 'rares' } }, reference.bloc, marque.bloc);
   const plus = h('button', { type: 'button', class: 'bouton-lien', dataset: { action: 'plus-moins' }, 'aria-expanded': 'false', onclick: () => {
@@ -353,6 +363,11 @@ export function rendreBordereau(conteneur) {
   const boutonPlus = h('button', { type: 'button', class: 'bouton-lien', dataset: { action: 'colonnes-rares' }, 'aria-pressed': 'false', onclick: () => { champsRares = !champsRares; rendre(); } }, 'Plus…');
   const boutonAjout = h('button', { type: 'button', class: 'bouton bouton-principal', dataset: { action: 'nouvel-article' }, onclick: () => ouvrirCreationArticle() }, icone('plus', { taille: 16 }), 'Article');
 
+  // Retour vers les devis : « ← Devis » ramène à la liste ; « Reprendre le devis en cours » rouvre le dernier devis ouvert dans l'éditeur pendant cette session (absent sinon).
+  const boutonRetour = h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'retour-devis' }, onclick: () => naviguer('devis/liste') }, '← Devis');
+  const enCours = devisOuvert();
+  const boutonReprise = enCours ? h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'reprendre-devis' }, onclick: () => naviguer(`devis/editeur/${enCours}`) }, 'Reprendre le devis en cours') : null;
+
   function rendre() {
     const reglages = D.etat.reglages;
     remplir(titre, A.titreBordereau(reglages));
@@ -382,7 +397,7 @@ export function rendreBordereau(conteneur) {
     const entete = h('tr', {}, colonnes.map((c) => h('th', { scope: 'col' }, h('span', { class: 'tri titre-colonne' }, c.libelle))), h('th', { class: 'col-actions', 'aria-label': 'Actions' }));
     const corps = lignes.map((a) => h('tr', { class: `ligne-liste ligne-article${a.actif === false ? ' article-desactive' : ''}`, dataset: { id: a.id } },
       colonnes.map((c) => {
-        if (c.id === 'famille') return celluleFamille(a);
+        if (c.id === 'famille') return celluleFamille(a, rendre);
         if ((c.id === 'prixVente' || c.id === 'prixAchat') && a.type === 'texte') return celluleSansPrix(c);
         if (c.id === 'prixVente') return cellulePrixVente(a);
         if (c.id === 'prixAchat' && a.type === 'ouvrage') return cellulePrixAchatOuvrage(a);
@@ -400,7 +415,7 @@ export function rendreBordereau(conteneur) {
   conteneur.append(h('div', { class: 'page page-liste page-devis' },
     h('header', { class: 'page-tete' },
       h('div', {}, titre, compteur),
-      h('div', { class: 'page-actions' }, boutonAjout)),
+      h('div', { class: 'page-actions' }, boutonRetour, boutonReprise, boutonAjout)),
     h('div', { class: 'barre-affaires' }, champRecherche, filtres.element, boutonPlus),
     avis, zoneTableau));
 

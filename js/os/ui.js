@@ -366,12 +366,14 @@ export function ouvrirMenu(ancre, items, { placement = 'bas', id = null } = {}) 
  *  - surCreation(texte) : (async) crée la valeur et renvoie un élément { id, libelle } (ou null)
  *  - multiple : plusieurs valeurs, affichées en pastilles ; valeur : élément initial (ou liste si multiple)
  *  - libre : le texte tapé est la valeur (ville) ; texteInitial
+ *  - ouvrirAuFocus : la liste s'ouvre dès qu'on entre dans le champ (liste courte et fermée, comme les familles d'articles) ; avec un choix déjà fait, elle montre tout
+ *  - messageVide(saisie) : élément ou texte affiché dans la liste quand rien ne correspond à ce qu'on a tapé (non sélectionnable ; il peut contenir un lien)
  * Clavier : flèches, Entrée sur la ligne active, Échap ; la souris et le toucher choisissent directement.
  */
 export function champIntelligent({
   etiquette = '', placeholder = '', icone: nomIcone = null, multiple = false, fournir, surChoix = () => {},
   surCreation = null, valeur = null, texteInitial = '', libre = false, surSaisie = () => {}, autofocus = false, id = null,
-  classe = '', ariaDescription = null,
+  classe = '', ariaDescription = null, ouvrirAuFocus = false, messageVide = null,
 } = {}) {
   const idListe = `sug-${Math.random().toString(36).slice(2, 8)}`;
   let choix = multiple ? [...(valeur || [])] : (valeur || null);
@@ -427,8 +429,8 @@ export function champIntelligent({
       el.couleur ? h('span', { class: 'puce-couleur', style: { background: el.couleur } }) : null,
       h('span', { class: 'suggestion-texte' }, h('span', { class: 'suggestion-libelle' }, lib), el.sousTitre ? h('span', { class: 'suggestion-sous' }, el.sousTitre) : null));
   }
-  function ouvrir() {
-    const saisie = entree.value;
+  function ouvrir(depuisFocus = false) {
+    const saisie = depuisFocus && choix && !multiple ? '' : entree.value;
     const r = fournir(saisie) || {};
     const groupes = r.groupes || [{ titre: null, resultats: r.resultats || [] }];
     remplir(liste);
@@ -454,7 +456,9 @@ export function champIntelligent({
       options.push(li);
       liste.append(li);
     }
-    const aucun = !options.length;
+    const vide = !options.length && messageVide ? messageVide(saisie) : null;
+    if (vide) liste.append(h('li', { class: 'suggestion-vide', role: 'presentation', onmousedown: (e) => { if (!e.target.closest('a')) e.preventDefault(); } }, vide));
+    const aucun = !options.length && !vide;
     liste.hidden = aucun;
     entree.setAttribute('aria-expanded', String(!aucun));
     actif = -1;
@@ -503,7 +507,10 @@ export function champIntelligent({
     surSaisie(entree.value);
     ouvrir();
   });
-  entree.addEventListener('focus', () => { if (entree.value && !choix && !multiple) ouvrir(); });
+  entree.addEventListener('focus', () => {
+    if (ouvrirAuFocus && !multiple) { entree.select?.(); ouvrir(true); } else if (entree.value && !choix && !multiple) ouvrir();
+  });
+  if (ouvrirAuFocus && !multiple) entree.addEventListener('click', () => { if (liste.hidden) ouvrir(true); });
   entree.addEventListener('keydown', (e) => {
     const ouverte = !liste.hidden;
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
