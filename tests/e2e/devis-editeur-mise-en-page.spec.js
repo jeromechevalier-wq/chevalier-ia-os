@@ -243,7 +243,8 @@ test('5 le bas de page : conditions de paiement à gauche, totaux et NET À PAYE
   await ouvrir(page, await devisLong());
   const bas = page.locator('.bas-devis');
   await expect(bas).toContainText('Conditions de paiement');
-  await expect(bas.locator('[data-action="ajouter-condition"]')).toHaveText(/Ajouter une condition/);
+  await expect(bas.locator('[data-action="ajouter-condition"]')).toHaveText(/Ajouter une condition \(bientôt\)/);
+  await expect(bas.locator('[data-action="ajouter-condition"]')).toBeDisabled();
   await expect(bas).toContainText('Méthodes de paiement acceptées');
   await expect(bas.locator('[data-action="ajouter-texte-libre"]')).toHaveText(/Ajouter texte libre/);
   await expect(bas).toContainText('Gestion des déchets');
@@ -328,4 +329,39 @@ test('2 l’e-mail du destinataire suit le client choisi, sauf s’il a été é
   await mail.fill('autre@exemple.test'); // écrit à la main : le choix du client ne l'écrase plus
   await page.locator('[data-champ="client"]').selectOption('personne:p1');
   await expect(mail).toHaveValue('autre@exemple.test');
+});
+
+test('4 la marge et la remise du devis se règlent depuis le bouton « Définir un ajustement », sans afficher le calcul des marges', async ({ page }) => {
+  await semer();
+  await ouvrir(page, await devisLong());
+  await page.locator('[data-action="definir-ajustement"]').click();
+  await page.getByRole('menuitem', { name: 'Marge du devis' }).click();
+  await page.locator('[data-champ="marge-menu"]').fill('25');
+  await expect.poll(async () => (await listerDocuments('devis_devis'))[0].marge).toBe(25);
+  await page.getByRole('menuitem', { name: 'Remise' }).click();
+  await page.locator('[data-champ="remise-valeur-menu"]').fill('10');
+  await expect.poll(async () => (await listerDocuments('devis_devis'))[0].remise?.valeur).toBe(10);
+});
+
+test('2 l’éditeur est compact sur ordinateur : la feuille est centrée (largeur limitée) et une ligne d’article fait moins de 46 px de haut', async ({ page }) => {
+  test.skip(estTelephone(page), 'compact : ordinateur seulement (le téléphone garde des cibles de 44 px)');
+  await semer();
+  const maintenant = new Date();
+  await ecrireDocument('devis_devis/compact', {
+    racineId: 'compact', version: 1, numero: null, statut: 'brouillon', affaireId: 'a1', organisationId: 'o1', personneId: null, modeMarge: 'majoration', marge: 0, tauxTvaDefaut: 20,
+    regimeTva: 'assujetti', autoliquidation: false, archive: false, expireLe: '2026-11-23', destinataires: [], affichage: { afficherMarges: false },
+    sections: [{ id: 's1', titre: 'Cuisine', lignes: [ligne('l1', 'Dépose de la moquette', 1, 10)] }], creePar: JEROME, proprietaire: JEROME, creeLe: maintenant, modifieLe: maintenant,
+  });
+  await ouvrir(page, 'compact');
+  const feuille = await page.locator('.document-devis').boundingBox();
+  expect(feuille.width).toBeLessThanOrEqual(1181);
+  const ligneBoite = await page.locator('tr[data-id="l1"]').boundingBox();
+  expect(ligneBoite.height).toBeLessThan(46);
+});
+
+test('1 les onglets ont un pictogramme : un stylo pour Édition, un œil pour Prévisualisation', async ({ page }) => {
+  await semer();
+  await ouvrir(page, await devisLong());
+  await expect(page.locator('[data-onglet="edition"] svg')).toHaveCount(1);
+  await expect(page.locator('[data-onglet="apercu"] svg')).toHaveCount(1);
 });

@@ -316,9 +316,9 @@ export function rendreEditeurDevis(conteneur, id) {
     ref.pastille = h('span', { class: 'pastille-statut', dataset: { valeur: 'statut' } });
     ref.indicateur = h('span', { class: 'indicateur-enregistrement', role: 'status', 'aria-live': 'polite', dataset: { valeur: 'enregistrement' } });
     const onglets = h('div', { class: 'onglets-editeur', role: 'tablist', 'aria-label': 'Affichage du devis', hidden: lecture },
-      [['edition', 'Édition'], ['apercu', 'Prévisualisation']].map(([cle, libelle]) => h('button', {
+      [['edition', 'Édition', 'pencil'], ['apercu', 'Prévisualisation', 'eye']].map(([cle, libelle, pictogramme]) => h('button', {
         type: 'button', class: 'onglet-editeur', role: 'tab', dataset: { onglet: cle }, onclick: () => choisirOnglet(cle),
-      }, libelle)));
+      }, icone(pictogramme, { taille: 16 }), libelle)));
     ref.onglets = onglets;
     const barre = h('header', { class: 'barre-devis' },
       h('div', { class: 'barre-devis-gauche' }, h('div', { class: 'titre-devis' }, ref.titre, ref.pastille, ref.indicateur), onglets),
@@ -504,7 +504,9 @@ export function rendreEditeurDevis(conteneur, id) {
       onclick: () => (bibliotheque?.ouvert() ? bibliotheque.fermer() : ouvrirLaBibliotheque()) }, icone('list', { taille: 16 }), 'Bibliothèque');
     return h('div', { class: 'rangee-bibliotheque' }, ref.boutonBibliotheque);
   }
-  function ouvrirLaBibliotheque() {
+  /** `remplacer` : identifiant d'une ligne (bouton « Catalogue » de sa désignation) : l'article choisi prend la place de cette ligne au lieu d'être ajouté à la fin. */
+  function ouvrirLaBibliotheque(remplacer = null) {
+    if (bibliotheque?.ouvert()) bibliotheque.fermer();
     bibliotheque = ouvrirBibliotheque(racine, {
       articles: () => D.etat.articles,
       familles: () => D.etat.familles,
@@ -514,6 +516,14 @@ export function rendreEditeurDevis(conteneur, id) {
         return pv === null ? '' : `${euros(pv)} / ${a.unite || 'u'}`;
       },
       ajouter: (choisis) => {
+        if (remplacer) {
+          const nouvelle = Ed.ligneDepuisArticle(choisis[0], { id: remplacer, articles: D.etat.articles, devis: travail });
+          delete nouvelle.genre;
+          appliquer(travail.sections.map((sec) => ({ ...sec, lignes: (sec.lignes ?? []).map((x) => (x.id === remplacer ? nouvelle : x)) })));
+          bibliotheque?.fermer();
+          toast('Ligne remplie depuis le catalogue', { duree: 2500 });
+          return;
+        }
         const lignes = choisis.map((a) => Ed.ligneDepuisArticle(a, { id: nouvelId(), articles: D.etat.articles, devis: travail }));
         const section = Ed.sectionDe(travail.sections, ligneActive);
         appliquer(Ed.ajouterFinDeSection(travail.sections, lignes, section));
@@ -973,6 +983,9 @@ export function rendreEditeurDevis(conteneur, id) {
     const l = e;
     const cellule = (classe, libelle, ...contenu) => h('td', { class: classe, dataset: { libelle } }, ...contenu);
     const libelle = ajusterHauteur(h('textarea', { class: 'champ champ-surplace', rows: 1, value: l.libelle ?? '', placeholder: 'Désignation', 'aria-label': `Désignation ${numeros[l.id]}`, dataset: { champ: 'libelle' }, oninput: (ev) => changerLigne(l.id, { libelle: ev.target.value }) }));
+    // Petit bouton « Catalogue » à côté de la désignation d'une ligne qui ne vient pas encore d'un article : il remplit la ligne avec un article du Bordereau.
+    const catalogue = !l.articleId && !l.ouvrage && !masque
+      ? h('button', { type: 'button', class: 'bouton-lien bouton-catalogue-ligne', dataset: { action: 'catalogue-ligne' }, 'aria-label': `Choisir ${numeros[l.id]} dans le catalogue`, onclick: () => ouvrirLaBibliotheque(l.id) }, icone('list', { taille: 14 }), 'Catalogue') : null;
     const composition = l.ouvrage ? h('pre', { class: 'composition-ouvrage', dataset: { valeur: 'composition' } }, Ed.descriptionDeLigne(l)) : null;
     // Une description écrite à la main (hors ouvrage) se lit et se corrige sous la désignation, en petit.
     const description = !l.ouvrage && typeof l.description === 'string' && l.description.trim()
@@ -987,8 +1000,8 @@ export function rendreEditeurDevis(conteneur, id) {
         changerLigne(l.id, patch);
       },
     });
-    // L'unité se choisit dans la liste du Bordereau (ou « Autre… » pour écrire la sienne).
-    const unite = menuUnite({ valeur: l.unite ?? '', libelle: `Unité ${numeros[l.id]}`, champ: 'unite' });
+    // Ligne libre : l'unité se choisit dans la liste (ou « Autre… »). Ligne venue d'un article : l'unité est celle de l'article, verrouillée.
+    const unite = menuUnite({ valeur: l.unite ?? '', libelle: `Unité ${numeros[l.id]}`, champ: 'unite', verrouille: Boolean(l.articleId) });
     unite.addEventListener('input', () => changerLigne(l.id, { unite: unite.value }));
     const prix = h('input', {
       class: 'champ champ-surplace champ-nombre', type: 'text', inputmode: 'decimal', value: '', 'aria-label': `Prix de vente HT ${numeros[l.id]}`, dataset: { champ: 'prix-vente' },
@@ -1015,7 +1028,7 @@ export function rendreEditeurDevis(conteneur, id) {
     return h('tr', { class: 'ligne-devis-edition', hidden: masque, dataset: { id: l.id, genre: 'ligne' } },
       celluleDeplacement(e, numeros[l.id]),
       cellule('c-num num', 'N°', numeros[l.id]),
-      cellule('c-des', 'Désignation', libelle, description, composition, configurer, reference, calculMarge),
+      cellule('c-des', 'Désignation', libelle, catalogue, description, composition, configurer, reference, calculMarge),
       aff.cacherQuantiteUnite ? null : cellule('c-qte', 'Qté', quantite),
       aff.cacherQuantiteUnite ? null : cellule('c-uni', 'Unité', unite),
       cellule('c-pri', ajustementActif(travail) ? 'Prix U. HT ajusté' : 'Prix U. HT', prix, prixAjuste),
@@ -1030,7 +1043,8 @@ export function rendreEditeurDevis(conteneur, id) {
     ref.attestation = h('p', { class: 'attestation-tva', dataset: { valeur: 'attestation-tva' }, hidden: true });
     const texteLibre = h('textarea', { class: 'champ', id: 'devis-texte-libre', rows: 3, value: d.texteLibre ?? '', 'aria-label': 'Texte libre', hidden: !(d.texteLibre ?? '').trim(), dataset: { champ: 'texte-libre' }, oninput: (e) => changer({ texteLibre: e.target.value }) });
     const lienTexte = h('button', { type: 'button', class: 'bouton-lien', dataset: { action: 'ajouter-texte-libre' }, hidden: !texteLibre.hidden, onclick: () => { texteLibre.hidden = false; lienTexte.hidden = true; texteLibre.focus(); } }, icone('plus', { taille: 14 }), 'Ajouter texte libre');
-    const lienCondition = h('button', { type: 'button', class: 'bouton-lien', dataset: { action: 'ajouter-condition' }, onclick: () => { const c = racine.querySelector('[data-champ="acompte-type"]'); c?.scrollIntoView?.({ block: 'center' }); c?.focus(); } }, icone('plus', { taille: 14 }), 'Ajouter une condition');
+    // Les vraies conditions de paiement (plusieurs échéances) ne sont pas encore faites : le bouton le dit au lieu de ne rien faire.
+    const lienCondition = h('button', { type: 'button', class: 'bouton-lien', disabled: true, title: 'Bientôt disponible : en attendant, utilise « Acompte demandé » dans les totaux.', dataset: { action: 'ajouter-condition' } }, icone('plus', { taille: 14 }), 'Ajouter une condition (bientôt)');
     const gauche = h('div', { class: 'bas-gauche' },
       h('div', { class: 'titre-ligne' }, h('h3', { class: 'titre-bloc' }, 'Conditions de paiement'), lienCondition),
       ref.attestation,
@@ -1132,14 +1146,27 @@ export function rendreEditeurDevis(conteneur, id) {
       remplirAutres(null);
       const bloc = contenuMenu([
         { libelle: 'Ajustement global', cle: 'ajustement-global', icone: 'arrow-up-down', reste: true, action: () => { zone.hidden = !zone.hidden; } },
+        { libelle: 'Marge du devis', cle: 'marge-devis', reste: true, action: () => { zoneMarge.hidden = !zoneMarge.hidden; } },
       ], fermer);
+      // La marge et la remise se règlent ici (comme dans un logiciel du marché) ; les champs de la remise reprennent ceux des totaux et les pilotent.
+      const margeChamp = h('input', { class: 'champ champ-court', id: 'ajust-marge', type: 'text', inputmode: 'decimal', autocomplete: 'off', value: saisieNombre(travail.marge), 'aria-label': 'Marge du devis en pourcent', dataset: { champ: 'marge-menu' },
+        oninput: (e) => { const vide = e.target.value.trim() === ''; const v = vide ? 0 : Ed.lireSaisie(e.target.value); e.target.classList.toggle('invalide', v === null); if (v !== null) { changer({ marge: v }); majPrixAffiches(); const autre = racine.querySelector('[data-champ="marge"]'); if (autre) autre.value = e.target.value; } } });
+      const zoneMarge = h('div', { class: 'ajust-zone', dataset: { zone: 'marge-devis' } }, h('div', { class: 'ajust-champ' }, h('label', { for: 'ajust-marge' }, 'Marge du devis (%)'), margeChamp,
+        h('p', { class: 'texte-discret' }, 'Elle s’applique aux lignes qui n’ont pas leur propre marge. Le client ne la voit jamais.')));
+      const remiseTotaux = { type: racine.querySelector('[data-champ="remise-type"]'), valeur: racine.querySelector('[data-champ="remise-valeur"]') };
+      const remiseType = h('select', { class: 'champ', 'aria-label': 'Type de remise', dataset: { champ: 'remise-type-menu' }, onchange: (e) => { if (remiseTotaux.type) { remiseTotaux.type.value = e.target.value; remiseTotaux.type.dispatchEvent(new Event('change', { bubbles: true })); } } },
+        h('option', { value: 'pourcentage', selected: remiseTotaux.type?.value !== 'montant' }, '%'), h('option', { value: 'montant', selected: remiseTotaux.type?.value === 'montant' }, '€'));
+      const remiseValeur = h('input', { class: 'champ champ-court', type: 'text', inputmode: 'decimal', autocomplete: 'off', placeholder: '0', value: remiseTotaux.valeur?.value ?? '', 'aria-label': 'Valeur de la remise', dataset: { champ: 'remise-valeur-menu' },
+        oninput: (e) => { if (remiseTotaux.valeur) { remiseTotaux.valeur.value = e.target.value; remiseTotaux.valeur.dispatchEvent(new Event('input', { bubbles: true })); } } });
+      const zoneRemise = h('div', { class: 'ajust-zone', dataset: { zone: 'remise-devis' }, hidden: true }, h('div', { class: 'ajust-champ' }, h('label', {}, 'Remise client'), h('div', { class: 'ligne-champs' }, remiseValeur, remiseType)));
       const reste = contenuMenu([
         { titre: 'Poste HT' },
-        { libelle: 'Remise', cle: 'remise', action: () => { const c = racine.querySelector('[data-champ="remise-valeur"]'); c?.scrollIntoView?.({ block: 'center' }); c?.focus(); } },
+        { libelle: 'Remise', cle: 'remise', reste: true, action: () => { zoneRemise.hidden = !zoneRemise.hidden; } },
         { libelle: 'Compte prorata', cle: 'prorata', bientot: true },
         { libelle: 'Poste libre HT', cle: 'poste-libre', bientot: true },
       ], fermer);
-      return h('div', { class: 'menu-devis-liste' }, bloc, zone, reste);
+      zoneMarge.hidden = true;
+      return h('div', { class: 'menu-devis-liste' }, bloc, zone, zoneMarge, reste, zoneRemise);
     }, { classe: 'menu-devis-ajustement', nom: 'Ajustement du devis' });
   }
 
