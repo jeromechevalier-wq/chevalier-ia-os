@@ -27,7 +27,7 @@ export async function convertirHtmlEnPdf(html, { urlService, obtenirJeton, fetch
   if (typeof obtenirJeton !== 'function') throw new Error('PDF : fournisseur de jeton manquant.');
   const base = String(urlService).replace(/\/+$/, '');
   let jeton;
-  try { jeton = await obtenirJeton(base); } catch { throw new Error("PDF : impossible d'obtenir l'identité pour appeler le service de conversion."); }
+  try { jeton = await obtenirJeton(base); } catch (e) { throw new Error("PDF : impossible d'obtenir l'identité pour appeler le service de conversion.", { cause: e }); }
   if (!jeton) throw new Error("PDF : identité vide pour appeler le service de conversion.");
 
   const form = new FormData();
@@ -48,7 +48,7 @@ export async function convertirHtmlEnPdf(html, { urlService, obtenirJeton, fetch
     });
   } catch (e) {
     if (e && (e.name === 'TimeoutError' || e.name === 'AbortError')) throw new Error(`PDF : délai dépassé (${Math.round(delaiMs / 1000)} s) pour la conversion.`);
-    throw new Error('PDF : le service de conversion est injoignable.');
+    throw new Error('PDF : le service de conversion est injoignable.', { cause: e });
   }
   if (rep.status !== 200) throw new Error(`PDF : le service de conversion a répondu ${rep.status}.`);
   const pdf = Buffer.from(await rep.arrayBuffer());

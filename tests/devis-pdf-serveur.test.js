@@ -39,14 +39,16 @@ describe('P1 Gotenberg : le multipart attendu part avec le jeton, le PDF revient
       assert.equal(audience, s.url);
       assert.match(r.entetes['content-type'], /^multipart\/form-data/);
       const txt = r.corps.toString('utf8');
-      assert.match(txt, /filename="index\.html"/);
+      assert.match(txt, /name="files"; filename="index\.html"/);
       assert.match(txt, /filename="header\.html"/);
       assert.match(txt, /filename="footer\.html"/);
       assert.ok(txt.includes('CONTENU-CONFIDENTIEL-XYZ'));
       for (const [k, v] of [['paperWidth', '8.27'], ['paperHeight', '11.7'], ['preferCssPageSize', 'false'], ['printBackground', 'true']]) {
         assert.match(txt, new RegExp(`name="${k}"\\r\\n\\r\\n${v}\\r\\n`), k);
       }
-      assert.ok(/name="marginTop"/.test(txt) && /name="marginBottom"/.test(txt));
+      for (const [k, v] of [['marginTop', '0.6'], ['marginBottom', '0.8'], ['marginLeft', '0.4'], ['marginRight', '0.4']]) {
+        assert.match(txt, new RegExp(`name="${k}"\\r\\n\\r\\n${v}\\r\\n`), k);
+      }
       assert.ok(txt.includes('class="pageNumber"') && txt.includes('class="totalPages"'));
       assert.deepEqual(out.pdf, FAUX_PDF);
       assert.equal(out.sha256, createHash('sha256').update(FAUX_PDF).digest('hex'));
@@ -176,9 +178,12 @@ describe('P5 Drive : vrai client REST contre un faux serveur local', () => {
       const up = s.requetes[2];
       assert.match(up.url, /^\/upload\/drive\/v3\/files\?/);
       assert.match(up.url, /uploadType=multipart/); assert.match(up.url, /supportsAllDrives=true/);
-      assert.match(up.entetes['content-type'], /^multipart\/form-data/);
+      assert.match(up.entetes['content-type'], /^multipart\/related; boundary=/);
       const txt = up.corps.toString('latin1');
       assert.ok(txt.includes('"name":"a.pdf"') && txt.includes('"parents":["PAR"]'));
+      // métadonnées JSON d'abord, le fichier ensuite
+      assert.ok(txt.indexOf('application/json') < txt.indexOf('Content-Type: application/pdf'));
+      assert.ok(txt.indexOf('"name":"a.pdf"') < txt.indexOf('%PDF-1.4'));
       assert.ok(txt.includes('%PDF-1.4'));
     } finally { await s.fermer(); }
   });
@@ -200,5 +205,12 @@ describe('P6 nomFichierDevis', () => {
     assert.ok(!/[\/\\]/.test(n.replace(/\.pdf$/, '')));
     assert.ok(n.length <= 124 && n.endsWith('.pdf'));
     assert.equal(nomFichierDevis({ numero: 'DEV-1', version: 3 }), 'DEV-1 v3.pdf');
+  });
+});
+
+describe('P4 bis noms tronqués sans perdre « .pdf »', () => {
+  test('P4 un nom long garde son extension', () => {
+    const n = nettoyerNom(`${'a'.repeat(300)}.pdf`);
+    assert.ok(n.length <= 120 && n.endsWith('.pdf'));
   });
 });

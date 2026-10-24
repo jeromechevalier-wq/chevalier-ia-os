@@ -10,7 +10,10 @@ export function echapperRequete(s) { return String(s).replace(/\\/g, '\\\\').rep
 /** Nom de fichier ou de dossier propre : pas de / ni de caractères de contrôle, 120 caractères au plus. */
 export function nettoyerNom(s, max = 120) {
   const n = String(s ?? '').replace(/[\/\\\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').trim();
-  return n.length > max ? n.slice(0, max).trim() : n;
+  if (n.length <= max) return n;
+  const m = /\.[A-Za-z0-9]{1,5}$/.exec(n);
+  const ext = m ? m[0] : '';
+  return `${n.slice(0, max - ext.length).trim()}${ext}`;
 }
 
 /** DEV-2026-10-24-001 v2 - Objet.pdf */
@@ -62,12 +65,15 @@ export function creerClientDrive({ auth, fetchImpl = fetch, urlApi = API, urlEnv
   if (!auth || typeof auth.obtenirJeton !== 'function') throw new Error('Drive : fournisseur de jeton manquant.');
   async function appel(url, opts = {}) {
     const jeton = await auth.obtenirJeton();
-    const rep = await fetchImpl(url, { ...opts, headers: { ...(opts.headers || {}), Authorization: `Bearer ${jeton}` }, signal: AbortSignal.timeout(30000) });
+    let rep;
+    try {
+      rep = await fetchImpl(url, { ...opts, headers: { ...(opts.headers || {}), Authorization: `Bearer ${jeton}` }, signal: AbortSignal.timeout(30000) });
+    } catch (e) { throw new Error('Drive : le service est injoignable.', { cause: e }); }
     if (!rep.ok) throw new Error(`Drive : réponse ${rep.status}.`);
     return rep.json();
   }
   const liste = async (q) => {
-    const p = new URLSearchParams({ q, fields: 'files(id,name)', supportsAllDrives: 'true', includeItemsFromAllDrives: 'true', pageSize: '10' });
+    const p = new URLSearchParams({ q, fields: 'files(id,name)', supportsAllDrives: 'true', includeItemsFromAllDrives: 'true', corpora: 'allDrives', pageSize: '10' });
     const r = await appel(`${urlApi}/files?${p}`);
     return r.files || [];
   };
@@ -87,10 +93,17 @@ export function creerClientDrive({ auth, fetchImpl = fetch, urlApi = API, urlEnv
       });
     },
     async envoyerFichier({ nom, parentId, contenu, mimeType }) {
-      const form = new FormData();
-      form.append('metadata', new Blob([JSON.stringify({ name: nom, parents: [parentId] })], { type: 'application/json' }));
-      form.append('file', new Blob([contenu], { type: mimeType }));
-      return appel(`${urlEnvoi}/files?uploadType=multipart&supportsAllDrives=true&fields=id,webViewLink`, { method: 'POST', body: form });
+      // Corps « multipart/related » à la main (format documenté par Drive) : métadonnées JSON d'abord, puis le fichier.
+      const limite = `devis${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
+      const meta = JSON.stringify({ name: nom, parents: [parentId] });
+      const corps = Buffer.concat([
+        Buffer.from(`--${limite}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${limite}\r\nContent-Type: ${mimeType}\r\n\r\n`, 'utf8'),
+        Buffer.from(contenu),
+        Buffer.from(`\r\n--${limite}--`, 'utf8'),
+      ]);
+      return appel(`${urlEnvoi}/files?uploadType=multipart&supportsAllDrives=true&fields=id,webViewLink`, {
+        method: 'POST', headers: { 'Content-Type': `multipart/related; boundary=${limite}` }, body: corps,
+      });
     },
   };
 }
