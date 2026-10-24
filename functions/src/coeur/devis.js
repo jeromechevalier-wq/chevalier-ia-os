@@ -123,7 +123,7 @@ export async function finaliser({ donnees, ctx, devisId }) {
 
     // Seuls les champs que la finalisation change sont écrits (les autres, dates comprises, ne sont pas retouchés).
     // Un client Firestore direct a pu poser archive ou des dates sur le brouillon : on les remet à zéro à la finalisation.
-    const remisesAZero = { archive: false, archiveLe: null, envoyeLe: null, accepteLe: null, refuseLe: null, remplaceLe: null };
+    const remisesAZero = { archive: false, archiveLe: null, envoyeLe: null, accepteLe: null, refuseLe: null, remplaceLe: null, pdf: null };
     const changements = [modifier(devis, { ...Object.fromEntries(CHAMPS_FIGES.map((k) => [k, apres[k]])), ...remisesAZero })];
     // Les versions plus anciennes encore vivantes (finalisée ou envoyée) sont remplacées par celle-ci, dans la même transaction.
     const remplaces = versions.filter((v) => v.id !== devis.id && (v.version ?? 1) < (devis.version ?? 1) && D.transitionPossible(v.statut, 'remplacer'));
@@ -178,6 +178,7 @@ export async function nouvelleVersion({ donnees, ctx, devisId }) {
     copie.creePar = ctx.acteur;
     delete copie.archiveLe;
     delete copie.remplaceLe;
+    delete copie.pdf;
     const j = journal({
       donnees, ctx, outil: 'devisNouvelleVersion', parametres: { devisId },
       changements: [{ id, action: 'creer', avant: null, apres: copie, champs: Object.keys(copie) }],
@@ -206,6 +207,21 @@ export async function archiver({ donnees, ctx, devisId, archive }) {
     const j = journal({ donnees, ctx, outil: 'devisArchiver', parametres: { devisId, archive }, changements: [changement] });
     tx.ecrire([changement.ecriture, ...j.ecritures]);
     return { ok: true, devis: { ...devis, ...patch }, operationId: j.operationId };
+  });
+}
+
+/**
+ * Note sur le devis le PDF fabriqué par la fonction devisPdf : `pdf = { fileId, lien, sha256, genereLe }`, plus sa ligne de journal, dans UNE transaction.
+ * Ce champ n'est posé que par ici : la finalisation et la nouvelle version le remettent à zéro (les règles Firestore laissent un brouillon l'écrire). Un brouillon est refusé (il n'a pas de PDF officiel). Rien d'autre sur le devis n'est touché.
+ */
+export async function enregistrerPdf({ donnees, ctx, devisId, pdf }) {
+  return donnees.transaction(async (tx) => {
+    const devis = await lireDevis(tx, devisId);
+    if (devis.statut === 'brouillon') throw new ErreurDevis('transition_interdite', 'Ce devis est encore un brouillon : finalise-le avant de créer le PDF.');
+    const changement = modifier(devis, { pdf: { fileId: pdf.fileId, lien: pdf.lien, sha256: pdf.sha256, genereLe: ctx.maintenant } });
+    const j = journal({ donnees, ctx, outil: 'devisPdf', parametres: { devisId }, changements: [changement] });
+    tx.ecrire([changement.ecriture, ...j.ecritures]);
+    return { ok: true, devis: { ...devis, pdf: changement.apres.pdf }, operationId: j.operationId };
   });
 }
 

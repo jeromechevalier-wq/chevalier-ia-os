@@ -26,16 +26,22 @@ export function enErreurAppel(e) {
   return new HttpsError(code, e.message, { code: e.code });
 }
 
+/** Contrôle de l'appelant (compte Google vérifié, parmi `comptes`) : rend le jeton, ou lève l'erreur d'accès. Partagé par devisPdf. */
+export function exigerCompteAutorise(requete, comptes = COMPTES_AUTORISES) {
+  const jeton = requete.auth?.token;
+  if (!jeton) throw new HttpsError('unauthenticated', 'Connexion nécessaire.');
+  if (jeton.email_verified !== true || typeof jeton.email !== 'string' || !comptes.includes(jeton.email)) {
+    throw new HttpsError('permission-denied', 'Ce compte n\'a pas accès aux devis.');
+  }
+  return jeton;
+}
+
 export function creerAppelDevis(operation, { donnees, comptes = COMPTES_AUTORISES, journal = () => {}, maintenant = Date.now }) {
   const executer = OPERATIONS[operation];
   if (!executer) throw new Error(`Opération de devis inconnue : ${operation}`);
   return async function appel(requete) {
     const debut = maintenant();
-    const jeton = requete.auth?.token;
-    if (!jeton) throw new HttpsError('unauthenticated', 'Connexion nécessaire.');
-    if (jeton.email_verified !== true || typeof jeton.email !== 'string' || !comptes.includes(jeton.email)) {
-      throw new HttpsError('permission-denied', 'Ce compte n\'a pas accès aux devis.');
-    }
+    const jeton = exigerCompteAutorise(requete, comptes);
     const demande = requete.data && typeof requete.data === 'object' ? requete.data : {};
     try {
       const base = { donnees: donnees(), ctx: { acteur: jeton.email.toLowerCase(), via: 'ecran', maintenant: new Date(maintenant()) } };

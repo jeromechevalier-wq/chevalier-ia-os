@@ -34,6 +34,8 @@ writeFileSync(join(destination, 'devis-ouvrages.js'), devisOuvrages.replaceAll("
 // Les familles (familles.js) n'importent rien : copie telle quelle sous le nom devis-familles.js.
 writeFileSync(join(destination, 'devis-familles.js'), readFileSync(join(racine, 'js', 'modules', 'devis', 'familles.js'), 'utf8'));
 writeFileSync(join(destination, 'devis-articles.js'), devisArticles.replaceAll("from './logique.js'", "from './devis.js'").replaceAll("from './ouvrages.js'", "from './devis-ouvrages.js'").replaceAll("from './familles.js'", "from './devis-familles.js'").replaceAll(IMPORT_CRM, "from './logique.js'"));
+// Le document imprimable du devis (document.js) n'importe que les calculs du Devis : copie devis-document.js, utilisée par la fonction devisPdf.
+writeFileSync(join(destination, 'devis-document.js'), readFileSync(join(racine, 'js', 'modules', 'devis', 'document.js'), 'utf8').replaceAll("from './logique.js'", "from './devis.js'"));
 console.log('functions/partage/devis.js, devis-ouvrages.js et devis-articles.js mis à jour (copies de js/modules/devis/, imports réécrits)');
 
 // Brouillons (plans d'écriture) et logique de l'éditeur (ligne copiée d'un article) : utilisés par les outils MCP du Devis (creer_devis_brouillon, modifier_devis_brouillon).
