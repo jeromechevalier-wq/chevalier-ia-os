@@ -4,6 +4,8 @@ import { h, icone, remplir, dialogue, confirmer, ouvrirMenu, toast, boutonSelonT
 import { retirerAvecAnnulation } from '../../os/retrait.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
+import * as PD from '../projets/donnees.js';
+import * as P from '../projets/logique.js';
 import { decouperLiens } from './liens-texte.js';
 import { boutonFiltres, fenetreFiltres } from './filtres.js';
 import { iconeTypeActivite, lienAffaire, lienPersonne, lienOrganisation, nomCompte } from './composants.js';
@@ -55,7 +57,7 @@ export function selecteurDate(jourInitial) {
  * Fenêtre "Planifier une activité" (suggestions douces, "prochaine activité" après un "Fait").
  * valeurs : { type, titre, date }. Renvoie l'identifiant créé, ou null si la fenêtre est fermée.
  */
-export async function dialogueActivite({ liens, titre = 'Planifier une activité', valeurs = {}, libelleOk = 'Planifier', libelleFermer = 'Plus tard' }) {
+export async function dialogueActivite({ liens, titre = 'Planifier une activité', valeurs = {}, message = null, libelleOk = 'Planifier', libelleFermer = 'Plus tard' }) {
   const aujourdhui = D.ctx().aujourdhui;
   let type = valeurs.type || 'tache';
   const champTitre = h('input', { class: 'champ', type: 'text', 'aria-label': 'Titre de l’activité', value: valeurs.titre ?? L.titreActiviteParDefaut(type) });
@@ -79,7 +81,7 @@ export async function dialogueActivite({ liens, titre = 'Planifier une activité
   const r = await dialogue({
     titre,
     classe: 'dialogue-formulaire',
-    contenu: h('div', { class: 'pile' }, types,
+    contenu: h('div', { class: 'pile' }, message ? h('p', { class: 'aide', dataset: { role: 'message-sans-activite' } }, message) : null, types,
       h('label', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Titre'), champTitre),
       h('div', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Date'), date.element),
       h('label', { class: 'bloc-champ' }, h('span', { class: 'etiquette' }, 'Heure'), heure)),
@@ -103,27 +105,33 @@ export async function dialogueActivite({ liens, titre = 'Planifier une activité
   return r ? identifiant : null;
 }
 
-/** Après un "Fait" : propose la prochaine activité (ignorable). */
+/** Plus rien à faire sur l'affaire ou le projet : propose de planifier la prochaine activité (ignorable). */
 export function proposerProchaineActivite(liens) {
+  const de = liens.projetId ? 'ce projet' : 'cette affaire';
   return dialogueActivite({
-    liens, titre: 'Prochaine activité ?', libelleOk: 'Planifier',
+    liens, titre: 'Plus aucune activité prévue', libelleOk: 'Planifier',
+    message: `Attention, tu n’as plus aucune activité prévue sur ${de}. Souhaites-tu planifier la prochaine ?`,
     valeurs: { type: 'tache', titre: 'Relancer', date: L.dateRapide('3j', D.ctx().aujourdhui) },
   });
 }
 
-/** "Fait" sur une activité : enregistre, puis propose la suivante. */
+/** "Fait" sur une activité : enregistre, puis propose la suivante seulement s'il ne reste plus rien à faire sur l'affaire ou le projet. */
 export async function faireActivite(activite, { proposer = true } = {}) {
   await D.marquerActiviteFaite(activite.id);
-  if (proposer) {
-    const liens = { personneId: activite.personneId ?? null, organisationId: activite.organisationId ?? null, affaireId: activite.affaireId ?? null, ...(activite.projetId ? { projetId: activite.projetId } : {}) };
-    await proposerProchaineActivite(liens);
-  }
+  if (!proposer) return;
+  const projet = activite.projetId ? PD.projet(activite.projetId) : null;
+  const affaire = !activite.projetId && activite.affaireId ? D.affaire(activite.affaireId) : null;
+  const ficheActive = projet ? P.estProjetActif(projet) : !!affaire && L.estAffaireActive(affaire);
+  const tachesRestantes = projet ? PD.tachesDe(projet.id).filter((t) => !t.fait).length : 0;
+  if (!L.doitProposerProchaineActivite(activite, D.etat.activites, { ficheActive, tachesRestantes })) return;
+  const liens = { personneId: activite.personneId ?? null, organisationId: activite.organisationId ?? null, affaireId: activite.affaireId ?? null, ...(activite.projetId ? { projetId: activite.projetId } : {}) };
+  await proposerProchaineActivite(liens);
 }
 
 /**
  * Clic sur « En retard » ou sur la date : fenêtre pour déplacer l'activité.
- * L'heure se règle d'abord ; un clic sur un raccourci (Demain, +3 jours…) ou un changement de date enregistre et ferme.
- * « Enregistrer » sert quand on ne change que l'heure.
+ * Un clic sur un raccourci (Demain, +3 jours…) enregistre et ferme. Une date tapée ou choisie dans le calendrier,
+ * comme l'heure, ne ferme jamais la fenêtre : il faut cliquer sur « Enregistrer » (24/10/2026).
  */
 export async function dialogueDecalage(a, { enregistrerPatch = (patch) => D.majActivite(a.id, patch), sansDate = false } = {}) {
   const date = selecteurDate(a.date);
@@ -144,13 +152,10 @@ export async function dialogueDecalage(a, { enregistrerPatch = (patch) => D.majA
       return false;
     }
   }
-  // Raccourcis : changement simulé → on enregistre tout de suite. Date saisie ou choisie dans le calendrier : petite attente,
-  // pour ne pas fermer pendant qu'on tape le jour puis le mois au clavier.
-  let attente = null;
-  date.champ.addEventListener('change', (e) => {
-    clearTimeout(attente);
-    const lancer = async () => { if (await enregistrer()) fermerFenetre(null); };
-    if (e.isTrusted) attente = setTimeout(lancer, 700); else lancer();
+  // Un clic sur un raccourci (le bouton a déjà posé la date) enregistre tout de suite. Une date tapée ou choisie dans le calendrier ne ferme rien.
+  date.element.addEventListener('click', async (e) => {
+    if (!e.target.closest('[data-date-rapide]')) return;
+    if (await enregistrer()) fermerFenetre(null);
   });
   await dialogue({
     titre: 'Changer la date',
@@ -165,7 +170,6 @@ export async function dialogueDecalage(a, { enregistrerPatch = (patch) => D.majA
       { libelle: 'Enregistrer', valeur: true, style: 'principal', avantFermeture: enregistrer },
     ],
   });
-  clearTimeout(attente);
 }
 
 /** Titre cliquable : un clic le transforme en champ ; Entrée ou clic ailleurs enregistre, Échap annule. */

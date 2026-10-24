@@ -361,15 +361,17 @@ test('C11 Perdue (raison obligatoire), Rouvrir ; plus de pause', async ({ page }
 
 // ---------------------------------------------------------------- activités, notes, historique, bloc « À faire »
 
-test('C12 « Fait » sur une activité du jour : elle disparaît du bloc « À faire », entre dans l’historique, la boîte « Prochaine activité » s’ouvre', async ({ page }) => {
+test('C12 « Fait » sur la dernière activité d’une affaire : elle disparaît du bloc « À faire », entre dans l’historique, la fenêtre « Plus aucune activité prévue » s’ouvre', async ({ page }) => {
   await creerPersonne('p1', { nom: 'Marie Durand' });
-  await creerActivite('a1', { titre: 'Appeler Marie', type: 'appel', date: jour(0), personneId: 'p1' });
+  await creerAffaire('af1', { titre: 'Atelier IA', personneId: 'p1' });
+  await creerActivite('a1', { titre: 'Appeler Marie', type: 'appel', date: jour(0), personneId: 'p1', affaireId: 'af1' });
   await connecter(page);
   await aller(page, '#/crm/personnes/p1');
   const ligne = page.locator('.points-cles .activite[data-activite="a1"]');
   await expect(ligne).toContainText('Appeler Marie');
   await ligne.getByRole('button', { name: /Marquer comme fait/ }).click();
-  await expect(dialogue(page)).toContainText('Prochaine activité ?');
+  await expect(dialogue(page)).toContainText('Plus aucune activité prévue');
+  await expect(dialogue(page)).toContainText('plus aucune activité prévue sur cette affaire');
   await dialogue(page).getByRole('button', { name: 'Plus tard' }).click();
   await expect(ligne).toHaveCount(0);
   await champDoc('crm_activites', 'a1', 'fait', true);
@@ -377,16 +379,46 @@ test('C12 « Fait » sur une activité du jour : elle disparaît du bloc « À f
   expect((await listerDocuments('crm_evenements')).some((e) => e.type === 'activite_faite')).toBe(true);
 });
 
-test('C12 « Fait » ouvre la prochaine activité : la planifier crée une nouvelle activité', async ({ page }) => {
+test('C12 « Fait » sur la dernière activité d’une affaire : la planifier crée une nouvelle activité', async ({ page }) => {
   await creerPersonne('p1', { nom: 'Marie Durand' });
-  await creerActivite('a1', { titre: 'Appeler Marie', type: 'appel', date: jour(0), personneId: 'p1' });
+  await creerAffaire('af1', { titre: 'Atelier IA', personneId: 'p1' });
+  await creerActivite('a1', { titre: 'Appeler Marie', type: 'appel', date: jour(0), personneId: 'p1', affaireId: 'af1' });
   await connecter(page);
   await aller(page, '#/crm/personnes/p1');
   await page.locator('.points-cles .activite[data-activite="a1"]').getByRole('button', { name: /Marquer comme fait/ }).click();
   await dialogue(page).locator('[data-date-rapide="1sem"]').click();
   await dialogue(page).getByRole('button', { name: 'Planifier' }).click();
   const suite = await attendre(page, 'crm_activites', (d) => d.id !== 'a1');
-  expect(suite).toMatchObject({ titre: 'Relancer', date: jour(7), fait: false, personneId: 'p1' });
+  expect(suite).toMatchObject({ titre: 'Relancer', date: jour(7), fait: false, personneId: 'p1', affaireId: 'af1' });
+});
+
+test('C12 changer la date d’une activité en la tapant : la fenêtre reste ouverte jusqu’à « Enregistrer »', async ({ page }) => {
+  await creerPersonne('p1', { nom: 'Marie Durand' });
+  await creerActivite('a1', { titre: 'Appeler Marie', type: 'appel', date: jour(0), personneId: 'p1' });
+  await connecter(page);
+  await aller(page, '#/crm/personnes/p1');
+  await page.locator('.points-cles .activite[data-activite="a1"] .activite-date-modifiable').click();
+  await dialogue(page).getByLabel('Date', { exact: true }).fill(jour(5));
+  await page.waitForTimeout(1500); // bien plus que l’ancienne attente de 700 ms
+  await expect(dialogue(page)).toContainText('Changer la date');
+  expect((await listerDocuments('crm_activites')).find((d) => d.id === 'a1').date).toBe(jour(0)); // rien n’est enregistré tant qu’on ne clique pas
+  await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
+  await champDoc('crm_activites', 'a1', 'date', jour(5));
+});
+
+test('C12 « Fait » alors qu’il reste une autre activité sur l’affaire, ou sur une simple personne : aucune fenêtre ne s’ouvre', async ({ page }) => {
+  await creerPersonne('p1', { nom: 'Marie Durand' });
+  await creerAffaire('af1', { titre: 'Atelier IA', personneId: 'p1' });
+  await creerActivite('a1', { titre: 'Appeler Marie', type: 'appel', date: jour(0), personneId: 'p1', affaireId: 'af1' });
+  await creerActivite('a2', { titre: 'Envoyer le devis', date: jour(3), personneId: 'p1', affaireId: 'af1' });
+  await creerActivite('a3', { titre: 'Café avec Marie', date: jour(0), personneId: 'p1' });
+  await connecter(page);
+  await aller(page, '#/crm/personnes/p1');
+  for (const id of ['a1', 'a3']) {
+    await page.locator(`.points-cles .activite[data-activite="${id}"]`).getByRole('button', { name: /Marquer comme fait/ }).click();
+    await champDoc('crm_activites', id, 'fait', true);
+    await expect(dialogue(page)).toHaveCount(0);
+  }
 });
 
 test('C12 Accueil : le bloc « À faire » regroupe En retard, Aujourd’hui et Sans action prévue', async ({ page }) => {
@@ -407,10 +439,10 @@ test('C12 Accueil : le bloc « À faire » regroupe En retard, Aujourd’hui et 
   await attendre(page, 'crm_activites', (d) => d.affaireId === 'a2');
   await expect(page.locator('.groupe-a-faire[data-groupe="sans-action"]')).not.toContainText('Sans suite');
   // Tout faire : Charles félicite
-  for (const id of ['x1', 'x2']) {
-    await page.locator(`.activite[data-activite="${id}"]`).getByRole('button', { name: /Marquer comme fait/ }).click();
-    await dialogue(page).getByRole('button', { name: 'Plus tard' }).click();
-  }
+  await page.locator('.activite[data-activite="x1"]').getByRole('button', { name: /Marquer comme fait/ }).click(); // x2 reste sur l’affaire : pas de fenêtre
+  await champDoc('crm_activites', 'x1', 'fait', true);
+  await page.locator('.activite[data-activite="x2"]').getByRole('button', { name: /Marquer comme fait/ }).click(); // dernière : la fenêtre s’ouvre
+  await dialogue(page).getByRole('button', { name: 'Plus tard' }).click();
   await expect(page.locator('.zone-a-faire .etat-vide')).toContainText('Charles veille');
 });
 
@@ -440,7 +472,6 @@ test('C12 un rendez vous marqué fait augmente l’objectif « Rendez vous tenus
   expect(await valeurObjectif(page, 'rdv_tenus')).toBe(0);
   await aller(page, '#/crm/personnes/p1');
   await page.locator('.points-cles .activite[data-activite="r1"]').getByRole('button', { name: /Marquer comme fait/ }).click();
-  await dialogue(page).getByRole('button', { name: 'Plus tard' }).click();
   await allerA(page, 'Accueil');
   await expect.poll(() => valeurObjectif(page, 'rdv_tenus')).toBe(1);
 });

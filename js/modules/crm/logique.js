@@ -1201,6 +1201,17 @@ export function pastilleActivite(activitesDeLAffaire, aujourdhui) {
   return prevues.some((a) => estActiviteEnRetard(a, aujourdhui)) ? 'rouge' : 'verte';
 }
 
+/**
+ * Après un « Fait » : faut-il proposer la prochaine activité ? Seulement si la fiche (projet, sinon affaire) est vivante
+ * et qu'il n'y reste plus rien à faire : ni autre activité non faite, ni tâche de projet non faite (`tachesRestantes`).
+ * Une activité rattachée seulement à une personne ou une organisation ne propose rien.
+ */
+export function doitProposerProchaineActivite(activite, activites, { ficheActive = false, tachesRestantes = 0 } = {}) {
+  const cle = activite?.projetId ? 'projetId' : activite?.affaireId ? 'affaireId' : null;
+  if (!cle || !ficheActive || tachesRestantes > 0) return false;
+  return !activitesAVenir(activites).some((a) => a.id !== activite.id && a[cle] === activite[cle]);
+}
+
 export function activitesDeAffaire(activites, affaireId) {
   return (activites || []).filter((a) => a.affaireId === affaireId);
 }
