@@ -474,8 +474,8 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
   .champ-surplace { padding: var(--esp-1) var(--esp-2); min-height: calc(var(--h-ctrl) - var(--esp-4)); }
   textarea.champ-surplace { min-height: calc(var(--h-ctrl) - var(--esp-4)); }
   .tableau-lignes-devis td.c-des { position: relative; }
-  .bouton-catalogue-ligne { position: absolute; top: var(--esp-1); right: var(--esp-2); opacity: 0; background: var(--panneau); }
-  .ligne-devis-edition:hover .bouton-catalogue-ligne, td.c-des:focus-within .bouton-catalogue-ligne, .bouton-catalogue-ligne:focus-visible { opacity: 1; }
+  .bouton-catalogue-ligne { position: absolute; top: var(--esp-1); right: var(--esp-2); opacity: 0; pointer-events: none; background: var(--panneau); }
+  .ligne-devis-edition:hover .bouton-catalogue-ligne, td.c-des:focus-within .bouton-catalogue-ligne, .bouton-catalogue-ligne:focus-visible { opacity: 1; pointer-events: auto; }
   .total-ligne { padding-top: var(--esp-2); }
   .tableau-lignes-devis th.col-tot { width: 172px; }
   .ligne-section-devis td.c-tot { white-space: nowrap; }

@@ -79,8 +79,8 @@ test('1 la barre d’actions reste en haut quand on défile : titre « Brouillon
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Brouillon');
   await expect(page.locator('[data-onglet="edition"]')).toHaveText('Édition');
   await expect(page.locator('[data-onglet="apercu"]')).toHaveText('Prévisualisation');
-  for (const action of ['annuler', 'enregistrer', 'finaliser']) await expect(page.locator(`.barre-devis [data-action="${action}"]`)).toBeVisible();
-  await expect(page.locator('[data-action="finaliser"]')).toHaveClass(/bouton-principal/); // le seul bouton jaune plein de la barre
+  for (const action of ['annuler', 'enregistrer', 'envoyer', 'fermer']) await expect(page.locator(`.barre-devis [data-action="${action}"]`)).toBeVisible();
+  await expect(page.locator('[data-action="envoyer"]')).toHaveClass(/bouton-principal/); // le seul bouton jaune plein de la barre
   // En bas de la page, la barre est toujours à l'écran (collée en haut, sous la barre du téléphone).
   await defiler(page, false);
   await expect(barre).toBeInViewport({ ratio: 1 });
@@ -294,7 +294,7 @@ test('6 sur téléphone : une carte par ligne (désignation en haut, puis Qté /
   const largeur = page.viewportSize().width;
   expect(bande.width).toBeGreaterThan(largeur - 60);
   // La barre garde Annuler, Enregistrer et Finaliser ; Options est dans « … ».
-  for (const action of ['annuler', 'enregistrer', 'finaliser']) await expect(page.locator(`.barre-devis [data-action="${action}"]`)).toBeVisible();
+  for (const action of ['annuler', 'enregistrer', 'envoyer', 'fermer']) await expect(page.locator(`.barre-devis [data-action="${action}"]`)).toBeVisible();
   await expect(page.locator('[data-action="options"]')).toBeHidden();
   await expect(page.locator('[data-action="plus-actions"]')).toBeVisible();
   // Rien ne déborde de la largeur de l'écran.

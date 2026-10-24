@@ -362,9 +362,9 @@ export function rendreEditeurDevis(conteneur, id) {
       h('button', { type: 'button', class: 'bouton-icone bouton-plus-actions', dataset: { action: 'plus-actions' }, 'aria-haspopup': 'menu', 'aria-label': 'Autres actions', onclick: (ev) => { const ancre = ev.currentTarget; ouvrirMenu(ancre, [{ libelle: 'Options', icone: 'settings', action: () => ouvrirOptions(ancre) }]); } }, icone('ellipsis', { taille: 16 })),
       h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'annuler' }, onclick: () => naviguer('devis/liste') }, 'Annuler'),
       (ref.boutonEnregistrer = h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'enregistrer' }, onclick: async () => { const ok = await sauver(); toast(ok ? 'Devis enregistré' : messageEnreg || ERREUR_ECRITURE, { type: ok ? 'info' : 'erreur', duree: ok ? 2500 : 8000 }); } })),
-      h('div', { class: 'bouton-groupe' },
-        h('button', { type: 'button', class: 'bouton bouton-principal', dataset: { action: 'finaliser' }, onclick: () => finaliser() }, icone('check', { taille: 16 }), 'Finaliser'),
-        h('button', { type: 'button', class: 'bouton bouton-principal bouton-groupe-menu', dataset: { action: 'menu-finaliser' }, 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-label': 'Autres façons de finaliser', onclick: (ev) => ouvrirMenuFinaliser(ev.currentTarget) }, icone('chevron-down', { taille: 14 }))),
+      // « Envoyer » remplace « Finaliser » : imprimer, télécharger ou envoyer par e-mail ; le devis est finalisé (numéroté, prix figés) au moment de l'envoi.
+      h('button', { type: 'button', class: 'bouton bouton-principal', dataset: { action: 'envoyer' }, 'aria-haspopup': 'menu', 'aria-expanded': 'false', onclick: (ev) => ouvrirMenuEnvoyer(ev.currentTarget) }, icone('mail', { taille: 16 }), 'Envoyer', icone('chevron-down', { taille: 14 })),
+      h('button', { type: 'button', class: 'bouton-icone', dataset: { action: 'fermer' }, 'aria-label': 'Fermer le devis', onclick: () => naviguer('devis/liste') }, icone('x', { taille: 18 })),
     ];
   }
 
@@ -415,13 +415,12 @@ export function rendreEditeurDevis(conteneur, id) {
     }, { classe: 'menu-devis-options', nom: 'Options du devis' });
   }
 
-  function ouvrirMenuFinaliser(ancre) {
+  function ouvrirMenuEnvoyer(ancre) {
     ouvrirFenetreMenu(ancre, (fermer) => contenuMenu([
-      { libelle: 'Finaliser', icone: 'check', cle: 'finaliser-seul', action: () => finaliser() },
-      { libelle: 'Finaliser et imprimer', icone: 'file-text', cle: 'finaliser-imprimer', action: () => finaliser({ imprimer: true }) },
-      { libelle: 'Finaliser et télécharger', icone: 'download', cle: 'finaliser-telecharger', bientot: true },
-      { libelle: 'Finaliser et envoyer par e-mail', icone: 'mail', cle: 'finaliser-envoyer', bientot: true },
-    ], fermer), { nom: 'Finaliser' });
+      { libelle: 'Envoyer par e-mail', icone: 'mail', cle: 'envoyer-email', bientot: true },
+      { libelle: 'Télécharger', icone: 'download', cle: 'telecharger', bientot: true },
+      { libelle: 'Imprimer', icone: 'file-text', cle: 'imprimer', action: () => finaliser({ imprimer: true }) },
+    ], fermer), { nom: 'Envoyer' });
   }
 
   function choisirOnglet(cle) {
@@ -985,7 +984,7 @@ export function rendreEditeurDevis(conteneur, id) {
     const libelle = ajusterHauteur(h('textarea', { class: 'champ champ-surplace', rows: 1, value: l.libelle ?? '', placeholder: 'Désignation', 'aria-label': `Désignation ${numeros[l.id]}`, dataset: { champ: 'libelle' }, oninput: (ev) => changerLigne(l.id, { libelle: ev.target.value }) }));
     // Petit bouton « Catalogue » à côté de la désignation d'une ligne qui ne vient pas encore d'un article : il remplit la ligne avec un article du Bordereau.
     const catalogue = !l.articleId && !l.ouvrage && !masque
-      ? h('button', { type: 'button', class: 'bouton-lien bouton-catalogue-ligne', dataset: { action: 'catalogue-ligne' }, 'aria-label': `Choisir ${numeros[l.id]} dans le catalogue`, onclick: () => ouvrirLaBibliotheque(l.id) }, icone('list', { taille: 14 }), 'Catalogue') : null;
+      ? h('button', { type: 'button', class: 'bouton-lien bouton-catalogue-ligne', dataset: { action: 'catalogue-ligne' }, 'aria-label': `Choisir ${numeros[l.id]} dans le catalogue`, title: 'Choisir dans le catalogue', onclick: () => ouvrirLaBibliotheque(l.id) }, icone('list', { taille: 14 })) : null;
     const composition = l.ouvrage ? h('pre', { class: 'composition-ouvrage', dataset: { valeur: 'composition' } }, Ed.descriptionDeLigne(l)) : null;
     // Une description écrite à la main (hors ouvrage) se lit et se corrige sous la désignation, en petit.
     const description = !l.ouvrage && typeof l.description === 'string' && l.description.trim()

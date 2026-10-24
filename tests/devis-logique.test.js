@@ -194,11 +194,11 @@ describe('Numéro, expiration, statuts', () => {
 
 describe('Validation de finalisation', () => {
   test('D9 un devis complet est valide', () => assert.deepEqual(D.erreursFinalisation(devisType()), []));
-  test('D9 sans ligne, sans destinataire « À » (une copie seule ne suffit pas), e-mail invalide', () => {
+  test('D9 sans ligne ; le destinataire est facultatif (impression, remise en main propre) mais une adresse écrite doit être valide', () => {
     assert.ok(D.erreursFinalisation(devisType({ sections: [] })).some((e) => /au moins une ligne/.test(e)));
-    assert.ok(D.erreursFinalisation(devisType({ destinataires: [] })).some((e) => /destinataire/.test(e)));
-    assert.ok(D.erreursFinalisation(devisType({ destinataires: [{ email: 'pas-un-email' }] })).some((e) => /destinataire/.test(e)));
-    assert.ok(D.erreursFinalisation(devisType({ destinataires: [], copie: [{ email: 'copie@exemple.test' }] })).some((e) => /en copie/.test(e)));
+    assert.ok(!D.erreursFinalisation(devisType({ destinataires: [] })).some((e) => /destinataire/.test(e)));
+    assert.ok(!D.erreursFinalisation(devisType({ destinataires: [], copie: [{ email: 'copie@exemple.test' }] })).some((e) => /destinataire/.test(e)));
+    assert.ok(D.erreursFinalisation(devisType({ destinataires: [{ email: 'pas-un-email' }] })).some((e) => /pas valide/.test(e)));
   });
   test('D9 quantité, prix d\'achat et marge invalides sont signalés ligne par ligne', () => {
     const base = (l, extra = {}) => devisType({ sections: [{ id: 's', titre: 'T', lignes: [l] }], ...extra });

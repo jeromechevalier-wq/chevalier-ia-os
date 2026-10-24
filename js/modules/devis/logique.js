@@ -596,8 +596,8 @@ export function erreursFinalisation(devis) {
   if (!idsModes.includes(devis.modeMarge)) erreurs.push('Choisis le mode de marge du devis.');
   if (!absent(devis.marge) && !estNombre(devis.marge)) erreurs.push('La marge du devis doit être un nombre.');
   const destinataires = (devis.destinataires ?? []).map(emailDe);
-  if (!destinataires.some(emailValide)) erreurs.push('Ajoute au moins un destinataire avec une adresse e-mail valide (une adresse en copie ne suffit pas).');
-  else if (destinataires.some((e) => e && !emailValide(e))) erreurs.push('Une adresse e-mail de destinataire n\'est pas valide : corrige-la.');
+  // Pas d'adresse e-mail obligatoire : on peut imprimer le devis et le remettre en main propre ; l'adresse ne sert qu'à l'envoi par e-mail (à venir).
+  if (destinataires.some((e) => e && !emailValide(e))) erreurs.push('Une adresse e-mail de destinataire n\'est pas valide : corrige-la.');
   const ids = (devis.sections ?? []).flatMap((s) => (s.lignes ?? []).filter((l) => !estSaut(l)).map((l) => l.id));
   if (ids.some((id) => absent(id) || id === '') || new Set(ids).size !== ids.length) erreurs.push('Une ligne du devis n\'a pas d\'identifiant unique : recharge le devis ou recrée cette ligne.');
   const lignes = (devis.sections ?? []).flatMap((s) => (s.lignes ?? []).filter((l) => !estSaut(l)).map((l) => ({ s, l })));

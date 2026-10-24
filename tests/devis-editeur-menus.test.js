@@ -410,3 +410,12 @@ describe('3 saut de page : hors totaux, sans numéro, fidèle à l’ancien rég
     assert.equal((devisHtml(vue([{ id: 's1', titre: 'A', lignes: [ligne('a', 10, 1)] }])).match(/<tr class="saut-page"/g) ?? []).length, 0);
   });
 });
+
+describe('5 finalisation sans adresse e-mail', () => {
+  test('5 un devis sans destinataire peut être finalisé ; une adresse écrite mais invalide reste refusée', () => {
+    const base = { ...L.nouveauDevis({ affaireId: 'a1', destinataires: [] }, { maintenant: new Date('2026-10-24T10:00:00Z'), auteur: 'x@exemple.test', nouvelId: () => 'd1' }, { regimeTva: 'assujetti' }), sections: [{ id: 's1', titre: '', lignes: [ligne('a', 10, 1)] }] };
+    assert.ok(!L.erreursFinalisation(base).some((e) => /destinataire|e-mail/.test(e)));
+    const mauvais = L.erreursFinalisation({ ...base, destinataires: ['pas-une-adresse'] });
+    assert.ok(mauvais.some((e) => /pas valide/.test(e)));
+  });
+});
