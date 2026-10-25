@@ -1,10 +1,12 @@
-// Module Devis sur la plateforme clients : les quatre transitions d'un devis (devisFinaliser, devisChangerStatut, devisNouvelleVersion, devisArchiver).
+// Module Devis sur la plateforme clients : les transitions d'un devis (devisFinaliser, devisChangerStatut, devisNouvelleVersion, devisArchiver, devisSupprimer, devisEnregistrerEnvoi)
+// et « Préparer l'e-mail » (devisPreparerEmail, devisPreparerEmailEtat).
 // Séparé de index.js pour pouvoir l'essayer sans Cloud Functions (comme espace.js) : `db` est injecté. Le travail est dans serveur/src/coeur/devis.js
 // (copie de functions/src/coeur/devis.js, le MÊME code que chez Jérôme).
 //  - le client reçu est une CIBLE à vérifier, jamais une confiance : l'appelant doit avoir clients/<client>/membres/<son e-mail> avec le rôle « editeur »
 //    (un lecteur est refusé), et le module « devis » doit être actif sur la fiche du client ;
 //  - UN SEUL refus neutre « Action non autorisée. » (espace inexistant, non-membre, lecteur, module inactif) : on ne dit rien de plus ;
-//  - tout est écrit sous clients/<client>/ (avecBase) : un autre client est hors d'atteinte ; aucun appel à n8n dans cette version.
+//  - tout est écrit sous clients/<client>/ (avecBase) : un autre client est hors d'atteinte ;
+//  - les transitions n'appellent pas n8n. Seule « Préparer l'e-mail » demande à n8n, par `sortie` (serveur/src/coeur/n8n-sortie.js, le SEUL fichier qui fait un POST vers n8n) : le webhook et le secret sont ceux DU client.
 import { logger } from 'firebase-functions';
 import { creerAccesFirestore, avecBase } from '../serveur/src/coeur/donnees.js';
 import { ErreurDevis, OPERATIONS, reponsePublique } from '../serveur/src/coeur/devis.js';
@@ -26,6 +28,7 @@ function emailDe(auth) {
 async function controlerAppelant({ db, auth, client }) {
   const email = emailDe(auth);
   if (typeof client !== 'string' || !MOTIF_IDENTIFIANT_CLIENT.test(client)) throw new Refus('invalid-argument', 'Demande invalide.');
+  if (client === 'interne') throw REFUS_NEUTRE(); // « interne » est réservé à Jérôme : c'est l'espace dont les secrets n'ont pas de suffixe (n8n-sortie.js)
   const membre = await db.doc(`clients/${client}/membres/${email}`).get();
   if (!membre.exists || membre.get('role') !== 'editeur') throw REFUS_NEUTRE();
   const fiche = await db.doc(`clients/${client}`).get();

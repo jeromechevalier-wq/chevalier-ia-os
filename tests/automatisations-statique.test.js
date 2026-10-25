@@ -142,7 +142,7 @@ describe('Les fonctions se chargent comme Firebase les chargera', () => {
     assert.equal(e.maxInstances, 5);
     assert.equal(e.secretEnvironmentVariables, undefined);
     assert.ok(e.callableTrigger, 'fonction appelable');
-    // Devis (24/10/2026) : quatre fonctions appelables, aucun secret, aucun appel à n8n, aucun compte de service nouveau (le compte par défaut suffit)
+    // Devis (24/10/2026) : fonctions appelables, aucun secret LIÉ au déploiement (« Préparer l'e-mail » lit les siens à l'exécution dans Secret Manager ; le POST vers n8n est dans serveur/, hors de ce dossier), aucun compte de service nouveau (le compte par défaut suffit)
     for (const nom of ['devisFinaliser', 'devisChangerStatut', 'devisNouvelleVersion', 'devisArchiver', 'devisSupprimer', 'devisEnregistrerEnvoi', 'devisPreparerEmail', 'devisPreparerEmailEtat']) {
       const d = m[nom].__endpoint;
       assert.ok(d.callableTrigger, `${nom} : fonction appelable`);

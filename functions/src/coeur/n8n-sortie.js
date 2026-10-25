@@ -48,7 +48,7 @@ export function adresseSure(texte) {
  * `lireSecret(nom)` : promesse du texte du secret (lève si absent) ; `fetchImpl` : `fetch` (ou un faux n8n dans les essais).
  * Rend { branche(espace), demander(espace, { devisId, demandeId }) }.
  */
-export function creerSortieN8n({ lireSecret, fetchImpl = globalThis.fetch, maintenant = Date.now } = {}) {
+export function creerSortieN8n({ lireSecret, fetchImpl = globalThis.fetch, maintenant = Date.now, delaiMs = DELAI_MAX_MS } = {}) {
   const cache = new Map(); // espace -> { expire, config | null }
 
   async function configuration(espace) {
@@ -74,7 +74,7 @@ export function creerSortieN8n({ lireSecret, fetchImpl = globalThis.fetch, maint
       const config = await configuration(espace);
       if (!config) throw new ErreurSortieN8n('non_branche', MESSAGE_NON_BRANCHE);
       const arret = new AbortController();
-      const minuteur = setTimeout(() => arret.abort(), DELAI_MAX_MS);
+      const minuteur = setTimeout(() => arret.abort(), delaiMs);
       let reponse;
       try {
         reponse = await fetchImpl(config.url, {

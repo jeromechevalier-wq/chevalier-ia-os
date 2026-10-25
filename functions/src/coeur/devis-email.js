@@ -17,6 +17,7 @@ export const AGE_MAX_NOTE_MS = 60 * 60_000;
 export const MAX_MESSAGE_ETAT = 200;
 export const STATUTS_DEMANDE = Object.freeze({ DEMANDEE: 'demandee', OK: 'ok', ECHEC: 'echec' });
 export const MESSAGE_DEMANDE_INCONNUE = 'Demande inconnue ou trop ancienne.';
+const idDernier = (devisId) => `dernier-${devisId}`;
 const MOTIF_DEMANDE = /^[a-z0-9][a-z0-9_-]{0,99}$/;
 
 const enMs = (v) => (v == null ? null : v instanceof Date ? v.getTime() : typeof v.toMillis === 'function' ? v.toMillis() : typeof v.toDate === 'function' ? v.toDate().getTime() : typeof v === 'number' ? v : null);
@@ -60,38 +61,51 @@ export async function demanderPreparation({ donnees, ctx, devisId, espace, sorti
   await donnees.transaction(async (tx) => {
     const devis = await lireDevis(tx, devisId);
     controlerPourEmail(devis);
-    const precedentes = await tx.liste(C.actionsLancements, { champ: 'devisId', valeur: devisId });
-    for (const p of precedentes) {
-      if (p.action !== 'devis.preparerEmail' || p.statut === STATUTS_DEMANDE.ECHEC) continue; // un échec se réessaie tout de suite
-      const age = maintenant.getTime() - (enMs(p.demandeLe) ?? 0);
+    // Document fixe par devis, lu ET réécrit dans la transaction : deux appels simultanés entrent en conflit (Firestore relance la perdante, qui voit alors la demande de la première).
+    const dernier = await tx.document(C.actionsLancements, idDernier(devisId));
+    if (dernier && dernier.statut !== STATUTS_DEMANDE.ECHEC) { // un échec se réessaie tout de suite
+      const age = maintenant.getTime() - (enMs(dernier.demandeLe) ?? 0);
       if (age < DELAI_ANTI_DOUBLON_MS) {
-        throw new ErreurDevis('deja_demande', p.statut === STATUTS_DEMANDE.OK
+        throw new ErreurDevis('deja_demande', dernier.statut === STATUTS_DEMANDE.OK
           ? 'Un brouillon vient d’être créé pour ce devis : regarde dans ton Gmail. Tu pourras en demander un autre dans quelques minutes.'
           : 'Une préparation est déjà en cours pour ce devis : patiente quelques instants (3 minutes au plus), puis réessaie.');
       }
     }
-    tx.ecrire([{
-      type: 'set', collection: C.actionsLancements, id: demandeId,
-      donnees: { action: 'devis.preparerEmail', client: espace, devisId, demandeId, statut: STATUTS_DEMANDE.DEMANDEE, demandeLe: maintenant },
-    }]);
+    const emailPrepare = { le: maintenant, demandeId, canal: 'n8n', statut: STATUTS_DEMANDE.DEMANDEE };
+    const changement = modifier(devis, { emailPrepare }); // l'Historique du devis dit « Préparation de l'e-mail en cours… »
+    const j = journal({ donnees, ctx, outil: 'devisPreparerEmail', parametres: { devisId, demandeId }, changements: [changement] });
+    tx.ecrire([
+      changement.ecriture,
+      { type: 'set', collection: C.actionsLancements, id: demandeId, donnees: { action: 'devis.preparerEmail', client: espace, devisId, demandeId, statut: STATUTS_DEMANDE.DEMANDEE, demandeLe: maintenant } },
+      { type: 'set', collection: C.actionsLancements, id: idDernier(devisId), donnees: { action: 'dernier', devisId, demandeId, statut: STATUTS_DEMANDE.DEMANDEE, demandeLe: maintenant } },
+      ...j.ecritures,
+    ]);
   });
   try {
     await sortie.demander(espace, { devisId, demandeId });
   } catch (e) {
-    const message = e instanceof ErreurSortieN8n && e.genre === 'non_branche' ? MESSAGE_NON_BRANCHE : 'n8n n’a pas pris la demande.';
-    await clore({ donnees, demandeId, statut: STATUTS_DEMANDE.ECHEC, message, maintenant: new Date() }).catch(() => {});
-    if (e instanceof ErreurSortieN8n && e.genre === 'non_branche') throw new ErreurDevis('non_branche', MESSAGE_NON_BRANCHE);
+    const nonBranche = e instanceof ErreurSortieN8n && e.genre === 'non_branche';
+    const refuse = e instanceof ErreurSortieN8n && e.genre === 'refuse';
+    const message = nonBranche ? MESSAGE_NON_BRANCHE : refuse ? 'n8n a refusé la demande.' : 'n8n n’a pas pris la demande.';
+    await clore({ donnees, devisId, demandeId, statut: STATUTS_DEMANDE.ECHEC, message, maintenant, devisAussi: true }).catch(() => {});
+    if (nonBranche) throw new ErreurDevis('non_branche', MESSAGE_NON_BRANCHE);
+    if (refuse) throw new ErreurDevis('n8n_refuse', 'La préparation de l’e-mail n’est pas bien configurée. Préviens Jérôme.');
     throw new ErreurDevis('n8n_indisponible', 'La demande n’a pas pu partir. Réessaie dans un instant : rien n’a été créé dans ton Gmail.');
   }
   return { ok: true, demandeId };
 }
 
-/** Clôt la ligne du journal (hors devis) : statut, date, durée, court message. Sans effet si elle n'est plus « demandee ». */
-async function clore({ donnees, demandeId, statut, message, maintenant }) {
+/** Clôt la ligne du journal et le document « dernier » du devis (statut, date, durée, court message). `devisAussi` : le devis reçoit aussi l'échec (emailPrepare). Sans effet si la ligne n'est plus « demandee ». */
+async function clore({ donnees, devisId, demandeId, statut, message, maintenant, devisAussi = false }) {
   await donnees.transaction(async (tx) => {
     const ligne = await tx.document(C.actionsLancements, demandeId);
     if (!ligne || ligne.statut !== STATUTS_DEMANDE.DEMANDEE) return;
-    tx.ecrire([{ type: 'update', collection: C.actionsLancements, id: demandeId, donnees: { statut, termineLe: maintenant, dureeMs: Math.max(0, maintenant.getTime() - (enMs(ligne.demandeLe) ?? maintenant.getTime())), ...(message ? { message } : {}) } }]);
+    const dernier = await tx.document(C.actionsLancements, idDernier(devisId));
+    const devis = devisAussi ? await tx.document(C.devis, devisId) : null;
+    const ecritures = [{ type: 'update', collection: C.actionsLancements, id: demandeId, donnees: { statut, termineLe: maintenant, dureeMs: Math.max(0, maintenant.getTime() - (enMs(ligne.demandeLe) ?? maintenant.getTime())), ...(message ? { message } : {}) } }];
+    if (dernier?.demandeId === demandeId) ecritures.push({ type: 'update', collection: C.actionsLancements, id: idDernier(devisId), donnees: { statut } });
+    if (devis?.emailPrepare?.demandeId === demandeId) ecritures.push({ type: 'update', collection: C.devis, id: devisId, donnees: { emailPrepare: { le: maintenant, demandeId, canal: 'n8n', statut } } });
+    tx.ecrire(ecritures);
   });
 }
 
@@ -111,14 +125,22 @@ async function lireDemande(tx, { devisId, demandeId, maintenant, ageMax, accepte
   return ligne;
 }
 
+/** Le devis d'une demande déjà vérifiée ; un devis absent donne le MÊME message neutre qu'une demande inconnue (on n'énumère pas les identifiants de devis). */
+async function lireDevisPourDemande(tx, devisId) {
+  try { return await lireDevis(tx, devisId); } catch (e) {
+    if (e instanceof ErreurDevis && e.code === 'introuvable') throw new ErreurDevis('demande_inconnue', MESSAGE_DEMANDE_INCONNUE);
+    throw e;
+  }
+}
+
 /**
  * Ce que n8n met dans le brouillon. Renvoie SEULEMENT : { numero, version, objet, destinataires, copie, sujet, message, pdf: { nom, lienSigne, octets } }.
  * Jamais de prix d'achat, de marge, de chemin de stockage ni d'empreinte. `pdf({ chemin, nom })` rend { lienSigne, octets } (lien de lecture signé de 10 minutes).
  */
 export async function lireEmailPourDemande({ donnees, devisId, demandeId, maintenant = new Date(), pdf }) {
   const { devis, contact } = await donnees.transaction(async (tx) => {
-    const d = await lireDevis(tx, devisId);
     await lireDemande(tx, { devisId, demandeId, maintenant, ageMax: AGE_MAX_LECTURE_MS, accepte: [STATUTS_DEMANDE.DEMANDEE] });
+    const d = await lireDevisPourDemande(tx, devisId);
     const personne = d.personneId ? await tx.document(C.personnes, d.personneId) : null;
     return { devis: d, contact: typeof personne?.nom === 'string' ? personne.nom : '' };
   });
@@ -154,8 +176,9 @@ export async function noterEmailPrepare({ donnees, ctx, devisId, demandeId, stat
   if (brouillonGmailId !== undefined && !/^[A-Za-z0-9_-]{1,100}$/.test(String(brouillonGmailId))) throw new ErreurDevis('demande_invalide', 'Identifiant de brouillon Gmail invalide.');
   const propre = messageEtatPropre(message);
   return donnees.transaction(async (tx) => {
-    const devis = await lireDevis(tx, devisId);
     const ligne = await lireDemande(tx, { devisId, demandeId, maintenant: ctx.maintenant, ageMax: AGE_MAX_NOTE_MS, accepte: [STATUTS_DEMANDE.DEMANDEE, STATUTS_DEMANDE.OK, STATUTS_DEMANDE.ECHEC] });
+    const devis = await lireDevisPourDemande(tx, devisId);
+    const dernier = await tx.document(C.actionsLancements, idDernier(devisId));
     if (ligne.statut !== STATUTS_DEMANDE.DEMANDEE) {
       if (ligne.statut === statut) return { ok: true, deja: true };
       throw new ErreurDevis('demande_close', 'Cette demande est déjà terminée.');
@@ -172,6 +195,7 @@ export async function noterEmailPrepare({ donnees, ctx, devisId, demandeId, stat
           ...(propre ? { message: propre } : {}), ...(brouillonGmailId ? { brouillonGmailId: String(brouillonGmailId) } : {}),
         },
       },
+      ...(dernier?.demandeId === demandeId ? [{ type: 'update', collection: C.actionsLancements, id: idDernier(devisId), donnees: { statut } }] : []),
       ...j.ecritures,
     ]);
     return { ok: true, deja: false, operationId: j.operationId };

@@ -7,26 +7,13 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as P from '../js/modules/devis/email-preparer.js';
 import { contenuHistorique } from '../js/modules/devis/historique-logique.js';
-import { MESSAGE_FINALISER_D_ABORD, MESSAGE_PDF_EN_COURS, MESSAGE_PDF_PAS_PRET, MESSAGE_PDF_ECHEC, MESSAGE_STATUT_INTERDIT } from '../js/modules/devis/email-brouillon.js';
 
 const RACINE = join(dirname(fileURLToPath(import.meta.url)), '..');
 const lire = (f) => readFileSync(join(RACINE, f), 'utf8');
 const sansCommentaires = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 const finalise = (extra = {}) => ({ id: 'd1', statut: 'en_attente_envoi', numero: 'DEV-2026-10-25-001', destinataires: ['marie@exemple.fr'], pdf: { statut: 'ok' }, ...extra });
 
-describe('P1 le menu « Préparer l’e-mail » : qui peut le lancer', () => {
-  test('P1 un devis finalisé ou envoyé dont le PDF est prêt : actif', () => {
-    assert.deepEqual(P.preparerEmailPossible(finalise(), 'pret'), { actif: true });
-    assert.deepEqual(P.preparerEmailPossible(finalise({ statut: 'envoye' }), 'pret'), { actif: true });
-  });
-  test('P1 un brouillon (« Finalise-le d’abord »), un devis signé, refusé ou remplacé, un PDF en cours, raté ou absent : grisé avec la raison', () => {
-    assert.deepEqual(P.preparerEmailPossible(finalise({ statut: 'brouillon' }), 'aucun'), { actif: false, raison: MESSAGE_FINALISER_D_ABORD });
-    for (const statut of ['accepte', 'refuse', 'remplace']) assert.deepEqual(P.preparerEmailPossible(finalise({ statut }), 'pret'), { actif: false, raison: MESSAGE_STATUT_INTERDIT });
-    assert.deepEqual(P.preparerEmailPossible(finalise(), 'en_cours'), { actif: false, raison: MESSAGE_PDF_EN_COURS });
-    assert.deepEqual(P.preparerEmailPossible(finalise({ pdf: { statut: 'echec' } }), 'a_reessayer'), { actif: false, raison: MESSAGE_PDF_ECHEC });
-    assert.deepEqual(P.preparerEmailPossible(finalise({ pdf: null }), 'a_reessayer'), { actif: false, raison: MESSAGE_PDF_PAS_PRET });
-    assert.equal(P.preparerEmailPossible(null, 'aucun').actif, false);
-  });
+describe('P1 destinataire du devis', () => {
   test('P1 destinataire : au moins une adresse (texte ou objet { email }), sinon un message qui dit quoi faire', () => {
     assert.equal(P.aUnDestinataire(finalise()), true);
     assert.equal(P.aUnDestinataire(finalise({ destinataires: [{ email: 'a@b.fr' }] })), true);
@@ -49,9 +36,20 @@ describe('P2 l’Historique : « E-mail préparé dans Gmail le … »', () => {
     assert.match(l.texte, /^La préparation de l’e-mail a échoué le 25\/10\/2026 \(09 h 30\)\. Tu peux réessayer\.$/);
     assert.ok(!/envoy/i.test(P.lignePrepare(finalise({ emailPrepare: { le: quand, statut: 'ok' } })).texte));
   });
+  test('P2 demande faite : « Préparation de l’e-mail en cours… » ; sans réponse depuis plus de 15 minutes : « Aucune réponse du workflow… Tu peux réessayer. »', () => {
+    const d = finalise({ emailPrepare: { le: quand, demandeId: 'dem_1', canal: 'n8n', statut: 'demandee' } });
+    const t = quand.getTime();
+    assert.equal(P.lignePrepare(d, t + 60_000).texte, 'Préparation de l’e-mail en cours…');
+    assert.equal(P.lignePrepare(d, t + 14 * 60_000).sansReponse, false);
+    const long = P.lignePrepare(d, t + 15 * 60_000 + 1);
+    assert.equal(long.texte, 'Aucune réponse du workflow depuis plus de 15 minutes. Tu peux réessayer.');
+    assert.equal(long.sansReponse, true);
+    assert.equal(P.DELAI_SANS_REPONSE_MS, 15 * 60_000);
+    assert.equal(contenuHistorique(d, [d], t + 60_000).emailPrepare.statut, 'demandee');
+  });
   test('P2 rien à montrer : pas de champ, statut inconnu, date illisible, brouillon', () => {
     assert.equal(P.lignePrepare(finalise()), null);
-    assert.equal(P.lignePrepare(finalise({ emailPrepare: { le: quand, statut: 'demandee' } })), null);
+    assert.equal(P.lignePrepare(finalise({ emailPrepare: { le: quand, statut: 'bizarre' } })), null);
     assert.equal(P.lignePrepare(finalise({ emailPrepare: { le: 'pas une date', statut: 'ok' } })), null);
     assert.equal(P.lignePrepare(finalise({ statut: 'brouillon', emailPrepare: { le: quand, statut: 'ok' } })), null);
     assert.equal(P.lignePrepare(null), null);

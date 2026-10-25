@@ -65,19 +65,24 @@ export function creerServiceDevis({ db, acces: accesBrut = null, stockage = stoc
   };
 }
 
-/** Passerelle HTTP de la porte pour le CRM (propriétaire « interne », données à la racine). */
-export function creerGestionnairePorteCrm({ db, lireSecret = lireSecretJetons({ nom: NOM_SECRET_N8N }), urlN8n, sortie = (ligne) => process.stdout.write(`${ligne}\n`) } = {}) {
+/** La porte du CRM (propriétaire « interne », données à la racine), sans la couche HTTP. `fetchImpl` et `stockage` : réservés aux essais (faux n8n, faux stockage). */
+export function creerPorteCrm({ db, lireSecret = lireSecretJetons({ nom: NOM_SECRET_N8N }), urlN8n, fetchImpl, stockage, sortie = (ligne) => process.stdout.write(`${ligne}\n`), maintenant } = {}) {
   if (!db) {
     if (!getApps().length) initializeApp();
     db = getFirestore();
   }
-  const porte = creerPorte({
+  return creerPorte({
     contexte: 'crm',
     donnees: creerAdaptateur({ db }),
-    n8n: creerN8nDepuisSecret({ lireSecret, urlN8n }),
+    n8n: creerN8nDepuisSecret({ lireSecret, urlN8n, fetchImpl }),
     modulesActifs: async () => ['veille', 'automatisations', 'devis'],
-    services: { devis: creerServiceDevis({ db }) },
+    services: { devis: creerServiceDevis({ db, ...(stockage ? { stockage } : {}) }) },
     journal: (entree) => sortie(ligneDeJournal(entree)),
+    ...(maintenant ? { maintenant } : {}),
   });
-  return creerGestionnaireHttp(porte);
+}
+
+/** Passerelle HTTP de la porte pour le CRM. */
+export function creerGestionnairePorteCrm(options = {}) {
+  return creerGestionnaireHttp(creerPorteCrm(options));
 }

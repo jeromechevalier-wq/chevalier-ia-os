@@ -39,11 +39,11 @@ export function datesHistorique(d) {
 }
 
 /** Tout le contenu du panneau : { versions, envois, emailPrepare, dates }. `envois` est vide pour un brouillon (rien n'a pu partir). `emailPrepare` : null ou la ligne « E-mail préparé dans Gmail le … » (email-preparer.js). */
-export function contenuHistorique(d, toutes = []) {
+export function contenuHistorique(d, toutes = [], maintenant = Date.now()) {
   return {
     versions: versionsHistorique(d, toutes),
     envois: d?.statut === 'brouillon' ? [] : historiqueEnvois(d),
-    emailPrepare: lignePrepare(d),
+    emailPrepare: lignePrepare(d, maintenant),
     dates: datesHistorique(d),
   };
 }

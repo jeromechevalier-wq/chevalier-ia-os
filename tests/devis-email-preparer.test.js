@@ -55,7 +55,7 @@ let compteur = 0;
 const ids = () => { compteur += 1; return `dem_essai${compteur}`; };
 const ctx = (quand = T0) => ({ acteur: ACTEUR, via: 'ecran', maintenant: quand });
 const apres = (minutes) => new Date(T0.getTime() + minutes * 60_000);
-const lignes = (m) => m.collections[C.actionsLancements];
+const lignes = (m) => m.collections[C.actionsLancements].filter((l) => l.action === 'devis.preparerEmail'); // sans le document fixe « dernier-<devis> » (anti-doublon)
 const demander = (m, n8n, quand = T0, extra = {}) => M.demanderPreparation({ donnees: m.donnees, ctx: ctx(quand), devisId: 'dv1', espace: 'interne', sortie: n8n.sortie, genererId: ids, ...extra });
 const refuse = (promesse, code) => assert.rejects(promesse, (e) => e.name === 'ErreurDevis' && e.code === code, `refus « ${code} » attendu`);
 const pdfFaux = async ({ chemin }) => ({ lienSigne: `https://stockage.exemple.test/lecture-signee?c=${chemin.length}`, octets: 123456 });
@@ -80,10 +80,11 @@ describe('E1 la fonction appelable : une demande à n8n, jamais un envoi', () =>
     assert.deepEqual(Object.keys(l).sort(), ['action', 'client', 'demandeId', 'demandeLe', 'devisId', 'id', 'statut']);
     assert.equal(l.statut, 'demandee');
     assert.equal(l.client, 'interne');
-    // le devis n'a pas bougé : ni statut, ni envois, ni emailPrepare
+    // le devis garde son statut et ses envois ; il porte seulement « demandee » (l'Historique dit « Préparation de l'e-mail en cours… »)
     assert.equal(m.devis().statut, 'en_attente_envoi');
     assert.equal(m.devis().envois, undefined);
-    assert.equal(m.devis().emailPrepare, undefined);
+    assert.deepEqual({ ...m.devis().emailPrepare, le: undefined }, { le: undefined, demandeId: r.demandeId, canal: 'n8n', statut: 'demandee' });
+    assert.equal(m.collections[C.audit].length, 1);
   });
   test('E1 le journal des demandes et le corps envoyé ne contiennent ni adresse e-mail, ni objet, ni prix, ni texte du message', async () => {
     const m = monde();
@@ -149,15 +150,50 @@ describe('E1 la fonction appelable : une demande à n8n, jamais un envoi', () =>
     await demander(m, n8n, apres(4.5));
   });
   test('E1 n8n injoignable ou en erreur : la ligne passe à « echec », message clair, aucun détail technique (ni adresse, ni secret)', async () => {
-    for (const regle of [{ panne: true }, { statut: 500 }, { statut: 401 }]) {
+    for (const regle of [{ panne: true }, { statut: 500 }]) {
       const m = monde();
       const n8n = fauxN8n(regle);
       await assert.rejects(demander(m, n8n), (e) => e.name === 'ErreurDevis' && e.code === 'n8n_indisponible' && !/n8n\.chevalier|secret|webhook/i.test(e.message));
+      assert.equal(m.devis().emailPrepare.statut, 'echec', 'le devis aussi dit que ça a raté');
       assert.equal(lignes(m).length, 1);
       assert.equal(lignes(m)[0].statut, 'echec');
       assert.ok(Number.isInteger(lignes(m)[0].dureeMs));
       assert.ok(!JSON.stringify(lignes(m)).includes(SECRET));
     }
+  });
+});
+
+describe('E1b refus de n8n, délai, appels simultanés', () => {
+  test('E1b n8n répond 401 ou 403 (secret refusé) : message de configuration sans « Réessaie » ni détail, ligne à « echec »', async () => {
+    for (const statut of [401, 403]) {
+      const m = monde();
+      await assert.rejects(demander(m, fauxN8n({ statut })), (e) => e.code === 'n8n_refuse' && e.message === 'La préparation de l’e-mail n’est pas bien configurée. Préviens Jérôme.');
+      assert.equal(lignes(m)[0].statut, 'echec');
+    }
+  });
+  test('E1b deux demandes simultanées pour le même devis : une seule part vers n8n (document fixe lu et réécrit dans la transaction)', async () => {
+    const m = monde();
+    const n8n = fauxN8n();
+    const r = await Promise.allSettled([demander(m, n8n), demander(m, n8n), demander(m, n8n)]);
+    assert.equal(r.filter((x) => x.status === 'fulfilled').length, 1);
+    assert.equal(n8n.recus.length, 1);
+    assert.equal(lignes(m).length, 1);
+    assert.ok(m.collections[C.actionsLancements].some((l) => l.id === 'dernier-dv1'));
+  });
+  test('E1b la clôture utilise la date du contexte (pas l’horloge) : durée exacte', async () => {
+    const m = monde();
+    const r = await demander(m, fauxN8n(), T0);
+    await M.noterEmailPrepare({ donnees: m.donnees, ctx: ctx(apres(2)), devisId: 'dv1', demandeId: r.demandeId, statut: 'ok' });
+    assert.equal(lignes(m)[0].dureeMs, 120_000);
+    assert.equal(m.collections[C.actionsLancements].find((l) => l.id === 'dernier-dv1').statut, 'ok');
+  });
+  test('E1b le délai : si n8n ne répond pas, la demande est coupée (signal d’arrêt) et devient « indisponible »', async () => {
+    const sortie = creerSortieN8n({
+      lireSecret: async (nom) => ({ [SECRET_URL]: URL_WEBHOOK, [SECRET_CLE]: SECRET })[nom],
+      delaiMs: 20,
+      fetchImpl: (url, options) => new Promise((_, rejeter) => options.signal.addEventListener('abort', () => rejeter(new Error('arrêt')))),
+    });
+    await assert.rejects(sortie.demander('interne', { devisId: 'a', demandeId: 'b' }), (e) => e.genre === 'indisponible');
   });
 });
 
@@ -225,7 +261,7 @@ describe('E3 la plateforme clients : un éditeur du client, module « devis » a
     assert.equal(n8n.recus[0].url, 'https://n8n.chevalier-ia.fr/webhook/devis-a');
     assert.equal(n8n.recus[0].options.headers[ENTETE_SECRET], 'secret-a');
     assert.equal(n8n.recus[0].corps.espace, 'a');
-    assert.equal(mc.collections['clients/a/crm_actions_lancements'].length, 1);
+    assert.equal(mc.collections['clients/a/crm_actions_lancements'].filter((l) => l.action === 'devis.preparerEmail').length, 1);
     assert.equal(mc.collections['clients/b/crm_actions_lancements'].length, 0);
   });
   test('E3 un lecteur, un éditeur d’un AUTRE client, un espace sans le module, un compte non vérifié et un appel sans connexion sont refusés sans rien écrire ni envoyer', async () => {
@@ -239,6 +275,7 @@ describe('E3 la plateforme clients : un éditeur du client, module « devis » a
     await refus(faire('alice@exemple.test', 'a', { verifie: false }), 'unauthenticated');
     await refus(faire(null, 'a'), 'unauthenticated');
     await refus(faire('alice@exemple.test', 'espace-inexistant'), 'permission-denied');
+    await refus(faire('alice@exemple.test', 'interne'), 'permission-denied'); // « interne » est réservé à Jérôme (secrets sans suffixe)
     assert.equal(n8n.recus.length, 0);
     assert.equal(mc.collections['clients/a/crm_actions_lancements'].length, 0);
   });
@@ -289,6 +326,8 @@ describe('E4 devis.lireEmail : ce que n8n relit, rien de plus', () => {
     const { m, demandeId } = await mondeAvecDemande();
     const lire = (devisId, id, quand) => M.lireEmailPourDemande({ donnees: m.donnees, devisId, demandeId: id, maintenant: quand, pdf: pdfFaux });
     await refuse(lire('dv1', 'dem_inconnue', apres(1)), 'demande_inconnue');
+    await assert.rejects(lire('devis-qui-n-existe-pas', demandeId, apres(1)), (e) => e.code === 'demande_inconnue' && e.message === M.MESSAGE_DEMANDE_INCONNUE && !e.message.includes('devis-qui-n-existe-pas'));
+    await assert.rejects(M.noterEmailPrepare({ donnees: m.donnees, ctx: ctx(apres(1)), devisId: 'devis-qui-n-existe-pas', demandeId, statut: 'ok' }), (e) => e.code === 'demande_inconnue' && e.message === M.MESSAGE_DEMANDE_INCONNUE);
     await refuse(lire('dv1', 'Pas Valable/..', apres(1)), 'demande_inconnue');
     await assert.rejects(lire('dv1', demandeId, apres(15.5)), (e) => e.code === 'demande_inconnue' && e.message === M.MESSAGE_DEMANDE_INCONNUE);
     await lire('dv1', demandeId, apres(14.5)); // 14 min 30 : encore bon
@@ -309,6 +348,7 @@ describe('E5 devis.noterEmailPrepare : le résultat écrit par le serveur', () =
   test('E5 « ok » : emailPrepare { le, demandeId, canal, statut } sur le devis, ligne de journal crm_audit, ligne de demande close ; envois et statut INTACTS', async () => {
     const { m, demandeId } = await mondeAvecDemande();
     const avant = structuredClone(m.devis());
+    delete avant.emailPrepare; // « demandee » posé par la demande ; la note le remplace
     const r = await M.noterEmailPrepare({ donnees: m.donnees, ctx: ctx(apres(1)), devisId: 'dv1', demandeId, statut: 'ok', brouillonGmailId: 'r-1234', message: 'Brouillon créé' });
     assert.equal(r.ok, true);
     const d = m.devis();
@@ -322,7 +362,7 @@ describe('E5 devis.noterEmailPrepare : le résultat écrit par le serveur', () =
     assert.equal(d.envoyeLe, avant.envoyeLe);
     const sansPrepare = { ...d }; delete sansPrepare.emailPrepare;
     assert.deepEqual(sansPrepare, avant, 'rien d’autre n’a changé sur le devis');
-    const journal = m.collections[C.audit];
+    const journal = m.collections[C.audit].filter((l) => l.outil === 'porteDevisNoterEmailPrepare');
     assert.equal(journal.length, 1);
     assert.deepEqual([journal[0].outil, journal[0].collection, journal[0].docId, journal[0].action, journal[0].champsModifies], ['porteDevisNoterEmailPrepare', C.devis, 'dv1', 'modifier', ['emailPrepare']]);
     const l = lignes(m)[0];
@@ -424,8 +464,9 @@ describe('E6 la porte : droits par module « devis », validation stricte, aucun
     assert.equal(p.m.devis().emailPrepare.statut, 'ok');
     assert.equal(p.m.devis().statut, 'en_attente_envoi');
     assert.equal(p.m.devis().envois, undefined);
-    assert.match(p.m.collections[C.audit][0].acteur, /^porte:/);
-    assert.equal(p.m.collections[C.audit][0].via, 'porte');
+    const ligneNote = p.m.collections[C.audit].find((l) => l.outil === 'porteDevisNoterEmailPrepare');
+    assert.match(ligneNote.acteur, /^porte:/);
+    assert.equal(ligneNote.via, 'porte');
     assert.ok(!JSON.stringify(p.journaux).includes('marie@exemple.fr'));
     // une demande déjà close n'est plus lisible
     assert.equal((await p.appeler(c, 'devis.lireEmail', { devisId: 'dv1', demandeId })).statut, 409);

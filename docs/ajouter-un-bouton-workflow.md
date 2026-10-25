@@ -58,7 +58,7 @@ Dans le menu **« Envoyer »** d'un devis finalisé, une entrée **« Préparer 
 
 1. L'écran appelle la fonction `devisPreparerEmail` `{ devisId }` (jamais n8n directement).
 2. La fonction vérifie la personne (éditeur ; module Devis actif chez un client), le devis (finalisé, au moins un destinataire, PDF « ok »), refuse une 2e demande pour le même devis pendant 3 minutes (sauf après un échec), écrit une ligne dans le journal `crm_actions_lancements` (client, devis, `demandeId`, statut, durée ; **jamais** le contenu de l'e-mail), puis fait **un POST** vers le webhook n8n : `{ "action": "devis.preparerEmail", "espace": "interne" ou l'identifiant du client, "devisId": "…", "demandeId": "…" }`, avec l'en-tête `X-Chevalier-Secret`. Réponse à l'écran : `{ ok, demandeId }`.
-3. Le workflow répond tout de suite « reçu » (200), puis appelle la **porte** : `devis.lireEmail` `{ devisId, demandeId }` pour obtenir adresses, sujet, message et lien du PDF (valable 10 minutes) ; il télécharge le PDF, crée le brouillon Gmail ; enfin `devis.noterEmailPrepare` `{ devisId, demandeId, statut: "ok", brouillonGmailId }` (ou `"echec"` avec un court `message`). Le serveur écrit `emailPrepare` sur le devis ; l'écran se met à jour tout seul.
+3. Le workflow répond tout de suite « reçu » (200), puis appelle la **porte** : `devis.lireEmail` `{ devisId, demandeId }` pour obtenir adresses, sujet, message et lien du PDF (valable 10 minutes) ; il télécharge le PDF, crée le brouillon Gmail ; enfin `devis.noterEmailPrepare` `{ devisId, demandeId, statut: "ok", brouillonGmailId }` (ou `"echec"` avec un court `message`). Le serveur écrit `emailPrepare` sur le devis ; l'écran se met à jour tout seul. Dès la demande, le devis porte `emailPrepare.statut = "demandee"` : l'Historique dit « Préparation de l'e-mail en cours… », puis, si le workflow reste muet plus de 15 minutes, « Aucune réponse du workflow depuis plus de 15 minutes. Tu peux réessayer. » (on peut redemander dès 3 minutes).
 4. Le détail des actions de la porte est dans `docs/porte-cles.md`, partie 13.
 
 ## Ce que Jérôme doit faire à la main (rien n'est branché tant que ce n'est pas fait)
@@ -74,9 +74,10 @@ Tant que les deux secrets n'existent pas, la fonction répond « La préparation
 
 ## Cas vide et cas d'erreur
 
-- **Pas branché** : l'entrée « Préparer l'e-mail » n'est pas dans le menu (aucun trou, aucun bouton grisé qui intrigue). « Envoyer par e-mail » marche comme avant.
+- **Pas branché** : l'entrée « Préparer l'e-mail » n'est pas dans le menu (choix assumé : un bouton qui ne serait jamais branché chez un client n'a pas à l'intriguer ni à le pousser à demander pourquoi il est grisé). « Envoyer par e-mail » marche comme avant.
 - **Brouillon de devis** : « Finaliser d'abord ». **Sans destinataire** : « Ce devis n'a pas de destinataire : ajoute une adresse e-mail dans le devis, puis réessaie. » **PDF pas prêt** : le message habituel avec « Réessayer ».
 - **Deuxième clic trop vite** : « Une préparation est déjà en cours pour ce devis : patiente quelques instants (3 minutes au plus), puis réessaie. » ; après un brouillon réussi : « Un brouillon vient d'être créé pour ce devis : regarde dans ton Gmail. »
+- **n8n refuse le secret (401/403)** : « La préparation de l'e-mail n'est pas bien configurée. Préviens Jérôme. » (vérifier `N8N_DEVIS_EMAIL_SECRET` et l'authentification du nœud Webhook).
 - **n8n éteint ou en panne** : la fenêtre reste ouverte avec le message et « Réessayer » ; rien n'est créé dans Gmail ; la ligne du journal passe à `echec`.
 - **Le workflow échoue après avoir répondu « reçu »** : il doit appeler `devis.noterEmailPrepare` avec `statut: "echec"` ; l'Historique du devis dit alors « La préparation de l'e-mail a échoué … Tu peux réessayer. » et la copie des exécutions (Automatisations > Historique) montre l'erreur.
 
