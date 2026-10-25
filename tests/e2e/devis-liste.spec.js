@@ -34,6 +34,7 @@ async function ouvrir(page) {
   await expect(page.locator('.page-liste-devis')).toBeVisible();
   await attendreCalme(page);
 }
+const estTel = (info) => info.project.name === 'telephone';
 const lignes = (page) => page.locator('tr.ligne-devis');
 const cartes = (page) => page.locator('.carte-devis');
 async function ouvrirMenuDe(page, id) {
@@ -65,25 +66,96 @@ test('E1 la vue Liste montre les deux devis, le plus récemment modifié d’abo
   await capturer(page, info, 'E1-vue-liste');
 });
 
-test('E2 la vue Tableau range chaque devis dans la colonne de son statut, sans glisser-déposer', async ({ page }, info) => {
+async function tableau4() {
   await deuxDevis();
   await devis('d3', { numero: 'DEV-2026-10-03-002', statut: 'accepte', finaliseLe: new Date(), totaux: { ht: 500, tva: 100, ttc: 600 } });
-  await devis('d4', { numero: 'DEV-2026-09-01-003', statut: 'en_attente_envoi', finaliseLe: new Date(Date.now() - 60 * 86400000), expireLe: jourDansLe(-5), totaux: { ht: 80, tva: 16, ttc: 96 } });
+  await devis('d4', { numero: 'DEV-2026-09-01-003', statut: 'en_attente_envoi', finaliseLe: new Date(Date.now() - 60 * 86400000), expireLe: jourDansLe(-5), totaux: { ht: 80, tva: 16, ttc: 96 } }); // validité dépassée : « Expiré »
+  await devis('d5', { numero: 'DEV-2026-10-05-004', statut: 'en_attente_envoi', finaliseLe: new Date(), totaux: { ht: 300, tva: 60, ttc: 360 } });
+  await devis('d6', { numero: 'DEV-2026-08-01-005', statut: 'remplace', finaliseLe: new Date(Date.now() - 70 * 86400000), totaux: { ht: 90, tva: 18, ttc: 108 } });
+}
+async function versTableau(page) {
   await ouvrir(page);
   await page.locator('[data-vue="tableau"]').click();
-  await expect(page.locator('.colonne')).toHaveCount(6);
-  await expect(page.locator('.colonne h2')).toHaveText(['Brouillon', 'Finalisé', 'Envoyé', 'Signé', 'Refusé', 'Remplacé et expiré']);
+  await expect(page.locator('.colonne')).not.toHaveCount(0);
+}
+
+test('E2 la vue Tableau range chaque devis dans la colonne de son statut, sans glisser-déposer', async ({ page }, info) => {
+  await tableau4();
+  await versTableau(page);
   await expect(page.locator('[data-colonne="brouillon"] .carte-devis')).toHaveCount(1);
-  await expect(page.locator('[data-colonne="envoye"] .carte-devis')).toHaveAttribute('data-id', 'd1');
+  await expect(page.locator('[data-colonne="envoye"] .carte-devis[data-id="d1"]')).toHaveCount(1);
   await expect(page.locator('[data-colonne="accepte"] .carte-devis')).toHaveAttribute('data-id', 'd3');
-  await expect(page.locator('[data-colonne="en_attente_envoi"] .carte-devis')).toHaveCount(0); // d4 a dépassé sa validité : il est « Expiré »
-  await expect(page.locator('[data-colonne="clos"] .carte-devis')).toHaveAttribute('data-id', 'd4');
-  await expect(page.locator('[data-colonne="clos"] .carte-devis')).toContainText('Expiré');
-  await expect(page.locator('[data-colonne="envoye"] .carte-devis')).toContainText('Société Exemple');
-  await expect(page.locator('[data-colonne="envoye"] .carte-devis')).toContainText('Rénovation cuisine');
+  await expect(page.locator('[data-colonne="envoye"] .carte-devis[data-id="d1"]')).toContainText('Société Exemple');
+  await expect(page.locator('[data-colonne="envoye"] .carte-devis[data-id="d1"]')).toContainText('Rénovation cuisine');
   await expect(page.locator('[draggable="true"]')).toHaveCount(0);
-  await expect(cartes(page)).toHaveCount(4);
+  await expect(cartes(page)).toHaveCount(4); // d1, d2, d3, d5 : ni l'expiré (d4) ni le remplacé (d6)
   await capturer(page, info, 'E2-vue-tableau');
+});
+
+test('1 le Tableau a exactement quatre colonnes : Brouillon, Envoyé, Signé, Refusé', async ({ page }, info) => {
+  await tableau4();
+  await versTableau(page);
+  await expect(page.locator('.colonne')).toHaveCount(4);
+  await expect(page.locator('.colonne h2')).toHaveText(['Brouillon', 'Envoyé', 'Signé', 'Refusé']);
+  await capturer(page, info, '1-quatre-colonnes');
+});
+
+test('2 un devis finalisé apparaît dans Envoyé avec la pastille « Pas encore envoyé » ; un devis envoyé n’en a pas', async ({ page }, info) => {
+  await tableau4();
+  await versTableau(page);
+  const finalise = page.locator('[data-colonne="envoye"] .carte-devis[data-id="d5"]');
+  await expect(finalise).toHaveCount(1);
+  await expect(finalise.locator('[data-pastille="pas-encore-envoye"]')).toHaveText('Pas encore envoyé');
+  await expect(page.locator('[data-colonne="envoye"] .carte-devis[data-id="d1"] [data-pastille="pas-encore-envoye"]')).toHaveCount(0);
+  await capturer(page, info, '2-finalise-dans-envoye');
+});
+
+test('3 un devis remplacé (ou expiré) n’est plus dans le Tableau mais il est dans Archives', async ({ page }, info) => {
+  await tableau4();
+  await versTableau(page);
+  await expect(page.locator('.carte-devis[data-id="d6"], .carte-devis[data-id="d4"]')).toHaveCount(0);
+  await page.locator('[data-vue="archives"]').click();
+  await expect(lignes(page)).toHaveCount(2);
+  await expect(page.locator('tr.ligne-devis[data-id="d6"] [data-colonne="statut"]')).toContainText('Remplacé');
+  await expect(page.locator('tr.ligne-devis[data-id="d4"] [data-colonne="statut"]')).toContainText('Expiré');
+  await capturer(page, info, '3-remplace-dans-archives');
+});
+
+test('E5 cas vide : sans devis archivé, remplacé ni expiré, Archives dit « Aucun devis archivé. »', async ({ page }) => {
+  await deuxDevis();
+  await ouvrir(page);
+  await page.locator('[data-vue="archives"]').click();
+  await expect(page.getByText('Aucun devis archivé.')).toBeVisible();
+});
+
+test('4 la dernière colonne du Tableau est entièrement visible sur ordinateur (bord droit dans la fenêtre)', async ({ page }, info) => {
+  await tableau4();
+  await versTableau(page);
+  const { droite, largeur } = await page.evaluate(() => ({ droite: document.querySelector('.colonne:last-child').getBoundingClientRect().right, largeur: window.innerWidth }));
+  if (!estTel(info)) expect(droite).toBeLessThanOrEqual(largeur); // sur téléphone, voir le point 6
+  await capturer(page, info, '4-derniere-colonne-visible');
+});
+
+test('5 le numéro d’une carte « Variante » tient sur au plus 2 lignes et le bouton est sur sa propre ligne', async ({ page }, info) => {
+  await tableau4();
+  await versTableau(page);
+  const carte = page.locator('.carte-devis[data-id="d1"]');
+  await expect(carte.locator('[data-action="modifier-devis"]')).toContainText('Variante');
+  const m = await carte.locator('.carte-titre').evaluate((el) => ({ h: el.getBoundingClientRect().height, lh: parseFloat(getComputedStyle(el).lineHeight) || parseFloat(getComputedStyle(el).fontSize) * 1.4 }));
+  expect(m.h).toBeLessThanOrEqual(m.lh * 2 + 2);
+  const titre = await carte.locator('.carte-titre').boundingBox();
+  const bouton = await carte.locator('[data-action="modifier-devis"]').boundingBox();
+  expect(bouton.y).toBeGreaterThanOrEqual(titre.y + titre.height - 1);
+  await capturer(page, info, '5-carte-variante');
+});
+
+test('6 téléphone : le Tableau garde son défilement horizontal des colonnes', async ({ page }, info) => {
+  await tableau4();
+  await versTableau(page);
+  const r = await page.evaluate(() => { const k = document.querySelector('.tableau-devis-colonnes'); return { defile: k.scrollWidth > k.clientWidth, colonnes: k.querySelectorAll('.colonne').length }; });
+  expect(r.colonnes).toBe(4);
+  if (estTel(info)) expect(r.defile).toBe(true);
+  await capturer(page, info, '6-tableau-telephone');
 });
 
 test('E3 le menu « … » : changements de statut par le serveur, entrées « bientôt disponible » grisées, Voir ouvre l’aperçu, erreur du serveur dite en clair', { annotation: { type: 'erreurs-reseau-attendues', description: 'le faux serveur répond 400, comme le vrai' } }, async ({ page }, info) => {
@@ -164,4 +236,18 @@ test('un bouton « Modifier » est visible dans la ligne sans ouvrir le menu « 
   await expect(bouton).toContainText('Modifier');
   await bouton.click();
   await expect(page).toHaveURL(/#\/devis\/editeur\/d2$/);
+});
+
+test('E6 le filtre Statut : « Expiré » et « Remplacé » absents en vue Tableau, présents en vue Liste', async ({ page }) => {
+  await tableau4();
+  await ouvrir(page);
+  await page.getByRole('button', { name: /Filtres/ }).click();
+  await expect(page.getByRole('checkbox', { name: 'Expiré' })).toBeVisible();
+  await expect(page.getByRole('checkbox', { name: 'Remplacé' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await page.locator('[data-vue="tableau"]').click();
+  await page.getByRole('button', { name: /Filtres/ }).click();
+  await expect(page.getByRole('checkbox', { name: 'Brouillon' })).toBeVisible();
+  await expect(page.getByRole('checkbox', { name: 'Expiré' })).toHaveCount(0);
+  await expect(page.getByRole('checkbox', { name: 'Remplacé' })).toHaveCount(0);
 });
