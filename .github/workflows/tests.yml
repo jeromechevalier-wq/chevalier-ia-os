@@ -1,6 +1,7 @@
 # Tests sur chaque PR vers main : RAPIDE par défaut (niveau « rapide » puis « smoke », environ 3 à 4 minutes avec l'installation).
+# (25/10/2026) Une PR qui touche functions-plateforme/ ne lance plus le palier complet : elle rejoue les séries de la plateforme (automatisations, outil client, storage) et 2 parcours, environ 6 minutes. Le navigateur de test est mis en cache (environ 2 minutes de moins par test).
 # Le palier COMPLET (format ordinateur) ne tourne que dans trois cas (décision de Jérôme, 19/10/2026, avis de Fable) :
-#   1. la PR touche des fichiers sensibles (fonctions de la plateforme, règles de sécurité, configuration Firebase, workflows GitHub, outillage des tests) ; functions/ n'en fait plus partie (19/10/2026) : le niveau rapide en teste déjà les fonctions (test:fonctions) ; un simple fichier de test ajouté ou modifié (tests/*.test.js, tests/e2e/*.spec.js) n'en fait plus partie (21/10/2026, voir la 4e étape ci-dessous) ;
+#   1. la PR touche des fichiers sensibles (règles de sécurité, configuration Firebase, workflows GitHub, outillage des tests) ; functions/ n'en fait plus partie (19/10/2026) : le niveau rapide en teste déjà les fonctions (test:fonctions) ; un simple fichier de test ajouté ou modifié (tests/*.test.js, tests/e2e/*.spec.js) n'en fait plus partie (21/10/2026, voir la 4e étape ci-dessous) ;
 #   2. la PR porte l'étiquette « tests-complets » ;
 #   3. lancement à la main avec « complet » coché (par défaut).
 # En plus du rapide et du smoke, la PR rejoue SES propres parcours navigateur : les fichiers tests/e2e/*.spec.js qu'elle ajoute ou modifie (format ordinateur). Les fichiers de test unitaires modifiés tournent déjà dans le niveau rapide.
@@ -52,7 +53,7 @@ jobs:
           else
             case ",$ETIQUETTES," in *,tests-complets,*) complet=true; echo "Étiquette tests-complets : palier complet." ;; esac
             # Fichiers sensibles : fonctions de la plateforme, règles de sécurité, configuration Firebase, workflows GitHub, outillage des tests (pas les fichiers de test eux-mêmes, ni la liste de tests de tests/package.json : ajouter un test à une liste ne doit pas déclencher les 10 minutes du palier complet).
-            sensibles=$(git diff --name-only "$BASE" HEAD | grep -E '^(functions-plateforme/|firestore\.rules$|storage\.rules$|firebase[^/]*\.json$|\.github/workflows/|tests/(lancer-tout\.js|ports\.js|playwright\.config\.js|package-lock\.json|e2e/outils\.js|e2e/serveur\.js)$)' || true)
+            sensibles=$(git diff --name-only "$BASE" HEAD | grep -E '^(firestore\.rules$|storage\.rules$|firebase[^/]*\.json$|\.github/workflows/|tests/(lancer-tout\.js|ports\.js|playwright\.config\.js|package-lock\.json|e2e/outils\.js|e2e/serveur\.js)$)' || true)
             if [ -n "$sensibles" ]; then
               complet=true
               echo "Fichiers sensibles touchés : palier complet."
@@ -60,6 +61,12 @@ jobs:
             fi
           fi
           echo "complet=$complet" >> "$GITHUB_OUTPUT"
+          # Plateforme clients : une PR qui touche functions-plateforme/ rejoue en plus les séries de la plateforme et les 2 parcours qui l'utilisent (environ 6 minutes), au lieu du palier complet (plus de 25 minutes).
+          plateforme=""
+          if [ "$EVENEMENT" = "pull_request" ] && [ "$complet" != "true" ]; then
+            git diff --name-only "$BASE" HEAD | grep -qE '^functions-plateforme/' && plateforme=true || true
+          fi
+          echo "plateforme=$plateforme" >> "$GITHUB_OUTPUT"
           # Parcours navigateur ajoutés ou modifiés par la PR (chemins relatifs au dossier tests/, séparés par des espaces).
           specs=""
           if [ "$EVENEMENT" = "pull_request" ]; then
@@ -86,8 +93,20 @@ jobs:
           npm ci --prefix functions
           npm ci --prefix functions-plateforme
           npm ci --prefix scripts/plateforme
+      - name: Cache du navigateur Playwright
+        id: navigateur
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('tests/package-lock.json') }}
       - name: Installer le navigateur de test
+        if: steps.navigateur.outputs.cache-hit != 'true'
         run: npx playwright install chromium --with-deps
+        working-directory: tests
+      # Navigateur en cache : il manque seulement les bibliothèques système (installées par apt, hors du cache).
+      - name: Bibliothèques système du navigateur (navigateur déjà en cache)
+        if: steps.navigateur.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
         working-directory: tests
       - name: Niveau rapide (règles, logique, statique, fonctions)
         if: steps.niveau.outputs.complet != 'true'
@@ -103,6 +122,14 @@ jobs:
           SPECS: ${{ steps.niveau.outputs.specs }}
         # $SPECS non entouré de guillemets exprès : une liste de fichiers séparés par des espaces (noms limités à [A-Za-z0-9._-] plus haut).
         run: node lancer-tout.js --e2e $SPECS --project=ordinateur
+        working-directory: tests
+      - name: Séries de la plateforme clients (PR qui touche functions-plateforme/)
+        if: steps.niveau.outputs.complet != 'true' && steps.niveau.outputs.plateforme == 'true'
+        run: |
+          npm run test:automatisations
+          npm run test:outil-client
+          npm run test:storage
+          node lancer-tout.js --e2e e2e/mon-espace.spec.js e2e/sans-pause.spec.js --project=ordinateur
         working-directory: tests
       - name: Palier complet (ordinateur)
         if: steps.niveau.outputs.complet == 'true'

@@ -70,8 +70,20 @@ jobs:
           npm ci --prefix functions
           npm ci --prefix functions-plateforme
           npm ci --prefix scripts/plateforme
+      - name: Cache du navigateur Playwright
+        id: navigateur
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('tests/package-lock.json') }}
       - name: Installer le navigateur de test
+        if: steps.navigateur.outputs.cache-hit != 'true'
         run: npx playwright install chromium --with-deps
+        working-directory: tests
+      # Navigateur en cache : il manque seulement les bibliothèques système (installées par apt, hors du cache).
+      - name: Bibliothèques système du navigateur (navigateur déjà en cache)
+        if: steps.navigateur.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
         working-directory: tests
       - name: Suite de nuit (ordinateur et téléphone)
         run: npm run test:nuit
