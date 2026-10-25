@@ -112,11 +112,11 @@ function entreesMenu(d) {
   if (d.statut === 'brouillon') items.push({ libelle: libelle('Modifier : version actuelle', a.modifierVersionActuelle), icone: 'pencil', desactive: grise(a.modifierVersionActuelle), action: () => naviguer(`devis/editeur/${d.id}`) });
   else if (a.nouvelleVariante.actif || a.nouvelleVariante.raison === Li.MESSAGE_BIENTOT) items.push({ libelle: libelle('Modifier : nouvelle variante', a.nouvelleVariante), icone: 'pencil', desactive: grise(a.nouvelleVariante), action: () => creerVariante(d) });
   items.push({ libelle: libelle('Dupliquer', a.dupliquer), icone: 'copy', desactive: grise(a.dupliquer), action: () => dupliquerDevis(d) });
-  items.push({ libelle: libelle('Facturer', a.facturer), icone: 'euro', desactive: grise(a.facturer) });
   items.push({ libelle: libelle('Envoyer', a.envoyer), icone: 'mail', desactive: grise(a.envoyer) });
   const ar = Fi.archivageFiche(d);
   items.push({ separateur: true });
   items.push({ libelle: ar.libelle, icone: ar.icone, desactive: !ar.actif, action: () => archiver(d, ar.action === 'archiver') });
+  if (!ar.actif && ar.raison) items.push({ texte: ar.raison });
   if (d.statut === 'brouillon') { items.push({ libelle: libelle('Supprimer', a.supprimer), icone: 'trash-2', danger: true, desactive: grise(a.supprimer) }); }
   return items;
 }

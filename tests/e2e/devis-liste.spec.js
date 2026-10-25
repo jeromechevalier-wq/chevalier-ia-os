@@ -97,16 +97,15 @@ test('E3 le menu « … » : changements de statut par le serveur, entrées « b
     return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ result: { ok: true } }) });
   });
   await ouvrir(page);
-  // Devis envoyé : Signé et Refusé proposés, rien d'autre en statut ; Facturer et Envoyer sont grisés ; Dupliquer et la variante sont actifs (l'éditeur existe).
+  // Devis envoyé : Signé et Refusé proposés, rien d'autre en statut ; Envoyer est grisé, Facturer n'existe plus (pas de facturation prévue) ; Dupliquer et la variante sont actifs (l'éditeur existe).
   await ouvrirMenuDe(page, 'd1');
   const menu = page.locator('.menu-pop');
   await expect(menu.getByRole('menuitem', { name: /Passer à « Signé »/ })).toBeEnabled();
   await expect(menu.getByRole('menuitem', { name: /Passer à « Refusé »/ })).toBeEnabled();
   await expect(menu.getByRole('menuitem', { name: /Passer à « Envoyé »/ })).toHaveCount(0);
-  for (const nom of [/Facturer/, /Envoyer/]) {
-    await expect(menu.getByRole('menuitem', { name: nom })).toBeDisabled();
-    await expect(menu.getByRole('menuitem', { name: nom })).toContainText('bientôt disponible');
-  }
+  await expect(menu.getByRole('menuitem', { name: /Facturer/ })).toHaveCount(0);
+  await expect(menu.getByRole('menuitem', { name: /Envoyer/ })).toBeDisabled();
+  await expect(menu.getByRole('menuitem', { name: /Envoyer/ })).toContainText('bientôt disponible');
   for (const nom of [/Dupliquer/, /Modifier : nouvelle variante/]) await expect(menu.getByRole('menuitem', { name: nom })).toBeEnabled();
   await expect(menu.getByRole('menuitem', { name: /Supprimer/ })).toHaveCount(0); // seulement un brouillon
   await capturer(page, info, 'E3-menu-devis-envoye');

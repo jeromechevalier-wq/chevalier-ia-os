@@ -374,7 +374,7 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
   .fiche-boutons .bouton .bientot { flex-basis: 100%; font-size: var(--fs-petit); }
   .fiche-conditions-totaux, .fiche-jauges { grid-template-columns: 1fr; }
   .fiche-identite-droite { text-align: left; }
-  .fiche-fermer, .fiche-statut-menu, .fiche-statut-fixe, .fiche-onglet { min-height: 44px; min-width: 44px; }
+  .fiche-fermer, .fiche-statut-menu, .fiche-statut-fixe, .fiche-onglet, .fiche-tete-ligne [data-action="menu-fiche"] { min-height: 44px; min-width: 44px; }
   .fiche-tete-ligne { flex-wrap: wrap; }
   .fiche-titre { flex-basis: 100%; order: 3; }
 }

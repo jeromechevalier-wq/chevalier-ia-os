@@ -422,6 +422,6 @@ test('9 archiver, cas d’erreur : si le serveur ne répond pas, un message s’
   await ouvrirFiche(page, 'dSigne');
   await fiche(page).locator('[data-action="menu-fiche"]').click();
   await page.locator('.menu-pop').getByRole('menuitem', { name: 'Archiver' }).click();
-  await expect(page.locator('.toast')).toBeVisible();
+  await expect(page.locator('.toast')).toContainText('rien n’a été perdu');
   await expect(fiche(page).locator('[data-valeur="archive"]')).toHaveCount(0);
 });
