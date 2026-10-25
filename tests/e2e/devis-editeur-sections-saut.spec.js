@@ -252,3 +252,49 @@ test('2 déplacer une ligne avec les flèches ne renvoie pas en haut du devis : 
   expect(await ordre(page)).toContain('m22');
   await expect(page.locator('tr[data-id="m22"]')).toBeInViewport();
 });
+
+test('2 « Insérer en dessous > Fourniture » ouvre la recherche d’article juste sous la ligne choisie ; l’article ajouté vient dessous, le suivant aussi ; « Valider » ferme et la recherche retourne en bas ; supprimer une ligne ne fait pas défiler la page', async ({ page }, info) => {
+  await semer();
+  const maintenant = new Date();
+  await ecrireDocument('devis_articles/ar1', { code: 'CAR60', libelle: 'Carrelage 60 x 60', unite: 'm²', prixAchat: 50, tauxTva: null, actif: true, type: 'fourniture', proprietaire: JEROME, creeLe: maintenant, modifieLe: maintenant, creePar: JEROME, modifiePar: JEROME });
+  await ecrireDocument('devis_articles/ar2', { code: 'COL25', libelle: 'Colle à carrelage', unite: 'u', prixAchat: 12, tauxTva: null, actif: true, type: 'fourniture', proprietaire: JEROME, creeLe: maintenant, modifieLe: maintenant, creePar: JEROME, modifiePar: JEROME });
+  const lignes = Array.from({ length: 12 }, (_, i) => ligne(`m${i + 1}`, `Ligne ${i + 1}`, 1, 10));
+  await ouvrir(page, await devis('d7', [{ id: 's1', titre: 'Cuisine', lignes }]));
+  await menuDe(page, 'm3');
+  await page.getByRole('menuitem', { name: 'Insérer en dessous' }).click();
+  await page.locator('.menu-devis-ligne').getByRole('menuitem', { name: 'Fourniture' }).click();
+  const enLigne = page.locator('tr[data-zone="recherche-en-ligne"]');
+  await expect(enLigne).toBeVisible();
+  // La recherche est entre « Ligne 3 » et « Ligne 4 », plus en bas du devis, sans phrase d'explication.
+  expect(await enLigne.evaluate((e) => e.previousElementSibling.dataset.id)).toBe('m3');
+  expect(await enLigne.evaluate((e) => e.nextElementSibling.dataset.id)).toBe('m4');
+  await expect(page.getByText('Le prochain article s’ajoutera')).toHaveCount(0);
+  await expect(enLigne.locator('[data-action="fermer-recherche"]')).toHaveText('Valider');
+  await enLigne.locator('[data-champ="filtre-famille"]').selectOption('');
+  await enLigne.locator('[data-champ="recherche-bordereau"]').fill('carrelage');
+  await capturer(page, info, '2-recherche-sous-la-ligne');
+  await enLigne.locator('[data-action="ajouter-article"]').first().click();
+  // Le nouvel article est juste sous « Ligne 3 », la recherche reste juste sous lui pour le suivant.
+  const apres = await ordre(page);
+  expect(apres.indexOf('m3') + 2).toBe(apres.indexOf('m4'));
+  const idNouveau = apres[apres.indexOf('m3') + 1];
+  expect(await enLigne.evaluate((e) => e.previousElementSibling.dataset.id)).toBe(idNouveau);
+  await enLigne.locator('[data-champ="recherche-bordereau"]').fill('colle');
+  await enLigne.locator('[data-action="ajouter-article"]').first().click();
+  const apres2 = await ordre(page);
+  expect(apres2.indexOf('m3') + 3).toBe(apres2.indexOf('m4'));
+  await enLigne.locator('[data-action="fermer-recherche"]').click();
+  await expect(page.locator('tr[data-zone="recherche-en-ligne"]')).toHaveCount(0);
+  await expect(page.locator('[data-zone="recherche"]')).toBeHidden();
+  // Supprimer une ligne en bas du devis : la page ne remonte pas.
+  test.skip(info.project.name === 'telephone', 'ordinateur : défilement de la page');
+  const cible = page.locator('tr[data-id="m11"]');
+  await cible.scrollIntoViewIfNeeded();
+  const avant = await cible.boundingBox();
+  await menuDe(page, 'm11');
+  await page.getByRole('menuitem', { name: 'Supprimer' }).click();
+  await dialogue(page).getByRole('button', { name: /Supprimer/ }).click();
+  await expect(page.locator('tr[data-id="m11"]')).toHaveCount(0);
+  const voisine = await page.locator('tr[data-id="m12"]').boundingBox();
+  expect(Math.abs(voisine.y - avant.y)).toBeLessThan(80); // la ligne d'après a pris la place, la page n'a pas bougé
+});

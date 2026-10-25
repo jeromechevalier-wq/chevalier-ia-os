@@ -272,6 +272,7 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
 
 /* Tableau des lignes en cartes quand la feuille est étroite (téléphone, ou panneau Bibliothèque ouvert à côté) : on regarde la largeur de la zone, pas celle de l'écran. */
 @container lignes (max-width: 879px) {
+  .tableau-lignes-devis tr.ligne-recherche { display: block; padding: var(--esp-3) 0; }
   .tableau-lignes-devis { min-width: 0; }
   .tableau-lignes-devis thead { display: none; }
   .tableau-lignes-devis, .tableau-lignes-devis tbody { display: block; }
