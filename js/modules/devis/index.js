@@ -9,6 +9,7 @@ import { rendreEditeurDevis } from './editeur-ecran.js';
 import { rendrePdfDevis } from './pdf-ecran.js';
 import { reglages as reglagesDuModule } from './reglages.js';
 import { retenirDevis } from './memoire.js';
+import { rechercherDevis } from './recherche.js';
 
 // Feuille de style propre au module, ajoutée au premier affichage (index.html reste inchangé).
 function ajouterFeuille() {
@@ -20,7 +21,10 @@ function ajouterFeuille() {
   document.head.append(l);
 }
 
-export const actionsRapides = []; // pas de création depuis le bouton « + » pour l'instant
+/** Entrées du bouton « + » de la barre supérieure : « Devis » ouvre « Nouveau devis » (recherche de l'affaire dès 3 lettres). */
+export const actionsRapides = [
+  { id: 'devis', libelle: 'Devis', icone: 'file-text', action: () => naviguer('devis/editeur') },
+];
 
 let montee = null; // { cle, quitter }
 
@@ -70,7 +74,7 @@ export function reglages(page, ctx = {}) {
   return reglagesDuModule(page, ctx);
 }
 
-/** Pas de recherche globale pour ce module. */
-export function rechercher() {
-  return { groupes: [] };
+/** Recherche globale de la barre supérieure : numéro, client, affaire. Un résultat ouvre le devis. */
+export function rechercher(saisie) {
+  return rechercherDevis(saisie);
 }
