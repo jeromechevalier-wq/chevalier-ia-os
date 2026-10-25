@@ -146,6 +146,18 @@ test('5 le numéro d’une carte reste sur au plus 2 lignes (plus de bouton « V
   await capturer(page, info, '5-carte-variante');
 });
 
+test('7 la carte du Tableau est simple : HT en bas à gauche, pastille ronde en bas à droite, ni TTC, ni « il y a », ni dates', async ({ page }, info) => {
+  await tableau4();
+  await versTableau(page);
+  const carte = page.locator('.carte-devis[data-id="d1"]');
+  await expect(carte.locator('.carte-pied .carte-montant')).toContainText('HT');
+  await expect(carte.locator('.carte-pied .pastille-activite')).toHaveCount(1);
+  const texte = await carte.innerText();
+  expect(texte).not.toMatch(/TTC|il y a|En date du|Valable jusqu/);
+  await expect(page.locator('.carte-devis[data-id="d3"] .pastille-activite')).toHaveClass(/rouge/); // signé mais PDF non rangé
+  await capturer(page, info, '7-carte-simple');
+});
+
 test('6 téléphone : le Tableau garde son défilement horizontal des colonnes', async ({ page }, info) => {
   await tableau4();
   await versTableau(page);

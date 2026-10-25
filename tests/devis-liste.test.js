@@ -190,3 +190,18 @@ describe('L7 actions permises par statut', () => {
     }
   });
 });
+
+describe('L8 pastille de la carte du Tableau (gris, vert, rouge)', () => {
+  const ok = { pdf: { statut: 'ok' } };
+  test('L8 brouillon et finalisé : gris ; envoyé et signé avec PDF rangé : vert', () => {
+    assert.equal(Li.couleurPastilleDevis(d('a'), AUJOURDHUI, MAINT), 'grise');
+    assert.equal(Li.couleurPastilleDevis(d('a', { statut: 'en_attente_envoi', ...ok }), AUJOURDHUI, MAINT), 'grise');
+    assert.equal(Li.couleurPastilleDevis(d('a', { statut: 'envoye', ...ok }), AUJOURDHUI, MAINT), 'verte');
+    assert.equal(Li.couleurPastilleDevis(d('a', { statut: 'accepte', ...ok }), AUJOURDHUI, MAINT), 'verte');
+  });
+  test('L8 PDF non rangé, refusé ou expiré : rouge', () => {
+    assert.equal(Li.couleurPastilleDevis(d('a', { statut: 'envoye' }), AUJOURDHUI, MAINT), 'rouge');
+    assert.equal(Li.couleurPastilleDevis(d('a', { statut: 'refuse', ...ok }), AUJOURDHUI, MAINT), 'rouge');
+    assert.equal(Li.couleurPastilleDevis(d('a', { statut: 'envoye', expireLe: '2026-10-01', ...ok }), AUJOURDHUI, MAINT), 'rouge');
+  });
+});
