@@ -283,16 +283,16 @@ export function rendreListeDevis(conteneur, idFiche = null) {
   function carte(d, maintenant, aujourdhui) {
     const t = Li.totauxDe(d);
     const pdfCarte = indicateurPdf(d, { apres: () => rendre(), maintenant });
+    const couleur = Li.couleurPastilleDevis(d, aujourdhui, maintenant);
     return ouvrable(h('article', { class: 'carte-affaire carte-devis', dataset: { id: d.id, statut: Li.statutAffiche(d, aujourdhui) } },
       h('div', { class: 'carte-ligne' }, h('strong', { class: 'carte-titre' }, intitule(d), d.version > 1 ? ` v${d.version}` : '')),
       h('div', { class: 'carte-actions-devis' }, actionsDevis(d, ouvrirFiche)),
       h('div', { class: 'carte-pastilles' }, pastille(d, aujourdhui), d.statut === 'en_attente_envoi' && Li.statutAffiche(d, aujourdhui) === 'en_attente_envoi' ? pastillePasEnvoye() : null),
       celluleClient(d),
-      h('div', { class: 'carte-sous' }, celluleModifie(d, maintenant)),
-      h('div', { class: 'carte-sous' }, `En date du ${Li.dateFr(Li.dateDuDevis(d)) || '—'}`),
-      d.expireLe ? h('div', { class: 'carte-sous' }, `Valable jusqu’au ${Li.dateFr(d.expireLe)}`) : null,
-      pdfCarte ? h('div', { class: 'carte-sous' }, pdfCarte) : null,
-      h('div', { class: 'carte-pied' }, h('span', { class: 'carte-montant' }, `HT ${euros(t?.ht)}`), h('span', { class: 'carte-sous' }, `TTC ${euros(t?.ttc)}`))), () => naviguer(`devis/editeur/${d.id}`));
+      h('div', { class: 'carte-pied' },
+        h('span', { class: 'carte-montant' }, `HT ${euros(t?.ht)}`),
+        pdfCarte,
+        h('span', { class: `pastille-activite ${couleur}`, role: 'img', 'aria-label': Li.LIBELLES_PASTILLE_DEVIS[couleur], title: Li.LIBELLES_PASTILLE_DEVIS[couleur] }))), () => naviguer(`devis/editeur/${d.id}`));
   }
 
   const memorisee = lirePreference('vue.devis');

@@ -2,6 +2,7 @@
 // Aucun accès à Firebase ni au navigateur : l'écran (liste-ecran.js) les appelle, `node --test` les vérifie (tests/devis-liste.test.js).
 // Les règles de statut viennent de logique.js (TRANSITIONS, estExpire) : rien n'est redéfini ici.
 import { STATUTS_DEVIS, estExpire, transitionPossible, totauxDevis } from './logique.js';
+import { etatPdfDevis } from './pdf.js';
 
 /** L'éditeur de devis existe : « Nouveau devis », « Modifier » et « Dupliquer » sont actifs (false les grise « bientôt disponible »). */
 export const EDITEUR_DISPONIBLE = true;
@@ -70,6 +71,14 @@ export function initialesDe(email) {
 // ---------------------------------------------------------------- statut affiché, totaux
 
 /** Statut montré : « expire » quand un devis finalisé ou envoyé a dépassé sa validité (calculé, jamais stocké). */
+/** Pastille ronde en bas à droite d'une carte du Tableau, comme sur les Affaires et les Projets : rouge (à régler : PDF non rangé, devis expiré ou refusé), verte (envoyé ou signé), grise (le reste : brouillon, finalisé pas encore envoyé). */
+export function couleurPastilleDevis(d, aujourdhui, maintenant = Date.now()) {
+  const statut = statutAffiche(d, aujourdhui);
+  if (etatPdfDevis(d, maintenant) === 'a_reessayer' || statut === 'expire' || statut === 'refuse') return 'rouge';
+  return statut === 'envoye' || statut === 'accepte' ? 'verte' : 'grise';
+}
+export const LIBELLES_PASTILLE_DEVIS = Object.freeze({ rouge: 'À régler', verte: 'Envoyé ou signé', grise: 'Rien à signaler' });
+
 export const statutAffiche = (d, aujourdhui) => (estExpire(d, aujourdhui) ? 'expire' : (d?.statut ?? 'brouillon'));
 
 /** Totaux HT et TTC : ceux figés à la finalisation, sinon calculés (brouillon). null si le calcul est impossible. */
