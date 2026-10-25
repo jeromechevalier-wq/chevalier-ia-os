@@ -126,6 +126,7 @@ test('C3 devis en lecture seule sans adresse en copie : pas d’étiquette « En
   await expect(page.getByText('En copie', { exact: true })).toHaveCount(0);
   await capturer(page, info, 'C3-lecture-seule-sans-copie');
   await page.goto('/?emulateurs=1#/devis/editeur/aveccopie');
+  await page.reload(); // un simple changement d'adresse garde l'écran du devis précédent : on repart d'une page neuve
   await expect(page.locator('[data-valeur="lecture-seule"]')).toBeVisible();
   await expect(page.locator('[data-zone="copie"] .ligne-copie')).toHaveText(['compta@exemple.fr']);
   await expect(page.locator('[data-zone="copie"] [data-action="retirer-copie"]')).toBeDisabled();
