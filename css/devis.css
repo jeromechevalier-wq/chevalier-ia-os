@@ -100,7 +100,6 @@
 .indicateur-enregistrement { display: inline-block; min-width: 8.5em; white-space: nowrap; color: var(--texte2); font-size: var(--fs-menu); }
 .indicateur-enregistrement[data-etat="erreur"] { color: var(--retard); }
 .indicateur-manquants { color: var(--retard); font-size: var(--fs-menu); white-space: nowrap; }
-.compteur-manquants { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; margin-left: var(--esp-3); padding: 0 var(--esp-2); border-radius: 999px; background: var(--retard); color: var(--sur-retard); font-size: var(--fs-micro); }
 .bandeau-lecture-seule { margin: 0; padding: var(--esp-5) var(--esp-6); border: 1px solid var(--bordure); border-radius: var(--rayon-petit); background: var(--panneau2); }
 
 /* Barre d'actions : reste en haut de l'écran quand on défile. */

@@ -381,7 +381,7 @@ export function rendreEditeurDevis(conteneur, id) {
     ];
   }
 
-  // Barre d'actions : Options (menu à cases à cocher), Annuler, Enregistrer, Finaliser (bouton à menu). Sur téléphone, Options passe dans le bouton « … ».
+  // Barre d'actions : Catalogue, Options (menu à cases à cocher), Annuler, Envoyer (bouton à menu). Sur téléphone, Options passe dans le bouton « … ». Pas de bouton Enregistrer : l'enregistrement est automatique.
   function boutonsEdition() {
     ref.boutonOptions = h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-options', dataset: { action: 'options' }, 'aria-controls': 'options-devis', 'aria-expanded': 'false', onclick: (ev) => (optionsOuvertes ? optionsOuvertes.fermer() : ouvrirOptions(ev.currentTarget)) }, 'Options', icone('chevron-down', { taille: 14 }));
     return [
