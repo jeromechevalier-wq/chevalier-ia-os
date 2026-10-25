@@ -125,13 +125,13 @@ describe('C3 devisFinaliser d’une version 2', () => {
 });
 
 describe('C4 devisFinaliser d’un devis invalide', () => {
-  test('C4 sans destinataire et sans ligne : rien n’est écrit (ni devis, ni compteur, ni journal) et les messages reviennent', async () => {
+  test('C4 sans ligne (le destinataire n’est plus obligatoire) : rien n’est écrit (ni devis, ni compteur, ni journal) et les messages reviennent', async () => {
     const vide = { ...nouveauDevis({}, { id: 'vide', maintenant: MAINTENANT, auteur: ACTEUR }, {}) };
     const m = monde([vide]);
     const avant = photo(m);
     const r = await S.finaliser({ donnees: m.donnees, ctx: ctx(), devisId: 'vide' });
     assert.equal(r.ok, false);
-    assert.ok(r.erreurs.some((e) => /destinataire/.test(e)), r.erreurs.join(' | '));
+    assert.ok(!r.erreurs.some((e) => /destinataire/.test(e)), r.erreurs.join(' | ')); // l'adresse e-mail est facultative : on peut imprimer et remettre le devis en main propre
     assert.ok(r.erreurs.some((e) => /au moins une ligne/.test(e)), r.erreurs.join(' | '));
     assert.equal(photo(m), avant);
     assert.equal(m.collections[C.devisCompteurs].length, 0);
@@ -297,7 +297,7 @@ describe('C7 qui peut appeler (porte de Jérôme)', () => {
     const [fin, stat] = appels(m).map(([, a]) => a);
     const r = await fin(requete(ACTEUR, { devisId: 'vide' }));
     assert.equal(r.ok, false);
-    assert.ok(r.erreurs.length >= 2);
+    assert.ok(r.erreurs.length >= 1);
     await assert.rejects(() => stat(requete(ACTEUR, { devisId: 'b', action: 'accepter' })), (e) => e.code === 'failed-precondition');
     await assert.rejects(() => fin(requete(ACTEUR, { devisId: 'inconnu' })), (e) => e.code === 'not-found');
     await assert.rejects(() => stat(requete(ACTEUR, { devisId: 'b' })), (e) => e.code === 'invalid-argument');

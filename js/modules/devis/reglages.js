@@ -19,7 +19,7 @@ const brouillonDe = (r) => ({
 export function reglages(page) {
   const sec = h('section', { class: 'carte-section', id: 'reglages-devis' },
     h('h2', {}, icone('file-text', { taille: 18 }), 'Réglages des devis'),
-    h('p', { class: 'aide' }, 'Le nom de ton bordereau de prix, la marge, la TVA, la durée de validité et les étapes de tes affaires liées aux devis. « Enregistrer » s’allume dès que tu changes quelque chose.'));
+    h('p', { class: 'aide' }, 'Le nom de ton catalogue de prix, la marge, la TVA, la durée de validité et les étapes de tes affaires liées aux devis. « Enregistrer » s’allume dès que tu changes quelque chose.'));
   const zone = h('div', { class: 'pile reglages-devis' });
   const erreurGenerale = h('p', { class: 'erreur', role: 'alert', dataset: { erreur: 'general' } });
   let brouillon = brouillonDe(D.etat.reglages);
@@ -54,7 +54,7 @@ export function reglages(page) {
       h('input', { type: 'checkbox', checked: brouillon.tauxProposes.includes(t), dataset: { taux: String(t) }, 'aria-label': `Proposer le taux ${A.formaterTaux(t)}`,
         onchange: (e) => { changer({ tauxProposes: TAUX_TVA_DEFAUT.filter((x) => (x === t ? e.target.checked : brouillon.tauxProposes.includes(x))) }); } }), A.formaterTaux(t))));
     remplir(zone,
-      bloc('nomBordereau', 'Nom du bordereau de prix', liste('nomBordereau', A.NOMS_BORDEREAU.map((n) => ({ valeur: n, libelle: n })), brouillon.nomBordereau, (v) => changer({ nomBordereau: v })),
+      bloc('nomBordereau', 'Nom du catalogue de prix', liste('nomBordereau', A.NOMS_BORDEREAU.map((n) => ({ valeur: n, libelle: n })), brouillon.nomBordereau, (v) => changer({ nomBordereau: v })),
         'C’est le titre de l’écran où tu ranges tes articles et leurs prix d’achat.'),
       h('div', { class: 'ligne-champs' },
         bloc('modeMarge', 'Mode de marge par défaut', liste('modeMarge', MODES_MARGE.map((m) => ({ valeur: m.id, libelle: m.libelle })), brouillon.modeMarge, (v) => changer({ modeMarge: v })),

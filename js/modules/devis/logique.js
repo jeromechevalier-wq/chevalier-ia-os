@@ -185,14 +185,15 @@ export function coefficientDepuisSaisie(coefficient) {
 /** Valeurs d'un devis qui a un objet `affichage` (les cases non écrites sont décochées). */
 export const AFFICHAGE_DEFAUT = Object.freeze({
   afficherMarges: false, afficherReferences: false, cacherDechets: false,
-  cacherTotauxSections: false, cacherQuantiteUnite: false, cacherTva: false, cacherElementsOuvrage: false, afficherPrixElementsOuvrage: false,
-  afficherTelephone: false, afficherEmail: false, afficherNumeroTva: false, afficherSiren: false,
+  cacherTotauxSections: false, cacherQuantiteUnite: false, cacherTva: false, cacherElementsOuvrage: false, afficherPrixElementsOuvrage: false, cacherResteAFacturer: false,
+  afficherTelephone: false, afficherEmail: true, afficherNumeroTva: false, afficherSiren: false,
 });
 /** Affichage d'un devis. Un ancien devis (sans `affichage`) garde l'affichage d'avant : le calcul des marges est visible. */
 export function affichageDe(devis) {
   const brut = devis?.affichage;
-  if (!brut || typeof brut !== 'object') return { ...AFFICHAGE_DEFAUT, afficherMarges: true };
-  return Object.fromEntries(Object.keys(AFFICHAGE_DEFAUT).map((k) => [k, brut[k] === true]));
+  if (!brut || typeof brut !== 'object') return { ...AFFICHAGE_DEFAUT, afficherMarges: true, afficherEmail: false };
+  // Une case jamais écrite dans ce devis prend sa valeur d'origine (e-mail du client affiché, le reste décoché).
+  return Object.fromEntries(Object.keys(AFFICHAGE_DEFAUT).map((k) => [k, k in brut ? brut[k] === true : AFFICHAGE_DEFAUT[k]]));
 }
 
 /** Mention « vendu à perte » (jamais un blocage). Le prix de vente vient de la ligne figée, ou du 2e paramètre. */
@@ -275,6 +276,10 @@ function retenueEnCentimes(r, ttcC) {
  */
 export const niveauSection = (sections, i) => (i > 0 && sections?.[i]?.niveau === 2 ? 2 : 1);
 
+/** Un saut de page est une ligne spéciale `{ id, type: 'saut' }` : sans prix, sans quantité, sans numéro, hors totaux, TVA et compteurs. */
+export const TYPE_SAUT = 'saut';
+export const estSaut = (ligne) => ligne?.type === TYPE_SAUT;
+
 /**
  * Numéros d'un devis : un tableau par section, { numero, lignes: [numéro de chaque ligne] }.
  * Section « 1 », sous-section « 1.1 », ligne « 1.1.1 ». Dans une section de niveau 1, les lignes posées avant la première sous-section et les sous-sections
@@ -294,7 +299,8 @@ export function numerosDevis(sections) {
     ligneDansSection = 0;
     return {
       numero,
-      lignes: (s?.lignes ?? []).map(() => {
+      lignes: (s?.lignes ?? []).map((l) => {
+        if (estSaut(l)) return null; // un saut de page n'a pas de numéro et ne fait pas avancer le compteur
         // Ligne posée directement sous une section de niveau 1 : elle prend le prochain numéro du compteur partagé (1.1, 1.2…).
         if (niveauSection(liste, i) === 1) { enfants += 1; return `${racine}.${enfants}`; }
         ligneDansSection += 1;
@@ -317,6 +323,7 @@ export function totauxDevis(devis) {
   for (const section of devis?.sections ?? []) {
     let sousC = 0;
     for (const ligne of section.lignes ?? []) {
+      if (estSaut(ligne)) { lignes.push({ id: ligne.id, prixVenteUnitaire: null, totalHT: 0, venduAPerte: false }); continue; } // hors totaux et hors TVA ; la place reste tenue pour garder l'ordre des lignes
       const pv = prixVenteAjusteDeLigne(devis, section, ligne);
       const totalC = pv === null ? 0 : arrondiDemi((estNombre(ligne.quantite) ? ligne.quantite : 0) * versCentimes(pv));
       sousC += totalC;
@@ -590,11 +597,11 @@ export function erreursFinalisation(devis) {
   if (!idsModes.includes(devis.modeMarge)) erreurs.push('Choisis le mode de marge du devis.');
   if (!absent(devis.marge) && !estNombre(devis.marge)) erreurs.push('La marge du devis doit être un nombre.');
   const destinataires = (devis.destinataires ?? []).map(emailDe);
-  if (!destinataires.some(emailValide)) erreurs.push('Ajoute au moins un destinataire avec une adresse e-mail valide (une adresse en copie ne suffit pas).');
-  else if (destinataires.some((e) => e && !emailValide(e))) erreurs.push('Une adresse e-mail de destinataire n\'est pas valide : corrige-la.');
-  const ids = (devis.sections ?? []).flatMap((s) => (s.lignes ?? []).map((l) => l.id));
+  // Pas d'adresse e-mail obligatoire : on peut imprimer le devis et le remettre en main propre ; l'adresse ne sert qu'à l'envoi par e-mail (à venir).
+  if (destinataires.some((e) => e && !emailValide(e))) erreurs.push('Une adresse e-mail de destinataire n\'est pas valide : corrige-la.');
+  const ids = (devis.sections ?? []).flatMap((s) => (s.lignes ?? []).filter((l) => !estSaut(l)).map((l) => l.id));
   if (ids.some((id) => absent(id) || id === '') || new Set(ids).size !== ids.length) erreurs.push('Une ligne du devis n\'a pas d\'identifiant unique : recharge le devis ou recrée cette ligne.');
-  const lignes = (devis.sections ?? []).flatMap((s) => (s.lignes ?? []).map((l) => ({ s, l })));
+  const lignes = (devis.sections ?? []).flatMap((s) => (s.lignes ?? []).filter((l) => !estSaut(l)).map((l) => ({ s, l })));
   if (lignes.length === 0) erreurs.push('Ajoute au moins une ligne au devis avant de le finaliser.');
   for (const { s, l } of lignes) {
     const nom = `« ${l.libelle || 'sans libellé'} »${s.titre ? ` (section « ${s.titre} »)` : ''}`;
@@ -672,6 +679,7 @@ export function figerPourFinalisation(devis, { numero, finaliseLe, reglages = {}
   copie.regimeTva = reglages.regimeTva;
   for (const section of copie.sections) {
     for (const ligne of section.lignes ?? []) {
+      if (estSaut(ligne)) continue;
       ligne.prixVente = prixVenteDeLigne(copie, section, ligne);
       if (ajustementActif(copie)) ligne.prixVenteAjuste = prixAjuste(ligne.prixVente, coefficientAjustement(copie)); // le prix ajusté est figé lui aussi
       else delete ligne.prixVenteAjuste; // un ancien prix ajusté (copie d'un devis ajusté) ne doit pas survivre
@@ -719,7 +727,7 @@ function sansCles(valeur) {
 /** L'attestation de TVA réduite ne s'applique qu'en régime assujetti, hors autoliquidation, avec au moins une ligne à 10 % ou 5,5 %. */
 function attestationNecessaire(devis) {
   if (devis.regimeTva === 'franchise' || devis.autoliquidation === true) return false;
-  return (devis.sections ?? []).some((s) => (s.lignes ?? []).some((l) => [10, 5.5].includes(tauxDeLigne(devis, l))));
+  return (devis.sections ?? []).some((s) => (s.lignes ?? []).some((l) => !estSaut(l) && [10, 5.5].includes(tauxDeLigne(devis, l))));
 }
 
 /** Phrase d'acompte prête à imprimer, ou null (acompte absent, invalide ou sans moment lisible). */
@@ -823,7 +831,7 @@ export function vueClient(devis, contexte = {}) {
       numero: numeros[i].numero, // « 1 », sous-section « 1.1 »
       titre: s.titre ?? '',
       sousTotalHT: t.sections[i].sousTotalHT,
-      lignes: (s.lignes ?? []).map((l, j) => ({
+      lignes: (s.lignes ?? []).map((l, j) => (estSaut(l) ? { id: l.id, type: TYPE_SAUT } : {
         id: l.id,
         numero: numeros[i].lignes[j],
         libelle: l.libelle ?? '',
@@ -896,6 +904,7 @@ export function texteVueClient(devis) {
   for (const [i, s] of (devis.sections ?? []).entries()) {
     l.push('', s.titre ? `${s.titre}` : 'Prestations');
     for (const [j, x] of (s.lignes ?? []).entries()) {
+      if (estSaut(x)) continue;
       const c = pos[i][j];
       l.push(`- ${x.libelle ?? ''} : ${nombre(x.quantite)} ${x.unite ?? ''} x ${euros(c?.prixVenteUnitaire)} = ${euros(c?.totalHT)}`.replace(/ {2,}/g, ' '));
     }
@@ -912,6 +921,7 @@ export function texteVueInterne(devis) {
   for (const [i, s] of (devis.sections ?? []).entries()) {
     l.push('', s.titre ? `${s.titre}` : 'Prestations');
     for (const [j, x] of (s.lignes ?? []).entries()) {
+      if (estSaut(x)) continue;
       const c = pos[i][j];
       const marge = margeEffective({ devis, section: s, ligne: x });
       const { coefficient } = coefficientDeMarge(marge, devis.modeMarge);

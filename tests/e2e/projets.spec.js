@@ -1585,3 +1585,15 @@ test('C40 Réglages : objectifs — chaque indicateur calculé explique son calc
   await allerA(page, 'Accueil');
   await expect.poll(() => valeurObjectif(page, objectif.id)).toBe(1200);
 });
+
+test('la bande des phases suit tout de suite un changement fait avec la liste « Phase » (la liste garde le focus)', async ({ page }) => {
+  await creerProjet('pr1', { titre: 'Audit Carrel' });
+  await connecter(page);
+  await aller(page, '#/projets/projets/pr1');
+  await expect(page.locator('.barre-etapes-fiche .etape.courante')).toHaveText('Lancement');
+  const liste = page.locator('[data-action="choisir-phase"]');
+  await liste.focus();
+  await liste.selectOption('livraison');
+  await expect(liste).toBeFocused(); // la fiche n'est pas refaite : c'est le cas où la bande restait sur « Lancement »
+  await expect(page.locator('.barre-etapes-fiche .etape.courante')).toHaveText('Livraison');
+});

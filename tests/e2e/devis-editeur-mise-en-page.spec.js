@@ -2,7 +2,7 @@
 // Un test par point du brief (le nom commence par le numéro du point), une capture par point : tests/e2e/captures/devis-editeur-mise-en-page/ (ordinateur ET téléphone : la mise en page change).
 import { fileURLToPath } from 'node:url';
 import {
-  test, expect, connecter, attendreCalme, ecrireDocument, listerDocuments, creerOrganisation, creerAffaire, estTelephone, JEROME,
+  test, expect, connecter, attendreCalme, ecrireDocument, listerDocuments, creerOrganisation, creerAffaire, creerPersonne, estTelephone, JEROME,
 } from './outils.js';
 
 const DOSSIER = fileURLToPath(new URL('./captures/devis-editeur-mise-en-page/', import.meta.url));
@@ -79,8 +79,8 @@ test('1 la barre d’actions reste en haut quand on défile : titre « Brouillon
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Brouillon');
   await expect(page.locator('[data-onglet="edition"]')).toHaveText('Édition');
   await expect(page.locator('[data-onglet="apercu"]')).toHaveText('Prévisualisation');
-  for (const action of ['annuler', 'enregistrer', 'finaliser']) await expect(page.locator(`.barre-devis [data-action="${action}"]`)).toBeVisible();
-  await expect(page.locator('[data-action="finaliser"]')).toHaveClass(/bouton-principal/); // le seul bouton jaune plein de la barre
+  for (const action of ['annuler', 'enregistrer', 'envoyer', 'fermer']) await expect(page.locator(`.barre-devis [data-action="${action}"]`)).toBeVisible();
+  await expect(page.locator('[data-action="envoyer"]')).toHaveClass(/bouton-principal/); // le seul bouton jaune plein de la barre
   // En bas de la page, la barre est toujours à l'écran (collée en haut, sous la barre du téléphone).
   await defiler(page, false);
   await expect(barre).toBeInViewport({ ratio: 1 });
@@ -99,10 +99,10 @@ test('1 la barre d’actions reste en haut quand on défile : titre « Brouillon
   } else {
     await page.locator('[data-action="options"]').click();
   }
-  // Options est maintenant un menu à cases à cocher ; ce vieux devis (sans `affichage`) garde l'affichage d'avant : la carte « Marges du devis » reste visible.
-  await expect(page.locator('.menu-devis-options')).toBeVisible();
-  await expect(page.locator('[data-zone="marges"]')).toBeVisible();
-  await expect(page.locator('[data-champ="marge"]')).toBeVisible();
+  // Options est maintenant un menu à cases à cocher ; ce vieux devis (sans `affichage`) garde l'affichage d'avant : le calcul des marges reste visible sur les lignes ; la carte « Marges du devis » n'existe plus (tout se règle dans « Définir un ajustement »).
+  await expect(page.locator('[data-zone="options"]')).toBeVisible();
+  await expect(page.locator('[data-zone="marges"]')).toHaveCount(0);
+  await expect(page.locator('[data-calcul-marge]').first()).toBeVisible();
 });
 
 test('2 l’en-tête a deux colonnes : dates et « définir » à gauche, affaire puis client à droite ; « Ajouter une description » montre le champ', async ({ page }, info) => {
@@ -209,7 +209,7 @@ test('4 sous le tableau : « + Fourniture », « + Main d’œuvre », « + Ouvr
   const types = page.locator('.ajouts-types .bouton');
   await expect(types).toHaveText(['Fourniture', 'Main d’œuvre', 'Ouvrage', '…']);
   await expect(page.locator('.ajouts-structure .bouton')).toHaveText(['Section', 'Sous-section', 'Texte', 'Saut de page']);
-  await expect(page.locator('[data-action="ajouter-saut"]')).toBeDisabled();
+  await expect(page.locator('[data-action="ajouter-saut"]')).toBeEnabled(); // le saut de page est un vrai élément du devis (voir devis-editeur-sections-saut.spec.js)
   const gauche = await page.locator('[data-action="ajouter-famille-1"]').boundingBox();
   const droite = await page.locator('[data-action="ajouter-section"]').boundingBox();
   if (!estTelephone(page)) {
@@ -243,7 +243,8 @@ test('5 le bas de page : conditions de paiement à gauche, totaux et NET À PAYE
   await ouvrir(page, await devisLong());
   const bas = page.locator('.bas-devis');
   await expect(bas).toContainText('Conditions de paiement');
-  await expect(bas.locator('[data-action="ajouter-condition"]')).toHaveText(/Ajouter une condition/);
+  await expect(bas.locator('[data-action="ajouter-condition"]')).toHaveText(/Ajouter une condition \(bientôt\)/);
+  await expect(bas.locator('[data-action="ajouter-condition"]')).toBeDisabled();
   await expect(bas).toContainText('Méthodes de paiement acceptées');
   await expect(bas.locator('[data-action="ajouter-texte-libre"]')).toHaveText(/Ajouter texte libre/);
   await expect(bas).toContainText('Gestion des déchets');
@@ -293,7 +294,7 @@ test('6 sur téléphone : une carte par ligne (désignation en haut, puis Qté /
   const largeur = page.viewportSize().width;
   expect(bande.width).toBeGreaterThan(largeur - 60);
   // La barre garde Annuler, Enregistrer et Finaliser ; Options est dans « … ».
-  for (const action of ['annuler', 'enregistrer', 'finaliser']) await expect(page.locator(`.barre-devis [data-action="${action}"]`)).toBeVisible();
+  for (const action of ['annuler', 'enregistrer', 'envoyer', 'fermer']) await expect(page.locator(`.barre-devis [data-action="${action}"]`)).toBeVisible();
   await expect(page.locator('[data-action="options"]')).toBeHidden();
   await expect(page.locator('[data-action="plus-actions"]')).toBeVisible();
   // Rien ne déborde de la largeur de l'écran.
@@ -312,4 +313,76 @@ test('2 la date « En date du » se modifie sur place, s’enregistre et se retr
   expect((await listerDocuments('devis_devis'))[0].dateEmission).toBe('2026-12-15');
   await page.locator('[data-onglet="apercu"]').click();
   await expect(page.locator('iframe[data-zone="apercu"]').contentFrame().locator('body')).toContainText('15/12/2026');
+});
+
+test('2 l’e-mail du destinataire suit le client choisi, sauf s’il a été écrit à la main', async ({ page }) => {
+  await semer();
+  await creerPersonne('p1', { nom: 'Julie Rubio', emails: [{ valeur: 'julie@exemple.test', type: 'travail' }] });
+  await creerAffaire('a1', { titre: 'Rénovation restaurant', organisationId: 'o1', personneId: 'p1' });
+  await ouvrir(page, await devisLong());
+  const mail = page.locator('[data-champ="destinataire"]');
+  await expect(mail).toHaveValue('contact@exemple.fr');
+  await page.locator('[data-champ="client"]').selectOption('personne:p1');
+  await expect(mail).toHaveValue('julie@exemple.test');
+  await page.locator('[data-champ="client"]').selectOption('organisation:o1');
+  await expect(mail).toHaveValue('contact@exemple.fr');
+  await mail.fill('autre@exemple.test'); // écrit à la main : le choix du client ne l'écrase plus
+  await page.locator('[data-champ="client"]').selectOption('personne:p1');
+  await expect(mail).toHaveValue('autre@exemple.test');
+});
+
+test('4 la marge et la remise du devis se règlent depuis le bouton « Définir un ajustement », sans afficher le calcul des marges', async ({ page }) => {
+  await semer();
+  await ouvrir(page, await devisLong());
+  await page.locator('[data-action="definir-ajustement"]').click();
+  await page.getByRole('menuitem', { name: 'Marge du devis' }).click();
+  await page.locator('[data-champ="marge-menu"]').fill('25');
+  await expect.poll(async () => (await listerDocuments('devis_devis'))[0].marge).toBe(25);
+  await expect(page.locator('[data-champ="mode-marge-menu"]')).toHaveCount(0); // le mode de calcul se règle dans les réglages du module
+  await page.getByRole('menuitem', { name: 'Remise' }).click();
+  await page.locator('[data-champ="remise-valeur-menu"]').fill('10');
+  await expect.poll(async () => (await listerDocuments('devis_devis'))[0].remise?.valeur).toBe(10);
+});
+
+test('2 le tableau des lignes ne perd aucune colonne quand le panneau Bibliothèque est ouvert à côté : il passe en cartes, sans défilement horizontal', async ({ page }, info) => {
+  test.skip(estTelephone(page), 'ordinateur : le téléphone est déjà en cartes');
+  await semer();
+  await ouvrir(page, await devisLong());
+  const zone = page.locator('.zone-lignes-devis');
+  const ligne = page.locator('tr.ligne-devis-edition').first();
+  // Sans panneau : feuille assez large, tableau classique avec l'en-tête des colonnes.
+  await expect(page.locator('.tableau-lignes-devis thead')).toBeVisible();
+  await page.locator('[data-action="bibliotheque"]').click();
+  await expect(page.locator('[data-zone="bibliotheque"]')).toBeVisible();
+  // Avec le panneau : cartes (pas d'en-tête), et rien ne dépasse à droite.
+  await expect(page.locator('.tableau-lignes-devis thead')).toBeHidden();
+  const depasse = await zone.evaluate((el) => el.scrollWidth - el.clientWidth);
+  expect(depasse).toBeLessThanOrEqual(1);
+  const total = await ligne.locator('td.c-tot').boundingBox();
+  const feuille = await zone.boundingBox();
+  expect(total.x + total.width).toBeLessThanOrEqual(feuille.x + feuille.width + 1);
+  await capturer(page, info, '2-panneau-bibliotheque-cartes', { pleine: false });
+});
+
+test('2 l’éditeur est compact sur ordinateur : la feuille est centrée (largeur limitée) et une ligne d’article fait moins de 46 px de haut', async ({ page }) => {
+  test.skip(estTelephone(page), 'compact : ordinateur seulement (le téléphone garde des cibles de 44 px)');
+  await semer();
+  const maintenant = new Date();
+  await ecrireDocument('devis_devis/compact', {
+    racineId: 'compact', version: 1, numero: null, statut: 'brouillon', affaireId: 'a1', organisationId: 'o1', personneId: null, modeMarge: 'majoration', marge: 0, tauxTvaDefaut: 20,
+    regimeTva: 'assujetti', autoliquidation: false, archive: false, expireLe: '2026-11-23', destinataires: [], affichage: { afficherMarges: false },
+    sections: [{ id: 's1', titre: 'Cuisine', lignes: [ligne('l1', 'Dépose de la moquette', 1, 10)] }], creePar: JEROME, proprietaire: JEROME, creeLe: maintenant, modifieLe: maintenant,
+  });
+  await ouvrir(page, 'compact');
+  const feuille = await page.locator('.document-devis').boundingBox();
+  expect(feuille.width).toBeLessThanOrEqual(1181);
+  const ligneBoite = await page.locator('tr[data-id="l1"]').boundingBox();
+  expect(ligneBoite.height).toBeLessThan(46);
+});
+
+test('1 les onglets ont un pictogramme : un stylo pour Édition, un œil pour Prévisualisation', async ({ page }) => {
+  await semer();
+  await ouvrir(page, await devisLong());
+  await expect(page.locator('[data-onglet="edition"] svg')).toHaveCount(1);
+  await expect(page.locator('[data-onglet="apercu"] svg')).toHaveCount(1);
 });

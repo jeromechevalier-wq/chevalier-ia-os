@@ -125,7 +125,7 @@ export const MODULES_DECLARES = geler([
     entreeMenu: 'devis/liste',
     ecrans: [
       { route: 'devis/liste', libelle: 'Devis', icone: 'file-text' },
-      { route: 'devis/bordereau', libelle: 'Bordereau', icone: 'list' },
+      { route: 'devis/bordereau', libelle: 'Catalogue', icone: 'list' },
     ],
     collections: ['devis_articles', 'devis_parametres', 'devis_devis'],
     outilsMcp: ['lister_articles', 'chercher_article', 'creer_article', 'modifier_article', 'desactiver_article', 'lister_devis', 'lire_devis', 'creer_devis_brouillon', 'modifier_devis_brouillon', 'finaliser_devis'],

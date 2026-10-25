@@ -2,7 +2,7 @@
 // Aucune règle ici : tout ce qui se calcule ou se décide est dans fiche.js (pur, testé) et logique.js. Le statut ne change QUE par les fonctions du serveur
 // (changerStatut / archiver de donnees.js, appelées par la liste), jamais par une écriture directe. Ce qui n'existe pas encore (e-mail, facturation, jauges, documents
 // liés) est grisé avec « bientôt disponible » : l'utilisateur sait que ça viendra.
-import { h, icone, remplir, toast, confirmer, ouvrirMenu } from '../../os/ui.js';
+import { h, icone, remplir, toast, ouvrirMenu } from '../../os/ui.js';
 import * as D from './donnees.js';
 import * as Li from './liste.js';
 import * as Fi from './fiche.js';
@@ -104,12 +104,6 @@ export function creerFiche({ nomsDe, changerStatut, fermer: demanderFermeture, a
 
   const bientot = (libelle) => `${libelle} (bientôt disponible)`;
 
-  /** Bouton grisé « bientôt disponible » : visible (texte) et annoncé (title). */
-  function boutonBientot(libelle, action, caret = false) {
-    return h('button', { type: 'button', class: 'bouton bouton-secondaire', disabled: true, title: Li.MESSAGE_BIENTOT, dataset: { action, info: 'bientot' } },
-      libelle, h('span', { class: 'bientot' }, ' (bientôt disponible)'), caret ? icone('chevron-down', { taille: 14 }) : null);
-  }
-
   function boutonMenu(libelle, action, items) {
     return h('button', {
       type: 'button', class: 'bouton bouton-secondaire', 'aria-haspopup': 'menu', dataset: { action },
@@ -137,7 +131,6 @@ export function creerFiche({ nomsDe, changerStatut, fermer: demanderFermeture, a
       { libelle: bientot('Envoyer par e-mail'), icone: 'mail', desactive: true },
     ]);
     const voirItems = [];
-    if (f.modifier) voirItems.push({ libelle: 'Modifier', icone: 'pencil', desactive: !f.modifier.actif, action: () => naviguer(`devis/editeur/${d.id}`) });
     if (f.voirDevis) voirItems.push({ libelle: 'Voir le devis', icone: 'external-link', action: () => naviguer(`devis/editeur/${d.id}`) });
     // Avec un PDF du serveur : on l'ouvre. Sans PDF : le devis s'imprime (ou s'enregistre en PDF) depuis le navigateur, avec son numéro (solution provisoire, voir imprimer.js).
     voirItems.push(f.apercuPdf.actif
@@ -146,28 +139,10 @@ export function creerFiche({ nomsDe, changerStatut, fermer: demanderFermeture, a
     const voirBouton = boutonMenu('Voir', 'voir-fiche', voirItems);
 
     const dupliquer = h('button', { type: 'button', class: 'bouton bouton-secondaire', disabled: !f.dupliquer.actif, title: f.dupliquer.actif ? null : Li.MESSAGE_BIENTOT, dataset: { action: 'dupliquer-fiche' }, onclick: () => dupliquerDevis(d) }, icone('copy', { taille: 16 }), 'Dupliquer');
-    const annuler = h('button', {
-      type: 'button', class: 'bouton bouton-secondaire', disabled: !f.annuler.actif, title: f.annuler.actif ? `${f.annuler.libelle} ce devis` : (f.annuler.raison ?? null), dataset: f.annuler.raison === Li.MESSAGE_BIENTOT ? { action: 'annuler-fiche', info: 'bientot' } : { action: 'annuler-fiche' },
-      onclick: () => annulerDevis(d, f.annuler),
-    }, 'Annuler', f.annuler.raison === Li.MESSAGE_BIENTOT ? h('span', { class: 'bientot' }, ' (bientôt disponible)') : null);
 
     return h('header', { class: 'fiche-tete' },
       h('div', { class: 'fiche-tete-ligne' }, statut, h('h2', { class: 'fiche-titre' }, Fi.titreFiche(d), d.version > 1 ? h('span', { class: 'devis-version' }, ` v${d.version}`) : null), corps.fermerBouton),
-      h('div', { class: 'fiche-boutons' }, modifier, envoyer, boutonBientot('Facturer', 'facturer-fiche'), voirBouton, dupliquer, annuler));
-  }
-
-  /** « Annuler » = Refuser (devis envoyé) ou Archiver (signé ou refusé), avec une confirmation ; le serveur fait le changement. */
-  async function annulerDevis(d, a) {
-    if (a.action === 'refuser') {
-      const ok = await confirmer('Refuser ce devis ?', 'Le devis passera à « Refusé ». Tu pourras ensuite créer une variante si le client change d’avis.', { libelleOk: 'Refuser', danger: true });
-      if (ok) await changerStatut(d, 'refuser', 'Refusé');
-      return;
-    }
-    if (a.action === 'archiver') {
-      const ok = await confirmer('Archiver ce devis ?', 'Le devis est marqué comme archivé. Il reste visible dans la liste pour l’instant, mais il ne pourra plus être modifié ni annulé.', { libelleOk: 'Archiver' });
-      if (!ok) return;
-      try { await D.archiver(d.id, true); toast('Devis archivé'); } catch (e) { console.warn(e); toast(e?.message || D.MESSAGE_RESEAU_DEVIS, { type: 'erreur', duree: 8000 }); }
-    }
+      h('div', { class: 'fiche-boutons' }, modifier, envoyer, voirBouton, dupliquer));
   }
 
   function identite(d, maintenant) {

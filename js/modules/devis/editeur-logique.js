@@ -10,7 +10,8 @@
 //   (la ligne ne suit alors plus la marge du devis). Sans prix d'achat connu (ligne libre), le prix saisi devient le prix d'achat avec une marge de 0 %.
 // - Une ligne « Texte » est une ligne de type `texte` (quantité 1, prix 0) : elle compte 0 dans les totaux et passe la finalisation. Le gabarit imprimé la montre
 //   encore avec un prix à 0,00 € : à traiter dans document.js (hors de ce lot).
-// - Le saut de page est un réglage de section (`sautDePageAvant`, déjà lu par vueClient), pas un élément à part.
+// - Le saut de page est un élément à part (24/10/2026) : une ligne spéciale `{ id, type: 'saut' }` posée où l'utilisateur veut (entre deux lignes, deux sections, dans une section).
+//   L'ancien réglage de section `sautDePageAvant` est montré comme un saut posé avant cette section (`convertirAnciensSauts`), enregistré ainsi au premier enregistrement.
 // - Une section se déplace, se duplique et se supprime avec ses lignes (le groupe jusqu'à la section suivante).
 // - Trois niveaux (24/10/2026) : section (1), sous-section (1.1, `niveau: 2` dans `sections`), ligne (1.1.1). Une section de niveau 1 emporte ses sous-sections ; une sous-section
 //   ne change jamais de section de niveau 1 en se déplaçant (elle reste entre ses sœurs). Un devis sans `niveau` se comporte exactement comme avant.
@@ -18,6 +19,7 @@ import {
   coefficientDeMarge, prixVenteUnitaire, prixVenteDeLigne, totauxDevis, versCentimes, erreursChantier, numerosDevis,
   coefficientDepuisPourcentage, coefficientDepuisMontant, coefficientDepuisSaisie,
 } from './logique.js';
+import { TYPE_SAUT, estSaut } from './logique.js';
 import { descriptionOuvrage, figerOuvragePourLigne, articlesParId, TYPE_OUVRAGE } from './ouvrages.js';
 import { TYPE_TEXTE, lireNombre } from './articles.js';
 
@@ -84,6 +86,7 @@ const indexDe = (elements, id) => elements.findIndex((e) => e.id === id);
 export const sectionNeuve = (id, titre = '') => ({ genre: 'section', id, titre });
 export const sousSectionNeuve = (id, titre = '') => ({ genre: 'section', id, titre, niveau: 2 });
 export const ligneLibre = (id) => ({ genre: 'ligne', id, type: TYPE_LIGNE_LIBRE, libelle: '', quantite: 1, unite: 'u', prixAchat: 0, marge: 0 });
+export const ligneSaut = (id) => ({ genre: 'ligne', id, type: TYPE_SAUT });
 export const ligneTexte = (id) => ({ genre: 'ligne', id, type: TYPE_TEXTE, libelle: '', quantite: 1, unite: '', prixAchat: 0, marge: 0 });
 
 /** Marge (en %) qui donne ce prix de vente à partir de ce prix d'achat, dans ce mode. Null si impossible ou si l'arrondi ne retombe pas sur le prix. */
@@ -176,6 +179,33 @@ export function ajouterAvant(sections, element, avantId, idSection = null) {
     if (estSection(element) && element.niveau === 2 && !avant.some(estSection)) nouveaux.unshift(sectionNeuve(idSection ?? `${element.id}-s`));
     return [...avant, ...nouveaux, ...els.slice(place)];
   });
+}
+
+/**
+ * Insère `element` par rapport à l'élément `id` (menu des flèches) : `ou` = 'avant' (au-dessus), 'apres' (en dessous : après la section ENTIÈRE si c'est une section),
+ * 'debut' ou 'fin' (dans la section `id`, au début ou à la fin de son contenu). Rend de nouvelles sections ; `id` introuvable : rien ne change.
+ * Un élément qui est une section dans une section de niveau 1 est une sous-section : au début, elle se pose après les lignes propres de la section (elle n'en vole aucune) ;
+ * dans une sous-section, au début elle se pose juste avant elle, à la fin juste après. Une ligne posée à la fin d'une section qui a des sous-sections tombe dans la dernière.
+ */
+export function insererAutour(sections, element, id, ou, idSection = null) {
+  const els = aplatir(sections);
+  const i = indexDe(els, id);
+  if (i === -1) return assembler(els);
+  const [d, f] = groupe(els, i);
+  const section = estSection(els[i]);
+  let place;
+  if (ou === 'avant') place = d;
+  else if (ou === 'apres') place = f;
+  else if (!section) place = ou === 'debut' ? i : f; // pas une section : au plus près
+  else if (ou === 'fin') place = f;
+  else if (estSection(element)) {
+    if (niveauDe(els[i]) === 2) place = i; // début d'une sous-section : une sous-section sœur juste avant
+    else { place = i + 1; while (place < f && !estSection(els[place])) place += 1; } // après les lignes propres, avant la première sous-section
+  } else place = i + 1;
+  const avant = els.slice(0, place);
+  const nouveaux = [element];
+  if (estSection(element) && element.niveau === 2 && !avant.some(estSection)) nouveaux.unshift(sectionNeuve(idSection ?? `${element.id}-s`));
+  return assembler([...avant, ...nouveaux, ...els.slice(place)]);
 }
 
 /**
@@ -292,7 +322,7 @@ export function lignesEmportees(sections, id) {
   const i = indexDe(els, id);
   if (i === -1) return 0;
   const [d, f] = groupe(els, i);
-  return els.slice(d, f).filter((e) => !estSection(e)).length;
+  return els.slice(d, f).filter((e) => !estSection(e) && !estSaut(e)).length;
 }
 
 /** Remplace des champs d'un élément (ligne ou section) ; le reste est conservé. */
@@ -312,6 +342,24 @@ export function trouverLigne(sections, id) {
   return null;
 }
 
+/**
+ * Anciens devis : une section avec `sautDePageAvant: true` devient un saut de page posé juste avant elle (à la fin de la section précédente), et le champ est retiré.
+ * Sur la première section le réglage ne servait à rien (la page est déjà neuve) : il est simplement retiré. Rend les mêmes sections si rien n'est à convertir.
+ */
+export function convertirAnciensSauts(sections) {
+  if (!Array.isArray(sections) || !sections.some((s) => s?.sautDePageAvant !== undefined)) return sections;
+  const sortie = [];
+  sections.forEach((s, i) => {
+    const { sautDePageAvant, ...reste } = s ?? {};
+    if (sautDePageAvant === true && i > 0) {
+      const prec = sortie[sortie.length - 1];
+      sortie[sortie.length - 1] = { ...prec, lignes: [...(prec.lignes ?? []), { id: `saut-${s.id ?? i}`, type: TYPE_SAUT }] };
+    }
+    sortie.push(reste);
+  });
+  return sortie;
+}
+
 // ---------------------------------------------------------------- numérotation affichée (la même que celle du document : 1, 1.1, 1.1.1, 1.2, 2…)
 /** { [id]: « 2 » ou « 2.3 » } : le numéro de section est sa position (la première section sans titre compte aussi), comme dans vueClient. */
 export function numerotation(sections) {
@@ -325,7 +373,7 @@ export function numerotation(sections) {
 }
 
 // ---------------------------------------------------------------- avertissements (jamais bloquants), champs obligatoires, enregistrement
-const lignesDe = (devis) => (devis?.sections ?? []).flatMap((s) => s.lignes ?? []);
+const lignesDe = (devis) => (devis?.sections ?? []).flatMap((s) => (s.lignes ?? []).filter((l) => !estSaut(l)));
 
 /** Les trois avertissements possibles, dans l'ordre : aucune ligne, total à zéro, ligne sans quantité. Liste vide = rien à signaler. */
 export function avertissements(devis) {
@@ -423,7 +471,7 @@ export const lireSaisie = (s) => lireNombre(s);
 // ---------------------------------------------------------------- duplication d'un devis
 /** Valeurs du brouillon qui copie un devis : tout le contenu sauf numéro, statut, version, totaux (nouveaux identifiants de section et de ligne). */
 export function copieDeDevis(source, nouvelId) {
-  const els = aplatir(source.sections).map((e) => ({ ...copie(e), id: nouvelId() }));
+  const els = aplatir(convertirAnciensSauts(source.sections)).map((e) => ({ ...copie(e), id: nouvelId() }));
   const sections = assembler(els).map((s) => ({ ...s, lignes: s.lignes.map((l) => { const { prixVente: _p, prixVenteAjuste: _a, ...reste } = l; return reste; }) }));
   const patch = champsAEnregistrer({ ...source, sections });
   delete patch.expireLe;
@@ -441,6 +489,9 @@ export function prixVenteAffiche(devis, section, ligne) {
 
 /** Même contenu (champs enregistrés), quel que soit l'ordre des clés : sert à reconnaître un devis modifié ailleurs. */
 export function memeContenu(a, b) {
+  // Un ancien réglage `sautDePageAvant` et le saut de page qui le remplace sont le même contenu.
+  const norm = (d) => (d?.sections ? { ...d, sections: convertirAnciensSauts(d.sections) } : d);
+  a = norm(a); b = norm(b);
   const stable = (v) => (Array.isArray(v) ? v.map(stable) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, stable(v[k])])) : v);
   return JSON.stringify(stable(champsAEnregistrer(a))) === JSON.stringify(stable(champsAEnregistrer(b)));
 }

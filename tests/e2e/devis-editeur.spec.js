@@ -59,7 +59,7 @@ async function ouvrirDescription(page) {
 }
 async function chercherEtAjouter(page, mot, quantite) {
   if (await page.locator('[data-zone="recherche"]').isHidden()) { await page.locator('[data-action="ajouter-famille-1"]').click(); await page.locator('[data-champ="filtre-famille"]').selectOption(''); }
-  await page.getByRole('searchbox', { name: 'Rechercher dans le Bordereau' }).fill(mot);
+  await page.getByRole('searchbox', { name: 'Rechercher dans le catalogue' }).fill(mot);
   await page.locator('[data-action="ajouter-article"]').first().click();
   await page.locator('tr.ligne-devis-edition').last().locator('[data-champ="quantite"]').fill(quantite);
 }
@@ -92,9 +92,9 @@ test('ED1 créer un devis pour une affaire, ajouter deux articles du Bordereau, 
   await page.locator('tr.ligne-section-devis [data-champ="libelle"]').fill('Cuisine');
   await chercherEtAjouter(page, 'Carrelage', '10');
   await chercherEtAjouter(page, 'Pose', '5');
-  await page.getByRole('searchbox', { name: 'Rechercher dans le Bordereau' }).fill('CAR60');
+  await page.getByRole('searchbox', { name: 'Rechercher dans le catalogue' }).fill('CAR60');
   await expect(page.locator('[data-action="ajouter-article"]')).toHaveCount(1);
-  await page.getByRole('searchbox', { name: 'Rechercher dans le Bordereau' }).fill('zzz');
+  await page.getByRole('searchbox', { name: 'Rechercher dans le catalogue' }).fill('zzz');
   await expect(page.locator('[data-vide="resultats"]')).toContainText('Aucun article ne correspond');
   await ajouterLibre(page);
   const libre = lignes(page).last();
@@ -157,7 +157,7 @@ test('ED2 l’aperçu montre le devis comme le client le verra ; ordre des ligne
   // Insérer une ligne libre au-dessous de la première, dupliquer la dernière.
   await lignes(page).nth(0).locator('[data-action="menu-ligne"]').click();
   await page.getByRole('menuitem', { name: 'Insérer en dessous' }).click();
-  await page.getByRole('menuitem', { name: 'Ligne libre' }).click();
+  await page.getByRole('menuitem', { name: 'Texte', exact: true }).click();
   await expect(lignes(page)).toHaveCount(4);
   await lignes(page).nth(3).locator('[data-action="menu-ligne"]').click();
   await page.getByRole('menuitem', { name: 'Dupliquer' }).click();
@@ -197,11 +197,12 @@ test('ED3 finaliser : les erreurs de finalisation sont listées dans une fenêtr
     await ecrireDocument(`devis_devis/${id}`, { ...actuel, statut: 'en_attente_envoi', numero: 'DEV-2026-10-24-001', finaliseLe: new Date() });
     return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ result: { ok: true, devisId: id, statut: 'en_attente_envoi', numero: 'DEV-2026-10-24-001', nouveauNumero: true } }) });
   });
-  // Un devis vide et sans destinataire : la fenêtre liste ce qu'il faut corriger, rien n'est envoyé au serveur.
+  // Un devis vide : la fenêtre liste ce qu'il faut corriger, rien n'est envoyé au serveur. Pas d'adresse e-mail obligatoire (on peut imprimer et remettre le devis en main propre).
   await page.locator('[data-champ="destinataire"]').fill('');
-  await page.locator('[data-action="finaliser"]').click();
+  await page.locator('[data-action="envoyer"]').click();
+  await page.getByRole('menuitem', { name: 'Imprimer' }).click();
   await expect(dialogue(page)).toContainText('Ce devis ne peut pas encore être finalisé');
-  await expect(dialogue(page).locator('li')).toContainText(['Ajoute au moins un destinataire avec une adresse e-mail valide (une adresse en copie ne suffit pas).', 'Ajoute au moins une ligne au devis avant de le finaliser.']);
+  await expect(dialogue(page).locator('li')).toHaveText(['Ajoute au moins une ligne au devis avant de le finaliser.']);
   await capturer(page, info, 'ED3-erreurs-finalisation');
   await dialogue(page).getByRole('button', { name: 'Compris' }).click();
   expect(appels).toEqual([]);
@@ -217,7 +218,8 @@ test('ED3 finaliser : les erreurs de finalisation sont listées dans une fenêtr
   await lignes(page).last().locator('[data-champ="quantite"]').fill('2');
   await expect(page.locator('[data-avertissement]')).toHaveCount(0);
   await expect(total(page, 'ht')).toHaveText(/^500,00\s€$/);
-  await page.locator('[data-action="finaliser"]').click();
+  await page.locator('[data-action="envoyer"]').click();
+  await page.getByRole('menuitem', { name: 'Imprimer' }).click();
   await expect(dialogue(page)).toContainText('Finaliser ce devis ?');
   await dialogue(page).getByRole('button', { name: 'Finaliser' }).click();
   await expect(page.locator('.toast')).toContainText('Devis finalisé');
@@ -226,7 +228,7 @@ test('ED3 finaliser : les erreurs de finalisation sont listées dans une fenêtr
   await expect(page.locator('[data-valeur="lecture-seule"]')).toContainText('crée une variante');
   await expect(page.getByRole('heading', { level: 1 })).toContainText('DEV-2026-10-24-001');
   await expect(page.locator('[data-action="creer-variante"]')).toBeVisible();
-  await expect(page.locator('[data-action="finaliser"]')).toHaveCount(0);
+  await expect(page.locator('[data-action="envoyer"]')).toHaveCount(0);
   await expect(page.locator('[data-champ="libelle"]')).toHaveCount(0);
   await expect(page.locator('iframe[data-zone="apercu"]').contentFrame().locator('body')).toContainText('DEV-2026-10-24-001');
   await expect(total(page, 'ttc')).toHaveText(/^600,00\s€$/);

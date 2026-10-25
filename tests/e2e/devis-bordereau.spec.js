@@ -51,7 +51,7 @@ test('B1 le module Devis apparaît au menu (après Projets) et ouvre la liste pu
   await expect(page.getByRole('heading', { name: 'Devis', level: 1 })).toBeVisible();
   await page.locator('[data-action="ouvrir-bordereau"]').click();
   await expect(page).toHaveURL(/#\/devis\/bordereau$/);
-  await expect(page.getByRole('heading', { name: 'Bordereau de prix unitaires', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Catalogue', level: 1 })).toBeVisible();
   if (estTelephone(page)) await page.getByRole('button', { name: 'Ouvrir le menu' }).click();
   await expect(page.locator('.menu .menu-entree[aria-current="page"]')).toHaveText('Devis');
   if (estTelephone(page)) await page.keyboard.press('Escape');
@@ -194,13 +194,13 @@ test('B5 modifier sur place un prix d\'achat (virgule française acceptée) l\'e
 test('B6 le titre de l\'écran suit le nom de bordereau choisi dans les réglages', async ({ page }, info) => {
   await connecter(page);
   await ouvrirReglagesDevis(page);
-  await page.locator('#devis-nomBordereau').selectOption('Catalogue');
+  await page.locator('#devis-nomBordereau').selectOption('Bordereau de prix unitaires'); // « Catalogue » est le nom par défaut
   await page.locator('[data-action="enregistrer-reglages-devis"]').click();
   await expect(page.locator('.toast')).toContainText('Réglages des devis enregistrés');
-  await expect.poll(async () => (await lireDocument('devis_parametres/reglages'))?.nomBordereau).toBe('Catalogue');
+  await expect.poll(async () => (await lireDocument('devis_parametres/reglages'))?.nomBordereau).toBe('Bordereau de prix unitaires');
   await allerA(page, 'Devis');
   await page.locator('[data-action="ouvrir-bordereau"]').click();
-  await expect(page.getByRole('heading', { name: 'Catalogue', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Bordereau de prix unitaires', level: 1 })).toBeVisible();
   await capturer(page, info, 'B6-titre-catalogue');
   await ecrireDocument('devis_parametres/reglages', { nomBordereau: 'Grille tarifaire' });
   await expect(page.getByRole('heading', { name: 'Grille tarifaire', level: 1 })).toBeVisible(); // en direct, sans recharger
@@ -211,7 +211,7 @@ test('B7 les réglages (mode de marge, régime de TVA, durée, étapes) s\'enreg
   await ouvrirReglagesDevis(page);
   const enregistrer = page.locator('[data-action="enregistrer-reglages-devis"]');
   await expect(enregistrer).toBeDisabled(); // rien à enregistrer
-  await expect(page.locator('#devis-nomBordereau')).toHaveValue('Bordereau de prix unitaires');
+  await expect(page.locator('#devis-nomBordereau')).toHaveValue('Catalogue');
   await expect(page.locator('#devis-marge')).toHaveValue('20');
   await expect(page.locator('#devis-dureeValiditeJours')).toHaveValue('90');
   await capturer(page, info, 'B7-reglages-par-defaut');
@@ -262,7 +262,7 @@ test('B7 les réglages (mode de marge, régime de TVA, durée, étapes) s\'enreg
 
 test('B10 cas vide du bordereau : une phrase qui explique et un bouton « + Article » ; recherche sans résultat', async ({ page }, info) => {
   await ouvrirBordereau(page);
-  await expect(page.locator('.etat-vide')).toContainText('Aucun article. Un article est une ligne de ton bordereau de prix');
+  await expect(page.locator('.etat-vide')).toContainText('Aucun article. Un article est une ligne de ton catalogue de prix');
   const vide = page.locator('.etat-vide [data-action="nouvel-article-vide"]');
   await expect(vide).toHaveText('Article');
   await expect(page.locator('.page-devis .bouton-principal')).toHaveCount(1); // un seul bouton jaune par écran

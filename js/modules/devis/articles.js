@@ -30,7 +30,7 @@ export const ID_REGLAGES = 'reglages';
 export const UNITES_PROPOSEES = ['u', 'm', 'm²', 'm³', 'ml', 'h', 'jour', 'semaine', 'mois', 'forfait', 'lot', 'kg', 't', 'L', 'paire', 'ensemble'];
 export const UNITE_DEFAUT = 'u';
 /** Noms que l'utilisateur peut donner au bordereau (réglage du module). */
-export const NOMS_BORDEREAU = ['Bordereau de prix unitaires', 'Grille tarifaire', 'Catalogue'];
+export const NOMS_BORDEREAU = ['Catalogue', 'Bordereau de prix unitaires', 'Grille tarifaire'];
 export const NOM_BORDEREAU_DEFAUT = NOMS_BORDEREAU[0];
 export const MARGE_DEFAUT = 20;
 export const TAUX_TVA_DEFAUT_REGLAGE = TAUX_TVA_DEFAUT[0];

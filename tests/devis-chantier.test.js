@@ -33,6 +33,16 @@ const emetteurComplet = {
 const html = (devis, emetteur) => devisHtml(D.vueClient(devis, { clientNom: 'Mme Dupont' }), { emetteur });
 
 describe('Chantier et émetteur du devis', () => {
+  test('H1b le bloc Chantier : deux paragraphes (adresse, puis dates), sans ligne vide, interligne 1,5 réglé en feuille de style', () => {
+    const h = html(fige({ chantier: chantierComplet }));
+    const bloc = /<div class="chantier">(.*?)<\/div>/.exec(h)[1];
+    assert.equal((bloc.match(/<p>/g) ?? []).length, 2);
+    assert.match(bloc, /<p>12 rue des Tests<br>75011 Paris<\/p><p>Début des travaux/);
+    assert.ok(!bloc.includes('<br><br>'));
+    assert.match(h, /\.chantier \{[^}]*line-height: 1\.5/);
+    const sansAdresse = /<div class="chantier">(.*?)<\/div>/.exec(html(fige({ chantier: { debutTravaux: '2026-11-03' } })))[1];
+    assert.equal((sansAdresse.match(/<p>/g) ?? []).length, 1);
+  });
   test('H1 le bloc Chantier est imprimé en entier, ou ligne par ligne si partiel, et absent sans chantier', () => {
     const h = html(fige({ chantier: chantierComplet }));
     assert.match(h, /<h2>Chantier<\/h2>/);

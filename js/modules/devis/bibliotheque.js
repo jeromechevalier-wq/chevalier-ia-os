@@ -6,7 +6,7 @@ import * as A from './articles.js';
 import { arbreFamilles } from './familles.js';
 
 export const MESSAGE_FAMILLE_VIDE = 'Aucun article dans cette famille.';
-export const MESSAGE_BORDEREAU_VIDE = 'Ton Bordereau est vide : crée tes articles dans le Bordereau, ou utilise une ligne libre.';
+export const MESSAGE_BORDEREAU_VIDE = 'Ton catalogue est vide : crée tes articles dans le catalogue, ou utilise une ligne libre.';
 
 /**
  * `source` : { articles(), familles(), prixAffiche(article) -> texte, ajouter(articlesChoisis) }. Rend { fermer(), ouvert() }.
@@ -51,7 +51,7 @@ export function ouvrirBibliotheque(racine, source, { surFermeture = () => {}, re
     const tous = source.articles().filter((a) => a.actif !== false);
     const trouves = articlesAffiches();
     if (!tous.length) {
-      remplir(liste, h('li', { class: 'texte-discret', dataset: { vide: 'bordereau' } }, MESSAGE_BORDEREAU_VIDE, ' ', h('a', { href: '#/devis/bordereau' }, 'Ouvrir le Bordereau')));
+      remplir(liste, h('li', { class: 'texte-discret', dataset: { vide: 'bordereau' } }, MESSAGE_BORDEREAU_VIDE, ' ', h('a', { href: '#/devis/bordereau' }, 'Ouvrir le catalogue')));
       message.textContent = '';
     } else if (!trouves.length) {
       remplir(liste, h('li', { class: 'texte-discret', dataset: { vide: 'famille' } }, recherche.trim() ? 'Aucun article ne correspond.' : MESSAGE_FAMILLE_VIDE));

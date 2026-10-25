@@ -108,7 +108,7 @@
 .bouton-plus-actions { display: none; }
 .onglets-editeur { display: flex; gap: var(--esp-2); }
 .onglets-editeur[hidden] { display: none; }
-.onglet-editeur { min-height: var(--h-ctrl); padding: 0 var(--esp-6); border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--texte2); font: inherit; cursor: pointer; }
+.onglet-editeur { display: inline-flex; align-items: center; gap: var(--esp-3); min-height: var(--h-ctrl); padding: 0 var(--esp-6); border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--texte2); font: inherit; cursor: pointer; }
 .onglet-editeur.actif { color: var(--texte); border-bottom-color: var(--accent-trait); }
 .editeur-edition { display: flex; flex-direction: column; gap: var(--esp-6); min-width: 0; }
 .editeur-edition[hidden], .editeur-apercu[hidden] { display: none; }
@@ -120,7 +120,7 @@
 .champ-unite { width: 80px; min-width: 0; }
 
 /* La feuille du devis. */
-.document-devis { display: flex; flex-direction: column; gap: var(--esp-8); padding: var(--esp-8) var(--esp-9); background: var(--panneau); border: 1px solid var(--bordure); border-radius: var(--rayon-carte); min-width: 0; }
+.document-devis { display: flex; flex-direction: column; gap: var(--esp-8); padding: var(--esp-8) var(--esp-9); background: var(--panneau); border: 1px solid var(--bordure); border-radius: var(--rayon-carte); min-width: 0; container: feuille / inline-size; }
 .entete-document { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 460px); gap: var(--esp-9); align-items: start; }
 .entete-gauche { display: flex; flex-direction: column; gap: var(--esp-2); min-width: 0; }
 .entete-droite { display: flex; flex-direction: column; gap: var(--esp-5); min-width: 0; }
@@ -139,6 +139,8 @@
 /* Recherche dans le Bordereau (ouverte par « + Fourniture », « + Main d'œuvre », « + Ouvrage »…). */
 .recherche-bordereau { display: flex; flex-direction: column; gap: var(--esp-3); padding: var(--esp-5); border: 1px solid var(--bordure); border-radius: var(--rayon-petit); background: var(--panneau2); }
 .recherche-bordereau[hidden] { display: none; }
+.recherche-autres-ajouts { display: flex; flex-wrap: wrap; gap: var(--esp-3); padding-top: var(--esp-3); border-top: 1px solid var(--bordure); }
+.tableau-lignes-devis tr.ligne-recherche td { padding: var(--esp-3) 0; border: 0; background: transparent; }
 .resultats-bordereau { list-style: none; margin: 0; padding: 0; border: 1px solid var(--bordure); border-radius: var(--rayon-petit); }
 .resultats-bordereau li { padding: var(--esp-3) var(--esp-5); }
 .resultats-bordereau li + li { border-top: 1px solid var(--bordure); }
@@ -155,7 +157,7 @@
 .ajouts-types .bouton .icone { margin-right: var(--esp-1); }
 
 /* Tableau des lignes : section (1), sous-section (1.1), ligne (1.1.1). */
-.zone-lignes-devis { overflow-x: auto; }
+.zone-lignes-devis { overflow-x: auto; container: lignes / inline-size; }
 .tableau-lignes-devis { width: 100%; min-width: 880px; border-collapse: collapse; table-layout: fixed; }
 .tableau-lignes-devis th { text-align: left; padding: var(--esp-4) var(--esp-3); background: var(--accent); color: var(--sur-accent); font-weight: var(--poids-moyen); font-size: var(--fs-menu); }
 .tableau-lignes-devis th:first-child { border-top-left-radius: var(--rayon-petit); }
@@ -179,7 +181,10 @@
 .ligne-section-devis .ligne-champs { flex-wrap: nowrap; }
 .ligne-section-devis .ligne-champs > .champ { flex: 1 1 auto; }
 .ligne-devis-edition:focus-within td { background: var(--accent-a1f); }
-.case-saut { display: inline-flex; align-items: center; gap: var(--esp-2); white-space: nowrap; color: var(--texte2); font-size: var(--fs-menu); }
+/* Saut de page : une bande rayée en pointillés gris sur toute la largeur, au texte centré. */
+.bande-saut { display: flex; align-items: center; justify-content: center; min-height: var(--h-ctrl-petit); border: 1px dashed var(--bordure-champ); border-radius: var(--rayon-petit); color: var(--texte2); font-size: var(--fs-menu); background: repeating-linear-gradient(135deg, transparent 0, transparent 8px, var(--survol) 8px, var(--survol) 16px); }
+.ligne-saut-devis td { vertical-align: middle; }
+.ligne-saut-devis .poignee-devis { vertical-align: middle; }
 .etiquette-sous-total { color: var(--texte2); }
 .col-actions-lignes { white-space: nowrap; text-align: right; }
 .total-ligne, .sous-total-section { font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -242,6 +247,10 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
   .bas-devis { grid-template-columns: minmax(0, 1fr); }
 }
 
+/* L'en-tête et le bas de page passent sur une colonne quand la feuille est étroite (panneau Bibliothèque ouvert à côté, téléphone). */
+@container feuille (max-width: 760px) {
+  .entete-document, .bas-devis { grid-template-columns: minmax(0, 1fr); }
+}
 @media (max-width: 767px) { .barre-devis { top: 56px; } } /* sous la barre du menu du téléphone */
 
 /* Téléphone (version proposée sans modèle) : une carte par ligne (désignation en haut, puis Qté / Unité / Prix / TVA / Total sur deux rangées), sections en bandes pleine largeur. */
@@ -254,6 +263,17 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
   .barre-ajouts { flex-direction: column; align-items: stretch; }
   .ajouts-types .bouton, .ajouts-structure .bouton { flex: 1 1 auto; min-height: 44px; }
   .zone-lignes-devis { overflow-x: visible; }
+  .bouton-poignee { width: 44px; height: 44px; }
+  .bouton-rond, .bouton-replier { width: 44px; height: 44px; }
+  .resultat-bordereau, .onglet-editeur { min-height: 44px; min-width: 44px; }
+  .carte-editeur, .panneau-total { padding: var(--esp-5); }
+  .bandeau-net { width: 100%; }
+  .tableau-tva { width: 100%; }
+}
+
+/* Tableau des lignes en cartes quand la feuille est étroite (téléphone, ou panneau Bibliothèque ouvert à côté) : on regarde la largeur de la zone, pas celle de l'écran. */
+@container lignes (max-width: 879px) {
+  .tableau-lignes-devis tr.ligne-recherche { display: block; padding: var(--esp-3) 0; }
   .tableau-lignes-devis { min-width: 0; }
   .tableau-lignes-devis thead { display: none; }
   .tableau-lignes-devis, .tableau-lignes-devis tbody { display: block; }
@@ -278,13 +298,7 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
   .tableau-lignes-devis .total-ligne { padding-top: var(--esp-3); }
   .ligne-section-devis .ligne-champs { flex-wrap: wrap; }
   .ligne-section-devis .ligne-champs > .champ { flex: 1 1 0; min-width: 0; }
-  .ligne-section-devis .case-saut { flex: 1 0 100%; }
-  .bouton-poignee { width: 44px; height: 44px; }
-  .bouton-rond, .bouton-replier { width: 44px; height: 44px; }
-  .resultat-bordereau, .onglet-editeur { min-height: 44px; min-width: 44px; }
-  .carte-editeur, .panneau-total { padding: var(--esp-5); }
-  .bandeau-net { width: 100%; }
-  .tableau-tva { width: 100%; }
+  .tableau-lignes-devis .ligne-saut-devis { grid-template-areas: "poi des act"; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; }
 }
 
 /* ======== Fiche d'un devis (panneau latéral depuis la liste) : section propre à la fiche, ajoutée en fin de fichier. ======== */
@@ -382,7 +396,6 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
 .menu-devis-case.grisee { opacity: .55; cursor: not-allowed; }
 .menu-devis-champ { cursor: default; justify-content: space-between; }
 .menu-devis-champ .champ { width: auto; min-width: 90px; }
-.menu-devis-options { max-height: min(80dvh, 640px); }
 .menu-pop-entree:disabled .menu-devis-bientot { opacity: 1; }
 
 /* Ajustement global : trois champs liés. */
@@ -433,10 +446,20 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
 .bibliotheque-pied { display: flex; justify-content: flex-end; padding: var(--esp-5) var(--esp-6); border-top: 1px solid var(--bordure); }
 @media (min-width: 1280px) { .page-editeur-devis.avec-bibliotheque { padding-right: 680px; } }
 
+/* Options : panneau collé à droite, plus étroit que la Bibliothèque ; le devis se décale à côté (jamais caché), seule la croix le ferme. */
+.page-editeur-devis { --largeur-panneau-options: 340px; }
+.options-panneau { position: fixed; top: 0; right: 0; bottom: 0; z-index: 40; display: flex; flex-direction: column; width: min(var(--largeur-panneau-options), 100%); background: var(--fond); color: var(--texte); border-left: 1px solid var(--bordure); box-shadow: var(--ombre); }
+.options-tete { display: flex; align-items: center; gap: var(--esp-4); padding: var(--esp-5) var(--esp-6); border-bottom: 1px solid var(--bordure); }
+.options-titre { margin: 0; flex: 1; font-size: var(--fs-section); font-weight: var(--poids-moyen); }
+.options-corps { flex: 1; min-height: 0; padding: var(--esp-4); overflow-y: auto; }
+@media (min-width: 701px) { .page-editeur-devis.avec-options { padding-right: var(--largeur-panneau-options); } }
+
 /* Téléphone : les menus deviennent des feuilles collées en bas ; la Bibliothèque occupe tout l'écran avec un bouton retour. */
 @media (max-width: 700px) {
   .menu-devis { left: 0; right: 0; bottom: 0; top: auto; max-width: none; width: 100%; max-height: 80dvh; border-radius: var(--rayon-carte) var(--rayon-carte) 0 0; z-index: 95; }
   .menu-devis .menu-pop-entree, .menu-devis-case, .menu-devis-champ { min-height: 44px; }
+  .options-panneau { inset: 0; width: 100%; z-index: 60; border-left: 0; }
+  .options-fermer { min-width: 44px; min-height: 44px; }
   .bibliotheque-panneau { inset: 0; width: 100%; z-index: 60; border-left: 0; }
   .bibliotheque-retour { display: inline-grid; min-width: 44px; min-height: 44px; }
   .bibliotheque-fermer { min-width: 44px; min-height: 44px; }
@@ -452,3 +475,29 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
 
 /* La liste du champ « Famille » du tableau déborde de la cellule : on lève le rognage horizontal du cadre le temps de l'édition (sur ordinateur). */
 .zone-tableau:has(.champ-famille-cellule) { overflow: visible; }
+
+/* Éditeur de devis plus compact sur ordinateur (demande de Jérôme, 24/10/2026) : la feuille est centrée avec des marges de chaque côté (elle ne s'étire plus sur tout l'écran),
+   les lignes sont plus basses et il y a moins d'air autour : on voit plus de lignes sans défiler. Le téléphone garde ses cibles tactiles de 44 px. */
+@media (min-width: 768px) {
+  .page-editeur-devis { gap: var(--esp-4); }
+  .editeur-edition { gap: var(--esp-4); }
+  .document-devis { width: 100%; max-width: 1180px; margin-inline: auto; gap: var(--esp-6); padding: var(--esp-6) var(--esp-8); }
+  .entete-document { gap: var(--esp-7); }
+  .entete-droite { gap: var(--esp-3); }
+  .titre-document { margin-bottom: var(--esp-1); }
+  .ligne-entete { min-height: calc(var(--h-ctrl) - var(--esp-5)); }
+  .ligne-entete .champ { min-height: calc(var(--h-ctrl) - var(--esp-5)); }
+  .tableau-lignes-devis th { padding: var(--esp-2) var(--esp-2); }
+  .tableau-lignes-devis td { padding: var(--esp-1) var(--esp-2); }
+  .tableau-lignes-devis .num { padding-top: var(--esp-3); }
+  .ligne-section-devis .num { padding-top: var(--esp-1); }
+  .champ-surplace { padding: var(--esp-1) var(--esp-2); min-height: calc(var(--h-ctrl) - var(--esp-4)); }
+  textarea.champ-surplace { min-height: calc(var(--h-ctrl) - var(--esp-4)); }
+  .tableau-lignes-devis td.c-des { position: relative; }
+  .bouton-catalogue-ligne { position: absolute; top: var(--esp-1); right: var(--esp-2); opacity: 0; pointer-events: none; background: var(--panneau); }
+  .ligne-devis-edition:hover .bouton-catalogue-ligne, td.c-des:focus-within .bouton-catalogue-ligne, .bouton-catalogue-ligne:focus-visible { opacity: 1; pointer-events: auto; }
+  .total-ligne { padding-top: var(--esp-2); }
+  .tableau-lignes-devis th.col-tot { width: 172px; }
+  .ligne-section-devis td.c-tot { white-space: nowrap; }
+  .carte-editeur, .panneau-total { padding: var(--esp-4) var(--esp-6); }
+}

@@ -1,5 +1,59 @@
 # À faire au début de la prochaine session
 
+## Plan du 25/10/2026 : en-tête du devis, DocuSeal, vocabulaire
+
+Décisions de Jérôme (discussion du 25/10/2026, rien n'est codé pour l'en-tête) :
+
+1. **Mon entreprise** (réglages du module Devis) : logo, nom, forme juridique, adresse, SIRET, n° de TVA, téléphone, e-mail, site, couleur du tableau, assurance, médiateur. Le générateur de document sait déjà les afficher (`emetteur`), mais **l'écran de réglage n'a jamais été construit** : l'éditeur ne passe aucune donnée, donc l'aperçu n'a pas de bloc entreprise. Le logo attend ce réglage (pas d'envoi d'image avant). Si un envoi d'image demande une règle de stockage : arrêt et question à Jérôme.
+2. **En-tête cohérent entre édition et aperçu** : logo et bloc entreprise en haut à gauche, cadre du destinataire en haut à droite, « Devis » avec numéro, date et validité, objet, puis tableau. À préciser avec Jérôme à partir de sa capture d'un devis qu'il aime.
+3. **Champ Affaire = recherche** : on tape 3 lettres, les affaires correspondantes se proposent (plus de liste déroulante).
+4. **E-mails** : cases à cocher avec toutes les adresses disponibles (organisation et contacts de l'affaire), plus champs **CC** et **CCI**. L'envoi par e-mail n'existe pas encore : ces choix sont enregistrés dans le devis, prêts pour l'envoi.
+5. **DocuSeal** : à reprendre avec Jérôme en direct (installation commencée, non terminée), pendant que le codage de l'en-tête est confié à des agents.
+6. **Mot « Catalogue »** : le mot a remplacé « Bordereau » dans les écrans du module Devis (PR du 25/10/2026) ; il reste des « bordereau » dans les descriptions des outils MCP, les copies générées (`functions/partage`) et la documentation. À finir dans la session **Vocabulaire configurable** (`docs/vocabulaire-configurable.md`), qui ajoute la notion « catalogue » au dictionnaire. Session faite **seule**, sans autre PR ouverte sur ces fichiers (54 fichiers touchés).
+
+## Rapport du matin : suite du 24/10/2026, éditeur de devis (version 2.29.0)
+
+Jérôme était réveillé et a guidé le travail. Ce qui est fusionné depuis le rapport de la première nuit (plus bas) :
+
+| Sujet | PR | État |
+|---|---|---|
+| Éditeur, partie 2 (menus de ligne, Bibliothèque, ajustement, Options, impression) | 243 | fusionnée seule |
+| Barre des phases qui se rafraîchit au changement de phase | 244 | fusionnée seule, non relue par Fable |
+| E-mail du destinataire qui suit le client choisi | 245 | fusionnée seule, non relue par Fable |
+| Bouton Catalogue sur les lignes, unité verrouillée pour les lignes du catalogue | 246 | fusionnée seule, non relue par Fable |
+| Éditeur compact (feuille centrée, onglets stylo et œil) | 247 | fusionnée seule |
+| Marge et remise depuis « Définir un ajustement » ; condition marquée « bientôt » | 248 | fusionnée seule, non relue par Fable |
+| Bouton Envoyer, croix, e-mail facultatif | 249 | fusionnée seule, non relue par Fable |
+| Menus des sections et saut de page visuel | 250 | fusionnée seule, relue par Fable |
+| Case « Cacher le reste à facturer » active | 251 | fusionnée seule, non relue par Fable (4 lignes) |
+| Finale : version 2.29.0, documentation, wiki, ce rapport | cette PR | fusionnée seule si la coche « Tests » est verte |
+| Fonction `devisPdf` (PDF) | 235 | **en pause** (choix du moteur de PDF à faire, voir ci-dessous) |
+
+### À faire pour Jérôme demain
+1. **Vocabulaire configurable** (affaire → vente, projet → chantier) : session dédiée, plan dans `docs/vocabulaire-configurable.md`. Rien n'est encore remplacé dans l'écran.
+2. **Menu Options** : « garde 4 » a été compris comme « garde seulement la case 4 » (Cacher le reste à facturer). « Cacher l'annexe photos » reste grisée. Dis-moi si tu voulais garder les quatre.
+3. **Choisir le moteur de PDF** : Gotenberg (PR 235, 7 étapes de console), Chromium dans la fonction Firebase (2 étapes), ou un service tiers. Avis Fable : Chromium. Le bouton Imprimer actuel est provisoire (impression du navigateur).
+4. **DocuSeal** (signature) : installation en pause, à reprendre quand tu veux.
+5. **Recette à l'écran** : voir les 5 vérifications dans les PR 250 et 251. Après la fusion, **recharge la page en dur** (Cmd + Maj + R) pour voir la version 2.29.0.
+
+### Décisions prises seul pendant cette suite
+- Les sous-menus « Insérer » listent 9 choix ; « Sous-section » et « Ligne libre » restent dans les boutons du bas et le menu « … ».
+- Le menu de section n'a pas Monter / Descendre (la poignée sert à déplacer).
+- Un ancien « Nouvelle page avant » devient une bande à la fin de la section précédente (rien pour la première section).
+- Le document sans option reste identique octet pour octet à celui d'avant (empreinte testée).
+
+### Défauts mineurs connus, non corrigés
+Montant d'ajustement arrondi par le coefficient à 4 décimales ; en-tête « Prix U. HT ajusté » alors que le champ montre le prix non ajusté ; « Cacher les éléments d'ouvrage » cache aussi une description écrite à la main ; écouteurs du menu Options laissés si on ouvre un autre menu au clavier ; focus perdu après insertion d'un saut au clavier ; message « sous Salle » en fin de section à sous-sections.
+
+### Ce qui n'a pas pu être vérifié avec le vrai système
+Pagination réelle à l'impression ou en PDF ; Safari et iPhone réels (simulés) ; `devisFinaliser` réel ; rendu du PDF enregistré.
+
+### État de la nuit GitHub
+Non consulté pendant la session. Après la fusion de cette PR, relancer « Tests de nuit » à la main (`gh run list --workflow "Tests de nuit" --limit 3`). Connus : `look-compact` en téléphone rouge sur `main` à un moment ; erreur console Firestore « Listen 400 » instable dans les parcours.
+
+---
+
+## Rapport de la première nuit du 24/10/2026 (module Devis, version 2.28.0) : gardé tel quel
 Mis à jour le 24/10/2026 au matin (nuit « GO NUIT » du module Devis). **À mettre à jour ou à supprimer une fois les points faits.**
 
 ## Rapport du matin : nuit du 24/10/2026, module Devis (version 2.28.0)

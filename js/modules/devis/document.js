@@ -43,6 +43,9 @@ const CSS = `
 * { box-sizing: border-box; }
 html { font-family: Helvetica, Arial, sans-serif; font-size: 9.5pt; color: #1b1b1b; }
 body { margin: 0; }
+.saut-marque { display: none; }
+@media screen { .saut-marque { display: block; margin: 2mm 0; padding: 1mm 0; border: 0.3mm dashed #aaa; border-radius: 1mm; text-align: center; font-size: 8pt; line-height: 1.4; color: #777; background: repeating-linear-gradient(135deg, #f4f4f4 0 3mm, #fff 3mm 6mm); } }
+@media screen { html { background: #e9ecef; } body { max-width: 210mm; min-height: 297mm; margin: 0 auto; padding: 14mm; background: #fff; box-shadow: 0 0 3mm rgba(0, 0, 0, 0.15); } }
 table { border-collapse: collapse; width: 100%; }
 .mise-en-page { table-layout: auto; }
 .mise-en-page > thead > tr > td, .mise-en-page > tfoot > tr > td { padding: 0; }
@@ -85,8 +88,10 @@ h1 { font-size: 20pt; margin: 0 0 1mm; color: var(--accent-titre); }
 .mentions p { margin: 0 0 1.5mm; font-size: 8.5pt; }
 .client { margin-top: 6mm; border: 0.3mm solid #666; padding: 3mm 4mm; min-height: 38mm; page-break-inside: avoid; break-inside: avoid; }
 .client .titre { font-weight: bold; margin-bottom: 1mm; }
-.chantier { margin-bottom: 5mm; line-height: 1.45; page-break-inside: avoid; break-inside: avoid; }
+.chantier { margin-bottom: 5mm; line-height: 1.5; page-break-inside: avoid; break-inside: avoid; }
 .chantier h2 { font-size: 9.5pt; margin: 0 0 1mm; color: var(--accent); }
+.chantier p { margin: 0; }
+.chantier p + p { margin-top: 2.5mm; }
 .assurance-mediation { margin-top: 4mm; font-size: 8pt; line-height: 1.4; color: #444; page-break-inside: avoid; break-inside: avoid; }
 .cgv { break-before: page; page-break-before: always; font-size: 8pt; line-height: 1.4; }
 .cgv h2 { font-size: 11pt; margin: 0 0 3mm; color: var(--accent); }
@@ -157,21 +162,39 @@ function tableauLignes(vue, sansTva, aff = {}) {
   const liste = vue.sections ?? [];
   // Le sous-total d'une section de niveau 1 vient après ses sous-sections (il les compte) : sans sous-section, il suit tout de suite ses lignes, comme avant.
   let enAttente = null;
-  const fermer = () => { if (enAttente) lignes.push(enAttente); enAttente = null; };
+  // Un saut de page voulu par l'utilisateur est une ligne `{ type: 'saut' }` : la page se coupe à cet endroit exact (jamais en tête de devis, jamais deux de suite).
+  // Un saut avant la première ligne d'une section passe avant son bandeau ; un saut après sa dernière ligne passe après son sous-total.
+  let sautPose = false;
+  const poser = (ligne) => { lignes.push(ligne); sautPose = false; };
+  const poserSaut = () => { if (!sautPose && lignes.length) lignes.push(`<tr class="saut-page" style="break-before:page;page-break-before:always"><td colspan="${colonnes}" style="padding:0;border:0;height:0;line-height:0"><div class="saut-marque">Saut de page</div></td></tr>`); sautPose = true; };
+  const fermer = () => { if (enAttente) poser(enAttente); enAttente = null; };
   for (const [k, s] of liste.entries()) {
     const sous = s.niveau === 2;
+    const contenu = s.lignes ?? [];
+    const premiere = contenu.findIndex((x) => x.type !== 'saut');
+    const derniere = contenu.reduce((n, x, j) => (x.type !== 'saut' ? j : n), -1);
     if (!sous) fermer();
-    // Saut de page demandé : jamais sur la première section (la page est déjà neuve).
+    if (contenu[0]?.type === 'saut') poserSaut(); // saut en tête de section (ou section faite de sauts seulement)
+    // Saut de page demandé (ancien réglage de section) : jamais sur la première section (la page est déjà neuve).
     const saut = s.sautDePageAvant === true && k > 0 ? ' saut-avant' : '';
-    lignes.push(`<tr class="bandeau${sous ? ' sous-bandeau' : ''}${saut}"><td class="num">${texte(s.numero)}</td><td colspan="${colonnes - 1}">${texte(s.titre || 'Prestations')}</td></tr>`);
-    for (const l of s.lignes ?? []) {
+    poser(`<tr class="bandeau${sous ? ' sous-bandeau' : ''}${saut}"><td class="num">${texte(s.numero)}</td><td colspan="${colonnes - 1}">${texte(s.titre || 'Prestations')}</td></tr>`);
+    for (const [j, l] of contenu.entries()) {
+      if (l.type === 'saut') {
+        if (premiere === -1 || j < premiere || j > derniere) continue; // posé avant le bandeau ou après le sous-total
+        poserSaut();
+        continue;
+      }
       const tva = sansTva && vue.regimeTva === 'franchise' ? '-' : pourcent(l.tauxTva ?? 0);
-      lignes.push(`<tr><td class="num">${texte(l.numero)}</td><td>${texte(l.libelle)}${descriptionDeLigne(l, aff)}</td>`
+      poser(`<tr><td class="num">${texte(l.numero)}</td><td>${texte(l.libelle)}${descriptionDeLigne(l, aff)}</td>`
         + `${aff.cacherQuantiteUnite ? '' : `<td class="d">${texte(nombre(l.quantite))}</td><td>${texte(l.unite)}</td>`}<td class="d">${formaterMontant(l.prixUnitaireHT)}</td>${aff.cacherTva ? '' : `<td class="d">${tva}</td>`}<td class="d">${formaterMontant(l.totalHT)}</td></tr>`);
     }
     const sousTotal = aff.cacherTotauxSections ? null : `<tr class="sous-total${sous ? ' sous-total-sous' : ''}"><td colspan="${colonnes}">Sous-total ${texte(s.numero)}${NBSP}: ${formaterMontant(s.sousTotalHT)}</td></tr>`;
-    if (!sousTotal) continue;
-    if (sous) lignes.push(sousTotal); else enAttente = sousTotal;
+    if (sousTotal) { if (sous) poser(sousTotal); else enAttente = sousTotal; }
+    // Sauts après la dernière ligne : après le sous-total de la section (si une sous-section suit, le saut reste juste avant elle).
+    if (premiere !== -1 && derniere < contenu.length - 1) {
+      if (liste[k + 1]?.niveau !== 2) fermer(); // jamais de sous-total du parent tant qu'une sous-section suit
+      poserSaut();
+    }
   }
   fermer();
   return `<table class="lignes"><thead><tr><th class="num">N°</th><th>Désignation</th>${aff.cacherQuantiteUnite ? '' : '<th class="d">Qté</th><th>Unité</th>'}<th class="d">Prix U.${NBSP}HT</th>${aff.cacherTva ? '' : '<th class="d">TVA</th>'}<th class="d">Total${NBSP}HT</th></tr></thead><tbody>${lignes.join('')}</tbody></table>`;
@@ -203,8 +226,10 @@ export function devisHtml(vue, options = {}) {
   if (v.objet) infos.push(`<div class="objet">${texte(v.objet)}</div>`);
   const chantier = adresseTexte(v.adresses?.chantier);
   if (chantier && !v.chantier?.adresse) infos.push(`<div>Adresse du chantier${NBSP}: ${texte(chantier)}</div>`);
+  // Deux paragraphes : l'adresse, puis les dates (début, durée, fin) ; l'interligne se règle en CSS, sans lignes vides.
   const blocChantier = v.chantier?.lignes?.length
-    ? `<div class="chantier"><h2>Chantier</h2>${v.chantier.lignes.map((x) => `<div>${texte(x)}</div>`).join('')}</div>` : '';
+    ? `<div class="chantier"><h2>Chantier</h2>${[v.chantier.adresse ? [v.chantier.adresse] : [], v.chantier.lignes.slice(v.chantier.adresse ? 1 : 0)]
+      .filter((groupe) => groupe.length).map((groupe) => `<p>${groupe.map((x) => texte(x)).join('<br>')}</p>`).join('')}</div>` : '';
 
   const lignesTotaux = [];
   if (v.remise && v.remise.montantHt > 0) {
@@ -236,7 +261,7 @@ export function devisHtml(vue, options = {}) {
   const details = [];
   if (c.debutTravaux && !v.chantier?.debutTravaux) details.push(`Début des travaux${NBSP}: ${texte(c.debutTravaux)}`);
   if (c.dureeEstimee && !v.chantier?.dureeEstimee) details.push(`Durée estimée${NBSP}: ${texte(c.dureeEstimee)}`);
-  if (v.acompte) details.push(texte(v.acompte.libelle), texte(v.acompte.libelleReste));
+  if (v.acompte) details.push(texte(v.acompte.libelle), ...(aff.cacherResteAFacturer ? [] : [texte(v.acompte.libelleReste)]));
   if (v.retenueGarantie?.phrase) details.push(texte(v.retenueGarantie.phrase));
   if (details.length) paiement.push(`<p>${details.join('<br>')}</p>`);
   if (v.texteLibre) paiement.push(`<div class="texte-libre">${texte(v.texteLibre)}</div>`);
