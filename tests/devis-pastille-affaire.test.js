@@ -60,3 +60,8 @@ test('6 la pastille porte le lien du devis (elle l\'ouvre en un clic)', () => {
   const p = pastilleDevisDeAffaire([{ id: 'dv9', affaireId: 'a1', statut: 'brouillon', creeLe: new Date(MAINT) }], 'a1', opts);
   assert.equal(p.lien, 'devis/editeur/dv9');
 });
+
+test('6b un devis finalisé s\'ouvre en visualisation (jamais en édition)', () => {
+  const p = pastilleDevisDeAffaire([{ id: 'dv9', affaireId: 'a1', statut: 'envoye', creeLe: new Date(MAINT) }], 'a1', opts);
+  assert.equal(p.lien, 'devis/voir/dv9');
+});
