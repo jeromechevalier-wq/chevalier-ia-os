@@ -39,6 +39,7 @@ const CSS = `
 * { box-sizing: border-box; }
 html { font-family: Helvetica, Arial, sans-serif; font-size: 9.5pt; color: #1b1b1b; }
 body { margin: 0; }
+@media screen { html { background: #e9ecef; } body { max-width: 210mm; min-height: 297mm; margin: 0 auto; padding: 14mm; background: #fff; box-shadow: 0 0 3mm rgba(0, 0, 0, 0.15); } }
 table { border-collapse: collapse; width: 100%; }
 .mise-en-page { table-layout: auto; }
 .mise-en-page > thead > tr > td, .mise-en-page > tfoot > tr > td { padding: 0; }
@@ -81,8 +82,10 @@ h1 { font-size: 20pt; margin: 0 0 1mm; color: var(--accent-titre); }
 .mentions p { margin: 0 0 1.5mm; font-size: 8.5pt; }
 .client { margin-top: 6mm; border: 0.3mm solid #666; padding: 3mm 4mm; min-height: 38mm; page-break-inside: avoid; break-inside: avoid; }
 .client .titre { font-weight: bold; margin-bottom: 1mm; }
-.chantier { margin-bottom: 5mm; line-height: 1.45; page-break-inside: avoid; break-inside: avoid; }
+.chantier { margin-bottom: 5mm; line-height: 1.5; page-break-inside: avoid; break-inside: avoid; }
 .chantier h2 { font-size: 9.5pt; margin: 0 0 1mm; color: var(--accent); }
+.chantier p { margin: 0; }
+.chantier p + p { margin-top: 2.5mm; }
 .assurance-mediation { margin-top: 4mm; font-size: 8pt; line-height: 1.4; color: #444; page-break-inside: avoid; break-inside: avoid; }
 .cgv { break-before: page; page-break-before: always; font-size: 8pt; line-height: 1.4; }
 .cgv h2 { font-size: 11pt; margin: 0 0 3mm; color: var(--accent); }
@@ -215,8 +218,10 @@ export function devisHtml(vue, options = {}) {
   if (v.objet) infos.push(`<div class="objet">${texte(v.objet)}</div>`);
   const chantier = adresseTexte(v.adresses?.chantier);
   if (chantier && !v.chantier?.adresse) infos.push(`<div>Adresse du chantier${NBSP}: ${texte(chantier)}</div>`);
+  // Deux paragraphes : l'adresse, puis les dates (début, durée, fin) ; l'interligne se règle en CSS, sans lignes vides.
   const blocChantier = v.chantier?.lignes?.length
-    ? `<div class="chantier"><h2>Chantier</h2>${v.chantier.lignes.map((x) => `<div>${texte(x)}</div>`).join('')}</div>` : '';
+    ? `<div class="chantier"><h2>Chantier</h2>${[v.chantier.adresse ? [v.chantier.adresse] : [], v.chantier.lignes.slice(v.chantier.adresse ? 1 : 0)]
+      .filter((groupe) => groupe.length).map((groupe) => `<p>${groupe.map((x) => texte(x)).join('<br>')}</p>`).join('')}</div>` : '';
 
   const lignesTotaux = [];
   if (v.remise && v.remise.montantHt > 0) {
