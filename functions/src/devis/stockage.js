@@ -65,6 +65,14 @@ export function creerStockage({ bucket, maintenant = Date.now }) {
         throw new Error('Stockage : le PDF n\'a pas pu être enregistré.', { cause: e });
       }
     },
+    /** Supprime un fichier (déjà absent = rien à faire). */
+    async supprimer(chemin) {
+      try { await bucket.file(chemin).delete({ ignoreNotFound: true }); } catch (e) { throw new Error('Stockage : le fichier n\'a pas pu être supprimé.', { cause: e }); }
+    },
+    /** Supprime le fichier « PDF brouillon » d'un devis (appelé quand le brouillon est supprimé ; coeur/devis.js ne connaît pas les chemins). */
+    async supprimerBrouillon({ espace = '', affaireId, devisId }) {
+      return this.supprimer(cheminPdfDevis({ espace, affaireId, devisId, brouillon: true }));
+    },
     async existe(chemin) {
       try { const [oui] = await bucket.file(chemin).exists(); return oui === true; } catch { return false; }
     },

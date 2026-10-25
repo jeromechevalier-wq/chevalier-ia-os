@@ -90,6 +90,92 @@ test('C1 « + E-mail en copie » : ajouter une adresse (Entrée), refuser une ad
   await expect(page.locator('[data-zone="copie"] .ligne-copie')).toHaveCount(0);
 });
 
+test('C2 une adresse déjà en copie ne peut pas être le destinataire : message clair, rien d’enregistré, l’adresse enregistrée revient en quittant le champ', async ({ page }, info) => {
+  await semer();
+  await nouveauBrouillon(page);
+  const bloc = page.locator('[data-zone="copie"]');
+  await bloc.locator('[data-action="ajouter-copie"]').click();
+  await bloc.locator('[data-champ="copie"]').fill('compta@exemple.fr');
+  await bloc.locator('[data-champ="copie"]').press('Enter');
+  await expect(bloc.locator('.ligne-copie')).toHaveCount(1);
+  const destinataire = page.locator('[data-champ="destinataire"]');
+  await destinataire.fill('Compta@exemple.fr');
+  await expect(page.locator('[data-erreur="destinataire"]')).toContainText('déjà en copie');
+  await capturer(page, info, 'C2-doublon-destinataire');
+  await destinataire.fill('autre@exemple.fr'); // une autre adresse : le message disparaît
+  await expect(page.locator('[data-erreur="destinataire"]')).toBeHidden();
+  await destinataire.fill('compta@exemple.fr');
+  await destinataire.blur();
+  await expect(destinataire).toHaveValue('autre@exemple.fr'); // la dernière adresse valable revient
+});
+
+test('C3 devis en lecture seule sans adresse en copie : pas d’étiquette « En copie » seule ; avec une adresse, elle s’affiche sans croix utilisable', async ({ page }, info) => {
+  await semer();
+  await ouvrirListe(page);
+  const base = {
+    racineId: 'x', version: 1, numero: 'DEV-2026-10-02-001', statut: 'envoye', affaireId: 'a1', organisationId: 'o1', personneId: null, modeMarge: 'majoration', marge: 20, tauxTvaDefaut: 20,
+    regimeTva: 'assujetti', autoliquidation: false, archive: false, expireLe: '2027-01-01', destinataires: ['contact@exemple.fr'],
+    sections: [{ id: 's1', titre: 'Cuisine', lignes: [{ id: 'l1', libelle: 'Carrelage', quantite: 2, unite: 'm²', prixAchat: 50, prixVente: 60, tauxTva: 20 }] }],
+    creePar: JEROME, proprietaire: JEROME, creeLe: new Date(), modifieLe: new Date(),
+  };
+  await ecrireDocument('devis_devis/sanscopie', { ...base, racineId: 'sanscopie' });
+  await ecrireDocument('devis_devis/aveccopie', { ...base, racineId: 'aveccopie', numero: 'DEV-2026-10-02-002', copie: ['compta@exemple.fr'] });
+  await page.goto('/?emulateurs=1#/devis/editeur/sanscopie');
+  await expect(page.locator('[data-valeur="lecture-seule"]')).toBeVisible();
+  await expect(page.locator('[data-zone="copie"]')).toBeHidden();
+  await expect(page.getByText('En copie', { exact: true })).toHaveCount(0);
+  await capturer(page, info, 'C3-lecture-seule-sans-copie');
+  await page.goto('/?emulateurs=1#/devis/editeur/aveccopie');
+  await expect(page.locator('[data-valeur="lecture-seule"]')).toBeVisible();
+  await expect(page.locator('[data-zone="copie"] .ligne-copie')).toHaveText(['compta@exemple.fr']);
+  await expect(page.locator('[data-zone="copie"] [data-action="retirer-copie"]')).toBeDisabled();
+});
+
+test('C5 la croix d’une adresse en copie retire bien l’adresse même si on est en train d’en saisir une autre', async ({ page }, info) => {
+  await semer();
+  await nouveauBrouillon(page);
+  const bloc = page.locator('[data-zone="copie"]');
+  await bloc.locator('[data-action="ajouter-copie"]').click();
+  await bloc.locator('[data-champ="copie"]').fill('a@exemple.fr');
+  await bloc.locator('[data-champ="copie"]').press('Enter');
+  await bloc.locator('[data-action="ajouter-copie"]').click();
+  await bloc.locator('[data-champ="copie"]').fill('b@exemple.fr');
+  await bloc.locator('[data-champ="copie"]').press('Enter');
+  await expect(bloc.locator('.ligne-copie')).toHaveText(['a@exemple.fr', 'b@exemple.fr']);
+  await bloc.locator('[data-action="ajouter-copie"]').click();
+  await bloc.locator('[data-champ="copie"]').fill('c@exemple.fr'); // saisie en cours, champ actif
+  await capturer(page, info, 'C5-croix-pendant-saisie');
+  await bloc.locator('[data-action="retirer-copie"]').first().click(); // un vrai clic : le champ perd le focus, la croix doit répondre quand même
+  await expect(bloc.locator('.ligne-copie')).toHaveText(['b@exemple.fr']); // a est retirée
+  await expect(bloc.locator('[data-champ="copie"]')).toHaveValue('c@exemple.fr'); // la saisie en cours n'est pas perdue
+  await bloc.locator('[data-champ="copie"]').press('Enter');
+  await expect(bloc.locator('.ligne-copie')).toHaveText(['b@exemple.fr', 'c@exemple.fr']);
+});
+
+test('C6 « Créer une variante » et « Dupliquer » ont une icône « i » accessible (clavier et toucher), plus d’infobulle cachée', async ({ page }, info) => {
+  await semer();
+  await ouvrirListe(page);
+  await ecrireDocument('devis_devis/fige', {
+    racineId: 'fige', version: 1, numero: 'DEV-2026-10-02-001', statut: 'envoye', affaireId: 'a1', organisationId: 'o1', personneId: null, modeMarge: 'majoration', marge: 20, tauxTvaDefaut: 20,
+    regimeTva: 'assujetti', autoliquidation: false, archive: false, expireLe: '2027-01-01', destinataires: ['contact@exemple.fr'],
+    sections: [{ id: 's1', titre: 'Cuisine', lignes: [{ id: 'l1', libelle: 'Carrelage', quantite: 2, unite: 'm²', prixAchat: 50, prixVente: 60, tauxTva: 20 }] }],
+    creePar: JEROME, proprietaire: JEROME, creeLe: new Date(), modifieLe: new Date(),
+  });
+  await page.goto('/?emulateurs=1#/devis/editeur/fige');
+  await expect(page.locator('[data-action="creer-variante"]')).toBeVisible();
+  await expect(page.locator('[data-action="creer-variante"]')).not.toHaveAttribute('title', /.+/);
+  await expect(page.locator('[data-action="dupliquer"]')).not.toHaveAttribute('title', /.+/);
+  const info1 = page.getByRole('button', { name: /Explication : Créer une variante/ });
+  const info2 = page.getByRole('button', { name: /Explication : Dupliquer/ });
+  await info1.focus(); // clavier : le texte s'affiche au focus
+  await expect(page.locator('.bulle-info').first()).toBeVisible();
+  await expect(page.locator('.bulle-info').first()).toContainText('nouvelle version modifiable');
+  await capturer(page, info, 'C6-icone-info-variante');
+  await info2.click(); // toucher ou clic : le texte s'affiche
+  await expect(info2.locator('.bulle-info')).toBeVisible();
+  await expect(info2.locator('.bulle-info')).toContainText('même contenu');
+});
+
 test('ED1 créer un devis pour une affaire, ajouter deux articles du Bordereau, une ligne libre et une section, une remise : le total se calcule en direct et reste après rechargement', { tag: '@smoke' }, async ({ page }, info) => {
   await semer();
   const id = await nouveauBrouillon(page);
