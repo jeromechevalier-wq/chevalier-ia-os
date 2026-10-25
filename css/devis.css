@@ -120,7 +120,7 @@
 .champ-unite { width: 80px; min-width: 0; }
 
 /* La feuille du devis. */
-.document-devis { display: flex; flex-direction: column; gap: var(--esp-8); padding: var(--esp-8) var(--esp-9); background: var(--panneau); border: 1px solid var(--bordure); border-radius: var(--rayon-carte); min-width: 0; }
+.document-devis { display: flex; flex-direction: column; gap: var(--esp-8); padding: var(--esp-8) var(--esp-9); background: var(--panneau); border: 1px solid var(--bordure); border-radius: var(--rayon-carte); min-width: 0; container: feuille / inline-size; }
 .entete-document { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 460px); gap: var(--esp-9); align-items: start; }
 .entete-gauche { display: flex; flex-direction: column; gap: var(--esp-2); min-width: 0; }
 .entete-droite { display: flex; flex-direction: column; gap: var(--esp-5); min-width: 0; }
@@ -156,7 +156,7 @@
 .ajouts-types .bouton .icone { margin-right: var(--esp-1); }
 
 /* Tableau des lignes : section (1), sous-section (1.1), ligne (1.1.1). */
-.zone-lignes-devis { overflow-x: auto; }
+.zone-lignes-devis { overflow-x: auto; container: lignes / inline-size; }
 .tableau-lignes-devis { width: 100%; min-width: 880px; border-collapse: collapse; table-layout: fixed; }
 .tableau-lignes-devis th { text-align: left; padding: var(--esp-4) var(--esp-3); background: var(--accent); color: var(--sur-accent); font-weight: var(--poids-moyen); font-size: var(--fs-menu); }
 .tableau-lignes-devis th:first-child { border-top-left-radius: var(--rayon-petit); }
@@ -246,6 +246,10 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
   .bas-devis { grid-template-columns: minmax(0, 1fr); }
 }
 
+/* L'en-tête et le bas de page passent sur une colonne quand la feuille est étroite (panneau Bibliothèque ouvert à côté, téléphone). */
+@container feuille (max-width: 760px) {
+  .entete-document, .bas-devis { grid-template-columns: minmax(0, 1fr); }
+}
 @media (max-width: 767px) { .barre-devis { top: 56px; } } /* sous la barre du menu du téléphone */
 
 /* Téléphone (version proposée sans modèle) : une carte par ligne (désignation en haut, puis Qté / Unité / Prix / TVA / Total sur deux rangées), sections en bandes pleine largeur. */
@@ -258,6 +262,16 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
   .barre-ajouts { flex-direction: column; align-items: stretch; }
   .ajouts-types .bouton, .ajouts-structure .bouton { flex: 1 1 auto; min-height: 44px; }
   .zone-lignes-devis { overflow-x: visible; }
+  .bouton-poignee { width: 44px; height: 44px; }
+  .bouton-rond, .bouton-replier { width: 44px; height: 44px; }
+  .resultat-bordereau, .onglet-editeur { min-height: 44px; min-width: 44px; }
+  .carte-editeur, .panneau-total { padding: var(--esp-5); }
+  .bandeau-net { width: 100%; }
+  .tableau-tva { width: 100%; }
+}
+
+/* Tableau des lignes en cartes quand la feuille est étroite (téléphone, ou panneau Bibliothèque ouvert à côté) : on regarde la largeur de la zone, pas celle de l'écran. */
+@container lignes (max-width: 879px) {
   .tableau-lignes-devis { min-width: 0; }
   .tableau-lignes-devis thead { display: none; }
   .tableau-lignes-devis, .tableau-lignes-devis tbody { display: block; }
@@ -283,12 +297,6 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
   .ligne-section-devis .ligne-champs { flex-wrap: wrap; }
   .ligne-section-devis .ligne-champs > .champ { flex: 1 1 0; min-width: 0; }
   .tableau-lignes-devis .ligne-saut-devis { grid-template-areas: "poi des act"; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; }
-  .bouton-poignee { width: 44px; height: 44px; }
-  .bouton-rond, .bouton-replier { width: 44px; height: 44px; }
-  .resultat-bordereau, .onglet-editeur { min-height: 44px; min-width: 44px; }
-  .carte-editeur, .panneau-total { padding: var(--esp-5); }
-  .bandeau-net { width: 100%; }
-  .tableau-tva { width: 100%; }
 }
 
 /* ======== Fiche d'un devis (panneau latéral depuis la liste) : section propre à la fiche, ajoutée en fin de fichier. ======== */

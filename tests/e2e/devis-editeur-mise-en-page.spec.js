@@ -99,10 +99,10 @@ test('1 la barre d’actions reste en haut quand on défile : titre « Brouillon
   } else {
     await page.locator('[data-action="options"]').click();
   }
-  // Options est maintenant un menu à cases à cocher ; ce vieux devis (sans `affichage`) garde l'affichage d'avant : la carte « Marges du devis » reste visible.
+  // Options est maintenant un menu à cases à cocher ; ce vieux devis (sans `affichage`) garde l'affichage d'avant : le calcul des marges reste visible sur les lignes ; la carte « Marges du devis » n'existe plus (tout se règle dans « Définir un ajustement »).
   await expect(page.locator('.menu-devis-options')).toBeVisible();
-  await expect(page.locator('[data-zone="marges"]')).toBeVisible();
-  await expect(page.locator('[data-champ="marge"]')).toBeVisible();
+  await expect(page.locator('[data-zone="marges"]')).toHaveCount(0);
+  await expect(page.locator('[data-calcul-marge]').first()).toBeVisible();
 });
 
 test('2 l’en-tête a deux colonnes : dates et « définir » à gauche, affaire puis client à droite ; « Ajouter une description » montre le champ', async ({ page }, info) => {
@@ -338,9 +338,31 @@ test('4 la marge et la remise du devis se règlent depuis le bouton « Définir 
   await page.getByRole('menuitem', { name: 'Marge du devis' }).click();
   await page.locator('[data-champ="marge-menu"]').fill('25');
   await expect.poll(async () => (await listerDocuments('devis_devis'))[0].marge).toBe(25);
+  await page.locator('[data-champ="mode-marge-menu"]').selectOption('marge_vente');
+  await expect.poll(async () => (await listerDocuments('devis_devis'))[0].modeMarge).toBe('marge_vente');
   await page.getByRole('menuitem', { name: 'Remise' }).click();
   await page.locator('[data-champ="remise-valeur-menu"]').fill('10');
   await expect.poll(async () => (await listerDocuments('devis_devis'))[0].remise?.valeur).toBe(10);
+});
+
+test('2 le tableau des lignes ne perd aucune colonne quand le panneau Bibliothèque est ouvert à côté : il passe en cartes, sans défilement horizontal', async ({ page }, info) => {
+  test.skip(estTelephone(page), 'ordinateur : le téléphone est déjà en cartes');
+  await semer();
+  await ouvrir(page, await devisLong());
+  const zone = page.locator('.zone-lignes-devis');
+  const ligne = page.locator('tr.ligne-devis-edition').first();
+  // Sans panneau : feuille assez large, tableau classique avec l'en-tête des colonnes.
+  await expect(page.locator('.tableau-lignes-devis thead')).toBeVisible();
+  await page.locator('[data-action="bibliotheque"]').click();
+  await expect(page.locator('[data-zone="bibliotheque"]')).toBeVisible();
+  // Avec le panneau : cartes (pas d'en-tête), et rien ne dépasse à droite.
+  await expect(page.locator('.tableau-lignes-devis thead')).toBeHidden();
+  const depasse = await zone.evaluate((el) => el.scrollWidth - el.clientWidth);
+  expect(depasse).toBeLessThanOrEqual(1);
+  const total = await ligne.locator('td.c-tot').boundingBox();
+  const feuille = await zone.boundingBox();
+  expect(total.x + total.width).toBeLessThanOrEqual(feuille.x + feuille.width + 1);
+  await capturer(page, info, '2-panneau-bibliotheque-cartes', { pleine: false });
 });
 
 test('2 l’éditeur est compact sur ordinateur : la feuille est centrée (largeur limitée) et une ligne d’article fait moins de 46 px de haut', async ({ page }) => {
