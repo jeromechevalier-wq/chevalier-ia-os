@@ -257,6 +257,8 @@ test('O4 un devis envoyé s’ouvre dans l’éditeur en lecture seule, avec « 
   await expect(page).toHaveURL(/#\/devis\/editeur\/d1$/);
   await expect(page.locator('[data-valeur="lecture-seule"]')).toBeVisible();
   await expect(page.locator('[data-action="creer-variante"]')).toBeVisible();
+  await expect(page.locator('[data-action="fermer-lecture"]')).toHaveCount(0); // plus de bouton « Fermer » : on quitte par la flèche « Devis » en haut à gauche
+  await expect(page.locator('[data-action="retour-devis"]')).toBeVisible();
   await expect(page.locator('[data-action="creer-variante"]')).toHaveAttribute('title', /nouvelle version modifiable/);
   await expect(page.locator('[data-action="dupliquer"]')).toHaveAttribute('title', /nouveau brouillon/);
   await capturer(page, info, 'O4-lecture-seule');

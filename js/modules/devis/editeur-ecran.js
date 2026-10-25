@@ -405,7 +405,6 @@ export function rendreEditeurDevis(conteneur, id) {
     return [
       transitionPossible(d.statut, 'nouvelle_version') ? h('button', { type: 'button', class: 'bouton bouton-principal', dataset: { action: 'creer-variante' }, title: 'Crée une nouvelle version modifiable de ce devis (même numéro, version suivante). L’ancienne version reste consultable.', onclick: () => creerVariante(d) }, icone('pencil', { taille: 16 }), 'Créer une variante') : null,
       h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'dupliquer' }, title: 'Crée un nouveau brouillon avec le même contenu. Il recevra son propre numéro à la finalisation.', onclick: () => dupliquerDevis(d) }, icone('copy', { taille: 16 }), 'Dupliquer'),
-      h('a', { class: 'bouton bouton-secondaire', href: '#/devis/liste', dataset: { action: 'fermer-lecture' } }, 'Fermer'),
     ];
   }
 
