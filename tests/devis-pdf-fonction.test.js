@@ -1,11 +1,11 @@
-// Tests Q (module Devis, fonction appelable devisPdf) : contrôle de l'appelant, brouillon refusé, « PDF non configuré », chemin heureux
-// avec FAUX convertisseur et FAUX Drive (aucun appel réseau), vue client sans prix d'achat ni marge, options de devisHtml, nom du fichier. node --test.
+// Tests Q (module Devis, fonction appelable devisPdf) : contrôle de l'appelant, brouillon refusé (sauf PDF « brouillon » à la demande), « PDF non configuré », chemin heureux
+// avec FAUX convertisseur et FAUX Cloud Storage (aucun appel réseau), vue client sans prix d'achat ni marge, options de devisHtml, nom du fichier. node --test.
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
 import { creerAccesMemoire, COLLECTIONS as C } from '../functions/src/coeur/donnees.js';
 import * as S from '../functions/src/coeur/devis.js';
 import { creerAppelDevisPdf, MESSAGE_PDF_NON_CONFIGURE } from '../functions/src/devis/pdf-appel.js';
-import { nomFichierDevis } from '../functions/src/devis/drive.js';
+import { nomFichierDevis } from '../functions/src/devis/stockage.js';
 import { nouveauDevis } from '../functions/partage/devis.js';
 import { devisHtml } from '../functions/partage/devis-document.js';
 import { fragmentDePage } from '../js/modules/devis/document.js';
@@ -13,7 +13,7 @@ import { devisHtml as devisHtmlNavigateur } from '../js/modules/devis/document.j
 
 const ACTEUR = 'jerome.chevalier@gmail.com';
 const MAINTENANT = new Date('2026-10-24T10:00:00Z');
-const CONFIG = { driveRacineId: 'RACINE_DRIVE_ESSAI_1' };
+const BASE_LIEN = 'https://appli.exemple.test';
 const PRIX_ACHAT = 137.42; // valeur distinctive : elle ne doit apparaître nulle part dans le document du client
 const requete = (data, email = ACTEUR, extra = {}) => ({ auth: { token: { email, email_verified: true, ...extra } }, data });
 
@@ -30,16 +30,21 @@ async function monde({ finaliser = true, urlDossier = 'https://drive.google.com/
   return { collections, donnees };
 }
 
-/** Faux convertisseur et faux Drive : ils notent ce qu'ils reçoivent. */
+/** Faux convertisseur et faux Cloud Storage : ils notent ce qu'ils reçoivent. */
 function faux() {
   const vus = { html: [], pieds: [], ranges: [] };
+  const objets = new Map();
   return {
-    vus,
+    vus, objets,
     convertir: async (html, options) => { vus.html.push(html); vus.pieds.push(options?.pied); return { pdf: Buffer.from('%PDF-1.4 faux'), sha256: 'a'.repeat(64) }; },
-    ranger: async (args) => { vus.ranges.push(args); return { fileId: 'FICHIER_ESSAI_1', lien: 'https://drive.exemple.test/fichier/1' }; },
+    stockage: {
+      envoyer: async (chemin, pdf) => { vus.ranges.push({ chemin, pdf }); objets.set(chemin, pdf); },
+      existe: async (chemin) => objets.has(chemin),
+      lienSigne: async (chemin, options) => `https://stockage.exemple.test/signe?o=${encodeURIComponent(chemin)}&m=${options.minutes}`,
+    },
   };
 }
-const appel = (m, f, extra = {}) => creerAppelDevisPdf({ donnees: () => m.donnees, config: CONFIG, convertir: f.convertir, ranger: f.ranger, maintenant: () => MAINTENANT.getTime(), ...extra });
+const appel = (m, f, extra = {}) => creerAppelDevisPdf({ donnees: () => m.donnees, baseLien: BASE_LIEN, convertir: f.convertir, stockage: f.stockage, maintenant: () => MAINTENANT.getTime(), ...extra });
 
 describe('Q1 devisPdf : seul un compte autorisé et vérifié appelle', () => {
   test('Q1 refus sans connexion, avec un compte inconnu et avec un e-mail non vérifié ; rien n\'est converti ni rangé', async () => {
@@ -51,11 +56,12 @@ describe('Q1 devisPdf : seul un compte autorisé et vérifié appelle', () => {
     await assert.rejects(() => a(requete({ devisId: 'd1' }, ACTEUR, { email_verified: false })), (e) => e.code === 'permission-denied');
     assert.equal(f.vus.html.length + f.vus.ranges.length, 0);
     assert.equal(m.collections[C.devis][0].pdf, null); // la finalisation l'a remis à zéro
+    await assert.rejects(() => a({ data: { devisId: 'd1', brouillon: true } }), (e) => e.code === 'unauthenticated'); // le brouillon à la demande est protégé de la même façon
   });
 });
 
-describe('Q2 devisPdf : un brouillon est refusé', () => {
-  test('Q2 le brouillon n\'a pas de PDF ; un devis inconnu ou une demande sans identifiant sont refusés aussi', async () => {
+describe('Q2 devisPdf : un brouillon est refusé (sauf PDF « brouillon » demandé)', () => {
+  test('Q2 le brouillon n\'a pas de PDF officiel ; un devis inconnu ou une demande sans identifiant sont refusés aussi', async () => {
     const m = await monde({ finaliser: false });
     const f = faux();
     const a = appel(m, f);
@@ -65,14 +71,23 @@ describe('Q2 devisPdf : un brouillon est refusé', () => {
     assert.equal(f.vus.html.length, 0);
     assert.equal(m.collections[C.devis][0].pdf, undefined);
   });
+  test('Q2 avec brouillon: true, le brouillon est accepté : filigrane BROUILLON, champ pdf du devis intact', async () => {
+    const m = await monde({ finaliser: false });
+    const f = faux();
+    const r = await appel(m, f)(requete({ devisId: 'd1', brouillon: true }));
+    assert.equal(r.statut, 'ok');
+    assert.ok(f.vus.html[0].includes('class="filigrane">BROUILLON'));
+    assert.equal(m.collections[C.devis][0].pdf, undefined);
+    assert.equal(f.vus.ranges[0].chemin, 'devis/aff1/d1/brouillon.pdf');
+  });
 });
 
 describe('Q3 devisPdf : « PDF non configuré »', () => {
-  test('Q3 sans dossier Drive racine, l\'erreur est claire et rien ne part', async () => {
+  test('Q3 sans espace de stockage, l\'erreur est claire et rien ne part', async () => {
     const m = await monde();
-    for (const config of [{ ...CONFIG, driveRacineId: '' }, {}]) {
+    for (const stockage of [null, undefined, () => null]) {
       const f = faux();
-      const a = appel(m, f, { config });
+      const a = appel(m, f, { stockage });
       await assert.rejects(() => a(requete({ devisId: 'd1' })), (e) => e.code === 'failed-precondition' && e.message === MESSAGE_PDF_NON_CONFIGURE && /non configuré/.test(e.message));
       assert.equal(f.vus.html.length + f.vus.ranges.length, 0);
     }
@@ -80,34 +95,29 @@ describe('Q3 devisPdf : « PDF non configuré »', () => {
 });
 
 describe('Q4 devisPdf : chemin heureux', () => {
-  test('Q4 le champ pdf est écrit (fileId, lien, sha256, genereLe), la réponse porte le lien, le dossier de l\'affaire est utilisé, le journal est écrit', async () => {
+  test('Q4 le champ pdf est écrit (statut ok, chemin, sha256, genereLe), la réponse porte l\'adresse stable, le PDF est rangé sous le dossier de l\'affaire, le journal est écrit', async () => {
     const m = await monde();
     const f = faux();
     const r = await appel(m, f)(requete({ devisId: 'd1' }));
-    assert.deepEqual(r, { lien: 'https://drive.exemple.test/fichier/1', fileId: 'FICHIER_ESSAI_1' });
+    assert.deepEqual(r, { statut: 'ok', lien: `${BASE_LIEN}/#/devis/pdf/d1`, nom: 'DEV-2026-10-24-001 v1 – Cuisine.pdf' });
     const devis = m.collections[C.devis][0];
-    assert.equal(devis.pdf.fileId, 'FICHIER_ESSAI_1');
-    assert.equal(devis.pdf.lien, 'https://drive.exemple.test/fichier/1');
+    assert.equal(devis.pdf.statut, 'ok');
+    assert.equal(devis.pdf.chemin, 'devis/aff1/d1/DEV-2026-10-24-001 v1 - Cuisine.pdf');
     assert.equal(devis.pdf.sha256, 'a'.repeat(64));
     assert.ok(devis.pdf.genereLe instanceof Date);
     assert.equal(devis.statut, 'en_attente_envoi'); // le statut n'a pas bougé
     assert.equal(f.vus.ranges.length, 1);
-    assert.equal(f.vus.ranges[0].dossierParentId, 'DOSSIER_AFFAIRE_ESSAI');
-    assert.equal(f.vus.ranges[0].dossierRacineId, CONFIG.driveRacineId);
+    assert.equal(f.vus.ranges[0].chemin, devis.pdf.chemin);
     assert.ok(f.vus.html[0].includes('Entreprise Essai') && f.vus.html[0].includes('Société Cliente Essai'));
     assert.ok(f.vus.pieds[0].includes(devis.numero)); // le pied du PDF porte le numéro du devis
     assert.ok(m.collections[C.audit].some((l) => l.outil === 'devisPdf' && l.docId === 'd1'));
   });
-  test('Q4 une affaire sans dossier Drive : le rangement reçoit son nom et le dossier racine ; une panne de conversion n\'écrit rien', async () => {
-    const m = await monde({ urlDossier: 'https://serveur.exemple.test/dossier' });
-    const f = faux();
-    await appel(m, f)(requete({ devisId: 'd1' }));
-    assert.equal(f.vus.ranges[0].dossierParentId, undefined);
-    assert.equal(f.vus.ranges[0].nomAffaire, 'Rénovation Essai');
+  test('Q4 une panne de conversion : le message est transmis, l\'échec est noté sur le devis (statut echec), le devis reste finalisé', async () => {
     const m2 = await monde();
     const casse = { ...faux(), convertir: async () => { throw new Error('PDF : le service de conversion a répondu 500.'); } };
     await assert.rejects(() => appel(m2, casse)(requete({ devisId: 'd1' })), (e) => e.code === 'internal' && /500/.test(e.message));
-    assert.equal(m2.collections[C.devis][0].pdf, null);
+    assert.equal(m2.collections[C.devis][0].pdf.statut, 'echec');
+    assert.equal(m2.collections[C.devis][0].statut, 'en_attente_envoi');
   });
 });
 
@@ -150,8 +160,8 @@ describe('Q7 devisPdf : le nom du fichier suit nomFichierDevis', () => {
     const f = faux();
     await appel(m, f)(requete({ devisId: 'd1' }));
     const devis = m.collections[C.devis][0];
-    assert.equal(f.vus.ranges[0].nomFichier, nomFichierDevis({ numero: devis.numero, version: devis.version, objet: devis.objet }));
-    assert.equal(f.vus.ranges[0].nomFichier, 'DEV-2026-10-24-001 v1 - Cuisine.pdf');
+    assert.equal(f.vus.ranges[0].chemin.split('/').pop(), nomFichierDevis({ numero: devis.numero, version: devis.version, objet: devis.objet }));
+    assert.equal(f.vus.ranges[0].chemin.split('/').pop(), 'DEV-2026-10-24-001 v1 - Cuisine.pdf');
   });
 });
 
@@ -170,15 +180,16 @@ describe('Q8 devisPdf : le logo externe est retiré', () => {
   });
 });
 
-describe('Q9 devisPdf : pas de double génération', () => {
-  test('Q9 un PDF généré il y a moins de 60 s est refusé, après 60 s c\'est permis', async () => {
+describe('Q9 devisPdf : idempotence (plus de règle des 60 secondes)', () => {
+  test('Q9 PDF déjà ok : le même est renvoyé sans refabriquer, à toute heure', async () => {
     const m = await monde();
     const f = faux();
-    await appel(m, f)(requete({ devisId: 'd1' }));
-    await assert.rejects(() => appel(m, f)(requete({ devisId: 'd1' })), (e) => e.code === 'failed-precondition' && /réessaie dans une minute/.test(e.message));
+    const r1 = await appel(m, f)(requete({ devisId: 'd1' }));
+    const r2 = await appel(m, f)(requete({ devisId: 'd1' }));
+    assert.deepEqual(r2, r1);
+    const r3 = await appel(m, f, { maintenant: () => MAINTENANT.getTime() + 61000 })(requete({ devisId: 'd1' }));
+    assert.deepEqual(r3, r1);
     assert.equal(f.vus.html.length, 1);
-    await appel(m, f, { maintenant: () => MAINTENANT.getTime() + 61000 })(requete({ devisId: 'd1' }));
-    assert.equal(f.vus.html.length, 2);
   });
   test('Q9 finaliser et nouvelle version remettent pdf à zéro', async () => {
     const m = await monde({ finaliser: false });
@@ -200,16 +211,18 @@ describe('Q10 fragmentDePage', () => {
 });
 
 describe('Q11 devisPdf : échecs du rangement et erreurs inattendues', () => {
-  test('Q11 Drive en échec : message « Drive : … » transmis tel quel, pdf non écrit', async () => {
+  test('Q11 Stockage en échec : message « Stockage : … » transmis tel quel, pdf noté en échec', async () => {
     const m = await monde();
-    const f = { ...faux(), ranger: async () => { throw new Error('Drive : envoi refusé (403).'); } };
-    await assert.rejects(() => appel(m, f)(requete({ devisId: 'd1' })), (e) => e.code === 'internal' && e.message === 'Drive : envoi refusé (403).');
-    assert.equal(m.collections[C.devis][0].pdf, null);
+    const f = faux();
+    f.stockage.envoyer = async () => { throw new Error('Stockage : le PDF n\'a pas pu être enregistré.'); };
+    await assert.rejects(() => appel(m, f)(requete({ devisId: 'd1' })), (e) => e.code === 'internal' && e.message === 'Stockage : le PDF n\'a pas pu être enregistré.');
+    assert.equal(m.collections[C.devis][0].pdf.statut, 'echec');
   });
   test('Q11 erreur non préfixée : message générique, sans détail', async () => {
     const m = await monde();
     const f = { ...faux(), convertir: async () => { throw new Error('secret interne /var/task'); } };
     await assert.rejects(() => appel(m, f)(requete({ devisId: 'd1' })), (e) => e.code === 'internal' && e.message === 'Une erreur est survenue. Réessaie.' && !/secret|var\/task/.test(e.message));
-    assert.equal(m.collections[C.devis][0].pdf, null);
+    assert.ok(!/secret|var/.test(JSON.stringify(m.collections[C.devis][0].pdf))); // le message noté sur le devis est aussi générique
+    assert.equal(m.collections[C.devis][0].pdf.statut, 'echec');
   });
 });

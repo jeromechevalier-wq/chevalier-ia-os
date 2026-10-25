@@ -2,7 +2,7 @@
 // (réécriture Hosting). `porte` : porte des workflows n8n, jointe par https://chevalier-ia-os.web.app/porte (réécriture Hosting). L'invocation est publique côté Google : la porte est le jeton « cia_… » (securite/jetons.js) ou la connexion Google (oauth/).
 import { onRequest, onCall, HttpsError } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
-import { defineSecret, defineString } from 'firebase-functions/params';
+import { defineSecret } from 'firebase-functions/params';
 import { getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { creerGestionnaire } from './mcp/gestionnaire.js';
@@ -20,7 +20,12 @@ import { creerAdaptateur } from '../partage/porte/adaptateur.js';
 import { creerServiceVeille } from './veille/service.js';
 import { creerAppelVeille } from './veille/appel.js';
 import { creerAppelDevis, ligneDeJournalDevis } from './devis-appel.js';
-import { creerAppelDevisPdf, ligneDeJournalDevisPdf } from './devis/pdf-appel.js';
+import { onDocumentUpdated } from 'firebase-functions/v2/firestore';
+import { getStorage } from 'firebase-admin/storage';
+import { creerAppelDevisPdf, creerAppelDevisPdfLien, ligneDeJournalDevisPdf } from './devis/pdf-appel.js';
+import { creerDeclencheurPdf } from './devis/pdf-declencheur.js';
+import { creerStockage } from './devis/stockage.js';
+import { convertirHtmlEnPdf } from './devis/chromium.js';
 import { copieInterne, administrateur, Refus } from './automatisations/appels.js';
 import { creerLecteurN8n } from '../partage/automatisations/n8n.js';
 
@@ -106,17 +111,43 @@ export const devisChangerStatut = appelDevis('changerStatut');
 export const devisNouvelleVersion = appelDevis('nouvelleVersion');
 export const devisArchiver = appelDevis('archiver');
 
-// PDF d'un devis finalisé : Chromium lancé dans la fonction (2 GiB de mémoire, un navigateur par appel) puis rangement dans Drive. Un paramètre, vide par défaut (jamais de secret) :
-// DRIVE_RACINE_DEVIS_ID (identifiant du dossier Drive racine). Vide : la fonction répond « PDF non configuré ».
-const DRIVE_RACINE_DEVIS_ID = defineString('DRIVE_RACINE_DEVIS_ID', { default: '' });
-export const devisPdf = onCall({ ...OPTIONS_DEVIS, memory: '2GiB', timeoutSeconds: 120, concurrency: 1, maxInstances: 2 }, (requete) => {
+// PDF d'un devis (25/10/2026) : fabriqué PAR LE SERVEUR dès qu'un devis passe de brouillon à finalisé (déclencheur Firestore `devisPdfAuto`), jamais par le navigateur.
+// Chromium est lancé dans la fonction (2 GiB de mémoire, un navigateur par appel) ; le PDF est rangé dans Cloud Storage du projet (devis/<affaire>/<devis>/…, jamais public),
+// ajouté aux Documents de l'affaire, et l'état est noté sur le devis (`pdf.statut` : en_cours, ok, echec). Rien à configurer : ni dossier, ni variable.
+// Ailleurs que dans cette base (autres espaces), ce déclencheur n'existe pas encore : voir la description de la PR.
+const BASE_LIEN_DEVIS = 'https://chevalier-ia-os.web.app';
+const stockageDevis = () => {
   if (!getApps().length) initializeApp();
-  return creerAppelDevisPdf({
-    donnees: () => creerAccesFirestore(),
-    config: { driveRacineId: DRIVE_RACINE_DEVIS_ID.value() },
-    journal: (e) => process.stdout.write(`${ligneDeJournalDevisPdf(e)}\n`),
-  })(requete);
+  try {
+    let bucket;
+    try { bucket = getStorage().bucket(); } catch { bucket = getStorage().bucket(`${process.env.GCLOUD_PROJECT}.firebasestorage.app`); }
+    return creerStockage({ bucket });
+  } catch { return null; }
+};
+const OPTIONS_PDF = { ...OPTIONS_DEVIS, memory: '2GiB', timeoutSeconds: 120, concurrency: 1, maxInstances: 2 };
+const journalPdf = (e) => process.stdout.write(`${ligneDeJournalDevisPdf(e)}\n`);
+
+// Réessai à la demande (icône d'avertissement, rattrapage des devis déjà finalisés) ou PDF « brouillon » filigrané : `devisPdf({ devisId, brouillon? })`.
+export const devisPdf = onCall(OPTIONS_PDF, (requete) => {
+  if (!getApps().length) initializeApp();
+  return creerAppelDevisPdf({ donnees: () => creerAccesFirestore(), baseLien: BASE_LIEN_DEVIS, stockage: stockageDevis, journal: journalPdf })(requete);
 });
+// Lien de lecture signé de 5 minutes : c'est ce que l'application appelle quand on clique sur le document « DEV-… v1 – Objet.pdf » de l'affaire.
+export const devisPdfLien = onCall(OPTIONS_DEVIS, (requete) => {
+  if (!getApps().length) initializeApp();
+  return creerAppelDevisPdfLien({ donnees: () => creerAccesFirestore(), stockage: stockageDevis, journal: journalPdf })(requete);
+});
+// Déclencheur : ne réagit qu'au passage brouillon -> finalisé (l'écriture de `pdf` ne le relance donc jamais) et ne lève jamais d'erreur (pas de rejeu).
+export const devisPdfAuto = onDocumentUpdated(
+  { document: 'devis_devis/{devisId}', region: 'europe-west9', memory: '2GiB', timeoutSeconds: 540, concurrency: 1, maxInstances: 2, retry: false, serviceAccount: 'porte-serveur@chevalier-ia-os.iam.gserviceaccount.com' },
+  (evenement) => {
+    if (!getApps().length) initializeApp();
+    return creerDeclencheurPdf({
+      donnees: () => creerAccesFirestore(), baseLien: BASE_LIEN_DEVIS, stockage: stockageDevis, journal: journalPdf,
+      convertir: (html, options) => convertirHtmlEnPdf(html, options),
+    })(evenement);
+  },
+);
 
 // `veille` : appelée par l'appli (boutons « Ajouter » et « Résumer » du module Veille). Le jeton du bouton Résumer vit ici (Secret Manager),
 // jamais dans la page. Le secret VEILLE_JETON_RESUMER doit être créé avant le déploiement (docs/veille-ajout-et-resume.md).

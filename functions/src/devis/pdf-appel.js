@@ -1,27 +1,19 @@
-// Fonction appelable `devisPdf({ devisId })` : fabrique le PDF d'un devis finalisé, le range dans Drive et note le résultat sur le devis.
-// Branche les briques déjà écrites : le document HTML (partage/devis-document.js), Chromium dans la fonction (chromium.js) et Drive (drive.js).
-// Tout ce qui touche au réseau est injecté (`convertir`, `ranger`) : les tests n'appellent rien de réel. Aucun secret ici.
-// Le journal Cloud ne reçoit jamais le contenu du devis, ni son identifiant, ni l'adresse de l'appelant.
-//
-// Décisions prises seul :
-// - Un brouillon est refusé (pas de PDF « brouillon » filigrané dans cette version).
-// - L'identité de l'entreprise est le champ `emetteur` du document `devis_parametres/reglages` (objet vide s'il est absent).
-// - Le champ `pdf` est écrit par cette fonction seule, avec une ligne de journal (comme les autres transitions de devis).
-// - Le dossier Drive de l'affaire est celui de son « dossier de travail » (`urlDossier`) s'il pointe vers Drive ; sinon un dossier à son nom est créé sous le dossier racine.
+// Fonctions appelables du PDF d'un devis :
+//  - `devisPdf({ devisId, brouillon? })` : relance la fabrication pour un devis finalisé dont le PDF n'est pas « ok » (réessai à la demande, rattrapage des devis déjà finalisés),
+//    ou, avec `brouillon: true`, fabrique un PDF filigrané « BROUILLON » (nom fixe : il remplace le précédent, le champ `pdf` du devis n'est pas touché) ;
+//  - `devisPdfLien({ devisId, brouillon? })` : un lien de lecture signé de très courte durée (5 minutes) vers le PDF rangé dans Cloud Storage.
+// Réservées aux comptes autorisés (comme les autres fonctions du module Devis). Le PDF d'un devis qui vient d'être finalisé n'est PAS fabriqué ici mais par le déclencheur (pdf-declencheur.js).
+// Le journal Cloud ne reçoit jamais le contenu du devis, ni son identifiant, ni l'adresse de l'appelant, ni un lien.
 import { HttpsError } from 'firebase-functions/v2/https';
 import { COMPTES_AUTORISES } from '../veille/appel.js';
-import { exigerCompteAutorise } from '../devis-appel.js';
+import { exigerCompteAutorise, enErreurAppel } from '../devis-appel.js';
 import { COLLECTIONS as C } from '../coeur/donnees.js';
-import { enregistrerPdf, ID_REGLAGES } from '../coeur/devis.js';
-import * as D from '../../partage/devis.js';
-import { devisHtml } from '../../partage/devis-document.js';
-import { convertirHtmlEnPdf, piedParDefaut } from './chromium.js';
-import { rangerPdfDevis, nomFichierDevis, creerClientDrive, authGoogleDrive } from './drive.js';
+import { convertirHtmlEnPdf } from './chromium.js';
+import { fabriquerPdfDevis, MESSAGE_GENERIQUE } from './pdf-service.js';
+import { cheminPdfDevis, cheminAppartientALEspace, DUREE_LIEN_MINUTES } from './stockage.js';
 
 const CHAMPS_JOURNAL = ['action', 'statut', 'code', 'dureeMs'];
-export const MESSAGE_PDF_NON_CONFIGURE = 'PDF non configuré : le dossier Drive racine des devis manque.';
-// Même motif que js/os/google-drive.js (idDossierDrive) : un dossier Drive reconnu à son adresse.
-const MOTIF_DOSSIER_DRIVE = /^https:\/\/drive\.google\.com\/drive\/(?:u\/\d+\/)?folders\/([A-Za-z0-9_-]{10,})(?:[/?#]\S*)?$/;
+export const MESSAGE_PDF_NON_CONFIGURE = 'PDF non configuré : l\'espace de stockage des PDF est introuvable.';
 
 export function ligneDeJournalDevisPdf(entree) {
   const ligne = { severity: entree.statut === 'erreur' ? 'ERROR' : 'INFO', message: 'devisPdf' };
@@ -33,84 +25,85 @@ export function ligneDeJournalDevisPdf(entree) {
   return JSON.stringify(ligne);
 }
 
-/** Les dates lues dans Firestore (Timestamp) deviennent des Date (les copies profondes de partage/devis.js les gardent ainsi intactes). */
-const enDates = (v) => {
-  if (v && typeof v === 'object' && typeof v.toDate === 'function') return v.toDate();
-  if (Array.isArray(v)) return v.map(enDates);
-  if (v && typeof v === 'object' && !(v instanceof Date)) return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, enDates(x)]));
-  return v;
-};
+const stockageDe = (s) => (typeof s === 'function' ? s() : s) ?? null;
 
-// SSRF : le logo ne sert que s'il est une image intégrée (data:) de taille raisonnable. Toute adresse https est retirée avant le rendu (et Chromium bloque de toute façon tout le réseau).
-const LOGO_INTEGRE = /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/;
-export const LOGO_TAILLE_MAX = 1_500_000;
-export const DELAI_ENTRE_PDF_MS = 60_000;
-export function emetteurSansLogoExterne(emetteur) {
-  const { logo, ...reste } = emetteur ?? {};
-  return typeof logo === 'string' && logo.length <= LOGO_TAILLE_MAX && LOGO_INTEGRE.test(logo) ? { ...reste, logo } : reste;
+/** Lit et contrôle la demande : { devisId, brouillon }. */
+function lireDemande(requete) {
+  const d = requete.data && typeof requete.data === 'object' ? requete.data : {};
+  const ok = typeof d.devisId === 'string' && d.devisId && d.devisId.length <= 200 && !d.devisId.includes('/') && (d.brouillon === undefined || typeof d.brouillon === 'boolean');
+  return ok ? { devisId: d.devisId, brouillon: d.brouillon === true } : null;
 }
-const idDossierDrive = (url) => MOTIF_DOSSIER_DRIVE.exec(String(url ?? '').trim())?.[1] ?? '';
 
 /**
- * `config` : { driveRacineId } (lus dans l'environnement de la fonction).
- * `convertir(html, { pied })` -> { pdf, sha256 } ; `ranger({ dossierParentId, dossierRacineId, nomAffaire, nomFichier, pdf })` -> { fileId, lien }.
- * Sans ces deux fonctions injectées, ce sont les vraies (Chromium dans la fonction et API Drive, avec l'identité du compte de service de la fonction).
+ * `donnees()` : accès aux données déjà cadré sur l'espace ; `espace` : '' (Jérôme) ou 'clients/<client>/' ; `baseLien` : adresse de l'application (pour l'adresse stable du document).
+ * `convertir(html, { pied })` -> { pdf, sha256 } ; `stockage` : { envoyer, ... } (voir stockage.js) ou fonction qui le rend, ou null si le stockage est introuvable.
  */
-export function creerAppelDevisPdf({ donnees, config = {}, comptes = COMPTES_AUTORISES, convertir, ranger, journal = () => {}, maintenant = Date.now }) {
+export function creerAppelDevisPdf({ donnees, espace = '', baseLien = '', comptes = COMPTES_AUTORISES, convertir, stockage, journal = () => {}, maintenant = Date.now }) {
   const faireConvertir = convertir ?? ((html, options) => convertirHtmlEnPdf(html, options));
-  const faireRanger = ranger ?? ((args) => rangerPdfDevis({ drive: creerClientDrive({ auth: authGoogleDrive() }), ...args }));
   return async function appel(requete) {
     const debut = maintenant();
     const jeton = exigerCompteAutorise(requete, comptes);
-    const devisId = requete.data && typeof requete.data === 'object' ? requete.data.devisId : undefined;
     const refuser = (code, erreur) => { journal({ action: 'pdf', statut: 'refus', code, dureeMs: maintenant() - debut }); return erreur; };
-    if (typeof devisId !== 'string' || !devisId || devisId.length > 200 || devisId.includes('/')) {
-      throw refuser('demande_invalide', new HttpsError('invalid-argument', 'Identifiant de devis manquant ou invalide.'));
-    }
-    if (!config.driveRacineId) {
-      throw refuser('non_configure', new HttpsError('failed-precondition', MESSAGE_PDF_NON_CONFIGURE, { code: 'non_configure' }));
-    }
+    const demande = lireDemande(requete);
+    if (!demande) throw refuser('demande_invalide', new HttpsError('invalid-argument', 'Identifiant de devis manquant ou invalide.'));
+    const rangement = stockageDe(stockage);
+    if (!rangement) throw refuser('non_configure', new HttpsError('failed-precondition', MESSAGE_PDF_NON_CONFIGURE, { code: 'non_configure' }));
     try {
-      const base = donnees();
-      const brut = await base.document(C.devis, devisId);
-      if (!brut) throw refuser('introuvable', new HttpsError('not-found', 'Devis introuvable.'));
-      const devis = enDates(brut);
-      if (devis.statut === 'brouillon') {
-        throw refuser('brouillon', new HttpsError('failed-precondition', 'Ce devis est encore un brouillon : finalise-le avant de créer le PDF.', { code: 'brouillon' }));
-      }
-      // Double génération : un PDF posé il y a moins d'une minute fait refuser la demande.
-      const ecoule = devis.pdf?.genereLe instanceof Date ? maintenant() - devis.pdf.genereLe.getTime() : Infinity;
-      if (ecoule >= 0 && ecoule < DELAI_ENTRE_PDF_MS) {
-        throw refuser('trop_tot', new HttpsError('failed-precondition', 'PDF déjà en cours ou généré à l\'instant, réessaie dans une minute.', { code: 'trop_tot' }));
-      }
-      const affaire = devis.affaireId ? await base.document(C.affaires, devis.affaireId) : null;
-      const reglages = await base.document(C.devisParametres, ID_REGLAGES);
-      const fiche = devis.organisationId ? await base.document(C.organisations, devis.organisationId)
-        : devis.personneId ? await base.document(C.personnes, devis.personneId) : null;
-      const emetteur = emetteurSansLogoExterne(reglages?.emetteur && typeof reglages.emetteur === 'object' ? enDates(reglages.emetteur) : {});
-      const dossierParentId = idDossierDrive(affaire?.urlDossier);
-
-      // Vue client : jamais de prix d'achat, de marge ni de coefficient (garanti par vueClient, vérifié par les tests).
-      const vue = D.vueClient(devis, { clientNom: fiche?.nom ?? null, dossierDriveId: dossierParentId || null });
-      const html = devisHtml(vue, { emetteur });
-      const { pdf, sha256 } = await faireConvertir(html, { pied: piedParDefaut(devis.numero ?? '') });
-      const nomFichier = nomFichierDevis({ numero: devis.numero, version: devis.version, objet: devis.objet });
-      const { fileId, lien } = await faireRanger({
-        dossierParentId: dossierParentId || undefined, dossierRacineId: config.driveRacineId,
-        nomAffaire: affaire?.nom ?? affaire?.titre ?? '', nomFichier, pdf,
-      });
-
-      // Écriture du seul champ `pdf` (et sa ligne de journal), à la fin : rien n'est noté si la conversion ou le rangement ont échoué.
       const ctx = { acteur: String(jeton.email).toLowerCase(), via: 'ecran', maintenant: new Date(maintenant()) };
-      await enregistrerPdf({ donnees: base, ctx, devisId, pdf: { fileId, lien, sha256 } });
-      journal({ action: 'pdf', statut: 'ok', dureeMs: maintenant() - debut });
-      return { lien, fileId };
+      const r = await fabriquerPdfDevis({
+        donnees: donnees(), espace, baseLien, devisId: demande.devisId, brouillon: demande.brouillon, explicite: true, ctx, convertir: faireConvertir, stockage: rangement,
+      });
+      if (r.statut === 'echec') {
+        journal({ action: 'pdf', statut: 'erreur', code: String(r.erreur?.name ?? 'inconnue').slice(0, 30), dureeMs: maintenant() - debut });
+        throw new HttpsError('internal', r.message || MESSAGE_GENERIQUE);
+      }
+      journal({ action: 'pdf', statut: r.statut === 'ok' ? 'ok' : 'en_cours', dureeMs: maintenant() - debut });
+      return { statut: r.statut, lien: r.lien, ...(r.nom ? { nom: r.nom } : {}) };
     } catch (e) {
       if (e instanceof HttpsError) throw e;
+      const erreur = enErreurAppel(e);
+      if (erreur) { journal({ action: 'pdf', statut: 'refus', code: e.code, dureeMs: maintenant() - debut }); throw erreur; }
       journal({ action: 'pdf', statut: 'erreur', code: String(e?.name ?? 'inconnue').slice(0, 30), dureeMs: maintenant() - debut });
-      // Les messages des briques PDF (« PDF : … », « Drive : … ») sont écrits pour être lus et ne contiennent ni HTML ni jeton.
-      const lisible = /^(PDF|Drive) : /.test(String(e?.message ?? ''));
-      throw new HttpsError('internal', lisible ? e.message : 'Une erreur est survenue. Réessaie.');
+      throw new HttpsError('internal', MESSAGE_GENERIQUE);
+    }
+  };
+}
+
+/** Lien signé de courte durée vers le PDF d'un devis. Le chemin lu sur le devis doit appartenir au dossier des devis de CET espace, sinon rien n'est signé. */
+export function creerAppelDevisPdfLien({ donnees, espace = '', comptes = COMPTES_AUTORISES, stockage, journal = () => {}, maintenant = Date.now }) {
+  return async function appel(requete) {
+    const debut = maintenant();
+    exigerCompteAutorise(requete, comptes);
+    const refuser = (code, erreur) => { journal({ action: 'pdf_lien', statut: 'refus', code, dureeMs: maintenant() - debut }); return erreur; };
+    const demande = lireDemande(requete);
+    if (!demande) throw refuser('demande_invalide', new HttpsError('invalid-argument', 'Identifiant de devis manquant ou invalide.'));
+    const rangement = stockageDe(stockage);
+    if (!rangement) throw refuser('non_configure', new HttpsError('failed-precondition', MESSAGE_PDF_NON_CONFIGURE, { code: 'non_configure' }));
+    try {
+      const devis = await donnees().document(C.devis, demande.devisId);
+      if (!devis) throw refuser('introuvable', new HttpsError('not-found', 'Devis introuvable.'));
+      let chemin;
+      let nom;
+      if (demande.brouillon) {
+        chemin = cheminPdfDevis({ espace, affaireId: devis.affaireId, devisId: devis.id, brouillon: true });
+        nom = 'Brouillon.pdf';
+        if (!(await rangement.existe(chemin))) throw refuser('absent', new HttpsError('not-found', 'Aucun PDF brouillon pour ce devis : crée-le d\'abord.'));
+      } else {
+        if (devis.statut === 'brouillon' || devis.pdf?.statut !== 'ok' || typeof devis.pdf?.chemin !== 'string') {
+          throw refuser('pas_pret', new HttpsError('failed-precondition', 'Le PDF de ce devis n\'est pas prêt.', { code: 'pas_pret' }));
+        }
+        chemin = devis.pdf.chemin;
+        nom = typeof devis.pdf.nom === 'string' ? devis.pdf.nom : 'Devis.pdf';
+        // Défense en profondeur : un chemin qui sortirait du dossier des devis de cet espace n'est jamais signé.
+        if (!cheminAppartientALEspace(chemin, espace)) throw refuser('chemin_refuse', new HttpsError('permission-denied', 'Ce PDF n\'est pas accessible.'));
+      }
+      const url = await rangement.lienSigne(chemin, { minutes: DUREE_LIEN_MINUTES, nomAffiche: nom });
+      journal({ action: 'pdf_lien', statut: 'ok', dureeMs: maintenant() - debut });
+      return { url, expireDans: DUREE_LIEN_MINUTES * 60, nom };
+    } catch (e) {
+      if (e instanceof HttpsError) throw e;
+      journal({ action: 'pdf_lien', statut: 'erreur', code: String(e?.name ?? 'inconnue').slice(0, 30), dureeMs: maintenant() - debut });
+      throw new HttpsError('internal', /^Stockage : /.test(String(e?.message)) ? e.message : MESSAGE_GENERIQUE);
     }
   };
 }
