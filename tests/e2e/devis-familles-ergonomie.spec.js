@@ -173,7 +173,7 @@ test('P4 « ← Devis » ramène à la liste ; « Reprendre le devis en cours »
   });
   await connecter(page, undefined, { route: 'devis/liste' });
   await expect(page.locator('.page-devis')).toBeVisible();
-  // Depuis la liste > Bordereau > « ← Devis » : retour à la liste. Aucun devis n'a été ouvert : pas de second bouton.
+  // Depuis la liste > Bordereau > la flèche « ‹ Devis » (en haut à gauche) : retour à la liste. Aucun devis n'a été ouvert : pas de second bouton.
   await page.evaluate(() => { location.hash = '#/devis/bordereau'; });
   await expect(page.locator('[data-action="retour-devis"]')).toBeVisible();
   await expect(page.locator('[data-action="reprendre-devis"]')).toHaveCount(0);

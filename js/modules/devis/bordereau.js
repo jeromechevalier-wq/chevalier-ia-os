@@ -366,8 +366,8 @@ export function rendreBordereau(conteneur) {
   const boutonPlus = h('button', { type: 'button', class: 'bouton-lien', dataset: { action: 'colonnes-rares' }, 'aria-pressed': 'false', onclick: () => { champsRares = !champsRares; rendre(); } }, 'Plus…');
   const boutonAjout = h('button', { type: 'button', class: 'bouton bouton-principal', dataset: { action: 'nouvel-article' }, onclick: () => ouvrirCreationArticle() }, icone('plus', { taille: 16 }), 'Article');
 
-  // Retour vers les devis : « ← Devis » ramène à la liste ; « Reprendre le devis en cours » rouvre le dernier devis ouvert dans l'éditeur pendant cette session (absent sinon).
-  const boutonRetour = h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'retour-devis' }, onclick: () => naviguer('devis/liste') }, '← Devis');
+  // Retour vers les devis : la flèche « ‹ Devis » (en haut à gauche) ramène à la liste ; « Reprendre le devis en cours » rouvre le dernier devis ouvert dans l'éditeur pendant cette session (absent sinon).
+  const boutonRetour = h('a', { class: 'lien-retour', href: '#/devis/liste', dataset: { action: 'retour-devis' } }, icone('chevron-left', { taille: 16 }), 'Devis'); // petite flèche en haut à gauche, comme dans la fiche d'un projet
   const enCours = devisOuvert();
   const boutonReprise = enCours ? h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'reprendre-devis' }, onclick: () => naviguer(`devis/editeur/${enCours}`) }, 'Reprendre le devis en cours') : null;
 
@@ -417,8 +417,8 @@ export function rendreBordereau(conteneur) {
 
   conteneur.append(h('div', { class: 'page page-liste page-devis' },
     h('header', { class: 'page-tete' },
-      h('div', {}, titre, compteur),
-      h('div', { class: 'page-actions' }, boutonRetour, boutonReprise, boutonAjout)),
+      h('div', {}, boutonRetour, titre, compteur),
+      h('div', { class: 'page-actions' }, boutonReprise, boutonAjout)),
     h('div', { class: 'barre-affaires' }, champRecherche, filtres.element, boutonPlus),
     avis, zoneTableau));
 
