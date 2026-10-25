@@ -16,6 +16,7 @@ function section(id, titre, nomIcone, aide) {
     aide ? h('p', { class: 'aide' }, aide) : null);
 }
 
+const nettoyerNom = (v) => L.nettoyerEspaces(v);
 const copie = (items) => items.map((e) => ({ ...e, action: e.action ? { ...e.action } : null }));
 
 // ---------------------------------------------------------------- étapes de vente et phases de projet
@@ -95,18 +96,36 @@ function editeurEmplacements({ genre, visible = true }) {
         h('input', { type: 'number', class: 'champ champ-court', min: '0', max: '365', value: String(e.action.delaiJours ?? 0), 'aria-label': 'Délai en jours',
           oninput: (ev) => modifier({ action: { ...e.action, delaiJours: ev.target.value === '' ? '' : Number(ev.target.value) } }) }), h('span', {}, 'jours'))) : null;
 
+    // Monter / descendre : échange avec la voisine, en emportant tout (nom, couleur, explication, cases, action) et l'identifiant, donc les fiches.
+    const nomLong = nettoyerNom(e.libelle) || `emplacement ${i + 1}`;
+    const monter = h('button', { type: 'button', class: 'bouton-icone', disabled: i === 0, dataset: { role: 'monter' }, title: 'Monter', 'aria-label': `Monter ${etape ? 'l’étape' : 'la phase'} ${nomLong}`, onclick: () => deplacer(i, -1) }, icone('arrow-up', { taille: 16 }));
+    const descendre = h('button', { type: 'button', class: 'bouton-icone', disabled: i === brouillon.length - 1, dataset: { role: 'descendre' }, title: 'Descendre', 'aria-label': `Descendre ${etape ? 'l’étape' : 'la phase'} ${nomLong}`, onclick: () => deplacer(i, 1) }, icone('arrow-down', { taille: 16 }));
+
     return h('div', { class: `emplacement${e.actif ? '' : ' desactive'}`, dataset: { emplacement: e.id } },
       h('div', { class: 'ligne-champs' },
         h('span', { class: 'numero-emplacement', 'aria-hidden': 'true' }, String(i + 1)),
         couleur, nom,
         h('label', { class: 'case' }, actif, h('span', {}, 'Utilisée')),
         h('label', { class: 'case' }, roleRadio, h('span', {}, etape ? 'Vente gagnée' : 'Clôture')),
+        h('div', { class: 'groupe-boutons groupe-deplacer' }, monter, descendre),
         nb ? h('span', { class: 'aide' }, `${nb} fiche${nb > 1 ? 's' : ''}`) : null),
       h('div', { class: 'ligne-champs ligne-explication' },
         description,
         h('label', { class: 'case' }, caseAction, h('span', {}, `Proposer une action quand une fiche arrive dans cette ${mot}`))),
       detailAction,
       h('p', { class: 'erreur', role: 'alert', dataset: { erreur: e.id } }));
+  }
+
+  function deplacer(i, sens) {
+    const apres = L.deplacerEmplacement(brouillon, i, sens);
+    if (apres.every((e, k) => e === brouillon[k])) return;
+    const id = brouillon[i].id;
+    brouillon = apres;
+    rendre();
+    // Le clavier suit l'étape déplacée : même bouton, ou l'autre si on arrive au bord.
+    const nouvelle = zone.querySelector(`[data-emplacement="${id}"]`);
+    const voulu = nouvelle?.querySelector(`[data-role="${sens < 0 ? 'monter' : 'descendre'}"]`);
+    (voulu && !voulu.disabled ? voulu : nouvelle?.querySelector('[data-role="monter"]:not(:disabled), [data-role="descendre"]:not(:disabled)'))?.focus();
   }
 
   function rendre() {

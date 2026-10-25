@@ -205,20 +205,38 @@ function actionNormalisee(a, genre) {
   return action;
 }
 
-/** Les six emplacements d'une liste enregistrée, complétés par ceux de départ : toujours six, dans l'ordre, avec les identifiants fixes. */
+/**
+ * Les six emplacements d'une liste enregistrée, complétés par ceux de départ : toujours six, avec les identifiants fixes.
+ * L'ORDRE est celui de la liste enregistrée (l'utilisateur peut monter ou descendre une étape) : chaque emplacement est retrouvé par son identifiant,
+ * donc les fiches (qui portent cet identifiant) suivent leur étape. Une liste ancienne sans identifiants, ou dont les identifiants ne sont pas
+ * exactement les six de départ, garde l'ancienne lecture par position : aucune donnée n'est réécrite pour autant.
+ */
 function emplacementsNormalises(stockes, depart, genre) {
   const liste = Array.isArray(stockes) ? stockes : [];
-  return depart.map((d, i) => {
-    const s = liste[i] && typeof liste[i] === 'object' ? liste[i] : {};
-    return {
-      id: d.id,
-      libelle: texteBorne(s.libelle, LONGUEUR_MAX_NOM_EMPLACEMENT) || d.libelle,
-      description: texteBorne(s.description, LONGUEUR_MAX_DESCRIPTION),
-      couleur: couleurValide(s.couleur) ?? d.couleur,
-      actif: typeof s.actif === 'boolean' ? s.actif : d.actif,
-      action: actionNormalisee(s.action, genre),
-    };
+  const ids = liste.map((s) => (s && typeof s === 'object' ? s.id : undefined));
+  const parId = ids.length === depart.length && new Set(ids).size === ids.length && ids.every((id) => depart.some((d) => d.id === id));
+  const construire = (d, s) => ({
+    id: d.id,
+    libelle: texteBorne(s.libelle, LONGUEUR_MAX_NOM_EMPLACEMENT) || d.libelle,
+    description: texteBorne(s.description, LONGUEUR_MAX_DESCRIPTION),
+    couleur: couleurValide(s.couleur) ?? d.couleur,
+    actif: typeof s.actif === 'boolean' ? s.actif : d.actif,
+    action: actionNormalisee(s.action, genre),
   });
+  if (parId) return liste.map((s) => construire(depart.find((d) => d.id === s.id), s));
+  return depart.map((d, i) => construire(d, liste[i] && typeof liste[i] === 'object' ? liste[i] : {}));
+}
+
+/**
+ * Échange l'emplacement `index` avec son voisin (`sens` : -1 monter, +1 descendre). Rend une NOUVELLE liste : l'emplacement part avec son nom, sa couleur,
+ * son explication, son état « utilisé », son action suggérée et son identifiant (donc ses fiches). Au bord de la liste, rend la liste inchangée.
+ */
+export function deplacerEmplacement(items, index, sens) {
+  const copie = [...items];
+  const j = index + sens;
+  if (!Number.isInteger(index) || (sens !== -1 && sens !== 1) || index < 0 || j < 0 || index >= copie.length || j >= copie.length) return copie;
+  [copie[index], copie[j]] = [copie[j], copie[index]];
+  return copie;
 }
 
 /** Identifiants de départ des six emplacements d'étapes / de phases pour la racine ou un espace client. */
