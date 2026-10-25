@@ -109,7 +109,7 @@ test('C2 une adresse déjà en copie ne peut pas être le destinataire : message
   await expect(destinataire).toHaveValue('autre@exemple.fr'); // la dernière adresse valable revient
 });
 
-test('C3 devis en lecture seule sans adresse en copie : pas d’étiquette « En copie » seule ; avec une adresse, elle s’affiche sans croix utilisable', async ({ page }, info) => {
+test('C3 devis en lecture seule : pas d’étiquette « En copie » seule (l’en-tête d’édition n’est pas affiché en lecture seule, avec ou sans adresse en copie)', async ({ page }, info) => {
   await semer();
   await ouvrirListe(page);
   const base = {
@@ -128,8 +128,8 @@ test('C3 devis en lecture seule sans adresse en copie : pas d’étiquette « En
   await page.goto('/?emulateurs=1#/devis/editeur/aveccopie');
   await page.reload(); // un simple changement d'adresse garde l'écran du devis précédent : on repart d'une page neuve
   await expect(page.locator('[data-valeur="lecture-seule"]')).toBeVisible();
-  await expect(page.locator('[data-zone="copie"] .ligne-copie')).toHaveText(['compta@exemple.fr']);
-  await expect(page.locator('[data-zone="copie"] [data-action="retirer-copie"]')).toBeDisabled();
+  await expect(page.locator('[data-zone="copie"]')).toHaveCount(0);
+  await expect(page.getByText('En copie', { exact: true })).toHaveCount(0);
 });
 
 test('C5 la croix d’une adresse en copie retire bien l’adresse même si on est en train d’en saisir une autre', async ({ page }, info) => {
