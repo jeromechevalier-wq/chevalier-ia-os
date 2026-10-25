@@ -258,7 +258,7 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
 @media (max-width: 700px) {
   .barre-devis-droite { width: 100%; }
   .barre-devis-droite .bouton { flex: 1 1 auto; }
-  .bouton-options { display: none; }
+  .bouton-options, .bouton-pdf-brouillon { display: none; }
   .bouton-plus-actions { display: inline-grid; min-height: 44px; min-width: 44px; }
   .document-devis { padding: var(--esp-6); gap: var(--esp-7); }
   .barre-ajouts { flex-direction: column; align-items: stretch; }
@@ -501,3 +501,16 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
   .ligne-section-devis td.c-tot { white-space: nowrap; }
   .carte-editeur, .panneau-total { padding: var(--esp-4) var(--esp-6); }
 }
+
+/* PDF d'un devis : lien « PDF », « en cours de fabrication », avertissement « PDF non rangé » (liste, fiche) et écran qui ouvre le PDF. */
+.lien-pdf-devis { display: inline-flex; align-items: center; gap: var(--esp-2); color: var(--accent-trait); text-decoration: none; white-space: nowrap; }
+.lien-pdf-devis:hover, .lien-pdf-devis:focus-visible { text-decoration: underline; }
+.pdf-non-range { display: inline-flex; align-items: center; gap: var(--esp-2); color: var(--retard); white-space: nowrap; }
+.pdf-en-cours { display: inline-flex; align-items: center; gap: var(--esp-2); color: var(--texte2); white-space: nowrap; }
+.pdf-en-cours .rond-chargement { width: 1em; height: 1em; border-width: 2px; }
+.fiche-pdf { margin: 0; }
+.page-pdf-devis { display: flex; flex-direction: column; gap: var(--esp-6); }
+.pdf-devis-corps { display: flex; flex-direction: column; gap: var(--esp-5); }
+.pdf-devis-corps .chargement { display: flex; align-items: center; gap: var(--esp-4); }
+.pdf-devis-actions { display: flex; flex-wrap: wrap; gap: var(--esp-4); }
+@media (max-width: 700px) { .pdf-devis-actions .bouton { flex: 1 1 auto; min-height: 44px; } .pdf-non-range { min-height: 44px; } }

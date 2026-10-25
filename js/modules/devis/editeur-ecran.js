@@ -3,7 +3,7 @@
 // finaliser passe par la fonction du serveur. Aucune règle ni aucun calcul ici : les fonctions pures sont dans editeur-logique.js et logique.js.
 // Un devis qui n'est plus un brouillon s'ouvre en lecture seule (aperçu + totaux) avec l'invitation à créer une variante.
 import { h, icone, remplir, dialogue, toast, confirmer, ouvrirMenu } from '../../os/ui.js';
-import { naviguer, ajouterGardeSortie } from '../../os/router.js';
+import { naviguer, ajouterGardeSortie, lien as lienRoute } from '../../os/router.js';
 import { retirerAvecAnnulation } from '../../os/retrait.js';
 import { etatVide, planifier } from '../crm/composants.js';
 import { adressesDe } from '../crm/logique.js';
@@ -23,6 +23,7 @@ import { ouvrirBibliotheque } from './bibliotheque.js';
 import { imprimerDevis, htmlDuDevis } from './imprimer.js';
 import { editeurOuvrage } from './editeur-ouvrage.js';
 import * as O from './ouvrages.js';
+import { routePdf, messageApresEnregistrement } from './pdf.js';
 
 const ERREUR_ECRITURE = 'Enregistrement impossible : ton compte n’a peut-être que le droit de lire cet espace, ou la connexion est coupée. Réessaie dans un instant.';
 const ERREUR_LECTURE = 'Les devis n’ont pas pu être lus. Vérifie ta connexion puis recharge la page.';
@@ -384,14 +385,39 @@ export function rendreEditeurDevis(conteneur, id) {
   // Barre d'actions : Catalogue, Options (menu à cases à cocher), Annuler, Envoyer (bouton à menu). Sur téléphone, Options passe dans le bouton « … ». Pas de bouton Enregistrer : l'enregistrement est automatique.
   function boutonsEdition() {
     ref.boutonOptions = h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-options', dataset: { action: 'options' }, 'aria-controls': 'options-devis', 'aria-expanded': 'false', onclick: (ev) => (optionsOuvertes ? optionsOuvertes.fermer() : ouvrirOptions(ev.currentTarget)) }, 'Options', icone('chevron-down', { taille: 14 }));
+    // « Enregistrer PDF » : seulement pour un brouillon (cette barre n'existe pas en lecture seule). Désactivé pendant l'appel.
+    ref.boutonPdf = h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-pdf-brouillon', dataset: { action: 'enregistrer-pdf' }, onclick: () => enregistrerPdfBrouillon() }, icone('file-text', { taille: 16 }), 'Enregistrer PDF');
     return [
       boutonCatalogue(),
       ref.boutonOptions,
-      h('button', { type: 'button', class: 'bouton-icone bouton-plus-actions', dataset: { action: 'plus-actions' }, 'aria-haspopup': 'menu', 'aria-label': 'Autres actions', onclick: (ev) => { const ancre = ev.currentTarget; ouvrirMenu(ancre, [{ libelle: 'Options', icone: 'settings', action: () => ouvrirOptions(ancre) }]); } }, icone('ellipsis', { taille: 16 })),
+      ref.boutonPdf,
+      h('button', { type: 'button', class: 'bouton-icone bouton-plus-actions', dataset: { action: 'plus-actions' }, 'aria-haspopup': 'menu', 'aria-label': 'Autres actions', onclick: (ev) => { const ancre = ev.currentTarget; ouvrirMenu(ancre, [{ libelle: 'Options', icone: 'settings', action: () => ouvrirOptions(ancre) }, { libelle: 'Enregistrer PDF', icone: 'file-text', desactive: pdfEnCours, action: () => enregistrerPdfBrouillon() }]); } }, icone('ellipsis', { taille: 16 })),
       h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'annuler' }, onclick: () => naviguer('devis/liste') }, 'Annuler'),
       // « Envoyer » remplace « Finaliser » : imprimer, télécharger ou envoyer par e-mail ; le devis est finalisé (numéroté, prix figés) au moment de l'envoi.
       h('button', { type: 'button', class: 'bouton bouton-principal', dataset: { action: 'envoyer' }, 'aria-haspopup': 'menu', 'aria-expanded': 'false', onclick: (ev) => ouvrirMenuEnvoyer(ev.currentTarget) }, icone('mail', { taille: 16 }), 'Envoyer', icone('chevron-down', { taille: 14 })),
     ];
+  }
+
+  // ------------------------------------------------ PDF du brouillon (filigrane « BROUILLON »), fabriqué par le serveur et rangé dans les Documents de l'affaire
+  let pdfEnCours = false;
+  /** Enregistre d'abord les changements en attente (le PDF reflète l'écran), puis demande le PDF au serveur ; le résultat est dit en clair. */
+  async function enregistrerPdfBrouillon() {
+    if (pdfEnCours || lecture || !travail) return;
+    pdfEnCours = true;
+    ref.boutonPdf?.setAttribute('disabled', '');
+    ref.boutonPdf?.setAttribute('aria-busy', 'true');
+    try {
+      if (!(await sauver())) { toast(`${messageEnreg || ERREUR_ECRITURE} Le PDF n’a pas été créé.`, { type: 'erreur', duree: 8000 }); return; }
+      await D.pdfBrouillon(id);
+      toast(messageApresEnregistrement(travail), { duree: 8000, lien: { libelle: 'Ouvrir le PDF', href: lienRoute(routePdf(id, true)) } });
+    } catch (e) {
+      console.warn(e);
+      toast(e?.message || D.MESSAGE_RESEAU_DEVIS, { type: 'erreur', duree: 8000 });
+    } finally {
+      pdfEnCours = false;
+      ref.boutonPdf?.removeAttribute('disabled');
+      ref.boutonPdf?.removeAttribute('aria-busy');
+    }
   }
 
   // Flèche « ‹ Devis » tout à gauche de la barre, comme dans la fiche d'un projet : retour à la liste des devis (même chemin que l'ancienne croix, donc même confirmation si des changements ne sont pas enregistrés).
