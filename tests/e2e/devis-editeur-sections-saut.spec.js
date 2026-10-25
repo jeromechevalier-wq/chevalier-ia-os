@@ -298,3 +298,31 @@ test('2 « Insérer en dessous > Fourniture » ouvre la recherche d’article ju
   const voisine = await page.locator('tr[data-id="m12"]').boundingBox();
   expect(Math.abs(voisine.y - avant.y)).toBeLessThan(80); // la ligne d'après a pris la place, la page n'a pas bougé
 });
+
+test('5 la boîte de recherche propose Section, Sous-section, Texte et Saut de page : posés sous la ligne choisie, puis toute la boîte se ferme ; les sous-familles sont décalées avec un signe', async ({ page }, info) => {
+  await semer();
+  const lignes = Array.from({ length: 4 }, (_, i) => ligne(`m${i + 1}`, `Ligne ${i + 1}`, 1, 10));
+  await ouvrir(page, await devis('d8', [{ id: 's1', titre: 'Cuisine', lignes }]));
+  await menuDe(page, 'm2');
+  await page.getByRole('menuitem', { name: 'Insérer en dessous' }).click();
+  await page.locator('.menu-devis-ligne').getByRole('menuitem', { name: 'Fourniture' }).click();
+  const enLigne = page.locator('tr[data-zone="recherche-en-ligne"]');
+  await expect(enLigne.locator('[data-zone="recherche-autres"] button')).toHaveText(['Section', 'Sous-section', 'Texte', 'Saut de page']);
+  // Les sous-familles sont décalées et précédées d'un signe ; les familles restent alignées à gauche.
+  const options = await enLigne.locator('[data-champ="filtre-famille"] option').allTextContents();
+  expect(options).toContain('Fournitures');
+  expect(options.some((t) => /^\u00a0+– Gros œuvre/.test(t))).toBe(true);
+  expect(options.some((t) => t.includes('›'))).toBe(false);
+  await capturer(page, info, '5-recherche-boutons-sous-familles');
+  await enLigne.locator('[data-action="recherche-ajouter-saut"]').click();
+  await expect(page.locator('tr[data-zone="recherche-en-ligne"]')).toHaveCount(0);
+  await expect(page.locator('[data-zone="recherche"]')).toBeHidden();
+  const apres = await page.locator('tr[data-id]').evaluateAll((l) => l.map((x) => x.dataset.id));
+  expect(apres.indexOf('m2') + 2).toBe(apres.indexOf('m3')); // un saut est entre « Ligne 2 » et « Ligne 3 »
+  await expect(page.locator('tr[data-genre="saut"]')).toHaveCount(1);
+  // Texte, depuis la recherche du bas : à la fin du devis.
+  await page.locator('[data-action="ajouter-famille-1"]').click();
+  await page.locator('[data-action="recherche-ajouter-texte"]').click();
+  await expect(page.locator('[data-zone="recherche"]')).toBeHidden();
+  await expect(page.locator('tr[data-genre="texte"]')).toHaveCount(1);
+});
