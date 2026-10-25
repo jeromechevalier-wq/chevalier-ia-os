@@ -741,7 +741,7 @@ export function rendreEditeurDevis(conteneur, id) {
     ref.resultats = h('ul', { class: 'resultats-bordereau', dataset: { zone: 'resultats' } });
     ref.panneauRecherche = h('div', { class: 'recherche-bordereau', hidden: true, dataset: { zone: 'recherche' } },
       h('div', { class: 'ligne-champs' }, ref.rechercheBordereau, ref.filtreFamille,
-        h('button', { type: 'button', class: 'bouton bouton-discret', dataset: { action: 'fermer-recherche' }, onclick: () => { ref.panneauRecherche.hidden = true; pointInsertion = null; rechercheEnLigne = false; placerPanneauRecherche(); } }, 'Valider')),
+        h('button', { type: 'button', class: 'bouton bouton-discret', dataset: { action: 'fermer-recherche' }, onclick: () => { ref.panneauRecherche.hidden = true; pointInsertion = null; rechercheEnLigne = false; placerPanneauRecherche(); } }, 'Fermer')),
       ref.resultats);
     ref.hoteRecherche = h('div', {}, ref.panneauRecherche);
     ref.corpsLignes = h('tbody', {});
