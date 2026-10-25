@@ -166,21 +166,29 @@ export function paginer(liste, page = 1, parPage = TAILLE_PAGE_DEFAUT) {
 
 // ---------------------------------------------------------------- tableau (colonnes par statut)
 
-/** Colonnes de la vue Tableau. Décision : « Remplacé » et « Expiré » sont regroupés dans une dernière colonne, pour garder cinq colonnes principales. */
+/** Colonnes de la vue Tableau (décision de Jérôme, 25/10/2026) : quatre colonnes. Un devis finalisé mais pas encore envoyé reste dans « Envoyé » (avec une pastille « Pas encore envoyé »). */
 export const COLONNES_TABLEAU = Object.freeze([
   { id: 'brouillon', libelle: 'Brouillon', statuts: ['brouillon'] },
-  { id: 'en_attente_envoi', libelle: 'Finalisé', statuts: ['en_attente_envoi'] },
-  { id: 'envoye', libelle: 'Envoyé', statuts: ['envoye'] },
+  { id: 'envoye', libelle: 'Envoyé', statuts: ['envoye', 'en_attente_envoi'] },
   { id: 'accepte', libelle: 'Signé', statuts: ['accepte'] },
   { id: 'refuse', libelle: 'Refusé', statuts: ['refuse'] },
-  { id: 'clos', libelle: 'Remplacé et expiré', statuts: ['remplace', 'expire'] },
 ]);
 
-/** Répartit les devis (déjà triés) dans les colonnes selon leur statut AFFICHÉ (un devis expiré quitte « Finalisé » / « Envoyé »). Un statut inconnu va dans « Brouillon ». */
+/** Statuts qui ne sont plus dans le Tableau : ils se lisent dans la vue « Archives » (rien n'est modifié en base). */
+export const STATUTS_HORS_TABLEAU = Object.freeze(['remplace', 'expire']);
+export const estHorsTableau = (d, aujourdhui) => STATUTS_HORS_TABLEAU.includes(statutAffiche(d, aujourdhui));
+/** Vue « Archives » : les devis archivés à la main, plus les anciennes versions (remplacées) et les devis expirés. */
+export const estDansArchives = (d, aujourdhui) => d?.archive === true || estHorsTableau(d, aujourdhui);
+
+/** Libellé de la pastille d'un devis finalisé mais pas encore envoyé (statut « en_attente_envoi »). */
+export const LIBELLE_PAS_ENCORE_ENVOYE = 'Pas encore envoyé';
+
+/** Répartit les devis (déjà triés) dans les colonnes selon leur statut AFFICHÉ. Remplacé et expiré n'ont pas de colonne (ignorés) ; un statut inconnu va dans « Brouillon ». */
 export function regrouperParColonne(liste, aujourdhui) {
   const colonnes = COLONNES_TABLEAU.map((c) => ({ id: c.id, libelle: c.libelle, devis: [] }));
   for (const d of liste) {
     const s = statutAffiche(d, aujourdhui);
+    if (STATUTS_HORS_TABLEAU.includes(s)) continue;
     const i = COLONNES_TABLEAU.findIndex((c) => c.statuts.includes(s));
     colonnes[i === -1 ? 0 : i].devis.push(d);
   }

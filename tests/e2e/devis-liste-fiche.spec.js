@@ -395,8 +395,9 @@ test('9 archiver : un devis signé s’archive depuis le menu « … » de sa fi
   await expect(page.locator('tr.ligne-devis[data-id="dSigne"]')).toHaveCount(0);
   await expect(page.locator('tr.ligne-devis')).toHaveCount(4);
   await page.locator('[data-vue="archives"]').click();
-  await expect(page.locator('tr.ligne-devis')).toHaveCount(1);
+  await expect(page.locator('tr.ligne-devis')).toHaveCount(2); // le devis archivé + le devis expiré (dExpire), qui se lit aussi dans les Archives
   await expect(page.locator('tr.ligne-devis[data-id="dSigne"]')).toBeVisible();
+  await expect(page.locator('tr.ligne-devis[data-id="dExpire"]')).toBeVisible();
   await attendreCalme(page);
   await capturer(page, info, '9-archives');
   // Désarchiver depuis le menu « … » de la ligne.
@@ -405,8 +406,9 @@ test('9 archiver : un devis signé s’archive depuis le menu « … » de sa fi
   await expect(page.locator('.toast', { hasText: 'Devis sorti des archives' })).toBeVisible();
   expect(appels[1]).toEqual(['devisArchiver', { devisId: 'dSigne', archive: false }]);
   await devis('dSigne', SIGNE);
-  // Cas vide des archives.
-  await expect(page.getByText('Aucun devis archivé.')).toBeVisible();
+  // Une fois désarchivé, il ne reste que l'expiré dans les Archives.
+  await expect(page.locator('tr.ligne-devis[data-id="dSigne"]')).toHaveCount(0);
+  await expect(page.locator('tr.ligne-devis[data-id="dExpire"]')).toBeVisible();
   await page.locator('[data-vue="liste"]').click();
   await expect(page.locator('tr.ligne-devis[data-id="dSigne"]')).toBeVisible();
 });

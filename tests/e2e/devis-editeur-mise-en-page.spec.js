@@ -72,24 +72,27 @@ async function ajouterLibre(page) {
 }
 const numeros = (page) => page.locator('.tableau-lignes-devis tbody tr td.c-num').allTextContents();
 
-test('1 la barre d’actions reste en haut quand on défile : titre « Brouillon », onglets Édition et Prévisualisation, Catalogue, Options, Annuler, Finaliser', async ({ page }, info) => {
+test('1 la barre d’actions reste en haut quand on défile : titre « Brouillon », onglets Édition et Prévisualisation, Catalogue, Options, Finaliser', async ({ page }, info) => {
   await semer();
   await ouvrir(page, await devisLong());
   const barre = page.locator('.barre-devis');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Brouillon');
   await expect(page.locator('[data-onglet="edition"]')).toHaveText('Édition');
   await expect(page.locator('[data-onglet="apercu"]')).toHaveText('Prévisualisation');
-  for (const action of ['bibliotheque', 'annuler', 'envoyer', 'fermer']) await expect(page.locator(`.barre-devis [data-action="${action}"]`)).toBeVisible();
+  for (const action of ['bibliotheque', 'envoyer']) await expect(page.locator(`.barre-devis [data-action="${action}"]`)).toBeVisible();
+  await expect(page.locator('.entete-devis [data-action="fermer"]')).toBeVisible(); // la flèche « ‹ Devis » est dans l'en-tête, comme sur les fiches
+  if (!estTelephone(page)) await expect(page.locator('[data-role="recherche-globale"]')).toBeInViewport(); // la grande recherche du haut est revenue sur l'éditeur
   await expect(page.locator('.barre-devis [data-action="enregistrer"]')).toHaveCount(0); // l'enregistrement est automatique
+  await expect(page.locator('.barre-devis [data-action="annuler"]')).toHaveCount(0); // « Annuler » ne faisait que revenir à la liste, comme la flèche « ‹ Devis »
   await expect(page.locator('[data-action="envoyer"]')).toHaveClass(/bouton-principal/); // le seul bouton jaune plein de la barre
+  await capturer(page, info, '1-entete-complet', { pleine: false }); // en haut de page : recherche, flèche, titre, total, statut, client, affaire, puis la barre d'actions
   // En bas de la page, la barre est toujours à l'écran (collée en haut, sous la barre du téléphone).
   await defiler(page, false);
   await expect(barre).toBeInViewport({ ratio: 1 });
-  // Collée en haut de l'écran sur ordinateur (la recherche du haut n'existe plus sur Devis), juste sous la barre du menu (56 px) sur téléphone, et pas cachée derrière elle.
+  // Collée en haut de l'écran sur ordinateur (la recherche du haut défile avec la page, elle ne reste pas collée), juste sous la barre du menu (56 px) sur téléphone.
   const haut = (await barre.boundingBox()).y;
-  if (estTelephone(page)) { expect(haut).toBeGreaterThanOrEqual(52); expect(haut).toBeLessThanOrEqual(64); } else { expect(haut).toBeLessThanOrEqual(4); }
-  const titre = await page.getByRole('heading', { level: 1 }).boundingBox();
-  expect(await page.evaluate(({ x, y }) => Boolean(document.elementFromPoint(x, y)?.closest('.barre-devis')), { x: titre.x + titre.width / 2, y: titre.y + titre.height / 2 })).toBe(true);
+  if (estTelephone(page)) { expect(haut).toBeGreaterThanOrEqual(52); expect(haut).toBeLessThanOrEqual(64); } else { expect(haut).toBeLessThanOrEqual(4); await expect(page.locator('[data-role="recherche-globale"]')).not.toBeInViewport(); }
+  await expect(page.locator('.barre-devis.epinglee .titre-compact')).toContainText('Brouillon'); // l'en-tête complet est parti : le titre et le total restent dans la barre
   await capturer(page, info, '1-barre-fixe', { pleine: false });
   // « Options » ouvre les réglages du devis (sur téléphone, dans le bouton « … »).
   await defiler(page, true);
@@ -294,8 +297,10 @@ test('6 sur téléphone : une carte par ligne (désignation en haut, puis Qté /
   const bande = await page.locator('tr[data-id="s1"]').boundingBox();
   const largeur = page.viewportSize().width;
   expect(bande.width).toBeGreaterThan(largeur - 60);
-  // La barre garde Catalogue, Annuler et Envoyer ; Options est dans « … ».
-  for (const action of ['bibliotheque', 'annuler', 'envoyer', 'fermer']) await expect(page.locator(`.barre-devis [data-action="${action}"]`)).toBeVisible();
+  // La barre garde Catalogue et Envoyer ; Options est dans « … ».
+  for (const action of ['bibliotheque', 'envoyer']) await expect(page.locator(`.barre-devis [data-action="${action}"]`)).toBeVisible();
+  await expect(page.locator('.entete-devis [data-action="fermer"]')).toBeVisible(); // la flèche « ‹ Devis » est dans l'en-tête, comme sur les fiches
+  if (!estTelephone(page)) await expect(page.locator('[data-role="recherche-globale"]')).toBeInViewport(); // la grande recherche du haut est revenue sur l'éditeur
   await expect(page.locator('.barre-devis [data-action="enregistrer"]')).toHaveCount(0); // l'enregistrement est automatique
   await expect(page.locator('[data-action="options"]')).toBeHidden();
   await expect(page.locator('[data-action="plus-actions"]')).toBeVisible();
@@ -389,26 +394,30 @@ test('1 les onglets ont un pictogramme : un stylo pour Édition, un œil pour Pr
   await expect(page.locator('[data-onglet="apercu"] svg')).toHaveCount(1);
 });
 
-test('8 la barre du haut ne saute pas quand l’état d’enregistrement change : « Enregistré », « Non enregistré », « Enregistrement… » sont courts', async ({ page }) => {
+test('8 l’état d’enregistrement est une petite icône de taille fixe : l’en-tête et la barre ne bougent pas, les mots ne s’affichent qu’en cas d’échec', async ({ page }, info) => {
   await semer();
   await ouvrir(page, await devisLong());
   const indicateur = page.locator('[data-valeur="enregistrement"]');
-  // Position des onglets par rapport au titre : insensible au défilement de la page (le champ qu'on remplit peut la faire défiler).
-  const decalage = async () => {
-    const [titre, onglet] = await Promise.all([page.locator('.titre-barre-devis').boundingBox(), page.locator('[data-onglet="edition"]').boundingBox()]);
-    return { x: onglet.x - titre.x, y: onglet.y - titre.y };
+  // Mesures insensibles au défilement de la page (le champ qu'on remplit peut la faire défiler) : tailles, et position des onglets dans la barre.
+  const mesure = async () => {
+    const [entete, barre, onglet, icone] = await Promise.all([page.locator('.entete-devis').boundingBox(), page.locator('.barre-devis').boundingBox(), page.locator('[data-onglet="edition"]').boundingBox(), indicateur.boundingBox()]);
+    return { hautEntete: entete.height, hautBarre: barre.height, x: onglet.x - barre.x, y: onglet.y - barre.y, largeurIcone: icone.width, hautIcone: icone.height };
   };
-  await expect(indicateur).toHaveText('Enregistré');
-  const avant = await decalage();
+  await expect(indicateur).toHaveText('Enregistré'); // les mots restent dans la page pour les lecteurs d'écran...
+  await expect(indicateur.locator('.sr-only')).toHaveCount(1); // ...mais ne se voient pas
+  await expect(indicateur).toHaveAttribute('title', 'Enregistré'); // l'infobulle les montre au survol
+  await expect(indicateur.locator('svg')).toBeVisible();
+  const avant = await mesure();
+  expect(avant.largeurIcone).toBeLessThan(40);
   await page.locator('textarea[data-champ="description"]').first().fill('texte modifié');
   await expect(indicateur).toHaveText(/Non enregistré|Enregistrement…/); // l'état change vraiment
-  const pendant = await decalage();
+  const pendant = await mesure();
   await expect(indicateur).toHaveText('Enregistré'); // l'enregistrement automatique se termine
-  const apres = await decalage();
-  for (const mesure of [pendant, apres]) {
-    expect(Math.abs(mesure.x - avant.x)).toBeLessThan(2); // les onglets ne bougent pas
-    expect(Math.abs(mesure.y - avant.y)).toBeLessThan(2); // la barre ne passe pas sur deux lignes
+  const apres = await mesure();
+  for (const m of [pendant, apres]) {
+    for (const cle of Object.keys(avant)) expect(Math.abs(m[cle] - avant[cle]), cle).toBeLessThan(2); // rien ne bouge
   }
+  await capturer(page, info, '8-icone-enregistrement', { pleine: false });
 });
 
 test('9 le bouton Catalogue est dans la barre, à gauche d’Options ; plus de bouton Enregistrer : l’enregistrement est automatique', async ({ page }, info) => {
