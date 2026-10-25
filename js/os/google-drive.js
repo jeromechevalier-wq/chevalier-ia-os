@@ -203,6 +203,43 @@ export async function copierFichier({ jeton, fichierId, parentId, nom = '', appe
 }
 
 /**
+ * Cherche, dans le dossier `parentId`, un fichier (pas un dossier) qui porte déjà ce nom. Même limite que pour les dossiers : avec drive.file, seuls les fichiers
+ * créés par l'appli sont vus. Renvoie { id, nom } ou null (null aussi si Google ne répond pas : on ne bloque pas pour un confort).
+ */
+export async function trouverFichierDeMemeNom({ jeton, nom, parentId, appelFetch = globalThis.fetch }) {
+  if (!IDENTIFIANT.test(parentId || '')) return null;
+  const propre = String(nom ?? '').replace(/\s+/g, ' ').trim();
+  if (!propre) return null;
+  const echapper = (t) => t.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  const q = `name = '${echapper(propre)}' and mimeType != '${TYPE_DOSSIER}' and trashed = false and '${parentId}' in parents`;
+  try {
+    const reponse = await appelFetch(`${API_FICHIERS}?q=${encodeURIComponent(q)}&fields=files(id,name)&pageSize=1&supportsAllDrives=true&includeItemsFromAllDrives=true`, { headers: { Authorization: `Bearer ${jeton}` } });
+    if (!reponse.ok) return null;
+    const f = (await reponse.json())?.files?.[0];
+    return f?.id ? { id: f.id, nom: f.name || propre } : null;
+  } catch { return null; }
+}
+
+/** Envoie un fichier (Blob) dans un dossier Drive (envoi « multipart », pour les fichiers de quelques Mo). Renvoie { id, nom, url }. */
+export async function envoyerFichier({ jeton, nom, contenu, typeMime = 'application/pdf', parentId, appelFetch = globalThis.fetch }) {
+  if (!IDENTIFIANT.test(parentId || '')) throw Object.assign(new Error('Le dossier est invalide pour l’envoi.'), { saisie: true });
+  const propre = nettoyerNomDossier(nom).nom;
+  if (!propre) throw Object.assign(new Error('Donne un nom au fichier.'), { saisie: true });
+  const bord = `chevalier${Math.random().toString(36).slice(2, 12)}`;
+  const corps = new Blob([`--${bord}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify({ name: propre, parents: [parentId] })}\r\n--${bord}\r\nContent-Type: ${typeMime}\r\n\r\n`, contenu, `\r\n--${bord}--`]);
+  const reponse = await appelFetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id,name,webViewLink', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${jeton}`, 'Content-Type': `multipart/related; boundary=${bord}` },
+    body: corps,
+  });
+  let rep = null;
+  try { rep = await reponse.json(); } catch { /* corps vide ou illisible */ }
+  if (!reponse.ok || !rep?.id) throw Object.assign(new Error(messageErreurDrive(reponse.status, rep)), { statut: reponse.status });
+  const url = /^https:\/\/(?:drive|docs)\.google\.com\//.test(rep.webViewLink || '') ? rep.webViewLink : `https://drive.google.com/file/d/${rep.id}/view`;
+  return { id: rep.id, nom: rep.name || propre, url };
+}
+
+/**
  * Crée le dossier d'un projet puis ses sous-dossiers, dans l'ordre de la liste. Si le dossier principal échoue, tout s'arrête (rien n'est créé).
  * Si un sous-dossier échoue, on continue avec les suivants : le résultat dit lesquels manquent (`manquants`), le dossier principal est bien créé.
  * Renvoie { dossier: { id, nom, url }, sousDossiers: [{ id, nom, url }], manquants: [nom] }.

@@ -3,10 +3,13 @@
 // Choix contre les bloqueurs de fenêtres : le PDF s'ouvre dans un NOUVEL onglet (l'application n'est jamais remplacée : la touche « retour » ne boucle pas) ; si le navigateur
 // refuse cette ouverture automatique, le bouton « Ouvrir le PDF » (un vrai lien, toujours affiché) la remplace.
 // Aucune règle ici : états et messages viennent de pdf.js (pur, testé) ; rien n'est écrit par le navigateur.
-import { h, icone, remplir } from '../../os/ui.js';
+import { h, icone, remplir, toast } from '../../os/ui.js';
 import { etatVide } from '../crm/composants.js';
+import { obtenirJeton, oublierJeton, googleDisponible } from '../../os/google-picker.js';
+import * as CRM from '../crm/donnees.js';
 import * as D from './donnees.js';
 import { etatPdfDevis } from './pdf.js';
+import { copierPdfDevis, choisirDestination, nomFichierDrive, cleMemoire, MESSAGE_GOOGLE_ABSENT, MESSAGE_DEJA_COPIE } from './drive-copie.js';
 
 export const MESSAGE_INTROUVABLE_PDF = 'Ce devis est introuvable. Il a peut-être été supprimé : retourne à la liste des devis.';
 export const MESSAGE_EN_COURS = 'Le PDF est en cours de fabrication. Réessaie dans quelques instants.';
@@ -24,6 +27,43 @@ export function rendrePdfDevis(conteneur, devisId, brouillon = false) {
   let arrete = false;
   let numero = 0; // une demande plus récente annule l'affichage de la précédente
   let dejaOuvert = false; // un seul onglet ouvert automatiquement par affichage de cet écran
+  let dejaCopie = false; // une seule copie automatique dans Drive par affichage de cet écran (« Réessayer » en relance une autre)
+
+  // ---- Copie du PDF dans le sous-dossier « Devis » du dossier de travail Drive de l'affaire. Ne bloque jamais l'affichage du PDF ; jamais d'échec silencieux.
+  const memoire = {
+    lire: (cle) => { try { return localStorage.getItem(cle) === '1'; } catch { return false; } },
+    ecrire: (cle) => { try { localStorage.setItem(cle, '1'); } catch { /* préférence locale seulement */ } },
+  };
+  async function copierDansDrive(zoneDrive, url, devis, { force = false } = {}) {
+    const affiche = (etat, texte, ...actions) => { if (!arrete) remplir(zoneDrive, h('p', { class: etat === 'erreur' ? 'erreur' : 'texte-discret', dataset: { valeur: 'message-drive', etat } }, texte), actions.length ? h('div', { class: 'pdf-devis-actions' }, ...actions) : null); };
+    const dest = choisirDestination({ devis, affaire: devis.affaireId ? CRM.affaire(devis.affaireId) : null });
+    if (dest.genre !== 'ok') { affiche('rien', dest.message); return; } // pas de dossier de travail : information, pas une erreur
+    if (!googleDisponible()) { affiche('rien', MESSAGE_GOOGLE_ABSENT); return; }
+    const cle = cleMemoire(devis.id, dest.dossierId, nomFichierDrive(devis));
+    if (!force && memoire.lire(cle)) {
+      affiche('deja', MESSAGE_DEJA_COPIE, bouton('Copier de nouveau', 'recopier-drive', () => copierDansDrive(zoneDrive, url, devis, { force: true })));
+      return;
+    }
+    affiche('en-cours', 'Copie du PDF dans le dossier Devis de l’affaire…');
+    const resultat = await copierPdfDevis({
+      devis, affaire: CRM.affaire(devis.affaireId),
+      outils: {
+        obtenirJeton: () => obtenirJeton({ email: CRM.compteCourant()?.email || '' }),
+        lirePdf: async () => { const rep = await fetch(url); if (!rep.ok) throw new Error(`Lecture du PDF : ${rep.status}`); return rep.blob(); },
+      },
+    });
+    if (arrete) return;
+    if (resultat.etat === 'erreur') {
+      if (resultat.erreur?.statut === 401) oublierJeton();
+      affiche('erreur', resultat.message, bouton('Réessayer', 'reessayer-drive', () => copierDansDrive(zoneDrive, url, devis, { force: true })));
+      toast(resultat.message, { type: 'erreur', duree: 8000 });
+      return;
+    }
+    if (resultat.etat === 'rien') { affiche('rien', resultat.message); return; }
+    memoire.ecrire(cle);
+    affiche(resultat.etat, resultat.message, resultat.fichier?.url ? h('a', { class: 'bouton bouton-secondaire', href: resultat.fichier.url, target: '_blank', rel: 'noopener noreferrer', dataset: { action: 'ouvrir-copie-drive' } }, 'Ouvrir dans Drive') : null);
+    if (resultat.etat === 'copie') toast(resultat.message, { duree: 6000 });
+  }
 
   const bouton = (libelle, action, onclick) => h('button', { type: 'button', class: 'bouton bouton-principal', dataset: { action }, onclick }, libelle);
   const montrer = (etat, ...enfants) => { zone.dataset.etat = etat; remplir(zone, ...enfants); };
@@ -64,12 +104,15 @@ export function rendrePdfDevis(conteneur, devisId, brouillon = false) {
       const url = typeof r?.url === 'string' && /^https:\/\//i.test(r.url) ? r.url : null;
       if (!url) throw new Error(D.MESSAGE_RESEAU_DEVIS);
       if (!dejaOuvert) { dejaOuvert = true; window.open(url, '_blank', 'noopener,noreferrer'); }
+      const zoneDrive = brouillon ? null : h('div', { class: 'pdf-devis-drive', role: 'status', 'aria-live': 'polite', dataset: { zone: 'copie-drive' } });
       montrer('pret',
         h('p', { dataset: { valeur: 'message-pdf' } }, r?.nom ? `${r.nom} s’ouvre dans un nouvel onglet.` : 'Le PDF s’ouvre dans un nouvel onglet.'),
         h('p', { class: 'texte-discret' }, 'Rien ne s’est ouvert ? Ton navigateur l’a peut-être bloqué : utilise le bouton ci-dessous.'),
         h('div', { class: 'pdf-devis-actions' },
           h('a', { class: 'bouton bouton-principal', href: url, target: '_blank', rel: 'noopener noreferrer', dataset: { action: 'ouvrir-pdf' } }, icone('external-link', { taille: 16 }), 'Ouvrir le PDF'),
-          h('a', { class: 'bouton bouton-secondaire', href: brouillon ? `#/devis/editeur/${encodeURIComponent(devisId)}` : '#/devis/liste', dataset: { action: 'retour-apres-pdf' } }, brouillon ? 'Retour au devis' : 'Retour aux devis')));
+          h('a', { class: 'bouton bouton-secondaire', href: brouillon ? `#/devis/editeur/${encodeURIComponent(devisId)}` : '#/devis/liste', dataset: { action: 'retour-apres-pdf' } }, brouillon ? 'Retour au devis' : 'Retour aux devis')),
+        zoneDrive);
+      if (zoneDrive && !dejaCopie) { dejaCopie = true; copierDansDrive(zoneDrive, url, d); }
     } catch (e) {
       if (arrete || mon !== numero) return;
       const code = String(e?.code ?? '').replace('functions/', '');

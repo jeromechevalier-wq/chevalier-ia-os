@@ -43,7 +43,7 @@ window.google.accounts = { oauth2: { initTokenClient(cfg) { return { requestAcce
  * Dans la page : window.__google.reponse = [{ id, name, url, mimeType }] (ou 'annule') fixe ce que « l'utilisateur » choisit dans la fenêtre Google.
  */
 export async function brancherGoogle(context, { idClient = ID_CLIENT } = {}) {
-  const drive = { requetes: [], supprimes: new Set(), dossiers: [], fichiers: {}, lectures: [], recherches: [], echecs: {}, compteur: 0, copies: [], compteurCopies: 0, echecCopie: 0, echecLecture: 0 };
+  const drive = { requetes: [], supprimes: new Set(), dossiers: [], fichiers: {}, lectures: [], recherches: [], echecs: {}, compteur: 0, copies: [], compteurCopies: 0, echecCopie: 0, echecLecture: 0, envois: [], echecEnvoi: 0 };
   await context.addInitScript(DEBUT);
   await context.route('**/js/os/google-config.js', (route) => route.fulfill({ status: 200, contentType: 'text/javascript', body: `export const googleDrive = { idClient: '${idClient}' };` }));
   await context.route('https://apis.google.com/js/api.js', (route) => route.fulfill({ status: 200, contentType: 'text/javascript', body: SCRIPT_API }));
@@ -86,6 +86,17 @@ export async function brancherGoogle(context, { idClient = ID_CLIENT } = {}) {
     const idDossier = `DOSSIER_${drive.compteur}_abcdefghij`;
     drive.dossiers.push({ id: idDossier, name: corps.name, parents: corps.parents });
     await route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: JSON.stringify({ id: idDossier, name: corps.name }) });
+  });
+  // Envoi d'un fichier (uploadType=multipart) : on garde le nom, le dossier parent et le contenu. `drive.echecEnvoi` = statut d'erreur à renvoyer.
+  await context.route('https://www.googleapis.com/upload/drive/v3/files**', async (route) => {
+    const requete = route.request();
+    if (requete.method() === 'OPTIONS') { await route.fulfill({ status: 204, headers: CORS }); return; }
+    if (drive.echecEnvoi) { await route.fulfill({ status: drive.echecEnvoi, contentType: 'application/json', headers: CORS, body: JSON.stringify({ error: { status: 'PERMISSION_DENIED', message: 'refusé' } }) }); return; }
+    const texte = requete.postData() || '';
+    const meta = JSON.parse(/\r\n\r\n(\{.*?\})\r\n--/s.exec(texte)?.[1] || '{}');
+    drive.envois.push({ nom: meta.name, parents: meta.parents, autorisation: requete.headers().authorization, contientPdf: texte.includes('%PDF-') });
+    const id = `ENVOI_${drive.envois.length}_abcdefghij`;
+    await route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: JSON.stringify({ id, name: meta.name, webViewLink: `https://drive.google.com/file/d/${id}/view` }) });
   });
   return drive;
 }
