@@ -15,6 +15,8 @@ import { rendreFicheOrganisation } from './fiche-organisation.js';
 import { rendreFicheAffaire } from './fiche-affaire.js';
 import { rendreReglagesCrm } from './reglages.js';
 import { rendreJournal } from './journal.js';
+import { ETAPES_DEPLOIEMENT_AFFAIRES, controlerDeploiementAffaires } from './deploiement.js';
+import { attendreQue } from '../../os/deploiement.js';
 
 const VUES = {
   accueil: (conteneur, _id, ctx) => rendreAccueil(conteneur, ctx),
@@ -115,6 +117,14 @@ export function reglages(page, ctx = {}) {
     page.append(sectionObjectifs);
   }
   return () => arrets.forEach((f) => typeof f === 'function' && f());
+}
+
+/** Page Réglages > Déploiement : les lignes du module et leur contrôle (réglages déjà lus par le module ; on attend au plus 6 secondes qu'ils le soient). */
+export function controlesDeploiement() {
+  return {
+    etapes: ETAPES_DEPLOIEMENT_AFFAIRES,
+    verifier: async () => controlerDeploiementAffaires({ pret: await attendreQue(() => D.etat.pret.parametres, D.surChangement), reglages: D.etat.reglages }),
+  };
 }
 
 // ---------------------------------------------------------------- recherche globale

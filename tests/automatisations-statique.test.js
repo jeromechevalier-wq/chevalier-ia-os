@@ -127,10 +127,10 @@ describe('Cohérence : registre, règles, fonctions, déploiement', () => {
 });
 
 describe('Les fonctions se chargent comme Firebase les chargera', () => {
-  test('treize fonctions (dont les six opérations de devis et les deux de « Préparer l\'e-mail »), région de Paris, planifiée toutes les heures, clé n8n liée par secret sur les deux qui lisent n8n, aucun secret pour « renommer »', async () => {
+  test('quatorze fonctions (dont les six opérations de devis, les deux de « Préparer l\'e-mail » et la vérification du déploiement), région de Paris, planifiée toutes les heures, clé n8n liée par secret sur les deux qui lisent n8n, aucun secret pour « renommer »', async () => {
     process.env.GCLOUD_PROJECT ??= 'demo-chevalier-ia-os';
     const m = await import('../functions-plateforme/src/index.js');
-    assert.deepEqual(Object.keys(m).sort(), ['automatisationsCopieHoraire', 'automatisationsRafraichir', 'automatisationsRenommer', 'devisArchiver', 'devisChangerStatut', 'devisEnregistrerEnvoi', 'devisFinaliser', 'devisNouvelleVersion', 'devisPreparerEmail', 'devisPreparerEmailEtat', 'devisSupprimer', 'espaceReglages', 'mcpclients']);
+    assert.deepEqual(Object.keys(m).sort(), ['automatisationsCopieHoraire', 'automatisationsRafraichir', 'automatisationsRenommer', 'deploiementVerifier', 'devisArchiver', 'devisChangerStatut', 'devisEnregistrerEnvoi', 'devisFinaliser', 'devisNouvelleVersion', 'devisPreparerEmail', 'devisPreparerEmailEtat', 'devisSupprimer', 'espaceReglages', 'mcpclients']);
     for (const f of Object.values(m)) assert.deepEqual(f.__endpoint.region, ['europe-west9']);
     assert.equal(m.automatisationsCopieHoraire.__endpoint.scheduleTrigger.schedule, '0 * * * *');
     assert.deepEqual(m.automatisationsCopieHoraire.__endpoint.secretEnvironmentVariables, [{ key: 'N8N_API_KEY' }]);
@@ -150,6 +150,11 @@ describe('Les fonctions se chargent comme Firebase les chargera', () => {
       assert.ok(d.serviceAccountEmail === undefined || d.serviceAccountEmail?.constructor?.name === 'ResetValue', `${nom} : aucun compte de service nouveau à créer avant le déploiement (compte par défaut)`);
       assert.equal(d.maxInstances, 5, nom);
     }
+    // Déploiement (25/10/2026) : fonction appelable, AUCUN secret déclaré (un secret absent ferait échouer le déploiement de toutes les fonctions), compte par défaut.
+    const dep = m.deploiementVerifier.__endpoint;
+    assert.ok(dep.callableTrigger, 'deploiementVerifier : fonction appelable');
+    assert.equal(dep.secretEnvironmentVariables, undefined, 'deploiementVerifier : aucun secret');
+    assert.ok(dep.serviceAccountEmail === undefined || dep.serviceAccountEmail?.constructor?.name === 'ResetValue', 'deploiementVerifier : compte par défaut');
   });
   test('Mon espace (2.10.0) ne change AUCUNE règle de sécurité : un navigateur n\'écrit toujours ni la marque, ni les membres, ni la fiche du client, ni Storage', () => {
     const f = lire('firestore.plateforme.rules');

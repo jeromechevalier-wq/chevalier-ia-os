@@ -30,6 +30,8 @@ import { creerLecteurSecrets } from './securite/secrets.js';
 import { convertirHtmlEnPdf } from './devis/chromium.js';
 import { copieInterne, administrateur, Refus } from './automatisations/appels.js';
 import { creerLecteurN8n } from '../partage/automatisations/n8n.js';
+import { creerAppelDeploiement, ligneDeJournalDeploiement } from './deploiement-appel.js';
+import { VERSION_SERVEUR } from './version.js';
 
 const magasin = creerMagasin({ lire: lireSecretJetons() });
 const donnees = creerAccesFirestore();
@@ -159,6 +161,12 @@ export const devisPdfAuto = onDocumentUpdated(
     })(evenement);
   },
 );
+
+// `deploiementVerifier` (25/10/2026) : contrôles du serveur pour la page Réglages > Déploiement (« les fonctions répondent », « les personnes autorisées »).
+// Mêmes comptes que les devis ; même région, limites et compte de service ; AUCUN secret déclaré (un secret absent ferait échouer tout le déploiement), rien n'est écrit.
+export const deploiementVerifier = onCall({ ...OPTIONS_DEVIS, timeoutSeconds: 30 }, (requete) => creerAppelDeploiement({
+  version: VERSION_SERVEUR, journal: (e) => process.stdout.write(`${ligneDeJournalDeploiement(e)}\n`),
+})(requete));
 
 // `veille` : appelée par l'appli (boutons « Ajouter » et « Résumer » du module Veille). Le jeton du bouton Résumer vit ici (Secret Manager),
 // jamais dans la page. Le secret VEILLE_JETON_RESUMER doit être créé avant le déploiement (docs/veille-ajout-et-resume.md).

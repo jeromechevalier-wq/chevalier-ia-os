@@ -106,6 +106,7 @@
   --retard-fond: #ff8f8622;
   --sur-retard: #29292c; /* texte sur fond --retard (pastille rouge du menu) */
   --succes: #6ddba0;
+  --attention: #f2b46b; /* orange de la page Déploiement (« impossible de vérifier ») : jamais le jaune, réservé à l'action principale */
   --ombre: 0 18px 40px #00000066;
   --halo: radial-gradient(ellipse 70% 45% at 50% -8%, #5a3c7240 0%, #3c285022 45%, transparent 75%);
   --voile: #0c0b0fb3;
@@ -132,6 +133,7 @@
   --retard-fond: #b3261e14;
   --sur-retard: #fff;
   --succes: #1d7a4b;
+  --attention: #9a5300;
   --ombre: 0 18px 40px #29292c26;
   --halo: radial-gradient(ellipse 70% 45% at 50% -8%, #e3cdee55 0%, #e3cdee22 45%, transparent 75%);
   --voile: #29292c66;

@@ -421,11 +421,11 @@ describe('Réglages à menu latéral (2.6.0) : ce que chaque module déclare', (
     assert.deepEqual(reglagesDesModules([]), []);
   });
   test('réglages de l\'espace : « Mon espace » pour tous, membres et modules réservés aux éditeurs, membres seulement chez un client', () => {
-    assert.deepEqual(SECTIONS_ESPACE.map((s) => s.id), ['espace', 'membres', 'modules']);
+    assert.deepEqual(SECTIONS_ESPACE.map((s) => s.id), ['espace', 'membres', 'modules', 'deploiement']);
     const ids = (o) => sectionsEspaceVisibles(o).map((s) => s.id);
-    assert.deepEqual(ids({ chezClient: true, editeur: true }), ['espace', 'membres', 'modules']);
+    assert.deepEqual(ids({ chezClient: true, editeur: true }), ['espace', 'membres', 'modules', 'deploiement']);
     assert.deepEqual(ids({ chezClient: true, editeur: false }), ['espace'], 'un lecteur ne voit pas les sections réservées aux éditeurs');
-    assert.deepEqual(ids({ chezClient: false, editeur: true }), ['espace', 'modules'], 'à la racine il n\'y a pas de membres à gérer');
+    assert.deepEqual(ids({ chezClient: false, editeur: true }), ['espace', 'modules', 'deploiement'], 'à la racine il n\'y a pas de membres à gérer ; le Déploiement existe chez Jérôme comme chez un client');
   });
   test('cibleReglages : arrivée sur la première section d\'espace ; section inconnue ou interdite = null', () => {
     const espaces = sectionsEspaceVisibles({ chezClient: true, editeur: false });

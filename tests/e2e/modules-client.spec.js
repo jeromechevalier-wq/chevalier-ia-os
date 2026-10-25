@@ -195,7 +195,7 @@ test('R10 Réglages chez un éditeur : l\'espace d\'abord (Mon espace, Membres, 
     await page.locator('.reglages-menu-bouton').click();
   }
   const liens = page.locator('.reglages-menu-lien');
-  await expect(liens).toHaveText(['Mon espace', 'Membres et rôles', 'Modules actifs', 'Affaires et projets', 'Veille', 'Automatisations', 'Connecter mon assistant']);
+  await expect(liens).toHaveText(['Mon espace', 'Membres et rôles', 'Modules actifs', 'Déploiement', 'Affaires et projets', 'Veille', 'Automatisations', 'Connecter mon assistant']);
   await expect(page.locator('.reglages-menu-titre')).toHaveText(['Espace', 'Modules']);
   // Mon espace (modifiable par un éditeur depuis la 2.8.0 : tests/e2e/mon-espace.spec.js) : le nom et la couleur lus dans la fiche de marque, le thème de l'appareil
   await expect(page.locator('[data-champ="nom"]')).toHaveValue('Maison Pleine');
