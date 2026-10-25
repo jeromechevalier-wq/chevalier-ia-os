@@ -1,5 +1,16 @@
 # À faire au début de la prochaine session
 
+## Plan du 25/10/2026 : en-tête du devis, DocuSeal, vocabulaire
+
+Décisions de Jérôme (discussion du 25/10/2026, rien n'est codé pour l'en-tête) :
+
+1. **Mon entreprise** (réglages du module Devis) : logo, nom, forme juridique, adresse, SIRET, n° de TVA, téléphone, e-mail, site, couleur du tableau, assurance, médiateur. Le générateur de document sait déjà les afficher (`emetteur`), mais **l'écran de réglage n'a jamais été construit** : l'éditeur ne passe aucune donnée, donc l'aperçu n'a pas de bloc entreprise. Le logo attend ce réglage (pas d'envoi d'image avant). Si un envoi d'image demande une règle de stockage : arrêt et question à Jérôme.
+2. **En-tête cohérent entre édition et aperçu** : logo et bloc entreprise en haut à gauche, cadre du destinataire en haut à droite, « Devis » avec numéro, date et validité, objet, puis tableau. À préciser avec Jérôme à partir de sa capture d'un devis qu'il aime.
+3. **Champ Affaire = recherche** : on tape 3 lettres, les affaires correspondantes se proposent (plus de liste déroulante).
+4. **E-mails** : cases à cocher avec toutes les adresses disponibles (organisation et contacts de l'affaire), plus champs **CC** et **CCI**. L'envoi par e-mail n'existe pas encore : ces choix sont enregistrés dans le devis, prêts pour l'envoi.
+5. **DocuSeal** : à reprendre avec Jérôme en direct (installation commencée, non terminée), pendant que le codage de l'en-tête est confié à des agents.
+6. **Mot « Catalogue »** : le mot a remplacé « Bordereau » dans les écrans du module Devis (PR du 25/10/2026) ; il reste des « bordereau » dans les descriptions des outils MCP, les copies générées (`functions/partage`) et la documentation. À finir dans la session **Vocabulaire configurable** (`docs/vocabulaire-configurable.md`), qui ajoute la notion « catalogue » au dictionnaire. Session faite **seule**, sans autre PR ouverte sur ces fichiers (54 fichiers touchés).
+
 ## Rapport du matin : suite du 24/10/2026, éditeur de devis (version 2.29.0)
 
 Jérôme était réveillé et a guidé le travail. Ce qui est fusionné depuis le rapport de la première nuit (plus bas) :
