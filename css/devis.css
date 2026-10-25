@@ -99,6 +99,7 @@
 .titre-devis h1 { margin: 0; }
 .indicateur-enregistrement { display: inline-block; min-width: 8.5em; white-space: nowrap; color: var(--texte2); font-size: var(--fs-menu); }
 .indicateur-enregistrement[data-etat="erreur"] { color: var(--retard); }
+.indicateur-manquants { color: var(--retard); font-size: var(--fs-menu); white-space: nowrap; }
 .compteur-manquants { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; margin-left: var(--esp-3); padding: 0 var(--esp-2); border-radius: 999px; background: var(--retard); color: var(--sur-retard); font-size: var(--fs-micro); }
 .bandeau-lecture-seule { margin: 0; padding: var(--esp-5) var(--esp-6); border: 1px solid var(--bordure); border-radius: var(--rayon-petit); background: var(--panneau2); }
 
@@ -424,7 +425,6 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
 .barre-apercu { display: flex; align-items: center; justify-content: space-between; gap: var(--esp-5); flex-wrap: wrap; margin-bottom: var(--esp-4); }
 
 /* Bibliothèque : bouton sous la barre, panneau à droite (deux colonnes : familles, articles). */
-.rangee-bibliotheque { display: flex; justify-content: flex-start; }
 .bibliotheque-panneau { position: fixed; top: 0; right: 0; bottom: 0; z-index: 40; display: flex; flex-direction: column; width: min(680px, 100%); background: var(--fond); color: var(--texte); border-left: 1px solid var(--bordure); box-shadow: var(--ombre); }
 .bibliotheque-tete { display: flex; align-items: center; gap: var(--esp-4); padding: var(--esp-5) var(--esp-6); border-bottom: 1px solid var(--bordure); }
 .bibliotheque-titre { margin: 0; flex: 1; font-size: var(--fs-section); font-weight: var(--poids-moyen); }
