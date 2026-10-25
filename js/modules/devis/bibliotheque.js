@@ -17,18 +17,18 @@ export function ouvrirBibliotheque(racine, source, { surFermeture = () => {}, re
   let recherche = '';
   const coches = new Set();
 
-  const champRecherche = h('input', { type: 'search', class: 'champ', placeholder: 'Rechercher un article', autocomplete: 'off', 'aria-label': 'Rechercher dans la Bibliothèque', dataset: { champ: 'recherche-bibliotheque' },
+  const champRecherche = h('input', { type: 'search', class: 'champ', placeholder: 'Rechercher un article', autocomplete: 'off', 'aria-label': 'Rechercher dans le catalogue', dataset: { champ: 'recherche-bibliotheque' },
     oninput: (e) => { recherche = e.target.value; dessinerListe(); } });
   const arbre = h('nav', { class: 'bibliotheque-arbre', 'aria-label': 'Familles' });
   const liste = h('ul', { class: 'bibliotheque-liste', dataset: { zone: 'liste-bibliotheque' } });
   const message = h('p', { class: 'texte-discret bibliotheque-fin', dataset: { zone: 'fin-resultats' } });
   const bouton = h('button', { type: 'button', class: 'bouton bouton-secondaire', disabled: true, dataset: { action: 'ajouter-bibliotheque' }, onclick: ajouterCoches }, 'Ajouter au devis (0)');
-  const fermerBouton = h('button', { type: 'button', class: 'bouton-icone bibliotheque-fermer', dataset: { action: 'fermer-bibliotheque' }, 'aria-label': 'Fermer la Bibliothèque', onclick: () => fermer() }, icone('x', { taille: 18 }));
-  const panneau = h('aside', { class: 'bibliotheque-panneau', id: 'bibliotheque-devis', role: 'complementary', 'aria-label': 'Bibliothèque', dataset: { zone: 'bibliotheque' },
+  const fermerBouton = h('button', { type: 'button', class: 'bouton-icone bibliotheque-fermer', dataset: { action: 'fermer-bibliotheque' }, 'aria-label': 'Fermer le catalogue', onclick: () => fermer() }, icone('x', { taille: 18 }));
+  const panneau = h('aside', { class: 'bibliotheque-panneau', id: 'bibliotheque-devis', role: 'complementary', 'aria-label': 'Catalogue', dataset: { zone: 'bibliotheque' },
     onkeydown: (e) => { if (e.key === 'Escape') { e.stopPropagation(); fermer(); } } },
   h('header', { class: 'bibliotheque-tete' },
     h('button', { type: 'button', class: 'bouton-icone bibliotheque-retour', 'aria-label': 'Retour au devis', dataset: { action: 'retour-bibliotheque' }, onclick: () => fermer() }, icone('chevron-left', { taille: 18 })),
-    h('h2', { class: 'bibliotheque-titre' }, 'Bibliothèque'), fermerBouton),
+    h('h2', { class: 'bibliotheque-titre' }, 'Catalogue'), fermerBouton),
   h('div', { class: 'bibliotheque-corps' },
     h('div', { class: 'bibliotheque-gauche' }, champRecherche, arbre),
     h('div', { class: 'bibliotheque-droite' }, liste, message)),

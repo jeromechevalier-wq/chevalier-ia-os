@@ -386,3 +386,18 @@ test('1 les onglets ont un pictogramme : un stylo pour Édition, un œil pour Pr
   await expect(page.locator('[data-onglet="edition"] svg')).toHaveCount(1);
   await expect(page.locator('[data-onglet="apercu"] svg')).toHaveCount(1);
 });
+
+test('6 la barre du haut ne saute pas quand l’état d’enregistrement change : « Enregistré », « Non enregistré », « Enregistrement… » sont courts', async ({ page }) => {
+  await semer();
+  await ouvrir(page, await devisLong());
+  const indicateur = page.locator('[data-valeur="enregistrement"]');
+  await expect(indicateur).toHaveText('Enregistré');
+  const avant = await page.locator('[data-onglet="edition"]').boundingBox();
+  const boutonAvant = await page.locator('[data-action="options"], [data-action="menu-options"]').first().boundingBox().catch(() => null);
+  await page.locator('[data-champ="description"], textarea').first().fill('texte modifié').catch(() => {});
+  await expect(indicateur).toHaveText(/Non enregistré|Enregistrement…|Enregistré/);
+  const apres = await page.locator('[data-onglet="edition"]').boundingBox();
+  expect(Math.abs(apres.x - avant.x)).toBeLessThan(2); // les onglets ne bougent pas
+  expect(Math.abs(apres.y - avant.y)).toBeLessThan(2); // la barre ne passe pas sur deux lignes
+  if (boutonAvant) expect(Math.abs((await page.locator('[data-action="options"], [data-action="menu-options"]').first().boundingBox()).y - boutonAvant.y)).toBeLessThan(2);
+});
