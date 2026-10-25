@@ -11,6 +11,8 @@ import { dupliquerDevis } from './editeur-ecran.js';
 import { naviguer } from '../../os/router.js';
 import { indicateurPdf } from './pdf-indicateur.js';
 import { routePdf } from './pdf.js';
+import { lancerEnvoiEmail } from './email-ecran.js';
+import { historiqueEnvois } from './email-brouillon.js';
 
 const euros = (n) => (typeof n === 'number' ? formaterMontant(n) : '—');
 const pct = (n) => `${String(Math.round(n * 10) / 10).replace('.', ',')} %`;
@@ -104,8 +106,6 @@ export function creerFiche({ nomsDe, changerStatut, archiver, supprimer, fermer:
 
   // ---------------------------------------------------------------- blocs
 
-  const bientot = (libelle) => `${libelle} (bientôt disponible)`;
-
   function boutonMenu(libelle, action, items) {
     return h('button', {
       type: 'button', class: 'bouton bouton-secondaire', 'aria-haspopup': 'menu', dataset: { action },
@@ -130,7 +130,9 @@ export function creerFiche({ nomsDe, changerStatut, archiver, supprimer, fermer:
 
     const envoyer = boutonMenu('Envoyer', 'envoyer-fiche', [
       { libelle: 'Marquer comme envoyé', icone: 'check', desactive: !f.marquerEnvoye.actif, action: () => changerStatut(d, 'marquer_envoye', 'Envoyé') },
-      { libelle: bientot('Envoyer par e-mail'), icone: 'mail', desactive: true },
+      { libelle: 'Envoyer par e-mail', icone: 'mail', desactive: !f.envoyerEmail.actif,
+        action: () => lancerEnvoiEmail({ devisId: d.id, getDevis: () => D.devisParId(d.id), finaliser: { libelle: 'Ouvrir le devis', action: () => naviguer(`devis/editeur/${d.id}`) } }) },
+      ...(f.envoyerEmail.actif ? [] : [{ texte: f.envoyerEmail.raison }]),
     ]);
     const voirItems = [];
     if (f.voirDevis) voirItems.push({ libelle: 'Voir le devis', icone: 'external-link', action: () => naviguer(`devis/editeur/${d.id}`) });
@@ -220,6 +222,17 @@ export function creerFiche({ nomsDe, changerStatut, archiver, supprimer, fermer:
       h('p', { class: 'fiche-vide fiche-vide-grand', dataset: { valeur: 'aucun-document' } }, 'Aucun document'));
   }
 
+  /** Historique des envois par e-mail : une ligne par envoi, les deux dates sont gardées si le devis a été renvoyé. Jamais pour un brouillon (rien n'a pu partir). */
+  function envois(d) {
+    if (d.statut === 'brouillon') return null;
+    const lignes = historiqueEnvois(d);
+    return h('section', { class: 'fiche-carte fiche-bloc-liste', dataset: { bloc: 'envois' } },
+      h('div', { class: 'fiche-bloc-tete' }, h('h3', { class: 'fiche-sous-titre' }, 'Envois')),
+      lignes.length
+        ? h('ul', { class: 'fiche-envois', dataset: { valeur: 'envois' } }, lignes.map((l) => h('li', { class: 'fiche-envoi', dataset: { envoi: String(l.ms) } }, l.texte)))
+        : h('p', { class: 'fiche-vide fiche-vide-grand', dataset: { valeur: 'aucun-envoi' } }, 'Pas encore envoyé'));
+  }
+
   function ventilation(d) {
     const vent = Fi.ventilationParFamille(d, D.etat.articles, D.etat.familles);
     const lignes = Fi.lignesVentilation(vent, ongletVent);
@@ -239,7 +252,7 @@ export function creerFiche({ nomsDe, changerStatut, archiver, supprimer, fermer:
   }
 
   function contenu(d, maintenant) {
-    return [entete(d), h('div', { class: 'fiche-blocs' }, identite(d, maintenant), conditionsEtTotaux(d), jauges(d), documentsLies(d), ventilation(d))];
+    return [entete(d), h('div', { class: 'fiche-blocs' }, identite(d, maintenant), conditionsEtTotaux(d), jauges(d), documentsLies(d), envois(d), ventilation(d))];
   }
 
   return { afficher, fermer: () => afficher(null), maj: () => maj(false), detruire: () => { id = null; demonter(); }, ouverte: ouvert };

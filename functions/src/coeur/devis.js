@@ -123,7 +123,7 @@ export async function finaliser({ donnees, ctx, devisId }) {
 
     // Seuls les champs que la finalisation change sont écrits (les autres, dates comprises, ne sont pas retouchés).
     // Un client Firestore direct a pu poser archive ou des dates sur le brouillon : on les remet à zéro à la finalisation.
-    const remisesAZero = { archive: false, archiveLe: null, envoyeLe: null, accepteLe: null, refuseLe: null, remplaceLe: null, pdf: null };
+    const remisesAZero = { archive: false, archiveLe: null, envoyeLe: null, accepteLe: null, refuseLe: null, remplaceLe: null, pdf: null, envois: null };
     const changements = [modifier(devis, { ...Object.fromEntries(CHAMPS_FIGES.map((k) => [k, apres[k]])), ...remisesAZero })];
     // Les versions plus anciennes encore vivantes (finalisée ou envoyée) sont remplacées par celle-ci, dans la même transaction.
     const remplaces = versions.filter((v) => v.id !== devis.id && (v.version ?? 1) < (devis.version ?? 1) && D.transitionPossible(v.statut, 'remplacer'));
@@ -179,6 +179,7 @@ export async function nouvelleVersion({ donnees, ctx, devisId }) {
     delete copie.archiveLe;
     delete copie.remplaceLe;
     delete copie.pdf;
+    delete copie.envois; // l'historique des envois par e-mail reste sur la version envoyée
     const j = journal({
       donnees, ctx, outil: 'devisNouvelleVersion', parametres: { devisId },
       changements: [{ id, action: 'creer', avant: null, apres: copie, champs: Object.keys(copie) }],
@@ -246,6 +247,50 @@ export async function supprimer({ donnees, ctx, devisId, stockage = null, espace
     }
   }
   return { ...r, fichierBrouillon };
+}
+
+// ---------------------------------------------------------------- historique des envois par e-mail (25/10/2026)
+// L'appli crée un brouillon Gmail dans la boîte de l'utilisateur ; c'est LUI qui l'envoie. Après son clic « Marquer comme envoyé », l'écran appelle
+// `changerStatut` (statut « Envoyé », `envoyeLe` = date du PREMIER envoi) puis cette opération, qui AJOUTE une ligne à `envois` : { date, destinataires, copie }.
+// Un renvoi garde donc les deux dates. Le navigateur n'écrit jamais `envois` (les règles Firestore ne lui laissent que le brouillon) : tout passe ici, journal compris.
+export const MAX_ENVOIS = 100;
+export const MAX_ADRESSES_ENVOI = 10;
+
+/** Liste d'adresses nettoyée (espaces ôtés, doublons ignorés sans tenir compte de la casse). Une adresse invalide refuse toute la demande. */
+function adressesDeEnvoi(valeur, { nom, minimum }) {
+  if (valeur === undefined || valeur === null) valeur = [];
+  if (!Array.isArray(valeur)) throw new ErreurDevis('demande_invalide', `${nom} : une liste d'adresses e-mail est attendue.`);
+  const vues = new Set();
+  const liste = [];
+  for (const brute of valeur) {
+    if (typeof brute !== 'string' || brute.length > 254) throw new ErreurDevis('demande_invalide', `${nom} : une adresse e-mail n'est pas valide.`);
+    const a = brute.trim();
+    if (D.emailValide(a) && !(/^[\x21-\x7e]+$/.test(a) && !/[()"<>\\,]/.test(a.slice(0, a.lastIndexOf('@'))))) throw new ErreurDevis('demande_invalide', `${nom} : l'adresse « ${a.replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 60)} » contient des caractères que Gmail n'accepte pas ici.`);
+    if (!D.emailValide(a) || /[\u0000-\u001f\u007f]/.test(a)) throw new ErreurDevis('demande_invalide', `${nom} : l'adresse « ${a.slice(0, 60)} » n'est pas valide.`);
+    if (vues.has(a.toLowerCase())) continue;
+    vues.add(a.toLowerCase());
+    liste.push(a);
+  }
+  if (liste.length < minimum) throw new ErreurDevis('demande_invalide', `${nom} : au moins une adresse e-mail est nécessaire.`);
+  if (liste.length > MAX_ADRESSES_ENVOI) throw new ErreurDevis('demande_invalide', `${nom} : ${MAX_ADRESSES_ENVOI} adresses au plus.`);
+  return liste;
+}
+
+/** Ajoute un envoi à l'historique d'un devis « Envoyé ». Le statut ne change pas (c'est `changerStatut` qui le pose) et `envoyeLe` garde la date du premier envoi. */
+export async function enregistrerEnvoi({ donnees, ctx, devisId, destinataires, copie }) {
+  const a = adressesDeEnvoi(destinataires, { nom: 'Destinataires', minimum: 1 });
+  const cc = adressesDeEnvoi(copie, { nom: 'Copie', minimum: 0 }).filter((x) => !a.some((y) => y.toLowerCase() === x.toLowerCase()));
+  return donnees.transaction(async (tx) => {
+    const devis = await lireDevis(tx, devisId);
+    if (devis.statut !== 'envoye') throw new ErreurDevis('transition_interdite', 'Marque d\'abord le devis comme envoyé : l\'historique des envois ne se tient que pour un devis envoyé.');
+    const avant = Array.isArray(devis.envois) ? devis.envois : [];
+    if (avant.length >= MAX_ENVOIS) throw new ErreurDevis('transition_interdite', `L'historique des envois est plein (${MAX_ENVOIS} envois).`);
+    const envois = [...avant, { date: ctx.maintenant, destinataires: a, copie: cc }];
+    const changement = modifier(devis, { envois });
+    const j = journal({ donnees, ctx, outil: 'devisEnregistrerEnvoi', parametres: { devisId, destinataires: a, copie: cc }, changements: [changement] });
+    tx.ecrire([changement.ecriture, ...j.ecritures]);
+    return { ok: true, devis: { ...devis, envois }, operationId: j.operationId };
+  });
 }
 
 // ---------------------------------------------------------------- PDF du devis (25/10/2026) : états, idempotence, document de l'affaire
@@ -357,6 +402,7 @@ export const OPERATIONS = Object.freeze({
   nouvelleVersion: (base, d) => nouvelleVersion({ ...base, devisId: d.devisId }),
   archiver: (base, d) => archiver({ ...base, devisId: d.devisId, archive: d.archive }),
   supprimer: (base, d) => supprimer({ ...base, devisId: d.devisId }), // `base` peut porter `stockage`, `espace`, `avertir`
+  enregistrerEnvoi: (base, d) => enregistrerEnvoi({ ...base, devisId: d.devisId, destinataires: d.destinataires, copie: d.copie }),
 });
 
 /** Ce que l'appelant reçoit : jamais le devis entier (son navigateur le lit déjà). Un devis refusé rend les messages à corriger, rien n'a été écrit. */

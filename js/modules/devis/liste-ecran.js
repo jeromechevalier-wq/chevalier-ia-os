@@ -13,6 +13,7 @@ import { vueClient, affichageDe } from './logique.js';
 import { devisHtml, formaterMontant } from './document.js';
 import { dupliquerDevis, creerVariante, infosClientDuDevis } from './editeur-ecran.js';
 import { creerFiche } from './fiche-ecran.js';
+import { lancerEnvoiEmail } from './email-ecran.js';
 import { indicateurPdf } from './pdf-indicateur.js';
 
 const ERREUR_LECTURE = 'La liste des devis n’a pas pu être mise à jour. La dernière version reste affichée : vérifie ta connexion puis recharge la page.';
@@ -133,7 +134,9 @@ function entreesMenu(d, surFiche) {
   if (d.statut === 'brouillon') items.push({ libelle: libelle('Modifier : version actuelle', a.modifierVersionActuelle), icone: 'pencil', desactive: grise(a.modifierVersionActuelle), action: () => naviguer(`devis/editeur/${d.id}`) });
   else if (a.nouvelleVariante.actif || a.nouvelleVariante.raison === Li.MESSAGE_BIENTOT) items.push({ libelle: libelle('Modifier : nouvelle variante', a.nouvelleVariante), icone: 'pencil', desactive: grise(a.nouvelleVariante), action: () => creerVariante(d) });
   items.push({ libelle: libelle('Dupliquer', a.dupliquer), icone: 'copy', desactive: grise(a.dupliquer), action: () => dupliquerDevis(d) });
-  items.push({ libelle: libelle('Envoyer', a.envoyer), icone: 'mail', desactive: grise(a.envoyer) });
+  items.push({ libelle: 'Envoyer par e-mail', icone: 'mail', desactive: grise(a.envoyer),
+    action: () => lancerEnvoiEmail({ devisId: d.id, getDevis: () => D.devisParId(d.id), finaliser: { libelle: 'Ouvrir le devis', action: () => naviguer(`devis/editeur/${d.id}`) } }) });
+  if (!a.envoyer.actif) items.push({ texte: a.envoyer.raison });
   const ar = Fi.archivageFiche(d);
   items.push({ separateur: true });
   items.push({ libelle: ar.libelle, icone: ar.icone, desactive: !ar.actif, action: () => archiver(d, ar.action === 'archiver') });

@@ -181,13 +181,14 @@ describe('L7 actions permises par statut', () => {
     }
     for (const s of ['brouillon', 'accepte', 'remplace']) assert.equal(Li.actionsPermises(d('x', { statut: s }), { editeur: true }).nouvelleVariante.actif, false, s);
   });
-  test('L7 Voir toujours possible ; Facturer et Envoyer grisés « bientôt » ; Dupliquer actif avec l’éditeur, grisé sans', () => {
+  test('L7 Voir toujours possible ; Facturer grisé « bientôt », Envoyer par e-mail permis sauf devis signé, refusé ou remplacé ; Dupliquer actif avec l’éditeur, grisé sans', () => {
     for (const s of ['brouillon', 'envoye', 'accepte', 'remplace']) {
       const a = act(s);
       assert.equal(a.voir.actif, true, s);
       assert.equal(a.dupliquer.actif, true, s);
       assert.equal(act(s, sansEditeur).dupliquer.raison, Li.MESSAGE_BIENTOT, s);
-      for (const cle of ['facturer', 'envoyer']) { assert.equal(a[cle].actif, false, `${s} ${cle}`); assert.equal(a[cle].raison, Li.MESSAGE_BIENTOT); }
+      assert.equal(a.facturer.actif, false, s); assert.equal(a.facturer.raison, Li.MESSAGE_BIENTOT);
+      assert.equal(a.envoyer.actif, ['brouillon', 'envoye'].includes(s), `${s} envoyer`);
     }
   });
 });

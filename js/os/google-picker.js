@@ -40,31 +40,32 @@ export function preparerGoogle() {
   return preparation;
 }
 
-let jeton = null; // { valeur, email, expire } en mémoire seulement
+const jetons = new Map(); // portée -> { valeur, email, expire } : en mémoire seulement, un jeton par portée (Drive et Gmail se demandent séparément)
 
 /** Y a-t-il déjà un jeton valable pour ce compte en mémoire ? Si oui, obtenirJeton ne demande rien à Google (aucune fenêtre, donc pas besoin d'un clic). */
-export const jetonEnMemoire = ({ email = '' } = {}) => Boolean(jeton && jeton.email === email && jeton.expire > Date.now() + 30_000);
+export const jetonEnMemoire = ({ email = '', portee = PORTEE_DRIVE } = {}) => { const j = jetons.get(portee); return Boolean(j && j.email === email && j.expire > Date.now() + 30_000); };
 
 /**
- * Jeton d'accès Drive. La première fois, Google ouvre sa fenêtre d'autorisation (portée drive.file : fichiers créés ou choisis par l'appli).
+ * Jeton d'accès Google. La première fois, Google ouvre sa fenêtre d'autorisation. Par défaut la portée drive.file (fichiers créés ou choisis par l'appli) ;
+ * `portee` en demande une autre (gmail.compose pour créer un brouillon d'e-mail) : chaque portée a son jeton et n'est demandée qu'au moment où on en a besoin.
  * `email` aide Google à proposer le bon compte. À appeler depuis un clic (sinon le navigateur bloque la fenêtre).
  */
-export async function obtenirJeton({ email = '' } = {}) {
-  if (jetonEnMemoire({ email })) return jeton.valeur; // jamais le jeton d'un autre compte (déconnexion, changement de compte)
+export async function obtenirJeton({ email = '', portee = PORTEE_DRIVE } = {}) {
+  if (jetonEnMemoire({ email, portee })) return jetons.get(portee).valeur; // jamais le jeton d'un autre compte (déconnexion, changement de compte)
   await preparerGoogle();
   const conf = configGoogle();
   return new Promise((resoudre, rejeter) => {
     const client = window.google.accounts.oauth2.initTokenClient({
       client_id: conf.idClient,
-      scope: PORTEE_DRIVE,
+      scope: portee,
       ...(email ? { login_hint: email } : {}),
       callback: (reponse) => {
         if (reponse?.error || !reponse?.access_token) {
           rejeter(Object.assign(new Error(reponse?.error === 'access_denied' ? 'Autorisation refusée : rien n’a été fait.' : 'L’autorisation Google a échoué.'), { annule: reponse?.error === 'access_denied', code: reponse?.error }));
           return;
         }
-        jeton = { valeur: reponse.access_token, email, expire: Date.now() + (Number(reponse.expires_in) || 3600) * 1000 };
-        resoudre(jeton.valeur);
+        jetons.set(portee, { valeur: reponse.access_token, email, expire: Date.now() + (Number(reponse.expires_in) || 3600) * 1000 });
+        resoudre(reponse.access_token);
       },
       error_callback: (e) => {
         const fermee = e?.type === 'popup_closed';
@@ -78,8 +79,8 @@ export async function obtenirJeton({ email = '' } = {}) {
   });
 }
 
-/** Oublie le jeton (déconnexion, ou Google l'a refusé). */
-export function oublierJeton() { jeton = null; }
+/** Oublie le jeton d'une portée (Google l'a refusé), ou tous les jetons sans argument (déconnexion). */
+export function oublierJeton(portee = null) { if (portee) jetons.delete(portee); else jetons.clear(); }
 
 /**
  * Ouvre la fenêtre Google. Renvoie la liste des éléments choisis [{ id, nom, url, type }], ou [] si l'utilisateur ferme la fenêtre.

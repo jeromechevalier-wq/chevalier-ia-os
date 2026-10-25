@@ -121,11 +121,14 @@ describe('F2 boutons de la fiche', () => {
     assert.equal(a.marquerEnvoye.actif, false);
     assert.deepEqual([a.annuler.action, a.annuler.actif, a.annuler.raison], ['supprimer', true, undefined]);
   });
-  test('F2 finalisé : « Marquer comme envoyé » est permis ; Envoyer par e-mail et Facturer restent grisés', () => {
+  test('F2 finalisé : « Marquer comme envoyé » et « Envoyer par e-mail » sont permis ; Facturer reste grisé', () => {
     const a = Fi.actionsFiche(devis({ statut: 'en_attente_envoi' }));
     assert.equal(a.principal, null);
     assert.equal(a.marquerEnvoye.actif, true);
-    assert.deepEqual([a.envoyerEmail.actif, a.envoyerEmail.raison], [false, 'Bientôt disponible']);
+    assert.equal(a.envoyerEmail.actif, true);
+    assert.equal(Fi.actionsFiche(devis({ statut: 'brouillon' })).envoyerEmail.actif, true, 'un brouillon : on propose de le finaliser d’abord');
+    assert.equal(Fi.actionsFiche(devis({ statut: 'envoye' })).envoyerEmail.actif, true, 'renvoi');
+    assert.deepEqual([Fi.actionsFiche(devis({ statut: 'accepte' })).envoyerEmail.actif, Fi.actionsFiche(devis({ statut: 'refuse' })).envoyerEmail.actif], [false, false]);
     assert.deepEqual([a.facturer.actif, a.facturer.raison], [false, 'Bientôt disponible']);
     assert.equal(a.voirDevis.actif, true);
     assert.equal(a.modifier, null);

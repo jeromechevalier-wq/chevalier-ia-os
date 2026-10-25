@@ -3,6 +3,7 @@
 // Les montants viennent de logique.js (totauxDevis, vueClient, totalLigne) : rien n'est recalculé à la main ici.
 import { totauxDevis, vueClient, totalLigne, adresseEnTexte, transitionPossible, peutArchiver } from './logique.js';
 import { familleEffective, estPremierNiveau } from './familles.js';
+import { emailPossible } from './email-brouillon.js';
 import { depuis, modifieMs, dateFr, dateDuDevis, EDITEUR_DISPONIBLE, SUPPRESSION_DISPONIBLE, MESSAGE_BIENTOT } from './liste.js';
 
 export const MESSAGE_INTROUVABLE_FICHE = 'Ce devis n’existe plus ou n’est pas accessible.';
@@ -161,7 +162,7 @@ export function actionsFiche(d, { editeur = EDITEUR_DISPONIBLE, suppression = SU
   return {
     principal: brouillon ? 'modifier' : null,
     marquerEnvoye: transitionPossible(statut, 'marquer_envoye') ? { actif: true } : { actif: false, raison: brouillon ? 'Finalise d’abord le devis.' : 'Ce devis est déjà passé à l’étape suivante.' },
-    envoyerEmail: bientot,
+    envoyerEmail: emailPossible(statut),
     facturer: bientot,
     modifier: brouillon ? (editeur ? { actif: true } : bientot) : null,
     voirDevis: brouillon ? null : { actif: true },

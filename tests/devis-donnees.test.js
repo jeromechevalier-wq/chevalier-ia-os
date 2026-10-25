@@ -76,8 +76,8 @@ describe('C9 donnees.js : ce que le navigateur lit, écrit et appelle', () => {
     assert.equal((code.match(/setDoc\(/g) || []).length, 2, 'seuls setDoc existants : les réglages du module et la liste des familles (devis_parametres)');
     assert.doesNotMatch(code, /updateDoc|addDoc|writeBatch|runTransaction/);
   });
-  test('C9 les quatre transitions appellent les quatre fonctions du serveur, et le client n’est envoyé que chez un client (jamais chez Jérôme)', () => {
-    for (const [nom, fonction] of [['finaliser', 'devisFinaliser'], ['changerStatut', 'devisChangerStatut'], ['nouvelleVersion', 'devisNouvelleVersion'], ['archiver', 'devisArchiver'], ['supprimer', 'devisSupprimer']]) {
+  test('C9 les transitions et l’historique des envois appellent les fonctions du serveur, et le client n’est envoyé que chez un client (jamais chez Jérôme)', () => {
+    for (const [nom, fonction] of [['finaliser', 'devisFinaliser'], ['changerStatut', 'devisChangerStatut'], ['nouvelleVersion', 'devisNouvelleVersion'], ['archiver', 'devisArchiver'], ['supprimer', 'devisSupprimer'], ['enregistrerEnvoi', 'devisEnregistrerEnvoi']]) {
       assert.match(code, new RegExp(`${nom}: '${fonction}'`), fonction);
     }
     assert.match(code, /const client = base \? base\.split\('\/'\)\[1\] : undefined;/);

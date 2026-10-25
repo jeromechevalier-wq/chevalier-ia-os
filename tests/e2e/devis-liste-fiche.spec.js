@@ -139,14 +139,13 @@ test('2 en-tête : statut (menu = changements permis), titre, ✕ ; boutons Envo
   await capturer(page, info, '2-fiche-brouillon');
   await page.keyboard.press('Escape'); // le menu est déjà fermé : cette touche ferme la fiche
   await expect(fiche(page)).toHaveCount(0);
-  // Finalisé : « Marquer comme envoyé » permis, « Envoyer par e-mail » grisé, « Voir le devis ».
+  // Finalisé : « Marquer comme envoyé » permis, « Envoyer par e-mail » permis, « Voir le devis ».
   await ouvrirFiche(page, 'dFinalise');
   await expect(fiche(page).locator('.fiche-titre')).toContainText('DEV-2026-10-02-001');
   await expect(fiche(page).locator('[data-action="modifier-fiche"]')).toHaveCount(0);
   await fiche(page).locator('[data-action="envoyer-fiche"]').click();
   await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Marquer comme envoyé' })).toBeEnabled();
-  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: /Envoyer par e-mail/ })).toBeDisabled();
-  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: /Envoyer par e-mail/ })).toContainText('bientôt disponible');
+  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: /Envoyer par e-mail/ })).toBeEnabled();
   await page.keyboard.press('Escape');
   await fiche(page).locator('[data-action="voir-fiche"]').click();
   await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Voir le devis' })).toBeEnabled();

@@ -24,6 +24,8 @@ import { htmlDuDevis } from './html-devis.js';
 import { editeurOuvrage } from './editeur-ouvrage.js';
 import * as O from './ouvrages.js';
 import { routePdf, messageApresEnregistrement } from './pdf.js';
+import { lancerEnvoiEmail } from './email-ecran.js';
+import { emailPossible } from './email-brouillon.js';
 
 const ERREUR_ECRITURE = 'Enregistrement impossible : ton compte n’a peut-être que le droit de lire cet espace, ou la connexion est coupée. Réessaie dans un instant.';
 const ERREUR_LECTURE = 'Les devis n’ont pas pu être lus. Vérifie ta connexion puis recharge la page.';
@@ -529,7 +531,9 @@ export function rendreEditeurDevis(conteneur, id) {
 
   function ouvrirMenuEnvoyer(ancre) {
     ouvrirFenetreMenu(ancre, (fermer) => contenuMenu([
-      { libelle: 'Envoyer par e-mail', icone: 'mail', cle: 'envoyer-email', bientot: true },
+      // Crée un brouillon dans le Gmail de l'utilisateur (PDF en pièce jointe) ; un brouillon de devis propose d'abord de le finaliser. Voir email-ecran.js.
+      { libelle: 'Envoyer par e-mail', icone: 'mail', cle: 'envoyer-email', desactive: !emailPossible(travail?.statut).actif, titreInfo: emailPossible(travail?.statut).raison ?? null,
+        action: () => lancerEnvoiEmail({ devisId: id, getDevis: () => D.devisParId(id) ?? travail, finaliser: { libelle: 'Finaliser d’abord', action: () => finaliser() } }) },
       { libelle: 'Télécharger le PDF', icone: 'download', cle: 'telecharger', action: () => telechargerPdf() },
       { libelle: 'Imprimer', icone: 'file-text', cle: 'imprimer', action: () => (lecture ? naviguer(routePdf(id)) : finaliser({ imprimer: true })) },
     ], fermer), { nom: 'Envoyer' });

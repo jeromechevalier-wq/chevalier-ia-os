@@ -386,7 +386,7 @@ test('5 un devis finalisé (lecture seule) a le menu « Envoyer » : « Téléch
   }
 });
 
-test('5 le menu « Envoyer » : « Imprimer » finalise puis ouvre le PDF du serveur ; « Télécharger le PDF » est actif ; « Envoyer par e-mail » reste grisé « bientôt disponible »', { annotation: { type: 'erreurs-reseau-attendues', description: 'le faux serveur répond comme le vrai' } }, async ({ page }, info) => {
+test('5 le menu « Envoyer » : « Imprimer » finalise puis ouvre le PDF du serveur ; « Télécharger le PDF » est actif ; « Envoyer par e-mail » est actif (il propose de finaliser d’abord)', { annotation: { type: 'erreurs-reseau-attendues', description: 'le faux serveur répond comme le vrai' } }, async ({ page }, info) => {
   await semer();
   const id = await devis('d5c', [{ id: 's1', titre: 'Cuisine', lignes: [ligne('l1', 'Pose', 2, 100)] }]);
   const appels = [];
@@ -401,8 +401,8 @@ test('5 le menu « Envoyer » : « Imprimer » finalise puis ouvre le PDF du ser
   await page.locator('[data-action="envoyer"]').click();
   const menu = page.locator('.menu-pop');
   await expect(menu.getByRole('menuitem')).toHaveText([/Envoyer par e-mail/, 'Télécharger le PDF', 'Imprimer']);
-  await expect(menu.getByRole('menuitem', { name: 'Envoyer par e-mail' })).toBeDisabled();
-  await expect(menu.getByRole('menuitem', { name: 'Envoyer par e-mail' })).toContainText('bientôt disponible');
+  await expect(menu.getByRole('menuitem', { name: 'Envoyer par e-mail' })).toBeEnabled();
+  await expect(menu.getByRole('menuitem', { name: 'Envoyer par e-mail' })).not.toContainText('bientôt disponible');
   await expect(menu.getByRole('menuitem', { name: 'Télécharger le PDF' })).toBeEnabled();
   await capturer(page, info, '5-menu-finaliser');
   await menu.getByRole('menuitem', { name: 'Imprimer' }).click();
