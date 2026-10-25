@@ -58,7 +58,7 @@ async function ouvrirOptions(page) {
   } else {
     await page.locator('[data-action="options"]').click();
   }
-  await expect(page.locator('.menu-devis-options')).toBeVisible();
+  await expect(page.locator('[data-zone="options"]')).toBeVisible();
 }
 const enregistre = (page) => expect(page.locator('[data-valeur="enregistrement"]')).toHaveText('Enregistré');
 
@@ -223,7 +223,7 @@ test('4 le menu Options : trois groupes de cases (Édition, Document, Clients), 
   await expect(page.locator('[data-zone="marges"]')).toHaveCount(0);
   await expect(page.locator('[data-calcul-marge]')).toBeHidden();
   await ouvrirOptions(page);
-  const menu = page.locator('.menu-devis-options');
+  const menu = page.locator('[data-zone="options"]');
   await expect(menu.locator('.menu-devis-titre')).toHaveText(['Édition', 'Document', 'Clients', 'Import / Export']);
   for (const cle of ['afficherMarges', 'afficherReferences', 'attestationTva', 'autoliquidation', 'cacherDechets', 'cacherTotauxSections', 'cacherQuantiteUnite', 'cacherTva', 'cacherElementsOuvrage', 'afficherPrixElementsOuvrage', 'cacherResteAFacturer',
     'afficherTelephone', 'afficherEmail', 'afficherNumeroTva', 'afficherSiren']) await expect(menu.locator(`[data-option="${cle}"]`)).toBeVisible();
@@ -286,6 +286,70 @@ test('4 le menu Options : trois groupes de cases (Édition, Document, Clients), 
   await attendreCalme(page);
   await expect(page.locator('th.col-tva')).toHaveCount(0);
   await expect(page.locator('[data-zone="marges"]')).toHaveCount(0);
+});
+
+test('6 le menu Options est un panneau collé à droite : le devis se décale sans être caché, les cases changent l’aperçu en direct, seule la croix (ou Échap) le ferme, et Options et Bibliothèque ne sont jamais ouverts ensemble', async ({ page }, info) => {
+  await semer();
+  await ouvrir(page, await devis('d6', [{ id: 's1', titre: 'Cuisine', lignes: [ligne('l1', 'Carrelage', 2, 50, { code: 'CAR60' })] }], { affichage: { afficherReferences: false } }));
+  const panneau = page.locator('[data-zone="options"]');
+  const telephone = estTelephone(page);
+  const taille = page.viewportSize();
+  await ouvrirOptions(page);
+  await expect(panneau).toBeVisible();
+  if (!telephone) await expect(page.locator('[data-action="options"]')).toHaveAttribute('aria-expanded', 'true');
+  const boite = await panneau.boundingBox();
+  expect(Math.round(boite.x + boite.width)).toBeGreaterThanOrEqual(taille.width - 1); // contre le bord droit de la fenêtre
+  if (telephone) expect(Math.round(boite.width)).toBeGreaterThanOrEqual(taille.width - 2); // plein écran, avec sa croix
+  else {
+    // Le devis se décale : sa feuille ne passe pas sous le panneau.
+    const feuille = await page.locator('.document-devis').boundingBox();
+    expect(feuille.x + feuille.width).toBeLessThanOrEqual(boite.x + 1);
+    expect(feuille.width).toBeGreaterThan(300);
+    await expect(page.locator('[data-action="options"]')).toBeInViewport();
+    await expect(page.locator('[data-action="fermer"]')).toBeInViewport();
+  }
+  await capturer(page, info, '6-options-panneau');
+  // Cocher une case change le devis tout de suite et ne ferme pas le panneau (y compris dans l'aperçu).
+  await panneau.locator('[data-option="afficherReferences"]').check();
+  await expect(page.locator('tr[data-id="l1"] [data-valeur="reference"]')).toHaveText('Réf. : CAR60');
+  await expect(panneau).toBeVisible();
+  if (!telephone) {
+    await page.locator('[data-onglet="apercu"]').click();
+    await expect(panneau).toBeVisible();
+    await panneau.locator('[data-option="afficherReferences"]').uncheck();
+    await expect(page.locator('iframe[data-zone="apercu"]').contentFrame().locator('body')).not.toContainText('Réf. : CAR60');
+    await panneau.locator('[data-option="afficherReferences"]').check();
+    await expect(page.locator('iframe[data-zone="apercu"]').contentFrame().locator('body')).toContainText('Réf. : CAR60');
+    await page.locator('[data-onglet="edition"]').click();
+    // Un clic ailleurs sur le devis ne ferme pas le panneau.
+    await page.locator('.document-devis').click({ position: { x: 5, y: 5 } });
+    await page.locator('tr[data-id="l1"] [data-champ="libelle"]').click();
+    await expect(panneau).toBeVisible();
+    // Le bouton Options est un interrupteur.
+    await page.locator('[data-action="options"]').click();
+    await expect(panneau).toHaveCount(0);
+    await expect(page.locator('[data-action="options"]')).toHaveAttribute('aria-expanded', 'false');
+    await ouvrirOptions(page);
+  }
+  // La croix ferme ; Échap ferme aussi.
+  await panneau.locator('[data-action="fermer-options"]').click();
+  await expect(panneau).toHaveCount(0);
+  await ouvrirOptions(page);
+  if (!telephone) await page.locator('tr[data-id="l1"] [data-champ="libelle"]').click(); // le focus est sur le devis : Échap ferme quand même
+  await page.keyboard.press('Escape');
+  await expect(panneau).toHaveCount(0);
+  // Options et Bibliothèque ne sont jamais ouverts ensemble.
+  await ouvrirOptions(page);
+  if (telephone) await panneau.locator('[data-action="fermer-options"]').click();
+  await page.locator('[data-action="bibliotheque"]').click();
+  await expect(page.locator('[data-zone="bibliotheque"]')).toBeVisible();
+  await expect(panneau).toHaveCount(0);
+  if (!telephone) {
+    await page.locator('[data-action="options"]').click();
+    await expect(panneau).toBeVisible();
+    await expect(page.locator('[data-zone="bibliotheque"]')).toHaveCount(0);
+  }
+  await enregistre(page);
 });
 
 test('4 un ancien devis (sans `affichage`) garde l’affichage d’avant : le calcul des marges reste visible', async ({ page }) => {

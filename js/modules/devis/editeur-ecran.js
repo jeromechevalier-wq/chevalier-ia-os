@@ -193,6 +193,7 @@ export function rendreEditeurDevis(conteneur, id) {
   const ref = {}; // éléments à mettre à jour sans tout redessiner
   const replies = new Set(); // sections et sous-sections repliées (à l'écran seulement : rien n'est enregistré)
   let bibliotheque = null; // le panneau « Bibliothèque » ouvert, ou null
+  let optionsOuvertes = null; // le panneau « Options » ouvert, ou null : { fermer() }
   let ligneActive = null; // la dernière ligne où l'utilisateur a cliqué ou écrit : la Bibliothèque ajoute à la fin de sa section
   const affichage = () => affichageDe(travail);
 
@@ -352,6 +353,7 @@ export function rendreEditeurDevis(conteneur, id) {
     ref.panneauApercu = h('div', { class: 'editeur-apercu', dataset: { panneau: 'apercu' } });
     bibliotheque?.fermer();
     bibliotheque = null;
+    optionsOuvertes?.fermer();
     racine.classList.toggle('devis-lecture-seule', lecture);
     remplir(racine, barre, lecture ? h('p', { class: 'bandeau-lecture-seule', dataset: { valeur: 'lecture-seule' } }, MESSAGE_LECTURE_SEULE) : ref.bandeauConflit, ref.erreurEnreg, ref.panneauEdition, ref.panneauApercu);
     if (!lecture) { rendreLignes(); majResultats(); }
@@ -375,7 +377,7 @@ export function rendreEditeurDevis(conteneur, id) {
 
   // Barre d'actions : Options (menu à cases à cocher), Annuler, Enregistrer, Finaliser (bouton à menu). Sur téléphone, Options passe dans le bouton « … ».
   function boutonsEdition() {
-    ref.boutonOptions = h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-options', dataset: { action: 'options' }, 'aria-haspopup': 'menu', 'aria-expanded': 'false', onclick: (ev) => ouvrirOptions(ev.currentTarget) }, 'Options', icone('chevron-down', { taille: 14 }));
+    ref.boutonOptions = h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-options', dataset: { action: 'options' }, 'aria-controls': 'options-devis', 'aria-expanded': 'false', onclick: (ev) => (optionsOuvertes ? optionsOuvertes.fermer() : ouvrirOptions(ev.currentTarget)) }, 'Options', icone('chevron-down', { taille: 14 }));
     return [
       ref.boutonOptions,
       h('button', { type: 'button', class: 'bouton-icone bouton-plus-actions', dataset: { action: 'plus-actions' }, 'aria-haspopup': 'menu', 'aria-label': 'Autres actions', onclick: (ev) => { const ancre = ev.currentTarget; ouvrirMenu(ancre, [{ libelle: 'Options', icone: 'settings', action: () => ouvrirOptions(ancre) }]); } }, icone('ellipsis', { taille: 16 })),
@@ -402,8 +404,11 @@ export function rendreEditeurDevis(conteneur, id) {
     if (ligneReste) ligneReste.hidden = affichage().cacherResteAFacturer === true;
     if (onglet === 'apercu') rendreApercu();
   }
+  // Panneau collé à droite (comme la Bibliothèque) : le devis se décale, les cases agissent en direct ; seule la croix ou Échap le ferme. Jamais ouvert en même temps que la Bibliothèque.
   function ouvrirOptions(ancre) {
-    ouvrirFenetreMenu(ancre, (fermer) => {
+    if (optionsOuvertes) return;
+    bibliotheque?.fermer();
+    const construire = (fermer) => {
       const aff = affichage();
       const c = (libelle, cle, extra = {}) => caseMenu({ libelle, cle, coche: aff[cle], surChangement: (v) => basculerAffichage(cle, v), ...extra });
       const bientot = (libelle) => caseMenu({ libelle, bientot: true });
@@ -433,8 +438,34 @@ export function rendreEditeurDevis(conteneur, id) {
         { separateur: true }, { titre: 'Import / Export' },
         { libelle: 'Importer un devis', bientot: true, cle: 'importer' }, { libelle: 'Exporter des lignes', bientot: true, cle: 'exporter' },
       ], fermer);
-    }, { classe: 'menu-devis-options', nom: 'Options du devis' });
+    };
+    const croix = h('button', { type: 'button', class: 'bouton-icone options-fermer', dataset: { action: 'fermer-options' }, 'aria-label': 'Fermer les options', onclick: () => fermer() }, icone('x', { taille: 18 }));
+    const panneau = h('aside', { class: 'options-panneau', id: 'options-devis', role: 'complementary', 'aria-label': 'Options du devis', dataset: { zone: 'options' } },
+      h('header', { class: 'options-tete' }, h('h2', { class: 'options-titre' }, 'Options'), croix),
+      h('div', { class: 'options-corps' }, construire(() => fermer())));
+    const surTouche = (e) => {
+      if (!racine.isConnected) { fermer(); return; }
+      if (e.key !== 'Escape' || e.defaultPrevented || document.querySelector('dialog[open], [role="dialog"]')) return;
+      e.stopPropagation();
+      fermer();
+    };
+    function fermer() {
+      if (!optionsOuvertes) return;
+      optionsOuvertes = null;
+      document.removeEventListener('keydown', surTouche, true);
+      panneau.remove();
+      racine.classList.remove('avec-options');
+      ref.boutonOptions?.setAttribute('aria-expanded', 'false');
+      if (ancre?.isConnected) ancre.focus?.();
+    }
+    optionsOuvertes = { fermer };
+    document.addEventListener('keydown', surTouche, true);
+    racine.append(panneau);
+    racine.classList.add('avec-options');
+    ref.boutonOptions?.setAttribute('aria-expanded', 'true');
+    panneau.querySelector('input:not(:disabled), select')?.focus();
   }
+
 
   function ouvrirMenuEnvoyer(ancre) {
     ouvrirFenetreMenu(ancre, (fermer) => contenuMenu([
@@ -514,6 +545,7 @@ export function rendreEditeurDevis(conteneur, id) {
   /** `remplacer` : identifiant d'une ligne (bouton « Catalogue » de sa désignation) : l'article choisi prend la place de cette ligne au lieu d'être ajouté à la fin. */
   function ouvrirLaBibliotheque(remplacer = null) {
     if (bibliotheque?.ouvert()) bibliotheque.fermer();
+    optionsOuvertes?.fermer();
     bibliotheque = ouvrirBibliotheque(racine, {
       articles: () => D.etat.articles,
       familles: () => D.etat.familles,

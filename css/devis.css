@@ -396,7 +396,6 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
 .menu-devis-case.grisee { opacity: .55; cursor: not-allowed; }
 .menu-devis-champ { cursor: default; justify-content: space-between; }
 .menu-devis-champ .champ { width: auto; min-width: 90px; }
-.menu-devis-options { max-height: min(80dvh, 640px); }
 .menu-pop-entree:disabled .menu-devis-bientot { opacity: 1; }
 
 /* Ajustement global : trois champs liés. */
@@ -447,10 +446,20 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
 .bibliotheque-pied { display: flex; justify-content: flex-end; padding: var(--esp-5) var(--esp-6); border-top: 1px solid var(--bordure); }
 @media (min-width: 1280px) { .page-editeur-devis.avec-bibliotheque { padding-right: 680px; } }
 
+/* Options : panneau collé à droite, plus étroit que la Bibliothèque ; le devis se décale à côté (jamais caché), seule la croix le ferme. */
+.page-editeur-devis { --largeur-panneau-options: 340px; }
+.options-panneau { position: fixed; top: 0; right: 0; bottom: 0; z-index: 40; display: flex; flex-direction: column; width: min(var(--largeur-panneau-options), 100%); background: var(--fond); color: var(--texte); border-left: 1px solid var(--bordure); box-shadow: var(--ombre); }
+.options-tete { display: flex; align-items: center; gap: var(--esp-4); padding: var(--esp-5) var(--esp-6); border-bottom: 1px solid var(--bordure); }
+.options-titre { margin: 0; flex: 1; font-size: var(--fs-section); font-weight: var(--poids-moyen); }
+.options-corps { flex: 1; min-height: 0; padding: var(--esp-4); overflow-y: auto; }
+@media (min-width: 701px) { .page-editeur-devis.avec-options { padding-right: var(--largeur-panneau-options); } }
+
 /* Téléphone : les menus deviennent des feuilles collées en bas ; la Bibliothèque occupe tout l'écran avec un bouton retour. */
 @media (max-width: 700px) {
   .menu-devis { left: 0; right: 0; bottom: 0; top: auto; max-width: none; width: 100%; max-height: 80dvh; border-radius: var(--rayon-carte) var(--rayon-carte) 0 0; z-index: 95; }
   .menu-devis .menu-pop-entree, .menu-devis-case, .menu-devis-champ { min-height: 44px; }
+  .options-panneau { inset: 0; width: 100%; z-index: 60; border-left: 0; }
+  .options-fermer { min-width: 44px; min-height: 44px; }
   .bibliotheque-panneau { inset: 0; width: 100%; z-index: 60; border-left: 0; }
   .bibliotheque-retour { display: inline-grid; min-width: 44px; min-height: 44px; }
   .bibliotheque-fermer { min-width: 44px; min-height: 44px; }
