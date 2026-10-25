@@ -160,6 +160,9 @@ describe('E6 changements et alerte de sortie', () => {
     assert.equal(e.affaireId, 'a1');
     assert.equal(Ed.libelleEnregistrement('enregistre'), 'Enregistré');
     assert.equal(Ed.libelleEnregistrement('erreur'), 'Échec de l’enregistrement');
+    // Les trois états courants restent courts et de longueur voisine : la barre du haut ne saute pas.
+    const courts = ['enregistre', 'attente', 'enCours'].map((e) => Ed.libelleEnregistrement(e).length);
+    assert.ok(Math.max(...courts) <= 15 && Math.max(...courts) - Math.min(...courts) <= 5, courts.join(','));
   });
 });
 

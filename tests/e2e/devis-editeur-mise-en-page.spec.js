@@ -386,3 +386,25 @@ test('1 les onglets ont un pictogramme : un stylo pour Édition, un œil pour Pr
   await expect(page.locator('[data-onglet="edition"] svg')).toHaveCount(1);
   await expect(page.locator('[data-onglet="apercu"] svg')).toHaveCount(1);
 });
+
+test('8 la barre du haut ne saute pas quand l’état d’enregistrement change : « Enregistré », « Non enregistré », « Enregistrement… » sont courts', async ({ page }) => {
+  await semer();
+  await ouvrir(page, await devisLong());
+  const indicateur = page.locator('[data-valeur="enregistrement"]');
+  // Position des onglets par rapport au titre : insensible au défilement de la page (le champ qu'on remplit peut la faire défiler).
+  const decalage = async () => {
+    const [titre, onglet] = await Promise.all([page.locator('.titre-barre-devis').boundingBox(), page.locator('[data-onglet="edition"]').boundingBox()]);
+    return { x: onglet.x - titre.x, y: onglet.y - titre.y };
+  };
+  await expect(indicateur).toHaveText('Enregistré');
+  const avant = await decalage();
+  await page.locator('textarea[data-champ="description"]').first().fill('texte modifié');
+  await expect(indicateur).toHaveText(/Non enregistré|Enregistrement…/); // l'état change vraiment
+  const pendant = await decalage();
+  await expect(indicateur).toHaveText('Enregistré'); // l'enregistrement automatique se termine
+  const apres = await decalage();
+  for (const mesure of [pendant, apres]) {
+    expect(Math.abs(mesure.x - avant.x)).toBeLessThan(2); // les onglets ne bougent pas
+    expect(Math.abs(mesure.y - avant.y)).toBeLessThan(2); // la barre ne passe pas sur deux lignes
+  }
+});

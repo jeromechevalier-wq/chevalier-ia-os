@@ -542,7 +542,7 @@ export function rendreEditeurDevis(conteneur, id) {
   // ------------------------------------------------ Bibliothèque : le bouton sous la barre, le panneau à droite
   function rangeeBibliotheque() {
     ref.boutonBibliotheque = h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'bibliotheque' }, 'aria-expanded': 'false', 'aria-controls': 'bibliotheque-devis',
-      onclick: () => (bibliotheque?.ouvert() ? bibliotheque.fermer() : ouvrirLaBibliotheque()) }, icone('list', { taille: 16 }), 'Bibliothèque');
+      onclick: () => (bibliotheque?.ouvert() ? bibliotheque.fermer() : ouvrirLaBibliotheque()) }, icone('list', { taille: 16 }), 'Catalogue');
     return h('div', { class: 'rangee-bibliotheque' }, ref.boutonBibliotheque);
   }
   /** `remplacer` : identifiant d'une ligne (bouton « Catalogue » de sa désignation) : l'article choisi prend la place de cette ligne au lieu d'être ajouté à la fin. */
