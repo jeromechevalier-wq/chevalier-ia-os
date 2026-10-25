@@ -198,3 +198,18 @@ describe('Q10 fragmentDePage', () => {
     assert.ok(devisHtml({ numero: 'X' }, { pagesAvant: [h] }).includes(h));
   });
 });
+
+describe('Q11 devisPdf : échecs du rangement et erreurs inattendues', () => {
+  test('Q11 Drive en échec : message « Drive : … » transmis tel quel, pdf non écrit', async () => {
+    const m = await monde();
+    const f = { ...faux(), ranger: async () => { throw new Error('Drive : envoi refusé (403).'); } };
+    await assert.rejects(() => appel(m, f)(requete({ devisId: 'd1' })), (e) => e.code === 'internal' && e.message === 'Drive : envoi refusé (403).');
+    assert.equal(m.collections[C.devis][0].pdf, null);
+  });
+  test('Q11 erreur non préfixée : message générique, sans détail', async () => {
+    const m = await monde();
+    const f = { ...faux(), convertir: async () => { throw new Error('secret interne /var/task'); } };
+    await assert.rejects(() => appel(m, f)(requete({ devisId: 'd1' })), (e) => e.code === 'internal' && e.message === 'Une erreur est survenue. Réessaie.' && !/secret|var\/task/.test(e.message));
+    assert.equal(m.collections[C.devis][0].pdf, null);
+  });
+});

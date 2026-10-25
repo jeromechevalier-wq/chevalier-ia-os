@@ -43,7 +43,7 @@ export async function convertirHtmlEnPdf(html, { puppeteer, chromium, pied, dela
     const reels = puppeteer && chromium ? { puppeteer, chromium } : await chargerReels();
     const traitement = (async () => {
       const lance = await reels.puppeteer.launch({
-        args: reels.chromium.args, executablePath: await reels.chromium.executablePath(), headless: 'shell',
+        args: reels.chromium.args.filter((a) => !/^--(disable-web-security|allow-running-insecure-content)/.test(a)), executablePath: await reels.chromium.executablePath(), headless: 'shell',
       });
       navigateur = lance;
       if (fini) { await fermer(); throw new Error('délai'); } // le délai a déjà gagné pendant le lancement
@@ -51,7 +51,7 @@ export async function convertirHtmlEnPdf(html, { puppeteer, chromium, pied, dela
       await page.setJavaScriptEnabled(false);
       await page.setRequestInterception(true);
       page.on('request', (r) => {
-        if (String(r.url()).startsWith('data:')) r.continue(); else r.abort();
+        if (String(r.url()).startsWith('data:')) r.continue().catch(() => {}); else r.abort().catch(() => {});
       });
       await page.setContent(html, { waitUntil: 'load', timeout: DELAI_CHARGEMENT_MS });
       return Buffer.from(await page.pdf(optionsPdf(pied)));

@@ -17,7 +17,7 @@ function faux({ pdf = FAUX_PDF, echecLancement, echecContenu, echecPdf, lenteurP
     async setContent(html, opts) {
       v.contenu = html; v.optionsContenu = opts;
       if (echecContenu) throw new Error(`boum ${html} /var/task/interne`);
-      for (const url of requetes) v.decisions.push(await new Promise((ok) => ecouteur({ url: () => url, continue: () => ok(`continue ${url}`), abort: () => ok(`abort ${url}`) })));
+      for (const url of requetes) v.decisions.push(await new Promise((ok) => ecouteur({ url: () => url, continue: () => { ok(`continue ${url}`); return Promise.resolve(); }, abort: () => { ok(`abort ${url}`); return Promise.resolve(); } })));
     },
     async pdf(opts) {
       v.optionsPdf = opts;
@@ -34,7 +34,7 @@ function faux({ pdf = FAUX_PDF, echecLancement, echecContenu, echecPdf, lenteurP
       return navigateur;
     },
   };
-  const chromium = { args: ['--no-sandbox'], async executablePath() { return '/tmp/chromium'; } };
+  const chromium = { args: ['--no-sandbox', '--disable-web-security', '--allow-running-insecure-content', '--allow-running-insecure-content=1'], async executablePath() { return '/tmp/chromium'; } };
   return { v, puppeteer, chromium };
 }
 
@@ -53,7 +53,8 @@ describe('C1 Chromium : réglages de sécurité et d\'impression', () => {
     assert.equal(f.v.optionsPdf.printBackground, true);
     assert.equal(f.v.contenu, HTML_SECRET);
     assert.equal(f.v.argsLancement.headless, 'shell');
-    assert.deepEqual(f.v.argsLancement.args, ['--no-sandbox']);
+    assert.deepEqual(f.v.argsLancement.args, ['--no-sandbox']); // les options dangereuses de @sparticuz/chromium sont retirées
+    assert.deepEqual(f.v.optionsPdf.margin, { top: '15mm', bottom: '20mm', left: '10mm', right: '10mm' });
     assert.ok(Buffer.isBuffer(sortie.pdf) && /^[0-9a-f]{64}$/.test(sortie.sha256));
     assert.equal(sortie.pdf.subarray(0, 5).toString('latin1'), '%PDF-');
   });
