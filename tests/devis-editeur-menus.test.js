@@ -172,9 +172,9 @@ describe('4 Options : affichage du devis et du document', () => {
     { numero: 'DEV-1', finaliseLe: '2026-10-24T10:00:00Z', reglages }).devis;
   const contexteVue = { clientNom: 'Mme Dupont', emetteur: { nom: 'Atelier Test', adresse: '3 rue', siret: '123' } };
 
-  test('4 sans options, le document est identique octet pour octet à celui d’avant la refonte (empreinte mise à jour le 25/10/2026 : seule la feuille de style a changé : interligne du bloc Chantier, page A4 centrée à l’écran)', () => {
+  test('4 sans options, le document est identique octet pour octet à celui d’avant la refonte (empreinte mise à jour le 25/10/2026 : seule la feuille de style a changé : interligne du bloc Chantier, page A4 centrée et bande de saut de page à l’écran)', () => {
     const html = devisHtml(L.vueClient(figer(), contexteVue));
-    assert.equal(crypto.createHash('sha256').update(html).digest('hex'), '111fa854ccf11822daa48ca8f3d3ad4a5adb95ee2fc64819fba5f0803af7a57d');
+    assert.equal(crypto.createHash('sha256').update(html).digest('hex'), '87d9e64d35653ca98d0a22813468eec2c993a74404dd2a78e1d4a0acaeb681bc');
     assert.equal(devisHtml(L.vueClient(figer(), contexteVue), { affichage: {} }), html);
     assert.equal(devisHtml(L.vueClient(figer(), contexteVue), { affichage: L.AFFICHAGE_DEFAUT }), html);
   });

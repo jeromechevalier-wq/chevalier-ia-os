@@ -39,6 +39,8 @@ const CSS = `
 * { box-sizing: border-box; }
 html { font-family: Helvetica, Arial, sans-serif; font-size: 9.5pt; color: #1b1b1b; }
 body { margin: 0; }
+.saut-marque { display: none; }
+@media screen { .saut-marque { display: block; margin: 2mm 0; padding: 1mm 0; border: 0.3mm dashed #aaa; border-radius: 1mm; text-align: center; font-size: 8pt; line-height: 1.4; color: #777; background: repeating-linear-gradient(135deg, #f4f4f4 0 3mm, #fff 3mm 6mm); } }
 @media screen { html { background: #e9ecef; } body { max-width: 210mm; min-height: 297mm; margin: 0 auto; padding: 14mm; background: #fff; box-shadow: 0 0 3mm rgba(0, 0, 0, 0.15); } }
 table { border-collapse: collapse; width: 100%; }
 .mise-en-page { table-layout: auto; }
@@ -160,7 +162,7 @@ function tableauLignes(vue, sansTva, aff = {}) {
   // Un saut avant la première ligne d'une section passe avant son bandeau ; un saut après sa dernière ligne passe après son sous-total.
   let sautPose = false;
   const poser = (ligne) => { lignes.push(ligne); sautPose = false; };
-  const poserSaut = () => { if (!sautPose && lignes.length) lignes.push(`<tr class="saut-page" style="break-before:page;page-break-before:always"><td colspan="${colonnes}" style="padding:0;border:0;height:0;line-height:0"></td></tr>`); sautPose = true; };
+  const poserSaut = () => { if (!sautPose && lignes.length) lignes.push(`<tr class="saut-page" style="break-before:page;page-break-before:always"><td colspan="${colonnes}" style="padding:0;border:0;height:0;line-height:0"><div class="saut-marque">Saut de page</div></td></tr>`); sautPose = true; };
   const fermer = () => { if (enAttente) poser(enAttente); enAttente = null; };
   for (const [k, s] of liste.entries()) {
     const sous = s.niveau === 2;

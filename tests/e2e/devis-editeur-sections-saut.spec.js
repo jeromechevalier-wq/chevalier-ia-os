@@ -217,3 +217,84 @@ test('3 cas d’erreur : une écriture refusée garde le message habituel et le 
   await expect(page.locator('[data-erreur="enregistrement"]')).toContainText(/Devis introuvable|Enregistrement impossible/);
   await capturer(page, info, '3-cas-erreur');
 });
+
+test('3 la prévisualisation montre le saut de page : une bande « Saut de page » à l’écran, invisible à l’impression', async ({ page }, info) => {
+  await semer();
+  await ouvrir(page, await devis('d5', [{ id: 's1', titre: 'Cuisine', lignes: [ligne('l1', 'Carrelage', 2, 50), SAUT('p1'), ligne('l2', 'Plinthes', 1, 20)] }]));
+  await page.getByRole('tab', { name: /Prévisualisation/ }).click();
+  const cadre = page.frameLocator('iframe.apercu-devis');
+  const marque = cadre.locator('.saut-marque');
+  await expect(marque).toBeVisible();
+  await expect(marque).toHaveText('Saut de page');
+  // La ligne du saut garde sa coupure de page pour le PDF et l'impression.
+  expect(await cadre.locator('tr.saut-page').evaluate((e) => e.style.breakBefore)).toBe('page');
+  await page.emulateMedia({ media: 'print' });
+  await expect(marque).toBeHidden();
+  await page.emulateMedia({ media: 'screen' });
+  await capturer(page, info, '3-apercu-saut-de-page');
+});
+
+test('2 déplacer une ligne avec les flèches ne renvoie pas en haut du devis : la page reste en place et la ligne reste visible, le clavier reste sur la flèche', async ({ page }, info) => {
+  test.skip(info.project.name === 'telephone', 'ordinateur : le défilement est celui de la page');
+  await semer();
+  const lignes = Array.from({ length: 24 }, (_, i) => ligne(`m${i + 1}`, `Ligne ${i + 1}`, 1, 10));
+  await ouvrir(page, await devis('d6', [{ id: 's1', titre: 'Cuisine', lignes }]));
+  const cible = page.locator('tr[data-id="m22"]');
+  await cible.scrollIntoViewIfNeeded();
+  await cible.locator('[data-action="monter"]').click();
+  await expect.poll(async () => (await ordre(page)).indexOf('m22')).toBeLessThan((await ordre(page)).indexOf('m21'));
+  const boite = await page.locator('tr[data-id="m22"]').boundingBox();
+  const fenetre = page.viewportSize();
+  expect(boite.y).toBeGreaterThanOrEqual(0);
+  expect(boite.y + boite.height).toBeLessThanOrEqual(fenetre.height); // toujours à l'écran, on n'est pas renvoyé en haut
+  expect(await page.evaluate(() => document.activeElement?.dataset?.action)).toBe('monter'); // on peut recliquer tout de suite
+  await cible.locator('[data-action="monter"]').click();
+  expect(await ordre(page)).toContain('m22');
+  await expect(page.locator('tr[data-id="m22"]')).toBeInViewport();
+});
+
+test('2 « Insérer en dessous > Fourniture » ouvre la recherche d’article juste sous la ligne choisie ; l’article ajouté vient dessous, le suivant aussi ; « Valider » ferme et la recherche retourne en bas ; supprimer une ligne ne fait pas défiler la page', async ({ page }, info) => {
+  await semer();
+  const maintenant = new Date();
+  await ecrireDocument('devis_articles/ar1', { code: 'CAR60', libelle: 'Carrelage 60 x 60', unite: 'm²', prixAchat: 50, tauxTva: null, actif: true, type: 'fourniture', proprietaire: JEROME, creeLe: maintenant, modifieLe: maintenant, creePar: JEROME, modifiePar: JEROME });
+  await ecrireDocument('devis_articles/ar2', { code: 'COL25', libelle: 'Colle à carrelage', unite: 'u', prixAchat: 12, tauxTva: null, actif: true, type: 'fourniture', proprietaire: JEROME, creeLe: maintenant, modifieLe: maintenant, creePar: JEROME, modifiePar: JEROME });
+  const lignes = Array.from({ length: 12 }, (_, i) => ligne(`m${i + 1}`, `Ligne ${i + 1}`, 1, 10));
+  await ouvrir(page, await devis('d7', [{ id: 's1', titre: 'Cuisine', lignes }]));
+  await menuDe(page, 'm3');
+  await page.getByRole('menuitem', { name: 'Insérer en dessous' }).click();
+  await page.locator('.menu-devis-ligne').getByRole('menuitem', { name: 'Fourniture' }).click();
+  const enLigne = page.locator('tr[data-zone="recherche-en-ligne"]');
+  await expect(enLigne).toBeVisible();
+  // La recherche est entre « Ligne 3 » et « Ligne 4 », plus en bas du devis, sans phrase d'explication.
+  expect(await enLigne.evaluate((e) => e.previousElementSibling.dataset.id)).toBe('m3');
+  expect(await enLigne.evaluate((e) => e.nextElementSibling.dataset.id)).toBe('m4');
+  await expect(page.getByText('Le prochain article s’ajoutera')).toHaveCount(0);
+  await expect(enLigne.locator('[data-action="fermer-recherche"]')).toHaveText('Valider');
+  await enLigne.locator('[data-champ="filtre-famille"]').selectOption('');
+  await enLigne.locator('[data-champ="recherche-bordereau"]').fill('carrelage');
+  await capturer(page, info, '2-recherche-sous-la-ligne');
+  await enLigne.locator('[data-action="ajouter-article"]').first().click();
+  // Le nouvel article est juste sous « Ligne 3 », la recherche reste juste sous lui pour le suivant.
+  const apres = await ordre(page);
+  expect(apres.indexOf('m3') + 2).toBe(apres.indexOf('m4'));
+  const idNouveau = apres[apres.indexOf('m3') + 1];
+  expect(await enLigne.evaluate((e) => e.previousElementSibling.dataset.id)).toBe(idNouveau);
+  await enLigne.locator('[data-champ="recherche-bordereau"]').fill('colle');
+  await enLigne.locator('[data-action="ajouter-article"]').first().click();
+  const apres2 = await ordre(page);
+  expect(apres2.indexOf('m3') + 3).toBe(apres2.indexOf('m4'));
+  await enLigne.locator('[data-action="fermer-recherche"]').click();
+  await expect(page.locator('tr[data-zone="recherche-en-ligne"]')).toHaveCount(0);
+  await expect(page.locator('[data-zone="recherche"]')).toBeHidden();
+  // Supprimer une ligne en bas du devis : la page ne remonte pas.
+  test.skip(info.project.name === 'telephone', 'ordinateur : défilement de la page');
+  const cible = page.locator('tr[data-id="m11"]');
+  await cible.scrollIntoViewIfNeeded();
+  const avant = await cible.boundingBox();
+  await menuDe(page, 'm11');
+  await page.getByRole('menuitem', { name: 'Supprimer' }).click();
+  await dialogue(page).getByRole('button', { name: /Supprimer/ }).click();
+  await expect(page.locator('tr[data-id="m11"]')).toHaveCount(0);
+  const voisine = await page.locator('tr[data-id="m12"]').boundingBox();
+  expect(Math.abs(voisine.y - avant.y)).toBeLessThan(80); // la ligne d'après a pris la place, la page n'a pas bougé
+});
