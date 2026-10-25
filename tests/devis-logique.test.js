@@ -197,6 +197,11 @@ describe('Validation de finalisation', () => {
     assert.deepEqual(D.erreursFinalisation(devisType({ copie: ['contact@exemple.fr'] })), []);
     assert.ok(D.erreursFinalisation(devisType({ copie: ['pas-un-email'] })).some((e) => /en copie n'est pas valide/.test(e)));
   });
+  test('D9c plus de 10 adresses en copie : le serveur refuse de finaliser (10 passent)', () => {
+    const adresses = (n) => Array.from({ length: n }, (_, i) => `copie${i}@exemple.fr`);
+    assert.deepEqual(D.erreursFinalisation(devisType({ copie: adresses(D.MAX_COPIE) })), []);
+    assert.ok(D.erreursFinalisation(devisType({ copie: adresses(D.MAX_COPIE + 1) })).some((e) => /trop d'adresses e-mail en copie/.test(e)));
+  });
   test('D9 un devis complet est valide', () => assert.deepEqual(D.erreursFinalisation(devisType()), []));
   test('D9 sans ligne ; le destinataire est facultatif (impression, remise en main propre) mais une adresse écrite doit être valide', () => {
     assert.ok(D.erreursFinalisation(devisType({ sections: [] })).some((e) => /au moins une ligne/.test(e)));
