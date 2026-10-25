@@ -439,13 +439,16 @@ export function reglagesDesModules(actifs) {
  * Réglages de l'ESPACE (la coque), montrés avant ceux des modules :
  *  espace  : nom, logo, couleur et thème de l'appareil (tout le monde) ;
  *  membres : qui a accès et avec quel rôle (éditeurs seulement, chez un client) ;
- *  modules : modules allumés (éditeurs seulement ; chez Jérôme, tous le sont).
+ *  modules : modules allumés (éditeurs seulement ; chez Jérôme, tous le sont) ;
+ *  deploiement : étapes d'un déploiement et leur état dans l'espace (éditeurs seulement : les contrôles du serveur leur sont réservés).
  * `editeursSeulement` : un lecteur ne voit pas la section (adresse introuvable). `clientSeulement` : n'existe pas à la racine.
  */
 export const SECTIONS_ESPACE = geler([
   { id: 'espace', libelle: 'Mon espace', icone: 'house', editeursSeulement: false, clientSeulement: false },
   { id: 'membres', libelle: 'Membres et rôles', icone: 'users', editeursSeulement: true, clientSeulement: true },
   { id: 'modules', libelle: 'Modules actifs', icone: 'layout-dashboard', editeursSeulement: true, clientSeulement: false },
+  // Déploiement (25/10/2026) : la liste des étapes d'un déploiement et leur état dans CET espace (js/os/deploiement.js) ; chez Jérôme comme chez chaque client.
+  { id: 'deploiement', libelle: 'Déploiement', icone: 'shield-check', editeursSeulement: true, clientSeulement: false },
 ]);
 
 /** Sections d'espace visibles : `chezClient` (plateforme) ou racine ; `editeur` = le compte peut écrire (à la racine, toujours vrai). */
