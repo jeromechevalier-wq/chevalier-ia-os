@@ -33,15 +33,16 @@ async function devis(id, valeurs = {}) {
     creePar: JEROME, modifiePar: JEROME, proprietaire: JEROME, creeLe: maintenant, modifieLe: new Date(Date.now() - 5 * 3600000), ...valeurs,
   });
 }
+const SIGNE = {
+  numero: 'DEV-2026-10-03-002', statut: 'accepte', finaliseLe: new Date(Date.now() - 10 * 86400000), expireLe: jourDansLe(20),
+  acompte: { type: 'pourcentage', valeur: 30, moment: 'signature' }, modesPaiement: ['Chèque', 'Espèces'], conditionsPaiement: 'Solde à la réception des travaux.',
+};
 async function donnees() {
   await creerOrganisation('o1', { nom: 'M. Paul Exemple' });
   await creerAffaire('a1', { titre: 'Rénovation cuisine', organisationId: 'o1' });
   await devis('dBrouillon');
   await devis('dFinalise', { numero: 'DEV-2026-10-02-001', statut: 'en_attente_envoi', finaliseLe: new Date(Date.now() - 2 * 86400000), expireLe: jourDansLe(30) });
-  await devis('dSigne', {
-    numero: 'DEV-2026-10-03-002', statut: 'accepte', finaliseLe: new Date(Date.now() - 10 * 86400000), expireLe: jourDansLe(20),
-    acompte: { type: 'pourcentage', valeur: 30, moment: 'signature' }, modesPaiement: ['Chèque', 'Espèces'], conditionsPaiement: 'Solde à la réception des travaux.',
-  });
+  await devis('dSigne', SIGNE);
   await devis('dExpire', { numero: 'DEV-2026-08-01-003', statut: 'envoye', finaliseLe: new Date(Date.now() - 60 * 86400000), expireLe: jourDansLe(-5) });
   await devis('dVide', { sections: [], objet: '' });
 }
@@ -367,4 +368,60 @@ test('1 erreur : lien périmé = « Ce devis n’existe plus ou n’est pas acce
   await expect(page).toHaveURL(/#\/devis\/liste$/);
   await expect(page.locator('tr.ligne-devis')).toHaveCount(5);
   await capturer(page, info, '1-erreur-lien-perime');
+});
+
+test('9 archiver : un devis signé s’archive depuis le menu « … » de sa fiche, il sort de la liste et apparaît dans « Archives » ; « Désarchiver » le remet ; un brouillon ne s’archive pas', async ({ page }, info) => {
+  await donnees();
+  const appels = [];
+  await simulerServeur(page, appels);
+  await ouvrir(page);
+  // Brouillon : l'entrée existe mais elle est grisée, avec la raison.
+  await ouvrirFiche(page, 'dBrouillon');
+  await fiche(page).locator('[data-action="menu-fiche"]').click();
+  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Archiver' })).toBeDisabled();
+  await expect(page.locator('.menu-pop')).toContainText('Seul un devis signé ou refusé peut être archivé.');
+  await page.keyboard.press('Escape');
+  await fiche(page).locator('[data-action="fermer-fiche"]').click();
+  // Signé : Archiver appelle la fonction du serveur (jamais une écriture directe).
+  await ouvrirFiche(page, 'dSigne');
+  await fiche(page).locator('[data-action="menu-fiche"]').click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Archiver' }).click();
+  await expect(page.locator('.toast')).toContainText('Devis archivé');
+  expect(appels).toEqual([['devisArchiver', { devisId: 'dSigne', archive: true }]]);
+  // Le simulateur ne réécrit pas la base : on le fait comme le ferait le serveur.
+  await devis('dSigne', { ...SIGNE, archive: true });
+  await expect(fiche(page).locator('[data-valeur="archive"]')).toHaveText('Archivé');
+  await fiche(page).locator('[data-action="fermer-fiche"]').click();
+  await expect(page.locator('tr.ligne-devis[data-id="dSigne"]')).toHaveCount(0);
+  await expect(page.locator('tr.ligne-devis')).toHaveCount(4);
+  await page.locator('[data-vue="archives"]').click();
+  await expect(page.locator('tr.ligne-devis')).toHaveCount(1);
+  await expect(page.locator('tr.ligne-devis[data-id="dSigne"]')).toBeVisible();
+  await attendreCalme(page);
+  await capturer(page, info, '9-archives');
+  // Désarchiver depuis le menu « … » de la ligne.
+  await page.locator('tr.ligne-devis[data-id="dSigne"] [data-action="menu-devis"]').click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Désarchiver' }).click();
+  await expect(page.locator('.toast', { hasText: 'Devis sorti des archives' })).toBeVisible();
+  expect(appels[1]).toEqual(['devisArchiver', { devisId: 'dSigne', archive: false }]);
+  await devis('dSigne', SIGNE);
+  // Cas vide des archives.
+  await expect(page.getByText('Aucun devis archivé.')).toBeVisible();
+  await page.locator('[data-vue="liste"]').click();
+  await expect(page.locator('tr.ligne-devis[data-id="dSigne"]')).toBeVisible();
+});
+
+test('9 archiver, cas d’erreur : si le serveur ne répond pas, un message s’affiche et le devis reste où il est', async ({ page }, info) => {
+  info.annotations.push({ type: 'erreurs-reseau-attendues' });
+  await donnees();
+  await page.route('**/devisArchiver', async (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+    return route.abort('failed');
+  });
+  await ouvrir(page);
+  await ouvrirFiche(page, 'dSigne');
+  await fiche(page).locator('[data-action="menu-fiche"]').click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Archiver' }).click();
+  await expect(page.locator('.toast')).toContainText('rien n’a été perdu');
+  await expect(fiche(page).locator('[data-valeur="archive"]')).toHaveCount(0);
 });

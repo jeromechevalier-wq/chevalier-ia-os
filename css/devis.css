@@ -292,10 +292,10 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
   .tableau-lignes-devis td.c-tva { grid-area: tva; }
   .tableau-lignes-devis td.c-tot { grid-area: tot; text-align: left; }
   .tableau-lignes-devis td.c-act { grid-area: act; text-align: right; }
-  .tableau-lignes-devis td[data-libelle]::before { content: attr(data-libelle); display: block; font: var(--poids-moyen) var(--fs-micro)/1.4 var(--police-texte); letter-spacing: .14em; text-transform: uppercase; color: var(--texte2); margin-bottom: 2px; }
+  .tableau-lignes-devis td[data-libelle]::before { content: attr(data-libelle); display: block; font: var(--poids-moyen) var(--fs-menu)/1.3 var(--police-texte); letter-spacing: .06em; text-transform: uppercase; color: var(--texte); margin-bottom: var(--esp-2); white-space: nowrap; }
   .tableau-lignes-devis td.c-num::before, .tableau-lignes-devis td.c-des::before, .ligne-section-devis td.c-tot::before { display: none; }
   .tableau-lignes-devis td.d, .tableau-lignes-devis .champ-nombre { text-align: left; }
-  .tableau-lignes-devis .total-ligne { padding-top: var(--esp-3); }
+  .tableau-lignes-devis .total-ligne { padding: var(--esp-3) 0 0 var(--esp-3); }
   .ligne-section-devis .ligne-champs { flex-wrap: wrap; }
   .ligne-section-devis .ligne-champs > .champ { flex: 1 1 0; min-width: 0; }
   .tableau-lignes-devis .ligne-saut-devis { grid-template-areas: "poi des act"; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; }
@@ -374,7 +374,7 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
   .fiche-boutons .bouton .bientot { flex-basis: 100%; font-size: var(--fs-petit); }
   .fiche-conditions-totaux, .fiche-jauges { grid-template-columns: 1fr; }
   .fiche-identite-droite { text-align: left; }
-  .fiche-fermer, .fiche-statut-menu, .fiche-statut-fixe, .fiche-onglet { min-height: 44px; min-width: 44px; }
+  .fiche-fermer, .fiche-statut-menu, .fiche-statut-fixe, .fiche-onglet, .fiche-tete-ligne [data-action="menu-fiche"] { min-height: 44px; min-width: 44px; }
   .fiche-tete-ligne { flex-wrap: wrap; }
   .fiche-titre { flex-basis: 100%; order: 3; }
 }

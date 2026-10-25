@@ -8,6 +8,7 @@ import { naviguer } from '../../os/router.js';
 import * as CRM from '../crm/donnees.js';
 import * as D from './donnees.js';
 import * as Li from './liste.js';
+import * as Fi from './fiche.js';
 import { vueClient, affichageDe } from './logique.js';
 import { devisHtml, formaterMontant } from './document.js';
 import { dupliquerDevis, creerVariante, infosClientDuDevis } from './editeur-ecran.js';
@@ -16,7 +17,7 @@ import { creerFiche } from './fiche-ecran.js';
 const ERREUR_LECTURE = 'La liste des devis n’a pas pu être mise à jour. La dernière version reste affichée : vérifie ta connexion puis recharge la page.';
 
 // Choix conservés jusqu'au rechargement de la page (comme les autres listes).
-let vue = 'liste';
+let vue = 'liste'; // liste | tableau | archives (les archives s'affichent en liste ; seules Liste et Tableau sont mémorisées)
 let recherche = '';
 let statutsFiltres = [];
 let periode = 'toutes';
@@ -76,6 +77,17 @@ async function changerStatut(d, action, libelle) {
   }
 }
 
+/** Archive (ou sort des archives) un devis par la fonction du serveur ; un refus ou une panne s'affiche en clair. */
+async function archiver(d, archive) {
+  try {
+    await D.archiver(d.id, archive);
+    toast(archive ? 'Devis archivé' : 'Devis sorti des archives');
+  } catch (e) {
+    console.warn(e);
+    toast(e?.message || D.MESSAGE_RESEAU_DEVIS, { type: 'erreur', duree: 8000 });
+  }
+}
+
 /** Aperçu du devis : le même HTML que le PDF, dans une fenêtre simple (cadre isolé). */
 async function voir(d) {
   let corps;
@@ -100,9 +112,12 @@ function entreesMenu(d) {
   if (d.statut === 'brouillon') items.push({ libelle: libelle('Modifier : version actuelle', a.modifierVersionActuelle), icone: 'pencil', desactive: grise(a.modifierVersionActuelle), action: () => naviguer(`devis/editeur/${d.id}`) });
   else if (a.nouvelleVariante.actif || a.nouvelleVariante.raison === Li.MESSAGE_BIENTOT) items.push({ libelle: libelle('Modifier : nouvelle variante', a.nouvelleVariante), icone: 'pencil', desactive: grise(a.nouvelleVariante), action: () => creerVariante(d) });
   items.push({ libelle: libelle('Dupliquer', a.dupliquer), icone: 'copy', desactive: grise(a.dupliquer), action: () => dupliquerDevis(d) });
-  items.push({ libelle: libelle('Facturer', a.facturer), icone: 'euro', desactive: grise(a.facturer) });
   items.push({ libelle: libelle('Envoyer', a.envoyer), icone: 'mail', desactive: grise(a.envoyer) });
-  if (d.statut === 'brouillon') { items.push({ separateur: true }); items.push({ libelle: libelle('Supprimer', a.supprimer), icone: 'trash-2', danger: true, desactive: grise(a.supprimer) }); }
+  const ar = Fi.archivageFiche(d);
+  items.push({ separateur: true });
+  items.push({ libelle: ar.libelle, icone: ar.icone, desactive: !ar.actif, action: () => archiver(d, ar.action === 'archiver') });
+  if (!ar.actif && ar.raison) items.push({ texte: ar.raison });
+  if (d.statut === 'brouillon') { items.push({ libelle: libelle('Supprimer', a.supprimer), icone: 'trash-2', danger: true, desactive: grise(a.supprimer) }); }
   return items;
 }
 
@@ -180,7 +195,7 @@ export function rendreListeDevis(conteneur, idFiche = null) {
   let idOuvertParClic = null;
   const ouvrirFiche = (id) => { idOuvertParClic = id; naviguer(`devis/liste/${id}`); };
   const fiche = creerFiche({
-    nomsDe, changerStatut, aujourdhui: () => CRM.ctx().aujourdhui,
+    nomsDe, changerStatut, archiver, aujourdhui: () => CRM.ctx().aujourdhui,
     fermer: ({ remplacer = false } = {}) => {
       if (idOuvertParClic && !remplacer) { idOuvertParClic = null; history.back(); return; }
       idOuvertParClic = null;
@@ -189,9 +204,9 @@ export function rendreListeDevis(conteneur, idFiche = null) {
   });
 
   function majBascule() {
-    remplir(bascule, [['liste', 'Liste', 'list'], ['tableau', 'Tableau', 'columns-3']].map(([id, libelle, ic]) => h('button', {
+    remplir(bascule, [['liste', 'Liste', 'list'], ['tableau', 'Tableau', 'columns-3'], ['archives', 'Archives', 'archive']].map(([id, libelle, ic]) => h('button', {
       type: 'button', class: `bascule-vue${vue === id ? ' actif' : ''}`, 'aria-pressed': String(vue === id), dataset: { vue: id },
-      onclick: () => { vue = id; ecrirePreference('vue.devis', id); rendre(); },
+      onclick: () => { vue = id; if (id !== 'archives') ecrirePreference('vue.devis', id); page = 1; rendre(); },
     }, icone(ic, { taille: 16 }), h('span', {}, libelle))));
   }
 
@@ -206,20 +221,23 @@ export function rendreListeDevis(conteneur, idFiche = null) {
     const aujourdhui = CRM.ctx().aujourdhui;
     const { du, au } = Li.bornesDePeriode(periode, aujourdhui);
     // Les anciennes versions « Remplacé » restent visibles (filtre de statut) ; tout est affiché par défaut.
-    let lignes = Li.rechercher(D.etat.devis, recherche, nomsDe);
+    const archives = vue === 'archives';
+    const tous = D.etat.devis.filter((d) => (d.archive === true) === archives);
+    let lignes = Li.rechercher(tous, recherche, nomsDe);
     lignes = Li.filtrer(lignes, { statuts: statutsFiltres, du, au, aujourdhui });
     lignes = Li.trier(lignes, tri);
-    const total = D.etat.devis.length;
-    remplir(compteur, `${total} devis`, lignes.length !== total ? ` · ${lignes.length} affiché${lignes.length > 1 ? 's' : ''}` : '');
+    const total = tous.length;
+    remplir(compteur, `${total} devis${archives ? ' archivé' + (total > 1 ? 's' : '') : ''}`, lignes.length !== total ? ` · ${lignes.length} affiché${lignes.length > 1 ? 's' : ''}` : '');
     if (!lignes.length) {
       const vraimentVide = total === 0;
+      if (vraimentVide && archives) { remplir(zone, etatVide('Aucun devis archivé. Un devis signé ou refusé se range ici avec « Archiver », dans le menu « … » de sa fiche.')); return; }
       remplir(zone, etatVide(vraimentVide ? 'Aucun devis pour l’instant.' : 'Aucun devis ne correspond.', {
         action: vraimentVide ? h('button', { type: 'button', class: 'bouton bouton-secondaire', disabled: !Li.EDITEUR_DISPONIBLE, title: Li.EDITEUR_DISPONIBLE ? null : Li.MESSAGE_BIENTOT, dataset: { action: 'nouveau-devis-vide' }, onclick: () => naviguer('devis/editeur') },
           icone('plus', { taille: 16 }), 'Nouveau devis', Li.EDITEUR_DISPONIBLE ? null : ' (bientôt disponible)') : null,
       }));
       return;
     }
-    if (vue === 'tableau') { rendreTableau(lignes, maintenant, aujourdhui); return; }
+    if (vue === 'tableau' && !archives) { rendreTableau(lignes, maintenant, aujourdhui); return; }
     rendreListe(lignes, maintenant, aujourdhui);
   }
 

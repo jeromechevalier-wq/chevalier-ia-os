@@ -168,5 +168,15 @@ export function actionsFiche(d, { editeur = EDITEUR_DISPONIBLE, suppression = SU
     apercuPdf: pdf ? { actif: true, lien: pdf } : { actif: false, raison: MESSAGE_PDF_ABSENT },
     dupliquer: editeur ? { actif: true } : bientot,
     annuler,
+    archivage: archivageFiche(d),
   };
+}
+
+export const MESSAGE_ARCHIVE_IMPOSSIBLE = 'Seul un devis signé ou refusé peut être archivé.';
+
+/** Entrée « Archiver » / « Désarchiver » du menu « … » (même schéma que les projets). Les règles sont celles du serveur : on n'archive qu'un devis signé ou refusé. */
+export function archivageFiche(d) {
+  if (d?.archive === true) return { actif: true, action: 'desarchiver', libelle: 'Désarchiver', icone: 'archive-restore' };
+  if (peutArchiver(d)) return { actif: true, action: 'archiver', libelle: 'Archiver', icone: 'archive' };
+  return { actif: false, action: 'archiver', libelle: 'Archiver', icone: 'archive', raison: MESSAGE_ARCHIVE_IMPOSSIBLE };
 }
