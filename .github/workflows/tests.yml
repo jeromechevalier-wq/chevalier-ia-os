@@ -6,7 +6,8 @@
 #   3. lancement à la main avec « complet » coché (par défaut).
 # En plus du rapide et du smoke, la PR rejoue SES propres parcours navigateur : les fichiers tests/e2e/*.spec.js qu'elle ajoute ou modifie (format ordinateur). Les fichiers de test unitaires modifiés tournent déjà dans le niveau rapide.
 # Le test complet (ordinateur + téléphone) rejoue tout chaque nuit : voir tests-nuit.yml (alerte par issue GitHub si la nuit est rouge).
-# Le résultat est la coche GitHub « Tests » : on fusionne quand elle est verte. Aucun secret : émulateurs Firebase, projet demo-chevalier-ia-os.
+# (25/10/2026) Le palier complet est découpé en 7 jobs parallèles (6 parties des parcours navigateur + les séries sans navigateur) au lieu d'un seul job de 25 à 30 minutes ; le job final « Tests » les réunit. Le chemin rapide est inchangé (un seul job, mêmes étapes).
+# Le résultat est la coche GitHub « Tests » (le dernier job, qui réunit les autres) : on fusionne quand elle est verte. Aucun secret : émulateurs Firebase, projet demo-chevalier-ia-os.
 name: Tests
 on:
   pull_request:
@@ -25,15 +26,15 @@ concurrency:
 permissions:
   contents: read
 jobs:
-  tests:
-    name: Tests
+  # Décide du niveau : rapide, plateforme ou complet (mêmes règles qu'avant). Pas d'installation : quelques secondes.
+  niveau:
+    name: Niveau de test
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    env:
-      CI: 'true'
-      # Le navigateur de test est réglé sur Europe/Paris ; le processus Node doit l'être aussi (sinon les heures attendues par certains tests sont décalées de 2 h).
-      TZ: Europe/Paris
-      TESTS_WORKERS: '2'
+    timeout-minutes: 5
+    outputs:
+      complet: ${{ steps.niveau.outputs.complet }}
+      plateforme: ${{ steps.niveau.outputs.plateforme }}
+      specs: ${{ steps.niveau.outputs.specs }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -74,6 +75,23 @@ jobs:
           fi
           echo "specs=$specs" >> "$GITHUB_OUTPUT"
           echo "Parcours de la PR : ${specs:-aucun}"
+
+  # Chemin rapide (PR ordinaires) : un seul job, mêmes étapes qu'avant.
+  rapide:
+    name: Rapide
+    needs: niveau
+    if: needs.niveau.outputs.complet != 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CI: 'true'
+      # Le navigateur de test est réglé sur Europe/Paris ; le processus Node doit l'être aussi (sinon les heures attendues par certains tests sont décalées de 2 h).
+      TZ: Europe/Paris
+      TESTS_WORKERS: '2'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -109,37 +127,31 @@ jobs:
         run: npx playwright install-deps chromium
         working-directory: tests
       - name: Niveau rapide (règles, logique, statique, fonctions)
-        if: steps.niveau.outputs.complet != 'true'
         run: npm run test:rapide
         working-directory: tests
       - name: Smoke (5 parcours essentiels dans le navigateur)
-        if: steps.niveau.outputs.complet != 'true'
         run: npm run test:smoke
         working-directory: tests
       - name: Parcours de cette PR (fichiers tests/e2e/*.spec.js ajoutés ou modifiés, ordinateur)
-        if: steps.niveau.outputs.complet != 'true' && steps.niveau.outputs.specs != ''
+        if: needs.niveau.outputs.specs != ''
         env:
-          SPECS: ${{ steps.niveau.outputs.specs }}
+          SPECS: ${{ needs.niveau.outputs.specs }}
         # $SPECS non entouré de guillemets exprès : une liste de fichiers séparés par des espaces (noms limités à [A-Za-z0-9._-] plus haut).
         run: node lancer-tout.js --e2e $SPECS --project=ordinateur
         working-directory: tests
       - name: Séries de la plateforme clients (PR qui touche functions-plateforme/)
-        if: steps.niveau.outputs.complet != 'true' && steps.niveau.outputs.plateforme == 'true'
+        if: needs.niveau.outputs.plateforme == 'true'
         run: |
           npm run test:automatisations
           npm run test:outil-client
           npm run test:storage
           node lancer-tout.js --e2e e2e/mon-espace.spec.js e2e/sans-pause.spec.js --project=ordinateur
         working-directory: tests
-      - name: Palier complet (ordinateur)
-        if: steps.niveau.outputs.complet == 'true'
-        run: npm run test:complet
-        working-directory: tests
       - name: Captures et rapport en cas d'échec
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: tests-echec
+          name: tests-echec-rapide
           path: |
             tests/test-results
             tests/playwright-report
@@ -147,3 +159,175 @@ jobs:
           retention-days: 7
           include-hidden-files: true
           if-no-files-found: ignore
+
+  # Palier complet, partie navigateur : les parcours format ordinateur, en 6 parties (Playwright --shard). Chaque partie a ses émulateurs et ses ports sur sa propre machine ; TESTS_DECALAGE sert à les distinguer (jamais 2 ni 7).
+  complet-navigateur:
+    name: Complet navigateur ${{ matrix.partie }}/6
+    needs: niveau
+    if: needs.niveau.outputs.complet == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { partie: 1, decalage: 1 }
+          - { partie: 2, decalage: 3 }
+          - { partie: 3, decalage: 4 }
+          - { partie: 4, decalage: 5 }
+          - { partie: 5, decalage: 6 }
+          - { partie: 6, decalage: 8 }
+    env:
+      CI: 'true'
+      # Le navigateur de test est réglé sur Europe/Paris ; le processus Node doit l'être aussi (sinon les heures attendues par certains tests sont décalées de 2 h).
+      TZ: Europe/Paris
+      TESTS_WORKERS: '2'
+      TESTS_DECALAGE: ${{ matrix.decalage }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            tests/package-lock.json
+            functions/package-lock.json
+            functions-plateforme/package-lock.json
+            scripts/plateforme/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Installer les dépendances (versions figées par package-lock.json)
+        run: |
+          npm ci --prefix tests
+          npm ci --prefix functions
+          npm ci --prefix functions-plateforme
+          npm ci --prefix scripts/plateforme
+      - name: Cache du navigateur Playwright
+        id: navigateur
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('tests/package-lock.json') }}
+      - name: Installer le navigateur de test
+        if: steps.navigateur.outputs.cache-hit != 'true'
+        run: npx playwright install chromium --with-deps
+        working-directory: tests
+      # Navigateur en cache : il manque seulement les bibliothèques système (installées par apt, hors du cache).
+      - name: Bibliothèques système du navigateur (navigateur déjà en cache)
+        if: steps.navigateur.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+        working-directory: tests
+      - name: Parcours navigateur, partie ${{ matrix.partie }} sur 6 (ordinateur)
+        run: node lancer-tout.js --e2e --project=ordinateur --shard=${{ matrix.partie }}/6
+        working-directory: tests
+      - name: Captures et rapport en cas d'échec
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tests-echec-navigateur-${{ matrix.partie }}
+          path: |
+            tests/test-results
+            tests/playwright-report
+            tests/.config-ports/*.log
+          retention-days: 7
+          include-hidden-files: true
+          if-no-files-found: ignore
+
+  # Palier complet, tout le reste : règles, logique, statique, fonctions, porte, storage, outil client, automatisations (4 séries d'émulateurs en même temps, comme avant).
+  complet-sans-navigateur:
+    name: Complet sans navigateur
+    needs: niveau
+    if: needs.niveau.outputs.complet == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CI: 'true'
+      # Le navigateur de test est réglé sur Europe/Paris ; le processus Node doit l'être aussi (sinon les heures attendues par certains tests sont décalées de 2 h).
+      TZ: Europe/Paris
+      TESTS_DECALAGE: '9'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            tests/package-lock.json
+            functions/package-lock.json
+            functions-plateforme/package-lock.json
+            scripts/plateforme/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Installer les dépendances (versions figées par package-lock.json)
+        run: |
+          npm ci --prefix tests
+          npm ci --prefix functions
+          npm ci --prefix functions-plateforme
+          npm ci --prefix scripts/plateforme
+      - name: Cache du navigateur Playwright
+        id: navigateur
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('tests/package-lock.json') }}
+      - name: Installer le navigateur de test
+        if: steps.navigateur.outputs.cache-hit != 'true'
+        run: npx playwright install chromium --with-deps
+        working-directory: tests
+      # Navigateur en cache : il manque seulement les bibliothèques système (installées par apt, hors du cache).
+      - name: Bibliothèques système du navigateur (navigateur déjà en cache)
+        if: steps.navigateur.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+        working-directory: tests
+      - name: Séries sans navigateur (noyau, storage, outil client, automatisations)
+        run: npm run test:complet-sans-navigateur
+        working-directory: tests
+      - name: Captures et rapport en cas d'échec
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tests-echec-sans-navigateur
+          path: |
+            tests/test-results
+            tests/playwright-report
+            tests/.config-ports/*.log
+          retention-days: 7
+          include-hidden-files: true
+          if-no-files-found: ignore
+
+  # La coche obligatoire de la protection de branche. Elle tourne toujours (always) et vérifie le résultat de chaque job :
+  # - le niveau doit avoir réussi ;
+  # - niveau « rapide » : le job Rapide doit avoir réussi, et les jobs du complet doivent avoir été sautés ;
+  # - niveau « complet » : les 6 parties navigateur ET le job sans navigateur doivent avoir réussi, et Rapide doit avoir été sauté.
+  # Un job échoué, annulé ou sauté à tort => échec. Ne jamais renommer ce job (le nom « Tests » est celui que GitHub exige).
+  final:
+    name: Tests
+    needs: [niveau, rapide, complet-navigateur, complet-sans-navigateur]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Réunir les résultats
+        env:
+          NIVEAU: ${{ needs.niveau.result }}
+          COMPLET: ${{ needs.niveau.outputs.complet }}
+          RAPIDE: ${{ needs.rapide.result }}
+          NAVIGATEUR: ${{ needs.complet-navigateur.result }}
+          SANS_NAVIGATEUR: ${{ needs.complet-sans-navigateur.result }}
+        run: |
+          echo "niveau=$NIVEAU complet=$COMPLET | rapide=$RAPIDE navigateur=$NAVIGATEUR sans-navigateur=$SANS_NAVIGATEUR"
+          if [ "$NIVEAU" != "success" ]; then echo "Le choix du niveau n'a pas réussi : ÉCHEC."; exit 1; fi
+          if [ "$COMPLET" = "true" ]; then
+            [ "$NAVIGATEUR" = "success" ] && [ "$SANS_NAVIGATEUR" = "success" ] && [ "$RAPIDE" = "skipped" ] || { echo "Palier complet : une partie a échoué, a été annulée ou n'a pas tourné : ÉCHEC."; exit 1; }
+          else
+            [ "$RAPIDE" = "success" ] && [ "$NAVIGATEUR" = "skipped" ] && [ "$SANS_NAVIGATEUR" = "skipped" ] || { echo "Niveau rapide : le job Rapide a échoué, a été annulé ou n'a pas tourné : ÉCHEC."; exit 1; }
+          fi
+          echo "Tout est vert."
