@@ -10,6 +10,7 @@
     "test:module": "node lancer-module.js",
     "test:smoke": "node lancer-tout.js --e2e --grep @smoke --project=ordinateur",
     "test:complet": "node lancer-tout.js",
+    "test:complet-sans-navigateur": "node lancer-tout.js --sans-navigateur",
     "test:nuit": "node lancer-tout.js --nuit",
     "test:sequentiel": "firebase emulators:exec --config ../firebase.json --project demo-chevalier-ia-os --only auth,firestore \"npm run tous\" && npm run test:storage && npm run test:outil-client && npm run test:automatisations",
     "tous": "npm run test:regles && npm run test:logique && npm run preparer && npm run test:statique && npm run test:fonctions && npm run test:porte && npm run test:e2e",

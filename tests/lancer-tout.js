@@ -13,6 +13,8 @@ const RACINE = resolve(TESTS, '..');
 const DOSSIER = join(TESTS, '.config-ports');
 const SCRIPTS = JSON.parse(readFileSync(join(TESTS, 'package.json'), 'utf8')).scripts;
 const RAPIDE = process.argv.includes('--rapide');
+// `--sans-navigateur` : le palier complet moins la série navigateur (noyau, storage, outil client, automatisations). GitHub le lance en parallèle des 6 parties navigateur (`--e2e … --shard=i/6`) ; à eux tous, ils couvrent exactement le palier complet.
+const SANS_NAVIGATEUR = process.argv.includes('--sans-navigateur');
 // `--module <nom>` : seulement les fichiers dont le nom commence par <nom> (tests/<nom>*.test.js et tests/e2e/<nom>*.spec.js), format ordinateur.
 const POS_MODULE = process.argv.indexOf('--module');
 const MODULE = POS_MODULE === -1 ? null : (process.argv[POS_MODULE + 1] || '');
@@ -102,18 +104,22 @@ function definirSeries() {
       etape('fonctions', sansPreparer('test:fonctions')), etape('porte', 'npm run test:porte')] })];
   }
   if (MODULE !== null) return seriesModule(MODULE, onlyStorage, cmdStorage, onlyOutil, cmdOutil, onlyAuto, cmdAuto);
-  return [
-    // Nuit : un émulateur par format (ordinateur, téléphone). Une seule série de 33 min faisait caler l'émulateur Firestore en fin de course (19/10/2026).
-    ...(NUIT ? [
-      serie({ nom: 'e2e', config: 'firebase.json', only: 'auth,firestore', etapes: [etape('e2e', `npx playwright test --project=ordinateur ${REPETER}`)] }),
-      serie({ nom: 'e2e-telephone', config: 'firebase.json', only: 'auth,firestore', etapes: [etape('e2e-telephone', `npx playwright test --project=telephone ${REPETER}`)] }),
-    ] : [serie({ nom: 'e2e', config: 'firebase.json', only: 'auth,firestore', etapes: [etape('e2e', `npx playwright test --project=ordinateur`)] })]),
+  const autres = [
     serie({ nom: 'noyau', config: 'firebase.json', only: 'auth,firestore', etapes: [
       etape('regles', 'npm run test:regles'), etape('logique', 'npm run test:logique'), etape('statique', 'npm run test:statique'),
       etape('fonctions', sansPreparer('test:fonctions')), etape('porte', 'npm run test:porte')] }),
     serie({ nom: 'storage', config: 'firebase.plateforme.json', only: onlyStorage, etapes: [etape('storage', cmdStorage)] }),
     serie({ nom: 'outil-client', config: 'firebase.plateforme.json', only: onlyOutil, etapes: [etape('outil-client', cmdOutil)] }),
     serie({ nom: 'automatisations', config: 'firebase.plateforme.json', only: onlyAuto, etapes: [etape('automatisations', cmdAuto)] }),
+  ];
+  if (SANS_NAVIGATEUR) return autres;
+  return [
+    // Nuit : un émulateur par format (ordinateur, téléphone). Une seule série de 33 min faisait caler l'émulateur Firestore en fin de course (19/10/2026).
+    ...(NUIT ? [
+      serie({ nom: 'e2e', config: 'firebase.json', only: 'auth,firestore', etapes: [etape('e2e', `npx playwright test --project=ordinateur ${REPETER}`)] }),
+      serie({ nom: 'e2e-telephone', config: 'firebase.json', only: 'auth,firestore', etapes: [etape('e2e-telephone', `npx playwright test --project=telephone ${REPETER}`)] }),
+    ] : [serie({ nom: 'e2e', config: 'firebase.json', only: 'auth,firestore', etapes: [etape('e2e', `npx playwright test --project=ordinateur`)] })]),
+    ...autres,
   ];
 }
 
@@ -166,7 +172,7 @@ async function principal() {
   const prep = spawnSync('npm', ['run', '--silent', 'preparer'], { cwd: TESTS, env, encoding: 'utf8' });
   if (prep.status !== 0) { console.error(prep.stdout, prep.stderr); process.exit(1); }
 
-  console.log(`${RAPIDE ? 'Palier rapide' : MODULE !== null ? `Module « ${MODULE} »` : ARGS_E2E !== null ? 'Navigateur seul' : NUIT ? 'Suite de nuit' : 'Palier complet'} : ${series.length} séries en même temps (TESTS_DECALAGE=${d}).`);
+  console.log(`${RAPIDE ? 'Palier rapide' : SANS_NAVIGATEUR ? 'Palier complet sans navigateur' : MODULE !== null ? `Module « ${MODULE} »` : ARGS_E2E !== null ? 'Navigateur seul' : NUIT ? 'Suite de nuit' : 'Palier complet'} : ${series.length} séries en même temps (TESTS_DECALAGE=${d}).`);
   const debut = Date.now();
   const resultats = await Promise.all(series.map(async (s) => {
     const r = await lancer(s);
