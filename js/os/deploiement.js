@@ -28,10 +28,10 @@ const geler = (liste) => Object.freeze(liste.map((e) => Object.freeze(e)));
 /** Étapes de la coque (toujours présentes, chez Jérôme comme chez chaque client). */
 export const ETAPES_COQUE = geler([
   { id: 'fonctions-serveur', groupe: 'avant', libelle: 'Les fonctions du serveur répondent', module: null, type: 'auto', controle: 'serveur.fonctions',
-    reparation: 'Les fonctions du serveur ne répondent pas : elles ne sont pas publiées, ou pas à jour. Jérôme lance le workflow « Déploiement plateforme clients » (ou, chez lui, attend la fin du déploiement de main), puis clique sur « Revérifier ».',
+    reparation: 'Les fonctions du serveur ne répondent pas : elles ne sont pas publiées, ou pas à jour. L’administrateur de la plateforme les publie (workflow « Déploiement plateforme clients »), puis clique sur « Revérifier ».',
     lien: `${DOCS}deploiement-plateforme.md` },
   { id: 'regles-a-jour', groupe: 'avant', libelle: 'Règles de la base publiées et à jour', module: null, type: 'manuel',
-    reparation: 'Si du code a changé depuis le dernier client, Jérôme lance le workflow « Déploiement plateforme clients » avec le choix « regles » (jamais Claude).',
+    reparation: 'Si du code a changé depuis le dernier client, l’administrateur de la plateforme publie les règles (workflow « Déploiement plateforme clients », choix « regles »).',
     lien: `${DOCS}deploiement-plateforme.md` },
   { id: 'membres', groupe: 'pendant', libelle: 'Personnes autorisées bien enregistrées', module: null, type: 'auto', controle: 'serveur.membres',
     reparation: 'La liste des personnes de l’espace n’est pas cohérente (ou il n’y a aucun éditeur). Ouvre Réglages > Membres et rôles, ou relance « node scripts/nouveau-client.js afficher <client> » au Terminal pour voir ce qui manque.',
@@ -71,7 +71,7 @@ export function problemesEtapes(etapes) {
     if (e?.route !== undefined && (typeof e.route !== 'string' || /^[/#]|:\/\//.test(e.route))) problemes.push(`${nom} : route invalide`);
     if (e?.lien === undefined && e?.route === undefined) problemes.push(`${nom} : ni lien ni route`);
     if (e?.module !== null && typeof e?.module !== 'string') problemes.push(`${nom} : module invalide`);
-    if (/CRM/.test(`${e?.libelle ?? ''} ${e?.reparation ?? ''}`)) problemes.push(`${nom} : le mot « CRM » ne s'écrit pas à l'écran`);
+    if (/\bC[R]M\b/.test(`${e?.libelle ?? ''} ${e?.reparation ?? ''}`)) problemes.push(`${nom} : jargon interdit à l'écran (voir docs/consignes-ui.md)`);
   }
   return problemes;
 }
