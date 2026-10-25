@@ -213,7 +213,7 @@ describe('R5 brouillon à la demande : remplace le précédent', () => {
     assert.equal(f.vus.envois.length, 2);
     assert.deepEqual([...new Set(f.vus.envois)], ['devis/aff1/d1/brouillon.pdf']); // même nom : le second remplace le premier
     assert.equal(f.objets.size, 1);
-    const docs = m.collections[C.affaires][0].documents.filter((d) => /Brouillon/.test(d.libelle));
+    const docs = m.collections[C.affaires][0].documents.filter((d) => /brouillon/i.test(d.libelle));
     assert.equal(docs.length, 1);
     assert.equal(docs[0].libelle, 'Devis brouillon – Cuisine.pdf');
     assert.equal(docs[0].url, `${BASE_LIEN}/#/devis/pdf/d1/brouillon`);
