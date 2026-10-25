@@ -499,7 +499,7 @@ test('2 l’unité d’une ligne venue d’un article est verrouillée (elle se 
   await expect(page.locator('tr[data-id="l2"] select[data-champ="unite"]')).toBeEnabled();
 });
 
-test('5 la croix en haut à droite ferme le devis (retour à la liste) ; « Finaliser » n’existe plus, remplacé par « Envoyer »', async ({ page }) => {
+test('5 la flèche « ‹ Devis » en haut à gauche ferme le devis (retour à la liste) ; « Finaliser » n’existe plus, remplacé par « Envoyer »', async ({ page }) => {
   await semer();
   await ouvrir(page, await devis('d11', [{ id: 's1', titre: 'Cuisine', lignes: [ligne('l1', 'Carrelage', 2, 50)] }]));
   await expect(page.locator('[data-action="finaliser"]')).toHaveCount(0);

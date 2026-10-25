@@ -347,7 +347,7 @@ export function rendreEditeurDevis(conteneur, id) {
       }, icone(pictogramme, { taille: 16 }), libelle)));
     ref.onglets = onglets;
     const barre = h('header', { class: 'barre-devis' },
-      h('div', { class: 'barre-devis-gauche' }, h('div', { class: 'titre-devis' }, ref.titre, ref.pastille, ref.indicateur, ref.boutonReessayer, ref.compteurManquants), onglets),
+      h('div', { class: 'barre-devis-gauche' }, boutonRetour(lecture), h('div', { class: 'titre-devis' }, ref.titre, ref.pastille, ref.indicateur, ref.boutonReessayer, ref.compteurManquants), onglets),
       h('div', { class: 'barre-devis-droite' }, lecture ? boutonsLecture(d) : boutonsEdition()));
     ref.bandeauConflit = h('p', { class: 'bandeau-lecture-seule', role: 'alert', hidden: !conflit, dataset: { valeur: 'conflit' } }, 'Ce devis a été modifié ailleurs. Tes changements ne sont pas enregistrés tant que tu n’as pas rechargé. ',
       h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'recharger' }, onclick: () => { conflit = false; charger(); } }, 'Recharger'));
@@ -391,8 +391,12 @@ export function rendreEditeurDevis(conteneur, id) {
       h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'annuler' }, onclick: () => naviguer('devis/liste') }, 'Annuler'),
       // « Envoyer » remplace « Finaliser » : imprimer, télécharger ou envoyer par e-mail ; le devis est finalisé (numéroté, prix figés) au moment de l'envoi.
       h('button', { type: 'button', class: 'bouton bouton-principal', dataset: { action: 'envoyer' }, 'aria-haspopup': 'menu', 'aria-expanded': 'false', onclick: (ev) => ouvrirMenuEnvoyer(ev.currentTarget) }, icone('mail', { taille: 16 }), 'Envoyer', icone('chevron-down', { taille: 14 })),
-      h('button', { type: 'button', class: 'bouton-icone', dataset: { action: 'fermer' }, 'aria-label': 'Fermer le devis', onclick: () => naviguer('devis/liste') }, icone('x', { taille: 18 })),
     ];
+  }
+
+  // Flèche « ‹ Devis » tout à gauche de la barre, comme dans la fiche d'un projet : retour à la liste des devis (même chemin que l'ancienne croix, donc même confirmation si des changements ne sont pas enregistrés).
+  function boutonRetour(lecture) {
+    return h('a', { class: 'lien-retour', href: '#/devis/liste', dataset: { action: lecture ? 'retour-devis' : 'fermer' }, 'aria-label': 'Retour à la liste des devis', onclick: (ev) => { ev.preventDefault(); naviguer('devis/liste'); } }, icone('chevron-left', { taille: 16 }), 'Devis');
   }
 
   // Les trois groupes de cases du menu « Options » : Édition, Document, Clients (enregistrées dans `devis.affichage`), puis Import / Export (pas encore là).
