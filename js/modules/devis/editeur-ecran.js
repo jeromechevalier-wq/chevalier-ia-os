@@ -56,7 +56,7 @@ export function infosClientDuDevis(d) {
   return { telephone, email: Ed.emailsDeFiche(fiche)[0] ?? '', numeroTva: fiche.numeroTva ?? fiche.tva ?? '', siren: fiche.siren ?? '' };
 }
 /** Document complet du devis (le même pour l'aperçu, l'impression de l'éditeur et celle de la fiche). */
-export const htmlImpressionDevis = (d) => htmlDuDevis(d, { clientNom: clientDuDevis(d) || null, client: infosClientDuDevis(d) });
+export const htmlImpressionDevis = (d) => htmlDuDevis(d, { clientNom: clientDuDevis(d) || null, client: infosClientDuDevis(d), emetteur: D.etat.reglages.entreprise });
 /** Imprime le devis (ou l'enregistre en PDF) sans serveur. À appeler directement dans un clic. Rend { ok, erreur }. */
 export function imprimerLeDevis(d) { return imprimerDevis({ html: htmlImpressionDevis(d) }); }
 const affaires = () => CRM.etat.affaires.filter((a) => !a.archive).sort((a, b) => String(a.titre).localeCompare(String(b.titre), 'fr'));
@@ -227,6 +227,9 @@ export function rendreEditeurDevis(conteneur, id) {
   // Les mises à jour du serveur : lecture seule dès que le devis n'est plus un brouillon ; en lecture seule on suit toujours la dernière version.
   function surDonnees() {
     if (!montre) { charger(); return; }
+    // « Mon entreprise » modifiée ailleurs : l'aperçu ouvert se met à jour.
+    const entreprise = JSON.stringify(D.etat.reglages.entreprise);
+    if (entreprise !== entrepriseAffichee) { entrepriseAffichee = entreprise; if (onglet === 'apercu' && ref.panneauApercu) rendreApercu(); }
     const d = devisCourant();
     if (!d) return;
     if (!lecture && d.statut === 'brouillon' && !conflit && !Ed.memeContenu(d, enregistre) && !(enVol && Ed.memeContenu(d, enVol))) {
@@ -1358,6 +1361,7 @@ export function rendreEditeurDevis(conteneur, id) {
   }
 
   // ------------------------------------------------ démarrage
+  let entrepriseAffichee = JSON.stringify(D.etat.reglages.entreprise);
   charger();
   const rafraichir = planifier(surDonnees);
   const arrets = [D.surChangement(rafraichir), CRM.surChangement(() => { if (montre && !lecture) { majClients(); } else if (!montre) rafraichir(); })];

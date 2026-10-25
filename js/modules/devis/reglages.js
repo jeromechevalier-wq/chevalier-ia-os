@@ -1,4 +1,4 @@
-// Réglages du module Devis : nom du bordereau, marge, TVA, durée de validité, étapes liées, mention d'émetteur.
+// Réglages du module Devis : nom du bordereau, marge, TVA, durée de validité, étapes liées, mention d'émetteur, et « Mon entreprise » (le bloc en haut à gauche du devis).
 // Aucune règle ici : le contrôle (validerReglagesDevis) est dans articles.js, l'écriture dans donnees.js. On modifie un brouillon ; « Enregistrer » contrôle tout, puis écrit.
 import { h, icone, remplir, toast, iconeInfo } from '../../os/ui.js';
 import { ajouterGardeSortie } from '../../os/router.js';
@@ -6,7 +6,7 @@ import * as CRM from '../crm/donnees.js';
 import * as D from './donnees.js';
 import * as A from './articles.js';
 import { reglagesFamilles } from './reglages-familles.js';
-import { MODES_MARGE, REGIMES_TVA, TAUX_TVA_DEFAUT } from './logique.js';
+import { MODES_MARGE, REGIMES_TVA, TAUX_TVA_DEFAUT, erreursEmetteur } from './logique.js';
 
 const ERREUR_ECRITURE = 'Enregistrement impossible : réessaie dans un instant, ou demande à un éditeur de l’espace.';
 
@@ -14,12 +14,22 @@ const ERREUR_ECRITURE = 'Enregistrement impossible : réessaie dans un instant, 
 const brouillonDe = (r) => ({
   nomBordereau: r.nomBordereau, modeMarge: r.modeMarge, marge: String(r.marge).replace('.', ','), regimeTva: r.regimeTva, tauxProposes: [...r.tauxProposes],
   tauxTvaDefaut: r.tauxTvaDefaut, dureeValiditeJours: String(r.dureeValiditeJours), etapeAFaire: r.etapeAFaire, etapeEnvoye: r.etapeEnvoye, mentionEmetteur: r.mentionEmetteur,
+  entreprise: entrepriseBrouillon(r.entreprise),
+});
+
+/** « Mon entreprise » en brouillon : tous les champs existent (texte vide = non renseigné), pour que les champs se remplissent et se comparent simplement. */
+const entrepriseBrouillon = (e = {}) => ({
+  nom: e.nom ?? '', forme: e.forme ?? '', siret: e.siret ?? '', tva: e.tva ?? '', telephone: e.telephone ?? '', email: e.email ?? '', site: e.site ?? '', registreMetiers: e.registreMetiers ?? '',
+  couleur: e.couleur ?? '',
+  adresse: { ligne1: e.adresse?.ligne1 ?? '', codePostal: e.adresse?.codePostal ?? '', ville: e.adresse?.ville ?? '' },
+  assurance: { garantie: e.assurance?.garantie ?? '', assureur: e.assurance?.assureur ?? '', adresse: e.assurance?.adresse ?? '', zone: e.assurance?.zone ?? '' },
+  mediateur: { nom: e.mediateur?.nom ?? '', email: e.mediateur?.email ?? '', site: e.mediateur?.site ?? '' },
 });
 
 export function reglages(page) {
   const sec = h('section', { class: 'carte-section', id: 'reglages-devis' },
     h('h2', {}, icone('file-text', { taille: 18 }), 'Réglages des devis'),
-    h('p', { class: 'aide' }, 'Le nom de ton catalogue de prix, la marge, la TVA, la durée de validité et les étapes de tes affaires liées aux devis. « Enregistrer » s’allume dès que tu changes quelque chose.'));
+    h('p', { class: 'aide' }, 'Le nom de ton catalogue de prix, la marge, la TVA, la durée de validité, les étapes de tes affaires liées aux devis et les informations de ton entreprise (en bas). « Enregistrer » s’allume dès que tu changes quelque chose.'));
   const zone = h('div', { class: 'pile reglages-devis' });
   const erreurGenerale = h('p', { class: 'erreur', role: 'alert', dataset: { erreur: 'general' } });
   let brouillon = brouillonDe(D.etat.reglages);
@@ -42,6 +52,64 @@ export function reglages(page) {
   const liste = (cle, options, valeur, surChoix) => h('select', { class: 'champ', id: `devis-${cle}`, dataset: { champ: cle }, onchange: (e) => surChoix(e.target.value) },
     options.map((o) => h('option', { value: String(o.valeur), selected: String(o.valeur) === String(valeur) }, o.libelle)));
   const texte = (cle, valeur, attrs = {}) => h('input', { type: 'text', class: 'champ', id: `devis-${cle}`, value: valeur, autocomplete: 'off', dataset: { champ: cle }, oninput: (e) => changer({ [cle]: e.target.value }), ...attrs });
+
+  // « Mon entreprise » : `chemin` = ['assurance', 'garantie'] ou ['nom']. Le champ s'écrit dans le brouillon sans redessiner l'écran (le curseur reste en place).
+  const lireEnt = (chemin) => chemin.reduce((o, k) => o[k], brouillon.entreprise);
+  const ecrireEnt = (chemin, valeur) => { chemin.slice(0, -1).reduce((o, k) => o[k], brouillon.entreprise)[chemin.at(-1)] = valeur; majMentions(); majBoutons(); };
+  const cleEnt = (chemin) => `entreprise.${chemin.join('.')}`;
+  const champEnt = (chemin, libelle, { aide = null, attrs = {} } = {}) => {
+    const cle = cleEnt(chemin);
+    return h('div', { class: 'bloc-champ', dataset: { reglage: cle } },
+      h('label', { class: 'etiquette', for: `devis-${cle}` }, libelle, aide ? iconeInfo(aide, libelle) : null),
+      h('input', { type: 'text', class: 'champ', id: `devis-${cle}`, value: lireEnt(chemin), autocomplete: 'off', dataset: { champ: cle }, oninput: (e) => ecrireEnt(chemin, e.target.value), ...attrs }),
+      h('p', { class: 'erreur erreur-champ', role: 'alert', dataset: { erreur: cle } }));
+  };
+  const listeMentions = h('ul', { class: 'aide', dataset: { zone: 'mentions-manquantes' } });
+  const titreMentions = h('p', { class: 'etiquette', dataset: { zone: 'titre-mentions' } }, 'Mentions manquantes');
+  /** Les mentions manquantes se recalculent à chaque frappe ; elles n'empêchent jamais d'enregistrer. */
+  function majMentions() {
+    const e = brouillon.entreprise;
+    const sortie = A.validerEntreprise(e).entreprise; // les champs vides disparaissent : erreursEmetteur lit la même forme que le document
+    const { mentions } = erreursEmetteur(sortie);
+    remplir(listeMentions, mentions.map((m) => h('li', {}, m)));
+    titreMentions.hidden = !mentions.length;
+    listeMentions.hidden = !mentions.length;
+  }
+  const couleurAffichee = () => brouillon.entreprise.couleur || '#666666';
+  function blocCouleur() {
+    const cle = 'entreprise.couleur';
+    const choix = h('input', { type: 'color', class: 'champ champ-couleur', id: `devis-${cle}`, value: couleurAffichee(), dataset: { champ: cle },
+      oninput: (e) => { ecrireEnt(['couleur'], e.target.value); etat.textContent = 'Couleur choisie.'; } });
+    const etat = h('span', { class: 'discret' }, brouillon.entreprise.couleur ? 'Couleur choisie.' : 'Couleur par défaut (gris).');
+    const defaut = h('button', { type: 'button', class: 'bouton', dataset: { action: 'couleur-par-defaut' },
+      onclick: () => { ecrireEnt(['couleur'], ''); choix.value = '#666666'; etat.textContent = 'Couleur par défaut (gris).'; } }, 'Remettre la couleur par défaut');
+    return h('div', { class: 'bloc-champ', dataset: { reglage: cle } },
+      h('label', { class: 'etiquette', for: `devis-${cle}` }, 'Couleur du tableau', iconeInfo('La couleur des titres et des traits du tableau de ton devis. Sans choix, le devis reste gris.', 'Couleur du tableau')),
+      h('div', { class: 'ligne-boutons' }, choix, etat, defaut),
+      h('p', { class: 'erreur erreur-champ', role: 'alert', dataset: { erreur: cle } }));
+  }
+  function sectionEntreprise() {
+    return h('div', { class: 'pile', id: 'mon-entreprise', dataset: { zone: 'mon-entreprise' } },
+      h('h3', {}, icone('building-2', { taille: 18 }), 'Mon entreprise'),
+      h('p', { class: 'aide' }, 'Ces informations s’affichent en haut à gauche de tes devis (aperçu et impression). Tous les champs sont facultatifs : un champ vide n’apparaît pas.'),
+      champEnt(['nom'], 'Nom de l’entreprise'),
+      h('div', { class: 'ligne-champs' }, champEnt(['forme'], 'Forme juridique', { aide: 'Par exemple : SARL au capital de 5 000 €, SAS, entreprise individuelle.' }), champEnt(['siret'], 'SIRET', { attrs: { inputmode: 'numeric' } })),
+      champEnt(['tva'], 'Numéro de TVA intracommunautaire'),
+      champEnt(['adresse', 'ligne1'], 'Adresse (rue)'),
+      h('div', { class: 'ligne-champs' }, champEnt(['adresse', 'codePostal'], 'Code postal', { attrs: { inputmode: 'numeric' } }), champEnt(['adresse', 'ville'], 'Ville')),
+      h('div', { class: 'ligne-champs' }, champEnt(['telephone'], 'Téléphone', { attrs: { inputmode: 'tel' } }), champEnt(['email'], 'E-mail', { attrs: { inputmode: 'email' } })),
+      champEnt(['site'], 'Site web'),
+      champEnt(['registreMetiers'], 'Registre des métiers', { aide: 'Par exemple : RM 123 456 789 Paris. Écris la mention telle que tu veux la voir sur le devis.' }),
+      blocCouleur(),
+      h('h4', {}, 'Assurance professionnelle'),
+      champEnt(['assurance', 'garantie'], 'Garantie', { aide: 'Par exemple : garantie décennale n° 123456.' }),
+      h('div', { class: 'ligne-champs' }, champEnt(['assurance', 'assureur'], 'Assureur'), champEnt(['assurance', 'adresse'], 'Adresse de l’assureur')),
+      champEnt(['assurance', 'zone'], 'Zone de couverture', { aide: 'Par exemple : France entière.' }),
+      h('h4', {}, 'Médiateur de la consommation'),
+      champEnt(['mediateur', 'nom'], 'Nom du médiateur'),
+      h('div', { class: 'ligne-champs' }, champEnt(['mediateur', 'email'], 'E-mail du médiateur'), champEnt(['mediateur', 'site'], 'Site du médiateur')),
+      titreMentions, listeMentions);
+  }
 
   function rendre() {
     const etapes = CRM.etat.config.etapes.filter((e) => e.actif);
@@ -72,7 +140,9 @@ export function reglages(page) {
         bloc('etapeEnvoye', 'Étape où il a été envoyé', liste('etapeEnvoye', optionsEtapes, brouillon.etapeEnvoye, (v) => changer({ etapeEnvoye: v })),
           'L’étape de tes affaires une fois le devis envoyé au client.')),
       bloc('mentionEmetteur', 'Mention d’émetteur (facultatif)', h('textarea', { class: 'champ', id: 'devis-mentionEmetteur', rows: 3, maxlength: '500', dataset: { champ: 'mentionEmetteur' }, value: brouillon.mentionEmetteur,
-        oninput: (e) => changer({ mentionEmetteur: e.target.value }) }), 'Un texte libre qui accompagne tes devis (par exemple une mention légale). Il n’est pas encore envoyé nulle part.'));
+        oninput: (e) => changer({ mentionEmetteur: e.target.value }) }), 'Un texte libre qui accompagne tes devis (par exemple une mention légale). Il n’est pas encore envoyé nulle part.'),
+      sectionEntreprise());
+    majMentions();
     majBoutons();
   }
 
