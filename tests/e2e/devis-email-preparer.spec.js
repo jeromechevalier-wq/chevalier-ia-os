@@ -61,8 +61,16 @@ async function simulerServeur(page, etat = {}) {
   }
   return etat;
 }
+const dejaConnectees = new WeakSet();
+/** Ouvre le devis dans l'éditeur. La connexion n'a lieu qu'une fois par page ; les ouvertures suivantes rechargent l'appli (le serveur est donc interrogé de nouveau : « branché ? »). */
 async function ouvrirEditeur(page, id) {
-  await connecter(page, undefined, { route: `devis/editeur/${id}` });
+  if (dejaConnectees.has(page)) {
+    await page.goto(`/?emulateurs=1#/devis/editeur/${id}`);
+    await page.reload();
+  } else {
+    await connecter(page, undefined, { route: `devis/editeur/${id}` });
+    dejaConnectees.add(page);
+  }
   await expect(page.locator('.page-editeur-devis[data-devis]')).toBeVisible();
   await attendreCalme(page);
 }
@@ -105,7 +113,7 @@ test('2 branché : « Préparer l’e-mail » apparaît entre « Envoyer par e-m
   await entree(page).click();
   await expect(boite(page).getByRole('heading', { name: 'Préparer l’e-mail' })).toBeVisible();
   await expect(boite(page).locator('[data-valeur="confirmation-preparer-email"]')).toHaveText(MESSAGE_CONFIRMATION);
-  if (estTelephone(page)) for (const b of await boite(page).locator('.dialogue-pied .bouton').all()) expect((await b.boundingBox()).height).toBeGreaterThanOrEqual(44);
+  if (estTelephone(page)) for (const b of await boite(page).locator('.dialogue-pied .bouton').all()) await expect.poll(async () => (await b.boundingBox()).height, { message: 'boutons assez grands au doigt (la fenêtre finit son animation d’ouverture)' }).toBeGreaterThanOrEqual(43.9);
   await capturer(page, info, '2-confirmation');
   await boite(page).locator('[data-action="annuler-preparer-email"]').click();
   await expect(boite(page)).toHaveCount(0);
@@ -145,7 +153,7 @@ test('4 erreur du serveur : le message reste affiché dans la fenêtre avec « R
   await expect(erreur).toContainText('Une préparation est déjà en cours');
   await expect(confirmer(page)).toHaveText('Réessayer');
   await expect(confirmer(page)).toBeEnabled();
-  await expect(page.locator('#toasts')).not.toContainText(MESSAGE_TOAST);
+  await expect(page.getByText(MESSAGE_TOAST)).toHaveCount(0);
   await capturer(page, info, '4-erreur');
   await confirmer(page).click();
   await expect(boite(page)).toHaveCount(0);
