@@ -1,5 +1,20 @@
 # À faire au début de la prochaine session
 
+## Rapport du matin : nuit du 25 au 26/10/2026 (« GO NUIT », version 2.30.0)
+
+| Sujet | PR | État |
+|---|---|---|
+| Visualisation du devis (document seul, en-tête harmonisé, « Passer à Envoyé ») | 298 | fusionnée seule, relue par Fable |
+| « Préparer l'e-mail » : brouillon Gmail créé par un workflow n8n, rien n'est envoyé | 299 | fusionnée seule, relue par Fable |
+| Réglages > Déploiement : étapes de mise en place avec contrôles automatiques | 300 | fusionnée seule, relue par Fable |
+| Règles Firestore du journal des demandes `crm_actions_lancements` | à venir | à fusionner par Jérôme (liste d'arrêt) |
+| Finale : version 2.30.0, documentation, wiki, ce rapport, tableau A-FAIRE | cette PR | fusionnée seule si la coche « Tests » est verte |
+
+- **Workflow n8n** `interne-devis-preparer-email` créé, **non publié** ; il manque l'identifiant du webhook, l'étiquette `interne`, les deux secrets et le droit de lecture (étapes dans `.github/A-FAIRE.md`).
+- **Décisions prises seul** : bouton « Préparer l'e-mail » masqué tant que non branché ; page Déploiement réservée aux éditeurs, contrôles à l'ouverture + « Revérifier », pas de vue « tous mes clients » ; « En production » corrigé dans `docs/deploiement-client.md`.
+- **Ce qui n'a pas pu être vérifié avec le vrai système** : Gmail, Secret Manager et n8n réels ; le test CORS contre le vrai stockage ; la fonction `deploiementVerifier` déployée ; tout déploiement chez un client.
+- **État de la nuit GitHub** : voir le résultat du workflow « Tests de nuit » lancé à la main sur `main` après la fusion (à lire en premier).
+
 ## Plan du 25/10/2026 : en-tête du devis, DocuSeal, vocabulaire
 
 Décisions de Jérôme (discussion du 25/10/2026, rien n'est codé pour l'en-tête) :
