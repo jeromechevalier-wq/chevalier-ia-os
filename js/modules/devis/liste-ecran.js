@@ -179,7 +179,7 @@ export function rendreListeDevis(conteneur, idFiche = null) {
   const filtres = boutonFiltresCommun({ auClic: async () => {
     const r = await fenetreFiltres({
       controles: [
-        { cle: 'statuts', libelle: 'Statut', type: 'cases', options: [...['brouillon', 'en_attente_envoi', 'envoye', 'accepte', 'refuse', 'expire', 'remplace'].map((id) => ({ valeur: id, libelle: Li.libelleStatut(id) }))] },
+        { cle: 'statuts', libelle: 'Statut', type: 'cases', options: [...['brouillon', 'en_attente_envoi', 'envoye', 'accepte', 'refuse', ...(vue === 'tableau' ? [] : ['expire', 'remplace'])].map((id) => ({ valeur: id, libelle: Li.libelleStatut(id) }))] },
         { cle: 'periode', libelle: 'En date du', type: 'choix', options: Li.PERIODES.map((p) => ({ valeur: p.id, libelle: p.libelle })) },
       ],
       criteres: { statuts: statutsFiltres, periode },
@@ -231,7 +231,7 @@ export function rendreListeDevis(conteneur, idFiche = null) {
     lignes = Li.filtrer(lignes, { statuts: statutsFiltres, du, au, aujourdhui });
     lignes = Li.trier(lignes, tri);
     const total = tous.length;
-    remplir(compteur, `${total} devis${archives ? ' archivé' + (total > 1 ? 's' : '') : ''}`, lignes.length !== total ? ` · ${lignes.length} affiché${lignes.length > 1 ? 's' : ''}` : '');
+    remplir(compteur, `${total} devis`, lignes.length !== total ? ` · ${lignes.length} affiché${lignes.length > 1 ? 's' : ''}` : '');
     if (!lignes.length) {
       const vraimentVide = total === 0;
       if (vraimentVide && archives) { remplir(zone, etatVide('Aucun devis archivé. Un devis signé ou refusé se range ici avec « Archiver », dans le menu « … » de sa fiche ; les devis remplacés et expirés y sont aussi.')); return; }

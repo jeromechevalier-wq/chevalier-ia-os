@@ -121,7 +121,7 @@ test('3 un devis remplacé (ou expiré) n’est plus dans le Tableau mais il est
   await capturer(page, info, '3-remplace-dans-archives');
 });
 
-test('3 cas vide : sans devis archivé, remplacé ni expiré, Archives dit « Aucun devis archivé. »', async ({ page }) => {
+test('E5 cas vide : sans devis archivé, remplacé ni expiré, Archives dit « Aucun devis archivé. »', async ({ page }) => {
   await deuxDevis();
   await ouvrir(page);
   await page.locator('[data-vue="archives"]').click();
@@ -132,8 +132,7 @@ test('4 la dernière colonne du Tableau est entièrement visible sur ordinateur 
   await tableau4();
   await versTableau(page);
   const { droite, largeur } = await page.evaluate(() => ({ droite: document.querySelector('.colonne:last-child').getBoundingClientRect().right, largeur: window.innerWidth }));
-  if (!estTel(info)) expect(droite).toBeLessThanOrEqual(largeur);
-  else expect(droite).toBeGreaterThan(largeur); // téléphone : on défile (voir le point 6)
+  if (!estTel(info)) expect(droite).toBeLessThanOrEqual(largeur); // sur téléphone, voir le point 6
   await capturer(page, info, '4-derniere-colonne-visible');
 });
 
@@ -237,4 +236,18 @@ test('un bouton « Modifier » est visible dans la ligne sans ouvrir le menu « 
   await expect(bouton).toContainText('Modifier');
   await bouton.click();
   await expect(page).toHaveURL(/#\/devis\/editeur\/d2$/);
+});
+
+test('E6 le filtre Statut : « Expiré » et « Remplacé » absents en vue Tableau, présents en vue Liste', async ({ page }) => {
+  await tableau4();
+  await ouvrir(page);
+  await page.getByRole('button', { name: /Filtres/ }).click();
+  await expect(page.getByRole('checkbox', { name: 'Expiré' })).toBeVisible();
+  await expect(page.getByRole('checkbox', { name: 'Remplacé' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await page.locator('[data-vue="tableau"]').click();
+  await page.getByRole('button', { name: /Filtres/ }).click();
+  await expect(page.getByRole('checkbox', { name: 'Brouillon' })).toBeVisible();
+  await expect(page.getByRole('checkbox', { name: 'Expiré' })).toHaveCount(0);
+  await expect(page.getByRole('checkbox', { name: 'Remplacé' })).toHaveCount(0);
 });
