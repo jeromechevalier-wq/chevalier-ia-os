@@ -72,7 +72,7 @@ async function ajouterLibre(page) {
 }
 const numeros = (page) => page.locator('.tableau-lignes-devis tbody tr td.c-num').allTextContents();
 
-test('1 la barre d’actions reste en haut quand on défile : titre « Brouillon », onglets Édition et Prévisualisation, Catalogue, Options, Annuler, Finaliser', async ({ page }, info) => {
+test('1 la barre d’actions reste en haut quand on défile : titre « Brouillon », onglets Édition et Prévisualisation, Catalogue, Options, Finaliser', async ({ page }, info) => {
   await semer();
   await ouvrir(page, await devisLong());
   const barre = page.locator('.barre-devis');
@@ -295,7 +295,7 @@ test('6 sur téléphone : une carte par ligne (désignation en haut, puis Qté /
   const bande = await page.locator('tr[data-id="s1"]').boundingBox();
   const largeur = page.viewportSize().width;
   expect(bande.width).toBeGreaterThan(largeur - 60);
-  // La barre garde Catalogue, Annuler et Envoyer ; Options est dans « … ».
+  // La barre garde Catalogue et Envoyer ; Options est dans « … ».
   for (const action of ['bibliotheque', 'envoyer', 'fermer']) await expect(page.locator(`.barre-devis [data-action="${action}"]`)).toBeVisible();
   await expect(page.locator('.barre-devis [data-action="enregistrer"]')).toHaveCount(0); // l'enregistrement est automatique
   await expect(page.locator('[data-action="options"]')).toBeHidden();
