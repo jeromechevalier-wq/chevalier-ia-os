@@ -160,7 +160,7 @@ test('3 le « … » de l’éditeur et celui de la visualisation proposent les 
     expect(box.height).toBeGreaterThanOrEqual(44);
     await expect(page.locator('[data-action="plus-actions"]')).toHaveAttribute('aria-label', 'Autres actions');
     await menuEcran(page);
-    expect(await libellesMenu(page), `visualisation ${id}`).toEqual(sansEnvoyer(liste).filter((t) => t !== 'Voir le devis'));
+    expect(await libellesMenu(page), `visualisation ${id}`).toEqual(sansEnvoyer(liste).filter((t) => t !== 'Voir le devis' && !t.startsWith('Passer à « Envoyé'))); // « Passer à « Envoyé » » a son bouton dans l'en-tête
     if (id === 'dSigne') await capturer(page, info, '3-visualisation-menu');
     await page.keyboard.press('Escape');
     if (id === 'dBrouillon') {
@@ -256,8 +256,9 @@ test('5 le panneau « Historique » reste ouvert quand les données changent et 
   await ouvrir(page, 'devis/voir/dFinalise', '.page-editeur-devis');
   await ouvrirHistorique(page);
   await expect(historique(page).locator('[data-valeur="aucun-envoi"]')).toHaveText('Pas encore envoyé');
-  await menuEcran(page);
-  await entree(page, 'Passer à « Envoyé »').click();
+  await page.keyboard.press('Escape'); // referme le panneau pour atteindre l'en-tête
+  await page.locator('[data-action="passer-envoye"]').click(); // le bouton principal de l'en-tête (plus d'entrée dans le « … »)
+  await ouvrirHistorique(page);
   expect(appels).toEqual([['devisChangerStatut', { devisId: 'dFinalise', action: 'marquer_envoye' }]]);
   // ce que ferait le serveur
   await devis('dFinalise', { numero: 'DEV-2026-10-02-001', statut: 'envoye', finaliseLe: new Date(Date.now() - 2 * 86400000), envoyeLe: new Date(), envois: [{ date: new Date(), destinataires: ['client@exemple.fr'], copie: [] }] });
