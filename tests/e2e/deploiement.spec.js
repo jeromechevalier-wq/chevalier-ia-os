@@ -51,10 +51,14 @@ test('1 Réglages > Déploiement chez Jérôme : une ligne par étape avec pasti
   await ouvrirRacine(page);
   await expect(page.locator('.reglages-menu-lien[data-reglage="deploiement"]')).toHaveText('Déploiement');
   await expect(page.locator('.deploiement-groupe h3')).toHaveText(['Avant la séance', 'Pendant la séance', 'Réglages Google du projet', 'Après la séance']);
-  // Toutes les lignes automatiques sont vertes, les manuelles grises « À vérifier à la main » : 7 sur 23 (2 du serveur, 1 des Affaires, 4 du Devis ; 16 manuelles)
+  // Toutes les lignes automatiques sont vertes, les manuelles grises « À vérifier à la main » : 6 sur 23 (1 du serveur, 1 des Affaires, 4 du Devis ; 17 manuelles,
+  // dont « Personnes autorisées », case à cocher à la racine : les comptes y sont écrits dans le code)
   await expect(page.locator('.deploiement-ligne')).toHaveCount(23);
-  await expect(page.locator('.deploiement-ligne[data-type="auto"][data-couleur="vert"]')).toHaveCount(7);
-  await expect(resume(page)).toHaveText('7 sur 23 vertes');
+  await expect(page.locator('.deploiement-ligne[data-type="auto"][data-couleur="vert"]')).toHaveCount(6);
+  await expect(resume(page)).toHaveText('6 sur 23 vertes');
+  await expect(ligne(page, 'membres')).toHaveAttribute('data-type', 'manuel');
+  await expect(page.locator('#reglages-deploiement')).not.toContainText('Jérôme');
+  await expect(page.locator('#reglages-deploiement')).toContainText('Chaque case s’enregistre toute seule.');
   await expect(ligne(page, 'devis-entreprise').locator('[data-role="etat"]')).toHaveText('Vérifié');
   await expect(ligne(page, 'bienvenue').locator('[data-role="etat"]')).toHaveText('À vérifier à la main');
   for (const l of await page.locator('.deploiement-ligne').all()) await expect(l.locator('.deploiement-pastille')).toBeVisible();
@@ -95,7 +99,7 @@ test('4 « C’est fait » : la case manuelle devient verte avec la date, compte
   const date = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris' }).format(new Date());
   await expect(ligne(page, 'bienvenue')).toHaveAttribute('data-couleur', 'vert');
   await expect(ligne(page, 'bienvenue').locator('[data-role="etat"]')).toHaveText(`Fait le ${date}`);
-  await expect(resume(page)).toHaveText('8 sur 23 vertes');
+  await expect(resume(page)).toHaveText('7 sur 23 vertes');
   await expect.poll(async () => (await lireDocument('crm_parametres/deploiement'))?.bienvenue?.fait).toBe(true);
   expect(Object.keys((await lireDocument('crm_parametres/deploiement')).bienvenue).sort()).toEqual(['fait', 'le']);
   await page.reload();
@@ -106,12 +110,15 @@ test('4 « C’est fait » : la case manuelle devient verte avec la date, compte
 });
 
 test('5 « Revérifier » relance les contrôles : une case rouge devient verte une fois réparée', async ({ page }) => {
-  const serveur = await simuler(page, { reponses: [{ ...OK, controles: { fonctions: 'ok', membres: 'manque' } }, OK] });
-  await toutRegler();
+  const serveur = await simuler(page);
+  await ecrireDocument('crm_parametres/reglages', { dossierParentDrive: { id: 'dossier-essai', nom: 'Projets essai' } });
+  await ecrireDocument('devis_parametres/reglages', { entreprise: ENTREPRISE, etapeDevis: 'proposition_envoyee' });
   await ouvrirRacine(page);
-  await expect(ligne(page, 'membres')).toHaveAttribute('data-couleur', 'rouge');
+  await expect(ligne(page, 'devis-catalogue')).toHaveAttribute('data-couleur', 'rouge');
+  const maintenant = new Date();
+  await ecrireDocument('devis_articles/a1', { code: '', libelle: 'Article essai', unite: 'u', prixAchat: 10, tauxTva: null, actif: true, proprietaire: JEROME, creeLe: maintenant, modifieLe: maintenant, creePar: JEROME, modifiePar: JEROME });
   await page.locator('[data-action="reverifier"]').click();
-  await expect(ligne(page, 'membres')).toHaveAttribute('data-couleur', 'vert');
+  await expect(ligne(page, 'devis-catalogue')).toHaveAttribute('data-couleur', 'vert');
   expect(serveur.appels.length).toBe(2);
 });
 

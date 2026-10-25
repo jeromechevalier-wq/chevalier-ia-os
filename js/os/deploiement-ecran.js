@@ -2,6 +2,7 @@
 // Les contrôles se lancent à l'ouverture et avec « Revérifier » : ceux du serveur (fonction « deploiementVerifier ») et ceux des modules actifs (`controlesDeploiement()`
 // de leur API : la coque ne cite aucun module). Chaque contrôle est isolé : un module qui plante, ou le serveur injoignable, laisse ses lignes en orange, les autres continuent.
 // Les cases « C'est fait » des étapes manuelles s'enregistrent toutes seules dans crm_parametres/deploiement de l'espace ({ <étape>: { fait: true, le: 'AAAA-MM-JJ' } }).
+// Section réservée aux éditeurs (registre.js, editeursSeulement) : pas de mode lecteur ici.
 // Rien de secret n'est affiché : la fonction ne rend que des états, et la page n'affiche que des textes fixes.
 import { doc, onSnapshot, setDoc, deleteField } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-functions.js';
@@ -10,7 +11,7 @@ import { firebaseConfig } from './firebase-config.js';
 import { cheminBaseClient, cheminCollection } from './chemins.js';
 import { h, icone, remplir, toast } from './ui.js';
 import { lien } from './router.js';
-import { ETAPES_COQUE, DOCUMENT_COCHES, calculerPage, resultatsDesControles, lireCoches, patchCoche, lienEtape } from './deploiement.js';
+import { ETAPES_COQUE, DOCUMENT_COCHES, adapterEtapes, calculerPage, resultatsDesControles, lireCoches, patchCoche, lienEtape } from './deploiement.js';
 
 const fonctions = () => getFunctions(app, 'europe-west9');
 const DELAI_SERVEUR_MS = 15000;
@@ -44,8 +45,7 @@ export function sectionDeploiement(ctx, etat) {
   const base = ctx.chezClient && ctx.client ? cheminBaseClient(ctx.client) : '';
   const refCoches = doc(db, cheminCollection(base, DOCUMENT_COCHES.collection), DOCUMENT_COCHES.id);
   const modules = controlesDesModules(ctx);
-  const etapes = [...ETAPES_COQUE, ...modules.flatMap((m) => m.etapes)];
-  const peutCocher = ctx.editeur !== false;
+  const etapes = adapterEtapes([...ETAPES_COQUE, ...modules.flatMap((m) => m.etapes)], { racine: !(ctx.chezClient && ctx.client) });
   const page = { resultats: {}, cochesBrutes: {}, enCours: false, erreurServeur: false, ecriture: new Set() };
 
   const zoneTete = h('div', { class: 'deploiement-tete' });
@@ -53,7 +53,7 @@ export function sectionDeploiement(ctx, etat) {
   const zoneListe = h('div', { class: 'deploiement-groupes' });
   const sec = h('section', { class: 'carte-section deploiement', id: 'reglages-deploiement' },
     h('h2', {}, icone('shield-check', { taille: 18 }), 'Déploiement'),
-    h('p', { class: 'aide' }, 'Toutes les étapes d’un déploiement, une à une, avec leur état dans cet espace. Les contrôles automatiques se lancent à l’ouverture de la page ; une étape grise se vérifie à la main, puis se coche (« C’est fait »). Si quelque chose ne marche plus, toutes les cases doivent être vertes.'),
+    h('p', { class: 'aide' }, 'Toutes les étapes d’un déploiement, une à une, avec leur état dans cet espace. Les contrôles automatiques se lancent à l’ouverture de la page ; une étape grise se vérifie à la main, puis se coche (« C’est fait »). Chaque case s’enregistre toute seule. Si quelque chose ne marche plus, toutes les cases doivent être vertes.'),
     zoneTete, zoneMessages, zoneListe);
 
   const coches = () => lireCoches(page.cochesBrutes, etapes);
@@ -67,12 +67,12 @@ export function sectionDeploiement(ctx, etat) {
       : etape.route ? h('a', { href: lien(etape.route), class: 'deploiement-lien', dataset: { role: 'lien-reparation' } }, icone('chevron-right', { taille: 14 }), 'Ouvrir le réglage') : null;
     const aide = enAttente ? null
       : couleur === 'rouge' || couleur === 'gris' ? h('p', { class: `deploiement-reparation${couleur === 'rouge' ? ' deploiement-reparation-rouge' : ''}`, dataset: { role: 'reparation' } }, etape.reparation, ' ', lienReparation)
-        : couleur === 'orange' ? h('p', { class: 'deploiement-reparation', dataset: { role: 'reparation' } }, MESSAGE_ORANGE) : null;
+        : couleur === 'orange' && !page.erreurServeur ? h('p', { class: 'deploiement-reparation', dataset: { role: 'reparation' } }, MESSAGE_ORANGE) : null;
     let caseFait = null;
     if (etape.type === 'manuel') {
       const fait = couleur === 'vert';
       caseFait = h('label', { class: 'case deploiement-case' },
-        h('input', { type: 'checkbox', checked: fait, disabled: !peutCocher || page.ecriture.has(etape.id), dataset: { coche: etape.id }, 'aria-label': `C’est fait : ${etape.libelle}`,
+        h('input', { type: 'checkbox', checked: fait, disabled: page.ecriture.has(etape.id), dataset: { coche: etape.id }, 'aria-label': `C’est fait : ${etape.libelle}`,
           onchange: (e) => cocher(etape.id, e.target.checked) }),
         h('span', {}, 'C’est fait'));
     }
@@ -99,8 +99,7 @@ export function sectionDeploiement(ctx, etat) {
       page.erreurServeur && !page.enCours ? h('div', { class: 'deploiement-erreur', role: 'alert', dataset: { etat: 'erreur-serveur' } },
         icone('triangle-alert', { taille: 16 }), h('p', {}, 'Impossible de vérifier pour le moment. Les cases « C’est fait » restent utilisables.'),
         h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'reessayer' }, onclick: () => verifier() }, 'Réessayer')) : null,
-      calcul.vide ? h('p', { class: 'aide', dataset: { role: 'vide' } }, 'Aucun module de cet espace n’ajoute de contrôle : seules les étapes communes à tous les espaces sont listées.') : null,
-      peutCocher ? null : h('p', { class: 'aide', dataset: { role: 'lecture' } }, 'Tu es lecteur de cet espace : tu peux consulter les étapes, pas les cocher.'));
+      calcul.vide ? h('p', { class: 'aide', dataset: { role: 'vide' } }, 'Aucun module de cet espace n’ajoute de contrôle : seules les étapes communes à tous les espaces sont listées.') : null);
     remplir(zoneListe, ...calcul.groupes.map((g) => h('div', { class: 'deploiement-groupe', dataset: { moment: g.id } },
       h('h3', {}, g.libelle),
       h('ul', { class: 'deploiement-liste' }, g.lignes.map(ligne)))));
@@ -108,7 +107,6 @@ export function sectionDeploiement(ctx, etat) {
   }
 
   async function cocher(id, fait) {
-    if (!peutCocher) return;
     const avant = page.cochesBrutes;
     page.cochesBrutes = { ...avant };
     if (fait) Object.assign(page.cochesBrutes, patchCoche(id)); else delete page.cochesBrutes[id];

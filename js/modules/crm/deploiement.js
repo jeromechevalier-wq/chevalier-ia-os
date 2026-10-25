@@ -4,10 +4,10 @@ import { DOCS } from '../../os/deploiement.js';
 
 export const ETAPES_DEPLOIEMENT_AFFAIRES = Object.freeze([
   Object.freeze({ id: 'dossier-drive', groupe: 'pendant', module: 'affaires', type: 'auto', libelle: 'Dossier Google Drive racine des projets choisi',
-    reparation: 'Crée à la main le dossier racine des projets dans le Drive du client, puis choisis-le dans Réglages > Affaires et projets > Options (sous la case Google Drive).',
+    reparation: 'Crée à la main le dossier racine des projets dans ton Google Drive, puis choisis-le dans Réglages > Affaires et projets > Options (sous la case Google Drive).',
     route: 'reglages/crm/reglages-options' }),
   Object.freeze({ id: 'drive-api', groupe: 'google', module: 'affaires', type: 'manuel', libelle: 'API Drive et Picker activées, adresse du site autorisée pour la connexion Google',
-    reparation: 'Console Google, « API et services » : active l’API Drive et l’API Picker, puis ajoute l’adresse du site dans les origines JavaScript autorisées.',
+    reparation: 'L’administrateur de la plateforme active l’API Drive et l’API Picker dans la console Google, puis ajoute l’adresse du site dans les origines JavaScript autorisées.',
     lien: `${DOCS}google-drive.md` }),
 ]);
 

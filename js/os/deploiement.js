@@ -34,24 +34,26 @@ export const ETAPES_COQUE = geler([
     reparation: 'Si du code a changé depuis le dernier client, l’administrateur de la plateforme publie les règles (workflow « Déploiement plateforme clients », choix « regles »).',
     lien: `${DOCS}deploiement-plateforme.md` },
   { id: 'membres', groupe: 'pendant', libelle: 'Personnes autorisées bien enregistrées', module: null, type: 'auto', controle: 'serveur.membres',
-    reparation: 'La liste des personnes de l’espace n’est pas cohérente (ou il n’y a aucun éditeur). Ouvre Réglages > Membres et rôles, ou relance « node scripts/nouveau-client.js afficher <client> » au Terminal pour voir ce qui manque.',
+    reparation: 'La liste des personnes de l’espace n’est pas cohérente (ou il n’y a aucun éditeur). Ouvre Réglages > Membres et rôles pour vérifier ; si rien n’y paraît, préviens l’administrateur de la plateforme.',
+    // À la racine, les comptes autorisés sont écrits dans le code : le contrôle serait toujours vrai. La ligne y devient une case à cocher.
+    racineManuelle: true, reparationRacine: 'Les comptes autorisés de cet espace sont fixés dans le code : vérifie qu’ils sont les bons, puis coche.',
     lien: `${DOCS}nouveau-client.md` },
-  { id: 'connexion', groupe: 'pendant', libelle: 'Connexion vérifiée avec le compte Google du client (fiche de test créée puis supprimée)', module: null, type: 'manuel',
-    reparation: 'Ouvre l’adresse de l’espace, connecte-toi avec le compte Google du client, crée une fiche de test puis supprime-la.', lien: `${DOCS}deploiement-client.md` },
+  { id: 'connexion', groupe: 'pendant', libelle: 'Connexion vérifiée (fiche de test créée puis supprimée)', module: null, type: 'manuel',
+    reparation: 'Ouvre l’adresse de l’espace, connecte-toi avec ton compte Google, crée une fiche de test puis supprime-la.', lien: `${DOCS}deploiement-client.md` },
   { id: 'bienvenue', groupe: 'pendant', libelle: 'E-mail de bienvenue envoyé', module: null, type: 'manuel',
-    reparation: 'Envoie le modèle d’e-mail de bienvenue (adresse de l’espace, mode d’emploi court, comment demander de l’aide).', lien: `${DOCS}deploiement-client.md` },
+    reparation: 'L’administrateur de la plateforme envoie l’e-mail de bienvenue (adresse de l’espace, mode d’emploi court, comment demander de l’aide).', lien: `${DOCS}deploiement-client.md` },
   { id: 'mcp', groupe: 'pendant', libelle: 'Assistant (MCP) configuré', module: null, type: 'manuel',
-    reparation: 'Configure l’assistant du client avec le lien de son espace (Connecter mon assistant).', lien: `${DOCS}mcp-clients.md` },
+    reparation: 'Configure ton assistant avec le lien de cet espace (menu « Connecter mon assistant »).', lien: `${DOCS}mcp-clients.md` },
   { id: 'appli-telephone', groupe: 'pendant', libelle: 'Appli installée sur le téléphone', module: null, type: 'manuel',
     reparation: 'Ouvre l’adresse de l’espace sur le téléphone, puis « Ajouter à l’écran d’accueil ».', lien: `${DOCS}deploiement-client.md` },
   { id: 'raccourci', groupe: 'pendant', libelle: 'Raccourci épinglé sur le téléphone et l’ordinateur', module: null, type: 'manuel',
     reparation: 'Épingle l’adresse de l’espace (marque-page ou raccourci du bureau).', lien: `${DOCS}deploiement-client.md` },
   { id: 'rendez-vous', groupe: 'pendant', libelle: 'Rendez-vous de suivi fixé', module: null, type: 'manuel',
-    reparation: 'Fixe un rendez-vous de suivi avant de partir, par exemple dans une semaine.', lien: `${DOCS}deploiement-client.md` },
-  { id: 'sauvegarde', groupe: 'apres', libelle: 'Sauvegarde faite et commande notée', module: null, type: 'manuel',
-    reparation: 'Lance « node scripts/donnees-client.js exporter <client> --avec-images » (fichier hors du dépôt) et note où se trouve la commande.', lien: `${DOCS}deploiement-client.md` },
-  { id: 'journal-clients', groupe: 'apres', libelle: 'Activation notée dans le journal des clients', module: null, type: 'manuel',
-    reparation: 'Note ce qui a été activé et la date, sans donnée personnelle ni secret dans le dépôt.', lien: `${DOCS}deploiement-client.md` },
+    reparation: 'Fixe un rendez-vous de suivi avec l’administrateur de la plateforme, par exemple une semaine après la mise en route.', lien: `${DOCS}deploiement-client.md` },
+  { id: 'sauvegarde', groupe: 'apres', libelle: 'Sauvegarde de l’espace faite', module: null, type: 'manuel',
+    reparation: 'L’administrateur de la plateforme fait une sauvegarde complète de l’espace (fichier gardé en lieu sûr) et note où la retrouver.', lien: `${DOCS}deploiement-client.md` },
+  { id: 'journal-clients', groupe: 'apres', libelle: 'Mise en route notée par l’administrateur de la plateforme', module: null, type: 'manuel',
+    reparation: 'L’administrateur de la plateforme note ce qui a été activé dans cet espace et la date, sans donnée personnelle ni secret.', lien: `${DOCS}deploiement-client.md` },
 ]);
 
 /** Contrôle d'une liste d'étapes (coque ou module) : rend la liste des problèmes (vide = correcte). Sert aux tests de chaque module. */
@@ -74,6 +76,18 @@ export function problemesEtapes(etapes) {
     if (/\bC[R]M\b/.test(`${e?.libelle ?? ''} ${e?.reparation ?? ''}`)) problemes.push(`${nom} : jargon interdit à l'écran (voir docs/consignes-ui.md)`);
   }
   return problemes;
+}
+
+/**
+ * Étapes de CET espace : à la racine (espace de Jérôme), une ligne marquée `racineManuelle` devient une case à cocher (son contrôle n'y aurait pas de sens),
+ * avec sa phrase `reparationRacine`. Chez un client, rien ne change.
+ */
+export function adapterEtapes(etapes, { racine = false } = {}) {
+  return (etapes ?? []).map((e) => {
+    if (!racine || !e?.racineManuelle) return e;
+    const { controle, racineManuelle, reparationRacine, ...reste } = e;
+    return { ...reste, type: 'manuel', reparation: reparationRacine || e.reparation };
+  });
 }
 
 /** Étapes visibles : celles de la coque, puis celles des modules ACTIFS (une étape d'un module éteint n'existe pas), dans l'ordre des moments. */

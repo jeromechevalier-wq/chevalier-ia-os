@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
 import { readFileSync } from 'node:fs';
 import {
-  ETAPES_COQUE, MOMENTS, DOCUMENT_COCHES, problemesEtapes, etapesVisibles, lireCoches, patchCoche, dateJour, dateLisible, resultatsDesControles,
+  ETAPES_COQUE, MOMENTS, adapterEtapes, DOCUMENT_COCHES, problemesEtapes, etapesVisibles, lireCoches, patchCoche, dateJour, dateLisible, resultatsDesControles,
   couleurEtape, etatGlobal, resume, lienEtape, calculerPage, attendreQue,
 } from '../js/os/deploiement.js';
 import { ETAPES_DEPLOIEMENT_AFFAIRES, controlerDeploiementAffaires } from '../js/modules/crm/deploiement.js';
@@ -23,6 +23,7 @@ describe('Déploiement : définition des étapes (écrite dans le code)', () => 
   test('1 aucune étape ne parle de « CRM » ni ne contient d’adresse e-mail, de clé ou de nom de client ; les liens de console ne nomment pas le projet en dur', () => {
     const texte = JSON.stringify(TOUTES);
     assert.doesNotMatch(texte, /CRM/);
+    assert.doesNotMatch(JSON.stringify(TOUTES.map((e) => [e.libelle, e.reparation])), /Jérôme|Terminal|node scripts|dépôt|du client|au client/, 'textes écrits pour tout éditeur de l’espace, jamais du point de vue de Jérôme');
     assert.doesNotMatch(texte, /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[a-z]{2,}/, 'aucune adresse e-mail');
     assert.doesNotMatch(texte, /AIza[0-9A-Za-z_-]{20,}|cia_[A-Za-z0-9_-]{20,}|cle-[a-z]+\.[a-z]+\./, 'aucune clé');
     for (const e of TOUTES.filter((x) => /console\.cloud\.google\.com/.test(x.lien ?? ''))) assert.match(e.lien, /\{projet\}/, e.id);
@@ -38,6 +39,18 @@ describe('Déploiement : définition des étapes (écrite dans le code)', () => 
 });
 
 describe('Déploiement : étapes conditionnelles par module', () => {
+  test('9 à la racine, « Personnes autorisées » est une case à cocher (les comptes sont dans le code) ; chez un client, un contrôle automatique', () => {
+    const racine = adapterEtapes(ETAPES_COQUE, { racine: true }).find((e) => e.id === 'membres');
+    assert.equal(racine.type, 'manuel');
+    assert.equal(racine.controle, undefined);
+    assert.match(racine.reparation, /fixés dans le code/);
+    assert.deepEqual(problemesEtapes(adapterEtapes(TOUTES, { racine: true })), []);
+    const client = adapterEtapes(ETAPES_COQUE, { racine: false }).find((e) => e.id === 'membres');
+    assert.equal(client.type, 'auto');
+    assert.equal(client.controle, 'serveur.membres');
+    const p = calculerPage({ etapes: adapterEtapes(TOUTES, { racine: true }), actifs: ['affaires', 'devis'], resultats: resultatsDesControles(adapterEtapes(TOUTES, { racine: true }), { serveur: { controles: { fonctions: 'ok', membres: 'ok' } } }) });
+    assert.equal(p.groupes.flatMap((g) => g.lignes).find((l) => l.etape.id === 'membres').couleur, 'gris');
+  });
   test('9 une ligne de module n’existe que si ce module est actif ; les lignes de la coque restent toujours', () => {
     const ids = (actifs) => etapesVisibles(TOUTES, actifs).map((e) => e.id);
     const sansModule = ids([]);
