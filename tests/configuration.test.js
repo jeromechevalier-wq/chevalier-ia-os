@@ -99,6 +99,54 @@ describe('Configuration : six emplacements, valeurs de départ, migration douce'
   });
 });
 
+describe('Configuration : monter / descendre une étape (l’ordre se lit par identifiant)', () => {
+  const stocke = (config, ordre) => ({ items: ordre.map((id) => config.etapes.find((e) => e.id === id)).map((e) => ({ ...e, libelle: `${e.libelle} (perso)` })), roleGagnee: config.roleGagnee });
+
+  test('deplacerEmplacement échange avec la voisine en emportant tout, sans toucher à la liste d’origine', () => {
+    const items = L.CONFIG_NEUTRE.etapes.map((e, i) => ({ ...e, couleur: `#00000${i}`, description: `d${i}`, action: i === 4 ? { type: 'tache', titre: 'Faire', delaiJours: 2 } : null }));
+    const apres = L.deplacerEmplacement(items, 4, -1);
+    assert.deepEqual(apres.map((e) => e.id), ['etape_1', 'etape_2', 'etape_3', 'etape_5', 'etape_4', 'etape_6']);
+    assert.deepEqual(apres[3], items[4], 'nom, couleur, explication, case Utilisée, action et identifiant partent ensemble');
+    assert.equal(items[4].id, 'etape_5', 'la liste d’origine ne bouge pas');
+    assert.deepEqual(L.deplacerEmplacement(apres, 3, 1).map((e) => e.id), items.map((e) => e.id), 'monter puis descendre = retour');
+  });
+
+  test('aux bords, ou avec un sens invalide : rien ne change', () => {
+    const items = L.CONFIG_NEUTRE.etapes;
+    const ids = (l) => l.map((e) => e.id);
+    assert.deepEqual(ids(L.deplacerEmplacement(items, 0, -1)), ids(items));
+    assert.deepEqual(ids(L.deplacerEmplacement(items, 5, 1)), ids(items));
+    assert.deepEqual(ids(L.deplacerEmplacement(items, 2, 0)), ids(items));
+    assert.deepEqual(ids(L.deplacerEmplacement(items, 9, -1)), ids(items));
+  });
+
+  test('construireConfig lit l’ordre enregistré : l’emplacement 5 peut être en 3e position et garde son identifiant', () => {
+    const c = L.construireConfig({ etapes: stocke(L.CONFIG_NEUTRE, ['etape_1', 'etape_2', 'etape_5', 'etape_3', 'etape_4', 'etape_6']) });
+    assert.deepEqual(c.etapes.map((e) => e.id), ['etape_1', 'etape_2', 'etape_5', 'etape_3', 'etape_4', 'etape_6']);
+    assert.equal(c.etapes[2].libelle, 'Gagné (perso)', 'le nom suit l’identifiant');
+    assert.deepEqual(L.etapesActives(c).map((e) => e.id), ['etape_1', 'etape_2', 'etape_5', 'etape_3', 'etape_4']);
+    assert.equal(L.libelleEtape('etape_5', c), 'Gagné (perso)');
+    const p = L.construireConfig({ phases: { items: [...L.CONFIG_NEUTRE.phases].reverse() } });
+    assert.deepEqual(p.phases.map((e) => e.id), ['phase_6', 'phase_5', 'phase_4', 'phase_3', 'phase_2', 'phase_1']);
+  });
+
+  test('un document ancien (ordre habituel, sans identifiants ou avec identifiants incomplets) se lit comme avant', () => {
+    const habituel = L.construireConfig({ etapes: { items: L.CONFIG_NEUTRE.etapes } });
+    assert.deepEqual(habituel.etapes.map((e) => e.id), L.CONFIG_NEUTRE.etapes.map((e) => e.id));
+    const sansId = L.construireConfig({ etapes: { items: L.CONFIG_NEUTRE.etapes.map(({ id, ...reste }, i) => ({ ...reste, libelle: `N${i}` })) } });
+    assert.deepEqual(sansId.etapes.map((e) => [e.id, e.libelle]), L.CONFIG_NEUTRE.etapes.map((e, i) => [e.id, `N${i}`]));
+    const doublon = L.construireConfig({ etapes: { items: L.CONFIG_NEUTRE.etapes.map((e) => ({ ...e, id: 'etape_1' })) } });
+    assert.deepEqual(doublon.etapes.map((e) => e.id), L.CONFIG_NEUTRE.etapes.map((e) => e.id));
+  });
+
+  test('l’ordre réécrit puis relu est identique, et le rôle « vente gagnée » suit son identifiant', () => {
+    const c = L.construireConfig({ etapes: L.documentEmplacements(L.deplacerEmplacement(L.CONFIG_NEUTRE.etapes, 4, -1), 'etape_5', 'etape') });
+    assert.deepEqual(c.etapes.map((e) => e.id), ['etape_1', 'etape_2', 'etape_3', 'etape_5', 'etape_4', 'etape_6']);
+    assert.equal(c.roleGagnee, 'etape_5');
+    assert.deepEqual(L.validerEmplacements(c.etapes, c.roleGagnee, { genre: 'etape' }).erreurs, {});
+  });
+});
+
 describe('Configuration : contrôle avant enregistrement', () => {
   const six = () => L.CONFIG_NEUTRE.etapes.map((e) => ({ ...e }));
   test('une configuration valide passe', () => {
