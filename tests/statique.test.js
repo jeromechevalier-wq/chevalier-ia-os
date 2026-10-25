@@ -275,7 +275,7 @@ describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
     assert.deepEqual([...new Set(appels)].sort(), ['automatisationsAdmin', 'automatisationsDecider', 'automatisationsRafraichir', 'automatisationsRenommer']); // Admin : compte de Jérôme seulement (vue de tous les propriétaires) ; Decider : valider, refuser ou relancer une proposition de l'écran « À valider » (le serveur revérifie tout)
     // Module Devis (24/10/2026) : les quatre transitions d'un devis (finaliser, changer de statut, nouvelle version, archiver) passent par le serveur ; le seul httpsCallable du fichier lit son nom dans une table fixe.
     const donneesDevis = lire('js/modules/devis/donnees.js');
-    assert.deepEqual([...donneesDevis.matchAll(/'(devis[A-Za-z]+)'/g)].map((m) => m[1]).sort(), ['devisArchiver', 'devisChangerStatut', 'devisFinaliser', 'devisNouvelleVersion', 'devisPdf', 'devisPdfLien', 'devisSupprimer']);
+    assert.deepEqual([...donneesDevis.matchAll(/'(devis[A-Za-z]+)'/g)].map((m) => m[1]).sort(), ['devisArchiver', 'devisChangerStatut', 'devisEnregistrerEnvoi', 'devisFinaliser', 'devisNouvelleVersion', 'devisPdf', 'devisPdfLien', 'devisSupprimer']);
     assert.equal((donneesDevis.match(/httpsCallable\(/g) || []).length, 1, 'un seul appel de fonction dans le fichier');
     const appelsVeille = [...lire('js/modules/veille/donnees.js').matchAll(/httpsCallable\(fonctions\(\), '([A-Za-z]+)'\)/g)].map((m) => m[1]);
     assert.deepEqual(appelsVeille, ['veille']);
