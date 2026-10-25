@@ -12,7 +12,7 @@ function nomsDuDevis(d) {
   return { client: org?.nom || pers?.nom || '', affaire: aff?.titre || '' };
 }
 
-/** { groupes: [{ titre: 'Devis', resultats }] } : numéro, nom du client et affaire (3 lettres au moins). Ni devis archivés, ni anciennes versions remplacées. */
+/** { groupes: [{ titre: 'Devis', resultats }] } : numéro, nom du client et affaire (2 lettres au moins). Ni devis archivés, ni anciennes versions remplacées. */
 export function rechercherDevis(saisie) {
   const elements = D.etat.devis.filter((d) => d.archive !== true && d.statut !== 'remplace').map((d) => {
     const n = nomsDuDevis(d);
