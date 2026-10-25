@@ -42,12 +42,15 @@ export function preparerGoogle() {
 
 let jeton = null; // { valeur, email, expire } en mémoire seulement
 
+/** Y a-t-il déjà un jeton valable pour ce compte en mémoire ? Si oui, obtenirJeton ne demande rien à Google (aucune fenêtre, donc pas besoin d'un clic). */
+export const jetonEnMemoire = ({ email = '' } = {}) => Boolean(jeton && jeton.email === email && jeton.expire > Date.now() + 30_000);
+
 /**
  * Jeton d'accès Drive. La première fois, Google ouvre sa fenêtre d'autorisation (portée drive.file : fichiers créés ou choisis par l'appli).
  * `email` aide Google à proposer le bon compte. À appeler depuis un clic (sinon le navigateur bloque la fenêtre).
  */
 export async function obtenirJeton({ email = '' } = {}) {
-  if (jeton && jeton.email === email && jeton.expire > Date.now() + 30_000) return jeton.valeur; // jamais le jeton d'un autre compte (déconnexion, changement de compte)
+  if (jetonEnMemoire({ email })) return jeton.valeur; // jamais le jeton d'un autre compte (déconnexion, changement de compte)
   await preparerGoogle();
   const conf = configGoogle();
   return new Promise((resoudre, rejeter) => {

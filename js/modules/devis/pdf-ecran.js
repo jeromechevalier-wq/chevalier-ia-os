@@ -5,11 +5,11 @@
 // Aucune règle ici : états et messages viennent de pdf.js (pur, testé) ; rien n'est écrit par le navigateur.
 import { h, icone, remplir, toast } from '../../os/ui.js';
 import { etatVide } from '../crm/composants.js';
-import { obtenirJeton, oublierJeton, googleDisponible } from '../../os/google-picker.js';
+import { obtenirJeton, oublierJeton, googleDisponible, jetonEnMemoire, preparerGoogle } from '../../os/google-picker.js';
 import * as CRM from '../crm/donnees.js';
 import * as D from './donnees.js';
 import { etatPdfDevis } from './pdf.js';
-import { copierPdfDevis, choisirDestination, nomFichierDrive, cleMemoire, MESSAGE_GOOGLE_ABSENT, MESSAGE_DEJA_COPIE } from './drive-copie.js';
+import { copierPdfDevis, choisirDestination, nomFichierDrive, cleMemoire, MESSAGE_GOOGLE_ABSENT, MESSAGE_DEJA_COPIE, MESSAGE_AUTORISATION_DRIVE, MESSAGE_CHARGEMENT_AFFAIRE, attendreUnClic } from './drive-copie.js';
 
 export const MESSAGE_INTROUVABLE_PDF = 'Ce devis est introuvable. Il a peut-être été supprimé : retourne à la liste des devis.';
 export const MESSAGE_EN_COURS = 'Le PDF est en cours de fabrication. Réessaie dans quelques instants.';
@@ -34,28 +34,43 @@ export function rendrePdfDevis(conteneur, devisId, brouillon = false) {
     lire: (cle) => { try { return localStorage.getItem(cle) === '1'; } catch { return false; } },
     ecrire: (cle) => { try { localStorage.setItem(cle, '1'); } catch { /* préférence locale seulement */ } },
   };
-  async function copierDansDrive(zoneDrive, url, devis, { force = false } = {}) {
+  let arretAffaires = null; // abonnement en attendant que les affaires soient chargées
+  // `automatique` : lancée par l'écran lui-même, sans clic. Un bouton (« Copier dans Drive », « Réessayer »…) est un vrai clic : la fenêtre Google peut s'ouvrir.
+  async function copierDansDrive(zoneDrive, url, devis, { force = false, automatique = false } = {}) {
     const affiche = (etat, texte, ...actions) => { if (!arrete) remplir(zoneDrive, h('p', { class: etat === 'erreur' ? 'erreur' : 'texte-discret', dataset: { valeur: 'message-drive', etat } }, texte), actions.length ? h('div', { class: 'pdf-devis-actions' }, ...actions) : null); };
-    const dest = choisirDestination({ devis, affaire: devis.affaireId ? CRM.affaire(devis.affaireId) : null });
+    // Les affaires arrivent après le devis : sans elles on ne sait pas si l'affaire existe (jamais de faux « pas d'affaire »).
+    if (!CRM.estPret()) {
+      affiche('attente', MESSAGE_CHARGEMENT_AFFAIRE);
+      if (!arretAffaires) arretAffaires = CRM.surChangement(() => { if (!CRM.estPret() || !arretAffaires) return; arretAffaires(); arretAffaires = null; copierDansDrive(zoneDrive, url, devis, { force, automatique }); });
+      return;
+    }
+    const affaire = devis.affaireId ? CRM.affaire(devis.affaireId) : null;
+    const dest = choisirDestination({ devis, affaire });
     if (dest.genre !== 'ok') { affiche('rien', dest.message); return; } // pas de dossier de travail : information, pas une erreur
     if (!googleDisponible()) { affiche('rien', MESSAGE_GOOGLE_ABSENT); return; }
+    const email = CRM.compteCourant()?.email || '';
     const cle = cleMemoire(devis.id, dest.dossierId, nomFichierDrive(devis));
     if (!force && memoire.lire(cle)) {
-      affiche('deja', MESSAGE_DEJA_COPIE, bouton('Copier de nouveau', 'recopier-drive', () => copierDansDrive(zoneDrive, url, devis, { force: true })));
+      affiche('deja', MESSAGE_DEJA_COPIE, boutonDrive('Copier de nouveau', 'recopier-drive', () => copierDansDrive(zoneDrive, url, devis, { force: true })));
+      return;
+    }
+    if (attendreUnClic({ automatique, jetonEnMemoire: jetonEnMemoire({ email }) })) {
+      preparerGoogle().catch(() => {}); // charge les scripts de Google tout de suite : le clic ouvrira la fenêtre sans délai
+      affiche('a-autoriser', MESSAGE_AUTORISATION_DRIVE, boutonDrive('Copier dans Drive', 'copier-drive', () => copierDansDrive(zoneDrive, url, devis, { force: true })));
       return;
     }
     affiche('en-cours', 'Copie du PDF dans le dossier Devis de l’affaire…');
     const resultat = await copierPdfDevis({
-      devis, affaire: CRM.affaire(devis.affaireId),
+      devis, affaire,
       outils: {
-        obtenirJeton: () => obtenirJeton({ email: CRM.compteCourant()?.email || '' }),
+        obtenirJeton: () => obtenirJeton({ email }),
         lirePdf: async () => { const rep = await fetch(url); if (!rep.ok) throw new Error(`Lecture du PDF : ${rep.status}`); return rep.blob(); },
       },
     });
-    if (arrete) return;
+    // Même si l'utilisateur a quitté l'écran pendant la copie : le résultat est annoncé (toast) et mémorisé ; seul l'affichage dans l'écran est sauté (`affiche`).
     if (resultat.etat === 'erreur') {
       if (resultat.erreur?.statut === 401) oublierJeton();
-      affiche('erreur', resultat.message, bouton('Réessayer', 'reessayer-drive', () => copierDansDrive(zoneDrive, url, devis, { force: true })));
+      affiche('erreur', resultat.message, boutonDrive('Réessayer', 'reessayer-drive', () => copierDansDrive(zoneDrive, url, devis, { force: true })));
       toast(resultat.message, { type: 'erreur', duree: 8000 });
       return;
     }
@@ -66,6 +81,8 @@ export function rendrePdfDevis(conteneur, devisId, brouillon = false) {
   }
 
   const bouton = (libelle, action, onclick) => h('button', { type: 'button', class: 'bouton bouton-principal', dataset: { action }, onclick }, libelle);
+  // Boutons de la zone Drive : en contour, car « Ouvrir le PDF » est le seul bouton jaune de l'écran.
+  const boutonDrive = (libelle, action, onclick) => h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action }, onclick }, libelle);
   const montrer = (etat, ...enfants) => { zone.dataset.etat = etat; remplir(zone, ...enfants); };
   const chargement = (texte) => montrer('chargement', h('div', { class: 'chargement' }, h('span', { class: 'rond-chargement' }), h('span', {}, texte)));
   const probleme = (etat, texte, ...actions) => montrer(etat, h('p', { class: etat === 'echec' ? 'erreur' : 'texte-discret', dataset: { valeur: 'message-pdf' } }, texte), h('div', { class: 'pdf-devis-actions' }, ...actions));
@@ -112,7 +129,7 @@ export function rendrePdfDevis(conteneur, devisId, brouillon = false) {
           h('a', { class: 'bouton bouton-principal', href: url, target: '_blank', rel: 'noopener noreferrer', dataset: { action: 'ouvrir-pdf' } }, icone('external-link', { taille: 16 }), 'Ouvrir le PDF'),
           h('a', { class: 'bouton bouton-secondaire', href: brouillon ? `#/devis/editeur/${encodeURIComponent(devisId)}` : '#/devis/liste', dataset: { action: 'retour-apres-pdf' } }, brouillon ? 'Retour au devis' : 'Retour aux devis')),
         zoneDrive);
-      if (zoneDrive && !dejaCopie) { dejaCopie = true; copierDansDrive(zoneDrive, url, d); }
+      if (zoneDrive && !dejaCopie) { dejaCopie = true; copierDansDrive(zoneDrive, url, d, { automatique: true }); }
     } catch (e) {
       if (arrete || mon !== numero) return;
       const code = String(e?.code ?? '').replace('functions/', '');
@@ -135,5 +152,5 @@ export function rendrePdfDevis(conteneur, devisId, brouillon = false) {
   };
   const arretSuivi = D.surChangement(suivre);
   suivre();
-  return () => { arrete = true; arretSuivi(); };
+  return () => { arrete = true; arretSuivi(); if (arretAffaires) { arretAffaires(); arretAffaires = null; } };
 }

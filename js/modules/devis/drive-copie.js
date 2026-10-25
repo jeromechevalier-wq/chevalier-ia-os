@@ -19,7 +19,9 @@ export const MESSAGE_SANS_AFFAIRE = 'Ce devis n’a pas d’affaire : le PDF est
 export const MESSAGE_DOSSIER_PAS_DRIVE = 'Le dossier de travail de cette affaire n’est pas un dossier Google Drive : le PDF est rangé dans l’affaire seulement.';
 export const MESSAGE_GOOGLE_ABSENT = 'Google Drive n’est pas branché sur cet espace : le PDF est rangé dans l’affaire seulement.';
 export const MESSAGE_PDF_PAS_PRET = 'Le PDF n’est pas encore prêt : la copie dans Drive se fera quand il le sera.';
-export const MESSAGE_LECTURE_PDF = 'Le PDF n’a pas pu être lu pour la copie dans Drive. Réessaie ; si cela continue, le navigateur n’a pas le droit de lire le fichier de stockage (réglage à faire une fois, voir la description de la PR).';
+export const MESSAGE_LECTURE_PDF = 'Le PDF n’a pas pu être lu pour la copie dans Drive. Réessaie ; si ça continue, il faut autoriser ce site dans le stockage (réglage à faire une fois).';
+export const MESSAGE_AUTORISATION_DRIVE = 'Pour copier ce PDF dans Drive, appuie sur « Copier dans Drive ».';
+export const MESSAGE_CHARGEMENT_AFFAIRE = 'Chargement de l’affaire…';
 export const MESSAGE_REFUS = 'Drive n’est pas connecté ou l’autorisation a été refusée : le PDF n’a pas été copié dans le dossier Devis.';
 
 const nettoyerNom = (s, max) => {
@@ -56,6 +58,12 @@ export function choisirDestination({ devis, affaire, maintenant = Date.now() } =
   if (!dossierId) return { genre: 'pas-drive', message: MESSAGE_DOSSIER_PAS_DRIVE };
   return { genre: 'ok', dossierId };
 }
+
+/**
+ * Faut-il attendre un vrai clic ? La copie démarre toute seule à l'ouverture de l'écran (donc sans clic) : sans jeton Google déjà en mémoire, la fenêtre
+ * d'autorisation serait bloquée par le navigateur. Dans ce cas on montre un message neutre et un bouton « Copier dans Drive ».
+ */
+export const attendreUnClic = ({ automatique = false, jetonEnMemoire = false } = {}) => Boolean(automatique && !jetonEnMemoire);
 
 /** Clé de la préférence locale : un devis (une version) copié dans un dossier de travail donné. */
 export const cleMemoire = (devisId, dossierId, nom) => `devis.copieDrive.${devisId}.${dossierId}.${nom}`;
