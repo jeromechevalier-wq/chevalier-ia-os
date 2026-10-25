@@ -76,6 +76,10 @@ export function creerStockage({ bucket, maintenant = Date.now }) {
     async existe(chemin) {
       try { const [oui] = await bucket.file(chemin).exists(); return oui === true; } catch { return false; }
     },
+    /** Taille du fichier en octets (null si elle n'est pas lisible). */
+    async taille(chemin) {
+      try { const [meta] = await bucket.file(chemin).getMetadata(); const n = Number(meta?.size); return Number.isFinite(n) && n >= 0 ? n : null; } catch { return null; }
+    },
     /** Lien de lecture signé, valable `minutes` minutes (5 par défaut). */
     async lienSigne(chemin, { minutes = DUREE_LIEN_MINUTES, nomAffiche = '' } = {}) {
       try {

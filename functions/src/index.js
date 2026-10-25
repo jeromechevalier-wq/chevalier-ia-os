@@ -21,10 +21,12 @@ import { creerServiceVeille } from './veille/service.js';
 import { creerAppelVeille } from './veille/appel.js';
 import { creerAppelDevis, ligneDeJournalDevis } from './devis-appel.js';
 import { onDocumentUpdated } from 'firebase-functions/v2/firestore';
-import { getStorage } from 'firebase-admin/storage';
 import { creerAppelDevisPdf, creerAppelDevisPdfLien, ligneDeJournalDevisPdf } from './devis/pdf-appel.js';
 import { creerDeclencheurPdf } from './devis/pdf-declencheur.js';
-import { creerStockage } from './devis/stockage.js';
+import { stockageDuProjet } from './devis/stockage-projet.js';
+import { creerSortieN8n } from './coeur/n8n-sortie.js';
+import { creerAppelPreparerEmail, creerAppelEtatPreparerEmail } from './devis-email-appel.js';
+import { creerLecteurSecrets } from './securite/secrets.js';
 import { convertirHtmlEnPdf } from './devis/chromium.js';
 import { copieInterne, administrateur, Refus } from './automatisations/appels.js';
 import { creerLecteurN8n } from '../partage/automatisations/n8n.js';
@@ -113,19 +115,26 @@ export const devisArchiver = appelDevis('archiver');
 export const devisSupprimer = appelDevis('supprimer');
 export const devisEnregistrerEnvoi = appelDevis('enregistrerEnvoi'); // historique des envois par e-mail (le brouillon Gmail est créé par le navigateur, avec le Google de l'utilisateur)
 
+// « Préparer l'e-mail » (25/10/2026) : la fonction demande à un workflow n8n de créer un BROUILLON dans le Gmail du compte (PDF joint) ; ni l'appli ni n8n n'envoient jamais l'e-mail.
+// L'adresse du webhook et son secret sont lus dans Secret Manager au moment de l'appel (N8N_DEVIS_EMAIL_URL, N8N_DEVIS_EMAIL_SECRET), jamais liés au déploiement : s'ils manquent,
+// la fonction répond « pas encore branchée » et l'écran masque le bouton (devisPreparerEmailEtat). Le compte de service doit avoir « Accesseur de secrets » sur ces deux secrets (docs/ajouter-un-bouton-workflow.md).
+// Le seul fichier qui fait le POST vers n8n est coeur/n8n-sortie.js (un test le borne). Le résultat revient par la porte (devis.lireEmail, devis.noterEmailPrepare).
+const sortieN8nDevis = creerSortieN8n({ lireSecret: creerLecteurSecrets() });
+export const devisPreparerEmail = onCall(OPTIONS_DEVIS, (requete) => {
+  if (!getApps().length) initializeApp();
+  return creerAppelPreparerEmail({ donnees: () => creerAccesFirestore(), sortie: sortieN8nDevis, journal: (e) => process.stdout.write(`${ligneDeJournalDevis(e)}\n`) })(requete);
+});
+export const devisPreparerEmailEtat = onCall(OPTIONS_DEVIS, (requete) => {
+  if (!getApps().length) initializeApp();
+  return creerAppelEtatPreparerEmail({ sortie: sortieN8nDevis })(requete);
+});
+
 // PDF d'un devis (25/10/2026) : fabriqué PAR LE SERVEUR dès qu'un devis passe de brouillon à finalisé (déclencheur Firestore `devisPdfAuto`), jamais par le navigateur.
 // Chromium est lancé dans la fonction (2 GiB de mémoire, un navigateur par appel) ; le PDF est rangé dans Cloud Storage du projet (devis/<affaire>/<devis>/…, jamais public),
 // ajouté aux Documents de l'affaire, et l'état est noté sur le devis (`pdf.statut` : en_cours, ok, echec). Rien à configurer : ni dossier, ni variable.
 // Ailleurs que dans cette base (autres espaces), ce déclencheur n'existe pas encore : voir la description de la PR.
 const BASE_LIEN_DEVIS = 'https://chevalier-ia-os.web.app';
-const stockageDevis = () => {
-  if (!getApps().length) initializeApp();
-  try {
-    let bucket;
-    try { bucket = getStorage().bucket(); } catch { bucket = getStorage().bucket(`${process.env.GCLOUD_PROJECT}.firebasestorage.app`); }
-    return creerStockage({ bucket });
-  } catch { return null; }
-};
+const stockageDevis = stockageDuProjet;
 const OPTIONS_PDF = { ...OPTIONS_DEVIS, memory: '2GiB', timeoutSeconds: 120, concurrency: 1, maxInstances: 2 };
 const journalPdf = (e) => process.stdout.write(`${ligneDeJournalDevisPdf(e)}\n`);
 

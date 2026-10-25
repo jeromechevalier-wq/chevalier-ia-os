@@ -54,7 +54,7 @@ const enDates = (v) => {
   return v;
 };
 
-async function lireDevis(tx, devisId) {
+export async function lireDevis(tx, devisId) {
   const devis = await tx.document(C.devis, exigerId(devisId));
   if (!devis) throw new ErreurDevis('introuvable', `Devis introuvable : ${devisId}`);
   return enDates(devis);
@@ -62,7 +62,7 @@ async function lireDevis(tx, devisId) {
 const lireVersions = async (tx, devis) => (await tx.liste(C.devis, { champ: 'racineId', valeur: racineDe(devis) })).map(enDates);
 
 /** Lignes de journal d'une série de changements `{ id, action, avant, apres, champs }` (même forme que le moteur d'écriture du MCP). */
-function journal({ donnees, ctx, outil, parametres, changements }) {
+export function journal({ donnees, ctx, outil, parametres, changements }) {
   const operationId = donnees.nouvelId(C.audit);
   const expireAt = new Date(ctx.maintenant.getTime() + JOURS_COPIES * 86_400_000); // date exigée par le format, inerte (aucune règle d'effacement)
   const ecritures = [];
@@ -84,7 +84,7 @@ function journal({ donnees, ctx, outil, parametres, changements }) {
 }
 
 /** Écritures d'un changement : le document, plus sa ligne de journal. `patch` = champs changés (le reste est conservé). */
-function modifier(devis, patch, collection = C.devis) {
+export function modifier(devis, patch, collection = C.devis) {
   return { id: devis.id, collection, action: 'modifier', avant: devis, apres: { ...devis, ...patch }, champs: Object.keys(patch), ecriture: { type: 'update', collection, id: devis.id, donnees: patch } };
 }
 
@@ -123,7 +123,7 @@ export async function finaliser({ donnees, ctx, devisId }) {
 
     // Seuls les champs que la finalisation change sont écrits (les autres, dates comprises, ne sont pas retouchés).
     // Un client Firestore direct a pu poser archive ou des dates sur le brouillon : on les remet à zéro à la finalisation.
-    const remisesAZero = { archive: false, archiveLe: null, envoyeLe: null, accepteLe: null, refuseLe: null, remplaceLe: null, pdf: null, envois: null };
+    const remisesAZero = { archive: false, archiveLe: null, envoyeLe: null, accepteLe: null, refuseLe: null, remplaceLe: null, pdf: null, envois: null, emailPrepare: null };
     const changements = [modifier(devis, { ...Object.fromEntries(CHAMPS_FIGES.map((k) => [k, apres[k]])), ...remisesAZero })];
     // Les versions plus anciennes encore vivantes (finalisée ou envoyée) sont remplacées par celle-ci, dans la même transaction.
     const remplaces = versions.filter((v) => v.id !== devis.id && (v.version ?? 1) < (devis.version ?? 1) && D.transitionPossible(v.statut, 'remplacer'));

@@ -38,7 +38,7 @@ async function lirePdf(devisId) {
   return new Uint8Array(await rep.arrayBuffer());
 }
 
-const info = (titre, message, { action = null, libelleAction = '', nom = 'info-email' } = {}) => dialogue({
+export const info = (titre, message, { action = null, libelleAction = '', nom = 'info-email' } = {}) => dialogue({
   titre,
   contenu: h('p', { dataset: { valeur: nom } }, message),
   boutons: action
@@ -61,7 +61,7 @@ export async function lancerEnvoiEmail({ devisId, getDevis, finaliser = null }) 
     return;
   }
   const etat = etatPdfDevis(d);
-  if (etat !== 'pret') { await pdfPasPret(devisId, getDevis, finaliser, etat, d); return; }
+  if (etat !== 'pret') { await pdfPasPret(devisId, getDevis, finaliser, etat, d, lancerEnvoiEmail); return; }
   preparerGoogle().catch(() => {}); // les scripts de Google sont chargés avant le clic sur « Créer le brouillon » : la fenêtre d'autorisation s'ouvre sans délai
   await dialogueEnvoi({ devisId, getDevis });
 }
@@ -71,8 +71,8 @@ async function attendrePret(getDevis) {
   for (let i = 0; i < 10 && etatPdfDevis(getDevis() ?? {}) !== 'pret'; i += 1) await new Promise((r) => setTimeout(r, 300));
 }
 
-/** PDF en cours / à refaire : message clair et « Réessayer » (relance la fabrication si elle a échoué, puis ré-essaie l'envoi). */
-async function pdfPasPret(devisId, getDevis, finaliser, etat, d) {
+/** PDF en cours / à refaire : message clair et « Réessayer » (relance la fabrication si elle a échoué, puis ré-essaie avec `relancer` : l'envoi par e-mail, ou « Préparer l'e-mail »). */
+export async function pdfPasPret(devisId, getDevis, finaliser, etat, d, relancer) {
   const echec = d.pdf?.statut === 'echec';
   const message = etat === 'en_cours' ? E.MESSAGE_PDF_EN_COURS : echec ? `${E.MESSAGE_PDF_ECHEC}${d.pdf?.message ? ` (${d.pdf.message})` : ''}` : E.MESSAGE_PDF_PAS_PRET;
   await info('Le PDF n’est pas prêt', message, {
@@ -83,7 +83,7 @@ async function pdfPasPret(devisId, getDevis, finaliser, etat, d) {
         try { await D.pdfDevis(devisId); } catch (e) { toast(e?.message || D.MESSAGE_RESEAU_DEVIS, { type: 'erreur', duree: 8000 }); return; }
         await attendrePret(getDevis); // le serveur écrit `pdf` sur le devis : l'écran le reçoit un instant après la réponse
       }
-      await lancerEnvoiEmail({ devisId, getDevis, finaliser });
+      await relancer({ devisId, getDevis, finaliser });
     },
   });
 }

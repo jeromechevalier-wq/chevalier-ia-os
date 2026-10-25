@@ -39,6 +39,7 @@ export const COLLECTIONS = {
   codes: 'mcp_codes',
   propositions: 'automatisations_propositions',
   workflows: 'workflows',
+  actionsLancements: 'crm_actions_lancements', // journal des demandes faites à n8n depuis un écran (une ligne par demande, jamais le contenu d'un e-mail)
 };
 
 /** Erreur de contrôle de concurrence : un document a changé entre la lecture et l'écriture. */

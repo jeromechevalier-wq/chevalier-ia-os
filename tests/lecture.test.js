@@ -243,7 +243,7 @@ describe('Lecture seule (garantie)', () => {
       assert.ok(autorises.some((a) => f.endsWith(a)), `écriture hors du moteur : ${f}`);
     }
     for (const f of parcourir(dossier).filter((x) => /\.transaction\(/.test(readFileSync(x, 'utf8')))) {
-      assert.ok(['coeur/donnees.js', 'coeur/devis.js'].some((a) => f.endsWith(a)), `transaction hors de coeur/devis.js : ${f}`);
+      assert.ok(['coeur/donnees.js', 'coeur/devis.js', 'coeur/devis-email.js'].some((a) => f.endsWith(a)), `transaction hors de coeur/devis.js : ${f}`); // devis-email.js : « Préparer l'e-mail » (la demande, la lecture et la note du résultat : une transaction chacune, journal compris)
     }
     for (const f of parcourir(dossier).filter((x) => /\.nouvelId\(/.test(readFileSync(x, 'utf8')))) {
       assert.ok([...autorises, 'coeur/metier.js'].some((a) => f.endsWith(a)), `identifiants tirés hors du moteur et de metier.js : ${f}`);

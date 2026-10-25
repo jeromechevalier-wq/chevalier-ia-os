@@ -26,6 +26,8 @@ import { editeurOuvrage } from './editeur-ouvrage.js';
 import * as O from './ouvrages.js';
 import { routePdf, messageApresEnregistrement } from './pdf.js';
 import { lancerEnvoiEmail } from './email-ecran.js';
+import { lancerPreparationEmail } from './email-preparer-ecran.js';
+import { LIBELLE_PREPARER_EMAIL } from './email-preparer.js';
 import { emailPossible } from './email-brouillon.js';
 import { ERREUR_ECRITURE, dupliquerDevis, supprimerBrouillon, entreesMenuDevis } from './actions-devis.js';
 import { ouvrirPanneauLateral } from './panneau-lateral.js';
@@ -132,6 +134,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
   const racine = h('div', { class: 'page page-devis page-editeur-devis', dataset: { devis: id } });
   conteneur.append(racine);
 
+  D.emailPreparable(); // question posée au serveur dès l'ouverture (« Préparer l'e-mail » est-il branché ?) : la réponse est prête quand on ouvre le menu « Envoyer »
   let travail = null; // copie de travail du devis (ce qui est à l'écran)
   let enregistre = null; // ce qui est enregistré (pour savoir s'il y a des changements)
   let lecture = voir;
@@ -515,7 +518,9 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     const envois = h('section', { dataset: { bloc: 'envois' } }, h('h3', {}, 'Envois par e-mail'),
       contenu.envois.length
         ? h('ul', { class: 'historique-envois', dataset: { valeur: 'envois' } }, contenu.envois.map((l) => h('li', { class: 'historique-envoi', dataset: { envoi: String(l.ms) } }, l.texte)))
-        : h('p', { class: 'historique-vide', dataset: { valeur: 'aucun-envoi' } }, d.statut === 'brouillon' ? 'Un brouillon n’a pas encore pu être envoyé.' : 'Pas encore envoyé'));
+        : h('p', { class: 'historique-vide', dataset: { valeur: 'aucun-envoi' } }, d.statut === 'brouillon' ? 'Un brouillon n’a pas encore pu être envoyé.' : 'Pas encore envoyé'),
+      // « E-mail préparé dans Gmail le … » : écrit par le serveur quand le workflow a créé le brouillon (ce n'est PAS un envoi : l'envoi reste dans la liste ci-dessus).
+      contenu.emailPrepare ? h('p', { class: `historique-email-prepare${contenu.emailPrepare.statut === 'echec' ? ' historique-email-prepare-echec' : ''}`, dataset: { valeur: 'email-prepare', statut: contenu.emailPrepare.statut } }, contenu.emailPrepare.texte) : null);
     const dates = h('section', { dataset: { bloc: 'dates' } }, h('h3', {}, 'Dates'),
       h('ul', { dataset: { valeur: 'dates' } }, contenu.dates.map((l) => h('li', { dataset: { date: l.cle } }, l.jour ? `${l.libelle} ${l.jour}` : l.libelle))));
     historiqueOuvert = ouvrirPanneauLateral(racine, {
@@ -529,6 +534,9 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       // Crée un brouillon dans le Gmail de l'utilisateur (PDF en pièce jointe) ; un brouillon de devis propose d'abord de le finaliser. Voir email-ecran.js.
       { libelle: 'Envoyer par e-mail', icone: 'mail', cle: 'envoyer-email', desactive: !emailPossible(travail?.statut).actif, titreInfo: emailPossible(travail?.statut).raison ?? null,
         action: () => lancerEnvoiEmail({ devisId: id, getDevis: () => D.devisParId(id) ?? travail, finaliser: { libelle: 'Finaliser d’abord', action: () => finaliser() } }) },
+      // Seulement si le serveur dit que c'est branché (D.emailPreparable). Un workflow n8n crée un brouillon dans le Gmail du compte, PDF joint ; rien n'est envoyé. Voir email-preparer-ecran.js.
+      ...(D.emailPreparable() === true ? [{ libelle: LIBELLE_PREPARER_EMAIL, icone: 'mail-check', cle: 'preparer-email', desactive: !emailPossible(travail?.statut).actif, titreInfo: emailPossible(travail?.statut).raison ?? null,
+        action: () => lancerPreparationEmail({ devisId: id, getDevis: () => D.devisParId(id) ?? travail, finaliser: { libelle: 'Finaliser d’abord', action: () => finaliser() } }) }] : []),
       { libelle: 'Télécharger le PDF', icone: 'download', cle: 'telecharger', action: () => telechargerPdf() },
       { libelle: 'Imprimer', icone: 'file-text', cle: 'imprimer', action: () => (lecture ? (travail.statut === 'brouillon' ? telechargerPdf() : naviguer(routePdf(id))) : finaliser({ imprimer: true })) },
     ], fermer), { nom: 'Envoyer' });

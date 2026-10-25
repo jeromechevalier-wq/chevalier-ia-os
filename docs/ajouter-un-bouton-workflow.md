@@ -1,6 +1,6 @@
 # Ajouter un bouton qui lance un workflow (mode d'emploi)
 
-Écrit le 23/10/2026. **Rien de tout cela n'est codé aujourd'hui** : c'est la marche à suivre le jour où un client (par exemple Ingrid) demande « un bouton Générer devis sur la fiche Affaire ». Le plan technique et les raisons sont dans `docs/actions-de-fiche.md` ; cette page dit **comment s'y prendre, dans l'ordre, et qui fait quoi**.
+Écrit le 23/10/2026. **Rien de tout cela n'est codé pour le bouton général « sur une fiche »** (le cas réel de « Préparer l'e-mail » d'un devis, codé le 25/10/2026, est décrit à la fin de cette page) : c'est la marche à suivre le jour où un client (par exemple Ingrid) demande « un bouton Générer devis sur la fiche Affaire ». Le plan technique et les raisons sont dans `docs/actions-de-fiche.md` ; cette page dit **comment s'y prendre, dans l'ordre, et qui fait quoi**.
 
 ## Ce qu'il faut comprendre d'abord
 
@@ -43,3 +43,43 @@ Mettre `workflowId` ou l'adresse du webhook dans la page ; envoyer le contenu de
 - **Aucune action configurée** : aucun bouton, aucun espace vide.
 - **Lancement en cours** : bouton désactivé, texte « Devis demandé ».
 - **Workflow injoignable ou en erreur** : message clair avec « Réessayer », rien d'envoyé au client final, ligne dans le journal.
+
+---
+
+# Cas réel : « Préparer l'e-mail » d'un devis (25/10/2026)
+
+C'est le premier bouton qui lance un workflow. Il est déjà codé (chez Jérôme d'abord, même code pour les clients). **Rien n'est déployé chez les clients** (workflow manuel, avec Jérôme).
+
+## Ce que ça fait
+
+Dans le menu **« Envoyer »** d'un devis finalisé, une entrée **« Préparer l'e-mail »** (en plus de « Envoyer par e-mail », qui ne change pas). Un clic, une confirmation (« Le brouillon sera créé dans ton Gmail avec le PDF. Rien n'est envoyé. »), puis un workflow n8n crée un **brouillon** dans le Gmail du compte, PDF joint. **Ni l'appli ni n8n n'envoient jamais l'e-mail** : la personne relit le brouillon et l'envoie elle-même depuis Gmail, puis touche « Marquer comme envoyé » dans le devis. Le résultat se lit dans le panneau **Historique** du devis (« E-mail préparé dans Gmail le … ») et, côté n8n, dans **Automatisations > Historique** (copie des exécutions du workflow, déjà fournie).
+
+## Le chemin d'une demande
+
+1. L'écran appelle la fonction `devisPreparerEmail` `{ devisId }` (jamais n8n directement).
+2. La fonction vérifie la personne (éditeur ; module Devis actif chez un client), le devis (finalisé, au moins un destinataire, PDF « ok »), refuse une 2e demande pour le même devis pendant 3 minutes (sauf après un échec), écrit une ligne dans le journal `crm_actions_lancements` (client, devis, `demandeId`, statut, durée ; **jamais** le contenu de l'e-mail), puis fait **un POST** vers le webhook n8n : `{ "action": "devis.preparerEmail", "espace": "interne" ou l'identifiant du client, "devisId": "…", "demandeId": "…" }`, avec l'en-tête `X-Chevalier-Secret`. Réponse à l'écran : `{ ok, demandeId }`.
+3. Le workflow répond tout de suite « reçu » (200), puis appelle la **porte** : `devis.lireEmail` `{ devisId, demandeId }` pour obtenir adresses, sujet, message et lien du PDF (valable 10 minutes) ; il télécharge le PDF, crée le brouillon Gmail ; enfin `devis.noterEmailPrepare` `{ devisId, demandeId, statut: "ok", brouillonGmailId }` (ou `"echec"` avec un court `message`). Le serveur écrit `emailPrepare` sur le devis ; l'écran se met à jour tout seul.
+4. Le détail des actions de la porte est dans `docs/porte-cles.md`, partie 13.
+
+## Ce que Jérôme doit faire à la main (rien n'est branché tant que ce n'est pas fait)
+
+Tant que les deux secrets n'existent pas, la fonction répond « La préparation de l'e-mail n'est pas encore branchée » et **le bouton reste masqué**. Rien ne casse le déploiement.
+
+1. **Créer les deux secrets** dans Secret Manager du projet `chevalier-ia-os` (https://console.cloud.google.com/security/secret-manager?project=chevalier-ia-os, « Créer un secret ») :
+   - `N8N_DEVIS_EMAIL_URL` : l'adresse complète du webhook du workflow (elle commence par `https://n8n.chevalier-ia.fr/webhook/`). Elle ne doit **jamais** être écrite dans le dépôt (public) ;
+   - `N8N_DEVIS_EMAIL_SECRET` : un mot de passe long et aléatoire, **le même** que celui que le webhook n8n attend dans l'en-tête `X-Chevalier-Secret` (authentification par en-tête dans le nœud Webhook).
+2. **Donner le droit de lire ces deux secrets** au compte de service `porte-serveur@chevalier-ia-os.iam.gserviceaccount.com` : sur chaque secret, onglet « Autorisations », « Accorder l'accès », rôle **Accesseur de secrets Secret Manager**.
+3. **La clé de porte** : la clé `interne` existante suffit (le module `devis` est ajouté aux modules de la porte du CRM). Si la clé n'existe pas encore : `node scripts/cles.js creer --projet crm --proprietaire interne --ecrire` (partie 4 de `docs/porte-cles.md`), puis la mettre dans le workflow n8n (jamais dans le dépôt). Le workflow doit s'appeler `interne-…` et porter l'étiquette `interne`.
+4. **Chez un client** (plus tard, avec Jérôme, déploiement manuel de la plateforme) : un workflow `client-<id>-…`, deux secrets **par client** dans le projet `chevalier-ia-app` : `N8N_DEVIS_EMAIL_URL_<id>` et `N8N_DEVIS_EMAIL_SECRET_<id>`, le droit « Accesseur de secrets » pour le compte de service des fonctions de la plateforme, et la porte de la base 2 (qui n'existe pas encore).
+
+## Cas vide et cas d'erreur
+
+- **Pas branché** : l'entrée « Préparer l'e-mail » n'est pas dans le menu (aucun trou, aucun bouton grisé qui intrigue). « Envoyer par e-mail » marche comme avant.
+- **Brouillon de devis** : « Finaliser d'abord ». **Sans destinataire** : « Ce devis n'a pas de destinataire : ajoute une adresse e-mail dans le devis, puis réessaie. » **PDF pas prêt** : le message habituel avec « Réessayer ».
+- **Deuxième clic trop vite** : « Une préparation est déjà en cours pour ce devis : patiente quelques instants (3 minutes au plus), puis réessaie. » ; après un brouillon réussi : « Un brouillon vient d'être créé pour ce devis : regarde dans ton Gmail. »
+- **n8n éteint ou en panne** : la fenêtre reste ouverte avec le message et « Réessayer » ; rien n'est créé dans Gmail ; la ligne du journal passe à `echec`.
+- **Le workflow échoue après avoir répondu « reçu »** : il doit appeler `devis.noterEmailPrepare` avec `statut: "echec"` ; l'Historique du devis dit alors « La préparation de l'e-mail a échoué … Tu peux réessayer. » et la copie des exécutions (Automatisations > Historique) montre l'erreur.
+
+## À ne pas faire
+
+Mettre l'adresse du webhook ou le secret dans le dépôt, la page ou une variable d'environnement ; ajouter un deuxième fichier qui parle à n8n (un test l'interdit : `tests/devis-email-sortie.test.js`) ; envoyer l'e-mail depuis le workflow (le nœud Gmail doit **créer un brouillon**, jamais envoyer) ; envoyer le contenu du devis dans le POST (il ne contient que des identifiants) ; modifier `envois` ou le statut du devis depuis n8n.
