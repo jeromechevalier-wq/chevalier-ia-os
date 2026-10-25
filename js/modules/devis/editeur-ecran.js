@@ -382,7 +382,7 @@ export function rendreEditeurDevis(conteneur, id) {
     ];
   }
 
-  // Barre d'actions : Catalogue, Options (menu à cases à cocher), Annuler, Envoyer (bouton à menu). Sur téléphone, Options passe dans le bouton « … ». Pas de bouton Enregistrer : l'enregistrement est automatique.
+  // Barre d'actions : Catalogue, Options (menu à cases à cocher), Envoyer (bouton à menu). Sur téléphone, Options passe dans le bouton « … ». Pas de bouton Enregistrer : l'enregistrement est automatique.
   function boutonsEdition() {
     ref.boutonOptions = h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-options', dataset: { action: 'options' }, 'aria-controls': 'options-devis', 'aria-expanded': 'false', onclick: (ev) => (optionsOuvertes ? optionsOuvertes.fermer() : ouvrirOptions(ev.currentTarget)) }, 'Options', icone('chevron-down', { taille: 14 }));
     // « Enregistrer PDF » : seulement pour un brouillon (cette barre n'existe pas en lecture seule). Désactivé pendant l'appel.
@@ -392,7 +392,6 @@ export function rendreEditeurDevis(conteneur, id) {
       ref.boutonOptions,
       ref.boutonPdf,
       h('button', { type: 'button', class: 'bouton-icone bouton-plus-actions', dataset: { action: 'plus-actions' }, 'aria-haspopup': 'menu', 'aria-label': 'Autres actions', onclick: (ev) => { const ancre = ev.currentTarget; ouvrirMenu(ancre, [{ libelle: 'Options', icone: 'settings', action: () => ouvrirOptions(ancre) }, { libelle: 'Enregistrer PDF', icone: 'file-text', desactive: pdfEnCours, action: () => enregistrerPdfBrouillon() }]); } }, icone('ellipsis', { taille: 16 })),
-      h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'annuler' }, onclick: () => naviguer('devis/liste') }, 'Annuler'),
       // « Envoyer » remplace « Finaliser » : imprimer, télécharger ou envoyer par e-mail ; le devis est finalisé (numéroté, prix figés) au moment de l'envoi.
       h('button', { type: 'button', class: 'bouton bouton-principal', dataset: { action: 'envoyer' }, 'aria-haspopup': 'menu', 'aria-expanded': 'false', onclick: (ev) => ouvrirMenuEnvoyer(ev.currentTarget) }, icone('mail', { taille: 16 }), 'Envoyer', icone('chevron-down', { taille: 14 })),
     ];
