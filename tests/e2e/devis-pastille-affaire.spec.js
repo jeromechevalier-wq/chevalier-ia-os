@@ -29,7 +29,7 @@ test('2 le devis envoyé il y a 3 jours donne « Devis : Envoyé il y a 3 jours 
   await devis('d1', { affaireId: 'a1', statut: 'envoye', numero: 'DEV-1', finaliseLe: new Date(Date.now() - 5 * JOUR), envoyeLe: new Date(Date.now() - 3 * JOUR - 3600000), creeLe: new Date(Date.now() - 6 * JOUR) });
   await ouvrirKanban(page);
   await expect(pastille(page, 'a1')).toHaveText('Devis : Envoyé il y a 3 jours');
-  await page.locator('.carte-affaire[data-affaire="a1"]').click();
+  await page.locator('.carte-affaire[data-affaire="a1"]').click({ position: { x: 12, y: 8 } }); // en haut à gauche : pas sur la pastille cliquable
   await expect(page.locator('.fiche-tete .pastille-externe')).toHaveText('Devis : Envoyé il y a 3 jours');
 });
 
@@ -38,7 +38,7 @@ test('6 un clic sur la pastille de la fiche ouvre le devis (et sur la carte, il 
   await devis('d1', { affaireId: 'a1', statut: 'brouillon', numero: 'DEV-1', creeLe: new Date(Date.now() - JOUR) });
   await ouvrirKanban(page);
   await expect(pastille(page, 'a1')).toHaveAttribute('href', /#\/devis\/editeur\/d1$/);
-  await page.locator('.carte-affaire[data-affaire="a1"]').click();
+  await page.locator('.carte-affaire[data-affaire="a1"]').click({ position: { x: 12, y: 8 } }); // en haut à gauche : pas sur la pastille cliquable
   await page.locator('.fiche-tete .pastille-externe').click();
   await expect(page).toHaveURL(/#\/devis\/editeur\/d1$/);
 });
