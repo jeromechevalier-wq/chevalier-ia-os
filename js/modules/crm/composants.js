@@ -519,8 +519,8 @@ export function barreEtapes(affaire) {
 export function pastillesExternes(affaireId) {
   return pastillesDeAffaire(affaireId).map((p) => {
     const attributs = { class: 'pastille-statut pastille-externe', style: { '--couleur': p.couleur }, dataset: { pastilleExterne: p.statut ?? '' } };
-    // Avec un lien, la pastille ouvre l'élément (ex. le devis) ; le clic ne doit pas ouvrir la carte de l'affaire en dessous.
-    if (p.lien) return h('a', { ...attributs, href: `#/${p.lien}`, title: 'Ouvrir le devis', onclick: (e) => e.stopPropagation() }, p.texte);
+    // Avec un lien, la pastille ouvre l'élément (ex. le devis) ; la carte ignore déjà les clics venus d'un lien. Pas de stopPropagation : chez un client, le routeur doit voir le clic pour remettre le préfixe de l'espace.
+    if (p.lien) return h('a', { ...attributs, href: `#/${p.lien}`, title: 'Ouvrir le devis' }, p.texte);
     return h('span', attributs, p.texte);
   });
 }
