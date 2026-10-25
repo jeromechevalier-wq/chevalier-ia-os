@@ -13,7 +13,7 @@ const ERREUR_ECRITURE = 'Enregistrement impossible : réessaie dans un instant, 
 /** Le brouillon part des réglages enregistrés ; les nombres restent du texte tant qu'on tape. */
 const brouillonDe = (r) => ({
   nomBordereau: r.nomBordereau, modeMarge: r.modeMarge, marge: String(r.marge).replace('.', ','), regimeTva: r.regimeTva, tauxProposes: [...r.tauxProposes],
-  tauxTvaDefaut: r.tauxTvaDefaut, dureeValiditeJours: String(r.dureeValiditeJours), etapeAFaire: r.etapeAFaire, etapeEnvoye: r.etapeEnvoye, mentionEmetteur: r.mentionEmetteur,
+  tauxTvaDefaut: r.tauxTvaDefaut, dureeValiditeJours: String(r.dureeValiditeJours), etapeDevis: r.etapeDevis, mentionEmetteur: r.mentionEmetteur,
   entreprise: entrepriseBrouillon(r.entreprise),
 });
 
@@ -115,9 +115,7 @@ export function reglages(page) {
     const etapes = CRM.etat.config.etapes.filter((e) => e.actif);
     const optionsEtapes = [{ valeur: '', libelle: 'Aucune' }, ...etapes.map((e) => ({ valeur: e.id, libelle: e.libelle }))];
     // Une étape enregistrée mais disparue reste visible (et sera refusée à l'enregistrement avec un message).
-    for (const cle of ['etapeAFaire', 'etapeEnvoye']) {
-      if (brouillon[cle] && !optionsEtapes.some((o) => o.valeur === brouillon[cle])) optionsEtapes.push({ valeur: brouillon[cle], libelle: `${brouillon[cle]} (étape disparue)` });
-    }
+    if (brouillon.etapeDevis && !optionsEtapes.some((o) => o.valeur === brouillon.etapeDevis)) optionsEtapes.push({ valeur: brouillon.etapeDevis, libelle: `${brouillon.etapeDevis} (étape disparue)` });
     const taux = h('div', { class: 'cases', dataset: { champ: 'tauxProposes' } }, TAUX_TVA_DEFAUT.map((t) => h('label', { class: 'case' },
       h('input', { type: 'checkbox', checked: brouillon.tauxProposes.includes(t), dataset: { taux: String(t) }, 'aria-label': `Proposer le taux ${A.formaterTaux(t)}`,
         onchange: (e) => { changer({ tauxProposes: TAUX_TVA_DEFAUT.filter((x) => (x === t ? e.target.checked : brouillon.tauxProposes.includes(x))) }); } }), A.formaterTaux(t))));
@@ -134,11 +132,8 @@ export function reglages(page) {
         bloc('dureeValiditeJours', 'Durée de validité d’un devis (jours)', texte('dureeValiditeJours', brouillon.dureeValiditeJours, { inputmode: 'numeric' }))),
       bloc('tauxProposes', 'Taux de TVA proposés', taux),
       bloc('tauxTvaDefaut', 'Taux de TVA par défaut', liste('tauxTvaDefaut', TAUX_TVA_DEFAUT.map((t) => ({ valeur: t, libelle: A.formaterTaux(t) })), brouillon.tauxTvaDefaut, (v) => changer({ tauxTvaDefaut: Number(v) }))),
-      h('div', { class: 'ligne-champs' },
-        bloc('etapeAFaire', 'Étape où un devis est à faire', liste('etapeAFaire', optionsEtapes, brouillon.etapeAFaire, (v) => changer({ etapeAFaire: v })),
-          'L’étape de tes affaires où il faut préparer un devis (par exemple après le rendez-vous). Rien ne change tout seul pour l’instant.'),
-        bloc('etapeEnvoye', 'Étape où il a été envoyé', liste('etapeEnvoye', optionsEtapes, brouillon.etapeEnvoye, (v) => changer({ etapeEnvoye: v })),
-          'L’étape de tes affaires une fois le devis envoyé au client. Tu peux choisir la même étape que « à faire » (une seule colonne « Devis »).')),
+      bloc('etapeDevis', 'Étape où vivent les devis', liste('etapeDevis', optionsEtapes, brouillon.etapeDevis, (v) => changer({ etapeDevis: v })),
+        'L’étape de tes affaires où se trouvent tes devis (une seule colonne « Devis » dans le pipeline). Rien ne change tout seul pour l’instant.'),
       bloc('mentionEmetteur', 'Mention d’émetteur (facultatif)', h('textarea', { class: 'champ', id: 'devis-mentionEmetteur', rows: 3, maxlength: '500', dataset: { champ: 'mentionEmetteur' }, value: brouillon.mentionEmetteur,
         oninput: (e) => changer({ mentionEmetteur: e.target.value }) }), 'Un texte libre qui accompagne tes devis (par exemple une mention légale). Il n’est pas encore envoyé nulle part.'),
       sectionEntreprise());

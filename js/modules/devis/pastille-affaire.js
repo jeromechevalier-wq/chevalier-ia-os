@@ -4,10 +4,10 @@ import { COULEURS_STATUT, libelleStatut, statutAffiche, enMs } from './liste.js'
 
 const JOUR_MS = 86400000;
 
-/** Le devis le plus récent de l'affaire : on écarte les versions « Remplacé » (une version plus récente existe), puis on prend la dernière créée. null si aucun. */
+/** Le devis le plus récent de l'affaire : on écarte les versions « Remplacé » (une version plus récente existe) et les devis archivés, puis on prend la dernière créée. null si aucun. */
 export function devisRecentDeAffaire(devis, affaireId) {
   if (!affaireId) return null;
-  const candidats = (devis ?? []).filter((d) => d?.affaireId === affaireId && d.statut !== 'remplace');
+  const candidats = (devis ?? []).filter((d) => d?.affaireId === affaireId && d.statut !== 'remplace' && d.archive !== true);
   if (!candidats.length) return null;
   const date = (d) => enMs(d.creeLe) ?? enMs(d.finaliseLe) ?? 0;
   return candidats.reduce((a, b) => (date(b) > date(a) || (date(b) === date(a) && (b.version ?? 1) > (a.version ?? 1)) ? b : a));

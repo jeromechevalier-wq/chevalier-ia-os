@@ -39,6 +39,7 @@ test('4 cas vide : pas de devis, pas d’affaire ou liste absente = aucune pasti
   assert.equal(pastilleDevisDeAffaire(devis, null, opts), null);
   assert.equal(pastilleDevisDeAffaire(undefined, 'a1', opts), null);
   assert.equal(pastilleDevisDeAffaire([{ id: 'r', affaireId: 'a9', statut: 'remplace' }], 'a9', opts), null);
+  assert.equal(pastilleDevisDeAffaire([{ id: 'x', affaireId: 'a9', statut: 'brouillon', archive: true }], 'a9', opts), null); // un devis archivé n’est pas montré
 });
 
 test('5 module éteint = aucun fournisseur inscrit = aucune pastille ; retirer le fournisseur retire la pastille', async () => {
