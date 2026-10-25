@@ -101,11 +101,20 @@ test('2 l’en-tête de la visualisation est celui des fiches : « < Devis », t
   await expect(tete).not.toContainText('€');
   await expect(tete.locator('.bouton-info')).toHaveCount(0);
   await expect(page.locator('.page-editeur-devis .bouton-principal')).toHaveCount(1); // seulement « Envoyer »
-  // Le « … » garde « Créer une nouvelle version ».
+  // Le « … » s'ouvre ; un devis signé n'a pas de nouvelle version (règle du module).
   await droite.locator('[data-action="plus-actions"]').click();
-  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Créer une nouvelle version' })).toBeVisible();
+  await expect(page.locator('.menu-pop')).toBeVisible();
+  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Créer une nouvelle version' })).toHaveCount(0);
   await page.keyboard.press('Escape');
   await capturer(page, info, '2-entete-visualisation');
+});
+
+test('2c le « … » d’un devis finalisé non signé propose « Créer une nouvelle version »', async ({ page }) => {
+  await donnees();
+  await ouvrir(page, 'devis/voir/dFinalise');
+  await entete(page).locator('[data-action="plus-actions"]').click();
+  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Créer une nouvelle version' })).toBeVisible();
+  await page.keyboard.press('Escape');
 });
 
 test('2b la pastille de l’en-tête a les mêmes mots et la même couleur que celle de la liste des devis', async ({ page }) => {
