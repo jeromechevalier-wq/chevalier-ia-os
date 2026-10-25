@@ -765,7 +765,7 @@ export function rendreEditeurDevis(conteneur, id) {
   }
   function blocLignes() {
     ref.rechercheBordereau = h('input', {
-      class: 'champ', type: 'search', placeholder: 'Libellé, code ou référence', autocomplete: 'off', 'aria-label': 'Rechercher dans le Bordereau', dataset: { champ: 'recherche-bordereau' },
+      class: 'champ', type: 'search', placeholder: 'Libellé, code ou référence', autocomplete: 'off', 'aria-label': 'Rechercher dans le catalogue', dataset: { champ: 'recherche-bordereau' },
       oninput: (e) => { rechercheBordereau = e.target.value; majResultats(); },
     });
     ref.filtreFamille = h('select', { class: 'champ', 'aria-label': 'Famille', dataset: { champ: 'filtre-famille' }, onchange: (e) => { filtreFamille = e.target.value; majResultats(); } },
@@ -871,10 +871,10 @@ export function rendreEditeurDevis(conteneur, id) {
     if (!ref.resultats) return;
     const actifs = D.etat.articles.filter((a) => a.actif !== false);
     if (!actifs.length) {
-      remplir(ref.resultats, h('li', { class: 'texte-discret', dataset: { vide: 'bordereau' } }, 'Ton Bordereau est vide : crée tes articles dans le Bordereau, ou utilise une ligne libre.', ' ', h('a', { href: '#/devis/bordereau' }, 'Ouvrir le Bordereau')));
+      remplir(ref.resultats, h('li', { class: 'texte-discret', dataset: { vide: 'bordereau' } }, 'Ton catalogue est vide : crée tes articles dans le catalogue, ou utilise une ligne libre.', ' ', h('a', { href: '#/devis/bordereau' }, 'Ouvrir le catalogue')));
       return;
     }
-    if (!rechercheBordereau.trim() && !filtreFamille) { remplir(ref.resultats, h('li', { class: 'texte-discret' }, 'Tape un mot pour chercher dans ton Bordereau, ou choisis une famille.')); return; }
+    if (!rechercheBordereau.trim() && !filtreFamille) { remplir(ref.resultats, h('li', { class: 'texte-discret' }, 'Tape un mot pour chercher dans ton catalogue, ou choisis une famille.')); return; }
     const trouves = A.avecCalculOuvrage(A.filtrerArticles(actifs, { recherche: rechercheBordereau, statut: 'actifs', familleId: filtreFamille, familles: D.etat.familles }), D.etat.articles, D.etat.reglages).slice(0, 8);
     if (!trouves.length) { remplir(ref.resultats, h('li', { class: 'texte-discret', dataset: { vide: 'resultats' } }, 'Aucun article ne correspond.')); return; }
     remplir(ref.resultats, trouves.map((a) => {

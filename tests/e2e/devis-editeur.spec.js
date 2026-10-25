@@ -59,7 +59,7 @@ async function ouvrirDescription(page) {
 }
 async function chercherEtAjouter(page, mot, quantite) {
   if (await page.locator('[data-zone="recherche"]').isHidden()) { await page.locator('[data-action="ajouter-famille-1"]').click(); await page.locator('[data-champ="filtre-famille"]').selectOption(''); }
-  await page.getByRole('searchbox', { name: 'Rechercher dans le Bordereau' }).fill(mot);
+  await page.getByRole('searchbox', { name: 'Rechercher dans le catalogue' }).fill(mot);
   await page.locator('[data-action="ajouter-article"]').first().click();
   await page.locator('tr.ligne-devis-edition').last().locator('[data-champ="quantite"]').fill(quantite);
 }
@@ -92,9 +92,9 @@ test('ED1 créer un devis pour une affaire, ajouter deux articles du Bordereau, 
   await page.locator('tr.ligne-section-devis [data-champ="libelle"]').fill('Cuisine');
   await chercherEtAjouter(page, 'Carrelage', '10');
   await chercherEtAjouter(page, 'Pose', '5');
-  await page.getByRole('searchbox', { name: 'Rechercher dans le Bordereau' }).fill('CAR60');
+  await page.getByRole('searchbox', { name: 'Rechercher dans le catalogue' }).fill('CAR60');
   await expect(page.locator('[data-action="ajouter-article"]')).toHaveCount(1);
-  await page.getByRole('searchbox', { name: 'Rechercher dans le Bordereau' }).fill('zzz');
+  await page.getByRole('searchbox', { name: 'Rechercher dans le catalogue' }).fill('zzz');
   await expect(page.locator('[data-vide="resultats"]')).toContainText('Aucun article ne correspond');
   await ajouterLibre(page);
   const libre = lignes(page).last();

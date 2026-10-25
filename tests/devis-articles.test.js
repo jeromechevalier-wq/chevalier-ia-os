@@ -158,11 +158,11 @@ describe('B5 le prix d’achat se saisit en euros, virgule française acceptée'
 });
 
 describe('B6 le titre de l’écran suit le nom de bordereau des réglages', () => {
-  test('B6 logique : trois noms permis, « Bordereau de prix unitaires » par défaut, un nom inconnu retombe sur le défaut', () => {
-    assert.deepEqual(A.NOMS_BORDEREAU, ['Bordereau de prix unitaires', 'Grille tarifaire', 'Catalogue']);
-    assert.equal(A.titreBordereau(null), 'Bordereau de prix unitaires');
+  test('B6 logique : trois noms permis, « Catalogue » par défaut, un nom inconnu retombe sur le défaut', () => {
+    assert.deepEqual(A.NOMS_BORDEREAU, ['Catalogue', 'Bordereau de prix unitaires', 'Grille tarifaire']);
+    assert.equal(A.titreBordereau(null), 'Catalogue');
     assert.equal(A.titreBordereau({ nomBordereau: 'Grille tarifaire' }), 'Grille tarifaire');
-    assert.equal(A.titreBordereau({ nomBordereau: 'Autre chose' }), 'Bordereau de prix unitaires');
+    assert.equal(A.titreBordereau({ nomBordereau: 'Autre chose' }), 'Catalogue');
   });
 });
 
@@ -170,7 +170,7 @@ describe('B7 les réglages s’enregistrent et se relisent', () => {
   const etapesIds = ['a', 'b', 'c'];
   test('B7 logique : valeurs par défaut', () => {
     assert.deepEqual(A.reglagesDevis(null), {
-      nomBordereau: 'Bordereau de prix unitaires', modeMarge: 'majoration', marge: 20, regimeTva: 'assujetti', tauxProposes: [20, 10, 5.5], tauxTvaDefaut: 20,
+      nomBordereau: 'Catalogue', modeMarge: 'majoration', marge: 20, regimeTva: 'assujetti', tauxProposes: [20, 10, 5.5], tauxTvaDefaut: 20,
       dureeValiditeJours: 90, etapeAFaire: '', etapeEnvoye: '', mentionEmetteur: '',
     });
     assert.deepEqual(A.reglagesDevis({}), A.reglagesDevis(undefined));
@@ -250,7 +250,7 @@ describe('B9 assistant : outils déclarés', () => {
 describe('B10 cas vide et cas d’erreur du bordereau (décrits dans l’écran)', () => {
   test('B10 les messages du cas vide et du cas d’erreur existent dans l’écran, avec un bouton « + Article » dans le cas vide', () => {
     const ecran = lire('js/modules/devis/bordereau.js');
-    assert.match(ecran, /Aucun article\. Un article est une ligne de ton bordereau de prix/);
+    assert.match(ecran, /Aucun article\. Un article est une ligne de ton catalogue de prix/);
     assert.match(ecran, /nouvel-article-vide/);
     assert.match(ecran, /La dernière version reste affichée/);
     assert.match(ecran, /Enregistrement impossible : ton compte n’a peut-être que le droit de lire/);

@@ -12,7 +12,7 @@ const ERREUR_ECRITURE = 'Enregistrement impossible : réessaie dans un instant, 
 export function reglagesFamilles(page) {
   const sec = h('section', { class: 'carte-section', id: 'reglages-familles' },
     h('h2', {}, icone('tag', { taille: 18 }), 'Familles d’articles'),
-    h('p', { class: 'aide' }, 'Les familles rangent les articles de ton bordereau. Les sept grandes familles sont fixes ; tu peux renommer, désactiver et réactiver leurs sous-familles, ou en ajouter. Une sous-famille désactivée n’est plus proposée pour de nouveaux articles, ceux qui l’ont déjà la gardent.'));
+    h('p', { class: 'aide' }, 'Les familles rangent les articles de ton catalogue. Les sept grandes familles sont fixes ; tu peux renommer, désactiver et réactiver leurs sous-familles, ou en ajouter. Une sous-famille désactivée n’est plus proposée pour de nouveaux articles, ceux qui l’ont déjà la gardent.'));
   const zone = h('div', { class: 'pile liste-familles-reglages' });
   sec.append(zone);
   page.append(sec);

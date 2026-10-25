@@ -284,7 +284,7 @@ export function rendreListeDevis(conteneur, idFiche = null) {
   if (memorisee === 'liste' || memorisee === 'tableau') vue = memorisee;
 
   conteneur.append(h('div', { class: 'page page-liste page-devis page-liste-devis' },
-    h('header', { class: 'page-tete' }, h('div', {}, titre, compteur), h('div', { class: 'page-actions' }, h('a', { class: 'bouton bouton-secondaire', href: '#/devis/bordereau', dataset: { action: 'ouvrir-bordereau' } }, icone('list', { taille: 16 }), 'Bordereau'), boutonNouveau)),
+    h('header', { class: 'page-tete' }, h('div', {}, titre, compteur), h('div', { class: 'page-actions' }, h('a', { class: 'bouton bouton-secondaire', href: '#/devis/bordereau', dataset: { action: 'ouvrir-bordereau' } }, icone('list', { taille: 16 }), 'Catalogue'), boutonNouveau)),
     h('div', { class: 'barre-affaires' }, champRecherche, filtres.element, bascule),
     avis, zone, pied));
 

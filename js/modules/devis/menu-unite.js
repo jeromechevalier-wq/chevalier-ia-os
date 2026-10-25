@@ -19,7 +19,7 @@ export function menuUnite({ valeur = '', id = null, libelle = 'Unité', champ = 
     h('option', { value: AUTRE }, 'Autre…'));
   const libre = h('input', { type: 'text', class: 'champ champ-unite-libre', maxlength: LIMITES.unite, autocomplete: 'off', placeholder: 'Ton unité', 'aria-label': `${libelle} (autre)`, dataset: { champ: `${champ}-libre` }, hidden: true });
   // Verrouillé : l'unité vient de l'article du Bordereau (c'est à la création de l'article qu'on la choisit), on la montre sans pouvoir la changer.
-  if (verrouille) { liste.disabled = true; liste.title = 'L’unité vient du Bordereau : elle se choisit quand on crée l’article.'; liste.querySelector(`option[value="${AUTRE}"]`)?.remove(); }
+  if (verrouille) { liste.disabled = true; liste.title = 'L’unité vient du catalogue : elle se choisit quand on crée l’article.'; liste.querySelector(`option[value="${AUTRE}"]`)?.remove(); }
   const element = h('div', { class: 'menu-unite' }, liste, libre);
   liste.addEventListener('change', () => {
     const autre = liste.value === AUTRE;

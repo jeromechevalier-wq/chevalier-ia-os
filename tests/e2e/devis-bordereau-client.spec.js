@@ -63,7 +63,7 @@ test('B1 chez un client, « Devis » est au menu quand le module est actif avec 
   await expect(page).toHaveURL(/#\/espace\/avecdevis\/devis\/liste$/);
   await page.locator('[data-action="ouvrir-bordereau"]').click();
   await expect(page).toHaveURL(/#\/espace\/avecdevis\/devis\/bordereau$/);
-  await expect(page.getByRole('heading', { name: 'Bordereau de prix unitaires', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Catalogue', level: 1 })).toBeVisible();
   await expect(page.locator('.etat-vide')).toContainText('Aucun article');
   await capturer(page, info, 'B1-client-menu-devis');
   // sans le module : pas d'entrée, et l'adresse directe est introuvable

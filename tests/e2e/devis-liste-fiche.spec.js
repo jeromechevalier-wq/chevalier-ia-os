@@ -119,7 +119,7 @@ test('1 lien direct #/devis/liste/<id> ; la touche « retour » du navigateur fe
   await capturer(page, info, '1-fiche-depuis-tableau');
 });
 
-test('2 en-tête : statut (menu = changements permis), titre, ✕ ; boutons Envoyer, Facturer (grisé), Voir, Dupliquer, Annuler selon le statut (brouillon, finalisé, signé, expiré)', async ({ page }, info) => {
+test('2 en-tête : statut (menu = changements permis), titre, ✕ ; boutons Envoyer, Voir, Dupliquer selon le statut ; ni Facturer ni Annuler (brouillon, finalisé, signé, expiré)', async ({ page }, info) => {
   await donnees();
   await ouvrir(page);
   // Brouillon : « Modifier » en bouton principal, titre « Brouillon », « Finalisé » proposé.
@@ -127,15 +127,13 @@ test('2 en-tête : statut (menu = changements permis), titre, ✕ ; boutons Envo
   await expect(fiche(page).locator('.fiche-titre')).toHaveText('Brouillon');
   await expect(fiche(page).locator('[data-action="modifier-fiche"]')).toHaveClass(/bouton-principal/);
   await expect(fiche(page).locator('[data-action="statut-fiche"]')).toHaveAttribute('data-statut', 'brouillon');
-  await expect(fiche(page).locator('[data-action="facturer-fiche"]')).toBeDisabled();
-  await expect(fiche(page).locator('[data-action="facturer-fiche"]')).toContainText('bientôt disponible');
-  await expect(fiche(page).locator('[data-action="annuler-fiche"]')).toBeDisabled();
-  await expect(fiche(page).locator('[data-action="annuler-fiche"]')).toContainText('bientôt disponible');
+  await expect(fiche(page).locator('[data-action="facturer-fiche"]')).toHaveCount(0); // la facturation n'est pas prévue
+  await expect(fiche(page).locator('[data-action="annuler-fiche"]')).toHaveCount(0);
   await fiche(page).locator('[data-action="statut-fiche"]').click();
   await expect(page.locator('.menu-pop').getByRole('menuitem')).toHaveText(['Passer à « Finalisé »']);
   await page.keyboard.press('Escape');
   await fiche(page).locator('[data-action="voir-fiche"]').click();
-  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Modifier' })).toBeEnabled();
+  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Modifier' })).toHaveCount(0); // « Modifier » est déjà le bouton jaune de l'en-tête
   // Sans PDF du serveur, l'entrée n'est plus grisée : le devis s'imprime (ou s'enregistre en PDF) depuis le navigateur (partie 2 de l'éditeur, point 5).
   await expect(page.locator('.menu-pop').getByRole('menuitem', { name: /Aperçu PDF/ })).toHaveCount(0);
   await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Imprimer / Enregistrer en PDF' })).toBeEnabled();
@@ -155,25 +153,22 @@ test('2 en-tête : statut (menu = changements permis), titre, ✕ ; boutons Envo
   await fiche(page).locator('[data-action="voir-fiche"]').click();
   await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Voir le devis' })).toBeEnabled();
   await page.keyboard.press('Escape');
-  await expect(fiche(page).locator('[data-action="annuler-fiche"]')).toBeDisabled(); // un devis finalisé ne se refuse pas (il n'est pas encore envoyé)
   await capturer(page, info, '2-fiche-finalise');
   await fiche(page).locator('[data-action="fermer-fiche"]').click();
-  // Signé : le statut ne propose aucun changement ; Annuler = Archiver.
+  // Signé : le statut ne propose aucun changement.
   await ouvrirFiche(page, 'dSigne');
   await expect(fiche(page).locator('[data-action="statut-fiche"]')).toHaveAttribute('data-statut', 'accepte');
   await expect(fiche(page).locator('[data-action="statut-fiche"]')).not.toHaveAttribute('aria-haspopup', 'menu');
-  await expect(fiche(page).locator('[data-action="annuler-fiche"]')).toBeEnabled();
   await capturer(page, info, '2-fiche-signe');
   await fiche(page).locator('[data-action="fermer-fiche"]').click();
-  // Expiré : affiché « Expiré », Annuler = Refuser.
+  // Expiré : affiché « Expiré ».
   await ouvrirFiche(page, 'dExpire');
   await expect(fiche(page).locator('[data-action="statut-fiche"]')).toHaveAttribute('data-statut', 'expire');
   await expect(fiche(page).locator('[data-action="statut-fiche"]')).toContainText('Expiré');
-  await expect(fiche(page).locator('[data-action="annuler-fiche"]')).toBeEnabled();
   await capturer(page, info, '2-fiche-expire');
 });
 
-test('2 « Marquer comme envoyé », le menu du statut et « Annuler » appellent les fonctions du serveur (jamais une écriture directe), avec confirmation', async ({ page }, info) => {
+test('2 « Marquer comme envoyé » et le menu du statut appellent les fonctions du serveur (jamais une écriture directe), avec confirmation', async ({ page }, info) => {
   await donnees();
   const appels = [];
   await simulerServeur(page, appels);
@@ -191,23 +186,8 @@ test('2 « Marquer comme envoyé », le menu du statut et « Annuler » appellen
   await page.locator('.menu-pop').getByRole('menuitem', { name: /Signé/ }).click();
   await expect.poll(() => appels.length).toBe(2);
   expect(appels[1]).toEqual(['devisChangerStatut', { devisId: 'dExpire', action: 'accepter' }]);
-  // Annuler = Refuser : confirmation d'abord (« Annuler » de la fenêtre ne fait rien), puis la demande part.
-  await fiche(page).locator('[data-action="annuler-fiche"]').click();
-  await expect(page.getByRole('dialog')).toContainText('Refuser ce devis ?');
-  await page.getByRole('dialog').getByRole('button', { name: 'Annuler' }).click();
-  expect(appels).toHaveLength(2);
-  await fiche(page).locator('[data-action="annuler-fiche"]').click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Refuser' }).click();
-  await expect.poll(() => appels.length).toBe(3);
-  expect(appels[2]).toEqual(['devisChangerStatut', { devisId: 'dExpire', action: 'refuser' }]);
-  // Annuler = Archiver pour un devis signé.
-  await fiche(page).locator('[data-action="fermer-fiche"]').click();
-  await ouvrirFiche(page, 'dSigne');
-  await fiche(page).locator('[data-action="annuler-fiche"]').click();
-  await expect(page.getByRole('dialog')).toContainText('Archiver ce devis ?');
-  await page.getByRole('dialog').getByRole('button', { name: 'Archiver' }).click();
-  await expect.poll(() => appels.length).toBe(4);
-  expect(appels[3]).toEqual(['devisArchiver', { devisId: 'dSigne', archive: true }]);
+  // Refuser passe par le menu du statut ; il n'y a plus de bouton « Annuler » dans l'en-tête.
+  await expect(fiche(page).locator('[data-action="annuler-fiche"]')).toHaveCount(0);
 });
 
 test('2 Dupliquer crée un brouillon et ouvre l’éditeur ; Modifier (brouillon) et Voir le devis ouvrent l’éditeur', async ({ page }) => {
