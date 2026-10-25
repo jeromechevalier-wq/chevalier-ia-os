@@ -537,3 +537,6 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
 .pdf-devis-corps .chargement { display: flex; align-items: center; gap: var(--esp-4); }
 .pdf-devis-actions { display: flex; flex-wrap: wrap; gap: var(--esp-4); }
 @media (max-width: 700px) { .pdf-devis-actions .bouton { flex: 1 1 auto; min-height: 44px; } .pdf-non-range { min-height: 44px; } }
+
+/* Pastille « Devis : … » ajoutée sur les cartes et fiches d'affaire (crm/pastilles-externes.js) */
+.carte-pastilles-externes { display: flex; flex-wrap: wrap; gap: var(--esp-2); }

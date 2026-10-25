@@ -9,6 +9,9 @@ import { rendreEditeurDevis } from './editeur-ecran.js';
 import { rendrePdfDevis } from './pdf-ecran.js';
 import { reglages as reglagesDuModule } from './reglages.js';
 import { retenirDevis } from './memoire.js';
+import * as CRM from '../crm/donnees.js';
+import { inscrirePastilleAffaire, signaler } from '../crm/pastilles-externes.js';
+import { pastilleDevisDeAffaire } from './pastille-affaire.js';
 import { rechercherDevis } from './recherche.js';
 
 // Feuille de style propre au module, ajoutée au premier affichage (index.html reste inchangé).
@@ -28,13 +31,23 @@ export const actionsRapides = [
 
 let montee = null; // { cle, quitter }
 
+let retirerPastille = null;
+let arretSignal = null;
+
 export function demarrer({ cheminBase = '' } = {}) {
   ajouterFeuille(); // aussi pour la page Réglages, qui montre une section du module
   D.demarrer(cheminBase);
+  // Pastille « Devis : … » sur les cartes et fiches d'affaire (seulement tant que le module tourne : éteint, le CRM n'affiche rien).
+  retirerPastille?.(); arretSignal?.();
+  retirerPastille = inscrirePastilleAffaire((affaireId) => (D.estPretDevis() ? pastilleDevisDeAffaire(D.etat.devis, affaireId, { aujourdhui: CRM.ctx().aujourdhui }) : null));
+  arretSignal = D.surChangement(signaler);
 }
 
 export function arreter() {
   quitter();
+  retirerPastille?.(); retirerPastille = null;
+  arretSignal?.(); arretSignal = null;
+  signaler();
   D.arreter();
 }
 

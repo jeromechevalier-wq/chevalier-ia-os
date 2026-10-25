@@ -4,8 +4,9 @@ import * as D from './donnees.js';
 import * as L from './logique.js';
 import {
   liensEntete, afficherSelecteur, sectionRepliable, champPropriete, selecteurPersonne, selecteurOrganisation, titreEditable, selectProprietaire, gabaritFiche,
-  lienRetour, saisieEnCours, pastilleStatut, etatVide, planifier, iconeInfo, EXPLICATION_STATUT_AFFAIRE,
+  lienRetour, saisieEnCours, pastilleStatut, etatVide, planifier, iconeInfo, EXPLICATION_STATUT_AFFAIRE, pastillesExternes,
 } from './composants.js';
+import { surChangementPastilles } from './pastilles-externes.js';
 import { panneauActivite } from './activites.js';
 import { creerLanceurs } from './lanceurs.js';
 import { retirerAvecAnnulation } from '../../os/retrait.js';
@@ -88,6 +89,7 @@ export function rendreFicheAffaire(conteneur, id) {
           h('div', { class: 'fiche-sous' }, pastilleStatut(L.statutAffiche(a)), iconeInfo(EXPLICATION_STATUT_AFFAIRE[L.statutAffiche(a)], 'État de l’affaire'),
             a.statut === 'perdue' ? h('span', { class: 'aide' }, `${a.raisonPerdue}${a.raisonPerdueDetail ? ` : ${a.raisonPerdueDetail}` : ''}`) : null,
             a.archive ? h('span', { class: 'badge-archive' }, 'Archivée') : null,
+            ...pastillesExternes(a.id),
             liens.element)),
         // Le montant et les boutons forment une seule zone : même axe vertical, même espace entre voisins.
         h('div', { class: 'fiche-tete-droite' },
@@ -188,7 +190,7 @@ export function rendreFicheAffaire(conteneur, id) {
     majLiens?.(); // une saisie est en cours (le choix dans le Résumé garde le focus) : la fiche n'est pas refaite, mais les liens du haut suivent
   });
   reconstruire();
-  const arrets = [D.surChangement(rafraichir), PD.surChangement(rafraichir)];
+  const arrets = [D.surChangement(rafraichir), PD.surChangement(rafraichir), surChangementPastilles(rafraichir)];
   return () => { arrets.forEach((f) => f()); panneau?.arreter(); };
 }
 

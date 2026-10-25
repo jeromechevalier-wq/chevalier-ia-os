@@ -439,9 +439,7 @@ export function validerReglagesDevis(saisie, { actuels = REGLAGES_DEVIS_DEFAUT, 
   for (const [cle, libelle] of [['etapeAFaire', 'à faire'], ['etapeEnvoye', 'envoyé']]) {
     if (s[cle] && !etapesIds.includes(s[cle])) erreurs[cle] = `L’étape « devis ${libelle} » n’existe plus dans tes étapes : choisis-en une autre, ou aucune.`;
   }
-  if (!erreurs.etapeAFaire && !erreurs.etapeEnvoye && s.etapeAFaire && s.etapeAFaire === s.etapeEnvoye) {
-    erreurs.etapeEnvoye = 'L’étape « devis envoyé » doit être différente de l’étape « devis à faire ».';
-  }
+  // Les deux réglages peuvent désigner la même étape (une seule colonne « Devis » dans le pipeline) : pas de refus.
   const mention = typeof s.mentionEmetteur === 'string' ? s.mentionEmetteur.trim() : '';
   if (mention.length > LIMITES.mention) erreurs.mentionEmetteur = `La mention est trop longue (${LIMITES.mention} caractères au plus).`;
   const ent = validerEntreprise(s.entreprise);
