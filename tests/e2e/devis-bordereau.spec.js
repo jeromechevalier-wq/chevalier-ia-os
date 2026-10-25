@@ -277,3 +277,51 @@ test('B10 cas vide du bordereau : une phrase qui explique et un bouton « + Arti
   await page.getByRole('searchbox', { name: 'Rechercher un article' }).fill('carre');
   await expect(ligne(page, 'Carrelage')).toBeVisible();
 });
+
+test('B11 « Mon entreprise » : les champs s\'enregistrent et se relisent ; les mentions manquantes se montrent sans bloquer ; un e-mail faux est refusé avec un message ; cas vide', async ({ page }, info) => {
+  await connecter(page);
+  await ouvrirReglagesDevis(page);
+  const enregistrer = page.locator('[data-action="enregistrer-reglages-devis"]');
+  // Cas vide : la section existe, tous les champs sont vides, les mentions manquantes sont listées, rien à enregistrer.
+  await expect(page.locator('#mon-entreprise')).toBeVisible();
+  await expect(page.locator('[data-champ="entreprise.nom"]')).toHaveValue('');
+  await expect(page.locator('[data-zone="mentions-manquantes"]')).toContainText('Le nom de l\'entreprise est manquant.');
+  await expect(enregistrer).toBeDisabled();
+  await page.locator('#mon-entreprise').scrollIntoViewIfNeeded();
+  await capturer(page, info, 'B11-entreprise-vide');
+  await capturerTelephone(page, info, 'B11-entreprise-vide');
+  // Cas d'erreur : un e-mail qui n'en est pas un n'est pas enregistré, et le message dit quoi faire.
+  await page.locator('[data-champ="entreprise.email"]').fill('pas-un-email');
+  await expect(enregistrer).toBeEnabled();
+  await enregistrer.click();
+  await expect(page.locator('[data-erreur="entreprise.email"]')).toContainText('contact@exemple.fr');
+  expect(await lireDocument('devis_parametres/reglages')).toBeNull();
+  // Saisie complète : on enregistre, les mentions manquantes disparaissent.
+  await page.locator('[data-champ="entreprise.nom"]').fill('Atelier Exemple');
+  await page.locator('[data-champ="entreprise.forme"]').fill('SARL');
+  await page.locator('[data-champ="entreprise.siret"]').fill('123 456 789 00012');
+  await page.locator('[data-champ="entreprise.adresse.ligne1"]').fill('1 rue des Lilas');
+  await page.locator('[data-champ="entreprise.adresse.codePostal"]').fill('75001');
+  await page.locator('[data-champ="entreprise.adresse.ville"]').fill('Paris');
+  await page.locator('[data-champ="entreprise.email"]').fill('contact@exemple.fr');
+  await page.locator('[data-champ="entreprise.assurance.garantie"]').fill('Garantie décennale');
+  await page.locator('[data-champ="entreprise.assurance.assureur"]').fill('Assureur Exemple');
+  await page.locator('[data-champ="entreprise.mediateur.nom"]').fill('Médiateur Exemple');
+  await page.locator('[data-champ="entreprise.mediateur.site"]').fill('https://mediateur.exemple.fr');
+  await page.locator('[data-champ="entreprise.couleur"]').fill('#1f6feb');
+  await expect(page.locator('[data-zone="mentions-manquantes"]')).toBeHidden();
+  await enregistrer.click();
+  await expect(page.locator('.toast', { hasText: 'Réglages des devis enregistrés' })).toBeVisible();
+  await expect(page.locator('[data-erreur="entreprise.email"]')).toHaveText('');
+  await expect.poll(async () => (await lireDocument('devis_parametres/reglages'))?.entreprise).toEqual({
+    nom: 'Atelier Exemple', forme: 'SARL', siret: '123 456 789 00012', adresse: { ligne1: '1 rue des Lilas', codePostal: '75001', ville: 'Paris' }, email: 'contact@exemple.fr', couleur: '#1f6feb',
+    assurance: { garantie: 'Garantie décennale', assureur: 'Assureur Exemple' }, mediateur: { nom: 'Médiateur Exemple', site: 'https://mediateur.exemple.fr' },
+  });
+  await page.reload();
+  await attendreCalme(page);
+  await expect(page.locator('[data-champ="entreprise.nom"]')).toHaveValue('Atelier Exemple');
+  await expect(page.locator('[data-champ="entreprise.adresse.ville"]')).toHaveValue('Paris');
+  await page.locator('#mon-entreprise').scrollIntoViewIfNeeded();
+  await capturer(page, info, 'B11-entreprise-remplie');
+  await capturerTelephone(page, info, 'B11-entreprise-remplie');
+});

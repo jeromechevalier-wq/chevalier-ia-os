@@ -403,3 +403,29 @@ test('ED8 quitter l’éditeur par le menu de gauche (« Affaires ») avec un ch
   await dialogue(page).getByRole('button', { name: 'Enregistrer et quitter' }).click();
   await expect(page.locator('.page-liste-devis')).toBeVisible();
 });
+
+test('ED9 « Mon entreprise » : l’aperçu du devis affiche le bloc entreprise des réglages ; sans réglage, le bloc est absent (cas vide) ; le réglage modifié ailleurs met l’aperçu à jour', async ({ page }, info) => {
+  await semer();
+  await nouveauBrouillon(page);
+  await chercherEtAjouter(page, 'Carrelage', '2');
+  // Cas vide : aucun réglage « Mon entreprise », l'aperçu n'a pas de bloc entreprise.
+  await page.locator('[data-onglet="apercu"]').click();
+  const apercu = page.locator('iframe[data-zone="apercu"]').contentFrame();
+  await expect(apercu.locator('body')).toContainText('Société Exemple');
+  await expect(apercu.locator('.emetteur')).toHaveText('');
+  // Les réglages arrivent en direct : l'aperçu ouvert se met à jour sans rechargement.
+  await ecrireDocument('devis_parametres/reglages', { entreprise: {
+    nom: 'Atelier Exemple', forme: 'SARL', siret: '123 456 789 00012', adresse: { ligne1: '1 rue des Lilas', codePostal: '75001', ville: 'Paris' }, telephone: '01 02 03 04 05', couleur: '#1f6feb',
+  } });
+  const bloc = page.locator('iframe[data-zone="apercu"]').contentFrame().locator('.emetteur');
+  await expect(bloc).toContainText('Atelier Exemple');
+  await expect(bloc).toContainText('SIRET 123 456 789 00012');
+  await expect(bloc).toContainText('1 rue des Lilas');
+  await expect(bloc).toContainText('75001 Paris');
+  await expect(bloc).toContainText('01 02 03 04 05');
+  await capturer(page, info, 'ED9-apercu-entreprise');
+  // La même donnée sert à l'impression (document complet).
+  const html = await page.evaluate(() => document.querySelector('iframe[data-zone="apercu"]').srcdoc);
+  expect(html).toContain('Atelier Exemple');
+  expect(html).toContain('--accent: #1f6feb');
+});
