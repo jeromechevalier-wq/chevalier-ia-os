@@ -17,8 +17,8 @@
 <h1 id="reglage-cors-du-stockage-des-pdf-de-devis-a-faire-une-fois">Réglage « CORS » du stockage des PDF de devis (à faire une fois)</h1>
 <h2 id="pourquoi">Pourquoi</h2>
 <p>Quand on ouvre le PDF d'un devis, l'application en copie un exemplaire dans le dossier « Devis » du dossier Drive de l'affaire. Pour cela, le navigateur doit <strong>lire</strong> le PDF dans Cloud Storage. Par défaut, le stockage refuse cette lecture quand elle vient d'un site web : il faut lui dire quels sites ont le droit (c'est ce qu'on appelle le réglage « CORS »).</p>
-<p>Sans ce réglage, l'écran du PDF affiche : « Le PDF n'a pas pu être lu pour la copie dans Drive… ». Le PDF, lui, s'ouvre quand même normalement.</p>
-<p>Ce réglage se fait <strong>une fois par projet</strong> (un pour Chevalier IA OS, un pour chaque plateforme cliente). Il ne contient aucun secret : il liste seulement des adresses de sites et la méthode de lecture (GET).</p>
+<p>Il sert à deux choses : copier le PDF dans Drive, et le joindre au brouillon Gmail de l'e-mail du devis. Sans ce réglage, l'écran du PDF affiche : « Le PDF n'a pas pu être lu pour la copie dans Drive… ». Le PDF, lui, s'ouvre quand même normalement.</p>
+<p>Ce réglage se fait <strong>une fois par projet Google</strong> : un pour Chevalier IA OS (<code>chevalier-ia-os</code>) et un pour la plateforme des clients (<code>chevalier-ia-app</code>, un seul projet pour <strong>tous</strong> les clients : il ne se refait pas à chaque nouveau client). Il ne contient aucun secret : il liste seulement des adresses de sites et la méthode de lecture (GET).</p>
 <h2 id="le-fichier-d-exemple-cors-json">Le fichier d'exemple (<code>cors.json</code>)</h2>
 <p>Ne l'ajoute <strong>pas</strong> au dépôt : il se crée directement dans le terminal Google (voir plus bas). Adapte les adresses aux sites de l'application concernée.</p>
 <pre><code>[
@@ -31,7 +31,7 @@
     &quot;maxAgeSeconds&quot;: 3600
   }
 ]</code></pre>
-<p>Pour une plateforme cliente, remplace les deux adresses par celles du client (par exemple <code>https://chevalier-ia-app.web.app</code> et <code>https://chevalier-ia-app.firebaseapp.com</code>).</p>
+<p>Pour la plateforme des clients, remplace les deux adresses par <code>https://chevalier-ia-app.web.app</code> et <code>https://chevalier-ia-app.firebaseapp.com</code>.</p>
 <h2 id="ou-cliquer">Où cliquer</h2>
 <ol><li>Ouvre la liste des stockages : https://console.cloud.google.com/storage/browser (vérifie en haut de la page que le bon projet est choisi).</li><li>Repère le <strong>nom du bucket</strong> (la ligne de la liste, souvent de la forme <code>&lt;projet&gt;.firebasestorage.app</code>). Ne le devine pas : copie-le depuis cette liste. C'est ta valeur pour <code>&lt;nom-du-bucket&gt;</code>.</li><li>En haut à droite de la console, clique sur l'icône <strong>Activer Cloud Shell</strong> (le <code>&gt;_</code>). Un terminal s'ouvre en bas de la page.</li><li>Crée le fichier : tape <code>nano cors.json</code>, colle le JSON ci-dessus, puis <code>Ctrl+O</code>, <code>Entrée</code>, <code>Ctrl+X</code>.</li><li>Applique-le avec la commande suivante (remplace <code>&lt;nom-du-bucket&gt;</code> par le nom copié à l'étape 2, sans <code>gs://</code> en double) :</li></ol>
 <pre><code>gsutil cors set cors.json gs://&lt;nom-du-bucket&gt;</code></pre>

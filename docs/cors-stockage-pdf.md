@@ -3,9 +3,9 @@
 ## Pourquoi
 Quand on ouvre le PDF d'un devis, l'application en copie un exemplaire dans le dossier « Devis » du dossier Drive de l'affaire. Pour cela, le navigateur doit **lire** le PDF dans Cloud Storage. Par défaut, le stockage refuse cette lecture quand elle vient d'un site web : il faut lui dire quels sites ont le droit (c'est ce qu'on appelle le réglage « CORS »).
 
-Sans ce réglage, l'écran du PDF affiche : « Le PDF n'a pas pu être lu pour la copie dans Drive… ». Le PDF, lui, s'ouvre quand même normalement.
+Il sert à deux choses : copier le PDF dans Drive, et le joindre au brouillon Gmail de l'e-mail du devis. Sans ce réglage, l'écran du PDF affiche : « Le PDF n'a pas pu être lu pour la copie dans Drive… ». Le PDF, lui, s'ouvre quand même normalement.
 
-Ce réglage se fait **une fois par projet** (un pour Chevalier IA OS, un pour chaque plateforme cliente). Il ne contient aucun secret : il liste seulement des adresses de sites et la méthode de lecture (GET).
+Ce réglage se fait **une fois par projet Google** : un pour Chevalier IA OS (`chevalier-ia-os`) et un pour la plateforme des clients (`chevalier-ia-app`, un seul projet pour **tous** les clients : il ne se refait pas à chaque nouveau client). Il ne contient aucun secret : il liste seulement des adresses de sites et la méthode de lecture (GET).
 
 ## Le fichier d'exemple (`cors.json`)
 Ne l'ajoute **pas** au dépôt : il se crée directement dans le terminal Google (voir plus bas). Adapte les adresses aux sites de l'application concernée.
@@ -23,7 +23,7 @@ Ne l'ajoute **pas** au dépôt : il se crée directement dans le terminal Google
 ]
 ```
 
-Pour une plateforme cliente, remplace les deux adresses par celles du client (par exemple `https://chevalier-ia-app.web.app` et `https://chevalier-ia-app.firebaseapp.com`).
+Pour la plateforme des clients, remplace les deux adresses par `https://chevalier-ia-app.web.app` et `https://chevalier-ia-app.firebaseapp.com`.
 
 ## Où cliquer
 1. Ouvre la liste des stockages : https://console.cloud.google.com/storage/browser (vérifie en haut de la page que le bon projet est choisi).
