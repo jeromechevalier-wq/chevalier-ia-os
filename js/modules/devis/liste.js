@@ -1,7 +1,7 @@
 // Liste des devis : fonctions PURES (tri, filtre, recherche, pagination, regroupement en colonnes, statut affiché, actions permises).
 // Aucun accès à Firebase ni au navigateur : l'écran (liste-ecran.js) les appelle, `node --test` les vérifie (tests/devis-liste.test.js).
 // Les règles de statut viennent de logique.js (TRANSITIONS, estExpire) : rien n'est redéfini ici.
-import { STATUTS_DEVIS, estExpire, transitionPossible, totauxDevis } from './logique.js';
+import { STATUTS_DEVIS, estExpire, transitionPossible, totauxDevis, peutArchiver } from './logique.js';
 import { etatPdfDevis } from './pdf.js';
 import { emailPossible } from './email-brouillon.js';
 
@@ -223,15 +223,59 @@ export function actionsPermises(d, { editeur = EDITEUR_DISPONIBLE, suppression =
   const statut = d?.statut ?? 'brouillon';
   const brouillon = statut === 'brouillon';
   const bientot = { actif: false, raison: MESSAGE_BIENTOT };
-  const variante = transitionPossible(statut, 'nouvelle_version');
+  const version = transitionPossible(statut, 'nouvelle_version');
   return {
     statuts: CHANGEMENTS_STATUT.filter((c) => transitionPossible(statut, c.action)),
     voir: { actif: true },
-    modifierVersionActuelle: brouillon ? (editeur ? { actif: true } : bientot) : { actif: false, raison: 'Ce devis n’est plus un brouillon : crée une variante.' },
-    nouvelleVariante: variante ? (editeur ? { actif: true } : bientot) : { actif: false, raison: brouillon ? 'Un brouillon se modifie directement.' : 'Pas de variante pour un devis signé ou remplacé.' },
+    editer: brouillon ? (editeur ? { actif: true } : bientot) : { actif: false, raison: MESSAGE_NON_EDITABLE },
+    nouvelleVersion: version ? (editeur ? { actif: true } : bientot) : { actif: false, raison: brouillon ? 'Un brouillon se modifie directement.' : 'Pas de nouvelle version pour un devis signé ou remplacé.' },
     dupliquer: editeur ? { actif: true } : bientot,
     facturer: bientot,
     envoyer: emailPossible(statut),
     supprimer: brouillon ? (suppression ? { actif: true } : bientot) : { actif: false, raison: 'Seul un brouillon se supprime.' },
   };
+}
+
+export const MESSAGE_NON_EDITABLE = 'Ce devis est finalisé : on ne le modifie plus. Pour le corriger, crée une nouvelle version.';
+export const MESSAGE_ARCHIVE_IMPOSSIBLE = 'Seul un devis signé ou refusé peut être archivé.';
+
+/** Entrée « Archiver » / « Désarchiver » du menu « … » (même schéma que les projets). Les règles sont celles du serveur : on n'archive qu'un devis signé ou refusé. */
+export function archivageDevis(d) {
+  if (d?.archive === true) return { actif: true, action: 'desarchiver', libelle: 'Désarchiver', icone: 'archive-restore' };
+  if (peutArchiver(d)) return { actif: true, action: 'archiver', libelle: 'Archiver', icone: 'archive' };
+  return { actif: false, action: 'archiver', libelle: 'Archiver', icone: 'archive', raison: MESSAGE_ARCHIVE_IMPOSSIBLE };
+}
+
+/**
+ * UNE SEULE SOURCE pour les actions d'un devis : le menu « … » de la liste, celui de l'éditeur et celui de la visualisation partent de cette liste.
+ * Rend des descriptions sans code d'écran : { cle, libelle, icone, actif, danger? }, { separateur: true } ou { texte } (explication d'une entrée grisée).
+ * Clés : statut:<action>, editer, voir, nouvelle_version, dupliquer, envoyer_email, archiver, supprimer. `exclure` retire des clés (celles qui ont déjà un bouton direct dans l'écran).
+ */
+export function entreesActionsDevis(d, { exclure = [], editeur = EDITEUR_DISPONIBLE, suppression = SUPPRESSION_DISPONIBLE } = {}) {
+  const a = actionsPermises(d, { editeur, suppression });
+  const ar = archivageDevis(d);
+  const avec = (texte, e) => (e.raison === MESSAGE_BIENTOT ? `${texte} (bientôt disponible)` : texte);
+  const sortie = [];
+  const ajouter = (cle, libelle, ic, e, extra = {}) => {
+    if (exclure.includes(cle)) return;
+    sortie.push({ cle, libelle: avec(libelle, e), icone: ic, actif: e.actif, ...extra });
+    if (!e.actif && e.raison && e.raison !== MESSAGE_BIENTOT) sortie.push({ texte: e.raison });
+  };
+  for (const c of a.statuts) {
+    if (!exclure.includes(`statut:${c.action}`)) sortie.push({ cle: `statut:${c.action}`, libelle: `Passer à « ${c.libelle} »`, icone: 'check', actif: true, action: c.action, statutLibelle: c.libelle });
+  }
+  if (a.statuts.length) sortie.push({ separateur: true });
+  ajouter('editer', 'Éditer le devis', 'pencil', a.editer);
+  ajouter('voir', 'Voir le devis', 'eye', a.voir);
+  if (a.nouvelleVersion.actif || a.nouvelleVersion.raison === MESSAGE_BIENTOT) ajouter('nouvelle_version', 'Créer une nouvelle version', 'git-branch', a.nouvelleVersion);
+  ajouter('dupliquer', 'Dupliquer', 'copy', a.dupliquer);
+  ajouter('envoyer_email', 'Envoyer par e-mail', 'mail', a.envoyer);
+  if (!exclure.includes('archiver')) {
+    sortie.push({ separateur: true });
+    sortie.push({ cle: 'archiver', libelle: ar.libelle, icone: ar.icone, actif: ar.actif, action: ar.action });
+    if (!ar.actif && ar.raison) sortie.push({ texte: ar.raison });
+  }
+  if (d?.statut === 'brouillon') ajouter('supprimer', 'Supprimer', 'trash-2', a.supprimer, { danger: true });
+  // Jamais de séparateur en tête, en queue ou doublé.
+  return sortie.filter((e, i, l) => !(e.separateur && (i === 0 || i === l.length - 1 || l[i - 1].separateur)));
 }

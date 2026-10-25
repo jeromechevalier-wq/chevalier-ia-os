@@ -143,7 +143,7 @@ test('5 le numéro d’une carte reste sur au plus 2 lignes (plus de bouton « V
   await expect(carte.locator('[data-action="modifier-devis"]')).toHaveCount(0);
   const m = await carte.locator('.carte-titre').evaluate((el) => ({ h: el.getBoundingClientRect().height, lh: parseFloat(getComputedStyle(el).lineHeight) || parseFloat(getComputedStyle(el).fontSize) * 1.4 }));
   expect(m.h).toBeLessThanOrEqual(m.lh * 2 + 2);
-  await capturer(page, info, '5-carte-variante');
+  await capturer(page, info, '5-carte-version');
 });
 
 test('7 la carte du Tableau est simple : HT en bas à gauche, pastille ronde en bas à droite, ni TTC, ni « il y a », ni dates', async ({ page }, info) => {
@@ -167,7 +167,7 @@ test('6 téléphone : le Tableau garde son défilement horizontal des colonnes',
   await capturer(page, info, '6-tableau-telephone');
 });
 
-test('E3 le menu « … » : changements de statut par le serveur, entrées « bientôt disponible » grisées, Voir ouvre l’aperçu, erreur du serveur dite en clair', { annotation: { type: 'erreurs-reseau-attendues', description: 'le faux serveur répond 400, comme le vrai' } }, async ({ page }, info) => {
+test('E3 le menu « … » : changements de statut par le serveur, entrées « bientôt disponible » grisées, Voir le devis ouvre la visualisation, erreur du serveur dite en clair', { annotation: { type: 'erreurs-reseau-attendues', description: 'le faux serveur répond 400, comme le vrai' } }, async ({ page }, info) => {
   await deuxDevis();
   const appels = [];
   let refuser = false;
@@ -178,7 +178,7 @@ test('E3 le menu « … » : changements de statut par le serveur, entrées « b
     return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ result: { ok: true } }) });
   });
   await ouvrir(page);
-  // Devis envoyé : Signé et Refusé proposés, rien d'autre en statut ; Envoyer par e-mail est permis, Facturer n'existe plus (pas de facturation prévue) ; Dupliquer et la variante sont actifs (l'éditeur existe).
+  // Devis envoyé : Signé et Refusé proposés, rien d'autre en statut ; Envoyer par e-mail est permis, Facturer n'existe plus (pas de facturation prévue) ; Dupliquer et la nouvelle version sont actifs (l'éditeur existe).
   await ouvrirMenuDe(page, 'd1');
   const menu = page.locator('.menu-pop');
   await expect(menu.getByRole('menuitem', { name: /Passer à « Signé »/ })).toBeEnabled();
@@ -187,7 +187,8 @@ test('E3 le menu « … » : changements de statut par le serveur, entrées « b
   await expect(menu.getByRole('menuitem', { name: /Facturer/ })).toHaveCount(0);
   await expect(menu.getByRole('menuitem', { name: /Envoyer par e-mail/ })).toBeEnabled();
   await expect(menu.getByRole('menuitem', { name: /Envoyer par e-mail/ })).not.toContainText('bientôt disponible');
-  for (const nom of [/Dupliquer/, /Modifier : nouvelle variante/]) await expect(menu.getByRole('menuitem', { name: nom })).toBeEnabled();
+  for (const nom of [/Dupliquer/, /Créer une nouvelle version/, /Voir le devis/]) await expect(menu.getByRole('menuitem', { name: nom })).toBeEnabled();
+  await expect(menu.getByRole('menuitem', { name: /Éditer le devis/ })).toBeDisabled(); // un devis finalisé ne s'édite pas
   await expect(menu.getByRole('menuitem', { name: /Supprimer/ })).toHaveCount(0); // seulement un brouillon
   await capturer(page, info, 'E3-menu-devis-envoye');
   // Signé : la demande part au serveur (jamais une écriture directe).
@@ -199,19 +200,18 @@ test('E3 le menu « … » : changements de statut par le serveur, entrées « b
   await ouvrirMenuDe(page, 'd1');
   await page.locator('.menu-pop').getByRole('menuitem', { name: /Passer à « Refusé »/ }).click();
   await expect(page.locator('.toast').last()).toContainText('Ce devis ne peut plus changer de statut.');
-  // Brouillon : Supprimer actif, Modifier : version actuelle actif, Finalisé proposé.
+  // Brouillon : Supprimer actif, Éditer le devis actif, Finalisé proposé.
   await ouvrirMenuDe(page, 'd2');
   await expect(page.locator('.menu-pop').getByRole('menuitem', { name: /Supprimer/ })).toBeEnabled();
-  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: /Modifier : version actuelle/ })).toBeEnabled();
+  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: /Éditer le devis/ })).toBeEnabled();
   await expect(page.locator('.menu-pop').getByRole('menuitem', { name: /Passer à « Finalisé »/ })).toBeEnabled();
   await page.keyboard.press('Escape');
-  // Voir : l'aperçu du devis dans une fenêtre.
+  // Voir le devis : la visualisation (lecture seule), plus de fenêtre d'aperçu.
   await ouvrirMenuDe(page, 'd1');
-  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Voir', exact: true }).click();
-  await expect(page.getByRole('dialog')).toBeVisible();
-  await expect(page.getByRole('dialog').locator('iframe').contentFrame().locator('body')).toContainText('DEV-2026-10-02-001');
-  await capturer(page, info, 'E3-apercu');
-  await page.keyboard.press('Escape');
+  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Voir le devis' }).click();
+  await expect(page).toHaveURL(/#\/devis\/voir\/d1$/);
+  await expect(page.locator('.page-editeur-devis.devis-lecture-seule')).toBeVisible();
+  await capturer(page, info, 'E3-visualisation');
 });
 
 test('E4 recherche et filtre de statut ; cas vide « Aucun devis pour l’instant. » ; aucun résultat', async ({ page }, info) => {
@@ -244,7 +244,7 @@ test('O1 un clic sur la ligne d’un brouillon ouvre l’éditeur (devis/editeur
   await expect(page.locator('[data-role="fiche-devis"]')).toHaveCount(0);
 });
 
-test('O2 un clic sur une carte du Tableau ouvre l’éditeur du devis', async ({ page }) => {
+test('O2 un clic sur une carte du Tableau ouvre le devis (l’éditeur pour un brouillon)', async ({ page }) => {
   await tableau4();
   await versTableau(page);
   await page.locator('.carte-devis[data-id="d2"] .carte-titre').click();
@@ -262,29 +262,32 @@ test('O3 les boutons « Modifier » et « Variante » n’existent plus sur les 
   await expect(page.locator('.carte-devis [data-action="menu-devis"]')).not.toHaveCount(0);
 });
 
-test('O4 un devis envoyé s’ouvre dans l’éditeur en lecture seule, avec « Créer une variante » et « Dupliquer » qui ont chacun une infobulle', async ({ page }, info) => {
+test('O4 un devis envoyé s’ouvre en visualisation (lecture seule) : les actions « Créer une nouvelle version » et « Dupliquer » sont dans le « … », à côté d’« Envoyer »', async ({ page }, info) => {
   await deuxDevis();
   await ouvrir(page);
   await lignes(page).locator('[data-colonne="numero"]').nth(1).click(); // d1 (envoyé)
-  await expect(page).toHaveURL(/#\/devis\/editeur\/d1$/);
+  await expect(page).toHaveURL(/#\/devis\/voir\/d1$/);
   await expect(page.locator('[data-valeur="lecture-seule"]')).toBeVisible();
-  await expect(page.locator('[data-action="creer-variante"]')).toBeVisible();
+  await expect(page.locator('[data-action="creer-variante"]')).toHaveCount(0); // plus de bouton direct : tout est dans « … »
   await expect(page.locator('[data-action="fermer-lecture"]')).toHaveCount(0); // plus de bouton « Fermer » : on quitte par la flèche « Devis » en haut à gauche
   await expect(page.locator('[data-action="retour-devis"]')).toBeVisible();
-  // L'explication est portée par l'icône « i » (accessible au clavier et au toucher), plus par l'attribut title.
-  await expect(page.locator('[data-role="info"][aria-label*="Créer une variante"]')).toHaveAttribute('aria-label', /nouvelle version modifiable/);
-  await expect(page.locator('[data-role="info"][aria-label*="Dupliquer"]')).toHaveAttribute('aria-label', /nouveau brouillon/);
+  await expect(page.locator('[data-action="envoyer"]')).toBeVisible();
+  await page.locator('[data-action="plus-actions"]').click();
+  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Créer une nouvelle version' })).toBeEnabled();
+  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Dupliquer' })).toBeEnabled();
+  await page.keyboard.press('Escape');
   await capturer(page, info, 'O4-lecture-seule');
 });
 
-test('O5 le menu « … » propose « Voir la fiche » : la fiche latérale s’ouvre (adresse devis/liste/<id>) et la liste reste derrière', async ({ page }) => {
+test('O5 le menu « … » n’a plus « Voir la fiche » : la fiche n’existe plus et son ancienne adresse ouvre la visualisation', async ({ page }) => {
   await deuxDevis();
   await ouvrir(page);
   await ouvrirMenuDe(page, 'd1');
-  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Voir la fiche' }).click();
-  await expect(page).toHaveURL(/#\/devis\/liste\/d1$/);
-  await expect(page.locator('[data-role="fiche-devis"]')).toBeVisible();
-  await expect(lignes(page)).toHaveCount(2);
+  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Voir la fiche' })).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => { location.hash = '#/devis/liste/d1'; });
+  await expect(page).toHaveURL(/#\/devis\/voir\/d1$/);
+  await expect(page.locator('[data-role="fiche-devis"]')).toHaveCount(0);
 });
 
 test('S1 « Supprimer » d’un brouillon : confirmation, appel de devisSupprimer ; « Annuler » n’appelle rien ; un devis envoyé n’a pas d’entrée Supprimer', async ({ page }) => {

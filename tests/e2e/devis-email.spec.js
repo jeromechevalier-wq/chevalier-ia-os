@@ -16,7 +16,13 @@ const boite = (page) => page.locator('.dialogue-email-devis');
 const champ = (page, nom) => boite(page).locator(`[data-champ="email-${nom}"]`);
 const erreur = (page, nom) => boite(page).locator(`[data-erreur="email-${nom}"]`);
 const creer = (page) => boite(page).locator('[data-action="creer-brouillon-gmail"], [data-action="reessayer-gmail"]');
-const fiche = (page) => page.locator('[data-role="fiche-devis"]');
+const fiche = (page) => page.locator('[data-zone="historique"]'); // le panneau « Historique » de la visualisation (la fiche du devis n'existe plus)
+/** Ouvre le panneau Historique du devis affiché : bouton de la barre sur ordinateur, menu « … » sur téléphone. */
+async function ouvrirHistorique(page) {
+  await expect(page.locator('.page-editeur-devis.devis-lecture-seule')).toBeVisible();
+  if ((page.viewportSize()?.width || 1440) < 768) { await page.locator('[data-action="plus-actions"]').click(); await page.getByRole('menuitem', { name: 'Historique' }).click(); } else await page.locator('[data-action="historique"]').click();
+  await expect(fiche(page)).toBeVisible();
+}
 
 const LIGNES = [{ id: 'l1', libelle: 'Carrelage', familleId: 'famille-1', type: 'fourniture', quantite: 10, unite: 'm²', prixAchat: 40, prixVente: 60, tauxTva: 20 }];
 async function semer(id, valeurs = {}) {
@@ -202,7 +208,7 @@ test('5 autorisation Google refusée : message clair et « Réessayer » ; l’A
   expect(google.brouillons).toHaveLength(1);
 });
 
-test('6 « Marquer comme envoyé » : le statut passe à Envoyé (devisChangerStatut) puis l’envoi est noté (devisEnregistrerEnvoi), et la fiche le montre', async ({ page, context }, info) => {
+test('6 « Marquer comme envoyé » : le statut passe à Envoyé (devisChangerStatut) puis l’envoi est noté (devisEnregistrerEnvoi), et l’historique le montre', async ({ page, context }, info) => {
   const google = await brancherGoogle(context);
   await semer('dEmail');
   const serveur = await simulerServeur(page, 'dEmail');
@@ -219,14 +225,14 @@ test('6 « Marquer comme envoyé » : le statut passe à Envoyé (devisChangerSt
   expect(google.brouillons).toHaveLength(1);
   const doc = await lireDocument('devis_devis/dEmail');
   expect([doc.statut, doc.envois.length]).toEqual(['envoye', 1]);
-  await page.evaluate(() => { location.hash = '#/devis/liste/dEmail'; });
-  await expect(fiche(page)).toBeVisible();
+  await page.evaluate(() => { location.hash = '#/devis/voir/dEmail'; });
+  await ouvrirHistorique(page);
   await expect(fiche(page).locator('[data-bloc="envois"] [data-envoi]')).toHaveCount(1);
   await expect(fiche(page).locator('[data-bloc="envois"]')).toContainText('à marie@exemple.fr, en copie : compta@exemple.fr');
   await capturer(page, info, '6-historique-un-envoi');
 });
 
-test('6 renvoi d’un devis déjà envoyé : on garde les DEUX dates dans l’historique de la fiche ; seul l’historique est écrit (le statut ne change pas)', async ({ page, context }, info) => {
+test('6 renvoi d’un devis déjà envoyé : on garde les DEUX dates dans le panneau Historique ; seul l’historique est écrit (le statut ne change pas)', async ({ page, context }, info) => {
   await brancherGoogle(context);
   const premier = new Date(Date.now() - 5 * 86400000);
   await semer('dEmail', { statut: 'envoye', envoyeLe: premier, envois: [{ date: premier, destinataires: ['marie@exemple.fr'], copie: [] }] });
@@ -241,8 +247,8 @@ test('6 renvoi d’un devis déjà envoyé : on garde les DEUX dates dans l’hi
   const doc = await lireDocument('devis_devis/dEmail');
   expect(doc.envois).toHaveLength(2);
   expect(doc.envoyeLe.getTime()).toBe(premier.getTime()); // envoyeLe garde la date du premier envoi
-  await page.evaluate(() => { location.hash = '#/devis/liste/dEmail'; });
-  await expect(fiche(page)).toBeVisible();
+  await page.evaluate(() => { location.hash = '#/devis/voir/dEmail'; });
+  await ouvrirHistorique(page);
   const lignes = fiche(page).locator('[data-bloc="envois"] [data-envoi]');
   await expect(lignes).toHaveCount(2);
   await expect(lignes.nth(0)).toContainText('à marie@exemple.fr');
@@ -252,24 +258,26 @@ test('6 renvoi d’un devis déjà envoyé : on garde les DEUX dates dans l’hi
   await capturer(page, info, '6-historique-deux-envois');
 });
 
-test('6 cas vide de la fiche : un devis finalisé jamais envoyé dit « Pas encore envoyé » ; un brouillon n’a pas de bloc Envois ; « Envoyer par e-mail » de la fiche ouvre le dialogue', async ({ page, context }, info) => {
+test('6 cas vide de l’historique : un devis finalisé jamais envoyé dit « Pas encore envoyé » ; un brouillon dit qu’il n’a pas pu être envoyé ; « Envoyer par e-mail » du bouton Envoyer ouvre le dialogue', async ({ page, context }, info) => {
   await brancherGoogle(context);
   await semer('dEmail');
   await semer('dBrouillon', { statut: 'brouillon', numero: null, pdf: null });
   await simulerServeur(page, 'dEmail');
-  await connecter(page, undefined, { route: 'devis/liste/dEmail' });
-  await expect(fiche(page)).toBeVisible();
+  await connecter(page, undefined, { route: 'devis/voir/dEmail' });
+  await ouvrirHistorique(page);
   await attendreCalme(page);
   await expect(fiche(page).locator('[data-bloc="envois"] [data-valeur="aucun-envoi"]')).toHaveText('Pas encore envoyé');
-  await capturer(page, info, '6-fiche-jamais-envoye');
-  await fiche(page).locator('[data-action="envoyer-fiche"]').click();
+  await capturer(page, info, '6-historique-jamais-envoye');
+  await page.keyboard.press('Escape');
+  await page.locator('[data-action="envoyer"]').click();
   await page.locator('.menu-pop').getByRole('menuitem', { name: 'Envoyer par e-mail' }).click();
   await expect(boite(page)).toBeVisible();
   await expect(champ(page, 'a')).toHaveValue('marie@exemple.fr');
   await page.keyboard.press('Escape');
-  await page.evaluate(() => { location.hash = '#/devis/liste/dBrouillon'; });
-  await expect(fiche(page).locator('.fiche-titre')).toContainText('Brouillon');
-  await expect(fiche(page).locator('[data-bloc="envois"]')).toHaveCount(0);
+  await page.evaluate(() => { location.hash = '#/devis/voir/dBrouillon'; });
+  await ouvrirHistorique(page);
+  await expect(fiche(page).locator('[data-bloc="envois"] [data-valeur="aucun-envoi"]')).toContainText('n’a pas encore pu être envoyé');
+  await expect(fiche(page).locator('[data-bloc="envois"] [data-envoi]')).toHaveCount(0);
 });
 
 test('3 PDF « en cours de fabrication » : message clair, « Réessayer » ne relance pas la fabrication, aucun dialogue d’envoi', async ({ page, context }) => {

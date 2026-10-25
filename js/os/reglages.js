@@ -112,21 +112,26 @@ function sectionsDuModule(item, ctx, arrets) {
   return [...tampon.children].map((el, i) => ({ el, i })).sort((a, b) => rang(a.el) - rang(b.el) || a.i - b.i).map((x) => x.el);
 }
 
-/** Raccourcis vers les sections d'une longue page (le CRM en a une douzaine) ; une section masquée (option éteinte) n'a pas de raccourci. */
+/** Raccourcis vers les sections d'une longue page (le CRM en a une douzaine) ; une section masquée (option éteinte) n'a pas de raccourci.
+ *  Un bloc qui n'est pas une section peut aussi avoir son raccourci (attribut `data-raccourci`, déclaré dans le registre comme une section) ;
+ *  l'attribut `data-alerte` ajoute un petit point rouge au raccourci (« il manque quelque chose » dans ce bloc). */
 function raccourcis(item, zone) {
   const barre = h('nav', { class: 'reglages-raccourcis', 'aria-label': 'Dans cette page' });
+  let signature = null;
   const maj = () => {
-    const visibles = [...zone.querySelectorAll('section.carte-section[id]')].filter((el) => !el.hidden);
-    remplir(barre, ...visibles.map((el) => {
-      const declaree = item.sections.find((s) => s.id === el.id);
-      const titre = declaree?.libelle ?? el.querySelector('h2')?.textContent ?? el.id;
-      return h('button', { type: 'button', class: 'reglages-raccourci', dataset: { vers: el.id }, onclick: () => el.scrollIntoView({ behavior: 'smooth', block: 'start' }) }, titre);
-    }));
-    barre.hidden = visibles.length < 4;
+    const visibles = [...zone.querySelectorAll('section.carte-section[id], [data-raccourci][id]')].filter((el) => !el.hidden);
+    const lignes = visibles.map((el) => ({ id: el.id, titre: item.sections.find((s) => s.id === el.id)?.libelle ?? el.querySelector('h2')?.textContent ?? el.id, alerte: el.hasAttribute('data-alerte') }));
+    barre.hidden = visibles.length < 3;
+    const nouvelle = JSON.stringify(lignes);
+    if (nouvelle === signature) return; // rien n'a changé pour la barre (ex. une frappe dans un champ) : on ne recrée pas les boutons, le focus reste
+    signature = nouvelle;
+    remplir(barre, ...lignes.map((l) => h('button', { type: 'button', class: 'reglages-raccourci', dataset: { vers: l.id },
+      onclick: () => zone.querySelector(`[id="${CSS.escape(l.id)}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }, l.titre, // la section est relue à chaque clic : elle peut avoir été redessinée
+    l.alerte ? h('span', { class: 'reglages-raccourci-alerte', dataset: { role: 'alerte-raccourci' } }, h('span', { class: 'sr-only' }, ' (à compléter)')) : null)));
   };
   maj();
   const observateur = typeof MutationObserver === 'function' ? new MutationObserver(maj) : null;
-  observateur?.observe(zone, { attributes: true, attributeFilter: ['hidden'], subtree: true, childList: true });
+  observateur?.observe(zone, { attributes: true, attributeFilter: ['hidden', 'data-alerte'], subtree: true, childList: true });
   return { barre, arreter: () => observateur?.disconnect() };
 }
 
@@ -199,6 +204,10 @@ export function monterReglages(conteneur, segs, ctx) {
   conteneur.append(h('div', { class: 'page page-reglages page-reglages-menu' },
     h('header', { class: 'page-tete page-tete-reglages' }, h('div', {}, h('p', { class: 'etiquette', dataset: { nomEspace: '' } }, c.nomEspace), h('h1', {}, 'Réglages'))),
     h('div', { class: 'reglages-corps' }, menu, contenu)));
+
+  // Adresse #/reglages/<module>/<id d'une section> : on amène cette section à l'écran (même défilement que les raccourcis).
+  const versSection = cible.type === 'module' ? segs[2] : null;
+  if (versSection) setTimeout(() => contenu.querySelector(`[id="${CSS.escape(versSection)}"]`)?.scrollIntoView({ block: 'start' }), 0);
 
   courant = { arreter: () => { arrets.forEach((f) => f()); } };
   return arreterCourant;

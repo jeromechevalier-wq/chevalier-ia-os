@@ -334,6 +334,9 @@ body.page-connexion {
 .reglages-raccourcis { display: flex; flex-wrap: wrap; gap: var(--esp-2); }
 .reglages-raccourci { border: 1px solid var(--bordure-forte); background: transparent; color: var(--texte2); border-radius: 999px; padding: var(--esp-1) var(--esp-5); font: inherit; font-size: var(--fs-menu); cursor: pointer; }
 .reglages-raccourci:hover { background: var(--survol); color: var(--texte); }
+.reglages-raccourci { display: inline-flex; align-items: center; gap: var(--esp-2); }
+.reglages-raccourci-alerte { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--retard); }
+@media (max-width: 767px) { .reglages-raccourci { min-height: 44px; } .carte-section, [data-raccourci] { scroll-margin-top: 64px; } } /* au doigt : zone de clic de 44 px ; la barre du haut (56 px) ne cache pas le titre d'une section atteinte par une pastille */
 .reglages-infos { display: flex; flex-direction: column; gap: var(--esp-4); }
 .reglages-info { display: flex; align-items: center; gap: var(--esp-5); flex-wrap: wrap; }
 .reglages-info-etiquette { flex: 0 0 90px; color: var(--texte2); font-size: var(--fs-menu); }

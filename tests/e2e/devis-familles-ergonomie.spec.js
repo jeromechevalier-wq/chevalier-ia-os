@@ -64,7 +64,7 @@ test('P2 le champ « Famille » propose les familles avec leur chemin par groupe
   await dialogue(page).locator('#article-familleId').fill('Zinguerie');
   await expect(page.locator('.suggestions [role="option"]')).toHaveCount(0);
   await expect(dialogue(page).locator('.suggestion-vide')).toContainText('Aucune famille de ce nom. Les familles se gèrent dans Réglages > Familles d’articles.');
-  await expect(dialogue(page).locator('.suggestion-vide a')).toHaveAttribute('href', /#\/reglages\/devis$/);
+  await expect(dialogue(page).locator('.suggestion-vide a')).toHaveAttribute('href', /#\/reglages\/devis\/reglages-familles$/);
   await expect(dialogue(page).locator('.suggestion-creer')).toHaveCount(0);
   await capturer(page, info, 'P2-aucune-famille');
   // Le lien mène aux Réglages et ferme la fenêtre.
