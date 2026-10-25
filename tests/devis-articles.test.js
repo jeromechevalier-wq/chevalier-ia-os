@@ -40,7 +40,7 @@ describe('B1 le module Devis est déclaré et ne dépend que des Affaires', () =
   });
   test('B1 les Réglages ont un bloc « Devis » avec sa section', () => {
     const bloc = reglagesDesModules(['affaires', 'devis']).find((b) => b.id === 'devis');
-    assert.deepEqual(bloc.sections.map((s) => s.id), ['reglages-devis', 'reglages-familles']);
+    assert.deepEqual(bloc.sections.map((s) => s.id), ['reglages-devis', 'reglages-entreprise', 'reglages-familles']);
   });
 });
 
@@ -273,7 +273,7 @@ describe('B8 règles Firestore : déclaration (les parcours sont dans regles-pla
 
 describe('B9 assistant : outils déclarés', () => {
   test('B9 le registre déclare les cinq outils du bordereau', () => {
-    assert.deepEqual(moduleDeclare('devis').outilsMcp, ['lister_articles', 'chercher_article', 'creer_article', 'modifier_article', 'desactiver_article', 'lister_devis', 'lire_devis', 'creer_devis_brouillon', 'modifier_devis_brouillon', 'finaliser_devis']);
+    assert.deepEqual(moduleDeclare('devis').outilsMcp, ['lister_articles', 'chercher_article', 'lire_reglages_devis', 'creer_article', 'modifier_article', 'desactiver_article', 'lister_devis', 'lire_devis', 'creer_devis_brouillon', 'modifier_devis_brouillon', 'finaliser_devis', 'nouvelle_version_devis', 'archiver_devis', 'enregistrer_envoi_devis', 'changer_statut_devis', 'supprimer_devis']);
   });
 });
 

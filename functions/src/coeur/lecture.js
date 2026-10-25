@@ -3,6 +3,7 @@
 import * as L from '../../partage/logique.js';
 import * as PL from '../../partage/projets.js';
 import * as DA from '../../partage/devis-articles.js';
+import * as DF from '../../partage/devis-familles.js';
 import * as D from '../../partage/devis.js';
 import { COLLECTIONS as C } from './donnees.js';
 import { serialiser } from './serialisation.js';
@@ -289,6 +290,13 @@ export async function chercherArticle(donnees, { texte, limite }) {
   return serialiser({ total, tronque, articles: DA.avecCalculOuvrage(elements, toutes, await reglagesDevis(donnees)) });
 }
 
+/** Réglages du module Devis (marge, mode, TVA, durée de validité, étapes, « Mon entreprise ») et familles d'articles, comme les écrans « Réglages des devis » et « Familles d'articles ». Lecture seule. */
+export async function lireReglagesDevis(donnees) {
+  const lire = async (id) => { try { return await donnees.document(C.devisParametres, id); } catch { return null; } };
+  const [reglages, familles] = await Promise.all([lire(DA.ID_REGLAGES), lire(DF.ID_DOCUMENT_FAMILLES)]);
+  return serialiser({ reglages: DA.reglagesDevis(reglages), familles: DF.famillesDe(familles) });
+}
+
 // ---------------------------------------------------------------- Devis (24/10/2026)
 // Les mêmes calculs que l'écran (partage/devis.js). « Expiré » n'est jamais stocké : il est calculé ici, comme à l'écran.
 // Règle de visibilité : lister_devis ne montre que les totaux (jamais de prix d'achat ni de marge) ; lire_devis montre les lignes comme lister_articles montre
@@ -317,8 +325,16 @@ function resumeDevis(devis, { organisations, personnes, aujourdhui }) {
     statut, statutLibelle: libelleStatut(statut), objet: devis.objet ?? '', affaireId: devis.affaireId ?? null,
     client: clientDe(devis, organisations, personnes), totalHT: t.totalHt, totalTTC: t.ttc,
     creeLe: devis.creeLe ?? null, expireLe: devis.expireLe ?? null, finaliseLe: devis.finaliseLe ?? null, envoyeLe: devis.envoyeLe ?? null,
-    accepteLe: devis.accepteLe ?? null, refuseLe: devis.refuseLe ?? null, archive: devis.archive === true,
+    accepteLe: devis.accepteLe ?? null, refuseLe: devis.refuseLe ?? null, archive: devis.archive === true, archiveLe: devis.archiveLe ?? null,
+    nombreEnvois: Array.isArray(devis.envois) ? devis.envois.length : 0, pdf: pdfDe(devis),
   };
+}
+
+/** État du PDF du devis, sans chemin de stockage ni empreinte : { statut: 'ok' | 'en_cours' | 'echec', nom?, genereLe?, message? } ; null tant qu'aucun PDF n'a été demandé. */
+function pdfDe(devis) {
+  const p = devis.pdf;
+  if (!p || typeof p !== 'object') return null;
+  return { statut: p.statut ?? null, ...(p.nom ? { nom: p.nom } : {}), ...(p.genereLe ? { genereLe: p.genereLe } : {}), ...(p.message ? { message: p.message } : {}) };
 }
 
 /** Les devis, du plus récent au plus ancien. Filtres : statut (brouillon, en_attente_envoi, envoye, accepte, refuse, expire, remplace ; expire = calculé), affaire, texte (numéro, objet, client). Archivés exclus sauf `archives: true`. */
@@ -355,6 +371,9 @@ export async function lireDevis(donnees, { id }, maintenant = new Date()) {
     ...reste,
     ...resumeDevis(devis, { organisations, personnes, aujourdhui }),
     affaire: affaire ? { id: affaire.id, titre: affaire.titre } : null,
+    // E-mails en copie et historique des envois par e-mail ({ date, destinataires, copie }, du plus ancien au plus récent) : envoyeLe est la date du PREMIER envoi.
+    copie: Array.isArray(devis.copie) ? devis.copie : [],
+    envois: (Array.isArray(devis.envois) ? devis.envois : []).map((e) => ({ date: e?.date ?? null, destinataires: e?.destinataires ?? [], copie: e?.copie ?? [] })),
     sections: (sections ?? []).map((s) => ({
       ...s,
       sousTotalHT: t.sections.find((x) => x.id === s.id)?.sousTotalHT ?? 0,

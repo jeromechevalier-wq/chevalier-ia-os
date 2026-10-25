@@ -121,14 +121,14 @@ export const MODULES_DECLARES = geler([
     libelleMenu: 'Devis',
     iconeMenu: 'file-text',
     prefixe: 'devis',
-    reglages: { sections: [{ id: 'reglages-devis', libelle: 'Réglages des devis' }, { id: 'reglages-familles', libelle: 'Familles d’articles' }] },
+    reglages: { sections: [{ id: 'reglages-devis', libelle: 'Général' }, { id: 'reglages-entreprise', libelle: 'Mon entreprise' }, { id: 'reglages-familles', libelle: 'Familles d’articles' }] },
     entreeMenu: 'devis/liste',
     ecrans: [
       { route: 'devis/liste', libelle: 'Devis', icone: 'file-text' },
       { route: 'devis/bordereau', libelle: 'Catalogue', icone: 'list' },
     ],
     collections: ['devis_articles', 'devis_parametres', 'devis_devis'],
-    outilsMcp: ['lister_articles', 'chercher_article', 'creer_article', 'modifier_article', 'desactiver_article', 'lister_devis', 'lire_devis', 'creer_devis_brouillon', 'modifier_devis_brouillon', 'finaliser_devis'],
+    outilsMcp: ['lister_articles', 'chercher_article', 'lire_reglages_devis', 'creer_article', 'modifier_article', 'desactiver_article', 'lister_devis', 'lire_devis', 'creer_devis_brouillon', 'modifier_devis_brouillon', 'finaliser_devis', 'nouvelle_version_devis', 'archiver_devis', 'enregistrer_envoi_devis', 'changer_statut_devis', 'supprimer_devis'],
     dependances: ['affaires'],
   },
   {
