@@ -23,7 +23,7 @@ export function groupesDeFamilles(familles, saisie = '') {
 }
 
 const aideReglages = () => h('span', {}, 'Aucune famille de ce nom. Les familles se gèrent dans ',
-  h('a', { href: lien('reglages/devis'), dataset: { lien: 'reglages-familles' }, onclick: () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })) }, 'Réglages > Familles d’articles'), '.');
+  h('a', { href: lien('reglages/devis/reglages-familles'), dataset: { lien: 'reglages-familles' }, onclick: () => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })) }, 'Réglages > Familles d’articles'), '.');
 
 /**
  * - valeur : l'identifiant de la famille actuelle ('' = aucune) ; surChoix(id) : appelé quand on choisit une famille ('' quand on l'efface avec la croix)
