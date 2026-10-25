@@ -186,13 +186,14 @@ export function coefficientDepuisSaisie(coefficient) {
 export const AFFICHAGE_DEFAUT = Object.freeze({
   afficherMarges: false, afficherReferences: false, cacherDechets: false,
   cacherTotauxSections: false, cacherQuantiteUnite: false, cacherTva: false, cacherElementsOuvrage: false, afficherPrixElementsOuvrage: false, cacherResteAFacturer: false,
-  afficherTelephone: false, afficherEmail: false, afficherNumeroTva: false, afficherSiren: false,
+  afficherTelephone: false, afficherEmail: true, afficherNumeroTva: false, afficherSiren: false,
 });
 /** Affichage d'un devis. Un ancien devis (sans `affichage`) garde l'affichage d'avant : le calcul des marges est visible. */
 export function affichageDe(devis) {
   const brut = devis?.affichage;
-  if (!brut || typeof brut !== 'object') return { ...AFFICHAGE_DEFAUT, afficherMarges: true };
-  return Object.fromEntries(Object.keys(AFFICHAGE_DEFAUT).map((k) => [k, brut[k] === true]));
+  if (!brut || typeof brut !== 'object') return { ...AFFICHAGE_DEFAUT, afficherMarges: true, afficherEmail: false };
+  // Une case jamais écrite dans ce devis prend sa valeur d'origine (e-mail du client affiché, le reste décoché).
+  return Object.fromEntries(Object.keys(AFFICHAGE_DEFAUT).map((k) => [k, k in brut ? brut[k] === true : AFFICHAGE_DEFAUT[k]]));
 }
 
 /** Mention « vendu à perte » (jamais un blocage). Le prix de vente vient de la ligne figée, ou du 2e paramètre. */
