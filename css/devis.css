@@ -100,8 +100,6 @@
 
 /* Éditeur de devis : la disposition d'un devis papier (barre d'actions fixe, en-tête à deux colonnes, tableau à trois niveaux, boutons d'ajout, bas de page). Uniquement des variables de tokens.css. */
 .page-editeur-devis { max-width: none; gap: var(--esp-6); }
-.titre-devis { display: flex; align-items: center; gap: var(--esp-5); flex-wrap: wrap; }
-.titre-devis h1 { margin: 0; }
 .indicateur-enregistrement { position: relative; display: inline-flex; align-items: center; gap: var(--esp-2); min-width: 16px; min-height: 16px; white-space: nowrap; color: var(--texte2); font-size: var(--fs-menu); }
 .indicateur-enregistrement[data-etat="erreur"] { color: var(--retard); }
 .indicateur-enregistrement[data-etat="enCours"] .icone { animation: tourne .9s linear infinite, enreg-apparait .2s .5s backwards; } /* n'apparaît que si l'enregistrement dure plus d'une demi-seconde */
@@ -113,10 +111,13 @@
 /* En-tête : le squelette des fiches (.fiche-tete, crm.css) ; en dessous, la barre d'actions reste collée en haut de l'écran quand on défile. */
 .entete-devis { display: flex; flex-direction: column; gap: var(--esp-5); padding-top: var(--esp-2); } /* classes à part : « .fiche-tete » est la fiche latérale d'un devis, avec ses marges */
 .entete-devis-ligne { display: flex; align-items: center; gap: var(--esp-6); flex-wrap: wrap; }
-.entete-devis .fiche-titre h1 { margin: 0; }
-.entete-devis .fiche-titre { order: 1; }
-.entete-devis .fiche-tete-droite { order: 2; width: auto; }
-@media (max-width: 767px) { .entete-devis-ligne { flex-direction: column; align-items: flex-start; gap: var(--esp-3); } } /* téléphone : titre, puis total dessous */
+.entete-devis-titre { flex: 1 1 280px; min-width: 0; display: flex; flex-direction: column; gap: var(--esp-2); order: 1; }
+.entete-devis-titre h1 { margin: 0; }
+.entete-devis-sous { display: flex; align-items: center; gap: var(--esp-5); flex-wrap: wrap; color: var(--texte2); font-size: var(--fs-texte); }
+.entete-devis-sous > span, .entete-devis-sous > a { display: inline-flex; align-items: center; gap: var(--esp-2); }
+.entete-devis-droite { display: flex; align-items: center; gap: var(--esp-3); order: 2; }
+.indicateur-enregistrement[hidden] { display: none; }
+@media (max-width: 700px) { .entete-devis-ligne { flex-direction: column; align-items: flex-start; gap: var(--esp-3); } } /* téléphone : titre, puis total dessous */
 .fiche-montant-devis { font: var(--poids-moyen) var(--fs-chiffre)/1 var(--police-titre); color: var(--texte); white-space: nowrap; }
 .lien-entite { display: inline-flex; align-items: center; gap: var(--esp-2); color: var(--texte2); text-decoration: none; }
 .lien-entite:hover { color: var(--texte); text-decoration: underline; }

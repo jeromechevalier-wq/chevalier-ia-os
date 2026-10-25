@@ -356,9 +356,9 @@ export function rendreEditeurDevis(conteneur, id) {
     const entete = h('header', { class: 'entete-devis' },
       boutonRetour(lecture),
       h('div', { class: 'entete-devis-ligne' },
-        h('div', { class: 'fiche-titre' }, ref.titre,
-          h('div', { class: 'fiche-sous' }, ref.pastille, ref.indicateur, ref.boutonReessayer, ref.compteurManquants, ref.lienClient, ref.lienAffaire)),
-        h('div', { class: 'fiche-tete-droite' }, ref.totalEntete)));
+        h('div', { class: 'entete-devis-titre' }, ref.titre,
+          h('div', { class: 'entete-devis-sous' }, ref.pastille, ref.indicateur, ref.boutonReessayer, ref.compteurManquants, ref.lienClient, ref.lienAffaire)),
+        h('div', { class: 'entete-devis-droite' }, ref.totalEntete)));
     // Barre d'actions : reste collée en haut de l'écran quand on défile (onglets, Catalogue, Options, Envoyer).
     ref.sentinelle = h('div', { class: 'sentinelle-barre-devis', 'aria-hidden': 'true' });
     ref.barre = h('div', { class: 'barre-devis' },
@@ -577,11 +577,12 @@ export function rendreEditeurDevis(conteneur, id) {
     lienDe(ref.lienClient, nomClient, d.organisationId ? cheminOrganisation(d.organisationId) : cheminPersonne(d.personneId), d.organisationId ? 'building-2' : 'user');
     const affaire = d.affaireId ? CRM.affaire(d.affaireId) : null;
     lienDe(ref.lienAffaire, affaire?.titre, cheminAffaire(d.affaireId), 'briefcase');
+    ref.indicateur.hidden = lecture; // lecture seule : rien à enregistrer
     if (lecture) { ref.indicateur.replaceChildren(); return; }
     if (ref.indicateur.dataset.etat !== etatEnreg) { // une icône de taille fixe : la barre ne bouge pas ; les mots restent pour l'infobulle et les lecteurs d'écran, et s'affichent seulement en cas d'échec
       const libelle = Ed.libelleEnregistrement(etatEnreg);
       const pictogramme = { enCours: 'refresh-cw', erreur: 'triangle-alert' }[etatEnreg] || 'check';
-      ref.indicateur.replaceChildren(icone(pictogramme, { taille: 16 }), h('span', { class: etatEnreg === 'erreur' ? 'texte-erreur-enreg' : 'sr-only' }, libelle));
+      ref.indicateur.replaceChildren(icone(pictogramme, { taille: 16 }), h('span', { class: etatEnreg === 'erreur' ? '' : 'sr-only' }, libelle));
       ref.indicateur.title = etatEnreg === 'erreur' ? '' : libelle;
       ref.indicateur.dataset.etat = etatEnreg;
     }
