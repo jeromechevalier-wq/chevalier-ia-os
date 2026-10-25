@@ -485,23 +485,12 @@ describe('N2 lister_devis et lire_devis : champs récents, sans prix d’achat n
 });
 
 describe('N3 changer_statut_devis : aperçu puis code, mêmes transitions que l’écran, non restaurable', () => {
-  test('N3 marquer_envoye : aperçu sans écriture, mauvais code refusé, puis le statut change et la ligne de journal est écrite', async () => {
-    const s = await demarrer({ devis: [finalise('f1', 'en_attente_envoi')] });
-    const avant = JSON.stringify(s.doc('devis_devis', 'f1'));
-    const a = ok(await s.appeler('code', 'changer_statut_devis', { id: 'f1', action: 'marquer_envoye' }));
-    assert.equal(a.apercu, true);
-    assert.equal(a.change, false);
-    assert.equal(a.statutActuel, 'en_attente_envoi');
-    assert.equal(a.statutApres, 'envoye');
-    assert.equal(a.totalHT, 96);
-    assert.ok(a.code);
-    assert.equal(JSON.stringify(s.doc('devis_devis', 'f1')), avant, 'l’aperçu n’écrit rien');
-    assert.equal(s.collections.crm_audit.filter((l) => l.docId === 'f1').length, 0);
-    refuse(await s.appeler('code', 'changer_statut_devis', { id: 'f1', action: 'marquer_envoye', codeConfirmation: 'FAUX-CODE' }), /code incorrect/);
-    const a2 = ok(await s.appeler('code', 'changer_statut_devis', { id: 'f1', action: 'marquer_envoye' }));
-    const r = ok(await s.appeler('code', 'changer_statut_devis', { id: 'f1', action: 'marquer_envoye', codeConfirmation: a2.code }));
+  test('N3 marquer_envoye : exécution directe (sans code), journal écrit, non restaurable ; accepter exige un aperçu et un code', async () => {
+    const s = await demarrer({ devis: [finalise('f1', 'en_attente_envoi'), finalise('f2', 'envoye')] });
+    const r = ok(await s.appeler('code', 'changer_statut_devis', { id: 'f1', action: 'marquer_envoye' }));
     assert.equal(r.change, true);
     assert.equal(r.statut, 'envoye');
+    assert.equal(r.apercu, undefined);
     const d = s.doc('devis_devis', 'f1');
     assert.equal(d.statut, 'envoye');
     assert.ok(d.envoyeLe);
@@ -509,7 +498,15 @@ describe('N3 changer_statut_devis : aperçu puis code, mêmes transitions que l�
     assert.equal(ligne.outil, 'devisChangerStatut');
     assert.equal(ligne.via, 'mcp');
     assert.equal(ligne.operationId, r.operationId);
-    refuse(await s.appeler('code', 'changer_statut_devis', { id: 'f1', action: 'marquer_envoye', codeConfirmation: a2.code }), /pas possible/, 'déjà envoyé');
+    refuse(await s.appeler('code', 'changer_statut_devis', { id: 'f1', action: 'marquer_envoye' }), /pas possible/, 'déjà envoyé');
+    refuse(await s.appeler('code', 'restaurer_depuis_audit', { operationId: r.operationId, apercu: false }), /nouvelle_version_devis/);
+    assert.equal(s.doc('devis_devis', 'f1').statut, 'envoye');
+    const avant = JSON.stringify(s.doc('devis_devis', 'f2'));
+    const a = ok(await s.appeler('code', 'changer_statut_devis', { id: 'f2', action: 'accepter' }));
+    assert.equal(a.apercu, true);
+    assert.equal(a.statutApres, 'accepte');
+    assert.equal(JSON.stringify(s.doc('devis_devis', 'f2')), avant, 'l’aperçu n’écrit rien');
+    refuse(await s.appeler('code', 'changer_statut_devis', { id: 'f2', action: 'accepter', codeConfirmation: 'FAUX-CODE' }), /code incorrect/);
   });
 
   test('N3 accepter : les autres versions vivantes passent à « Remplacé » (annoncé dans l’aperçu) ; refuser ; refus hors transition sans code', async () => {

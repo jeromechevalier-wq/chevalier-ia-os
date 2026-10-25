@@ -951,6 +951,13 @@ export async function changerStatutDevis(c, args) {
   if (!D.transitionPossible(devis.statut, action)) {
     refuser('saisie_invalide', `Cette action n'est pas possible pour un devis « ${libelleStatutDevis(devis.statut)} ».`);
   }
+  if (action === 'marquer_envoye') { // décision de Jérôme (25/10/2026) : exécution directe, sans aperçu ni code ; journal écrit, mais non restaurable
+    const r = await appelerCoeurDevis(c, () => changerStatutServeur({ donnees: c.donnees, ctx: ctxDevis(c), devisId: devis.id, action }));
+    return {
+      change: true, id: devis.id, numero: r.devis.numero ?? null, action, statut: r.devis.statut, remplaces: r.remplaces, operationId: r.operationId,
+      detail: `Détail de l'opération : lire_audit avec operationId ${r.operationId}. Ce changement de statut ne se défait pas avec restaurer_depuis_audit : pour corriger, nouvelle_version_devis.`,
+    };
+  }
   const versions = action === 'accepter' ? await c.donnees.liste(C.devis, { champ: 'racineId', valeur: devis.racineId ?? devis.id }) : [];
   const remplaces = versions.filter((v) => v.id !== devis.id && D.transitionPossible(v.statut, 'remplacer'));
   const t = totauxAffiches(devis);

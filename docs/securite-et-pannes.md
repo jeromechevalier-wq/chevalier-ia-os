@@ -236,7 +236,7 @@ Décision de Jérôme (25/10/2026) : les outils MCP peuvent faire autant qu'un h
 | `creer_devis_brouillon`, `modifier_devis_brouillon` (dont `copie`) | bibliothécaire, Claude Code | non | oui tant que le devis est un brouillon |
 | `supprimer_devis` (brouillon seulement) | Claude Code | **aperçu puis code** | oui (le brouillon revient, son PDF brouillon est à refaire) |
 | `finaliser_devis` | Claude Code | **aperçu puis code** | **non** (numéro consommé) |
-| `changer_statut_devis` (marquer envoyé, accepter, refuser) | Claude Code | **aperçu puis code** | **non** (trace du statut ; « accepter » remplace les autres versions) |
+| `changer_statut_devis` (marquer envoyé, accepter, refuser) | Claude Code | marquer envoyé : **direct** ; accepter, refuser : **aperçu puis code** | **non** (trace du statut ; « accepter » remplace les autres versions) |
 
 - **Aperçu puis code** (`functions/src/securite/codes.js`) : le premier appel ne change rien et rend un aperçu et un code ; le second appel, avec le code, écrit. Le code est lié au jeton, à l'outil, au devis (et à l'action pour `changer_statut_devis`) et à l'**empreinte du devis** (s'il change entre les deux, le code ne vaut plus), expire en 5 minutes et ne sert qu'une fois. Le **plafond d'écriture du jeton est vérifié avant** la consommation du code : un jeton au plafond est refusé sans brûler le code. `supprimer_devis` compte aussi dans le plafond de suppressions par jour.
 - **Voie de secours pour un devis finalisé** : `nouvelle_version_devis`, qui crée le brouillon suivant (même numéro) ; le message de refus de la restauration la propose. Un trou dans les numéros n'est pas grave.
