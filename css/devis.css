@@ -17,6 +17,7 @@
   .page-devis .barre-affaires .champ[type="search"] { flex: 1 1 260px; max-width: 420px; } /* sur téléphone la barre est une colonne : la recherche prend sa hauteur normale */
 }
 .reglages-devis .cases { display: flex; gap: var(--esp-7); flex-wrap: wrap; }
+.reglages-devis h3 { display: flex; align-items: center; gap: var(--esp-4); margin-top: var(--esp-8); font-size: var(--fs-section); } /* « Mon entreprise » : même allure que le titre d'une section */
 .valeur-calculee { display: inline-block; padding: 2px 0; }
 .menu-unite { display: flex; flex-direction: column; gap: var(--esp-2); min-width: 90px; }
 .menu-unite.invalide .champ { border-color: var(--retard); }
