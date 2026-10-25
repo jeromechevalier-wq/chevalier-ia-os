@@ -13,10 +13,11 @@
 import { extraireBearer, verifierCle, doitNoterUsage } from './cles.js';
 import { ACTIONS_VEILLE, ErreurAction, lancerAction } from './actions-veille.js';
 import { ACTIONS_AUTOMATISATIONS } from './actions-automatisations.js';
+import { ACTIONS_DEVIS } from './actions-devis.js';
 import { ErreurValidation } from './validation.js';
 import { ErreurN8n } from './n8n.js';
 
-export const MODULES_DE_LA_PORTE = Object.freeze({ veille: ACTIONS_VEILLE, automatisations: ACTIONS_AUTOMATISATIONS });
+export const MODULES_DE_LA_PORTE = Object.freeze({ veille: ACTIONS_VEILLE, automatisations: ACTIONS_AUTOMATISATIONS, devis: ACTIONS_DEVIS });
 export const OCTETS_MAX = 256 * 1024;
 export const REQUETES_PAR_MINUTE = 120;
 export const DUREE_CACHE_INTEGRITE_MS = 60_000;
@@ -80,9 +81,10 @@ export function creerLimiteurMemoire({ parMinute = REQUETES_PAR_MINUTE, maintena
  * `donnees` : { lireCle(empreinte), majCle(empreinte, partiel), lireDoc, creerSiAbsent, majDoc, lister } (adaptateur.js).
  * `n8n` : { lireWorkflow(id) } (n8n.js) — obligatoire : sans lui, la porte refuse tout (jamais de contrôle sauté en silence).
  * `modulesActifs(proprietaire)` : liste des modules actifs. `journal(entree)` : ligne sans donnée sensible.
+ * `services` : services que les actions ne peuvent pas construire seules (ex. `devis(base)` : le travail du serveur sur les devis, avec le stockage des PDF) ; absent = l'action répond « non branché ».
  * Renvoie `traiter({ methode, authorization, corps })` -> { statut, corps }.
  */
-export function creerPorte({ contexte, donnees, n8n, modulesActifs, limiteur = creerLimiteurMemoire(), journal = () => {}, maintenant = Date.now }) {
+export function creerPorte({ contexte, donnees, n8n, modulesActifs, services = {}, limiteur = creerLimiteurMemoire(), journal = () => {}, maintenant = Date.now }) {
   const cache = new Map(); // `${propriétaire}:${workflowId}` -> expire (ms) : seulement les contrôles réussis
 
   async function integrite(proprietaire, workflowId, infos) {
@@ -134,7 +136,7 @@ export function creerPorte({ contexte, donnees, n8n, modulesActifs, limiteur = c
 
     const base = contexte === 'crm' ? '' : `clients/${verif.proprietaire}`;
     try {
-      const resultat = await lancerAction(action, corps.donnees, { base, donnees, auteur: `porte:${verif.idCourt}`, maintenant });
+      const resultat = await lancerAction(action, corps.donnees, { base, donnees, auteur: `porte:${verif.idCourt}`, maintenant, services });
       return { statut: 200, corps: { ok: true, resultat } };
     } catch (e) {
       if (e instanceof ErreurValidation) throw new ErreurPorte(e.code, e.message, 400);

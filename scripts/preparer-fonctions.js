@@ -38,6 +38,11 @@ writeFileSync(join(destination, 'devis-articles.js'), devisArticles.replaceAll("
 writeFileSync(join(destination, 'devis-document.js'), readFileSync(join(racine, 'js', 'modules', 'devis', 'document.js'), 'utf8').replaceAll("from './logique.js'", "from './devis.js'"));
 console.log('functions/partage/devis.js, devis-ouvrages.js et devis-articles.js mis à jour (copies de js/modules/devis/, imports réécrits)');
 
+// Message et objet par défaut de l'e-mail d'un devis (email-brouillon.js, fichier pur) : le serveur (action de porte `devis.lireEmail`) calcule le MÊME texte que l'écran.
+// Son seul import est celui des calculs du Devis (./logique.js -> ./devis.js).
+writeFileSync(join(destination, 'devis-email.js'), readFileSync(join(racine, 'js', 'modules', 'devis', 'email-brouillon.js'), 'utf8').replaceAll("from './logique.js'", "from './devis.js'"));
+console.log('functions/partage/devis-email.js mis à jour (copie de js/modules/devis/email-brouillon.js, import réécrit)');
+
 // Brouillons (plans d'écriture) et logique de l'éditeur (ligne copiée d'un article) : utilisés par les outils MCP du Devis (creer_devis_brouillon, modifier_devis_brouillon).
 // Mêmes règles d'import : ./logique.js (calculs) -> ./devis.js d'abord, puis ../crm/logique.js -> ./logique.js.
 const devisBrouillon = readFileSync(join(racine, 'js', 'modules', 'devis', 'brouillon.js'), 'utf8');
@@ -49,7 +54,7 @@ console.log('functions/partage/devis-brouillon.js et devis-editeur.js mis à jou
 
 // La porte des workflows n8n (scripts/porte/) : la logique (clés, contrôles, actions de la veille, accès Firestore, lecteur n8n) est copiée telle quelle,
 // sans l'outil en ligne de commande (outil.js), qui reste sur le Mac de Jérôme. Même principe : un seul exemplaire du code, testé, utilisé par la fonction.
-const FICHIERS_PORTE = ['cles.js', 'validation.js', 'actions-veille.js', 'n8n.js', 'adaptateur.js', 'porte.js', 'cles-tableau.js', 'actions-tableaudebord.js', 'porte-tableau.js', 'saisie-tableaudebord.js', 'actions-automatisations.js'];
+const FICHIERS_PORTE = ['cles.js', 'validation.js', 'actions-veille.js', 'n8n.js', 'adaptateur.js', 'porte.js', 'cles-tableau.js', 'actions-tableaudebord.js', 'porte-tableau.js', 'saisie-tableaudebord.js', 'actions-automatisations.js', 'actions-devis.js'];
 const destinationPorte = join(destination, 'porte');
 mkdirSync(destinationPorte, { recursive: true });
 // actions-automatisations.js importe le fichier pur des propositions par son chemin dans le dépôt ; dans functions/partage/ il est un dossier plus haut.
@@ -81,7 +86,7 @@ for (const dossier of ['coeur', 'mcp', 'oauth', 'securite', 'clients']) cpSync(j
 mkdirSync(join(destinationServeur, 'src'), { recursive: true });
 copyFileSync(join(racine, 'functions', 'src', 'version.js'), join(destinationServeur, 'src', 'version.js'));
 copyFileSync(join(racine, 'functions', 'package.json'), join(destinationServeur, 'package.json')); // version.js lit la version du serveur ici
-for (const f of ['logique.js', 'projets.js', 'devis.js', 'devis-articles.js', 'devis-ouvrages.js', 'devis-familles.js', 'devis-brouillon.js', 'devis-editeur.js', 'registre.js', 'marque.js', 'chemins.js', 'membres.js', 'propositions.js']) {
+for (const f of ['logique.js', 'projets.js', 'devis.js', 'devis-articles.js', 'devis-ouvrages.js', 'devis-familles.js', 'devis-brouillon.js', 'devis-editeur.js', 'devis-email.js', 'registre.js', 'marque.js', 'chemins.js', 'membres.js', 'propositions.js']) {
   mkdirSync(join(destinationServeur, 'partage'), { recursive: true });
   copyFileSync(join(destination, f), join(destinationServeur, 'partage', f));
 }

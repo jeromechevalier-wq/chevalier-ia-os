@@ -7,6 +7,10 @@ import { creerAdaptateur } from '../partage/porte/adaptateur.js';
 import { creerPorte, creerGestionnaireHttp } from '../partage/porte/porte.js';
 import { creerLecteurWorkflows, ErreurN8n } from '../partage/porte/n8n.js';
 import { lireSecretJetons } from './securite/secret.js';
+import { creerAccesFirestore, avecBase } from './coeur/donnees.js';
+import { creerServiceDevisPorte } from './coeur/devis-email.js';
+import { cheminAppartientALEspace } from './devis/stockage.js';
+import { stockageDuProjet } from './devis/stockage-projet.js';
 
 export const NOM_SECRET_N8N = 'N8N_API_KEY';
 const DUREE_CLE_EN_MEMOIRE_MS = 5 * 60_000;
@@ -37,18 +41,48 @@ export function creerN8nDepuisSecret({ lireSecret, urlN8n, fetchImpl, maintenant
   return { async lireWorkflow(id) { return (await lecteur()).lireWorkflow(id); } };
 }
 
-/** Passerelle HTTP de la porte pour le CRM (propriétaire « interne », données à la racine). */
-export function creerGestionnairePorteCrm({ db, lireSecret = lireSecretJetons({ nom: NOM_SECRET_N8N }), urlN8n, sortie = (ligne) => process.stdout.write(`${ligne}\n`) } = {}) {
+/** Durée du lien de lecture du PDF donné à n8n (devis.lireEmail) : le temps de le télécharger et de le joindre au brouillon. */
+export const DUREE_LIEN_PDF_N8N_MINUTES = 10;
+
+/**
+ * Service « devis » de la porte : lecture de l'e-mail à préparer et note du résultat (functions/src/coeur/devis-email.js). `base` : '' (Jérôme) ou 'clients/<id>'.
+ * Le lien du PDF n'est signé que si le chemin lu sur le devis est bien dans le dossier des devis de CET espace.
+ */
+export function creerServiceDevis({ db, acces: accesBrut = null, stockage = stockageDuProjet, maintenant = () => new Date() } = {}) {
+  return (base) => {
+    const acces = accesBrut ?? creerAccesFirestore({ db });
+    const donnees = base ? avecBase(acces, base) : acces;
+    const espace = base ? `${base}/` : '';
+    return creerServiceDevisPorte({
+      donnees, maintenant,
+      pdf: async ({ chemin, nom }) => {
+        if (!cheminAppartientALEspace(chemin, espace)) throw new Error('Stockage : ce PDF n\'est pas accessible.');
+        const rangement = stockage();
+        if (!rangement) throw new Error('Stockage : espace de stockage introuvable.');
+        return { lienSigne: await rangement.lienSigne(chemin, { minutes: DUREE_LIEN_PDF_N8N_MINUTES, nomAffiche: nom }), octets: await rangement.taille(chemin) };
+      },
+    });
+  };
+}
+
+/** La porte du CRM (propriétaire « interne », données à la racine), sans la couche HTTP. `fetchImpl` et `stockage` : réservés aux essais (faux n8n, faux stockage). */
+export function creerPorteCrm({ db, lireSecret = lireSecretJetons({ nom: NOM_SECRET_N8N }), urlN8n, fetchImpl, stockage, sortie = (ligne) => process.stdout.write(`${ligne}\n`), maintenant } = {}) {
   if (!db) {
     if (!getApps().length) initializeApp();
     db = getFirestore();
   }
-  const porte = creerPorte({
+  return creerPorte({
     contexte: 'crm',
     donnees: creerAdaptateur({ db }),
-    n8n: creerN8nDepuisSecret({ lireSecret, urlN8n }),
-    modulesActifs: async () => ['veille', 'automatisations'],
+    n8n: creerN8nDepuisSecret({ lireSecret, urlN8n, fetchImpl }),
+    modulesActifs: async () => ['veille', 'automatisations', 'devis'],
+    services: { devis: creerServiceDevis({ db, ...(stockage ? { stockage } : {}) }) },
     journal: (entree) => sortie(ligneDeJournal(entree)),
+    ...(maintenant ? { maintenant } : {}),
   });
-  return creerGestionnaireHttp(porte);
+}
+
+/** Passerelle HTTP de la porte pour le CRM. */
+export function creerGestionnairePorteCrm(options = {}) {
+  return creerGestionnaireHttp(creerPorteCrm(options));
 }

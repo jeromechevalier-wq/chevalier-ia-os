@@ -242,3 +242,19 @@ Le module `automatisations` est un module de la porte (`MODULES_DE_LA_PORTE` dan
 - Document écrit : voir `chemin-client-pilote.md` (états, champs). Les dates sont des `Date` (Timestamp Firestore). `ecritPar` vaut `porte:<identifiant court de la clé>` ; il n'y a pas de champ propriétaire (la base de la clé l'indique).
 - Les workflows qui appellent ces actions suivent les règles de création de `chemin-client-pilote.md` (étiquette, nom, credential), sinon le module Automatisations ne les voit pas.
 - **Pas encore fait** : la porte de la base 2 (plateforme clients) pour ces actions.
+
+## 13. Module Devis : « Préparer l'e-mail » (25/10/2026)
+
+Le module `devis` est un module de la porte (`MODULES_DE_LA_PORTE` dans `scripts/porte/porte.js`, `modulesActifs` dans `functions/src/porte.js` : `['veille', 'automatisations', 'devis']`). Il sert un seul cas pour l'instant : un workflow n8n crée un **brouillon Gmail** (avec le PDF) pour un devis finalisé. **Rien n'est jamais envoyé** : ni par l'appli, ni par n8n ; la personne envoie elle-même depuis Gmail, puis touche « Marquer comme envoyé » à la main. Code : `scripts/porte/actions-devis.js` (validation) et `functions/src/coeur/devis-email.js` (le travail). Le mode d'emploi pas à pas est dans `docs/ajouter-un-bouton-workflow.md`.
+
+Une action de ce module ne marche que pour une **demande** (`demandeId`) que l'écran vient de faire (fonction `devisPreparerEmail`) : ni une clé, ni un workflow ne peuvent préparer un e-mail « de leur propre chef ».
+
+| Action | Données reçues | Réponse |
+|---|---|---|
+| `devis.lireEmail` | `devisId`, `demandeId` | `{ numero, version, objet, destinataires[], copie[], sujet, message, pdf: { nom, lienSigne, octets } }`. `sujet` et `message` sont calculés par le serveur avec le **même code que l'écran** (`js/modules/devis/email-brouillon.js`). `lienSigne` : adresse de lecture du PDF valable **10 minutes**. **Jamais** de prix d'achat, de marge, de prix de vente, de chemin de stockage ni d'empreinte (testé). Refusée si la demande est inconnue, d'un autre devis, plus vieille que **15 minutes** ou déjà terminée (même message pour les trois premiers cas). |
+| `devis.noterEmailPrepare` | `devisId`, `demandeId`, `statut` (`ok` ou `echec`), `brouillonGmailId` (facultatif), `message` (facultatif, 200 caractères au plus, sans donnée de client ; les adresses e-mail y sont masquées) | `{ devisId, demandeId, statut, deja }`. Le serveur écrit sur le devis `emailPrepare: { le, demandeId, canal: 'n8n', statut }` (une transaction, avec sa ligne de journal `crm_audit`) et clôt la ligne de la demande. Rejouable (`deja: true`). **N'écrit jamais `envois` et ne change jamais le statut** du devis. Acceptée jusqu'à 1 heure après la demande. |
+
+- **Codes d'erreur** : 400 (champ inconnu, manquant, mal formé), 403 `module_non_actif` (la clé n'a pas le module `devis`), 404 `demande_inconnue`, 409 (`demande_close`, `pdf_pas_pret`, `sans_destinataire`, devis changé depuis la demande), 503 `devis_non_branche` (la porte n'a pas reçu le service des devis).
+- **Droits** : une clé de porte n'a que les actions des modules actifs de son espace. Le workflow doit être étiqueté et nommé comme les autres (`interne-…` chez Jérôme, `client-<id>-…` chez un client). Il n'existe pas d'action « envoyer », ni « finaliser », ni « changer le statut » dans ce module.
+- **Journal des demandes** : collection `crm_actions_lancements` (un document fixe `dernier-<devisId>` par devis, lu et réécrit dans la transaction de la demande pour l'anti-doublon ; une ligne par demande : client, `devisId`, `demandeId`, statut `demandee` / `ok` / `echec`, dates, durée, court message ; jamais le contenu d'un e-mail). Le journal de la porte ne reçoit jamais le résultat de `devis.lireEmail` (adresses, lien du PDF).
+- **Chez un client** : le code est le même (`base` = `clients/<id>`), mais la porte de la base 2 n'existe pas encore (voir la partie 6) : rien n'est déployé chez les clients.
