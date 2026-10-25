@@ -1201,7 +1201,7 @@ export function rendreEditeurDevis(conteneur, id) {
       const ajuste = racine.querySelector(`[data-prix-ajuste="${CSS.escape(l.id)}"]`);
       if (ajuste) ajuste.textContent = typeof l.prixVenteUnitaire === 'number' ? `ajusté : ${euros(l.prixVenteUnitaire)}` : '';
       const marge = racine.querySelector(`[data-calcul-marge="${CSS.escape(l.id)}"]`);
-      if (marge && trouve) marge.textContent = `Achat ${euros(trouve.ligne.prixAchat)} · Marge ${saisieNombre(margeEffective({ devis: travail, section: trouve.section, ligne: trouve.ligne }))} % · Vente ${euros(base)}`;
+      if (marge && trouve) marge.textContent = `Achat ${euros(trouve.ligne.prixAchat)} · Marge ${saisieNombre(Math.round(margeEffective({ devis: travail, section: trouve.section, ligne: trouve.ligne })))} % · Vente ${euros(base)}`;
     }
     for (const s of t.sections) {
       const el = racine.querySelector(`[data-sous-total="${CSS.escape(s.id)}"]`);
