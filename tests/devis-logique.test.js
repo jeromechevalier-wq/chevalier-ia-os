@@ -193,6 +193,10 @@ describe('Numéro, expiration, statuts', () => {
 });
 
 describe('Validation de finalisation', () => {
+  test('D9b une adresse e-mail en copie invalide empêche de finaliser ; une adresse valide est acceptée', () => {
+    assert.deepEqual(D.erreursFinalisation(devisType({ copie: ['contact@exemple.fr'] })), []);
+    assert.ok(D.erreursFinalisation(devisType({ copie: ['pas-un-email'] })).some((e) => /en copie n'est pas valide/.test(e)));
+  });
   test('D9 un devis complet est valide', () => assert.deepEqual(D.erreursFinalisation(devisType()), []));
   test('D9 sans ligne ; le destinataire est facultatif (impression, remise en main propre) mais une adresse écrite doit être valide', () => {
     assert.ok(D.erreursFinalisation(devisType({ sections: [] })).some((e) => /au moins une ligne/.test(e)));

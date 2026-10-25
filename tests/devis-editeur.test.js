@@ -158,6 +158,7 @@ describe('E6 changements et alerte de sortie', () => {
     for (const interdit of ['numero', 'statut', 'version', 'totaux', 'id', 'racineId', 'archive']) assert.equal(interdit in e, false);
     assert.equal('objet' in e, false);
     assert.equal(e.affaireId, 'a1');
+    assert.deepEqual(Ed.champsAEnregistrer({ ...base, copie: ['a@exemple.fr'] }).copie, ['a@exemple.fr']); // les e-mails en copie s'enregistrent
     assert.equal(Ed.libelleEnregistrement('enregistre'), 'Enregistré');
     assert.equal(Ed.libelleEnregistrement('erreur'), 'Échec de l’enregistrement');
     // Les trois états courants restent courts et de longueur voisine : la barre du haut ne saute pas.

@@ -599,6 +599,7 @@ export function erreursFinalisation(devis) {
   const destinataires = (devis.destinataires ?? []).map(emailDe);
   // Pas d'adresse e-mail obligatoire : on peut imprimer le devis et le remettre en main propre ; l'adresse ne sert qu'à l'envoi par e-mail (à venir).
   if (destinataires.some((e) => e && !emailValide(e))) erreurs.push('Une adresse e-mail de destinataire n\'est pas valide : corrige-la.');
+  if ((devis.copie ?? []).map(emailDe).some((e) => e && !emailValide(e))) erreurs.push('Une adresse e-mail en copie n\'est pas valide : corrige-la.');
   const ids = (devis.sections ?? []).flatMap((s) => (s.lignes ?? []).filter((l) => !estSaut(l)).map((l) => l.id));
   if (ids.some((id) => absent(id) || id === '') || new Set(ids).size !== ids.length) erreurs.push('Une ligne du devis n\'a pas d\'identifiant unique : recharge le devis ou recrée cette ligne.');
   const lignes = (devis.sections ?? []).flatMap((s) => (s.lignes ?? []).filter((l) => !estSaut(l)).map((l) => ({ s, l })));
