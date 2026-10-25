@@ -65,6 +65,31 @@ async function chercherEtAjouter(page, mot, quantite) {
 }
 const textes = (page) => lignes(page).locator('[data-champ="libelle"]').evaluateAll((els) => els.map((e) => e.value));
 
+test('C1 « + E-mail en copie » : ajouter une adresse (Entrée), refuser une adresse invalide, retirer par la croix ; l’adresse reste après rechargement', async ({ page }, info) => {
+  await semer();
+  const id = await nouveauBrouillon(page);
+  const bloc = page.locator('[data-zone="copie"]');
+  await expect(bloc.locator('[data-action="ajouter-copie"]')).toHaveText('E-mail en copie');
+  await expect(bloc.locator('.ligne-copie')).toHaveCount(0); // cas vide : seulement le bouton jaune
+  await bloc.locator('[data-action="ajouter-copie"]').click();
+  await bloc.locator('[data-champ="copie"]').fill('pas-un-email');
+  await bloc.locator('[data-champ="copie"]').press('Enter');
+  await expect(bloc.locator('[data-erreur="copie"]')).toContainText('Cette adresse email n’est pas valide');
+  await bloc.locator('[data-champ="copie"]').fill('Compta@Exemple.fr');
+  await bloc.locator('[data-champ="copie"]').press('Enter');
+  await expect(bloc.locator('.ligne-copie')).toHaveText(['Compta@Exemple.fr']);
+  await bloc.locator('[data-action="ajouter-copie"]').click();
+  await bloc.locator('[data-champ="copie"]').fill('compta@exemple.fr'); // déjà présente (sans tenir compte des majuscules) : rien n'est ajouté
+  await bloc.locator('[data-champ="copie"]').press('Enter');
+  await expect(bloc.locator('.ligne-copie')).toHaveCount(1);
+  await capturer(page, info, 'C1-email-en-copie');
+  await enregistre(page);
+  await page.reload();
+  await expect(page.locator('[data-zone="copie"] .ligne-copie')).toHaveText(['Compta@Exemple.fr']);
+  await page.locator('[data-zone="copie"] [data-action="retirer-copie"]').click();
+  await expect(page.locator('[data-zone="copie"] .ligne-copie')).toHaveCount(0);
+});
+
 test('ED1 créer un devis pour une affaire, ajouter deux articles du Bordereau, une ligne libre et une section, une remise : le total se calcule en direct et reste après rechargement', { tag: '@smoke' }, async ({ page }, info) => {
   await semer();
   const id = await nouveauBrouillon(page);

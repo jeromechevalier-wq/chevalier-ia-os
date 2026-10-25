@@ -14,7 +14,7 @@ import { arbreFamilles, cheminFamille } from './familles.js';
 import * as Ed from './editeur-logique.js';
 import {
   TYPE_SAUT, totauxDevis, erreursFinalisation, erreursChantier, STATUTS_DEVIS, UNITES_DUREE, MOMENTS_ACOMPTE, transitionPossible, TAUX_TVA_DEFAUT, niveauSection, dureeEnTexte,
-  affichageDe, ajustementActif, valeursAjustement, margeEffective, vueClient,
+  affichageDe, ajustementActif, valeursAjustement, margeEffective, vueClient, emailValide,
 } from './logique.js';
 import { formaterMontant } from './document.js';
 import { menuUnite } from './menu-unite.js';
@@ -560,6 +560,49 @@ export function rendreEditeurDevis(conteneur, id) {
     remplir(ref.panneauApercu, corps);
   }
 
+  // ------------------------------------------------ e-mails en copie (cc) : une ligne « + E-mail en copie » en jaune, comme les autres « + Ajouter » des fiches
+  const MAX_COPIE = 10;
+  /** Adresses en copie : chacune avec sa croix ; « + E-mail en copie » ouvre un champ (Entrée ou sortie du champ ajoute, Échap annule). Une adresse invalide ou déjà présente n'ajoute rien. */
+  function blocCopie() {
+    const zone = h('div', { class: 'bloc-champ bloc-copie', dataset: { zone: 'copie' } });
+    let saisie = false;
+    const adresses = () => (Array.isArray(travail.copie) ? travail.copie : []);
+    function ajouter(valeur, erreur) {
+      const v = String(valeur ?? '').trim();
+      if (!v) return true;
+      if (!emailValide(v)) { erreur.textContent = 'Cette adresse email n’est pas valide (exemple : contact@exemple.fr).'; erreur.hidden = false; return false; }
+      const deja = [...adresses(), ...(travail.destinataires ?? [])].some((a) => String(a).toLowerCase() === v.toLowerCase());
+      if (!deja) changer({ copie: [...adresses(), v] });
+      return true;
+    }
+    function dessiner() {
+      const liste = adresses();
+      const ligne = h('ul', { class: 'liste-copie' }, liste.map((a, i) => h('li', { class: 'ligne-copie', dataset: { copie: a } },
+        h('span', {}, a),
+        h('button', { type: 'button', class: 'bouton-icone', 'aria-label': `Retirer ${a} de la copie`, dataset: { action: 'retirer-copie' }, disabled: lecture,
+          onclick: () => { changer({ copie: adresses().filter((_, k) => k !== i) }); dessiner(); } }, icone('x', { taille: 14 })))));
+      const parties = [h('span', { class: 'etiquette' }, 'En copie'), liste.length ? ligne : null];
+      if (saisie) {
+        const erreur = h('p', { class: 'erreur', role: 'alert', hidden: true, dataset: { erreur: 'copie' } });
+        let fini = false;
+        const terminer = (valider) => { if (fini) return; if (valider && !ajouter(champSaisie.value, erreur)) return; fini = true; saisie = false; dessiner(); };
+        const champSaisie = h('input', { class: 'champ', type: 'email', inputmode: 'email', autocomplete: 'off', placeholder: 'contact@exemple.fr', 'aria-label': 'E-mail en copie', dataset: { champ: 'copie' },
+          onkeydown: (e) => { if (e.key === 'Enter') { e.preventDefault(); terminer(true); } else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); terminer(false); } },
+          onblur: () => { if (!champSaisie.value.trim()) terminer(false); else terminer(true); } });
+        parties.push(champSaisie, erreur);
+        zone.replaceChildren(...parties.filter(Boolean));
+        champSaisie.focus();
+        return;
+      }
+      if (!lecture && liste.length < MAX_COPIE) {
+        parties.push(h('button', { type: 'button', class: 'prop-vide', dataset: { action: 'ajouter-copie' }, onclick: () => { saisie = true; dessiner(); } }, icone('plus', { taille: 14 }), 'E-mail en copie'));
+      }
+      zone.replaceChildren(...parties.filter(Boolean));
+    }
+    dessiner();
+    return zone;
+  }
+
   // ------------------------------------------------ barre du haut
   const majTitreCompact = () => { if (ref.titreCompact) ref.titreCompact.textContent = [ref.titre?.textContent, ref.totalEntete?.textContent].filter(Boolean).join(' · '); };
   function majEntete() {
@@ -740,7 +783,8 @@ export function rendreEditeurDevis(conteneur, id) {
       champ('Affaire *', ref.selectAffaire, { id: 'devis-affaire', aide: ref.erreurAffaire }),
       champ('Client', ref.selectClient, { id: 'devis-client' }),
       champ('Adresse du chantier', ref.champAdresse, { id: 'devis-chantier-adresse' }),
-      champ('E-mail du destinataire', destinataire, { id: 'devis-destinataire' }));
+      champ('E-mail du destinataire', destinataire, { id: 'devis-destinataire' }),
+      blocCopie());
     return h('div', { class: 'entete-document' }, gauche, droite);
   }
 
