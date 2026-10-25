@@ -11,6 +11,9 @@ import { ErreurEcriture, executerEcritures } from './ecriture.js';
 
 /** Opérations de devis qui figent le devis (fonctions du serveur, voir coeur/devis.js) : jamais restaurées. */
 const OUTILS_DEVIS_FIGES = ['devisFinaliser', 'devisChangerStatut'];
+/** Opérations de devis qui touchent un devis déjà finalisé SANS le figer : archiver, historique des envois (statut inchangé). Elles se défont même si le devis n'est plus un brouillon. */
+const OUTILS_DEVIS_SUR_FINALISE = ['devisArchiver', 'devisEnregistrerEnvoi'];
+const VOIE_DE_SECOURS = 'Pour corriger un devis finalisé, créer la version suivante (nouvelle_version_devis, ou depuis l’écran).';
 
 /** Ce qu'il faudrait faire pour défaire une ligne : 'supprimer' | 'remplacer' | 'recreer' | 'rien' | 'conflit'. */
 function decider(courant, ligne) {
@@ -32,9 +35,9 @@ export async function restaurerOperation({ donnees, ctx, operationId, apercu = t
   if (!lignesAudit.length) {
     throw new ErreurEcriture('introuvable', 'Aucune écriture réussie pour cette opération (identifiant inconnu, ou toutes ont échoué).');
   }
-  // Une finalisation (numéro consommé, prix figés) ou un changement de statut d'un devis ne se défait pas d'après le journal : créer la version suivante depuis l'écran.
+  // Une finalisation (numéro consommé, prix figés) ou un changement de statut d'un devis ne se défait pas d'après le journal : créer la version suivante (nouvelle_version_devis).
   if (lignesAudit.some((l) => OUTILS_DEVIS_FIGES.includes(l.outil))) {
-    throw new ErreurEcriture('restauration_refusee', 'Cette opération a finalisé ou changé le statut d’un devis : elle ne se défait pas avec le journal (le numéro serait perdu). Pour corriger un devis finalisé, créer la version suivante depuis l’écran.');
+    throw new ErreurEcriture('restauration_refusee', `Cette opération a finalisé ou changé le statut d’un devis : elle ne se défait pas avec le journal (le numéro serait perdu). ${VOIE_DE_SECOURS}`);
   }
   const copies = await Promise.all(lignesAudit.map((l) => donnees.document(C.auditAvant, l.id)));
   const perimees = lignesAudit.filter((_, i) => !copies[i]);
@@ -43,8 +46,20 @@ export async function restaurerOperation({ donnees, ctx, operationId, apercu = t
   }
   const courants = await Promise.all(lignesAudit.map((l) => donnees.document(l.collection, l.docId)));
   // Même avec `forcer` : un devis qui n'est plus un brouillon (finalisé à l'écran après sa création par l'assistant, par exemple) ne se supprime ni ne se remet en brouillon par le journal.
-  const figee = lignesAudit.find((l, i) => l.collection === C.devis && courants[i] && courants[i].statut !== 'brouillon');
-  if (figee) throw new ErreurEcriture('restauration_refusee', 'Un devis de cette opération n’est plus un brouillon : il ne se restaure pas avec le journal, même avec forcer. Pour corriger un devis finalisé, créer la version suivante depuis l’écran.');
+  const figee = lignesAudit.find((l, i) => l.collection === C.devis && courants[i] && courants[i].statut !== 'brouillon' && !OUTILS_DEVIS_SUR_FINALISE.includes(l.outil));
+  if (figee) throw new ErreurEcriture('restauration_refusee', 'Un devis de cette opération n’est plus un brouillon : il ne se restaure pas avec le journal, même avec forcer. ' + VOIE_DE_SECOURS);
+  // Archivage / envoi défaits « de force » sur un devis dont le statut a changé depuis (signé, refusé…) : on remettrait l'ancien statut, ce qui contourne la règle des statuts.
+  const statutChange = lignesAudit.find((l, i) => l.collection === C.devis && courants[i] && OUTILS_DEVIS_SUR_FINALISE.includes(l.outil) && copies[i]?.apres && courants[i].statut !== copies[i].apres.statut);
+  if (statutChange) throw new ErreurEcriture('restauration_refusee', 'Le statut de ce devis a changé depuis cette opération : elle ne se défait plus avec le journal, même avec forcer. ' + VOIE_DE_SECOURS);
+  // Recréer un devis supprimé : refusé si sa racine a déjà un brouillon ou un devis de même version (deux devis finalisés au même numéro sinon).
+  for (let i = 0; i < lignesAudit.length; i += 1) {
+    const l = lignesAudit[i];
+    const avant = copies[i]?.avant;
+    if (l.collection !== C.devis || courants[i] || !avant) continue;
+    const freres = await donnees.liste(C.devis, { champ: 'racineId', valeur: avant.racineId ?? l.docId });
+    const conflit = freres.find((v) => v.id !== l.docId && (v.statut === 'brouillon' || (v.version ?? 1) === (avant.version ?? 1)));
+    if (conflit) throw new ErreurEcriture('restauration_refusee', 'Ce devis ne peut pas être recréé : une autre version brouillon ou de même version existe déjà pour ce numéro. ' + VOIE_DE_SECOURS);
+  }
   const lignes = lignesAudit.map((l, i) => {
     const copie = copies[i];
     const courant = sansId(courants[i]);

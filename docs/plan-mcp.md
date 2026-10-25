@@ -159,19 +159,67 @@ Profils : **L** lecteur · **B** bibliothécaire (L + écriture + pièces jointe
 | `supprimer_note`, `supprimer_activite`, `supprimer_organisation`, `supprimer_personne`, `supprimer_affaire` | `id`, `choix?`, `confirmationNom` | règles d'intégrité 3.10 (refus si l'organisation a encore des personnes ; choix pour les affaires d'une personne) ; **confirmation du nom exigée** comme l'écran (`confirmationValide`) | oui (avec copies) | C |
 | `restaurer_depuis_audit` | `operationId`, `apercu`, `forcer` | voir 5.2 | oui | C |
 
-#### Outils du module Devis (24/10/2026)
+#### Outils du module Devis (24/10/2026, révisés le 25/10/2026)
 
-| Outil | Effet | Profils |
-|---|---|---|
-| `lister_devis` | liste des devis avec **les totaux seuls** (HT, TVA, TTC), jamais les lignes ni la marge | L B C |
-| `lire_devis` | un devis complet, lignes et **marge visibles**, comme `lister_articles` montre le prix d'achat | L B C |
-| `creer_devis_brouillon` | crée un brouillon depuis une affaire | B C |
-| `modifier_devis_brouillon` | modifie un brouillon seulement (refusé si le devis est finalisé) | B C |
-| `finaliser_devis` | attribue le numéro, fige les prix, verrouille la version | C seulement |
+| Outil | Effet | Profils | Se défait avec `restaurer_depuis_audit` |
+|---|---|---|---|
+| `lister_devis` | liste des devis avec **les totaux seuls** (HT, TVA, TTC), jamais les lignes ni la marge ; montre aussi `archive`, `archiveLe`, `envoyeLe`, `nombreEnvois` et l'état du PDF | L B C | — |
+| `lire_devis` | un devis complet, lignes et **marge visibles**, comme `lister_articles` montre le prix d'achat ; `copie`, `envois` (historique des envois par e-mail), état du PDF (jamais le chemin du fichier) | L B C | — |
+| `lire_reglages_devis` | réglages du module Devis (marge, TVA, validité, « Mon entreprise ») et familles d'articles, lecture seule | L B C | — |
+| `creer_devis_brouillon` | crée un brouillon depuis une affaire (`copie` : e-mails en copie, mêmes règles que l'écran, 10 au plus) | B C | oui |
+| `modifier_devis_brouillon` | modifie un brouillon seulement (refusé si le devis est finalisé), `copie` comprise | B C | oui |
+| `nouvelle_version_devis` | crée le brouillon suivant d'un devis finalisé, envoyé ou refusé (même numéro, version + 1) : la voie pour corriger un devis finalisé | B C | oui (supprime ce brouillon) |
+| `archiver_devis` | archive (devis signé ou refusé) ou désarchive | B C | oui |
+| `enregistrer_envoi_devis` | ajoute un envoi (destinataires, copie) à l'historique d'un devis « Envoyé » ; les deux dates sont gardées en cas de renvoi ; n'envoie rien | B C | oui |
+| `supprimer_devis` | supprime un **brouillon** (retire aussi son « PDF brouillon ») ; **aperçu puis code** | C seulement | oui |
+| `finaliser_devis` | attribue le numéro, fige les prix, verrouille la version ; **aperçu puis code** | C seulement | **non** |
+| `changer_statut_devis` | marquer envoyé, accepter (Signé) ou refuser, mêmes transitions que l'écran ; `marquer_envoye` **direct**, `accepter` et `refuser` en **aperçu puis code** | C seulement | **non** |
 
-- **Finalisation en deux temps** : le premier appel ne finalise pas, il rend un **code** et résume le devis ; le second appel, avec ce code, finalise. Le code est **lié à l'empreinte du devis** (si le devis change entre les deux, le code ne marche plus), **expire au bout de 5 minutes** et ne sert **qu'une fois**. Cela force l'assistant à montrer le devis à l'humain avant de finaliser.
-- **Limite connue** : une finalisation ne se défait **pas** avec `restaurer_depuis_audit`, qui refuse tout devis qui n'est plus un brouillon (un numéro attribué ne se reprend pas). Pour corriger, on crée la version suivante.
+- **Une seule logique** : `nouvelle_version_devis`, `archiver_devis`, `enregistrer_envoi_devis`, `changer_statut_devis`, `supprimer_devis` et `finaliser_devis` appellent les fonctions de `functions/src/coeur/devis.js` que les fonctions appelables de l'écran utilisent (`devisNouvelleVersion`, `devisArchiver`…). Chacune est une transaction unique qui écrit la donnée et sa ligne de journal (`crm_audit` + `crm_audit_avant`, canal `mcp`).
+- **Aperçu puis code** (finaliser, accepter, refuser, supprimer ; `marquer_envoye` s'exécute directement, journal écrit, non restaurable) : le premier appel ne change rien et rend un **code** et un résumé ; le second appel, avec ce code, écrit. Le code est **lié à l'empreinte du devis** (si le devis change entre les deux, il ne marche plus), **expire au bout de 5 minutes** et ne sert **qu'une fois**. Cela force l'assistant à montrer l'opération à l'humain.
+- **Limite connue** : une finalisation et un changement de statut ne se défont **pas** avec `restaurer_depuis_audit` (un numéro attribué ne se reprend pas, le statut est une trace). Le refus propose la voie de secours, `nouvelle_version_devis`. Les autres opérations sur un devis (création, modification d'un brouillon, nouvelle version, archivage, envoi enregistré, suppression d'un brouillon) se restaurent.
+- **Profils, noir sur blanc** : `enregistrer_envoi_devis` (bibliothécaire et Claude Code) exige un devis **déjà « Envoyé »** ; passer le devis à « Envoyé » (`changer_statut_devis` avec `marquer_envoye`) est **réservé au profil Claude Code**. Un bibliothécaire ne peut donc enregistrer un envoi que sur un devis que Claude Code ou l'écran a déjà marqué envoyé.
+- **Plafonds et codes** : un code faux ou expiré ne coûte aucune écriture ; le plafond d'écriture est réservé après un code valable (s'il est atteint, le code est déjà consommé : refaire un aperçu). `supprimer_devis` n'émet aucun code quand le plafond de suppressions du jour est atteint (`depassePlafond: true`).
+- **Restauration d'un devis supprimé** : refusée si la racine a déjà un brouillon ou un devis de même version (sinon deux devis finalisés pourraient porter le même numéro) ; voie de secours : `nouvelle_version_devis`. Elle peut aussi entrer en conflit avec l'affaire modifiée depuis (`forcer` écrase les documents ajoutés entre-temps).
 - Aucun outil n'envoie d'e-mail.
+
+### 5.3 bis Couverture MCP vs écran (révision du 25/10/2026)
+
+Relevé des fonctions de l'écran et de l'outil MCP qui les couvre. « manque » = aucun outil ; les trous simples ont été corrigés dans la même révision (voir la dernière colonne), les autres sont listés plus bas, non codés. Tous les outils d'écriture passent par le journal (`crm_audit`), sauf `valider_proposition` et `refuser_proposition` (la décision est écrite dans la proposition elle-même, avec qui et quand).
+
+| Fonction de l'écran | Outil MCP | Remarque |
+|---|---|---|
+| Recherche globale | `chercher` | nom, 2 lettres au moins |
+| Personnes : fiche, créer, modifier, archiver, supprimer | `lire_personne`, `creer_personne`, `modifier_personne` (`archive`), `supprimer_personne` | |
+| Personnes : liste avec filtres (étiquette, source, ville, propriétaire, archivées) | manque | seulement `chercher` par nom |
+| Personnes : « opposition à la prospection », « e-mail envoyé » | manque | |
+| Organisations : fiche, créer, modifier, archiver, supprimer | `lire_organisation`, `creer_organisation`, `modifier_organisation`, `supprimer_organisation` | |
+| Organisations : liste avec filtres | manque | seulement `chercher` |
+| Affaires : liste filtrée | `lister_affaires` | étape, statut, archivées, retard, sans action |
+| Affaires : fiche, créer, modifier, étape, perdue, rouvrir, supprimer | `lire_affaire`, `creer_affaire`, `modifier_affaire`, `changer_etape`, `marquer_perdue`, `rouvrir_affaire`, `supprimer_affaire` | |
+| Projets : liste, fiche, créer (aussi depuis une affaire), modifier, phase, terminer, rouvrir, archiver, supprimer | `lister_projets`, `lire_projet`, `creer_projet`, `creer_projet_depuis_affaire`, `modifier_projet`, `changer_phase_projet`, `terminer_projet`, `rouvrir_projet`, `archiver_projet`, `supprimer_projet` | |
+| Projets : lier ou délier un projet et une affaire | manque (seule `creer_projet_depuis_affaire` lie) | |
+| Livrables : ajouter, fait / pas fait | `ajouter_livrable_projet`, `terminer_livrable_projet` | modifier, déplacer, supprimer un livrable : manque |
+| Modèles de projets | `lister_modeles_projet` | créer, modifier, supprimer un modèle : manque |
+| Factures de projet : ajouter, payée, abandonnée | `ajouter_facture`, `marquer_facture_payee`, `abandonner_facture` | modifier, remettre à payer, supprimer une facture : manque |
+| Notes : ajouter, modifier, supprimer | `ajouter_note`, `modifier_note`, `supprimer_note` | épingler / désépingler une note : manque |
+| Activités : lister, créer, faite, supprimer | `lister_activites`, `creer_activite`, `terminer_activite`, `supprimer_activite` | modifier / reporter une activité : manque |
+| Documents et liens | `lister_documents`, `joindre_lien`, `retirer_document` | modifier le libellé ou le favori d'un lien : manque (retirer puis rajouter) |
+| Réglages du CRM (étapes, phases, options, offres, secteurs, sources, étiquettes, indicateurs, filtres enregistrés) | `lire_reglages` (lecture) | **aucune écriture** : voulu, ces réglages se changent à l'écran ; filtres enregistrés et objectifs ne sont pas lisibles |
+| Bordereau : articles, ouvrages, recherche | `lister_articles`, `chercher_article`, `creer_article`, `modifier_article`, `desactiver_article` (`reactiver: true`) | pas de suppression d'article (jamais, comme à l'écran) |
+| Familles d'articles | famille lisible avec `lire_reglages_devis` ; écriture : manque | l'écran écrit les familles **sans journal** |
+| Réglages du module Devis | `lire_reglages_devis` (ajouté le 25/10/2026) ; écriture : manque | l'écran les écrit **sans journal** |
+| Devis : liste, fiche, brouillon, copie, finaliser, statut, nouvelle version, archiver, envoi, supprimer | voir le tableau ci-dessus | PDF du devis (fabrication, lien) et brouillon Gmail : écran seulement, hors MCP |
+| Automatisations : propositions, workflows | `lister_propositions`, `lire_proposition`, `valider_proposition`, `refuser_proposition`, `lister_automatisations` | « Classer sans suite » : écran seulement, voulu (voir `securite-et-pannes.md`) ; historique des exécutions : manque |
+| Journal des modifications et annulation | `lire_audit`, `restaurer_depuis_audit` | couvre `devis_devis` et `devis_articles` ; familles et réglages Devis n'y sont pas (écrits sans journal) |
+| Veille (sources, contenus, résumés) | manque | module en lecture seule à l'écran, aucun outil MCP déclaré |
+| Maintenance (tableau de bord) | manque | idem |
+| Accueil (indicateurs, tâches du jour) | en partie : `lister_activites` (en retard, à faire), `lister_affaires` (`sansAction`) | indicateurs chiffrés et objectifs : manque |
+| Sauvegarde / export JSON | manque | écran seulement (Réglages) |
+
+**Trous plus gros, non codés** (à décider) : listes filtrées de personnes et d'organisations ; réglages du CRM et du module Devis en écriture (et leur journalisation côté écran) ; modification et suppression des livrables, des factures, des modèles de projet ; modifier une activité ; épingler une note ; lier ou délier un projet ; lecture de la Veille, de la Maintenance, de l'historique des automatisations et des indicateurs de l'Accueil.
+
+**Trous corrigés dans la révision du 25/10/2026** : `lire_devis` et `lister_devis` exposent `copie`, `envois`, `archiveLe`, `nombreEnvois` et l'état du PDF (sans son chemin) ; `lire_reglages_devis` ajouté ; la description de `modifier_devis_brouillon` renvoie vers `nouvelle_version_devis` au lieu de « depuis l'écran » ; `restaurer_depuis_audit` sait défaire un archivage et un envoi enregistré sur un devis finalisé (il refusait tout devis qui n'était plus un brouillon).
 
 Collisions de règles : l'écran impose la confirmation par le nom pour une suppression ; les outils font de même, pour qu'un agent ne puisse pas supprimer « par erreur d'un seul paramètre ».
 **Deux niveaux de protection pour Hermes** : (1) côté Hermes, `tools.include` liste exactement les outils du profil B ; (2) côté serveur, l'empreinte du jeton porte son profil : un outil hors profil est refusé même si Hermes est mal configuré.
