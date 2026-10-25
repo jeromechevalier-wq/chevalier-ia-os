@@ -464,7 +464,7 @@ export function rendreEditeurDevis(conteneur, id) {
     majMarges();
     const ligneReste = racine.querySelector('[data-ligne="reste"]');
     if (ligneReste) ligneReste.hidden = affichage().cacherResteAFacturer === true;
-    if (onglet === 'apercu') rendreApercu();
+    if (onglet === 'apercu') rendreApercu({ garderDefilement: true });
   }
   // Panneau collé à droite (comme la Bibliothèque) : le devis se décale, les cases agissent en direct ; seule la croix ou Échap le ferme. Jamais ouvert en même temps que la Bibliothèque.
   function ouvrirOptions(ancre) {
@@ -1442,6 +1442,7 @@ export function rendreEditeurDevis(conteneur, id) {
   return () => {
     arrets.forEach((f) => f());
     clearTimeout(minuteur);
+    clearTimeout(minuteurApercu);
     clearTimeout(delaiIntrouvable);
     arretGarde();
     observerBarre?.disconnect();
