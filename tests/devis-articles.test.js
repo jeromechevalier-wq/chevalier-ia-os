@@ -171,14 +171,14 @@ describe('B7 les réglages s’enregistrent et se relisent', () => {
   test('B7 logique : valeurs par défaut', () => {
     assert.deepEqual(A.reglagesDevis(null), {
       nomBordereau: 'Catalogue', modeMarge: 'majoration', marge: 20, regimeTva: 'assujetti', tauxProposes: [20, 10, 5.5], tauxTvaDefaut: 20,
-      dureeValiditeJours: 90, etapeAFaire: '', etapeEnvoye: '', mentionEmetteur: '', entreprise: {},
+      dureeValiditeJours: 90, etapeDevis: '', etapeAFaire: '', etapeEnvoye: '', mentionEmetteur: '', entreprise: {},
     });
     assert.deepEqual(A.reglagesDevis({}), A.reglagesDevis(undefined));
   });
   test('B7 logique : une saisie valide se relit à l’identique (aller-retour par reglagesDevis), virgule française acceptée', () => {
-    const r = A.validerReglagesDevis({ nomBordereau: 'Catalogue', modeMarge: 'marge_vente', marge: '25,5', regimeTva: 'franchise', tauxProposes: [10, 20], tauxTvaDefaut: 10, dureeValiditeJours: '60', etapeAFaire: 'a', etapeEnvoye: 'b', mentionEmetteur: '  Ma mention  ' }, { etapesIds });
+    const r = A.validerReglagesDevis({ nomBordereau: 'Catalogue', modeMarge: 'marge_vente', marge: '25,5', regimeTva: 'franchise', tauxProposes: [10, 20], tauxTvaDefaut: 10, dureeValiditeJours: '60', etapeDevis: 'c', etapeAFaire: 'a', etapeEnvoye: 'b', mentionEmetteur: '  Ma mention  ' }, { etapesIds });
     assert.deepEqual(r.erreurs, {});
-    assert.deepEqual(r.reglages, { nomBordereau: 'Catalogue', modeMarge: 'marge_vente', marge: 25.5, regimeTva: 'franchise', tauxProposes: [20, 10], tauxTvaDefaut: 10, dureeValiditeJours: 60, etapeAFaire: 'a', etapeEnvoye: 'b', mentionEmetteur: 'Ma mention', entreprise: {} });
+    assert.deepEqual(r.reglages, { nomBordereau: 'Catalogue', modeMarge: 'marge_vente', marge: 25.5, regimeTva: 'franchise', tauxProposes: [20, 10], tauxTvaDefaut: 10, dureeValiditeJours: 60, etapeDevis: 'c', etapeAFaire: 'a', etapeEnvoye: 'b', mentionEmetteur: 'Ma mention', entreprise: {} });
     assert.deepEqual(A.reglagesDevis(r.reglages), r.reglages);
   });
   test('E1 logique : « Mon entreprise » vide par défaut ; un champ vide n’est pas enregistré ; les clés sont celles que le document lit', () => {
@@ -229,11 +229,16 @@ describe('B7 les réglages s’enregistrent et se relisent', () => {
     assert.match(e({ dureeValiditeJours: '1,5' }).dureeValiditeJours, /nombre entier/);
     assert.match(e({ tauxProposes: [] }).tauxProposes, /au moins un taux/);
     assert.match(e({ tauxProposes: [10], tauxTvaDefaut: 20 }).tauxTvaDefaut, /l’un des taux proposés/);
-    assert.match(e({ etapeAFaire: 'inconnue' }).etapeAFaire, /n’existe plus/);
-    // 7 la même étape pour « à faire » et « envoyé » est acceptée (une seule colonne « Devis »)
-    assert.deepEqual(e({ etapeAFaire: 'a', etapeEnvoye: 'a' }), {});
-    assert.equal(A.validerReglagesDevis({ etapeAFaire: 'a', etapeEnvoye: 'a' }, { etapesIds }).reglages.etapeEnvoye, 'a');
-    assert.deepEqual(e({ etapeAFaire: '', etapeEnvoye: '' }), {});
+    // 7 une seule étape pour tous les devis : « étape où vivent les devis »
+    assert.match(e({ etapeDevis: 'inconnue' }).etapeDevis, /n’existe plus/);
+    assert.deepEqual(e({ etapeDevis: 'a' }), {});
+    assert.deepEqual(e({ etapeDevis: '' }), {});
+    assert.equal(A.validerReglagesDevis({ etapeDevis: 'b' }, { etapesIds }).reglages.etapeDevis, 'b');
+    // les anciens réglages ne sont ni modifiés ni effacés ; sans nouvelle étape choisie, l'ancienne étape « à faire » est reprise
+    const anciens = A.validerReglagesDevis({ etapeDevis: 'c' }, { etapesIds, actuels: { etapeAFaire: 'a', etapeEnvoye: 'b' } }).reglages;
+    assert.deepEqual([anciens.etapeDevis, anciens.etapeAFaire, anciens.etapeEnvoye], ['c', 'a', 'b']);
+    assert.equal(A.reglagesDevis({ etapeAFaire: 'a', etapeEnvoye: 'b' }).etapeDevis, 'a');
+    assert.equal(A.reglagesDevis({ etapeDevis: 'c', etapeAFaire: 'a' }).etapeDevis, 'c');
     assert.match(e({ nomBordereau: 'Liste' }).nomBordereau, /Choisis un nom/);
     assert.match(e({ mentionEmetteur: 'x'.repeat(501) }).mentionEmetteur, /trop longue/);
   });
