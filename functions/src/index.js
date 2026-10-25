@@ -110,6 +110,7 @@ export const devisFinaliser = appelDevis('finaliser');
 export const devisChangerStatut = appelDevis('changerStatut');
 export const devisNouvelleVersion = appelDevis('nouvelleVersion');
 export const devisArchiver = appelDevis('archiver');
+export const devisSupprimer = appelDevis('supprimer');
 
 // PDF d'un devis (25/10/2026) : fabriqué PAR LE SERVEUR dès qu'un devis passe de brouillon à finalisé (déclencheur Firestore `devisPdfAuto`), jamais par le navigateur.
 // Chromium est lancé dans la fonction (2 GiB de mémoire, un navigateur par appel) ; le PDF est rangé dans Cloud Storage du projet (devis/<affaire>/<devis>/…, jamais public),

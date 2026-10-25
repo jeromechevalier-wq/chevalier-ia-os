@@ -187,9 +187,9 @@ test('E3 le menu « … » : changements de statut par le serveur, entrées « b
   await ouvrirMenuDe(page, 'd1');
   await page.locator('.menu-pop').getByRole('menuitem', { name: /Passer à « Refusé »/ }).click();
   await expect(page.locator('.toast').last()).toContainText('Ce devis ne peut plus changer de statut.');
-  // Brouillon : Supprimer grisé « bientôt », Modifier : version actuelle actif, Finalisé proposé.
+  // Brouillon : Supprimer actif, Modifier : version actuelle actif, Finalisé proposé.
   await ouvrirMenuDe(page, 'd2');
-  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: /Supprimer/ })).toBeDisabled();
+  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: /Supprimer/ })).toBeEnabled();
   await expect(page.locator('.menu-pop').getByRole('menuitem', { name: /Modifier : version actuelle/ })).toBeEnabled();
   await expect(page.locator('.menu-pop').getByRole('menuitem', { name: /Passer à « Finalisé »/ })).toBeEnabled();
   await page.keyboard.press('Escape');
@@ -270,6 +270,30 @@ test('O5 le menu « … » propose « Voir la fiche » : la fiche latérale s’
   await expect(page).toHaveURL(/#\/devis\/liste\/d1$/);
   await expect(page.locator('[data-role="fiche-devis"]')).toBeVisible();
   await expect(lignes(page)).toHaveCount(2);
+});
+
+test('S1 « Supprimer » d’un brouillon : confirmation, appel de devisSupprimer ; « Annuler » n’appelle rien ; un devis envoyé n’a pas d’entrée Supprimer', async ({ page }) => {
+  const appels = [];
+  await page.route('**/devisSupprimer', async (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+    appels.push(JSON.parse(route.request().postData()).data);
+    return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ result: { ok: true } }) });
+  });
+  await deuxDevis();
+  await ouvrir(page);
+  await ouvrirMenuDe(page, 'd1'); // envoyé
+  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: /Supprimer/ })).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await ouvrirMenuDe(page, 'd2'); // brouillon
+  await page.locator('.menu-pop').getByRole('menuitem', { name: /Supprimer/ }).click();
+  await expect(page.getByRole('dialog')).toContainText('Supprimer ce brouillon ?');
+  await page.getByRole('dialog').getByRole('button', { name: 'Annuler' }).click();
+  expect(appels).toHaveLength(0);
+  await ouvrirMenuDe(page, 'd2');
+  await page.locator('.menu-pop').getByRole('menuitem', { name: /Supprimer/ }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Supprimer' }).click();
+  await expect(page.locator('.toast').last()).toContainText('Brouillon supprimé');
+  expect(appels).toEqual([{ devisId: 'd2' }]);
 });
 
 test('E6 le filtre Statut : « Expiré » et « Remplacé » absents en vue Tableau, présents en vue Liste', async ({ page }) => {

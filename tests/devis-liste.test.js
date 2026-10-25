@@ -162,9 +162,10 @@ describe('L7 actions permises par statut', () => {
     assert.deepEqual(actions('envoye'), ['accepter', 'refuser']);
     for (const s of ['accepte', 'refuse', 'remplace']) assert.deepEqual(actions(s), [], s);
   });
-  test('L7 Supprimer : seulement un brouillon, et grisé « bientôt » tant que le serveur n’a pas la fonction', () => {
-    assert.equal(act('brouillon').supprimer.actif, false);
-    assert.equal(act('brouillon').supprimer.raison, Li.MESSAGE_BIENTOT);
+  test('L7 Supprimer : seulement un brouillon (le serveur a la fonction devisSupprimer) ; grisé « bientôt » si la suppression est coupée', () => {
+    assert.equal(act('brouillon').supprimer.actif, true);
+    assert.equal(Li.actionsPermises(d('x'), { suppression: false }).supprimer.actif, false);
+    assert.equal(Li.actionsPermises(d('x'), { suppression: false }).supprimer.raison, Li.MESSAGE_BIENTOT);
     assert.equal(Li.actionsPermises(d('x'), { suppression: true }).supprimer.actif, true);
     assert.equal(Li.actionsPermises(d('x', { statut: 'envoye' }), { suppression: true }).supprimer.actif, false);
   });

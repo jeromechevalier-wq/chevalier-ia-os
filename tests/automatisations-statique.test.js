@@ -127,10 +127,10 @@ describe('Cohérence : registre, règles, fonctions, déploiement', () => {
 });
 
 describe('Les fonctions se chargent comme Firebase les chargera', () => {
-  test('neuf fonctions (dont les quatre transitions de devis), région de Paris, planifiée toutes les heures, clé n8n liée par secret sur les deux qui lisent n8n, aucun secret pour « renommer »', async () => {
+  test('dix fonctions (dont les cinq transitions de devis), région de Paris, planifiée toutes les heures, clé n8n liée par secret sur les deux qui lisent n8n, aucun secret pour « renommer »', async () => {
     process.env.GCLOUD_PROJECT ??= 'demo-chevalier-ia-os';
     const m = await import('../functions-plateforme/src/index.js');
-    assert.deepEqual(Object.keys(m).sort(), ['automatisationsCopieHoraire', 'automatisationsRafraichir', 'automatisationsRenommer', 'devisArchiver', 'devisChangerStatut', 'devisFinaliser', 'devisNouvelleVersion', 'espaceReglages', 'mcpclients']);
+    assert.deepEqual(Object.keys(m).sort(), ['automatisationsCopieHoraire', 'automatisationsRafraichir', 'automatisationsRenommer', 'devisArchiver', 'devisChangerStatut', 'devisFinaliser', 'devisNouvelleVersion', 'devisSupprimer', 'espaceReglages', 'mcpclients']);
     for (const f of Object.values(m)) assert.deepEqual(f.__endpoint.region, ['europe-west9']);
     assert.equal(m.automatisationsCopieHoraire.__endpoint.scheduleTrigger.schedule, '0 * * * *');
     assert.deepEqual(m.automatisationsCopieHoraire.__endpoint.secretEnvironmentVariables, [{ key: 'N8N_API_KEY' }]);
@@ -143,7 +143,7 @@ describe('Les fonctions se chargent comme Firebase les chargera', () => {
     assert.equal(e.secretEnvironmentVariables, undefined);
     assert.ok(e.callableTrigger, 'fonction appelable');
     // Devis (24/10/2026) : quatre fonctions appelables, aucun secret, aucun appel à n8n, aucun compte de service nouveau (le compte par défaut suffit)
-    for (const nom of ['devisFinaliser', 'devisChangerStatut', 'devisNouvelleVersion', 'devisArchiver']) {
+    for (const nom of ['devisFinaliser', 'devisChangerStatut', 'devisNouvelleVersion', 'devisArchiver', 'devisSupprimer']) {
       const d = m[nom].__endpoint;
       assert.ok(d.callableTrigger, `${nom} : fonction appelable`);
       assert.equal(d.secretEnvironmentVariables, undefined, `${nom} : aucun secret`);

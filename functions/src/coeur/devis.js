@@ -210,6 +210,21 @@ export async function archiver({ donnees, ctx, devisId, archive }) {
   });
 }
 
+/**
+ * Supprime un BROUILLON (jamais un devis finalisé : il a un numéro, des documents et des versions liées). La copie « avant » reste dans le journal
+ * (crm_audit_avant) : un devis supprimé par erreur peut être retrouvé et rétabli avec `restaurer_depuis_audit`.
+ */
+export async function supprimer({ donnees, ctx, devisId }) {
+  return donnees.transaction(async (tx) => {
+    const devis = await lireDevis(tx, devisId);
+    if (devis.statut !== 'brouillon') throw new ErreurDevis('transition_interdite', 'Seul un brouillon peut être supprimé. Un devis finalisé se garde ; tu peux l’archiver s’il est signé ou refusé.');
+    const changement = { id: devis.id, collection: C.devis, action: 'supprimer', avant: devis, apres: null, champs: [], ecriture: { type: 'delete', collection: C.devis, id: devis.id } };
+    const j = journal({ donnees, ctx, outil: 'devisSupprimer', parametres: { devisId }, changements: [changement] });
+    tx.ecrire([changement.ecriture, ...j.ecritures]);
+    return { ok: true, devis, operationId: j.operationId };
+  });
+}
+
 // ---------------------------------------------------------------- PDF du devis (25/10/2026) : états, idempotence, document de l'affaire
 // Le PDF d'un devis finalisé est fabriqué par le serveur (déclencheur Firestore ou demande explicite), jamais par le navigateur. Le champ `pdf` du devis dit où on en est :
 //   pdf = { statut: 'en_cours' | 'ok' | 'echec', tentatives, demarreLe?, chemin?, sha256?, nom?, genereLe?, message?, echecLe? }
@@ -318,6 +333,7 @@ export const OPERATIONS = Object.freeze({
   changerStatut: (base, d) => changerStatut({ ...base, devisId: d.devisId, action: d.action }),
   nouvelleVersion: (base, d) => nouvelleVersion({ ...base, devisId: d.devisId }),
   archiver: (base, d) => archiver({ ...base, devisId: d.devisId, archive: d.archive }),
+  supprimer: (base, d) => supprimer({ ...base, devisId: d.devisId }),
 });
 
 /** Ce que l'appelant reçoit : jamais le devis entier (son navigateur le lit déjà). Un devis refusé rend les messages à corriger, rien n'a été écrit. */

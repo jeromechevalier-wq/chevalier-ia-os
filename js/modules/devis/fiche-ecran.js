@@ -20,7 +20,7 @@ const DOCUMENTS = [['tous', 'Tous'], ['factures', 'Factures'], ['avoirs', 'Avoir
  * `contexte` : { nomsDe(d) -> { client, affaire }, changerStatut(d, action, libelle), fermer(opts), aujourdhui() -> AAAA-MM-JJ }.
  * Rend { afficher(id), fermer(), maj(), detruire() } : la liste appelle `afficher` quand la route change et `maj` quand les données changent.
  */
-export function creerFiche({ nomsDe, changerStatut, archiver, fermer: demanderFermeture, aujourdhui: jourCourant }) {
+export function creerFiche({ nomsDe, changerStatut, archiver, supprimer, fermer: demanderFermeture, aujourdhui: jourCourant }) {
   let id = null;
   let racine = null;
   let corps = null;
@@ -149,6 +149,7 @@ export function creerFiche({ nomsDe, changerStatut, archiver, fermer: demanderFe
       onclick: (e) => ouvrirMenu(e.currentTarget, [
         { libelle: ar.libelle, icone: ar.icone, desactive: !ar.actif, action: () => archiver(d, ar.action === 'archiver') },
         ...(ar.actif ? [] : [{ texte: ar.raison }]),
+        ...(d.statut === 'brouillon' ? [{ separateur: true }, { libelle: 'Supprimer', icone: 'trash-2', danger: true, action: () => supprimer(d) }] : []),
       ]) }, icone('ellipsis', { taille: 20 }));
 
     return h('header', { class: 'fiche-tete' },

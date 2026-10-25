@@ -22,7 +22,7 @@ function emailDe(auth) {
 }
 
 /**
- * Exécute une transition de devis pour le client de la demande. `operation` : finaliser | changerStatut | nouvelleVersion | archiver.
+ * Exécute une transition de devis pour le client de la demande. `operation` : finaliser | changerStatut | nouvelleVersion | archiver | supprimer.
  * Donnée reçue : { client, devisId, action?, archive? }. Rend { ok, ... } (voir coeur/devis.js, reponsePublique) ou lève un Refus.
  * `creerDonnees(client)` : pour les essais (accès en mémoire) ; par défaut, la base du projet cadrée sur clients/<client>.
  */
