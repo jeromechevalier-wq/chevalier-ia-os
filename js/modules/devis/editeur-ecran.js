@@ -2,7 +2,7 @@
 // régler la remise et l'acompte, voir le total en direct, l'aperçu, puis finaliser. Un brouillon s'enregistre tout seul (écriture directe, plans de brouillon.js) ;
 // finaliser passe par la fonction du serveur. Aucune règle ni aucun calcul ici : les fonctions pures sont dans editeur-logique.js et logique.js.
 // Un devis qui n'est plus un brouillon s'ouvre en lecture seule (aperçu + totaux) avec l'invitation à créer une variante.
-import { h, icone, remplir, dialogue, toast, confirmer, ouvrirMenu } from '../../os/ui.js';
+import { h, icone, iconeInfo, remplir, dialogue, toast, confirmer, ouvrirMenu } from '../../os/ui.js';
 import { naviguer, ajouterGardeSortie } from '../../os/router.js';
 import { retirerAvecAnnulation } from '../../os/retrait.js';
 import { etatVide, planifier, cheminPersonne, cheminOrganisation, cheminAffaire } from '../crm/composants.js';
@@ -14,7 +14,7 @@ import { arbreFamilles, cheminFamille } from './familles.js';
 import * as Ed from './editeur-logique.js';
 import {
   TYPE_SAUT, totauxDevis, erreursFinalisation, erreursChantier, STATUTS_DEVIS, UNITES_DUREE, MOMENTS_ACOMPTE, transitionPossible, TAUX_TVA_DEFAUT, niveauSection, dureeEnTexte,
-  affichageDe, ajustementActif, valeursAjustement, margeEffective, vueClient, emailValide,
+  affichageDe, ajustementActif, valeursAjustement, margeEffective, vueClient, emailValide, MAX_COPIE,
 } from './logique.js';
 import { formaterMontant } from './document.js';
 import { menuUnite } from './menu-unite.js';
@@ -403,9 +403,11 @@ export function rendreEditeurDevis(conteneur, id) {
 
   function boutonsLecture(d) {
     return [
-      transitionPossible(d.statut, 'nouvelle_version') ? h('button', { type: 'button', class: 'bouton bouton-principal', dataset: { action: 'creer-variante' }, title: 'Crée une nouvelle version modifiable de ce devis (même numéro, version suivante). L’ancienne version reste consultable.', onclick: () => creerVariante(d) }, icone('pencil', { taille: 16 }), 'Créer une variante') : null,
+      transitionPossible(d.statut, 'nouvelle_version') ? h('button', { type: 'button', class: 'bouton bouton-principal', dataset: { action: 'creer-variante' }, onclick: () => creerVariante(d) }, icone('pencil', { taille: 16 }), 'Créer une variante') : null,
+      transitionPossible(d.statut, 'nouvelle_version') ? iconeInfo('Crée une nouvelle version modifiable de ce devis (même numéro, version suivante). L’ancienne version reste consultable.', 'Créer une variante') : null,
       h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'envoyer' }, 'aria-haspopup': 'menu', 'aria-expanded': 'false', onclick: (ev) => ouvrirMenuEnvoyer(ev.currentTarget) }, icone('mail', { taille: 16 }), 'Envoyer', icone('chevron-down', { taille: 14 })),
-      h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'dupliquer' }, title: 'Crée un nouveau brouillon avec le même contenu. Il recevra son propre numéro à la finalisation.', onclick: () => dupliquerDevis(d) }, icone('copy', { taille: 16 }), 'Dupliquer'),
+      h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'dupliquer' }, onclick: () => dupliquerDevis(d) }, icone('copy', { taille: 16 }), 'Dupliquer'),
+      iconeInfo('Crée un nouveau brouillon avec le même contenu. Il recevra son propre numéro à la finalisation.', 'Dupliquer'),
     ];
   }
 
@@ -565,11 +567,12 @@ export function rendreEditeurDevis(conteneur, id) {
   }
 
   // ------------------------------------------------ e-mails en copie (cc) : une ligne « + E-mail en copie » en jaune, comme les autres « + Ajouter » des fiches
-  const MAX_COPIE = 10;
+  // Plafond MAX_COPIE (logique.js) : le serveur l'applique aussi (erreursFinalisation).
   /** Adresses en copie : chacune avec sa croix ; « + E-mail en copie » ouvre un champ (Entrée ou sortie du champ ajoute, Échap annule). Une adresse invalide ou déjà présente n'ajoute rien. */
   function blocCopie() {
     const zone = h('div', { class: 'bloc-champ bloc-copie', dataset: { zone: 'copie' } });
     let saisie = false;
+    let enCours = ''; // texte du champ en cours de saisie : gardé si la ligne est redessinée (retrait d'une autre adresse pendant la saisie)
     const adresses = () => (Array.isArray(travail.copie) ? travail.copie : []);
     function ajouter(valeur, erreur) {
       const v = String(valeur ?? '').trim();
@@ -579,18 +582,25 @@ export function rendreEditeurDevis(conteneur, id) {
       if (!deja) changer({ copie: [...adresses(), v] });
       return true;
     }
+    let abandonnerSaisie = () => {};
     function dessiner() {
+      abandonnerSaisie(); abandonnerSaisie = () => {}; // l'ancien champ disparaît : son « blur » éventuel ne doit plus rien valider
       const liste = adresses();
+      zone.hidden = lecture && !liste.length && !saisie; // lecture seule et aucune adresse : rien à montrer (pas d'étiquette « En copie » seule)
+      if (zone.hidden) { zone.replaceChildren(); return; }
       const ligne = h('ul', { class: 'liste-copie' }, liste.map((a, i) => h('li', { class: 'ligne-copie', dataset: { copie: a } },
         h('span', {}, a),
         h('button', { type: 'button', class: 'bouton-icone', 'aria-label': `Retirer ${a} de la copie`, dataset: { action: 'retirer-copie' }, disabled: lecture,
+          // Pendant la saisie d'une autre adresse, un appui sur la croix ne doit pas faire perdre le focus au champ : sinon « blur » redessine la ligne avant le clic et la croix disparaît.
+          onpointerdown: (e) => e.preventDefault(), onmousedown: (e) => e.preventDefault(),
           onclick: () => { changer({ copie: adresses().filter((_, k) => k !== i) }); dessiner(); } }, icone('x', { taille: 14 })))));
       const parties = [h('span', { class: 'etiquette' }, 'En copie'), liste.length ? ligne : null];
       if (saisie) {
         const erreur = h('p', { class: 'erreur', role: 'alert', hidden: true, dataset: { erreur: 'copie' } });
         let fini = false;
-        const terminer = (valider) => { if (fini) return; if (valider && !ajouter(champSaisie.value, erreur)) return; fini = true; saisie = false; dessiner(); };
-        const champSaisie = h('input', { class: 'champ', type: 'email', inputmode: 'email', autocomplete: 'off', placeholder: 'contact@exemple.fr', 'aria-label': 'E-mail en copie', dataset: { champ: 'copie' },
+        abandonnerSaisie = () => { fini = true; };
+        const terminer = (valider) => { if (fini) return; if (valider && !ajouter(champSaisie.value, erreur)) return; fini = true; saisie = false; enCours = ''; dessiner(); };
+        const champSaisie = h('input', { class: 'champ', type: 'email', inputmode: 'email', autocomplete: 'off', placeholder: 'contact@exemple.fr', 'aria-label': 'E-mail en copie', dataset: { champ: 'copie' }, value: enCours, oninput: (e) => { enCours = e.target.value; },
           onkeydown: (e) => { if (e.key === 'Enter') { e.preventDefault(); terminer(true); } else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); terminer(false); } },
           onblur: () => { if (!champSaisie.value.trim()) terminer(false); else terminer(true); } });
         parties.push(champSaisie, erreur);
@@ -599,7 +609,7 @@ export function rendreEditeurDevis(conteneur, id) {
         return;
       }
       if (!lecture && liste.length < MAX_COPIE) {
-        parties.push(h('button', { type: 'button', class: 'prop-vide', dataset: { action: 'ajouter-copie' }, onclick: () => { saisie = true; dessiner(); } }, icone('plus', { taille: 14 }), 'E-mail en copie'));
+        parties.push(h('button', { type: 'button', class: 'prop-vide', dataset: { action: 'ajouter-copie' }, onclick: () => { saisie = true; enCours = ''; dessiner(); } }, icone('plus', { taille: 14 }), 'E-mail en copie'));
       }
       zone.replaceChildren(...parties.filter(Boolean));
     }
@@ -779,15 +789,32 @@ export function rendreEditeurDevis(conteneur, id) {
       class: 'champ', id: 'devis-chantier-adresse', rows: 3, dataset: { champ: 'chantier-adresse' }, value: Ed.texteDeAdresse(c.adresse) || Ed.texteDeAdresse(d.adresses?.chantier),
       oninput: (e) => { const t = e.target.value; travail.adresses = { ...(travail.adresses ?? {}), chantier: Ed.adresseTexteSimple(t) }; travail.chantier = Ed.chantierAvecAdresse(travail.chantier, t); marquerModifie(); majErreursChantier(); },
     });
+    // Une adresse ne peut pas être à la fois destinataire et en copie : on le dit tout de suite, et la valeur n'est pas enregistrée tant qu'elle est en double.
+    const erreurDestinataire = h('p', { class: 'erreur', role: 'alert', hidden: true, dataset: { erreur: 'destinataire' } });
+    const dejaEnCopie = (v) => (Array.isArray(travail.copie) ? travail.copie : []).some((a) => String(a).trim().toLowerCase() === v.toLowerCase());
     const destinataire = h('input', {
       class: 'champ', id: 'devis-destinataire', type: 'email', inputmode: 'email', autocomplete: 'off', value: Ed.emailsDeFiche({ emails: d.destinataires })[0] ?? '', dataset: { champ: 'destinataire' },
-      oninput: (e) => changer({ destinataires: e.target.value.trim() ? [e.target.value.trim()] : [] }),
+      oninput: (e) => {
+        const v = e.target.value.trim();
+        const doublon = v !== '' && dejaEnCopie(v);
+        erreurDestinataire.textContent = doublon ? 'Cette adresse est déjà en copie : retire-la de la copie, ou choisis une autre adresse pour le destinataire.' : '';
+        erreurDestinataire.hidden = !doublon;
+        e.target.setAttribute('aria-invalid', doublon ? 'true' : 'false');
+        if (doublon) return;
+        changer({ destinataires: v ? [v] : [] });
+      },
+      onblur: (e) => { // en quittant le champ avec un doublon : on remet l'adresse enregistrée
+        if (e.target.getAttribute('aria-invalid') !== 'true') return;
+        e.target.value = (travail.destinataires ?? [])[0] ?? '';
+        e.target.setAttribute('aria-invalid', 'false');
+        erreurDestinataire.hidden = true;
+      },
     });
     const droite = h('div', { class: 'entete-droite' },
       champ('Affaire *', ref.selectAffaire, { id: 'devis-affaire', aide: ref.erreurAffaire }),
       champ('Client', ref.selectClient, { id: 'devis-client' }),
       champ('Adresse du chantier', ref.champAdresse, { id: 'devis-chantier-adresse' }),
-      champ('E-mail du destinataire', destinataire, { id: 'devis-destinataire' }),
+      champ('E-mail du destinataire', destinataire, { id: 'devis-destinataire', aide: erreurDestinataire }),
       blocCopie());
     return h('div', { class: 'entete-document' }, gauche, droite);
   }

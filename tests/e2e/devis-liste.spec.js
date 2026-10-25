@@ -271,8 +271,9 @@ test('O4 un devis envoyé s’ouvre dans l’éditeur en lecture seule, avec « 
   await expect(page.locator('[data-action="creer-variante"]')).toBeVisible();
   await expect(page.locator('[data-action="fermer-lecture"]')).toHaveCount(0); // plus de bouton « Fermer » : on quitte par la flèche « Devis » en haut à gauche
   await expect(page.locator('[data-action="retour-devis"]')).toBeVisible();
-  await expect(page.locator('[data-action="creer-variante"]')).toHaveAttribute('title', /nouvelle version modifiable/);
-  await expect(page.locator('[data-action="dupliquer"]')).toHaveAttribute('title', /nouveau brouillon/);
+  // L'explication est portée par l'icône « i » (accessible au clavier et au toucher), plus par l'attribut title.
+  await expect(page.locator('[data-role="info"][aria-label*="Créer une variante"]')).toHaveAttribute('aria-label', /nouvelle version modifiable/);
+  await expect(page.locator('[data-role="info"][aria-label*="Dupliquer"]')).toHaveAttribute('aria-label', /nouveau brouillon/);
   await capturer(page, info, 'O4-lecture-seule');
 });
 
