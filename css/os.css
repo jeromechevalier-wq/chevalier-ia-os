@@ -509,6 +509,8 @@ body.page-connexion {
   .bouton-plus-mobile, .bouton-recherche-mobile { display: inline-grid; }
   .bouton-plus-mobile { width: 36px; height: 36px; }
 }
+/* Éditeur de devis : la recherche défile avec la page (elle n'est pas collée), pour laisser la place à la barre d'actions du devis (classe posée par activer() dans shell.js). */
+.coquille.outils-defilent .barre-outils { position: static; }
 /* Hors Accueil, Personnes, Organisations, Affaires et Projets : ni recherche ni « + » en haut (classe posée par activer() dans shell.js ; après les règles ci-dessus pour l'emporter). */
 .coquille.sans-outils .barre-outils, .coquille.sans-outils .bouton-plus-mobile, .coquille.sans-outils .bouton-recherche-mobile { display: none; }
 
