@@ -220,7 +220,7 @@ test('4 le menu Options : trois groupes de cases (Édition, Document, Clients), 
   await semer();
   await ouvrir(page, await devis('d4', [{ id: 's1', titre: 'Cuisine', lignes: [ligne('l1', 'Carrelage', 2, 50, { code: 'CAR60' })] }], { affichage: { afficherMarges: false } }));
   // Un devis neuf (affichage sans marges) ne montre pas le calcul des marges.
-  await expect(page.locator('[data-zone="marges"]')).toBeHidden();
+  await expect(page.locator('[data-zone="marges"]')).toHaveCount(0);
   await expect(page.locator('[data-calcul-marge]')).toBeHidden();
   await ouvrirOptions(page);
   const menu = page.locator('.menu-devis-options');
@@ -241,7 +241,7 @@ test('4 le menu Options : trois groupes de cases (Édition, Document, Clients), 
   await capturer(page, info, '4-options');
   // Édition : « Afficher le calcul des marges » montre la carte des marges et une ligne « Achat · Marge · Vente » par article ; « Afficher les références » montre le code.
   await menu.locator('[data-option="afficherMarges"]').check();
-  await expect(page.locator('[data-zone="marges"]')).toBeVisible();
+  await expect(page.locator('[data-zone="marges"]')).toHaveCount(0);
   await expect(page.locator('tr[data-id="l1"] [data-calcul-marge]')).toContainText('Achat 50,00');
   await menu.locator('[data-option="afficherReferences"]').check();
   await expect(page.locator('tr[data-id="l1"] [data-valeur="reference"]')).toHaveText('Réf. : CAR60');
@@ -285,13 +285,13 @@ test('4 le menu Options : trois groupes de cases (Édition, Document, Clients), 
   await expect(page.locator('.page-editeur-devis[data-devis]')).toBeVisible();
   await attendreCalme(page);
   await expect(page.locator('th.col-tva')).toHaveCount(0);
-  await expect(page.locator('[data-zone="marges"]')).toBeVisible();
+  await expect(page.locator('[data-zone="marges"]')).toHaveCount(0);
 });
 
 test('4 un ancien devis (sans `affichage`) garde l’affichage d’avant : le calcul des marges reste visible', async ({ page }) => {
   await semer();
   await ouvrir(page, await devis('d4b', [{ id: 's1', titre: 'Cuisine', lignes: [ligne('l1', 'Carrelage', 2, 50)] }]));
-  await expect(page.locator('[data-zone="marges"]')).toBeVisible();
+  await expect(page.locator('[data-zone="marges"]')).toHaveCount(0);
   await expect(page.locator('tr[data-id="l1"] [data-calcul-marge]')).toContainText('Achat 50,00');
   await expect(page.locator('th.col-tva')).toHaveCount(1);
 });
