@@ -338,8 +338,7 @@ test('4 la marge et la remise du devis se règlent depuis le bouton « Définir 
   await page.getByRole('menuitem', { name: 'Marge du devis' }).click();
   await page.locator('[data-champ="marge-menu"]').fill('25');
   await expect.poll(async () => (await listerDocuments('devis_devis'))[0].marge).toBe(25);
-  await page.locator('[data-champ="mode-marge-menu"]').selectOption('marge_vente');
-  await expect.poll(async () => (await listerDocuments('devis_devis'))[0].modeMarge).toBe('marge_vente');
+  await expect(page.locator('[data-champ="mode-marge-menu"]')).toHaveCount(0); // le mode de calcul se règle dans les réglages du module
   await page.getByRole('menuitem', { name: 'Remise' }).click();
   await page.locator('[data-champ="remise-valeur-menu"]').fill('10');
   await expect.poll(async () => (await listerDocuments('devis_devis'))[0].remise?.valeur).toBe(10);

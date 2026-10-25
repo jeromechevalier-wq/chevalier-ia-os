@@ -13,7 +13,7 @@ import * as A from './articles.js';
 import { arbreFamilles, cheminFamille } from './familles.js';
 import * as Ed from './editeur-logique.js';
 import {
-  TYPE_SAUT, totauxDevis, erreursFinalisation, erreursChantier, STATUTS_DEVIS, MODES_MARGE, UNITES_DUREE, MOMENTS_ACOMPTE, transitionPossible, TAUX_TVA_DEFAUT, niveauSection, dureeEnTexte,
+  TYPE_SAUT, totauxDevis, erreursFinalisation, erreursChantier, STATUTS_DEVIS, UNITES_DUREE, MOMENTS_ACOMPTE, transitionPossible, TAUX_TVA_DEFAUT, niveauSection, dureeEnTexte,
   affichageDe, ajustementActif, valeursAjustement, margeEffective, vueClient,
 } from './logique.js';
 import { formaterMontant } from './document.js';
@@ -737,12 +737,17 @@ export function rendreEditeurDevis(conteneur, id) {
       oninput: (e) => { rechercheBordereau = e.target.value; majResultats(); },
     });
     ref.filtreFamille = h('select', { class: 'champ', 'aria-label': 'Famille', dataset: { champ: 'filtre-famille' }, onchange: (e) => { filtreFamille = e.target.value; majResultats(); } },
-      h('option', { value: '' }, 'Toutes les familles'), arbreFamilles(D.etat.familles).flatMap(({ famille: f, enfants }) => [f, ...enfants]).filter((f) => f.actif).map((f) => h('option', { value: f.id }, cheminFamille(D.etat.familles, f.id))), h('option', { value: 'sans_famille' }, 'Sans famille'));
+      h('option', { value: '' }, 'Toutes les familles'), arbreFamilles(D.etat.familles).flatMap(({ famille: f, enfants }) => [f, ...enfants]).filter((f) => f.actif).map((f) => h('option', { value: f.id }, f.parentId ? `\u00a0\u00a0\u00a0\u00a0– ${f.nom}` : f.nom)), h('option', { value: 'sans_famille' }, 'Sans famille'));
     ref.resultats = h('ul', { class: 'resultats-bordereau', dataset: { zone: 'resultats' } });
     ref.panneauRecherche = h('div', { class: 'recherche-bordereau', hidden: true, dataset: { zone: 'recherche' } },
       h('div', { class: 'ligne-champs' }, ref.rechercheBordereau, ref.filtreFamille,
         h('button', { type: 'button', class: 'bouton bouton-discret', dataset: { action: 'fermer-recherche' }, onclick: () => { ref.panneauRecherche.hidden = true; pointInsertion = null; rechercheEnLigne = false; placerPanneauRecherche(); } }, 'Fermer')),
-      ref.resultats);
+      ref.resultats,
+      // Les éléments sans article du Bordereau : ils se posent au même endroit que l'article qu'on chercherait, puis la boîte se ferme.
+      h('div', { class: 'recherche-autres-ajouts', dataset: { zone: 'recherche-autres' } },
+        [['Section', 'section'], ['Sous-section', 'sous-section'], ['Texte', 'texte'], ['Saut de page', 'saut']].map(([libelle, cle]) => h('button', {
+          type: 'button', class: 'bouton bouton-secondaire', dataset: { action: `recherche-ajouter-${cle}` }, onclick: () => ajouterSansArticle(cle),
+        }, libelle))));
     ref.hoteRecherche = h('div', {}, ref.panneauRecherche);
     ref.corpsLignes = h('tbody', {});
     // La Bibliothèque ajoute à la fin de la section de la dernière ligne touchée.
@@ -776,6 +781,19 @@ export function rendreEditeurDevis(conteneur, id) {
     const saut = Ed.ligneSaut(nouvelId());
     const section = Ed.sectionDe(travail.sections, ligneActive);
     appliquer(section ? Ed.insererAutour(travail.sections, saut, section, 'fin') : Ed.ajouterElement(travail.sections, saut, null, nouvelId()), { focus: saut.id });
+  }
+
+  /** Boutons Section, Sous-section, Texte, Saut de page de la boîte de recherche : posés sous (ou sur) la ligne choisie, sinon à la fin du devis ; puis la boîte se ferme. */
+  function ajouterSansArticle(cle) {
+    const cible = pointInsertion ? Ed.aplatir(travail.sections).find((x) => x.id === pointInsertion) : null;
+    const creer = { section: () => Ed.sectionNeuve(nouvelId()), 'sous-section': () => Ed.sousSectionNeuve(nouvelId()), texte: () => Ed.ligneTexte(nouvelId()), saut: () => Ed.ligneSaut(nouvelId()) }[cle];
+    const element = creer();
+    const sens = sensInsertion;
+    ref.panneauRecherche.hidden = true; pointInsertion = null; sensInsertion = 'apres'; rechercheEnLigne = false;
+    placerPanneauRecherche();
+    if (cible) appliquer(Ed.insererAutour(travail.sections, element, cible.id, sens, nouvelId()), { focus: element.id });
+    else if (cle === 'saut') ajouterSautEnFin();
+    else ajouterLigne(element, { champ: 'libelle' });
   }
 
   /** Ouvre la recherche dans le Bordereau, déjà filtrée sur une famille (« + Fourniture » → les fournitures). */
@@ -1182,10 +1200,7 @@ export function rendreEditeurDevis(conteneur, id) {
       const margeChamp = h('input', { class: 'champ champ-court', id: 'ajust-marge', type: 'text', inputmode: 'decimal', autocomplete: 'off', value: saisieNombre(travail.marge), 'aria-label': 'Marge du devis en pourcent', dataset: { champ: 'marge-menu' },
         oninput: (e) => { const vide = e.target.value.trim() === ''; const v = vide ? 0 : Ed.lireSaisie(e.target.value); e.target.classList.toggle('invalide', v === null); if (v !== null) { changer({ marge: v }); majPrixAffiches(); const autre = racine.querySelector('[data-champ="marge"]'); if (autre) autre.value = e.target.value; } } });
       const zoneMarge = h('div', { class: 'ajust-zone', dataset: { zone: 'marge-devis' } }, h('div', { class: 'ajust-champ' }, h('label', { for: 'ajust-marge' }, 'Marge du devis (%)'), margeChamp,
-        h('p', { class: 'texte-discret' }, 'Elle s’applique aux lignes qui n’ont pas leur propre marge. Le client ne la voit jamais.'),
-        h('label', { for: 'ajust-mode' }, 'Mode de calcul'),
-        h('select', { class: 'champ', id: 'ajust-mode', dataset: { champ: 'mode-marge-menu' }, 'aria-label': 'Mode de calcul de la marge', onchange: (e) => { changer({ modeMarge: e.target.value }); majPrixAffiches(); } },
-          MODES_MARGE.map((m) => h('option', { value: m.id, selected: travail.modeMarge === m.id }, m.libelle)))));
+        h('p', { class: 'texte-discret' }, 'Elle s’applique aux lignes qui n’ont pas leur propre marge. Le client ne la voit jamais.')));
       const remiseTotaux = { type: racine.querySelector('[data-champ="remise-type"]'), valeur: racine.querySelector('[data-champ="remise-valeur"]') };
       const remiseType = h('select', { class: 'champ', 'aria-label': 'Type de remise', dataset: { champ: 'remise-type-menu' }, onchange: (e) => { if (remiseTotaux.type) { remiseTotaux.type.value = e.target.value; remiseTotaux.type.dispatchEvent(new Event('change', { bubbles: true })); } } },
         h('option', { value: 'pourcentage', selected: remiseTotaux.type?.value !== 'montant' }, '%'), h('option', { value: 'montant', selected: remiseTotaux.type?.value === 'montant' }, '€'));
