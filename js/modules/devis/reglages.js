@@ -28,8 +28,8 @@ const entrepriseBrouillon = (e = {}) => ({
 
 export function reglages(page) {
   const sec = h('section', { class: 'carte-section', id: 'reglages-devis' },
-    h('h2', {}, icone('file-text', { taille: 18 }), 'Réglages des devis'),
-    h('p', { class: 'aide' }, 'Le nom de ton catalogue de prix, la marge, la TVA, la durée de validité, les étapes de tes affaires liées aux devis et les informations de ton entreprise (en bas). « Enregistrer » s’allume dès que tu changes quelque chose.'));
+    h('h2', {}, icone('file-text', { taille: 18 }), 'Général'),
+    h('p', { class: 'aide' }, 'Le nom de ton catalogue de prix, la marge, la TVA, la durée de validité, les étapes de tes affaires liées aux devis et les informations de ton entreprise (pastille « Mon entreprise » en haut de la page). « Enregistrer » s’allume dès que tu changes quelque chose.'));
   const zone = h('div', { class: 'pile reglages-devis' });
   const erreurGenerale = h('p', { class: 'erreur', role: 'alert', dataset: { erreur: 'general' } });
   let brouillon = brouillonDe(D.etat.reglages);
@@ -74,6 +74,7 @@ export function reglages(page) {
     remplir(listeMentions, mentions.map((m) => h('li', {}, m)));
     titreMentions.hidden = !mentions.length;
     listeMentions.hidden = !mentions.length;
+    blocEntreprise?.toggleAttribute('data-alerte', mentions.length > 0); // le raccourci « Mon entreprise » en haut de la page affiche alors un point d'alerte
   }
   const couleurAffichee = () => brouillon.entreprise.couleur || '#666666';
   function blocCouleur() {
@@ -88,8 +89,9 @@ export function reglages(page) {
       h('div', { class: 'ligne-boutons' }, choix, etat, defaut),
       h('p', { class: 'erreur erreur-champ', role: 'alert', dataset: { erreur: cle } }));
   }
+  let blocEntreprise = null;
   function sectionEntreprise() {
-    return h('div', { class: 'pile', id: 'mon-entreprise', dataset: { zone: 'mon-entreprise' } },
+    const interieur = h('div', { class: 'pile', id: 'mon-entreprise', dataset: { zone: 'mon-entreprise' } },
       h('h3', {}, icone('building-2', { taille: 18 }), 'Mon entreprise'),
       h('p', { class: 'aide' }, 'Ces informations s’affichent en haut à gauche de tes devis (aperçu et impression). Tous les champs sont facultatifs : un champ vide n’apparaît pas.'),
       champEnt(['nom'], 'Nom de l’entreprise'),
@@ -109,6 +111,8 @@ export function reglages(page) {
       champEnt(['mediateur', 'nom'], 'Nom du médiateur'),
       h('div', { class: 'ligne-champs' }, champEnt(['mediateur', 'email'], 'E-mail du médiateur'), champEnt(['mediateur', 'site'], 'Site du médiateur')),
       titreMentions, listeMentions);
+    blocEntreprise = h('div', { id: 'reglages-entreprise', 'data-raccourci': '' }, interieur); // l'enveloppe porte le raccourci de la page et son point d'alerte
+    return blocEntreprise;
   }
 
   function rendre() {
