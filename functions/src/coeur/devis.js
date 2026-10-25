@@ -72,20 +72,20 @@ function journal({ donnees, ctx, outil, parametres, changements }) {
       type: 'set', collection: C.audit, id: auditId,
       donnees: {
         operationId, ordre: i + 1, date: ctx.maintenant, acteur: ctx.acteur, jeton: ctx.jeton ?? ctx.acteur, via: ctx.via || 'ecran', outil,
-        collection: C.devis, docId: c.id, action: c.action, statut: 'succes', champsModifies: c.champs, parametresRecus: Object.keys(parametres ?? {}).slice(0, 40),
+        collection: c.collection ?? C.devis, docId: c.id, action: c.action, statut: 'succes', champsModifies: c.champs, parametresRecus: Object.keys(parametres ?? {}).slice(0, 40),
       },
     });
     ecritures.push({
       type: 'set', collection: C.auditAvant, id: auditId,
-      donnees: { operationId, collection: C.devis, docId: c.id, avant: sansId(c.avant), apres: sansId(c.apres), expireAt, ...(i === 0 ? { parametres: JSON.stringify(parametres ?? {}).slice(0, 2000) } : {}) },
+      donnees: { operationId, collection: c.collection ?? C.devis, docId: c.id, avant: sansId(c.avant), apres: sansId(c.apres), expireAt, ...(i === 0 ? { parametres: JSON.stringify(parametres ?? {}).slice(0, 2000) } : {}) },
     });
   });
   return { operationId, ecritures };
 }
 
 /** Écritures d'un changement : le document, plus sa ligne de journal. `patch` = champs changés (le reste est conservé). */
-function modifier(devis, patch) {
-  return { id: devis.id, action: 'modifier', avant: devis, apres: { ...devis, ...patch }, champs: Object.keys(patch), ecriture: { type: 'update', collection: C.devis, id: devis.id, donnees: patch } };
+function modifier(devis, patch, collection = C.devis) {
+  return { id: devis.id, collection, action: 'modifier', avant: devis, apres: { ...devis, ...patch }, champs: Object.keys(patch), ecriture: { type: 'update', collection, id: devis.id, donnees: patch } };
 }
 
 /**
@@ -123,7 +123,7 @@ export async function finaliser({ donnees, ctx, devisId }) {
 
     // Seuls les champs que la finalisation change sont écrits (les autres, dates comprises, ne sont pas retouchés).
     // Un client Firestore direct a pu poser archive ou des dates sur le brouillon : on les remet à zéro à la finalisation.
-    const remisesAZero = { archive: false, archiveLe: null, envoyeLe: null, accepteLe: null, refuseLe: null, remplaceLe: null };
+    const remisesAZero = { archive: false, archiveLe: null, envoyeLe: null, accepteLe: null, refuseLe: null, remplaceLe: null, pdf: null };
     const changements = [modifier(devis, { ...Object.fromEntries(CHAMPS_FIGES.map((k) => [k, apres[k]])), ...remisesAZero })];
     // Les versions plus anciennes encore vivantes (finalisée ou envoyée) sont remplacées par celle-ci, dans la même transaction.
     const remplaces = versions.filter((v) => v.id !== devis.id && (v.version ?? 1) < (devis.version ?? 1) && D.transitionPossible(v.statut, 'remplacer'));
@@ -178,6 +178,7 @@ export async function nouvelleVersion({ donnees, ctx, devisId }) {
     copie.creePar = ctx.acteur;
     delete copie.archiveLe;
     delete copie.remplaceLe;
+    delete copie.pdf;
     const j = journal({
       donnees, ctx, outil: 'devisNouvelleVersion', parametres: { devisId },
       changements: [{ id, action: 'creer', avant: null, apres: copie, champs: Object.keys(copie) }],
@@ -206,6 +207,107 @@ export async function archiver({ donnees, ctx, devisId, archive }) {
     const j = journal({ donnees, ctx, outil: 'devisArchiver', parametres: { devisId, archive }, changements: [changement] });
     tx.ecrire([changement.ecriture, ...j.ecritures]);
     return { ok: true, devis: { ...devis, ...patch }, operationId: j.operationId };
+  });
+}
+
+// ---------------------------------------------------------------- PDF du devis (25/10/2026) : états, idempotence, document de l'affaire
+// Le PDF d'un devis finalisé est fabriqué par le serveur (déclencheur Firestore ou demande explicite), jamais par le navigateur. Le champ `pdf` du devis dit où on en est :
+//   pdf = { statut: 'en_cours' | 'ok' | 'echec', tentatives, demarreLe?, chemin?, sha256?, nom?, genereLe?, message?, echecLe? }
+// La finalisation ne dépend JAMAIS du PDF : un échec laisse le devis finalisé, avec `pdf.statut = 'echec'` (l'écran affichera plus tard une alerte tant que `pdf.statut !== 'ok'`).
+// Écrire `pdf` ne change pas le statut du devis : le déclencheur (brouillon -> finalisé) ne se relance donc jamais sur ces écritures.
+export const TENTATIVES_AUTO_MAX = 3;
+/** Un « en cours » plus vieux que cela est abandonné (la fonction a planté ou dépassé son délai) : la fabrication peut recommencer. */
+export const DELAI_EN_COURS_MS = 10 * 60_000;
+
+/** Message court pour `pdf.message` : pas de HTML, pas de chemin (ni « / »), 200 caractères au plus. */
+export function messagePdfCourt(m) {
+  const t = String(m ?? '').replace(/[<>]/g, '').replace(/[/\\]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200);
+  return t || 'La fabrication du PDF a échoué.';
+}
+
+/** Un devis finalisé dont le PDF n'est pas prêt : l'écran affichera l'avertissement (et le bouton « Réessayer »). */
+export const pdfAReessayer = (devis) => !!devis && devis.statut !== 'brouillon' && devis.pdf?.statut !== 'ok';
+
+/** Ajoute (ou renomme) le document du PDF dans les Documents de l'affaire. Reconnu par son adresse stable : jamais deux fois le même. Rend null s'il n'y a rien à écrire. */
+function planDocumentAffaire({ donnees, ctx, affaire, libelle, url }) {
+  const documents = Array.isArray(affaire.documents) ? affaire.documents : [];
+  const i = documents.findIndex((d) => d && d.url === url);
+  if (i >= 0 && documents[i].libelle === libelle) return null;
+  const apres = i >= 0
+    ? documents.map((d, k) => (k === i ? { ...d, libelle } : d))
+    : [...documents, { libelle, url, ajouteLe: ctx.maintenant.toISOString() }];
+  const evenement = i >= 0 ? [] : [{
+    type: 'set', collection: C.evenements, id: donnees.nouvelId(C.evenements),
+    donnees: { type: 'document', texte: `Document joint : ${libelle}`, personneId: affaire.personneId ?? null, organisationId: affaire.organisationId ?? null, affaireId: affaire.id, auteur: ctx.acteur, date: ctx.maintenant },
+  }];
+  return { patch: { documents: apres, modifieLe: ctx.maintenant, modifiePar: ctx.acteur }, evenement };
+}
+
+/**
+ * Premier temps de la fabrication : décide, dans une transaction, si ce passage fabrique le PDF (un seul à la fois, un seul par devis).
+ *  - PDF déjà « ok » : rien à faire (`action: 'rien'`, on renvoie le même) ;
+ *  - « en_cours » depuis moins de DELAI_EN_COURS_MS : rien à faire, ni refus ni seconde fabrication ;
+ *  - absent ou « echec » : on fabrique, sauf si les tentatives automatiques ont atteint le maximum (échec définitif jusqu'à une demande explicite).
+ * `explicite` (demande de l'utilisateur) remet le compteur à zéro. Un brouillon est refusé. Rien d'autre que `pdf` n'est écrit.
+ */
+export async function reserverPdf({ donnees, ctx, devisId, explicite = false, tentativesMax = TENTATIVES_AUTO_MAX }) {
+  return donnees.transaction(async (tx) => {
+    const devis = await lireDevis(tx, devisId);
+    if (devis.statut === 'brouillon') throw new ErreurDevis('transition_interdite', 'Ce devis est encore un brouillon : finalise-le avant de créer le PDF.');
+    const pdf = devis.pdf ?? null;
+    if (pdf?.statut === 'ok') return { action: 'rien', statut: 'ok', devis };
+    const age = pdf?.demarreLe instanceof Date ? ctx.maintenant.getTime() - pdf.demarreLe.getTime() : Infinity;
+    if (pdf?.statut === 'en_cours' && Math.abs(age) < DELAI_EN_COURS_MS) return { action: 'rien', statut: 'en_cours', devis };
+    const avant = explicite ? 0 : (Number.isInteger(pdf?.tentatives) ? pdf.tentatives : 0);
+    if (!explicite && avant >= tentativesMax) return { action: 'rien', statut: 'echec', definitif: true, devis };
+    const suivant = { statut: 'en_cours', tentatives: avant + 1, demarreLe: ctx.maintenant };
+    tx.ecrire([modifier(devis, { pdf: suivant }).ecriture]);
+    return { action: 'fabriquer', statut: 'en_cours', tentatives: avant + 1, devis: { ...devis, pdf: suivant } };
+  });
+}
+
+/** Dernier temps (succès) : `pdf = ok` + document dans l'affaire + journal, en UNE transaction. Un PDF déjà « ok » n'est jamais réécrit. */
+export async function terminerPdf({ donnees, ctx, devisId, chemin, sha256, libelle, url }) {
+  return donnees.transaction(async (tx) => {
+    const devis = await lireDevis(tx, devisId);
+    if (devis.statut === 'brouillon') throw new ErreurDevis('transition_interdite', 'Ce devis est encore un brouillon : finalise-le avant de créer le PDF.');
+    if (devis.pdf?.statut === 'ok') return { ok: true, deja: true, devis };
+    const affaire = devis.affaireId ? await tx.document(C.affaires, devis.affaireId) : null;
+    const pdf = { statut: 'ok', chemin, sha256, nom: libelle, tentatives: Number.isInteger(devis.pdf?.tentatives) ? devis.pdf.tentatives : 1, genereLe: ctx.maintenant };
+    const changements = [modifier(devis, { pdf })];
+    const ecritures = [];
+    const plan = affaire ? planDocumentAffaire({ donnees, ctx, affaire, libelle, url }) : null;
+    if (plan) { changements.push(modifier(enDates(affaire), plan.patch, C.affaires)); ecritures.push(...plan.evenement); }
+    const j = journal({ donnees, ctx, outil: 'devisPdf', parametres: { devisId }, changements });
+    tx.ecrire([...changements.map((c) => c.ecriture), ...ecritures, ...j.ecritures]);
+    return { ok: true, deja: false, devis: { ...devis, pdf }, documentAffaire: !!plan, operationId: j.operationId };
+  });
+}
+
+/** Dernier temps (échec) : `pdf = echec` avec un message court. Le devis reste finalisé. Un PDF déjà « ok » n'est jamais écrasé. */
+export async function echouerPdf({ donnees, ctx, devisId, message }) {
+  return donnees.transaction(async (tx) => {
+    const devis = await lireDevis(tx, devisId);
+    if (devis.pdf?.statut === 'ok') return { ok: true, deja: true, devis };
+    const pdf = { statut: 'echec', message: messagePdfCourt(message), tentatives: Number.isInteger(devis.pdf?.tentatives) ? devis.pdf.tentatives : 1, echecLe: ctx.maintenant };
+    const changement = modifier(devis, { pdf });
+    const j = journal({ donnees, ctx, outil: 'devisPdf', parametres: { devisId }, changements: [changement] });
+    tx.ecrire([changement.ecriture, ...j.ecritures]);
+    return { ok: true, deja: false, devis: { ...devis, pdf }, operationId: j.operationId };
+  });
+}
+
+/** PDF « brouillon » à la demande : ne touche JAMAIS le champ `pdf` du devis ; met seulement le document « Brouillon – Objet.pdf » dans l'affaire (un seul par devis, remplacé). */
+export async function enregistrerBrouillonPdf({ donnees, ctx, devisId, libelle, url }) {
+  return donnees.transaction(async (tx) => {
+    const devis = await lireDevis(tx, devisId);
+    const affaire = devis.affaireId ? await tx.document(C.affaires, devis.affaireId) : null;
+    const plan = affaire ? planDocumentAffaire({ donnees, ctx, affaire, libelle, url }) : null;
+    if (!plan) return { ok: true, documentAffaire: false };
+    const changement = modifier(enDates(affaire), plan.patch, C.affaires);
+    const j = journal({ donnees, ctx, outil: 'devisPdf', parametres: { devisId, brouillon: true }, changements: [changement] });
+    tx.ecrire([changement.ecriture, ...plan.evenement, ...j.ecritures]);
+    return { ok: true, documentAffaire: true, operationId: j.operationId };
   });
 }
 

@@ -190,7 +190,7 @@ export async function modifierBrouillon(id, patch) {
 // Chez un client, la demande porte le nom de son espace (déduit de la session, vérifié par le serveur : éditeur de cet espace, module « devis » actif).
 // Chez Jérôme, aucun espace : le serveur vérifie que le compte est l'un des deux comptes autorisés.
 const fonctions = () => getFunctions(app, 'europe-west9');
-const FONCTIONS = Object.freeze({ finaliser: 'devisFinaliser', changerStatut: 'devisChangerStatut', nouvelleVersion: 'devisNouvelleVersion', archiver: 'devisArchiver' });
+const FONCTIONS = Object.freeze({ finaliser: 'devisFinaliser', changerStatut: 'devisChangerStatut', nouvelleVersion: 'devisNouvelleVersion', archiver: 'devisArchiver', pdf: 'devisPdf' });
 const CODES_LISIBLES = ['permission-denied', 'invalid-argument', 'failed-precondition', 'not-found', 'unauthenticated'];
 export const MESSAGE_RESEAU_DEVIS = 'Ça n’a pas abouti. Vérifie ta connexion internet, puis réessaie : rien n’a été perdu.';
 
@@ -221,3 +221,5 @@ export const changerStatut = (devisId, action) => appeler('changerStatut', { dev
 export const nouvelleVersion = (devisId) => appeler('nouvelleVersion', { devisId });
 /** Archive (true) ou désarchive (false) un devis signé ou refusé. */
 export const archiver = (devisId, archive) => appeler('archiver', { devisId, archive });
+/** Relance la fabrication du PDF d'un devis finalisé (Chromium dans la fonction, rangé dans Cloud Storage) : `{ statut, lien, nom }`. Le serveur écrit seul le champ `pdf` du devis. Lève une Error lisible si refusé (brouillon, PDF non configuré…). */
+export const pdfDevis = (devisId) => appeler('pdf', { devisId });
