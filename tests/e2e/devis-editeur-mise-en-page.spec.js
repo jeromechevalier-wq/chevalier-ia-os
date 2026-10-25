@@ -100,7 +100,7 @@ test('1 la barre d’actions reste en haut quand on défile : titre « Brouillon
     await page.locator('[data-action="options"]').click();
   }
   // Options est maintenant un menu à cases à cocher ; ce vieux devis (sans `affichage`) garde l'affichage d'avant : le calcul des marges reste visible sur les lignes ; la carte « Marges du devis » n'existe plus (tout se règle dans « Définir un ajustement »).
-  await expect(page.locator('.menu-devis-options')).toBeVisible();
+  await expect(page.locator('[data-zone="options"]')).toBeVisible();
   await expect(page.locator('[data-zone="marges"]')).toHaveCount(0);
   await expect(page.locator('[data-calcul-marge]').first()).toBeVisible();
 });
