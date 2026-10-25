@@ -195,7 +195,7 @@ test('E3 le menu « … » : changements de statut par le serveur, entrées « b
   await page.keyboard.press('Escape');
   // Voir : l'aperçu du devis dans une fenêtre.
   await ouvrirMenuDe(page, 'd1');
-  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Voir' }).click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Voir', exact: true }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await expect(page.getByRole('dialog').locator('iframe').contentFrame().locator('body')).toContainText('DEV-2026-10-02-001');
   await capturer(page, info, 'E3-apercu');
@@ -244,7 +244,8 @@ test('O3 les boutons « Modifier » et « Variante » n’existent plus sur les 
   await ouvrir(page);
   await expect(page.locator('[data-action="modifier-devis"]')).toHaveCount(0);
   await expect(page.locator('tr.ligne-devis [data-action="menu-devis"]')).toHaveCount(2);
-  await versTableau(page);
+  await page.locator('[data-vue="tableau"]').click();
+  await expect(page.locator('.colonne')).not.toHaveCount(0);
   await expect(page.locator('[data-action="modifier-devis"]')).toHaveCount(0);
   await expect(page.locator('.carte-devis [data-action="menu-devis"]')).not.toHaveCount(0);
 });
