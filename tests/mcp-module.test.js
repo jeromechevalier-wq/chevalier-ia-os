@@ -136,7 +136,7 @@ describe('plateforme : fonction, adresses, configuration, règles', () => {
     assert.match(bloc, /allow get: if connecte\(\) && \(email == request\.auth\.token\.email\.lower\(\) \|\| roleDe\(client\) in \['editeur', 'lecteur'\]\);/);
     assert.match(bloc, /allow list: if roleDe\(client\) in \['editeur', 'lecteur'\];/);
     assert.match(bloc, /allow write: if false;/);
-    assert.match(r, /allow read: if collection != 'membres' && collection != 'devis_compteurs' && roleDe\(client\)/); // le compteur des numéros de devis est réservé au serveur (24/10/2026)
+    assert.match(r, /allow read: if collection != 'membres' && collection != 'devis_compteurs' && collection != 'crm_actions_lancements' && roleDe\(client\)/); // le compteur des numéros de devis (24/10/2026) et le journal des demandes d'e-mail (25/10/2026) sont réservés au serveur
     assert.match(r, /allow write: if collection != 'membres' && !collectionDuJournal\(collection\) && !collectionDuTableauDeBord\(collection\) && !collectionSansSuppression\(collection\) && !collectionDesDevis\(collection\) && roleDe\(client\) == 'editeur';/);
     assert.match(r, /match \/\{document=\*\*\} \{\s+allow read, write: if false;/);
   });
