@@ -393,12 +393,12 @@ test('ED8 quitter l’éditeur par le menu de gauche (« Affaires ») avec un ch
   await dialogue(page).getByRole('button', { name: 'Rester' }).click();
   await expect(page.locator('.page-editeur-devis[data-devis]')).toBeVisible();
   await expect(page.locator('[data-champ="objet"]')).toHaveValue('Terrasse');
-  // Même fenêtre avec « Annuler » (tant que le changement n'est pas enregistré).
+  // Même fenêtre avec la flèche « ‹ Devis » (tant que le changement n'est pas enregistré).
   await page.evaluate(() => {
     const champ = document.querySelector('[data-champ="objet"]');
     champ.value = 'Terrasse couverte';
     champ.dispatchEvent(new Event('input', { bubbles: true }));
-    document.querySelector('[data-action="annuler"]').click();
+    document.querySelector('[data-action="fermer"]').click();
   });
   await expect(dialogue(page)).toContainText('Quitter sans enregistrer ?');
   await dialogue(page).getByRole('button', { name: 'Enregistrer et quitter' }).click();

@@ -79,8 +79,9 @@ test('1 la barre d’actions reste en haut quand on défile : titre « Brouillon
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Brouillon');
   await expect(page.locator('[data-onglet="edition"]')).toHaveText('Édition');
   await expect(page.locator('[data-onglet="apercu"]')).toHaveText('Prévisualisation');
-  for (const action of ['bibliotheque', 'annuler', 'envoyer', 'fermer']) await expect(page.locator(`.barre-devis [data-action="${action}"]`)).toBeVisible();
+  for (const action of ['bibliotheque', 'envoyer', 'fermer']) await expect(page.locator(`.barre-devis [data-action="${action}"]`)).toBeVisible();
   await expect(page.locator('.barre-devis [data-action="enregistrer"]')).toHaveCount(0); // l'enregistrement est automatique
+  await expect(page.locator('.barre-devis [data-action="annuler"]')).toHaveCount(0); // « Annuler » ne faisait que revenir à la liste, comme la flèche « ‹ Devis »
   await expect(page.locator('[data-action="envoyer"]')).toHaveClass(/bouton-principal/); // le seul bouton jaune plein de la barre
   // En bas de la page, la barre est toujours à l'écran (collée en haut, sous la barre du téléphone).
   await defiler(page, false);
@@ -295,7 +296,7 @@ test('6 sur téléphone : une carte par ligne (désignation en haut, puis Qté /
   const largeur = page.viewportSize().width;
   expect(bande.width).toBeGreaterThan(largeur - 60);
   // La barre garde Catalogue, Annuler et Envoyer ; Options est dans « … ».
-  for (const action of ['bibliotheque', 'annuler', 'envoyer', 'fermer']) await expect(page.locator(`.barre-devis [data-action="${action}"]`)).toBeVisible();
+  for (const action of ['bibliotheque', 'envoyer', 'fermer']) await expect(page.locator(`.barre-devis [data-action="${action}"]`)).toBeVisible();
   await expect(page.locator('.barre-devis [data-action="enregistrer"]')).toHaveCount(0); // l'enregistrement est automatique
   await expect(page.locator('[data-action="options"]')).toBeHidden();
   await expect(page.locator('[data-action="plus-actions"]')).toBeVisible();
