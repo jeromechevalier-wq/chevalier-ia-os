@@ -42,14 +42,16 @@ export function preparerGoogle() {
 
 const jetons = new Map(); // portée -> { valeur, email, expire } : en mémoire seulement, un jeton par portée (Drive et Gmail se demandent séparément)
 
+/** Y a-t-il déjà un jeton valable pour ce compte en mémoire ? Si oui, obtenirJeton ne demande rien à Google (aucune fenêtre, donc pas besoin d'un clic). */
+export const jetonEnMemoire = ({ email = '', portee = PORTEE_DRIVE } = {}) => { const j = jetons.get(portee); return Boolean(j && j.email === email && j.expire > Date.now() + 30_000); };
+
 /**
  * Jeton d'accès Google. La première fois, Google ouvre sa fenêtre d'autorisation. Par défaut la portée drive.file (fichiers créés ou choisis par l'appli) ;
  * `portee` en demande une autre (gmail.compose pour créer un brouillon d'e-mail) : chaque portée a son jeton et n'est demandée qu'au moment où on en a besoin.
  * `email` aide Google à proposer le bon compte. À appeler depuis un clic (sinon le navigateur bloque la fenêtre).
  */
 export async function obtenirJeton({ email = '', portee = PORTEE_DRIVE } = {}) {
-  const jeton = jetons.get(portee);
-  if (jeton && jeton.email === email && jeton.expire > Date.now() + 30_000) return jeton.valeur; // jamais le jeton d'un autre compte (déconnexion, changement de compte)
+  if (jetonEnMemoire({ email, portee })) return jetons.get(portee).valeur; // jamais le jeton d'un autre compte (déconnexion, changement de compte)
   await preparerGoogle();
   const conf = configGoogle();
   return new Promise((resoudre, rejeter) => {
