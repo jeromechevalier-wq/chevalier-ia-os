@@ -224,7 +224,7 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
 .description-ligne { font-size: var(--fs-petit); color: var(--texte2); }
 .tableau-lignes-devis .champ-nombre { width: 100%; }
 .tableau-lignes-devis .menu-unite { min-width: 0; }
-.tableau-lignes-devis .menu-unite .champ { width: 100%; padding-left: var(--esp-3); background-color: transparent; border-color: transparent; }
+.tableau-lignes-devis .menu-unite .champ { width: 100%; padding: var(--esp-2) var(--esp-3); background-color: transparent; border-color: transparent; }
 .tableau-lignes-devis .menu-unite .champ:hover { border-color: var(--bordure-champ); }
 
 /* Poignée de déplacement (deux flèches) et petit bouton rond des actions de la ligne. */
@@ -514,7 +514,7 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
   .tableau-lignes-devis td { padding: var(--esp-1) var(--esp-2); }
   .tableau-lignes-devis .num { padding-top: var(--esp-3); }
   .ligne-section-devis .num { padding-top: var(--esp-1); }
-  .champ-surplace { padding: var(--esp-1) var(--esp-2); min-height: calc(var(--h-ctrl) - var(--esp-4)); }
+  .champ-surplace, .tableau-lignes-devis .menu-unite .champ { padding: var(--esp-1) var(--esp-2); min-height: calc(var(--h-ctrl) - var(--esp-4)); }
   textarea.champ-surplace { min-height: calc(var(--h-ctrl) - var(--esp-4)); }
   .tableau-lignes-devis td.c-des { position: relative; }
   .bouton-catalogue-ligne { position: absolute; top: var(--esp-1); right: var(--esp-2); opacity: 0; pointer-events: none; background: var(--panneau); }
