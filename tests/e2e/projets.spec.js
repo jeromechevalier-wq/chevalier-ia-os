@@ -72,7 +72,7 @@ test('C29 menu « Projets » et bouton « + » : un projet se crée en ne tapant
   // le bouton « + » de la barre propose aussi « Projet »
   const plus = page.locator(estTelephone(page) ? '.bouton-plus-mobile' : '.bouton-plus:not(.bouton-plus-mobile)');
   await plus.click();
-  await expect(page.locator('.menu-pop').getByRole('menuitem')).toHaveText(['Personne', 'Organisation', 'Affaire', 'Projet']);
+  await expect(page.locator('.menu-pop').getByRole('menuitem')).toHaveText(['Personne', 'Organisation', 'Affaire', 'Projet', 'Devis']);
   await page.locator('.menu-pop').getByRole('menuitem', { name: 'Projet' }).click();
   await expect(dialogue(page)).toContainText('Ajouter un projet');
   // le titre est le seul champ obligatoire

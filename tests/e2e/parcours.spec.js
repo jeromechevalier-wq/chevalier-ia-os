@@ -619,7 +619,7 @@ test('C16 le bouton « + » propose Personne, Organisation, Affaire et Projet', 
   await connecter(page);
   const plus = page.locator(estTelephone(page) ? '.bouton-plus-mobile' : '.bouton-plus:not(.bouton-plus-mobile)');
   await plus.click();
-  await expect(page.locator('.menu-pop').getByRole('menuitem')).toHaveText(['Personne', 'Organisation', 'Affaire', 'Projet']);
+  await expect(page.locator('.menu-pop').getByRole('menuitem')).toHaveText(['Personne', 'Organisation', 'Affaire', 'Projet', 'Devis']);
   await page.locator('.menu-pop').getByRole('menuitem', { name: 'Organisation' }).click();
   await expect(dialogue(page)).toContainText('Ajouter une organisation');
   await page.keyboard.press('Escape');
