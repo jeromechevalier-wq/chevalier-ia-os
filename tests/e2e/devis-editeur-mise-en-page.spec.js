@@ -92,7 +92,7 @@ test('1 la barre d’actions reste en haut quand on défile : titre « Brouillon
   // Collée en haut de l'écran sur ordinateur (la recherche du haut défile avec la page, elle ne reste pas collée), juste sous la barre du menu (56 px) sur téléphone.
   const haut = (await barre.boundingBox()).y;
   if (estTelephone(page)) { expect(haut).toBeGreaterThanOrEqual(52); expect(haut).toBeLessThanOrEqual(64); } else { expect(haut).toBeLessThanOrEqual(4); await expect(page.locator('[data-role="recherche-globale"]')).not.toBeInViewport(); }
-  await expect(page.locator('.barre-devis.epinglee .titre-compact')).toContainText('Brouillon'); // l'en-tête complet est parti : le titre et le total restent dans la barre
+  await expect(page.locator('.barre-devis.epinglee .titre-compact')).toContainText('Brouillon'); // l'en-tête complet est parti : le titre reste dans la barre
   await capturer(page, info, '1-barre-fixe', { pleine: false });
   // « Options » ouvre les réglages du devis (sur téléphone, dans le bouton « … »).
   await defiler(page, true);

@@ -1,7 +1,7 @@
 // Éditeur de devis (route devis/editeur, devis/editeur/<id>) : choisir l'affaire, remplir le chantier, ajouter des lignes (Bordereau, ligne libre, section, sous-section, texte),
 // régler la remise et l'acompte, voir le total en direct, l'aperçu, puis finaliser. Un brouillon s'enregistre tout seul (écriture directe, plans de brouillon.js) ;
 // finaliser passe par la fonction du serveur. Aucune règle ni aucun calcul ici : les fonctions pures sont dans editeur-logique.js et logique.js.
-// Un devis qui n'est plus un brouillon ne s'édite pas : sa route d'édition ouvre la visualisation (devis/voir/<id>, lecture seule : aperçu + totaux). Pour le corriger : « Créer une nouvelle version ».
+// Un devis qui n'est plus un brouillon ne s'édite pas : sa route d'édition ouvre la visualisation (devis/voir/<id>, lecture seule : le document seul). Pour le corriger : « Créer une nouvelle version ».
 // Le bouton « … » (Autres actions) et le panneau « Historique » existent dans l'édition ET dans la visualisation.
 import { h, icone, remplir, dialogue, toast, ouvrirMenu } from '../../os/ui.js';
 import { naviguer, ajouterGardeSortie } from '../../os/router.js';
@@ -14,7 +14,7 @@ import * as A from './articles.js';
 import { arbreFamilles, cheminFamille } from './familles.js';
 import * as Ed from './editeur-logique.js';
 import {
-  TYPE_SAUT, totauxDevis, erreursFinalisation, erreursChantier, STATUTS_DEVIS, UNITES_DUREE, MOMENTS_ACOMPTE, TAUX_TVA_DEFAUT, niveauSection, dureeEnTexte,
+  TYPE_SAUT, totauxDevis, erreursFinalisation, erreursChantier, transitionPossible, UNITES_DUREE, MOMENTS_ACOMPTE, TAUX_TVA_DEFAUT, niveauSection, dureeEnTexte,
   affichageDe, ajustementActif, valeursAjustement, margeEffective, vueClient, emailValide, MAX_COPIE,
 } from './logique.js';
 import { formaterMontant } from './document.js';
@@ -27,13 +27,14 @@ import * as O from './ouvrages.js';
 import { routePdf, messageApresEnregistrement } from './pdf.js';
 import { lancerEnvoiEmail } from './email-ecran.js';
 import { emailPossible } from './email-brouillon.js';
-import { ERREUR_ECRITURE, dupliquerDevis, supprimerBrouillon, entreesMenuDevis } from './actions-devis.js';
+import { ERREUR_ECRITURE, dupliquerDevis, supprimerBrouillon, entreesMenuDevis, changerStatut } from './actions-devis.js';
+import { pastilleStatutDevis, appliquerPastilleStatut } from './pastille-statut.js';
 import { ouvrirPanneauLateral } from './panneau-lateral.js';
 import { contenuHistorique } from './historique-logique.js';
 
 const ERREUR_LECTURE = 'Les devis n’ont pas pu être lus. Vérifie ta connexion puis recharge la page.';
 const MESSAGE_INTROUVABLE = 'Ce devis est introuvable : il a peut-être été retiré, ou le lien n’est pas le bon.';
-const MESSAGE_LECTURE_SEULE = 'Ce devis est finalisé : on ne le modifie plus. Pour le corriger, crée une nouvelle version (menu « … », « Créer une nouvelle version » : elle garde le même numéro).';
+const MESSAGE_LECTURE_SEULE = 'Ce devis est finalisé : pour le corriger, crée une nouvelle version (menu « … »).';
 const MESSAGE_VISUALISATION_BROUILLON = 'Tu regardes ce brouillon sans pouvoir le modifier. Pour le modifier, choisis « Éditer le devis » dans le menu « … ».';
 const DELAI_INTROUVABLE_MS = 4000;
 const DELAI_ENREGISTREMENT_MS = 900;
@@ -43,7 +44,6 @@ const euros = (n) => (typeof n === 'number' ? formaterMontant(n) : '—');
 const saisieNombre = (n) => (typeof n === 'number' && Number.isFinite(n) ? String(n).replace('.', ',') : '');
 const saisiePrix = (n) => (typeof n === 'number' && Number.isFinite(n) ? n.toFixed(2).replace('.', ',') : '');
 const nouvelId = () => CRM.ctx().nouvelId('devis_devis');
-const libelleStatut = (id) => STATUTS_DEVIS.find((s) => s.id === id)?.libelle ?? '';
 
 // ---------------------------------------------------------------- client et affaire (lus dans l'espace)
 /** Organisation et personne proposées comme client d'une affaire. */
@@ -312,10 +312,9 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     for (const k of Object.keys(ref)) delete ref[k];
     const d = travail;
     ref.titre = h('h1', { class: 'titre-barre-devis' }, '');
-    ref.pastille = h('span', { class: 'pastille-statut', dataset: { valeur: 'statut' } });
+    ref.pastille = pastilleStatutDevis(d);
     ref.indicateur = h('span', { class: 'indicateur-enregistrement', role: 'status', 'aria-live': 'polite', dataset: { valeur: 'enregistrement' } });
     // L'enregistrement est automatique : il n'y a plus de bouton « Enregistrer ». Le nombre de champs obligatoires à remplir et le bouton « Réessayer » (seulement après un échec) prennent sa place.
-    ref.totalEntete = h('span', { class: 'fiche-montant-devis', dataset: { valeur: 'total-entete' } });
     ref.lienClient = h('a', { class: 'lien-entite', dataset: { valeur: 'lien-client' }, hidden: true });
     ref.lienAffaire = h('a', { class: 'lien-entite', dataset: { valeur: 'lien-affaire' }, hidden: true });
     ref.titreCompact = h('span', { class: 'titre-compact', 'aria-hidden': 'true' }); // montré seulement quand la barre est collée en haut
@@ -326,28 +325,28 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
         type: 'button', class: 'onglet-editeur', role: 'tab', dataset: { onglet: cle }, onclick: () => choisirOnglet(cle),
       }, icone(pictogramme, { taille: 16 }), libelle)));
     ref.onglets = onglets;
-    // Même squelette que les fiches (personne, organisation, affaire, projet) : flèche de retour, titre et total, puis statut, client, affaire.
-    const entete = h('header', { class: 'entete-devis' },
+    // En-tête : le MÊME que celui des fiches Affaires et Projets (mêmes classes) : flèche de retour, titre, pastille de statut, client et affaire ; les boutons à droite.
+    // En visualisation les boutons (Historique, Envoyer, « … ») sont dans l'en-tête et il n'y a pas de barre en dessous ; en édition ils restent dans la barre collée en haut.
+    const entete = h('header', { class: 'fiche-tete entete-devis' },
       boutonRetour(lecture),
-      h('div', { class: 'entete-devis-ligne' },
-        h('div', { class: 'entete-devis-titre' }, ref.titre,
-          h('div', { class: 'entete-devis-sous' }, ref.pastille, ref.indicateur, ref.boutonReessayer, ref.compteurManquants, ref.lienClient, ref.lienAffaire)),
-        h('div', { class: 'entete-devis-droite' }, ref.totalEntete)));
-    // Barre d'actions : reste collée en haut de l'écran quand on défile (onglets, Catalogue, Options, Envoyer).
+      h('div', { class: 'fiche-tete-ligne' },
+        h('div', { class: 'fiche-titre' }, ref.titre,
+          h('div', { class: 'fiche-sous' }, ref.pastille, ref.indicateur, ref.boutonReessayer, ref.compteurManquants, ref.lienClient, ref.lienAffaire)),
+        lecture ? h('div', { class: 'fiche-tete-droite' }, h('div', { class: 'fiche-actions' }, boutonsLecture(d))) : null));
+    // Barre d'actions de l'édition : reste collée en haut de l'écran quand on défile (onglets, Catalogue, Options, Envoyer).
     ref.sentinelle = h('div', { class: 'sentinelle-barre-devis', 'aria-hidden': 'true' });
-    ref.barre = h('div', { class: 'barre-devis' },
+    ref.barre = lecture ? null : h('div', { class: 'barre-devis' },
       h('div', { class: 'barre-devis-gauche' }, ref.titreCompact, onglets),
-      h('div', { class: 'barre-devis-droite' }, lecture ? boutonsLecture(d) : boutonsEdition()));
+      h('div', { class: 'barre-devis-droite' }, boutonsEdition()));
     observerBarre?.disconnect();
-    observerBarre = typeof IntersectionObserver === 'function' ? new IntersectionObserver(([e]) => { ref.barre.classList.toggle('epinglee', !e.isIntersecting && e.boundingClientRect.top < 0); }) : null;
+    observerBarre = !lecture && typeof IntersectionObserver === 'function' ? new IntersectionObserver(([e]) => { ref.barre?.classList.toggle('epinglee', !e.isIntersecting && e.boundingClientRect.top < 0); }) : null;
     observerBarre?.observe(ref.sentinelle);
     ref.bandeauConflit = h('p', { class: 'bandeau-lecture-seule', role: 'alert', hidden: !conflit, dataset: { valeur: 'conflit' } }, 'Ce devis a été modifié ailleurs. Tes changements ne sont pas enregistrés tant que tu n’as pas rechargé. ',
       h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'recharger' }, onclick: () => { conflit = false; charger(); } }, 'Recharger'));
     ref.erreurEnreg = h('p', { class: 'erreur', role: 'alert', dataset: { erreur: 'enregistrement' }, hidden: true });
-    ref.panneauEdition = h('div', { class: 'editeur-edition', dataset: { panneau: 'edition' } },
-      lecture
-        ? h('article', { class: 'document-devis' }, blocTotaux())
-        : h('article', { class: 'document-devis' }, enteteDocument(), blocLignes(), basDePage()));
+    // Visualisation : seulement le document (l'aperçu) ; ni éditeur ni cadre de totaux.
+    ref.panneauEdition = lecture ? null : h('div', { class: 'editeur-edition', dataset: { panneau: 'edition' } },
+      h('article', { class: 'document-devis' }, enteteDocument(), blocLignes(), basDePage()));
     ref.panneauApercu = h('div', { class: 'editeur-apercu', dataset: { panneau: 'apercu' } });
     bibliotheque?.fermer();
     bibliotheque = null;
@@ -356,7 +355,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     optionsOuvertes?.fermer({ rendreFocus: false });
     historiqueOuvert?.fermer({ rendreFocus: false });
     racine.classList.toggle('devis-lecture-seule', lecture);
-    remplir(racine, entete, ref.sentinelle, ref.barre, lecture ? h('p', { class: 'bandeau-lecture-seule', dataset: { valeur: 'lecture-seule' } }, travail.statut === 'brouillon' ? MESSAGE_VISUALISATION_BROUILLON : MESSAGE_LECTURE_SEULE) : ref.bandeauConflit, ref.erreurEnreg, ref.panneauEdition, ref.panneauApercu);
+    remplir(racine, entete, lecture ? null : ref.sentinelle, ref.barre, lecture ? h('p', { class: 'bandeau-lecture-seule', dataset: { valeur: 'lecture-seule' } }, travail.statut === 'brouillon' ? MESSAGE_VISUALISATION_BROUILLON : MESSAGE_LECTURE_SEULE) : ref.bandeauConflit, ref.erreurEnreg, ref.panneauEdition, ref.panneauApercu);
     if (!lecture) { rendreLignes(); majResultats(); }
     arretGarde();
     arretGarde = ajouterGardeSortie(
@@ -370,9 +369,15 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     if (rouvrir.historique) ouvrirHistorique(null, { silencieux: true });
   }
 
-  /** Bouton « Envoyer » (menu : e-mail, PDF, impression) : principal dans l'édition comme dans la visualisation. */
+  /** « Passer à « Envoyé » » : bouton principal, visible seulement quand le devis finalisé peut passer à Envoyé (même action et même appel serveur que le menu de la liste). */
+  const peutPasserEnvoye = () => transitionPossible((devisCourant() ?? travail)?.statut, 'marquer_envoye');
+  function boutonPasserEnvoye() {
+    if (!peutPasserEnvoye()) return null;
+    return h('button', { type: 'button', class: 'bouton bouton-principal', dataset: { action: 'passer-envoye' }, onclick: () => changerStatut(devisCourant() ?? travail, 'marquer_envoye', 'Envoyé') }, icone('check', { taille: 16 }), 'Passer à « Envoyé »');
+  }
+  /** Bouton « Envoyer » (menu : e-mail, PDF, impression) : principal, sauf quand « Passer à « Envoyé » » l'est à côté. */
   function boutonEnvoyer() {
-    return h('button', { type: 'button', class: 'bouton bouton-principal', dataset: { action: 'envoyer' }, 'aria-haspopup': 'menu', 'aria-expanded': 'false', onclick: (ev) => ouvrirMenuEnvoyer(ev.currentTarget) }, icone('mail', { taille: 16 }), 'Envoyer', icone('chevron-down', { taille: 14 }));
+    return h('button', { type: 'button', class: `bouton ${peutPasserEnvoye() ? 'bouton-secondaire' : 'bouton-principal'}`, dataset: { action: 'envoyer' }, 'aria-haspopup': 'menu', 'aria-expanded': 'false', onclick: (ev) => ouvrirMenuEnvoyer(ev.currentTarget) }, icone('mail', { taille: 16 }), 'Envoyer', icone('chevron-down', { taille: 14 }));
   }
   function boutonHistorique() {
     ref.boutonHistorique = h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-historique', dataset: { action: 'historique' }, 'aria-controls': 'historique-devis', 'aria-expanded': 'false',
@@ -393,7 +398,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     }
     const apresSuppression = () => { verrou = true; clearTimeout(minuteur); if (travail) enregistre = structuredClone(travail); naviguer('devis/liste'); };
     entrees.push(...entreesMenuDevis(d, {
-      exclure: ['envoyer_email', lecture ? 'voir' : 'editer'], // Envoyer a son bouton ; on ne propose pas l'écran où l'on est déjà
+      exclure: ['envoyer_email', 'statut:marquer_envoye', lecture ? 'voir' : 'editer'], // Envoyer a son bouton ; on ne propose pas l'écran où l'on est déjà
       apresSuppression,
       surcharges: {
         supprimer: async (x) => { if (!lecture && !(await sauver())) { toast(`${messageEnreg || ERREUR_ECRITURE} Le brouillon n’a pas été supprimé.`, { type: 'erreur', duree: 8000 }); return; } supprimerBrouillon(x, apresSuppression); }, // attend l'écriture en cours avant de supprimer
@@ -405,14 +410,14 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
   }
 
   function boutonsLecture() {
-    return [boutonHistorique(), boutonEnvoyer(), boutonPlusActions()];
+    return [boutonHistorique(), boutonPasserEnvoye(), boutonEnvoyer(), boutonPlusActions()];
   }
 
   // Barre d'actions : Catalogue, Options, Historique (panneaux collés à droite), Envoyer (bouton à menu), « … » (autres actions). Pas de bouton Enregistrer : l'enregistrement est automatique.
   function boutonsEdition() {
     ref.boutonOptions = h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-options', dataset: { action: 'options' }, 'aria-controls': 'options-devis', 'aria-expanded': 'false', onclick: (ev) => (optionsOuvertes ? optionsOuvertes.fermer() : ouvrirOptions(ev.currentTarget)) }, 'Options', icone('chevron-down', { taille: 14 }));
     // « Envoyer » remplace « Finaliser » : imprimer, télécharger ou envoyer par e-mail ; le devis est finalisé (numéroté, prix figés) au moment de l'envoi.
-    return [boutonCatalogue(), ref.boutonOptions, boutonHistorique(), boutonEnvoyer(), boutonPlusActions()];
+    return [boutonCatalogue(), ref.boutonOptions, boutonHistorique(), boutonPasserEnvoye(), boutonEnvoyer(), boutonPlusActions()];
   }
 
   // ------------------------------------------------ PDF : UN SEUL, celui du serveur (devisPdf), rangé dans les Documents de l'affaire. Plus d'impression par le navigateur.
@@ -537,8 +542,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
   function choisirOnglet(cle) {
     onglet = cle;
     ref.onglets?.querySelectorAll('.onglet-editeur').forEach((b) => { const actif = b.dataset.onglet === cle; b.classList.toggle('actif', actif); b.setAttribute('aria-selected', String(actif)); });
-    // En lecture seule, l'aperçu et les totaux restent visibles ensemble (rien à éditer).
-    ref.panneauEdition.hidden = cle === 'apercu' && !lecture;
+    if (ref.panneauEdition) ref.panneauEdition.hidden = cle === 'apercu';
     ref.panneauApercu.hidden = cle !== 'apercu';
     if (cle === 'apercu') rendreApercu();
   }
@@ -613,15 +617,13 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
   }
 
   // ------------------------------------------------ barre du haut
-  const majTitreCompact = () => { if (ref.titreCompact) ref.titreCompact.textContent = [ref.titre?.textContent, ref.totalEntete?.textContent].filter(Boolean).join(' · '); };
+  const majTitreCompact = () => { if (ref.titreCompact) ref.titreCompact.textContent = ref.titre?.textContent ?? ''; };
   function majEntete() {
     if (!ref.titre) return;
     const d = travail;
-    ref.titre.textContent = d.numero ? `Devis ${d.numero}${d.version > 1 ? ` · v${d.version}` : ''}` : 'Brouillon';
+    ref.titre.textContent = d.numero ? `Devis ${d.numero} · v${d.version ?? 1}` : 'Brouillon';
     majTitreCompact();
-    ref.pastille.textContent = libelleStatut(d.statut);
-    ref.pastille.dataset.statut = d.statut;
-    ref.pastille.hidden = d.statut === 'brouillon' && !d.numero; // le titre dit déjà « Brouillon »
+    appliquerPastilleStatut(ref.pastille, d); // mêmes mots et mêmes couleurs que la liste des devis
     if (ref.numeroDocument) ref.numeroDocument.textContent = d.numero ? `Devis n° ${d.numero}${d.version > 1 ? ` · v${d.version}` : ''}` : 'Devis n° Brouillon';
     const nomClient = clientDuDevis(d);
     const lienDe = (el, texte, chemin, pictogramme) => { el.hidden = !texte; if (texte) { el.href = chemin; el.replaceChildren(icone(pictogramme, { taille: 14 }), texte); } };
@@ -1397,7 +1399,6 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     mettre('ht', euros(t.totalHt));
     mettre('tva', euros(t.tva));
     mettre('ttc', euros(t.ttc));
-    if (ref.totalEntete) ref.totalEntete.textContent = euros(t.ttc);
     majTitreCompact();
     mettre('acompte', t.acompteTtc === null ? '' : euros(t.acompteTtc));
     mettre('reste', t.resteAFacturerTtc === null ? '—' : euros(t.resteAFacturerTtc));

@@ -109,16 +109,9 @@
 .bandeau-lecture-seule { margin: 0; padding: var(--esp-5) var(--esp-6); border: 1px solid var(--bordure); border-radius: var(--rayon-petit); background: var(--panneau2); }
 
 /* En-tête : le squelette des fiches (.fiche-tete, crm.css) ; en dessous, la barre d'actions reste collée en haut de l'écran quand on défile. */
-.entete-devis { display: flex; flex-direction: column; gap: var(--esp-5); padding-top: var(--esp-2); } /* classes à part : « .fiche-tete » est la fiche latérale d'un devis, avec ses marges */
-.entete-devis-ligne { display: flex; align-items: center; gap: var(--esp-6); flex-wrap: wrap; }
-.entete-devis-titre { flex: 1 1 280px; min-width: 0; display: flex; flex-direction: column; gap: var(--esp-2); order: 1; }
-.entete-devis-titre h1 { margin: 0; }
-.entete-devis-sous { display: flex; align-items: center; gap: var(--esp-5); flex-wrap: wrap; color: var(--texte2); font-size: var(--fs-texte); }
-.entete-devis-sous > span, .entete-devis-sous > a { display: inline-flex; align-items: center; gap: var(--esp-2); }
-.entete-devis-droite { display: flex; align-items: center; gap: var(--esp-3); order: 2; }
+.entete-devis { padding-top: var(--esp-2); } /* le reste vient de « .fiche-tete » (crm.css) : exactement l'en-tête des fiches Affaires et Projets */
+.devis-lecture-seule .apercu-devis { height: max(70vh, 640px); } /* visualisation : le document seul, en grand, pleine largeur */
 .indicateur-enregistrement[hidden] { display: none; }
-@media (max-width: 700px) { .entete-devis-ligne { flex-direction: column; align-items: flex-start; gap: var(--esp-3); } } /* téléphone : titre, puis total dessous */
-.fiche-montant-devis { font: var(--poids-moyen) var(--fs-chiffre)/1 var(--police-titre); color: var(--texte); white-space: nowrap; }
 .lien-entite { display: inline-flex; align-items: center; gap: var(--esp-2); color: var(--texte2); text-decoration: none; }
 .lien-entite:hover { color: var(--texte); text-decoration: underline; }
 .lien-entite[hidden] { display: none; }
@@ -127,7 +120,7 @@
 .barre-devis-gauche { display: flex; align-items: center; gap: var(--esp-6); flex-wrap: wrap; min-width: 0; }
 .barre-devis-droite { display: flex; align-items: center; gap: var(--esp-4); flex-wrap: wrap; }
 .titre-compact { display: none; font-weight: var(--poids-moyen); color: var(--texte); white-space: nowrap; }
-.barre-devis.epinglee .titre-compact { display: inline; } /* titre et total, montrés seulement quand l'en-tête complet est parti */
+.barre-devis.epinglee .titre-compact { display: inline; } /* titre, montré seulement quand l'en-tête complet est parti */
 .bouton-plus-actions { display: inline-grid; place-items: center; min-height: 44px; min-width: 44px; }
 .onglets-editeur { display: flex; gap: var(--esp-2); }
 .onglets-editeur[hidden] { display: none; }
