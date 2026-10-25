@@ -443,3 +443,10 @@ test('5 la croix en haut à droite ferme le devis (retour à la liste) ; « Fina
   await page.locator('[data-action="fermer"]').click();
   await expect(page).toHaveURL(/#\/devis\/liste/);
 });
+
+test('4 la marge affichée sous une ligne est arrondie à l’unité : 19,99626935273269 % s’écrit « Marge 20 % »', async ({ page }) => {
+  await semer();
+  await ouvrir(page, await devis('d4c', [{ id: 's1', titre: 'Cuisine', lignes: [ligne('l1', 'Ouvrage', 1, 53.61, { marge: 19.99626935273269 })] }]));
+  await expect(page.locator('tr[data-id="l1"] [data-calcul-marge]')).toContainText('Marge 20 %');
+  await expect(page.locator('tr[data-id="l1"] [data-calcul-marge]')).not.toContainText('19,9');
+});
