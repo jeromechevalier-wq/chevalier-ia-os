@@ -312,7 +312,7 @@ export async function echouerPdf({ donnees, ctx, devisId, message }) {
   });
 }
 
-/** PDF « brouillon » à la demande : ne touche JAMAIS le champ `pdf` du devis ; met seulement le document « Brouillon – Objet.pdf » dans l'affaire (un seul par devis, remplacé). */
+/** PDF « brouillon » à la demande : ne touche JAMAIS le champ `pdf` du devis ; met seulement le document « Devis brouillon – Objet.pdf » dans l'affaire (un seul par devis, remplacé). */
 export async function enregistrerBrouillonPdf({ donnees, ctx, devisId, libelle, url }) {
   return donnees.transaction(async (tx) => {
     const devis = await lireDevis(tx, devisId);

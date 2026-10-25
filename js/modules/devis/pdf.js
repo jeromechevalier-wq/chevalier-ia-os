@@ -39,5 +39,5 @@ export const MESSAGE_PDF_RANGE_SANS_AFFAIRE = 'PDF enregistré avec le devis. Ce
 /** Adresse (sans « # ») de l'écran qui ouvre le PDF d'un devis. */
 export const routePdf = (devisId, brouillon = false) => `devis/pdf/${encodeURIComponent(devisId)}${brouillon ? '/brouillon' : ''}`;
 
-/** Message affiché après « Enregistrer PDF » : l'affaire garde un document seulement si le devis en a une. */
+/** Message affiché après « Télécharger le PDF » : l'affaire garde un document seulement si le devis en a une. */
 export const messageApresEnregistrement = (devis) => (devis?.affaireId ? MESSAGE_PDF_RANGE_AFFAIRE : MESSAGE_PDF_RANGE_SANS_AFFAIRE);

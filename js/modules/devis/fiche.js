@@ -146,7 +146,7 @@ export function lignesVentilation(vent, onglet = 'ht') {
 /**
  * Ce que la fiche propose, selon le statut. Chaque entrée : { actif, raison } (raison = texte d'info quand elle est grisée).
  * Les changements de statut viennent de TRANSITIONS (logique.js) : jamais d'écriture directe.
- * `annuler` : « Refuser » si le devis est envoyé, sinon « Archiver » (signé ou refusé), sinon « Supprimer » (brouillon, pas encore possible), sinon grisé.
+ * `annuler` : « Refuser » si le devis est envoyé, sinon « Archiver » (signé ou refusé), sinon « Supprimer » (brouillon), sinon grisé.
  */
 export function actionsFiche(d, { editeur = EDITEUR_DISPONIBLE, suppression = SUPPRESSION_DISPONIBLE } = {}) {
   const statut = d?.statut ?? 'brouillon';

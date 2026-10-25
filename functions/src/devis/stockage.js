@@ -25,9 +25,9 @@ export function nomFichierDevis({ numero, version, objet } = {}) {
   return `${nettoyerNom(nom, 116)}.pdf`;
 }
 
-/** Nom lisible du document de l'affaire : « DEV-… v1 – Objet.pdf », ou « Brouillon – Objet.pdf » (remplacé à chaque fois). */
+/** Nom lisible du document de l'affaire : « Devis DEV-… v1 – Objet.pdf », ou « Devis brouillon – Objet.pdf » (remplacé à chaque fois). Le mot « Devis » est toujours là : dans les Documents d'une affaire, on voit tout de suite que c'est un devis. */
 export function libelleDocumentDevis({ numero, version, objet, brouillon = false } = {}) {
-  const tete = brouillon ? 'Brouillon' : nettoyerNom(`${numero || 'DEVIS'} v${version || 1}`, 60);
+  const tete = brouillon ? 'Devis brouillon' : `Devis ${nettoyerNom(`${numero || 'DEVIS'} v${version || 1}`, 60)}`;
   const obj = nettoyerNom(objet || '', 50);
   return `${nettoyerNom(obj ? `${tete} – ${obj}` : tete, 116)}.pdf`;
 }

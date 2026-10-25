@@ -6,7 +6,7 @@ import { test, describe } from 'node:test';
 import * as Ed from '../js/modules/devis/editeur-logique.js';
 import * as L from '../js/modules/devis/logique.js';
 import { devisHtml } from '../js/modules/devis/document.js';
-import { imprimerDevis, aBesoinOngletPourImprimer, htmlDuDevis, MESSAGE_FENETRE_BLOQUEE } from '../js/modules/devis/imprimer.js';
+import { htmlDuDevis } from '../js/modules/devis/html-devis.js';
 
 const ligne = (id, prixAchat, quantite, extra = {}) => ({ id, libelle: `Article ${id}`, unite: 'u', quantite, prixAchat, marge: 0, ...extra });
 const devisDe = (sections, extra = {}) => ({ id: 'd1', statut: 'brouillon', modeMarge: 'majoration', marge: 0, tauxTvaDefaut: 20, regimeTva: 'assujetti', sections, ...extra });
@@ -254,50 +254,7 @@ describe('4 Options : affichage du devis et du document', () => {
   });
 });
 
-describe('5 impression depuis le navigateur', () => {
-  const SAFARI = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15';
-  const CHROME = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
-  const IPHONE_CHROME = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/130.0 Mobile/15E148 Safari/604.1';
-  test('5 Safari et tous les navigateurs de l’iPhone passent par un onglet ; Chrome, Edge, Firefox impriment l’aperçu', () => {
-    assert.equal(aBesoinOngletPourImprimer(SAFARI), true);
-    assert.equal(aBesoinOngletPourImprimer(IPHONE_CHROME), true);
-    assert.equal(aBesoinOngletPourImprimer(CHROME), false);
-    assert.equal(aBesoinOngletPourImprimer('Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0'), false);
-    assert.equal(aBesoinOngletPourImprimer(''), false);
-  });
-  test('5 Chrome : l’impression part de l’aperçu (iframe), sans ouvrir d’onglet', () => {
-    let imprime = 0; let ouvert = 0;
-    const iframe = { contentWindow: { focus() {}, print() { imprime += 1; } } };
-    const r = imprimerDevis({ iframe, html: '<p>x</p>', agent: CHROME, ouvrir: () => { ouvert += 1; return {}; } });
-    assert.deepEqual(r, { ok: true, methode: 'iframe', erreur: null });
-    assert.equal(imprime, 1);
-    assert.equal(ouvert, 0);
-  });
-  test('5 Safari : un onglet s’ouvre directement (un seul appel, dans le clic) et imprime quand il a chargé', () => {
-    const ecouteurs = {}; let imprime = 0;
-    const fenetre = { addEventListener: (n, f) => { ecouteurs[n] = f; }, focus() {}, print() { imprime += 1; } };
-    const iframe = { contentWindow: { print() { throw new Error('ne doit pas imprimer la page parente'); } } };
-    let urls = [];
-    const r = imprimerDevis({ iframe, html: '<p>Devis DEV-1</p>', agent: SAFARI, ouvrir: (url) => { urls.push(url); return fenetre; } });
-    assert.deepEqual(r, { ok: true, methode: 'onglet', erreur: null });
-    assert.equal(urls.length, 1);
-    assert.match(urls[0], /^blob:/);
-    assert.equal(imprime, 0);
-    ecouteurs.load();
-    assert.equal(imprime, 1);
-  });
-  test('5 fenêtre bloquée par le navigateur : message clair', () => {
-    const r = imprimerDevis({ html: '<p>x</p>', agent: SAFARI, ouvrir: () => null });
-    assert.equal(r.ok, false);
-    assert.equal(r.erreur, MESSAGE_FENETRE_BLOQUEE);
-    assert.equal(MESSAGE_FENETRE_BLOQUEE, 'Autorise les fenêtres pour ce site, puis réessaie.');
-  });
-  test('5 appelé hors d’un clic (après une finalisation), aucun onglet ne s’ouvre', () => {
-    let ouvert = 0;
-    const r = imprimerDevis({ html: '<p>x</p>', agent: SAFARI, autoriserOnglet: false, ouvrir: () => { ouvert += 1; return {}; } });
-    assert.equal(ouvert, 0);
-    assert.equal(r.ok, false);
-  });
+describe('5 le document du devis (aperçu : le PDF vient du serveur)', () => {
   test('5 le document imprimé porte le numéro et le total du devis, avec la feuille d’impression A4', () => {
     const d = { ...L.nouveauDevis({ affaireId: 'a1' }, { maintenant: new Date('2026-10-24T10:00:00Z'), auteur: 'x', nouvelId: () => 'd1' }, { regimeTva: 'assujetti' }), numero: 'DEV-2026-10-24-007', statut: 'en_attente_envoi',
       sections: [{ id: 's', titre: 'T', lignes: [{ id: 'l', libelle: 'Pose', unite: 'u', quantite: 2, prixAchat: 100, marge: 0, prixVente: 100, tauxTva: 20 }] }] };

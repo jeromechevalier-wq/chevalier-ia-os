@@ -281,7 +281,7 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
   .barre-devis-droite { width: 100%; }
   .barre-devis.epinglee .titre-compact { display: none; } /* la barre garde la même hauteur : pas de titre en plus sur téléphone */
   .barre-devis-droite .bouton { flex: 1 1 auto; }
-  .bouton-options, .bouton-pdf-brouillon { display: none; }
+  .bouton-options { display: none; }
   .bouton-plus-actions { display: inline-grid; min-height: 44px; min-width: 44px; }
   .document-devis { padding: var(--esp-6); gap: var(--esp-7); }
   .barre-ajouts { flex-direction: column; align-items: stretch; }
@@ -442,9 +442,6 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
 .bouton-configurer-ouvrage { display: none; margin: var(--esp-2) var(--esp-3) 0; min-height: 0; padding: 0; }
 .tableau-lignes-devis td.c-des:focus-within .bouton-configurer-ouvrage { display: inline-flex; }
 .ligne-ajustement dd { display: flex; align-items: baseline; justify-content: flex-end; gap: var(--esp-4); }
-
-/* Aperçu : barre avec le bouton « Imprimer / Enregistrer en PDF ». */
-.barre-apercu { display: flex; align-items: center; justify-content: space-between; gap: var(--esp-5); flex-wrap: wrap; margin-bottom: var(--esp-4); }
 
 /* Bibliothèque : bouton sous la barre, panneau à droite (deux colonnes : familles, articles). */
 .bibliotheque-panneau { position: fixed; top: 0; right: 0; bottom: 0; z-index: 40; display: flex; flex-direction: column; width: min(680px, 100%); background: var(--fond); color: var(--texte); border-left: 1px solid var(--bordure); box-shadow: var(--ombre); }
