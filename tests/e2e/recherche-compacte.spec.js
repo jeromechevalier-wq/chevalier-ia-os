@@ -45,6 +45,7 @@ test('3 Affaires : le champ de recherche a la largeur de celui de Devis (kanban 
   await aller(page, PAGES.affaires);
   const champ = await boite(page);
   if (!estTelephone(page)) expect(champ.width).toBeLessThanOrEqual(devis * 1.05);
+  await expect(page.locator('[data-vue="liste"]')).toHaveAttribute('aria-pressed', 'true'); // la vue Liste est bien celle qui est affichée
   await expect(page.locator('[data-vue="kanban"]')).toBeVisible();
   await expect(page.locator('[data-vue="archives"]')).toBeVisible();
   await capture(page, '3-affaires-liste');
@@ -65,7 +66,7 @@ test('5 les boutons sont collés au bord droit du champ, sur la même ligne', as
     expect(Math.abs(bouton.y + bouton.height / 2 - (champ.y + champ.height / 2)), nom).toBeLessThan(20); // même ligne
     const tri = await page.locator('.barre-affaires .selecteur-tri').first().boundingBox();
     expect(tri.y, nom).toBeLessThan(champ.y + champ.height + 10);
-    await capture(page, `5-${nom}`);
+    if (nom === 'affaires') await page.screenshot({ path: `${DOSSIER}/5-boutons-colles-ordinateur.png`, clip: { x: 64, y: 140, width: 900, height: 60 }, animations: 'disabled' }); // la barre en gros plan
   }
 });
 test('6 aucune page ne déborde en largeur', async ({ page }) => {
@@ -74,6 +75,39 @@ test('6 aucune page ne déborde en largeur', async ({ page }) => {
     await aller(page, route);
     const deborde = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
     expect(deborde, nom).toBe(false);
-    await capture(page, `6-${nom}`);
   }
+  await capture(page, '6-sans-debordement-projets');
+});
+
+/** Ouvre la fenêtre « Filtres » et coche les premières cases (autant que demandé) : donne des pastilles actives. */
+async function activerFiltres(page, combien) {
+  await page.locator('[data-action="filtres"]').click();
+  const cases = page.getByRole('dialog').locator('input[type="checkbox"]');
+  for (let i = 0; i < combien; i++) await cases.nth(i).check();
+  await page.getByRole('dialog').getByRole('button', { name: 'Appliquer' }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+}
+test('7 avec plusieurs filtres actifs, « Trier par » reste sur la ligne du champ', async ({ page }) => {
+  test.skip(estTelephone(page), 'sur téléphone « Trier par » est sur sa propre ligne');
+  await connecter(page, JEROME);
+  await aller(page, PAGES.affaires);
+  await activerFiltres(page, 6);
+  await expect(page.locator('.pastille-filtre').nth(2)).toBeVisible();
+  const champ = await boite(page);
+  const tri = await page.locator('.barre-affaires .selecteur-tri').first().boundingBox();
+  expect(tri.y).toBeLessThan(champ.y + champ.height);
+  expect(tri.x).toBeGreaterThan(champ.x + champ.width);
+  await capture(page, '7-filtres-actifs');
+});
+test('8 à 820 px de large, le champ garde une largeur utile et rien ne déborde', async ({ page }) => {
+  test.skip(estTelephone(page), 'largeur d’ordinateur seulement');
+  await page.setViewportSize({ width: 820, height: 900 });
+  await connecter(page, JEROME);
+  for (const [nom, route] of Object.entries(PAGES)) {
+    await aller(page, route);
+    const champ = await boite(page);
+    expect(champ.width, nom).toBeGreaterThanOrEqual(190);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1), nom).toBe(false);
+  }
+  await capture(page, '8-largeur-820');
 });
