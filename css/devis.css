@@ -273,7 +273,7 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
 @media (max-width: 700px) {
   .barre-devis-droite { width: 100%; }
   .barre-devis.epinglee .titre-compact { display: none; } /* la barre garde la même hauteur : pas de titre en plus sur téléphone */
-  .barre-devis-droite .bouton { flex: 1 1 auto; }
+  .barre-devis-droite .bouton, .entete-devis .fiche-actions .bouton { flex: 1 1 auto; } /* téléphone : les boutons de l'en-tête occupent la largeur */
   .bouton-options, .bouton-historique { display: none; }
   .bouton-plus-actions { display: inline-grid; min-height: 44px; min-width: 44px; }
   .document-devis { padding: var(--esp-6); gap: var(--esp-7); }

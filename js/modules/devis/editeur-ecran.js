@@ -152,6 +152,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
   let verrou = false; // finalisation en cours : plus aucun enregistrement automatique
   let enVol = null; // ce qu'un enregistrement en cours est en train d'écrire
   let montre = false; // la page est construite
+  let empreinteVue = null; // le devis tel qu'il était à la dernière construction de l'écran (visualisation : évite de tout reconstruire pour rien)
   let arretGarde = () => {};
   let observerBarre = null;
   let delaiIntrouvable = null;
@@ -207,7 +208,12 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       return;
     }
     if (!lecture && d.statut !== 'brouillon') { clearTimeout(minuteur); lecture = true; travail = copieDeTravail(d); enregistre = structuredClone(travail); construire(); return; }
-    if (lecture) { travail = copieDeTravail(d); enregistre = structuredClone(travail); construire(); }
+    if (lecture) {
+      // Visualisation : on ne reconstruit l'écran que si le devis a changé ; sinon seul l'en-tête se met à jour (le focus, un menu ouvert et la position de l'aperçu restent).
+      const empreinte = JSON.stringify(d);
+      if (empreinte === empreinteVue) { majEntete(); return; }
+      travail = copieDeTravail(d); enregistre = structuredClone(travail); construire();
+    }
   }
 
   // ------------------------------------------------ enregistrement
@@ -309,10 +315,11 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
   // Disposition d'un devis papier (barre d'actions fixe, en-tête à deux colonnes, tableau à trois niveaux, boutons d'ajout, bas de page) : css/devis.css, bloc « Éditeur de devis ».
   function construire() {
     montre = true;
+    try { empreinteVue = JSON.stringify(devisCourant()); } catch { empreinteVue = null; }
     for (const k of Object.keys(ref)) delete ref[k];
     const d = travail;
     ref.titre = h('h1', { class: 'titre-barre-devis' }, '');
-    ref.pastille = pastilleStatutDevis(d);
+    ref.pastille = pastilleStatutDevis(d, CRM.ctx().aujourdhui);
     ref.indicateur = h('span', { class: 'indicateur-enregistrement', role: 'status', 'aria-live': 'polite', dataset: { valeur: 'enregistrement' } });
     // L'enregistrement est automatique : il n'y a plus de bouton « Enregistrer ». Le nombre de champs obligatoires à remplir et le bouton « Réessayer » (seulement après un échec) prennent sa place.
     ref.lienClient = h('a', { class: 'lien-entite', dataset: { valeur: 'lien-client' }, hidden: true });
@@ -334,13 +341,13 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
           h('div', { class: 'fiche-sous' }, ref.pastille, ref.indicateur, ref.boutonReessayer, ref.compteurManquants, ref.lienClient, ref.lienAffaire)),
         lecture ? h('div', { class: 'fiche-tete-droite' }, h('div', { class: 'fiche-actions' }, boutonsLecture(d))) : null));
     // Barre d'actions de l'édition : reste collée en haut de l'écran quand on défile (onglets, Catalogue, Options, Envoyer).
-    ref.sentinelle = h('div', { class: 'sentinelle-barre-devis', 'aria-hidden': 'true' });
+    ref.sentinelle = lecture ? null : h('div', { class: 'sentinelle-barre-devis', 'aria-hidden': 'true' });
     ref.barre = lecture ? null : h('div', { class: 'barre-devis' },
       h('div', { class: 'barre-devis-gauche' }, ref.titreCompact, onglets),
       h('div', { class: 'barre-devis-droite' }, boutonsEdition()));
     observerBarre?.disconnect();
     observerBarre = !lecture && typeof IntersectionObserver === 'function' ? new IntersectionObserver(([e]) => { ref.barre?.classList.toggle('epinglee', !e.isIntersecting && e.boundingClientRect.top < 0); }) : null;
-    observerBarre?.observe(ref.sentinelle);
+    if (ref.sentinelle) observerBarre?.observe(ref.sentinelle);
     ref.bandeauConflit = h('p', { class: 'bandeau-lecture-seule', role: 'alert', hidden: !conflit, dataset: { valeur: 'conflit' } }, 'Ce devis a été modifié ailleurs. Tes changements ne sont pas enregistrés tant que tu n’as pas rechargé. ',
       h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'recharger' }, onclick: () => { conflit = false; charger(); } }, 'Recharger'));
     ref.erreurEnreg = h('p', { class: 'erreur', role: 'alert', dataset: { erreur: 'enregistrement' }, hidden: true });
@@ -355,7 +362,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     optionsOuvertes?.fermer({ rendreFocus: false });
     historiqueOuvert?.fermer({ rendreFocus: false });
     racine.classList.toggle('devis-lecture-seule', lecture);
-    remplir(racine, entete, lecture ? null : ref.sentinelle, ref.barre, lecture ? h('p', { class: 'bandeau-lecture-seule', dataset: { valeur: 'lecture-seule' } }, travail.statut === 'brouillon' ? MESSAGE_VISUALISATION_BROUILLON : MESSAGE_LECTURE_SEULE) : ref.bandeauConflit, ref.erreurEnreg, ref.panneauEdition, ref.panneauApercu);
+    remplir(racine, entete, ref.sentinelle, ref.barre, lecture ? h('p', { class: 'bandeau-lecture-seule', dataset: { valeur: 'lecture-seule' } }, travail.statut === 'brouillon' ? MESSAGE_VISUALISATION_BROUILLON : MESSAGE_LECTURE_SEULE) : ref.bandeauConflit, ref.erreurEnreg, ref.panneauEdition, ref.panneauApercu);
     if (!lecture) { rendreLignes(); majResultats(); }
     arretGarde();
     arretGarde = ajouterGardeSortie(
@@ -370,10 +377,16 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
   }
 
   /** « Passer à « Envoyé » » : bouton principal, visible seulement quand le devis finalisé peut passer à Envoyé (même action et même appel serveur que le menu de la liste). */
-  const peutPasserEnvoye = () => transitionPossible((devisCourant() ?? travail)?.statut, 'marquer_envoye');
+  const peutPasserEnvoye = () => transitionPossible((travail ?? devisCourant())?.statut, 'marquer_envoye');
   function boutonPasserEnvoye() {
     if (!peutPasserEnvoye()) return null;
-    return h('button', { type: 'button', class: 'bouton bouton-principal', dataset: { action: 'passer-envoye' }, onclick: () => changerStatut(devisCourant() ?? travail, 'marquer_envoye', 'Envoyé') }, icone('check', { taille: 16 }), 'Passer à « Envoyé »');
+    // Verrou : pendant l'appel au serveur le bouton est grisé (un double clic ne fait qu'un appel) ; il est réactivé si l'écran est resté (refus du serveur).
+    const bouton = h('button', { type: 'button', class: 'bouton bouton-principal', dataset: { action: 'passer-envoye' }, onclick: async () => {
+      if (bouton.disabled) return;
+      bouton.disabled = true; bouton.setAttribute('aria-busy', 'true');
+      try { await changerStatut(devisCourant() ?? travail, 'marquer_envoye', 'Envoyé'); } finally { bouton.disabled = false; bouton.removeAttribute('aria-busy'); }
+    } }, icone('check', { taille: 16 }), 'Passer à « Envoyé »');
+    return bouton;
   }
   /** Bouton « Envoyer » (menu : e-mail, PDF, impression) : principal, sauf quand « Passer à « Envoyé » » l'est à côté. */
   function boutonEnvoyer() {
@@ -417,7 +430,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
   function boutonsEdition() {
     ref.boutonOptions = h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-options', dataset: { action: 'options' }, 'aria-controls': 'options-devis', 'aria-expanded': 'false', onclick: (ev) => (optionsOuvertes ? optionsOuvertes.fermer() : ouvrirOptions(ev.currentTarget)) }, 'Options', icone('chevron-down', { taille: 14 }));
     // « Envoyer » remplace « Finaliser » : imprimer, télécharger ou envoyer par e-mail ; le devis est finalisé (numéroté, prix figés) au moment de l'envoi.
-    return [boutonCatalogue(), ref.boutonOptions, boutonHistorique(), boutonPasserEnvoye(), boutonEnvoyer(), boutonPlusActions()];
+    return [boutonCatalogue(), ref.boutonOptions, boutonHistorique(), boutonEnvoyer(), boutonPlusActions()];
   }
 
   // ------------------------------------------------ PDF : UN SEUL, celui du serveur (devisPdf), rangé dans les Documents de l'affaire. Plus d'impression par le navigateur.
@@ -621,9 +634,9 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
   function majEntete() {
     if (!ref.titre) return;
     const d = travail;
-    ref.titre.textContent = d.numero ? `Devis ${d.numero} · v${d.version ?? 1}` : 'Brouillon';
+    ref.titre.textContent = d.numero ? `Devis ${d.numero} · v${d.version ?? 1}` : (String(d.objet ?? '').trim() || 'Nouveau devis'); // un brouillon porte l'objet du devis (la pastille dit déjà « Brouillon »)
     majTitreCompact();
-    appliquerPastilleStatut(ref.pastille, d); // mêmes mots et mêmes couleurs que la liste des devis
+    appliquerPastilleStatut(ref.pastille, d, CRM.ctx().aujourdhui); // mêmes mots et mêmes couleurs que la liste des devis
     if (ref.numeroDocument) ref.numeroDocument.textContent = d.numero ? `Devis n° ${d.numero}${d.version > 1 ? ` · v${d.version}` : ''}` : 'Devis n° Brouillon';
     const nomClient = clientDuDevis(d);
     const lienDe = (el, texte, chemin, pictogramme) => { el.hidden = !texte; if (texte) { el.href = chemin; el.replaceChildren(icone(pictogramme, { taille: 14 }), texte); } };

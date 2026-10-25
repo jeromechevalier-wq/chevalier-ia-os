@@ -110,6 +110,7 @@ test('2 l’en-tête de la visualisation est celui des fiches : « < Devis », t
 
 test('2b la pastille de l’en-tête a les mêmes mots et la même couleur que celle de la liste des devis', async ({ page }) => {
   await donnees();
+  await devis('dExpire', { numero: 'DEV-2026-09-01-003', statut: 'envoye', finaliseLe: new Date(Date.now() - 60 * 86400000), envoyeLe: new Date(Date.now() - 59 * 86400000), expireLe: jourDansLe(-5) });
   await ouvrir(page, 'devis/liste', '.page-liste-devis');
   const liste = page.locator('[data-id="dFinalise"] .pastille-statut:visible').first();
   await expect(liste).toBeVisible();
@@ -121,15 +122,15 @@ test('2b la pastille de l’en-tête a les mêmes mots et la même couleur que c
   expect(await tete.evaluate((el) => getComputedStyle(el).getPropertyValue('--couleur'))).toBe(couleurListe);
 });
 
-test('3 l’éditeur d’un brouillon est intact (totaux, remise, acompte, Net à payer, Catalogue, onglets) avec le même en-tête : retour, titre « Brouillon », pastille « Brouillon », client et affaire, sans montant en haut', async ({ page }, info) => {
+test('3 l’éditeur d’un brouillon est intact (totaux, remise, acompte, Net à payer, Catalogue, onglets) avec le même en-tête : retour, titre = objet, pastille « Brouillon », client et affaire, sans montant en haut', async ({ page }, info) => {
   await donnees();
   await ouvrir(page, 'devis/editeur/dBrouillon');
   const racine = page.locator('.page-editeur-devis');
   await expect(racine).not.toHaveClass(/devis-lecture-seule/);
   const tete = entete(page);
   await expect(tete.locator('[data-action="fermer"]')).toContainText('Devis');
-  await expect(tete.getByRole('heading', { level: 1 })).toHaveText('Brouillon');
-  await expect(tete.locator('.fiche-sous .pastille-statut')).toHaveText('Brouillon');
+  await expect(tete.getByRole('heading', { level: 1 })).toHaveText('Rénovation restaurant'); // le titre d'un brouillon est l'objet du devis (« Nouveau devis » s'il n'y en a pas)
+  await expect(tete.locator('.fiche-sous .pastille-statut')).toHaveText('Brouillon'); // « Brouillon » n'apparaît qu'une fois
   await expect(tete.locator('[data-valeur="lien-client"]')).toContainText('M. Paul Exemple');
   await expect(tete.locator('[data-valeur="lien-affaire"]')).toContainText('Rénovation cuisine');
   await expect(tete.locator('[data-valeur="enregistrement"]')).toBeVisible(); // l'indicateur d'enregistrement reste
@@ -222,4 +223,31 @@ test('6b cas d’erreur : si le serveur refuse « Passer à « Envoyé » », un
   await expect(page.locator('.page-editeur-devis > .fiche-tete .fiche-sous .pastille-statut')).toHaveText('Finalisé');
   await expect(page.locator('[data-action="passer-envoye"]')).toBeVisible();
   await capturer(page, info, '6b-erreur-passer-envoye');
+});
+
+test('2c un devis envoyé dont la date de validité est passée affiche « Expiré » dans l’en-tête, comme dans la liste', async ({ page }) => {
+  await donnees();
+  await devis('dExpire', { numero: 'DEV-2026-09-01-003', statut: 'envoye', finaliseLe: new Date(Date.now() - 60 * 86400000), envoyeLe: new Date(Date.now() - 59 * 86400000), expireLe: jourDansLe(-5) });
+  await ouvrir(page, 'devis/liste', '.page-liste-devis');
+  await expect(page.locator('[data-id="dExpire"] .pastille-statut:visible').first()).toHaveText('Expiré');
+  await page.evaluate(() => { location.hash = '#/devis/voir/dExpire'; });
+  await expect(page.locator('.page-editeur-devis > .fiche-tete .fiche-sous .pastille-statut')).toHaveText('Expiré');
+});
+
+test('6c un double clic sur « Passer à « Envoyé » » ne fait qu’un seul appel au serveur (bouton grisé pendant l’appel)', async ({ page }) => {
+  await donnees();
+  const appels = [];
+  await page.route('**/devisChangerStatut', async (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+    appels.push(1);
+    await new Promise((r) => setTimeout(r, 800));
+    return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ result: { ok: true } }) });
+  });
+  await ouvrir(page, 'devis/voir/dFinalise');
+  const passer = page.locator('[data-action="passer-envoye"]');
+  await passer.dblclick();
+  await expect(passer).toBeDisabled();
+  await expect(passer).toHaveAttribute('aria-busy', 'true');
+  await expect(page.locator('.toast')).toContainText('Envoyé');
+  expect(appels).toHaveLength(1);
 });
