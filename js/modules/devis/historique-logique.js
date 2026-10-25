@@ -2,6 +2,7 @@
 // Il remplace l'ancienne fiche : versions du devis, envois par e-mail et dates.
 import { enMs, libelleStatut } from './liste.js';
 import { historiqueEnvois } from './email-brouillon.js';
+import { lignePrepare } from './email-preparer.js';
 
 export const MESSAGE_AUCUN_ENVOI = 'Pas encore envoyé';
 const FORMAT_JOUR = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Paris' });
@@ -37,11 +38,12 @@ export function datesHistorique(d) {
   return sortie;
 }
 
-/** Tout le contenu du panneau : { versions, envois, dates }. `envois` est vide pour un brouillon (rien n'a pu partir). */
-export function contenuHistorique(d, toutes = []) {
+/** Tout le contenu du panneau : { versions, envois, emailPrepare, dates }. `envois` est vide pour un brouillon (rien n'a pu partir). `emailPrepare` : null ou la ligne « E-mail préparé dans Gmail le … » (email-preparer.js). */
+export function contenuHistorique(d, toutes = [], maintenant = Date.now()) {
   return {
     versions: versionsHistorique(d, toutes),
     envois: d?.statut === 'brouillon' ? [] : historiqueEnvois(d),
+    emailPrepare: lignePrepare(d, maintenant),
     dates: datesHistorique(d),
   };
 }

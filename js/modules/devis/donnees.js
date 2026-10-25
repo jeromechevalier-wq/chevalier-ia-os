@@ -190,7 +190,7 @@ export async function modifierBrouillon(id, patch) {
 // Chez un client, la demande porte le nom de son espace (déduit de la session, vérifié par le serveur : éditeur de cet espace, module « devis » actif).
 // Chez Jérôme, aucun espace : le serveur vérifie que le compte est l'un des deux comptes autorisés.
 const fonctions = () => getFunctions(app, 'europe-west9');
-const FONCTIONS = Object.freeze({ finaliser: 'devisFinaliser', changerStatut: 'devisChangerStatut', nouvelleVersion: 'devisNouvelleVersion', archiver: 'devisArchiver', supprimer: 'devisSupprimer', enregistrerEnvoi: 'devisEnregistrerEnvoi', pdf: 'devisPdf', pdfLien: 'devisPdfLien' });
+const FONCTIONS = Object.freeze({ finaliser: 'devisFinaliser', changerStatut: 'devisChangerStatut', nouvelleVersion: 'devisNouvelleVersion', archiver: 'devisArchiver', supprimer: 'devisSupprimer', enregistrerEnvoi: 'devisEnregistrerEnvoi', pdf: 'devisPdf', pdfLien: 'devisPdfLien', preparerEmail: 'devisPreparerEmail', preparerEmailEtat: 'devisPreparerEmailEtat' });
 const CODES_LISIBLES = ['permission-denied', 'invalid-argument', 'failed-precondition', 'not-found', 'unauthenticated'];
 export const MESSAGE_RESEAU_DEVIS = 'Ça n’a pas abouti. Vérifie ta connexion internet, puis réessaie : rien n’a été perdu.';
 
@@ -231,3 +231,21 @@ export const pdfDevis = (devisId) => appeler('pdf', { devisId });
 export const pdfBrouillon = (devisId) => appeler('pdf', { devisId, brouillon: true });
 /** Lien de lecture signé (5 minutes) vers le PDF rangé : `{ url, expireDans, nom }`. Erreur « pas prêt » si le PDF n'existe pas encore. */
 export const pdfLien = (devisId, brouillon = false) => appeler('pdfLien', { devisId, ...(brouillon ? { brouillon: true } : {}) });
+
+// ---------------------------------------------------------------- « Préparer l'e-mail » (un workflow n8n crée un brouillon dans le Gmail du compte ; rien n'est envoyé)
+/** Demande la préparation : `{ ok, demandeId }`. Le brouillon arrive dans Gmail quelques instants plus tard ; le devis reçoit `emailPrepare` quand le serveur l'écrit. Lève une Error lisible si refusé. */
+export const preparerEmailDevis = (devisId) => appeler('preparerEmail', { devisId });
+let brancheEmail = null; // null = pas encore su ; true / false = réponse du serveur (gardée pour la session)
+let brancheEnCours = null;
+/** Le bouton « Préparer l'e-mail » doit-il être montré ? Valeur déjà connue (true / false) ou null tant que le serveur n'a pas répondu. Lance la question au premier appel. */
+export function emailPreparable() {
+  if (brancheEmail === null && !brancheEnCours) {
+    brancheEnCours = appeler('preparerEmailEtat', {})
+      .then((r) => { brancheEmail = r?.branche === true; })
+      .catch((e) => { if (['permission-denied', 'not-found', 'unauthenticated', 'failed-precondition'].includes(String(e?.code ?? '').replace('functions/', ''))) brancheEmail = false; }) // fonction absente (espace pas encore déployé) ou refusée : on cache le bouton
+      .finally(() => { brancheEnCours = null; });
+  }
+  return brancheEmail;
+}
+/** Réinitialise ce qui est su (essais). */
+export function oublierEtatEmail() { brancheEmail = null; brancheEnCours = null; }

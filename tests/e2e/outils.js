@@ -277,6 +277,12 @@ export const test = base.extend({
         await route.fulfill({ status: 404, body: '' });
       }
     });
+    // L'éditeur d'un devis demande au serveur si « Préparer l'e-mail » est branché (fonction devisPreparerEmailEtat) : aucune fonction n'existe dans le navigateur de test, donc réponse par défaut
+    // « pas branché » (avec les en-têtes CORS, sinon le navigateur note une erreur dans la console). Un parcours qui veut le contraire pose sa propre route sur la page (elle passe avant celle-ci).
+    const corsDefaut = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': 'POST, GET, OPTIONS' };
+    await context.route('**/devisPreparerEmailEtat', (route) => (route.request().method() === 'OPTIONS'
+      ? route.fulfill({ status: 204, headers: corsDefaut })
+      : route.fulfill({ status: 200, headers: corsDefaut, body: JSON.stringify({ result: { branche: false } }) })));
     // La page de connexion de l'émulateur Auth charge des styles externes facultatifs.
     await context.route(/https:\/\/(unpkg\.com|fonts\.googleapis\.com|fonts\.gstatic\.com)\/.*/, (route) =>
       route.fulfill({ status: 200, body: '', headers: { 'Content-Type': route.request().url().endsWith('.js') ? 'text/javascript' : 'text/css' } }));

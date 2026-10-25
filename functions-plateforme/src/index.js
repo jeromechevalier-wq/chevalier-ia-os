@@ -12,9 +12,11 @@ import { creerLecteurN8n } from './n8n.js';
 import { copieHoraire, rafraichir, renommer, Refus } from './appels.js';
 import { creerMcpClients } from './mcp-clients.js';
 import { reglerEspace } from './espace.js';
-import { transitionDevis } from './devis.js';
+import { transitionDevis, preparerEmailDevis, etatPreparerEmail } from './devis.js';
 import { verifierDeploiementClient } from './deploiement.js';
 import { VERSION_SERVEUR } from '../serveur/src/version.js';
+import { creerSortieN8n } from '../serveur/src/coeur/n8n-sortie.js';
+import { creerLecteurSecrets } from '../serveur/src/securite/secrets.js';
 
 if (!getApps().length) initializeApp();
 const db = () => getFirestore();
@@ -90,4 +92,16 @@ export const devisEnregistrerEnvoi = appelDevis('enregistrerEnvoi'); // historiq
 // (un secret absent ferait échouer le déploiement de toutes les fonctions), aucun compte de service nouveau. Déployée seulement par le workflow MANUEL de la plateforme.
 export const deploiementVerifier = onCall({ ...OPTIONS_DEVIS, timeoutSeconds: 30 }, async (requete) => {
   try { return await verifierDeploiementClient({ db: db(), auth: requete.auth, donnees: requete.data, version: VERSION_SERVEUR }); } catch (e) { throw enHttps(e); }
+});
+
+// « Préparer l'e-mail » (25/10/2026) : demande au workflow n8n DU CLIENT de créer un brouillon dans le Gmail du compte (PDF joint) ; rien n'est envoyé, ni par l'appli ni par n8n.
+// L'adresse du webhook et son secret sont dans Secret Manager, UN couple PAR CLIENT (N8N_DEVIS_EMAIL_URL_<client>, N8N_DEVIS_EMAIL_SECRET_<client>), lus au moment de l'appel : sans eux,
+// l'écran du client ne montre pas le bouton (devisPreparerEmailEtat). Le compte de service de la fonction doit avoir « Accesseur de secrets » sur ces secrets (docs/ajouter-un-bouton-workflow.md).
+// Déployée seulement par le workflow MANUEL de la plateforme, avec Jérôme ; le résultat revient par la porte du client (devis.lireEmail, devis.noterEmailPrepare).
+const sortieN8nDevis = creerSortieN8n({ lireSecret: creerLecteurSecrets({ projet: 'chevalier-ia-app' }) });
+export const devisPreparerEmail = onCall(OPTIONS_DEVIS, async (requete) => {
+  try { return await preparerEmailDevis({ db: db(), auth: requete.auth, donnees: requete.data, sortie: sortieN8nDevis }); } catch (e) { throw enHttps(e); }
+});
+export const devisPreparerEmailEtat = onCall(OPTIONS_DEVIS, async (requete) => {
+  try { return await etatPreparerEmail({ db: db(), auth: requete.auth, donnees: requete.data, sortie: sortieN8nDevis }); } catch (e) { throw enHttps(e); }
 });
