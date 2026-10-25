@@ -153,7 +153,7 @@ test('C5 la croix d’une adresse en copie retire bien l’adresse même si on e
   await expect(bloc.locator('.ligne-copie')).toHaveText(['b@exemple.fr', 'c@exemple.fr']);
 });
 
-test('C6 « Créer une variante » et « Dupliquer » ont une icône « i » accessible (clavier et toucher), plus d’infobulle cachée', async ({ page }, info) => {
+test('C6 la visualisation d’un devis finalisé n’a plus de boutons « Créer une variante » ni « Dupliquer » : ils sont dans le « … » (44 px) à côté d’« Envoyer »', async ({ page }, info) => {
   await semer();
   await ouvrirListe(page);
   await ecrireDocument('devis_devis/fige', {
@@ -162,19 +162,20 @@ test('C6 « Créer une variante » et « Dupliquer » ont une icône « i » acc
     sections: [{ id: 's1', titre: 'Cuisine', lignes: [{ id: 'l1', libelle: 'Carrelage', quantite: 2, unite: 'm²', prixAchat: 50, prixVente: 60, tauxTva: 20 }] }],
     creePar: JEROME, proprietaire: JEROME, creeLe: new Date(), modifieLe: new Date(),
   });
-  await page.goto('/?emulateurs=1#/devis/editeur/fige');
-  await expect(page.locator('[data-action="creer-variante"]')).toBeVisible();
-  await expect(page.locator('[data-action="creer-variante"]')).not.toHaveAttribute('title', /.+/);
-  await expect(page.locator('[data-action="dupliquer"]')).not.toHaveAttribute('title', /.+/);
-  const info1 = page.getByRole('button', { name: /Explication : Créer une variante/ });
-  const info2 = page.getByRole('button', { name: /Explication : Dupliquer/ });
-  await info1.focus(); // clavier : le texte s'affiche au focus
-  await expect(page.locator('.bulle-info').first()).toBeVisible();
-  await expect(page.locator('.bulle-info').first()).toContainText('nouvelle version modifiable');
-  await capturer(page, info, 'C6-icone-info-variante');
-  await info2.click(); // toucher ou clic : le texte s'affiche
-  await expect(info2.locator('.bulle-info')).toBeVisible();
-  await expect(info2.locator('.bulle-info')).toContainText('même contenu');
+  await page.goto('/?emulateurs=1#/devis/editeur/fige'); // un devis finalisé ne s'édite pas : l'adresse ouvre la visualisation
+  await expect(page).toHaveURL(/#\/devis\/voir\/fige$/);
+  await expect(page.locator('[data-action="creer-variante"]')).toHaveCount(0);
+  await expect(page.locator('[data-action="dupliquer"]')).toHaveCount(0);
+  const plus = page.locator('[data-action="plus-actions"]');
+  await expect(plus).toBeVisible();
+  const boite = await plus.boundingBox();
+  expect(boite.width).toBeGreaterThanOrEqual(44);
+  expect(boite.height).toBeGreaterThanOrEqual(44);
+  await plus.click();
+  await expect(page.getByRole('menuitem', { name: 'Créer une nouvelle version' })).toBeEnabled();
+  await expect(page.getByRole('menuitem', { name: 'Dupliquer' })).toBeEnabled();
+  await capturer(page, info, 'C6-menu-autres-actions');
+  await page.keyboard.press('Escape');
 });
 
 test('ED1 créer un devis pour une affaire, ajouter deux articles du Bordereau, une ligne libre et une section, une remise : le total se calcule en direct et reste après rechargement', { tag: '@smoke' }, async ({ page }, info) => {
@@ -298,7 +299,7 @@ test('ED2 l’aperçu montre le devis comme le client le verra ; ordre des ligne
   await expect(lignes(page)).toHaveCount(4);
 });
 
-test('ED3 finaliser : les erreurs de finalisation sont listées dans une fenêtre ; le serveur finalise, le devis passe en lecture seule avec « Créer une variante »', { annotation: { type: 'erreurs-reseau-attendues', description: 'le faux serveur répond comme le vrai' } }, async ({ page }, info) => {
+test('ED3 finaliser : les erreurs de finalisation sont listées dans une fenêtre ; le serveur finalise, le devis passe en lecture seule avec « Créer une nouvelle version » dans le « … »', { annotation: { type: 'erreurs-reseau-attendues', description: 'le faux serveur répond comme le vrai' } }, async ({ page }, info) => {
   await semer();
   const id = await nouveauBrouillon(page);
   const appels = [];
@@ -338,10 +339,12 @@ test('ED3 finaliser : les erreurs de finalisation sont listées dans une fenêtr
   expect(appels).toEqual([{ devisId: id }]);
   await expect(page).toHaveURL(new RegExp(`#/devis/pdf/${id}$`)); // « Imprimer » ouvre le PDF du serveur
   await page.goBack();
-  // Lecture seule : numéro affiché, aperçu, invitation à créer une variante, le menu « Envoyer » (PDF) mais plus de champs.
-  await expect(page.locator('[data-valeur="lecture-seule"]')).toContainText('crée une variante');
+  // Lecture seule : numéro affiché, aperçu, invitation à créer une nouvelle version, le menu « Envoyer » (PDF) mais plus de champs.
+  await expect(page.locator('[data-valeur="lecture-seule"]')).toContainText('crée une nouvelle version');
   await expect(page.getByRole('heading', { level: 1 })).toContainText('DEV-2026-10-24-001');
-  await expect(page.locator('[data-action="creer-variante"]')).toBeVisible();
+  await page.locator('[data-action="plus-actions"]').click();
+  await expect(page.getByRole('menuitem', { name: 'Créer une nouvelle version' })).toBeEnabled();
+  await page.keyboard.press('Escape');
   await expect(page.locator('[data-action="envoyer"]')).toBeVisible();
   await expect(page.locator('[data-champ="libelle"]')).toHaveCount(0);
   await expect(page.locator('iframe[data-zone="apercu"]').contentFrame().locator('body')).toContainText('DEV-2026-10-24-001');
@@ -365,8 +368,9 @@ test('ED4 cas d’erreur : devis introuvable, devis déjà finalisé en lecture 
     creePar: JEROME, proprietaire: JEROME, creeLe: new Date(), modifieLe: new Date(),
   });
   await page.goto('/?emulateurs=1#/devis/editeur/fige');
+  await expect(page).toHaveURL(/#\/devis\/voir\/fige$/);
   await expect(page.locator('[data-valeur="lecture-seule"]')).toBeVisible();
-  await expect(page.locator('[data-action="creer-variante"]')).toBeVisible();
+  await expect(page.locator('[data-action="plus-actions"]')).toBeVisible();
   await expect(page.getByRole('heading', { level: 1 })).toContainText('DEV-2026-10-02-001');
   // Un brouillon dont l'écriture est refusée (document disparu) : le message le dit et l'indicateur passe en erreur.
   await ecrireDocument('devis_devis/brouillon', {
@@ -417,7 +421,7 @@ test('ED5 enregistrer et quitter : le changement tapé juste avant de quitter es
   expect((await lireDocument(`devis_devis/${id}`)).objet).toBe('Salle de bains');
 });
 
-test('ED6 depuis la liste : Nouveau devis, Modifier ouvre l’éditeur, Dupliquer copie le contenu, une variante vient du serveur ; le cas sans affaire est expliqué', { annotation: { type: 'erreurs-reseau-attendues', description: 'le faux serveur répond comme le vrai' } }, async ({ page }, info) => {
+test('ED6 depuis la liste : Nouveau devis, Modifier ouvre l’éditeur, Dupliquer copie le contenu, une nouvelle version vient du serveur ; le cas sans affaire est expliqué', { annotation: { type: 'erreurs-reseau-attendues', description: 'le faux serveur répond comme le vrai' } }, async ({ page }, info) => {
   // Sans affaire : message qui dit quoi faire.
   await ouvrirListe(page);
   await page.locator('[data-action="nouveau-devis-vide"]').click();
@@ -444,9 +448,9 @@ test('ED6 depuis la liste : Nouveau devis, Modifier ouvre l’éditeur, Duplique
   await expect(page.locator('.page-liste-devis')).toBeVisible();
   await attendreCalme(page);
   const menu = async (id) => { await page.locator(`[data-id="${id}"] [data-action="menu-devis"]`).click(); await expect(page.locator('.menu-pop')).toBeVisible(); };
-  // Modifier (brouillon) : l'éditeur s'ouvre sur ce devis.
+  // Éditer le devis (brouillon) : l'éditeur s'ouvre sur ce devis.
   await menu('b1');
-  await page.getByRole('menuitem', { name: /Modifier : version actuelle/ }).click();
+  await page.getByRole('menuitem', { name: 'Éditer le devis' }).click();
   await expect(page.locator('.page-editeur-devis[data-devis="b1"]')).toBeVisible();
   await expect(page.locator('[data-champ="remise-valeur"]')).toHaveValue('10');
   await expect(total(page, 'ht')).toHaveText(/^108,00\s€$/); // 2 × 60 = 120, moins 10 %
@@ -462,14 +466,14 @@ test('ED6 depuis la liste : Nouveau devis, Modifier ouvre l’éditeur, Duplique
   await expect(lignes(page)).toHaveCount(1);
   await expect(page.locator('[data-valeur="numero-devis"]')).toContainText('Brouillon');
   await expect(total(page, 'ht')).toHaveText(/^108,00\s€$/);
-  // Nouvelle variante d'un devis envoyé : la fonction du serveur répond, l'éditeur ouvre la version 2.
+  // Nouvelle version d'un devis envoyé : la fonction du serveur répond, l'éditeur ouvre la version 2.
   await page.evaluate(() => { location.hash = '#/devis/liste'; });
   await expect(page.locator('.page-liste-devis')).toBeVisible();
   await menu('e1');
-  await page.getByRole('menuitem', { name: /Modifier : nouvelle variante/ }).click();
+  await page.getByRole('menuitem', { name: 'Créer une nouvelle version' }).click();
   await expect(page.locator('.page-editeur-devis[data-devis="v2"]')).toBeVisible();
   await expect(page.getByRole('heading', { level: 1 })).toContainText('v2');
-  await capturer(page, info, 'ED6-variante');
+  await capturer(page, info, 'ED6-nouvelle-version');
 });
 
 test('ED7 devis modifié ailleurs : un bandeau le dit, rien n’est écrasé ni enregistré ; « Recharger » reprend la dernière version', async ({ page }, info) => {
