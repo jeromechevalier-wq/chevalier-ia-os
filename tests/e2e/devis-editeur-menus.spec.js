@@ -514,3 +514,28 @@ test('4 la marge affichée sous une ligne est arrondie à l’unité : 19,996269
   await expect(page.locator('tr[data-id="l1"] [data-calcul-marge]')).toContainText('Marge 20 %');
   await expect(page.locator('tr[data-id="l1"] [data-calcul-marge]')).not.toContainText('19,9');
 });
+
+test('2 Bibliothèque ouverte : les lignes passent en cartes et les 5 titres (Qté, Unité, Prix U. HT, TVA, Total HT) restent bien lisibles, non coupés', async ({ page }, info) => {
+  await semer();
+  await ouvrir(page, await devis('d2c', [{ id: 's1', titre: 'Cuisine', lignes: [ligne('l1', 'Dépose', 2, 10)] }]));
+  await page.locator('[data-action="bibliotheque"]').click();
+  await expect(page.locator('[data-zone="bibliotheque"]')).toBeVisible();
+  const carte = lignes(page).first();
+  await expect(carte).toBeVisible();
+  const titres = await carte.locator('td[data-libelle]').evaluateAll((tds) => tds.map((td) => {
+    const avant = getComputedStyle(td, '::before');
+    const r = td.getBoundingClientRect();
+    return { libelle: td.dataset.libelle, contenu: avant.content, affiche: avant.display, taille: parseFloat(avant.fontSize), visible: r.width > 0 && r.height > 0, coupe: td.scrollWidth > td.clientWidth + 1 };
+  }));
+  for (const v of ['Qté', 'Unité', 'Prix U. HT', 'TVA', 'Total HT']) {
+    const t = titres.find((x) => x.libelle.replace(/\s+/g, ' ').toLowerCase().startsWith(v.toLowerCase()));
+    expect(t, `titre « ${v} » présent`).toBeTruthy();
+    expect(t.contenu.replace(/["']/g, '').trim().length).toBeGreaterThan(0);
+    expect(t.affiche).toBe('block');
+    expect(t.visible).toBe(true);
+    expect(t.coupe).toBe(false);
+    expect(t.taille).toBeGreaterThanOrEqual(13);
+  }
+  await carte.scrollIntoViewIfNeeded();
+  await capturer(page, info, '2-cartes-lisibles');
+});

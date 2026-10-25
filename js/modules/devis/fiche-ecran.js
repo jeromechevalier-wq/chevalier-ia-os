@@ -18,7 +18,7 @@ const DOCUMENTS = [['tous', 'Tous'], ['factures', 'Factures'], ['avoirs', 'Avoir
  * `contexte` : { nomsDe(d) -> { client, affaire }, changerStatut(d, action, libelle), fermer(opts), aujourdhui() -> AAAA-MM-JJ }.
  * Rend { afficher(id), fermer(), maj(), detruire() } : la liste appelle `afficher` quand la route change et `maj` quand les données changent.
  */
-export function creerFiche({ nomsDe, changerStatut, fermer: demanderFermeture, aujourdhui: jourCourant }) {
+export function creerFiche({ nomsDe, changerStatut, archiver, fermer: demanderFermeture, aujourdhui: jourCourant }) {
   let id = null;
   let racine = null;
   let corps = null;
@@ -140,8 +140,16 @@ export function creerFiche({ nomsDe, changerStatut, fermer: demanderFermeture, a
 
     const dupliquer = h('button', { type: 'button', class: 'bouton bouton-secondaire', disabled: !f.dupliquer.actif, title: f.dupliquer.actif ? null : Li.MESSAGE_BIENTOT, dataset: { action: 'dupliquer-fiche' }, onclick: () => dupliquerDevis(d) }, icone('copy', { taille: 16 }), 'Dupliquer');
 
+    const ar = f.archivage;
+    const menuPlus = h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Plus d’actions', 'aria-haspopup': 'menu', dataset: { action: 'menu-fiche' },
+      onclick: (e) => ouvrirMenu(e.currentTarget, [
+        { libelle: ar.libelle, icone: ar.icone, desactive: !ar.actif, action: () => archiver(d, ar.action === 'archiver') },
+        ...(ar.actif ? [] : [{ texte: ar.raison }]),
+      ]) }, icone('ellipsis', { taille: 20 }));
+
     return h('header', { class: 'fiche-tete' },
-      h('div', { class: 'fiche-tete-ligne' }, statut, h('h2', { class: 'fiche-titre' }, Fi.titreFiche(d), d.version > 1 ? h('span', { class: 'devis-version' }, ` v${d.version}`) : null), corps.fermerBouton),
+      h('div', { class: 'fiche-tete-ligne' }, statut, h('h2', { class: 'fiche-titre' }, Fi.titreFiche(d), d.version > 1 ? h('span', { class: 'devis-version' }, ` v${d.version}`) : null,
+        d.archive === true ? h('span', { class: 'badge-archive', dataset: { valeur: 'archive' } }, 'Archivé') : null), menuPlus, corps.fermerBouton),
       h('div', { class: 'fiche-boutons' }, modifier, envoyer, voirBouton, dupliquer));
   }
 
