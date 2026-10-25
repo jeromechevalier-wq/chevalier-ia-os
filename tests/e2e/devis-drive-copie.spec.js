@@ -3,7 +3,7 @@
 // pas Google lui-même. Un test par critère (le nom commence par le numéro du critère, voir la PR). Captures dans tests/e2e/captures/devis-drive-copie/.
 import { fileURLToPath } from 'node:url';
 import { test, expect, connecter, attendreCalme, ecrireDocument, creerOrganisation, creerAffaire, JEROME } from './outils.js';
-import { brancherGoogle, refuserAutorisation } from './google-simule.js';
+import { brancherGoogle, refuserAutorisation, lireGoogle } from './google-simule.js';
 
 const DOSSIER = fileURLToPath(new URL('./captures/devis-drive-copie/', import.meta.url));
 const capturer = (page, info, nom) => page.screenshot({ path: `${DOSSIER}${nom}-${info.project.name}.png`, animations: 'disabled' });
@@ -12,6 +12,9 @@ const URL_PDF = 'https://stockage.exemple.test/devis-essai.pdf';
 const DOSSIER_TRAVAIL = 'DOSSIER_TRAVAIL_abcdefghij';
 const NOM_ATTENDU = 'Devis DEV-2026-10-25-001 v1 – Rénovation restaurant.pdf';
 const zoneDrive = (page) => page.locator('[data-zone="copie-drive"]');
+const boutonCopier = (page) => zoneDrive(page).locator('[data-action="copier-drive"]');
+/** Au premier affichage il n'y a pas de jeton Google en mémoire : la copie attend un vrai clic sur « Copier dans Drive ». */
+const copierParClic = async (page) => { await expect(boutonCopier(page)).toBeVisible(); await boutonCopier(page).click(); };
 const message = (page) => zoneDrive(page).locator('[data-valeur="message-drive"]');
 
 async function donnees({ urlDossier = `https://drive.google.com/drive/folders/${DOSSIER_TRAVAIL}` } = {}) {
@@ -47,6 +50,7 @@ test('3 le PDF finalisé est copié dans le sous-dossier « Devis » du dossier 
   const drive = await brancherGoogle(context);
   await ouvrir(page, drive);
   await allerAuPdf(page);
+  await copierParClic(page);
   await expect(message(page)).toHaveText('PDF copié dans le dossier Devis de l’affaire');
   await expect(page.locator('#toasts')).toContainText('PDF copié dans le dossier Devis de l’affaire');
   expect(drive.requetes.map((r) => [r.corps.name, r.corps.parents])).toEqual([['Devis', [DOSSIER_TRAVAIL]]]);
@@ -63,6 +67,7 @@ test('4 le même PDF ouvert une seconde fois n’est pas recopié (aucun doublon
   const drive = await brancherGoogle(context);
   await ouvrir(page, drive);
   await allerAuPdf(page);
+  await copierParClic(page);
   await expect(message(page)).toHaveText('PDF copié dans le dossier Devis de l’affaire');
   await page.evaluate(() => { location.hash = '#/devis/liste'; });
   await attendreCalme(page);
@@ -95,6 +100,7 @@ test('6 Drive refusé : message clair avec « Réessayer » ; après autorisatio
   await ouvrir(page, drive);
   await refuserAutorisation(page, true);
   await allerAuPdf(page);
+  await copierParClic(page);
   await expect(message(page)).toContainText('Drive n’est pas connecté ou l’autorisation a été refusée');
   await expect(message(page)).toHaveClass(/erreur/);
   expect(drive.envois).toHaveLength(0);
@@ -105,12 +111,29 @@ test('6 Drive refusé : message clair avec « Réessayer » ; après autorisatio
   expect(drive.envois).toHaveLength(1);
 });
 
-test('6 Google refuse l’envoi (droits) : le message le dit et « Réessayer » reste proposé', async ({ page, context }) => {
+test('6 Google refuse l’envoi du fichier (droits) : le message le dit et « Réessayer » reste proposé', async ({ page, context }) => {
   test.info().annotations.push({ type: 'erreurs-reseau-attendues', description: 'le faux Drive répond 403' });
   const drive = await brancherGoogle(context);
   drive.echecEnvoi = 403;
   await ouvrir(page, drive);
   await allerAuPdf(page);
+  await copierParClic(page);
   await expect(message(page)).toContainText('droits insuffisants');
   await expect(zoneDrive(page).locator('[data-action="reessayer-drive"]')).toBeVisible();
+});
+
+test('A sans jeton Google en mémoire : message neutre et bouton « Copier dans Drive », aucune fenêtre d’autorisation ouverte toute seule ; le clic lance la copie', async ({ page, context }, info) => {
+  const drive = await brancherGoogle(context);
+  await ouvrir(page, drive);
+  await allerAuPdf(page);
+  await expect(message(page)).toHaveText('Pour copier ce PDF dans Drive, appuie sur « Copier dans Drive ».');
+  await expect(message(page)).not.toHaveClass(/erreur/);
+  await expect(boutonCopier(page)).toHaveClass(/bouton-secondaire/); // un seul bouton jaune : « Ouvrir le PDF »
+  expect((await lireGoogle(page)).autorisations).toHaveLength(0); // pas de fenêtre d'autorisation sans clic
+  expect(drive.requetes.length + drive.envois.length).toBe(0);
+  await capturer(page, info, 'A-sans-jeton-bouton-copier');
+  await boutonCopier(page).click();
+  await expect(message(page)).toHaveText('PDF copié dans le dossier Devis de l’affaire');
+  expect((await lireGoogle(page)).autorisations).toHaveLength(1);
+  expect(drive.envois).toHaveLength(1);
 });

@@ -129,6 +129,8 @@ describe('Copie du PDF d’un devis dans le dossier de travail Drive', () => {
     const r = await C.copierPdfDevis({ devis: DEVIS, affaire: AFFAIRE, outils: outils(drive, { lirePdf: async () => { throw new TypeError('Failed to fetch'); } }) });
     assert.equal(r.etat, 'erreur');
     assert.equal(r.message, C.MESSAGE_LECTURE_PDF);
+    assert.equal(r.message, 'Le PDF n’a pas pu être lu pour la copie dans Drive. Réessaie ; si ça continue, il faut autoriser ce site dans le stockage (réglage à faire une fois).');
+    assert.ok(!/\bPR\b/.test(r.message), 'aucun jargon de développeur');
     assert.equal(drive.envois.length, 0);
   });
 
@@ -147,5 +149,46 @@ describe('Copie du PDF d’un devis dans le dossier de travail Drive', () => {
     const textes = [...copie.matchAll(/MESSAGE_[A-Z_]+ = '([^']*)'/g)].map((m) => m[1]).join(' ');
     assert.ok(textes.length > 200);
     assert.ok(!/crm|répertoire/i.test(textes), 'ni « CRM » ni « répertoire »');
+  });
+
+  test('9 sans jeton Google en mémoire, la copie automatique attend un vrai clic ; avec un jeton ou après un clic, elle part', () => {
+    assert.equal(C.attendreUnClic({ automatique: true, jetonEnMemoire: false }), true);
+    assert.equal(C.attendreUnClic({ automatique: true, jetonEnMemoire: true }), false);
+    assert.equal(C.attendreUnClic({ automatique: false, jetonEnMemoire: false }), false, 'un bouton est un vrai clic');
+    assert.equal(C.MESSAGE_AUTORISATION_DRIVE, 'Pour copier ce PDF dans Drive, appuie sur « Copier dans Drive ».');
+    const ecran = lire('js/modules/devis/pdf-ecran.js');
+    assert.match(ecran, /copierDansDrive\(zoneDrive, url, d, \{ automatique: true \}\)/, 'seul l’appel automatique est « sans clic »');
+    assert.match(ecran, /'copier-drive'/);
+  });
+
+  test('10 l’écran attend que les affaires soient chargées avant de conclure « pas d’affaire »', () => {
+    const ecran = lire('js/modules/devis/pdf-ecran.js');
+    assert.match(ecran, /if \(!CRM\.estPret\(\)\)/);
+    assert.match(ecran, /CRM\.surChangement\(/);
+    assert.ok(ecran.indexOf('CRM.estPret()') < ecran.indexOf('choisirDestination('), 'la vérification précède le choix du dossier');
+    assert.match(ecran, /if \(arretAffaires\) \{ arretAffaires\(\)/, 'l’abonnement est retiré à la sortie de l’écran');
+  });
+
+  test('11 un seul bouton jaune par écran : les boutons de la zone Drive sont en contour', () => {
+    const ecran = lire('js/modules/devis/pdf-ecran.js');
+    assert.match(ecran, /const boutonDrive = .*bouton-secondaire/);
+    for (const action of ['recopier-drive', 'reessayer-drive', 'copier-drive']) assert.match(ecran, new RegExp(`boutonDrive\\('[^']+', '${action}'`), action);
+    assert.ok(!/bouton\('[^']+', '(recopier|reessayer|copier)-drive'/.test(ecran));
+  });
+
+  test('12 si l’utilisateur quitte l’écran pendant la copie, le résultat est quand même annoncé et mémorisé', () => {
+    const ecran = lire('js/modules/devis/pdf-ecran.js');
+    const apres = ecran.slice(ecran.indexOf('await copierPdfDevis('), ecran.indexOf('const bouton = '));
+    assert.ok(!/if \(arrete\) return;/.test(apres), 'plus de sortie anticipée avant le toast et la mémoire');
+    assert.match(apres, /memoire\.ecrire\(cle\)/);
+    assert.match(apres, /toast\(/);
+  });
+
+  test('13 le réglage CORS est expliqué dans docs/cors-stockage-pdf.md, sans cors.json à la racine du dépôt', () => {
+    const doc = lire('docs/cors-stockage-pdf.md');
+    assert.match(doc, /gsutil cors set cors\.json gs:\/\/<nom-du-bucket>/);
+    assert.match(doc, /https:\/\/console\.cloud\.google\.com\/storage\/browser/);
+    assert.match(doc, /"method": \["GET"\]/);
+    assert.ok(!/crm/i.test(doc));
   });
 });
