@@ -250,13 +250,15 @@ test('O3 les boutons « Modifier » et « Variante » n’existent plus sur les 
   await expect(page.locator('.carte-devis [data-action="menu-devis"]')).not.toHaveCount(0);
 });
 
-test('O4 un devis envoyé s’ouvre dans l’éditeur en lecture seule, avec « Créer une variante »', async ({ page }, info) => {
+test('O4 un devis envoyé s’ouvre dans l’éditeur en lecture seule, avec « Créer une variante » et « Dupliquer » qui ont chacun une infobulle', async ({ page }, info) => {
   await deuxDevis();
   await ouvrir(page);
   await lignes(page).locator('[data-colonne="numero"]').nth(1).click(); // d1 (envoyé)
   await expect(page).toHaveURL(/#\/devis\/editeur\/d1$/);
   await expect(page.locator('[data-valeur="lecture-seule"]')).toBeVisible();
   await expect(page.locator('[data-action="creer-variante"]')).toBeVisible();
+  await expect(page.locator('[data-action="creer-variante"]')).toHaveAttribute('title', /nouvelle version modifiable/);
+  await expect(page.locator('[data-action="dupliquer"]')).toHaveAttribute('title', /nouveau brouillon/);
   await capturer(page, info, 'O4-lecture-seule');
 });
 
