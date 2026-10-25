@@ -134,6 +134,13 @@ button.badge-etat { border: 0; font-family: inherit; cursor: pointer; }
 .barre-filtres { display: flex; flex-direction: column; gap: var(--esp-4); flex: 1; min-width: 0; }
 .barre-filtres-ligne { display: flex; gap: var(--esp-3); align-items: center; flex-wrap: wrap; }
 .barre-filtres-ligne .champ-avec-icone { flex: 1 1 260px; }
+/* Barre de liste (Personnes, Organisations, Affaires, Projets, Devis) : champ de recherche plafonné, boutons collés à sa droite, sur une même ligne (demande de Jérôme, 25/10/2026). Largeur : --largeur-recherche (Devis la partage). */
+:root { --largeur-recherche: 420px; }
+@media (min-width: 768px) {
+  .barre-affaires > .barre-filtres { flex: 0 1 auto; }
+  .barre-affaires .barre-filtres-ligne { flex-wrap: nowrap; }
+  .barre-affaires .barre-filtres-ligne .champ-avec-icone { flex: 1 1 260px; max-width: var(--largeur-recherche); width: var(--largeur-recherche); }
+}
 .pastilles-actives { display: flex; gap: var(--esp-2); flex-wrap: wrap; align-items: center; }
 .pastilles-actives:empty { display: none; }
 .compteur-filtres { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 var(--esp-2); border-radius: 999px; background: var(--accent); color: var(--sur-accent); font-size: var(--fs-petit); font-weight: var(--poids-moyen); margin-left: var(--esp-1); }
