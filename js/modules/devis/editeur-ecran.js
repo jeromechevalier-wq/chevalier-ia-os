@@ -179,6 +179,7 @@ export function rendreEditeurDevis(conteneur, id) {
   let minuteur = null;
   let onglet = 'edition';
   let pointInsertion = null; // identifiant sous lequel (ou au-dessus duquel, voir sensInsertion) s'ajoutera le prochain article du Bordereau
+  let rechercheEnLigne = false; // la recherche du Bordereau est ouverte juste sous (ou sur) la ligne choisie dans un menu « Insérer », pas en bas du devis
   let sensInsertion = 'apres'; // 'apres' (en dessous), 'avant' (au-dessus), 'debut' ou 'fin' (dans la section)
   let rechercheBordereau = '';
   let filtreFamille = '';
@@ -286,9 +287,27 @@ export function rendreEditeurDevis(conteneur, id) {
 
   // ------------------------------------------------ changements
   function changer(patch) { Object.assign(travail, patch); marquerModifie(); }
+  /** Reconstruit les lignes sans que la page saute : on garde la position de défilement de tous les parents qui défilent. */
+  function sansSaut(fn) {
+    const defilements = [];
+    for (let el = ref.corpsLignes; el; el = el.parentElement) if (el.scrollTop > 0) defilements.push([el, el.scrollTop]);
+    const x = window.scrollX, y = window.scrollY;
+    fn();
+    for (const [el, haut] of defilements) el.scrollTop = haut;
+    window.scrollTo(x, y);
+  }
+  /** Déplace un élément d'un cran avec les flèches : la page reste là où elle est, la ligne reste visible et le clavier reste sur la même flèche. */
+  function deplacer(e, sens) {
+    appliquer(Ed.deplacerElement(travail.sections, e.id, sens));
+    const ligne = racine.querySelector(`tr[data-id="${e.id}"]`);
+    const voulu = sens < 0 ? 'monter' : 'descendre';
+    const bouton = ligne?.querySelector(`[data-action="${voulu}"]:not(:disabled)`) ?? ligne?.querySelector('.bouton-poignee:not(:disabled)');
+    bouton?.focus({ preventScroll: true });
+    ligne?.scrollIntoView?.({ block: 'nearest' });
+  }
   function appliquer(sections, { focus = null, champ = 'libelle' } = {}) {
-    travail.sections = sections;
-    rendreLignes();
+    // Ajouter, supprimer, dupliquer, déplacer : l'écran reste où il est (seule la ligne visée peut le faire défiler, pour rester visible).
+    sansSaut(() => { travail.sections = sections; rendreLignes(); });
     marquerModifie();
     if (focus) {
       const champFocus = racine.querySelector(`tr[data-id="${focus}"] [data-champ="${champ}"]`);
@@ -296,12 +315,12 @@ export function rendreEditeurDevis(conteneur, id) {
       (champFocus ?? racine.querySelector(`tr[data-id="${focus}"]`))?.scrollIntoView?.({ block: 'nearest' });
     }
   }
-  function ajouterLigne(element, { champ = 'libelle' } = {}) {
+  function ajouterLigne(element, { champ = 'libelle', suite = false } = {}) {
     const cible = pointInsertion && Ed.aplatir(travail.sections).some((x) => x.id === pointInsertion) ? pointInsertion : null;
     const sens = sensInsertion;
-    pointInsertion = null;
+    // Recherche ouverte sous une ligne : le prochain article se met juste sous celui qu'on vient d'ajouter.
+    pointInsertion = suite ? element.id : null;
     sensInsertion = 'apres';
-    majPointInsertion();
     appliquer(cible ? Ed.insererAutour(travail.sections, element, cible, sens, nouvelId()) : Ed.ajouterElement(travail.sections, element, null, nouvelId()), { focus: element.id, champ });
   }
   const changerLigne = (idLigne, patch) => { travail.sections = Ed.majElement(travail.sections, idLigne, patch); marquerModifie(); };
@@ -733,11 +752,11 @@ export function rendreEditeurDevis(conteneur, id) {
     ref.filtreFamille = h('select', { class: 'champ', 'aria-label': 'Famille', dataset: { champ: 'filtre-famille' }, onchange: (e) => { filtreFamille = e.target.value; majResultats(); } },
       h('option', { value: '' }, 'Toutes les familles'), arbreFamilles(D.etat.familles).flatMap(({ famille: f, enfants }) => [f, ...enfants]).filter((f) => f.actif).map((f) => h('option', { value: f.id }, cheminFamille(D.etat.familles, f.id))), h('option', { value: 'sans_famille' }, 'Sans famille'));
     ref.resultats = h('ul', { class: 'resultats-bordereau', dataset: { zone: 'resultats' } });
-    ref.pointInsertion = h('p', { class: 'texte-discret', dataset: { valeur: 'point-insertion' }, hidden: true });
     ref.panneauRecherche = h('div', { class: 'recherche-bordereau', hidden: true, dataset: { zone: 'recherche' } },
       h('div', { class: 'ligne-champs' }, ref.rechercheBordereau, ref.filtreFamille,
-        h('button', { type: 'button', class: 'bouton bouton-discret', dataset: { action: 'fermer-recherche' }, onclick: () => { ref.panneauRecherche.hidden = true; pointInsertion = null; majPointInsertion(); } }, 'Fermer')),
-      ref.pointInsertion, ref.resultats);
+        h('button', { type: 'button', class: 'bouton bouton-discret', dataset: { action: 'fermer-recherche' }, onclick: () => { ref.panneauRecherche.hidden = true; pointInsertion = null; rechercheEnLigne = false; placerPanneauRecherche(); } }, 'Valider')),
+      ref.resultats);
+    ref.hoteRecherche = h('div', {}, ref.panneauRecherche);
     ref.corpsLignes = h('tbody', {});
     // La Bibliothèque ajoute à la fin de la section de la dernière ligne touchée.
     ref.corpsLignes.addEventListener('focusin', (e) => { const tr = e.target.closest?.('tr[data-id]'); if (tr) ligneActive = tr.dataset.id; });
@@ -762,7 +781,7 @@ export function rendreEditeurDevis(conteneur, id) {
         bouton('Sous-section', 'ajouter-sous-section', () => ajouterLigne(Ed.sousSectionNeuve(nouvelId()))),
         bouton('Texte', 'ajouter-texte', () => ajouterLigne(Ed.ligneTexte(nouvelId()))),
         (ref.boutonSaut = bouton('Saut de page', 'ajouter-saut', ajouterSautEnFin))));
-    return [ref.vide, ref.zoneTableau, barre, ref.panneauRecherche];
+    return [ref.vide, ref.zoneTableau, barre, ref.hoteRecherche];
   }
 
   /** Le bouton « Saut de page » du bas : un saut à la fin de la section où l'on travaille (à la fin du devis s'il n'y a pas de section). */
@@ -773,21 +792,42 @@ export function rendreEditeurDevis(conteneur, id) {
   }
 
   /** Ouvre la recherche dans le Bordereau, déjà filtrée sur une famille (« + Fourniture » → les fournitures). */
-  function ouvrirRecherche(familleId) {
+  function ouvrirRecherche(familleId, { enLigne = false } = {}) {
+    rechercheEnLigne = enLigne;
+    if (!enLigne) pointInsertion = null;
     filtreFamille = familleId && D.etat.familles.some((f) => f.id === familleId && f.actif !== false) ? familleId : '';
     ref.filtreFamille.value = filtreFamille;
     ref.panneauRecherche.hidden = false;
     majResultats();
-    ref.rechercheBordereau.focus();
+    placerPanneauRecherche();
+    ref.rechercheBordereau.focus({ preventScroll: true });
     ref.panneauRecherche.scrollIntoView?.({ block: 'nearest' });
   }
 
-  function majPointInsertion() {
-    if (!ref.pointInsertion) return;
-    const e = pointInsertion ? Ed.aplatir(travail.sections).find((x) => x.id === pointInsertion) : null;
-    ref.pointInsertion.hidden = !e;
-    const ou = { avant: 'au-dessus de', apres: 'sous', debut: 'au début de', fin: 'à la fin de' }[sensInsertion] ?? 'sous';
-    ref.pointInsertion.textContent = e ? `Le prochain article s’ajoutera ${ou} « ${e.libelle || e.titre || 'cette ligne'} ».` : '';
+  /** Place la recherche du Bordereau : sous (ou sur) la ligne choisie dans un menu « Insérer », sinon en bas du devis. */
+  function placerPanneauRecherche() {
+    if (!ref.hoteRecherche || !ref.corpsLignes) return;
+    const ligneCible = rechercheEnLigne && !ref.panneauRecherche.hidden && pointInsertion ? ref.corpsLignes.querySelector(`tr[data-id="${pointInsertion}"]`) : null;
+    if (!ligneCible) {
+      if (ref.panneauRecherche.parentElement !== ref.hoteRecherche) ref.hoteRecherche.append(ref.panneauRecherche);
+      ref.trRecherche?.remove();
+      return;
+    }
+    ref.trRecherche ??= h('tr', { class: 'ligne-recherche', dataset: { zone: 'recherche-en-ligne' } }, h('td', { colspan: 8 }));
+    const cellule = ref.trRecherche.firstElementChild;
+    if (ref.panneauRecherche.parentElement !== cellule) cellule.append(ref.panneauRecherche);
+    let ancre = ligneCible;
+    let avant = sensInsertion === 'avant';
+    if (!avant && ligneCible.dataset.genre === 'section' && sensInsertion === 'fin') {
+      // À la fin d'une section : après sa dernière ligne (les sous-sections d'une section de niveau 1 en font partie).
+      const niveau = Number(ligneCible.dataset.niveau);
+      for (let suivante = ligneCible.nextElementSibling; suivante; suivante = suivante.nextElementSibling) {
+        if (suivante === ref.trRecherche) continue;
+        if (suivante.dataset.genre === 'section' && Number(suivante.dataset.niveau) <= niveau) break;
+        ancre = suivante;
+      }
+    }
+    if (avant) ancre.before(ref.trRecherche); else ancre.after(ref.trRecherche);
   }
 
   function majResultats() {
@@ -810,7 +850,7 @@ export function rendreEditeurDevis(conteneur, id) {
   }
 
   function ajouterArticle(a) {
-    ajouterLigne(Ed.ligneDepuisArticle(a, { id: nouvelId(), articles: D.etat.articles, devis: travail }), { champ: 'quantite' });
+    ajouterLigne(Ed.ligneDepuisArticle(a, { id: nouvelId(), articles: D.etat.articles, devis: travail }), { champ: 'quantite', suite: rechercheEnLigne && !ref.panneauRecherche.hidden });
   }
 
   function rendreLignes() {
@@ -835,7 +875,7 @@ export function rendreEditeurDevis(conteneur, id) {
       if (e.type === TYPE_SAUT) return ligneDeSaut(e, masque);
       return e.type === A.TYPE_TEXTE ? ligneDeTexte(e, numeros, masque) : ligneDevis(e, numeros, masque);
     }));
-    majPointInsertion();
+    placerPanneauRecherche();
     majTotaux();
   }
 
@@ -846,8 +886,8 @@ export function rendreEditeurDevis(conteneur, id) {
     const p = Ed.deplacementsPossibles(travail.sections, e.id);
     const nom = nomDe(e, numero);
     return h('td', { class: 'c-poi poignee-devis' },
-      h('button', { type: 'button', class: 'bouton-poignee', dataset: { action: 'monter' }, disabled: !p.monter, 'aria-label': `Monter ${nom}`, onclick: () => appliquer(Ed.deplacerElement(travail.sections, e.id, -1)) }, icone('chevron-up', { taille: 14 })),
-      h('button', { type: 'button', class: 'bouton-poignee', dataset: { action: 'descendre' }, disabled: !p.descendre, 'aria-label': `Descendre ${nom}`, onclick: () => appliquer(Ed.deplacerElement(travail.sections, e.id, 1)) }, icone('chevron-down', { taille: 14 })));
+      h('button', { type: 'button', class: 'bouton-poignee', dataset: { action: 'monter' }, disabled: !p.monter, 'aria-label': `Monter ${nom}`, onclick: () => deplacer(e, -1) }, icone('chevron-up', { taille: 14 })),
+      h('button', { type: 'button', class: 'bouton-poignee', dataset: { action: 'descendre' }, disabled: !p.descendre, 'aria-label': `Descendre ${nom}`, onclick: () => deplacer(e, 1) }, icone('chevron-down', { taille: 14 })));
   }
 
   // Petit bouton rond à droite : les actions de la ligne (le menu complet viendra ensuite).
@@ -875,7 +915,7 @@ export function rendreEditeurDevis(conteneur, id) {
       const element = creer();
       appliquer(Ed.insererAutour(travail.sections, element, e.id, ou, nouvelId()), { focus: element.id });
     };
-    const chercher = (familleId) => () => { pointInsertion = e.id; sensInsertion = ou; ouvrirRecherche(familleId); majPointInsertion(); };
+    const chercher = (familleId) => () => { pointInsertion = e.id; sensInsertion = ou; ouvrirRecherche(familleId, { enLigne: true }); };
     return [
       { libelle: 'Fourniture', cle: `inserer-${ou}-fourniture`, action: chercher('famille-1') },
       { libelle: 'Main d’œuvre', cle: `inserer-${ou}-main-oeuvre`, action: chercher('famille-2') },

@@ -217,3 +217,38 @@ test('3 cas d’erreur : une écriture refusée garde le message habituel et le 
   await expect(page.locator('[data-erreur="enregistrement"]')).toContainText(/Devis introuvable|Enregistrement impossible/);
   await capturer(page, info, '3-cas-erreur');
 });
+
+test('3 la prévisualisation montre le saut de page : une bande « Saut de page » à l’écran, invisible à l’impression', async ({ page }, info) => {
+  await semer();
+  await ouvrir(page, await devis('d5', [{ id: 's1', titre: 'Cuisine', lignes: [ligne('l1', 'Carrelage', 2, 50), SAUT('p1'), ligne('l2', 'Plinthes', 1, 20)] }]));
+  await page.getByRole('tab', { name: /Prévisualisation/ }).click();
+  const cadre = page.frameLocator('iframe.apercu-devis');
+  const marque = cadre.locator('.saut-marque');
+  await expect(marque).toBeVisible();
+  await expect(marque).toHaveText('Saut de page');
+  // La ligne du saut garde sa coupure de page pour le PDF et l'impression.
+  expect(await cadre.locator('tr.saut-page').evaluate((e) => e.style.breakBefore)).toBe('page');
+  await page.emulateMedia({ media: 'print' });
+  await expect(marque).toBeHidden();
+  await page.emulateMedia({ media: 'screen' });
+  await capturer(page, info, '3-apercu-saut-de-page');
+});
+
+test('2 déplacer une ligne avec les flèches ne renvoie pas en haut du devis : la page reste en place et la ligne reste visible, le clavier reste sur la flèche', async ({ page }, info) => {
+  test.skip(info.project.name === 'telephone', 'ordinateur : le défilement est celui de la page');
+  await semer();
+  const lignes = Array.from({ length: 24 }, (_, i) => ligne(`m${i + 1}`, `Ligne ${i + 1}`, 1, 10));
+  await ouvrir(page, await devis('d6', [{ id: 's1', titre: 'Cuisine', lignes }]));
+  const cible = page.locator('tr[data-id="m22"]');
+  await cible.scrollIntoViewIfNeeded();
+  await cible.locator('[data-action="monter"]').click();
+  await expect.poll(async () => (await ordre(page)).indexOf('m22')).toBeLessThan((await ordre(page)).indexOf('m21'));
+  const boite = await page.locator('tr[data-id="m22"]').boundingBox();
+  const fenetre = page.viewportSize();
+  expect(boite.y).toBeGreaterThanOrEqual(0);
+  expect(boite.y + boite.height).toBeLessThanOrEqual(fenetre.height); // toujours à l'écran, on n'est pas renvoyé en haut
+  expect(await page.evaluate(() => document.activeElement?.dataset?.action)).toBe('monter'); // on peut recliquer tout de suite
+  await cible.locator('[data-action="monter"]').click();
+  expect(await ordre(page)).toContain('m22');
+  await expect(page.locator('tr[data-id="m22"]')).toBeInViewport();
+});

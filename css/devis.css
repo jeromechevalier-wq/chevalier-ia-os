@@ -139,6 +139,7 @@
 /* Recherche dans le Bordereau (ouverte par « + Fourniture », « + Main d'œuvre », « + Ouvrage »…). */
 .recherche-bordereau { display: flex; flex-direction: column; gap: var(--esp-3); padding: var(--esp-5); border: 1px solid var(--bordure); border-radius: var(--rayon-petit); background: var(--panneau2); }
 .recherche-bordereau[hidden] { display: none; }
+.tableau-lignes-devis tr.ligne-recherche td { padding: var(--esp-3) 0; border: 0; background: transparent; }
 .resultats-bordereau { list-style: none; margin: 0; padding: 0; border: 1px solid var(--bordure); border-radius: var(--rayon-petit); }
 .resultats-bordereau li { padding: var(--esp-3) var(--esp-5); }
 .resultats-bordereau li + li { border-top: 1px solid var(--bordure); }
