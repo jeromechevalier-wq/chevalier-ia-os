@@ -164,7 +164,7 @@ test('2 cas vide : une Bibliothèque sans aucun article le dit et renvoie au Bor
   await creerAffaire('a1', { titre: 'Rénovation restaurant', organisationId: 'o1' });
   await ouvrir(page, await devis('d2v', []));
   await page.locator('[data-action="bibliotheque"]').click();
-  await expect(page.locator('[data-zone="bibliotheque"] [data-vide="bordereau"]')).toContainText('Ton Bordereau est vide');
+  await expect(page.locator('[data-zone="bibliotheque"] [data-vide="bordereau"]')).toContainText('Ton catalogue est vide');
   await expect(page.locator('[data-zone="bibliotheque"] [data-action="ajouter-bibliotheque"]')).toBeDisabled();
 });
 

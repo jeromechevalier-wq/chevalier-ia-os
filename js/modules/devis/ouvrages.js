@@ -136,7 +136,7 @@ export function erreursOuvrage(ouvrage, articles) {
     vus.add(c.articleId);
     if (!estNombre(c.quantite) || c.quantite <= 0) erreurs.push(`${nom} : la quantité doit être un nombre plus grand que 0 (exemple : 2,5).`);
     else if (!troisDecimales(c.quantite)) erreurs.push(`${nom} : la quantité s’écrit avec 3 décimales au plus.`);
-    if (!article) erreurs.push(`${rang} : cet article n’existe pas dans le Bordereau.`);
+    if (!article) erreurs.push(`${rang} : cet article n’existe pas dans le catalogue.`);
     else if (article.type === TYPE_OUVRAGE) erreurs.push(`${nom} : c’est déjà un ouvrage, et un ouvrage ne peut pas en contenir un autre.`);
     else if (article.type === 'texte') erreurs.push(`${nom} : c’est une ligne de texte, sans prix : elle ne peut pas composer un ouvrage.`);
     else if (article.actif === false) erreurs.push(`${nom} : cet article est désactivé. Réactive-le ou retire-le de l’ouvrage.`);

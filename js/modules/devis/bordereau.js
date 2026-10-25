@@ -391,7 +391,7 @@ export function rendreBordereau(conteneur) {
     if (!lignes.length) {
       const vraimentVide = !D.etat.articles.length;
       remplir(zoneTableau, etatVide(
-        vraimentVide ? 'Aucun article. Un article est une ligne de ton bordereau de prix : un libellé, une unité et ton prix d’achat suffisent. Ajoute le premier.'
+        vraimentVide ? 'Aucun article. Un article est une ligne de ton catalogue de prix : un libellé, une unité et ton prix d’achat suffisent. Ajoute le premier.'
           : (desactivesSeulement ? 'Aucun article désactivé.' : (famillesFiltrees.length ? 'Aucun article dans cette famille. Retire le filtre « Famille » pour tout revoir.' : 'Aucun article ne correspond.')),
         { action: vraimentVide ? h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'nouvel-article-vide' }, onclick: () => ouvrirCreationArticle() }, icone('plus', { taille: 16 }), 'Article') : null }));
       return;
