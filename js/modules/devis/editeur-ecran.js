@@ -5,7 +5,7 @@
 import { h, icone, remplir, dialogue, toast, confirmer, ouvrirMenu } from '../../os/ui.js';
 import { naviguer, ajouterGardeSortie, lien as lienRoute } from '../../os/router.js';
 import { retirerAvecAnnulation } from '../../os/retrait.js';
-import { etatVide, planifier } from '../crm/composants.js';
+import { etatVide, planifier, cheminPersonne, cheminOrganisation, cheminAffaire } from '../crm/composants.js';
 import { adressesDe } from '../crm/logique.js';
 import * as CRM from '../crm/donnees.js';
 import * as D from './donnees.js';
@@ -190,6 +190,7 @@ export function rendreEditeurDevis(conteneur, id) {
   let enVol = null; // ce qu'un enregistrement en cours est en train d'écrire
   let montre = false; // la page est construite
   let arretGarde = () => {};
+  let observerBarre = null;
   let delaiIntrouvable = null;
   const ref = {}; // éléments à mettre à jour sans tout redessiner
   const replies = new Set(); // sections et sous-sections repliées (à l'écran seulement : rien n'est enregistré)
@@ -340,6 +341,10 @@ export function rendreEditeurDevis(conteneur, id) {
     ref.pastille = h('span', { class: 'pastille-statut', dataset: { valeur: 'statut' } });
     ref.indicateur = h('span', { class: 'indicateur-enregistrement', role: 'status', 'aria-live': 'polite', dataset: { valeur: 'enregistrement' } });
     // L'enregistrement est automatique : il n'y a plus de bouton « Enregistrer ». Le nombre de champs obligatoires à remplir et le bouton « Réessayer » (seulement après un échec) prennent sa place.
+    ref.totalEntete = h('span', { class: 'fiche-montant-devis', dataset: { valeur: 'total-entete' } });
+    ref.lienClient = h('a', { class: 'lien-entite', dataset: { valeur: 'lien-client' }, hidden: true });
+    ref.lienAffaire = h('a', { class: 'lien-entite', dataset: { valeur: 'lien-affaire' }, hidden: true });
+    ref.titreCompact = h('span', { class: 'titre-compact', 'aria-hidden': 'true' }); // montré seulement quand la barre est collée en haut
     ref.compteurManquants = h('span', { class: 'indicateur-manquants', hidden: true, dataset: { valeur: 'manquants' }, title: 'Champs obligatoires à remplir' });
     ref.boutonReessayer = h('button', { type: 'button', class: 'bouton-lien', hidden: true, dataset: { action: 'reessayer-enregistrement' }, onclick: async () => { const ok = await sauver(); if (!ok) toast(messageEnreg || ERREUR_ECRITURE, { type: 'erreur', duree: 8000 }); } }, 'Réessayer');
     const onglets = h('div', { class: 'onglets-editeur', role: 'tablist', 'aria-label': 'Affichage du devis', hidden: lecture },
@@ -347,9 +352,21 @@ export function rendreEditeurDevis(conteneur, id) {
         type: 'button', class: 'onglet-editeur', role: 'tab', dataset: { onglet: cle }, onclick: () => choisirOnglet(cle),
       }, icone(pictogramme, { taille: 16 }), libelle)));
     ref.onglets = onglets;
-    const barre = h('header', { class: 'barre-devis' },
-      h('div', { class: 'barre-devis-gauche' }, boutonRetour(lecture), h('div', { class: 'titre-devis' }, ref.titre, ref.pastille, ref.indicateur, ref.boutonReessayer, ref.compteurManquants), onglets),
+    // Même squelette que les fiches (personne, organisation, affaire, projet) : flèche de retour, titre et total, puis statut, client, affaire.
+    const entete = h('header', { class: 'entete-devis' },
+      boutonRetour(lecture),
+      h('div', { class: 'entete-devis-ligne' },
+        h('div', { class: 'fiche-titre' }, ref.titre,
+          h('div', { class: 'fiche-sous' }, ref.pastille, ref.indicateur, ref.boutonReessayer, ref.compteurManquants, ref.lienClient, ref.lienAffaire)),
+        h('div', { class: 'fiche-tete-droite' }, ref.totalEntete)));
+    // Barre d'actions : reste collée en haut de l'écran quand on défile (onglets, Catalogue, Options, Envoyer).
+    ref.sentinelle = h('div', { class: 'sentinelle-barre-devis', 'aria-hidden': 'true' });
+    ref.barre = h('div', { class: 'barre-devis' },
+      h('div', { class: 'barre-devis-gauche' }, ref.titreCompact, onglets),
       h('div', { class: 'barre-devis-droite' }, lecture ? boutonsLecture(d) : boutonsEdition()));
+    observerBarre?.disconnect();
+    observerBarre = typeof IntersectionObserver === 'function' ? new IntersectionObserver(([e]) => { ref.barre.classList.toggle('epinglee', !e.isIntersecting && e.boundingClientRect.top < 0); }) : null;
+    observerBarre?.observe(ref.sentinelle);
     ref.bandeauConflit = h('p', { class: 'bandeau-lecture-seule', role: 'alert', hidden: !conflit, dataset: { valeur: 'conflit' } }, 'Ce devis a été modifié ailleurs. Tes changements ne sont pas enregistrés tant que tu n’as pas rechargé. ',
       h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'recharger' }, onclick: () => { conflit = false; charger(); } }, 'Recharger'));
     ref.erreurEnreg = h('p', { class: 'erreur', role: 'alert', dataset: { erreur: 'enregistrement' }, hidden: true });
@@ -362,7 +379,7 @@ export function rendreEditeurDevis(conteneur, id) {
     bibliotheque = null;
     optionsOuvertes?.fermer();
     racine.classList.toggle('devis-lecture-seule', lecture);
-    remplir(racine, barre, lecture ? h('p', { class: 'bandeau-lecture-seule', dataset: { valeur: 'lecture-seule' } }, MESSAGE_LECTURE_SEULE) : ref.bandeauConflit, ref.erreurEnreg, ref.panneauEdition, ref.panneauApercu);
+    remplir(racine, entete, ref.sentinelle, ref.barre, lecture ? h('p', { class: 'bandeau-lecture-seule', dataset: { valeur: 'lecture-seule' } }, MESSAGE_LECTURE_SEULE) : ref.bandeauConflit, ref.erreurEnreg, ref.panneauEdition, ref.panneauApercu);
     if (!lecture) { rendreLignes(); majResultats(); }
     arretGarde();
     arretGarde = ajouterGardeSortie(
@@ -545,14 +562,21 @@ export function rendreEditeurDevis(conteneur, id) {
   }
 
   // ------------------------------------------------ barre du haut
+  const majTitreCompact = () => { if (ref.titreCompact) ref.titreCompact.textContent = [ref.titre?.textContent, ref.totalEntete?.textContent].filter(Boolean).join(' · '); };
   function majEntete() {
     if (!ref.titre) return;
     const d = travail;
     ref.titre.textContent = d.numero ? `Devis ${d.numero}${d.version > 1 ? ` · v${d.version}` : ''}` : 'Brouillon';
+    majTitreCompact();
     ref.pastille.textContent = libelleStatut(d.statut);
     ref.pastille.dataset.statut = d.statut;
     ref.pastille.hidden = d.statut === 'brouillon' && !d.numero; // le titre dit déjà « Brouillon »
     if (ref.numeroDocument) ref.numeroDocument.textContent = d.numero ? `Devis n° ${d.numero}${d.version > 1 ? ` · v${d.version}` : ''}` : 'Devis n° Brouillon';
+    const nomClient = clientDuDevis(d);
+    const lienDe = (el, texte, chemin, pictogramme) => { el.hidden = !texte; if (texte) { el.href = chemin; el.replaceChildren(icone(pictogramme, { taille: 14 }), texte); } };
+    lienDe(ref.lienClient, nomClient, d.organisationId ? cheminOrganisation(d.organisationId) : cheminPersonne(d.personneId), d.organisationId ? 'building-2' : 'user');
+    const affaire = d.affaireId ? CRM.affaire(d.affaireId) : null;
+    lienDe(ref.lienAffaire, affaire?.titre, cheminAffaire(d.affaireId), 'briefcase');
     if (lecture) { ref.indicateur.replaceChildren(); return; }
     if (ref.indicateur.dataset.etat !== etatEnreg) { // une icône de taille fixe : la barre ne bouge pas ; les mots restent pour l'infobulle et les lecteurs d'écran, et s'affichent seulement en cas d'échec
       const libelle = Ed.libelleEnregistrement(etatEnreg);
@@ -1302,6 +1326,8 @@ export function rendreEditeurDevis(conteneur, id) {
     mettre('ht', euros(t.totalHt));
     mettre('tva', euros(t.tva));
     mettre('ttc', euros(t.ttc));
+    if (ref.totalEntete) ref.totalEntete.textContent = euros(t.ttc);
+    majTitreCompact();
     mettre('acompte', t.acompteTtc === null ? '' : euros(t.acompteTtc));
     mettre('reste', t.resteAFacturerTtc === null ? '—' : euros(t.resteAFacturerTtc));
     mettre('net', euros(t.netAPayer));
@@ -1405,5 +1431,6 @@ export function rendreEditeurDevis(conteneur, id) {
     clearTimeout(minuteur);
     clearTimeout(delaiIntrouvable);
     arretGarde();
+    observerBarre?.disconnect();
   };
 }
