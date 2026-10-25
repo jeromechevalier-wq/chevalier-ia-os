@@ -80,14 +80,14 @@ test('3 cas vide : moins de 2 lettres, aucun devis, devis archivé ou remplacé 
   await expect(liste(page)).not.toContainText('DEV-2026-10-21-004');
 });
 
-test('4 cas d’erreur : un devis dont l’affaire a disparu reste trouvable par son numéro et ouvre quand même l’éditeur', async ({ page }) => {
+test('4 cas d’erreur : un devis dont l’affaire a disparu reste trouvable par son numéro et s’ouvre quand même (visualisation, le devis est envoyé)', async ({ page }) => {
   await devis('d9', { numero: 'DEV-2026-10-22-002', statut: 'envoye', affaireId: 'disparue', organisationId: null });
   await connecter(page);
   const c = await champ(page);
   await c.fill('DEV-2026-10-22');
   await expect(liste(page).locator('.suggestion')).toHaveCount(1);
   await c.press('Enter');
-  await expect(page).toHaveURL(/#\/devis\/editeur\/d9$/);
+  await expect(page).toHaveURL(/#\/devis\/voir\/d9$/);
   await expect(page.locator('.coquille')).toBeVisible();
 });
 
