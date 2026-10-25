@@ -287,6 +287,16 @@ jobs:
         if: steps.navigateur.outputs.cache-hit == 'true'
         run: npx playwright install-deps chromium
         working-directory: tests
+      # Les 4 séries démarrent en même temps et téléchargeaient chacune le même émulateur Firestore (fichier abîmé, « exited with code 1 ») :
+      # on le télécharge UNE fois avant, et on le garde en cache entre les coches.
+      - name: Cache de l'émulateur Firestore
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/firebase/emulators
+          key: emulateurs-firebase-${{ runner.os }}-${{ hashFiles('tests/package-lock.json') }}
+      - name: Télécharger l'émulateur Firestore (une seule fois)
+        run: npx firebase setup:emulators:firestore
+        working-directory: tests
       - name: Séries sans navigateur (noyau, storage, outil client, automatisations)
         run: npm run test:complet-sans-navigateur
         working-directory: tests
