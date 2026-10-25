@@ -539,3 +539,18 @@ test('2 Bibliothèque ouverte : les lignes passent en cartes et les 5 titres (Qt
   await carte.scrollIntoViewIfNeeded();
   await capturer(page, info, '2-cartes-lisibles');
 });
+
+test('7 la prévisualisation se met à jour toute seule quand on ajoute un article depuis le Catalogue, sans quitter l’onglet', async ({ page }, info) => {
+  await semer();
+  await ouvrir(page, await devis('d7', [{ id: 's1', titre: 'Cuisine', lignes: [ligne('l1', 'Dépose', 1, 10)] }]));
+  await page.locator('[data-onglet="apercu"]').click();
+  const apercu = page.locator('iframe[data-zone="apercu"]').contentFrame().locator('body');
+  await expect(apercu).toContainText('Dépose');
+  await expect(apercu).not.toContainText('Pose du carrelage');
+  await page.locator('[data-action="bibliotheque"]').click();
+  const panneau = page.locator('[data-zone="bibliotheque"]');
+  await panneau.locator('[data-article-id="a2"]').check();
+  await panneau.locator('[data-action="ajouter-bibliotheque"]').click();
+  await expect(page.locator('iframe[data-zone="apercu"]').contentFrame().locator('body')).toContainText('Pose du carrelage');
+  await capturer(page, info, '7-apercu-mis-a-jour');
+});
