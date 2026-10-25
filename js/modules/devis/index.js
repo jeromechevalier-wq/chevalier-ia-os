@@ -1,5 +1,5 @@
 // Module Devis (cadrage-devis.md) : montage et routes. Trois écrans : le Bordereau (articles), la liste des devis et l'éditeur d'un devis.
-// Routes : devis/bordereau, devis/liste, devis/liste/<id> (la liste avec la fiche d'un devis ouverte), devis/editeur (nouveau devis : choix de l'affaire), devis/editeur/<id> (non déclarée dans le menu : on y arrive par la liste), devis/pdf/<id> et devis/pdf/<id>/brouillon (ouvrent le PDF rangé : adresse stable écrite dans les Documents de l'affaire). Le module lit le CRM (étapes des affaires) : le CRM démarre avant lui (le module Devis dépend de « affaires », pas de « projets »).
+// Routes : devis/bordereau, devis/liste, devis/voir/<id> (le devis en lecture seule : visualisation), devis/editeur (nouveau devis : choix de l'affaire), devis/editeur/<id> (non déclarée dans le menu : on y arrive par la liste), devis/pdf/<id> et devis/pdf/<id>/brouillon (ouvrent le PDF rangé : adresse stable écrite dans les Documents de l'affaire). Le module lit le CRM (étapes des affaires) : le CRM démarre avant lui (le module Devis dépend de « affaires », pas de « projets »).
 import { vider } from '../../os/ui.js';
 import { naviguer } from '../../os/router.js';
 import * as D from './donnees.js';
@@ -58,25 +58,31 @@ function quitter() {
 }
 
 const VUES = {
-  liste: (conteneur, segs) => rendreListeDevis(conteneur, segs[1] || null), // devis/liste/<id> : la liste avec la fiche de ce devis ouverte
+  liste: (conteneur) => rendreListeDevis(conteneur),
   editeur: (conteneur, segs) => rendreEditeurDevis(conteneur, segs[1] || null),
+  voir: (conteneur, segs) => rendreEditeurDevis(conteneur, segs[1], { voir: true }), // devis/voir/<id> : le même écran, en lecture seule
   bordereau: (conteneur) => rendreBordereau(conteneur),
   pdf: (conteneur, segs) => rendrePdfDevis(conteneur, segs[1] ?? '', segs[2] === 'brouillon'), // devis/pdf/<id> et devis/pdf/<id>/brouillon : adresses stables des PDF
 };
 
 export function afficher(conteneur, segs) {
   const [vue] = segs;
+  // La fiche d'un devis n'existe plus : ses anciennes adresses (devis/fiche/<id>, devis/liste/<id>) ouvrent la visualisation.
+  if (vue === 'fiche' || (vue === 'liste' && segs[1]) || (vue === 'voir' && !segs[1])) {
+    naviguer(segs[1] ? `devis/voir/${segs[1]}` : 'devis/liste', { remplacer: true });
+    return quitter;
+  }
   if (!VUES[vue] || (vue === 'pdf' && !segs[1])) {
     naviguer('devis/bordereau', { remplacer: true });
     return quitter;
   }
   if (vue === 'editeur') retenirDevis(segs[1]); // le Bordereau propose « Reprendre le devis en cours »
-  const cle = vue === 'editeur' ? `editeur/${segs[1] ?? ''}` : vue === 'pdf' ? `pdf/${segs[1]}/${segs[2] ?? ''}` : vue; // un éditeur (ou un PDF) par devis
-  if (montee?.cle === cle && conteneur.firstChild) { montee.surRoute?.(segs[1] || null); return quitter; } // la liste reste montée : seule la fiche change
+  const cle = vue === 'editeur' || vue === 'voir' ? `${vue}/${segs[1] ?? ''}` : vue === 'pdf' ? `pdf/${segs[1]}/${segs[2] ?? ''}` : vue; // un éditeur (ou un PDF) par devis
+  if (montee?.cle === cle && conteneur.firstChild) return quitter; // même écran : rien à refaire
   quitter();
   vider(conteneur);
   const arret = VUES[vue](conteneur, segs);
-  montee = { cle, quitter: typeof arret === 'function' ? arret : null, surRoute: typeof arret?.surRoute === 'function' ? arret.surRoute : null };
+  montee = { cle, quitter: typeof arret === 'function' ? arret : null };
   conteneur.scrollTop = 0;
   window.scrollTo?.(0, 0);
   return quitter;

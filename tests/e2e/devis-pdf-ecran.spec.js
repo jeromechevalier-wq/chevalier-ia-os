@@ -199,7 +199,7 @@ test('2 « Télécharger le PDF » : erreur du serveur = message lisible, on res
   await capturer(page, info, '2-devis-finalise-ouvre-son-pdf');
 });
 
-// ------------------------------------------------------------------ point 3 : la liste et la fiche
+// ------------------------------------------------------------------ point 3 : la liste (la fiche du devis n'existe plus)
 
 const ligneDevis = (page, id) => page.locator(`tr.ligne-devis[data-id="${id}"], article.carte-devis[data-id="${id}"]`).first();
 
@@ -232,23 +232,4 @@ test('3 liste : « PDF non rangé » (avertissement) pour un finalisé sans PDF 
   await expect(ligneDevis(page, 'dEchec').locator('[data-pdf="pret"]')).toBeVisible({ timeout: 10000 });
   expect(appels.filter(([nom]) => nom === 'devisPdf')).toEqual([['devisPdf', { devisId: 'dEchec' }]]);
   await expect(page.locator('[data-role="fiche-devis"]')).toHaveCount(0);
-});
-
-test('3 fiche du devis : avertissement et réessai dans « Documents liés » ; « Aperçu PDF » ouvre la route quand le PDF est prêt', async ({ page }, info) => {
-  await donnees();
-  const appels = [];
-  await simulerServeur(page, appels);
-  await connecter(page, undefined, { route: 'devis/liste/dSansPdf' });
-  const fiche = page.locator('[data-role="fiche-devis"]');
-  await expect(fiche).toBeVisible();
-  await attendreCalme(page);
-  await expect(fiche.locator('[data-bloc="documents"] [data-pdf="non_range"]')).toBeVisible();
-  await capturer(page, info, '3-fiche-pdf-non-range');
-  await fiche.locator('[data-bloc="documents"] [data-pdf="non_range"]').click();
-  await expect(fiche.locator('[data-bloc="documents"] [data-pdf="pret"]')).toBeVisible({ timeout: 10000 });
-  expect(appels.filter(([nom]) => nom === 'devisPdf')).toHaveLength(1);
-  await fiche.locator('[data-action="voir-fiche"]').click();
-  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Aperçu PDF' }).click();
-  await expect(page).toHaveURL(/#\/devis\/pdf\/dSansPdf$/);
-  await expect(zone(page)).toBeVisible();
 });

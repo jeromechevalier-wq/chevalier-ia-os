@@ -1,19 +1,15 @@
 // Écran « Devis » (liste des devis) : deux vues, « Liste » et « Tableau » (colonnes par statut), recherche, filtres (statut, période), pagination, menu « … ».
 // Aucune règle ici : tri, filtre, recherche, pagination, regroupement et actions permises sont dans liste.js (pur, testé) ; le statut ne change QUE par les
 // fonctions du serveur (donnees.js : finaliser, changerStatut), jamais par une écriture directe, et il n'y a pas de glisser-déposer.
-import { h, icone, remplir, dialogue, toast, confirmer, ouvrirMenu, lirePreference, ecrirePreference } from '../../os/ui.js';
+import { h, icone, remplir, ouvrirMenu, lirePreference, ecrirePreference } from '../../os/ui.js';
 import { boutonFiltres as boutonFiltresCommun, fenetreFiltres } from '../crm/filtres.js';
 import { etatVide, planifier } from '../crm/composants.js';
 import { naviguer } from '../../os/router.js';
 import * as CRM from '../crm/donnees.js';
 import * as D from './donnees.js';
 import * as Li from './liste.js';
-import * as Fi from './fiche.js';
-import { vueClient, affichageDe } from './logique.js';
-import { devisHtml, formaterMontant } from './document.js';
-import { dupliquerDevis, creerVariante, infosClientDuDevis } from './editeur-ecran.js';
-import { creerFiche } from './fiche-ecran.js';
-import { lancerEnvoiEmail } from './email-ecran.js';
+import { formaterMontant } from './document.js';
+import { nomsDe, entreesMenuDevis } from './actions-devis.js';
 import { indicateurPdf } from './pdf-indicateur.js';
 
 const ERREUR_LECTURE = 'La liste des devis n’a pas pu être mise à jour. La dernière version reste affichée : vérifie ta connexion puis recharge la page.';
@@ -39,15 +35,6 @@ const COLONNES = [
   { id: 'ttc', libelle: 'Total TTC', tri: 'ttc' },
 ];
 
-/** Client (organisation, sinon personne) et affaire d'un devis, lus dans le CRM. */
-function nomsDe(d) {
-  const org = d.organisationId ? CRM.organisation(d.organisationId) : null;
-  const pers = d.personneId ? CRM.personne(d.personneId) : null;
-  const aff = d.affaireId ? CRM.affaire(d.affaireId) : null;
-  const client = org?.nom || pers?.nom || (aff?.organisationId ? CRM.organisation(aff.organisationId)?.nom : '') || (aff?.personneId ? CRM.personne(aff.personneId)?.nom : '') || '';
-  return { client, affaire: aff?.titre || '' };
-}
-
 const euros = (n) => (typeof n === 'number' ? formaterMontant(n) : '—');
 
 function pastille(d, aujourdhui) {
@@ -59,103 +46,20 @@ function pastille(d, aujourdhui) {
 const pastillePasEnvoye = () => h('span', { class: 'pastille-statut pastille-pas-envoye', style: { '--couleur': Li.COULEURS_STATUT.en_attente_envoi }, dataset: { pastille: 'pas-encore-envoye' } }, Li.LIBELLE_PAS_ENCORE_ENVOYE);
 
 // ---------------------------------------------------------------- actions
+// Les entrées du menu « … » viennent de actions-devis.js (la même source que l'éditeur et la visualisation).
 
-/** Appelle la fonction du serveur puis dit le résultat. Un refus du serveur ou une panne de réseau s'affiche en clair ; rien n'est écrit par le navigateur. */
-async function changerStatut(d, action, libelle) {
-  try {
-    if (action === 'finaliser') {
-      const ok = await confirmer('Finaliser ce devis ?', 'Les prix, la TVA et les totaux seront figés et le devis recevra son numéro. Pour le corriger ensuite, tu créeras une nouvelle version.', { libelleOk: 'Finaliser' });
-      if (!ok) return;
-      const r = await D.finaliser(d.id);
-      if (r?.ok === false) {
-        await dialogue({ titre: 'Ce devis ne peut pas encore être finalisé', contenu: h('ul', { class: 'liste-erreurs-devis' }, (r.erreurs ?? []).map((e) => h('li', {}, e))), boutons: [{ libelle: 'Compris', valeur: true, style: 'principal' }] });
-        return;
-      }
-      toast('Devis finalisé');
-      return;
-    }
-    await D.changerStatut(d.id, action);
-    toast(`Devis passé à « ${libelle} »`);
-  } catch (e) {
-    console.warn(e);
-    toast(e?.message || D.MESSAGE_RESEAU_DEVIS, { type: 'erreur', duree: 8000 });
-  }
-}
+const actionsDevis = (d) => h('div', { class: 'actions-devis' }, boutonMenu(d));
 
-/** Archive (ou sort des archives) un devis par la fonction du serveur ; un refus ou une panne s'affiche en clair. */
-async function archiver(d, archive) {
-  try {
-    await D.archiver(d.id, archive);
-    toast(archive ? 'Devis archivé' : 'Devis sorti des archives');
-  } catch (e) {
-    console.warn(e);
-    toast(e?.message || D.MESSAGE_RESEAU_DEVIS, { type: 'erreur', duree: 8000 });
-  }
-}
-
-/** Supprime un brouillon après confirmation. Le serveur refuse tout autre statut ; la copie « avant » reste dans le journal. */
-async function supprimerBrouillon(d, apres = () => {}) {
-  if (d.statut !== 'brouillon') return;
-  const nom = d.objet?.trim() || nomsDe(d).client || 'ce brouillon';
-  const ok = await confirmer('Supprimer ce brouillon ?', `« ${nom} » sera supprimé. Un devis supprimé ne se retrouve pas dans la liste (seul le journal en garde une copie).`, { libelleOk: 'Supprimer', danger: true });
-  if (!ok) return;
-  try {
-    await D.supprimer(d.id);
-    toast('Brouillon supprimé');
-    apres();
-  } catch (e) {
-    console.warn(e);
-    toast(e?.message || D.MESSAGE_RESEAU_DEVIS, { type: 'erreur', duree: 8000 });
-  }
-}
-
-/** Aperçu du devis : le même HTML que le PDF, dans une fenêtre simple (cadre isolé). */
-async function voir(d) {
-  let corps;
-  try {
-    const vue = vueClient(d, { clientNom: nomsDe(d).client || null, client: infosClientDuDevis(d) ?? undefined });
-    corps = h('iframe', { class: 'apercu-devis', title: `Aperçu du devis ${d.numero ?? ''}`.trim(), sandbox: '', srcdoc: devisHtml(vue, { brouillon: d.statut === 'brouillon', affichage: affichageDe(d) }) });
-  } catch (e) {
-    console.warn(e);
-    corps = h('p', { class: 'erreur', role: 'alert' }, 'L’aperçu n’a pas pu être préparé : ce devis est incomplet. Termine-le, puis rouvre l’aperçu.');
-  }
-  await dialogue({ titre: d.numero ? `Devis ${d.numero}` : 'Aperçu du brouillon', classe: 'dialogue-apercu-devis', contenu: corps, boutons: [{ libelle: 'Fermer', valeur: true, style: 'principal' }] });
-}
-
-/** Entrées du menu « … ». Les entrées inapplicables à ce statut sont absentes ; celles qui viendront plus tard sont grisées « bientôt disponible ». */
-function entreesMenu(d, surFiche) {
-  const a = Li.actionsPermises(d);
-  const grise = (e) => !e.actif;
-  const libelle = (texte, e) => (e.raison === Li.MESSAGE_BIENTOT ? `${texte} (bientôt disponible)` : texte);
-  const items = a.statuts.map((c) => ({ libelle: `Passer à « ${c.libelle} »`, icone: 'check', action: () => changerStatut(d, c.action, c.libelle) }));
-  if (items.length) items.push({ separateur: true });
-  items.push({ libelle: 'Voir la fiche', icone: 'list', action: () => surFiche(d.id) });
-  items.push({ libelle: 'Voir', icone: 'external-link', action: () => voir(d) });
-  if (d.statut === 'brouillon') items.push({ libelle: libelle('Modifier : version actuelle', a.modifierVersionActuelle), icone: 'pencil', desactive: grise(a.modifierVersionActuelle), action: () => naviguer(`devis/editeur/${d.id}`) });
-  else if (a.nouvelleVariante.actif || a.nouvelleVariante.raison === Li.MESSAGE_BIENTOT) items.push({ libelle: libelle('Modifier : nouvelle variante', a.nouvelleVariante), icone: 'pencil', desactive: grise(a.nouvelleVariante), action: () => creerVariante(d) });
-  items.push({ libelle: libelle('Dupliquer', a.dupliquer), icone: 'copy', desactive: grise(a.dupliquer), action: () => dupliquerDevis(d) });
-  items.push({ libelle: 'Envoyer par e-mail', icone: 'mail', desactive: grise(a.envoyer),
-    action: () => lancerEnvoiEmail({ devisId: d.id, getDevis: () => D.devisParId(d.id), finaliser: { libelle: 'Ouvrir le devis', action: () => naviguer(`devis/editeur/${d.id}`) } }) });
-  if (!a.envoyer.actif) items.push({ texte: a.envoyer.raison });
-  const ar = Fi.archivageFiche(d);
-  items.push({ separateur: true });
-  items.push({ libelle: ar.libelle, icone: ar.icone, desactive: !ar.actif, action: () => archiver(d, ar.action === 'archiver') });
-  if (!ar.actif && ar.raison) items.push({ texte: ar.raison });
-  if (d.statut === 'brouillon') { items.push({ libelle: libelle('Supprimer', a.supprimer), icone: 'trash-2', danger: true, desactive: grise(a.supprimer), action: () => supprimerBrouillon(d) }); }
-  return items;
-}
-
-const actionsDevis = (d, surFiche) => h('div', { class: 'actions-devis' }, boutonMenu(d, surFiche));
-
-function boutonMenu(d, surFiche) {
+function boutonMenu(d) {
   return h('button', {
     type: 'button', class: 'bouton-icone carte-menu', 'aria-label': `Actions : ${d.numero ?? 'brouillon'} ${nomsDe(d).client}`.trim(), 'aria-haspopup': 'menu', dataset: { action: 'menu-devis' },
-    onclick: (e) => { e.stopPropagation(); ouvrirMenu(e.currentTarget, entreesMenu(d, surFiche)); },
+    onclick: (e) => { e.stopPropagation(); ouvrirMenu(e.currentTarget, entreesMenuDevis(d)); },
   }, icone('ellipsis', { taille: 16 }));
 }
 
 // ---------------------------------------------------------------- cellules
 
+const ouvrirDevis = (d) => naviguer(d.statut === 'brouillon' ? `devis/editeur/${d.id}` : `devis/voir/${d.id}`);
 const intitule = (d) => d.numero ?? 'Brouillon';
 function celluleClient(d) {
   const n = nomsDe(d);
@@ -166,7 +70,7 @@ function celluleModifie(d, maintenant) {
   return h('span', { class: 'devis-modifie' }, Li.depuis(Li.modifieMs(d), maintenant), qui ? h('span', { class: 'avatar-initiales', style: { '--taille': '22px' }, title: d.modifiePar ?? d.creePar ?? '', 'aria-label': `Modifié par ${qui}` }, qui) : null);
 }
 
-/** Un clic (ou Entrée) sur une ligne ou une carte ouvre le devis dans l'éditeur (lecture seule s'il n'est plus brouillon), sauf sur un bouton, un lien ou un champ de la ligne. */
+/** Un clic (ou Entrée) sur une ligne ou une carte ouvre le devis (l'éditeur pour un brouillon, la visualisation pour un devis finalisé), sauf sur un bouton, un lien ou un champ de la ligne. */
 function ouvrable(el, ouvrir) {
   el.tabIndex = 0;
   el.addEventListener('click', (e) => { if (!e.target.closest('button, a, input, select, textarea, .menu-pop')) ouvrir(); });
@@ -174,8 +78,8 @@ function ouvrable(el, ouvrir) {
   return el;
 }
 
-/** `idFiche` : le devis dont la fiche est ouverte par l'adresse #/devis/liste/<id> (null = aucune). Rend la fonction d'arrêt, avec `.surRoute(id)` pour les changements d'adresse. */
-export function rendreListeDevis(conteneur, idFiche = null) {
+/** Rend la fonction d'arrêt. */
+export function rendreListeDevis(conteneur) {
   const titre = h('h1', {}, 'Devis');
   const compteur = h('span', { class: 'compteur-liste', 'aria-live': 'polite' });
   const zone = h('div', { class: 'zone-devis' });
@@ -201,22 +105,6 @@ export function rendreListeDevis(conteneur, idFiche = null) {
     dataset: { action: 'nouveau-devis' }, onclick: () => naviguer('devis/editeur'),
   }, icone('plus', { taille: 16 }), 'Nouveau devis', Li.EDITEUR_DISPONIBLE ? null : h('span', { class: 'bientot' }, ' (bientôt disponible)'));
   const bascule = h('div', { class: 'bascule-vues', role: 'group', 'aria-label': 'Vue' });
-
-  // Fiche d'un devis (panneau à droite). Ouvrir = changer l'adresse (#/devis/liste/<id>, lien partageable) ; fermer = revenir à la liste.
-  // Si la fiche a été ouverte par un clic, fermer revient en arrière dans l'historique (la touche « retour » du navigateur fait pareil, sans pile d'adresses qui grandit).
-  let idOuvertParClic = null;
-  const ouvrirFiche = (id) => { idOuvertParClic = id; naviguer(`devis/liste/${id}`); };
-  const fiche = creerFiche({
-    nomsDe, changerStatut, archiver, supprimer: (d) => supprimerBrouillon(d, () => fermerFiche()), aujourdhui: () => CRM.ctx().aujourdhui,
-    fermer: ({ remplacer = false } = {}) => {
-      if (idOuvertParClic && !remplacer) { idOuvertParClic = null; history.back(); return; }
-      idOuvertParClic = null;
-      naviguer('devis/liste', { remplacer: true });
-    },
-  });
-
-  // Après une suppression depuis la fiche, la fiche se ferme (le devis n'existe plus).
-  const fermerFiche = () => { idOuvertParClic = null; naviguer('devis/liste', { remplacer: true }); };
 
   function majBascule() {
     remplir(bascule, [['liste', 'Liste', 'list'], ['tableau', 'Tableau', 'columns-3'], ['archives', 'Archives', 'archive']].map(([id, libelle, ic]) => h('button', {
@@ -246,7 +134,7 @@ export function rendreListeDevis(conteneur, idFiche = null) {
     remplir(compteur, `${total} devis`, lignes.length !== total ? ` · ${lignes.length} affiché${lignes.length > 1 ? 's' : ''}` : '');
     if (!lignes.length) {
       const vraimentVide = total === 0;
-      if (vraimentVide && archives) { remplir(zone, etatVide('Aucun devis archivé. Un devis signé ou refusé se range ici avec « Archiver », dans le menu « … » de sa fiche ; les devis remplacés et expirés y sont aussi.')); return; }
+      if (vraimentVide && archives) { remplir(zone, etatVide('Aucun devis archivé. Un devis signé ou refusé se range ici avec « Archiver », dans le menu « … » du devis ; les devis remplacés et expirés y sont aussi.')); return; }
       remplir(zone, etatVide(vraimentVide ? 'Aucun devis pour l’instant.' : 'Aucun devis ne correspond.', {
         action: vraimentVide ? h('button', { type: 'button', class: 'bouton bouton-secondaire', disabled: !Li.EDITEUR_DISPONIBLE, title: Li.EDITEUR_DISPONIBLE ? null : Li.MESSAGE_BIENTOT, dataset: { action: 'nouveau-devis-vide' }, onclick: () => naviguer('devis/editeur') },
           icone('plus', { taille: 16 }), 'Nouveau devis', Li.EDITEUR_DISPONIBLE ? null : ' (bientôt disponible)') : null,
@@ -282,7 +170,7 @@ export function rendreListeDevis(conteneur, idFiche = null) {
         h('td', { dataset: { colonne: 'validite', libelle: 'Valable jusqu’au' } }, Li.dateFr(d.expireLe)),
         h('td', { class: 'montant', dataset: { colonne: 'ht', libelle: 'Total HT' } }, euros(t?.ht)),
         h('td', { class: 'montant', dataset: { colonne: 'ttc', libelle: 'Total TTC' } }, euros(t?.ttc)),
-        h('td', { class: 'col-actions' }, actionsDevis(d, ouvrirFiche))), () => naviguer(`devis/editeur/${d.id}`));
+        h('td', { class: 'col-actions' }, actionsDevis(d))), () => ouvrirDevis(d));
     });
     remplir(zone, h('div', { class: 'zone-tableau' }, h('table', { class: 'tableau tableau-devis' }, h('thead', {}, entete), h('tbody', {}, corps))));
     const taille = h('select', { class: 'champ champ-petit', 'aria-label': 'Éléments par page', dataset: { champ: 'par-page' }, onchange: (e) => { parPage = Number(e.target.value); page = 1; rendre(); } },
@@ -308,13 +196,13 @@ export function rendreListeDevis(conteneur, idFiche = null) {
     const couleur = Li.couleurPastilleDevis(d, aujourdhui, maintenant);
     return ouvrable(h('article', { class: 'carte-affaire carte-devis', dataset: { id: d.id, statut: Li.statutAffiche(d, aujourdhui) } },
       h('div', { class: 'carte-ligne' }, h('strong', { class: 'carte-titre' }, intitule(d), d.version > 1 ? ` v${d.version}` : '')),
-      h('div', { class: 'carte-actions-devis' }, actionsDevis(d, ouvrirFiche)),
+      h('div', { class: 'carte-actions-devis' }, actionsDevis(d)),
       h('div', { class: 'carte-pastilles' }, pastille(d, aujourdhui), d.statut === 'en_attente_envoi' && Li.statutAffiche(d, aujourdhui) === 'en_attente_envoi' ? pastillePasEnvoye() : null),
       celluleClient(d),
       h('div', { class: 'carte-pied' },
         h('span', { class: 'carte-montant' }, `HT ${euros(t?.ht)}`),
         pdfCarte,
-        h('span', { class: `pastille-activite ${couleur}`, role: 'img', 'aria-label': Li.LIBELLES_PASTILLE_DEVIS[couleur], title: Li.LIBELLES_PASTILLE_DEVIS[couleur] }))), () => naviguer(`devis/editeur/${d.id}`));
+        h('span', { class: `pastille-activite ${couleur}`, role: 'img', 'aria-label': Li.LIBELLES_PASTILLE_DEVIS[couleur], title: Li.LIBELLES_PASTILLE_DEVIS[couleur] }))), () => ouvrirDevis(d));
   }
 
   const memorisee = lirePreference('vue.devis');
@@ -326,16 +214,9 @@ export function rendreListeDevis(conteneur, idFiche = null) {
     avis, zone, pied));
 
   // Les « il y a … » avancent d'eux-mêmes ; tout changement de données (devis, clients, affaires) redessine la liste.
-  const rafraichir = planifier(() => { rendre(); fiche.maj(); });
+  const rafraichir = planifier(rendre);
   rendre();
-  if (idFiche) fiche.afficher(idFiche);
   const arrets = [D.surChangement(rafraichir), CRM.surChangement(rafraichir)];
-  const minuteur = setInterval(() => { if (!document.querySelector('.menu-pop')) { rendre(); fiche.maj(); } }, 60000);
-  const arreter = () => { arrets.forEach((f) => f()); clearInterval(minuteur); fiche.detruire(); };
-  /** L'adresse a changé sans que la liste soit remontée : la fiche s'ouvre, change de devis ou se ferme. */
-  arreter.surRoute = (id) => {
-    if (id !== idOuvertParClic) idOuvertParClic = null; // ouverte autrement que par un clic (lien direct, signet)
-    fiche.afficher(id || null);
-  };
-  return arreter;
+  const minuteur = setInterval(() => { if (!document.querySelector('.menu-pop')) rendre(); }, 60000);
+  return () => { arrets.forEach((f) => f()); clearInterval(minuteur); };
 }

@@ -169,17 +169,16 @@ describe('L7 actions permises par statut', () => {
     assert.equal(Li.actionsPermises(d('x'), { suppression: true }).supprimer.actif, true);
     assert.equal(Li.actionsPermises(d('x', { statut: 'envoye' }), { suppression: true }).supprimer.actif, false);
   });
-  test('L7 Modifier : « version actuelle » seulement pour un brouillon, « variante » pour finalisé, envoyé ou refusé ; grisés sans éditeur, actifs avec', () => {
-    assert.equal(act('brouillon', sansEditeur).modifierVersionActuelle.raison, Li.MESSAGE_BIENTOT);
-    assert.equal(act('brouillon').modifierVersionActuelle.actif, true, 'l’éditeur existe : actif par défaut');
-    assert.equal(Li.actionsPermises(d('x'), { editeur: true }).modifierVersionActuelle.actif, true);
+  test('L7 Éditer : seulement un brouillon ; Créer une nouvelle version pour finalisé, envoyé ou refusé ; grisés sans éditeur, actifs avec', () => {
+    assert.equal(act('brouillon', sansEditeur).editer.raison, Li.MESSAGE_BIENTOT);
+    assert.equal(act('brouillon').editer.actif, true, 'l’éditeur existe : actif par défaut');
     for (const s of ['en_attente_envoi', 'envoye', 'refuse']) {
-      assert.equal(act(s, sansEditeur).nouvelleVariante.raison, Li.MESSAGE_BIENTOT, s);
-      assert.equal(act(s).nouvelleVariante.actif, true, s);
-      assert.equal(Li.actionsPermises(d('x', { statut: s }), { editeur: true }).nouvelleVariante.actif, true, s);
-      assert.equal(act(s).modifierVersionActuelle.actif, false, s);
+      assert.equal(act(s, sansEditeur).nouvelleVersion.raison, Li.MESSAGE_BIENTOT, s);
+      assert.equal(act(s).nouvelleVersion.actif, true, s);
+      assert.equal(act(s).editer.actif, false, `${s} : un devis finalisé ne s’édite pas`);
+      assert.equal(act(s).editer.raison, Li.MESSAGE_NON_EDITABLE, s);
     }
-    for (const s of ['brouillon', 'accepte', 'remplace']) assert.equal(Li.actionsPermises(d('x', { statut: s }), { editeur: true }).nouvelleVariante.actif, false, s);
+    for (const s of ['brouillon', 'accepte', 'remplace']) assert.equal(act(s).nouvelleVersion.actif, false, s);
   });
   test('L7 Voir toujours possible ; Facturer grisé « bientôt », Envoyer par e-mail permis sauf devis signé, refusé ou remplacé ; Dupliquer actif avec l’éditeur, grisé sans', () => {
     for (const s of ['brouillon', 'envoye', 'accepte', 'remplace']) {
