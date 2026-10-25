@@ -13,6 +13,9 @@ import * as CRM from '../crm/donnees.js';
 import { inscrirePastilleAffaire, signaler } from '../crm/pastilles-externes.js';
 import { pastilleDevisDeAffaire } from './pastille-affaire.js';
 import { rechercherDevis } from './recherche.js';
+import { ETAPES_DEPLOIEMENT_DEVIS, controlerDeploiementDevis, adresseEssaiCors } from './deploiement.js';
+import { attendreQue } from '../../os/deploiement.js';
+import { firebaseConfig } from '../../os/firebase-config.js';
 
 // Feuille de style propre au module, ajoutée au premier affichage (index.html reste inchangé).
 function ajouterFeuille() {
@@ -96,4 +99,39 @@ export function reglages(page, ctx = {}) {
 /** Recherche globale de la barre supérieure : numéro, client, affaire. Un résultat ouvre le devis. */
 export function rechercher(saisie) {
   return rechercherDevis(saisie);
+}
+
+/**
+ * Essai CORS de la page Déploiement : lecture (GET, sans identifiants) d'un objet qui N'EXISTE PAS dans le stockage du projet. Si le stockage autorise le site,
+ * la réponse (403 ou 404) est lisible ; sinon le navigateur la bloque (TypeError). Rien n'est écrit, aucun vrai fichier n'est lu, au plus 8 secondes.
+ */
+async function essaiCors() {
+  const adresse = adresseEssaiCors(firebaseConfig.storageBucket);
+  if (!adresse) return { erreur: 'inconnu' };
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return { erreur: 'hors-ligne' };
+  const arret = new AbortController();
+  const minuteur = setTimeout(() => arret.abort(), 8000);
+  try {
+    const r = await fetch(adresse, { method: 'GET', mode: 'cors', credentials: 'omit', cache: 'no-store', signal: arret.signal });
+    return { statut: r.status };
+  } catch (e) {
+    return { erreur: e?.name === 'AbortError' ? 'delai' : 'reseau' };
+  } finally {
+    clearTimeout(minuteur);
+  }
+}
+
+/** Page Réglages > Déploiement : les lignes du module Devis et leur contrôle (données déjà lues par le module, plus l'essai CORS). */
+export function controlesDeploiement() {
+  return {
+    etapes: ETAPES_DEPLOIEMENT_DEVIS,
+    verifier: async () => {
+      const ecouter = (rappel) => { const a = D.surChangement(rappel); const b = CRM.surChangement(rappel); return () => { a?.(); b?.(); }; };
+      const [pret, cors] = await Promise.all([attendreQue(() => D.estPret() && CRM.etat.pret.parametres, ecouter), essaiCors()]);
+      return controlerDeploiementDevis({
+        pret, reglages: D.etat.reglages, etapesIds: CRM.etat.config.etapes.filter((e) => e.actif).map((e) => e.id),
+        articles: D.etat.articles, erreurArticles: D.etat.erreurLecture, cors,
+      });
+    },
+  };
 }

@@ -350,6 +350,38 @@ body.page-connexion {
 .reglages-role { font-size: var(--fs-petit); padding: 2px var(--esp-3); border-radius: 999px; background: var(--survol); color: var(--texte2); }
 .reglages-module-ligne .aide { flex: 1 1 140px; margin: 0; }
 .badge-actif { background: var(--accent-a26); color: var(--texte); }
+/* Réglages > Déploiement (25/10/2026) : une ligne par étape, pastille de couleur ET texte d'état ; vert --succes, orange --attention, rouge --retard, gris --texte2. */
+.deploiement-tete { display: flex; align-items: center; justify-content: space-between; gap: var(--esp-4); flex-wrap: wrap; }
+.deploiement-resume { display: inline-flex; align-items: center; gap: var(--esp-3); margin: 0; font-size: var(--fs-section); font-weight: var(--poids-moyen); font-variant-numeric: tabular-nums; }
+.deploiement-messages:empty { display: none; }
+.deploiement-messages { display: flex; flex-direction: column; gap: var(--esp-3); }
+.deploiement-erreur { display: flex; align-items: center; gap: var(--esp-4); flex-wrap: wrap; padding: var(--esp-4) var(--esp-6); border: 1px solid var(--retard); border-radius: var(--rayon); background: var(--retard-fond); }
+.deploiement-erreur p { margin: 0; flex: 1 1 200px; }
+.deploiement-groupes { display: flex; flex-direction: column; gap: var(--esp-7); }
+.deploiement-groupe h3 { margin: 0 0 var(--esp-2); font-size: var(--fs-texte); font-weight: var(--poids-moyen); color: var(--texte2); }
+.deploiement-liste { list-style: none; margin: 0; padding: 0; }
+.deploiement-ligne { display: grid; grid-template-columns: auto 1fr auto; align-items: start; gap: var(--esp-4); padding: var(--esp-4) 0; border-bottom: 1px solid var(--bordure); }
+.deploiement-ligne:last-child { border-bottom: 0; }
+.deploiement-pastille { flex: none; width: 12px; height: 12px; margin-top: var(--esp-1); border-radius: 50%; background: var(--texte2); }
+.deploiement-ligne[data-couleur='vert'] .deploiement-pastille, .deploiement-resume[data-global='vert'] .deploiement-pastille { background: var(--succes); }
+.deploiement-ligne[data-couleur='orange'] .deploiement-pastille, .deploiement-resume[data-global='orange'] .deploiement-pastille { background: var(--attention); }
+.deploiement-ligne[data-couleur='rouge'] .deploiement-pastille, .deploiement-resume[data-global='rouge'] .deploiement-pastille { background: var(--retard); }
+.deploiement-ligne[data-couleur='attente'] .deploiement-pastille, .deploiement-resume[data-global='attente'] .deploiement-pastille { background: transparent; border: 2px solid var(--texte2); }
+.deploiement-corps { display: flex; flex-direction: column; gap: var(--esp-1); min-width: 0; }
+.deploiement-libelle { overflow-wrap: anywhere; }
+.deploiement-etat { font-size: var(--fs-petit); color: var(--texte2); }
+.deploiement-ligne[data-couleur='vert'] .deploiement-etat { color: var(--succes); }
+.deploiement-ligne[data-couleur='orange'] .deploiement-etat { color: var(--attention); }
+.deploiement-ligne[data-couleur='rouge'] .deploiement-etat { color: var(--retard); font-weight: var(--poids-moyen); }
+.deploiement-reparation { margin: 0; font-size: var(--fs-menu); color: var(--texte2); overflow-wrap: anywhere; }
+.deploiement-reparation-rouge { color: var(--texte); }
+.deploiement-lien { display: inline-flex; align-items: center; gap: var(--esp-1); min-height: var(--h-ctrl-petit); color: var(--lien); }
+.deploiement-case { min-height: var(--h-ctrl); white-space: nowrap; }
+@media (max-width: 767px) {
+  .deploiement-ligne { grid-template-columns: auto 1fr; }
+  .deploiement-case { grid-column: 2; }
+  .deploiement-lien { min-height: var(--h-ctrl); }
+}
 /* Mon espace et Membres et rôles chez un client (2.8.0) */
 .mon-espace { display: flex; flex-direction: column; gap: var(--esp-7); min-width: 0; }
 .mon-espace-formulaire { display: flex; flex-direction: column; gap: var(--esp-7); min-width: 0; }

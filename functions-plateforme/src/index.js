@@ -13,6 +13,8 @@ import { copieHoraire, rafraichir, renommer, Refus } from './appels.js';
 import { creerMcpClients } from './mcp-clients.js';
 import { reglerEspace } from './espace.js';
 import { transitionDevis, preparerEmailDevis, etatPreparerEmail } from './devis.js';
+import { verifierDeploiementClient } from './deploiement.js';
+import { VERSION_SERVEUR } from '../serveur/src/version.js';
 import { creerSortieN8n } from '../serveur/src/coeur/n8n-sortie.js';
 import { creerLecteurSecrets } from '../serveur/src/securite/secrets.js';
 
@@ -85,6 +87,12 @@ export const devisNouvelleVersion = appelDevis('nouvelleVersion');
 export const devisArchiver = appelDevis('archiver');
 export const devisSupprimer = appelDevis('supprimer');
 export const devisEnregistrerEnvoi = appelDevis('enregistrerEnvoi'); // historique des envois par e-mail
+
+// Page Réglages > Déploiement (25/10/2026) : contrôles du serveur pour l'espace demandé (éditeurs seulement, sans condition de module). Rien n'est écrit, AUCUN secret déclaré
+// (un secret absent ferait échouer le déploiement de toutes les fonctions), aucun compte de service nouveau. Déployée seulement par le workflow MANUEL de la plateforme.
+export const deploiementVerifier = onCall({ ...OPTIONS_DEVIS, timeoutSeconds: 30 }, async (requete) => {
+  try { return await verifierDeploiementClient({ db: db(), auth: requete.auth, donnees: requete.data, version: VERSION_SERVEUR }); } catch (e) { throw enHttps(e); }
+});
 
 // « Préparer l'e-mail » (25/10/2026) : demande au workflow n8n DU CLIENT de créer un brouillon dans le Gmail du compte (PDF joint) ; rien n'est envoyé, ni par l'appli ni par n8n.
 // L'adresse du webhook et son secret sont dans Secret Manager, UN couple PAR CLIENT (N8N_DEVIS_EMAIL_URL_<client>, N8N_DEVIS_EMAIL_SECRET_<client>), lus au moment de l'appel : sans eux,
