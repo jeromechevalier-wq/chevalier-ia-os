@@ -348,7 +348,8 @@ test('ED3 finaliser : les erreurs de finalisation sont listées dans une fenêtr
   await expect(page.locator('[data-action="envoyer"]')).toBeVisible();
   await expect(page.locator('[data-champ="libelle"]')).toHaveCount(0);
   await expect(page.locator('iframe[data-zone="apercu"]').contentFrame().locator('body')).toContainText('DEV-2026-10-24-001');
-  await expect(total(page, 'ttc')).toHaveText(/^600,00\s€$/);
+  await expect(page.locator('[data-zone="total"]')).toHaveCount(0); // la visualisation montre le document seul : le total est dans l'aperçu, pas dans un cadre à part
+  await expect(page.locator('iframe[data-zone="apercu"]').contentFrame().locator('body')).toContainText('600,00');
   await capturer(page, info, 'ED3-lecture-seule');
 });
 

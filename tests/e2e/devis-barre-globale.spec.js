@@ -49,7 +49,7 @@ test('2 la grande recherche trouve un devis par son numéro, son client ou son a
     await expect(liste(page)).toContainText('Société Exemple · Rénovation restaurant');
   }
   await c.press('Enter'); // sans flèche : ouvre le premier résultat
-  await expect(page).toHaveURL(/#\/devis\/editeur\/d1$/);
+  await expect(page).toHaveURL(/#\/devis\/voir\/d1$/); // le devis de la graine est envoyé : il s'ouvre en visualisation
   await expect(page.locator('.page-editeur-devis[data-devis="d1"]')).toBeVisible();
   await attendreCalme(page);
   // Deux rôles distincts : la barre du haut ouvre un résultat ; les autres fiches restent trouvées dans la même liste.
@@ -58,7 +58,7 @@ test('2 la grande recherche trouve un devis par son numéro, son client ou son a
   await c2.fill('rénovation');
   await expect(liste(page).locator('.suggestion-groupe')).toHaveText(['Affaires', 'Devis']);
   await liste(page).locator('.suggestion', { hasText: 'DEV-2026-10-24-001' }).click();
-  await expect(page).toHaveURL(/#\/devis\/editeur\/d1$/);
+  await expect(page).toHaveURL(/#\/devis\/voir\/d1$/);
 });
 
 test('3 cas vide : moins de 2 lettres, aucun devis, devis archivé ou remplacé -> aucun résultat « Devis »', async ({ page }) => {
@@ -80,14 +80,14 @@ test('3 cas vide : moins de 2 lettres, aucun devis, devis archivé ou remplacé 
   await expect(liste(page)).not.toContainText('DEV-2026-10-21-004');
 });
 
-test('4 cas d’erreur : un devis dont l’affaire a disparu reste trouvable par son numéro et ouvre quand même l’éditeur', async ({ page }) => {
+test('4 cas d’erreur : un devis dont l’affaire a disparu reste trouvable par son numéro et s’ouvre quand même (visualisation, le devis est envoyé)', async ({ page }) => {
   await devis('d9', { numero: 'DEV-2026-10-22-002', statut: 'envoye', affaireId: 'disparue', organisationId: null });
   await connecter(page);
   const c = await champ(page);
   await c.fill('DEV-2026-10-22');
   await expect(liste(page).locator('.suggestion')).toHaveCount(1);
   await c.press('Enter');
-  await expect(page).toHaveURL(/#\/devis\/editeur\/d9$/);
+  await expect(page).toHaveURL(/#\/devis\/voir\/d9$/);
   await expect(page.locator('.coquille')).toBeVisible();
 });
 

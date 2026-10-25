@@ -11,6 +11,7 @@ import * as Li from './liste.js';
 import { formaterMontant } from './document.js';
 import { nomsDe, entreesMenuDevis } from './actions-devis.js';
 import { indicateurPdf } from './pdf-indicateur.js';
+import { pastilleStatutDevis } from './pastille-statut.js';
 
 const ERREUR_LECTURE = 'La liste des devis n’a pas pu être mise à jour. La dernière version reste affichée : vérifie ta connexion puis recharge la page.';
 
@@ -37,10 +38,7 @@ const COLONNES = [
 
 const euros = (n) => (typeof n === 'number' ? formaterMontant(n) : '—');
 
-function pastille(d, aujourdhui) {
-  const s = Li.statutAffiche(d, aujourdhui);
-  return h('span', { class: `pastille-statut statut-devis-${s}`, style: { '--couleur': Li.COULEURS_STATUT[s] ?? '#8d8993' }, dataset: { statut: s } }, Li.libelleStatut(s));
-}
+const pastille = pastilleStatutDevis; // la même pastille que dans l'en-tête d'un devis (pastille-statut.js)
 
 /** Petite pastille d'un devis finalisé mais pas encore envoyé (dans la colonne « Envoyé » du Tableau). */
 const pastillePasEnvoye = () => h('span', { class: 'pastille-statut pastille-pas-envoye', style: { '--couleur': Li.COULEURS_STATUT.en_attente_envoi }, dataset: { pastille: 'pas-encore-envoye' } }, Li.LIBELLE_PAS_ENCORE_ENVOYE);

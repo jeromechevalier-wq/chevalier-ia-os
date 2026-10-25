@@ -1,4 +1,4 @@
-// Recherche globale (barre du haut) du module Devis : un résultat ouvre l'éditeur du devis (devis/editeur/<id>).
+// Recherche globale (barre du haut) du module Devis : un résultat ouvre l'éditeur du brouillon (devis/editeur/<id>) ou la visualisation d'un devis finalisé (devis/voir/<id>).
 // Rôle distinct du champ de la liste des devis : la barre du haut OUVRE un résultat, le champ de la liste FILTRE la liste.
 import * as CRM from '../crm/donnees.js';
 import * as D from './donnees.js';
@@ -16,7 +16,7 @@ function nomsDuDevis(d) {
 export function rechercherDevis(saisie) {
   const elements = D.etat.devis.filter((d) => d.archive !== true && d.statut !== 'remplace').map((d) => {
     const n = nomsDuDevis(d);
-    return { id: d.id, libelle: d.numero || 'Brouillon', sousTitre: [n.client, n.affaire].filter(Boolean).join(' · '), extra: [n.client, n.affaire].filter(Boolean), chemin: `devis/editeur/${d.id}` };
+    return { id: d.id, libelle: d.numero || 'Brouillon', sousTitre: [n.client, n.affaire].filter(Boolean).join(' · '), extra: [n.client, n.affaire].filter(Boolean), chemin: d.statut === 'brouillon' ? `devis/editeur/${d.id}` : `devis/voir/${d.id}` };
   });
   const resultats = rechercherSuggestions(saisie, elements, {}).resultats;
   return { groupes: resultats.length ? [{ titre: 'Devis', resultats }] : [] };
