@@ -23,5 +23,5 @@ functions-plateforme/serveur/
 # Copies de configuration générées pour les tests (ports décalés)
 tests/.config-ports/
 
-# Paramètres de fonctions écrits par le workflow de déploiement
+# Fichiers de paramètres locaux des fonctions (aucune étape du workflow de déploiement n'en écrit plus)
 functions/.env*

@@ -182,6 +182,14 @@ describe('R4 états : en cours, ok, abandon', () => {
     assert.equal((await appel(m, f)(requete({ devisId: 'd1' }))).statut, 'ok');
     assert.equal(f.vus.conversions, 1);
   });
+  test('R4 horloge décalée : un « en cours » daté du futur ne bloque pas non plus pour toujours', async () => {
+    const m = await monde({ finaliser: true });
+    const f = faux();
+    m.collections[C.devis][0].pdf = { statut: 'en_cours', tentatives: 1, demarreLe: new Date(MAINTENANT.getTime() + 60_000) }; // un peu dans le futur : encore « en cours »
+    assert.equal((await appel(m, f)(requete({ devisId: 'd1' }))).statut, 'en_cours');
+    m.collections[C.devis][0].pdf = { statut: 'en_cours', tentatives: 1, demarreLe: new Date(MAINTENANT.getTime() + S.DELAI_EN_COURS_MS + 60_000) }; // très loin dans le futur : abandonné
+    assert.equal((await appel(m, f)(requete({ devisId: 'd1' }))).statut, 'ok');
+  });
   test('R4 pdfAReessayer : vrai pour un devis finalisé dont le PDF n\'est pas ok', () => {
     assert.ok(S.pdfAReessayer({ statut: 'en_attente_envoi', pdf: null }));
     assert.ok(S.pdfAReessayer({ statut: 'envoye', pdf: { statut: 'echec' } }));
@@ -197,8 +205,8 @@ describe('R4 états : en cours, ok, abandon', () => {
 });
 
 describe('R5 brouillon à la demande : remplace le précédent', () => {
-  test('R5 deux brouillons de suite : un seul fichier, un seul document « Brouillon – Cuisine.pdf » ; pdf du devis finalisé intact', async () => {
-    const m = await monde({ finaliser: true });
+  test('R5 deux brouillons de suite : un seul fichier, un seul document « Brouillon – Cuisine.pdf » ; champ pdf du devis intact', async () => {
+    const m = await monde({ finaliser: false });
     const f = faux();
     await appel(m, f)(requete({ devisId: 'd1', brouillon: true }));
     await appel(m, f)(requete({ devisId: 'd1', brouillon: true }));
@@ -209,7 +217,13 @@ describe('R5 brouillon à la demande : remplace le précédent', () => {
     assert.equal(docs.length, 1);
     assert.equal(docs[0].libelle, 'Brouillon – Cuisine.pdf');
     assert.equal(docs[0].url, `${BASE_LIEN}/#/devis/pdf/d1/brouillon`);
-    assert.equal(m.collections[C.devis][0].pdf, null); // le champ pdf du devis finalisé n'a pas été touché
+    assert.equal(m.collections[C.devis][0].pdf, undefined); // le champ pdf du devis n'a pas été touché
+  });
+  test('R5 le PDF brouillon est refusé pour un devis déjà finalisé (message clair, rien fabriqué)', async () => {
+    const m = await monde({ finaliser: true });
+    const f = faux();
+    await assert.rejects(() => appel(m, f)(requete({ devisId: 'd1', brouillon: true })), (e) => e.code === 'failed-precondition' && /déjà finalisé/.test(e.message));
+    assert.equal(f.vus.conversions, 0);
   });
   test('R5 devis inconnu : not-found ; demande invalide (brouillon non booléen) refusée', async () => {
     const m = await monde();
@@ -238,8 +252,10 @@ describe('R6 lien signé de courte durée', () => {
     const f = faux();
     await assert.rejects(() => lien(m, f)(requete({ devisId: 'd1' })), (e) => e.code === 'failed-precondition');
     await assert.rejects(() => lien(m, f)(requete({ devisId: 'd1', brouillon: true })), (e) => e.code === 'not-found');
-    await appel(m, f)(requete({ devisId: 'd1', brouillon: true }));
-    assert.match((await lien(m, f)(requete({ devisId: 'd1', brouillon: true }))).url, /brouillon\.pdf/);
+    const mb = await monde({ finaliser: false });
+    await assert.rejects(() => lien(mb, f)(requete({ devisId: 'd1' })), (e) => e.code === 'failed-precondition'); // un brouillon n'a pas de PDF officiel
+    await appel(mb, f)(requete({ devisId: 'd1', brouillon: true }));
+    assert.match((await lien(mb, f)(requete({ devisId: 'd1', brouillon: true }))).url, /brouillon\.pdf/);
   });
   test('R6 autre espace : un devis d\'un autre client est introuvable, et un chemin hors de l\'espace n\'est jamais signé', async () => {
     const collections = { 'clients/a/devis_devis': [{ id: 'dA', statut: 'envoye', affaireId: 'x', pdf: { statut: 'ok', chemin: 'clients/a/devis/x/dA/DEV.pdf', nom: 'DEV.pdf' } }] };

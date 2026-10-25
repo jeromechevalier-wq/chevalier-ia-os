@@ -257,7 +257,7 @@ export async function reserverPdf({ donnees, ctx, devisId, explicite = false, te
     const pdf = devis.pdf ?? null;
     if (pdf?.statut === 'ok') return { action: 'rien', statut: 'ok', devis };
     const age = pdf?.demarreLe instanceof Date ? ctx.maintenant.getTime() - pdf.demarreLe.getTime() : Infinity;
-    if (pdf?.statut === 'en_cours' && age >= 0 && age < DELAI_EN_COURS_MS) return { action: 'rien', statut: 'en_cours', devis };
+    if (pdf?.statut === 'en_cours' && Math.abs(age) < DELAI_EN_COURS_MS) return { action: 'rien', statut: 'en_cours', devis };
     const avant = explicite ? 0 : (Number.isInteger(pdf?.tentatives) ? pdf.tentatives : 0);
     if (!explicite && avant >= tentativesMax) return { action: 'rien', statut: 'echec', definitif: true, devis };
     const suivant = { statut: 'en_cours', tentatives: avant + 1, demarreLe: ctx.maintenant };

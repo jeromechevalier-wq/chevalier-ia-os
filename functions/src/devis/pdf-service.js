@@ -51,6 +51,7 @@ export async function fabriquerPdfDevis({ donnees, espace = '', baseLien, devisI
   if (brouillon) {
     const brut = await donnees.document(C.devis, devisId);
     if (!brut) throw new ErreurDevis('introuvable', 'Devis introuvable.');
+    if (brut.statut !== 'brouillon') throw new ErreurDevis('transition_interdite', 'Ce devis est déjà finalisé : le PDF brouillon ne sert que tant que le devis est un brouillon.');
     devis = enDates(brut);
   } else {
     const r = await reserverPdf({ donnees, ctx, devisId, explicite, tentativesMax });
