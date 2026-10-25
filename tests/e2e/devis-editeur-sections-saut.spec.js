@@ -253,7 +253,7 @@ test('2 déplacer une ligne avec les flèches ne renvoie pas en haut du devis : 
   await expect(page.locator('tr[data-id="m22"]')).toBeInViewport();
 });
 
-test('2 « Insérer en dessous > Fourniture » ouvre la recherche d’article juste sous la ligne choisie ; l’article ajouté vient dessous, le suivant aussi ; « Valider » ferme et la recherche retourne en bas ; supprimer une ligne ne fait pas défiler la page', async ({ page }, info) => {
+test('2 « Insérer en dessous > Fourniture » ouvre la recherche d’article juste sous la ligne choisie ; l’article ajouté vient dessous, le suivant aussi ; « Fermer » ferme et la recherche retourne en bas ; supprimer une ligne ne fait pas défiler la page', async ({ page }, info) => {
   await semer();
   const maintenant = new Date();
   await ecrireDocument('devis_articles/ar1', { code: 'CAR60', libelle: 'Carrelage 60 x 60', unite: 'm²', prixAchat: 50, tauxTva: null, actif: true, type: 'fourniture', proprietaire: JEROME, creeLe: maintenant, modifieLe: maintenant, creePar: JEROME, modifiePar: JEROME });
@@ -269,7 +269,7 @@ test('2 « Insérer en dessous > Fourniture » ouvre la recherche d’article ju
   expect(await enLigne.evaluate((e) => e.previousElementSibling.dataset.id)).toBe('m3');
   expect(await enLigne.evaluate((e) => e.nextElementSibling.dataset.id)).toBe('m4');
   await expect(page.getByText('Le prochain article s’ajoutera')).toHaveCount(0);
-  await expect(enLigne.locator('[data-action="fermer-recherche"]')).toHaveText('Valider');
+  await expect(enLigne.locator('[data-action="fermer-recherche"]')).toHaveText('Fermer');
   await enLigne.locator('[data-champ="filtre-famille"]').selectOption('');
   await enLigne.locator('[data-champ="recherche-bordereau"]').fill('carrelage');
   await capturer(page, info, '2-recherche-sous-la-ligne');
