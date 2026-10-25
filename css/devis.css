@@ -102,8 +102,11 @@
 .page-editeur-devis { max-width: none; gap: var(--esp-6); }
 .titre-devis { display: flex; align-items: center; gap: var(--esp-5); flex-wrap: wrap; }
 .titre-devis h1 { margin: 0; }
-.indicateur-enregistrement { display: inline-block; min-width: 8.5em; white-space: nowrap; color: var(--texte2); font-size: var(--fs-menu); }
+.indicateur-enregistrement { position: relative; display: inline-flex; align-items: center; gap: var(--esp-2); min-width: 16px; min-height: 16px; white-space: nowrap; color: var(--texte2); font-size: var(--fs-menu); }
 .indicateur-enregistrement[data-etat="erreur"] { color: var(--retard); }
+.indicateur-enregistrement[data-etat="enCours"] .icone { animation: tourne .9s linear infinite, enreg-apparait .2s .5s backwards; } /* n'apparaît que si l'enregistrement dure plus d'une demi-seconde */
+@keyframes enreg-apparait { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .indicateur-enregistrement[data-etat="enCours"] .icone { animation: enreg-apparait .2s .5s backwards; } }
 .indicateur-manquants { color: var(--retard); font-size: var(--fs-menu); white-space: nowrap; }
 .bandeau-lecture-seule { margin: 0; padding: var(--esp-5) var(--esp-6); border: 1px solid var(--bordure); border-radius: var(--rayon-petit); background: var(--panneau2); }
 

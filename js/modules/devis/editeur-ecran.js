@@ -554,9 +554,14 @@ export function rendreEditeurDevis(conteneur, id) {
     ref.pastille.dataset.statut = d.statut;
     ref.pastille.hidden = d.statut === 'brouillon' && !d.numero; // le titre dit déjà « Brouillon »
     if (ref.numeroDocument) ref.numeroDocument.textContent = d.numero ? `Devis n° ${d.numero}${d.version > 1 ? ` · v${d.version}` : ''}` : 'Devis n° Brouillon';
-    if (lecture) { ref.indicateur.textContent = ''; return; }
-    ref.indicateur.textContent = Ed.libelleEnregistrement(etatEnreg);
-    ref.indicateur.dataset.etat = etatEnreg;
+    if (lecture) { ref.indicateur.replaceChildren(); return; }
+    if (ref.indicateur.dataset.etat !== etatEnreg) { // une icône de taille fixe : la barre ne bouge pas ; les mots restent pour l'infobulle et les lecteurs d'écran, et s'affichent seulement en cas d'échec
+      const libelle = Ed.libelleEnregistrement(etatEnreg);
+      const pictogramme = { enCours: 'refresh-cw', erreur: 'triangle-alert' }[etatEnreg] || 'check';
+      ref.indicateur.replaceChildren(icone(pictogramme, { taille: 16 }), h('span', { class: etatEnreg === 'erreur' ? 'texte-erreur-enreg' : 'sr-only' }, libelle));
+      ref.indicateur.title = etatEnreg === 'erreur' ? '' : libelle;
+      ref.indicateur.dataset.etat = etatEnreg;
+    }
     ref.erreurEnreg.hidden = etatEnreg !== 'erreur';
     ref.erreurEnreg.textContent = etatEnreg === 'erreur' ? messageEnreg : '';
     const manquants = Ed.champsManquants(d).length;
