@@ -172,9 +172,9 @@ describe('4 Options : affichage du devis et du document', () => {
     { numero: 'DEV-1', finaliseLe: '2026-10-24T10:00:00Z', reglages }).devis;
   const contexteVue = { clientNom: 'Mme Dupont', emetteur: { nom: 'Atelier Test', adresse: '3 rue', siret: '123' } };
 
-  test('4 sans options, le document est identique octet pour octet à celui d’avant la refonte (empreinte relevée sur l’ancien code)', () => {
+  test('4 sans options, le document est identique octet pour octet à celui d’avant la refonte (empreinte mise à jour le 25/10/2026 : seule la feuille de style a changé : interligne du bloc Chantier, page A4 centrée à l’écran)', () => {
     const html = devisHtml(L.vueClient(figer(), contexteVue));
-    assert.equal(crypto.createHash('sha256').update(html).digest('hex'), 'b3f9e9613b7ca0e3d0c2f9e9a12ade21c104fcbb715de19a12a12c65ff5d0026');
+    assert.equal(crypto.createHash('sha256').update(html).digest('hex'), '111fa854ccf11822daa48ca8f3d3ad4a5adb95ee2fc64819fba5f0803af7a57d');
     assert.equal(devisHtml(L.vueClient(figer(), contexteVue), { affichage: {} }), html);
     assert.equal(devisHtml(L.vueClient(figer(), contexteVue), { affichage: L.AFFICHAGE_DEFAUT }), html);
   });
@@ -186,6 +186,16 @@ describe('4 Options : affichage du devis et du document', () => {
     assert.match(sans, new RegExp(vue.acompte.libelle.slice(0, 12)));
     assert.equal(L.affichageDe({ affichage: { cacherResteAFacturer: true } }).cacherResteAFacturer, true);
     assert.equal(L.affichageDe({ affichage: {} }).cacherResteAFacturer, false);
+  });
+  test('4 e-mail du client : affiché par défaut sur un devis neuf ou qui a des options, jamais sur un très ancien devis ; l’A4 centré ne vaut qu’à l’écran', () => {
+    assert.equal(L.affichageDe(L.nouveauDevis({}, ctx, reglages)).afficherEmail, true);
+    assert.equal(L.affichageDe({ affichage: { cacherTva: true } }).afficherEmail, true);
+    assert.equal(L.affichageDe({ affichage: { afficherEmail: false } }).afficherEmail, false);
+    assert.equal(L.affichageDe({}).afficherEmail, false);
+    const vue = L.vueClient(figer(), contexteVue);
+    const avecMail = devisHtml(vue, { affichage: L.affichageDe(figer()), emetteur: {} });
+    assert.ok(avecMail.includes('@media screen') && /max-width: 210mm/.test(avecMail));
+    assert.ok(!/@media print[^}]*max-width: 210mm/.test(avecMail));
   });
   test('4 un ancien devis (sans `affichage`) garde l’affichage d’avant : calcul des marges visible ; un devis neuf le cache', () => {
     assert.equal(L.affichageDe({}).afficherMarges, true);

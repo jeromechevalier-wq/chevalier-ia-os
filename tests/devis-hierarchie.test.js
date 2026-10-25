@@ -111,7 +111,7 @@ describe('N5 ancien devis sans sous-section : rien ne change', () => {
   }
   const html = () => devisHtml(D.vueClient(devisAncien(), { clientNom: 'Mme Dupont' }), { brouillon: false });
   // Empreinte du HTML produit AVANT cette évolution par le même devis (calculée avec le code de `main` du 24/10/2026).
-  const EMPREINTE_AVANT = '920840b58b17b33448758d6a7e91e69fe49c4ea043a9fbc6c1ba976b9173d626';
+  const EMPREINTE_AVANT = 'e42c1cb528dce1afb57cab7eb5e3380742df7522e88753bf318278476541d051';
   test('N5 le document d’un devis sans sous-section est identique, octet pour octet, à celui d’avant', () => {
     assert.equal(createHash('sha256').update(html()).digest('hex'), EMPREINTE_AVANT);
   });
