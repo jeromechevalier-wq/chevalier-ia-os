@@ -376,17 +376,19 @@ describe('Relecture : garde-fous supplémentaires', () => {
     assert.equal(s.doc('devis_devis', r.id).statut, 'brouillon');
   });
 
-  test('R4 le plafond d’écriture est vérifié avant de consommer le code : après un refus, le même code sert encore', async () => {
+  test('R4 un code faux ne coûte aucune écriture ; le plafond est réservé après un code valable (le code est alors consommé : nouvel aperçu)', async () => {
     const s = await demarrer({ jetonsExtra: { code: { limites: { ecrituresParHeure: 1 } } } });
     const r1 = await prets(s);
     const r2 = ok(await s.appeler('biblio', 'creer_devis_brouillon', { affaireId: 'a1', destinataires: EMAIL, lignes: [{ reference: 'car', quantite: 2 }] }));
     const a1 = ok(await s.appeler('code', 'finaliser_devis', { id: r1.id }));
-    ok(await s.appeler('code', 'finaliser_devis', { id: r1.id, codeConfirmation: a1.code }));
+    refuse(await s.appeler('code', 'finaliser_devis', { id: r1.id, codeConfirmation: 'FAUX-CODE' }), /code incorrect/);
+    const a1b = ok(await s.appeler('code', 'finaliser_devis', { id: r1.id }));
+    ok(await s.appeler('code', 'finaliser_devis', { id: r1.id, codeConfirmation: a1b.code })); // la seule écriture permise : le faux code n'en a pas coûté
+    assert.notEqual(a1.code, undefined);
     const a2 = ok(await s.appeler('code', 'finaliser_devis', { id: r2.id }));
     refuse(await s.appeler('code', 'finaliser_devis', { id: r2.id, codeConfirmation: a2.code }), /Plafond atteint/);
     assert.equal(s.doc('devis_devis', r2.id).statut, 'brouillon');
-    assert.equal(s.collections.mcp_codes.length, 1, 'le code n’a pas été consommé');
-    s.horloge.t += 2 * 3_600_000; // le plafond se libère (le code, lui, a expiré : nouvel aperçu)
+    s.horloge.t += 2 * 3_600_000; // le plafond se libère
     const a3 = ok(await s.appeler('code', 'finaliser_devis', { id: r2.id }));
     assert.equal(ok(await s.appeler('code', 'finaliser_devis', { id: r2.id, codeConfirmation: a3.code })).finalise, true);
   });
@@ -706,13 +708,29 @@ describe('N7 supprimer_devis : brouillon seulement, aperçu puis code, PDF broui
     assert.ok(s.doc('devis_devis', 'f1'));
   });
 
-  test('N7 le plafond de suppressions du jeton s’applique, et le devis reste', async () => {
+  test('N7 plafond de suppressions atteint : aucun code n’est émis (depassePlafond), le devis reste', async () => {
     const s = await demarrer({ devis: [devisEnregistre('b1'), devisEnregistre('b2')], jetonsExtra: { code: { limites: { suppressionsParJour: 1 } } } });
     const a1 = ok(await s.appeler('code', 'supprimer_devis', { id: 'b1' }));
     ok(await s.appeler('code', 'supprimer_devis', { id: 'b1', codeConfirmation: a1.code }));
+    const codes = (s.collections.mcp_codes ?? []).length;
     const a2 = ok(await s.appeler('code', 'supprimer_devis', { id: 'b2' }));
-    refuse(await s.appeler('code', 'supprimer_devis', { id: 'b2', codeConfirmation: a2.code }), /Plafond atteint/);
+    assert.equal(a2.depassePlafond, true);
+    assert.equal(a2.code, undefined);
+    assert.equal((s.collections.mcp_codes ?? []).length, codes, 'aucun code stocké');
     assert.ok(s.doc('devis_devis', 'b2'));
+  });
+
+  test('N7 recréer un brouillon supprimé est refusé si la racine a déjà un brouillon de même version (pas deux devis au même numéro)', async () => {
+    const s = await demarrer({ devis: [finalise('f1', 'envoye')] });
+    const v2 = ok(await s.appeler('biblio', 'nouvelle_version_devis', { id: 'f1' }));
+    const a = ok(await s.appeler('code', 'supprimer_devis', { id: v2.id }));
+    const sup = ok(await s.appeler('code', 'supprimer_devis', { id: v2.id, codeConfirmation: a.code }));
+    const v2bis = ok(await s.appeler('biblio', 'nouvelle_version_devis', { id: 'f1' }));
+    assert.equal(v2bis.version, 2);
+    refuse(await s.appeler('code', 'restaurer_depuis_audit', { operationId: sup.operationId, apercu: false }), /ne peut pas être recréé.*nouvelle_version_devis/);
+    refuse(await s.appeler('code', 'restaurer_depuis_audit', { operationId: sup.operationId, apercu: false, forcer: true }), /ne peut pas être recréé/);
+    assert.equal(s.doc('devis_devis', v2.id), undefined);
+    assert.equal(s.collections.devis_devis.filter((d) => d.racineId === 'f1').length, 2);
   });
 
   test('N7 le fichier PDF brouillon est effacé du stockage quand il est branché, et un échec du stockage ne bloque pas', async () => {

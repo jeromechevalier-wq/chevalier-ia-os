@@ -6,7 +6,7 @@ import * as PL from '../../../partage/projets.js';
 import * as DA from '../../../partage/devis-articles.js';
 import * as DEVIS from '../../../partage/devis.js';
 import * as metier from '../../coeur/metier.js';
-import { ACTIONS_STATUT } from '../../coeur/devis.js';
+import { ACTIONS_STATUT, MAX_ADRESSES_ENVOI } from '../../coeur/devis.js';
 
 const PROFILS = ['bibliothecaire', 'claude-code'];
 const id = z.string().min(1).max(200);
@@ -185,9 +185,9 @@ export const OUTILS_ECRITURE = [
     id: id.describe('Identifiant du devis (voir lister_devis).'), archive: z.boolean().describe('true : archiver ; false : désarchiver.'),
   }, metier.archiverDevis),
 
-  outil('enregistrer_envoi_devis', "Ajoute une ligne à l'HISTORIQUE DES ENVOIS d'un devis déjà au statut « Envoyé » (envoye) : destinataires (1 à 10 adresses e-mail valides) et copie (0 à 10). À n'utiliser qu'APRÈS que l'utilisateur a confirmé que l'e-mail est vraiment parti (cet outil n'envoie rien). La date du premier envoi (envoyeLe) ne bouge pas : un renvoi ajoute simplement une ligne, les deux dates sont gardées (lire_devis, envois). Même logique serveur que l'écran. Récupérable avec restaurer_depuis_audit.", {
+  outil('enregistrer_envoi_devis', "Ajoute une ligne à l'HISTORIQUE DES ENVOIS d'un devis déjà au statut « Envoyé » (envoye) : destinataires (1 à 10 adresses e-mail valides) et copie (0 à 10). Refusé tant que le devis n'est pas « Envoyé » (marquer_envoye, réservé à Claude Code, se fait avant). À n'utiliser qu'APRÈS que l'utilisateur a confirmé que l'e-mail est vraiment parti (cet outil n'envoie rien). La date du premier envoi (envoyeLe) ne bouge pas : un renvoi ajoute simplement une ligne, les deux dates sont gardées (lire_devis, envois). Même logique serveur que l'écran. Récupérable avec restaurer_depuis_audit.", {
     id: id.describe('Identifiant du devis (statut envoye).'),
-    destinataires: z.array(z.string().max(254)).min(1).max(DEVIS.MAX_COPIE).describe('Adresses e-mail auxquelles le devis a été envoyé (1 au moins).'),
+    destinataires: z.array(z.string().max(254)).min(1).max(MAX_ADRESSES_ENVOI).describe('Adresses e-mail auxquelles le devis a été envoyé (1 au moins).'),
     copie: z.array(z.string().max(254)).max(DEVIS.MAX_COPIE).optional().describe('Adresses e-mail en copie de cet envoi.'),
   }, metier.enregistrerEnvoiDevis),
 

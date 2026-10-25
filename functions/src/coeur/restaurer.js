@@ -51,6 +51,15 @@ export async function restaurerOperation({ donnees, ctx, operationId, apercu = t
   // Archivage / envoi défaits « de force » sur un devis dont le statut a changé depuis (signé, refusé…) : on remettrait l'ancien statut, ce qui contourne la règle des statuts.
   const statutChange = lignesAudit.find((l, i) => l.collection === C.devis && courants[i] && OUTILS_DEVIS_SUR_FINALISE.includes(l.outil) && copies[i]?.apres && courants[i].statut !== copies[i].apres.statut);
   if (statutChange) throw new ErreurEcriture('restauration_refusee', 'Le statut de ce devis a changé depuis cette opération : elle ne se défait plus avec le journal, même avec forcer. ' + VOIE_DE_SECOURS);
+  // Recréer un devis supprimé : refusé si sa racine a déjà un brouillon ou un devis de même version (deux devis finalisés au même numéro sinon).
+  for (let i = 0; i < lignesAudit.length; i += 1) {
+    const l = lignesAudit[i];
+    const avant = copies[i]?.avant;
+    if (l.collection !== C.devis || courants[i] || !avant) continue;
+    const freres = await donnees.liste(C.devis, { champ: 'racineId', valeur: avant.racineId ?? l.docId });
+    const conflit = freres.find((v) => v.id !== l.docId && (v.statut === 'brouillon' || (v.version ?? 1) === (avant.version ?? 1)));
+    if (conflit) throw new ErreurEcriture('restauration_refusee', 'Ce devis ne peut pas être recréé : une autre version brouillon ou de même version existe déjà pour ce numéro. ' + VOIE_DE_SECOURS);
+  }
   const lignes = lignesAudit.map((l, i) => {
     const copie = copies[i];
     const courant = sansId(courants[i]);
