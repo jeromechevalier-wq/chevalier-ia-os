@@ -289,6 +289,7 @@ export function rendreListeDevis(conteneur, idFiche = null) {
 
   function carte(d, maintenant, aujourdhui) {
     const t = Li.totauxDe(d);
+    const pdfCarte = indicateurPdf(d, { apres: () => rendre(), maintenant });
     return ouvrable(h('article', { class: 'carte-affaire carte-devis', dataset: { id: d.id, statut: Li.statutAffiche(d, aujourdhui) } },
       h('div', { class: 'carte-ligne' }, h('strong', { class: 'carte-titre' }, intitule(d), d.version > 1 ? ` v${d.version}` : ''), actionsDevis(d)),
       h('div', {}, pastille(d, aujourdhui)),
@@ -296,7 +297,7 @@ export function rendreListeDevis(conteneur, idFiche = null) {
       h('div', { class: 'carte-sous' }, celluleModifie(d, maintenant)),
       h('div', { class: 'carte-sous' }, `En date du ${Li.dateFr(Li.dateDuDevis(d)) || '—'}`),
       d.expireLe ? h('div', { class: 'carte-sous' }, `Valable jusqu’au ${Li.dateFr(d.expireLe)}`) : null,
-      indicateurPdf(d, { apres: () => rendre(), maintenant }) ? h('div', { class: 'carte-sous' }, indicateurPdf(d, { apres: () => rendre(), maintenant })) : null,
+      pdfCarte ? h('div', { class: 'carte-sous' }, pdfCarte) : null,
       h('div', { class: 'carte-pied' }, h('span', { class: 'carte-montant' }, `HT ${euros(t?.ht)}`), h('span', { class: 'carte-sous' }, `TTC ${euros(t?.ttc)}`))), () => ouvrirFiche(d.id));
   }
 

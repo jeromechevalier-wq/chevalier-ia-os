@@ -26,7 +26,7 @@ describe('PDF devis : règles du navigateur', () => {
     assert.equal(P.etatPdfDevis({ statut: 'envoye', pdf: { statut: 'en_cours', demarreLe: new Date(MAINTENANT - 60_000) } }, MAINTENANT), 'en_cours');
     assert.equal(P.etatPdfDevis({ statut: 'envoye', pdf: { statut: 'en_cours', demarreLe: { toMillis: () => MAINTENANT - 11 * 60_000 } } }, MAINTENANT), 'a_reessayer');
     assert.equal(P.etatPdfDevis({ statut: 'envoye', pdf: { statut: 'en_cours', demarreLe: { seconds: (MAINTENANT - 1000) / 1000 } } }, MAINTENANT), 'en_cours');
-    assert.equal(P.etatPdfDevis({ statut: 'envoye', pdf: { statut: 'en_cours' } }, MAINTENANT), 'en_cours', 'sans date de départ on attend');
+    assert.equal(P.etatPdfDevis({ statut: 'envoye', pdf: { statut: 'en_cours' } }, MAINTENANT), 'a_reessayer', 'sans date de départ : abandonné, comme le serveur');
   });
 
   test('S3 routePdf et messages', () => {

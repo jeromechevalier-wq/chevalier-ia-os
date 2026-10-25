@@ -213,10 +213,11 @@ export function creerFiche({ nomsDe, changerStatut, archiver, fermer: demanderFe
   }
 
   function documentsLies(d) {
+    const pdfLigne = indicateurPdf(d, { apres: () => maj(true) });
     return h('section', { class: 'fiche-carte fiche-bloc-liste', dataset: { bloc: 'documents' } },
       h('div', { class: 'fiche-bloc-tete' }, h('h3', { class: 'fiche-sous-titre' }, 'Documents liés'),
         onglets(DOCUMENTS, ongletDocs, (c) => { ongletDocs = c; maj(true); }, 'Type de document')),
-      indicateurPdf(d, { apres: () => maj(true) }) ? h('p', { class: 'fiche-pdf', dataset: { valeur: 'pdf-devis' } }, indicateurPdf(d, { apres: () => maj(true) })) : null,
+      pdfLigne ? h('p', { class: 'fiche-pdf', dataset: { valeur: 'pdf-devis' } }, pdfLigne) : null,
       h('p', { class: 'fiche-vide fiche-vide-grand', dataset: { valeur: 'aucun-document' } }, 'Aucun document'));
   }
 

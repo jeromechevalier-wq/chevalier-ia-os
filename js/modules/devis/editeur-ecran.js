@@ -409,7 +409,7 @@ export function rendreEditeurDevis(conteneur, id) {
     try {
       if (!(await sauver())) { toast(`${messageEnreg || ERREUR_ECRITURE} Le PDF n’a pas été créé.`, { type: 'erreur', duree: 8000 }); return; }
       await D.pdfBrouillon(id);
-      toast(messageApresEnregistrement(travail), { duree: 8000, lien: travail.affaireId ? { libelle: 'Ouvrir le PDF', href: lienRoute(routePdf(id, true)) } : null });
+      toast(messageApresEnregistrement(travail), { duree: 8000, lien: { libelle: 'Ouvrir le PDF', href: lienRoute(routePdf(id, true)) } });
     } catch (e) {
       console.warn(e);
       toast(e?.message || D.MESSAGE_RESEAU_DEVIS, { type: 'erreur', duree: 8000 });

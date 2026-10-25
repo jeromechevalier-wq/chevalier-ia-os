@@ -26,7 +26,7 @@ export function etatPdfDevis(devis, maintenant = Date.now()) {
   if (!pdfAReessayer(devis)) return 'pret';
   if (devis.pdf?.statut === 'en_cours') {
     const debut = enMillis(devis.pdf.demarreLe);
-    if (debut === null || maintenant - debut < DELAI_EN_COURS_MS) return 'en_cours';
+    if (debut !== null && Math.abs(maintenant - debut) < DELAI_EN_COURS_MS) return 'en_cours'; // comme le serveur : sans date de départ, le « en cours » est abandonné
   }
   return 'a_reessayer';
 }

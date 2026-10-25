@@ -28,7 +28,7 @@ export function rendrePdfDevis(conteneur, devisId, brouillon = false) {
   const bouton = (libelle, action, onclick) => h('button', { type: 'button', class: 'bouton bouton-principal', dataset: { action }, onclick }, libelle);
   const montrer = (etat, ...enfants) => { zone.dataset.etat = etat; remplir(zone, ...enfants); };
   const chargement = (texte) => montrer('chargement', h('div', { class: 'chargement' }, h('span', { class: 'rond-chargement' }), h('span', {}, texte)));
-  const probleme = (etat, texte, ...actions) => montrer(etat, h('p', { class: etat === 'echec' ? 'erreur' : 'texte-discret', role: etat === 'echec' ? 'alert' : null, dataset: { valeur: 'message-pdf' } }, texte), h('div', { class: 'pdf-devis-actions' }, ...actions));
+  const probleme = (etat, texte, ...actions) => montrer(etat, h('p', { class: etat === 'echec' ? 'erreur' : 'texte-discret', dataset: { valeur: 'message-pdf' } }, texte), h('div', { class: 'pdf-devis-actions' }, ...actions));
   const introuvable = () => montrer('introuvable', etatVide(MESSAGE_INTROUVABLE_PDF, { action: h('a', { class: 'bouton bouton-secondaire', href: '#/devis/liste', dataset: { action: 'retour-liste-introuvable' } }, 'Retour aux devis') }));
   const lienEditeur = h('a', { class: 'bouton bouton-principal', href: `#/devis/editeur/${encodeURIComponent(devisId)}`, dataset: { action: 'ouvrir-editeur' } }, 'Ouvrir le devis');
 
