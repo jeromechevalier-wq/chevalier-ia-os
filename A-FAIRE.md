@@ -1,27 +1,26 @@
 # À faire : module Devis et outils (liste maintenue à jour)
 
-Mise à jour : 25/10/2026. Chaque ligne a un état : **en cours**, **prêt** (code écrit, pas encore en PR), **à faire**, **à décider** (une question pour Jérôme). Quand un sujet est fusionné et testé à l'écran par Jérôme, on le passe dans « Fait ». Ne rien écrire de confidentiel ici (dépôt public).
+Mise à jour : 25/10/2026, 15h45. États : **en test** (la coche GitHub tourne, fusion automatique armée), **en cours** (un agent y travaille), **prêt** (code écrit, pas encore en PR), **à faire**, **à décider**. Quand un sujet est fusionné **et** testé à l'écran par Jérôme, il passe dans « Fait ». Aucun secret ici (dépôt public).
 
-## À faire (dans l'ordre proposé)
+## À faire
 
-| # | Sujet | État | Remarque |
-|---|---|---|---|
-| 1 | PR 279 : un seul PDF (serveur), noms « Devis … », suppression d'un brouillon, infobulles, plus de « Fermer » | en cours (fusion automatique armée, attend la coche complète) | Tests PDF de Jérôme à faire après la fusion |
-| 2 | Pastille « Devis : … » cliquable (ouvre le devis) | prêt (commit local) | Fiche d'affaire et carte du Kanban |
-| 3 | Tests plus rapides (cache du navigateur ; `functions-plateforme/` ne lance plus le palier complet) | prêt (commit local) | Objectif de Jérôme : 2 à 3 minutes. Piste suivante : découper le palier complet en 6 tâches parallèles |
-| 4 | E-mails en copie (« + E-mail en copie », cc seulement) | prêt (branche locale `devis-cc`) | Pas de cci (décision de Jérôme) |
-| 5 | Copie du PDF dans le dossier Drive de travail de l'affaire (sous-dossier « Devis ») | à faire | « Indispensable » (Jérôme). Fait côté navigateur avec le compte Google de Jérôme. Question ouverte : qui est « Mathias » ? |
-| 6 | Vue Tableau des devis plus simple | à décider (voir les questions) | Retirer le TTC et « il y a N min », garder le HT en bas ; pastilles en bas à droite comme les Affaires et les Projets ; l'avertissement « PDF non rangé » y va aussi |
-| 7 | Relecture par Fable des PR 277, 278, 279 (fusionnées sans relecture) | à faire | Règle de CLAUDE.md : relecture avant fusion ; ici non faite |
-| 8 | Vérifications à l'écran de Jérôme : PR 277 (« + Devis », recherche), 278 (pastille, étapes), 263 (« Mon entreprise »), 279 (PDF) | en cours | Jérôme teste |
-
-## Idées et suites déjà évoquées
-- Découper le palier complet des tests en parties parallèles (gain : 25 min vers 6 min).
-- Envoi du devis par e-mail (le menu « Envoyer » montre « Envoyer par e-mail (bientôt) »).
-- Anciens documents d'affaire nommés « Brouillon – … » : gardent l'ancien nom (pas de renommage automatique prévu).
+| # | Sujet | PR | État | Jérôme doit… |
+|---|---|---|---|---|
+| 1 | Un seul PDF (serveur), noms « Devis … », suppression d'un brouillon, infobulles, plus de « Fermer » | 279 | en test (coche complète, fin vers 15h47 ; le test rapide est vert) | tester les PDF après la fusion |
+| 2 | Pastille « Devis : … » cliquable, plus ce fichier | 280 | en test | tester : un clic sur la pastille ouvre le devis |
+| 3 | Tests plus rapides (navigateur en cache ; `functions-plateforme/` sans palier complet) | 281 | en test (touche les workflows : 25 min une seule fois) | rien (regarder la durée des prochaines coches) |
+| 4 | Carte du Tableau des devis simplifiée (HT en bas, pastille ronde grise, verte, rouge) | 282 | en test | tester la vue Tableau |
+| 5 | Copie du PDF dans le dossier Drive de l'affaire (sous-dossier « Devis ») | — | en cours (agent) | tester avec son compte Google (Drive réel) |
+| 6 | E-mails en copie (« + E-mail en copie », cc seulement) | — | prêt (branche locale) ; à poser sur `main` quand la 279 est fusionnée | tester après |
+| 7 | Relecture par Fable des PR 277 à 282 (fusionnées ou à fusionner sans relecture) | — | à faire | rien |
+| 8 | Vérifications de Jérôme : PR 277 (« + Devis », recherche), 278 (pastille et étapes), 263 (« Mon entreprise ») | — | en cours | continuer ses tests |
+| 9 | Palier complet découpé en 6 parties parallèles (25 min vers 6 min) | — | à faire (idée de Fable, plus risqué : le nom de la coche changerait) | décider quand |
+| 10 | Envoi du devis par e-mail (« bientôt » dans le menu Envoyer) | — | à faire | prioriser |
+| 11 | Anciens documents d'affaire nommés « Brouillon – … » : renommer ? | — | à décider | dire si on renomme |
 
 ## Fait
 - PR 275 : un clic sur un devis ouvre l'éditeur ; « Voir la fiche » dans le menu « … ».
-- PR 277 : « Devis » dans le gros « + » et dans la recherche globale (fusionnée, à tester par Jérôme).
-- PR 278 : pastille « Devis : … » sur les affaires, même étape possible pour « à faire » et « envoyé » (fusionnée, à tester par Jérôme).
-- PR 115 fermée (chemin d'un Mac dans CLAUDE.md).
+- PR 277 : « Devis » dans le gros « + » et la recherche globale (fusionnée ; test de Jérôme en cours).
+- PR 278 : pastille d'état sur les affaires, même étape pour « à faire » et « envoyé » (fusionnée ; test de Jérôme en cours).
+- PR 115 : fermée (chemin d'un Mac dans CLAUDE.md).
+- Tests rapides de 3 minutes : seule la coche complète des PR sensibles reste longue (PR 281).
