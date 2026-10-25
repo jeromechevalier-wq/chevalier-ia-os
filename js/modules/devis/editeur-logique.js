@@ -419,9 +419,9 @@ export function sortieAConfirmer({ enregistre, courant, enCours = false, lecture
   return Boolean(enCours) || aDesChangements(enregistre, courant);
 }
 
-/** Libellé de l'indicateur d'enregistrement. `etat` : 'enregistre' | 'attente' | 'enCours' | 'erreur'. */
+/** Libellé de l'indicateur d'enregistrement. `etat` : 'enregistre' | 'attente' | 'enCours' | 'erreur'. Les trois états courants sont courts et de longueur voisine : la barre du haut ne bouge pas quand on passe de l'un à l'autre. */
 export function libelleEnregistrement(etat) {
-  return { enregistre: 'Enregistré', attente: 'Modifications non enregistrées', enCours: 'Enregistrement…', erreur: 'Échec de l’enregistrement' }[etat] ?? '';
+  return { enregistre: 'Enregistré', attente: 'Non enregistré', enCours: 'Enregistrement…', erreur: 'Échec de l’enregistrement' }[etat] ?? '';
 }
 
 // ---------------------------------------------------------------- client, adresse, destinataires

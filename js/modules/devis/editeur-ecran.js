@@ -56,7 +56,7 @@ export function infosClientDuDevis(d) {
   return { telephone, email: Ed.emailsDeFiche(fiche)[0] ?? '', numeroTva: fiche.numeroTva ?? fiche.tva ?? '', siren: fiche.siren ?? '' };
 }
 /** Document complet du devis (le même pour l'aperçu, l'impression de l'éditeur et celle de la fiche). */
-export const htmlImpressionDevis = (d) => htmlDuDevis(d, { clientNom: clientDuDevis(d) || null, client: infosClientDuDevis(d) });
+export const htmlImpressionDevis = (d) => htmlDuDevis(d, { clientNom: clientDuDevis(d) || null, client: infosClientDuDevis(d), emetteur: D.etat.reglages.entreprise });
 /** Imprime le devis (ou l'enregistre en PDF) sans serveur. À appeler directement dans un clic. Rend { ok, erreur }. */
 export function imprimerLeDevis(d) { return imprimerDevis({ html: htmlImpressionDevis(d) }); }
 const affaires = () => CRM.etat.affaires.filter((a) => !a.archive).sort((a, b) => String(a.titre).localeCompare(String(b.titre), 'fr'));
@@ -227,6 +227,9 @@ export function rendreEditeurDevis(conteneur, id) {
   // Les mises à jour du serveur : lecture seule dès que le devis n'est plus un brouillon ; en lecture seule on suit toujours la dernière version.
   function surDonnees() {
     if (!montre) { charger(); return; }
+    // « Mon entreprise » modifiée ailleurs : l'aperçu ouvert se met à jour.
+    const entreprise = JSON.stringify(D.etat.reglages.entreprise);
+    if (entreprise !== entrepriseAffichee) { entrepriseAffichee = entreprise; if (onglet === 'apercu' && ref.panneauApercu) rendreApercu(); }
     const d = devisCourant();
     if (!d) return;
     if (!lecture && d.statut === 'brouillon' && !conflit && !Ed.memeContenu(d, enregistre) && !(enVol && Ed.memeContenu(d, enVol))) {
@@ -335,13 +338,16 @@ export function rendreEditeurDevis(conteneur, id) {
     ref.titre = h('h1', { class: 'titre-barre-devis' }, '');
     ref.pastille = h('span', { class: 'pastille-statut', dataset: { valeur: 'statut' } });
     ref.indicateur = h('span', { class: 'indicateur-enregistrement', role: 'status', 'aria-live': 'polite', dataset: { valeur: 'enregistrement' } });
+    // L'enregistrement est automatique : il n'y a plus de bouton « Enregistrer ». Le nombre de champs obligatoires à remplir et le bouton « Réessayer » (seulement après un échec) prennent sa place.
+    ref.compteurManquants = h('span', { class: 'indicateur-manquants', hidden: true, dataset: { valeur: 'manquants' }, title: 'Champs obligatoires à remplir' });
+    ref.boutonReessayer = h('button', { type: 'button', class: 'bouton-lien', hidden: true, dataset: { action: 'reessayer-enregistrement' }, onclick: async () => { const ok = await sauver(); if (!ok) toast(messageEnreg || ERREUR_ECRITURE, { type: 'erreur', duree: 8000 }); } }, 'Réessayer');
     const onglets = h('div', { class: 'onglets-editeur', role: 'tablist', 'aria-label': 'Affichage du devis', hidden: lecture },
       [['edition', 'Édition', 'pencil'], ['apercu', 'Prévisualisation', 'eye']].map(([cle, libelle, pictogramme]) => h('button', {
         type: 'button', class: 'onglet-editeur', role: 'tab', dataset: { onglet: cle }, onclick: () => choisirOnglet(cle),
       }, icone(pictogramme, { taille: 16 }), libelle)));
     ref.onglets = onglets;
     const barre = h('header', { class: 'barre-devis' },
-      h('div', { class: 'barre-devis-gauche' }, h('div', { class: 'titre-devis' }, ref.titre, ref.pastille, ref.indicateur), onglets),
+      h('div', { class: 'barre-devis-gauche' }, h('div', { class: 'titre-devis' }, ref.titre, ref.pastille, ref.indicateur, ref.boutonReessayer, ref.compteurManquants), onglets),
       h('div', { class: 'barre-devis-droite' }, lecture ? boutonsLecture(d) : boutonsEdition()));
     ref.bandeauConflit = h('p', { class: 'bandeau-lecture-seule', role: 'alert', hidden: !conflit, dataset: { valeur: 'conflit' } }, 'Ce devis a été modifié ailleurs. Tes changements ne sont pas enregistrés tant que tu n’as pas rechargé. ',
       h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'recharger' }, onclick: () => { conflit = false; charger(); } }, 'Recharger'));
@@ -349,7 +355,7 @@ export function rendreEditeurDevis(conteneur, id) {
     ref.panneauEdition = h('div', { class: 'editeur-edition', dataset: { panneau: 'edition' } },
       lecture
         ? h('article', { class: 'document-devis' }, blocTotaux())
-        : [rangeeBibliotheque(), h('article', { class: 'document-devis' }, enteteDocument(), blocLignes(), basDePage())]);
+        : h('article', { class: 'document-devis' }, enteteDocument(), blocLignes(), basDePage()));
     ref.panneauApercu = h('div', { class: 'editeur-apercu', dataset: { panneau: 'apercu' } });
     bibliotheque?.fermer();
     bibliotheque = null;
@@ -375,14 +381,14 @@ export function rendreEditeurDevis(conteneur, id) {
     ];
   }
 
-  // Barre d'actions : Options (menu à cases à cocher), Annuler, Enregistrer, Finaliser (bouton à menu). Sur téléphone, Options passe dans le bouton « … ».
+  // Barre d'actions : Catalogue, Options (menu à cases à cocher), Annuler, Envoyer (bouton à menu). Sur téléphone, Options passe dans le bouton « … ». Pas de bouton Enregistrer : l'enregistrement est automatique.
   function boutonsEdition() {
     ref.boutonOptions = h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-options', dataset: { action: 'options' }, 'aria-controls': 'options-devis', 'aria-expanded': 'false', onclick: (ev) => (optionsOuvertes ? optionsOuvertes.fermer() : ouvrirOptions(ev.currentTarget)) }, 'Options', icone('chevron-down', { taille: 14 }));
     return [
+      boutonCatalogue(),
       ref.boutonOptions,
       h('button', { type: 'button', class: 'bouton-icone bouton-plus-actions', dataset: { action: 'plus-actions' }, 'aria-haspopup': 'menu', 'aria-label': 'Autres actions', onclick: (ev) => { const ancre = ev.currentTarget; ouvrirMenu(ancre, [{ libelle: 'Options', icone: 'settings', action: () => ouvrirOptions(ancre) }]); } }, icone('ellipsis', { taille: 16 })),
       h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'annuler' }, onclick: () => naviguer('devis/liste') }, 'Annuler'),
-      (ref.boutonEnregistrer = h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'enregistrer' }, onclick: async () => { const ok = await sauver(); toast(ok ? 'Devis enregistré' : messageEnreg || ERREUR_ECRITURE, { type: ok ? 'info' : 'erreur', duree: ok ? 2500 : 8000 }); } })),
       // « Envoyer » remplace « Finaliser » : imprimer, télécharger ou envoyer par e-mail ; le devis est finalisé (numéroté, prix figés) au moment de l'envoi.
       h('button', { type: 'button', class: 'bouton bouton-principal', dataset: { action: 'envoyer' }, 'aria-haspopup': 'menu', 'aria-expanded': 'false', onclick: (ev) => ouvrirMenuEnvoyer(ev.currentTarget) }, icone('mail', { taille: 16 }), 'Envoyer', icone('chevron-down', { taille: 14 })),
       h('button', { type: 'button', class: 'bouton-icone', dataset: { action: 'fermer' }, 'aria-label': 'Fermer le devis', onclick: () => naviguer('devis/liste') }, icone('x', { taille: 18 })),
@@ -524,11 +530,9 @@ export function rendreEditeurDevis(conteneur, id) {
     ref.erreurEnreg.hidden = etatEnreg !== 'erreur';
     ref.erreurEnreg.textContent = etatEnreg === 'erreur' ? messageEnreg : '';
     const manquants = Ed.champsManquants(d).length;
-    const modifie = etatEnreg !== 'enregistre';
-    ref.boutonEnregistrer.disabled = !modifie && !manquants;
-    ref.boutonEnregistrer.classList.toggle('bouton-principal', modifie);
-    ref.boutonEnregistrer.classList.toggle('bouton-secondaire', !modifie);
-    remplir(ref.boutonEnregistrer, 'Enregistrer', manquants ? h('span', { class: 'compteur-manquants', dataset: { valeur: 'manquants' }, title: 'Champs obligatoires à remplir', 'aria-label': `${manquants} champ obligatoire à remplir` }, String(manquants)) : null);
+    ref.compteurManquants.hidden = !manquants;
+    ref.compteurManquants.textContent = manquants ? `${manquants} champ${manquants > 1 ? 's' : ''} à remplir` : '';
+    ref.boutonReessayer.hidden = etatEnreg !== 'erreur';
     if (ref.selectAffaire) ref.selectAffaire.classList.toggle('invalide', !d.affaireId);
     if (ref.erreurAffaire) { ref.erreurAffaire.hidden = Boolean(d.affaireId); }
   }
@@ -536,11 +540,11 @@ export function rendreEditeurDevis(conteneur, id) {
   // ------------------------------------------------ calcul des marges : visible sur les lignes seulement avec la case « Afficher le calcul des marges » du menu Options (la marge du devis se règle dans « Définir un ajustement »)
   const majMarges = () => { racine.dataset.marges = affichage().afficherMarges ? 'oui' : 'non'; };
 
-  // ------------------------------------------------ Bibliothèque : le bouton sous la barre, le panneau à droite
-  function rangeeBibliotheque() {
+  // ------------------------------------------------ Catalogue (ancienne « Bibliothèque ») : le bouton dans la barre, à gauche d'Options ; le panneau à droite
+  function boutonCatalogue() {
     ref.boutonBibliotheque = h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'bibliotheque' }, 'aria-expanded': 'false', 'aria-controls': 'bibliotheque-devis',
-      onclick: () => (bibliotheque?.ouvert() ? bibliotheque.fermer() : ouvrirLaBibliotheque()) }, icone('list', { taille: 16 }), 'Bibliothèque');
-    return h('div', { class: 'rangee-bibliotheque' }, ref.boutonBibliotheque);
+      onclick: () => (bibliotheque?.ouvert() ? bibliotheque.fermer() : ouvrirLaBibliotheque()) }, icone('list', { taille: 16 }), 'Catalogue');
+    return ref.boutonBibliotheque;
   }
   /** `remplacer` : identifiant d'une ligne (bouton « Catalogue » de sa désignation) : l'article choisi prend la place de cette ligne au lieu d'être ajouté à la fin. */
   function ouvrirLaBibliotheque(remplacer = null) {
@@ -1358,6 +1362,7 @@ export function rendreEditeurDevis(conteneur, id) {
   }
 
   // ------------------------------------------------ démarrage
+  let entrepriseAffichee = JSON.stringify(D.etat.reglages.entreprise);
   charger();
   const rafraichir = planifier(surDonnees);
   const arrets = [D.surChangement(rafraichir), CRM.surChangement(() => { if (montre && !lecture) { majClients(); } else if (!montre) rafraichir(); })];

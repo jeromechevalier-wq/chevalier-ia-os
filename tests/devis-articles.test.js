@@ -171,15 +171,38 @@ describe('B7 les réglages s’enregistrent et se relisent', () => {
   test('B7 logique : valeurs par défaut', () => {
     assert.deepEqual(A.reglagesDevis(null), {
       nomBordereau: 'Catalogue', modeMarge: 'majoration', marge: 20, regimeTva: 'assujetti', tauxProposes: [20, 10, 5.5], tauxTvaDefaut: 20,
-      dureeValiditeJours: 90, etapeAFaire: '', etapeEnvoye: '', mentionEmetteur: '',
+      dureeValiditeJours: 90, etapeAFaire: '', etapeEnvoye: '', mentionEmetteur: '', entreprise: {},
     });
     assert.deepEqual(A.reglagesDevis({}), A.reglagesDevis(undefined));
   });
   test('B7 logique : une saisie valide se relit à l’identique (aller-retour par reglagesDevis), virgule française acceptée', () => {
     const r = A.validerReglagesDevis({ nomBordereau: 'Catalogue', modeMarge: 'marge_vente', marge: '25,5', regimeTva: 'franchise', tauxProposes: [10, 20], tauxTvaDefaut: 10, dureeValiditeJours: '60', etapeAFaire: 'a', etapeEnvoye: 'b', mentionEmetteur: '  Ma mention  ' }, { etapesIds });
     assert.deepEqual(r.erreurs, {});
-    assert.deepEqual(r.reglages, { nomBordereau: 'Catalogue', modeMarge: 'marge_vente', marge: 25.5, regimeTva: 'franchise', tauxProposes: [20, 10], tauxTvaDefaut: 10, dureeValiditeJours: 60, etapeAFaire: 'a', etapeEnvoye: 'b', mentionEmetteur: 'Ma mention' });
+    assert.deepEqual(r.reglages, { nomBordereau: 'Catalogue', modeMarge: 'marge_vente', marge: 25.5, regimeTva: 'franchise', tauxProposes: [20, 10], tauxTvaDefaut: 10, dureeValiditeJours: 60, etapeAFaire: 'a', etapeEnvoye: 'b', mentionEmetteur: 'Ma mention', entreprise: {} });
     assert.deepEqual(A.reglagesDevis(r.reglages), r.reglages);
+  });
+  test('E1 logique : « Mon entreprise » vide par défaut ; un champ vide n’est pas enregistré ; les clés sont celles que le document lit', () => {
+    assert.deepEqual(A.reglagesDevis(null).entreprise, {});
+    const r = A.validerReglagesDevis({ entreprise: { nom: '  Mon   Entreprise ', forme: '', siret: '123 456 789 00012', adresse: { ligne1: '1 rue des Lilas', codePostal: '75001', ville: 'Paris' }, email: 'contact@exemple.fr', couleur: '#1F6FEB',
+      assurance: { garantie: 'Décennale', assureur: 'Assureur SA', adresse: '', zone: 'France' }, mediateur: { nom: 'Médiateur', email: '', site: 'https://exemple.fr' } } }, { etapesIds });
+    assert.deepEqual(r.erreurs, {});
+    assert.deepEqual(r.reglages.entreprise, { nom: 'Mon Entreprise', siret: '123 456 789 00012', adresse: { ligne1: '1 rue des Lilas', codePostal: '75001', ville: 'Paris' }, email: 'contact@exemple.fr', couleur: '#1f6feb',
+      assurance: { garantie: 'Décennale', assureur: 'Assureur SA', zone: 'France' }, mediateur: { nom: 'Médiateur', site: 'https://exemple.fr' } });
+    assert.deepEqual(A.reglagesDevis(r.reglages), r.reglages);
+    assert.deepEqual(A.validerReglagesDevis({ entreprise: {} }, { etapesIds }).reglages.entreprise, {});
+  });
+  test('E2 logique : e-mail, couleur et longueurs sont refusés avec un message qui dit quoi faire ; une adresse en simple texte est acceptée', () => {
+    const r = A.validerReglagesDevis({ entreprise: { email: 'pas-un-email', couleur: 'rouge', nom: 'x'.repeat(121), mediateur: { email: 'a@b' } } }, { etapesIds });
+    assert.equal(r.reglages, null);
+    assert.match(r.erreurs['entreprise.email'], /contact@exemple\.fr/);
+    assert.match(r.erreurs['entreprise.couleur'], /#/);
+    assert.match(r.erreurs['entreprise.nom'], /raccourcis/);
+    assert.ok(r.erreurs['entreprise.mediateur.email']);
+    assert.deepEqual(A.validerEntreprise({ adresse: '3 impasse X, 69000 Lyon' }).entreprise, { adresse: { ligne1: '3 impasse X, 69000 Lyon' } });
+  });
+  test('E3 logique : une donnée illisible dans la base est ignorée champ par champ, sans erreur', () => {
+    assert.deepEqual(A.reglagesDevis({ entreprise: { nom: 'Ok', email: 'faux', couleur: 'zzz', assurance: 'texte', mediateur: { nom: 5 } } }).entreprise, { nom: 'Ok', mediateur: { nom: '5' } });
+    assert.deepEqual(A.reglagesDevis({ entreprise: 'texte' }).entreprise, {});
   });
   test('B7 logique : une marge « marge sur prix de vente » de 100 % ou plus est refusée avec un message ; 99 % et les marges négatives sont acceptées ; la majoration n’a pas de limite', () => {
     const essai = (modeMarge, marge) => A.validerReglagesDevis({ modeMarge, marge }, { etapesIds });

@@ -138,6 +138,14 @@ describe('F2 boutons de la fiche', () => {
     assert.equal(r.annuler.actif, false);
     assert.equal(Fi.actionsFiche(devis({ statut: 'accepte', archive: true })).annuler.actif, false); // déjà archivé
   });
+  test('F9 archivage : Archiver (signé ou refusé), Désarchiver (archivé), sinon grisé avec la raison du serveur', () => {
+    assert.deepEqual([Fi.archivageFiche(devis({ statut: 'accepte' })).libelle, Fi.archivageFiche(devis({ statut: 'accepte' })).actif], ['Archiver', true]);
+    assert.equal(Fi.archivageFiche(devis({ statut: 'refuse' })).action, 'archiver');
+    const d = Fi.archivageFiche(devis({ statut: 'accepte', archive: true }));
+    assert.deepEqual([d.libelle, d.action, d.icone, d.actif], ['Désarchiver', 'desarchiver', 'archive-restore', true]);
+    const g = Fi.archivageFiche(devis({ statut: 'envoye' }));
+    assert.deepEqual([g.actif, g.raison], [false, 'Seul un devis signé ou refusé peut être archivé.']);
+  });
   test('F2 Aperçu PDF : actif seulement avec un lien https ; sinon grisé « PDF pas encore généré »', () => {
     assert.deepEqual(Fi.actionsFiche(devis()).apercuPdf, { actif: false, raison: 'PDF pas encore généré' });
     assert.equal(Fi.actionsFiche(devis({ pdf: 'https://exemple.fr/devis.pdf' })).apercuPdf.lien, 'https://exemple.fr/devis.pdf');

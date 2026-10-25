@@ -15,7 +15,7 @@ import {
   ecritureCreer, ecritureModifier, MARQUES_CREATION, MARQUES_MODIFICATION, normaliser, normaliserNom, nettoyerEspaces,
 } from '../crm/logique.js';
 import {
-  MODES_MARGE, REGIMES_TVA, TAUX_TVA_DEFAUT, DUREE_VALIDITE_DEFAUT, coefficientDeMarge,
+  MODES_MARGE, REGIMES_TVA, TAUX_TVA_DEFAUT, DUREE_VALIDITE_DEFAUT, coefficientDeMarge, emailValide,
 } from './logique.js';
 import { TYPE_OUVRAGE, erreursOuvrage, articlesParId, calculerOuvrage } from './ouvrages.js';
 import {
@@ -35,6 +35,69 @@ export const NOM_BORDEREAU_DEFAUT = NOMS_BORDEREAU[0];
 export const MARGE_DEFAUT = 20;
 export const TAUX_TVA_DEFAUT_REGLAGE = TAUX_TVA_DEFAUT[0];
 export const LIMITES = { libelle: 200, code: 40, unite: 20, prixMax: 10_000_000, mention: 500, jours: 3650, reference: 120, marque: 120 };
+
+// ---------------------------------------------------------------- « Mon entreprise » (l'émetteur du document)
+// Les clés sont EXACTEMENT celles que document.js lit dans `emetteur` : nom, forme, siret, tva, adresse { ligne1, codePostal, ville }, email, telephone, site,
+// registreMetiers, couleur, assurance { garantie, assureur, adresse, zone }, mediateur { nom, email, site }. Un champ vide n'est pas enregistré ; sans rien : `{}`.
+// Pas de logo, de paiement ni de CGV ici : ils viendront avec leurs propres écrans.
+const TEXTES_ENTREPRISE = [['nom', 'Le nom', 120], ['forme', 'La forme juridique', 60], ['siret', 'Le SIRET', 30], ['tva', 'Le numéro de TVA', 30], ['telephone', 'Le téléphone', 30],
+  ['email', 'L’e-mail', 120], ['site', 'Le site web', 200], ['registreMetiers', 'La mention du registre des métiers', 200]];
+const TEXTES_ADRESSE = [['ligne1', 'La rue', 200], ['codePostal', 'Le code postal', 12], ['ville', 'La ville', 80]];
+const TEXTES_ASSURANCE = [['garantie', 'La garantie', 200], ['assureur', 'L’assureur', 120], ['adresse', 'L’adresse de l’assureur', 200], ['zone', 'La zone de couverture', 120]];
+const TEXTES_MEDIATEUR = [['nom', 'Le nom du médiateur', 120], ['email', 'L’e-mail du médiateur', 120], ['site', 'Le site du médiateur', 200]];
+const COULEUR_HEX = /^#[0-9a-fA-F]{6}$/;
+const objetSimple = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+const texteAdresse = (v) => (typeof v === 'string' ? v : objetSimple(v) && typeof v.texte === 'string' ? v.texte : null);
+
+/** Lit un groupe de champs texte : `{ valeurs (nettoyées, sans les vides), erreurs }`. `prefixe` : clé d'erreur (« entreprise.assurance »). */
+function lireGroupe(source, champs, prefixe) {
+  const valeurs = {};
+  const erreurs = {};
+  const s = objetSimple(source) ? source : {};
+  for (const [cle, libelle, max] of champs) {
+    const brut = s[cle];
+    if (brut === undefined || brut === null) continue;
+    const t = nettoyerEspaces(typeof brut === 'string' || typeof brut === 'number' ? brut : '');
+    if (t.length > max) erreurs[`${prefixe}.${cle}`] = `${libelle} est trop long (${max} caractères au plus) : raccourcis-le.`;
+    else if (t) valeurs[cle] = t;
+  }
+  return { valeurs, erreurs };
+}
+
+/**
+ * Contrôle de « Mon entreprise » : `{ entreprise, erreurs }`. Un champ vide est permis ; une adresse en simple texte est rangée dans `ligne1`.
+ * Erreurs : couleur (#rrggbb), e-mails plausibles, longueurs.
+ */
+export function validerEntreprise(brut) {
+  const s = objetSimple(brut) ? brut : {};
+  const erreurs = {};
+  const sortie = {};
+  const racine = lireGroupe(s, TEXTES_ENTREPRISE, 'entreprise');
+  Object.assign(erreurs, racine.erreurs);
+  Object.assign(sortie, racine.valeurs);
+  const texteAdr = texteAdresse(s.adresse);
+  const adr = lireGroupe(texteAdr !== null ? { ligne1: texteAdr } : s.adresse, TEXTES_ADRESSE, 'entreprise.adresse');
+  Object.assign(erreurs, adr.erreurs);
+  if (Object.keys(adr.valeurs).length) sortie.adresse = adr.valeurs;
+  const ass = lireGroupe(s.assurance, TEXTES_ASSURANCE, 'entreprise.assurance');
+  Object.assign(erreurs, ass.erreurs);
+  if (Object.keys(ass.valeurs).length) sortie.assurance = ass.valeurs;
+  const med = lireGroupe(s.mediateur, TEXTES_MEDIATEUR, 'entreprise.mediateur');
+  Object.assign(erreurs, med.erreurs);
+  if (Object.keys(med.valeurs).length) sortie.mediateur = med.valeurs;
+  for (const [parent, cle, libelle] of [[sortie, 'email', 'l’e-mail de l’entreprise'], [sortie.mediateur, 'email', 'l’e-mail du médiateur']]) {
+    if (!parent?.[cle] || emailValide(parent[cle])) continue;
+    erreurs[parent === sortie ? 'entreprise.email' : 'entreprise.mediateur.email'] ??= `Vérifie ${libelle} : il doit ressembler à contact@exemple.fr.`;
+    delete parent[cle]; // une valeur invalide n'est jamais gardée
+  }
+  if (sortie.mediateur && !Object.keys(sortie.mediateur).length) delete sortie.mediateur;
+  const couleur = typeof s.couleur === 'string' ? s.couleur.trim() : '';
+  if (couleur) {
+    if (COULEUR_HEX.test(couleur)) sortie.couleur = couleur.toLowerCase();
+    else erreurs['entreprise.couleur'] = 'La couleur doit s’écrire # suivi de 6 chiffres ou lettres (exemple : #1f6feb). Choisis-la avec le sélecteur, ou remets la couleur par défaut.';
+  }
+  return { entreprise: sortie, erreurs };
+}
 export const MESSAGE_DESACTIVER = 'Un article ne se supprime jamais : il se désactive. Les devis déjà faits ne changent pas, et tu pourras le réactiver quand tu veux.';
 /** Ligne de texte libre : ni prix, ni quantité, ni unité obligatoires ; elle compte 0 dans les totaux d'un devis. */
 export const TYPE_TEXTE = 'texte';
@@ -320,6 +383,7 @@ export const REGLAGES_DEVIS_DEFAUT = Object.freeze({
   etapeAFaire: '',
   etapeEnvoye: '',
   mentionEmetteur: '',
+  entreprise: Object.freeze({}),
 });
 const CLES_REGLAGES = Object.keys(REGLAGES_DEVIS_DEFAUT);
 
@@ -340,8 +404,12 @@ export function reglagesDevis(brut) {
     etapeAFaire: typeof b.etapeAFaire === 'string' ? b.etapeAFaire : '',
     etapeEnvoye: typeof b.etapeEnvoye === 'string' ? b.etapeEnvoye : '',
     mentionEmetteur: typeof b.mentionEmetteur === 'string' ? b.mentionEmetteur : '',
+    entreprise: lireEntreprise(b.entreprise),
   };
 }
+
+/** « Mon entreprise » lue dans la base : ce qui est valide est gardé, le reste est ignoré (jamais d'erreur à la lecture). Rend toujours un objet neuf. */
+const lireEntreprise = (brut) => validerEntreprise(brut).entreprise;
 
 /** Titre de l'écran du bordereau = le nom choisi dans les réglages. */
 export const titreBordereau = (reglages) => reglagesDevis(reglages).nomBordereau;
@@ -376,6 +444,8 @@ export function validerReglagesDevis(saisie, { actuels = REGLAGES_DEVIS_DEFAUT, 
   }
   const mention = typeof s.mentionEmetteur === 'string' ? s.mentionEmetteur.trim() : '';
   if (mention.length > LIMITES.mention) erreurs.mentionEmetteur = `La mention est trop longue (${LIMITES.mention} caractères au plus).`;
+  const ent = validerEntreprise(s.entreprise);
+  Object.assign(erreurs, ent.erreurs);
   if (Object.keys(erreurs).length) return { reglages: null, erreurs };
   return {
     reglages: {
@@ -389,6 +459,7 @@ export function validerReglagesDevis(saisie, { actuels = REGLAGES_DEVIS_DEFAUT, 
       etapeAFaire: s.etapeAFaire || '',
       etapeEnvoye: s.etapeEnvoye || '',
       mentionEmetteur: mention,
+      entreprise: ent.entreprise,
     },
     erreurs: {},
   };

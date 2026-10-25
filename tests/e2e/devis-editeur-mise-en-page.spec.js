@@ -72,14 +72,15 @@ async function ajouterLibre(page) {
 }
 const numeros = (page) => page.locator('.tableau-lignes-devis tbody tr td.c-num').allTextContents();
 
-test('1 la barre d’actions reste en haut quand on défile : titre « Brouillon », onglets Édition et Prévisualisation, Options, Annuler, Enregistrer, Finaliser', async ({ page }, info) => {
+test('1 la barre d’actions reste en haut quand on défile : titre « Brouillon », onglets Édition et Prévisualisation, Catalogue, Options, Annuler, Finaliser', async ({ page }, info) => {
   await semer();
   await ouvrir(page, await devisLong());
   const barre = page.locator('.barre-devis');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Brouillon');
   await expect(page.locator('[data-onglet="edition"]')).toHaveText('Édition');
   await expect(page.locator('[data-onglet="apercu"]')).toHaveText('Prévisualisation');
-  for (const action of ['annuler', 'enregistrer', 'envoyer', 'fermer']) await expect(page.locator(`.barre-devis [data-action="${action}"]`)).toBeVisible();
+  for (const action of ['bibliotheque', 'annuler', 'envoyer', 'fermer']) await expect(page.locator(`.barre-devis [data-action="${action}"]`)).toBeVisible();
+  await expect(page.locator('.barre-devis [data-action="enregistrer"]')).toHaveCount(0); // l'enregistrement est automatique
   await expect(page.locator('[data-action="envoyer"]')).toHaveClass(/bouton-principal/); // le seul bouton jaune plein de la barre
   // En bas de la page, la barre est toujours à l'écran (collée en haut, sous la barre du téléphone).
   await defiler(page, false);
@@ -293,8 +294,9 @@ test('6 sur téléphone : une carte par ligne (désignation en haut, puis Qté /
   const bande = await page.locator('tr[data-id="s1"]').boundingBox();
   const largeur = page.viewportSize().width;
   expect(bande.width).toBeGreaterThan(largeur - 60);
-  // La barre garde Annuler, Enregistrer et Finaliser ; Options est dans « … ».
-  for (const action of ['annuler', 'enregistrer', 'envoyer', 'fermer']) await expect(page.locator(`.barre-devis [data-action="${action}"]`)).toBeVisible();
+  // La barre garde Catalogue, Annuler et Envoyer ; Options est dans « … ».
+  for (const action of ['bibliotheque', 'annuler', 'envoyer', 'fermer']) await expect(page.locator(`.barre-devis [data-action="${action}"]`)).toBeVisible();
+  await expect(page.locator('.barre-devis [data-action="enregistrer"]')).toHaveCount(0); // l'enregistrement est automatique
   await expect(page.locator('[data-action="options"]')).toBeHidden();
   await expect(page.locator('[data-action="plus-actions"]')).toBeVisible();
   // Rien ne déborde de la largeur de l'écran.
@@ -385,4 +387,39 @@ test('1 les onglets ont un pictogramme : un stylo pour Édition, un œil pour Pr
   await ouvrir(page, await devisLong());
   await expect(page.locator('[data-onglet="edition"] svg')).toHaveCount(1);
   await expect(page.locator('[data-onglet="apercu"] svg')).toHaveCount(1);
+});
+
+test('8 la barre du haut ne saute pas quand l’état d’enregistrement change : « Enregistré », « Non enregistré », « Enregistrement… » sont courts', async ({ page }) => {
+  await semer();
+  await ouvrir(page, await devisLong());
+  const indicateur = page.locator('[data-valeur="enregistrement"]');
+  // Position des onglets par rapport au titre : insensible au défilement de la page (le champ qu'on remplit peut la faire défiler).
+  const decalage = async () => {
+    const [titre, onglet] = await Promise.all([page.locator('.titre-barre-devis').boundingBox(), page.locator('[data-onglet="edition"]').boundingBox()]);
+    return { x: onglet.x - titre.x, y: onglet.y - titre.y };
+  };
+  await expect(indicateur).toHaveText('Enregistré');
+  const avant = await decalage();
+  await page.locator('textarea[data-champ="description"]').first().fill('texte modifié');
+  await expect(indicateur).toHaveText(/Non enregistré|Enregistrement…/); // l'état change vraiment
+  const pendant = await decalage();
+  await expect(indicateur).toHaveText('Enregistré'); // l'enregistrement automatique se termine
+  const apres = await decalage();
+  for (const mesure of [pendant, apres]) {
+    expect(Math.abs(mesure.x - avant.x)).toBeLessThan(2); // les onglets ne bougent pas
+    expect(Math.abs(mesure.y - avant.y)).toBeLessThan(2); // la barre ne passe pas sur deux lignes
+  }
+});
+
+test('9 le bouton Catalogue est dans la barre, à gauche d’Options ; plus de bouton Enregistrer : l’enregistrement est automatique', async ({ page }, info) => {
+  test.skip(estTelephone(page), 'ordinateur : Options est dans « … » sur téléphone');
+  await semer();
+  await ouvrir(page, await devisLong());
+  const catalogue = await page.locator('.barre-devis [data-action="bibliotheque"]').boundingBox();
+  const options = await page.locator('.barre-devis [data-action="options"]').boundingBox();
+  expect(catalogue.x + catalogue.width).toBeLessThanOrEqual(options.x + 1); // à gauche d'Options
+  expect(Math.abs(catalogue.y - options.y)).toBeLessThan(4); // sur la même ligne
+  await expect(page.locator('[data-action="enregistrer"]')).toHaveCount(0);
+  await expect(page.locator('[data-action="reessayer-enregistrement"]')).toBeHidden(); // seulement après un échec
+  await capturer(page, info, '9-barre-catalogue', { pleine: false });
 });
