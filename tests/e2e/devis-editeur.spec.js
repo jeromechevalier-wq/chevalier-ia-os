@@ -268,6 +268,7 @@ test('ED4 cas d’erreur : devis introuvable, devis déjà finalisé en lecture 
   await page.locator('[data-champ="objet"]').fill('Cuisine');
   await expect(page.locator('[data-valeur="enregistrement"]')).toHaveText('Échec de l’enregistrement');
   await expect(page.locator('[data-erreur="enregistrement"]')).toContainText(/Devis introuvable|Enregistrement impossible/);
+  await expect(page.locator('[data-action="reessayer-enregistrement"]')).toBeVisible(); // le lien « Réessayer » prend la place du bouton Enregistrer
   await capturer(page, info, 'ED4-ecriture-refusee');
   // Quitter avec un changement non enregistré : « Rester » garde la page et le texte ; « Enregistrer et quitter » (écriture refusée) reste sur le devis.
   await page.evaluate(() => { location.hash = '#/devis/liste'; });
