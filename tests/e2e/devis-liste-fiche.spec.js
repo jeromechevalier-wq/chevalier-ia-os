@@ -52,7 +52,8 @@ async function ouvrir(page, route = 'devis/liste') {
   await attendreCalme(page);
 }
 async function ouvrirFiche(page, id) {
-  await page.locator(`tr.ligne-devis[data-id="${id}"] [data-colonne="numero"]`).click();
+  await page.locator(`[data-id="${id}"] [data-action="menu-devis"]`).click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Voir la fiche' }).click();
   await expect(fiche(page)).toBeVisible();
   await expect(fiche(page).locator('.fiche-titre')).toBeVisible();
   await attendreCalme(page);
@@ -67,7 +68,7 @@ async function simulerServeur(page, appels) {
   }
 }
 
-test('1 un clic sur une ligne ouvre la fiche à droite (la liste reste derrière) ; Échap la ferme et revient à la liste', async ({ page }, info) => {
+test('1 le menu « … » → « Voir la fiche » ouvre la fiche à droite (la liste reste derrière) ; Échap la ferme et revient à la liste', async ({ page }, info) => {
   await donnees();
   await ouvrir(page);
   await expect(fiche(page)).toHaveCount(0);
@@ -114,7 +115,7 @@ test('1 lien direct #/devis/liste/<id> ; la touche « retour » du navigateur fe
   }
   // Carte du Tableau.
   await page.locator('[data-vue="tableau"]').click();
-  await page.locator('.carte-devis[data-id="dSigne"] .carte-titre').click();
+  await ouvrirFiche(page, 'dSigne');
   await expect(fiche(page)).toBeVisible();
   await expect(page).toHaveURL(/#\/devis\/liste\/dSigne$/);
   await capturer(page, info, '1-fiche-depuis-tableau');
