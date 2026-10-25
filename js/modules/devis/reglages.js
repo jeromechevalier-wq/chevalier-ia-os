@@ -138,7 +138,7 @@ export function reglages(page) {
         bloc('etapeAFaire', 'Étape où un devis est à faire', liste('etapeAFaire', optionsEtapes, brouillon.etapeAFaire, (v) => changer({ etapeAFaire: v })),
           'L’étape de tes affaires où il faut préparer un devis (par exemple après le rendez-vous). Rien ne change tout seul pour l’instant.'),
         bloc('etapeEnvoye', 'Étape où il a été envoyé', liste('etapeEnvoye', optionsEtapes, brouillon.etapeEnvoye, (v) => changer({ etapeEnvoye: v })),
-          'L’étape de tes affaires une fois le devis envoyé au client.')),
+          'L’étape de tes affaires une fois le devis envoyé au client. Tu peux choisir la même étape que « à faire » (une seule colonne « Devis »).')),
       bloc('mentionEmetteur', 'Mention d’émetteur (facultatif)', h('textarea', { class: 'champ', id: 'devis-mentionEmetteur', rows: 3, maxlength: '500', dataset: { champ: 'mentionEmetteur' }, value: brouillon.mentionEmetteur,
         oninput: (e) => changer({ mentionEmetteur: e.target.value }) }), 'Un texte libre qui accompagne tes devis (par exemple une mention légale). Il n’est pas encore envoyé nulle part.'),
       sectionEntreprise());

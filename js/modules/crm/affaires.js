@@ -6,9 +6,10 @@ import * as D from './donnees.js';
 import * as L from './logique.js';
 import {
   lienPersonne, lienOrganisation, cheminAffaire, pastilleActivite, pastilleStatut, pastilleEtape, selecteurPersonne, selecteurOrganisation,
-  organisationChoisieOuSaisie, etatVide, planifier, selecteurTri,
+  organisationChoisieOuSaisie, etatVide, planifier, selecteurTri, pastillesExternes,
 } from './composants.js';
 import * as T from './tri.js';
+import { surChangementPastilles } from './pastilles-externes.js';
 import { barreFiltres } from './filtres.js';
 import { dialogueActivite } from './activites.js';
 
@@ -206,6 +207,7 @@ function carte(a) {
   h('div', { class: 'carte-ligne' }, h('strong', { class: 'carte-titre' }, a.titre), menu),
   o ? h('span', { class: 'carte-sous' }, icone('building-2', { taille: 12 }), o.nom) : null,
   p ? h('span', { class: 'carte-sous' }, icone('user', { taille: 12 }), p.nom) : null,
+  ...(() => { const ext = pastillesExternes(a.id); return ext.length ? [h('div', { class: 'carte-pastilles-externes' }, ext)] : []; })(),
   h('div', { class: 'carte-pied' },
     h('span', { class: 'carte-montant' }, a.montant !== null && a.montant !== undefined ? L.formatEuros(a.montant) : ''),
     priorite,
@@ -333,6 +335,7 @@ export function rendreAffaires(conteneur) {
   rafraichir = () => planifie();
   rendre();
   const arret = D.surChangement(planifie);
-  return () => { arret(); rafraichir = () => {}; };
+  const arretPastilles = surChangementPastilles(planifie);
+  return () => { arret(); arretPastilles(); rafraichir = () => {}; };
 }
 

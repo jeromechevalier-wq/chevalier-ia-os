@@ -246,10 +246,16 @@ test('B7 les réglages (mode de marge, régime de TVA, durée, étapes) s\'enreg
   await expect(page.locator('#devis-etapeEnvoye')).toHaveValue('proposition_envoyee');
   await expect(page.locator('#devis-mentionEmetteur')).toHaveValue('Une mention');
   await capturer(page, info, 'B7-reglages-relus');
-  // mêmes étapes pour « à faire » et « envoyé » : refusé
+  // 7 mêmes étapes pour « à faire » et « envoyé » : acceptées et enregistrées (une seule colonne « Devis »)
   await page.locator('#devis-etapeEnvoye').selectOption({ label: 'Rendez vous fixé' });
   await enregistrer.click();
-  await expect(page.locator('[data-erreur="etapeEnvoye"]')).toContainText('différente');
+  await expect(page.locator('.toast', { hasText: 'Réglages des devis enregistrés' }).last()).toBeVisible();
+  await expect(page.locator('[data-erreur="etapeEnvoye"]')).toHaveText('');
+  expect(await lireDocument('devis_parametres/reglages')).toMatchObject({ etapeAFaire: 'rdv_fixe', etapeEnvoye: 'rdv_fixe' });
+  await page.locator('#devis-etapeEnvoye').selectOption({ label: 'Proposition envoyée' });
+  await enregistrer.click();
+  await expect.poll(async () => (await lireDocument('devis_parametres/reglages')).etapeEnvoye).toBe('proposition_envoyee');
+  await page.locator('#devis-etapeEnvoye').selectOption({ label: 'Rendez vous fixé' });
   // « Annuler les changements » remet les réglages enregistrés (et libère la page : sans brouillon, on la quitte sans question)
   await page.locator('[data-action="annuler-reglages-devis"]').click();
   await expect(page.locator('#devis-etapeEnvoye')).toHaveValue('proposition_envoyee');

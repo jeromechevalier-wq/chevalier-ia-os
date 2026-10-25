@@ -230,7 +230,9 @@ describe('B7 les réglages s’enregistrent et se relisent', () => {
     assert.match(e({ tauxProposes: [] }).tauxProposes, /au moins un taux/);
     assert.match(e({ tauxProposes: [10], tauxTvaDefaut: 20 }).tauxTvaDefaut, /l’un des taux proposés/);
     assert.match(e({ etapeAFaire: 'inconnue' }).etapeAFaire, /n’existe plus/);
-    assert.match(e({ etapeAFaire: 'a', etapeEnvoye: 'a' }).etapeEnvoye, /différente/);
+    // 7 la même étape pour « à faire » et « envoyé » est acceptée (une seule colonne « Devis »)
+    assert.deepEqual(e({ etapeAFaire: 'a', etapeEnvoye: 'a' }), {});
+    assert.equal(A.validerReglagesDevis({ etapeAFaire: 'a', etapeEnvoye: 'a' }, { etapesIds }).reglages.etapeEnvoye, 'a');
     assert.deepEqual(e({ etapeAFaire: '', etapeEnvoye: '' }), {});
     assert.match(e({ nomBordereau: 'Liste' }).nomBordereau, /Choisis un nom/);
     assert.match(e({ mentionEmetteur: 'x'.repeat(501) }).mentionEmetteur, /trop longue/);

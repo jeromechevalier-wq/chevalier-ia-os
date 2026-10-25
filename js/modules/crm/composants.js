@@ -1,5 +1,6 @@
 // Composants du module CRM partagés par les listes et les fiches : sections repliables, propriétés à
 // compléter ("+ Ajouter"), pastilles, liens, sélecteurs intelligents (organisation, personne, étiquettes…).
+import { pastillesDeAffaire } from './pastilles-externes.js';
 import { h, icone, remplir, champIntelligent, dialogue, lirePreference, ecrirePreference, toast, iconeInfo } from '../../os/ui.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
@@ -514,6 +515,11 @@ export function barreEtapes(affaire) {
 }
 
 /** Petite carte d'une affaire (sections "Affaires" des fiches). */
+/** Pastilles ajoutées par d'autres modules (ex. « Devis : Brouillon ») pour une affaire ; liste vide si aucun module n'en fournit. */
+export function pastillesExternes(affaireId) {
+  return pastillesDeAffaire(affaireId).map((p) => h('span', { class: 'pastille-statut pastille-externe', style: { '--couleur': p.couleur }, dataset: { pastilleExterne: p.statut ?? '' } }, p.texte));
+}
+
 export function carteAffaireMini(a) {
   return h('a', { class: 'carte-affaire-mini', href: cheminAffaire(a.id), dataset: { affaire: a.id } },
     h('span', { class: 'carte-affaire-titre' }, a.titre),
