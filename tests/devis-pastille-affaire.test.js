@@ -54,3 +54,8 @@ test('5 module éteint = aucun fournisseur inscrit = aucune pastille ; retirer l
   retirer(); arret();
   assert.deepEqual(P.pastillesDeAffaire('a1'), []);
 });
+
+test('6 la pastille porte le lien du devis (elle l\'ouvre en un clic)', () => {
+  const p = pastilleDevisDeAffaire([{ id: 'dv9', affaireId: 'a1', statut: 'brouillon', creeLe: new Date(MAINT) }], 'a1', opts);
+  assert.equal(p.lien, 'devis/editeur/dv9');
+});

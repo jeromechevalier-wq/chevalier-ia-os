@@ -517,7 +517,12 @@ export function barreEtapes(affaire) {
 /** Petite carte d'une affaire (sections "Affaires" des fiches). */
 /** Pastilles ajoutées par d'autres modules (ex. « Devis : Brouillon ») pour une affaire ; liste vide si aucun module n'en fournit. */
 export function pastillesExternes(affaireId) {
-  return pastillesDeAffaire(affaireId).map((p) => h('span', { class: 'pastille-statut pastille-externe', style: { '--couleur': p.couleur }, dataset: { pastilleExterne: p.statut ?? '' } }, p.texte));
+  return pastillesDeAffaire(affaireId).map((p) => {
+    const attributs = { class: 'pastille-statut pastille-externe', style: { '--couleur': p.couleur }, dataset: { pastilleExterne: p.statut ?? '' } };
+    // Avec un lien, la pastille ouvre l'élément (ex. le devis) ; le clic ne doit pas ouvrir la carte de l'affaire en dessous.
+    if (p.lien) return h('a', { ...attributs, href: `#/${p.lien}`, title: 'Ouvrir le devis', onclick: (e) => e.stopPropagation() }, p.texte);
+    return h('span', attributs, p.texte);
+  });
 }
 
 export function carteAffaireMini(a) {

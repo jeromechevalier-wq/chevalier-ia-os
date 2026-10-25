@@ -22,11 +22,11 @@ export function texteEnvoye(envoyeLe, maintenantMs) {
   return `Envoyé il y a ${n} jour${n > 1 ? 's' : ''}`;
 }
 
-/** `{ texte, couleur, statut }` de la pastille, ou null. `aujourdhui` : AAAA-MM-JJ (pour « Expiré »). */
+/** `{ texte, couleur, statut, lien }` de la pastille (`lien` : la route du devis, pour que la pastille l'ouvre), ou null. `aujourdhui` : AAAA-MM-JJ (pour « Expiré »). */
 export function pastilleDevisDeAffaire(devis, affaireId, { aujourdhui, maintenantMs = Date.now() } = {}) {
   const d = devisRecentDeAffaire(devis, affaireId);
   if (!d) return null;
   const statut = statutAffiche(d, aujourdhui);
   const texte = statut === 'envoye' ? texteEnvoye(d.envoyeLe, maintenantMs) : libelleStatut(statut);
-  return { texte: `Devis : ${texte}`, couleur: COULEURS_STATUT[statut] ?? '#8d8993', statut };
+  return { texte: `Devis : ${texte}`, couleur: COULEURS_STATUT[statut] ?? '#8d8993', statut, lien: `devis/editeur/${d.id}` };
 }

@@ -33,6 +33,16 @@ test('2 le devis envoyé il y a 3 jours donne « Devis : Envoyé il y a 3 jours 
   await expect(page.locator('.fiche-tete .pastille-externe')).toHaveText('Devis : Envoyé il y a 3 jours');
 });
 
+test('6 un clic sur la pastille de la fiche ouvre le devis (et sur la carte, il n’ouvre pas l\'affaire)', async ({ page }) => {
+  await creerAffaire('a1', { titre: 'Cuisine Martin' });
+  await devis('d1', { affaireId: 'a1', statut: 'brouillon', numero: 'DEV-1', creeLe: new Date(Date.now() - JOUR) });
+  await ouvrirKanban(page);
+  await expect(pastille(page, 'a1')).toHaveAttribute('href', /#\/devis\/editeur\/d1$/);
+  await page.locator('.carte-affaire[data-affaire="a1"]').click();
+  await page.locator('.fiche-tete .pastille-externe').click();
+  await expect(page).toHaveURL(/#\/devis\/editeur\/d1$/);
+});
+
 test('3 on montre le devis le plus récent : une version remplacée est ignorée', async ({ page }) => {
   await creerAffaire('a1', { titre: 'Cuisine Martin' });
   await devis('d1', { affaireId: 'a1', statut: 'remplace', numero: 'DEV-1', creeLe: new Date(Date.now() - 9 * JOUR) });
