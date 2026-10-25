@@ -13,6 +13,7 @@ import { vueClient, affichageDe } from './logique.js';
 import { devisHtml, formaterMontant } from './document.js';
 import { dupliquerDevis, creerVariante, infosClientDuDevis } from './editeur-ecran.js';
 import { creerFiche } from './fiche-ecran.js';
+import { indicateurPdf } from './pdf-indicateur.js';
 
 const ERREUR_LECTURE = 'La liste des devis n’a pas pu être mise à jour. La dernière version reste affichée : vérifie ta connexion puis recharge la page.';
 
@@ -259,7 +260,7 @@ export function rendreListeDevis(conteneur, idFiche = null) {
       return ouvrable(h('tr', { class: 'ligne-liste ligne-devis', dataset: { id: d.id, statut: Li.statutAffiche(d, aujourdhui) } },
         h('td', { dataset: { colonne: 'numero', libelle: 'Numéro' } }, h('span', { class: `devis-numero${d.numero ? '' : ' devis-numero-vide'}` }, intitule(d)), d.version > 1 ? h('span', { class: 'devis-version' }, ` v${d.version}`) : null),
         h('td', { dataset: { colonne: 'statut', libelle: 'Statut' } }, pastille(d, aujourdhui)),
-        h('td', { dataset: { colonne: 'documents', libelle: 'Documents' } }), // le PDF rangé viendra avec l'envoi
+        h('td', { dataset: { colonne: 'documents', libelle: 'Documents' } }, indicateurPdf(d, { apres: () => rendre(), maintenant })), // lien « PDF », « en cours » ou avertissement « PDF non rangé » (finalisé seulement)
         h('td', { dataset: { colonne: 'client', libelle: 'Client / Affaire' } }, celluleClient(d)),
         h('td', { dataset: { colonne: 'modifie', libelle: 'Modifié' } }, celluleModifie(d, maintenant)),
         h('td', { dataset: { colonne: 'date', libelle: 'En date du' } }, Li.dateFr(Li.dateDuDevis(d))),
@@ -295,6 +296,7 @@ export function rendreListeDevis(conteneur, idFiche = null) {
       h('div', { class: 'carte-sous' }, celluleModifie(d, maintenant)),
       h('div', { class: 'carte-sous' }, `En date du ${Li.dateFr(Li.dateDuDevis(d)) || '—'}`),
       d.expireLe ? h('div', { class: 'carte-sous' }, `Valable jusqu’au ${Li.dateFr(d.expireLe)}`) : null,
+      indicateurPdf(d, { apres: () => rendre(), maintenant }) ? h('div', { class: 'carte-sous' }, indicateurPdf(d, { apres: () => rendre(), maintenant })) : null,
       h('div', { class: 'carte-pied' }, h('span', { class: 'carte-montant' }, `HT ${euros(t?.ht)}`), h('span', { class: 'carte-sous' }, `TTC ${euros(t?.ttc)}`))), () => ouvrirFiche(d.id));
   }
 

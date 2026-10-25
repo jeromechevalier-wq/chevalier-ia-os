@@ -1,0 +1,265 @@
+// Module Devis, PDF dans les écrans : (1) route #/devis/pdf/<id> (et …/brouillon), (2) bouton « Enregistrer PDF » de l'éditeur, (3) « PDF non rangé » / lien « PDF » dans la liste et la fiche.
+// Un test par point du brief (le nom commence par le numéro du point). Captures dans tests/e2e/captures/devis-pdf-ecran/ (ordinateur ET téléphone : la mise en page change).
+// Les fonctions du serveur (devisPdf, devisPdfLien) n'existent pas dans l'émulateur du navigateur : elles sont SIMULÉES par page.route.
+// Le simulateur de devisPdf écrit le champ `pdf` du devis comme le ferait le serveur ; il lit aussi l'objet enregistré pour prouver que l'écran enregistre AVANT de demander le PDF.
+import { fileURLToPath } from 'node:url';
+import { test, expect, connecter, attendreCalme, ecrireDocument, lireDocument, creerOrganisation, creerAffaire, estTelephone, JEROME } from './outils.js';
+
+const DOSSIER = fileURLToPath(new URL('./captures/devis-pdf-ecran/', import.meta.url));
+async function capturer(page, info, nom) {
+  await page.screenshot({ path: `${DOSSIER}${nom}-${info.project.name}.png`, animations: 'disabled' });
+}
+const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS' };
+const URL_PDF = 'https://stockage.exemple.test/devis-essai.pdf';
+const LIGNES = [{ id: 'l1', libelle: 'Carrelage', familleId: 'famille-1', type: 'fourniture', quantite: 10, unite: 'm²', prixAchat: 40, prixVente: 60, tauxTva: 20 }];
+
+async function devis(id, valeurs = {}) {
+  const maintenant = new Date();
+  await ecrireDocument(`devis_devis/${id}`, {
+    racineId: id, version: 1, numero: null, statut: 'brouillon', affaireId: 'a1', personneId: null, organisationId: 'o1', modeMarge: 'majoration', marge: 25, tauxTvaDefaut: 20,
+    regimeTva: 'assujetti', autoliquidation: false, archive: false, dureeValiditeJours: 90, expireLe: '2026-12-31', objet: 'Rénovation restaurant',
+    destinataires: ['contact@exemple.fr'], sections: [{ id: 's1', titre: 'Cuisine', lignes: LIGNES }],
+    creePar: JEROME, modifiePar: JEROME, proprietaire: JEROME, creeLe: maintenant, modifieLe: maintenant, ...valeurs,
+  });
+}
+const FINALISE = { numero: 'DEV-2026-10-02-001', statut: 'en_attente_envoi', finaliseLe: new Date() };
+async function donnees() {
+  await creerOrganisation('o1', { nom: 'M. Paul Exemple' });
+  await creerAffaire('a1', { titre: 'Rénovation cuisine', organisationId: 'o1' });
+  await devis('dBrouillon');
+  await devis('dOk', { ...FINALISE, pdf: { statut: 'ok', chemin: 'devis/a1/d.pdf', nom: 'Devis DEV-2026-10-02-001.pdf', tentatives: 1 } });
+  await devis('dEchec', { ...FINALISE, numero: 'DEV-2026-10-02-002', pdf: { statut: 'echec', message: 'Le moteur du PDF ne répond pas.', tentatives: 3 } });
+  await devis('dEnCours', { ...FINALISE, numero: 'DEV-2026-10-02-003', pdf: { statut: 'en_cours', demarreLe: new Date(), tentatives: 1 } });
+  await devis('dSansPdf', { ...FINALISE, numero: 'DEV-2026-10-02-004' }); // finalisé avant l'arrivée des PDF
+}
+
+/**
+ * Faux serveur. `reponses` : { pdfLien?: (corps) => { statut, corps }, pdf?: (corps) => { statut, corps }, delaiPdf?: ms }. `appels` reçoit [nom, données, objetEnregistre].
+ * Par défaut : devisPdfLien rend un lien signé ; devisPdf passe le PDF à « ok » (comme le serveur) ou, en brouillon, rend { statut: 'ok' }.
+ */
+async function simulerServeur(page, appels, reponses = {}) {
+  await page.context().route('https://stockage.exemple.test/**', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<p>PDF d’essai</p>' }));
+  const repondre = async (route, nom, calcul) => {
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+    const donneesAppel = JSON.parse(route.request().postData()).data;
+    const doc = await lireDocument(`devis_devis/${donneesAppel.devisId}`);
+    appels.push([nom, donneesAppel, doc?.objet]);
+    const r = await calcul(donneesAppel);
+    return route.fulfill({ status: r.statut, headers: cors, body: JSON.stringify(r.corps) });
+  };
+  await page.route('**/devisPdfLien', (route) => repondre(route, 'devisPdfLien', async (d) => (reponses.pdfLien
+    ? reponses.pdfLien(d)
+    : d.devisId === 'dBrouillonSansPdf' ? erreurServeur(404, 'NOT_FOUND', 'Aucun PDF brouillon pour ce devis : crée-le d’abord.')
+    : { statut: 200, corps: { result: { url: URL_PDF, expireDans: 300, nom: d.brouillon ? 'Brouillon.pdf' : 'Devis DEV-2026-10-02-001.pdf' } } })));
+  await page.route('**/devisPdf', (route) => repondre(route, 'devisPdf', async (d) => {
+    if (reponses.delaiPdf) await new Promise((r) => setTimeout(r, reponses.delaiPdf));
+    if (reponses.pdf) return reponses.pdf(d);
+    if (!d.brouillon) await ecrireDocument(`devis_devis/${d.devisId}`, { pdf: { statut: 'ok', chemin: 'devis/a1/d.pdf', nom: 'Devis.pdf', tentatives: 1 } });
+    return { statut: 200, corps: { result: { statut: 'ok', lien: `https://chevalier-ia-os.web.app/#/devis/pdf/${d.devisId}${d.brouillon ? '/brouillon' : ''}`, nom: d.brouillon ? 'Brouillon' : 'Devis' } } };
+  }));
+}
+const erreurServeur = (statut, code, message) => ({ statut, corps: { error: { status: code, message } } });
+
+async function ouvrirRoute(page, route) {
+  await connecter(page, undefined, { route });
+  await expect(page.locator('.page-pdf-devis, .page-liste-devis, .page-editeur-devis').first()).toBeVisible();
+  await attendreCalme(page);
+}
+const zone = (page) => page.locator('[data-zone="pdf-devis"]');
+
+// ------------------------------------------------------------------ point 1 : la route
+
+test('1 #/devis/pdf/<id> : demande un lien signé, ouvre le PDF dans un nouvel onglet et garde un lien « Ouvrir le PDF »', async ({ page }, info) => {
+  await donnees();
+  const appels = [];
+  await simulerServeur(page, appels);
+  const ouverture = page.waitForEvent('popup');
+  await connecter(page, undefined, { route: 'devis/pdf/dOk' });
+  const popup = await ouverture;
+  expect(popup.url()).toBe(URL_PDF);
+  await expect(zone(page)).toHaveAttribute('data-etat', 'pret');
+  await expect(zone(page).locator('[data-action="ouvrir-pdf"]')).toHaveAttribute('href', URL_PDF);
+  await expect(zone(page).locator('[data-action="ouvrir-pdf"]')).toHaveAttribute('target', '_blank');
+  await expect(zone(page).locator('[data-valeur="message-pdf"]')).toContainText('s’ouvre dans un nouvel onglet');
+  expect(appels.filter(([nom]) => nom === 'devisPdfLien')).toHaveLength(1);
+  expect(appels[0][1]).toEqual({ devisId: 'dOk' });
+  await capturer(page, info, '1-pdf-pret');
+  await popup.close();
+});
+
+test('1 #/devis/pdf/<id>/brouillon : lien du PDF brouillon ; absent -> message clair avec « Ouvrir le devis »', async ({ page }, info) => {
+  test.info().annotations.push({ type: 'erreurs-reseau-attendues', description: 'le faux serveur répond une erreur (404, 412, 500) : le navigateur la note dans sa console' });
+  await donnees();
+  const appels = [];
+  await simulerServeur(page, appels);
+  const ouverture = page.waitForEvent('popup');
+  await connecter(page, undefined, { route: 'devis/pdf/dBrouillon/brouillon' });
+  const popup = await ouverture;
+  expect(popup.url()).toBe(URL_PDF);
+  expect(appels[0][1]).toEqual({ devisId: 'dBrouillon', brouillon: true });
+  await expect(zone(page).locator('[data-action="retour-apres-pdf"]')).toHaveAttribute('href', /#\/devis\/editeur\/dBrouillon$/);
+  await popup.close();
+  // Aucun PDF brouillon rangé (devis « dBrouillonSansPdf » : le faux serveur répond « introuvable ») -> on dit quoi faire.
+  await devis('dBrouillonSansPdf');
+  await page.goto('/?emulateurs=1#/devis/pdf/dBrouillonSansPdf/brouillon');
+  await expect(zone(page)).toHaveAttribute('data-etat', 'pas-pret');
+  await expect(zone(page).locator('[data-valeur="message-pdf"]')).toContainText('Enregistrer PDF');
+  await expect(zone(page).locator('[data-action="ouvrir-editeur"]')).toBeVisible();
+  await capturer(page, info, '1-pdf-brouillon-absent');
+});
+
+test('1 PDF pas prêt (« en cours de fabrication ») et échec : message clair et « Réessayer » (qui relance le serveur puis ouvre le PDF)', async ({ page }, info) => {
+  await donnees();
+  const appels = [];
+  await simulerServeur(page, appels);
+  await ouvrirRoute(page, 'devis/pdf/dEnCours');
+  await expect(zone(page)).toHaveAttribute('data-etat', 'en-cours');
+  await expect(zone(page).locator('[data-valeur="message-pdf"]')).toContainText('en cours de fabrication');
+  await expect(zone(page).locator('[data-action="reessayer-pdf"]')).toBeVisible();
+  expect(appels).toHaveLength(0); // rien n'est demandé tant que le serveur travaille
+  await capturer(page, info, '1-pdf-en-cours');
+  // Échec : le message du serveur est montré ; « Réessayer » demande devisPdf (le simulateur range le PDF), puis le lien signé.
+  await page.goto('/?emulateurs=1#/devis/pdf/dEchec');
+  await expect(zone(page)).toHaveAttribute('data-etat', 'echec');
+  await expect(zone(page).locator('[data-valeur="message-pdf"]')).toContainText('Le moteur du PDF ne répond pas.');
+  await capturer(page, info, '1-pdf-echec');
+  const ouverture = page.waitForEvent('popup');
+  await zone(page).locator('[data-action="reessayer-pdf"]').click();
+  const popup = await ouverture;
+  expect(popup.url()).toBe(URL_PDF);
+  expect(appels.map(([nom]) => nom)).toEqual(['devisPdf', 'devisPdfLien']);
+  await expect(zone(page)).toHaveAttribute('data-etat', 'pret');
+  await popup.close();
+});
+
+test('1 erreur du serveur au « Réessayer » : message lisible et nouveau bouton ; devis introuvable : état vide avec retour à la liste', async ({ page }, info) => {
+  test.info().annotations.push({ type: 'erreurs-reseau-attendues', description: 'le faux serveur répond une erreur (404, 412, 500) : le navigateur la note dans sa console' });
+  await donnees();
+  const appels = [];
+  await simulerServeur(page, appels, { pdf: () => erreurServeur(500, 'INTERNAL', 'Le PDF n’a pas pu être fabriqué. Réessaie dans un instant.') });
+  await ouvrirRoute(page, 'devis/pdf/dSansPdf');
+  await expect(zone(page)).toHaveAttribute('data-etat', 'pas-pret');
+  await zone(page).locator('[data-action="reessayer-pdf"]').click();
+  await expect(zone(page)).toHaveAttribute('data-etat', 'echec');
+  await expect(zone(page).locator('[data-valeur="message-pdf"]')).toContainText('Ça n’a pas abouti');
+  await expect(zone(page).locator('[data-action="reessayer-pdf"]')).toBeVisible();
+  await capturer(page, info, '1-pdf-erreur-reessai');
+  await page.goto('/?emulateurs=1#/devis/pdf/inexistant');
+  await expect(zone(page)).toHaveAttribute('data-etat', 'introuvable');
+  await expect(zone(page)).toContainText('Ce devis est introuvable');
+  await expect(zone(page).locator('[data-action="retour-liste-introuvable"]')).toBeVisible();
+  await capturer(page, info, '1-pdf-introuvable');
+});
+
+// ------------------------------------------------------------------ point 2 : « Enregistrer PDF » dans l'éditeur
+
+async function ouvrirEditeur(page, id) {
+  await connecter(page, undefined, { route: `devis/editeur/${id}` });
+  await expect(page.locator('.page-editeur-devis[data-devis]')).toBeVisible();
+  await attendreCalme(page);
+}
+/** Sur ordinateur le bouton de la barre, sur téléphone l'entrée du menu « … ». */
+async function cliquerEnregistrerPdf(page) {
+  if (estTelephone(page)) {
+    await page.locator('[data-action="plus-actions"]').click();
+    await page.getByRole('menuitem', { name: 'Enregistrer PDF' }).click();
+  } else {
+    await page.locator('[data-action="enregistrer-pdf"]').click();
+  }
+}
+
+test('2 « Enregistrer PDF » : enregistre d’abord le devis, désactive le bouton pendant l’appel, puis dit « PDF enregistré dans l’affaire » avec un lien', async ({ page }, info) => {
+  await donnees();
+  const appels = [];
+  await simulerServeur(page, appels, { delaiPdf: 1200 });
+  await ouvrirEditeur(page, 'dBrouillon');
+  if (await page.locator('[data-champ="objet"]').isHidden()) await page.locator('[data-action="description"]').click();
+  await page.locator('[data-champ="objet"]').fill('Objet modifié juste avant le PDF');
+  if (!estTelephone(page)) await expect(page.locator('[data-action="enregistrer-pdf"]')).toBeEnabled();
+  await cliquerEnregistrerPdf(page);
+  if (!estTelephone(page)) {
+    await expect(page.locator('[data-action="enregistrer-pdf"]')).toBeDisabled(); // désactivé pendant l'appel
+    await capturer(page, info, '2-enregistrer-pdf-en-cours');
+  }
+  const toast = page.locator('.toast').filter({ hasText: 'PDF enregistré dans l’affaire' });
+  await expect(toast).toBeVisible({ timeout: 10000 });
+  await expect(toast.getByRole('link', { name: 'Ouvrir le PDF' })).toHaveAttribute('href', /#\/devis\/pdf\/dBrouillon\/brouillon$/);
+  expect(appels).toHaveLength(1);
+  expect(appels[0][0]).toBe('devisPdf');
+  expect(appels[0][1]).toEqual({ devisId: 'dBrouillon', brouillon: true });
+  expect(appels[0][2]).toBe('Objet modifié juste avant le PDF'); // le serveur voit déjà le texte de l'écran
+  if (!estTelephone(page)) await expect(page.locator('[data-action="enregistrer-pdf"]')).toBeEnabled(); // réactivé
+  await capturer(page, info, '2-pdf-enregistre');
+});
+
+test('2 « Enregistrer PDF » : erreur du serveur = message lisible, bouton réactivé ; absent sur un devis déjà finalisé (lecture seule)', async ({ page }, info) => {
+  test.info().annotations.push({ type: 'erreurs-reseau-attendues', description: 'le faux serveur répond une erreur (404, 412, 500) : le navigateur la note dans sa console' });
+  await donnees();
+  const appels = [];
+  await simulerServeur(page, appels, { pdf: () => erreurServeur(412, 'FAILED_PRECONDITION', 'PDF non configuré : l’espace de stockage des PDF est introuvable.') });
+  await ouvrirEditeur(page, 'dBrouillon');
+  await cliquerEnregistrerPdf(page);
+  const toast = page.locator('.toast-erreur').filter({ hasText: 'PDF non configuré' });
+  await expect(toast).toBeVisible();
+  if (!estTelephone(page)) await expect(page.locator('[data-action="enregistrer-pdf"]')).toBeEnabled();
+  await capturer(page, info, '2-pdf-erreur');
+  await page.goto('/?emulateurs=1#/devis/editeur/dOk');
+  await expect(page.locator('[data-valeur="lecture-seule"]')).toBeVisible();
+  await expect(page.locator('[data-action="enregistrer-pdf"]')).toHaveCount(0);
+  if (estTelephone(page)) await expect(page.locator('[data-action="plus-actions"]')).toHaveCount(0);
+  await capturer(page, info, '2-pas-de-bouton-sur-devis-finalise');
+});
+
+// ------------------------------------------------------------------ point 3 : la liste et la fiche
+
+const ligneDevis = (page, id) => page.locator(`tr.ligne-devis[data-id="${id}"], article.carte-devis[data-id="${id}"]`).first();
+
+test('3 liste : « PDF non rangé » (avertissement) pour un finalisé sans PDF prêt ; lien « PDF » quand il est prêt ; rien sur un brouillon', async ({ page }, info) => {
+  await donnees();
+  const appels = [];
+  await simulerServeur(page, appels);
+  await connecter(page, undefined, { route: 'devis/liste' });
+  await expect(page.locator('.page-liste-devis')).toBeVisible();
+  await attendreCalme(page);
+  await expect(ligneDevis(page, 'dEchec').locator('[data-pdf="non_range"]')).toHaveAccessibleName('PDF non rangé : réessayer');
+  await expect(ligneDevis(page, 'dSansPdf').locator('[data-pdf="non_range"]')).toBeVisible();
+  await expect(ligneDevis(page, 'dOk').locator('[data-pdf="pret"]')).toHaveAttribute('href', /#\/devis\/pdf\/dOk$/);
+  await expect(ligneDevis(page, 'dEnCours').locator('[data-pdf="en_cours"]')).toBeVisible();
+  await expect(ligneDevis(page, 'dBrouillon').locator('[data-pdf]')).toHaveCount(0);
+  await capturer(page, info, '3-liste-pdf');
+  // Clic sur l'avertissement : état « en cours » pendant l'appel, puis le lien « PDF » (le serveur a rangé le PDF) ; la fiche ne s'ouvre pas.
+  await page.unroute('**/devisPdf');
+  await page.route('**/devisPdf', async (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+    const d = JSON.parse(route.request().postData()).data;
+    appels.push(['devisPdf', d]);
+    await new Promise((r) => setTimeout(r, 1000));
+    await ecrireDocument(`devis_devis/${d.devisId}`, { pdf: { statut: 'ok', chemin: 'devis/a1/d.pdf', nom: 'Devis.pdf', tentatives: 2 } });
+    return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ result: { statut: 'ok', lien: 'x', nom: 'Devis' } }) });
+  });
+  await ligneDevis(page, 'dEchec').locator('[data-pdf="non_range"]').click();
+  await expect(ligneDevis(page, 'dEchec').locator('[data-pdf="en_cours"]')).toBeVisible();
+  await capturer(page, info, '3-liste-pdf-en-cours');
+  await expect(ligneDevis(page, 'dEchec').locator('[data-pdf="pret"]')).toBeVisible({ timeout: 10000 });
+  expect(appels.filter(([nom]) => nom === 'devisPdf')).toEqual([['devisPdf', { devisId: 'dEchec' }]]);
+  await expect(page.locator('[data-role="fiche-devis"]')).toHaveCount(0);
+});
+
+test('3 fiche du devis : avertissement et réessai dans « Documents liés » ; « Aperçu PDF » ouvre la route quand le PDF est prêt', async ({ page }, info) => {
+  await donnees();
+  const appels = [];
+  await simulerServeur(page, appels);
+  await connecter(page, undefined, { route: 'devis/liste/dSansPdf' });
+  const fiche = page.locator('[data-role="fiche-devis"]');
+  await expect(fiche).toBeVisible();
+  await attendreCalme(page);
+  await expect(fiche.locator('[data-bloc="documents"] [data-pdf="non_range"]')).toBeVisible();
+  await capturer(page, info, '3-fiche-pdf-non-range');
+  await fiche.locator('[data-bloc="documents"] [data-pdf="non_range"]').click();
+  await expect(fiche.locator('[data-bloc="documents"] [data-pdf="pret"]')).toBeVisible({ timeout: 10000 });
+  expect(appels.filter(([nom]) => nom === 'devisPdf')).toHaveLength(1);
+  await fiche.locator('[data-action="voir-fiche"]').click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Aperçu PDF' }).click();
+  await expect(page).toHaveURL(/#\/devis\/pdf\/dSansPdf$/);
+  await expect(zone(page)).toBeVisible();
+});

@@ -9,6 +9,8 @@ import * as Fi from './fiche.js';
 import { formaterMontant } from './document.js';
 import { dupliquerDevis, imprimerLeDevis } from './editeur-ecran.js';
 import { naviguer } from '../../os/router.js';
+import { indicateurPdf } from './pdf-indicateur.js';
+import { routePdf } from './pdf.js';
 
 const euros = (n) => (typeof n === 'number' ? formaterMontant(n) : '—');
 const pct = (n) => `${String(Math.round(n * 10) / 10).replace('.', ',')} %`;
@@ -135,7 +137,9 @@ export function creerFiche({ nomsDe, changerStatut, archiver, fermer: demanderFe
     // Avec un PDF du serveur : on l'ouvre. Sans PDF : le devis s'imprime (ou s'enregistre en PDF) depuis le navigateur, avec son numéro (solution provisoire, voir imprimer.js).
     voirItems.push(f.apercuPdf.actif
       ? { libelle: 'Aperçu PDF', icone: 'file-text', action: () => window.open(f.apercuPdf.lien, '_blank', 'noopener') }
-      : { libelle: 'Imprimer / Enregistrer en PDF', icone: 'file-text', action: () => { const r = imprimerLeDevis(d); if (r.erreur) toast(r.erreur, { type: 'erreur', duree: 8000 }); } });
+      : d.pdf?.statut === 'ok' && d.statut !== 'brouillon'
+        ? { libelle: 'Aperçu PDF', icone: 'file-text', action: () => naviguer(routePdf(d.id)) }
+        : { libelle: 'Imprimer / Enregistrer en PDF', icone: 'file-text', action: () => { const r = imprimerLeDevis(d); if (r.erreur) toast(r.erreur, { type: 'erreur', duree: 8000 }); } });
     const voirBouton = boutonMenu('Voir', 'voir-fiche', voirItems);
 
     const dupliquer = h('button', { type: 'button', class: 'bouton bouton-secondaire', disabled: !f.dupliquer.actif, title: f.dupliquer.actif ? null : Li.MESSAGE_BIENTOT, dataset: { action: 'dupliquer-fiche' }, onclick: () => dupliquerDevis(d) }, icone('copy', { taille: 16 }), 'Dupliquer');
@@ -208,10 +212,11 @@ export function creerFiche({ nomsDe, changerStatut, archiver, fermer: demanderFe
     }, libelle)));
   }
 
-  function documentsLies() {
+  function documentsLies(d) {
     return h('section', { class: 'fiche-carte fiche-bloc-liste', dataset: { bloc: 'documents' } },
       h('div', { class: 'fiche-bloc-tete' }, h('h3', { class: 'fiche-sous-titre' }, 'Documents liés'),
         onglets(DOCUMENTS, ongletDocs, (c) => { ongletDocs = c; maj(true); }, 'Type de document')),
+      indicateurPdf(d, { apres: () => maj(true) }) ? h('p', { class: 'fiche-pdf', dataset: { valeur: 'pdf-devis' } }, indicateurPdf(d, { apres: () => maj(true) })) : null,
       h('p', { class: 'fiche-vide fiche-vide-grand', dataset: { valeur: 'aucun-document' } }, 'Aucun document'));
   }
 
@@ -234,7 +239,7 @@ export function creerFiche({ nomsDe, changerStatut, archiver, fermer: demanderFe
   }
 
   function contenu(d, maintenant) {
-    return [entete(d), h('div', { class: 'fiche-blocs' }, identite(d, maintenant), conditionsEtTotaux(d), jauges(d), documentsLies(), ventilation(d))];
+    return [entete(d), h('div', { class: 'fiche-blocs' }, identite(d, maintenant), conditionsEtTotaux(d), jauges(d), documentsLies(d), ventilation(d))];
   }
 
   return { afficher, fermer: () => afficher(null), maj: () => maj(false), detruire: () => { id = null; demonter(); }, ouverte: ouvert };
