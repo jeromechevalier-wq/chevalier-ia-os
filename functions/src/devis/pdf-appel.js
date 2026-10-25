@@ -1,5 +1,5 @@
 // Fonction appelable `devisPdf({ devisId })` : fabrique le PDF d'un devis finalisé, le range dans Drive et note le résultat sur le devis.
-// Branche les briques déjà écrites : le document HTML (partage/devis-document.js), Gotenberg (gotenberg.js) et Drive (drive.js).
+// Branche les briques déjà écrites : le document HTML (partage/devis-document.js), Chromium dans la fonction (chromium.js) et Drive (drive.js).
 // Tout ce qui touche au réseau est injecté (`convertir`, `ranger`) : les tests n'appellent rien de réel. Aucun secret ici.
 // Le journal Cloud ne reçoit jamais le contenu du devis, ni son identifiant, ni l'adresse de l'appelant.
 //
@@ -15,11 +15,11 @@ import { COLLECTIONS as C } from '../coeur/donnees.js';
 import { enregistrerPdf, ID_REGLAGES } from '../coeur/devis.js';
 import * as D from '../../partage/devis.js';
 import { devisHtml } from '../../partage/devis-document.js';
-import { convertirHtmlEnPdf, piedParDefaut, obtenirJetonGoogle } from './gotenberg.js';
+import { convertirHtmlEnPdf, piedParDefaut } from './chromium.js';
 import { rangerPdfDevis, nomFichierDevis, creerClientDrive, authGoogleDrive } from './drive.js';
 
 const CHAMPS_JOURNAL = ['action', 'statut', 'code', 'dureeMs'];
-export const MESSAGE_PDF_NON_CONFIGURE = 'PDF non configuré : l\'adresse du service de conversion ou le dossier Drive racine manque.';
+export const MESSAGE_PDF_NON_CONFIGURE = 'PDF non configuré : le dossier Drive racine des devis manque.';
 // Même motif que js/os/google-drive.js (idDossierDrive) : un dossier Drive reconnu à son adresse.
 const MOTIF_DOSSIER_DRIVE = /^https:\/\/drive\.google\.com\/drive\/(?:u\/\d+\/)?folders\/([A-Za-z0-9_-]{10,})(?:[/?#]\S*)?$/;
 
@@ -41,7 +41,7 @@ const enDates = (v) => {
   return v;
 };
 
-// SSRF : le logo ne sert que s'il est une image intégrée (data:) de taille raisonnable. Toute adresse https est retirée avant que Gotenberg ne charge la page.
+// SSRF : le logo ne sert que s'il est une image intégrée (data:) de taille raisonnable. Toute adresse https est retirée avant le rendu (et Chromium bloque de toute façon tout le réseau).
 const LOGO_INTEGRE = /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/;
 export const LOGO_TAILLE_MAX = 1_500_000;
 export const DELAI_ENTRE_PDF_MS = 60_000;
@@ -52,12 +52,12 @@ export function emetteurSansLogoExterne(emetteur) {
 const idDossierDrive = (url) => MOTIF_DOSSIER_DRIVE.exec(String(url ?? '').trim())?.[1] ?? '';
 
 /**
- * `config` : { gotenbergUrl, driveRacineId } (lus dans l'environnement de la fonction).
+ * `config` : { driveRacineId } (lus dans l'environnement de la fonction).
  * `convertir(html, { pied })` -> { pdf, sha256 } ; `ranger({ dossierParentId, dossierRacineId, nomAffaire, nomFichier, pdf })` -> { fileId, lien }.
- * Sans ces deux fonctions injectées, ce sont les vraies (Gotenberg privé et API Drive, avec l'identité du compte de service de la fonction).
+ * Sans ces deux fonctions injectées, ce sont les vraies (Chromium dans la fonction et API Drive, avec l'identité du compte de service de la fonction).
  */
 export function creerAppelDevisPdf({ donnees, config = {}, comptes = COMPTES_AUTORISES, convertir, ranger, journal = () => {}, maintenant = Date.now }) {
-  const faireConvertir = convertir ?? ((html, options) => convertirHtmlEnPdf(html, { urlService: config.gotenbergUrl, obtenirJeton: obtenirJetonGoogle, ...options }));
+  const faireConvertir = convertir ?? ((html, options) => convertirHtmlEnPdf(html, options));
   const faireRanger = ranger ?? ((args) => rangerPdfDevis({ drive: creerClientDrive({ auth: authGoogleDrive() }), ...args }));
   return async function appel(requete) {
     const debut = maintenant();
@@ -67,7 +67,7 @@ export function creerAppelDevisPdf({ donnees, config = {}, comptes = COMPTES_AUT
     if (typeof devisId !== 'string' || !devisId || devisId.length > 200 || devisId.includes('/')) {
       throw refuser('demande_invalide', new HttpsError('invalid-argument', 'Identifiant de devis manquant ou invalide.'));
     }
-    if (!config.gotenbergUrl || !config.driveRacineId) {
+    if (!config.driveRacineId) {
       throw refuser('non_configure', new HttpsError('failed-precondition', MESSAGE_PDF_NON_CONFIGURE, { code: 'non_configure' }));
     }
     try {

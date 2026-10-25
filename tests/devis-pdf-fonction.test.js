@@ -1,5 +1,5 @@
 // Tests Q (module Devis, fonction appelable devisPdf) : contrôle de l'appelant, brouillon refusé, « PDF non configuré », chemin heureux
-// avec FAUX Gotenberg et FAUX Drive (aucun appel réseau), vue client sans prix d'achat ni marge, options de devisHtml, nom du fichier. node --test.
+// avec FAUX convertisseur et FAUX Drive (aucun appel réseau), vue client sans prix d'achat ni marge, options de devisHtml, nom du fichier. node --test.
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
 import { creerAccesMemoire, COLLECTIONS as C } from '../functions/src/coeur/donnees.js';
@@ -13,7 +13,7 @@ import { devisHtml as devisHtmlNavigateur } from '../js/modules/devis/document.j
 
 const ACTEUR = 'jerome.chevalier@gmail.com';
 const MAINTENANT = new Date('2026-10-24T10:00:00Z');
-const CONFIG = { gotenbergUrl: 'https://gotenberg.exemple.test', driveRacineId: 'RACINE_DRIVE_ESSAI_1' };
+const CONFIG = { driveRacineId: 'RACINE_DRIVE_ESSAI_1' };
 const PRIX_ACHAT = 137.42; // valeur distinctive : elle ne doit apparaître nulle part dans le document du client
 const requete = (data, email = ACTEUR, extra = {}) => ({ auth: { token: { email, email_verified: true, ...extra } }, data });
 
@@ -30,7 +30,7 @@ async function monde({ finaliser = true, urlDossier = 'https://drive.google.com/
   return { collections, donnees };
 }
 
-/** Faux Gotenberg et faux Drive : ils notent ce qu'ils reçoivent. */
+/** Faux convertisseur et faux Drive : ils notent ce qu'ils reçoivent. */
 function faux() {
   const vus = { html: [], pieds: [], ranges: [] };
   return {
@@ -68,9 +68,9 @@ describe('Q2 devisPdf : un brouillon est refusé', () => {
 });
 
 describe('Q3 devisPdf : « PDF non configuré »', () => {
-  test('Q3 sans adresse Gotenberg, ou sans dossier Drive racine, l\'erreur est claire et rien ne part', async () => {
+  test('Q3 sans dossier Drive racine, l\'erreur est claire et rien ne part', async () => {
     const m = await monde();
-    for (const config of [{ ...CONFIG, gotenbergUrl: '' }, { ...CONFIG, driveRacineId: '' }, {}]) {
+    for (const config of [{ ...CONFIG, driveRacineId: '' }, {}]) {
       const f = faux();
       const a = appel(m, f, { config });
       await assert.rejects(() => a(requete({ devisId: 'd1' })), (e) => e.code === 'failed-precondition' && e.message === MESSAGE_PDF_NON_CONFIGURE && /non configuré/.test(e.message));
@@ -112,7 +112,7 @@ describe('Q4 devisPdf : chemin heureux', () => {
 });
 
 describe('Q5 devisPdf : le document du client ne contient ni prix d\'achat ni marge', () => {
-  test('Q5 le HTML envoyé à Gotenberg ne porte ni la valeur d\'achat, ni les mots achat, marge, coefficient', async () => {
+  test('Q5 le HTML envoyé au convertisseur ne porte ni la valeur d\'achat, ni les mots achat, marge, coefficient', async () => {
     const m = await monde();
     const f = faux();
     await appel(m, f)(requete({ devisId: 'd1' }));

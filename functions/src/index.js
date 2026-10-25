@@ -106,15 +106,14 @@ export const devisChangerStatut = appelDevis('changerStatut');
 export const devisNouvelleVersion = appelDevis('nouvelleVersion');
 export const devisArchiver = appelDevis('archiver');
 
-// PDF d'un devis finalisé : Gotenberg privé (Cloud Run, UE) puis rangement dans Drive. Deux paramètres de la fonction, vides par défaut (jamais de secret) :
-// GOTENBERG_URL (adresse du service Gotenberg) et DRIVE_RACINE_DEVIS_ID (identifiant du dossier Drive racine). Vides : la fonction répond « PDF non configuré ».
-const GOTENBERG_URL = defineString('GOTENBERG_URL', { default: '' });
+// PDF d'un devis finalisé : Chromium lancé dans la fonction (2 GiB de mémoire, un navigateur par appel) puis rangement dans Drive. Un paramètre, vide par défaut (jamais de secret) :
+// DRIVE_RACINE_DEVIS_ID (identifiant du dossier Drive racine). Vide : la fonction répond « PDF non configuré ».
 const DRIVE_RACINE_DEVIS_ID = defineString('DRIVE_RACINE_DEVIS_ID', { default: '' });
-export const devisPdf = onCall({ ...OPTIONS_DEVIS, memory: '512MiB', timeoutSeconds: 120 }, (requete) => {
+export const devisPdf = onCall({ ...OPTIONS_DEVIS, memory: '2GiB', timeoutSeconds: 120, concurrency: 1, maxInstances: 2 }, (requete) => {
   if (!getApps().length) initializeApp();
   return creerAppelDevisPdf({
     donnees: () => creerAccesFirestore(),
-    config: { gotenbergUrl: GOTENBERG_URL.value(), driveRacineId: DRIVE_RACINE_DEVIS_ID.value() },
+    config: { driveRacineId: DRIVE_RACINE_DEVIS_ID.value() },
     journal: (e) => process.stdout.write(`${ligneDeJournalDevisPdf(e)}\n`),
   })(requete);
 });

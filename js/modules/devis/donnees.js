@@ -221,5 +221,5 @@ export const changerStatut = (devisId, action) => appeler('changerStatut', { dev
 export const nouvelleVersion = (devisId) => appeler('nouvelleVersion', { devisId });
 /** Archive (true) ou désarchive (false) un devis signé ou refusé. */
 export const archiver = (devisId, archive) => appeler('archiver', { devisId, archive });
-/** Fabrique le PDF d'un devis finalisé (Gotenberg puis Drive) : `{ lien, fileId }`. Le serveur écrit seul le champ `pdf` du devis. Lève une Error lisible si refusé (brouillon, PDF non configuré…). */
+/** Fabrique le PDF d'un devis finalisé (Chromium dans la fonction, puis Drive) : `{ lien, fileId }`. Le serveur écrit seul le champ `pdf` du devis. Lève une Error lisible si refusé (brouillon, PDF non configuré…). */
 export const pdfDevis = (devisId) => appeler('pdf', { devisId });

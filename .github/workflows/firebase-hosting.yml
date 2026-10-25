@@ -23,16 +23,15 @@ jobs:
         # évite seulement que GitHub la masque par erreur dans le journal.
         run: |
           node -e 'try { console.log("Compte de déploiement :", JSON.parse(process.env.COMPTE_DE_SERVICE).client_email.replace("@", " arobase ")); } catch { console.log("Compte de déploiement : illisible"); }'
-      # Paramètres de la fonction devisPdf (module Devis) : adresse du service Gotenberg et dossier Drive racine. Ce ne sont pas des secrets
+      # Paramètres de la fonction devisPdf (module Devis) : dossier Drive racine des devis. Ce n'est pas un secret
       # (variables du dépôt : GitHub > Settings > Secrets and variables > Actions > Variables). Absentes : le fichier n'est pas écrit et la
       # fonction répond « PDF non configuré ».
       - name: Écrire les paramètres de la fonction devisPdf (si renseignés)
         env:
-          GOTENBERG_URL: ${{ vars.GOTENBERG_URL }}
           DRIVE_RACINE_DEVIS_ID: ${{ vars.DRIVE_RACINE_DEVIS_ID }}
         run: |
-          if [ -n "$GOTENBERG_URL" ] && [ -n "$DRIVE_RACINE_DEVIS_ID" ]; then
-            printf 'GOTENBERG_URL=%s\nDRIVE_RACINE_DEVIS_ID=%s\n' "$GOTENBERG_URL" "$DRIVE_RACINE_DEVIS_ID" > functions/.env.chevalier-ia-os
+          if [ -n "$DRIVE_RACINE_DEVIS_ID" ]; then
+            printf 'DRIVE_RACINE_DEVIS_ID=%s\n' "$DRIVE_RACINE_DEVIS_ID" > functions/.env.chevalier-ia-os
             echo "Paramètres de devisPdf écrits."
           else
             echo "Paramètres de devisPdf absents : PDF non configuré."

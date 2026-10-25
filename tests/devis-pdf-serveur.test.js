@@ -1,9 +1,8 @@
-// Tests P (module Devis, briques serveur du PDF) : Gotenberg et rangement Drive, contre de faux serveurs locaux. node --test.
+// Tests P (module Devis, briques serveur du PDF) : rangement Drive, contre de faux serveurs locaux (la conversion par Chromium est testée dans devis-pdf-chromium.test.js). node --test.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { createHash } from 'node:crypto';
-import { convertirHtmlEnPdf } from '../functions/src/devis/gotenberg.js';
 import { rangerPdfDevis, creerClientDrive, nomFichierDevis, nettoyerNom, echapperRequete } from '../functions/src/devis/drive.js';
 
 const FAUX_PDF = Buffer.from('%PDF-1.4\nfaux document\n%%EOF');
@@ -25,65 +24,6 @@ async function serveur(gerer) {
   await new Promise((ok) => s.listen(0, '127.0.0.1', ok));
   return { url: `http://127.0.0.1:${s.address().port}`, requetes, fermer: () => { s.closeAllConnections?.(); return new Promise((ok) => s.close(ok)); } };
 }
-
-describe('P1 Gotenberg : le multipart attendu part avec le jeton, le PDF revient avec son sha256', () => {
-  test('P1 champs, fichiers et Authorization', async () => {
-    const s = await serveur((r, res) => { res.writeHead(200, { 'Content-Type': 'application/pdf' }); res.end(FAUX_PDF); });
-    try {
-      let audience = null;
-      const out = await convertirHtmlEnPdf(HTML_SECRET, { urlService: `${s.url}/`, obtenirJeton: async (a) => { audience = a; return 'JETON-ESSAI'; } });
-      const r = s.requetes[0];
-      assert.equal(r.methode, 'POST');
-      assert.equal(r.url, '/forms/chromium/convert/html');
-      assert.equal(r.entetes.authorization, 'Bearer JETON-ESSAI');
-      assert.equal(audience, s.url);
-      assert.match(r.entetes['content-type'], /^multipart\/form-data/);
-      const txt = r.corps.toString('utf8');
-      assert.match(txt, /name="files"; filename="index\.html"/);
-      assert.match(txt, /filename="header\.html"/);
-      assert.match(txt, /filename="footer\.html"/);
-      assert.ok(txt.includes('CONTENU-CONFIDENTIEL-XYZ'));
-      for (const [k, v] of [['paperWidth', '8.27'], ['paperHeight', '11.7'], ['preferCssPageSize', 'false'], ['printBackground', 'true']]) {
-        assert.match(txt, new RegExp(`name="${k}"\\r\\n\\r\\n${v}\\r\\n`), k);
-      }
-      for (const [k, v] of [['marginTop', '0.6'], ['marginBottom', '0.8'], ['marginLeft', '0.4'], ['marginRight', '0.4']]) {
-        assert.match(txt, new RegExp(`name="${k}"\\r\\n\\r\\n${v}\\r\\n`), k);
-      }
-      assert.ok(txt.includes('class="pageNumber"') && txt.includes('class="totalPages"'));
-      assert.deepEqual(out.pdf, FAUX_PDF);
-      assert.equal(out.sha256, createHash('sha256').update(FAUX_PDF).digest('hex'));
-    } finally { await s.fermer(); }
-  });
-});
-
-describe('P2 Gotenberg : erreurs lisibles, sans HTML ni jeton', () => {
-  const verifier = (e) => {
-    assert.ok(!e.message.includes('CONTENU-CONFIDENTIEL'), 'HTML dans le message');
-    assert.ok(!e.message.includes('JETON-ESSAI'), 'jeton dans le message');
-    return true;
-  };
-  const appeler = (url, extra = {}) => convertirHtmlEnPdf(HTML_SECRET, { urlService: url, obtenirJeton: async () => 'JETON-ESSAI', ...extra });
-
-  test('P2 statut 500', async () => {
-    const s = await serveur((r, res) => { res.writeHead(500); res.end('JETON-ESSAI CONTENU-CONFIDENTIEL-XYZ'); });
-    try { await assert.rejects(appeler(s.url), (e) => verifier(e) && /500/.test(e.message)); } finally { await s.fermer(); }
-  });
-  test('P2 corps qui n\'est pas un PDF', async () => {
-    const s = await serveur((r, res) => { res.writeHead(200); res.end('<html>pas un pdf</html>'); });
-    try { await assert.rejects(appeler(s.url), (e) => verifier(e) && /pas un PDF/.test(e.message)); } finally { await s.fermer(); }
-  });
-  test('P2 corps vide', async () => {
-    const s = await serveur((r, res) => { res.writeHead(200); res.end(); });
-    try { await assert.rejects(appeler(s.url), (e) => verifier(e) && /vide/.test(e.message)); } finally { await s.fermer(); }
-  });
-  test('P2 délai dépassé', async () => {
-    const s = await serveur(() => { /* ne répond jamais */ });
-    try { await assert.rejects(appeler(s.url, { delaiMs: 150 }), (e) => verifier(e) && /délai/.test(e.message)); } finally { await s.fermer(); }
-  });
-  test('P2 jeton impossible à obtenir', async () => {
-    await assert.rejects(convertirHtmlEnPdf(HTML_SECRET, { urlService: 'http://127.0.0.1:1', obtenirJeton: async () => { throw new Error('JETON-ESSAI boum'); } }), verifier);
-  });
-});
 
 /** Faux client Drive en mémoire. */
 function fauxDrive(init = []) {
