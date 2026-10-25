@@ -45,7 +45,7 @@ export const mcp = onRequest(
     // Compte dédié : seulement « Utilisateur Cloud Datastore » (Firestore) et « Accesseur de secrets » sur MCP_JETONS.
     serviceAccount: 'mcp-serveur@chevalier-ia-os.iam.gserviceaccount.com',
   },
-  creerGestionnaire({ magasin, donnees, limiteur, oauth }),
+  creerGestionnaire({ magasin, donnees, limiteur, oauth, stockage: () => stockageDevis() }), // stockage : seulement pour effacer le PDF brouillon d'un devis supprimé (supprimer_devis)
 );
 
 export const porte = onRequest(

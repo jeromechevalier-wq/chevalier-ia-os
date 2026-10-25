@@ -224,9 +224,24 @@ Procédure de mise à jour : changer **une** version à la fois sur une branche,
 ### Lignes « en préparation » restées bloquées (Logger, 22/10/2026)
 Si un workflow A plante après `demarrer`, sa ligne reste « en préparation ». Aucune fonction ne les balaie : après 15 minutes sans nouvelle étape, l'écran propose le bouton gris « Classer sans suite » (deux comptes autorisés ; le serveur vérifie qu'elle est bien bloquée). Ce geste **ne dit rien à n8n** : si le workflow tourne encore, il verra ses écritures refusées. « Classer sans suite » n'existe qu'à l'écran, jamais par MCP.
 
-## 11. Module Devis : outil `finaliser_devis` (24/10/2026)
+## 11. Module Devis : outils d'écriture sensibles (24/10/2026, révisé le 25/10/2026)
 
-- `finaliser_devis` est une **écriture sensible** : elle **consomme un numéro** de devis (compteur global) et verrouille la version. Seul le profil Claude Code (Jérôme) peut l'appeler ; le bibliothécaire ne l'a pas.
-- Le code de confirmation (lié à l'empreinte du devis, valable 5 minutes, usage unique) ne peut pas être rejoué. Le **plafond d'écriture du jeton est appliqué avant la consommation du code** : un jeton qui a atteint son plafond est refusé sans brûler le code.
-- Une finalisation ne se défait pas par `restaurer_depuis_audit` (refusée pour tout devis non brouillon). Si un numéro a été consommé par erreur, on crée la version suivante ; un trou dans les numéros n'est pas grave (un devis n'est pas un document légal).
-- Interrupteurs d'urgence : ceux du serveur MCP (section 4) coupent aussi les outils Devis.
+Décision de Jérôme (25/10/2026) : les outils MCP peuvent faire autant qu'un humain devant l'écran (enregistrer un envoi, changer le statut, archiver, supprimer), parce que le journal (`crm_audit` et `crm_audit_avant`) permet de revenir en arrière. Chaque outil appelle la **même fonction** de `functions/src/coeur/devis.js` que le bouton de l'écran (une seule logique), dans une seule transaction avec sa ligne de journal. Aucune porte dérobée.
+
+| Outil | Profil | Confirmation | Se défait avec `restaurer_depuis_audit` ? |
+|---|---|---|---|
+| `nouvelle_version_devis` | bibliothécaire, Claude Code | non (crée un brouillon) | oui (supprime ce brouillon) |
+| `archiver_devis` (archiver ou désarchiver) | bibliothécaire, Claude Code | non | oui |
+| `enregistrer_envoi_devis` (historique des envois) | bibliothécaire, Claude Code | non | oui (retire la dernière ligne) |
+| `creer_devis_brouillon`, `modifier_devis_brouillon` (dont `copie`) | bibliothécaire, Claude Code | non | oui tant que le devis est un brouillon |
+| `supprimer_devis` (brouillon seulement) | Claude Code | **aperçu puis code** | oui (le brouillon revient, son PDF brouillon est à refaire) |
+| `finaliser_devis` | Claude Code | **aperçu puis code** | **non** (numéro consommé) |
+| `changer_statut_devis` (marquer envoyé, accepter, refuser) | Claude Code | **aperçu puis code** | **non** (trace du statut ; « accepter » remplace les autres versions) |
+
+- **Aperçu puis code** (`functions/src/securite/codes.js`) : le premier appel ne change rien et rend un aperçu et un code ; le second appel, avec le code, écrit. Le code est lié au jeton, à l'outil, au devis (et à l'action pour `changer_statut_devis`) et à l'**empreinte du devis** (s'il change entre les deux, le code ne vaut plus), expire en 5 minutes et ne sert qu'une fois. Le **plafond d'écriture du jeton est vérifié avant** la consommation du code : un jeton au plafond est refusé sans brûler le code. `supprimer_devis` compte aussi dans le plafond de suppressions par jour.
+- **Voie de secours pour un devis finalisé** : `nouvelle_version_devis`, qui crée le brouillon suivant (même numéro) ; le message de refus de la restauration la propose. Un trou dans les numéros n'est pas grave.
+- La restauration d'un archivage ou d'un envoi enregistré est permise même si le devis n'est plus un brouillon, mais **jamais de force** si le statut du devis a changé depuis (sinon on contournerait la règle des statuts).
+- Aucun outil n'envoie d'e-mail : `enregistrer_envoi_devis` note seulement un envoi déjà fait par l'humain.
+- **Écritures de l'écran sans journal** (constat du 25/10/2026, non modifié) : les **familles d'articles** et les **réglages du module Devis** (y compris « Mon entreprise ») sont écrits par le navigateur avec un simple `setDoc`, sans ligne dans `crm_audit` ; aucun outil MCP ne les écrit (lecture seule : `lire_reglages_devis`). Les articles et les brouillons de devis, eux, sont journalisés.
+- **Fichier PDF brouillon** : `supprimer_devis` retire toujours le document de l'affaire ; pour effacer aussi le fichier dans Cloud Storage, le compte de service du MCP (`mcp-serveur@…`) doit avoir un droit sur le stockage, ce qu'il n'a pas aujourd'hui (rôles actuels : Firestore et Secret Manager seulement). Sans ce droit, l'outil le signale (`fichierBrouillon: "echec"`) sans bloquer : le fichier reste, privé, et est remplacé au prochain PDF brouillon. Rien n'a été changé côté Google.
+- Interrupteurs d'urgence : ceux du serveur MCP (section 4) coupent aussi les outils Devis. Pour garder la lecture et couper seulement l'écriture, passer le jeton en profil `lecteur` (section 4, point 4) : tous les outils ci-dessus disparaissent d'un coup.

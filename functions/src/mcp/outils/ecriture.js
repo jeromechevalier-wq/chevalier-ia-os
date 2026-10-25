@@ -6,6 +6,7 @@ import * as PL from '../../../partage/projets.js';
 import * as DA from '../../../partage/devis-articles.js';
 import * as DEVIS from '../../../partage/devis.js';
 import * as metier from '../../coeur/metier.js';
+import { ACTIONS_STATUT } from '../../coeur/devis.js';
 
 const PROFILS = ['bibliothecaire', 'claude-code'];
 const id = z.string().min(1).max(200);
@@ -26,6 +27,7 @@ const ligneDevis = z.object({ articleId: id.optional(), reference: z.string().mi
   .describe("Une ligne : articleId OU reference (référence ou code de l'article), et quantite (> 0 ; inutile pour un article de type texte).");
 const lignesDevis = z.array(ligneDevis).max(200).describe("Lignes à plat, copiées des articles du bordereau.");
 const sectionsDevis = z.array(z.object({ titre: z.string().max(200).optional(), lignes: z.array(ligneDevis).max(200) })).max(50).describe("Sections [{ titre, lignes }].");
+const copieDevis = z.array(z.string().max(254)).max(DEVIS.MAX_COPIE).describe(`Adresses e-mail EN COPIE de l'envoi du devis (${DEVIS.MAX_COPIE} au plus, adresses valides, sans doublon, jamais une adresse déjà destinataire : mêmes règles que l'écran). Liste complète, qui REMPLACE l'actuelle ; [] la vide.`);
 const remiseDevis = z.object({ type: z.enum(DEVIS.TYPES_REMISE), valeur: z.number().min(0).max(10_000_000) }).describe("Remise du devis : { type: 'pourcentage' | 'montant', valeur } (pourcentage de 0 à moins de 100 ; montant en euros).");
 // Ancien paramètre « description » (texte libre supprimé par I5) : accepté sans être documenté, pour les clients MCP qui ont gardé l'ancienne liste d'outils.
 // À la création, il devient le texte de la note épinglée de départ ; en modification, il est refusé avec l'explication (modifier_note).
@@ -157,22 +159,43 @@ export const OUTILS_ECRITURE = [
   // ---- Devis : brouillons. Les prix viennent des articles du bordereau (jamais inventés) ; le numéro n'est donné qu'à la finalisation.
   outil('creer_devis_brouillon', "Crée un BROUILLON de devis (jamais un devis finalisé), sans numéro : le numéro est donné par finaliser_devis. affaireId est obligatoire (voir chercher / lister_affaires). Le client et le destinataire viennent de l'affaire si on ne les donne pas (organisationId ou personneId, destinataires = adresses e-mail). Les lignes sont copiées des articles du bordereau (chercher_article) : chaque ligne donne articleId OU reference (la référence ou le code de l'article) et quantite (> 0) ; les prix, la marge et la TVA sont ceux de l'article et des réglages, calculés comme à l'écran. lignes = une liste à plat ; sections = [{ titre, lignes }] pour regrouper. remise : { type: 'pourcentage' | 'montant', valeur } (pourcentage de 0 à moins de 100 ; montant en euros). marge (%), modeMarge (majoration ou marge_vente) et tauxTvaDefaut sont facultatifs (sinon les réglages du module Devis). Renvoie l'identifiant et les totaux HT et TTC.", {
     affaireId: id, objet: z.string().max(300).optional().describe("L'objet du devis (ex. « Rénovation de la cuisine »)."),
-    organisationId: id.optional(), personneId: id.optional(), destinataires: z.array(z.string().max(200)).max(10).optional().describe("Adresses e-mail des destinataires (défaut : la première adresse du client de l'affaire)."),
+    organisationId: id.optional(), personneId: id.optional(), destinataires: z.array(z.string().max(200)).max(10).optional().describe("Adresses e-mail des destinataires (défaut : la première adresse du client de l'affaire)."), copie: copieDevis.optional(),
     lignes: lignesDevis.optional(), sections: sectionsDevis.optional(), remise: remiseDevis.optional(),
     marge: z.number().min(0).max(1000).optional().describe('Marge du devis, en %.'), modeMarge: z.enum(DEVIS.MODES_MARGE.map((m) => m.id)).optional(),
     tauxTvaDefaut: z.number().min(0).max(100).optional().describe('Taux de TVA par défaut du devis, en %.'), proprietaire,
   }, metier.creerDevisBrouillon),
 
-  outil('modifier_devis_brouillon', "Modifie un BROUILLON de devis (refusé pour un devis déjà finalisé : une nouvelle version se crée depuis l'écran). Champs : objet, organisationId, personneId, destinataires, remise (null pour l'enlever), marge, modeMarge, tauxTvaDefaut. Les lignes : lignes ou sections REMPLACENT tout le contenu du devis (les lignes libres faites à l'écran sont perdues : relire avec lire_devis avant) ; ajouterLignes AJOUTE à la fin sans toucher au reste. Mêmes lignes que creer_devis_brouillon (articleId OU reference, quantite > 0). Renvoie les totaux HT et TTC.", {
-    id, objet: z.string().max(300).optional(), organisationId: id.nullable().optional(), personneId: id.nullable().optional(), destinataires: z.array(z.string().max(200)).max(10).optional(),
+  outil('modifier_devis_brouillon', "Modifie un BROUILLON de devis (refusé pour un devis déjà finalisé : créer d'abord la version suivante avec nouvelle_version_devis). Champs : objet, organisationId, personneId, destinataires, copie (e-mails en copie, liste qui remplace l'actuelle), remise (null pour l'enlever), marge, modeMarge, tauxTvaDefaut. Les lignes : lignes ou sections REMPLACENT tout le contenu du devis (les lignes libres faites à l'écran sont perdues : relire avec lire_devis avant) ; ajouterLignes AJOUTE à la fin sans toucher au reste. Mêmes lignes que creer_devis_brouillon (articleId OU reference, quantite > 0). Renvoie les totaux HT et TTC.", {
+    id, objet: z.string().max(300).optional(), organisationId: id.nullable().optional(), personneId: id.nullable().optional(), destinataires: z.array(z.string().max(200)).max(10).optional(), copie: copieDevis.optional(),
     lignes: lignesDevis.optional(), sections: sectionsDevis.optional(), ajouterLignes: lignesDevis.optional(), remise: remiseDevis.nullable().optional(),
     marge: z.number().min(0).max(1000).optional(), modeMarge: z.enum(DEVIS.MODES_MARGE.map((m) => m.id)).optional(), tauxTvaDefaut: z.number().min(0).max(100).optional(),
   }, metier.modifierDevisBrouillon),
 
   // Écriture sensible : elle FIGE le devis et consomme un numéro. Réservée à Claude Code (rôle éditeur chez un client), avec la double confirmation des suppressions.
-  outil('finaliser_devis', "Finalise un BROUILLON de devis : attribue son numéro (DEV-AAAA-MM-JJ-NNN) et FIGE les prix, la TVA et les totaux (pour corriger ensuite, il faut créer la version suivante depuis l'écran). Même logique serveur que le bouton « Finaliser » de l'écran. N'envoie rien au client. Refusé, en listant ce qu'il faut corriger, si le devis n'est pas prêt (destinataire, lignes, quantités, marge, remise, chantier…). Le premier appel ne finalise RIEN : il rend un APERÇU (totaux, destinataires) et un code à usage unique ; après l'accord de l'utilisateur, le second appel (mêmes arguments + codeConfirmation) finalise.", {
+  outil('finaliser_devis', "Finalise un BROUILLON de devis : attribue son numéro (DEV-AAAA-MM-JJ-NNN) et FIGE les prix, la TVA et les totaux (pour corriger ensuite, il faut créer la version suivante : nouvelle_version_devis). NE SE DÉFAIT PAS avec restaurer_depuis_audit (le numéro est consommé). Même logique serveur que le bouton « Finaliser » de l'écran. N'envoie rien au client. Refusé, en listant ce qu'il faut corriger, si le devis n'est pas prêt (destinataire, lignes, quantités, marge, remise, chantier…). Le premier appel ne finalise RIEN : il rend un APERÇU (totaux, destinataires) et un code à usage unique ; après l'accord de l'utilisateur, le second appel (mêmes arguments + codeConfirmation) finalise.", {
     id, codeConfirmation: z.string().max(40).optional().describe("Absent au premier appel : l'outil ne finalise rien, rend un APERÇU et un code. À donner au second appel, après accord de l'utilisateur."),
   }, metier.finaliserDevis, ['claude-code']),
+
+  // Transitions du devis (25/10/2026) : la même fonction de coeur/devis.js que les boutons de l'écran, une ligne de journal chacune.
+  outil('nouvelle_version_devis', "Crée la VERSION SUIVANTE d'un devis finalisé, envoyé ou refusé : un nouveau BROUILLON (même numéro, version + 1, mêmes lignes) à modifier avec modifier_devis_brouillon puis à finaliser avec finaliser_devis. C'est la voie pour corriger un devis déjà finalisé. Refusé depuis un brouillon, un devis signé ou remplacé, ou s'il existe déjà un brouillon de ce devis. Même logique serveur que le bouton de l'écran. Récupérable avec restaurer_depuis_audit (supprime ce brouillon).", {
+    id: id.describe('Identifiant du devis de départ (voir lister_devis).'),
+  }, metier.nouvelleVersionDevis),
+
+  outil('archiver_devis', "Archive (archive: true) ou désarchive (archive: false) un devis. On n'archive qu'un devis Signé (accepte) ou Refusé ; un devis archivé sort de lister_devis (sauf archives: true) mais reste lisible. Aucun prix ni statut ne change. Même logique serveur que l'écran. Récupérable avec restaurer_depuis_audit.", {
+    id: id.describe('Identifiant du devis (voir lister_devis).'), archive: z.boolean().describe('true : archiver ; false : désarchiver.'),
+  }, metier.archiverDevis),
+
+  outil('enregistrer_envoi_devis', "Ajoute une ligne à l'HISTORIQUE DES ENVOIS d'un devis déjà au statut « Envoyé » (envoye) : destinataires (1 à 10 adresses e-mail valides) et copie (0 à 10). À n'utiliser qu'APRÈS que l'utilisateur a confirmé que l'e-mail est vraiment parti (cet outil n'envoie rien). La date du premier envoi (envoyeLe) ne bouge pas : un renvoi ajoute simplement une ligne, les deux dates sont gardées (lire_devis, envois). Même logique serveur que l'écran. Récupérable avec restaurer_depuis_audit.", {
+    id: id.describe('Identifiant du devis (statut envoye).'),
+    destinataires: z.array(z.string().max(254)).min(1).max(DEVIS.MAX_COPIE).describe('Adresses e-mail auxquelles le devis a été envoyé (1 au moins).'),
+    copie: z.array(z.string().max(254)).max(DEVIS.MAX_COPIE).optional().describe('Adresses e-mail en copie de cet envoi.'),
+  }, metier.enregistrerEnvoiDevis),
+
+  // Écriture sensible : le statut d'un devis ne se défait pas avec le journal (trace légale, et « Signé » remplace les autres versions). Claude Code seulement, aperçu puis code.
+  outil('changer_statut_devis', "Change le statut d'un devis finalisé, comme les boutons de l'écran : action marquer_envoye (Finalisé -> Envoyé : à faire après l'envoi réel), accepter (Envoyé -> Signé ; les autres versions vivantes du même numéro passent à « Remplacé ») ou refuser (Envoyé -> Refusé). Mêmes règles de transition que l'écran, la date correspondante est posée. N'envoie rien au client. NE SE DÉFAIT PAS avec restaurer_depuis_audit (pour corriger un devis après coup : nouvelle_version_devis). Le premier appel ne change RIEN : il rend un APERÇU (statut avant et après, totaux, versions remplacées) et un code à usage unique ; après l'accord de l'utilisateur, le second appel (mêmes arguments + codeConfirmation) change le statut.", {
+    id: id.describe('Identifiant du devis (voir lister_devis).'), action: z.enum(Object.keys(ACTIONS_STATUT)).describe('marquer_envoye | accepter (Signé) | refuser.'),
+    codeConfirmation: z.string().max(40).optional().describe("Absent au premier appel : l'outil ne change rien, rend un APERÇU et un code. À donner au second appel, après accord de l'utilisateur."),
+  }, metier.changerStatutDevis, ['claude-code']),
 
   outil('ajouter_note', "Ajoute une note rattachée à une affaire (qui porte aussi sa personne et son organisation), à une personne ou à une organisation. Les notes ne sont jamais modifiées automatiquement.", {
     texte: z.string().min(1).max(20000), affaireId: id.optional(), personneId: id.optional(), organisationId: id.optional(),

@@ -596,9 +596,9 @@ describe('Modules : les outils suivent les modules actifs du client', () => {
     const seuls = (actifs) => outilsDesModules(actifs, OUTILS).map((o) => o.nom);
     assert.deepEqual(seuls([]), ['qui_suis_je']);
     assert.ok(seuls(['affaires']).includes('chercher') && !seuls(['affaires']).includes('lister_projets'));
-    assert.equal(seuls(['affaires', 'projets']).length, OUTILS.length - 15, 'sans les modules Automatisations (5 outils de la file À valider) et Devis (5 outils du bordereau, 5 outils des devis) : 15 outils manquent');
-    assert.equal(seuls(['affaires', 'projets', 'automatisations']).length, OUTILS.length - 10, 'sans le module Devis : ses 10 outils manquent');
-    assert.equal(seuls(['affaires', 'devis']).filter((n) => /article/.test(n)).length, 5, 'Devis exige les Affaires et apporte ses outils du bordereau (et 5 outils des devis, sans le mot « article »)');
+    assert.equal(seuls(['affaires', 'projets']).length, OUTILS.length - 21, 'sans les modules Automatisations (5 outils de la file À valider) et Devis (5 outils du bordereau, 11 outils des devis et de leurs réglages) : 21 outils manquent');
+    assert.equal(seuls(['affaires', 'projets', 'automatisations']).length, OUTILS.length - 16, 'sans le module Devis : ses 16 outils manquent');
+    assert.equal(seuls(['affaires', 'devis']).filter((n) => /article/.test(n)).length, 5, 'Devis exige les Affaires et apporte ses outils du bordereau (et 11 outils des devis, sans le mot « article »)');
     assert.equal(seuls(['affaires', 'projets', 'automatisations', 'devis']).length, OUTILS.length);
   });
   test('M9 module « mcp » éteint, ou client désactivé : l\'accès déjà accordé est coupé tout de suite, et la connexion n\'est plus possible', async () => {
@@ -963,7 +963,7 @@ describe('Textes des outils : valables pour tout espace (Partie A)', () => {
       assert.match(ancien, TEXTE_DE_JEROME, ancien);
     }
     for (const permis of ['une affaire gagnée', 'nature livraison', 'lire_audit : le journal d\'audit', 'phase de clôture']) assert.doesNotMatch(permis, TEXTE_DE_JEROME, permis);
-    assert.equal(OUTILS.length, 62); // 50 avant la suppression de la pause (22/10/2026) : moins 3 outils de pause, plus 5 outils de la file « À valider » (module Automatisations), plus 5 outils du bordereau et 5 outils des devis (module Devis, 24/10/2026)
+    assert.equal(OUTILS.length, 68); // 50 avant la suppression de la pause (22/10/2026) : moins 3 outils de pause, plus 5 outils de la file « À valider » (module Automatisations), plus 5 outils du bordereau et 11 outils des devis (module Devis, 24/10/2026 puis 25/10/2026 : + lire_reglages_devis, nouvelle_version_devis, archiver_devis, enregistrer_envoi_devis, changer_statut_devis, supprimer_devis)
     for (const o of OUTILS) assert.doesNotMatch(textesDe(o), TEXTE_DE_JEROME, `${o.nom} : ${textesDe(o).match(TEXTE_DE_JEROME)?.[0]}`);
   });
 
