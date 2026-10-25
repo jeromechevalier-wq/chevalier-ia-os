@@ -92,6 +92,22 @@ async function archiver(d, archive) {
   }
 }
 
+/** Supprime un brouillon après confirmation. Le serveur refuse tout autre statut ; la copie « avant » reste dans le journal. */
+async function supprimerBrouillon(d, apres = () => {}) {
+  if (d.statut !== 'brouillon') return;
+  const nom = d.objet?.trim() || nomsDe(d).client || 'ce brouillon';
+  const ok = await confirmer('Supprimer ce brouillon ?', `« ${nom} » sera supprimé. Un devis supprimé ne se retrouve pas dans la liste (seul le journal en garde une copie).`, { libelleOk: 'Supprimer', danger: true });
+  if (!ok) return;
+  try {
+    await D.supprimer(d.id);
+    toast('Brouillon supprimé');
+    apres();
+  } catch (e) {
+    console.warn(e);
+    toast(e?.message || D.MESSAGE_RESEAU_DEVIS, { type: 'erreur', duree: 8000 });
+  }
+}
+
 /** Aperçu du devis : le même HTML que le PDF, dans une fenêtre simple (cadre isolé). */
 async function voir(d) {
   let corps;
@@ -122,7 +138,7 @@ function entreesMenu(d, surFiche) {
   items.push({ separateur: true });
   items.push({ libelle: ar.libelle, icone: ar.icone, desactive: !ar.actif, action: () => archiver(d, ar.action === 'archiver') });
   if (!ar.actif && ar.raison) items.push({ texte: ar.raison });
-  if (d.statut === 'brouillon') { items.push({ libelle: libelle('Supprimer', a.supprimer), icone: 'trash-2', danger: true, desactive: grise(a.supprimer) }); }
+  if (d.statut === 'brouillon') { items.push({ libelle: libelle('Supprimer', a.supprimer), icone: 'trash-2', danger: true, desactive: grise(a.supprimer), action: () => supprimerBrouillon(d) }); }
   return items;
 }
 
@@ -188,13 +204,16 @@ export function rendreListeDevis(conteneur, idFiche = null) {
   let idOuvertParClic = null;
   const ouvrirFiche = (id) => { idOuvertParClic = id; naviguer(`devis/liste/${id}`); };
   const fiche = creerFiche({
-    nomsDe, changerStatut, archiver, aujourdhui: () => CRM.ctx().aujourdhui,
+    nomsDe, changerStatut, archiver, supprimer: (d) => supprimerBrouillon(d, () => fermerFiche()), aujourdhui: () => CRM.ctx().aujourdhui,
     fermer: ({ remplacer = false } = {}) => {
       if (idOuvertParClic && !remplacer) { idOuvertParClic = null; history.back(); return; }
       idOuvertParClic = null;
       naviguer('devis/liste', { remplacer: true });
     },
   });
+
+  // Après une suppression depuis la fiche, la fiche se ferme (le devis n'existe plus).
+  const fermerFiche = () => { idOuvertParClic = null; naviguer('devis/liste', { remplacer: true }); };
 
   function majBascule() {
     remplir(bascule, [['liste', 'Liste', 'list'], ['tableau', 'Tableau', 'columns-3'], ['archives', 'Archives', 'archive']].map(([id, libelle, ic]) => h('button', {

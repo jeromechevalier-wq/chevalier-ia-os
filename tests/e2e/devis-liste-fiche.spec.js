@@ -134,12 +134,8 @@ test('2 en-tête : statut (menu = changements permis), titre, ✕ ; boutons Envo
   await fiche(page).locator('[data-action="statut-fiche"]').click();
   await expect(page.locator('.menu-pop').getByRole('menuitem')).toHaveText(['Passer à « Finalisé »']);
   await page.keyboard.press('Escape');
-  await fiche(page).locator('[data-action="voir-fiche"]').click();
-  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Modifier' })).toHaveCount(0); // « Modifier » est déjà le bouton jaune de l'en-tête
-  // Sans PDF du serveur, l'entrée n'est plus grisée : le devis s'imprime (ou s'enregistre en PDF) depuis le navigateur (partie 2 de l'éditeur, point 5).
-  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: /Aperçu PDF/ })).toHaveCount(0);
-  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Imprimer / Enregistrer en PDF' })).toBeEnabled();
-  await page.keyboard.press('Escape');
+  // Un seul PDF : celui du serveur. Un brouillon n'a pas de menu « Voir » (« Modifier » est le bouton jaune ; son PDF « BROUILLON » se fait dans l'éditeur, menu Envoyer).
+  await expect(fiche(page).locator('[data-action="voir-fiche"]')).toHaveCount(0);
   await capturer(page, info, '2-fiche-brouillon');
   await page.keyboard.press('Escape'); // le menu est déjà fermé : cette touche ferme la fiche
   await expect(fiche(page)).toHaveCount(0);

@@ -360,58 +360,33 @@ test('4 un ancien devis (sans `affichage`) garde l’affichage d’avant : le ca
   await expect(page.locator('th.col-tva')).toHaveCount(1);
 });
 
-test('5 « Imprimer / Enregistrer en PDF » dans l’aperçu lance l’impression du devis (numéro et total dans le document)', { tag: '@sans-telephone' }, async ({ page }, info) => {
+test('5 l’aperçu montre le devis (numéro et total) sans bouton d’impression du navigateur : le seul PDF est celui du serveur, par « Envoyer »', { tag: '@sans-telephone' }, async ({ page }, info) => {
   await semer();
   const id = await devis('d5', [{ id: 's1', titre: 'Cuisine', lignes: [ligne('l1', 'Pose', 2, 100, { prixVente: 100, tauxTva: 20 })] }], { statut: 'en_attente_envoi', numero: 'DEV-2026-10-24-001', finaliseLe: new Date() });
   await ouvrir(page, id);
   const cadre = page.locator('iframe[data-zone="apercu"]');
   await expect(cadre.contentFrame().locator('body')).toContainText('DEV-2026-10-24-001');
   await expect(cadre.contentFrame().locator('body')).toContainText('240,00');
-  await expect(cadre).toHaveAttribute('sandbox', 'allow-same-origin allow-modals');
-  // La boîte d'impression du système ne s'ouvre pas : on remplace print() de l'aperçu et on compte les appels.
-  await page.evaluate(() => { document.querySelector('iframe[data-zone="apercu"]').contentWindow.print = () => { window.__imprime = (window.__imprime || 0) + 1; }; });
-  const bouton = page.locator('[data-action="imprimer"]');
-  await expect(bouton).toHaveText('Imprimer / Enregistrer en PDF');
-  await capturer(page, info, '5-imprimer-apercu');
-  await bouton.click();
-  expect(await page.evaluate(() => window.__imprime)).toBe(1);
+  await expect(cadre).toHaveAttribute('sandbox', 'allow-same-origin');
+  await expect(page.locator('[data-action="imprimer"]')).toHaveCount(0);
+  await expect(page.getByText('Enregistrer au format PDF')).toHaveCount(0);
+  await capturer(page, info, '5-apercu-sans-impression');
 });
 
-test.describe('5 impression avec Safari (onglet à part)', () => {
-  test.use({ userAgent: SAFARI });
-  test('5 Safari : un clic ouvre un onglet qui contient le numéro et le total du devis, puis lance l’impression', { tag: '@sans-telephone' }, async ({ page, context }) => {
-    await context.addInitScript(() => { window.print = () => { window.__imprime = (window.__imprime || 0) + 1; }; });
-    await semer();
-    const id = await devis('d5s', [{ id: 's1', titre: 'Cuisine', lignes: [ligne('l1', 'Pose', 2, 100, { prixVente: 100, tauxTva: 20 })] }], { statut: 'en_attente_envoi', numero: 'DEV-2026-10-24-002', finaliseLe: new Date() });
-    await ouvrir(page, id);
-    const [onglet] = await Promise.all([context.waitForEvent('page'), page.locator('[data-action="imprimer"]').click()]);
-    await onglet.waitForLoadState();
-    await expect(onglet.locator('body')).toContainText('DEV-2026-10-24-002');
-    await expect(onglet.locator('body')).toContainText('240,00');
-    await expect.poll(() => onglet.evaluate(() => window.__imprime)).toBe(1);
-  });
-  test('5 cas d’erreur : si le navigateur bloque la fenêtre, un message clair le dit', { tag: '@sans-telephone' }, async ({ page }) => {
-    await semer();
-    const id = await devis('d5b', [{ id: 's1', titre: 'Cuisine', lignes: [ligne('l1', 'Pose', 2, 100, { prixVente: 100, tauxTva: 20 })] }], { statut: 'en_attente_envoi', numero: 'DEV-2026-10-24-003', finaliseLe: new Date() });
-    await ouvrir(page, id);
-    await page.evaluate(() => { window.open = () => null; });
-    await page.locator('[data-action="imprimer"]').click();
-    await expect(page.locator('.toast').last()).toContainText('Autorise les fenêtres pour ce site, puis réessaie.');
-  });
-  test('5 la fiche du devis (Voir) imprime aussi un devis qui n’a pas de PDF du serveur', { tag: '@sans-telephone' }, async ({ page, context }) => {
-    await context.addInitScript(() => { window.print = () => { window.__imprime = (window.__imprime || 0) + 1; }; });
-    await semer();
-    await devis('d5f', [{ id: 's1', titre: 'Cuisine', lignes: [ligne('l1', 'Pose', 2, 100, { prixVente: 100, tauxTva: 20 })] }], { statut: 'en_attente_envoi', numero: 'DEV-2026-10-24-004', finaliseLe: new Date() });
-    await connecter(page, undefined, { route: 'devis/liste/d5f' });
-    await page.locator('[data-action="voir-fiche"]').click();
-    const [onglet] = await Promise.all([context.waitForEvent('page'), page.getByRole('menuitem', { name: 'Imprimer / Enregistrer en PDF' }).click()]);
-    await onglet.waitForLoadState();
-    await expect(onglet.locator('body')).toContainText('DEV-2026-10-24-004');
-    await expect.poll(() => onglet.evaluate(() => window.__imprime)).toBe(1);
-  });
+test('5 un devis finalisé (lecture seule) a le menu « Envoyer » : « Télécharger le PDF » et « Imprimer » ouvrent son PDF (#/devis/pdf/<id>)', { tag: '@sans-telephone' }, async ({ page }) => {
+  await semer();
+  const id = await devis('d5l', [{ id: 's1', titre: 'Cuisine', lignes: [ligne('l1', 'Pose', 2, 100, { prixVente: 100, tauxTva: 20 })] }], { statut: 'en_attente_envoi', numero: 'DEV-2026-10-24-004', finaliseLe: new Date() });
+  await ouvrir(page, id);
+  for (const nom of ['Télécharger le PDF', 'Imprimer']) {
+    await page.locator('[data-action="envoyer"]').click();
+    await page.locator('.menu-pop').getByRole('menuitem', { name: nom }).click();
+    await expect(page).toHaveURL(new RegExp(`#/devis/pdf/${id}$`));
+    await page.goBack();
+    await expect(page.locator('[data-valeur="lecture-seule"]')).toBeVisible();
+  }
 });
 
-test('5 le menu « Finaliser » : Finaliser marche, « et imprimer » finalise puis imprime, « et télécharger » et « et envoyer par e-mail » sont grisés « bientôt disponible »', { annotation: { type: 'erreurs-reseau-attendues', description: 'le faux serveur répond comme le vrai' } }, async ({ page }, info) => {
+test('5 le menu « Envoyer » : « Imprimer » finalise puis ouvre le PDF du serveur ; « Télécharger le PDF » est actif ; « Envoyer par e-mail » reste grisé « bientôt disponible »', { annotation: { type: 'erreurs-reseau-attendues', description: 'le faux serveur répond comme le vrai' } }, async ({ page }, info) => {
   await semer();
   const id = await devis('d5c', [{ id: 's1', titre: 'Cuisine', lignes: [ligne('l1', 'Pose', 2, 100)] }]);
   const appels = [];
@@ -422,34 +397,23 @@ test('5 le menu « Finaliser » : Finaliser marche, « et imprimer » finalise p
     await ecrireDocument(`devis_devis/${id}`, { ...actuel, statut: 'en_attente_envoi', numero: 'DEV-2026-10-24-005', finaliseLe: new Date() });
     return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ result: { ok: true, devisId: id, statut: 'en_attente_envoi', numero: 'DEV-2026-10-24-005', nouveauNumero: true } }) });
   });
-  // La boîte d'impression du système ne s'ouvre pas : print() est remplacé (dans la page et dans l'aperçu) par un compteur.
-  await page.addInitScript(() => {
-    window.__imprime = 0;
-    new MutationObserver(() => {
-      document.querySelectorAll('iframe[data-zone="apercu"]').forEach((f) => {
-        if (f.__stub) return;
-        f.__stub = true;
-        f.addEventListener('load', () => { f.contentWindow.print = () => { window.__imprime += 1; }; });
-      });
-    }).observe(document, { childList: true, subtree: true });
-  });
   await ouvrir(page, id);
   await page.locator('[data-action="envoyer"]').click();
   const menu = page.locator('.menu-pop');
-  await expect(menu.getByRole('menuitem')).toHaveText([/Envoyer par e-mail/, /Télécharger/, 'Imprimer']);
-  for (const nom of ['Envoyer par e-mail', 'Télécharger']) {
-    await expect(menu.getByRole('menuitem', { name: nom })).toBeDisabled();
-    await expect(menu.getByRole('menuitem', { name: nom })).toContainText('bientôt disponible');
-  }
+  await expect(menu.getByRole('menuitem')).toHaveText([/Envoyer par e-mail/, 'Télécharger le PDF', 'Imprimer']);
+  await expect(menu.getByRole('menuitem', { name: 'Envoyer par e-mail' })).toBeDisabled();
+  await expect(menu.getByRole('menuitem', { name: 'Envoyer par e-mail' })).toContainText('bientôt disponible');
+  await expect(menu.getByRole('menuitem', { name: 'Télécharger le PDF' })).toBeEnabled();
   await capturer(page, info, '5-menu-finaliser');
   await menu.getByRole('menuitem', { name: 'Imprimer' }).click();
   await dialogue(page).getByRole('button', { name: 'Finaliser' }).click();
   await expect(page.locator('.toast').first()).toContainText('Devis finalisé');
   expect(appels).toEqual([{ devisId: id }]);
+  // « Imprimer » : le devis est finalisé, puis l'écran de son PDF (celui du serveur) s'ouvre ; aucune impression du navigateur.
+  await expect(page).toHaveURL(new RegExp(`#/devis/pdf/${id}$`));
+  await page.goBack();
   await expect(page.getByRole('heading', { level: 1 })).toContainText('DEV-2026-10-24-005');
   await expect(page.locator('iframe[data-zone="apercu"]').contentFrame().locator('body')).toContainText('DEV-2026-10-24-005');
-  // « Finaliser et imprimer » a lancé l'impression de l'aperçu (une seule fois).
-  await expect.poll(() => page.evaluate(() => window.__imprime)).toBe(1);
 });
 
 test('7 téléphone : les menus s’ouvrent en feuille collée en bas de l’écran et la Bibliothèque couvre l’écran avec un bouton retour', async ({ page }, info) => {

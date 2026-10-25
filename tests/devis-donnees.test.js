@@ -77,7 +77,7 @@ describe('C9 donnees.js : ce que le navigateur lit, écrit et appelle', () => {
     assert.doesNotMatch(code, /updateDoc|addDoc|writeBatch|runTransaction/);
   });
   test('C9 les quatre transitions appellent les quatre fonctions du serveur, et le client n’est envoyé que chez un client (jamais chez Jérôme)', () => {
-    for (const [nom, fonction] of [['finaliser', 'devisFinaliser'], ['changerStatut', 'devisChangerStatut'], ['nouvelleVersion', 'devisNouvelleVersion'], ['archiver', 'devisArchiver']]) {
+    for (const [nom, fonction] of [['finaliser', 'devisFinaliser'], ['changerStatut', 'devisChangerStatut'], ['nouvelleVersion', 'devisNouvelleVersion'], ['archiver', 'devisArchiver'], ['supprimer', 'devisSupprimer']]) {
       assert.match(code, new RegExp(`${nom}: '${fonction}'`), fonction);
     }
     assert.match(code, /const client = base \? base\.split\('\/'\)\[1\] : undefined;/);

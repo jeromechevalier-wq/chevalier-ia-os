@@ -224,11 +224,13 @@ test('ED3 finaliser : les erreurs de finalisation sont listées dans une fenêtr
   await dialogue(page).getByRole('button', { name: 'Finaliser' }).click();
   await expect(page.locator('.toast')).toContainText('Devis finalisé');
   expect(appels).toEqual([{ devisId: id }]);
-  // Lecture seule : numéro affiché, aperçu, invitation à créer une variante, plus de bouton Finaliser ni de champs.
+  await expect(page).toHaveURL(new RegExp(`#/devis/pdf/${id}$`)); // « Imprimer » ouvre le PDF du serveur
+  await page.goBack();
+  // Lecture seule : numéro affiché, aperçu, invitation à créer une variante, le menu « Envoyer » (PDF) mais plus de champs.
   await expect(page.locator('[data-valeur="lecture-seule"]')).toContainText('crée une variante');
   await expect(page.getByRole('heading', { level: 1 })).toContainText('DEV-2026-10-24-001');
   await expect(page.locator('[data-action="creer-variante"]')).toBeVisible();
-  await expect(page.locator('[data-action="envoyer"]')).toHaveCount(0);
+  await expect(page.locator('[data-action="envoyer"]')).toBeVisible();
   await expect(page.locator('[data-champ="libelle"]')).toHaveCount(0);
   await expect(page.locator('iframe[data-zone="apercu"]').contentFrame().locator('body')).toContainText('DEV-2026-10-24-001');
   await expect(total(page, 'ttc')).toHaveText(/^600,00\s€$/);

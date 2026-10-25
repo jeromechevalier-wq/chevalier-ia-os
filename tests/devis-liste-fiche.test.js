@@ -113,13 +113,13 @@ describe('F7 ventilation par famille', () => {
 });
 
 describe('F2 boutons de la fiche', () => {
-  test('F2 brouillon : « Modifier » est le bouton principal ; pas de « marquer envoyé » ; annuler = Supprimer, grisé « bientôt disponible »', () => {
+  test('F2 brouillon : « Modifier » est le bouton principal ; pas de « marquer envoyé » ; annuler = Supprimer, actif', () => {
     const a = Fi.actionsFiche(devis({ statut: 'brouillon', numero: null }));
     assert.equal(a.principal, 'modifier');
     assert.equal(a.modifier.actif, true);
     assert.equal(a.voirDevis, null);
     assert.equal(a.marquerEnvoye.actif, false);
-    assert.deepEqual([a.annuler.action, a.annuler.actif, a.annuler.raison], ['supprimer', false, 'Bientôt disponible']);
+    assert.deepEqual([a.annuler.action, a.annuler.actif, a.annuler.raison], ['supprimer', true, undefined]);
   });
   test('F2 finalisé : « Marquer comme envoyé » est permis ; Envoyer par e-mail et Facturer restent grisés', () => {
     const a = Fi.actionsFiche(devis({ statut: 'en_attente_envoi' }));

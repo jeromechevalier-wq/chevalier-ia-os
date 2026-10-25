@@ -3,7 +3,7 @@
 // finaliser passe par la fonction du serveur. Aucune règle ni aucun calcul ici : les fonctions pures sont dans editeur-logique.js et logique.js.
 // Un devis qui n'est plus un brouillon s'ouvre en lecture seule (aperçu + totaux) avec l'invitation à créer une variante.
 import { h, icone, remplir, dialogue, toast, confirmer, ouvrirMenu } from '../../os/ui.js';
-import { naviguer, ajouterGardeSortie, lien as lienRoute } from '../../os/router.js';
+import { naviguer, ajouterGardeSortie } from '../../os/router.js';
 import { retirerAvecAnnulation } from '../../os/retrait.js';
 import { etatVide, planifier, cheminPersonne, cheminOrganisation, cheminAffaire } from '../crm/composants.js';
 import { adressesDe } from '../crm/logique.js';
@@ -20,7 +20,7 @@ import { formaterMontant } from './document.js';
 import { menuUnite } from './menu-unite.js';
 import { ouvrirFenetreMenu, contenuMenu, caseMenu, donnees as donneesDe } from './menu-devis.js';
 import { ouvrirBibliotheque } from './bibliotheque.js';
-import { imprimerDevis, htmlDuDevis } from './imprimer.js';
+import { htmlDuDevis } from './html-devis.js';
 import { editeurOuvrage } from './editeur-ouvrage.js';
 import * as O from './ouvrages.js';
 import { routePdf, messageApresEnregistrement } from './pdf.js';
@@ -57,10 +57,8 @@ export function infosClientDuDevis(d) {
   const telephone = (Array.isArray(fiche.telephones) ? fiche.telephones[0]?.valeur : '') || fiche.telephone || '';
   return { telephone, email: Ed.emailsDeFiche(fiche)[0] ?? '', numeroTva: fiche.numeroTva ?? fiche.tva ?? '', siren: fiche.siren ?? '' };
 }
-/** Document complet du devis (le même pour l'aperçu, l'impression de l'éditeur et celle de la fiche). */
+/** Document complet du devis, pour l'aperçu de l'éditeur. */
 export const htmlImpressionDevis = (d) => htmlDuDevis(d, { clientNom: clientDuDevis(d) || null, client: infosClientDuDevis(d), emetteur: D.etat.reglages.entreprise });
-/** Imprime le devis (ou l'enregistre en PDF) sans serveur. À appeler directement dans un clic. Rend { ok, erreur }. */
-export function imprimerLeDevis(d) { return imprimerDevis({ html: htmlImpressionDevis(d) }); }
 const affaires = () => CRM.etat.affaires.filter((a) => !a.archive).sort((a, b) => String(a.titre).localeCompare(String(b.titre), 'fr'));
 const libelleAffaire = (a) => {
   const c = clientsDeAffaire(a)[0]?.nom;
@@ -403,46 +401,44 @@ export function rendreEditeurDevis(conteneur, id) {
 
   function boutonsLecture(d) {
     return [
-      transitionPossible(d.statut, 'nouvelle_version') ? h('button', { type: 'button', class: 'bouton bouton-principal', dataset: { action: 'creer-variante' }, onclick: () => creerVariante(d) }, icone('pencil', { taille: 16 }), 'Créer une variante') : null,
-      h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'dupliquer' }, onclick: () => dupliquerDevis(d) }, icone('copy', { taille: 16 }), 'Dupliquer'),
-      h('a', { class: 'bouton bouton-secondaire', href: '#/devis/liste', dataset: { action: 'fermer-lecture' } }, 'Fermer'),
+      transitionPossible(d.statut, 'nouvelle_version') ? h('button', { type: 'button', class: 'bouton bouton-principal', dataset: { action: 'creer-variante' }, title: 'Crée une nouvelle version modifiable de ce devis (même numéro, version suivante). L’ancienne version reste consultable.', onclick: () => creerVariante(d) }, icone('pencil', { taille: 16 }), 'Créer une variante') : null,
+      h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'envoyer' }, 'aria-haspopup': 'menu', 'aria-expanded': 'false', onclick: (ev) => ouvrirMenuEnvoyer(ev.currentTarget) }, icone('mail', { taille: 16 }), 'Envoyer', icone('chevron-down', { taille: 14 })),
+      h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'dupliquer' }, title: 'Crée un nouveau brouillon avec le même contenu. Il recevra son propre numéro à la finalisation.', onclick: () => dupliquerDevis(d) }, icone('copy', { taille: 16 }), 'Dupliquer'),
     ];
   }
 
   // Barre d'actions : Catalogue, Options (menu à cases à cocher), Envoyer (bouton à menu). Sur téléphone, Options passe dans le bouton « … ». Pas de bouton Enregistrer : l'enregistrement est automatique.
   function boutonsEdition() {
     ref.boutonOptions = h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-options', dataset: { action: 'options' }, 'aria-controls': 'options-devis', 'aria-expanded': 'false', onclick: (ev) => (optionsOuvertes ? optionsOuvertes.fermer() : ouvrirOptions(ev.currentTarget)) }, 'Options', icone('chevron-down', { taille: 14 }));
-    // « Enregistrer PDF » : seulement pour un brouillon (cette barre n'existe pas en lecture seule). Désactivé pendant l'appel.
-    ref.boutonPdf = h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-pdf-brouillon', dataset: { action: 'enregistrer-pdf' }, onclick: () => enregistrerPdfBrouillon() }, icone('file-text', { taille: 16 }), 'Enregistrer PDF');
     return [
       boutonCatalogue(),
       ref.boutonOptions,
-      ref.boutonPdf,
-      h('button', { type: 'button', class: 'bouton-icone bouton-plus-actions', dataset: { action: 'plus-actions' }, 'aria-haspopup': 'menu', 'aria-label': 'Autres actions', onclick: (ev) => { const ancre = ev.currentTarget; ouvrirMenu(ancre, [{ libelle: 'Options', icone: 'settings', action: () => ouvrirOptions(ancre) }, { libelle: 'Enregistrer PDF', icone: 'file-text', desactive: pdfEnCours, action: () => enregistrerPdfBrouillon() }]); } }, icone('ellipsis', { taille: 16 })),
+      h('button', { type: 'button', class: 'bouton-icone bouton-plus-actions', dataset: { action: 'plus-actions' }, 'aria-haspopup': 'menu', 'aria-label': 'Autres actions', onclick: (ev) => { const ancre = ev.currentTarget; ouvrirMenu(ancre, [{ libelle: 'Options', icone: 'settings', action: () => ouvrirOptions(ancre) }]); } }, icone('ellipsis', { taille: 16 })),
       // « Envoyer » remplace « Finaliser » : imprimer, télécharger ou envoyer par e-mail ; le devis est finalisé (numéroté, prix figés) au moment de l'envoi.
       h('button', { type: 'button', class: 'bouton bouton-principal', dataset: { action: 'envoyer' }, 'aria-haspopup': 'menu', 'aria-expanded': 'false', onclick: (ev) => ouvrirMenuEnvoyer(ev.currentTarget) }, icone('mail', { taille: 16 }), 'Envoyer', icone('chevron-down', { taille: 14 })),
     ];
   }
 
-  // ------------------------------------------------ PDF du brouillon (filigrane « BROUILLON »), fabriqué par le serveur et rangé dans les Documents de l'affaire
+  // ------------------------------------------------ PDF : UN SEUL, celui du serveur (devisPdf), rangé dans les Documents de l'affaire. Plus d'impression par le navigateur.
   let pdfEnCours = false;
-  /** Enregistre d'abord les changements en attente (le PDF reflète l'écran), puis demande le PDF au serveur ; le résultat est dit en clair. */
-  async function enregistrerPdfBrouillon() {
-    if (pdfEnCours || lecture || !travail) return;
+  /**
+   * « Télécharger le PDF » (menu Envoyer). Brouillon : enregistre d'abord les changements en attente (le PDF reflète l'écran), demande au serveur le PDF « BROUILLON »
+   * filigrané, puis ouvre l'écran qui l'affiche. Devis finalisé : ouvre directement son PDF (l'écran sait attendre ou relancer un PDF pas encore prêt).
+   */
+  async function telechargerPdf() {
+    if (pdfEnCours || !travail) return;
+    if (lecture) { naviguer(routePdf(id)); return; }
     pdfEnCours = true;
-    ref.boutonPdf?.setAttribute('disabled', '');
-    ref.boutonPdf?.setAttribute('aria-busy', 'true');
     try {
       if (!(await sauver())) { toast(`${messageEnreg || ERREUR_ECRITURE} Le PDF n’a pas été créé.`, { type: 'erreur', duree: 8000 }); return; }
       await D.pdfBrouillon(id);
-      toast(messageApresEnregistrement(travail), { duree: 8000, lien: { libelle: 'Ouvrir le PDF', href: lienRoute(routePdf(id, true)) } });
+      toast(messageApresEnregistrement(travail), { duree: 8000 });
+      naviguer(routePdf(id, true));
     } catch (e) {
       console.warn(e);
       toast(e?.message || D.MESSAGE_RESEAU_DEVIS, { type: 'erreur', duree: 8000 });
     } finally {
       pdfEnCours = false;
-      ref.boutonPdf?.removeAttribute('disabled');
-      ref.boutonPdf?.removeAttribute('aria-busy');
     }
   }
 
@@ -532,8 +528,8 @@ export function rendreEditeurDevis(conteneur, id) {
   function ouvrirMenuEnvoyer(ancre) {
     ouvrirFenetreMenu(ancre, (fermer) => contenuMenu([
       { libelle: 'Envoyer par e-mail', icone: 'mail', cle: 'envoyer-email', bientot: true },
-      { libelle: 'Télécharger', icone: 'download', cle: 'telecharger', bientot: true },
-      { libelle: 'Imprimer', icone: 'file-text', cle: 'imprimer', action: () => finaliser({ imprimer: true }) },
+      { libelle: 'Télécharger le PDF', icone: 'download', cle: 'telecharger', action: () => telechargerPdf() },
+      { libelle: 'Imprimer', icone: 'file-text', cle: 'imprimer', action: () => (lecture ? naviguer(routePdf(id)) : finaliser({ imprimer: true })) },
     ], fermer), { nom: 'Envoyer' });
   }
 
@@ -552,8 +548,8 @@ export function rendreEditeurDevis(conteneur, id) {
     let html = '';
     try {
       html = htmlImpressionDevis(travail);
-      // Le document est pur (aucun script) : « allow-same-origin » laisse l'application lancer son impression ; « allow-modals » ouvre la boîte d'impression.
-      corps = h('iframe', { class: 'apercu-devis', title: `Aperçu du devis ${travail.numero ?? ''}`.trim(), sandbox: 'allow-same-origin allow-modals', srcdoc: html, dataset: { zone: 'apercu' } });
+      // Le document est pur (aucun script) : l'aperçu n'a aucun droit (pas d'impression : le PDF vient du serveur, par « Envoyer »).
+      corps = h('iframe', { class: 'apercu-devis', title: `Aperçu du devis ${travail.numero ?? ''}`.trim(), sandbox: 'allow-same-origin', srcdoc: html, dataset: { zone: 'apercu' } });
     } catch (e) {
       console.warn(e);
       corps = h('p', { class: 'erreur', role: 'alert' }, 'L’aperçu n’a pas pu être préparé : le devis est incomplet. Termine-le, puis rouvre l’aperçu.');
@@ -561,16 +557,7 @@ export function rendreEditeurDevis(conteneur, id) {
     if (haut && corps.tagName === 'IFRAME') corps.addEventListener('load', () => corps.contentWindow?.scrollTo(0, haut));
     ref.iframeApercu = corps.tagName === 'IFRAME' ? corps : null;
     ref.htmlApercu = html;
-    const imprimer = h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'imprimer' }, disabled: !html,
-      onclick: () => imprimerDepuisApercu() }, icone('file-text', { taille: 16 }), 'Imprimer / Enregistrer en PDF');
-    remplir(ref.panneauApercu, h('div', { class: 'barre-apercu' }, h('p', { class: 'texte-discret' }, 'Pour un PDF : choisis « Enregistrer au format PDF » et décoche « En-têtes et pieds de page ».'), imprimer), corps);
-  }
-
-  /** Clic sur « Imprimer / Enregistrer en PDF » : aucun `await` avant (le navigateur bloquerait l'onglet de repli de Safari). */
-  function imprimerDepuisApercu(options = {}) {
-    const r = imprimerDevis({ iframe: ref.iframeApercu, html: ref.htmlApercu, ...options });
-    if (r.erreur) toast(r.erreur, { type: 'erreur', duree: 8000 });
-    return r;
+    remplir(ref.panneauApercu, corps);
   }
 
   // ------------------------------------------------ barre du haut
@@ -1414,24 +1401,12 @@ export function rendreEditeurDevis(conteneur, id) {
       travail = { ...travail, statut: r?.statut ?? 'en_attente_envoi', numero: r?.numero ?? travail.numero };
       enregistre = structuredClone(travail);
       construire();
-      if (imprimer) imprimerApresFinalisation();
+      if (imprimer) naviguer(routePdf(id)); // le PDF est fabriqué par le serveur à la finalisation : l'écran du PDF attend qu'il soit prêt
     } catch (e) {
       console.warn(e);
       verrou = false;
       toast(e?.message || D.MESSAGE_RESEAU_DEVIS, { type: 'erreur', duree: 8000 });
     }
-  }
-
-  /** « Finaliser et imprimer » : une fois le devis finalisé, l'aperçu (déjà à l'écran en lecture seule) est imprimé. Sans clic en cours, aucun onglet ne peut s'ouvrir : on le dit. */
-  async function imprimerApresFinalisation() {
-    // L'écran peut être reconstruit juste après la finalisation (le serveur vient d'écrire) : on attend un aperçu en place et chargé.
-    for (let i = 0; i < 30; i += 1) {
-      const cadre = ref.iframeApercu;
-      if (cadre?.isConnected && cadre.contentDocument?.body?.childElementCount) break;
-      await new Promise((fin) => { setTimeout(fin, 100); });
-    }
-    const r = imprimerDepuisApercu({ autoriserOnglet: false });
-    if (!r.ok) toast('Le devis est finalisé. Clique sur « Imprimer / Enregistrer en PDF » pour l’imprimer.', { duree: 8000 });
   }
 
   // ------------------------------------------------ démarrage

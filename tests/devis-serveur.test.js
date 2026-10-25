@@ -210,6 +210,22 @@ describe('C5 devisChangerStatut', () => {
   });
 });
 
+describe('C5b devisSupprimer', () => {
+  test('C5b supprime un brouillon (journal et copie « avant » gardés) ; refuse un devis finalisé, un devis qui n’existe pas', async () => {
+    const m = monde([brouillon('b'), brouillon('f', { statut: 'en_attente_envoi', numero: 'DEV-2026-10-01-009' })]);
+    await assert.rejects(() => S.supprimer({ donnees: m.donnees, ctx: ctx(), devisId: 'f' }), (e) => e.code === 'transition_interdite');
+    await assert.rejects(() => S.supprimer({ donnees: m.donnees, ctx: ctx(), devisId: 'nexistepas' }), (e) => e.code === 'introuvable');
+    assert.ok(leDevis(m, 'f'), 'le devis finalisé est toujours là');
+    const r = await S.supprimer({ donnees: m.donnees, ctx: ctx(), devisId: 'b' });
+    assert.equal(r.ok, true);
+    assert.equal(leDevis(m, 'b'), undefined);
+    const ligne = m.collections[C.audit].at(-1);
+    assert.deepEqual([ligne.outil, ligne.action, ligne.docId], ['devisSupprimer', 'supprimer', 'b']);
+    assert.equal(m.collections[C.auditAvant].at(-1).avant.statut, 'brouillon'); // la copie permet de le retrouver
+    assert.equal(S.OPERATIONS.supprimer !== undefined, true);
+  });
+});
+
 describe('C6 devisNouvelleVersion', () => {
   test('C6 crée le brouillon suivant : même racine, version + 1, même numéro, prix recalculables, sans les dates de la version figée', async () => {
     const m = monde([brouillon('v1')]);

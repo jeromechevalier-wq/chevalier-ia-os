@@ -95,9 +95,9 @@ describe('P6 nomFichierDevis et libellé du document de l\'affaire', () => {
     assert.ok(n.length <= 124 && n.endsWith('.pdf'));
     assert.equal(nomFichierDevis({ numero: 'DEV-1', version: 3 }), 'DEV-1 v3.pdf');
   });
-  test('P6 libellé de l\'affaire : « DEV-… v1 – Objet.pdf » et « Brouillon – Objet.pdf »', () => {
-    assert.equal(libelleDocumentDevis({ numero: 'DEV-2026-10-24-001', version: 1, objet: 'Cuisine' }), 'DEV-2026-10-24-001 v1 – Cuisine.pdf');
-    assert.equal(libelleDocumentDevis({ numero: null, version: 1, objet: 'Cuisine', brouillon: true }), 'Brouillon – Cuisine.pdf');
-    assert.equal(libelleDocumentDevis({ brouillon: true }), 'Brouillon.pdf');
+  test('P6 libellé de l\'affaire : « Devis DEV-… v1 – Objet.pdf » et « Devis brouillon – Objet.pdf »', () => {
+    assert.equal(libelleDocumentDevis({ numero: 'DEV-2026-10-24-001', version: 1, objet: 'Cuisine' }), 'Devis DEV-2026-10-24-001 v1 – Cuisine.pdf');
+    assert.equal(libelleDocumentDevis({ numero: null, version: 1, objet: 'Cuisine', brouillon: true }), 'Devis brouillon – Cuisine.pdf');
+    assert.equal(libelleDocumentDevis({ brouillon: true }), 'Devis brouillon.pdf');
   });
 });

@@ -1,4 +1,4 @@
-// Module Devis, PDF dans les écrans : (1) route #/devis/pdf/<id> (et …/brouillon), (2) bouton « Enregistrer PDF » de l'éditeur, (3) « PDF non rangé » / lien « PDF » dans la liste et la fiche.
+// Module Devis, PDF dans les écrans : (1) route #/devis/pdf/<id> (et …/brouillon), (2) « Télécharger le PDF » du menu Envoyer de l'éditeur, (3) « PDF non rangé » / lien « PDF » dans la liste et la fiche.
 // Un test par point du brief (le nom commence par le numéro du point). Captures dans tests/e2e/captures/devis-pdf-ecran/ (ordinateur ET téléphone : la mise en page change).
 // Les fonctions du serveur (devisPdf, devisPdfLien) n'existent pas dans l'émulateur du navigateur : elles sont SIMULÉES par page.route.
 // Le simulateur de devisPdf écrit le champ `pdf` du devis comme le ferait le serveur ; il lit aussi l'objet enregistré pour prouver que l'écran enregistre AVANT de demander le PDF.
@@ -103,7 +103,7 @@ test('1 #/devis/pdf/<id>/brouillon : lien du PDF brouillon ; absent -> message c
   await devis('dBrouillonSansPdf');
   await page.goto('/?emulateurs=1#/devis/pdf/dBrouillonSansPdf/brouillon');
   await expect(zone(page)).toHaveAttribute('data-etat', 'pas-pret');
-  await expect(zone(page).locator('[data-valeur="message-pdf"]')).toContainText('Enregistrer PDF');
+  await expect(zone(page).locator('[data-valeur="message-pdf"]')).toContainText('Télécharger le PDF');
   await expect(zone(page).locator('[data-action="ouvrir-editeur"]')).toBeVisible();
   await capturer(page, info, '1-pdf-brouillon-absent');
 });
@@ -151,63 +151,52 @@ test('1 erreur du serveur au « Réessayer » : message lisible et nouveau bouto
   await capturer(page, info, '1-pdf-introuvable');
 });
 
-// ------------------------------------------------------------------ point 2 : « Enregistrer PDF » dans l'éditeur
+// ------------------------------------------------------------------ point 2 : « Télécharger le PDF » dans l'éditeur (menu Envoyer)
 
 async function ouvrirEditeur(page, id) {
   await connecter(page, undefined, { route: `devis/editeur/${id}` });
   await expect(page.locator('.page-editeur-devis[data-devis]')).toBeVisible();
   await attendreCalme(page);
 }
-/** Sur ordinateur le bouton de la barre, sur téléphone l'entrée du menu « … ». */
-async function cliquerEnregistrerPdf(page) {
-  if (estTelephone(page)) {
-    await page.locator('[data-action="plus-actions"]').click();
-    await page.getByRole('menuitem', { name: 'Enregistrer PDF' }).click();
-  } else {
-    await page.locator('[data-action="enregistrer-pdf"]').click();
-  }
+/** Le seul chemin vers le PDF : menu « Envoyer » > « Télécharger le PDF » (ordinateur et téléphone). */
+async function cliquerTelechargerPdf(page) {
+  await page.locator('[data-action="envoyer"]').click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Télécharger le PDF' }).click();
 }
 
-test('2 « Enregistrer PDF » : enregistre d’abord le devis, désactive le bouton pendant l’appel, puis dit « PDF enregistré dans l’affaire » avec un lien', async ({ page }, info) => {
+test('2 « Télécharger le PDF » (menu Envoyer) : enregistre d’abord le devis, demande le PDF brouillon au serveur, dit « PDF enregistré dans l’affaire », puis ouvre l’écran du PDF', async ({ page }, info) => {
   await donnees();
   const appels = [];
   await simulerServeur(page, appels, { delaiPdf: 1200 });
   await ouvrirEditeur(page, 'dBrouillon');
   if (await page.locator('[data-champ="objet"]').isHidden()) await page.locator('[data-action="description"]').click();
   await page.locator('[data-champ="objet"]').fill('Objet modifié juste avant le PDF');
-  if (!estTelephone(page)) await expect(page.locator('[data-action="enregistrer-pdf"]')).toBeEnabled();
-  await cliquerEnregistrerPdf(page);
-  if (!estTelephone(page)) {
-    await expect(page.locator('[data-action="enregistrer-pdf"]')).toBeDisabled(); // désactivé pendant l'appel
-    await capturer(page, info, '2-enregistrer-pdf-en-cours');
-  }
-  const toast = page.locator('.toast').filter({ hasText: 'PDF enregistré dans l’affaire' });
-  await expect(toast).toBeVisible({ timeout: 10000 });
-  await expect(toast.getByRole('link', { name: 'Ouvrir le PDF' })).toHaveAttribute('href', /#\/devis\/pdf\/dBrouillon\/brouillon$/);
-  expect(appels).toHaveLength(1);
-  expect(appels[0][0]).toBe('devisPdf');
-  expect(appels[0][1]).toEqual({ devisId: 'dBrouillon', brouillon: true });
-  expect(appels[0][2]).toBe('Objet modifié juste avant le PDF'); // le serveur voit déjà le texte de l'écran
-  if (!estTelephone(page)) await expect(page.locator('[data-action="enregistrer-pdf"]')).toBeEnabled(); // réactivé
-  await capturer(page, info, '2-pdf-enregistre');
+  await expect(page.locator('[data-action="enregistrer-pdf"]')).toHaveCount(0); // plus de bouton « Enregistrer PDF » : un seul chemin
+  await cliquerTelechargerPdf(page);
+  await expect(page).toHaveURL(/#\/devis\/pdf\/dBrouillon\/brouillon$/, { timeout: 10000 });
+  await expect(page.locator('.toast').filter({ hasText: 'PDF enregistré dans l’affaire' })).toBeVisible();
+  expect(appels.filter((a) => a[0] === 'devisPdf')).toHaveLength(1);
+  const appel = appels.find((a) => a[0] === 'devisPdf');
+  expect(appel[1]).toEqual({ devisId: 'dBrouillon', brouillon: true });
+  expect(appel[2]).toBe('Objet modifié juste avant le PDF'); // le serveur voit déjà le texte de l'écran
+  await capturer(page, info, '2-pdf-brouillon-ouvert');
 });
 
-test('2 « Enregistrer PDF » : erreur du serveur = message lisible, bouton réactivé ; absent sur un devis déjà finalisé (lecture seule)', async ({ page }, info) => {
+test('2 « Télécharger le PDF » : erreur du serveur = message lisible, on reste dans l’éditeur ; un devis finalisé ouvre directement son PDF', async ({ page }, info) => {
   test.info().annotations.push({ type: 'erreurs-reseau-attendues', description: 'le faux serveur répond une erreur (404, 412, 500) : le navigateur la note dans sa console' });
   await donnees();
   const appels = [];
   await simulerServeur(page, appels, { pdf: () => erreurServeur(412, 'FAILED_PRECONDITION', 'PDF non configuré : l’espace de stockage des PDF est introuvable.') });
   await ouvrirEditeur(page, 'dBrouillon');
-  await cliquerEnregistrerPdf(page);
-  const toast = page.locator('.toast-erreur').filter({ hasText: 'PDF non configuré' });
-  await expect(toast).toBeVisible();
-  if (!estTelephone(page)) await expect(page.locator('[data-action="enregistrer-pdf"]')).toBeEnabled();
+  await cliquerTelechargerPdf(page);
+  await expect(page.locator('.toast-erreur').filter({ hasText: 'PDF non configuré' })).toBeVisible();
+  await expect(page).toHaveURL(/#\/devis\/editeur\/dBrouillon$/);
   await capturer(page, info, '2-pdf-erreur');
   await page.goto('/?emulateurs=1#/devis/editeur/dOk');
   await expect(page.locator('[data-valeur="lecture-seule"]')).toBeVisible();
-  await expect(page.locator('[data-action="enregistrer-pdf"]')).toHaveCount(0);
-  if (estTelephone(page)) await expect(page.locator('[data-action="plus-actions"]')).toHaveCount(0);
-  await capturer(page, info, '2-pas-de-bouton-sur-devis-finalise');
+  await cliquerTelechargerPdf(page);
+  await expect(page).toHaveURL(/#\/devis\/pdf\/dOk$/);
+  await capturer(page, info, '2-devis-finalise-ouvre-son-pdf');
 });
 
 // ------------------------------------------------------------------ point 3 : la liste et la fiche

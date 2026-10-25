@@ -73,7 +73,7 @@ describe('R1 déclencheur : seul le passage brouillon -> finalisé compte', () =
 });
 
 describe('R2 déclencheur : un PDF par version, rangé dans l\'affaire', () => {
-  test('R2 finalisation -> pdf ok, chemin Storage, document « DEV-… v1 – Cuisine.pdf » dans les Documents de l\'affaire, événement du fil', async () => {
+  test('R2 finalisation -> pdf ok, chemin Storage, document « Devis DEV-… v1 – Cuisine.pdf » dans les Documents de l\'affaire, événement du fil', async () => {
     const m = await monde({ finaliser: true });
     const f = faux();
     const r = await declencheur(m, f)(evenement(BROUILLON, FINALISE));
@@ -86,7 +86,7 @@ describe('R2 déclencheur : un PDF par version, rangé dans l\'affaire', () => {
     const docs = m.collections[C.affaires][0].documents;
     assert.equal(docs.length, 2);
     assert.equal(docs[0].libelle, 'Plan'); // l'existant est intact
-    assert.equal(docs[1].libelle, 'DEV-2026-10-25-001 v1 – Cuisine.pdf');
+    assert.equal(docs[1].libelle, 'Devis DEV-2026-10-25-001 v1 – Cuisine.pdf');
     assert.equal(docs[1].url, `${BASE_LIEN}/#/devis/pdf/d1`);
     assert.doesNotMatch(docs[1].url, /signe|token|X-Goog|storage/i); // adresse stable : ni signée ni publique
     assert.ok(m.collections[C.evenements].some((e) => e.type === 'document' && e.affaireId === 'aff1' && /DEV-2026-10-25-001/.test(e.texte)));
@@ -205,7 +205,7 @@ describe('R4 états : en cours, ok, abandon', () => {
 });
 
 describe('R5 brouillon à la demande : remplace le précédent', () => {
-  test('R5 deux brouillons de suite : un seul fichier, un seul document « Brouillon – Cuisine.pdf » ; champ pdf du devis intact', async () => {
+  test('R5 deux brouillons de suite : un seul fichier, un seul document « Devis brouillon – Cuisine.pdf » ; champ pdf du devis intact', async () => {
     const m = await monde({ finaliser: false });
     const f = faux();
     await appel(m, f)(requete({ devisId: 'd1', brouillon: true }));
@@ -213,9 +213,9 @@ describe('R5 brouillon à la demande : remplace le précédent', () => {
     assert.equal(f.vus.envois.length, 2);
     assert.deepEqual([...new Set(f.vus.envois)], ['devis/aff1/d1/brouillon.pdf']); // même nom : le second remplace le premier
     assert.equal(f.objets.size, 1);
-    const docs = m.collections[C.affaires][0].documents.filter((d) => /Brouillon/.test(d.libelle));
+    const docs = m.collections[C.affaires][0].documents.filter((d) => /brouillon/i.test(d.libelle));
     assert.equal(docs.length, 1);
-    assert.equal(docs[0].libelle, 'Brouillon – Cuisine.pdf');
+    assert.equal(docs[0].libelle, 'Devis brouillon – Cuisine.pdf');
     assert.equal(docs[0].url, `${BASE_LIEN}/#/devis/pdf/d1/brouillon`);
     assert.equal(m.collections[C.devis][0].pdf, undefined); // le champ pdf du devis n'a pas été touché
   });
@@ -242,7 +242,7 @@ describe('R6 lien signé de courte durée', () => {
     const r = await a(requete({ devisId: 'd1' }));
     assert.equal(r.expireDans, 300);
     assert.match(r.url, /m=5$/);
-    assert.equal(r.nom, 'DEV-2026-10-25-001 v1 – Cuisine.pdf');
+    assert.equal(r.nom, 'Devis DEV-2026-10-25-001 v1 – Cuisine.pdf');
     await assert.rejects(() => a({ data: { devisId: 'd1' } }), (e) => e.code === 'unauthenticated');
     await assert.rejects(() => a(requete({ devisId: 'd1' }, 'intrus@exemple.test')), (e) => e.code === 'permission-denied');
     await assert.rejects(() => a({ auth: { token: { email: ACTEUR, email_verified: false } }, data: { devisId: 'd1' } }), (e) => e.code === 'permission-denied');

@@ -6,8 +6,8 @@ import { etatPdfDevis } from './pdf.js';
 
 /** L'éditeur de devis existe : « Nouveau devis », « Modifier » et « Dupliquer » sont actifs (false les grise « bientôt disponible »). */
 export const EDITEUR_DISPONIBLE = true;
-/** Aucune fonction serveur ne supprime un brouillon pour l'instant : « Supprimer » reste grisé. */
-export const SUPPRESSION_DISPONIBLE = false;
+/** Un brouillon se supprime par la fonction du serveur devisSupprimer (jamais un devis finalisé). */
+export const SUPPRESSION_DISPONIBLE = true;
 export const TAILLES_PAGE = Object.freeze([10, 25, 50]);
 export const TAILLE_PAGE_DEFAUT = 25;
 export const MESSAGE_BIENTOT = 'Bientôt disponible';

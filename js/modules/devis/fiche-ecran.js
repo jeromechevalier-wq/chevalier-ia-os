@@ -7,7 +7,7 @@ import * as D from './donnees.js';
 import * as Li from './liste.js';
 import * as Fi from './fiche.js';
 import { formaterMontant } from './document.js';
-import { dupliquerDevis, imprimerLeDevis } from './editeur-ecran.js';
+import { dupliquerDevis } from './editeur-ecran.js';
 import { naviguer } from '../../os/router.js';
 import { indicateurPdf } from './pdf-indicateur.js';
 import { routePdf } from './pdf.js';
@@ -20,7 +20,7 @@ const DOCUMENTS = [['tous', 'Tous'], ['factures', 'Factures'], ['avoirs', 'Avoir
  * `contexte` : { nomsDe(d) -> { client, affaire }, changerStatut(d, action, libelle), fermer(opts), aujourdhui() -> AAAA-MM-JJ }.
  * Rend { afficher(id), fermer(), maj(), detruire() } : la liste appelle `afficher` quand la route change et `maj` quand les données changent.
  */
-export function creerFiche({ nomsDe, changerStatut, archiver, fermer: demanderFermeture, aujourdhui: jourCourant }) {
+export function creerFiche({ nomsDe, changerStatut, archiver, supprimer, fermer: demanderFermeture, aujourdhui: jourCourant }) {
   let id = null;
   let racine = null;
   let corps = null;
@@ -134,13 +134,11 @@ export function creerFiche({ nomsDe, changerStatut, archiver, fermer: demanderFe
     ]);
     const voirItems = [];
     if (f.voirDevis) voirItems.push({ libelle: 'Voir le devis', icone: 'external-link', action: () => naviguer(`devis/editeur/${d.id}`) });
-    // Avec un PDF du serveur : on l'ouvre. Sans PDF : le devis s'imprime (ou s'enregistre en PDF) depuis le navigateur, avec son numéro (solution provisoire, voir imprimer.js).
-    voirItems.push(f.apercuPdf.actif
+    // Un seul PDF : celui du serveur. Un brouillon n'en a pas de définitif (le PDF « BROUILLON » se fait dans l'éditeur, menu Envoyer).
+    if (d.statut !== 'brouillon') voirItems.push(f.apercuPdf.actif
       ? { libelle: 'Aperçu PDF', icone: 'file-text', action: () => window.open(f.apercuPdf.lien, '_blank', 'noopener') }
-      : d.pdf?.statut === 'ok' && d.statut !== 'brouillon'
-        ? { libelle: 'Aperçu PDF', icone: 'file-text', action: () => naviguer(routePdf(d.id)) }
-        : { libelle: 'Imprimer / Enregistrer en PDF', icone: 'file-text', action: () => { const r = imprimerLeDevis(d); if (r.erreur) toast(r.erreur, { type: 'erreur', duree: 8000 }); } });
-    const voirBouton = boutonMenu('Voir', 'voir-fiche', voirItems);
+      : { libelle: 'Aperçu PDF', icone: 'file-text', action: () => naviguer(routePdf(d.id)) });
+    const voirBouton = voirItems.length ? boutonMenu('Voir', 'voir-fiche', voirItems) : null; // un brouillon n'a rien à « voir » ici : « Modifier » ouvre l'éditeur
 
     const dupliquer = h('button', { type: 'button', class: 'bouton bouton-secondaire', disabled: !f.dupliquer.actif, title: f.dupliquer.actif ? null : Li.MESSAGE_BIENTOT, dataset: { action: 'dupliquer-fiche' }, onclick: () => dupliquerDevis(d) }, icone('copy', { taille: 16 }), 'Dupliquer');
 
@@ -149,6 +147,7 @@ export function creerFiche({ nomsDe, changerStatut, archiver, fermer: demanderFe
       onclick: (e) => ouvrirMenu(e.currentTarget, [
         { libelle: ar.libelle, icone: ar.icone, desactive: !ar.actif, action: () => archiver(d, ar.action === 'archiver') },
         ...(ar.actif ? [] : [{ texte: ar.raison }]),
+        ...(d.statut === 'brouillon' ? [{ separateur: true }, { libelle: 'Supprimer', icone: 'trash-2', danger: true, action: () => supprimer(d) }] : []),
       ]) }, icone('ellipsis', { taille: 20 }));
 
     return h('header', { class: 'fiche-tete' },

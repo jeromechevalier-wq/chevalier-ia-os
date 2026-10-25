@@ -99,7 +99,7 @@ describe('Q4 devisPdf : chemin heureux', () => {
     const m = await monde();
     const f = faux();
     const r = await appel(m, f)(requete({ devisId: 'd1' }));
-    assert.deepEqual(r, { statut: 'ok', lien: `${BASE_LIEN}/#/devis/pdf/d1`, nom: 'DEV-2026-10-24-001 v1 – Cuisine.pdf' });
+    assert.deepEqual(r, { statut: 'ok', lien: `${BASE_LIEN}/#/devis/pdf/d1`, nom: 'Devis DEV-2026-10-24-001 v1 – Cuisine.pdf' });
     const devis = m.collections[C.devis][0];
     assert.equal(devis.pdf.statut, 'ok');
     assert.equal(devis.pdf.chemin, 'devis/aff1/d1/DEV-2026-10-24-001 v1 - Cuisine.pdf');
