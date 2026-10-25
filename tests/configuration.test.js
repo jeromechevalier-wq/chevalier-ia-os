@@ -175,6 +175,26 @@ describe('Configuration : contrôle avant enregistrement', () => {
     assert.match(L.validerEmplacements(role, 'etape_5').erreurs.role, /ne peut pas être désactivée/);
     assert.ok(L.validerEmplacements(six(), 'inconnue').erreurs.role);
   });
+  test('message de désactivation : singulier, pluriel, mélange, aucune archivée (étape et phase)', () => {
+    const items = six();
+    items[3].actif = false;
+    const msg = (comptes, comptesArchives, genre = 'etape') => L.validerEmplacements(items, 'etape_5', { genre, comptes: { etape_4: comptes }, comptesArchives: { etape_4: comptesArchives } }).erreurs.etape_4;
+    assert.equal(msg(1, 0), 'Cette étape contient 1 fiche : déplace-les avant de la désactiver.', 'texte d’origine inchangé');
+    assert.equal(msg(2, 0), 'Cette étape contient 2 fiches : déplace-les avant de la désactiver.');
+    assert.equal(msg(1, 1), 'Cette étape contient 1 fiche (archivée) : désarchive-la ou déplace-la avant de la désactiver.');
+    assert.equal(msg(2, 2), 'Cette étape contient 2 fiches (archivées) : désarchive-les ou déplace-les avant de la désactiver.');
+    assert.equal(msg(3, 1), 'Cette étape contient 3 fiches (dont 1 archivée) : désarchive ou déplace-les avant de la désactiver.');
+    assert.equal(msg(3, 2), 'Cette étape contient 3 fiches (dont 2 archivées) : désarchive ou déplace-les avant de la désactiver.');
+    const phases = six().map((e, i) => ({ ...e, id: `phase_${i + 1}` }));
+    phases[3].actif = false;
+    assert.equal(L.validerEmplacements(phases, 'phase_5', { genre: 'phase', comptes: { phase_4: 1 }, comptesArchives: { phase_4: 1 } }).erreurs.phase_4, 'Cette phase contient 1 fiche (archivée) : désarchive-la ou déplace-la avant de la désactiver.');
+  });
+  test('comptage des archivées : sous-ensemble du comptage, qui ne change pas', () => {
+    const affaires = [{ etape: 'a' }, { etape: 'a', archive: true }, { etape: 'b', statut: 'perdue' }];
+    assert.deepEqual(L.comptesArchivesParEtape(affaires), { a: 1 });
+    assert.deepEqual(L.comptesParEtape(affaires), { a: 2, b: 1 });
+    assert.deepEqual(P.comptesArchivesParPhase([{ phase: 'p' }, { phase: 'p', archive: true }, { phase: 'q', archive: false }]), { p: 1 });
+  });
   test('comptage des fiches : toutes les affaires, archivées et perdues comprises', () => {
     assert.deepEqual(L.comptesParEtape([{ etape: 'a' }, { etape: 'a', archive: true }, { etape: 'b', statut: 'perdue' }]), { a: 2, b: 1 });
     assert.deepEqual(P.comptesParPhase([{ phase: 'p' }, { phase: 'p', archive: true }]), { p: 2 });

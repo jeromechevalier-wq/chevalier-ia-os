@@ -45,6 +45,8 @@ function editeurEmplacements({ genre, visible = true }) {
   const roleActuel = () => (etape ? D.etat.config.roleGagnee : D.etat.config.roleCloture);
   const comptes = () => (etape ? L.comptesParEtape(D.etat.affaires) : P.comptesParPhase(PD.etat.projets));
 
+  const comptesArchives = () => (etape ? L.comptesArchivesParEtape(D.etat.affaires) : P.comptesArchivesParPhase(PD.etat.projets));
+
   const empreinte = () => JSON.stringify([(brouillon || []).map((e) => ({ ...e, description: e.description || '' })), role]);
   const modifie = () => brouillon !== null && empreinte() !== reference;
   // Grisés tant qu'il n'y a rien à enregistrer ; jaune (bouton principal actif) dès qu'une modification est faite.
@@ -143,7 +145,7 @@ function editeurEmplacements({ genre, visible = true }) {
   }
 
   async function enregistrer() {
-    const { erreurs } = L.validerEmplacements(brouillon, role, { genre, comptes: comptes() });
+    const { erreurs } = L.validerEmplacements(brouillon, role, { genre, comptes: comptes(), comptesArchives: comptesArchives() });
     zone.querySelectorAll('[data-erreur]').forEach((p) => { p.textContent = ''; });
     erreurGenerale.textContent = '';
     if (Object.keys(erreurs).length) { afficherErreurs(erreurs); toast('Corrige les erreurs avant d’enregistrer', { type: 'erreur' }); return; }

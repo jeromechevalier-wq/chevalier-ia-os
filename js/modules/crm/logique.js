@@ -295,11 +295,22 @@ export function statutPourEtape(etape, config) {
 // ---- validation de la configuration (enregistrement dans les Réglages)
 
 /**
+ * Début du message « cette étape contient … » (sans la fin « avant de la désactiver ») : `n` fiches au total dont `archivees` archivées (0 = texte d'origine).
+ * Une fiche archivée n'est pas dans le kanban : le message le dit, et propose de la désarchiver ou de la déplacer.
+ */
+export function texteFichesBloquantes(n, archivees = 0) {
+  const fiches = `${n} fiche${n > 1 ? 's' : ''}`;
+  if (!(archivees > 0)) return `${fiches} : déplace-les`;
+  if (archivees >= n) return n > 1 ? `${fiches} (archivées) : désarchive-les ou déplace-les` : `${fiches} (archivée) : désarchive-la ou déplace-la`;
+  return `${fiches} (dont ${archivees} archivée${archivees > 1 ? 's' : ''}) : désarchive ou déplace-les`;
+}
+
+/**
  * Contrôle une liste de six emplacements avant de l'enregistrer. `genre` : 'etape' ou 'phase' ; `role` : identifiant de l'emplacement qui porte
- * le rôle (vente gagnée / clôture) ; `comptes` : { identifiant: nombre de fiches } (toutes les fiches, archivées comprises).
+ * le rôle (vente gagnée / clôture) ; `comptes` : { identifiant: nombre de fiches } (toutes les fiches, archivées comprises) ; `comptesArchives` : { identifiant: nombre de fiches archivées parmi elles } (sert au message).
  * Rend { erreurs } : un message par emplacement fautif (clé = identifiant) ou général (clé `general`).
  */
-export function validerEmplacements(items, role, { genre = 'etape', comptes = {} } = {}) {
+export function validerEmplacements(items, role, { genre = 'etape', comptes = {}, comptesArchives = {} } = {}) {
   const erreurs = {};
   const mot = genre === 'phase' ? 'phase' : 'étape';
   if (!Array.isArray(items) || items.length !== NB_EMPLACEMENTS) return { erreurs: { general: `Il faut exactement ${NB_EMPLACEMENTS} emplacements.` } };
@@ -314,8 +325,7 @@ export function validerEmplacements(items, role, { genre = 'etape', comptes = {}
     else if (e.couleur && !couleurValide(e.couleur)) erreurs[e.id] = 'La couleur est invalide.';
     if (e.actif) noms.add(normaliserNom(nom));
     if (!e.actif && !erreurs[e.id] && (comptes[e.id] || 0) > 0) {
-      const n = comptes[e.id];
-      erreurs[e.id] = `Cette ${mot} contient ${n} fiche${n > 1 ? 's' : ''} : déplace-les avant de la désactiver.`;
+      erreurs[e.id] = `Cette ${mot} contient ${texteFichesBloquantes(comptes[e.id], comptesArchives[e.id] || 0)} avant de la désactiver.`;
     }
     if (e.action) {
       const a = e.action;
@@ -336,6 +346,13 @@ export function validerEmplacements(items, role, { genre = 'etape', comptes = {}
 export function comptesParEtape(affaires) {
   const comptes = {};
   for (const a of affaires || []) if (a.etape) comptes[a.etape] = (comptes[a.etape] || 0) + 1;
+  return comptes;
+}
+
+/** Nombre de fiches ARCHIVÉES par étape (le sous-ensemble de `comptesParEtape`, qui reste inchangé) : { identifiant: nombre }. */
+export function comptesArchivesParEtape(affaires) {
+  const comptes = {};
+  for (const a of affaires || []) if (a.etape && a.archive === true) comptes[a.etape] = (comptes[a.etape] || 0) + 1;
   return comptes;
 }
 

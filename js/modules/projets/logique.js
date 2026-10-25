@@ -42,6 +42,13 @@ export function comptesParPhase(projets) {
   return comptes;
 }
 
+/** Nombre de projets ARCHIVÉS par phase (le sous-ensemble de `comptesParPhase`, qui reste inchangé) : { identifiant: nombre }. */
+export function comptesArchivesParPhase(projets) {
+  const comptes = {};
+  for (const p of projets || []) if (p.phase && p.archive === true) comptes[p.phase] = (comptes[p.phase] || 0) + 1;
+  return comptes;
+}
+
 /** Membres à qui une tâche peut être confiée : ceux de l'espace (`config.membres`). Un seul membre : pas de choix à proposer. */
 export const membresAssignables = (config) => configDe(config).membres;
 export const choixAssigneVisible = (config) => membresAssignables(config).length > 1;
