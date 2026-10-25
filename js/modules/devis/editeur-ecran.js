@@ -329,7 +329,7 @@ export function rendreEditeurDevis(conteneur, id) {
     ref.panneauEdition = h('div', { class: 'editeur-edition', dataset: { panneau: 'edition' } },
       lecture
         ? h('article', { class: 'document-devis' }, blocTotaux())
-        : [(ref.marges = blocMarges()), rangeeBibliotheque(), h('article', { class: 'document-devis' }, enteteDocument(), blocLignes(), basDePage())]);
+        : [rangeeBibliotheque(), h('article', { class: 'document-devis' }, enteteDocument(), blocLignes(), basDePage())]);
     ref.panneauApercu = h('div', { class: 'editeur-apercu', dataset: { panneau: 'apercu' } });
     bibliotheque?.fermer();
     bibliotheque = null;
@@ -483,21 +483,8 @@ export function rendreEditeurDevis(conteneur, id) {
     if (ref.erreurAffaire) { ref.erreurAffaire.hidden = Boolean(d.affaireId); }
   }
 
-  // ------------------------------------------------ marges du devis : visibles seulement avec la case « Afficher le calcul des marges » du menu Options
-  const majMarges = () => { if (ref.marges) ref.marges.hidden = !affichage().afficherMarges; racine.dataset.marges = affichage().afficherMarges ? 'oui' : 'non'; };
-
-  function blocMarges() {
-    const d = travail;
-    const marge = h('input', { class: 'champ champ-court', id: 'devis-marge', type: 'text', inputmode: 'decimal', value: saisieNombre(d.marge), dataset: { champ: 'marge' }, 'aria-label': 'Marge du devis en pourcent',
-      oninput: (e) => { const vide = e.target.value.trim() === ''; const v = vide ? 0 : Ed.lireSaisie(e.target.value); e.target.classList.toggle('invalide', v === null); if (v !== null) { changer({ marge: v }); majPrixAffiches(); } } });
-    const mode = h('select', { class: 'champ', id: 'devis-mode', dataset: { champ: 'mode-marge' }, 'aria-label': 'Mode de calcul de la marge', onchange: (e) => { changer({ modeMarge: e.target.value }); majPrixAffiches(); } },
-      MODES_MARGE.map((m) => h('option', { value: m.id, selected: d.modeMarge === m.id }, m.libelle)));
-    return h('section', { class: 'carte-editeur panneau-options', id: 'options-devis', hidden: !affichage().afficherMarges, dataset: { zone: 'marges' } },
-      h('h2', { class: 'titre-bloc' }, 'Marges du devis'),
-      h('div', { class: 'grille-champs' },
-        champ('Marge du devis (%)', h('div', { class: 'ligne-champs' }, marge), { id: 'devis-marge', aide: h('p', { class: 'texte-discret' }, 'Elle s’applique aux lignes qui n’ont pas leur propre marge. Le client ne la voit jamais.') }),
-        champ('Mode de calcul', mode, { id: 'devis-mode' })));
-  }
+  // ------------------------------------------------ calcul des marges : visible sur les lignes seulement avec la case « Afficher le calcul des marges » du menu Options (la marge du devis se règle dans « Définir un ajustement »)
+  const majMarges = () => { racine.dataset.marges = affichage().afficherMarges ? 'oui' : 'non'; };
 
   // ------------------------------------------------ Bibliothèque : le bouton sous la barre, le panneau à droite
   function rangeeBibliotheque() {
@@ -1153,7 +1140,10 @@ export function rendreEditeurDevis(conteneur, id) {
       const margeChamp = h('input', { class: 'champ champ-court', id: 'ajust-marge', type: 'text', inputmode: 'decimal', autocomplete: 'off', value: saisieNombre(travail.marge), 'aria-label': 'Marge du devis en pourcent', dataset: { champ: 'marge-menu' },
         oninput: (e) => { const vide = e.target.value.trim() === ''; const v = vide ? 0 : Ed.lireSaisie(e.target.value); e.target.classList.toggle('invalide', v === null); if (v !== null) { changer({ marge: v }); majPrixAffiches(); const autre = racine.querySelector('[data-champ="marge"]'); if (autre) autre.value = e.target.value; } } });
       const zoneMarge = h('div', { class: 'ajust-zone', dataset: { zone: 'marge-devis' } }, h('div', { class: 'ajust-champ' }, h('label', { for: 'ajust-marge' }, 'Marge du devis (%)'), margeChamp,
-        h('p', { class: 'texte-discret' }, 'Elle s’applique aux lignes qui n’ont pas leur propre marge. Le client ne la voit jamais.')));
+        h('p', { class: 'texte-discret' }, 'Elle s’applique aux lignes qui n’ont pas leur propre marge. Le client ne la voit jamais.'),
+        h('label', { for: 'ajust-mode' }, 'Mode de calcul'),
+        h('select', { class: 'champ', id: 'ajust-mode', dataset: { champ: 'mode-marge-menu' }, 'aria-label': 'Mode de calcul de la marge', onchange: (e) => { changer({ modeMarge: e.target.value }); majPrixAffiches(); } },
+          MODES_MARGE.map((m) => h('option', { value: m.id, selected: travail.modeMarge === m.id }, m.libelle)))));
       const remiseTotaux = { type: racine.querySelector('[data-champ="remise-type"]'), valeur: racine.querySelector('[data-champ="remise-valeur"]') };
       const remiseType = h('select', { class: 'champ', 'aria-label': 'Type de remise', dataset: { champ: 'remise-type-menu' }, onchange: (e) => { if (remiseTotaux.type) { remiseTotaux.type.value = e.target.value; remiseTotaux.type.dispatchEvent(new Event('change', { bubbles: true })); } } },
         h('option', { value: 'pourcentage', selected: remiseTotaux.type?.value !== 'montant' }, '%'), h('option', { value: 'montant', selected: remiseTotaux.type?.value === 'montant' }, '€'));
