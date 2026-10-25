@@ -17,6 +17,8 @@
 
 Pendant le travail, Claude ne lance que les tests du module qu'il touche (`npm run test:module projets`, par exemple).
 
+**Le palier complet est découpé en 7 jobs parallèles (25/10/2026)** : 6 parties des parcours navigateur (`Complet navigateur 1/6` à `6/6`, option `--shard` de Playwright : chaque parcours tourne dans une seule partie) et un job `Complet sans navigateur` (règles, logique, statique, fonctions, porte, storage, outil client, automatisations ; `npm run test:complet-sans-navigateur`). Un job final, nommé exactement **`Tests`**, réunit les résultats : il est vert seulement si tous les jobs requis sont verts, rouge si l'un a échoué, a été annulé ou n'a pas tourné alors qu'il devait. **Ne jamais renommer ce job** : c'est la coche obligatoire de la protection de branche. Le chemin rapide reste un seul job (`Rapide`), précédé de `Niveau de test` (quelques secondes). Le test de nuit n'est pas découpé (personne ne l'attend, et chaque job refait l'installation, donc le découpage consommerait plus de minutes). À la main : `cd tests && TESTS_DECALAGE=1 node lancer-tout.js --e2e --project=ordinateur --shard=1/6`. `TESTS_DECALAGE` des parties : 1, 3, 4, 5, 6, 8 ; sans navigateur : 9 (jamais 2 ni 7).
+
 ## Où lire le résultat
 
 - Sur une PR : en bas de la page de la PR, la ligne **« Tests »** : coche verte = tout va bien, croix rouge = quelque chose a échoué. Clique « Details » pour voir lequel.
