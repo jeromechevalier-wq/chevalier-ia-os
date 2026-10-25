@@ -65,6 +65,8 @@ export async function brancherGoogle(context, { idClient = ID_CLIENT } = {}) {
       const parent = /and '([^']+)' in parents/.exec(q)?.[1];
       drive.recherches.push({ nom, parent });
       const trouves = drive.dossiers.filter((d) => !drive.supprimes.has(d.id) && d.name === nom && (d.parents?.[0] || 'root') === parent).map((d) => ({ id: d.id, name: d.name }));
+      // Les fichiers envoyés par l'appli (copie du PDF d'un devis) sont retrouvables par leur nom, comme avec la portée drive.file.
+      for (const [i, e] of drive.envois.entries()) if (e.nom === nom && (e.parents?.[0] || 'root') === parent) trouves.push({ id: `ENVOI_${i + 1}_abcdefghij`, name: e.nom });
       await route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: JSON.stringify({ files: trouves }) });
       return;
     }
