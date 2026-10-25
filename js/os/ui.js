@@ -176,8 +176,9 @@ export function toast(message, { type = 'info', duree = 3200, lien = null, actio
  * Boîte de dialogue modale.
  * boutons : [{ libelle, valeur, style: 'principal' | 'danger' | 'discret', desactive, avantFermeture }]
  * Renvoie une promesse résolue avec la valeur du bouton (null si fermée).
+ * peutFermer : (facultatif) fonction qui rend false pour REFUSER la fermeture par la croix, Échap ou le clic sur le voile (travail en cours) ; les boutons ne sont pas concernés.
  */
-export function dialogue({ titre, contenu, boutons = [{ libelle: 'OK', valeur: true, style: 'principal' }], classe = '', auMontage } = {}) {
+export function dialogue({ titre, contenu, boutons = [{ libelle: 'OK', valeur: true, style: 'principal' }], classe = '', auMontage, peutFermer } = {}) {
   return new Promise((resoudre) => {
     const precedent = document.activeElement;
     const voile = h('div', { class: 'voile-dialogue' });
@@ -200,7 +201,7 @@ export function dialogue({ titre, contenu, boutons = [{ libelle: 'OK', valeur: t
             const ok = await b.avantFermeture();
             if (ok === false) return;
           }
-          fermer(typeof b.valeur === 'function' ? b.valeur() : b.valeur);
+          fermer(typeof b.valeur === 'function' ? b.valeur() : b.valeur, true);
         },
       }, b.libelle);
       pied.append(btn);
@@ -217,8 +218,9 @@ export function dialogue({ titre, contenu, boutons = [{ libelle: 'OK', valeur: t
     document.addEventListener('keydown', surTouche);
     voile.addEventListener('mousedown', (e) => { if (e.target === voile) fermer(null); });
     let ferme = false;
-    function fermer(valeur) {
+    function fermer(valeur, force = false) {
       if (ferme) return;
+      if (!force && peutFermer?.() === false) return;
       ferme = true;
       document.removeEventListener('keydown', surTouche);
       voile.remove();

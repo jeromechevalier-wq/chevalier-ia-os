@@ -125,7 +125,7 @@ test('3 un devis encore brouillon : « Finaliser d’abord » (rien n’est dema
   expect((await lireGoogle(page)).autorisations).toHaveLength(0);
 });
 
-test('3 PDF pas prêt (en cours, échec) : message clair et « Réessayer » ; aucun dialogue d’envoi tant que le PDF n’est pas prêt', async ({ page, context }) => {
+test('3 PDF en échec : message clair et « Réessayer » ; aucun dialogue d’envoi tant que le PDF n’est pas prêt', async ({ page, context }) => {
   test.info().annotations.push({ type: 'erreurs-reseau-attendues', description: 'le faux serveur répond comme le vrai' });
   await brancherGoogle(context);
   await semer('dPdf', { pdf: { statut: 'echec', message: 'Chromium absent', tentatives: 3 } });
@@ -270,4 +270,65 @@ test('6 cas vide de la fiche : un devis finalisé jamais envoyé dit « Pas enco
   await page.evaluate(() => { location.hash = '#/devis/liste/dBrouillon'; });
   await expect(fiche(page).locator('.fiche-titre')).toContainText('Brouillon');
   await expect(fiche(page).locator('[data-bloc="envois"]')).toHaveCount(0);
+});
+
+test('3 PDF « en cours de fabrication » : message clair, « Réessayer » ne relance pas la fabrication, aucun dialogue d’envoi', async ({ page, context }) => {
+  await brancherGoogle(context);
+  await semer('dCours', { pdf: { statut: 'en_cours', demarreLe: new Date(), tentatives: 1 } });
+  await simulerServeur(page, 'dCours');
+  await ouvrirEditeur(page, 'dCours');
+  await ouvrirDialogue(page);
+  const dlg = page.locator('.dialogue').filter({ hasText: 'Le PDF n’est pas prêt' });
+  await expect(dlg.locator('[data-valeur="pdf-pas-pret"]')).toContainText('en cours de fabrication');
+  await expect(boite(page)).toHaveCount(0);
+});
+
+test('1 pendant la création du brouillon (occupé), Échap, la croix et le clic sur le voile ne ferment pas la boîte ; ils la ferment une fois le travail fini', async ({ page, context }) => {
+  const google = await brancherGoogle(context);
+  await semer('dEmail');
+  await simulerServeur(page, 'dEmail');
+  let liberer;
+  const attente = new Promise((r) => { liberer = r; });
+  await page.context().route('https://gmail.googleapis.com/gmail/v1/users/me/drafts', async (route) => {
+    if (route.request().method() === 'POST') await attente; // le faux Gmail ne répond qu'après nos essais de fermeture
+    await route.fallback();
+  });
+  await ouvrirEditeur(page, 'dEmail');
+  await ouvrirDialogue(page);
+  await creer(page).click();
+  await expect(boite(page).locator('[data-zone="etat-email"]')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await boite(page).getByRole('button', { name: 'Fermer' }).first().click({ force: true });
+  await page.mouse.click(2, 2);
+  await expect(boite(page)).toBeVisible();
+  liberer();
+  await expect(boite(page).locator('[data-valeur="message-brouillon"]')).toBeVisible();
+  expect(google.brouillons).toHaveLength(1);
+  await page.keyboard.press('Escape');
+  await expect(boite(page)).toHaveCount(0);
+});
+
+test('6 « Réessayer » après un échec de devisEnregistrerEnvoi ne rappelle pas devisChangerStatut (le statut est déjà posé)', async ({ page, context }) => {
+  test.info().annotations.push({ type: 'erreurs-reseau-attendues', description: 'le faux serveur répond 500 une fois' });
+  await brancherGoogle(context);
+  await semer('dEmail');
+  const serveur = await simulerServeur(page, 'dEmail');
+  let echec = true;
+  await page.route('**/devisEnregistrerEnvoi', async (route) => {
+    if (route.request().method() === 'POST' && echec) {
+      echec = false;
+      serveur.appels.push(['devisEnregistrerEnvoi', 'échec']);
+      return route.fulfill({ status: 500, headers: cors, body: JSON.stringify({ error: { message: 'panne', status: 'INTERNAL' } }) });
+    }
+    return route.fallback();
+  });
+  await ouvrirEditeur(page, 'dEmail');
+  await ouvrirDialogue(page);
+  await creer(page).click();
+  await boite(page).locator('[data-action="marquer-envoye-email"]').click();
+  await expect(boite(page).locator('[data-action="reessayer-marquer-envoye"]')).toHaveText('Réessayer');
+  await boite(page).locator('[data-action="reessayer-marquer-envoye"]').click();
+  await expect(page.locator('#toasts')).toContainText('Devis marqué comme envoyé');
+  expect(serveur.appels.map((a) => a[0])).toEqual(['devisChangerStatut', 'devisEnregistrerEnvoi', 'devisEnregistrerEnvoi']);
+  expect((await lireDocument('devis_devis/dEmail')).envois).toHaveLength(1);
 });

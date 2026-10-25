@@ -115,6 +115,7 @@ function dialogueEnvoi({ devisId, getDevis }) {
   let boutons = [];
   let resultat = null; // { saisie, url } du brouillon créé
   let occupe = false;
+  let statutPose = false; // « Marquer comme envoyé » déjà passé : « Réessayer » ne le redemande pas (le serveur refuserait la transition)
 
   const montrerErreur = (texte) => { erreurGlobale.textContent = texte || ''; erreurGlobale.hidden = !texte; };
   const occuper = (v, texte = '') => { occupe = v; boutons.forEach((b) => { b.disabled = v; }); etat.textContent = texte; etat.hidden = !v; };
@@ -169,7 +170,7 @@ function dialogueEnvoi({ devisId, getDevis }) {
     occuper(true, 'Enregistrement…');
     try {
       const courant = getDevis();
-      if (courant?.statut === 'en_attente_envoi') await D.changerStatut(devisId, 'marquer_envoye');
+      if (!statutPose && courant?.statut === 'en_attente_envoi') { await D.changerStatut(devisId, 'marquer_envoye'); statutPose = true; }
       await D.enregistrerEnvoi(devisId, { destinataires: resultat.saisie.a, copie: resultat.saisie.cc });
       occuper(false);
       toast('Devis marqué comme envoyé', { duree: 6000 });
@@ -186,6 +187,7 @@ function dialogueEnvoi({ devisId, getDevis }) {
   return dialogue({
     titre: 'Envoyer le devis par e-mail',
     classe: 'dialogue-formulaire dialogue-email-devis',
+    peutFermer: () => !occupe, // ni Échap, ni croix, ni voile pendant la création du brouillon ou l'enregistrement
     contenu,
     boutons: [
       { libelle: 'Annuler', valeur: false },

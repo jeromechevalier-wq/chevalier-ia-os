@@ -57,6 +57,15 @@ describe('2 saisie du dialogue', () => {
     assert.match(v.erreurs.cc, /faux/);
     assert.equal(v.erreurs.a, undefined);
   });
+  test('2 adresses non ASCII ou à caractère spécial : refusées avec un message clair (josé@x.fr, 中@x.fr, a(b@x.fr)', () => {
+    for (const mauvaise of ['josé@x.fr', '中@x.fr', 'a(b@x.fr', 'a)b@x.fr', 'a"b@x.fr', 'a\\b@x.fr', 'jean@exemplé.fr']) {
+      const v = E.validerSaisie({ a: mauvaise, cc: '', objet: 'x' });
+      assert.match(v.erreurs.a, /contient des caractères que Gmail n’accepte pas ici/, mauvaise);
+      assert.match(E.validerSaisie({ a: 'ok@x.fr', cc: mauvaise, objet: 'x' }).erreurs.cc, /Gmail n’accepte pas/, `cc ${mauvaise}`);
+      assert.throws(() => mime({ a: [mauvaise] }), (e) => e.code === 'adresse_invalide', mauvaise);
+    }
+    assert.deepEqual(E.validerSaisie({ a: 'jean.dupont+devis@exemple.fr', objet: 'x' }).erreurs, {});
+  });
   test('2 l’objet est obligatoire, tient sur une ligne et ne dépasse pas 200 caractères', () => {
     assert.match(E.validerSaisie({ a: 'a@x.fr', objet: '' }).erreurs.objet, /objet/);
     assert.match(E.validerSaisie({ a: 'a@x.fr', objet: 'Devis\r\nBcc: pirate@x.fr' }).erreurs.objet, /retours à la ligne/);
@@ -138,6 +147,12 @@ describe('3 MIME', () => {
     assert.equal(E.nomPieceJointe(''), 'Devis.pdf');
     const m = mime({ nomPdf: 'x"\r\nContent-Type: text/html' });
     assert.doesNotMatch(m, /\r\nContent-Type: text\/html/);
+  });
+  test('3 le plafond du PDF est de 5 Mo et le message de lecture ne parle plus de la PR', () => {
+    assert.equal(E.MAX_PDF_OCTETS, 5 * 1024 * 1024);
+    assert.match(E.MESSAGE_PDF_TROP_GROS, /5 Mo/);
+    assert.doesNotMatch(E.MESSAGE_LECTURE_PDF, /PR\b/);
+    assert.match(E.MESSAGE_LECTURE_PDF, /docs\/cors-stockage-pdf\.md/);
   });
   test('3 un PDF vide ou trop gros est refusé', () => {
     assert.throws(() => mime({ pdf: new Uint8Array(0) }), (e) => e.code === 'pdf_vide');

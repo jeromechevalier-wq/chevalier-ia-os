@@ -46,7 +46,7 @@ const refus = async (promesse, code) => {
 };
 const OPERATIONS = { finaliser: { devisId: 'da' }, changerStatut: { devisId: 'da', action: 'marquer_envoye' }, nouvelleVersion: { devisId: 'da' }, archiver: { devisId: 'da', archive: true }, enregistrerEnvoi: { devisId: 'da', destinataires: ['client@exemple.test'] } };
 
-describe('C7 plateforme : qui peut appeler les quatre fonctions de devis', () => {
+describe('C7 plateforme : qui peut appeler les fonctions de devis', () => {
   test('C7 une éditrice de l’espace a avec le module devis actif finalise son devis, dans son espace seulement', async () => {
     const m = monde();
     const r = await appeler(m, 'finaliser', ALICE, { client: 'a', devisId: 'da' });

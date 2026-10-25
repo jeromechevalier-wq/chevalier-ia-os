@@ -242,6 +242,7 @@ function adressesDeEnvoi(valeur, { nom, minimum }) {
   for (const brute of valeur) {
     if (typeof brute !== 'string' || brute.length > 254) throw new ErreurDevis('demande_invalide', `${nom} : une adresse e-mail n'est pas valide.`);
     const a = brute.trim();
+    if (D.emailValide(a) && !(/^[\x21-\x7e]+$/.test(a) && !/[()"<>\\,]/.test(a.slice(0, a.lastIndexOf('@'))))) throw new ErreurDevis('demande_invalide', `${nom} : l'adresse « ${a.replace(/[\u0000-\u001f\u007f]/g, ' ').slice(0, 60)} » contient des caractères que Gmail n'accepte pas ici.`);
     if (!D.emailValide(a) || /[\u0000-\u001f\u007f]/.test(a)) throw new ErreurDevis('demande_invalide', `${nom} : l'adresse « ${a.slice(0, 60)} » n'est pas valide.`);
     if (vues.has(a.toLowerCase())) continue;
     vues.add(a.toLowerCase());

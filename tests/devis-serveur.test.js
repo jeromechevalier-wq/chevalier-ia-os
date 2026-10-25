@@ -269,6 +269,7 @@ describe('C5c devisEnregistrerEnvoi : l’historique des envois par e-mail', () 
       { destinataires: ['a@exemple.test\r\nBcc: x@exemple.test'] }, { destinataires: [42] }, { destinataires: onze },
       { destinataires: ['a@exemple.test'], copie: ['faux'] }, { destinataires: ['a@exemple.test'], copie: 'b@exemple.test' }, { destinataires: ['a@exemple.test'], copie: onze },
       { destinataires: ['a@exemple.test'], copie: ['x'.repeat(260) + '@exemple.test'] },
+      { destinataires: ['josé@exemple.test'] }, { destinataires: ['中@exemple.test'] }, { destinataires: ['a(b@exemple.test'] }, { destinataires: ['a@exemple.test'], copie: ['a"b@exemple.test'] },
     ];
     for (const extra of mauvaises) {
       await assert.rejects(() => S.enregistrerEnvoi({ donnees: m.donnees, ctx: ctx(), devisId: 'd1', ...extra }), (e) => e.code === 'demande_invalide', JSON.stringify(extra).slice(0, 80));

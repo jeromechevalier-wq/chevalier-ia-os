@@ -3,6 +3,7 @@
 // Les règles de statut viennent de logique.js (TRANSITIONS, estExpire) : rien n'est redéfini ici.
 import { STATUTS_DEVIS, estExpire, transitionPossible, totauxDevis } from './logique.js';
 import { etatPdfDevis } from './pdf.js';
+import { emailPossible } from './email-brouillon.js';
 
 /** L'éditeur de devis existe : « Nouveau devis », « Modifier » et « Dupliquer » sont actifs (false les grise « bientôt disponible »). */
 export const EDITEUR_DISPONIBLE = true;
@@ -230,7 +231,7 @@ export function actionsPermises(d, { editeur = EDITEUR_DISPONIBLE, suppression =
     nouvelleVariante: variante ? (editeur ? { actif: true } : bientot) : { actif: false, raison: brouillon ? 'Un brouillon se modifie directement.' : 'Pas de variante pour un devis signé ou remplacé.' },
     dupliquer: editeur ? { actif: true } : bientot,
     facturer: bientot,
-    envoyer: bientot,
+    envoyer: emailPossible(statut),
     supprimer: brouillon ? (suppression ? { actif: true } : bientot) : { actif: false, raison: 'Seul un brouillon se supprime.' },
   };
 }

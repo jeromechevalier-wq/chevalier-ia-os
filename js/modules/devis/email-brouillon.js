@@ -11,8 +11,8 @@ export const API_BROUILLONS = 'https://gmail.googleapis.com/gmail/v1/users/me/dr
 export const MAX_ADRESSES = 10;
 export const MAX_OBJET = 200;
 export const MAX_MESSAGE = 20_000;
-/** Un PDF de devis pèse quelques centaines de Ko ; au-delà, Gmail refuserait le brouillon (envoi JSON). */
-export const MAX_PDF_OCTETS = 15 * 1024 * 1024;
+/** Un PDF de devis pèse quelques centaines de Ko ; au-delà de 5 Mo, l'envoi JSON simple de Gmail risque d'être refusé. */
+export const MAX_PDF_OCTETS = 5 * 1024 * 1024;
 
 export const OBJET_PAR_DEFAUT = 'Devis {numero} – {objet}';
 export const MESSAGE_PAR_DEFAUT = [
@@ -30,8 +30,8 @@ export const MESSAGE_RESEAU = 'Impossible de joindre Gmail. Vérifie ta connexio
 export const MESSAGE_REFUS = 'Gmail n’est pas connecté ou l’autorisation a été refusée : le brouillon n’a pas été créé.';
 export const MESSAGE_API_DESACTIVEE = 'L’API Gmail n’est pas activée dans le projet Google de cet espace : préviens l’administrateur de ton espace (elle s’active une fois, dans la console Google).';
 export const MESSAGE_PORTEE = 'Google n’a pas donné le droit de créer un brouillon Gmail. Réessaie et laisse la case « Gmail » cochée dans la fenêtre Google.';
-export const MESSAGE_LECTURE_PDF = 'Le PDF n’a pas pu être lu. Réessaie ; si cela continue, le navigateur n’a pas le droit de lire le fichier de stockage (réglage à faire une fois, voir la description de la PR).';
-export const MESSAGE_PDF_TROP_GROS = 'Le PDF est trop gros pour un brouillon Gmail (15 Mo au plus).';
+export const MESSAGE_LECTURE_PDF = 'Le PDF n’a pas pu être lu depuis le navigateur. Réessaie ; si ça continue, il faut autoriser ce site dans le stockage (réglage à faire une fois, voir docs/cors-stockage-pdf.md).';
+export const MESSAGE_PDF_TROP_GROS = 'Le PDF est trop gros pour un brouillon Gmail (5 Mo au plus).';
 export const MESSAGE_BROUILLON_CREE = 'Brouillon créé dans Gmail';
 export const MESSAGE_FINALISER_D_ABORD = 'Ce devis est encore un brouillon. Il faut le finaliser (numéro, prix figés, PDF) avant de l’envoyer par e-mail.';
 export const MESSAGE_PDF_EN_COURS = 'Le PDF est en cours de fabrication. Réessaie dans quelques instants.';
@@ -79,9 +79,14 @@ export function lireAdresses(texte) {
   return liste;
 }
 /** Adresse sûre pour un en-tête : valide, déjà nettoyée, sans caractère de contrôle ni espace. */
-const adresseSure = (a) => typeof a === 'string' && a === a.trim() && !CONTROLE.test(a) && !/\s/.test(a) && a.length <= 254 && emailValide(a);
+/** Pour un en-tête, seul l'ASCII imprimable est sûr (« josé@x.fr » demanderait SMTPUTF8) ; pas de caractère spécial (parenthèses, guillemet, chevrons, barre, virgule) avant le « @ ». */
+export const adresseSure = (a) => typeof a === 'string' && a === a.trim() && a.length <= 254 && /^[\x21-\x7e]+$/.test(a) && !/[()"<>\\,]/.test(a.slice(0, a.lastIndexOf('@'))) && emailValide(a);
+export const messageAdresseRefusee = (a) => `L’adresse « ${String(a).slice(0, 60).replace(CONTROLE, ' ')} » contient des caractères que Gmail n’accepte pas ici (lettres sans accent, chiffres et . _ - + seulement).`;
 /** Adresses d'un devis (liste de textes ou d'objets { email }) -> liste de textes non vides. */
 export const adressesDuDevis = (liste) => (Array.isArray(liste) ? liste : []).map((x) => (typeof x === 'string' ? x : x?.email ?? '')).map((x) => String(x).trim()).filter(Boolean);
+
+/** Adresse bien formée mais hors ASCII ou à caractère spécial : message « Gmail n'accepte pas » ; sinon le message d'adresse invalide. */
+const messageMauvaiseAdresse = (a, invalide) => (emailValide(a) ? messageAdresseRefusee(a) : invalide.replace('{a}', String(a).slice(0, 60)));
 
 /**
  * Contrôle de la saisie du dialogue. `a` et `cc` : du texte ou une liste. Renvoie { erreurs: { a?, cc?, objet?, message? }, a, cc, objet, message } ;
@@ -93,9 +98,9 @@ export function validerSaisie({ a = '', cc = '', objet = '', message = '' } = {}
   let listeCc = lireAdresses(cc);
   const mauvaise = (liste) => liste.find((x) => !adresseSure(x));
   if (!listeA.length) erreurs.a = 'Écris l’adresse e-mail du destinataire.';
-  else if (mauvaise(listeA)) erreurs.a = `Cette adresse e-mail n’est pas valide : ${String(mauvaise(listeA)).slice(0, 60)} (exemple : contact@exemple.fr).`;
+  else if (mauvaise(listeA)) erreurs.a = messageMauvaiseAdresse(mauvaise(listeA), 'Cette adresse e-mail n’est pas valide : {a} (exemple : contact@exemple.fr).');
   else if (listeA.length > MAX_ADRESSES) erreurs.a = `${MAX_ADRESSES} destinataires au plus.`;
-  if (mauvaise(listeCc)) erreurs.cc = `Cette adresse e-mail en copie n’est pas valide : ${String(mauvaise(listeCc)).slice(0, 60)}.`;
+  if (mauvaise(listeCc)) erreurs.cc = messageMauvaiseAdresse(mauvaise(listeCc), 'Cette adresse e-mail en copie n’est pas valide : {a}.');
   else if (listeCc.length > MAX_ADRESSES) erreurs.cc = `${MAX_ADRESSES} adresses en copie au plus.`;
   listeCc = listeCc.filter((x) => !listeA.some((y) => y.toLowerCase() === x.toLowerCase())); // déjà destinataire : pas en double
   const objetBrut = String(objet ?? '');
