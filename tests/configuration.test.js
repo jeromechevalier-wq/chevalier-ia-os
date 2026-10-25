@@ -183,8 +183,8 @@ describe('Configuration : contrôle avant enregistrement', () => {
     assert.equal(msg(2, 0), 'Cette étape contient 2 fiches : déplace-les avant de la désactiver.');
     assert.equal(msg(1, 1), 'Cette étape contient 1 fiche (archivée) : désarchive-la ou déplace-la avant de la désactiver.');
     assert.equal(msg(2, 2), 'Cette étape contient 2 fiches (archivées) : désarchive-les ou déplace-les avant de la désactiver.');
-    assert.equal(msg(3, 1), 'Cette étape contient 3 fiches (dont 1 archivée) : désarchive ou déplace-les avant de la désactiver.');
-    assert.equal(msg(3, 2), 'Cette étape contient 3 fiches (dont 2 archivées) : désarchive ou déplace-les avant de la désactiver.');
+    assert.equal(msg(3, 1), 'Cette étape contient 3 fiches (dont 1 archivée) : déplace-les, ou désarchive celles qui le sont, avant de la désactiver.');
+    assert.equal(msg(3, 2), 'Cette étape contient 3 fiches (dont 2 archivées) : déplace-les, ou désarchive celles qui le sont, avant de la désactiver.');
     const phases = six().map((e, i) => ({ ...e, id: `phase_${i + 1}` }));
     phases[3].actif = false;
     assert.equal(L.validerEmplacements(phases, 'phase_5', { genre: 'phase', comptes: { phase_4: 1 }, comptesArchives: { phase_4: 1 } }).erreurs.phase_4, 'Cette phase contient 1 fiche (archivée) : désarchive-la ou déplace-la avant de la désactiver.');

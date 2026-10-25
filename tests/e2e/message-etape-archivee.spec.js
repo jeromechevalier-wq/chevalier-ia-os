@@ -52,7 +52,7 @@ test('3 une affaire archivée et une vivante dans l’étape 5 : « 2 fiches (do
   await creerAffaire('a2', { titre: 'Affaire vivante', etape: 'etape_5' });
   await connecter(page);
   const erreur = await desactiverEtEnregistrer(page, '#reglages-etapes', 'etape_5', 'etape');
-  await expect(erreur).toHaveText('Cette étape contient 2 fiches (dont 1 archivée) : désarchive ou déplace-les avant de la désactiver.');
+  await expect(erreur).toHaveText('Cette étape contient 2 fiches (dont 1 archivée) : déplace-les, ou désarchive celles qui le sont, avant de la désactiver.');
   await capture(page, page.locator('#reglages-etapes'), '3-etape-mixte');
 });
 

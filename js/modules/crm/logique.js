@@ -302,7 +302,7 @@ export function texteFichesBloquantes(n, archivees = 0) {
   const fiches = `${n} fiche${n > 1 ? 's' : ''}`;
   if (!(archivees > 0)) return `${fiches} : déplace-les`;
   if (archivees >= n) return n > 1 ? `${fiches} (archivées) : désarchive-les ou déplace-les` : `${fiches} (archivée) : désarchive-la ou déplace-la`;
-  return `${fiches} (dont ${archivees} archivée${archivees > 1 ? 's' : ''}) : désarchive ou déplace-les`;
+  return `${fiches} (dont ${archivees} archivée${archivees > 1 ? 's' : ''}) : déplace-les, ou désarchive celles qui le sont,`;
 }
 
 /**
