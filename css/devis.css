@@ -76,12 +76,12 @@
 .dialogue-apercu-devis { width: min(900px, 100%); }
 .apercu-devis { width: 100%; height: min(70vh, 720px); border: 1px solid var(--bordure); border-radius: var(--rayon-petit); background: #fff; }
 .liste-erreurs-devis { margin: 0; padding-left: var(--esp-7); }
-/* Bouton « Modifier » visible à côté du menu « … » (ligne du tableau et carte du kanban). */
+/* Menu « … » seul (ligne du tableau et carte du kanban) : un clic sur le devis ouvre l'éditeur. */
 .actions-devis { display: inline-flex; align-items: center; gap: var(--esp-3); }
 .tableau-devis td.col-actions { width: auto; white-space: nowrap; }
 @media (max-width: 767px) {
   .tableau-devis td.montant { text-align: left; }
-  .tableau-devis td.col-actions .bouton-icone, .tableau-devis td.col-actions .bouton, .carte-devis .actions-devis .bouton { min-height: 44px; }
+  .tableau-devis td.col-actions .bouton-icone, .tableau-devis td.col-actions .bouton { min-height: 44px; }
   .tableau-devis td.col-actions .bouton-icone { min-width: 44px; }
   .carte-devis .carte-menu { min-height: 44px; min-width: 44px; }
 }

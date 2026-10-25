@@ -136,16 +136,13 @@ test('4 la dernière colonne du Tableau est entièrement visible sur ordinateur 
   await capturer(page, info, '4-derniere-colonne-visible');
 });
 
-test('5 le numéro d’une carte « Variante » tient sur au plus 2 lignes et le bouton est sur sa propre ligne', async ({ page }, info) => {
+test('5 le numéro d’une carte reste sur au plus 2 lignes (plus de bouton « Variante » sur la carte)', async ({ page }, info) => {
   await tableau4();
   await versTableau(page);
   const carte = page.locator('.carte-devis[data-id="d1"]');
-  await expect(carte.locator('[data-action="modifier-devis"]')).toContainText('Variante');
+  await expect(carte.locator('[data-action="modifier-devis"]')).toHaveCount(0);
   const m = await carte.locator('.carte-titre').evaluate((el) => ({ h: el.getBoundingClientRect().height, lh: parseFloat(getComputedStyle(el).lineHeight) || parseFloat(getComputedStyle(el).fontSize) * 1.4 }));
   expect(m.h).toBeLessThanOrEqual(m.lh * 2 + 2);
-  const titre = await carte.locator('.carte-titre').boundingBox();
-  const bouton = await carte.locator('[data-action="modifier-devis"]').boundingBox();
-  expect(bouton.y).toBeGreaterThanOrEqual(titre.y + titre.height - 1);
   await capturer(page, info, '5-carte-variante');
 });
 
@@ -198,7 +195,7 @@ test('E3 le menu « … » : changements de statut par le serveur, entrées « b
   await page.keyboard.press('Escape');
   // Voir : l'aperçu du devis dans une fenêtre.
   await ouvrirMenuDe(page, 'd1');
-  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Voir' }).click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Voir', exact: true }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await expect(page.getByRole('dialog').locator('iframe').contentFrame().locator('body')).toContainText('DEV-2026-10-02-001');
   await capturer(page, info, 'E3-apercu');
@@ -227,15 +224,50 @@ test('E4 recherche et filtre de statut ; cas vide « Aucun devis pour l’instan
   await expect(page.locator('[data-action="filtres"]')).toContainText('1');
 });
 
-test('un bouton « Modifier » est visible dans la ligne sans ouvrir le menu « … » : brouillon = éditeur, devis envoyé = « Variante »', async ({ page }) => {
+test('O1 un clic sur la ligne d’un brouillon ouvre l’éditeur (devis/editeur/<id>), sans aperçu ni fiche', async ({ page }) => {
   await deuxDevis();
   await ouvrir(page);
-  await expect(page.locator('[data-id="d1"] [data-action="modifier-devis"]')).toContainText('Variante');
-  const bouton = page.locator('[data-id="d2"] [data-action="modifier-devis"]');
-  await expect(bouton).toBeVisible();
-  await expect(bouton).toContainText('Modifier');
-  await bouton.click();
+  await lignes(page).locator('[data-colonne="numero"]').first().click(); // d2 (brouillon), le plus récent
   await expect(page).toHaveURL(/#\/devis\/editeur\/d2$/);
+  await expect(page.locator('[data-role="fiche-devis"]')).toHaveCount(0);
+});
+
+test('O2 un clic sur une carte du Tableau ouvre l’éditeur du devis', async ({ page }) => {
+  await tableau4();
+  await versTableau(page);
+  await page.locator('.carte-devis[data-id="d2"] .carte-titre').click();
+  await expect(page).toHaveURL(/#\/devis\/editeur\/d2$/);
+});
+
+test('O3 les boutons « Modifier » et « Variante » n’existent plus sur les lignes ni sur les cartes ; le menu « … » reste', async ({ page }) => {
+  await deuxDevis();
+  await ouvrir(page);
+  await expect(page.locator('[data-action="modifier-devis"]')).toHaveCount(0);
+  await expect(page.locator('tr.ligne-devis [data-action="menu-devis"]')).toHaveCount(2);
+  await page.locator('[data-vue="tableau"]').click();
+  await expect(page.locator('.colonne')).not.toHaveCount(0);
+  await expect(page.locator('[data-action="modifier-devis"]')).toHaveCount(0);
+  await expect(page.locator('.carte-devis [data-action="menu-devis"]')).not.toHaveCount(0);
+});
+
+test('O4 un devis envoyé s’ouvre dans l’éditeur en lecture seule, avec « Créer une variante »', async ({ page }, info) => {
+  await deuxDevis();
+  await ouvrir(page);
+  await lignes(page).locator('[data-colonne="numero"]').nth(1).click(); // d1 (envoyé)
+  await expect(page).toHaveURL(/#\/devis\/editeur\/d1$/);
+  await expect(page.locator('[data-valeur="lecture-seule"]')).toBeVisible();
+  await expect(page.locator('[data-action="creer-variante"]')).toBeVisible();
+  await capturer(page, info, 'O4-lecture-seule');
+});
+
+test('O5 le menu « … » propose « Voir la fiche » : la fiche latérale s’ouvre (adresse devis/liste/<id>) et la liste reste derrière', async ({ page }) => {
+  await deuxDevis();
+  await ouvrir(page);
+  await ouvrirMenuDe(page, 'd1');
+  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Voir la fiche' }).click();
+  await expect(page).toHaveURL(/#\/devis\/liste\/d1$/);
+  await expect(page.locator('[data-role="fiche-devis"]')).toBeVisible();
+  await expect(lignes(page)).toHaveCount(2);
 });
 
 test('E6 le filtre Statut : « Expiré » et « Remplacé » absents en vue Tableau, présents en vue Liste', async ({ page }) => {

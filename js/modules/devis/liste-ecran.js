@@ -106,12 +106,13 @@ async function voir(d) {
 }
 
 /** Entrées du menu « … ». Les entrées inapplicables à ce statut sont absentes ; celles qui viendront plus tard sont grisées « bientôt disponible ». */
-function entreesMenu(d) {
+function entreesMenu(d, surFiche) {
   const a = Li.actionsPermises(d);
   const grise = (e) => !e.actif;
   const libelle = (texte, e) => (e.raison === Li.MESSAGE_BIENTOT ? `${texte} (bientôt disponible)` : texte);
   const items = a.statuts.map((c) => ({ libelle: `Passer à « ${c.libelle} »`, icone: 'check', action: () => changerStatut(d, c.action, c.libelle) }));
   if (items.length) items.push({ separateur: true });
+  items.push({ libelle: 'Voir la fiche', icone: 'list', action: () => surFiche(d.id) });
   items.push({ libelle: 'Voir', icone: 'external-link', action: () => voir(d) });
   if (d.statut === 'brouillon') items.push({ libelle: libelle('Modifier : version actuelle', a.modifierVersionActuelle), icone: 'pencil', desactive: grise(a.modifierVersionActuelle), action: () => naviguer(`devis/editeur/${d.id}`) });
   else if (a.nouvelleVariante.actif || a.nouvelleVariante.raison === Li.MESSAGE_BIENTOT) items.push({ libelle: libelle('Modifier : nouvelle variante', a.nouvelleVariante), icone: 'pencil', desactive: grise(a.nouvelleVariante), action: () => creerVariante(d) });
@@ -125,24 +126,12 @@ function entreesMenu(d) {
   return items;
 }
 
-/** Bouton « Modifier » visible dans la ligne : brouillon = ouvre l'éditeur ; devis déjà finalisé = nouvelle variante (même action que le menu « … »). */
-function boutonModifier(d) {
-  const a = Li.actionsPermises(d);
-  const brouillon = d.statut === 'brouillon';
-  const permis = brouillon ? a.modifierVersionActuelle : a.nouvelleVariante;
-  if (!permis?.actif) return null;
-  return h('button', {
-    type: 'button', class: 'bouton bouton-secondaire bouton-petit', dataset: { action: 'modifier-devis' },
-    'aria-label': `${brouillon ? 'Modifier' : 'Nouvelle variante de'} ${d.numero ?? 'ce brouillon'}`,
-    onclick: (e) => { e.stopPropagation(); if (brouillon) naviguer(`devis/editeur/${d.id}`); else creerVariante(d); },
-  }, icone('pencil', { taille: 14 }), brouillon ? 'Modifier' : 'Variante');
-}
-const actionsDevis = (d) => h('div', { class: 'actions-devis' }, boutonModifier(d), boutonMenu(d));
+const actionsDevis = (d, surFiche) => h('div', { class: 'actions-devis' }, boutonMenu(d, surFiche));
 
-function boutonMenu(d) {
+function boutonMenu(d, surFiche) {
   return h('button', {
     type: 'button', class: 'bouton-icone carte-menu', 'aria-label': `Actions : ${d.numero ?? 'brouillon'} ${nomsDe(d).client}`.trim(), 'aria-haspopup': 'menu', dataset: { action: 'menu-devis' },
-    onclick: (e) => { e.stopPropagation(); ouvrirMenu(e.currentTarget, entreesMenu(d)); },
+    onclick: (e) => { e.stopPropagation(); ouvrirMenu(e.currentTarget, entreesMenu(d, surFiche)); },
   }, icone('ellipsis', { taille: 16 }));
 }
 
@@ -158,7 +147,7 @@ function celluleModifie(d, maintenant) {
   return h('span', { class: 'devis-modifie' }, Li.depuis(Li.modifieMs(d), maintenant), qui ? h('span', { class: 'avatar-initiales', style: { '--taille': '22px' }, title: d.modifiePar ?? d.creePar ?? '', 'aria-label': `Modifié par ${qui}` }, qui) : null);
 }
 
-/** Un clic (ou Entrée) sur une ligne ou une carte ouvre la fiche, sauf sur un bouton, un lien ou un champ de la ligne. */
+/** Un clic (ou Entrée) sur une ligne ou une carte ouvre le devis dans l'éditeur (lecture seule s'il n'est plus brouillon), sauf sur un bouton, un lien ou un champ de la ligne. */
 function ouvrable(el, ouvrir) {
   el.tabIndex = 0;
   el.addEventListener('click', (e) => { if (!e.target.closest('button, a, input, select, textarea, .menu-pop')) ouvrir(); });
@@ -271,7 +260,7 @@ export function rendreListeDevis(conteneur, idFiche = null) {
         h('td', { dataset: { colonne: 'validite', libelle: 'Valable jusqu’au' } }, Li.dateFr(d.expireLe)),
         h('td', { class: 'montant', dataset: { colonne: 'ht', libelle: 'Total HT' } }, euros(t?.ht)),
         h('td', { class: 'montant', dataset: { colonne: 'ttc', libelle: 'Total TTC' } }, euros(t?.ttc)),
-        h('td', { class: 'col-actions' }, actionsDevis(d))), () => ouvrirFiche(d.id));
+        h('td', { class: 'col-actions' }, actionsDevis(d, ouvrirFiche))), () => naviguer(`devis/editeur/${d.id}`));
     });
     remplir(zone, h('div', { class: 'zone-tableau' }, h('table', { class: 'tableau tableau-devis' }, h('thead', {}, entete), h('tbody', {}, corps))));
     const taille = h('select', { class: 'champ champ-petit', 'aria-label': 'Éléments par page', dataset: { champ: 'par-page' }, onchange: (e) => { parPage = Number(e.target.value); page = 1; rendre(); } },
@@ -296,14 +285,14 @@ export function rendreListeDevis(conteneur, idFiche = null) {
     const pdfCarte = indicateurPdf(d, { apres: () => rendre(), maintenant });
     return ouvrable(h('article', { class: 'carte-affaire carte-devis', dataset: { id: d.id, statut: Li.statutAffiche(d, aujourdhui) } },
       h('div', { class: 'carte-ligne' }, h('strong', { class: 'carte-titre' }, intitule(d), d.version > 1 ? ` v${d.version}` : '')),
-      h('div', { class: 'carte-actions-devis' }, actionsDevis(d)),
+      h('div', { class: 'carte-actions-devis' }, actionsDevis(d, ouvrirFiche)),
       h('div', { class: 'carte-pastilles' }, pastille(d, aujourdhui), d.statut === 'en_attente_envoi' && Li.statutAffiche(d, aujourdhui) === 'en_attente_envoi' ? pastillePasEnvoye() : null),
       celluleClient(d),
       h('div', { class: 'carte-sous' }, celluleModifie(d, maintenant)),
       h('div', { class: 'carte-sous' }, `En date du ${Li.dateFr(Li.dateDuDevis(d)) || '—'}`),
       d.expireLe ? h('div', { class: 'carte-sous' }, `Valable jusqu’au ${Li.dateFr(d.expireLe)}`) : null,
       pdfCarte ? h('div', { class: 'carte-sous' }, pdfCarte) : null,
-      h('div', { class: 'carte-pied' }, h('span', { class: 'carte-montant' }, `HT ${euros(t?.ht)}`), h('span', { class: 'carte-sous' }, `TTC ${euros(t?.ttc)}`))), () => ouvrirFiche(d.id));
+      h('div', { class: 'carte-pied' }, h('span', { class: 'carte-montant' }, `HT ${euros(t?.ht)}`), h('span', { class: 'carte-sous' }, `TTC ${euros(t?.ttc)}`))), () => naviguer(`devis/editeur/${d.id}`));
   }
 
   const memorisee = lirePreference('vue.devis');
