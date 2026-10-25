@@ -387,6 +387,21 @@ test('2 l’éditeur est compact sur ordinateur : la feuille est centrée (large
   expect(ligneBoite.height).toBeLessThan(46);
 });
 
+test('10 le champ « Unité » d’une ligne a la même hauteur que le champ « Quantité » voisin', async ({ page }, info) => {
+  await semer();
+  const maintenant = new Date();
+  await ecrireDocument('devis_devis/unite', {
+    racineId: 'unite', version: 1, numero: null, statut: 'brouillon', affaireId: 'a1', organisationId: 'o1', personneId: null, modeMarge: 'majoration', marge: 0, tauxTvaDefaut: 20,
+    regimeTva: 'assujetti', autoliquidation: false, archive: false, expireLe: '2026-11-23', destinataires: [], affichage: { afficherMarges: false },
+    sections: [{ id: 's1', titre: 'Cuisine', lignes: [ligne('l1', 'Dépose de la moquette', 1, 10)] }], creePar: JEROME, proprietaire: JEROME, creeLe: maintenant, modifieLe: maintenant,
+  });
+  await ouvrir(page, 'unite');
+  const unite = await page.locator('tr[data-id="l1"] .menu-unite .champ').first().boundingBox();
+  const quantite = await page.locator('tr[data-id="l1"] .champ-nombre').first().boundingBox();
+  expect(Math.abs(unite.height - quantite.height)).toBeLessThanOrEqual(1);
+  await capturer(page, info, '10-unite-alignee', { pleine: false });
+});
+
 test('1 les onglets ont un pictogramme : un stylo pour Édition, un œil pour Prévisualisation', async ({ page }) => {
   await semer();
   await ouvrir(page, await devisLong());

@@ -31,6 +31,7 @@ const MESSAGE_INTROUVABLE = 'Ce devis est introuvable : il a peut-être été re
 const MESSAGE_LECTURE_SEULE = 'Ce devis n’est plus un brouillon : on ne peut plus le modifier. Pour le corriger, crée une variante (une nouvelle version qui garde le même numéro).';
 const DELAI_INTROUVABLE_MS = 4000;
 const DELAI_ENREGISTREMENT_MS = 900;
+const DELAI_APERCU_MS = 250;
 
 const euros = (n) => (typeof n === 'number' ? formaterMontant(n) : '—');
 const saisieNombre = (n) => (typeof n === 'number' && Number.isFinite(n) ? String(n).replace('.', ',') : '');
@@ -178,6 +179,7 @@ export function rendreEditeurDevis(conteneur, id) {
   let messageEnreg = '';
   let enCours = null;
   let minuteur = null;
+  let minuteurApercu = null;
   let onglet = 'edition';
   let pointInsertion = null; // identifiant sous lequel (ou au-dessus duquel, voir sensInsertion) s'ajoutera le prochain article du Bordereau
   let rechercheEnLigne = false; // la recherche du Bordereau est ouverte juste sous (ou sur) la ligne choisie dans un menu « Insérer », pas en bas du devis
@@ -253,6 +255,14 @@ export function rendreEditeurDevis(conteneur, id) {
     if (!conflit && !verrou) minuteur = setTimeout(() => { sauver(); }, DELAI_ENREGISTREMENT_MS);
     majEntete();
     majTotaux();
+    planifierApercu();
+  }
+
+  /** Aperçu ouvert pendant qu'on modifie le devis (ex. ajout depuis le Catalogue, ouvert à côté) : il se met à jour tout seul, après une courte pause, en gardant la position de lecture. */
+  function planifierApercu() {
+    if (onglet !== 'apercu' || !ref.panneauApercu) return;
+    clearTimeout(minuteurApercu);
+    minuteurApercu = setTimeout(() => { if (onglet === 'apercu' && racine.isConnected) rendreApercu({ garderDefilement: true }); }, DELAI_APERCU_MS);
   }
 
   /** Enregistre le brouillon. Rend true si tout est enregistré. */
@@ -454,7 +464,7 @@ export function rendreEditeurDevis(conteneur, id) {
     majMarges();
     const ligneReste = racine.querySelector('[data-ligne="reste"]');
     if (ligneReste) ligneReste.hidden = affichage().cacherResteAFacturer === true;
-    if (onglet === 'apercu') rendreApercu();
+    if (onglet === 'apercu') rendreApercu({ garderDefilement: true });
   }
   // Panneau collé à droite (comme la Bibliothèque) : le devis se décale, les cases agissent en direct ; seule la croix ou Échap le ferme. Jamais ouvert en même temps que la Bibliothèque.
   function ouvrirOptions(ancre) {
@@ -536,7 +546,8 @@ export function rendreEditeurDevis(conteneur, id) {
     if (cle === 'apercu') rendreApercu();
   }
 
-  function rendreApercu() {
+  function rendreApercu({ garderDefilement = false } = {}) {
+    const haut = garderDefilement ? ref.iframeApercu?.contentWindow?.scrollY ?? 0 : 0;
     let corps;
     let html = '';
     try {
@@ -547,6 +558,7 @@ export function rendreEditeurDevis(conteneur, id) {
       console.warn(e);
       corps = h('p', { class: 'erreur', role: 'alert' }, 'L’aperçu n’a pas pu être préparé : le devis est incomplet. Termine-le, puis rouvre l’aperçu.');
     }
+    if (haut && corps.tagName === 'IFRAME') corps.addEventListener('load', () => corps.contentWindow?.scrollTo(0, haut));
     ref.iframeApercu = corps.tagName === 'IFRAME' ? corps : null;
     ref.htmlApercu = html;
     const imprimer = h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'imprimer' }, disabled: !html,
@@ -1430,6 +1442,7 @@ export function rendreEditeurDevis(conteneur, id) {
   return () => {
     arrets.forEach((f) => f());
     clearTimeout(minuteur);
+    clearTimeout(minuteurApercu);
     clearTimeout(delaiIntrouvable);
     arretGarde();
     observerBarre?.disconnect();
