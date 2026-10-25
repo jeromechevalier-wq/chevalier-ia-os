@@ -118,12 +118,12 @@ describe('L5 regroupement par colonne', () => {
   test('L5 un devis par colonne de son statut ; l’ordre reçu est gardé', () => {
     const liste = [d('b1'), d('b2'), d('f1', { statut: 'en_attente_envoi' }), d('e1', { statut: 'envoye' }), d('s1', { statut: 'accepte' }), d('r1', { statut: 'refuse' }), d('x1', { statut: 'remplace' })];
     const cols = Li.regrouperParColonne(liste, AUJOURDHUI);
-    assert.deepEqual(cols.map((c) => c.libelle), ['Brouillon', 'Finalisé', 'Envoyé', 'Signé', 'Refusé', 'Remplacé et expiré']);
-    assert.deepEqual(cols.map((c) => ids(c.devis)), [['b1', 'b2'], ['f1'], ['e1'], ['s1'], ['r1'], ['x1']]);
+    assert.deepEqual(cols.map((c) => c.libelle), ['Brouillon', 'Envoyé', 'Signé', 'Refusé']);
+    assert.deepEqual(cols.map((c) => ids(c.devis)), [['b1', 'b2'], ['f1', 'e1'], ['s1'], ['r1']], 'finalisé dans Envoyé ; remplacé hors tableau');
   });
   test('L5 colonnes toujours présentes, même vides ; statut inconnu = Brouillon', () => {
     const cols = Li.regrouperParColonne([d('q', { statut: 'bizarre' })], AUJOURDHUI);
-    assert.equal(cols.length, 6);
+    assert.equal(cols.length, 4);
     assert.deepEqual(ids(cols[0].devis), ['q']);
     assert.equal(Li.regrouperParColonne([], AUJOURDHUI).every((c) => c.devis.length === 0), true);
   });
@@ -139,9 +139,16 @@ describe('L6 expiré calculé', () => {
     assert.equal(Li.statutAffiche(d('b', { expireLe: '2026-01-01' }), AUJOURDHUI), 'brouillon');
     assert.equal(Li.libelleStatut('expire'), 'Expiré');
   });
-  test('L6 le devis expiré passe dans la colonne « Remplacé et expiré »', () => {
-    const cols = Li.regrouperParColonne([d('f', { statut: 'en_attente_envoi', expireLe: '2026-10-01' })], AUJOURDHUI);
-    assert.deepEqual(cols.map((c) => c.devis.length), [0, 0, 0, 0, 0, 1]);
+  test('L6 le devis expiré n’est plus dans le Tableau mais dans les Archives', () => {
+    const f = d('f', { statut: 'en_attente_envoi', expireLe: '2026-10-01' });
+    const cols = Li.regrouperParColonne([f], AUJOURDHUI);
+    assert.deepEqual(cols.map((c) => c.devis.length), [0, 0, 0, 0]);
+    assert.equal(Li.estHorsTableau(f, AUJOURDHUI), true);
+    assert.equal(Li.estDansArchives(f, AUJOURDHUI), true);
+    assert.equal(Li.estDansArchives(d('x', { statut: 'remplace' }), AUJOURDHUI), true);
+    assert.equal(Li.estDansArchives(d('a', { statut: 'accepte', archive: true }), AUJOURDHUI), true);
+    assert.equal(Li.estDansArchives(d('e', { statut: 'envoye' }), AUJOURDHUI), false);
+    assert.equal(Li.estHorsTableau(d('e', { statut: 'envoye' }), AUJOURDHUI), false);
   });
 });
 

@@ -53,6 +53,9 @@ function pastille(d, aujourdhui) {
   return h('span', { class: `pastille-statut statut-devis-${s}`, style: { '--couleur': Li.COULEURS_STATUT[s] ?? '#8d8993' }, dataset: { statut: s } }, Li.libelleStatut(s));
 }
 
+/** Petite pastille d'un devis finalisé mais pas encore envoyé (dans la colonne « Envoyé » du Tableau). */
+const pastillePasEnvoye = () => h('span', { class: 'pastille-statut pastille-pas-envoye', style: { '--couleur': Li.COULEURS_STATUT.en_attente_envoi }, dataset: { pastille: 'pas-encore-envoye' } }, Li.LIBELLE_PAS_ENCORE_ENVOYE);
+
 // ---------------------------------------------------------------- actions
 
 /** Appelle la fonction du serveur puis dit le résultat. Un refus du serveur ou une panne de réseau s'affiche en clair ; rien n'est écrit par le navigateur. */
@@ -221,8 +224,9 @@ export function rendreListeDevis(conteneur, idFiche = null) {
     const aujourdhui = CRM.ctx().aujourdhui;
     const { du, au } = Li.bornesDePeriode(periode, aujourdhui);
     // Les anciennes versions « Remplacé » restent visibles (filtre de statut) ; tout est affiché par défaut.
+    // Archives = devis archivés + anciennes versions (remplacées) + expirés. Tableau = tout sauf remplacés et expirés. Liste = tout ce qui n'est pas archivé à la main.
     const archives = vue === 'archives';
-    const tous = D.etat.devis.filter((d) => (d.archive === true) === archives);
+    const tous = D.etat.devis.filter((d) => (archives ? Li.estDansArchives(d, aujourdhui) : d.archive !== true && !(vue === 'tableau' && Li.estHorsTableau(d, aujourdhui))));
     let lignes = Li.rechercher(tous, recherche, nomsDe);
     lignes = Li.filtrer(lignes, { statuts: statutsFiltres, du, au, aujourdhui });
     lignes = Li.trier(lignes, tri);
@@ -230,7 +234,7 @@ export function rendreListeDevis(conteneur, idFiche = null) {
     remplir(compteur, `${total} devis${archives ? ' archivé' + (total > 1 ? 's' : '') : ''}`, lignes.length !== total ? ` · ${lignes.length} affiché${lignes.length > 1 ? 's' : ''}` : '');
     if (!lignes.length) {
       const vraimentVide = total === 0;
-      if (vraimentVide && archives) { remplir(zone, etatVide('Aucun devis archivé. Un devis signé ou refusé se range ici avec « Archiver », dans le menu « … » de sa fiche.')); return; }
+      if (vraimentVide && archives) { remplir(zone, etatVide('Aucun devis archivé. Un devis signé ou refusé se range ici avec « Archiver », dans le menu « … » de sa fiche ; les devis remplacés et expirés y sont aussi.')); return; }
       remplir(zone, etatVide(vraimentVide ? 'Aucun devis pour l’instant.' : 'Aucun devis ne correspond.', {
         action: vraimentVide ? h('button', { type: 'button', class: 'bouton bouton-secondaire', disabled: !Li.EDITEUR_DISPONIBLE, title: Li.EDITEUR_DISPONIBLE ? null : Li.MESSAGE_BIENTOT, dataset: { action: 'nouveau-devis-vide' }, onclick: () => naviguer('devis/editeur') },
           icone('plus', { taille: 16 }), 'Nouveau devis', Li.EDITEUR_DISPONIBLE ? null : ' (bientôt disponible)') : null,
@@ -281,7 +285,7 @@ export function rendreListeDevis(conteneur, idFiche = null) {
 
   function rendreTableau(lignes, maintenant, aujourdhui) {
     const colonnes = Li.regrouperParColonne(lignes, aujourdhui);
-    remplir(zone, h('div', { class: 'kanban tableau-devis-colonnes' }, colonnes.map((c) => h('section', { class: 'colonne', style: { '--couleur': Li.COULEURS_STATUT[c.id === 'clos' ? 'remplace' : c.id] ?? '#8d8993' }, dataset: { colonne: c.id } },
+    remplir(zone, h('div', { class: 'kanban tableau-devis-colonnes' }, colonnes.map((c) => h('section', { class: 'colonne', style: { '--couleur': Li.COULEURS_STATUT[c.id] ?? '#8d8993' }, dataset: { colonne: c.id } },
       h('header', { class: 'colonne-tete' }, h('h2', {}, c.libelle), h('span', { class: 'colonne-totaux' }, `${c.devis.length} devis`)),
       h('div', { class: 'colonne-corps' }, c.devis.length ? c.devis.map((d) => carte(d, maintenant, aujourdhui)) : h('p', { class: 'colonne-vide' }, 'Aucun devis'))))));
   }
@@ -289,8 +293,9 @@ export function rendreListeDevis(conteneur, idFiche = null) {
   function carte(d, maintenant, aujourdhui) {
     const t = Li.totauxDe(d);
     return ouvrable(h('article', { class: 'carte-affaire carte-devis', dataset: { id: d.id, statut: Li.statutAffiche(d, aujourdhui) } },
-      h('div', { class: 'carte-ligne' }, h('strong', { class: 'carte-titre' }, intitule(d), d.version > 1 ? ` v${d.version}` : ''), actionsDevis(d)),
-      h('div', {}, pastille(d, aujourdhui)),
+      h('div', { class: 'carte-ligne' }, h('strong', { class: 'carte-titre' }, intitule(d), d.version > 1 ? ` v${d.version}` : '')),
+      h('div', { class: 'carte-actions-devis' }, actionsDevis(d)),
+      h('div', { class: 'carte-pastilles' }, pastille(d, aujourdhui), d.statut === 'en_attente_envoi' && Li.statutAffiche(d, aujourdhui) === 'en_attente_envoi' ? pastillePasEnvoye() : null),
       celluleClient(d),
       h('div', { class: 'carte-sous' }, celluleModifie(d, maintenant)),
       h('div', { class: 'carte-sous' }, `En date du ${Li.dateFr(Li.dateDuDevis(d)) || '—'}`),

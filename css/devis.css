@@ -63,7 +63,12 @@
 .pied-liste-devis:empty { display: none; }
 .pied-taille { display: inline-flex; align-items: center; gap: var(--esp-3); }
 .pied-pages { display: inline-flex; gap: var(--esp-2); }
-.tableau-devis-colonnes .colonne { min-width: 230px; }
+.tableau-devis-colonnes .colonne { min-width: 230px; max-width: none; }
+@media (min-width: 768px) { .tableau-devis-colonnes { overflow-x: visible; } .tableau-devis-colonnes .colonne { min-width: 0; } }
+.carte-devis .carte-ligne { min-width: 0; }
+.carte-devis .carte-titre { overflow-wrap: anywhere; }
+.carte-actions-devis { display: flex; justify-content: flex-end; }
+.carte-pastilles { display: flex; flex-wrap: wrap; gap: var(--esp-2); align-items: center; }
 .colonne-vide { color: var(--texte2); font-size: var(--fs-menu); margin: 0; padding: var(--esp-3) 0; }
 .carte-devis { cursor: default; }
 .carte-devis:hover { transform: none; }
