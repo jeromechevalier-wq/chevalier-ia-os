@@ -397,8 +397,13 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
   /** « Envoyer » : bouton à menu (e-mail). Sur un brouillon il est grisé (aria-disabled, jamais `disabled` : il reste focusable) et un clic dit quoi faire. */
   function boutonEnvoyer({ principal, grise }) {
     if (grise) {
-      return h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'envoyer' }, 'aria-disabled': 'true',
-        onclick: () => toast(MESSAGE_FINALISER_POUR_ENVOYER, { duree: 6000 }) }, icone('mail', { taille: 16 }), 'Envoyer');
+      // Infobulle au survol et au focus clavier (le texte est dans la page, relié au bouton par aria-describedby) ; Échap la masque ; le message du clic reste.
+      const idBulle = 'bulle-envoyer-grise';
+      const bulle = h('span', { class: 'bulle-info', role: 'tooltip', id: idBulle, dataset: { role: 'bulle-envoyer' } }, MESSAGE_FINALISER_POUR_ENVOYER);
+      const enveloppe = h('span', { class: 'avec-bulle', onkeydown: (ev) => { if (ev.key === 'Escape') enveloppe.classList.add('bulle-masquee'); }, onmouseleave: () => enveloppe.classList.remove('bulle-masquee'), onfocusout: () => enveloppe.classList.remove('bulle-masquee') },
+        h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'envoyer' }, 'aria-disabled': 'true', 'aria-describedby': idBulle,
+          onclick: () => toast(MESSAGE_FINALISER_POUR_ENVOYER, { duree: 6000 }) }, icone('mail', { taille: 16 }), 'Envoyer'), bulle);
+      return enveloppe;
     }
     return h('button', { type: 'button', class: `bouton ${principal ? 'bouton-principal' : 'bouton-secondaire'}`, dataset: { action: 'envoyer' }, 'aria-haspopup': 'menu', 'aria-expanded': 'false', onclick: (ev) => ouvrirMenuEnvoyer(ev.currentTarget) },
     icone('mail', { taille: 16 }), 'Envoyer', icone('chevron-down', { taille: 14 }));
