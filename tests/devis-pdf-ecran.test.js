@@ -9,6 +9,18 @@ import { pdfAReessayer as regleServeur, DELAI_EN_COURS_MS } from '../functions/s
 const lire = (chemin) => readFileSync(fileURLToPath(new URL(`../${chemin}`, import.meta.url)), 'utf8');
 const MAINTENANT = Date.parse('2026-10-25T10:00:00Z');
 
+describe('PDF devis : bouton de retour', () => {
+  test('R1 le retour ramène à la page d\'origine : devis (éditeur ou visualisation), liste, ou à défaut le devis lui-même', () => {
+    assert.deepEqual(P.cibleRetourPdf({ devisId: 'd1', origine: 'devis/voir/d1' }), { route: 'devis/voir/d1', libelle: 'Retour au devis' });
+    assert.deepEqual(P.cibleRetourPdf({ devisId: 'd1', brouillon: true, origine: 'devis/editeur/d1' }), { route: 'devis/editeur/d1', libelle: 'Retour au devis' });
+    assert.deepEqual(P.cibleRetourPdf({ devisId: 'd1', origine: 'devis/liste' }), { route: 'devis/liste', libelle: 'Retour aux devis' });
+    assert.deepEqual(P.cibleRetourPdf({ devisId: 'd1' }), { route: 'devis/voir/d1', libelle: 'Retour au devis' });
+    assert.deepEqual(P.cibleRetourPdf({ devisId: 'd1', brouillon: true }), { route: 'devis/editeur/d1', libelle: 'Retour au devis' });
+    // une origine qui concerne un AUTRE devis ne sert pas : on revient au devis du PDF
+    assert.deepEqual(P.cibleRetourPdf({ devisId: 'd1', origine: 'devis/voir/d2' }), { route: 'devis/voir/d1', libelle: 'Retour au devis' });
+  });
+});
+
 describe('PDF devis : règles du navigateur', () => {
   test('S1 pdfAReessayer donne la même réponse que la règle du serveur (même règle, deux copies)', () => {
     const cas = [null, undefined, {}, { statut: 'brouillon' }, { statut: 'brouillon', pdf: { statut: 'echec' } }, { statut: 'en_attente_envoi' }, { statut: 'envoye', pdf: null },

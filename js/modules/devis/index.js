@@ -7,6 +7,7 @@ import { rendreBordereau } from './bordereau.js';
 import { rendreListeDevis } from './liste-ecran.js';
 import { rendreEditeurDevis } from './editeur-ecran.js';
 import { rendrePdfDevis } from './pdf-ecran.js';
+import { memoriserOrigine } from './pdf.js';
 import { reglages as reglagesDuModule } from './reglages.js';
 import { retenirDevis } from './memoire.js';
 import * as CRM from '../crm/donnees.js';
@@ -48,6 +49,7 @@ export function demarrer({ cheminBase = '' } = {}) {
 
 export function arreter() {
   quitter();
+  memoriserOrigine(''); // on quitte le module : l'origine ne vaut plus (un lien de pastille depuis une affaire retombe sur le devis lui-même)
   retirerPastille?.(); retirerPastille = null;
   arretSignal?.(); arretSignal = null;
   signaler();
@@ -79,6 +81,7 @@ export function afficher(conteneur, segs) {
     naviguer('devis/bordereau', { remplacer: true });
     return quitter;
   }
+  if (vue !== 'pdf') memoriserOrigine(`devis/${segs.filter(Boolean).join('/')}`); // le bouton de retour de l'écran du PDF y ramène
   if (vue === 'editeur') retenirDevis(segs[1]); // le Bordereau propose « Reprendre le devis en cours »
   const cle = vue === 'editeur' || vue === 'voir' ? `${vue}/${segs[1] ?? ''}` : vue === 'pdf' ? `pdf/${segs[1]}/${segs[2] ?? ''}` : vue; // un éditeur (ou un PDF) par devis
   if (montee?.cle === cle && conteneur.firstChild) return quitter; // même écran : rien à refaire

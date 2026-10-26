@@ -39,5 +39,22 @@ export const MESSAGE_PDF_RANGE_SANS_AFFAIRE = 'PDF enregistré avec le devis. Ce
 /** Adresse (sans « # ») de l'écran qui ouvre le PDF d'un devis. */
 export const routePdf = (devisId, brouillon = false) => `devis/pdf/${encodeURIComponent(devisId)}${brouillon ? '/brouillon' : ''}`;
 
+/**
+ * Où ramène le bouton de retour de l'écran du PDF : à la page du devis d'où l'on vient (éditeur ou visualisation), à la liste si l'on vient de la liste,
+ * sinon (rechargement, pastille d'une autre page) au devis lui-même : son éditeur (brouillon) ou sa visualisation. `origine` : route (sans « # ») de la dernière page du module.
+ */
+export function cibleRetourPdf({ devisId, brouillon = false, origine = '' } = {}) {
+  const id = encodeURIComponent(devisId ?? '');
+  const lieDevis = [`devis/editeur/${id}`, `devis/voir/${id}`];
+  if (lieDevis.includes(origine)) return { route: origine, libelle: 'Retour au devis' };
+  if (origine === 'devis/liste') return { route: 'devis/liste', libelle: 'Retour aux devis' };
+  return { route: brouillon ? lieDevis[0] : lieDevis[1], libelle: 'Retour au devis' };
+}
+
+let origineMemorisee = '';
+/** Retient la dernière page du module Devis qui n'est pas un écran de PDF (appelée par le routeur du module). */
+export const memoriserOrigine = (route) => { origineMemorisee = String(route ?? ''); };
+export const origineRetour = () => origineMemorisee;
+
 /** Message affiché après « Télécharger le PDF » : l'affaire garde un document seulement si le devis en a une. */
 export const messageApresEnregistrement = (devis) => (devis?.affaireId ? MESSAGE_PDF_RANGE_AFFAIRE : MESSAGE_PDF_RANGE_SANS_AFFAIRE);

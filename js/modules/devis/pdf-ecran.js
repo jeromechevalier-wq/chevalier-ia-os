@@ -8,7 +8,7 @@ import { etatVide } from '../crm/composants.js';
 import { obtenirJeton, oublierJeton, googleDisponible, jetonEnMemoire, preparerGoogle } from '../../os/google-picker.js';
 import * as CRM from '../crm/donnees.js';
 import * as D from './donnees.js';
-import { etatPdfDevis } from './pdf.js';
+import { etatPdfDevis, cibleRetourPdf, origineRetour } from './pdf.js';
 import { copierPdfDevis, choisirDestination, nomFichierDrive, cleMemoire, MESSAGE_GOOGLE_ABSENT, MESSAGE_DEJA_COPIE, MESSAGE_AUTORISATION_DRIVE, MESSAGE_CHARGEMENT_AFFAIRE, attendreUnClic } from './drive-copie.js';
 
 export const MESSAGE_INTROUVABLE_PDF = 'Ce devis est introuvable. Il a peut-être été supprimé : retourne à la liste des devis.';
@@ -24,6 +24,7 @@ export function rendrePdfDevis(conteneur, devisId, brouillon = false) {
   const retour = h('a', { class: 'lien-retour', href: '#/devis/liste', dataset: { action: 'retour-liste' } }, icone('chevron-left', { taille: 16 }), 'Devis');
   conteneur.append(h('div', { class: 'page page-devis page-pdf-devis' }, retour, h('h1', {}, brouillon ? 'PDF brouillon du devis' : 'PDF du devis'), zone));
 
+  const retourPdf = cibleRetourPdf({ devisId, brouillon, origine: origineRetour() }); // fixé à l'arrivée : l'origine ne change pas pendant que l'écran est ouvert
   let arrete = false;
   let numero = 0; // une demande plus récente annule l'affichage de la précédente
   let dejaOuvert = false; // un seul onglet ouvert automatiquement par affichage de cet écran
@@ -127,7 +128,7 @@ export function rendrePdfDevis(conteneur, devisId, brouillon = false) {
         h('p', { class: 'texte-discret' }, 'Rien ne s’est ouvert ? Ton navigateur l’a peut-être bloqué : utilise le bouton ci-dessous.'),
         h('div', { class: 'pdf-devis-actions' },
           h('a', { class: 'bouton bouton-principal', href: url, target: '_blank', rel: 'noopener noreferrer', dataset: { action: 'ouvrir-pdf' } }, icone('external-link', { taille: 16 }), 'Ouvrir le PDF'),
-          h('a', { class: 'bouton bouton-secondaire', href: brouillon ? `#/devis/editeur/${encodeURIComponent(devisId)}` : '#/devis/liste', dataset: { action: 'retour-apres-pdf' } }, brouillon ? 'Retour au devis' : 'Retour aux devis')),
+          h('a', { class: 'bouton bouton-secondaire', href: `#/${retourPdf.route}`, dataset: { action: 'retour-apres-pdf' } }, retourPdf.libelle)),
         zoneDrive);
       if (zoneDrive && !dejaCopie) { dejaCopie = true; copierDansDrive(zoneDrive, url, d, { automatique: true }); }
     } catch (e) {
