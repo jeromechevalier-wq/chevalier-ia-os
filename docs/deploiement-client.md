@@ -1,5 +1,7 @@
 # Déployer chez un nouveau client : la checklist
 
+> **Un deuxième serveur de plateforme** (nouveau projet Google) : liste complète dans l'ordre dans [deploiement-nouveau-serveur-plateforme.md](deploiement-nouveau-serveur-plateforme.md).
+
 Écrit le 23/10/2026 à partir de la liste de Jérôme. Jérôme a tranché le MCP, le dossier Drive et la visio le 23/10/2026 ; **le seul point « ? » restant est l'accord écrit sur les données**. Les commandes détaillées sont dans `docs/nouveau-client.md` ; le déploiement de la plateforme est dans `docs/deploiement-plateforme.md`.
 
 **Page « Déploiement » de l'appli** : dans chaque espace (chez Jérôme comme chez chaque client), Réglages > Déploiement reprend ces étapes une à une, avec un contrôle automatique quand c'est possible et une case « C'est fait » sinon (mode d'emploi : `docs/page-deploiement.md`). Si un jour quelque chose ne marche plus chez un client, ouvre cette page chez lui : toutes les cases doivent être vertes.
