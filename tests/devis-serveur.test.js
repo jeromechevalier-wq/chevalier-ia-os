@@ -210,6 +210,95 @@ describe('C5 devisChangerStatut', () => {
   });
 });
 
+describe('C5b devisSupprimer', () => {
+  test('C5b supprime un brouillon (journal et copie « avant » gardés) ; refuse un devis finalisé, un devis qui n’existe pas', async () => {
+    const m = monde([brouillon('b'), brouillon('f', { statut: 'en_attente_envoi', numero: 'DEV-2026-10-01-009' })]);
+    await assert.rejects(() => S.supprimer({ donnees: m.donnees, ctx: ctx(), devisId: 'f' }), (e) => e.code === 'transition_interdite');
+    await assert.rejects(() => S.supprimer({ donnees: m.donnees, ctx: ctx(), devisId: 'nexistepas' }), (e) => e.code === 'introuvable');
+    assert.ok(leDevis(m, 'f'), 'le devis finalisé est toujours là');
+    const r = await S.supprimer({ donnees: m.donnees, ctx: ctx(), devisId: 'b' });
+    assert.equal(r.ok, true);
+    assert.equal(leDevis(m, 'b'), undefined);
+    const ligne = m.collections[C.audit].at(-1);
+    assert.deepEqual([ligne.outil, ligne.action, ligne.docId], ['devisSupprimer', 'supprimer', 'b']);
+    assert.equal(m.collections[C.auditAvant].at(-1).avant.statut, 'brouillon'); // la copie permet de le retrouver
+    assert.equal(S.OPERATIONS.supprimer !== undefined, true);
+  });
+});
+
+describe('C5c devisEnregistrerEnvoi : l’historique des envois par e-mail', () => {
+  const ENVOYE = { statut: 'envoye', numero: 'DEV-2026-10-01-001', envoyeLe: new Date('2026-10-20T08:00:00Z') };
+  test('C5c ajoute une ligne { date, destinataires, copie } sans changer le statut ni envoyeLe ; un renvoi GARDE les deux dates', async () => {
+    const m = monde([brouillon('d1', ENVOYE)]);
+    const r1 = await S.enregistrerEnvoi({ donnees: m.donnees, ctx: ctx(), devisId: 'd1', destinataires: [' client@exemple.test '], copie: ['copie@exemple.test', 'CLIENT@exemple.test'] });
+    assert.equal(r1.ok, true);
+    const d = leDevis(m, 'd1');
+    assert.equal(d.statut, 'envoye');
+    assert.deepEqual(d.envoyeLe, ENVOYE.envoyeLe, 'envoyeLe garde la date du premier envoi');
+    assert.deepEqual(d.envois, [{ date: MAINTENANT, destinataires: ['client@exemple.test'], copie: ['copie@exemple.test'] }]);
+    const plusTard = new Date('2026-10-26T09:00:00Z');
+    await S.enregistrerEnvoi({ donnees: m.donnees, ctx: ctx({ maintenant: plusTard }), devisId: 'd1', destinataires: ['autre@exemple.test'], copie: [] });
+    assert.deepEqual(leDevis(m, 'd1').envois.map((e) => e.date), [MAINTENANT, plusTard]);
+    assert.deepEqual(leDevis(m, 'd1').envoyeLe, ENVOYE.envoyeLe);
+  });
+  test('C5c journal d’audit et copie « avant » écrits dans la même transaction (devisEnregistrerEnvoi, champ envois)', async () => {
+    const m = monde([brouillon('d1', ENVOYE)]);
+    await S.enregistrerEnvoi({ donnees: m.donnees, ctx: ctx(), devisId: 'd1', destinataires: ['client@exemple.test'] });
+    const ligne = m.collections[C.audit].at(-1);
+    assert.deepEqual([ligne.outil, ligne.action, ligne.docId, ligne.champsModifies], ['devisEnregistrerEnvoi', 'modifier', 'd1', ['envois']]);
+    const copie = m.collections[C.auditAvant].at(-1);
+    assert.equal(copie.avant.envois, undefined);
+    assert.equal(copie.apres.envois.length, 1);
+  });
+  test('C5c refusé sans rien écrire : devis pas envoyé (brouillon, finalisé, signé…), devis inconnu', async () => {
+    for (const statut of ['brouillon', 'en_attente_envoi', 'accepte', 'refuse', 'remplace']) {
+      const m = monde([brouillon('d1', { statut, numero: 'DEV-2026-10-01-001' })]);
+      const avant = photo(m);
+      await assert.rejects(() => S.enregistrerEnvoi({ donnees: m.donnees, ctx: ctx(), devisId: 'd1', destinataires: ['client@exemple.test'] }), (e) => e.code === 'transition_interdite', statut);
+      assert.equal(photo(m), avant, statut);
+    }
+    const m = monde([]);
+    await assert.rejects(() => S.enregistrerEnvoi({ donnees: m.donnees, ctx: ctx(), devisId: 'nexistepas', destinataires: ['client@exemple.test'] }), (e) => e.code === 'introuvable');
+  });
+  test('C5c validé comme les autres opérations : sans destinataire, adresse invalide (retour à la ligne compris), trop d’adresses, mauvais types -> demande_invalide, rien écrit', async () => {
+    const m = monde([brouillon('d1', ENVOYE)]);
+    const avant = photo(m);
+    const onze = Array.from({ length: 11 }, (_, i) => `p${i}@exemple.test`);
+    const mauvaises = [
+      { destinataires: [] }, { destinataires: undefined }, { destinataires: 'client@exemple.test' }, { destinataires: ['pas-une-adresse'] },
+      { destinataires: ['a@exemple.test\r\nBcc: x@exemple.test'] }, { destinataires: [42] }, { destinataires: onze },
+      { destinataires: ['a@exemple.test'], copie: ['faux'] }, { destinataires: ['a@exemple.test'], copie: 'b@exemple.test' }, { destinataires: ['a@exemple.test'], copie: onze },
+      { destinataires: ['a@exemple.test'], copie: ['x'.repeat(260) + '@exemple.test'] },
+      { destinataires: ['josé@exemple.test'] }, { destinataires: ['中@exemple.test'] }, { destinataires: ['a(b@exemple.test'] }, { destinataires: ['a@exemple.test'], copie: ['a"b@exemple.test'] },
+    ];
+    for (const extra of mauvaises) {
+      await assert.rejects(() => S.enregistrerEnvoi({ donnees: m.donnees, ctx: ctx(), devisId: 'd1', ...extra }), (e) => e.code === 'demande_invalide', JSON.stringify(extra).slice(0, 80));
+    }
+    await assert.rejects(() => S.enregistrerEnvoi({ donnees: m.donnees, ctx: ctx(), devisId: 'a/b', destinataires: ['a@exemple.test'] }), (e) => e.code === 'demande_invalide');
+    assert.equal(photo(m), avant);
+  });
+  test('C5c l’historique est plafonné (100 envois) ; la finalisation et la variante ne le recopient pas', async () => {
+    const plein = Array.from({ length: S.MAX_ENVOIS }, (_, i) => ({ date: new Date(2026, 0, 1 + (i % 28)), destinataires: ['a@exemple.test'], copie: [] }));
+    const m = monde([brouillon('d1', { ...ENVOYE, envois: plein })]);
+    await assert.rejects(() => S.enregistrerEnvoi({ donnees: m.donnees, ctx: ctx(), devisId: 'd1', destinataires: ['a@exemple.test'] }), (e) => e.code === 'transition_interdite');
+    const v = await S.nouvelleVersion({ donnees: m.donnees, ctx: ctx(), devisId: 'd1' });
+    assert.equal('envois' in leDevis(m, v.devis.id), false, 'la variante ne recopie pas l’historique');
+    assert.equal(leDevis(m, 'd1').envois.length, S.MAX_ENVOIS, 'l’original le garde');
+    const f = monde([brouillon('b', { envois: [{ date: MAINTENANT, destinataires: ['x@exemple.test'], copie: [] }] })]); // un brouillon forgé : la finalisation remet l'historique à zéro
+    await S.finaliser({ donnees: f.donnees, ctx: ctx(), devisId: 'b' });
+    assert.equal(leDevis(f, 'b').envois, null);
+  });
+  test('C5c la porte de Jérôme répond sans le devis entier ; elle refuse un compte inconnu ; l’opération est dans OPERATIONS', async () => {
+    const m = monde([brouillon('d1', ENVOYE)]);
+    const appel = creerAppelDevis('enregistrerEnvoi', { donnees: () => m.donnees });
+    await assert.rejects(() => appel({ auth: { uid: 'u', token: { email: 'intrus@exemple.test', email_verified: true } }, data: { devisId: 'd1', destinataires: ['a@exemple.test'] } }), (e) => e.code === 'permission-denied');
+    const r = await appel({ auth: { uid: 'u', token: { email: ACTEUR, email_verified: true } }, data: { devisId: 'd1', destinataires: ['a@exemple.test'] } });
+    assert.deepEqual([r.ok, r.statut, r.sections], [true, 'envoye', undefined]);
+    await assert.rejects(() => appel({ auth: { uid: 'u', token: { email: ACTEUR, email_verified: true } }, data: { devisId: 'd1', destinataires: [] } }), (e) => e.code === 'invalid-argument');
+    assert.equal(typeof S.OPERATIONS.enregistrerEnvoi, 'function');
+  });
+});
+
 describe('C5b devisSupprimer : le document de l’affaire et le fichier RESTENT quand on supprime le brouillon', () => {
   const LIEN = (id) => `https://chevalier-ia-os.web.app/#/devis/pdf/${id}/brouillon`;
   function mondeAffaire(documents) {
