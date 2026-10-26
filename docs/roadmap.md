@@ -7,6 +7,9 @@ Légende : **décidé** = validé par Jérôme ; **piste** = à trancher avant l
 ## Vocabulaire configurable par client (24/10/2026) : **décidé**
 Chaque client choisit ses mots (affaire → vente, projet → chantier, etc.), partout dans l'écran, avec les accords. Plan et inventaire : `docs/vocabulaire-configurable.md`. Le remplacement se fait dans une session dédiée.
 
+## Données de démonstration d'un client (26/10/2026)
+Le programme `scripts/donnees-demo.js` remplit un client de démonstration de données inventées (affaires dans chaque étape, projets dans chaque phase, devis dans chaque statut, copie du catalogue), puis les retire. Il sert à chaque démonstration. Mode d'emploi : `docs/donnees-demo.md`.
+
 ## Module Devis (nuit du 24/10/2026)
 Cadrage : `docs/cadrage-devis.md`. Évolutions envisagées, dans l'ordre où on a envie de les faire : `docs/roadmap-evolutions-devis.md`. Idée **« pilotage »** (tableaux de bord de ventes : devis envoyés, signés, taux de signature, chiffre d'affaires par mois) : reportée, car elle a besoin de la facturation pour être complète ; le module Devis aura sa propre table d'indicateurs.
 

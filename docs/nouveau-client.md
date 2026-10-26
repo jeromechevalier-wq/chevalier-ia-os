@@ -151,6 +151,41 @@ Si la suppression est interrompue (coupure d'Internet), refais une sauvegarde, p
 
 ---
 
+## Remplir un client de démonstration (données fictives)
+
+Le programme `scripts/donnees-demo.js` remplit un client **qui existe déjà** (créé avec `nouveau-client.js`) de données **inventées** pour une démonstration : 15 organisations, 20 personnes, des affaires dans **chaque étape** (au moins 2 par étape, plus des gagnées et des perdues), 2 à 6 éléments par affaire (notes, appels, rendez-vous, liens), 2 projets par phase, 15 devis (3 par statut : brouillon, finalisé, envoyé, signé, refusé) rattachés aux bonnes affaires, et une **copie de ton catalogue** des devis (articles, ouvrages et familles, lus dans ton Chevalier IA OS **sans rien y écrire**). Les e-mails inventés finissent par `exemple.test`.
+
+Mêmes préparatifs que plus haut (étapes 1 et 2). Puis, dans le Terminal, depuis le dossier du projet :
+
+**1. Simulation** (n'écrit rien ; affiche les affaires par étape, les devis avec leur numéro et leur total) :
+
+```bash
+node scripts/donnees-demo.js clientdemo --catalogue-depuis chevalier-ia-os
+```
+
+**2. Pour de vrai** : la même commande avec `--ecrire` à la fin.
+
+```bash
+node scripts/donnees-demo.js clientdemo --catalogue-depuis chevalier-ia-os --ecrire
+```
+
+**3. Retirer la démonstration** (seulement ce que le programme a créé : chaque document porte la marque `donneesDemo`) : d'abord la simulation, puis avec `--ecrire`.
+
+```bash
+node scripts/donnees-demo.js clientdemo --retirer
+node scripts/donnees-demo.js clientdemo --retirer --ecrire
+```
+
+**Mode d'emploi complet** (options, ce qui est créé, comment c'est retiré, limites, messages de refus) : `donnees-demo.md`.
+
+Bon à savoir :
+
+- Si la lecture du catalogue échoue, rien n'est écrit : utilise `--catalogue-exemple` (petit catalogue fictif intégré) à la place de `--catalogue-depuis chevalier-ia-os`.
+- Les réglages des devis (« Mon entreprise » fictive) ne sont créés que si le client n'en a pas encore. Ils portent alors la marque de la démonstration, donc `--retirer` les supprime aussi.
+- `--retirer` ne retire ni le compteur des numéros de devis, ni ce qui a été ajouté à l'écran pendant la démonstration (par exemple une note).
+
+---
+
 ## Erreurs fréquentes
 
 | Message | Ce que ça veut dire | Que faire |
