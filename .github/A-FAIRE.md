@@ -37,7 +37,7 @@ Déjà validés par Jérôme : 280, 282.
 - Simplifier la copie Drive faite par le navigateur (étude).
 - Doublon destinataire / copie quand le client change : pas encore contrôlé.
 - Cible tactile des pastilles-liens inférieure à 44 px.
-- Recherche du haut : résultats en vrais liens (clic droit, Cmd+clic) : PR à numéroter.
+- Recherche du haut : résultats en vrais liens (clic droit, Cmd+clic) : PR #305.
 - Écran du PDF : « Retour au devis » ramenait à la liste après une finalisation. Corrigé dans la PR « retour à la page d'origine » (à tester par Jérôme une fois fusionnée et en ligne), test e2e n° 4.
 - **Génération du PDF trop lente** : elle prend plusieurs secondes et on a l'impression que l'outil a planté. À étudier : mesurer où passe le temps, puis afficher une progression claire (message « fabrication en cours », indicateur) et/ou accélérer (demandé par Jérôme le 26/10/2026).
 - Droit Cloud Storage du serveur MCP pour effacer le PDF brouillon (non bloquant).
