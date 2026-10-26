@@ -21,10 +21,9 @@ export const MESSAGE_BROUILLON_FINALISE = 'Ce devis n’est plus un brouillon. O
 /** `brouillon` : true pour la route …/brouillon. Rend la fonction d'arrêt. */
 export function rendrePdfDevis(conteneur, devisId, brouillon = false) {
   const zone = h('div', { class: 'pdf-devis-corps', role: 'status', 'aria-live': 'polite', dataset: { zone: 'pdf-devis' } });
-  const retour = h('a', { class: 'lien-retour', href: '#/devis/liste', dataset: { action: 'retour-liste' } }, icone('chevron-left', { taille: 16 }), 'Devis');
-  conteneur.append(h('div', { class: 'page page-devis page-pdf-devis' }, retour, h('h1', {}, brouillon ? 'PDF brouillon du devis' : 'PDF du devis'), zone));
-
   const retourPdf = cibleRetourPdf({ devisId, brouillon, origine: origineRetour() }); // fixé à l'arrivée : l'origine ne change pas pendant que l'écran est ouvert
+  const retour = h('a', { class: 'lien-retour', href: `#/${retourPdf.route}`, 'aria-label': retourPdf.libelle, dataset: { action: 'retour-liste' } }, icone('chevron-left', { taille: 16 }), 'Devis'); // la flèche ramène au même endroit que « Retour au devis »
+  conteneur.append(h('div', { class: 'page page-devis page-pdf-devis' }, retour, h('h1', {}, brouillon ? 'PDF brouillon du devis' : 'PDF du devis'), zone));
   let arrete = false;
   let numero = 0; // une demande plus récente annule l'affichage de la précédente
   let dejaOuvert = false; // un seul onglet ouvert automatiquement par affichage de cet écran
