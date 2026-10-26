@@ -1,12 +1,12 @@
 # À faire : module Devis et outils (liste maintenue à jour)
 
-Mise à jour : 26/10/2026, nuit « GO NUIT ». Règle de Jérôme : **« testé par Jérôme » ne s'écrit que sur sa confirmation, et quand le test est possible** (fusionné **et** en ligne). Aucun secret ici (dépôt public).
+Mise à jour : 26/10/2026, fin d'après-midi. Règle de Jérôme : **« testé par Jérôme » ne s'écrit que sur sa confirmation, et quand le test est possible** (fusionné **et** en ligne). Aucun secret ici (dépôt public).
 
 ## À tester par Jérôme (fusionné, en ligne)
 
 | # | Sujet | PR | Testé par Jérôme |
 |---|---|---|---|
-| 1 | Boutons de l'état Envoyé : libellés Devis signé / Devis refusé et infobulle sur Envoyer grisé | cette PR | à tester par Jérôme une fois en ligne |
+| 1 | Boutons de l'état Envoyé : libellés Devis signé / Devis refusé et infobulle sur Envoyer grisé | 310 | oui pour 1, 2, 4, 5 (26/10/2026) ; le point 3 (ordre Historique, Envoyer, Devis envoyé) est refait dans la PR « ordre des boutons » (en cours) |
 | 4 | Réglages « Mon entreprise » | 263 | à faire |
 | 5 | Une seule liste « Étape où vivent les devis » | 286 | oui (26/10/2026) |
 | 7 | Copie du PDF dans le dossier Drive de l'affaire (+ correctifs) | 283, 290 | à faire (réglage CORS d'abord) |
@@ -16,10 +16,18 @@ Mise à jour : 26/10/2026, nuit « GO NUIT ». Règle de Jérôme : **« testé 
 | 11 | Pastilles des réglages Devis (Général / Mon entreprise / Familles d'articles) | 295 | oui (26/10/2026) |
 | 12 | Outils MCP Devis (nouvelle version, archiver, statut, supprimer, envoi) | 296 | à faire |
 | 14 | « Préparer l'e-mail » (brouillon Gmail par n8n) | 299 | à faire après branchement (voir « À faire par Jérôme ») |
-| 15 | Réglages > Déploiement (checklist avec contrôles) | 300 | à faire |
-| 16 | Supprimer un brouillon de devis ne retire plus le document de l'affaire ni le fichier ; le document « Devis brouillon – Objet – JJ-MM-AAAA HHhMM.pdf » porte la date et l'heure (Paris) du dernier téléchargement | à compléter à l'ouverture (311) | à faire |
+| 15 | Réglages > Déploiement (checklist avec contrôles) | 300 | à faire (page vue par Jérôme le 26/10 ; les cases ne sont pas encore testées : voir « Test de la page Déploiement » plus bas) |
+| 16 | Supprimer un brouillon de devis ne retire plus le document de l'affaire ni le fichier ; le document « Devis brouillon – Objet – JJ-MM-AAAA HHhMM.pdf » porte la date et l'heure (Paris) du dernier téléchargement | 311 | à faire |
+| 17 | « NET À PAYER » sur fond de carte avec un trait jaune à gauche (le jaune plein reste aux boutons) | 319 | à faire |
 
-Déjà validés par Jérôme : 280, 282, et le 26/10/2026 : 278, 284, 287 (barre du haut, pastilles des affaires), 304 (retour au devis), 305 (recherche en vrais liens), 306 (un seul bouton jaune), 308 (flèche du PDF).
+Déjà validés par Jérôme : 280, 282, et le 26/10/2026 : 309 (retour visuel pendant la fabrication du PDF), 315 (Historique avec date, heure et minute), 316 (Options sans flèche), 278, 284, 287 (barre du haut, pastilles des affaires), 304 (retour au devis), 305 (recherche en vrais liens), 306 (un seul bouton jaune), 308 (flèche du PDF).
+
+## Test de la page Déploiement (point 15, jamais testée)
+1. Réglages > **Déploiement** : tu vois un résumé (« X sur Y vertes ») et le bouton « Revérifier ».
+2. Chaque ligne est verte, rouge, orange ou grise ; une ligne rouge dit comment réparer, avec un lien qui s'ouvre.
+3. Une ligne grise : coche « C'est fait », recharge la page : la case reste cochée avec sa date.
+4. Chez le client démo (`https://chevalier-ia-app.web.app/espace/clientdemo`, Réglages > Déploiement) : la page s'ouvre aussi ; deux lignes du serveur peuvent rester orange si `deploiementVerifier` n'est pas publiée.
+- Cas vide : un espace sans module Devis n'affiche que les étapes communes. Cas d'erreur : serveur injoignable = lignes orange « Impossible de vérifier », jamais un écran blanc.
 
 ## À faire par Jérôme (une fois)
 - **Copie Drive (7)** : réglage CORS du stockage des PDF, une fois pour chacun des deux projets Google, mode d'emploi dans `docs/cors-stockage-pdf.md`.
@@ -31,6 +39,14 @@ Déjà validés par Jérôme : 280, 282, et le 26/10/2026 : 278, 284, 287 (barre
 ## À tester par Jérôme
 - **Outil de diagnostic fichiers MCP** : à tester par Jérôme (ChatGPT et Claude, ordinateur et téléphone ; scénario dans `docs/plan-mcp.md`, section 11), puis à retirer (liste de ce qui se retire au même endroit).
 
+## En cours (PR ouvertes, 26/10/2026, en brouillon)
+- **314** : un seul écran pour toute la vie du devis (Édition en lecture seule une fois finalisé) ; corrections après Fable en cours.
+- **313** : e-mails en copie refaits ; à fusionner après 314 (conflits à résoudre) ; Jérôme doit valider la croix « Retirer » sans confirmation.
+- **« Ordre des boutons »** : état Finalisé = Historique, Envoyer (jaune), Devis envoyé ; menu « … » sans doublon avec les boutons visibles.
+- **320** : outil de données de démonstration (`docs/donnees-demo.md`) ; relu par Fable, sans bloquant ; à fusionner après la démo.
+- **302** : règles Firestore du journal « Préparer l'e-mail » (à fusionner par Jérôme, puis publier les règles dans les deux projets).
+- **Client démo** : Jérôme a activé Devis et le MCP ; le remplissage se lance dans son Terminal (`docs/donnees-demo.md`).
+
 ## Reste à faire (code, rien d'urgent)
 
 ### Priorité haute (demande de Jérôme, 26/10/2026)
@@ -38,7 +54,7 @@ Déjà validés par Jérôme : 280, 282, et le 26/10/2026 : 278, 284, 287 (barre
 
 ### Le reste
 - Barre d'étapes du devis : Jérôme a dit « pas ce soir, ni urgent ni prioritaire » (24/10/2026).
-- Page Déploiement, suite : suivi pas à pas « où j'en suis pour ce nouveau client » ; contrôle de nuit avec alerte ; vue « tous mes clients » chez Jérôme ; contrôle automatique du MCP et de « Préparer l'e-mail » une fois la fonction d'état fusionnée dans les contrôles.
+- Page Déploiement, suite (Jérôme veut la vue « tous mes clients » et, chez le client, un libellé « Santé de mon espace » : à trancher) : suivi pas à pas « où j'en suis pour ce nouveau client » ; contrôle de nuit avec alerte ; vue « tous mes clients » chez Jérôme ; contrôle automatique du MCP et de « Préparer l'e-mail » une fois la fonction d'état fusionnée dans les contrôles.
 - Simplifier la copie Drive faite par le navigateur (étude).
 - Doublon destinataire / copie quand le client change : pas encore contrôlé.
 - Cible tactile des pastilles-liens inférieure à 44 px.
