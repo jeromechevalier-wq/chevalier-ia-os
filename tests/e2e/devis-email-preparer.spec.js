@@ -98,7 +98,7 @@ test('1 pas branché : le menu « Envoyer » ne montre pas « Préparer l’e-ma
   }
 });
 
-test('2 branché : « Préparer l’e-mail » apparaît entre « Envoyer par e-mail » et « Télécharger le PDF » ; un clic ouvre la confirmation courte ; « Annuler » ne demande rien', async ({ page }, info) => {
+test('2 branché : « Préparer l’e-mail » apparaît juste après « Envoyer par e-mail » (menu « Envoyer » : l’e-mail seulement ; PDF et impression sont dans « … ») ; un clic ouvre la confirmation courte ; « Annuler » ne demande rien', async ({ page }, info) => {
   await semer('dOui');
   const serveur = await simulerServeur(page, { branche: true });
   await ouvrirEditeur(page, 'dOui');
@@ -107,7 +107,7 @@ test('2 branché : « Préparer l’e-mail » apparaît entre « Envoyer par e-m
   const i = noms.findIndex((n) => /Préparer l’e-mail/.test(n));
   expect(i, 'l’entrée est présente').toBeGreaterThan(-1);
   expect(noms[i - 1]).toMatch(/Envoyer par e-mail/);
-  expect(noms[i + 1]).toMatch(/Télécharger le PDF/);
+  expect(noms, 'le menu Envoyer ne propose que l’e-mail').toHaveLength(2);
   if (estTelephone(page)) expect((await entree(page).boundingBox()).height).toBeGreaterThanOrEqual(44);
   await capturer(page, info, '2-menu');
   await entree(page).click();
@@ -165,7 +165,9 @@ test('5 cas particuliers : un brouillon propose « Finaliser d’abord » ; un d
   await semer('dBrouillon', { statut: 'brouillon', numero: null, finaliseLe: null, pdf: null });
   let serveur = await simulerServeur(page, { branche: true });
   await ouvrirEditeur(page, 'dBrouillon');
-  await ouvrirMenuEnvoyer(page);
+  await expect(page.locator('[data-action="envoyer"]')).toHaveAttribute('aria-disabled', 'true'); // brouillon : « Envoyer » est grisé, l'e-mail se trouve dans « … »
+  await page.locator('[data-action="plus-actions"]').click();
+  await expect(page.locator('.menu-pop')).toBeVisible();
   await entree(page).click();
   const dlg = page.locator('.dialogue').filter({ hasText: 'Finaliser d’abord' });
   await expect(dlg.locator('[data-valeur="finaliser-d-abord"]')).toContainText('encore un brouillon');

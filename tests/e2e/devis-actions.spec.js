@@ -140,10 +140,13 @@ test('2 un devis signé : pas de « Créer une nouvelle version » ; l’adresse
   await expect(page).toHaveURL(/#\/devis\/voir\/dSigne$/);
 });
 
-test('3 le « … » de l’éditeur et celui de la visualisation proposent les mêmes actions que le menu de la liste (sauf Envoyer et l’écran où l’on est)', async ({ page }, info) => {
+test('3 le « … » de l’éditeur et celui de la visualisation proposent les mêmes actions que le menu de la liste (sauf ce qui a un bouton dans l’en-tête et l’écran où l’on est), plus PDF, impression et e-mail', async ({ page }, info) => {
   await donnees();
   await ouvrir(page);
-  const sansEnvoyer = (l) => l.filter((t) => t !== 'Envoyer par e-mail');
+  // 26/10/2026 : l'e-mail et les passages « Envoyé », « Signé », « Refusé » ont leur bouton dans l'en-tête ; le « … » commence par PDF, impression et « Envoyer à nouveau » (pas pour un brouillon).
+  const dansEntete = (t) => t === 'Envoyer par e-mail' || /^Passer à « (Envoyé|Signé|Refusé) »/.test(t);
+  const sansEnvoyer = (l) => l.filter((t) => !dansEntete(t));
+  const groupe = (id) => ['Télécharger le PDF', 'Imprimer', id === 'dBrouillon' ? 'Envoyer par e-mail' : 'Envoyer à nouveau'];
   for (const [id, retire] of [['dBrouillon', ['Éditer le devis']], ['dFinalise', ['Éditer le devis']], ['dEnvoye', ['Éditer le devis']], ['dSigne', ['Éditer le devis']]]) {
     await page.evaluate((h) => { location.hash = h; }, '#/devis/liste');
     await expect(page.locator('.page-liste-devis')).toBeVisible();
@@ -160,7 +163,7 @@ test('3 le « … » de l’éditeur et celui de la visualisation proposent les 
     expect(box.height).toBeGreaterThanOrEqual(44);
     await expect(page.locator('[data-action="plus-actions"]')).toHaveAttribute('aria-label', 'Autres actions');
     await menuEcran(page);
-    expect(await libellesMenu(page), `visualisation ${id}`).toEqual(sansEnvoyer(liste).filter((t) => t !== 'Voir le devis' && !t.startsWith('Passer à « Envoyé'))); // « Passer à « Envoyé » » a son bouton dans l'en-tête
+    expect(await libellesMenu(page), `visualisation ${id}`).toEqual([...groupe(id), ...sansEnvoyer(liste).filter((t) => t !== 'Voir le devis')]);
     if (id === 'dSigne') await capturer(page, info, '3-visualisation-menu');
     await page.keyboard.press('Escape');
     if (id === 'dBrouillon') {
@@ -169,7 +172,7 @@ test('3 le « … » de l’éditeur et celui de la visualisation proposent les 
       await expect(page.locator('[data-action="envoyer"]')).toBeVisible();
       await attendreCalme(page);
       await menuEcran(page);
-      expect(await libellesMenu(page), 'éditeur').toEqual(sansEnvoyer(liste).filter((t) => !retire.includes(t)));
+      expect(await libellesMenu(page), 'éditeur').toEqual([...groupe(id), ...sansEnvoyer(liste).filter((t) => !retire.includes(t))]);
       await capturer(page, info, '3-editeur-menu');
       await page.keyboard.press('Escape');
     }
@@ -290,7 +293,7 @@ test('3 visualisation d’un BROUILLON : « Télécharger le PDF » demande le P
     return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ result: { statut: 'ok', lien: 'x', nom: 'Brouillon' } }) });
   });
   await ouvrir(page, 'devis/voir/dBrouillon', '.page-editeur-devis');
-  await page.locator('[data-action="envoyer"]').click();
+  await page.locator('[data-action="plus-actions"]').click();
   await page.locator('.menu-pop').getByRole('menuitem', { name: 'Télécharger le PDF' }).click();
   await expect(page).toHaveURL(/#\/devis\/pdf\/dBrouillon\/brouillon$/);
   expect(appels).toEqual([{ devisId: 'dBrouillon', brouillon: true }]);

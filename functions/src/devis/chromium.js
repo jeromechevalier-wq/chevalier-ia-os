@@ -7,10 +7,25 @@ import { createHash } from 'node:crypto';
 const DELAI_MS = 90000; // total (lancement + rendu) ; la fonction a 120 s
 const DELAI_CHARGEMENT_MS = 20000;
 
-/** Pied de page : numéro du devis à gauche, « Page n / N » à droite. Style en ligne voulu : c'est du HTML de PDF, pas de l'interface. */
-export function piedParDefaut(numero = '') {
-  const n = String(numero).replace(/[<>&"]/g, '');
-  return `<div style="font-size:8px;font-family:Arial,sans-serif;width:100%;margin:0 15mm;color:#555;display:flex;justify-content:space-between"><span>${n}</span><span>Page <span class="pageNumber"></span> / <span class="totalPages"></span></span></div>`;
+const FORMAT_PARIS = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+/** « 25/10/2026 à 02 h 30 » : l'instant donné, lu à l'heure de Paris (été comme hiver). Rend '' si la date n'est pas valide. */
+export function dateHeureParis(date) {
+  const d = date instanceof Date ? date : new Date(date);
+  if (Number.isNaN(d.getTime())) return '';
+  const p = Object.fromEntries(FORMAT_PARIS.formatToParts(d).map((x) => [x.type, x.value]));
+  return `${p.day}/${p.month}/${p.year} à ${p.hour} h ${p.minute}`;
+}
+
+/**
+ * Pied de page : numéro du devis à gauche, « Page n / N » à droite. Style en ligne voulu : c'est du HTML de PDF, pas de l'interface.
+ * PDF brouillon : `piedParDefaut('Brouillon', { version, genereLe })` écrit « Brouillon v2 · généré le 25/10/2026 à 02 h 30 » (heure de Paris, calculée au moment de la fabrication).
+ * Sans `genereLe`, le pied est celui du PDF finalisé, inchangé.
+ */
+export function piedParDefaut(numero = '', { version = null, genereLe = null } = {}) {
+  let gauche = String(numero).replace(/[<>&"]/g, '');
+  const quand = genereLe ? dateHeureParis(genereLe) : '';
+  if (quand) gauche = `${gauche}${Number.isInteger(version) ? ` v${version}` : ''} · généré le ${quand}`;
+  return `<div style="font-size:8px;font-family:Arial,sans-serif;width:100%;margin:0 15mm;color:#555;display:flex;justify-content:space-between"><span>${gauche}</span><span>Page <span class="pageNumber"></span> / <span class="totalPages"></span></span></div>`;
 }
 
 /** Réglages d'impression : A4, fonds imprimés, en-tête vide, pied avec le numéro de page. Exportés pour que les tests (et la vérification réelle) utilisent les mêmes. */

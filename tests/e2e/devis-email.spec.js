@@ -62,8 +62,16 @@ async function ouvrirEditeur(page, id) {
   await attendreCalme(page);
 }
 async function ouvrirDialogue(page) {
-  await page.locator('[data-action="envoyer"]:visible').first().click();
-  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Envoyer par e-mail' }).click();
+  // Devis finalisé : le bouton jaune « Envoyer » ouvre le menu. Brouillon : « Envoyer » est grisé (aria-disabled) ; devis envoyé : plus de bouton « Envoyer » ;
+  // dans les deux cas l'e-mail est dans le menu « … » (« Envoyer par e-mail » pour un brouillon, « Envoyer à nouveau » ensuite).
+  const envoyer = page.locator('[data-action="envoyer"]:visible').first();
+  if ((await envoyer.count()) > 0 && (await envoyer.getAttribute('aria-disabled')) !== 'true') {
+    await envoyer.click();
+    await page.locator('.menu-pop').getByRole('menuitem', { name: 'Envoyer par e-mail' }).click();
+  } else {
+    await page.locator('[data-action="plus-actions"]').click();
+    await page.locator('.menu-pop').getByRole('menuitem', { name: /^Envoyer (par e-mail|à nouveau)$/ }).click();
+  }
 }
 
 test('1 le dialogue « Envoyer le devis par e-mail » est prérempli : À et Cc du devis, objet et message par défaut au nom du contact ; Échap le ferme', async ({ page, context }, info) => {

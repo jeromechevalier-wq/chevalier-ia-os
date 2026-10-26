@@ -49,6 +49,8 @@ img { max-width: 100%; }
 }
 .bouton:hover:not(:disabled) { transform: translateY(-1px); }
 .bouton:disabled { opacity: .45; cursor: not-allowed; }
+.bouton[aria-disabled="true"] { opacity: .45; cursor: not-allowed; } /* grisé mais focusable : un clic explique pourquoi (ex. « Envoyer » d’un brouillon) */
+.bouton[aria-disabled="true"]:hover { transform: none; }
 .bouton-principal { background: var(--accent); color: var(--sur-accent); }
 .bouton-principal:hover:not(:disabled) { background: var(--accent-survol); }
 /* Enregistrer sans rien à enregistrer : gris (consignes-ui.md, 2026-10-18), jamais un jaune pâle. */

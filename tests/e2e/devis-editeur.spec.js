@@ -312,8 +312,7 @@ test('ED3 finaliser : les erreurs de finalisation sont listées dans une fenêtr
   });
   // Un devis vide : la fenêtre liste ce qu'il faut corriger, rien n'est envoyé au serveur. Pas d'adresse e-mail obligatoire (on peut imprimer et remettre le devis en main propre).
   await page.locator('[data-champ="destinataire"]').fill('');
-  await page.locator('[data-action="envoyer"]').click();
-  await page.getByRole('menuitem', { name: 'Imprimer' }).click();
+  await page.locator('[data-action="finaliser"]').click(); // le bouton jaune d'un brouillon (26/10/2026) : « Imprimer » ne finalise plus
   await expect(dialogue(page)).toContainText('Ce devis ne peut pas encore être finalisé');
   await expect(dialogue(page).locator('li')).toHaveText(['Ajoute au moins une ligne au devis avant de le finaliser.']);
   await capturer(page, info, 'ED3-erreurs-finalisation');
@@ -331,15 +330,13 @@ test('ED3 finaliser : les erreurs de finalisation sont listées dans une fenêtr
   await lignes(page).last().locator('[data-champ="quantite"]').fill('2');
   await expect(page.locator('[data-avertissement]')).toHaveCount(0);
   await expect(total(page, 'ht')).toHaveText(/^500,00\s€$/);
-  await page.locator('[data-action="envoyer"]').click();
-  await page.getByRole('menuitem', { name: 'Imprimer' }).click();
+  await page.locator('[data-action="finaliser"]').click();
   await expect(dialogue(page)).toContainText('Finaliser ce devis ?');
   await dialogue(page).getByRole('button', { name: 'Finaliser' }).click();
   await expect(page.locator('.toast')).toContainText('Devis finalisé');
   expect(appels).toEqual([{ devisId: id }]);
-  await expect(page).toHaveURL(new RegExp(`#/devis/pdf/${id}$`)); // « Imprimer » ouvre le PDF du serveur
-  await page.goBack();
-  // Lecture seule : numéro affiché, aperçu, invitation à créer une nouvelle version, le menu « Envoyer » (PDF) mais plus de champs.
+  await expect(page).toHaveURL(new RegExp(`#/devis/voir/${id}$`)); // un devis finalisé se regarde en visualisation
+  // Lecture seule : numéro affiché, aperçu, invitation à créer une nouvelle version, « Envoyer » (jaune, e-mail) mais plus de champs.
   await expect(page.locator('[data-valeur="lecture-seule"]')).toContainText('crée une nouvelle version');
   await expect(page.getByRole('heading', { level: 1 })).toContainText('DEV-2026-10-24-001');
   await page.locator('[data-action="plus-actions"]').click();

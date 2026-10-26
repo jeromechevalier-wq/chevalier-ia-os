@@ -75,7 +75,7 @@ export async function fabriquerPdfDevis({ donnees, espace = '', baseLien, devisI
     // Vue client : jamais de prix d'achat, de marge ni de coefficient (garanti par vueClient, vérifié par les tests).
     const vue = D.vueClient(devis, { clientNom: fiche?.nom ?? null });
     const html = devisHtml(vue, brouillon ? { emetteur, brouillon: true } : { emetteur });
-    const { pdf, sha256 } = await convertir(html, { pied: piedParDefaut(brouillon ? 'Brouillon' : (devis.numero ?? '')) });
+    const { pdf, sha256 } = await convertir(html, { pied: brouillon ? piedParDefaut('Brouillon', { version: devis.version ?? 1, genereLe: ctx?.maintenant ?? new Date() }) : piedParDefaut(devis.numero ?? '') });
 
     const chemin = cheminPdfDevis({ espace, affaireId: devis.affaireId, devisId, brouillon, nomFichier: nomFichierDevis({ numero: devis.numero, version: devis.version, objet: devis.objet }) });
     await stockage.envoyer(chemin, pdf);

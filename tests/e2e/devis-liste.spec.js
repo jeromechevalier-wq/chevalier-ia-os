@@ -271,7 +271,7 @@ test('O4 un devis envoyé s’ouvre en visualisation (lecture seule) : les actio
   await expect(page.locator('[data-action="creer-variante"]')).toHaveCount(0); // plus de bouton direct : tout est dans « … »
   await expect(page.locator('[data-action="fermer-lecture"]')).toHaveCount(0); // plus de bouton « Fermer » : on quitte par la flèche « Devis » en haut à gauche
   await expect(page.locator('[data-action="retour-devis"]')).toBeVisible();
-  await expect(page.locator('[data-action="envoyer"]')).toBeVisible();
+  await expect(page.locator('[data-action="marquer-signe"]')).toBeVisible(); // devis envoyé : l'étape suivante est « Marquer comme signé » (26/10/2026)
   await page.locator('[data-action="plus-actions"]').click();
   await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Créer une nouvelle version' })).toBeEnabled();
   await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Dupliquer' })).toBeEnabled();

@@ -226,3 +226,31 @@ describe('Q11 devisPdf : échecs du rangement et erreurs inattendues', () => {
     assert.equal(m.collections[C.devis][0].pdf.statut, 'echec');
   });
 });
+
+describe('7 devisPdf : pied de page du PDF brouillon (date et heure de génération, heure de Paris)', () => {
+  test('7 le PDF brouillon porte « Brouillon v1 · généré le … à … h … » ; le PDF finalisé garde son pied (le numéro seulement)', async () => {
+    const m = await monde({ finaliser: false });
+    const f = faux();
+    await appel(m, f)(requete({ devisId: 'd1', brouillon: true }));
+    assert.match(f.vus.pieds[0], /<span>Brouillon v1 · généré le 24\/10\/2026 à 12 h 00<\/span>/);
+    assert.match(f.vus.pieds[0], /Page <span class="pageNumber">/);
+    const fini = await monde();
+    const g = faux();
+    await appel(fini, g)(requete({ devisId: 'd1' }));
+    assert.ok(!/généré le|Brouillon/.test(g.vus.pieds[0]), 'le pied du PDF finalisé ne change pas');
+    assert.match(g.vus.pieds[0], /<span>DEV-2026-10-24-001<\/span>/);
+  });
+  test('7 la date est celle de la fabrication, à l\'heure de Paris, y compris au passage à l\'heure d\'hiver (25/10/2026 à 02 h)', async () => {
+    for (const [instant, attendu] of [['2026-10-24T23:30:00Z', '25/10/2026 à 01 h 30'], ['2026-10-25T01:30:00Z', '25/10/2026 à 02 h 30'], ['2026-07-01T10:05:00Z', '01/07/2026 à 12 h 05']]) {
+      const m = await monde({ finaliser: false });
+      const f = faux();
+      await appel(m, f, { maintenant: () => new Date(instant).getTime() })(requete({ devisId: 'd1', brouillon: true }));
+      assert.ok(f.vus.pieds[0].includes(`généré le ${attendu}`), `${instant} -> ${attendu}`);
+    }
+  });
+  test('7 sans date donnée, piedParDefaut rend exactement le pied d\'avant', async () => {
+    const { piedParDefaut, dateHeureParis } = await import('../functions/src/devis/chromium.js');
+    assert.ok(!piedParDefaut('DEV-1').includes('généré'));
+    assert.equal(dateHeureParis('pas une date'), '');
+  });
+});

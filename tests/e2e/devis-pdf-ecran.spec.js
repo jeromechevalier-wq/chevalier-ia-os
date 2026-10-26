@@ -1,4 +1,4 @@
-// Module Devis, PDF dans les écrans : (1) route #/devis/pdf/<id> (et …/brouillon), (2) « Télécharger le PDF » du menu Envoyer de l'éditeur, (3) « PDF non rangé » / lien « PDF » dans la liste et la fiche.
+// Module Devis, PDF dans les écrans : (1) route #/devis/pdf/<id> (et …/brouillon), (2) « Télécharger le PDF » du menu « … » de l'éditeur, (3) « PDF non rangé » / lien « PDF » dans la liste et la fiche.
 // Un test par point du brief (le nom commence par le numéro du point). Captures dans tests/e2e/captures/devis-pdf-ecran/ (ordinateur ET téléphone : la mise en page change).
 // Les fonctions du serveur (devisPdf, devisPdfLien) n'existent pas dans l'émulateur du navigateur : elles sont SIMULÉES par page.route.
 // Le simulateur de devisPdf écrit le champ `pdf` du devis comme le ferait le serveur ; il lit aussi l'objet enregistré pour prouver que l'écran enregistre AVANT de demander le PDF.
@@ -151,20 +151,20 @@ test('1 erreur du serveur au « Réessayer » : message lisible et nouveau bouto
   await capturer(page, info, '1-pdf-introuvable');
 });
 
-// ------------------------------------------------------------------ point 2 : « Télécharger le PDF » dans l'éditeur (menu Envoyer)
+// ------------------------------------------------------------------ point 2 : « Télécharger le PDF » dans l'éditeur (menu « … »)
 
 async function ouvrirEditeur(page, id) {
   await connecter(page, undefined, { route: `devis/editeur/${id}` });
   await expect(page.locator('.page-editeur-devis[data-devis]')).toBeVisible();
   await attendreCalme(page);
 }
-/** Le seul chemin vers le PDF : menu « Envoyer » > « Télécharger le PDF » (ordinateur et téléphone). */
+/** Le chemin vers le PDF : menu « … » > « Télécharger le PDF » (ordinateur et téléphone). Le bouton « Envoyer » ne sert plus qu'à l'e-mail. */
 async function cliquerTelechargerPdf(page) {
-  await page.locator('[data-action="envoyer"]').click();
+  await page.locator('[data-action="plus-actions"]').click();
   await page.locator('.menu-pop').getByRole('menuitem', { name: 'Télécharger le PDF' }).click();
 }
 
-test('2 « Télécharger le PDF » (menu Envoyer) : enregistre d’abord le devis, demande le PDF brouillon au serveur, dit « PDF enregistré dans l’affaire », puis ouvre l’écran du PDF', async ({ page }, info) => {
+test('2 « Télécharger le PDF » (menu « … ») : enregistre d’abord le devis, demande le PDF brouillon au serveur, dit « PDF enregistré dans l’affaire », puis ouvre l’écran du PDF', async ({ page }, info) => {
   await donnees();
   const appels = [];
   await simulerServeur(page, appels, { delaiPdf: 1200 });
