@@ -17,7 +17,7 @@
 //   ne change jamais de section de niveau 1 en se déplaçant (elle reste entre ses sœurs). Un devis sans `niveau` se comporte exactement comme avant.
 import {
   coefficientDeMarge, prixVenteUnitaire, prixVenteDeLigne, totauxDevis, versCentimes, erreursChantier, numerosDevis,
-  coefficientDepuisPourcentage, coefficientDepuisMontant, coefficientDepuisSaisie,
+  coefficientDepuisPourcentage, coefficientDepuisMontant, coefficientDepuisSaisie, emailValide, MAX_COPIE,
 } from './logique.js';
 import { TYPE_SAUT, estSaut } from './logique.js';
 import { descriptionOuvrage, figerOuvragePourLigne, articlesParId, TYPE_OUVRAGE } from './ouvrages.js';
@@ -494,4 +494,23 @@ export function memeContenu(a, b) {
   a = norm(a); b = norm(b);
   const stable = (v) => (Array.isArray(v) ? v.map(stable) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, stable(v[k])])) : v);
   return JSON.stringify(stable(champsAEnregistrer(a))) === JSON.stringify(stable(champsAEnregistrer(b)));
+}
+
+// ------------------------------------------------ e-mails en copie : les refus et leurs mots (partagés avec le champ « E-mail du destinataire »)
+export const MESSAGE_COPIE_INVALIDE = 'Cette adresse email n’est pas valide (exemple : contact@exemple.fr).';
+export const MESSAGE_COPIE_DEJA = 'Cette adresse est déjà en copie.';
+export const MESSAGE_COPIE_DEJA_DESTINATAIRE = 'Cette adresse est déjà le destinataire du devis : choisis-en une autre.';
+export const MESSAGE_DESTINATAIRE_DEJA_COPIE = 'Cette adresse est déjà en copie du devis : choisis-en une autre.';
+export const MESSAGE_COPIE_PLAFOND = `Il y a déjà ${MAX_COPIE} adresses en copie, c’est le maximum : retires-en une pour en ajouter.`;
+const memeAdresse = (a, b) => String(a ?? '').trim().toLowerCase() === String(b ?? '').trim().toLowerCase();
+
+/** Pourquoi une adresse ne peut pas être ajoutée en copie : le message à montrer, ou `null` si elle peut l'être. Un texte vide n'est pas un refus (rien à ajouter). */
+export function refusAjoutCopie(valeur, copieActuelle = [], destinataires = []) {
+  const v = String(valeur ?? '').trim();
+  if (!v) return null;
+  if (!emailValide(v)) return MESSAGE_COPIE_INVALIDE;
+  if (copieActuelle.some((a) => memeAdresse(a, v))) return MESSAGE_COPIE_DEJA;
+  if (destinataires.some((a) => memeAdresse(a, v))) return MESSAGE_COPIE_DEJA_DESTINATAIRE;
+  if (copieActuelle.length >= MAX_COPIE) return MESSAGE_COPIE_PLAFOND;
+  return null;
 }

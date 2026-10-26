@@ -621,52 +621,61 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     remplir(ref.panneauApercu, corps);
   }
 
-  // ------------------------------------------------ e-mails en copie (cc) : une ligne « + E-mail en copie » en jaune, comme les autres « + Ajouter » des fiches
-  // Plafond MAX_COPIE (logique.js) : le serveur l'applique aussi (erreursFinalisation).
-  /** Adresses en copie : chacune avec sa croix ; « + E-mail en copie » ouvre un champ (Entrée ou sortie du champ ajoute, Échap annule). Une adresse invalide ou déjà présente n'ajoute rien. */
+  // ------------------------------------------------ e-mail(s) en copie (cc) : un champ comme les autres (titre en capitales, valeur dessous)
+  // Plafond MAX_COPIE (logique.js) : le serveur l'applique aussi (erreursFinalisation). Les refus (adresse invalide, déjà en copie, déjà destinataire, plafond) sont dans Ed.refusAjoutCopie.
+  /**
+   * Titre fixe « E-mail(s) en copie », puis soit « Aucune adresse en copie » (grisé), soit une ligne par adresse avec sa croix ; « + E-mail en copie » ouvre un champ.
+   * Entrée ou sortie du champ ajoute ; tout refus s'affiche sous le champ, qui reste ouvert avec le texte tapé ; le message disparaît dès que le texte change, ou à Échap.
+   */
   function blocCopie() {
-    const zone = h('div', { class: 'bloc-champ bloc-copie', dataset: { zone: 'copie' } });
+    const zone = h('div', { class: 'bloc-champ bloc-copie', dataset: { zone: 'copie' }, role: 'group', 'aria-labelledby': 'devis-copie-titre' });
     let saisie = false;
     let enCours = ''; // texte du champ en cours de saisie : gardé si la ligne est redessinée (retrait d'une autre adresse pendant la saisie)
     const adresses = () => (Array.isArray(travail.copie) ? travail.copie : []);
-    function ajouter(valeur, erreur) {
-      const v = String(valeur ?? '').trim();
-      if (!v) return true;
-      if (!emailValide(v)) { erreur.textContent = 'Cette adresse email n’est pas valide (exemple : contact@exemple.fr).'; erreur.hidden = false; return false; }
-      const deja = [...adresses(), ...(travail.destinataires ?? [])].some((a) => String(a).toLowerCase() === v.toLowerCase());
-      if (!deja) changer({ copie: [...adresses(), v] });
-      return true;
-    }
     let abandonnerSaisie = () => {};
     function dessiner() {
       abandonnerSaisie(); abandonnerSaisie = () => {}; // l'ancien champ disparaît : son « blur » éventuel ne doit plus rien valider
       const liste = adresses();
-      zone.hidden = lecture && !liste.length && !saisie; // lecture seule et aucune adresse : rien à montrer (pas d'étiquette « En copie » seule)
-      if (zone.hidden) { zone.replaceChildren(); return; }
-      const ligne = h('ul', { class: 'liste-copie' }, liste.map((a, i) => h('li', { class: 'ligne-copie', dataset: { copie: a } },
-        h('span', {}, a),
-        h('button', { type: 'button', class: 'bouton-icone', 'aria-label': `Retirer ${a} de la copie`, dataset: { action: 'retirer-copie' }, disabled: lecture,
-          // Pendant la saisie d'une autre adresse, un appui sur la croix ne doit pas faire perdre le focus au champ : sinon « blur » redessine la ligne avant le clic et la croix disparaît.
-          onpointerdown: (e) => e.preventDefault(), onmousedown: (e) => e.preventDefault(),
-          onclick: () => { changer({ copie: adresses().filter((_, k) => k !== i) }); dessiner(); } }, icone('x', { taille: 14 })))));
-      const parties = [h('span', { class: 'etiquette' }, 'En copie'), liste.length ? ligne : null];
-      if (saisie) {
+      const parties = [h('span', { class: 'etiquette', id: 'devis-copie-titre' }, 'E-mail(s) en copie')];
+      if (liste.length) {
+        parties.push(h('ul', { class: 'liste-copie' }, liste.map((a, i) => h('li', { class: 'ligne-copie', dataset: { copie: a } },
+          h('span', {}, a),
+          lecture ? null : h('button', { type: 'button', class: 'bouton-icone', 'aria-label': `Retirer ${a} de la copie`, dataset: { action: 'retirer-copie' },
+            // Pendant la saisie d'une autre adresse, un appui sur la croix ne doit pas faire perdre le focus au champ : sinon « blur » redessine la ligne avant le clic et la croix disparaît.
+            onpointerdown: (e) => e.preventDefault(), onmousedown: (e) => e.preventDefault(),
+            onclick: () => { changer({ copie: adresses().filter((_, k) => k !== i) }); dessiner(); } }, icone('x', { taille: 14 }))))));
+      } else {
+        parties.push(h('p', { class: 'copie-vide', dataset: { valeur: 'copie-vide' } }, 'Aucune adresse en copie'));
+      }
+      if (saisie && !lecture) {
         const erreur = h('p', { class: 'erreur', role: 'alert', hidden: true, dataset: { erreur: 'copie' } });
         let fini = false;
         abandonnerSaisie = () => { fini = true; };
-        const terminer = (valider) => { if (fini) return; if (valider && !ajouter(champSaisie.value, erreur)) return; fini = true; saisie = false; enCours = ''; dessiner(); };
-        const champSaisie = h('input', { class: 'champ', type: 'email', inputmode: 'email', autocomplete: 'off', placeholder: 'contact@exemple.fr', 'aria-label': 'E-mail en copie', dataset: { champ: 'copie' }, value: enCours, oninput: (e) => { enCours = e.target.value; },
+        const montrer = (message) => { erreur.textContent = message ?? ''; erreur.hidden = !message; champSaisie.setAttribute('aria-invalid', message ? 'true' : 'false'); };
+        // Renvoie vrai si la saisie est terminée (ajoutée, ou vide) ; sinon le champ reste ouvert avec son texte et le motif du refus.
+        const valider = () => {
+          const v = champSaisie.value.trim();
+          if (!v) return true;
+          const refus = Ed.refusAjoutCopie(v, adresses(), travail.destinataires ?? []);
+          if (refus) { montrer(refus); return false; }
+          changer({ copie: [...adresses(), v] });
+          return true;
+        };
+        const terminer = (validerAvant) => { if (fini) return; if (validerAvant && !valider()) return; fini = true; saisie = false; enCours = ''; dessiner(); };
+        const champSaisie = h('input', { class: 'champ', type: 'email', inputmode: 'email', autocomplete: 'off', placeholder: 'contact@exemple.fr', 'aria-label': 'E-mail en copie', dataset: { champ: 'copie' }, value: enCours,
+          oninput: (e) => { enCours = e.target.value; montrer(''); },
           onkeydown: (e) => { if (e.key === 'Enter') { e.preventDefault(); terminer(true); } else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); terminer(false); } },
-          onblur: () => { if (!champSaisie.value.trim()) terminer(false); else terminer(true); } });
+          onblur: () => terminer(Boolean(champSaisie.value.trim())) });
         parties.push(champSaisie, erreur);
-        zone.replaceChildren(...parties.filter(Boolean));
+        zone.replaceChildren(...parties);
         champSaisie.focus();
         return;
       }
-      if (!lecture && liste.length < MAX_COPIE) {
-        parties.push(h('button', { type: 'button', class: 'prop-vide', dataset: { action: 'ajouter-copie' }, onclick: () => { saisie = true; enCours = ''; dessiner(); } }, icone('plus', { taille: 14 }), 'E-mail en copie'));
+      if (!lecture) {
+        if (liste.length < MAX_COPIE) parties.push(h('button', { type: 'button', class: 'prop-vide', dataset: { action: 'ajouter-copie' }, onclick: () => { saisie = true; enCours = ''; dessiner(); } }, icone('plus', { taille: 14 }), 'E-mail en copie'));
+        else parties.push(h('p', { class: 'copie-vide', dataset: { valeur: 'copie-plafond' } }, `${MAX_COPIE} adresses en copie : c’est le maximum.`));
       }
-      zone.replaceChildren(...parties.filter(Boolean));
+      zone.replaceChildren(...parties);
     }
     dessiner();
     return zone;
@@ -851,7 +860,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       oninput: (e) => {
         const v = e.target.value.trim();
         const doublon = v !== '' && dejaEnCopie(v);
-        erreurDestinataire.textContent = doublon ? 'Cette adresse est déjà en copie : retire-la de la copie, ou choisis une autre adresse pour le destinataire.' : '';
+        erreurDestinataire.textContent = doublon ? Ed.MESSAGE_DESTINATAIRE_DEJA_COPIE : '';
         erreurDestinataire.hidden = !doublon;
         e.target.setAttribute('aria-invalid', doublon ? 'true' : 'false');
         if (doublon) return;

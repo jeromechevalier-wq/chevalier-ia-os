@@ -251,3 +251,14 @@ describe('E11 devis modifié ailleurs', () => {
     assert.equal(Ed.memeContenu(a, { ...b, objet: 'y' }), false);
   });
 });
+
+describe('COP3 refus d’ajout d’une adresse en copie', () => {
+  test('COP3 chaque cause de refus a son message ; un texte vide et une adresse valable ne sont pas refusés', () => {
+    assert.equal(Ed.refusAjoutCopie('', ['a@x.fr'], []), null);
+    assert.equal(Ed.refusAjoutCopie('b@x.fr', ['a@x.fr'], ['c@x.fr']), null);
+    assert.equal(Ed.refusAjoutCopie('pas-un-email', [], []), Ed.MESSAGE_COPIE_INVALIDE);
+    assert.equal(Ed.refusAjoutCopie(' A@X.fr ', ['a@x.fr'], []), Ed.MESSAGE_COPIE_DEJA);
+    assert.equal(Ed.refusAjoutCopie('c@x.fr', ['a@x.fr'], ['C@x.fr']), Ed.MESSAGE_COPIE_DEJA_DESTINATAIRE);
+    assert.equal(Ed.refusAjoutCopie('z@x.fr', Array.from({ length: 10 }, (_, i) => `p${i}@x.fr`), []), Ed.MESSAGE_COPIE_PLAFOND);
+  });
+});
