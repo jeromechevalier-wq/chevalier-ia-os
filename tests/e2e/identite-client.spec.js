@@ -320,3 +320,52 @@ test('P6 chez un client : « Créer un dossier dans Google Drive » crée TOUT S
   expect(drive.requetes[1].corps.parents).toEqual(['DOSSIER_1_abcdefghij']);
   expect((await lireDocument('clients/studio/crm_parametres/reglages')).dossierParentDrive).toEqual({ id: 'DOSSIER_1_abcdefghij', nom: 'Chevalier IA - Studio Lune', auto: true });
 });
+
+// Connexion : une erreur réseau ne déconnecte jamais (26/10/2026). Captures dans tests/e2e/captures/auth-pas-de-deconnexion/.
+const CAPTURES_AUTH = 'e2e/captures/auth-pas-de-deconnexion';
+async function ouvrirAvecEchecs(page, echecs) {
+  await page.goto('about:blank');
+  await page.goto(`${URL_APP}#/espace/studio`);
+  await page.waitForFunction(() => !!window.__chevalierTest);
+  await page.evaluate((n) => { window.__chevalierTest.attentesMembre = [50, 50, 50]; window.__chevalierTest.echecsMembre = n; }, echecs);
+  await page.evaluate((e) => window.__chevalierTest.connecter(e, true), ALICE);
+}
+
+test('AUTH1 une lecture de la fiche d\'appartenance qui échoue une fois ne déconnecte pas', async ({ page }) => {
+  const avertissements = [];
+  page.on('console', (m) => { if (m.type() === 'warning') avertissements.push(m.text()); });
+  await ouvrirAvecEchecs(page, 1);
+  await expect(page.locator('.coquille')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Se connecter avec Google' })).toHaveCount(0);
+  expect(avertissements.join('\n')).toContain('unavailable');
+  expect(avertissements.join('\n')).not.toContain(ALICE);
+  await page.screenshot({ path: `${CAPTURES_AUTH}/AUTH1-connecte-apres-une-panne${estTelephone(page) ? '-telephone' : ''}.png` });
+});
+
+test('AUTH3 connecté à l\'espace d\'un client, ouvrir la plateforme sans route d\'espace dans un 2e onglet : le 1er onglet reste connecté', async ({ page, context }) => {
+  await ouvrir(page, 'studio');
+  const autre = await context.newPage();
+  await autre.goto('about:blank');
+  await autre.goto('/?emulateurs=1&sansComptes=1#/'); // plateforme : liste de comptes vide, aucune route d'espace
+  await expect(autre.getByRole('heading', { name: 'Espace indisponible' })).toBeVisible();
+  await expect(autre.getByRole('link', { name: 'Retour à l\'accueil' })).toBeVisible();
+  await autre.screenshot({ path: `${CAPTURES_AUTH}/AUTH3-plateforme-sans-espace${estTelephone(page) ? '-telephone' : ''}.png` });
+  await page.waitForTimeout(1500); // laisse le temps à une éventuelle déconnexion de se propager entre onglets
+  await expect(page.locator('.coquille')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Se connecter avec Google' })).toHaveCount(0);
+  await autre.close();
+});
+
+test('AUTH2 une panne persistante affiche « Connexion impossible » avec « Réessayer », sans déconnecter', async ({ page }) => {
+  await ouvrirAvecEchecs(page, 99);
+  await expect(page.getByRole('alert')).toContainText('Connexion impossible pour le moment');
+  await expect(page.getByRole('button', { name: 'Réessayer' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Se connecter avec Google' })).toHaveCount(0);
+  await page.screenshot({ path: `${CAPTURES_AUTH}/AUTH2-erreur-reessayer${estTelephone(page) ? '-telephone' : ''}.png` });
+  // Le compte est resté connecté : une fois la panne finie, « Réessayer » rouvre l'espace.
+  await page.evaluate(() => { window.__chevalierTest.echecsMembre = 0; });
+  const rechargement = page.waitForEvent('load');
+  await page.getByRole('button', { name: 'Réessayer' }).click();
+  await rechargement;
+  await expect(page.locator('.coquille')).toBeVisible();
+});

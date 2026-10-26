@@ -1,7 +1,7 @@
 // Démarrage de Chevalier IA OS.
 import { demarrerPwa } from './os/pwa.js';
 import { appliquerTheme, afficherConnexion, monterCoquille, ESPACE_RACINE } from './os/shell.js';
-import { surveillerCompte, connecter, deconnecter, MESSAGE_REFUS } from './os/auth.js';
+import { surveillerCompte, connecter, deconnecter, crmDisponible, MESSAGE_REFUS } from './os/auth.js';
 import { routeCourante, routeDepuisHash, segments, surChangementRoute, naviguer, ROUTE_DEFAUT } from './os/router.js';
 import { estRouteEspace, cleEspace } from './os/marque.js';
 import { MODULES } from './os/modules.js';
@@ -32,6 +32,9 @@ if (entree) {
 
 function demarrerCrm() {
   afficherChargement();
+  // Plateforme clients : pas de CRM de Jérôme ici. Une adresse sans route d'espace (signet, onglet restauré) n'écoute pas la connexion
+  // et ne déconnecte jamais personne (la connexion est partagée entre les onglets, dont l'espace d'un client).
+  if (!crmDisponible()) { import('./os/espace.js').then((m) => m.pageSansEspace(racine)); return; }
   surveillerCompte(async (ev) => {
     if (ev.etat === 'connecte') {
       if (session?.compte.email === ev.compte.email) return;

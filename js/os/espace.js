@@ -45,11 +45,23 @@ function pageIndisponible(racine, { reessayer = null } = {}) {
     reessayer ? h('button', { type: 'button', class: 'bouton espace-bouton', onclick: reessayer }, 'Réessayer') : null));
 }
 
-function pageConnexion(racine, marque, { message = '', surConnexion }) {
-  const bouton = h('button', { type: 'button', class: 'bouton espace-bouton', onclick: async () => {
-    bouton.disabled = true;
-    try { await surConnexion(); } finally { bouton.disabled = false; }
-  } }, icone('log-in', { taille: 18 }), 'Se connecter avec Google');
+/** Page de la plateforme ouverte sans identifiant d'espace : aucune lecture de compte, aucun signOut. */
+export function pageSansEspace(racine) {
+  appliquerIdentite(MARQUE_NEUTRE);
+  remplir(racine, coquilleEspace(MARQUE_NEUTRE,
+    h('h1', {}, 'Espace indisponible'),
+    h('p', { class: 'espace-accueil' }, "Il manque le nom de l'espace dans cette adresse. Utilise le lien que tu as reçu, ou retourne à l'accueil."),
+    h('a', { class: 'bouton espace-bouton', href: './' }, "Retour à l'accueil")));
+}
+
+function pageConnexion(racine, marque, { message = '', surConnexion, recharger = false }) {
+  // Panne passagère : le compte reste connecté, on propose de réessayer (rechargement) au lieu de reconnecter.
+  const bouton = recharger
+    ? h('button', { type: 'button', class: 'bouton espace-bouton', onclick: () => location.reload() }, 'Réessayer')
+    : h('button', { type: 'button', class: 'bouton espace-bouton', onclick: async () => {
+      bouton.disabled = true;
+      try { await surConnexion(); } finally { bouton.disabled = false; }
+    } }, icone('log-in', { taille: 18 }), 'Se connecter avec Google');
   const galerie = marque.images.slice(1);
   remplir(racine, coquilleEspace(marque,
     marque.logo ? h('img', { class: 'espace-logo', src: marque.logo, alt: '', width: '160', height: '80' }) : null,
@@ -125,7 +137,7 @@ export async function demarrerEspace(racine) {
       import('../modules/automatisations/ecran.js').then((m) => m.oublierFiltresAutomatisations()).catch(() => {});
       document.body.classList.add('page-espace');
       if (ev.etat === 'deconnecte') pageConnexion(racine, marque, { message: ev.refus ? MESSAGE_REFUS_ESPACE : '', surConnexion: seConnecter });
-      else if (ev.etat === 'erreur') pageConnexion(racine, marque, { message: ev.message, surConnexion: seConnecter });
+      else if (ev.etat === 'erreur') pageConnexion(racine, marque, { message: ev.message, surConnexion: seConnecter, recharger: ev.recharger === true });
     }
   }, { client });
 }
