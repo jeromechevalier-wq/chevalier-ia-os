@@ -469,7 +469,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
 
   // Barre d'actions : Catalogue, Options, Historique (panneaux collés à droite), Envoyer (bouton à menu), « … » (autres actions). Pas de bouton Enregistrer : l'enregistrement est automatique.
   function boutonsEdition() {
-    ref.boutonOptions = h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-options', dataset: { action: 'options' }, 'aria-controls': 'options-devis', 'aria-expanded': 'false', onclick: (ev) => (optionsOuvertes ? optionsOuvertes.fermer() : ouvrirOptions(ev.currentTarget)) }, 'Options', icone('chevron-down', { taille: 14 }));
+    ref.boutonOptions = h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-options', dataset: { action: 'options' }, 'aria-controls': 'options-devis', 'aria-expanded': 'false', onclick: (ev) => (optionsOuvertes ? optionsOuvertes.fermer() : ouvrirOptions(ev.currentTarget)) }, 'Options');
     // Le bouton jaune suit l'étape du devis (entete-boutons.js) : « Finaliser » tant que c'est un brouillon.
     return [boutonCatalogue(), ref.boutonOptions, boutonHistorique(), ...boutonsEtape(), boutonPlusActions()];
   }
