@@ -261,4 +261,9 @@ describe('COP3 refus d’ajout d’une adresse en copie', () => {
     assert.equal(Ed.refusAjoutCopie('c@x.fr', ['a@x.fr'], ['C@x.fr']), Ed.MESSAGE_COPIE_DEJA_DESTINATAIRE);
     assert.equal(Ed.refusAjoutCopie('z@x.fr', Array.from({ length: 10 }, (_, i) => `p${i}@x.fr`), []), Ed.MESSAGE_COPIE_PLAFOND);
   });
+  test('COP8 memeAdresse (partagée par la copie et le destinataire) ignore les espaces autour et les majuscules', () => {
+    assert.equal(Ed.memeAdresse(' Compta@Exemple.fr ', 'compta@exemple.fr'), true);
+    assert.equal(Ed.memeAdresse('compta@exemple.fr', 'contact@exemple.fr'), false);
+    assert.equal(Ed.memeAdresse(null, ''), true); // deux vides : rien à comparer, l'appelant écarte le texte vide avant
+  });
 });

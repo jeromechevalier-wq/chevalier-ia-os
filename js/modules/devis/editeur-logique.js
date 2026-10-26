@@ -502,7 +502,8 @@ export const MESSAGE_COPIE_DEJA = 'Cette adresse est déjà en copie.';
 export const MESSAGE_COPIE_DEJA_DESTINATAIRE = 'Cette adresse est déjà le destinataire du devis : choisis-en une autre.';
 export const MESSAGE_DESTINATAIRE_DEJA_COPIE = 'Cette adresse est déjà en copie du devis : choisis-en une autre.';
 export const MESSAGE_COPIE_PLAFOND = `Il y a déjà ${MAX_COPIE} adresses en copie, c’est le maximum : retires-en une pour en ajouter.`;
-const memeAdresse = (a, b) => String(a ?? '').trim().toLowerCase() === String(b ?? '').trim().toLowerCase();
+/** Deux adresses e-mail identiques, sans tenir compte des espaces autour ni des majuscules. */
+export const memeAdresse = (a, b) => String(a ?? '').trim().toLowerCase() === String(b ?? '').trim().toLowerCase();
 
 /** Pourquoi une adresse ne peut pas être ajoutée en copie : le message à montrer, ou `null` si elle peut l'être. Un texte vide n'est pas un refus (rien à ajouter). */
 export function refusAjoutCopie(valeur, copieActuelle = [], destinataires = []) {

@@ -155,7 +155,8 @@ test('C5 la croix d’une adresse en copie retire bien l’adresse même si on e
   await expect(bloc.locator('.ligne-copie')).toHaveText(['b@exemple.fr', 'c@exemple.fr']);
 });
 
-// ------------------------------------------------ refonte du bloc « E-mail(s) en copie » : un test par point du brief (COP1 à COP6), une capture par état clé
+// ------------------------------------------------ refonte du bloc « E-mail(s) en copie » : un test par point du brief (COP1 à COP7), une capture par état clé ; COP8 et COP9 : corrections après la relecture Fable.
+// Le point « lecture seule » est vérifié par C3 (plus haut) : l'écran actuel n'affiche pas l'en-tête d'édition d'un devis en lecture seule, donc le bloc n'existe pas.
 const ajouterCopie = async (bloc, adresse) => {
   await bloc.locator('[data-action="ajouter-copie"]').click();
   await bloc.locator('[data-champ="copie"]').fill(adresse);
@@ -226,7 +227,7 @@ test('COP3 tout refus d’ajout est écrit sous le champ, qui reste ouvert avec 
   await expect(bloc.locator('.ligne-copie')).toHaveText(['a@exemple.fr']);
 });
 
-test('COP3 au plafond de 10 adresses : plus de bouton, mais une phrase qui explique ; il revient dès qu’on en retire une', async ({ page }) => {
+test('COP7 au plafond de 10 adresses : plus de bouton, mais une phrase qui explique ; il revient dès qu’on en retire une', async ({ page }) => {
   await semer();
   await nouveauBrouillon(page);
   const bloc = page.locator('[data-zone="copie"]');
@@ -247,22 +248,6 @@ test('COP4 le champ « E-mail du destinataire » dit la même chose, avec les m�
   await capturer(page, info, 'COP4-doublon-destinataire');
 });
 
-test('COP5 le devis envoyé ne montre pas l’éditeur : le bloc d’édition n’a ni croix ni bouton, rien de grisé qui trompe', async ({ page }) => {
-  await semer();
-  await ouvrirListe(page);
-  await ecrireDocument('devis_devis/fige5', {
-    racineId: 'fige5', version: 1, numero: 'DEV-2026-10-02-005', statut: 'envoye', affaireId: 'a1', organisationId: 'o1', personneId: null, modeMarge: 'majoration', marge: 20, tauxTvaDefaut: 20,
-    regimeTva: 'assujetti', autoliquidation: false, archive: false, expireLe: '2027-01-01', destinataires: ['contact@exemple.fr'], copie: ['compta@exemple.fr'],
-    sections: [{ id: 's1', titre: 'Cuisine', lignes: [{ id: 'l1', libelle: 'Carrelage', quantite: 2, unite: 'm²', prixAchat: 50, prixVente: 60, tauxTva: 20 }] }],
-    creePar: JEROME, proprietaire: JEROME, creeLe: new Date(), modifieLe: new Date(),
-  });
-  await page.goto('/?emulateurs=1#/devis/editeur/fige5');
-  await page.reload();
-  await expect(page.locator('[data-valeur="lecture-seule"]')).toBeVisible();
-  await expect(page.locator('[data-zone="copie"] [data-action="retirer-copie"]')).toHaveCount(0);
-  await expect(page.locator('[data-zone="copie"] [data-action="ajouter-copie"]')).toHaveCount(0);
-});
-
 test('COP6 sur ordinateur comme sur téléphone : la croix et le bouton ont au moins 44 px de haut quand l’écran est tactile, et rien ne déborde', async ({ page }, info) => {
   await semer();
   await nouveauBrouillon(page);
@@ -273,6 +258,48 @@ test('COP6 sur ordinateur comme sur téléphone : la croix et le bouton ont au m
   await ajouterCopie(bloc, 'une-adresse-assez-longue-pour-le-telephone@exemple.fr');
   if (tactile) expect(await hauteur(bloc.locator('[data-action="retirer-copie"]'))).toBeGreaterThanOrEqual(44);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+});
+
+test('COP8 choisir un client dont l’e-mail est déjà en copie : l’e-mail n’est pas repris comme destinataire (pas de doublon) et le champ dit pourquoi', async ({ page }, info) => {
+  await semer();
+  await creerOrganisation('o2', { nom: 'Autre Société', emails: [{ valeur: 'compta@exemple.fr', type: 'travail' }] });
+  await creerAffaire('a2', { titre: 'Salle de bains', organisationId: 'o2' });
+  const id = await nouveauBrouillon(page);
+  const destinataire = page.locator('[data-champ="destinataire"]');
+  await expect(destinataire).toHaveValue('contact@exemple.fr'); // l'e-mail du premier client
+  await ajouterCopie(page.locator('[data-zone="copie"]'), 'Compta@Exemple.fr');
+  await page.locator('[data-champ="affaire"]').selectOption('a2'); // son client a pour e-mail compta@exemple.fr, déjà en copie
+  await expect(destinataire).toHaveValue('');
+  await expect(page.locator('[data-erreur="destinataire"]')).toHaveText('Cette adresse est déjà en copie du devis : choisis-en une autre.');
+  await capturer(page, info, 'COP8-client-deja-en-copie');
+  await enregistre(page);
+  const doc = await lireDocument(`devis_devis/${id}`);
+  expect(doc.destinataires).toEqual([]);
+  expect(doc.copie).toEqual(['Compta@Exemple.fr']);
+  await page.locator('[data-champ="affaire"]').selectOption('a1'); // retour à un client dont l'e-mail n'est pas en copie : il est repris, le message part
+  await expect(destinataire).toHaveValue('contact@exemple.fr');
+  await expect(page.locator('[data-erreur="destinataire"]')).toBeHidden();
+});
+
+test('COP9 la croix d’une autre adresse pendant la saisie garde le motif du refus ; après Entrée ou Échap, le focus revient sur « + E-mail en copie »', async ({ page }) => {
+  await semer();
+  await nouveauBrouillon(page);
+  const bloc = page.locator('[data-zone="copie"]');
+  const champ = bloc.locator('[data-champ="copie"]');
+  const ajouter = bloc.locator('[data-action="ajouter-copie"]');
+  await ajouterCopie(bloc, 'a@exemple.fr');
+  await expect(ajouter).toBeFocused(); // ajout réussi par Entrée
+  await ajouterCopie(bloc, 'b@exemple.fr');
+  await ajouter.click();
+  await champ.fill('pas-un-email'); await champ.press('Enter');
+  await expect(bloc.locator('[data-erreur="copie"]')).toContainText('n’est pas valide');
+  await bloc.getByRole('button', { name: 'Retirer a@exemple.fr de la copie' }).click();
+  await expect(bloc.locator('.ligne-copie')).toHaveText(['b@exemple.fr']);
+  await expect(champ).toHaveValue('pas-un-email');
+  await expect(bloc.locator('[data-erreur="copie"]')).toContainText('n’est pas valide'); // le motif reste affiché
+  await champ.press('Escape');
+  await expect(champ).toHaveCount(0);
+  await expect(ajouter).toBeFocused(); // Échap
 });
 
 test('C6 la visualisation d’un devis finalisé n’a plus de boutons « Créer une variante » ni « Dupliquer » : ils sont dans le « … » (44 px) à côté d’« Envoyer »', async ({ page }, info) => {
