@@ -6,8 +6,10 @@ import {
 } from './outils.js';
 
 const DOSSIER = fileURLToPath(new URL('./captures/devis-editeur/', import.meta.url));
-async function capturer(page, info, nom) {
-  await page.screenshot({ path: `${DOSSIER}${nom}-${info.project.name}.png`, fullPage: true, animations: 'disabled' });
+async function capturer(page, info, nom, { visible = null } = {}) {
+  // `visible` : élément à faire défiler dans l'écran (sous l'en-tête collant du téléphone) ; la capture montre alors l'écran tel qu'il est, pas la page entière.
+  if (visible) { await visible.scrollIntoViewIfNeeded(); await page.evaluate(() => window.scrollBy(0, -120)); }
+  await page.screenshot({ path: `${DOSSIER}${nom}-${info.project.name}.png`, fullPage: !visible, animations: 'disabled' });
 }
 const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS' };
 const dialogue = (page) => page.getByRole('dialog');
@@ -156,7 +158,7 @@ test('C5 la croix d’une adresse en copie retire bien l’adresse même si on e
 });
 
 // ------------------------------------------------ refonte du bloc « E-mail(s) en copie » : un test par point du brief (COP1 à COP7), une capture par état clé ; COP8 et COP9 : corrections après la relecture Fable.
-// Le point « lecture seule » est vérifié par C3 (plus haut) : l'écran actuel n'affiche pas l'en-tête d'édition d'un devis en lecture seule, donc le bloc n'existe pas.
+// Le point « lecture seule » est vérifié par C3 (plus haut) : depuis l'écran unique (PR 314) le bloc existe en lecture seule, grisé (croix et « + E-mail en copie » en `aria-disabled`).
 const ajouterCopie = async (bloc, adresse) => {
   await bloc.locator('[data-action="ajouter-copie"]').click();
   await bloc.locator('[data-champ="copie"]').fill(adresse);
@@ -211,7 +213,7 @@ test('COP3 tout refus d’ajout est écrit sous le champ, qui reste ouvert avec 
   await champ.press('Enter');
   await expect(erreur).toHaveText('Cette adresse est déjà en copie.');
   await expect(champ).toHaveValue('A@Exemple.fr');
-  await capturer(page, info, 'COP3-erreur-doublon-copie');
+  await capturer(page, info, 'COP3-erreur-doublon-copie', { visible: erreur });
   // sortie du champ avec un refus : le champ reste ouvert et le message reste
   await page.locator('[data-champ="chantier-adresse"]').click();
   await expect(champ).toBeVisible();
@@ -219,7 +221,7 @@ test('COP3 tout refus d’ajout est écrit sous le champ, qui reste ouvert avec 
   // déjà destinataire
   await champ.fill('Client@exemple.fr'); await champ.press('Enter');
   await expect(erreur).toHaveText('Cette adresse est déjà le destinataire du devis : choisis-en une autre.');
-  await capturer(page, info, 'COP3-erreur-doublon-destinataire');
+  await capturer(page, info, 'COP3-erreur-doublon-destinataire', { visible: erreur });
   // Échap : le champ se ferme, plus de message, rien n'est ajouté
   await champ.press('Escape');
   await expect(champ).toHaveCount(0);
@@ -279,6 +281,43 @@ test('COP8 choisir un client dont l’e-mail est déjà en copie : l’e-mail n�
   await page.locator('[data-champ="affaire"]').selectOption('a1'); // retour à un client dont l'e-mail n'est pas en copie : il est repris, le message part
   await expect(destinataire).toHaveValue('contact@exemple.fr');
   await expect(page.locator('[data-erreur="destinataire"]')).toBeHidden();
+});
+
+test('COP10 le message « déjà en copie » du destinataire suit la copie : il disparaît quand on retire l’adresse de la copie (client repris, ou adresse tapée), avec aria-invalid et aria-describedby', async ({ page }, info) => {
+  await semer();
+  await creerOrganisation('o2', { nom: 'Autre Société', emails: [{ valeur: 'compta@exemple.fr', type: 'travail' }] });
+  await creerAffaire('a2', { titre: 'Salle de bains', organisationId: 'o2' });
+  const id = await nouveauBrouillon(page);
+  const bloc = page.locator('[data-zone="copie"]');
+  const destinataire = page.locator('[data-champ="destinataire"]');
+  const message = page.locator('[data-erreur="destinataire"]');
+  // cas du client : son e-mail est déjà en copie -> destinataire vide + message ; la croix fait disparaître le message
+  await ajouterCopie(bloc, 'compta@exemple.fr');
+  await page.locator('[data-champ="affaire"]').selectOption('a2');
+  await expect(destinataire).toHaveValue('');
+  await expect(message).toBeVisible();
+  await expect(destinataire).toHaveAttribute('aria-invalid', 'true');
+  await expect(destinataire).toHaveAttribute('aria-describedby', 'devis-destinataire-erreur');
+  await capturer(page, info, 'COP10-client-en-copie', { visible: message });
+  await bloc.locator('[data-action="retirer-copie"]').click();
+  await expect(message).toBeHidden();
+  await expect(destinataire).toHaveAttribute('aria-invalid', 'false');
+  await expect(destinataire).not.toHaveAttribute('aria-describedby', /.+/);
+  await expect(bloc.locator('[data-valeur="copie-vide"]')).toHaveText('Aucune adresse en copie');
+  await capturer(page, info, 'COP10-message-disparu');
+  // cas tapé : une adresse tapée dans le destinataire et déjà en copie -> message ; la retirer de la copie le fait disparaître et la valeur est enregistrée
+  await ajouterCopie(bloc, 'tape@exemple.fr');
+  await destinataire.fill('tape@exemple.fr');
+  await expect(message).toBeVisible();
+  await expect(destinataire).toHaveAttribute('aria-describedby', 'devis-destinataire-erreur');
+  await bloc.locator('[data-action="retirer-copie"]').click();
+  await expect(message).toBeHidden();
+  await expect(destinataire).toHaveValue('tape@exemple.fr');
+  await expect(destinataire).toHaveAttribute('aria-invalid', 'false');
+  await enregistre(page);
+  const doc = await lireDocument(`devis_devis/${id}`);
+  expect(doc.destinataires).toEqual(['tape@exemple.fr']);
+  expect(doc.copie).toEqual([]);
 });
 
 test('COP9 la croix d’une autre adresse pendant la saisie garde le motif du refus ; après Entrée ou Échap, le focus revient sur « + E-mail en copie »', async ({ page }) => {
