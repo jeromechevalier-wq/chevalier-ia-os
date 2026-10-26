@@ -61,6 +61,10 @@ test('1 envoyé : les boutons s’appellent « Devis signé » (jaune) et « Dev
   const refuse = racine(page).locator('[data-action="marquer-refuse"]');
   await expect(refuse).toHaveText('Devis refusé');
   await expect(racine(page).getByText('Marquer comme', { exact: false })).toHaveCount(0);
+  // Le bouton jaune est tout à droite : « Devis refusé » est à sa gauche.
+  const xRefuse = (await refuse.boundingBox()).x;
+  const xSigne = (await jaunes(page).boundingBox()).x;
+  expect(xRefuse).toBeLessThan(xSigne);
   await capturer(page, info, '1-envoye-devis-signe-refuse', true);
   await jaunes(page).click();
   await expect(page.locator('.toast').filter({ hasText: 'Devis passé à « Signé »' })).toBeVisible();

@@ -408,7 +408,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     return h('button', { type: 'button', class: `bouton ${principal ? 'bouton-principal' : 'bouton-secondaire'}`, dataset: { action: 'envoyer' }, 'aria-haspopup': 'menu', 'aria-expanded': 'false', onclick: (ev) => ouvrirMenuEnvoyer(ev.currentTarget) },
     icone('mail', { taille: 16 }), 'Envoyer', icone('chevron-down', { taille: 14 }));
   }
-  /** Les un ou deux boutons d'étape du haut de page (le jaune d'abord, puis l'autre en contour ou grisé). */
+  /** Les un ou deux boutons d'étape du haut de page (le jaune d'abord, puis l'autre en contour ou grisé ; à l'état Envoyé, l'ordre est inversé : le jaune reste à droite). */
   function boutonsEtape() {
     const { jaune, autre } = regleEntete();
     const rendre = (b, principal) => {
@@ -420,7 +420,8 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       if (b.cle === 'refuser') return boutonStatut({ action: 'refuser', libelle: b.libelle, pictogramme: b.icone, style, statutLibelle: 'Refusé', nomAction: 'marquer-refuse' });
       return boutonStatut({ action: 'marquer_envoye', libelle: b.libelle, pictogramme: b.icone, style, statutLibelle: 'Envoyé', nomAction: 'passer-envoye' });
     };
-    return [rendre(jaune, true), rendre(autre, false)];
+    // Le bouton jaune est toujours le dernier, tout à droite (comme « Finaliser » dans l'éditeur) : à l'état Envoyé, « Devis refusé » passe devant « Devis signé ».
+    return jaune?.cle === 'signer' ? [rendre(autre, false), rendre(jaune, true)] : [rendre(jaune, true), rendre(autre, false)];
   }
   function boutonHistorique() {
     ref.boutonHistorique = h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-historique', dataset: { action: 'historique' }, 'aria-controls': 'historique-devis', 'aria-expanded': 'false',
