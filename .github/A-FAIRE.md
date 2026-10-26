@@ -1,6 +1,6 @@
 # À faire : module Devis et outils (liste maintenue à jour)
 
-Mise à jour : 26/10/2026, fin d'après-midi. Règle de Jérôme : **« testé par Jérôme » ne s'écrit que sur sa confirmation, et quand le test est possible** (fusionné **et** en ligne). Aucun secret ici (dépôt public).
+Mise à jour : 26/10/2026, soir. Règle de Jérôme : **« testé par Jérôme » ne s'écrit que sur sa confirmation, et quand le test est possible** (fusionné **et** en ligne). Aucun secret ici (dépôt public).
 
 ## À tester par Jérôme (fusionné, en ligne)
 
@@ -18,6 +18,9 @@ Mise à jour : 26/10/2026, fin d'après-midi. Règle de Jérôme : **« testé p
 | 14 | « Préparer l'e-mail » (brouillon Gmail par n8n) | 299 | à faire après branchement (voir « À faire par Jérôme ») |
 | 15 | Réglages > Déploiement (checklist avec contrôles) | 300 | à faire (page vue par Jérôme le 26/10 ; les cases ne sont pas encore testées : voir « Test de la page Déploiement » plus bas) |
 | 16 | Supprimer un brouillon de devis ne retire plus le document de l'affaire ni le fichier ; le document « Devis brouillon – Objet – JJ-MM-AAAA HHhMM.pdf » porte la date et l'heure (Paris) du dernier téléchargement | 311 | à faire |
+| 18 | Boutons du devis finalisé | 322 | à faire (fusionnée, en ligne : à vérifier à l'écran) |
+| 19 | Un seul écran pour toute la vie du devis (Édition en lecture seule une fois finalisé) | 314 | à faire (fusionnée, en ligne) |
+| 20 | E-mails en copie refaits (croix « Retirer » sans confirmation : à valider) | 313 | à faire (fusionnée, en ligne) |
 | 17 | « NET À PAYER » sur fond de carte avec un trait jaune à gauche (le jaune plein reste aux boutons) | 319 | à faire |
 
 Déjà validés par Jérôme : 280, 282, et le 26/10/2026 : 309 (retour visuel pendant la fabrication du PDF), 315 (Historique avec date, heure et minute), 316 (Options sans flèche), 278, 284, 287 (barre du haut, pastilles des affaires), 304 (retour au devis), 305 (recherche en vrais liens), 306 (un seul bouton jaune), 308 (flèche du PDF).
@@ -39,13 +42,21 @@ Déjà validés par Jérôme : 280, 282, et le 26/10/2026 : 309 (retour visuel p
 ## À tester par Jérôme
 - **Outil de diagnostic fichiers MCP** : à tester par Jérôme (ChatGPT et Claude, ordinateur et téléphone ; scénario dans `docs/plan-mcp.md`, section 11), puis à retirer (liste de ce qui se retire au même endroit).
 
-## En cours (PR ouvertes, 26/10/2026, en brouillon)
-- **314** : un seul écran pour toute la vie du devis (Édition en lecture seule une fois finalisé) ; corrections après Fable en cours.
-- **313** : e-mails en copie refaits ; à fusionner après 314 (conflits à résoudre) ; Jérôme doit valider la croix « Retirer » sans confirmation.
-- **« Ordre des boutons »** : état Finalisé = Historique, Envoyer (jaune), Devis envoyé ; menu « … » sans doublon avec les boutons visibles.
-- **320** : outil de données de démonstration (`docs/donnees-demo.md`) ; relu par Fable, sans bloquant ; à fusionner après la démo.
-- **302** : règles Firestore du journal « Préparer l'e-mail » (à fusionner par Jérôme, puis publier les règles dans les deux projets).
+## En cours (PR ouvertes, 26/10/2026, soir)
+- **Fusionnées ce soir** : 322 (boutons du devis finalisé), 314 (écran unique du devis), 313 (e-mails en copie), 324 (PDF fabriqué chez les clients), 323 (règle CLAUDE.md : parité Jérôme / clients). Jérôme doit encore les vérifier à l'écran (322, 314, 313) ; ne mettre « testé par Jérôme » que sur sa confirmation.
+- **320** : outil de données de démonstration (`docs/donnees-demo.md`) ; ouverte, relue par Fable, sans bloquant ; à fusionner après la démonstration de Jérôme.
+- **302** : règles Firestore du journal « Préparer l'e-mail » (`crm_actions_lancements`), étiquette `a-fusionner-par-jerome` ; ouverte. Jérôme la fusionne, puis publie les règles dans les deux projets.
 - **Client démo** : Jérôme a activé Devis et le MCP ; le remplissage se lance dans son Terminal (`docs/donnees-demo.md`).
+
+## À faire, ordre de priorité (26/10/2026, soir)
+- **PDF chez les clients (haute priorité)** : Jérôme crée le compte de service `devis-pdf`, lui donne ses 5 droits, active l'API « IAM Service Account Credentials », puis relance le workflow `fonctions` ; ensuite essai de bout en bout chez le client démo (`docs/pdf-clients.md`). Puis, en PR séparées : (a) ajouter à la page Réglages > Déploiement les lignes `pdf-stockage` et `pdf-fonctions` ; (b) protéger le champ `pdf` dans les règles Firestore (`devisBrouillonModifie`) : liste d'arrêt, Jérôme la fusionne.
+- **Rôle « Administrateur Cloud Scheduler »** à donner au compte `deploiement-github` dans `chevalier-ia-app` : sans lui, `automatisationsCopieHoraire` échoue au déploiement (erreur 403 constatée le 26/10). Noté dans `docs/deploiement-plateforme.md`.
+- **Fonctions orphelines** : le déploiement `fonctions` échoue si d'anciennes fonctions (`journalCopieHoraire`, `journalRafraichir`, `journalRenommer`) existent encore chez les clients sans exister dans le code ; les supprimer à la main dans la console (Jérôme l'a fait le 26/10). Noté dans `docs/deploiement-plateforme.md` (dépannage).
+- **Écarts `functions/` vs `functions-plateforme/` à auditer avant chaque démonstration** : `automatisationsDecider` (« À valider »), la « porte » n8n chez les clients, `tableaudebordSaisir` (Maintenance), `veille`.
+- **Outil de démo** : après l'arrivée des PDF, une option pour fabriquer d'un coup les PDF des 12 devis de la démo (sinon voyant rouge « PDF non rangé » sur les devis écrits directement en base).
+- **Tests** : 2 tests de `tests/e2e/devis-pdf-ecran.spec.js` (« lien signé… », « PDF pas prêt… ») échouent dans le bac à sable des agents (`popup.url()` vide), y compris sur `main`. Non vus rouges sur GitHub parce que la suite de nuit sur `main` a été annulée 3 nuits de suite (job « Suite de nuit » arrêté après environ 44 min : runs 15, 16, 17) : à enquêter (délai du job, répartition).
+- **Croix « Retirer » d'une adresse en copie** : retrait immédiat sans confirmation ; à valider par Jérôme (exception à la règle « Destructif »).
+- **Accessibilité des onglets Édition / Prévisualisation** (`role=tabpanel`, `aria-controls`, flèches) : point connu, non fait.
 
 ## Reste à faire (code, rien d'urgent)
 
