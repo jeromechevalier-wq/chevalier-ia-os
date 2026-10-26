@@ -108,6 +108,32 @@ test('1 #/devis/pdf/<id>/brouillon : lien du PDF brouillon ; absent -> message c
   await capturer(page, info, '1-pdf-brouillon-absent');
 });
 
+test('4 le bouton de retour ramène à la page d’où l’on vient : le devis (visualisation) ou la liste', async ({ page }, info) => {
+  await donnees();
+  const appels = [];
+  await simulerServeur(page, appels);
+  await connecter(page, undefined, { route: 'devis/voir/dOk' });
+  let ouverture = page.waitForEvent('popup');
+  await page.evaluate(() => { location.hash = '#/devis/pdf/dOk'; });
+  let popup = await ouverture;
+  const retour = zone(page).locator('[data-action="retour-apres-pdf"]');
+  await expect(retour).toHaveAttribute('href', /#\/devis\/voir\/dOk$/);
+  await expect(retour).toHaveText('Retour au devis');
+  await capturer(page, info, '4-retour-au-devis');
+  await popup.close();
+  await retour.click();
+  await expect(page).toHaveURL(/#\/devis\/voir\/dOk$/);
+  // Depuis la liste : retour à la liste.
+  await page.evaluate(() => { location.hash = '#/devis/liste'; });
+  await expect(page).toHaveURL(/#\/devis\/liste$/);
+  ouverture = page.waitForEvent('popup');
+  await page.evaluate(() => { location.hash = '#/devis/pdf/dOk'; });
+  popup = await ouverture;
+  await expect(retour).toHaveAttribute('href', /#\/devis\/liste$/);
+  await expect(retour).toHaveText('Retour aux devis');
+  await popup.close();
+});
+
 test('1 PDF pas prêt (« en cours de fabrication ») et échec : message clair et « Réessayer » (qui relance le serveur puis ouvre le PDF)', async ({ page }, info) => {
   await donnees();
   const appels = [];
