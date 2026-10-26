@@ -604,6 +604,10 @@ export function erreursFinalisation(devis) {
   if (destinataires.some((e) => e && !emailValide(e))) erreurs.push('Une adresse e-mail de destinataire n\'est pas valide : corrige-la.');
   if ((devis.copie ?? []).map(emailDe).some((e) => e && !emailValide(e))) erreurs.push('Une adresse e-mail en copie n\'est pas valide : corrige-la.');
   if ((devis.copie ?? []).length > MAX_COPIE) erreurs.push(`Il y a trop d'adresses e-mail en copie (${MAX_COPIE} au plus) : retires-en.`);
+  // Une adresse ne peut pas être à la fois destinataire et en copie (même règle et mêmes mots que le serveur MCP, coeur/metier.js) : la première trouvée est nommée.
+  const destinatairesMin = new Set(destinataires.filter(Boolean).map((e) => e.toLowerCase()));
+  const double = (devis.copie ?? []).map(emailDe).find((e) => e && destinatairesMin.has(e.toLowerCase()));
+  if (double !== undefined) erreurs.push(`L'adresse « ${double} » est déjà destinataire : elle ne peut pas être aussi en copie.`);
   const ids = (devis.sections ?? []).flatMap((s) => (s.lignes ?? []).filter((l) => !estSaut(l)).map((l) => l.id));
   if (ids.some((id) => absent(id) || id === '') || new Set(ids).size !== ids.length) erreurs.push('Une ligne du devis n\'a pas d\'identifiant unique : recharge le devis ou recrée cette ligne.');
   const lignes = (devis.sections ?? []).flatMap((s) => (s.lignes ?? []).filter((l) => !estSaut(l)).map((l) => ({ s, l })));

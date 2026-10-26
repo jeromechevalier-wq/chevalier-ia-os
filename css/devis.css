@@ -475,8 +475,10 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
 
 /* Pastille « Devis : … » ajoutée sur les cartes et fiches d'affaire (crm/pastilles-externes.js) */
 .carte-pastilles-externes { display: flex; flex-wrap: wrap; gap: var(--esp-2); }
-/* E-mails en copie (cc) de l'éditeur : une adresse par ligne avec sa croix, puis « + E-mail en copie » en jaune (même style que les autres « + Ajouter »). */
-.bloc-copie { display: flex; flex-direction: column; align-items: flex-start; gap: var(--esp-2); }
+/* E-mail(s) en copie (cc) de l'éditeur : un champ comme les autres (titre en capitales, valeur dessous) ; « Aucune adresse en copie » grisé quand il n'y en a pas, une adresse par ligne avec sa croix, puis « + E-mail en copie » en jaune. */
+.bloc-copie { align-items: flex-start; }
+.bloc-copie > .champ { align-self: stretch; }
+.copie-vide { margin: 0; color: var(--texte2); }
 .liste-copie { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--esp-1); }
 .ligne-copie { display: inline-flex; align-items: center; gap: var(--esp-3); overflow-wrap: anywhere; }
 @media (max-width: 767px), (pointer: coarse) { .bloc-copie .prop-vide, .ligne-copie .bouton-icone { min-height: 44px; } }

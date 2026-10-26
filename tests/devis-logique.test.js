@@ -202,6 +202,12 @@ describe('Validation de finalisation', () => {
     assert.deepEqual(D.erreursFinalisation(devisType({ copie: adresses(D.MAX_COPIE) })), []);
     assert.ok(D.erreursFinalisation(devisType({ copie: adresses(D.MAX_COPIE + 1) })).some((e) => /trop d'adresses e-mail en copie/.test(e)));
   });
+  test('D9d une adresse à la fois destinataire et en copie empêche de finaliser (mêmes mots que le serveur MCP, sans tenir compte des majuscules)', () => {
+    const erreurs = D.erreursFinalisation(devisType({ destinataires: [{ email: 'client@exemple.test' }], copie: ['autre@exemple.test', ' Client@Exemple.test '] }));
+    assert.ok(erreurs.includes('L\'adresse « Client@Exemple.test » est déjà destinataire : elle ne peut pas être aussi en copie.'), erreurs.join(' | '));
+    assert.deepEqual(D.erreursFinalisation(devisType({ destinataires: [{ email: 'client@exemple.test' }], copie: ['autre@exemple.test'] })), []);
+    assert.deepEqual(D.erreursFinalisation(devisType({ destinataires: [], copie: ['client@exemple.test'] })), []);
+  });
   test('D9 un devis complet est valide', () => assert.deepEqual(D.erreursFinalisation(devisType()), []));
   test('D9 sans ligne ; le destinataire est facultatif (impression, remise en main propre) mais une adresse écrite doit être valide', () => {
     assert.ok(D.erreursFinalisation(devisType({ sections: [] })).some((e) => /au moins une ligne/.test(e)));
