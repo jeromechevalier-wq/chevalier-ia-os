@@ -101,13 +101,15 @@ async function entreesMenu(page) {
 }
 const PASSAGES = /^Passer à « /;
 
-test('3 brouillon : le « … » ne propose ni « Passer à « Finalisé » » ni « Envoyer par e-mail » (« Finaliser » et « Envoyer » sont visibles) ; PDF, impression et Supprimer restent', async ({ page }, info) => {
+test('3 brouillon : le « … » ne propose pas « Passer à « Finalisé » » (le bouton est visible) mais garde « Envoyer par e-mail » (« Envoyer » grisé n’ouvre aucun menu) ; PDF, impression et Supprimer restent', async ({ page }, info) => {
   await donnees();
   await ouvrir(page, 'devis/editeur/dBrouillon');
   await expect(page.locator('.page-editeur-devis [data-action="finaliser"]')).toBeVisible();
   await expect(page.locator('.page-editeur-devis [data-action="envoyer"]')).toBeVisible();
   const l = await entreesMenu(page);
-  expect(l.filter((t) => PASSAGES.test(t) || /^Envoyer/.test(t))).toEqual([]);
+  expect(l.filter((t) => PASSAGES.test(t))).toEqual([]);
+  expect(l.filter((t) => /^Envoyer/.test(t))).toEqual(['Envoyer par e-mail']); // et jamais « Envoyer à nouveau »
+  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Envoyer par e-mail' })).toBeEnabled();
   for (const nom of ['Télécharger le PDF', 'Imprimer', 'Voir le devis', 'Dupliquer', 'Supprimer']) expect(l).toContain(nom);
   await capturer(page, info, '3-menu-brouillon');
   await page.keyboard.press('Escape');

@@ -144,12 +144,12 @@ test('3 le « … » de l’éditeur et celui de la visualisation proposent les 
   await donnees();
   await ouvrir(page);
   // 26/10/2026 : le « … » ne répète jamais un bouton visible de l'en-tête (Finaliser, Envoyer, Devis envoyé, Devis signé, Devis refusé) ;
-  // il commence par PDF et impression, puis « Envoyer à nouveau » seulement quand aucun bouton « Envoyer » n'est visible (envoyé, signé).
-  const BOUTON_PAR_ETAT = { dBrouillon: /^Passer à « Finalisé »/, dFinalise: /^Passer à « Envoyé »/, dEnvoye: /^Passer à « (Signé|Refusé) »/, dSigne: /^$a/ };
+  // il commence par PDF et impression, puis « Envoyer à nouveau » seulement quand aucun bouton « Envoyer » n'est visible (envoyé, signé) ; au brouillon, « Envoyer » grisé n'ouvre aucun menu : « Envoyer par e-mail » reste dans « … ».
+  const BOUTON_PAR_ETAT = { dBrouillon: /^Passer à « Finalisé »/, dFinalise: /^Passer à « Envoyé »/, dEnvoye: /^Passer à « (Signé|Refusé) »/, dSigne: null }; // signé : aucun bouton d'étape, rien à retirer du « … »
   let idCourant = null;
-  const dansEntete = (t) => t === 'Envoyer par e-mail' || BOUTON_PAR_ETAT[idCourant].test(t);
+  const dansEntete = (t) => t === 'Envoyer par e-mail' || BOUTON_PAR_ETAT[idCourant]?.test(t) === true;
   const sansEnvoyer = (l) => l.filter((t) => !dansEntete(t));
-  const groupe = (id) => ['Télécharger le PDF', 'Imprimer', ...(['dBrouillon', 'dFinalise'].includes(id) ? [] : ['Envoyer à nouveau'])];
+  const groupe = (id) => ['Télécharger le PDF', 'Imprimer', ...(id === 'dBrouillon' ? ['Envoyer par e-mail'] : id === 'dFinalise' ? [] : ['Envoyer à nouveau'])];
   for (const [id, retire] of [['dBrouillon', ['Éditer le devis']], ['dFinalise', ['Éditer le devis']], ['dEnvoye', ['Éditer le devis']], ['dSigne', ['Éditer le devis']]]) {
     await page.evaluate((h) => { location.hash = h; }, '#/devis/liste');
     await expect(page.locator('.page-liste-devis')).toBeVisible();

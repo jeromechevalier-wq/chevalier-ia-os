@@ -409,7 +409,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     return h('button', { type: 'button', class: `bouton ${principal ? 'bouton-principal' : 'bouton-secondaire'}`, dataset: { action: 'envoyer' }, 'aria-haspopup': 'menu', 'aria-expanded': 'false', onclick: (ev) => ouvrirMenuEnvoyer(ev.currentTarget) },
     icone('mail', { taille: 16 }), 'Envoyer', icone('chevron-down', { taille: 14 }));
   }
-  /** Les un ou deux boutons d'étape du haut de page (le jaune d'abord, puis l'autre en contour ou grisé ; sauf au brouillon, l'ordre est inversé : le jaune reste à droite). */
+  /** Les un ou deux boutons d'étape du haut de page (le jaune d'abord, puis l'autre en contour ou grisé ; « Devis signé » (jaune) passe à droite, après « Devis refusé »). */
   function boutonsEtape() {
     const { jaune, autre } = regleEntete();
     const rendre = (b, principal) => {
@@ -441,7 +441,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       if (!lecture) entrees.push({ libelle: 'Options', icone: 'settings', action: () => ouvrirOptions(ancre) });
       entrees.push({ libelle: 'Historique', icone: 'history', action: () => ouvrirHistorique(ancre) }, { separateur: true });
     }
-    // Ce qui ne dépend pas de l'étape : PDF, impression, e-mail (voir entete-boutons.js). Rien ne disparaît : ce qui n'est plus un bouton se retrouve ici.
+    // Ce qui ne dépend pas de l'étape : PDF, impression, e-mail (voir entete-boutons.js). Ce qu'un bouton actif du haut de page fait déjà n'est pas répété ; le reste (dont « Envoyer par e-mail » au brouillon, tant que « Envoyer » est grisé) est ici.
     const { menu } = regleEntete();
     // Pendant la fabrication, le menu le dit et ignore un second clic (pas de double génération).
     entrees.push({ libelle: pdfEnCours ? LIBELLE_PDF_FABRICATION : 'Télécharger le PDF', icone: 'download', cle: 'telecharger', desactive: pdfEnCours, action: () => telechargerPdf(ancre) },
@@ -456,7 +456,6 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       apresSuppression,
       surcharges: {
         supprimer: async (x) => { if (!lecture && !(await sauver())) { toast(`${messageEnreg || ERREUR_ECRITURE} Le brouillon n’a pas été supprimé.`, { type: 'erreur', duree: 8000 }); return; } supprimerBrouillon(x, apresSuppression); }, // attend l'écriture en cours avant de supprimer
-        'statut:finaliser': () => finaliser(), // enregistre d'abord ce qui est à l'écran, vérifie, demande confirmation
         dupliquer: async (x) => { if (!lecture && !(await sauver())) { toast(`${messageEnreg || ERREUR_ECRITURE} Le devis n’a pas été dupliqué.`, { type: 'erreur', duree: 8000 }); return; } dupliquerDevis(D.devisParId(x.id) ?? x); },
       },
     }));

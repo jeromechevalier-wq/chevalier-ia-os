@@ -26,7 +26,7 @@ export function boutonJaune({ statut, archive = false } = {}) {
  * Pour chaque bouton visible (`cle` rendue par boutonsEntete), les clés des entrées du menu « … » qui font la même chose :
  *  - clés `statut:<action>`, `envoyer_email` : celles de entreesActionsDevis (liste.js) ;
  *  - `envoyer-a-nouveau` et `preparer-email` : les entrées e-mail propres à l'éditeur et à la visualisation.
- * « Envoyer » grisé (brouillon) ne masque pas « Préparer l'e-mail » : son clic n'ouvre pas de menu, cette entrée n'aurait plus d'autre accès.
+ * « Envoyer » GRISÉ (brouillon) n'ouvre aucun menu : il ne masque rien (ni « Envoyer par e-mail », qui dit de finaliser d'abord, ni « Préparer l'e-mail »). Seul un « Envoyer » actif, dont le menu les propose, les masque.
  */
 const MENU_PAR_BOUTON = {
   finaliser: ['statut:finaliser'],
@@ -40,8 +40,9 @@ export function clesMenuDejaVisibles({ jaune = null, autre = null } = {}) {
   const cles = [];
   for (const b of [jaune, autre]) {
     if (!b) continue;
+    if (b.cle === 'envoyer' && b.grise === true) continue; // grisé : pas de menu, ce que « … » propose n'a pas d'autre accès
     cles.push(...(MENU_PAR_BOUTON[b.cle] ?? []));
-    if (b.cle === 'envoyer' && b.grise !== true) cles.push('preparer-email'); // « Envoyer » actif : son menu propose déjà « Préparer l'e-mail »
+    if (b.cle === 'envoyer') cles.push('preparer-email'); // « Envoyer » actif : son menu propose déjà « Préparer l'e-mail »
   }
   return [...new Set(cles)];
 }

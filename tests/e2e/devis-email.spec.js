@@ -127,9 +127,10 @@ test('3 un devis encore brouillon : « Finaliser d’abord » (rien n’est dema
   await semer('dBrouillon', { statut: 'brouillon', numero: null, finaliseLe: null, pdf: null });
   await simulerServeur(page, 'dBrouillon');
   await ouvrirEditeur(page, 'dBrouillon');
-  // 26/10/2026 : dans l'éditeur, « Envoyer » grisé est visible, donc le « … » ne propose plus « Envoyer par e-mail » ; l'e-mail d'un brouillon reste dans le menu de la liste.
+  // 26/10/2026 : « Envoyer » grisé n'ouvre aucun menu, donc le « … » de l'éditeur garde « Envoyer par e-mail » (jamais « Envoyer à nouveau »).
   await page.locator('[data-action="plus-actions"]').click();
-  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: /^Envoyer (par e-mail|à nouveau)$/ })).toHaveCount(0);
+  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Envoyer par e-mail' })).toBeEnabled();
+  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Envoyer à nouveau' })).toHaveCount(0);
   await page.keyboard.press('Escape');
   await page.evaluate(() => { location.hash = '#/devis/liste'; });
   await page.locator('[data-id="dBrouillon"] [data-action="menu-devis"]:visible').first().click();

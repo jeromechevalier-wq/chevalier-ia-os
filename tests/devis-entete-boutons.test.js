@@ -14,12 +14,12 @@ const regle = (statut, extra = {}) => boutonsEntete({ statut, emailPossible: ema
 const libelles = (r) => [r.jaune?.libelle ?? null, r.autre?.libelle ?? null];
 
 describe('8 boutonsEntete : un seul bouton jaune, celui de l\'étape suivante', () => {
-  test('8 brouillon : « Finaliser » jaune, « Envoyer » grisé à côté ; le « … » ne répète pas « Envoyer par e-mail » (le bouton « Envoyer » est visible)', () => {
+  test('8 brouillon : « Finaliser » jaune, « Envoyer » grisé à côté ; le « … » garde « Envoyer par e-mail » (« Envoyer » grisé n\'ouvre pas de menu)', () => {
     const r = regle('brouillon');
     assert.deepEqual(r.jaune, { cle: 'finaliser', libelle: 'Finaliser', icone: 'check' });
     assert.equal(r.autre.libelle, 'Envoyer');
     assert.equal(r.autre.grise, true);
-    assert.equal(r.menu.envoyerANouveau.present, false); // 26/10/2026 : le « … » ne répète jamais un bouton visible
+    assert.equal(r.menu.envoyerANouveau.present, true); // « Envoyer » grisé n'ouvre aucun menu : il ne masque rien, « Envoyer par e-mail » reste dans « … »
     assert.equal(r.menu.envoyerANouveau.libelle, 'Envoyer par e-mail');
     assert.equal(r.menu.envoyerANouveau.actif, true); // actif : il ouvre « Finaliser d\'abord »
     assert.equal(r.menu.telechargerPdf, true);
@@ -104,17 +104,18 @@ describe('3 le menu « … » ne répète jamais un bouton visible', () => {
     return [...propres, ...actions];
   };
   test('3 la fonction suit les boutons : chaque bouton visible retire son entrée ; aucun bouton = rien de retiré', () => {
-    assert.deepEqual(clesMenuDejaVisibles({ jaune: { cle: 'finaliser' }, autre: { cle: 'envoyer', grise: true } }), ['statut:finaliser', 'envoyer_email', 'envoyer-a-nouveau']);
+    assert.deepEqual(clesMenuDejaVisibles({ jaune: { cle: 'finaliser' }, autre: { cle: 'envoyer', grise: true } }), ['statut:finaliser']); // « Envoyer » grisé ne masque rien
+    assert.deepEqual(clesMenuDejaVisibles({ jaune: { cle: 'finaliser' }, autre: { cle: 'envoyer', grise: false } }), ['statut:finaliser', 'envoyer_email', 'envoyer-a-nouveau', 'preparer-email']);
     assert.deepEqual(clesMenuDejaVisibles({ jaune: { cle: 'envoyer' }, autre: { cle: 'passer-envoye' } }), ['envoyer_email', 'envoyer-a-nouveau', 'preparer-email', 'statut:marquer_envoye']);
     assert.deepEqual(clesMenuDejaVisibles({ jaune: { cle: 'signer' }, autre: { cle: 'refuser' } }), ['statut:accepter', 'statut:refuser']);
     assert.deepEqual(clesMenuDejaVisibles({}), []);
     assert.deepEqual(clesMenuDejaVisibles(), []);
     for (const statut of ['brouillon', 'en_attente_envoi', 'envoye', 'accepte']) assert.deepEqual(regle(statut).menu.dejaVisibles, clesMenuDejaVisibles(regle(statut)), statut);
   });
-  test('3 brouillon : ni « Passer à « Finalisé » » ni « Envoyer par e-mail » dans « … » ; « Préparer l’e-mail » reste (« Envoyer » grisé n’ouvre pas de menu)', () => {
+  test('3 brouillon : pas de « Passer à « Finalisé » » dans « … » (le bouton existe) ; « Envoyer par e-mail » et « Préparer l’e-mail » restent (« Envoyer » grisé n’ouvre pas de menu)', () => {
     const m = menuEditeur('brouillon');
-    for (const cle of ['statut:finaliser', 'envoyer_email', 'envoyer-a-nouveau']) assert.ok(!m.includes(cle), cle);
-    for (const cle of ['preparer-email', 'voir', 'dupliquer', 'archiver', 'supprimer']) assert.ok(m.includes(cle), cle);
+    for (const cle of ['statut:finaliser', 'envoyer_email']) assert.ok(!m.includes(cle), cle); // envoyer_email : remplacé par « envoyer-a-nouveau » dans l'éditeur
+    for (const cle of ['envoyer-a-nouveau', 'preparer-email', 'voir', 'dupliquer', 'archiver', 'supprimer']) assert.ok(m.includes(cle), cle);
   });
   test('3 finalisé : ni « Devis envoyé » (marquer_envoye) ni « Envoyer à nouveau » ni « Préparer l’e-mail » (le menu « Envoyer » les a) ; « Créer une nouvelle version » reste', () => {
     const m = menuEditeur('en_attente_envoi');
