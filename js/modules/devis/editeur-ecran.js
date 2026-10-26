@@ -6,7 +6,7 @@
 // de modification affiche « Ce devis est … : il ne se modifie plus » avec « Créer une nouvelle version ». Un brouillon reste modifiable, même ouvert par « Voir le devis ».
 // Routes : devis/editeur/<id> s'ouvre sur l'onglet Édition, devis/voir/<id> sur l'onglet Prévisualisation (c'est le même écran).
 import { h, icone, remplir, dialogue, toast, ouvrirMenu } from '../../os/ui.js';
-import { naviguer, ajouterGardeSortie } from '../../os/router.js';
+import { naviguer, ajouterGardeSortie, routeCourante } from '../../os/router.js';
 import { retirerAvecAnnulation } from '../../os/retrait.js';
 import { etatVide, planifier, cheminPersonne, cheminOrganisation, cheminAffaire } from '../crm/composants.js';
 import { adressesDe } from '../crm/logique.js';
@@ -39,8 +39,14 @@ import { contenuHistorique } from './historique-logique.js';
 
 const ERREUR_LECTURE = 'Les devis n’ont pas pu être lus. Vérifie ta connexion puis recharge la page.';
 const MESSAGE_INTROUVABLE = 'Ce devis est introuvable : il a peut-être été retiré, ou le lien n’est pas le bon.';
-const MESSAGE_LECTURE_SEULE = 'Ce devis est finalisé : pour le corriger, crée une nouvelle version (menu « … »).';
 const MOT_STATUT = { en_attente_envoi: 'finalisé', envoye: 'envoyé', accepte: 'signé', refuse: 'refusé', remplace: 'remplacé' }; // le mot du message « Ce devis est … : il ne se modifie plus »
+/** Le mot qui suit le statut (« finalisé », « envoyé », « signé », « refusé », « remplacé », « archivé ») et si une nouvelle version est possible : bandeau du haut et message de refus disent la même chose. */
+const motDuStatut = (d) => (d?.archive === true ? 'archivé' : (MOT_STATUT[d?.statut] ?? 'finalisé'));
+const versionPossible = (d) => transitionPossible(d?.statut, 'nouvelle_version');
+/** Bandeau du haut d'un devis en lecture seule : une phrase ; il ne parle de nouvelle version que si elle est possible. */
+const messageLectureSeule = (d) => (versionPossible(d)
+  ? `Ce devis est ${motDuStatut(d)} : pour le corriger, crée une nouvelle version (menu « … »).`
+  : `Ce devis est ${motDuStatut(d)} : il ne se modifie plus.`);
 const INFOBULLE_CATALOGUE_LECTURE = 'Ajouter un article, c’est modifier le devis : il est finalisé, crée une nouvelle version pour le corriger.';
 const SANS_VERROU = '[data-action="replier"], [data-action="definir-ajustement"]'; // en lecture seule, replier une section et ouvrir « Définir un ajustement » restent possibles (ce n'est que regarder)
 const DELAI_INTROUVABLE_MS = 4000;
@@ -285,9 +291,8 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     if (maintenant - dernierRefus < 1500) return; // un clic suivi de son relâchement, ou une rafale de touches : un seul message
     dernierRefus = maintenant;
     const d = devisCourant() ?? travail;
-    const mot = d?.archive === true ? 'archivé' : (MOT_STATUT[d?.statut] ?? 'finalisé');
-    const version = transitionPossible(d?.statut, 'nouvelle_version');
-    toast(`Ce devis est ${mot} : il ne se modifie plus.${version ? ' Crée une nouvelle version pour le corriger.' : ''}`,
+    const version = versionPossible(d);
+    toast(`Ce devis est ${motDuStatut(d)} : il ne se modifie plus.${version ? ' Crée une nouvelle version pour le corriger.' : ''}`,
       { duree: 8000, action: version ? { libelle: 'Créer une nouvelle version', surClic: () => creerNouvelleVersion(d) } : null });
   }
   /**
@@ -302,9 +307,19 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       el.dataset.lecture = 'verrou';
       if (el.tagName === 'BUTTON' || el.tagName === 'SELECT' || el.type === 'checkbox') el.setAttribute('aria-disabled', 'true');
       else el.readOnly = true;
+      if (el.tagName === 'SELECT') valeursFigees.set(el, el.value);
     }
     return zone;
   }
+  const valeursFigees = new WeakMap(); // liste verrouillée → sa valeur affichée (remise en place si un choix passe quand même : toucher, outil d'accessibilité, script)
+  /** Une liste verrouillée a changé malgré tout : on remet la valeur d'origine, le changement ne va pas plus loin, et le message dit pourquoi. */
+  const annulerChoix = (e) => {
+    const el = verrouDe(e);
+    if (el?.tagName !== 'SELECT') return;
+    e.stopImmediatePropagation();
+    if (valeursFigees.has(el)) el.value = valeursFigees.get(el);
+    refuserModification();
+  };
   const verrouDe = (e) => (e.target instanceof Element ? e.target.closest('[data-lecture="verrou"]') : null);
   const estChampTexte = (el) => el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && el.type !== 'checkbox');
   const gardes = {
@@ -313,13 +328,18 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     mousedown: (e) => { const el = verrouDe(e); if (el?.tagName === 'SELECT') { e.preventDefault(); refuserModification(); } }, // la liste ne s'ouvre pas
     keydown: (e) => {
       const el = verrouDe(e);
-      if (!el || e.key === 'Tab' || e.key === 'Escape' || e.key === 'Shift' || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (!el || e.key === 'Tab' || e.key === 'Escape' || ['Shift', 'Control', 'Alt', 'Meta'].includes(e.key)) return;
+      // Une liste : TOUTE autre touche est refusée, avec ou sans Alt, Ctrl ou Cmd (Alt+↓ ou F4 ouvrent la liste, les flèches changent son choix).
       if (el.tagName === 'SELECT') { e.preventDefault(); refuserModification(); return; }
+      if (e.ctrlKey || e.metaKey || e.altKey) return; // un champ texte : copier, tout sélectionner… restent libres (il est en readOnly : rien ne s'y écrit)
       if (estChampTexte(el) && (e.key.length === 1 || e.key === 'Backspace' || e.key === 'Delete' || (e.key === 'Enter' && el.tagName === 'TEXTAREA'))) { e.preventDefault(); refuserModification(); }
     },
     paste: (e) => { if (verrouDe(e)) { e.preventDefault(); refuserModification(); } },
     cut: (e) => { if (verrouDe(e)) { e.preventDefault(); refuserModification(); } },
     drop: (e) => { if (verrouDe(e)) { e.preventDefault(); refuserModification(); } },
+    // Filet : un choix fait malgré tout dans une liste (au toucher la liste native peut s'ouvrir, un outil peut choisir sans clavier) est annulé avant d'atteindre l'écran.
+    input: annulerChoix,
+    change: annulerChoix,
   };
   for (const [type, f] of Object.entries(gardes)) document.addEventListener(type, f, true);
 
@@ -414,7 +434,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     optionsOuvertes?.fermer({ rendreFocus: false });
     historiqueOuvert?.fermer({ rendreFocus: false });
     racine.classList.toggle('devis-lecture-seule', lecture);
-    remplir(racine, entete, ref.sentinelle, ref.barre, lecture ? h('p', { class: 'bandeau-lecture-seule', dataset: { valeur: 'lecture-seule' } }, MESSAGE_LECTURE_SEULE) : ref.bandeauConflit, ref.erreurEnreg, ref.panneauEdition, ref.panneauApercu);
+    remplir(racine, entete, ref.sentinelle, ref.barre, lecture ? h('p', { class: 'bandeau-lecture-seule', dataset: { valeur: 'lecture-seule' } }, messageLectureSeule(d)) : ref.bandeauConflit, ref.erreurEnreg, ref.panneauEdition, ref.panneauApercu);
     rendreLignes(); majResultats();
     verrouiller(ref.panneauEdition);
     arretGarde();
@@ -471,7 +491,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       onclick: (ev) => (historiqueOuvert ? historiqueOuvert.fermer() : ouvrirHistorique(ev.currentTarget)) }, icone('history', { taille: 16 }), 'Historique');
     return ref.boutonHistorique;
   }
-  /** Bouton « … » (Autres actions) à côté d'« Envoyer » : les mêmes actions que le menu de la liste (actions-devis.js), sauf celles qui ont déjà leur bouton ici. Sur téléphone, Options et Historique y passent aussi. */
+  /** Bouton « … » (Autres actions) à côté d'« Envoyer » : les mêmes actions que le menu de la liste (actions-devis.js), sauf celles qui ont déjà leur bouton ou leur onglet ici. Sur téléphone, Options et Historique y passent aussi (leurs boutons y sont cachés, ce n'est donc pas un doublon). */
   function boutonPlusActions() {
     return h('button', { type: 'button', class: 'bouton-icone bouton-plus-actions', dataset: { action: 'plus-actions' }, 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-label': 'Autres actions', onclick: (ev) => ouvrirMenuPlus(ev.currentTarget) }, icone('ellipsis', { taille: 16 }));
   }
@@ -492,11 +512,11 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     entrees.push({ separateur: true });
     const apresSuppression = () => { verrou = true; clearTimeout(minuteur); if (travail) enregistre = structuredClone(travail); naviguer('devis/liste'); };
     entrees.push(...entreesMenuDevis(d, {
-      exclure: ['envoyer_email', 'statut:marquer_envoye', 'statut:accepter', 'statut:refuser'], // l'e-mail et les trois passages d'étape ont leur bouton (ou leur entrée « Envoyer à nouveau »)
+      // L'e-mail et les trois passages d'étape ont leur bouton (ou leur entrée « Envoyer à nouveau »).
+      // « Éditer le devis » et « Voir le devis » ne sont pas proposés ici : les onglets « Édition » et « Prévisualisation », toujours visibles, font la même chose (pas de doublon, décision de Jérôme du 26/10/2026).
+      exclure: ['envoyer_email', 'statut:marquer_envoye', 'statut:accepter', 'statut:refuser', 'editer', 'voir'],
       apresSuppression,
       surcharges: {
-        editer: () => choisirOnglet('edition'), // même écran : « Éditer le devis » et « Voir le devis » ne font que changer d'onglet
-        voir: () => choisirOnglet('apercu'),
         supprimer: async (x) => { if (!lecture && !(await sauver())) { toast(`${messageEnreg || ERREUR_ECRITURE} Le brouillon n’a pas été supprimé.`, { type: 'erreur', duree: 8000 }); return; } supprimerBrouillon(x, apresSuppression); }, // attend l'écriture en cours avant de supprimer
         'statut:finaliser': () => finaliser(), // enregistre d'abord ce qui est à l'écran, vérifie, demande confirmation
         dupliquer: async (x) => { if (!lecture && !(await sauver())) { toast(`${messageEnreg || ERREUR_ECRITURE} Le devis n’a pas été dupliqué.`, { type: 'erreur', duree: 8000 }); return; } dupliquerDevis(D.devisParId(x.id) ?? x); },
@@ -934,9 +954,11 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     if (valeur && !clients.some((c) => `${c.type}:${c.fiche.id}` === valeur)) options.push(h('option', { value: valeur, selected: true }, clientDuDevis(travail) || 'Client du devis'));
     remplir(ref.selectClient, options);
     ref.selectClient.value = valeur;
+    if (valeursFigees.has(ref.selectClient)) valeursFigees.set(ref.selectClient, valeur); // lecture seule : la valeur à remettre suit la liste redessinée
   }
 
   function changerAffaire(valeur) {
+    if (lecture) return;
     const a = CRM.affaire(valeur);
     if (!a) { changer({ affaireId: null }); majEntete(); return; }
     const clients = clientsDeAffaire(a);
@@ -948,6 +970,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     majEntete();
   }
   function changerClient(valeur) {
+    if (lecture) return;
     const [type, cid] = valeur.split(':');
     const c = clientsDeAffaire(CRM.affaire(travail.affaireId)).find((x) => x.type === type && x.fiche.id === cid) ?? null;
     Object.assign(travail, { organisationId: type === 'organisation' ? cid : null, personneId: type === 'personne' ? cid : null });
@@ -955,6 +978,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
   }
   /** Reprend l'adresse et le premier e-mail du client, sans écraser une adresse de chantier ou un e-mail que l'utilisateur a écrits à la main. */
   function appliquerClient(c, remplacerEmail) {
+    if (lecture) return;
     const adresse = c?.adresse ?? '';
     const adresseActuelle = Ed.texteDeAdresse(travail.chantier?.adresse) || Ed.texteDeAdresse(travail.adresses?.chantier);
     const precedente = ref.adresseAuto ?? '';
@@ -1125,6 +1149,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
         h('span', { class: 'resultat-nom' }, a.libelle, a.code ? h('span', { class: 'texte-discret' }, ` · ${a.code}`) : null, a.type ? h('span', { class: 'texte-discret' }, ` · ${A.libelleType(a.type)}`) : null),
         h('span', { class: 'resultat-prix' }, pv === null ? '' : `${euros(pv)} / ${a.unite || 'u'}`)));
     }));
+    verrouiller(ref.resultats); // lecture seule : les résultats redessinés sont grisés aussi, un clic affiche le message
   }
 
   function ajouterArticle(a) {
@@ -1577,11 +1602,14 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
         verrou = false; await listeErreurs('Ce devis ne peut pas encore être finalisé', r.erreurs ?? []); return; }
       toast(`Devis finalisé${r?.numero ? ` : ${r.numero}` : ''}`);
       clearTimeout(minuteur);
-      lecture = true;
+      lecture = true; // plus rien à enregistrer ni à confirmer en quittant
       travail = { ...travail, statut: r?.statut ?? 'en_attente_envoi', numero: r?.numero ?? travail.numero };
       enregistre = structuredClone(travail);
-      construire();
-      naviguer(`devis/voir/${id}`, { remplacer: true }); // l'adresse suit l'état : un devis finalisé se regarde en visualisation
+      // Un devis finalisé se regarde sur la Prévisualisation (devis/voir/<id>). Depuis devis/editeur/<id>, le changement d'adresse reconstruit l'écran (une seule fois) ;
+      // déjà sur devis/voir/<id> (brouillon ouvert par « Voir »), l'adresse ne change pas : on reconstruit ici, en lecture seule.
+      const route = `devis/voir/${id}`;
+      if (routeCourante() !== route) naviguer(route, { remplacer: true });
+      else construire();
     } catch (e) {
       console.warn(e);
       verrou = false;

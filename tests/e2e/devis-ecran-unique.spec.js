@@ -1,15 +1,21 @@
 // Module Devis, UN SEUL écran pour toute la vie du devis (décision de Jérôme, 26/10/2026) : onglets « Édition » et « Prévisualisation » toujours là, même feuille.
 // Critères (un test chacun, le nom commence par son numéro ; une capture par état dans tests/e2e/captures/devis-ecran-unique/, ordinateur ET téléphone) :
 //  1 les deux onglets sont présents quel que soit le statut ;
-//  2 « Voir le devis » ouvre l'onglet Prévisualisation, « Éditer le devis » l'onglet Édition ; un finalisé s'ouvre par défaut sur la Prévisualisation ; un brouillon reste modifiable même ouvert par « Voir » ;
+//  2 « Voir le devis » (liste) ouvre l'onglet Prévisualisation, « Éditer le devis » l'onglet Édition ; un finalisé s'ouvre par défaut sur la Prévisualisation ; un brouillon reste modifiable même ouvert par « Voir » ;
 //  3 devis finalisé, onglet Édition : MÊME feuille qu'un brouillon, champs lisibles et copiables mais non modifiables, boutons grisés (jamais retirés), « Définir un ajustement » s'ouvre (réglages visibles, rien ne bouge),
 //    message « Ce devis est … : il ne se modifie plus » avec « Créer une nouvelle version » au moindre essai ; le bandeau « Tu regardes ce brouillon… » n'existe plus ;
 //  4 Catalogue grisé avec infobulle, Options consultable, Historique inchangé ;
 //  5 les anciens liens (devis/voir, devis/fiche) arrivent sur l'écran unique, onglet Prévisualisation ;
 //  6 les boutons d'en-tête qui suivent l'étape ne changent pas ; 7 cas vide (introuvable) ; 8 cas d'erreur (le serveur refuse « Créer une nouvelle version »).
+// Corrections après la relecture Fable :
+//  9 en lecture seule, les listes « Affaire » et « Client » ne changent rien (clavier Alt+↓ puis choix, choix forcé sans clavier) et le message de refus s'affiche ;
+// 10 le bandeau du haut suit le statut et ne parle de nouvelle version que si elle est possible ;
+// 11 pas de doublon dans le « … » de l'écran : ni « Éditer le devis » ni « Voir le devis » (les onglets font la même chose ; décision de Jérôme du 26/10/2026), Options et Historique seulement quand leurs boutons sont cachés ;
+// 12 les dates (« En date du », « Valable jusqu'au », « définir »), les listes et les cases sont grisées comme les autres boutons verrouillés ;
+// 13 finaliser un brouillon ouvert par « Voir » : l'écran passe en lecture seule sur place (même adresse, un seul écran).
 // La fonction du serveur devisNouvelleVersion n'existe pas dans l'émulateur du navigateur : elle est SIMULÉE par page.route.
 import { fileURLToPath } from 'node:url';
-import { test, expect, connecter, attendreCalme, ecrireDocument, creerOrganisation, creerAffaire, estTelephone, JEROME } from './outils.js';
+import { test, expect, connecter, attendreCalme, ecrireDocument, lireDocument, creerOrganisation, creerPersonne, creerAffaire, estTelephone, JEROME } from './outils.js';
 
 const DOSSIER = fileURLToPath(new URL('./captures/devis-ecran-unique/', import.meta.url));
 async function capturer(page, info, nom) {
@@ -105,16 +111,15 @@ test('2 « Voir le devis » ouvre la Prévisualisation, « Éditer le devis » l
   await expect(racine(page).locator('[data-valeur="lecture-seule"]')).toHaveCount(0);
   await expect(racine(page)).not.toContainText('Tu regardes ce brouillon');
   await capturer(page, info, '2-brouillon-ouvert-par-voir');
-  // Dans le « … » de l'écran, « Éditer le devis » et « Voir le devis » changent d'onglet sans quitter l'écran.
-  let menu = await menuPlus(page);
-  await menu.getByRole('menuitem', { name: 'Éditer le devis' }).click();
+  // Dans l'écran, ce sont les onglets « Édition » et « Prévisualisation » qui font ce que « Éditer le devis » et « Voir le devis » font depuis la liste (le « … » ne les répète plus).
+  await onglet(page, 'edition').click();
   await expect(onglet(page, 'edition')).toHaveAttribute('aria-selected', 'true');
   await expect(racine(page).locator('[data-champ="chantier-adresse"]')).toBeEditable();
   await racine(page).locator('[data-champ="chantier-adresse"]').fill('3 rue Neuve\n75001 Paris'); // un brouillon ouvert par « Voir » se modifie vraiment
   await expect(racine(page).locator('[data-valeur="enregistrement"]')).toHaveAttribute('data-etat', 'enregistre');
-  menu = await menuPlus(page);
-  await menu.getByRole('menuitem', { name: 'Voir le devis' }).click();
+  await onglet(page, 'apercu').click();
   await expect(onglet(page, 'apercu')).toHaveAttribute('aria-selected', 'true');
+  await expect(racine(page).locator('iframe[data-zone="apercu"]')).toBeVisible();
   await expect(page).toHaveURL(/#\/devis\/voir\/dBrouillon$/);
 });
 
@@ -318,4 +323,177 @@ test('Historique : passer d’une version à l’autre reste dans l’écran uni
     await expect(racine(page).locator('[data-champ="chantier-adresse"]')).toHaveAttribute('readonly', '');
     await onglet(page, 'apercu').click();
   }
+});
+
+test('9 lecture seule : choisir une autre affaire ou un autre client (clavier Alt+↓ puis choix, ou choix forcé) ne change ni le titre, ni le client, ni l’adresse, ni l’e-mail, et le message de refus s’affiche', async ({ page }, info) => {
+  await donnees();
+  // Une deuxième affaire avec un autre client (adresse et e-mail) et une personne sur la première affaire : un vrai choix changerait tout.
+  await creerOrganisation('o2', { nom: 'Société Autre', adresse: '5 avenue Test, 75001 Paris', emails: ['autre@exemple.fr'] });
+  await creerPersonne('p2', { nom: 'Julie Témoin', emails: [{ valeur: 'julie@exemple.fr', type: 'travail' }], adresse: '8 place Neuve, 44000 Nantes' });
+  await creerAffaire('a1', { titre: 'Rénovation cuisine', organisationId: 'o1', personneId: 'p2' });
+  await creerAffaire('a2', { titre: 'Extension garage', organisationId: 'o2' });
+  await ouvrir(page, 'devis/editeur/dFinalise');
+  const feuille = racine(page).locator('[data-panneau="edition"]');
+  const affaire = feuille.locator('[data-champ="affaire"]');
+  const client = feuille.locator('[data-champ="client"]');
+  await expect(affaire.locator('option[value="a2"]')).toHaveCount(1);
+  await expect(client.locator('option[value="personne:p2"]')).toHaveCount(1);
+  const etat = () => page.evaluate(() => ({
+    titre: document.querySelector('.titre-barre-devis')?.textContent,
+    lienClient: document.querySelector('[data-valeur="lien-client"]')?.getAttribute('href'),
+    nomClient: document.querySelector('[data-valeur="lien-client"]')?.textContent,
+    lienAffaire: document.querySelector('[data-valeur="lien-affaire"]')?.textContent,
+    affaire: document.querySelector('[data-champ="affaire"]').value,
+    client: document.querySelector('[data-champ="client"]').value,
+    adresse: document.querySelector('[data-champ="chantier-adresse"]').value,
+    email: document.querySelector('[data-champ="destinataire"]').value,
+  }));
+  const avant = await etat();
+  expect(avant.affaire).toBe('a1');
+  expect(avant.client).toBe('organisation:o1');
+  // Clavier : Alt+↓ (qui ouvre une liste), puis ↓ et Entrée pour choisir.
+  for (const liste of [affaire, client]) {
+    await liste.focus();
+    await page.keyboard.press('Alt+ArrowDown');
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('Enter');
+    await expect(page.locator('.toast').last()).toContainText(MESSAGE_REFUS);
+    expect(await etat()).toEqual(avant);
+    await page.waitForTimeout(1700);
+  }
+  // Choix fait sans clavier ni souris (le sélecteur natif d'un téléphone, un outil d'accessibilité) : ce que fait le navigateur, nouvelle valeur puis « input » et « change ».
+  // (selectOption de Playwright refuse une liste aria-disabled, même avec force : on reproduit donc le choix natif.)
+  const choisirNatif = (liste, valeur) => liste.evaluate((el, v) => {
+    el.value = v;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  }, valeur);
+  await choisirNatif(affaire, 'a2');
+  await expect(page.locator('.toast').last()).toContainText(MESSAGE_REFUS);
+  expect(await etat()).toEqual(avant);
+  await page.waitForTimeout(1700);
+  await choisirNatif(client, 'personne:p2');
+  await expect(page.locator('.toast').last()).toContainText(MESSAGE_REFUS);
+  expect(await etat()).toEqual(avant);
+  await capturer(page, info, '9-listes-lecture-seule-refus');
+  // Rien n'a été écrit dans le devis.
+  await page.waitForTimeout(1200);
+  const enregistre = await lireDocument('devis_devis/dFinalise');
+  expect(enregistre.affaireId).toBe('a1');
+  expect(enregistre.organisationId).toBe('o1');
+  expect(enregistre.personneId ?? null).toBe(null);
+  expect(enregistre.destinataires).toEqual(['contact@exemple.fr']);
+});
+
+test('10 le bandeau du haut suit le statut : « nouvelle version » seulement quand elle est possible (finalisé, envoyé, refusé), jamais pour un devis signé, remplacé ou archivé (signé)', async ({ page }, info) => {
+  await donnees();
+  const attendus = {
+    dFinalise: 'Ce devis est finalisé : pour le corriger, crée une nouvelle version',
+    dEnvoye: 'Ce devis est envoyé : pour le corriger, crée une nouvelle version',
+    dRefuse: 'Ce devis est refusé : pour le corriger, crée une nouvelle version',
+    dSigne: 'Ce devis est signé : il ne se modifie plus.',
+    dRemplace: 'Ce devis est remplacé : il ne se modifie plus.',
+    dArchive: 'Ce devis est archivé : il ne se modifie plus.',
+  };
+  for (const [id, texte] of Object.entries(attendus)) {
+    await ouvrir(page, `devis/editeur/${id}`);
+    const bandeau = racine(page).locator('[data-valeur="lecture-seule"]');
+    await expect(bandeau, id).toContainText(texte);
+    if (!texte.includes('crée une nouvelle version')) await expect(bandeau, id).not.toContainText('nouvelle version');
+    expect((await bandeau.textContent()).split(/[.!?]\s/).filter(Boolean), id).toHaveLength(1); // une seule phrase
+    if (id === 'dSigne') await capturer(page, info, '10-bandeau-signe');
+  }
+  // Brouillon : pas de bandeau.
+  await ouvrir(page, 'devis/editeur/dBrouillon');
+  await expect(racine(page).locator('[data-valeur="lecture-seule"]')).toHaveCount(0);
+});
+
+test('11 pas de doublon dans le « … » de l’écran : ni « Éditer le devis » ni « Voir le devis » (les onglets Édition et Prévisualisation font la même chose), Options et Historique seulement quand leurs boutons sont cachés ; depuis la liste, les deux entrées mènent aux mêmes onglets', async ({ page }, info) => {
+  await donnees();
+  for (const id of ['dFinalise', 'dBrouillon']) {
+    await ouvrir(page, `devis/voir/${id}`);
+    for (const nom of ['apercu', 'edition']) {
+      await onglet(page, nom).click();
+      const menu = await menuPlus(page);
+      await expect(menu.getByRole('menuitem', { name: 'Éditer le devis' }), `${id} ${nom}`).toHaveCount(0);
+      await expect(menu.getByRole('menuitem', { name: 'Voir le devis' }), `${id} ${nom}`).toHaveCount(0);
+      // Options et Historique : dans le menu seulement si leur bouton n'est pas visible (téléphone).
+      for (const [libelle, action] of [['Options', 'options'], ['Historique', 'historique']]) {
+        const boutonVisible = await racine(page).locator(`.barre-devis [data-action="${action}"]`).isVisible();
+        await expect(menu.getByRole('menuitem', { name: libelle, exact: true }), `${id} ${nom} ${libelle}`).toHaveCount(boutonVisible ? 0 : 1);
+      }
+      if (id === 'dFinalise' && nom === 'apercu') await capturer(page, info, '11-menu-sans-doublon');
+      await page.keyboard.press('Escape');
+    }
+  }
+  // Les onglets mènent aux mêmes écrans que les entrées de la liste : « Voir le devis » = onglet Prévisualisation, « Éditer le devis » = onglet Édition.
+  const panneaux = async () => ({
+    apercu: await onglet(page, 'apercu').getAttribute('aria-selected'),
+    edition: await onglet(page, 'edition').getAttribute('aria-selected'),
+    feuille: await racine(page).locator('[data-panneau="edition"]').isVisible(),
+    document: await racine(page).locator('iframe[data-zone="apercu"]').isVisible(),
+  });
+  const parListe = {};
+  for (const entree of ['Voir le devis', 'Éditer le devis']) {
+    await page.evaluate(() => { location.hash = '#/devis/liste'; });
+    await expect(page.locator('.page-liste-devis')).toBeVisible();
+    await page.locator('[data-id="dFinalise"] [data-action="menu-devis"]:visible').first().click();
+    await page.locator('.menu-pop').getByRole('menuitem', { name: entree }).click();
+    await expect(racine(page)).toHaveAttribute('data-devis', 'dFinalise');
+    await attendreCalme(page);
+    parListe[entree] = await panneaux();
+  }
+  // Depuis l'écran ouvert par « Éditer le devis » : l'onglet Prévisualisation donne ce que donne « Voir le devis », et inversement.
+  await onglet(page, 'apercu').click();
+  await expect(racine(page).locator('iframe[data-zone="apercu"]')).toBeVisible();
+  expect(await panneaux()).toEqual(parListe['Voir le devis']);
+  await onglet(page, 'edition').click();
+  await expect(racine(page).locator('[data-panneau="edition"]')).toBeVisible();
+  expect(await panneaux()).toEqual(parListe['Éditer le devis']);
+  expect(parListe['Voir le devis']).toEqual({ apercu: 'true', edition: 'false', feuille: false, document: true });
+  expect(parListe['Éditer le devis']).toEqual({ apercu: 'false', edition: 'true', feuille: true, document: false });
+});
+
+test('12 lecture seule : les dates (« En date du », « Valable jusqu’au », « définir »), les listes et les cases sont grisées comme les autres boutons verrouillés, jamais retirées ; un clic sur une date affiche le message', async ({ page }, info) => {
+  await donnees();
+  await ouvrir(page, 'devis/editeur/dFinalise');
+  const feuille = racine(page).locator('[data-panneau="edition"]');
+  const dates = feuille.locator('.lien-definir');
+  const nombre = await dates.count();
+  expect(nombre).toBeGreaterThan(0);
+  for (let i = 0; i < nombre; i += 1) {
+    await expect(dates.nth(i)).toBeVisible();
+    await expect(dates.nth(i)).toHaveAttribute('aria-disabled', 'true');
+    await expect(dates.nth(i)).toHaveCSS('opacity', '0.45');
+  }
+  const vide = feuille.locator('.lien-definir', { hasText: 'définir' }).first();
+  await expect(vide).toBeVisible(); // une date vide reste là, grisée
+  for (const champ of ['affaire', 'client', 'remise-type']) await expect(feuille.locator(`[data-champ="${champ}"]`), champ).toHaveCSS('opacity', '0.45');
+  await expect(feuille.locator('[data-champ="chantier-adresse"]')).toHaveCSS('opacity', '1'); // un champ texte reste net (lisible, copiable)
+  await vide.click({ force: true });
+  await expect(page.locator('.toast').last()).toContainText(MESSAGE_REFUS);
+  await expect(feuille.locator('.valeur-saisie:visible')).toHaveCount(0); // le champ de date ne s'ouvre pas
+  await capturer(page, info, '12-dates-grisees');
+  // Les cases du menu Options : grisées pareil.
+  if (estTelephone(page)) { await page.locator('[data-action="plus-actions"]').click(); await page.locator('.menu-pop').getByRole('menuitem', { name: 'Options' }).click(); } else await racine(page).locator('[data-action="options"]').click();
+  await expect(page.locator('#options-devis [data-option="afficherMarges"]')).toHaveCSS('opacity', '0.45');
+});
+
+test('13 finaliser un brouillon ouvert par « Voir le devis » : l’écran passe en lecture seule sur place (même adresse, un seul écran, bandeau à jour)', { annotation: { type: 'erreurs-reseau-attendues', description: 'le faux serveur répond comme le vrai' } }, async ({ page }) => {
+  await donnees();
+  await page.route('**/devisFinaliser', async (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+    const actuel = await lireDocument('devis_devis/dBrouillon');
+    await ecrireDocument('devis_devis/dBrouillon', { ...actuel, statut: 'en_attente_envoi', numero: 'DEV-2026-10-02-099', finaliseLe: new Date() });
+    return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ result: { ok: true, devisId: 'dBrouillon', statut: 'en_attente_envoi', numero: 'DEV-2026-10-02-099', nouveauNumero: true } }) });
+  });
+  await ouvrir(page, 'devis/voir/dBrouillon');
+  await racine(page).locator('[data-action="finaliser"]').click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Finaliser' }).click();
+  await expect(page.locator('.toast').first()).toContainText('Devis finalisé');
+  await expect(page).toHaveURL(/#\/devis\/voir\/dBrouillon$/);
+  await expect(racine(page)).toHaveClass(/devis-lecture-seule/);
+  await expect(page.locator('.page-editeur-devis')).toHaveCount(1);
+  await expect(racine(page).locator('[data-valeur="lecture-seule"]')).toContainText('Ce devis est finalisé : pour le corriger, crée une nouvelle version');
+  await expect(onglet(page, 'apercu')).toHaveAttribute('aria-selected', 'true');
 });

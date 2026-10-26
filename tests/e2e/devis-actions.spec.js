@@ -119,7 +119,7 @@ test('2 un devis finalisé ne se modifie pas : « Éditer le devis » l’ouvre 
   await capturer(page, info, '2-menu-finalise');
   await devis('dV2', { numero: 'DEV-2026-10-02-001', version: 2, racineId: 'dFinalise' }); // ce que ferait le serveur
   await entree(page, 'Créer une nouvelle version').click();
-  expect(appels).toEqual([['devisNouvelleVersion', { devisId: 'dFinalise' }]]);
+  await expect.poll(() => appels).toEqual([['devisNouvelleVersion', { devisId: 'dFinalise' }]]); // l'appel part après le clic : on l'attend (même exigence, sans course)
   await expect(page).toHaveURL(/#\/devis\/editeur\/dV2$/);
   await expect(page.locator('.page-editeur-devis.devis-lecture-seule')).toHaveCount(0);
 });
@@ -142,12 +142,13 @@ test('2 un devis signé : pas de « Créer une nouvelle version » ; l’adresse
   await expect(page).toHaveURL(/#\/devis\/voir\/dSigne$/);
 });
 
-test('3 le « … » de l’éditeur et celui de la visualisation proposent les mêmes actions que le menu de la liste (sauf ce qui a un bouton dans l’en-tête et l’écran où l’on est), plus PDF, impression et e-mail', async ({ page }, info) => {
+test('3 le « … » de l’éditeur et celui de la visualisation proposent les mêmes actions que le menu de la liste (sauf ce qui a un bouton ou un onglet dans l’écran), plus PDF, impression et e-mail', async ({ page }, info) => {
   await donnees();
   await ouvrir(page);
   // 26/10/2026 : l'e-mail et les passages « Envoyé », « Signé », « Refusé » ont leur bouton dans l'en-tête ; le « … » commence par PDF, impression et « Envoyer à nouveau » (pas pour un brouillon).
   const dansEntete = (t) => t === 'Envoyer par e-mail' || /^Passer à « (Envoyé|Signé|Refusé) »/.test(t);
   const sansEnvoyer = (l) => l.filter((t) => !dansEntete(t));
+  const sansOnglets = (t) => t !== 'Voir le devis' && t !== 'Éditer le devis'; // 26/10/2026 : les onglets Prévisualisation et Édition, toujours visibles, font la même chose
   const groupe = (id) => ['Télécharger le PDF', 'Imprimer', id === 'dBrouillon' ? 'Envoyer par e-mail' : 'Envoyer à nouveau'];
   for (const id of ['dBrouillon', 'dFinalise', 'dEnvoye', 'dSigne']) {
     await page.evaluate((h) => { location.hash = h; }, '#/devis/liste');
@@ -155,7 +156,7 @@ test('3 le « … » de l’éditeur et celui de la visualisation proposent les 
     await menuLigne(page, id);
     const liste = await libellesMenu(page);
     await page.keyboard.press('Escape');
-    // visualisation : la liste moins « Envoyer par e-mail » et « Voir le devis »
+    // visualisation : la liste moins « Envoyer par e-mail », « Voir le devis » et « Éditer le devis » (les onglets)
     await page.evaluate((h) => { location.hash = h; }, `#/devis/voir/${id}`);
     await expect(page.locator(`.page-editeur-devis[data-devis="${id}"]`)).toBeVisible();
     await attendreCalme(page);
@@ -165,16 +166,16 @@ test('3 le « … » de l’éditeur et celui de la visualisation proposent les 
     expect(box.height).toBeGreaterThanOrEqual(44);
     await expect(page.locator('[data-action="plus-actions"]')).toHaveAttribute('aria-label', 'Autres actions');
     await menuEcran(page);
-    expect(await libellesMenu(page), `visualisation ${id}`).toEqual([...groupe(id), ...sansEnvoyer(liste)]);
+    expect(await libellesMenu(page), `visualisation ${id}`).toEqual([...groupe(id), ...sansEnvoyer(liste).filter(sansOnglets)]); // « Voir » et « Éditer » : les onglets de l'écran le font déjà
     if (id === 'dSigne') await capturer(page, info, '3-visualisation-menu');
     await page.keyboard.press('Escape');
     if (id === 'dBrouillon') {
-      // éditeur : la liste moins « Envoyer par e-mail » et « Éditer le devis »
+      // éditeur : la liste moins « Envoyer par e-mail », « Voir le devis » et « Éditer le devis » (les onglets)
       await page.evaluate((h) => { location.hash = h; }, `#/devis/editeur/${id}`);
       await expect(page.locator('[data-action="envoyer"]')).toBeVisible();
       await attendreCalme(page);
       await menuEcran(page);
-      expect(await libellesMenu(page), 'éditeur').toEqual([...groupe(id), ...sansEnvoyer(liste)]);
+      expect(await libellesMenu(page), 'éditeur').toEqual([...groupe(id), ...sansEnvoyer(liste).filter(sansOnglets)]);
       await capturer(page, info, '3-editeur-menu');
       await page.keyboard.press('Escape');
     }
