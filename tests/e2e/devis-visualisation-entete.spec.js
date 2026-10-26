@@ -211,7 +211,7 @@ test('6 « Passer à « Envoyé » » : bouton à contour à côté d’« Envoy
   await expect(passer).toHaveCount(0);
   expect(appels).toHaveLength(1);
   expect(appels[0]).toMatchObject({ devisId: 'dFinalise', action: 'marquer_envoye' });
-  await expect(droite.locator('[data-action="marquer-signe"]')).toHaveClass(/bouton-principal/); // devis envoyé : l'étape suivante est « Marquer comme signé »
+  await expect(droite.locator('[data-action="marquer-signe"]')).toHaveClass(/bouton-principal/); // devis envoyé : l'étape suivante est « Devis signé »
   await expect(droite.locator('[data-action="envoyer"]')).toHaveCount(0);
   for (const id of ['dEnvoye', 'dSigne', 'dBrouillon']) {
     await page.evaluate((h) => { location.hash = h; }, `#/devis/voir/${id}`);

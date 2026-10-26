@@ -31,9 +31,9 @@ describe('8 boutonsEntete : un seul bouton jaune, celui de l\'étape suivante', 
     assert.ok(!r.autre.grise);
     assert.deepEqual(r.menu.envoyerANouveau, { present: true, libelle: 'Envoyer à nouveau', actif: true });
   });
-  test('8 envoyé : « Marquer comme signé » jaune ET « Marquer comme refusé » en contour', () => {
+  test('8 envoyé : « Devis signé » jaune ET « Devis refusé » en contour', () => {
     const r = regle('envoye');
-    assert.deepEqual(libelles(r), ['Marquer comme signé', 'Marquer comme refusé']);
+    assert.deepEqual(libelles(r), ['Devis signé', 'Devis refusé']);
     assert.equal(r.jaune.cle, 'signer');
     assert.equal(r.autre.cle, 'refuser');
     assert.equal(r.autre.style, 'contour');
@@ -60,7 +60,7 @@ describe('8 boutonsEntete : un seul bouton jaune, celui de l\'étape suivante', 
     const finalise = { statut: 'en_attente_envoi', expireLe: '2026-10-01' };
     assert.equal(estExpire(envoye, aujourdhui), true);
     assert.equal(estExpire(finalise, aujourdhui), true);
-    assert.deepEqual(libelles(regle('envoye', { expire: estExpire(envoye, aujourdhui) })), ['Marquer comme signé', 'Marquer comme refusé']);
+    assert.deepEqual(libelles(regle('envoye', { expire: estExpire(envoye, aujourdhui) })), ['Devis signé', 'Devis refusé']);
     assert.deepEqual(libelles(regle('en_attente_envoi', { expire: estExpire(finalise, aujourdhui) })), ['Envoyer', 'Passer à « Envoyé »']);
   });
   test('8 visualisation : la règle est la même qu\'en édition (un brouillon regardé se finalise aussi)', () => {
