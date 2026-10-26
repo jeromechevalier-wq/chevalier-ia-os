@@ -143,13 +143,17 @@ test('2 un devis signé : pas de « Créer une nouvelle version » ; l’adresse
 test('3 le « … » de l’éditeur et celui de la visualisation proposent les mêmes actions que le menu de la liste (sauf ce qui a un bouton dans l’en-tête et l’écran où l’on est), plus PDF, impression et e-mail', async ({ page }, info) => {
   await donnees();
   await ouvrir(page);
-  // 26/10/2026 : l'e-mail et les passages « Envoyé », « Signé », « Refusé » ont leur bouton dans l'en-tête ; le « … » commence par PDF, impression et « Envoyer à nouveau » (pas pour un brouillon).
-  const dansEntete = (t) => t === 'Envoyer par e-mail' || /^Passer à « (Envoyé|Signé|Refusé) »/.test(t);
+  // 26/10/2026 : le « … » ne répète jamais un bouton visible de l'en-tête (Finaliser, Envoyer, Devis envoyé, Devis signé, Devis refusé) ;
+  // il commence par PDF et impression, puis « Envoyer à nouveau » seulement quand aucun bouton « Envoyer » n'est visible (envoyé, signé) ; au brouillon, « Envoyer » grisé n'ouvre aucun menu : « Envoyer par e-mail » reste dans « … ».
+  const BOUTON_PAR_ETAT = { dBrouillon: /^Passer à « Finalisé »/, dFinalise: /^Passer à « Envoyé »/, dEnvoye: /^Passer à « (Signé|Refusé) »/, dSigne: null }; // signé : aucun bouton d'étape, rien à retirer du « … »
+  let idCourant = null;
+  const dansEntete = (t) => t === 'Envoyer par e-mail' || BOUTON_PAR_ETAT[idCourant]?.test(t) === true;
   const sansEnvoyer = (l) => l.filter((t) => !dansEntete(t));
-  const groupe = (id) => ['Télécharger le PDF', 'Imprimer', id === 'dBrouillon' ? 'Envoyer par e-mail' : 'Envoyer à nouveau'];
+  const groupe = (id) => ['Télécharger le PDF', 'Imprimer', ...(id === 'dBrouillon' ? ['Envoyer par e-mail'] : id === 'dFinalise' ? [] : ['Envoyer à nouveau'])];
   for (const [id, retire] of [['dBrouillon', ['Éditer le devis']], ['dFinalise', ['Éditer le devis']], ['dEnvoye', ['Éditer le devis']], ['dSigne', ['Éditer le devis']]]) {
     await page.evaluate((h) => { location.hash = h; }, '#/devis/liste');
     await expect(page.locator('.page-liste-devis')).toBeVisible();
+    idCourant = id;
     await menuLigne(page, id);
     const liste = await libellesMenu(page);
     await page.keyboard.press('Escape');
