@@ -49,6 +49,7 @@ export function demarrer({ cheminBase = '' } = {}) {
 
 export function arreter() {
   quitter();
+  memoriserOrigine(''); // on quitte le module : l'origine ne vaut plus (un lien de pastille depuis une affaire retombe sur le devis lui-même)
   retirerPastille?.(); retirerPastille = null;
   arretSignal?.(); arretSignal = null;
   signaler();
