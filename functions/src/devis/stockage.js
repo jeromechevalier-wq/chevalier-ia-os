@@ -25,11 +25,29 @@ export function nomFichierDevis({ numero, version, objet } = {}) {
   return `${nettoyerNom(nom, 116)}.pdf`;
 }
 
-/** Nom lisible du document de l'affaire : « Devis DEV-… v1 – Objet.pdf », ou « Devis brouillon – Objet.pdf » (remplacé à chaque fois). Le mot « Devis » est toujours là : dans les Documents d'une affaire, on voit tout de suite que c'est un devis. */
-export function libelleDocumentDevis({ numero, version, objet, brouillon = false } = {}) {
+/** « 26-10-2026 14h32 », en heure de Paris (fuseau calculé par Intl, jamais par l'heure du serveur). `date` : injectée (les essais donnent une date fixe). */
+export function horodatageParis(date = new Date()) {
+  const d = date instanceof Date ? date : new Date(date);
+  if (Number.isNaN(d.getTime())) return '';
+  const p = Object.fromEntries(new Intl.DateTimeFormat('fr-FR', {
+    timeZone: 'Europe/Paris', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(d).map((x) => [x.type, x.value]));
+  return `${p.day}-${p.month}-${p.year} ${p.hour}h${p.minute}`;
+}
+
+/**
+ * Nom lisible du document de l'affaire : « Devis DEV-… v1 – Objet.pdf », ou, pour le brouillon, « Devis brouillon – Objet – 26-10-2026 14h32.pdf » (date et heure de Paris
+ * du dernier téléchargement ; un seul document brouillon par devis, remplacé et renommé à chaque fois). Le mot « Devis » est toujours là : dans les Documents d'une affaire, on voit tout de suite que c'est un devis.
+ * `date` : seulement pour le brouillon. Le nom est nettoyé et borné ; l'horodatage est gardé en entier (c'est l'objet qui est raccourci).
+ */
+export function libelleDocumentDevis({ numero, version, objet, brouillon = false, date } = {}) {
   const tete = brouillon ? 'Devis brouillon' : `Devis ${nettoyerNom(`${numero || 'DEVIS'} v${version || 1}`, 60)}`;
   const obj = nettoyerNom(objet || '', 50);
-  return `${nettoyerNom(obj ? `${tete} – ${obj}` : tete, 116)}.pdf`;
+  const quand = brouillon ? horodatageParis(date ?? new Date()) : '';
+  const fin = quand ? ` – ${quand}` : '';
+  const debut = obj ? `${tete} – ${obj}` : tete;
+  const place = Math.max(10, 116 - fin.length);
+  return `${nettoyerNom(`${nettoyerNom(debut, place)}${fin}`, 116)}.pdf`;
 }
 
 /** Un morceau de chemin : lettres, chiffres, tiret et tiret bas seulement (jamais « / » ni « .. »). */
@@ -68,10 +86,6 @@ export function creerStockage({ bucket, maintenant = Date.now }) {
     /** Supprime un fichier (déjà absent = rien à faire). */
     async supprimer(chemin) {
       try { await bucket.file(chemin).delete({ ignoreNotFound: true }); } catch (e) { throw new Error('Stockage : le fichier n\'a pas pu être supprimé.', { cause: e }); }
-    },
-    /** Supprime le fichier « PDF brouillon » d'un devis (appelé quand le brouillon est supprimé ; coeur/devis.js ne connaît pas les chemins). */
-    async supprimerBrouillon({ espace = '', affaireId, devisId }) {
-      return this.supprimer(cheminPdfDevis({ espace, affaireId, devisId, brouillon: true }));
     },
     async existe(chemin) {
       try { const [oui] = await bucket.file(chemin).exists(); return oui === true; } catch { return false; }

@@ -7,6 +7,14 @@ import { lignePrepare } from './email-preparer.js';
 export const MESSAGE_AUCUN_ENVOI = 'Pas encore envoyé';
 const FORMAT_JOUR = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Paris' });
 
+const FORMAT_HEURE = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'Europe/Paris' });
+
+/** Heure « 15 h 49 » (heure de Paris) d'une date Firestore, Date, nombre ou texte ; texte vide si inconnue. */
+export function heureFr(valeur) {
+  const ms = enMs(valeur);
+  return ms === null ? '' : FORMAT_HEURE.format(new Date(ms)).replace(':', ' h ');
+}
+
 /** Jour JJ/MM/AAAA d'une date Firestore, Date, nombre ou texte ; texte vide si inconnue. */
 export function jourFr(valeur) {
   const ms = enMs(valeur);
@@ -23,18 +31,18 @@ export function versionsHistorique(d, toutes = []) {
   if (!liste.some((x) => x.id === d?.id) && d) liste.push(d);
   return liste.sort((a, b) => (a.version ?? 1) - (b.version ?? 1)).map((x) => ({
     id: x.id, version: x.version ?? 1, numero: x.numero ?? null, statut: x.statut ?? 'brouillon', libelleStatut: libelleStatut(x.statut ?? 'brouillon'),
-    jour: jourFr(x.finaliseLe ?? x.creeLe), courante: x.id === d?.id,
+    jour: jourFr(x.finaliseLe ?? x.creeLe), heure: heureFr(x.finaliseLe ?? x.creeLe), courante: x.id === d?.id,
   }));
 }
 
-/** Dates du devis, dans l'ordre de sa vie : seulement celles qui existent. [{ cle, libelle, jour }]. */
+/** Dates du devis, dans l'ordre de sa vie : seulement celles qui existent. [{ cle, libelle, jour, heure }] (heure de Paris, « 15 h 49 »). */
 export function datesHistorique(d) {
   const lignes = [
     ['cree', 'Créé le', d?.creeLe], ['finalise', 'Finalisé le', d?.finaliseLe], ['envoye', 'Envoyé le', d?.envoyeLe],
     ['accepte', 'Signé le', d?.accepteLe], ['refuse', 'Refusé le', d?.refuseLe],
   ];
-  const sortie = lignes.map(([cle, libelle, v]) => ({ cle, libelle, jour: jourFr(v) })).filter((l) => l.jour);
-  if (d?.archive === true) sortie.push({ cle: 'archive', libelle: 'Archivé', jour: '' });
+  const sortie = lignes.map(([cle, libelle, v]) => ({ cle, libelle, jour: jourFr(v), heure: heureFr(v) })).filter((l) => l.jour);
+  if (d?.archive === true) sortie.push({ cle: 'archive', libelle: 'Archivé', jour: '', heure: '' });
   return sortie;
 }
 

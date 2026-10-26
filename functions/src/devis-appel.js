@@ -36,8 +36,7 @@ export function exigerCompteAutorise(requete, comptes = COMPTES_AUTORISES) {
   return jeton;
 }
 
-/** `stockage` : fonction qui rend le stockage des PDF (ou null) ; sert à retirer le fichier d'un brouillon supprimé. */
-export function creerAppelDevis(operation, { donnees, stockage = null, comptes = COMPTES_AUTORISES, journal = () => {}, maintenant = Date.now }) {
+export function creerAppelDevis(operation, { donnees, comptes = COMPTES_AUTORISES, journal = () => {}, maintenant = Date.now }) {
   const executer = OPERATIONS[operation];
   if (!executer) throw new Error(`Opération de devis inconnue : ${operation}`);
   return async function appel(requete) {
@@ -46,7 +45,7 @@ export function creerAppelDevis(operation, { donnees, stockage = null, comptes =
     const demande = requete.data && typeof requete.data === 'object' ? requete.data : {};
     try {
       const base = { donnees: donnees(), ctx: { acteur: jeton.email.toLowerCase(), via: 'ecran', maintenant: new Date(maintenant()) },
-        stockage: stockage ? stockage() : null, avertir: (a) => journal({ action: operation, statut: 'avertissement', code: a.code, dureeMs: maintenant() - debut }) };
+        avertir: (a) => journal({ action: operation, statut: 'avertissement', code: a.code, dureeMs: maintenant() - debut }) };
       const r = await executer(base, demande);
       journal({ action: operation, statut: r.ok ? 'ok' : 'refus', code: r.ok ? undefined : 'devis_invalide', dureeMs: maintenant() - debut });
       // Un devis qui ne peut pas être finalisé n'est pas une panne : on rend les messages à corriger (rien n'a été écrit).

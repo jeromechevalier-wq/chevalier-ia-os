@@ -1,5 +1,5 @@
 // Module Devis, haut de page (brief de Jérôme du 26/10/2026) : UN seul bouton jaune, toujours l'étape suivante conseillée ; tout le reste reste dans le menu « … ».
-//   Brouillon : « Finaliser » (jaune) + « Envoyer » grisé  |  Finalisé : « Envoyer » (jaune)  |  Envoyé : « Marquer comme signé » (jaune) + « Marquer comme refusé »  |  Signé, refusé, remplacé, archivé : aucun.
+//   Brouillon : « Finaliser » (jaune) + « Envoyer » grisé  |  Finalisé : « Envoyer » (jaune)  |  Envoyé : « Devis signé » (jaune) + « Devis refusé »  |  Signé, refusé, remplacé, archivé : aucun.
 // Un test par critère (le nom commence par son numéro) et une capture par critère dans tests/e2e/captures/devis-entete-bouton-jaune/ (ordinateur ; téléphone aussi pour 1, 4 et 6).
 // Critères 7 (pied de page du PDF brouillon) et 8 (la règle est une fonction pure) : tests sans navigateur, tests/devis-pdf-fonction.test.js et tests/devis-entete-boutons.test.js.
 // Les fonctions du serveur (devisChangerStatut, devisPdf, devisPdfLien, devisFinaliser) n'existent pas dans l'émulateur du navigateur : elles sont SIMULÉES par page.route.
@@ -111,7 +111,7 @@ test('2 finalisé : pas de bouton « Finaliser » ; « Envoyer » est jaune et o
   await page.keyboard.press('Escape');
 });
 
-test('3 envoyé : « Marquer comme signé » (jaune) et « Marquer comme refusé » (visible) font ce que faisaient les entrées « Passer à Signé / Refusé » ; « Envoyer à nouveau » et « Imprimer » sont dans « … »', async ({ page }, info) => {
+test('3 envoyé : « Devis signé » (jaune) et « Devis refusé » (visible) font ce que faisaient les entrées « Passer à Signé / Refusé » ; « Envoyer à nouveau » et « Imprimer » sont dans « … »', async ({ page }, info) => {
   await donnees();
   const appels = [];
   await page.route('**/devisChangerStatut', async (route) => {
@@ -121,7 +121,7 @@ test('3 envoyé : « Marquer comme signé » (jaune) et « Marquer comme refusé
   });
   await ouvrir(page, 'devis/voir/dEnvoye');
   await expect(jaunes(page)).toHaveCount(1);
-  await expect(jaunes(page)).toHaveText('Marquer comme signé');
+  await expect(jaunes(page)).toHaveText('Devis signé');
   await expect(racine(page).locator('[data-action="marquer-refuse"]')).toBeVisible();
   await expect(racine(page).locator('[data-action="marquer-refuse"]')).toHaveClass(/bouton-secondaire/);
   await expect(racine(page).locator('[data-action="envoyer"]')).toHaveCount(0);

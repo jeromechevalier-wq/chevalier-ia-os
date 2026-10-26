@@ -238,6 +238,7 @@ test('5 le panneau « Historique » s’ouvre à droite comme Options : versions
   if (!estTelephone(page)) await expect(historique(page).locator('.options-fermer')).not.toBeFocused(); // le focus va sur la première version cliquable, pas sur la croix
   await expect(historique(page).locator('[data-valeur="envois"]')).toContainText('client@exemple.fr');
   await expect(historique(page).locator('[data-valeur="dates"]')).toContainText('Créé le');
+  await expect(historique(page).locator('[data-valeur="dates"]')).toContainText(/Créé le \d\d\/\d\d\/\d{4} \(\d{1,2} h \d{2}\)/); // date, heure et minute
   await expect(historique(page).locator('[data-valeur="dates"]')).toContainText('Envoyé le');
   await capturer(page, info, '5-historique');
   // Échap ferme, et le focus revient.

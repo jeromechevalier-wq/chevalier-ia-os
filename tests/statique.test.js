@@ -479,7 +479,7 @@ describe('D5 Serveur MCP (étape 2) : déploiement, versions figées, sécurité
   test('D6 étape 4 : la fonction branche les plafonds de débit (sans eux, aucun frein) et passe par le moteur d’écriture avec audit', () => {
     const index = lire('functions/src/index.js');
     assert.match(index, /creerLimiteur\(\{ donnees \}\)/);
-    assert.match(index, /creerGestionnaire\(\{ magasin, donnees, limiteur, oauth(, stockage: [^}]*)? \}\)/); // `stockage` (25/10/2026) : seulement pour effacer le PDF brouillon d'un devis supprimé
+    assert.match(index, /creerGestionnaire\(\{ magasin, donnees, limiteur, oauth \}\)/); // plus de `stockage` (26/10/2026) : supprimer un brouillon ne touche jamais aux fichiers
     assert.match(index, /creerRouteurOauth\(\{ donnees, verifierIdToken: creerVerificateurIdentite\(\) \}\)/);
     const g = lire('functions/src/mcp/gestionnaire.js');
     assert.match(g, /executerEcritures/);

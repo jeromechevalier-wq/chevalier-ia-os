@@ -9,6 +9,7 @@ import { obtenirJeton, oublierJeton, googleDisponible, jetonEnMemoire, preparerG
 import * as CRM from '../crm/donnees.js';
 import * as D from './donnees.js';
 import { etatPdfDevis, cibleRetourPdf, origineRetour } from './pdf.js';
+import { LIBELLE_PDF_FABRICATION, DETAIL_PDF_FABRICATION } from './pdf-attente.js';
 import { copierPdfDevis, choisirDestination, nomFichierDrive, cleMemoire, MESSAGE_GOOGLE_ABSENT, MESSAGE_DEJA_COPIE, MESSAGE_AUTORISATION_DRIVE, MESSAGE_CHARGEMENT_AFFAIRE, attendreUnClic } from './drive-copie.js';
 
 export const MESSAGE_INTROUVABLE_PDF = 'Ce devis est introuvable. Il a peut-être été supprimé : retourne à la liste des devis.';
@@ -83,16 +84,22 @@ export function rendrePdfDevis(conteneur, devisId, brouillon = false) {
   const bouton = (libelle, action, onclick) => h('button', { type: 'button', class: 'bouton bouton-principal', dataset: { action }, onclick }, libelle);
   // Boutons de la zone Drive : en contour, car « Ouvrir le PDF » est le seul bouton jaune de l'écran.
   const boutonDrive = (libelle, action, onclick) => h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action }, onclick }, libelle);
-  const montrer = (etat, ...enfants) => { zone.dataset.etat = etat; remplir(zone, ...enfants); };
-  const chargement = (texte) => montrer('chargement', h('div', { class: 'chargement' }, h('span', { class: 'rond-chargement' }), h('span', {}, texte)));
+  const montrer = (etat, ...enfants) => { zone.dataset.etat = etat; zone.setAttribute('aria-busy', etat === 'chargement' ? 'true' : 'false'); remplir(zone, ...enfants); };
+  // La zone est un role="status" : le texte est annoncé. Pas de pourcentage : le serveur ne donne pas d'étapes.
+  const chargement = (texte, { long = false } = {}) => montrer('chargement', h('div', { class: 'chargement' }, h('span', { class: 'rond-chargement', 'aria-hidden': 'true' }), h('span', {}, texte)),
+    long ? h('p', { class: 'texte-discret', dataset: { valeur: 'detail-attente' } }, DETAIL_PDF_FABRICATION) : null);
   const probleme = (etat, texte, ...actions) => montrer(etat, h('p', { class: etat === 'echec' ? 'erreur' : 'texte-discret', dataset: { valeur: 'message-pdf' } }, texte), h('div', { class: 'pdf-devis-actions' }, ...actions));
   const introuvable = () => montrer('introuvable', etatVide(MESSAGE_INTROUVABLE_PDF, { action: h('a', { class: 'bouton bouton-secondaire', href: '#/devis/liste', dataset: { action: 'retour-liste-introuvable' } }, 'Retour aux devis') }));
   const lienEditeur = h('a', { class: 'bouton bouton-principal', href: `#/devis/editeur/${encodeURIComponent(devisId)}`, dataset: { action: 'ouvrir-editeur' } }, 'Ouvrir le devis');
 
+  let fabrication = false; // le serveur fabrique déjà le PDF pour cet écran
   async function relancer() {
+    if (fabrication) return; // un second clic ne relance pas une fabrication en cours
     const moi = ++numero;
-    chargement('Fabrication du PDF en cours…');
-    try { await D.pdfDevis(devisId); } catch (e) { if (!arrete && moi === numero) probleme('echec', e?.message || D.MESSAGE_RESEAU_DEVIS, bouton('Réessayer', 'reessayer-pdf', relancer)); return; }
+    fabrication = true;
+    chargement(LIBELLE_PDF_FABRICATION, { long: true });
+    try { await D.pdfDevis(devisId); } catch (e) { fabrication = false; if (!arrete && moi === numero) probleme('echec', e?.message || D.MESSAGE_RESEAU_DEVIS, bouton('Réessayer', 'reessayer-pdf', relancer)); return; }
+    fabrication = false;
     if (!arrete && moi === numero) ouvrir();
   }
 
@@ -114,7 +121,7 @@ export function rendrePdfDevis(conteneur, devisId, brouillon = false) {
       probleme(echec ? 'echec' : 'pas-pret', echec ? `${MESSAGE_ECHEC}${d.pdf?.message ? ` (${d.pdf.message})` : ''}` : MESSAGE_PAS_PRET, bouton('Réessayer', 'reessayer-pdf', relancer));
       return;
     }
-    chargement('Préparation du PDF…');
+    chargement('Préparation du PDF…', { long: true });
     try {
       const r = await D.pdfLien(devisId, brouillon);
       if (arrete || mon !== numero) return;
