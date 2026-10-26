@@ -578,6 +578,9 @@ body.page-connexion {
   background: var(--panneau); border: 1px solid var(--bordure-forte); border-radius: var(--rayon-carte); box-shadow: var(--ombre);
 }
 .suggestion { display: flex; align-items: center; gap: var(--esp-4); min-height: var(--h-liste); padding: var(--esp-2) var(--esp-4); border-radius: var(--rayon); cursor: pointer; }
+.suggestion-ligne { display: block; margin: 0; padding: 0; }
+a.suggestion { color: inherit; text-decoration: none; }
+@media (max-width: 767px), (pointer: coarse) { .recherche-globale .suggestion { min-height: 44px; } }
 .suggestion.actif, .suggestion:hover { background: var(--survol); }
 .suggestion-texte { display: flex; flex-direction: column; min-width: 0; }
 .suggestion-libelle { overflow-wrap: anywhere; }

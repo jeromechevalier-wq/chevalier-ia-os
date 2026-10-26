@@ -370,13 +370,14 @@ export function ouvrirMenu(ancre, items, { placement = 'bas', id = null } = {}) 
  *  - multiple : plusieurs valeurs, affichées en pastilles ; valeur : élément initial (ou liste si multiple)
  *  - libre : le texte tapé est la valeur (ville) ; texteInitial
  *  - ouvrirAuFocus : la liste s'ouvre dès qu'on entre dans le champ (liste courte et fermée, comme les familles d'articles) ; avec un choix déjà fait, elle montre tout
+ *  - lienDe(element) : adresse (« #/… ») d'un résultat, ou null. Avec une adresse, la ligne est un vrai lien (clic droit, Cmd/Ctrl+clic et clic molette ouvrent un nouvel onglet) ; le clic simple garde le comportement de surChoix. Sans adresse : ligne ordinaire. Jamais pour « Créer… » (un bouton).
  *  - messageVide(saisie) : élément ou texte affiché dans la liste quand rien ne correspond à ce qu'on a tapé (non sélectionnable ; il peut contenir un lien)
  * Clavier : flèches, Entrée sur la ligne active, Échap ; la souris et le toucher choisissent directement.
  */
 export function champIntelligent({
   etiquette = '', placeholder = '', icone: nomIcone = null, multiple = false, fournir, surChoix = () => {},
   surCreation = null, valeur = null, texteInitial = '', libre = false, surSaisie = () => {}, autofocus = false, id = null,
-  classe = '', ariaDescription = null, ouvrirAuFocus = false, messageVide = null,
+  classe = '', ariaDescription = null, ouvrirAuFocus = false, messageVide = null, lienDe = null,
 } = {}) {
   const idListe = `sug-${Math.random().toString(36).slice(2, 8)}`;
   let choix = multiple ? [...(valeur || [])] : (valeur || null);
@@ -427,10 +428,27 @@ export function champIntelligent({
   }
   function ligne(el, k) {
     const lib = el.segments ? el.segments.map((s) => (s.fort ? h('strong', {}, s.texte) : s.texte)) : el.libelle;
-    return h('li', { class: 'suggestion', role: 'option', id: `${idListe}-${k}`, 'aria-selected': 'false',
-      onmousedown: (e) => e.preventDefault(), onclick: () => choisir(k) },
+    const contenu = [
       el.couleur ? h('span', { class: 'puce-couleur', style: { background: el.couleur } }) : null,
-      h('span', { class: 'suggestion-texte' }, h('span', { class: 'suggestion-libelle' }, lib), el.sousTitre ? h('span', { class: 'suggestion-sous' }, el.sousTitre) : null));
+      h('span', { class: 'suggestion-texte' }, h('span', { class: 'suggestion-libelle' }, lib), el.sousTitre ? h('span', { class: 'suggestion-sous' }, el.sousTitre) : null),
+    ];
+    let href = null;
+    try { href = lienDe ? lienDe(el) : null; } catch { href = null; }
+    if (!href) {
+      const li = h('li', { class: 'suggestion', role: 'option', id: `${idListe}-${k}`, 'aria-selected': 'false',
+        onmousedown: (e) => e.preventDefault(), onclick: () => choisir(k) }, ...contenu);
+      return { ligne: li, option: li };
+    }
+    // Vrai lien : l'option est le <a> (rôle option), posé dans un <li> neutre pour que la liste reste valide.
+    // Clic simple : comportement habituel ; Cmd/Ctrl/Maj/Alt ou clic molette : le navigateur ouvre l'onglet, la recherche reste.
+    const a = h('a', { class: 'suggestion suggestion-lien', role: 'option', id: `${idListe}-${k}`, 'aria-selected': 'false', href, tabindex: '-1',
+      onmousedown: (e) => e.preventDefault(),
+      onclick: (e) => {
+        if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+        e.preventDefault();
+        choisir(k);
+      } }, ...contenu);
+    return { ligne: h('li', { role: 'presentation', class: 'suggestion-ligne' }, a), option: a };
   }
   function ouvrir(depuisFocus = false) {
     const saisie = depuisFocus && choix && !multiple ? '' : entree.value;
@@ -445,8 +463,8 @@ export function champIntelligent({
       for (const el of g.resultats) {
         const k = donnees.length;
         donnees.push(el);
-        const li = ligne(el, k);
-        options.push(li);
+        const { ligne: li, option } = ligne(el, k);
+        options.push(option);
         liste.append(li);
       }
     }

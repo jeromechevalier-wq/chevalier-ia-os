@@ -37,6 +37,7 @@ Déjà validés par Jérôme : 280, 282.
 - Simplifier la copie Drive faite par le navigateur (étude).
 - Doublon destinataire / copie quand le client change : pas encore contrôlé.
 - Cible tactile des pastilles-liens inférieure à 44 px.
+- Recherche du haut : résultats en vrais liens (clic droit, Cmd+clic) : PR à numéroter.
 - Droit Cloud Storage du serveur MCP pour effacer le PDF brouillon (non bloquant).
 - « Préparer l'e-mail » dans le menu de la liste des devis (aujourd'hui seulement dans l'éditeur).
 - Le test `devis-email.spec.js` n°1 sur téléphone mesure 43,68 px au lieu de 44 pendant l'animation de la fenêtre (même défaut de timing corrigé dans le nouveau spec) : à stabiliser.
