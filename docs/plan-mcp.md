@@ -432,3 +432,29 @@ Usage supposé : quelques milliers d'appels par mois. Fonctions : 2 millions de 
 8. Pièces jointes sur les affaires, par lien ou téléversement ; le téléphone reçoit un jeton Drive d'1 h de la fonction, sans écran Google.
 9. D'abord un prototype Drive (sur ton Mac), puis le squelette de déploiement, puis le métier, l'écriture, la sauvegarde, les clients, l'appli : une PR par étape.
 10. Budget 5 € en alerte, 3 instances, plafonds par jeton ; zéro secret dans le dépôt ; aucune donnée réelle dans les tests.
+
+## 11. Diagnostic des fichiers joints (outil TEMPORAIRE, ajouté le 26/10/2026)
+
+**Pourquoi.** On ne sait pas ce que ChatGPT et Claude envoient réellement à un outil MCP quand tu joins une photo ou un PDF à la conversation et que tu dis « mets ça dans la fiche de X » : un vrai lien de téléchargement, un simple mot comme `chat_upload`, ou rien. L'outil `diagnostiquer_fichiers` sert à le savoir par un essai réel, avant de construire quoi que ce soit.
+
+**Ce que fait l'outil.** Lecture seule, ouvert aux trois profils (lecteur, bibliothécaire, Claude Code) comme les autres outils de lecture, et il passe par la même porte (`servirMcp`) : aucune nouvelle entrée, aucune porte dérobée. Il ne télécharge rien, n'écrit rien dans la base ni dans l'audit (`crm_audit`). Il répond une phrase française courte, par exemple « J'ai reçu 3 éléments : 3 liens de téléchargement (hôte files.…), types image/jpeg. Rien n'a été enregistré. », ou « J'ai reçu le mot « chat_upload » au lieu d'un lien : l'assistant n'a pas transmis le fichier. ».
+
+**Ce qui est noté (liste blanche).** Une seule ligne dans le journal technique de la fonction (`message: mcp_diagnostic`, pas dans Firestore) : nombre d'éléments, type de chaque élément, noms des champs, longueur des textes, **nom d'hôte seulement** des adresses (jamais l'adresse complète, jamais ses paramètres), `mime_type`, `file_name` s'il fait 80 caractères au plus et ne contient pas `://`, et la longueur de la note (jamais son texte). Une seule fonction (`resumerForme`, dans `functions/src/mcp/diagnostic-fichiers.js`) fabrique la réponse **et** la ligne de journal : elles ne peuvent pas différer.
+
+**ChatGPT.** Le champ `fichiers` est déclaré comme paramètre de fichier (`_meta["openai/fileParams"] = ["fichiers"]`) ; `servirMcp` transmet maintenant le champ `meta` d'un outil (partagé avec le serveur des clients, sans effet pour les autres outils). **Non vérifié** : la référence d'OpenAI (Apps SDK, descripteur d'outil `_meta`, https://developers.openai.com/apps-sdk/reference) est bloquée depuis le bac à sable ; la forme attendue `{ download_url, file_id?, mime_type?, file_name? }` est à confirmer par l'essai.
+
+**Interrupteurs d'urgence.** Aucun code nouveau : ceux de `securite-et-pannes.md`, section 4, coupent cet outil comme les autres (secret `MCP_JETONS` pour Claude Code et Hermes, collection `mcp_oauth` pour le téléphone et claude.ai).
+
+**À retirer après l'essai** (voir `.github/A-FAIRE.md`) : l'outil dans `functions/src/mcp/outils/lecture.js`, le fichier `functions/src/mcp/diagnostic-fichiers.js`, le nom dans `js/os/registre.js` (`OUTILS_COMMUNS`), `tests/mcp-diagnostic-fichiers.test.js`, et le compte d'outils dans `tests/mcp-clients.test.js`, `tests/mcp.test.js` et `tests/lecture.test.js`. Le champ `meta` de `servirMcp` peut rester (inoffensif).
+
+### Scénario d'essai pour Jérôme (10 minutes)
+
+Connecteur déjà branché dans l'assistant (ChatGPT et Claude). Ne joins que des fichiers sans importance (une photo de ton bureau, un PDF vide), jamais un document de client.
+
+1. **Ordinateur, Claude** : nouvelle conversation, joins 2 photos et 1 PDF, puis écris : « Mets ces 3 fichiers dans la fiche de Dupont. Utilise seulement l'outil diagnostiquer_fichiers pour l'instant. » Note la phrase que l'outil renvoie.
+2. **Téléphone, Claude** : même chose avec 1 photo prise sur le moment.
+3. **Ordinateur, ChatGPT** : mêmes fichiers, même phrase. Note la phrase.
+4. **Téléphone, ChatGPT** : 1 photo, même phrase.
+5. **Cas vide** : dans l'un des deux, sans rien joindre : « Utilise l'outil diagnostiquer_fichiers. » La réponse doit dire qu'aucun fichier n'a été reçu.
+
+Rapporte à Claude les 4 ou 5 phrases telles quelles. Si un assistant répond qu'il ne trouve pas l'outil ou ne sait pas passer le fichier, note-le aussi : c'est une réponse utile.

@@ -186,6 +186,7 @@ describe('Serveur de Jérôme : la liste des outils ne change pas (D3d)', () => 
   const LECTURE = ['chercher', 'lire_affaire', 'lire_audit', 'lire_organisation', 'lire_personne', 'lire_projet', 'lire_reglages', 'lister_activites', 'lister_affaires', 'lister_documents', 'lister_modeles_projet', 'lister_projets', 'qui_suis_je',
     'lire_proposition', 'lister_automatisations', 'lister_propositions', // + 3 outils de lecture de la file « À valider » (module Automatisations)
     'lister_articles', 'chercher_article',
+    'diagnostiquer_fichiers', // outil d'essai temporaire (26/10/2026), à retirer après l'essai
     'lister_devis', 'lire_devis', 'lire_reglages_devis']; // + 2 outils de lecture du bordereau, + 2 de lecture des devis (module Devis, 24/10/2026)
   const ECRITURE = ['refuser_proposition', 'valider_proposition', 'abandonner_facture', 'ajouter_facture', 'ajouter_note', 'ajouter_livrable_projet', 'archiver_projet', 'changer_etape', 'changer_phase_projet', 'creer_activite', 'creer_affaire', 'creer_organisation', 'creer_personne', 'creer_projet', 'creer_projet_depuis_affaire', 'joindre_lien', 'marquer_facture_payee', 'marquer_perdue', 'modifier_affaire', 'modifier_note', 'modifier_organisation', 'modifier_personne', 'modifier_projet', 'retirer_document', 'rouvrir_affaire', 'rouvrir_projet', 'terminer_activite', 'terminer_projet', 'terminer_livrable_projet',
     'creer_article', 'modifier_article', 'desactiver_article',
