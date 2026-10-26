@@ -103,16 +103,16 @@ describe('plateforme : fonction, adresses, configuration, règles', () => {
   test('mêmes versions de bibliothèques que le serveur de Jérôme (une seule façon de faire tourner le même code)', () => {
     const a = json('functions/package.json').dependencies;
     const b = json('functions-plateforme/package.json').dependencies;
-    for (const dep of ['@modelcontextprotocol/sdk', 'firebase-admin', 'firebase-functions', 'zod']) assert.equal(b[dep], a[dep], dep);
+    for (const dep of ['@modelcontextprotocol/sdk', 'firebase-admin', 'firebase-functions', 'zod', 'puppeteer-core', '@sparticuz/chromium']) assert.equal(b[dep], a[dep], dep);
     const verrou = json('functions-plateforme/package-lock.json');
-    for (const dep of ['@modelcontextprotocol/sdk', 'zod']) assert.equal(verrou.packages[`node_modules/${dep}`]?.version, a[dep], dep);
+    for (const dep of ['@modelcontextprotocol/sdk', 'zod', 'puppeteer-core', '@sparticuz/chromium']) assert.equal(verrou.packages[`node_modules/${dep}`]?.version, a[dep], dep);
   });
   test('la copie du serveur pour la plateforme est faite avant chaque déploiement, et ignorée par git', () => {
     assert.match(lire('scripts/preparer-fonctions.js'), /functions-plateforme', 'serveur'/);
     assert.match(lire('.gitignore'), /^functions-plateforme\/serveur\/$/m);
     assert.deepEqual(json('firebase.plateforme.json').functions[0].predeploy, ['node "$PROJECT_DIR/scripts/preparer-fonctions.js"']);
     if (existsSync(join(RACINE, 'functions-plateforme/serveur'))) { // présente après « npm run preparer »
-      for (const f of ['src/clients/gestionnaire.js', 'src/mcp/gestionnaire.js', 'src/oauth/magasin.js', 'src/coeur/donnees.js', 'src/version.js', 'partage/registre.js', 'partage/logique.js', 'partage/marque.js', 'package.json']) {
+      for (const f of ['src/clients/gestionnaire.js', 'src/mcp/gestionnaire.js', 'src/oauth/magasin.js', 'src/coeur/donnees.js', 'src/version.js', 'src/devis/pdf-service.js', 'src/devis/pdf-declencheur.js', 'src/devis/chromium.js', 'src/devis/stockage.js', 'partage/devis-document.js', 'partage/registre.js', 'partage/logique.js', 'partage/marque.js', 'package.json']) {
         assert.ok(existsSync(join(RACINE, 'functions-plateforme/serveur', f)), f);
       }
     }

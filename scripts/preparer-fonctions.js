@@ -84,9 +84,12 @@ const destinationServeur = join(racine, 'functions-plateforme', 'serveur');
 rmSync(destinationServeur, { recursive: true, force: true });
 for (const dossier of ['coeur', 'mcp', 'oauth', 'securite', 'clients']) cpSync(join(racine, 'functions', 'src', dossier), join(destinationServeur, 'src', dossier), { recursive: true });
 mkdirSync(join(destinationServeur, 'src'), { recursive: true });
+// PDF des devis chez les clients : seulement ces quatre fichiers, nommés un par un (JAMAIS devis/pdf-appel.js ni devis/stockage-projet.js : ils importent les comptes autorisés de Jérôme).
+mkdirSync(join(destinationServeur, 'src', 'devis'), { recursive: true });
+for (const f of ['pdf-service.js', 'pdf-declencheur.js', 'chromium.js', 'stockage.js']) copyFileSync(join(racine, 'functions', 'src', 'devis', f), join(destinationServeur, 'src', 'devis', f));
 copyFileSync(join(racine, 'functions', 'src', 'version.js'), join(destinationServeur, 'src', 'version.js'));
 copyFileSync(join(racine, 'functions', 'package.json'), join(destinationServeur, 'package.json')); // version.js lit la version du serveur ici
-for (const f of ['logique.js', 'projets.js', 'devis.js', 'devis-articles.js', 'devis-ouvrages.js', 'devis-familles.js', 'devis-brouillon.js', 'devis-editeur.js', 'devis-email.js', 'registre.js', 'marque.js', 'chemins.js', 'membres.js', 'propositions.js']) {
+for (const f of ['logique.js', 'projets.js', 'devis.js', 'devis-articles.js', 'devis-ouvrages.js', 'devis-familles.js', 'devis-brouillon.js', 'devis-editeur.js', 'devis-email.js', 'devis-document.js', 'registre.js', 'marque.js', 'chemins.js', 'membres.js', 'propositions.js']) {
   mkdirSync(join(destinationServeur, 'partage'), { recursive: true });
   copyFileSync(join(destination, f), join(destinationServeur, 'partage', f));
 }

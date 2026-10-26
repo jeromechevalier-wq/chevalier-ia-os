@@ -134,7 +134,7 @@ export const devisPreparerEmailEtat = onCall(OPTIONS_DEVIS, (requete) => {
 // PDF d'un devis (25/10/2026) : fabriqué PAR LE SERVEUR dès qu'un devis passe de brouillon à finalisé (déclencheur Firestore `devisPdfAuto`), jamais par le navigateur.
 // Chromium est lancé dans la fonction (2 GiB de mémoire, un navigateur par appel) ; le PDF est rangé dans Cloud Storage du projet (devis/<affaire>/<devis>/…, jamais public),
 // ajouté aux Documents de l'affaire, et l'état est noté sur le devis (`pdf.statut` : en_cours, ok, echec). Rien à configurer : ni dossier, ni variable.
-// Ailleurs que dans cette base (autres espaces), ce déclencheur n'existe pas encore : voir la description de la PR.
+// Le même code est copié dans functions-plateforme/serveur/ pour l'autre projet (chevalier-ia-app) et déclaré dans functions-plateforme/src/index.js : là-bas, un déclencheur par espace.
 const BASE_LIEN_DEVIS = 'https://chevalier-ia-os.web.app';
 const stockageDevis = stockageDuProjet;
 const OPTIONS_PDF = { ...OPTIONS_DEVIS, memory: '2GiB', timeoutSeconds: 120, concurrency: 1, maxInstances: 2 };
