@@ -40,9 +40,11 @@ Le compte de déploiement `deploiement-github` agit au nom de ce compte grâce a
 ## Étape 3 : le CORS du stockage
 Rien de nouveau : le réglage se fait une fois pour le stockage de la plateforme. Il est décrit dans `docs/deploiement-client.md` (tableau « Réglages Google du projet de la plateforme », ligne « CORS du stockage des PDF ») et `docs/cors-stockage-pdf.md`. Sans lui, le PDF s'ouvre mais la copie dans Drive et la pièce jointe Gmail échouent.
 
+**Règle (décision de Jérôme, 26/10/2026)** : le PDF est ajouté aux Documents de l'affaire (et la ligne « Document joint : … » à l'historique) seulement si l'affaire a un dossier de travail (lien `urlDossier` non vide : Drive, serveur ou NAS). Sans dossier, le PDF est quand même fabriqué et rangé, mais l'affaire n'a aucun document ajouté, PDF brouillon compris. Les liens PDF déjà présents ne sont jamais retirés.
+
 ## Étape 4 : déployer, puis essayer
 1. Ouvre <https://github.com/jeromechevalier-wq/chevalier-ia-os/actions/workflows/deploiement-plateforme.yml> > **Run workflow**, branche `main`, choix **fonctions** (seulement quand l'étape 1 et l'étape 2 sont faites). Ce choix publie **toutes** les fonctions de la plateforme (dont celles des automatisations, qui exigent la clé n8n : voir `docs/automatisations-n8n.md`).
-2. Dans un espace de démonstration où le module Devis est actif : finalise un devis. Au bout de quelques secondes (jusqu'à une minute à froid), le document « Devis … .pdf » apparaît ; un lecteur du même espace l'ouvre ; un devis d'un autre client reste inaccessible.
+2. Dans un espace de démonstration où le module Devis est actif : finalise un devis. Au bout de quelques secondes (jusqu'à une minute à froid), le PDF est rangé (le voyant passe au vert) ; le document « Devis … .pdf » n'apparaît dans les Documents de l'affaire que si l'affaire a un dossier de travail (champ `urlDossier` non vide) ; un lecteur du même espace l'ouvre ; un devis d'un autre client reste inaccessible.
 3. Si rien n'apparaît : voir « Si le PDF n'arrive pas » plus bas.
 
 ## Cas vide et cas d'erreur

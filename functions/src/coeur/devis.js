@@ -289,8 +289,9 @@ export function messagePdfCourt(m) {
 /** Un devis finalisé dont le PDF n'est pas prêt : l'écran affichera l'avertissement (et le bouton « Réessayer »). */
 export const pdfAReessayer = (devis) => !!devis && devis.statut !== 'brouillon' && devis.pdf?.statut !== 'ok';
 
-/** Ajoute (ou renomme) le document du PDF dans les Documents de l'affaire. Reconnu par son adresse stable : jamais deux fois le même. Rend null s'il n'y a rien à écrire. */
+/** Ajoute (ou renomme) le document du PDF dans les Documents de l'affaire. Reconnu par son adresse stable : jamais deux fois le même. Rend null s'il n'y a rien à écrire, et toujours null si l'affaire n'a pas de dossier de travail (`urlDossier` non vide) : décision de Jérôme du 26/10/2026. Les liens déjà présents ne sont jamais retirés. */
 function planDocumentAffaire({ donnees, ctx, affaire, libelle, url }) {
+  if (typeof affaire.urlDossier !== 'string' || !affaire.urlDossier.trim()) return null;
   const documents = Array.isArray(affaire.documents) ? affaire.documents : [];
   const i = documents.findIndex((d) => d && d.url === url);
   if (i >= 0 && documents[i].libelle === libelle) return null;
