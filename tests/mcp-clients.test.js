@@ -561,7 +561,7 @@ describe('Suppressions MCP : double confirmation, plafond par document, annotati
       assert.ok(o.annotations, `${o.name} sans annotations`);
       assert.equal(o.annotations.openWorldHint, false, o.name);
       if (/^(supprimer_|restaurer_depuis_audit)/.test(o.name)) assert.deepEqual([o.annotations.readOnlyHint, o.annotations.destructiveHint], [false, true], o.name);
-      else if (/^(chercher|lire_|lister_|qui_suis_je)/.test(o.name)) assert.deepEqual([o.annotations.readOnlyHint, o.annotations.destructiveHint], [true, false], o.name);
+      else if (/^(chercher|lire_|lister_|qui_suis_je|diagnostiquer_fichiers)/.test(o.name)) assert.deepEqual([o.annotations.readOnlyHint, o.annotations.destructiveHint], [true, false], o.name);
       else assert.deepEqual([o.annotations.readOnlyHint, o.annotations.destructiveHint], [false, false], o.name);
     }
     await c.close();
@@ -594,7 +594,7 @@ describe('Modules : les outils suivent les modules actifs du client', () => {
   });
   test('outilsDesModules : communs seuls sans module ; CRM seul = outils de l\'affaire ; tout est déclaré au registre', () => {
     const seuls = (actifs) => outilsDesModules(actifs, OUTILS).map((o) => o.nom);
-    assert.deepEqual(seuls([]), ['qui_suis_je']);
+    assert.deepEqual(seuls([]), ['qui_suis_je', 'diagnostiquer_fichiers']); // + outil d'essai temporaire
     assert.ok(seuls(['affaires']).includes('chercher') && !seuls(['affaires']).includes('lister_projets'));
     assert.equal(seuls(['affaires', 'projets']).length, OUTILS.length - 21, 'sans les modules Automatisations (5 outils de la file À valider) et Devis (5 outils du bordereau, 11 outils des devis et de leurs réglages) : 21 outils manquent');
     assert.equal(seuls(['affaires', 'projets', 'automatisations']).length, OUTILS.length - 16, 'sans le module Devis : ses 16 outils manquent');
@@ -963,7 +963,7 @@ describe('Textes des outils : valables pour tout espace (Partie A)', () => {
       assert.match(ancien, TEXTE_DE_JEROME, ancien);
     }
     for (const permis of ['une affaire gagnée', 'nature livraison', 'lire_audit : le journal d\'audit', 'phase de clôture']) assert.doesNotMatch(permis, TEXTE_DE_JEROME, permis);
-    assert.equal(OUTILS.length, 68); // 50 avant la suppression de la pause (22/10/2026) : moins 3 outils de pause, plus 5 outils de la file « À valider » (module Automatisations), plus 5 outils du bordereau et 11 outils des devis (module Devis, 24/10/2026 puis 25/10/2026 : + lire_reglages_devis, nouvelle_version_devis, archiver_devis, enregistrer_envoi_devis, changer_statut_devis, supprimer_devis)
+    assert.equal(OUTILS.length, 69); // 69 : + diagnostiquer_fichiers (outil d'essai temporaire, 26/10/2026) ; 68 avant : 50 avant la suppression de la pause (22/10/2026) : moins 3 outils de pause, plus 5 outils de la file « À valider » (module Automatisations), plus 5 outils du bordereau et 11 outils des devis (module Devis, 24/10/2026 puis 25/10/2026 : + lire_reglages_devis, nouvelle_version_devis, archiver_devis, enregistrer_envoi_devis, changer_statut_devis, supprimer_devis)
     for (const o of OUTILS) assert.doesNotMatch(textesDe(o), TEXTE_DE_JEROME, `${o.nom} : ${textesDe(o).match(TEXTE_DE_JEROME)?.[0]}`);
   });
 
