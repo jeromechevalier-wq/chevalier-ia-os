@@ -10,19 +10,19 @@ Mise à jour : 26/10/2026, nuit « GO NUIT ». Règle de Jérôme : **« testé 
 | 2 | Barre d'outils des pages Devis | 284 | à faire |
 | 3 | E-mails en copie du devis (cc) | 285 | à faire |
 | 4 | Réglages « Mon entreprise » | 263 | à faire |
-| 5 | Une seule liste « Étape où vivent les devis » | 286 | à faire |
+| 5 | Une seule liste « Étape où vivent les devis » | 286 | oui (26/10/2026) |
 | 6 | Pastille cliquable corrigée (chez un client aussi) ; devis archivé sans pastille | 287 | à faire |
 | 7 | Copie du PDF dans le dossier Drive de l'affaire (+ correctifs) | 283, 290 | à faire (réglage CORS d'abord) |
 | 8 | Suppression d'un brouillon retire son PDF brouillon ; e-mails en copie | 291 | à faire |
 | 9 | Envoi du devis par e-mail (brouillon Gmail, « Marquer comme envoyé », historique des envois) | 292 | à faire (réglages Google d'abord) |
 | 10 | Menu des cartes, historique, « … » à côté d'Envoyer, plus de fiche du devis | 294 | à faire |
-| 11 | Pastilles des réglages Devis (Général / Mon entreprise / Familles d'articles) | 295 | à faire |
+| 11 | Pastilles des réglages Devis (Général / Mon entreprise / Familles d'articles) | 295 | oui (26/10/2026) |
 | 12 | Outils MCP Devis (nouvelle version, archiver, statut, supprimer, envoi) | 296 | à faire |
 | 13 | Visualisation du devis : document seul, en-tête harmonisé, « Passer à Envoyé » | 298 | à faire |
 | 14 | « Préparer l'e-mail » (brouillon Gmail par n8n) | 299 | à faire après branchement (voir « À faire par Jérôme ») |
 | 15 | Réglages > Déploiement (checklist avec contrôles) | 300 | à faire |
 
-Déjà validés par Jérôme : 280, 282.
+Déjà validés par Jérôme : 280, 282, et le 26/10/2026 : 304 (retour au devis), 305 (recherche en vrais liens), 306 (un seul bouton jaune), 308 (flèche du PDF).
 
 ## À faire par Jérôme (une fois)
 - **Copie Drive (7)** : réglage CORS du stockage des PDF, une fois pour chacun des deux projets Google, mode d'emploi dans `docs/cors-stockage-pdf.md`.
@@ -45,7 +45,6 @@ Déjà validés par Jérôme : 280, 282.
 - Simplifier la copie Drive faite par le navigateur (étude).
 - Doublon destinataire / copie quand le client change : pas encore contrôlé.
 - Cible tactile des pastilles-liens inférieure à 44 px.
-- Recherche du haut : résultats en vrais liens (clic droit, Cmd+clic) : PR #305.
 - Écran du PDF : « Retour au devis » ramenait à la liste après une finalisation. Corrigé dans la PR « retour à la page d'origine » (à tester par Jérôme une fois fusionnée et en ligne), test e2e n° 4.
 - **Génération du PDF trop lente** : elle prend plusieurs secondes et on a l'impression que l'outil a planté. À étudier : mesurer où passe le temps, puis afficher une progression claire (message « fabrication en cours », indicateur) et/ou accélérer (demandé par Jérôme le 26/10/2026).
 - Droit Cloud Storage du serveur MCP pour effacer le PDF brouillon (non bloquant).
