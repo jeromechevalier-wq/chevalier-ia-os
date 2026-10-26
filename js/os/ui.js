@@ -444,7 +444,7 @@ export function champIntelligent({
     const a = h('a', { class: 'suggestion suggestion-lien', role: 'option', id: `${idListe}-${k}`, 'aria-selected': 'false', href, tabindex: '-1',
       onmousedown: (e) => e.preventDefault(),
       onclick: (e) => {
-        if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+        if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey) return;
         e.preventDefault();
         choisir(k);
       } }, ...contenu);
