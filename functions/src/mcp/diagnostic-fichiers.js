@@ -18,7 +18,7 @@ function resumerChaine(s) {
   const hote = hoteDe(s);
   if (hote) r.hote = hote;
   else if (/^data:/i.test(s)) r.genre = 'data_uri';
-  else if (/^[A-Za-z0-9_-]{1,40}$/.test(s)) r.mot = s; // un mot court (ex. « chat_upload ») : utile à lire, sans risque
+  else if (/^[a-z_]{1,40}$/.test(s)) r.mot = s; // un mot court (ex. « chat_upload ») : utile à lire, sans risque
   else if (s.length > 200) r.genre = 'texte_long';
   return r;
 }

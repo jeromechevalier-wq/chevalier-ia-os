@@ -60,6 +60,15 @@ describe('diagnostiquer_fichiers : forme reçue', () => {
     assert.ok(!sortieComplete(forme).includes('QUJDQUJD'));
   });
 
+  test('mot court : « chat_upload » est rapporté tel quel, un identifiant opaque (majuscules, chiffres, tirets) ne l\'est jamais', () => {
+    assert.equal(resumerForme(['chat_upload']).elements[0].mot, 'chat_upload');
+    for (const opaque of ['file-AbC123', 'file_AbC123', 'abc123', 'Chat_upload']) {
+      const e = resumerForme([opaque]).elements[0];
+      assert.equal(e.mot, undefined, opaque);
+      assert.ok(!sortieComplete(resumerForme([opaque])).includes(opaque), opaque);
+    }
+  });
+
   test('un seul objet (pas un tableau) est accepté ; au-delà de 20 éléments, on compte sans tout détailler', () => {
     assert.equal(resumerForme({ download_url: URL_SECRETE }).enveloppe, 'object');
     const beaucoup = resumerForme(Array.from({ length: 50 }, () => 'a'));
@@ -132,13 +141,14 @@ describe('diagnostiquer_fichiers : par le vrai serveur MCP', () => {
       assert.deepEqual(outil._meta, { 'openai/fileParams': ['fichiers'] });
       assert.equal(outil.annotations.readOnlyHint, true);
       const sortie = ecrireSilencieux();
+      try {
       for (const fichiers of [[{ download_url: URL_SECRETE, mime_type: 'image/png' }], ['chat_upload'], undefined, 12, 'texte', [null, {}]]) {
         const r = await c.callTool({ name: 'diagnostiquer_fichiers', arguments: fichiers === undefined ? {} : { fichiers } });
         assert.ok(!r.isError, JSON.stringify(fichiers));
         assert.ok(!JSON.stringify(r).includes('secret-xyz'));
         assert.equal(typeof r.structuredContent.message, 'string');
       }
-      sortie.fin();
+      } finally { sortie.fin(); }
     } finally { await c.close(); serveur.close(); }
   });
 });

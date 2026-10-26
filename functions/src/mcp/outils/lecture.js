@@ -211,4 +211,4 @@ export const diagnostiquer_fichiers = {
   },
 };
 
-export const OUTILS_LECTURE = [diagnostiquer_fichiers,chercher, lire_personne, lire_organisation, lire_affaire, lister_affaires, lister_projets, lire_projet, lister_modeles_projet, lister_activites, lister_documents, lire_reglages, lire_audit, lister_articles, chercher_article, lire_reglages_devis, lister_devis, lire_devis];
+export const OUTILS_LECTURE = [diagnostiquer_fichiers, chercher, lire_personne, lire_organisation, lire_affaire, lister_affaires, lister_projets, lire_projet, lister_modeles_projet, lister_activites, lister_documents, lire_reglages, lire_audit, lister_articles, chercher_article, lire_reglages_devis, lister_devis, lire_devis];
