@@ -497,3 +497,43 @@ test('13 finaliser un brouillon ouvert par « Voir le devis » : l’écran pass
   await expect(racine(page).locator('[data-valeur="lecture-seule"]')).toContainText('Ce devis est finalisé : pour le corriger, crée une nouvelle version');
   await expect(onglet(page, 'apercu')).toHaveAttribute('aria-selected', 'true');
 });
+
+test('14 l’infobulle du Catalogue grisé suit le statut : finalisé propose une nouvelle version, signé dit seulement qu’il ne se modifie plus', async ({ page }) => {
+  await donnees();
+  await ouvrir(page, 'devis/editeur/dFinalise');
+  await expect(racine(page).locator('[data-action="bibliotheque"]')).toHaveAttribute('title', /il est finalisé, crée une nouvelle version pour le corriger/);
+  await ouvrir(page, 'devis/editeur/dSigne');
+  const titre = await racine(page).locator('[data-action="bibliotheque"]').getAttribute('title');
+  expect(titre).toContain('il est signé');
+  expect(titre).toContain('il ne se modifie plus');
+  expect(titre).not.toMatch(/nouvelle version|finalisé/);
+});
+
+test('15 lecture seule : « Masquer la description » replie la zone sans message de refus (ce n’est que regarder)', async ({ page }) => {
+  await donnees();
+  await ouvrir(page, 'devis/editeur/dFinalise');
+  const lien = racine(page).locator('[data-action="description"]');
+  await expect(lien).toHaveText(/Masquer la description/);
+  await expect(racine(page).locator('[data-champ="objet"]')).toBeVisible();
+  await lien.click();
+  await expect(racine(page).locator('[data-champ="objet"]')).toBeHidden();
+  await expect(lien).toHaveText(/Ajouter une description/);
+  await expect(page.locator('.toast')).toHaveCount(0);
+});
+
+test('16 finaliser depuis l’éditeur : l’écran qui s’ouvre ensuite sur la Prévisualisation est déjà en lecture seule (jamais un instant modifiable), même si le serveur n’a pas encore renvoyé le devis', async ({ page }) => {
+  await donnees();
+  await page.route('**/devisFinaliser', async (route) => { // le faux serveur répond sans écrire : la copie locale est tout ce que l'écran connaît
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+    return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ result: { ok: true, devisId: 'dBrouillon', statut: 'en_attente_envoi', numero: 'DEV-2026-10-02-098', nouveauNumero: true } }) });
+  });
+  await ouvrir(page, 'devis/editeur/dBrouillon');
+  await racine(page).locator('[data-action="finaliser"]').click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Finaliser' }).click();
+  await expect(page).toHaveURL(/#\/devis\/voir\/dBrouillon$/);
+  await expect(racine(page)).toHaveClass(/devis-lecture-seule/);
+  await expect(racine(page).locator('[data-valeur="lecture-seule"]')).toContainText('Ce devis est finalisé');
+  await page.waitForTimeout(800);
+  await expect(racine(page)).toHaveClass(/devis-lecture-seule/);
+  await expect(racine(page).locator('[data-champ="objet"]')).toHaveAttribute('readonly', '');
+});

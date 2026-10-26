@@ -48,8 +48,8 @@ const versionPossible = (d) => transitionPossible(d?.statut, 'nouvelle_version')
 const messageLectureSeule = (d) => (versionPossible(d)
   ? `Ce devis est ${motDuStatut(d)} : pour le corriger, crée une nouvelle version (menu « … »).`
   : `Ce devis est ${motDuStatut(d)} : il ne se modifie plus.`);
-const INFOBULLE_CATALOGUE_LECTURE = 'Ajouter un article, c’est modifier le devis : il est finalisé, crée une nouvelle version pour le corriger.';
-const SANS_VERROU = '[data-action="replier"], [data-action="definir-ajustement"]'; // en lecture seule, replier une section et ouvrir « Définir un ajustement » restent possibles (ce n'est que regarder)
+const infobulleCatalogueLecture = (d) => `Ajouter un article, c’est modifier le devis : il est ${motDuStatut(d)}, ${versionPossible(d) ? 'crée une nouvelle version pour le corriger.' : 'il ne se modifie plus.'}`;
+const SANS_VERROU = '[data-action="replier"], [data-action="definir-ajustement"], [data-action="description"]'; // en lecture seule, replier une section, ouvrir « Définir un ajustement » et afficher / masquer la description restent possibles (ce n'est que regarder)
 const DELAI_INTROUVABLE_MS = 4000;
 const DELAI_ENREGISTREMENT_MS = 900;
 const DELAI_APERCU_MS = 250;
@@ -689,7 +689,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     try {
       html = htmlImpressionDevis(travail);
       // Le document est pur (aucun script) : l'aperçu n'a aucun droit (pas d'impression : le PDF vient du serveur, par « Envoyer »).
-      corps = h('iframe', { class: 'apercu-devis', title: `Aperçu du devis ${travail.numero ?? ''}`.trim(), sandbox: 'allow-same-origin', srcdoc: html, dataset: { zone: 'apercu' } });
+      corps = h('iframe', { class: 'apercu-devis', title: `Prévisualisation du devis ${travail.numero ?? ''}`.trim(), sandbox: 'allow-same-origin', srcdoc: html, dataset: { zone: 'apercu' } });
     } catch (e) {
       console.warn(e);
       corps = h('p', { class: 'erreur', role: 'alert' }, 'L’aperçu n’a pas pu être préparé : le devis est incomplet. Termine-le, puis rouvre l’aperçu.');
@@ -789,7 +789,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
   function boutonCatalogue() {
     // Lecture seule : grisé (aria-disabled, jamais retiré, reste focusable) avec une infobulle qui explique pourquoi ; un clic dit « il ne se modifie plus ».
     ref.boutonBibliotheque = h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'bibliotheque' }, 'aria-expanded': 'false', 'aria-controls': 'bibliotheque-devis',
-      'aria-disabled': lecture ? 'true' : null, title: lecture ? INFOBULLE_CATALOGUE_LECTURE : null,
+      'aria-disabled': lecture ? 'true' : null, title: lecture ? infobulleCatalogueLecture(travail) : null,
       onclick: () => { if (lecture) { refuserModification(); return; } if (bibliotheque?.ouvert()) bibliotheque.fermer(); else ouvrirLaBibliotheque(); } }, icone('list', { taille: 16 }), 'Catalogue');
     return ref.boutonBibliotheque;
   }
