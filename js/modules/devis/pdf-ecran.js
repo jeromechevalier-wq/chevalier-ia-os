@@ -15,7 +15,7 @@ export const MESSAGE_INTROUVABLE_PDF = 'Ce devis est introuvable. Il a peut-êtr
 export const MESSAGE_EN_COURS = 'Le PDF est en cours de fabrication. Réessaie dans quelques instants.';
 export const MESSAGE_ECHEC = 'La fabrication du PDF a échoué. Appuie sur « Réessayer » pour la relancer.';
 export const MESSAGE_PAS_PRET = 'Le PDF de ce devis n’est pas encore prêt. Appuie sur « Réessayer » pour le fabriquer.';
-export const MESSAGE_PAS_DE_BROUILLON = 'Aucun PDF brouillon pour ce devis. Ouvre le devis et choisis « Envoyer », puis « Télécharger le PDF », pour le créer.';
+export const MESSAGE_PAS_DE_BROUILLON = 'Aucun PDF brouillon pour ce devis. Ouvre le devis, puis le menu « … », et choisis « Télécharger le PDF » (ou « Imprimer »), pour le créer.';
 export const MESSAGE_BROUILLON_FINALISE = 'Ce devis n’est plus un brouillon. Ouvre son PDF depuis la liste des devis.';
 
 /** `brouillon` : true pour la route …/brouillon. Rend la fonction d'arrêt. */

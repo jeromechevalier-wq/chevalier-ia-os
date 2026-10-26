@@ -84,7 +84,7 @@ test('1 la barre d’actions reste en haut quand on défile : titre « Brouillon
   if (!estTelephone(page)) await expect(page.locator('[data-role="recherche-globale"]')).toBeInViewport(); // la grande recherche du haut est revenue sur l'éditeur
   await expect(page.locator('.barre-devis [data-action="enregistrer"]')).toHaveCount(0); // l'enregistrement est automatique
   await expect(page.locator('.barre-devis [data-action="annuler"]')).toHaveCount(0); // « Annuler » ne faisait que revenir à la liste, comme la flèche « ‹ Devis »
-  await expect(page.locator('[data-action="envoyer"]')).toHaveClass(/bouton-principal/); // le seul bouton jaune plein de la barre
+  await expect(page.locator('.barre-devis [data-action="finaliser"]')).toHaveClass(/bouton-principal/); // le seul bouton jaune plein de la barre : l'étape suivante d'un brouillon
   await capturer(page, info, '1-entete-complet', { pleine: false }); // en haut de page : recherche, flèche, titre, total, statut, client, affaire, puis la barre d'actions
   // En bas de la page, la barre est toujours à l'écran (collée en haut, sous la barre du téléphone).
   await defiler(page, false);

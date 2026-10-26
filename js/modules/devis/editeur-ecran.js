@@ -14,7 +14,7 @@ import * as A from './articles.js';
 import { arbreFamilles, cheminFamille } from './familles.js';
 import * as Ed from './editeur-logique.js';
 import {
-  TYPE_SAUT, totauxDevis, erreursFinalisation, erreursChantier, transitionPossible, UNITES_DUREE, MOMENTS_ACOMPTE, TAUX_TVA_DEFAUT, niveauSection, dureeEnTexte,
+  TYPE_SAUT, totauxDevis, erreursFinalisation, erreursChantier, estExpire, UNITES_DUREE, MOMENTS_ACOMPTE, TAUX_TVA_DEFAUT, niveauSection, dureeEnTexte,
   affichageDe, ajustementActif, valeursAjustement, margeEffective, vueClient, emailValide, MAX_COPIE,
 } from './logique.js';
 import { formaterMontant } from './document.js';
@@ -29,6 +29,7 @@ import { lancerEnvoiEmail } from './email-ecran.js';
 import { lancerPreparationEmail } from './email-preparer-ecran.js';
 import { LIBELLE_PREPARER_EMAIL } from './email-preparer.js';
 import { emailPossible } from './email-brouillon.js';
+import { boutonsEntete, MESSAGE_FINALISER_POUR_ENVOYER } from './entete-boutons.js';
 import { ERREUR_ECRITURE, dupliquerDevis, supprimerBrouillon, entreesMenuDevis, changerStatut } from './actions-devis.js';
 import { pastilleStatutDevis, appliquerPastilleStatut } from './pastille-statut.js';
 import { ouvrirPanneauLateral } from './panneau-lateral.js';
@@ -379,21 +380,42 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     if (rouvrir.historique) ouvrirHistorique(null, { silencieux: true });
   }
 
-  /** « Passer à « Envoyé » » : bouton principal, visible seulement quand le devis finalisé peut passer à Envoyé (même action et même appel serveur que le menu de la liste). */
-  const peutPasserEnvoye = () => transitionPossible((travail ?? devisCourant())?.statut, 'marquer_envoye');
-  function boutonPasserEnvoye() {
-    if (!peutPasserEnvoye()) return null;
-    // Verrou : pendant l'appel au serveur le bouton est grisé (un double clic ne fait qu'un appel) ; il est réactivé si l'écran est resté (refus du serveur).
-    const bouton = h('button', { type: 'button', class: 'bouton bouton-principal', dataset: { action: 'passer-envoye' }, onclick: async () => {
+  // ------------------------------------------------ boutons du haut de page : la règle est dans entete-boutons.js (pur, testé) ; ici on ne fait que les dessiner.
+  const regleEntete = () => {
+    const d = devisCourant() ?? travail;
+    return boutonsEntete({ statut: d?.statut, expire: estExpire(d, CRM.ctx().aujourdhui), archive: d?.archive === true, lecture, emailPossible: emailPossible(d?.statut).actif });
+  };
+  /** Un bouton qui change le statut par la fonction du serveur (même appel que le menu de la liste). Verrou : grisé pendant l'appel (un double clic ne fait qu'un appel), réactivé si l'écran est resté (refus du serveur). */
+  function boutonStatut({ action, libelle, pictogramme, style, statutLibelle, nomAction }) {
+    const bouton = h('button', { type: 'button', class: `bouton ${style}`, dataset: { action: nomAction }, onclick: async () => {
       if (bouton.disabled) return;
       bouton.disabled = true; bouton.setAttribute('aria-busy', 'true');
-      try { await changerStatut(devisCourant() ?? travail, 'marquer_envoye', 'Envoyé'); } finally { bouton.disabled = false; bouton.removeAttribute('aria-busy'); }
-    } }, icone('check', { taille: 16 }), 'Passer à « Envoyé »');
+      try { await changerStatut(devisCourant() ?? travail, action, statutLibelle); } finally { bouton.disabled = false; bouton.removeAttribute('aria-busy'); }
+    } }, icone(pictogramme, { taille: 16 }), libelle);
     return bouton;
   }
-  /** Bouton « Envoyer » (menu : e-mail, PDF, impression) : principal, sauf quand « Passer à « Envoyé » » l'est à côté. */
-  function boutonEnvoyer() {
-    return h('button', { type: 'button', class: `bouton ${peutPasserEnvoye() ? 'bouton-secondaire' : 'bouton-principal'}`, dataset: { action: 'envoyer' }, 'aria-haspopup': 'menu', 'aria-expanded': 'false', onclick: (ev) => ouvrirMenuEnvoyer(ev.currentTarget) }, icone('mail', { taille: 16 }), 'Envoyer', icone('chevron-down', { taille: 14 }));
+  /** « Envoyer » : bouton à menu (e-mail). Sur un brouillon il est grisé (aria-disabled, jamais `disabled` : il reste focusable) et un clic dit quoi faire. */
+  function boutonEnvoyer({ principal, grise }) {
+    if (grise) {
+      return h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'envoyer' }, 'aria-disabled': 'true',
+        onclick: () => toast(MESSAGE_FINALISER_POUR_ENVOYER, { duree: 6000 }) }, icone('mail', { taille: 16 }), 'Envoyer');
+    }
+    return h('button', { type: 'button', class: `bouton ${principal ? 'bouton-principal' : 'bouton-secondaire'}`, dataset: { action: 'envoyer' }, 'aria-haspopup': 'menu', 'aria-expanded': 'false', onclick: (ev) => ouvrirMenuEnvoyer(ev.currentTarget) },
+    icone('mail', { taille: 16 }), 'Envoyer', icone('chevron-down', { taille: 14 }));
+  }
+  /** Les un ou deux boutons d'étape du haut de page (le jaune d'abord, puis l'autre en contour ou grisé). */
+  function boutonsEtape() {
+    const { jaune, autre } = regleEntete();
+    const rendre = (b, principal) => {
+      if (!b) return null;
+      if (b.cle === 'finaliser') return h('button', { type: 'button', class: 'bouton bouton-principal', dataset: { action: 'finaliser' }, onclick: () => finaliser() }, icone('check', { taille: 16 }), 'Finaliser');
+      if (b.cle === 'envoyer') return boutonEnvoyer({ principal, grise: b.grise === true });
+      const style = principal ? 'bouton-principal' : 'bouton-secondaire';
+      if (b.cle === 'signer') return boutonStatut({ action: 'accepter', libelle: b.libelle, pictogramme: b.icone, style, statutLibelle: 'Signé', nomAction: 'marquer-signe' });
+      if (b.cle === 'refuser') return boutonStatut({ action: 'refuser', libelle: b.libelle, pictogramme: b.icone, style, statutLibelle: 'Refusé', nomAction: 'marquer-refuse' });
+      return boutonStatut({ action: 'marquer_envoye', libelle: b.libelle, pictogramme: b.icone, style, statutLibelle: 'Envoyé', nomAction: 'passer-envoye' });
+    };
+    return [rendre(jaune, true), rendre(autre, false)];
   }
   function boutonHistorique() {
     ref.boutonHistorique = h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-historique', dataset: { action: 'historique' }, 'aria-controls': 'historique-devis', 'aria-expanded': 'false',
@@ -412,9 +434,17 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       if (!lecture) entrees.push({ libelle: 'Options', icone: 'settings', action: () => ouvrirOptions(ancre) });
       entrees.push({ libelle: 'Historique', icone: 'history', action: () => ouvrirHistorique(ancre) }, { separateur: true });
     }
+    // Ce qui ne dépend pas de l'étape : PDF, impression, e-mail (voir entete-boutons.js). Rien ne disparaît : ce qui n'est plus un bouton se retrouve ici.
+    const { menu } = regleEntete();
+    entrees.push({ libelle: 'Télécharger le PDF', icone: 'download', cle: 'telecharger', action: () => telechargerPdf() },
+      { libelle: 'Imprimer', icone: 'file-text', cle: 'imprimer', action: () => imprimer() });
+    if (menu.envoyerANouveau.present) {
+      entrees.push({ libelle: menu.envoyerANouveau.libelle, icone: 'mail', cle: 'envoyer-a-nouveau', desactive: !menu.envoyerANouveau.actif, titreInfo: grisEmail().titreInfo, action: () => lancerEmail() }, ...entreePreparerEmail());
+    }
+    entrees.push({ separateur: true });
     const apresSuppression = () => { verrou = true; clearTimeout(minuteur); if (travail) enregistre = structuredClone(travail); naviguer('devis/liste'); };
     entrees.push(...entreesMenuDevis(d, {
-      exclure: ['envoyer_email', 'statut:marquer_envoye', lecture ? 'voir' : 'editer'], // Envoyer a son bouton ; on ne propose pas l'écran où l'on est déjà
+      exclure: ['envoyer_email', 'statut:marquer_envoye', 'statut:accepter', 'statut:refuser', lecture ? 'voir' : 'editer'], // l'e-mail et les trois passages d'étape ont leur bouton (ou leur entrée « Envoyer à nouveau ») ; on ne propose pas l'écran où l'on est déjà
       apresSuppression,
       surcharges: {
         supprimer: async (x) => { if (!lecture && !(await sauver())) { toast(`${messageEnreg || ERREUR_ECRITURE} Le brouillon n’a pas été supprimé.`, { type: 'erreur', duree: 8000 }); return; } supprimerBrouillon(x, apresSuppression); }, // attend l'écriture en cours avant de supprimer
@@ -426,14 +456,14 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
   }
 
   function boutonsLecture() {
-    return [boutonHistorique(), boutonPasserEnvoye(), boutonEnvoyer(), boutonPlusActions()];
+    return [boutonHistorique(), ...boutonsEtape(), boutonPlusActions()];
   }
 
   // Barre d'actions : Catalogue, Options, Historique (panneaux collés à droite), Envoyer (bouton à menu), « … » (autres actions). Pas de bouton Enregistrer : l'enregistrement est automatique.
   function boutonsEdition() {
     ref.boutonOptions = h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-options', dataset: { action: 'options' }, 'aria-controls': 'options-devis', 'aria-expanded': 'false', onclick: (ev) => (optionsOuvertes ? optionsOuvertes.fermer() : ouvrirOptions(ev.currentTarget)) }, 'Options', icone('chevron-down', { taille: 14 }));
-    // « Envoyer » remplace « Finaliser » : imprimer, télécharger ou envoyer par e-mail ; le devis est finalisé (numéroté, prix figés) au moment de l'envoi.
-    return [boutonCatalogue(), ref.boutonOptions, boutonHistorique(), boutonEnvoyer(), boutonPlusActions()];
+    // Le bouton jaune suit l'étape du devis (entete-boutons.js) : « Finaliser » tant que c'est un brouillon.
+    return [boutonCatalogue(), ref.boutonOptions, boutonHistorique(), ...boutonsEtape(), boutonPlusActions()];
   }
 
   // ------------------------------------------------ PDF : UN SEUL, celui du serveur (devisPdf), rangé dans les Documents de l'affaire. Plus d'impression par le navigateur.
@@ -547,18 +577,23 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     });
   }
 
+  // Les deux entrées « e-mail », UNE fois pour le menu du bouton « Envoyer » (devis finalisé) et pour le menu « … » (« Envoyer à nouveau »).
+  const finaliserDAbord = { libelle: 'Finaliser d’abord', action: () => finaliser() };
+  const grisEmail = () => ({ desactive: !emailPossible((devisCourant() ?? travail)?.statut).actif, titreInfo: emailPossible((devisCourant() ?? travail)?.statut).raison ?? null });
+  // Crée un brouillon dans le Gmail de l'utilisateur (PDF en pièce jointe) ; l'utilisateur l'envoie lui-même. Voir email-ecran.js.
+  const lancerEmail = () => lancerEnvoiEmail({ devisId: id, getDevis: () => D.devisParId(id) ?? travail, finaliser: finaliserDAbord });
+  // Seulement si le serveur dit que c'est branché (D.emailPreparable). Un workflow n8n crée un brouillon dans le Gmail du compte, PDF joint ; rien n'est envoyé. Voir email-preparer-ecran.js.
+  const entreePreparerEmail = () => (D.emailPreparable() === true ? [{ libelle: LIBELLE_PREPARER_EMAIL, icone: 'mail-check', cle: 'preparer-email', ...grisEmail(),
+    action: () => lancerPreparationEmail({ devisId: id, getDevis: () => D.devisParId(id) ?? travail, finaliser: finaliserDAbord }) }] : []);
+  /** Menu du bouton « Envoyer » (devis finalisé) : seulement l'e-mail. Le PDF et l'impression sont dans « … » (ils ne dépendent pas de l'envoi). */
   function ouvrirMenuEnvoyer(ancre) {
     ouvrirFenetreMenu(ancre, (fermer) => contenuMenu([
-      // Crée un brouillon dans le Gmail de l'utilisateur (PDF en pièce jointe) ; un brouillon de devis propose d'abord de le finaliser. Voir email-ecran.js.
-      { libelle: 'Envoyer par e-mail', icone: 'mail', cle: 'envoyer-email', desactive: !emailPossible(travail?.statut).actif, titreInfo: emailPossible(travail?.statut).raison ?? null,
-        action: () => lancerEnvoiEmail({ devisId: id, getDevis: () => D.devisParId(id) ?? travail, finaliser: { libelle: 'Finaliser d’abord', action: () => finaliser() } }) },
-      // Seulement si le serveur dit que c'est branché (D.emailPreparable). Un workflow n8n crée un brouillon dans le Gmail du compte, PDF joint ; rien n'est envoyé. Voir email-preparer-ecran.js.
-      ...(D.emailPreparable() === true ? [{ libelle: LIBELLE_PREPARER_EMAIL, icone: 'mail-check', cle: 'preparer-email', desactive: !emailPossible(travail?.statut).actif, titreInfo: emailPossible(travail?.statut).raison ?? null,
-        action: () => lancerPreparationEmail({ devisId: id, getDevis: () => D.devisParId(id) ?? travail, finaliser: { libelle: 'Finaliser d’abord', action: () => finaliser() } }) }] : []),
-      { libelle: 'Télécharger le PDF', icone: 'download', cle: 'telecharger', action: () => telechargerPdf() },
-      { libelle: 'Imprimer', icone: 'file-text', cle: 'imprimer', action: () => (lecture ? (travail.statut === 'brouillon' ? telechargerPdf() : naviguer(routePdf(id))) : finaliser({ imprimer: true })) },
+      { libelle: 'Envoyer par e-mail', icone: 'mail', cle: 'envoyer-email', ...grisEmail(), action: () => lancerEmail() },
+      ...entreePreparerEmail(),
     ], fermer), { nom: 'Envoyer' });
   }
+  /** Imprimer : un brouillon donne son PDF « BROUILLON » filigrané (jamais de fenêtre « Finaliser »), un devis finalisé son PDF officiel. */
+  const imprimer = () => (travail?.statut === 'brouillon' ? telechargerPdf() : naviguer(routePdf(id)));
 
   function choisirOnglet(cle) {
     onglet = cle;
@@ -1468,7 +1503,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     await dialogue({ titre, contenu: h('ul', { class: 'liste-erreurs-devis', dataset: { zone: 'erreurs-finalisation' } }, erreurs.map((e) => h('li', {}, e))), boutons: [{ libelle: 'Compris', valeur: true, style: 'principal' }] });
   }
 
-  async function finaliser({ imprimer = false } = {}) {
+  async function finaliser() {
     clearTimeout(minuteur);
     if (!(await sauver())) { toast(messageEnreg || ERREUR_ECRITURE, { type: 'erreur', duree: 8000 }); return; }
     const locales = [...(travail.affaireId ? [] : ['Choisis l’affaire du devis.']), ...erreursFinalisation(travail)];
@@ -1495,7 +1530,6 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       enregistre = structuredClone(travail);
       construire();
       naviguer(`devis/voir/${id}`, { remplacer: true }); // l'adresse suit l'état : un devis finalisé se regarde en visualisation
-      if (imprimer) naviguer(routePdf(id)); // le PDF est fabriqué par le serveur à la finalisation : l'écran du PDF attend qu'il soit prêt
     } catch (e) {
       console.warn(e);
       verrou = false;

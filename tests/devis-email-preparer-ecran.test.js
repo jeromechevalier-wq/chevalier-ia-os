@@ -68,7 +68,9 @@ describe('P3 le câblage : menu « Envoyer », confirmation, textes, serveur', (
   test('P3 « Envoyer par e-mail » est gardé tel quel et « Préparer l’e-mail » vient EN PLUS, seulement quand le serveur dit « branché » (emailPreparable() === true)', () => {
     assert.match(ecran, /libelle: 'Envoyer par e-mail', icone: 'mail', cle: 'envoyer-email'/);
     assert.match(ecran, /D\.emailPreparable\(\) === true \? \[\{ libelle: LIBELLE_PREPARER_EMAIL, icone: 'mail-check', cle: 'preparer-email'/);
-    assert.ok(ecran.indexOf("cle: 'envoyer-email'") < ecran.indexOf("cle: 'preparer-email'") && ecran.indexOf("cle: 'preparer-email'") < ecran.indexOf("cle: 'telecharger'"));
+    // L'ordre du menu « Envoyer » reste : e-mail, puis « Préparer l'e-mail » (26/10/2026 : « Télécharger le PDF » et « Imprimer » ont quitté ce menu, ils sont dans « … »).
+    assert.ok(ecran.indexOf("cle: 'envoyer-email'") < ecran.indexOf('...entreePreparerEmail(),\n    ], fermer)'));
+    assert.match(ecran, /\.\.\.entreePreparerEmail\(\),\n    \], fermer\), \{ nom: 'Envoyer' \}\)/);
     assert.match(ecran, /lancerPreparationEmail\(\{ devisId: id,/);
   });
   test('P3 les textes demandés sont exacts : confirmation et toast', () => {

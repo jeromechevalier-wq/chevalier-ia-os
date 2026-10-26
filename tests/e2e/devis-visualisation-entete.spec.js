@@ -90,9 +90,9 @@ test('2 l’en-tête de la visualisation est celui des fiches : « < Devis », t
   await expect(pastille).toHaveAttribute('data-statut', 'accepte');
   await expect(tete.locator('[data-valeur="lien-client"]')).toContainText('M. Paul Exemple');
   await expect(tete.locator('[data-valeur="lien-affaire"]')).toContainText('Rénovation cuisine');
-  // À droite : Envoyer et « … » partout ; Historique sur ordinateur (sur téléphone il passe dans le « … »).
+  // À droite : « … » partout, et AUCUN bouton d'étape pour un devis signé ; Historique sur ordinateur (sur téléphone il passe dans le « … »).
   const droite = tete.locator('.fiche-tete-droite');
-  await expect(droite.locator('[data-action="envoyer"]')).toBeVisible();
+  await expect(droite.locator('[data-action="envoyer"], [data-action="finaliser"], [data-action="marquer-signe"]')).toHaveCount(0);
   await expect(droite.locator('[data-action="plus-actions"]')).toBeVisible();
   if (estTelephone(page)) await expect(droite.locator('[data-action="historique"]')).toBeHidden();
   else await expect(droite.locator('[data-action="historique"]')).toBeVisible();
@@ -100,7 +100,7 @@ test('2 l’en-tête de la visualisation est celui des fiches : « < Devis », t
   await expect(tete.locator('.fiche-montant-devis, [data-valeur="total-entete"]')).toHaveCount(0);
   await expect(tete).not.toContainText('€');
   await expect(tete.locator('.bouton-info')).toHaveCount(0);
-  await expect(page.locator('.page-editeur-devis .bouton-principal')).toHaveCount(1); // seulement « Envoyer »
+  await expect(page.locator('.page-editeur-devis .bouton-principal')).toHaveCount(0); // signé : aucun bouton jaune (voir devis-entete-bouton-jaune.spec.js)
   // Le « … » s'ouvre ; un devis signé n'a pas de nouvelle version (règle du module).
   await droite.locator('[data-action="plus-actions"]').click();
   await expect(page.locator('.menu-pop')).toBeVisible();
@@ -184,7 +184,7 @@ test('5 cas d’erreur : si le serveur refuse « Créer une nouvelle version »,
   await capturer(page, info, '5-erreur-nouvelle-version');
 });
 
-test('6 « Passer à « Envoyé » » : bouton principal à côté d’« Envoyer » (secondaire) pour un devis finalisé ; un clic passe le statut à Envoyé, la pastille change et le bouton disparaît ; absent pour un devis envoyé, signé ou un brouillon', async ({ page }, info) => {
+test('6 « Passer à « Envoyé » » : bouton à contour à côté d’« Envoyer » (jaune) pour un devis finalisé ; un clic passe le statut à Envoyé, la pastille change et le bouton disparaît ; absent pour un devis envoyé, signé ou un brouillon', async ({ page }, info) => {
   await donnees();
   await devis('dEnvoye', { numero: 'DEV-2026-10-01-004', statut: 'envoye', finaliseLe: new Date(Date.now() - 5 * 86400000), envoyeLe: new Date(Date.now() - 4 * 86400000) });
   const appels = [];
@@ -199,9 +199,9 @@ test('6 « Passer à « Envoyé » » : bouton principal à côté d’« Envoye
   const droite = page.locator('.page-editeur-devis > .fiche-tete .fiche-tete-droite');
   const passer = droite.locator('[data-action="passer-envoye"]');
   await expect(passer).toHaveText('Passer à « Envoyé »');
-  await expect(passer).toHaveClass(/bouton-principal/);
+  await expect(passer).toHaveClass(/bouton-secondaire/); // 26/10/2026 : le jaune est « Envoyer » (l'étape suivante conseillée) ; « Passer à « Envoyé » » reste visible, en contour
   await expect(passer).toBeVisible(); // aussi sur téléphone : jamais caché dans le « … »
-  await expect(droite.locator('[data-action="envoyer"]')).toHaveClass(/bouton-secondaire/);
+  await expect(droite.locator('[data-action="envoyer"]')).toHaveClass(/bouton-principal/);
   await droite.locator('[data-action="plus-actions"]').click();
   await expect(page.locator('.menu-pop').getByRole('menuitem', { name: /Passer à « Envoyé »/ })).toHaveCount(0); // pas de doublon dans le « … »
   await page.keyboard.press('Escape');
@@ -211,7 +211,8 @@ test('6 « Passer à « Envoyé » » : bouton principal à côté d’« Envoye
   await expect(passer).toHaveCount(0);
   expect(appels).toHaveLength(1);
   expect(appels[0]).toMatchObject({ devisId: 'dFinalise', action: 'marquer_envoye' });
-  await expect(droite.locator('[data-action="envoyer"]')).toHaveClass(/bouton-principal/);
+  await expect(droite.locator('[data-action="marquer-signe"]')).toHaveClass(/bouton-principal/); // devis envoyé : l'étape suivante est « Marquer comme signé »
+  await expect(droite.locator('[data-action="envoyer"]')).toHaveCount(0);
   for (const id of ['dEnvoye', 'dSigne', 'dBrouillon']) {
     await page.evaluate((h) => { location.hash = h; }, `#/devis/voir/${id}`);
     await expect(page.locator(`.page-editeur-devis[data-devis="${id}"] .fiche-tete`)).toBeVisible();
