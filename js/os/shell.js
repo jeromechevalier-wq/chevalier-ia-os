@@ -272,9 +272,13 @@ export function monterCoquille(racine, compte, { surDeconnexion, apis = new Map(
     etiquette: 'Rechercher', placeholder: 'Rechercher (/)', icone: 'search', classe: 'recherche-globale',
     fournir: (saisie) => {
       const groupes = [];
-      for (const api of apis.values()) groupes.push(...(api.rechercher?.(saisie)?.groupes || []));
+      // Un module qui échoue ne coupe pas la recherche des autres.
+      for (const api of apis.values()) {
+        try { groupes.push(...(api.rechercher?.(saisie)?.groupes || [])); } catch (e) { console.warn('Recherche : un module a échoué', e); }
+      }
       return { groupes };
     },
+    lienDe: (el) => (el?.chemin ? lien(el.chemin) : null),
     surChoix: (el) => {
       if (!el?.chemin) return;
       naviguer(el.chemin);
