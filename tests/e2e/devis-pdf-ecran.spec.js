@@ -119,6 +119,7 @@ test('4 le bouton de retour ramène à la page d’où l’on vient : le devis (
   const retour = zone(page).locator('[data-action="retour-apres-pdf"]');
   await expect(retour).toHaveAttribute('href', /#\/devis\/voir\/dOk$/);
   await expect(retour).toHaveText('Retour au devis');
+  await expect(zone(page).locator('xpath=ancestor::div[contains(@class,"page-pdf-devis")]').locator('[data-action="retour-liste"]')).toHaveAttribute('href', /#\/devis\/voir\/dOk$/); // la flèche en haut ramène au même devis
   await capturer(page, info, '4-retour-au-devis');
   await popup.close();
   await retour.click();
@@ -131,6 +132,7 @@ test('4 le bouton de retour ramène à la page d’où l’on vient : le devis (
   popup = await ouverture;
   await expect(retour).toHaveAttribute('href', /#\/devis\/liste$/);
   await expect(retour).toHaveText('Retour aux devis');
+  await expect(page.locator('[data-action="retour-liste"]')).toHaveAttribute('href', /#\/devis\/liste$/);
   await popup.close();
 });
 
