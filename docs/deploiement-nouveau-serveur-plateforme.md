@@ -175,6 +175,10 @@ gcloud projects add-iam-policy-binding <ID-DU-NOUVEAU-PROJET> --member=serviceAc
 gcloud projects add-iam-policy-binding <ID-DU-NOUVEAU-PROJET> --member=serviceAccount:<NUMERO-DU-PROJET>-compute@developer.gserviceaccount.com --role=roles/eventarc.eventReceiver
 ```
 
+**Puis attends environ 5 minutes avant de relancer `fonctions`.** Au premier déploiement d'une fonction 2e génération à déclencheur Firestore dans un projet, `devisPdfAuto` peut échouer avec « Permission denied while using the Eventarc Service Agent … may take a few minutes before all necessary permissions are propagated » (« first time using 2nd gen functions … Retry the deployment in a few minutes »). Remède constaté le 26/10/2026 : **attendre 5 minutes et relancer `fonctions`**, sans autre rôle. Seulement si l'échec revient avec le même message après ce délai : vérifier que `service-<NUMERO-DU-PROJET>@gcp-sa-eventarc.iam.gserviceaccount.com` porte le rôle « Agent de service Eventarc » (`roles/eventarc.serviceAgent`, libellé à vérifier au premier essai ; jamais nécessaire jusqu'ici).
+
+Ordre réellement vécu le 26/10/2026 : (1) 1er `fonctions` : fonctions orphelines à supprimer ; (2) rôle Cloud Scheduler sur `deploiement-github` ; (3) les 3 droits ci-dessus ; (4) attendre 5 minutes, relancer. Sur un projet neuf, fais (2) et (3) avant le 1er `fonctions`.
+
 Réussi : chaque commande affiche la liste des liaisons (`bindings:`) sans erreur ; ou les trois lignes apparaissent sur la page IAM.
 
 ---
@@ -325,6 +329,7 @@ Les deux contrôles du serveur (`CONTROLES_SERVEUR` = `fonctions`, `membres`, da
 | « serviceAccount … does not exist » | Un compte attendu par le code n'existe pas dans le projet (ou nom mal écrit) | Étapes 8 à 10 ; ou l'étape 0 n'a pas mis le bon projet dans les adresses |
 | « Failed to verify the project has the correct IAM bindings… We failed to modify the IAM policy for the project » | Premier déclencheur Firestore dans ce projet, droits de l'étape 11 absents | Étape 11, puis relancer `fonctions` |
 | Le déploiement `fonctions` s'arrête alors que le code est bon, en parlant de fonctions à supprimer | Fonction orpheline (en ligne, absente du code) | Encadré de l'étape 14 |
+| « Permission denied while using the Eventarc Service Agent… may take a few minutes… propagated » | Premier usage des fonctions 2e génération dans le projet, permissions pas encore propagées | Attendre 5 minutes et relancer `fonctions` (aucun rôle ajouté en 2026) ; si ça persiste : rôle « Agent de service Eventarc » de `service-<NUMERO-DU-PROJET>@gcp-sa-eventarc.iam.gserviceaccount.com` |
 | Le déploiement `fonctions` s'arrête avant de publier, parlant d'un secret | `N8N_API_KEY` absent de Secret Manager | Étape 12 |
 | « Le secret … n'existe pas encore » | Secret GitHub absent ou nom mal écrit | Étape 13 |
 | Hosting refuse une réécriture | Fonctions pas encore publiées | Lancer `fonctions` (ou `mcp`) avant `hosting` |
