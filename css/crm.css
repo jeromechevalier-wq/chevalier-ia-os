@@ -529,6 +529,11 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 /* Icône « i » : bulle d'explication au survol, au focus et au toucher (position posée par composants.js, jamais hors de l'écran) */
 .bouton-info .bulle-info { display: none; position: fixed; z-index: 90; padding: var(--esp-3) var(--esp-5); border-radius: var(--rayon); background: var(--ink2, #2b2930); color: #fff; font: var(--poids-normal) var(--fs-menu)/1.4 var(--police-texte); text-align: left; box-shadow: var(--ombre); pointer-events: none; white-space: normal; }
 .bouton-info.ouvert .bulle-info { display: block; }
+/* Infobulle d'un bouton grisé (« Envoyer » d'un brouillon) : survol souris et focus clavier ; Échap la masque */
+.avec-bulle { position: relative; display: inline-flex; }
+.avec-bulle .bulle-info { display: none; position: absolute; z-index: 90; top: calc(100% + var(--esp-3)); right: 0; width: max-content; max-width: min(280px, calc(100vw - 24px)); padding: var(--esp-3) var(--esp-5); border-radius: var(--rayon); background: var(--ink2, #2b2930); color: #fff; font: var(--poids-normal) var(--fs-menu)/1.4 var(--police-texte); text-align: left; box-shadow: var(--ombre); pointer-events: none; white-space: normal; }
+@media (max-width: 700px) { .avec-bulle .bulle-info { left: 0; right: auto; } } /* téléphone : le bouton est à gauche, la bulle s'ouvre vers la droite */
+.avec-bulle:hover:not(.bulle-masquee) .bulle-info, .avec-bulle:focus-within:not(.bulle-masquee) .bulle-info { display: block; }
 
 /* Case grisée (fichier envoyé par « Importer » : pas de choix) */
 .case-grisee { opacity: .6; cursor: default; }

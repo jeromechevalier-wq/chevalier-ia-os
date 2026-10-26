@@ -25,6 +25,7 @@ import { htmlDuDevis } from './html-devis.js';
 import { editeurOuvrage } from './editeur-ouvrage.js';
 import * as O from './ouvrages.js';
 import { routePdf, messageApresEnregistrement } from './pdf.js';
+import { afficherAttentePdf, LIBELLE_PDF_FABRICATION } from './pdf-attente.js';
 import { lancerEnvoiEmail } from './email-ecran.js';
 import { lancerPreparationEmail } from './email-preparer-ecran.js';
 import { LIBELLE_PREPARER_EMAIL } from './email-preparer.js';
@@ -397,13 +398,18 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
   /** « Envoyer » : bouton à menu (e-mail). Sur un brouillon il est grisé (aria-disabled, jamais `disabled` : il reste focusable) et un clic dit quoi faire. */
   function boutonEnvoyer({ principal, grise }) {
     if (grise) {
-      return h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'envoyer' }, 'aria-disabled': 'true',
-        onclick: () => toast(MESSAGE_FINALISER_POUR_ENVOYER, { duree: 6000 }) }, icone('mail', { taille: 16 }), 'Envoyer');
+      // Infobulle au survol et au focus clavier (le texte est dans la page, relié au bouton par aria-describedby) ; Échap la masque ; le message du clic reste.
+      const idBulle = 'bulle-envoyer-grise';
+      const bulle = h('span', { class: 'bulle-info', role: 'tooltip', id: idBulle, dataset: { role: 'bulle-envoyer' } }, MESSAGE_FINALISER_POUR_ENVOYER);
+      const enveloppe = h('span', { class: 'avec-bulle', onkeydown: (ev) => { if (ev.key === 'Escape') enveloppe.classList.add('bulle-masquee'); }, onmouseleave: () => enveloppe.classList.remove('bulle-masquee'), onfocusout: () => enveloppe.classList.remove('bulle-masquee') },
+        h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'envoyer' }, 'aria-disabled': 'true', 'aria-describedby': idBulle,
+          onclick: () => toast(MESSAGE_FINALISER_POUR_ENVOYER, { duree: 6000 }) }, icone('mail', { taille: 16 }), 'Envoyer'), bulle);
+      return enveloppe;
     }
     return h('button', { type: 'button', class: `bouton ${principal ? 'bouton-principal' : 'bouton-secondaire'}`, dataset: { action: 'envoyer' }, 'aria-haspopup': 'menu', 'aria-expanded': 'false', onclick: (ev) => ouvrirMenuEnvoyer(ev.currentTarget) },
     icone('mail', { taille: 16 }), 'Envoyer', icone('chevron-down', { taille: 14 }));
   }
-  /** Les un ou deux boutons d'étape du haut de page (le jaune d'abord, puis l'autre en contour ou grisé). */
+  /** Les un ou deux boutons d'étape du haut de page (le jaune d'abord, puis l'autre en contour ou grisé ; sauf au brouillon, l'ordre est inversé : le jaune reste à droite). */
   function boutonsEtape() {
     const { jaune, autre } = regleEntete();
     const rendre = (b, principal) => {
@@ -415,7 +421,8 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       if (b.cle === 'refuser') return boutonStatut({ action: 'refuser', libelle: b.libelle, pictogramme: b.icone, style, statutLibelle: 'Refusé', nomAction: 'marquer-refuse' });
       return boutonStatut({ action: 'marquer_envoye', libelle: b.libelle, pictogramme: b.icone, style, statutLibelle: 'Envoyé', nomAction: 'passer-envoye' });
     };
-    return [rendre(jaune, true), rendre(autre, false)];
+    // Le bouton jaune (l'action à faire) est tout à droite. Seule exception voulue par Jérôme : le brouillon, où « Envoyer » grisé annonce l'action d'après, à droite de « Finaliser ».
+    return jaune && jaune.cle !== 'finaliser' ? [rendre(autre, false), rendre(jaune, true)] : [rendre(jaune, true), rendre(autre, false)];
   }
   function boutonHistorique() {
     ref.boutonHistorique = h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-historique', dataset: { action: 'historique' }, 'aria-controls': 'historique-devis', 'aria-expanded': 'false',
@@ -436,8 +443,9 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     }
     // Ce qui ne dépend pas de l'étape : PDF, impression, e-mail (voir entete-boutons.js). Rien ne disparaît : ce qui n'est plus un bouton se retrouve ici.
     const { menu } = regleEntete();
-    entrees.push({ libelle: 'Télécharger le PDF', icone: 'download', cle: 'telecharger', action: () => telechargerPdf() },
-      { libelle: 'Imprimer', icone: 'file-text', cle: 'imprimer', action: () => imprimer() });
+    // Pendant la fabrication, le menu le dit et ignore un second clic (pas de double génération).
+    entrees.push({ libelle: pdfEnCours ? LIBELLE_PDF_FABRICATION : 'Télécharger le PDF', icone: 'download', cle: 'telecharger', desactive: pdfEnCours, action: () => telechargerPdf(ancre) },
+      { libelle: 'Imprimer', icone: 'file-text', cle: 'imprimer', desactive: pdfEnCours, action: () => imprimer(ancre) });
     if (menu.envoyerANouveau.present) {
       entrees.push({ libelle: menu.envoyerANouveau.libelle, icone: 'mail', cle: 'envoyer-a-nouveau', desactive: !menu.envoyerANouveau.actif, titreInfo: grisEmail().titreInfo, action: () => lancerEmail() }, ...entreePreparerEmail());
     }
@@ -472,10 +480,11 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
    * « Télécharger le PDF » (menu Envoyer). Brouillon : enregistre d'abord les changements en attente (le PDF reflète l'écran), demande au serveur le PDF « BROUILLON »
    * filigrané, puis ouvre l'écran qui l'affiche. Devis finalisé : ouvre directement son PDF (l'écran sait attendre ou relancer un PDF pas encore prêt).
    */
-  async function telechargerPdf() {
+  async function telechargerPdf(ancre = null) {
     if (pdfEnCours || !travail) return;
     if (lecture && travail.statut !== 'brouillon') { naviguer(routePdf(id)); return; } // devis finalisé : son PDF ; un brouillon (même en visualisation) : le PDF « BROUILLON »
     pdfEnCours = true;
+    const retirerAttente = afficherAttentePdf({ bouton: ancre ?? document.querySelector('[data-action="plus-actions"]') });
     try {
       if (!(await sauver())) { toast(`${messageEnreg || ERREUR_ECRITURE} Le PDF n’a pas été créé.`, { type: 'erreur', duree: 8000 }); return; }
       await D.pdfBrouillon(id);
@@ -486,6 +495,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       toast(e?.message || D.MESSAGE_RESEAU_DEVIS, { type: 'erreur', duree: 8000 });
     } finally {
       pdfEnCours = false;
+      retirerAttente();
     }
   }
 
@@ -562,7 +572,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       h('ul', {}, contenu.versions.map((v) => h('li', {}, h('button', {
         type: 'button', class: 'historique-version', dataset: { version: String(v.version), versionId: v.id }, 'aria-current': v.courante ? 'true' : null,
         onclick: () => { if (!v.courante) { historiqueOuvert?.fermer(); naviguer(v.statut === 'brouillon' ? `devis/editeur/${v.id}` : `devis/voir/${v.id}`); } }, // comme la liste : un brouillon s'ouvre en édition
-      }, h('strong', {}, `Version ${v.version}`), h('span', {}, [v.numero, v.libelleStatut, v.jour].filter(Boolean).join(' · ')), v.courante ? h('span', { class: 'badge-courante' }, 'Affichée') : null)))));
+      }, h('strong', {}, `Version ${v.version}`), h('span', {}, [v.numero, v.libelleStatut, [v.jour, v.heure].filter(Boolean).join(' ')].filter(Boolean).join(' · ')), v.courante ? h('span', { class: 'badge-courante' }, 'Affichée') : null)))));
     const envois = h('section', { dataset: { bloc: 'envois' } }, h('h3', {}, 'Envois par e-mail'),
       contenu.envois.length
         ? h('ul', { class: 'historique-envois', dataset: { valeur: 'envois' } }, contenu.envois.map((l) => h('li', { class: 'historique-envoi', dataset: { envoi: String(l.ms) } }, l.texte)))
@@ -570,7 +580,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       // « E-mail préparé dans Gmail le … » : écrit par le serveur quand le workflow a créé le brouillon (ce n'est PAS un envoi : l'envoi reste dans la liste ci-dessus).
       contenu.emailPrepare ? h('p', { class: `historique-email-prepare${contenu.emailPrepare.statut === 'echec' ? ' historique-email-prepare-echec' : ''}`, dataset: { valeur: 'email-prepare', statut: contenu.emailPrepare.statut } }, contenu.emailPrepare.texte) : null);
     const dates = h('section', { dataset: { bloc: 'dates' } }, h('h3', {}, 'Dates'),
-      h('ul', { dataset: { valeur: 'dates' } }, contenu.dates.map((l) => h('li', { dataset: { date: l.cle } }, l.jour ? `${l.libelle} ${l.jour}` : l.libelle))));
+      h('ul', { dataset: { valeur: 'dates' } }, contenu.dates.map((l) => h('li', { dataset: { date: l.cle } }, l.jour ? `${l.libelle} ${l.jour}${l.heure ? ` (${l.heure})` : ''}` : l.libelle))));
     historiqueOuvert = ouvrirPanneauLateral(racine, {
       id: 'historique-devis', titre: 'Historique', nom: 'Historique du devis', zone: 'historique', actionFermer: 'fermer-historique', nomCroix: 'Fermer l’historique',
       contenu: h('div', { class: 'historique-devis' }, versions, envois, dates), bouton: ref.boutonHistorique, ancre, focus: !silencieux, surFermeture: () => { historiqueOuvert = null; },
@@ -593,7 +603,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     ], fermer), { nom: 'Envoyer' });
   }
   /** Imprimer : un brouillon donne son PDF « BROUILLON » filigrané (jamais de fenêtre « Finaliser »), un devis finalisé son PDF officiel. */
-  const imprimer = () => (travail?.statut === 'brouillon' ? telechargerPdf() : naviguer(routePdf(id)));
+  const imprimer = (ancre = null) => (travail?.statut === 'brouillon' ? telechargerPdf(ancre) : naviguer(routePdf(id)));
 
   function choisirOnglet(cle) {
     onglet = cle;
