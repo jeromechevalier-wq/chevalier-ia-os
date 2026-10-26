@@ -236,8 +236,10 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
 .titre-ligne .titre-bloc { margin: 0; }
 .attestation-tva { margin: 0; line-height: 1.5; }
 .attestation-tva[hidden] { display: none; }
-.bandeau-net { position: sticky; bottom: 0; z-index: 10; align-self: flex-end; display: flex; justify-content: space-between; align-items: center; gap: var(--esp-6); width: min(100%, 420px); padding: var(--esp-5) var(--esp-6); border-radius: var(--rayon-petit); background: var(--accent); color: var(--sur-accent); font-size: var(--fs-section); font-weight: var(--poids-moyen); }
-.bandeau-net-montant { font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* NET À PAYER (option A de Jérôme, 26/10/2026) : fond de carte du thème (blanc en clair, gris foncé en sombre), un trait fin de la couleur d'accent à gauche,
+   libellé et montant grands et au poids le plus fort de l'échelle. Jamais d'aplat jaune plein : il est réservé aux boutons d'action (docs/consignes-ui.md). */
+.bandeau-net { position: sticky; bottom: 0; z-index: 10; align-self: flex-end; display: flex; justify-content: space-between; align-items: center; gap: var(--esp-6); width: min(100%, 420px); padding: var(--esp-5) var(--esp-6); border: 1px solid var(--bordure-forte); border-left: 4px solid var(--accent-trait); border-radius: var(--rayon-petit); background: var(--panneau); color: var(--texte); font-size: var(--fs-section); font-weight: var(--poids-moyen); }
+.bandeau-net-montant { font-size: var(--fs-chiffre); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .tableau-tva { align-self: flex-end; width: min(100%, 420px); border-collapse: collapse; border: 1px solid var(--bordure); }
 .tableau-tva th, .tableau-tva td { padding: var(--esp-3) var(--esp-5); text-align: left; font-variant-numeric: tabular-nums; }
 .tableau-tva th.d, .tableau-tva td.d { text-align: right; }
