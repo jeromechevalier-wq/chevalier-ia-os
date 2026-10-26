@@ -19,7 +19,7 @@ const creer = (page) => boite(page).locator('[data-action="creer-brouillon-gmail
 const fiche = (page) => page.locator('[data-zone="historique"]'); // le panneau « Historique » de la visualisation (la fiche du devis n'existe plus)
 /** Ouvre le panneau Historique du devis affiché : bouton de la barre sur ordinateur, menu « … » sur téléphone. */
 async function ouvrirHistorique(page) {
-  await expect(page.locator('.page-editeur-devis.devis-lecture-seule')).toBeVisible();
+  await expect(page.locator('.page-editeur-devis[data-devis]')).toBeVisible();
   if ((page.viewportSize()?.width || 1440) < 768) { await page.locator('[data-action="plus-actions"]').click(); await page.getByRole('menuitem', { name: 'Historique' }).click(); } else await page.locator('[data-action="historique"]').click();
   await expect(fiche(page)).toBeVisible();
 }

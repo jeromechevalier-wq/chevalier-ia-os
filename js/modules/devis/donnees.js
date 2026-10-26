@@ -214,7 +214,13 @@ async function appeler(operation, demande) {
 }
 
 /** Finalise un brouillon : `{ ok: true, devisId, statut, numero, nouveauNumero }` ou `{ ok: false, erreurs: [messages à corriger] }` (rien n'est écrit). Lève une Error lisible si refusé. */
-export const finaliser = (devisId) => appeler('finaliser', { devisId });
+export const finaliser = async (devisId) => {
+  const r = await appeler('finaliser', { devisId });
+  // La copie locale suit tout de suite (le prochain instantané du serveur la remplace) : l'écran qui s'ouvre ensuite sur ce devis le voit déjà finalisé, jamais un instant modifiable.
+  const d = r?.ok === false ? null : devisParId(devisId);
+  if (d && d.statut === 'brouillon') { d.statut = r?.statut ?? 'en_attente_envoi'; if (r?.numero) d.numero = r.numero; }
+  return r;
+};
 /** `action` : marquer_envoye | accepter (Signé) | refuser. */
 export const changerStatut = (devisId, action) => appeler('changerStatut', { devisId, action });
 /** Crée le brouillon suivant d'un devis finalisé, envoyé ou refusé. */

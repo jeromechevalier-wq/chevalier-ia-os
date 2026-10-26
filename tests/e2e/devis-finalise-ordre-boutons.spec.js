@@ -38,8 +38,10 @@ async function ouvrir(page, route) {
   await expect(page.locator('.page-editeur-devis[data-devis]')).toBeVisible();
   await attendreCalme(page);
 }
-const tete = (page) => page.locator('.page-editeur-devis > .fiche-tete .fiche-tete-droite');
+const tete = (page) => page.locator('.page-editeur-devis > .barre-devis .barre-devis-droite');
 const x = async (loc) => (await loc.boundingBox()).x;
+/** Ordre de lecture : sur téléphone les boutons passent à la ligne (le second est alors plus bas, à gauche) ; il est avant l'autre s'il est sur une ligne plus haute, ou sur la même ligne et plus à gauche. */
+const avant = async (a, b) => { const [p, q] = [await a.boundingBox(), await b.boundingBox()]; return q.y > p.y + p.height / 2 || (Math.abs(q.y - p.y) < p.height / 2 && p.x < q.x); };
 
 test('1 finalisé : l’ordre est Historique, « Envoyer » (jaune), puis « Devis envoyé » (contour) ; brouillon et envoyé gardent leur ordre', async ({ page }, info) => {
   await donnees();
@@ -49,7 +51,7 @@ test('1 finalisé : l’ordre est Historique, « Envoyer » (jaune), puis « Dev
   await expect(envoyer).toHaveClass(/bouton-principal/);
   await expect(envoye).toHaveClass(/bouton-secondaire/);
   await expect(envoye).toBeVisible();
-  expect(await x(envoyer)).toBeLessThan(await x(envoye));
+  expect(await avant(envoyer, envoye)).toBe(true);
   // Sur téléphone, « Historique » passe dans le « … » : il n'est comparé que sur ordinateur.
   if (!estTelephone(page)) expect(await x(tete(page).locator('[data-action="historique"]'))).toBeLessThan(await x(envoyer));
   await capturer(page, info, '1-finalise-envoyer-puis-devis-envoye');
@@ -58,13 +60,13 @@ test('1 finalisé : l’ordre est Historique, « Envoyer » (jaune), puis « Dev
   await page.evaluate(() => { location.hash = '#/devis/voir/dBrouillon'; });
   await expect(page.locator('.page-editeur-devis[data-devis="dBrouillon"] .fiche-tete')).toBeVisible();
   await attendreCalme(page);
-  expect(await x(tete(page).locator('[data-action="finaliser"]'))).toBeLessThan(await x(tete(page).locator('[data-action="envoyer"]')));
+  expect(await avant(tete(page).locator('[data-action="finaliser"]'), tete(page).locator('[data-action="envoyer"]'))).toBe(true);
 
   // Envoyé : « Devis refusé » (contour) puis « Devis signé » (jaune) tout à droite (inchangé).
   await page.evaluate(() => { location.hash = '#/devis/voir/dEnvoye'; });
   await expect(page.locator('.page-editeur-devis[data-devis="dEnvoye"] .fiche-tete')).toBeVisible();
   await attendreCalme(page);
-  expect(await x(tete(page).locator('[data-action="marquer-refuse"]'))).toBeLessThan(await x(tete(page).locator('[data-action="marquer-signe"]')));
+  expect(await avant(tete(page).locator('[data-action="marquer-refuse"]'), tete(page).locator('[data-action="marquer-signe"]'))).toBe(true);
 });
 
 test('1 (éditeur) le même ordre dans l’éditeur d’un devis finalisé : « Envoyer » (jaune) avant « Devis envoyé »', async ({ page }) => {
@@ -110,7 +112,8 @@ test('3 brouillon : le « … » ne propose pas « Passer à « Finalisé » » 
   expect(l.filter((t) => PASSAGES.test(t))).toEqual([]);
   expect(l.filter((t) => /^Envoyer/.test(t))).toEqual(['Envoyer par e-mail']); // et jamais « Envoyer à nouveau »
   await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Envoyer par e-mail' })).toBeEnabled();
-  for (const nom of ['Télécharger le PDF', 'Imprimer', 'Voir le devis', 'Dupliquer', 'Supprimer']) expect(l).toContain(nom);
+  for (const nom of ['Télécharger le PDF', 'Imprimer', 'Dupliquer', 'Supprimer']) expect(l).toContain(nom);
+  expect(l).not.toContain('Voir le devis'); // l'onglet « Prévisualisation » le fait déjà (écran unique)
   await capturer(page, info, '3-menu-brouillon');
   await page.keyboard.press('Escape');
 });

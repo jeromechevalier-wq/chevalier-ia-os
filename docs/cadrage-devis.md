@@ -22,7 +22,7 @@ Menus de ligne et de section (insérer au début, à la fin, au-dessus, en desso
 - **Familles d'articles** : une seule famille par article, **pas de sous-familles**. Nouveau type de ligne **Texte** (paragraphe sans prix). Un article a une **référence** et une **marque**. Stocks et tarifs fournisseurs : hors v1.
 - **CGV** : un générateur produit le texte ; il est **à faire relire par un juriste** (constante `CGV_RELUES_PAR_JURISTE`, faux tant que ce n'est pas fait, avec avertissement à l'écran ; points à trancher listés en tête de `js/modules/devis/cgv.js`).
 - **Statuts** : Brouillon, Finalisé, Envoyé, Signé, Refusé, Remplacé ; **Expiré** se calcule à l'affichage (aucune écriture).
-- **Écrans** : la **liste des devis** (liste et tableau), l'**éditeur** (Édition / Aperçu), le **Bordereau**. Pas de glisser-déposer dans le tableau par statut.
+- **Écrans** : la **liste des devis** (liste et tableau), l'**éditeur** (Édition / Prévisualisation), le **Bordereau**. Pas de glisser-déposer dans le tableau par statut.
 - **Pilotage reporté** : il nécessite la facturation.
 - **Hors v1** : étiquettes, styles de tableau et de totaux, ordre de l'en-tête, QR code, numérotation et titre modifiables, points de collecte, entité chantier, glisser-déposer des lignes, primes, retenue et déchets dans l'éditeur (ils existent dans le calcul, pas encore à l'écran).
 - **Outils MCP** : `lister_devis`, `lire_devis`, `creer_devis_brouillon`, `modifier_devis_brouillon`, `finaliser_devis` (en deux temps, avec code).
