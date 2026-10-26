@@ -25,6 +25,7 @@ import { htmlDuDevis } from './html-devis.js';
 import { editeurOuvrage } from './editeur-ouvrage.js';
 import * as O from './ouvrages.js';
 import { routePdf, messageApresEnregistrement } from './pdf.js';
+import { afficherAttentePdf, LIBELLE_PDF_FABRICATION } from './pdf-attente.js';
 import { lancerEnvoiEmail } from './email-ecran.js';
 import { lancerPreparationEmail } from './email-preparer-ecran.js';
 import { LIBELLE_PREPARER_EMAIL } from './email-preparer.js';
@@ -436,8 +437,9 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     }
     // Ce qui ne dépend pas de l'étape : PDF, impression, e-mail (voir entete-boutons.js). Rien ne disparaît : ce qui n'est plus un bouton se retrouve ici.
     const { menu } = regleEntete();
-    entrees.push({ libelle: 'Télécharger le PDF', icone: 'download', cle: 'telecharger', action: () => telechargerPdf() },
-      { libelle: 'Imprimer', icone: 'file-text', cle: 'imprimer', action: () => imprimer() });
+    // Pendant la fabrication, le menu le dit et ignore un second clic (pas de double génération).
+    entrees.push({ libelle: pdfEnCours ? LIBELLE_PDF_FABRICATION : 'Télécharger le PDF', icone: 'download', cle: 'telecharger', desactive: pdfEnCours, action: () => telechargerPdf(ancre) },
+      { libelle: 'Imprimer', icone: 'file-text', cle: 'imprimer', desactive: pdfEnCours, action: () => imprimer(ancre) });
     if (menu.envoyerANouveau.present) {
       entrees.push({ libelle: menu.envoyerANouveau.libelle, icone: 'mail', cle: 'envoyer-a-nouveau', desactive: !menu.envoyerANouveau.actif, titreInfo: grisEmail().titreInfo, action: () => lancerEmail() }, ...entreePreparerEmail());
     }
@@ -472,10 +474,11 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
    * « Télécharger le PDF » (menu Envoyer). Brouillon : enregistre d'abord les changements en attente (le PDF reflète l'écran), demande au serveur le PDF « BROUILLON »
    * filigrané, puis ouvre l'écran qui l'affiche. Devis finalisé : ouvre directement son PDF (l'écran sait attendre ou relancer un PDF pas encore prêt).
    */
-  async function telechargerPdf() {
+  async function telechargerPdf(ancre = null) {
     if (pdfEnCours || !travail) return;
     if (lecture && travail.statut !== 'brouillon') { naviguer(routePdf(id)); return; } // devis finalisé : son PDF ; un brouillon (même en visualisation) : le PDF « BROUILLON »
     pdfEnCours = true;
+    const retirerAttente = afficherAttentePdf({ bouton: ancre ?? document.querySelector('[data-action="plus-actions"]') });
     try {
       if (!(await sauver())) { toast(`${messageEnreg || ERREUR_ECRITURE} Le PDF n’a pas été créé.`, { type: 'erreur', duree: 8000 }); return; }
       await D.pdfBrouillon(id);
@@ -486,6 +489,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       toast(e?.message || D.MESSAGE_RESEAU_DEVIS, { type: 'erreur', duree: 8000 });
     } finally {
       pdfEnCours = false;
+      retirerAttente();
     }
   }
 
@@ -593,7 +597,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     ], fermer), { nom: 'Envoyer' });
   }
   /** Imprimer : un brouillon donne son PDF « BROUILLON » filigrané (jamais de fenêtre « Finaliser »), un devis finalisé son PDF officiel. */
-  const imprimer = () => (travail?.statut === 'brouillon' ? telechargerPdf() : naviguer(routePdf(id)));
+  const imprimer = (ancre = null) => (travail?.statut === 'brouillon' ? telechargerPdf(ancre) : naviguer(routePdf(id)));
 
   function choisirOnglet(cle) {
     onglet = cle;
