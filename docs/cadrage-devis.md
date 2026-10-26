@@ -170,6 +170,7 @@ Procédure de `CLAUDE.md` : chaque point = une phrase observable, **un test dont
 - **D12** Finaliser deux fois la même version est refusé et n'envoie rien de plus à n8n.
 - **D13** Le JSON envoyé à n8n ne contient aucun prix d'achat, marge, coefficient ni mode de marge.
 - **D14** Si n8n échoue ou ne répond pas, le devis reste numéroté et verrouillé, un bandeau propose « Réessayer ».
+- **PDF fabriqué par le serveur** : ajouté aux Documents de l'affaire seulement si l'affaire a un dossier de travail Drive (26/10/2026).
 - **D15** Le retour de n8n pose « brouillon créé », range le lien du PDF dans les Documents de l'affaire et garde l'empreinte.
 - **D16** « Marquer comme envoyé » passe le devis à Envoyé, écrit une ligne dans l'historique de l'affaire et pousse l'affaire à l'étape « devis envoyé » (sans jamais reculer).
 - **D17** « Accepté » passe l'affaire à Gagnée (la rouvre si elle était perdue) ; le montant de l'affaire devient la somme HT des devis acceptés, sans écraser un montant saisi à la main tant qu'aucun n'est accepté.
