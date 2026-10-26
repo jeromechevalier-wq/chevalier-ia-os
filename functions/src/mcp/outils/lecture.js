@@ -1,6 +1,7 @@
 // Outils de lecture (profils lecteur, bibliothécaire et Claude Code) : aucun n'écrit dans la base ni dans l'audit.
 import { z } from 'zod';
 import * as lecture from '../../coeur/lecture.js';
+import { resumerForme, phraseDe, ligneDeDiagnostic } from '../diagnostic-fichiers.js';
 
 const TOUS = ['lecteur', 'bibliothecaire', 'claude-code'];
 const id = z.string().min(1).max(200);
@@ -193,4 +194,21 @@ export const lire_devis = {
   executer: ({ args, donnees, maintenant }) => lecture.lireDevis(donnees, args, maintenant),
 };
 
-export const OUTILS_LECTURE = [chercher, lire_personne, lire_organisation, lire_affaire, lister_affaires, lister_projets, lire_projet, lister_modeles_projet, lister_activites, lister_documents, lire_reglages, lire_audit, lister_articles, chercher_article, lire_reglages_devis, lister_devis, lire_devis];
+// TEMPORAIRE : diagnostic de ce que l'assistant envoie quand on joint un fichier (à retirer après l'essai). Lecture seule : ni base, ni audit, ni téléchargement.
+export const diagnostiquer_fichiers = {
+  nom: 'diagnostiquer_fichiers',
+  profils: TOUS,
+  meta: { 'openai/fileParams': ['fichiers'] },
+  description: "Outil d'essai, temporaire. Quand l'utilisateur joint des fichiers (photos, PDF) à la conversation, passe-les dans `fichiers`, tels que tu les as reçus. L'outil n'enregistre ni ne télécharge rien : il répond seulement ce qu'il a reçu (nombre, forme, hôte des liens).",
+  schema: {
+    fichiers: z.any().optional().describe('Les fichiers joints à la conversation, tels que reçus (liste de fichiers, de liens ou de textes).'),
+    note: z.string().max(500).optional().describe('Remarque libre et courte (facultatif).'),
+  },
+  executer: ({ args, acteur }) => {
+    const forme = resumerForme(args.fichiers);
+    ligneDeDiagnostic({ forme, acteur, note: args.note });
+    return { message: phraseDe(forme), forme };
+  },
+};
+
+export const OUTILS_LECTURE = [diagnostiquer_fichiers,chercher, lire_personne, lire_organisation, lire_affaire, lister_affaires, lister_projets, lire_projet, lister_modeles_projet, lister_activites, lister_documents, lire_reglages, lire_audit, lister_articles, chercher_article, lire_reglages_devis, lister_devis, lire_devis];

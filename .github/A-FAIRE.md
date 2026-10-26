@@ -31,6 +31,9 @@ Déjà validés par Jérôme : 280, 282.
 - **Chez les clients** : le déploiement de `devisEnregistrerEnvoi`, `devisPreparerEmail`, `deploiementVerifier` et du MCP se fait avec le workflow manuel, avec Jérôme (la porte de la base 2 n'existe pas encore).
 - **Règles Firestore** du journal des demandes (`crm_actions_lancements`) : PR séparée « à fusionner par Jérôme » (liste d'arrêt).
 
+## À tester par Jérôme
+- **Outil de diagnostic fichiers MCP** : à tester par Jérôme (ChatGPT et Claude, ordinateur et téléphone ; scénario dans `docs/plan-mcp.md`, section 11), puis à retirer (liste de ce qui se retire au même endroit).
+
 ## Reste à faire (code, rien d'urgent)
 
 ### Priorité haute (demande de Jérôme, 26/10/2026)
