@@ -107,7 +107,7 @@ test('2 finalisé : pas de bouton « Finaliser » ; « Envoyer » est jaune et o
   const menu = await menuPlus(page);
   await expect(menu.getByRole('menuitem', { name: 'Télécharger le PDF' })).toBeEnabled();
   await expect(menu.getByRole('menuitem', { name: 'Imprimer' })).toBeEnabled();
-  await expect(menu.getByRole('menuitem', { name: 'Envoyer à nouveau' })).toBeEnabled();
+  await expect(menu.getByRole('menuitem', { name: 'Envoyer à nouveau' })).toHaveCount(0); // 26/10/2026 : « Envoyer » (jaune) est visible, le « … » ne le répète pas
   await page.keyboard.press('Escape');
 });
 
