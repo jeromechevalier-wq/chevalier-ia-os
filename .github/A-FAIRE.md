@@ -1,6 +1,6 @@
 # À faire : module Devis et outils (liste maintenue à jour)
 
-Mise à jour : 26/10/2026, soir. Règle de Jérôme : **« testé par Jérôme » ne s'écrit que sur sa confirmation, et quand le test est possible** (fusionné **et** en ligne). Aucun secret ici (dépôt public).
+Mise à jour : 26/10/2026, nuit. Règle de Jérôme : **« testé par Jérôme » ne s'écrit que sur sa confirmation, et quand le test est possible** (fusionné **et** en ligne). Aucun secret ici (dépôt public).
 
 ## À tester par Jérôme (fusionné, en ligne)
 
@@ -21,6 +21,7 @@ Mise à jour : 26/10/2026, soir. Règle de Jérôme : **« testé par Jérôme �
 | 18 | Boutons du devis finalisé | 322 | à faire (fusionnée, en ligne : à vérifier à l'écran) |
 | 19 | Un seul écran pour toute la vie du devis (Édition en lecture seule une fois finalisé) | 314 | à faire (fusionnée, en ligne) |
 | 20 | E-mails en copie refaits (croix « Retirer » sans confirmation : à valider) | 313 | à faire (fusionnée, en ligne) |
+| 21 | PDF des devis chez les clients (fonctions `fonctions` déployées, PR 324) | 324 | En service : Jérôme a généré des PDF chez le client démo (« le pdf se génère bien », 26/10/2026). Reste à confirmer par lui : l'ouverture du lien du PDF par un lecteur du même espace, et l'accès refusé à un devis d'un autre client |
 | 17 | « NET À PAYER » sur fond de carte avec un trait jaune à gauche (le jaune plein reste aux boutons) | 319 | à faire |
 
 Déjà validés par Jérôme : 280, 282, et le 26/10/2026 : 309 (retour visuel pendant la fabrication du PDF), 315 (Historique avec date, heure et minute), 316 (Options sans flèche), 278, 284, 287 (barre du haut, pastilles des affaires), 304 (retour au devis), 305 (recherche en vrais liens), 306 (un seul bouton jaune), 308 (flèche du PDF).
@@ -42,20 +43,24 @@ Déjà validés par Jérôme : 280, 282, et le 26/10/2026 : 309 (retour visuel p
 ## À tester par Jérôme
 - **Outil de diagnostic fichiers MCP** : à tester par Jérôme (ChatGPT et Claude, ordinateur et téléphone ; scénario dans `docs/plan-mcp.md`, section 11), puis à retirer (liste de ce qui se retire au même endroit).
 
-## En cours (PR ouvertes, 26/10/2026, soir)
-- **Fusionnées ce soir** : 322 (boutons du devis finalisé), 314 (écran unique du devis), 313 (e-mails en copie), 324 (PDF fabriqué chez les clients), 323 (règle CLAUDE.md : parité Jérôme / clients). Jérôme doit encore les vérifier à l'écran (322, 314, 313) ; ne mettre « testé par Jérôme » que sur sa confirmation.
-- **320** : outil de données de démonstration (`docs/donnees-demo.md`) ; ouverte, relue par Fable, sans bloquant ; à fusionner après la démonstration de Jérôme.
+## En cours (PR ouvertes, 26/10/2026, nuit)
+- **Fusionnées** : 322 (boutons du devis finalisé), 314 (écran unique du devis), 313 (e-mails en copie), 324 (PDF fabriqué chez les clients), 323 (règle CLAUDE.md : parité Jérôme / clients), 325, 326 (mode d'emploi du 2e serveur : `docs/deploiement-nouveau-serveur-plateforme.md`). Jérôme doit encore les vérifier à l'écran (322, 314, 313) ; ne mettre « testé par Jérôme » que sur sa confirmation.
+- **320** : outil de données de démonstration (`docs/donnees-demo.md`) ; en cours de mise à jour avec `main` (conflits de wiki), puis à fusionner. Ensuite, PR séparée « option `--pdf` » (brief déjà relu par Fable, 16 points) : aller-retour brouillon puis statut d'origine (champ `donneesDemoStatutOrigine`), 2 devis à la fois, nettoyage des événements `crm_evenements` et des fichiers Storage au `--retirer`, jamais par défaut sans détection du déclencheur. Les 12 devis de démo sans PDF peuvent être régénérés à la main (clic sur le voyant rouge « Réessayer »).
 - **302** : règles Firestore du journal « Préparer l'e-mail » (`crm_actions_lancements`), étiquette `a-fusionner-par-jerome` ; ouverte. Jérôme la fusionne, puis publie les règles dans les deux projets.
 - **Client démo** : Jérôme a activé Devis et le MCP ; le remplissage se lance dans son Terminal (`docs/donnees-demo.md`).
 
-## À faire, ordre de priorité (26/10/2026, soir)
-- **PDF chez les clients (haute priorité)** : Jérôme crée le compte de service `devis-pdf`, lui donne ses 5 droits, active l'API « IAM Service Account Credentials », puis relance le workflow `fonctions` ; ensuite essai de bout en bout chez le client démo (`docs/pdf-clients.md`). Puis, en PR séparées : (a) ajouter à la page Réglages > Déploiement les lignes `pdf-stockage` et `pdf-fonctions` ; (b) protéger le champ `pdf` dans les règles Firestore (`devisBrouillonModifie`) : liste d'arrêt, Jérôme la fusionne.
+## À faire, ordre de priorité (26/10/2026, nuit)
+- **PDF chez les clients : en service** (déploiement `fonctions` vert, PDF générés chez le client démo, confirmé par Jérôme). Reste : (1) Jérôme confirme l'ouverture du lien par un lecteur du même espace et l'accès refusé à un devis d'un autre client (PR 324) ; (2) **mettre les docs d'accord** : `docs/deploiement-plateforme.md` dit encore « Fonctions : non, jamais » et « le workflow n'a jamais été lancé » ; `docs/pdf-clients.md` ne parle pas des 3 droits de projet ni de l'attente de 5 minutes d'Eventarc (le doc du 2e serveur les a). Puis, en PR séparées : (a) ajouter à la page Réglages > Déploiement les lignes `pdf-stockage` et `pdf-fonctions` ; (b) protéger le champ `pdf` dans les règles Firestore (`devisBrouillonModifie`) : liste d'arrêt, Jérôme la fusionne.
 - **Rôle « Administrateur Cloud Scheduler »** à donner au compte `deploiement-github` dans `chevalier-ia-app` : sans lui, `automatisationsCopieHoraire` échoue au déploiement (erreur 403 constatée le 26/10). Noté dans `docs/deploiement-plateforme.md`.
 - **Fonctions orphelines** : le déploiement `fonctions` échoue si d'anciennes fonctions (`journalCopieHoraire`, `journalRafraichir`, `journalRenommer`) existent encore chez les clients sans exister dans le code ; les supprimer à la main dans la console (Jérôme l'a fait le 26/10). Noté dans `docs/deploiement-plateforme.md` (dépannage).
 - **Écarts `functions/` vs `functions-plateforme/` à auditer avant chaque démonstration** : `automatisationsDecider` (« À valider »), la « porte » n8n chez les clients, `tableaudebordSaisir` (Maintenance), `veille`.
-- **Outil de démo** : après l'arrivée des PDF, une option pour fabriquer d'un coup les PDF des 12 devis de la démo (sinon voyant rouge « PDF non rangé » sur les devis écrits directement en base).
-- **Tests** : 2 tests de `tests/e2e/devis-pdf-ecran.spec.js` (« lien signé… », « PDF pas prêt… ») échouent dans le bac à sable des agents (`popup.url()` vide), y compris sur `main`. Non vus rouges sur GitHub parce que la suite de nuit sur `main` a été annulée 3 nuits de suite (job « Suite de nuit » arrêté après environ 44 min : runs 15, 16, 17) : à enquêter (délai du job, répartition).
-- **Croix « Retirer » d'une adresse en copie** : retrait immédiat sans confirmation ; à valider par Jérôme (exception à la règle « Destructif »).
+- **Outil de démo** : option `--pdf` pour fabriquer d'un coup les PDF des 12 devis de la démo (sinon voyant rouge « PDF non rangé » sur les devis écrits directement en base) : voir PR 320 plus haut.
+- **Question produit à trancher par Jérôme (26/10)** : un PDF fabriqué est ajouté automatiquement aux Documents de l'affaire (lien vers le stockage de l'appli, pas Drive) et `declencheur-pdf` écrit une ligne « Document joint : … » dans l'historique ; Jérôme s'étonne que ça arrive sans dossier de travail configuré. Options : A (toujours, comportement actuel), B (seulement si l'affaire a un dossier de travail Drive), C (jamais). En attente de son choix ; même code chez lui et chez les clients.
+- **Déconnexion forcée chez le client démo** (Chrome normal de Jérôme, navigation privée OK) : constatée au moins 3 fois le 26/10. Cause probable (hypothèse, non prouvée) : `compteDuClient` dans `js/os/auth.js` déconnecte (`signOut`) sur n'importe quelle erreur de lecture de la fiche membre ; correctif en cours (PR « Connexion : une erreur réseau ne déconnecte plus »). Au prochain incident, Jérôme regarde F12 > Application > IndexedDB > firebaseLocalStorageDb > firebaseLocalStorage : ligne `firebase:authUser` présente (donc c'est l'appli) ou tableau vide (quelque chose efface les données : extension, réglage Chrome « effacer à la fermeture »). Contournement : icône à gauche de l'adresse > Paramètres du site > Effacer les données, ou navigation privée.
+- **Icône du manifeste d'un client** (priorité basse) : avertissement console « Error while trying to use the following icon from the Manifest … (Resource size is not correct) » : l'icône pointe vers le logo du stockage avec `sizes: 'any'` dans `manifesteClient` (`js/os/marque.js`) ; à corriger (icône à taille déclarée, ou icône générée). Le message « Cross-Origin-Opener-Policy policy would block the window.closed call » (fenêtre de connexion Google) est normal.
+- **Mettre à jour les docs périmées** : voir le point « PDF chez les clients » ci-dessus.
+- **Tests** : 2 tests de `tests/e2e/devis-pdf-ecran.spec.js` (« lien signé… », « PDF pas prêt… ») échouent dans le bac à sable des agents (`popup.url()` vide), y compris sur `main`. Non vus rouges sur GitHub parce que la suite de nuit (workflow « Tests de nuit ») sur `main` a été annulée : 4 runs annulés (environ 44 à 49 min), y compris celui lancé à la main le 26/10, donc aucune information sur le rouge réel. À enquêter : durée maximale du job « Suite de nuit », répartition en parties.
+- **Croix « Retirer » d'une adresse en copie** : retrait immédiat sans confirmation ; toujours à valider par Jérôme : sans confirmation, ou avec confirmation et Annuler (exception à la règle « Destructif »).
 - **Accessibilité des onglets Édition / Prévisualisation** (`role=tabpanel`, `aria-controls`, flèches) : point connu, non fait.
 
 ## Reste à faire (code, rien d'urgent)
@@ -74,7 +79,7 @@ Déjà validés par Jérôme : 280, 282, et le 26/10/2026 : 309 (retour visuel p
 - **Génération du PDF trop lente** : elle prend plusieurs secondes et on a l'impression que l'outil a planté. À étudier : mesurer où passe le temps, puis afficher une progression claire (message « fabrication en cours », indicateur) et/ou accélérer (demandé par Jérôme le 26/10/2026).
 - « Préparer l'e-mail » dans le menu de la liste des devis (aujourd'hui seulement dans l'éditeur).
 - Le test `devis-email.spec.js` n°1 sur téléphone mesure 43,68 px au lieu de 44 pendant l'animation de la fenêtre (même défaut de timing corrigé dans le nouveau spec) : à stabiliser.
-- Mode d'emploi d'un 2e serveur de plateforme : écrit le 26/10, à éprouver au premier vrai 2e serveur (`docs/deploiement-nouveau-serveur-plateforme.md`).
+- Mode d'emploi d'un 2e serveur de plateforme : écrit le 26/10, à éprouver au premier vrai 2e serveur (`docs/deploiement-nouveau-serveur-plateforme.md`). Le projet `chevalier-ia-app` est écrit en dur dans le code : un 2e serveur demandera d'abord une PR de code, relue par Fable (ajouter une ligne dédiée).
 
 ## Décidé : rien à faire
 - Anciens documents « Brouillon – … » : ils se renomment tout seuls au prochain PDF du même devis (décision de Jérôme, 25/10/2026).
