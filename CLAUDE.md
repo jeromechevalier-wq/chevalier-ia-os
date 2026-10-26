@@ -89,3 +89,4 @@ Jérôme ne veut pas être le goulot d'étranglement : GitHub permet de revenir 
 2. Lis `docs/reprise-prochaine-session.md` : ce qui reste à faire en premier.
 3. Les idées en cours sur les affaires, projets et fiches : `docs/idees-affaires-projets.md` (revue du 21/10/2026, critères d'acceptation).
 4. Pour tout ce qui touche au serveur MCP : `docs/plan-mcp.md`, `docs/securite-et-pannes.md`, `docs/playbook-mcp-firebase.md`.
+5. Données de démonstration : `docs/donnees-demo.md`.

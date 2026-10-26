@@ -20,7 +20,7 @@
 // - Le document des réglages des devis et celui des familles ne sont écrits que s'ils n'existent pas encore chez le client.
 import { getApps, initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
-import { ErreurOutil, exigerIdentifiant, lireArguments, cible, ouvrir, traduireErreur, PROJET_PLATEFORME, PROJETS_INTERDITS, modulesActifsDe } from './commun.js';
+import { ErreurOutil, exigerIdentifiant, verifierEmail, lireArguments, cible, ouvrir, traduireErreur, PROJET_PLATEFORME, PROJETS_INTERDITS, modulesActifsDe } from './commun.js';
 import * as L from '../../js/modules/crm/logique.js';
 import * as P from '../../js/modules/projets/logique.js';
 import * as D from '../../js/modules/devis/logique.js';
@@ -396,13 +396,13 @@ const ENTREPRISE_DEMO = Object.freeze({
   mediateur: { nom: 'Médiateur de la consommation (exemple)', site: 'https://mediateur.exemple.test' },
 });
 
-async function cheminsClient(db, id) {
+function cheminsClient(db, id) {
   return (c) => db.collection(`clients/${id}/${c}`);
 }
 
 async function retirer(id, ctx) {
   const db = ctx.base.db;
-  const col = await cheminsClient(db, id);
+  const col = cheminsClient(db, id);
   let total = 0;
   const refs = [];
   for (const c of COLLECTIONS_DEMO) {
@@ -428,7 +428,7 @@ async function retirer(id, ctx) {
 
 async function remplir(id, options, ctx, fiche) {
   const db = ctx.base.db;
-  const col = await cheminsClient(db, id);
+  const col = cheminsClient(db, id);
   // Données déjà là ?
   const demoDeja = await col('crm_affaires').where(MARQUEUR, '==', true).limit(1).get();
   if (!demoDeja.empty) throw new ErreurOutil('Ce client a déjà des données de démonstration. Retirez-les d\'abord : node scripts/donnees-demo.js ' + id + ' --retirer --ecrire');
@@ -504,7 +504,7 @@ async function remplir(id, options, ctx, fiche) {
   for (const { id: did } of plan.resume.devis) {
     const d = plan.documents.find((x) => x.id === did).donnees;
     const ttc = (d.totaux ?? D.totauxDevis(d)).ttc;
-    ctx.out(`  - ${(D.STATUTS_DEVIS.find((s) => s.id === d.statut)?.libelle ?? d.statut).padEnd(9)} ${d.numero ?? '(sans numéro)'.padEnd(18)}  ${d.objet}  ${D.montantFr(ttc)} TTC`);
+    ctx.out(`  - ${(D.STATUTS_DEVIS.find((s) => s.id === d.statut)?.libelle ?? d.statut).padEnd(9)} ${(d.numero ?? '(sans numéro)').padEnd(18)}  ${d.objet}  ${D.montantFr(ttc)} TTC`);
   }
   ctx.out(`Projets : ${plan.resume.projets.length} (${config.phases.filter((ph) => ph.actif).map((ph) => `${ph.libelle} ${plan.resume.projets.filter((p) => p.phase === ph.id).length}`).join(', ')})`);
   const parCollection = {};
@@ -553,7 +553,7 @@ export async function executerDonneesDemo(argv, ctx) {
     if (!ficheSnap.exists) throw new ErreurOutil(`Le client « ${id} » n'existe pas (pas de fiche clients/${id}). Créez-le d'abord avec scripts/nouveau-client.js.`);
     if (options.retirer) return await retirer(id, ctx);
 
-    if (options.auteur) ctx.auteur = String(options.auteur).trim().toLowerCase();
+    if (options.auteur) ctx.auteur = verifierEmail(options.auteur);
     else {
       const membres = await ctx.base.db.collection(`clients/${id}/membres`).get();
       ctx.auteur = membres.docs.filter((d) => d.data().role === 'editeur').map((d) => d.id).sort()[0] ?? 'demo@exemple.test';
