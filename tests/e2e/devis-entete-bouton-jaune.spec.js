@@ -84,10 +84,10 @@ test('1 brouillon : « Finaliser » est le bouton jaune ; « Envoyer » est gris
   await expect(jaunes(page)).toHaveText('Finaliser');
 });
 
-test('1 (visualisation d’un brouillon) la règle est la même : « Finaliser » jaune, « Envoyer » grisé', async ({ page }) => {
+test('1 (brouillon ouvert par « Voir le devis ») la règle est la même : « Finaliser » jaune, « Envoyer » grisé, et le brouillon reste modifiable', async ({ page }) => {
   await donnees();
   await ouvrir(page, 'devis/voir/dBrouillon');
-  await expect(racine(page)).toHaveClass(/devis-lecture-seule/);
+  await expect(racine(page)).not.toHaveClass(/devis-lecture-seule/);
   await expect(jaunes(page)).toHaveText('Finaliser');
   await expect(racine(page).locator('[data-action="envoyer"]')).toHaveAttribute('aria-disabled', 'true');
 });
@@ -107,7 +107,7 @@ test('2 finalisé : pas de bouton « Finaliser » ; « Envoyer » est jaune et o
   const menu = await menuPlus(page);
   await expect(menu.getByRole('menuitem', { name: 'Télécharger le PDF' })).toBeEnabled();
   await expect(menu.getByRole('menuitem', { name: 'Imprimer' })).toBeEnabled();
-  await expect(menu.getByRole('menuitem', { name: 'Envoyer à nouveau' })).toBeEnabled();
+  await expect(menu.getByRole('menuitem', { name: 'Envoyer à nouveau' })).toHaveCount(0); // 26/10/2026 : « Envoyer » (jaune) est visible, le « … » ne le répète pas
   await page.keyboard.press('Escape');
 });
 

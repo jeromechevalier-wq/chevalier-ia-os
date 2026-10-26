@@ -110,7 +110,11 @@
 
 /* En-tête : le squelette des fiches (.fiche-tete, crm.css) ; en dessous, la barre d'actions reste collée en haut de l'écran quand on défile. */
 .entete-devis { padding-top: var(--esp-2); } /* le reste vient de « .fiche-tete » (crm.css) : exactement l'en-tête des fiches Affaires et Projets */
-.devis-lecture-seule .apercu-devis { height: max(70vh, 640px); } /* visualisation : le document seul, en grand, pleine largeur */
+.page-editeur-devis .apercu-devis { height: max(70vh, 640px); } /* Prévisualisation : le document en grand, pleine largeur, quel que soit le statut */
+/* Lecture seule (devis finalisé) : tout ce qui modifierait est grisé comme « Envoyer » d'un brouillon, jamais retiré : boutons (dates « En date du », « Valable jusqu'au », « définir » compris), listes et cases.
+   Les champs texte restent nets (lisibles et copiables). */
+input[data-lecture="verrou"], textarea[data-lecture="verrou"] { cursor: text; }
+button[data-lecture="verrou"][aria-disabled="true"], select[data-lecture="verrou"], input[type="checkbox"][data-lecture="verrou"] { opacity: .45; cursor: not-allowed; }
 .indicateur-enregistrement[hidden] { display: none; }
 .lien-entite { display: inline-flex; align-items: center; gap: var(--esp-2); color: var(--texte2); text-decoration: none; }
 .lien-entite:hover { color: var(--texte); text-decoration: underline; }
@@ -471,8 +475,10 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
 
 /* Pastille « Devis : … » ajoutée sur les cartes et fiches d'affaire (crm/pastilles-externes.js) */
 .carte-pastilles-externes { display: flex; flex-wrap: wrap; gap: var(--esp-2); }
-/* E-mails en copie (cc) de l'éditeur : une adresse par ligne avec sa croix, puis « + E-mail en copie » en jaune (même style que les autres « + Ajouter »). */
-.bloc-copie { display: flex; flex-direction: column; align-items: flex-start; gap: var(--esp-2); }
+/* E-mail(s) en copie (cc) de l'éditeur : un champ comme les autres (titre en capitales, valeur dessous) ; « Aucune adresse en copie » grisé quand il n'y en a pas, une adresse par ligne avec sa croix, puis « + E-mail en copie » en jaune. */
+.bloc-copie { align-items: flex-start; }
+.bloc-copie > .champ { align-self: stretch; }
+.copie-vide { margin: 0; color: var(--texte2); }
 .liste-copie { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--esp-1); }
 .ligne-copie { display: inline-flex; align-items: center; gap: var(--esp-3); overflow-wrap: anywhere; }
 @media (max-width: 767px), (pointer: coarse) { .bloc-copie .prop-vide, .ligne-copie .bouton-icone { min-height: 44px; } }

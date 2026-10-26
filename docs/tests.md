@@ -88,6 +88,7 @@ Voir `docs/acceleration-tests-mesures.md`, section « Instabilités ». Sur GitH
 
 ## Pièges connus (journée du 23/10/2026)
 - **Tout nouveau test d'écran se lance aussi en format téléphone** (`--project=telephone`) avant la PR : la coche de PR ne le fait pas, seule la suite de nuit l'attrape (quatre tests l'ont fait rougir le 23/10).
+- **`npm run test:module <nom> -- --project=telephone` ignore l'option** : `tests/lancer-module.js` ne lit que le nom et lance toujours le format ordinateur (`--project=ordinateur`). Pour le format téléphone, depuis `tests/` : `node lancer-tout.js --e2e e2e/<fichier>.spec.js --project=telephone` (tout ce qui suit `--e2e` est passé tel quel à Playwright, avec les mêmes émulateurs ; `TESTS_DECALAGE` s'applique pareil).
 - Un test qui ouvre le tiroir du menu sur téléphone doit le refermer (Échap) avant de cliquer ailleurs : le voile intercepte les clics.
 - `.panneau-activite` est en `display: contents` sous 1024 px : on ne peut pas le photographier sur téléphone (utiliser `.fiche-grille`).
 - Après « Détacher » sur une fiche projet, le panneau est recréé et l'onglet Documents se referme : le rouvrir avant de mesurer.

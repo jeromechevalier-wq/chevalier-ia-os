@@ -1,5 +1,7 @@
 # Déployer la plateforme clients (projet `chevalier-ia-app`)
 
+> **Un deuxième serveur de plateforme** (nouveau projet Google) : liste complète dans l'ordre dans [deploiement-nouveau-serveur-plateforme.md](deploiement-nouveau-serveur-plateforme.md).
+
 Chantier 12 de `etude-reutilisation-coque.md`. Deux projets Firebase, deux déploiements, **le même code et la même version**.
 
 | | CRM de Jérôme | Plateforme clients |
@@ -38,7 +40,7 @@ Le workflow a besoin d'un « badge » pour avoir le droit de publier sur `cheval
 1. Ouvrir <https://console.cloud.google.com/iam-admin/serviceaccounts?project=chevalier-ia-app> (en haut, vérifier que le projet est bien `chevalier-ia-app`).
 2. Cliquer **Créer un compte de service**.
 3. Nom : `deploiement-github`. Cliquer **Créer et continuer**.
-4. Dans « Sélectionner un rôle », ajouter les rôles suivants (bouton **Ajouter un autre rôle** pour chacun) : **Administrateur Firebase** (en anglais : *Firebase Admin*), **Consommateur Service Usage** (*Service Usage Consumer*) et, pour publier des fonctions (choix `fonctions`, ex. le MCP des clients), **Utilisateur du compte de service** (*Service Account User*). Sans ce dernier, le choix `fonctions` échoue avec « Missing permissions … iam.serviceAccounts.ActAs ». Pour l'ajouter après coup : <https://console.cloud.google.com/iam-admin/iam?project=chevalier-ia-app>, crayon à droite de `deploiement-github@…`, **Ajouter un autre rôle**, **Utilisateur du compte de service**, **Enregistrer**. Cliquer **Continuer**, puis **OK**.
+4. Dans « Sélectionner un rôle », ajouter les rôles suivants (bouton **Ajouter un autre rôle** pour chacun) : **Administrateur Firebase** (en anglais : *Firebase Admin*), **Consommateur Service Usage** (*Service Usage Consumer*) et, pour publier des fonctions (choix `fonctions`, ex. le MCP des clients), **Utilisateur du compte de service** (*Service Account User*). Pour les fonctions programmées (ex. `automatisationsCopieHoraire`), ajouter aussi **Administrateur Cloud Scheduler** (*Cloud Scheduler Admin*) : sans lui le déploiement échoue avec une erreur 403 (constatée le 26/10/2026). Sans le rôle « Utilisateur du compte de service », le choix `fonctions` échoue avec « Missing permissions … iam.serviceAccounts.ActAs ». Pour l'ajouter après coup : <https://console.cloud.google.com/iam-admin/iam?project=chevalier-ia-app>, crayon à droite de `deploiement-github@…`, **Ajouter un autre rôle**, **Utilisateur du compte de service**, **Enregistrer**. Cliquer **Continuer**, puis **OK**.
 5. Dans la liste, cliquer sur l'adresse du compte `deploiement-github@chevalier-ia-app.iam.gserviceaccount.com`, onglet **Clés**, bouton **Ajouter une clé**, **Créer une clé**, choisir **JSON**, **Créer**. Un fichier `.json` se télécharge sur le Mac.
    - Si Google refuse (« la création de clés est désactivée par une règle »), dis-le : on prendra une autre voie, ne contourne rien toi-même.
 
@@ -69,6 +71,7 @@ Le bouton n'apparaît dans GitHub qu'une fois le workflow fusionné dans `main`.
 
 - *« Le secret n'existe pas encore »* : étape 2 pas faite, ou nom du secret mal écrit.
 - *Erreur de droits (403) dans le journal* : le journal affiche l'adresse du compte utilisé ; vérifier qu'elle porte bien les deux rôles de l'étape 1.
+- *Le déploiement `fonctions` échoue alors que le code est bon* : d'anciennes fonctions (`journalCopieHoraire`, `journalRafraichir`, `journalRenommer`) existent encore chez le client sans exister dans le code. Les supprimer à la main dans la console Google Cloud (Cloud Functions du projet), puis relancer (fait par Jérôme le 26/10/2026).
 - *Retour arrière* : relancer le workflow depuis un ancien commit n'est pas prévu ; dans la console Firebase, **Hosting > Historique des versions > Restaurer** remet la version précédente de la page.
 - *Connexion Google sur téléphone* : essai réel du 2026-10-11 : avec `chevalier-ia-app.firebaseapp.com` la connexion par redirection revenait sur la page de connexion sans erreur (adresse différente de la page, bloquée par le navigateur du téléphone). Le domaine d'authentification est donc `chevalier-ia-app.web.app` (`scripts/projets/plateforme.json`), avec `https://chevalier-ia-app.web.app/__/auth/handler` ajouté aux URI de redirection autorisées du client OAuth dans Google Cloud.
 

@@ -5,6 +5,7 @@ import { initializeApp, getApps } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
+import { onDocumentUpdated } from 'firebase-functions/v2/firestore';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { defineSecret } from 'firebase-functions/params';
 import { logger } from 'firebase-functions';
@@ -13,10 +14,13 @@ import { copieHoraire, rafraichir, renommer, Refus } from './appels.js';
 import { creerMcpClients } from './mcp-clients.js';
 import { reglerEspace } from './espace.js';
 import { transitionDevis, preparerEmailDevis, etatPreparerEmail } from './devis.js';
+import { fabriquerPdfClient, lienPdfClient, creerDeclencheurPdfClient } from './devis-pdf.js';
 import { verifierDeploiementClient } from './deploiement.js';
 import { VERSION_SERVEUR } from '../serveur/src/version.js';
 import { creerSortieN8n } from '../serveur/src/coeur/n8n-sortie.js';
 import { creerLecteurSecrets } from '../serveur/src/securite/secrets.js';
+import { creerStockage } from '../serveur/src/devis/stockage.js';
+import { convertirHtmlEnPdf } from '../serveur/src/devis/chromium.js';
 
 if (!getApps().length) initializeApp();
 const db = () => getFirestore();
@@ -105,3 +109,26 @@ export const devisPreparerEmail = onCall(OPTIONS_DEVIS, async (requete) => {
 export const devisPreparerEmailEtat = onCall(OPTIONS_DEVIS, async (requete) => {
   try { return await etatPreparerEmail({ db: db(), auth: requete.auth, donnees: requete.data, sortie: sortieN8nDevis }); } catch (e) { throw enHttps(e); }
 });
+
+// PDF des devis chez les clients : fabriqué PAR LE SERVEUR dès qu'un devis passe de brouillon à finalisé (déclencheur `devisPdfAuto`), jamais par le navigateur. Chromium tourne dans la fonction
+// (2 GiB) ; le PDF est rangé dans Cloud Storage sous clients/<client>/devis/… (jamais public) et lu par un lien signé de 5 minutes (`devisPdfLien`, éditeurs ET lecteurs).
+// AUCUN secret déclaré (un secret absent ferait échouer le déploiement de toutes les fonctions). Compte de service dédié, à créer AVANT le déploiement (docs/pdf-clients.md) :
+// sans lui, le déploiement de TOUTES les fonctions de la plateforme échoue. Déployées seulement par le workflow MANUEL de la plateforme, avec Jérôme.
+const COMPTE_PDF = 'devis-pdf@chevalier-ia-app.iam.gserviceaccount.com';
+const OPTIONS_PDF = { region: REGION, memory: '2GiB', timeoutSeconds: 120, concurrency: 1, maxInstances: 2, serviceAccount: COMPTE_PDF };
+const stockagePdf = () => creerStockage({ bucket: getStorage().bucket(BUCKET) });
+const journalPdf = (e) => {
+  const ligne = { action: e.action, statut: e.statut, code: e.code, dureeMs: e.dureeMs };
+  if (e.statut === 'erreur') logger.error('devisPdf', ligne); else logger.info('devisPdf', ligne);
+};
+export const devisPdf = onCall(OPTIONS_PDF, async (requete) => {
+  try { return await fabriquerPdfClient({ db: db(), auth: requete.auth, donnees: requete.data, convertir: (html, options) => convertirHtmlEnPdf(html, options), stockage: stockagePdf, journal: journalPdf }); } catch (e) { throw enHttps(e); }
+});
+export const devisPdfLien = onCall({ region: REGION, memory: '256MiB', timeoutSeconds: 60, maxInstances: 5, serviceAccount: COMPTE_PDF }, async (requete) => {
+  try { return await lienPdfClient({ db: db(), auth: requete.auth, donnees: requete.data, stockage: stockagePdf, journal: journalPdf }); } catch (e) { throw enHttps(e); }
+});
+// Déclencheur : ne réagit qu'au passage brouillon -> finalisé (l'écriture de `pdf` ne le relance donc jamais), ne fabrique que si le module « devis » est actif chez ce client, ne lève jamais d'erreur.
+export const devisPdfAuto = onDocumentUpdated(
+  { document: 'clients/{client}/devis_devis/{devisId}', region: REGION, memory: '2GiB', timeoutSeconds: 540, concurrency: 1, maxInstances: 2, retry: false, serviceAccount: COMPTE_PDF },
+  (evenement) => creerDeclencheurPdfClient({ db: db(), convertir: (html, options) => convertirHtmlEnPdf(html, options), stockage: stockagePdf, journal: journalPdf })(evenement),
+);
