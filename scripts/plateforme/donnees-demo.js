@@ -28,6 +28,7 @@ import * as A from '../../js/modules/devis/articles.js';
 import * as F from '../../js/modules/devis/familles.js';
 import { ligneDepuisArticle } from '../../js/modules/devis/editeur-logique.js';
 import { prixVenteArticle } from '../../js/modules/devis/ouvrages.js';
+import { fabriquerPdf, exigerModuleDevis, fichiersPdfDemo } from './donnees-demo-pdf.js';
 
 export const MARQUEUR = 'donneesDemo';
 export const PROJET_CATALOGUE = 'chevalier-ia-os';
@@ -48,6 +49,10 @@ Avec le petit catalogue fictif intégré à la place :
 Retirer les données de démonstration (seulement les documents marqués « ${MARQUEUR} ») :
   node scripts/donnees-demo.js <identifiant-client> --retirer [--ecrire]
 
+Fabriquer les PDF des devis fictifs déjà présents (par le déclencheur du serveur ; --ecrire pour le faire vraiment) :
+  node scripts/donnees-demo.js <identifiant-client> --pdf [--ecrire]
+  (ou --pdf ajouté à une commande de remplissage : le PDF est fait juste après l'écriture)
+
 Options :
   --ecrire               écrit vraiment (sans elle : simulation, rien n'est écrit)
   --catalogue-depuis P   lit le catalogue (articles + familles) dans le projet P, en lecture seule
@@ -55,6 +60,7 @@ Options :
   --masquer-prix-achat   la copie du catalogue ne montre pas les prix d'achat ni les marges
   --completer            ajoute la démo même si le client a déjà des données
   --auteur adresse       auteur des fiches (par défaut : le premier éditeur du client)
+  --pdf                  fabrique les PDF des devis de démonstration (jamais fait sans cette option)
   --retirer              supprime les documents de démonstration
   --aide                 cette aide`;
 
@@ -405,14 +411,29 @@ async function retirer(id, ctx) {
   const col = cheminsClient(db, id);
   let total = 0;
   const refs = [];
+  let affairesDemo = [];
   for (const c of COLLECTIONS_DEMO) {
     const snap = await col(c).where(MARQUEUR, '==', true).get();
+    if (c === 'crm_affaires') affairesDemo = snap.docs.map((d) => d.id);
     if (snap.size) ctx.out(`  ${c} : ${snap.size} document(s) de démonstration`);
     total += snap.size;
     refs.push(...snap.docs.map((d) => d.ref));
   }
   if (!total) { ctx.out('Aucune donnée de démonstration chez ce client : rien à retirer.'); return 0; }
-  if (!ctx.ecrire) { ctx.out(`SIMULATION : ${total} document(s) seraient supprimés (seulement ceux marqués « ${MARQUEUR} »). Rien n'a été supprimé. Relancez avec --ecrire.`); return 0; }
+  // Fichiers des PDF : seulement sous clients/<id>/devis/<affaireId>/ des affaires de démonstration. Lus AVANT la suppression des documents (qui portent les ids).
+  let fichiers;
+  try {
+    fichiers = await fichiersPdfDemo(ctx.base.bucket, id, affairesDemo);
+  } catch (e) {
+    throw new ErreurOutil(["Impossible de lire les fichiers PDF du client dans Storage (rien n'a été supprimé).", ...traduireErreur(e)]);
+  }
+  if (fichiers.length) ctx.out(`  Storage : ${fichiers.length} fichier(s) PDF des devis de démonstration`);
+  if (!ctx.ecrire) { ctx.out(`SIMULATION : ${total} document(s)${fichiers.length ? ` et ${fichiers.length} fichier(s) PDF` : ''} seraient supprimés (seulement ceux marqués « ${MARQUEUR} »). Rien n'a été supprimé. Relancez avec --ecrire.`); return 0; }
+  for (const f of fichiers) {
+    if (!f.name.startsWith(`clients/${id}/devis/`)) throw new Error(`Chemin refusé : ${f.name}`);
+    await f.delete({ ignoreNotFound: true });
+    ctx.ecrits = true;
+  }
   for (let i = 0; i < refs.length; i += 400) {
     const lot = db.batch();
     for (const r of refs.slice(i, i + 400)) {
@@ -422,7 +443,7 @@ async function retirer(id, ctx) {
     await lot.commit();
     ctx.ecrits = true;
   }
-  ctx.out(`✔ ${total} document(s) de démonstration supprimés. Les autres données du client n'ont pas été touchées.`);
+  ctx.out(`✔ ${total} document(s) de démonstration${fichiers.length ? ` et ${fichiers.length} fichier(s) PDF` : ''} supprimés. Les autres données du client n'ont pas été touchées.`);
   return 0;
 }
 
@@ -512,6 +533,7 @@ async function remplir(id, options, ctx, fiche) {
   ctx.out(`Documents à créer sous clients/${id}/ : ${ecritures.length} (${Object.entries(parCollection).map(([c, n]) => `${c} ${n}`).join(', ')})`);
   if (plan.compteur) ctx.out(`Compteur des numéros de devis : ${compteurDepart} -> ${plan.compteur}`);
 
+  if (options.pdf) ctx.out(`Avec --pdf : après l'écriture, le serveur fabriquerait le PDF des ${plan.resume.devis.filter(({ id: did }) => plan.documents.find((x) => x.id === did).donnees.statut !== 'brouillon').length} devis qui ne sont plus des brouillons.`);
   if (!ctx.ecrire) { ctx.out(''); ctx.out('SIMULATION : rien n\'a été écrit. Relisez, puis relancez la même commande avec --ecrire.'); return 0; }
   for (let i = 0; i < ecritures.length; i += 400) {
     const lot = db.batch();
@@ -521,6 +543,7 @@ async function remplir(id, options, ctx, fiche) {
   }
   if (plan.compteur) await col('devis_compteurs').doc('global').set({ valeur: plan.compteur, modifieLe: ctx.maintenant ?? new Date() }, { merge: true });
   ctx.out(`✔ ${ecritures.length} document(s) écrits. Pour tout retirer plus tard : node scripts/donnees-demo.js ${id} --retirer --ecrire`);
+  if (options.pdf) return await fabriquerPdf(id, ctx, fiche);
   return 0;
 }
 
@@ -528,12 +551,15 @@ export async function executerDonneesDemo(argv, ctx) {
   try {
     const { positionnels, options } = lireArguments(argv, {
       valeurs: ['catalogue-depuis', 'auteur'],
-      drapeaux: ['ecrire', 'retirer', 'completer', 'catalogue-exemple', 'masquer-prix-achat', 'aide'],
+      drapeaux: ['ecrire', 'pdf', 'retirer', 'completer', 'catalogue-exemple', 'masquer-prix-achat', 'aide'],
     });
     if (options.aide || !positionnels.length) { ctx.out(AIDE); return options.aide ? 0 : 1; }
     if (positionnels.length > 1) throw new ErreurOutil(`Argument en trop : « ${positionnels.slice(1).join(' ')} ». Un seul client à la fois ; les options commencent par --.`);
     const id = exigerIdentifiant(positionnels[0]);
-    if (!options.retirer && !options['catalogue-depuis'] && !options['catalogue-exemple']) {
+    const pdfSeul = options.pdf && !options['catalogue-depuis'] && !options['catalogue-exemple'];
+    if (options.pdf && options.retirer) throw new ErreurOutil('--pdf et --retirer ne se combinent pas.');
+    if (pdfSeul && (options.completer || options['masquer-prix-achat'])) throw new ErreurOutil("--pdf seul ne se combine qu'avec --ecrire (les autres options servent au remplissage).");
+    if (!options.retirer && !pdfSeul && !options['catalogue-depuis'] && !options['catalogue-exemple']) {
       throw new ErreurOutil(['Indiquez d\'où vient le catalogue des devis :', `  --catalogue-depuis ${PROJET_CATALOGUE}   (copie de votre catalogue, lu en lecture seule)`, '  --catalogue-exemple              (petit catalogue fictif intégré)']);
     }
     if (options['catalogue-depuis'] && options['catalogue-exemple']) throw new ErreurOutil('Choisissez --catalogue-depuis OU --catalogue-exemple, pas les deux.');
@@ -552,6 +578,8 @@ export async function executerDonneesDemo(argv, ctx) {
     const ficheSnap = await ctx.base.db.doc(`clients/${id}`).get();
     if (!ficheSnap.exists) throw new ErreurOutil(`Le client « ${id} » n'existe pas (pas de fiche clients/${id}). Créez-le d'abord avec scripts/nouveau-client.js.`);
     if (options.retirer) return await retirer(id, ctx);
+    if (options.pdf) exigerModuleDevis(ficheSnap.data());
+    if (pdfSeul) return await fabriquerPdf(id, ctx, ficheSnap.data() ?? {});
 
     if (options.auteur) ctx.auteur = verifierEmail(options.auteur);
     else {
