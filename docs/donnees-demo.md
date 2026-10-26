@@ -42,6 +42,15 @@ node scripts/donnees-demo.js clientdemo --retirer
 node scripts/donnees-demo.js clientdemo --retirer --ecrire
 ```
 
+**4. Fabriquer les PDF des devis fictifs** (simulation, puis pour de vrai) :
+
+```bash
+node scripts/donnees-demo.js clientdemo --pdf
+node scripts/donnees-demo.js clientdemo --pdf --ecrire
+```
+
+On peut aussi l'ajouter au remplissage (`... --catalogue-exemple --ecrire --pdf`) : le PDF est alors fait juste après l'écriture. Sans l'option `--pdf`, **aucun PDF n'est jamais fabriqué**.
+
 **Si ton catalogue ne se lit pas** (connexion, droits), utilise le petit catalogue fictif intégré à la place :
 
 ```bash
@@ -58,6 +67,7 @@ node scripts/donnees-demo.js clientdemo --catalogue-exemple --ecrire
 | `--masquer-prix-achat` | facultatif : dans la copie, le prix d'achat de chaque article devient son prix de vente, sans marge |
 | `--completer` | ajoute la démonstration même si le client a déjà des données (les articles déjà présents sont gardés tels quels) |
 | `--auteur adresse@…` | qui signe les fiches (en minuscules). Par défaut : le premier éditeur du client |
+| `--pdf` | fabrique les PDF des devis de démonstration qui n'en ont pas (voir « Les PDF des devis » plus bas) ; seul, il travaille sur un client déjà rempli |
 | `--retirer` | retire les données de démonstration |
 | `--aide` | affiche l'aide |
 
@@ -102,21 +112,35 @@ node scripts/donnees-demo.js clientdemo --catalogue-exemple --ecrire
 - **Le catalogue** : il est lu à la racine du projet `chevalier-ia-os` (`devis_articles`, `devis_parametres/familles` et `devis_parametres/reglages` pour la marge), **en lecture seule**. Aucun article n'est écrit dans le dépôt. Les fiches copiées sont signées par l'auteur de la démonstration, pas par toi.
 - **Les tests** : `tests/donnees-demo.test.js`, sur l'émulateur, avec le catalogue fictif seulement. Pour les lancer : `npm run test:module donnees-demo` (dossier `tests/`).
 
+## Les PDF des devis (option `--pdf`)
+
+Les devis fictifs « finalisé, envoyé, signé, refusé » sont écrits directement en base : le serveur ne les a jamais vus être finalisés, donc ils n'ont pas de PDF et l'écran montre « ⚠ PDF non rangé ». L'option `--pdf` leur en fabrique un, **par le vrai serveur** (le déclencheur `devisPdfAuto`, voir `pdf-clients.md`) :
+
+- pour chaque devis, le programme fait **deux écritures séparées** : il remet le devis en « brouillon » (avec le champ `donneesDemoStatutOrigine`, qui garde le statut d'origine), puis lui rend son vrai statut. Ce passage « brouillon vers finalisé » réveille le serveur, qui fabrique le PDF et le range ;
+- **2 devis à la fois** (le serveur ne fait pas plus), et le programme attend, pour chacun, que le PDF soit « ok » ou « échec » (il regarde toutes les 5 secondes, 10 minutes au plus par devis). Un tableau s'affiche au fur et à mesure : numéro, statut, PDF ok / ÉCHEC / en attente ;
+- sont **sautés** : les devis sans le marqueur `donneesDemo` (jamais touchés), les brouillons, ceux dont le PDF est déjà « ok », ceux dont le PDF est en cours de fabrication depuis moins de 10 minutes ;
+- si **aucun** devis ne montre un PDF « en cours » dans la minute, le programme s'arrête : « Le déclencheur devisPdfAuto ne répond pas : fonctions PDF pas déployées chez les clients ? » (voir `pdf-clients.md`) ;
+- **reprise après une coupure** : si le programme est coupé entre les deux écritures, un devis reste en « brouillon » avec `donneesDemoStatutOrigine`. Au lancement suivant (`--pdf --ecrire`), il est d'abord remis dans son vrai statut. On peut relancer sans risque ;
+- prérequis : le module `devis` actif chez le client, et le projet `chevalier-ia-app` (jamais `chevalier-ia-os`).
+
 ## Comment c'est retiré
 
-`--retirer --ecrire` cherche, dans chaque collection où le programme écrit, les documents qui portent `donneesDemo: true`, et supprime **ceux-là seulement**. Ce que tu as créé toi-même chez ce client reste, et les autres clients ne sont jamais touchés.
+`--retirer --ecrire` cherche, dans chaque collection où le programme écrit, les documents qui portent `donneesDemo: true`, et supprime **ceux-là seulement**. Si des PDF ont été fabriqués, il supprime aussi leurs fichiers dans Storage, **seulement** sous `clients/<client>/devis/<identifiant de l'affaire>/` des affaires de démonstration (jamais un autre dossier). Ce que tu as créé toi-même chez ce client reste, et les autres clients ne sont jamais touchés.
 
 ## Limites à connaître
 
-- **Pas de PDF pour les devis finalisés** : aucun PDF n'a été fabriqué, donc l'écran peut afficher « PDF pas prêt » et proposer de le fabriquer.
+- **Pas de PDF sans l'option `--pdf`** : les devis finalisés n'ont pas de PDF tant qu'on ne lance pas `--pdf --ecrire` (l'écran affiche « PDF non rangé »). Le vrai déclencheur en ligne n'est testé que par Jérôme sur le client de démonstration.
+- **Ce que la fabrication du PDF laisse derrière elle** : le serveur écrit des lignes dans les journaux d'audit (`crm_audit`, `crm_audit_avant`, acteur `declencheur-pdf`). Elles ne sont **jamais supprimées** (règle de Jérôme : les journaux ne s'effacent jamais), même par `--retirer`. Le document ajouté à l'affaire disparaît avec l'affaire ; l'événement « Document joint » (`crm_evenements`) est marqué `donneesDemo` par `--pdf` et retiré par `--retirer`. Un événement créé à la main avant de lancer `--pdf` n'est marqué qu'au prochain `--pdf --ecrire`. Depuis le 26/10/2026, les affaires de démo n'ont pas de dossier de travail : `--pdf` fabrique le PDF mais n'ajoute ni document ni événement « Document joint ».
 - **Les réglages des devis créés par la démonstration** (« Mon entreprise » fictive) portent le marqueur : `--retirer` les supprime aussi. Le client retrouve alors les réglages vides. Si tu les as modifiés et enregistrés à l'écran pendant la démonstration, ils perdent le marqueur et restent.
-- **Ce que l'écran crée pendant la démonstration n'est pas retiré.** Par exemple, une note ajoutée, ou l'événement « étape changée » quand tu déplaces une affaire : ces documents n'ont pas le marqueur.
+- **Ce que l'écran crée pendant la démonstration n'est pas retiré.** Par exemple, une note ajoutée, ou l'événement « étape changée » quand tu déplaces une affaire : ces documents n'ont pas le marqueur. **Exception avec `--pdf`** : tous les événements « Document joint » (`crm_evenements`, type `document`) d'une affaire de démonstration sont marqués, y compris un document que tu aurais ajouté à la main sur cette affaire : ils disparaissent au retrait.
+- **`--retirer` lit aussi Storage.** Si tes identifiants n'ont pas accès à Storage, tout le retrait s'arrête, sans rien supprimer (message « Impossible de lire les fichiers PDF… »). Remède : `gcloud auth application-default login` avec un compte qui a les droits, puis relancer.
+- **Un devis créé à la main sur une affaire de démonstration perd son fichier PDF au retrait** : tout ce qui est sous `clients/<client>/devis/<identifiant de l'affaire de démonstration>/` est supprimé, l'affaire disparaissant avec la démonstration.
 - **Le compteur des numéros de devis n'est jamais remis à zéro** : un numéro déjà donné ne doit jamais revenir.
 - **Un seul client à la fois.**
 
 ## Cas vide et cas d'erreur (messages de refus)
 
-Dans tous ces cas, rien n'est écrit et le programme finit par « Rien n'a été écrit. ».
+Dans tous ces cas (sauf les trois lignes `--pdf` signalées plus bas), rien n'est écrit et le programme finit par « Rien n'a été écrit. ». Avec `--pdf`, c'est différent une fois qu'un devis a été entamé : *déclencheur muet* = 2 écritures par devis entamé (les statuts sont remis en place), *PDF ÉCHEC* = c'est le serveur qui a écrit (l'échec est noté sur le devis). Le programme finit alors par « Relancez --pdf --ecrire » : la reprise remet d'abord les statuts d'origine.
 
 | Message | Ce que ça veut dire | Que faire |
 |---|---|---|
@@ -129,5 +153,19 @@ Dans tous ces cas, rien n'est écrit et le programme finit par « Rien n'a été
 | *Projet « … » refusé* / *est le CRM de Jérôme* | la cible n'est pas le projet des clients | ne rien changer à l'environnement : le programme vise `chevalier-ia-app` tout seul |
 | *« … » n'est pas une adresse e-mail valide* / *doit être écrite en minuscules* | `--auteur` mal écrit | réécrire l'adresse en minuscules |
 | *Aucune donnée de démonstration chez ce client* | `--retirer` sur un client sans démonstration | rien à faire |
+| *Aucun devis de démonstration à traiter* | (`--pdf`) tous les devis ont déjà leur PDF, ou il n'y a que des brouillons | rien à faire |
+| *Le module « devis » n'est pas actif chez ce client* | (`--pdf`) le serveur ne réagirait pas | `node scripts/nouveau-client.js activer-module <client> devis --ecrire` |
+| *Le déclencheur devisPdfAuto ne répond pas* | (`--pdf`) les fonctions PDF ne sont pas (ou plus) déployées | voir `pdf-clients.md`, puis relancer |
+| *PDF ÉCHEC* dans le tableau | le serveur a essayé 3 fois et n'a pas réussi | relancer `--pdf --ecrire`, ou « Réessayer » sur le devis |
+| *Impossible de lire les fichiers PDF du client dans Storage* | (`--retirer`) connexion ou droits | rien n'a été supprimé ; `gcloud auth application-default login` puis relancer |
+| *--pdf et --retirer ne se combinent pas* | deux options opposées | une seule à la fois |
 
 Si l'écriture est coupée en route (perte d'Internet), le programme le dit. Lance alors `--retirer --ecrire`, puis relance la démonstration.
+
+## Mode d'emploi : les PDF de la démonstration (pour Jérôme)
+
+1. Dans le Terminal, dans le dossier du projet : `node scripts/donnees-demo.js clientdemo --pdf`. Tu dois voir « À traiter : 12 devis, 2 à la fois » (le nombre peut varier) et « SIMULATION : rien n'a été écrit ».
+2. Si la liste te va : `node scripts/donnees-demo.js clientdemo --pdf --ecrire`. Compte quelques minutes : chaque devis s'affiche avec « PDF ok » quand il est prêt.
+3. À la fin, tu dois voir « ✔ Tous les PDF sont rangés. ». Ouvre un devis envoyé chez le client de démonstration : plus de « ⚠ PDF non rangé », et le PDF s'ouvre.
+4. Relance la même commande : « Aucun devis de démonstration à traiter » (cas vide).
+5. En cas d'erreur : le message dit quoi faire (tableau des messages ci-dessus). Un lancement coupé au milieu se rattrape en relançant la même commande.
