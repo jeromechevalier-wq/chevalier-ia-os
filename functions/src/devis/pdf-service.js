@@ -36,17 +36,19 @@ export function messageLisible(e) {
 }
 
 /** Adresse STABLE du PDF dans l'application (jamais une adresse signée qui expire, jamais une adresse publique) : l'application demande ensuite un lien signé à `devisPdfLien`. */
-export function lienStablePdf(baseLien, devisId, brouillon = false) {
+export function lienStablePdf(baseLien, devisId, brouillon = false, prefixeRoute = '') {
   const base = String(baseLien ?? '').replace(/\/+$/, '');
-  return `${base}/#/devis/pdf/${encodeURIComponent(devisId)}${brouillon ? '/brouillon' : ''}`;
+  // `prefixeRoute` : '' chez Jérôme ; 'espace/<client>' chez un client (les routes y sont sous ce préfixe de hash : js/os/router.js, routeDansEspace de js/os/marque.js).
+  const prefixe = String(prefixeRoute ?? '').replace(/^\/+|\/+$/g, '');
+  return `${base}/#/${prefixe ? `${prefixe}/` : ''}devis/pdf/${encodeURIComponent(devisId)}${brouillon ? '/brouillon' : ''}`;
 }
 
 /**
  * `donnees` : accès aux données DÉJÀ cadré sur le bon espace ; `espace` : '' (Jérôme) ou 'clients/<client>/' (préfixe des chemins Storage).
  * Rend { statut: 'ok' | 'en_cours' | 'echec', lien, nom?, deja?, definitif?, message?, erreur? }. Ne lève que pour un devis introuvable ou une demande refusée (brouillon).
  */
-export async function fabriquerPdfDevis({ donnees, espace = '', baseLien, devisId, brouillon = false, explicite = false, ctx, convertir, stockage, tentativesMax = TENTATIVES_AUTO_MAX }) {
-  const lien = lienStablePdf(baseLien, devisId, brouillon);
+export async function fabriquerPdfDevis({ donnees, espace = '', baseLien, prefixeRoute = '', devisId, brouillon = false, explicite = false, ctx, convertir, stockage, tentativesMax = TENTATIVES_AUTO_MAX }) {
+  const lien = lienStablePdf(baseLien, devisId, brouillon, prefixeRoute);
   let devis;
   if (brouillon) {
     const brut = await donnees.document(C.devis, devisId);
@@ -79,7 +81,7 @@ export async function fabriquerPdfDevis({ donnees, espace = '', baseLien, devisI
 
     const chemin = cheminPdfDevis({ espace, affaireId: devis.affaireId, devisId, brouillon, nomFichier: nomFichierDevis({ numero: devis.numero, version: devis.version, objet: devis.objet }) });
     await stockage.envoyer(chemin, pdf);
-    const libelle = libelleDocumentDevis({ numero: devis.numero, version: devis.version, objet: devis.objet, brouillon });
+    const libelle = libelleDocumentDevis({ numero: devis.numero, version: devis.version, objet: devis.objet, brouillon, date: ctx?.maintenant });
     if (brouillon) {
       await enregistrerBrouillonPdf({ donnees, ctx, devisId, libelle, url: lien });
       return { statut: 'ok', lien, nom: libelle, brouillon: true };

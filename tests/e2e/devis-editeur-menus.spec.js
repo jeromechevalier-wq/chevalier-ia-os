@@ -364,6 +364,7 @@ test('5 l’aperçu montre le devis (numéro et total) sans bouton d’impressio
   await semer();
   const id = await devis('d5', [{ id: 's1', titre: 'Cuisine', lignes: [ligne('l1', 'Pose', 2, 100, { prixVente: 100, tauxTva: 20 })] }], { statut: 'en_attente_envoi', numero: 'DEV-2026-10-24-001', finaliseLe: new Date() });
   await ouvrir(page, id);
+  await page.locator('[data-onglet="apercu"]').click(); // l'écran unique d'un devis finalisé ouvert par l'adresse d'édition montre l'Édition ; l'aperçu est l'autre onglet
   const cadre = page.locator('iframe[data-zone="apercu"]');
   await expect(cadre.contentFrame().locator('body')).toContainText('DEV-2026-10-24-001');
   await expect(cadre.contentFrame().locator('body')).toContainText('240,00');

@@ -45,7 +45,7 @@ function messageEcriture(e) {
  * vérifie que index.js en fournit un).
  * `oauth` (oauth/routeur.js) : seconde porte, la connexion Google de claude.ai et du téléphone ; sans lui, seuls les jetons « cia_… » entrent.
  */
-export function creerGestionnaire({ magasin, donnees, limiteur = null, oauth = null, outils = OUTILS, journal = journaliser, maintenant = () => Date.now(), stockage = null }) {
+export function creerGestionnaire({ magasin, donnees, limiteur = null, oauth = null, outils = OUTILS, journal = journaliser, maintenant = () => Date.now() }) {
   return async function gestionnaire(req, res) {
     const debut = maintenant();
     const infos = {};
@@ -77,7 +77,7 @@ export function creerGestionnaire({ magasin, donnees, limiteur = null, oauth = n
     if (!jeton) { infos.code = 'jeton'; return refuser(res, 401, 'non_autorise', { 'WWW-Authenticate': oauth ? `Bearer resource_metadata="${URL_METADONNEES_RESSOURCE}"` : 'Bearer' }); }
     Object.assign(infos, { jeton: jeton.jeton, acteur: jeton.acteur, profil: jeton.profil }, descriptionAppel(req.body, outils));
 
-    return servirMcp({ req, res, infos, jeton, outils, donnees, limiteur, maintenant, stockage });
+    return servirMcp({ req, res, infos, jeton, outils, donnees, limiteur, maintenant });
   };
 }
 
@@ -86,7 +86,7 @@ export function creerGestionnaire({ magasin, donnees, limiteur = null, oauth = n
  * Partagé par le serveur de Jérôme (creerGestionnaire) et par celui des clients (clients/gestionnaire.js). `jeton.jeton` est la clé des plafonds ;
  * `donnees` est ce que les outils voient (chez un client : l'espace du client seulement, voir avecBase) ; `outils` est déjà limité aux modules actifs.
  */
-export async function servirMcp({ req, res, infos, jeton, outils, donnees, limiteur, maintenant, nomServeur = NOM_SERVEUR_CRM, stockage = null }) {
+export async function servirMcp({ req, res, infos, jeton, outils, donnees, limiteur, maintenant, nomServeur = NOM_SERVEUR_CRM }) {
   const limites = limitesDuJeton(jeton);
   try {
     limiteur?.requete(jeton.jeton, limites);
@@ -136,7 +136,6 @@ export async function servirMcp({ req, res, infos, jeton, outils, donnees, limit
         restaurer,
         noterOperation: (operationId) => { if (operationId) infos.operationId = operationId; },
         reserverEcriture: (suppressions = 0) => limiteur?.reserver(jeton.jeton, limites, { suppressions }),
-        stockage, // fonction qui rend le stockage des PDF de devis (ou null) : sert à effacer le fichier d'un brouillon supprimé (supprimer_devis) ; absent chez les clients
         suppressionsRestantes: () => (limiteur ? limiteur.suppressionsRestantes(jeton.jeton, limites) : Infinity),
       };
       let resultat;

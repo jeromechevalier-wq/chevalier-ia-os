@@ -660,17 +660,17 @@ describe('N6 enregistrer_envoi_devis : historique des envois, les deux dates son
   });
 });
 
-describe('N7 supprimer_devis : brouillon seulement, aperçu puis code, PDF brouillon retiré, restaurable', () => {
+describe('N7 supprimer_devis : brouillon seulement, aperçu puis code, documents de l’affaire et fichiers intacts, restaurable', () => {
   const lien = (id) => `https://chevalier-ia-os.web.app/#/devis/pdf/${id}/brouillon`;
 
-  test('N7 aperçu sans écriture, mauvais code refusé, puis suppression ; le document « PDF brouillon » de l’affaire est retiré, les autres restent ; le devis se restaure', async () => {
+  test('N7 aperçu sans écriture, mauvais code refusé, puis suppression ; le document « Devis brouillon » de l’affaire RESTE (comme les autres) ; le devis se restaure', async () => {
     const s = await demarrer({ devis: [devisEnregistre('b1', { destinataires: EMAIL })] });
-    s.doc('crm_affaires', 'a1').documents.push({ libelle: 'Devis brouillon – Objet.pdf', url: lien('b1'), ajouteLe: '2026-10-05T08:00:00Z' });
+    s.doc('crm_affaires', 'a1').documents.push({ libelle: 'Devis brouillon – Objet – 05-10-2026 10h00.pdf', url: lien('b1'), ajouteLe: '2026-10-05T08:00:00Z' });
     const documentsAvant = s.doc('crm_affaires', 'a1').documents.length;
     const a = ok(await s.appeler('code', 'supprimer_devis', { id: 'b1' }));
     assert.equal(a.apercu, true);
     assert.equal(a.supprime, false);
-    assert.equal(a.documentPdfBrouillonRetire, true);
+    assert.equal(a.documentPdfBrouillonRetire, undefined, 'l’aperçu ne parle plus de retirer un document');
     assert.equal(a.totalHT, 96);
     assert.ok(a.code);
     assert.ok(s.doc('devis_devis', 'b1'), 'l’aperçu ne supprime rien');
@@ -680,18 +680,21 @@ describe('N7 supprimer_devis : brouillon seulement, aperçu puis code, PDF broui
     const b = ok(await s.appeler('code', 'supprimer_devis', { id: 'b1' }));
     const r = ok(await s.appeler('code', 'supprimer_devis', { id: 'b1', codeConfirmation: b.code }));
     assert.equal(r.supprime, true);
-    assert.equal(r.documentAffaireRetire, true);
-    assert.equal(r.fichierBrouillon, 'aucun', 'pas de stockage branché dans l’essai');
+    assert.equal(r.documentAffaireRetire, undefined);
+    assert.equal(r.fichierBrouillon, undefined);
+    const affaireAvant = JSON.stringify(s.doc('crm_affaires', 'a1'));
     assert.equal(s.doc('devis_devis', 'b1'), undefined);
-    assert.equal(s.doc('crm_affaires', 'a1').documents.length, documentsAvant - 1);
+    assert.equal(s.doc('crm_affaires', 'a1').documents.length, documentsAvant, 'aucun document de l’affaire n’est retiré');
+    assert.ok(s.doc('crm_affaires', 'a1').documents.some((d) => d.url === lien('b1')), 'le document « Devis brouillon » reste');
     assert.ok(s.doc('crm_affaires', 'a1').documents.some((d) => d.url === 'https://exemple.test/devis'), 'les autres documents restent');
+    assert.equal(JSON.stringify(s.doc('crm_affaires', 'a1')), affaireAvant, 'l’affaire est strictement inchangée');
     const lignes = s.collections.crm_audit.filter((l) => l.operationId === r.operationId);
-    assert.deepEqual(lignes.map((l) => [l.outil, l.collection, l.action]).sort(), [['devisSupprimer', 'crm_affaires', 'modifier'], ['devisSupprimer', 'devis_devis', 'supprimer']]);
+    assert.deepEqual(lignes.map((l) => [l.outil, l.collection, l.action]).sort(), [['devisSupprimer', 'devis_devis', 'supprimer']]);
     assert.ok(lignes.every((l) => s.doc('crm_audit_avant', l.id)), 'copies avant gardées');
     refuse(await s.appeler('code', 'supprimer_devis', { id: 'b1', codeConfirmation: b.code }), /introuvable/i, 'le devis n’existe plus');
     ok(await s.appeler('code', 'restaurer_depuis_audit', { operationId: r.operationId, apercu: false }));
     assert.equal(s.doc('devis_devis', 'b1').statut, 'brouillon', 'le brouillon est de retour avec le même identifiant');
-    assert.equal(s.doc('crm_affaires', 'a1').documents.length, documentsAvant, 'et le document de l’affaire aussi');
+    assert.equal(s.doc('crm_affaires', 'a1').documents.length, documentsAvant, 'et le document de l’affaire est toujours là');
   });
 
   test('N7 un devis finalisé ne se supprime pas (aucun code émis) ; droits : Claude Code seulement ; un devis modifié après l’aperçu invalide le code', async () => {
@@ -733,19 +736,18 @@ describe('N7 supprimer_devis : brouillon seulement, aperçu puis code, PDF broui
     assert.equal(s.collections.devis_devis.filter((d) => d.racineId === 'f1').length, 2);
   });
 
-  test('N7 le fichier PDF brouillon est effacé du stockage quand il est branché, et un échec du stockage ne bloque pas', async () => {
+  test('N7 supprimer un brouillon n’appelle jamais le stockage : même branché, aucun fichier n’est touché ; l’empreinte du journal ne dépend plus du document', async () => {
     const { supprimer } = await import('../functions/src/coeur/devis.js');
-    for (const [panne, attendu] of [[false, 'supprime'], [true, 'echec']]) {
-      const s = await demarrer({ devis: [devisEnregistre('b1')] });
-      const appels = [];
-      const stockage = { supprimerBrouillon: async (p) => { appels.push(p); if (panne) throw new Error('Stockage : panne'); } };
-      const avertis = [];
-      const r = await supprimer({ donnees: creerAccesMemoire(s.collections), ctx: { acteur: 'x', jeton: 'x', via: 'mcp', maintenant: MAINTENANT }, devisId: 'b1', stockage, espace: '', avertir: (a) => avertis.push(a) });
-      assert.equal(r.fichierBrouillon, attendu);
-      assert.deepEqual(appels, [{ espace: '', affaireId: 'a1', devisId: 'b1' }]);
-      assert.equal(s.doc('devis_devis', 'b1'), undefined, 'le devis est supprimé même si le fichier ne l’est pas');
-      assert.equal(avertis.length, panne ? 1 : 0);
-    }
+    const s = await demarrer({ devis: [devisEnregistre('b1')] });
+    s.doc('crm_affaires', 'a1').documents.push({ libelle: 'Devis brouillon – Objet – 05-10-2026 10h00.pdf', url: lien('b1') });
+    const appels = [];
+    const stockage = new Proxy({}, { get: (_, nom) => async () => { appels.push(String(nom)); } });
+    const r = await supprimer({ donnees: creerAccesMemoire(s.collections), ctx: { acteur: 'x', jeton: 'x', via: 'mcp', maintenant: MAINTENANT }, devisId: 'b1', stockage, espace: '' });
+    assert.equal(r.ok, true);
+    assert.deepEqual(appels, []);
+    assert.equal(s.doc('devis_devis', 'b1'), undefined);
+    assert.ok(s.doc('crm_affaires', 'a1').documents.some((d) => d.url === lien('b1')), 'le document de l’affaire reste');
+    assert.equal(s.collections.crm_audit_avant.some((l) => l.collection === 'devis_devis' && l.docId === 'b1'), true, 'la copie « avant » est gardée');
   });
 });
 

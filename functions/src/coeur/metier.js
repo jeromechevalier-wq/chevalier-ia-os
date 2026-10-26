@@ -1002,15 +1002,12 @@ export async function enregistrerEnvoiDevis(c, args) {
 }
 
 /**
- * Supprime un BROUILLON de devis (aperçu puis code). Retire aussi le document « Devis brouillon » de l'affaire et, si le stockage est branché, le fichier PDF brouillon,
- * comme l'écran. Récupérable avec restaurer_depuis_audit (le devis revient avec le même identifiant ; le PDF brouillon est à refaire).
+ * Supprime un BROUILLON de devis (aperçu puis code). Ne touche jamais aux documents de l'affaire ni aux fichiers du stockage (un « Devis brouillon … .pdf » déjà joint reste).
+ * Récupérable avec restaurer_depuis_audit (le devis revient avec le même identifiant).
  */
 export async function supprimerDevis(c, args) {
   const devis = await lire(c, C.devis, args.id, 'Devis');
   if (devis.statut !== 'brouillon') refuser('saisie_invalide', 'Seul un brouillon peut être supprimé. Un devis finalisé se garde ; il peut être archivé (archiver_devis) s’il est signé ou refusé.');
-  const affaire = devis.affaireId ? await c.donnees.document(C.affaires, devis.affaireId) : null;
-  const fin = `/#/devis/pdf/${encodeURIComponent(devis.id)}/brouillon`;
-  const pdfBrouillon = (Array.isArray(affaire?.documents) ? affaire.documents : []).some((d) => d && typeof d.url === 'string' && d.url.endsWith(fin));
   const t = D.totauxDevis(devis);
   if (!args.codeConfirmation) {
     const restantes = c.suppressionsRestantes ? await c.suppressionsRestantes() : Infinity;
@@ -1023,19 +1020,17 @@ export async function supprimerDevis(c, args) {
   }
   const apercu = await confirmerDevis(c, args, {
     outil: 'supprimer_devis', cibleId: devis.id, verbe: 'supprimé', suppressions: 1,
-    empreinte: empreinteDevis(devis, { pdfBrouillon }),
+    empreinte: empreinteDevis(devis),
     apercu: {
       supprime: false, id: devis.id, objet: devis.objet ?? '', version: devis.version ?? 1, lignes: nombreDeLignes(devis.sections), totalHT: t.totalHt, totalTTC: t.ttc,
-      destinataires: devis.destinataires ?? [], documentPdfBrouillonRetire: pdfBrouillon,
+      destinataires: devis.destinataires ?? [],
     },
-    suite: `Le brouillon est supprimé${pdfBrouillon ? ' avec son « PDF brouillon » (document de l\'affaire et fichier)' : ''} ; une copie reste dans le journal (restaurer_depuis_audit le rétablit).`,
+    suite: `Le brouillon est supprimé (les documents de l'affaire et les fichiers ne sont pas touchés) ; une copie reste dans le journal (restaurer_depuis_audit le rétablit).`,
   });
   if (apercu) return apercu;
-  const r = await appelerCoeurDevis(c, () => supprimerServeur({
-    donnees: c.donnees, ctx: ctxDevis(c), devisId: devis.id, stockage: typeof c.stockage === 'function' ? c.stockage() : null, espace: c.espace ?? '', avertir: () => {}, // l'échec est rendu dans fichierBrouillon et dans detail
-  }), { reserver: false });
+  const r = await appelerCoeurDevis(c, () => supprimerServeur({ donnees: c.donnees, ctx: ctxDevis(c), devisId: devis.id }), { reserver: false });
   return {
-    supprime: true, id: devis.id, documentAffaireRetire: r.documentAffaireRetire, fichierBrouillon: r.fichierBrouillon, operationId: r.operationId,
-    detail: `Récupérable avec restaurer_depuis_audit (operationId ${r.operationId}).${r.fichierBrouillon === 'echec' ? ' Le fichier PDF brouillon n\'a pas pu être effacé du stockage (sans conséquence : il est privé et sera remplacé).' : ''}`,
+    supprime: true, id: devis.id, operationId: r.operationId,
+    detail: `Récupérable avec restaurer_depuis_audit (operationId ${r.operationId}). Les documents de l'affaire et les fichiers n'ont pas été touchés.`,
   };
 }

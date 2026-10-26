@@ -227,7 +227,7 @@ export function actionsPermises(d, { editeur = EDITEUR_DISPONIBLE, suppression =
   return {
     statuts: CHANGEMENTS_STATUT.filter((c) => transitionPossible(statut, c.action)),
     voir: { actif: true },
-    editer: brouillon ? (editeur ? { actif: true } : bientot) : { actif: false, raison: MESSAGE_NON_EDITABLE },
+    editer: editeur ? { actif: true } : bientot, // un devis finalisé s'ouvre aussi sur l'onglet Édition, en lecture seule (même écran pour toute la vie du devis)
     nouvelleVersion: version ? (editeur ? { actif: true } : bientot) : { actif: false, raison: brouillon ? 'Un brouillon se modifie directement.' : 'Pas de nouvelle version pour un devis signé ou remplacé.' },
     dupliquer: editeur ? { actif: true } : bientot,
     facturer: bientot,
@@ -236,7 +236,6 @@ export function actionsPermises(d, { editeur = EDITEUR_DISPONIBLE, suppression =
   };
 }
 
-export const MESSAGE_NON_EDITABLE = 'Ce devis est finalisé : on ne le modifie plus. Pour le corriger, crée une nouvelle version.';
 export const MESSAGE_ARCHIVE_IMPOSSIBLE = 'Seul un devis signé ou refusé peut être archivé.';
 
 /** Entrée « Archiver » / « Désarchiver » du menu « … » (même schéma que les projets). Les règles sont celles du serveur : on n'archive qu'un devis signé ou refusé. */

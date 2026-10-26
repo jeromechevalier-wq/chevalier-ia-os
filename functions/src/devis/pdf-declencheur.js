@@ -14,7 +14,7 @@ export const estFinalisation = (avant, apres) => !!avant && !!apres && avant.sta
  * `evenement` : { params: { devisId }, data: { before: { data() }, after: { data() } } } (forme de firebase-functions pour onDocumentUpdated).
  * Rend un petit résumé { suite, statut? } (utile aux tests) ; ne lève jamais.
  */
-export function creerDeclencheurPdf({ donnees, espace = '', baseLien = '', convertir, stockage, journal = () => {}, maintenant = Date.now, tentativesMax = TENTATIVES_AUTO_MAX }) {
+export function creerDeclencheurPdf({ donnees, espace = '', baseLien = '', prefixeRoute = '', convertir, stockage, journal = () => {}, maintenant = Date.now, tentativesMax = TENTATIVES_AUTO_MAX }) {
   return async function gestionnaire(evenement) {
     const debut = maintenant();
     const fin = (resume, statut, code) => { journal({ action: 'pdf_auto', statut, code, dureeMs: maintenant() - debut }); return resume; };
@@ -30,7 +30,7 @@ export function creerDeclencheurPdf({ donnees, espace = '', baseLien = '', conve
       for (let i = 0; i < tentativesMax; i += 1) {
         // Une nouvelle date à chaque tour : l'« en cours » posé au tour précédent est remplacé par l'échec, puis une nouvelle tentative est réservée.
         const ctx = { acteur: 'declencheur-pdf', via: 'declencheur', maintenant: new Date(maintenant()) };
-        dernier = await fabriquerPdfDevis({ donnees: donnees(), espace, baseLien, devisId, explicite: false, ctx, convertir, stockage: rangement, tentativesMax });
+        dernier = await fabriquerPdfDevis({ donnees: donnees(), espace, baseLien, prefixeRoute, devisId, explicite: false, ctx, convertir, stockage: rangement, tentativesMax });
         if (dernier.statut !== 'echec' || dernier.definitif) break;
       }
       return fin({ suite: 'traite', statut: dernier?.statut }, dernier?.statut === 'echec' ? 'erreur' : 'ok', dernier?.definitif ? 'definitif' : undefined);
