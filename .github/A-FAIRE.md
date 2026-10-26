@@ -37,6 +37,7 @@ Déjà validés par Jérôme : 280, 282.
 - Simplifier la copie Drive faite par le navigateur (étude).
 - Doublon destinataire / copie quand le client change : pas encore contrôlé.
 - Cible tactile des pastilles-liens inférieure à 44 px.
+- Onglet Documents d'une fiche : remplacer le bouton « Retirer » (à côté de « Ouvrir le dossier », pas joli) par une simple croix, même comportement : la fenêtre d'avertissement « vous allez retirer… » s'affiche avant. Nom accessible « Retirer le dossier », cible tactile d'au moins 44 px (demandé par Jérôme le 26/10/2026).
 - Droit Cloud Storage du serveur MCP pour effacer le PDF brouillon (non bloquant).
 - « Préparer l'e-mail » dans le menu de la liste des devis (aujourd'hui seulement dans l'éditeur).
 - Le test `devis-email.spec.js` n°1 sur téléphone mesure 43,68 px au lieu de 44 pendant l'animation de la fenêtre (même défaut de timing corrigé dans le nouveau spec) : à stabiliser.
