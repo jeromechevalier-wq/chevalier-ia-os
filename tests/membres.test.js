@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { ROLES, cheminMembre, compteMembre, emailNormalise, lireCompteAvecReprises, ATTENTES_LECTURE_MEMBRE } from '../js/os/membres.js';
+import { ROLES, cheminMembre, compteMembre, emailNormalise, lireCompteAvecReprises, ATTENTES_LECTURE_MEMBRE, crmOuvertAuxComptes, suiviGenerations } from '../js/os/membres.js';
 
 const RACINE = join(dirname(fileURLToPath(import.meta.url)), '..');
 const lire = (f) => readFileSync(join(RACINE, f), 'utf8');
@@ -106,5 +106,24 @@ describe('lecture de la fiche d\'appartenance : une panne ne déconnecte jamais'
   test('auth.js : l\'état erreur ne passe jamais par signOut', () => {
     const auth = lire('js/os/auth.js');
     assert.match(auth, /lu\.etat === 'erreur'\) \{ rappel\(\{ etat: 'erreur'[^\n]*return; \}/);
+  });
+  test('AUTH3 liste de comptes vide (plateforme) : pas de démarrage « liste fixe », donc jamais de signOut ; liste de Jérôme : inchangé', () => {
+    assert.equal(crmOuvertAuxComptes({}), false);
+    assert.equal(crmOuvertAuxComptes(null), false);
+    assert.equal(crmOuvertAuxComptes(undefined), false);
+    assert.equal(crmOuvertAuxComptes({ 'a@b.test': { nom: 'A' } }), true);
+    const auth = lire('js/os/auth.js');
+    assert.match(auth, /if \(!client && !crmDisponible\(\)\) return \(\) => \{\};/); // aucun écouteur, aucun signOut
+    assert.match(lire('js/main.js'), /if \(!crmDisponible\(\)\) \{[^\n]*pageSansEspace/);
+  });
+  test('AUTH4 un rappel d\'auth devenu périmé (autre état reçu pendant l\'attente) se tait', () => {
+    const s = suiviGenerations();
+    const g1 = s.nouvelle();
+    assert.equal(s.perimee(g1), false);
+    const g2 = s.nouvelle();
+    assert.equal(s.perimee(g1), true);
+    assert.equal(s.perimee(g2), false);
+    const auth = lire('js/os/auth.js');
+    assert.equal((auth.match(/if \(perime\(\)\) return;/g) || []).length, 3); // après la lecture, avant signOut, avant « connecté »
   });
 });

@@ -342,6 +342,20 @@ test('AUTH1 une lecture de la fiche d\'appartenance qui échoue une fois ne déc
   await page.screenshot({ path: `${CAPTURES_AUTH}/AUTH1-connecte-apres-une-panne${estTelephone(page) ? '-telephone' : ''}.png` });
 });
 
+test('AUTH3 connecté à l\'espace d\'un client, ouvrir la plateforme sans route d\'espace dans un 2e onglet : le 1er onglet reste connecté', async ({ page, context }) => {
+  await ouvrir(page, 'studio');
+  const autre = await context.newPage();
+  await autre.goto('about:blank');
+  await autre.goto('/?emulateurs=1&sansComptes=1#/'); // plateforme : liste de comptes vide, aucune route d'espace
+  await expect(autre.getByRole('heading', { name: 'Espace indisponible' })).toBeVisible();
+  await expect(autre.getByRole('link', { name: 'Retour à l\'accueil' })).toBeVisible();
+  await autre.screenshot({ path: `${CAPTURES_AUTH}/AUTH3-plateforme-sans-espace${estTelephone(page) ? '-telephone' : ''}.png` });
+  await page.waitForTimeout(1500); // laisse le temps à une éventuelle déconnexion de se propager entre onglets
+  await expect(page.locator('.coquille')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Se connecter avec Google' })).toHaveCount(0);
+  await autre.close();
+});
+
 test('AUTH2 une panne persistante affiche « Connexion impossible » avec « Réessayer », sans déconnecter', async ({ page }) => {
   await ouvrirAvecEchecs(page, 99);
   await expect(page.getByRole('alert')).toContainText('Connexion impossible pour le moment');

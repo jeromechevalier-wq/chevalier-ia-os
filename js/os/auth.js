@@ -11,7 +11,7 @@ import {
 import { doc, getDoc } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { auth, db, MODE_EMULATEURS } from './firebase.js';
 import { COMPTES_AUTORISES } from './firebase-config.js';
-import { cheminMembre, lireCompteAvecReprises, MESSAGE_CONNEXION_IMPOSSIBLE } from './membres.js';
+import { cheminMembre, lireCompteAvecReprises, MESSAGE_CONNEXION_IMPOSSIBLE, crmOuvertAuxComptes, suiviGenerations } from './membres.js';
 
 export const MESSAGE_REFUS = "Accès refusé : ce compte n'est pas autorisé";
 
@@ -47,6 +47,12 @@ export async function compteDuClient(user, client) {
       return fiche.exists() ? fiche.data() : null;
     },
   });
+}
+
+/** Faux sur la plateforme clients (liste vide) : pas de démarrage « CRM de Jérôme », donc jamais de signOut par refus. Test : ?emulateurs=1&sansComptes=1. */
+export function crmDisponible() {
+  if (MODE_EMULATEURS && new URLSearchParams(location.search).has('sansComptes')) return false;
+  return crmOuvertAuxComptes(COMPTES_AUTORISES);
 }
 
 function fournisseur() {
@@ -87,6 +93,8 @@ export async function deconnecter() {
  * Sans option : CRM de Jérôme (liste fixe, racine). Avec { client } : plateforme clients (appartenance lue dans Firestore).
  */
 export function surveillerCompte(rappel, { client = null } = {}) {
+  if (!client && !crmDisponible()) return () => {}; // plateforme sans route d'espace : on n'écoute rien et on ne déconnecte personne
+  const generations = suiviGenerations();
   let refus = false;
   // Retour d'une connexion par redirection (téléphone, appli installée) : seulement si on en a lancé une.
   let redirectionEnCours = false;
@@ -97,6 +105,8 @@ export function surveillerCompte(rappel, { client = null } = {}) {
     });
   }
   return onAuthStateChanged(auth, async (user) => {
+    const g = generations.nouvelle();
+    const perime = () => generations.perimee(g) || (user && auth.currentUser?.uid !== user.uid); // état changé pendant une attente : on se tait
     if (!user) {
       rappel({ etat: 'deconnecte', refus });
       refus = false;
@@ -105,16 +115,19 @@ export function surveillerCompte(rappel, { client = null } = {}) {
     let compte;
     if (client) {
       const lu = await compteDuClient(user, client);
+      if (perime()) return;
       if (lu.etat === 'erreur') { rappel({ etat: 'erreur', message: MESSAGE_CONNEXION_IMPOSSIBLE, recharger: true }); return; } // jamais de signOut sur une panne
       compte = lu.compte ?? null;
     } else {
       compte = compteAutorise(user);
     }
     if (!compte) {
+      if (perime()) return;
       refus = true;
       await signOut(auth);
       return;
     }
+    if (perime()) return;
     rappel({ etat: 'connecte', compte });
   });
 }

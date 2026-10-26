@@ -45,6 +45,15 @@ function pageIndisponible(racine, { reessayer = null } = {}) {
     reessayer ? h('button', { type: 'button', class: 'bouton espace-bouton', onclick: reessayer }, 'Réessayer') : null));
 }
 
+/** Page de la plateforme ouverte sans identifiant d'espace : aucune lecture de compte, aucun signOut. */
+export function pageSansEspace(racine) {
+  appliquerIdentite(MARQUE_NEUTRE);
+  remplir(racine, coquilleEspace(MARQUE_NEUTRE,
+    h('h1', {}, 'Espace indisponible'),
+    h('p', { class: 'espace-accueil' }, "Il manque le nom de l'espace dans cette adresse. Utilise le lien que tu as reçu, ou retourne à l'accueil."),
+    h('a', { class: 'bouton espace-bouton', href: './' }, "Retour à l'accueil")));
+}
+
 function pageConnexion(racine, marque, { message = '', surConnexion, recharger = false }) {
   // Panne passagère : le compte reste connecté, on propose de réessayer (rechargement) au lieu de reconnecter.
   const bouton = recharger

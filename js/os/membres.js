@@ -34,7 +34,7 @@ export function compteMembre(user, client, membre) {
 
 /** Attentes avant chaque nouvelle tentative de lecture de la fiche d'appartenance (ms). */
 export const ATTENTES_LECTURE_MEMBRE = Object.freeze([400, 1200, 2500]);
-export const MESSAGE_CONNEXION_IMPOSSIBLE = 'Connexion impossible pour le moment. Vérifie ta connexion internet, puis recharge la page.';
+export const MESSAGE_CONNEXION_IMPOSSIBLE = 'Connexion impossible pour le moment. Vérifie ta connexion internet, puis clique sur Réessayer.';
 
 /** Seul ce code Firestore est un vrai refus ; toute autre erreur (réseau, cache, jeton qui se renouvelle) est transitoire. */
 export function erreurDeRefus(e) {
@@ -60,4 +60,18 @@ export async function lireCompteAvecReprises({ user, client, lire, attentes = AT
       await pause(attentes[essai]);
     }
   }
+}
+
+/**
+ * Le démarrage « liste fixe de comptes » (CRM de Jérôme) n'existe que si la liste n'est pas vide. Sur la plateforme clients elle est vide :
+ * ouvrir la page sans route d'espace ne doit alors jamais lire ni refuser un compte (un refus déconnecterait tous les onglets).
+ */
+export function crmOuvertAuxComptes(liste) {
+  return !!liste && typeof liste === 'object' && Object.keys(liste).length > 0;
+}
+
+/** Compteur de générations : un rappel asynchrone dont la génération a changé (autre état d'auth reçu entre-temps) doit se taire. */
+export function suiviGenerations() {
+  let courante = 0;
+  return { nouvelle: () => ++courante, perimee: (g) => g !== courante };
 }
