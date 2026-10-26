@@ -181,7 +181,7 @@ test('5 cas d’erreur : si le serveur refuse « Créer une nouvelle version »,
   await capturer(page, info, '5-erreur-nouvelle-version');
 });
 
-test('6 « Passer à « Envoyé » » : bouton à contour à côté d’« Envoyer » (jaune) pour un devis finalisé ; un clic passe le statut à Envoyé, la pastille change et le bouton disparaît ; absent pour un devis envoyé, signé ou un brouillon', async ({ page }, info) => {
+test('6 « Devis envoyé » (ex « Passer à « Envoyé » ») : bouton à contour à droite d’« Envoyer » (jaune) pour un devis finalisé ; un clic passe le statut à Envoyé, la pastille change et le bouton disparaît ; absent pour un devis envoyé, signé ou un brouillon', async ({ page }, info) => {
   await donnees();
   await devis('dEnvoye', { numero: 'DEV-2026-10-01-004', statut: 'envoye', finaliseLe: new Date(Date.now() - 5 * 86400000), envoyeLe: new Date(Date.now() - 4 * 86400000) });
   const appels = [];
@@ -195,12 +195,12 @@ test('6 « Passer à « Envoyé » » : bouton à contour à côté d’« Envoy
   await ouvrir(page, 'devis/voir/dFinalise');
   const droite = page.locator('.page-editeur-devis > .barre-devis .barre-devis-droite');
   const passer = droite.locator('[data-action="passer-envoye"]');
-  await expect(passer).toHaveText('Passer à « Envoyé »');
-  await expect(passer).toHaveClass(/bouton-secondaire/); // 26/10/2026 : le jaune est « Envoyer » (l'étape suivante conseillée) ; « Passer à « Envoyé » » reste visible, en contour
+  await expect(passer).toHaveText('Devis envoyé');
+  await expect(passer).toHaveClass(/bouton-secondaire/); // 26/10/2026 : le jaune est « Envoyer » (l'étape suivante conseillée) ; « Devis envoyé » reste visible, en contour
   await expect(passer).toBeVisible(); // aussi sur téléphone : jamais caché dans le « … »
   await expect(droite.locator('[data-action="envoyer"]')).toHaveClass(/bouton-principal/);
   await droite.locator('[data-action="plus-actions"]').click();
-  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: /Passer à « Envoyé »/ })).toHaveCount(0); // pas de doublon dans le « … »
+  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: /Passer à « Envoyé »|Devis envoyé/ })).toHaveCount(0); // pas de doublon dans le « … »
   await page.keyboard.press('Escape');
   await capturer(page, info, '6-passer-envoye');
   await passer.click();
@@ -217,7 +217,7 @@ test('6 « Passer à « Envoyé » » : bouton à contour à côté d’« Envoy
   }
 });
 
-test('6b cas d’erreur : si le serveur refuse « Passer à « Envoyé » », un message le dit (toast), le statut ne change pas et le bouton reste', async ({ page }, info) => {
+test('6b cas d’erreur : si le serveur refuse « Devis envoyé », un message le dit (toast), le statut ne change pas et le bouton reste', async ({ page }, info) => {
   info.annotations.push({ type: 'erreurs-reseau-attendues' });
   await donnees();
   await page.route('**/devisChangerStatut', async (route) => {
@@ -241,7 +241,7 @@ test('2c un devis envoyé dont la date de validité est passée affiche « Expir
   await expect(page.locator('.page-editeur-devis > .fiche-tete .fiche-sous .pastille-statut')).toHaveText('Expiré');
 });
 
-test('6c un double clic sur « Passer à « Envoyé » » ne fait qu’un seul appel au serveur (bouton grisé pendant l’appel)', async ({ page }) => {
+test('6c un double clic sur « Devis envoyé » ne fait qu’un seul appel au serveur (bouton grisé pendant l’appel)', async ({ page }) => {
   await donnees();
   const appels = [];
   await page.route('**/devisChangerStatut', async (route) => {

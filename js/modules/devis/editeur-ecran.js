@@ -478,7 +478,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     return h('button', { type: 'button', class: `bouton ${principal ? 'bouton-principal' : 'bouton-secondaire'}`, dataset: { action: 'envoyer' }, 'aria-haspopup': 'menu', 'aria-expanded': 'false', onclick: (ev) => ouvrirMenuEnvoyer(ev.currentTarget) },
     icone('mail', { taille: 16 }), 'Envoyer', icone('chevron-down', { taille: 14 }));
   }
-  /** Les un ou deux boutons d'étape du haut de page (le jaune d'abord, puis l'autre en contour ou grisé ; sauf au brouillon, l'ordre est inversé : le jaune reste à droite). */
+  /** Les un ou deux boutons d'étape du haut de page (le jaune d'abord, puis l'autre en contour ou grisé ; « Devis signé » (jaune) passe à droite, après « Devis refusé »). */
   function boutonsEtape() {
     const { jaune, autre } = regleEntete();
     const rendre = (b, principal) => {
@@ -490,8 +490,8 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       if (b.cle === 'refuser') return boutonStatut({ action: 'refuser', libelle: b.libelle, pictogramme: b.icone, style, statutLibelle: 'Refusé', nomAction: 'marquer-refuse' });
       return boutonStatut({ action: 'marquer_envoye', libelle: b.libelle, pictogramme: b.icone, style, statutLibelle: 'Envoyé', nomAction: 'passer-envoye' });
     };
-    // Le bouton jaune (l'action à faire) est tout à droite. Seule exception voulue par Jérôme : le brouillon, où « Envoyer » grisé annonce l'action d'après, à droite de « Finaliser ».
-    return jaune && jaune.cle !== 'finaliser' ? [rendre(autre, false), rendre(jaune, true)] : [rendre(jaune, true), rendre(autre, false)];
+    // Brouillon et Finalisé : le jaune d'abord, puis à sa droite le bouton qui annonce l'étape d'après (« Envoyer » grisé, « Devis envoyé »). Envoyé : « Devis signé » (jaune) tout à droite.
+    return jaune && jaune.cle === 'signer' ? [rendre(autre, false), rendre(jaune, true)] : [rendre(jaune, true), rendre(autre, false)];
   }
   function boutonHistorique() {
     ref.boutonHistorique = h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-historique', dataset: { action: 'historique' }, 'aria-controls': 'historique-devis', 'aria-expanded': 'false',
@@ -509,24 +509,23 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     if (surTelephone) {
       entrees.push({ libelle: 'Options', icone: 'settings', action: () => ouvrirOptions(ancre) }, { libelle: 'Historique', icone: 'history', action: () => ouvrirHistorique(ancre) }, { separateur: true });
     }
-    // Ce qui ne dépend pas de l'étape : PDF, impression, e-mail (voir entete-boutons.js). Rien ne disparaît : ce qui n'est plus un bouton se retrouve ici.
+    // Ce qui ne dépend pas de l'étape : PDF, impression, e-mail (voir entete-boutons.js). Ce qu'un bouton actif du haut de page fait déjà n'est pas répété ; le reste (dont « Envoyer par e-mail » au brouillon, tant que « Envoyer » est grisé) est ici.
     const { menu } = regleEntete();
     // Pendant la fabrication, le menu le dit et ignore un second clic (pas de double génération).
     entrees.push({ libelle: pdfEnCours ? LIBELLE_PDF_FABRICATION : 'Télécharger le PDF', icone: 'download', cle: 'telecharger', desactive: pdfEnCours, action: () => telechargerPdf(ancre) },
       { libelle: 'Imprimer', icone: 'file-text', cle: 'imprimer', desactive: pdfEnCours, action: () => imprimer(ancre) });
-    if (menu.envoyerANouveau.present) {
-      entrees.push({ libelle: menu.envoyerANouveau.libelle, icone: 'mail', cle: 'envoyer-a-nouveau', desactive: !menu.envoyerANouveau.actif, titreInfo: grisEmail().titreInfo, action: () => lancerEmail() }, ...entreePreparerEmail());
-    }
+    // Le « … » ne répète jamais un bouton visible (entete-boutons.js, clesMenuDejaVisibles).
+    if (menu.envoyerANouveau.present) entrees.push({ libelle: menu.envoyerANouveau.libelle, icone: 'mail', cle: 'envoyer-a-nouveau', desactive: !menu.envoyerANouveau.actif, titreInfo: grisEmail().titreInfo, action: () => lancerEmail() });
+    if (!menu.dejaVisibles.includes('preparer-email')) entrees.push(...entreePreparerEmail());
     entrees.push({ separateur: true });
     const apresSuppression = () => { verrou = true; clearTimeout(minuteur); if (travail) enregistre = structuredClone(travail); naviguer('devis/liste'); };
     entrees.push(...entreesMenuDevis(d, {
-      // L'e-mail et les trois passages d'étape ont leur bouton (ou leur entrée « Envoyer à nouveau »).
-      // « Éditer le devis » et « Voir le devis » ne sont pas proposés ici : les onglets « Édition » et « Prévisualisation », toujours visibles, font la même chose (pas de doublon, décision de Jérôme du 26/10/2026).
-      exclure: ['envoyer_email', 'statut:marquer_envoye', 'statut:accepter', 'statut:refuser', 'editer', 'voir'],
+      // « Envoyer par e-mail » est remplacé par le bouton ou par « Envoyer à nouveau » ; ce qu'un bouton visible fait déjà n'est pas répété.
+      // « Éditer le devis » et « Voir le devis » ne sont pas proposés ici : les onglets « Édition » et « Prévisualisation », toujours visibles, font la même chose (décision de Jérôme du 26/10/2026).
+      exclure: [...new Set(['envoyer_email', ...menu.dejaVisibles, 'editer', 'voir'])],
       apresSuppression,
       surcharges: {
         supprimer: async (x) => { if (!lecture && !(await sauver())) { toast(`${messageEnreg || ERREUR_ECRITURE} Le brouillon n’a pas été supprimé.`, { type: 'erreur', duree: 8000 }); return; } supprimerBrouillon(x, apresSuppression); }, // attend l'écriture en cours avant de supprimer
-        'statut:finaliser': () => finaliser(), // enregistre d'abord ce qui est à l'écran, vérifie, demande confirmation
         dupliquer: async (x) => { if (!lecture && !(await sauver())) { toast(`${messageEnreg || ERREUR_ECRITURE} Le devis n’a pas été dupliqué.`, { type: 'erreur', duree: 8000 }); return; } dupliquerDevis(D.devisParId(x.id) ?? x); },
       },
     }));

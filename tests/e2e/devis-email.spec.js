@@ -62,8 +62,8 @@ async function ouvrirEditeur(page, id) {
   await attendreCalme(page);
 }
 async function ouvrirDialogue(page) {
-  // Devis finalisé : le bouton jaune « Envoyer » ouvre le menu. Brouillon : « Envoyer » est grisé (aria-disabled) ; devis envoyé : plus de bouton « Envoyer » ;
-  // dans les deux cas l'e-mail est dans le menu « … » (« Envoyer par e-mail » pour un brouillon, « Envoyer à nouveau » ensuite).
+  // Devis finalisé : le bouton jaune « Envoyer » ouvre le menu. Devis envoyé : plus de bouton « Envoyer », l'e-mail est dans « … » (« Envoyer à nouveau »).
+  // Brouillon : « Envoyer » est grisé et le « … » ne le répète pas (26/10/2026) : le test 3 passe par le menu de la liste.
   const envoyer = page.locator('[data-action="envoyer"]:visible').first();
   if ((await envoyer.count()) > 0 && (await envoyer.getAttribute('aria-disabled')) !== 'true') {
     await envoyer.click();
@@ -127,13 +127,22 @@ test('3 un devis encore brouillon : « Finaliser d’abord » (rien n’est dema
   await semer('dBrouillon', { statut: 'brouillon', numero: null, finaliseLe: null, pdf: null });
   await simulerServeur(page, 'dBrouillon');
   await ouvrirEditeur(page, 'dBrouillon');
-  await ouvrirDialogue(page);
+  // 26/10/2026 : « Envoyer » grisé n'ouvre aucun menu, donc le « … » de l'éditeur garde « Envoyer par e-mail » (jamais « Envoyer à nouveau »).
+  await page.locator('[data-action="plus-actions"]').click();
+  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Envoyer par e-mail' })).toBeEnabled();
+  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Envoyer à nouveau' })).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => { location.hash = '#/devis/liste'; });
+  await page.locator('[data-id="dBrouillon"] [data-action="menu-devis"]:visible').first().click();
+  await page.locator('.menu-pop').getByRole('menuitem', { name: 'Envoyer par e-mail' }).click();
   const dlg = page.locator('.dialogue').filter({ hasText: 'Finaliser d’abord' });
   await expect(dlg).toBeVisible();
   await expect(dlg.locator('[data-valeur="finaliser-d-abord"]')).toContainText('encore un brouillon');
   await expect(boite(page)).toHaveCount(0);
   await capturer(page, info, '3-finaliser-d-abord');
-  await dlg.getByRole('button', { name: 'Finaliser d’abord' }).click();
+  await dlg.getByRole('button', { name: 'Ouvrir le devis' }).click(); // depuis la liste, le dialogue ouvre le devis ; là, « Finaliser » (jaune) ouvre la finalisation
+  await expect(page).toHaveURL(/#\/devis\/editeur\/dBrouillon$/);
+  await page.locator('[data-action="finaliser"]').click();
   await expect(page.locator('.dialogue').filter({ hasText: /Finaliser ce devis|ne peut pas encore être finalisé/ })).toBeVisible();
   expect(google.brouillons).toHaveLength(0);
   expect((await lireGoogle(page)).autorisations).toHaveLength(0);
