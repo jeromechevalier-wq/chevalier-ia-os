@@ -1,5 +1,7 @@
 # Déployer la plateforme clients (projet `chevalier-ia-app`)
 
+> **Un deuxième serveur de plateforme** (nouveau projet Google) : liste complète dans l'ordre dans [deploiement-nouveau-serveur-plateforme.md](deploiement-nouveau-serveur-plateforme.md).
+
 Chantier 12 de `etude-reutilisation-coque.md`. Deux projets Firebase, deux déploiements, **le même code et la même version**.
 
 | | CRM de Jérôme | Plateforme clients |
