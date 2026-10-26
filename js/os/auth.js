@@ -11,7 +11,7 @@ import {
 import { doc, getDoc } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { auth, db, MODE_EMULATEURS } from './firebase.js';
 import { COMPTES_AUTORISES } from './firebase-config.js';
-import { cheminMembre, compteMembre } from './membres.js';
+import { cheminMembre, lireCompteAvecReprises, MESSAGE_CONNEXION_IMPOSSIBLE } from './membres.js';
 
 export const MESSAGE_REFUS = "Accès refusé : ce compte n'est pas autorisé";
 
@@ -32,16 +32,21 @@ export function compteAutorise(user) {
 
 /**
  * Compte d'un client (plateforme clients) : lit clients/<client>/membres/<e-mail>. Les règles Firestore n'autorisent que la lecture
- * de sa propre fiche. Sans fiche (ou sans droit), le compte est refusé. Ne sert pas au CRM de Jérôme (voir compteAutorise).
+ * de sa propre fiche. Renvoie { etat: 'ok', compte } | { etat: 'refus' } (fiche absente ou permission refusée)
+ * | { etat: 'erreur' } (échec persistant après 3 reprises : on ne déconnecte jamais pour une panne).
+ * Ne sert pas au CRM de Jérôme (voir compteAutorise).
  */
 export async function compteDuClient(user, client) {
-  if (!user || !user.email || user.emailVerified !== true) return null;
-  try {
-    const fiche = await getDoc(doc(db, cheminMembre(client, user.email)));
-    return compteMembre(user, client, fiche.exists() ? fiche.data() : null);
-  } catch {
-    return null;
-  }
+  const test = MODE_EMULATEURS ? window.__chevalierTest : null; // crochets de test (émulateurs seulement)
+  return lireCompteAvecReprises({
+    user, client,
+    attentes: test?.attentesMembre,
+    lire: async () => {
+      if (test?.echecsMembre > 0) { test.echecsMembre--; throw Object.assign(new Error('échec simulé'), { code: 'unavailable' }); }
+      const fiche = await getDoc(doc(db, cheminMembre(client, user.email)));
+      return fiche.exists() ? fiche.data() : null;
+    },
+  });
 }
 
 function fournisseur() {
@@ -77,7 +82,7 @@ export async function deconnecter() {
 
 /**
  * Surveille le compte connecté. Le rappel reçoit :
- *  { etat: 'connecte', compte } | { etat: 'deconnecte', refus: boolean }
+ *  { etat: 'connecte', compte } | { etat: 'deconnecte', refus: boolean } | { etat: 'erreur', message, recharger? }
  * Un compte non autorisé est déconnecté immédiatement, avant toute lecture de données.
  * Sans option : CRM de Jérôme (liste fixe, racine). Avec { client } : plateforme clients (appartenance lue dans Firestore).
  */
@@ -97,7 +102,14 @@ export function surveillerCompte(rappel, { client = null } = {}) {
       refus = false;
       return;
     }
-    const compte = client ? await compteDuClient(user, client) : compteAutorise(user);
+    let compte;
+    if (client) {
+      const lu = await compteDuClient(user, client);
+      if (lu.etat === 'erreur') { rappel({ etat: 'erreur', message: MESSAGE_CONNEXION_IMPOSSIBLE, recharger: true }); return; } // jamais de signOut sur une panne
+      compte = lu.compte ?? null;
+    } else {
+      compte = compteAutorise(user);
+    }
     if (!compte) {
       refus = true;
       await signOut(auth);
@@ -111,6 +123,8 @@ export function surveillerCompte(rappel, { client = null } = {}) {
 // sans passer par la fenêtre Google (qui a besoin d'apis.google.com). N'existe jamais en production.
 if (MODE_EMULATEURS) {
   window.__chevalierTest = {
+    echecsMembre: 0, // nombre de lectures de la fiche d'appartenance à faire échouer (test de la panne passagère)
+    attentesMembre: undefined, // attentes entre reprises (ms), pour accélérer les tests
     connecter(email, emailVerifie = true) {
       const jeton = JSON.stringify({ sub: `test-${email}`, email, email_verified: emailVerifie });
       return signInWithCredential(auth, GoogleAuthProvider.credential(jeton)).then(() => true);

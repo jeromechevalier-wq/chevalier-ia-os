@@ -31,3 +31,33 @@ export function compteMembre(user, client, membre) {
   const email = emailNormalise(user.email);
   return { email, uid: user.uid, client, role: membre.role, nom: membre.nom || user.displayName || email, ...ROLES[membre.role] };
 }
+
+/** Attentes avant chaque nouvelle tentative de lecture de la fiche d'appartenance (ms). */
+export const ATTENTES_LECTURE_MEMBRE = Object.freeze([400, 1200, 2500]);
+export const MESSAGE_CONNEXION_IMPOSSIBLE = 'Connexion impossible pour le moment. Vérifie ta connexion internet, puis recharge la page.';
+
+/** Seul ce code Firestore est un vrai refus ; toute autre erreur (réseau, cache, jeton qui se renouvelle) est transitoire. */
+export function erreurDeRefus(e) {
+  return e?.code === 'permission-denied';
+}
+
+/**
+ * Lit la fiche d'appartenance avec reprises. `lire()` renvoie les données de la fiche (ou null si absente) et peut lancer.
+ * Résultat : { etat: 'ok', compte } | { etat: 'refus' } (fiche absente, rôle inconnu ou permission-denied)
+ *          | { etat: 'erreur' } (échec persistant : l'appelant ne doit PAS déconnecter).
+ * `attentes` et `pause` sont injectables pour les tests. Jamais d'e-mail ni de jeton dans les journaux : seulement le code d'erreur.
+ */
+export async function lireCompteAvecReprises({ user, client, lire, attentes = ATTENTES_LECTURE_MEMBRE, pause = (ms) => new Promise((r) => setTimeout(r, ms)), journal = (...a) => console.warn(...a) }) {
+  if (!user || !user.email || user.emailVerified !== true) return { etat: 'refus' };
+  for (let essai = 0; ; essai++) {
+    try {
+      const compte = compteMembre(user, client, await lire());
+      return compte ? { etat: 'ok', compte } : { etat: 'refus' };
+    } catch (e) {
+      journal("Lecture de la fiche d'appartenance impossible :", e?.code || 'inconnu', `(essai ${essai + 1})`);
+      if (erreurDeRefus(e)) return { etat: 'refus' };
+      if (essai >= attentes.length) return { etat: 'erreur' };
+      await pause(attentes[essai]);
+    }
+  }
+}

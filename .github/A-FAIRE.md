@@ -42,6 +42,8 @@ Déjà validés par Jérôme : 280, 282, et le 26/10/2026 : 309 (retour visuel p
 ## À tester par Jérôme
 - **Outil de diagnostic fichiers MCP** : à tester par Jérôme (ChatGPT et Claude, ordinateur et téléphone ; scénario dans `docs/plan-mcp.md`, section 11), puis à retirer (liste de ce qui se retire au même endroit).
 
+- **Déconnexion forcée chez le client démo (26/10)** : cause probable corrigée, à confirmer par Jérôme dans son Chrome normal (une erreur réseau sur la lecture de la fiche d'appartenance ne déconnecte plus).
+
 ## En cours (PR ouvertes, 26/10/2026, soir)
 - **Fusionnées ce soir** : 322 (boutons du devis finalisé), 314 (écran unique du devis), 313 (e-mails en copie), 324 (PDF fabriqué chez les clients), 323 (règle CLAUDE.md : parité Jérôme / clients). Jérôme doit encore les vérifier à l'écran (322, 314, 313) ; ne mettre « testé par Jérôme » que sur sa confirmation.
 - **320** : outil de données de démonstration (`docs/donnees-demo.md`) ; ouverte, relue par Fable, sans bloquant ; à fusionner après la démonstration de Jérôme.
