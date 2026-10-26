@@ -113,8 +113,8 @@ describe('Cohérence : registre, règles, fonctions, déploiement', () => {
     const p = JSON.parse(lire('functions-plateforme/package.json'));
     assert.equal(p.engines.node, '22');
     for (const v of Object.values(p.dependencies)) assert.match(v, /^\d+\.\d+\.\d+$/);
-    assert.deepEqual(Object.keys(p.dependencies).sort(), ['@google-cloud/secret-manager', '@modelcontextprotocol/sdk', 'firebase-admin', 'firebase-functions', 'zod']); // + le MCP des clients (mcpclients) ; secret-manager : l'adresse et le secret du webhook « Préparer l'e-mail », lus à l'exécution
-    assert.equal((code('index.js').match(/region:\s*REGION/g) || []).length, 6); // trois du journal + mcpclients + espaceReglages + les options communes des quatre fonctions de devis
+    assert.deepEqual(Object.keys(p.dependencies).sort(), ['@google-cloud/secret-manager', '@modelcontextprotocol/sdk', '@sparticuz/chromium', 'firebase-admin', 'firebase-functions', 'puppeteer-core', 'zod']); // + Chromium pour le PDF des devis (puppeteer-core, @sparticuz/chromium : mêmes versions que chez Jérôme) ; + le MCP des clients (mcpclients) ; secret-manager : l'adresse et le secret du webhook « Préparer l'e-mail », lus à l'exécution
+    assert.equal((code('index.js').match(/region:\s*REGION/g) || []).length, 9); // trois du PDF des devis (devisPdf, devisPdfLien, devisPdfAuto) + trois du journal + mcpclients + espaceReglages + les options communes des quatre fonctions de devis
     assert.match(code('index.js'), /REGION = 'europe-west9'/);
     assert.match(code('index.js'), /schedule: '0 \* \* \* \*'/);
   });
@@ -127,10 +127,10 @@ describe('Cohérence : registre, règles, fonctions, déploiement', () => {
 });
 
 describe('Les fonctions se chargent comme Firebase les chargera', () => {
-  test('quatorze fonctions (dont les six opérations de devis, les deux de « Préparer l\'e-mail » et la vérification du déploiement), région de Paris, planifiée toutes les heures, clé n8n liée par secret sur les deux qui lisent n8n, aucun secret pour « renommer »', async () => {
+  test('dix-sept fonctions (dont les trois du PDF des devis, les six opérations de devis, les deux de « Préparer l\'e-mail » et la vérification du déploiement), région de Paris, planifiée toutes les heures, clé n8n liée par secret sur les deux qui lisent n8n, aucun secret pour « renommer »', async () => {
     process.env.GCLOUD_PROJECT ??= 'demo-chevalier-ia-os';
     const m = await import('../functions-plateforme/src/index.js');
-    assert.deepEqual(Object.keys(m).sort(), ['automatisationsCopieHoraire', 'automatisationsRafraichir', 'automatisationsRenommer', 'deploiementVerifier', 'devisArchiver', 'devisChangerStatut', 'devisEnregistrerEnvoi', 'devisFinaliser', 'devisNouvelleVersion', 'devisPreparerEmail', 'devisPreparerEmailEtat', 'devisSupprimer', 'espaceReglages', 'mcpclients']);
+    assert.deepEqual(Object.keys(m).sort(), ['automatisationsCopieHoraire', 'automatisationsRafraichir', 'automatisationsRenommer', 'deploiementVerifier', 'devisArchiver', 'devisChangerStatut', 'devisEnregistrerEnvoi', 'devisFinaliser', 'devisNouvelleVersion', 'devisPdf', 'devisPdfAuto', 'devisPdfLien', 'devisPreparerEmail', 'devisPreparerEmailEtat', 'devisSupprimer', 'espaceReglages', 'mcpclients']);
     for (const f of Object.values(m)) assert.deepEqual(f.__endpoint.region, ['europe-west9']);
     assert.equal(m.automatisationsCopieHoraire.__endpoint.scheduleTrigger.schedule, '0 * * * *');
     assert.deepEqual(m.automatisationsCopieHoraire.__endpoint.secretEnvironmentVariables, [{ key: 'N8N_API_KEY' }]);
@@ -150,6 +150,15 @@ describe('Les fonctions se chargent comme Firebase les chargera', () => {
       assert.ok(d.serviceAccountEmail === undefined || d.serviceAccountEmail?.constructor?.name === 'ResetValue', `${nom} : aucun compte de service nouveau à créer avant le déploiement (compte par défaut)`);
       assert.equal(d.maxInstances, 5, nom);
     }
+    // PDF des devis chez les clients : compte de service dédié (à créer avant le déploiement : docs/pdf-clients.md), AUCUN secret déclaré, 2 instances au plus pour la fabrication.
+    for (const nom of ['devisPdf', 'devisPdfLien', 'devisPdfAuto']) {
+      const d = m[nom].__endpoint;
+      assert.equal(d.serviceAccountEmail, 'devis-pdf@chevalier-ia-app.iam.gserviceaccount.com', nom);
+      assert.equal(d.secretEnvironmentVariables, undefined, `${nom} : aucun secret`);
+    }
+    assert.ok(m.devisPdf.__endpoint.callableTrigger && m.devisPdfLien.__endpoint.callableTrigger, 'devisPdf et devisPdfLien : fonctions appelables');
+    assert.equal(m.devisPdfAuto.__endpoint.eventTrigger.eventFilterPathPatterns.document, 'clients/{client}/devis_devis/{devisId}');
+    assert.equal(m.devisPdfAuto.__endpoint.maxInstances, 2);
     // Déploiement (25/10/2026) : fonction appelable, AUCUN secret déclaré (un secret absent ferait échouer le déploiement de toutes les fonctions), compte par défaut.
     const dep = m.deploiementVerifier.__endpoint;
     assert.ok(dep.callableTrigger, 'deploiementVerifier : fonction appelable');
