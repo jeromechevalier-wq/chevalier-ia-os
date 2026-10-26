@@ -95,9 +95,16 @@ describe('P6 nomFichierDevis et libellé du document de l\'affaire', () => {
     assert.ok(n.length <= 124 && n.endsWith('.pdf'));
     assert.equal(nomFichierDevis({ numero: 'DEV-1', version: 3 }), 'DEV-1 v3.pdf');
   });
-  test('P6 libellé de l\'affaire : « Devis DEV-… v1 – Objet.pdf » et « Devis brouillon – Objet.pdf »', () => {
+  test('P6 libellé de l\'affaire : « Devis DEV-… v1 – Objet.pdf » et « Devis brouillon – Objet – JJ-MM-AAAA HHhMM.pdf » (heure de Paris)', () => {
     assert.equal(libelleDocumentDevis({ numero: 'DEV-2026-10-24-001', version: 1, objet: 'Cuisine' }), 'Devis DEV-2026-10-24-001 v1 – Cuisine.pdf');
-    assert.equal(libelleDocumentDevis({ numero: null, version: 1, objet: 'Cuisine', brouillon: true }), 'Devis brouillon – Cuisine.pdf');
-    assert.equal(libelleDocumentDevis({ brouillon: true }), 'Devis brouillon.pdf');
+    const hiver = new Date('2026-10-26T13:32:00Z'); // heure d'hiver française (UTC+1) depuis le 25/10 : 14 h 32
+    const ete = new Date('2026-07-14T22:05:00Z'); // été (UTC+2) : 15/07 à 00 h 05, le jour change
+    assert.equal(libelleDocumentDevis({ numero: null, version: 1, objet: 'Cuisine', brouillon: true, date: hiver }), 'Devis brouillon – Cuisine – 26-10-2026 14h32.pdf');
+    assert.equal(libelleDocumentDevis({ brouillon: true, date: ete }), 'Devis brouillon – 15-07-2026 00h05.pdf');
+    assert.notEqual(libelleDocumentDevis({ brouillon: true, objet: 'Cuisine', date: hiver }), libelleDocumentDevis({ brouillon: true, objet: 'Salon', date: hiver }), 'deux brouillons d’objets différents : noms distincts');
+    assert.equal(libelleDocumentDevis({ numero: 'DEV-2026-10-24-001', version: 1, objet: 'Cuisine', date: hiver }), 'Devis DEV-2026-10-24-001 v1 – Cuisine.pdf', 'le PDF finalisé n’a pas d’horodatage');
+    const long = libelleDocumentDevis({ brouillon: true, objet: 'x'.repeat(300), date: hiver });
+    assert.ok(long.length <= 124 && long.endsWith(' – 26-10-2026 14h32.pdf'), 'objet raccourci, horodatage gardé');
+    assert.ok(!/[\/\\]/.test(libelleDocumentDevis({ brouillon: true, objet: 'a/b\\c', date: hiver })));
   });
 });

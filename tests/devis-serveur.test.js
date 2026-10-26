@@ -299,12 +299,8 @@ describe('C5c devisEnregistrerEnvoi : l’historique des envois par e-mail', () 
   });
 });
 
-describe('C5b devisSupprimer : le PDF brouillon part avec le brouillon', () => {
+describe('C5b devisSupprimer : le document de l’affaire et le fichier RESTENT quand on supprime le brouillon', () => {
   const LIEN = (id) => `https://chevalier-ia-os.web.app/#/devis/pdf/${id}/brouillon`;
-  const fauxStockage = (echec = false) => {
-    const supprimes = [];
-    return { supprimes, async supprimerBrouillon(p) { if (echec) throw new Error('Stockage : panne'); supprimes.push(p); } };
-  };
   function mondeAffaire(documents) {
     const m = monde([brouillon('b'), brouillon('autre')]);
     m.collections[C.affaires] = [{ id: 'aff1', titre: 'Affaire', documents }];
@@ -313,44 +309,37 @@ describe('C5b devisSupprimer : le PDF brouillon part avec le brouillon', () => {
   }
   const docs = (m) => m.collections[C.affaires].find((a) => a.id === 'aff1').documents;
 
-  test('C5b le document « Devis brouillon » de l’affaire disparaît, les autres restent, le fichier est supprimé, la copie « avant » permet de restaurer', async () => {
+  test('C5b le document « Devis brouillon » de l’affaire reste intact (liste identique), aucun fichier n’est demandé au stockage, la copie « avant » permet de restaurer', async () => {
     const m = mondeAffaire([
       { libelle: 'Plan.pdf', url: 'https://exemple.test/plan.pdf' },
-      { libelle: 'Devis brouillon – Cuisine.pdf', url: LIEN('b') },
-      { libelle: 'Devis brouillon – Salon.pdf', url: LIEN('autre') },
+      { libelle: 'Devis brouillon – Cuisine – 24-10-2026 12h00.pdf', url: LIEN('b') },
+      { libelle: 'Devis brouillon – Salon – 24-10-2026 12h05.pdf', url: LIEN('autre') },
     ]);
-    const stockage = fauxStockage();
+    const avant = JSON.stringify(m.collections[C.affaires]);
+    const appelsStockage = [];
+    const stockage = new Proxy({}, { get: (_, nom) => (...a) => { appelsStockage.push(String(nom)); } }); // tout appel serait noté
     const r = await S.supprimer({ donnees: m.donnees, ctx: ctx(), devisId: 'b', stockage, espace: '' });
-    assert.equal(r.documentAffaireRetire, true);
-    assert.equal(r.fichierBrouillon, 'supprime');
-    assert.deepEqual(docs(m).map((d) => d.libelle), ['Plan.pdf', 'Devis brouillon – Salon.pdf']);
+    assert.equal(r.ok, true);
+    assert.equal(JSON.stringify(m.collections[C.affaires]), avant, 'l’affaire et ses documents n’ont pas changé');
+    assert.equal(docs(m).length, 3);
+    assert.deepEqual(appelsStockage, [], 'le stockage n’est jamais appelé');
+    assert.equal('fichierBrouillon' in r, false);
     assert.equal(leDevis(m, 'b'), undefined);
     assert.ok(leDevis(m, 'autre'));
-    assert.equal(stockage.supprimes.length, 1);
-    assert.deepEqual(stockage.supprimes[0], { espace: '', affaireId: 'aff1', devisId: 'b' });
+    const lignes = m.collections[C.audit].filter((l) => l.operationId === r.operationId);
+    assert.deepEqual(lignes.map((l) => [l.collection, l.action]), [[C.devis, 'supprimer']], 'une seule ligne de journal : le devis (rien sur l’affaire)');
     assert.equal(m.collections[C.auditAvant].find((l) => l.docId === 'b' && l.collection === C.devis).avant.statut, 'brouillon');
   });
 
-  test('C5b un devis sans PDF brouillon se supprime comme avant (documents intacts, pas de ligne de journal pour l’affaire)', async () => {
+  test('C5b un devis sans document brouillon, ou sans affaire, se supprime de la même façon (documents intacts)', async () => {
     const m = mondeAffaire([{ libelle: 'Plan.pdf', url: 'https://exemple.test/plan.pdf' }]);
     const avant = JSON.stringify(m.collections[C.affaires]);
-    const r = await S.supprimer({ donnees: m.donnees, ctx: ctx(), devisId: 'b', stockage: fauxStockage() });
-    assert.equal(r.documentAffaireRetire, false);
+    const r = await S.supprimer({ donnees: m.donnees, ctx: ctx(), devisId: 'b' });
+    assert.equal(r.ok, true);
     assert.equal(JSON.stringify(m.collections[C.affaires]), avant);
     assert.equal(leDevis(m, 'b'), undefined);
     const sansAffaire = monde([brouillon('c', { affaireId: null })]);
     assert.equal((await S.supprimer({ donnees: sansAffaire.donnees, ctx: ctx(), devisId: 'c' })).ok, true);
-  });
-
-  test('C5b un échec de suppression du fichier ne bloque pas : le devis est supprimé, l’avertissement est journalisé', async () => {
-    const m = mondeAffaire([{ libelle: 'Devis brouillon – Cuisine.pdf', url: LIEN('b') }]);
-    const avertissements = [];
-    const r = await S.supprimer({ donnees: m.donnees, ctx: ctx(), devisId: 'b', stockage: fauxStockage(true), avertir: (a) => avertissements.push(a.code) });
-    assert.equal(r.ok, true);
-    assert.equal(r.fichierBrouillon, 'echec');
-    assert.deepEqual(avertissements, ['fichier_brouillon']);
-    assert.equal(leDevis(m, 'b'), undefined);
-    assert.deepEqual(docs(m), []);
   });
 
   test('C5b un brouillon de plus de 10 adresses en copie ne se finalise pas (règle du serveur)', async () => {
