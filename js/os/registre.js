@@ -28,7 +28,7 @@ const geler = (o) => {
 };
 
 /** Outils du serveur qui ne dépendent d'aucun module : toujours disponibles. */
-export const OUTILS_COMMUNS = geler(['qui_suis_je']);
+export const OUTILS_COMMUNS = geler(['qui_suis_je', 'diagnostiquer_fichiers']);
 
 /**
  * Modules déclarés, dans l'ordre de démarrage (une dépendance vient toujours avant ce qui en dépend).
