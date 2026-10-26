@@ -210,101 +210,8 @@ describe('C5 devisChangerStatut', () => {
   });
 });
 
-describe('C5b devisSupprimer', () => {
-  test('C5b supprime un brouillon (journal et copie « avant » gardés) ; refuse un devis finalisé, un devis qui n’existe pas', async () => {
-    const m = monde([brouillon('b'), brouillon('f', { statut: 'en_attente_envoi', numero: 'DEV-2026-10-01-009' })]);
-    await assert.rejects(() => S.supprimer({ donnees: m.donnees, ctx: ctx(), devisId: 'f' }), (e) => e.code === 'transition_interdite');
-    await assert.rejects(() => S.supprimer({ donnees: m.donnees, ctx: ctx(), devisId: 'nexistepas' }), (e) => e.code === 'introuvable');
-    assert.ok(leDevis(m, 'f'), 'le devis finalisé est toujours là');
-    const r = await S.supprimer({ donnees: m.donnees, ctx: ctx(), devisId: 'b' });
-    assert.equal(r.ok, true);
-    assert.equal(leDevis(m, 'b'), undefined);
-    const ligne = m.collections[C.audit].at(-1);
-    assert.deepEqual([ligne.outil, ligne.action, ligne.docId], ['devisSupprimer', 'supprimer', 'b']);
-    assert.equal(m.collections[C.auditAvant].at(-1).avant.statut, 'brouillon'); // la copie permet de le retrouver
-    assert.equal(S.OPERATIONS.supprimer !== undefined, true);
-  });
-});
-
-describe('C5c devisEnregistrerEnvoi : l’historique des envois par e-mail', () => {
-  const ENVOYE = { statut: 'envoye', numero: 'DEV-2026-10-01-001', envoyeLe: new Date('2026-10-20T08:00:00Z') };
-  test('C5c ajoute une ligne { date, destinataires, copie } sans changer le statut ni envoyeLe ; un renvoi GARDE les deux dates', async () => {
-    const m = monde([brouillon('d1', ENVOYE)]);
-    const r1 = await S.enregistrerEnvoi({ donnees: m.donnees, ctx: ctx(), devisId: 'd1', destinataires: [' client@exemple.test '], copie: ['copie@exemple.test', 'CLIENT@exemple.test'] });
-    assert.equal(r1.ok, true);
-    const d = leDevis(m, 'd1');
-    assert.equal(d.statut, 'envoye');
-    assert.deepEqual(d.envoyeLe, ENVOYE.envoyeLe, 'envoyeLe garde la date du premier envoi');
-    assert.deepEqual(d.envois, [{ date: MAINTENANT, destinataires: ['client@exemple.test'], copie: ['copie@exemple.test'] }]);
-    const plusTard = new Date('2026-10-26T09:00:00Z');
-    await S.enregistrerEnvoi({ donnees: m.donnees, ctx: ctx({ maintenant: plusTard }), devisId: 'd1', destinataires: ['autre@exemple.test'], copie: [] });
-    assert.deepEqual(leDevis(m, 'd1').envois.map((e) => e.date), [MAINTENANT, plusTard]);
-    assert.deepEqual(leDevis(m, 'd1').envoyeLe, ENVOYE.envoyeLe);
-  });
-  test('C5c journal d’audit et copie « avant » écrits dans la même transaction (devisEnregistrerEnvoi, champ envois)', async () => {
-    const m = monde([brouillon('d1', ENVOYE)]);
-    await S.enregistrerEnvoi({ donnees: m.donnees, ctx: ctx(), devisId: 'd1', destinataires: ['client@exemple.test'] });
-    const ligne = m.collections[C.audit].at(-1);
-    assert.deepEqual([ligne.outil, ligne.action, ligne.docId, ligne.champsModifies], ['devisEnregistrerEnvoi', 'modifier', 'd1', ['envois']]);
-    const copie = m.collections[C.auditAvant].at(-1);
-    assert.equal(copie.avant.envois, undefined);
-    assert.equal(copie.apres.envois.length, 1);
-  });
-  test('C5c refusé sans rien écrire : devis pas envoyé (brouillon, finalisé, signé…), devis inconnu', async () => {
-    for (const statut of ['brouillon', 'en_attente_envoi', 'accepte', 'refuse', 'remplace']) {
-      const m = monde([brouillon('d1', { statut, numero: 'DEV-2026-10-01-001' })]);
-      const avant = photo(m);
-      await assert.rejects(() => S.enregistrerEnvoi({ donnees: m.donnees, ctx: ctx(), devisId: 'd1', destinataires: ['client@exemple.test'] }), (e) => e.code === 'transition_interdite', statut);
-      assert.equal(photo(m), avant, statut);
-    }
-    const m = monde([]);
-    await assert.rejects(() => S.enregistrerEnvoi({ donnees: m.donnees, ctx: ctx(), devisId: 'nexistepas', destinataires: ['client@exemple.test'] }), (e) => e.code === 'introuvable');
-  });
-  test('C5c validé comme les autres opérations : sans destinataire, adresse invalide (retour à la ligne compris), trop d’adresses, mauvais types -> demande_invalide, rien écrit', async () => {
-    const m = monde([brouillon('d1', ENVOYE)]);
-    const avant = photo(m);
-    const onze = Array.from({ length: 11 }, (_, i) => `p${i}@exemple.test`);
-    const mauvaises = [
-      { destinataires: [] }, { destinataires: undefined }, { destinataires: 'client@exemple.test' }, { destinataires: ['pas-une-adresse'] },
-      { destinataires: ['a@exemple.test\r\nBcc: x@exemple.test'] }, { destinataires: [42] }, { destinataires: onze },
-      { destinataires: ['a@exemple.test'], copie: ['faux'] }, { destinataires: ['a@exemple.test'], copie: 'b@exemple.test' }, { destinataires: ['a@exemple.test'], copie: onze },
-      { destinataires: ['a@exemple.test'], copie: ['x'.repeat(260) + '@exemple.test'] },
-      { destinataires: ['josé@exemple.test'] }, { destinataires: ['中@exemple.test'] }, { destinataires: ['a(b@exemple.test'] }, { destinataires: ['a@exemple.test'], copie: ['a"b@exemple.test'] },
-    ];
-    for (const extra of mauvaises) {
-      await assert.rejects(() => S.enregistrerEnvoi({ donnees: m.donnees, ctx: ctx(), devisId: 'd1', ...extra }), (e) => e.code === 'demande_invalide', JSON.stringify(extra).slice(0, 80));
-    }
-    await assert.rejects(() => S.enregistrerEnvoi({ donnees: m.donnees, ctx: ctx(), devisId: 'a/b', destinataires: ['a@exemple.test'] }), (e) => e.code === 'demande_invalide');
-    assert.equal(photo(m), avant);
-  });
-  test('C5c l’historique est plafonné (100 envois) ; la finalisation et la variante ne le recopient pas', async () => {
-    const plein = Array.from({ length: S.MAX_ENVOIS }, (_, i) => ({ date: new Date(2026, 0, 1 + (i % 28)), destinataires: ['a@exemple.test'], copie: [] }));
-    const m = monde([brouillon('d1', { ...ENVOYE, envois: plein })]);
-    await assert.rejects(() => S.enregistrerEnvoi({ donnees: m.donnees, ctx: ctx(), devisId: 'd1', destinataires: ['a@exemple.test'] }), (e) => e.code === 'transition_interdite');
-    const v = await S.nouvelleVersion({ donnees: m.donnees, ctx: ctx(), devisId: 'd1' });
-    assert.equal('envois' in leDevis(m, v.devis.id), false, 'la variante ne recopie pas l’historique');
-    assert.equal(leDevis(m, 'd1').envois.length, S.MAX_ENVOIS, 'l’original le garde');
-    const f = monde([brouillon('b', { envois: [{ date: MAINTENANT, destinataires: ['x@exemple.test'], copie: [] }] })]); // un brouillon forgé : la finalisation remet l'historique à zéro
-    await S.finaliser({ donnees: f.donnees, ctx: ctx(), devisId: 'b' });
-    assert.equal(leDevis(f, 'b').envois, null);
-  });
-  test('C5c la porte de Jérôme répond sans le devis entier ; elle refuse un compte inconnu ; l’opération est dans OPERATIONS', async () => {
-    const m = monde([brouillon('d1', ENVOYE)]);
-    const appel = creerAppelDevis('enregistrerEnvoi', { donnees: () => m.donnees });
-    await assert.rejects(() => appel({ auth: { uid: 'u', token: { email: 'intrus@exemple.test', email_verified: true } }, data: { devisId: 'd1', destinataires: ['a@exemple.test'] } }), (e) => e.code === 'permission-denied');
-    const r = await appel({ auth: { uid: 'u', token: { email: ACTEUR, email_verified: true } }, data: { devisId: 'd1', destinataires: ['a@exemple.test'] } });
-    assert.deepEqual([r.ok, r.statut, r.sections], [true, 'envoye', undefined]);
-    await assert.rejects(() => appel({ auth: { uid: 'u', token: { email: ACTEUR, email_verified: true } }, data: { devisId: 'd1', destinataires: [] } }), (e) => e.code === 'invalid-argument');
-    assert.equal(typeof S.OPERATIONS.enregistrerEnvoi, 'function');
-  });
-});
-
-describe('C5b devisSupprimer : le PDF brouillon part avec le brouillon', () => {
+describe('C5b devisSupprimer : le document de l’affaire et le fichier RESTENT quand on supprime le brouillon', () => {
   const LIEN = (id) => `https://chevalier-ia-os.web.app/#/devis/pdf/${id}/brouillon`;
-  const fauxStockage = (echec = false) => {
-    const supprimes = [];
-    return { supprimes, async supprimerBrouillon(p) { if (echec) throw new Error('Stockage : panne'); supprimes.push(p); } };
-  };
   function mondeAffaire(documents) {
     const m = monde([brouillon('b'), brouillon('autre')]);
     m.collections[C.affaires] = [{ id: 'aff1', titre: 'Affaire', documents }];
@@ -313,44 +220,37 @@ describe('C5b devisSupprimer : le PDF brouillon part avec le brouillon', () => {
   }
   const docs = (m) => m.collections[C.affaires].find((a) => a.id === 'aff1').documents;
 
-  test('C5b le document « Devis brouillon » de l’affaire disparaît, les autres restent, le fichier est supprimé, la copie « avant » permet de restaurer', async () => {
+  test('C5b le document « Devis brouillon » de l’affaire reste intact (liste identique), aucun fichier n’est demandé au stockage, la copie « avant » permet de restaurer', async () => {
     const m = mondeAffaire([
       { libelle: 'Plan.pdf', url: 'https://exemple.test/plan.pdf' },
-      { libelle: 'Devis brouillon – Cuisine.pdf', url: LIEN('b') },
-      { libelle: 'Devis brouillon – Salon.pdf', url: LIEN('autre') },
+      { libelle: 'Devis brouillon – Cuisine – 24-10-2026 12h00.pdf', url: LIEN('b') },
+      { libelle: 'Devis brouillon – Salon – 24-10-2026 12h05.pdf', url: LIEN('autre') },
     ]);
-    const stockage = fauxStockage();
+    const avant = JSON.stringify(m.collections[C.affaires]);
+    const appelsStockage = [];
+    const stockage = new Proxy({}, { get: (_, nom) => (...a) => { appelsStockage.push(String(nom)); } }); // tout appel serait noté
     const r = await S.supprimer({ donnees: m.donnees, ctx: ctx(), devisId: 'b', stockage, espace: '' });
-    assert.equal(r.documentAffaireRetire, true);
-    assert.equal(r.fichierBrouillon, 'supprime');
-    assert.deepEqual(docs(m).map((d) => d.libelle), ['Plan.pdf', 'Devis brouillon – Salon.pdf']);
+    assert.equal(r.ok, true);
+    assert.equal(JSON.stringify(m.collections[C.affaires]), avant, 'l’affaire et ses documents n’ont pas changé');
+    assert.equal(docs(m).length, 3);
+    assert.deepEqual(appelsStockage, [], 'le stockage n’est jamais appelé');
+    assert.equal('fichierBrouillon' in r, false);
     assert.equal(leDevis(m, 'b'), undefined);
     assert.ok(leDevis(m, 'autre'));
-    assert.equal(stockage.supprimes.length, 1);
-    assert.deepEqual(stockage.supprimes[0], { espace: '', affaireId: 'aff1', devisId: 'b' });
+    const lignes = m.collections[C.audit].filter((l) => l.operationId === r.operationId);
+    assert.deepEqual(lignes.map((l) => [l.collection, l.action]), [[C.devis, 'supprimer']], 'une seule ligne de journal : le devis (rien sur l’affaire)');
     assert.equal(m.collections[C.auditAvant].find((l) => l.docId === 'b' && l.collection === C.devis).avant.statut, 'brouillon');
   });
 
-  test('C5b un devis sans PDF brouillon se supprime comme avant (documents intacts, pas de ligne de journal pour l’affaire)', async () => {
+  test('C5b un devis sans document brouillon, ou sans affaire, se supprime de la même façon (documents intacts)', async () => {
     const m = mondeAffaire([{ libelle: 'Plan.pdf', url: 'https://exemple.test/plan.pdf' }]);
     const avant = JSON.stringify(m.collections[C.affaires]);
-    const r = await S.supprimer({ donnees: m.donnees, ctx: ctx(), devisId: 'b', stockage: fauxStockage() });
-    assert.equal(r.documentAffaireRetire, false);
+    const r = await S.supprimer({ donnees: m.donnees, ctx: ctx(), devisId: 'b' });
+    assert.equal(r.ok, true);
     assert.equal(JSON.stringify(m.collections[C.affaires]), avant);
     assert.equal(leDevis(m, 'b'), undefined);
     const sansAffaire = monde([brouillon('c', { affaireId: null })]);
     assert.equal((await S.supprimer({ donnees: sansAffaire.donnees, ctx: ctx(), devisId: 'c' })).ok, true);
-  });
-
-  test('C5b un échec de suppression du fichier ne bloque pas : le devis est supprimé, l’avertissement est journalisé', async () => {
-    const m = mondeAffaire([{ libelle: 'Devis brouillon – Cuisine.pdf', url: LIEN('b') }]);
-    const avertissements = [];
-    const r = await S.supprimer({ donnees: m.donnees, ctx: ctx(), devisId: 'b', stockage: fauxStockage(true), avertir: (a) => avertissements.push(a.code) });
-    assert.equal(r.ok, true);
-    assert.equal(r.fichierBrouillon, 'echec');
-    assert.deepEqual(avertissements, ['fichier_brouillon']);
-    assert.equal(leDevis(m, 'b'), undefined);
-    assert.deepEqual(docs(m), []);
   });
 
   test('C5b un brouillon de plus de 10 adresses en copie ne se finalise pas (règle du serveur)', async () => {

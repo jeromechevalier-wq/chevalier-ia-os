@@ -13,7 +13,7 @@ Mise à jour : 26/10/2026, nuit « GO NUIT ». Règle de Jérôme : **« testé 
 | 5 | Une seule liste « Étape où vivent les devis » | 286 | à faire |
 | 6 | Pastille cliquable corrigée (chez un client aussi) ; devis archivé sans pastille | 287 | à faire |
 | 7 | Copie du PDF dans le dossier Drive de l'affaire (+ correctifs) | 283, 290 | à faire (réglage CORS d'abord) |
-| 8 | Suppression d'un brouillon retire son PDF brouillon ; e-mails en copie | 291 | à faire |
+| 8 | E-mails en copie (la suppression d'un brouillon ne retire plus son PDF : voir 16) | 291 | à faire |
 | 9 | Envoi du devis par e-mail (brouillon Gmail, « Marquer comme envoyé », historique des envois) | 292 | à faire (réglages Google d'abord) |
 | 10 | Menu des cartes, historique, « … » à côté d'Envoyer, plus de fiche du devis | 294 | à faire |
 | 11 | Pastilles des réglages Devis (Général / Mon entreprise / Familles d'articles) | 295 | à faire |
@@ -21,6 +21,7 @@ Mise à jour : 26/10/2026, nuit « GO NUIT ». Règle de Jérôme : **« testé 
 | 13 | Visualisation du devis : document seul, en-tête harmonisé, « Passer à Envoyé » | 298 | à faire |
 | 14 | « Préparer l'e-mail » (brouillon Gmail par n8n) | 299 | à faire après branchement (voir « À faire par Jérôme ») |
 | 15 | Réglages > Déploiement (checklist avec contrôles) | 300 | à faire |
+| 16 | Supprimer un brouillon de devis ne retire plus le document de l'affaire ni le fichier ; le document « Devis brouillon – Objet – JJ-MM-AAAA HHhMM.pdf » porte la date et l'heure (Paris) du dernier téléchargement | à compléter à l'ouverture (probablement 310) | à faire |
 
 Déjà validés par Jérôme : 280, 282.
 
@@ -48,7 +49,6 @@ Déjà validés par Jérôme : 280, 282.
 - Recherche du haut : résultats en vrais liens (clic droit, Cmd+clic) : PR #305.
 - Écran du PDF : « Retour au devis » ramenait à la liste après une finalisation. Corrigé dans la PR « retour à la page d'origine » (à tester par Jérôme une fois fusionnée et en ligne), test e2e n° 4.
 - **Génération du PDF trop lente** : elle prend plusieurs secondes et on a l'impression que l'outil a planté. À étudier : mesurer où passe le temps, puis afficher une progression claire (message « fabrication en cours », indicateur) et/ou accélérer (demandé par Jérôme le 26/10/2026).
-- Droit Cloud Storage du serveur MCP pour effacer le PDF brouillon (non bloquant).
 - « Préparer l'e-mail » dans le menu de la liste des devis (aujourd'hui seulement dans l'éditeur).
 - Le test `devis-email.spec.js` n°1 sur téléphone mesure 43,68 px au lieu de 44 pendant l'animation de la fenêtre (même défaut de timing corrigé dans le nouveau spec) : à stabiliser.
 
