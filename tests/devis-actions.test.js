@@ -98,6 +98,13 @@ describe('5 panneau « Historique »', () => {
     assert.equal(l[0].jour, '01/10/2026');
     assert.equal(l.at(-1).jour, '');
   });
+  test('5 chaque date porte aussi l’heure et la minute, à l’heure de Paris (été +2, hiver +1) ; une date inconnue n’a ni jour ni heure', () => {
+    const l = H.datesHistorique(d('envoye', { finaliseLe: new Date('2026-10-02T10:05:00Z'), envoyeLe: new Date('2026-11-03T08:09:00Z') }));
+    assert.deepEqual([l[1].jour, l[1].heure], ['02/10/2026', '12 h 05']);
+    assert.deepEqual([l[2].jour, l[2].heure], ['03/11/2026', '09 h 09']);
+    assert.equal(H.heureFr(null), '');
+    assert.equal(H.versionsHistorique(d('envoye', { finaliseLe: new Date('2026-10-02T10:05:00Z') }))[0].heure, '12 h 05');
+  });
   test('5 les envois par e-mail : aucun pour un brouillon, une ligne par envoi sinon', () => {
     assert.deepEqual(H.contenuHistorique(d('brouillon', { envoyeLe: new Date('2026-10-03T10:00:00Z') })).envois, []);
     const c = H.contenuHistorique(d('envoye', { envoyeLe: new Date('2026-10-03T10:00:00Z'), envois: [{ date: new Date('2026-10-03T10:00:00Z'), destinataires: ['client@exemple.fr'] }] }));

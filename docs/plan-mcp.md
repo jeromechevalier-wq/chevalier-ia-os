@@ -171,7 +171,7 @@ Profils : **L** lecteur · **B** bibliothécaire (L + écriture + pièces jointe
 | `nouvelle_version_devis` | crée le brouillon suivant d'un devis finalisé, envoyé ou refusé (même numéro, version + 1) : la voie pour corriger un devis finalisé | B C | oui (supprime ce brouillon) |
 | `archiver_devis` | archive (devis signé ou refusé) ou désarchive | B C | oui |
 | `enregistrer_envoi_devis` | ajoute un envoi (destinataires, copie) à l'historique d'un devis « Envoyé » ; les deux dates sont gardées en cas de renvoi ; n'envoie rien | B C | oui |
-| `supprimer_devis` | supprime un **brouillon** (retire aussi son « PDF brouillon ») ; **aperçu puis code** | C seulement | oui |
+| `supprimer_devis` | supprime un **brouillon** (ne touche jamais aux documents de l'affaire ni aux fichiers, « Devis brouillon … .pdf » compris) ; **aperçu puis code** | C seulement | oui |
 | `finaliser_devis` | attribue le numéro, fige les prix, verrouille la version ; **aperçu puis code** | C seulement | **non** |
 | `changer_statut_devis` | marquer envoyé, accepter (Signé) ou refuser, mêmes transitions que l'écran ; `marquer_envoye` **direct**, `accepter` et `refuser` en **aperçu puis code** | C seulement | **non** |
 

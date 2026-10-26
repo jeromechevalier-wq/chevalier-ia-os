@@ -2,7 +2,7 @@
 // Règle de Jérôme (26/10/2026) : le bouton jaune est toujours l'ÉTAPE SUIVANTE conseillée ; tout le reste reste accessible dans le menu « … ».
 //   Brouillon  : « Finaliser » (jaune) + « Envoyer » grisé (un clic dit pourquoi)
 //   Finalisé   : « Envoyer » (jaune) + « Passer à « Envoyé » » (contour)
-//   Envoyé     : « Marquer comme signé » (jaune) + « Marquer comme refusé » (contour)
+//   Envoyé     : « Devis signé » (jaune) + « Devis refusé » (contour) ; le statut stocké et la pastille restent « Signé » / « Refusé »
 //   Signé, refusé, remplacé, archivé : aucun bouton jaune
 // Aucune règle de statut nouvelle : les transitions restent celles de logique.js (TRANSITIONS) et du serveur.
 import { transitionPossible } from './logique.js';
@@ -17,7 +17,7 @@ export function boutonJaune({ statut, archive = false } = {}) {
   if (archive === true) return null;
   if (statut === 'brouillon') return { cle: 'finaliser', libelle: 'Finaliser', icone: 'check' };
   if (statut === 'en_attente_envoi') return { cle: 'envoyer', libelle: 'Envoyer', icone: 'mail' };
-  if (statut === 'envoye') return { cle: 'signer', libelle: 'Marquer comme signé', icone: 'check' };
+  if (statut === 'envoye') return { cle: 'signer', libelle: 'Devis signé', icone: 'check' };
   return null; // signé, refusé, remplacé, statut inconnu
 }
 
@@ -40,7 +40,7 @@ export function boutonsEntete({ statut, expire = false, archive = false, lecture
   if (archive !== true) {
     if (statut === 'brouillon') autre = { cle: 'envoyer', libelle: 'Envoyer', icone: 'mail', grise: true, style: 'contour' };
     else if (statut === 'en_attente_envoi' && transitionPossible(statut, 'marquer_envoye')) autre = { cle: 'passer-envoye', libelle: 'Passer à « Envoyé »', icone: 'check', style: 'contour' };
-    else if (statut === 'envoye' && transitionPossible(statut, 'refuser')) autre = { cle: 'refuser', libelle: 'Marquer comme refusé', icone: 'x', style: 'contour' };
+    else if (statut === 'envoye' && transitionPossible(statut, 'refuser')) autre = { cle: 'refuser', libelle: 'Devis refusé', icone: 'x', style: 'contour' };
   }
   return {
     jaune,

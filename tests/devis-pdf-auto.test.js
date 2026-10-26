@@ -205,17 +205,18 @@ describe('R4 états : en cours, ok, abandon', () => {
 });
 
 describe('R5 brouillon à la demande : remplace le précédent', () => {
-  test('R5 deux brouillons de suite : un seul fichier, un seul document « Devis brouillon – Cuisine.pdf » ; champ pdf du devis intact', async () => {
+  test('R5 deux brouillons de suite : un seul fichier, un seul document « Devis brouillon – Cuisine – JJ-MM-AAAA HHhMM.pdf » qui prend l’heure du dernier téléchargement ; champ pdf du devis intact', async () => {
     const m = await monde({ finaliser: false });
     const f = faux();
-    await appel(m, f)(requete({ devisId: 'd1', brouillon: true }));
-    await appel(m, f)(requete({ devisId: 'd1', brouillon: true }));
+    await appel(m, f)(requete({ devisId: 'd1', brouillon: true })); // 25/10/2026 10:00 UTC = 11 h 00 à Paris (heure d'hiver)
+    const plusTard = new Date('2026-10-25T13:32:00Z').getTime(); // 14 h 32 à Paris
+    await appel(m, f, { maintenant: () => plusTard })(requete({ devisId: 'd1', brouillon: true }));
     assert.equal(f.vus.envois.length, 2);
     assert.deepEqual([...new Set(f.vus.envois)], ['devis/aff1/d1/brouillon.pdf']); // même nom : le second remplace le premier
     assert.equal(f.objets.size, 1);
     const docs = m.collections[C.affaires][0].documents.filter((d) => /brouillon/i.test(d.libelle));
     assert.equal(docs.length, 1);
-    assert.equal(docs[0].libelle, 'Devis brouillon – Cuisine.pdf');
+    assert.equal(docs[0].libelle, 'Devis brouillon – Cuisine – 25-10-2026 14h32.pdf');
     assert.equal(docs[0].url, `${BASE_LIEN}/#/devis/pdf/d1/brouillon`);
     assert.equal(m.collections[C.devis][0].pdf, undefined); // le champ pdf du devis n'a pas été touché
   });

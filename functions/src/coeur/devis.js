@@ -214,39 +214,17 @@ export async function archiver({ donnees, ctx, devisId, archive }) {
 /**
  * Supprime un BROUILLON (jamais un devis finalisé : il a un numéro, des documents et des versions liées). La copie « avant » reste dans le journal
  * (crm_audit_avant) : un devis supprimé par erreur peut être retrouvé et rétabli avec `restaurer_depuis_audit`.
- * Si un « PDF brouillon » a été fait, son document (lien `…/#/devis/pdf/<id>/brouillon`) est retiré de l'affaire dans la même transaction (lui seul, les autres documents restent),
- * puis le fichier est supprimé de Cloud Storage : un échec à ce moment-là ne bloque pas (le devis est déjà supprimé), il est signalé par `avertir` et par `fichierBrouillon: 'echec'`.
- * `stockage` : celui de devis/stockage.js (absent = aucun fichier à supprimer, ex. plateforme clients) ; `espace` : '' ou 'clients/<client>/'.
+ * Supprimer un brouillon ne touche JAMAIS aux documents de l'affaire ni aux fichiers du stockage (décision de Jérôme, 26/10/2026) : un « Devis brouillon – … .pdf » déjà joint à l'affaire y reste.
  */
-export async function supprimer({ donnees, ctx, devisId, stockage = null, espace = '', avertir = () => {} }) {
-  const r = await donnees.transaction(async (tx) => {
+export async function supprimer({ donnees, ctx, devisId }) {
+  return donnees.transaction(async (tx) => {
     const devis = await lireDevis(tx, devisId);
     if (devis.statut !== 'brouillon') throw new ErreurDevis('transition_interdite', 'Seul un brouillon peut être supprimé. Un devis finalisé se garde ; tu peux l’archiver s’il est signé ou refusé.');
     const changement = { id: devis.id, collection: C.devis, action: 'supprimer', avant: devis, apres: null, champs: [], ecriture: { type: 'delete', collection: C.devis, id: devis.id } };
-    const changements = [changement];
-    // Le document « Devis brouillon – Objet.pdf » de l'affaire : repéré par son lien (propre à ce devis), jamais par son nom.
-    const affaire = devis.affaireId ? await tx.document(C.affaires, devis.affaireId) : null;
-    const documents = Array.isArray(affaire?.documents) ? affaire.documents : [];
-    const fin = `/#/devis/pdf/${encodeURIComponent(devis.id)}/brouillon`;
-    const reste = documents.filter((d) => !(d && typeof d.url === 'string' && d.url.endsWith(fin)));
-    if (affaire && reste.length !== documents.length) {
-      changements.push(modifier(enDates(affaire), { documents: reste, modifieLe: ctx.maintenant, modifiePar: ctx.acteur }, C.affaires));
-    }
-    const j = journal({ donnees, ctx, outil: 'devisSupprimer', parametres: { devisId }, changements });
-    tx.ecrire([...changements.map((c) => c.ecriture), ...j.ecritures]);
-    return { ok: true, devis, documentAffaireRetire: changements.length > 1, operationId: j.operationId };
+    const j = journal({ donnees, ctx, outil: 'devisSupprimer', parametres: { devisId }, changements: [changement] });
+    tx.ecrire([changement.ecriture, ...j.ecritures]);
+    return { ok: true, devis, operationId: j.operationId };
   });
-  let fichierBrouillon = 'aucun';
-  if (stockage && typeof stockage.supprimerBrouillon === 'function' && r.devis.affaireId) {
-    try {
-      await stockage.supprimerBrouillon({ espace, affaireId: r.devis.affaireId, devisId: r.devis.id });
-      fichierBrouillon = 'supprime';
-    } catch (e) {
-      fichierBrouillon = 'echec';
-      try { avertir({ code: 'fichier_brouillon', message: String(e?.message ?? e).slice(0, 120) }); } catch { /* la journalisation ne bloque jamais */ }
-    }
-  }
-  return { ...r, fichierBrouillon };
 }
 
 // ---------------------------------------------------------------- historique des envois par e-mail (25/10/2026)
@@ -401,7 +379,7 @@ export const OPERATIONS = Object.freeze({
   changerStatut: (base, d) => changerStatut({ ...base, devisId: d.devisId, action: d.action }),
   nouvelleVersion: (base, d) => nouvelleVersion({ ...base, devisId: d.devisId }),
   archiver: (base, d) => archiver({ ...base, devisId: d.devisId, archive: d.archive }),
-  supprimer: (base, d) => supprimer({ ...base, devisId: d.devisId }), // `base` peut porter `stockage`, `espace`, `avertir`
+  supprimer: (base, d) => supprimer({ ...base, devisId: d.devisId }),
   enregistrerEnvoi: (base, d) => enregistrerEnvoi({ ...base, devisId: d.devisId, destinataires: d.destinataires, copie: d.copie }),
 });
 

@@ -49,7 +49,7 @@ export const mcp = onRequest(
     // Compte dédié : seulement « Utilisateur Cloud Datastore » (Firestore) et « Accesseur de secrets » sur MCP_JETONS.
     serviceAccount: 'mcp-serveur@chevalier-ia-os.iam.gserviceaccount.com',
   },
-  creerGestionnaire({ magasin, donnees, limiteur, oauth, stockage: () => stockageDevis() }), // stockage : seulement pour effacer le PDF brouillon d'un devis supprimé (supprimer_devis)
+  creerGestionnaire({ magasin, donnees, limiteur, oauth }),
 );
 
 export const porte = onRequest(
@@ -108,7 +108,7 @@ export const automatisationsDecider = onCall(
 const OPTIONS_DEVIS = { region: 'europe-west9', maxInstances: 3, memory: '256MiB', timeoutSeconds: 60, serviceAccount: 'porte-serveur@chevalier-ia-os.iam.gserviceaccount.com' };
 const appelDevis = (operation) => onCall(OPTIONS_DEVIS, (requete) => {
   if (!getApps().length) initializeApp();
-  return creerAppelDevis(operation, { donnees: () => creerAccesFirestore(), stockage: stockageDevis, journal: (e) => process.stdout.write(`${ligneDeJournalDevis(e)}\n`) })(requete);
+  return creerAppelDevis(operation, { donnees: () => creerAccesFirestore(), journal: (e) => process.stdout.write(`${ligneDeJournalDevis(e)}\n`) })(requete);
 });
 export const devisFinaliser = appelDevis('finaliser');
 export const devisChangerStatut = appelDevis('changerStatut');

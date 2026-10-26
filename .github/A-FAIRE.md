@@ -6,23 +6,20 @@ Mise à jour : 26/10/2026, nuit « GO NUIT ». Règle de Jérôme : **« testé 
 
 | # | Sujet | PR | Testé par Jérôme |
 |---|---|---|---|
-| 1 | Pastille « Devis : … » sur les affaires (points 3 à 5) | 278 | en cours (points 1 et 2 vus) |
-| 2 | Barre d'outils des pages Devis | 284 | à faire |
-| 3 | E-mails en copie du devis (cc) | 285 | à faire |
+| 1 | Boutons de l'état Envoyé : libellés Devis signé / Devis refusé et infobulle sur Envoyer grisé | cette PR | à tester par Jérôme une fois en ligne |
 | 4 | Réglages « Mon entreprise » | 263 | à faire |
-| 5 | Une seule liste « Étape où vivent les devis » | 286 | à faire |
-| 6 | Pastille cliquable corrigée (chez un client aussi) ; devis archivé sans pastille | 287 | à faire |
+| 5 | Une seule liste « Étape où vivent les devis » | 286 | oui (26/10/2026) |
 | 7 | Copie du PDF dans le dossier Drive de l'affaire (+ correctifs) | 283, 290 | à faire (réglage CORS d'abord) |
-| 8 | Suppression d'un brouillon retire son PDF brouillon ; e-mails en copie | 291 | à faire |
+| 8 | E-mails en copie (la suppression d'un brouillon ne retire plus son PDF : voir 16) | 291 | à faire |
 | 9 | Envoi du devis par e-mail (brouillon Gmail, « Marquer comme envoyé », historique des envois) | 292 | à faire (réglages Google d'abord) |
 | 10 | Menu des cartes, historique, « … » à côté d'Envoyer, plus de fiche du devis | 294 | à faire |
-| 11 | Pastilles des réglages Devis (Général / Mon entreprise / Familles d'articles) | 295 | à faire |
+| 11 | Pastilles des réglages Devis (Général / Mon entreprise / Familles d'articles) | 295 | oui (26/10/2026) |
 | 12 | Outils MCP Devis (nouvelle version, archiver, statut, supprimer, envoi) | 296 | à faire |
-| 13 | Visualisation du devis : document seul, en-tête harmonisé, « Passer à Envoyé » | 298 | à faire |
 | 14 | « Préparer l'e-mail » (brouillon Gmail par n8n) | 299 | à faire après branchement (voir « À faire par Jérôme ») |
 | 15 | Réglages > Déploiement (checklist avec contrôles) | 300 | à faire |
+| 16 | Supprimer un brouillon de devis ne retire plus le document de l'affaire ni le fichier ; le document « Devis brouillon – Objet – JJ-MM-AAAA HHhMM.pdf » porte la date et l'heure (Paris) du dernier téléchargement | à compléter à l'ouverture (311) | à faire |
 
-Déjà validés par Jérôme : 280, 282.
+Déjà validés par Jérôme : 280, 282, et le 26/10/2026 : 278, 284, 287 (barre du haut, pastilles des affaires), 304 (retour au devis), 305 (recherche en vrais liens), 306 (un seul bouton jaune), 308 (flèche du PDF).
 
 ## À faire par Jérôme (une fois)
 - **Copie Drive (7)** : réglage CORS du stockage des PDF, une fois pour chacun des deux projets Google, mode d'emploi dans `docs/cors-stockage-pdf.md`.
@@ -37,7 +34,7 @@ Déjà validés par Jérôme : 280, 282.
 ## Reste à faire (code, rien d'urgent)
 
 ### Priorité haute (demande de Jérôme, 26/10/2026)
-- **Haut de page du devis : un seul bouton jaune qui suit l'étape** (PR `devis-entete-bouton-jaune`, en brouillon, relecture Fable avant fusion) : Brouillon = « Finaliser » + « Envoyer » grisé ; Finalisé = « Envoyer » ; Envoyé = « Marquer comme signé » + « Marquer comme refusé » ; Signé, refusé, remplacé, archivé = aucun. « Imprimer » un brouillon donne le PDF brouillon (filigrane + pied « Brouillon v… · généré le … »), sans fenêtre « Finaliser ». Idée suivante, pas faite : « Préparer l'e-mail » comme bouton jaune quand la fonction fonctionnera pour de bon (le choix est dans `boutonJaune`, `js/modules/devis/entete-boutons.js`).
+- **Haut de page du devis : un seul bouton jaune qui suit l'étape** (PR `devis-entete-bouton-jaune`, en brouillon, relecture Fable avant fusion) : Brouillon = « Finaliser » + « Envoyer » grisé ; Finalisé = « Envoyer » ; Envoyé = « Devis signé » + « Devis refusé » ; Signé, refusé, remplacé, archivé = aucun. « Imprimer » un brouillon donne le PDF brouillon (filigrane + pied « Brouillon v… · généré le … »), sans fenêtre « Finaliser ». Idée suivante, pas faite : « Préparer l'e-mail » comme bouton jaune quand la fonction fonctionnera pour de bon (le choix est dans `boutonJaune`, `js/modules/devis/entete-boutons.js`).
 
 ### Le reste
 - Barre d'étapes du devis : Jérôme a dit « pas ce soir, ni urgent ni prioritaire » (24/10/2026).
@@ -45,10 +42,8 @@ Déjà validés par Jérôme : 280, 282.
 - Simplifier la copie Drive faite par le navigateur (étude).
 - Doublon destinataire / copie quand le client change : pas encore contrôlé.
 - Cible tactile des pastilles-liens inférieure à 44 px.
-- Recherche du haut : résultats en vrais liens (clic droit, Cmd+clic) : PR #305.
 - Écran du PDF : « Retour au devis » ramenait à la liste après une finalisation. Corrigé dans la PR « retour à la page d'origine » (à tester par Jérôme une fois fusionnée et en ligne), test e2e n° 4.
 - **Génération du PDF trop lente** : elle prend plusieurs secondes et on a l'impression que l'outil a planté. À étudier : mesurer où passe le temps, puis afficher une progression claire (message « fabrication en cours », indicateur) et/ou accélérer (demandé par Jérôme le 26/10/2026).
-- Droit Cloud Storage du serveur MCP pour effacer le PDF brouillon (non bloquant).
 - « Préparer l'e-mail » dans le menu de la liste des devis (aujourd'hui seulement dans l'éditeur).
 - Le test `devis-email.spec.js` n°1 sur téléphone mesure 43,68 px au lieu de 44 pendant l'animation de la fenêtre (même défaut de timing corrigé dans le nouveau spec) : à stabiliser.
 
@@ -57,4 +52,5 @@ Déjà validés par Jérôme : 280, 282.
 - E-mail du devis : le client garde la responsabilité d'envoyer (l'appli n'envoie jamais) ; n8n prépare seulement le brouillon (décision du 25/10/2026).
 
 ## Fait (fusionné, en ligne, testé par Jérôme)
+- PR 306 : testée par Jérôme (26/10/2026) ; PR 278 (pastille Devis), 284 (barre du haut), 304 (Retour au devis), 298 (visualisation du devis, « Passer à Envoyé », points 1 à 5 OK), 285 (e-mails en copie, points 1 à 5 OK), 287 (pastille cliquable, points 1 à 5 OK) : testées par Jérôme.
 - PR 275, 277, 279, 280, 282 (voir l'historique Git). PR 115 : fermée (chemin d'un Mac dans CLAUDE.md).

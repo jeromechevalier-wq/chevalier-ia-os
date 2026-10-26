@@ -79,7 +79,7 @@ export async function fabriquerPdfDevis({ donnees, espace = '', baseLien, devisI
 
     const chemin = cheminPdfDevis({ espace, affaireId: devis.affaireId, devisId, brouillon, nomFichier: nomFichierDevis({ numero: devis.numero, version: devis.version, objet: devis.objet }) });
     await stockage.envoyer(chemin, pdf);
-    const libelle = libelleDocumentDevis({ numero: devis.numero, version: devis.version, objet: devis.objet, brouillon });
+    const libelle = libelleDocumentDevis({ numero: devis.numero, version: devis.version, objet: devis.objet, brouillon, date: ctx?.maintenant });
     if (brouillon) {
       await enregistrerBrouillonPdf({ donnees, ctx, devisId, libelle, url: lien });
       return { statut: 'ok', lien, nom: libelle, brouillon: true };
