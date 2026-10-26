@@ -562,7 +562,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       h('ul', {}, contenu.versions.map((v) => h('li', {}, h('button', {
         type: 'button', class: 'historique-version', dataset: { version: String(v.version), versionId: v.id }, 'aria-current': v.courante ? 'true' : null,
         onclick: () => { if (!v.courante) { historiqueOuvert?.fermer(); naviguer(v.statut === 'brouillon' ? `devis/editeur/${v.id}` : `devis/voir/${v.id}`); } }, // comme la liste : un brouillon s'ouvre en édition
-      }, h('strong', {}, `Version ${v.version}`), h('span', {}, [v.numero, v.libelleStatut, v.jour].filter(Boolean).join(' · ')), v.courante ? h('span', { class: 'badge-courante' }, 'Affichée') : null)))));
+      }, h('strong', {}, `Version ${v.version}`), h('span', {}, [v.numero, v.libelleStatut, [v.jour, v.heure].filter(Boolean).join(' ')].filter(Boolean).join(' · ')), v.courante ? h('span', { class: 'badge-courante' }, 'Affichée') : null)))));
     const envois = h('section', { dataset: { bloc: 'envois' } }, h('h3', {}, 'Envois par e-mail'),
       contenu.envois.length
         ? h('ul', { class: 'historique-envois', dataset: { valeur: 'envois' } }, contenu.envois.map((l) => h('li', { class: 'historique-envoi', dataset: { envoi: String(l.ms) } }, l.texte)))
@@ -570,7 +570,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       // « E-mail préparé dans Gmail le … » : écrit par le serveur quand le workflow a créé le brouillon (ce n'est PAS un envoi : l'envoi reste dans la liste ci-dessus).
       contenu.emailPrepare ? h('p', { class: `historique-email-prepare${contenu.emailPrepare.statut === 'echec' ? ' historique-email-prepare-echec' : ''}`, dataset: { valeur: 'email-prepare', statut: contenu.emailPrepare.statut } }, contenu.emailPrepare.texte) : null);
     const dates = h('section', { dataset: { bloc: 'dates' } }, h('h3', {}, 'Dates'),
-      h('ul', { dataset: { valeur: 'dates' } }, contenu.dates.map((l) => h('li', { dataset: { date: l.cle } }, l.jour ? `${l.libelle} ${l.jour}` : l.libelle))));
+      h('ul', { dataset: { valeur: 'dates' } }, contenu.dates.map((l) => h('li', { dataset: { date: l.cle } }, l.jour ? `${l.libelle} ${l.jour}${l.heure ? ` (${l.heure})` : ''}` : l.libelle))));
     historiqueOuvert = ouvrirPanneauLateral(racine, {
       id: 'historique-devis', titre: 'Historique', nom: 'Historique du devis', zone: 'historique', actionFermer: 'fermer-historique', nomCroix: 'Fermer l’historique',
       contenu: h('div', { class: 'historique-devis' }, versions, envois, dates), bouton: ref.boutonHistorique, ancre, focus: !silencieux, surFermeture: () => { historiqueOuvert = null; },
