@@ -590,7 +590,8 @@ export async function executerDonneesDemo(argv, ctx) {
   } catch (e) {
     const lignes = e instanceof ErreurOutil ? e.messages : traduireErreur(e);
     for (const l of lignes) ctx.out(`✖ ${l}`);
-    ctx.out(ctx.ecrits ? 'Attention : une partie a déjà été écrite. Pour repartir de zéro : --retirer --ecrire, puis relancez.' : "Rien n'a été écrit.");
+    if (ctx.phasePdf) ctx.out(ctx.ecrits ? 'Des devis ont été touchés par --pdf. Relancez --pdf --ecrire (seul, sans les options de remplissage) : la reprise remet d\'abord les statuts d\'origine.' : "Rien n'a été écrit.");
+    else ctx.out(ctx.ecrits ? 'Attention : une partie a déjà été écrite. Pour repartir de zéro : --retirer --ecrire, puis relancez.' : "Rien n'a été écrit.");
     return 1;
   }
 }

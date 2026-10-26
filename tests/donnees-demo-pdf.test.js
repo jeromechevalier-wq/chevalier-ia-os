@@ -5,10 +5,11 @@ import assert from 'node:assert/strict';
 import { test, before } from 'node:test';
 import { createRequire } from 'node:module';
 import { executerDonneesDemo, MARQUEUR } from '../scripts/plateforme/donnees-demo.js';
-import { CHAMP_ORIGINE } from '../scripts/plateforme/donnees-demo-pdf.js';
+import { CHAMP_ORIGINE, SECOURS_DELAI_EN_COURS_MS } from '../scripts/plateforme/donnees-demo-pdf.js';
+import { DELAI_EN_COURS_MS } from '../functions/src/coeur/devis.js';
 import { cible, ouvrir } from '../scripts/plateforme/commun.js';
 
-const { DocumentReference } = createRequire(new URL('../scripts/plateforme/package.json', import.meta.url))('firebase-admin/firestore');
+const { DocumentReference, Firestore } = createRequire(new URL('../scripts/plateforme/package.json', import.meta.url))('firebase-admin/firestore');
 
 const CLIENT = 'demo-pdf';
 const SANS_DEVIS = 'demo-pdf-sans-devis';
@@ -51,7 +52,8 @@ function serveur(hor, { echec = [] } = {}) {
   return async () => {
     for (const d of (await col('devis_devis').get()).docs) {
       const x = d.data();
-      if (x.statut === 'brouillon' || x.pdf?.statut || !x[MARQUEUR]) continue;
+      // Comme le vrai déclencheur : n'agit qu'après l'écriture 1 (pdf remis à null) et le retour au statut d'origine.
+      if (x.statut === 'brouillon' || x.pdf !== null || CHAMP_ORIGINE in x || !x[MARQUEUR]) continue;
       if (echec.includes(d.id)) { await d.ref.update({ pdf: { statut: 'echec', message: 'Chromium absent' } }); continue; }
       await d.ref.update({ pdf: { statut: 'en_cours', tentatives: 1, demarreLe: new Date(hor.t) } });
       await bucket.file(`clients/${CLIENT}/devis/${x.affaireId}/${d.id}/devis.pdf`).save('%PDF-1.4 fictif');
@@ -118,11 +120,16 @@ test('3. Deux update() séparés par devis : d\'abord brouillon + pdf null + sta
   const appels = [];
   const update = DocumentReference.prototype.update;
   const set = DocumentReference.prototype.set;
+  // Les entrées publiques d'un lot ou d'une transaction (db.batch(), runTransaction, bulkWriter) : ref.update() n'en passe par aucune.
+  const entrees = ['batch', 'runTransaction', 'bulkWriter'];
+  const lot = entrees.map((m) => Firestore.prototype[m]);
+  entrees.forEach((m, i) => { Firestore.prototype[m] = function (...a) { appels.push(['lot', m]); return lot[i].apply(this, a); }; });
   DocumentReference.prototype.update = function (...a) { appels.push(['update', this.id, a[0]]); return update.apply(this, a); };
   DocumentReference.prototype.set = function (...a) { appels.push(['set', this.id, a[0]]); return set.apply(this, a); };
-  try { await lancer([CLIENT, '--pdf', '--ecrire'], { pdf: h.pdf }); } finally { DocumentReference.prototype.update = update; DocumentReference.prototype.set = set; }
+  try { await lancer([CLIENT, '--pdf', '--ecrire'], { pdf: h.pdf }); } finally { DocumentReference.prototype.update = update; DocumentReference.prototype.set = set; entrees.forEach((m, i) => { Firestore.prototype[m] = lot[i]; }); }
   const siens = appels.filter(([, id]) => id === 'a').filter(([, , d]) => 'statut' in d);
   assert.equal(appels.filter(([t, id]) => t === 'set' && id === 'a').length, 0);
+  assert.equal(appels.filter(([t]) => t === 'lot').length, 0, 'jamais de lot ni de transaction');
   assert.ok(siens.length >= 2);
   assert.equal(siens[0][2].statut, 'brouillon');
   assert.equal(siens[0][2].pdf, null);
@@ -142,8 +149,13 @@ test('4. Reprise après panne : un devis laissé en brouillon avec son statut d\
   const s = await lancer([CLIENT, '--pdf'], { pdf: h.pdf });
   assert.match(s.texte, /Reprise : 1 devis/);
   assert.deepEqual(await photo(), avant);
-  const r = await lancer([CLIENT, '--pdf', '--ecrire'], { pdf: h.pdf });
+  const ecrits = [];
+  const update = DocumentReference.prototype.update;
+  DocumentReference.prototype.update = function (...a) { if (this.id === 'coupe') ecrits.push(a[0]); return update.apply(this, a); };
+  let r;
+  try { r = await lancer([CLIENT, '--pdf', '--ecrire'], { pdf: h.pdf }); } finally { DocumentReference.prototype.update = update; }
   assert.equal(r.code, 0, r.texte);
+  assert.ok(!ecrits.some((e) => e.statut === 'brouillon'), 'un devis repris est seulement attendu, pas remis en brouillon une seconde fois');
   const d = (await col('devis_devis').doc('coupe').get()).data();
   assert.equal(d.statut, 'accepte');
   assert.equal(CHAMP_ORIGINE in d, false);
@@ -157,6 +169,8 @@ test('5. Pas de déclencheur : arrêt après 60 s avec le message prévu, et auc
   const r = await lancer([CLIENT, '--pdf', '--ecrire'], { pdf: h.pdf });
   assert.equal(r.code, 1);
   assert.match(r.texte, /Le déclencheur devisPdfAuto ne répond pas : fonctions PDF pas déployées chez les clients \? \(voir docs\/pdf-clients\.md\)/);
+  assert.match(r.texte, /Relancez --pdf --ecrire/);
+  assert.doesNotMatch(r.texte, /repartir de zéro|--retirer/);
   assert.ok(h.t - debut >= 60_000 && h.t - debut <= 80_000, `arrêt vers 60 s, pas 10 minutes (${h.t - debut} ms)`);
   for (const d of Object.values(await lire('devis_devis'))) {
     assert.notEqual(d.statut, 'brouillon');
@@ -257,4 +271,56 @@ test('11. Remplissage + --pdf dans la même commande : simulation sans écriture
   assert.ok(devis.filter((d) => d.statut !== 'brouillon').every((d) => d.pdf?.statut === 'ok'));
   assert.ok(devis.filter((d) => d.statut === 'brouillon').every((d) => !d.pdf));
   assert.equal((await lancer([COMPLET, '--retirer', '--ecrire'])).code, 0);
+});
+
+/** Fait échouer `n` fois l'écriture 2 (retour au statut d'origine) du devis `cible`. */
+function paniquerEcriture2(cible, n) {
+  const update = DocumentReference.prototype.update;
+  let restant = n;
+  DocumentReference.prototype.update = function (...a) {
+    if (this.id === cible && a[0] && a[0].statut && a[0].statut !== 'brouillon' && CHAMP_ORIGINE in a[0] && restant > 0) { restant -= 1; return Promise.reject(new Error('coupure réseau simulée')); }
+    return update.apply(this, a);
+  };
+  return () => { DocumentReference.prototype.update = update; };
+}
+
+test('12. Seconde chance : une écriture 2 qui échoue une fois est refaite, le devis finit en ordre', async () => {
+  const h = horloge();
+  await preparer({ a: { statut: 'envoye', ...DEMO } });
+  h.serveur = serveur(h);
+  const fin = paniquerEcriture2('a', 1);
+  let r;
+  try { r = await lancer([CLIENT, '--pdf', '--ecrire'], { pdf: h.pdf }); } finally { fin(); }
+  assert.equal(r.code, 0, r.texte);
+  const d = (await col('devis_devis').doc('a').get()).data();
+  assert.equal(d.statut, 'envoye');
+  assert.equal(d.pdf.statut, 'ok');
+});
+
+test('13. Écriture 2 qui échoue deux fois : arrêt propre, message de reprise, et le lancement suivant rétablit le statut', async () => {
+  const h = horloge();
+  await preparer({ a: { statut: 'envoye', ...DEMO }, b: { statut: 'accepte', ...DEMO }, c: { statut: 'refuse', ...DEMO } });
+  h.serveur = serveur(h);
+  const fin = paniquerEcriture2('a', 2);
+  let r;
+  try { r = await lancer([CLIENT, '--pdf', '--ecrire'], { pdf: h.pdf }); } finally { fin(); }
+  assert.equal(r.code, 1);
+  assert.match(r.texte, /coupure réseau simulée/);
+  assert.match(r.texte, /Relancez --pdf --ecrire/);
+  assert.doesNotMatch(r.texte, /repartir de zéro/);
+  const coupe = (await col('devis_devis').doc('a').get()).data();
+  assert.equal(coupe.statut, 'brouillon');
+  assert.equal(coupe[CHAMP_ORIGINE], 'envoye');
+  const r2 = await lancer([CLIENT, '--pdf', '--ecrire'], { pdf: h.pdf });
+  assert.equal(r2.code, 0, r2.texte);
+  for (const [id, st] of [['a', 'envoye'], ['b', 'accepte'], ['c', 'refuse']]) {
+    const d = (await col('devis_devis').doc(id).get()).data();
+    assert.equal(d.statut, st, id);
+    assert.equal(CHAMP_ORIGINE in d, false);
+    assert.equal(d.pdf.statut, 'ok', id);
+  }
+});
+
+test('14. La valeur de secours du délai « en cours » est celle du serveur', () => {
+  assert.equal(SECOURS_DELAI_EN_COURS_MS, DELAI_EN_COURS_MS);
 });

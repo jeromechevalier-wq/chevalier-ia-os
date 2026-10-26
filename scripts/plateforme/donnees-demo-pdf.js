@@ -19,7 +19,7 @@ export const PARALLELE_DEFAUT = 2;
 export const INTERVALLE_MS = 5_000;
 export const PLAFOND_DEVIS_MS = 10 * 60_000;
 export const DETECTION_MS = 60_000;
-const SECOURS_DELAI_EN_COURS_MS = 10 * 60_000; // seulement si functions/ n'est pas installé sur cet ordinateur (voir delaiEnCours)
+export const SECOURS_DELAI_EN_COURS_MS = 10 * 60_000; // seulement si functions/ n'est pas installé sur cet ordinateur (voir delaiEnCours)
 
 /** Le délai au-delà duquel un « en cours » est considéré comme abandonné : lu dans le code du serveur (jamais recopié) quand c'est possible. */
 export async function delaiEnCours() {
@@ -79,8 +79,9 @@ async function candidats(db, id, forces, delai, maintenant) {
     if (x.pdf?.statut === 'ok') { sautes.ok += 1; continue; }
     const debut = dateDe(x.pdf?.demarreLe);
     const recent = x.pdf?.statut === 'en_cours' && (!debut || Math.abs(maintenant - debut.getTime()) < delai);
-    if (recent && !forces.includes(d.id)) { sautes.enCours += 1; continue; }
-    liste.push({ id: d.id, ref: d.ref, numero: x.numero ?? '(sans numéro)', statut: x.statut });
+    const reprise = forces.includes(d.id);
+    if (recent && !reprise) { sautes.enCours += 1; continue; }
+    liste.push({ id: d.id, ref: d.ref, numero: x.numero ?? '(sans numéro)', statut: x.statut, reprise });
   }
   liste.sort((a, b) => a.numero.localeCompare(b.numero));
   return { liste, sautes };
@@ -92,6 +93,7 @@ export async function fabriquerPdf(id, ctx, fiche) {
   const db = ctx.base.db;
   const r = reglages(ctx);
   const delai = await delaiEnCours();
+  ctx.phasePdf = true; // pour le message d'erreur final (voir executerDonneesDemo)
   ctx.out('');
   ctx.out('PDF des devis fictifs (déclencheur devisPdfAuto)');
   const forces = await reprendre(db, id, ctx);
@@ -117,14 +119,16 @@ export async function fabriquerPdf(id, ctx, fiche) {
       await r.dormir(r.intervalleMs);
     }
   };
+  const ecrireDeuxFois = async (d) => {
+    const rendre = () => d.ref.update({ statut: d.statut, [CHAMP_ORIGINE]: FieldValue.delete() });
+    try { await rendre(); } catch { await rendre(); } // une seconde chance ; sinon l'erreur remonte et le lancement suivant remet le statut (reprise)
+  };
   const traiter = async (d) => {
-    await d.ref.update({ statut: 'brouillon', pdf: null, [CHAMP_ORIGINE]: d.statut });
-    ctx.ecrits = true;
-    try {
-      await d.ref.update({ statut: d.statut, [CHAMP_ORIGINE]: FieldValue.delete() });
-    } catch (e) {
-      await d.ref.update({ statut: d.statut, [CHAMP_ORIGINE]: FieldValue.delete() }).catch(() => {}); // une seconde chance ; sinon la reprise s'en occupera
-      throw e;
+    // Un devis repris vient d'être remis en état par `reprendre` (le déclencheur a peut-être déjà démarré) : on l'attend seulement, sans réécrire.
+    if (!d.reprise) {
+      await d.ref.update({ statut: 'brouillon', pdf: null, [CHAMP_ORIGINE]: d.statut });
+      ctx.ecrits = true;
+      await ecrireDeuxFois(d);
     }
     etat.t0 ??= r.horloge();
     const fin = await attendre(d);
@@ -133,11 +137,14 @@ export async function fabriquerPdf(id, ctx, fiche) {
   };
   const file = [...liste];
   const ouvriers = Array.from({ length: Math.min(r.parallele, file.length) }, async () => {
-    while (file.length && !etat.arret) await traiter(file.shift());
+    while (file.length && !etat.arret) {
+      try { await traiter(file.shift()); } catch (e) { etat.erreur ??= e; etat.arret = true; }
+    }
   });
-  await Promise.all(ouvriers);
+  await Promise.allSettled(ouvriers);
 
-  await marquerEvenements(db, id, ctx);
+  await marquerEvenements(db, id, ctx).catch(() => {});
+  if (etat.erreur) throw etat.erreur;
   const total = (v) => [...etat.resultats.values()].filter((x) => x === v).length;
   if (etat.arret && !etat.vu) {
     throw new ErreurOutil('Le déclencheur devisPdfAuto ne répond pas : fonctions PDF pas déployées chez les clients ? (voir docs/pdf-clients.md)');

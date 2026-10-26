@@ -132,13 +132,15 @@ Les devis fictifs « finalisé, envoyé, signé, refusé » sont écrits directe
 - **Pas de PDF sans l'option `--pdf`** : les devis finalisés n'ont pas de PDF tant qu'on ne lance pas `--pdf --ecrire` (l'écran affiche « PDF non rangé »). Le vrai déclencheur en ligne n'est testé que par Jérôme sur le client de démonstration.
 - **Ce que la fabrication du PDF laisse derrière elle** : le serveur écrit des lignes dans les journaux d'audit (`crm_audit`, `crm_audit_avant`, acteur `declencheur-pdf`). Elles ne sont **jamais supprimées** (règle de Jérôme : les journaux ne s'effacent jamais), même par `--retirer`. Le document ajouté à l'affaire disparaît avec l'affaire ; l'événement « Document joint » (`crm_evenements`) est marqué `donneesDemo` par `--pdf` et retiré par `--retirer`. Un événement créé à la main avant de lancer `--pdf` n'est marqué qu'au prochain `--pdf --ecrire`.
 - **Les réglages des devis créés par la démonstration** (« Mon entreprise » fictive) portent le marqueur : `--retirer` les supprime aussi. Le client retrouve alors les réglages vides. Si tu les as modifiés et enregistrés à l'écran pendant la démonstration, ils perdent le marqueur et restent.
-- **Ce que l'écran crée pendant la démonstration n'est pas retiré.** Par exemple, une note ajoutée, ou l'événement « étape changée » quand tu déplaces une affaire : ces documents n'ont pas le marqueur.
+- **Ce que l'écran crée pendant la démonstration n'est pas retiré.** Par exemple, une note ajoutée, ou l'événement « étape changée » quand tu déplaces une affaire : ces documents n'ont pas le marqueur. **Exception avec `--pdf`** : tous les événements « Document joint » (`crm_evenements`, type `document`) d'une affaire de démonstration sont marqués, y compris un document que tu aurais ajouté à la main sur cette affaire : ils disparaissent au retrait.
+- **`--retirer` lit aussi Storage.** Si tes identifiants n'ont pas accès à Storage, tout le retrait s'arrête, sans rien supprimer (message « Impossible de lire les fichiers PDF… »). Remède : `gcloud auth application-default login` avec un compte qui a les droits, puis relancer.
+- **Un devis créé à la main sur une affaire de démonstration perd son fichier PDF au retrait** : tout ce qui est sous `clients/<client>/devis/<identifiant de l'affaire de démonstration>/` est supprimé, l'affaire disparaissant avec la démonstration.
 - **Le compteur des numéros de devis n'est jamais remis à zéro** : un numéro déjà donné ne doit jamais revenir.
 - **Un seul client à la fois.**
 
 ## Cas vide et cas d'erreur (messages de refus)
 
-Dans tous ces cas, rien n'est écrit et le programme finit par « Rien n'a été écrit. ».
+Dans tous ces cas (sauf les trois lignes `--pdf` signalées plus bas), rien n'est écrit et le programme finit par « Rien n'a été écrit. ». Avec `--pdf`, c'est différent une fois qu'un devis a été entamé : *déclencheur muet* = 2 écritures par devis entamé (les statuts sont remis en place), *PDF ÉCHEC* = c'est le serveur qui a écrit (l'échec est noté sur le devis). Le programme finit alors par « Relancez --pdf --ecrire » : la reprise remet d'abord les statuts d'origine.
 
 | Message | Ce que ça veut dire | Que faire |
 |---|---|---|
