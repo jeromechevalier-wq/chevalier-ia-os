@@ -44,11 +44,8 @@ const entete = (page) => page.locator('.page-editeur-devis > .fiche-tete');
 async function verifierDocumentSeul(page) {
   const racine = page.locator('.page-editeur-devis');
   await expect(racine.locator('iframe[data-zone="apercu"]')).toBeVisible();
-  for (const interdit of ['[data-zone="total"]', '.panneau-total', '.bandeau-net', '[data-champ="remise-type"]', '[data-champ="acompte-type"]', '[data-action="definir-ajustement"]', '[data-total]', '.editeur-edition']) {
-    await expect(racine.locator(interdit), interdit).toHaveCount(0);
-  }
-  await expect(racine.getByText('Net à payer')).toHaveCount(0); // hors du document lui-même (dans l'aperçu)
-  await expect(racine.getByText('Reste à facturer')).toHaveCount(0);
+  // Écran unique : l'onglet Édition existe mais reste caché tant qu'on regarde la Prévisualisation (totaux, remise, acompte et « Net à payer » n'y sont pas visibles).
+  for (const cache of ['.editeur-edition', '.panneau-total', '.bandeau-net', '[data-champ="remise-type"]', '[data-action="definir-ajustement"]']) await expect(racine.locator(cache), cache).toBeHidden();
   // Le document prend la largeur utile de la page.
   const [cadre, zone] = await Promise.all([racine.locator('iframe[data-zone="apercu"]').boundingBox(), racine.boundingBox()]);
   expect(cadre.width).toBeGreaterThan(zone.width * 0.9);
@@ -83,7 +80,7 @@ test('2 l’en-tête de la visualisation est celui des fiches : « < Devis », t
   await ouvrir(page, 'devis/voir/dSigne');
   const tete = entete(page);
   await expect(tete).toBeVisible();
-  await expect(tete.locator('[data-action="retour-devis"]')).toContainText('Devis');
+  await expect(tete.locator('[data-action="fermer"]')).toContainText('Devis');
   await expect(tete.getByRole('heading', { level: 1 })).toHaveText('Devis DEV-2026-10-03-002 · v2');
   const pastille = tete.locator('.fiche-sous .pastille-statut');
   await expect(pastille).toHaveText('Signé'); // les mêmes mots que la liste des devis
@@ -91,7 +88,7 @@ test('2 l’en-tête de la visualisation est celui des fiches : « < Devis », t
   await expect(tete.locator('[data-valeur="lien-client"]')).toContainText('M. Paul Exemple');
   await expect(tete.locator('[data-valeur="lien-affaire"]')).toContainText('Rénovation cuisine');
   // À droite : « … » partout, et AUCUN bouton d'étape pour un devis signé ; Historique sur ordinateur (sur téléphone il passe dans le « … »).
-  const droite = tete.locator('.fiche-tete-droite');
+  const droite = page.locator('.barre-devis-droite');
   await expect(droite.locator('[data-action="envoyer"], [data-action="finaliser"], [data-action="marquer-signe"]')).toHaveCount(0);
   await expect(droite.locator('[data-action="plus-actions"]')).toBeVisible();
   if (estTelephone(page)) await expect(droite.locator('[data-action="historique"]')).toBeHidden();
@@ -112,7 +109,7 @@ test('2 l’en-tête de la visualisation est celui des fiches : « < Devis », t
 test('2c le « … » d’un devis finalisé non signé propose « Créer une nouvelle version »', async ({ page }) => {
   await donnees();
   await ouvrir(page, 'devis/voir/dFinalise');
-  await entete(page).locator('[data-action="plus-actions"]').click();
+  await page.locator('.barre-devis [data-action="plus-actions"]').click();
   await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Créer une nouvelle version' })).toBeVisible();
   await page.keyboard.press('Escape');
 });
@@ -180,7 +177,7 @@ test('5 cas d’erreur : si le serveur refuse « Créer une nouvelle version »,
   await expect(page.locator('.toast')).toContainText('rien n’a été perdu');
   await expect(page).toHaveURL(/#\/devis\/voir\/dFinalise$/);
   await expect(page.locator('.page-editeur-devis.devis-lecture-seule')).toBeVisible();
-  await expect(page.locator('[data-zone="total"]')).toHaveCount(0);
+  await expect(page.locator('[data-zone="total"]')).toBeHidden();
   await capturer(page, info, '5-erreur-nouvelle-version');
 });
 
@@ -196,7 +193,7 @@ test('6 « Passer à « Envoyé » » : bouton à contour à côté d’« Envoy
     return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ result: { ok: true } }) });
   });
   await ouvrir(page, 'devis/voir/dFinalise');
-  const droite = page.locator('.page-editeur-devis > .fiche-tete .fiche-tete-droite');
+  const droite = page.locator('.page-editeur-devis > .barre-devis .barre-devis-droite');
   const passer = droite.locator('[data-action="passer-envoye"]');
   await expect(passer).toHaveText('Passer à « Envoyé »');
   await expect(passer).toHaveClass(/bouton-secondaire/); // 26/10/2026 : le jaune est « Envoyer » (l'étape suivante conseillée) ; « Passer à « Envoyé » » reste visible, en contour

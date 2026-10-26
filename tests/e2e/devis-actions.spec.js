@@ -82,11 +82,13 @@ test('1 le menu « … » d’un brouillon propose « Éditer le devis » et « 
   await expect(entree(page, 'Archiver')).toBeDisabled();
   await expect(menu(page)).toContainText('Seul un devis signé ou refusé peut être archivé.');
   await capturer(page, info, '1-menu-brouillon');
-  // « Voir le devis » ouvre la visualisation (lecture seule), « Éditer le devis » l'éditeur.
+  // « Voir le devis » ouvre l'écran unique sur la Prévisualisation (un brouillon reste modifiable : ni lecture seule ni bandeau), « Éditer le devis » sur l'Édition.
   await entree(page, 'Voir le devis').click();
   await expect(page).toHaveURL(/#\/devis\/voir\/dBrouillon$/);
-  await expect(page.locator('.page-editeur-devis.devis-lecture-seule')).toBeVisible();
-  await expect(page.locator('[data-valeur="lecture-seule"]')).toContainText('Éditer le devis');
+  await expect(page.locator('.page-editeur-devis[data-devis="dBrouillon"]')).toBeVisible();
+  await expect(page.locator('.page-editeur-devis.devis-lecture-seule')).toHaveCount(0);
+  await expect(page.locator('[data-onglet="apercu"]')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('[data-valeur="lecture-seule"]')).toHaveCount(0);
   await page.goBack();
   await expect(page.locator('.page-liste-devis')).toBeVisible();
   await menuLigne(page, 'dBrouillon');
@@ -106,14 +108,13 @@ test('1 la carte du Tableau a le même menu', async ({ page }) => {
   await page.keyboard.press('Escape');
 });
 
-test('2 un devis finalisé ne s’édite pas : « Éditer le devis » est grisé avec sa phrase, « Créer une nouvelle version » est proposé et ouvre le brouillon suivant', async ({ page }, info) => {
+test('2 un devis finalisé ne se modifie pas : « Éditer le devis » l’ouvre en lecture seule (actif), « Créer une nouvelle version » est proposé et ouvre le brouillon suivant', async ({ page }, info) => {
   await donnees();
   const appels = [];
   await simulerServeur(page, appels, { devisNouvelleVersion: { ok: true, devisId: 'dV2' } });
   await ouvrir(page);
   await menuLigne(page, 'dFinalise');
-  await expect(entree(page, 'Éditer le devis')).toBeDisabled();
-  await expect(menu(page)).toContainText('Ce devis est finalisé : on ne le modifie plus.');
+  await expect(entree(page, 'Éditer le devis')).toBeEnabled();
   await expect(entree(page, 'Créer une nouvelle version')).toBeEnabled();
   await capturer(page, info, '2-menu-finalise');
   await devis('dV2', { numero: 'DEV-2026-10-02-001', version: 2, racineId: 'dFinalise' }); // ce que ferait le serveur
@@ -123,17 +124,18 @@ test('2 un devis finalisé ne s’édite pas : « Éditer le devis » est grisé
   await expect(page.locator('.page-editeur-devis.devis-lecture-seule')).toHaveCount(0);
 });
 
-test('2 un devis signé : pas de « Créer une nouvelle version » ; l’adresse d’édition d’un devis finalisé ouvre la visualisation', async ({ page }) => {
+test('2 un devis signé : pas de « Créer une nouvelle version » ; l’adresse d’édition d’un devis finalisé ouvre l’écran unique sur l’Édition, en lecture seule', async ({ page }) => {
   await donnees();
   await ouvrir(page);
   await menuLigne(page, 'dSigne');
-  await expect(entree(page, 'Éditer le devis')).toBeDisabled();
+  await expect(entree(page, 'Éditer le devis')).toBeEnabled();
   await expect(menu(page).getByRole('menuitem', { name: 'Créer une nouvelle version' })).toHaveCount(0);
   await page.keyboard.press('Escape');
   await page.evaluate(() => { location.hash = '#/devis/editeur/dFinalise'; });
-  await expect(page).toHaveURL(/#\/devis\/voir\/dFinalise$/);
+  await expect(page).toHaveURL(/#\/devis\/editeur\/dFinalise$/);
   await expect(page.locator('.page-editeur-devis.devis-lecture-seule')).toBeVisible();
-  // un clic sur la ligne d'un devis finalisé ouvre aussi la visualisation
+  await expect(page.locator('[data-onglet="edition"]')).toHaveAttribute('aria-selected', 'true');
+  // un clic sur la ligne d'un devis finalisé l'ouvre sur la Prévisualisation
   await page.evaluate(() => { location.hash = '#/devis/liste'; });
   await expect(page.locator('.page-liste-devis')).toBeVisible();
   await page.locator('tr.ligne-devis[data-id="dSigne"] td[data-colonne="client"]').click();
@@ -147,7 +149,7 @@ test('3 le « … » de l’éditeur et celui de la visualisation proposent les 
   const dansEntete = (t) => t === 'Envoyer par e-mail' || /^Passer à « (Envoyé|Signé|Refusé) »/.test(t);
   const sansEnvoyer = (l) => l.filter((t) => !dansEntete(t));
   const groupe = (id) => ['Télécharger le PDF', 'Imprimer', id === 'dBrouillon' ? 'Envoyer par e-mail' : 'Envoyer à nouveau'];
-  for (const [id, retire] of [['dBrouillon', ['Éditer le devis']], ['dFinalise', ['Éditer le devis']], ['dEnvoye', ['Éditer le devis']], ['dSigne', ['Éditer le devis']]]) {
+  for (const id of ['dBrouillon', 'dFinalise', 'dEnvoye', 'dSigne']) {
     await page.evaluate((h) => { location.hash = h; }, '#/devis/liste');
     await expect(page.locator('.page-liste-devis')).toBeVisible();
     await menuLigne(page, id);
@@ -155,7 +157,7 @@ test('3 le « … » de l’éditeur et celui de la visualisation proposent les 
     await page.keyboard.press('Escape');
     // visualisation : la liste moins « Envoyer par e-mail » et « Voir le devis »
     await page.evaluate((h) => { location.hash = h; }, `#/devis/voir/${id}`);
-    await expect(page.locator('.page-editeur-devis.devis-lecture-seule')).toBeVisible();
+    await expect(page.locator(`.page-editeur-devis[data-devis="${id}"]`)).toBeVisible();
     await attendreCalme(page);
     await expect(page.locator('[data-action="plus-actions"]')).toBeVisible();
     const box = await page.locator('[data-action="plus-actions"]').boundingBox();
@@ -163,7 +165,7 @@ test('3 le « … » de l’éditeur et celui de la visualisation proposent les 
     expect(box.height).toBeGreaterThanOrEqual(44);
     await expect(page.locator('[data-action="plus-actions"]')).toHaveAttribute('aria-label', 'Autres actions');
     await menuEcran(page);
-    expect(await libellesMenu(page), `visualisation ${id}`).toEqual([...groupe(id), ...sansEnvoyer(liste).filter((t) => t !== 'Voir le devis')]);
+    expect(await libellesMenu(page), `visualisation ${id}`).toEqual([...groupe(id), ...sansEnvoyer(liste)]);
     if (id === 'dSigne') await capturer(page, info, '3-visualisation-menu');
     await page.keyboard.press('Escape');
     if (id === 'dBrouillon') {
@@ -172,7 +174,7 @@ test('3 le « … » de l’éditeur et celui de la visualisation proposent les 
       await expect(page.locator('[data-action="envoyer"]')).toBeVisible();
       await attendreCalme(page);
       await menuEcran(page);
-      expect(await libellesMenu(page), 'éditeur').toEqual([...groupe(id), ...sansEnvoyer(liste).filter((t) => !retire.includes(t))]);
+      expect(await libellesMenu(page), 'éditeur').toEqual([...groupe(id), ...sansEnvoyer(liste)]);
       await capturer(page, info, '3-editeur-menu');
       await page.keyboard.press('Escape');
     }
@@ -273,14 +275,14 @@ test('1 ouvrir un devis finalisé par l’adresse de l’éditeur ne laisse qu�
   await donnees();
   await ouvrir(page);
   await page.evaluate(() => { location.hash = '#/devis/editeur/dFinalise'; });
-  await expect(page).toHaveURL(/#\/devis\/voir\/dFinalise$/);
+  await expect(page).toHaveURL(/#\/devis\/editeur\/dFinalise$/);
   await attendreCalme(page);
   await expect(page.locator('.page-editeur-devis')).toHaveCount(1);
   await expect(page.locator('.page-liste-devis')).toHaveCount(0);
   // Une mise à jour des données ne touche que l'écran visible (un écran fantôme encore abonné ferait reconstruire un écran retiré et pourrait ouvrir l'ancienne adresse).
   await devis('dFinalise', { numero: 'DEV-2026-10-02-001', statut: 'envoye', finaliseLe: new Date(Date.now() - 2 * 86400000) });
   await attendreCalme(page);
-  await expect(page).toHaveURL(/#\/devis\/voir\/dFinalise$/);
+  await expect(page).toHaveURL(/#\/devis\/editeur\/dFinalise$/);
   await expect(page.locator('.page-editeur-devis')).toHaveCount(1);
 });
 

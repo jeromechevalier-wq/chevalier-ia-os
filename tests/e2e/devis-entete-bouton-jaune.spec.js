@@ -84,10 +84,10 @@ test('1 brouillon : « Finaliser » est le bouton jaune ; « Envoyer » est gris
   await expect(jaunes(page)).toHaveText('Finaliser');
 });
 
-test('1 (visualisation d’un brouillon) la règle est la même : « Finaliser » jaune, « Envoyer » grisé', async ({ page }) => {
+test('1 (brouillon ouvert par « Voir le devis ») la règle est la même : « Finaliser » jaune, « Envoyer » grisé, et le brouillon reste modifiable', async ({ page }) => {
   await donnees();
   await ouvrir(page, 'devis/voir/dBrouillon');
-  await expect(racine(page)).toHaveClass(/devis-lecture-seule/);
+  await expect(racine(page)).not.toHaveClass(/devis-lecture-seule/);
   await expect(jaunes(page)).toHaveText('Finaliser');
   await expect(racine(page).locator('[data-action="envoyer"]')).toHaveAttribute('aria-disabled', 'true');
 });

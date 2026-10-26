@@ -188,7 +188,7 @@ test('E3 le menu « … » : changements de statut par le serveur, entrées « b
   await expect(menu.getByRole('menuitem', { name: /Envoyer par e-mail/ })).toBeEnabled();
   await expect(menu.getByRole('menuitem', { name: /Envoyer par e-mail/ })).not.toContainText('bientôt disponible');
   for (const nom of [/Dupliquer/, /Créer une nouvelle version/, /Voir le devis/]) await expect(menu.getByRole('menuitem', { name: nom })).toBeEnabled();
-  await expect(menu.getByRole('menuitem', { name: /Éditer le devis/ })).toBeDisabled(); // un devis finalisé ne s'édite pas
+  await expect(menu.getByRole('menuitem', { name: /Éditer le devis/ })).toBeEnabled(); // un devis finalisé s'ouvre sur l'Édition, en lecture seule
   await expect(menu.getByRole('menuitem', { name: /Supprimer/ })).toHaveCount(0); // seulement un brouillon
   await capturer(page, info, 'E3-menu-devis-envoye');
   // Signé : la demande part au serveur (jamais une écriture directe).
@@ -270,7 +270,7 @@ test('O4 un devis envoyé s’ouvre en visualisation (lecture seule) : les actio
   await expect(page.locator('[data-valeur="lecture-seule"]')).toBeVisible();
   await expect(page.locator('[data-action="creer-variante"]')).toHaveCount(0); // plus de bouton direct : tout est dans « … »
   await expect(page.locator('[data-action="fermer-lecture"]')).toHaveCount(0); // plus de bouton « Fermer » : on quitte par la flèche « Devis » en haut à gauche
-  await expect(page.locator('[data-action="retour-devis"]')).toBeVisible();
+  await expect(page.locator('[data-action="fermer"]')).toBeVisible();
   await expect(page.locator('[data-action="marquer-signe"]')).toBeVisible(); // devis envoyé : l'étape suivante est « Marquer comme signé » (26/10/2026)
   await page.locator('[data-action="plus-actions"]').click();
   await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Créer une nouvelle version' })).toBeEnabled();

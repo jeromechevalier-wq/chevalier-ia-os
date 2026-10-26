@@ -109,7 +109,7 @@ test('C2 une adresse déjà en copie ne peut pas être le destinataire : message
   await expect(destinataire).toHaveValue('autre@exemple.fr'); // la dernière adresse valable revient
 });
 
-test('C3 devis en lecture seule : pas d’étiquette « En copie » seule (l’en-tête d’édition n’est pas affiché en lecture seule, avec ou sans adresse en copie)', async ({ page }, info) => {
+test('C3 devis en lecture seule : la zone « En copie » est la même qu’en édition (adresse lisible, « + E-mail en copie » grisé, croix grisées), avec ou sans adresse en copie', async ({ page }, info) => {
   await semer();
   await ouvrirListe(page);
   const base = {
@@ -122,14 +122,14 @@ test('C3 devis en lecture seule : pas d’étiquette « En copie » seule (l’e
   await ecrireDocument('devis_devis/aveccopie', { ...base, racineId: 'aveccopie', numero: 'DEV-2026-10-02-002', copie: ['compta@exemple.fr'] });
   await page.goto('/?emulateurs=1#/devis/editeur/sanscopie');
   await expect(page.locator('[data-valeur="lecture-seule"]')).toBeVisible();
-  await expect(page.locator('[data-zone="copie"]')).toBeHidden();
-  await expect(page.getByText('En copie', { exact: true })).toHaveCount(0);
+  await expect(page.locator('[data-zone="copie"]')).toBeVisible();
+  await expect(page.locator('[data-zone="copie"] [data-action="ajouter-copie"]')).toHaveAttribute('aria-disabled', 'true');
   await capturer(page, info, 'C3-lecture-seule-sans-copie');
   await page.goto('/?emulateurs=1#/devis/editeur/aveccopie');
   await page.reload(); // un simple changement d'adresse garde l'écran du devis précédent : on repart d'une page neuve
   await expect(page.locator('[data-valeur="lecture-seule"]')).toBeVisible();
-  await expect(page.locator('[data-zone="copie"]')).toHaveCount(0);
-  await expect(page.getByText('En copie', { exact: true })).toHaveCount(0);
+  await expect(page.locator('[data-zone="copie"] .ligne-copie')).toHaveText(['compta@exemple.fr']);
+  await expect(page.locator('[data-zone="copie"] [data-action="retirer-copie"]')).toHaveAttribute('aria-disabled', 'true');
 });
 
 test('C5 la croix d’une adresse en copie retire bien l’adresse même si on est en train d’en saisir une autre', async ({ page }, info) => {
@@ -162,8 +162,8 @@ test('C6 la visualisation d’un devis finalisé n’a plus de boutons « Créer
     sections: [{ id: 's1', titre: 'Cuisine', lignes: [{ id: 'l1', libelle: 'Carrelage', quantite: 2, unite: 'm²', prixAchat: 50, prixVente: 60, tauxTva: 20 }] }],
     creePar: JEROME, proprietaire: JEROME, creeLe: new Date(), modifieLe: new Date(),
   });
-  await page.goto('/?emulateurs=1#/devis/editeur/fige'); // un devis finalisé ne s'édite pas : l'adresse ouvre la visualisation
-  await expect(page).toHaveURL(/#\/devis\/voir\/fige$/);
+  await page.goto('/?emulateurs=1#/devis/voir/fige'); // l'écran unique, sur la Prévisualisation
+  await expect(page.locator('.page-editeur-devis.devis-lecture-seule')).toBeVisible();
   await expect(page.locator('[data-action="creer-variante"]')).toHaveCount(0);
   await expect(page.locator('[data-action="dupliquer"]')).toHaveCount(0);
   const plus = page.locator('[data-action="plus-actions"]');
@@ -343,9 +343,9 @@ test('ED3 finaliser : les erreurs de finalisation sont listées dans une fenêtr
   await expect(page.getByRole('menuitem', { name: 'Créer une nouvelle version' })).toBeEnabled();
   await page.keyboard.press('Escape');
   await expect(page.locator('[data-action="envoyer"]')).toBeVisible();
-  await expect(page.locator('[data-champ="libelle"]')).toHaveCount(0);
+  await expect(page.locator('[data-champ="libelle"]').first()).toHaveAttribute('readonly', ''); // l'Édition existe encore mais ne se modifie plus
   await expect(page.locator('iframe[data-zone="apercu"]').contentFrame().locator('body')).toContainText('DEV-2026-10-24-001');
-  await expect(page.locator('[data-zone="total"]')).toHaveCount(0); // la visualisation montre le document seul : le total est dans l'aperçu, pas dans un cadre à part
+  await expect(page.locator('[data-zone="total"]')).toBeHidden(); // sur la Prévisualisation seul le document est vu : le total est dans l'aperçu, pas dans un cadre à part
   await expect(page.locator('iframe[data-zone="apercu"]').contentFrame().locator('body')).toContainText('600,00');
   await capturer(page, info, 'ED3-lecture-seule');
 });
@@ -366,7 +366,7 @@ test('ED4 cas d’erreur : devis introuvable, devis déjà finalisé en lecture 
     creePar: JEROME, proprietaire: JEROME, creeLe: new Date(), modifieLe: new Date(),
   });
   await page.goto('/?emulateurs=1#/devis/editeur/fige');
-  await expect(page).toHaveURL(/#\/devis\/voir\/fige$/);
+  await expect(page).toHaveURL(/#\/devis\/editeur\/fige$/);
   await expect(page.locator('[data-valeur="lecture-seule"]')).toBeVisible();
   await expect(page.locator('[data-action="plus-actions"]')).toBeVisible();
   await expect(page.getByRole('heading', { level: 1 })).toContainText('DEV-2026-10-02-001');
