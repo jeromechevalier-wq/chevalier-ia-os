@@ -151,6 +151,42 @@ Si la suppression est interrompue (coupure d'Internet), refais une sauvegarde, p
 
 ---
 
+## Remplir un client de démonstration (données fictives)
+
+Le programme `scripts/donnees-demo.js` remplit un client **qui existe déjà** (créé avec `nouveau-client.js`) de données **inventées** pour une démonstration : 15 organisations, 20 personnes, des affaires dans **chaque étape** (au moins 2 par étape, plus des gagnées et des perdues), 2 à 6 éléments par affaire (notes, appels, rendez-vous, liens), 2 projets par phase, 15 devis (3 par statut : brouillon, finalisé, envoyé, signé, refusé) rattachés aux bonnes affaires, et une **copie de ton catalogue** des devis (articles, ouvrages et familles, lus dans ton Chevalier IA OS **sans rien y écrire**). Les e-mails inventés finissent par `exemple.test`.
+
+Mêmes préparatifs que plus haut (étapes 1 et 2). Puis, dans le Terminal, depuis le dossier du projet :
+
+**1. Simulation** (n'écrit rien ; affiche les affaires par étape, les devis avec leur numéro et leur total) :
+
+```bash
+node scripts/donnees-demo.js clientdemo --catalogue-depuis chevalier-ia-os
+```
+
+**2. Pour de vrai** : la même commande avec `--ecrire` à la fin.
+
+```bash
+node scripts/donnees-demo.js clientdemo --catalogue-depuis chevalier-ia-os --ecrire
+```
+
+**3. Retirer la démonstration** (seulement ce que le programme a créé : chaque document porte la marque `donneesDemo`) : d'abord la simulation, puis avec `--ecrire`.
+
+```bash
+node scripts/donnees-demo.js clientdemo --retirer
+node scripts/donnees-demo.js clientdemo --retirer --ecrire
+```
+
+Bon à savoir :
+
+- Le programme refuse un client qui n'existe pas, refuse le projet `chevalier-ia-os` comme cible (il n'y fait que **lire** le catalogue), et refuse d'écrire si le client a déjà des affaires, personnes, organisations, projets, devis ou articles. `--completer` ajoute quand même la démonstration à côté (les articles déjà présents sont gardés tels quels).
+- Si la lecture du catalogue échoue (connexion, droits), rien n'est écrit : relance plus tard, ou utilise `--catalogue-exemple` (petit catalogue fictif intégré) à la place de `--catalogue-depuis chevalier-ia-os`.
+- `--masquer-prix-achat` (facultatif) : dans la copie, le prix d'achat de chaque article devient son prix de vente, sans marge.
+- Les fiches sont signées par le premier éditeur du client (ou `--auteur adresse@…`).
+- Les devis finalisés n'ont pas encore de PDF : l'écran peut proposer de le fabriquer.
+- `--retirer` ne retire pas le compteur des numéros de devis (un numéro déjà donné ne revient jamais), ni ce qui a été ajouté à la main pendant la démonstration sans la marque (par exemple une note créée à l'écran).
+
+---
+
 ## Erreurs fréquentes
 
 | Message | Ce que ça veut dire | Que faire |
