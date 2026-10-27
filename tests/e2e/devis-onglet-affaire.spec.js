@@ -48,7 +48,7 @@ async function simulerServeur(page, appels, reponses = {}) {
     const r = await calcul(donneesAppel);
     return route.fulfill({ status: r.statut, headers: cors, body: JSON.stringify(r.corps) });
   };
-  await page.route('**/devisPdfLien', (route) => repondre(route, 'devisPdfLien', async (d) => (reponses.pdfLien ? reponses.pdfLien(d) : { statut: 200, corps: { result: { url: URL_PDF, expireDans: 300, nom: 'Devis.pdf' } } })));
+  await page.route('**/devisPdfLien', (route) => repondre(route, 'devisPdfLien', async (d) => (reponses.pdfLien?.(d) ?? { statut: 200, corps: { result: { url: URL_PDF, expireDans: 300, nom: 'Devis.pdf' } } })));
   await page.route('**/devisPdf', (route) => repondre(route, 'devisPdf', async (d) => {
     await ecrireDocument(`devis_devis/${d.devisId}`, { pdf: PDF_OK });
     return { statut: 200, corps: { result: { statut: 'ok', lien: `https://chevalier-ia-os.web.app/#/devis/pdf/${d.devisId}`, nom: 'Devis' } } };
@@ -104,7 +104,7 @@ test.describe('1 module éteint', () => {
 
 // ------------------------------------------------------------------ point 2 : le contenu
 
-test('2 module actif : onglet « Devis » en dernier avec le compteur 2, devis du plus récent au plus ancien, statut, total TTC, date et trois boutons', async ({ page }, info) => {
+test('2 module actif : onglet « Devis » en dernier avec le compteur 2, devis du plus récent au plus ancien, statut, total TTC, date, nom cliquable et aucun bouton', async ({ page }, info) => {
   await donneesDeuxDevis();
   await ouvrirAffaire(page);
   await expect(page.locator('.compositeur [role="tab"]')).toHaveText([/Activité/, /Notes/, /Documents/, /Devis/]);
@@ -115,21 +115,17 @@ test('2 module actif : onglet « Devis » en dernier avec le compteur 2, devis d
   const brouillon = lignes.nth(0);
   const finalise = lignes.nth(1);
   await expect(brouillon).toHaveAttribute('data-devis', 'dBrouillon');
-  await expect(brouillon.locator('[data-valeur="numero"]')).toHaveText('Brouillon');
+  await expect(brouillon.locator('[data-action="voir-devis"]')).toHaveText(/^Brouillon – Cuisine, variante basse$/);
   await expect(brouillon.locator('[data-valeur="statut"]')).toHaveText('Brouillon');
-  await expect(brouillon.locator('[data-valeur="objet"]')).toHaveText('Cuisine, variante basse');
   await expect(brouillon.locator('[data-valeur="ttc"]')).toHaveText(/\d.*€ TTC/);
   await expect(finalise).toHaveAttribute('data-devis', 'dOk');
-  await expect(finalise.locator('[data-valeur="numero"]')).toHaveText('DEV-2026-10-02-001');
+  await expect(finalise.locator('[data-action="voir-devis"]')).toHaveText(/^DEV-2026-10-02-001/);
   await expect(finalise.locator('[data-valeur="statut"]')).not.toHaveText('Brouillon');
   await expect(finalise.locator('[data-valeur="ttc"]')).toHaveText(/^720,00\s*€ TTC$/);
   await expect(finalise.locator('[data-valeur="date"]')).toHaveText('02/10/2026');
-  await expect(finalise.locator('[data-pdf]')).toHaveCount(0); // PDF prêt : « Ouvrir le PDF » suffit, pas de second lien
-  await expect(finalise.getByRole('link', { name: 'Voir le devis DEV-2026-10-02-001' })).toHaveText('Voir');
-  await expect(finalise.getByRole('link', { name: 'Ouvrir le PDF du devis DEV-2026-10-02-001' })).toHaveText('Ouvrir le PDF');
-  await expect(finalise.getByRole('button', { name: 'Télécharger le PDF du devis DEV-2026-10-02-001' })).toHaveText('Télécharger');
-  await expect(brouillon.getByRole('link', { name: /Ouvrir le PDF brouillon du devis/ })).toHaveText('Ouvrir le PDF brouillon');
-  await expect(brouillon.getByRole('button', { name: /Télécharger le PDF brouillon du devis/ })).toBeVisible();
+  await expect(finalise.locator('[data-pdf]')).toHaveCount(0); // PDF prêt : rien à signaler, le PDF s'ouvre depuis le devis
+  await expect(finalise.getByRole('link', { name: 'Voir le devis DEV-2026-10-02-001' })).toBeVisible();
+  await expect(panneau.locator('.ligne-lien a.bouton, .ligne-lien button')).toHaveCount(0); // comme l'onglet Documents : un nom cliquable, pas de boutons
   await expect(page.locator('.bouton-principal:visible')).toHaveCount(0); // aucun bouton jaune de plus : « + Ajouter » est un texte jaune
   await capturer(page, info, '2-onglet-devis');
 });
@@ -188,60 +184,52 @@ test('5 PDF en cours de fabrication, puis PDF non rangé avec réessai', async (
 
 // ------------------------------------------------------------------ point 6 : Ouvrir le PDF
 
-test('6 « Ouvrir le PDF » mène à l’écran devis/pdf/<id> ; « Voir » mène à la visualisation du devis', async ({ page }) => {
+test('6 le nom du devis est un lien : brouillon vers l’éditeur, devis finalisé vers sa visualisation', async ({ page }) => {
   await donneesDeuxDevis();
   await simulerServeur(page, []);
   await ouvrirAffaire(page);
   const panneau = await ouvrirOnglet(page);
-  await expect(panneau.locator('[data-devis="dOk"] [data-action="ouvrir-pdf"]')).toHaveAttribute('href', /#\/devis\/pdf\/dOk$/);
-  await expect(panneau.locator('[data-devis="dBrouillon"] [data-action="ouvrir-pdf"]')).toHaveAttribute('href', /#\/devis\/pdf\/dBrouillon\/brouillon$/);
   await expect(panneau.locator('[data-devis="dOk"] [data-action="voir-devis"]')).toHaveAttribute('href', /#\/devis\/voir\/dOk$/);
   await expect(panneau.locator('[data-devis="dBrouillon"] [data-action="voir-devis"]')).toHaveAttribute('href', /#\/devis\/editeur\/dBrouillon$/);
-  await panneau.locator('[data-devis="dOk"] [data-action="ouvrir-pdf"]').click();
-  await expect(page).toHaveURL(/#\/devis\/pdf\/dOk$/);
+  await panneau.locator('[data-devis="dOk"] [data-action="voir-devis"]').click();
+  await expect(page).toHaveURL(/#\/devis\/voir\/dOk$/);
 });
 
-// ------------------------------------------------------------------ points 7 et 8 : Télécharger
+// ------------------------------------------------------------------ points 7 et 8 : Télécharger (sur l'écran du PDF)
 
-test('7 « Télécharger » demande un lien signé en pièce jointe (telecharger: true) et enregistre le fichier sans quitter la page', async ({ page }, info) => {
+test('7 sur l’écran du PDF, « Télécharger » demande un lien signé en pièce jointe (telecharger: true) et enregistre le fichier sans quitter la page', async ({ page }, info) => {
   await donneesDeuxDevis();
   const appels = [];
   await simulerServeur(page, appels);
   await ouvrirAffaire(page);
-  const panneau = await ouvrirOnglet(page);
+  await page.goto('/?emulateurs=1#/devis/pdf/dOk');
+  const bouton = page.locator('[data-action="telecharger-pdf"]');
+  await expect(bouton).toBeVisible();
   const adresseAvant = page.url();
   const telechargement = page.waitForEvent('download');
-  await panneau.locator('[data-devis="dOk"] [data-action="telecharger-pdf"]').click();
+  await bouton.click();
   const fichier = await telechargement;
   expect(fichier.suggestedFilename()).toBe('Devis.pdf');
-  expect(appels.filter((a) => a[0] === 'devisPdfLien')).toEqual([['devisPdfLien', { devisId: 'dOk', telecharger: true }]]);
+  expect(appels.filter((a) => a[0] === 'devisPdfLien').at(-1)).toEqual(['devisPdfLien', { devisId: 'dOk', telecharger: true }]);
   expect(page.url()).toBe(adresseAvant);
-  await expect(panneau.locator('[data-devis="dOk"] [data-action="telecharger-pdf"]')).toBeEnabled();
+  await expect(bouton).toBeEnabled();
   await capturer(page, info, '7-apres-telechargement');
-  // Brouillon : la demande porte aussi brouillon: true.
-  const second = page.waitForEvent('download');
-  await panneau.locator('[data-devis="dBrouillon"] [data-action="telecharger-pdf"]').click();
-  await second;
-  expect(appels.filter((a) => a[0] === 'devisPdfLien')[1][1]).toEqual({ devisId: 'dBrouillon', brouillon: true, telecharger: true });
 });
 
-test('8 échec de « Télécharger » : message d’erreur et bouton de nouveau actif ; brouillon introuvable : message du brouillon', async ({ page }, info) => {
+test('8 échec de « Télécharger » : message d’erreur et bouton de nouveau actif', async ({ page }, info) => {
   test.info().annotations.push({ type: 'erreurs-reseau-attendues' });
   await donneesDeuxDevis();
   const appels = [];
   await simulerServeur(page, appels, {
-    pdfLien: (d) => (d.brouillon ? erreurServeur(404, 'NOT_FOUND', 'Aucun PDF brouillon pour ce devis : crée-le d’abord.') : erreurServeur(500, 'INTERNAL', 'Le serveur a eu un souci. Réessaie.')),
+    pdfLien: (d) => (d.telecharger ? erreurServeur(500, 'INTERNAL', 'Le serveur a eu un souci. Réessaie.') : undefined),
   });
   await ouvrirAffaire(page);
-  const panneau = await ouvrirOnglet(page);
-  const bouton = panneau.locator('[data-devis="dOk"] [data-action="telecharger-pdf"]');
+  await page.goto('/?emulateurs=1#/devis/pdf/dOk');
+  const bouton = page.locator('[data-action="telecharger-pdf"]');
   await bouton.click();
-  await expect(page.locator('.toast-erreur')).toContainText('Ça n’a pas abouti'); // le texte du module pour une erreur du serveur autre que « introuvable »
+  await expect(page.locator('.toast-erreur')).toContainText('Ça n’a pas abouti');
   await expect(bouton).toBeEnabled();
-  await expect(bouton).toHaveText('Télécharger');
   await capturer(page, info, '8-erreur-telechargement');
-  await panneau.locator('[data-devis="dBrouillon"] [data-action="telecharger-pdf"]').click();
-  await expect(page.locator('.toast-erreur').filter({ hasText: 'Aucun PDF brouillon pour ce devis. Ouvre le devis' })).toBeVisible();
 });
 
 // ------------------------------------------------------------------ point 9 : quels devis
@@ -255,7 +243,7 @@ test('9 un devis d’une AUTRE affaire n’apparaît pas, un archivé non plus, 
   await ouvrirAffaire(page);
   const panneau = await ouvrirOnglet(page);
   await expect(panneau.locator('[data-liste="devis-affaire"] > li')).toHaveCount(2);
-  await expect(panneau.locator('[data-devis="dActuel"] [data-valeur="numero"]')).toHaveText('DEV-2026-10-02-002 v2');
+  await expect(panneau.locator('[data-devis="dActuel"] [data-action="voir-devis"]')).toHaveText(/^DEV-2026-10-02-002 v2/);
   await expect(panneau.locator('[data-devis="dRemplace"] [data-valeur="statut"]')).toHaveText('Remplacé');
   await expect(panneau.locator('[data-devis="dArchive"], [data-devis="dAutre"]')).toHaveCount(0);
   await expect(page.locator('.compositeur [data-onglet="devis"] .compteur')).toHaveText('2');
@@ -297,7 +285,7 @@ test('11 chaque ligne tient sans débordement horizontal, les quatre onglets son
   expect(contenu, `la barre d’onglets déborde (contenu ${contenu} px, visible ${visible} px)`).toBeLessThanOrEqual(visible + 1);
   await page.locator('.compositeur .onglets').scrollIntoViewIfNeeded();
   const zone = await panneau.boundingBox();
-  for (const b of await panneau.locator('.ligne-devis-onglet .bouton, .ligne-devis-onglet .pdf-non-range, [data-action="ajouter-devis"]').all()) {
+  for (const b of await panneau.locator('.ligne-lien .pdf-non-range, [data-action="ajouter-devis"]').all()) {
     const m = await b.boundingBox();
     expect(m.x + m.width).toBeLessThanOrEqual(zone.x + zone.width + 1);
     if (estTelephone(page)) expect(m.height).toBeGreaterThanOrEqual(43.5);
@@ -315,6 +303,5 @@ test('12 aucune action de suppression dans l’onglet : ni bouton, ni menu', asy
   await expect(panneau.getByRole('button', { name: /supprim|retirer|archiv|corbeille/i })).toHaveCount(0);
   await expect(panneau.getByRole('link', { name: /supprim|retirer|archiv|corbeille/i })).toHaveCount(0);
   await expect(panneau.locator('[aria-haspopup="menu"], .bouton-icone')).toHaveCount(0);
-  const boutons = await panneau.locator('.ligne-devis-onglet').first().locator('a.bouton, button.bouton').allInnerTexts();
-  expect(boutons.map((t) => t.trim())).toEqual(['Voir', 'Ouvrir le PDF brouillon', 'Télécharger']);
+  await expect(panneau.locator('.ligne-lien a.bouton, .ligne-lien button')).toHaveCount(0);
 });

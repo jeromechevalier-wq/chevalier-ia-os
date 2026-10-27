@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { devisDeAffaire, intituleDevis, compteurOnglet, libelleOuvrirPdf, nomVoir, nomOuvrirPdf, nomTelecharger, routeVoirDevis, estIntrouvable, adresseTelechargeable } from '../js/modules/devis/onglet-affaire-logique.js';
+import { devisDeAffaire, intituleDevis, compteurOnglet, nomVoir, routeVoirDevis } from '../js/modules/devis/onglet-affaire-logique.js';
 
 const JOUR = 86400000;
 const MAINT = Date.parse('2026-10-25T10:00:00Z');
@@ -41,28 +41,13 @@ test('2 numéro et version : « Brouillon », « DEV-001 », « DEV-001 v2 »', 
   assert.equal(intituleDevis({ numero: 'DEV-001', version: 1 }), 'DEV-001');
   assert.equal(intituleDevis({ numero: 'DEV-001', version: 2 }), 'DEV-001 v2');
 });
-test('6 les noms accessibles ne sont jamais vides', () => {
-  assert.equal(nomTelecharger({ numero: 'DEV-001', statut: 'envoye' }), 'Télécharger le PDF du devis DEV-001');
-  assert.equal(nomTelecharger({ statut: 'brouillon', objet: 'Cuisine' }), 'Télécharger le PDF brouillon du devis Cuisine');
-  assert.equal(nomTelecharger({ statut: 'brouillon' }), 'Télécharger le PDF brouillon du devis sans objet');
-  assert.equal(nomOuvrirPdf({ numero: 'DEV-001', statut: 'envoye' }), 'Ouvrir le PDF du devis DEV-001');
+test('6 le nom accessible du lien n’est jamais vide', () => {
+  assert.equal(nomVoir({ numero: 'DEV-001', statut: 'envoye' }), 'Voir le devis DEV-001');
   assert.equal(nomVoir({ statut: 'brouillon' }), 'Voir le devis brouillon');
-  assert.equal(libelleOuvrirPdf({ statut: 'brouillon' }), 'Ouvrir le PDF brouillon');
-  assert.equal(libelleOuvrirPdf({ statut: 'envoye' }), 'Ouvrir le PDF');
 });
-test('2 « Voir » ouvre l’éditeur d’un brouillon et la visualisation d’un devis finalisé', () => {
+test('2 le nom du devis ouvre l’éditeur d’un brouillon et la visualisation d’un devis finalisé', () => {
   assert.equal(routeVoirDevis({ id: 'd4', statut: 'brouillon' }), 'devis/editeur/d4');
   assert.equal(routeVoirDevis({ id: 'd2', statut: 'envoye' }), 'devis/voir/d2');
-});
-test('8 « introuvable » se reconnaît avec ou sans le préfixe « functions/ » ; seule une adresse https se télécharge', () => {
-  assert.equal(estIntrouvable({ code: 'functions/not-found' }), true);
-  assert.equal(estIntrouvable({ code: 'not-found' }), true);
-  assert.equal(estIntrouvable({ code: 'functions/internal' }), false);
-  assert.equal(estIntrouvable(null), false);
-  assert.equal(adresseTelechargeable('https://fichiers.test/a.pdf'), true);
-  assert.equal(adresseTelechargeable('http://fichiers.test/a.pdf'), false);
-  assert.equal(adresseTelechargeable('javascript:alert(1)'), false);
-  assert.equal(adresseTelechargeable(undefined), false);
 });
 test('12 l’écran de l’onglet ne propose aucune suppression ni bouton jaune', () => {
   const src = readFileSync(new URL('../js/modules/devis/onglet-affaire.js', import.meta.url), 'utf8').replace(/\/\/.*$/gm, ''); // sans les commentaires
