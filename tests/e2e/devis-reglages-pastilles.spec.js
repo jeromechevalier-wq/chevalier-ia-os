@@ -22,14 +22,15 @@ async function dansEcran(page, selecteur) {
   await expect.poll(async () => page.locator(selecteur).evaluate((el) => { const r = el.getBoundingClientRect(); const barre = document.querySelector('.barre-haut'); const bas = barre && getComputedStyle(barre).display !== 'none' ? barre.getBoundingClientRect().bottom : 0; return r.top >= bas - 2 && r.top < window.innerHeight / 2; })).toBe(true);
 }
 
-test('1 trois pastilles en haut (Général, Mon entreprise, Familles d\'articles), et toutes les sections restent sur la page', async ({ page }, info) => {
+test('1 quatre pastilles en haut (Général, Mon entreprise, Familles d\'articles, Sauvegarde), et toutes les sections restent sur la page', async ({ page }, info) => {
   await ouvrirReglagesDevis(page);
   const barre = page.locator('.reglages-raccourcis');
   await expect(barre).toBeVisible();
-  await expect(barre.locator('.reglages-raccourci')).toHaveCount(3);
+  await expect(barre.locator('.reglages-raccourci')).toHaveCount(4);
   await expect(pastille(page, 'reglages-devis')).toContainText('Général');
   await expect(pastille(page, 'reglages-entreprise')).toContainText('Mon entreprise');
   await expect(pastille(page, 'reglages-familles')).toContainText('Familles d’articles');
+  await expect(pastille(page, 'reglages-export-devis')).toContainText('Sauvegarde');
   await expect(page.locator('#devis-nomBordereau')).toBeVisible();
   await expect(page.locator('#mon-entreprise')).toBeAttached();
   await expect(page.locator('#reglages-familles')).toBeAttached();

@@ -575,9 +575,12 @@ export async function noterExportContacts() {
 }
 
 /** Lit toutes les collections du CRM (sauvegarde complète) : { nom: [documents avec id] }. */
-export async function toutesLesCollections() {
+export async function toutesLesCollections() { return collectionsParNoms(COLLECTIONS_CRM); }
+
+/** Lit les collections nommées (chemin de l'espace compris) : { nom: [documents avec id] }. Sert aux exports par module. */
+export async function collectionsParNoms(noms) {
   const sortie = {};
-  for (const nom of COLLECTIONS_CRM) {
+  for (const nom of noms) {
     const snap = await getDocs(collection(db, chemin(nom)));
     sortie[nom] = snap.docs.map((d) => ({ ...d.data({ serverTimestamps: 'estimate' }), id: d.id }));
   }

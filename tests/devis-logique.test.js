@@ -360,3 +360,17 @@ describe('C8 libellés des statuts', () => {
   });
 });
 
+describe('L1 export des données du module Devis', () => {
+  test('L1 le fichier Devis a son propre nom, distinct de la sauvegarde complète, et la date est celle de Paris', async () => {
+    const CRM = await import('../js/modules/crm/logique.js');
+    assert.equal(CRM.nomFichierExport(new Date('2026-10-27T10:00:00Z'), 'devis'), 'chevalier-ia-devis-2026-10-27.json');
+    assert.equal(CRM.nomFichierExport(new Date('2026-10-27T23:30:00Z'), 'devis'), 'chevalier-ia-devis-2026-10-28.json');
+    assert.equal(CRM.nomFichierExport(new Date('2026-10-27T10:00:00Z')), 'chevalier-ia-os-2026-10-27.json');
+  });
+  test('L1 un module vide donne des listes vides, pas une erreur', async () => {
+    const CRM = await import('../js/modules/crm/logique.js');
+    const sortie = JSON.parse(CRM.exportJson({ devis_articles: [], devis_parametres: [], devis_devis: [] }, new Date('2026-10-27T10:00:00Z')));
+    assert.deepEqual(sortie.collections, { devis_articles: [], devis_parametres: [], devis_devis: [] });
+  });
+});
+
