@@ -236,7 +236,7 @@ export const pdfDevis = (devisId) => appeler('pdf', { devisId });
 /** Fabrique le PDF « BROUILLON » filigrané d'un devis encore brouillon (il remplace le précédent) : `{ statut, lien, nom }`. Refusé par le serveur si le devis n'est plus brouillon. */
 export const pdfBrouillon = (devisId) => appeler('pdf', { devisId, brouillon: true });
 /** Lien de lecture signé (5 minutes) vers le PDF rangé : `{ url, expireDans, nom }`. Erreur « pas prêt » si le PDF n'existe pas encore. */
-export const pdfLien = (devisId, brouillon = false) => appeler('pdfLien', { devisId, ...(brouillon ? { brouillon: true } : {}) });
+export const pdfLien = (devisId, brouillon = false, { telecharger = false } = {}) => appeler('pdfLien', { devisId, ...(brouillon ? { brouillon: true } : {}), ...(telecharger ? { telecharger: true } : {}) });
 
 // ---------------------------------------------------------------- « Préparer l'e-mail » (un workflow n8n crée un brouillon dans le Gmail du compte ; rien n'est envoyé)
 /** Demande la préparation : `{ ok, demandeId }`. Le brouillon arrive dans Gmail quelques instants plus tard ; le devis reçoit `emailPrepare` quand le serveur l'écrit. Lève une Error lisible si refusé. */

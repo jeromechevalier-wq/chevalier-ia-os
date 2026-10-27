@@ -94,12 +94,13 @@ export function creerStockage({ bucket, maintenant = Date.now }) {
     async taille(chemin) {
       try { const [meta] = await bucket.file(chemin).getMetadata(); const n = Number(meta?.size); return Number.isFinite(n) && n >= 0 ? n : null; } catch { return null; }
     },
-    /** Lien de lecture signé, valable `minutes` minutes (5 par défaut). */
-    async lienSigne(chemin, { minutes = DUREE_LIEN_MINUTES, nomAffiche = '' } = {}) {
+    /** Lien de lecture signé, valable `minutes` minutes (5 par défaut). `telecharger: true` : le navigateur enregistre le fichier (attachment) au lieu de l'afficher (inline). */
+    async lienSigne(chemin, { minutes = DUREE_LIEN_MINUTES, nomAffiche = '', telecharger = false } = {}) {
+      const disposition = telecharger ? 'attachment' : 'inline';
       try {
         const [url] = await bucket.file(chemin).getSignedUrl({
           version: 'v4', action: 'read', expires: maintenant() + minutes * 60_000,
-          ...(nomAffiche ? { responseDisposition: `inline; filename="${nettoyerNom(nomAffiche).replace(/["\u0080-￿]/g, '_')}"` } : {}),
+          ...(nomAffiche ? { responseDisposition: `${disposition}; filename="${nettoyerNom(nomAffiche).replace(/["\u0080-￿]/g, '_')}"` } : {}),
           responseType: 'application/pdf',
         });
         return url;

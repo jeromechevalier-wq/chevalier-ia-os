@@ -55,7 +55,7 @@ async function monde({ finaliser = ['a', 'b'] } = {}) {
 }
 
 function faux({ echec = false } = {}) {
-  const vus = { html: [], envois: [], signes: [] };
+  const vus = { html: [], envois: [], signes: [], options: [] };
   const objets = new Map();
   return {
     vus, objets,
@@ -63,7 +63,7 @@ function faux({ echec = false } = {}) {
     stockage: {
       envoyer: async (chemin, pdf) => { vus.envois.push(chemin); objets.set(chemin, pdf); },
       existe: async (chemin) => objets.has(chemin),
-      lienSigne: async (chemin, o) => { vus.signes.push(chemin); return `https://stockage.exemple.test/signe?o=${encodeURIComponent(chemin)}&m=${o.minutes}`; },
+      lienSigne: async (chemin, o) => { vus.signes.push(chemin); vus.options.push(o); return `https://stockage.exemple.test/signe?o=${encodeURIComponent(chemin)}&m=${o.minutes}`; },
     },
   };
 }
@@ -185,6 +185,22 @@ describe('D3 qui peut quoi', () => {
     await refus(fabriquer(m, f, ALICE, { client: 'a', devisId: 'd-a', brouillon: 'oui' }), 'invalid-argument');
     await refus(fabriquer(m, f, ALICE, { client: 'a', devisId: 'd-a' }, { stockage: null }), 'failed-precondition');
     await refus(lire(m, f, ALICE, { client: 'a', devisId: 'd-a' }, { stockage: null }), 'failed-precondition');
+  });
+  test('D3 (5) telecharger : passé à lienSigne chez les clients ; type invalide refusé (lien et fabrication) ; chemin hors du client refusé', async () => {
+    const m = await monde();
+    const f = faux();
+    await fabriquer(m, f, ALICE, { client: 'a', devisId: 'd-a' });
+    await lire(m, f, ALICE, { client: 'a', devisId: 'd-a' });
+    await lire(m, f, ALICE, { client: 'a', devisId: 'd-a', telecharger: true });
+    assert.deepEqual(f.vus.options.map((o) => o.telecharger), [false, true]);
+    for (const telecharger of ['oui', 1, null]) {
+      await refus(lire(m, f, ALICE, { client: 'a', devisId: 'd-a', telecharger }), 'invalid-argument');
+      await refus(fabriquer(m, f, ALICE, { client: 'a', devisId: 'd-a', telecharger }), 'invalid-argument');
+    }
+    assert.equal(f.vus.signes.length, 2);
+    m.devis('a').pdf.chemin = 'clients/b/devis/aff1/d-b/autre.pdf';
+    await refus(lire(m, f, ALICE, { client: 'a', devisId: 'd-a', telecharger: true }), 'permission-denied');
+    assert.equal(f.vus.signes.length, 2);
   });
   test('D3 PDF brouillon à la demande : filigrane, nom fixe sous clients/a/, lien signé ; refusé pour un devis finalisé', async () => {
     const m = await monde({ finaliser: [] });

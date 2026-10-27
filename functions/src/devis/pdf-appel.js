@@ -1,7 +1,7 @@
 // Fonctions appelables du PDF d'un devis :
 //  - `devisPdf({ devisId, brouillon? })` : relance la fabrication pour un devis finalisé dont le PDF n'est pas « ok » (réessai à la demande, rattrapage des devis déjà finalisés),
 //    ou, avec `brouillon: true`, fabrique un PDF filigrané « BROUILLON » (nom fixe : il remplace le précédent, le champ `pdf` du devis n'est pas touché) ;
-//  - `devisPdfLien({ devisId, brouillon? })` : un lien de lecture signé de très courte durée (5 minutes) vers le PDF rangé dans Cloud Storage.
+//  - `devisPdfLien({ devisId, brouillon?, telecharger? })` : un lien de lecture signé de très courte durée (5 minutes) vers le PDF rangé dans Cloud Storage.
 // Réservées aux comptes autorisés (comme les autres fonctions du module Devis). Le PDF d'un devis qui vient d'être finalisé n'est PAS fabriqué ici mais par le déclencheur (pdf-declencheur.js).
 // Le journal Cloud ne reçoit jamais le contenu du devis, ni son identifiant, ni l'adresse de l'appelant, ni un lien.
 import { HttpsError } from 'firebase-functions/v2/https';
@@ -27,11 +27,11 @@ export function ligneDeJournalDevisPdf(entree) {
 
 const stockageDe = (s) => (typeof s === 'function' ? s() : s) ?? null;
 
-/** Lit et contrôle la demande : { devisId, brouillon }. */
+/** Lit et contrôle la demande : { devisId, brouillon, telecharger }. `telecharger` (booléen facultatif) n'est utilisé que par devisPdfLien ; devisPdf l'ignore mais refuse un type invalide. */
 function lireDemande(requete) {
   const d = requete.data && typeof requete.data === 'object' ? requete.data : {};
-  const ok = typeof d.devisId === 'string' && d.devisId && d.devisId.length <= 200 && !d.devisId.includes('/') && (d.brouillon === undefined || typeof d.brouillon === 'boolean');
-  return ok ? { devisId: d.devisId, brouillon: d.brouillon === true } : null;
+  const ok = typeof d.devisId === 'string' && d.devisId && d.devisId.length <= 200 && !d.devisId.includes('/') && (d.brouillon === undefined || typeof d.brouillon === 'boolean') && (d.telecharger === undefined || typeof d.telecharger === 'boolean');
+  return ok ? { devisId: d.devisId, brouillon: d.brouillon === true, telecharger: d.telecharger === true } : null;
 }
 
 /**
@@ -97,7 +97,7 @@ export function creerAppelDevisPdfLien({ donnees, espace = '', comptes = COMPTES
         // Défense en profondeur : un chemin qui sortirait du dossier des devis de cet espace n'est jamais signé.
         if (!cheminAppartientALEspace(chemin, espace)) throw refuser('chemin_refuse', new HttpsError('permission-denied', 'Ce PDF n\'est pas accessible.'));
       }
-      const url = await rangement.lienSigne(chemin, { minutes: DUREE_LIEN_MINUTES, nomAffiche: nom });
+      const url = await rangement.lienSigne(chemin, { minutes: DUREE_LIEN_MINUTES, nomAffiche: nom, telecharger: demande.telecharger });
       journal({ action: 'pdf_lien', statut: 'ok', dureeMs: maintenant() - debut });
       return { url, expireDans: DUREE_LIEN_MINUTES * 60, nom };
     } catch (e) {
