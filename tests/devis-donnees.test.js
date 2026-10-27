@@ -11,7 +11,7 @@ const lire = (chemin) => readFileSync(fileURLToPath(new URL(`../${chemin}`, impo
 const sansCommentaires = (t) => t.replace(/\/\/.*$/gm, '');
 const MAINTENANT = new Date('2026-10-24T10:00:00Z');
 const ctx = () => ({ nouvelId: (nom) => `${nom}-1`, maintenant: MAINTENANT, auteur: 'jerome@exemple.test', proprietaire: 'jerome@exemple.test' });
-const REGLAGES = { modeMarge: 'majoration', marge: 25, tauxTvaDefaut: 10, regimeTva: 'franchise', dureeValiditeJours: 30 };
+const REGLAGES = { modeMarge: 'majoration', marge: 25, margeDevis: 25, tauxTvaDefaut: 10, regimeTva: 'franchise', dureeValiditeJours: 30 };
 
 describe('C9 brouillons : plans d’écriture du navigateur', () => {
   test('C9 créer un brouillon : version 1, sans numéro, racine = id, réglages du module repris ; c’est ce que les règles Firestore acceptent', () => {

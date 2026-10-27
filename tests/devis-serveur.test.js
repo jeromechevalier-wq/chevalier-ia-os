@@ -20,7 +20,7 @@ function monde(devis = []) {
 const ligne = (id) => ({ id, libelle: `Article ${id}`, unite: 'u', quantite: 2, prixAchat: 10 });
 /** Un brouillon complet (un destinataire, une ligne), prêt à finaliser. */
 function brouillon(id, extra = {}) {
-  const d = nouveauDevis({ destinataires: [{ email: 'client@exemple.test' }], affaireId: 'aff1' }, { id, maintenant: MAINTENANT, auteur: ACTEUR }, { marge: 20 });
+  const d = nouveauDevis({ destinataires: [{ email: 'client@exemple.test' }], affaireId: 'aff1' }, { id, maintenant: MAINTENANT, auteur: ACTEUR }, { marge: 20, margeDevis: 20 });
   return { ...d, sections: [{ id: `s-${id}`, titre: 'Travaux', lignes: [ligne(`l-${id}`)] }], ...extra };
 }
 const photo = (m) => JSON.stringify(m.collections);

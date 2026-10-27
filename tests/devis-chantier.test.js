@@ -5,7 +5,7 @@ import * as D from '../js/modules/devis/logique.js';
 import { devisHtml } from '../js/modules/devis/document.js';
 
 const ctx = { maintenant: new Date('2026-10-24T10:00:00Z'), auteur: 'moi@exemple.test', nouvelId: (n) => `${n}_1` };
-const reglages = { modeMarge: 'majoration', marge: 20, tauxTvaDefaut: 20, regimeTva: 'assujetti', dureeValiditeJours: 90 };
+const reglages = { modeMarge: 'majoration', marge: 20, margeDevis: 20, tauxTvaDefaut: 20, regimeTva: 'assujetti', dureeValiditeJours: 90 };
 const ligne = (id, prixAchat, quantite) => ({ id, libelle: `Article ${id}`, unite: 'u', quantite, prixAchat });
 const chantierComplet = {
   adresse: { ligne1: '12 rue des Tests', codePostal: '75011', ville: 'Paris' },

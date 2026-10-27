@@ -158,7 +158,7 @@ export const creerFamille = (nom, parentId) => ecrireFamilles(F.planCreationFami
 export const renommerFamille = (id, nom) => ecrireFamilles(F.planRenommerFamille(id, nom, etat.familles));
 export const activerFamille = (id, actif) => ecrireFamilles(F.planDesactiverFamille(id, etat.familles, actif));
 
-/** Les données du module pour l'export : { devis_articles, devis_parametres, devis_devis } (toutes versions, tous statuts, archivés compris). Jamais `devis_compteurs` (réservé au serveur). */
+/** Les données du module pour l'export : { devis_articles, devis_parametres, devis_devis } (toutes versions, tous statuts, archivés compris). Jamais le compteur de numéros (réservé au serveur). */
 export const lireToutPourExport = () => CRM.collectionsParNoms(['devis_articles', 'devis_parametres', 'devis_devis']);
 
 /** Enregistre les réglages du module (document complet). `saisie` : les champs saisis ; renvoie `{ erreurs, reglages }`. */
