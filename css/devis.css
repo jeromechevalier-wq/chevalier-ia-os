@@ -253,17 +253,12 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
 .ligne-total { display: flex; justify-content: space-between; align-items: baseline; gap: var(--esp-4); }
 .ligne-total dt { color: var(--texte2); }
 .ligne-total dd { margin: 0; font-variant-numeric: tabular-nums; text-align: right; }
-.ligne-remise dd, .ligne-acompte dd { display: flex; flex-direction: column; align-items: flex-end; gap: var(--esp-2); }
+.ligne-remise dd { display: flex; flex-direction: column; align-items: flex-end; gap: var(--esp-2); }
 .avertissements-devis { list-style: none; margin: var(--esp-5) 0 0; padding: 0; display: flex; flex-direction: column; gap: var(--esp-2); color: var(--texte2); font-size: var(--fs-menu); }
 .avertissements-devis:empty { display: none; }
 .panneau-total .ligne-champs { flex-wrap: nowrap; justify-content: flex-end; }
 .panneau-total .ligne-champs > .champ:not(.champ-court) { flex: 1 1 0; min-width: 0; }
 .panneau-total .ligne-champs > .champ-court { flex: 0 0 90px; }
-.ligne-acompte { flex-direction: column; align-items: stretch; }
-.ligne-acompte dd { align-items: stretch; text-align: right; }
-.ligne-acompte .ligne-champs { flex-direction: column; align-items: stretch; }
-.ligne-acompte .ligne-champs > .champ-court { flex: 0 0 auto; width: 100%; }
-.ligne-acompte .ligne-champs > .champ[hidden] { display: none; }
 @media (max-width: 1023px) {
   .entete-document { grid-template-columns: minmax(0, 1fr); }
   .bas-devis { grid-template-columns: minmax(0, 1fr); }
@@ -511,4 +506,25 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
   .dechets-formulaire .champ, .dechets-actions .bouton { min-height: 44px; }
   .dechets-actions .bouton { flex: 1 1 auto; }
   .bloc-dechets .bouton-lien { min-height: 44px; }
+}
+
+/* Conditions de paiement : la liste des acomptes (crayon, croix), le reste à facturer, et le formulaire en place d'un acompte. */
+.bloc-paiement { display: flex; flex-direction: column; gap: var(--esp-3); min-width: 0; }
+.acomptes-liste { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--esp-2); }
+.acompte-ligne { display: flex; align-items: center; gap: var(--esp-3); min-width: 0; }
+.acompte-ligne-edition { display: block; }
+.acompte-texte { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.acompte-montant { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.acompte-reste { display: flex; justify-content: space-between; align-items: baseline; gap: var(--esp-4); padding-top: var(--esp-3); border-top: 1px solid var(--bordure); }
+.acompte-reste[hidden] { display: none; }
+.acompte-formulaire { display: flex; flex-direction: column; gap: var(--esp-4); min-width: 0; }
+.acompte-formulaire:focus { outline: none; }
+.acompte-formulaire .bloc-champ { min-width: 0; }
+.acompte-valeurs { display: grid; grid-template-columns: 1fr 1fr; gap: var(--esp-4); }
+.acompte-actions { display: flex; gap: var(--esp-3); justify-content: flex-end; flex-wrap: wrap; }
+@media (max-width: 700px), (pointer: coarse) {
+  .acompte-formulaire .champ, .acompte-actions .bouton { min-height: 44px; }
+  .acompte-actions .bouton { flex: 1 1 auto; }
+  .bloc-paiement .bouton-lien, .acompte-ligne .bouton-icone { min-height: 44px; }
+  .acompte-ligne .bouton-icone { min-width: 44px; }
 }

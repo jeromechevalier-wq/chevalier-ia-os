@@ -247,13 +247,15 @@ test('5 le bas de page : conditions de paiement à gauche, totaux et NET À PAYE
   await ouvrir(page, await devisLong());
   const bas = page.locator('.bas-devis');
   await expect(bas).toContainText('Conditions de paiement');
-  await expect(bas.locator('[data-action="ajouter-condition"]')).toHaveText(/Ajouter une condition \(bientôt\)/);
-  await expect(bas.locator('[data-action="ajouter-condition"]')).toBeDisabled();
+  await expect(bas.locator('[data-action="ajouter-condition"]')).toHaveText(/Ajouter une condition/);
+  await expect(bas.locator('[data-action="ajouter-condition"]')).toBeEnabled();
+  await expect(bas.locator('[data-vide="acomptes"]')).toHaveText('Aucun acompte');
   await expect(bas).toContainText('Méthodes de paiement acceptées');
   await expect(bas.locator('[data-action="ajouter-texte-libre"]')).toHaveText(/Ajouter texte libre/);
   await expect(bas).toContainText('Gestion des déchets');
   await expect(page.locator('[data-valeur="attestation-tva"]')).toContainText('Attestation du client'); // il y a des lignes à 10 %
-  for (const libelle of ['Total net HT', 'TVA', 'Total TTC', 'Remise client', 'Acompte demandé']) await expect(page.locator('[data-zone="total"]')).toContainText(libelle);
+  for (const libelle of ['Total net HT', 'TVA', 'Total TTC', 'Remise client']) await expect(page.locator('[data-zone="total"]')).toContainText(libelle);
+  await expect(page.locator('[data-zone="total"]')).not.toContainText('Acompte demandé'); // remplacé par le bloc Conditions de paiement
   await expect(page.locator('.bandeau-net')).toContainText('NET À PAYER');
   await expect(page.locator('.tableau-tva thead th')).toHaveText(['Taux TVA', 'Base HT', 'Total']);
   await expect(page.locator('.tableau-tva tbody tr')).toHaveCount(2); // 10 % et 20 %

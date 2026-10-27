@@ -112,6 +112,7 @@ describe('3 ajustement global', () => {
     assert.ok(Ed.CHAMPS_ENREGISTRES.includes('ajustement'));
     assert.ok(Ed.CHAMPS_ENREGISTRES.includes('affichage'));
     assert.ok(Ed.CHAMPS_ENREGISTRES.includes('dechets'));
+    assert.ok(Ed.CHAMPS_ENREGISTRES.includes('acomptes'));
   });
   test('3 la finalisation fige le prix ajusté : changer le coefficient ensuite ne change plus les totaux', () => {
     const base = { ...L.nouveauDevis({ affaireId: 'a1', destinataires: [{ email: 'c@exemple.test' }] }, { maintenant: new Date('2026-10-24T10:00:00Z'), auteur: 'x@exemple.test', nouvelId: () => 'd1' }, { regimeTva: 'assujetti' }), ...trio(), ajustement: { coefficient: 1.1 },

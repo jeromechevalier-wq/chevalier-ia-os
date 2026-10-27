@@ -357,7 +357,11 @@ export async function listerDevis(donnees, { statut, affaireId, texte, archives,
   return serialiser({ total, tronque, devis: elements });
 }
 
-/** Un devis complet côté artisan : en-tête, client, affaire, sections et lignes (avec prix de vente et total de chaque ligne), remise, acompte, chantier, totaux. */
+/**
+ * Un devis complet côté artisan : en-tête, client, affaire, sections et lignes (avec prix de vente et total de chaque ligne), remise, chantier, totaux.
+ * Acomptes : `acomptes` est la liste normalisée ({ type: pourcentage | montantHt | montantTtc, valeur, moment, texteMoment? }), même pour un ancien devis à acompte unique (`acompte`, gardé tel quel) ;
+ * `totaux.acomptesTTC` donne le montant TTC de chaque acompte retenu, `totaux.acompteTTC` leur somme.
+ */
 export async function lireDevis(donnees, { id }, maintenant = new Date()) {
   const devis = await donnees.document(C.devis, id);
   if (!devis) introuvable('Devis');
@@ -379,7 +383,8 @@ export async function lireDevis(donnees, { id }, maintenant = new Date()) {
       sousTotalHT: t.sections.find((x) => x.id === s.id)?.sousTotalHT ?? 0,
       lignes: (s.lignes ?? []).map((l) => ({ ...l, prixVenteUnitaire: parLigne.get(l.id)?.prixVenteUnitaire ?? null, totalHT: parLigne.get(l.id)?.totalHT ?? 0, venduAPerte: parLigne.get(l.id)?.venduAPerte ?? false })),
     })),
-    totaux: { totalBrutHT: t.totalBrutHt, remiseHT: t.remiseHt, totalHT: t.totalHt, tvaParTaux: t.tvaParTaux, tva: t.tva, totalTTC: t.ttc, acompteTTC: t.acompteTtc, resteAFacturerTTC: t.resteAFacturerTtc, netAPayer: t.netAPayer, mentions: t.mentions },
+    acomptes: D.listeAcomptes(devis),
+    totaux: { totalBrutHT: t.totalBrutHt, remiseHT: t.remiseHt, totalHT: t.totalHt, tvaParTaux: t.tvaParTaux, tva: t.tva, totalTTC: t.ttc, acompteTTC: t.acompteTtc, acomptesTTC: t.acomptesTtc ?? (t.acompteTtc == null ? [] : [t.acompteTtc]), resteAFacturerTTC: t.resteAFacturerTtc, netAPayer: t.netAPayer, mentions: t.mentions },
     ...(devis.statut === 'brouillon' ? { erreursFinalisation: D.erreursFinalisation(devis) } : {}),
   });
 }

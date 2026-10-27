@@ -147,7 +147,7 @@ test('3 l’éditeur d’un brouillon est intact (totaux, remise, acompte, Net �
   await expect(page.locator('.barre-devis [data-onglet="edition"]')).toBeVisible();
   await expect(racine.locator('[data-zone="total"]')).toContainText('Total TTC');
   await expect(racine.locator('[data-champ="remise-type"]')).toBeEnabled();
-  await expect(racine.locator('[data-champ="acompte-type"]')).toBeEnabled();
+  await expect(racine.locator('[data-action="ajouter-condition"]')).toBeEnabled(); // les acomptes se règlent dans le bloc Conditions de paiement
   await expect(racine.locator('.bandeau-net')).toContainText('NET À PAYER');
   await expect(racine.locator('[data-valeur="lecture-seule"]')).toHaveCount(0);
   await capturer(page, info, '3-editeur-brouillon');

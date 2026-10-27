@@ -420,10 +420,13 @@ test('ED1 créer un devis pour une affaire, ajouter deux articles du Bordereau, 
   await expect(total(page, 'tva-10')).toHaveText(/^16,20\s€$/);
   await expect(total(page, 'ttc')).toHaveText(/^934,20\s€$/);
   await expect(total(page, 'net')).toHaveText(/^934,20\s€$/);
-  // Acompte de 30 % à la signature : 280,26 ; reste 653,94.
+  // Acompte de 30 % à la signature (bloc Conditions de paiement) : 280,26 ; reste 653,94.
+  await page.locator('[data-action="ajouter-condition"]').click();
+  await page.getByRole('menuitem', { name: 'Acompte' }).click();
   await page.locator('[data-champ="acompte-type"]').selectOption('pourcentage');
   await page.locator('[data-champ="acompte-valeur"]').fill('30');
-  await expect(total(page, 'acompte')).toHaveText(/^280,26\s€$/);
+  await page.locator('[data-action="enregistrer-acompte"]').click();
+  await expect(page.locator('[data-acompte-ligne="0"] [data-valeur="acompte-montant"]')).toHaveText(/^280,26\s€$/);
   await expect(total(page, 'reste')).toHaveText(/^653,94\s€$/);
   await capturer(page, info, 'ED1-devis-rempli');
   // Enregistrement automatique, puis rechargement : tout est là.

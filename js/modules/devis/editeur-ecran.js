@@ -16,7 +16,7 @@ import * as A from './articles.js';
 import { arbreFamilles, cheminFamille } from './familles.js';
 import * as Ed from './editeur-logique.js';
 import {
-  TYPE_SAUT, totauxDevis, erreursFinalisation, erreursChantier, estExpire, UNITES_DUREE, MOMENTS_ACOMPTE, TAUX_TVA_DEFAUT, niveauSection, dureeEnTexte,
+  TYPE_SAUT, totauxDevis, erreursFinalisation, erreursChantier, estExpire, UNITES_DUREE, MOMENTS_ACOMPTE, TYPES_ACOMPTE, detailAcomptes, erreursAcomptes, listeAcomptes, TAUX_TVA_DEFAUT, niveauSection, dureeEnTexte,
   affichageDe, ajustementActif, valeursAjustement, margeEffective, vueClient, MAX_COPIE, transitionPossible, TYPES_DECHETS,
 } from './logique.js';
 import { formaterMontant } from './document.js';
@@ -181,7 +181,8 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
 
   const devisCourant = () => D.devisParId(id);
   // Copie de travail : un ancien réglage « Nouvelle page avant » est montré comme un saut de page (enregistré ainsi au premier enregistrement).
-  const copieDeTravail = (d) => { const c = { ...d, ...Ed.champsAEnregistrer(d) }; if (c.sections) c.sections = Ed.convertirAnciensSauts(structuredClone(c.sections)); return c; };
+  // `acomptes` est la liste normalisée (un devis à l'ancien acompte unique en a un élément) et `acompte` vaut null : la base n'est écrite qu'à la prochaine vraie modification, la copie « enregistrée » est normalisée pareil.
+  const copieDeTravail = (d) => { const c = { ...d, ...Ed.champsAEnregistrer(d), acomptes: structuredClone(listeAcomptes(d)), acompte: null }; if (c.sections) c.sections = Ed.convertirAnciensSauts(structuredClone(c.sections)); return c; };
 
   // ------------------------------------------------ chargement
   function charger() {
@@ -581,8 +582,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     rendreEntetesTableau();
     rendreLignes();
     majMarges();
-    const ligneReste = racine.querySelector('[data-ligne="reste"]');
-    if (ligneReste) ligneReste.hidden = affichage().cacherResteAFacturer === true;
+    majReste();
     if (onglet === 'apercu') rendreApercu({ garderDefilement: true });
   }
   // Panneau collé à droite (comme la Bibliothèque) : le devis se décale, les cases agissent en direct ; seule la croix ou Échap le ferme. Jamais ouvert en même temps que la Bibliothèque.
@@ -1460,14 +1460,13 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     ref.attestation = h('p', { class: 'attestation-tva', dataset: { valeur: 'attestation-tva' }, hidden: true });
     const texteLibre = h('textarea', { class: 'champ', id: 'devis-texte-libre', rows: 3, value: d.texteLibre ?? '', 'aria-label': 'Texte libre', hidden: !(d.texteLibre ?? '').trim(), dataset: { champ: 'texte-libre' }, oninput: (e) => changer({ texteLibre: e.target.value }) });
     const lienTexte = h('button', { type: 'button', class: 'bouton-lien', dataset: { action: 'ajouter-texte-libre' }, hidden: !texteLibre.hidden, onclick: () => { texteLibre.hidden = false; lienTexte.hidden = true; texteLibre.focus(); } }, icone('plus', { taille: 14 }), 'Ajouter texte libre');
-    // Les vraies conditions de paiement (plusieurs échéances) ne sont pas encore faites : le bouton le dit au lieu de ne rien faire.
-    const lienCondition = h('button', { type: 'button', class: 'bouton-lien', disabled: true, title: 'Bientôt disponible : en attendant, utilise « Acompte demandé » dans les totaux.', dataset: { action: 'ajouter-condition' } }, icone('plus', { taille: 14 }), 'Ajouter une condition (bientôt)');
     const gauche = h('div', { class: 'bas-gauche' },
-      h('div', { class: 'titre-ligne' }, h('h3', { class: 'titre-bloc' }, 'Conditions de paiement'), lienCondition),
+      (ref.blocPaiement = h('div', { class: 'bloc-paiement', dataset: { zone: 'paiement' } })),
       ref.attestation,
       h('p', { class: 'texte-discret', dataset: { valeur: 'methodes-paiement' } }, 'Méthodes de paiement acceptées : celles de ton entreprise (réglages).'),
       texteLibre, lienTexte,
       (ref.blocDechets = h('div', { class: 'bloc-dechets', dataset: { zone: 'dechets' } })));
+    dessinerPaiement(null);
     dessinerDechets(false);
     const [totaux, net, taux] = blocTotaux();
     const notes = h('div', { class: 'notes-bas-page' },
@@ -1570,6 +1569,140 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     (telephone ? formulaire : type).focus();
   }
 
+  // ------------------------------------------------ conditions de paiement : la liste des acomptes, puis le reste à facturer
+  /** « 30 % du total · à la signature », « 500,00 € HT · au début des travaux » : ce que l'acompte demande, sans le montant TTC (affiché à droite). */
+  function texteAcompte(a) {
+    const moment = a?.moment === 'libre' ? (String(a.texteMoment ?? '').trim() || 'moment à préciser') : (MOMENTS_ACOMPTE.find((m) => m.id === a?.moment)?.libelle ?? 'moment à choisir');
+    const v = typeof a?.valeur === 'number' ? a.valeur : null;
+    const quoi = v === null ? 'Acompte' : a.type === 'pourcentage' ? `${saisieNombre(v)} % du total` : a.type === 'montantHt' ? `${euros(v)} HT` : `${euros(v)} TTC`;
+    return `${quoi} · ${moment}`;
+  }
+  /** Montre ou cache la ligne « Reste à facturer » : cachée sans acompte, ou quand l'option « Cacher le reste à facturer » est cochée. */
+  function majReste() {
+    const ligne = racine.querySelector('[data-ligne="reste"]');
+    if (!ligne) return;
+    let aDesAcomptes = false;
+    try { aDesAcomptes = totauxDevis(travail).acompteTtc !== null; } catch { aDesAcomptes = false; }
+    ligne.hidden = !aDesAcomptes || affichage().cacherResteAFacturer === true;
+  }
+  /** Remet à jour les montants TTC de la liste quand les totaux bougent, sans redessiner le bloc (un formulaire ouvert garde sa saisie). */
+  function majMontantsAcomptes() {
+    if (!ref.blocPaiement) return;
+    let detail = [];
+    try { detail = detailAcomptes(travail); } catch { detail = []; }
+    detail.forEach((x, i) => {
+      const el = ref.blocPaiement.querySelector(`[data-acompte-ligne="${i}"] [data-valeur="acompte-montant"]`);
+      if (el) el.textContent = x.montantTtc === null ? '—' : euros(x.montantTtc);
+    });
+  }
+  function ouvrirMenuCondition(ancre) {
+    ouvrirFenetreMenu(ancre, (fermer) => contenuMenu([
+      { libelle: 'Acompte', cle: 'acompte', action: () => dessinerPaiement({ index: -1 }) },
+      { libelle: 'Retenue de garantie', cle: 'retenue-garantie', bientot: true },
+    ], fermer), { nom: 'Ajouter une condition' });
+  }
+  async function retirerAcompte(i) {
+    const avant = structuredClone(listeAcomptes(travail));
+    const a = avant[i];
+    await retirerAvecAnnulation({
+      titre: 'Retirer cet acompte ?', message: `L’acompte « ${texteAcompte(a)} » sera retiré du devis.`, libelleOk: 'Retirer', danger: true, messageFait: 'Acompte retiré',
+      faire: () => { changer({ acomptes: avant.filter((_, k) => k !== i), acompte: null }); dessinerPaiement(null); },
+      defaire: () => { changer({ acomptes: avant, acompte: null }); dessinerPaiement(null); },
+    });
+  }
+  /** Le bloc : titre + « Ajouter une condition », la liste (ou « Aucun acompte »), le reste à facturer. `edition` = { index } (−1 : nouvel acompte) pour montrer le formulaire en place. */
+  function dessinerPaiement(edition) {
+    const bloc = ref.blocPaiement;
+    if (!bloc) return;
+    const liste = listeAcomptes(travail);
+    let detail = [];
+    try { detail = detailAcomptes(travail); } catch { detail = liste.map((acompte) => ({ acompte, montantTtc: null })); }
+    const ajouter = h('button', { type: 'button', class: 'bouton-lien', dataset: { action: 'ajouter-condition' }, 'aria-haspopup': 'menu', 'aria-expanded': 'false', onclick: (ev) => ouvrirMenuCondition(ev.currentTarget) }, icone('plus', { taille: 14 }), 'Ajouter une condition');
+    const ligne = (x, i) => {
+      if (edition && edition.index === i) return h('li', { class: 'acompte-ligne acompte-ligne-edition', dataset: { acompteLigne: String(i) } }, formulaireAcompte(i));
+      return h('li', { class: 'acompte-ligne', dataset: { acompteLigne: String(i) } },
+        h('span', { class: 'acompte-texte', dataset: { valeur: 'acompte-texte' } }, texteAcompte(x.acompte)),
+        h('span', { class: 'acompte-montant', dataset: { valeur: 'acompte-montant' } }, x.montantTtc === null ? '—' : euros(x.montantTtc)),
+        h('button', { type: 'button', class: 'bouton-icone', dataset: { action: 'modifier-acompte' }, title: 'Modifier', 'aria-label': `Modifier l’acompte ${i + 1}`, onclick: () => dessinerPaiement({ index: i }) }, icone('pencil', { taille: 14 })),
+        h('button', { type: 'button', class: 'bouton-icone', dataset: { action: 'retirer-acompte' }, title: 'Retirer', 'aria-label': `Retirer l’acompte ${i + 1}`, onclick: () => retirerAcompte(i) }, icone('x', { taille: 14 })));
+    };
+    const lignes = detail.map(ligne);
+    if (edition && edition.index < 0) lignes.push(h('li', { class: 'acompte-ligne acompte-ligne-edition', dataset: { acompteLigne: 'nouveau' } }, formulaireAcompte(-1)));
+    remplir(bloc,
+      h('div', { class: 'titre-ligne' }, h('h3', { class: 'titre-bloc' }, 'Conditions de paiement'), ajouter),
+      lignes.length ? h('ul', { class: 'acomptes-liste', dataset: { zone: 'acomptes' } }, lignes) : h('p', { class: 'texte-discret', dataset: { vide: 'acomptes' } }, 'Aucun acompte'),
+      h('div', { class: 'acompte-reste', dataset: { ligne: 'reste' } }, h('span', { class: 'texte-discret' }, 'Reste à facturer'), h('span', { class: 'acompte-montant', dataset: { total: 'reste' } })));
+    majTotaux();
+    verrouiller(bloc);
+  }
+  /** Formulaire en place d'un acompte (même fonctionnement que les déchets) : rien n'entre dans le devis avant un Enregistrer valide. */
+  function formulaireAcompte(index) {
+    const liste = listeAcomptes(travail);
+    const a = index >= 0 ? liste[index] : null;
+    const depart = {
+      valeur: saisieNombre(a?.valeur), type: TYPES_ACOMPTE.some((x) => x.id === a?.type) ? a.type : 'pourcentage',
+      moment: MOMENTS_ACOMPTE.some((m) => m.id === a?.moment) ? a.moment : 'signature', texte: a?.moment === 'libre' ? String(a.texteMoment ?? '').trim() : '',
+    };
+    const pref = index >= 0 ? `acompte-${index}` : 'acompte-nouveau';
+    const valeur = h('input', { class: 'champ', id: `${pref}-valeur`, type: 'text', inputmode: 'decimal', autocomplete: 'off', value: depart.valeur, placeholder: 'Ex. 30', 'aria-describedby': `${pref}-erreur`, dataset: { champ: 'acompte-valeur' }, oninput: majEtat });
+    const type = h('select', { class: 'champ', id: `${pref}-type`, dataset: { champ: 'acompte-type' }, onchange: majEtat },
+      TYPES_ACOMPTE.map((x) => h('option', { value: x.id, selected: x.id === depart.type }, x.libelle)));
+    const moment = h('select', { class: 'champ', id: `${pref}-moment`, dataset: { champ: 'acompte-moment' }, onchange: majEtat },
+      MOMENTS_ACOMPTE.map((m) => h('option', { value: m.id, selected: m.id === depart.moment }, m.id === 'libre' ? 'Texte libre' : m.libelle)));
+    const texte = h('input', { class: 'champ', id: `${pref}-texte`, type: 'text', autocomplete: 'off', value: depart.texte, placeholder: 'Quand ?', maxlength: 120, 'aria-describedby': `${pref}-erreur`, dataset: { champ: 'acompte-texte' }, oninput: majEtat });
+    const blocTexte = h('div', { class: 'bloc-champ', hidden: depart.moment !== 'libre' }, h('label', { class: 'etiquette', for: `${pref}-texte` }, 'Moment (texte libre)'), texte);
+    const erreur = h('p', { class: 'erreur', role: 'alert', id: `${pref}-erreur`, dataset: { erreur: 'acompte' }, hidden: true });
+    const enregistrer = h('button', { type: 'button', class: 'bouton', disabled: true, dataset: { action: 'enregistrer-acompte' }, onclick: valider }, 'Enregistrer');
+    const saisies = () => ({ valeur: valeur.value.trim(), type: type.value, moment: moment.value, texte: moment.value === 'libre' ? texte.value.trim() : '' });
+    const modifie = () => JSON.stringify(saisies()) !== JSON.stringify({ ...depart, valeur: depart.valeur.trim() });
+    function majEtat() {
+      blocTexte.hidden = moment.value !== 'libre';
+      const m = modifie();
+      enregistrer.disabled = !m;
+      enregistrer.classList.toggle('bouton-principal', m);
+    }
+    function fermer() {
+      dessinerPaiement(null);
+      (index >= 0 ? ref.blocPaiement.querySelector(`[data-acompte-ligne="${index}"] [data-action="modifier-acompte"]`) : ref.blocPaiement.querySelector('[data-action="ajouter-condition"]'))?.focus();
+    }
+    function valider() {
+      if (lecture || !modifie()) return;
+      const s = saisies();
+      const acompte = { type: s.type, valeur: Ed.lireSaisie(s.valeur), moment: s.moment, ...(s.moment === 'libre' ? { texteMoment: s.texte } : {}) };
+      const place = index >= 0 ? index : liste.length;
+      const candidate = liste.map((x) => structuredClone(x));
+      candidate[place] = acompte;
+      // Les règles sont celles de la finalisation. Une erreur née de cette saisie (même sur un autre acompte, comme un total trop grand) s'affiche sous ce formulaire.
+      const t = totauxDevis(travail);
+      const avant = erreursAcomptes(liste, t);
+      const messages = erreursAcomptes(candidate, t).filter((e) => e.index === place || !avant.some((b) => b.index === e.index && b.message === e.message)).map((e) => e.message);
+      erreur.hidden = !messages.length;
+      erreur.textContent = messages.join(' ');
+      for (const el of [valeur, texte]) { el.classList.toggle('invalide', !!messages.length); el.setAttribute('aria-invalid', messages.length ? 'true' : 'false'); }
+      if (messages.length) return; // rien n'est enregistré
+      changer({ acomptes: candidate, acompte: null }); // null, jamais undefined : sinon l'ancien acompte resterait dans la base
+      fermer();
+    }
+    const etiquette = (pour, t) => h('label', { class: 'etiquette', for: pour }, t);
+    const telephone = window.innerWidth <= LARGEUR_TELEPHONE;
+    const formulaire = h('div', {
+      class: 'acompte-formulaire', role: 'group', 'aria-label': index >= 0 ? `Modifier l’acompte ${index + 1}` : 'Nouvel acompte', tabindex: telephone ? '-1' : null, dataset: { zone: 'acompte-formulaire' },
+      onkeydown: (e) => {
+        if (e.key === 'Escape') { e.stopPropagation(); fermer(); }
+        else if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); valider(); }
+      },
+    },
+    h('div', { class: 'acompte-valeurs' },
+      h('div', { class: 'bloc-champ' }, etiquette(`${pref}-valeur`, 'Valeur'), valeur),
+      h('div', { class: 'bloc-champ' }, etiquette(`${pref}-type`, 'Type'), type)),
+    h('div', { class: 'bloc-champ' }, etiquette(`${pref}-moment`, 'Moment'), moment),
+    blocTexte, erreur,
+    h('div', { class: 'acompte-actions' },
+      h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'annuler-acompte' }, onclick: fermer }, 'Annuler'), enregistrer));
+    queueMicrotask(() => (telephone ? formulaire : valeur).focus());
+    return formulaire;
+  }
+
   // ------------------------------------------------ totaux : [totaux, NET À PAYER, tableau de TVA]
   function blocTotaux() {
     const d = travail;
@@ -1585,24 +1718,6 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       valeurRemise.classList.toggle('invalide', txt !== '' && v === null);
       changer({ remise: txt === '' || v === null ? null : { type: typeRemise.value, valeur: v } });
     }
-    const typeAcompte = h('select', { class: 'champ', 'aria-label': 'Type d’acompte', dataset: { champ: 'acompte-type' }, onchange: () => majAcompte() },
-      h('option', { value: '' }, 'Aucun'), h('option', { value: 'pourcentage', selected: d.acompte?.type === 'pourcentage' }, 'Pourcentage'), h('option', { value: 'montant', selected: d.acompte?.type === 'montant' }, 'Montant'));
-    const valeurAcompte = h('input', { class: 'champ champ-court', type: 'text', inputmode: 'decimal', value: saisieNombre(d.acompte?.valeur), 'aria-label': 'Valeur de l’acompte', dataset: { champ: 'acompte-valeur' }, oninput: () => majAcompte() });
-    const momentAcompte = h('select', { class: 'champ', 'aria-label': 'Moment de l’acompte', dataset: { champ: 'acompte-moment' }, onchange: () => majAcompte() },
-      MOMENTS_ACOMPTE.map((m) => h('option', { value: m.id, selected: (d.acompte?.moment ?? 'signature') === m.id }, m.libelle)));
-    const texteMoment = h('input', { class: 'champ', type: 'text', value: d.acompte?.texteMoment ?? '', placeholder: 'Quand ?', 'aria-label': 'Moment libre de l’acompte', dataset: { champ: 'acompte-texte' }, oninput: () => majAcompte() });
-    ref.erreurAcompte = h('p', { class: 'erreur', role: 'alert', dataset: { erreur: 'acompte' }, hidden: true });
-    function majAcompte() {
-      const type = typeAcompte.value;
-      valeurAcompte.hidden = momentAcompte.hidden = !type;
-      texteMoment.hidden = !type || momentAcompte.value !== 'libre';
-      if (!type) { changer({ acompte: null }); return; }
-      const v = Ed.lireSaisie(valeurAcompte.value);
-      valeurAcompte.classList.toggle('invalide', valeurAcompte.value.trim() !== '' && v === null);
-      changer({ acompte: { type, valeur: v, moment: momentAcompte.value, ...(momentAcompte.value === 'libre' ? { texteMoment: texteMoment.value } : {}) } });
-    }
-    valeurAcompte.hidden = momentAcompte.hidden = !d.acompte;
-    texteMoment.hidden = !d.acompte || (d.acompte?.moment ?? 'signature') !== 'libre';
     const totaux = h('aside', { class: 'panneau-total', 'aria-label': 'Total du devis', dataset: { zone: 'total' } },
       h('dl', { class: 'liste-totaux' },
         h('div', { class: 'ligne-total ligne-ajustement', dataset: { ligne: 'ajustement' } }, h('dt', {}, 'Ajustement global'),
@@ -1611,12 +1726,10 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
         h('div', { class: 'ligne-total ligne-remise' }, h('dt', {}, 'Remise client'), h('dd', {}, h('div', { class: 'ligne-champs' }, valeurRemise, typeRemise), h('span', { dataset: { total: 'remise' } }))),
         ligneT('ht', 'Total net HT'),
         ligneT('tva', 'TVA'),
-        ligneT('ttc', 'Total TTC'),
-        h('div', { class: 'ligne-total ligne-acompte' }, h('dt', {}, 'Acompte demandé'), h('dd', {}, h('div', { class: 'ligne-champs' }, typeAcompte, valeurAcompte, momentAcompte, texteMoment), h('span', { dataset: { total: 'acompte' } }))),
-        Object.assign(ligneT('reste', 'Reste à facturer'), { hidden: affichage().cacherResteAFacturer === true })),
-      ref.erreurRemise, ref.erreurAcompte,
+        ligneT('ttc', 'Total TTC')),
+      ref.erreurRemise,
       (ref.avertissementsTotal = h('ul', { class: 'avertissements-devis', dataset: { zone: 'avertissements' } })),
-      h('p', { class: 'texte-discret' }, 'Primes, retenue de garantie et déchets viendront dans une prochaine version.'));
+      h('p', { class: 'texte-discret' }, 'Primes : bientôt.'));
     const net = h('div', { class: 'bandeau-net', dataset: { ligne: 'net' } }, h('span', { class: 'bandeau-net-titre' }, 'NET À PAYER'), h('span', { class: 'bandeau-net-montant', dataset: { total: 'net' } }));
     const taux = h('table', { class: 'tableau-tva' },
       h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Taux TVA'), h('th', { scope: 'col', class: 'd' }, 'Base HT'), h('th', { scope: 'col', class: 'd' }, 'Total'))), ref.tva);
@@ -1691,8 +1804,9 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     mettre('tva', euros(t.tva));
     mettre('ttc', euros(t.ttc));
     majTitreCompact();
-    mettre('acompte', t.acompteTtc === null ? '' : euros(t.acompteTtc));
-    mettre('reste', t.resteAFacturerTtc === null ? '—' : euros(t.resteAFacturerTtc));
+    mettre('reste', t.resteAFacturerTtc === null ? '' : euros(t.resteAFacturerTtc));
+    majReste();
+    majMontantsAcomptes();
     mettre('net', euros(t.netAPayer));
     remplir(ref.tva, t.tvaParTaux.map((x) => h('tr', { dataset: { ligne: `tva-${x.taux}` } }, h('td', {}, `${saisieNombre(x.taux)} %`), h('td', { class: 'd' }, euros(x.baseHT)), h('td', { class: 'd', dataset: { total: `tva-${x.taux}` } }, euros(x.montant)))));
     if (t.mentions.length && !t.tvaParTaux.length) remplir(ref.tva, h('tr', {}, h('td', { colspan: 3, class: 'texte-discret' }, t.mentions.join(' · '))));
@@ -1721,11 +1835,10 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       const el = racine.querySelector(`[data-sous-total="${CSS.escape(s.id)}"]`);
       if (el) el.textContent = euros(s.sousTotalHT);
     }
-    // Messages de saisie (remise, acompte) lus dans les règles de finalisation : jamais refaits ici.
+    // Message de saisie de la remise lu dans les règles de finalisation : jamais refait ici (celui des acomptes est sous le formulaire de l'acompte).
     const messages = erreursFinalisation(travail);
     const montrer = (el, motif) => { if (!el) return; const m = messages.filter((x) => motif.test(x)); el.hidden = !m.length; el.textContent = m.join(' '); };
     montrer(ref.erreurRemise, /remise/i);
-    montrer(ref.erreurAcompte, /acompte|moment/i);
     // Avertissements non bloquants.
     const avis = lecture ? [] : Ed.avertissements(travail);
     remplir(ref.avertissementsTotal, avis.map((a) => h('li', { dataset: { avertissement: a.code } }, icone('triangle-alert', { taille: 14 }), ' ', a.message)));

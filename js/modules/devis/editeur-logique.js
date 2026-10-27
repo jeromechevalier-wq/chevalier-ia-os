@@ -28,7 +28,7 @@ export const TYPE_LIGNE_LIBRE = 'libre';
 /** Champs du devis que l'éditeur enregistre (jamais numéro, statut, version, totaux… : ils sont protégés). */
 export const CHAMPS_ENREGISTRES = Object.freeze([
   'affaireId', 'organisationId', 'personneId', 'adresses', 'chantier', 'destinataires', 'copie', 'objet', 'sections', 'remise', 'marge', 'modeMarge',
-  'tauxTvaDefaut', 'acompte', 'texteLibre', 'notesBasDePage', 'expireLe', 'dateEmission', 'ajustement', 'affichage', 'autoliquidation', 'dechets',
+  'tauxTvaDefaut', 'acompte', 'acomptes', 'texteLibre', 'notesBasDePage', 'expireLe', 'dateEmission', 'ajustement', 'affichage', 'autoliquidation', 'dechets',
 ]);
 export const AVERTISSEMENTS = Object.freeze({
   aucuneLigne: 'Ce devis n’a encore aucune ligne.',

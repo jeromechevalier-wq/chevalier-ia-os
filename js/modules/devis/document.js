@@ -261,7 +261,8 @@ export function devisHtml(vue, options = {}) {
   const details = [];
   if (c.debutTravaux && !v.chantier?.debutTravaux) details.push(`Début des travaux${NBSP}: ${texte(c.debutTravaux)}`);
   if (c.dureeEstimee && !v.chantier?.dureeEstimee) details.push(`Durée estimée${NBSP}: ${texte(c.dureeEstimee)}`);
-  if (v.acompte) details.push(texte(v.acompte.libelle), ...(aff.cacherResteAFacturer ? [] : [texte(v.acompte.libelleReste)]));
+  // Une phrase par acompte (`v.acomptes`), puis le reste à facturer ; une vue sans liste (ancien format) garde la phrase de `v.acompte`.
+  if (v.acompte) details.push(...(v.acomptes?.length ? v.acomptes : [v.acompte]).map((x) => texte(x.libelle)), ...(aff.cacherResteAFacturer ? [] : [texte(v.acompte.libelleReste)]));
   if (v.retenueGarantie?.phrase) details.push(texte(v.retenueGarantie.phrase));
   if (details.length) paiement.push(`<p>${details.join('<br>')}</p>`);
   if (v.texteLibre) paiement.push(`<div class="texte-libre">${texte(v.texteLibre)}</div>`);

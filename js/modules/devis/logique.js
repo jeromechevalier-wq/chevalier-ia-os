@@ -57,6 +57,12 @@ export const MOMENTS_ACOMPTE = [
   { id: 'mi_travaux', libelle: 'à la moitié des travaux' },
   { id: 'libre', libelle: 'à un moment libre' },
 ];
+/** Types d'un acompte : pourcentage du total TTC, montant HT (converti en TTC) ou montant TTC. `devis.acomptes = [{ type, valeur, moment, texteMoment? }]`. */
+export const TYPES_ACOMPTE = [
+  { id: 'pourcentage', libelle: '%' },
+  { id: 'montantHt', libelle: '€ HT' },
+  { id: 'montantTtc', libelle: '€ TTC' },
+];
 /** Types de déchets du chantier et leurs libellés imprimés. */
 export const TYPES_DECHETS = [
   { id: 'inertes', libelle: 'Déchets inertes' },
@@ -246,12 +252,107 @@ const pourcent2 = (n) => `${(Math.round(n * 100) / 100).toFixed(2).replace('.', 
 /** Date AAAA-MM-JJ vers JJ/MM/AAAA. */
 const dateFrDe = (j) => `${j.slice(8, 10)}/${j.slice(5, 7)}/${j.slice(0, 4)}`;
 
-/** Acompte en centimes sur le Total TTC, ou null s'il est absent ou invalide (type, valeur). */
-function acompteEnCentimes(a, ttcC) {
-  if (!objet(a) || !estNombre(a.valeur) || ttcC <= 0) return null;
-  if (a.type === 'pourcentage') return a.valeur > 0 && a.valeur <= 100 ? arrondiDemi(ttcC * (Math.round(a.valeur * 100) / 100) / 100) : null;
-  if (a.type === 'montant') { const c = versCentimes(a.valeur); return c > 0 && c <= ttcC ? c : null; }
-  return null;
+/**
+ * Liste des acomptes d'un devis, sans migration : `devis.acomptes` s'il existe (tableau, même vide), sinon l'ancien acompte unique
+ * `devis.acompte` converti (`pourcentage` reste `pourcentage`, `montant` devient `montantTtc`) en liste d'un élément, sinon [].
+ */
+export function listeAcomptes(devis) {
+  if (Array.isArray(devis?.acomptes)) return devis.acomptes;
+  const a = devis?.acompte;
+  if (absent(a)) return [];
+  if (!objet(a)) return [a];
+  return [{ ...a, type: a.type === 'montant' ? 'montantTtc' : a.type }];
+}
+
+/**
+ * Un acompte en centimes, avant toute vérification de somme : `c` (arrondi au demi-centime) et `exact` (non arrondi), ou null si l'acompte est illisible.
+ * € HT : le montant est converti en TTC en appliquant le rapport Total TTC / Total HT net du devis (la TVA se répartit au prorata), arrondi au centime ;
+ * rapport = 1 si le devis est vide (net à 0) ou en franchise de TVA (TTC = HT).
+ */
+function acompteBrut(a, ttcC, netC) {
+  if (!objet(a) || !estNombre(a.valeur) || a.valeur <= 0 || ttcC <= 0) return null;
+  let exact;
+  if (a.type === 'pourcentage') { if (a.valeur > 100) return null; exact = ttcC * (Math.round(a.valeur * 100) / 100) / 100; }
+  else if (a.type === 'montantTtc') exact = versCentimes(a.valeur);
+  else if (a.type === 'montantHt') exact = versCentimes(a.valeur) * (netC > 0 ? ttcC / netC : 1);
+  else return null;
+  const c = a.type === 'montantTtc' ? exact : arrondiDemi(exact);
+  return c > 0 || a.type === 'pourcentage' ? { c, exact } : null;
+}
+/**
+ * Acomptes en centimes (null = illisible ou plus grand que le Total TTC), dans l'ordre de la liste.
+ * Arrondi : chaque pourcentage est arrondi au demi-centime ; quand le total exact des acomptes tombe sur un nombre entier de centimes
+ * (ex. 33,33 % + 33,33 % + 33,34 % = 100 %) ou que les arrondis feraient dépasser le TTC, le DERNIER acompte en % absorbe la différence
+ * (même idée que le « plus fort reste » de la remise) : la somme est alors exacte au centime et ne dépasse jamais le TTC.
+ */
+function acomptesCalcules(liste, ttcC, netC) {
+  const bruts = liste.map((a) => acompteBrut(a, ttcC, netC));
+  const c = bruts.map((b) => (b && b.c <= ttcC ? b.c : null));
+  const valides = c.map((x, i) => (x === null ? -1 : i)).filter((i) => i >= 0);
+  const somme = valides.reduce((s, i) => s + c[i], 0);
+  const exacte = valides.reduce((s, i) => s + bruts[i].exact, 0);
+  const entier = Math.round(exacte);
+  const cible = Math.abs(exacte - entier) < 1e-6 ? entier : (somme > ttcC && exacte <= ttcC + 1e-6 ? ttcC : somme);
+  const dernierPct = [...valides].reverse().find((i) => liste[i].type === 'pourcentage');
+  if (dernierPct !== undefined && cible !== somme && c[dernierPct] + cible - somme >= 0) c[dernierPct] += cible - somme;
+  return c;
+}
+/** Acomptes retenus dans les totaux : { acompte, c } dans l'ordre ; ceux qui feraient dépasser le Total TTC (ou illisibles) sont laissés de côté. */
+function acomptesRetenus(liste, ttcC, netC) {
+  const calc = acomptesCalcules(liste, ttcC, netC);
+  let cumul = 0;
+  const sortie = [];
+  liste.forEach((acompte, i) => {
+    if (calc[i] === null || cumul + calc[i] > ttcC) return;
+    cumul += calc[i];
+    sortie.push({ acompte, c: calc[i], index: i });
+  });
+  return sortie;
+}
+/**
+ * Un élément par acompte de la liste (même ordre) : { acompte, montantTtc } ; montantTtc est null quand l'acompte est illisible ou ne tient pas dans le Total TTC.
+ * Sert à l'écran (le montant TTC de chaque ligne) : les mêmes montants que les totaux et le PDF.
+ */
+export function detailAcomptes(devis) {
+  const t = totauxDevis(devis);
+  const retenus = acomptesRetenus(listeAcomptes(devis), versCentimes(t.ttc), versCentimes(t.ht));
+  return listeAcomptes(devis).map((acompte, i) => {
+    const r = retenus.find((x) => x.index === i);
+    return { acompte, montantTtc: r ? versEuros(r.c) : null };
+  });
+}
+/**
+ * Règles des acomptes, UNE seule fois pour le formulaire de l'éditeur et pour la finalisation : [{ index, message }] (un message au plus par acompte).
+ * `totaux` = { ttc, ht } (ceux de totauxDevis). Rien d'absent n'est une erreur.
+ */
+export function erreursAcomptes(acomptes, totaux) {
+  const liste = Array.isArray(acomptes) ? acomptes : [];
+  const ttcC = versCentimes(totaux?.ttc ?? 0);
+  const netC = versCentimes(totaux?.ht ?? 0);
+  const calc = acomptesCalcules(liste, ttcC, netC);
+  const e = [];
+  let cumul = 0;
+  let cumulPct = 0;
+  liste.forEach((a, index) => {
+    const dire = (message) => e.push({ index, message });
+    if (!objet(a) || !TYPES_ACOMPTE.some((x) => x.id === a.type)) return dire('Le type de l\'acompte doit être un pourcentage ou un montant (HT ou TTC).');
+    if (!estNombre(a.valeur)) return dire('La valeur de l\'acompte doit être un nombre.');
+    if (a.type === 'pourcentage' && (a.valeur <= 0 || a.valeur > 100)) return dire('L\'acompte en pourcentage doit être supérieur à 0 et au plus 100 %.');
+    if (a.type !== 'pourcentage' && versCentimes(a.valeur) <= 0) return dire('Le montant de l\'acompte doit être supérieur à zéro.');
+    if (!MOMENTS_ACOMPTE.some((m) => m.id === a.moment)) return dire('Choisis le moment de l\'acompte (signature, début des travaux, moitié des travaux ou texte libre).');
+    if (a.moment === 'libre' && !texteNonVide(a.texteMoment)) return dire('Écris le moment de l\'acompte (texte libre).');
+    const brut = acompteBrut(a, ttcC, netC);
+    if (a.type !== 'pourcentage' && (!brut || brut.c > ttcC)) return dire('Le montant de l\'acompte ne peut pas dépasser le total TTC du devis.');
+    if (a.type === 'pourcentage') {
+      cumulPct += Math.round(a.valeur * 100);
+      if (cumulPct > 10000) return dire('La somme des acomptes dépasse 100 %.');
+    }
+    if (calc[index] !== null) {
+      cumul += calc[index];
+      if (cumul > ttcC) return dire('La somme des acomptes dépasse le total TTC du devis.');
+    }
+  });
+  return e;
 }
 /** Texte du moment de l'acompte, ou null s'il est inconnu ou si le moment libre n'a pas de texte. */
 function momentAcompte(a) {
@@ -361,14 +462,16 @@ export function totauxDevis(devis) {
   if (autoliquidation) mentions.push(MENTION_AUTOLIQUIDATION);
   // Conditions de paiement : l'acompte et le reste se lisent sur le Total TTC ; primes et retenue se déduisent du Net à payer.
   const ttcC = netC + tvaC;
-  const acompteC = acompteEnCentimes(devis?.acompte, ttcC);
+  const retenus = acomptesRetenus(listeAcomptes(devis), ttcC, netC);
+  const acompteC = retenus.length ? retenus.reduce((x, r) => x + r.c, 0) : null;
   const primes = primesValides(devis);
   const primesC = primes.reduce((s, p) => s + versCentimes(p.montant), 0);
   const retenueC = retenueEnCentimes(devis?.retenueGarantie, ttcC);
   return {
     sections, lignes, totalBrutHt: versEuros(htC), remiseHt: versEuros(remiseC), totalHt: versEuros(netC),
     ht: versEuros(netC), tvaParTaux, tva: versEuros(tvaC), ttc: versEuros(ttcC), mentions,
-    acompteTtc: acompteC === null ? null : versEuros(acompteC),
+    acompteTtc: acompteC === null ? null : versEuros(acompteC), // somme de tous les acomptes
+    acomptesTtc: retenus.map((r) => versEuros(r.c)), // un montant TTC par acompte retenu, dans l'ordre
     resteAFacturerTtc: acompteC === null ? null : versEuros(ttcC - acompteC),
     primes, totalPrimes: versEuros(primesC), retenueGarantieMontant: versEuros(retenueC),
     netAPayer: versEuros(Math.max(0, ttcC - primesC - retenueC)),
@@ -445,18 +548,8 @@ export const emailValide = (s) => EMAIL.test(String(s ?? '').trim());
 function erreursConditions(devis, t) {
   const e = [];
   const ttcC = versCentimes(t.ttc);
-  const a = devis.acompte;
-  if (!absent(a)) {
-    if (!objet(a) || !['pourcentage', 'montant'].includes(a.type)) e.push('L\'acompte doit être un pourcentage ou un montant.');
-    else if (!estNombre(a.valeur)) e.push('La valeur de l\'acompte doit être un nombre.');
-    else if (a.type === 'pourcentage' && (a.valeur <= 0 || a.valeur > 100)) e.push('L\'acompte en pourcentage doit être supérieur à 0 et au plus 100 %.');
-    else if (a.type === 'montant' && a.valeur <= 0) e.push('Le montant de l\'acompte doit être supérieur à zéro.');
-    else if (a.type === 'montant' && versCentimes(a.valeur) > ttcC) e.push('Le montant de l\'acompte ne peut pas dépasser le total TTC du devis.');
-    if (objet(a)) {
-      if (!MOMENTS_ACOMPTE.some((m) => m.id === a.moment)) e.push('Choisis le moment de l\'acompte (signature, début des travaux, moitié des travaux ou texte libre).');
-      else if (a.moment === 'libre' && !texteNonVide(a.texteMoment)) e.push('Écris le moment de l\'acompte (texte libre).');
-    }
-  }
+  if (!absent(devis.acomptes) && !Array.isArray(devis.acomptes)) e.push('Les acomptes doivent former une liste.');
+  else for (const { index, message } of erreursAcomptes(listeAcomptes(devis), t)) e.push(`Acompte n° ${index + 1} : ${message}`);
   if (!absent(devis.primes)) {
     if (!Array.isArray(devis.primes)) e.push('Les primes doivent former une liste.');
     else {
@@ -739,22 +832,36 @@ function attestationNecessaire(devis) {
   return (devis.sections ?? []).some((s) => (s.lignes ?? []).some((l) => !estSaut(l) && [10, 5.5].includes(tauxDeLigne(devis, l))));
 }
 
-/** Phrase d'acompte prête à imprimer, ou null (acompte absent, invalide ou sans moment lisible). */
-function acomptePhrase(devis, t, franchise) {
-  const moment = momentAcompte(devis?.acompte);
-  if (t.acompteTtc === null || moment === null) return null;
-  const a = devis.acompte;
+/**
+ * Phrases d'acompte prêtes à imprimer, une par acompte retenu dont le moment est lisible : [{ libelle, montantTtc, type, valeur, moment }].
+ * Un seul ancien acompte s'imprime exactement comme avant. € HT : « Acompte de 500,00 € HT au début des travaux soit 600,00 € TTC » (en franchise, sans HT ni TTC).
+ */
+function acomptesPhrases(devis, t, franchise) {
   const ttc = franchise ? '' : ' TTC';
-  return a.type === 'pourcentage'
-    ? `Acompte de ${pourcent2(a.valeur)} ${moment} soit ${montantFr(t.acompteTtc)}${ttc}`
-    : `Acompte de ${montantFr(t.acompteTtc)} ${moment}`;
+  const out = [];
+  for (const { acompte: a, c } of acomptesRetenus(listeAcomptes(devis), versCentimes(t.ttc), versCentimes(t.ht))) {
+    const moment = momentAcompte(a);
+    if (moment === null) continue;
+    const montant = montantFr(versEuros(c));
+    let libelle;
+    if (a.type === 'pourcentage') libelle = `Acompte de ${pourcent2(a.valeur)} ${moment} soit ${montant}${ttc}`;
+    else if (a.type === 'montantHt' && !franchise) libelle = `Acompte de ${montantFr(a.valeur)} HT ${moment} soit ${montant} TTC`;
+    else libelle = `Acompte de ${montant} ${moment}`;
+    out.push({ libelle, montantTtc: versEuros(c), type: a.type, valeur: a.valeur, moment: moment });
+  }
+  return out;
 }
 
 /** Blocs facultatifs de la vue client : acompte, primes, retenue de garantie, déchets, textes. Aucune clé si rien n'est renseigné. */
 function conditionsDeVue(devis, t, franchise) {
   const v = {};
-  const phrase = acomptePhrase(devis, t, franchise);
-  if (phrase) v.acompte = { libelle: phrase, montantTtc: t.acompteTtc, resteAFacturerTtc: t.resteAFacturerTtc, libelleReste: `Reste à facturer : ${montantFr(t.resteAFacturerTtc)}${franchise ? '' : ' TTC'}` };
+  const phrases = acomptesPhrases(devis, t, franchise);
+  if (phrases.length) {
+    const libelleReste = `Reste à facturer : ${montantFr(t.resteAFacturerTtc)}${franchise ? '' : ' TTC'}`;
+    // `acompte` (singulier) = le premier acompte, gardé pour la compatibilité ; `acomptes` = la liste complète.
+    v.acompte = { libelle: phrases[0].libelle, montantTtc: phrases[0].montantTtc, resteAFacturerTtc: t.resteAFacturerTtc, libelleReste };
+    v.acomptes = phrases.map((p) => ({ libelle: p.libelle, montantTtc: p.montantTtc }));
+  }
   if (t.primes.length) v.primes = t.primes.map((p) => ({ libelle: p.libelle, montant: p.montant }));
   if (t.retenueGarantieMontant > 0) {
     const r = devis.retenueGarantie;
@@ -856,7 +963,7 @@ export function vueClient(devis, contexte = {}) {
     })),
     totaux: {
       totalBrutHt: t.totalBrutHt, ht: t.ht, tvaParTaux: t.tvaParTaux, tva: t.tva, ttc: t.ttc,
-      acompteTtc: t.acompteTtc, resteAFacturerTtc: t.resteAFacturerTtc, totalPrimes: t.totalPrimes,
+      acompteTtc: t.acompteTtc, acomptesTtc: t.acomptesTtc, resteAFacturerTtc: t.resteAFacturerTtc, totalPrimes: t.totalPrimes,
       retenueGarantieMontant: t.retenueGarantieMontant, netAPayer: t.netAPayer,
     },
     regimeTva: devis.regimeTva ?? 'assujetti',
@@ -867,7 +974,7 @@ export function vueClient(devis, contexte = {}) {
     conditions: {
       debutTravaux: devis.debutTravaux ?? null,
       dureeEstimee: devis.dureeEstimee ?? null,
-      acompte: acomptePhrase(devis, t, devis.regimeTva === 'franchise'),
+      acompte: acomptesPhrases(devis, t, devis.regimeTva === 'franchise').map((p) => p.libelle).join(' ; ') || null,
       paiement: devis.conditionsPaiement ?? null,
     },
     conditionsPaiement: devis.conditionsPaiement ?? null,
@@ -900,7 +1007,10 @@ function pied(t) {
   for (const p of t.primes ?? []) l.push(`Prime ${p.libelle} : -${euros(p.montant)}`);
   if (t.retenueGarantieMontant > 0) l.push(`Retenue de garantie : -${euros(t.retenueGarantieMontant)}`);
   if (t.netAPayer !== undefined && t.netAPayer !== t.ttc) l.push(`Net à payer : ${euros(t.netAPayer)}`);
-  if (t.acompteTtc != null) l.push(`Acompte : ${euros(t.acompteTtc)}`, `Reste à facturer : ${euros(t.resteAFacturerTtc)}`);
+  if (t.acompteTtc != null) {
+    for (const m of t.acomptesTtc ?? [t.acompteTtc]) l.push(`Acompte : ${euros(m)}`);
+    l.push(`Reste à facturer : ${euros(t.resteAFacturerTtc)}`);
+  }
   for (const m of t.mentions) l.push(m);
   return l;
 }

@@ -214,7 +214,7 @@ test('3 l’ajustement global : trois champs liés (%, €, coefficient), le Net
 
 test('4 le menu Options : trois groupes de cases (Édition, Document, Clients), les choix pas encore prêts sont grisés « bientôt disponible » ; les cases agissent sur l’écran et l’aperçu et sont enregistrées dans le devis', async ({ page }, info) => {
   await semer();
-  await ouvrir(page, await devis('d4', [{ id: 's1', titre: 'Cuisine', lignes: [ligne('l1', 'Carrelage', 2, 50, { code: 'CAR60' })] }], { affichage: { afficherMarges: false } }));
+  await ouvrir(page, await devis('d4', [{ id: 's1', titre: 'Cuisine', lignes: [ligne('l1', 'Carrelage', 2, 50, { code: 'CAR60' })] }], { affichage: { afficherMarges: false }, acomptes: [{ type: 'pourcentage', valeur: 30, moment: 'signature' }] }));
   // Un devis neuf (affichage sans marges) ne montre pas le calcul des marges.
   await expect(page.locator('[data-zone="marges"]')).toHaveCount(0);
   await expect(page.locator('[data-calcul-marge]')).toBeHidden();
@@ -250,7 +250,7 @@ test('4 le menu Options : trois groupes de cases (Édition, Document, Clients), 
   await expect(page.locator('th.col-uni')).toHaveCount(0);
   await menu.locator('[data-option="cacherTotauxSections"]').check();
   await expect(page.locator('[data-sous-total]')).toHaveCount(0);
-  // « Cacher le reste à facturer » retire la ligne des totaux (elle revient quand on décoche).
+  // « Cacher le reste à facturer » retire la ligne « Reste à facturer » du bloc Conditions de paiement (elle revient quand on décoche) ; elle n'existe qu'avec au moins un acompte (ce devis en a un).
   await expect(page.locator('[data-ligne="reste"]')).toBeVisible();
   await menu.locator('[data-option="cacherResteAFacturer"]').check();
   await expect(page.locator('[data-ligne="reste"]')).toBeHidden();
