@@ -301,7 +301,7 @@ Les deux contrôles du serveur (`CONTROLES_SERVEUR` = `fonctions`, `membres`, da
 - [ ] **Finaliser un devis** (sur une affaire de test : créer un devis, **Finaliser**). Attention : un devis finalisé a un vrai numéro et ne se supprime plus (il s'archive).
 - [ ] **PDF** : au bout de quelques secondes (jusqu'à une minute à froid), le PDF est prêt (onglet « Devis » de l'affaire). Console Firestore : `clients/<CLIENT>/devis_devis/<id>` > champ `pdf.statut` passe par « en cours » puis « ok ».
 - [ ] **Lien de lecture** : ouvre le PDF depuis l'écran du devis (lien valable 5 minutes). Un lecteur de l'espace doit pouvoir l'ouvrir ; un devis d'un autre client reste inaccessible (« Action non autorisée. »).
-- [ ] **Télécharger** : dans l'onglet « Devis » de l'affaire, « Télécharger » enregistre le PDF sur l'appareil (fonctions déployées après la PR « télécharger » du 27/10/2026).
+- [ ] **Télécharger** : sur l'écran du PDF (ouvert depuis le devis, « … » > « Télécharger le PDF »), « Télécharger » enregistre le PDF sur l'appareil (fonctions déployées après la PR « télécharger » du 27/10/2026).
 - [ ] **MCP** : ajoute `<SITE>/mcp/<CLIENT>` dans Claude comme connecteur personnalisé, connecte-toi, demande `qui_suis_je`, puis « liste mes devis ». Le module `mcp` doit être allumé pour ce client (`activer-module <CLIENT> mcp --ecrire`). Non essayé en réel avec le vrai claude.ai au 26/10/2026.
 - [ ] **Mon espace** : Réglages > Mon espace : change le nom, enregistre, le menu change (fonction `espaceReglages`).
 - [ ] **Automatisations** (si activées) : l'écran se remplit après la copie horaire ou **Rafraîchir**.
