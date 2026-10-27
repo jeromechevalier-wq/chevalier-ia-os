@@ -3,7 +3,7 @@
 ## Pourquoi
 Quand on ouvre le PDF d'un devis, l'application en copie un exemplaire dans le dossier « Devis » du dossier Drive de l'affaire. Pour cela, le navigateur doit **lire** le PDF dans Cloud Storage. Par défaut, le stockage refuse cette lecture quand elle vient d'un site web : il faut lui dire quels sites ont le droit (c'est ce qu'on appelle le réglage « CORS »).
 
-Il sert à deux choses : copier le PDF dans Drive, et le joindre au brouillon Gmail de l'e-mail du devis. Sans ce réglage, l'écran du PDF affiche : « Le PDF n'a pas pu être lu pour la copie dans Drive… ». Le PDF, lui, s'ouvre quand même normalement.
+Il sert à copier le PDF dans Drive (l'e-mail du devis, lui, passe par n8n : le navigateur ne lit plus le PDF pour le joindre). Sans ce réglage, l'écran du PDF affiche : « Le PDF n'a pas pu être lu pour la copie dans Drive… ». Le PDF, lui, s'ouvre quand même normalement.
 
 Ce réglage se fait **une fois par projet Google** : un pour Chevalier IA OS (`chevalier-ia-os`) et un pour la plateforme des clients (`chevalier-ia-app`, un seul projet pour **tous** les clients : il ne se refait pas à chaque nouveau client). Il ne contient aucun secret : il liste seulement des adresses de sites et la méthode de lecture (GET).
 

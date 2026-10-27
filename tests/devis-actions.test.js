@@ -21,9 +21,9 @@ describe('1 menu d’un brouillon', () => {
     for (const interdit of ['Voir la fiche', 'Modifier : version actuelle', 'Modifier : nouvelle variante']) assert.ok(!tout.includes(interdit), interdit);
     assert.ok(!libelles(l).includes('Voir'));
   });
-  test('1 le reste du menu : Passer à, Dupliquer, Envoyer par e-mail, Archiver (grisé avec sa phrase), Supprimer (danger)', () => {
+  test('1 le reste du menu : Passer à, Dupliquer, Préparer l’e-mail, Archiver (grisé avec sa phrase), Supprimer (danger)', () => {
     const l = Li.entreesActionsDevis(d('brouillon'));
-    assert.deepEqual(cles(l), ['statut:finaliser', 'editer', 'voir', 'dupliquer', 'envoyer_email', 'archiver', 'supprimer']);
+    assert.deepEqual(cles(l), ['statut:finaliser', 'editer', 'voir', 'dupliquer', 'preparer_email', 'archiver', 'supprimer']);
     assert.equal(entree(l, 'statut:finaliser').libelle, 'Passer à « Finalisé »');
     assert.equal(entree(l, 'archiver').actif, false);
     assert.ok(l.some((e) => e.texte === Li.MESSAGE_ARCHIVE_IMPOSSIBLE), 'la phrase d’explication suit « Archiver »');
@@ -58,17 +58,17 @@ describe('3 une seule source pour la liste, l’éditeur et la visualisation', (
   test('3 l’éditeur et la visualisation proposent les mêmes entrées que la liste, moins celles qui ont déjà leur bouton (Envoyer) ou qui sont l’écran courant', () => {
     for (const statut of ['brouillon', 'en_attente_envoi', 'envoye', 'accepte', 'refuse', 'remplace']) {
       const liste = Li.entreesActionsDevis(d(statut));
-      const editeur = Li.entreesActionsDevis(d(statut), { exclure: ['envoyer_email', 'editer'] });
-      const visualisation = Li.entreesActionsDevis(d(statut), { exclure: ['envoyer_email', 'voir'] });
-      assert.deepEqual(cles(editeur), cles(liste).filter((c) => !['envoyer_email', 'editer'].includes(c)), `${statut} éditeur`);
-      assert.deepEqual(cles(visualisation), cles(liste).filter((c) => !['envoyer_email', 'voir'].includes(c)), `${statut} visualisation`);
+      const editeur = Li.entreesActionsDevis(d(statut), { exclure: ['preparer_email', 'editer'] });
+      const visualisation = Li.entreesActionsDevis(d(statut), { exclure: ['preparer_email', 'voir'] });
+      assert.deepEqual(cles(editeur), cles(liste).filter((c) => !['preparer_email', 'editer'].includes(c)), `${statut} éditeur`);
+      assert.deepEqual(cles(visualisation), cles(liste).filter((c) => !['preparer_email', 'voir'].includes(c)), `${statut} visualisation`);
       // mêmes textes, même état grisé ou non
       for (const e of editeur.filter((x) => x.cle)) assert.deepEqual(e, entree(liste, e.cle), `${statut} ${e.cle}`);
     }
   });
   test('3 aucun séparateur en tête, en queue ou doublé', () => {
     for (const statut of ['brouillon', 'envoye', 'accepte']) {
-      const l = Li.entreesActionsDevis(d(statut), { exclure: ['envoyer_email', 'editer', 'voir', 'dupliquer'] });
+      const l = Li.entreesActionsDevis(d(statut), { exclure: ['preparer_email', 'editer', 'voir', 'dupliquer'] });
       assert.notEqual(l[0]?.separateur, true);
       assert.notEqual(l.at(-1)?.separateur, true);
       l.forEach((e, i) => { if (e.separateur) assert.notEqual(l[i - 1]?.separateur, true); });

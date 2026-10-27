@@ -100,18 +100,18 @@ test('2 finalisé : pas de bouton « Finaliser » ; « Envoyer » est jaune et o
   await expect(jaunes(page)).toHaveAttribute('data-action', 'envoyer');
   await expect(racine(page).locator('[data-action="passer-envoye"]')).toHaveClass(/bouton-secondaire/); // reste visible, en contour
   await jaunes(page).click();
-  await expect(page.locator('.menu-pop').getByRole('menuitem')).toHaveText([/Envoyer par e-mail/]);
+  await expect(page.locator('.menu-pop').getByRole('menuitem')).toHaveText([/Préparer l’e-mail/]);
   await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Télécharger le PDF' })).toHaveCount(0);
   await capturer(page, info, '2-finalise-envoyer-jaune');
   await page.keyboard.press('Escape');
   const menu = await menuPlus(page);
   await expect(menu.getByRole('menuitem', { name: 'Télécharger le PDF' })).toBeEnabled();
   await expect(menu.getByRole('menuitem', { name: 'Imprimer' })).toBeEnabled();
-  await expect(menu.getByRole('menuitem', { name: 'Envoyer à nouveau' })).toHaveCount(0); // 26/10/2026 : « Envoyer » (jaune) est visible, le « … » ne le répète pas
+  await expect(menu.getByRole('menuitem', { name: 'Préparer l’e-mail' })).toHaveCount(0); // 26/10/2026 : « Envoyer » (jaune) est visible, le « … » ne le répète pas
   await page.keyboard.press('Escape');
 });
 
-test('3 envoyé : « Devis signé » (jaune) et « Devis refusé » (visible) font ce que faisaient les entrées « Passer à Signé / Refusé » ; « Envoyer à nouveau » et « Imprimer » sont dans « … »', async ({ page }, info) => {
+test('3 envoyé : « Devis signé » (jaune) et « Devis refusé » (visible) font ce que faisaient les entrées « Passer à Signé / Refusé » ; « Préparer l’e-mail » et « Imprimer » sont dans « … »', async ({ page }, info) => {
   await donnees();
   const appels = [];
   await page.route('**/devisChangerStatut', async (route) => {
@@ -127,7 +127,8 @@ test('3 envoyé : « Devis signé » (jaune) et « Devis refusé » (visible) fo
   await expect(racine(page).locator('[data-action="envoyer"]')).toHaveCount(0);
   await capturer(page, info, '3-envoye-signe-refuse');
   const menu = await menuPlus(page);
-  await expect(menu.getByRole('menuitem', { name: 'Envoyer à nouveau' })).toBeEnabled();
+  await expect(menu.getByRole('menuitem', { name: 'Préparer l’e-mail' })).toBeDisabled(); // le faux serveur répond « pas branché » (outils.js) : grisée, avec la raison
+  await expect(menu.getByRole('menuitem', { name: 'Préparer l’e-mail' })).toHaveAttribute('title', /pas encore branchée/);
   await expect(menu.getByRole('menuitem', { name: 'Imprimer' })).toBeEnabled();
   await expect(menu.getByRole('menuitem', { name: /Passer à « (Signé|Refusé) »/ })).toHaveCount(0); // les deux boutons REMPLACENT ces entrées : pas de doublon
   await page.keyboard.press('Escape');
@@ -138,7 +139,7 @@ test('3 envoyé : « Devis signé » (jaune) et « Devis refusé » (visible) fo
   expect(appels).toEqual([{ devisId: 'dEnvoye', action: 'accepter' }, { devisId: 'dEnvoye', action: 'refuser' }]);
 });
 
-test('4 signé, refusé, remplacé, archivé : aucun bouton jaune ; « … » contient « Imprimer » et « Envoyer à nouveau » (grisé : l’e-mail n’est plus possible pour ces statuts)', async ({ page }, info) => {
+test('4 signé, refusé, remplacé, archivé : aucun bouton jaune ; « … » contient « Imprimer » et « Préparer l’e-mail » (grisé : l’e-mail n’est plus possible pour ces statuts)', async ({ page }, info) => {
   await donnees();
   for (const [i, id] of ['dSigne', 'dRefuse', 'dRemplace', 'dArchive'].entries()) {
     if (i === 0) await ouvrir(page, `devis/voir/${id}`);
@@ -150,7 +151,7 @@ test('4 signé, refusé, remplacé, archivé : aucun bouton jaune ; « … » co
     const menu = await menuPlus(page);
     await expect(menu.getByRole('menuitem', { name: 'Imprimer' }), id).toBeEnabled();
     await expect(menu.getByRole('menuitem', { name: 'Télécharger le PDF' }), id).toBeEnabled();
-    await expect(menu.getByRole('menuitem', { name: 'Envoyer à nouveau' }), id).toBeDisabled();
+    await expect(menu.getByRole('menuitem', { name: 'Préparer l’e-mail' }), id).toBeDisabled();
     if (id === 'dSigne') await capturer(page, info, '4-signe-aucun-jaune', true);
     await page.keyboard.press('Escape');
   }

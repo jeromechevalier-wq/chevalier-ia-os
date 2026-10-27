@@ -9,13 +9,13 @@ Mise à jour : 26/10/2026, nuit. Règle de Jérôme : **« testé par Jérôme �
 | 1 | Boutons de l'état Envoyé : libellés Devis signé / Devis refusé et infobulle sur Envoyer grisé | 310 | oui pour 1, 2, 4, 5 (26/10/2026) ; le point 3 (ordre Historique, Envoyer, Devis envoyé) est refait dans la PR « ordre des boutons » (en cours) |
 | 4 | Réglages « Mon entreprise » | 263 | à faire |
 | 5 | Une seule liste « Étape où vivent les devis » | 286 | oui (26/10/2026) |
-| 7 | Copie du PDF dans le dossier Drive de l'affaire (+ correctifs) | 283, 290 | à faire (réglage CORS d'abord) |
+| 7 | Copie du PDF dans le dossier Drive de l'affaire (+ correctifs) : réglage CORS posé le 27/10/2026 dans les deux projets (`chevalier-ia-os` et `chevalier-ia-app`). Test, à faire dans chaque projet (compter 1 à 2 minutes après le réglage) : ouvrir le PDF d'un devis finalisé dont l'affaire a un dossier Drive, cliquer « Copier dans Drive », voir le message vert « PDF copié dans le dossier Devis de l'affaire » | 283, 290 | à tester |
 | 8 | E-mails en copie (la suppression d'un brouillon ne retire plus son PDF : voir 16) | 291 | à faire |
-| 9 | Envoi du devis par e-mail (brouillon Gmail, « Marquer comme envoyé », historique des envois) | 292 | à faire (réglages Google d'abord) |
+| 9 | Envoi du devis par e-mail : l'ancien brouillon Gmail créé par le navigateur est **retiré** (PR « e-mail par n8n seulement », 27/10/2026) ; restent « Devis envoyé », l'historique des envois et les e-mails en copie | 292, puis PR e-mail par n8n | à faire (voir la ligne 14) |
 | 10 | Menu des cartes, historique, « … » à côté d'Envoyer, plus de fiche du devis | 294 | à faire |
 | 11 | Pastilles des réglages Devis (Général / Mon entreprise / Familles d'articles) | 295 | oui (26/10/2026) |
 | 12 | Outils MCP Devis (nouvelle version, archiver, statut, supprimer, envoi) | 296 | à faire |
-| 14 | « Préparer l'e-mail » (brouillon Gmail par n8n) | 299 | à faire après branchement (voir « À faire par Jérôme ») |
+| 14 | « Préparer l'e-mail » (n8n) : **seul chemin de l'e-mail du devis** depuis le 27/10/2026. Chez Jérôme : à brancher (étapes ci-dessous). **Absent chez les clients** (la porte des workflows n'existe pas pour la base 2) : l'entrée du menu reste grisée avec « pas encore branchée » | 299 + PR e-mail par n8n | à faire après branchement (voir « À faire par Jérôme ») |
 | 15 | Réglages > Déploiement (checklist avec contrôles) | 300 | à faire (page vue par Jérôme le 26/10 ; les cases ne sont pas encore testées : voir « Test de la page Déploiement » plus bas) |
 | 16 | Supprimer un brouillon de devis ne retire plus le document de l'affaire ni le fichier ; le document « Devis brouillon – Objet – JJ-MM-AAAA HHhMM.pdf » porte la date et l'heure (Paris) du dernier téléchargement | 311 | à faire |
 | 18 | Boutons du devis finalisé | 322 | à faire (fusionnée, en ligne : à vérifier à l'écran) |
@@ -34,10 +34,15 @@ Déjà validés par Jérôme : 280, 282, et le 26/10/2026 : 309 (retour visuel p
 - Cas vide : un espace sans module Devis n'affiche que les étapes communes. Cas d'erreur : serveur injoignable = lignes orange « Impossible de vérifier », jamais un écran blanc.
 
 ## À faire par Jérôme (une fois)
-- **Copie Drive (7)** : réglage CORS du stockage des PDF, une fois pour chacun des deux projets Google, mode d'emploi dans `docs/cors-stockage-pdf.md`.
-- **E-mail (9)** : « Gmail API » activée et portée `gmail.compose` dans l'écran de consentement. Jérôme a dit être « en production » (pas d'expiration de 7 jours).
-- **« Préparer l'e-mail » (14)**, workflow n8n `interne-devis-preparer-email` (créé, NON publié) : (1) dans n8n, créer un identifiant « Header Auth » (nom d'en-tête `X-Chevalier-Secret`, valeur = un mot de passe long) et le choisir dans le nœud « Demande reçue de la plateforme » (n8n y a mis par erreur un autre identifiant, le webhook refuse tout tant que ce n'est pas fait) ; (2) ajouter l'étiquette `interne` au workflow ; (3) créer dans Secret Manager du projet `chevalier-ia-os` les secrets `N8N_DEVIS_EMAIL_URL` (adresse de production du webhook) et `N8N_DEVIS_EMAIL_SECRET` (le même mot de passe) ; (4) donner « Accesseur de secrets » à `porte-serveur@chevalier-ia-os.iam.gserviceaccount.com` sur ces deux secrets ; (5) publier le workflow. Détail : `docs/ajouter-un-bouton-workflow.md`.
-- **Chez les clients** : le déploiement de `devisEnregistrerEnvoi`, `devisPreparerEmail`, `deploiementVerifier` et du MCP se fait avec le workflow manuel, avec Jérôme (la porte de la base 2 n'existe pas encore).
+- **Copie Drive (7)** : réglage CORS du stockage des PDF, **fait le 27/10/2026 dans les deux projets (`chevalier-ia-os` et `chevalier-ia-app`), à tester** (voir le test dans le tableau, ligne 7 ; mode d'emploi : `docs/cors-stockage-pdf.md`).
+- **« Préparer l'e-mail » (n8n, ligne 14)**, workflow `interne-devis-preparer-email` (créé, NON publié). Le brouillon Gmail créé par le navigateur est retiré : plus d'API Gmail ni de portée `gmail.compose` à demander à Google (rien à faire dans la console Google pour l'e-mail). Reste, dans cet ordre :
+  1. **Jérôme** crée dans n8n l'identifiant « Header Auth » nommé « Webhook devis e-mail » (nom d'en-tête `X-Chevalier-Secret`, valeur = un mot de passe long, gardé de côté, jamais écrit dans la conversation ni le dépôt).
+  2. **Claude** (via n8n, pas Jérôme) branche cet identifiant sur le webhook du workflow `interne-devis-preparer-email` (nœud « Demande reçue de la plateforme »), ajoute l'étiquette `interne` et publie.
+  3. **Jérôme** crée dans Secret Manager du projet `chevalier-ia-os` les secrets `N8N_DEVIS_EMAIL_URL` (adresse de production du webhook) et `N8N_DEVIS_EMAIL_SECRET` (le même mot de passe qu'en 1).
+  4. **Jérôme** donne « Accesseur de secrets » à `porte-serveur@chevalier-ia-os.iam.gserviceaccount.com` sur ces deux secrets.
+  5. **Question ouverte** : le brouillon part dans la boîte de l'identifiant n8n « Google OAuth - Charles » ; à confirmer par Jérôme que c'est bien la boîte voulue.
+  Détail : `docs/ajouter-un-bouton-workflow.md`.
+- **Chez les clients** : le déploiement de `devisEnregistrerEnvoi`, `devisPreparerEmail`, `deploiementVerifier` et du MCP se fait avec le workflow manuel, avec Jérôme (la porte de la base 2 n'existe pas encore). **« Préparer l'e-mail » est absent chez les clients** (27/10/2026) : les fonctions `devisPreparerEmail` et `devisPreparerEmailEtat` existent dans `functions-plateforme/`, mais il manque la porte HTTP des workflows pour la base 2 (clés de porte par client, réécriture Hosting, secrets `N8N_DEVIS_EMAIL_*_<id>` par client, compte de service) : chantier de sécurité à part, déploiement avec Jérôme. En attendant, un client n'a **aucun** chemin pour préparer l'e-mail (le bouton « Devis envoyé » reste disponible).
 - **Règles Firestore** du journal des demandes (`crm_actions_lancements`) : PR séparée « à fusionner par Jérôme » (liste d'arrêt).
 
 ## À tester par Jérôme

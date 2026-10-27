@@ -1,4 +1,4 @@
-// « Préparer l'e-mail » d'un devis : dans le menu « Envoyer », une entrée EN PLUS de « Envoyer par e-mail » (visible seulement si le serveur dit que c'est branché) ;
+// « Préparer l'e-mail » d'un devis : l'UNIQUE entrée e-mail du menu « Envoyer » (depuis le 27/10/2026 : plus de brouillon Gmail créé par le navigateur) ; grisée, avec la raison, si le serveur dit « pas branché » ;
 // un clic -> confirmation courte -> la fonction du serveur demande à un workflow n8n de créer un BROUILLON dans le Gmail du compte -> toast ; le résultat se lit dans l'Historique.
 // Le serveur est SIMULÉ (page.route sur devisPreparerEmail et devisPreparerEmailEtat) : on vérifie ce que l'appli demande et ce qu'elle affiche, pas n8n ni Gmail.
 // Un test par critère (le nom commence par le numéro du critère). Captures dans tests/e2e/captures/devis-email-preparer/ (ordinateur ET téléphone).
@@ -82,15 +82,17 @@ async function ouvrirHistorique(page) {
   await expect(historique(page)).toBeVisible();
 }
 
-test('1 pas branché : le menu « Envoyer » ne montre pas « Préparer l’e-mail » (ni quand la fonction n’existe pas encore) ; « Envoyer par e-mail » reste là', async ({ page }, info) => {
+test('1 pas branché : le menu « Envoyer » garde « Préparer l’e-mail », grisée et avec la raison « pas encore branchée » (aussi quand la fonction n’existe pas encore) ; aucune autre entrée e-mail', async ({ page }, info) => {
   test.info().annotations.push({ type: 'erreurs-reseau-attendues', description: 'la fonction peut répondre « introuvable » quand rien n’est déployé' });
   for (const branche of [false, 'absente']) {
     await semer('dPas');
     await simulerServeur(page, { branche });
     await ouvrirEditeur(page, 'dPas');
     await ouvrirMenuEnvoyer(page);
-    await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Envoyer par e-mail' })).toBeVisible();
-    await expect(entree(page)).toHaveCount(0);
+    await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Envoyer par e-mail' })).toHaveCount(0);
+    await expect(page.locator('.menu-pop [role="menuitem"]')).toHaveCount(1);
+    await expect.poll(async () => entree(page).isDisabled(), { message: 'grisée dès que le serveur a répondu « pas branché »' }).toBe(true);
+    await expect(entree(page)).toHaveAttribute('title', /pas encore branchée/);
     if (branche === false) await capturer(page, info, '1-pas-branche');
     await page.keyboard.press('Escape');
     await page.unroute('**/devisPreparerEmailEtat');
@@ -98,16 +100,14 @@ test('1 pas branché : le menu « Envoyer » ne montre pas « Préparer l’e-ma
   }
 });
 
-test('2 branché : « Préparer l’e-mail » apparaît juste après « Envoyer par e-mail » (menu « Envoyer » : l’e-mail seulement ; PDF et impression sont dans « … ») ; un clic ouvre la confirmation courte ; « Annuler » ne demande rien', async ({ page }, info) => {
+test('2 branché : « Préparer l’e-mail » est active et seule dans le menu « Envoyer » (PDF et impression sont dans « … ») ; un clic ouvre la confirmation courte ; « Annuler » ne demande rien', async ({ page }, info) => {
   await semer('dOui');
   const serveur = await simulerServeur(page, { branche: true });
   await ouvrirEditeur(page, 'dOui');
   await ouvrirMenuEnvoyer(page);
   const noms = await page.locator('.menu-pop [role="menuitem"]').allTextContents();
-  const i = noms.findIndex((n) => /Préparer l’e-mail/.test(n));
-  expect(i, 'l’entrée est présente').toBeGreaterThan(-1);
-  expect(noms[i - 1]).toMatch(/Envoyer par e-mail/);
-  expect(noms, 'le menu Envoyer ne propose que l’e-mail').toHaveLength(2);
+  expect(noms.map((n) => n.trim()), 'le menu Envoyer ne propose que « Préparer l’e-mail »').toEqual(['Préparer l’e-mail']);
+  await expect(entree(page)).toBeEnabled();
   if (estTelephone(page)) expect((await entree(page).boundingBox()).height).toBeGreaterThanOrEqual(44);
   await capturer(page, info, '2-menu');
   await entree(page).click();

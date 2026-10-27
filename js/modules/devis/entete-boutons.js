@@ -6,6 +6,7 @@
 //   Signé, refusé, remplacé, archivé : aucun bouton jaune
 // Aucune règle de statut nouvelle : les transitions restent celles de logique.js (TRANSITIONS) et du serveur.
 import { transitionPossible } from './logique.js';
+import { LIBELLE_PREPARER_EMAIL } from './email-preparer.js';
 
 export const MESSAGE_FINALISER_POUR_ENVOYER = 'Finalise le devis pour pouvoir l’envoyer';
 
@@ -24,13 +25,13 @@ export function boutonJaune({ statut, archive = false } = {}) {
 /**
  * Règle de Jérôme (26/10/2026) : le menu « … » ne répète jamais un bouton visible du haut de page.
  * Pour chaque bouton visible (`cle` rendue par boutonsEntete), les clés des entrées du menu « … » qui font la même chose :
- *  - clés `statut:<action>`, `envoyer_email` : celles de entreesActionsDevis (liste.js) ;
- *  - `envoyer-a-nouveau` et `preparer-email` : les entrées e-mail propres à l'éditeur et à la visualisation.
- * « Envoyer » GRISÉ (brouillon) n'ouvre aucun menu : il ne masque rien (ni « Envoyer par e-mail », qui dit de finaliser d'abord, ni « Préparer l'e-mail »). Seul un « Envoyer » actif, dont le menu les propose, les masque.
+ *  - clés `statut:<action>`, `preparer_email` : celles de entreesActionsDevis (liste.js) ;
+ *  - `preparer-email` : l'entrée e-mail propre à l'éditeur et à la visualisation.
+ * « Envoyer » GRISÉ (brouillon) n'ouvre aucun menu : il ne masque rien (ni « Préparer l'e-mail », qui dit de finaliser d'abord). Seul un « Envoyer » actif, dont le menu les propose, les masque.
  */
 const MENU_PAR_BOUTON = {
   finaliser: ['statut:finaliser'],
-  envoyer: ['envoyer_email', 'envoyer-a-nouveau'],
+  envoyer: ['preparer_email', 'preparer-email'],
   'passer-envoye': ['statut:marquer_envoye'],
   signer: ['statut:accepter'],
   refuser: ['statut:refuser'],
@@ -42,7 +43,6 @@ export function clesMenuDejaVisibles({ jaune = null, autre = null } = {}) {
     if (!b) continue;
     if (b.cle === 'envoyer' && b.grise === true) continue; // grisé : pas de menu, ce que « … » propose n'a pas d'autre accès
     cles.push(...(MENU_PAR_BOUTON[b.cle] ?? []));
-    if (b.cle === 'envoyer') cles.push('preparer-email'); // « Envoyer » actif : son menu propose déjà « Préparer l'e-mail »
   }
   return [...new Set(cles)];
 }
@@ -57,7 +57,7 @@ export function clesMenuDejaVisibles({ jaune = null, autre = null } = {}) {
  * Rend { jaune, autre, menu } :
  *  - jaune : { cle, libelle, icone } ou null ;
  *  - autre : un second bouton visible { cle, libelle, icone, grise?, style } ou null (style : 'contour') ;
- *  - menu : { telechargerPdf, imprimer, envoyerANouveau: { present, libelle, actif }, dejaVisibles } (ce qui va dans « … » ; `dejaVisibles` : clés à retirer, voir clesMenuDejaVisibles).
+ *  - menu : { telechargerPdf, imprimer, preparerEmail: { present, libelle, actif }, dejaVisibles } (ce qui va dans « … » ; `dejaVisibles` : clés à retirer, voir clesMenuDejaVisibles).
  */
 export function boutonsEntete({ statut, expire = false, archive = false, lecture = false, emailPossible = false } = {}) {
   void expire; void lecture; // même règle quel que soit l'écran et la date de validité : rien ne dépend d'eux aujourd'hui (gardés pour que la signature ne change pas)
@@ -76,8 +76,8 @@ export function boutonsEntete({ statut, expire = false, archive = false, lecture
       dejaVisibles,
       telechargerPdf: true,
       imprimer: true,
-      // L'e-mail est dans « … » seulement quand aucun bouton « Envoyer » n'est visible (envoyé, signé, refusé, remplacé, archivé : « Envoyer à nouveau ») ; sinon c'est le bouton qui le fait.
-      envoyerANouveau: { present: !dejaVisibles.includes('envoyer-a-nouveau'), libelle: statut === 'brouillon' ? 'Envoyer par e-mail' : 'Envoyer à nouveau', actif: emailPossible === true },
+      // « Préparer l'e-mail » est dans « … » seulement quand aucun bouton « Envoyer » n'est visible (brouillon, envoyé, signé, refusé, remplacé, archivé) ; sinon c'est le bouton qui le fait.
+      preparerEmail: { present: !dejaVisibles.includes('preparer-email'), libelle: LIBELLE_PREPARER_EMAIL, actif: emailPossible === true },
     },
   };
 }

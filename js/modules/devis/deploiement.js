@@ -16,20 +16,14 @@ export const ETAPES_DEPLOIEMENT_DEVIS = geler([
     reparation: 'Ouvre Réglages > Devis > Général et choisis « Étape où vivent les devis » (une étape qui existe encore dans tes affaires).', route: 'reglages/devis/reglages-devis' },
   { id: 'devis-catalogue', groupe: 'pendant', module: 'devis', type: 'auto', libelle: 'Catalogue d’articles rempli',
     reparation: 'Le catalogue est vide : importe ton catalogue, ou ajoute au moins un article.', route: 'devis/bordereau' },
-  { id: 'devis-gmail-test', groupe: 'pendant', module: 'devis', type: 'manuel', libelle: 'Personnes de l’espace ajoutées comme utilisateurs test de Gmail',
-    reparation: 'L’administrateur de la plateforme ajoute, dans la console Google (Audience > Utilisateurs test), l’adresse Google de chaque personne de l’espace.',
-    lien: 'https://console.cloud.google.com/auth/audience?project={projet}' },
   { id: 'devis-preparer-email', groupe: 'pendant', module: 'devis', type: 'manuel', libelle: 'Bouton « Préparer l’e-mail » branché',
-    reparation: 'L’administrateur de la plateforme vérifie que l’automatisation du bouton est branchée pour cet espace.', lien: `${DOCS}ajouter-un-bouton-workflow.md` },
+    reparation: 'Absent chez les clients pour l’instant : la porte des workflows n’existe pas encore pour les espaces clients. Le bouton « Préparer l’e-mail » reste grisé (« pas encore branché ») et l’e-mail du devis ne peut pas encore être préparé. L’administrateur de la plateforme le branche avec le déploiement manuel.', lien: `${DOCS}ajouter-un-bouton-workflow.md` },
   { id: 'devis-essai', groupe: 'pendant', module: 'devis', type: 'manuel', libelle: 'Essai de bout en bout d’un devis (PDF, Drive, e-mail, Envoyé)',
     reparation: 'Sur une affaire de test : crée un devis, finalise-le, copie-le dans Drive, prépare l’e-mail, passe-le à Envoyé, puis archive l’essai.', lien: `${DOCS}deploiement-client.md` },
   { id: 'devis-mcp', groupe: 'pendant', module: 'devis', type: 'manuel', libelle: 'Assistant : « liste mes devis » vérifié',
     reparation: 'Demande à ton assistant « liste mes devis », puis « lis le devis X » : il ne montre jamais les prix d’achat.', lien: `${DOCS}deploiement-client.md` },
   { id: 'devis-cors', groupe: 'google', module: 'devis', type: 'auto', libelle: 'Le site peut lire les PDF rangés (réglage CORS du stockage)',
     reparation: 'Le site n’a pas pu lire le stockage des PDF : soit le réglage CORS manque (l’administrateur de la plateforme le fait une fois pour le projet), soit ton navigateur ou un bloqueur de publicité empêche la lecture. Essaie « Revérifier », au besoin dans un autre navigateur.', lien: `${DOCS}cors-stockage-pdf.md` },
-  { id: 'devis-gmail-api', groupe: 'google', module: 'devis', type: 'manuel', libelle: 'API Gmail activée et portée « compose » ajoutée',
-    reparation: 'L’administrateur de la plateforme active l’API Gmail dans la console Google, puis ajoute la portée gmail.compose dans « Niveaux d’accès ».',
-    lien: 'https://console.cloud.google.com/apis/library/gmail.googleapis.com?project={projet}' },
 ]);
 
 const sur = (calcul) => { try { return calcul(); } catch { return 'inconnu'; } };

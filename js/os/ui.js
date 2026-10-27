@@ -337,7 +337,7 @@ export function ouvrirMenu(ancre, items, { placement = 'bas', id = null } = {}) 
     if (it.texte !== undefined) { menu.append(h('div', { class: 'menu-pop-texte', role: 'presentation' }, it.texte)); continue; }
     if (it.noeud) { it.noeud.setAttribute('role', 'menuitem'); menu.append(it.noeud); continue; }
     menu.append(h('button', {
-      type: 'button', role: 'menuitem', class: `menu-pop-entree${it.danger ? ' danger' : ''}`, disabled: !!it.desactive,
+      type: 'button', role: 'menuitem', class: `menu-pop-entree${it.danger ? ' danger' : ''}`, disabled: !!it.desactive, title: it.titreInfo ?? null, // titreInfo : la phrase qui dit pourquoi l'entrée est grisée
       onclick: () => { fermer(); it.action?.(); },
     }, it.icone ? icone(it.icone, { taille: 16 }) : null, it.libelle));
   }

@@ -28,9 +28,8 @@ import { editeurOuvrage } from './editeur-ouvrage.js';
 import * as O from './ouvrages.js';
 import { routePdf, messageApresEnregistrement } from './pdf.js';
 import { afficherAttentePdf, LIBELLE_PDF_FABRICATION } from './pdf-attente.js';
-import { lancerEnvoiEmail } from './email-ecran.js';
 import { lancerPreparationEmail } from './email-preparer-ecran.js';
-import { LIBELLE_PREPARER_EMAIL } from './email-preparer.js';
+import { LIBELLE_PREPARER_EMAIL, MESSAGE_NON_BRANCHE } from './email-preparer.js';
 import { emailPossible } from './email-brouillon.js';
 import { boutonsEntete, MESSAGE_FINALISER_POUR_ENVOYER } from './entete-boutons.js';
 import { ERREUR_ECRITURE, dupliquerDevis, supprimerBrouillon, entreesMenuDevis, changerStatut, creerNouvelleVersion } from './actions-devis.js';
@@ -509,20 +508,19 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     if (surTelephone) {
       entrees.push({ libelle: 'Options', icone: 'settings', action: () => ouvrirOptions(ancre) }, { libelle: 'Historique', icone: 'history', action: () => ouvrirHistorique(ancre) }, { separateur: true });
     }
-    // Ce qui ne dépend pas de l'étape : PDF, impression, e-mail (voir entete-boutons.js). Ce qu'un bouton actif du haut de page fait déjà n'est pas répété ; le reste (dont « Envoyer par e-mail » au brouillon, tant que « Envoyer » est grisé) est ici.
+    // Ce qui ne dépend pas de l'étape : PDF, impression, e-mail (voir entete-boutons.js). Ce qu'un bouton actif du haut de page fait déjà n'est pas répété ; le reste (dont « Préparer l'e-mail » au brouillon, tant que « Envoyer » est grisé) est ici.
     const { menu } = regleEntete();
     // Pendant la fabrication, le menu le dit et ignore un second clic (pas de double génération).
     entrees.push({ libelle: pdfEnCours ? LIBELLE_PDF_FABRICATION : 'Télécharger le PDF', icone: 'download', cle: 'telecharger', desactive: pdfEnCours, action: () => telechargerPdf(ancre) },
       { libelle: 'Imprimer', icone: 'file-text', cle: 'imprimer', desactive: pdfEnCours, action: () => imprimer(ancre) });
     // Le « … » ne répète jamais un bouton visible (entete-boutons.js, clesMenuDejaVisibles).
-    if (menu.envoyerANouveau.present) entrees.push({ libelle: menu.envoyerANouveau.libelle, icone: 'mail', cle: 'envoyer-a-nouveau', desactive: !menu.envoyerANouveau.actif, titreInfo: grisEmail().titreInfo, action: () => lancerEmail() });
     if (!menu.dejaVisibles.includes('preparer-email')) entrees.push(...entreePreparerEmail());
     entrees.push({ separateur: true });
     const apresSuppression = () => { verrou = true; clearTimeout(minuteur); if (travail) enregistre = structuredClone(travail); naviguer('devis/liste'); };
     entrees.push(...entreesMenuDevis(d, {
-      // « Envoyer par e-mail » est remplacé par le bouton ou par « Envoyer à nouveau » ; ce qu'un bouton visible fait déjà n'est pas répété.
+      // « Préparer l'e-mail » est ajouté plus haut (une seule entrée) ; ce qu'un bouton visible fait déjà n'est pas répété.
       // « Éditer le devis » et « Voir le devis » ne sont pas proposés ici : les onglets « Édition » et « Prévisualisation », toujours visibles, font la même chose (décision de Jérôme du 26/10/2026).
-      exclure: [...new Set(['envoyer_email', ...menu.dejaVisibles, 'editer', 'voir'])],
+      exclure: [...new Set(['preparer_email', ...menu.dejaVisibles, 'editer', 'voir'])],
       apresSuppression,
       surcharges: {
         supprimer: async (x) => { if (!lecture && !(await sauver())) { toast(`${messageEnreg || ERREUR_ECRITURE} Le brouillon n’a pas été supprimé.`, { type: 'erreur', duree: 8000 }); return; } supprimerBrouillon(x, apresSuppression); }, // attend l'écriture en cours avant de supprimer
@@ -654,18 +652,18 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     });
   }
 
-  // Les deux entrées « e-mail », UNE fois pour le menu du bouton « Envoyer » (devis finalisé) et pour le menu « … » (« Envoyer à nouveau »).
+  // L'entrée « Préparer l'e-mail », UNE fois pour le menu du bouton « Envoyer » (devis finalisé) et pour le menu « … » (les autres états). C'est le seul chemin de l'e-mail (27/10/2026) : un workflow n8n crée
+  // un brouillon dans le Gmail du compte, PDF joint ; rien n'est envoyé. Voir email-preparer-ecran.js. Pas branché sur cet espace (réponse du serveur) : l'entrée reste là, grisée, avec la raison.
   const finaliserDAbord = { libelle: 'Finaliser d’abord', action: () => finaliser() };
   const grisEmail = () => ({ desactive: !emailPossible((devisCourant() ?? travail)?.statut).actif, titreInfo: emailPossible((devisCourant() ?? travail)?.statut).raison ?? null });
-  // Crée un brouillon dans le Gmail de l'utilisateur (PDF en pièce jointe) ; l'utilisateur l'envoie lui-même. Voir email-ecran.js.
-  const lancerEmail = () => lancerEnvoiEmail({ devisId: id, getDevis: () => D.devisParId(id) ?? travail, finaliser: finaliserDAbord });
-  // Seulement si le serveur dit que c'est branché (D.emailPreparable). Un workflow n8n crée un brouillon dans le Gmail du compte, PDF joint ; rien n'est envoyé. Voir email-preparer-ecran.js.
-  const entreePreparerEmail = () => (D.emailPreparable() === true ? [{ libelle: LIBELLE_PREPARER_EMAIL, icone: 'mail-check', cle: 'preparer-email', ...grisEmail(),
-    action: () => lancerPreparationEmail({ devisId: id, getDevis: () => D.devisParId(id) ?? travail, finaliser: finaliserDAbord }) }] : []);
+  const entreePreparerEmail = () => {
+    const nonBranche = D.emailPreparable() === false;
+    return [{ libelle: LIBELLE_PREPARER_EMAIL, icone: 'mail-check', cle: 'preparer-email', ...(nonBranche ? { desactive: true, titreInfo: MESSAGE_NON_BRANCHE } : grisEmail()),
+      action: () => lancerPreparationEmail({ devisId: id, getDevis: () => D.devisParId(id) ?? travail, finaliser: finaliserDAbord }) }];
+  };
   /** Menu du bouton « Envoyer » (devis finalisé) : seulement l'e-mail. Le PDF et l'impression sont dans « … » (ils ne dépendent pas de l'envoi). */
   function ouvrirMenuEnvoyer(ancre) {
     ouvrirFenetreMenu(ancre, (fermer) => contenuMenu([
-      { libelle: 'Envoyer par e-mail', icone: 'mail', cle: 'envoyer-email', ...grisEmail(), action: () => lancerEmail() },
       ...entreePreparerEmail(),
     ], fermer), { nom: 'Envoyer' });
   }

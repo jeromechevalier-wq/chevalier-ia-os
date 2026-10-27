@@ -65,13 +65,20 @@ describe('P2 l’Historique : « E-mail préparé dans Gmail le … »', () => {
 
 describe('P3 le câblage : menu « Envoyer », confirmation, textes, serveur', () => {
   const ecran = lire('js/modules/devis/editeur-ecran.js');
-  test('P3 « Envoyer par e-mail » est gardé tel quel et « Préparer l’e-mail » vient EN PLUS, seulement quand le serveur dit « branché » (emailPreparable() === true)', () => {
-    assert.match(ecran, /libelle: 'Envoyer par e-mail', icone: 'mail', cle: 'envoyer-email'/);
-    assert.match(ecran, /D\.emailPreparable\(\) === true \? \[\{ libelle: LIBELLE_PREPARER_EMAIL, icone: 'mail-check', cle: 'preparer-email'/);
-    // L'ordre du menu « Envoyer » reste : e-mail, puis « Préparer l'e-mail » (26/10/2026 : « Télécharger le PDF » et « Imprimer » ont quitté ce menu, ils sont dans « … »).
-    assert.ok(ecran.indexOf("cle: 'envoyer-email'") < ecran.indexOf('...entreePreparerEmail(),\n    ], fermer)'));
-    assert.match(ecran, /\.\.\.entreePreparerEmail\(\),\n    \], fermer\), \{ nom: 'Envoyer' \}\)/);
+  test('P3 « Préparer l’e-mail » est LA SEULE entrée e-mail du menu « Envoyer » ; pas branché (serveur : false), elle reste là, grisée, avec la raison', () => {
+    assert.doesNotMatch(ecran, /Envoyer par e-mail|cle: 'envoyer-email'|lancerEnvoiEmail/);
+    assert.match(ecran, /const nonBranche = D\.emailPreparable\(\) === false;/);
+    assert.match(ecran, /libelle: LIBELLE_PREPARER_EMAIL, icone: 'mail-check', cle: 'preparer-email', \.\.\.\(nonBranche \? \{ desactive: true, titreInfo: MESSAGE_NON_BRANCHE \} : grisEmail\(\)\)/);
+    // Le menu « Envoyer » ne contient que cette entrée (26/10/2026 : « Télécharger le PDF » et « Imprimer » sont dans « … »).
+    assert.match(ecran, /contenuMenu\(\[\n      \.\.\.entreePreparerEmail\(\),\n    \], fermer\), \{ nom: 'Envoyer' \}\)/);
     assert.match(ecran, /lancerPreparationEmail\(\{ devisId: id,/);
+    assert.match(P.MESSAGE_NON_BRANCHE, /pas encore branchée/);
+  });
+  test('P3 la liste (menu « … » des cartes) a la même entrée, grisée avec la raison quand le serveur dit « pas branché »', () => {
+    const t = lire('js/modules/devis/actions-devis.js');
+    assert.match(t, /preparer_email: \(\) => lancerPreparationEmail\(/);
+    assert.match(t, /e\.cle === 'preparer_email' && e\.actif && D\.emailPreparable\(\) === false/);
+    assert.match(t, /\{ texte: MESSAGE_NON_BRANCHE \}/);
   });
   test('P3 les textes demandés sont exacts : confirmation et toast', () => {
     assert.equal(P.MESSAGE_CONFIRMATION, 'Le brouillon sera créé dans ton Gmail avec le PDF. Rien n’est envoyé.');

@@ -52,7 +52,7 @@ C'est le premier bouton qui lance un workflow. Il est déjà codé (chez Jérôm
 
 ## Ce que ça fait
 
-Dans le menu **« Envoyer »** d'un devis finalisé, une entrée **« Préparer l'e-mail »** (en plus de « Envoyer par e-mail », qui ne change pas). Un clic, une confirmation (« Le brouillon sera créé dans ton Gmail avec le PDF. Rien n'est envoyé. »), puis un workflow n8n crée un **brouillon** dans le Gmail du compte, PDF joint. **Ni l'appli ni n8n n'envoient jamais l'e-mail** : la personne relit le brouillon et l'envoie elle-même depuis Gmail, puis touche « Marquer comme envoyé » dans le devis. Le résultat se lit dans le panneau **Historique** du devis (« E-mail préparé dans Gmail le … ») et, côté n8n, dans **Automatisations > Historique** (copie des exécutions du workflow, déjà fournie).
+Dans le menu **« Envoyer »** d'un devis finalisé, l'entrée **« Préparer l'e-mail »** : **c'est le seul chemin de l'e-mail du devis** (décision de Jérôme, 27/10/2026 : l'ancien « Envoyer par e-mail », qui créait le brouillon Gmail depuis le navigateur avec la portée Google restreinte `gmail.compose`, est supprimé). Un clic, une confirmation (« Le brouillon sera créé dans ton Gmail avec le PDF. Rien n'est envoyé. »), puis un workflow n8n crée un **brouillon** dans le Gmail branché dans n8n, PDF joint. **Ni l'appli ni n8n n'envoient jamais l'e-mail** : la personne relit le brouillon et l'envoie elle-même depuis Gmail, puis touche « Devis envoyé » dans le devis (l'historique des envois garde alors les destinataires et les adresses en copie du devis). Le résultat se lit dans le panneau **Historique** du devis (« E-mail préparé dans Gmail le … ») et, côté n8n, dans **Automatisations > Historique** (copie des exécutions du workflow, déjà fournie).
 
 ## Le chemin d'une demande
 
@@ -74,7 +74,7 @@ Tant que les deux secrets n'existent pas, la fonction répond « La préparation
 
 ## Cas vide et cas d'erreur
 
-- **Pas branché** : l'entrée « Préparer l'e-mail » n'est pas dans le menu (choix assumé : un bouton qui ne serait jamais branché chez un client n'a pas à l'intriguer ni à le pousser à demander pourquoi il est grisé). « Envoyer par e-mail » marche comme avant.
+- **Pas branché** (réponse du serveur) : l'entrée « Préparer l'e-mail » **reste dans le menu, grisée**, avec la phrase « La préparation de l'e-mail n'est pas encore branchée sur cet espace : préviens l'administrateur de ton espace. » (depuis le 27/10/2026 c'est le seul chemin de l'e-mail : le menu ne doit pas se vider). **Chez les clients c'est le cas aujourd'hui** : voir « Chez un client » plus haut, la porte des workflows de la base 2 n'existe pas encore.
 - **Brouillon de devis** : « Finaliser d'abord ». **Sans destinataire** : « Ce devis n'a pas de destinataire : ajoute une adresse e-mail dans le devis, puis réessaie. » **PDF pas prêt** : le message habituel avec « Réessayer ».
 - **Deuxième clic trop vite** : « Une préparation est déjà en cours pour ce devis : patiente quelques instants (3 minutes au plus), puis réessaie. » ; après un brouillon réussi : « Un brouillon vient d'être créé pour ce devis : regarde dans ton Gmail. »
 - **n8n refuse le secret (401/403)** : « La préparation de l'e-mail n'est pas bien configurée. Préviens Jérôme. » (vérifier `N8N_DEVIS_EMAIL_SECRET` et l'authentification du nœud Webhook).

@@ -17,7 +17,7 @@
 <h1 id="reglage-cors-du-stockage-des-pdf-de-devis-a-faire-une-fois">Réglage « CORS » du stockage des PDF de devis (à faire une fois)</h1>
 <h2 id="pourquoi">Pourquoi</h2>
 <p>Quand on ouvre le PDF d'un devis, l'application en copie un exemplaire dans le dossier « Devis » du dossier Drive de l'affaire. Pour cela, le navigateur doit <strong>lire</strong> le PDF dans Cloud Storage. Par défaut, le stockage refuse cette lecture quand elle vient d'un site web : il faut lui dire quels sites ont le droit (c'est ce qu'on appelle le réglage « CORS »).</p>
-<p>Il sert à deux choses : copier le PDF dans Drive, et le joindre au brouillon Gmail de l'e-mail du devis. Sans ce réglage, l'écran du PDF affiche : « Le PDF n'a pas pu être lu pour la copie dans Drive… ». Le PDF, lui, s'ouvre quand même normalement.</p>
+<p>Il sert à copier le PDF dans Drive (l'e-mail du devis, lui, passe par n8n : le navigateur ne lit plus le PDF pour le joindre). Sans ce réglage, l'écran du PDF affiche : « Le PDF n'a pas pu être lu pour la copie dans Drive… ». Le PDF, lui, s'ouvre quand même normalement.</p>
 <p>Ce réglage se fait <strong>une fois par projet Google</strong> : un pour Chevalier IA OS (<code>chevalier-ia-os</code>) et un pour la plateforme des clients (<code>chevalier-ia-app</code>, un seul projet pour <strong>tous</strong> les clients : il ne se refait pas à chaque nouveau client). Il ne contient aucun secret : il liste seulement des adresses de sites et la méthode de lecture (GET).</p>
 <h2 id="le-fichier-d-exemple-cors-json">Le fichier d'exemple (<code>cors.json</code>)</h2>
 <p>Ne l'ajoute <strong>pas</strong> au dépôt : il se crée directement dans le terminal Google (voir plus bas). Adapte les adresses aux sites de l'application concernée.</p>

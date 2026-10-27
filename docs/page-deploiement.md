@@ -9,7 +9,7 @@ Elle reprend la checklist de `docs/deploiement-client.md`, étape par étape, et
 - **Vert** : vérifié automatiquement, ou coché « C'est fait » (avec la date).
 - **Rouge** « À réparer » : le contrôle a trouvé un manque. Une phrase simple dit comment réparer, avec le lien exact (le réglage de l'appli, le mode d'emploi dans `docs/`, ou la page de la console Google du projet).
 - **Orange** « Impossible de vérifier » : le contrôle n'a pas abouti (serveur injoignable, données pas encore lues). Clique sur « Revérifier ».
-- **Gris** « À vérifier à la main » : une étape humaine ou un réglage que l'appli ne peut pas lire (e-mail de bienvenue, utilisateurs test de Gmail, MCP…). On la fait, puis on coche « C'est fait ».
+- **Gris** « À vérifier à la main » : une étape humaine ou un réglage que l'appli ne peut pas lire (e-mail de bienvenue, MCP…). On la fait, puis on coche « C'est fait ».
 
 En tête : le résumé (par exemple « 7 sur 23 vertes ») et le bouton **Revérifier**. Les contrôles se lancent aussi à l'ouverture de la page. Si un jour quelque chose ne marche plus chez un client, ouvre cette page chez lui : toutes les cases doivent être vertes.
 

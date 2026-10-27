@@ -436,7 +436,7 @@ test('5 brouillon : le bouton jaune est « Finaliser » ; « Imprimer » (menu �
   await expect(page.locator('[data-action="finaliser"]')).toHaveCount(0);
   await expect(page.locator('[data-action="envoyer"]')).toHaveClass(/bouton-principal/);
   await page.locator('[data-action="envoyer"]').click();
-  await expect(page.locator('.menu-pop').getByRole('menuitem')).toHaveText([/Envoyer par e-mail/]);
+  await expect(page.locator('.menu-pop').getByRole('menuitem')).toHaveText([/Préparer l’e-mail/]);
   await page.keyboard.press('Escape');
 });
 
