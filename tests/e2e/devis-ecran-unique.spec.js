@@ -191,7 +191,6 @@ test('3 « Définir un ajustement » s’ouvre en lecture seule : les réglages 
   await expect(boite.locator('[data-champ="ajust-pourcentage"]')).toBeVisible();
   await expect(boite.locator('[data-champ="ajust-pourcentage"]')).toHaveAttribute('readonly', '');
   await expect(boite.locator('[data-action="retirer-ajustement"]')).toHaveAttribute('aria-disabled', 'true'); // le bouton qui modifierait est grisé
-  await boite.getByRole('menuitem', { name: 'Remise' }).click();
   await expect(boite.locator('[data-champ="remise-valeur-menu"]')).toHaveValue('5'); // les réglages de la remise sont visibles
   await capturer(page, info, '3-ajustement-ouvert-lecture-seule');
   await boite.locator('[data-champ="ajust-pourcentage"]').click();

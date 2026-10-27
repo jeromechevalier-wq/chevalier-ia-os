@@ -12,9 +12,9 @@ export const donnees = (o) => Object.fromEntries(Object.entries(o).filter(([, v]
  * Ouvre une fenêtre flottante sous `ancre`. `construire(fermer)` rend le contenu (un nœud). Se ferme au clic extérieur, à Échap, ou par `fermer()` ;
  * le focus revient alors à `ancre`. Un seul menu à la fois. Rend la fonction de fermeture.
  */
-export function ouvrirFenetreMenu(ancre, construire, { classe = '', nom = 'Menu' } = {}) {
+export function ouvrirFenetreMenu(ancre, construire, { classe = '', nom = 'Menu', role = 'menu' } = {}) {
   document.querySelector('.menu-pop')?.remove();
-  const menu = h('div', { class: `menu-pop menu-devis ${classe}`.trim(), role: 'menu', 'aria-label': nom });
+  const menu = h('div', { class: `menu-pop menu-devis ${classe}`.trim(), role, 'aria-label': nom });
   let ferme = false;
   const fermer = () => {
     if (ferme) return;

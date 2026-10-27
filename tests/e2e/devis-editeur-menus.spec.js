@@ -175,13 +175,9 @@ test('3 l’ajustement global : trois champs liés (%, €, coefficient), le Net
   await expect(page.locator('th.col-pri')).toHaveText('Prix U. HT');
   await page.locator('[data-action="definir-ajustement"]').click();
   const menu = page.locator('.menu-devis-ajustement');
-  await expect(menu.getByRole('menuitem', { name: 'Ajustement global' })).toBeVisible();
-  await expect(menu.locator('.menu-devis-titre')).toHaveText('Poste HT');
-  await expect(menu.getByRole('menuitem', { name: 'Remise' })).toBeEnabled();
-  for (const nom of ['Compte prorata', 'Poste libre HT']) {
-    await expect(menu.getByRole('menuitem', { name: nom })).toBeDisabled();
-    await expect(menu.getByRole('menuitem', { name: nom })).toContainText('bientôt disponible');
-  }
+  await expect(menu.getByRole('heading', { name: 'Ajustement global' })).toBeVisible(); // trois blocs titrés, tout visible sans clic
+  await expect(menu.getByRole('heading', { name: 'Marge du devis' })).toBeVisible();
+  await expect(menu.getByRole('heading', { name: 'Remise client' })).toBeVisible();
   // Coefficient 1,10 : 10 × 66 + 5 × 39,60 + 110 = 968 € HT ; les deux autres champs suivent (10 % et 88 €).
   await menu.locator('[data-champ="ajust-coefficient"]').fill('1,10');
   await expect(menu.locator('[data-champ="ajust-pourcentage"]')).toHaveValue('10,00');
@@ -541,4 +537,47 @@ test('7 la prévisualisation se met à jour toute seule quand on ajoute un artic
   await panneau.locator('[data-action="ajouter-bibliotheque"]').click();
   await expect(page.locator('iframe[data-zone="apercu"]').contentFrame().locator('body')).toContainText('Pose du carrelage');
   await capturer(page, info, '7-apercu-mis-a-jour');
+});
+
+test('8 « Définir un ajustement » : trois blocs titrés visibles sans clic (Ajustement global, Marge du devis, Remise client), les champs agissent sur les totaux, plus de « Compte prorata » ni de « Poste libre HT »', async ({ page }, info) => {
+  await semer();
+  await ouvrir(page, await devis('d8', [{ id: 's1', titre: 'Travaux', lignes: [ligne('l1', 'Carrelage', 10, 60), ligne('l2', 'Pose', 5, 36), ligne('l3', 'Forfait', 1, 100)] }]));
+  await page.locator('[data-action="definir-ajustement"]').click();
+  const fenetre = page.locator('.menu-devis-ajustement');
+  // (a) les trois blocs sont là dès l'ouverture, dans l'ordre, sans interrupteur ni zone cachée.
+  await expect(fenetre.getByRole('heading')).toHaveText(['Ajustement global', 'Marge du devis', 'Remise client']);
+  for (const zone of ['ajustement-global', 'marge-devis', 'remise-devis']) await expect(fenetre.locator(`[data-zone="${zone}"]`)).toBeVisible();
+  await expect(fenetre.getByRole('menuitem')).toHaveCount(0);
+  await expect(fenetre.locator('[data-champ="ajust-pourcentage"]')).toBeFocused(); // le focus entre dans la fenêtre
+  // Cas vide : « Retirer l'ajustement » ne change rien.
+  await expect(fenetre.locator('[data-champ="remise-valeur-menu"]')).toHaveValue('');
+  await fenetre.locator('[data-action="retirer-ajustement"]').click();
+  await expect(total(page, 'net')).toHaveText(/^1\s?056,00\s€$/);
+  await capturer(page, info, '8-ajustement-trois-blocs');
+  // (b) marge, remise et ajustement changent les totaux.
+  await fenetre.locator('[data-champ="marge-menu"]').fill('25');
+  await expect.poll(async () => (await listerDocuments('devis_devis')).find((d) => d.racineId === 'd8')?.marge).toBe(25); // la marge du devis est enregistrée
+  await fenetre.locator('[data-champ="remise-valeur-menu"]').fill('10');
+  await expect(page.locator('[data-champ="remise-valeur"]')).toHaveValue('10'); // les totaux reprennent la remise
+  await expect(total(page, 'remise')).toHaveText(/^−\s/);
+  const sansAjustement = await total(page, 'net').textContent();
+  await fenetre.locator('[data-champ="ajust-pourcentage"]').fill('10');
+  await expect(fenetre.locator('[data-champ="ajust-coefficient"]')).toHaveValue('1,1000');
+  await expect(total(page, 'net')).not.toHaveText(sansAjustement);
+  // (c) ces deux choix ne sont plus proposés du tout.
+  await expect(fenetre).not.toContainText('Compte prorata');
+  await expect(fenetre).not.toContainText('Poste libre');
+  await expect(fenetre).not.toContainText('Poste HT');
+  await page.keyboard.press('Escape');
+  await expect(fenetre).toHaveCount(0);
+});
+
+test('8 (d) « Définir un ajustement » sur un devis finalisé : les trois blocs restent visibles mais en lecture seule', async ({ page }) => {
+  await semer();
+  await ouvrir(page, await devis('d8f', [{ id: 's1', titre: 'Travaux', lignes: [ligne('l1', 'Carrelage', 10, 60)] }], { statut: 'envoye', numero: 'DEV-2026-0008', marge: 5, remise: { type: 'pourcentage', valeur: 5 } }));
+  const fenetre = page.locator('.menu-devis-ajustement');
+  await page.locator('[data-action="definir-ajustement"]').click();
+  for (const c of ['ajust-pourcentage', 'ajust-montant', 'ajust-coefficient', 'marge-menu', 'remise-valeur-menu']) await expect(fenetre.locator(`[data-champ="${c}"]`)).toHaveAttribute('readonly', '');
+  await expect(fenetre.locator('[data-champ="remise-type-menu"]')).toHaveAttribute('aria-disabled', 'true');
+  await expect(fenetre.locator('[data-action="retirer-ajustement"]')).toHaveAttribute('aria-disabled', 'true');
 });
