@@ -18,7 +18,7 @@ async function attendrePret(getDevis) {
   for (let i = 0; i < 10 && etatPdfDevis(getDevis() ?? {}) !== 'pret'; i += 1) await new Promise((r) => setTimeout(r, 300));
 }
 
-/** PDF en cours / à refaire : message clair et « Réessayer » (relance la fabrication si elle a échoué, puis ré-essaie avec `relancer` : l'envoi par e-mail, ou « Préparer l'e-mail »). */
+/** PDF en cours / à refaire : message clair et « Réessayer » (relance la fabrication si elle a échoué, puis ré-essaie avec `relancer` : « Préparer l'e-mail »). */
 export async function pdfPasPret(devisId, getDevis, finaliser, etat, d, relancer) {
   const echec = d.pdf?.statut === 'echec';
   const message = etat === 'en_cours' ? E.MESSAGE_PDF_EN_COURS : echec ? `${E.MESSAGE_PDF_ECHEC}${d.pdf?.message ? ` (${d.pdf.message})` : ''}` : E.MESSAGE_PDF_PAS_PRET;

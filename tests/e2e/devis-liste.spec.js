@@ -185,8 +185,8 @@ test('E3 le menu « … » : changements de statut par le serveur, entrées « b
   await expect(menu.getByRole('menuitem', { name: /Passer à « Refusé »/ })).toBeEnabled();
   await expect(menu.getByRole('menuitem', { name: /Passer à « Envoyé »/ })).toHaveCount(0);
   await expect(menu.getByRole('menuitem', { name: /Facturer/ })).toHaveCount(0);
-  await expect(menu.getByRole('menuitem', { name: /Préparer l’e-mail/ })).toBeEnabled();
-  await expect(menu.getByRole('menuitem', { name: /Préparer l’e-mail/ })).not.toContainText('bientôt disponible');
+  await expect(menu.getByRole('menuitem', { name: /Préparer l’e-mail/ })).toBeDisabled(); // faux serveur « pas branché » : entrée grisée dès la première ouverture, avec sa phrase
+  await expect(menu).toContainText('pas encore branchée');
   for (const nom of [/Dupliquer/, /Créer une nouvelle version/, /Voir le devis/]) await expect(menu.getByRole('menuitem', { name: nom })).toBeEnabled();
   await expect(menu.getByRole('menuitem', { name: /Éditer le devis/ })).toBeEnabled(); // un devis finalisé s'ouvre sur l'Édition, en lecture seule
   await expect(menu.getByRole('menuitem', { name: /Supprimer/ })).toHaveCount(0); // seulement un brouillon

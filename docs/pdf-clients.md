@@ -38,7 +38,7 @@ Sur <https://console.cloud.google.com/iam-admin/iam?project=chevalier-ia-app>, b
 Le compte de déploiement `deploiement-github` agit au nom de ce compte grâce au rôle « Utilisateur du compte de service » déjà accordé au niveau du projet (même principe que `mcp-clients`, `docs/mcp-clients.md`).
 
 ## Étape 3 : le CORS du stockage
-Rien de nouveau : le réglage se fait une fois pour le stockage de la plateforme. Il est décrit dans `docs/deploiement-client.md` (tableau « Réglages Google du projet de la plateforme », ligne « CORS du stockage des PDF ») et `docs/cors-stockage-pdf.md`. Sans lui, le PDF s'ouvre mais la copie dans Drive et la pièce jointe Gmail échouent.
+Rien de nouveau : le réglage se fait une fois pour le stockage de la plateforme. Il est décrit dans `docs/deploiement-client.md` (tableau « Réglages Google du projet de la plateforme », ligne « CORS du stockage des PDF ») et `docs/cors-stockage-pdf.md`. Sans lui, le PDF s'ouvre mais la copie dans Drive échoue.
 
 **Règle (décision de Jérôme, 26/10/2026)** : le PDF est ajouté aux Documents de l'affaire (et la ligne « Document joint : … » à l'historique) seulement si l'affaire a un dossier de travail (lien `urlDossier` non vide : Drive, serveur ou NAS). Sans dossier, le PDF est quand même fabriqué et rangé, mais l'affaire n'a aucun document ajouté, PDF brouillon compris. Les liens PDF déjà présents ne sont jamais retirés.
 
