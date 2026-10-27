@@ -1,4 +1,4 @@
-// Module Devis, PDF : retour visuel pendant que le serveur fabrique le PDF (« Télécharger le PDF », « Imprimer », écran du PDF).
+// Module Devis, PDF : retour visuel pendant que le serveur fabrique le PDF (« Télécharger le PDF », « Ouvrir le PDF », « Imprimer » du menu « … » : plus de page « PDF »).
 // Un test par point (le nom commence par le numéro). Captures dans tests/e2e/captures/devis-pdf-progression/ (ordinateur ET téléphone).
 // Le serveur du PDF est SIMULÉ (page.route) et rendu lent à volonté ; il lit aussi le devis enregistré comme le vrai.
 import { fileURLToPath } from 'node:url';
@@ -21,6 +21,11 @@ async function devis(id, valeurs = {}) {
     creePar: JEROME, modifiePar: JEROME, proprietaire: JEROME, creeLe: maintenant, modifieLe: maintenant, ...valeurs,
   });
 }
+/** Écrit le champ `pdf` d'un devis comme le serveur, sans toucher au reste du devis (l'éditeur est ouvert dessus). */
+async function ecrirePdf(id, pdf) {
+  const actuel = await lireDocument(`devis_devis/${id}`);
+  await ecrireDocument(`devis_devis/${id}`, { ...actuel, pdf });
+}
 const FINALISE = { numero: 'DEV-2026-10-02-001', statut: 'en_attente_envoi', finaliseLe: new Date() };
 async function donnees() {
   await creerOrganisation('o1', { nom: 'M. Paul Exemple' });
@@ -37,7 +42,7 @@ async function donnees() {
  * Par défaut : devisPdfLien rend un lien signé ; devisPdf passe le PDF à « ok » (comme le serveur) ou, en brouillon, rend { statut: 'ok' }.
  */
 async function simulerServeur(page, appels, reponses = {}) {
-  await page.context().route('https://stockage.exemple.test/**', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<p>PDF d’essai</p>' }));
+  await page.context().route('https://stockage.exemple.test/**', (route) => route.fulfill({ status: 200, headers: { 'content-type': 'application/pdf', 'content-disposition': 'attachment; filename="Devis.pdf"' }, body: '%PDF-1.4' })); // comme le lien signé « en pièce jointe » : le fichier s'enregistre, la page ne change pas
   const repondre = async (route, nom, calcul) => {
     if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
     const donneesAppel = JSON.parse(route.request().postData()).data;
@@ -53,19 +58,11 @@ async function simulerServeur(page, appels, reponses = {}) {
   await page.route('**/devisPdf', (route) => repondre(route, 'devisPdf', async (d) => {
     if (reponses.delaiPdf) await new Promise((r) => setTimeout(r, reponses.delaiPdf));
     if (reponses.pdf) return reponses.pdf(d);
-    if (!d.brouillon) await ecrireDocument(`devis_devis/${d.devisId}`, { pdf: { statut: 'ok', chemin: 'devis/a1/d.pdf', nom: 'Devis.pdf', tentatives: 1 } });
+    if (!d.brouillon) await ecrirePdf(d.devisId, { statut: 'ok', chemin: 'devis/a1/d.pdf', nom: 'Devis.pdf', tentatives: 1 });
     return { statut: 200, corps: { result: { statut: 'ok', lien: `https://chevalier-ia-os.web.app/#/devis/pdf/${d.devisId}${d.brouillon ? '/brouillon' : ''}`, nom: d.brouillon ? 'Brouillon' : 'Devis' } } };
   }));
 }
 const erreurServeur = (statut, code, message) => ({ statut, corps: { error: { status: code, message } } });
-
-async function ouvrirRoute(page, route) {
-  await connecter(page, undefined, { route });
-  await expect(page.locator('.page-pdf-devis, .page-liste-devis, .page-editeur-devis').first()).toBeVisible();
-  await attendreCalme(page);
-}
-const zone = (page) => page.locator('[data-zone="pdf-devis"]');
-
 
 async function ouvrirEditeur(page, id) {
   await connecter(page, undefined, { route: `devis/editeur/${id}` });
@@ -89,8 +86,9 @@ test('1 « Télécharger le PDF » : pendant l’attente, une pastille « Fabric
   await expect(pastille(page).locator('.rond-chargement')).toBeVisible();
   await expect(page.locator('[data-action="plus-actions"]')).toHaveAttribute('aria-busy', 'true');
   await capturer(page, info, '1-attente-editeur');
-  await expect(page).toHaveURL(/#\/devis\/pdf\/dBrouillon\/brouillon$/, { timeout: 15000 });
-  await expect(pastille(page)).toHaveCount(0);
+  await expect(pastille(page)).toHaveCount(0, { timeout: 15000 });
+  await expect(page).toHaveURL(/#\/devis\/editeur\/dBrouillon$/); // on n'a pas quitté le devis
+  expect(appels.map(([nom]) => nom)).toEqual(['devisPdf', 'devisPdfLien']);
 });
 
 test('1 « Imprimer » (brouillon) : même pastille pendant l’attente', async ({ page }) => {
@@ -100,11 +98,11 @@ test('1 « Imprimer » (brouillon) : même pastille pendant l’attente', async 
   await ouvrirMenuPlus(page);
   await entree(page, 'Imprimer').click();
   await expect(pastille(page)).toContainText('Fabrication du PDF…');
-  await expect(page).toHaveURL(/#\/devis\/pdf\/dBrouillon\/brouillon$/, { timeout: 15000 });
-  await expect(pastille(page)).toHaveCount(0);
+  await expect(pastille(page)).toHaveCount(0, { timeout: 15000 });
+  await expect(page).toHaveURL(/#\/devis\/editeur\/dBrouillon$/);
 });
 
-test('2 pendant l’attente, « Télécharger le PDF » et « Imprimer » sont grisés dans le menu : un second clic ne lance pas une deuxième génération', async ({ page }, info) => {
+test('2 pendant l’attente, « Télécharger le PDF », « Ouvrir le PDF » et « Imprimer » sont grisés dans le menu : un second clic ne lance pas une deuxième génération', async ({ page }, info) => {
   await donnees();
   const appels = [];
   await simulerServeur(page, appels, { delaiPdf: 3000 });
@@ -115,9 +113,10 @@ test('2 pendant l’attente, « Télécharger le PDF » et « Imprimer » sont g
   await ouvrirMenuPlus(page);
   await expect(entree(page, 'Fabrication du PDF…')).toBeDisabled();
   await expect(entree(page, 'Imprimer')).toBeDisabled();
+  await expect(entree(page, 'Ouvrir le PDF')).toBeDisabled();
   await capturer(page, info, '2-menu-grise');
   await entree(page, 'Fabrication du PDF…').click({ force: true });
-  await expect(page).toHaveURL(/#\/devis\/pdf\/dBrouillon\/brouillon$/, { timeout: 15000 });
+  await expect(pastille(page)).toHaveCount(0, { timeout: 15000 });
   expect(appels.filter((a) => a[0] === 'devisPdf')).toHaveLength(1);
 });
 
@@ -143,36 +142,40 @@ test('3 erreur du serveur : message clair, la pastille disparaît, le bouton « 
   await expect.poll(() => appels.filter((a) => a[0] === 'devisPdf').length).toBe(2);
 });
 
-test('4 écran du PDF : « Réessayer » montre « Fabrication du PDF… » (indicateur, texte d’aide, aria-busy) ; un second clic ne relance rien ; erreur = message et « Réessayer » de nouveau là', async ({ page }, info) => {
+test('4 devis finalisé dont le PDF est à refaire : « Ouvrir le PDF » montre « Fabrication du PDF… » (aria-busy), un second clic ne relance rien, puis le PDF s’ouvre ; erreur = message avec « Réessayer »', async ({ page }, info) => {
   test.info().annotations.push({ type: 'erreurs-reseau-attendues', description: 'le faux serveur répond une erreur 500 : le navigateur la note dans sa console' });
   await donnees();
   const appels = [];
   let echec = false;
   await simulerServeur(page, appels, { delaiPdf: 2500, pdf: async (d) => {
     if (echec) return erreurServeur(500, 'INTERNAL', 'x');
-    await ecrireDocument(`devis_devis/${d.devisId}`, { pdf: { statut: 'ok', chemin: 'devis/a1/d.pdf', nom: 'Devis.pdf', tentatives: 2 } });
+    await ecrirePdf(d.devisId, { statut: 'ok', chemin: 'devis/a1/d.pdf', nom: 'Devis.pdf', tentatives: 2 });
     return { statut: 200, corps: { result: { statut: 'ok', lien: 'x', nom: 'Devis' } } };
   } });
-  await connecter(page, undefined, { route: 'devis/pdf/dEchec' });
-  await attendreCalme(page);
-  const bouton = page.locator('[data-action="reessayer-pdf"]');
-  await expect(bouton).toBeVisible();
-  await bouton.dblclick();
-  await expect(zone(page)).toHaveAttribute('aria-busy', 'true');
-  await expect(zone(page)).toContainText('Fabrication du PDF…');
-  await expect(zone(page).locator('[data-valeur="detail-attente"]')).toBeVisible();
-  await expect(zone(page).locator('.rond-chargement')).toBeVisible();
-  await capturer(page, info, '4-ecran-pdf-attente');
-  await expect(zone(page).locator('[data-action="ouvrir-pdf"]')).toBeVisible({ timeout: 15000 });
-  await expect(zone(page)).toHaveAttribute('aria-busy', 'false');
+  await ouvrirEditeur(page, 'dEchec');
+  await ouvrirMenuPlus(page);
+  const ouverture = page.waitForEvent('popup');
+  await entree(page, 'Ouvrir le PDF').click();
+  await expect(pastille(page)).toContainText('Fabrication du PDF…');
+  await expect(page.locator('[data-action="plus-actions"]')).toHaveAttribute('aria-busy', 'true');
+  await expect(pastille(page).locator('.rond-chargement')).toBeVisible();
+  await capturer(page, info, '4-ouvrir-pdf-attente');
+  await ouvrirMenuPlus(page);
+  await entree(page, 'Ouvrir le PDF').click(); // second clic : ignoré
+  const popup = await ouverture;
+  await popup.close();
+  await expect(pastille(page)).toHaveCount(0);
   expect(appels.filter((a) => a[0] === 'devisPdf')).toHaveLength(1);
-  // Erreur : message, bouton « Réessayer » de nouveau utilisable.
+  // Erreur : message, « Réessayer » dans le message, jamais de page.
   echec = true;
-  await ecrireDocument('devis_devis/dSansPdf', { pdf: { statut: 'echec', message: 'Le moteur du PDF ne répond pas.', tentatives: 3 } });
-  await page.goto('/?emulateurs=1#/devis/pdf/dSansPdf');
-  await expect(page.locator('[data-action="reessayer-pdf"]')).toBeVisible();
-  await page.locator('[data-action="reessayer-pdf"]').click();
-  await expect(zone(page).locator('[data-valeur="message-pdf"]')).toBeVisible({ timeout: 15000 });
-  await expect(page.locator('[data-action="reessayer-pdf"]')).toBeEnabled();
-  await capturer(page, info, '4-ecran-pdf-erreur');
+  await ecrirePdf('dSansPdf', { statut: 'echec', message: 'Le moteur du PDF ne répond pas.', tentatives: 3 });
+  await page.goto('/?emulateurs=1#/devis/editeur/dSansPdf');
+  await expect(page.locator('.page-editeur-devis[data-devis="dSansPdf"]')).toBeVisible();
+  await attendreCalme(page);
+  await ouvrirMenuPlus(page);
+  await entree(page, 'Ouvrir le PDF').click();
+  await expect(page.locator('.toast-erreur [data-action="toast-action"]')).toHaveText('Réessayer', { timeout: 15000 });
+  await expect(page.locator('[data-action="plus-actions"]')).not.toHaveAttribute('aria-busy', 'true');
+  await expect(page).toHaveURL(/#\/devis\/editeur\/dSansPdf$/);
+  await capturer(page, info, '4-ouvrir-pdf-erreur');
 });

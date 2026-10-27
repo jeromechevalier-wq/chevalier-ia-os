@@ -152,7 +152,7 @@ test('3 le « … » de l’éditeur et celui de la visualisation proposent les 
   const dansEntete = (t) => t === 'Préparer l’e-mail' || BOUTON_PAR_ETAT[idCourant]?.test(t) === true;
   const sansEnvoyer = (l) => l.filter((t) => !dansEntete(t));
   const sansOnglets = (t) => t !== 'Voir le devis' && t !== 'Éditer le devis'; // 26/10/2026 : les onglets Prévisualisation et Édition, toujours visibles, font la même chose
-  const groupe = (id) => ['Télécharger le PDF', 'Imprimer', ...(id === 'dBrouillon' ? ['Préparer l’e-mail'] : id === 'dFinalise' ? [] : ['Préparer l’e-mail'])];
+  const groupe = (id) => ['Ouvrir le PDF', 'Télécharger le PDF', 'Imprimer', ...(id === 'dBrouillon' ? ['Préparer l’e-mail'] : id === 'dFinalise' ? [] : ['Préparer l’e-mail'])];
   for (const id of ['dBrouillon', 'dFinalise', 'dEnvoye', 'dSigne']) {
     await page.evaluate((h) => { location.hash = h; }, '#/devis/liste');
     await expect(page.locator('.page-liste-devis')).toBeVisible();
@@ -292,19 +292,27 @@ test('1 ouvrir un devis finalisé par l’adresse de l’éditeur ne laisse qu�
   await expect(page.locator('.page-editeur-devis')).toHaveCount(1);
 });
 
-test('3 visualisation d’un BROUILLON : « Télécharger le PDF » demande le PDF brouillon et ouvre son écran (jamais l’écran du PDF final)', async ({ page }) => {
+test('3 visualisation d’un BROUILLON : « Télécharger le PDF » demande le PDF brouillon et le télécharge, sans quitter le devis (plus de page « PDF »)', async ({ page }) => {
   await donnees();
   const appels = [];
+  await page.context().route('https://stockage.exemple.test/**', (route) => route.fulfill({ status: 200, headers: { 'content-type': 'application/pdf', 'content-disposition': 'attachment; filename="Brouillon.pdf"' }, body: '%PDF-1.4' }));
   await page.route('**/devisPdf', async (route) => {
     if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
     appels.push(JSON.parse(route.request().postData()).data);
     return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ result: { statut: 'ok', lien: 'x', nom: 'Brouillon' } }) });
   });
+  await page.route('**/devisPdfLien', async (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+    appels.push(JSON.parse(route.request().postData()).data);
+    return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ result: { url: 'https://stockage.exemple.test/brouillon.pdf', expireDans: 300, nom: 'Brouillon.pdf' } }) });
+  });
   await ouvrir(page, 'devis/voir/dBrouillon', '.page-editeur-devis');
   await page.locator('[data-action="plus-actions"]').click();
+  const telechargement = page.waitForEvent('download');
   await page.locator('.menu-pop').getByRole('menuitem', { name: 'Télécharger le PDF' }).click();
-  await expect(page).toHaveURL(/#\/devis\/pdf\/dBrouillon\/brouillon$/);
-  expect(appels).toEqual([{ devisId: 'dBrouillon', brouillon: true }]);
+  expect((await telechargement).suggestedFilename()).toBe('Brouillon.pdf');
+  await expect(page).toHaveURL(/#\/devis\/voir\/dBrouillon$/);
+  expect(appels).toEqual([{ devisId: 'dBrouillon', brouillon: true }, { devisId: 'dBrouillon', brouillon: true, telecharger: true }]);
 });
 
 test('5 « Historique » dans l’éditeur : exclusif avec Options et Catalogue (un seul panneau à la fois)', async ({ page }) => {

@@ -36,25 +36,14 @@ export const LIBELLE_PDF_EN_COURS = 'PDF en cours de fabrication';
 export const MESSAGE_PDF_RANGE_AFFAIRE = 'PDF brouillon prêt';
 export const MESSAGE_PDF_RANGE_SANS_AFFAIRE = 'PDF enregistré avec le devis. Ce devis n’a pas d’affaire : choisis-en une pour que le PDF apparaisse dans son onglet Devis.';
 
-/** Adresse (sans « # ») de l'écran qui ouvre le PDF d'un devis. */
-export const routePdf = (devisId, brouillon = false) => `devis/pdf/${encodeURIComponent(devisId)}${brouillon ? '/brouillon' : ''}`;
+// Messages des actions « Ouvrir le PDF » et « Télécharger le PDF » (pdf-actions.js). Il n'y a plus d'écran du PDF : les anciennes adresses #/devis/pdf/<id> redirigent vers le devis (index.js).
+export const MESSAGE_PDF_INTROUVABLE = 'Ce devis est introuvable. Il a peut-être été supprimé : retourne à la liste des devis.';
+export const MESSAGE_PDF_EN_COURS = 'Le PDF est en cours de fabrication. Il s’ouvrira dès qu’il est prêt.';
+export const MESSAGE_PDF_PAS_DE_BROUILLON = 'Aucun PDF brouillon pour ce devis. Ouvre le menu « … » du devis et choisis « Télécharger le PDF » pour le créer.';
+export const MESSAGE_PDF_PRET_LIEN = 'Le PDF est prêt. Ton navigateur a bloqué l’ouverture : utilise le lien.';
 
-/**
- * Où ramène le bouton de retour de l'écran du PDF : à la page du devis d'où l'on vient (éditeur ou visualisation), à la liste si l'on vient de la liste,
- * sinon (rechargement, pastille d'une autre page) au devis lui-même : son éditeur (brouillon) ou sa visualisation. `origine` : route (sans « # ») de la dernière page du module.
- */
-export function cibleRetourPdf({ devisId, brouillon = false, origine = '' } = {}) {
-  const id = encodeURIComponent(devisId ?? '');
-  const lieDevis = [`devis/editeur/${id}`, `devis/voir/${id}`];
-  if (lieDevis.includes(origine)) return { route: origine, libelle: 'Retour au devis' };
-  if (origine === 'devis/liste') return { route: 'devis/liste', libelle: 'Retour aux devis' };
-  return { route: brouillon ? lieDevis[0] : lieDevis[1], libelle: 'Retour au devis' };
-}
-
-let origineMemorisee = '';
-/** Retient la dernière page du module Devis qui n'est pas un écran de PDF (appelée par le routeur du module). */
-export const memoriserOrigine = (route) => { origineMemorisee = String(route ?? ''); };
-export const origineRetour = () => origineMemorisee;
+/** Où mène une ancienne adresse du PDF (#/devis/pdf/<id> et …/brouillon, écrites dans les Documents des affaires et les e-mails) : l'éditeur du devis (lecture seule s'il est finalisé). */
+export const routeApresPdfSupprime = (devisId) => `devis/editeur/${encodeURIComponent(devisId)}`;
 
 /** Message affiché après « Télécharger le PDF » d'un brouillon : le PDF n'est visible dans l'onglet Devis d'une affaire que si le devis en a une. */
 export const messageApresEnregistrement = (devis) => (devis?.affaireId ? MESSAGE_PDF_RANGE_AFFAIRE : MESSAGE_PDF_RANGE_SANS_AFFAIRE);

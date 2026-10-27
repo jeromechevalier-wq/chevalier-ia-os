@@ -1,12 +1,12 @@
 // Module Devis (cadrage-devis.md) : montage et routes. Trois écrans : le Bordereau (articles), la liste des devis et l'éditeur d'un devis.
-// Routes : devis/bordereau, devis/liste, devis/voir/<id> (le même écran que l'éditeur, ouvert sur l'onglet Prévisualisation), devis/editeur (nouveau devis : choix de l'affaire), devis/editeur/<id> (non déclarée dans le menu : on y arrive par la liste), devis/pdf/<id> et devis/pdf/<id>/brouillon (ouvrent le PDF rangé dans notre stockage : adresse stable, les anciens liens des Documents des affaires y mènent). Le module lit le CRM (étapes des affaires) : le CRM démarre avant lui (le module Devis dépend de « affaires », pas de « projets »).
+// Routes : devis/bordereau, devis/liste, devis/voir/<id> (le même écran que l'éditeur, ouvert sur l'onglet Prévisualisation), devis/editeur (nouveau devis : choix de l'affaire), devis/editeur/<id> (non déclarée dans le menu : on y arrive par la liste), et les anciennes adresses devis/pdf/<id> et devis/pdf/<id>/brouillon (la page du PDF n'existe plus : elles mènent à l'éditeur du devis ; elles sont écrites dans les Documents des affaires et dans des e-mails déjà envoyés). Le module lit le CRM (étapes des affaires) : le CRM démarre avant lui (le module Devis dépend de « affaires », pas de « projets »).
 import { vider } from '../../os/ui.js';
 import * as D from './donnees.js';
 import { rendreBordereau } from './bordereau.js';
 import { rendreListeDevis } from './liste-ecran.js';
 import { rendreEditeurDevis } from './editeur-ecran.js';
-import { rendrePdfDevis } from './pdf-ecran.js';
-import { memoriserOrigine } from './pdf.js';
+import { routeApresPdfSupprime } from './pdf.js';
+import { annulerAttentesPdf } from './pdf-actions.js';
 import { reglages as reglagesDuModule } from './reglages.js';
 import { retenirDevis } from './memoire.js';
 import * as CRM from '../crm/donnees.js';
@@ -62,7 +62,7 @@ export function demarrer({ cheminBase = '' } = {}) {
 
 export function arreter() {
   quitter();
-  memoriserOrigine(''); // on quitte le module : l'origine ne vaut plus (un lien de pastille depuis une affaire retombe sur le devis lui-même)
+  annulerAttentesPdf(); // une attente de PDF en cours ne doit rien faire après l'arrêt du module
   retirerPastille?.(); retirerPastille = null;
   retirerOnglet?.(); retirerOnglet = null;
   retirerAction?.(); retirerAction = null;
@@ -83,7 +83,6 @@ const VUES = {
   editeur: (conteneur, segs) => rendreEditeurDevis(conteneur, segs[1] || null),
   voir: (conteneur, segs) => rendreEditeurDevis(conteneur, segs[1], { voir: true }), // devis/voir/<id> : le MÊME écran que devis/editeur/<id>, ouvert sur l'onglet Prévisualisation (lecture seule si le devis n'est plus un brouillon)
   bordereau: (conteneur) => rendreBordereau(conteneur),
-  pdf: (conteneur, segs) => rendrePdfDevis(conteneur, segs[1] ?? '', segs[2] === 'brouillon'), // devis/pdf/<id> et devis/pdf/<id>/brouillon : adresses stables des PDF
 };
 
 export function afficher(conteneur, segs) {
@@ -93,13 +92,17 @@ export function afficher(conteneur, segs) {
     naviguer(segs[1] ? `devis/voir/${segs[1]}` : 'devis/liste', { remplacer: true });
     return quitter;
   }
-  if (!VUES[vue] || (vue === 'pdf' && !segs[1])) {
+  // Plus de page « PDF » : l'ancienne adresse (signet, e-mail déjà envoyé, lien des Documents d'une affaire) ouvre le devis, en lecture seule s'il est finalisé.
+  if (vue === 'pdf' && segs[1]) {
+    naviguer(routeApresPdfSupprime(segs[1]), { remplacer: true });
+    return quitter;
+  }
+  if (!VUES[vue]) {
     naviguer('devis/bordereau', { remplacer: true });
     return quitter;
   }
-  if (vue !== 'pdf') memoriserOrigine(`devis/${segs.filter(Boolean).join('/')}`); // le bouton de retour de l'écran du PDF y ramène
   if (vue === 'editeur') retenirDevis(segs[1]); // le Bordereau propose « Reprendre le devis en cours »
-  const cle = vue === 'editeur' || vue === 'voir' ? `${vue}/${segs[1] ?? ''}` : vue === 'pdf' ? `pdf/${segs[1]}/${segs[2] ?? ''}` : vue; // un éditeur (ou un PDF) par devis
+  const cle = vue === 'editeur' || vue === 'voir' ? `${vue}/${segs[1] ?? ''}` : vue; // un éditeur par devis
   if (montee?.cle === cle && conteneur.firstChild) return quitter; // même écran : rien à refaire
   quitter();
   vider(conteneur);
