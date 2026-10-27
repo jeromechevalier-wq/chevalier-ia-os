@@ -58,9 +58,9 @@ Le workflow a besoin d'un « badge » pour avoir le droit de publier sur `cheval
 2. Cliquer **Commencer** (ou *Get started*). Choisir **Démarrer en mode production**. Emplacement : **europe-west9** (le même que la base ; on ne pourra plus le changer). Cliquer **OK**.
 3. Tant que Storage n'est pas activé, ne choisis pas `regles` ni `tout` : le déploiement des règles Storage échouerait.
 
-### 3 bis. Régler le CORS du stockage des PDF (si le module Devis sert)
+### 3 bis. CORS du stockage des PDF : plus nécessaire (27/10/2026)
 
-À faire **après** l'activation de Storage (étape 3) et **avant** le premier essai de devis : sans lui, « Copier dans Drive » échoue (« Le PDF n'a pas pu être lu… »). C'est un réglage **par projet Google** (pas par client), à refaire pour toute nouvelle plateforme. Pas à pas, modèle de fichier et état du réglage de chaque projet : [cors-stockage-pdf.md](cors-stockage-pdf.md).
+Le navigateur ne lit plus le PDF d'un devis (lien signé ouvert ou téléchargé), donc ce réglage n'est plus demandé pour le module Devis. Le mode d'emploi reste dans [cors-stockage-pdf.md](cors-stockage-pdf.md) pour mémoire.
 
 ### 4. Le premier déploiement (après la fusion de la PR)
 

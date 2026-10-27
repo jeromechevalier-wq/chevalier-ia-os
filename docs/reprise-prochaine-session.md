@@ -1,5 +1,24 @@
 # À faire au début de la prochaine session
 
+## Rapport du 27/10/2026, matin et midi (« GO NUIT » : onglet Devis, PDF chez nous)
+
+Décision de Jérôme : les PDF des devis vivent chez nous (Firebase Storage), montrés dans un onglet « Devis » de la fiche de l'affaire ; plus de copie dans le Drive, plus de PDF ajouté aux Documents, un bouton « Télécharger ».
+
+| Sujet | PR | État |
+|---|---|---|
+| Option « télécharger » du lien signé du PDF (serveur Jérôme et clients) | 341 | fusionnée seule, relue par Fable (rien de bloquant) |
+| Un module peut ajouter son onglet à la fiche d'une affaire (mécanisme) | 342 | fusionnée seule, relue par Fable (1 défaut bloquant corrigé : trait jaune de l'onglet rogné) |
+| Le serveur n'ajoute plus le PDF aux Documents de l'affaire | 343 | fusionnée seule, relue par Fable (rien de bloquant) |
+| Plus de copie du PDF dans le Drive (navigateur, étape CORS retirée de la page Déploiement) | 344 | fusionnée seule, relue par Fable (rien de bloquant) |
+| Onglet « Devis » de l'affaire (liste, Voir, Ouvrir le PDF, Télécharger, + Ajouter) | 345 | fusionnée seule, relue par Fable (conflits de fusion résolus, focus clavier corrigé) |
+| Documentation, version 2.31.0, wiki, ce rapport, tableau A-FAIRE | cette PR | fusionnée seule si la coche « Tests » est verte |
+
+- **À faire avec Jérôme** : déploiement `hosting` puis `fonctions` chez les clients (les PR 341 à 345 y sont invisibles tant que ce n'est pas fait) ; Claude ne lance rien sans lui.
+- **Décisions prises seul** : les versions « Remplacé » sont montrées dans l'onglet (seuls les archivés sont exclus) ; « + Ajouter » prérempli l'affaire et le client ; sur téléphone les icônes des onglets de l'affaire sont masquées pour que quatre onglets tiennent (écart avec la fiche projet, à confirmer).
+- **Pas pu être vérifié avec le vrai système** : le téléchargement réel depuis Firebase Storage, un vrai PDF fabriqué, la signature réelle `attachment` de Google Cloud. Dans le bac à sable, des specs échouent à cause de `apis.google.com` injoignable (déjà sur `main`) : la coche GitHub tranche.
+- **État de la nuit GitHub** : voir le résultat du workflow « Tests de nuit » lancé à la main sur `main` après la fusion de la PR 345 (à lire en premier).
+- **Discussion à ouvrir** : affaire et projet sont-ils la même fiche qui change de place, ou deux fiches ? (Jérôme n'a jamais utilisé le passage).
+
 ## Rapport du matin : nuit du 27/10/2026 (« GO NUIT »)
 
 | Sujet | PR | État |

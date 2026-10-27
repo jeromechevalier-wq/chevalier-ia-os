@@ -33,7 +33,7 @@ Chemin du dépôt sur le Mac de Jérôme (à utiliser dans chaque commande) : `/
 | 9 | **Importer le catalogue et les anciens devis** | Jérôme | Seulement si le module Devis est activé. Le catalogue va dans le Bordereau. Les anciens devis sont importés comme « importés » (lecture seule, numéro et statut d'origine) ; les chiffres d'affaires par mois alimentent les indicateurs. Toujours un essai à blanc d'abord ; écriture seulement avec l'accord de Jérôme. |
 | 10 | **(supprimée le 27/10/2026)** Autoriser Gmail pour les personnes du client | — | Le navigateur ne parle plus à Gmail (plus de portée `gmail.compose`), donc plus d'utilisateurs test, plus de limite de 100 personnes, plus d'expiration de 7 jours et plus de vérification Google à prévoir. Le brouillon d'e-mail est préparé par n8n (« Préparer l'e-mail »), **absent chez les clients pour l'instant** (`.github/A-FAIRE.md`). |
 | 11 | **Régler le module Devis avec lui** | Jérôme + client | Seulement si le module Devis est activé. Réglages > Devis : « Mon entreprise » (voir l'étape 6 d'avant la séance), régime de TVA, marge par défaut, durée de validité, taux de TVA, **étape où vivent les devis**, familles d'articles. Le point rouge sur la pastille « Mon entreprise » doit avoir disparu. |
-| 12 | **Essai de bout en bout du devis** | Jérôme + client | Seulement si le module Devis est activé. Sur une affaire de test : créer un devis, le finaliser (le PDF se fabrique et se range dans l'affaire), « Copier dans Drive » (le PDF arrive dans le dossier Devis de l'affaire), « Préparer l'e-mail » (seulement si c'est branché pour ce client : le brouillon Gmail se crée avec le PDF, l'appli n'envoie jamais), « Devis envoyé », puis archiver l'essai (un devis finalisé a un vrai numéro et ne se supprime pas : le dire au client, ou faire l'essai seulement jusqu'au PDF brouillon). |
+| 12 | **Essai de bout en bout du devis** | Jérôme + client | Seulement si le module Devis est activé. Sur une affaire de test : créer un devis, le finaliser (le PDF se fabrique et se range chez nous : onglet « Devis » de l'affaire, « Ouvrir le PDF » puis « Télécharger »), « Préparer l'e-mail » (seulement si c'est branché pour ce client : le brouillon Gmail se crée avec le PDF, l'appli n'envoie jamais), « Devis envoyé », puis archiver l'essai (un devis finalisé a un vrai numéro et ne se supprime pas : le dire au client, ou faire l'essai seulement jusqu'au PDF brouillon). |
 | 13 | **Vérifier le MCP des devis** | Jérôme | Seulement si le module Devis est activé. Demander à l'assistant du client : « liste mes devis », puis « lis le devis X » : on voit copie, envois et état du PDF, jamais les prix d'achat. Les actions (statut, archivage, suppression) demandent un aperçu et un code quand elles ne se défont pas avec le journal. |
 
 Les étapes 4, 6, 7, 11 et 12 se font **à deux, en visio** : Jérôme guide, le client agit sur son propre ordinateur et téléphone. L'étape 10 se fait par Jérôme seul, dans la console Google, **avant** que le client essaie l'envoi par e-mail.
@@ -46,9 +46,7 @@ La plateforme est **un seul** projet Google (`chevalier-ia-app`) : ces réglages
 |---|---|---|---|
 | **API Drive et Picker activées** | Choisir un dossier Drive, créer les dossiers de projets, copier le PDF d'un devis dans Drive | Console Google, « API et services » > « Bibliothèque » | `docs/google-drive.md`, étapes 1 à 4 |
 | **Origine autorisée** de la connexion Google | Ouvrir les fenêtres Google (Drive) depuis le site | Identifiants > « Web client » > Origines JavaScript autorisées | `https://chevalier-ia-app.web.app` (voir `docs/google-drive.md`, étape 3) |
-| **CORS du stockage des PDF** | Lire le PDF depuis le navigateur pour le copier dans Drive | Cloud Shell du projet, `gsutil cors set` | `docs/cors-stockage-pdf.md`. Se fait **une fois pour le stockage de la plateforme**, avec les adresses du site de la plateforme (pas une par client) |
 
-**Piège** : si le réglage CORS manque, le client voit « Le PDF n'a pas pu être lu… » en essayant « Copier dans Drive ». Ce sont des réglages Google, pas un défaut de l'appli.
 
 ## Après la séance
 
@@ -64,6 +62,5 @@ La plateforme est **un seul** projet Google (`chevalier-ia-app`) : ces réglages
 - Le client voit « indisponible » : l'espace est désactivé, ou son adresse n'est pas dans la liste des membres (en minuscules).
 - Les images échouent : voir l'étape « nom du stockage » de `docs/nouveau-client.md`.
 - « Préparer l'e-mail » grisé avec « pas encore branchée » : normal tant que la porte des workflows n'existe pas pour cet espace (`.github/A-FAIRE.md`).
-- « Le PDF n'a pas pu être lu depuis le navigateur » : le réglage CORS du stockage manque (`docs/cors-stockage-pdf.md`).
 - Sur l'ordinateur d'une autre personne : demander la **navigation privée** et lire l'adresse affichée dans la fenêtre Google avant d'autoriser (un autre compte Gmail pourrait être déjà connecté dans ce navigateur).
 - Le MCP du client ne répond pas : interrupteurs d'urgence dans `docs/securite-et-pannes.md`.

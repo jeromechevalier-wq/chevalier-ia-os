@@ -1,4 +1,6 @@
-# Réglage « CORS » du stockage des PDF de devis (à faire une fois par projet Google)
+# Réglage « CORS » du stockage des PDF de devis (plus nécessaire depuis le 27/10/2026)
+
+> **Mémoire seulement.** Depuis le 27/10/2026, le navigateur ne lit plus le PDF d'un devis (lien signé ouvert ou téléchargé) et la copie dans le Drive n'existe plus : ce réglage n'est plus demandé. Il a été fait sur les deux projets le 27/10/2026 et peut rester en place.
 
 ## Pourquoi
 Quand on ouvre le PDF d'un devis, l'application en copie un exemplaire dans le dossier « Devis » du dossier Drive de l'affaire. Pour cela, le navigateur doit **lire** le PDF dans Cloud Storage. Par défaut, le stockage refuse cette lecture quand elle vient d'un site web : il faut lui dire quels sites ont le droit (c'est ce qu'on appelle le réglage « CORS »).

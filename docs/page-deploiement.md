@@ -40,4 +40,3 @@ La liste est **écrite dans le code** : elle ne se modifie pas à l'écran.
 ## À savoir
 
 - La fonction `deploiementVerifier` de la plateforme ne se publie qu'avec le workflow **manuel** « Déploiement plateforme clients » (par Jérôme). Tant qu'elle n'est pas publiée, chez un client les deux lignes du serveur restent orange et la page dit « Impossible de vérifier pour le moment » ; le reste marche.
-- L'essai CORS n'a pas encore été vérifié contre le vrai stockage Google : si la ligne reste rouge alors que le réglage est fait, vérifier avec « Copier dans Drive » sur un devis et le signaler à Claude.
