@@ -205,3 +205,22 @@ test('8 le formulaire tient dans l’écran : pas de défilement horizontal, cha
   }
   await capturer(page, info, '8-formulaire-long');
 });
+
+test('9 un devis qui a déjà plusieurs types les garde quand on change autre chose ; Entrée enregistre ; les erreurs sont reliées aux champs', async ({ page }) => {
+  await ouvrir(page, await devis('d9', { dechets: { ...REMPLI, types: ['inertes', 'non_dangereux'] } }));
+  await bloc(page).locator('[data-action="definir-dechets"]').click();
+  await champ(page, 'point').fill('Benne devant le chantier');
+  await champ(page, 'min').fill('12');
+  await champ(page, 'min').press('Enter'); // 12 > 10 : refusé, message relié au champ maximum
+  await expect(bloc(page).locator('[data-erreur="dechets-max"]')).toBeVisible();
+  await expect(champ(page, 'max')).toHaveAttribute('aria-invalid', 'true');
+  await expect(champ(page, 'max')).toHaveAttribute('aria-describedby', 'dechets-erreur-max');
+  await champ(page, 'min').fill('6');
+  await champ(page, 'min').press('Enter'); // Entrée enregistre
+  await expect(bloc(page).locator('[data-zone="dechets-formulaire"]')).toHaveCount(0);
+  await sauve(page);
+  const doc = await lireDocument('devis_devis/d9');
+  expect(doc.dechets.types).toEqual(['inertes', 'non_dangereux']);
+  expect(doc.dechets.pointCollecte).toBe('Benne devant le chantier');
+  expect(doc.dechets.volumeMin).toBe(6);
+});

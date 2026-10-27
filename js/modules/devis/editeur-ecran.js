@@ -1503,11 +1503,11 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       point: typeof d.pointCollecte === 'string' ? d.pointCollecte.trim() : '',
       min: saisieNombre(d.volumeMin), max: saisieNombre(d.volumeMax), cout: saisiePrix(d.coutTtcParM3),
     };
-    const erreur = (cle) => h('p', { class: 'erreur', role: 'alert', dataset: { erreur: `dechets-${cle}` }, hidden: true });
+    const erreur = (cle) => h('p', { class: 'erreur', role: 'alert', id: `dechets-erreur-${cle}`, dataset: { erreur: `dechets-${cle}` }, hidden: true });
     const err = { min: erreur('min'), max: erreur('max'), cout: erreur('cout') };
     const type = h('select', { class: 'champ', id: 'dechets-type', dataset: { champ: 'dechets-type' }, onchange: majEtat },
       h('option', { value: '' }, 'Aucun type choisi'), ...TYPES_DECHETS.map((t) => h('option', { value: t.id, selected: t.id === depart.type }, t.libelle)));
-    const champ = (cle, id, valeurDepart, extra = {}) => h('input', { class: 'champ', id, type: 'text', autocomplete: 'off', value: valeurDepart, dataset: { champ: `dechets-${cle}` }, oninput: majEtat, ...extra });
+    const champ = (cle, id, valeurDepart, extra = {}) => h('input', { class: 'champ', id, type: 'text', autocomplete: 'off', value: valeurDepart, 'aria-describedby': cle === 'point' ? null : `dechets-erreur-${cle}`, dataset: { champ: `dechets-${cle}` }, oninput: majEtat, ...extra });
     const point = champ('point', 'dechets-point', depart.point, { maxlength: 200 });
     const min = champ('min', 'dechets-min', depart.min, { inputmode: 'decimal', placeholder: 'Ex. 5' });
     const max = champ('max', 'dechets-max', depart.max, { inputmode: 'decimal', placeholder: 'Ex. 10' });
@@ -1533,13 +1533,13 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       const vCout = nombre('cout', s.cout, 'Le coût');
       if (vMin !== null && vMax !== null && vMin > vMax) message.max = 'Le maximum doit être égal ou supérieur au minimum.';
       for (const [cle, el] of Object.entries(err)) { el.hidden = !message[cle]; el.textContent = message[cle]; }
-      min.classList.toggle('invalide', !!message.min);
-      max.classList.toggle('invalide', !!message.max);
-      cout.classList.toggle('invalide', !!message.cout);
+      for (const [cle, el] of [['min', min], ['max', max], ['cout', cout]]) { el.classList.toggle('invalide', !!message[cle]); el.setAttribute('aria-invalid', message[cle] ? 'true' : 'false'); }
       if (message.min || message.max || message.cout) return; // rien n'est enregistré
       if (!s.type && !s.point && vMin === null && vMax === null && vCout === null) changer({ dechets: null }); // null, jamais undefined : sinon l'ancienne valeur resterait dans la base
       else {
-        const valeur = { types: s.type ? [s.type] : [], unite: 'm3' };
+        // Un devis qui a déjà plusieurs types (démo, ancien MCP) les garde tant que le choix de la liste n'a pas changé.
+        const gardes = s.type === depart.type && Array.isArray(d.types) ? d.types.filter((x) => TYPES_DECHETS.some((y) => y.id === x)) : null;
+        const valeur = { types: gardes ?? (s.type ? [s.type] : []), unite: 'm3' };
         if (s.point) valeur.pointCollecte = s.point;
         if (vMin !== null) valeur.volumeMin = vMin;
         if (vMax !== null) valeur.volumeMax = vMax;
@@ -1552,7 +1552,10 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     const telephone = window.innerWidth <= LARGEUR_TELEPHONE;
     const formulaire = h('div', {
       class: 'dechets-formulaire', role: 'group', 'aria-label': 'Gestion des déchets', tabindex: telephone ? '-1' : null, dataset: { zone: 'dechets-formulaire', ...(telephone ? { focusInitial: '' } : {}) },
-      onkeydown: (e) => { if (e.key === 'Escape') { e.stopPropagation(); fermer(); } },
+      onkeydown: (e) => {
+        if (e.key === 'Escape') { e.stopPropagation(); fermer(); }
+        else if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); valider(); }
+      },
     },
     h('div', { class: 'bloc-champ' }, etiquette('dechets-type', 'Type de déchets'), type),
     h('div', { class: 'bloc-champ' }, etiquette('dechets-point', 'Point de collecte'), point),

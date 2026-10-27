@@ -507,7 +507,7 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
 .dechets-formulaire .bloc-champ { min-width: 0; }
 .dechets-volumes { display: grid; grid-template-columns: 1fr 1fr; gap: var(--esp-4); }
 .dechets-actions { display: flex; gap: var(--esp-3); justify-content: flex-end; flex-wrap: wrap; }
-@media (max-width: 700px) {
+@media (max-width: 700px), (pointer: coarse) {
   .dechets-formulaire .champ, .dechets-actions .bouton { min-height: 44px; }
   .dechets-actions .bouton { flex: 1 1 auto; }
   .bloc-dechets .bouton-lien { min-height: 44px; }
