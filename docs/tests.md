@@ -91,7 +91,7 @@ Voir `docs/acceleration-tests-mesures.md`, section « Instabilités ». Sur GitH
 - **`npm run test:module <nom> -- --project=telephone` ignore l'option** : `tests/lancer-module.js` ne lit que le nom et lance toujours le format ordinateur (`--project=ordinateur`). Pour le format téléphone, depuis `tests/` : `node lancer-tout.js --e2e e2e/<fichier>.spec.js --project=telephone` (tout ce qui suit `--e2e` est passé tel quel à Playwright, avec les mêmes émulateurs ; `TESTS_DECALAGE` s'applique pareil).
 - Un test qui ouvre le tiroir du menu sur téléphone doit le refermer (Échap) avant de cliquer ailleurs : le voile intercepte les clics.
 - `.panneau-activite` est en `display: contents` sous 1024 px : on ne peut pas le photographier sur téléphone (utiliser `.fiche-grille`).
-- Après « Détacher » sur une fiche projet, le panneau est recréé et l'onglet Documents se referme : le rouvrir avant de mesurer.
+- Après « Détacher » sur une fiche projet, le panneau est recréé et l'onglet G-Drive se referme : le rouvrir avant de mesurer.
 - `npm ci` aussi dans `functions/` et `functions-plateforme/` (puis `node scripts/preparer-fonctions.js`) avant `test:module registre` ou `statique`.
 - En bac à sable, `apis.google.com` est injoignable : les parcours qui chargent le sélecteur de fichiers Google échouent sur l'erreur console `ERR_TUNNEL_CONNECTION_FAILED`. Ce n'est pas un défaut du code ; la coche GitHub fait foi.
 - Deux suites de tests en même temps sur la même machine font échouer au hasard (veille-filtres, tableaudebord, porte) : relancer seul.

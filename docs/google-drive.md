@@ -1,6 +1,6 @@
 # Liens et documents, Google Drive (version 2.6.5, 17/10/2026)
 
-> **Mise à jour du 22/10/2026 (version 2.19.0, I10) : l'onglet Documents a changé.** Les sections ci-dessous gardent l'historique des chantiers du 16 et 17/10/2026 ; pour l'état actuel, lire d'abord la section « Onglet Documents, version 2 » plus bas. En particulier : plus de titre « Liens et documents », plus de bouton « Ajouter un lien web », et les deux boutons du dossier de travail passent derrière « + Ajouter ».
+> **Mise à jour du 22/10/2026 (version 2.19.0, I10) : l'onglet Documents (aujourd'hui « G-Drive ») a changé.** Les sections ci-dessous gardent l'historique des chantiers du 16 et 17/10/2026 ; pour l'état actuel, lire d'abord la section « Onglet G-Drive (ex-Documents), version 2 » plus bas. En particulier : plus de titre « Liens et documents », plus de bouton « Ajouter un lien web », et les deux boutons du dossier de travail passent derrière « + Ajouter ».
 
 Chantier « Liens et documents » des décisions du 16/10/2026. **Rien n'est déployé.** Les règles Firestore ne sont **pas** modifiées. Aucune donnée existante n'est modifiée ni migrée.
 
@@ -62,7 +62,7 @@ Premier essai réel (plateforme, espace clientdemo) : le Picker s'ouvre, mais le
 - **« Ajouter un document »** : l'onglet Mon Drive démarre **dans le dossier de travail** s'il est dans Drive, sinon à la **racine de Mon Drive** ; « Importer » reste dans le dossier de travail.
 - Toujours la fenêtre standard de Google, aucun écran sur mesure. Vérifié ici avec un Google simulé (ce qu'on demande au Picker) ; l'affichage réel de ces vues n'a pas pu être vu sans jeton valide : à confirmer par Jérôme.
 
-## Onglet Documents, version 2 (22/10/2026, I10)
+## Onglet G-Drive (ex-Documents), version 2 (22/10/2026, I10)
 
 - **Dossier de travail** : ligne « Dossier de travail de cette fiche  + Ajouter ». Sans dossier, « + Ajouter » propose « Créer un dossier dans Google Drive » et « Lier un dossier Google Drive existant » ; un second clic, Échap ou « Annuler » referme (le focus clavier va sur le premier choix à l'ouverture et revient sur « + Ajouter » à la fermeture). Avec un dossier : « Ouvrir le dossier » et « Retirer » (confirmation, puis « Annuler » pendant 8 secondes).
 - **Documents** : plus de titre « Liens et documents » ; une ligne « Documents  + Ajouter » (avec le « i ») est toujours en haut de la liste. Sans dossier de travail, « + Ajouter » explique pourquoi on ne peut pas (Fermer) ; sans Google branché, un message le dit et aucun bouton n'apparaît.
@@ -197,3 +197,6 @@ Demande de Jérôme : « quand on veut créer un dossier, paf, ça lui crée aut
 
 ## Dossier de travail créé ou lié : plus de copie des PDF (27/10/2026)
 Les PDF des devis ne sont plus copiés dans le Drive (décision de Jérôme, 27/10/2026) : ils vivent chez nous, dans l'onglet « Devis » de l'affaire (`docs/pdf-clients.md`). Créer ou lier un dossier de travail ne copie plus rien ; le Drive reste pour les autres documents de l'affaire.
+
+## Nom de l'onglet (27/10/2026)
+L'onglet « Documents » des fiches affaire et projet s'appelle maintenant « G-Drive » (identifiant technique `documents` inchangé) : le nom « Documents » est réservé à un futur onglet de fichiers stockés chez nous (`consignes-ui.md`).

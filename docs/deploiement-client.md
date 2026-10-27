@@ -44,7 +44,7 @@ La plateforme est **un seul** projet Google (`chevalier-ia-app`) : ces réglages
 
 | Réglage | À quoi il sert | Où | Mode d'emploi |
 |---|---|---|---|
-| **API Drive et Picker activées** | Choisir un dossier Drive, créer les dossiers de projets, copier le PDF d'un devis dans Drive | Console Google, « API et services » > « Bibliothèque » | `docs/google-drive.md`, étapes 1 à 4 |
+| **API Drive et Picker activées** | Choisir un dossier Drive, créer les dossiers de projets (le PDF d'un devis n'est plus copié dans Drive depuis le 27/10/2026) | Console Google, « API et services » > « Bibliothèque » | `docs/google-drive.md`, étapes 1 à 4 |
 | **Origine autorisée** de la connexion Google | Ouvrir les fenêtres Google (Drive) depuis le site | Identifiants > « Web client » > Origines JavaScript autorisées | `https://chevalier-ia-app.web.app` (voir `docs/google-drive.md`, étape 3) |
 
 

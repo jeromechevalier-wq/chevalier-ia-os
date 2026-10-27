@@ -45,7 +45,7 @@ L'agent bibliothécaire déclenche l'export régulier (outil de sauvegarde) vers
 
 ## 7. Pièces jointes dans l'appli (téléphone)
 
-- Section « Documents » de l'affaire : bouton « Ajouter un lien » (existant) et « Téléverser un fichier » (nouveau).
+- Onglet « G-Drive » de l'affaire : bouton « Ajouter un lien » (existant) et « Téléverser un fichier » (nouveau).
 - Téléversement : autorisation Google Drive limitée aux fichiers créés par l'appli (`drive.file`), demandée à l'écran. Le dossier `Jerome IA OS Attachments` est créé à la première utilisation ; son identifiant est gardé dans les réglages. Jérôme peut le renommer et le déplacer.
 - Réglages Google Cloud (écran de consentement, origine autorisée) : faits par Jérôme.
 
