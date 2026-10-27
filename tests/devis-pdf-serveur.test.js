@@ -67,6 +67,32 @@ describe('P5 Stockage : envoi et lien signé', () => {
     assert.equal(DUREE_LIEN_MINUTES, 5);
     assert.match(options.responseDisposition, /^inline; filename="DEV-1 v1 _ Objet\.pdf"$/); // aucun caractère hors ASCII dans l'en-tête
   });
+  test('P5 (1) sans l\'option « telecharger » : inline, comme avant (cas vide)', async () => {
+    const b = fauxBucket();
+    const s = creerStockage({ bucket: b, maintenant: () => 1_000_000 });
+    await s.lienSigne('devis/a/b/c.pdf', { nomAffiche: 'Devis.pdf' });
+    await s.lienSigne('devis/a/b/c.pdf', { nomAffiche: 'Devis.pdf', telecharger: false });
+    assert.equal(b.signatures[0].options.responseDisposition, 'inline; filename="Devis.pdf"');
+    assert.equal(b.signatures[1].options.responseDisposition, 'inline; filename="Devis.pdf"');
+  });
+  test('P5 (2) telecharger: true : attachment, nom nettoyé comme avant (accents et guillemets)', async () => {
+    const b = fauxBucket();
+    const s = creerStockage({ bucket: b, maintenant: () => 1_000_000 });
+    await s.lienSigne('devis/a/b/c.pdf', { nomAffiche: 'DEV-1 v1 – "Cuisine" été.pdf' });
+    await s.lienSigne('devis/a/b/c.pdf', { nomAffiche: 'DEV-1 v1 – "Cuisine" été.pdf', telecharger: true });
+    const inline = b.signatures[0].options.responseDisposition;
+    const { options } = b.signatures[1];
+    assert.equal(options.responseDisposition, inline.replace(/^inline;/, 'attachment;')); // même nom nettoyé, seule la disposition change
+    assert.match(options.responseDisposition, /^attachment; filename="[^"]*"$/);
+    assert.ok(!/[^\x00-\x7f]/.test(options.responseDisposition));
+    assert.equal(options.action, 'read');
+    assert.equal(options.responseType, 'application/pdf');
+  });
+  test('P5 (3) brouillon avec l\'option : attachment, nom Brouillon.pdf', async () => {
+    const b = fauxBucket();
+    await creerStockage({ bucket: b, maintenant: () => 1_000_000 }).lienSigne('devis/a/b/brouillon.pdf', { nomAffiche: 'Brouillon.pdf', telecharger: true });
+    assert.equal(b.signatures[0].options.responseDisposition, 'attachment; filename="Brouillon.pdf"');
+  });
   test('P5 une panne : message lisible « Stockage : … », sans chemin interne ni détail', async () => {
     const s = creerStockage({ bucket: fauxBucket({ casse: true }) });
     await assert.rejects(s.envoyer('devis/a/b/c.pdf', FAUX_PDF), (e) => /^Stockage : /.test(e.message) && !/interne|secret|403|devis\/a/.test(e.message));

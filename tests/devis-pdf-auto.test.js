@@ -29,7 +29,7 @@ async function monde({ finaliser = false, affaire = true, urlDossier = 'https://
 const finaliserDevis = (donnees) => S.finaliser({ donnees, ctx: { acteur: ACTEUR, via: 'ecran', maintenant: MAINTENANT }, devisId: 'd1' });
 
 function faux({ echecs = 0 } = {}) {
-  const vus = { conversions: 0, envois: [] };
+  const vus = { conversions: 0, envois: [], options: [] };
   const objets = new Map();
   let restant = echecs;
   return {
@@ -43,7 +43,7 @@ function faux({ echecs = 0 } = {}) {
     stockage: {
       envoyer: async (chemin, pdf) => { vus.envois.push(chemin); objets.set(chemin, pdf); },
       existe: async (chemin) => objets.has(chemin),
-      lienSigne: async (chemin, o) => `https://stockage.exemple.test/signe?o=${encodeURIComponent(chemin)}&m=${o.minutes}`,
+      lienSigne: async (chemin, o) => { vus.options.push(o); return `https://stockage.exemple.test/signe?o=${encodeURIComponent(chemin)}&m=${o.minutes}`; },
     },
   };
 }
@@ -286,6 +286,31 @@ describe('R6 lien signé de courte durée', () => {
     await assert.rejects(() => lien(mb, f)(requete({ devisId: 'd1' })), (e) => e.code === 'failed-precondition'); // un brouillon n'a pas de PDF officiel
     await appel(mb, f)(requete({ devisId: 'd1', brouillon: true }));
     assert.match((await lien(mb, f)(requete({ devisId: 'd1', brouillon: true }))).url, /brouillon\.pdf/);
+  });
+  test('R6 (4) telecharger : true passe à lienSigne (brouillon aussi) ; sans option, false ; un type invalide est refusé sans rien signer', async () => {
+    const m = await monde({ finaliser: true });
+    const f = faux();
+    await declencheur(m, f)(evenement(BROUILLON, FINALISE));
+    const a = lien(m, f);
+    await a(requete({ devisId: 'd1' }));
+    await a(requete({ devisId: 'd1', telecharger: true }));
+    assert.deepEqual(f.vus.options.map((o) => o.telecharger), [false, true]);
+    assert.equal(f.vus.options[1].minutes, 5);
+    for (const telecharger of ['oui', 1, null, 'true']) await assert.rejects(() => a(requete({ devisId: 'd1', telecharger })), (e) => e.code === 'invalid-argument');
+    assert.equal(f.vus.options.length, 2);
+    const mb = await monde({ finaliser: false });
+    await appel(mb, f)(requete({ devisId: 'd1', brouillon: true }));
+    await lien(mb, f)(requete({ devisId: 'd1', brouillon: true, telecharger: true }));
+    assert.deepEqual([f.vus.options.at(-1).telecharger, f.vus.options.at(-1).nomAffiche], [true, 'Brouillon.pdf']);
+    // devisPdf (fabrication) ignore la valeur mais refuse un type invalide
+    await assert.rejects(() => appel(mb, f)(requete({ devisId: 'd1', brouillon: true, telecharger: 'oui' })), (e) => e.code === 'invalid-argument');
+  });
+  test('R6 (6) un chemin hors de l\'espace reste refusé avec telecharger: true', async () => {
+    const collections = { 'clients/a/devis_devis': [{ id: 'dA', statut: 'envoye', affaireId: 'x', pdf: { statut: 'ok', chemin: 'clients/b/devis/x/dB/DEV.pdf', nom: 'DEV.pdf' } }] };
+    const f = faux();
+    const chezA = lien({ donnees: avecBase(creerAccesMemoire(collections), 'clients/a') }, f, { espace: 'clients/a/' });
+    await assert.rejects(() => chezA(requete({ devisId: 'dA', telecharger: true })), (e) => e.code === 'permission-denied');
+    assert.equal(f.vus.options.length, 0);
   });
   test('R6 autre espace : un devis d\'un autre client est introuvable, et un chemin hors de l\'espace n\'est jamais signé', async () => {
     const collections = { 'clients/a/devis_devis': [{ id: 'dA', statut: 'envoye', affaireId: 'x', pdf: { statut: 'ok', chemin: 'clients/a/devis/x/dA/DEV.pdf', nom: 'DEV.pdf' } }] };

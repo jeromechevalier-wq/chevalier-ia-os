@@ -24,11 +24,11 @@ const routeDe = (client) => `espace/${client}`;
 const stockageDe = (s) => (typeof s === 'function' ? s() : s) ?? null;
 const accesDe = ({ db, creerDonnees }, client) => (creerDonnees ? creerDonnees(client) : avecBase(creerAccesFirestore({ db }), `clients/${client}`));
 
-/** Lit et contrôle la demande : { devisId, brouillon } ou null. */
+/** Lit et contrôle la demande : { devisId, brouillon, telecharger } ou null (`telecharger` : booléen facultatif, utilisé par le lien seulement ; la fabrication le refuse si le type est invalide mais l'ignore). */
 export function lireDemande(donnees) {
   const d = donnees && typeof donnees === 'object' ? donnees : {};
-  const ok = typeof d.devisId === 'string' && d.devisId && d.devisId.length <= 200 && !d.devisId.includes('/') && (d.brouillon === undefined || typeof d.brouillon === 'boolean');
-  return ok ? { devisId: d.devisId, brouillon: d.brouillon === true } : null;
+  const ok = typeof d.devisId === 'string' && d.devisId && d.devisId.length <= 200 && !d.devisId.includes('/') && (d.brouillon === undefined || typeof d.brouillon === 'boolean') && (d.telecharger === undefined || typeof d.telecharger === 'boolean');
+  return ok ? { devisId: d.devisId, brouillon: d.brouillon === true, telecharger: d.telecharger === true } : null;
 }
 const refusDemande = () => new Refus('invalid-argument', 'Identifiant de devis manquant ou invalide.');
 const refusNonConfigure = () => new Refus('failed-precondition', MESSAGE_PDF_NON_CONFIGURE);
@@ -97,7 +97,7 @@ export async function lienPdfClient({ db, auth, donnees, stockage, creerDonnees 
       // Défense en profondeur : un chemin hors du dossier des devis de CE client (celui d'un autre client, par exemple) n'est jamais signé.
       if (!cheminAppartientALEspace(chemin, espace)) throw refus('chemin_refuse', new Refus('permission-denied', 'Ce PDF n\'est pas accessible.'));
     }
-    const url = await rangement.lienSigne(chemin, { minutes: DUREE_LIEN_MINUTES, nomAffiche: nom });
+    const url = await rangement.lienSigne(chemin, { minutes: DUREE_LIEN_MINUTES, nomAffiche: nom, telecharger: demande.telecharger });
     journal({ action: 'pdf_lien', statut: 'ok', dureeMs: maintenant() - debut });
     return { url, expireDans: DUREE_LIEN_MINUTES * 60, nom };
   } catch (e) {
