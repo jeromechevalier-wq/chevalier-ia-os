@@ -14,11 +14,11 @@ const MAINTENANT = new Date('2026-10-25T10:00:00Z');
 const BASE_LIEN = 'https://appli.exemple.test';
 const requete = (data, email = ACTEUR) => ({ auth: { token: { email, email_verified: true } }, data });
 
-async function monde({ finaliser = false, affaire = true } = {}) {
+async function monde({ finaliser = false, affaire = true, urlDossier = 'https://drive.google.com/drive/folders/DOSSIER_ESSAI' } = {}) {
   const collections = {
     [C.devis]: [], [C.devisCompteurs]: [], [C.devisParametres]: [{ id: 'reglages', regimeTva: 'assujetti', emetteur: { nom: 'Entreprise Essai' } }],
     [C.audit]: [], [C.auditAvant]: [], [C.evenements]: [], [C.organisations]: [{ id: 'org1', nom: 'Société Cliente Essai' }], [C.personnes]: [],
-    [C.affaires]: affaire ? [{ id: 'aff1', titre: 'Rénovation Essai', documents: [{ libelle: 'Plan', url: 'https://exemple.test/plan' }] }] : [],
+    [C.affaires]: affaire ? [{ id: 'aff1', titre: 'Rénovation Essai', ...(urlDossier === null ? {} : { urlDossier }), documents: [{ libelle: 'Plan', url: 'https://exemple.test/plan' }] }] : [],
   };
   const d = nouveauDevis({ destinataires: [{ email: 'client@exemple.test' }], affaireId: affaire ? 'aff1' : null, organisationId: 'org1', objet: 'Cuisine' }, { id: 'd1', maintenant: MAINTENANT, auteur: ACTEUR }, { marge: 20 });
   collections[C.devis].push({ ...d, objet: 'Cuisine', sections: [{ id: 's1', titre: 'Travaux', lignes: [{ id: 'l1', libelle: 'Pose', unite: 'u', quantite: 2, prixAchat: 100 }] }] });
@@ -121,6 +121,26 @@ describe('R2 déclencheur : un PDF par version, rangé dans l\'affaire', () => {
     assert.match(m.collections[C.devis][0].pdf.chemin, /^devis\/sans-affaire\/d1\//);
     assert.equal(m.collections[C.affaires].length, 0);
   });
+  test('R2 affaire SANS dossier de travail : pdf ok, AUCUN document, AUCUN événement, journal écrit ; les liens déjà présents restent', async () => {
+    for (const urlDossier of [null, '', '   ']) {
+      const m = await monde({ finaliser: true, urlDossier });
+      const f = faux();
+      const r = await declencheur(m, f)(evenement(BROUILLON, FINALISE));
+      assert.deepEqual(r, { suite: 'traite', statut: 'ok' });
+      assert.equal(m.collections[C.devis][0].pdf.statut, 'ok');
+      assert.equal(f.vus.envois.length, 1);
+      assert.deepEqual(m.collections[C.affaires][0].documents.map((d) => d.libelle), ['Plan']);
+      assert.ok(!m.collections[C.evenements].some((e) => e.type === 'document'));
+      assert.ok(m.collections[C.audit].some((l) => l.outil === 'devisPdf' && l.collection === C.devis));
+    }
+  });
+  test('R2 un lien PDF déjà dans les documents n\'est jamais retiré, même si l\'affaire n\'a pas (ou plus) de dossier', async () => {
+    const m = await monde({ finaliser: true, urlDossier: null });
+    const lien = { libelle: 'Ancien devis.pdf', url: `${BASE_LIEN}/#/devis/pdf/d1` };
+    m.collections[C.affaires][0].documents.push(lien);
+    await declencheur(m, faux())(evenement(BROUILLON, FINALISE));
+    assert.deepEqual(m.collections[C.affaires][0].documents.map((d) => d.libelle), ['Plan', 'Ancien devis.pdf']);
+  });
   test('R2 chez un client le chemin est sous clients/<client>/', async () => {
     const m = await monde({ finaliser: true });
     const f = faux();
@@ -219,6 +239,15 @@ describe('R5 brouillon à la demande : remplace le précédent', () => {
     assert.equal(docs[0].libelle, 'Devis brouillon – Cuisine – 25-10-2026 14h32.pdf');
     assert.equal(docs[0].url, `${BASE_LIEN}/#/devis/pdf/d1/brouillon`);
     assert.equal(m.collections[C.devis][0].pdf, undefined); // le champ pdf du devis n'a pas été touché
+  });
+  test('R5 brouillon à la demande, affaire SANS dossier : fichier rangé, AUCUN document, AUCUN événement', async () => {
+    const m = await monde({ finaliser: false, urlDossier: null });
+    const f = faux();
+    await appel(m, f)(requete({ devisId: 'd1', brouillon: true }));
+    assert.equal(f.vus.envois.length, 1);
+    assert.deepEqual(m.collections[C.affaires][0].documents.map((d) => d.libelle), ['Plan']);
+    assert.ok(!m.collections[C.evenements].some((e) => e.type === 'document'));
+    assert.equal(m.collections[C.devis][0].pdf, undefined);
   });
   test('R5 le PDF brouillon est refusé pour un devis déjà finalisé (message clair, rien fabriqué)', async () => {
     const m = await monde({ finaliser: true });

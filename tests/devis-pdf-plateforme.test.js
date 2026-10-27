@@ -42,7 +42,7 @@ async function monde({ finaliser = ['a', 'b'] } = {}) {
     Object.assign(collections, {
       [`clients/${c}/devis_devis`]: [], [`clients/${c}/devis_compteurs`]: [], [`clients/${c}/crm_audit`]: [], [`clients/${c}/crm_audit_avant`]: [],
       [`clients/${c}/devis_parametres`]: [{ id: 'reglages', regimeTva: 'assujetti', emetteur: { nom: `Entreprise ${c}` } }],
-      [`clients/${c}/crm_organisations`]: [{ id: 'org1', nom: 'Société Cliente Essai' }], [`clients/${c}/crm_personnes`]: [], [`clients/${c}/crm_affaires`]: [{ id: 'aff1', titre: 'Rénovation Essai', documents: [] }],
+      [`clients/${c}/crm_organisations`]: [{ id: 'org1', nom: 'Société Cliente Essai' }], [`clients/${c}/crm_personnes`]: [], [`clients/${c}/crm_affaires`]: [{ id: 'aff1', titre: 'Rénovation Essai', urlDossier: 'https://drive.google.com/drive/folders/DOSSIER_ESSAI', documents: [] }],
       [`clients/${c}/crm_evenements`]: [],
     });
     const d = nouveauDevis({ destinataires: [{ email: 'client@exemple.test' }], affaireId: 'aff1', organisationId: 'org1', objet: 'Cuisine' }, { id: `d-${c}`, maintenant: MAINTENANT, auteur: ALICE }, { marge: 20 });
