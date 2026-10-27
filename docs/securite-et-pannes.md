@@ -120,6 +120,12 @@ Page de suivi : https://github.com/jeromechevalier-wq/chevalier-ia-os/actions. U
 | Avertissement `ubuntu-latest will migrate to Ubuntu 26 beginning October 19, 2026` | Le système du runner change | Pas une panne, mais **à surveiller après le 19/10/2026** : si le déploiement casse sans changement de code, figer `runs-on: ubuntu-24.04` dans le workflow |
 | Déploiement vert mais `/mcp` répond 404 | La réécriture Hosting vers le service Cloud Run n'a pas pris (forme **[à vérifier]**) | Essayer l'adresse directe de la fonction (visible dans Cloud Run) ; repli prévu au plan |
 
+### Publier les règles Firestore du CRM (workflow manuel)
+
+Les règles (`firestore.rules`) ne partent **pas** avec la fusion d'une PR. Pour les publier : GitHub > onglet Actions (https://github.com/jeromechevalier-wq/chevalier-ia-os/actions) > à gauche « Publier les règles (CRM de Jérôme) » > « Run workflow » > bouton vert. Le workflow ne tourne jamais tout seul et ne publie ni fonctions ni site. Il publie seulement les règles Firestore (le CRM n'a pas de règles Storage à la racine). Publier deux fois les mêmes règles ne change rien.
+
+**À faire une seule fois (rôle du compte de déploiement)** : ouvrir https://console.cloud.google.com/iam-admin/iam?project=chevalier-ia-os , repérer dans la liste le compte dont l'adresse commence par `github-action-` (la ligne « Compte de déploiement : … » du journal donne l'adresse exacte), cliquer le crayon à droite, « Ajouter un autre rôle », choisir « Administrateur des règles Firebase », Enregistrer. Attendre 1 à 2 minutes. Sans ce rôle, le journal finit par un message qui rappelle ce rôle (erreur de permission).
+
 ### Réponses du serveur `/mcp`
 
 | Réponse | Sens | Vérification / réparation |

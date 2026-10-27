@@ -194,3 +194,7 @@ Demande de Jérôme : « quand on veut créer un dossier, paf, ça lui crée aut
 - Le nom exact de l'onglet « Importer » en français (c'est Google qui le choisit : « Importer » ou « Upload »).
 - Les lecteurs et appareils : fenêtre surgissante d'autorisation sur téléphone (Safari bloque parfois les fenêtres : l'autorisation se demande au clic, scripts chargés à l'avance).
 - Drives partagés : non activés (le Picker ne les montre pas), les dossiers de « Mon Drive » seulement.
+
+## Dossier de travail créé ou lié : copie des PDF des devis (27/10/2026)
+Quand une **affaire** reçoit son dossier de travail (créé ou lié, fiche de l'affaire ou écran du PDF d'un devis), le module Devis copie dans « Devis » les PDF de ses devis finalisés (`js/modules/devis/dossier-travail.js`, règles pures dans `drive-copie.js`), avec le jeton Google obtenu pour ce clic. Pas pour un projet. Sans devis éligible : aucune requête vers Drive. Détails et décisions : `docs/pdf-clients.md`, section « Dossier de travail et PDF ».
+Pas vérifié en réel : créer ou retrouver « Devis » dans un dossier **lié par le Picker** avec la portée `drive.file` ; la lecture CORS du vrai bucket.

@@ -7,17 +7,20 @@
 // - un fichier du même nom déjà dans le dossier « Devis » est IGNORÉ (jamais de doublon, jamais d'écrasement) ;
 // - une fois le PDF copié, le navigateur s'en souvient (préférence locale, voir cleMemoire) : on ne redemande pas Drive à chaque ouverture de l'écran.
 //   Le serveur n'écrit pas ce détail sur le devis et les règles Firestore ne laissent au navigateur que `devisBrouillonModifie` : rien n'est écrit dans la base.
+//   (Ce fichier-ci n'écrit rien. Les liens des PDF joints aux Documents de l'affaire, après la création ou la liaison du dossier, passent par la logique du CRM dans dossier-travail.js.)
 import { idDossierDrive, trouverDossierDeMemeNom, creerDossier, trouverFichierDeMemeNom, envoyerFichier } from '../../os/google-drive.js';
-import { etatPdfDevis } from './pdf.js';
+import { etatPdfDevis, lienStablePdfNavigateur } from './pdf.js';
 
 export const NOM_SOUS_DOSSIER = 'Devis';
 
 export const MESSAGE_COPIE_FAITE = 'PDF copié dans le dossier Devis de l’affaire';
 export const MESSAGE_DEJA_COPIE = 'Ce PDF est déjà dans le dossier Devis de l’affaire.';
-export const MESSAGE_SANS_DOSSIER = 'Cette affaire n’a pas de dossier de travail Drive : le PDF est rangé dans l’affaire seulement.';
+export const MESSAGE_SANS_DOSSIER = 'Cette affaire n’a pas de dossier de travail : le PDF est gardé avec le devis.';
+export const MESSAGE_SANS_DOSSIER_NON_CREABLE = MESSAGE_SANS_DOSSIER;
+export const MESSAGE_SANS_DOSSIER_ECRAN = 'Cette affaire n’a pas encore de dossier de travail.';
 export const MESSAGE_SANS_AFFAIRE = 'Ce devis n’a pas d’affaire : le PDF est rangé avec le devis seulement.';
-export const MESSAGE_DOSSIER_PAS_DRIVE = 'Le dossier de travail de cette affaire n’est pas un dossier Google Drive : le PDF est rangé dans l’affaire seulement.';
-export const MESSAGE_GOOGLE_ABSENT = 'Google Drive n’est pas branché sur cet espace : le PDF est rangé dans l’affaire seulement.';
+export const MESSAGE_DOSSIER_PAS_DRIVE = 'Le dossier de travail de cette affaire n’est pas un dossier Google Drive : le PDF n’y est pas copié (il est dans les Documents de l’affaire).';
+export const MESSAGE_GOOGLE_ABSENT = 'Google Drive n’est pas branché sur cet espace : le PDF n’est pas copié dans Drive (il est gardé dans les Documents de l’affaire).';
 export const MESSAGE_PDF_PAS_PRET = 'Le PDF n’est pas encore prêt : la copie dans Drive se fera quand il le sera.';
 export const MESSAGE_LECTURE_PDF = 'Le PDF n’a pas pu être lu pour la copie dans Drive. Réessaie ; si ça continue, il faut autoriser ce site dans le stockage (réglage à faire une fois).';
 export const MESSAGE_AUTORISATION_DRIVE = 'Pour copier ce PDF dans Drive, appuie sur « Copier dans Drive ».';
@@ -102,4 +105,68 @@ export async function copierPdfDevis({ devis, affaire, outils, maintenant = Date
   } catch (e) {
     return { etat: 'erreur', message: messagePourErreur(e), erreur: e, dossierId: dest.dossierId, nom };
   }
+}
+
+// ---------------------------------------------------------------- tous les PDF d'une affaire (quand le dossier de travail est créé ou lié)
+
+/** Les devis dont le PDF part dans le dossier : ceux de CETTE affaire, finalisés (pas brouillon) et au PDF prêt, toutes versions (comme le serveur les joint à l'affaire). Triés par numéro puis version. */
+export function devisAvecPdfDeAffaire(devisListe, affaireId) {
+  return (Array.isArray(devisListe) ? devisListe : [])
+    .filter((d) => d && affaireId && d.affaireId === affaireId && d.statut !== 'brouillon' && d.pdf?.statut === 'ok')
+    .sort((a, b) => String(a.numero ?? '').localeCompare(String(b.numero ?? '')) || (a.version ?? 1) - (b.version ?? 1));
+}
+
+const pluriel = (n, un, plusieurs) => (n > 1 ? plusieurs : un);
+
+/** Compte rendu simple d'une copie en lot. `copies` : nouveaux fichiers ; `deja` : déjà présents ; `echecs` : à réessayer. Texte vide s'il n'y avait rien à copier. */
+export function messageCopieLot({ total = 0, copies = 0, deja = 0, echecs = 0, message = '' } = {}) {
+  if (!total) return { texte: '', type: 'info' };
+  if (echecs) return { texte: `${copies + deja} sur ${total} copiés : réessaie.${message ? ` ${message}` : ''}`, type: 'erreur' };
+  if (!copies) return { texte: total > 1 ? 'Les PDF des devis sont déjà dans le dossier.' : 'Le PDF du devis est déjà dans le dossier.', type: 'info' };
+  const reste = deja ? ` (${deja} ${pluriel(deja, 'était déjà présent', 'étaient déjà présents')})` : '';
+  return { texte: `${copies} ${pluriel(copies, 'PDF copié', 'PDF copiés')} dans le dossier${reste}.`, type: 'info' };
+}
+
+/**
+ * Copie dans « Devis » le PDF de chaque devis finalisé de l'affaire, un par un (jamais deux en même temps : le sous-dossier n'est créé qu'une fois).
+ * `outils` : { obtenirJeton(), lirePdf(devis) → Blob, appelFetch? }. Le jeton est demandé UNE fois. Ne lève jamais.
+ * Rend { total, copies, deja, echecs, resultats, message, type, texte }.
+ */
+export async function copierPdfsAffaire({ affaire, devisListe, outils, maintenant = Date.now() }) {
+  const liste = devisAvecPdfDeAffaire(devisListe, affaire?.id);
+  const bilan = { total: liste.length, copies: 0, deja: 0, echecs: 0, resultats: [], message: '' };
+  if (!liste.length) return { ...bilan, ...messageCopieLot(bilan) };
+  let jeton;
+  try { jeton = await outils.obtenirJeton(); } catch (e) {
+    const resume = { ...bilan, echecs: liste.length, message: messagePourErreur(e), erreur: e };
+    return { ...resume, ...messageCopieLot(resume) };
+  }
+  for (const devis of liste) {
+    const r = await copierPdfDevis({ devis, affaire, maintenant, outils: { appelFetch: outils.appelFetch, obtenirJeton: async () => jeton, lirePdf: () => outils.lirePdf(devis) } });
+    bilan.resultats.push({ devisId: devis.id, ...r });
+    if (r.etat === 'copie') bilan.copies += 1;
+    else if (r.etat === 'deja') bilan.deja += 1;
+    else { bilan.echecs += 1; bilan.message = bilan.message || r.message; if (r.erreur?.statut === 401) { bilan.erreur = r.erreur; break; } }
+  }
+  bilan.echecs += liste.length - bilan.resultats.length; // les devis non tentés après un jeton refusé restent « à réessayer »
+  return { ...bilan, ...messageCopieLot(bilan) };
+}
+
+/** Mémoire locale d'une copie déjà faite (voir cleMemoire) : sans elle, rien ne casse, Drive est simplement redemandé. */
+export const memoireCopie = {
+  lire: (cle) => { try { return localStorage.getItem(cle) === '1'; } catch { return false; } },
+  ecrire: (cle) => { try { localStorage.setItem(cle, '1'); } catch { /* préférence locale seulement */ } },
+};
+
+// ---------------------------------------------------------------- liens stables dans les Documents de l'affaire
+
+/**
+ * Documents à AJOUTER à l'affaire pour les devis donnés. Un document est reconnu par son adresse (celle du serveur, voir lienStablePdfNavigateur) : jamais de doublon avec celui que le serveur a déjà ajouté.
+ * Libellé = nom du PDF écrit par le serveur (`pdf.nom`), sinon le nom calculé. Rend les documents { libelle, url, ajouteLe } nouveaux.
+ */
+export function documentsAAjouter({ devisListe, documents, client = '', maintenant = new Date() }) {
+  const existants = new Set((Array.isArray(documents) ? documents : []).map((d) => String(d?.url ?? '')));
+  return (devisListe || []).filter((d) => d && d.id).map((d) => ({ d, url: lienStablePdfNavigateur(d.id, { client }) }))
+    .filter(({ url }) => !existants.has(url))
+    .map(({ d, url }) => ({ libelle: d.pdf?.nom || nomFichierDrive(d), url, ajouteLe: maintenant.toISOString() }));
 }
