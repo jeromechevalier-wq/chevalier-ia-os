@@ -35,7 +35,7 @@ test('F2 même ordre sur les deux fiches : colonne de gauche Résumé, (Tâches 
   await creerProjet('pr1', { titre: 'Refonte site' });
   await connecter(page);
   await aller(page, '#/crm/affaires/a1');
-  await expect(page.locator('.compositeur [role="tab"]')).toHaveText([/Activité/, /Notes/, /Documents/]);
+  await expect(page.locator('.compositeur [role="tab"]')).toHaveText([/Activité/, /Notes/, /Documents/, /Devis/]); // l'affaire a en plus l'onglet « Devis » du module Devis (la fiche projet n'en a pas)
   await expect(page.locator('[data-section="affaire-details"]')).toBeVisible();
   expect(await dessus(page, 'affaire-resume', 'affaire-details')).toBe(true);
   await aller(page, '#/projets/projets/pr1');
