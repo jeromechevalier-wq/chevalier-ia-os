@@ -26,10 +26,11 @@ export function nomsDe(d) {
 const dire = (e) => { console.warn(e); toast(e?.message || D.MESSAGE_RESEAU_DEVIS, { type: 'erreur', duree: 8000 }); };
 
 /** « Devis envoyé » : ajoute à l'historique des envois les destinataires et la copie du devis. Le statut est DÉJÀ posé ; un échec ici ne doit rien défaire (la date du premier envoi reste visible, sans adresse). */
+export const MESSAGE_ENVOI_NON_NOTE = 'Statut posé ; l’historique des envois n’a pas pu être écrit.';
 async function noterEnvoi(d) {
   const destinataires = adressesDuDevis(d.destinataires);
   if (!destinataires.length) return;
-  try { await D.enregistrerEnvoi(d.id, { destinataires, copie: adressesDuDevis(d.copie) }); } catch (e) { console.warn(e); }
+  try { await D.enregistrerEnvoi(d.id, { destinataires, copie: adressesDuDevis(d.copie) }); } catch (e) { console.warn(e); toast(MESSAGE_ENVOI_NON_NOTE, { type: 'erreur', duree: 8000 }); }
 }
 
 /** Appelle la fonction du serveur puis dit le résultat. Un refus du serveur ou une panne de réseau s'affiche en clair ; rien n'est écrit par le navigateur. */

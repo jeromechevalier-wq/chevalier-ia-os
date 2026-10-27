@@ -11,7 +11,7 @@ Elle reprend la checklist de `docs/deploiement-client.md`, étape par étape, et
 - **Orange** « Impossible de vérifier » : le contrôle n'a pas abouti (serveur injoignable, données pas encore lues). Clique sur « Revérifier ».
 - **Gris** « À vérifier à la main » : une étape humaine ou un réglage que l'appli ne peut pas lire (e-mail de bienvenue, MCP…). On la fait, puis on coche « C'est fait ».
 
-En tête : le résumé (par exemple « 7 sur 23 vertes ») et le bouton **Revérifier**. Les contrôles se lancent aussi à l'ouverture de la page. Si un jour quelque chose ne marche plus chez un client, ouvre cette page chez lui : toutes les cases doivent être vertes.
+En tête : le résumé (par exemple « 7 sur 21 vertes ») et le bouton **Revérifier**. Les contrôles se lancent aussi à l'ouverture de la page. Si un jour quelque chose ne marche plus chez un client, ouvre cette page chez lui : toutes les cases doivent être vertes.
 
 Ce qui est contrôlé tout seul aujourd'hui : les fonctions du serveur répondent ; chez un client, les personnes autorisées sont cohérentes (la liste affichée et les fiches d'appartenance disent la même chose, avec au moins un éditeur ; chez Jérôme, où les comptes sont écrits dans le code, c'est une case à cocher) ; le dossier Google Drive racine des projets est choisi ; avec le module Devis : « Mon entreprise » complète (le même calcul que le point rouge), l'étape où vivent les devis réglée et existante, au moins un article au catalogue, et le réglage CORS du stockage (le navigateur lit un fichier qui n'existe pas : si la réponse est lisible, le réglage est fait ; si elle ne l'est pas, soit le réglage manque, soit le navigateur ou un bloqueur de publicité empêche la lecture : essayer « Revérifier » dans un autre navigateur).
 

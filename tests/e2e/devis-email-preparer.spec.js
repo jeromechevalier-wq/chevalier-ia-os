@@ -93,6 +93,8 @@ test('1 pas branché : le menu « Envoyer » garde « Préparer l’e-mail », g
     await expect(page.locator('.menu-pop [role="menuitem"]')).toHaveCount(1);
     await expect.poll(async () => entree(page).isDisabled(), { message: 'grisée dès que le serveur a répondu « pas branché »' }).toBe(true);
     await expect(entree(page)).toHaveAttribute('title', /pas encore branchée/);
+    await expect(page.locator('.menu-pop [data-zone="menu-texte"]')).toBeVisible(); // la phrase est AFFICHÉE sous l'entrée (téléphone compris : pas d'infobulle au doigt)
+    await expect(page.locator('.menu-pop [data-zone="menu-texte"]')).toContainText('pas encore branchée');
     if (branche === false) await capturer(page, info, '1-pas-branche');
     await page.keyboard.press('Escape');
     await page.unroute('**/devisPreparerEmailEtat');

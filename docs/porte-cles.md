@@ -245,7 +245,7 @@ Le module `automatisations` est un module de la porte (`MODULES_DE_LA_PORTE` dan
 
 ## 13. Module Devis : « Préparer l'e-mail » (25/10/2026)
 
-Le module `devis` est un module de la porte (`MODULES_DE_LA_PORTE` dans `scripts/porte/porte.js`, `modulesActifs` dans `functions/src/porte.js` : `['veille', 'automatisations', 'devis']`). Il sert un seul cas pour l'instant : un workflow n8n crée un **brouillon Gmail** (avec le PDF) pour un devis finalisé. **Rien n'est jamais envoyé** : ni par l'appli, ni par n8n ; la personne envoie elle-même depuis Gmail, puis touche « Marquer comme envoyé » à la main. Code : `scripts/porte/actions-devis.js` (validation) et `functions/src/coeur/devis-email.js` (le travail). Le mode d'emploi pas à pas est dans `docs/ajouter-un-bouton-workflow.md`.
+Le module `devis` est un module de la porte (`MODULES_DE_LA_PORTE` dans `scripts/porte/porte.js`, `modulesActifs` dans `functions/src/porte.js` : `['veille', 'automatisations', 'devis']`). Il sert un seul cas pour l'instant : un workflow n8n crée un **brouillon Gmail** (avec le PDF) pour un devis finalisé. **Rien n'est jamais envoyé** : ni par l'appli, ni par n8n ; la personne envoie elle-même depuis Gmail, puis touche « Devis envoyé » à la main. Code : `scripts/porte/actions-devis.js` (validation) et `functions/src/coeur/devis-email.js` (le travail). Le mode d'emploi pas à pas est dans `docs/ajouter-un-bouton-workflow.md`.
 
 Une action de ce module ne marche que pour une **demande** (`demandeId`) que l'écran vient de faire (fonction `devisPreparerEmail`) : ni une clé, ni un workflow ne peuvent préparer un e-mail « de leur propre chef ».
 

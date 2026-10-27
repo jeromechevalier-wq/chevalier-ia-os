@@ -67,6 +67,7 @@ export function contenuMenu(entrees, fermer) {
 
 function elementsDe(e, fermer) {
   if (e.separateur) return [h('div', { class: 'menu-pop-separateur', role: 'separator' })];
+  if (e.texte !== undefined) return [h('div', { class: 'menu-pop-texte', role: 'presentation', dataset: { zone: 'menu-texte' } }, e.texte)]; // phrase d'explication d'une entrée grisée
   if (e.titre !== undefined) return [h('div', { class: 'menu-devis-titre', role: 'presentation' }, e.titre)];
   if (e.noeud) return [e.noeud];
   if (e.sous) {

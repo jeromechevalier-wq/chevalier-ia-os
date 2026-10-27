@@ -95,7 +95,7 @@ test('2 « Devis envoyé » : le statut passe à Envoyé (devisChangerStatut) pu
   await capturer(page, info, '2-historique-un-envoi');
 });
 
-test('3 un devis déjà envoyé puis renvoyé : le panneau Historique garde les DEUX dates', async ({ page }, info) => {
+test('3 affichage seulement : une base qui contient DEUX envois (semés dans la base, l’écran ne sait plus noter un renvoi) les montre avec leurs deux dates', async ({ page }, info) => {
   const premier = new Date(Date.now() - 5 * 86400000);
   await semer('dEmail', { statut: 'envoye', envoyeLe: premier, envois: [
     { date: premier, destinataires: ['marie@exemple.fr'], copie: [] },
@@ -127,13 +127,14 @@ test('4 cas vide de l’historique : un devis finalisé jamais envoyé dit « Pa
   await expect(fiche(page).locator('[data-bloc="envois"] [data-envoi]')).toHaveCount(0);
 });
 
-test('5 cas d’erreur : si l’historique des envois échoue, le statut « Envoyé » reste posé et la date du premier envoi reste visible (sans adresse), sans message d’erreur bloquant', async ({ page }) => {
+test('5 cas d’erreur : si l’historique des envois échoue, le statut « Envoyé » reste posé, un avertissement non bloquant le dit, et la date du premier envoi reste visible (sans adresse)', async ({ page }) => {
   test.info().annotations.push({ type: 'erreurs-reseau-attendues', description: 'le faux serveur répond 500 à devisEnregistrerEnvoi' });
   await semer('dEmail');
   const serveur = await simulerServeur(page, 'dEmail', { appels: [], echecEnvoi: true });
   await ouvrirEditeur(page, 'dEmail');
   await page.locator('[data-action="passer-envoye"]').click();
   await expect(page.locator('#toasts')).toContainText('Devis passé à « Envoyé »');
+  await expect(page.locator('#toasts')).toContainText('Statut posé ; l’historique des envois n’a pas pu être écrit.');
   await expect.poll(() => serveur.appels.map((a) => a[0])).toEqual(['devisChangerStatut', 'devisEnregistrerEnvoi']);
   const doc = await lireDocument('devis_devis/dEmail');
   expect([doc.statut, doc.envois ?? []]).toEqual(['envoye', []]);

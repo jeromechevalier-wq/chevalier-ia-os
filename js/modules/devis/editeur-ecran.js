@@ -658,8 +658,9 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
   const grisEmail = () => ({ desactive: !emailPossible((devisCourant() ?? travail)?.statut).actif, titreInfo: emailPossible((devisCourant() ?? travail)?.statut).raison ?? null });
   const entreePreparerEmail = () => {
     const nonBranche = D.emailPreparable() === false;
-    return [{ libelle: LIBELLE_PREPARER_EMAIL, icone: 'mail-check', cle: 'preparer-email', ...(nonBranche ? { desactive: true, titreInfo: MESSAGE_NON_BRANCHE } : grisEmail()),
-      action: () => lancerPreparationEmail({ devisId: id, getDevis: () => D.devisParId(id) ?? travail, finaliser: finaliserDAbord }) }];
+    const entree = { libelle: LIBELLE_PREPARER_EMAIL, icone: 'mail-check', cle: 'preparer-email', ...(nonBranche ? { desactive: true, titreInfo: MESSAGE_NON_BRANCHE } : grisEmail()),
+      action: () => lancerPreparationEmail({ devisId: id, getDevis: () => D.devisParId(id) ?? travail, finaliser: finaliserDAbord }) };
+    return nonBranche ? [entree, { texte: MESSAGE_NON_BRANCHE }] : [entree]; // la phrase est AFFICHÉE sous l'entrée grisée (comme dans le menu de la liste), pas seulement en infobulle
   };
   /** Menu du bouton « Envoyer » (devis finalisé) : seulement l'e-mail. Le PDF et l'impression sont dans « … » (ils ne dépendent pas de l'envoi). */
   function ouvrirMenuEnvoyer(ancre) {

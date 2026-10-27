@@ -71,6 +71,7 @@ Déjà validés par Jérôme : 280, 282, et le 26/10/2026 : 309 (retour visuel p
 - **Accessibilité des onglets Édition / Prévisualisation** (`role=tabpanel`, `aria-controls`, flèches) : point connu, non fait.
 
 ## Reste à faire (code, rien d'urgent)
+- **Noter les renvois d'un devis depuis l'écran** (décision de Claude le 27/10/2026, à valider par Jérôme) : l'écran ne note qu'UN envoi, au passage à « Envoyé » (destinataires et copie du devis). Un renvoi (devis déjà envoyé, e-mail préparé une 2e fois) n'est noté que par l'outil MCP `enregistrer_envoi_devis` ; il n'y a plus de bouton à l'écran pour l'ajouter (l'ancien dialogue le faisait).
 
 ### Priorité haute (demande de Jérôme, 26/10/2026)
 - **Haut de page du devis : un seul bouton jaune qui suit l'étape** (PR `devis-entete-bouton-jaune`, en brouillon, relecture Fable avant fusion) : Brouillon = « Finaliser » + « Envoyer » grisé ; Finalisé = « Envoyer » ; Envoyé = « Devis signé » + « Devis refusé » ; Signé, refusé, remplacé, archivé = aucun. « Imprimer » un brouillon donne le PDF brouillon (filigrane + pied « Brouillon v… · généré le … »), sans fenêtre « Finaliser ». Idée suivante, pas faite : « Préparer l'e-mail » comme bouton jaune quand la fonction fonctionnera pour de bon (le choix est dans `boutonJaune`, `js/modules/devis/entete-boutons.js`).
