@@ -1,6 +1,7 @@
 # Déploiement automatique à chaque push sur main : d'abord les fonctions (serveur MCP, Paris), puis Firebase Hosting (canal live).
 # Si les fonctions échouent, Hosting n'est pas déployé (la réécriture /mcp pointe vers la fonction, qui doit exister).
-# Les règles Firestore restent hors déploiement (publiées à la main dans la console).
+# Les règles Firestore restent hors de ce déploiement automatique : elles se publient avec le workflow MANUEL « Publier les règles (CRM de Jérôme) »
+# (.github/workflows/publier-regles.yml ; mode d'emploi dans docs/securite-et-pannes.md).
 name: Déploiement Firebase Hosting
 on:
   push:

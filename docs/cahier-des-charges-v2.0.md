@@ -463,11 +463,16 @@ service cloud.firestore {
       allow read, create, update: if compteAutorise();
       allow delete: if false;
     }
+    // Journal des demandes « Préparer l'e-mail » d'un devis (anti-doublon, identifiants, statuts) : écrit par le SERVEUR seulement
+    // (fonction devisPreparerEmail, porte devis.noterEmailPrepare), aucun écran ne le lit. Ni lecture ni écriture depuis un navigateur (25/10/2026).
+    match /crm_actions_lancements/{id} {
+      allow read, write: if false;
+    }
 
     // Tout le reste : comme avant (les deux comptes autorisés), sauf les collections ci-dessus.
     match /{collection}/{document=**} {
       allow read, write: if compteAutorise()
-        && !(collection in ['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions', 'devis_devis', 'devis_compteurs', 'devis_articles']);
+        && !(collection in ['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions', 'devis_devis', 'devis_compteurs', 'devis_articles', 'crm_actions_lancements']);
     }
   }
 }
