@@ -1,5 +1,5 @@
 // Tests R (module Devis, PDF fabriqué par le serveur à la finalisation) : déclencheur Firestore (ignoré hors passage brouillon -> finalisé, idempotent, sans boucle),
-// états du PDF (en_cours, ok, echec), 3 tentatives automatiques au plus, réessai à la demande, brouillon qui remplace le brouillon, document de l'affaire, lien signé court.
+// états du PDF (en_cours, ok, echec), 3 tentatives automatiques au plus, réessai à la demande, brouillon qui remplace le brouillon, aucune écriture dans l'affaire (27/10/2026), lien signé court.
 // FAUX convertisseur et FAUX Cloud Storage : aucun appel réseau. node --test.
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
@@ -72,34 +72,36 @@ describe('R1 déclencheur : seul le passage brouillon -> finalisé compte', () =
   });
 });
 
-describe('R2 déclencheur : un PDF par version, rangé dans l\'affaire', () => {
-  test('R2 finalisation -> pdf ok, chemin Storage, document « Devis DEV-… v1 – Cuisine.pdf » dans les Documents de l\'affaire, événement du fil', async () => {
-    const m = await monde({ finaliser: true });
-    const f = faux();
-    const r = await declencheur(m, f)(evenement(BROUILLON, FINALISE));
-    assert.deepEqual(r, { suite: 'traite', statut: 'ok' });
-    const devis = m.collections[C.devis][0];
-    assert.equal(devis.statut, 'en_attente_envoi');
-    assert.equal(devis.pdf.statut, 'ok');
-    assert.equal(devis.pdf.chemin, 'devis/aff1/d1/DEV-2026-10-25-001 v1 - Cuisine.pdf');
-    assert.deepEqual(f.vus.envois, [devis.pdf.chemin]);
-    const docs = m.collections[C.affaires][0].documents;
-    assert.equal(docs.length, 2);
-    assert.equal(docs[0].libelle, 'Plan'); // l'existant est intact
-    assert.equal(docs[1].libelle, 'Devis DEV-2026-10-25-001 v1 – Cuisine.pdf');
-    assert.equal(docs[1].url, `${BASE_LIEN}/#/devis/pdf/d1`);
-    assert.doesNotMatch(docs[1].url, /signe|token|X-Goog|storage/i); // adresse stable : ni signée ni publique
-    assert.ok(m.collections[C.evenements].some((e) => e.type === 'document' && e.affaireId === 'aff1' && /DEV-2026-10-25-001/.test(e.texte)));
-    assert.ok(m.collections[C.audit].some((l) => l.outil === 'devisPdf' && l.collection === C.devis));
+describe('R2 déclencheur : un PDF par version, sans rien écrire dans l\'affaire', () => {
+  test('R2 finalisation -> pdf ok, chemin Storage, journal ; l\'affaire est strictement identique et aucun « Document joint » n\'est écrit', async () => {
+    for (const urlDossier of ['https://drive.google.com/drive/folders/DOSSIER_ESSAI', null, '', '   ']) {
+      const m = await monde({ finaliser: true, urlDossier });
+      const f = faux();
+      const affaireAvant = structuredClone(m.collections[C.affaires][0]);
+      const evenementsAvant = structuredClone(m.collections[C.evenements]);
+      const r = await declencheur(m, f)(evenement(BROUILLON, FINALISE));
+      assert.deepEqual(r, { suite: 'traite', statut: 'ok' });
+      const devis = m.collections[C.devis][0];
+      assert.equal(devis.statut, 'en_attente_envoi');
+      assert.equal(devis.pdf.statut, 'ok');
+      assert.equal(devis.pdf.chemin, 'devis/aff1/d1/DEV-2026-10-25-001 v1 - Cuisine.pdf');
+      assert.equal(devis.pdf.nom, 'Devis DEV-2026-10-25-001 v1 – Cuisine.pdf');
+      assert.deepEqual(f.vus.envois, [devis.pdf.chemin]);
+      assert.deepEqual(m.collections[C.affaires][0], affaireAvant);
+      assert.deepEqual(m.collections[C.evenements], evenementsAvant);
+      assert.ok(!m.collections[C.evenements].some((e) => e.type === 'document'));
+      assert.ok(m.collections[C.audit].some((l) => l.outil === 'devisPdf' && l.collection === C.devis));
+      assert.ok(!m.collections[C.audit].some((l) => l.collection === C.affaires && l.outil === 'devisPdf'));
+    }
   });
-  test('R2 deux événements simultanés pour la même version : UN seul PDF, UN seul document', async () => {
+  test('R2 deux événements simultanés pour la même version : UN seul PDF, affaire intacte', async () => {
     const m = await monde({ finaliser: true });
     const f = faux();
     const g = declencheur(m, f);
     const [a, b] = await Promise.all([g(evenement(BROUILLON, FINALISE)), g(evenement(BROUILLON, FINALISE))]);
     assert.equal(f.vus.conversions, 1);
     assert.equal(f.vus.envois.length, 1);
-    assert.equal(m.collections[C.affaires][0].documents.length, 2);
+    assert.equal(m.collections[C.affaires][0].documents.length, 1);
     assert.ok([a.statut, b.statut].includes('ok'));
     // un événement rejoué plus tard ne refait rien non plus
     await g(evenement(BROUILLON, FINALISE));
@@ -113,7 +115,7 @@ describe('R2 déclencheur : un PDF par version, rangé dans l\'affaire', () => {
     assert.equal(apres.statut, avant.statut);
     assert.ok(!estFinalisation({ statut: avant.statut, pdf: avant.pdf }, { statut: apres.statut, pdf: apres.pdf }));
   });
-  test('R2 devis sans affaire : le PDF est rangé et marqué ok, sans document d\'affaire', async () => {
+  test('R2 devis sans affaire : le PDF est rangé et marqué ok, rien d\'autre n\'est écrit', async () => {
     const m = await monde({ finaliser: true, affaire: false });
     const f = faux();
     await declencheur(m, f)(evenement(BROUILLON, FINALISE));
@@ -121,24 +123,13 @@ describe('R2 déclencheur : un PDF par version, rangé dans l\'affaire', () => {
     assert.match(m.collections[C.devis][0].pdf.chemin, /^devis\/sans-affaire\/d1\//);
     assert.equal(m.collections[C.affaires].length, 0);
   });
-  test('R2 affaire SANS dossier de travail : pdf ok, AUCUN document, AUCUN événement, journal écrit ; les liens déjà présents restent', async () => {
-    for (const urlDossier of [null, '', '   ']) {
-      const m = await monde({ finaliser: true, urlDossier });
-      const f = faux();
-      const r = await declencheur(m, f)(evenement(BROUILLON, FINALISE));
-      assert.deepEqual(r, { suite: 'traite', statut: 'ok' });
-      assert.equal(m.collections[C.devis][0].pdf.statut, 'ok');
-      assert.equal(f.vus.envois.length, 1);
-      assert.deepEqual(m.collections[C.affaires][0].documents.map((d) => d.libelle), ['Plan']);
-      assert.ok(!m.collections[C.evenements].some((e) => e.type === 'document'));
-      assert.ok(m.collections[C.audit].some((l) => l.outil === 'devisPdf' && l.collection === C.devis));
-    }
-  });
-  test('R2 un lien PDF déjà dans les documents n\'est jamais retiré, même si l\'affaire n\'a pas (ou plus) de dossier', async () => {
-    const m = await monde({ finaliser: true, urlDossier: null });
+  test('R2 un lien PDF déjà dans les documents reste tel quel (ni retiré ni renommé) après un nouveau PDF', async () => {
+    const m = await monde({ finaliser: true });
     const lien = { libelle: 'Ancien devis.pdf', url: `${BASE_LIEN}/#/devis/pdf/d1` };
     m.collections[C.affaires][0].documents.push(lien);
+    const avant = structuredClone(m.collections[C.affaires][0]);
     await declencheur(m, faux())(evenement(BROUILLON, FINALISE));
+    assert.deepEqual(m.collections[C.affaires][0], avant);
     assert.deepEqual(m.collections[C.affaires][0].documents.map((d) => d.libelle), ['Plan', 'Ancien devis.pdf']);
   });
   test('R2 chez un client le chemin est sous clients/<client>/', async () => {
@@ -225,29 +216,26 @@ describe('R4 états : en cours, ok, abandon', () => {
 });
 
 describe('R5 brouillon à la demande : remplace le précédent', () => {
-  test('R5 deux brouillons de suite : un seul fichier, un seul document « Devis brouillon – Cuisine – JJ-MM-AAAA HHhMM.pdf » qui prend l’heure du dernier téléchargement ; champ pdf du devis intact', async () => {
-    const m = await monde({ finaliser: false });
-    const f = faux();
-    await appel(m, f)(requete({ devisId: 'd1', brouillon: true })); // 25/10/2026 10:00 UTC = 11 h 00 à Paris (heure d'hiver)
-    const plusTard = new Date('2026-10-25T13:32:00Z').getTime(); // 14 h 32 à Paris
-    await appel(m, f, { maintenant: () => plusTard })(requete({ devisId: 'd1', brouillon: true }));
-    assert.equal(f.vus.envois.length, 2);
-    assert.deepEqual([...new Set(f.vus.envois)], ['devis/aff1/d1/brouillon.pdf']); // même nom : le second remplace le premier
-    assert.equal(f.objets.size, 1);
-    const docs = m.collections[C.affaires][0].documents.filter((d) => /brouillon/i.test(d.libelle));
-    assert.equal(docs.length, 1);
-    assert.equal(docs[0].libelle, 'Devis brouillon – Cuisine – 25-10-2026 14h32.pdf');
-    assert.equal(docs[0].url, `${BASE_LIEN}/#/devis/pdf/d1/brouillon`);
-    assert.equal(m.collections[C.devis][0].pdf, undefined); // le champ pdf du devis n'a pas été touché
-  });
-  test('R5 brouillon à la demande, affaire SANS dossier : fichier rangé, AUCUN document, AUCUN événement', async () => {
-    const m = await monde({ finaliser: false, urlDossier: null });
-    const f = faux();
-    await appel(m, f)(requete({ devisId: 'd1', brouillon: true }));
-    assert.equal(f.vus.envois.length, 1);
-    assert.deepEqual(m.collections[C.affaires][0].documents.map((d) => d.libelle), ['Plan']);
-    assert.ok(!m.collections[C.evenements].some((e) => e.type === 'document'));
-    assert.equal(m.collections[C.devis][0].pdf, undefined);
+  test('R5 deux brouillons de suite : un seul fichier qui remplace le précédent, réponse ok avec le nom daté ; ni le champ pdf du devis ni l\'affaire ne sont touchés (avec ou sans dossier)', async () => {
+    for (const urlDossier of ['https://drive.google.com/drive/folders/DOSSIER_ESSAI', null]) {
+      const m = await monde({ finaliser: false, urlDossier });
+      const f = faux();
+      const affaireAvant = structuredClone(m.collections[C.affaires][0]);
+      const devisAvant = structuredClone(m.collections[C.devis][0]);
+      const r1 = await appel(m, f)(requete({ devisId: 'd1', brouillon: true })); // 25/10/2026 10:00 UTC = 11 h 00 à Paris (heure d'hiver)
+      assert.equal(r1.statut, 'ok');
+      const plusTard = new Date('2026-10-25T13:32:00Z').getTime(); // 14 h 32 à Paris
+      const r2 = await appel(m, f, { maintenant: () => plusTard })(requete({ devisId: 'd1', brouillon: true }));
+      assert.equal(f.vus.envois.length, 2);
+      assert.deepEqual([...new Set(f.vus.envois)], ['devis/aff1/d1/brouillon.pdf']); // même nom : le second remplace le premier
+      assert.equal(f.objets.size, 1);
+      assert.equal(r2.nom, 'Devis brouillon – Cuisine – 25-10-2026 14h32.pdf');
+      assert.equal(r2.lien, `${BASE_LIEN}/#/devis/pdf/d1/brouillon`);
+      assert.deepEqual(m.collections[C.affaires][0], affaireAvant);
+      assert.ok(!m.collections[C.evenements].some((e) => e.type === 'document'));
+      assert.equal(m.collections[C.devis][0].pdf, undefined); // le champ pdf du devis n'a pas été touché
+      assert.deepEqual(m.collections[C.devis][0], devisAvant);
+    }
   });
   test('R5 le PDF brouillon est refusé pour un devis déjà finalisé (message clair, rien fabriqué)', async () => {
     const m = await monde({ finaliser: true });
@@ -325,5 +313,35 @@ describe('R6 lien signé de courte durée', () => {
     await assert.rejects(() => chezA(requete({ devisId: 'dA' })), (e) => e.code === 'permission-denied');
     collections['clients/a/devis_devis'][0].pdf.chemin = 'marques/a/logo.pdf';
     await assert.rejects(() => chezA(requete({ devisId: 'dA' })), (e) => e.code === 'permission-denied');
+  });
+});
+
+describe('R7 terminerPdf : retour interne et réponse publique', () => {
+  test('R7 terminerPdf rend { ok, deja, devis, operationId } sans documentAffaire, n\'écrit que pdf + journal ; un second appel rend deja', async () => {
+    const m = await monde({ finaliser: true });
+    const ctx = { acteur: ACTEUR, via: 'ecran', maintenant: MAINTENANT };
+    const affaireAvant = structuredClone(m.collections[C.affaires][0]);
+    const r = await S.terminerPdf({ donnees: m.donnees, ctx, devisId: 'd1', chemin: 'devis/aff1/d1/x.pdf', sha256: 'abc', libelle: 'Devis X.pdf' });
+    assert.deepEqual(Object.keys(r).sort(), ['deja', 'devis', 'ok', 'operationId']);
+    assert.equal(r.deja, false);
+    assert.equal(r.devis.pdf.nom, 'Devis X.pdf');
+    assert.deepEqual(m.collections[C.affaires][0], affaireAvant);
+    const r2 = await S.terminerPdf({ donnees: m.donnees, ctx, devisId: 'd1', chemin: 'autre', sha256: 'z', libelle: 'Autre.pdf' });
+    assert.equal(r2.deja, true);
+    assert.equal(m.collections[C.devis][0].pdf.nom, 'Devis X.pdf');
+  });
+  test('R7 la réponse publique de devisPdf reste { statut, lien, nom }', async () => {
+    const m = await monde({ finaliser: true });
+    const r = await appel(m, faux())(requete({ devisId: 'd1' }));
+    assert.deepEqual(Object.keys(r).sort(), ['lien', 'nom', 'statut']);
+    assert.equal(r.statut, 'ok');
+    assert.equal(r.lien, `${BASE_LIEN}/#/devis/pdf/d1`);
+  });
+  test('R7 devis sans affaire : PDF ok, rien d\'autre écrit', async () => {
+    const m = await monde({ finaliser: true, affaire: false });
+    await appel(m, faux())(requete({ devisId: 'd1' }));
+    assert.equal(m.collections[C.devis][0].pdf.statut, 'ok');
+    assert.equal(m.collections[C.affaires].length, 0);
+    assert.equal(m.collections[C.evenements].length, 0);
   });
 });

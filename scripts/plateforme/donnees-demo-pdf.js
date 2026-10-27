@@ -159,7 +159,7 @@ export async function fabriquerPdf(id, ctx, fiche) {
   return 0;
 }
 
-/** Le serveur écrit « Document joint : … » (crm_evenements) sans marqueur : on marque ceux des affaires de démo, pour que --retirer les supprime. */
+/** Les anciens PDF ont écrit « Document joint : … » (crm_evenements) sans marqueur (le serveur ne le fait plus depuis le 27/10/2026) : on marque ceux des affaires de démo, pour que --retirer les supprime. */
 export async function marquerEvenements(db, id, ctx) {
   const affaires = new Set((await db.collection(`clients/${id}/crm_affaires`).where(MARQUEUR, '==', true).get()).docs.map((d) => d.id));
   const snap = await db.collection(`clients/${id}/crm_evenements`).where('type', '==', 'document').get();

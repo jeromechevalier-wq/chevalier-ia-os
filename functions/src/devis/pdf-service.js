@@ -5,9 +5,10 @@
 //  - la finalisation ne dépend JAMAIS du PDF : un échec est noté sur le devis (`pdf.statut = 'echec'`, message court), le devis reste finalisé ;
 //  - idempotent : PDF déjà « ok » -> le même ; « en_cours » -> on répond « en cours » sans refuser ni refabriquer ; absent ou « echec » -> on fabrique ;
 //  - garde-fou : au plus TENTATIVES_AUTO_MAX tentatives automatiques par version, ensuite échec définitif jusqu'à une demande explicite ;
-//  - le brouillon à la demande a un nom fixe qui REMPLACE le précédent et ne touche pas `pdf`.
+//  - le brouillon à la demande a un nom fixe qui REMPLACE le précédent et ne touche pas `pdf` ;
+//  - le serveur n'ajoute RIEN aux Documents de l'affaire (27/10/2026) : le PDF vit dans l'onglet « Devis ».
 import { COLLECTIONS as C } from '../coeur/donnees.js';
-import { ID_REGLAGES, reserverPdf, terminerPdf, echouerPdf, enregistrerBrouillonPdf, ErreurDevis, TENTATIVES_AUTO_MAX } from '../coeur/devis.js';
+import { ID_REGLAGES, reserverPdf, terminerPdf, echouerPdf, ErreurDevis, TENTATIVES_AUTO_MAX } from '../coeur/devis.js';
 import * as D from '../../partage/devis.js';
 import { devisHtml } from '../../partage/devis-document.js';
 import { piedParDefaut } from './chromium.js';
@@ -66,10 +67,7 @@ export async function fabriquerPdfDevis({ donnees, espace = '', baseLien, prefix
     }
   }
   try {
-    const [affaire, reglages] = await Promise.all([
-      devis.affaireId ? donnees.document(C.affaires, devis.affaireId) : null,
-      donnees.document(C.devisParametres, ID_REGLAGES),
-    ]);
+    const reglages = await donnees.document(C.devisParametres, ID_REGLAGES);
     const fiche = devis.organisationId ? await donnees.document(C.organisations, devis.organisationId)
       : devis.personneId ? await donnees.document(C.personnes, devis.personneId) : null;
     const emetteur = emetteurSansLogoExterne(reglages?.emetteur && typeof reglages.emetteur === 'object' ? enDates(reglages.emetteur) : {});
@@ -82,11 +80,8 @@ export async function fabriquerPdfDevis({ donnees, espace = '', baseLien, prefix
     const chemin = cheminPdfDevis({ espace, affaireId: devis.affaireId, devisId, brouillon, nomFichier: nomFichierDevis({ numero: devis.numero, version: devis.version, objet: devis.objet }) });
     await stockage.envoyer(chemin, pdf);
     const libelle = libelleDocumentDevis({ numero: devis.numero, version: devis.version, objet: devis.objet, brouillon, date: ctx?.maintenant });
-    if (brouillon) {
-      await enregistrerBrouillonPdf({ donnees, ctx, devisId, libelle, url: lien });
-      return { statut: 'ok', lien, nom: libelle, brouillon: true };
-    }
-    await terminerPdf({ donnees, ctx, devisId, chemin, sha256, libelle, url: lien });
+    if (brouillon) return { statut: 'ok', lien, nom: libelle, brouillon: true };
+    await terminerPdf({ donnees, ctx, devisId, chemin, sha256, libelle });
     return { statut: 'ok', lien, nom: libelle };
   } catch (e) {
     const message = messageLisible(e);

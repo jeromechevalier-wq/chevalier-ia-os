@@ -35,7 +35,7 @@ function lireDemande(requete) {
 }
 
 /**
- * `donnees()` : accès aux données déjà cadré sur l'espace ; `espace` : '' (Jérôme) ou 'clients/<client>/' ; `baseLien` : adresse de l'application (pour l'adresse stable du document).
+ * `donnees()` : accès aux données déjà cadré sur l'espace ; `espace` : '' (Jérôme) ou 'clients/<client>/' ; `baseLien` : adresse de l'application (pour l'adresse stable du PDF).
  * `convertir(html, { pied })` -> { pdf, sha256 } ; `stockage` : { envoyer, ... } (voir stockage.js) ou fonction qui le rend, ou null si le stockage est introuvable.
  */
 export function creerAppelDevisPdf({ donnees, espace = '', baseLien = '', comptes = COMPTES_AUTORISES, convertir, stockage, journal = () => {}, maintenant = Date.now }) {

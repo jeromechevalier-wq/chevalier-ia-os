@@ -274,17 +274,35 @@ describe('D6 adresse stable du PDF par client', () => {
     assert.equal(lienStablePdf('https://chevalier-ia-os.web.app/', 'd1', true), 'https://chevalier-ia-os.web.app/#/devis/pdf/d1/brouillon');
     assert.equal(lienStablePdf('https://chevalier-ia-os.web.app', 'd1', false, ''), 'https://chevalier-ia-os.web.app/#/devis/pdf/d1');
   });
-  test('D6 le lien écrit sur le devis par le déclencheur et celui rendu par devisPdf portent le bon client', async () => {
+  test('D6 chez les clients : PDF ok sur le devis, lien rendu au bon client, l\'affaire (et les documents déjà présents) strictement inchangée, aucun « Document joint »', async () => {
     const m = await monde({ finaliser: [] });
     const f = faux();
+    m.collections['clients/a/crm_affaires'][0].documents.push({ libelle: 'Ancien devis.pdf', url: 'https://chevalier-ia-app.web.app/#/espace/a/devis/pdf/d-a' });
     await S.finaliser({ donnees: m.creerDonnees('a'), ctx: { acteur: ALICE, via: 'ecran', maintenant: MAINTENANT }, devisId: 'd-a' });
     await S.finaliser({ donnees: m.creerDonnees('b'), ctx: { acteur: BOB, via: 'ecran', maintenant: MAINTENANT }, devisId: 'd-b' });
+    const avant = { a: structuredClone(m.collections['clients/a/crm_affaires'][0]), b: structuredClone(m.collections['clients/b/crm_affaires'][0]) };
     await declencheur(m, f)(evenement('a', 'd-a', { statut: 'brouillon' }, FINALISE));
-    await declencheur(m, f)(evenement('b', 'd-b', { statut: 'brouillon' }, FINALISE));
-    const doc = (c) => m.collections[`clients/${c}/crm_affaires`][0].documents;
-    assert.deepEqual(doc('a').map((d) => d.url), ['https://chevalier-ia-app.web.app/#/espace/a/devis/pdf/d-a']);
-    assert.deepEqual(doc('b').map((d) => d.url), ['https://chevalier-ia-app.web.app/#/espace/b/devis/pdf/d-b']);
+    const ra = await fabriquer(m, f, BOB, { client: 'b', devisId: 'd-b' });
+    assert.equal(ra.statut, 'ok');
+    assert.equal(ra.lien, 'https://chevalier-ia-app.web.app/#/espace/b/devis/pdf/d-b');
+    assert.deepEqual(Object.keys(ra).filter((k) => !['statut', 'lien', 'nom'].includes(k)), []);
+    assert.equal(m.devis('a').pdf.statut, 'ok');
+    assert.equal(m.devis('b').pdf.statut, 'ok');
+    assert.match(m.devis('a').pdf.chemin, /^clients\/a\/devis\//);
     assert.match(m.devis('b').pdf.chemin, /^clients\/b\/devis\//);
+    assert.deepEqual(m.collections['clients/a/crm_affaires'][0], avant.a);
+    assert.deepEqual(m.collections['clients/b/crm_affaires'][0], avant.b);
+    for (const c of ['a', 'b']) assert.ok(!m.collections[`clients/${c}/crm_evenements`].some((e) => e.type === 'document'));
+  });
+  test('D6 chez les clients : un PDF brouillon ne touche ni le champ pdf ni l\'affaire', async () => {
+    const m = await monde({ finaliser: [] });
+    const f = faux();
+    const avantAffaire = structuredClone(m.collections['clients/a/crm_affaires'][0]);
+    const avantDevis = structuredClone(m.devis('a'));
+    const r = await fabriquer(m, f, ALICE, { client: 'a', devisId: 'd-a', brouillon: true });
+    assert.equal(r.statut, 'ok');
+    assert.deepEqual(m.collections['clients/a/crm_affaires'][0], avantAffaire);
+    assert.deepEqual(m.devis('a'), avantDevis);
   });
 });
 
