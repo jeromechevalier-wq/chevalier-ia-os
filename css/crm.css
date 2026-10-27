@@ -488,6 +488,7 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 .emplacement .champ { width: auto; }
 .ligne-champs { display: flex; align-items: center; gap: var(--esp-4); flex-wrap: wrap; }
 .ligne-champs > .champ:not(.champ-court):not(.champ-couleur) { flex: 1 1 180px; }
+.ligne-champs > .bloc-champ { align-self: flex-start; } /* un message d'erreur sous un champ ne décale pas son voisin */
 .numero-emplacement { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%; background: var(--panneau); color: var(--texte2); font-size: var(--fs-petit); font-weight: var(--poids-moyen); }
 .emplacement textarea.champ { width: 100%; resize: none; overflow: hidden; min-height: var(--h-ctrl); }
 /* Explication d'une étape ou d'une phase : une ligne qui grandit, la case « Proposer une action » sur la même rangée (elle passe dessous quand la place manque) */

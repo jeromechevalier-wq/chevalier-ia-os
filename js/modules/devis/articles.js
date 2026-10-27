@@ -33,6 +33,8 @@ export const UNITE_DEFAUT = 'u';
 export const NOMS_BORDEREAU = ['Catalogue', 'Bordereau de prix unitaires', 'Grille tarifaire'];
 export const NOM_BORDEREAU_DEFAUT = NOMS_BORDEREAU[0];
 export const MARGE_DEFAUT = 20;
+export const MARGE_DEVIS_DEFAUT = 20;
+const MARGE_DEVIS_MAX = 1000;
 export const TAUX_TVA_DEFAUT_REGLAGE = TAUX_TVA_DEFAUT[0];
 export const LIMITES = { libelle: 200, code: 40, unite: 20, prixMax: 10_000_000, mention: 500, jours: 3650, reference: 120, marque: 120 };
 
@@ -376,6 +378,7 @@ export const REGLAGES_DEVIS_DEFAUT = Object.freeze({
   nomBordereau: NOM_BORDEREAU_DEFAUT,
   modeMarge: 'majoration',
   marge: MARGE_DEFAUT,
+  margeDevis: MARGE_DEVIS_DEFAUT, // marge globale appliquée d'office à chaque NOUVEAU devis (distincte de `marge`, celle des articles)
   regimeTva: 'assujetti',
   tauxProposes: [...TAUX_TVA_DEFAUT],
   tauxTvaDefaut: TAUX_TVA_DEFAUT_REGLAGE,
@@ -398,6 +401,7 @@ export function reglagesDevis(brut) {
     nomBordereau: NOMS_BORDEREAU.includes(b.nomBordereau) ? b.nomBordereau : d.nomBordereau,
     modeMarge: MODES_MARGE.some((m) => m.id === b.modeMarge) ? b.modeMarge : d.modeMarge,
     marge: estNombre(b.marge) && !(b.modeMarge === 'marge_vente' && b.marge >= 100) ? b.marge : d.marge,
+    margeDevis: estNombre(b.margeDevis) && b.margeDevis >= 0 && b.margeDevis <= MARGE_DEVIS_MAX && !(b.modeMarge === 'marge_vente' && b.margeDevis >= 100) ? b.margeDevis : d.margeDevis,
     regimeTva: REGIMES_TVA.some((r) => r.id === b.regimeTva) ? b.regimeTva : d.regimeTva,
     tauxProposes: proposes,
     tauxTvaDefaut: proposes.includes(b.tauxTvaDefaut) ? b.tauxTvaDefaut : proposes[0],
@@ -432,6 +436,12 @@ export function validerReglagesDevis(saisie, { actuels = REGLAGES_DEVIS_DEFAUT, 
     const { erreur } = coefficientDeMarge(marge, s.modeMarge);
     if (erreur) erreurs.marge = `${erreur} Choisis un pourcentage plus petit (exemple : 30), ou le mode « ${MODES_MARGE[0].libelle} ».`;
   }
+  const margeDevis = lireNombre(s.margeDevis);
+  if (margeDevis === null || margeDevis < 0 || margeDevis > MARGE_DEVIS_MAX) erreurs.margeDevis = `La marge du devis est un pourcentage entre 0 et ${MARGE_DEVIS_MAX} (exemple : 20), ou 0 pour aucune marge.`;
+  else if (!erreurs.modeMarge) {
+    const { erreur } = coefficientDeMarge(margeDevis, s.modeMarge);
+    if (erreur) erreurs.margeDevis = `${erreur} Choisis un pourcentage plus petit (exemple : 30), ou le mode « ${MODES_MARGE[0].libelle} ».`;
+  }
   if (!REGIMES_TVA.some((r) => r.id === s.regimeTva)) erreurs.regimeTva = 'Choisis le régime de TVA.';
   const proposes = Array.isArray(s.tauxProposes) ? s.tauxProposes.filter((t) => TAUX_TVA_DEFAUT.includes(t)) : [];
   if (!proposes.length) erreurs.tauxProposes = 'Garde au moins un taux de TVA proposé.';
@@ -450,6 +460,7 @@ export function validerReglagesDevis(saisie, { actuels = REGLAGES_DEVIS_DEFAUT, 
       nomBordereau: s.nomBordereau,
       modeMarge: s.modeMarge,
       marge,
+      margeDevis,
       regimeTva: s.regimeTva,
       tauxProposes: TAUX_TVA_DEFAUT.filter((t) => proposes.includes(t)),
       tauxTvaDefaut: tauxDefaut,

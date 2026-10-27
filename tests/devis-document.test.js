@@ -5,7 +5,7 @@ import * as D from '../js/modules/devis/logique.js';
 import { devisHtml, formaterMontant, ATTESTATION_TVA_REDUITE } from '../js/modules/devis/document.js';
 
 const ctx = { maintenant: new Date('2026-10-24T10:00:00Z'), auteur: 'moi@exemple.test', nouvelId: (n) => `${n}_1` };
-const reglages = { modeMarge: 'majoration', marge: 20, tauxTvaDefaut: 20, regimeTva: 'assujetti', dureeValiditeJours: 90 };
+const reglages = { modeMarge: 'majoration', marge: 20, margeDevis: 20, tauxTvaDefaut: 20, regimeTva: 'assujetti', dureeValiditeJours: 90 };
 const ligne = (id, prixAchat, quantite, extra = {}) => ({ id, libelle: `Article ${id}`, unite: 'u', quantite, prixAchat, ...extra });
 
 /** Devis finalisé d'essai : achats distinctifs (123,45 et 67,89), marge 20 % (jamais visible), deux taux de TVA. */

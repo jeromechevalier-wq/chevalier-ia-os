@@ -488,7 +488,7 @@ async function remplir(id, options, ctx, fiche) {
     col('devis_compteurs').doc('global').get(), col('crm_parametres').doc('etapes').get(), col('crm_parametres').doc('phases').get(), col('crm_parametres').doc('reglages').get(),
   ]);
   const config = L.construireConfig({ etapes: etapesDoc.exists ? etapesDoc.data() : null, phases: phasesDoc.exists ? phasesDoc.data() : null, reglages: reglagesCrm.exists ? reglagesCrm.data() : null }, { racine: false, membres: [] });
-  const reglagesDemo = A.reglagesDevis({ ...A.REGLAGES_DEVIS_DEFAUT, modeMarge: reglagesSource.modeMarge, marge: masquer ? 0 : reglagesSource.marge, entreprise: ENTREPRISE_DEMO });
+  const reglagesDemo = A.reglagesDevis({ ...A.REGLAGES_DEVIS_DEFAUT, modeMarge: reglagesSource.modeMarge, marge: masquer ? 0 : reglagesSource.marge, margeDevis: masquer ? 0 : reglagesSource.margeDevis, entreprise: ENTREPRISE_DEMO });
   const reglages = reglagesDoc.exists ? A.reglagesDevis(reglagesDoc.data()) : reglagesDemo;
   const compteurDepart = Number.isInteger(compteurDoc.data()?.valeur) ? compteurDoc.data().valeur : 0;
 

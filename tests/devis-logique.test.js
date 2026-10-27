@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import * as D from '../js/modules/devis/logique.js';
 
 const ctx = () => ({ maintenant: new Date('2026-10-24T10:00:00Z'), auteur: 'moi@exemple.test', nouvelId: (n) => `${n}_1` });
-const reglages = { modeMarge: 'majoration', marge: 20, tauxTvaDefaut: 20, regimeTva: 'assujetti', dureeValiditeJours: 90 };
+const reglages = { modeMarge: 'majoration', marge: 20, margeDevis: 20, tauxTvaDefaut: 20, regimeTva: 'assujetti', dureeValiditeJours: 90 };
 const ligne = (id, prixAchat, quantite, extra = {}) => ({ id, libelle: `Article ${id}`, unite: 'u', quantite, prixAchat, ...extra });
 
 /** Devis de test : achats distinctifs (123,45 et 67,89), marge 20 %, quantités sans rapport avec les prix. */
@@ -160,6 +160,13 @@ describe('Numéro, expiration, statuts', () => {
     assert.equal(d.marge, 15); assert.equal(d.modeMarge, 'majoration'); assert.equal(d.tauxTvaDefaut, 20);
     assert.equal(d.regimeTva, 'assujetti'); assert.equal(d.creePar, 'moi@exemple.test'); assert.equal(d.expireLe, '2027-01-22');
     assert.equal(d.personneId, 'p1'); assert.equal(d.organisationId, null);
+  });
+  test('13e nouveauDevis : la marge du devis vient de valeurs.marge (0 compris), sinon de reglages.margeDevis, et jamais de la marge des articles', () => {
+    const base = { affaireId: 'a1' };
+    assert.equal(D.nouveauDevis(base, ctx(), { marge: 35, margeDevis: 12 }).marge, 12);
+    assert.equal(D.nouveauDevis({ ...base, marge: 0 }, ctx(), { marge: 35, margeDevis: 12 }).marge, 0);
+    assert.equal(D.nouveauDevis({ ...base, marge: 8 }, ctx(), { margeDevis: 12 }).marge, 8);
+    assert.equal(D.nouveauDevis(base, ctx(), { marge: 35 }).marge, 0, 'des réglages incomplets (jamais passés par reglagesDevis) : pas de marge inventée');
   });
   test('D39 expiré = calcul à l\'affichage : la veille non, le jour même non, le lendemain oui, sans rien écrire', () => {
     const d = Object.freeze({ statut: 'envoye', expireLe: '2026-12-31' });

@@ -88,6 +88,8 @@ select.champ { appearance: none; background-image: linear-gradient(45deg, transp
 input[type='date'].champ, input[type='datetime-local'].champ { color-scheme: inherit; }
 .bloc-champ { display: flex; flex-direction: column; gap: var(--esp-2); min-width: 0; }
 .bloc-champ > .etiquette { margin: 0; }
+/* L'icône « i » (24 px) ne grandit pas la ligne du libellé : tous les libellés ont la même hauteur, avec ou sans icône, et les champs d'une même rangée s'alignent. */
+.bloc-champ > .etiquette > .bouton-info { vertical-align: middle; margin-block: -6px; }
 .case { display: inline-flex; align-items: center; gap: var(--esp-3); cursor: pointer; min-height: 32px; }
 .case input { width: 18px; height: 18px; accent-color: var(--accent); margin: 0; }
 .groupe-cases { display: flex; flex-wrap: wrap; gap: var(--esp-1) var(--esp-7); border: 1px solid transparent; border-radius: var(--rayon-petit); }
