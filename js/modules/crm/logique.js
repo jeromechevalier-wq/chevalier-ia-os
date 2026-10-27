@@ -2469,6 +2469,7 @@ export function nomFichierExport(maintenant = new Date(), type = 'complet') {
   const jour = aujourdhuiParis(maintenant);
   const bases = {
     complet: ['chevalier-ia-os', 'json'],
+    devis: ['chevalier-ia-devis', 'json'],
     contacts: ['chevalier-ia-contacts', 'vcf'],
   };
   const [base, ext] = bases[type] || bases.complet;
