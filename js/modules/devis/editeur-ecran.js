@@ -1512,7 +1512,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     const totaux = h('aside', { class: 'panneau-total', 'aria-label': 'Total du devis', dataset: { zone: 'total' } },
       h('dl', { class: 'liste-totaux' },
         h('div', { class: 'ligne-total ligne-ajustement', dataset: { ligne: 'ajustement' } }, h('dt', {}, 'Ajustement global'),
-          h('dd', {}, (ref.lienAjustement = h('button', { type: 'button', class: 'bouton-lien', dataset: { action: 'definir-ajustement' }, 'aria-haspopup': 'menu', 'aria-expanded': 'false', onclick: (ev) => ouvrirAjustement(ev.currentTarget) }, 'Définir un ajustement')), h('span', { dataset: { total: 'ajustement' } }))),
+          h('dd', {}, (ref.lienAjustement = h('button', { type: 'button', class: 'bouton-lien', dataset: { action: 'definir-ajustement' }, 'aria-haspopup': 'dialog', 'aria-expanded': 'false', onclick: (ev) => ouvrirAjustement(ev.currentTarget) }, 'Définir un ajustement')), h('span', { dataset: { total: 'ajustement' } }))),
         ligneT('brut', 'Total brut HT'),
         h('div', { class: 'ligne-total ligne-remise' }, h('dt', {}, 'Remise client'), h('dd', {}, h('div', { class: 'ligne-champs' }, valeurRemise, typeRemise), h('span', { dataset: { total: 'remise' } }))),
         ligneT('ht', 'Total net HT'),
@@ -1529,9 +1529,9 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     return [totaux, net, taux];
   }
 
-  // Le menu « Définir un ajustement » : « Ajustement global » (trois champs liés : %, €, coefficient), puis « Poste HT » (Remise, et deux choix pas encore là).
+  // La fenêtre « Définir un ajustement » : trois blocs titrés, toujours ouverts, l'un sous l'autre (Ajustement global, Marge du devis, Remise client). Rien ne s'ouvre ni ne se ferme.
   function ouvrirAjustement(ancre) {
-    ouvrirFenetreMenu(ancre, (fermer) => {
+    ouvrirFenetreMenu(ancre, () => {
       const champs = {};
       const erreurs = {};
       const fabriquer = (cle, libelle, unite) => {
@@ -1557,35 +1557,29 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
         const valeurs = { pourcentage: saisiePrix(v.pourcentage), montant: saisiePrix(v.montant), coefficient: v.coefficient.toFixed(4).replace('.', ',') };
         for (const k of Object.keys(champs)) if (k !== sauf) champs[k].value = valeurs[k];
       }
-      const zone = h('div', { class: 'ajust-zone', dataset: { zone: 'ajustement-global' } },
+      const zone = h('section', { class: 'ajust-zone', dataset: { zone: 'ajustement-global' }, 'aria-labelledby': 'ajust-titre-global' },
+        h('h3', { class: 'ajust-titre', id: 'ajust-titre-global' }, 'Ajustement global'),
         fabriquer('pourcentage', 'Pourcentage', '%'), fabriquer('montant', 'Montant', '€'), fabriquer('coefficient', 'Coefficient', 'coef.'),
-        h('button', { type: 'button', class: 'bouton-lien', dataset: { action: 'retirer-ajustement' }, onclick: () => { changer({ ajustement: null }); appliquerAffichage(); remplirAutres(null); Object.values(erreurs).forEach((p) => { p.hidden = true; }); } }, 'Retirer l’ajustement'));
+        h('button', { type: 'button', class: 'bouton-lien ajust-retirer', dataset: { action: 'retirer-ajustement' }, onclick: () => { changer({ ajustement: null }); appliquerAffichage(); remplirAutres(null); Object.values(erreurs).forEach((p) => { p.hidden = true; }); } }, 'Retirer l’ajustement'));
       remplirAutres(null);
-      const bloc = contenuMenu([
-        { libelle: 'Ajustement global', cle: 'ajustement-global', icone: 'arrow-up-down', reste: true, action: () => { zone.hidden = !zone.hidden; } },
-        { libelle: 'Marge du devis', cle: 'marge-devis', reste: true, action: () => { zoneMarge.hidden = !zoneMarge.hidden; } },
-      ], fermer);
       // La marge et la remise se règlent ici (comme dans un logiciel du marché) ; les champs de la remise reprennent ceux des totaux et les pilotent.
       const margeChamp = h('input', { class: 'champ champ-court', id: 'ajust-marge', type: 'text', inputmode: 'decimal', autocomplete: 'off', value: saisieNombre(travail.marge), 'aria-label': 'Marge du devis en pourcent', dataset: { champ: 'marge-menu' },
         oninput: (e) => { const vide = e.target.value.trim() === ''; const v = vide ? 0 : Ed.lireSaisie(e.target.value); e.target.classList.toggle('invalide', v === null); if (v !== null) { changer({ marge: v }); majPrixAffiches(); const autre = racine.querySelector('[data-champ="marge"]'); if (autre) autre.value = e.target.value; } } });
-      const zoneMarge = h('div', { class: 'ajust-zone', dataset: { zone: 'marge-devis' } }, h('div', { class: 'ajust-champ' }, h('label', { for: 'ajust-marge' }, 'Marge du devis (%)'), margeChamp,
-        h('p', { class: 'texte-discret' }, 'Elle s’applique aux lignes qui n’ont pas leur propre marge. Le client ne la voit jamais.')));
+      const zoneMarge = h('section', { class: 'ajust-zone', dataset: { zone: 'marge-devis' }, 'aria-labelledby': 'ajust-titre-marge' },
+        h('h3', { class: 'ajust-titre', id: 'ajust-titre-marge' }, 'Marge du devis'),
+        h('div', { class: 'ajust-champ' }, h('label', { for: 'ajust-marge' }, 'Marge (%)'), margeChamp),
+        h('p', { class: 'texte-discret' }, 'Elle s’applique aux lignes qui n’ont pas leur propre marge. Le client ne la voit jamais.'));
       const remiseTotaux = { type: racine.querySelector('[data-champ="remise-type"]'), valeur: racine.querySelector('[data-champ="remise-valeur"]') };
       const remiseType = h('select', { class: 'champ', 'aria-label': 'Type de remise', dataset: { champ: 'remise-type-menu' }, onchange: (e) => { if (remiseTotaux.type) { remiseTotaux.type.value = e.target.value; remiseTotaux.type.dispatchEvent(new Event('change', { bubbles: true })); } } },
         h('option', { value: 'pourcentage', selected: remiseTotaux.type?.value !== 'montant' }, '%'), h('option', { value: 'montant', selected: remiseTotaux.type?.value === 'montant' }, '€'));
-      const remiseValeur = h('input', { class: 'champ champ-court', type: 'text', inputmode: 'decimal', autocomplete: 'off', placeholder: '0', value: remiseTotaux.valeur?.value ?? '', 'aria-label': 'Valeur de la remise', dataset: { champ: 'remise-valeur-menu' },
+      const remiseValeur = h('input', { class: 'champ champ-court', id: 'ajust-remise', type: 'text', inputmode: 'decimal', autocomplete: 'off', placeholder: '0', value: remiseTotaux.valeur?.value ?? '', 'aria-label': 'Valeur de la remise', dataset: { champ: 'remise-valeur-menu' },
         oninput: (e) => { if (remiseTotaux.valeur) { remiseTotaux.valeur.value = e.target.value; remiseTotaux.valeur.dispatchEvent(new Event('input', { bubbles: true })); } } });
-      const zoneRemise = h('div', { class: 'ajust-zone', dataset: { zone: 'remise-devis' }, hidden: true }, h('div', { class: 'ajust-champ' }, h('label', {}, 'Remise client'), h('div', { class: 'ligne-champs' }, remiseValeur, remiseType)));
-      const reste = contenuMenu([
-        { titre: 'Poste HT' },
-        { libelle: 'Remise', cle: 'remise', reste: true, action: () => { zoneRemise.hidden = !zoneRemise.hidden; } },
-        { libelle: 'Compte prorata', cle: 'prorata', bientot: true },
-        { libelle: 'Poste libre HT', cle: 'poste-libre', bientot: true },
-      ], fermer);
-      zoneMarge.hidden = true;
+      const zoneRemise = h('section', { class: 'ajust-zone', dataset: { zone: 'remise-devis' }, 'aria-labelledby': 'ajust-titre-remise' },
+        h('h3', { class: 'ajust-titre', id: 'ajust-titre-remise' }, 'Remise client'),
+        h('div', { class: 'ajust-champ ajust-champ-remise' }, h('label', { for: 'ajust-remise' }, 'Remise'), h('div', { class: 'ajust-remise-champs' }, remiseValeur, remiseType)));
       verrouiller(zone); verrouiller(zoneMarge); verrouiller(zoneRemise); // lecture seule : les réglages se voient, rien ne se modifie
-      return h('div', { class: 'menu-devis-liste' }, bloc, zone, zoneMarge, reste, zoneRemise);
-    }, { classe: 'menu-devis-ajustement', nom: 'Ajustement du devis' });
+      return h('div', { class: 'ajust-fenetre', tabindex: '-1', dataset: { focusInitial: '' } }, zone, zoneMarge, zoneRemise); // le focus entre sur la fenêtre, pas sur un champ : sur téléphone le clavier ne masque pas les blocs à l'ouverture
+    }, { classe: 'menu-devis-ajustement', nom: 'Ajustement du devis', role: 'dialog' });
   }
 
   function majTotaux() {
