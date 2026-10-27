@@ -326,9 +326,9 @@ export function panneauActivite({ lien, liensCreation, avecActivites = true, aff
   // ---- onglet Documents (affaire et projet) : le contenu est fourni par la fiche
   const compteurDocuments = h('span', { class: 'compteur', dataset: { role: 'compteur-documents' } }, '0');
   const ongletDocuments = avecDocuments ? h('button', { type: 'button', role: 'tab', class: 'onglet', 'aria-selected': 'false', 'data-onglet': 'documents', onclick: () => choisirOnglet('documents') },
-    icone('paperclip', { taille: 16 }), 'Documents', compteurDocuments) : null;
+    icone('paperclip', { taille: 16 }), 'G-Drive', compteurDocuments) : null;
   const zoneDocuments = h('div', { class: 'pile' });
-  const panneauDocuments = avecDocuments ? h('div', { class: 'compositeur-corps', role: 'tabpanel', 'aria-label': 'Documents', hidden: true }, zoneDocuments) : null;
+  const panneauDocuments = avecDocuments ? h('div', { class: 'compositeur-corps', role: 'tabpanel', 'aria-label': 'G-Drive', hidden: true }, zoneDocuments) : null;
   const externes = new Map(); // id -> { bouton, panneau, element, cle } : onglets apportés par d'autres modules
   const ongletDeRepli = avecActivites ? 'activite' : 'notes';
   function choisirOnglet(o, { focus = true } = {}) {

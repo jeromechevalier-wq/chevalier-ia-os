@@ -164,11 +164,11 @@ export async function creerActivite(id, valeurs = {}) {
 
 // ---------------------------------------------------------------- connexion (vrai parcours Google via l'émulateur Auth)
 
-/** Ouvre l'onglet « Documents » du panneau de droite (fiche affaire ou projet) : liste, boutons d'ajout et dossier de travail y sont. */
+/** Ouvre l'onglet « G-Drive » (id technique « documents ») du panneau de droite (fiche affaire ou projet) : liste, boutons d'ajout et dossier de travail y sont. */
 export async function ouvrirDocuments(page) {
   const onglet = page.locator('.compositeur [data-onglet="documents"]');
   if ((await onglet.getAttribute('aria-selected')) !== 'true') await onglet.click();
-  await expect(page.locator('.compositeur [role="tabpanel"][aria-label="Documents"]')).toBeVisible();
+  await expect(page.locator('.compositeur [role="tabpanel"][aria-label="G-Drive"]')).toBeVisible();
 }
 
 /** Sur une fiche affaire ou projet : ouvre l'onglet « Documents » s'il existe (les autres fiches n'en ont pas). */

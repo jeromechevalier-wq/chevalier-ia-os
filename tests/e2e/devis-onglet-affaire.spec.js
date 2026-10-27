@@ -96,7 +96,7 @@ test.describe('1 module éteint', () => {
     await page.evaluate((e) => window.__chevalierTest.connecter(e, true), ALICE);
     await expect(page.locator('.compositeur')).toBeVisible();
     await attendreCalme(page);
-    await expect(page.locator('.compositeur [role="tab"]')).toHaveText([/Activité/, /Notes/, /Documents/]);
+    await expect(page.locator('.compositeur [role="tab"]')).toHaveText([/Activité/, /Notes/, /G-Drive/]);
     await expect(page.locator('[data-onglet="devis"]')).toHaveCount(0);
     await capturer(page, info, '1-module-eteint');
   });
@@ -107,7 +107,7 @@ test.describe('1 module éteint', () => {
 test('2 module actif : onglet « Devis » en dernier avec le compteur 2, devis du plus récent au plus ancien, statut, total TTC, date, nom cliquable et aucun bouton', async ({ page }, info) => {
   await donneesDeuxDevis();
   await ouvrirAffaire(page);
-  await expect(page.locator('.compositeur [role="tab"]')).toHaveText([/Activité/, /Notes/, /Documents/, /Devis/]);
+  await expect(page.locator('.compositeur [role="tab"]')).toHaveText([/Activité/, /Notes/, /G-Drive/, /Devis/]);
   await expect(page.locator('.compositeur [data-onglet="devis"] .compteur')).toHaveText('2');
   const panneau = await ouvrirOnglet(page);
   const lignes = panneau.locator('[data-liste="devis-affaire"] > li');

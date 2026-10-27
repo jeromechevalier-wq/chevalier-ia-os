@@ -45,7 +45,7 @@ test('1 cas vide : sans module inscrit, la barre de l\'affaire a ses 3 onglets, 
   const onglets = page.locator('.compositeur [role="tab"]');
   await expect(onglets.nth(0)).toContainText('Activité');
   await expect(onglets.nth(1)).toContainText('Notes');
-  await expect(onglets.nth(2)).toContainText('Documents');
+  await expect(onglets.nth(2)).toContainText('G-Drive');
   await expect(page.locator('.compositeur [data-onglet="essai"]')).toHaveCount(0); // aucun onglet de démonstration en production
   await capture(page, '1-sans-module');
 });
@@ -58,7 +58,7 @@ test('2 un onglet inscrit apparaît après Documents avec son compteur ; un clic
   const base = await onglets.count();
   await inscrire(page, 'essai', FOURNISSEUR_ESSAI);
   await expect(onglets).toHaveCount(base + 1);
-  expect(await ongletEssai(page).evaluate((b) => [...b.parentElement.children].indexOf(b))).toBeGreaterThanOrEqual(3); // après Documents
+  expect(await ongletEssai(page).evaluate((b) => [...b.parentElement.children].indexOf(b))).toBeGreaterThanOrEqual(3); // après G-Drive
   await expect(ongletEssai(page)).toBeVisible();
   await expect(ongletEssai(page)).toContainText('Essai');
   await expect(ongletEssai(page).locator('.compteur')).toHaveText('2');
@@ -69,10 +69,10 @@ test('2 un onglet inscrit apparaît après Documents avec son compteur ; un clic
   await expect(ongletEssai(page)).toHaveAttribute('aria-selected', 'true');
   await expect(panneauEssai(page)).toBeVisible();
   await expect(panneauEssai(page)).toContainText('Contenu essai');
-  for (const nom of ['Activité', 'Notes', 'Documents']) await expect(page.locator(`.compositeur [role="tabpanel"][aria-label="${nom}"]`)).toBeHidden();
+  for (const nom of ['Activité', 'Notes', 'G-Drive']) await expect(page.locator(`.compositeur [role="tabpanel"][aria-label="${nom}"]`)).toBeHidden();
   await capture(page, '2b-onglet-ouvert');
   // Les trois onglets d'origine marchent toujours.
-  for (const nom of ['Notes', 'Documents', 'Activité']) {
+  for (const nom of ['Notes', 'G-Drive', 'Activité']) {
     await page.locator('.compositeur [role="tab"]', { hasText: nom }).click();
     await expect(page.locator(`.compositeur [role="tabpanel"][aria-label="${nom}"]`)).toBeVisible();
     await expect(panneauEssai(page)).toBeHidden();
@@ -125,7 +125,7 @@ test('5 un id déjà pris (autre fournisseur ou onglet fixe) est ignoré : jamai
   await expect(page.locator('.compositeur [data-onglet="essai"]')).toHaveCount(1);
   await expect(ongletEssai(page)).toContainText('Essai');
   await expect(page.locator('.compositeur [data-onglet="documents"]')).toHaveCount(1);
-  await expect(page.locator('.compositeur [data-onglet="documents"]')).toContainText('Documents');
+  await expect(page.locator('.compositeur [data-onglet="documents"]')).toContainText('G-Drive');
   await expect(page.locator('.compositeur [role="tab"]', { hasText: 'Doublon' })).toHaveCount(0);
   await capture(page, '5-id-en-double');
 });

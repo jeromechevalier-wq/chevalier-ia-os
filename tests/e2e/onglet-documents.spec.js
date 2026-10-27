@@ -9,14 +9,14 @@ const FICHES = [
 ];
 
 for (const f of FICHES) {
-  test(`D1 ${f.nom} : l'onglet « Documents » vient après Notes, affiche un compteur à 0 (cas vide), et la colonne de gauche n'a plus « Liens et documents »`, async ({ page }, info) => {
+  test(`D1 ${f.nom} : l'onglet « G-Drive » vient après Notes, affiche un compteur à 0 (cas vide), et la colonne de gauche n'a plus « Liens et documents »`, async ({ page }, info) => {
     await f.creer();
     await connecter(page);
     await aller(page, f.hash);
     const onglets = page.locator('.compositeur [role="tab"]');
     await expect(onglets).toHaveCount(f.nom === 'affaire' ? 4 : 3); // l'affaire a un onglet « Devis » de plus (module Devis), toujours en dernier
     const onglet = onglets.nth(2);
-    await expect(onglet).toContainText('Documents');
+    await expect(onglet).toContainText('G-Drive');
     if (f.nom === 'affaire') await expect(onglets.last()).toContainText('Devis');
     await expect(onglet.locator('[data-role="compteur-documents"]')).toHaveText('0');
     await expect(page.locator('.section', { hasText: 'Liens et documents' })).toHaveCount(0); // plus de section dans la colonne de gauche
