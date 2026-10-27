@@ -58,3 +58,15 @@ export const origineRetour = () => origineMemorisee;
 
 /** Message affiché après « Télécharger le PDF » : l'affaire garde un document seulement si le devis en a une. */
 export const messageApresEnregistrement = (devis) => (devis?.affaireId ? MESSAGE_PDF_RANGE_AFFAIRE : MESSAGE_PDF_RANGE_SANS_AFFAIRE);
+
+// ---------------------------------------------------------------- adresse stable du PDF, côté navigateur
+// MÊME adresse que celle que le serveur écrit dans les Documents de l'affaire (`lienStablePdf`, functions/src/devis/pdf-service.js) ; un test statique compare les deux.
+// Les deux sites sont des constantes (jamais `location.origin` : un autre site, un aperçu ou un test donnerait une adresse différente, donc un doublon).
+export const BASE_LIEN_JEROME = 'https://chevalier-ia-os.web.app'; // functions/src/index.js (BASE_LIEN_DEVIS)
+export const BASE_LIEN_PLATEFORME = 'https://chevalier-ia-app.web.app'; // functions-plateforme/src/devis-pdf.js (BASE_LIEN_PLATEFORME ; routes sous `#/espace/<client>/…`)
+
+/** Adresse stable du PDF d'un devis finalisé. `client` : identifiant du client (espace `#/espace/<client>`), vide chez Jérôme. */
+export function lienStablePdfNavigateur(devisId, { client = '' } = {}) {
+  const c = String(client ?? '').trim();
+  return `${c ? BASE_LIEN_PLATEFORME : BASE_LIEN_JEROME}/#/${c ? `espace/${c}/` : ''}devis/pdf/${encodeURIComponent(devisId)}`;
+}
