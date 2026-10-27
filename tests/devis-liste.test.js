@@ -179,7 +179,7 @@ describe('L7 actions permises par statut', () => {
     }
     for (const s of ['brouillon', 'accepte', 'remplace']) assert.equal(act(s).nouvelleVersion.actif, false, s);
   });
-  test('L7 Voir toujours possible ; Facturer grisé « bientôt », Envoyer par e-mail permis sauf devis signé, refusé ou remplacé ; Dupliquer actif avec l’éditeur, grisé sans', () => {
+  test('L7 Voir toujours possible ; Facturer grisé « bientôt », Préparer l’e-mail permis sauf devis signé, refusé ou remplacé ; Dupliquer actif avec l’éditeur, grisé sans', () => {
     for (const s of ['brouillon', 'envoye', 'accepte', 'remplace']) {
       const a = act(s);
       assert.equal(a.voir.actif, true, s);

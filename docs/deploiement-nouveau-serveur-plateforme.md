@@ -66,7 +66,7 @@ Pour chacune, ouvre le lien, vérifie le nom du projet en haut, clique le bouton
 - [ ] Cloud Storage (normalement activée par Firebase Storage à l'étape 4) : <https://console.cloud.google.com/apis/library/storage.googleapis.com?project=<ID-DU-NOUVEAU-PROJET>>
 - [ ] **IAM Service Account Credentials** (la plus oubliée : sans elle, le lien de lecture du PDF ne se crée pas) : <https://console.cloud.google.com/apis/library/iamcredentials.googleapis.com?project=<ID-DU-NOUVEAU-PROJET>>
 - [ ] Le workflow GitHub utilise aussi des APIs que Firebase active lui-même (Service Usage, Firebase Hosting, Cloud Resource Manager, IAM…). Si un déploiement dit « API has not been used in project … before or it is disabled », le message donne le lien : clique-le, **Activer**, attends 2 minutes, relance.
-- Les APIs de Drive, Picker et Gmail (étape 17) viennent plus tard.
+- Les APIs de Drive et Picker (étape 17) viennent plus tard.
 
 ### Étape 3. Firestore (la base) et région
 
@@ -250,11 +250,11 @@ Une fois par projet, avec les adresses du **nouveau** site. Mode d'emploi comple
   ```json
   [{"origin": ["https://<ID-DU-NOUVEAU-PROJET>.web.app", "https://<ID-DU-NOUVEAU-PROJET>.firebaseapp.com"], "method": ["GET"], "maxAgeSeconds": 3600}]
   ```
-- [ ] `gsutil cors set cors.json gs://<NOM-DU-BUCKET>` puis `gsutil cors get gs://<NOM-DU-BUCKET>` : les mêmes adresses doivent s'afficher. Sans lui : le PDF s'ouvre mais « Copier dans Drive » et la pièce jointe Gmail échouent (« Le PDF n'a pas pu être lu… »).
+- [ ] `gsutil cors set cors.json gs://<NOM-DU-BUCKET>` puis `gsutil cors get gs://<NOM-DU-BUCKET>` : les mêmes adresses doivent s'afficher. Sans lui : le PDF s'ouvre mais « Copier dans Drive » échoue (« Le PDF n'a pas pu être lu… »).
 
-### Étape 17. Drive, Picker et Gmail (seulement si les modules Affaires, Projets ou Devis servent)
+### Étape 17. Drive et Picker (seulement si les modules Affaires, Projets ou Devis servent)
 
-Tableau « Réglages Google du projet de la plateforme » de `docs/deploiement-client.md` (API Drive et Picker, API Gmail, portée `gmail.compose`, origine autorisée `<SITE>`, utilisateurs test) et `docs/google-drive.md`. L'écran de consentement OAuth est propre à chaque projet : à refaire pour le nouveau, libellés à vérifier au premier essai. Les clés web Firebase du nouveau projet sont restreintes aux sites web, avec `https://docs.google.com/*` en plus pour le Picker (décision du 20/10/2026, `docs/securite-et-pannes.md`) : à vérifier au premier essai.
+Tableau « Réglages Google du projet de la plateforme » de `docs/deploiement-client.md` (API Drive et Picker, origine autorisée `<SITE>` ; plus d'API Gmail ni de portée `gmail.compose` depuis le 27/10/2026) et `docs/google-drive.md`. L'écran de consentement OAuth est propre à chaque projet : à refaire pour le nouveau, libellés à vérifier au premier essai. Les clés web Firebase du nouveau projet sont restreintes aux sites web, avec `https://docs.google.com/*` en plus pour le Picker (décision du 20/10/2026, `docs/securite-et-pannes.md`) : à vérifier au premier essai.
 
 ---
 
@@ -293,7 +293,7 @@ Lignes de modules (seulement si le module est actif) :
 | Module | Lignes automatiques | Lignes à cocher |
 |---|---|---|
 | Affaires (`js/modules/crm/deploiement.js`) | Dossier Google Drive racine des projets choisi | API Drive et Picker activées, adresse du site autorisée |
-| Devis (`js/modules/devis/deploiement.js`) | « Mon entreprise » complète ; étape où vivent les devis ; catalogue rempli ; **réglage CORS du stockage** (le navigateur essaie de lire un fichier qui n'existe pas : si la réponse est lisible, c'est fait) | Catalogue et anciens devis rassemblés, utilisateurs test Gmail, « Préparer l'e-mail » branché, essai de bout en bout, `liste mes devis` vérifié, API Gmail |
+| Devis (`js/modules/devis/deploiement.js`) | « Mon entreprise » complète ; étape où vivent les devis ; catalogue rempli ; **réglage CORS du stockage** (le navigateur essaie de lire un fichier qui n'existe pas : si la réponse est lisible, c'est fait) | Catalogue et anciens devis rassemblés, « Préparer l'e-mail » branché, essai de bout en bout, `liste mes devis` vérifié |
 
 Les deux contrôles du serveur (`CONTROLES_SERVEUR` = `fonctions`, `membres`, dans `functions/src/coeur/deploiement.js`) sont les seuls qui passent par le serveur. La page ne vérifie **pas** : les comptes de service et leurs droits, les secrets, les déclencheurs Eventarc, les APIs. C'est pour cela que ce document existe : une page toute verte ne prouve pas que le PDF marche, l'étape 20 le prouve.
 
@@ -307,7 +307,7 @@ Les deux contrôles du serveur (`CONTROLES_SERVEUR` = `fonctions`, `membres`, da
 - [ ] **Finaliser un devis** (sur une affaire de test : créer un devis, **Finaliser**). Attention : un devis finalisé a un vrai numéro et ne se supprime plus (il s'archive).
 - [ ] **PDF** : au bout de quelques secondes (jusqu'à une minute à froid), le document « Devis … .pdf » apparaît. Console Firestore : `clients/<CLIENT>/devis_devis/<id>` > champ `pdf.statut` passe par « en cours » puis « ok ».
 - [ ] **Lien de lecture** : ouvre le PDF depuis l'écran du devis (lien valable 5 minutes). Un lecteur de l'espace doit pouvoir l'ouvrir ; un devis d'un autre client reste inaccessible (« Action non autorisée. »).
-- [ ] **Copier dans Drive** et **pièce jointe Gmail** (si étape 17 faite) : le PDF arrive dans le dossier Devis de l'affaire.
+- [ ] **Copier dans Drive** : le PDF arrive dans le dossier Devis de l'affaire.
 - [ ] **MCP** : ajoute `<SITE>/mcp/<CLIENT>` dans Claude comme connecteur personnalisé, connecte-toi, demande `qui_suis_je`, puis « liste mes devis ». Le module `mcp` doit être allumé pour ce client (`activer-module <CLIENT> mcp --ecrire`). Non essayé en réel avec le vrai claude.ai au 26/10/2026.
 - [ ] **Mon espace** : Réglages > Mon espace : change le nom, enregistre, le menu change (fonction `espaceReglages`).
 - [ ] **Automatisations** (si activées) : l'écran se remplit après la copie horaire ou **Rafraîchir**.
@@ -323,7 +323,7 @@ Les deux contrôles du serveur (`CONTROLES_SERVEUR` = `fonctions`, `membres`, da
 | « PDF non rangé » / « Stockage : le PDF n'a pas pu être enregistré. » (`pdf.statut = echec`) | Fonctions du PDF absentes, ou le compte `devis-pdf` n'a pas son droit de stockage (ou sa condition sur `clients/` est mal écrite) | Étape 10 ; choix `fonctions` ; journal : Cloud Functions > `devisPdf` / `devisPdfAuto` > Journaux |
 | `pdf.statut` ne passe jamais à « en cours » | Le déclencheur n'arrive pas à la fonction : rôles Eventarc / Cloud Run manquants (étapes 10 et 11) | Ajouter `roles/eventarc.eventReceiver` et `roles/run.invoker`; voir aussi <https://console.cloud.google.com/eventarc/triggers?project=<ID-DU-NOUVEAU-PROJET>> (déclencheur de `devisPdfAuto`, région `europe-west9`) |
 | « Stockage : le lien du PDF n'a pas pu être créé. » | API **IAM Service Account Credentials** non activée, ou « Créateur de jetons du compte de service » manquant à `devis-pdf` sur lui-même | Étapes 2 et 10 |
-| « Le PDF n'a pas pu être lu… » (Drive, Gmail) | CORS du stockage manquant | Étape 16 |
+| « Le PDF n'a pas pu être lu… » (Drive) | CORS du stockage manquant | Étape 16 |
 | 403 `cloudscheduler.jobs.update` au déploiement | `deploiement-github` sans « Administrateur Cloud Scheduler » | Étape 7 puis relancer `fonctions` |
 | « Missing permissions … iam.serviceAccounts.ActAs » | `deploiement-github` sans « Utilisateur du compte de service » | Étape 7 |
 | « serviceAccount … does not exist » | Un compte attendu par le code n'existe pas dans le projet (ou nom mal écrit) | Étapes 8 à 10 ; ou l'étape 0 n'a pas mis le bon projet dans les adresses |
@@ -340,7 +340,7 @@ Les deux contrôles du serveur (`CONTROLES_SERVEUR` = `fonctions`, `membres`, da
 | Page Déploiement : deux lignes orange | `deploiementVerifier` non publiée | Choix `fonctions` |
 | Page Déploiement : ligne CORS rouge alors que c'est fait | Bloqueur de publicité, ou essai non encore vérifié contre le vrai stockage | Revérifier dans un autre navigateur ; tester « Copier dans Drive » |
 | `PERMISSION_DENIED` dans le journal d'une fonction | Rôle manquant au compte de cette fonction | Étape 6 : comparer le tableau au compte de la fonction (Cloud Run > service > Sécurité) |
-| Gmail : « l'autorisation a été refusée » | API Gmail ou portée non activée, ou personne non listée comme utilisateur test | Étape 17 ; `docs/deploiement-client.md`, « Cas d'erreur courants » |
+| « Préparer l'e-mail » grisé, « pas encore branchée » | La porte des workflows n'existe pas pour cet espace (voir `.github/A-FAIRE.md`) | Normal tant que ce chantier n'est pas fait |
 | Le MCP du client ne répond pas | Module `mcp` éteint, ou fonction `mcpclients` absente | `activer-module <CLIENT> mcp`, choix `mcp` ; interrupteurs d'urgence : `docs/securite-et-pannes.md` |
 
 ## Retour arrière et arrêt

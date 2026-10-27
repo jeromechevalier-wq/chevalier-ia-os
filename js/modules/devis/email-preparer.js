@@ -1,5 +1,5 @@
 // « Préparer l'e-mail » d'un devis : un workflow n8n crée un BROUILLON dans le Gmail du compte, avec le PDF. Ni l'appli ni n8n n'envoient jamais l'e-mail :
-// la personne l'envoie elle-même depuis Gmail, puis touche « Marquer comme envoyé ». Ce fichier est PUR (aucun navigateur, aucun réseau) : les textes, les règles du menu
+// la personne l'envoie elle-même depuis Gmail, puis touche « Devis envoyé ». C'est le SEUL chemin de l'e-mail d'un devis (le navigateur ne parle plus à Gmail, décision du 27/10/2026). Ce fichier est PUR (aucun navigateur, aucun réseau) : les textes, les règles du menu
 // et la ligne de l'Historique. L'écran est dans email-preparer-ecran.js ; la fonction du serveur dans functions/src/coeur/devis-email.js.
 import { enMs } from './liste.js';
 
@@ -12,6 +12,7 @@ export const TEXTE_PREPARATION_EN_COURS = 'Préparation de l’e-mail en cours�
 export const TEXTE_SANS_REPONSE = 'Aucune réponse du workflow depuis plus de 15 minutes. Tu peux réessayer.';
 /** Au-delà, une demande restée sans réponse n'est plus « en cours » (le serveur ne relit plus une demande de plus de 15 minutes). */
 export const DELAI_SANS_REPONSE_MS = 15 * 60_000;
+export const MESSAGE_NON_BRANCHE = 'La préparation de l’e-mail n’est pas encore branchée sur cet espace : préviens l’administrateur de ton espace.';
 export const MESSAGE_ERREUR_PAR_DEFAUT = 'La demande n’a pas pu partir. Réessaie dans un instant : rien n’a été créé dans ton Gmail.';
 
 const FORMAT_JOUR = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', day: '2-digit', month: '2-digit', year: 'numeric' });

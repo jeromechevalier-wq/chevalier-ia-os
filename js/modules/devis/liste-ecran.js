@@ -78,6 +78,7 @@ function ouvrable(el, ouvrir) {
 
 /** Rend la fonction d'arrêt. */
 export function rendreListeDevis(conteneur) {
+  D.emailPreparable(); // question posée au serveur dès l'ouverture : la réponse est prête quand on ouvre le menu d'une carte (« Préparer l'e-mail » est-il branché ?)
   const titre = h('h1', {}, 'Devis');
   const compteur = h('span', { class: 'compteur-liste', 'aria-live': 'polite' });
   const zone = h('div', { class: 'zone-devis' });

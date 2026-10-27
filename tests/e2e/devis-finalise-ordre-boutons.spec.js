@@ -84,6 +84,12 @@ test('2 finalisé : le bouton s’appelle « Devis envoyé » (plus de « Passer
     appels.push(JSON.parse(route.request().postData()).data);
     return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ result: { ok: true } }) });
   });
+  const envois = [];
+  await page.route('**/devisEnregistrerEnvoi', async (route) => { // 27/10/2026 : « Devis envoyé » note aussi À QUI dans l'historique des envois (destinataires et copie du devis)
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+    envois.push(JSON.parse(route.request().postData()).data);
+    return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ result: { ok: true } }) });
+  });
   await ouvrir(page, 'devis/voir/dFinalise');
   const envoye = tete(page).locator('[data-action="passer-envoye"]');
   await expect(envoye).toHaveText('Devis envoyé');
@@ -92,6 +98,7 @@ test('2 finalisé : le bouton s’appelle « Devis envoyé » (plus de « Passer
   await envoye.click();
   await expect(page.locator('.toast').filter({ hasText: 'Devis passé à « Envoyé »' })).toBeVisible();
   expect(appels).toEqual([{ devisId: 'dFinalise', action: 'marquer_envoye' }]);
+  expect(envois, 'l’historique des envois garde les destinataires du devis').toEqual([{ devisId: 'dFinalise', destinataires: ['contact@exemple.fr'], copie: [] }]);
 });
 
 /** Ouvre le « … » du haut de page et rend ses entrées (sans Options et Historique, qui n'y sont que sur téléphone). */
@@ -103,22 +110,25 @@ async function entreesMenu(page) {
 }
 const PASSAGES = /^Passer à « /;
 
-test('3 brouillon : le « … » ne propose pas « Passer à « Finalisé » » (le bouton est visible) mais garde « Envoyer par e-mail » (« Envoyer » grisé n’ouvre aucun menu) ; PDF, impression et Supprimer restent', async ({ page }, info) => {
+test('3 brouillon : le « … » ne propose pas « Passer à « Finalisé » » (le bouton est visible) mais garde « Préparer l’e-mail » (« Envoyer » grisé n’ouvre aucun menu) ; PDF, impression et Supprimer restent', async ({ page }, info) => {
   await donnees();
   await ouvrir(page, 'devis/editeur/dBrouillon');
   await expect(page.locator('.page-editeur-devis [data-action="finaliser"]')).toBeVisible();
   await expect(page.locator('.page-editeur-devis [data-action="envoyer"]')).toBeVisible();
   const l = await entreesMenu(page);
   expect(l.filter((t) => PASSAGES.test(t))).toEqual([]);
-  expect(l.filter((t) => /^Envoyer/.test(t))).toEqual(['Envoyer par e-mail']); // et jamais « Envoyer à nouveau »
-  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Envoyer par e-mail' })).toBeEnabled();
+  expect(l.filter((t) => /e-mail/.test(t))).toEqual(['Préparer l’e-mail']); // une seule entrée e-mail (plus d'« Envoyer par e-mail » ni d'« Envoyer à nouveau », 27/10/2026)
+  expect(l.filter((t) => /^Envoyer/.test(t))).toEqual([]);
+  // Le faux serveur répond « pas branché » par défaut (outils.js) : l'entrée reste là, grisée, avec la raison (27/10/2026).
+  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Préparer l’e-mail' })).toBeDisabled();
+  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Préparer l’e-mail' })).toHaveAttribute('title', /pas encore branchée/);
   for (const nom of ['Télécharger le PDF', 'Imprimer', 'Dupliquer', 'Supprimer']) expect(l).toContain(nom);
   expect(l).not.toContain('Voir le devis'); // l'onglet « Prévisualisation » le fait déjà (écran unique)
   await capturer(page, info, '3-menu-brouillon');
   await page.keyboard.press('Escape');
 });
 
-test('3 finalisé : le « … » ne propose ni « Passer à « Envoyé » » ni « Envoyer à nouveau » (« Envoyer » et « Devis envoyé » sont visibles) ; « Créer une nouvelle version » reste', async ({ page }, info) => {
+test('3 finalisé : le « … » ne propose ni « Passer à « Envoyé » » ni « Préparer l’e-mail » (« Envoyer » et « Devis envoyé » sont visibles) ; « Créer une nouvelle version » reste', async ({ page }, info) => {
   await donnees();
   await ouvrir(page, 'devis/voir/dFinalise');
   const l = await entreesMenu(page);
@@ -128,25 +138,25 @@ test('3 finalisé : le « … » ne propose ni « Passer à « Envoyé » » ni 
   await page.keyboard.press('Escape');
 });
 
-test('3 envoyé : le « … » ne propose ni « Passer à « Signé » » ni « Passer à « Refusé » » (les boutons sont visibles) ; « Envoyer à nouveau » reste (aucun bouton « Envoyer »)', async ({ page }, info) => {
+test('3 envoyé : le « … » ne propose ni « Passer à « Signé » » ni « Passer à « Refusé » » (les boutons sont visibles) ; « Préparer l’e-mail » reste (aucun bouton « Envoyer »)', async ({ page }, info) => {
   await donnees();
   await ouvrir(page, 'devis/voir/dEnvoye');
   await expect(tete(page).locator('[data-action="envoyer"]')).toHaveCount(0);
   const l = await entreesMenu(page);
-  expect(l.filter((t) => PASSAGES.test(t) || ['Devis signé', 'Devis refusé', 'Envoyer par e-mail'].includes(t))).toEqual([]);
-  expect(l).toContain('Envoyer à nouveau');
-  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Envoyer à nouveau' })).toBeEnabled();
+  expect(l.filter((t) => PASSAGES.test(t) || ['Devis signé', 'Devis refusé'].includes(t))).toEqual([]);
+  expect(l).toContain('Préparer l’e-mail');
+  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Préparer l’e-mail' })).toBeDisabled(); // faux serveur : « pas branché »
   await capturer(page, info, '3-menu-envoye');
   await page.keyboard.press('Escape');
 });
 
-test('3 signé : aucun bouton d’étape, donc rien n’est retiré du « … » à cause d’un bouton ; « Envoyer à nouveau » (grisé) et « Archiver » restent', async ({ page }, info) => {
+test('3 signé : aucun bouton d’étape, donc rien n’est retiré du « … » à cause d’un bouton ; « Préparer l’e-mail » (grisé) et « Archiver » restent', async ({ page }, info) => {
   await donnees();
   await ouvrir(page, 'devis/voir/dSigne');
   await expect(tete(page).locator('.bouton-principal')).toHaveCount(0);
   const l = await entreesMenu(page);
-  for (const nom of ['Télécharger le PDF', 'Imprimer', 'Envoyer à nouveau', 'Dupliquer', 'Archiver']) expect(l).toContain(nom);
-  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Envoyer à nouveau' })).toBeDisabled();
+  for (const nom of ['Télécharger le PDF', 'Imprimer', 'Préparer l’e-mail', 'Dupliquer', 'Archiver']) expect(l).toContain(nom);
+  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Préparer l’e-mail' })).toBeDisabled();
   await capturer(page, info, '3-menu-signe');
   await page.keyboard.press('Escape');
 });

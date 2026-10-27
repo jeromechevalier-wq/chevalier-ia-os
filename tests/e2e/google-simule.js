@@ -2,7 +2,7 @@
 // - google-config.js : un identifiant client fictif (sans lui, l'appli cache les boutons Google) ;
 // - api.js et gsi/client : de faux scripts qui imitent la fenêtre standard (Picker) et l'autorisation, et gardent ce qu'on leur demande dans window.__google ;
 // - l'API Drive (création de dossiers) : un faux serveur qui garde les requêtes reçues et donne des identifiants à la suite ;
-// - l'API Gmail (users/me/drafts) : un faux serveur qui garde les brouillons créés (jamais d'envoi : l'appli n'en a pas le droit).
+// - l'API Gmail : plus appelée par l'appli (27/10/2026) ; un piège garde toute requête dans `requetesGmail` et la refuse.
 export const ID_CLIENT = '192468914925-essaisimule0000000000000000000.apps.googleusercontent.com';
 export const PARENT = 'PARENT_ID_0123456789';
 export const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization,content-type', 'Access-Control-Allow-Methods': 'GET,POST,OPTIONS' };
@@ -44,7 +44,7 @@ window.google.accounts = { oauth2: { initTokenClient(cfg) { return { requestAcce
  * Dans la page : window.__google.reponse = [{ id, name, url, mimeType }] (ou 'annule') fixe ce que « l'utilisateur » choisit dans la fenêtre Google.
  */
 export async function brancherGoogle(context, { idClient = ID_CLIENT } = {}) {
-  const drive = { requetes: [], supprimes: new Set(), dossiers: [], fichiers: {}, lectures: [], recherches: [], echecs: {}, compteur: 0, copies: [], compteurCopies: 0, echecCopie: 0, echecLecture: 0, envois: [], echecEnvoi: 0, brouillons: [], echecBrouillon: 0, corpsEchecBrouillon: null, reseauCoupeBrouillon: false };
+  const drive = { requetes: [], supprimes: new Set(), dossiers: [], fichiers: {}, lectures: [], recherches: [], echecs: {}, compteur: 0, copies: [], compteurCopies: 0, echecCopie: 0, echecLecture: 0, envois: [], echecEnvoi: 0, requetesGmail: [] };
   await context.addInitScript(DEBUT);
   await context.route('**/js/os/google-config.js', (route) => route.fulfill({ status: 200, contentType: 'text/javascript', body: `export const googleDrive = { idClient: '${idClient}' };` }));
   await context.route('https://apis.google.com/js/api.js', (route) => route.fulfill({ status: 200, contentType: 'text/javascript', body: SCRIPT_API }));
@@ -101,21 +101,14 @@ export async function brancherGoogle(context, { idClient = ID_CLIENT } = {}) {
     const id = `ENVOI_${drive.envois.length}_abcdefghij`;
     await route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: JSON.stringify({ id, name: meta.name, webViewLink: `https://drive.google.com/file/d/${id}/view` }) });
   });
-  // Gmail users.drafts.create : on garde l'autorisation et le corps reçus. `drive.echecBrouillon` = statut d'erreur à renvoyer (avec `drive.corpsEchecBrouillon`), `reseauCoupeBrouillon` = réseau coupé.
-  await context.route('https://gmail.googleapis.com/gmail/v1/users/me/drafts', async (route) => {
-    const requete = route.request();
-    if (requete.method() === 'OPTIONS') { await route.fulfill({ status: 204, headers: CORS }); return; }
-    if (drive.reseauCoupeBrouillon) { await route.abort('failed'); return; }
-    if (drive.echecBrouillon) { await route.fulfill({ status: drive.echecBrouillon, contentType: 'application/json', headers: CORS, body: JSON.stringify(drive.corpsEchecBrouillon ?? { error: { status: 'PERMISSION_DENIED', message: 'refusé' } }) }); return; }
-    drive.brouillons.push({ autorisation: requete.headers().authorization, corps: JSON.parse(requete.postData() || '{}') });
-    const n = drive.brouillons.length;
-    await route.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: JSON.stringify({ id: `BROUILLON_${n}`, message: { id: `MSG_${n}_abc`, threadId: `FIL_${n}` } }) });
+  // Depuis le 27/10/2026 l'appli ne parle plus à Gmail (l'e-mail du devis passe par n8n) : toute requête vers l'API Gmail est GARDÉE dans `drive.requetesGmail` (un test peut exiger qu'elle soit vide)
+  // et refusée (403), pour qu'un appel oublié se voie.
+  await context.route('https://gmail.googleapis.com/**', async (route) => {
+    drive.requetesGmail.push(route.request().url());
+    await route.fulfill({ status: 403, contentType: 'application/json', headers: CORS, body: JSON.stringify({ error: { status: 'PERMISSION_DENIED', message: 'Gmail n’est plus appelé par l’appli.' } }) });
   });
   return drive;
 }
-
-/** Texte MIME d'un brouillon gardé par le faux Gmail (le champ `raw` est en base64url). */
-export const lireMime = (brouillon) => Buffer.from(brouillon.corps.message.raw.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8');
 
 /** Ce que le faux Google a reçu côté navigateur (autorisations demandées, fenêtres ouvertes). */
 export const lireGoogle = (page) => page.evaluate(() => window.__google);

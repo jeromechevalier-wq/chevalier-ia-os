@@ -51,11 +51,11 @@ test('1 Réglages > Déploiement chez Jérôme : une ligne par étape avec pasti
   await ouvrirRacine(page);
   await expect(page.locator('.reglages-menu-lien[data-reglage="deploiement"]')).toHaveText('Déploiement');
   await expect(page.locator('.deploiement-groupe h3')).toHaveText(['Avant la séance', 'Pendant la séance', 'Réglages Google du projet', 'Après la séance']);
-  // Toutes les lignes automatiques sont vertes, les manuelles grises « À vérifier à la main » : 6 sur 23 (1 du serveur, 1 des Affaires, 4 du Devis ; 17 manuelles,
+  // Toutes les lignes automatiques sont vertes, les manuelles grises « À vérifier à la main » : 6 sur 21 (1 du serveur, 1 des Affaires, 4 du Devis ; 15 manuelles,
   // dont « Personnes autorisées », case à cocher à la racine : les comptes y sont écrits dans le code)
-  await expect(page.locator('.deploiement-ligne')).toHaveCount(23);
+  await expect(page.locator('.deploiement-ligne')).toHaveCount(21);
   await expect(page.locator('.deploiement-ligne[data-type="auto"][data-couleur="vert"]')).toHaveCount(6);
-  await expect(resume(page)).toHaveText('6 sur 23 vertes');
+  await expect(resume(page)).toHaveText('6 sur 21 vertes');
   await expect(ligne(page, 'membres')).toHaveAttribute('data-type', 'manuel');
   await expect(page.locator('#reglages-deploiement')).not.toContainText('Jérôme');
   await expect(page.locator('#reglages-deploiement')).toContainText('Chaque case s’enregistre toute seule.');
@@ -81,7 +81,10 @@ test('3 une case rouge dit comment réparer, avec le lien exact (réglage de l�
   await expect(ligne(page, 'dossier-drive').locator('[data-role="lien-reparation"]')).toHaveAttribute('href', /#\/reglages\/crm\/reglages-options$/);
   await expect(ligne(page, 'devis-entreprise').locator('[data-role="lien-reparation"]')).toHaveAttribute('href', /#\/reglages\/devis\/reglages-entreprise$/);
   await expect(ligne(page, 'devis-cors').locator('[data-role="lien-reparation"]')).toHaveAttribute('href', 'https://github.com/jeromechevalier-wq/chevalier-ia-os/blob/main/docs/cors-stockage-pdf.md');
-  await expect(ligne(page, 'devis-gmail-api').locator('[data-role="lien-reparation"]')).toHaveAttribute('href', 'https://console.cloud.google.com/apis/library/gmail.googleapis.com?project=chevalier-ia-os'); // le projet Google de l'espace (firebase-config), pas celui des émulateurs
+  // 27/10/2026 : plus de ligne « API Gmail » ni « utilisateurs test de Gmail » (le navigateur ne parle plus à Gmail) ; « Préparer l'e-mail » dit qu'il est absent chez les clients.
+  await expect(ligne(page, 'devis-gmail-api')).toHaveCount(0);
+  await expect(ligne(page, 'devis-gmail-test')).toHaveCount(0);
+  await expect(ligne(page, 'devis-preparer-email').locator('[data-role="reparation"]')).toContainText('Absent chez les clients');
   await expect(resume(page)).toHaveAttribute('data-global', 'rouge');
   await ligne(page, 'devis-cors').scrollIntoViewIfNeeded();
   await capturer(page, info, '3-racine-rouge');
@@ -99,7 +102,7 @@ test('4 « C’est fait » : la case manuelle devient verte avec la date, compte
   const date = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris' }).format(new Date());
   await expect(ligne(page, 'bienvenue')).toHaveAttribute('data-couleur', 'vert');
   await expect(ligne(page, 'bienvenue').locator('[data-role="etat"]')).toHaveText(`Fait le ${date}`);
-  await expect(resume(page)).toHaveText('7 sur 23 vertes');
+  await expect(resume(page)).toHaveText('7 sur 21 vertes');
   await expect.poll(async () => (await lireDocument('crm_parametres/deploiement'))?.bienvenue?.fait).toBe(true);
   expect(Object.keys((await lireDocument('crm_parametres/deploiement')).bienvenue).sort()).toEqual(['fait', 'le']);
   await page.reload();

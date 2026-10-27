@@ -78,7 +78,7 @@ test('1 le menu « … » d’un brouillon propose « Éditer le devis » et « 
   await expect(menu(page).getByRole('menuitem', { name: 'Voir la fiche' })).toHaveCount(0);
   await expect(menu(page).getByRole('menuitem', { name: 'Modifier : version actuelle' })).toHaveCount(0);
   await expect(menu(page).getByRole('menuitem', { name: 'Voir', exact: true })).toHaveCount(0);
-  for (const nom of ['Dupliquer', 'Envoyer par e-mail', 'Archiver', 'Supprimer']) await expect(menu(page).getByRole('menuitem', { name: nom })).toBeVisible();
+  for (const nom of ['Dupliquer', 'Préparer l’e-mail', 'Archiver', 'Supprimer']) await expect(menu(page).getByRole('menuitem', { name: nom })).toBeVisible();
   await expect(entree(page, 'Archiver')).toBeDisabled();
   await expect(menu(page)).toContainText('Seul un devis signé ou refusé peut être archivé.');
   await capturer(page, info, '1-menu-brouillon');
@@ -146,13 +146,13 @@ test('3 le « … » de l’éditeur et celui de la visualisation proposent les 
   await donnees();
   await ouvrir(page);
   // 26/10/2026 : le « … » ne répète jamais un bouton visible de l'en-tête (Finaliser, Envoyer, Devis envoyé, Devis signé, Devis refusé) ;
-  // il commence par PDF et impression, puis « Envoyer à nouveau » seulement quand aucun bouton « Envoyer » n'est visible (envoyé, signé) ; au brouillon, « Envoyer » grisé n'ouvre aucun menu : « Envoyer par e-mail » reste dans « … ».
+  // il commence par PDF et impression, puis « Préparer l’e-mail » seulement quand aucun bouton « Envoyer » n'est visible (envoyé, signé) ; au brouillon, « Envoyer » grisé n'ouvre aucun menu : « Préparer l’e-mail » reste dans « … ».
   const BOUTON_PAR_ETAT = { dBrouillon: /^Passer à « Finalisé »/, dFinalise: /^Passer à « Envoyé »/, dEnvoye: /^Passer à « (Signé|Refusé) »/, dSigne: null }; // signé : aucun bouton d'étape, rien à retirer du « … »
   let idCourant = null;
-  const dansEntete = (t) => t === 'Envoyer par e-mail' || BOUTON_PAR_ETAT[idCourant]?.test(t) === true;
+  const dansEntete = (t) => t === 'Préparer l’e-mail' || BOUTON_PAR_ETAT[idCourant]?.test(t) === true;
   const sansEnvoyer = (l) => l.filter((t) => !dansEntete(t));
   const sansOnglets = (t) => t !== 'Voir le devis' && t !== 'Éditer le devis'; // 26/10/2026 : les onglets Prévisualisation et Édition, toujours visibles, font la même chose
-  const groupe = (id) => ['Télécharger le PDF', 'Imprimer', ...(id === 'dBrouillon' ? ['Envoyer par e-mail'] : id === 'dFinalise' ? [] : ['Envoyer à nouveau'])];
+  const groupe = (id) => ['Télécharger le PDF', 'Imprimer', ...(id === 'dBrouillon' ? ['Préparer l’e-mail'] : id === 'dFinalise' ? [] : ['Préparer l’e-mail'])];
   for (const id of ['dBrouillon', 'dFinalise', 'dEnvoye', 'dSigne']) {
     await page.evaluate((h) => { location.hash = h; }, '#/devis/liste');
     await expect(page.locator('.page-liste-devis')).toBeVisible();
@@ -160,7 +160,7 @@ test('3 le « … » de l’éditeur et celui de la visualisation proposent les 
     await menuLigne(page, id);
     const liste = await libellesMenu(page);
     await page.keyboard.press('Escape');
-    // visualisation : la liste moins « Envoyer par e-mail », « Voir le devis » et « Éditer le devis » (les onglets)
+    // visualisation : la liste moins « Préparer l’e-mail », « Voir le devis » et « Éditer le devis » (les onglets)
     await page.evaluate((h) => { location.hash = h; }, `#/devis/voir/${id}`);
     await expect(page.locator(`.page-editeur-devis[data-devis="${id}"]`)).toBeVisible();
     await attendreCalme(page);
@@ -174,7 +174,7 @@ test('3 le « … » de l’éditeur et celui de la visualisation proposent les 
     if (id === 'dSigne') await capturer(page, info, '3-visualisation-menu');
     await page.keyboard.press('Escape');
     if (id === 'dBrouillon') {
-      // éditeur : la liste moins « Envoyer par e-mail », « Voir le devis » et « Éditer le devis » (les onglets)
+      // éditeur : la liste moins « Préparer l’e-mail », « Voir le devis » et « Éditer le devis » (les onglets)
       await page.evaluate((h) => { location.hash = h; }, `#/devis/editeur/${id}`);
       await expect(page.locator('[data-action="envoyer"]')).toBeVisible();
       await attendreCalme(page);
