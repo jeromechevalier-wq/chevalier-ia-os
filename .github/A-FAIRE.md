@@ -1,6 +1,6 @@
 # À faire : module Devis et outils (liste maintenue à jour)
 
-Mise à jour : 27/10/2026, soir. Règle de Jérôme : **« testé par Jérôme » ne s'écrit que sur sa confirmation, et quand le test est possible** (fusionné **et** en ligne). Aucun secret ici (dépôt public).
+Mise à jour : 27/10/2026, nuit (GO NUIT : 334, 337, 338, 339 fusionnées). Règle de Jérôme : **« testé par Jérôme » ne s'écrit que sur sa confirmation, et quand le test est possible** (fusionné **et** en ligne). Aucun secret ici (dépôt public).
 
 ## À tester par Jérôme (fusionné, en ligne)
 
@@ -15,7 +15,7 @@ Mise à jour : 27/10/2026, soir. Règle de Jérôme : **« testé par Jérôme �
 | 10 | Menu des cartes, historique, « … » à côté d'Envoyer, plus de fiche du devis | 294 | à faire |
 | 11 | Pastilles des réglages Devis (Général / Mon entreprise / Familles d'articles) | 295 | oui (26/10/2026) |
 | 12 | Outils MCP Devis (nouvelle version, archiver, statut, supprimer, envoi) | 296 | à faire |
-| 14 | « Préparer l'e-mail » (brouillon Gmail par n8n) | 299 | à faire après branchement (voir « À faire par Jérôme ») |
+| 14 | « Préparer l'e-mail » (brouillon Gmail par n8n) | 299, 334 | à faire (workflow n8n publié la nuit du 27/10/2026 ; chez Jérôme seulement, absent chez les clients ; voir « À faire par Jérôme » pour la boîte Gmail) |
 | 15 | Réglages > Déploiement (checklist avec contrôles) | 300 | à faire (page vue par Jérôme le 26/10 ; les cases ne sont pas encore testées : voir « Test de la page Déploiement » plus bas) |
 | 16 | Supprimer un brouillon de devis ne retire plus le document de l'affaire ni le fichier ; le document « Devis brouillon – Objet – JJ-MM-AAAA HHhMM.pdf » porte la date et l'heure (Paris) du dernier téléchargement | 311 | à faire |
 | 18 | Boutons du devis finalisé | 322 | à faire (fusionnée, en ligne : à vérifier à l'écran) |
@@ -38,20 +38,21 @@ Déjà validés par Jérôme : 280, 282, et le 26/10/2026 : 309 (retour visuel p
 ## À faire par Jérôme (une fois)
 - **Règles Firestore : décision du 27/10/2026, Claude les publie lui-même** (chevalier-ia-os par le workflow « Publier les règles (CRM de Jérôme) », chevalier-ia-app par le workflow « Déploiement plateforme clients » > regles). Fait le 27/10/2026 : rôle « Administrateur des règles Firebase » donné au compte `github-action-…`, règles de la PR 302 publiées dans les deux projets (runs verts). Jérôme n'a plus rien à faire ici, sauf lancer lui-même le bouton quand Claude le demande (le déploiement des clients reste manuel).
 - **Copie Drive (7)** : réglage CORS fait le 27/10/2026 pour les deux projets (`docs/cors-stockage-pdf.md`) ; reste à tester la copie du PDF dans Drive (7, 23).
-- **« Préparer l'e-mail » (14)**, workflow n8n `interne-devis-preparer-email` (créé, NON publié) : identifiant « Header Auth » et secrets `N8N_DEVIS_EMAIL_URL` / `N8N_DEVIS_EMAIL_SECRET` faits le 27/10/2026. Reste : relecture Fable du workflow, puis le publier (Claude le fait après la fusion de la PR 334). Détail : `docs/ajouter-un-bouton-workflow.md`.
+- **« Préparer l'e-mail » (14)**, workflow n8n `interne-devis-preparer-email` : **publié la nuit du 27/10/2026** (après relecture Fable et deux corrections : message d'échec nettoyé, identifiant du brouillon seulement s'il existe). Identifiant « Header Auth » et secrets `N8N_DEVIS_EMAIL_URL` / `N8N_DEVIS_EMAIL_SECRET` faits le 27/10/2026. **Question pour Jérôme** : le brouillon part dans la boîte liée à l'identifiant n8n « Google OAuth - Charles » ; confirme que c'est bien la boîte voulue. Si le bouton reste grisé « pas branché » : vérifier le droit de lecture des deux secrets pour `porte-serveur@chevalier-ia-os.iam.gserviceaccount.com`. Détail : `docs/ajouter-un-bouton-workflow.md`.
 - **Chez les clients** : le déploiement de `devisEnregistrerEnvoi`, `devisPreparerEmail`, `deploiementVerifier` et du MCP se fait avec le workflow manuel, avec Jérôme (la porte de la base 2 n'existe pas encore : « Préparer l'e-mail » est absent chez les clients).
 
 ## À tester par Jérôme
-- **Gestion des déchets** : formulaire Définir / Modifier dans l'éditeur, sans effet sur le prix.
-- **Conditions de paiement** : plusieurs acomptes dans l'éditeur (valeur, % / € HT / € TTC, moment ; crayon et croix), « Reste à facturer » dans le bloc, refus si le total dépasse le TTC ; menu « Ajouter une condition » (Acompte ; Retenue de garantie grisée « bientôt »). Les anciens devis à acompte unique marchent sans migration ; les primes déjà enregistrées restent déduites du NET À PAYER. Même code chez les clients (copies générées, rien à brancher).
+- **Menu « Ajustement », version B** (PR 337, fusionnée) : « Définir un ajustement » montre d'un coup Ajustement global, Marge du devis, Remise client.
+- **E-mail uniquement par n8n** (PR 334, fusionnée) : plus de brouillon Gmail depuis le navigateur ; « Préparer l'e-mail » est la seule entrée e-mail (menus Envoyer, « … » et cartes de la liste), grisée avec sa phrase tant que ce n'est pas branché ; « Devis envoyé » note aussi les destinataires dans l'historique.
+- **Gestion des déchets** (PR 338, fusionnée) : formulaire Définir / Modifier dans l'éditeur, sans effet sur le prix.
+- **Conditions de paiement** (PR 339, fusionnée) : plusieurs acomptes dans l'éditeur (valeur, % / € HT / € TTC, moment ; crayon et croix), « Reste à facturer » dans le bloc, refus si le total dépasse le TTC ; menu « Ajouter une condition » (Acompte ; Retenue de garantie grisée « bientôt »). Les anciens devis à acompte unique marchent sans migration ; les primes déjà enregistrées restent déduites du NET À PAYER. Même code chez les clients (copies générées, rien à brancher).
 - **Outil de diagnostic fichiers MCP** : à tester par Jérôme (ChatGPT et Claude, ordinateur et téléphone ; scénario dans `docs/plan-mcp.md`, section 11), puis à retirer (liste de ce qui se retire au même endroit).
 
 - **Déconnexion forcée chez le client démo (26/10)** : corrigée (PR 327, déployée chez les clients le 27/10/2026), à confirmer par Jérôme dans son Chrome normal. **Le test attend** : il ne peut pas ouvrir deux onglets en même temps tant que le bug de liens n'est pas en ligne ; maintenant que la PR 335 l'est, il peut le faire. Causes possibles : (1) une erreur réseau sur la lecture de la fiche d'appartenance (try/catch qui déconnectait), (2) un 2e onglet ouvert sur `app.html` de la plateforme sans route `#/espace/<client>` (le démarrage « Jérôme » déconnectait tout le monde, les onglets partagent la connexion), (3) piste non vérifiée : une extension Chrome (bloqueur de pub, vie privée) qui coupe par intermittence le canal Firestore.
 
 ## En cours (27/10/2026, soir)
 - **Fusionnées le 27/10** : 302 (règles du journal des demandes, publiées), 327 (connexion), 329, 330, 331 (dossier de travail et copie des PDF), 332 (guide CORS), 333 (workflow « Publier les règles »), 335 (liens sous le préfixe du client).
-- **334** (en brouillon, 5 corrections en cours) : e-mail du devis uniquement par n8n, plus de brouillon Gmail depuis le navigateur ; « Préparer l'e-mail » grisé (avec phrase) chez les clients ; relecture Fable obligatoire. Après fusion : publier le workflow n8n, vérifications à l'écran pour Jérôme.
-- **Menu « Ajustement », version B** (en cours) : 3 blocs toujours visibles (Ajustement global, Marge du devis, Remise client). « Compte prorata » et « Poste libre HT » ne sont pas affichés (non construits). Fable obligatoire (gros écran).
+- **Fusionnées la nuit du 27/10 (GO NUIT)** : 334 (e-mail par n8n seulement), 337 (menu Ajustement B), 338 (déchets), 339 (conditions de paiement à plusieurs acomptes) ; workflow n8n `interne-devis-preparer-email` relu par Fable puis **publié**. Les 4 PR sont en ligne chez Jérôme ; chez les clients il faut un déploiement « hosting » (avec Jérôme) pour qu'ils les aient.
 - **Client démo** : Jérôme a activé Devis et le MCP ; le remplissage se lance dans son Terminal (`docs/donnees-demo.md`).
 
 ## À faire, ordre de priorité (26/10/2026, nuit)
