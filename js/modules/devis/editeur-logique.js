@@ -19,7 +19,7 @@ import {
   coefficientDeMarge, prixVenteUnitaire, prixVenteDeLigne, totauxDevis, versCentimes, erreursChantier, numerosDevis,
   coefficientDepuisPourcentage, coefficientDepuisMontant, coefficientDepuisSaisie, emailValide, MAX_COPIE,
 } from './logique.js';
-import { TYPE_SAUT, estSaut } from './logique.js';
+import { TYPE_SAUT, estSaut, listeAcomptes } from './logique.js';
 import { descriptionOuvrage, figerOuvragePourLigne, articlesParId, TYPE_OUVRAGE } from './ouvrages.js';
 import { TYPE_TEXTE, lireNombre } from './articles.js';
 
@@ -28,7 +28,7 @@ export const TYPE_LIGNE_LIBRE = 'libre';
 /** Champs du devis que l'éditeur enregistre (jamais numéro, statut, version, totaux… : ils sont protégés). */
 export const CHAMPS_ENREGISTRES = Object.freeze([
   'affaireId', 'organisationId', 'personneId', 'adresses', 'chantier', 'destinataires', 'copie', 'objet', 'sections', 'remise', 'marge', 'modeMarge',
-  'tauxTvaDefaut', 'acompte', 'texteLibre', 'notesBasDePage', 'expireLe', 'dateEmission', 'ajustement', 'affichage', 'autoliquidation', 'dechets',
+  'tauxTvaDefaut', 'acompte', 'acomptes', 'texteLibre', 'notesBasDePage', 'expireLe', 'dateEmission', 'ajustement', 'affichage', 'autoliquidation', 'dechets',
 ]);
 export const AVERTISSEMENTS = Object.freeze({
   aucuneLigne: 'Ce devis n’a encore aucune ligne.',
@@ -490,7 +490,8 @@ export function prixVenteAffiche(devis, section, ligne) {
 /** Même contenu (champs enregistrés), quel que soit l'ordre des clés : sert à reconnaître un devis modifié ailleurs. */
 export function memeContenu(a, b) {
   // Un ancien réglage `sautDePageAvant` et le saut de page qui le remplace sont le même contenu.
-  const norm = (d) => (d?.sections ? { ...d, sections: convertirAnciensSauts(d.sections) } : d);
+  // De même, l'ancien acompte unique et la liste `acomptes` qui le remplace (l'éditeur normalise à l'ouverture) sont le même contenu.
+  const norm = (d) => (d ? { ...d, ...(d.sections ? { sections: convertirAnciensSauts(d.sections) } : {}), acomptes: listeAcomptes(d), acompte: null } : d);
   a = norm(a); b = norm(b);
   const stable = (v) => (Array.isArray(v) ? v.map(stable) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, stable(v[k])])) : v);
   return JSON.stringify(stable(champsAEnregistrer(a))) === JSON.stringify(stable(champsAEnregistrer(b)));

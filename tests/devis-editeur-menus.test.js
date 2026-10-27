@@ -112,6 +112,7 @@ describe('3 ajustement global', () => {
     assert.ok(Ed.CHAMPS_ENREGISTRES.includes('ajustement'));
     assert.ok(Ed.CHAMPS_ENREGISTRES.includes('affichage'));
     assert.ok(Ed.CHAMPS_ENREGISTRES.includes('dechets'));
+    assert.ok(Ed.CHAMPS_ENREGISTRES.includes('acomptes'));
   });
   test('3 la finalisation fige le prix ajusté : changer le coefficient ensuite ne change plus les totaux', () => {
     const base = { ...L.nouveauDevis({ affaireId: 'a1', destinataires: [{ email: 'c@exemple.test' }] }, { maintenant: new Date('2026-10-24T10:00:00Z'), auteur: 'x@exemple.test', nouvelId: () => 'd1' }, { regimeTva: 'assujetti' }), ...trio(), ajustement: { coefficient: 1.1 },
@@ -367,6 +368,12 @@ describe('3 saut de page : hors totaux, sans numéro, fidèle à l’ancien rég
     assert.deepEqual(ids(neuf), ['s1', 'a', 'saut-s2', 's2', 'b']);
     assert.ok(Ed.memeContenu({ sections: ancien }, { sections: neuf }), 'ancien et converti sont le même contenu : pas de faux conflit');
     assert.equal(ancien[1].sautDePageAvant, true, 'la source n’est pas modifiée');
+  });
+  test('3 un ancien acompte unique, la liste qui le remplace et « sans acompte » sont le même contenu : pas de faux conflit « modifié ailleurs »', () => {
+    const a = { type: 'pourcentage', valeur: 30, moment: 'signature' };
+    assert.ok(Ed.memeContenu({ sections: [], acompte: a }, { sections: [], acomptes: [a], acompte: null }));
+    assert.ok(Ed.memeContenu({ sections: [] }, { sections: [], acomptes: [], acompte: null }));
+    assert.ok(!Ed.memeContenu({ sections: [], acompte: a }, { sections: [], acomptes: [], acompte: null }), 'un vrai changement reste vu');
   });
   test('3 document : un saut coupe la page à sa place exacte, jamais en tête, jamais deux de suite', () => {
     const vue = (sections) => L.vueClient(devisDe(sections));

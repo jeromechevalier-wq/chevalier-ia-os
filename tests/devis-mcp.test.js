@@ -142,6 +142,35 @@ describe('M2 lire_devis : un devis complet côté artisan', () => {
     assert.ok(!d.erreursFinalisation.some((e) => /destinataire/.test(e)), 'le destinataire n’est plus obligatoire (impression et remise en main propre)');
   });
 
+  test('M2 acomptes : la liste normalisée (ancien acompte unique ou nouvelle liste) et un montant TTC par acompte', async () => {
+    const s = await demarrer({ devis: [
+      devisEnregistre('d1'),
+      devisEnregistre('d2', { acompte: { type: 'pourcentage', valeur: 30, moment: 'signature' } }),
+      devisEnregistre('d3', { acompte: { type: 'montant', valeur: 40, moment: 'debut_travaux' } }),
+      devisEnregistre('d4', { acomptes: [{ type: 'pourcentage', valeur: 50, moment: 'signature' }, { type: 'montantHt', valeur: 10, moment: 'mi_travaux' }], acompte: null }),
+    ] });
+    const lire = async (id) => ok(await s.appeler('lecteur', 'lire_devis', { id }));
+    const d1 = await lire('d1'); // TTC 115,20
+    assert.deepEqual([d1.acomptes, d1.totaux.acomptesTTC, d1.totaux.acompteTTC, d1.totaux.resteAFacturerTTC], [[], [], null, null]);
+    const d2 = await lire('d2');
+    assert.deepEqual(d2.acomptes, [{ type: 'pourcentage', valeur: 30, moment: 'signature' }]);
+    assert.deepEqual([d2.totaux.acomptesTTC, d2.totaux.acompteTTC, d2.totaux.resteAFacturerTTC], [[34.56], 34.56, 80.64]);
+    assert.deepEqual((await lire('d3')).acomptes, [{ type: 'montantTtc', valeur: 40, moment: 'debut_travaux' }]);
+    const d4 = await lire('d4');
+    assert.equal(d4.acomptes.length, 2);
+    assert.deepEqual([d4.totaux.acomptesTTC, d4.totaux.acompteTTC, d4.totaux.resteAFacturerTTC], [[57.6, 12], 69.6, 45.6]);
+    assert.doesNotMatch(JSON.stringify(d4), /"acompte":\{/); // l'ancien champ n'est plus rempli par l'éditeur (null)
+  });
+
+  test('M2 des acomptes au-dessus du TTC sont refusés à la finalisation (erreursFinalisation, aperçu de finaliser_devis)', async () => {
+    const s = await demarrer({ devis: [devisEnregistre('d1', { acomptes: [{ type: 'montantTtc', valeur: 100, moment: 'signature' }, { type: 'montantTtc', valeur: 100, moment: 'mi_travaux' }] })] });
+    const d = ok(await s.appeler('lecteur', 'lire_devis', { id: 'd1' }));
+    assert.ok(d.erreursFinalisation.some((e) => /^Acompte n° 2 : .*dépasse le total TTC/.test(e)), d.erreursFinalisation.join(' | '));
+    assert.deepEqual(d.totaux.acomptesTTC, [100], 'le second acompte ne tient pas dans le TTC : il n’est pas compté');
+    refuse(await s.appeler('code', 'finaliser_devis', { id: 'd1' }), /Acompte n° 2/);
+    assert.equal(s.doc('devis_devis', 'd1').statut, 'brouillon');
+  });
+
   test('M2 un devis inconnu est refusé', async () => {
     const s = await demarrer();
     refuse(await s.appeler('lecteur', 'lire_devis', { id: 'inconnu' }), /introuvable/i);

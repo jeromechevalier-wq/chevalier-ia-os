@@ -87,7 +87,7 @@ describe('Conditions de paiement', () => {
     assert.equal(t.netAPayer, t.ttc);
     assert.deepEqual([t.acompteTtc, t.resteAFacturerTtc, t.primes, t.totalPrimes, t.retenueGarantieMontant], [null, null, [], 0, 0]);
     const v = D.vueClient(figer(devis()));
-    for (const k of ['acompte', 'primes', 'retenueGarantie', 'dechets', 'texteLibre', 'notesBasDePage']) assert.ok(!(k in v), k);
+    for (const k of ['acompte', 'acomptes', 'primes', 'retenueGarantie', 'dechets', 'texteLibre', 'notesBasDePage']) assert.ok(!(k in v), k);
     const h = html(devis());
     for (const x of ['Acompte', 'Reste à facturer', 'Retenue', 'Gestion des déchets', 'Notes de bas de page', 'texte-libre"', 'class="bandeau saut-avant"']) assert.ok(!h.includes(x), x);
     // Franchise : le net vaut le HT.
@@ -200,7 +200,7 @@ describe('Conditions de paiement', () => {
       dechets: { types: ['inertes'] }, sections: [{ id: 's1', titre: 'A', sautDePageAvant: true, lignes: [ligne('a', 3265.81, 1)] }],
     }));
     const n = D.nouvelleVersion(d, { id: 'v2', creeLe: '2026-10-25T10:00:00Z' });
-    for (const k of ['acompte', 'primes', 'retenueGarantie', 'texteLibre', 'notesBasDePage', 'dechets']) assert.deepEqual(n[k], d[k], k);
+    for (const k of ['acompte', 'acomptes', 'primes', 'retenueGarantie', 'texteLibre', 'notesBasDePage', 'dechets']) assert.deepEqual(n[k], d[k], k);
     assert.equal(n.sections[0].sautDePageAvant, true);
     assert.equal(d.totaux.netAPayer, 3223.02);
     assert.equal(D.totauxDevis(n).netAPayer, 3223.02);
@@ -242,5 +242,156 @@ describe('C11 relecture : texte lisible, pourcentages, retenue sans date', () =>
   });
   test('C11 une prime de 0,004 € n\'est pas listée', () => {
     assert.deepEqual(D.totauxDevis(devis({ primes: [{ id: 'p', libelle: 'Mini', montant: 0.004 }] })).primes, []);
+  });
+});
+
+describe('C12 plusieurs acomptes (devis.acomptes) : liste, centimes exacts, refus, impression', () => {
+  const franchise = (extra = {}) => devis({ regimeTva: 'franchise', sections: [{ id: 's1', titre: 'T', lignes: [ligne('a', 100.01, 1)] }], ...extra });
+  const centimes = (n) => Math.round(n * 100);
+
+  test('C12 listeAcomptes : acomptes (même vide) d\'abord, sinon l\'ancien acompte converti, sinon []', () => {
+    assert.deepEqual(D.listeAcomptes(devis()), []);
+    assert.deepEqual(D.listeAcomptes(devis({ acompte: acompte30 })), [acompte30]);
+    assert.deepEqual(D.listeAcomptes(devis({ acompte: { type: 'montant', valeur: 500, moment: 'signature' } })), [{ type: 'montantTtc', valeur: 500, moment: 'signature' }]);
+    const liste = [{ type: 'montantHt', valeur: 100, moment: 'signature' }];
+    assert.deepEqual(D.listeAcomptes(devis({ acomptes: liste, acompte: acompte30 })), liste);
+    assert.deepEqual(D.listeAcomptes(devis({ acomptes: [], acompte: acompte30 })), []); // la nouvelle liste (même vide) l'emporte sur l'ancien champ
+    assert.deepEqual(D.listeAcomptes(null), []);
+  });
+
+  test('C12 un seul ancien acompte s\'imprime exactement comme avant (phrase, reste) et sa liste donne le même résultat', () => {
+    const ancien = devis({ acompte: acompte30 });
+    const nouveau = devis({ acomptes: [acompte30], acompte: null });
+    for (const d of [ancien, nouveau]) {
+      const v = D.vueClient(figer(d));
+      assert.equal(sans(v.acompte.libelle), 'Acompte de 30,00 % à la signature soit 1 175,69 € TTC');
+      assert.equal(sans(v.acompte.libelleReste), 'Reste à facturer : 2 743,28 € TTC');
+      assert.equal(v.acomptes.length, 1);
+      assert.equal(sans(v.conditions.acompte), 'Acompte de 30,00 % à la signature soit 1 175,69 € TTC');
+      assert.equal(D.totauxDevis(d).acompteTtc, 1175.69);
+    }
+    assert.equal(html(ancien), html(nouveau));
+    const montant = D.vueClient(figer(devis({ acompte: { type: 'montant', valeur: 500, moment: 'debut_travaux' } })));
+    assert.equal(sans(montant.acompte.libelle), 'Acompte de 500,00 € au début des travaux');
+  });
+
+  test('C12 sans acompte : liste vide, aucune clé dans la vue client, aucune phrase imprimée', () => {
+    const d = devis({ acomptes: [] });
+    const t = D.totauxDevis(d);
+    assert.deepEqual([t.acompteTtc, t.resteAFacturerTtc, t.acomptesTtc], [null, null, []]);
+    const v = D.vueClient(figer(d));
+    assert.ok(!('acompte' in v) && !('acomptes' in v));
+    assert.ok(!html(d).includes('Acompte') && !html(d).includes('Reste à facturer'));
+    assert.deepEqual(D.erreursAcomptes([], t), []);
+  });
+
+  test('C12 deux acomptes de types différents : une phrase chacun, la somme et le reste exacts', () => {
+    const d = devis({ acomptes: [
+      { type: 'pourcentage', valeur: 30, moment: 'signature' },
+      { type: 'montantHt', valeur: 500, moment: 'debut_travaux' },
+      { type: 'montantTtc', valeur: 100, moment: 'libre', texteMoment: 'à la livraison' },
+    ] });
+    const t = D.totauxDevis(d);
+    assert.deepEqual(t.acomptesTtc, [1175.69, 600, 100]);
+    assert.equal(t.acompteTtc, 1875.69);
+    assert.equal(t.resteAFacturerTtc, 2043.28);
+    const v = D.vueClient(figer(d));
+    assert.deepEqual(v.acomptes.map((a) => sans(a.libelle)), [
+      'Acompte de 30,00 % à la signature soit 1 175,69 € TTC',
+      'Acompte de 500,00 € HT au début des travaux soit 600,00 € TTC',
+      'Acompte de 100,00 € à la livraison',
+    ]);
+    assert.equal(sans(v.acompte.libelle), 'Acompte de 30,00 % à la signature soit 1 175,69 € TTC'); // le singulier = le premier
+    assert.equal(sans(v.conditions.acompte).split(' ; ').length, 3);
+    assert.deepEqual(v.totaux.acomptesTtc, [1175.69, 600, 100]);
+    const h = html(d);
+    for (const x of ['Acompte de 30,00 % à la signature', 'Acompte de 500,00 € HT au début des travaux soit 600,00 € TTC', 'Acompte de 100,00 € à la livraison', 'Reste à facturer : 2 043,28 € TTC']) assert.ok(h.includes(x), x);
+    assert.ok(h.indexOf('Acompte de 30,00') < h.indexOf('Acompte de 500,00') && h.indexOf('Acompte de 500,00') < h.indexOf('Reste à facturer'));
+    const texte = D.texteVueClient(figer(d));
+    assert.equal(texte.split('\n').filter((l) => l.startsWith('Acompte : ')).length, 3);
+    assert.ok(texte.includes('Reste à facturer : 2043,28 €'));
+  });
+
+  test('C12 € HT : converti en TTC par le rapport Total TTC / Total HT net (arrondi au centime) ; en franchise ou devis vide le rapport vaut 1', () => {
+    const d = devis({ acomptes: [{ type: 'montantHt', valeur: 100, moment: 'signature' }], remise: { type: 'montant', valeur: 65.81 } }); // HT net 3200, TTC 3840
+    assert.equal(D.totauxDevis(d).ttc, 3840);
+    assert.deepEqual(D.totauxDevis(d).acomptesTtc, [120]);
+    const f = franchise({ acomptes: [{ type: 'montantHt', valeur: 40.5, moment: 'signature' }] });
+    assert.deepEqual(D.totauxDevis(f).acomptesTtc, [40.5]);
+    assert.equal(sans(D.vueClient(figer(f, { ...reglages, regimeTva: 'franchise' })).acompte.libelle), 'Acompte de 40,50 € à la signature'); // franchise : ni HT ni TTC
+    const vide = devis({ sections: [], acomptes: [{ type: 'montantHt', valeur: 10, moment: 'signature' }] });
+    assert.deepEqual(D.totauxDevis(vide).acomptesTtc, []);
+  });
+
+  test('C12 centimes exacts : 33,33 % + 33,33 % + 33,34 % de 100,01 € font exactement 100,01 € (le dernier absorbe)', () => {
+    const d = franchise({ acomptes: [33.33, 33.33, 33.34].map((valeur) => ({ type: 'pourcentage', valeur, moment: 'signature' })) });
+    const t = D.totauxDevis(d);
+    assert.equal(t.ttc, 100.01);
+    assert.deepEqual(t.acomptesTtc, [33.33, 33.33, 33.35]);
+    assert.equal(t.acompteTtc, 100.01);
+    assert.equal(t.resteAFacturerTtc, 0);
+    assert.deepEqual(D.erreursAcomptes(d.acomptes, t), []);
+    // Deux fois 50 % de 100,01 : 50,01 + 50,00 (jamais 100,02 au-dessus du TTC).
+    const moitie = franchise({ acomptes: [50, 50].map((valeur) => ({ type: 'pourcentage', valeur, moment: 'signature' })) });
+    assert.deepEqual(D.totauxDevis(moitie).acomptesTtc, [50.01, 50]);
+    assert.equal(D.totauxDevis(moitie).resteAFacturerTtc, 0);
+  });
+
+  test('C12 trois acomptes en % sur un total TTC non rond : la somme ne dépasse jamais le TTC, et fait le TTC quand les % font 100', () => {
+    for (const [a, b, c] of [[33, 33, 34], [10, 20, 70], [25, 25, 50], [33.33, 33.33, 33.33], [1, 1, 98], [99.99, 0.01, 0]]) {
+      const liste = [a, b, c].filter((x) => x > 0).map((valeur) => ({ type: 'pourcentage', valeur, moment: 'signature' }));
+      const d = devis({ acomptes: liste });
+      const t = D.totauxDevis(d);
+      const somme = t.acomptesTtc.reduce((s, x) => s + centimes(x), 0);
+      assert.ok(somme <= centimes(t.ttc), `${a}/${b}/${c}`);
+      assert.equal(centimes(t.acompteTtc), somme);
+      assert.equal(centimes(t.resteAFacturerTtc), centimes(t.ttc) - somme);
+      if (Math.round((a + b + c) * 100) === 10000) assert.equal(somme, centimes(t.ttc), `${a}/${b}/${c} fait 100 %`);
+    }
+  });
+
+  test('C12 refus : somme au-dessus du TTC, somme des % au-dessus de 100, valeur ≤ 0, % > 100, moment libre sans texte, type inconnu', () => {
+    const t = D.totauxDevis(devis()); // TTC 3 918,97
+    const ou = (liste) => D.erreursAcomptes(liste, t);
+    const pct = (valeur, extra = {}) => ({ type: 'pourcentage', valeur, moment: 'signature', ...extra });
+    assert.deepEqual(ou([pct(60), pct(40)]), []);
+    assert.deepEqual(ou([pct(60), pct(50)]).map((e) => e.index), [1]);
+    assert.match(ou([pct(60), pct(50)])[0].message, /somme des acomptes dépasse 100 %/);
+    assert.match(ou([{ type: 'montantTtc', valeur: 3000, moment: 'signature' }, { type: 'montantTtc', valeur: 1000, moment: 'signature' }])[0].message, /somme des acomptes dépasse le total TTC/);
+    assert.match(ou([{ type: 'montantTtc', valeur: 4000, moment: 'signature' }])[0].message, /ne peut pas dépasser le total TTC/);
+    assert.match(ou([{ type: 'montantHt', valeur: 3300, moment: 'signature' }])[0].message, /ne peut pas dépasser le total TTC/); // 3 300 HT font 3 960 TTC
+    assert.match(ou([pct(0)])[0].message, /supérieur à 0 et au plus 100/);
+    assert.match(ou([pct(-5)])[0].message, /supérieur à 0 et au plus 100/);
+    assert.match(ou([pct(100.5)])[0].message, /supérieur à 0 et au plus 100/);
+    assert.match(ou([{ type: 'montantHt', valeur: 0, moment: 'signature' }])[0].message, /supérieur à zéro/);
+    assert.match(ou([pct(NaN)])[0].message, /doit être un nombre/);
+    assert.match(ou([pct(null)])[0].message, /doit être un nombre/);
+    assert.match(ou([pct(10, { moment: 'libre' })])[0].message, /texte libre/);
+    assert.match(ou([pct(10, { moment: 'libre', texteMoment: '  ' })])[0].message, /texte libre/);
+    assert.match(ou([pct(10, { moment: 'jamais' })])[0].message, /moment de l'acompte/);
+    assert.match(ou([{ type: 'cadeau', valeur: 10, moment: 'signature' }])[0].message, /pourcentage ou un montant/);
+    assert.deepEqual(ou([pct(10), pct(0)]).map((e) => e.index), [1]); // une seule erreur, sur la bonne ligne
+  });
+
+  test('C12 la finalisation refuse des acomptes au-dessus du TTC et nomme l\'acompte (« Acompte n° 2 : … »)', () => {
+    const base = { ...devis(), statut: 'brouillon' };
+    const ko = D.erreursFinalisation({ ...base, acomptes: [{ type: 'montantTtc', valeur: 3000, moment: 'signature' }, { type: 'montantTtc', valeur: 1000, moment: 'signature' }] }, reglages);
+    assert.ok(ko.some((m) => m.startsWith('Acompte n° 2 : ') && /dépasse le total TTC/.test(m)), ko.join(' | '));
+    assert.equal(D.figerPourFinalisation({ ...base, acomptes: [{ type: 'pourcentage', valeur: 70, moment: 'signature' }, { type: 'pourcentage', valeur: 70, moment: 'signature' }] }, { numero: 'N', finaliseLe: '2026-10-24T10:00:00Z', reglages }).devis, null);
+    assert.deepEqual(D.erreursFinalisation({ ...base, acomptes: [{ type: 'pourcentage', valeur: 30, moment: 'signature' }, { type: 'montantHt', valeur: 500, moment: 'mi_travaux' }] }, reglages), []);
+    assert.ok(D.erreursFinalisation({ ...base, acomptes: 'x' }, reglages).some((m) => /doivent former une liste/.test(m)));
+  });
+
+  test('C12 detailAcomptes : un montant TTC par acompte, dans l\'ordre ; null pour un acompte illisible', () => {
+    const d = devis({ acomptes: [acompte30, { type: 'pourcentage', valeur: 'x', moment: 'signature' }, { type: 'montantTtc', valeur: 100, moment: 'signature' }] });
+    assert.deepEqual(D.detailAcomptes(d).map((x) => x.montantTtc), [1175.69, null, 100]);
+  });
+
+  test('C12 nouvelle version et figeage conservent la liste des acomptes', () => {
+    const d = figer(devis({ acomptes: [acompte30, { type: 'montantHt', valeur: 500, moment: 'mi_travaux' }] }));
+    const n = D.nouvelleVersion(d, { id: 'v2', creeLe: '2026-10-25T10:00:00Z' });
+    assert.deepEqual(n.acomptes, d.acomptes);
+    assert.deepEqual(D.totauxDevis(n).acomptesTtc, [1175.69, 600]);
+    assert.deepEqual(d.totaux.acomptesTtc, [1175.69, 600]);
   });
 });
