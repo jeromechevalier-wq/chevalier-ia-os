@@ -300,7 +300,6 @@ test('I10 chez un client : « Ajouter un document » (Google branché) et dossie
   await ecrireDocument('clients/studio/crm_parametres/reglages', { ...(await lireDocument('clients/studio/crm_parametres/reglages')), boutonsDepot: true, sousDossiersDrive: ['Contrat'] });
   if (!(await page.locator('[data-role="choix-dossier"]').count())) await page.locator('[data-action="ajouter-dossier"]').click(); // « + Ajouter » ouvre les deux choix
   await page.locator('[data-action="creer-dossier-ouvrir"]').click();
-  await page.locator('[data-action="creer-dossier"]').click();
   await expect.poll(async () => (await lireDocument('clients/studio/projets_projets/pr1')).urlDossier).toBe('https://drive.google.com/drive/folders/DOSSIER_2_abcdefghij');
   expect(drive.requetes.map((r) => r.corps.name)).toEqual(['Chevalier IA - Studio Lune', 'Site du lac', 'Contrat']); // le parent est créé tout seul au premier besoin
 });
@@ -313,7 +312,6 @@ test('P6 chez un client : « Créer un dossier dans Google Drive » crée TOUT S
   await ouvrirDocuments(page);
   if (!(await page.locator('[data-role="choix-dossier"]').count())) await page.locator('[data-action="ajouter-dossier"]').click(); // « + Ajouter » ouvre les deux choix
   await page.locator('[data-action="creer-dossier-ouvrir"]').click();
-  await page.locator('[data-action="creer-dossier"]').click();
   await expect.poll(async () => (await lireDocument('clients/studio/projets_projets/pr1')).urlDossier).toMatch(/DOSSIER_2_/);
   expect(drive.requetes.map((r) => r.corps.name)).toEqual(['Chevalier IA - Studio Lune', 'Site du lac']);
   expect(drive.requetes[0].corps.parents).toBeUndefined(); // dans Mon Drive
