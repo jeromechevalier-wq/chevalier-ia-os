@@ -6,6 +6,7 @@ import * as CRM from '../crm/donnees.js';
 import * as D from './donnees.js';
 import * as A from './articles.js';
 import { reglagesFamilles } from './reglages-familles.js';
+import { reglagesExportDevis } from './export.js';
 import { MODES_MARGE, REGIMES_TVA, TAUX_TVA_DEFAUT, erreursEmetteur } from './logique.js';
 
 const ERREUR_ECRITURE = 'Enregistrement impossible : réessaie dans un instant, ou demande à un éditeur de l’espace.';
@@ -185,5 +186,6 @@ export function reglages(page) {
     rendre();
   }
   const arrets = [D.surChangement(rafraichir), CRM.surChangement(rafraichir), reglagesFamilles(page)]; // la section « Familles d'articles » vient sous les réglages
+  reglagesExportDevis(page); // puis « Sauvegarde », tout en bas
   return () => arrets.forEach((f) => f());
 }
