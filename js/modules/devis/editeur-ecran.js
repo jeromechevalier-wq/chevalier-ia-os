@@ -61,7 +61,7 @@ const nouvelId = () => CRM.ctx().nouvelId('devis_devis');
 
 // ---------------------------------------------------------------- client et affaire (lus dans l'espace)
 /** Organisation et personne proposées comme client d'une affaire. */
-function clientsDeAffaire(affaire) {
+export function clientsDeAffaire(affaire) {
   const liste = [];
   const org = affaire?.organisationId ? CRM.organisation(affaire.organisationId) : null;
   const pers = affaire?.personneId ? CRM.personne(affaire.personneId) : null;

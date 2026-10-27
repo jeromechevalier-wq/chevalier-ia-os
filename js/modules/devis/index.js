@@ -11,8 +11,9 @@ import { memoriserOrigine } from './pdf.js';
 import { reglages as reglagesDuModule } from './reglages.js';
 import { retenirDevis } from './memoire.js';
 import * as CRM from '../crm/donnees.js';
-import { inscrirePastilleAffaire, signaler } from '../crm/pastilles-externes.js';
+import { inscrirePastilleAffaire, inscrireOngletAffaire, signaler } from '../crm/pastilles-externes.js';
 import { pastilleDevisDeAffaire } from './pastille-affaire.js';
+import { ongletDevisDeAffaire, oublierOnglets } from './onglet-affaire.js';
 import { rechercherDevis } from './recherche.js';
 import { ETAPES_DEPLOIEMENT_DEVIS, controlerDeploiementDevis } from './deploiement.js';
 import { attendreQue } from '../../os/deploiement.js';
@@ -35,14 +36,17 @@ export const actionsRapides = [
 let montee = null; // { cle, quitter }
 
 let retirerPastille = null;
+let retirerOnglet = null;
 let arretSignal = null;
 
 export function demarrer({ cheminBase = '' } = {}) {
   ajouterFeuille(); // aussi pour la page Réglages, qui montre une section du module
   D.demarrer(cheminBase);
   // Pastille « Devis : … » sur les cartes et fiches d'affaire (seulement tant que le module tourne : éteint, le CRM n'affiche rien).
-  retirerPastille?.(); arretSignal?.();
+  retirerPastille?.(); retirerOnglet?.(); arretSignal?.();
   retirerPastille = inscrirePastilleAffaire((affaireId) => (D.estPretDevis() ? pastilleDevisDeAffaire(D.etat.devis, affaireId, { aujourdhui: CRM.ctx().aujourdhui }) : null));
+  // Onglet « Devis » à côté d'Activité / Notes / Documents (même règle : module éteint = rien d'inscrit = pas d'onglet). Un seul signal pour la pastille et l'onglet.
+  retirerOnglet = inscrireOngletAffaire(ongletDevisDeAffaire);
   arretSignal = D.surChangement(signaler);
 }
 
@@ -50,6 +54,8 @@ export function arreter() {
   quitter();
   memoriserOrigine(''); // on quitte le module : l'origine ne vaut plus (un lien de pastille depuis une affaire retombe sur le devis lui-même)
   retirerPastille?.(); retirerPastille = null;
+  retirerOnglet?.(); retirerOnglet = null;
+  oublierOnglets();
   arretSignal?.(); arretSignal = null;
   signaler();
   D.arreter();

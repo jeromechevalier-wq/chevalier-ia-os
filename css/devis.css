@@ -529,3 +529,24 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
   .bloc-paiement .bouton-lien, .acompte-ligne .bouton-icone { min-height: 44px; }
   .acompte-ligne .bouton-icone { min-width: 44px; }
 }
+
+/* Onglet « Devis » de la fiche d'une affaire (js/modules/devis/onglet-affaire.js) : une ligne par devis, le texte puis les actions (qui passent dessous sur téléphone). */
+.onglet-devis { display: flex; flex-direction: column; gap: var(--esp-6); }
+.liste-devis-onglet { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.ligne-devis-onglet { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--esp-5) var(--esp-7); padding: var(--esp-6) 0; border-bottom: 1px solid var(--bordure); }
+.ligne-devis-onglet:last-child { border-bottom: 0; }
+.devis-onglet-texte { display: flex; flex-direction: column; gap: var(--esp-2); min-width: 0; flex: 1 1 14rem; }
+.devis-onglet-titre { display: flex; flex-wrap: wrap; align-items: center; gap: var(--esp-4); }
+.devis-onglet-titre strong { font-weight: var(--poids-moyen); }
+.devis-onglet-objet { overflow-wrap: anywhere; }
+.devis-onglet-infos { display: flex; flex-wrap: wrap; gap: var(--esp-2) var(--esp-6); font-size: var(--fs-menu); }
+.devis-onglet-actions { display: flex; flex-wrap: wrap; gap: var(--esp-3); }
+.devis-onglet-actions .bouton { display: inline-flex; align-items: center; gap: var(--esp-2); text-decoration: none; }
+@media (max-width: 767px) {
+  /* Quatre onglets (Activité, Notes, Documents, Devis) tiennent côte à côte à 390 px sans défiler. */
+  .compositeur .onglets:has([data-onglet="devis"]) .onglet { padding-left: var(--esp-4); padding-right: var(--esp-4); gap: var(--esp-2); }
+  .compositeur .onglets:has([data-onglet="devis"]) .onglet > svg { display: none; } /* le mot suffit : les icônes des quatre onglets ne tiennent pas à 390 px (le nom de chaque onglet reste affiché) */
+  .devis-onglet-actions { width: 100%; }
+  .devis-onglet-actions .bouton { flex: 1 1 auto; justify-content: center; min-height: 44px; }
+  .ligne-devis-onglet .pdf-non-range, .onglet-devis .prop-vide { min-height: 44px; }
+}
