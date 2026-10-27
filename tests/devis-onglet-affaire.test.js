@@ -61,4 +61,6 @@ test('13 bouton d’en-tête : « Créer un devis » sans devis, « Voir le devi
   assert.deepEqual(actionEnteteDevis(devis, 'a2', true), { mode: 'voir', libelle: 'Voir le devis', route: 'devis/editeur/d3' });
   assert.deepEqual(actionEnteteDevis(devis, 'a3', true), { mode: 'creer', libelle: 'Créer un devis' });
   assert.deepEqual(actionEnteteDevis([{ id: 'x', affaireId: 'a9', archive: true }], 'a9', true), { mode: 'creer', libelle: 'Créer un devis' }); // un archivé ne compte pas
+  assert.equal(actionEnteteDevis(devis, 'a3', true, false), null); // affaire gagnée ou perdue sans devis : pas de « Créer un devis »
+  assert.equal(actionEnteteDevis(devis, 'a1', true, false).mode, 'voir'); // mais « Voir le devis » reste
 });

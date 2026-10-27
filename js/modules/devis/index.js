@@ -51,7 +51,7 @@ export function demarrer({ cheminBase = '' } = {}) {
   retirerOnglet = inscrireOngletAffaire(ongletDevisDeAffaire);
   // Bouton d'action de l'en-tête de l'affaire, à côté de « Perdue » : « Créer un devis », ou « Voir le devis » quand il y en a déjà un.
   retirerAction = inscrireActionAffaire((affaireId) => {
-    const r = actionEnteteDevis(D.etat.devis, affaireId, D.estPretDevis());
+    const r = actionEnteteDevis(D.etat.devis, affaireId, D.estPretDevis(), CRM.affaire(affaireId)?.statut === 'ouverte');
     if (!r) return null;
     return r.mode === 'creer'
       ? { libelle: r.libelle, icone: 'plus', action: () => ajouterDevis(affaireId) }

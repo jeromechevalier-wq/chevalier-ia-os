@@ -76,9 +76,9 @@ export function rendreFicheAffaire(conteneur, id) {
         { libelle: a.archive ? 'Désarchiver' : 'Archiver', icone: a.archive ? 'archive-restore' : 'archive', action: () => D.archiverAffaire(a.id, !a.archive) },
         { libelle: 'Supprimer définitivement…', icone: 'trash-2', danger: true, action: () => demanderSuppressionAffaire(a) },
       ]) }, icone('ellipsis', { taille: 20 }));
-    // Action d'un module (ex. « Créer un devis ») : le bouton jaune de la page tant que l'affaire est en cours ; perdue ou gagnée, « Rouvrir » est le jaune et l'action reste en contour.
+    // Action d'un module (ex. « Créer un devis ») : le bouton jaune de la page tant que l'affaire est ouverte ; gagnée (« Créer le projet » est jaune) ou perdue (« Rouvrir » est jaune), l'action reste en contour.
     const externe = actionDeAffaire(a.id);
-    const boutonExterne = externe ? h('button', { type: 'button', class: `bouton ${vivante ? 'bouton-principal' : 'bouton-secondaire'}`, 'data-action': 'action-module', onclick: () => externe.action() }, externe.icone ? icone(externe.icone, { taille: 16 }) : null, externe.libelle) : null;
+    const boutonExterne = externe ? h('button', { type: 'button', class: `bouton ${L.statutAffiche(a) === 'ouverte' ? 'bouton-principal' : 'bouton-secondaire'}`, 'data-action': 'action-module', onclick: () => externe.action() }, externe.icone ? icone(externe.icone, { taille: 16 }) : null, externe.libelle) : null;
     const actionsStatut = vivante
       ? [
         boutonExterne,
