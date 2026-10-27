@@ -126,7 +126,7 @@ test('2 module actif : onglet « Devis » en dernier avec le compteur 2, devis d
   await expect(finalise.locator('[data-pdf]')).toHaveCount(0); // PDF prêt : rien à signaler, le PDF s'ouvre depuis le devis
   await expect(finalise.getByRole('link', { name: 'Voir le devis DEV-2026-10-02-001' })).toBeVisible();
   await expect(panneau.locator('.ligne-lien a.bouton, .ligne-lien button')).toHaveCount(0); // comme l'onglet Documents : un nom cliquable, pas de boutons
-  await expect(page.locator('.bouton-principal:visible')).toHaveCount(0); // aucun bouton jaune de plus : « + Ajouter » est un texte jaune
+  await expect(page.locator('.bouton-principal:visible')).toHaveCount(1); // un seul bouton jaune : « Créer un devis » / « Voir le devis » de l'en-tête (« + Ajouter » est un texte jaune)
   await capturer(page, info, '2-onglet-devis');
 });
 

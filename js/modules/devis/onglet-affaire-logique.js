@@ -30,3 +30,14 @@ export const nomVoir = (d) => `Voir le devis ${d?.numero ?? d?.objet ?? 'brouill
 
 /** Route de l'écran du devis : l'éditeur pour un brouillon, la visualisation sinon. */
 export const routeVoirDevis = (d) => (brouillon(d) ? `devis/editeur/${d.id}` : `devis/voir/${d.id}`);
+
+/**
+ * Le bouton d'action de l'en-tête de l'affaire : « Créer un devis » sans devis, « Voir le devis » (le plus récent) sinon ; rien tant que les devis ne sont pas lus.
+ * Même si l'affaire est perdue ou gagnée : on a toujours envie de revoir le devis ; mais on n'y crée pas de nouveau devis (`ouverte` faux). Rend { mode: 'creer' } ou { mode: 'voir', route }.
+ */
+export function actionEnteteDevis(devis, affaireId, pret, ouverte = true) {
+  if (!pret || !affaireId) return null;
+  const dernier = devisDeAffaire(devis, affaireId)[0];
+  if (dernier) return { mode: 'voir', libelle: 'Voir le devis', route: routeVoirDevis(dernier) };
+  return ouverte ? { mode: 'creer', libelle: 'Créer un devis' } : null; // pas de nouveau devis sur une affaire gagnée ou perdue
+}

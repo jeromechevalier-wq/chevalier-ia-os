@@ -27,7 +27,7 @@ export function oublierOnglets() { elements.clear(); enCreation.clear(); }
 const euros = (n) => (typeof n === 'number' ? formaterMontant(n) : '—');
 const enMsCle = (d) => Li.enMs(d?.creeLe) ?? Li.enMs(d?.finaliseLe) ?? 0;
 
-async function ajouterDevis(affaireId) {
+export async function ajouterDevis(affaireId) {
   if (enCreation.has(affaireId)) return;
   const affaire = CRM.affaire(affaireId);
   if (!affaire) return;

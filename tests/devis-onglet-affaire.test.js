@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { devisDeAffaire, intituleDevis, compteurOnglet, nomVoir, routeVoirDevis } from '../js/modules/devis/onglet-affaire-logique.js';
+import { devisDeAffaire, intituleDevis, compteurOnglet, nomVoir, routeVoirDevis, actionEnteteDevis } from '../js/modules/devis/onglet-affaire-logique.js';
 
 const JOUR = 86400000;
 const MAINT = Date.parse('2026-10-25T10:00:00Z');
@@ -53,4 +53,14 @@ test('12 l’écran de l’onglet ne propose aucune suppression ni bouton jaune'
   const src = readFileSync(new URL('../js/modules/devis/onglet-affaire.js', import.meta.url), 'utf8').replace(/\/\/.*$/gm, ''); // sans les commentaires
   assert.doesNotMatch(src, /supprim|archiver|corbeille/i);
   assert.doesNotMatch(src, /bouton-principal/);
+});
+test('13 bouton d’en-tête : « Créer un devis » sans devis, « Voir le devis » (le plus récent) sinon, rien tant que les devis ne sont pas lus', () => {
+  assert.equal(actionEnteteDevis(devis, 'a1', false), null);
+  assert.equal(actionEnteteDevis(devis, '', true), null);
+  assert.deepEqual(actionEnteteDevis(devis, 'a1', true), { mode: 'voir', libelle: 'Voir le devis', route: 'devis/editeur/d4' }); // le plus récent est le brouillon v3
+  assert.deepEqual(actionEnteteDevis(devis, 'a2', true), { mode: 'voir', libelle: 'Voir le devis', route: 'devis/editeur/d3' });
+  assert.deepEqual(actionEnteteDevis(devis, 'a3', true), { mode: 'creer', libelle: 'Créer un devis' });
+  assert.deepEqual(actionEnteteDevis([{ id: 'x', affaireId: 'a9', archive: true }], 'a9', true), { mode: 'creer', libelle: 'Créer un devis' }); // un archivé ne compte pas
+  assert.equal(actionEnteteDevis(devis, 'a3', true, false), null); // affaire gagnée ou perdue sans devis : pas de « Créer un devis »
+  assert.equal(actionEnteteDevis(devis, 'a1', true, false).mode, 'voir'); // mais « Voir le devis » reste
 });
