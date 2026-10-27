@@ -84,8 +84,9 @@ service cloud.firestore {
       return resource.data.get('statut', '') == 'brouillon' && request.resource.data.get('statut', '') == 'brouillon'
         && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['numero', 'racineId', 'version', 'statut', 'finaliseLe']);
     }
+    // crm_actions_lancements : le journal des demandes « Préparer l'e-mail » d'un devis (25/10/2026), fermé aux navigateurs plus bas.
     function collectionDesDevis(collection) {
-      return collection in ['devis_devis', 'devis_compteurs'];
+      return collection in ['devis_devis', 'devis_compteurs', 'crm_actions_lancements'];
     }
     match /clients/{client}/devis_devis/{id} {
       allow read: if roleDe(client) in ['editeur', 'lecteur'];
@@ -96,10 +97,15 @@ service cloud.firestore {
     match /clients/{client}/devis_compteurs/{id} {
       allow read, write: if false;
     }
+    // Journal des demandes « Préparer l'e-mail » d'un devis (anti-doublon, identifiants, statuts) : écrit par le SERVEUR seulement
+    // (fonction devisPreparerEmail, porte devis.noterEmailPrepare), aucun écran ne le lit. Ni lecture ni écriture depuis un navigateur, même par un éditeur (25/10/2026).
+    match /clients/{client}/crm_actions_lancements/{id} {
+      allow read, write: if false;
+    }
 
     // Les données du client (tout sauf les fiches d'appartenance, traitées ci-dessus).
     match /clients/{client}/{collection}/{reste=**} {
-      allow read: if collection != 'membres' && collection != 'devis_compteurs' && roleDe(client) in ['editeur', 'lecteur'];
+      allow read: if collection != 'membres' && collection != 'devis_compteurs' && collection != 'crm_actions_lancements' && roleDe(client) in ['editeur', 'lecteur'];
       allow write: if collection != 'membres' && !collectionDuJournal(collection) && !collectionDuTableauDeBord(collection) && !collectionSansSuppression(collection) && !collectionDesDevis(collection) && roleDe(client) == 'editeur';
     }
 

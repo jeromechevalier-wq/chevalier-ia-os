@@ -1,4 +1,4 @@
-// C1 : règles Firestore des devis (devis_devis, devis_compteurs), dans les DEUX jeux de règles (base de Jérôme et plateforme clients).
+// C1 : règles Firestore des devis (devis_devis, devis_compteurs, et le journal crm_actions_lancements), dans les DEUX jeux de règles (base de Jérôme et plateforme clients).
 // Émulateur, projets de démonstration. Cas : créer un brouillon OK ; créer avec numéro refusé ; modifier un brouillon OK ; modifier un finalisé refusé ;
 // passer un brouillon à finalisé depuis le navigateur refusé ; supprimer refusé ; un autre espace refusé ; compteurs refusés.
 import assert from 'node:assert/strict';
@@ -6,7 +6,7 @@ import { test, describe, before, after, beforeEach } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { initializeTestEnvironment, assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, setLogLevel } from 'firebase/firestore';
+import { doc, collection, getDoc, getDocs, setDoc, updateDoc, deleteDoc, setLogLevel } from 'firebase/firestore';
 
 setLogLevel('error');
 
@@ -25,7 +25,7 @@ const finalise = (id, extra = {}) => ({ racineId: id, version: 1, statut: 'en_at
  * Les mêmes cas pour les deux jeux de règles. `ref(db, id)` : où vit le devis ; `refCompteur(db)` : où vit le compteur ;
  * `ecrivain` : qui peut écrire ; `lecteur` : qui ne peut que lire (null = personne de tel dans ce jeu) ; `autre` : un utilisateur d'un autre espace.
  */
-function lesCas({ nom, projet, fichier, preparer, ref, refCompteur, ecrivain, lecteur, autre }) {
+function lesCas({ nom, projet, fichier, preparer, ref, refCompteur, refLancement, refVoisine, ecrivain, lecteur, autre }) {
   describe(`C1 Règles des devis : ${nom}`, () => {
     let env;
     before(async () => {
@@ -40,6 +40,7 @@ function lesCas({ nom, projet, fichier, preparer, ref, refCompteur, ecrivain, le
         await setDoc(ref(db, 'bro'), brouillon('bro', { titre: 'avant' }));
         await setDoc(ref(db, 'fin'), finalise('fin', { titre: 'avant' }));
         await setDoc(refCompteur(db), { valeur: 5 });
+        await setDoc(refLancement(db, 'dernier-fin'), { action: 'devis.preparerEmail', devisId: 'fin', demandeId: 'dem_1', statut: 'demandee' });
       });
     });
     const db = (email) => env.authenticatedContext(`uid-${email}`, { email, email_verified: true }).firestore();
@@ -100,6 +101,29 @@ function lesCas({ nom, projet, fichier, preparer, ref, refCompteur, ecrivain, le
       await assertFails(deleteDoc(refCompteur(d)));
       await assertFails(setDoc(refCompteur(db(autre)), { valeur: 1 }));
     });
+    test('C1j le journal des demandes « Préparer l’e-mail » (crm_actions_lancements) est fermé aux navigateurs : ni lecture, ni liste, ni écriture, pour personne', async () => {
+      for (const qui of [ecrivain, lecteur, autre].filter(Boolean)) {
+        const d = db(qui);
+        await assertFails(getDoc(refLancement(d, 'dernier-fin')));
+        await assertFails(getDocs(collection(d, refLancement(d, 'x').parent.path)));
+        await assertFails(setDoc(refLancement(d, 'dernier-fin'), { action: 'devis.preparerEmail', devisId: 'fin', statut: 'echec' })); // truquer l'anti-doublon
+        await assertFails(setDoc(refLancement(d, 'nouvelle'), { action: 'devis.preparerEmail', devisId: 'fin', statut: 'ok' }));
+        await assertFails(updateDoc(refLancement(d, 'dernier-fin'), { statut: 'ok' }));
+        await assertFails(deleteDoc(refLancement(d, 'dernier-fin')));
+      }
+      const anonyme = env.unauthenticatedContext().firestore();
+      await assertFails(getDoc(refLancement(anonyme, 'dernier-fin')));
+      await assertFails(setDoc(refLancement(anonyme, 'x'), { statut: 'ok' }));
+    });
+    test('C1k les collections voisines ne changent pas : l’écrivain lit et écrit toujours une collection ordinaire, le lecteur la lit', async () => {
+      await assertSucceeds(setDoc(refVoisine(db(ecrivain), 'p1'), { nom: 'Test' }));
+      await assertSucceeds(getDoc(refVoisine(db(ecrivain), 'p1')));
+      if (lecteur) {
+        await assertSucceeds(getDoc(refVoisine(db(lecteur), 'p1')));
+        await assertFails(setDoc(refVoisine(db(lecteur), 'p2'), { nom: 'Test' }));
+      }
+      await assertFails(getDoc(refVoisine(db(autre), 'p1')));
+    });
   });
 }
 
@@ -110,6 +134,8 @@ lesCas({
   preparer: async () => {},
   ref: (db, id) => doc(db, 'devis_devis', id),
   refCompteur: (db) => doc(db, 'devis_compteurs', 'global'),
+  refLancement: (db, id) => doc(db, 'crm_actions_lancements', id),
+  refVoisine: (db, id) => doc(db, 'crm_personnes', id),
   ecrivain: JEROME,
   lecteur: null,
   autre: 'inconnu@exemple.test', // un compte qui n'est pas dans la liste des deux comptes autorisés
@@ -126,6 +152,8 @@ lesCas({
   },
   ref: (db, id) => doc(db, 'clients', 'a', 'devis_devis', id),
   refCompteur: (db) => doc(db, 'clients', 'a', 'devis_compteurs', 'global'),
+  refLancement: (db, id) => doc(db, 'clients', 'a', 'crm_actions_lancements', id),
+  refVoisine: (db, id) => doc(db, 'clients', 'a', 'crm_personnes', id),
   ecrivain: ALICE,
   lecteur: LEA,
   autre: BOB,
@@ -137,6 +165,8 @@ describe('C1 Cohérence des deux jeux de règles', () => {
       const t = regles(f);
       assert.match(t, /hasAny\(\['numero', 'racineId', 'version', 'statut', 'finaliseLe'\]\)/, f);
       assert.match(t, /devis_compteurs/, f);
+      if (f === 'firestore.plateforme.rules') assert.match(t, /return collection in \['devis_devis', 'devis_compteurs', 'crm_actions_lancements'\];/, f); // hors de la règle générale d'écriture
+      assert.match(t, /match \/(?:clients\/\{client\}\/)?crm_actions_lancements\/\{id\} \{\s+allow read, write: if false;/, f);
       assert.match(t, /match \/(?:clients\/\{client\}\/)?devis_devis\/\{id\} \{[^}]*allow delete: if false;/s, f);
     }
   });
