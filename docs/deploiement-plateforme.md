@@ -11,8 +11,8 @@ Chantier 12 de `etude-reutilisation-coque.md`. Deux projets Firebase, deux dépl
 | Workflow GitHub | `firebase-hosting.yml` : **automatique** à chaque fusion dans `main` (fonctions MCP, puis Hosting) | `deploiement-plateforme.yml` : **à la main seulement** |
 | Ce qui est publié | la racine du dépôt, telle quelle | le dossier `dist/plateforme/`, construit par `scripts/preparer-hebergement.js` |
 | Configuration Firebase | `js/os/firebase-config.js` (inchangé) | `scripts/projets/plateforme.json`, copiée dans le paquet à la place de `firebase-config.js` |
-| Règles | `firestore.rules` (publiées à la main dans la console) | `firestore.plateforme.rules` et `storage.plateforme.rules` (publiées par le workflow si on le demande) |
-| Fonctions (serveur MCP) | oui | **non**, jamais |
+| Règles | `firestore.rules` (publiées par le workflow manuel « Publier les règles (CRM de Jérôme) », jamais sans PR fusionnée et « Tests » vert) | `firestore.plateforme.rules` et `storage.plateforme.rules` (publiées par le workflow si on le demande) |
+| Fonctions (serveur MCP) | oui | **oui**, par le choix `fonctions` (ou `tout`) du workflow, lancé par Jérôme (premier déploiement réussi le 26/10/2026, PR 324 : PDF des devis) |
 
 ## Comment ça marche (en bref)
 
@@ -82,8 +82,8 @@ Le bouton n'apparaît dans GitHub qu'une fois le workflow fusionné dans `main`.
 ## Limites connues (non traitées ici)
 
 - Le paquet de la plateforme contient encore le **code** du CRM et de Projets (modules, portraits dans `assets/`) : ils sont inertes (aucun compte n'est autorisé à y entrer), mais restent visibles dans les fichiers servis. Les retirer relève des chantiers 6 à 8.
-- Les adresses de Jérôme restent dans le code du module CRM (`composants.js`), dans `firestore.rules`, dans le serveur MCP et dans `functions/src/oauth/config.js` : ils ne servent pas la plateforme (pas de fonctions, pas de `/mcp`, règles à part) et sont traités par les chantiers 6, 9 et 11.
-- Le workflow n'a **jamais été lancé** (consigne du chantier : rien déployer). Les tests vérifient les fichiers, pas l'exécution réelle chez GitHub et Google.
+- Les adresses de Jérôme restent dans le code du module CRM (`composants.js`), dans `firestore.rules`, dans le serveur MCP et dans `functions/src/oauth/config.js` : ils ne servent pas la plateforme (règles à part, fonctions propres aux clients dans `functions-plateforme/`) et sont traités par les chantiers 6, 9 et 11.
+- Les tests vérifient les fichiers, pas l'exécution réelle chez GitHub et Google : le workflow a été lancé pour de vrai, `fonctions` compris, le 26/10/2026 (voir `pdf-clients.md`).
 
 ## Activer des modules pour un client (chantier 7)
 
