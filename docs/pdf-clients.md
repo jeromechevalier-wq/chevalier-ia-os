@@ -37,14 +37,14 @@ Sur <https://console.cloud.google.com/iam-admin/iam?project=chevalier-ia-app>, b
 
 Le compte de déploiement `deploiement-github` agit au nom de ce compte grâce au rôle « Utilisateur du compte de service » déjà accordé au niveau du projet (même principe que `mcp-clients`, `docs/mcp-clients.md`).
 
-## Étape 3 : le CORS du stockage
-Rien de nouveau : le réglage se fait une fois pour le stockage de la plateforme. Il est décrit dans `docs/deploiement-client.md` (tableau « Réglages Google du projet de la plateforme », ligne « CORS du stockage des PDF ») et `docs/cors-stockage-pdf.md`. Sans lui, le PDF s'ouvre mais la copie dans Drive échoue.
+## Étape 3 : le PDF reste chez nous (plus de CORS, plus de Drive)
+Depuis le 27/10/2026, le navigateur ne lit plus jamais le PDF : il ouvre ou télécharge un lien signé de 5 minutes. Le réglage CORS du stockage n'est donc plus nécessaire pour les devis (`docs/cors-stockage-pdf.md` est gardé pour mémoire) et la page Déploiement n'a plus d'étape CORS.
 
-**Règle (décision de Jérôme, 26/10/2026)** : le PDF est ajouté aux Documents de l'affaire (et la ligne « Document joint : … » à l'historique) seulement si l'affaire a un dossier de travail (lien `urlDossier` non vide : Drive, serveur ou NAS). Sans dossier, le PDF est quand même fabriqué et rangé, mais l'affaire n'a aucun document ajouté, PDF brouillon compris. Les liens PDF déjà présents ne sont jamais retirés.
+**Règle (décision de Jérôme, 27/10/2026, remplace celle du 26/10)** : le PDF est fabriqué et rangé dans le stockage de l'espace ; il est montré dans l'onglet « Devis » de la fiche de l'affaire (Voir, Ouvrir le PDF, Télécharger). Le serveur n'ajoute **plus jamais** de ligne PDF aux Documents de l'affaire (ni « Document joint : … » à l'historique), PDF brouillon compris, et le navigateur ne copie plus rien dans le Drive. Les liens PDF déjà présents dans les Documents ne sont jamais retirés et continuent d'ouvrir le PDF. L'option « télécharger » de `devisPdfLien` (`telecharger: true`) signe le lien en `attachment`.
 
 ## Étape 4 : déployer, puis essayer
 1. Ouvre <https://github.com/jeromechevalier-wq/chevalier-ia-os/actions/workflows/deploiement-plateforme.yml> > **Run workflow**, branche `main`, choix **fonctions** (seulement quand l'étape 1 et l'étape 2 sont faites). Ce choix publie **toutes** les fonctions de la plateforme (dont celles des automatisations, qui exigent la clé n8n : voir `docs/automatisations-n8n.md`).
-2. Dans un espace de démonstration où le module Devis est actif : finalise un devis. Au bout de quelques secondes (jusqu'à une minute à froid), le PDF est rangé (le voyant passe au vert) ; le document « Devis … .pdf » n'apparaît dans les Documents de l'affaire que si l'affaire a un dossier de travail (champ `urlDossier` non vide) ; un lecteur du même espace l'ouvre ; un devis d'un autre client reste inaccessible.
+2. Dans un espace de démonstration où le module Devis est actif : finalise un devis. Au bout de quelques secondes (jusqu'à une minute à froid), le PDF est rangé (le voyant passe au vert) ; le PDF se retrouve dans l'onglet « Devis » de l'affaire (rien n'est ajouté aux Documents) ; un lecteur du même espace l'ouvre ; un devis d'un autre client reste inaccessible.
 3. Si rien n'apparaît : voir « Si le PDF n'arrive pas » plus bas.
 
 ## Cas vide et cas d'erreur
@@ -55,7 +55,6 @@ Rien de nouveau : le réglage se fait une fois pour le stockage de la plateforme
 - Le **vrai Chromium** dans une Cloud Function de la plateforme (mémoire 2 GiB, délais, démarrage à froid, coût) : les tests utilisent un faux navigateur.
 - Le **droit de signer les liens** : « Créateur de jetons du compte de service » sur le compte lui-même suffit d'habitude, mais je ne l'ai pas vérifié dans ce projet.
 - La **limite de deux fabrications en même temps** (`maxInstances: 2`) est partagée entre tous les clients, comme chez Jérôme : limite connue, pas un défaut.
-- Le **CORS** (copie dans Drive) pour le stockage de la plateforme.
 
 ## Si le PDF n'arrive pas
 1. Regarde si le devis porte `pdf.statut = échec` (message affiché dans l'écran du devis).
@@ -66,8 +65,5 @@ Rien de nouveau : le réglage se fait une fois pour le stockage de la plateforme
 Décision de Jérôme (26/10/2026) : le PDF d'un devis est **toujours fabriqué** (jamais bloqué). Quand l'affaire n'a pas de dossier de travail, l'écran du PDF le dit (« Cette affaire n'a pas encore de dossier de travail. ») et propose en **un clic** « Créer le dossier « <titre de l'affaire> » et y copier le PDF » (bouton en contour : « Ouvrir le PDF » reste le seul bouton jaune). Le bouton n'existe que si l'option « Créer un dossier dans Google Drive » est allumée, que Google est branché et que la personne peut écrire.
 - **Quand le dossier est créé OU lié** (écran du PDF, ou fiche de l'affaire > Documents), les PDF de **tous** les devis finalisés de l'affaire (toutes versions non brouillon, PDF prêt) sont copiés dans le sous-dossier « Devis », puis leurs liens stables sont ajoutés aux Documents de l'affaire s'ils n'y sont pas (« Document joint » vient de la logique existante du fil, une seule fois par lien).
 - Sans doublon (recherche par nom dans « Devis »), jamais de fichier écrasé ni de dossier supprimé. Compte rendu : « 3 PDF copiés dans le dossier. » ou « 2 sur 3 copiés : réessaie. ».
-- Le CRM ne connaît pas le module Devis : il appelle un crochet (`js/modules/crm/dossier-externe.js`) que le module Devis inscrit au démarrage. Un `urlDossier` posé par le serveur MCP ne déclenche rien : la copie se fait à l'ouverture de l'écran du PDF.
-- Les liens écrits par le navigateur ont la même adresse que ceux du serveur (`lienStablePdfNavigateur`, deux sites en constantes, test de comparaison).
-- Chaque PDF copié demande un lien signé au serveur (N appels) et une lecture CORS du stockage (étape 3 ci-dessus).
 - Même code chez Jérôme et chez les clients.
 - Pas fait ici (voir `.github/A-FAIRE.md`) : l'alerte douce à la finalisation du devis.

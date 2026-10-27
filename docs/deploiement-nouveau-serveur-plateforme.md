@@ -212,7 +212,7 @@ Workflow : <https://github.com/jeromechevalier-wq/chevalier-ia-os/actions/workfl
 Pour chaque lancement : attends le vert (la roue jaune devient une coche verte) avant le suivant.
 
 1. - [ ] **`regles`** (en premier : la base existe, les règles Firestore et Storage). Prérequis : étapes 3 et 4. Échec « storage » : Storage n'est pas activé.
-2. - [ ] **Étapes 15 et 16** (index, CORS) : rien à publier ici, voir plus bas.
+2. - [ ] **Étapes 15 et 16** (index ; le CORS n'est plus nécessaire depuis le 27/10/2026) : rien à publier ici, voir plus bas.
 3. - [ ] **Avant `fonctions`** : vérifie que les comptes de l'étape 6 existent (surtout `devis-pdf`, `mcp-clients`, `espace-reglages`), que les trois droits de l'étape 11 sont donnés, que `N8N_API_KEY` existe, que la PR de l'étape 0 est fusionnée, et **qu'il n'y a pas de fonction orpheline** (voir l'encadré ci-dessous).
 4. - [ ] **`fonctions`** : publie TOUTES les fonctions : automatisations (`automatisationsCopieHoraire`, `automatisationsRafraichir`, `automatisationsRenommer`), `mcpclients`, `espaceReglages`, les fonctions des devis, `deploiementVerifier`, les trois du PDF (`devisPdf`, `devisPdfLien`, `devisPdfAuto`). Peut durer plusieurs minutes. Réussi : les fonctions sont listées sur <https://console.cloud.google.com/functions/list?project=<ID-DU-NOUVEAU-PROJET>>, région `europe-west9`.
    - Variantes plus petites : `mcp` publie seulement `mcpclients` (aucun secret nécessaire), `espace` publie seulement `espaceReglages`. Utiles pour corriger une seule fonction.
@@ -242,15 +242,9 @@ Pour chaque lancement : attends le vert (la roue jaune devient une coche verte) 
 - [ ] Index Firestore : le dépôt n'a **pas** de fichier d'index pour la plateforme (`firebase.plateforme.json` n'en cite aucun au 26/10/2026). Si un écran affiche une erreur « The query requires an index » avec un lien, clique le lien, **Créer**, attends que l'état passe à « Activé », et signale-le à Claude pour qu'il l'ajoute au dépôt.
 - [ ] Réussi : <https://console.firebase.google.com/project/<ID-DU-NOUVEAU-PROJET>/firestore/rules> et `…/storage/rules` affichent les règles du dépôt avec la date du jour.
 
-### Étape 16. CORS du stockage
+### Étape 16. CORS du stockage : plus nécessaire (27/10/2026)
 
-Une fois par projet, avec les adresses du **nouveau** site. Mode d'emploi complet : `docs/cors-stockage-pdf.md`.
-
-- [ ] Cloud Shell (`>_`), `nano cors.json`, colle (en remplaçant l'identifiant) puis `Ctrl+O`, Entrée, `Ctrl+X` :
-  ```json
-  [{"origin": ["https://<ID-DU-NOUVEAU-PROJET>.web.app", "https://<ID-DU-NOUVEAU-PROJET>.firebaseapp.com"], "method": ["GET"], "maxAgeSeconds": 3600}]
-  ```
-- [ ] `gsutil cors set cors.json gs://<NOM-DU-BUCKET>` puis `gsutil cors get gs://<NOM-DU-BUCKET>` : les mêmes adresses doivent s'afficher. Sans lui : le PDF s'ouvre mais « Copier dans Drive » échoue (« Le PDF n'a pas pu être lu… »).
+Le navigateur ne lit plus le PDF d'un devis (lien signé ouvert ou téléchargé) : rien à régler. Le mode d'emploi reste dans `docs/cors-stockage-pdf.md` pour mémoire.
 
 ### Étape 17. Drive et Picker (seulement si les modules Affaires, Projets ou Devis servent)
 
@@ -293,7 +287,7 @@ Lignes de modules (seulement si le module est actif) :
 | Module | Lignes automatiques | Lignes à cocher |
 |---|---|---|
 | Affaires (`js/modules/crm/deploiement.js`) | Dossier Google Drive racine des projets choisi | API Drive et Picker activées, adresse du site autorisée |
-| Devis (`js/modules/devis/deploiement.js`) | « Mon entreprise » complète ; étape où vivent les devis ; catalogue rempli ; **réglage CORS du stockage** (le navigateur essaie de lire un fichier qui n'existe pas : si la réponse est lisible, c'est fait) | Catalogue et anciens devis rassemblés, « Préparer l'e-mail » branché, essai de bout en bout, `liste mes devis` vérifié |
+| Devis (`js/modules/devis/deploiement.js`) | « Mon entreprise » complète ; étape où vivent les devis ; catalogue rempli | Catalogue et anciens devis rassemblés, « Préparer l'e-mail » branché, essai de bout en bout, `liste mes devis` vérifié |
 
 Les deux contrôles du serveur (`CONTROLES_SERVEUR` = `fonctions`, `membres`, dans `functions/src/coeur/deploiement.js`) sont les seuls qui passent par le serveur. La page ne vérifie **pas** : les comptes de service et leurs droits, les secrets, les déclencheurs Eventarc, les APIs. C'est pour cela que ce document existe : une page toute verte ne prouve pas que le PDF marche, l'étape 20 le prouve.
 
@@ -305,9 +299,9 @@ Les deux contrôles du serveur (`CONTROLES_SERVEUR` = `fonctions`, `membres`, da
 
 - [ ] **Connexion** : ouvre `<SITE>/espace/<CLIENT>` avec ton compte Google ; tu vois ton espace.
 - [ ] **Finaliser un devis** (sur une affaire de test : créer un devis, **Finaliser**). Attention : un devis finalisé a un vrai numéro et ne se supprime plus (il s'archive).
-- [ ] **PDF** : au bout de quelques secondes (jusqu'à une minute à froid), le document « Devis … .pdf » apparaît. Console Firestore : `clients/<CLIENT>/devis_devis/<id>` > champ `pdf.statut` passe par « en cours » puis « ok ».
+- [ ] **PDF** : au bout de quelques secondes (jusqu'à une minute à froid), le PDF est prêt (onglet « Devis » de l'affaire). Console Firestore : `clients/<CLIENT>/devis_devis/<id>` > champ `pdf.statut` passe par « en cours » puis « ok ».
 - [ ] **Lien de lecture** : ouvre le PDF depuis l'écran du devis (lien valable 5 minutes). Un lecteur de l'espace doit pouvoir l'ouvrir ; un devis d'un autre client reste inaccessible (« Action non autorisée. »).
-- [ ] **Copier dans Drive** : le PDF arrive dans le dossier Devis de l'affaire.
+- [ ] **Télécharger** : dans l'onglet « Devis » de l'affaire, « Télécharger » enregistre le PDF sur l'appareil (fonctions déployées après la PR « télécharger » du 27/10/2026).
 - [ ] **MCP** : ajoute `<SITE>/mcp/<CLIENT>` dans Claude comme connecteur personnalisé, connecte-toi, demande `qui_suis_je`, puis « liste mes devis ». Le module `mcp` doit être allumé pour ce client (`activer-module <CLIENT> mcp --ecrire`). Non essayé en réel avec le vrai claude.ai au 26/10/2026.
 - [ ] **Mon espace** : Réglages > Mon espace : change le nom, enregistre, le menu change (fonction `espaceReglages`).
 - [ ] **Automatisations** (si activées) : l'écran se remplit après la copie horaire ou **Rafraîchir**.
@@ -323,7 +317,6 @@ Les deux contrôles du serveur (`CONTROLES_SERVEUR` = `fonctions`, `membres`, da
 | « PDF non rangé » / « Stockage : le PDF n'a pas pu être enregistré. » (`pdf.statut = echec`) | Fonctions du PDF absentes, ou le compte `devis-pdf` n'a pas son droit de stockage (ou sa condition sur `clients/` est mal écrite) | Étape 10 ; choix `fonctions` ; journal : Cloud Functions > `devisPdf` / `devisPdfAuto` > Journaux |
 | `pdf.statut` ne passe jamais à « en cours » | Le déclencheur n'arrive pas à la fonction : rôles Eventarc / Cloud Run manquants (étapes 10 et 11) | Ajouter `roles/eventarc.eventReceiver` et `roles/run.invoker`; voir aussi <https://console.cloud.google.com/eventarc/triggers?project=<ID-DU-NOUVEAU-PROJET>> (déclencheur de `devisPdfAuto`, région `europe-west9`) |
 | « Stockage : le lien du PDF n'a pas pu être créé. » | API **IAM Service Account Credentials** non activée, ou « Créateur de jetons du compte de service » manquant à `devis-pdf` sur lui-même | Étapes 2 et 10 |
-| « Le PDF n'a pas pu être lu… » (Drive) | CORS du stockage manquant | Étape 16 |
 | 403 `cloudscheduler.jobs.update` au déploiement | `deploiement-github` sans « Administrateur Cloud Scheduler » | Étape 7 puis relancer `fonctions` |
 | « Missing permissions … iam.serviceAccounts.ActAs » | `deploiement-github` sans « Utilisateur du compte de service » | Étape 7 |
 | « serviceAccount … does not exist » | Un compte attendu par le code n'existe pas dans le projet (ou nom mal écrit) | Étapes 8 à 10 ; ou l'étape 0 n'a pas mis le bon projet dans les adresses |
@@ -338,7 +331,6 @@ Les deux contrôles du serveur (`CONTROLES_SERVEUR` = `fonctions`, `membres`, da
 | « Action non autorisée. » alors que tu es éditeur | Fiche `membres/<adresse>` sans le rôle `editeur`, ou espace désactivé | Console Firestore, ou `changer-role` |
 | La connexion Google revient à la page de connexion sur téléphone | Domaine d'authentification `.firebaseapp.com` au lieu de `.web.app`, ou redirection non autorisée | Étape 5 |
 | Page Déploiement : deux lignes orange | `deploiementVerifier` non publiée | Choix `fonctions` |
-| Page Déploiement : ligne CORS rouge alors que c'est fait | Bloqueur de publicité, ou essai non encore vérifié contre le vrai stockage | Revérifier dans un autre navigateur ; tester « Copier dans Drive » |
 | `PERMISSION_DENIED` dans le journal d'une fonction | Rôle manquant au compte de cette fonction | Étape 6 : comparer le tableau au compte de la fonction (Cloud Run > service > Sécurité) |
 | « Préparer l'e-mail » grisé, « pas encore branchée » | La porte des workflows n'existe pas pour cet espace (voir `.github/A-FAIRE.md`) | Normal tant que ce chantier n'est pas fait |
 | Le MCP du client ne répond pas | Module `mcp` éteint, ou fonction `mcpclients` absente | `activer-module <CLIENT> mcp`, choix `mcp` ; interrupteurs d'urgence : `docs/securite-et-pannes.md` |
