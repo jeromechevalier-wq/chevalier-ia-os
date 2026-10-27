@@ -52,9 +52,10 @@ export function messageCreation({ nom, manquants, parentCree = '', parentRecree 
 }
 
 /** Après un dossier créé ou lié sur une AFFAIRE : les modules inscrits (ex. Devis : copie des PDF) font leur travail, et chaque compte rendu est annoncé. Rend les comptes rendus. */
-export async function apresDossierAffaire(affaireId, urlDossier) {
-  const rapports = await lancerApresDossierAffaire({ affaireId, urlDossier });
-  for (const r of rapports) toast(r.texte, { type: r.type === 'erreur' ? 'erreur' : 'info', duree: 8000 });
+export async function apresDossierAffaire(affaireId, urlDossier, { silencieux = false } = {}) {
+  // `silencieux` : l'écran qui appelle affiche déjà le compte rendu en ligne (pas de doublon avec un message qui disparaît).
+  const rapports = await lancerApresDossierAffaire({ affaireId, urlDossier, annoncer: silencieux ? () => {} : (texte) => toast(texte, { type: 'info', duree: 4000 }) });
+  if (!silencieux) for (const r of rapports) toast(r.texte, { type: r.type === 'erreur' ? 'erreur' : 'info', duree: 8000 });
   return rapports;
 }
 
@@ -62,14 +63,14 @@ export async function apresDossierAffaire(affaireId, urlDossier) {
  * Crée le dossier de travail d'une affaire en un geste (écran du PDF d'un devis) : création dans Drive, enregistrement du lien, puis `apresDossierAffaire`.
  * Lève une erreur au message lisible (`saisie: true` si c'est à l'utilisateur d'agir, par exemple un dossier de même nom déjà là). Rend { url, nom, manquants, rapports }.
  */
-export async function creerDossierDeLAffaire({ affaire, nom }) {
+export async function creerDossierDeLAffaire({ affaire, nom, silencieux = false }) {
   const r = await creerRepertoireDrive({ nom });
   try { await D.majAffaire(affaire.id, { urlDossier: r.url }); } catch (e) {
     console.warn(e);
     throw Object.assign(new Error(`Dossier créé, mais son lien n’a pas pu être enregistré : ${r.url}`), { saisie: true });
   }
   toast(messageCreation(r), { type: r.manquants.length ? 'erreur' : 'info' });
-  const rapports = await apresDossierAffaire(affaire.id, r.url);
+  const rapports = await apresDossierAffaire(affaire.id, r.url, { silencieux });
   return { ...r, rapports };
 }
 

@@ -5,7 +5,7 @@
 // Aucune règle ici : états et messages viennent de pdf.js (pur, testé) ; rien n'est écrit par le navigateur.
 import { h, icone, remplir, toast } from '../../os/ui.js';
 import { etatVide, cheminAffaire } from '../crm/composants.js';
-import { creerDossierDeLAffaire } from '../crm/lanceurs.js';
+import { creerDossierDeLAffaire, apresDossierAffaire } from '../crm/lanceurs.js';
 import { obtenirJeton, oublierJeton, googleDisponible, jetonEnMemoire, preparerGoogle } from '../../os/google-picker.js';
 import * as CRM from '../crm/donnees.js';
 import * as D from './donnees.js';
@@ -39,13 +39,21 @@ export function rendrePdfDevis(conteneur, devisId, brouillon = false) {
   // Affaire sans dossier de travail : UN clic crée le dossier (nom = titre de l'affaire) ; ensuite les PDF de tous les devis finalisés de l'affaire y sont copiés (crochet du module, dossier-travail.js).
   async function creerDossierEtCopier(zoneDrive, url, devis, affaire) {
     const affiche = afficherDrive(zoneDrive);
+    // Un autre onglet (ou le serveur) a pu poser le dossier entre-temps : on ne crée rien, on copie dans celui qui existe.
+    const frais = CRM.affaire(affaire.id);
+    if (String(frais?.urlDossier ?? '').trim()) { copierDansDrive(zoneDrive, url, devis, { force: true }); return; }
     affiche('en-cours', 'Création du dossier de travail et copie des PDF…');
+    // Compte rendu en ligne. « Réessayer » relance TOUT le lot (sans doublon : la recherche par nom ignore ce qui est déjà dans Drive).
+    const montrerLot = (rapports, urlDossier, nomDossier) => {
+      const echec = rapports.some((x) => x.type === 'erreur');
+      const texte = rapports.map((x) => x.texte).join(' ') || `Dossier « ${nomDossier} » créé. Aucun PDF de devis à y copier pour le moment.`;
+      const ouvrirDossier = h('a', { class: 'bouton bouton-secondaire', href: urlDossier, target: '_blank', rel: 'noopener noreferrer', dataset: { action: 'ouvrir-dossier-cree' } }, 'Ouvrir le dossier');
+      const relancer = async () => { affiche('en-cours', 'Copie des PDF des devis…'); montrerLot(await apresDossierAffaire(affaire.id, urlDossier, { silencieux: true }), urlDossier, nomDossier); };
+      affiche(echec ? 'erreur' : 'copie', texte, ouvrirDossier, echec ? boutonDrive('Réessayer', 'reessayer-drive', relancer) : null);
+    };
     try {
-      const r = await creerDossierDeLAffaire({ affaire, nom: affaire.titre });
-      const echec = r.rapports.some((x) => x.type === 'erreur');
-      const texte = r.rapports.map((x) => x.texte).join(' ') || `Dossier « ${r.nom} » créé. Aucun PDF de devis à y copier pour le moment.`;
-      const ouvrirDossier = h('a', { class: 'bouton bouton-secondaire', href: r.url, target: '_blank', rel: 'noopener noreferrer', dataset: { action: 'ouvrir-dossier-cree' } }, 'Ouvrir le dossier');
-      affiche(echec ? 'erreur' : 'copie', texte, ouvrirDossier, echec ? boutonDrive('Réessayer', 'reessayer-drive', () => copierDansDrive(zoneDrive, url, devis, { force: true })) : null);
+      const r = await creerDossierDeLAffaire({ affaire, nom: affaire.titre, silencieux: true });
+      montrerLot(r.rapports, r.url, r.nom);
     } catch (e) {
       if (e?.statut === 401) oublierJeton();
       if (!e?.saisie) console.warn(e);

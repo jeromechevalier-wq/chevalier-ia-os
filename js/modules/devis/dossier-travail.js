@@ -24,9 +24,20 @@ async function lirePdfDuDevis(devis) {
 /** Identifiant du client dans l'adresse (`#/espace/<client>/…`), vide chez Jérôme : le même que celui du lien stable écrit par le serveur. */
 const clientCourant = () => routeDansEspace(String(location.hash).replace(/^#\/?/, ''))?.client || '';
 
+/** Attend (au plus `delaiMs`) que les devis soient chargés. Rend true s'ils le sont. */
+function attendreDevis(delaiMs = 8000) {
+  if (D.estPretDevis()) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    let fini = false;
+    const fin = (ok) => { if (fini) return; fini = true; clearTimeout(minuteur); arret(); resolve(ok); };
+    const arret = D.surChangement(() => { if (D.estPretDevis()) fin(true); });
+    const minuteur = setTimeout(() => fin(D.estPretDevis()), delaiMs);
+  });
+}
+
 /** Ajoute aux Documents de l'affaire les liens stables des PDF qui n'y sont pas encore (l'événement « Document joint » ne vient que d'un lien nouveau : logique du CRM). */
 export async function joindreLiensPdf(affaireId, devisListe) {
-  const affaire = CRM.affaire(affaireId);
+  const affaire = CRM.affaire(affaireId); // lecture la plus récente, juste avant l'écriture : un lien déjà présent n'est jamais réécrit
   if (!affaire) return 0;
   const nouveaux = documentsAAjouter({ devisListe, documents: affaire.documents, client: clientCourant() });
   if (!nouveaux.length) return 0;
@@ -38,13 +49,16 @@ export async function joindreLiensPdf(affaireId, devisListe) {
  * Crochet « dossier de travail prêt » : copie les PDF des devis finalisés de l'affaire dans le dossier, puis joint leurs liens. Rend le compte rendu { texte, type } (ou null s'il n'y a rien à copier).
  * Ne lève jamais pour un échec de Drive : il devient un compte rendu d'erreur.
  */
-export async function apresDossierDeTravail({ affaireId, urlDossier }) {
+export async function apresDossierDeTravail({ affaireId, urlDossier, annoncer = () => {} }) {
   const affaire = CRM.affaire(affaireId);
-  if (!affaire || !idDossierDrive(urlDossier) || !D.estPretDevis()) return null;
+  if (!affaire || !idDossierDrive(urlDossier)) return null; // dossier hors Drive : rien à copier
+  // Les devis arrivent après les affaires : on les attend un peu plutôt que de ne rien dire.
+  if (!(await attendreDevis())) return { texte: 'Le dossier est prêt, mais les devis ne sont pas encore chargés : les PDF seront copiés quand tu ouvriras le PDF d’un devis de cette affaire.', type: 'erreur' };
   const liste = devisAvecPdfDeAffaire(D.etat.devis, affaireId);
   if (!liste.length) return null;
   if (!googleDisponible()) return null;
   const email = CRM.compteCourant()?.email || '';
+  annoncer('Copie des PDF des devis dans le dossier…');
   const bilan = await copierPdfsAffaire({
     affaire: { ...affaire, urlDossier },
     devisListe: liste,

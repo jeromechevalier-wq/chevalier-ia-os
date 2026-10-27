@@ -144,6 +144,34 @@ describe('Dossier de travail : liens stables dans les Documents de l’affaire',
   });
 });
 
+describe('Dossier de travail : crochet du CRM', () => {
+  test('1 le crochet reçoit « annoncer », un module qui plante donne un compte rendu d’erreur générique (jamais un silence), un module qui n’a rien à faire ne dit rien', async () => {
+    const X = await import('../js/modules/crm/dossier-externe.js');
+    const annonces = [];
+    const retire = [X.inscrireApresDossierAffaire(async ({ annoncer }) => { annoncer('début'); return { texte: 'ok', type: 'info' }; }), X.inscrireApresDossierAffaire(async () => null), X.inscrireApresDossierAffaire(async () => { throw new Error('boum'); })];
+    const origine = console.warn; console.warn = () => {};
+    const r = await X.lancerApresDossierAffaire({ affaireId: 'a1', urlDossier: 'u', annoncer: (t) => annonces.push(t) });
+    console.warn = origine;
+    retire.forEach((f) => f());
+    assert.deepEqual(annonces, ['début']);
+    assert.deepEqual(r.map((x) => x.type), ['info', 'erreur']);
+    assert.ok(!/PDF|devis/i.test(r[1].texte), 'texte de repli générique');
+    assert.deepEqual(await X.lancerApresDossierAffaire({ affaireId: 'a1', urlDossier: 'u' }), [], 'aucun module inscrit : rien ne se passe');
+  });
+
+  test('1 garde-fous du crochet Devis : devis non chargés = compte rendu (pas de null silencieux), jeton refusé (401) = oublié, liens relus juste avant l’écriture, créer sans doublon si le dossier existe déjà', () => {
+    const g = lire('js/modules/devis/dossier-travail.js');
+    assert.match(g, /attendreDevis\(\)\)\) return \{ texte: 'Le dossier est prêt, mais les devis ne sont pas encore chargés/);
+    assert.match(g, /bilan\.erreur\?\.statut === 401\) oublierJeton\(\)/);
+    assert.match(g, /const affaire = CRM\.affaire\(affaireId\); \/\/ lecture la plus récente/);
+    assert.match(g, /annoncer\('Copie des PDF des devis dans le dossier…'\)/);
+    const e = lire('js/modules/devis/pdf-ecran.js');
+    assert.match(e, /const frais = CRM\.affaire\(affaire\.id\);\s+if \(String\(frais\?\.urlDossier/);
+    assert.match(e, /creerDossierDeLAffaire\(\{ affaire, nom: affaire\.titre, silencieux: true \}\)/);
+    assert.match(e, /apresDossierAffaire\(affaire\.id, urlDossier, \{ silencieux: true \}\)/);
+  });
+});
+
 describe('Dossier de travail : architecture et écrans', () => {
   test('1 le CRM n’importe aucun fichier du module Devis (il passe par le crochet dossier-externe.js) et le module Devis s’inscrit et se désinscrit', () => {
     for (const f of ['lanceurs.js', 'dossier-externe.js']) assert.ok(!/from '\.\.\/devis\//.test(lire(`js/modules/crm/${f}`)), f);
@@ -157,7 +185,7 @@ describe('Dossier de travail : architecture et écrans', () => {
     assert.match(ecran, /dest\.genre === 'sans-dossier' && affaire && dossierCreable\(\)/);
     assert.match(lire('js/modules/devis/dossier-travail.js'), /boutonsDepot === true && googleDisponible\(\) && CRM\.compteCourant\(\)\?\.ecrit !== false/);
     assert.match(ecran, /boutonDrive\(`Créer le dossier « \$\{affaire\.titre\} » et y copier le PDF`, 'creer-dossier-et-copier'/);
-    assert.match(ecran, /creerDossierDeLAffaire\(\{ affaire, nom: affaire\.titre \}\)/);
+    assert.match(ecran, /creerDossierDeLAffaire\(\{ affaire, nom: affaire\.titre/);
     assert.equal(C.MESSAGE_SANS_DOSSIER_ECRAN, 'Cette affaire n’a pas encore de dossier de travail.');
   });
 
