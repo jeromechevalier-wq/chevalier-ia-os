@@ -1,18 +1,13 @@
 // Écran « Ouvrir le PDF » d'un devis : routes devis/pdf/<id> (PDF du devis finalisé) et devis/pdf/<id>/brouillon (PDF filigrané du brouillon).
-// L'adresse est STABLE (le document de l'affaire pointe dessus) : l'écran demande à chaque ouverture un lien signé de 5 minutes à `devisPdfLien`, puis ouvre le PDF.
+// L'adresse est STABLE (les anciens liens des Documents de l'affaire pointent dessus) : l'écran demande à chaque ouverture un lien signé de 5 minutes à `devisPdfLien`, puis ouvre le PDF.
 // Choix contre les bloqueurs de fenêtres : le PDF s'ouvre dans un NOUVEL onglet (l'application n'est jamais remplacée : la touche « retour » ne boucle pas) ; si le navigateur
 // refuse cette ouverture automatique, le bouton « Ouvrir le PDF » (un vrai lien, toujours affiché) la remplace.
-// Aucune règle ici : états et messages viennent de pdf.js (pur, testé) ; rien n'est écrit par le navigateur.
-import { h, icone, remplir, toast } from '../../os/ui.js';
-import { etatVide, cheminAffaire } from '../crm/composants.js';
-import { creerDossierDeLAffaire, apresDossierAffaire } from '../crm/lanceurs.js';
-import { obtenirJeton, oublierJeton, googleDisponible, jetonEnMemoire, preparerGoogle } from '../../os/google-picker.js';
-import * as CRM from '../crm/donnees.js';
+// Aucune règle ici : états et messages viennent de pdf.js (pur, testé) ; rien n'est écrit par le navigateur, et rien n'est copié dans Drive (le PDF reste dans notre stockage).
+import { h, icone, remplir } from '../../os/ui.js';
+import { etatVide } from '../crm/composants.js';
 import * as D from './donnees.js';
 import { etatPdfDevis, cibleRetourPdf, origineRetour } from './pdf.js';
 import { LIBELLE_PDF_FABRICATION, DETAIL_PDF_FABRICATION } from './pdf-attente.js';
-import { dossierCreable } from './dossier-travail.js';
-import { copierPdfDevis, choisirDestination, nomFichierDrive, cleMemoire, memoireCopie, MESSAGE_SANS_DOSSIER_ECRAN, MESSAGE_SANS_DOSSIER_NON_CREABLE, MESSAGE_GOOGLE_ABSENT, MESSAGE_DEJA_COPIE, MESSAGE_AUTORISATION_DRIVE, MESSAGE_CHARGEMENT_AFFAIRE, attendreUnClic } from './drive-copie.js';
 
 export const MESSAGE_INTROUVABLE_PDF = 'Ce devis est introuvable. Il a peut-être été supprimé : retourne à la liste des devis.';
 export const MESSAGE_EN_COURS = 'Le PDF est en cours de fabrication. Réessaie dans quelques instants.';
@@ -30,92 +25,8 @@ export function rendrePdfDevis(conteneur, devisId, brouillon = false) {
   let arrete = false;
   let numero = 0; // une demande plus récente annule l'affichage de la précédente
   let dejaOuvert = false; // un seul onglet ouvert automatiquement par affichage de cet écran
-  let dejaCopie = false; // une seule copie automatique dans Drive par affichage de cet écran (« Réessayer » en relance une autre)
-
-  // ---- Copie du PDF dans le sous-dossier « Devis » du dossier de travail Drive de l'affaire. Ne bloque jamais l'affichage du PDF ; jamais d'échec silencieux.
-  const memoire = memoireCopie;
-  const afficherDrive = (zoneDrive) => (etat, texte, ...actions) => { if (!arrete) remplir(zoneDrive, h('p', { class: etat === 'erreur' ? 'erreur' : 'texte-discret', dataset: { valeur: 'message-drive', etat } }, texte), actions.length ? h('div', { class: 'pdf-devis-actions' }, ...actions) : null); };
-
-  // Affaire sans dossier de travail : UN clic crée le dossier (nom = titre de l'affaire) ; ensuite les PDF de tous les devis finalisés de l'affaire y sont copiés (crochet du module, dossier-travail.js).
-  async function creerDossierEtCopier(zoneDrive, url, devis, affaire) {
-    const affiche = afficherDrive(zoneDrive);
-    // Un autre onglet (ou le serveur) a pu poser le dossier entre-temps : on ne crée rien, on copie dans celui qui existe.
-    const frais = CRM.affaire(affaire.id);
-    if (String(frais?.urlDossier ?? '').trim()) { copierDansDrive(zoneDrive, url, devis, { force: true }); return; }
-    affiche('en-cours', 'Création du dossier de travail et copie des PDF…');
-    // Compte rendu en ligne. « Réessayer » relance TOUT le lot (sans doublon : la recherche par nom ignore ce qui est déjà dans Drive).
-    const montrerLot = (rapports, urlDossier, nomDossier) => {
-      const echec = rapports.some((x) => x.type === 'erreur');
-      const texte = rapports.map((x) => x.texte).join(' ') || `Dossier « ${nomDossier} » créé. Aucun PDF de devis à y copier pour le moment.`;
-      const ouvrirDossier = h('a', { class: 'bouton bouton-secondaire', href: urlDossier, target: '_blank', rel: 'noopener noreferrer', dataset: { action: 'ouvrir-dossier-cree' } }, 'Ouvrir le dossier');
-      const relancer = async () => { affiche('en-cours', 'Copie des PDF des devis…'); montrerLot(await apresDossierAffaire(affaire.id, urlDossier, { silencieux: true }), urlDossier, nomDossier); };
-      affiche(echec ? 'erreur' : 'copie', texte, ouvrirDossier, echec ? boutonDrive('Réessayer', 'reessayer-drive', relancer) : null);
-    };
-    try {
-      const r = await creerDossierDeLAffaire({ affaire, nom: affaire.titre, silencieux: true });
-      montrerLot(r.rapports, r.url, r.nom);
-    } catch (e) {
-      if (e?.statut === 401) oublierJeton();
-      if (!e?.saisie) console.warn(e);
-      const existe = e?.dejaLa === true;
-      affiche('erreur', e?.annule ? 'Drive n’est pas connecté ou l’autorisation a été refusée : le dossier n’a pas été créé.' : (e?.message || 'La création du dossier a échoué. Réessaie dans un instant.'),
-        existe ? h('a', { class: 'bouton bouton-secondaire', href: cheminAffaire(affaire.id), dataset: { action: 'ouvrir-affaire-lier' } }, 'Ouvrir l’affaire pour lier le dossier') : boutonDrive('Réessayer', 'reessayer-creation', () => creerDossierEtCopier(zoneDrive, url, devis, affaire)));
-    }
-  }
-  let arretAffaires = null; // abonnement en attendant que les affaires soient chargées
-  // `automatique` : lancée par l'écran lui-même, sans clic. Un bouton (« Copier dans Drive », « Réessayer »…) est un vrai clic : la fenêtre Google peut s'ouvrir.
-  async function copierDansDrive(zoneDrive, url, devis, { force = false, automatique = false } = {}) {
-    const affiche = afficherDrive(zoneDrive);
-    // Les affaires arrivent après le devis : sans elles on ne sait pas si l'affaire existe (jamais de faux « pas d'affaire »).
-    if (!CRM.estPret()) {
-      affiche('attente', MESSAGE_CHARGEMENT_AFFAIRE);
-      if (!arretAffaires) arretAffaires = CRM.surChangement(() => { if (!CRM.estPret() || !arretAffaires) return; arretAffaires(); arretAffaires = null; copierDansDrive(zoneDrive, url, devis, { force, automatique }); });
-      return;
-    }
-    const affaire = devis.affaireId ? CRM.affaire(devis.affaireId) : null;
-    const dest = choisirDestination({ devis, affaire });
-    if (dest.genre === 'sans-dossier' && affaire && dossierCreable()) {
-      preparerGoogle().catch(() => {}); // chargé à l'avance : le clic ouvre la fenêtre d'accord sans délai
-      affiche('sans-dossier', MESSAGE_SANS_DOSSIER_ECRAN, boutonDrive(`Créer le dossier « ${affaire.titre} » et y copier le PDF`, 'creer-dossier-et-copier', () => creerDossierEtCopier(zoneDrive, url, devis, affaire)));
-      return;
-    }
-    if (dest.genre !== 'ok') { affiche('rien', dest.genre === 'sans-dossier' ? MESSAGE_SANS_DOSSIER_NON_CREABLE : dest.message); return; } // pas de dossier de travail : information, pas une erreur
-    if (!googleDisponible()) { affiche('rien', MESSAGE_GOOGLE_ABSENT); return; }
-    const email = CRM.compteCourant()?.email || '';
-    const cle = cleMemoire(devis.id, dest.dossierId, nomFichierDrive(devis));
-    if (!force && memoire.lire(cle)) {
-      affiche('deja', MESSAGE_DEJA_COPIE, boutonDrive('Copier de nouveau', 'recopier-drive', () => copierDansDrive(zoneDrive, url, devis, { force: true })));
-      return;
-    }
-    if (attendreUnClic({ automatique, jetonEnMemoire: jetonEnMemoire({ email }) })) {
-      preparerGoogle().catch(() => {}); // charge les scripts de Google tout de suite : le clic ouvrira la fenêtre sans délai
-      affiche('a-autoriser', MESSAGE_AUTORISATION_DRIVE, boutonDrive('Copier dans Drive', 'copier-drive', () => copierDansDrive(zoneDrive, url, devis, { force: true })));
-      return;
-    }
-    affiche('en-cours', 'Copie du PDF dans le dossier Devis de l’affaire…');
-    const resultat = await copierPdfDevis({
-      devis, affaire,
-      outils: {
-        obtenirJeton: () => obtenirJeton({ email }),
-        lirePdf: async () => { const rep = await fetch(url); if (!rep.ok) throw new Error(`Lecture du PDF : ${rep.status}`); return rep.blob(); },
-      },
-    });
-    // Même si l'utilisateur a quitté l'écran pendant la copie : le résultat est annoncé (toast) et mémorisé ; seul l'affichage dans l'écran est sauté (`affiche`).
-    if (resultat.etat === 'erreur') {
-      if (resultat.erreur?.statut === 401) oublierJeton();
-      affiche('erreur', resultat.message, boutonDrive('Réessayer', 'reessayer-drive', () => copierDansDrive(zoneDrive, url, devis, { force: true })));
-      toast(resultat.message, { type: 'erreur', duree: 8000 });
-      return;
-    }
-    if (resultat.etat === 'rien') { affiche('rien', resultat.message); return; }
-    memoire.ecrire(cle);
-    affiche(resultat.etat, resultat.message, resultat.fichier?.url ? h('a', { class: 'bouton bouton-secondaire', href: resultat.fichier.url, target: '_blank', rel: 'noopener noreferrer', dataset: { action: 'ouvrir-copie-drive' } }, 'Ouvrir dans Drive') : null);
-    if (resultat.etat === 'copie') toast(resultat.message, { duree: 6000 });
-  }
 
   const bouton = (libelle, action, onclick) => h('button', { type: 'button', class: 'bouton bouton-principal', dataset: { action }, onclick }, libelle);
-  // Boutons de la zone Drive : en contour, car « Ouvrir le PDF » est le seul bouton jaune de l'écran.
-  const boutonDrive = (libelle, action, onclick) => h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action }, onclick }, libelle);
   const montrer = (etat, ...enfants) => { zone.dataset.etat = etat; zone.setAttribute('aria-busy', etat === 'chargement' ? 'true' : 'false'); remplir(zone, ...enfants); };
   // La zone est un role="status" : le texte est annoncé. Pas de pourcentage : le serveur ne donne pas d'étapes.
   const chargement = (texte, { long = false } = {}) => montrer('chargement', h('div', { class: 'chargement' }, h('span', { class: 'rond-chargement', 'aria-hidden': 'true' }), h('span', {}, texte)),
@@ -160,15 +71,12 @@ export function rendrePdfDevis(conteneur, devisId, brouillon = false) {
       const url = typeof r?.url === 'string' && /^https:\/\//i.test(r.url) ? r.url : null;
       if (!url) throw new Error(D.MESSAGE_RESEAU_DEVIS);
       if (!dejaOuvert) { dejaOuvert = true; window.open(url, '_blank', 'noopener,noreferrer'); }
-      const zoneDrive = brouillon ? null : h('div', { class: 'pdf-devis-drive', role: 'status', 'aria-live': 'polite', dataset: { zone: 'copie-drive' } });
       montrer('pret',
         h('p', { dataset: { valeur: 'message-pdf' } }, r?.nom ? `${r.nom} s’ouvre dans un nouvel onglet.` : 'Le PDF s’ouvre dans un nouvel onglet.'),
         h('p', { class: 'texte-discret' }, 'Rien ne s’est ouvert ? Ton navigateur l’a peut-être bloqué : utilise le bouton ci-dessous.'),
         h('div', { class: 'pdf-devis-actions' },
           h('a', { class: 'bouton bouton-principal', href: url, target: '_blank', rel: 'noopener noreferrer', dataset: { action: 'ouvrir-pdf' } }, icone('external-link', { taille: 16 }), 'Ouvrir le PDF'),
-          h('a', { class: 'bouton bouton-secondaire', href: `#/${retourPdf.route}`, dataset: { action: 'retour-apres-pdf' } }, retourPdf.libelle)),
-        zoneDrive);
-      if (zoneDrive && !dejaCopie) { dejaCopie = true; copierDansDrive(zoneDrive, url, d, { automatique: true }); }
+          h('a', { class: 'bouton bouton-secondaire', href: `#/${retourPdf.route}`, dataset: { action: 'retour-apres-pdf' } }, retourPdf.libelle)));
     } catch (e) {
       if (arrete || mon !== numero) return;
       const code = String(e?.code ?? '').replace('functions/', '');
@@ -191,5 +99,5 @@ export function rendrePdfDevis(conteneur, devisId, brouillon = false) {
   };
   const arretSuivi = D.surChangement(suivre);
   suivre();
-  return () => { arrete = true; arretSuivi(); if (arretAffaires) { arretAffaires(); arretAffaires = null; } };
+  return () => { arrete = true; arretSuivi(); };
 }

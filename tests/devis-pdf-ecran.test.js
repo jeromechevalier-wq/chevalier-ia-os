@@ -1,7 +1,7 @@
 // Écrans du PDF d'un devis (règles pures de js/modules/devis/pdf.js + garde-fous de texte). Aucun navigateur.
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import * as P from '../js/modules/devis/pdf.js';
 import { pdfAReessayer as regleServeur, DELAI_EN_COURS_MS } from '../functions/src/coeur/devis.js';
@@ -44,8 +44,9 @@ describe('PDF devis : règles du navigateur', () => {
   test('S3 routePdf et messages', () => {
     assert.equal(P.routePdf('abc'), 'devis/pdf/abc');
     assert.equal(P.routePdf('abc', true), 'devis/pdf/abc/brouillon');
-    assert.equal(P.messageApresEnregistrement({ affaireId: 'a1' }), 'PDF enregistré dans l’affaire');
+    assert.equal(P.messageApresEnregistrement({ affaireId: 'a1' }), 'PDF brouillon prêt');
     assert.match(P.messageApresEnregistrement({ affaireId: null }), /n’a pas d’affaire/);
+    assert.match(P.messageApresEnregistrement({ affaireId: null }), /dans son onglet Devis\.$/);
   });
 
   test('S4 le module sert les routes devis/pdf/<id> et …/brouillon ; les écrans n’écrivent jamais le champ pdf', () => {
@@ -58,5 +59,29 @@ describe('PDF devis : règles du navigateur', () => {
     const donnees = lire('js/modules/devis/donnees.js');
     assert.match(donnees, /pdfLien: 'devisPdfLien'/);
     assert.match(donnees, /appeler\('pdf', \{ devisId, brouillon: true \}\)/);
+  });
+});
+
+describe('PDF devis : plus aucune copie dans le Drive (décision du 27/10/2026)', () => {
+  const code = (f) => lire(f).replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
+  test('1 l’écran du PDF ne parle plus à Drive ni à Google : ni zone Drive, ni autorisation, ni mémoire de copie', () => {
+    const t = code('js/modules/devis/pdf-ecran.js');
+    assert.ok(!/google|drive|localStorage|copierDansDrive|zoneDrive|creerDossier/i.test(t));
+    assert.match(t, /Rien ne s’est ouvert \?/);
+    assert.match(t, /data-action|dataset: \{ action: 'ouvrir-pdf'/);
+    assert.match(lire('js/modules/devis/pdf-ecran.js'), /export const MESSAGE_PAS_DE_BROUILLON/);
+  });
+  test('2 le module Devis ne s’inscrit plus au dossier de travail, et les fichiers de la copie n’existent plus', () => {
+    const index = code('js/modules/devis/index.js');
+    assert.ok(!/DossierAffaire|apresDossierDeTravail|retirerCrochetDossier|essaiCors|firebaseConfig/.test(index));
+    for (const f of ['js/modules/devis/drive-copie.js', 'js/modules/devis/dossier-travail.js', 'js/modules/crm/dossier-externe.js']) assert.equal(existsSync(fileURLToPath(new URL(`../${f}`, import.meta.url))), false, f);
+    const lanceurs = code('js/modules/crm/lanceurs.js');
+    assert.ok(!/apresDossierAffaire|creerDossierDeLAffaire|dossier-externe/.test(lanceurs));
+    assert.ok(!/lienStablePdfNavigateur|BASE_LIEN_/.test(code('js/modules/devis/pdf.js')));
+  });
+  test('4 textes : « PDF brouillon prêt », « PDF prêt », et l’onglet Devis remplace les Documents', () => {
+    assert.equal(P.MESSAGE_PDF_RANGE_AFFAIRE, 'PDF brouillon prêt');
+    assert.match(P.MESSAGE_PDF_RANGE_SANS_AFFAIRE, /pour que le PDF apparaisse dans son onglet Devis\.$/);
+    assert.ok(lire('js/modules/devis/pdf-indicateur.js').includes("toast('PDF prêt')"));
   });
 });

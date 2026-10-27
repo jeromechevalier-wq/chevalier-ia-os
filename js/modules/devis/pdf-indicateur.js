@@ -15,7 +15,7 @@ export async function relancerPdf(devis, apres = () => {}) {
   apres();
   try {
     await D.pdfDevis(devis.id);
-    toast('PDF rangé dans l’affaire');
+    toast('PDF prêt');
   } catch (e) {
     console.warn(e);
     toast(e?.message || D.MESSAGE_RESEAU_DEVIS, { type: 'erreur', duree: 8000 });

@@ -33,8 +33,8 @@ export function etatPdfDevis(devis, maintenant = Date.now()) {
 
 export const LIBELLE_PDF_NON_RANGE = 'PDF non rangé';
 export const LIBELLE_PDF_EN_COURS = 'PDF en cours de fabrication';
-export const MESSAGE_PDF_RANGE_AFFAIRE = 'PDF enregistré dans l’affaire';
-export const MESSAGE_PDF_RANGE_SANS_AFFAIRE = 'PDF enregistré avec le devis. Ce devis n’a pas d’affaire : choisis-en une pour que le PDF apparaisse dans ses Documents.';
+export const MESSAGE_PDF_RANGE_AFFAIRE = 'PDF brouillon prêt';
+export const MESSAGE_PDF_RANGE_SANS_AFFAIRE = 'PDF enregistré avec le devis. Ce devis n’a pas d’affaire : choisis-en une pour que le PDF apparaisse dans son onglet Devis.';
 
 /** Adresse (sans « # ») de l'écran qui ouvre le PDF d'un devis. */
 export const routePdf = (devisId, brouillon = false) => `devis/pdf/${encodeURIComponent(devisId)}${brouillon ? '/brouillon' : ''}`;
@@ -56,17 +56,5 @@ let origineMemorisee = '';
 export const memoriserOrigine = (route) => { origineMemorisee = String(route ?? ''); };
 export const origineRetour = () => origineMemorisee;
 
-/** Message affiché après « Télécharger le PDF » : l'affaire garde un document seulement si le devis en a une. */
+/** Message affiché après « Télécharger le PDF » d'un brouillon : le PDF n'est visible dans l'onglet Devis d'une affaire que si le devis en a une. */
 export const messageApresEnregistrement = (devis) => (devis?.affaireId ? MESSAGE_PDF_RANGE_AFFAIRE : MESSAGE_PDF_RANGE_SANS_AFFAIRE);
-
-// ---------------------------------------------------------------- adresse stable du PDF, côté navigateur
-// MÊME adresse que celle que le serveur écrit dans les Documents de l'affaire (`lienStablePdf`, functions/src/devis/pdf-service.js) ; un test statique compare les deux.
-// Les deux sites sont des constantes (jamais `location.origin` : un autre site, un aperçu ou un test donnerait une adresse différente, donc un doublon).
-export const BASE_LIEN_JEROME = 'https://chevalier-ia-os.web.app'; // functions/src/index.js (BASE_LIEN_DEVIS)
-export const BASE_LIEN_PLATEFORME = 'https://chevalier-ia-app.web.app'; // functions-plateforme/src/devis-pdf.js (BASE_LIEN_PLATEFORME ; routes sous `#/espace/<client>/…`)
-
-/** Adresse stable du PDF d'un devis finalisé. `client` : identifiant du client (espace `#/espace/<client>`), vide chez Jérôme. */
-export function lienStablePdfNavigateur(devisId, { client = '' } = {}) {
-  const c = String(client ?? '').trim();
-  return `${c ? BASE_LIEN_PLATEFORME : BASE_LIEN_JEROME}/#/${c ? `espace/${c}/` : ''}devis/pdf/${encodeURIComponent(devisId)}`;
-}

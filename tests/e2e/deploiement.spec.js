@@ -1,11 +1,12 @@
 // Réglages > Déploiement (25/10/2026) : la liste des étapes d'un déploiement et leur état dans l'espace, chez Jérôme (racine) et chez un client.
-// La fonction du serveur (deploiementVerifier) et le stockage (essai CORS) sont SIMULÉS par page.route : aucun appel réseau réel. Le vrai serveur est essayé à part
+// La fonction du serveur (deploiementVerifier) est SIMULÉE par page.route : aucun appel réseau réel. Le vrai serveur est essayé à part
 // (tests/deploiement-fonction.test.js). Un test par critère d'acceptation (le nom commence par son numéro) ; captures dans tests/e2e/captures/deploiement/.
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { test, expect, connecter, attendreCalme, ecrireDocument, lireDocument, estTelephone, PROJET, FIRESTORE, URL_APP, JEROME } from './outils.js';
 
 const DOSSIER = fileURLToPath(new URL('./captures/deploiement/', import.meta.url));
+const DOSSIER_RETRAIT = fileURLToPath(new URL('./captures/devis-retrait-drive/', import.meta.url));
 const capturer = (page, info, nom) => page.screenshot({ path: `${DOSSIER}${nom}-${info.project.name}.png`, fullPage: true, animations: 'disabled' });
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': 'POST, GET, OPTIONS' };
 const OK = { ok: true, version: '2.4.1', controles: { fonctions: 'ok', membres: 'ok' } };
@@ -14,8 +15,8 @@ const ENTREPRISE = {
   assurance: { garantie: 'Décennale', assureur: 'Assureur Essai' }, mediateur: { nom: 'Médiateur Essai', site: 'https://mediateur.exemple' },
 };
 
-/** Faux serveur : `reponses` = réponses successives de deploiementVerifier (la dernière se répète) ; `null` = panne (réseau coupé). `cors` : 'ok' ou 'bloque'. */
-async function simuler(page, { reponses = [OK], cors = 'ok' } = {}) {
+/** Faux serveur : `reponses` = réponses successives de deploiementVerifier (la dernière se répète) ; `null` = panne (réseau coupé). */
+async function simuler(page, { reponses = [OK] } = {}) {
   const etat = { appels: [], corps: [] };
   await page.route('**/deploiementVerifier', async (route) => {
     if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS });
@@ -25,9 +26,6 @@ async function simuler(page, { reponses = [OK], cors = 'ok' } = {}) {
     if (r === null) return route.abort('connectionfailed');
     return route.fulfill({ status: 200, headers: CORS, body: JSON.stringify({ result: r }) });
   });
-  await page.context().route('https://storage.googleapis.com/**', (route) => (cors === 'ok'
-    ? route.fulfill({ status: 200, headers: { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'text/plain' }, body: '' })
-    : route.abort('failed')));
   return etat;
 }
 const ligne = (page, id) => page.locator(`.deploiement-ligne[data-etape="${id}"]`);
@@ -51,11 +49,11 @@ test('1 Réglages > Déploiement chez Jérôme : une ligne par étape avec pasti
   await ouvrirRacine(page);
   await expect(page.locator('.reglages-menu-lien[data-reglage="deploiement"]')).toHaveText('Déploiement');
   await expect(page.locator('.deploiement-groupe h3')).toHaveText(['Avant la séance', 'Pendant la séance', 'Réglages Google du projet', 'Après la séance']);
-  // Toutes les lignes automatiques sont vertes, les manuelles grises « À vérifier à la main » : 6 sur 21 (1 du serveur, 1 des Affaires, 4 du Devis ; 15 manuelles,
+  // Toutes les lignes automatiques sont vertes, les manuelles grises « À vérifier à la main » : 5 sur 20 (1 du serveur, 1 des Affaires, 3 du Devis ; 15 manuelles,
   // dont « Personnes autorisées », case à cocher à la racine : les comptes y sont écrits dans le code)
-  await expect(page.locator('.deploiement-ligne')).toHaveCount(21);
-  await expect(page.locator('.deploiement-ligne[data-type="auto"][data-couleur="vert"]')).toHaveCount(6);
-  await expect(resume(page)).toHaveText('6 sur 21 vertes');
+  await expect(page.locator('.deploiement-ligne')).toHaveCount(20);
+  await expect(page.locator('.deploiement-ligne[data-type="auto"][data-couleur="vert"]')).toHaveCount(5);
+  await expect(resume(page)).toHaveText('5 sur 20 vertes');
   await expect(ligne(page, 'membres')).toHaveAttribute('data-type', 'manuel');
   await expect(page.locator('#reglages-deploiement')).not.toContainText('Jérôme');
   await expect(page.locator('#reglages-deploiement')).toContainText('Chaque case s’enregistre toute seule.');
@@ -70,27 +68,43 @@ test('1 Réglages > Déploiement chez Jérôme : une ligne par étape avec pasti
 });
 
 test('3 une case rouge dit comment réparer, avec le lien exact (réglage de l’appli, mode d’emploi ou console Google)', async ({ page }, info) => {
-  test.info().annotations.push({ type: 'erreurs-reseau-attendues', description: 'essai CORS bloqué exprès : le navigateur note la lecture refusée dans sa console' });
-  await simuler(page, { cors: 'bloque' });
+  await simuler(page);
   await ouvrirRacine(page);
-  for (const id of ['dossier-drive', 'devis-entreprise', 'devis-etape', 'devis-catalogue', 'devis-cors']) {
+  for (const id of ['dossier-drive', 'devis-entreprise', 'devis-etape', 'devis-catalogue']) {
     await expect(ligne(page, id)).toHaveAttribute('data-couleur', 'rouge');
     await expect(ligne(page, id).locator('[data-role="etat"]')).toHaveText('À réparer');
     await expect(ligne(page, id).locator('[data-role="reparation"]')).toBeVisible();
   }
   await expect(ligne(page, 'dossier-drive').locator('[data-role="lien-reparation"]')).toHaveAttribute('href', /#\/reglages\/crm\/reglages-options$/);
   await expect(ligne(page, 'devis-entreprise').locator('[data-role="lien-reparation"]')).toHaveAttribute('href', /#\/reglages\/devis\/reglages-entreprise$/);
-  await expect(ligne(page, 'devis-cors').locator('[data-role="lien-reparation"]')).toHaveAttribute('href', 'https://github.com/jeromechevalier-wq/chevalier-ia-os/blob/main/docs/cors-stockage-pdf.md');
   // 27/10/2026 : plus de ligne « API Gmail » ni « utilisateurs test de Gmail » (le navigateur ne parle plus à Gmail) ; « Préparer l'e-mail » dit qu'il est absent chez les clients.
   await expect(ligne(page, 'devis-gmail-api')).toHaveCount(0);
   await expect(ligne(page, 'devis-gmail-test')).toHaveCount(0);
   await expect(ligne(page, 'devis-preparer-email').locator('[data-role="reparation"]')).toContainText('Absent chez les clients');
   await expect(resume(page)).toHaveAttribute('data-global', 'rouge');
-  await ligne(page, 'devis-cors').scrollIntoViewIfNeeded();
+  await ligne(page, 'devis-catalogue').scrollIntoViewIfNeeded();
   await capturer(page, info, '3-racine-rouge');
   // Le lien « Ouvrir le réglage » mène bien au réglage
   await ligne(page, 'devis-entreprise').locator('[data-role="lien-reparation"]').click();
   await expect(page).toHaveURL(/#\/reglages\/devis\/reglages-entreprise$/);
+});
+
+test('3 plus d’étape « CORS » : la page ne lit plus le stockage, le groupe « Réglages Google du projet » garde la ligne des Affaires, les trois lignes automatiques du Devis sont intactes', async ({ page }, info) => {
+  const lectures = [];
+  page.on('request', (r) => { if (/storage\.googleapis\.com/.test(r.url())) lectures.push(r.url()); });
+  await simuler(page);
+  await toutRegler();
+  await ouvrirRacine(page);
+  await expect(page.locator('.deploiement-ligne')).toHaveCount(20);
+  await expect(ligne(page, 'devis-cors')).toHaveCount(0);
+  await expect(page.locator('#reglages-deploiement')).not.toContainText('CORS');
+  for (const id of ['devis-entreprise', 'devis-etape', 'devis-catalogue']) await expect(ligne(page, id)).toHaveAttribute('data-couleur', 'vert');
+  await expect(ligne(page, 'dossier-drive')).toHaveCount(1);
+  await expect(ligne(page, 'devis-essai').locator('[data-role="etat"]')).toHaveText('À vérifier à la main');
+  await expect(page.locator('#reglages-deploiement')).toContainText('Essai de bout en bout d’un devis (PDF, e-mail, Envoyé)');
+  await expect(page.locator('#reglages-deploiement')).not.toContainText('PDF, Drive');
+  expect(lectures, 'aucune lecture du stockage par la page').toEqual([]);
+  await page.screenshot({ path: `${DOSSIER_RETRAIT}4-deploiement-sans-cors-${info.project.name}.png`, fullPage: true, animations: 'disabled' });
 });
 
 test('4 « C’est fait » : la case manuelle devient verte avec la date, compte dans le résumé, reste après rechargement ; seul { fait, le } est enregistré', async ({ page }) => {
@@ -102,7 +116,7 @@ test('4 « C’est fait » : la case manuelle devient verte avec la date, compte
   const date = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris' }).format(new Date());
   await expect(ligne(page, 'bienvenue')).toHaveAttribute('data-couleur', 'vert');
   await expect(ligne(page, 'bienvenue').locator('[data-role="etat"]')).toHaveText(`Fait le ${date}`);
-  await expect(resume(page)).toHaveText('7 sur 21 vertes');
+  await expect(resume(page)).toHaveText('6 sur 20 vertes');
   await expect.poll(async () => (await lireDocument('crm_parametres/deploiement'))?.bienvenue?.fait).toBe(true);
   expect(Object.keys((await lireDocument('crm_parametres/deploiement')).bienvenue).sort()).toEqual(['fait', 'le']);
   await page.reload();
@@ -173,7 +187,6 @@ test.describe('chez un client', () => {
     await expect(resume(page)).not.toContainText('Vérification');
     await expect(page.locator('[data-role="vide"]')).toContainText('Aucun module de cet espace n’ajoute de contrôle');
     await expect(page.locator('.deploiement-ligne')).toHaveCount(11);
-    await expect(ligne(page, 'devis-cors')).toHaveCount(0);
     await expect(resume(page)).toHaveText('2 sur 11 vertes');
     expect(serveur.corps[0]).toEqual({ client: 'veilleur' });
     await ligne(page, 'connexion').getByRole('checkbox').check();
