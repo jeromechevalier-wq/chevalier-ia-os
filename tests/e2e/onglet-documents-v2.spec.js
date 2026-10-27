@@ -64,7 +64,8 @@ for (const f of FICHES) {
     await aller(page, f.hash);
     const dossier = page.locator(`[data-section="${f.section}"] [data-prop="dossier"]`);
     await expect(dossier.locator('[data-action="ouvrir-dossier"]')).toHaveText(/Ouvrir le dossier/);
-    await expect(dossier.locator('[data-action="retirer-dossier"]')).toHaveText(/Retirer/);
+    await expect(dossier.locator('[data-action="retirer-dossier"]')).toHaveText('');
+    await expect(dossier.getByRole('button', { name: 'Retirer le dossier' })).toBeVisible();
     await expect(dossier.locator('[data-action="ajouter-dossier"]')).toHaveCount(0);
     if (f.nom === 'projet') await capturer(page, 'I10-dossier-ouvrir-retirer');
     await dossier.locator('[data-action="retirer-dossier"]').click();
@@ -80,6 +81,22 @@ for (const f of FICHES) {
     await expect(annuler).toBeVisible();
     await annuler.click();
     await expect.poll(async () => (await lireDocument(`${f.collection}/${f.id}`)).urlDossier).toBe(URL_DOSSIER);
+  });
+
+  test(`M1 dossier de travail ${f.nom} : « Retirer » est une simple croix (nom « Retirer le dossier »), de 44 px sur téléphone, et la confirmation s'affiche avant`, async ({ page, context }) => {
+    await brancherGoogle(context);
+    await f.creer({ urlDossier: URL_DOSSIER });
+    await connecter(page);
+    await aller(page, f.hash);
+    const croix = page.locator(`[data-section="${f.section}"] [data-prop="dossier"]`).getByRole('button', { name: 'Retirer le dossier' });
+    await expect(croix).toBeVisible();
+    await expect(croix).toHaveText('');
+    if (estTelephone(page)) await expect.poll(async () => { const b = await croix.boundingBox(); return b && Math.min(b.width, b.height) >= 44; }).toBe(true);
+    await capturer(page, f.nom === 'projet' ? 'M1-croix-retirer-dossier' : 'M1-croix-retirer-dossier-affaire');
+    await croix.click();
+    await expect(page.getByRole('dialog')).toContainText('Seul le lien est retiré');
+    await page.getByRole('dialog').getByRole('button', { name: 'Annuler' }).click();
+    expect((await lireDocument(`${f.collection}/${f.id}`)).urlDossier).toBe(URL_DOSSIER);
   });
 
   test(`I10 documents ${f.nom} : plus de titre « Liens et documents » ; la ligne « Documents  + Ajouter » est toujours en haut de la liste, avec son « i »`, async ({ page, context }) => {

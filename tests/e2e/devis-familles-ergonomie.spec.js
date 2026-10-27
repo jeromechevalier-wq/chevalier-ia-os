@@ -107,8 +107,7 @@ test('P3 Réglages > Familles d’articles : les sept familles sans bouton, leur
   await fournitures.locator('[data-champ="nouvelle-sous-famille"]').fill('Zinguerie');
   await fournitures.locator('[data-action="ajouter-sous-famille"]').click();
   await expect(fournitures.locator('[data-niveau="2"] input').last()).toHaveValue('Zinguerie');
-  const familles = await lireDocument('devis_parametres/familles');
-  expect(familles.liste.find((f) => f.nom === 'Zinguerie')).toMatchObject({ parentId: 'famille-1', actif: true });
+  await expect.poll(async () => (await lireDocument('devis_parametres/familles'))?.liste.find((f) => f.nom === 'Zinguerie')).toMatchObject({ parentId: 'famille-1', actif: true }); // M6 : attendre l'écriture
   // Doublon (sans accents ni casse) : message sous la famille, rien d'écrit.
   await fournitures.locator('[data-champ="nouvelle-sous-famille"]').fill('ELECTRICITE');
   await fournitures.locator('[data-action="ajouter-sous-famille"]').click();

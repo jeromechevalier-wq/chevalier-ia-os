@@ -95,7 +95,11 @@ export const devisEnregistrerEnvoi = appelDevis('enregistrerEnvoi'); // historiq
 // Page Réglages > Déploiement (25/10/2026) : contrôles du serveur pour l'espace demandé (éditeurs seulement, sans condition de module). Rien n'est écrit, AUCUN secret déclaré
 // (un secret absent ferait échouer le déploiement de toutes les fonctions), aucun compte de service nouveau. Déployée seulement par le workflow MANUEL de la plateforme.
 export const deploiementVerifier = onCall({ ...OPTIONS_DEVIS, timeoutSeconds: 30 }, async (requete) => {
-  try { return await verifierDeploiementClient({ db: db(), auth: requete.auth, donnees: requete.data, version: VERSION_SERVEUR }); } catch (e) { throw enHttps(e); }
+  try { return await verifierDeploiementClient({
+    db: db(), auth: requete.auth, donnees: requete.data, version: VERSION_SERVEUR,
+    // Lignes « PDF » : le stockage répond ; les trois fonctions du PDF sont déclarées dans CE serveur (un serveur plus ancien ne connaît pas ces lignes : elles restent orange jusqu'au déploiement « fonctions »).
+    pdf: { bucket: () => getStorage().bucket(BUCKET), fonctions: () => [devisPdf, devisPdfLien, devisPdfAuto].every((f) => f) },
+  }); } catch (e) { throw enHttps(e); }
 });
 
 // « Préparer l'e-mail » (25/10/2026) : demande au workflow n8n DU CLIENT de créer un brouillon dans le Gmail du compte (PDF joint) ; rien n'est envoyé, ni par l'appli ni par n8n.

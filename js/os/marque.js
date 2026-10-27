@@ -212,6 +212,7 @@ export function manifesteClient(marque, client, origine) {
     display: 'standalone',
     background_color: FOND_PAGE,
     theme_color: FOND_PAGE,
-    icons: m.logo ? [{ src: m.logo, sizes: 'any' }] : [{ src: iconeInitiale(m), sizes: 'any', type: 'image/svg+xml' }],
+    // Le logo est une image du stockage dont la taille réelle est inconnue ici : « sizes: any » était faux (Chrome le signalait en console), on ne déclare donc aucune taille. L'icône à l'initiale (SVG, « any » est exact pour un SVG) reste en repli.
+    icons: m.logo ? [{ src: m.logo }, { src: iconeInitiale(m), sizes: 'any', type: 'image/svg+xml' }] : [{ src: iconeInitiale(m), sizes: 'any', type: 'image/svg+xml' }],
   };
 }

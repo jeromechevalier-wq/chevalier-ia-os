@@ -30,10 +30,21 @@ describe('Déploiement : définition des étapes (écrite dans le code)', () => 
     assert.equal(lienEtape({ lien: 'https://console.cloud.google.com/x?project={projet}' }, { projet: 'chevalier-ia-app' }), 'https://console.cloud.google.com/x?project=chevalier-ia-app');
   });
   test('1 l’accès « devisPdf au dossier Drive » n’est plus une étape (le PDF est rangé dans Cloud Storage, plus aucune copie dans Drive)', () => {
-    assert.ok(!TOUTES.some((e) => /devisPdf|compte de service/i.test(`${e.libelle} ${e.reparation}`)));
+    assert.ok(!TOUTES.filter((e) => e.id !== 'pdf-fonctions').some((e) => /devisPdf|compte de service/i.test(`${e.libelle} ${e.reparation}`)));
+  });
+  test('J Devis : les lignes « stockage des PDF » et « fonctions du PDF » sont des contrôles du serveur, avec une phrase pour réparer et le mode d’emploi du PDF', () => {
+    for (const id of ['pdf-stockage', 'pdf-fonctions']) {
+      const e = ETAPES_DEPLOIEMENT_DEVIS.find((x) => x.id === id);
+      assert.equal(e.module, 'devis'); assert.equal(e.type, 'auto'); assert.equal(e.controle, `serveur.${id}`);
+      assert.match(e.lien, /pdf-clients\.md$/);
+    }
+    assert.deepEqual(problemesEtapes(TOUTES), []);
+    const r = resultatsDesControles(TOUTES, { serveur: { controles: { fonctions: 'ok', 'pdf-stockage': 'manque' } } });
+    assert.equal(r['pdf-stockage'], 'manque');
+    assert.equal(r['pdf-fonctions'], 'inconnu', 'un serveur plus ancien ne connaît pas la ligne : orange, jamais vert');
   });
   test('1 le contrôle d’une ligne automatique de la coque vient du serveur ; les étapes « Préparer l’e-mail », MCP et règles sont manuelles', () => {
-    for (const e of ETAPES_COQUE.filter((x) => x.type === 'auto')) assert.match(e.controle, /^serveur\.(fonctions|membres)$/, e.id);
+    for (const e of ETAPES_COQUE.filter((x) => x.type === 'auto')) assert.match(e.controle, /^serveur\.(fonctions|membres|pdf-stockage|pdf-fonctions)$/, e.id);
     for (const id of ['devis-preparer-email', 'regles-a-jour', 'mcp']) assert.equal(TOUTES.find((e) => e.id === id).type, 'manuel', id);
   });
 });

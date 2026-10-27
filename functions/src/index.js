@@ -23,7 +23,7 @@ import { creerAppelDevis, ligneDeJournalDevis } from './devis-appel.js';
 import { onDocumentUpdated } from 'firebase-functions/v2/firestore';
 import { creerAppelDevisPdf, creerAppelDevisPdfLien, ligneDeJournalDevisPdf } from './devis/pdf-appel.js';
 import { creerDeclencheurPdf } from './devis/pdf-declencheur.js';
-import { stockageDuProjet } from './devis/stockage-projet.js';
+import { stockageDuProjet, bucketDuProjet } from './devis/stockage-projet.js';
 import { creerSortieN8n } from './coeur/n8n-sortie.js';
 import { creerAppelPreparerEmail, creerAppelEtatPreparerEmail } from './devis-email-appel.js';
 import { creerLecteurSecrets } from './securite/secrets.js';
@@ -166,6 +166,8 @@ export const devisPdfAuto = onDocumentUpdated(
 // Mêmes comptes que les devis ; même région, limites et compte de service ; AUCUN secret déclaré (un secret absent ferait échouer tout le déploiement), rien n'est écrit.
 export const deploiementVerifier = onCall({ ...OPTIONS_DEVIS, timeoutSeconds: 30 }, (requete) => creerAppelDeploiement({
   version: VERSION_SERVEUR, journal: (e) => process.stdout.write(`${ligneDeJournalDeploiement(e)}\n`),
+  // Lignes « PDF » de la page : le stockage répond ; les trois fonctions du PDF sont déclarées dans CE serveur (un serveur plus ancien ne connaît pas ces lignes : elles restent orange).
+  pdf: { bucket: bucketDuProjet, fonctions: () => [devisPdf, devisPdfLien, devisPdfAuto].every((f) => f) },
 })(requete));
 
 // `veille` : appelée par l'appli (boutons « Ajouter » et « Résumer » du module Veille). Le jeton du bouton Résumer vit ici (Secret Manager),

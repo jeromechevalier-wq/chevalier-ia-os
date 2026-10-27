@@ -1,7 +1,7 @@
 // Page « Déploiement » des Réglages sur la plateforme clients : la fonction appelable « deploiementVerifier » (même code commun que chez Jérôme : serveur/src/coeur/deploiement.js).
 // Accès : un ÉDITEUR de l'espace demandé (clients/<client>/membres/<son e-mail>, rôle « editeur ») ; un refus neutre « Action non autorisée. » pour tout le reste.
 // Pas de condition de module : la page existe chez un client sans Devis. Rien n'est écrit ; aucun secret ; la réponse ne contient que des états fixes et la version.
-import { verifierDeploiement, membresCoherents } from '../serveur/src/coeur/deploiement.js';
+import { verifierDeploiement, membresCoherents, stockageRepond } from '../serveur/src/coeur/deploiement.js';
 import { Refus } from './appels.js';
 import { MOTIF_IDENTIFIANT_CLIENT } from './etiquettes.js';
 
@@ -13,8 +13,11 @@ function emailDe(auth) {
   return jeton.email.toLowerCase();
 }
 
-/** Donnée reçue : { client }. Rend { ok, version, controles: { fonctions, membres } } ou lève un Refus. */
-export async function verifierDeploiementClient({ db, auth, donnees, version }) {
+/**
+ * Donnée reçue : { client }. Rend { ok, version, controles: { fonctions, membres, 'pdf-stockage', 'pdf-fonctions' } } ou lève un Refus.
+ * `pdf` : { bucket: () => bucket du stockage des PDF, fonctions: () => vrai si les fonctions du PDF sont déclarées } ; sans lui, les deux lignes PDF valent « inconnu ».
+ */
+export async function verifierDeploiementClient({ db, auth, donnees, version, pdf = null }) {
   const email = emailDe(auth);
   const client = donnees?.client;
   if (typeof client !== 'string' || !MOTIF_IDENTIFIANT_CLIENT.test(client)) throw new Refus('invalid-argument', 'Demande invalide.');
@@ -29,6 +32,7 @@ export async function verifierDeploiementClient({ db, auth, donnees, version }) 
         const equipe = fiche.exists ? fiche.get('equipe') : null;
         return membresCoherents(equipe, liste.docs.map((d) => ({ id: d.id, role: d.get('role') })));
       },
+      ...(pdf ? { 'pdf-stockage': async () => stockageRepond(pdf.bucket()), 'pdf-fonctions': async () => pdf.fonctions() === true } : {}),
     },
   });
 }

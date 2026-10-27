@@ -77,7 +77,9 @@ describe('identité de la page : icône, manifeste', () => {
     assert.equal(m.name, 'Cabinet Martin');
     assert.equal(m.start_url, 'https://app.exemple.test/#/espace/cabinet');
     assert.equal(m.scope, 'https://app.exemple.test/');
-    assert.deepEqual(m.icons, [{ src: 'https://exemple.test/logo.png', sizes: 'any' }]);
+    assert.equal(m.icons[0].src, 'https://exemple.test/logo.png');
+    assert.ok(!('sizes' in m.icons[0]), 'M4 : aucune taille inventée pour le logo du stockage');
+    assert.equal(m.icons[1].type, 'image/svg+xml', 'M4 : icône à l’initiale en repli');
     assert.ok(!/chevalier|jérôme|crm\/accueil/i.test(JSON.stringify(m)));
     const long = manifesteClient({ nom: 'Un nom vraiment très long de client', couleur: '#336699', logo: null }, 'x', 'https://a.test');
     assert.ok(long.short_name.length <= 12);

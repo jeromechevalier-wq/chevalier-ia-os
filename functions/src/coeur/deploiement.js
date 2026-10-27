@@ -5,8 +5,11 @@
 
 export const ETATS_CONTROLE = Object.freeze(['ok', 'manque', 'inconnu']);
 
-/** Contrôles faits par le serveur, dans l'ordre. `fonctions` : la fonction a répondu ; `membres` : la liste des personnes autorisées est cohérente. */
-export const CONTROLES_SERVEUR = Object.freeze(['fonctions', 'membres']);
+/**
+ * Contrôles faits par le serveur, dans l'ordre. `fonctions` : la fonction a répondu ; `membres` : la liste des personnes autorisées est cohérente ;
+ * `pdf-stockage` : le stockage où sont rangés les PDF des devis répond ; `pdf-fonctions` : ce serveur connaît les fonctions du PDF des devis (`devisPdf`, `devisPdfLien`, `devisPdfAuto`) ; un déploiement partiel (ex. Eventarc refuse `devisPdfAuto`) n'est PAS détecté : vérifier dans la console Cloud Functions.
+ */
+export const CONTROLES_SERVEUR = Object.freeze(['fonctions', 'membres', 'pdf-stockage', 'pdf-fonctions']);
 
 const MOTIF_VERSION = /^\d{1,4}\.\d{1,4}\.\d{1,6}$/;
 
@@ -54,4 +57,22 @@ export function membresCoherents(equipe, membres) {
   const b = membres.map((m) => cle(m?.id, m?.role)).sort();
   if (!a.length || a.length !== b.length || a.some((x, i) => x !== b[i])) return false;
   return membres.some((m) => m?.role === 'editeur');
+}
+
+/**
+ * Le stockage des PDF répond-il ? `bucket` : l'objet de firebase-admin. Prouve seulement que le bucket existe et se liste (le préfixe `devis/` n'existe pas tel quel sur la plateforme,
+ * où les PDF sont sous `clients/<client>/devis/`). Faux si le stockage n'existe pas (404) ; toute autre erreur (droit refusé, réseau, délai de `delaiMs` dépassé) est relancée :
+ * le contrôle vaudra « inconnu » (orange), jamais un faux rouge. Rien n'est écrit, aucun nom de fichier ne sort.
+ */
+export async function stockageRepond(bucket, { delaiMs = 5000 } = {}) {
+  if (!bucket || typeof bucket.getFiles !== 'function') return false;
+  let minuteur;
+  const delai = new Promise((_, rejeter) => { minuteur = setTimeout(() => rejeter(new Error('Stockage : délai dépassé.')), delaiMs); });
+  try {
+    await Promise.race([bucket.getFiles({ prefix: 'devis/', maxResults: 1, autoPaginate: false }), delai]);
+    return true;
+  } catch (e) {
+    if (e?.code === 404) return false;
+    throw e;
+  } finally { clearTimeout(minuteur); }
 }

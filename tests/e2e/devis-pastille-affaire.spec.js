@@ -1,5 +1,5 @@
 // Pastille « Devis : … » sur la carte d'affaire (Kanban) et la fiche de l'affaire. Chez Jérôme (racine). Captures : impossibles en session cloud.
-import { test, expect, connecter, attendreCalme, ecrireDocument, creerAffaire, JEROME } from './outils.js';
+import { test, expect, estTelephone, connecter, attendreCalme, ecrireDocument, creerAffaire, JEROME } from './outils.js';
 
 const JOUR = 86400000;
 async function devis(id, valeurs = {}) {
@@ -71,4 +71,14 @@ test('4 cas vide : une affaire sans devis n’a pas de pastille, ni sur la carte
   await page.locator('.carte-affaire[data-affaire="a2"]').click();
   await expect(page.locator('.fiche-tete')).toBeVisible();
   await expect(page.locator('.fiche-tete .pastille-externe')).toHaveCount(0);
+});
+
+test('M2 la pastille-lien « Devis : … » garde son dessin, et sa zone de toucher fait 44 px sur téléphone', async ({ page }) => {
+  await creerAffaire('a1', { titre: 'Cuisine Martin' });
+  await devis('d1', { affaireId: 'a1', statut: 'brouillon', numero: 'DEV-1', creeLe: new Date(Date.now() - JOUR) });
+  await ouvrirKanban(page);
+  const zone = await pastille(page, 'a1').evaluate((el) => { const c = getComputedStyle(el, '::after'); return { hauteur: parseFloat(c.height) || 0, content: c.content }; });
+  if (estTelephone(page)) expect(zone.hauteur).toBeGreaterThanOrEqual(44);
+  else expect(zone.content === 'none' || zone.content === 'normal').toBe(true); // ordinateur : rien de plus
+  if (!estTelephone(page)) await page.screenshot({ path: new URL('./captures/devis-pastille-affaire/M2-pastille-lien.png', import.meta.url).pathname });
 });
