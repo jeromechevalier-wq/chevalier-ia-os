@@ -1,15 +1,15 @@
 # À faire : module Devis et outils (liste maintenue à jour)
 
-Mise à jour : 26/10/2026, nuit. Règle de Jérôme : **« testé par Jérôme » ne s'écrit que sur sa confirmation, et quand le test est possible** (fusionné **et** en ligne). Aucun secret ici (dépôt public).
+Mise à jour : 27/10/2026, soir. Règle de Jérôme : **« testé par Jérôme » ne s'écrit que sur sa confirmation, et quand le test est possible** (fusionné **et** en ligne). Aucun secret ici (dépôt public).
 
 ## À tester par Jérôme (fusionné, en ligne)
 
 | # | Sujet | PR | Testé par Jérôme |
 |---|---|---|---|
 | 1 | Boutons de l'état Envoyé : libellés Devis signé / Devis refusé et infobulle sur Envoyer grisé | 310 | oui pour 1, 2, 4, 5 (26/10/2026) ; le point 3 (ordre Historique, Envoyer, Devis envoyé) est refait dans la PR « ordre des boutons » (en cours) |
-| 4 | Réglages « Mon entreprise » | 263 | à faire |
+| 4 | Réglages « Mon entreprise » | 263 | oui (27/10/2026) |
 | 5 | Une seule liste « Étape où vivent les devis » | 286 | oui (26/10/2026) |
-| 7 | Copie du PDF dans le dossier Drive de l'affaire (+ correctifs) | 283, 290 | à faire (réglage CORS d'abord) |
+| 7 | Copie du PDF dans le dossier Drive de l'affaire (+ correctifs) | 283, 290, 331 | à faire (réglage CORS fait le 27/10/2026 ; la PR 331, fusionnée et en ligne chez Jérôme, ajoute le bouton « Créer le dossier … et y copier le PDF » : voir « PDF et dossier de travail ») |
 | 8 | E-mails en copie (la suppression d'un brouillon ne retire plus son PDF : voir 16) | 291 | à faire |
 | 9 | Envoi du devis par e-mail (brouillon Gmail, « Marquer comme envoyé », historique des envois) | 292 | à faire (réglages Google d'abord) |
 | 10 | Menu des cartes, historique, « … » à côté d'Envoyer, plus de fiche du devis | 294 | à faire |
@@ -22,7 +22,9 @@ Mise à jour : 26/10/2026, nuit. Règle de Jérôme : **« testé par Jérôme �
 | 19 | Un seul écran pour toute la vie du devis (Édition en lecture seule une fois finalisé) | 314 | à faire (fusionnée, en ligne) |
 | 20 | E-mails en copie refaits (croix « Retirer » sans confirmation : à valider) | 313 | à faire (fusionnée, en ligne) |
 | 21 | PDF des devis chez les clients (fonctions `fonctions` déployées, PR 324) | 324 | En service : Jérôme a généré des PDF chez le client démo (« le pdf se génère bien », 26/10/2026). Reste à confirmer par lui : l'ouverture du lien du PDF par un lecteur du même espace, et l'accès refusé à un devis d'un autre client |
-| 17 | « NET À PAYER » sur fond de carte avec un trait jaune à gauche (le jaune plein reste aux boutons) | 319 | à faire |
+| 17 | « NET À PAYER » sur fond de carte avec un trait jaune à gauche (le jaune plein reste aux boutons) | 319 | oui (27/10/2026) |
+| 22 | Liens chez les clients : clic droit, Ctrl+clic et clic molette ouvrent le bon lien (plus « Espace indisponible ») | 335 | oui (27/10/2026, chez le client démo, hosting déployé) |
+| 23 | Créer le dossier de travail en un clic et y copier les PDF (écran du PDF et fiche de l'affaire) | 331 | à faire (fusionnée, en ligne chez Jérôme ; chez les clients : hosting déployé le 27/10/2026) |
 
 Déjà validés par Jérôme : 280, 282, et le 26/10/2026 : 309 (retour visuel pendant la fabrication du PDF), 315 (Historique avec date, heure et minute), 316 (Options sans flèche), 278, 284, 287 (barre du haut, pastilles des affaires), 304 (retour au devis), 305 (recherche en vrais liens), 306 (un seul bouton jaune), 308 (flèche du PDF).
 
@@ -34,22 +36,22 @@ Déjà validés par Jérôme : 280, 282, et le 26/10/2026 : 309 (retour visuel p
 - Cas vide : un espace sans module Devis n'affiche que les étapes communes. Cas d'erreur : serveur injoignable = lignes orange « Impossible de vérifier », jamais un écran blanc.
 
 ## À faire par Jérôme (une fois)
-- **Publier les règles par GitHub** : donner une seule fois le rôle « Administrateur des règles Firebase » au compte `github-action-…` sur https://console.cloud.google.com/iam-admin/iam?project=chevalier-ia-os (crayon, Ajouter un rôle), puis lancer GitHub > Actions > « Publier les règles (CRM de Jérôme) » > Run workflow. Détail : `docs/securite-et-pannes.md`.
-- **Copie Drive (7)** : réglage CORS du stockage des PDF, une fois pour chacun des deux projets Google, mode d'emploi dans `docs/cors-stockage-pdf.md`.
-- **E-mail (9)** : « Gmail API » activée et portée `gmail.compose` dans l'écran de consentement. Jérôme a dit être « en production » (pas d'expiration de 7 jours).
-- **« Préparer l'e-mail » (14)**, workflow n8n `interne-devis-preparer-email` (créé, NON publié) : (1) dans n8n, créer un identifiant « Header Auth » (nom d'en-tête `X-Chevalier-Secret`, valeur = un mot de passe long) et le choisir dans le nœud « Demande reçue de la plateforme » (n8n y a mis par erreur un autre identifiant, le webhook refuse tout tant que ce n'est pas fait) ; (2) ajouter l'étiquette `interne` au workflow ; (3) créer dans Secret Manager du projet `chevalier-ia-os` les secrets `N8N_DEVIS_EMAIL_URL` (adresse de production du webhook) et `N8N_DEVIS_EMAIL_SECRET` (le même mot de passe) ; (4) donner « Accesseur de secrets » à `porte-serveur@chevalier-ia-os.iam.gserviceaccount.com` sur ces deux secrets ; (5) publier le workflow. Détail : `docs/ajouter-un-bouton-workflow.md`.
-- **Chez les clients** : le déploiement de `devisEnregistrerEnvoi`, `devisPreparerEmail`, `deploiementVerifier` et du MCP se fait avec le workflow manuel, avec Jérôme (la porte de la base 2 n'existe pas encore).
-- **Règles Firestore** du journal des demandes (`crm_actions_lancements`) : PR séparée « à fusionner par Jérôme » (liste d'arrêt).
+- **Règles Firestore : décision du 27/10/2026, Claude les publie lui-même** (chevalier-ia-os par le workflow « Publier les règles (CRM de Jérôme) », chevalier-ia-app par le workflow « Déploiement plateforme clients » > regles). Fait le 27/10/2026 : rôle « Administrateur des règles Firebase » donné au compte `github-action-…`, règles de la PR 302 publiées dans les deux projets (runs verts). Jérôme n'a plus rien à faire ici, sauf lancer lui-même le bouton quand Claude le demande (le déploiement des clients reste manuel).
+- **Copie Drive (7)** : réglage CORS fait le 27/10/2026 pour les deux projets (`docs/cors-stockage-pdf.md`) ; reste à tester la copie du PDF dans Drive (7, 23).
+- **« Préparer l'e-mail » (14)**, workflow n8n `interne-devis-preparer-email` (créé, NON publié) : identifiant « Header Auth » et secrets `N8N_DEVIS_EMAIL_URL` / `N8N_DEVIS_EMAIL_SECRET` faits le 27/10/2026. Reste : relecture Fable du workflow, puis le publier (Claude le fait après la fusion de la PR 334). Détail : `docs/ajouter-un-bouton-workflow.md`.
+- **Chez les clients** : le déploiement de `devisEnregistrerEnvoi`, `devisPreparerEmail`, `deploiementVerifier` et du MCP se fait avec le workflow manuel, avec Jérôme (la porte de la base 2 n'existe pas encore : « Préparer l'e-mail » est absent chez les clients).
 
 ## À tester par Jérôme
 - **Outil de diagnostic fichiers MCP** : à tester par Jérôme (ChatGPT et Claude, ordinateur et téléphone ; scénario dans `docs/plan-mcp.md`, section 11), puis à retirer (liste de ce qui se retire au même endroit).
 
-- **Déconnexion forcée chez le client démo (26/10)** : corrigée (PR 327), à confirmer par Jérôme dans son Chrome normal. Causes possibles : (1) une erreur réseau sur la lecture de la fiche d'appartenance (try/catch qui déconnectait), (2) un 2e onglet ouvert sur `app.html` de la plateforme sans route `#/espace/<client>` (le démarrage « Jérôme » déconnectait tout le monde, les onglets partagent la connexion), (3) piste non vérifiée : une extension Chrome (bloqueur de pub, vie privée) qui coupe par intermittence le canal Firestore.
+- **Déconnexion forcée chez le client démo (26/10)** : corrigée (PR 327, déployée chez les clients le 27/10/2026), à confirmer par Jérôme dans son Chrome normal. **Le test attend** : il ne peut pas ouvrir deux onglets en même temps tant que le bug de liens n'est pas en ligne ; maintenant que la PR 335 l'est, il peut le faire. Causes possibles : (1) une erreur réseau sur la lecture de la fiche d'appartenance (try/catch qui déconnectait), (2) un 2e onglet ouvert sur `app.html` de la plateforme sans route `#/espace/<client>` (le démarrage « Jérôme » déconnectait tout le monde, les onglets partagent la connexion), (3) piste non vérifiée : une extension Chrome (bloqueur de pub, vie privée) qui coupe par intermittence le canal Firestore.
 
-## En cours (PR ouvertes, 26/10/2026, nuit)
-- **Fusionnées** : 322 (boutons du devis finalisé), 314 (écran unique du devis), 313 (e-mails en copie), 324 (PDF fabriqué chez les clients), 323 (règle CLAUDE.md : parité Jérôme / clients), 325, 326 (mode d'emploi du 2e serveur : `docs/deploiement-nouveau-serveur-plateforme.md`). Jérôme doit encore les vérifier à l'écran (322, 314, 313) ; ne mettre « testé par Jérôme » que sur sa confirmation.
-- **320** : outil de données de démonstration (`docs/donnees-demo.md`) ; en cours de mise à jour avec `main` (conflits de wiki), puis à fusionner. Ensuite, PR séparée « option `--pdf` » (brief déjà relu par Fable, 16 points) : aller-retour brouillon puis statut d'origine (champ `donneesDemoStatutOrigine`), 2 devis à la fois, nettoyage des événements `crm_evenements` et des fichiers Storage au `--retirer`, jamais par défaut sans détection du déclencheur. Les 12 devis de démo sans PDF peuvent être régénérés à la main (clic sur le voyant rouge « Réessayer »).
-- **302** : règles Firestore du journal « Préparer l'e-mail » (`crm_actions_lancements`), étiquette `a-fusionner-par-jerome` ; ouverte. Jérôme la fusionne, puis publie les règles dans les deux projets.
+## En cours (27/10/2026, soir)
+- **Fusionnées le 27/10** : 302 (règles du journal des demandes, publiées), 327 (connexion), 329, 330, 331 (dossier de travail et copie des PDF), 332 (guide CORS), 333 (workflow « Publier les règles »), 335 (liens sous le préfixe du client).
+- **334** (en brouillon, 5 corrections en cours) : e-mail du devis uniquement par n8n, plus de brouillon Gmail depuis le navigateur ; « Préparer l'e-mail » grisé (avec phrase) chez les clients ; relecture Fable obligatoire. Après fusion : publier le workflow n8n, vérifications à l'écran pour Jérôme.
+- **Menu « Ajustement », version B** (en cours) : 3 blocs toujours visibles (Ajustement global, Marge du devis, Remise client). « Compte prorata » et « Poste libre HT » ne sont pas affichés (non construits). Fable obligatoire (gros écran).
+- **Gestion des déchets** (à lancer après le menu) : formulaire selon les captures de Jérôme ; aucun effet sur le prix (information) ; point de collecte en texte libre ; type en liste (4 types) ; volume min et max en m³ ; coût en € TTC par m³ ; Annuler / Enregistrer ; mode lecture ; bouton « Modifier ». Le bloc du PDF existe déjà.
+- **Conditions de paiement** (à lancer après les déchets) : plusieurs acomptes (valeur, % / € HT / € TTC, moment : à la signature / au début des travaux / à la moitié des travaux / texte libre ; crayon et croix) ; « Reste à facturer » après les acomptes ; refus si le total dépasse le TTC (message sous le champ) ; menu « Ajouter une condition » = Acompte et Retenue de garantie seulement ; la « Prime énergétique » n'est plus proposée au menu, **les primes déjà enregistrées restent affichées et déduites du NET À PAYER** (option A, 27/10/2026) ; migration compatible avec l'acompte unique actuel ; copies serveur et `functions-plateforme/` ; Fable obligatoire.
 - **Client démo** : Jérôme a activé Devis et le MCP ; le remplissage se lance dans son Terminal (`docs/donnees-demo.md`).
 
 ## À faire, ordre de priorité (26/10/2026, nuit)
@@ -72,10 +74,13 @@ Déjà validés par Jérôme : 280, 282, et le 26/10/2026 : 309 (retour visuel p
 - **Haut de page du devis : un seul bouton jaune qui suit l'étape** (PR `devis-entete-bouton-jaune`, en brouillon, relecture Fable avant fusion) : Brouillon = « Finaliser » + « Envoyer » grisé ; Finalisé = « Envoyer » ; Envoyé = « Devis signé » + « Devis refusé » ; Signé, refusé, remplacé, archivé = aucun. « Imprimer » un brouillon donne le PDF brouillon (filigrane + pied « Brouillon v… · généré le … »), sans fenêtre « Finaliser ». Idée suivante, pas faite : « Préparer l'e-mail » comme bouton jaune quand la fonction fonctionnera pour de bon (le choix est dans `boutonJaune`, `js/modules/devis/entete-boutons.js`).
 
 ### PDF et dossier de travail (27/10/2026)
-- **PR 2 faite, à tester par Jérôme** (`pdf-creer-dossier-et-copier`) : écran du PDF sans dossier = bouton « Créer le dossier … et y copier le PDF » ; création ou liaison du dossier = copie des PDF des devis finalisés + liens dans les Documents.
+- **PR 331 fusionnée le 27/10/2026, à tester par Jérôme** (`pdf-creer-dossier-et-copier`) : écran du PDF sans dossier = bouton « Créer le dossier … et y copier le PDF » ; création ou liaison du dossier = copie des PDF des devis finalisés + liens dans les Documents.
 - **Reste à faire** : alerte douce à la finalisation du devis quand l'affaire n'a pas de dossier (retirée de la PR 2 : l'éditeur est trop sensible et le PDF est « en cours » à ce moment ; l'écran du PDF porte déjà le bouton).
 
 ### Le reste
+- **Compte prorata** et **Poste libre HT** : non construits (retirés de l'affichage du menu « Ajustement »). Le calcul demande une décision de Jérôme sur sa place dans le total.
+- **Renvoi d'un devis déjà envoyé** depuis l'écran : pas encore noté ni conçu.
+- **Docs** : à mettre d'accord avec « Claude publie les règles » (étape 16 de `docs/deploiement-nouveau-serveur-plateforme.md` vers `docs/cors-stockage-pdf.md`, mentions « publiées à la main » encore présentes).
 - Barre d'étapes du devis : Jérôme a dit « pas ce soir, ni urgent ni prioritaire » (24/10/2026).
 - Page Déploiement, suite (Jérôme veut la vue « tous mes clients » et, chez le client, un libellé « Santé de mon espace » : à trancher) : suivi pas à pas « où j'en suis pour ce nouveau client » ; contrôle de nuit avec alerte ; vue « tous mes clients » chez Jérôme ; contrôle automatique du MCP et de « Préparer l'e-mail » une fois la fonction d'état fusionnée dans les contrôles.
 - Onglet Documents d'une fiche : remplacer le bouton « Retirer » (à côté de « Ouvrir le dossier », pas joli) par une simple croix, même comportement : la fenêtre d'avertissement « vous allez retirer… » s'affiche avant. Nom accessible « Retirer le dossier », cible tactile d'au moins 44 px (demandé par Jérôme le 26/10/2026).
