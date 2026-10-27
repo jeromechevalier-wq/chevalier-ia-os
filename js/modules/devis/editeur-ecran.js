@@ -17,7 +17,7 @@ import { arbreFamilles, cheminFamille } from './familles.js';
 import * as Ed from './editeur-logique.js';
 import {
   TYPE_SAUT, totauxDevis, erreursFinalisation, erreursChantier, estExpire, UNITES_DUREE, MOMENTS_ACOMPTE, TAUX_TVA_DEFAUT, niveauSection, dureeEnTexte,
-  affichageDe, ajustementActif, valeursAjustement, margeEffective, vueClient, MAX_COPIE, transitionPossible,
+  affichageDe, ajustementActif, valeursAjustement, margeEffective, vueClient, MAX_COPIE, transitionPossible, TYPES_DECHETS,
 } from './logique.js';
 import { formaterMontant } from './document.js';
 import { menuUnite } from './menu-unite.js';
@@ -49,6 +49,7 @@ const messageLectureSeule = (d) => (versionPossible(d)
   : `Ce devis est ${motDuStatut(d)} : il ne se modifie plus.`);
 const infobulleCatalogueLecture = (d) => `Ajouter un article, c’est modifier le devis : il est ${motDuStatut(d)}, ${versionPossible(d) ? 'crée une nouvelle version pour le corriger.' : 'il ne se modifie plus.'}`;
 const SANS_VERROU = '[data-action="replier"], [data-action="definir-ajustement"], [data-action="description"]'; // en lecture seule, replier une section, ouvrir « Définir un ajustement » et afficher / masquer la description restent possibles (ce n'est que regarder)
+const LARGEUR_TELEPHONE = 700; // même seuil que le CSS (max-width: 700px)
 const DELAI_INTROUVABLE_MS = 4000;
 const DELAI_ENREGISTREMENT_MS = 900;
 const DELAI_APERCU_MS = 250;
@@ -1466,13 +1467,107 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       ref.attestation,
       h('p', { class: 'texte-discret', dataset: { valeur: 'methodes-paiement' } }, 'Méthodes de paiement acceptées : celles de ton entreprise (réglages).'),
       texteLibre, lienTexte,
-      h('div', { class: 'titre-ligne' }, h('h3', { class: 'titre-bloc' }, 'Gestion des déchets'), h('button', { type: 'button', class: 'bouton-lien', disabled: true, title: 'Bientôt disponible', dataset: { action: 'definir-dechets' } }, 'Définir (bientôt)')));
+      (ref.blocDechets = h('div', { class: 'bloc-dechets', dataset: { zone: 'dechets' } })));
+    dessinerDechets(false);
     const [totaux, net, taux] = blocTotaux();
     const notes = h('div', { class: 'notes-bas-page' },
       h('h3', { class: 'titre-bloc' }, 'Notes de bas de page'),
       h('textarea', { class: 'champ', id: 'devis-notes', rows: 4, maxlength: 2000, value: d.notesBasDePage ?? '', 'aria-label': 'Notes de bas de page', dataset: { champ: 'notes' }, oninput: (e) => changer({ notesBasDePage: e.target.value }) }));
     // Le bandeau « NET À PAYER » est un enfant direct de la feuille : il reste collé en bas de l'écran tant qu'on défile au-dessus de lui.
     return [h('div', { class: 'bas-devis' }, gauche, totaux), net, taux, notes];
+  }
+
+  // ------------------------------------------------ gestion des déchets : une information du devis, jamais dans les totaux
+  /** Les phrases du PDF (les mêmes), ou [] si rien n'est renseigné ou si les données sont invalides. */
+  function lignesDechets() {
+    try { return vueClient(travail, {}).dechets?.lignes ?? []; } catch { return []; }
+  }
+  /** Le bloc, fermé (phrases + « Définir » ou « Modifier ») ou ouvert (formulaire en place). */
+  function dessinerDechets(ouvert) {
+    const bloc = ref.blocDechets;
+    if (!bloc) return;
+    const titre = h('h3', { class: 'titre-bloc' }, 'Gestion des déchets');
+    if (!ouvert) {
+      const phrases = lignesDechets();
+      const bouton = h('button', { type: 'button', class: 'bouton-lien', dataset: { action: 'definir-dechets' }, onclick: () => dessinerDechets(true) }, phrases.length ? 'Modifier' : 'Définir');
+      remplir(bloc, h('div', { class: 'titre-ligne' }, titre, bouton),
+        phrases.length
+          ? h('div', { class: 'dechets-phrases', dataset: { valeur: 'dechets' } }, phrases.map((l) => h('div', { dataset: { dechetsLigne: '' } }, l)))
+          : h('p', { class: 'texte-discret', dataset: { vide: 'dechets' } }, 'Aucune information sur les déchets'));
+      verrouiller(bloc);
+      return;
+    }
+    const d = travail.dechets && typeof travail.dechets === 'object' ? travail.dechets : {};
+    const depart = {
+      type: Array.isArray(d.types) && d.types.length ? d.types[0] : '',
+      point: typeof d.pointCollecte === 'string' ? d.pointCollecte.trim() : '',
+      min: saisieNombre(d.volumeMin), max: saisieNombre(d.volumeMax), cout: saisiePrix(d.coutTtcParM3),
+    };
+    const erreur = (cle) => h('p', { class: 'erreur', role: 'alert', id: `dechets-erreur-${cle}`, dataset: { erreur: `dechets-${cle}` }, hidden: true });
+    const err = { min: erreur('min'), max: erreur('max'), cout: erreur('cout') };
+    const type = h('select', { class: 'champ', id: 'dechets-type', dataset: { champ: 'dechets-type' }, onchange: majEtat },
+      h('option', { value: '' }, 'Aucun type choisi'), ...TYPES_DECHETS.map((t) => h('option', { value: t.id, selected: t.id === depart.type }, t.libelle)));
+    const champ = (cle, id, valeurDepart, extra = {}) => h('input', { class: 'champ', id, type: 'text', autocomplete: 'off', value: valeurDepart, 'aria-describedby': cle === 'point' ? null : `dechets-erreur-${cle}`, dataset: { champ: `dechets-${cle}` }, oninput: majEtat, ...extra });
+    const point = champ('point', 'dechets-point', depart.point, { maxlength: 200 });
+    const min = champ('min', 'dechets-min', depart.min, { inputmode: 'decimal', placeholder: 'Ex. 5' });
+    const max = champ('max', 'dechets-max', depart.max, { inputmode: 'decimal', placeholder: 'Ex. 10' });
+    const cout = champ('cout', 'dechets-cout', depart.cout, { inputmode: 'decimal', placeholder: 'Ex. 85' });
+    const saisies = () => ({ type: type.value, point: point.value.trim(), min: min.value.trim(), max: max.value.trim(), cout: cout.value.trim() });
+    const modifie = () => JSON.stringify(saisies()) !== JSON.stringify(depart);
+    const enregistrer = h('button', { type: 'button', class: 'bouton', disabled: true, dataset: { action: 'enregistrer-dechets' }, onclick: valider }, 'Enregistrer');
+    function majEtat() { const m = modifie(); enregistrer.disabled = !m; enregistrer.classList.toggle('bouton-principal', m); }
+    function fermer() { dessinerDechets(false); bloc.querySelector('[data-action="definir-dechets"]')?.focus(); }
+    function valider() {
+      if (lecture || !modifie()) return;
+      const s = saisies();
+      const message = { min: '', max: '', cout: '' };
+      const nombre = (cle, brut, nom) => {
+        if (brut === '') return null;
+        const n = A.lireNombre(brut);
+        if (n === null) { message[cle] = `${nom} : écris un nombre, par exemple 12,5.`; return null; }
+        if (n < 0) { message[cle] = `${nom} ne peut pas être négatif.`; return null; }
+        return n;
+      };
+      const vMin = nombre('min', s.min, 'Le volume minimum');
+      const vMax = nombre('max', s.max, 'Le volume maximum');
+      const vCout = nombre('cout', s.cout, 'Le coût');
+      if (vMin !== null && vMax !== null && vMin > vMax) message.max = 'Le maximum doit être égal ou supérieur au minimum.';
+      for (const [cle, el] of Object.entries(err)) { el.hidden = !message[cle]; el.textContent = message[cle]; }
+      for (const [cle, el] of [['min', min], ['max', max], ['cout', cout]]) { el.classList.toggle('invalide', !!message[cle]); el.setAttribute('aria-invalid', message[cle] ? 'true' : 'false'); }
+      if (message.min || message.max || message.cout) return; // rien n'est enregistré
+      if (!s.type && !s.point && vMin === null && vMax === null && vCout === null) changer({ dechets: null }); // null, jamais undefined : sinon l'ancienne valeur resterait dans la base
+      else {
+        // Un devis qui a déjà plusieurs types (démo, ancien MCP) les garde tant que le choix de la liste n'a pas changé.
+        const gardes = s.type === depart.type && Array.isArray(d.types) ? d.types.filter((x) => TYPES_DECHETS.some((y) => y.id === x)) : null;
+        const valeur = { types: gardes ?? (s.type ? [s.type] : []), unite: 'm3' };
+        if (s.point) valeur.pointCollecte = s.point;
+        if (vMin !== null) valeur.volumeMin = vMin;
+        if (vMax !== null) valeur.volumeMax = vMax;
+        if (vCout !== null) valeur.coutTtcParM3 = vCout;
+        changer({ dechets: valeur });
+      }
+      fermer();
+    }
+    const etiquette = (pour, texte) => h('label', { class: 'etiquette', for: pour }, texte);
+    const telephone = window.innerWidth <= LARGEUR_TELEPHONE;
+    const formulaire = h('div', {
+      class: 'dechets-formulaire', role: 'group', 'aria-label': 'Gestion des déchets', tabindex: telephone ? '-1' : null, dataset: { zone: 'dechets-formulaire', ...(telephone ? { focusInitial: '' } : {}) },
+      onkeydown: (e) => {
+        if (e.key === 'Escape') { e.stopPropagation(); fermer(); }
+        else if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); valider(); }
+      },
+    },
+    h('div', { class: 'bloc-champ' }, etiquette('dechets-type', 'Type de déchets'), type),
+    h('div', { class: 'bloc-champ' }, etiquette('dechets-point', 'Point de collecte'), point),
+    h('div', { class: 'dechets-volumes' },
+      h('div', { class: 'bloc-champ' }, etiquette('dechets-min', 'Volume minimum (m³)'), min, err.min),
+      h('div', { class: 'bloc-champ' }, etiquette('dechets-max', 'Volume maximum (m³)'), max, err.max)),
+    h('div', { class: 'bloc-champ' }, etiquette('dechets-cout', 'Coût associé (€ TTC par m³)'), cout, err.cout),
+    h('p', { class: 'texte-discret' }, 'Information imprimée sur le devis : elle ne change pas le prix.'),
+    h('div', { class: 'dechets-actions' },
+      h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'annuler-dechets' }, onclick: fermer }, 'Annuler'), enregistrer));
+    remplir(bloc, h('div', { class: 'titre-ligne' }, titre), formulaire);
+    (telephone ? formulaire : type).focus();
   }
 
   // ------------------------------------------------ totaux : [totaux, NET À PAYER, tableau de TVA]
