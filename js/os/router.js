@@ -75,8 +75,22 @@ export function suivreLiensDuPrefixe() {
     e.preventDefault();
     naviguer(cible.replace(/^#\/?/, ''));
   };
+  // Clic droit, Ctrl/Cmd+clic, clic molette : le navigateur ouvre le href tel quel. On le réécrit donc avant (survol, clavier, appui),
+  // pour que « ouvrir dans un nouvel onglet » et l'adresse affichée en bas du navigateur gardent le préfixe du client.
+  const reecrire = (e) => {
+    const a = e.target?.closest?.('a[href^="#/"]');
+    if (!a) return;
+    const cible = a.getAttribute('href');
+    if (!cible || estSousPrefixe(cible, prefixe)) return;
+    a.setAttribute('href', lien(cible.replace(/^#\/?/, '')));
+  };
+  const avant = ['mouseover', 'focusin', 'mousedown', 'auxclick', 'contextmenu'];
+  for (const type of avant) document.addEventListener(type, reecrire, true);
   document.addEventListener('click', surClic);
-  return () => document.removeEventListener('click', surClic);
+  return () => {
+    document.removeEventListener('click', surClic);
+    for (const type of avant) document.removeEventListener(type, reecrire, true);
+  };
 }
 
 // ---------------------------------------------------------------- garde de sortie
