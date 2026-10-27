@@ -70,6 +70,14 @@ Déjà validés par Jérôme : 280, 282, et le 26/10/2026 : 309 (retour visuel p
 
 ## Reste à faire (code, rien d'urgent)
 
+### Remarques de Jérôme du 27/10/2026 (à prioriser et mettre en lots plus tard, aucun codage lancé)
+1. **Bug** : onglet Devis d'une affaire, le montant d'un brouillon reste à 0 € au retour (flèche du navigateur) après avoir ajouté des ouvrages ; le bon montant n'apparaît qu'après rafraîchissement.
+2. **Croix de suppression** sur chaque devis en brouillon dans l'onglet Devis, avec fenêtre de confirmation (décidé). Brouillons seulement.
+3. **Nommer un brouillon** : aucun endroit pour écrire le nom dans l'éditeur (le titre « Devis n° brouillon » n'est pas éditable) ; à cadrer (champ « objet » existant ? PDF ?). Lié au 2.
+4. **Flèche de l'éditeur du devis** : « Retour » vers la page d'origine (fiche affaire, même onglet, ou liens sous le nom de l'affaire), liste des devis si origine inconnue (décidé). Navigation : relecture Fable.
+5. **Fenêtre de confirmation** sur « Devis refusé » et « Devis signé » (décidé). À vérifier : le refus est-il annulable ?
+6. **Export des données** : chaque module doit avoir son propre bouton d'export. Règle ajoutée à `CLAUDE.md`. À faire : lister les modules qui n'en ont pas et les compléter.
+
 ### Priorité haute (demande de Jérôme, 26/10/2026)
 - **Haut de page du devis : un seul bouton jaune qui suit l'étape** (PR `devis-entete-bouton-jaune`, en brouillon, relecture Fable avant fusion) : Brouillon = « Finaliser » + « Envoyer » grisé ; Finalisé = « Envoyer » ; Envoyé = « Devis signé » + « Devis refusé » ; Signé, refusé, remplacé, archivé = aucun. « Imprimer » un brouillon donne le PDF brouillon (filigrane + pied « Brouillon v… · généré le … »), sans fenêtre « Finaliser ». Idée suivante, pas faite : « Préparer l'e-mail » comme bouton jaune quand la fonction fonctionnera pour de bon (le choix est dans `boutonJaune`, `js/modules/devis/entete-boutons.js`).
 
