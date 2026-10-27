@@ -1,7 +1,6 @@
 // Module Devis (cadrage-devis.md) : montage et routes. Trois écrans : le Bordereau (articles), la liste des devis et l'éditeur d'un devis.
 // Routes : devis/bordereau, devis/liste, devis/voir/<id> (le même écran que l'éditeur, ouvert sur l'onglet Prévisualisation), devis/editeur (nouveau devis : choix de l'affaire), devis/editeur/<id> (non déclarée dans le menu : on y arrive par la liste), devis/pdf/<id> et devis/pdf/<id>/brouillon (ouvrent le PDF rangé dans notre stockage : adresse stable, les anciens liens des Documents des affaires y mènent). Le module lit le CRM (étapes des affaires) : le CRM démarre avant lui (le module Devis dépend de « affaires », pas de « projets »).
 import { vider } from '../../os/ui.js';
-import { naviguer } from '../../os/router.js';
 import * as D from './donnees.js';
 import { rendreBordereau } from './bordereau.js';
 import { rendreListeDevis } from './liste-ecran.js';
@@ -11,9 +10,11 @@ import { memoriserOrigine } from './pdf.js';
 import { reglages as reglagesDuModule } from './reglages.js';
 import { retenirDevis } from './memoire.js';
 import * as CRM from '../crm/donnees.js';
-import { inscrirePastilleAffaire, inscrireOngletAffaire, signaler } from '../crm/pastilles-externes.js';
+import { inscrirePastilleAffaire, inscrireOngletAffaire, inscrireActionAffaire, signaler } from '../crm/pastilles-externes.js';
 import { pastilleDevisDeAffaire } from './pastille-affaire.js';
-import { ongletDevisDeAffaire, oublierOnglets } from './onglet-affaire.js';
+import { ongletDevisDeAffaire, oublierOnglets, ajouterDevis } from './onglet-affaire.js';
+import { actionEnteteDevis } from './onglet-affaire-logique.js';
+import { naviguer } from '../../os/router.js';
 import { rechercherDevis } from './recherche.js';
 import { ETAPES_DEPLOIEMENT_DEVIS, controlerDeploiementDevis } from './deploiement.js';
 import { attendreQue } from '../../os/deploiement.js';
@@ -37,16 +38,25 @@ let montee = null; // { cle, quitter }
 
 let retirerPastille = null;
 let retirerOnglet = null;
+let retirerAction = null;
 let arretSignal = null;
 
 export function demarrer({ cheminBase = '' } = {}) {
   ajouterFeuille(); // aussi pour la page Réglages, qui montre une section du module
   D.demarrer(cheminBase);
   // Pastille « Devis : … » sur les cartes et fiches d'affaire (seulement tant que le module tourne : éteint, le CRM n'affiche rien).
-  retirerPastille?.(); retirerOnglet?.(); arretSignal?.();
+  retirerPastille?.(); retirerOnglet?.(); retirerAction?.(); arretSignal?.();
   retirerPastille = inscrirePastilleAffaire((affaireId) => (D.estPretDevis() ? pastilleDevisDeAffaire(D.etat.devis, affaireId, { aujourdhui: CRM.ctx().aujourdhui }) : null));
   // Onglet « Devis » à côté d'Activité / Notes / Documents (même règle : module éteint = rien d'inscrit = pas d'onglet). Un seul signal pour la pastille et l'onglet.
   retirerOnglet = inscrireOngletAffaire(ongletDevisDeAffaire);
+  // Bouton d'action de l'en-tête de l'affaire, à côté de « Perdue » : « Créer un devis », ou « Voir le devis » quand il y en a déjà un.
+  retirerAction = inscrireActionAffaire((affaireId) => {
+    const r = actionEnteteDevis(D.etat.devis, affaireId, D.estPretDevis());
+    if (!r) return null;
+    return r.mode === 'creer'
+      ? { libelle: r.libelle, icone: 'plus', action: () => ajouterDevis(affaireId) }
+      : { libelle: r.libelle, icone: 'file-text', action: () => naviguer(r.route) };
+  });
   arretSignal = D.surChangement(signaler);
 }
 
@@ -55,6 +65,7 @@ export function arreter() {
   memoriserOrigine(''); // on quitte le module : l'origine ne vaut plus (un lien de pastille depuis une affaire retombe sur le devis lui-même)
   retirerPastille?.(); retirerPastille = null;
   retirerOnglet?.(); retirerOnglet = null;
+  retirerAction?.(); retirerAction = null;
   oublierOnglets();
   arretSignal?.(); arretSignal = null;
   signaler();

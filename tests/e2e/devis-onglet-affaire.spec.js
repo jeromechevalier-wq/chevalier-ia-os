@@ -130,7 +130,7 @@ test('2 module actif : onglet « Devis » en dernier avec le compteur 2, devis d
   await expect(finalise.getByRole('button', { name: 'Télécharger le PDF du devis DEV-2026-10-02-001' })).toHaveText('Télécharger');
   await expect(brouillon.getByRole('link', { name: /Ouvrir le PDF brouillon du devis/ })).toHaveText('Ouvrir le PDF brouillon');
   await expect(brouillon.getByRole('button', { name: /Télécharger le PDF brouillon du devis/ })).toBeVisible();
-  await expect(page.locator('.bouton-principal:visible')).toHaveCount(0); // aucun bouton jaune de plus : « + Ajouter » est un texte jaune
+  await expect(page.locator('.bouton-principal:visible')).toHaveCount(1); // un seul bouton jaune : « Créer un devis » / « Voir le devis » de l'en-tête (« + Ajouter » est un texte jaune)
   await capturer(page, info, '2-onglet-devis');
 });
 

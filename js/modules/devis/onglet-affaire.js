@@ -50,7 +50,7 @@ async function telecharger(d, apres) {
   }
 }
 
-async function ajouterDevis(affaireId) {
+export async function ajouterDevis(affaireId) {
   if (enCreation.has(affaireId)) return;
   const affaire = CRM.affaire(affaireId);
   if (!affaire) return;

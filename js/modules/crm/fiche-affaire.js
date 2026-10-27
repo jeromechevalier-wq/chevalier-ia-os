@@ -6,7 +6,7 @@ import {
   liensEntete, afficherSelecteur, sectionRepliable, champPropriete, selecteurPersonne, selecteurOrganisation, titreEditable, selectProprietaire, gabaritFiche,
   lienRetour, saisieEnCours, pastilleStatut, etatVide, planifier, iconeInfo, EXPLICATION_STATUT_AFFAIRE, pastillesExternes,
 } from './composants.js';
-import { surChangementPastilles, ongletsDeAffaire } from './pastilles-externes.js';
+import { surChangementPastilles, ongletsDeAffaire, actionDeAffaire } from './pastilles-externes.js';
 import { panneauActivite } from './activites.js';
 import { creerLanceurs } from './lanceurs.js';
 import { retirerAvecAnnulation } from '../../os/retrait.js';
@@ -76,11 +76,15 @@ export function rendreFicheAffaire(conteneur, id) {
         { libelle: a.archive ? 'Désarchiver' : 'Archiver', icone: a.archive ? 'archive-restore' : 'archive', action: () => D.archiverAffaire(a.id, !a.archive) },
         { libelle: 'Supprimer définitivement…', icone: 'trash-2', danger: true, action: () => demanderSuppressionAffaire(a) },
       ]) }, icone('ellipsis', { taille: 20 }));
+    // Action d'un module (ex. « Créer un devis ») : le bouton jaune de la page tant que l'affaire est en cours ; perdue ou gagnée, « Rouvrir » est le jaune et l'action reste en contour.
+    const externe = actionDeAffaire(a.id);
+    const boutonExterne = externe ? h('button', { type: 'button', class: `bouton ${vivante ? 'bouton-principal' : 'bouton-secondaire'}`, 'data-action': 'action-module', onclick: () => externe.action() }, externe.icone ? icone(externe.icone, { taille: 16 }) : null, externe.libelle) : null;
     const actionsStatut = vivante
       ? [
+        boutonExterne,
         h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'perdue', onclick: () => ouvrirPerdue(a) }, 'Perdue'),
       ]
-      : [h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'rouvrir', onclick: () => D.rouvrir(a.id) }, icone('rotate-ccw', { taille: 16 }), 'Rouvrir')];
+      : [boutonExterne, h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'rouvrir', onclick: () => D.rouvrir(a.id) }, icone('rotate-ccw', { taille: 16 }), 'Rouvrir')];
 
     const entete = h('header', { class: 'fiche-tete' },
       lienRetour('#/crm/affaires', 'Affaires'),

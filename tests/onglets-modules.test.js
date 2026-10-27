@@ -61,3 +61,19 @@ test('5 signaler() prévient les abonnés existants (pas de deuxième système d
   assert.equal(appels, 1);
   arret();
 });
+
+test('8 action d’en-tête d’un module : aucun fournisseur = null ; fournisseur qui plante ou réponse invalide ignorés ; le premier valide gagne ; le retrait la fait disparaître', () => {
+  assert.equal(P.actionDeAffaire('a1'), null);
+  const r1 = P.inscrireActionAffaire(() => { throw new Error('boum'); });
+  const r2 = P.inscrireActionAffaire(() => ({ libelle: '', action: () => {} }));
+  const r3 = P.inscrireActionAffaire(() => ({ libelle: 'Sans action' }));
+  const r4 = P.inscrireActionAffaire((id) => (id === 'a1' ? { libelle: 'Créer un devis', action: () => {} } : null));
+  const r5 = P.inscrireActionAffaire(() => ({ libelle: 'Autre', action: () => {} }));
+  const avertir = console.warn; console.warn = () => {};
+  try {
+    assert.equal(P.actionDeAffaire('a1').libelle, 'Créer un devis');
+    assert.equal(P.actionDeAffaire('a2').libelle, 'Autre');
+  } finally { console.warn = avertir; }
+  for (const r of [r1, r2, r3, r4, r5]) r();
+  assert.equal(P.actionDeAffaire('a1'), null);
+});

@@ -371,7 +371,7 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 .types-activite, .pastilles-filtre { display: flex; gap: var(--esp-2); flex-wrap: wrap; }
 .pastille-type { display: inline-flex; align-items: center; gap: var(--esp-2); min-height: 32px; padding: var(--esp-1) var(--esp-5); border-radius: 999px; border: 1px solid var(--bordure-forte); background: transparent; color: var(--texte2); font-size: var(--fs-menu); font-weight: var(--poids-moyen); cursor: pointer; }
 .pastille-type:hover { color: var(--texte); border-color: var(--accent-trait); }
-.pastille-type.actif { background: var(--accent); border-color: var(--accent); color: var(--sur-accent); }
+.pastille-type.actif { background: var(--survol); border-color: var(--texte2); color: var(--texte); } /* choix sélectionné : pas de jaune, il est réservé à l'action principale de la page */
 .selecteur-date { display: flex; flex-direction: column; gap: var(--esp-3); }
 .dates-rapides { display: flex; flex-wrap: wrap; gap: var(--esp-2); }
 /* Compositeur d'activité : Demain, +3 jours, +1 semaine, +2 semaines, la date et l'heure sur une même ligne (elle passe à la ligne si la place manque). */

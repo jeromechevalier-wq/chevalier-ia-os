@@ -44,6 +44,26 @@ export function ongletsDeAffaire(affaireId) {
   return liste;
 }
 
+// Action principale qu'un module propose dans l'en-tête d'une affaire, à côté de « Perdue » (ex. « Créer un devis »). Un fournisseur est `(affaireId) => null | { libelle, icone, action }` ;
+// la fiche en fait le bouton jaune tant que l'affaire est en cours (secondaire sinon : un seul jaune par page). Premier fournisseur qui répond gagne ; un fournisseur qui plante est ignoré.
+const fournisseursActions = new Set();
+
+export function inscrireActionAffaire(fournisseur) {
+  fournisseursActions.add(fournisseur);
+  return () => { fournisseursActions.delete(fournisseur); };
+}
+
+/** L'action principale proposée par un module pour cette affaire, ou null. Ignorés : sans `libelle` ou sans `action` fonction. */
+export function actionDeAffaire(affaireId) {
+  for (const f of fournisseursActions) {
+    try {
+      const a = f(affaireId);
+      if (a && typeof a.libelle === 'string' && a.libelle && typeof a.action === 'function') return a;
+    } catch (e) { console.warn(e); }
+  }
+  return null;
+}
+
 export function surChangementPastilles(rappel) {
   abonnes.add(rappel);
   return () => { abonnes.delete(rappel); };

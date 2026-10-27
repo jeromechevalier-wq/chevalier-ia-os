@@ -40,3 +40,13 @@ export const estIntrouvable = (e) => String(e?.code ?? '').replace('functions/',
 
 /** Adresse que le navigateur peut ouvrir pour enregistrer le fichier : https seulement. */
 export const adresseTelechargeable = (url) => typeof url === 'string' && url.startsWith('https://');
+
+/**
+ * Le bouton d'action de l'en-tête de l'affaire : « Créer un devis » sans devis, « Voir le devis » (le plus récent) sinon ; rien tant que les devis ne sont pas lus.
+ * Même si l'affaire est perdue ou gagnée : on a toujours envie de revoir le devis. Rend { mode: 'creer' } ou { mode: 'voir', route }.
+ */
+export function actionEnteteDevis(devis, affaireId, pret) {
+  if (!pret || !affaireId) return null;
+  const dernier = devisDeAffaire(devis, affaireId)[0];
+  return dernier ? { mode: 'voir', libelle: 'Voir le devis', route: routeVoirDevis(dernier) } : { mode: 'creer', libelle: 'Créer un devis' };
+}
