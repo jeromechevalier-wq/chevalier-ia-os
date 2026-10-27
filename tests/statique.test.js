@@ -84,6 +84,8 @@ describe('D2 Aucune ressource externe hors Google', () => {
         // Adresses écrites en texte (prompts à coller dans Claude Code, exemples et validation des champs GitHub et Dossier, lien vers l'OS) :
         // jamais chargées. Le parcours D2 dans le navigateur vérifie qu'aucune requête ne part vers ces sites.
         if (/^https:\/\/(github\.com\/|drive\.google\.com\/drive\/|chevalier-ia-os\.web\.app)/.test(url) && /logique\.js$|lanceurs\.js$/.test(f)) continue;
+        // Adresse stable du PDF d'un devis écrite dans les Documents de l'affaire (27/10/2026) : les deux sites de l'application, en texte, jamais chargés (devis/pdf.js).
+        if (/^https:\/\/chevalier-ia-(os|app)\.web\.app$/.test(url) && /modules\/devis\/pdf\.js$/.test(f)) continue;
         // Page Réglages > Déploiement (25/10/2026) : liens de réparation (mode d'emploi dans docs/ sur GitHub, console Google), affichés comme liens, jamais chargés.
         if (/^https:\/\/(github\.com\/jeromechevalier-wq\/chevalier-ia-os\/blob\/main\/docs\/|console\.cloud\.google\.com\/)/.test(url) && /deploiement\.js$/.test(f)) continue;
         assert.match(url, autorise, `${f} : ${url}`);
@@ -235,7 +237,7 @@ describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
     assert.match(r, /email_verified == true/);
     assert.match(r, /jerome\.chevalier@gmail\.com/);
     assert.match(r, /jeromebot\.chevalierbot@gmail\.com/);
-    assert.match(r, /!\(collection in \['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions', 'devis_devis', 'devis_compteurs', 'devis_articles'\]\)/); // + les devis, leur compteur et le bordereau (24/10/2026) : règles propres, voir devis-regles.test.js
+    assert.match(r, /!\(collection in \['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions', 'devis_devis', 'devis_compteurs', 'devis_articles', 'crm_actions_lancements'\]\)/); // + les devis, leur compteur et le bordereau (24/10/2026), le journal des demandes d'e-mail (25/10/2026) : règles propres, voir devis-regles.test.js
     for (const t of ['tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions']) {
       assert.match(r, new RegExp(`match /${t}/\\{id\\} \\{\\s+allow read: if compteAutorise\\(\\);\\s+allow write: if false;`), `${t} : lecture seule pour l'écran`);
     }
@@ -391,6 +393,23 @@ describe('D5 Serveur MCP (étape 2) : déploiement, versions figées, sécurité
     assert.match(yml, /JSON\.parse\(process\.env\.COMPTE_DE_SERVICE\)\.client_email/);
     assert.doesNotMatch(yml, /(echo|cat|printenv|console\.log\([^)]*)\s*[^\n]*\$\{\{\s*secrets\./);
     assert.doesNotMatch(yml, /private_key/);
+  });
+  test('D5 workflow « Publier les règles » : manuel seulement, règles Firestore seulement, clé temporaire supprimée, aucun secret affiché', () => {
+    const yml = lire('.github/workflows/publier-regles.yml');
+    assert.match(yml, /on:\s*\n\s*workflow_dispatch:\s*\n/);
+    assert.doesNotMatch(yml, /^\s*(push|schedule|pull_request|workflow_run):/m);
+    assert.match(yml, /permissions:\s*\n\s*contents: read/);
+    assert.match(yml, /firebase-tools@15\.32\.0 deploy --only firestore:rules --project chevalier-ia-os --non-interactive/);
+    assert.doesNotMatch(yml, /--only[^\n]*(functions|hosting)/);
+    assert.match(yml, /secrets\.FIREBASE_SERVICE_ACCOUNT_CHEVALIER_IA_OS/);
+    assert.match(yml, /GOOGLE_APPLICATION_CREDENTIALS/);
+    assert.match(yml, /trap 'rm -f "\$fichier"' EXIT/);
+    assert.match(yml, /umask 077/);
+    assert.match(yml, /firebaserules\.admin/);
+    assert.match(yml, /JSON\.parse\(process\.env\.COMPTE_DE_SERVICE\)\.client_email/);
+    assert.doesNotMatch(yml, /private_key/);
+    assert.equal(JSON.parse(lire('firebase.json')).firestore.rules, 'firestore.rules');
+    assert.ok(existsSync(join(RACINE, 'firestore.rules')));
   });
   test('D5 le jeton n’est jamais lu ailleurs que dans l’en-tête Authorization (ni adresse, ni corps) et seules des empreintes sont comparées', () => {
     const g = lire('functions/src/mcp/gestionnaire.js');

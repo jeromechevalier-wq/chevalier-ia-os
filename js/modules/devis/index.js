@@ -12,6 +12,8 @@ import { reglages as reglagesDuModule } from './reglages.js';
 import { retenirDevis } from './memoire.js';
 import * as CRM from '../crm/donnees.js';
 import { inscrirePastilleAffaire, signaler } from '../crm/pastilles-externes.js';
+import { inscrireApresDossierAffaire } from '../crm/dossier-externe.js';
+import { apresDossierDeTravail } from './dossier-travail.js';
 import { pastilleDevisDeAffaire } from './pastille-affaire.js';
 import { rechercherDevis } from './recherche.js';
 import { ETAPES_DEPLOIEMENT_DEVIS, controlerDeploiementDevis, adresseEssaiCors } from './deploiement.js';
@@ -37,6 +39,7 @@ let montee = null; // { cle, quitter }
 
 let retirerPastille = null;
 let arretSignal = null;
+let retirerCrochetDossier = null;
 
 export function demarrer({ cheminBase = '' } = {}) {
   ajouterFeuille(); // aussi pour la page Réglages, qui montre une section du module
@@ -45,6 +48,9 @@ export function demarrer({ cheminBase = '' } = {}) {
   retirerPastille?.(); arretSignal?.();
   retirerPastille = inscrirePastilleAffaire((affaireId) => (D.estPretDevis() ? pastilleDevisDeAffaire(D.etat.devis, affaireId, { aujourdhui: CRM.ctx().aujourdhui }) : null));
   arretSignal = D.surChangement(signaler);
+  // Dossier de travail créé ou lié sur une affaire : les PDF de ses devis finalisés y sont copiés.
+  retirerCrochetDossier?.();
+  retirerCrochetDossier = inscrireApresDossierAffaire(apresDossierDeTravail);
 }
 
 export function arreter() {
@@ -52,6 +58,7 @@ export function arreter() {
   memoriserOrigine(''); // on quitte le module : l'origine ne vaut plus (un lien de pastille depuis une affaire retombe sur le devis lui-même)
   retirerPastille?.(); retirerPastille = null;
   arretSignal?.(); arretSignal = null;
+  retirerCrochetDossier?.(); retirerCrochetDossier = null;
   signaler();
   D.arreter();
 }
