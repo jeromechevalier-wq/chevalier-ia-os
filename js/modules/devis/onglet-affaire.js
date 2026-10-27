@@ -12,7 +12,7 @@ import * as Li from './liste.js';
 import { formaterMontant } from './document.js';
 import { pastilleStatutDevis } from './pastille-statut.js';
 import { indicateurPdf } from './pdf-indicateur.js';
-import { etatPdfDevis, routePdf } from './pdf.js';
+import { etatPdfDevis } from './pdf.js';
 import { clientsDeAffaire } from './editeur-ecran.js';
 import { valeursDeCreation } from './editeur-logique.js';
 import { ERREUR_ECRITURE } from './actions-devis.js';
@@ -85,7 +85,7 @@ function creerElement(affaireId) {
       if (pret && !lignes.length) corps.push(h('p', { class: 'texte-discret', dataset: { role: 'aucun-devis' } }, P.LIBELLE_VIDE));
       else if (lignes.length) corps.push(h('ul', { class: 'liste-liens', dataset: { liste: 'devis-affaire' } }, lignes.map((d) => ligne(d, { aujourdhui, apres }))));
     }
-    // Le redessin remplace les boutons : le focus clavier revient sur le bouton qui l'avait (même devis, même action).
+    // Le redessin remplace les éléments : le focus clavier revient sur le bouton qui l'avait (même devis, même action).
     const actif = document.activeElement;
     const ancien = actif && racine.contains(actif) ? { devis: actif.closest('[data-devis]')?.dataset.devis, action: actif.dataset.action } : null;
     remplir(racine, ...corps);
