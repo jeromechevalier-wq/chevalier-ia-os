@@ -6,7 +6,7 @@ import {
   liensEntete, afficherSelecteur, sectionRepliable, champPropriete, selecteurPersonne, selecteurOrganisation, titreEditable, selectProprietaire, gabaritFiche,
   lienRetour, saisieEnCours, pastilleStatut, etatVide, planifier, iconeInfo, EXPLICATION_STATUT_AFFAIRE, pastillesExternes,
 } from './composants.js';
-import { surChangementPastilles } from './pastilles-externes.js';
+import { surChangementPastilles, ongletsDeAffaire } from './pastilles-externes.js';
 import { panneauActivite } from './activites.js';
 import { creerLanceurs } from './lanceurs.js';
 import { retirerAvecAnnulation } from '../../os/retrait.js';
@@ -166,8 +166,9 @@ export function rendreFicheAffaire(conteneur, id) {
     const documents = sectionLiensEtDocuments({ id: 'affaire-documents', typeFiche: 'affaire', entite: a, courant: () => D.affaire(a.id) || a, enregistrer: (patch) => D.majAffaire(a.id, patch),
       avant: [h('div', { class: 'proprietes' }, lanceurs.dossier)] });
 
-    if (!panneau) panneau = panneauActivite({ lien: { affaireId: a.id }, liensCreation: () => L.liensAffaire(D.affaire(a.id) || a), avecDocuments: true });
+    if (!panneau) panneau = panneauActivite({ lien: { affaireId: a.id }, liensCreation: () => L.liensAffaire(D.affaire(a.id) || a), avecDocuments: true, ongletsExternes: () => ongletsDeAffaire(a.id) });
     panneau.majDocuments(documents);
+    panneau.majOngletsExternes();
     remplir(racine, gabaritFiche({ entete, gauche: [resume.element, sectionProjet?.element, details.element].filter(Boolean), droite: panneau.element }));
   }
 
@@ -187,6 +188,7 @@ export function rendreFicheAffaire(conteneur, id) {
     if (!saisieEnCours(racine)) { reconstruire(); return; }
     majSelecteurs?.();
     majBarreEtapes();
+    panneau?.majOngletsExternes(); // boutons, compteurs et onglet disparu ; un panneau où l'on écrit n'est pas remplacé
     majLiens?.(); // une saisie est en cours (le choix dans le Résumé garde le focus) : la fiche n'est pas refaite, mais les liens du haut suivent
   });
   reconstruire();

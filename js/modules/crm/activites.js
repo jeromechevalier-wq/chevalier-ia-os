@@ -238,9 +238,10 @@ export function oublierFiltresHistorique() { typesHistorique = []; }
  * (les notes marquées `deAffaire` n'ont ni « Modifier » ni « Supprimer » : elles restent sur l'affaire).
  * `avecActivites: false` : ni onglet « Activité », ni « À faire », seulement les notes et l'historique (plus utilisé : la fiche projet a retrouvé ses activités).
  * `avecDocuments` : ajoute un onglet « Documents » (après Notes) ; la fiche y met son contenu par `majDocuments({ element, compteur })` (appelée à chaque fois que la fiche est redessinée).
+ * `ongletsExternes` : `null` ou `() => liste` d'onglets que d'autres modules ajoutent APRÈS Documents (`{ id, libelle, icone, element, compteur }`, voir `ongletsDeAffaire`) ; la fiche appelle `majOngletsExternes()` à chaque redessin.
  * `typesActivite` : identifiants des types proposés dans l'onglet Activité (par défaut tous, dans l'ordre de `L.TYPES_ACTIVITE`). Le type choisi au départ est le premier (Appel).
  */
-export function panneauActivite({ lien, liensCreation, avecActivites = true, affaireLiee = null, typesActivite = null, avecDocuments = false }) {
+export function panneauActivite({ lien, liensCreation, avecActivites = true, affaireLiee = null, typesActivite = null, avecDocuments = false, ongletsExternes = null }) {
   let fil = { notes: [], evenements: [] };
   let filAffaire = { notes: [] };
   let onglet = avecActivites ? 'activite' : 'notes';
@@ -328,16 +329,24 @@ export function panneauActivite({ lien, liensCreation, avecActivites = true, aff
     icone('paperclip', { taille: 16 }), 'Documents', compteurDocuments) : null;
   const zoneDocuments = h('div', { class: 'pile' });
   const panneauDocuments = avecDocuments ? h('div', { class: 'compositeur-corps', role: 'tabpanel', 'aria-label': 'Documents', hidden: true }, zoneDocuments) : null;
-  function choisirOnglet(o) {
+  const externes = new Map(); // id -> { bouton, panneau, element, cle } : onglets apportés par d'autres modules
+  const ongletDeRepli = avecActivites ? 'activite' : 'notes';
+  function choisirOnglet(o, { focus = true } = {}) {
     onglet = o;
     for (const [b, id] of [[ongletActivite, 'activite'], [ongletNotes, 'notes'], [ongletDocuments, 'documents']]) {
       if (!b) continue;
       b.classList.toggle('actif', id === o);
       b.setAttribute('aria-selected', String(id === o));
     }
+    for (const [id, e] of externes) {
+      e.bouton.classList.toggle('actif', id === o);
+      e.bouton.setAttribute('aria-selected', String(id === o));
+      e.panneau.hidden = id !== o;
+    }
     panneauActiviteSaisie.hidden = o !== 'activite';
     panneauNoteSaisie.hidden = o !== 'notes';
     if (panneauDocuments) panneauDocuments.hidden = o !== 'documents';
+    if (!focus) return;
     if (o === 'activite') champTitre.focus();
     else if (o === 'notes') champNote.focus();
   }
@@ -347,6 +356,41 @@ export function panneauActivite({ lien, liensCreation, avecActivites = true, aff
     panneauActiviteSaisie.hidden = true;
   }
   const compositeur = h('div', { class: 'compositeur' }, h('div', { class: 'onglets', role: 'tablist' }, avecActivites ? ongletActivite : null, ongletNotes, ongletDocuments), panneauActiviteSaisie, panneauNoteSaisie, panneauDocuments);
+  const barreOnglets = compositeur.querySelector('.onglets');
+
+  /** Met à jour les onglets des autres modules : ajoute, change (contenu, compteur), retire. Ne remplace jamais un panneau où l'on est en train d'écrire. */
+  function majOngletsExternes() {
+    if (!ongletsExternes) return;
+    let liste = [];
+    try { liste = ongletsExternes() || []; } catch (e) { console.warn(e); }
+    const ids = new Set(liste.map((o) => o.id));
+    for (const [id, e] of externes) if (!ids.has(id)) { e.bouton.remove(); e.panneau.remove(); externes.delete(id); }
+    for (const o of liste) {
+      let e = externes.get(o.id);
+      if (!e) {
+        e = {
+          bouton: h('button', { type: 'button', role: 'tab', class: 'onglet', 'aria-selected': 'false', 'data-onglet': o.id, onclick: () => choisirOnglet(o.id) }),
+          panneau: h('div', { class: 'compositeur-corps', role: 'tabpanel', hidden: true }), element: null, cle: null,
+        };
+        externes.set(o.id, e);
+        barreOnglets.append(e.bouton);
+        compositeur.append(e.panneau);
+      }
+      e.panneau.setAttribute('aria-label', o.libelle);
+      const compteur = Number.isFinite(o.compteur) ? o.compteur : null;
+      const cle = `${o.icone}|${o.libelle}|${compteur}`;
+      if (cle !== e.cle) {
+        e.cle = cle;
+        e.bouton.replaceChildren(...[o.icone ? icone(o.icone, { taille: 16 }) : null, o.libelle, compteur === null ? null : h('span', { class: 'compteur' }, String(compteur))].filter((x) => x !== null));
+      }
+      if (e.element !== o.element && !e.panneau.contains(document.activeElement)) { remplir(e.panneau, o.element); e.element = o.element; }
+    }
+    // Même ordre que les fournisseurs (on ne déplace un nœud que si l'ordre a changé : un déplacement ferait perdre le focus).
+    const voulus = liste.map((o) => externes.get(o.id));
+    const actuels = [...barreOnglets.children].filter((b) => externes.has(b.dataset.onglet)).map((b) => externes.get(b.dataset.onglet));
+    if (voulus.some((e, i) => e !== actuels[i]) && !voulus.some((e) => e.panneau.contains(document.activeElement))) for (const e of voulus) { barreOnglets.append(e.bouton); compositeur.append(e.panneau); }
+    if (onglet !== 'activite' && onglet !== 'notes' && onglet !== 'documents' && !externes.has(onglet)) choisirOnglet(ongletDeRepli, { focus: false });
+  }
 
   // ---- points clés et historique
   // Sans les copies en double (I5 : la note épinglée d'un projet créé depuis une affaire copie celle de l'affaire).
@@ -524,6 +568,7 @@ export function panneauActivite({ lien, liensCreation, avecActivites = true, aff
     focusActivite() { choisirOnglet('activite'); },
     focusNote() { choisirOnglet('notes'); },
     majDocuments({ element, compteur }) { remplir(zoneDocuments, element); compteurDocuments.textContent = String(compteur); },
+    majOngletsExternes,
   };
 }
 
