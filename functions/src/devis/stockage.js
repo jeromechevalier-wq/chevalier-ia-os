@@ -36,7 +36,7 @@ export function horodatageParis(date = new Date()) {
 }
 
 /**
- * Nom lisible du document de l'affaire : « Devis DEV-… v1 – Objet.pdf », ou, pour le brouillon, « Devis brouillon – Objet – 26-10-2026 14h32.pdf » (date et heure de Paris
+ * Nom lisible du PDF (`pdf.nom` du devis, `nom` rendu par devisPdf) : « Devis DEV-… v1 – Objet.pdf », ou, pour le brouillon, « Devis brouillon – Objet – 26-10-2026 14h32.pdf » (date et heure de Paris
  * du dernier téléchargement ; un seul document brouillon par devis, remplacé et renommé à chaque fois). Le mot « Devis » est toujours là : dans les Documents d'une affaire, on voit tout de suite que c'est un devis.
  * `date` : seulement pour le brouillon. Le nom est nettoyé et borné ; l'horodatage est gardé en entier (c'est l'objet qui est raccourci).
  */
