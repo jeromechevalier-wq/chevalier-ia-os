@@ -35,7 +35,7 @@ describe('liens-prefixe-clic-droit', () => {
     definirPrefixe('espace/clientdemo');
     const ec = faireDocument();
     const stop = suivreLiensDuPrefixe();
-    for (const type of ['mouseover', 'focusin', 'contextmenu', 'auxclick']) {
+    for (const type of ['mouseover', 'focusin', 'contextmenu', 'auxclick', 'pointerdown']) {
       const { a, enfant } = faireLien('#/crm/affaires/x');
       declencher(ec, type, enfant);
       assert.equal(a.getAttribute('href'), '#/espace/clientdemo/crm/affaires/x', type);
@@ -92,7 +92,7 @@ describe('liens-prefixe-clic-droit', () => {
     definirPrefixe('espace/clientdemo');
     const ec = faireDocument();
     const stop = suivreLiensDuPrefixe();
-    assert.equal(ec.length, 6);
+    assert.equal(ec.length, 7);
     stop();
     assert.equal(ec.length, 0);
   });

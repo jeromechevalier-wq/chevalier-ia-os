@@ -84,7 +84,7 @@ export function suivreLiensDuPrefixe() {
     if (!cible || estSousPrefixe(cible, prefixe)) return;
     a.setAttribute('href', lien(cible.replace(/^#\/?/, '')));
   };
-  const avant = ['mouseover', 'focusin', 'mousedown', 'auxclick', 'contextmenu'];
+  const avant = ['mouseover', 'focusin', 'pointerdown', 'mousedown', 'auxclick', 'contextmenu'];
   for (const type of avant) document.addEventListener(type, reecrire, true);
   document.addEventListener('click', surClic);
   return () => {
