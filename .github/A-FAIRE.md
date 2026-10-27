@@ -11,7 +11,7 @@ Mise à jour : 27/10/2026, soir. Règle de Jérôme : **« testé par Jérôme �
 | 5 | Une seule liste « Étape où vivent les devis » | 286 | oui (26/10/2026) |
 | 7 | Copie du PDF dans le dossier Drive de l'affaire (+ correctifs) | 283, 290, 331 | à faire (réglage CORS fait le 27/10/2026 ; la PR 331, fusionnée et en ligne chez Jérôme, ajoute le bouton « Créer le dossier … et y copier le PDF » : voir « PDF et dossier de travail ») |
 | 8 | E-mails en copie (la suppression d'un brouillon ne retire plus son PDF : voir 16) | 291 | à faire |
-| 9 | Envoi du devis par e-mail (brouillon Gmail, « Marquer comme envoyé », historique des envois) | 292 | à faire (réglages Google d'abord) |
+| 9 | Envoi du devis par e-mail (brouillon Gmail, « Marquer comme envoyé », historique des envois) | 292 | remplacé le 27/10/2026 par « Préparer l'e-mail » (n8n, ligne 14, PR 334) ; « Marquer comme envoyé » et l'historique restent |
 | 10 | Menu des cartes, historique, « … » à côté d'Envoyer, plus de fiche du devis | 294 | à faire |
 | 11 | Pastilles des réglages Devis (Général / Mon entreprise / Familles d'articles) | 295 | oui (26/10/2026) |
 | 12 | Outils MCP Devis (nouvelle version, archiver, statut, supprimer, envoi) | 296 | à faire |
@@ -89,7 +89,6 @@ Déjà validés par Jérôme : 280, 282, et le 26/10/2026 : 309 (retour visuel p
 - Cible tactile des pastilles-liens inférieure à 44 px.
 - Écran du PDF : « Retour au devis » ramenait à la liste après une finalisation. Corrigé dans la PR « retour à la page d'origine » (à tester par Jérôme une fois fusionnée et en ligne), test e2e n° 4.
 - **Génération du PDF trop lente** : elle prend plusieurs secondes et on a l'impression que l'outil a planté. À étudier : mesurer où passe le temps, puis afficher une progression claire (message « fabrication en cours », indicateur) et/ou accélérer (demandé par Jérôme le 26/10/2026).
-- « Préparer l'e-mail » dans le menu de la liste des devis (aujourd'hui seulement dans l'éditeur).
 - Le test `devis-email.spec.js` n°1 sur téléphone mesure 43,68 px au lieu de 44 pendant l'animation de la fenêtre (même défaut de timing corrigé dans le nouveau spec) : à stabiliser.
 - Mode d'emploi d'un 2e serveur de plateforme : écrit le 26/10, à éprouver au premier vrai 2e serveur (`docs/deploiement-nouveau-serveur-plateforme.md`). Le projet `chevalier-ia-app` est écrit en dur dans le code : un 2e serveur demandera d'abord une PR de code, relue par Fable (ajouter une ligne dédiée).
 

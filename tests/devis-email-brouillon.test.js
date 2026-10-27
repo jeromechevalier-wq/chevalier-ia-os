@@ -1,5 +1,6 @@
-// Envoi d'un devis par e-mail (js/modules/devis/email-brouillon.js) : message par défaut, contrôle de la saisie, MIME, appel à Gmail, historique des envois.
-// Aucun navigateur : un faux Gmail répond aux requêtes. Le nom d'un test commence par le numéro du critère.
+// Règles pures de l'e-mail d'un devis (js/modules/devis/email-brouillon.js) : message par défaut, qui peut recevoir un e-mail, adresses, nom de la pièce jointe, historique des envois.
+// Depuis le 27/10/2026 le navigateur ne parle plus à Gmail (tout passe par n8n, « Préparer l'e-mail ») : plus de MIME ni d'appel Gmail ici, et un test (critère 4) vérifie qu'il n'en reste aucune trace.
+// Aucun navigateur. Le nom d'un test commence par le numéro du critère.
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
 import { readFileSync } from 'node:fs';
@@ -10,12 +11,6 @@ import { copieDeDevis } from '../js/modules/devis/editeur-logique.js';
 import { nomFichierDrive } from '../js/modules/devis/drive-copie.js';
 
 const lire = (chemin) => readFileSync(fileURLToPath(new URL(`../${chemin}`, import.meta.url)), 'utf8');
-const PDF = new TextEncoder().encode('%PDF-1.4 faux\n%%EOF');
-/** Décode le champ `raw` (base64url) en texte MIME. */
-const decoder = (raw) => Buffer.from(raw.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8');
-const mime = (extra = {}) => decoder(E.corpsBrouillon({ a: ['client@exemple.fr'], cc: [], objet: 'Devis DEV-1', texte: 'Bonjour', pdf: PDF, nomPdf: 'Devis DEV-1.pdf', frontiere: '=_essai_0123456789', ...extra }).message.raw);
-/** Le corps texte du message (première partie, base64). */
-const texteDe = (m) => Buffer.from(/base64\r\n\r\n([\s\S]*?)\r\n--/.exec(m)[1].replace(/\r\n/g, ''), 'base64').toString('utf8');
 
 describe('1 message et objet par défaut', () => {
   test('1 le message par défaut vouvoie, garde les variables {contact} {numero} {objet} et n’a pas de signature écrite', () => {
@@ -38,220 +33,49 @@ describe('1 message et objet par défaut', () => {
   });
 });
 
-describe('2 saisie du dialogue', () => {
-  test('2 destinataires et copie : séparateurs variés, doublons ignorés, copie déjà destinataire retirée', () => {
-    const v = E.validerSaisie({ a: 'a@x.fr, b@x.fr; A@x.fr', cc: 'c@x.fr b@x.fr c@x.fr', objet: 'Devis', message: 'x' });
-    assert.deepEqual(v.erreurs, {});
-    assert.deepEqual(v.a, ['a@x.fr', 'b@x.fr']);
-    assert.deepEqual(v.cc, ['c@x.fr']);
-  });
-  test('2 sans destinataire : refusé avec un message (jamais d’envoi sans)', () => {
-    const v = E.validerSaisie({ a: '  ', objet: 'Devis' });
-    assert.match(v.erreurs.a, /adresse e-mail du destinataire/);
-  });
-  test('2 une adresse invalide est refusée (À et Cc) et nommée', () => {
-    for (const mauvaise of ['pas-une-adresse', 'a@b', '<a@b.fr>', 'a@b.fr>', 'jean@exemple']) {
-      assert.match(E.validerSaisie({ a: mauvaise, objet: 'x' }).erreurs.a, /n’est pas valide/, mauvaise);
-    }
-    const v = E.validerSaisie({ a: 'ok@x.fr', cc: 'ok2@x.fr, faux', objet: 'x' });
-    assert.match(v.erreurs.cc, /faux/);
-    assert.equal(v.erreurs.a, undefined);
-  });
-  test('2 adresses non ASCII ou à caractère spécial : refusées avec un message clair (josé@x.fr, 中@x.fr, a(b@x.fr)', () => {
-    for (const mauvaise of ['josé@x.fr', '中@x.fr', 'a(b@x.fr', 'a)b@x.fr', 'a"b@x.fr', 'a\\b@x.fr', 'jean@exemplé.fr']) {
-      const v = E.validerSaisie({ a: mauvaise, cc: '', objet: 'x' });
-      assert.match(v.erreurs.a, /contient des caractères que Gmail n’accepte pas ici/, mauvaise);
-      assert.match(E.validerSaisie({ a: 'ok@x.fr', cc: mauvaise, objet: 'x' }).erreurs.cc, /Gmail n’accepte pas/, `cc ${mauvaise}`);
-      assert.throws(() => mime({ a: [mauvaise] }), (e) => e.code === 'adresse_invalide', mauvaise);
-    }
-    assert.deepEqual(E.validerSaisie({ a: 'jean.dupont+devis@exemple.fr', objet: 'x' }).erreurs, {});
-  });
-  test('2 l’objet est obligatoire, tient sur une ligne et ne dépasse pas 200 caractères', () => {
-    assert.match(E.validerSaisie({ a: 'a@x.fr', objet: '' }).erreurs.objet, /objet/);
-    assert.match(E.validerSaisie({ a: 'a@x.fr', objet: 'Devis\r\nBcc: pirate@x.fr' }).erreurs.objet, /retours à la ligne/);
-    assert.match(E.validerSaisie({ a: 'a@x.fr', objet: 'Devis\nBcc: pirate@x.fr' }).erreurs.objet, /retours à la ligne/);
-    assert.match(E.validerSaisie({ a: 'a@x.fr', objet: 'x'.repeat(201) }).erreurs.objet, /trop long/);
-    assert.deepEqual(E.validerSaisie({ a: 'a@x.fr', objet: 'Devis' }).erreurs, {});
-  });
-  test('2 plus de 10 destinataires ou de copies : refusé', () => {
-    const onze = Array.from({ length: 11 }, (_, i) => `p${i}@x.fr`).join(', ');
-    assert.match(E.validerSaisie({ a: onze, objet: 'x' }).erreurs.a, /10/);
-    assert.match(E.validerSaisie({ a: 'a@x.fr', cc: onze, objet: 'x' }).erreurs.cc, /10/);
-  });
-  test('2 « Envoyer par e-mail » : permis pour un brouillon (on propose de finaliser), un finalisé, un envoyé ; refusé ensuite', () => {
+describe('2 qui peut recevoir un e-mail, et quelles adresses', () => {
+  test('2 « Préparer l’e-mail » : permis pour un brouillon (on propose de finaliser), un finalisé, un envoyé ; refusé ensuite', () => {
     for (const s of ['brouillon', 'en_attente_envoi', 'envoye']) assert.equal(E.emailPossible(s).actif, true, s);
     for (const s of ['accepte', 'refuse', 'remplace', 'expire']) assert.equal(E.emailPossible(s).actif, false, s);
     assert.match(E.emailPossible('accepte').raison, /plus à envoyer/);
   });
-});
-
-describe('3 MIME', () => {
-  test('3 multipart/mixed : en-têtes To, Cc, Subject, texte UTF-8 puis PDF en pièce jointe « Devis ….pdf », tout en ASCII', () => {
-    const m = mime({ cc: ['copie@exemple.fr'], nomPdf: 'Devis DEV-2026-10-25-001 v1 – Rénovation.pdf' });
-    assert.match(m, /^MIME-Version: 1\.0\r\nTo: client@exemple\.fr\r\nCc: copie@exemple\.fr\r\nSubject: Devis DEV-1\r\nContent-Type: multipart\/mixed; boundary="=_essai_0123456789"\r\n\r\n/);
-    assert.match(m, /Content-Type: text\/plain; charset="UTF-8"\r\nContent-Transfer-Encoding: base64/);
-    assert.match(m, /Content-Type: application\/pdf; name="=\?UTF-8\?B\?/);
-    assert.match(m, /Content-Disposition: attachment; filename="Devis DEV-2026-10-25-001 v1 _ Renovation\.pdf"; filename\*=UTF-8''Devis%20DEV-2026-10-25-001%20v1%20%E2%80%93%20R%C3%A9novation\.pdf/);
-    assert.ok(m.endsWith('--=_essai_0123456789--\r\n'));
-    assert.match(E.corpsBrouillon({ a: ['a@x.fr'], objet: 'é', texte: 'é', pdf: PDF, nomPdf: 'é.pdf' }).message.raw, /^[A-Za-z0-9_-]+$/, 'base64url : ni +, ni /, ni =');
-    assert.match(Buffer.from(mime({ nomPdf: 'é.pdf', objet: 'é', texte: 'é' }), 'latin1').toString('latin1'), /^[\x00-\x7f]*$/, 'tout le message est en ASCII');
+  test('2 les adresses du devis (À et Cc) : textes ou objets { email }, vides ignorés', () => {
+    assert.deepEqual(E.adressesDuDevis(['a@x.fr', { email: ' b@x.fr ' }, '', null, { nom: 'sans adresse' }]), ['a@x.fr', 'b@x.fr']);
+    assert.deepEqual(E.adressesDuDevis(undefined), []);
   });
-  test('3 le PDF est joint tel quel (octets identiques)', () => {
-    const m = mime();
-    const partie = /filename\*=UTF-8''[^\r]*\r\nContent-Transfer-Encoding: base64\r\n\r\n([\s\S]*?)\r\n--/.exec(m)[1];
-    assert.deepEqual(new Uint8Array(Buffer.from(partie.replace(/\r\n/g, ''), 'base64')), PDF);
-  });
-  test('3 les accents de l’objet sont encodés (RFC 2047) et se relisent à l’identique, même pour un objet long', () => {
-    const objet = 'Devis DEV-2026-10-25-001 – Rénovation de la cuisine et de la salle d’eau (étage) à Châteauroux, garage compris';
-    const m = mime({ objet });
-    const ligne = /Subject: ([\s\S]*?)\r\nContent-Type: multipart/.exec(m)[1];
-    const mots = ligne.split('\r\n ');
-    assert.ok(mots.length > 1, 'plusieurs mots encodés');
-    for (const mot of mots) {
-      assert.match(mot, /^=\?UTF-8\?B\?[A-Za-z0-9+/=]+\?=$/);
-      assert.ok(mot.length <= 75, 'un mot encodé fait 75 caractères au plus');
+  test('2 adresseSure (utilisée par le serveur) refuse l’accentué, le caractère spécial et le retour à la ligne', () => {
+    for (const mauvaise of ['josé@x.fr', '中@x.fr', 'a(b@x.fr', 'a)b@x.fr', 'a"b@x.fr', 'a\\b@x.fr', 'jean@exemplé.fr', 'pas-une-adresse', 'a@b', ' a@x.fr', 'a@x.fr\r\nBcc: p@x.fr']) {
+      assert.equal(E.adresseSure(mauvaise), false, mauvaise);
     }
-    const relu = mots.map((mot) => Buffer.from(/\?B\?(.*)\?=/.exec(mot)[1], 'base64').toString('utf8')).join('');
-    assert.equal(relu, objet);
-    assert.equal(E.encoderEntete('Devis simple'), 'Devis simple'); // sans accent : tel quel
+    assert.equal(E.adresseSure('jean.dupont+devis@exemple.fr'), true);
   });
-  test('3 le texte accentué du message se relit à l’identique, retours à la ligne normalisés en CRLF', () => {
-    const m = mime({ texte: 'Bonjour é,\n\nÀ très bientôt — l’équipe' });
-    assert.equal(texteDe(m), 'Bonjour é,\r\n\r\nÀ très bientôt — l’équipe');
-  });
-  test('3 plusieurs adresses « À » et « Cc » : séparées par des virgules, repliées si longues', () => {
-    const a = Array.from({ length: 6 }, (_, i) => `destinataire.numero${i}@exemple-long.fr`);
-    const m = mime({ a, cc: ['c1@x.fr', 'c2@x.fr', 'c3@x.fr'] });
-    const to = /To: ([\s\S]*?)\r\nCc:/.exec(m)[1];
-    assert.deepEqual(to.replace(/,?\r\n /g, ' ').split(/,? /).filter(Boolean), a);
-    for (const l of to.split('\r\n')) assert.ok(l.length < 78, l);
-    assert.match(m, /Cc: c1@x\.fr, c2@x\.fr, c3@x\.fr\r\nSubject/);
-  });
-  test('3 adresses invalides refusées par le MIME lui-même (ceinture de sécurité)', () => {
-    for (const mauvaise of ['pas-une-adresse', 'a@b', ' a@b.fr', 'a@b.fr\r\nBcc: pirate@x.fr', 'a@b.fr\n', 'a b@c.fr', '<a@b.fr>', 'a@b.fr, c@d.fr']) {
-      assert.throws(() => mime({ a: [mauvaise] }), (e) => e.name === 'ErreurMime' && e.code === 'adresse_invalide', JSON.stringify(mauvaise));
-      assert.throws(() => mime({ cc: [mauvaise] }), (e) => e.code === 'adresse_invalide', `cc ${JSON.stringify(mauvaise)}`);
-    }
-    assert.throws(() => mime({ a: [] }), (e) => e.code === 'adresse_invalide');
-  });
-  test('3 pas d’injection d’en-tête : un retour à la ligne dans l’objet est refusé, jamais copié dans le message', () => {
-    for (const objet of ['Devis\r\nBcc: pirate@x.fr', 'Devis\nBcc: pirate@x.fr', 'Devis\rBcc: x', 'Devis\u0000x', 'Devis\u0085x'.replace('\u0085', '\u001f')]) {
-      assert.throws(() => mime({ objet }), (e) => e.name === 'ErreurMime' && e.code === 'entete_invalide', JSON.stringify(objet));
-    }
-    // Un retour à la ligne dans le TEXTE n'est pas un risque : il est encodé en base64 dans son propre bloc.
-    const m = mime({ texte: 'Bonjour\r\nBcc: pirate@x.fr' });
-    assert.doesNotMatch(m, /Bcc:/);
-  });
-  test('3 le nom de la pièce jointe est nettoyé (guillemets, barres, retours à la ligne) et finit par .pdf', () => {
+  test('2 le nom de la pièce jointe est nettoyé (guillemets, barres, retours à la ligne) et finit par .pdf', () => {
     assert.equal(E.nomPieceJointe('Devis "A"/B\\C\r\nD'), 'Devis A B C D.pdf');
     assert.equal(E.nomPieceJointe(''), 'Devis.pdf');
-    const m = mime({ nomPdf: 'x"\r\nContent-Type: text/html' });
-    assert.doesNotMatch(m, /\r\nContent-Type: text\/html/);
   });
-  test('3 le plafond du PDF est de 5 Mo et le message de lecture ne parle plus de la PR', () => {
-    assert.equal(E.MAX_PDF_OCTETS, 5 * 1024 * 1024);
-    assert.match(E.MESSAGE_PDF_TROP_GROS, /5 Mo/);
-    assert.doesNotMatch(E.MESSAGE_LECTURE_PDF, /PR\b/);
-    assert.match(E.MESSAGE_LECTURE_PDF, /docs\/cors-stockage-pdf\.md/);
-  });
-  test('3 un PDF vide ou trop gros est refusé', () => {
-    assert.throws(() => mime({ pdf: new Uint8Array(0) }), (e) => e.code === 'pdf_vide');
-    assert.throws(() => mime({ pdf: new Uint8Array(E.MAX_PDF_OCTETS + 1) }), (e) => e.code === 'pdf_trop_gros');
-  });
-  test('3 le nom du PDF envoyé est celui de la copie Drive : « Devis DEV-… v1 – Objet.pdf »', () => {
+  test('2 le nom du PDF est celui de la copie Drive : « Devis DEV-… v1 – Objet.pdf »', () => {
     assert.equal(nomFichierDrive({ numero: 'DEV-2026-10-25-001', version: 1, objet: 'Rénovation cuisine' }), 'Devis DEV-2026-10-25-001 v1 – Rénovation cuisine.pdf');
   });
 });
 
-/** Faux Gmail : garde la requête reçue ; `statut` / `corps` fixent la réponse ; `coupe` simule un réseau coupé. */
-function fauxGmail({ statut = 200, corps = { id: 'r123', message: { id: 'm456', threadId: 't789' } }, coupe = false } = {}) {
-  const g = { requetes: [], statut, corps, coupe };
-  g.appel = async (url, options = {}) => {
-    g.requetes.push({ url, options });
-    if (g.coupe) throw new TypeError('Failed to fetch');
-    return { ok: g.statut < 400, status: g.statut, json: async () => g.corps };
-  };
-  return g;
-}
-const SAISIE = { a: 'client@exemple.fr', cc: 'copie@exemple.fr', objet: 'Devis DEV-1 – Cuisine', message: 'Bonjour é' };
-const outils = (g, surcharge = {}) => ({ appelFetch: g.appel, obtenirJeton: async () => 'JETON_ESSAI', lirePdf: async () => new Blob([PDF]), email: 'jerome@exemple.fr', ...surcharge });
-
-describe('4 création du brouillon dans Gmail', () => {
-  test('4 envoie à users.drafts.create le message en base64url avec le jeton, et rend l’adresse du brouillon', async () => {
-    const g = fauxGmail();
-    const r = await E.preparerBrouillonGmail({ saisie: SAISIE, nomPdf: 'Devis DEV-1.pdf', outils: outils(g) });
-    assert.equal(r.etat, 'cree');
-    assert.equal(g.requetes.length, 1);
-    const { url, options } = g.requetes[0];
-    assert.equal(url, 'https://gmail.googleapis.com/gmail/v1/users/me/drafts');
-    assert.equal(options.method, 'POST');
-    assert.equal(options.headers.Authorization, 'Bearer JETON_ESSAI');
-    const m = decoder(JSON.parse(options.body).message.raw);
-    assert.match(m, /To: client@exemple\.fr\r\nCc: copie@exemple\.fr\r\n/);
-    assert.equal(texteDe(m), 'Bonjour é');
-    assert.deepEqual([r.brouillon.id, r.brouillon.messageId], ['r123', 'm456']);
-    assert.equal(r.url, 'https://mail.google.com/mail/?authuser=jerome%40exemple.fr#drafts?compose=m456');
-    assert.deepEqual(r.saisie, { a: ['client@exemple.fr'], cc: ['copie@exemple.fr'], objet: 'Devis DEV-1 – Cuisine', message: 'Bonjour é' });
-  });
-  test('4 la portée demandée est gmail.compose (jamais gmail.send ni gmail.modify : l’appli n’envoie pas)', () => {
-    assert.equal(E.PORTEE_GMAIL, 'https://www.googleapis.com/auth/gmail.compose');
-    const code = lire('js/modules/devis/email-ecran.js') + lire('js/modules/devis/email-brouillon.js');
-    assert.doesNotMatch(code, /gmail\.send|gmail\.modify|gmail\.readonly|messages\/send|drafts\/send/);
-  });
-  test('4 saisie invalide : rien n’est demandé à Google (ni jeton ni réseau)', async () => {
-    const g = fauxGmail();
-    let jetonDemande = false;
-    const r = await E.preparerBrouillonGmail({ saisie: { ...SAISIE, a: '' }, nomPdf: 'x.pdf', outils: outils(g, { obtenirJeton: async () => { jetonDemande = true; return 'x'; } }) });
-    assert.equal(r.etat, 'invalide');
-    assert.ok(r.erreurs.a);
-    assert.equal(jetonDemande, false);
-    assert.equal(g.requetes.length, 0);
-  });
-  test('4 le jeton est demandé AVANT la lecture du PDF (la fenêtre Google doit suivre le clic)', async () => {
-    const ordre = [];
-    await E.preparerBrouillonGmail({ saisie: SAISIE, nomPdf: 'x.pdf', outils: outils(fauxGmail(), { obtenirJeton: async () => { ordre.push('jeton'); return 'j'; }, lirePdf: async () => { ordre.push('pdf'); return PDF; } }) });
-    assert.deepEqual(ordre, ['jeton', 'pdf']);
-  });
-  test('4 autorisation refusée / fenêtre bloquée : message clair, rien n’est créé', async () => {
-    const g = fauxGmail();
-    const refus = await E.preparerBrouillonGmail({ saisie: SAISIE, nomPdf: 'x.pdf', outils: outils(g, { obtenirJeton: async () => { throw Object.assign(new Error('Autorisation refusée : rien n’a été fait.'), { annule: true, code: 'access_denied' }); } }) });
-    assert.equal(refus.etat, 'erreur');
-    assert.equal(refus.message, E.MESSAGE_REFUS);
-    const bloque = await E.preparerBrouillonGmail({ saisie: SAISIE, nomPdf: 'x.pdf', outils: outils(g, { obtenirJeton: async () => { throw Object.assign(new Error('Le navigateur a bloqué la fenêtre d’autorisation Google : autorise les fenêtres surgissantes pour ce site, puis réessaie.'), { code: 'popup_failed_to_open' }); } }) });
-    assert.match(bloque.message, /bloqué la fenêtre/);
-    assert.equal(g.requetes.length, 0);
-  });
-  test('4 PDF illisible (stockage, réseau) : message clair, rien n’est créé', async () => {
-    const g = fauxGmail();
-    const r = await E.preparerBrouillonGmail({ saisie: SAISIE, nomPdf: 'x.pdf', outils: outils(g, { lirePdf: async () => { throw new Error('Lecture du PDF : 403'); } }) });
-    assert.equal(r.etat, 'erreur');
-    assert.equal(r.message, E.MESSAGE_LECTURE_PDF);
-    assert.equal(g.requetes.length, 0);
-  });
-  test('4 API Gmail non activée (403), autorisation expirée (401), portée refusée, trop de demandes, panne : un message qui dit quoi faire', async () => {
-    const cas = [
-      [403, { error: { status: 'PERMISSION_DENIED', message: 'Gmail API has not been used in project 123 before or it is disabled.', errors: [{ reason: 'accessNotConfigured' }] } }, /API Gmail n’est pas activée/],
-      [403, { error: { message: 'Request had insufficient authentication scopes.', errors: [{ reason: 'insufficientPermissions' }], status: 'PERMISSION_DENIED' } }, /droit de créer un brouillon/],
-      [401, { error: { status: 'UNAUTHENTICATED' } }, /expiré/],
-      [429, {}, /patienter/],
-      [503, {}, /ne répond pas/],
-      [400, {}, /refusé le message/],
-    ];
-    for (const [statut, corps, attendu] of cas) {
-      const r = await E.preparerBrouillonGmail({ saisie: SAISIE, nomPdf: 'x.pdf', outils: outils(fauxGmail({ statut, corps })) });
-      assert.equal(r.etat, 'erreur', String(statut));
-      assert.match(r.message, attendu, String(statut));
-      assert.equal(r.erreur.statut, statut);
+describe('4 plus aucun appel à Gmail depuis le navigateur (décision du 27/10/2026)', () => {
+  const FICHIERS_NAVIGATEUR = ['js/modules/devis/email-brouillon.js', 'js/modules/devis/email-ecran.js', 'js/modules/devis/email-preparer-ecran.js', 'js/modules/devis/editeur-ecran.js',
+    'js/modules/devis/actions-devis.js', 'js/modules/devis/deploiement.js', 'js/os/google-picker.js', 'js/os/google-drive.js'];
+  test('4 aucun fichier du navigateur ne cite la portée gmail.compose, l’API Gmail ni la création d’un brouillon par le navigateur', () => {
+    for (const f of FICHIERS_NAVIGATEUR) {
+      const t = lire(f);
+      assert.doesNotMatch(t, /gmail\.compose|gmail\.googleapis\.com|users\/me\/drafts|PORTEE_GMAIL|preparerBrouillonGmail|creerBrouillonGmail|construireMime/, f);
     }
   });
-  test('4 réseau coupé : « Impossible de joindre Gmail… »', async () => {
-    const r = await E.preparerBrouillonGmail({ saisie: SAISIE, nomPdf: 'x.pdf', outils: outils(fauxGmail({ coupe: true })) });
-    assert.equal(r.etat, 'erreur');
-    assert.equal(r.message, E.MESSAGE_RESEAU);
+  test('4 le module ne propose plus de dialogue « Envoyer le devis par e-mail » ni de bouton « Créer le brouillon Gmail »', () => {
+    for (const f of FICHIERS_NAVIGATEUR) assert.doesNotMatch(lire(f), /Créer le brouillon Gmail|creer-brouillon-gmail|lancerEnvoiEmail|Envoyer le devis par e-mail/, f);
   });
-  test('4 l’adresse du brouillon est toujours une adresse Gmail (même avec un identifiant bizarre)', () => {
-    assert.equal(E.adresseBrouillon({ messageId: 'abc_DEF-123' }), 'https://mail.google.com/mail/#drafts?compose=abc_DEF-123');
-    assert.equal(E.adresseBrouillon({ messageId: '"><script>' }), 'https://mail.google.com/mail/#drafts');
+  test('4 la page Réglages > Déploiement ne demande plus l’API Gmail ni les utilisateurs test de Gmail', async () => {
+    const { ETAPES_DEPLOIEMENT_DEVIS } = await import('../js/modules/devis/deploiement.js');
+    const ids = ETAPES_DEPLOIEMENT_DEVIS.map((e) => e.id);
+    assert.ok(!ids.includes('devis-gmail-api') && !ids.includes('devis-gmail-test'), ids.join(', '));
+    assert.ok(ids.includes('devis-preparer-email'));
+    for (const e of ETAPES_DEPLOIEMENT_DEVIS) assert.doesNotMatch(`${e.libelle} ${e.reparation}`, /gmail\.compose|API Gmail/i, e.id);
   });
 });
 
@@ -286,14 +110,14 @@ describe('5 historique des envois', () => {
 });
 
 describe('6 sécurité du dépôt public', () => {
-  test('6 aucun secret : pas de clé, de jeton ni d’identifiant client écrits dans les fichiers de l’envoi par e-mail', () => {
-    for (const f of ['js/modules/devis/email-brouillon.js', 'js/modules/devis/email-ecran.js']) {
+  test('6 aucun secret : pas de clé, de jeton ni d’identifiant client écrits dans les fichiers de l’e-mail du devis', () => {
+    for (const f of ['js/modules/devis/email-brouillon.js', 'js/modules/devis/email-ecran.js', 'js/modules/devis/email-preparer-ecran.js']) {
       const t = lire(f);
       assert.doesNotMatch(t, /AIza[0-9A-Za-z_-]{20,}|ya29\.|\.apps\.googleusercontent\.com|client_secret/, f);
     }
   });
   test('6 le mot « CRM » n’apparaît dans aucun texte affiché', () => {
-    for (const f of ['js/modules/devis/email-brouillon.js', 'js/modules/devis/email-ecran.js']) {
+    for (const f of ['js/modules/devis/email-brouillon.js', 'js/modules/devis/email-ecran.js', 'js/modules/devis/email-preparer-ecran.js']) {
       const visible = lire(f).split('\n').filter((l) => !/^\s*(\/\/|import )/.test(l)).join('\n').replace(/\/\/.*$/gm, '').replace(/\bCRM\.[a-zA-Z]+/g, '').replace(/\.\.\/crm\//g, '');
       assert.doesNotMatch(visible, /CRM/, f);
     }

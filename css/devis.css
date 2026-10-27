@@ -491,15 +491,9 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
 .ligne-copie { display: inline-flex; align-items: center; gap: var(--esp-3); overflow-wrap: anywhere; }
 @media (max-width: 767px), (pointer: coarse) { .bloc-copie .prop-vide, .ligne-copie .bouton-icone { min-height: 44px; } }
 
-/* Envoyer le devis par e-mail : dialogue (À, Cc, Objet, Message), brouillon Gmail créé, historique des envois de la fiche. */
-.dialogue.dialogue-email-devis { width: min(600px, 100%); }
-.dialogue-email-devis .formulaire-email-devis, .dialogue-email-devis .succes-email-devis { display: flex; flex-direction: column; gap: var(--esp-5); }
-.dialogue-email-devis textarea.champ { min-height: 180px; }
-.dialogue-email-devis .succes-titre { display: flex; align-items: center; gap: var(--esp-3); margin: 0; color: var(--succes); }
-.dialogue-email-devis .succes-email-devis .bouton { align-self: flex-start; }
+/* Historique des envois de la fiche du devis. */
 .historique-envois { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--esp-3); }
 .historique-envoi { overflow-wrap: anywhere; }
-@media (max-width: 767px), (pointer: coarse) { .dialogue-email-devis .bouton, .dialogue-email-devis .dialogue-tete .bouton-icone { min-height: 44px; } .dialogue-email-devis .dialogue-tete .bouton-icone { min-width: 44px; } }
 /* Préparer l'e-mail : ligne « E-mail préparé dans Gmail le … » de l'Historique, et petite confirmation (boutons assez grands au doigt). */
 .historique-email-prepare { margin: var(--esp-3) 0 0; overflow-wrap: anywhere; }
 .historique-email-prepare-echec { color: var(--texte2); }

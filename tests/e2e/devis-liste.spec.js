@@ -178,15 +178,15 @@ test('E3 le menu « … » : changements de statut par le serveur, entrées « b
     return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ result: { ok: true } }) });
   });
   await ouvrir(page);
-  // Devis envoyé : Signé et Refusé proposés, rien d'autre en statut ; Envoyer par e-mail est permis, Facturer n'existe plus (pas de facturation prévue) ; Dupliquer et la nouvelle version sont actifs (l'éditeur existe).
+  // Devis envoyé : Signé et Refusé proposés, rien d'autre en statut ; Préparer l’e-mail est permis, Facturer n'existe plus (pas de facturation prévue) ; Dupliquer et la nouvelle version sont actifs (l'éditeur existe).
   await ouvrirMenuDe(page, 'd1');
   const menu = page.locator('.menu-pop');
   await expect(menu.getByRole('menuitem', { name: /Passer à « Signé »/ })).toBeEnabled();
   await expect(menu.getByRole('menuitem', { name: /Passer à « Refusé »/ })).toBeEnabled();
   await expect(menu.getByRole('menuitem', { name: /Passer à « Envoyé »/ })).toHaveCount(0);
   await expect(menu.getByRole('menuitem', { name: /Facturer/ })).toHaveCount(0);
-  await expect(menu.getByRole('menuitem', { name: /Envoyer par e-mail/ })).toBeEnabled();
-  await expect(menu.getByRole('menuitem', { name: /Envoyer par e-mail/ })).not.toContainText('bientôt disponible');
+  await expect(menu.getByRole('menuitem', { name: /Préparer l’e-mail/ })).toBeDisabled(); // faux serveur « pas branché » : entrée grisée dès la première ouverture, avec sa phrase
+  await expect(menu).toContainText('pas encore branchée');
   for (const nom of [/Dupliquer/, /Créer une nouvelle version/, /Voir le devis/]) await expect(menu.getByRole('menuitem', { name: nom })).toBeEnabled();
   await expect(menu.getByRole('menuitem', { name: /Éditer le devis/ })).toBeEnabled(); // un devis finalisé s'ouvre sur l'Édition, en lecture seule
   await expect(menu.getByRole('menuitem', { name: /Supprimer/ })).toHaveCount(0); // seulement un brouillon

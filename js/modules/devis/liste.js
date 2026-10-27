@@ -248,7 +248,7 @@ export function archivageDevis(d) {
 /**
  * UNE SEULE SOURCE pour les actions d'un devis : le menu « … » de la liste, celui de l'éditeur et celui de la visualisation partent de cette liste.
  * Rend des descriptions sans code d'écran : { cle, libelle, icone, actif, danger? }, { separateur: true } ou { texte } (explication d'une entrée grisée).
- * Clés : statut:<action>, editer, voir, nouvelle_version, dupliquer, envoyer_email, archiver, supprimer. `exclure` retire des clés (celles qui ont déjà un bouton direct dans l'écran).
+ * Clés : statut:<action>, editer, voir, nouvelle_version, dupliquer, preparer_email, archiver, supprimer. `exclure` retire des clés (celles qui ont déjà un bouton direct dans l'écran).
  */
 export function entreesActionsDevis(d, { exclure = [], editeur = EDITEUR_DISPONIBLE, suppression = SUPPRESSION_DISPONIBLE } = {}) {
   const a = actionsPermises(d, { editeur, suppression });
@@ -268,7 +268,7 @@ export function entreesActionsDevis(d, { exclure = [], editeur = EDITEUR_DISPONI
   ajouter('voir', 'Voir le devis', 'eye', a.voir);
   if (a.nouvelleVersion.actif || a.nouvelleVersion.raison === MESSAGE_BIENTOT) ajouter('nouvelle_version', 'Créer une nouvelle version', 'git-branch', a.nouvelleVersion);
   ajouter('dupliquer', 'Dupliquer', 'copy', a.dupliquer);
-  ajouter('envoyer_email', 'Envoyer par e-mail', 'mail', a.envoyer);
+  ajouter('preparer_email', 'Préparer l’e-mail', 'mail-check', a.envoyer);
   if (!exclure.includes('archiver')) {
     sortie.push({ separateur: true });
     sortie.push({ cle: 'archiver', libelle: ar.libelle, icone: ar.icone, actif: ar.actif, action: ar.action });

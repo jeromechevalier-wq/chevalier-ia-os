@@ -7,7 +7,9 @@ import * as CRM from '../crm/donnees.js';
 import * as D from './donnees.js';
 import * as Li from './liste.js';
 import * as Ed from './editeur-logique.js';
-import { lancerEnvoiEmail } from './email-ecran.js';
+import { lancerPreparationEmail } from './email-preparer-ecran.js';
+import { MESSAGE_NON_BRANCHE } from './email-preparer.js';
+import { adressesDuDevis } from './email-brouillon.js';
 
 export const ERREUR_ECRITURE = 'Enregistrement impossible : ton compte n’a peut-être que le droit de lire cet espace, ou la connexion est coupée. Réessaie dans un instant.';
 const nouvelId = () => CRM.ctx().nouvelId('devis_devis');
@@ -22,6 +24,14 @@ export function nomsDe(d) {
 }
 
 const dire = (e) => { console.warn(e); toast(e?.message || D.MESSAGE_RESEAU_DEVIS, { type: 'erreur', duree: 8000 }); };
+
+/** « Devis envoyé » : ajoute à l'historique des envois les destinataires et la copie du devis. Le statut est DÉJÀ posé ; un échec ici ne doit rien défaire (la date du premier envoi reste visible, sans adresse). */
+export const MESSAGE_ENVOI_NON_NOTE = 'Statut posé ; l’historique des envois n’a pas pu être écrit.';
+async function noterEnvoi(d) {
+  const destinataires = adressesDuDevis(d.destinataires);
+  if (!destinataires.length) return;
+  try { await D.enregistrerEnvoi(d.id, { destinataires, copie: adressesDuDevis(d.copie) }); } catch (e) { console.warn(e); toast(MESSAGE_ENVOI_NON_NOTE, { type: 'erreur', duree: 8000 }); }
+}
 
 /** Appelle la fonction du serveur puis dit le résultat. Un refus du serveur ou une panne de réseau s'affiche en clair ; rien n'est écrit par le navigateur. */
 export async function changerStatut(d, action, libelle) {
@@ -38,6 +48,7 @@ export async function changerStatut(d, action, libelle) {
       return;
     }
     await D.changerStatut(d.id, action);
+    if (action === 'marquer_envoye') await noterEnvoi(d); // l'historique des envois garde À QUI (et en copie) : l'e-mail lui-même est parti de Gmail, la personne vient de le dire
     toast(`Devis passé à « ${libelle} »`);
   } catch (e) { dire(e); }
 }
@@ -112,16 +123,18 @@ export function entreesMenuDevis(d, { exclure = [], apresSuppression = () => {},
     voir: () => naviguer(`devis/voir/${d.id}`),
     nouvelle_version: () => creerNouvelleVersion(d),
     dupliquer: () => dupliquerDevis(d),
-    envoyer_email: () => lancerEnvoiEmail({ devisId: d.id, getDevis: () => D.devisParId(d.id), finaliser: { libelle: 'Ouvrir le devis', action: () => naviguer(`devis/editeur/${d.id}`) } }),
+    preparer_email: () => lancerPreparationEmail({ devisId: d.id, getDevis: () => D.devisParId(d.id), finaliser: { libelle: 'Ouvrir le devis', action: () => naviguer(`devis/editeur/${d.id}`) } }),
     supprimer: () => supprimerBrouillon(d, apresSuppression),
   };
-  return Li.entreesActionsDevis(d, { exclure }).map((e) => {
-    if (e.separateur || e.texte !== undefined) return e;
+  return Li.entreesActionsDevis(d, { exclure }).flatMap((e) => {
+    if (e.separateur || e.texte !== undefined) return [e];
     let action;
     if (surcharges[e.cle]) action = () => surcharges[e.cle](d);
     else if (e.cle.startsWith('statut:')) action = () => changerStatut(d, e.action, e.statutLibelle);
     else if (e.cle === 'archiver') action = () => archiver(d, e.action === 'archiver');
     else action = actions[e.cle];
-    return { cle: e.cle, libelle: e.libelle, icone: e.icone, danger: e.danger, desactive: !e.actif, action };
+    // Pas branché sur cet espace (réponse du serveur) : l'entrée reste là, grisée, avec la raison (le menu ne doit pas se vider).
+    if (e.cle === 'preparer_email' && e.actif && D.emailPreparable() === false) return [{ cle: e.cle, libelle: e.libelle, icone: e.icone, desactive: true, titreInfo: MESSAGE_NON_BRANCHE, action }, { texte: MESSAGE_NON_BRANCHE }];
+    return [{ cle: e.cle, libelle: e.libelle, icone: e.icone, danger: e.danger, desactive: !e.actif, action }];
   });
 }

@@ -14,14 +14,14 @@ const regle = (statut, extra = {}) => boutonsEntete({ statut, emailPossible: ema
 const libelles = (r) => [r.jaune?.libelle ?? null, r.autre?.libelle ?? null];
 
 describe('8 boutonsEntete : un seul bouton jaune, celui de l\'étape suivante', () => {
-  test('8 brouillon : « Finaliser » jaune, « Envoyer » grisé à côté ; le « … » garde « Envoyer par e-mail » (« Envoyer » grisé n\'ouvre pas de menu)', () => {
+  test('8 brouillon : « Finaliser » jaune, « Envoyer » grisé à côté ; le « … » garde « Préparer l’e-mail » (« Envoyer » grisé n\'ouvre pas de menu)', () => {
     const r = regle('brouillon');
     assert.deepEqual(r.jaune, { cle: 'finaliser', libelle: 'Finaliser', icone: 'check' });
     assert.equal(r.autre.libelle, 'Envoyer');
     assert.equal(r.autre.grise, true);
-    assert.equal(r.menu.envoyerANouveau.present, true); // « Envoyer » grisé n'ouvre aucun menu : il ne masque rien, « Envoyer par e-mail » reste dans « … »
-    assert.equal(r.menu.envoyerANouveau.libelle, 'Envoyer par e-mail');
-    assert.equal(r.menu.envoyerANouveau.actif, true); // actif : il ouvre « Finaliser d\'abord »
+    assert.equal(r.menu.preparerEmail.present, true); // « Envoyer » grisé n'ouvre aucun menu : il ne masque rien, « Préparer l'e-mail » reste dans « … »
+    assert.equal(r.menu.preparerEmail.libelle, 'Préparer l’e-mail');
+    assert.equal(r.menu.preparerEmail.actif, true); // actif : il ouvre « Finaliser d\'abord »
     assert.equal(r.menu.telechargerPdf, true);
     assert.equal(r.menu.imprimer, true);
   });
@@ -32,7 +32,7 @@ describe('8 boutonsEntete : un seul bouton jaune, celui de l\'étape suivante', 
     assert.equal(r.jaune.cle, 'envoyer');
     assert.equal(r.autre.style, 'contour');
     assert.ok(!r.autre.grise);
-    assert.deepEqual(r.menu.envoyerANouveau, { present: false, libelle: 'Envoyer à nouveau', actif: true }); // « Envoyer » (jaune) est visible : pas de doublon dans « … »
+    assert.deepEqual(r.menu.preparerEmail, { present: false, libelle: 'Préparer l’e-mail', actif: true }); // « Envoyer » (jaune) est visible : pas de doublon dans « … »
   });
   test('8 envoyé : « Devis signé » jaune ET « Devis refusé » en contour', () => {
     const r = regle('envoye');
@@ -40,13 +40,13 @@ describe('8 boutonsEntete : un seul bouton jaune, celui de l\'étape suivante', 
     assert.equal(r.jaune.cle, 'signer');
     assert.equal(r.autre.cle, 'refuser');
     assert.equal(r.autre.style, 'contour');
-    assert.deepEqual(r.menu.envoyerANouveau, { present: true, libelle: 'Envoyer à nouveau', actif: true });
+    assert.deepEqual(r.menu.preparerEmail, { present: true, libelle: 'Préparer l’e-mail', actif: true });
   });
-  test('8 signé, refusé, remplacé : aucun bouton ; « Envoyer à nouveau » grisé (l\'e-mail n\'est plus possible)', () => {
+  test('8 signé, refusé, remplacé : aucun bouton ; « Préparer l’e-mail » grisé (l\'e-mail n\'est plus possible)', () => {
     for (const statut of ['accepte', 'refuse', 'remplace']) {
       const r = regle(statut);
       assert.deepEqual([r.jaune, r.autre], [null, null], statut);
-      assert.deepEqual(r.menu.envoyerANouveau, { present: true, libelle: 'Envoyer à nouveau', actif: false }, statut);
+      assert.deepEqual(r.menu.preparerEmail, { present: true, libelle: 'Préparer l’e-mail', actif: false }, statut);
       assert.equal(r.menu.imprimer, true);
       assert.equal(r.menu.telechargerPdf, true);
     }
@@ -71,9 +71,9 @@ describe('8 boutonsEntete : un seul bouton jaune, celui de l\'étape suivante', 
       assert.deepEqual(regle(statut, { lecture: true }), regle(statut, { lecture: false }), statut);
     }
   });
-  test('8 « Envoyer à nouveau » suit emailPossible ; un statut inconnu ou une absence de donnée ne plante pas', () => {
-    assert.equal(boutonsEntete({ statut: 'envoye', emailPossible: false }).menu.envoyerANouveau.actif, false);
-    assert.equal(boutonsEntete({ statut: 'envoye', emailPossible: true }).menu.envoyerANouveau.actif, true);
+  test('8 « Préparer l’e-mail » suit emailPossible ; un statut inconnu ou une absence de donnée ne plante pas', () => {
+    assert.equal(boutonsEntete({ statut: 'envoye', emailPossible: false }).menu.preparerEmail.actif, false);
+    assert.equal(boutonsEntete({ statut: 'envoye', emailPossible: true }).menu.preparerEmail.actif, true);
     const vide = boutonsEntete();
     assert.deepEqual([vide.jaune, vide.autre], [null, null]);
     assert.equal(boutonsEntete({ statut: 'inconnu' }).jaune, null);
@@ -99,38 +99,38 @@ describe('3 le menu « … » ne répète jamais un bouton visible', () => {
   /** Les clés du « … » de l'éditeur (même calcul qu'editeur-ecran.js) : e-mail propre à l'écran puis entreesActionsDevis moins ce qu'un bouton fait déjà. */
   const menuEditeur = (statut) => {
     const r = regle(statut);
-    const propres = [...(r.menu.envoyerANouveau.present ? ['envoyer-a-nouveau'] : []), ...(r.menu.dejaVisibles.includes('preparer-email') ? [] : ['preparer-email'])];
-    const actions = Li.entreesActionsDevis(devis(statut), { exclure: ['envoyer_email', ...r.menu.dejaVisibles, 'editer'] }).filter((e) => e.cle).map((e) => e.cle);
+    const propres = r.menu.preparerEmail.present ? ['preparer-email'] : [];
+    const actions = Li.entreesActionsDevis(devis(statut), { exclure: ['preparer_email', ...r.menu.dejaVisibles, 'editer'] }).filter((e) => e.cle).map((e) => e.cle);
     return [...propres, ...actions];
   };
   test('3 la fonction suit les boutons : chaque bouton visible retire son entrée ; aucun bouton = rien de retiré', () => {
     assert.deepEqual(clesMenuDejaVisibles({ jaune: { cle: 'finaliser' }, autre: { cle: 'envoyer', grise: true } }), ['statut:finaliser']); // « Envoyer » grisé ne masque rien
-    assert.deepEqual(clesMenuDejaVisibles({ jaune: { cle: 'finaliser' }, autre: { cle: 'envoyer', grise: false } }), ['statut:finaliser', 'envoyer_email', 'envoyer-a-nouveau', 'preparer-email']);
-    assert.deepEqual(clesMenuDejaVisibles({ jaune: { cle: 'envoyer' }, autre: { cle: 'passer-envoye' } }), ['envoyer_email', 'envoyer-a-nouveau', 'preparer-email', 'statut:marquer_envoye']);
+    assert.deepEqual(clesMenuDejaVisibles({ jaune: { cle: 'finaliser' }, autre: { cle: 'envoyer', grise: false } }), ['statut:finaliser', 'preparer_email', 'preparer-email']);
+    assert.deepEqual(clesMenuDejaVisibles({ jaune: { cle: 'envoyer' }, autre: { cle: 'passer-envoye' } }), ['preparer_email', 'preparer-email', 'statut:marquer_envoye']);
     assert.deepEqual(clesMenuDejaVisibles({ jaune: { cle: 'signer' }, autre: { cle: 'refuser' } }), ['statut:accepter', 'statut:refuser']);
     assert.deepEqual(clesMenuDejaVisibles({}), []);
     assert.deepEqual(clesMenuDejaVisibles(), []);
     for (const statut of ['brouillon', 'en_attente_envoi', 'envoye', 'accepte']) assert.deepEqual(regle(statut).menu.dejaVisibles, clesMenuDejaVisibles(regle(statut)), statut);
   });
-  test('3 brouillon : pas de « Passer à « Finalisé » » dans « … » (le bouton existe) ; « Envoyer par e-mail » et « Préparer l’e-mail » restent (« Envoyer » grisé n’ouvre pas de menu)', () => {
+  test('3 brouillon : pas de « Passer à « Finalisé » » dans « … » (le bouton existe) ; « Préparer l’e-mail » reste (« Envoyer » grisé n’ouvre pas de menu)', () => {
     const m = menuEditeur('brouillon');
-    for (const cle of ['statut:finaliser', 'envoyer_email']) assert.ok(!m.includes(cle), cle); // envoyer_email : remplacé par « envoyer-a-nouveau » dans l'éditeur
-    for (const cle of ['envoyer-a-nouveau', 'preparer-email', 'voir', 'dupliquer', 'archiver', 'supprimer']) assert.ok(m.includes(cle), cle);
+    for (const cle of ['statut:finaliser', 'preparer_email']) assert.ok(!m.includes(cle), cle); // preparer_email : remplacé par « preparer-email » dans l'éditeur
+    for (const cle of ['preparer-email', 'voir', 'dupliquer', 'archiver', 'supprimer']) assert.ok(m.includes(cle), cle);
   });
-  test('3 finalisé : ni « Devis envoyé » (marquer_envoye) ni « Envoyer à nouveau » ni « Préparer l’e-mail » (le menu « Envoyer » les a) ; « Créer une nouvelle version » reste', () => {
+  test('3 finalisé : ni « Devis envoyé » (marquer_envoye) ni « Préparer l’e-mail » (le menu « Envoyer » l’a) ; « Créer une nouvelle version » reste', () => {
     const m = menuEditeur('en_attente_envoi');
-    for (const cle of ['statut:marquer_envoye', 'envoyer_email', 'envoyer-a-nouveau', 'preparer-email']) assert.ok(!m.includes(cle), cle);
+    for (const cle of ['statut:marquer_envoye', 'preparer_email', 'preparer-email']) assert.ok(!m.includes(cle), cle);
     for (const cle of ['voir', 'nouvelle_version', 'dupliquer', 'archiver']) assert.ok(m.includes(cle), cle);
   });
-  test('3 envoyé : ni « Signé » ni « Refusé » dans « … » ; « Envoyer à nouveau » reste (aucun bouton « Envoyer » visible)', () => {
+  test('3 envoyé : ni « Signé » ni « Refusé » dans « … » ; « Préparer l’e-mail » reste (aucun bouton « Envoyer » visible)', () => {
     const m = menuEditeur('envoye');
-    for (const cle of ['statut:accepter', 'statut:refuser', 'envoyer_email']) assert.ok(!m.includes(cle), cle);
-    for (const cle of ['envoyer-a-nouveau', 'preparer-email', 'voir', 'nouvelle_version']) assert.ok(m.includes(cle), cle);
+    for (const cle of ['statut:accepter', 'statut:refuser', 'preparer_email']) assert.ok(!m.includes(cle), cle);
+    for (const cle of ['preparer-email', 'voir', 'nouvelle_version']) assert.ok(m.includes(cle), cle);
   });
-  test('3 signé : aucun bouton, donc rien n’est retiré à cause d’un bouton (« Envoyer à nouveau » reste, grisé)', () => {
+  test('3 signé : aucun bouton, donc rien n’est retiré à cause d’un bouton (« Préparer l’e-mail » reste, grisé)', () => {
     const r = regle('accepte');
     assert.deepEqual(r.menu.dejaVisibles, []);
-    assert.equal(r.menu.envoyerANouveau.present, true);
+    assert.equal(r.menu.preparerEmail.present, true);
     assert.ok(menuEditeur('accepte').includes('archiver'));
   });
 });

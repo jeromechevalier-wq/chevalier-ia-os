@@ -60,7 +60,7 @@ Le workflow a besoin d'un « badge » pour avoir le droit de publier sur `cheval
 
 ### 3 bis. Régler le CORS du stockage des PDF (si le module Devis sert)
 
-À faire **après** l'activation de Storage (étape 3) et **avant** le premier essai de devis : sans lui, « Copier dans Drive » et la pièce jointe Gmail échouent (« Le PDF n'a pas pu être lu… »). C'est un réglage **par projet Google** (pas par client), à refaire pour toute nouvelle plateforme. Pas à pas, modèle de fichier et état du réglage de chaque projet : [cors-stockage-pdf.md](cors-stockage-pdf.md).
+À faire **après** l'activation de Storage (étape 3) et **avant** le premier essai de devis : sans lui, « Copier dans Drive » échoue (« Le PDF n'a pas pu être lu… »). C'est un réglage **par projet Google** (pas par client), à refaire pour toute nouvelle plateforme. Pas à pas, modèle de fichier et état du réglage de chaque projet : [cors-stockage-pdf.md](cors-stockage-pdf.md).
 
 ### 4. Le premier déploiement (après la fusion de la PR)
 
