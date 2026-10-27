@@ -70,6 +70,10 @@ Déjà validés par Jérôme : 280, 282, et le 26/10/2026 : 309 (retour visuel p
 ### Priorité haute (demande de Jérôme, 26/10/2026)
 - **Haut de page du devis : un seul bouton jaune qui suit l'étape** (PR `devis-entete-bouton-jaune`, en brouillon, relecture Fable avant fusion) : Brouillon = « Finaliser » + « Envoyer » grisé ; Finalisé = « Envoyer » ; Envoyé = « Devis signé » + « Devis refusé » ; Signé, refusé, remplacé, archivé = aucun. « Imprimer » un brouillon donne le PDF brouillon (filigrane + pied « Brouillon v… · généré le … »), sans fenêtre « Finaliser ». Idée suivante, pas faite : « Préparer l'e-mail » comme bouton jaune quand la fonction fonctionnera pour de bon (le choix est dans `boutonJaune`, `js/modules/devis/entete-boutons.js`).
 
+### PDF et dossier de travail (27/10/2026)
+- **PR 2 faite, à tester par Jérôme** (`pdf-creer-dossier-et-copier`) : écran du PDF sans dossier = bouton « Créer le dossier … et y copier le PDF » ; création ou liaison du dossier = copie des PDF des devis finalisés + liens dans les Documents.
+- **Reste à faire** : alerte douce à la finalisation du devis quand l'affaire n'a pas de dossier (retirée de la PR 2 : l'éditeur est trop sensible et le PDF est « en cours » à ce moment ; l'écran du PDF porte déjà le bouton).
+
 ### Le reste
 - Barre d'étapes du devis : Jérôme a dit « pas ce soir, ni urgent ni prioritaire » (24/10/2026).
 - Page Déploiement, suite (Jérôme veut la vue « tous mes clients » et, chez le client, un libellé « Santé de mon espace » : à trancher) : suivi pas à pas « où j'en suis pour ce nouveau client » ; contrôle de nuit avec alerte ; vue « tous mes clients » chez Jérôme ; contrôle automatique du MCP et de « Préparer l'e-mail » une fois la fonction d'état fusionnée dans les contrôles.

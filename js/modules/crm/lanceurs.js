@@ -10,6 +10,7 @@ import * as PD from '../projets/donnees.js';
 import { iconeInfo, boutonAjouter } from './composants.js';
 import { googleDisponible, preparerGoogle, obtenirJeton, oublierJeton, ouvrirFenetreGoogle } from '../../os/google-picker.js';
 import { retirerAvecAnnulation } from '../../os/retrait.js';
+import { lancerApresDossierAffaire } from './dossier-externe.js';
 import { creerArborescence, nettoyerNomDossier, idDossierDrive, trouverDossierDeMemeNom, adresseDossierDrive, preparerDossierParent, nomDossierParentAuto } from '../../os/google-drive.js';
 
 function boutonPetit(libelle, nomIcone, action, onclick) {
@@ -31,7 +32,7 @@ export async function creerRepertoireDrive({ nom }) {
     const prepare = await preparerDossierParent({ jeton, parent: reglages.dossierParentDrive, nomAuto: nomDossierParentAuto(D.nomDeLEspace(), D.cheminDeBase() === '') });
     // Un dossier de ce nom créé par l'appli (ou montré à l'appli) existe déjà : on ne crée pas de doublon. (Un dossier créé à la main dans Drive n'est pas visible avec la portée drive.file.)
     const existant = await trouverDossierDeMemeNom({ jeton, nom: propre, parentId: prepare.parentId });
-    if (existant) throw Object.assign(new Error('Un dossier de ce nom existe déjà. Utilise « Lier un dossier Google Drive existant ».'), { saisie: true });
+    if (existant) throw Object.assign(new Error('Un dossier de ce nom existe déjà. Utilise « Lier un dossier Google Drive existant ».'), { saisie: true, dejaLa: true });
     const r = await creerArborescence({ jeton, nom: propre, parentId: prepare.parentId, sousDossiers: reglages.sousDossiersDrive || [] });
     if (prepare.cree) { try { await D.enregistrerReglages({ dossierParentDrive: prepare.parent }); } catch (e) { console.warn(e); } } // enregistré comme si l'utilisateur l'avait choisi
     return { url: r.dossier.url, nom: r.dossier.nom, manquants: r.manquants, parentCree: prepare.cree ? prepare.parent.nom : '', parentRecree: prepare.recree };
@@ -48,6 +49,28 @@ export function messageCreation({ nom, manquants, parentCree = '', parentRecree 
   return (manquants.length
     ? `Dossier « ${nom} » créé, mais ces sous-dossiers n'ont pas pu l'être : ${manquants.join(', ')}.`
     : `Dossier « ${nom} » créé dans Google Drive.`) + rangement;
+}
+
+/** Après un dossier créé ou lié sur une AFFAIRE : les modules inscrits (ex. Devis : copie des PDF) font leur travail, et chaque compte rendu est annoncé. Rend les comptes rendus. */
+export async function apresDossierAffaire(affaireId, urlDossier) {
+  const rapports = await lancerApresDossierAffaire({ affaireId, urlDossier });
+  for (const r of rapports) toast(r.texte, { type: r.type === 'erreur' ? 'erreur' : 'info', duree: 8000 });
+  return rapports;
+}
+
+/**
+ * Crée le dossier de travail d'une affaire en un geste (écran du PDF d'un devis) : création dans Drive, enregistrement du lien, puis `apresDossierAffaire`.
+ * Lève une erreur au message lisible (`saisie: true` si c'est à l'utilisateur d'agir, par exemple un dossier de même nom déjà là). Rend { url, nom, manquants, rapports }.
+ */
+export async function creerDossierDeLAffaire({ affaire, nom }) {
+  const r = await creerRepertoireDrive({ nom });
+  try { await D.majAffaire(affaire.id, { urlDossier: r.url }); } catch (e) {
+    console.warn(e);
+    throw Object.assign(new Error(`Dossier créé, mais son lien n’a pas pu être enregistré : ${r.url}`), { saisie: true });
+  }
+  toast(messageCreation(r), { type: r.manquants.length ? 'erreur' : 'info' });
+  const rapports = await apresDossierAffaire(affaire.id, r.url);
+  return { ...r, rapports };
 }
 
 /** Les projets (autres que `sauf`) qui utilisent déjà ce dossier de travail : [{ id, titre }]. Même dossier = même adresse, ou même identifiant Drive. */
@@ -124,7 +147,7 @@ export function creerLanceurs({ fiche, typeFiche = 'affaire', nomSuggere = '', e
       bouton.lastChild.textContent = 'Création en cours…';
       try {
         const r = await creerRepertoireDrive({ nom });
-        if (await ecrireDossier(r.url)) toast(messageCreation(r), { type: r.manquants.length ? 'erreur' : 'info' });
+        if (await ecrireDossier(r.url)) { toast(messageCreation(r), { type: r.manquants.length ? 'erreur' : 'info' }); if (typeFiche === 'affaire') await apresDossierAffaire(fiche.id, r.url); }
         else toast(`Dossier créé, mais son lien n'a pas pu être enregistré : ${r.url}`, { type: 'erreur' });
       } catch (e) {
         if (!e?.saisie) console.warn(e);
@@ -150,7 +173,7 @@ export function creerLanceurs({ fiche, typeFiche = 'affaire', nomSuggere = '', e
       const dossier = elus[0];
       if (!dossier) return;
       const url = adresseDossierDrive(dossier.id);
-      if (await ecrireDossier(url)) { toast('Dossier lié', { type: 'info' }); avertirSiPartage(url); }
+      if (await ecrireDossier(url)) { toast('Dossier lié', { type: 'info' }); avertirSiPartage(url); if (typeFiche === 'affaire') await apresDossierAffaire(fiche.id, url); }
     } catch (e) {
       if (!e?.annule) console.warn(e);
       toast(e?.message || 'Liaison impossible', { type: e?.annule ? 'info' : 'erreur' });

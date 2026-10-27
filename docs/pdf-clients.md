@@ -59,3 +59,13 @@ Rien de nouveau : le réglage se fait une fois pour le stockage de la plateforme
 1. Regarde si le devis porte `pdf.statut = échec` (message affiché dans l'écran du devis).
 2. Si le statut ne change jamais (pas même « en cours »), la fonction ne s'est pas déclenchée : ouvre <https://console.cloud.google.com/eventarc/triggers?project=chevalier-ia-app> et cherche le déclencheur de `devisPdfAuto` (région `europe-west9`) ; regarde son état et ses erreurs de droits (voir les droits 4 et 5 de l'Étape 2).
 3. Journal de la fonction : <https://console.cloud.google.com/functions/list?project=chevalier-ia-app> > `devisPdfAuto` > **Journaux**.
+
+## Dossier de travail et PDF (PR « pdf-creer-dossier-et-copier », 27/10/2026)
+Décision de Jérôme (26/10/2026) : le PDF d'un devis est **toujours fabriqué** (jamais bloqué). Quand l'affaire n'a pas de dossier de travail, l'écran du PDF le dit (« Cette affaire n'a pas encore de dossier de travail. ») et propose en **un clic** « Créer le dossier « <titre de l'affaire> » et y copier le PDF » (bouton en contour : « Ouvrir le PDF » reste le seul bouton jaune). Le bouton n'existe que si l'option « Créer un dossier dans Google Drive » est allumée, que Google est branché et que la personne peut écrire.
+- **Quand le dossier est créé OU lié** (écran du PDF, ou fiche de l'affaire > Documents), les PDF de **tous** les devis finalisés de l'affaire (toutes versions non brouillon, PDF prêt) sont copiés dans le sous-dossier « Devis », puis leurs liens stables sont ajoutés aux Documents de l'affaire s'ils n'y sont pas (« Document joint » vient de la logique existante du fil, une seule fois par lien).
+- Sans doublon (recherche par nom dans « Devis »), jamais de fichier écrasé ni de dossier supprimé. Compte rendu : « 3 PDF copiés dans le dossier. » ou « 2 sur 3 copiés : réessaie. ».
+- Le CRM ne connaît pas le module Devis : il appelle un crochet (`js/modules/crm/dossier-externe.js`) que le module Devis inscrit au démarrage. Un `urlDossier` posé par le serveur MCP ne déclenche rien : la copie se fait à l'ouverture de l'écran du PDF.
+- Les liens écrits par le navigateur ont la même adresse que ceux du serveur (`lienStablePdfNavigateur`, deux sites en constantes, test de comparaison).
+- Chaque PDF copié demande un lien signé au serveur (N appels) et une lecture CORS du stockage (étape 3 ci-dessus).
+- Même code chez Jérôme et chez les clients.
+- Pas fait ici (voir `.github/A-FAIRE.md`) : l'alerte douce à la finalisation du devis.

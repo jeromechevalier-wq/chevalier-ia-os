@@ -84,6 +84,8 @@ describe('D2 Aucune ressource externe hors Google', () => {
         // Adresses écrites en texte (prompts à coller dans Claude Code, exemples et validation des champs GitHub et Dossier, lien vers l'OS) :
         // jamais chargées. Le parcours D2 dans le navigateur vérifie qu'aucune requête ne part vers ces sites.
         if (/^https:\/\/(github\.com\/|drive\.google\.com\/drive\/|chevalier-ia-os\.web\.app)/.test(url) && /logique\.js$|lanceurs\.js$/.test(f)) continue;
+        // Adresse stable du PDF d'un devis écrite dans les Documents de l'affaire (27/10/2026) : les deux sites de l'application, en texte, jamais chargés (devis/pdf.js).
+        if (/^https:\/\/chevalier-ia-(os|app)\.web\.app$/.test(url) && /modules\/devis\/pdf\.js$/.test(f)) continue;
         // Page Réglages > Déploiement (25/10/2026) : liens de réparation (mode d'emploi dans docs/ sur GitHub, console Google), affichés comme liens, jamais chargés.
         if (/^https:\/\/(github\.com\/jeromechevalier-wq\/chevalier-ia-os\/blob\/main\/docs\/|console\.cloud\.google\.com\/)/.test(url) && /deploiement\.js$/.test(f)) continue;
         assert.match(url, autorise, `${f} : ${url}`);

@@ -96,7 +96,7 @@ describe('Copie du PDF d’un devis dans le dossier de travail Drive', () => {
     const o = outils(drive, { obtenirJeton: async () => { jetonDemande = true; return 'x'; } });
     const sans = await C.copierPdfDevis({ devis: DEVIS, affaire: { id: 'a1', urlDossier: '' }, outils: o });
     assert.deepEqual([sans.etat, sans.genre], ['rien', 'sans-dossier']);
-    assert.equal(sans.message, 'Cette affaire n’a pas de dossier de travail Drive : le PDF est rangé dans l’affaire seulement.');
+    assert.equal(sans.message, 'Cette affaire n’a pas de dossier de travail : le PDF est gardé avec le devis.');
     const nas = await C.copierPdfDevis({ devis: DEVIS, affaire: { id: 'a1', urlDossier: 'smb://serveur/clients/dupont' }, outils: o });
     assert.deepEqual([nas.etat, nas.genre], ['rien', 'pas-drive']);
     const siteWeb = await C.copierPdfDevis({ devis: DEVIS, affaire: { id: 'a1', urlDossier: 'https://exemple.fr/dossier' }, outils: o });
