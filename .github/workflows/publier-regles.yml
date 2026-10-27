@@ -1,0 +1,53 @@
+# Publication des RÈGLES Firestore du CRM de Jérôme (projet chevalier-ia-os), uniquement à la main :
+# GitHub > onglet « Actions » > « Publier les règles (CRM de Jérôme) » > « Run workflow ».
+# Ne se déclenche jamais tout seul (ni à la fusion, ni la nuit). Ne publie ni fonctions ni Hosting.
+# Publie le fichier firestore.rules de la racine (celui que lit firebase.json). Le CRM n'a pas de règles Storage à la racine
+# (firebase.json n'a pas de section « storage ») : seules les règles Firestore sont donc publiées ici.
+# Secret requis : FIREBASE_SERVICE_ACCOUNT_CHEVALIER_IA_OS. Le compte de déploiement doit avoir le rôle
+# « Administrateur des règles Firebase » (roles/firebaserules.admin) : à donner une fois, voir docs/securite-et-pannes.md.
+name: Publier les règles (CRM de Jérôme)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: publier-regles-crm
+  cancel-in-progress: false
+jobs:
+  publier:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Contrôle sans réseau (firebase.json pointe bien sur le fichier firestore.rules de la racine, qui existe et est une règle Firestore)
+        run: |
+          node -e '
+            const fs = require("fs");
+            const cfg = JSON.parse(fs.readFileSync("firebase.json", "utf8"));
+            if (!cfg.firestore || cfg.firestore.rules !== "firestore.rules") { console.error("firebase.json ne pointe pas sur firestore.rules"); process.exit(1); }
+            const regles = fs.readFileSync("firestore.rules", "utf8");
+            if (!/service cloud\.firestore/.test(regles)) { console.error("firestore.rules ne ressemble pas à un fichier de règles Firestore"); process.exit(1); }
+            console.log("Règles lues : firestore.rules,", regles.split("\n").length, "lignes");
+          '
+      - name: Afficher le compte de déploiement (adresse seulement, jamais la clé)
+        env:
+          COMPTE_DE_SERVICE: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CHEVALIER_IA_OS }}
+        # Aide au diagnostic des erreurs de droits. L'adresse n'est pas un secret ; le « arobase » évite seulement que GitHub la masque.
+        run: |
+          node -e 'try { console.log("Compte de déploiement :", JSON.parse(process.env.COMPTE_DE_SERVICE).client_email.replace("@", " arobase ")); } catch { console.log("Compte de déploiement : illisible"); }'
+      - name: Publier les règles Firestore sur chevalier-ia-os
+        env:
+          COMPTE_DE_SERVICE: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CHEVALIER_IA_OS }}
+        run: |
+          fichier="$RUNNER_TEMP/compte-de-service.json"
+          (umask 077; printf '%s' "$COMPTE_DE_SERVICE" > "$fichier")
+          trap 'rm -f "$fichier"' EXIT
+          GOOGLE_APPLICATION_CREDENTIALS="$fichier" npx --yes firebase-tools@15.32.0 deploy --only firestore:rules --project chevalier-ia-os --non-interactive
+      - name: Si la publication a échoué, que faire (droits)
+        if: ${{ failure() }}
+        run: |
+          echo "La publication a échoué. Si le journal ci-dessus parle de permission (403, PERMISSION_DENIED, firebaserules), le compte de déploiement n'a sans doute pas le rôle « Administrateur des règles Firebase »."
+          echo "Où l'ajouter : https://console.cloud.google.com/iam-admin/iam?project=chevalier-ia-os > crayon sur le compte affiché à l'étape « Afficher le compte de déploiement » > Ajouter un rôle > Administrateur des règles Firebase (roles/firebaserules.admin) > Enregistrer. Attendre 1 à 2 minutes, puis Re-run failed jobs."
+          echo "Voir aussi docs/securite-et-pannes.md."
