@@ -1594,6 +1594,16 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       const el = ref.blocPaiement.querySelector(`[data-acompte-ligne="${i}"] [data-valeur="acompte-montant"]`);
       if (el) el.textContent = x.montantTtc === null ? '—' : euros(x.montantTtc);
     });
+    // Un acompte déjà enregistré qui ne tient plus (remise ajoutée, ligne retirée) : le message est sous sa ligne.
+    let erreurs = [];
+    try { erreurs = erreursAcomptes(listeAcomptes(travail), totauxDevis(travail)); } catch { erreurs = []; }
+    ref.blocPaiement.querySelectorAll('[data-acompte-ligne]').forEach((li, i) => {
+      const p = li.querySelector(':scope > [data-erreur="acompte-ligne"]');
+      if (!p) return;
+      const m = erreurs.filter((e) => e.index === i).map((e) => e.message).join(' ');
+      p.hidden = !m;
+      p.textContent = m;
+    });
   }
   function ouvrirMenuCondition(ancre) {
     ouvrirFenetreMenu(ancre, (fermer) => contenuMenu([
@@ -1607,7 +1617,8 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     await retirerAvecAnnulation({
       titre: 'Retirer cet acompte ?', message: `L’acompte « ${texteAcompte(a)} » sera retiré du devis.`, libelleOk: 'Retirer', danger: true, messageFait: 'Acompte retiré',
       faire: () => { changer({ acomptes: avant.filter((_, k) => k !== i), acompte: null }); dessinerPaiement(null); },
-      defaire: () => { changer({ acomptes: avant, acompte: null }); dessinerPaiement(null); },
+      // Annuler ne remet que l'acompte retiré, à sa place : un acompte ajouté pendant les 8 secondes reste.
+      defaire: () => { const l = structuredClone(listeAcomptes(travail)); l.splice(Math.min(i, l.length), 0, a); changer({ acomptes: l, acompte: null }); dessinerPaiement(null); },
     });
   }
   /** Le bloc : titre + « Ajouter une condition », la liste (ou « Aucun acompte »), le reste à facturer. `edition` = { index } (−1 : nouvel acompte) pour montrer le formulaire en place. */
@@ -1624,7 +1635,8 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
         h('span', { class: 'acompte-texte', dataset: { valeur: 'acompte-texte' } }, texteAcompte(x.acompte)),
         h('span', { class: 'acompte-montant', dataset: { valeur: 'acompte-montant' } }, x.montantTtc === null ? '—' : euros(x.montantTtc)),
         h('button', { type: 'button', class: 'bouton-icone', dataset: { action: 'modifier-acompte' }, title: 'Modifier', 'aria-label': `Modifier l’acompte ${i + 1}`, onclick: () => dessinerPaiement({ index: i }) }, icone('pencil', { taille: 14 })),
-        h('button', { type: 'button', class: 'bouton-icone', dataset: { action: 'retirer-acompte' }, title: 'Retirer', 'aria-label': `Retirer l’acompte ${i + 1}`, onclick: () => retirerAcompte(i) }, icone('x', { taille: 14 })));
+        h('button', { type: 'button', class: 'bouton-icone', dataset: { action: 'retirer-acompte' }, title: 'Retirer', 'aria-label': `Retirer l’acompte ${i + 1}`, onclick: () => retirerAcompte(i) }, icone('x', { taille: 14 })),
+        h('p', { class: 'erreur', role: 'alert', hidden: true, dataset: { erreur: 'acompte-ligne' } }));
     };
     const lignes = detail.map(ligne);
     if (edition && edition.index < 0) lignes.push(h('li', { class: 'acompte-ligne acompte-ligne-edition', dataset: { acompteLigne: 'nouveau' } }, formulaireAcompte(-1)));
@@ -1678,7 +1690,8 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       const messages = erreursAcomptes(candidate, t).filter((e) => e.index === place || !avant.some((b) => b.index === e.index && b.message === e.message)).map((e) => e.message);
       erreur.hidden = !messages.length;
       erreur.textContent = messages.join(' ');
-      for (const el of [valeur, texte]) { el.classList.toggle('invalide', !!messages.length); el.setAttribute('aria-invalid', messages.length ? 'true' : 'false'); }
+      const surTexte = messages.length > 0 && messages.every((m) => /texte libre/.test(m)); // seul le champ concerné est marqué
+      for (const [el, marque] of [[valeur, messages.length > 0 && !surTexte], [texte, surTexte]]) { el.classList.toggle('invalide', marque); el.setAttribute('aria-invalid', marque ? 'true' : 'false'); }
       if (messages.length) return; // rien n'est enregistré
       changer({ acomptes: candidate, acompte: null }); // null, jamais undefined : sinon l'ancien acompte resterait dans la base
       fermer();

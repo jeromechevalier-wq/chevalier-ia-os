@@ -369,6 +369,12 @@ describe('3 saut de page : hors totaux, sans numéro, fidèle à l’ancien rég
     assert.ok(Ed.memeContenu({ sections: ancien }, { sections: neuf }), 'ancien et converti sont le même contenu : pas de faux conflit');
     assert.equal(ancien[1].sautDePageAvant, true, 'la source n’est pas modifiée');
   });
+  test('3 un ancien acompte unique, la liste qui le remplace et « sans acompte » sont le même contenu : pas de faux conflit « modifié ailleurs »', () => {
+    const a = { type: 'pourcentage', valeur: 30, moment: 'signature' };
+    assert.ok(Ed.memeContenu({ sections: [], acompte: a }, { sections: [], acomptes: [a], acompte: null }));
+    assert.ok(Ed.memeContenu({ sections: [] }, { sections: [], acomptes: [], acompte: null }));
+    assert.ok(!Ed.memeContenu({ sections: [], acompte: a }, { sections: [], acomptes: [], acompte: null }), 'un vrai changement reste vu');
+  });
   test('3 document : un saut coupe la page à sa place exacte, jamais en tête, jamais deux de suite', () => {
     const vue = (sections) => L.vueClient(devisDe(sections));
     const html = devisHtml(vue([{ id: 's1', titre: 'A', lignes: [saut('p0'), ligne('a', 10, 1), saut('p1'), saut('p1b'), ligne('b', 10, 1)] }]));

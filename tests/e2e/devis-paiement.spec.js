@@ -232,6 +232,31 @@ test('5 erreurs : somme au-dessus du TTC, valeur ≤ 0 ou illisible, % > 100, mo
   await expect(erreur(page)).toContainText('La somme des acomptes dépasse le total TTC');
 });
 
+test('5 bis un acompte enregistré qui ne tient plus dans le TTC (remise ajoutée) a son message sous sa ligne', async ({ page }) => {
+  await ouvrir(page, await devis('d5b', { acomptes: [{ type: 'montantTtc', valeur: 900, moment: 'signature' }], acompte: null }));
+  await expect(ligneAcompte(page, 0).locator('[data-erreur="acompte-ligne"]')).toBeHidden();
+  await page.locator('[data-champ="remise-valeur"]').fill('50'); // TTC 600 : 900 ne tient plus
+  const m = ligneAcompte(page, 0).locator('[data-erreur="acompte-ligne"]');
+  await expect(m).toBeVisible();
+  await expect(m).toContainText('dépasser le total TTC');
+  await expect(ligneAcompte(page, 0).locator('[data-valeur="acompte-montant"]')).toHaveText('—');
+  await page.locator('[data-champ="remise-valeur"]').fill('');
+  await expect(m).toBeHidden();
+});
+
+test('4 bis « Retiré · Annuler » ne remet que l’acompte retiré : celui ajouté pendant les 8 secondes reste', async ({ page }) => {
+  await ouvrir(page, await devis('d4b', { acomptes: [A30, A250HT], acompte: null }));
+  await ligneAcompte(page, 0).locator('[data-action="retirer-acompte"]').click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Retirer' }).click();
+  await expect(bloc(page).locator('.acompte-ligne')).toHaveCount(1);
+  await ajouter(page, { valeur: '10', type: 'pourcentage', moment: 'mi_travaux' });
+  await expect(bloc(page).locator('.acompte-ligne')).toHaveCount(2);
+  await page.locator('.toast [data-action="toast-action"]').click();
+  await expect(bloc(page).locator('.acompte-ligne')).toHaveCount(3);
+  await expect(ligneAcompte(page, 0).locator('[data-valeur="acompte-texte"]')).toHaveText('30 % du total · à la signature'); // remis à sa place
+  await expect(ligneAcompte(page, 2).locator('[data-valeur="acompte-texte"]')).toContainText('10 % du total');
+});
+
 test('6 la Prévisualisation (même document que le PDF) : une phrase par acompte, puis « Reste à facturer »', async ({ page }, info) => {
   await ouvrir(page, await devis('d6', { acomptes: [A30, A250HT, { type: 'montantTtc', valeur: 100, moment: 'libre', texteMoment: 'à la livraison' }], acompte: null }));
   await page.locator('.barre-devis [data-onglet="apercu"]').click();
@@ -270,6 +295,11 @@ test('7 un devis à l’ancien acompte unique : une ligne, imprimé comme avant,
   expect(intact.acompte).toEqual({ type: 'montant', valeur: 200, moment: 'debut_travaux' }); // ouvrir ne réécrit rien
   expect(intact.acomptes).toBeUndefined();
   await expect(page.locator('[data-valeur="enregistrement"]')).toHaveText('Enregistré'); // et l'écran ne se dit pas modifié
+  // Un autre document du devis écrit ailleurs (pdf, autre devis) ne déclenche pas de faux « modifié ailleurs » ni d'arrêt de l'enregistrement.
+  await ecrireDocument('devis_devis/x7', { ...intact, id: 'x7', racineId: 'x7', objet: 'Un autre devis' });
+  await page.waitForTimeout(1500);
+  await expect(page.locator('[data-valeur="conflit"]')).toBeHidden();
+  await expect(page.locator('[data-valeur="enregistrement"]')).toHaveText('Enregistré');
   await page.locator('.barre-devis [data-onglet="apercu"]').click();
   const plat = (await page.frameLocator('iframe[data-zone="apercu"]').locator('body').innerText()).replace(/\s+/g, ' ');
   expect(plat).toMatch(/Acompte de 200,00 € au début des travaux/); // exactement la phrase d'avant : ni « soit », ni « TTC »
