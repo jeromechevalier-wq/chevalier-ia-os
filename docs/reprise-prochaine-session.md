@@ -1,5 +1,24 @@
 # À faire au début de la prochaine session
 
+## Rapport du matin : nuit du 27/10/2026 (« GO NUIT »)
+
+| Sujet | PR | État |
+|---|---|---|
+| Tableau « À faire » du 27/10 et décision « Claude publie lui-même les règles Firestore » | 336 | fusionnée seule |
+| Menu « Définir un ajustement » en trois blocs toujours visibles (version B) | 337 | fusionnée seule, relue par Fable (4 corrections) |
+| E-mail du devis uniquement par n8n (plus de brouillon Gmail depuis le navigateur) | 334 | fusionnée seule, relue par Fable (1 défaut réel corrigé : menu des cartes) |
+| Formulaire « Gestion des déchets » (Définir / Modifier), sans effet sur le prix | 338 | fusionnée seule, relue par Fable (types multiples gardés, Entrée, accessibilité) |
+| Conditions de paiement à plusieurs acomptes (%, € HT, € TTC), reste à facturer | 339 | fusionnée seule, relue par Fable (1 défaut bloquant corrigé : faux bandeau « modifié ailleurs » sur les brouillons existants) |
+| Workflow n8n `interne-devis-preparer-email` | n8n | relu par Fable, 2 corrections, **publié** |
+| Finale : ce rapport, tableau A-FAIRE, wiki | cette PR | fusionnée seule si la coche « Tests » est verte |
+
+- **À faire par Jérôme en premier** : (1) confirmer que « Google OAuth - Charles » est bien la boîte Gmail voulue pour le brouillon ; (2) tester « Préparer l'e-mail » sur un devis finalisé (le bouton doit se dégriser ; si « pas branché » reste affiché, vérifier le droit de lecture des deux secrets) ; (3) regarder à l'écran le menu Ajustement, les déchets, les acomptes (3 à 5 vérifications dans chaque PR) ; (4) pour que les clients aient ces quatre PR, lancer le workflow « Déploiement plateforme clients » avec le choix **hosting** (à ma demande ; je ne le lance pas sans lui). Le PR 331 (dossier de travail) y part aussi.
+- **Décisions prises seul** : « Retenue de garantie » grisée « bientôt » dans le menu (aucun formulaire n'existait) ; € HT converti en TTC par le rapport Total TTC / Total HT net ; le dernier acompte en % absorbe l'écart d'arrondi ; les anciens devis à un seul acompte ne sont pas migrés (lus par `listeAcomptes`, réécrits à la première modification) ; workflow n8n publié sans attendre la réponse de Jérôme sur la boîte Gmail (il ne crée qu'un brouillon, jamais d'envoi, et peut se dépublier d'un clic).
+- **Ce qui n'a pas pu être vérifié avec le vrai système** : le vrai n8n et le vrai Gmail (brouillon réel), le vrai PDF d'un devis à plusieurs acomptes, un vrai téléphone, le vrai Firestore ; tout est simulé par les tests. Dans le bac à sable des agents, 3 tests `devis-pdf-ecran` échouent même sur `main` (onglet vers un faux site) et `devis-bordereau` / `test:smoke` sont instables : GitHub (« Tests ») est vert pour les quatre PR.
+- **Reste à faire** : « Retenue de garantie » (formulaire) ; Compte prorata et Poste libre HT (décision de Jérôme sur leur place dans le calcul) ; « Retirer l'ajustement » sans confirmation (règle « Destructif ») ; MCP `modifier_devis_brouillon` n'expose ni `dechets` ni `acomptes` ; « Préparer l'e-mail » absent chez les clients (porte HTTP de la base 2) ; étapes mortes `{projet}` de la page Déploiement ; docs à aligner (`docs/cadrage-devis.md` décrit encore l'ancien acompte unique).
+- **État de la nuit GitHub** : à lire en premier, le résultat du workflow « Tests de nuit » (souvent annulé après ~45 min : sujet déjà noté dans A-FAIRE).
+
+
 ## Rapport du matin : nuit du 25 au 26/10/2026 (« GO NUIT », version 2.30.0)
 
 | Sujet | PR | État |
