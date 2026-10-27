@@ -1,6 +1,6 @@
 // Onglet « Devis » de la fiche d'une affaire (inscrit par le module Devis quand il démarre ; éteint, il n'y a pas d'onglet).
 // Montre tous les devis de l'affaire (brouillons et « Remplacé » compris, archivés exclus) comme l'onglet Documents : le nom du devis est un lien qui l'ouvre, le total et la date dessous.
-// Ni bouton ni crayon ni croix : le PDF et son téléchargement se trouvent dans le devis (menu « … ») puis sur l'écran du PDF. Jamais de suppression ici (un devis finalisé s'archive).
+// Ni bouton ni crayon : le PDF et son téléchargement se trouvent dans le devis (menu « … ») puis sur l'écran du PDF. Une croix seulement sur les brouillons (fenêtre de confirmation de `supprimerBrouillon`) ; un devis finalisé ne se supprime pas, il s'archive.
 // Les règles sont dans onglet-affaire-logique.js (pur, testé).
 // Le fournisseur est appelé à chaque redessin de la fiche : il garde UN élément par affaire et ne change que son contenu, et seulement si quelque chose a changé.
 import { h, icone, remplir, toast } from '../../os/ui.js';
@@ -15,14 +15,15 @@ import { indicateurPdf } from './pdf-indicateur.js';
 import { etatPdfDevis } from './pdf.js';
 import { clientsDeAffaire } from './editeur-ecran.js';
 import { valeursDeCreation } from './editeur-logique.js';
-import { ERREUR_ECRITURE } from './actions-devis.js';
+import { ERREUR_ECRITURE, supprimerBrouillon } from './actions-devis.js';
 import * as P from './onglet-affaire-logique.js';
 
 const elements = new Map(); // affaireId -> { racine, maj, signature }
 const enCreation = new Set(); // identifiants des affaires dont un brouillon est en cours de création
+const enSuppression = new Set(); // identifiants des brouillons dont la suppression est en cours (un double clic ne doit pas appeler deux fois le serveur)
 
 /** À appeler quand le module s'arrête : l'élément d'une affaire ne doit pas survivre à une nouvelle session. */
-export function oublierOnglets() { elements.clear(); enCreation.clear(); }
+export function oublierOnglets() { elements.clear(); enCreation.clear(); enSuppression.clear(); }
 
 const euros = (n) => (typeof n === 'number' ? formaterMontant(n) : '—');
 const enMsCle = (d) => Li.enMs(d?.creeLe) ?? Li.enMs(d?.finaliseLe) ?? 0;
@@ -44,6 +45,12 @@ export async function ajouterDevis(affaireId) {
   }
 }
 
+async function supprimer(d, apres) {
+  if (enSuppression.has(d.id)) return;
+  enSuppression.add(d.id);
+  try { await supprimerBrouillon(d, apres); } finally { enSuppression.delete(d.id); }
+}
+
 function ligne(d, { aujourdhui, apres }) {
   const t = Li.totauxDe(d);
   const brouillon = d.statut === 'brouillon';
@@ -60,7 +67,8 @@ function ligne(d, { aujourdhui, apres }) {
         h('span', { dataset: { valeur: 'ttc' } }, `${euros(t?.ttc)} TTC`),
         Li.dateFr(Li.dateDuDevis(d)) ? ' · ' : null,
         Li.dateFr(Li.dateDuDevis(d)) ? h('span', { dataset: { valeur: 'date' } }, Li.dateFr(Li.dateDuDevis(d))) : null),
-      indicateur));
+      indicateur),
+    brouillon ? h('button', { type: 'button', class: 'bouton-icone', dataset: { action: 'supprimer-devis' }, 'aria-label': `Supprimer le brouillon ${nom}`, onclick: () => supprimer(d, apres) }, icone('x', { taille: 14 })) : null);
 }
 
 function creerElement(affaireId) {
@@ -72,7 +80,7 @@ function creerElement(affaireId) {
     const aujourdhui = CRM.ctx().aujourdhui;
     const lignes = P.devisDeAffaire(D.etat.devis, affaireId);
     const maintenant = Date.now();
-    const signature = JSON.stringify([pret, erreur, aujourdhui, lignes.map((d) => [d.id, d.numero, d.version, d.statut, d.objet, d.dateEmission, enMsCle(d), d.totaux, d.expireLe, etatPdfDevis(d, maintenant)])]);
+    const signature = JSON.stringify([pret, erreur, aujourdhui, lignes.map((d) => [d.id, d.numero, d.version, d.statut, d.objet, d.dateEmission, enMsCle(d), Li.totauxDe(d), d.expireLe, etatPdfDevis(d, maintenant)])]);
     if (!force && signature === e.signature) return lignes;
     e.signature = signature;
     const apres = () => e.maj(true);
@@ -91,7 +99,7 @@ function creerElement(affaireId) {
     remplir(racine, ...corps);
     if (ancien?.action && (!document.activeElement || document.activeElement === document.body)) {
       const cible = [...racine.querySelectorAll('[data-action]')].find((n) => n.dataset.action === ancien.action && (n.closest('[data-devis]')?.dataset.devis ?? undefined) === ancien.devis);
-      cible?.focus();
+      (cible ?? racine.querySelector('[data-action="ajouter-devis"]'))?.focus(); // la ligne a disparu (brouillon supprimé) : le focus passe à « + Ajouter »
     }
     return lignes;
   };

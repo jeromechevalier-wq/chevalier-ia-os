@@ -104,7 +104,7 @@ test.describe('1 module éteint', () => {
 
 // ------------------------------------------------------------------ point 2 : le contenu
 
-test('2 module actif : onglet « Devis » en dernier avec le compteur 2, devis du plus récent au plus ancien, statut, total TTC, date, nom cliquable et aucun bouton', async ({ page }, info) => {
+test('2 module actif : onglet « Devis » en dernier avec le compteur 2, devis du plus récent au plus ancien, statut, total TTC, date, nom cliquable et aucun bouton sauf la croix du brouillon', async ({ page }, info) => {
   await donneesDeuxDevis();
   await ouvrirAffaire(page);
   await expect(page.locator('.compositeur [role="tab"]')).toHaveText([/Activité/, /Notes/, /G-Drive/, /Devis/]);
@@ -125,7 +125,7 @@ test('2 module actif : onglet « Devis » en dernier avec le compteur 2, devis d
   await expect(finalise.locator('[data-valeur="date"]')).toHaveText('02/10/2026');
   await expect(finalise.locator('[data-pdf]')).toHaveCount(0); // PDF prêt : rien à signaler, le PDF s'ouvre depuis le devis
   await expect(finalise.getByRole('link', { name: 'Voir le devis DEV-2026-10-02-001' })).toBeVisible();
-  await expect(panneau.locator('.ligne-lien a.bouton, .ligne-lien button')).toHaveCount(0); // comme l'onglet Documents : un nom cliquable, pas de boutons
+  await expect(panneau.locator('.ligne-lien a.bouton, .ligne-lien button:not([data-action="supprimer-devis"])')).toHaveCount(0); // comme l'onglet Documents : un nom cliquable, pas de boutons (la croix des brouillons est testée en A2)
   await expect(page.locator('.bouton-principal:visible')).toHaveCount(1); // un seul bouton jaune : « Créer un devis » / « Voir le devis » de l'en-tête (« + Ajouter » est un texte jaune)
   await capturer(page, info, '2-onglet-devis');
 });
@@ -296,12 +296,136 @@ test('11 chaque ligne tient sans débordement horizontal, les quatre onglets son
   await capturer(page, info, '11-lignes-et-onglets');
 });
 
-test('12 aucune action de suppression dans l’onglet : ni bouton, ni menu', async ({ page }) => {
+test('12 aucune action de suppression dans l’onglet sauf la croix des brouillons : ni bouton, ni menu, rien sur un devis finalisé', async ({ page }) => {
   await donneesDeuxDevis();
   await ouvrirAffaire(page);
   const panneau = await ouvrirOnglet(page);
-  await expect(panneau.getByRole('button', { name: /supprim|retirer|archiv|corbeille/i })).toHaveCount(0);
+  await expect(panneau.getByRole('button', { name: /supprim|retirer|archiv|corbeille/i })).toHaveCount(1); // la croix du seul brouillon
+  await expect(panneau.locator('[data-devis="dOk"] button')).toHaveCount(0);
   await expect(panneau.getByRole('link', { name: /supprim|retirer|archiv|corbeille/i })).toHaveCount(0);
-  await expect(panneau.locator('[aria-haspopup="menu"], .bouton-icone')).toHaveCount(0);
-  await expect(panneau.locator('.ligne-lien a.bouton, .ligne-lien button')).toHaveCount(0);
+  await expect(panneau.locator('[aria-haspopup="menu"], .bouton-icone:not([data-action="supprimer-devis"])')).toHaveCount(0);
+  await expect(panneau.locator('.ligne-lien a.bouton, .ligne-lien button:not([data-action="supprimer-devis"])')).toHaveCount(0);
+});
+
+// ------------------------------------------------------------------ lot « onglet Devis » du 27/10 : montant à jour au retour arrière (1) et croix des brouillons (2)
+
+test('A1 le total du brouillon dans l’onglet est celui de l’éditeur après « Retour » du navigateur, sans rafraîchir', async ({ page }, info) => {
+  await base();
+  const maintenant = new Date();
+  await ecrireDocument('devis_articles/art1', { code: '', libelle: 'Carrelage 60 x 60', unite: 'm²', prixAchat: 50, tauxTva: null, actif: true, proprietaire: JEROME, creeLe: maintenant, modifieLe: maintenant, creePar: JEROME, modifiePar: JEROME });
+  await devis('dVide', { objet: 'Cuisine, variante basse', sections: [{ id: 's1', titre: 'Cuisine', lignes: [] }] });
+  await ouvrirAffaire(page);
+  const panneau = await ouvrirOnglet(page);
+  await expect(panneau.locator('[data-valeur="ttc"]')).toHaveText(/^0,00\s*€ TTC$/); // l'onglet a déjà affiché le brouillon à 0 €
+  await panneau.locator('[data-action="voir-devis"]').click();
+  await expect(page.locator('.page-editeur-devis')).toBeVisible();
+  await page.locator('[data-action="bibliotheque"]').click();
+  const bib = page.locator('[data-zone="bibliotheque"]');
+  await bib.locator('[data-article-id="art1"]').check();
+  await bib.locator('[data-action="ajouter-bibliotheque"]').click();
+  await expect(page.locator('tr.ligne-devis-edition')).toHaveCount(1);
+  await expect(page.locator('[data-valeur="enregistrement"]')).toHaveText('Enregistré'); // l'écriture est partie (délai d'enregistrement)
+  await page.goBack();
+  await expect(page.locator('.compositeur')).toBeVisible();
+  const retour = await ouvrirOnglet(page);
+  const ttc = retour.locator('[data-liste="devis-affaire"] [data-valeur="ttc"]');
+  await expect(ttc).toBeVisible();
+  await expect(ttc).not.toHaveText(/^0,00\s*€ TTC$/);
+  await expect(ttc).toHaveText(/^[1-9][\d\s ]*,\d\d\s*€ TTC$/);
+  await capturer(page, info, 'A1-total-a-jour');
+});
+
+/** Faux serveur de devisSupprimer (absent de l'émulateur) : note l'appel et, si `ok`, retire le document comme le vrai serveur. */
+async function simulerSuppression(page, appels, ok = true) {
+  await page.route('**/devisSupprimer', async (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+    const donneesAppel = JSON.parse(route.request().postData()).data;
+    appels.push(donneesAppel);
+    if (!ok) return route.fulfill({ status: 500, headers: cors, body: JSON.stringify({ error: { status: 'INTERNAL', message: 'Panne.' } }) });
+    await fetch(`${FIRESTORE}/v1/projects/${PROJET}/databases/(default)/documents/devis_devis/${donneesAppel.devisId}`, { method: 'DELETE', headers: { Authorization: 'Bearer owner' } });
+    return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ result: { ok: true } }) });
+  });
+}
+const croix = (panneau, id) => panneau.locator(`[data-devis="${id}"] [data-action="supprimer-devis"]`);
+const fenetre = (page) => page.getByRole('dialog');
+
+test('A2a la croix de suppression n’existe que sur les devis en brouillon', async ({ page }, info) => {
+  await donneesDeuxDevis();
+  await devis('dEnvoye', { ...FINALISE, numero: 'DEV-2026-10-02-004', statut: 'envoye', creeLe: IL_Y_A(7), pdf: PDF_OK });
+  await ouvrirAffaire(page);
+  const panneau = await ouvrirOnglet(page);
+  await expect(panneau.locator('[data-action="supprimer-devis"]')).toHaveCount(1);
+  await expect(croix(panneau, 'dBrouillon')).toBeVisible();
+  await expect(croix(panneau, 'dOk')).toHaveCount(0);
+  await expect(croix(panneau, 'dEnvoye')).toHaveCount(0);
+  await capturer(page, info, 'A2a-croix-brouillon');
+});
+
+test('A2b « Annuler » dans la fenêtre de confirmation ne supprime rien', async ({ page }, info) => {
+  const appels = [];
+  await simulerSuppression(page, appels);
+  await donneesDeuxDevis();
+  await ouvrirAffaire(page);
+  const panneau = await ouvrirOnglet(page);
+  await croix(panneau, 'dBrouillon').click();
+  await expect(fenetre(page)).toContainText('Supprimer ce brouillon ?');
+  await capturer(page, info, 'A2b-confirmation');
+  await fenetre(page).getByRole('button', { name: 'Annuler' }).click();
+  await expect(fenetre(page)).toHaveCount(0);
+  await expect(panneau.locator('[data-devis="dBrouillon"]')).toHaveCount(1);
+  expect(await lireDocument('devis_devis/dBrouillon')).not.toBeNull();
+  expect(appels).toHaveLength(0);
+});
+
+test('A2c « Supprimer » retire le brouillon ; sans autre devis l’onglet montre « Aucun devis pour cette affaire. »', async ({ page }, info) => {
+  const appels = [];
+  await simulerSuppression(page, appels);
+  await base();
+  await devis('dBrouillon', { objet: 'Cuisine, variante basse', creeLe: IL_Y_A(1) });
+  await ouvrirAffaire(page);
+  const panneau = await ouvrirOnglet(page);
+  await croix(panneau, 'dBrouillon').click();
+  await fenetre(page).getByRole('button', { name: 'Supprimer' }).click();
+  await expect(page.locator('.toast').last()).toContainText('Brouillon supprimé');
+  expect(appels).toEqual([{ devisId: 'dBrouillon' }]);
+  await expect(panneau.locator('[data-devis="dBrouillon"]')).toHaveCount(0);
+  await expect(panneau.locator('[data-role="aucun-devis"]')).toHaveText('Aucun devis pour cette affaire.');
+  await capturer(page, info, 'A2c-onglet-vide');
+});
+
+test('A2d la croix a un nom accessible « Supprimer le brouillon … » et une cible d’au moins 44 px sur téléphone', async ({ page }) => {
+  await donneesDeuxDevis();
+  await ouvrirAffaire(page);
+  const panneau = await ouvrirOnglet(page);
+  await expect(croix(panneau, 'dBrouillon')).toHaveAccessibleName(/^Supprimer le brouillon .*Cuisine, variante basse/);
+  const m = await croix(panneau, 'dBrouillon').boundingBox();
+  if (estTelephone(page)) { expect(m.height).toBeGreaterThanOrEqual(43.5); expect(m.width).toBeGreaterThanOrEqual(43.5); }
+  expect(await sansDebordement(page)).toBe(true);
+});
+
+test('A2e si le serveur refuse la suppression, un message d’erreur s’affiche et le brouillon reste dans la liste', async ({ page }) => {
+  test.info().annotations.push({ type: 'erreurs-reseau-attendues', description: 'le faux serveur répond 500' });
+  const appels = [];
+  await simulerSuppression(page, appels, false);
+  await donneesDeuxDevis();
+  await ouvrirAffaire(page);
+  const panneau = await ouvrirOnglet(page);
+  await croix(panneau, 'dBrouillon').click();
+  await fenetre(page).getByRole('button', { name: 'Supprimer' }).click();
+  await expect(page.locator('.toast').last()).toBeVisible();
+  await expect(page.locator('.toast').last()).not.toContainText('Brouillon supprimé');
+  expect(appels).toHaveLength(1);
+  await expect(panneau.locator('[data-devis="dBrouillon"]')).toHaveCount(1);
+});
+
+test('A2f deux clics rapides sur « Supprimer » ne font qu’UN appel à devisSupprimer', async ({ page }) => {
+  const appels = [];
+  await simulerSuppression(page, appels);
+  await donneesDeuxDevis();
+  await ouvrirAffaire(page);
+  const panneau = await ouvrirOnglet(page);
+  await croix(panneau, 'dBrouillon').click();
+  await fenetre(page).getByRole('button', { name: 'Supprimer' }).dblclick();
+  await expect(panneau.locator('[data-devis="dBrouillon"]')).toHaveCount(0);
+  expect(appels).toEqual([{ devisId: 'dBrouillon' }]);
 });
