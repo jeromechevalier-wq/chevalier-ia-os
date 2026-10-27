@@ -8,7 +8,6 @@ import { fileURLToPath } from 'node:url';
 import * as E from '../js/modules/devis/email-brouillon.js';
 import { nouvelleVersion } from '../js/modules/devis/logique.js';
 import { copieDeDevis } from '../js/modules/devis/editeur-logique.js';
-import { nomFichierDrive } from '../js/modules/devis/drive-copie.js';
 
 const lire = (chemin) => readFileSync(fileURLToPath(new URL(`../${chemin}`, import.meta.url)), 'utf8');
 
@@ -52,9 +51,6 @@ describe('2 qui peut recevoir un e-mail, et quelles adresses', () => {
   test('2 le nom de la pièce jointe est nettoyé (guillemets, barres, retours à la ligne) et finit par .pdf', () => {
     assert.equal(E.nomPieceJointe('Devis "A"/B\\C\r\nD'), 'Devis A B C D.pdf');
     assert.equal(E.nomPieceJointe(''), 'Devis.pdf');
-  });
-  test('2 le nom du PDF est celui de la copie Drive : « Devis DEV-… v1 – Objet.pdf »', () => {
-    assert.equal(nomFichierDrive({ numero: 'DEV-2026-10-25-001', version: 1, objet: 'Rénovation cuisine' }), 'Devis DEV-2026-10-25-001 v1 – Rénovation cuisine.pdf');
   });
 });
 

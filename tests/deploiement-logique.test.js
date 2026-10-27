@@ -8,7 +8,7 @@ import {
   couleurEtape, etatGlobal, resume, lienEtape, calculerPage, attendreQue,
 } from '../js/os/deploiement.js';
 import { ETAPES_DEPLOIEMENT_AFFAIRES, controlerDeploiementAffaires } from '../js/modules/crm/deploiement.js';
-import { ETAPES_DEPLOIEMENT_DEVIS, controlerDeploiementDevis, etatCors, adresseEssaiCors, etatEntreprise, etatEtapeDevis, etatCatalogue } from '../js/modules/devis/deploiement.js';
+import { ETAPES_DEPLOIEMENT_DEVIS, controlerDeploiementDevis, etatEntreprise, etatEtapeDevis, etatCatalogue } from '../js/modules/devis/deploiement.js';
 
 const TOUTES = [...ETAPES_COQUE, ...ETAPES_DEPLOIEMENT_AFFAIRES, ...ETAPES_DEPLOIEMENT_DEVIS];
 const lire = (f) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8');
@@ -29,7 +29,7 @@ describe('Déploiement : définition des étapes (écrite dans le code)', () => 
     for (const e of TOUTES.filter((x) => /console\.cloud\.google\.com/.test(x.lien ?? ''))) assert.match(e.lien, /\{projet\}/, e.id);
     assert.equal(lienEtape({ lien: 'https://console.cloud.google.com/x?project={projet}' }, { projet: 'chevalier-ia-app' }), 'https://console.cloud.google.com/x?project=chevalier-ia-app');
   });
-  test('1 l’accès « devisPdf au dossier Drive » n’est plus une étape (le PDF est rangé dans Cloud Storage, la copie Drive est faite par le navigateur)', () => {
+  test('1 l’accès « devisPdf au dossier Drive » n’est plus une étape (le PDF est rangé dans Cloud Storage, plus aucune copie dans Drive)', () => {
     assert.ok(!TOUTES.some((e) => /devisPdf|compte de service/i.test(`${e.libelle} ${e.reparation}`)));
   });
   test('1 le contrôle d’une ligne automatique de la coque vient du serveur ; les étapes « Préparer l’e-mail », MCP et règles sont manuelles', () => {
@@ -57,7 +57,7 @@ describe('Déploiement : étapes conditionnelles par module', () => {
     assert.deepEqual(sansModule, ETAPES_COQUE.map((e) => e.id));
     assert.ok(ids(['affaires']).includes('dossier-drive'));
     assert.ok(!ids(['affaires']).includes('devis-entreprise'));
-    assert.ok(ids(['affaires', 'devis']).includes('devis-cors'));
+    assert.ok(ids(['affaires', 'devis']).includes('devis-entreprise'));
     assert.ok(!ids(['devis']).includes('dossier-drive'), 'Devis seul (cas impossible, mais la règle reste) : pas la ligne Drive des Affaires');
   });
   test('7 cas vide : un espace dont aucun module n’ajoute de ligne est « vide » (message à l’écran), et garde les étapes communes', () => {
@@ -103,10 +103,10 @@ describe('Déploiement : couleurs, état global, résumé, regroupement', () => 
     assert.ok(!sansGoogle.groupes.some((g) => g.id === 'google'));
   });
   test('2 une valeur venue du serveur ou d’un module n’est jamais reprise telle quelle : seulement ok, manque ou inconnu', () => {
-    const r = resultatsDesControles(TOUTES, { serveur: { controles: { fonctions: 'ok', membres: '<script>' } }, modules: { 'devis-cors': 'manque', 'dossier-drive': { id: 'secret' } } });
+    const r = resultatsDesControles(TOUTES, { serveur: { controles: { fonctions: 'ok', membres: '<script>' } }, modules: { 'devis-catalogue': 'manque', 'dossier-drive': { id: 'secret' } } });
     assert.equal(r['fonctions-serveur'], 'ok');
     assert.equal(r.membres, 'inconnu');
-    assert.equal(r['devis-cors'], 'manque');
+    assert.equal(r['devis-catalogue'], 'manque');
     assert.equal(r['dossier-drive'], 'inconnu');
     const sansServeur = resultatsDesControles(ETAPES_COQUE, { serveur: null });
     assert.deepEqual(Object.values(sansServeur), ['inconnu', 'inconnu'], 'serveur injoignable : ses lignes en orange');
@@ -140,23 +140,24 @@ describe('Déploiement : contrôles des modules (sans réseau)', () => {
     assert.equal(etatEtapeDevis({ etapeDevis: 'disparue' }, ['devis']), 'manque');
     assert.equal(etatCatalogue([{ actif: false }]), 'manque');
     assert.equal(etatCatalogue([{ actif: false }, { libelle: 'x' }]), 'ok');
-    assert.equal(controlerDeploiementDevis({ reglages: {}, etapesIds: [], articles: [], erreurArticles: true, cors: null })['devis-catalogue'], 'inconnu', 'catalogue illisible : on ne sait pas');
+    assert.equal(controlerDeploiementDevis({ reglages: {}, etapesIds: [], articles: [], erreurArticles: true })['devis-catalogue'], 'inconnu', 'catalogue illisible : on ne sait pas');
   });
-  test('3 CORS : une réponse lisible (même 403 ou 404) = vert ; lecture bloquée par le navigateur = rouge ; hors ligne ou délai = orange ; jamais un vrai fichier', () => {
-    assert.equal(etatCors({ statut: 404 }), 'ok');
-    assert.equal(etatCors({ statut: 403 }), 'ok');
-    assert.equal(etatCors({ erreur: 'reseau' }), 'manque');
-    assert.equal(etatCors({ erreur: 'delai' }), 'inconnu');
-    assert.equal(etatCors(null), 'inconnu');
-    assert.equal(adresseEssaiCors('chevalier-ia-app.firebasestorage.app'), 'https://storage.googleapis.com/chevalier-ia-app.firebasestorage.app/controle-deploiement/inexistant.txt');
-    assert.equal(adresseEssaiCors('../x'), null);
+  test('3 plus d’étape « CORS » : le contrôle du site ne lit plus le stockage, et les trois lignes automatiques restantes sont inchangées', () => {
+    assert.ok(!TOUTES.some((e) => e.id === 'devis-cors' || /CORS/.test(`${e.libelle} ${e.reparation}`)));
+    assert.deepEqual(Object.keys(controlerDeploiementDevis({ pret: false })), ['devis-entreprise', 'devis-etape', 'devis-catalogue']);
+    assert.deepEqual(Object.keys(controlerDeploiementDevis({ reglages: {}, etapesIds: [], articles: [{}] })), ['devis-entreprise', 'devis-etape', 'devis-catalogue']);
+  });
+  test('4 le libellé et la réparation de l’essai de bout en bout ne parlent plus de Drive', () => {
+    const essai = TOUTES.find((e) => e.id === 'devis-essai');
+    assert.equal(essai.libelle, 'Essai de bout en bout d’un devis (PDF, e-mail, Envoyé)');
+    assert.match(essai.reparation, /ouvre son PDF depuis l’onglet Devis de l’affaire/);
+    assert.doesNotMatch(`${essai.libelle} ${essai.reparation}`, /Drive/);
   });
   test('10 un contrôle qui plante vaut « inconnu » et n’empêche pas les autres', () => {
     const piege = { get entreprise() { throw new Error('boum'); }, etapeDevis: 'devis' };
-    const r = controlerDeploiementDevis({ reglages: piege, etapesIds: ['devis'], articles: [{}], cors: { statut: 404 } });
+    const r = controlerDeploiementDevis({ reglages: piege, etapesIds: ['devis'], articles: [{}] });
     assert.equal(r['devis-entreprise'], 'inconnu');
     assert.equal(r['devis-catalogue'], 'ok');
-    assert.equal(r['devis-cors'], 'ok');
   });
   test('10 attendreQue : vrai dès que la condition le devient, faux après le délai, sans jamais lever d’erreur', async () => {
     let pret = false;

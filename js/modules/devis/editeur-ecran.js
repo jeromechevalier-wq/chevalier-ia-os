@@ -540,7 +540,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     return [boutonCatalogue(), ref.boutonOptions, boutonHistorique(), ...boutonsEtape(), boutonPlusActions()];
   }
 
-  // ------------------------------------------------ PDF : UN SEUL, celui du serveur (devisPdf), rangé dans les Documents de l'affaire. Plus d'impression par le navigateur.
+  // ------------------------------------------------ PDF : UN SEUL, celui du serveur (devisPdf), rangé dans notre stockage et montré dans l'onglet Devis de l'affaire. Plus d'impression par le navigateur.
   let pdfEnCours = false;
   /**
    * « Télécharger le PDF » (menu Envoyer). Brouillon : enregistre d'abord les changements en attente (le PDF reflète l'écran), demande au serveur le PDF « BROUILLON »

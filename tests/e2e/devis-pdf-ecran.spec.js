@@ -3,9 +3,11 @@
 // Les fonctions du serveur (devisPdf, devisPdfLien) n'existent pas dans l'émulateur du navigateur : elles sont SIMULÉES par page.route.
 // Le simulateur de devisPdf écrit le champ `pdf` du devis comme le ferait le serveur ; il lit aussi l'objet enregistré pour prouver que l'écran enregistre AVANT de demander le PDF.
 import { fileURLToPath } from 'node:url';
-import { test, expect, connecter, attendreCalme, ecrireDocument, lireDocument, creerOrganisation, creerAffaire, estTelephone, JEROME } from './outils.js';
+import { test, expect, connecter, attendreCalme, ecrireDocument, lireDocument, creerOrganisation, creerAffaire, ouvrirDocuments, estTelephone, JEROME } from './outils.js';
+import { brancherGoogle, choisirDansGoogle, lireGoogle } from './google-simule.js';
 
 const DOSSIER = fileURLToPath(new URL('./captures/devis-pdf-ecran/', import.meta.url));
+const DOSSIER_RETRAIT = fileURLToPath(new URL('./captures/devis-retrait-drive/', import.meta.url));
 async function capturer(page, info, nom) {
   await page.screenshot({ path: `${DOSSIER}${nom}-${info.project.name}.png`, animations: 'disabled' });
 }
@@ -192,7 +194,7 @@ async function cliquerTelechargerPdf(page) {
   await page.locator('.menu-pop').getByRole('menuitem', { name: 'Télécharger le PDF' }).click();
 }
 
-test('2 « Télécharger le PDF » (menu « … ») : enregistre d’abord le devis, demande le PDF brouillon au serveur, dit « PDF enregistré dans l’affaire », puis ouvre l’écran du PDF', async ({ page }, info) => {
+test('2 « Télécharger le PDF » (menu « … ») : enregistre d’abord le devis, demande le PDF brouillon au serveur, dit « PDF brouillon prêt », puis ouvre l’écran du PDF', async ({ page }, info) => {
   await donnees();
   const appels = [];
   await simulerServeur(page, appels, { delaiPdf: 1200 });
@@ -202,7 +204,7 @@ test('2 « Télécharger le PDF » (menu « … ») : enregistre d’abord le de
   await expect(page.locator('[data-action="enregistrer-pdf"]')).toHaveCount(0); // plus de bouton « Enregistrer PDF » : un seul chemin
   await cliquerTelechargerPdf(page);
   await expect(page).toHaveURL(/#\/devis\/pdf\/dBrouillon\/brouillon$/, { timeout: 10000 });
-  await expect(page.locator('.toast').filter({ hasText: 'PDF enregistré dans l’affaire' })).toBeVisible();
+  await expect(page.locator('.toast').filter({ hasText: 'PDF brouillon prêt' })).toBeVisible();
   expect(appels.filter((a) => a[0] === 'devisPdf')).toHaveLength(1);
   const appel = appels.find((a) => a[0] === 'devisPdf');
   expect(appel[1]).toEqual({ devisId: 'dBrouillon', brouillon: true });
@@ -260,4 +262,93 @@ test('3 liste : « PDF non rangé » (avertissement) pour un finalisé sans PDF 
   await expect(ligneDevis(page, 'dEchec').locator('[data-pdf="pret"]')).toBeVisible({ timeout: 10000 });
   expect(appels.filter(([nom]) => nom === 'devisPdf')).toEqual([['devisPdf', { devisId: 'dEchec' }]]);
   await expect(page.locator('[data-role="fiche-devis"]')).toHaveCount(0);
+});
+
+// ------------------------------------------------------------------ retrait de la copie Drive (décision du 27/10/2026) : le PDF reste dans notre stockage
+
+const requetesGoogle = (page) => { const l = []; page.on('request', (r) => { if (/apis\.google\.com|accounts\.google\.com|googleapis\.com\/(drive|upload)/.test(r.url())) l.push(r.url()); }); return l; };
+const capturerRetrait = (page, info, nom) => page.screenshot({ path: `${DOSSIER_RETRAIT}${nom}-${info.project.name}.png`, animations: 'disabled' });
+
+test('1 l’écran du PDF finalisé ouvre le PDF et ne montre plus aucune zone Drive ni demande d’autorisation Google, même avec Google branché et un dossier de travail lié', async ({ page, context }, info) => {
+  const drive = await brancherGoogle(context);
+  await creerOrganisation('o1', { nom: 'M. Paul Exemple' });
+  await creerAffaire('a1', { titre: 'Rénovation cuisine', organisationId: 'o1', urlDossier: 'https://drive.google.com/drive/folders/DOSSIER_TRAVAIL_abcdefghij' });
+  await devis('dOk', { ...FINALISE, pdf: { statut: 'ok', chemin: 'devis/a1/d.pdf', nom: 'Devis DEV-2026-10-02-001.pdf', tentatives: 1 } });
+  const appels = [];
+  await simulerServeur(page, appels);
+  const google = requetesGoogle(page);
+  await connecter(page, undefined, { route: 'devis/liste' });
+  await attendreCalme(page);
+  const ouverture = page.waitForEvent('popup');
+  await page.evaluate(() => { location.hash = '#/devis/pdf/dOk'; });
+  const popup = await ouverture;
+  await expect(zone(page)).toHaveAttribute('data-etat', 'pret');
+  await expect(zone(page).locator('[data-action="ouvrir-pdf"]')).toHaveAttribute('href', URL_PDF);
+  await expect(zone(page).locator('[data-action="ouvrir-pdf"]')).toHaveClass(/bouton-principal/);
+  await expect(zone(page).locator('[data-action="retour-apres-pdf"]')).toBeVisible();
+  await expect(zone(page).locator('[data-valeur="message-pdf"]')).toContainText('s’ouvre dans un nouvel onglet');
+  await expect(page.locator('[data-zone="copie-drive"], [data-valeur="message-drive"], [data-action="copier-drive"], [data-action="creer-dossier-et-copier"]')).toHaveCount(0);
+  await expect(zone(page)).not.toContainText(/Drive|dossier de travail/i);
+  await expect(page.locator('.page-pdf-devis .bouton-principal')).toHaveCount(1); // un seul bouton jaune
+  await page.waitForTimeout(500); // laisse à un éventuel chargement tardif le temps de se manifester
+  expect(google, 'aucune requête vers Google').toEqual([]);
+  expect((await lireGoogle(page)).autorisations).toHaveLength(0);
+  expect(drive.requetes.length + drive.envois.length).toBe(0);
+  await capturerRetrait(page, info, '1-ecran-pdf-sans-drive');
+  await popup.close();
+});
+
+test('1 sur le PDF d’un devis dont l’affaire n’a pas de dossier : aucun message ni bouton de dossier ; états « en cours » et « introuvable » conservés', async ({ page, context }, info) => {
+  await brancherGoogle(context);
+  await donnees();
+  const appels = [];
+  await simulerServeur(page, appels);
+  await ouvrirRoute(page, 'devis/pdf/dEnCours');
+  await expect(zone(page)).toHaveAttribute('data-etat', 'en-cours');
+  await expect(page.locator('[data-zone="copie-drive"]')).toHaveCount(0);
+  await capturerRetrait(page, info, '1-ecran-pdf-en-cours');
+  await page.goto('/?emulateurs=1#/devis/pdf/inexistant');
+  await expect(zone(page)).toHaveAttribute('data-etat', 'introuvable');
+  await capturerRetrait(page, info, '1-ecran-pdf-introuvable');
+});
+
+test('2 créer puis lier un dossier de travail sur une affaire qui a un devis finalisé au PDF prêt : aucune requête Drive de copie, Documents inchangés, aucun toast de copie', async ({ page, context }, info) => {
+  const drive = await brancherGoogle(context);
+  await creerOrganisation('o1', { nom: 'M. Paul Exemple' });
+  await creerAffaire('a1', { titre: 'Rénovation cuisine', organisationId: 'o1', urlDossier: '' });
+  await creerAffaire('a2', { titre: 'Terrasse', organisationId: 'o1', urlDossier: '' });
+  await devis('dOk', { ...FINALISE, pdf: { statut: 'ok', chemin: 'devis/a1/d.pdf', nom: 'Devis DEV-2026-10-02-001.pdf', tentatives: 1 } });
+  await devis('dDeux', { ...FINALISE, numero: 'DEV-2026-10-02-002', affaireId: 'a2', pdf: { statut: 'ok', chemin: 'devis/a2/d.pdf', nom: 'Devis DEV-2026-10-02-002.pdf', tentatives: 1 } });
+  const requetes = [];
+  page.on('request', (r) => { if (/googleapis\.com\/(drive|upload)/.test(r.url())) requetes.push(`${r.method()} ${r.url()}`); });
+  await connecter(page, undefined, { route: 'crm/affaires/a1' });
+  await attendreCalme(page);
+  await ouvrirDocuments(page);
+  // Créer le dossier : les seules requêtes Drive sont celles de la création du dossier (jamais d'envoi de fichier ni de recherche de PDF).
+  await page.locator('[data-action="ajouter-dossier"]').click();
+  await page.locator('[data-action="creer-dossier-ouvrir"]').click();
+  await page.locator('[data-champ="nom-dossier"]').fill('Rénovation cuisine');
+  await page.locator('[data-action="creer-dossier"]').click();
+  await expect.poll(async () => (await lireDocument('crm_affaires/a1')).urlDossier).toMatch(/^https:\/\/drive\.google\.com\/drive\/folders\//);
+  await expect(page.locator('#toasts')).toContainText('créé dans Google Drive');
+  await expect(page.locator('#toasts')).not.toContainText(/PDF copié|PDF copiés|Copie/);
+  expect(drive.envois, 'aucun fichier envoyé dans Drive').toHaveLength(0);
+  expect(requetes.some((u) => /upload/.test(u)), 'aucun envoi').toBe(false);
+  expect((await lireDocument('crm_affaires/a1')).documents ?? []).toEqual([]);
+  await capturerRetrait(page, info, '2-dossier-cree-rien-copie');
+  // Lier un dossier existant sur la seconde affaire.
+  await page.goto('/?emulateurs=1#/crm/affaires/a2');
+  await attendreCalme(page);
+  await ouvrirDocuments(page);
+  await choisirDansGoogle(page, [{ id: 'DOSSIER_LIE_0123456789', name: 'Dossier lié', url: 'https://drive.google.com/drive/folders/DOSSIER_LIE_0123456789', mimeType: 'application/vnd.google-apps.folder' }]);
+  await page.locator('[data-action="ajouter-dossier"]').click();
+  await page.locator('[data-action="lier-dossier"]').click();
+  await expect.poll(async () => (await lireDocument('crm_affaires/a2')).urlDossier).toBe('https://drive.google.com/drive/folders/DOSSIER_LIE_0123456789');
+  await expect(page.locator('#toasts')).toContainText('Dossier lié');
+  await page.waitForTimeout(800);
+  await expect(page.locator('#toasts')).not.toContainText(/PDF copié|PDF copiés|Copie/);
+  expect(drive.envois).toHaveLength(0);
+  expect(requetes.filter((u) => /upload/.test(u))).toEqual([]);
+  expect((await lireDocument('crm_affaires/a2')).documents ?? []).toEqual([]);
+  await capturerRetrait(page, info, '2-dossier-lie-rien-copie');
 });

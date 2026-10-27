@@ -10,7 +10,6 @@ import * as PD from '../projets/donnees.js';
 import { iconeInfo, boutonAjouter } from './composants.js';
 import { googleDisponible, preparerGoogle, obtenirJeton, oublierJeton, ouvrirFenetreGoogle } from '../../os/google-picker.js';
 import { retirerAvecAnnulation } from '../../os/retrait.js';
-import { lancerApresDossierAffaire } from './dossier-externe.js';
 import { creerArborescence, nettoyerNomDossier, idDossierDrive, trouverDossierDeMemeNom, adresseDossierDrive, preparerDossierParent, nomDossierParentAuto } from '../../os/google-drive.js';
 
 function boutonPetit(libelle, nomIcone, action, onclick) {
@@ -49,29 +48,6 @@ export function messageCreation({ nom, manquants, parentCree = '', parentRecree 
   return (manquants.length
     ? `Dossier « ${nom} » créé, mais ces sous-dossiers n'ont pas pu l'être : ${manquants.join(', ')}.`
     : `Dossier « ${nom} » créé dans Google Drive.`) + rangement;
-}
-
-/** Après un dossier créé ou lié sur une AFFAIRE : les modules inscrits (ex. Devis : copie des PDF) font leur travail, et chaque compte rendu est annoncé. Rend les comptes rendus. */
-export async function apresDossierAffaire(affaireId, urlDossier, { silencieux = false } = {}) {
-  // `silencieux` : l'écran qui appelle affiche déjà le compte rendu en ligne (pas de doublon avec un message qui disparaît).
-  const rapports = await lancerApresDossierAffaire({ affaireId, urlDossier, annoncer: silencieux ? () => {} : (texte) => toast(texte, { type: 'info', duree: 4000 }) });
-  if (!silencieux) for (const r of rapports) toast(r.texte, { type: r.type === 'erreur' ? 'erreur' : 'info', duree: 8000 });
-  return rapports;
-}
-
-/**
- * Crée le dossier de travail d'une affaire en un geste (écran du PDF d'un devis) : création dans Drive, enregistrement du lien, puis `apresDossierAffaire`.
- * Lève une erreur au message lisible (`saisie: true` si c'est à l'utilisateur d'agir, par exemple un dossier de même nom déjà là). Rend { url, nom, manquants, rapports }.
- */
-export async function creerDossierDeLAffaire({ affaire, nom, silencieux = false }) {
-  const r = await creerRepertoireDrive({ nom });
-  try { await D.majAffaire(affaire.id, { urlDossier: r.url }); } catch (e) {
-    console.warn(e);
-    throw Object.assign(new Error(`Dossier créé, mais son lien n’a pas pu être enregistré : ${r.url}`), { saisie: true });
-  }
-  toast(messageCreation(r), { type: r.manquants.length ? 'erreur' : 'info' });
-  const rapports = await apresDossierAffaire(affaire.id, r.url, { silencieux });
-  return { ...r, rapports };
 }
 
 /** Les projets (autres que `sauf`) qui utilisent déjà ce dossier de travail : [{ id, titre }]. Même dossier = même adresse, ou même identifiant Drive. */
@@ -148,7 +124,7 @@ export function creerLanceurs({ fiche, typeFiche = 'affaire', nomSuggere = '', e
       bouton.lastChild.textContent = 'Création en cours…';
       try {
         const r = await creerRepertoireDrive({ nom });
-        if (await ecrireDossier(r.url)) { toast(messageCreation(r), { type: r.manquants.length ? 'erreur' : 'info' }); if (typeFiche === 'affaire') await apresDossierAffaire(fiche.id, r.url); }
+        if (await ecrireDossier(r.url)) { toast(messageCreation(r), { type: r.manquants.length ? 'erreur' : 'info' }); }
         else toast(`Dossier créé, mais son lien n'a pas pu être enregistré : ${r.url}`, { type: 'erreur' });
       } catch (e) {
         if (!e?.saisie) console.warn(e);
@@ -174,7 +150,7 @@ export function creerLanceurs({ fiche, typeFiche = 'affaire', nomSuggere = '', e
       const dossier = elus[0];
       if (!dossier) return;
       const url = adresseDossierDrive(dossier.id);
-      if (await ecrireDossier(url)) { toast('Dossier lié', { type: 'info' }); avertirSiPartage(url); if (typeFiche === 'affaire') await apresDossierAffaire(fiche.id, url); }
+      if (await ecrireDossier(url)) { toast('Dossier lié', { type: 'info' }); avertirSiPartage(url); }
     } catch (e) {
       if (!e?.annule) console.warn(e);
       toast(e?.message || 'Liaison impossible', { type: e?.annule ? 'info' : 'erreur' });
