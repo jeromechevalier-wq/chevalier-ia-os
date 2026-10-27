@@ -1531,7 +1531,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
 
   // La fenêtre « Définir un ajustement » : trois blocs titrés, toujours ouverts, l'un sous l'autre (Ajustement global, Marge du devis, Remise client). Rien ne s'ouvre ni ne se ferme.
   function ouvrirAjustement(ancre) {
-    ouvrirFenetreMenu(ancre, (fermer) => {
+    ouvrirFenetreMenu(ancre, () => {
       const champs = {};
       const erreurs = {};
       const fabriquer = (cle, libelle, unite) => {
@@ -1578,8 +1578,8 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
         h('h3', { class: 'ajust-titre', id: 'ajust-titre-remise' }, 'Remise client'),
         h('div', { class: 'ajust-champ ajust-champ-remise' }, h('label', { for: 'ajust-remise' }, 'Remise'), h('div', { class: 'ajust-remise-champs' }, remiseValeur, remiseType)));
       verrouiller(zone); verrouiller(zoneMarge); verrouiller(zoneRemise); // lecture seule : les réglages se voient, rien ne se modifie
-      return h('div', { class: 'ajust-fenetre' }, zone, zoneMarge, zoneRemise);
-    }, { classe: 'menu-devis-ajustement', nom: 'Ajustement du devis', role: 'group' });
+      return h('div', { class: 'ajust-fenetre', tabindex: '-1', dataset: { focusInitial: '' } }, zone, zoneMarge, zoneRemise); // le focus entre sur la fenêtre, pas sur un champ : sur téléphone le clavier ne masque pas les blocs à l'ouverture
+    }, { classe: 'menu-devis-ajustement', nom: 'Ajustement du devis', role: 'dialog' });
   }
 
   function majTotaux() {

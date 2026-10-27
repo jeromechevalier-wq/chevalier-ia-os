@@ -548,7 +548,7 @@ test('8 « Définir un ajustement » : trois blocs titrés visibles sans clic (A
   await expect(fenetre.getByRole('heading')).toHaveText(['Ajustement global', 'Marge du devis', 'Remise client']);
   for (const zone of ['ajustement-global', 'marge-devis', 'remise-devis']) await expect(fenetre.locator(`[data-zone="${zone}"]`)).toBeVisible();
   await expect(fenetre.getByRole('menuitem')).toHaveCount(0);
-  await expect(fenetre.locator('[data-champ="ajust-pourcentage"]')).toBeFocused(); // le focus entre dans la fenêtre
+  await expect(fenetre.locator('.ajust-fenetre')).toBeFocused(); // le focus entre dans la fenêtre, sans ouvrir le clavier d'un téléphone
   // Cas vide : « Retirer l'ajustement » ne change rien.
   await expect(fenetre.locator('[data-champ="remise-valeur-menu"]')).toHaveValue('');
   await fenetre.locator('[data-action="retirer-ajustement"]').click();

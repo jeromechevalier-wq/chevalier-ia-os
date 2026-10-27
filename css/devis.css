@@ -356,8 +356,7 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
 .ajust-remise-champs { display: flex; align-items: center; gap: var(--esp-2); }
 .ajust-remise-champs .champ-court { width: 88px; min-width: 0; }
 .ajust-remise-champs select.champ { width: auto; min-width: 72px; }
-.ajust-retirer { align-self: flex-start; min-height: 44px; }
-.ajust-zone .champ { min-height: 44px; }
+.ajust-retirer { align-self: flex-start; }
 .ajust-champ { display: grid; grid-template-columns: 1fr 120px; align-items: center; gap: var(--esp-2) var(--esp-4); }
 .ajust-champ .erreur { grid-column: 1 / -1; margin: 0; }
 .ajust-champ .champ { text-align: right; font-variant-numeric: tabular-nums; }
@@ -411,6 +410,7 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
 @media (max-width: 700px) {
   .menu-devis { left: 0; right: 0; bottom: 0; top: auto; max-width: none; width: 100%; max-height: 80dvh; border-radius: var(--rayon-carte) var(--rayon-carte) 0 0; z-index: 95; }
   .menu-devis .menu-pop-entree, .menu-devis-case, .menu-devis-champ { min-height: 44px; }
+  .ajust-retirer, .ajust-zone .champ { min-height: 44px; }
   .options-panneau { inset: 0; width: 100%; z-index: 60; border-left: 0; }
   .options-fermer { min-width: 44px; min-height: 44px; }
   .bibliotheque-panneau { inset: 0; width: 100%; z-index: 60; border-left: 0; }
