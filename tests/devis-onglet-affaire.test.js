@@ -49,9 +49,11 @@ test('2 le nom du devis ouvre l’éditeur d’un brouillon et la visualisation 
   assert.equal(routeVoirDevis({ id: 'd4', statut: 'brouillon' }), 'devis/editeur/d4');
   assert.equal(routeVoirDevis({ id: 'd2', statut: 'envoye' }), 'devis/voir/d2');
 });
-test('12 l’écran de l’onglet ne propose aucune suppression ni bouton jaune', () => {
+test('12 l’écran de l’onglet ne propose de suppression que celle des brouillons (supprimerBrouillon), ni archivage ni bouton jaune', () => {
   const src = readFileSync(new URL('../js/modules/devis/onglet-affaire.js', import.meta.url), 'utf8').replace(/\/\/.*$/gm, ''); // sans les commentaires
-  assert.doesNotMatch(src, /supprim|archiver|corbeille/i);
+  assert.doesNotMatch(src.replace(/supprimerBrouillon|supprimer-devis|Supprimer le brouillon|enSuppression|supprimer\(/g, ''), /supprim|corbeille/i); // seule la croix des brouillons
+  assert.match(src, /brouillon \? h\('button'/); // la croix n'existe que pour un brouillon
+  assert.doesNotMatch(src, /archiv/i);
   assert.doesNotMatch(src, /bouton-principal/);
 });
 test('13 bouton d’en-tête : « Créer un devis » sans devis, « Voir le devis » (le plus récent) sinon, rien tant que les devis ne sont pas lus', () => {

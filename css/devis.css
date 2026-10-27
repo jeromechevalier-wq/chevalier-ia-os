@@ -539,3 +539,5 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
   .compositeur .onglets:has([data-onglet="devis"]) .onglet > svg { display: none; } /* le mot suffit : les icônes des quatre onglets ne tiennent pas à 390 px (le nom de chaque onglet reste affiché) */
   .ligne-lien .pdf-non-range, .onglet-devis .prop-vide { min-height: 44px; }
 }
+/* Croix de suppression d'un brouillon dans l'onglet « Devis » : cible de 44 px au doigt. */
+@media (max-width: 767px), (pointer: coarse) { .onglet-devis .ligne-lien .bouton-icone { min-width: 44px; min-height: 44px; } }
