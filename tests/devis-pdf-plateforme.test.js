@@ -45,7 +45,7 @@ async function monde({ finaliser = ['a', 'b'] } = {}) {
       [`clients/${c}/crm_organisations`]: [{ id: 'org1', nom: 'Société Cliente Essai' }], [`clients/${c}/crm_personnes`]: [], [`clients/${c}/crm_affaires`]: [{ id: 'aff1', titre: 'Rénovation Essai', urlDossier: 'https://drive.google.com/drive/folders/DOSSIER_ESSAI', documents: [] }],
       [`clients/${c}/crm_evenements`]: [],
     });
-    const d = nouveauDevis({ destinataires: [{ email: 'client@exemple.test' }], affaireId: 'aff1', organisationId: 'org1', objet: 'Cuisine' }, { id: `d-${c}`, maintenant: MAINTENANT, auteur: ALICE }, { marge: 20 });
+    const d = nouveauDevis({ destinataires: [{ email: 'client@exemple.test' }], affaireId: 'aff1', organisationId: 'org1', objet: 'Cuisine' }, { id: `d-${c}`, maintenant: MAINTENANT, auteur: ALICE }, { marge: 20, margeDevis: 20 });
     collections[`clients/${c}/devis_devis`].push({ ...d, objet: 'Cuisine', sections: [{ id: 's1', titre: 'Travaux', lignes: [{ id: 'l1', libelle: 'Pose', unite: 'u', quantite: 2, prixAchat: PRIX_ACHAT }] }] });
   }
   const brut = creerAccesMemoire(collections);

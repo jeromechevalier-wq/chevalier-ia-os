@@ -170,7 +170,7 @@ describe('B7 les réglages s’enregistrent et se relisent', () => {
   const etapesIds = ['a', 'b', 'c'];
   test('B7 logique : valeurs par défaut', () => {
     assert.deepEqual(A.reglagesDevis(null), {
-      nomBordereau: 'Catalogue', modeMarge: 'majoration', marge: 20, regimeTva: 'assujetti', tauxProposes: [20, 10, 5.5], tauxTvaDefaut: 20,
+      nomBordereau: 'Catalogue', modeMarge: 'majoration', marge: 20, margeDevis: 20, regimeTva: 'assujetti', tauxProposes: [20, 10, 5.5], tauxTvaDefaut: 20,
       dureeValiditeJours: 90, etapeDevis: '', etapeAFaire: '', etapeEnvoye: '', mentionEmetteur: '', entreprise: {},
     });
     assert.deepEqual(A.reglagesDevis({}), A.reglagesDevis(undefined));
@@ -178,8 +178,26 @@ describe('B7 les réglages s’enregistrent et se relisent', () => {
   test('B7 logique : une saisie valide se relit à l’identique (aller-retour par reglagesDevis), virgule française acceptée', () => {
     const r = A.validerReglagesDevis({ nomBordereau: 'Catalogue', modeMarge: 'marge_vente', marge: '25,5', regimeTva: 'franchise', tauxProposes: [10, 20], tauxTvaDefaut: 10, dureeValiditeJours: '60', etapeDevis: 'c', etapeAFaire: 'a', etapeEnvoye: 'b', mentionEmetteur: '  Ma mention  ' }, { etapesIds });
     assert.deepEqual(r.erreurs, {});
-    assert.deepEqual(r.reglages, { nomBordereau: 'Catalogue', modeMarge: 'marge_vente', marge: 25.5, regimeTva: 'franchise', tauxProposes: [20, 10], tauxTvaDefaut: 10, dureeValiditeJours: 60, etapeDevis: 'c', etapeAFaire: 'a', etapeEnvoye: 'b', mentionEmetteur: 'Ma mention', entreprise: {} });
+    assert.deepEqual(r.reglages, { nomBordereau: 'Catalogue', modeMarge: 'marge_vente', marge: 25.5, margeDevis: 20, regimeTva: 'franchise', tauxProposes: [20, 10], tauxTvaDefaut: 10, dureeValiditeJours: 60, etapeDevis: 'c', etapeAFaire: 'a', etapeEnvoye: 'b', mentionEmetteur: 'Ma mention', entreprise: {} });
     assert.deepEqual(A.reglagesDevis(r.reglages), r.reglages);
+  });
+  test('13a logique : la marge globale du devis vaut 20 par défaut (document absent ou ancien sans le champ), se relit en virgule française, et reste distincte de la marge des articles', () => {
+    assert.equal(A.reglagesDevis(null).margeDevis, 20);
+    assert.equal(A.reglagesDevis({ marge: 35 }).margeDevis, 20, 'un ancien document sans margeDevis : 20, sans toucher à la marge des articles');
+    assert.equal(A.reglagesDevis({ marge: 35 }).marge, 35);
+    const r = A.validerReglagesDevis({ margeDevis: '12,5', marge: '30' }, { etapesIds });
+    assert.deepEqual([r.erreurs, r.reglages.margeDevis, r.reglages.marge], [{}, 12.5, 30]);
+    assert.equal(A.validerReglagesDevis({ margeDevis: 0 }, { etapesIds }).reglages.margeDevis, 0, '0 = aucune marge');
+    assert.equal(A.validerReglagesDevis({ margeDevis: 1000 }, { etapesIds }).reglages.margeDevis, 1000);
+  });
+  test('13f logique : une marge globale négative, trop grande, illisible, ou de 100 % et plus en marge sur le prix de vente, est refusée avec un message', () => {
+    for (const mauvaise of [-1, 1001, 'beaucoup', '', null]) {
+      const r = A.validerReglagesDevis({ margeDevis: mauvaise }, { etapesIds });
+      assert.equal(r.reglages, null, String(mauvaise));
+      assert.match(r.erreurs.margeDevis, /entre 0 et 1000/);
+    }
+    const vente = A.validerReglagesDevis({ modeMarge: 'marge_vente', marge: 20, margeDevis: 100 }, { etapesIds });
+    assert.ok(vente.erreurs.margeDevis);
   });
   test('E1 logique : « Mon entreprise » vide par défaut ; un champ vide n’est pas enregistré ; les clés sont celles que le document lit', () => {
     assert.deepEqual(A.reglagesDevis(null).entreprise, {});

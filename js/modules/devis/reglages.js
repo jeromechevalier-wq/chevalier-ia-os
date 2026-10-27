@@ -12,7 +12,7 @@ const ERREUR_ECRITURE = 'Enregistrement impossible : réessaie dans un instant, 
 
 /** Le brouillon part des réglages enregistrés ; les nombres restent du texte tant qu'on tape. */
 const brouillonDe = (r) => ({
-  nomBordereau: r.nomBordereau, modeMarge: r.modeMarge, marge: String(r.marge).replace('.', ','), regimeTva: r.regimeTva, tauxProposes: [...r.tauxProposes],
+  nomBordereau: r.nomBordereau, modeMarge: r.modeMarge, marge: String(r.marge).replace('.', ','), margeDevis: String(r.margeDevis).replace('.', ','), regimeTva: r.regimeTva, tauxProposes: [...r.tauxProposes],
   tauxTvaDefaut: r.tauxTvaDefaut, dureeValiditeJours: String(r.dureeValiditeJours), etapeDevis: r.etapeDevis, mentionEmetteur: r.mentionEmetteur,
   entreprise: entrepriseBrouillon(r.entreprise),
 });
@@ -129,7 +129,10 @@ export function reglages(page) {
       h('div', { class: 'ligne-champs' },
         bloc('modeMarge', 'Mode de marge par défaut', liste('modeMarge', MODES_MARGE.map((m) => ({ valeur: m.id, libelle: m.libelle })), brouillon.modeMarge, (v) => changer({ modeMarge: v })),
           'Majoration : le prix d’achat est multiplié (20 % sur 100 € donne 120 €). Marge sur le prix de vente : le calcul du comptable (20 % sur 100 € donne 125 €).'),
-        bloc('marge', 'Marge par défaut (%)', texte('marge', brouillon.marge, { inputmode: 'decimal' }))),
+        bloc('marge', 'Marge par défaut des articles (%)', texte('marge', brouillon.marge, { inputmode: 'decimal' }),
+          'Marge sur le prix d’achat de chaque article.')),
+      bloc('margeDevis', 'Marge globale du devis (%)', texte('margeDevis', brouillon.margeDevis, { inputmode: 'decimal' }),
+        'Appliquée à chaque nouveau devis, retirable devis par devis (menu Ajustement). 0 : aucune marge. Les devis déjà créés ne changent pas.'),
       h('div', { class: 'ligne-champs' },
         bloc('regimeTva', 'Régime de TVA', liste('regimeTva', REGIMES_TVA.map((r) => ({ valeur: r.id, libelle: r.libelle })), brouillon.regimeTva, (v) => changer({ regimeTva: v })),
           'Franchise en base : pas de TVA sur les devis (mention « article 293 B du CGI »). Assujetti : la TVA est calculée. À faire valider par ton comptable.'),

@@ -6,7 +6,7 @@ import * as D from '../js/modules/devis/logique.js';
 import { devisHtml, formaterMontant } from '../js/modules/devis/document.js';
 
 const ctx = { maintenant: new Date('2026-10-24T10:00:00Z'), auteur: 'moi@exemple.test', nouvelId: (n) => `${n}_1` };
-const reglages = { modeMarge: 'majoration', marge: 0, tauxTvaDefaut: 20, regimeTva: 'assujetti', dureeValiditeJours: 90 };
+const reglages = { modeMarge: 'majoration', marge: 0, margeDevis: 0, tauxTvaDefaut: 20, regimeTva: 'assujetti', dureeValiditeJours: 90 };
 const ligne = (id, prixAchat, quantite, extra = {}) => ({ id, libelle: `Article ${id}`, unite: 'u', quantite, prixAchat, ...extra });
 /** Devis de référence : HT 3 265,81 + TVA 653,16 = TTC 3 918,97. */
 const devis = (extra = {}) => ({

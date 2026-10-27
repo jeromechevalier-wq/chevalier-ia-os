@@ -735,7 +735,7 @@ export function nouveauDevis(valeurs = {}, ctx = {}, reglages = {}) {
   const id = ctx.nouvelId ? ctx.nouvelId('devis') : ctx.id;
   const creeLe = ctx.maintenant;
   const mode = idsModes.includes(valeurs.modeMarge) ? valeurs.modeMarge : (idsModes.includes(reglages.modeMarge) ? reglages.modeMarge : 'majoration');
-  const marge = [valeurs.marge, reglages.marge].find((v) => estNombre(v)) ?? 0;
+  const marge = [valeurs.marge, reglages.margeDevis].find((v) => estNombre(v)) ?? 0;
   const taux = [valeurs.tauxTvaDefaut, reglages.tauxTvaDefaut].find((v) => estNombre(v)) ?? TAUX_TVA_DEFAUT[0];
   const regime = REGIMES_TVA.some((r) => r.id === reglages.regimeTva) ? reglages.regimeTva : 'assujetti';
   const jours = estNombre(valeurs.dureeValiditeJours) ? valeurs.dureeValiditeJours

@@ -159,7 +159,7 @@ describe('3 ajustement global', () => {
 
 describe('4 Options : affichage du devis et du document', () => {
   const ctx = { maintenant: new Date('2026-10-24T10:00:00Z'), auteur: 'moi@exemple.test', nouvelId: (n) => `${n}_1` };
-  const reglages = { modeMarge: 'majoration', marge: 20, tauxTvaDefaut: 20, regimeTva: 'assujetti', dureeValiditeJours: 90 };
+  const reglages = { modeMarge: 'majoration', marge: 20, margeDevis: 20, tauxTvaDefaut: 20, regimeTva: 'assujetti', dureeValiditeJours: 90 };
   const l = (id, prixAchat, quantite, extra = {}) => ({ id, libelle: `Article ${id}`, unite: 'u', quantite, prixAchat, ...extra });
   const sections = [
     { id: 's1', titre: 'Toiture', lignes: [l('l1', 123.45, 3, { description: 'Dépose\net repose' }), l('l2', 67.89, 7, { tauxTva: 10 })] },

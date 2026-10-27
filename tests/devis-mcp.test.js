@@ -202,6 +202,26 @@ describe('M3 creer_devis_brouillon : lignes tirées des articles, totaux justes,
     assert.deepEqual(lu.erreursFinalisation, [], 'prêt à finaliser');
   });
 
+  test('13e creer_devis_brouillon sans marge applique la marge globale des réglages (20 par défaut) ; marge: 0 explicite donne 0 ; devis existants inchangés', async () => {
+    const s = await demarrer();
+    const ids = await articlesDeBase(s);
+    const lignes = [{ articleId: ids.a, quantite: 1 }];
+    const defaut = ok(await s.appeler('biblio', 'creer_devis_brouillon', { affaireId: 'a1', destinataires: EMAIL, lignes }));
+    assert.equal(s.doc('devis_devis', defaut.id).marge, 20, 'ancien document sans margeDevis : 20');
+    const saved = s.collections.devis_parametres.splice(0);
+    const sansDoc = ok(await s.appeler('biblio', 'creer_devis_brouillon', { affaireId: 'a1', destinataires: EMAIL, lignes }));
+    assert.equal(s.doc('devis_devis', sansDoc.id).marge, 20, 'document de réglages absent : 20');
+    s.collections.devis_parametres.push(...saved);
+    Object.assign(s.collections.devis_parametres[0], { marge: 30, margeDevis: 15 });
+    const reglee = ok(await s.appeler('biblio', 'creer_devis_brouillon', { affaireId: 'a1', destinataires: EMAIL, lignes }));
+    assert.equal(s.doc('devis_devis', reglee.id).marge, 15, 'la marge globale, pas celle des articles (30)');
+    const zero = ok(await s.appeler('biblio', 'creer_devis_brouillon', { affaireId: 'a1', destinataires: EMAIL, lignes, marge: 0 }));
+    assert.equal(s.doc('devis_devis', zero.id).marge, 0);
+    assert.equal(s.doc('devis_devis', defaut.id).marge, 20, 'le devis déjà créé ne bouge pas');
+    const lu = ok(await s.appeler('lecteur', 'lire_reglages_devis', {}));
+    assert.deepEqual([lu.reglages.marge, lu.reglages.margeDevis], [30, 15]);
+  });
+
   test('M3 sections, destinataire repris de la fiche, et refus sans écriture : article inconnu ou désactivé, quantité nulle, référence ambiguë, remise trop forte, affaire inconnue', async () => {
     const s = await demarrer();
     const ids = await articlesDeBase(s);
