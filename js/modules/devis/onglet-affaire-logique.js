@@ -25,21 +25,11 @@ export const intituleDevis = (d) => `${d?.numero ?? 'Brouillon'}${(d?.version ??
 export const compteurOnglet = (lignes, pret) => (pret ? lignes.length : null);
 
 const brouillon = (d) => d?.statut === 'brouillon';
-/** Texte du lien qui ouvre le PDF. */
-export const libelleOuvrirPdf = (d) => (brouillon(d) ? 'Ouvrir le PDF brouillon' : 'Ouvrir le PDF');
-/** Noms accessibles (jamais vides) des trois actions d'une ligne. */
+/** Nom accessible (jamais vide) du lien d'une ligne. */
 export const nomVoir = (d) => `Voir le devis ${d?.numero ?? d?.objet ?? 'brouillon'}`.trim();
-export const nomOuvrirPdf = (d) => (brouillon(d) ? `Ouvrir le PDF brouillon du devis ${d?.objet || 'sans objet'}` : `Ouvrir le PDF du devis ${d?.numero ?? d?.objet ?? ''}`.trim());
-export const nomTelecharger = (d) => (brouillon(d) ? `Télécharger le PDF brouillon du devis ${d?.objet || 'sans objet'}` : `Télécharger le PDF du devis ${d?.numero ?? d?.objet ?? ''}`.trim());
 
 /** Route de l'écran du devis : l'éditeur pour un brouillon, la visualisation sinon. */
 export const routeVoirDevis = (d) => (brouillon(d) ? `devis/editeur/${d.id}` : `devis/voir/${d.id}`);
-
-/** Vrai si l'erreur d'une fonction du serveur est « introuvable » (pas de PDF brouillon fabriqué). */
-export const estIntrouvable = (e) => String(e?.code ?? '').replace('functions/', '') === 'not-found';
-
-/** Adresse que le navigateur peut ouvrir pour enregistrer le fichier : https seulement. */
-export const adresseTelechargeable = (url) => typeof url === 'string' && url.startsWith('https://');
 
 /**
  * Le bouton d'action de l'en-tête de l'affaire : « Créer un devis » sans devis, « Voir le devis » (le plus récent) sinon ; rien tant que les devis ne sont pas lus.

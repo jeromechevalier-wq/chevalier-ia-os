@@ -3,7 +3,7 @@
 // Choix contre les bloqueurs de fenêtres : le PDF s'ouvre dans un NOUVEL onglet (l'application n'est jamais remplacée : la touche « retour » ne boucle pas) ; si le navigateur
 // refuse cette ouverture automatique, le bouton « Ouvrir le PDF » (un vrai lien, toujours affiché) la remplace.
 // Aucune règle ici : états et messages viennent de pdf.js (pur, testé) ; rien n'est écrit par le navigateur, et rien n'est copié dans Drive (le PDF reste dans notre stockage).
-import { h, icone, remplir } from '../../os/ui.js';
+import { h, icone, remplir, toast } from '../../os/ui.js';
 import { etatVide } from '../crm/composants.js';
 import * as D from './donnees.js';
 import { etatPdfDevis, cibleRetourPdf, origineRetour } from './pdf.js';
@@ -15,6 +15,29 @@ export const MESSAGE_ECHEC = 'La fabrication du PDF a échoué. Appuie sur « R�
 export const MESSAGE_PAS_PRET = 'Le PDF de ce devis n’est pas encore prêt. Appuie sur « Réessayer » pour le fabriquer.';
 export const MESSAGE_PAS_DE_BROUILLON = 'Aucun PDF brouillon pour ce devis. Ouvre le devis, puis le menu « … », et choisis « Télécharger le PDF » (ou « Imprimer »), pour le créer.';
 export const MESSAGE_BROUILLON_FINALISE = 'Ce devis n’est plus un brouillon. Ouvre son PDF depuis la liste des devis.';
+
+const enPreparation = new Set(); // devis dont le lien de téléchargement est en cours de demande
+
+/** « Télécharger » : demande un lien signé en pièce jointe, puis le clique : le navigateur enregistre le fichier sans quitter la page. */
+async function telecharger(devisId, brouillon, bouton) {
+  if (enPreparation.has(devisId)) return;
+  enPreparation.add(devisId);
+  bouton.disabled = true;
+  try {
+    const r = await D.pdfLien(devisId, brouillon, { telecharger: true });
+    if (typeof r?.url !== 'string' || !r.url.startsWith('https://')) throw new Error(D.MESSAGE_RESEAU_DEVIS);
+    const a = h('a', { href: r.url, rel: 'noopener', hidden: true });
+    document.body.append(a);
+    a.click();
+    a.remove();
+  } catch (e) {
+    console.warn(e?.code ?? '', e?.message ?? ''); // jamais l'adresse signée
+    toast(e?.message || D.MESSAGE_RESEAU_DEVIS, { type: 'erreur', duree: 8000 });
+  } finally {
+    enPreparation.delete(devisId);
+    bouton.disabled = false;
+  }
+}
 
 /** `brouillon` : true pour la route …/brouillon. Rend la fonction d'arrêt. */
 export function rendrePdfDevis(conteneur, devisId, brouillon = false) {
@@ -76,6 +99,7 @@ export function rendrePdfDevis(conteneur, devisId, brouillon = false) {
         h('p', { class: 'texte-discret' }, 'Rien ne s’est ouvert ? Ton navigateur l’a peut-être bloqué : utilise le bouton ci-dessous.'),
         h('div', { class: 'pdf-devis-actions' },
           h('a', { class: 'bouton bouton-principal', href: url, target: '_blank', rel: 'noopener noreferrer', dataset: { action: 'ouvrir-pdf' } }, icone('external-link', { taille: 16 }), 'Ouvrir le PDF'),
+          h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'telecharger-pdf' }, onclick: (e) => telecharger(devisId, brouillon, e.currentTarget) }, icone('download', { taille: 16 }), 'Télécharger'),
           h('a', { class: 'bouton bouton-secondaire', href: `#/${retourPdf.route}`, dataset: { action: 'retour-apres-pdf' } }, retourPdf.libelle)));
     } catch (e) {
       if (arrete || mon !== numero) return;
