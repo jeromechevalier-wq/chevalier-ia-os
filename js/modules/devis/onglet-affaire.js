@@ -1,6 +1,6 @@
 // Onglet « Devis » de la fiche d'une affaire (inscrit par le module Devis quand il démarre ; éteint, il n'y a pas d'onglet).
 // Montre tous les devis de l'affaire (brouillons et « Remplacé » compris, archivés exclus) comme l'onglet Documents : le nom du devis est un lien qui l'ouvre, le total et la date dessous.
-// Ni bouton ni crayon : le PDF et son téléchargement se trouvent dans le devis (menu « … ») puis sur l'écran du PDF. Une croix seulement sur les brouillons (fenêtre de confirmation de `supprimerBrouillon`) ; un devis finalisé ne se supprime pas, il s'archive.
+// Ni crayon : un devis finalisé a « Ouvrir le PDF » et « Télécharger » (le PDF s'ouvre sans quitter l'affaire). Une croix seulement sur les brouillons (fenêtre de confirmation de `supprimerBrouillon`) ; un devis finalisé ne se supprime pas, il s'archive.
 // Les règles sont dans onglet-affaire-logique.js (pur, testé).
 // Le fournisseur est appelé à chaque redessin de la fiche : il garde UN élément par affaire et ne change que son contenu, et seulement si quelque chose a changé.
 import { h, icone, remplir, toast } from '../../os/ui.js';
@@ -11,7 +11,7 @@ import * as D from './donnees.js';
 import * as Li from './liste.js';
 import { formaterMontant } from './document.js';
 import { pastilleStatutDevis } from './pastille-statut.js';
-import { indicateurPdf } from './pdf-indicateur.js';
+import { indicateurPdf, actionsPdfPret } from './pdf-indicateur.js';
 import { etatPdfDevis } from './pdf.js';
 import { clientsDeAffaire } from './editeur-ecran.js';
 import { valeursDeCreation } from './editeur-logique.js';
@@ -55,7 +55,7 @@ function ligne(d, { aujourdhui, apres }) {
   const t = Li.totauxDe(d);
   const brouillon = d.statut === 'brouillon';
   const etat = etatPdfDevis(d);
-  const indicateur = !brouillon && etat !== 'pret' ? indicateurPdf(d, { apres }) : null; // « en cours » et « non rangé » seulement : un PDF prêt s'ouvre depuis le devis
+  const indicateur = brouillon ? null : etat === 'pret' ? actionsPdfPret(d) : indicateurPdf(d, { apres }); // PDF prêt : « Ouvrir le PDF » et « Télécharger » ; sinon « en cours » ou « non rangé »
   const nom = d.objet ? `${P.intituleDevis(d)} – ${d.objet}` : P.intituleDevis(d);
   return h('li', { class: 'ligne-lien', dataset: { devis: d.id, statut: Li.statutAffiche(d, aujourdhui) } },
     icone('file-text', { taille: 14 }),

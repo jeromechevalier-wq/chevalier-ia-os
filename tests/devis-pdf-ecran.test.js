@@ -1,4 +1,4 @@
-// Écrans du PDF d'un devis (règles pures de js/modules/devis/pdf.js + garde-fous de texte). Aucun navigateur.
+// PDF d'un devis (règles pures de js/modules/devis/pdf.js + garde-fous de texte). Aucun navigateur. Il n'y a plus de page « PDF » (27/10/2026) : le bouton de retour de cette page et ses tests (R1) n'existent plus.
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
 import { readFileSync, existsSync } from 'node:fs';
@@ -8,18 +8,6 @@ import { pdfAReessayer as regleServeur, DELAI_EN_COURS_MS } from '../functions/s
 
 const lire = (chemin) => readFileSync(fileURLToPath(new URL(`../${chemin}`, import.meta.url)), 'utf8');
 const MAINTENANT = Date.parse('2026-10-25T10:00:00Z');
-
-describe('PDF devis : bouton de retour', () => {
-  test('R1 le retour ramène à la page d\'origine : devis (éditeur ou visualisation), liste, ou à défaut le devis lui-même', () => {
-    assert.deepEqual(P.cibleRetourPdf({ devisId: 'd1', origine: 'devis/voir/d1' }), { route: 'devis/voir/d1', libelle: 'Retour au devis' });
-    assert.deepEqual(P.cibleRetourPdf({ devisId: 'd1', brouillon: true, origine: 'devis/editeur/d1' }), { route: 'devis/editeur/d1', libelle: 'Retour au devis' });
-    assert.deepEqual(P.cibleRetourPdf({ devisId: 'd1', origine: 'devis/liste' }), { route: 'devis/liste', libelle: 'Retour aux devis' });
-    assert.deepEqual(P.cibleRetourPdf({ devisId: 'd1' }), { route: 'devis/voir/d1', libelle: 'Retour au devis' });
-    assert.deepEqual(P.cibleRetourPdf({ devisId: 'd1', brouillon: true }), { route: 'devis/editeur/d1', libelle: 'Retour au devis' });
-    // une origine qui concerne un AUTRE devis ne sert pas : on revient au devis du PDF
-    assert.deepEqual(P.cibleRetourPdf({ devisId: 'd1', origine: 'devis/voir/d2' }), { route: 'devis/voir/d1', libelle: 'Retour au devis' });
-  });
-});
 
 describe('PDF devis : règles du navigateur', () => {
   test('S1 pdfAReessayer donne la même réponse que la règle du serveur (même règle, deux copies)', () => {
@@ -41,20 +29,28 @@ describe('PDF devis : règles du navigateur', () => {
     assert.equal(P.etatPdfDevis({ statut: 'envoye', pdf: { statut: 'en_cours' } }, MAINTENANT), 'a_reessayer', 'sans date de départ : abandonné, comme le serveur');
   });
 
-  test('S3 routePdf et messages', () => {
-    assert.equal(P.routePdf('abc'), 'devis/pdf/abc');
-    assert.equal(P.routePdf('abc', true), 'devis/pdf/abc/brouillon');
+  test('S3 messages, et l\'ancienne adresse du PDF mène à l\'éditeur du devis', () => {
+    assert.equal(P.routeApresPdfSupprime('abc'), 'devis/editeur/abc');
+    assert.equal(P.routeApresPdfSupprime('a b'), 'devis/editeur/a%20b');
     assert.equal(P.messageApresEnregistrement({ affaireId: 'a1' }), 'PDF brouillon prêt');
     assert.match(P.messageApresEnregistrement({ affaireId: null }), /n’a pas d’affaire/);
     assert.match(P.messageApresEnregistrement({ affaireId: null }), /dans son onglet Devis\.$/);
+    assert.match(P.MESSAGE_PDF_EN_COURS, /en cours de fabrication/);
   });
 
-  test('S4 le module sert les routes devis/pdf/<id> et …/brouillon ; les écrans n’écrivent jamais le champ pdf', () => {
-    const index = lire('js/modules/devis/index.js');
-    assert.match(index, /pdf: \(conteneur, segs\) => rendrePdfDevis\(conteneur, segs\[1\] \?\? '', segs\[2\] === 'brouillon'\)/);
-    for (const f of ['pdf-ecran.js', 'pdf-indicateur.js']) {
+  test('S4 la page « PDF » n’existe plus : plus de fichier, plus de route, l’ancienne adresse redirige ; les écrans n’écrivent jamais le champ pdf', () => {
+    assert.equal(existsSync(fileURLToPath(new URL('../js/modules/devis/pdf-ecran.js', import.meta.url))), false);
+    const index = lire('js/modules/devis/index.js').replace(/\/\/.*$/gm, '');
+    assert.ok(!/pdf-ecran|rendrePdfDevis|memoriserOrigine|pdf: \(conteneur/.test(index));
+    assert.match(index, /vue === 'pdf' && segs\[1\]/);
+    assert.match(index, /naviguer\(routeApresPdfSupprime\(segs\[1\]\), \{ remplacer: true \}\)/); // remplacer : « retour » ne reboucle pas sur l'ancienne adresse
+    for (const f of ['pdf-actions.js', 'pdf-indicateur.js']) {
       const t = lire(`js/modules/devis/${f}`).replace(/\/\/.*$/gm, '');
       assert.ok(!/setDoc|updateDoc|addDoc|writeBatch|CRM\.executer/.test(t), `${f} n'écrit rien dans Firestore`);
+    }
+    // Aucun écran n'envoie plus vers la page : ni navigation, ni lien vers devis/pdf (hors commentaires).
+    for (const f of ['editeur-ecran.js', 'pdf-indicateur.js', 'onglet-affaire.js', 'liste-ecran.js', 'pdf-actions.js']) {
+      assert.ok(!/devis\/pdf|routePdf/.test(lire(`js/modules/devis/${f}`).replace(/\/\/.*$/gm, '')), `${f} ne mène plus à devis/pdf`);
     }
     const donnees = lire('js/modules/devis/donnees.js');
     assert.match(donnees, /pdfLien: 'devisPdfLien'/);
@@ -64,12 +60,11 @@ describe('PDF devis : règles du navigateur', () => {
 
 describe('PDF devis : plus aucune copie dans le Drive (décision du 27/10/2026)', () => {
   const code = (f) => lire(f).replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
-  test('1 l’écran du PDF ne parle plus à Drive ni à Google : ni zone Drive, ni autorisation, ni mémoire de copie', () => {
-    const t = code('js/modules/devis/pdf-ecran.js');
+  test('1 les actions du PDF ne parlent ni à Drive ni à Google : ni autorisation, ni mémoire de copie ; elles demandent seulement un lien signé', () => {
+    const t = code('js/modules/devis/pdf-actions.js');
     assert.ok(!/google|drive|localStorage|copierDansDrive|zoneDrive|creerDossier/i.test(t));
-    assert.match(t, /Rien ne s’est ouvert \?/);
-    assert.match(t, /data-action|dataset: \{ action: 'ouvrir-pdf'/);
-    assert.match(lire('js/modules/devis/pdf-ecran.js'), /export const MESSAGE_PAS_DE_BROUILLON/);
+    assert.match(t, /D\.pdfLien\(/);
+    assert.match(t, /Ouvrir le PDF/);
   });
   test('2 le module Devis ne s’inscrit plus au dossier de travail, et les fichiers de la copie n’existent plus', () => {
     const index = code('js/modules/devis/index.js');
@@ -83,5 +78,6 @@ describe('PDF devis : plus aucune copie dans le Drive (décision du 27/10/2026)'
     assert.equal(P.MESSAGE_PDF_RANGE_AFFAIRE, 'PDF brouillon prêt');
     assert.match(P.MESSAGE_PDF_RANGE_SANS_AFFAIRE, /pour que le PDF apparaisse dans son onglet Devis\.$/);
     assert.ok(lire('js/modules/devis/pdf-indicateur.js').includes("toast('PDF prêt')"));
+    assert.match(P.MESSAGE_PDF_PRET_LIEN, /Le PDF est prêt/);
   });
 });

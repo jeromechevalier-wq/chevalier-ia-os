@@ -157,7 +157,7 @@ test('4 signé, refusé, remplacé, archivé : aucun bouton jaune ; « … » co
   }
 });
 
-test('5 « Imprimer » un brouillon : aucune fenêtre « Finaliser », le devis reste brouillon, l’écran du PDF brouillon s’ouvre', async ({ page }, info) => {
+test('5 « Imprimer » un brouillon : aucune fenêtre « Finaliser », le devis reste brouillon, le PDF brouillon s’ouvre dans un nouvel onglet sans quitter le devis', async ({ page }, info) => {
   test.info().annotations.push({ type: 'erreurs-reseau-attendues', description: 'le faux serveur répond comme le vrai' });
   await donnees();
   const appels = [];
@@ -177,11 +177,12 @@ test('5 « Imprimer » un brouillon : aucune fenêtre « Finaliser », le devis 
   const menu = await menuPlus(page);
   const ouverture = page.waitForEvent('popup').catch(() => null);
   await menu.getByRole('menuitem', { name: 'Imprimer' }).click();
-  await expect(page).toHaveURL(/#\/devis\/pdf\/dBrouillon\/brouillon$/, { timeout: 10000 });
-  await expect(page.getByRole('dialog')).toHaveCount(0); // pas de « Finaliser ce devis ? »
-  await expect(page.locator('[data-zone="pdf-devis"]')).toBeVisible();
-  await capturer(page, info, '5-imprimer-brouillon-ecran-pdf');
   const popup = await ouverture;
+  expect(popup, 'le PDF brouillon s’ouvre dans un nouvel onglet').not.toBeNull();
+  await expect(page).toHaveURL(/#\/devis\/editeur\/dBrouillon$/);
+  await expect(page.getByRole('dialog')).toHaveCount(0); // pas de « Finaliser ce devis ? »
+  await expect(page.locator('[data-zone="pdf-devis"]')).toHaveCount(0); // plus de page « PDF »
+  await capturer(page, info, '5-imprimer-brouillon-reste-dans-le-devis');
   await popup?.close();
   expect(appels.map(([nom]) => nom)).toContain('devisPdf');
   expect(appels.map(([nom]) => nom)).not.toContain('devisFinaliser');

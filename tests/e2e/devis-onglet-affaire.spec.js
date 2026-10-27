@@ -50,7 +50,7 @@ async function simulerServeur(page, appels, reponses = {}) {
   };
   await page.route('**/devisPdfLien', (route) => repondre(route, 'devisPdfLien', async (d) => (reponses.pdfLien?.(d) ?? { statut: 200, corps: { result: { url: URL_PDF, expireDans: 300, nom: 'Devis.pdf' } } })));
   await page.route('**/devisPdf', (route) => repondre(route, 'devisPdf', async (d) => {
-    await ecrireDocument(`devis_devis/${d.devisId}`, { pdf: PDF_OK });
+    await ecrireDocument(`devis_devis/${d.devisId}`, { ...(await lireDocument(`devis_devis/${d.devisId}`)), pdf: PDF_OK }); // le serveur n'écrit que le champ `pdf`
     return { statut: 200, corps: { result: { statut: 'ok', lien: `https://chevalier-ia-os.web.app/#/devis/pdf/${d.devisId}`, nom: 'Devis' } } };
   }));
 }
@@ -123,9 +123,10 @@ test('2 module actif : onglet « Devis » en dernier avec le compteur 2, devis d
   await expect(finalise.locator('[data-valeur="statut"]')).not.toHaveText('Brouillon');
   await expect(finalise.locator('[data-valeur="ttc"]')).toHaveText(/^720,00\s*€ TTC$/);
   await expect(finalise.locator('[data-valeur="date"]')).toHaveText('02/10/2026');
-  await expect(finalise.locator('[data-pdf]')).toHaveCount(0); // PDF prêt : rien à signaler, le PDF s'ouvre depuis le devis
+  await expect(finalise.locator('[data-pdf="pret"] [data-action]')).toHaveText(['Ouvrir le PDF', 'Télécharger']); // PDF prêt : on l'ouvre ou on le télécharge d'ici, sans quitter l'affaire
+  await expect(brouillon.locator('[data-pdf]')).toHaveCount(0);
   await expect(finalise.getByRole('link', { name: 'Voir le devis DEV-2026-10-02-001' })).toBeVisible();
-  await expect(panneau.locator('.ligne-lien a.bouton, .ligne-lien button:not([data-action="supprimer-devis"])')).toHaveCount(0); // comme l'onglet Documents : un nom cliquable, pas de boutons (la croix des brouillons est testée en A2)
+  await expect(panneau.locator('.ligne-lien a.bouton, .ligne-lien button:not([data-action="supprimer-devis"]):not([data-action$="-pdf"])')).toHaveCount(0); // comme l'onglet Documents : un nom cliquable ; seuls boutons : la croix des brouillons (testée en A2) et « Ouvrir le PDF » / « Télécharger » d'un devis finalisé
   await expect(page.locator('.bouton-principal:visible')).toHaveCount(1); // un seul bouton jaune : « Créer un devis » / « Voir le devis » de l'en-tête (« + Ajouter » est un texte jaune)
   await capturer(page, info, '2-onglet-devis');
 });
@@ -179,7 +180,8 @@ test('5 PDF en cours de fabrication, puis PDF non rangé avec réessai', async (
   await capturer(page, info, '5-pdf-en-cours-et-non-range');
   await echec.click();
   await expect.poll(() => appels.filter((a) => a[0] === 'devisPdf').length).toBe(1);
-  await expect(panneau.locator('[data-devis="dEchec"] [data-pdf]')).toHaveCount(0); // le serveur (simulé) a rangé le PDF : plus d'avertissement
+  await expect(panneau.locator('[data-devis="dEchec"] [data-pdf="non_range"]')).toHaveCount(0); // le serveur (simulé) a rangé le PDF : plus d'avertissement
+  await expect(panneau.locator('[data-devis="dEchec"] [data-action="ouvrir-pdf"]')).toBeVisible(); // ... et « Ouvrir le PDF » apparaît
 });
 
 // ------------------------------------------------------------------ point 6 : Ouvrir le PDF
@@ -195,16 +197,18 @@ test('6 le nom du devis est un lien : brouillon vers l’éditeur, devis finalis
   await expect(page).toHaveURL(/#\/devis\/voir\/dOk$/);
 });
 
-// ------------------------------------------------------------------ points 7 et 8 : Télécharger (sur l'écran du PDF)
+// ------------------------------------------------------------------ points 7 et 8 : Ouvrir le PDF et Télécharger (sur la ligne du devis ; plus de page « PDF », voir devis-sans-page-pdf.spec.js)
 
-test('7 sur l’écran du PDF, « Télécharger » demande un lien signé en pièce jointe (telecharger: true) et enregistre le fichier sans quitter la page', async ({ page }, info) => {
+test('7 sur la ligne d’un devis finalisé, « Télécharger » demande un lien signé en pièce jointe (telecharger: true) et enregistre le fichier sans quitter l’affaire', async ({ page }, info) => {
   await donneesDeuxDevis();
   const appels = [];
   await simulerServeur(page, appels);
   await ouvrirAffaire(page);
-  await page.goto('/?emulateurs=1#/devis/pdf/dOk');
-  const bouton = page.locator('[data-action="telecharger-pdf"]');
+  const panneau = await ouvrirOnglet(page);
+  const bouton = panneau.locator('[data-devis="dOk"] [data-action="telecharger-pdf"]');
   await expect(bouton).toBeVisible();
+  await expect(panneau.locator('[data-devis="dOk"] [data-action="ouvrir-pdf"]')).toHaveText('Ouvrir le PDF');
+  await expect(panneau.locator('[data-devis="dBrouillon"] [data-action="telecharger-pdf"]')).toHaveCount(0);
   const adresseAvant = page.url();
   const telechargement = page.waitForEvent('download');
   await bouton.click();
@@ -216,7 +220,7 @@ test('7 sur l’écran du PDF, « Télécharger » demande un lien signé en pi�
   await capturer(page, info, '7-apres-telechargement');
 });
 
-test('8 échec de « Télécharger » : message d’erreur et bouton de nouveau actif', async ({ page }, info) => {
+test('8 échec de « Télécharger » : message d’erreur avec « Réessayer » et bouton de nouveau actif', async ({ page }, info) => {
   test.info().annotations.push({ type: 'erreurs-reseau-attendues' });
   await donneesDeuxDevis();
   const appels = [];
@@ -224,8 +228,8 @@ test('8 échec de « Télécharger » : message d’erreur et bouton de nouveau 
     pdfLien: (d) => (d.telecharger ? erreurServeur(500, 'INTERNAL', 'Le serveur a eu un souci. Réessaie.') : undefined),
   });
   await ouvrirAffaire(page);
-  await page.goto('/?emulateurs=1#/devis/pdf/dOk');
-  const bouton = page.locator('[data-action="telecharger-pdf"]');
+  const panneau = await ouvrirOnglet(page);
+  const bouton = panneau.locator('[data-devis="dOk"] [data-action="telecharger-pdf"]');
   await bouton.click();
   await expect(page.locator('.toast-erreur')).toContainText('Ça n’a pas abouti');
   await expect(bouton).toBeEnabled();
@@ -285,7 +289,7 @@ test('11 chaque ligne tient sans débordement horizontal, les quatre onglets son
   expect(contenu, `la barre d’onglets déborde (contenu ${contenu} px, visible ${visible} px)`).toBeLessThanOrEqual(visible + 1);
   await page.locator('.compositeur .onglets').scrollIntoViewIfNeeded();
   const zone = await panneau.boundingBox();
-  for (const b of await panneau.locator('.ligne-lien .pdf-non-range, [data-action="ajouter-devis"]').all()) {
+  for (const b of await panneau.locator('.ligne-lien .pdf-non-range, .ligne-lien .pdf-actions-ligne .bouton-lien, [data-action="ajouter-devis"]').all()) {
     const m = await b.boundingBox();
     expect(m.x + m.width).toBeLessThanOrEqual(zone.x + zone.width + 1);
     if (estTelephone(page)) expect(m.height).toBeGreaterThanOrEqual(43.5);
@@ -301,10 +305,10 @@ test('12 aucune action de suppression dans l’onglet sauf la croix des brouillo
   await ouvrirAffaire(page);
   const panneau = await ouvrirOnglet(page);
   await expect(panneau.getByRole('button', { name: /supprim|retirer|archiv|corbeille/i })).toHaveCount(1); // la croix du seul brouillon
-  await expect(panneau.locator('[data-devis="dOk"] button')).toHaveCount(0);
+  await expect(panneau.locator('[data-devis="dOk"] button:not([data-action$="-pdf"])')).toHaveCount(0);
   await expect(panneau.getByRole('link', { name: /supprim|retirer|archiv|corbeille/i })).toHaveCount(0);
   await expect(panneau.locator('[aria-haspopup="menu"], .bouton-icone:not([data-action="supprimer-devis"])')).toHaveCount(0);
-  await expect(panneau.locator('.ligne-lien a.bouton, .ligne-lien button:not([data-action="supprimer-devis"])')).toHaveCount(0);
+  await expect(panneau.locator('.ligne-lien a.bouton, .ligne-lien button:not([data-action="supprimer-devis"]):not([data-action$="-pdf"])')).toHaveCount(0); // seuls « Ouvrir le PDF » et « Télécharger » existent en plus
 });
 
 // ------------------------------------------------------------------ lot « onglet Devis » du 27/10 : montant à jour au retour arrière (1) et croix des brouillons (2)

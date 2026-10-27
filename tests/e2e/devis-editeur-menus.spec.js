@@ -370,17 +370,26 @@ test('5 l’aperçu montre le devis (numéro et total) sans bouton d’impressio
   await capturer(page, info, '5-apercu-sans-impression');
 });
 
-test('5 un devis finalisé (lecture seule) : « Télécharger le PDF » et « Imprimer » du menu « … » ouvrent son PDF (#/devis/pdf/<id>)', { tag: '@sans-telephone' }, async ({ page }) => {
+test('5 un devis finalisé (lecture seule) : « Ouvrir le PDF » et « Imprimer » du menu « … » ouvrent son PDF dans un nouvel onglet, sans quitter le devis (plus de page « PDF »)', { tag: '@sans-telephone' }, async ({ page }) => {
   await semer();
-  const id = await devis('d5l', [{ id: 's1', titre: 'Cuisine', lignes: [ligne('l1', 'Pose', 2, 100, { prixVente: 100, tauxTva: 20 })] }], { statut: 'en_attente_envoi', numero: 'DEV-2026-10-24-004', finaliseLe: new Date() });
+  const id = await devis('d5l', [{ id: 's1', titre: 'Cuisine', lignes: [ligne('l1', 'Pose', 2, 100, { prixVente: 100, tauxTva: 20 })] }], { statut: 'en_attente_envoi', numero: 'DEV-2026-10-24-004', finaliseLe: new Date(), pdf: { statut: 'ok', chemin: 'devis/a1/d.pdf', nom: 'Devis.pdf', tentatives: 1 } });
+  await page.context().route('https://stockage.exemple.test/**', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<p>PDF d’essai</p>' }));
+  const liens = [];
+  await page.route('**/devisPdfLien', async (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+    liens.push(JSON.parse(route.request().postData()).data);
+    return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ result: { url: 'https://stockage.exemple.test/devis-essai.pdf', expireDans: 300, nom: 'Devis.pdf' } }) });
+  });
   await ouvrir(page, id);
-  for (const nom of ['Télécharger le PDF', 'Imprimer']) {
+  for (const nom of ['Ouvrir le PDF', 'Imprimer']) {
     await page.locator('[data-action="plus-actions"]').click();
+    const ouverture = page.waitForEvent('popup');
     await page.locator('.menu-pop').getByRole('menuitem', { name: nom }).click();
-    await expect(page).toHaveURL(new RegExp(`#/devis/pdf/${id}$`));
-    await page.goBack();
+    await (await ouverture).close();
+    await expect(page).toHaveURL(new RegExp(`#/devis/editeur/${id}$`));
     await expect(page.locator('[data-valeur="lecture-seule"]')).toBeVisible();
   }
+  expect(liens).toEqual([{ devisId: id }, { devisId: id }]);
 });
 
 test('5 brouillon : le bouton jaune est « Finaliser » ; « Imprimer » (menu « … ») ouvre le PDF brouillon SANS fenêtre « Finaliser » ; « Finaliser » ouvre la fenêtre et finalise', { annotation: { type: 'erreurs-reseau-attendues', description: 'le faux serveur répond comme le vrai' } }, async ({ page }, info) => {
@@ -402,8 +411,9 @@ test('5 brouillon : le bouton jaune est « Finaliser » ; « Imprimer » (menu �
   });
   await page.route('**/devisPdfLien', async (route) => {
     if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
-    return route.fulfill({ status: 404, headers: cors, body: JSON.stringify({ error: { status: 'NOT_FOUND', message: 'Aucun PDF brouillon pour ce devis : crée-le d’abord.' } }) });
+    return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ result: { url: 'https://stockage.exemple.test/brouillon.pdf', expireDans: 300, nom: 'Brouillon.pdf' } }) });
   });
+  await page.context().route('https://stockage.exemple.test/**', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<p>PDF d’essai</p>' }));
   await ouvrir(page, id);
   await expect(page.locator('[data-action="finaliser"]')).toHaveClass(/bouton-principal/);
   await expect(page.locator('[data-action="envoyer"]')).toHaveAttribute('aria-disabled', 'true');
@@ -412,14 +422,15 @@ test('5 brouillon : le bouton jaune est « Finaliser » ; « Imprimer » (menu �
   await expect(menu.getByRole('menuitem', { name: 'Télécharger le PDF' })).toBeEnabled();
   await expect(menu.getByRole('menuitem', { name: 'Imprimer' })).toBeEnabled();
   await capturer(page, info, '5-menu-plus-brouillon');
+  const ouverturePdf = page.waitForEvent('popup');
   await menu.getByRole('menuitem', { name: 'Imprimer' }).click();
-  // « Imprimer » un brouillon = son PDF « BROUILLON » : le serveur est appelé pour le brouillon, aucune fenêtre « Finaliser », aucune finalisation.
-  await expect(page).toHaveURL(new RegExp(`#/devis/pdf/${id}/brouillon$`), { timeout: 10000 });
+  // « Imprimer » un brouillon = son PDF « BROUILLON » : le serveur est appelé pour le brouillon, aucune fenêtre « Finaliser », aucune finalisation, et on reste dans le devis.
+  await (await ouverturePdf).close();
+  await expect(page).toHaveURL(new RegExp(`#/devis/editeur/${id}$`));
   expect(dialogue(page).filter({ hasText: 'Finaliser ce devis' })).toHaveCount(0);
   expect(appelsPdf).toEqual([{ devisId: id, brouillon: true }]);
   expect(appelsFinaliser).toEqual([]);
   expect((await lireDocument(`devis_devis/${id}`)).statut).toBe('brouillon');
-  await page.goBack();
   await expect(page.locator('[data-action="finaliser"]')).toBeVisible();
   // « Finaliser » (le bouton jaune) ouvre la fenêtre d'avant et finalise.
   await page.locator('[data-action="finaliser"]').click();
