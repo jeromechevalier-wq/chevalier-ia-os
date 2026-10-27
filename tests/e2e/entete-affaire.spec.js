@@ -89,7 +89,8 @@ test('J9 l’en-tête d’une affaire ouverte montre « Perdue » et « … », 
   await expect(actions.getByRole('button', { name: 'Plus d’actions' })).toBeVisible();
   await expect(actions.getByRole('button', { name: 'Gagnée' })).toHaveCount(0);
   await expect(page.locator('[data-action="gagnee"]')).toHaveCount(0);
-  await expect(actions.locator('> *')).toHaveCount(2);
+  // Trois éléments : « Créer un devis » (action du module Devis, PR 350), « Perdue » et « … ».
+  await expect(actions.locator('> *')).toHaveCount(3);
   await capturer(page, info, 'J9-sans-gagnee');
   // Gagner par la liste « Étape » du Résumé : même chemin qu'avant (célébration, statut, création du projet proposée)
   await page.locator('[data-action="choisir-etape"]').selectOption('gagne');

@@ -79,7 +79,7 @@ describe('PDF devis : plus aucune copie dans le Drive (décision du 27/10/2026)'
     assert.ok(!/apresDossierAffaire|creerDossierDeLAffaire|dossier-externe/.test(lanceurs));
     assert.ok(!/lienStablePdfNavigateur|BASE_LIEN_/.test(code('js/modules/devis/pdf.js')));
   });
-  test('4 textes : « PDF brouillon prêt », « PDF prêt », et l’onglet Devis remplace les Documents', () => {
+  test('4 textes : « PDF brouillon prêt », « PDF prêt », et l’onglet Devis remplace les liens du G-Drive', () => {
     assert.equal(P.MESSAGE_PDF_RANGE_AFFAIRE, 'PDF brouillon prêt');
     assert.match(P.MESSAGE_PDF_RANGE_SANS_AFFAIRE, /pour que le PDF apparaisse dans son onglet Devis\.$/);
     assert.ok(lire('js/modules/devis/pdf-indicateur.js').includes("toast('PDF prêt')"));
