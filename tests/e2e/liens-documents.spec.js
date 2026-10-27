@@ -124,24 +124,17 @@ test.describe('Google branché (simulé)', () => {
     await aller(page, FICHE);
     if (!(await page.locator('[data-role="choix-dossier"]').count())) await page.locator('[data-action="ajouter-dossier"]').click(); // « + Ajouter » ouvre les deux choix
     await page.locator('[data-action="creer-dossier-ouvrir"]').click();
-    const nom = page.locator('[data-champ="nom-dossier"]');
-    await expect(nom).toHaveValue('Refonte site Carrel'); // le nom du projet est proposé, sans convention imposée
-    // Nom vide : refusé avant toute requête.
-    await nom.fill('  ');
-    await page.locator('[data-action="creer-dossier"]').click();
-    await expect(page.locator('.toast-erreur').last()).toContainText('nom');
-    expect(drive.requetes).toHaveLength(0);
-    await nom.fill('Carrel 2026 – Site');
-    await page.locator('[data-action="creer-dossier"]').click();
+    // Un seul clic : plus de champ pour écrire le nom, le dossier porte le nom du projet.
+    await expect(page.locator('[data-champ="nom-dossier"]')).toHaveCount(0);
     await champDoc('projets_projets', 'pr1', 'urlDossier', dossierDrive(1));
     expect(drive.requetes.map((r) => r.corps)).toEqual([
-      { name: 'Carrel 2026 – Site', mimeType: 'application/vnd.google-apps.folder', parents: [PARENT] },
+      { name: 'Refonte site Carrel', mimeType: 'application/vnd.google-apps.folder', parents: [PARENT] },
       { name: 'Contrat', mimeType: 'application/vnd.google-apps.folder', parents: ['DOSSIER_1_abcdefghij'] },
       { name: 'Livrables', mimeType: 'application/vnd.google-apps.folder', parents: ['DOSSIER_1_abcdefghij'] },
     ]);
     expect(new Set(drive.requetes.map((r) => r.autorisation))).toEqual(new Set(['Bearer ya29.SIMULE']));
     expect((await lireDocument('crm_parametres/reglages')).dossierParentDrive).toEqual({ id: PARENT, nom: 'Clients 2026' }); // le parent CHOISI est conservé tel quel (pas de parent automatique)
-    await expect(page.locator('.toast').last()).toContainText('« Carrel 2026 – Site » créé dans Google Drive');
+    await expect(page.locator('.toast').last()).toContainText('« Refonte site Carrel » créé dans Google Drive');
     await expect(page.locator('[data-prop="dossier"] a.prop-lien')).toHaveAttribute('href', dossierDrive(1));
     await expect(page.locator('[data-action="creer-dossier"], [data-action="creer-dossier-ouvrir"]')).toHaveCount(0);
     await expect(page.locator('[data-action="ouvrir-dossier"]')).toBeVisible();
@@ -155,7 +148,6 @@ test.describe('Google branché (simulé)', () => {
     await aller(page, FICHE);
     if (!(await page.locator('[data-role="choix-dossier"]').count())) await page.locator('[data-action="ajouter-dossier"]').click(); // « + Ajouter » ouvre les deux choix
     await page.locator('[data-action="creer-dossier-ouvrir"]').click();
-    await page.locator('[data-action="creer-dossier"]').click();
     // Premier besoin, aucun parent choisi : « Chevalier IA OS » est créé dans Mon Drive, puis le dossier du projet DEDANS.
     await champDoc('projets_projets', 'pr1', 'urlDossier', dossierDrive(2));
     expect(drive.requetes.map((r) => r.corps)).toEqual([
@@ -168,7 +160,6 @@ test.describe('Google branché (simulé)', () => {
     await aller(page, '#/projets/projets/pr2');
     if (!(await page.locator('[data-role="choix-dossier"]').count())) await page.locator('[data-action="ajouter-dossier"]').click(); // « + Ajouter » ouvre les deux choix
     await page.locator('[data-action="creer-dossier-ouvrir"]').click();
-    await page.locator('[data-action="creer-dossier"]').click();
     await champDoc('projets_projets', 'pr2', 'urlDossier', dossierDrive(3));
     expect(drive.requetes.map((r) => r.corps.name)).toEqual(['Chevalier IA OS', 'Un', 'Deux']);
     expect(drive.requetes[2].corps.parents).toEqual(['DOSSIER_1_abcdefghij']);
@@ -185,22 +176,21 @@ test.describe('Google branché (simulé)', () => {
     await refuserAutorisation(page);
     if (!(await page.locator('[data-role="choix-dossier"]').count())) await page.locator('[data-action="ajouter-dossier"]').click(); // « + Ajouter » ouvre les deux choix
     await page.locator('[data-action="creer-dossier-ouvrir"]').click();
-    await page.locator('[data-action="creer-dossier"]').click();
     await expect(page.locator('.toast').last()).toContainText('Autorisation refusée');
     expect(drive.requetes).toHaveLength(0);
-    await expect(page.locator('[data-action="creer-dossier"]')).toBeEnabled();
+    await expect(page.locator('[data-action="creer-dossier-ouvrir"]')).toBeEnabled();
     await refuserAutorisation(page, false);
     // Google refuse le dossier principal : message, rien d'enregistré, aucun sous-dossier tenté.
     drive.echecs.Refonte = 403;
-    await page.locator('[data-action="creer-dossier"]').click();
+    await page.locator('[data-action="creer-dossier-ouvrir"]').click();
     await expect(page.locator('.toast-erreur').last()).toContainText('droits');
     expect((await lireDocument('projets_projets/pr1')).urlDossier).toBe('');
     expect(drive.requetes).toHaveLength(1);
-    await expect(page.locator('[data-action="creer-dossier"]')).toBeEnabled();
+    await expect(page.locator('[data-action="creer-dossier-ouvrir"]')).toBeEnabled();
     // Un sous-dossier manque : le dossier existe et son lien est enregistré, le message nomme ce qui manque.
     delete drive.echecs.Refonte;
     drive.echecs.Livrables = 500;
-    await page.locator('[data-action="creer-dossier"]').click();
+    await page.locator('[data-action="creer-dossier-ouvrir"]').click();
     await champDoc('projets_projets', 'pr1', 'urlDossier', dossierDrive(1));
     await expect(page.locator('.toast-erreur').last()).toContainText('Livrables');
   });
@@ -270,7 +260,6 @@ test.describe('Google branché (simulé)', () => {
     // Le dossier se crée dans le bloc « Dossier de travail » ; ensuite « Ajouter un document » ouvre la fenêtre avec « Importer » dans CE dossier.
     if (!(await page.locator('[data-role="choix-dossier"]').count())) await page.locator('[data-action="ajouter-dossier"]').click(); // « + Ajouter » ouvre les deux choix
     await page.locator('[data-action="creer-dossier-ouvrir"]').click();
-    await page.locator('[data-action="creer-dossier"]').click();
     await champDoc('projets_projets', 'pr1', 'urlDossier', dossierDrive(1));
     expect(drive.requetes.map((r) => r.corps.name)).toEqual(['Refonte site Carrel', 'Contrat', 'Livrables']);
     expect(drive.requetes[0].corps.parents).toEqual([PARENT]);
@@ -312,7 +301,6 @@ test.describe('Google branché (simulé)', () => {
     // Avec le dossier créé dans le bloc « Dossier de travail » : la fenêtre s'ouvre avec « Importer » dans ce dossier ; la copie est cochée par défaut.
     if (!(await page.locator('[data-role="choix-dossier"]').count())) await page.locator('[data-action="ajouter-dossier"]').click(); // « + Ajouter » ouvre les deux choix
     await page.locator('[data-action="creer-dossier-ouvrir"]').click();
-    await page.locator('[data-action="creer-dossier"]').click();
     await champDoc('crm_affaires', 'a1', 'urlDossier', dossierDrive(1));
     expect(drive.requetes.map((r) => r.corps.name)).toEqual(['Audit des Lilas', 'Contrat', 'Livrables']);
     await choisirDansGoogle(page, [unDocument('FICHIER_AAAAAAAAAA', 'Portrait Chantal.jpg', 'https://drive.google.com/file/d/FICHIER_AAAAAAAAAA/view', 'image/jpeg')]);
@@ -429,15 +417,9 @@ test.describe('Google branché (simulé)', () => {
       await expect(ligne.locator('.boutons-liens')).toHaveCount(0); // les deux choix n'apparaissent qu'après « + Ajouter »
       await ligne.locator('[data-action="ajouter-dossier"]').click();
       await expect(ligne.locator('.boutons-liens button')).toHaveText(['Créer un dossier dans Google Drive', 'Lier un dossier Google Drive existant']);
-      // « Créer un dossier dans Google Drive » : nom prérempli (celui de la fiche), modifiable ; crée le dossier et les sous-dossiers des Réglages.
+      // « Créer un dossier dans Google Drive » : un clic, sans champ ; le dossier porte le nom de la fiche et ses sous-dossiers viennent des Réglages.
       await ligne.locator('[data-action="creer-dossier-ouvrir"]').click();
-      await expect(page.locator('[data-champ="nom-dossier"]')).toHaveValue(titre);
-      await ligne.locator('[data-action="annuler-dossier"]').click();
-      await expect(ligne.locator('[data-action="lier-dossier"]')).toHaveCount(0); // annuler referme aussi les choix : retour à « + Ajouter »
-      await ligne.locator('[data-action="ajouter-dossier"]').click();
-      await expect(ligne.locator('[data-action="lier-dossier"]')).toBeVisible();
-      await ligne.locator('[data-action="creer-dossier-ouvrir"]').click();
-      await ligne.locator('[data-action="creer-dossier"]').click();
+      await expect(page.locator('[data-champ="nom-dossier"]')).toHaveCount(0);
       await champDoc(collection, id, 'urlDossier', dossierDrive(numero === 1 ? 1 : 4));
       expect(drive.requetes.slice(-3).map((r) => r.corps.name)).toEqual([titre, 'Contrat', 'Livrables']);
       await expect(ligne.locator('[data-action="ouvrir-dossier"]')).toHaveAttribute('href', dossierDrive(numero === 1 ? 1 : 4));
@@ -566,22 +548,16 @@ test.describe('Google branché (simulé)', () => {
     await aller(page, FICHE);
     if (!(await page.locator('[data-role="choix-dossier"]').count())) await page.locator('[data-action="ajouter-dossier"]').click(); // « + Ajouter » ouvre les deux choix
     await page.locator('[data-action="creer-dossier-ouvrir"]').click();
-    await page.locator('[data-action="creer-dossier"]').click();
     await champDoc('projets_projets', 'pr1', 'urlDossier', dossierDrive(2));
     expect(drive.recherches.at(-1)).toEqual({ nom: 'Refonte', parent: 'DOSSIER_1_abcdefghij' }); // l'appli cherche d'abord un dossier de ce nom, dans le parent (ici celui qu'elle a créé toute seule)
     const avant = drive.requetes.length;
     await aller(page, '#/projets/projets/pr2');
     if (!(await page.locator('[data-role="choix-dossier"]').count())) await page.locator('[data-action="ajouter-dossier"]').click(); // « + Ajouter » ouvre les deux choix
     await page.locator('[data-action="creer-dossier-ouvrir"]').click();
-    await page.locator('[data-action="creer-dossier"]').click();
     await expect(page.locator('.toast-erreur').last()).toContainText('Un dossier de ce nom existe déjà. Utilise « Lier un dossier Google Drive existant ».');
     expect(drive.requetes).toHaveLength(avant); // aucun doublon créé
     expect((await lireDocument('projets_projets/pr2')).urlDossier).toBe('');
-    await expect(page.locator('[data-action="creer-dossier"]')).toBeEnabled();
-    // Un autre nom passe.
-    await page.locator('[data-champ="nom-dossier"]').fill('Refonte 2');
-    await page.locator('[data-action="creer-dossier"]').click();
-    await champDoc('projets_projets', 'pr2', 'urlDossier', dossierDrive(3));
+    await expect(page.locator('[data-action="creer-dossier-ouvrir"]')).toBeEnabled();
   });
 
   test('L19 adresses web : « www.monsite.fr » et « monsite.fr » reçoivent https:// ; « http:www.monsite.fr » devient http://www.monsite.fr ; un texte refusé donne un message clair (règles de la logique partagée ; plus de saisie dans l\'onglet « Documents »)', async ({ page }) => {
@@ -645,14 +621,12 @@ test.describe('Google branché (simulé)', () => {
     await aller(page, FICHE);
     if (!(await page.locator('[data-role="choix-dossier"]').count())) await page.locator('[data-action="ajouter-dossier"]').click(); // « + Ajouter » ouvre les deux choix
     await page.locator('[data-action="creer-dossier-ouvrir"]').click();
-    await page.locator('[data-action="creer-dossier"]').click();
     await champDoc('crm_parametres', 'reglages', 'dossierParentDrive', { id: 'DOSSIER_1_abcdefghij', nom: 'Chevalier IA OS', auto: true });
     // L'utilisateur supprime « Chevalier IA OS » dans son Drive : au prochain dossier, il est recréé et l'appli le dit.
     drive.supprimes.add('DOSSIER_1_abcdefghij');
     await aller(page, '#/projets/projets/pr2');
     if (!(await page.locator('[data-role="choix-dossier"]').count())) await page.locator('[data-action="ajouter-dossier"]').click(); // « + Ajouter » ouvre les deux choix
     await page.locator('[data-action="creer-dossier-ouvrir"]').click();
-    await page.locator('[data-action="creer-dossier"]').click();
     await champDoc('crm_parametres', 'reglages', 'dossierParentDrive', { id: 'DOSSIER_3_abcdefghij', nom: 'Chevalier IA OS', auto: true });
     await expect(page.locator('.toast', { hasText: 'avait été supprimé de ton Drive : il a été recréé' })).toBeVisible();
     expect(drive.requetes.map((r) => r.corps.name)).toEqual(['Chevalier IA OS', 'Un', 'Chevalier IA OS', 'Deux']);

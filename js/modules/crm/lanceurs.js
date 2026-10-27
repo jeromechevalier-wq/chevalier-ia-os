@@ -114,6 +114,29 @@ export function creerLanceurs({ fiche, typeFiche = 'affaire', nomSuggere = '', e
     else zoneDossier.querySelector('[data-role="choix-dossier"] button')?.focus();
   };
 
+  /** Crée le dossier dans Drive, enregistre son lien et le dit. Renvoie false si la création a échoué (message déjà affiché). */
+  async function creerEtLier(nom) {
+    try {
+      const r = await creerRepertoireDrive({ nom });
+      if (await ecrireDossier(r.url)) { toast(messageCreation(r), { type: r.manquants.length ? 'erreur' : 'info' }); }
+      else toast(`Dossier créé, mais son lien n'a pas pu être enregistré : ${r.url}`, { type: 'erreur' });
+      return true;
+    } catch (e) {
+      if (!e?.saisie) console.warn(e);
+      toast(e?.message || 'Création impossible', { type: 'erreur' });
+      return false;
+    }
+  }
+
+  /** « Créer un dossier dans Google Drive » : un clic, le dossier porte le nom de la fiche. Sans nom utilisable (fiche sans titre), on retombe sur le champ pour en écrire un. */
+  async function creerDirect(bouton) {
+    const { nom, erreur } = nettoyerNomDossier(nomSuggere);
+    if (erreur) { ouvrir('creer', nomSuggere); return; }
+    bouton.disabled = true;
+    bouton.lastChild.textContent = 'Création en cours…';
+    if (!(await creerEtLier(nom))) { bouton.disabled = false; bouton.lastChild.textContent = 'Créer un dossier dans Google Drive'; }
+  }
+
   function formulaireCreation(etatForm) {
     const champNom = h('input', { class: 'champ', type: 'text', 'aria-label': 'Nom du dossier à créer', value: etatForm.valeur, maxlength: '200', dataset: { champ: 'nom-dossier' }, autocapitalize: 'off', spellcheck: false });
     champNom.addEventListener('input', () => { etatForm.valeur = champNom.value; champNom.classList.remove('invalide'); });
@@ -122,13 +145,7 @@ export function creerLanceurs({ fiche, typeFiche = 'affaire', nomSuggere = '', e
       if (erreur) { champNom.classList.add('invalide'); toast(erreur, { type: 'erreur' }); return; }
       bouton.disabled = true;
       bouton.lastChild.textContent = 'Création en cours…';
-      try {
-        const r = await creerRepertoireDrive({ nom });
-        if (await ecrireDossier(r.url)) { toast(messageCreation(r), { type: r.manquants.length ? 'erreur' : 'info' }); }
-        else toast(`Dossier créé, mais son lien n'a pas pu être enregistré : ${r.url}`, { type: 'erreur' });
-      } catch (e) {
-        if (!e?.saisie) console.warn(e);
-        toast(e?.message || 'Création impossible', { type: 'erreur' });
+      if (!(await creerEtLier(nom))) {
         bouton.disabled = false;
         bouton.lastChild.textContent = 'Créer le dossier';
       }
@@ -186,7 +203,7 @@ export function creerLanceurs({ fiche, typeFiche = 'affaire', nomSuggere = '', e
     // « + Ajouter » (comme « Offre  + Ajouter » du Résumé) ouvre les deux choix ; le même clic les referme.
     const lier = google ? boutonPetit('Lier un dossier Google Drive existant', 'link', 'lier-dossier', (e) => lierDossierExistant(e.currentTarget)) : null;
     const choix = ouvert?.mode === 'choix'
-      ? h('div', { class: 'boutons-liens', dataset: { role: 'choix-dossier' } }, peutCreer ? boutonPetit('Créer un dossier dans Google Drive', 'folder-plus', 'creer-dossier-ouvrir', () => ouvrir('creer', nomSuggere)) : null, lier) : null;
+      ? h('div', { class: 'boutons-liens', dataset: { role: 'choix-dossier' } }, peutCreer ? boutonPetit('Créer un dossier dans Google Drive', 'folder-plus', 'creer-dossier-ouvrir', (e) => creerDirect(e.currentTarget)) : null, lier) : null;
     choix?.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); basculerChoix(); } });
     remplir(zoneDossier, boutonAjouter({ libelleAria: 'Ajouter un dossier de travail', action: 'ajouter-dossier', surClic: basculerChoix, attributs: { 'aria-expanded': String(!!choix) } }), choix);
   }

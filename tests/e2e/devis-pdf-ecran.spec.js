@@ -327,8 +327,6 @@ test('2 créer puis lier un dossier de travail sur une affaire qui a un devis fi
   // Créer le dossier : les seules requêtes Drive sont celles de la création du dossier (jamais d'envoi de fichier ni de recherche de PDF).
   await page.locator('[data-action="ajouter-dossier"]').click();
   await page.locator('[data-action="creer-dossier-ouvrir"]').click();
-  await page.locator('[data-champ="nom-dossier"]').fill('Rénovation cuisine');
-  await page.locator('[data-action="creer-dossier"]').click();
   await expect.poll(async () => (await lireDocument('crm_affaires/a1')).urlDossier).toMatch(/^https:\/\/drive\.google\.com\/drive\/folders\//);
   await expect(page.locator('#toasts')).toContainText('créé dans Google Drive');
   await expect(page.locator('#toasts')).not.toContainText(/PDF copié|PDF copiés|Copie/);
