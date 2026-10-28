@@ -406,8 +406,20 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     ref.boutonReessayer = h('button', { type: 'button', class: 'bouton-lien', hidden: true, dataset: { action: 'reessayer-enregistrement' }, onclick: async () => { const ok = await sauver(); if (!ok) toast(messageEnreg || ERREUR_ECRITURE, { type: 'erreur', duree: 8000 }); } }, 'Réessayer');
     const onglets = h('div', { class: 'onglets-editeur', role: 'tablist', 'aria-label': 'Affichage du devis' },
       [['edition', 'Édition', 'pencil'], ['apercu', 'Prévisualisation', 'eye']].map(([cle, libelle, pictogramme]) => h('button', {
-        type: 'button', class: 'onglet-editeur', role: 'tab', dataset: { onglet: cle }, onclick: () => choisirOnglet(cle),
+        type: 'button', class: 'onglet-editeur', role: 'tab', id: `devis-onglet-${cle}`, 'aria-controls': `devis-panneau-${cle}`, 'aria-selected': 'false', tabindex: '-1', dataset: { onglet: cle }, onclick: () => choisirOnglet(cle),
       }, icone(pictogramme, { taille: 16 }), libelle)));
+    // Motif ARIA « tabs » : flèches gauche/droite et Début/Fin déplacent la sélection (l'activation suit le focus).
+    onglets.addEventListener('keydown', (e) => {
+      const boutons = [...onglets.querySelectorAll('[role="tab"]')];
+      const i = boutons.indexOf(document.activeElement);
+      if (i < 0) return;
+      const suivant = { ArrowRight: (i + 1) % boutons.length, ArrowLeft: (i + boutons.length - 1) % boutons.length, Home: 0, End: boutons.length - 1 }[e.key];
+      if (suivant === undefined) return;
+      e.preventDefault();
+      if (suivant === i) return; // déjà sur cet onglet : on ne refait pas l'aperçu
+      choisirOnglet(boutons[suivant].dataset.onglet);
+      boutons[suivant].focus();
+    });
     ref.onglets = onglets;
     // En-tête : le MÊME que celui des fiches Affaires et Projets (mêmes classes) : flèche de retour, titre, pastille de statut, client et affaire ; les boutons à droite.
     // Les boutons (Catalogue, Options, Historique, étape, « … ») sont dans la barre collée en haut, en édition comme en lecture seule (le Catalogue y est grisé).
@@ -428,9 +440,9 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'recharger' }, onclick: () => { conflit = false; charger(); } }, 'Recharger'));
     ref.erreurEnreg = h('p', { class: 'erreur', role: 'alert', dataset: { erreur: 'enregistrement' }, hidden: true });
     // L'onglet Édition existe toujours : en lecture seule c'est la même feuille, que `verrouiller` rend non modifiable.
-    ref.panneauEdition = h('div', { class: 'editeur-edition', dataset: { panneau: 'edition' } },
+    ref.panneauEdition = h('div', { class: 'editeur-edition', id: 'devis-panneau-edition', role: 'tabpanel', 'aria-labelledby': 'devis-onglet-edition', dataset: { panneau: 'edition' } },
       h('article', { class: 'document-devis' }, enteteDocument(), blocLignes(), basDePage()));
-    ref.panneauApercu = h('div', { class: 'editeur-apercu', dataset: { panneau: 'apercu' } });
+    ref.panneauApercu = h('div', { class: 'editeur-apercu', id: 'devis-panneau-apercu', role: 'tabpanel', 'aria-labelledby': 'devis-onglet-apercu', dataset: { panneau: 'apercu' } });
     bibliotheque?.fermer();
     bibliotheque = null;
     // Une mise à jour des données reconstruit l'écran : les panneaux ouverts sont refermés sans bouger le focus, puis rouverts avec le contenu à jour.
@@ -681,7 +693,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
 
   function choisirOnglet(cle) {
     onglet = cle;
-    ref.onglets?.querySelectorAll('.onglet-editeur').forEach((b) => { const actif = b.dataset.onglet === cle; b.classList.toggle('actif', actif); b.setAttribute('aria-selected', String(actif)); });
+    ref.onglets?.querySelectorAll('.onglet-editeur').forEach((b) => { const actif = b.dataset.onglet === cle; b.classList.toggle('actif', actif); b.setAttribute('aria-selected', String(actif)); b.tabIndex = actif ? 0 : -1; });
     if (ref.panneauEdition) ref.panneauEdition.hidden = cle === 'apercu';
     ref.panneauApercu.hidden = cle !== 'apercu';
     if (cle === 'apercu') rendreApercu();
