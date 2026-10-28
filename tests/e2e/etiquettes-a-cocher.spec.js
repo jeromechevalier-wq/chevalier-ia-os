@@ -164,6 +164,7 @@ test('N5 clavier : le focus reste piégé dans la fenêtre, Entrée dans le cham
   await page.keyboard.press('Enter');
   await expect(fenetre(page)).toBeVisible();
   const dansLaFenetre = () => page.evaluate(() => !!document.activeElement?.closest('[role="dialog"]'));
+  await expect.poll(dansLaFenetre).toBe(true); // le focus est déjà passé dans la fenêtre à l’ouverture (sans attendre, le premier Tab partait parfois avant, sur téléphone)
   // Tab dans tous les sens : le focus ne sort jamais.
   for (let i = 0; i < 12; i++) { await page.keyboard.press('Tab'); expect(await dansLaFenetre()).toBe(true); }
   for (let i = 0; i < 12; i++) { await page.keyboard.press('Shift+Tab'); expect(await dansLaFenetre()).toBe(true); }
