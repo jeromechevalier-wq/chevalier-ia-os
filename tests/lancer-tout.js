@@ -1,4 +1,4 @@
-// Lanceur des paliers de tests : complet (npm run test:complet, ordinateur), nuit (--nuit : ordinateur + téléphone, 1 passage sur GitHub, 3 par défaut en local), rapide (--rapide : sans navigateur), module (--module <nom>) ou navigateur seul (--e2e …, utilisé par test:smoke).
+// Lanceur des paliers de tests : complet (npm run test:complet, ordinateur), nuit (--nuit : ordinateur + téléphone, 3 passages par défaut, seulement en local ; sur GitHub, la nuit est découpée en 13 jobs qui lancent chacun une partie avec --e2e --shard), rapide (--rapide : sans navigateur), module (--module <nom>) ou navigateur seul (--e2e …, utilisé par test:smoke).
 // Les séries (chacune avec ses propres émulateurs, donc ses propres ports) tournent en même temps ; le code de sortie est non nul si UNE échoue.
 // Mêmes fichiers de test qu'avant : les listes viennent de package.json (scripts test:regles, test:logique, test:storage…).
 import { spawn, spawnSync } from 'node:child_process';
@@ -18,9 +18,9 @@ const SANS_NAVIGATEUR = process.argv.includes('--sans-navigateur');
 // `--module <nom>` : seulement les fichiers dont le nom commence par <nom> (tests/<nom>*.test.js et tests/e2e/<nom>*.spec.js), format ordinateur.
 const POS_MODULE = process.argv.indexOf('--module');
 const MODULE = POS_MODULE === -1 ? null : (process.argv[POS_MODULE + 1] || '');
-// Palier « complet » = format ordinateur seulement (ce que GitHub lance sur chaque PR) ; `--nuit` = ordinateur et téléphone, chaque scénario TESTS_REPETER fois (3 par défaut, 1 sur GitHub).
+// Palier « complet » = format ordinateur seulement (ce que GitHub lance sur chaque PR) ; `--nuit` = ordinateur et téléphone, chaque scénario TESTS_REPETER fois (3 par défaut ; usage local, GitHub lance les parties une à une).
 const NUIT = process.argv.includes('--nuit');
-// TESTS_REPETER : nombre de passages de la suite de nuit (3 par défaut ; le workflow GitHub met 1 pour rester dans le quota de minutes).
+// TESTS_REPETER : nombre de passages de la suite de nuit (3 par défaut, en local ; le workflow GitHub découpe la nuit et met 1).
 const REPETER = `--repeat-each=${Number(process.env.TESTS_REPETER) || 3}`;
 // `node lancer-tout.js --e2e <arguments de playwright>` : seulement la série navigateur (un fichier de spec, --repeat-each…), mêmes ports et mêmes émulateurs.
 const POS_E2E = process.argv.indexOf('--e2e');

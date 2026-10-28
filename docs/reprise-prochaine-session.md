@@ -1,5 +1,33 @@
 # À faire au début de la prochaine session
 
+## Rapport du matin : nuit du 27 au 28/10/2026 (« GO NUIT », version 2.32.0)
+
+| Sujet | PR | État |
+|---|---|---|
+| Onglet « Documents » des fiches renommé « G-Drive » (n°8) | 352 | fusionnée seule |
+| Docs : remarques 7 à 15, docs périmées mises d'accord | 353 | fusionnée seule |
+| Onglet Devis d'une affaire : total du brouillon qui suit l'éditeur (n°1) et croix de suppression des brouillons avec confirmation (n°2) | 354 | fusionnée seule |
+| Réglages Devis : champs alignés (n°14) et « Marge globale du devis (%) », 20 % d'office aux nouveaux devis, MCP et clients inclus (n°13) | 355 | fusionnée seule |
+| Études : brouillon d'e-mail hors Google (n°11), affaire vers projet (n°12) | 356 | fusionnée seule (docs) ; **à trancher par Jérôme** |
+| « Tests de nuit » : délai 90 min, navigateur en cache, alerte aussi sur annulation | 357 | fusionnée seule |
+| « Tests de nuit » découpés en 13 jobs comme les PR | 364 | fusionnée seule |
+| Bouton « Exporter mes données » du module Devis (n°6) | 358 | fusionnée seule |
+| Plus de page « PDF du devis » : Ouvrir / Télécharger depuis le menu « … », la liste et l'onglet Devis (n°10) | 359 | fusionnée seule |
+| Finitions : croix « Retirer le dossier », pastilles-liens 44 px, icône du manifeste client, tests P3/B5, lignes PDF de la page Déploiement | 360 | fusionnée seule |
+| Méthodes de paiement (Réglages > Mon entreprise, éditeur, PDF) et bug serveur : le vrai PDF ne reprenait pas « Mon entreprise » (n°15) | 361 | fusionnée seule |
+| Confirmation « Devis signé » / « Devis refusé » et flèche « Retour » vers l'origine (n°5, n°4) | 363 | fusionnée seule |
+| Nom interne du devis (n°3) | 365 | fusionnée seule |
+| Lot R : onglet « Documents » avec fichiers stockés chez nous (n°9) | PR à ouvrir | **à fusionner par Jérôme** (règles Firestore, nouvelle collection, droits IAM : liste d'arrêt) ; le MCP ne dépose que du texte, un PDF du chat reste impossible |
+| Accessibilité des onglets Édition / Prévisualisation (M3) | aucune | pas fait (manque de temps) |
+| « Génération du PDF trop lente » (mesure puis progression) | aucune | pas fait |
+| Audit des écarts `functions/` vs `functions-plateforme/` | aucune | pas fait (à faire avant la prochaine démonstration) |
+| Bouton d'export propre à Projets, Veille, Automatisations, Maintenance | aucune | pas fait |
+| `lienStablePdf` du serveur vers `devis/voir/<id>` ; vérification sur le client démo (compte du PDF pour `deploiementVerifier`) ; docs et étapes IAM du lot R | aucune | pas fait |
+
+- **État de la nuit GitHub** : à vérifier. Le run « Tests de nuit » n° 21 (job unique) a été annulé à 89 minutes ; un run à la main avec les 13 jobs a été lancé après la PR 364 : son résultat est à lire sur GitHub (Actions > « Tests de nuit »). Si des jobs sont rouges, la plupart des défauts viendront de sept nuits jamais lues.
+- **Pas pu être vérifié** : les parcours navigateur de la fiche d'une affaire n'ont jamais été verts dans le bac à sable (`apis.google.com` injoignable) ; Safari ; le vrai MCP (claude.ai, ChatGPT) ; le vrai Cloud Storage ; les clients ne sont pas déployés avec ces PR.
+- **Actions pour Jérôme** : (1) tester sur tes écrans : onglet G-Drive, onglet Devis (total du brouillon, croix, « Nom du devis »), menu « … » (Ouvrir / Télécharger le PDF), confirmation « Devis signé / refusé », flèche « Retour », Réglages > Devis (deux marges, méthodes de paiement), bouton « Exporter mes données » ; (2) avec Claude : déploiement `hosting` puis `fonctions` chez les clients (workflow manuel, jamais sans toi) ; (3) lot R : droits IAM et règles Storage/Firestore à valider avant la fusion ; (4) trancher les études n°11 (Microsoft 365 par n8n ?) et n°12 (deux fiches liées ?) ; (5) dire dans quel ordre faire les boutons d'export manquants.
+
 ## Rapport du 27/10/2026, matin et midi (« GO NUIT » : onglet Devis, PDF chez nous)
 
 Décision de Jérôme : les PDF des devis vivent chez nous (Firebase Storage), montrés dans un onglet « Devis » de la fiche de l'affaire ; plus de copie dans le Drive, plus de PDF ajouté aux Documents, un bouton « Télécharger ».

@@ -5,7 +5,7 @@
 ## Pourquoi
 Quand on ouvre le PDF d'un devis, l'application en copie un exemplaire dans le dossier « Devis » du dossier Drive de l'affaire. Pour cela, le navigateur doit **lire** le PDF dans Cloud Storage. Par défaut, le stockage refuse cette lecture quand elle vient d'un site web : il faut lui dire quels sites ont le droit (c'est ce qu'on appelle le réglage « CORS »).
 
-Il sert à copier le PDF dans Drive (l'e-mail du devis, lui, passe par n8n : le navigateur ne lit plus le PDF pour le joindre). Sans ce réglage, l'écran du PDF affiche : « Le PDF n'a pas pu être lu pour la copie dans Drive… ». Le PDF, lui, s'ouvre quand même normalement.
+**Page gardée pour mémoire (28/10/2026)** : plus aucun écran ne lit le PDF depuis le navigateur (plus de copie dans Drive, plus d'écran du PDF), donc ce réglage n'est plus nécessaire pour les devis. Il servait à copier le PDF dans Drive (l'e-mail du devis passe par n8n). L'ancien message « Le PDF n'a pas pu être lu pour la copie dans Drive… » n'existe plus.
 
 Ce réglage se fait **une fois par projet Google** (un par plateforme, jamais un par client). Il ne contient aucun secret : il liste seulement des adresses de sites et la méthode de lecture (GET).
 
