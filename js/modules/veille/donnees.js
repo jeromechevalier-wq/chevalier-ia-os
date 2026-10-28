@@ -2,7 +2,7 @@
 // L'écran n'ÉCRIT RIEN dans Firestore : ces tables sont remplies par les workflows n8n (par la « porte ») et par la fonction `veille` du serveur
 // (ajout d'un lien collé, bouton Résumer), appelée avec appeler().
 // Pas de tri ni de limite côté Firestore (le tri se fait dans logique.js) : aucune requête composite, aucun index à créer.
-import { collection, doc, getDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
+import { collection, doc, getDoc, getDocs, onSnapshot } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-functions.js';
 import { db, app } from '../../os/firebase.js';
 import { cheminCollection } from '../../os/chemins.js';
@@ -43,6 +43,16 @@ export function arreter() {
   Object.assign(etat, { sources: [], contenus: [], resumes: [], pret: false });
   Object.assign(prets, { sources: false, contenus: false, resumes: false });
   base = '';
+}
+
+/** Les données du module pour l'export : { veille_sources, veille_contenus, veille_resumes, veille_pages }, lues au chemin du module (racine chez Jérôme, clients/<client> chez un client). Lecture seule. */
+export async function lireToutPourExport() {
+  const sortie = {};
+  for (const nom of ['veille_sources', 'veille_contenus', 'veille_resumes', 'veille_pages']) {
+    const snap = await getDocs(collection(db, chemin(nom)));
+    sortie[nom] = snap.docs.map((d) => ({ ...d.data({ serverTimestamps: 'estimate' }), id: d.id }));
+  }
+  return sortie;
 }
 
 const fonctions = () => getFunctions(app, 'europe-west9');
