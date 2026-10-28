@@ -34,7 +34,7 @@ export const ETAPES_COQUE = geler([
     reparation: 'Si du code a changé depuis le dernier client, l’administrateur de la plateforme publie les règles (workflow « Déploiement plateforme clients », choix « regles »).',
     lien: `${DOCS}deploiement-plateforme.md` },
   { id: 'membres', groupe: 'pendant', libelle: 'Personnes autorisées bien enregistrées', module: null, type: 'auto', controle: 'serveur.membres',
-    reparation: 'La liste des personnes de l’espace n’est pas cohérente (ou il n’y a aucun éditeur). Ouvre Réglages > Membres et rôles pour vérifier ; si rien n’y paraît, préviens l’administrateur de la plateforme.',
+    reparation: 'Aucun éditeur, ou la copie de l’équipe ne correspond pas : ouvre Réglages > Membres et rôles et enregistre à nouveau un membre ; si rien n’y paraît, préviens l’administrateur de la plateforme.',
     // À la racine, les comptes autorisés sont écrits dans le code : le contrôle serait toujours vrai. La ligne y devient une case à cocher.
     racineManuelle: true, reparationRacine: 'Les comptes autorisés de cet espace sont fixés dans le code : vérifie qu’ils sont les bons, puis coche.',
     lien: `${DOCS}nouveau-client.md` },

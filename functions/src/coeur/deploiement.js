@@ -47,16 +47,18 @@ export async function verifierDeploiement({ version, controles }) {
 /**
  * Les personnes autorisées d'un espace client sont-elles bien enregistrées ? Deux listes doivent dire la même chose :
  * `equipe` (copie dans la fiche du client, lue par l'écran) et `membres` (fiches d'appartenance, lues par les règles de la base).
- * Vrai si les deux listes ont les mêmes adresses avec les mêmes rôles (sans tenir compte de la casse) et au moins un éditeur.
- * `equipe` : [{ email, role }] ; `membres` : [{ id (adresse), role }].
+ * La vérité, ce sont les `membres` : il faut au moins un éditeur. Une `equipe` ABSENTE (espace créé à la main, ou avant l'ajout du champ) n'est pas une erreur : elle est réécrite à la prochaine modification des membres.
+ * Si `equipe` existe, elle doit avoir les mêmes adresses avec les mêmes rôles (sans tenir compte de la casse).
+ * `equipe` : [{ email, role }] ou null/undefined ; `membres` : [{ id (adresse), role }].
  */
 export function membresCoherents(equipe, membres) {
-  if (!Array.isArray(equipe) || !Array.isArray(membres)) return false;
+  if (!Array.isArray(membres) || !membres.some((m) => m?.role === 'editeur')) return false;
+  if (equipe === null || equipe === undefined) return true;
+  if (!Array.isArray(equipe)) return false;
   const cle = (email, role) => `${String(email ?? '').trim().toLowerCase()}|${role}`;
   const a = equipe.map((m) => cle(m?.email, m?.role)).sort();
   const b = membres.map((m) => cle(m?.id, m?.role)).sort();
-  if (!a.length || a.length !== b.length || a.some((x, i) => x !== b[i])) return false;
-  return membres.some((m) => m?.role === 'editeur');
+  return a.length === b.length && a.every((x, i) => x === b[i]);
 }
 
 /**
