@@ -67,8 +67,10 @@ test('1 envoyé : les boutons s’appellent « Devis signé » (jaune) et « Dev
   expect(xRefuse).toBeLessThan(xSigne);
   await capturer(page, info, '1-envoye-devis-signe-refuse', true);
   await jaunes(page).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Marquer signé' }).click(); // fenêtre de confirmation (27/10/2026)
   await expect(page.locator('.toast').filter({ hasText: 'Devis passé à « Signé »' })).toBeVisible();
   await refuse.click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Marquer refusé' }).click();
   await expect(page.locator('.toast').filter({ hasText: 'Devis passé à « Refusé »' })).toBeVisible();
   expect(appels).toEqual([{ devisId: 'dEnvoye', action: 'accepter' }, { devisId: 'dEnvoye', action: 'refuser' }]);
 });

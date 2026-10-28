@@ -80,7 +80,7 @@ test('2 l’en-tête de la visualisation est celui des fiches : « < Devis », t
   await ouvrir(page, 'devis/voir/dSigne');
   const tete = entete(page);
   await expect(tete).toBeVisible();
-  await expect(tete.locator('[data-action="fermer"]')).toContainText('Devis');
+  await expect(tete.locator('[data-action="fermer"]')).toContainText('Retour');
   await expect(tete.getByRole('heading', { level: 1 })).toHaveText('Devis DEV-2026-10-03-002 · v2');
   const pastille = tete.locator('.fiche-sous .pastille-statut');
   await expect(pastille).toHaveText('Signé'); // les mêmes mots que la liste des devis
@@ -134,7 +134,7 @@ test('3 l’éditeur d’un brouillon est intact (totaux, remise, acompte, Net �
   const racine = page.locator('.page-editeur-devis');
   await expect(racine).not.toHaveClass(/devis-lecture-seule/);
   const tete = entete(page);
-  await expect(tete.locator('[data-action="fermer"]')).toContainText('Devis');
+  await expect(tete.locator('[data-action="fermer"]')).toContainText('Retour');
   await expect(tete.getByRole('heading', { level: 1 })).toHaveText('Rénovation restaurant'); // le titre d'un brouillon est l'objet du devis (« Nouveau devis » s'il n'y en a pas)
   await expect(tete.locator('.fiche-sous .pastille-statut')).toHaveText('Brouillon'); // « Brouillon » n'apparaît qu'une fois
   await expect(tete.locator('[data-valeur="lien-client"]')).toContainText('M. Paul Exemple');

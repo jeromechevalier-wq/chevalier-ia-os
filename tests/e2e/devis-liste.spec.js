@@ -193,12 +193,14 @@ test('E3 le menu « … » : changements de statut par le serveur, entrées « b
   await capturer(page, info, 'E3-menu-devis-envoye');
   // Signé : la demande part au serveur (jamais une écriture directe).
   await menu.getByRole('menuitem', { name: /Passer à « Signé »/ }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Marquer signé' }).click(); // fenêtre de confirmation (27/10/2026)
   await expect(page.locator('.toast')).toContainText('Devis passé à « Signé »');
   expect(appels).toEqual([{ devisId: 'd1', action: 'accepter' }]);
   // Le serveur refuse : son message s'affiche en clair.
   refuser = true;
   await ouvrirMenuDe(page, 'd1');
   await page.locator('.menu-pop').getByRole('menuitem', { name: /Passer à « Refusé »/ }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Marquer refusé' }).click();
   await expect(page.locator('.toast').last()).toContainText('Ce devis ne peut plus changer de statut.');
   // Brouillon : Supprimer actif, Éditer le devis actif, Finalisé proposé.
   await ouvrirMenuDe(page, 'd2');

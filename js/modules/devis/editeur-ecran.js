@@ -7,6 +7,7 @@
 // Routes : devis/editeur/<id> s'ouvre sur l'onglet Édition, devis/voir/<id> sur l'onglet Prévisualisation (c'est le même écran).
 import { h, icone, remplir, dialogue, toast, ouvrirMenu } from '../../os/ui.js';
 import { naviguer, ajouterGardeSortie, routeCourante, lien } from '../../os/router.js';
+import { lienRetour, retourner, routeRetour, ROUTE_LISTE } from './origine.js';
 import { retirerAvecAnnulation } from '../../os/retrait.js';
 import { etatVide, planifier, cheminPersonne, cheminOrganisation, cheminAffaire } from '../crm/composants.js';
 import { adressesDe } from '../crm/logique.js';
@@ -104,7 +105,7 @@ function rendreCreation(conteneur) {
     if (!CRM.estPret()) { remplir(zone, h('div', { class: 'chargement', role: 'status' }, h('span', { class: 'rond-chargement' }))); return; }
     if (!liste.length) {
       remplir(zone, etatVide('Aucune affaire pour l’instant. Un devis se fait pour une affaire : crée d’abord l’affaire, puis reviens ici.', {
-        action: h('a', { class: 'bouton bouton-secondaire', href: '#/crm/affaires' }, 'Voir les affaires'),
+        action: h('a', { class: 'bouton bouton-secondaire', href: lien('crm/affaires') }, 'Voir les affaires'),
       }));
       return;
     }
@@ -132,7 +133,7 @@ function rendreCreation(conteneur) {
   }
 
   conteneur.append(h('div', { class: 'page page-devis page-editeur-devis page-nouveau-devis' },
-    h('header', { class: 'page-tete' }, h('div', {}, h('a', { class: 'lien-retour', href: '#/devis/liste' }, icone('chevron-left', { taille: 16 }), 'Devis'), h('h1', {}, 'Nouveau devis'))),
+    h('header', { class: 'page-tete' }, h('div', {}, h('a', { class: 'lien-retour', href: lienRetour(), dataset: { action: 'fermer' }, 'aria-label': routeRetour() === ROUTE_LISTE ? 'Retour à la liste des devis' : 'Retour à l’affaire', onclick: (ev) => { ev.preventDefault(); retourner(); } }, icone('chevron-left', { taille: 16 }), 'Retour'), h('h1', {}, 'Nouveau devis'))),
     zone));
   const rafraichir = planifier(rendre);
   rendre();
@@ -196,7 +197,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
         if (!delaiIntrouvable) delaiIntrouvable = setTimeout(() => { delaiIntrouvable = null; charger(); }, DELAI_INTROUVABLE_MS - (Date.now() - moment) + 50);
         return;
       }
-      remplir(racine, etatVide(MESSAGE_INTROUVABLE, { action: h('a', { class: 'bouton bouton-secondaire', href: '#/devis/liste', dataset: { action: 'retour-liste' } }, 'Retour aux devis') }));
+      remplir(racine, etatVide(MESSAGE_INTROUVABLE, { action: h('a', { class: 'bouton bouton-secondaire', href: lien('devis/liste'), dataset: { action: 'retour-liste' } }, 'Retour aux devis') }));
       racine.dataset.etat = 'introuvable';
       return;
     }
@@ -571,9 +572,9 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
   const telechargerPdf = (ancre = null) => livrerPdf('telecharger', ancre);
   const ouvrirPdf = (ancre = null) => livrerPdf('ouvrir', ancre);
 
-  // Flèche « ‹ Devis » tout à gauche de la barre, comme dans la fiche d'un projet : retour à la liste des devis (même chemin que l'ancienne croix, donc même confirmation si des changements ne sont pas enregistrés).
+  // Flèche « ‹ Retour » tout à gauche de la barre, comme dans la fiche d'un projet : ramène à la page d'où l'on vient (fiche d'une affaire, même onglet), sinon à la liste des devis (même chemin que l'ancienne croix, donc même confirmation si des changements ne sont pas enregistrés).
   function boutonRetour() {
-    return h('a', { class: 'lien-retour', href: '#/devis/liste', dataset: { action: 'fermer' }, 'aria-label': 'Retour à la liste des devis', onclick: (ev) => { ev.preventDefault(); naviguer('devis/liste'); } }, icone('chevron-left', { taille: 16 }), 'Devis');
+    return h('a', { class: 'lien-retour', href: lienRetour(), dataset: { action: 'fermer' }, 'aria-label': routeRetour() === ROUTE_LISTE ? 'Retour à la liste des devis' : 'Retour à l’affaire', onclick: (ev) => { ev.preventDefault(); retourner(); } }, icone('chevron-left', { taille: 16 }), 'Retour');
   }
 
   // Les trois groupes de cases du menu « Options » : Édition, Document, Clients (enregistrées dans `devis.affichage`), puis Import / Export (pas encore là).
@@ -1212,7 +1213,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     if (!ref.resultats) return;
     const actifs = D.etat.articles.filter((a) => a.actif !== false);
     if (!actifs.length) {
-      remplir(ref.resultats, h('li', { class: 'texte-discret', dataset: { vide: 'bordereau' } }, 'Ton catalogue est vide : crée tes articles dans le catalogue, ou utilise une ligne libre.', ' ', h('a', { href: '#/devis/bordereau' }, 'Ouvrir le catalogue')));
+      remplir(ref.resultats, h('li', { class: 'texte-discret', dataset: { vide: 'bordereau' } }, 'Ton catalogue est vide : crée tes articles dans le catalogue, ou utilise une ligne libre.', ' ', h('a', { href: lien('devis/bordereau') }, 'Ouvrir le catalogue')));
       return;
     }
     if (!rechercheBordereau.trim() && !filtreFamille) { remplir(ref.resultats, h('li', { class: 'texte-discret' }, 'Tape un mot pour chercher dans ton catalogue, ou choisis une famille.')); return; }

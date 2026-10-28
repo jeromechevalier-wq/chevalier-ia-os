@@ -2,6 +2,7 @@
 // Partagée par les fiches personne, organisation et affaire.
 import { h, icone, remplir, dialogue, confirmer, ouvrirMenu, toast, boutonSelonTexte } from '../../os/ui.js';
 import { retirerAvecAnnulation } from '../../os/retrait.js';
+import { routeCourante, routePrecedente, surNavigationAnnulee } from '../../os/router.js';
 import * as D from './donnees.js';
 import * as L from './logique.js';
 import * as PD from '../projets/donnees.js';
@@ -229,7 +230,16 @@ export function ligneActivite(a, aujourdhui, { avecAffaire = true, tousRattachem
 // Types cochés dans la fenêtre « Filtres » de l'historique (J1) : mémorisés jusqu'au rechargement de la page, partagés par toutes les fiches (pas de stockage navigateur).
 let typesHistorique = [];
 /** Remet le filtre de l'historique à zéro : appelée à la déconnexion, pour qu'un autre compte connecté dans le même onglet ne hérite pas du filtre du précédent. */
-export function oublierFiltresHistorique() { typesHistorique = []; }
+export function oublierFiltresHistorique() { typesHistorique = []; ongletsOuverts.clear(); ongletsDemandes.clear(); }
+
+// Onglet ouvert sur la fiche d'une affaire, pour qu'un « Retour » (ex. depuis l'éditeur d'un devis) retombe sur le MÊME onglet. Mémoire de la page, jamais écrite nulle part.
+const ongletsOuverts = new Map(); // affaireId -> id de l'onglet ouvert
+const ongletsDemandes = new Map(); // affaireId -> onglet à ouvrir à la prochaine ouverture de la fiche (consommé une seule fois)
+/** L'onglet ouvert en dernier sur la fiche de cette affaire ('activite' par défaut). */
+export function ongletOuvertDeAffaire(affaireId) { return ongletsOuverts.get(affaireId) ?? 'activite'; }
+/** Demande que la prochaine ouverture de la fiche de cette affaire s'ouvre sur cet onglet (ignoré s'il n'existe pas). */
+export function demanderOngletAffaire(affaireId, id) { if (affaireId && id) ongletsDemandes.set(affaireId, { id, depuis: routeCourante() }); }
+surNavigationAnnulee(() => ongletsDemandes.clear()); // « Quitter sans enregistrer ? » puis « Rester » : la demande ne vaut plus
 
 /**
  * Panneau complet. lien : { personneId } | { organisationId } | { affaireId } (filtre de la fiche).
@@ -245,6 +255,8 @@ export function panneauActivite({ lien, liensCreation, avecActivites = true, aff
   let fil = { notes: [], evenements: [] };
   let filAffaire = { notes: [] };
   let onglet = avecActivites ? 'activite' : 'notes';
+  const idAffaire = lien?.affaireId ?? null;
+  if (idAffaire) ongletsOuverts.set(idAffaire, onglet);
   const typesProposes = L.TYPES_ACTIVITE.filter((t) => !typesActivite || typesActivite.includes(t.id));
 
   const zoneNotesEpinglees = h('div', { class: 'notes-epinglees-zone' }); // « Notes épinglées » : seulement s'il y a une note épinglée
@@ -333,6 +345,7 @@ export function panneauActivite({ lien, liensCreation, avecActivites = true, aff
   const ongletDeRepli = avecActivites ? 'activite' : 'notes';
   function choisirOnglet(o, { focus = true } = {}) {
     onglet = o;
+    if (idAffaire) ongletsOuverts.set(idAffaire, o);
     for (const [b, id] of [[ongletActivite, 'activite'], [ongletNotes, 'notes'], [ongletDocuments, 'documents']]) {
       if (!b) continue;
       b.classList.toggle('actif', id === o);
@@ -389,6 +402,13 @@ export function panneauActivite({ lien, liensCreation, avecActivites = true, aff
     const voulus = liste.map((o) => externes.get(o.id));
     const actuels = [...barreOnglets.children].filter((b) => externes.has(b.dataset.onglet)).map((b) => externes.get(b.dataset.onglet));
     if (voulus.some((e, i) => e !== actuels[i]) && !voulus.some((e) => e.panneau.contains(document.activeElement))) for (const e of voulus) { barreOnglets.append(e.bouton); compositeur.append(e.panneau); }
+    // Onglet demandé avant d'ouvrir la fiche (« Retour » d'un autre écran) : pris une seule fois, dès que l'onglet existe.
+    const attente = idAffaire ? ongletsDemandes.get(idAffaire) : null;
+    if (attente) {
+      ongletsDemandes.delete(idAffaire);
+      const demande = attente.depuis === routePrecedente() ? attente.id : null; // seulement pour la navigation qui suit immédiatement la demande
+      if (demande && (externes.has(demande) || (demande === 'documents' && ongletDocuments) || demande === 'notes' || (demande === 'activite' && avecActivites))) choisirOnglet(demande, { focus: false });
+    }
     if (onglet !== 'activite' && onglet !== 'notes' && onglet !== 'documents' && !externes.has(onglet)) choisirOnglet(ongletDeRepli, { focus: false });
   }
 

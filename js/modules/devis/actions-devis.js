@@ -47,6 +47,12 @@ export async function changerStatut(d, action, libelle) {
       toast('Devis finalisé');
       return;
     }
+    // Signé et refusé : fenêtre de confirmation, aussi depuis le menu « … » de la liste (phrases = ce que le code permet vraiment ensuite : logique.js TRANSITIONS, serveur changerStatut).
+    if (action === 'accepter') {
+      if (!await confirmer('Marquer ce devis signé ?', 'Le devis passe à Signé. Il ne pourra plus être modifié ni versionné ; les autres versions du même numéro encore en attente ou envoyées passent à Remplacé.', { libelleOk: 'Marquer signé' })) return;
+    } else if (action === 'refuser') {
+      if (!await confirmer('Marquer ce devis refusé ?', 'Le devis passe à Refusé. Tu pourras encore créer une nouvelle version.', { libelleOk: 'Marquer refusé', danger: true })) return;
+    }
     await D.changerStatut(d.id, action);
     if (action === 'marquer_envoye') await noterEnvoi(d); // l'historique des envois garde À QUI (et en copie) : l'e-mail lui-même est parti de Gmail, la personne vient de le dire
     toast(`Devis passé à « ${libelle} »`);
