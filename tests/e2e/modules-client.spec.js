@@ -225,9 +225,10 @@ test('R10 Réglages chez un éditeur : l\'espace d\'abord (Mon espace, Membres, 
   await page.locator('#reglages-etiquettes').getByPlaceholder('Nouvelle étiquette').fill('Prioritaire');
   await page.locator('#reglages-etiquettes').getByRole('button', { name: 'Ajouter' }).click();
   await expect(page.locator('#reglages-etiquettes [data-etiquette="prioritaire"] input[type="text"]')).toHaveValue('Prioritaire');
-  // Veille : pas de réglage pour l'instant, dit simplement ; Automatisations : seulement la sauvegarde
+  // Veille et Automatisations : leur seule section est la Sauvegarde
   await ouvrirSectionReglages(page, 'Veille');
-  await expect(page.locator('[data-role="aucun-reglage"]')).toContainText('Aucun réglage');
+  await expect(page.locator('#reglages-export-veille')).toBeVisible();
+  await expect(page.locator('[data-role="aucun-reglage"]')).toHaveCount(0);
   await ouvrirSectionReglages(page, 'Automatisations');
   await expect(page.locator('#reglages-export-automatisations')).toBeVisible(); // seul réglage : la sauvegarde de ses données
   await ouvrirSectionReglages(page, 'Connecter mon assistant');

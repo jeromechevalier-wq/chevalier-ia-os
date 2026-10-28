@@ -140,7 +140,7 @@ export const MODULES_DECLARES = geler([
     libelleMenu: 'Veille',
     iconeMenu: 'globe',
     prefixe: 'veille',
-    reglages: { sections: [], resume: 'La veille se lit : ses sources sont suivies par les workflows n8n. Aucun réglage à faire ici pour l’instant.' },
+    reglages: { sections: [{ id: 'reglages-export-veille', libelle: 'Sauvegarde' }] },
     entreeMenu: 'veille/contenus',
     ecrans: [
       { route: 'veille/contenus', libelle: 'Contenus', icone: 'file-text' },

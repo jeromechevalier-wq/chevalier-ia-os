@@ -110,7 +110,8 @@ test('K5 Réglages à menu latéral chez Jérôme : l\'espace d\'abord, puis les
   // une section d'espace ne s'affiche pas deux fois et le thème n'est plus dans le CRM
   await expect(page.locator('#reglages-theme')).toHaveCount(0);
   await ouvrirSectionReglages(page, 'Veille');
-  await expect(page.locator('[data-role="aucun-reglage"]')).toContainText('Aucun réglage');
+  await expect(page.locator('#reglages-export-veille')).toBeVisible(); // Veille n'a qu'une section : la Sauvegarde
+  await expect(page.locator('[data-role="aucun-reglage"]')).toHaveCount(0);
   await page.evaluate(() => { location.hash = '#/reglages/membres'; }); // pas de membres à la racine : retour à l'arrivée
   await expect(page).toHaveURL(/#\/reglages$/);
 });
