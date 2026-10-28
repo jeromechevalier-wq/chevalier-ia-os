@@ -34,7 +34,7 @@ import { lancerPreparationEmail } from './email-preparer-ecran.js';
 import { LIBELLE_PREPARER_EMAIL, MESSAGE_NON_BRANCHE } from './email-preparer.js';
 import { emailPossible } from './email-brouillon.js';
 import { boutonsEntete, MESSAGE_FINALISER_POUR_ENVOYER } from './entete-boutons.js';
-import { ERREUR_ECRITURE, dupliquerDevis, supprimerBrouillon, entreesMenuDevis, changerStatut, creerNouvelleVersion } from './actions-devis.js';
+import { ERREUR_ECRITURE, creerDevisSansAffaire, dupliquerDevis, supprimerBrouillon, entreesMenuDevis, changerStatut, creerNouvelleVersion } from './actions-devis.js';
 import { pastilleStatutDevis, appliquerPastilleStatut } from './pastille-statut.js';
 import { ouvrirPanneauLateral } from './panneau-lateral.js';
 import { contenuHistorique } from './historique-logique.js';
@@ -87,58 +87,23 @@ const libelleAffaire = (a) => {
   return c ? `${a.titre} · ${c}` : a.titre;
 };
 
-// ---------------------------------------------------------------- création : choisir l'affaire
+// ---------------------------------------------------------------- création : devis/editeur sans identifiant
+/** Ancienne page « Nouveau devis » (signets, menu « + » d'avant) : elle ne demande plus rien, elle crée le brouillon (sans affaire : elle se choisit dans le devis) et ouvre l'éditeur à sa place. */
 function rendreCreation(conteneur) {
-  const erreur = h('p', { class: 'erreur', role: 'alert', dataset: { erreur: 'creation' }, hidden: true });
-  const select = h('select', { class: 'champ', id: 'nouveau-devis-affaire', dataset: { champ: 'affaire' }, 'aria-required': 'true', onchange: () => { select.classList.remove('invalide'); erreur.hidden = true; majClient(); } });
-  const client = h('p', { class: 'texte-discret', dataset: { valeur: 'client' } });
-  const zone = h('div', { class: 'formulaire-devis' });
-  const bouton = h('button', { type: 'button', class: 'bouton bouton-principal', dataset: { action: 'creer-brouillon' }, onclick: creer }, 'Créer le brouillon');
-
-  function majClient() {
-    const a = CRM.affaire(select.value);
-    const c = a ? clientsDeAffaire(a)[0] : null;
-    client.textContent = a ? (c ? `Client : ${c.nom}` : 'Cette affaire n’a pas encore de client : tu pourras le choisir dans le devis.') : '';
+  const zone = h('div', { class: 'page page-devis page-editeur-devis page-nouveau-devis' });
+  conteneur.append(zone);
+  let fini = false;
+  let arret = () => {};
+  async function lancer() {
+    remplir(zone, h('div', { class: 'chargement', role: 'status' }, h('span', { class: 'rond-chargement' })));
+    if (!D.estPretDevis()) { arret = D.surChangement(() => { if (D.estPretDevis() && !fini) { arret(); lancer(); } }); return; }
+    fini = true;
+    if (await creerDevisSansAffaire({ remplacer: true })) return;
+    fini = false;
+    remplir(zone, etatVide(ERREUR_ECRITURE, { action: h('button', { type: 'button', class: 'bouton bouton-secondaire', dataset: { action: 'reessayer-creation' }, onclick: lancer }, 'Réessayer') }));
   }
-  function rendre() {
-    const liste = affaires();
-    if (!CRM.estPret()) { remplir(zone, h('div', { class: 'chargement', role: 'status' }, h('span', { class: 'rond-chargement' }))); return; }
-    if (!liste.length) {
-      remplir(zone, etatVide('Aucune affaire pour l’instant. Un devis se fait pour une affaire : crée d’abord l’affaire, puis reviens ici.', {
-        action: h('a', { class: 'bouton bouton-secondaire', href: lien('crm/affaires') }, 'Voir les affaires'),
-      }));
-      return;
-    }
-    const courante = select.value;
-    remplir(select, h('option', { value: '' }, 'Choisis une affaire'), liste.map((a) => h('option', { value: a.id, selected: a.id === courante }, libelleAffaire(a))));
-    remplir(zone,
-      h('div', { class: 'bloc-champ' }, h('label', { class: 'etiquette', for: 'nouveau-devis-affaire' }, 'Affaire *'), select, client, erreur),
-      h('div', { class: 'page-actions' }, bouton));
-    majClient();
-  }
-  async function creer() {
-    const a = CRM.affaire(select.value);
-    if (!a) { select.classList.add('invalide'); erreur.textContent = 'Choisis l’affaire de ce devis.'; erreur.hidden = false; select.focus(); return; }
-    bouton.disabled = true;
-    try {
-      const r = await D.creerBrouillon(Ed.valeursDeCreation(a, clientsDeAffaire(a)[0] ?? null));
-      if (!r.id) throw new Error(Object.values(r.erreurs)[0] || ERREUR_ECRITURE);
-      naviguer(`devis/editeur/${r.id}`, { remplacer: true });
-    } catch (e) {
-      console.warn(e);
-      bouton.disabled = false;
-      erreur.textContent = ERREUR_ECRITURE;
-      erreur.hidden = false;
-    }
-  }
-
-  conteneur.append(h('div', { class: 'page page-devis page-editeur-devis page-nouveau-devis' },
-    h('header', { class: 'page-tete' }, h('div', {}, h('a', { class: 'lien-retour', href: lienRetour(), dataset: { action: 'fermer' }, 'aria-label': routeRetour() === ROUTE_LISTE ? 'Retour à la liste des devis' : 'Retour à l’affaire', onclick: (ev) => { ev.preventDefault(); retourner(); } }, icone('chevron-left', { taille: 16 }), 'Retour'), h('h1', {}, 'Nouveau devis'))),
-    zone));
-  const rafraichir = planifier(rendre);
-  rendre();
-  const arrets = [CRM.surChangement(rafraichir)];
-  return () => arrets.forEach((f) => f());
+  lancer();
+  return () => { fini = true; arret(); };
 }
 
 // ---------------------------------------------------------------- l'éditeur d'un devis
@@ -820,8 +785,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     ref.compteurManquants.hidden = !manquants;
     ref.compteurManquants.textContent = manquants ? `${manquants} champ${manquants > 1 ? 's' : ''} à remplir` : '';
     ref.boutonReessayer.hidden = etatEnreg !== 'erreur';
-    if (ref.selectAffaire) ref.selectAffaire.classList.toggle('invalide', !d.affaireId);
-    if (ref.erreurAffaire) { ref.erreurAffaire.hidden = Boolean(d.affaireId); }
+    if (ref.erreurAffaire) { ref.erreurAffaire.hidden = Boolean(d.affaireId); } // simple invitation : un brouillon s'enregistre sans affaire, c'est la finalisation qui l'exige
   }
 
   // ------------------------------------------------ calcul des marges : visible sur les lignes seulement avec la case « Afficher le calcul des marges » du menu Options (la marge du devis se règle dans « Définir un ajustement »)
@@ -971,7 +935,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     const courante = liste.some((a) => a.id === d.affaireId) || !d.affaireId ? liste : [...liste, CRM.affaire(d.affaireId)].filter(Boolean);
     ref.selectAffaire = h('select', { class: 'champ champ-grand', id: 'devis-affaire', dataset: { champ: 'affaire' }, 'aria-required': 'true', 'aria-label': 'Affaire', onchange: (e) => changerAffaire(e.target.value) },
       h('option', { value: '' }, 'Choisis une affaire'), courante.map((a) => h('option', { value: a.id, selected: a.id === d.affaireId }, libelleAffaire(a))));
-    ref.erreurAffaire = h('p', { class: 'erreur', role: 'alert', dataset: { erreur: 'affaire' }, hidden: Boolean(d.affaireId) }, 'Choisis l’affaire de ce devis : sans elle, il ne sera rattaché à aucun client.');
+    ref.erreurAffaire = h('p', { class: 'texte-discret', role: 'status', dataset: { erreur: 'affaire' }, hidden: Boolean(d.affaireId) }, 'Choisis l’affaire de ce devis : il en faut une pour le finaliser.');
     ref.selectClient = h('select', { class: 'champ champ-grand', id: 'devis-client', dataset: { champ: 'client' }, 'aria-label': 'Client', onchange: (e) => changerClient(e.target.value) });
     majClients();
     ref.champAdresse = h('textarea', {
@@ -1936,7 +1900,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
   async function finaliser() {
     clearTimeout(minuteur);
     if (!(await sauver())) { toast(messageEnreg || ERREUR_ECRITURE, { type: 'erreur', duree: 8000 }); return; }
-    const locales = [...(travail.affaireId ? [] : ['Choisis l’affaire du devis.']), ...erreursFinalisation(travail)];
+    const locales = erreursFinalisation(travail); // l'affaire manquante y est (même phrase que la fonction du serveur et l'assistant)
     if (locales.length) { await listeErreurs('Ce devis ne peut pas encore être finalisé', locales); return; }
     const avis = Ed.avertissements(travail);
     const ok = await dialogue({

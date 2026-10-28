@@ -862,3 +862,36 @@ describe('3f nom interne du devis par l’assistant (MCP)', () => {
     refuse(await s.appeler('biblio', 'modifier_devis_brouillon', { id: 'f1', nom: 'x' }), /brouillon/i); // un devis finalisé ne se renomme pas
   });
 });
+
+describe('SA devis sans affaire (28/10/2026) : un brouillon vit sans affaire, la finalisation l’exige', () => {
+  test('SA1 creer_devis_brouillon sans affaireId : brouillon créé sans affaire ni client ; lister_devis et lire_devis le montrent', async () => {
+    const s = await demarrer();
+    const ids = await articlesDeBase(s);
+    const r = ok(await s.appeler('biblio', 'creer_devis_brouillon', { objet: 'Sans affaire', lignes: [{ articleId: ids.a, quantite: 2 }] }));
+    const d = s.doc('devis_devis', r.id);
+    assert.equal(d.statut, 'brouillon');
+    assert.equal(d.affaireId, null);
+    assert.equal(d.organisationId, null);
+    assert.equal(r.totalHT, 120);
+    assert.equal(ok(await s.appeler('lecteur', 'lister_devis', {})).devis.find((x) => x.id === r.id).affaireId, null);
+    assert.ok(ok(await s.appeler('lecteur', 'lire_devis', { id: r.id })).erreursFinalisation.some((e) => /Choisis l'affaire de ce devis\./.test(e)));
+    refuse(await s.appeler('biblio', 'creer_devis_brouillon', { affaireId: 'inconnue' }), /Affaire/); // une affaire donnée mais inconnue reste refusée
+  });
+
+  test('SA2 finaliser_devis refuse un devis sans affaire (« Choisis l’affaire de ce devis. »), sans code ni écriture ; modifier_devis_brouillon avec affaireId lève le refus et reprend le client', async () => {
+    const s = await demarrer();
+    const ids = await articlesDeBase(s);
+    const r = ok(await s.appeler('biblio', 'creer_devis_brouillon', { destinataires: EMAIL, lignes: [{ articleId: ids.a, quantite: 1 }] }));
+    const avant = JSON.stringify(s.collections.devis_devis);
+    refuse(await s.appeler('code', 'finaliser_devis', { id: r.id }), /Choisis l'affaire de ce devis\./);
+    assert.equal(JSON.stringify(s.collections.devis_devis), avant, 'rien n’a été écrit');
+    assert.equal(s.collections.devis_compteurs.length, 0, 'aucun numéro consommé');
+    refuse(await s.appeler('biblio', 'modifier_devis_brouillon', { id: r.id, affaireId: 'inconnue' }), /Affaire/);
+    const m = ok(await s.appeler('biblio', 'modifier_devis_brouillon', { id: r.id, affaireId: 'a1' }));
+    assert.ok(m.champsModifies.includes('affaireId'));
+    assert.equal(s.doc('devis_devis', r.id).affaireId, 'a1');
+    assert.equal(s.doc('devis_devis', r.id).organisationId, 'org1', 'le client de l’affaire est repris puisque le devis n’en avait pas');
+    const apercu = ok(await s.appeler('code', 'finaliser_devis', { id: r.id }));
+    assert.equal(ok(await s.appeler('code', 'finaliser_devis', { id: r.id, codeConfirmation: apercu.code })).finalise, true);
+  });
+});

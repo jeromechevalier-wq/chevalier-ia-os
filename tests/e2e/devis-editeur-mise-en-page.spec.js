@@ -60,11 +60,11 @@ async function ouvrirListe(page) {
 /** Un brouillon neuf pour l'affaire d'exemple, créé par l'écran. */
 async function nouveauBrouillon(page) {
   await ouvrirListe(page);
-  await page.locator('[data-action="nouveau-devis-vide"]').click();
-  await page.locator('[data-champ="affaire"]').selectOption('a1');
-  await page.locator('[data-action="creer-brouillon"]').click();
+  await page.locator('[data-action="nouveau-devis-vide"]').click(); // le brouillon est créé tout de suite, sans affaire : on la choisit dans l'éditeur
   await expect(page.locator('.page-editeur-devis[data-devis]')).toBeVisible();
+  await page.locator('[data-champ="affaire"]').selectOption('a1');
   await attendreCalme(page);
+  await expect(page.locator('[data-valeur="enregistrement"]')).toHaveText('Enregistré');
 }
 async function ajouterLibre(page) {
   await page.locator('[data-action="autres-ajouts"]').click();
