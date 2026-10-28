@@ -9,7 +9,7 @@ import { devisHtml } from '../js/modules/devis/document.js';
 import { htmlDuDevis } from '../js/modules/devis/html-devis.js';
 
 const ligne = (id, prixAchat, quantite, extra = {}) => ({ id, libelle: `Article ${id}`, unite: 'u', quantite, prixAchat, marge: 0, ...extra });
-const devisDe = (sections, extra = {}) => ({ id: 'd1', statut: 'brouillon', modeMarge: 'majoration', marge: 0, tauxTvaDefaut: 20, regimeTva: 'assujetti', sections, ...extra });
+const devisDe = (sections, extra = {}) => ({ id: 'd1', statut: 'brouillon', affaireId: 'a1', modeMarge: 'majoration', marge: 0, tauxTvaDefaut: 20, regimeTva: 'assujetti', sections, ...extra });
 const ids = (sections) => Ed.aplatir(sections).map((e) => e.id);
 const trois = () => [{ id: 'sec-debut', titre: '', lignes: [ligne('a', 600, 1)] }, { id: 's1', titre: 'Cuisine', lignes: [ligne('b', 36, 5), ligne('c', 100, 1)] }, { id: 's2', titre: 'Salon', lignes: [ligne('d', 10, 1)] }];
 

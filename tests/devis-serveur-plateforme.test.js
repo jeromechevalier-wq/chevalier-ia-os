@@ -29,7 +29,7 @@ const fauxDb = { doc: (chemin) => ({ get: async () => { const f = FICHES[chemin]
 const auth = (email, verifie = true) => ({ uid: `uid-${email}`, token: { email, email_verified: verifie } });
 
 function brouillon(id) {
-  const d = nouveauDevis({ destinataires: [{ email: 'client@exemple.test' }] }, { id, maintenant: new Date(MAINTENANT), auteur: ALICE }, { marge: 20, margeDevis: 20 });
+  const d = nouveauDevis({ destinataires: [{ email: 'client@exemple.test' }], affaireId: 'aff1' }, { id, maintenant: new Date(MAINTENANT), auteur: ALICE }, { marge: 20, margeDevis: 20 });
   return { ...d, sections: [{ id: 's', titre: 'T', lignes: [{ id: 'l', libelle: 'Article', unite: 'u', quantite: 1, prixAchat: 10 }] }] };
 }
 function monde() {

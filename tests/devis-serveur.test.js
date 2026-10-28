@@ -461,3 +461,16 @@ describe('C7 qui peut appeler (porte de Jérôme)', () => {
     assert.equal(collections['clients/b/devis_compteurs'].length, 0);
   });
 });
+
+describe('SA devis sans affaire (28/10/2026) : la fonction devisFinaliser refuse un devis sans affaire', () => {
+  test('SA4 finaliser rend « Choisis l\'affaire de ce devis. » et n’écrit rien (ni numéro ni compteur) ; avec une affaire il passe', async () => {
+    const m = monde([brouillon('d1', { affaireId: null })]);
+    const avant = photo(m);
+    const r = await S.finaliser({ donnees: m.donnees, ctx: ctx(), devisId: 'd1' });
+    assert.equal(r.ok, false);
+    assert.deepEqual(r.erreurs, ['Choisis l\'affaire de ce devis.']);
+    assert.equal(photo(m), avant);
+    m.collections[C.devis][0].affaireId = 'aff1';
+    assert.equal((await S.finaliser({ donnees: m.donnees, ctx: ctx(), devisId: 'd1' })).ok, true);
+  });
+});

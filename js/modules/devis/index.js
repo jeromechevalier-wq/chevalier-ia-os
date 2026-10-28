@@ -1,5 +1,5 @@
 // Module Devis (cadrage-devis.md) : montage et routes. Trois écrans : le Bordereau (articles), la liste des devis et l'éditeur d'un devis.
-// Routes : devis/bordereau, devis/liste, devis/voir/<id> (le même écran que l'éditeur, ouvert sur l'onglet Prévisualisation), devis/editeur (nouveau devis : choix de l'affaire), devis/editeur/<id> (non déclarée dans le menu : on y arrive par la liste), et les anciennes adresses devis/pdf/<id> et devis/pdf/<id>/brouillon (la page du PDF n'existe plus : elles mènent à l'éditeur du devis ; elles sont écrites dans les Documents des affaires et dans des e-mails déjà envoyés). Le module lit le CRM (étapes des affaires) : le CRM démarre avant lui (le module Devis dépend de « affaires », pas de « projets »).
+// Routes : devis/bordereau, devis/liste, devis/voir/<id> (le même écran que l'éditeur, ouvert sur l'onglet Prévisualisation), devis/editeur (ancienne page « Nouveau devis » : crée un brouillon sans affaire et ouvre l'éditeur), devis/editeur/<id> (non déclarée dans le menu : on y arrive par la liste), et les anciennes adresses devis/pdf/<id> et devis/pdf/<id>/brouillon (la page du PDF n'existe plus : elles mènent à l'éditeur du devis ; elles sont écrites dans les Documents des affaires et dans des e-mails déjà envoyés). Le module lit le CRM (étapes des affaires) : le CRM démarre avant lui (le module Devis dépend de « affaires », pas de « projets »).
 import { vider } from '../../os/ui.js';
 import * as D from './donnees.js';
 import { rendreBordereau } from './bordereau.js';
@@ -13,6 +13,7 @@ import { noterArrivee, oublierOrigine } from './origine.js';
 import * as CRM from '../crm/donnees.js';
 import { inscrirePastilleAffaire, inscrireOngletAffaire, inscrireActionAffaire, signaler } from '../crm/pastilles-externes.js';
 import { pastilleDevisDeAffaire } from './pastille-affaire.js';
+import { creerDevisSansAffaire } from './actions-devis.js';
 import { ongletDevisDeAffaire, oublierOnglets, ajouterDevis } from './onglet-affaire.js';
 import { actionEnteteDevis } from './onglet-affaire-logique.js';
 import { naviguer } from '../../os/router.js';
@@ -30,9 +31,9 @@ function ajouterFeuille() {
   document.head.append(l);
 }
 
-/** Entrées du bouton « + » de la barre supérieure : « Devis » ouvre « Nouveau devis » (recherche de l'affaire dès 3 lettres). */
+/** Entrées du bouton « + » de la barre supérieure : « Devis » crée un brouillon sans affaire et ouvre l'éditeur. */
 export const actionsRapides = [
-  { id: 'devis', libelle: 'Devis', icone: 'file-text', action: () => naviguer('devis/editeur') },
+  { id: 'devis', libelle: 'Devis', icone: 'file-text', action: () => creerDevisSansAffaire() },
 ];
 
 let montee = null; // { cle, quitter }

@@ -198,7 +198,7 @@ test('6 cas vide : un devis introuvable ne montre aucun bouton ; cas d’erreur 
   await jaunes(page).click();
   await page.getByRole('dialog').waitFor();
   await expect(page.getByRole('dialog')).toContainText('Ce devis ne peut pas encore être finalisé');
-  await expect(page.getByRole('dialog').locator('li')).toContainText(['Choisis l’affaire du devis.']);
+  await expect(page.getByRole('dialog').locator('li')).toContainText(['Choisis l\'affaire de ce devis.']);
   await capturer(page, info, '6-erreur-finalisation', true);
   await page.getByRole('dialog').getByRole('button', { name: 'Compris' }).click();
   await expect(jaunes(page)).toHaveText('Finaliser');

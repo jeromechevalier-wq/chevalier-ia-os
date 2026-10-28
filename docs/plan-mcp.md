@@ -166,8 +166,8 @@ Profils : **L** lecteur · **B** bibliothécaire (L + écriture + pièces jointe
 | `lister_devis` | liste des devis avec **les totaux seuls** (HT, TVA, TTC), jamais les lignes ni la marge ; montre aussi `archive`, `archiveLe`, `envoyeLe`, `nombreEnvois` et l'état du PDF | L B C | — |
 | `lire_devis` | un devis complet, lignes et **marge visibles**, comme `lister_articles` montre le prix d'achat ; `copie`, `envois` (historique des envois par e-mail), état du PDF (jamais le chemin du fichier) | L B C | — |
 | `lire_reglages_devis` | réglages du module Devis (marge des articles, **marge globale du devis `margeDevis`**, TVA, validité, « Mon entreprise » avec les **méthodes de paiement**) et familles d'articles, lecture seule | L B C | — |
-| `creer_devis_brouillon` | crée un brouillon depuis une affaire (`copie` : e-mails en copie, mêmes règles que l'écran, 10 au plus ; `nom` : nom interne du devis, jamais imprimé ; la **marge globale du devis** des réglages, 20 % par défaut, est appliquée d'office comme à l'écran) | B C | oui |
-| `modifier_devis_brouillon` | modifie un brouillon seulement (refusé si le devis est finalisé), `copie` comprise | B C | oui |
+| `creer_devis_brouillon` | crée un brouillon, l'affaire est facultative (`finaliser_devis` l'exige) (`copie` : e-mails en copie, mêmes règles que l'écran, 10 au plus ; `nom` : nom interne du devis, jamais imprimé ; la **marge globale du devis** des réglages, 20 % par défaut, est appliquée d'office comme à l'écran) | B C | oui |
+| `modifier_devis_brouillon` | modifie un brouillon seulement (refusé si le devis est finalisé), `copie` comprise ; `affaireId` pose l'affaire d'un brouillon créé sans affaire | B C | oui |
 | `nouvelle_version_devis` | crée le brouillon suivant d'un devis finalisé, envoyé ou refusé (même numéro, version + 1) : la voie pour corriger un devis finalisé | B C | oui (supprime ce brouillon) |
 | `archiver_devis` | archive (devis signé ou refusé) ou désarchive | B C | oui |
 | `enregistrer_envoi_devis` | ajoute un envoi (destinataires, copie) à l'historique d'un devis « Envoyé » ; les deux dates sont gardées en cas de renvoi ; n'envoie rien | B C | oui |

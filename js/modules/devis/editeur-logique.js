@@ -389,7 +389,7 @@ export function avertissements(devis) {
   return sortie;
 }
 
-/** Champs obligatoires manquants pour enregistrer : clés `affaire` (obligatoire) et `client`. */
+/** Champs à remplir (sert au compteur, ne bloque pas l'enregistrement d'un brouillon) : clé `affaire`, obligatoire pour FINALISER (erreursFinalisation, logique.js). */
 export function champsManquants(devis) {
   const m = [];
   if (!devis?.affaireId) m.push('affaire');
@@ -444,12 +444,12 @@ export const texteDeAdresse = (a) => (typeof a === 'string' ? a.trim() : String(
 
 /**
  * Valeurs d'un nouveau brouillon pour une affaire et un client : identifiants, adresses (client par défaut), destinataire (premier e-mail du client).
- * `client` : { type: 'organisation' | 'personne', fiche, adresse (texte) } ou null.
+ * `affaire` peut être null : un brouillon se crée sans affaire, elle se choisit ensuite dans le devis. `client` : { type: 'organisation' | 'personne', fiche, adresse (texte) } ou null.
  */
 export function valeursDeCreation(affaire, client) {
   const adresse = adresseTexteSimple(client?.adresse);
   return {
-    affaireId: affaire.id,
+    affaireId: affaire?.id ?? null,
     organisationId: client?.type === 'organisation' ? client.fiche.id : null,
     personneId: client?.type === 'personne' ? client.fiche.id : null,
     adresses: { commanditaire: adresse, facturation: adresse, chantier: adresse },

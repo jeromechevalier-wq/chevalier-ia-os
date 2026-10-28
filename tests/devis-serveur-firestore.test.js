@@ -18,7 +18,7 @@ const ctx = () => ({ acteur: ACTEUR, via: 'ecran', maintenant: MAINTENANT });
 
 /** Un brouillon complet, avec des dates en Timestamp comme Firestore les rend (et non en Date). */
 function brouillon(id, extra = {}) {
-  const d = nouveauDevis({ destinataires: [{ email: 'client@exemple.test' }] }, { id, maintenant: MAINTENANT, auteur: ACTEUR }, { marge: 20, margeDevis: 20 });
+  const d = nouveauDevis({ destinataires: [{ email: 'client@exemple.test' }], affaireId: 'aff1' }, { id, maintenant: MAINTENANT, auteur: ACTEUR }, { marge: 20, margeDevis: 20 });
   return { ...d, creeLe: Timestamp.fromDate(MAINTENANT), sections: [{ id: `s-${id}`, titre: 'Travaux', lignes: [{ id: `l-${id}`, libelle: 'Article', unite: 'u', quantite: 2, prixAchat: 10 }] }], ...extra };
 }
 

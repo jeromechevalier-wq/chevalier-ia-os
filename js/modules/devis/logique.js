@@ -690,11 +690,15 @@ export const NOM_DEVIS_MAX = 80;
 /** Texte d'un nom de devis : espaces nettoyés, au plus NOM_DEVIS_MAX caractères (accents conservés). */
 export const nettoyerNomDevis = (v) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, NOM_DEVIS_MAX);
 
+/** Refus de finaliser un devis sans affaire : le même mot à l'écran, dans la fonction du serveur et dans l'assistant. */
+export const MESSAGE_AFFAIRE_MANQUANTE = 'Choisis l\'affaire de ce devis.';
+
 /** Liste de messages (en français, qui disent quoi faire). Vide = on peut finaliser. Aucun accès réseau ni base. */
 export function erreursFinalisation(devis) {
   const erreurs = [];
   if (!devis) return ['Le devis est introuvable.'];
   if (devis.statut !== 'brouillon') erreurs.push('Ce devis est déjà finalisé : pour le corriger, crée la version suivante.');
+  if (!devis.affaireId) erreurs.push(MESSAGE_AFFAIRE_MANQUANTE); // un brouillon peut vivre sans affaire, un devis finalisé non
   if (!idsModes.includes(devis.modeMarge)) erreurs.push('Choisis le mode de marge du devis.');
   if (!absent(devis.marge) && !estNombre(devis.marge)) erreurs.push('La marge du devis doit être un nombre.');
   const destinataires = (devis.destinataires ?? []).map(emailDe);

@@ -39,11 +39,11 @@ async function ouvrirListe(page) {
 /** Crée un brouillon pour l'affaire d'exemple par l'écran et rend son identifiant. */
 async function nouveauBrouillon(page) {
   await ouvrirListe(page);
-  await page.locator('[data-action="nouveau-devis-vide"]').click();
-  await page.locator('[data-champ="affaire"]').selectOption('a1');
-  await page.locator('[data-action="creer-brouillon"]').click();
+  await page.locator('[data-action="nouveau-devis-vide"]').click(); // le brouillon est créé tout de suite, sans affaire : on la choisit dans l'éditeur
   await expect(page.locator('.page-editeur-devis[data-devis]')).toBeVisible();
+  await page.locator('[data-champ="affaire"]').selectOption('a1');
   await attendreCalme(page);
+  await expect(page.locator('[data-valeur="enregistrement"]')).toHaveText('Enregistré');
   return page.url().split('/').pop();
 }
 const enregistre = (page) => expect(page.locator('[data-valeur="enregistrement"]')).toHaveText('Enregistré');
@@ -611,17 +611,14 @@ test('ED5 enregistrer et quitter : le changement tapé juste avant de quitter es
 });
 
 test('ED6 depuis la liste : Nouveau devis, Modifier ouvre l’éditeur, Dupliquer copie le contenu, une nouvelle version vient du serveur ; le cas sans affaire est expliqué', { annotation: { type: 'erreurs-reseau-attendues', description: 'le faux serveur répond comme le vrai' } }, async ({ page }, info) => {
-  // Sans affaire : message qui dit quoi faire.
+  // Aucune affaire dans l'espace : « Nouveau devis » crée quand même le brouillon et ouvre l'éditeur, qui invite à choisir l'affaire (plus de page « Nouveau devis »).
   await ouvrirListe(page);
   await page.locator('[data-action="nouveau-devis-vide"]').click();
-  await expect(page.locator('.etat-vide')).toContainText('Aucune affaire pour l’instant');
+  await expect(page.locator('.page-editeur-devis[data-devis]')).toBeVisible();
+  await expect(page.locator('[data-erreur="affaire"]')).toContainText('Choisis l’affaire');
+  await expect(page.locator('[data-champ="affaire"]')).not.toHaveClass(/invalide/); // une invitation, pas une erreur
   await capturer(page, info, 'ED6-sans-affaire');
-  // Avec une affaire : choisir l'affaire est obligatoire (champ en rouge, message).
   await semer();
-  await expect(page.locator('[data-champ="affaire"]')).toBeVisible();
-  await page.locator('[data-action="creer-brouillon"]').click();
-  await expect(page.locator('[data-erreur="creation"]')).toContainText('Choisis l’affaire');
-  await expect(page.locator('[data-champ="affaire"]')).toHaveClass(/invalide/);
   // Deux devis : un brouillon avec une ligne, un devis envoyé.
   const maintenant = new Date();
   const base = { version: 1, affaireId: 'a1', organisationId: 'o1', personneId: null, modeMarge: 'majoration', marge: 20, tauxTvaDefaut: 20, regimeTva: 'assujetti', autoliquidation: false, archive: false, expireLe: '2027-01-01', destinataires: ['contact@exemple.fr'], creePar: JEROME, proprietaire: JEROME, creeLe: maintenant, modifieLe: maintenant };
