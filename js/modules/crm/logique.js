@@ -2470,6 +2470,7 @@ export function nomFichierExport(maintenant = new Date(), type = 'complet') {
   const bases = {
     complet: ['chevalier-ia-os', 'json'],
     devis: ['chevalier-ia-devis', 'json'],
+    projets: ['chevalier-ia-projets', 'json'],
     contacts: ['chevalier-ia-contacts', 'vcf'],
   };
   const [base, ext] = bases[type] || bases.complet;

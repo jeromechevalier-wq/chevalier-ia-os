@@ -8,6 +8,7 @@ import * as L from '../crm/logique.js';
 import { rendreProjets, ouvrirCreationProjet } from './projets.js';
 import { rendreFicheProjet } from './fiche-projet.js';
 import { rendreModeles, rendreFicheModele } from './modeles.js';
+import { reglagesExportProjets } from './export.js';
 
 const VUES = {
   projets: (conteneur, id) => (id ? rendreFicheProjet(conteneur, id) : rendreProjets(conteneur)),
@@ -28,7 +29,9 @@ export function reglages(page) {
   const corps = h('div', {});
   const section = h('section', { class: 'carte-section', id: 'reglages-modeles-projets' }, h('h2', {}, icone('copy', { taille: 18 }), 'Modèles de projets'), corps);
   page.append(section);
-  return rendreModeles(corps, { page: false });
+  const arret = rendreModeles(corps, { page: false });
+  reglagesExportProjets(page); // puis « Sauvegarde », tout en bas
+  return arret;
 }
 
 let montee = null; // { cle, quitter }

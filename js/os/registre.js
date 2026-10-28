@@ -101,7 +101,7 @@ export const MODULES_DECLARES = geler([
     ecrans: [
       { route: 'projets/projets', libelle: 'Projets', icone: 'folder-kanban' },
     ],
-    reglages: { sections: [{ id: 'reglages-modeles-projets', libelle: 'Modèles de projets' }] },
+    reglages: { sections: [{ id: 'reglages-modeles-projets', libelle: 'Modèles de projets' }, { id: 'reglages-export-projets', libelle: 'Sauvegarde des projets' }] },
     collections: ['projets_projets', 'projets_taches', 'projets_modeles'],
     outilsMcp: [
       'lister_projets', 'lire_projet', 'lister_modeles_projet',
@@ -234,7 +234,7 @@ export const GROUPES_MENU = geler([
     sectionsMenu: [['crm/accueil'], ['crm/personnes', 'crm/organisations'], ['crm/affaires', 'projets/projets']],
     ordreReglages: [
       'reglages-etapes', 'reglages-phases', 'reglages-options', 'reglages-modeles-affaire', 'reglages-modeles-projets', 'reglages-objectifs',
-      'reglages-offres', 'reglages-secteurs', 'reglages-sources', 'reglages-etiquettes', 'reglages-filtres', 'reglages-debut', 'reglages-projets', 'reglages-export',
+      'reglages-offres', 'reglages-secteurs', 'reglages-sources', 'reglages-etiquettes', 'reglages-filtres', 'reglages-debut', 'reglages-projets', 'reglages-export-projets', 'reglages-export',
     ],
   },
 ]);
