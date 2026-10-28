@@ -5,6 +5,7 @@ import { naviguer } from '../../os/router.js';
 import * as D from './donnees.js';
 import { rendreHistorique } from './ecran.js';
 import { rendreAValider } from './a-valider.js';
+import { reglagesExportAutomatisations } from './export.js';
 
 // Feuille de style propre au module, ajoutée au premier affichage (index.html du CRM reste inchangé).
 function ajouterFeuille() {
@@ -17,6 +18,11 @@ function ajouterFeuille() {
 }
 
 export const actionsRapides = []; // rien à créer depuis l'écran : l'historique se lit
+
+/** Réglages du module : seulement « Sauvegarde » (aucun autre réglage pour l'instant). */
+export function reglages(page) {
+  reglagesExportAutomatisations(page);
+}
 
 let montee = null;
 
