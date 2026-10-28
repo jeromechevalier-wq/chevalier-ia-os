@@ -78,10 +78,11 @@ export const MODULES_DECLARES = geler([
         { id: 'reglages-filtres', libelle: 'Filtres enregistrés' },
         { id: 'reglages-debut', libelle: 'Début d’activité' },
         { id: 'reglages-projets', libelle: 'Google Drive : dossiers de projets' },
+        { id: 'reglages-fichiers', libelle: 'Documents : taille des fichiers' },
         { id: 'reglages-export', libelle: 'Sauvegarde' },
       ],
     },
-    collections: ['crm_personnes', 'crm_organisations', 'crm_affaires', 'crm_activites', 'crm_notes', 'crm_evenements', 'crm_parametres'],
+    collections: ['crm_personnes', 'crm_organisations', 'crm_affaires', 'crm_activites', 'crm_notes', 'crm_evenements', 'crm_parametres', 'documents_stockes'],
     outilsMcp: [
       'chercher', 'lire_personne', 'lire_organisation', 'lire_affaire', 'lister_affaires', 'lister_activites', 'lister_documents', 'lire_reglages', 'lire_audit',
       'creer_personne', 'creer_organisation', 'creer_affaire', 'creer_activite', 'ajouter_note', 'joindre_lien',
@@ -234,7 +235,7 @@ export const GROUPES_MENU = geler([
     sectionsMenu: [['crm/accueil'], ['crm/personnes', 'crm/organisations'], ['crm/affaires', 'projets/projets']],
     ordreReglages: [
       'reglages-etapes', 'reglages-phases', 'reglages-options', 'reglages-modeles-affaire', 'reglages-modeles-projets', 'reglages-objectifs',
-      'reglages-offres', 'reglages-secteurs', 'reglages-sources', 'reglages-etiquettes', 'reglages-filtres', 'reglages-debut', 'reglages-projets', 'reglages-export',
+      'reglages-offres', 'reglages-secteurs', 'reglages-sources', 'reglages-etiquettes', 'reglages-filtres', 'reglages-debut', 'reglages-projets', 'reglages-fichiers', 'reglages-export',
     ],
   },
 ]);

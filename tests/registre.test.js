@@ -448,7 +448,7 @@ describe('Réglages à menu latéral (2.6.0) : ce que chaque module déclare', (
     assert.ok(!/carte-section/.test(lire('js/main.js')));
   });
   test('rien n\'est déplacé : les collections et les documents de réglages du CRM sont ceux d\'avant (aucune migration)', () => {
-    assert.deepEqual(moduleDeclare('affaires').collections, ['crm_personnes', 'crm_organisations', 'crm_affaires', 'crm_activites', 'crm_notes', 'crm_evenements', 'crm_parametres']);
+    assert.deepEqual(moduleDeclare('affaires').collections, ['crm_personnes', 'crm_organisations', 'crm_affaires', 'crm_activites', 'crm_notes', 'crm_evenements', 'crm_parametres', 'documents_stockes']); // + les fiches des fichiers de l'onglet « Documents » (28/10/2026) : une collection NOUVELLE, rien d'existant n'est déplacé
     assert.deepEqual(moduleDeclare('projets').collections, ['projets_projets', 'projets_taches', 'projets_modeles']);
     assert.ok(!/firestore|setDoc|updateDoc|getDoc/.test(lire('js/os/reglages.js')), 'la page Réglages de la coque ne lit ni n\'écrit aucune donnée');
   });
