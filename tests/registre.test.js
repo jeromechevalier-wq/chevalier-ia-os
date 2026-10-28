@@ -412,11 +412,11 @@ describe('Réglages à menu latéral (2.6.0) : ce que chaque module déclare', (
     assert.equal(crm.ouvrir, 'crm/accueil');
     assert.ok(!reglagesDesModules(['affaires'])[0].sections.some((s) => s.id === 'reglages-modeles-projets'), 'projets éteint : pas de modèles de projets');
   });
-  test('un élément par module actif, dans l\'ordre du menu ; un module sans réglage a un résumé, Veille a sa Sauvegarde', () => {
+  test('un élément par module actif, dans l\'ordre du menu ; Veille et Automatisations ont leur Sauvegarde', () => {
     const items = reglagesDesModules(['affaires', 'projets', 'veille', 'automatisations', 'mcp']);
     assert.deepEqual(items.map((i) => i.id), ['crm', 'veille', 'automatisations', 'mcp']);
     assert.deepEqual(items.map((i) => i.libelle), ['Affaires et projets', 'Veille', 'Automatisations', 'Connecter mon assistant']);
-    assert.match(items[2].resume, /Aucun réglage/, 'Automatisations n\'a pas de réglage : un résumé');
+    assert.deepEqual(items[2].sections.map((s) => s.id), ['reglages-export-automatisations'], 'Automatisations : la section Sauvegarde (export des données)');
     assert.deepEqual(items[1].sections.map((s) => s.id), ['reglages-export-veille'], 'Veille : la section Sauvegarde (export des données)');
     assert.deepEqual(reglagesDesModules([]), []);
   });
