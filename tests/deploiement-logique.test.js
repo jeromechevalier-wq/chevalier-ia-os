@@ -8,7 +8,7 @@ import {
   couleurEtape, etatGlobal, resume, lienEtape, calculerPage, attendreQue,
 } from '../js/os/deploiement.js';
 import { ETAPES_DEPLOIEMENT_AFFAIRES, controlerDeploiementAffaires } from '../js/modules/crm/deploiement.js';
-import { ETAPES_DEPLOIEMENT_DEVIS, controlerDeploiementDevis, etatEntreprise, etatEtapeDevis, etatCatalogue } from '../js/modules/devis/deploiement.js';
+import { ETAPES_DEPLOIEMENT_DEVIS, controlerDeploiementDevis, etatEntreprise, etatCatalogue } from '../js/modules/devis/deploiement.js';
 
 const TOUTES = [...ETAPES_COQUE, ...ETAPES_DEPLOIEMENT_AFFAIRES, ...ETAPES_DEPLOIEMENT_DEVIS];
 const lire = (f) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8');
@@ -143,20 +143,17 @@ describe('Déploiement : contrôles des modules (sans réseau)', () => {
     assert.deepEqual(controlerDeploiementAffaires({ pret: false }), { 'dossier-drive': 'inconnu' });
     assert.doesNotMatch(JSON.stringify(controlerDeploiementAffaires({ reglages: { dossierParentDrive: { id: 'id-dossier', nom: 'Projets' } } })), /id-dossier|Projets/);
   });
-  test('3 Devis : « Mon entreprise » complète = même calcul que le point rouge ; étape des devis réglée ET existante ; catalogue avec un article actif', () => {
+  test('3 Devis : « Mon entreprise » complète = même calcul que le point rouge ; catalogue avec un article actif', () => {
     assert.equal(etatEntreprise({ entreprise: ENTREPRISE_COMPLETE }), 'ok');
     assert.equal(etatEntreprise({ entreprise: { nom: 'Seulement un nom' } }), 'manque');
-    assert.equal(etatEtapeDevis({ etapeDevis: 'devis' }, ['devis', 'gagne']), 'ok');
-    assert.equal(etatEtapeDevis({ etapeDevis: '' }, ['devis']), 'manque');
-    assert.equal(etatEtapeDevis({ etapeDevis: 'disparue' }, ['devis']), 'manque');
     assert.equal(etatCatalogue([{ actif: false }]), 'manque');
     assert.equal(etatCatalogue([{ actif: false }, { libelle: 'x' }]), 'ok');
-    assert.equal(controlerDeploiementDevis({ reglages: {}, etapesIds: [], articles: [], erreurArticles: true })['devis-catalogue'], 'inconnu', 'catalogue illisible : on ne sait pas');
+    assert.equal(controlerDeploiementDevis({ reglages: {}, articles: [], erreurArticles: true })['devis-catalogue'], 'inconnu', 'catalogue illisible : on ne sait pas');
   });
-  test('3 plus d’étape « CORS » : le contrôle du site ne lit plus le stockage, et les trois lignes automatiques restantes sont inchangées', () => {
+  test('3 plus d’étape « CORS » : le contrôle du site ne lit plus le stockage, et les deux lignes automatiques restantes sont inchangées', () => {
     assert.ok(!TOUTES.some((e) => e.id === 'devis-cors' || /CORS/.test(`${e.libelle} ${e.reparation}`)));
-    assert.deepEqual(Object.keys(controlerDeploiementDevis({ pret: false })), ['devis-entreprise', 'devis-etape', 'devis-catalogue']);
-    assert.deepEqual(Object.keys(controlerDeploiementDevis({ reglages: {}, etapesIds: [], articles: [{}] })), ['devis-entreprise', 'devis-etape', 'devis-catalogue']);
+    assert.deepEqual(Object.keys(controlerDeploiementDevis({ pret: false })), ['devis-entreprise', 'devis-catalogue']);
+    assert.deepEqual(Object.keys(controlerDeploiementDevis({ reglages: {}, articles: [{}] })), ['devis-entreprise', 'devis-catalogue']);
   });
   test('4 le libellé et la réparation de l’essai de bout en bout ne parlent plus de Drive', () => {
     const essai = TOUTES.find((e) => e.id === 'devis-essai');
@@ -166,7 +163,7 @@ describe('Déploiement : contrôles des modules (sans réseau)', () => {
   });
   test('10 un contrôle qui plante vaut « inconnu » et n’empêche pas les autres', () => {
     const piege = { get entreprise() { throw new Error('boum'); }, etapeDevis: 'devis' };
-    const r = controlerDeploiementDevis({ reglages: piege, etapesIds: ['devis'], articles: [{}] });
+    const r = controlerDeploiementDevis({ reglages: piege, articles: [{}] });
     assert.equal(r['devis-entreprise'], 'inconnu');
     assert.equal(r['devis-catalogue'], 'ok');
   });

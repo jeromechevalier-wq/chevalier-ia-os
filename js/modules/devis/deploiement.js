@@ -2,7 +2,7 @@
 // à partir de ce que le module a déjà lu (réglages, étapes des affaires, catalogue). La lecture est faite par index.js (controlesDeploiement).
 // Une ligne n'existe que si le module Devis est actif (`module: 'devis'`). Aucune valeur n'est rendue : seulement « ok », « manque » ou « inconnu ».
 import { DOCS } from '../../os/deploiement.js';
-import { validerEntreprise, validerReglagesDevis } from './articles.js';
+import { validerEntreprise } from './articles.js';
 import { erreursEmetteur } from './logique.js';
 
 const geler = (liste) => Object.freeze(liste.map((e) => Object.freeze(e)));
@@ -12,8 +12,6 @@ export const ETAPES_DEPLOIEMENT_DEVIS = geler([
     reparation: 'Rassemble le catalogue d’articles (tableur ou CSV) et tous les anciens devis, pour les importer dans l’espace.', lien: `${DOCS}deploiement-client.md` },
   { id: 'devis-entreprise', groupe: 'pendant', module: 'devis', type: 'auto', libelle: '« Mon entreprise » complète (mentions légales des devis)',
     reparation: 'Il manque des mentions légales : ouvre Réglages > Devis > Mon entreprise et remplis ce qui est listé sous « Mentions manquantes ».', route: 'reglages/devis/reglages-entreprise' },
-  { id: 'devis-etape', groupe: 'pendant', module: 'devis', type: 'auto', libelle: 'Étape où vivent les devis choisie',
-    reparation: 'Ouvre Réglages > Devis > Général et choisis « Étape où vivent les devis » (une étape qui existe encore dans tes affaires).', route: 'reglages/devis/reglages-devis' },
   { id: 'devis-catalogue', groupe: 'pendant', module: 'devis', type: 'auto', libelle: 'Catalogue d’articles rempli',
     reparation: 'Le catalogue est vide : importe ton catalogue, ou ajoute au moins un article.', route: 'devis/bordereau' },
   { id: 'pdf-stockage', groupe: 'pendant', module: 'devis', type: 'auto', controle: 'serveur.pdf-stockage', libelle: 'Le stockage des PDF répond',
@@ -35,24 +33,14 @@ export function etatEntreprise(reglages) {
   return sur(() => (erreursEmetteur(validerEntreprise(reglages?.entreprise).entreprise).mentions.length === 0 ? 'ok' : 'manque'));
 }
 
-/** Étape des devis : réglée (non vide) ET acceptée par la même validation que l'enregistrement (elle existe encore dans les étapes actives). */
-export function etatEtapeDevis(reglages, etapesIds) {
-  return sur(() => {
-    const etape = reglages?.etapeDevis;
-    if (typeof etape !== 'string' || !etape) return 'manque';
-    const { erreurs } = validerReglagesDevis({ etapeDevis: etape }, { actuels: reglages, etapesIds: etapesIds ?? [] });
-    return erreurs.etapeDevis ? 'manque' : 'ok';
-  });
-}
-
 /** Catalogue : au moins un article actif. */
 export const etatCatalogue = (articles) => sur(() => ((articles ?? []).some((a) => a && a.actif !== false) ? 'ok' : 'manque'));
 
 /** États de toutes les lignes automatiques du module, chacune calculée seule (une erreur = « inconnu », les autres continuent). */
-export function controlerDeploiementDevis({ pret = true, reglages, etapesIds, articles, erreurArticles = false } = {}) {
-  if (!pret) return { 'devis-entreprise': 'inconnu', 'devis-etape': 'inconnu', 'devis-catalogue': 'inconnu' };
+export function controlerDeploiementDevis({ pret = true, reglages, articles, erreurArticles = false } = {}) {
+  if (!pret) return { 'devis-entreprise': 'inconnu', 'devis-catalogue': 'inconnu' };
   return {
-    'devis-entreprise': etatEntreprise(reglages), 'devis-etape': etatEtapeDevis(reglages, etapesIds),
+    'devis-entreprise': etatEntreprise(reglages),
     'devis-catalogue': erreurArticles ? 'inconnu' : etatCatalogue(articles), // catalogue illisible : on ne sait pas s'il est vide
   };
 }
