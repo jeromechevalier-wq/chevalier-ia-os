@@ -31,7 +31,7 @@ function ajouterFeuille() {
   document.head.append(l);
 }
 
-/** Entrées du bouton « + » de la barre supérieure : « Devis » ouvre « Nouveau devis » (recherche de l'affaire dès 3 lettres). */
+/** Entrées du bouton « + » de la barre supérieure : « Devis » crée un brouillon sans affaire et ouvre l'éditeur. */
 export const actionsRapides = [
   { id: 'devis', libelle: 'Devis', icone: 'file-text', action: () => creerDevisSansAffaire() },
 ];
