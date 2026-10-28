@@ -45,6 +45,9 @@ test('M3 les onglets Édition et Prévisualisation suivent le motif ARIA tabs et
   await expect(edition).toHaveAttribute('tabindex', '-1');
   await expect(page.locator('#devis-panneau-apercu')).toBeVisible();
   await expect(page.locator('#devis-panneau-edition')).toBeHidden();
+  await expect(page.locator('iframe.apercu-devis')).toBeVisible();
+  await page.locator('iframe.apercu-devis').evaluate((f) => f.contentDocument?.readyState === 'complete' || new Promise((r) => f.addEventListener('load', r, { once: true })));
+  await attendreCalme(page);
   await page.screenshot({ path: `${DOSSIER}M3-onglets-${info.project.name}.png`, animations: 'disabled' });
   await page.keyboard.press('ArrowRight');
   await expect(edition).toBeFocused();

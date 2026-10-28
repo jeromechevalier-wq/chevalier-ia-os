@@ -416,6 +416,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       const suivant = { ArrowRight: (i + 1) % boutons.length, ArrowLeft: (i + boutons.length - 1) % boutons.length, Home: 0, End: boutons.length - 1 }[e.key];
       if (suivant === undefined) return;
       e.preventDefault();
+      if (suivant === i) return; // déjà sur cet onglet : on ne refait pas l'aperçu
       choisirOnglet(boutons[suivant].dataset.onglet);
       boutons[suivant].focus();
     });
