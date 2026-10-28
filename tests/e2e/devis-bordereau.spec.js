@@ -177,7 +177,7 @@ test('B5 modifier sur place un prix d\'achat (virgule française acceptée) l\'e
   await cellule.locator('input').fill('99');
   await cellule.locator('input').press('Escape');
   await expect(cellule).toHaveText('12,75 €');
-  expect((await lireDocument('devis_articles/a1')).prixAchat).toBe(12.75);
+  await expect.poll(async () => (await lireDocument('devis_articles/a1')).prixAchat).toBe(12.75); // M6 : relu avec attente, comme les lignes voisines
   // le libellé se modifie aussi sur place ; vide, il est refusé
   const libelle = ligneId(page, 'a1').locator('[data-colonne="libelle"]');
   await libelle.locator('button').click();

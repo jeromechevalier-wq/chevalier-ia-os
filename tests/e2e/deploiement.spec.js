@@ -9,7 +9,7 @@ const DOSSIER = fileURLToPath(new URL('./captures/deploiement/', import.meta.url
 const DOSSIER_RETRAIT = fileURLToPath(new URL('./captures/devis-retrait-drive/', import.meta.url));
 const capturer = (page, info, nom) => page.screenshot({ path: `${DOSSIER}${nom}-${info.project.name}.png`, fullPage: true, animations: 'disabled' });
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': 'POST, GET, OPTIONS' };
-const OK = { ok: true, version: '2.4.1', controles: { fonctions: 'ok', membres: 'ok' } };
+const OK = { ok: true, version: '2.4.1', controles: { fonctions: 'ok', membres: 'ok', 'pdf-stockage': 'ok', 'pdf-fonctions': 'ok' } };
 const ENTREPRISE = {
   nom: 'Entreprise Essai', siret: '12345678900011', adresse: { ligne1: '1 rue de l’Essai', codePostal: '75001', ville: 'Paris' }, telephone: '0100000000',
   assurance: { garantie: 'Décennale', assureur: 'Assureur Essai' }, mediateur: { nom: 'Médiateur Essai', site: 'https://mediateur.exemple' },
@@ -49,11 +49,11 @@ test('1 Réglages > Déploiement chez Jérôme : une ligne par étape avec pasti
   await ouvrirRacine(page);
   await expect(page.locator('.reglages-menu-lien[data-reglage="deploiement"]')).toHaveText('Déploiement');
   await expect(page.locator('.deploiement-groupe h3')).toHaveText(['Avant la séance', 'Pendant la séance', 'Réglages Google du projet', 'Après la séance']);
-  // Toutes les lignes automatiques sont vertes, les manuelles grises « À vérifier à la main » : 5 sur 20 (1 du serveur, 1 des Affaires, 3 du Devis ; 15 manuelles,
+  // Toutes les lignes automatiques sont vertes, les manuelles grises « À vérifier à la main » : 7 sur 22 (1 du serveur, 1 des Affaires, 3 du Devis + 2 du PDF ; 15 manuelles,
   // dont « Personnes autorisées », case à cocher à la racine : les comptes y sont écrits dans le code)
-  await expect(page.locator('.deploiement-ligne')).toHaveCount(20);
-  await expect(page.locator('.deploiement-ligne[data-type="auto"][data-couleur="vert"]')).toHaveCount(5);
-  await expect(resume(page)).toHaveText('5 sur 20 vertes');
+  await expect(page.locator('.deploiement-ligne')).toHaveCount(22);
+  await expect(page.locator('.deploiement-ligne[data-type="auto"][data-couleur="vert"]')).toHaveCount(7);
+  await expect(resume(page)).toHaveText('7 sur 22 vertes');
   await expect(ligne(page, 'membres')).toHaveAttribute('data-type', 'manuel');
   await expect(page.locator('#reglages-deploiement')).not.toContainText('Jérôme');
   await expect(page.locator('#reglages-deploiement')).toContainText('Chaque case s’enregistre toute seule.');
@@ -65,6 +65,33 @@ test('1 Réglages > Déploiement chez Jérôme : une ligne par étape avec pasti
   await expect(page.locator('#reglages-deploiement')).not.toContainText('Projets essai');
   await expect(page.locator('#reglages-deploiement')).not.toContainText('CRM');
   await capturer(page, info, '1-racine-tout-regle');
+});
+
+test('J les lignes « Le stockage des PDF répond » et « Ce serveur connaît les fonctions du PDF » : vertes quand le serveur le dit, rouges (avec comment réparer) quand il dit « manque », orange chez un serveur plus ancien qui ne les connaît pas', async ({ page }, info) => {
+  const serveur = await simuler(page, { reponses: [{ ...OK, controles: { fonctions: 'ok', membres: 'ok' } }, { ...OK, controles: { ...OK.controles, 'pdf-stockage': 'manque', 'pdf-fonctions': 'manque' } }, OK] });
+  await toutRegler();
+  await ouvrirRacine(page);
+  // 1) serveur plus ancien : les deux lignes restent orange « Impossible de vérifier » (jamais vertes sans preuve)
+  for (const id of ['pdf-stockage', 'pdf-fonctions']) {
+    await expect(ligne(page, id)).toHaveAttribute('data-couleur', 'orange');
+    await expect(ligne(page, id).locator('[data-role="etat"]')).toHaveText('Impossible de vérifier');
+  }
+  await expect(ligne(page, 'pdf-stockage')).toContainText('Le stockage des PDF répond');
+  await expect(ligne(page, 'pdf-fonctions')).toContainText('Ce serveur connaît les fonctions du PDF');
+  // 2) le serveur dit « manque » : rouge, avec la phrase « comment réparer » et un lien vers le mode d'emploi du PDF
+  await page.getByRole('button', { name: 'Revérifier' }).click();
+  for (const id of ['pdf-stockage', 'pdf-fonctions']) {
+    await expect(ligne(page, id)).toHaveAttribute('data-couleur', 'rouge');
+    await expect(ligne(page, id).locator('[data-role="reparation"]')).toBeVisible();
+    await expect(ligne(page, id).locator('[data-role="lien-reparation"]')).toHaveAttribute('href', /pdf-clients\.md$/);
+  }
+  await ligne(page, 'pdf-fonctions').scrollIntoViewIfNeeded();
+  await capturer(page, info, 'J-pdf-rouge');
+  // 3) tout répond : vert
+  await page.getByRole('button', { name: 'Revérifier' }).click();
+  for (const id of ['pdf-stockage', 'pdf-fonctions']) await expect(ligne(page, id)).toHaveAttribute('data-couleur', 'vert');
+  expect(serveur.appels.length).toBe(3);
+  await capturer(page, info, 'J-pdf-vert');
 });
 
 test('3 une case rouge dit comment réparer, avec le lien exact (réglage de l’appli, mode d’emploi ou console Google)', async ({ page }, info) => {
@@ -95,7 +122,7 @@ test('3 plus d’étape « CORS » : la page ne lit plus le stockage, le groupe 
   await simuler(page);
   await toutRegler();
   await ouvrirRacine(page);
-  await expect(page.locator('.deploiement-ligne')).toHaveCount(20);
+  await expect(page.locator('.deploiement-ligne')).toHaveCount(22);
   await expect(ligne(page, 'devis-cors')).toHaveCount(0);
   await expect(page.locator('#reglages-deploiement')).not.toContainText('CORS');
   for (const id of ['devis-entreprise', 'devis-etape', 'devis-catalogue']) await expect(ligne(page, id)).toHaveAttribute('data-couleur', 'vert');
@@ -116,7 +143,7 @@ test('4 « C’est fait » : la case manuelle devient verte avec la date, compte
   const date = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris' }).format(new Date());
   await expect(ligne(page, 'bienvenue')).toHaveAttribute('data-couleur', 'vert');
   await expect(ligne(page, 'bienvenue').locator('[data-role="etat"]')).toHaveText(`Fait le ${date}`);
-  await expect(resume(page)).toHaveText('6 sur 20 vertes');
+  await expect(resume(page)).toHaveText('8 sur 22 vertes');
   await expect.poll(async () => (await lireDocument('crm_parametres/deploiement'))?.bienvenue?.fait).toBe(true);
   expect(Object.keys((await lireDocument('crm_parametres/deploiement')).bienvenue).sort()).toEqual(['fait', 'le']);
   await page.reload();

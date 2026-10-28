@@ -3,7 +3,7 @@
 // Demande « npm run preparer » (copie du code commun dans functions-plateforme/serveur/), lancé par « npm run test:fonctions ».
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
-import { executerControles, reponseDeploiement, membresCoherents, CONTROLES_SERVEUR } from '../functions/src/coeur/deploiement.js';
+import { executerControles, reponseDeploiement, membresCoherents, stockageRepond, CONTROLES_SERVEUR } from '../functions/src/coeur/deploiement.js';
 import { creerAppelDeploiement } from '../functions/src/deploiement-appel.js';
 
 process.env.GCLOUD_PROJECT = 'demo-chevalier-ia-os';
@@ -39,7 +39,10 @@ const FICHES = {
   [`clients/c/membres/${ZOE}`]: { role: 'editeur' },
 };
 const auth = (email, verifie = true) => ({ uid: `uid-${email}`, token: { email, email_verified: verifie } });
-const appelerClient = (email, donnees, fiches = FICHES, extra = {}) => verifierDeploiementClient({ db: fauxDb(fiches), auth: email === null ? null : auth(email, extra.verifie), donnees, version: '2.4.1' });
+const appelerClient = (email, donnees, fiches = FICHES, extra = {}) => verifierDeploiementClient({ db: fauxDb(fiches), auth: email === null ? null : auth(email, extra.verifie), donnees, version: '2.4.1', pdf: extra.pdf });
+/** Faux stockage : getFiles réussit, ou lève l'erreur donnée. */
+const fauxBucket = (erreur = null) => ({ getFiles: async () => { if (erreur) throw erreur; return [[]]; } });
+const PDF_OK = { bucket: () => fauxBucket(), fonctions: () => true };
 const refus = (promesse, code) => assert.rejects(promesse, (e) => e instanceof Refus && e.code === code && (code !== 'permission-denied' || e.message === 'Action non autorisée.'), `refus ${code}`);
 /** Aucune adresse, aucun lien, aucun nom de secret : seulement des mots fixes. */
 const sansDonneeSensible = (r) => {
@@ -54,8 +57,18 @@ const sansDonneeSensible = (r) => {
 describe('8 deploiementVerifier sur la plateforme : contrôle d’accès', () => {
   test('8 une éditrice de l’espace a reçoit les états de SON espace : fonctions ok, membres ok', async () => {
     const r = await appelerClient(ALICE, { client: 'a' });
-    assert.deepEqual(r, { ok: true, version: '2.4.1', controles: { fonctions: 'ok', membres: 'ok' } });
+    assert.deepEqual(r, { ok: true, version: '2.4.1', controles: { fonctions: 'ok', membres: 'ok', 'pdf-stockage': 'inconnu', 'pdf-fonctions': 'inconnu' } });
     sansDonneeSensible(r);
+  });
+  test('J chez un client, les lignes du PDF : stockage qui répond et fonctions déclarées = ok ; stockage introuvable (404) = manque ; droit refusé = inconnu (jamais un faux rouge) ; fonctions absentes = manque', async () => {
+    const pdf = (bucket, fonctions = true) => ({ bucket: () => bucket, fonctions: () => fonctions });
+    const ok = await appelerClient(ALICE, { client: 'a' }, FICHES, { pdf: PDF_OK });
+    assert.deepEqual(ok.controles, { fonctions: 'ok', membres: 'ok', 'pdf-stockage': 'ok', 'pdf-fonctions': 'ok' });
+    sansDonneeSensible(ok);
+    assert.equal((await appelerClient(ALICE, { client: 'a' }, FICHES, { pdf: pdf(fauxBucket(Object.assign(new Error('x'), { code: 404 }))) })).controles['pdf-stockage'], 'manque');
+    assert.equal((await appelerClient(ALICE, { client: 'a' }, FICHES, { pdf: pdf(fauxBucket(Object.assign(new Error('x'), { code: 403 }))) })).controles['pdf-stockage'], 'inconnu');
+    assert.equal((await appelerClient(ALICE, { client: 'a' }, FICHES, { pdf: pdf(null) })).controles['pdf-stockage'], 'manque');
+    assert.equal((await appelerClient(ALICE, { client: 'a' }, FICHES, { pdf: pdf(fauxBucket(), false) })).controles['pdf-fonctions'], 'manque');
   });
   test('8 la page marche chez un client SANS module Devis (aucune condition de module)', async () => {
     assert.equal((await appelerClient(BOB, { client: 'b' })).controles.fonctions, 'ok');
@@ -77,16 +90,21 @@ describe('8 deploiementVerifier sur la plateforme : contrôle d’accès', () =>
   });
   test('10 un contrôle qui plante (base indisponible) vaut « inconnu » ; « fonctions » reste ok', async () => {
     const r = await appelerClient(ALICE, { client: 'a' }, { ...FICHES, __panne: 'clients/a/membres' });
-    assert.deepEqual(r.controles, { fonctions: 'ok', membres: 'inconnu' });
+    assert.deepEqual(r.controles, { fonctions: 'ok', membres: 'inconnu', 'pdf-stockage': 'inconnu', 'pdf-fonctions': 'inconnu' });
   });
 });
 
 describe('8 deploiementVerifier chez Jérôme', () => {
-  const appel = creerAppelDeploiement({ version: '2.4.1', comptes: [ALICE] });
+  const appel = creerAppelDeploiement({ version: '2.4.1', comptes: [ALICE], pdf: PDF_OK });
   test('8 un compte autorisé reçoit les états ; rien de sensible', async () => {
     const r = await appel({ auth: auth(ALICE) });
-    assert.deepEqual(r, { ok: true, version: '2.4.1', controles: { fonctions: 'ok', membres: 'ok' } });
+    assert.deepEqual(r, { ok: true, version: '2.4.1', controles: { fonctions: 'ok', membres: 'ok', 'pdf-stockage': 'ok', 'pdf-fonctions': 'ok' } });
     sansDonneeSensible(r);
+  });
+  test('J chez Jérôme, sans les réglages du PDF les deux lignes valent « inconnu » ; un stockage qui plante aussi', async () => {
+    assert.deepEqual((await creerAppelDeploiement({ version: '2.4.1', comptes: [ALICE] })({ auth: auth(ALICE) })).controles, { fonctions: 'ok', membres: 'ok', 'pdf-stockage': 'inconnu', 'pdf-fonctions': 'inconnu' });
+    const plante = creerAppelDeploiement({ version: '2.4.1', comptes: [ALICE], pdf: { bucket: () => { throw new Error('pas de stockage'); }, fonctions: () => true } });
+    assert.deepEqual((await plante({ auth: auth(ALICE) })).controles, { fonctions: 'ok', membres: 'ok', 'pdf-stockage': 'inconnu', 'pdf-fonctions': 'ok' });
   });
   test('8 un autre compte : refus neutre « Action non autorisée. » ; sans connexion : connexion nécessaire', async () => {
     await assert.rejects(appel({ auth: auth(BOB) }), (e) => e.code === 'permission-denied' && e.message === 'Action non autorisée.');
@@ -98,12 +116,22 @@ describe('8 deploiementVerifier chez Jérôme', () => {
 describe('Code commun (functions/src/coeur/deploiement.js)', () => {
   test('10 chaque contrôle est isolé : une erreur ou une réponse étrange = « inconnu », les autres continuent', async () => {
     const r = await executerControles({ fonctions: async () => { throw new Error('x'); }, membres: async () => 'peut-être' });
-    assert.deepEqual(r, { fonctions: 'inconnu', membres: 'inconnu' });
-    assert.deepEqual(await executerControles({ fonctions: async () => true }), { fonctions: 'ok', membres: 'inconnu' });
-    assert.deepEqual(CONTROLES_SERVEUR, ['fonctions', 'membres']);
+    assert.deepEqual(r, { fonctions: 'inconnu', membres: 'inconnu', 'pdf-stockage': 'inconnu', 'pdf-fonctions': 'inconnu' });
+    assert.deepEqual(await executerControles({ fonctions: async () => true }), { fonctions: 'ok', membres: 'inconnu', 'pdf-stockage': 'inconnu', 'pdf-fonctions': 'inconnu' });
+    assert.deepEqual(CONTROLES_SERVEUR, ['fonctions', 'membres', 'pdf-stockage', 'pdf-fonctions']);
   });
   test('8 la réponse ne laisse passer que les états connus et une version de la forme 1.2.3', () => {
-    assert.deepEqual(reponseDeploiement({ version: '1.2.3; rm', resultats: { fonctions: 'ok', membres: 'alice@exemple.test', autre: 'x' } }), { ok: true, version: 'inconnue', controles: { fonctions: 'ok', membres: 'inconnu' } });
+    assert.deepEqual(reponseDeploiement({ version: '1.2.3; rm', resultats: { fonctions: 'ok', membres: 'alice@exemple.test', autre: 'x' } }), { ok: true, version: 'inconnue', controles: { fonctions: 'ok', membres: 'inconnu', 'pdf-stockage': 'inconnu', 'pdf-fonctions': 'inconnu' } });
+  });
+  test('J stockageRepond : liste le dossier des devis sans rien écrire ; 404 = faux ; autre erreur relancée ; objet inutilisable = faux', async () => {
+    assert.equal(await stockageRepond(fauxBucket()), true);
+    assert.equal(await stockageRepond(fauxBucket(Object.assign(new Error('x'), { code: 404 }))), false);
+    await assert.rejects(stockageRepond(fauxBucket(Object.assign(new Error('x'), { code: 403 }))));
+    const debut = Date.now();
+    await assert.rejects(stockageRepond({ getFiles: () => new Promise(() => {}) }, { delaiMs: 50 }), /délai/);
+    assert.ok(Date.now() - debut < 1000, 'un stockage qui ne répond jamais : erreur (donc « inconnu ») sans attendre');
+    assert.equal(await stockageRepond(null), false);
+    assert.equal(await stockageRepond({}), false);
   });
   test('8 membresCoherents : mêmes adresses et mêmes rôles des deux côtés (sans la casse), au moins un éditeur', () => {
     assert.equal(membresCoherents([{ email: 'A@x.test', role: 'editeur' }], [{ id: 'a@x.test', role: 'editeur' }]), true);

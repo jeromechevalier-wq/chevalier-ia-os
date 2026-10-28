@@ -1,7 +1,7 @@
 // « Dossier de travail » d'une affaire OU d'un projet : le même composant pour les deux.
 // Ligne « Dossier de travail  + Ajouter ». Sans dossier, « + Ajouter » propose deux choix : « Créer un dossier dans Google Drive » (si l'option « Créer un dossier dans Google Drive »
 // est allumée et que Google est branché : crée le dossier et ses sous-dossiers des Réglages, puis enregistre son lien) et « Lier un dossier Google Drive existant ».
-// Avec un dossier : « Ouvrir le dossier » et « Retirer » (confirmation, puis « Retiré · Annuler » 8 secondes).
+// Avec un dossier : « Ouvrir le dossier » et une croix « Retirer le dossier » (confirmation, puis « Retiré · Annuler » 8 secondes).
 // L'ancienne « Adresse GitHub » n'est plus un champ : elle est reprise comme lien « GitHub » dans la liste des documents (projet et affaire).
 import { h, icone, remplir, toast } from '../../os/ui.js';
 import * as D from './donnees.js';
@@ -193,7 +193,7 @@ export function creerLanceurs({ fiche, typeFiche = 'affaire', nomSuggere = '', e
       const sure = !Object.keys(L.validerUrlDossier(etat.urlDossier)).length && /^https?:/i.test(etat.urlDossier);
       remplir(zoneDossier, h('div', { class: 'lanceur-ligne' },
         sure ? h('a', { class: 'prop-lien', href: etat.urlDossier, target: '_blank', rel: 'noopener noreferrer', dataset: { action: 'ouvrir-dossier' } }, icone('external-link', { taille: 14 }), ' Ouvrir le dossier') : h('span', {}, etat.urlDossier),
-        boutonPetit('Retirer', 'x', 'retirer-dossier', retirerDossier)));
+        h('button', { type: 'button', class: 'bouton-icone', dataset: { action: 'retirer-dossier' }, 'aria-label': 'Retirer le dossier', title: 'Retirer le dossier', onclick: retirerDossier }, icone('x', { taille: 14 }))));
       return;
     }
     if (!peutCreer && !google) {

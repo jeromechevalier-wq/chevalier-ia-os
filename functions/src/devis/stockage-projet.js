@@ -4,11 +4,12 @@ import { getApps, initializeApp } from 'firebase-admin/app';
 import { getStorage } from 'firebase-admin/storage';
 import { creerStockage } from './stockage.js';
 
-export function stockageDuProjet() {
+/** Le bucket par défaut du projet (ou celui de `<projet>.firebasestorage.app`). Lève si le stockage est introuvable. */
+export function bucketDuProjet() {
   if (!getApps().length) initializeApp();
-  try {
-    let bucket;
-    try { bucket = getStorage().bucket(); } catch { bucket = getStorage().bucket(`${process.env.GCLOUD_PROJECT}.firebasestorage.app`); }
-    return creerStockage({ bucket });
-  } catch { return null; }
+  try { return getStorage().bucket(); } catch { return getStorage().bucket(`${process.env.GCLOUD_PROJECT}.firebasestorage.app`); }
+}
+
+export function stockageDuProjet() {
+  try { return creerStockage({ bucket: bucketDuProjet() }); } catch { return null; }
 }

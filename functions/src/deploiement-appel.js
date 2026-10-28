@@ -4,10 +4,13 @@
 import { HttpsError } from 'firebase-functions/v2/https';
 import { COMPTES_AUTORISES } from './veille/appel.js';
 import { exigerCompteAutorise } from './devis-appel.js';
-import { verifierDeploiement } from './coeur/deploiement.js';
+import { verifierDeploiement, stockageRepond } from './coeur/deploiement.js';
 
-/** `version` : version du serveur (functions/src/version.js) ; `comptes` : comptes autorisés (pour les essais). */
-export function creerAppelDeploiement({ version, comptes = COMPTES_AUTORISES, journal = () => {}, maintenant = Date.now }) {
+/**
+ * `version` : version du serveur (functions/src/version.js) ; `comptes` : comptes autorisés (pour les essais).
+ * `pdf` : { bucket: () => bucket du stockage des PDF, fonctions: () => vrai si les fonctions du PDF sont déclarées } ; sans lui, les deux lignes PDF valent « inconnu ».
+ */
+export function creerAppelDeploiement({ version, comptes = COMPTES_AUTORISES, pdf = null, journal = () => {}, maintenant = Date.now }) {
   return async function appel(requete) {
     const debut = maintenant();
     try {
@@ -22,6 +25,7 @@ export function creerAppelDeploiement({ version, comptes = COMPTES_AUTORISES, jo
       controles: {
         fonctions: async () => true, // si l'on arrive ici, les fonctions du serveur sont publiées et répondent
         membres: async () => Array.isArray(comptes) && comptes.length > 0, // chez Jérôme, les personnes autorisées sont la liste du code (COMPTES_AUTORISES)
+        ...(pdf ? { 'pdf-stockage': async () => stockageRepond(pdf.bucket()), 'pdf-fonctions': async () => pdf.fonctions() === true } : {}),
       },
     });
     journal({ action: 'deploiementVerifier', statut: 'ok', dureeMs: maintenant() - debut });
