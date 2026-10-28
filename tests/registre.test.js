@@ -418,6 +418,7 @@ describe('Réglages à menu latéral (2.6.0) : ce que chaque module déclare', (
     assert.deepEqual(items.map((i) => i.libelle), ['Affaires et projets', 'Veille', 'Automatisations', 'Connecter mon assistant']);
     assert.deepEqual(items[2].sections.map((s) => s.id), ['reglages-export-automatisations'], 'Automatisations : la section Sauvegarde (export des données)');
     assert.deepEqual(items[1].sections.map((s) => s.id), ['reglages-export-veille'], 'Veille : la section Sauvegarde (export des données)');
+    assert.deepEqual(reglagesDesModules(['tableaudebord'])[0].sections.map((s) => s.id), ['reglages-export-maintenance'], 'Maintenance : la section Sauvegarde (export des données)');
     assert.deepEqual(reglagesDesModules([]), []);
   });
   test('réglages de l\'espace : « Mon espace » pour tous, membres et modules réservés aux éditeurs, membres seulement chez un client', () => {

@@ -31,10 +31,10 @@ describe('R11 aucune écriture', () => {
     const [, liste] = /import \{([^}]*)\} from 'https:\/\/www\.gstatic\.com\/firebasejs\/[^/]+\/firebase-functions\.js'/.exec(t);
     assert.deepEqual(liste.split(',').map((x) => x.trim()).filter(Boolean).sort(), ['getFunctions', 'httpsCallable']);
   });
-  test('R11 les imports Firestore du module se limitent à la lecture (collection, onSnapshot, query, where)', () => {
+  test('R11 les imports Firestore du module se limitent à la lecture (collection, getDocs pour export, onSnapshot, query, where)', () => {
     const t = lire(`${DOSSIER}/donnees.js`);
     const [, liste] = /import \{([^}]*)\} from 'https:\/\/www\.gstatic\.com\/firebasejs\/[^/]+\/firebase-firestore\.js'/.exec(t);
-    assert.deepEqual(liste.split(',').map((x) => x.trim()).filter(Boolean).sort(), ['collection', 'onSnapshot', 'query', 'where']);
+    assert.deepEqual(liste.split(',').map((x) => x.trim()).filter(Boolean).sort(), ['collection', 'getDocs', 'onSnapshot', 'query', 'where']);
   });
   test('R11 boutons de l\'écran : « Réessayer », « Filtres » (et ses puces), et la saisie (Saisir, Enregistrer, Annuler) ; ni rafraîchir, ni suppression', () => {
     const ecran = lire(`${DOSSIER}/ecran.js`);
@@ -89,8 +89,7 @@ describe('R1 branchement dans la coque', () => {
     assert.equal(m.reserveAuxClients, undefined);
     assert.deepEqual(m.collections, ['tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes']);
     assert.deepEqual(m.ecrans.map((e) => [e.route, e.libelle]), [['tableaudebord/general', 'Maintenance']]);
-    assert.deepEqual(m.reglages.sections, []);
-    assert.ok(m.reglages.resume.startsWith('La maintenance se lit'));
+    assert.deepEqual(m.reglages.sections, [{ id: 'reglages-export-maintenance', libelle: 'Sauvegarde' }]); // seul réglage : la sauvegarde de ses données (export)
   });
   test('R1 chez Jérôme (racine), le menu contient UNE entrée « Maintenance » (arrivée tableaudebord/general) et le module ne déclare qu\'un écran : aucun onglet', () => {
     const racine = MODULES.find((m) => m.id === 'tableaudebord');

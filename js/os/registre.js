@@ -181,7 +181,7 @@ export const MODULES_DECLARES = geler([
     libelleMenu: 'Maintenance',
     iconeMenu: 'layout-dashboard',
     prefixe: 'tableaudebord',
-    reglages: { sections: [], resume: 'La maintenance se lit : ses indicateurs sont écrits par les scripts de surveillance. Aucun réglage à faire ici pour l’instant.' },
+    reglages: { sections: [{ id: 'reglages-export-maintenance', libelle: 'Sauvegarde' }] }, // la maintenance se lit (indicateurs écrits par les scripts de surveillance) : le seul réglage est la sauvegarde de ses données
     entreeMenu: 'tableaudebord/general',
     ecrans: [
       { route: 'tableaudebord/general', libelle: 'Maintenance', icone: 'layout-dashboard' },
