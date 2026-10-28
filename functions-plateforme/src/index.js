@@ -13,6 +13,7 @@ import { creerLecteurN8n } from './n8n.js';
 import { copieHoraire, rafraichir, renommer, Refus } from './appels.js';
 import { creerMcpClients } from './mcp-clients.js';
 import { reglerEspace } from './espace.js';
+import { deciderClient } from './propositions.js';
 import { transitionDevis, preparerEmailDevis, etatPreparerEmail } from './devis.js';
 import { fabriquerPdfClient, lienPdfClient, creerDeclencheurPdfClient } from './devis-pdf.js';
 import { verifierDeploiementClient } from './deploiement.js';
@@ -91,6 +92,17 @@ export const devisNouvelleVersion = appelDevis('nouvelleVersion');
 export const devisArchiver = appelDevis('archiver');
 export const devisSupprimer = appelDevis('supprimer');
 export const devisEnregistrerEnvoi = appelDevis('enregistrerEnvoi'); // historique des envois par e-mail
+
+// `automatisationsDecider` chez les clients (28/10/2026) : écran « À valider » du module Automatisations (valider, refuser, relancer une proposition), même code métier que chez Jérôme
+// (serveur/src/coeur/propositions.js). Le client est une cible vérifiée (éditeur du client, module « automatisations » actif), jamais une confiance ; tout s'écrit sous clients/<client>/.
+// Aucun secret, aucun compte de service nouveau, mêmes région et limites que les fonctions de devis. Déployée seulement par le workflow MANUEL de la plateforme, avec Jérôme.
+const journalDecision = (e) => {
+  const ligne = { action: e.action, statut: e.statut, code: e.code, decision: e.decision, dureeMs: e.dureeMs }; // liste blanche : jamais le contenu d'une proposition
+  if (e.statut === 'erreur') logger.error('automatisationsDecider', ligne); else logger.info('automatisationsDecider', ligne);
+};
+export const automatisationsDecider = onCall(OPTIONS_DEVIS, async (requete) => {
+  try { return await deciderClient({ db: db(), auth: requete.auth, donnees: requete.data, journal: journalDecision }); } catch (e) { throw enHttps(e); }
+});
 
 // Page Réglages > Déploiement (25/10/2026) : contrôles du serveur pour l'espace demandé (éditeurs seulement, sans condition de module). Rien n'est écrit, AUCUN secret déclaré
 // (un secret absent ferait échouer le déploiement de toutes les fonctions), aucun compte de service nouveau. Déployée seulement par le workflow MANUEL de la plateforme.

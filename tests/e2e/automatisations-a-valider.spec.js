@@ -213,6 +213,7 @@ test('8 le même écran existe dans un espace client (menu, route, données du c
   await carte(page, 'c1').getByRole('button', { name: 'Valider', exact: true }).click();
   await expect(zoneRecentes(page).locator('.prop-carte[data-id="c1"]')).toBeVisible();
   expect((await lireDocument('clients/cabinet/automatisations_propositions/c1')).etat).toBe('validee');
+  expect(appels).toEqual([{ id: 'c1', decision: 'valider', client: 'cabinet' }]); // l'espace de la session est envoyé (le serveur le revérifie) ; chez Jérôme, rien (voir les autres tests)
   await capture(page, '8-espace-client');
 });
 

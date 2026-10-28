@@ -163,6 +163,8 @@ export function ecouterPropositions(rappel) {
  */
 export async function decider(id, decision, { champs, raison } = {}) {
   const corps = { id, decision };
+  const client = base.split('/')[1]; // chez un client : l'espace de la session (le serveur le revérifie) ; chez Jérôme, rien
+  if (client) corps.client = client;
   if (champs) corps.champs = champs;
   if (raison) corps.raison = raison;
   try {
