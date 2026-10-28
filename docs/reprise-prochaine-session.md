@@ -1,5 +1,24 @@
 # À faire au début de la prochaine session
 
+## Rapport du matin : 2e nuit du 28/10/2026 (« GO NUIT », version 2.33.0)
+
+| Sujet | PR | État |
+|---|---|---|
+| Vue d'ensemble en tête du tableau `.github/A-FAIRE.md` | 370 | fusionnée seule |
+| Audit des écarts `functions/` vs `functions-plateforme/` (`docs/audit-ecarts-fonctions.md`) | 371 | fusionnée seule (docs) ; **à trancher par Jérôme** |
+| Bouton « Exporter mes données » de Projets | 372 | fusionnée seule, relue par Fable (rien de bloquant) |
+| Bouton « Exporter mes données » d'Automatisations | 373 | fusionnée seule, relue par Fable |
+| Bouton « Exporter mes données » de Veille | 374 | fusionnée seule, relue par Fable (un test du registre périmé corrigé) |
+| Bouton « Exporter mes données » de Maintenance | 375 | fusionnée seule, relue par Fable |
+| Onglets Édition / Prévisualisation accessibles au clavier (M3) | 376 | fusionnée seule, relue par Fable (2 retouches mineures appliquées) |
+| Lot R : onglet « Documents » stocké chez nous | 369 (`a-fusionner-par-jerome`) | **à fusionner par Jérôme** (coche « Tests » verte ; règles Firestore et droits IAM) |
+| Génération du PDF trop lente ; `lienStablePdf` ; compte `deploiementVerifier` chez le client démo | aucune | pas fait |
+
+- **État de la nuit GitHub** : verte. Les runs « Tests de nuit » n° 23 (manuel) et n° 24 (programmé, 28/10 au matin) sont verts sur `main`, 13 jobs en environ 6 minutes.
+- **Pas pu être vérifié** : les exports sur l'espace d'un vrai client (clients/<client>) ; K4 et K5 d'`identite-crm` et une dizaine de tests de fiche projet rouges dans le bac à sable (Picker Google bloqué), la coche GitHub a tranché ; `test:module devis` en entier (trop long dans le bac à sable) ; les lecteurs d'écran réels pour les onglets du devis.
+- **Fable** : 5 relectures cette nuit (2 briefs, 3 lots de code) ; budget respecté.
+- **Actions pour Jérôme** : (1) lot R : vérifier et fusionner la PR 369, droits IAM ; (2) tester les quatre boutons « Exporter mes données » (Réglages de chaque module, section Sauvegarde) et les onglets du devis au clavier ; (3) trancher l'audit (`automatisationsDecider`, `veille`, `tableaudebordSaisir`, `automatisationsRenommer`) et les études n°11 et n°12 ; (4) déploiement `hosting` puis `fonctions` chez les clients, avec Claude.
+
 ## Rapport du matin : nuit du 27 au 28/10/2026 (« GO NUIT », version 2.32.0)
 
 | Sujet | PR | État |
