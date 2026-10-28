@@ -56,7 +56,7 @@ function ligne(d, { aujourdhui, apres }) {
   const brouillon = d.statut === 'brouillon';
   const etat = etatPdfDevis(d);
   const indicateur = brouillon ? null : etat === 'pret' ? actionsPdfPret(d) : indicateurPdf(d, { apres }); // PDF prêt : « Ouvrir le PDF » et « Télécharger » ; sinon « en cours » ou « non rangé »
-  const nom = d.objet ? `${P.intituleDevis(d)} – ${d.objet}` : P.intituleDevis(d);
+  const nom = P.libelleLigneDevis(d);
   return h('li', { class: 'ligne-lien', dataset: { devis: d.id, statut: Li.statutAffiche(d, aujourdhui) } },
     icone('file-text', { taille: 14 }),
     h('div', { class: 'lien-texte' },
@@ -80,7 +80,7 @@ function creerElement(affaireId) {
     const aujourdhui = CRM.ctx().aujourdhui;
     const lignes = P.devisDeAffaire(D.etat.devis, affaireId);
     const maintenant = Date.now();
-    const signature = JSON.stringify([pret, erreur, aujourdhui, lignes.map((d) => [d.id, d.numero, d.version, d.statut, d.objet, d.dateEmission, enMsCle(d), Li.totauxDe(d), d.expireLe, etatPdfDevis(d, maintenant)])]);
+    const signature = JSON.stringify([pret, erreur, aujourdhui, lignes.map((d) => [d.id, d.numero, d.version, d.statut, d.nom, d.objet, d.dateEmission, enMsCle(d), Li.totauxDe(d), d.expireLe, etatPdfDevis(d, maintenant)])]);
     if (!force && signature === e.signature) return lignes;
     e.signature = signature;
     const apres = () => e.maj(true);

@@ -842,3 +842,23 @@ describe('N9 lire_reglages_devis et journal du bordereau', () => {
     assert.equal(s.doc('devis_articles', a.id), undefined);
   });
 });
+
+describe('3f nom interne du devis par l’assistant (MCP)', () => {
+  test('3f creer / modifier / lister / lire : le nom est enregistré nettoyé, se change, s’efface avec une chaîne vide ; trop long refusé', async () => {
+    const s = await demarrer({ devis: [devisEnregistre('f1', { statut: 'en_attente_envoi', numero: 'DEV-2026-10-01-001', totaux: { totalHt: 96, ttc: 115.2, lignes: [], sections: [] } })] });
+    const ids = await articlesDeBase(s);
+    const r = ok(await s.appeler('biblio', 'creer_devis_brouillon', { affaireId: 'a1', nom: '  Variante   basse ', objet: 'Cuisine', destinataires: EMAIL, lignes: [{ articleId: ids.a, quantite: 1 }] }));
+    assert.equal(s.doc('devis_devis', r.id).nom, 'Variante basse');
+    assert.equal(s.doc('devis_devis', r.id).objet, 'Cuisine', 'l’objet (imprimé) reste distinct');
+    const m = ok(await s.appeler('biblio', 'modifier_devis_brouillon', { id: r.id, nom: 'Été 2027' }));
+    assert.deepEqual(m.champsModifies, ['nom']);
+    assert.equal(ok(await s.appeler('lecteur', 'lire_devis', { id: r.id })).nom, 'Été 2027');
+    assert.equal(ok(await s.appeler('lecteur', 'lister_devis', {})).devis.find((d) => d.id === r.id).nom, 'Été 2027');
+    ok(await s.appeler('biblio', 'modifier_devis_brouillon', { id: r.id, nom: '' }));
+    assert.equal(s.doc('devis_devis', r.id).nom, '');
+    const trop = await s.appeler('biblio', 'modifier_devis_brouillon', { id: r.id, nom: 'x'.repeat(81) });
+    assert.equal(trop.isError, true, 'un nom de plus de 80 caractères est refusé');
+    assert.equal(s.doc('devis_devis', r.id).nom, '', 'rien n’a été écrit');
+    refuse(await s.appeler('biblio', 'modifier_devis_brouillon', { id: 'f1', nom: 'x' }), /brouillon/i); // un devis finalisé ne se renomme pas
+  });
+});

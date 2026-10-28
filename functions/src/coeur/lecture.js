@@ -322,7 +322,7 @@ function resumeDevis(devis, { organisations, personnes, aujourdhui }) {
   const statut = statutAffiche(devis, aujourdhui);
   return {
     id: devis.id, numero: devis.numero ?? null, version: devis.version ?? 1, racineId: devis.racineId ?? devis.id,
-    statut, statutLibelle: libelleStatut(statut), objet: devis.objet ?? '', affaireId: devis.affaireId ?? null,
+    statut, statutLibelle: libelleStatut(statut), objet: devis.objet ?? '', nom: devis.nom ?? '', affaireId: devis.affaireId ?? null,
     client: clientDe(devis, organisations, personnes), totalHT: t.totalHt, totalTTC: t.ttc,
     creeLe: devis.creeLe ?? null, expireLe: devis.expireLe ?? null, finaliseLe: devis.finaliseLe ?? null, envoyeLe: devis.envoyeLe ?? null,
     accepteLe: devis.accepteLe ?? null, refuseLe: devis.refuseLe ?? null, archive: devis.archive === true, archiveLe: devis.archiveLe ?? null,
@@ -349,7 +349,7 @@ export async function listerDevis(donnees, { statut, affaireId, texte, archives,
     .filter((r) => (!statut || statut === 'tous' || r.statut === statut))
     .filter((r) => {
       if (!mots.length) return true;
-      const cible = L.normaliserNom(`${r.numero ?? ''} ${r.objet} ${r.client?.nom ?? ''}`);
+      const cible = L.normaliserNom(`${r.numero ?? ''} ${r.objet} ${r.nom} ${r.client?.nom ?? ''}`);
       return mots.every((m) => cible.includes(m));
     })
     .sort((a, b) => (L.versDate(b.creeLe)?.getTime() ?? 0) - (L.versDate(a.creeLe)?.getTime() ?? 0) || String(b.id).localeCompare(String(a.id)));

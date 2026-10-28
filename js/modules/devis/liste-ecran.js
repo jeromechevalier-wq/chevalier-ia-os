@@ -58,7 +58,7 @@ function boutonMenu(d) {
 // ---------------------------------------------------------------- cellules
 
 const ouvrirDevis = (d) => naviguer(d.statut === 'brouillon' ? `devis/editeur/${d.id}` : `devis/voir/${d.id}`);
-const intitule = (d) => d.numero ?? 'Brouillon';
+const intitule = (d) => d.numero ?? (String(d.nom ?? '').trim() || 'Brouillon'); // un brouillon nommé porte son nom (interne) ; un devis numéroté garde son numéro
 function celluleClient(d) {
   const n = nomsDe(d);
   return h('div', { class: 'devis-client' }, h('span', { class: 'devis-client-nom' }, n.client || '—'), n.affaire ? h('span', { class: 'devis-affaire' }, n.affaire) : null);
@@ -160,7 +160,7 @@ export function rendreListeDevis(conteneur) {
     const corps = p.lignes.map((d) => {
       const t = Li.totauxDe(d);
       return ouvrable(h('tr', { class: 'ligne-liste ligne-devis', dataset: { id: d.id, statut: Li.statutAffiche(d, aujourdhui) } },
-        h('td', { dataset: { colonne: 'numero', libelle: 'Numéro' } }, h('span', { class: `devis-numero${d.numero ? '' : ' devis-numero-vide'}` }, intitule(d)), d.version > 1 ? h('span', { class: 'devis-version' }, ` v${d.version}`) : null),
+        h('td', { dataset: { colonne: 'numero', libelle: 'Numéro' } }, h('span', { class: `devis-numero${d.numero ? '' : ' devis-numero-vide'}` }, intitule(d)), d.version > 1 ? h('span', { class: 'devis-version' }, ` v${d.version}`) : null, d.numero && d.nom ? h('span', { class: 'devis-nom-interne' }, ` – ${d.nom}`) : null),
         h('td', { dataset: { colonne: 'statut', libelle: 'Statut' } }, pastille(d, aujourdhui)),
         h('td', { dataset: { colonne: 'documents', libelle: 'Documents' } }, indicateurPdf(d, { apres: () => rendre(), maintenant })), // lien « PDF », « en cours » ou avertissement « PDF non rangé » (finalisé seulement)
         h('td', { dataset: { colonne: 'client', libelle: 'Client / Affaire' } }, celluleClient(d)),

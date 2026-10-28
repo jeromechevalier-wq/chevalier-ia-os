@@ -16,7 +16,7 @@ function nomsDuDevis(d) {
 export function rechercherDevis(saisie) {
   const elements = D.etat.devis.filter((d) => d.archive !== true && d.statut !== 'remplace').map((d) => {
     const n = nomsDuDevis(d);
-    return { id: d.id, libelle: d.numero || 'Brouillon', sousTitre: [n.client, n.affaire].filter(Boolean).join(' · '), extra: [n.client, n.affaire].filter(Boolean), chemin: d.statut === 'brouillon' ? `devis/editeur/${d.id}` : `devis/voir/${d.id}` };
+    return { id: d.id, libelle: d.numero || String(d.nom ?? '').trim() || 'Brouillon', sousTitre: [d.numero ? String(d.nom ?? '').trim() : '', n.client, n.affaire].filter(Boolean).join(' · '), extra: [d.nom, n.client, n.affaire].filter(Boolean), chemin: d.statut === 'brouillon' ? `devis/editeur/${d.id}` : `devis/voir/${d.id}` };
   });
   const resultats = rechercherSuggestions(saisie, elements, {}).resultats;
   return { groupes: resultats.length ? [{ titre: 'Devis', resultats }] : [] };

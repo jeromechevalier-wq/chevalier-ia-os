@@ -26,7 +26,17 @@ export const compteurOnglet = (lignes, pret) => (pret ? lignes.length : null);
 
 const brouillon = (d) => d?.statut === 'brouillon';
 /** Nom accessible (jamais vide) du lien d'une ligne. */
-export const nomVoir = (d) => `Voir le devis ${d?.numero ?? d?.objet ?? 'brouillon'}`.trim();
+export const nomVoir = (d) => `Voir le devis ${d?.numero || String(d?.nom ?? '').trim() || String(d?.objet ?? '').trim() || 'brouillon'}`.trim();
+/**
+ * Texte d'une ligne de l'onglet Devis : « Nom – objet » ou le nom seul pour un brouillon nommé (le nom remplace « Brouillon »), « DEV-… – Nom » une fois numéroté ;
+ * sans nom, l'ancien comportement (« intitulé – objet »). Le nom reste interne : jamais sur le PDF.
+ */
+export const libelleLigneDevis = (d) => {
+  const nom = String(d?.nom ?? '').trim();
+  const objet = String(d?.objet ?? '').trim();
+  const tete = nom ? (d?.numero ? `${intituleDevis(d)} – ${nom}` : nom) : intituleDevis(d);
+  return objet ? `${tete} – ${objet}` : tete;
+};
 
 /** Route de l'écran du devis : l'éditeur pour un brouillon, la visualisation sinon. */
 export const routeVoirDevis = (d) => (brouillon(d) ? `devis/editeur/${d.id}` : `devis/voir/${d.id}`);

@@ -756,7 +756,7 @@ const nombreDeLignes = (sections) => (sections ?? []).reduce((n, s) => n + (s.li
 
 /** Crée un brouillon de devis (version 1, sans numéro). Le client et le destinataire viennent de l'affaire si on ne les donne pas. */
 export async function creerDevisBrouillon(c, args) {
-  const { affaireId, objet, personneId, organisationId, destinataires, copie, sections, lignes, remise, marge, modeMarge, tauxTvaDefaut, proprietaire } = args;
+  const { affaireId, objet, nom, personneId, organisationId, destinataires, copie, sections, lignes, remise, marge, modeMarge, tauxTvaDefaut, proprietaire } = args;
   if (organisationId && personneId) refuser('saisie_invalide', 'Un devis a un seul client : donner organisationId OU personneId, pas les deux.');
   const affaire = await lire(c, C.affaires, affaireId, 'Affaire');
   const organisation = await lireSiDonne(c, C.organisations, organisationId ?? (personneId ? null : affaire.organisationId), 'Organisation');
@@ -772,7 +772,7 @@ export async function creerDevisBrouillon(c, args) {
   verifierMessages(plan.erreurs);
   verifierMarge(plan.devis);
   const articles = await c.donnees.liste(C.devisArticles);
-  const extra = { objet: texte(objet ?? ''), sections: sectionsDepuisSaisie(c, { sections, lignes }, articles, plan.devis) };
+  const extra = { objet: texte(objet ?? ''), ...(nom !== undefined && D.nettoyerNomDevis(nom) ? { nom: D.nettoyerNomDevis(nom) } : {}), sections: sectionsDepuisSaisie(c, { sections, lignes }, articles, plan.devis) };
   if (remise !== undefined) { verifierRemise(remise, { ...plan.devis, ...extra }); extra.remise = remise; }
   plan.ecritures[0].donnees = { ...plan.ecritures[0].donnees, ...extra };
   const t = D.totauxDevis({ ...plan.devis, ...extra });
@@ -814,8 +814,9 @@ export async function modifierDevisBrouillon(c, args) {
   if (devis.statut !== 'brouillon') refuser('saisie_invalide', B.MESSAGE_PAS_BROUILLON);
   if ((sections !== undefined || lignes !== undefined) && ajouterLignes !== undefined) refuser('saisie_invalide', 'Donner soit sections/lignes (qui remplacent tout), soit ajouterLignes (qui ajoute), pas les deux.');
   const patch = {};
-  for (const k of ['objet', 'personneId', 'organisationId', 'destinataires', 'copie', 'marge', 'modeMarge', 'tauxTvaDefaut']) if (champs[k] !== undefined) patch[k] = champs[k];
+  for (const k of ['objet', 'nom', 'personneId', 'organisationId', 'destinataires', 'copie', 'marge', 'modeMarge', 'tauxTvaDefaut']) if (champs[k] !== undefined) patch[k] = champs[k];
   if (patch.objet !== undefined) patch.objet = texte(patch.objet);
+  if (patch.nom !== undefined) patch.nom = D.nettoyerNomDevis(patch.nom); // nom interne, jamais imprimé ; chaîne vide pour l'effacer
   if (patch.destinataires !== undefined) verifierDestinataires(patch.destinataires);
   if (patch.organisationId && patch.personneId) refuser('saisie_invalide', 'Un devis a un seul client : donner organisationId OU personneId, pas les deux.');
   if (patch.organisationId) patch.personneId = null;
@@ -846,7 +847,7 @@ export async function modifierDevisBrouillon(c, args) {
   const plan = B.planModifierBrouillon(devis, patch);
   verifierMessages(plan.erreurs);
   for (const e of plan.ecritures) e.exigerStatut = 'brouillon'; // refusé par le moteur si le devis a été finalisé entre-temps
-  if (!Object.keys(plan.patch).length) refuser('saisie_invalide', 'Aucun champ à modifier (objet, personneId, organisationId, destinataires, copie, sections, lignes, ajouterLignes, remise, marge, modeMarge, tauxTvaDefaut).');
+  if (!Object.keys(plan.patch).length) refuser('saisie_invalide', 'Aucun champ à modifier (objet, nom, personneId, organisationId, destinataires, copie, sections, lignes, ajouterLignes, remise, marge, modeMarge, tauxTvaDefaut).');
   const t = D.totauxDevis(travail);
   return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id, champsModifies: Object.keys(plan.patch), totalHT: t.totalHt, totalTTC: t.ttc });
 }

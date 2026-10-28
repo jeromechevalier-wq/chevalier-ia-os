@@ -56,7 +56,7 @@ fieldset.cases { border: 0; padding: 0; margin: 0; min-width: 0; } /* groupe de 
 .tableau-devis .montant { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .tableau-devis th:nth-last-child(-n+3) .tri { justify-content: flex-end; }
 .devis-numero { font-weight: var(--poids-moyen); white-space: nowrap; }
-.devis-numero-vide, .devis-version { color: var(--texte2); font-weight: var(--poids-normal); }
+.devis-numero-vide, .devis-version, .devis-nom-interne { color: var(--texte2); font-weight: var(--poids-normal); }
 .devis-client { display: flex; flex-direction: column; min-width: 0; }
 .devis-affaire { color: var(--texte2); font-size: var(--fs-menu); overflow-wrap: anywhere; }
 .devis-modifie { display: inline-flex; align-items: center; gap: var(--esp-3); white-space: nowrap; }

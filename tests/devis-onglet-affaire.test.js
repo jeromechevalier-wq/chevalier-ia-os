@@ -66,3 +66,16 @@ test('13 bouton d’en-tête : « Créer un devis » sans devis, « Voir le devi
   assert.equal(actionEnteteDevis(devis, 'a3', true, false), null); // affaire gagnée ou perdue sans devis : pas de « Créer un devis »
   assert.equal(actionEnteteDevis(devis, 'a1', true, false).mode, 'voir'); // mais « Voir le devis » reste
 });
+
+test('3b libellé d’une ligne de l’onglet : le nom remplace « Brouillon », « DEV-… – Nom » une fois numéroté, sans nom l’ancien affichage', async () => {
+  const { libelleLigneDevis } = await import('../js/modules/devis/onglet-affaire-logique.js');
+  assert.equal(libelleLigneDevis({ statut: 'brouillon', nom: 'Variante basse' }), 'Variante basse');
+  assert.equal(libelleLigneDevis({ statut: 'brouillon', nom: 'Variante basse', objet: 'Cuisine' }), 'Variante basse – Cuisine');
+  assert.equal(libelleLigneDevis({ numero: 'DEV-001', version: 2, nom: 'Été' }), 'DEV-001 v2 – Été');
+  assert.equal(libelleLigneDevis({ statut: 'brouillon', objet: 'Cuisine' }), 'Brouillon – Cuisine'); // 3e ancien devis : inchangé
+  assert.equal(libelleLigneDevis({ statut: 'brouillon' }), 'Brouillon');
+  assert.equal(libelleLigneDevis({ numero: 'DEV-001', objet: 'Cuisine', nom: '  ' }), 'DEV-001 – Cuisine');
+  assert.equal(nomVoir({ statut: 'brouillon', nom: 'Variante basse' }), 'Voir le devis Variante basse');
+  assert.equal(nomVoir({ statut: 'brouillon', nom: '', objet: 'Cuisine' }), 'Voir le devis Cuisine'); // un nom effacé ('') ne masque pas l'objet
+  assert.equal(nomVoir({ statut: 'brouillon', nom: ' ' }), 'Voir le devis brouillon');
+});
