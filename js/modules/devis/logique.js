@@ -583,6 +583,7 @@ function erreursConditions(devis, t) {
     }
   }
   if (!absent(devis.texteLibre) && typeof devis.texteLibre !== 'string') e.push('Le texte libre du devis doit être un texte.');
+  if (!absent(devis.modesPaiement) && (!Array.isArray(devis.modesPaiement) || devis.modesPaiement.some((m) => typeof m !== 'string' || m.length > 60))) e.push('Les méthodes de paiement du devis doivent être une liste de textes courts.');
   if (!absent(devis.notesBasDePage) && typeof devis.notesBasDePage !== 'string') e.push('Les notes de bas de page doivent être un texte.');
   else if (typeof devis.notesBasDePage === 'string' && devis.notesBasDePage.length > 2000) e.push('Les notes de bas de page sont trop longues (2 000 caractères au plus).');
   return e;

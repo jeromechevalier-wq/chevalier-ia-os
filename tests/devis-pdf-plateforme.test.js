@@ -86,6 +86,23 @@ describe('D1 déclencheur : fabrique chez un client dont le module devis est act
     assert.equal(m.devis('a').pdf.statut, 'ok');
     assert.match(m.devis('a').pdf.chemin, /^clients\/a\/devis\//);
   });
+  test('15 le PDF fabriqué par le serveur imprime « Mon entreprise » enregistrée par l\'écran (reglages.entreprise) avec ses méthodes de paiement ; `emetteur` reste lu en repli', async () => {
+    const m = await monde({ finaliser: [] });
+    m.collections['clients/a/devis_parametres'][0] = { id: 'reglages', regimeTva: 'assujetti', entreprise: { nom: 'Entreprise Ecran', paiement: { modes: ['Carte bancaire', 'Virement'] } } };
+    const f = faux();
+    await S.finaliser({ donnees: m.creerDonnees('a'), ctx: { acteur: ALICE, via: 'ecran', maintenant: MAINTENANT }, devisId: 'd-a' });
+    await declencheur(m, f)(evenement('a', 'd-a', { statut: 'brouillon' }, FINALISE));
+    assert.equal(f.vus.html.length, 1);
+    assert.match(f.vus.html[0], /Entreprise Ecran/);
+    assert.match(f.vus.html[0], /<li>Carte bancaire<\/li><li>Virement<\/li>/);
+    // Le devis peut choisir ses propres méthodes : elles passent avant celles de l'entreprise.
+    m.devis('b').modesPaiement = ['Chèque'];
+    const g = faux();
+    await S.finaliser({ donnees: m.creerDonnees('b'), ctx: { acteur: BOB, via: 'ecran', maintenant: MAINTENANT }, devisId: 'd-b' });
+    await declencheur(m, g)(evenement('b', 'd-b', { statut: 'brouillon' }, FINALISE));
+    assert.match(g.vus.html[0], /Entreprise b/); // repli sur l'ancien nom `emetteur`
+    assert.match(g.vus.html[0], /<li>Chèque<\/li>/);
+  });
   test('D1 un client sans le module devis est ignoré : rien fabriqué, rien écrit', async () => {
     const m = await monde({ finaliser: [] });
     const f = faux();

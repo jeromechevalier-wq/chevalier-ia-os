@@ -95,6 +95,18 @@ describe('Q3 devisPdf : « PDF non configuré »', () => {
 });
 
 describe('Q4 devisPdf : chemin heureux', () => {
+  test('15 Mon entreprise écrite par l\'écran (reglages.entreprise) et ses méthodes de paiement sortent dans le HTML ; un `entreprise` vide laisse l\'ancien `emetteur`', async () => {
+    const m = await monde();
+    m.collections[C.devisParametres][0] = { id: 'reglages', regimeTva: 'assujetti', entreprise: { nom: 'Entreprise Ecran', paiement: { modes: ['Virement'] } } };
+    const f = faux();
+    await appel(m, f)(requete({ devisId: 'd1' }));
+    assert.ok(f.vus.html[0].includes('Entreprise Ecran') && f.vus.html[0].includes('<li>Virement</li>'));
+    const m2 = await monde();
+    m2.collections[C.devisParametres][0] = { id: 'reglages', regimeTva: 'assujetti', entreprise: {}, emetteur: { nom: 'Ancien Emetteur' } };
+    const f2 = faux();
+    await appel(m2, f2)(requete({ devisId: 'd1' }));
+    assert.ok(f2.vus.html[0].includes('Ancien Emetteur'));
+  });
   test('Q4 le champ pdf est écrit (statut ok, chemin, sha256, genereLe), la réponse porte l\'adresse stable, le PDF est rangé sous le dossier de l\'affaire, le journal est écrit', async () => {
     const m = await monde();
     const f = faux();

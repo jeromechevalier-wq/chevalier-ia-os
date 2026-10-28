@@ -70,7 +70,9 @@ export async function fabriquerPdfDevis({ donnees, espace = '', baseLien, prefix
     const reglages = await donnees.document(C.devisParametres, ID_REGLAGES);
     const fiche = devis.organisationId ? await donnees.document(C.organisations, devis.organisationId)
       : devis.personneId ? await donnees.document(C.personnes, devis.personneId) : null;
-    const emetteur = emetteurSansLogoExterne(reglages?.emetteur && typeof reglages.emetteur === 'object' ? enDates(reglages.emetteur) : {});
+    // « Mon entreprise » est enregistrée par l'écran sous `entreprise` (donnees.js) ; `emetteur` n'est lu qu'en repli (ancien nom).
+    const brutEmetteur = [reglages?.entreprise, reglages?.emetteur].find((x) => x && typeof x === 'object' && !Array.isArray(x) && Object.keys(x).length);
+    const emetteur = emetteurSansLogoExterne(brutEmetteur ? enDates(brutEmetteur) : {});
 
     // Vue client : jamais de prix d'achat, de marge ni de coefficient (garanti par vueClient, vérifié par les tests).
     const vue = D.vueClient(devis, { clientNom: fiche?.nom ?? null });
