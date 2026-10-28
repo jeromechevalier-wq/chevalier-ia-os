@@ -18,7 +18,7 @@ import { arbreFamilles, cheminFamille } from './familles.js';
 import * as Ed from './editeur-logique.js';
 import {
   TYPE_SAUT, totauxDevis, erreursFinalisation, erreursChantier, estExpire, UNITES_DUREE, MOMENTS_ACOMPTE, TYPES_ACOMPTE, detailAcomptes, erreursAcomptes, listeAcomptes, TAUX_TVA_DEFAUT, niveauSection, dureeEnTexte,
-  affichageDe, ajustementActif, valeursAjustement, margeEffective, vueClient, MAX_COPIE, transitionPossible, TYPES_DECHETS,
+  affichageDe, ajustementActif, valeursAjustement, margeEffective, vueClient, MAX_COPIE, transitionPossible, TYPES_DECHETS, NOM_DEVIS_MAX, nettoyerNomDevis,
 } from './logique.js';
 import { formaterMontant } from './document.js';
 import { menuUnite } from './menu-unite.js';
@@ -784,7 +784,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
   function majEntete() {
     if (!ref.titre) return;
     const d = travail;
-    ref.titre.textContent = d.numero ? `Devis ${d.numero} · v${d.version ?? 1}` : (String(d.objet ?? '').trim() || 'Nouveau devis'); // un brouillon porte l'objet du devis (la pastille dit déjà « Brouillon »)
+    ref.titre.textContent = d.numero ? `Devis ${d.numero} · v${d.version ?? 1}` : (String(d.nom ?? '').trim() || String(d.objet ?? '').trim() || 'Nouveau devis'); // un brouillon porte son nom interne, sinon l'objet du devis (la pastille dit déjà « Brouillon »)
     majTitreCompact();
     appliquerPastilleStatut(ref.pastille, d, CRM.ctx().aujourdhui); // mêmes mots et mêmes couleurs que la liste des devis
     if (ref.numeroDocument) ref.numeroDocument.textContent = d.numero ? `Devis n° ${d.numero}${d.version > 1 ? ` · v${d.version}` : ''}` : 'Devis n° Brouillon';
@@ -922,6 +922,16 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     if (!lecture && ref.emailAuto && !emailAutoEnCopie && !(travail.destinataires ?? []).length) travail.destinataires = [ref.emailAuto];
     const ligne = (avant, zone, apres = '') => h('p', { class: 'ligne-entete' }, avant, zone, apres);
     ref.numeroDocument = h('h2', { class: 'titre-document', dataset: { valeur: 'numero-devis' } }, '');
+    // Nom INTERNE du devis (distinct de la description, imprimée) : jamais sur le PDF ni dans l'e-mail. Trop long : tronqué, avec un message.
+    ref.erreurNom = h('p', { class: 'erreur', role: 'alert', dataset: { erreur: 'nom' }, hidden: true }, `Le nom est limité à ${NOM_DEVIS_MAX} caractères : la fin a été coupée.`);
+    ref.nom = h('input', { class: 'champ', type: 'text', id: 'devis-nom', value: d.nom ?? '', autocomplete: 'off', placeholder: 'Exemple : Variante économique', dataset: { champ: 'nom' },
+      oninput: (e) => {
+        const trop = e.target.value.length > NOM_DEVIS_MAX;
+        if (trop) e.target.value = e.target.value.slice(0, NOM_DEVIS_MAX);
+        ref.erreurNom.hidden = !trop;
+        changer({ nom: nettoyerNomDevis(e.target.value) }); // vide = '' (le champ enregistré est écrasé, un nom effacé ne revient pas)
+        majEntete();
+      } });
     ref.objet = h('textarea', { class: 'champ', id: 'devis-objet', rows: 2, value: d.objet ?? '', placeholder: 'Exemple : Rénovation de la cuisine', 'aria-label': 'Description du devis', hidden: !(d.objet ?? '').trim(), dataset: { champ: 'objet' }, oninput: (e) => changer({ objet: e.target.value }) });
     ref.lienDescription = h('button', { type: 'button', class: 'bouton-lien lien-description', dataset: { action: 'description' }, 'aria-expanded': String(!ref.objet.hidden), onclick: () => {
       ref.objet.hidden = !ref.objet.hidden;
@@ -933,6 +943,8 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     ref.erreursChantier = h('p', { class: 'erreur', role: 'alert', dataset: { erreur: 'chantier' }, hidden: true });
     const gauche = h('div', { class: 'entete-gauche' },
       ref.numeroDocument,
+      h('div', { class: 'bloc-champ' }, h('label', { class: 'etiquette', for: 'devis-nom' }, 'Nom du devis (interne, jamais imprimé)'), ref.nom),
+      ref.erreurNom,
       ligne('En date du ', valeurSurPlace({ etiquette: 'En date du ', nom: 'dateEmission', texte: () => dateDuDevis(), champs: champDate('dateEmission', () => travail.dateEmission ?? jourIso(dateDuDevis()), (v) => { travail.dateEmission = v; }, 'Date du devis') })),
       ligne('Valable jusqu’au ', valeurSurPlace({ etiquette: 'Valable jusqu’au ', nom: 'expireLe', texte: () => jourFr(travail.expireLe), champs: champDate('expireLe', () => travail.expireLe, (v) => { travail.expireLe = v; }, 'Valable jusqu’au') })),
       ligne('Début des travaux le ', valeurSurPlace({ etiquette: 'Début des travaux le ', nom: 'debutTravaux', texte: () => jourFr(travail.chantier?.debutTravaux), champs: champDate('debutTravaux', () => travail.chantier?.debutTravaux, ecrireChantier('debutTravaux'), 'Début des travaux') })),

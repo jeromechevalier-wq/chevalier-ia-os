@@ -27,7 +27,7 @@ export const ID_SECTION_DEBUT = 'sec-debut';
 export const TYPE_LIGNE_LIBRE = 'libre';
 /** Champs du devis que l'éditeur enregistre (jamais numéro, statut, version, totaux… : ils sont protégés). */
 export const CHAMPS_ENREGISTRES = Object.freeze([
-  'affaireId', 'organisationId', 'personneId', 'adresses', 'chantier', 'destinataires', 'copie', 'objet', 'sections', 'remise', 'marge', 'modeMarge',
+  'affaireId', 'organisationId', 'personneId', 'adresses', 'chantier', 'destinataires', 'copie', 'nom', 'objet', 'sections', 'remise', 'marge', 'modeMarge',
   'tauxTvaDefaut', 'acompte', 'acomptes', 'modesPaiement', 'texteLibre', 'notesBasDePage', 'expireLe', 'dateEmission', 'ajustement', 'affichage', 'autoliquidation', 'dechets',
 ]);
 export const AVERTISSEMENTS = Object.freeze({

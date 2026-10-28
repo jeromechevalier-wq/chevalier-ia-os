@@ -70,7 +70,7 @@ export async function archiver(d, archive) {
 /** Supprime un brouillon après confirmation. Le serveur refuse tout autre statut ; la copie « avant » reste dans le journal. `apres` : appelée une fois supprimé. */
 export async function supprimerBrouillon(d, apres = () => {}) {
   if (d.statut !== 'brouillon') return;
-  const nom = d.objet?.trim() || nomsDe(d).client || 'ce brouillon';
+  const nom = d.nom?.trim() || d.objet?.trim() || nomsDe(d).client || 'ce brouillon';
   const ok = await confirmer('Supprimer ce brouillon ?', `« ${nom} » sera supprimé. Un devis supprimé ne se retrouve pas dans la liste (seul le journal en garde une copie).`, { libelleOk: 'Supprimer', danger: true });
   if (!ok) return;
   try {

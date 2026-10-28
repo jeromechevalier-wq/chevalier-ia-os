@@ -374,3 +374,25 @@ describe('L1 export des données du module Devis', () => {
   });
 });
 
+
+describe('3 nom interne du devis (distinct de l’objet imprimé)', () => {
+  test('3a un devis neuf porte le nom nettoyé (80 caractères au plus, accents gardés) ; sans nom, aucun champ', () => {
+    const d = D.nouveauDevis({ affaireId: 'a1', nom: `  Variante   économique été ${'é'.repeat(100)}` }, ctx(), reglages);
+    assert.ok(d.nom.startsWith('Variante économique été é'));
+    assert.equal(d.nom.length, D.NOM_DEVIS_MAX);
+    assert.equal('nom' in D.nouveauDevis({ affaireId: 'a1' }, ctx(), reglages), false);
+    assert.equal(D.nettoyerNomDevis(undefined), '');
+  });
+  test('3c le nom n’est JAMAIS dans la vue client ni dans le HTML imprimé (l’objet, lui, y est)', async () => {
+    const { htmlDuDevis } = await import('../js/modules/devis/html-devis.js');
+    const d = devisType({ nom: 'Nom interne secret', objet: 'Rénovation de la cuisine' });
+    assert.doesNotMatch(JSON.stringify(D.vueClient(d, { clientNom: 'Mme Dupont' })), /Nom interne secret/);
+    const html = htmlDuDevis(d, { clientNom: 'Mme Dupont' });
+    assert.doesNotMatch(html, /Nom interne secret/);
+    assert.match(html, /Rénovation de la cuisine/);
+  });
+  test('3 une nouvelle version copie le nom', () => {
+    const v2 = D.nouvelleVersion(devisType({ nom: 'Variante A', statut: 'envoye', numero: 'DEV-001' }), { id: 'd2', creeLe: new Date('2026-10-25T10:00:00Z') });
+    assert.equal(v2.nom, 'Variante A');
+  });
+});

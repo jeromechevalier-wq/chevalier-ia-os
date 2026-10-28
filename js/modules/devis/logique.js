@@ -685,6 +685,10 @@ export function erreursEmetteur(emetteur, { metierBatiment } = {}) {
 
 /** Nombre maximum d'adresses e-mail en copie d'un devis (écran et serveur). */
 export const MAX_COPIE = 10;
+/** Nom INTERNE d'un devis (écran, listes, recherche) : distinct de `objet`, qui est imprimé sur le PDF ; jamais dans `vueClient`. */
+export const NOM_DEVIS_MAX = 80;
+/** Texte d'un nom de devis : espaces nettoyés, au plus NOM_DEVIS_MAX caractères (accents conservés). */
+export const nettoyerNomDevis = (v) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, NOM_DEVIS_MAX);
 
 /** Liste de messages (en français, qui disent quoi faire). Vide = on peut finaliser. Aucun accès réseau ni base. */
 export function erreursFinalisation(devis) {
@@ -750,6 +754,7 @@ export function nouveauDevis(valeurs = {}, ctx = {}, reglages = {}) {
     affaireId: valeurs.affaireId || null,
     personneId: valeurs.personneId || null,
     organisationId: valeurs.organisationId || null,
+    ...(nettoyerNomDevis(valeurs.nom) ? { nom: nettoyerNomDevis(valeurs.nom) } : {}),
     adresses: valeurs.adresses ?? { commanditaire: null, facturation: null, chantier: null },
     destinataires: valeurs.destinataires ?? [],
     copie: valeurs.copie ?? [],

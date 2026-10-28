@@ -131,13 +131,13 @@ export function filtrer(liste, { statuts = [], du = '', au = '', aujourdhui } = 
 
 const sansAccent = (t) => String(t ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
-/** Recherche sur le numéro, le client et l'affaire (sans accent ni majuscule ; chaque mot doit se retrouver). `noms(d)` rend { client, affaire }. */
+/** Recherche sur le numéro, le nom interne, le client et l'affaire (sans accent ni majuscule ; chaque mot doit se retrouver). `noms(d)` rend { client, affaire }. */
 export function rechercher(liste, texte, noms = () => ({})) {
   const mots = sansAccent(texte).split(/\s+/).filter(Boolean);
   if (!mots.length) return liste;
   return liste.filter((d) => {
     const n = noms(d) ?? {};
-    const botte = sansAccent(`${d.numero ?? ''} ${n.client ?? ''} ${n.affaire ?? ''}`);
+    const botte = sansAccent(`${d.numero ?? ''} ${d.nom ?? ''} ${n.client ?? ''} ${n.affaire ?? ''}`);
     return mots.every((m) => botte.includes(m));
   });
 }
