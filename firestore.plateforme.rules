@@ -103,10 +103,20 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Fiches des fichiers déposés dans l'onglet « Documents » (28/10/2026) : les membres LISENT ; l'écriture est réservée au SERVEUR (fonctions documentDeposer, documentSupprimer,
+    // outils MCP), même pour un éditeur : sinon il pourrait y inscrire un chemin quelconque du stockage, que documentLien signerait ensuite.
+    function collectionDesDocuments(collection) {
+      return collection in ['documents_stockes'];
+    }
+    match /clients/{client}/documents_stockes/{id} {
+      allow read: if roleDe(client) in ['editeur', 'lecteur'];
+      allow write: if false;
+    }
+
     // Les données du client (tout sauf les fiches d'appartenance, traitées ci-dessus).
     match /clients/{client}/{collection}/{reste=**} {
       allow read: if collection != 'membres' && collection != 'devis_compteurs' && collection != 'crm_actions_lancements' && roleDe(client) in ['editeur', 'lecteur'];
-      allow write: if collection != 'membres' && !collectionDuJournal(collection) && !collectionDuTableauDeBord(collection) && !collectionSansSuppression(collection) && !collectionDesDevis(collection) && roleDe(client) == 'editeur';
+      allow write: if collection != 'membres' && !collectionDesDocuments(collection) && !collectionDuJournal(collection) && !collectionDuTableauDeBord(collection) && !collectionSansSuppression(collection) && !collectionDesDevis(collection) && roleDe(client) == 'editeur';
     }
 
     // Tout le reste (racine, autres collections) : refusé.

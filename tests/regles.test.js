@@ -27,7 +27,8 @@ const COLLECTIONS_SERVEUR = ['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp
 // Tableau de bord : lisible par les deux comptes, jamais modifiable depuis un navigateur (les écritures passent par les fonctions).
 const COLLECTIONS_TABLEAU = ['tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes'];
 // File « À valider » des automatisations : mêmes droits que le tableau de bord (lecture oui, écriture non).
-const COLLECTIONS_AUTOMATISATIONS = ['automatisations_propositions'];
+// + documents_stockes (fiches des fichiers de l'onglet « Documents », 28/10/2026) : lecture oui, écriture jamais depuis un navigateur.
+const COLLECTIONS_AUTOMATISATIONS = ['automatisations_propositions', 'documents_stockes'];
 const COMPTES = ['jerome.chevalier@gmail.com', 'jeromebot.chevalierbot@gmail.com'];
 
 let env;

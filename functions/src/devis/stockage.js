@@ -68,6 +68,33 @@ export function cheminAppartientALEspace(chemin, espace = '') {
   return typeof chemin === 'string' && MOTIF_ESPACE.test(espace) && chemin.startsWith(`${espace}devis/`) && !chemin.includes('..') && chemin.endsWith('.pdf');
 }
 
+/** Un morceau de chemin pour l'identifiant d'une affaire ou d'un projet (mêmes caractères que `morceau`). */
+const segmentCible = (v) => String(v ?? '').replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 120);
+
+/**
+ * Chemin Storage d'un fichier déposé dans l'onglet « Documents » : <espace>documents/<affaire|projet>/<id>/<uuid>-<nom>. `espace` : '' ou 'clients/<client>/'.
+ * Chaque fichier est rattaché à son affaire ou projet par son chemin (des droits plus fins par fiche pourront s'y appuyer un jour). Le nom est déjà nettoyé (fichiers-regles.js) ;
+ * le préfixe uuid rend le chemin unique et impossible à deviner.
+ */
+export function cheminDocument({ espace = '', cibleType, cibleId, uuid, nom }) {
+  if (!MOTIF_ESPACE.test(espace)) throw new Error('Stockage : espace invalide.');
+  if (!['affaire', 'projet'].includes(cibleType)) throw new Error('Stockage : cible invalide.');
+  if (!/^[0-9a-f-]{36}$/.test(String(uuid))) throw new Error('Stockage : identifiant de fichier invalide.');
+  const fichier = nettoyerNom(nom).replace(/\.{2,}/g, '.');
+  if (!fichier || fichier === '.') throw new Error('Stockage : nom de fichier invalide.');
+  return `${espace}documents/${cibleType}/${segmentCible(cibleId) || 'sans-id'}/${uuid}-${fichier}`;
+}
+
+/**
+ * Ce chemin est-il bien celui d'un document de CET espace, rattaché à CETTE cible ? (contrôle avant de signer un lien). Il ne reprend PAS cheminAppartientALEspace (qui exige devis/ et .pdf).
+ * `cibleType` et `cibleId` viennent de la fiche lue côté serveur, jamais de la demande.
+ */
+export function cheminDocumentAppartientALEspace(chemin, espace = '', { cibleType, cibleId } = {}) {
+  if (typeof chemin !== 'string' || !MOTIF_ESPACE.test(espace) || !['affaire', 'projet'].includes(cibleType) || typeof cibleId !== 'string' || !cibleId) return false;
+  const debut = `${espace}documents/${cibleType}/${segmentCible(cibleId)}/`;
+  return chemin.startsWith(debut) && chemin.length > debut.length && !chemin.includes('..') && !chemin.slice(debut.length).includes('/');
+}
+
 /**
  * Stockage réel autour d'un `bucket` de firebase-admin (ou d'un faux pour les essais).
  * Les messages d'erreur commencent par « Stockage : » : ils sont écrits pour être lus et ne contiennent ni chemin ni jeton.
@@ -83,6 +110,15 @@ export function creerStockage({ bucket, maintenant = Date.now }) {
         throw new Error('Stockage : le PDF n\'a pas pu être enregistré.', { cause: e });
       }
     },
+    /** Dépose un fichier quelconque (onglet « Documents »). `typeMime` : celui tiré de l'extension par fichiers-regles.js, jamais celui du navigateur. */
+    async deposer(chemin, octets, typeMime) {
+      if (!octets || !octets.length) throw new Error('Stockage : fichier vide.');
+      try {
+        await bucket.file(chemin).save(octets, { contentType: typeMime || 'application/octet-stream', resumable: false, metadata: { cacheControl: 'private, max-age=0, no-store' } });
+      } catch (e) {
+        throw new Error('Stockage : le fichier n\'a pas pu être enregistré.', { cause: e });
+      }
+    },
     /** Supprime un fichier (déjà absent = rien à faire). */
     async supprimer(chemin) {
       try { await bucket.file(chemin).delete({ ignoreNotFound: true }); } catch (e) { throw new Error('Stockage : le fichier n\'a pas pu être supprimé.', { cause: e }); }
@@ -94,14 +130,17 @@ export function creerStockage({ bucket, maintenant = Date.now }) {
     async taille(chemin) {
       try { const [meta] = await bucket.file(chemin).getMetadata(); const n = Number(meta?.size); return Number.isFinite(n) && n >= 0 ? n : null; } catch { return null; }
     },
-    /** Lien de lecture signé, valable `minutes` minutes (5 par défaut). `telecharger: true` : le navigateur enregistre le fichier (attachment) au lieu de l'afficher (inline). */
-    async lienSigne(chemin, { minutes = DUREE_LIEN_MINUTES, nomAffiche = '', telecharger = false } = {}) {
+    /**
+     * Lien de lecture signé, valable `minutes` minutes (5 par défaut). `telecharger: true` : le navigateur enregistre le fichier (attachment) au lieu de l'afficher (inline).
+     * `typeMime` : type servi (PDF par défaut, comme les devis). Le nom affiché perd ses accents (« _ ») dans l'en-tête : le navigateur propose un nom simplifié au téléchargement.
+     */
+    async lienSigne(chemin, { minutes = DUREE_LIEN_MINUTES, nomAffiche = '', telecharger = false, typeMime = 'application/pdf' } = {}) {
       const disposition = telecharger ? 'attachment' : 'inline';
       try {
         const [url] = await bucket.file(chemin).getSignedUrl({
           version: 'v4', action: 'read', expires: maintenant() + minutes * 60_000,
           ...(nomAffiche ? { responseDisposition: `${disposition}; filename="${nettoyerNom(nomAffiche).replace(/["\u0080-￿]/g, '_')}"` } : {}),
-          responseType: 'application/pdf',
+          responseType: typeMime,
         });
         return url;
       } catch (e) {

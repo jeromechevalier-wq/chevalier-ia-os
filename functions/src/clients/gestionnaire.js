@@ -37,7 +37,7 @@ export function outilsSelonOptions(outils, options) {
 }
 
 /** `oauth` : creerRouteurOauthClients(). `limiteur` : plafonds par jeton (securite/limites.js, sur la base brute : clé « <client>__<acteur> »). */
-export function creerGestionnaireClients({ donnees, oauth, limiteur = null, outils = OUTILS, journal = journaliser, maintenant = () => Date.now() }) {
+export function creerGestionnaireClients({ donnees, oauth, limiteur = null, stockage = null, outils = OUTILS, journal = journaliser, maintenant = () => Date.now() }) {
   return async function gestionnaire(req, res) {
     const debut = maintenant();
     const infos = {};
@@ -76,6 +76,6 @@ export function creerGestionnaireClients({ donnees, oauth, limiteur = null, outi
     }
     const proposes = outilsSelonOptions(outilsDesModules(jeton.actifs ?? [], outils), options);
     Object.assign(infos, { jeton: jeton.jeton, acteur: jeton.acteur, profil: jeton.profil, role: jeton.role }, descriptionAppel(req.body, proposes));
-    return servirMcp({ req, res, infos, jeton, outils: proposes, donnees: donneesClient, limiteur, maintenant, nomServeur: NOM_SERVEUR_CLIENT });
+    return servirMcp({ req, res, infos, jeton, outils: proposes, donnees: donneesClient, limiteur, maintenant, nomServeur: NOM_SERVEUR_CLIENT, stockage });
   };
 }

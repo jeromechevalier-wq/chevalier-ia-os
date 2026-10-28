@@ -114,7 +114,7 @@ export const lister_activites = {
 export const lister_documents = {
   nom: 'lister_documents',
   profils: TOUS,
-  description: "Liste les documents joints aux affaires et aux projets (libellé, adresse, favori), tout ou une seule affaire (affaireId) ou un seul projet (projetId), pour contrôler les liens.",
+  description: "Liste les documents joints aux affaires et aux projets, tout ou une seule affaire (affaireId) ou un seul projet (projetId) : les LIENS (documents : libellé, adresse, favori, index) pour les contrôler, et les FICHIERS déposés chez nous dans l'onglet « Documents » (fichiers : id, nom, taille, date, qui l'a déposé ; l'id désigne le fichier pour le mettre à la corbeille).",
   schema: { affaireId: id.optional(), projetId: id.optional() },
   executer: ({ args, donnees }) => lecture.listerDocuments(donnees, args),
 };

@@ -21,7 +21,7 @@ const arrets = [];
 afterEach(async () => { while (arrets.length) await arrets.pop()(); });
 
 /** Démarre un serveur MCP complet (jetons, plafonds, moteur d'écriture) sur des données fraîches. */
-async function demarrer({ limites = {}, jetonsExtra = {} } = {}) {
+async function demarrer({ limites = {}, jetonsExtra = {}, stockage = null } = {}) {
   const collections = structuredClone(base);
   collections.crm_parametres.push(structuredClone(REGLAGES), { id: 'offres', items: [{ id: 'o1', nom: 'Site vitrine', ordre: 1 }] });
   const donnees = creerAccesMemoire(collections);
@@ -34,7 +34,7 @@ async function demarrer({ limites = {}, jetonsExtra = {} } = {}) {
   ]);
   const magasin = creerMagasin({ lire: async () => secret, dureeCacheMs: 0 });
   const limiteur = creerLimiteur({ donnees, maintenant: () => horloge.t });
-  const gestionnaire = creerGestionnaire({ magasin, donnees, limiteur, maintenant: () => horloge.t, journal: (e) => lignesJournal.push(e) });
+  const gestionnaire = creerGestionnaire({ magasin, donnees, limiteur, stockage, maintenant: () => horloge.t, journal: (e) => lignesJournal.push(e) });
   const serveur = createServer((req, res) => {
     const m = [];
     req.on('data', (x) => m.push(x));
@@ -1235,5 +1235,66 @@ describe('O9 outils du bordereau : un ouvrage se crée avec ses composants et se
     refuse(await s.appeler('biblio', 'creer_article', { libelle: 'Sans prix', type: 'fourniture' }), /prix d’achat/);
     refuse(await s.appeler('biblio', 'creer_article', { libelle: 'Faux', type: 'fourniture', prixAchat: 1, composants: [{ articleId: a, quantite: 1 }] }), /Seul un article de type/);
     refuse(await s.appeler('lecteur', 'creer_article', { libelle: 'X', type: 'ouvrage', composants: [{ articleId: a, quantite: 1 }] }));
+  });
+});
+
+// ---------------------------------------------------------------- R : fichiers de l'onglet « Documents » par le MCP (texte seulement)
+describe('R. deposer_document, supprimer_document_stocke, lister_documents (fichiers)', () => {
+  const fauxStockage = ({ refus = null } = {}) => {
+    const objets = new Map();
+    return { objets, deposer: async (chemin, octets, type) => { if (refus) throw refus; objets.set(chemin, { octets, type }); }, supprimer: async (c) => { objets.delete(c); } };
+  };
+  test('R1 dépôt d’un texte : fiche + fichier sous l’espace, journal, listé, jamais de chemin dans la réponse', async () => {
+    const st = fauxStockage();
+    const s = await demarrer({ stockage: st });
+    const r = ok(await s.appeler('biblio', 'deposer_document', { affaireId: 'a1', nom: 'compte-rendu é.md', contenuTexte: '# Réunion\nok' }));
+    assert.equal(r.nom, 'compte-rendu é.md');
+    const fiche = s.doc('documents_stockes', r.id);
+    assert.equal(fiche.cibleId, 'a1');
+    assert.match(fiche.chemin, /^documents\/affaire\/a1\/[0-9a-f-]{36}-compte-rendu é\.md$/);
+    assert.equal(st.objets.get(fiche.chemin).type, 'text/markdown');
+    assert.ok(s.collections.crm_audit.some((l) => l.outil === 'deposer_document' && l.docId === r.id));
+    const liste = ok(await s.appeler('biblio', 'lister_documents', { affaireId: 'a1' }));
+    assert.equal(liste.fichiers.length, 1);
+    assert.equal(liste.fichiers[0].nom, 'compte-rendu é.md');
+    assert.ok(!JSON.stringify(liste).includes('chemin'));
+    assert.equal(ok(await s.appeler('biblio', 'lister_documents', { affaireId: 'a2' })).fichiers.length, 0);
+  });
+  test('R2 refus : PDF/image (message vers l’écran), type interdit, trop long, cible inconnue, lecteur, stockage absent, droit manquant', async () => {
+    const s = await demarrer({ stockage: fauxStockage() });
+    refuse(await s.appeler('biblio', 'deposer_document', { affaireId: 'a1', nom: 'x.pdf', contenuTexte: '%PDF' }), /onglet « Documents »/);
+    refuse(await s.appeler('biblio', 'deposer_document', { affaireId: 'a1', nom: 'x.exe', contenuTexte: 'MZ' }), /seuls les fichiers texte/);
+    refuse(await s.appeler('biblio', 'deposer_document', { affaireId: 'a1', nom: 'x.txt', contenuTexte: 'a'.repeat(65 * 1024) }), /trop long/);
+    refuse(await s.appeler('biblio', 'deposer_document', { affaireId: 'inconnue', nom: 'x.txt', contenuTexte: 'a' }), /introuvable/i);
+    refuse(await s.appeler('biblio', 'deposer_document', { nom: 'x.txt', contenuTexte: 'a' }), /affaireId ou projetId/);
+    refuse(await s.appeler('lecteur', 'deposer_document', { affaireId: 'a1', nom: 'x.txt', contenuTexte: 'a' }));
+    assert.equal((s.collections.documents_stockes ?? []).length, 0);
+    const sans = await demarrer();
+    refuse(await sans.appeler('biblio', 'deposer_document', { affaireId: 'a1', nom: 'x.txt', contenuTexte: 'a' }), /stockage/i);
+    const droit = await demarrer({ stockage: fauxStockage({ refus: Object.assign(new Error('x'), { code: 403 }) }) });
+    refuse(await droit.appeler('biblio', 'deposer_document', { affaireId: 'a1', nom: 'x.txt', contenuTexte: 'a' }), /pas le droit/);
+    assert.equal((droit.collections.documents_stockes ?? []).length, 0);
+  });
+  test('R3 supprimer_document_stocke : aperçu puis code, corbeille logique (fichier intact), restaurable ; retirer_document n’y touche pas', async () => {
+    const st = fauxStockage();
+    const s = await demarrer({ stockage: st });
+    const r = ok(await s.appeler('code', 'deposer_document', { affaireId: 'a1', nom: 'n.txt', contenuTexte: 'bonjour' }));
+    refuse(await s.appeler('biblio', 'supprimer_document_stocke', { id: r.id }));
+    const apercu = ok(await s.appeler('code', 'supprimer_document_stocke', { id: r.id }));
+    assert.equal(apercu.apercu, true);
+    assert.equal(s.doc('documents_stockes', r.id).supprimeLe, null);
+    refuse(await s.appeler('code', 'supprimer_document_stocke', { id: r.id, codeConfirmation: 'FAUX' }), /code incorrect/);
+    const a2 = ok(await s.appeler('code', 'supprimer_document_stocke', { id: r.id }));
+    const fait = ok(await s.appeler('code', 'supprimer_document_stocke', { id: r.id, codeConfirmation: a2.code }));
+    assert.equal(fait.supprime, true);
+    assert.ok(s.doc('documents_stockes', r.id).supprimeLe, 'corbeille logique');
+    assert.equal(st.objets.size, 1, 'le fichier ne bouge pas');
+    assert.equal(ok(await s.appeler('code', 'lister_documents', { affaireId: 'a1' })).fichiers.length, 0);
+    const defait = ok(await s.appeler('code', 'restaurer_depuis_audit', { operationId: fait.operationId, apercu: false }));
+    assert.equal(defait.restauree, true);
+    assert.equal(s.doc('documents_stockes', r.id).supprimeLe, null);
+    assert.equal(ok(await s.appeler('code', 'lister_documents', { affaireId: 'a1' })).fichiers.length, 1);
+    refuse(await s.appeler('code', 'retirer_document', { affaireId: 'a1', index: 3 }));
+    assert.equal(s.doc('documents_stockes', r.id).supprimeLe, null);
   });
 });

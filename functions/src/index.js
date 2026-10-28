@@ -23,6 +23,7 @@ import { creerAppelDevis, ligneDeJournalDevis } from './devis-appel.js';
 import { onDocumentUpdated } from 'firebase-functions/v2/firestore';
 import { creerAppelDevisPdf, creerAppelDevisPdfLien, ligneDeJournalDevisPdf } from './devis/pdf-appel.js';
 import { creerDeclencheurPdf } from './devis/pdf-declencheur.js';
+import { creerAppelDocument, ligneDeJournalDocuments } from './documents/appel.js';
 import { stockageDuProjet, bucketDuProjet } from './devis/stockage-projet.js';
 import { creerSortieN8n } from './coeur/n8n-sortie.js';
 import { creerAppelPreparerEmail, creerAppelEtatPreparerEmail } from './devis-email-appel.js';
@@ -49,7 +50,7 @@ export const mcp = onRequest(
     // Compte dédié : seulement « Utilisateur Cloud Datastore » (Firestore) et « Accesseur de secrets » sur MCP_JETONS.
     serviceAccount: 'mcp-serveur@chevalier-ia-os.iam.gserviceaccount.com',
   },
-  creerGestionnaire({ magasin, donnees, limiteur, oauth }),
+  creerGestionnaire({ magasin, donnees, limiteur, oauth, stockage: stockageDuProjet }),
 );
 
 export const porte = onRequest(
@@ -161,6 +162,19 @@ export const devisPdfAuto = onDocumentUpdated(
     })(evenement);
   },
 );
+
+// Onglet « Documents » (28/10/2026) : fichiers déposés dans une affaire ou un projet, rangés dans Cloud Storage du projet (documents/<affaire|projet>/<id>/…, jamais publics) avec une fiche
+// `documents_stockes` écrite par le serveur seulement. Aucune règle Storage ne change (le navigateur n'y accède jamais : le dépôt et la lecture passent par ces fonctions, la lecture par un lien
+// signé de 5 minutes). Même compte de service que les PDF. Le dépôt reçoit le fichier en base64 (corps d'appel ~32 Mo au plus : 20 Mo de fichier) : il lui faut plus de mémoire et de temps que les devis.
+const OPTIONS_DOCUMENT_DEPOT = { ...OPTIONS_DEVIS, memory: '1GiB', timeoutSeconds: 300, concurrency: 2, maxInstances: 2 };
+const journalDocuments = (e) => process.stdout.write(`${ligneDeJournalDocuments(e)}\n`);
+const appelDocument = (operation, options) => onCall(options, (requete) => {
+  if (!getApps().length) initializeApp();
+  return creerAppelDocument(operation, { donnees: () => creerAccesFirestore(), stockage: stockageDevis, journal: journalDocuments })(requete);
+});
+export const documentDeposer = appelDocument('deposer', OPTIONS_DOCUMENT_DEPOT);
+export const documentLien = appelDocument('lien', OPTIONS_DEVIS);
+export const documentSupprimer = appelDocument('supprimer', OPTIONS_DEVIS);
 
 // `deploiementVerifier` (25/10/2026) : contrôles du serveur pour la page Réglages > Déploiement (« les fonctions répondent », « les personnes autorisées »).
 // Mêmes comptes que les devis ; même région, limites et compte de service ; AUCUN secret déclaré (un secret absent ferait échouer tout le déploiement), rien n'est écrit.

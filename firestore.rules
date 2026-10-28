@@ -97,10 +97,17 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Fiches des fichiers déposés dans l'onglet « Documents » (28/10/2026) : les comptes autorisés LISENT ; l'écriture est réservée au SERVEUR (fonctions documentDeposer,
+    // documentSupprimer, outils MCP), jamais au navigateur : sinon on pourrait y inscrire un chemin quelconque du stockage, que documentLien signerait ensuite.
+    match /documents_stockes/{id} {
+      allow read: if compteAutorise();
+      allow write: if false;
+    }
+
     // Tout le reste : comme avant (les deux comptes autorisés), sauf les collections ci-dessus.
     match /{collection}/{document=**} {
       allow read, write: if compteAutorise()
-        && !(collection in ['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions', 'devis_devis', 'devis_compteurs', 'devis_articles', 'crm_actions_lancements']);
+        && !(collection in ['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions', 'devis_devis', 'devis_compteurs', 'devis_articles', 'crm_actions_lancements', 'documents_stockes']);
     }
   }
 }

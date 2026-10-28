@@ -12,6 +12,7 @@ import { nouveauDevis } from '../functions/partage/devis.js';
 process.env.GCLOUD_PROJECT = 'demo-chevalier-ia-os';
 const { fabriquerPdfClient, lienPdfClient, creerDeclencheurPdfClient, BASE_LIEN_PLATEFORME } = await import('../functions-plateforme/src/devis-pdf.js');
 const { Refus } = await import('../functions-plateforme/src/appels.js');
+const { appelDocument } = await import('../functions-plateforme/src/documents.js');
 
 const ALICE = 'alice@exemple.test'; // éditrice chez a (module devis actif)
 const LEA = 'lea@exemple.test'; // lectrice chez a
@@ -346,5 +347,86 @@ describe('D7 branchement (lecture du code) : comptes, options, copie, secrets', 
     const script = lireFichier('scripts/preparer-fonctions.js');
     assert.match(script, /\['pdf-service\.js', 'pdf-declencheur\.js', 'chromium\.js', 'stockage\.js'\]/);
     assert.doesNotMatch(script.replace(/\/\/.*$/gm, ''), /'devis'\]|pdf-appel\.js'|stockage-projet\.js'/);
+  });
+});
+
+// ---------------------------------------------------------------- R : fichiers de l'onglet « Documents » chez un client (documentDeposer, documentLien, documentSupprimer)
+describe('R plateforme : fichiers déposés, rôles et cloisonnement entre clients', () => {
+  const PDF = Buffer.from('%PDF-1.4\n%%EOF');
+  const b64 = (b) => Buffer.from(b).toString('base64');
+  function mondeDocs() {
+    const collections = {};
+    for (const c of ['a', 'b', 'c']) {
+      Object.assign(collections, {
+        [`clients/${c}/crm_affaires`]: [{ id: 'aff1', titre: 'A' }], [`clients/${c}/documents_stockes`]: [], [`clients/${c}/crm_audit`]: [], [`clients/${c}/crm_audit_avant`]: [], [`clients/${c}/crm_parametres`]: [],
+      });
+    }
+    const brut = creerAccesMemoire(collections);
+    const objets = new Map();
+    const signes = [];
+    const stockage = {
+      deposer: async (chemin, octets, type) => { objets.set(chemin, type); },
+      supprimer: async (chemin) => { objets.delete(chemin); },
+      lienSigne: async (chemin, o) => { signes.push({ chemin, ...o }); return 'https://stockage.exemple.test/signe'; },
+    };
+    const appel = (operation, email, donnees, extra = {}) => appelDocument({
+      operation, db: fauxDb(), auth: auth(email), donnees, stockage, creerDonnees: (client) => avecBase(brut, `clients/${client}`), maintenant: () => MAINTENANT.getTime(), ...extra,
+    });
+    return { collections, objets, signes, appel };
+  }
+  const depot = { client: 'a', affaireId: 'aff1', nom: 'Plan.pdf', contenuBase64: b64(PDF), typeMime: 'application/pdf' };
+
+  test('R7 un éditeur dépose sous clients/<client>/documents/… ; un lecteur, un non-membre, un autre client, un non vérifié sont refusés avec le refus neutre', async () => {
+    const m = mondeDocs();
+    const r = await m.appel('deposer', ALICE, depot);
+    const fiche = m.collections['clients/a/documents_stockes'].find((f) => f.id === r.id);
+    assert.match(fiche.chemin, /^clients\/a\/documents\/affaire\/aff1\/[0-9a-f-]{36}-Plan\.pdf$/);
+    assert.equal(fiche.creePar, ALICE);
+    assert.ok(m.collections['clients/a/crm_audit'].some((l) => l.outil === 'documentDeposer'));
+    for (const [email, donnees] of [[LEA, depot], [BOB, depot], [ZOE, depot], ['inconnu@exemple.test', depot]]) {
+      await assert.rejects(() => m.appel('deposer', email, donnees), (e) => e instanceof Refus && e.message === 'Action non autorisée.', email);
+    }
+    await assert.rejects(() => appelDocument({ operation: 'deposer', db: fauxDb(), auth: auth(ALICE, false), donnees: depot, stockage: m.stockage }), (e) => e.code === 'unauthenticated');
+    await assert.rejects(() => m.appel('deposer', ALICE, { ...depot, client: 'interne' }), (e) => e.message === 'Action non autorisée.');
+    await assert.rejects(() => m.appel('deposer', ALICE, { ...depot, client: '../b' }), (e) => e.code === 'invalid-argument');
+    assert.equal(m.collections['clients/b/documents_stockes'].length, 0);
+    assert.equal(m.objets.size, 1);
+  });
+
+  test('R8 lien : éditeurs ET lecteurs lisent ; un autre client non ; une fiche pointant hors de clients/<client>/documents/ n’est jamais signée', async () => {
+    const m = mondeDocs();
+    const r = await m.appel('deposer', ALICE, depot);
+    const l1 = await m.appel('lien', LEA, { client: 'a', documentId: r.id });
+    assert.equal(l1.expireDans, 300);
+    assert.match(m.signes[0].chemin, /^clients\/a\/documents\//);
+    await m.appel('lien', ALICE, { client: 'a', documentId: r.id });
+    await assert.rejects(() => m.appel('lien', BOB, { client: 'a', documentId: r.id }), (e) => e.message === 'Action non autorisée.');
+    // chez b, une fiche inscrite à la main avec le chemin de a : jamais signée
+    m.collections['clients/b/documents_stockes'].push({ id: 'piege', cibleType: 'affaire', cibleId: 'aff1', nom: 'x.pdf', chemin: m.collections['clients/a/documents_stockes'][0].chemin, supprimeLe: null });
+    await assert.rejects(() => m.appel('lien', BOB, { client: 'b', documentId: 'piege' }), (e) => e.code === 'invalid-argument');
+    await assert.rejects(() => m.appel('lien', BOB, { client: 'b', documentId: r.id }), (e) => e.code === 'not-found');
+    assert.equal(m.signes.length, 2);
+  });
+
+  test('R9 suppression : éditeurs seulement (un lecteur est refusé), corbeille logique, journal', async () => {
+    const m = mondeDocs();
+    const r = await m.appel('deposer', ALICE, depot);
+    await assert.rejects(() => m.appel('supprimer', LEA, { client: 'a', documentId: r.id }), (e) => e.message === 'Action non autorisée.');
+    assert.equal(m.collections['clients/a/documents_stockes'][0].supprimeLe, null);
+    await m.appel('supprimer', ALICE, { client: 'a', documentId: r.id });
+    assert.ok(m.collections['clients/a/documents_stockes'][0].supprimeLe);
+    assert.equal(m.objets.size, 1);
+    assert.ok(m.collections['clients/a/crm_audit'].some((l) => l.outil === 'documentSupprimer'));
+  });
+
+  test('R10 le dépôt exige un module Affaires ou Projets actif ; erreurs métier traduites en refus lisibles', async () => {
+    const m = mondeDocs();
+    FICHES['clients/c'] = { modules: { devis: true } };
+    try {
+      await assert.rejects(() => m.appel('deposer', ZOE, { ...depot, client: 'c' }), (e) => e.message === 'Action non autorisée.');
+    } finally { FICHES['clients/c'] = { modules: { affaires: true } }; }
+    await assert.rejects(() => m.appel('deposer', ALICE, { ...depot, nom: 'virus.exe' }), (e) => e instanceof Refus && e.code === 'invalid-argument' && /exe/.test(e.message));
+    await assert.rejects(() => m.appel('deposer', ALICE, { ...depot, affaireId: 'inconnue' }), (e) => e.code === 'not-found');
+    assert.equal(m.objets.size, 0);
   });
 });

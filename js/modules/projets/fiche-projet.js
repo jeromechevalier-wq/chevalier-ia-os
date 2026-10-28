@@ -7,6 +7,7 @@ import {
   gabaritFiche, lienRetour, saisieEnCours, etatVide, planifier, boutonEtoile, iconeInfo,
 } from '../crm/composants.js';
 import { panneauActivite } from '../crm/activites.js';
+import { creerOngletFichiers } from '../crm/fichiers-onglet.js';
 import { creerLanceurs } from '../crm/lanceurs.js';
 import { retirerAvecAnnulation } from '../../os/retrait.js';
 import { sectionLiensEtDocuments } from '../crm/liens-documents.js';
@@ -29,6 +30,8 @@ export function rendreFicheProjet(conteneur, id) {
   let majSelecteurs = null; // met à jour l'affichage des cellules Personne / Organisation du Résumé (sans écrire)
   let majLiens = null; // redessine seulement les liens personne / organisation de l'en-tête
   let majFactures = null; // redessine la liste des factures seule, pendant une saisie dans le formulaire d'ajout
+  // Onglet « Documents » (fichiers rangés chez nous) : créé une fois pour la fiche, après les onglets existants.
+  const fichiers = creerOngletFichiers({ cibleType: 'projet', cibleId: id, surChangement: () => panneau?.majOngletsExternes() });
   let barrePhases = null; // la bande des phases sous le titre : redessinée seule quand la fiche n'est pas refaite (la liste « Phase » a le focus)
   let majTaches = null; // redessine la liste des livrables seule, quand on est en train de taper ailleurs dans la fiche
   const racine = h('div', { class: 'fiche-conteneur' });
@@ -169,11 +172,12 @@ export function rendreFicheProjet(conteneur, id) {
       panneauAffaireId = p.affaireId || null;
       panneau = panneauActivite({
         lien: { projetId: p.id }, liensCreation: () => P.liensProjet(D.projet(p.id) || p),
-        avecDocuments: true,
+        avecDocuments: true, ongletsExternes: () => [fichiers.onglet()],
         affaireLiee: panneauAffaireId ? { affaireId: panneauAffaireId, fusionnerNotes: (notes, notesAffaire) => P.notesDuProjet(notes, notesAffaire, p.id) } : null,
       });
     }
     panneau.majDocuments(documents);
+    panneau.majOngletsExternes();
     remplir(racine, gabaritFiche({ entete, gauche: [resume.element, taches.element, factures?.element].filter(Boolean), droite: panneau.element }));
   }
 
@@ -199,5 +203,5 @@ export function rendreFicheProjet(conteneur, id) {
   });
   reconstruire();
   const arrets = [D.surChangement(rafraichir), CRM.surChangement(rafraichir)];
-  return () => { arrets.forEach((f) => f()); panneau?.arreter(); };
+  return () => { arrets.forEach((f) => f()); panneau?.arreter(); fichiers.arreter(); };
 }
