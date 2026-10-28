@@ -9,6 +9,7 @@ let prefixe = '';
 /** Préfixe de route d'un client, ou '' pour le CRM de Jérôme. */
 export function definirPrefixe(p = '') {
   prefixe = String(p ?? '').split('/').filter(Boolean).join('/');
+  routeDeSuivi = typeof location === 'undefined' ? '' : routeCourante(); // le préfixe change la lecture de l'adresse : le suivi repart de la page actuelle
 }
 
 /** Route (sans le « # » ni le préfixe) lue dans une adresse de la forme #/…. Fonction pure, testée seule. */
@@ -47,11 +48,32 @@ export function naviguer(chemin, { remplacer = false } = {}) {
   const cible = lien(chemin);
   if (location.hash === cible) return;
   if (remplacer) {
-    history.replaceState(null, '', `${location.pathname}${location.search}${cible}`);
-    window.dispatchEvent(new HashChangeEvent('hashchange'));
+    remplacement = true;
+    try {
+      history.replaceState(null, '', `${location.pathname}${location.search}${cible}`);
+      window.dispatchEvent(new HashChangeEvent('hashchange'));
+    } finally { remplacement = false; } // même si la garde de sortie annule ce changement
   } else {
     location.hash = cible;
   }
+}
+
+// Route d'où l'on vient (sans le préfixe du client), pour qu'un écran puisse proposer « Retour » : '' tant qu'on n'a pas changé de page (ouverture directe, rechargement).
+// Une redirection (naviguer avec `remplacer`) ne compte pas : la page qu'elle remplace n'a jamais été « vue ».
+let remplacement = false;
+let routeAvant = '';
+let routeDeSuivi = typeof location === 'undefined' ? '' : routeCourante();
+
+/** La route de la page précédente (sans préfixe), ou '' si on ne sait pas. */
+export function routePrecedente() {
+  return routeAvant;
+}
+
+const abonnesAnnulation = new Set();
+/** `rappel()` est appelé quand la garde de sortie a arrêté une navigation (la personne a choisi « Rester »). Renvoie la fonction qui retire l'écouteur. */
+export function surNavigationAnnulee(rappel) {
+  abonnesAnnulation.add(rappel);
+  return () => abonnesAnnulation.delete(rappel);
 }
 
 export function surChangementRoute(rappel) {
@@ -141,7 +163,16 @@ if (typeof window !== 'undefined') {
     if (quitter) {
       sortieConfirmee = true;
       location.hash = nouvelle;
+    } else {
+      for (const f of abonnesAnnulation) f();
     }
+  });
+  // Enregistré APRÈS la garde : une navigation annulée par la garde n'arrive pas jusqu'ici. Avant les écouteurs de la coque : routePrecedente() est déjà à jour quand un module est affiché.
+  window.addEventListener('hashchange', () => {
+    const maintenant = routeCourante();
+    if (!remplacement) routeAvant = routeDeSuivi;
+    remplacement = false;
+    routeDeSuivi = maintenant;
   });
   window.addEventListener('beforeunload', (e) => { if (gardeActive()) { e.preventDefault(); e.returnValue = ''; } });
 }

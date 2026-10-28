@@ -9,6 +9,7 @@ import { routeApresPdfSupprime } from './pdf.js';
 import { annulerAttentesPdf } from './pdf-actions.js';
 import { reglages as reglagesDuModule } from './reglages.js';
 import { retenirDevis } from './memoire.js';
+import { noterArrivee, oublierOrigine } from './origine.js';
 import * as CRM from '../crm/donnees.js';
 import { inscrirePastilleAffaire, inscrireOngletAffaire, inscrireActionAffaire, signaler } from '../crm/pastilles-externes.js';
 import { pastilleDevisDeAffaire } from './pastille-affaire.js';
@@ -67,6 +68,7 @@ export function arreter() {
   retirerOnglet?.(); retirerOnglet = null;
   retirerAction?.(); retirerAction = null;
   oublierOnglets();
+  oublierOrigine();
   arretSignal?.(); arretSignal = null;
   signaler();
   D.arreter();
@@ -101,6 +103,7 @@ export function afficher(conteneur, segs) {
     naviguer('devis/bordereau', { remplacer: true });
     return quitter;
   }
+  noterArrivee(vue); // d'où l'on vient, pour la flèche « Retour » de l'éditeur
   if (vue === 'editeur') retenirDevis(segs[1]); // le Bordereau propose « Reprendre le devis en cours »
   const cle = vue === 'editeur' || vue === 'voir' ? `${vue}/${segs[1] ?? ''}` : vue; // un éditeur par devis
   if (montee?.cle === cle && conteneur.firstChild) return quitter; // même écran : rien à refaire
