@@ -277,6 +277,7 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 .contact-valeur .bouton-icone .icone { margin-top: 0; }
 @media (hover: none) { .contact-valeur .contact-modifier { opacity: 1; } }
 @media (max-width: 767px), (pointer: coarse) { .prop-contacts .prop-vide { min-height: 44px; } }
+@media (max-width: 767px), (pointer: coarse) { .contact-valeur .bouton-icone + .bouton-icone { margin-left: 12px; } } /* copier, crayon, croix : zones de clic de 44 px qui ne se recouvrent plus (le doigt tombe sur le bon bouton) */
 .resume { gap: var(--esp-4); }
 .ligne-creation { display: flex; align-items: center; gap: var(--esp-3); }
 .ligne-creation .champ { flex: 1; min-width: 0; }

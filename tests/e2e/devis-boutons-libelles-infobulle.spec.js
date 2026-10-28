@@ -61,10 +61,11 @@ test('1 envoyé : les boutons s’appellent « Devis signé » (jaune) et « Dev
   const refuse = racine(page).locator('[data-action="marquer-refuse"]');
   await expect(refuse).toHaveText('Devis refusé');
   await expect(racine(page).getByText('Marquer comme', { exact: false })).toHaveCount(0);
-  // Le bouton jaune est tout à droite : « Devis refusé » est à sa gauche.
-  const xRefuse = (await refuse.boundingBox()).x;
-  const xSigne = (await jaunes(page).boundingBox()).x;
-  expect(xRefuse).toBeLessThan(xSigne);
+  // Le bouton jaune est tout à droite : « Devis refusé » est à sa gauche. Sur téléphone la barre passe à la ligne : « Devis refusé » est alors au-dessus du jaune (il reste avant lui).
+  const bRefuse = await refuse.boundingBox();
+  const bSigne = await jaunes(page).boundingBox();
+  if (estTelephone(page) && bRefuse.y + bRefuse.height <= bSigne.y + 1) expect(bRefuse.y).toBeLessThan(bSigne.y);
+  else expect(bRefuse.x).toBeLessThan(bSigne.x);
   await capturer(page, info, '1-envoye-devis-signe-refuse', true);
   await jaunes(page).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Marquer signé' }).click(); // fenêtre de confirmation (27/10/2026)
