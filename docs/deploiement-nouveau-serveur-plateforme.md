@@ -289,7 +289,7 @@ Lignes de modules (seulement si le module est actif) :
 | Affaires (`js/modules/crm/deploiement.js`) | Dossier Google Drive racine des projets choisi | API Drive et Picker activées, adresse du site autorisée |
 | Devis (`js/modules/devis/deploiement.js`) | « Mon entreprise » complète ; étape où vivent les devis ; catalogue rempli | Catalogue et anciens devis rassemblés, « Préparer l'e-mail » branché, essai de bout en bout, `liste mes devis` vérifié |
 
-Les deux contrôles du serveur (`CONTROLES_SERVEUR` = `fonctions`, `membres`, dans `functions/src/coeur/deploiement.js`) sont les seuls qui passent par le serveur. La page ne vérifie **pas** : les comptes de service et leurs droits, les secrets, les déclencheurs Eventarc, les APIs. C'est pour cela que ce document existe : une page toute verte ne prouve pas que le PDF marche, l'étape 20 le prouve.
+Les deux contrôles du serveur (`CONTROLES_SERVEUR` = `fonctions`, `membres`, `pdf-stockage`, `pdf-fonctions`, dans `functions/src/coeur/deploiement.js`) sont les seuls qui passent par le serveur. La page ne vérifie **pas** : les comptes de service et leurs droits, les secrets, les déclencheurs Eventarc, les APIs. C'est pour cela que ce document existe : une page toute verte ne prouve pas que le PDF marche, l'étape 20 le prouve.
 
 ---
 
@@ -300,8 +300,8 @@ Les deux contrôles du serveur (`CONTROLES_SERVEUR` = `fonctions`, `membres`, da
 - [ ] **Connexion** : ouvre `<SITE>/espace/<CLIENT>` avec ton compte Google ; tu vois ton espace.
 - [ ] **Finaliser un devis** (sur une affaire de test : créer un devis, **Finaliser**). Attention : un devis finalisé a un vrai numéro et ne se supprime plus (il s'archive).
 - [ ] **PDF** : au bout de quelques secondes (jusqu'à une minute à froid), le PDF est prêt (onglet « Devis » de l'affaire). Console Firestore : `clients/<CLIENT>/devis_devis/<id>` > champ `pdf.statut` passe par « en cours » puis « ok ».
-- [ ] **Lien de lecture** : ouvre le PDF depuis l'écran du devis (lien valable 5 minutes). Un lecteur de l'espace doit pouvoir l'ouvrir ; un devis d'un autre client reste inaccessible (« Action non autorisée. »).
-- [ ] **Télécharger** : sur l'écran du PDF (ouvert depuis le devis, « … » > « Télécharger le PDF »), « Télécharger » enregistre le PDF sur l'appareil (fonctions déployées après la PR « télécharger » du 27/10/2026).
+- [ ] **Lien de lecture** : ouvre le PDF depuis le menu « … » du devis (lien valable 5 minutes). Un lecteur de l'espace doit pouvoir l'ouvrir ; un devis d'un autre client reste inaccessible (« Action non autorisée. »).
+- [ ] **Télécharger** : menu « … » du devis > « Télécharger le PDF » enregistre le PDF sur l'appareil (fonctions déployées après la PR « télécharger » du 27/10/2026).
 - [ ] **MCP** : ajoute `<SITE>/mcp/<CLIENT>` dans Claude comme connecteur personnalisé, connecte-toi, demande `qui_suis_je`, puis « liste mes devis ». Le module `mcp` doit être allumé pour ce client (`activer-module <CLIENT> mcp --ecrire`). Non essayé en réel avec le vrai claude.ai au 26/10/2026.
 - [ ] **Mon espace** : Réglages > Mon espace : change le nom, enregistre, le menu change (fonction `espaceReglages`).
 - [ ] **Automatisations** (si activées) : l'écran se remplit après la copie horaire ou **Rafraîchir**.
