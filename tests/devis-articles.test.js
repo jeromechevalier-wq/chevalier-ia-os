@@ -218,6 +218,17 @@ describe('B7 les réglages s’enregistrent et se relisent', () => {
     assert.ok(r.erreurs['entreprise.mediateur.email']);
     assert.deepEqual(A.validerEntreprise({ adresse: '3 impasse X, 69000 Lyon' }).entreprise, { adresse: { ligne1: '3 impasse X, 69000 Lyon' } });
   });
+  test('15 logique : le groupe paiement (méthodes) est gardé à l\'enregistrement et à la lecture, nettoyé, avec IBAN et délai conservés sans être saisis', () => {
+    const e = A.validerEntreprise({ paiement: { modes: ['Virement', ' Chèque ', 'Virement', '', 5], autre: 'Paiement en trois fois', iban: 'FR76', delaiJours: 30 } });
+    assert.deepEqual(e.entreprise.paiement, { modes: ['Virement', 'Chèque', 'Paiement en trois fois'], iban: 'FR76', delaiJours: 30 });
+    assert.deepEqual(A.reglagesDevis({ entreprise: { paiement: { modes: ['Espèces'] } } }).entreprise, { paiement: { modes: ['Espèces'] } });
+    assert.deepEqual(A.validerEntreprise({ paiement: { modes: [], autre: '  ' } }).entreprise, {}); // rien de coché : le groupe n'existe pas
+    assert.deepEqual(A.reglagesDevis({}).entreprise, {}); // ancienne entreprise sans le champ : inchangée
+    assert.deepEqual(A.reglagesDevis({ entreprise: { paiement: 'texte' } }).entreprise, {});
+    assert.match(A.validerEntreprise({ paiement: { autre: 'x'.repeat(61) } }).erreurs['entreprise.paiement.autre'], /raccourcis/);
+    assert.deepEqual(A.validerEntreprise({ paiement: { modes: ['Virement'], autre: 'PayPal, Lydia' } }).entreprise.paiement.modes, ['Virement', 'PayPal', 'Lydia']); // migration d'anciens modes hors liste
+    assert.deepEqual(A.MODES_PAIEMENT, ['Carte bancaire', 'Virement', 'Chèque', 'Espèces', 'Prélèvement']);
+  });
   test('E3 logique : une donnée illisible dans la base est ignorée champ par champ, sans erreur', () => {
     assert.deepEqual(A.reglagesDevis({ entreprise: { nom: 'Ok', email: 'faux', couleur: 'zzz', assurance: 'texte', mediateur: { nom: 5 } } }).entreprise, { nom: 'Ok', mediateur: { nom: '5' } });
     assert.deepEqual(A.reglagesDevis({ entreprise: 'texte' }).entreprise, {});

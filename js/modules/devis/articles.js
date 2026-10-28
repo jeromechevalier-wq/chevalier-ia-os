@@ -41,12 +41,16 @@ export const LIMITES = { libelle: 200, code: 40, unite: 20, prixMax: 10_000_000,
 // ---------------------------------------------------------------- « Mon entreprise » (l'émetteur du document)
 // Les clés sont EXACTEMENT celles que document.js lit dans `emetteur` : nom, forme, siret, tva, adresse { ligne1, codePostal, ville }, email, telephone, site,
 // registreMetiers, couleur, assurance { garantie, assureur, adresse, zone }, mediateur { nom, email, site }. Un champ vide n'est pas enregistré ; sans rien : `{}`.
-// Pas de logo, de paiement ni de CGV ici : ils viendront avec leurs propres écrans.
+// `paiement { modes }` : les méthodes de paiement acceptées (liste de textes, imprimée sur le devis). `iban` et `delaiJours` (lus par document.js) ne sont pas saisis ici mais jamais perdus s'ils existent.
+// Pas de logo ni de CGV ici : ils viendront avec leurs propres écrans.
 const TEXTES_ENTREPRISE = [['nom', 'Le nom', 120], ['forme', 'La forme juridique', 60], ['siret', 'Le SIRET', 30], ['tva', 'Le numéro de TVA', 30], ['telephone', 'Le téléphone', 30],
   ['email', 'L’e-mail', 120], ['site', 'Le site web', 200], ['registreMetiers', 'La mention du registre des métiers', 200]];
 const TEXTES_ADRESSE = [['ligne1', 'La rue', 200], ['codePostal', 'Le code postal', 12], ['ville', 'La ville', 80]];
 const TEXTES_ASSURANCE = [['garantie', 'La garantie', 200], ['assureur', 'L’assureur', 120], ['adresse', 'L’adresse de l’assureur', 200], ['zone', 'La zone de couverture', 120]];
 const TEXTES_MEDIATEUR = [['nom', 'Le nom du médiateur', 120], ['email', 'L’e-mail du médiateur', 120], ['site', 'Le site du médiateur', 200]];
+/** Méthodes de paiement proposées par l'écran (cases à cocher) ; une autre méthode se saisit en texte libre. */
+export const MODES_PAIEMENT = ['Carte bancaire', 'Virement', 'Chèque', 'Espèces', 'Prélèvement'];
+const LONGUEUR_MODE = 60;
 const COULEUR_HEX = /^#[0-9a-fA-F]{6}$/;
 const objetSimple = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const texteAdresse = (v) => (typeof v === 'string' ? v : objetSimple(v) && typeof v.texte === 'string' ? v.texte : null);
@@ -64,6 +68,24 @@ function lireGroupe(source, champs, prefixe) {
     else if (t) valeurs[cle] = t;
   }
   return { valeurs, erreurs };
+}
+
+/** Le groupe `paiement` : `modes` (textes nettoyés, sans doublon ni vide ; `autre` = une méthode en texte libre ajoutée à la fin), `iban` et `delaiJours` gardés tels quels. `undefined` si rien. */
+function lirePaiement(brut, erreurs) {
+  if (!objetSimple(brut)) return undefined;
+  const modes = [];
+  const autres = typeof brut.autre === 'string' ? brut.autre.split(',') : []; // « Autre » peut porter plusieurs anciennes méthodes jointes par une virgule
+  for (const m of [...(Array.isArray(brut.modes) ? brut.modes : []), ...autres]) {
+    const t = nettoyerEspaces(typeof m === 'string' ? m : '');
+    if (!t) continue;
+    if (t.length > LONGUEUR_MODE) { erreurs['entreprise.paiement.autre'] = `Une méthode de paiement est trop longue (${LONGUEUR_MODE} caractères au plus) : raccourcis-la.`; continue; }
+    if (!modes.includes(t)) modes.push(t);
+  }
+  const sortie = {};
+  if (modes.length) sortie.modes = modes;
+  if (typeof brut.iban === 'string' && brut.iban.trim()) sortie.iban = brut.iban.trim();
+  if (Number.isInteger(brut.delaiJours) && brut.delaiJours >= 0) sortie.delaiJours = brut.delaiJours;
+  return Object.keys(sortie).length ? sortie : undefined;
 }
 
 /**
@@ -93,6 +115,8 @@ export function validerEntreprise(brut) {
     delete parent[cle]; // une valeur invalide n'est jamais gardée
   }
   if (sortie.mediateur && !Object.keys(sortie.mediateur).length) delete sortie.mediateur;
+  const paiement = lirePaiement(s.paiement, erreurs);
+  if (paiement) sortie.paiement = paiement;
   const couleur = typeof s.couleur === 'string' ? s.couleur.trim() : '';
   if (couleur) {
     if (COULEUR_HEX.test(couleur)) sortie.couleur = couleur.toLowerCase();

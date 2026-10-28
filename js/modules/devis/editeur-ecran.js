@@ -6,7 +6,7 @@
 // de modification affiche « Ce devis est … : il ne se modifie plus » avec « Créer une nouvelle version ». Un brouillon reste modifiable, même ouvert par « Voir le devis ».
 // Routes : devis/editeur/<id> s'ouvre sur l'onglet Édition, devis/voir/<id> sur l'onglet Prévisualisation (c'est le même écran).
 import { h, icone, remplir, dialogue, toast, ouvrirMenu } from '../../os/ui.js';
-import { naviguer, ajouterGardeSortie, routeCourante } from '../../os/router.js';
+import { naviguer, ajouterGardeSortie, routeCourante, lien } from '../../os/router.js';
 import { retirerAvecAnnulation } from '../../os/retrait.js';
 import { etatVide, planifier, cheminPersonne, cheminOrganisation, cheminAffaire } from '../crm/composants.js';
 import { adressesDe } from '../crm/logique.js';
@@ -213,7 +213,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     if (!montre) { charger(); return; }
     // « Mon entreprise » modifiée ailleurs : l'aperçu ouvert se met à jour.
     const entreprise = JSON.stringify(D.etat.reglages.entreprise);
-    if (entreprise !== entrepriseAffichee) { entrepriseAffichee = entreprise; if (onglet === 'apercu' && ref.panneauApercu) rendreApercu(); }
+    if (entreprise !== entrepriseAffichee) { entrepriseAffichee = entreprise; if (onglet === 'apercu' && ref.panneauApercu) rendreApercu(); if (ref.blocMethodes?.dataset.ouvert !== 'oui') dessinerMethodes(false); }
     const d = devisCourant();
     if (!d) return;
     if (!lecture && d.statut === 'brouillon' && !conflit && !Ed.memeContenu(d, enregistre) && !(enVol && Ed.memeContenu(d, enVol))) {
@@ -1469,10 +1469,11 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     const gauche = h('div', { class: 'bas-gauche' },
       (ref.blocPaiement = h('div', { class: 'bloc-paiement', dataset: { zone: 'paiement' } })),
       ref.attestation,
-      h('p', { class: 'texte-discret', dataset: { valeur: 'methodes-paiement' } }, 'Méthodes de paiement acceptées : celles de ton entreprise (réglages).'),
+      (ref.blocMethodes = h('div', { class: 'bloc-methodes', dataset: { zone: 'methodes' } })),
       texteLibre, lienTexte,
       (ref.blocDechets = h('div', { class: 'bloc-dechets', dataset: { zone: 'dechets' } })));
     dessinerPaiement(null);
+    dessinerMethodes(false);
     dessinerDechets(false);
     const [totaux, net, taux] = blocTotaux();
     const notes = h('div', { class: 'notes-bas-page' },
@@ -1480,6 +1481,43 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       h('textarea', { class: 'champ', id: 'devis-notes', rows: 4, maxlength: 2000, value: d.notesBasDePage ?? '', 'aria-label': 'Notes de bas de page', dataset: { champ: 'notes' }, oninput: (e) => changer({ notesBasDePage: e.target.value }) }));
     // Le bandeau « NET À PAYER » est un enfant direct de la feuille : il reste collé en bas de l'écran tant qu'on défile au-dessus de lui.
     return [h('div', { class: 'bas-devis' }, gauche, totaux), net, taux, notes];
+  }
+
+  // ------------------------------------------------ méthodes de paiement acceptées : celles des réglages, ou celles choisies pour ce devis
+  const modesReglages = () => (Array.isArray(D.etat.reglages.entreprise?.paiement?.modes) ? D.etat.reglages.entreprise.paiement.modes : []);
+  const modesPropres = () => (Array.isArray(travail.modesPaiement) ? travail.modesPaiement : []).filter((m) => typeof m === 'string' && m.trim());
+  /** Ce que le PDF imprimera : les méthodes de ce devis si elles existent, sinon celles des réglages. */
+  const modesAffiches = () => (modesPropres().length ? modesPropres() : modesReglages());
+  /** Le bloc, fermé (la phrase + « Modifier pour ce devis ») ou ouvert (cases + « Revenir aux réglages »). Un choix s'enregistre avec le devis, comme le reste. */
+  function dessinerMethodes(ouvert) {
+    const bloc = ref.blocMethodes;
+    if (!bloc) return;
+    const phrase = h('p', { class: 'texte-discret', dataset: { valeur: 'methodes-paiement' } });
+    const majPhrase = () => {
+      const modes = modesAffiches();
+      if (modes.length) { phrase.textContent = `Méthodes de paiement acceptées : ${modes.join(', ')}.`; return; }
+      phrase.replaceChildren('Méthodes de paiement acceptées : aucune. ', h('a', { href: lien('reglages/devis/reglages-entreprise'), dataset: { lien: 'reglages-paiement' } }, 'Choisir les méthodes dans les réglages'), '.');
+    };
+    majPhrase();
+    if (!ouvert) {
+      bloc.dataset.ouvert = 'non';
+      remplir(bloc, phrase, h('button', { type: 'button', class: 'bouton-lien', dataset: { action: 'modifier-methodes' }, onclick: () => { dessinerMethodes(true); bloc.querySelector('input')?.focus(); } }, icone('pencil', { taille: 14 }), 'Modifier pour ce devis'));
+      verrouiller(bloc);
+      return;
+    }
+    bloc.dataset.ouvert = 'oui';
+    const courantes = modesAffiches();
+    const choix = [...A.MODES_PAIEMENT, ...courantes.filter((m) => !A.MODES_PAIEMENT.includes(m))];
+    const cases = choix.map((m) => h('label', { class: 'case' },
+      h('input', { type: 'checkbox', checked: courantes.includes(m), dataset: { mode: m },
+        onchange: () => { changer({ modesPaiement: cases.map((c) => c.querySelector('input')).filter((i) => i.checked).map((i) => i.dataset.mode) }); majPhrase(); revenir.hidden = modesPropres().length === 0; } }), m));
+    const revenir = h('button', { type: 'button', class: 'bouton-lien', hidden: modesPropres().length === 0, dataset: { action: 'revenir-methodes' }, onclick: () => { changer({ modesPaiement: [] }); dessinerMethodes(false); } }, 'Revenir aux réglages');
+    const fermer = h('button', { type: 'button', class: 'bouton-lien', dataset: { action: 'fermer-methodes' }, onclick: () => { dessinerMethodes(false); bloc.querySelector('[data-action="modifier-methodes"]')?.focus(); } }, 'Fermer');
+    remplir(bloc, phrase,
+      h('fieldset', { class: 'cases', dataset: { zone: 'methodes-cases' } }, h('legend', { class: 'sr-only' }, 'Méthodes de paiement acceptées'), cases),
+      h('p', { class: 'texte-discret' }, 'Ce choix ne concerne que ce devis. Sans case cochée, les méthodes de tes réglages s’appliquent.'),
+      h('div', { class: 'ligne-boutons' }, revenir, fermer));
+    verrouiller(bloc);
   }
 
   // ------------------------------------------------ gestion des déchets : une information du devis, jamais dans les totaux

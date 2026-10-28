@@ -25,6 +25,12 @@ const entrepriseBrouillon = (e = {}) => ({
   adresse: { ligne1: e.adresse?.ligne1 ?? '', codePostal: e.adresse?.codePostal ?? '', ville: e.adresse?.ville ?? '' },
   assurance: { garantie: e.assurance?.garantie ?? '', assureur: e.assurance?.assureur ?? '', adresse: e.assurance?.adresse ?? '', zone: e.assurance?.zone ?? '' },
   mediateur: { nom: e.mediateur?.nom ?? '', email: e.mediateur?.email ?? '', site: e.mediateur?.site ?? '' },
+  // Les méthodes proposées par l'écran sont cochées ; les autres (ancienne donnée ou texte libre) vont ensemble dans « Autre ». `iban` et `delaiJours` ne sont pas saisis ici mais voyagent pour ne pas être perdus.
+  paiement: {
+    modes: (e.paiement?.modes ?? []).filter((m) => A.MODES_PAIEMENT.includes(m)),
+    autre: (e.paiement?.modes ?? []).filter((m) => !A.MODES_PAIEMENT.includes(m)).join(', '),
+    ...(e.paiement?.iban ? { iban: e.paiement.iban } : {}), ...(e.paiement?.delaiJours !== undefined ? { delaiJours: e.paiement.delaiJours } : {}),
+  },
 });
 
 export function reglages(page) {
@@ -90,6 +96,17 @@ export function reglages(page) {
       h('div', { class: 'ligne-boutons' }, choix, etat, defaut),
       h('p', { class: 'erreur erreur-champ', role: 'alert', dataset: { erreur: cle } }));
   }
+  /** Les méthodes de paiement acceptées : des cases (dans l'ordre fixe de la liste) et une ligne libre « Autre ». Rien n'est coché par défaut. */
+  function blocPaiement() {
+    const cases = h('fieldset', { class: 'cases', dataset: { champ: 'entreprise.paiement.modes' } }, h('legend', { class: 'sr-only' }, 'Méthodes de paiement acceptées'), A.MODES_PAIEMENT.map((m) => h('label', { class: 'case' },
+      h('input', { type: 'checkbox', checked: brouillon.entreprise.paiement.modes.includes(m), dataset: { mode: m },
+        onchange: (e) => ecrireEnt(['paiement', 'modes'], A.MODES_PAIEMENT.filter((x) => (x === m ? e.target.checked : brouillon.entreprise.paiement.modes.includes(x)))) }), m)));
+    return h('div', { class: 'pile', dataset: { zone: 'methodes-paiement' } },
+      h('h4', {}, 'Méthodes de paiement acceptées'),
+      h('p', { class: 'aide' }, 'Cochées, elles s’impriment sur tes devis. Tu pourras les changer pour un devis précis, dans l’éditeur.'),
+      cases,
+      champEnt(['paiement', 'autre'], 'Autre (facultatif)', { aide: 'Une autre méthode, par exemple : Paiement en trois fois.' }));
+  }
   let blocEntreprise = null;
   function sectionEntreprise() {
     const interieur = h('div', { class: 'pile', id: 'mon-entreprise', dataset: { zone: 'mon-entreprise' } },
@@ -104,6 +121,7 @@ export function reglages(page) {
       champEnt(['site'], 'Site web'),
       champEnt(['registreMetiers'], 'Registre des métiers', { aide: 'Par exemple : RM 123 456 789 Paris. Écris la mention telle que tu veux la voir sur le devis.' }),
       blocCouleur(),
+      blocPaiement(),
       h('h4', {}, 'Assurance professionnelle'),
       champEnt(['assurance', 'garantie'], 'Garantie', { aide: 'Par exemple : garantie décennale n° 123456.' }),
       h('div', { class: 'ligne-champs' }, champEnt(['assurance', 'assureur'], 'Assureur'), champEnt(['assurance', 'adresse'], 'Adresse de l’assureur')),
