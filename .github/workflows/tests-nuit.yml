@@ -1,4 +1,4 @@
-# Tests de nuit sur main : ordinateur ET téléphone, chaque scénario 1 fois (3 avec TESTS_REPETER=3).
+# Tests de nuit sur main : ordinateur ET téléphone, chaque scénario 1 fois, en parties comme le palier complet des PR (tests.yml).
 # Aucun secret : émulateurs Firebase, projet demo-chevalier-ia-os.
 name: Tests de nuit
 on:
@@ -37,21 +37,37 @@ jobs:
             echo "lancer=false" >> "$GITHUB_OUTPUT"
             echo "Aucun commit sur main depuis 26 h : pas de tests cette nuit."
           fi
-  nuit:
-    name: Tests de nuit
+  # Même répartition que le palier complet des PR (tests.yml) : 6 parties par format (ordinateur ET téléphone) + les séries sans navigateur, chacune sur sa machine.
+  # Une seule machine pour tout dépassait 89 min (run 40601396308, 27/10/2026) ; en parties, chaque job dure ≈ 5 à 10 min. Aucun job ne s'appelle « Tests » (nom réservé à la coche des PR).
+  nuit-navigateur:
+    name: Nuit navigateur ${{ matrix.format }} ${{ matrix.partie }}/6
     needs: changement
     if: needs.changement.outputs.lancer == 'true'
     runs-on: ubuntu-24.04
-    # 45 min annulait la suite chaque nuit depuis le 25/10/2026 (runs 14 à 20, annulés à 34 min de suite). La durée réelle de la suite est INCONNUE (jamais allée au bout depuis). L'installation du navigateur a pris ≈ 10 min dans ces runs alors qu'elle était à 25 s le 24/10 (cause non trouvée, apparue après la PR 281) ; l'enregistrement du cache ci-dessous corrige l'effet, pas la cause. 90 min = marge en attendant de mesurer un run complet.
-    timeout-minutes: 90
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { format: ordinateur, partie: 1, decalage: 1 }
+          - { format: ordinateur, partie: 2, decalage: 3 }
+          - { format: ordinateur, partie: 3, decalage: 4 }
+          - { format: ordinateur, partie: 4, decalage: 5 }
+          - { format: ordinateur, partie: 5, decalage: 6 }
+          - { format: ordinateur, partie: 6, decalage: 8 }
+          - { format: telephone, partie: 1, decalage: 10 }
+          - { format: telephone, partie: 2, decalage: 11 }
+          - { format: telephone, partie: 3, decalage: 12 }
+          - { format: telephone, partie: 4, decalage: 13 }
+          - { format: telephone, partie: 5, decalage: 14 }
+          - { format: telephone, partie: 6, decalage: 15 }
     env:
       CI: 'true'
       # Le navigateur de test est réglé sur Europe/Paris ; le processus Node doit l'être aussi (sinon les heures attendues par certains tests sont décalées de 2 h).
       TZ: Europe/Paris
-      # 1 worker par série navigateur : la nuit, il y a deux séries (ordinateur, téléphone), donc 2 navigateurs en tout, comme avant (le runner n'a que 4 cœurs).
-      TESTS_WORKERS: '1'
-      # 1 seul passage : à 3 passages, le run dépasse 2 h (essai du 18/10/2026) et épuiserait à lui seul le quota de 2 000 minutes par mois.
-      TESTS_REPETER: '1'
+      TESTS_WORKERS: '2'
+      # Chaque partie a sa machine ; TESTS_DECALAGE les distingue comme dans tests.yml (jamais 2 ni 7).
+      TESTS_DECALAGE: ${{ matrix.decalage }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -97,14 +113,14 @@ jobs:
         if: steps.navigateur.outputs.cache-hit == 'true'
         run: npx playwright install-deps chromium
         working-directory: tests
-      - name: Suite de nuit (ordinateur et téléphone)
-        run: npm run test:nuit
+      - name: Parcours navigateur, partie ${{ matrix.partie }} sur 6 (${{ matrix.format }})
+        run: node lancer-tout.js --e2e --project=${{ matrix.format }} --shard=${{ matrix.partie }}/6
         working-directory: tests
       - name: Rapport et captures
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: tests-nuit
+          name: tests-nuit-navigateur-${{ matrix.format }}-${{ matrix.partie }}
           path: |
             tests/test-results
             tests/playwright-report
@@ -113,12 +129,95 @@ jobs:
           retention-days: 14
           include-hidden-files: true
           if-no-files-found: ignore
+
+  # Séries sans navigateur (noyau, storage, outil client, automatisations) : les mêmes que « Complet sans navigateur » de tests.yml.
+  nuit-sans-navigateur:
+    name: Nuit sans navigateur
+    needs: changement
+    if: needs.changement.outputs.lancer == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CI: 'true'
+      TZ: Europe/Paris
+      TESTS_DECALAGE: '9'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            tests/package-lock.json
+            functions/package-lock.json
+            functions-plateforme/package-lock.json
+            scripts/plateforme/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Installer les dépendances (versions figées par package-lock.json)
+        run: |
+          npm ci --prefix tests
+          npm ci --prefix functions
+          npm ci --prefix functions-plateforme
+          npm ci --prefix scripts/plateforme
+      # restore + save séparés : le cache est enregistré tout de suite après l'installation. Avec `actions/cache` seul, l'enregistrement se fait en fin de job et saute si le job échoue ou est annulé : le navigateur (≈ 10 min) était alors retéléchargé à chaque run.
+      - name: Cache du navigateur Playwright
+        id: navigateur
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('tests/package-lock.json') }}
+      - name: Installer le navigateur de test
+        if: steps.navigateur.outputs.cache-hit != 'true'
+        run: npx playwright install chromium --with-deps
+        working-directory: tests
+      - name: Enregistrer le navigateur dans le cache
+        if: steps.navigateur.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('tests/package-lock.json') }}
+      # Navigateur en cache : il manque seulement les bibliothèques système (installées par apt, hors du cache).
+      - name: Bibliothèques système du navigateur (navigateur déjà en cache)
+        if: steps.navigateur.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+        working-directory: tests
+      # Les 4 séries démarrent en même temps : l'émulateur Firestore est téléchargé UNE fois avant (voir tests.yml).
+      - name: Cache de l'émulateur Firestore
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/firebase/emulators
+          key: emulateurs-firebase-${{ runner.os }}-${{ hashFiles('tests/package-lock.json') }}
+      - name: Télécharger l'émulateur Firestore (une seule fois)
+        run: npx firebase setup:emulators:firestore
+        working-directory: tests
+      - name: Séries sans navigateur (noyau, storage, outil client, automatisations)
+        run: npm run test:complet-sans-navigateur
+        working-directory: tests
+      - name: Rapport et captures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tests-nuit-sans-navigateur
+          path: |
+            tests/test-results
+            tests/playwright-report
+            tests/.config-ports/*.log
+            tests/.config-ports/*/*.log
+          retention-days: 14
+          include-hidden-files: true
+          if-no-files-found: ignore
+
   alerte:
     # Nuit rouge : ouvre une issue GitHub (GitHub t'envoie un email) pour que tu le saches sans aller dans Actions.
     name: Alerte si la nuit est rouge
-    needs: nuit
-    # Un job qui dépasse son délai est « cancelled », pas « failure » : sans ce test, aucune issue ne s'ouvrait (runs 14 à 20). Une annulation à la main ouvre donc aussi une issue.
-    if: ${{ always() && (needs.nuit.result == 'failure' || needs.nuit.result == 'cancelled') }}
+    needs: [nuit-navigateur, nuit-sans-navigateur]
+    # Un job qui dépasse son délai est « cancelled », pas « failure » : sans ce test, aucune issue ne s'ouvrait (runs 14 à 20). Une annulation à la main ouvre donc aussi une issue. Dépend de TOUS les jobs de tests.
+    if: ${{ always() && (needs.nuit-navigateur.result == 'failure' || needs.nuit-navigateur.result == 'cancelled' || needs.nuit-sans-navigateur.result == 'failure' || needs.nuit-sans-navigateur.result == 'cancelled') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
