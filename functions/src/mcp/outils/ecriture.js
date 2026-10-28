@@ -214,4 +214,8 @@ export const OUTILS_ECRITURE = [
   outil('retirer_document', "Retire un document d'une affaire (affaireId) ou d'un projet (projetId) (jamais le fichier lui-même) : par index (voir lister_documents) ou par url ; si les deux sont donnés, ils doivent correspondre.", {
     affaireId: id.optional(), projetId: id.optional(), index: z.number().int().min(0).optional(), url: z.string().max(2000).optional(),
   }, metier.retirerDocument),
+  outil('deposer_document', "Dépose un fichier TEXTE (.txt, .md ou .csv, 64 Ko au plus, UTF-8) dans l'onglet « Documents » d'une affaire (affaireId) ou d'un projet (projetId), un seul des deux : le fichier est rangé chez nous (stockage de l'espace), visible de tous les membres. contenuTexte = le texte lui-même. LIMITE : cet outil ne peut PAS déposer un PDF, une image ni un fichier reçu dans la conversation (un assistant ne peut pas transmettre les octets d'un fichier) : pour cela, l'utilisateur ouvre l'onglet « Documents » de l'affaire ou du projet et clique « Ajouter un fichier ». Pour un simple lien (Drive, site), utiliser joindre_lien. Récupérable avec restaurer_depuis_audit (la fiche disparaît ; le fichier reste en réserve).", {
+    affaireId: id.optional(), projetId: id.optional(), nom: z.string().min(1).max(120).describe('Nom du fichier AVEC son extension : .txt, .md ou .csv (ex. « compte-rendu-reunion.md »).'),
+    contenuTexte: z.string().min(1).max(70000).describe('Le contenu du fichier, en texte (UTF-8, 64 Ko au plus).'),
+  }, metier.deposerDocumentTexte),
 ];

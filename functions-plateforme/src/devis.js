@@ -18,7 +18,7 @@ export const MODULE_DEVIS = 'devis';
 const REFUS_NEUTRE = () => new Refus('permission-denied', 'Action non autorisée.');
 
 /** Identité de l'appelant : e-mail vérifié obligatoire, en minuscules. */
-function emailDe(auth) {
+export function emailDe(auth) {
   const jeton = auth?.token;
   if (!auth?.uid || !jeton || jeton.email_verified !== true || typeof jeton.email !== 'string') throw new Refus('unauthenticated', 'Connexion requise.');
   return jeton.email.toLowerCase();

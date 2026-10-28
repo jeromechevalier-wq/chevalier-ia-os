@@ -325,6 +325,26 @@ describe('K. Tableau de bord : lecture seule pour tous les navigateurs', () => {
   }
 });
 
+// Fiches des fichiers de l'onglet « Documents » (28/10/2026) : lecture par les membres, écriture par le serveur seulement (même un éditeur ne peut pas y inscrire un chemin de son choix).
+describe('K. Documents déposés : fiches en lecture seule pour tous les navigateurs', () => {
+  const col = 'documents_stockes';
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (c) => {
+      const db = c.firestore();
+      for (const client of ['a', 'b']) await setDoc(doc(db, 'clients', client, col, 'existant'), { valeur: 1 });
+    });
+  });
+  test('K3 documents_stockes : un éditeur et un lecteur du client LISENT, aucun des deux n\'écrit (ni crée, ni modifie, ni supprime)', async () => {
+    await lectureSeule(ctx(ALICE), 'a', col);
+    await lectureSeule(ctx(LEA), 'a', col);
+  });
+  test('K3 documents_stockes : un membre d\'un autre client, un visiteur : ni lecture ni écriture', async () => {
+    await aucunDroit(ctx(BOB), 'a', col);
+    await aucunDroit(ctx(ZOE), 'a', col);
+    await aucunDroit(env.unauthenticatedContext().firestore(), 'a', col);
+  });
+});
+
 // Journal d'activité des workflows (chantier 14) : lecture par les membres, écriture par le serveur seulement.
 describe('J. Journal des workflows : lecture seule pour tous les navigateurs', () => {
   const JOURNAL = ['workflows', 'executions', 'sync'];

@@ -963,7 +963,7 @@ describe('Textes des outils : valables pour tout espace (Partie A)', () => {
       assert.match(ancien, TEXTE_DE_JEROME, ancien);
     }
     for (const permis of ['une affaire gagnée', 'nature livraison', 'lire_audit : le journal d\'audit', 'phase de clôture']) assert.doesNotMatch(permis, TEXTE_DE_JEROME, permis);
-    assert.equal(OUTILS.length, 69); // 69 : + diagnostiquer_fichiers (outil d'essai temporaire, 26/10/2026) ; 68 avant : 50 avant la suppression de la pause (22/10/2026) : moins 3 outils de pause, plus 5 outils de la file « À valider » (module Automatisations), plus 5 outils du bordereau et 11 outils des devis (module Devis, 24/10/2026 puis 25/10/2026 : + lire_reglages_devis, nouvelle_version_devis, archiver_devis, enregistrer_envoi_devis, changer_statut_devis, supprimer_devis)
+    assert.equal(OUTILS.length, 71); // 71 : + deposer_document et supprimer_document_stocke (onglet « Documents », 28/10/2026) ; 69 : + diagnostiquer_fichiers (outil d'essai temporaire, 26/10/2026) ; 68 avant : 50 avant la suppression de la pause (22/10/2026) : moins 3 outils de pause, plus 5 outils de la file « À valider » (module Automatisations), plus 5 outils du bordereau et 11 outils des devis (module Devis, 24/10/2026 puis 25/10/2026 : + lire_reglages_devis, nouvelle_version_devis, archiver_devis, enregistrer_envoi_devis, changer_statut_devis, supprimer_devis)
     for (const o of OUTILS) assert.doesNotMatch(textesDe(o), TEXTE_DE_JEROME, `${o.nom} : ${textesDe(o).match(TEXTE_DE_JEROME)?.[0]}`);
   });
 

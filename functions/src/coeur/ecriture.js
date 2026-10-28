@@ -16,7 +16,7 @@ import { COLLECTIONS as C } from './donnees.js';
 import { sansId } from './canonique.js';
 
 /** Collections de données du CRM que le moteur a le droit d'écrire (jamais l'audit, les limites ni les paramètres). */
-export const COLLECTIONS_ECRITES = [C.personnes, C.organisations, C.affaires, C.activites, C.notes, C.evenements, C.projets, C.projetsTaches, C.projetsModeles, C.devisArticles, C.devis];
+export const COLLECTIONS_ECRITES = [C.personnes, C.organisations, C.affaires, C.activites, C.notes, C.evenements, C.projets, C.projetsTaches, C.projetsModeles, C.devisArticles, C.devis, C.documentsStockes];
 export const MAX_ECRITURES = 1000;
 export const TAILLE_PAQUET_DONNEES = 400;
 export const TAILLE_PAQUET_AUDIT = 200; // deux documents par ligne : 400 documents par lot
