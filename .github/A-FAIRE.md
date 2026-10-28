@@ -2,6 +2,20 @@
 
 Mise à jour : 28/10/2026, matin (nuit du 27 au 28 : PR 352 à 365 fusionnées, lot R ouvert pour Jérôme). Règle de Jérôme : **« testé par Jérôme » ne s'écrit que sur sa confirmation, et quand le test est possible** (fusionné **et** en ligne). Aucun secret ici (dépôt public).
 
+## Vue d'ensemble (28/10/2026) : où on en est, en un coup d'œil
+
+| | Sujet | État | Qui |
+|---|---|---|---|
+| 🟢 | Nuit du 27 au 28/10 : 14 PR (352 à 365) : onglet G-Drive, onglet Devis (total, croix, nom interne), Retour, confirmations signé/refusé, PDF depuis le menu « … », marge globale 20 %, méthodes de paiement, export des devis | Fusionné, en ligne | Jérôme teste à l'écran |
+| 🟠 | Onglet « Documents » (fichiers stockés chez nous, PR 369) | PR ouverte, « Tests » vert | **Jérôme** : vérifier et fusionner, droits IAM, règles Firestore |
+| 🟠 | Déploiement chez les clients (`hosting` puis `fonctions`) des PR 355 à 365 | Pas lancé | **Jérôme avec Claude** (workflow manuel) |
+| 🟠 | Études n°11 (brouillon d'e-mail hors Google) et n°12 (affaire vers projet) | Écrites, en attente de ta décision | **Jérôme** décide |
+| 🔵 | Nuit du 28/10 : audit `functions/` vs `functions-plateforme/`, lecture des tests de nuit, `lienStablePdf`, boutons d'export (Projets, Automatisations, Veille, Maintenance), accessibilité des onglets du devis, PDF lent | En cours (GO NUIT) | Claude |
+| ⚪ | Compte prorata, poste libre HT, barre d'étapes du devis, vue « tous mes clients », onglet Devis des projets | Plus tard, pas urgent | décision de Jérôme |
+| ✅ | Règles Firestore (workflow dédié), PDF chez les clients, liens chez les clients, réglages Mon entreprise, page Déploiement | Fait et testé par Jérôme | |
+
+Le détail de chaque ligne est plus bas. Légende : 🟢 fait, 🟠 attend Jérôme, 🔵 Claude travaille dessus, ⚪ plus tard, ✅ validé.
+
 ## À tester par Jérôme (fusionné, en ligne)
 
 | # | Sujet | PR | Testé par Jérôme |
