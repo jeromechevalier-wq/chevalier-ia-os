@@ -895,3 +895,176 @@ describe('SA devis sans affaire (28/10/2026) : un brouillon vit sans affaire, la
     assert.equal(ok(await s.appeler('code', 'finaliser_devis', { id: r.id, codeConfirmation: apercu.code })).finalise, true);
   });
 });
+
+// ---------------------------------------------------------------- Dictionnaire de vocabulaire, PR 2 (28/10/2026) : rechercher_article_par_phrase et prixVente des lignes
+/** Catalogue inventé (marge 20 % en majoration) : prise double 12 €, prise blanche 6 €, tableaux 2 et 4 rangées 180 € et 300 €, interrupteur 4,80 €. */
+async function catalogueVocabulaire(s) {
+  const creer = async (libelle, prixAchat, extra = {}) => ok(await s.appeler('biblio', 'creer_article', { libelle, prixAchat, unite: 'u', ...extra })).id;
+  return {
+    double: await creer('Prise double 16 A', 10), blanche: await creer('Prise 16 A blanche', 5), t2: await creer('Tableau électrique 2 rangées', 150),
+    t4: await creer('Tableau électrique 4 rangées', 250), inter: await creer('Interrupteur va-et-vient', 4),
+  };
+}
+const regleVocabulaire = (cle, articleId, extra = {}) => ({ id: cle.replaceAll(' ', '_'), expression: cle, cle, articleId, articleLibelle: '', statut: 'active', origine: 'manuelle', confirmations: 0, contradictions: 0, conflit: false, ...extra });
+const chercherPhrase = (s, phrase, extra = {}, profil = 'lecteur') => s.appeler(profil, 'rechercher_article_par_phrase', { phrase, ...extra });
+
+describe('V1 rechercher_article_par_phrase : décision, candidats, prix de vente sans prix d’achat', () => {
+  test('V1a collection de règles absente puis vide : décisions fondées sur le catalogue seul (utiliser, proposer, demander)', async () => {
+    const s = await demarrer();
+    const ids = await catalogueVocabulaire(s);
+    assert.equal(s.collections.devis_vocabulaire, undefined, 'départ : la collection n’existe pas');
+    for (const vide of [false, true]) {
+      if (vide) s.collections.devis_vocabulaire = [];
+      const exact = ok(await chercherPhrase(s, 'Interrupteur va-et-vient'));
+      assert.equal(exact.decision, 'utiliser');
+      assert.equal(exact.question, '');
+      assert.equal(exact.candidats[0].articleId, ids.inter);
+      assert.equal(exact.candidats[0].prixVenteHT, 4.8);
+      assert.equal(exact.candidats[0].pourquoi, 'libelle_exact');
+      assert.equal(exact.candidats[0].regleId, null);
+      const prop = ok(await chercherPhrase(s, 'le tableau'));
+      assert.equal(prop.decision, 'proposer');
+      assert.deepEqual(prop.candidats.map((c) => c.articleId).sort(), [ids.t2, ids.t4].sort());
+      assert.match(prop.question, /Tableau électrique 2 rangées/);
+      assert.match(prop.question, /Tableau électrique 4 rangées/);
+      const dem = ok(await chercherPhrase(s, 'gaine annelée'));
+      assert.equal(dem.decision, 'demander');
+      assert.equal(dem.cle, 'gaine annelee');
+      assert.deepEqual(dem.candidats, []);
+      assert.match(dem.question, /gaine annelee/);
+    }
+  });
+
+  test('V1b deux règles posées dans la base : la règle active donne « utiliser » (score 1), la règle à confirmer reste une question ; quantité et prix extraits', async () => {
+    const s = await demarrer();
+    const ids = await catalogueVocabulaire(s);
+    const sans = ok(await chercherPhrase(s, '3 prises doubles'));
+    assert.equal(sans.decision, 'proposer', 'sans règle : une question');
+    assert.equal(sans.quantite, 3);
+    s.collections.devis_vocabulaire = [regleVocabulaire('prise double', ids.double), regleVocabulaire('tableau', ids.t2, { statut: 'a_confirmer' })];
+    const r = ok(await chercherPhrase(s, '3 prises doubles'));
+    assert.equal(r.decision, 'utiliser');
+    assert.equal(r.quantite, 3);
+    assert.equal(r.cle, 'prise double');
+    assert.equal(r.candidats[0].articleId, ids.double);
+    assert.equal(r.candidats[0].score, 1);
+    assert.equal(r.candidats[0].pourquoi, 'regle_active');
+    assert.equal(r.candidats[0].regleId, 'prise_double');
+    const prix = ok(await chercherPhrase(s, '3 prises doubles à 25 €'));
+    assert.equal(prix.prixVente, 25);
+    assert.equal(prix.quantite, 3);
+    assert.equal(prix.prixIncertain, false);
+    assert.equal(prix.decision, 'utiliser');
+    const aConfirmer = ok(await chercherPhrase(s, 'le tableau'));
+    assert.equal(aConfirmer.decision, 'proposer', 'une règle à confirmer n’autorise pas à se passer de question');
+    assert.equal(aConfirmer.candidats[0].pourquoi, 'regle_a_confirmer');
+    const incertain = ok(await chercherPhrase(s, 'prise double 2'));
+    assert.ok(incertain.decision !== 'utiliser' || !incertain.quantiteIncertaine, 'un nombre de fin deviné ne donne jamais « utiliser »');
+  });
+
+  test('V1c un nombre de fin deviné est signalé et cité dans la question', async () => {
+    const s = await demarrer();
+    await catalogueVocabulaire(s);
+    const r = ok(await chercherPhrase(s, 'interrupteur va-et-vient 4'));
+    assert.equal(r.quantiteIncertaine, true);
+    assert.equal(r.quantite, 4);
+    assert.equal(r.decision, 'proposer');
+    assert.match(r.question, /4/);
+  });
+
+  test('V1d le prix de vente sort, jamais le prix d’achat ni la marge (même pour un ouvrage et avec une marge propre à l’article)', async () => {
+    const s = await demarrer();
+    const ids = await catalogueVocabulaire(s);
+    ok(await s.appeler('biblio', 'creer_article', { libelle: 'Forfait pose prise', prixAchat: 100, unite: 'forfait', marge: 0 }));
+    ok(await s.appeler('biblio', 'creer_article', { libelle: 'Ouvrage prise complète', unite: 'u', type: 'ouvrage', composants: [{ articleId: ids.double, quantite: 2 }] }));
+    for (const phrase of ['prise', 'forfait pose prise', 'ouvrage prise complète', 'tableau']) {
+      const r = ok(await chercherPhrase(s, phrase));
+      const brut = JSON.stringify(r);
+      assert.doesNotMatch(brut, /prixAchat|marge|deboursSec|debours/i, `${phrase} : aucun prix d’achat ni marge dans la sortie`);
+      for (const c of r.candidats) assert.deepEqual(Object.keys(c).sort(), ['articleId', 'libelle', 'pourquoi', 'prixVenteHT', 'regleId', 'score', 'unite']);
+    }
+    assert.equal(ok(await chercherPhrase(s, 'forfait pose prise')).candidats[0].prixVenteHT, 100, 'marge propre 0 : prix de vente = 100');
+    assert.equal(ok(await chercherPhrase(s, 'ouvrage prise complète')).candidats[0].prixVenteHT, 24, '2 × 12 € (composants à marge de l’espace)');
+  });
+
+  test('V1e limite : 3 candidats par défaut, 1 à 5, tronqués APRÈS la décision (elle ne change pas), jamais sous les articles cités par la question ; 0, 6 et une phrase de 301 caractères sont refusés', async () => {
+    const s = await demarrer();
+    for (let i = 1; i <= 5; i += 1) ok(await s.appeler('biblio', 'creer_article', { libelle: `Câble gris ${i}`, prixAchat: i, unite: 'm' }));
+    const defaut = ok(await chercherPhrase(s, 'câble'));
+    assert.equal(defaut.candidats.length, 3);
+    assert.equal(defaut.decision, 'proposer');
+    const un = ok(await chercherPhrase(s, 'câble', { limite: 1 }));
+    assert.equal(un.candidats.length, 3, 'la question cite 3 articles : ils sont tous rendus malgré limite 1');
+    for (const c of un.candidats) assert.ok(un.question.includes(c.libelle), `${c.libelle} cité par la question`);
+    assert.equal(un.decision, defaut.decision);
+    assert.equal(un.question, defaut.question);
+    assert.equal(ok(await chercherPhrase(s, 'câble', { limite: 3 })).candidats.length, 3);
+    assert.equal(ok(await chercherPhrase(s, 'câble', { limite: 5 })).candidats.length, 5, 'au-delà des articles cités, limite tronque');
+    refuse(await chercherPhrase(s, 'câble', { limite: 0 }));
+    refuse(await chercherPhrase(s, 'câble', { limite: 6 }));
+    refuse(await chercherPhrase(s, 'x'.repeat(301)));
+    refuse(await chercherPhrase(s, ''));
+    ok(await chercherPhrase(s, 'x'.repeat(300)));
+  });
+
+  test('V1f un article désactivé n’est jamais proposé, même visé par une règle ; la lecture n’écrit rien (ni base ni audit) ; les trois profils lisent', async () => {
+    const s = await demarrer();
+    const ids = await catalogueVocabulaire(s);
+    ok(await s.appeler('biblio', 'desactiver_article', { id: ids.double }));
+    s.collections.devis_vocabulaire = [regleVocabulaire('prise double', ids.double)];
+    const avant = JSON.stringify([s.collections.crm_audit, s.collections.devis_articles, s.collections.devis_vocabulaire]);
+    for (const profil of ['lecteur', 'biblio', 'code']) {
+      const r = ok(await chercherPhrase(s, 'prise double', {}, profil));
+      assert.ok(!r.candidats.some((c) => c.articleId === ids.double), `${profil} : article désactivé absent`);
+    }
+    assert.equal(JSON.stringify([s.collections.crm_audit, s.collections.devis_articles, s.collections.devis_vocabulaire]), avant, 'aucune écriture');
+  });
+});
+
+describe('V2 prixVente d’une ligne de brouillon : la marge s’ajuste, le prix d’achat ne bouge pas', () => {
+  test('V2a création : 10 € d’achat vendus 25 € (marge 150 %), le prix d’achat reste 10 ; sans prixVente rien ne change', async () => {
+    const s = await demarrer();
+    const ids = await catalogueVocabulaire(s);
+    const r = ok(await s.appeler('biblio', 'creer_devis_brouillon', { affaireId: 'a1', destinataires: EMAIL, lignes: [{ articleId: ids.double, quantite: 3, prixVente: 25 }, { articleId: ids.blanche, quantite: 2 }] }));
+    assert.equal(r.totalHT, 87, '3 × 25 + 2 × 6');
+    const d = ok(await s.appeler('lecteur', 'lire_devis', { id: r.id }));
+    const [l1, l2] = d.sections[0].lignes;
+    assert.equal(l1.prixAchat, 10, 'le prix d’achat d’un article qui en a un n’est pas modifié');
+    assert.equal(l1.prixVenteUnitaire, 25);
+    assert.equal(l1.marge, 150);
+    assert.equal(l2.prixVenteUnitaire, 6, 'sans prixVente : marge de l’espace, comme avant');
+    assert.equal(l2.prixAchat, 5);
+    assert.equal(s.doc('devis_articles', ids.double).prixAchat, 10, 'l’article du bordereau est intact');
+  });
+
+  test('V2b modification : remplacer, sections et ajouterLignes acceptent prixVente ; un ouvrage garde son débours', async () => {
+    const s = await demarrer();
+    const ids = await catalogueVocabulaire(s);
+    const ouvrage = ok(await s.appeler('biblio', 'creer_article', { libelle: 'Ouvrage prise complète', unite: 'u', type: 'ouvrage', composants: [{ articleId: ids.double, quantite: 2 }] }));
+    const r = ok(await s.appeler('biblio', 'creer_devis_brouillon', { affaireId: 'a1', destinataires: EMAIL, lignes: [{ articleId: ids.blanche, quantite: 1 }] }));
+    const m1 = ok(await s.appeler('biblio', 'modifier_devis_brouillon', { id: r.id, ajouterLignes: [{ articleId: ids.double, quantite: 2, prixVente: 20 }] }));
+    assert.equal(m1.totalHT, 46, '6 + 2 × 20');
+    const m2 = ok(await s.appeler('biblio', 'modifier_devis_brouillon', { id: r.id, sections: [{ titre: 'Prises', lignes: [{ articleId: ouvrage.id, quantite: 1, prixVente: 30 }] }] }));
+    assert.equal(m2.totalHT, 30);
+    const d = ok(await s.appeler('lecteur', 'lire_devis', { id: r.id }));
+    assert.equal(d.sections[0].lignes[0].prixAchat, 20, 'ouvrage : débours sec des composants, inchangé (2 × 10)');
+    assert.equal(d.sections[0].lignes[0].prixVenteUnitaire, 30);
+  });
+
+  test('V2c refus clairs, sans écriture : prix invalide, article texte, article sans prix d’achat, prix impossible en marge sur le prix de vente', async () => {
+    const s = await demarrer();
+    const ids = await catalogueVocabulaire(s);
+    const texte = ok(await s.appeler('biblio', 'creer_article', { libelle: 'Note de chantier', prixAchat: 0, unite: '', type: 'texte' }));
+    const gratuit = ok(await s.appeler('biblio', 'creer_article', { libelle: 'Article sans coût', prixAchat: 0, unite: 'u' }));
+    const avant = JSON.stringify(s.collections.devis_devis);
+    const essai = (ligne, extra = {}) => s.appeler('biblio', 'creer_devis_brouillon', { affaireId: 'a1', destinataires: EMAIL, lignes: [ligne], ...extra });
+    refuse(await essai({ articleId: ids.double, quantite: 1, prixVente: -1 }));
+    refuse(await essai({ articleId: ids.double, quantite: 1, prixVente: 12.345 }), /2 décimales/);
+    refuse(await essai({ articleId: texte.id, prixVente: 10 }), /texte/);
+    refuse(await essai({ articleId: gratuit.id, quantite: 1, prixVente: 10 }), /prix d'achat/);
+    refuse(await essai({ articleId: ids.double, quantite: 1, prixVente: 0 }, { modeMarge: 'marge_vente' }), /impossible/);
+    assert.equal(JSON.stringify(s.collections.devis_devis), avant, 'aucun brouillon créé');
+    const ok0 = ok(await essai({ articleId: ids.double, quantite: 1, prixVente: 0 }));
+    assert.equal(ok0.totalHT, 0, 'en majoration, 0 € est un prix possible (marge -100 %)');
+  });
+});

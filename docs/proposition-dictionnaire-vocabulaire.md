@@ -1,6 +1,6 @@
 # Proposition : le dictionnaire de vocabulaire du client (module Devis)
 
-Écrit le 28/10/2026 (nuit 3), **document de conception** (aucune règle publiée). **PR 1 « Fondation » faite le 28/10/2026** : le moteur pur `js/modules/devis/vocabulaire.js`, son jeu d'essai (`tests/devis-vocabulaire.test.js`) et sa copie dans `preparer-fonctions.js` existent ; rien d'autre (ni outil, ni écran, ni règle Firestore, ni écriture en base). Les écarts pris pendant cette PR sont signalés « **écart PR 1** » ci-dessous. À relire par Jérôme ; les questions sont à la section 13, chacune avec la valeur que je prends si rien n'est dit. Tous les exemples sont inventés (« prise », « tableau électrique », « gaine ») : aucun nom réel, aucune donnée de client.
+Écrit le 28/10/2026 (nuit 3), **document de conception** (aucune règle publiée). **PR 1 « Fondation » faite le 28/10/2026** : le moteur pur `js/modules/devis/vocabulaire.js`, son jeu d'essai (`tests/devis-vocabulaire.test.js`) et sa copie dans `preparer-fonctions.js` existent ; rien d'autre (ni outil, ni écran, ni règle Firestore, ni écriture en base). **PR 2 « Outil de recherche » faite le 28/10/2026** : l'outil de lecture `rechercher_article_par_phrase` (profils lecteur, bibliothécaire, Claude Code ; 17e outil du module Devis, 70 outils au total) et `prixVente` facultatif sur les lignes de `creer_devis_brouillon` / `modifier_devis_brouillon` ; toujours ni écran, ni règle Firestore, ni écriture dans `devis_vocabulaire`. Les écarts pris pendant la PR 1 sont signalés « **écart PR 1** » ci-dessous. À relire par Jérôme ; les questions sont à la section 13, chacune avec la valeur que je prends si rien n'est dit. Tous les exemples sont inventés (« prise », « tableau électrique », « gaine ») : aucun nom réel, aucune donnée de client.
 
 ## 1. Le besoin en cinq lignes
 
@@ -96,14 +96,14 @@ Les candidats sont triés par score, puis par libellé (`localeCompare(…, 'fr'
 
 ### `rechercher_article_par_phrase` (lecture, profils L B C)
 
-Entrées : `phrase` (texte, 1 à 300 caractères, obligatoire) ; `limite` (1 à 5, défaut 3).
+Entrées : `phrase` (texte, 1 à 300 caractères, obligatoire) ; `limite` (1 à 5, défaut 3 ; les candidats sont tronqués après la décision, sans jamais descendre sous les articles cités par `question`, 3 au plus).
 
 Sortie : `{ cle, quantite, prixVente, quantiteIncertaine, prixIncertain, decision, question, candidats: [{ articleId, libelle, unite, prixVenteHT, score, pourquoi, regleId }], codeReponse }`.
 - `prixVenteHT` : prix de vente unitaire calculé avec les réglages (marge de l'article ou des réglages, mode de marge) ; **jamais `prixAchat` ni `marge`** (règle proposée pour ce nouvel outil, voir Q1).
 - `question` : la phrase prête à poser, en français, ou vide quand `decision = utiliser`.
-- `codeReponse` : un code à usage unique de **30 minutes**, lié au jeton, à la phrase et aux candidats proposés (même mécanisme que `functions/src/securite/codes.js`, « aperçu puis code »). Il prouve, au second outil, qu'une vraie question a été posée.
+- `codeReponse` : **reporté à la PR 3 (décision du 28/10/2026, absent de la PR 2)** : `emettreCode` ÉCRIT dans `mcp_codes`, alors qu'un outil de lecture n'écrit jamais (`readOnlyHint: true`) ; c'est la PR 3, qui crée l'outil d'écriture, qui l'exige. Durée prévue : celle de `DUREE_CODE_MS` (5 minutes), pas 30. Texte prévu : un code à usage unique de **30 minutes**, lié au jeton, à la phrase et aux candidats proposés (même mécanisme que `functions/src/securite/codes.js`, « aperçu puis code »). Il prouve, au second outil, qu'une vraie question a été posée.
 
-Description pour l'assistant (texte de l'outil) : « Avant d'ajouter une ligne à un devis à partir des mots de l'utilisateur, appelle cet outil avec la phrase telle quelle. `utiliser` : ajoute la ligne du premier candidat. `proposer` ou `demander` : pose exactement `question`, attends la réponse, puis appelle `enregistrer_reponse_vocabulaire` avec `codeReponse`. Ne choisis jamais un article à la place de l'utilisateur. »
+Description pour l'assistant (texte final prévu pour la PR 3 ; la PR 2 livre une description sans `enregistrer_reponse_vocabulaire` ni `codeReponse`, qui n'existent pas encore) : « Avant d'ajouter une ligne à un devis à partir des mots de l'utilisateur, appelle cet outil avec la phrase telle quelle. `utiliser` : ajoute la ligne du premier candidat. `proposer` ou `demander` : pose exactement `question`, attends la réponse, puis appelle `enregistrer_reponse_vocabulaire` avec `codeReponse`. Ne choisis jamais un article à la place de l'utilisateur. »
 
 ### `enregistrer_reponse_vocabulaire` (écriture journalisée, profils B C ; éditeur chez un client)
 
