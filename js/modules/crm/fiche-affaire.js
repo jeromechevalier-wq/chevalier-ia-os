@@ -6,7 +6,7 @@ import {
   liensEntete, afficherSelecteur, sectionRepliable, champPropriete, selecteurPersonne, selecteurOrganisation, titreEditable, selectProprietaire, gabaritFiche,
   lienRetour, saisieEnCours, pastilleStatut, etatVide, planifier, iconeInfo, EXPLICATION_STATUT_AFFAIRE, pastillesExternes,
 } from './composants.js';
-import { surChangementPastilles, ongletsDeAffaire, actionDeAffaire } from './pastilles-externes.js';
+import { surChangementPastilles, ongletsDeAffaire, actionDeAffaire, montantDeAffaire } from './pastilles-externes.js';
 import { panneauActivite } from './activites.js';
 import { creerLanceurs } from './lanceurs.js';
 import { retirerAvecAnnulation } from '../../os/retrait.js';
@@ -69,7 +69,16 @@ export function rendreFicheAffaire(conteneur, id) {
     majLiens = liens.maj;
     const vivante = L.estVivante(a);
     const titre = titreEditable({ valeur: a.titre, libelle: 'Titre', surEnregistrer: (v) => D.majAffaire(a.id, { titre: v }) });
-    const montant = champPropriete({ libelle: 'Montant', valeur: a.montant ?? '', type: 'nombre', pas: '0.01', formater: (v) => L.formatEuros(v), fantome: L.formatEuros(999), surEnregistrer: (v) => D.majAffaire(a.id, { montant: v }) });
+    // Avec des devis (module Devis allumé), le total des devis remplace le montant estimé à l'affichage ; le montant estimé n'est pas effacé et revient s'il n'y a plus de devis.
+    // Sans devis : le montant saisi à la main, ou un tiret (jamais un chiffre inventé).
+    const montantExterne = montantDeAffaire(a.id);
+    const montant = montantExterne ? null : champPropriete({ libelle: 'Montant estimé', valeur: a.montant ?? '', type: 'nombre', pas: '0.01', formater: (v) => L.formatEuros(v), fantome: '—', surEnregistrer: (v) => D.majAffaire(a.id, { montant: v }) });
+    const blocMontant = montantExterne
+      ? h('div', { class: 'fiche-montant-devis', dataset: { montant: 'devis' } },
+        h('span', { class: 'fiche-montant-valeur' }, L.formatEuros(montantExterne.total), montantExterne.suffixe ? h('small', { class: 'fiche-montant-suffixe' }, ` ${montantExterne.suffixe}`) : null),
+        iconeInfo((montantExterne.detail ?? []).map((l) => `${l.texte} : ${L.formatEuros(l.montant)}`).join(' ; '), montantExterne.libelle))
+      : montant.element;
+    const libelleMontant = montantExterne ? montantExterne.libelle : 'Montant estimé';
     const menu = h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Plus d’actions', 'data-action': 'menu-fiche',
       onclick: (e) => ouvrirMenu(e.currentTarget, [
         ...(a.statut === 'perdue' ? [{ libelle: 'Rouvrir', icone: 'rotate-ccw', action: () => D.rouvrir(a.id) }] : []),
@@ -97,7 +106,7 @@ export function rendreFicheAffaire(conteneur, id) {
             liens.element)),
         // Le montant et les boutons forment une seule zone : même axe vertical, même espace entre voisins.
         h('div', { class: 'fiche-tete-droite' },
-          h('div', { class: 'fiche-montant' }, montant.element),
+          h('div', { class: 'fiche-montant' }, h('span', { class: 'fiche-montant-libelle', dataset: { role: 'libelle-montant' } }, libelleMontant), blocMontant),
           h('div', { class: 'fiche-actions' }, actionsStatut, menu))),
       (barreEtapes = barreDesEtapes(a)));
 

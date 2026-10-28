@@ -1,5 +1,5 @@
 // Onglet « Devis » de la fiche d'une affaire : règles PURES (aucun accès au navigateur ni aux données), testées dans tests/devis-onglet-affaire.test.js.
-import { enMs } from './liste.js';
+import { enMs, totauxDe } from './liste.js';
 
 export const LIBELLE_CHARGEMENT = 'Chargement des devis…';
 export const LIBELLE_VIDE = 'Aucun devis pour cette affaire.';
@@ -50,4 +50,28 @@ export function actionEnteteDevis(devis, affaireId, pret, ouverte = true) {
   const dernier = devisDeAffaire(devis, affaireId)[0];
   if (dernier) return { mode: 'voir', libelle: 'Voir le devis', route: routeVoirDevis(dernier) };
   return ouverte ? { mode: 'creer', libelle: 'Créer un devis' } : null; // pas de nouveau devis sur une affaire gagnée ou perdue
+}
+
+/**
+ * Le montant que la fiche de l'affaire montre quand elle a des devis : la somme des TTC des devis VIVANTS (comme l'onglet « Devis », qui affiche le TTC).
+ * Vivant = ni archivé, ni « Remplacé » (ancienne version : une seule version par devis compte, la plus récente, même si la v1 n'est pas encore « Remplacé »), ni « Refusé » (choix : un devis refusé ne sera pas facturé).
+ * Un brouillon compte. Un devis dont le total ne se calcule pas est écarté. null s'il n'y en a aucun (la fiche montre alors le montant estimé).
+ * Forme rendue au CRM : { libelle, total, suffixe, detail: [{ texte, montant }] }.
+ */
+export function montantDevisDeAffaire(devis, affaireId) {
+  const vus = new Set();
+  const vivants = devisDeAffaire(devis, affaireId)
+    .filter((d) => d.statut !== 'remplace' && d.statut !== 'refuse')
+    // Une seule version par devis (la plus récente, la liste est triée récent d'abord) : pendant une nouvelle version, la v1 n'est « Remplacé » qu'à la finalisation de la v2.
+    .filter((d) => { const r = d.racineId ?? d.id; if (vus.has(r)) return false; vus.add(r); return true; })
+    .map((d) => ({ d, t: totauxDe(d) }))
+    .filter((x) => x.t && Number.isFinite(x.t.ttc));
+  if (!vivants.length) return null;
+  const total = vivants.reduce((somme, x) => somme + Math.round(x.t.ttc * 100), 0) / 100;
+  return {
+    libelle: vivants.length === 1 ? 'Montant du devis' : `Total des devis (${vivants.length})`,
+    total,
+    suffixe: 'TTC',
+    detail: vivants.map((x) => ({ texte: libelleLigneDevis(x.d), montant: x.t.ttc })),
+  };
 }

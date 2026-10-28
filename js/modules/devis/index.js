@@ -11,11 +11,11 @@ import { reglages as reglagesDuModule } from './reglages.js';
 import { retenirDevis } from './memoire.js';
 import { noterArrivee, oublierOrigine } from './origine.js';
 import * as CRM from '../crm/donnees.js';
-import { inscrirePastilleAffaire, inscrireOngletAffaire, inscrireActionAffaire, signaler } from '../crm/pastilles-externes.js';
+import { inscrirePastilleAffaire, inscrireOngletAffaire, inscrireActionAffaire, inscrireMontantAffaire, signaler } from '../crm/pastilles-externes.js';
 import { pastilleDevisDeAffaire } from './pastille-affaire.js';
 import { creerDevisSansAffaire } from './actions-devis.js';
 import { ongletDevisDeAffaire, oublierOnglets, ajouterDevis } from './onglet-affaire.js';
-import { actionEnteteDevis } from './onglet-affaire-logique.js';
+import { actionEnteteDevis, montantDevisDeAffaire } from './onglet-affaire-logique.js';
 import { naviguer } from '../../os/router.js';
 import { rechercherDevis } from './recherche.js';
 import { ETAPES_DEPLOIEMENT_DEVIS, controlerDeploiementDevis } from './deploiement.js';
@@ -41,13 +41,14 @@ let montee = null; // { cle, quitter }
 let retirerPastille = null;
 let retirerOnglet = null;
 let retirerAction = null;
+let retirerMontant = null;
 let arretSignal = null;
 
 export function demarrer({ cheminBase = '' } = {}) {
   ajouterFeuille(); // aussi pour la page Réglages, qui montre une section du module
   D.demarrer(cheminBase);
   // Pastille « Devis : … » sur les cartes et fiches d'affaire (seulement tant que le module tourne : éteint, le CRM n'affiche rien).
-  retirerPastille?.(); retirerOnglet?.(); retirerAction?.(); arretSignal?.();
+  retirerPastille?.(); retirerOnglet?.(); retirerAction?.(); retirerMontant?.(); arretSignal?.();
   retirerPastille = inscrirePastilleAffaire((affaireId) => (D.estPretDevis() ? pastilleDevisDeAffaire(D.etat.devis, affaireId, { aujourdhui: CRM.ctx().aujourdhui }) : null));
   // Onglet « Devis » à côté d'Activité / Notes / Documents (même règle : module éteint = rien d'inscrit = pas d'onglet). Un seul signal pour la pastille et l'onglet.
   retirerOnglet = inscrireOngletAffaire(ongletDevisDeAffaire);
@@ -59,6 +60,8 @@ export function demarrer({ cheminBase = '' } = {}) {
       ? { libelle: r.libelle, icone: 'plus', action: () => ajouterDevis(affaireId) }
       : { libelle: r.libelle, icone: 'file-text', action: () => naviguer(r.route) };
   });
+  // Montant de l'en-tête : le total des devis vivants remplace le montant estimé tant qu'il y en a (module éteint = le montant estimé).
+  retirerMontant = inscrireMontantAffaire((affaireId) => (D.estPretDevis() ? montantDevisDeAffaire(D.etat.devis, affaireId) : null));
   arretSignal = D.surChangement(signaler);
 }
 
@@ -68,6 +71,7 @@ export function arreter() {
   retirerPastille?.(); retirerPastille = null;
   retirerOnglet?.(); retirerOnglet = null;
   retirerAction?.(); retirerAction = null;
+  retirerMontant?.(); retirerMontant = null;
   oublierOnglets();
   oublierOrigine();
   arretSignal?.(); arretSignal = null;

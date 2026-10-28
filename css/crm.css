@@ -328,6 +328,10 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 .fiche-montant .prop-modifier { position: absolute; right: 100%; top: 50%; transform: translateY(-50%); width: 24px; height: 24px; }
 .fiche-montant .prop { grid-template-columns: 1fr; }
 .fiche-montant .prop-libelle { display: none; }
+/* Le libellé (« Montant estimé », « Montant du devis »…) est posé au-dessus du chiffre sans prendre de place : le chiffre reste sur l'axe des boutons. */
+.fiche-montant-libelle { position: absolute; left: 0; bottom: 100%; white-space: nowrap; font: var(--poids-normal) var(--fs-petit)/1.2 var(--police-texte); color: var(--texte2); }
+.fiche-montant-devis { display: inline-flex; align-items: center; gap: var(--esp-2); }
+.fiche-montant-suffixe { font-size: var(--fs-texte); color: var(--texte2); }
 .fiche-grille { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 24px; align-items: start; }
 .fiche-gauche, .fiche-droite { min-width: 0; }
 .fiche-gauche { background: var(--panneau); border: 1px solid var(--bordure); border-radius: var(--rayon-carte); padding: var(--esp-2) 15px; }
@@ -352,7 +356,7 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
   .prop { grid-template-columns: 1fr; gap: 2px; padding: var(--esp-1) 0; }
   .titre-editable { font-size: var(--fs-page); }
   .fiche-tete-droite { width: 100%; }
-  .fiche-montant { margin-left: 0; }
+  .fiche-montant { margin-left: 0; margin-top: var(--esp-6); } /* place du libellé posé au-dessus du chiffre */
   .fiche-montant .prop-modifier { position: relative; right: auto; top: auto; transform: none; width: 28px; height: 28px; } /* relative (et non static) : la zone de clic de 44 px (::after, os.css) se centre sur le crayon, pas sur le montant */
   .fiche-actions { width: 100%; }
 }

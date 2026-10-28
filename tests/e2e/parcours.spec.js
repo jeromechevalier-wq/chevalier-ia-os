@@ -916,8 +916,8 @@ test('C21 fiche affaire : barre des étapes, Gagné par la liste Étape, montant
   await expect(page.locator('.barre-etapes-fiche .etape.courante')).toHaveText('Proposition envoyée');
   await expect(page.locator('.fiche-montant')).toContainText('900');
   await page.locator('.fiche-montant .prop-modifier').click();
-  await page.getByLabel('Montant', { exact: true }).fill('1500.5');
-  await page.getByLabel('Montant', { exact: true }).press('Enter');
+  await page.getByLabel('Montant estimé', { exact: true }).fill('1500.5');
+  await page.getByLabel('Montant estimé', { exact: true }).press('Enter');
   await champDoc('crm_affaires', 'a1', 'montant', 1500.5);
   // Gagnée
   await page.locator('[data-action="choisir-etape"]').selectOption({ label: 'Gagné' }); // J9 : plus de bouton « Gagnée », on passe par la liste « Étape »

@@ -64,6 +64,26 @@ export function actionDeAffaire(affaireId) {
   return null;
 }
 
+// Montant qu'un module affiche à la place du montant estimé de l'affaire (ex. le total des devis). Un fournisseur est `(affaireId) => null | { libelle, total, suffixe, detail }`
+// (`total` un nombre en euros, `suffixe` ex. « TTC », `detail` des lignes `{ texte, montant }` pour l'infobulle). Premier fournisseur qui répond gagne ; module éteint = rien d'inscrit = le montant estimé.
+const fournisseursMontant = new Set();
+
+export function inscrireMontantAffaire(fournisseur) {
+  fournisseursMontant.add(fournisseur);
+  return () => { fournisseursMontant.delete(fournisseur); };
+}
+
+/** Le montant proposé par un module pour cette affaire, ou null. Ignorés : sans `libelle` ou avec un `total` qui n'est pas un nombre fini ; un fournisseur qui plante. */
+export function montantDeAffaire(affaireId) {
+  for (const f of fournisseursMontant) {
+    try {
+      const m = f(affaireId);
+      if (m && typeof m.libelle === 'string' && m.libelle && Number.isFinite(m.total)) return m;
+    } catch (e) { console.warn(e); }
+  }
+  return null;
+}
+
 export function surChangementPastilles(rappel) {
   abonnes.add(rappel);
   return () => { abonnes.delete(rappel); };

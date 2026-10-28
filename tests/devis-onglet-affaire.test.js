@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { devisDeAffaire, intituleDevis, compteurOnglet, nomVoir, routeVoirDevis, actionEnteteDevis } from '../js/modules/devis/onglet-affaire-logique.js';
+import { devisDeAffaire, intituleDevis, compteurOnglet, nomVoir, routeVoirDevis, actionEnteteDevis, montantDevisDeAffaire } from '../js/modules/devis/onglet-affaire-logique.js';
 
 const JOUR = 86400000;
 const MAINT = Date.parse('2026-10-25T10:00:00Z');
@@ -78,4 +78,48 @@ test('3b libellé d’une ligne de l’onglet : le nom remplace « Brouillon »,
   assert.equal(nomVoir({ statut: 'brouillon', nom: 'Variante basse' }), 'Voir le devis Variante basse');
   assert.equal(nomVoir({ statut: 'brouillon', nom: '', objet: 'Cuisine' }), 'Voir le devis Cuisine'); // un nom effacé ('') ne masque pas l'objet
   assert.equal(nomVoir({ statut: 'brouillon', nom: ' ' }), 'Voir le devis brouillon');
+});
+
+// ---------------------------------------------------------------- montant de l'en-tête de l'affaire (nuit du 28/10/2026)
+const unDevis = (id, ttc, plus = {}) => ({ id, affaireId: 'a1', statut: 'en_attente_envoi', version: 1, numero: `DEV-${id}`, creeLe: new Date(MAINT - JOUR), totaux: { ht: ttc / 1.2, ttc }, ...plus });
+
+test('M1 sans devis (ou autre affaire), pas de montant : la fiche garde le montant estimé', () => {
+  assert.equal(montantDevisDeAffaire([], 'a1'), null);
+  assert.equal(montantDevisDeAffaire(undefined, 'a1'), null);
+  assert.equal(montantDevisDeAffaire([unDevis('1', 100, { affaireId: 'a2' })], 'a1'), null);
+  assert.equal(montantDevisDeAffaire([unDevis('1', 100)], ''), null);
+});
+test('M2 un seul devis : « Montant du devis », son TTC', () => {
+  const m = montantDevisDeAffaire([unDevis('1', 720)], 'a1');
+  assert.equal(m.libelle, 'Montant du devis');
+  assert.equal(m.total, 720);
+  assert.equal(m.suffixe, 'TTC');
+  assert.equal(m.detail.length, 1);
+});
+test('M3 plusieurs devis : « Total des devis (n) » = somme des TTC, sans erreur d’arrondi', () => {
+  const m = montantDevisDeAffaire([unDevis('1', 0.1), unDevis('2', 0.2), unDevis('3', 100.05)], 'a1');
+  assert.equal(m.libelle, 'Total des devis (3)');
+  assert.equal(m.total, 100.35);
+  assert.equal(m.detail.length, 3);
+});
+test('M4 ne comptent pas : archivé, ancienne version (Remplacé), refusé ; un devis non finalisé compte', () => {
+  const liste = [
+    unDevis('1', 100, { archive: true }),
+    unDevis('2', 200, { statut: 'remplace' }),
+    unDevis('3', 400, { statut: 'refuse' }),
+    unDevis('4', 800, { statut: 'accepte' }),
+    unDevis('5', 1600, { statut: 'envoye' }),
+  ];
+  const m = montantDevisDeAffaire(liste, 'a1');
+  assert.equal(m.total, 2400);
+  assert.equal(m.libelle, 'Total des devis (2)');
+  assert.equal(montantDevisDeAffaire([unDevis('1', 100, { archive: true }), unDevis('3', 400, { statut: 'refuse' })], 'a1'), null);
+});
+test('M5 pendant une nouvelle version (v1 envoyé + v2 brouillon, même racine) : seule la v2 compte', () => {
+  const v1 = unDevis('v1', 720, { racineId: 'r', statut: 'envoye', version: 1, creeLe: new Date(MAINT - 5 * JOUR) });
+  const v2 = unDevis('v2', 720, { racineId: 'r', statut: 'brouillon', version: 2, creeLe: new Date(MAINT - JOUR) });
+  const m = montantDevisDeAffaire([v1, v2], 'a1');
+  assert.equal(m.libelle, 'Montant du devis');
+  assert.equal(m.total, 720);
+  assert.equal(m.detail.length, 1);
 });
