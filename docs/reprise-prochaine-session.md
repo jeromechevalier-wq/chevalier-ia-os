@@ -17,7 +17,7 @@
 | Méthodes de paiement (Réglages > Mon entreprise, éditeur, PDF) et bug serveur : le vrai PDF ne reprenait pas « Mon entreprise » (n°15) | 361 | fusionnée seule |
 | Confirmation « Devis signé » / « Devis refusé » et flèche « Retour » vers l'origine (n°5, n°4) | 363 | fusionnée seule |
 | Nom interne du devis (n°3) | 365 | fusionnée seule |
-| Lot R : onglet « Documents » avec fichiers stockés chez nous (n°9) | PR à ouvrir | **à fusionner par Jérôme** (règles Firestore, nouvelle collection, droits IAM : liste d'arrêt) ; le MCP ne dépose que du texte, un PDF du chat reste impossible |
+| Lot R : onglet « Documents » avec fichiers stockés chez nous (n°9) | 369 (étiquette `a-fusionner-par-jerome`) | **à fusionner par Jérôme** (règles Firestore, nouvelle collection, droits IAM : liste d'arrêt) ; le MCP ne dépose que du texte, un PDF du chat reste impossible |
 | Accessibilité des onglets Édition / Prévisualisation (M3) | aucune | pas fait (manque de temps) |
 | « Génération du PDF trop lente » (mesure puis progression) | aucune | pas fait |
 | Audit des écarts `functions/` vs `functions-plateforme/` | aucune | pas fait (à faire avant la prochaine démonstration) |
