@@ -165,11 +165,7 @@ export function signatureCoherente(extension, octets) {
     case 'heic': return o.length > 12 && latin1(o.slice(4, 8)) === 'ftyp';
     case 'ole': return commence(o, 0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1);
     case 'zip': return commence(o, 0x50, 0x4b, 0x03, 0x04) || commence(o, 0x50, 0x4b, 0x05, 0x06);
-    case 'texte': { // du texte : pas d'octet nul, et du UTF-8 valide
-      const tete = o.slice(0, 8192);
-      if (tete.includes(0)) return false;
-      try { new TextDecoder('utf-8', { fatal: true }).decode(tete, { stream: true }); return true; } catch { return false; } // stream : un caractère coupé à la fin des 8 Ko n'est pas une erreur
-    }
+    case 'texte': return !o.slice(0, 8192).includes(0); // du texte : pas d'octet nul (UTF-8 ou Latin-1 d'un CSV Excel, tous deux admis)
     default: return false;
   }
 }

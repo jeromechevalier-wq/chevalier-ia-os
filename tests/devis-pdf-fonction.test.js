@@ -395,4 +395,23 @@ describe('R fichiers déposés : dépôt, lien, suppression (faux Cloud Storage,
     await assert.rejects(() => droit(requete({ affaireId: 'aff1', nom: 'a.pdf', contenuBase64: b64(PDF) })), (e) => e.code === 'failed-precondition' && /droit/.test(e.message));
     assert.equal(m.collections[C.documentsStockes].length, 0);
   });
+
+  test('R7 quota par espace : refusé au plafond de 2 Go, accepté en dessous, fiches supprimées non comptées ; texte Latin-1 (CSV Excel) accepté, octet nul refusé ; nom trop long dit trop long', async () => {
+    const m = mondeDocs();
+    const QUOTA = 2 * 1024 * 1024 * 1024;
+    const fiche = (id, taille, supprimeLe = null) => m.collections[C.documentsStockes].push({ id, cibleType: 'affaire', cibleId: 'autre', nom: `${id}.pdf`, taille, supprimeLe });
+    fiche('gros', QUOTA - 10); // 10 octets de marge : un PDF de plus de 10 octets ne passe pas
+    await assert.rejects(() => depot(m, {}), (e) => e.code === 'invalid-argument' && /limite de stockage de documents/.test(e.message));
+    assert.equal(m.objets.size, 0);
+    m.collections[C.documentsStockes][0].supprimeLe = new Date(); // en corbeille : ne compte plus
+    await depot(m, {});
+    fiche('presque', QUOTA - 2 * PDF.length - 5);
+    await depot(m, { nom: 'Autre.pdf' }); // juste en dessous du plafond (total = QUOTA - 5)
+    await assert.rejects(() => depot(m, { nom: 'Trop.pdf' }), (e) => /limite de stockage/.test(e.message));
+    const latin1 = Buffer.from('nom;prénom\nDupont;Hélène\n', 'latin1');
+    const m2 = mondeDocs();
+    await depot(m2, { nom: 'excel.csv', contenuBase64: b64(latin1), typeMime: 'text/csv' });
+    await assert.rejects(() => depot(m2, { nom: 'nul.txt', contenuBase64: b64(Buffer.from([0x61, 0, 0x62])), typeMime: 'text/plain' }), (e) => e.code === 'invalid-argument');
+    await assert.rejects(() => depot(m2, { nom: `${'a'.repeat(401)}.pdf` }), (e) => /trop long/.test(e.message));
+  });
 });

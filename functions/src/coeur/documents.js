@@ -8,7 +8,6 @@
 // `ecrire(operations, parametres)` : le moteur d'écriture (executerEcritures), déjà lié à l'acteur et au canal. `stockage` : stockage.js (ou un faux pour les essais).
 import { randomUUID } from 'node:crypto';
 import { COLLECTIONS as C } from './donnees.js';
-import { sansId } from './canonique.js';
 import { executerEcritures } from './ecriture.js';
 import { cheminDocument, cheminDocumentAppartientALEspace, DUREE_LIEN_MINUTES } from '../devis/stockage.js';
 import {
@@ -27,6 +26,9 @@ export class ErreurDocument extends Error {
 export const MESSAGE_STOCKAGE_ABSENT = 'Le stockage des fichiers est introuvable : rien n\'a été enregistré.';
 export const MESSAGE_DROIT_STOCKAGE = 'Le compte du serveur n\'a pas le droit d\'écrire dans le stockage des fichiers : rien n\'a été enregistré. Il faut donner ce droit au compte (étape à faire par Jérôme).';
 
+/** Plafond de stockage des documents d'un espace (fichiers non supprimés) : un éditeur ne peut pas remplir le bucket. */
+export const QUOTA_ESPACE_OCTETS = 2 * 1024 * 1024 * 1024;
+export const MESSAGE_QUOTA = 'L\'espace a atteint sa limite de stockage de documents : retirez des fichiers avant d\'en ajouter.';
 export const CIBLES = Object.freeze({ affaire: C.affaires, projet: C.projets });
 const LIBELLE_CIBLE = { affaire: 'Affaire', projet: 'Projet' };
 
@@ -59,14 +61,18 @@ const manqueDroit = (e) => {
  * Dépose un fichier. `octets` : Buffer déjà décodé. Rend { id, nom, taille, typeMime, operationId }.
  * Ordre : contrôles (rien n'est écrit si l'un échoue) -> fichier dans le stockage -> fiche + journal. Si la fiche échoue, le fichier est retiré (au mieux).
  */
-export async function deposerDocument({ donnees, stockage, espace = '', ctx, ecrire, cibleType, cibleId, nom, typeMime, octets, uuid = randomUUID() }) {
+export async function deposerDocument({ donnees, stockage, espace = '', ctx, ecrire, cibleType, cibleId, nom, typeMime, octets, reglage, uuid = randomUUID() }) {
   if (!stockage) throw new ErreurDocument('non_configure', MESSAGE_STOCKAGE_ABSENT);
-  const reglage = await lireReglageTaille(donnees);
+  if (reglage === undefined) reglage = await lireReglageTaille(donnees); // l'appelant qui l'a déjà lu le passe (une seule lecture par dépôt)
   const controle = controlerFichier({ nom, typeMime, taille: octets?.length ?? 0 }, reglage);
   if (!controle.ok) throw new ErreurDocument('refuse', controle.erreur);
   if (!signatureCoherente(controle.extension, octets)) {
     throw new ErreurDocument('refuse', `Le contenu du fichier ne correspond pas à son extension .${controle.extension} : il est refusé.`);
   }
+  // Quota par espace : la somme des fichiers non supprimés (les fiches en corbeille ne comptent pas) ne dépasse jamais QUOTA_ESPACE_OCTETS.
+  const toutes = await donnees.liste(C.documentsStockes);
+  const utilise = toutes.filter((f) => !f.supprimeLe).reduce((n, f) => n + (Number.isFinite(f.taille) ? f.taille : 0), 0);
+  if (utilise + octets.length > QUOTA_ESPACE_OCTETS) throw new ErreurDocument('refuse', MESSAGE_QUOTA);
   const cible = await donnees.document(CIBLES[cibleType], cibleId);
   if (!cible) throw new ErreurDocument('introuvable', `${LIBELLE_CIBLE[cibleType]} introuvable.`);
   const existants = (await donnees.liste(C.documentsStockes, { champ: 'cibleId', valeur: cibleId })).filter((f) => f.cibleType === cibleType && !f.supprimeLe);
@@ -161,12 +167,6 @@ export function octetsDeTexte(nom, contenuTexte) {
   return octets;
 }
 
-/** Fiche pour la réponse d'un outil (sans le chemin interne du stockage). */
-export const fichePublique = (f) => {
-  const { chemin: _chemin, ...reste } = sansId(f);
-  return { id: f.id, ...reste };
-};
-
 // ---------------------------------------------------------------- opérations des fonctions appelables (Jérôme et clients : le même code)
 // Les fonctions appelables contrôlent l'appelant (compte autorisé / membre éditeur ou lecteur), puis appellent ces trois opérations. Rien ici ne lit l'identité de l'appelant.
 
@@ -185,11 +185,13 @@ const texteCourt = (v, max) => typeof v === 'string' && v.length > 0 && v.length
 export async function operationDeposer({ donnees, stockage, espace = '', ctx, demande }) {
   const d = demande && typeof demande === 'object' ? demande : {};
   const { cibleType, cibleId } = lireCible(d);
+  if (typeof d.nom === 'string' && d.nom.length > 400) throw new ErreurDocument('demande_invalide', 'Le nom du fichier est trop long.');
   if (!texteCourt(d.nom, 400)) throw new ErreurDocument('demande_invalide', 'Le nom du fichier est manquant.');
   if (d.typeMime !== undefined && !(typeof d.typeMime === 'string' && d.typeMime.length <= 200)) throw new ErreurDocument('demande_invalide', 'Le type du fichier n\'est pas valide.');
   if (!stockage) throw new ErreurDocument('non_configure', MESSAGE_STOCKAGE_ABSENT);
-  const octets = decoderBase64(d.contenuBase64, await lireReglageTaille(donnees));
-  const r = await deposerDocument({ donnees, stockage, espace, ctx, ecrire: ecritureEcran({ donnees, ctx, outil: 'documentDeposer' }), cibleType, cibleId, nom: d.nom, typeMime: d.typeMime, octets });
+  const reglage = await lireReglageTaille(donnees);
+  const octets = decoderBase64(d.contenuBase64, reglage);
+  const r = await deposerDocument({ donnees, stockage, espace, ctx, reglage, ecrire: ecritureEcran({ donnees, ctx, outil: 'documentDeposer' }), cibleType, cibleId, nom: d.nom, typeMime: d.typeMime, octets });
   return { id: r.id, nom: r.nom, taille: r.taille, typeMime: r.typeMime };
 }
 

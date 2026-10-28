@@ -231,7 +231,7 @@ test('10 un seul bouton jaune sur l’écran : « Ajouter un fichier » est disc
   const panneau = await ouvrirOnglet(page);
   await expect(panneau.getByRole('button', { name: 'Ajouter un fichier' })).not.toHaveClass(/bouton-principal/);
   const jaunes = await page.locator('.bouton-principal:visible:not([disabled])').count();
-  expect(jaunes).toBeLessThanOrEqual(1);
+  expect(jaunes).toBe(1); // « Créer un devis » de l'en-tête, seul jaune plein
 });
 
 test('11 le glisser-déposer d’un fichier sur l’onglet le dépose comme le sélecteur', async ({ page }) => {
