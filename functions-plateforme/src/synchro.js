@@ -13,6 +13,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { logger } from 'firebase-functions';
 import { ErreurN8n } from './n8n.js';
 import { MOTIF_ID_N8N } from './etiquettes.js';
+import { raccourcir } from './libelle.js';
 
 export const DELAI_STALE_MS = 10 * 60 * 1000; // « en cours » depuis plus de 10 minutes = à vérifier
 export const DELAI_MINI_RAFRAICHISSEMENT_MS = 10 * 1000; // entre deux rafraîchissements demandés par un utilisateur
@@ -23,11 +24,7 @@ const LONGUEUR_MESSAGE = 300;
 const LONGUEUR_ETAPE = 120;
 const ETATS_OUVERTS = ['new', 'running', 'waiting'];
 
-/** Texte court et propre : sans caractères de contrôle, raccourci. */
-export function raccourcir(valeur, max) {
-  const t = String(valeur ?? '').replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim();
-  return t.length > max ? `${t.slice(0, max - 1)}…` : t;
-}
+export { raccourcir }; // défini dans libelle.js (sans dépendance, partagé avec le serveur de Jérôme)
 
 /** « à vérifier » : encore « en cours » (ou « démarrée ») plus de 10 minutes après son début. */
 export function estStale(statut, debut, maintenant) {

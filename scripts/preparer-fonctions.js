@@ -99,6 +99,6 @@ console.log('functions-plateforme/serveur/ mis à jour (copie du serveur MCP pou
 // (lecture de n8n, reconnaissance des propriétaires, copie vers Firestore) et la liste des administrateurs de l'écran. Copies générées dans functions/partage/, ignorées par git.
 const destinationAutom = join(destination, 'automatisations');
 mkdirSync(destinationAutom, { recursive: true });
-for (const f of ['n8n.js', 'etiquettes.js', 'synchro.js']) copyFileSync(join(racine, 'functions-plateforme', 'src', f), join(destinationAutom, f));
+for (const f of ['n8n.js', 'etiquettes.js', 'synchro.js', 'libelle.js']) copyFileSync(join(racine, 'functions-plateforme', 'src', f), join(destinationAutom, f));
 copyFileSync(join(racine, 'js', 'os', 'administrateur.js'), join(destination, 'administrateur.js'));
 console.log('functions/partage/automatisations/ et administrateur.js mis à jour (copies de functions-plateforme/src/ et de js/os/)');

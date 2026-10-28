@@ -25,8 +25,8 @@ const prets = { executions: false, workflows: false, synchro: false };
 
 export const chemin = (nom) => cheminCollection(base, nom);
 export const compteCourant = () => compte;
-/** Seuls les éditeurs peuvent renommer (le serveur le revérifie : ceci ne sert qu'à montrer ou cacher le geste). */
-export const peutRenommer = () => base !== '' && compte?.role === 'editeur';
+/** Chez un client : les éditeurs seulement. Chez Jérôme (racine) : les comptes autorisés du CRM, qui n'ont pas de rôle. Le serveur le revérifie : ceci ne sert qu'à montrer ou cacher le geste. */
+export const peutRenommer = () => (base === '' ? compte !== null : compte?.role === 'editeur');
 /** Administrateur : le compte de Jérôme, chez lui (racine) seulement. Le serveur le revérifie à chaque appel : ceci ne sert qu'à montrer ou cacher la vue. */
 export const estAdmin = () => base === '' && estAdministrateur(compte?.email);
 /** Chez un client : les fonctions de la plateforme. Chez Jérôme : seulement pour l'administrateur (fonction automatisationsAdmin, projet chevalier-ia-os). */
@@ -102,7 +102,7 @@ export const vue = (filtre = 'tous') => fusionnerVues({ executions: etat.executi
 /** Renomme l'affichage d'une automatisation (libellé vide = revenir au nom d'origine). Le client est celui de la session, vérifié par le serveur. */
 export async function renommer(workflowId, libelle) {
   const client = base.split('/')[1];
-  const r = await httpsCallable(fonctions(), 'automatisationsRenommer')({ client, workflowId, libelle });
+  const r = await httpsCallable(fonctions(), 'automatisationsRenommer')(client ? { client, workflowId, libelle } : { workflowId, libelle }); // à la racine : pas de client, la fonction de Jérôme n'en lit pas
   return r.data;
 }
 
