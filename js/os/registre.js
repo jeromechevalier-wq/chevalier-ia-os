@@ -159,7 +159,7 @@ export const MODULES_DECLARES = geler([
     libelleMenu: 'Automatisations',
     iconeMenu: 'activity',
     prefixe: 'automatisations',
-    reglages: { sections: [], resume: 'L’historique se lit : il est rempli par les workflows n8n. Aucun réglage à faire ici pour l’instant.' },
+    reglages: { sections: [{ id: 'reglages-export-automatisations', libelle: 'Sauvegarde' }] }, // l'historique se lit (rempli par les workflows n8n) : le seul réglage est la sauvegarde de ses données
     entreeMenu: 'automatisations/historique', // l'entrée arrive sur « À valider » quand le badge compte quelque chose (voir `badge`), sinon sur l'Historique
     badge: { ecran: 'automatisations/a-valider', texte: 'à valider' },
     ordreOnglets: ['automatisations/a-valider', 'automatisations/historique'],
