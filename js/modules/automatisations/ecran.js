@@ -164,7 +164,8 @@ export function rendreHistorique(conteneur) {
     const debut = L.enMs(exe.startedAt);
     const duree = L.texteDuree(exe, maintenant);
     const nom = L.nomAffiche(exe.workflowId, vue.workflows, exe);
-    const titre = D.peutRenommer()
+    // Vue administrateur : une exécution d'un client se renomme chez ce client, jamais d'ici (la fonction écrit dans TES workflows).
+    const titre = D.peutRenommer() && (!exe.proprietaire || exe.proprietaire === L.PROPRIETAIRE_INTERNE)
       ? h('button', { type: 'button', class: 'autom-nom autom-nom-editable', title: 'Cliquer pour renommer', onclick: () => renommer(exe.workflowId, nom) }, nom, icone('pencil', { taille: 13 }))
       : h('span', { class: 'autom-nom' }, nom);
     return h('li', { class: 'autom-ligne', dataset: { id: exe.id, etat: s } },

@@ -28,7 +28,7 @@
 |---|---|---|---|---|
 | `automatisationsCopieHoraire` | `functions-plateforme/src/appels.js` | Oui : copie des workflows de chaque client | Rôle « Administrateur Cloud Scheduler » à donner au compte de déploiement (noté dans A-FAIRE.md) | Rien de plus. |
 | `automatisationsRafraichir` | idem | Oui : le bouton « Rafraîchir » d'un client (Jérôme passe par `automatisationsAdmin`) | Aucun | Rien. |
-| `automatisationsRenommer` | idem | Écart d'interface à trancher : l'icône « Renommer » n'apparaît que chez un éditeur de client (`peutRenommer` : `base !== ''`), jamais chez Jérôme | Aucun pour le client ; chez Jérôme, impossible de renommer ses propres workflows, ce qui va contre la règle « même code chez Jérôme et chez les clients » (18/10/2026) | Décider : l'ouvrir à Jérôme (fonction `functions/` + copie du code commun) ou noter l'écart dans la liste des différences à supprimer. |
+| `automatisationsRenommer` | clients : `functions-plateforme/src/appels.js` ; Jérôme : `functions/src/automatisations/renommer-appel.js` | Réglé le 28/10/2026 (décision de Jérôme) : la fonction existe aussi chez Jérôme (collection racine `workflows`, comptes de `COMPTES_AUTORISES`, compte de service `porte-serveur`), et l'icône « Renommer » s'affiche chez lui. Le contrôle du nom est le même code des deux côtés (`functions-plateforme/src/libelle.js`, copié dans `functions/partage/`) | Aucun : plus d'écart | Rien. À sa prochaine relance, cet audit la rangera dans « des deux côtés ». |
 | `mcpclients` | `functions-plateforme/src/mcp-clients.js` | Oui (équivalent client de `mcp`) | Compte dédié à créer avant déploiement (`docs/mcp-clients.md`) | Rien. |
 | `espaceReglages` | `functions-plateforme/src/espace.js` | Oui : « Mon espace » règle un client ; chez Jérôme les réglages se font en direct | Faible : l'écran « Mon espace » de la racine n'appelle pas cette fonction | Rien. |
 
@@ -50,5 +50,5 @@
 ## À traiter avant la prochaine démonstration
 
 1. `automatisationsDecider` est branchée chez les clients (28/10/2026, déploiement « fonctions » de la plateforme à lancer par Jérôme). `veille` et `tableaudebordSaisir` (Veille et Maintenance) restent réservées à Jérôme pour l'instant (décision du 28/10/2026) : ne pas activer ces modules chez un client.
-2. Trancher l'écart `automatisationsRenommer` (renommer invisible chez Jérôme).
+2. ~~Trancher l'écart `automatisationsRenommer`~~ : fait le 28/10/2026 (fonction ajoutée chez Jérôme, voir la ligne du tableau 2).
 3. Relancer cet audit : comparer les `export const` des deux `index.js` avec les noms passés à `httpsCallable` dans `js/`.
