@@ -163,8 +163,7 @@ export const lireToutPourExport = () => CRM.collectionsParNoms(['devis_articles'
 
 /** Enregistre les réglages du module (document complet). `saisie` : les champs saisis ; renvoie `{ erreurs, reglages }`. */
 export async function enregistrerReglages(saisie) {
-  const etapesIds = CRM.etat.config.etapes.filter((e) => e.actif).map((e) => e.id);
-  const r = A.validerReglagesDevis(saisie, { actuels: etat.reglages, etapesIds });
+  const r = A.validerReglagesDevis(saisie, { actuels: etat.reglages });
   if (Object.keys(r.erreurs).length) return { erreurs: r.erreurs, reglages: null };
   await setDoc(doc(db, chemin(A.COLLECTION_PARAMETRES), A.ID_REGLAGES), r.reglages);
   return { erreurs: {}, reglages: r.reglages };

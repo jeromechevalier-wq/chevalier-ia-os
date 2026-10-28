@@ -287,7 +287,7 @@ Lignes de modules (seulement si le module est actif) :
 | Module | Lignes automatiques | Lignes à cocher |
 |---|---|---|
 | Affaires (`js/modules/crm/deploiement.js`) | Dossier Google Drive racine des projets choisi | API Drive et Picker activées, adresse du site autorisée |
-| Devis (`js/modules/devis/deploiement.js`) | « Mon entreprise » complète ; étape où vivent les devis ; catalogue rempli | Catalogue et anciens devis rassemblés, « Préparer l'e-mail » branché, essai de bout en bout, `liste mes devis` vérifié |
+| Devis (`js/modules/devis/deploiement.js`) | « Mon entreprise » complète ; catalogue rempli | Catalogue et anciens devis rassemblés, « Préparer l'e-mail » branché, essai de bout en bout, `liste mes devis` vérifié |
 
 Les deux contrôles du serveur (`CONTROLES_SERVEUR` = `fonctions`, `membres`, `pdf-stockage`, `pdf-fonctions`, dans `functions/src/coeur/deploiement.js`) sont les seuls qui passent par le serveur. La page ne vérifie **pas** : les comptes de service et leurs droits, les secrets, les déclencheurs Eventarc, les APIs. C'est pour cela que ce document existe : une page toute verte ne prouve pas que le PDF marche, l'étape 20 le prouve.
 

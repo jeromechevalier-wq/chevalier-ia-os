@@ -167,7 +167,7 @@ export const chercher_article = {
 export const lire_reglages_devis = {
   nom: 'lire_reglages_devis',
   profils: TOUS,
-  description: "Lit les réglages du module Devis (nom du bordereau, marge et mode de marge par défaut, régime et taux de TVA proposés, durée de validité, étapes liées aux devis, mention de l'émetteur, « Mon entreprise ») et les familles d'articles du bordereau (id, nom, actif, parentId). Lecture seule : ces réglages se changent depuis l'écran.",
+  description: "Lit les réglages du module Devis (nom du bordereau, marge et mode de marge par défaut, régime et taux de TVA proposés, durée de validité, mention de l'émetteur, « Mon entreprise ») et les familles d'articles du bordereau (id, nom, actif, parentId). Lecture seule : ces réglages se changent depuis l'écran.",
   schema: {},
   executer: ({ donnees }) => lecture.lireReglagesDevis(donnees),
 };

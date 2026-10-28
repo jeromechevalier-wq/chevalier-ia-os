@@ -134,8 +134,7 @@ export function controlesDeploiement() {
       const ecouter = (rappel) => { const a = D.surChangement(rappel); const b = CRM.surChangement(rappel); return () => { a?.(); b?.(); }; };
       const pret = await attendreQue(() => D.estPret() && CRM.etat.pret.parametres, ecouter);
       return controlerDeploiementDevis({
-        pret, reglages: D.etat.reglages, etapesIds: CRM.etat.config.etapes.filter((e) => e.actif).map((e) => e.id),
-        articles: D.etat.articles, erreurArticles: D.etat.erreurLecture,
+        pret, reglages: D.etat.reglages, articles: D.etat.articles, erreurArticles: D.etat.erreurLecture,
       });
     },
   };
