@@ -726,13 +726,13 @@ export async function enregistrerReponseVocabulaire(c, args) {
     // `exigerStatut` : si la règle a changé de statut entre la lecture et l'écriture, l'écriture est refusée (conflit), sans relance.
     operations = L.modifierSiPatch(C.devisVocabulaire, regleId, patch, L.MARQUES_MODIFICATION).map((op) => ({ ...op, exigerStatut: existante.statut }));
   }
-  if (!operations.length) return { operationId: null, rien: true, regleId, statut: complet.statut, confirmations: complet.confirmations, message: 'Rien à changer : cette confirmation est déjà comptée aujourd’hui.' };
+  if (!operations.length) return { operationId: null, rien: true, regleId, statut: complet.statut, confirmations: complet.confirmations, message: 'Rien à changer.' };
   const ecrit = await c.ecrire({ operations, parametres: args });
   const message = autreArticle
     ? `Noté : « ${r.cle} » pointait vers un autre article ; la règle est marquée ${complet.conflit ? 'en conflit' : 'contredite'} et sera à trancher à la revue du vocabulaire.`
     : complet.statut === 'active'
       ? `Noté : « ${r.cle} » → « ${article.libelle} » est maintenant une règle active (confirmée ${complet.confirmations} fois).`
-      : `Noté : « ${r.cle} » → « ${article.libelle} » (à confirmer : encore une confirmation un autre jour pour qu’elle serve sans question).`;
+      : `Noté : « ${r.cle} » → « ${article.libelle} » (à confirmer : encore une confirmation pour qu’elle serve sans question).`;
   return sortie(ecrit, { regleId, statut: complet.statut, confirmations: complet.confirmations, contradictions: complet.contradictions, conflit: complet.conflit, message });
 }
 
