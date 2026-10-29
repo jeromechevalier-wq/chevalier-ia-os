@@ -307,7 +307,12 @@ export const supprimer = (devisId) => appeler('supprimer', { devisId });
 /** Ajoute un envoi par e-mail à l'historique d'un devis « Envoyé » (le statut ne change pas) : `destinataires` et `copie` sont des listes d'adresses. */
 export const enregistrerEnvoi = (devisId, { destinataires, copie = [] }) => appeler('enregistrerEnvoi', { devisId, destinataires, copie });
 /** Change le destinataire (la copie reste telle quelle si elle n'est pas donnée) d'un devis finalisé ou envoyé : le serveur n'écrit que ces deux champs, jamais le contenu du devis. */
-export const modifierDestinataires = (devisId, { destinataires, copie }) => appeler('modifierDestinataires', { devisId, destinataires, ...(copie === undefined ? {} : { copie }) });
+export const modifierDestinataires = async (devisId, { destinataires, copie }) => {
+  const r = await appeler('modifierDestinataires', { devisId, destinataires, ...(copie === undefined ? {} : { copie }) });
+  const d = devisParId(devisId); // sans attendre l'instantané Firestore : un second clic ne redemande pas l'adresse
+  if (d) d.destinataires = destinataires;
+  return r;
+};
 /** Relance la fabrication du PDF d'un devis finalisé (Chromium dans la fonction, rangé dans Cloud Storage) : `{ statut, lien, nom }`. Le serveur écrit seul le champ `pdf` du devis. Lève une Error lisible si refusé (brouillon, PDF non configuré…). */
 export const pdfDevis = (devisId) => appeler('pdf', { devisId });
 /** Fabrique le PDF « BROUILLON » filigrané d'un devis encore brouillon (il remplace le précédent) : `{ statut, lien, nom }`. Refusé par le serveur si le devis n'est plus brouillon. */

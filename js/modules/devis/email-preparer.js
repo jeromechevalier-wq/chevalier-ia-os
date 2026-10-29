@@ -2,7 +2,7 @@
 // la personne l'envoie elle-même depuis Gmail, puis touche « Devis envoyé ». C'est le SEUL chemin de l'e-mail d'un devis (le navigateur ne parle plus à Gmail, décision du 27/10/2026). Ce fichier est PUR (aucun navigateur, aucun réseau) : les textes, les règles du menu
 // et la ligne de l'Historique. L'écran est dans email-preparer-ecran.js ; la fonction du serveur dans functions/src/coeur/devis-email.js.
 import { enMs } from './liste.js';
-import { emailValide } from './logique.js';
+import { adresseSure } from './email-brouillon.js';
 
 export const LIBELLE_PREPARER_EMAIL = 'Préparer l’e-mail';
 export const TITRE_PREPARER_EMAIL = 'Préparer l’e-mail';
@@ -28,7 +28,7 @@ export const MESSAGE_SANS_DESTINATAIRE = 'Ce devis n’a pas de destinataire : a
 export const MESSAGE_SANS_DESTINATAIRE_ICI = 'Ce devis n’a pas de destinataire. Saisis l’adresse e-mail de ton client : elle est ajoutée au devis (le contenu du devis ne change pas), puis le brouillon est préparé.';
 export const MESSAGE_DESTINATAIRE_INVALIDE = 'Cette adresse e-mail n’est pas valide.';
 /** Message à afficher si l'adresse saisie ne convient pas, sinon null. */
-export const refusDestinataire = (adresse) => (emailValide(String(adresse ?? '').trim()) ? null : MESSAGE_DESTINATAIRE_INVALIDE);
+export const refusDestinataire = (adresse) => (adresseSure(String(adresse ?? '').trim()) ? null : MESSAGE_DESTINATAIRE_INVALIDE);
 
 /**
  * La ligne de l'Historique depuis `emailPrepare` (écrit par le serveur : « demandee » quand l'écran demande, puis « ok » ou « echec » quand n8n a fini) : null s'il n'y en a pas, sinon

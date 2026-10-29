@@ -301,13 +301,19 @@ describe('7 modifier_destinataires_devis : donner l’adresse d’un devis final
     assert.deepEqual(r.copie, ['b@exemple.test']);
     const r2 = ok(await s.appeler('biblio', 'modifier_destinataires_devis', { id: 'g2', destinataires: ['c@exemple.test'], copie: [] }));
     assert.deepEqual(r2.copie, []);
-    // Le geste se défait avec le journal (le statut ne change pas) : on revient à l'adresse d'avant.
-    const retour = ok(await s.appeler('code', 'restaurer_depuis_audit', { operationId: r2.operationId, apercu: false }));
-    assert.ok(retour, 'la restauration répond');
-    assert.deepEqual(s.doc('devis_devis', 'g2').destinataires, ['a@exemple.test']);
+    // Le devis est finalisé : le journal ne le défait pas (on rappelle l'outil avec l'ancienne adresse).
+    refuse(await s.appeler('code', 'restaurer_depuis_audit', { operationId: r2.operationId, apercu: false }), /ne se défait pas|figé|finalis/i);
+    assert.deepEqual(s.doc('devis_devis', 'g2').destinataires, ['c@exemple.test']);
     ok(await s.appeler('biblio', 'modifier_destinataires_devis', { id: 'g3', destinataires: ['z@exemple.test'] }));
     assert.deepEqual(s.doc('devis_devis', 'g3').destinataires, ['z@exemple.test']);
     assert.equal(s.doc('devis_devis', 'g3').statut, 'envoye');
+  });
+
+  test('7 une copie déjà enregistrée n’est pas revalidée quand on ne la change pas (accent, forme objet) ; un brouillon à copie douteuse reçoit le message du brouillon', async () => {
+    const s = await demarrer({ devis: [sansAdresse('h1', 'en_attente_envoi', { copie: ['josé@exemple.test', { email: 'o@exemple.test' }] }), devisEnregistre('h2', { destinataires: [], copie: ['pas une adresse'] })] });
+    const r = ok(await s.appeler('biblio', 'modifier_destinataires_devis', { id: 'h1', destinataires: ['client@exemple.test'] }));
+    assert.deepEqual(r.copie, ['josé@exemple.test', 'o@exemple.test']);
+    refuse(await s.appeler('biblio', 'modifier_destinataires_devis', { id: 'h2', destinataires: ['client@exemple.test'] }), /brouillon/);
   });
 
   test('7 refus, rien n’est écrit : brouillon de devis, signé, refusé, remplacé, adresse invalide, aucune adresse, devis inconnu, profil lecteur', async () => {

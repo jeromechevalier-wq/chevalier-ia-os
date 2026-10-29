@@ -325,11 +325,12 @@ export async function modifierDestinataires({ donnees, ctx, devisId, destinatair
   const a = adressesDeEnvoi(destinataires, { nom: 'Destinataires', minimum: 1 });
   return donnees.transaction(async (tx) => {
     const devis = await lireDevis(tx, devisId);
-    // Copie non donnée : celle du devis reste (sans l'adresse devenue destinataire). Donnée : elle remplace l'ancienne.
-    const cc = adressesDeEnvoi(copie === undefined ? (Array.isArray(devis.copie) ? devis.copie : []).map((x) => (typeof x === 'string' ? x : x?.email ?? '')).filter((x) => x.trim() !== '') : copie, { nom: 'Copie', minimum: 0 }).filter((x) => !a.some((y) => y.toLowerCase() === x.toLowerCase()));
     if (!['en_attente_envoi', 'envoye'].includes(devis.statut)) throw new ErreurDevis('transition_interdite', devis.statut === 'brouillon'
       ? 'Ce devis est encore un brouillon : change son destinataire directement dans le devis.'
       : 'Le destinataire ne se change que sur un devis finalisé ou envoyé.');
+    // Copie non donnée : celle du devis reste TELLE QUELLE (non revalidée : la finalisation l'a déjà acceptée), sans l'adresse devenue destinataire. Donnée : validée, elle remplace l'ancienne.
+    const existante = (Array.isArray(devis.copie) ? devis.copie : []).map((x) => String(typeof x === 'string' ? x : x?.email ?? '').trim()).filter(Boolean);
+    const cc = (copie === undefined ? existante : adressesDeEnvoi(copie, { nom: 'Copie', minimum: 0 })).filter((x) => !a.some((y) => y.toLowerCase() === x.toLowerCase()));
     const changement = modifier(devis, { destinataires: a, copie: cc });
     const j = journal({ donnees, ctx, outil: 'devisModifierDestinataires', parametres: { devisId, destinataires: a, copie: cc }, changements: [changement] });
     tx.ecrire([changement.ecriture, ...j.ecritures]);

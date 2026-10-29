@@ -33,6 +33,8 @@ export async function lancerPreparationEmail({ devisId, getDevis, finaliser = nu
  */
 function demanderDestinataire(devisId) {
   let occupe = false;
+  let boutons = [];
+  const occuper = (v) => { occupe = v; boutons.forEach((b) => { b.disabled = v; }); }; // pas de « Annuler » pendant l'écriture : la fenêtre ne se ferme pas sur une adresse déjà enregistrée
   const champ = h('input', { class: 'champ', type: 'email', inputmode: 'email', autocomplete: 'off', 'aria-label': 'Adresse e-mail du destinataire', dataset: { champ: 'destinataire-preparer-email' } });
   const erreur = h('p', { class: 'erreur', role: 'alert', hidden: true, dataset: { zone: 'erreur-destinataire-preparer-email' } });
   const contenu = h('div', { class: 'contenu-preparer-email' }, h('p', { dataset: { valeur: 'sans-destinataire' } }, P.MESSAGE_SANS_DESTINATAIRE_ICI), champ, erreur);
@@ -52,24 +54,26 @@ function demanderDestinataire(devisId) {
           erreur.hidden = !refus;
           if (refus) { erreur.textContent = refus; champ.setAttribute('aria-invalid', 'true'); champ.focus(); return false; }
           champ.setAttribute('aria-invalid', 'false');
-          occupe = true;
+          occuper(true);
           try {
             await D.modifierDestinataires(devisId, { destinataires: [adresse] });
           } catch (e) {
             console.warn(e);
-            occupe = false;
+            occuper(false);
             erreur.textContent = e?.message || P.MESSAGE_ERREUR_PAR_DEFAUT;
             erreur.hidden = false;
             return false;
           }
-          occupe = false;
+          occuper(false);
           return true;
         },
       },
     ],
     auMontage: ({ boutons: b }) => {
+      boutons = b;
       b[0].dataset.action = 'annuler-destinataire-preparer-email';
       b[1].dataset.action = 'enregistrer-destinataire-preparer-email';
+      champ.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); if (!occupe) b[1].click(); } });
       champ.focus();
     },
   }).then((ok) => ok === true);
