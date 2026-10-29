@@ -5,7 +5,7 @@
 ## 0. État de la PR 369
 
 - Branche de la PR : `claude/zealous-davinci-3mq3l5`. Elle appartient à une **autre session** que celle qui a écrit ce guide : rien n'y a été poussé.
-- Elle a 25 commits de retard sur `main`, mais la fusion avec `main` se fait **sans conflit** (vérifié). La session qui possède la branche doit y fusionner `origin/main` et pousser pour relancer la coche « Tests » ; sinon, bouton « Update branch » sur la page de la PR (https://github.com/jeromechevalier-wq/chevalier-ia-os/pull/369), puis attendre la coche verte.
+- Elle a 25 commits de retard sur `main` et **12 fichiers en conflit** (dont `functions/src/coeur/ecriture.js`, `js/os/registre.js`, `scripts/preparer-fonctions.js`, des tests MCP), à cause des PR 387 à 390. La résolution est faite par la session principale, avec relecture Fable ; le bouton « Update branch » ne suffira pas. Il faut ensuite attendre la coche « Tests » verte sur https://github.com/jeromechevalier-wq/chevalier-ia-os/pull/369.
 - Ne fusionne **pas** avant les étapes 1 et 2 ci-dessous.
 
 ## 1. Urgence 1 : lire les règles Storage du projet `chevalier-ia-os`
@@ -74,7 +74,7 @@ Chaque étape finit par ce que tu vérifies à l'écran. Ne passe à la suivante
 
 1. **Règles Storage de `chevalier-ia-os`** (paragraphe 1) : lis-les, colle-les à Claude. *À l'écran* : onglet Règles lu sans rien modifier. Si elles sont ouvertes : on prépare et on publie le `storage.rules` « tout refusé » d'abord.
 2. **Droits IAM chez toi** (paragraphe 2, `porte-serveur` et `mcp-serveur`). *À l'écran* : sur chaque compte, dans la liste IAM, le rôle « Administrateur des objets de Storage » apparaît avec « Condition : documents seulement ».
-3. **Mettre la PR 369 à jour** (« Update branch » ou session propriétaire), attendre « Tests » vert, puis **la fusionner** (https://github.com/jeromechevalier-wq/chevalier-ia-os/pull/369). Le déploiement des fonctions chez toi part tout seul. *À l'écran* : onglet Actions, le déploiement est vert ; Réglages > Déploiement reste vert.
+3. **Attendre que la PR 369 soit mise à jour avec `main`** (conflits résolus par Claude), attendre « Tests » vert, puis **la fusionner** (https://github.com/jeromechevalier-wq/chevalier-ia-os/pull/369). Le déploiement des fonctions chez toi part tout seul. *À l'écran* : onglet Actions, le déploiement est vert ; Réglages > Déploiement reste vert.
 4. **Publier les règles Firestore** : GitHub > Actions (https://github.com/jeromechevalier-wq/chevalier-ia-os/actions) > « Publier les règles (CRM de Jérôme) » > « Run workflow » > bouton vert. À faire **après** la fusion de la PR 369 et, si elle est fusionnée, de la PR 391 (le fichier de règles contient alors les deux ajouts, `documents_stockes` et `devis_vocabulaire`). *À l'écran* : le workflow finit vert, et le journal dit « Règles lues ».
 5. **Essai de bout en bout chez toi** : ouvre une affaire de test > dernier onglet « Documents » > « + Ajouter un fichier » : un petit `.txt`, puis un PDF. *À l'écran* : la ligne apparaît avec nom, taille, date, ton e-mail ; le nom ouvre le fichier ; attends 6 minutes, recharge : l'ancien lien est refusé ; la croix demande confirmation, « Retirer » fait disparaître la ligne, et l'Historique montre la suppression. Un compte Google quelconque non autorisé reste refusé comme avant.
 6. **Droits IAM chez les clients** (paragraphe 2, `mcp-clients`). *À l'écran* : le rôle avec la condition `clients/` apparaît sur la ligne du compte.
