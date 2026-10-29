@@ -102,7 +102,7 @@ export const MODULES_DECLARES = geler([
     ecrans: [
       { route: 'projets/projets', libelle: 'Projets', icone: 'folder-kanban' },
     ],
-    reglages: { sections: [{ id: 'reglages-modeles-projets', libelle: 'Modèles de projets' }] },
+    reglages: { sections: [{ id: 'reglages-modeles-projets', libelle: 'Modèles de projets' }, { id: 'reglages-export-projets', libelle: 'Sauvegarde des projets' }] },
     collections: ['projets_projets', 'projets_taches', 'projets_modeles'],
     outilsMcp: [
       'lister_projets', 'lire_projet', 'lister_modeles_projet',
@@ -127,9 +127,10 @@ export const MODULES_DECLARES = geler([
     ecrans: [
       { route: 'devis/liste', libelle: 'Devis', icone: 'file-text' },
       { route: 'devis/bordereau', libelle: 'Catalogue', icone: 'list' },
+      { route: 'devis/vocabulaire', libelle: 'Vocabulaire', icone: 'book-open' },
     ],
-    collections: ['devis_articles', 'devis_parametres', 'devis_devis'],
-    outilsMcp: ['lister_articles', 'chercher_article', 'lire_reglages_devis', 'creer_article', 'modifier_article', 'desactiver_article', 'lister_devis', 'lire_devis', 'creer_devis_brouillon', 'modifier_devis_brouillon', 'finaliser_devis', 'nouvelle_version_devis', 'archiver_devis', 'enregistrer_envoi_devis', 'changer_statut_devis', 'supprimer_devis'],
+    collections: ['devis_articles', 'devis_parametres', 'devis_devis', 'devis_vocabulaire'],
+    outilsMcp: ['lister_articles', 'chercher_article', 'lire_reglages_devis', 'creer_article', 'modifier_article', 'desactiver_article', 'lister_devis', 'lire_devis', 'creer_devis_brouillon', 'modifier_devis_brouillon', 'finaliser_devis', 'nouvelle_version_devis', 'archiver_devis', 'enregistrer_envoi_devis', 'changer_statut_devis', 'supprimer_devis', 'rechercher_article_par_phrase', 'enregistrer_reponse_vocabulaire'],
     dependances: ['affaires'],
   },
   {
@@ -141,7 +142,7 @@ export const MODULES_DECLARES = geler([
     libelleMenu: 'Veille',
     iconeMenu: 'globe',
     prefixe: 'veille',
-    reglages: { sections: [], resume: 'La veille se lit : ses sources sont suivies par les workflows n8n. Aucun réglage à faire ici pour l’instant.' },
+    reglages: { sections: [{ id: 'reglages-export-veille', libelle: 'Sauvegarde' }] },
     entreeMenu: 'veille/contenus',
     ecrans: [
       { route: 'veille/contenus', libelle: 'Contenus', icone: 'file-text' },
@@ -160,7 +161,7 @@ export const MODULES_DECLARES = geler([
     libelleMenu: 'Automatisations',
     iconeMenu: 'activity',
     prefixe: 'automatisations',
-    reglages: { sections: [], resume: 'L’historique se lit : il est rempli par les workflows n8n. Aucun réglage à faire ici pour l’instant.' },
+    reglages: { sections: [{ id: 'reglages-export-automatisations', libelle: 'Sauvegarde' }] }, // l'historique se lit (rempli par les workflows n8n) : le seul réglage est la sauvegarde de ses données
     entreeMenu: 'automatisations/historique', // l'entrée arrive sur « À valider » quand le badge compte quelque chose (voir `badge`), sinon sur l'Historique
     badge: { ecran: 'automatisations/a-valider', texte: 'à valider' },
     ordreOnglets: ['automatisations/a-valider', 'automatisations/historique'],
@@ -182,7 +183,7 @@ export const MODULES_DECLARES = geler([
     libelleMenu: 'Maintenance',
     iconeMenu: 'layout-dashboard',
     prefixe: 'tableaudebord',
-    reglages: { sections: [], resume: 'La maintenance se lit : ses indicateurs sont écrits par les scripts de surveillance. Aucun réglage à faire ici pour l’instant.' },
+    reglages: { sections: [{ id: 'reglages-export-maintenance', libelle: 'Sauvegarde' }] }, // la maintenance se lit (indicateurs écrits par les scripts de surveillance) : le seul réglage est la sauvegarde de ses données
     entreeMenu: 'tableaudebord/general',
     ecrans: [
       { route: 'tableaudebord/general', libelle: 'Maintenance', icone: 'layout-dashboard' },
@@ -235,7 +236,7 @@ export const GROUPES_MENU = geler([
     sectionsMenu: [['crm/accueil'], ['crm/personnes', 'crm/organisations'], ['crm/affaires', 'projets/projets']],
     ordreReglages: [
       'reglages-etapes', 'reglages-phases', 'reglages-options', 'reglages-modeles-affaire', 'reglages-modeles-projets', 'reglages-objectifs',
-      'reglages-offres', 'reglages-secteurs', 'reglages-sources', 'reglages-etiquettes', 'reglages-filtres', 'reglages-debut', 'reglages-projets', 'reglages-fichiers', 'reglages-export',
+      'reglages-offres', 'reglages-secteurs', 'reglages-sources', 'reglages-etiquettes', 'reglages-filtres', 'reglages-debut', 'reglages-projets', 'reglages-fichiers', 'reglages-export-projets', 'reglages-export',
     ],
   },
 ]);

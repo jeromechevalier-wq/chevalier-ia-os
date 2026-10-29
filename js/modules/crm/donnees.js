@@ -15,7 +15,7 @@ export const COLLECTIONS_CRM = [
   'crm_personnes', 'crm_organisations', 'crm_affaires', 'crm_activites', 'crm_notes', 'crm_evenements', 'crm_parametres',
   'projets_projets', 'projets_taches', 'projets_modeles',
   // Devis : pas `devis_compteurs` (réservé au serveur, aucun navigateur ne le lit).
-  'devis_articles', 'devis_parametres', 'devis_devis',
+  'devis_articles', 'devis_parametres', 'devis_devis', 'devis_vocabulaire',
   // Onglet « Documents » : les FICHES (nom, taille, date, qui) sont dans la sauvegarde, pas les fichiers eux-mêmes (ils restent dans le stockage).
   'documents_stockes',
   'veille_sources', 'veille_contenus', 'veille_resumes', 'veille_pages',

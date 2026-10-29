@@ -540,3 +540,36 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
 }
 /* Croix de suppression d'un brouillon dans l'onglet « Devis » : cible de 44 px au doigt. */
 @media (max-width: 767px), (pointer: coarse) { .onglet-devis .ligne-lien .bouton-icone { min-width: 44px; min-height: 44px; } .carte-devis .lien-pdf-devis.bouton-lien, .ligne-devis .lien-pdf-devis.bouton-lien { min-height: 44px; } }
+
+/* Écran « Vocabulaire » (mots appris par l'assistant) : le tableau, les pastilles, les boutons et le filtre viennent de crm.css et os.css. */
+.page-vocabulaire .discret, .selecteur-article .discret, .formulaire-creation .discret { color: var(--texte2); }
+.page-vocabulaire > .prop-ajouter { margin: var(--esp-4) 0; }
+.bloc-essai { display: flex; flex-direction: column; gap: var(--esp-3); margin: var(--esp-4) 0 var(--esp-6); max-width: 640px; }
+.ligne-etiquette-info { display: flex; align-items: center; gap: var(--esp-2); }
+.essai-resultat p { margin: var(--esp-1) 0 0; }
+.avis-lecture { display: flex; align-items: center; gap: var(--esp-5); flex-wrap: wrap; margin-bottom: var(--esp-4); }
+.avis-lecture p { margin: 0; }
+.tableau-vocabulaire .titre-colonne, .tableau-vocabulaire .titre-colonne:hover { cursor: default; color: var(--texte2); }
+.tableau-vocabulaire .ligne-liste { cursor: default; }
+.tableau-vocabulaire .ligne-liste:hover { background: transparent; }
+.tableau-vocabulaire .mot-desactive td { color: var(--texte2); }
+.tableau-vocabulaire .mot-note, .tableau-vocabulaire .mot-general { margin: var(--esp-1) 0 0; font-size: var(--fs-petit); }
+.tableau-vocabulaire .article-mort { display: flex; align-items: center; gap: var(--esp-3); flex-wrap: wrap; margin-top: var(--esp-1); }
+.tableau-vocabulaire td[data-colonne="statut"] { white-space: nowrap; }
+.tableau-vocabulaire td[data-colonne="statut"] .pastille-statut + .pastille-statut { margin-left: var(--esp-2); }
+.tableau-vocabulaire .lien-article { text-decoration: underline; text-decoration-color: var(--bordure-forte, var(--texte2)); }
+.exemples-vocabulaire { margin: var(--esp-2) 0 0; padding-left: var(--esp-6); font-size: var(--fs-petit); color: var(--texte2); }
+.article-choisi { margin: 0; }
+@media (max-width: 767px) {
+  .tableau-vocabulaire thead { display: none; } /* pas de tri par colonne : chaque carte porte ses libellés */
+  .tableau-vocabulaire td:first-child { padding-right: 52px; } /* la place du menu « … » en haut à droite de la carte */
+  .tableau-vocabulaire td.col-actions .bouton-icone { min-width: 44px; min-height: 44px; }
+}
+@media (max-width: 767px), (pointer: coarse) {
+  .page-vocabulaire .prop-vide, .page-vocabulaire .bouton-lien, .page-vocabulaire .lien-article, .avis-lecture .bouton, .formulaire-creation .bouton { min-height: 44px; }
+  .page-vocabulaire .bouton-lien, .page-vocabulaire .lien-article { display: inline-flex; align-items: center; }
+  .page-vocabulaire .page-tete .bouton-icone { min-width: 44px; min-height: 44px; }
+}
+/* Les liens de la liste (phrases d'exemple, « Changer l'article ») ne sont pas des actions principales : texte normal souligné, jamais jaune. */
+.tableau-vocabulaire .bouton-lien { padding: 0; color: var(--texte); text-decoration: underline; text-decoration-color: var(--bordure-forte, var(--texte2)); }
+.tableau-vocabulaire .bouton-lien:hover, .tableau-vocabulaire .bouton-lien:focus-visible { text-decoration-color: var(--texte); }

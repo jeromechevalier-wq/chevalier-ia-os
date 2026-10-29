@@ -206,7 +206,7 @@ test('B6 le titre de l\'écran suit le nom de bordereau choisi dans les réglage
   await expect(page.getByRole('heading', { name: 'Grille tarifaire', level: 1 })).toBeVisible(); // en direct, sans recharger
 });
 
-test('B7 les réglages (mode de marge, régime de TVA, durée, étapes) s\'enregistrent et se relisent ; une marge sur prix de vente de 100 % ou plus est refusée avec un message', async ({ page }, info) => {
+test('B7 les réglages (mode de marge, régime de TVA, durée) s\'enregistrent et se relisent ; une marge sur prix de vente de 100 % ou plus est refusée avec un message', async ({ page }, info) => {
   await connecter(page);
   await ouvrirReglagesDevis(page);
   const enregistrer = page.locator('[data-action="enregistrer-reglages-devis"]');
@@ -225,7 +225,6 @@ test('B7 les réglages (mode de marge, régime de TVA, durée, étapes) s\'enreg
   await page.locator('#devis-marge').fill('25,5');
   await page.locator('#devis-regimeTva').selectOption('franchise');
   await page.locator('#devis-dureeValiditeJours').fill('60');
-  await page.locator('#devis-etapeDevis').selectOption({ label: 'Rendez vous fixé' });
   await page.locator('#devis-mentionEmetteur').fill('Une mention');
   await page.locator('[data-champ="tauxProposes"] input[data-taux="5.5"]').uncheck();
   await enregistrer.click();
@@ -233,7 +232,7 @@ test('B7 les réglages (mode de marge, régime de TVA, durée, étapes) s\'enreg
   await expect(page.locator('[data-erreur="marge"]')).toHaveText('');
   await expect(enregistrer).toBeDisabled();
   const r = await lireDocument('devis_parametres/reglages');
-  expect(r).toMatchObject({ modeMarge: 'marge_vente', marge: 25.5, regimeTva: 'franchise', dureeValiditeJours: 60, etapeDevis: 'rdv_fixe', mentionEmetteur: 'Une mention', tauxProposes: [20, 10], tauxTvaDefaut: 20 });
+  expect(r).toMatchObject({ modeMarge: 'marge_vente', marge: 25.5, regimeTva: 'franchise', dureeValiditeJours: 60, mentionEmetteur: 'Une mention', tauxProposes: [20, 10], tauxTvaDefaut: 20 });
   await page.reload();
   await attendreCalme(page);
   await expect(page.locator('#reglages-devis')).toBeVisible();
@@ -241,20 +240,25 @@ test('B7 les réglages (mode de marge, régime de TVA, durée, étapes) s\'enreg
   await expect(page.locator('#devis-marge')).toHaveValue('25,5');
   await expect(page.locator('#devis-regimeTva')).toHaveValue('franchise');
   await expect(page.locator('#devis-dureeValiditeJours')).toHaveValue('60');
-  await expect(page.locator('#devis-etapeDevis')).toHaveValue('rdv_fixe');
-  await expect(page.locator('#devis-etapeAFaire, #devis-etapeEnvoye')).toHaveCount(0); // une seule liste « Étape où vivent les devis »
   await expect(page.locator('#devis-mentionEmetteur')).toHaveValue('Une mention');
   await capturer(page, info, 'B7-reglages-relus');
-  // 7 une seule étape pour tous les devis : on la change, elle s'enregistre
-  await page.locator('#devis-etapeDevis').selectOption({ label: 'Proposition envoyée' });
+  // 7 plus de liste « Étape où vivent les devis » (retirée le 28/10/2026) : aucun champ d'étape à l'écran
+  await expect(page.locator('#devis-etapeDevis, #devis-etapeAFaire, #devis-etapeEnvoye, [data-erreur="etapeDevis"]')).toHaveCount(0);
+  await expect(page.locator('#reglages-devis')).not.toContainText('Étape où vivent les devis');
+  // 7 un ancien réglage « etapeDevis » dans la base : pas d'erreur, pas de champ, et la valeur est recopiée inchangée à l'enregistrement
+  await ecrireDocument('devis_parametres/reglages', { ...r, etapeDevis: 'rdv_fixe', etapeAFaire: 'proposition_envoyee' });
+  await page.reload();
+  await attendreCalme(page);
+  await expect(page.locator('#reglages-devis')).toBeVisible();
+  await expect(page.locator('#devis-etapeDevis')).toHaveCount(0);
+  await page.locator('#devis-dureeValiditeJours').fill('45');
   await enregistrer.click();
-  await expect.poll(async () => (await lireDocument('devis_parametres/reglages')).etapeDevis).toBe('proposition_envoyee');
-  await expect(page.locator('[data-erreur="etapeDevis"]')).toHaveText('');
-  await page.locator('#devis-etapeDevis').selectOption({ label: 'Rendez vous fixé' });
+  await expect.poll(async () => (await lireDocument('devis_parametres/reglages')).dureeValiditeJours).toBe(45);
+  expect(await lireDocument('devis_parametres/reglages')).toMatchObject({ etapeDevis: 'rdv_fixe', etapeAFaire: 'proposition_envoyee' });
   // « Annuler les changements » remet les réglages enregistrés (et libère la page : sans brouillon, on la quitte sans question)
+  await page.locator('#devis-dureeValiditeJours').fill('30');
   await page.locator('[data-action="annuler-reglages-devis"]').click();
-  await expect(page.locator('#devis-etapeDevis')).toHaveValue('proposition_envoyee');
-  await expect(page.locator('[data-erreur="etapeDevis"]')).toHaveText('');
+  await expect(page.locator('#devis-dureeValiditeJours')).toHaveValue('45');
   await expect(enregistrer).toBeDisabled();
   // le réglage « Google Drive : dossiers de projets » du CRM n'est pas touché
   await allerAuxReglagesCrm(page);

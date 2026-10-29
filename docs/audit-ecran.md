@@ -126,10 +126,30 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Dictionnaire de vocabulaire du module Devis (28/10/2026) : une règle « expression du client -> article ». Le SERVEUR apprend (compteurs, origine « apprise_* », exemples,
+    // dates de confirmation) et contourne les règles ; le NAVIGATEUR ne peut que créer une règle MANUELLE (compteurs à zéro, sans conflit) puis la réviser (statut, article, note, conflit).
+    // Jamais de suppression : une règle se désactive. Passer « a_confirmer » à « active » est permis (c'est le but de la revue). Le serveur pose « via » à la création ; l'écran ne le modifie pas
+    // (gardé dans la liste des clés permises).
+    function vocabulaireManuelNeuf() {
+      let d = request.resource.data;
+      return d.get('statut', '') in ['active', 'desactivee'] && d.get('origine', '') == 'manuelle'
+        && d.get('confirmations', 0) == 0 && d.get('contradictions', 0) == 0 && d.get('conflit', false) == false
+        && d.get('exemples', []).size() == 0 && !d.keys().hasAny(['derniereConfirmationLe', 'derniereUtilisationLe']);
+    }
+    function vocabulaireRevise() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['statut', 'articleId', 'articleLibelle', 'note', 'conflit', 'modifieLe', 'modifiePar', 'via']);
+    }
+    match /devis_vocabulaire/{id} {
+      allow read: if compteAutorise();
+      allow create: if compteAutorise() && vocabulaireManuelNeuf();
+      allow update: if compteAutorise() && vocabulaireRevise();
+      allow delete: if false;
+    }
+
     // Tout le reste : comme avant (les deux comptes autorisés), sauf les collections ci-dessus.
     match /{collection}/{document=**} {
       allow read, write: if compteAutorise()
-        && !(collection in ['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions', 'devis_devis', 'devis_compteurs', 'devis_articles', 'crm_actions_lancements', 'documents_stockes']);
+        && !(collection in ['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions', 'devis_devis', 'devis_compteurs', 'devis_articles', 'crm_actions_lancements', 'devis_vocabulaire', 'documents_stockes']);
     }
   }
 }

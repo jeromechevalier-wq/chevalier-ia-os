@@ -21,7 +21,8 @@ async function donnees() {
   const maintenant = new Date();
   await ecrireDocument('devis_articles/art1', { libelle: 'Carrelage 60 x 60', unite: 'm²', prixAchat: 12.5, actif: true });
   await ecrireDocument('devis_parametres/reglages', { nomBordereau: 'Bordereau', marge: 25, entreprise: { nom: 'Atelier Exemple', siret: '123 456 789 00012' } });
-  await ecrireDocument('devis_parametres/familles', { liste: [{ id: 'sous-1', nom: 'Faïence', actif: true, parentId: 'famille-1' }] });
+  await ecrireDocument('devis_vocabulaire/tableau', { cle: 'tableau', expression: 'tableau', articleId: 'a1', statut: 'a_confirmer', confirmations: 1 });
+  await ecrireDocument('devis_parametres/familles',{ liste: [{ id: 'sous-1', nom: 'Faïence', actif: true, parentId: 'famille-1' }] });
   for (const [id, extra] of [['d1', { numero: 'DEV-2026-10-02-001', statut: 'envoye' }], ['d2', { statut: 'brouillon' }], ['d3', { statut: 'brouillon', archive: true }]]) {
     await ecrireDocument(`devis_devis/${id}`, {
       racineId: id, version: 1, numero: null, statut: 'brouillon', archive: false, sections: [], envois: [], creePar: JEROME, modifiePar: JEROME, proprietaire: JEROME,
@@ -50,7 +51,8 @@ test('2b le fichier téléchargé est un JSON daté avec devis (archivés compri
   await ouvrirReglagesDevis(page);
   const { nom, json } = await telecharger(page);
   expect(nom).toMatch(/^chevalier-ia-devis-\d{4}-\d{2}-\d{2}\.json$/);
-  expect(Object.keys(json.collections).sort()).toEqual(['devis_articles', 'devis_devis', 'devis_parametres']);
+  expect(Object.keys(json.collections).sort()).toEqual(['devis_articles', 'devis_devis', 'devis_parametres', 'devis_vocabulaire']);
+  expect(json.collections.devis_vocabulaire.map((r) => r.id)).toEqual(['tableau']);
   expect(json.collections.devis_devis.map((d) => d.id).sort()).toEqual(['d1', 'd2', 'd3']);
   expect(json.collections.devis_devis.find((d) => d.id === 'd3').archive).toBe(true);
   expect(json.collections.devis_articles.map((a) => a.libelle)).toEqual(['Carrelage 60 x 60']);
@@ -64,7 +66,7 @@ test('2b le fichier téléchargé est un JSON daté avec devis (archivés compri
 test('2c cas vide : sans aucune donnée, le fichier contient des listes vides et aucune erreur n’apparaît', async ({ page }) => {
   await ouvrirReglagesDevis(page);
   const { json } = await telecharger(page);
-  expect(json.collections).toEqual({ devis_articles: [], devis_parametres: [], devis_devis: [] });
+  expect(json.collections).toEqual({ devis_articles: [], devis_parametres: [], devis_devis: [], devis_vocabulaire: [] });
   await expect(page.locator('.toast')).toContainText('Sauvegarde téléchargée');
 });
 

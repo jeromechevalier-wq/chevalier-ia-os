@@ -4,7 +4,7 @@
 //  - automatisationsRenommer : change le nom affiché d'une automatisation (éditeurs seulement, vérifié côté serveur) ;
 //  - automatisationsAdmin (Chevalier IA OS, compte de Jérôme seulement, revérifié par le serveur) : « lire » = la vue de tous les propriétaires, en lecture seule
 //    (les clients sont dans l'autre base) ; « rafraichir » = recopier tes propres workflows maintenant. Tes workflows « interne » se lisent en direct dans ta base.
-import { collection, doc, onSnapshot, query, orderBy, limit, where } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
+import { collection, doc, onSnapshot, query, orderBy, limit, where, getDocs } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-functions.js';
 import { db, app } from '../../os/firebase.js';
 import { cheminCollection } from '../../os/chemins.js';
@@ -25,8 +25,8 @@ const prets = { executions: false, workflows: false, synchro: false };
 
 export const chemin = (nom) => cheminCollection(base, nom);
 export const compteCourant = () => compte;
-/** Seuls les éditeurs peuvent renommer (le serveur le revérifie : ceci ne sert qu'à montrer ou cacher le geste). */
-export const peutRenommer = () => base !== '' && compte?.role === 'editeur';
+/** Chez un client : les éditeurs seulement. Chez Jérôme (racine) : les comptes autorisés du CRM, qui n'ont pas de rôle. Le serveur le revérifie : ceci ne sert qu'à montrer ou cacher le geste. */
+export const peutRenommer = () => (base === '' ? compte !== null : compte?.role === 'editeur');
 /** Administrateur : le compte de Jérôme, chez lui (racine) seulement. Le serveur le revérifie à chaque appel : ceci ne sert qu'à montrer ou cacher la vue. */
 export const estAdmin = () => base === '' && estAdministrateur(compte?.email);
 /** Chez un client : les fonctions de la plateforme. Chez Jérôme : seulement pour l'administrateur (fonction automatisationsAdmin, projet chevalier-ia-os). */
@@ -102,7 +102,7 @@ export const vue = (filtre = 'tous') => fusionnerVues({ executions: etat.executi
 /** Renomme l'affichage d'une automatisation (libellé vide = revenir au nom d'origine). Le client est celui de la session, vérifié par le serveur. */
 export async function renommer(workflowId, libelle) {
   const client = base.split('/')[1];
-  const r = await httpsCallable(fonctions(), 'automatisationsRenommer')({ client, workflowId, libelle });
+  const r = await httpsCallable(fonctions(), 'automatisationsRenommer')(client ? { client, workflowId, libelle } : { workflowId, libelle }); // à la racine : pas de client, la fonction de Jérôme n'en lit pas
   return r.data;
 }
 
@@ -163,6 +163,8 @@ export function ecouterPropositions(rappel) {
  */
 export async function decider(id, decision, { champs, raison } = {}) {
   const corps = { id, decision };
+  const client = base.split('/')[1]; // chez un client : l'espace de la session (le serveur le revérifie) ; chez Jérôme, rien
+  if (client) corps.client = client;
   if (champs) corps.champs = champs;
   if (raison) corps.raison = raison;
   try {
@@ -176,4 +178,18 @@ export async function decider(id, decision, { champs, raison } = {}) {
     const message = precise && texte ? texte : 'Impossible de joindre le serveur pour le moment. Rien n’a été changé : réessaie dans un instant.';
     return { ok: false, message };
   }
+}
+
+// ---------------------------------------------------------------- export des données du module (Réglages > Automatisations > Sauvegarde)
+/**
+ * Les données du module pour l'export : { workflows, executions, sync, automatisations_propositions }, lues au chemin du module (racine chez Jérôme, clients/<client> chez un client).
+ * Tout est lu, sans limite (l'écran, lui, ne montre que les 300 dernières exécutions). Rien n'est écrit.
+ */
+export async function lireToutPourExport() {
+  const sortie = {};
+  for (const nom of ['workflows', 'executions', 'sync', 'automatisations_propositions']) {
+    const snap = await getDocs(collection(db, chemin(nom)));
+    sortie[nom] = snap.docs.map((d) => ({ ...d.data({ serverTimestamps: 'estimate' }), id: d.id }));
+  }
+  return sortie;
 }

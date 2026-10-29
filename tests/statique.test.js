@@ -60,10 +60,10 @@ describe('D1 Manifeste, icônes, service worker, versions', () => {
     }
     assert.ok(!existsSync(join(RACINE, 'sw.js')) && !existsSync(join(RACINE, 'service-worker.js')));
   });
-  test('D1 versions identiques dans version.json et js/os/version.js (2.32.0)', () => {
+  test('D1 versions identiques dans version.json et js/os/version.js (2.34.0)', () => {
     const v = json('version.json').version;
     const m = /VERSION = '([^']+)'/.exec(lire('js/os/version.js'));
-    assert.equal(v, '2.32.0');
+    assert.equal(v, '2.34.0');
     assert.equal(m[1], v);
   });
   test('D1 portraits réduits (512 px de large au plus)', () => {
@@ -237,7 +237,7 @@ describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
     assert.match(r, /email_verified == true/);
     assert.match(r, /jerome\.chevalier@gmail\.com/);
     assert.match(r, /jeromebot\.chevalierbot@gmail\.com/);
-    assert.match(r, /!\(collection in \['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions', 'devis_devis', 'devis_compteurs', 'devis_articles', 'crm_actions_lancements', 'documents_stockes'\]\)/); // + les fiches des fichiers de l'onglet « Documents » (28/10/2026), les devis, leur compteur et le bordereau (24/10/2026), le journal des demandes d'e-mail (25/10/2026) : règles propres, voir devis-regles.test.js
+    assert.match(r, /!\(collection in \['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions', 'devis_devis', 'devis_compteurs', 'devis_articles', 'crm_actions_lancements', 'devis_vocabulaire', 'documents_stockes'\]\)/); // + les fiches des fichiers de l'onglet « Documents » (28/10/2026), les devis, leur compteur et le bordereau (24/10/2026), le journal des demandes d'e-mail (25/10/2026) : règles propres, voir devis-regles.test.js
     for (const t of ['tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions']) {
       assert.match(r, new RegExp(`match /${t}/\\{id\\} \\{\\s+allow read: if compteAutorise\\(\\);\\s+allow write: if false;`), `${t} : lecture seule pour l'écran`);
     }

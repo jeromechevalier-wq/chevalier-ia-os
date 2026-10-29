@@ -2318,6 +2318,7 @@ const NOMS_DOCUMENTS = {
   crm_audit: ['opération', 'opérations'], projets_projets: ['projet', 'projets'], projets_taches: ['livrable de projet', 'livrables de projet'], projets_modeles: ['modèle de projet', 'modèles de projet'],
   devis_articles: ['article du catalogue', 'articles du catalogue'],
   devis_devis: ['devis', 'devis'],
+  devis_vocabulaire: ['mot appris', 'mots appris'],
 };
 const ACTIONS_JOURNAL = { creer: 'Création', modifier: 'Modification', supprimer: 'Suppression', restaurer: 'Restauration', echec: 'Échec' };
 
@@ -2470,7 +2471,12 @@ export function nomFichierExport(maintenant = new Date(), type = 'complet') {
   const bases = {
     complet: ['chevalier-ia-os', 'json'],
     devis: ['chevalier-ia-devis', 'json'],
+    projets: ['chevalier-ia-projets', 'json'],
+    maintenance: ['chevalier-ia-maintenance', 'json'],
+    automatisations: ['chevalier-ia-automatisations', 'json'],
+    veille: ['chevalier-ia-veille', 'json'],
     contacts: ['chevalier-ia-contacts', 'vcf'],
+    vocabulaire: ['chevalier-ia-vocabulaire', 'csv'],
   };
   const [base, ext] = bases[type] || bases.complet;
   return `${base}-${jour}.${ext}`;

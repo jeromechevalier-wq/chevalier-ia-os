@@ -383,3 +383,113 @@ async function serveur({ profil, email }) {
   };
   return { m, appeler };
 }
+
+// Chez les clients (28/10/2026) : la même décision, dans l'espace du client de l'appelant (functions-plateforme/src/propositions.js). `db` est une FAUSSE base (fiches de membre et de client) ;
+// l'accès aux données est en mémoire, cadré sous clients/<client>/. Aucun émulateur, aucune vraie donnée.
+describe('11 chez les clients : automatisationsDecider contrôle l\'appelant par espace', () => {
+  const ALICE = 'alice@exemple.test'; // éditrice chez a (module actif)
+  const LEA = 'lea@exemple.test'; // lectrice chez a
+  const BOB = 'bob@exemple.test'; // éditeur chez b (module actif)
+  const ZOE = 'zoe@exemple.test'; // éditrice chez c (module inactif)
+  const ANCIEN = 'ancien@exemple.test'; // éditeur chez d (ancienne clé `journal: true`)
+  const FICHES = {
+    'clients/a': { modules: { automatisations: true } }, 'clients/b': { modules: { automatisations: true } }, 'clients/c': { modules: { affaires: true } },
+    'clients/d': { modules: { journal: true } }, 'clients/e': { modules: { automatisations: false, journal: true } },
+    [`clients/a/membres/${ALICE}`]: { role: 'editeur' }, [`clients/a/membres/${LEA}`]: { role: 'lecteur' }, [`clients/b/membres/${BOB}`]: { role: 'editeur' },
+    [`clients/c/membres/${ZOE}`]: { role: 'editeur' }, [`clients/d/membres/${ANCIEN}`]: { role: 'editeur' }, [`clients/e/membres/${ANCIEN}`]: { role: 'editeur' },
+  };
+  const fauxDb = { doc: (chemin) => ({ get: async () => { const f = FICHES[chemin]; return { exists: Boolean(f), get: (champ) => f?.[champ] }; } }) };
+  const auth = (email, verifie = true) => ({ uid: `uid-${email}`, token: { email, email_verified: verifie } });
+  const chemin = (c) => `clients/${c}/${COLLECTIONS.propositions}`;
+  const mondeClients = () => {
+    const collections = { [COLLECTIONS.propositions]: [proposition('r1')] };
+    for (const c of ['a', 'b', 'c', 'd', 'e']) collections[chemin(c)] = [proposition('p1')];
+    const brut = creerAccesMemoire(collections);
+    return { collections, creerDonnees: (client) => avecBase(brut, `clients/${client}`) };
+  };
+  let deciderClient; let Refus;
+  const charger = async () => {
+    if (deciderClient) return;
+    process.env.GCLOUD_PROJECT ??= 'demo-chevalier-ia-os';
+    ({ deciderClient } = await import('../functions-plateforme/src/propositions.js'));
+    ({ Refus } = await import('../functions-plateforme/src/appels.js'));
+  };
+  const appeler = async (m, email, donnees, { verifie, journal } = {}) => {
+    await charger();
+    return deciderClient({ db: fauxDb, auth: email === null ? null : auth(email, verifie), donnees, maintenant: () => T0, creerDonnees: m.creerDonnees, journal });
+  };
+  const refus = (promesse, code, message) => assert.rejects(promesse, (e) => e instanceof Refus && e.code === code && (!message || e.message === message));
+
+  test('11 une éditrice décide d\'une proposition de son espace, et de lui seul : la racine et les autres espaces ne bougent pas', async () => {
+    const m = mondeClients();
+    const r = await appeler(m, ALICE, { client: 'a', id: 'p1', decision: 'valider' });
+    assert.deepEqual(r, { ok: true, etat: 'validee' });
+    const p = m.collections[chemin('a')][0];
+    assert.equal(p.etat, 'validee');
+    assert.equal(p.valideePar, ALICE);
+    assert.equal(p.canal, 'interface');
+    for (const c of ['b', 'c', 'd', 'e']) assert.equal(m.collections[chemin(c)][0].etat, 'a_valider', c);
+    assert.equal(m.collections[COLLECTIONS.propositions][0].etat, 'a_valider');
+    const refusee = await appeler(m, ALICE, { client: 'a', id: 'p1', decision: 'refuser' }).catch((e) => e);
+    assert.equal(refusee.code, 'failed-precondition'); // déjà décidée
+    assert.match(refusee.message, /^Déjà décidée par /);
+  });
+  test('11 un client qui a l\'ancienne clé `journal: true` peut décider ; la nouvelle clé à false l\'emporte', async () => {
+    const m = mondeClients();
+    assert.equal((await appeler(m, ANCIEN, { client: 'd', id: 'p1', decision: 'refuser', raison: 'Doublon' })).etat, 'refusee');
+    await refus(appeler(m, ANCIEN, { client: 'e', id: 'p1', decision: 'refuser' }), 'permission-denied', 'Action non autorisée.');
+    assert.equal(m.collections[chemin('e')][0].etat, 'a_valider');
+  });
+  test('11 refusés sans rien écrire : lecteur, éditeur d\'un AUTRE espace, inconnu, compte non vérifié, module inactif, espace inexistant, « interne », sans connexion', async () => {
+    const m = mondeClients();
+    const avant = JSON.stringify(m.collections);
+    const d = { id: 'p1', decision: 'valider' };
+    await refus(appeler(m, LEA, { client: 'a', ...d }), 'permission-denied', 'Action non autorisée.');
+    await refus(appeler(m, BOB, { client: 'a', ...d }), 'permission-denied', 'Action non autorisée.');
+    await refus(appeler(m, 'inconnu@exemple.test', { client: 'a', ...d }), 'permission-denied', 'Action non autorisée.');
+    await refus(appeler(m, ALICE, { client: 'a', ...d }, { verifie: false }), 'unauthenticated');
+    await refus(appeler(m, ZOE, { client: 'c', ...d }), 'permission-denied', 'Action non autorisée.');
+    await refus(appeler(m, ALICE, { client: 'espace-inexistant', ...d }), 'permission-denied', 'Action non autorisée.');
+    await refus(appeler(m, ALICE, { client: 'interne', ...d }), 'permission-denied', 'Action non autorisée.');
+    await refus(appeler(m, null, { client: 'a', ...d }), 'unauthenticated');
+    for (const client of [undefined, '', 'A', '../b', 'a/b', 42, null]) await refus(appeler(m, ALICE, { client, ...d }), 'invalid-argument', 'Demande invalide.');
+    assert.equal(JSON.stringify(m.collections), avant);
+  });
+  test('11 l\'identité de celui qui décide vient du jeton, jamais de la demande ; champs invalides, décision inconnue et proposition absente donnent les mêmes refus que chez Jérôme', async () => {
+    const m = mondeClients();
+    await appeler(m, ALICE, { client: 'a', id: 'p1', decision: 'valider', par: 'autre@exemple.test', email: 'autre@exemple.test', valideePar: 'autre@exemple.test' });
+    assert.equal(m.collections[chemin('a')][0].valideePar, ALICE);
+    const n = mondeClients();
+    await refus(appeler(n, ALICE, { client: 'a', id: 'p1', decision: 'effacer' }), 'invalid-argument');
+    await refus(appeler(n, ALICE, { client: 'a', id: 'p1', decision: 'valider', champs: [] }), 'invalid-argument');
+    await refus(appeler(n, ALICE, { client: 'a', id: 'p1', decision: 'valider', champs: [{ nom: 'x', valeur: 5 }] }), 'invalid-argument');
+    await refus(appeler(n, ALICE, { client: 'a', id: 'p1', decision: 'refuser', champs: [{ nom: 'x', valeur: 'y' }] }), 'invalid-argument');
+    await refus(appeler(n, ALICE, { client: 'a', id: '../r1', decision: 'valider' }), 'invalid-argument');
+    await refus(appeler(n, ALICE, { client: 'a', id: 'r1', decision: 'valider' }), 'not-found', 'Proposition introuvable.'); // r1 n'existe qu'à la racine
+    await refus(appeler(n, ALICE, { client: 'a', id: 'p1', decision: 'relancer' }), 'failed-precondition'); // relancer seulement une proposition en échec
+    assert.equal(n.collections[chemin('a')][0].etat, 'a_valider');
+    assert.equal(n.collections[COLLECTIONS.propositions][0].etat, 'a_valider');
+  });
+  test('11 le journal garde une liste blanche : ni identifiant, ni raison, ni champs, ni adresse, ni nom d\'espace', async () => {
+    const m = mondeClients();
+    const lignes = [];
+    await appeler(m, ALICE, { client: 'a', id: 'p1', decision: 'refuser', raison: 'Texte secret de test' }, { journal: (e) => lignes.push(e) });
+    await appeler(m, ALICE, { client: 'a', id: 'p1', decision: 'valider' }, { journal: (e) => lignes.push(e) }).catch(() => {});
+    assert.deepEqual(lignes.map((l) => l.statut), ['ok', 'refus']);
+    const texte = JSON.stringify(lignes);
+    for (const interdit of ['p1', 'Texte secret', ALICE, '"a"']) assert.ok(!texte.includes(interdit), interdit);
+  });
+  test('11 la fonction est déclarée dans functions-plateforme/src/index.js sans secret ni compte de service nouveau, et branche le contrôle par espace', () => {
+    const t = readFileSync(`${RACINE}functions-plateforme/src/index.js`, 'utf8');
+    const j = t.indexOf('export const automatisationsDecider');
+    assert.ok(j > 0, 'exportée');
+    const bloc = t.slice(j, t.indexOf('\n});', j));
+    assert.match(bloc, /onCall\(OPTIONS_DEVIS/);
+    assert.match(bloc, /deciderClient\(\{ db: db\(\), auth: requete\.auth, donnees: requete\.data/);
+    assert.doesNotMatch(bloc, /secrets:|defineSecret|serviceAccount/);
+    const p = readFileSync(`${RACINE}functions-plateforme/src/propositions.js`, 'utf8');
+    assert.match(p, /avecBase\(creerAccesFirestore\(\{ db \}\), `clients\/\$\{client\}`\)/);
+    assert.match(p, /moduleActif\(fiche\.get\('modules'\)\)/);
+    assert.doesNotMatch(p, /COMPTES_AUTORISES|automatisations\/decider-appel/, 'aucun lien avec les comptes de Jérôme');
+  });
+});

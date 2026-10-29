@@ -727,7 +727,7 @@ test('C19 export : JSON complet de toutes les collections, contacts .vcf ; le ra
   expect(telechargement.suggestedFilename()).toMatch(/^chevalier-ia-os-\d{4}-\d{2}-\d{2}\.json$/);
   const json = JSON.parse(await readFile(await telechargement.path(), 'utf8'));
   expect(json.version).toBe('2.0.0');
-  expect(Object.keys(json.collections).sort()).toEqual(['crm_activites', 'crm_affaires', 'crm_evenements', 'crm_notes', 'crm_organisations', 'crm_parametres', 'crm_personnes', 'devis_articles', 'devis_devis', 'devis_parametres', 'documents_stockes', 'projets_modeles', 'projets_projets', 'projets_taches', 'veille_contenus', 'veille_pages', 'veille_resumes', 'veille_sources']);
+  expect(Object.keys(json.collections).sort()).toEqual(['crm_activites', 'crm_affaires', 'crm_evenements', 'crm_notes', 'crm_organisations', 'crm_parametres', 'crm_personnes', 'devis_articles', 'devis_devis', 'devis_parametres', 'devis_vocabulaire', 'documents_stockes', 'projets_modeles', 'projets_projets', 'projets_taches', 'veille_contenus', 'veille_pages', 'veille_resumes', 'veille_sources']);
   expect(json.collections.crm_personnes.map((p) => p.id).sort()).toEqual(['p1', 'p2']);
   expect(json.collections.crm_notes).toHaveLength(1);
   expect(json.collections.crm_affaires[0].id).toBe('a1');

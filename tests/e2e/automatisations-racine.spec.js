@@ -30,7 +30,7 @@ test('Automatisations chez l\'assistant (non administrateur) : menu visible, ét
   expect(erreursConsole).toEqual([]);
 });
 
-test('Automatisations chez l\'assistant : si des workflows sont présents à la racine, ils s\'affichent (lecture seule, renommage absent)', { tag: '@sans-telephone' }, async ({ page, erreursConsole }) => {
+test('Automatisations chez l\'assistant : si des workflows sont présents à la racine, ils s\'affichent (renommage proposé comme chez Jérôme : même code, la fonction revérifie le compte)', { tag: '@sans-telephone' }, async ({ page, erreursConsole }) => {
   await ecrireDocument('workflows/wf1', { workflowId: 'wf1', nom: 'Mon workflow', active: true, stepsPlan: [] });
   await ecrireDocument('executions/501', {
     executionId: '501', workflowId: 'wf1', workflowLabel: 'Mon workflow', status: 'success', stale: false, mode: 'webhook',
@@ -41,7 +41,7 @@ test('Automatisations chez l\'assistant : si des workflows sont présents à la 
   await page.evaluate(() => { location.hash = '#/automatisations/historique'; });
   await expect(page.locator('.autom-ligne')).toHaveCount(1);
   await expect(page.locator('.autom-ligne .autom-nom')).toHaveText('Mon workflow');
-  await expect(page.locator('.autom-ligne button.autom-nom-editable')).toHaveCount(0);
+  await expect(page.locator('.autom-ligne button.autom-nom-editable')).toHaveCount(1);
   await expect(page.locator('.autom-resume')).toHaveText(/1\s*terminées/);
   expect(erreursConsole).toEqual([]);
 });
@@ -128,12 +128,57 @@ test('Automatisations chez Jérôme administrateur : filtre par propriétaire, p
   // Retour à « Tous » : tout revient.
   await filtre.selectOption('tous');
   await expect(page.locator('.autom-ligne')).toHaveCount(3);
-  // Le bouton recopie TES workflows (fonction administrateur), jamais la fonction des clients ; aucun renommage proposé.
+  // Le bouton recopie TES workflows (fonction administrateur), jamais la fonction des clients ; renommage proposé sur TES workflows seulement (pas sur ceux d'un client).
   await page.getByRole('button', { name: /Rafraîchir/ }).click();
   await expect.poll(() => corps.some((d) => d.action === 'rafraichir')).toBe(true);
-  await expect(page.locator('button.autom-nom-editable')).toHaveCount(0);
+  await expect(page.locator('button.autom-nom-editable')).toHaveCount(1);
+  await expect(page.locator('.autom-ligne', { hasText: 'Interne' }).locator('button.autom-nom-editable')).toHaveCount(1);
+  await expect(page.locator('.autom-ligne', { hasText: 'Audrey Conseil' }).locator('button.autom-nom-editable')).toHaveCount(0);
   expect(autres).toEqual([]);
   expect(erreursConsole.filter((e) => !/automatisationsAdmin/.test(e))).toEqual([]);
+});
+
+test('3 renommer chez Jérôme : un clic sur le nom de son workflow ouvre la fenêtre, enregistre par la fonction (sans client) ; un échec du serveur est dit en clair', async ({ page, erreursConsole }, info) => {
+  const appels = [];
+  let echec = false;
+  await page.route('**/automatisationsAdmin', async (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+    return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ result: { ...DONNEES_CLIENTS, proprietaires: [], executions: [], workflows: [], aVerifier: [] } }) });
+  });
+  await page.route('**/automatisationsRenommer', async (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+    appels.push(JSON.parse(route.request().postData()).data);
+    if (echec) return route.fulfill({ status: 500, headers: cors, body: JSON.stringify({ error: { message: 'INTERNAL', status: 'INTERNAL' } }) });
+    return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ result: { ok: true, libelle: appels.at(-1).libelle } }) });
+  });
+  await ecrireDocument('workflows/wf1', { workflowId: 'wf1', nom: 'interne-veille-collecte', active: true, stepsPlan: [] });
+  await ecrireDocument('executions/501', {
+    executionId: '501', workflowId: 'wf1', workflowLabel: 'interne-veille-collecte', status: 'success', stale: false, mode: 'cron',
+    startedAt: il_y_a(5 * MIN), stoppedAt: il_y_a(5 * MIN - 1500), durationMs: 1500, retryOf: null, errorMessage: null, failedStep: null,
+    runGroupId: null, source: 'sync', lastSyncedAt: new Date(), expireAt: null,
+  });
+  await ecrireDocument('sync/state', { n8nOk: true, lastSyncedAt: new Date(), lastSuccessAt: new Date() });
+  await connecter(page);
+  await page.evaluate(() => { location.hash = '#/automatisations/historique'; });
+  const nom = page.locator('.autom-ligne .autom-nom');
+  await expect(nom).toHaveJSProperty('tagName', 'BUTTON');
+  await nom.click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.waitForTimeout(500); // la fenêtre finit son apparition avant la capture
+  await page.screenshot({ path: `e2e/captures/automatisations-renommer/renommer-chez-jerome-${info.project.name}.png`, fullPage: true });
+  await page.getByRole('dialog').locator('input').fill('Veille du matin');
+  await page.getByRole('button', { name: 'Enregistrer' }).click();
+  await expect.poll(() => appels.length).toBe(1);
+  expect(appels[0]).toEqual({ workflowId: 'wf1', libelle: 'Veille du matin' }); // pas de « client » à la racine
+  await expect(page.locator('.toast, [role="status"]').filter({ hasText: 'Nom enregistré' }).first()).toBeVisible();
+  // Cas d'erreur : le serveur échoue, message clair, aucune plantage.
+  echec = true;
+  test.info().annotations.push({ type: 'erreurs-reseau-attendues' });
+  await nom.click();
+  await page.getByRole('dialog').locator('input').fill('Autre nom');
+  await page.getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(page.locator('.toast, [role="alert"], [role="status"]').filter({ hasText: 'Impossible de renommer pour le moment.' }).first()).toBeVisible();
+  expect(erreursConsole.filter((e) => !/automatisationsRenommer|automatisationsAdmin|500/.test(e))).toEqual([]);
 });
 
 test('Automatisations chez Jérôme administrateur : si la fonction n\'est pas encore en service, ses propres workflows restent affichés avec une explication', { tag: '@sans-telephone' }, async ({ page }) => {

@@ -1,8 +1,9 @@
-// Module Devis (cadrage-devis.md) : montage et routes. Trois écrans : le Bordereau (articles), la liste des devis et l'éditeur d'un devis.
-// Routes : devis/bordereau, devis/liste, devis/voir/<id> (le même écran que l'éditeur, ouvert sur l'onglet Prévisualisation), devis/editeur (nouveau devis : choix de l'affaire), devis/editeur/<id> (non déclarée dans le menu : on y arrive par la liste), et les anciennes adresses devis/pdf/<id> et devis/pdf/<id>/brouillon (la page du PDF n'existe plus : elles mènent à l'éditeur du devis ; elles sont écrites dans les Documents des affaires et dans des e-mails déjà envoyés). Le module lit le CRM (étapes des affaires) : le CRM démarre avant lui (le module Devis dépend de « affaires », pas de « projets »).
+// Module Devis (cadrage-devis.md) : montage et routes. Quatre écrans : le Bordereau (articles), le Vocabulaire (mots appris), la liste des devis et l'éditeur d'un devis.
+// Routes : devis/bordereau, devis/vocabulaire, devis/liste, devis/voir/<id> (le même écran que l'éditeur, ouvert sur l'onglet Prévisualisation), devis/editeur (ancienne page « Nouveau devis » : crée un brouillon sans affaire et ouvre l'éditeur), devis/editeur/<id> (non déclarée dans le menu : on y arrive par la liste), et les anciennes adresses devis/pdf/<id> et devis/pdf/<id>/brouillon (la page du PDF n'existe plus : elles mènent à l'éditeur du devis ; elles sont écrites dans les Documents des affaires et dans des e-mails déjà envoyés). Le module lit le CRM (étapes des affaires) : le CRM démarre avant lui (le module Devis dépend de « affaires », pas de « projets »).
 import { vider } from '../../os/ui.js';
 import * as D from './donnees.js';
 import { rendreBordereau } from './bordereau.js';
+import { rendreVocabulaire } from './vocabulaire-ecran.js';
 import { rendreListeDevis } from './liste-ecran.js';
 import { rendreEditeurDevis } from './editeur-ecran.js';
 import { routeApresPdfSupprime } from './pdf.js';
@@ -13,6 +14,7 @@ import { noterArrivee, oublierOrigine } from './origine.js';
 import * as CRM from '../crm/donnees.js';
 import { inscrirePastilleAffaire, inscrireOngletAffaire, inscrireActionAffaire, signaler } from '../crm/pastilles-externes.js';
 import { pastilleDevisDeAffaire } from './pastille-affaire.js';
+import { creerDevisSansAffaire } from './actions-devis.js';
 import { ongletDevisDeAffaire, oublierOnglets, ajouterDevis } from './onglet-affaire.js';
 import { actionEnteteDevis } from './onglet-affaire-logique.js';
 import { naviguer } from '../../os/router.js';
@@ -30,9 +32,9 @@ function ajouterFeuille() {
   document.head.append(l);
 }
 
-/** Entrées du bouton « + » de la barre supérieure : « Devis » ouvre « Nouveau devis » (recherche de l'affaire dès 3 lettres). */
+/** Entrées du bouton « + » de la barre supérieure : « Devis » crée un brouillon sans affaire et ouvre l'éditeur. */
 export const actionsRapides = [
-  { id: 'devis', libelle: 'Devis', icone: 'file-text', action: () => naviguer('devis/editeur') },
+  { id: 'devis', libelle: 'Devis', icone: 'file-text', action: () => creerDevisSansAffaire() },
 ];
 
 let montee = null; // { cle, quitter }
@@ -85,6 +87,7 @@ const VUES = {
   editeur: (conteneur, segs) => rendreEditeurDevis(conteneur, segs[1] || null),
   voir: (conteneur, segs) => rendreEditeurDevis(conteneur, segs[1], { voir: true }), // devis/voir/<id> : le MÊME écran que devis/editeur/<id>, ouvert sur l'onglet Prévisualisation (lecture seule si le devis n'est plus un brouillon)
   bordereau: (conteneur) => rendreBordereau(conteneur),
+  vocabulaire: (conteneur) => rendreVocabulaire(conteneur), // les mots appris par l'assistant (revue, ajout à la main, essai d'une phrase, export CSV)
 };
 
 export function afficher(conteneur, segs) {
@@ -134,8 +137,7 @@ export function controlesDeploiement() {
       const ecouter = (rappel) => { const a = D.surChangement(rappel); const b = CRM.surChangement(rappel); return () => { a?.(); b?.(); }; };
       const pret = await attendreQue(() => D.estPret() && CRM.etat.pret.parametres, ecouter);
       return controlerDeploiementDevis({
-        pret, reglages: D.etat.reglages, etapesIds: CRM.etat.config.etapes.filter((e) => e.actif).map((e) => e.id),
-        articles: D.etat.articles, erreurArticles: D.etat.erreurLecture,
+        pret, reglages: D.etat.reglages, articles: D.etat.articles, erreurArticles: D.etat.erreurLecture,
       });
     },
   };

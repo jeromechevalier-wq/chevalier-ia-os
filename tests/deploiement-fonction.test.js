@@ -37,6 +37,8 @@ const FICHES = {
   [`clients/b/membres/${BOB}`]: { role: 'editeur' },
   'clients/c': { equipe: [{ email: ZOE, role: 'lecteur' }] }, // l'équipe dit « lecteur », la fiche d'appartenance dit « éditeur » : incohérent
   [`clients/c/membres/${ZOE}`]: { role: 'editeur' },
+  'clients/d': { modules: {} }, // espace créé sans champ `equipe` : les membres font foi
+  [`clients/d/membres/${BOB}`]: { role: 'editeur' },
 };
 const auth = (email, verifie = true) => ({ uid: `uid-${email}`, token: { email, email_verified: verifie } });
 const appelerClient = (email, donnees, fiches = FICHES, extra = {}) => verifierDeploiementClient({ db: fauxDb(fiches), auth: email === null ? null : auth(email, extra.verifie), donnees, version: '2.4.1', pdf: extra.pdf });
@@ -69,6 +71,11 @@ describe('8 deploiementVerifier sur la plateforme : contrôle d’accès', () =>
     assert.equal((await appelerClient(ALICE, { client: 'a' }, FICHES, { pdf: pdf(fauxBucket(Object.assign(new Error('x'), { code: 403 }))) })).controles['pdf-stockage'], 'inconnu');
     assert.equal((await appelerClient(ALICE, { client: 'a' }, FICHES, { pdf: pdf(null) })).controles['pdf-stockage'], 'manque');
     assert.equal((await appelerClient(ALICE, { client: 'a' }, FICHES, { pdf: pdf(fauxBucket(), false) })).controles['pdf-fonctions'], 'manque');
+  });
+  test('8 un espace SANS copie `equipe` (créé à la main) mais avec un éditeur dans `membres` : membres = ok (plus de faux rouge) ; la réponse reste ok|manque|inconnu', async () => {
+    const r = await appelerClient(BOB, { client: 'd' });
+    assert.equal(r.controles.membres, 'ok');
+    sansDonneeSensible(r);
   });
   test('8 la page marche chez un client SANS module Devis (aucune condition de module)', async () => {
     assert.equal((await appelerClient(BOB, { client: 'b' })).controles.fonctions, 'ok');
@@ -139,5 +146,16 @@ describe('Code commun (functions/src/coeur/deploiement.js)', () => {
     assert.equal(membresCoherents([{ email: 'a@x.test', role: 'editeur' }], [{ id: 'a@x.test', role: 'editeur' }, { id: 'b@x.test', role: 'lecteur' }]), false, 'un membre absent de l’équipe');
     assert.equal(membresCoherents(null, []), false);
     assert.equal(membresCoherents([], []), false);
+    // equipe ABSENTE : la vérité est `membres` (au moins un éditeur)
+    assert.equal(membresCoherents(null, [{ id: 'a@x.test', role: 'editeur' }]), true, 'equipe absente + éditeur');
+    assert.equal(membresCoherents(undefined, [{ id: 'a@x.test', role: 'editeur' }, { id: 'b@x.test', role: 'lecteur' }]), true, 'equipe non définie + éditeur');
+    assert.equal(membresCoherents(null, [{ id: 'a@x.test', role: 'lecteur' }]), false, 'equipe absente sans éditeur');
+    assert.equal(membresCoherents(undefined, []), false, 'equipe absente, aucun membre');
+    assert.equal(membresCoherents(null, null), false);
+    assert.equal(membresCoherents([{ email: 'a@x.test', role: 'lecteur' }], [{ id: 'a@x.test', role: 'editeur' }]), false, 'equipe différente (rôle)');
+    assert.equal(membresCoherents([{ email: 'b@x.test', role: 'editeur' }], [{ id: 'a@x.test', role: 'editeur' }]), false, 'equipe différente (adresse)');
+    assert.equal(membresCoherents([], [{ id: 'a@x.test', role: 'editeur' }]), false, 'equipe vide mais des membres');
+    assert.equal(membresCoherents('x', [{ id: 'a@x.test', role: 'editeur' }]), false, 'equipe illisible');
+    assert.equal(membresCoherents([{ email: ' A@X.test ', role: 'editeur' }], [{ id: 'a@x.test', role: 'editeur' }]), true, 'casse et espaces');
   });
 });

@@ -11,10 +11,12 @@ import * as CRM from '../crm/donnees.js';
 import * as A from './articles.js';
 import * as B from './brouillon.js';
 import * as F from './familles.js';
+import * as V from './vocabulaire-plans.js';
 
 export const etat = {
   articles: [], familles: F.famillesDe(null), reglages: A.reglagesDevis(null), pret: false, reglagesPrets: false, erreurLecture: false,
   devis: [], devisPrets: false, erreurLectureDevis: false,
+  vocabulaire: [], vocabulairePret: false, erreurLectureVocabulaire: false,
 };
 
 let desabonnements = [];
@@ -22,11 +24,14 @@ let signature = '';
 let signatureReglages = '';
 let signatureFamilles = '';
 let signatureDevis = '';
+let signatureVocabulaire = '';
+let arretVocabulaire = null;
 const abonnes = new Set();
 
 const chemin = CRM.chemin;
 export const estPret = () => etat.pret && etat.reglagesPrets;
 export const estPretDevis = () => etat.devisPrets;
+export const estPretVocabulaire = () => etat.vocabulairePret;
 export const article = (id) => etat.articles.find((a) => a.id === id) || null;
 export const devisParId = (id) => etat.devis.find((d) => d.id === id) || null;
 /** Toutes les versions d'un même devis (même racine), de la plus ancienne à la plus récente. */
@@ -41,6 +46,35 @@ const notifier = () => abonnes.forEach((f) => { try { f(); } catch (e) { console
 // Quand seul un horodatage serveur se précise, on ne prévient pas les écrans (même règle que le CRM).
 const CHAMPS_VOLATILS = new Set(['modifieLe', 'modifiePar', 'creeLe']);
 const empreinte = (docs) => JSON.stringify(docs, (cle, valeur) => (CHAMPS_VOLATILS.has(cle) ? undefined : valeur));
+
+/** Écouteur des mots appris (`devis_vocabulaire`). À part des autres : « Réessayer » le relance seul (un écouteur refusé ou coupé ne repart pas tout seul). */
+function ecouterVocabulaire() {
+  arretVocabulaire?.();
+  arretVocabulaire = onSnapshot(collection(db, chemin(V.COLLECTION_VOCABULAIRE)), (snap) => {
+    const docs = snap.docs.map((d) => ({ ...d.data({ serverTimestamps: 'estimate' }), id: d.id }));
+    const sig = empreinte(docs);
+    const inchange = etat.vocabulairePret && sig === signatureVocabulaire && !etat.erreurLectureVocabulaire;
+    etat.vocabulaire = docs;
+    signatureVocabulaire = sig;
+    etat.vocabulairePret = true;
+    etat.erreurLectureVocabulaire = false;
+    if (!inchange) notifier();
+  }, (e) => {
+    // La liste précédente reste affichée ; l'écran dit quoi faire et propose « Réessayer ».
+    console.warn('devis_vocabulaire indisponible', e.code);
+    etat.erreurLectureVocabulaire = true;
+    etat.vocabulairePret = true;
+    notifier();
+  });
+}
+
+/** « Réessayer » de l'écran Vocabulaire : relance la lecture des mots appris. */
+export function relancerVocabulaire() {
+  etat.erreurLectureVocabulaire = false;
+  etat.vocabulairePret = false;
+  notifier();
+  ecouterVocabulaire();
+}
 
 export function demarrer(base = '') {
   // Le CRM démarre d'abord (ordre du registre) et fixe le chemin : on refuse un désaccord plutôt que d'écrire à deux endroits.
@@ -77,6 +111,7 @@ export function demarrer(base = '') {
     etat.devisPrets = true;
     notifier();
   }));
+  ecouterVocabulaire();
   desabonnements.push(onSnapshot(doc(db, chemin(A.COLLECTION_PARAMETRES), A.ID_REGLAGES), (snap) => {
     const brut = snap.exists() ? snap.data({ serverTimestamps: 'estimate' }) : null;
     const sig = JSON.stringify(brut);
@@ -104,6 +139,12 @@ export function demarrer(base = '') {
 export function arreter() {
   desabonnements.forEach((f) => f());
   desabonnements = [];
+  arretVocabulaire?.();
+  arretVocabulaire = null;
+  etat.vocabulaire = [];
+  etat.vocabulairePret = false;
+  etat.erreurLectureVocabulaire = false;
+  signatureVocabulaire = '';
   etat.articles = [];
   etat.familles = F.famillesDe(null);
   signatureFamilles = '';
@@ -145,6 +186,38 @@ export async function activerArticle(id, actif) {
   return { erreurs: {} };
 }
 
+// ---------------------------------------------------------------- mots appris (vocabulaire) : plans de vocabulaire-plans.js, journal « vocabulaire »
+/** Crée un mot à la main : `{ erreurs, id, existante }`. Un mot qui existe déjà n'est jamais écrasé : `existante` le désigne. */
+export async function creerMotVocabulaire(valeurs) {
+  // Liste pas lue ou en erreur : un mot existant resterait invisible et « creer » (un set) l'écraserait en silence.
+  if (etat.erreurLectureVocabulaire || !etat.vocabulairePret) return { erreurs: { general: V.MESSAGE_LISTE_INDISPONIBLE }, id: null, existante: null };
+  const plan = V.planCreerMot(valeurs, CRM.ctx(), { regles: etat.vocabulaire, articles: etat.articles });
+  if (Object.keys(plan.erreurs).length) return { erreurs: plan.erreurs, id: plan.id, existante: plan.existante };
+  await CRM.executer(plan.ecritures, V.OUTIL_VOCABULAIRE);
+  return { erreurs: {}, id: plan.id, existante: null };
+}
+/** Active ou désactive un mot : `{ erreurs }`. */
+export async function changerStatutMot(id, statut, { restaurer = false } = {}) {
+  const plan = V.planChangerStatut(id, statut, { regles: etat.vocabulaire, articles: etat.articles, restaurer });
+  if (Object.keys(plan.erreurs).length) return { erreurs: plan.erreurs };
+  await CRM.executer(plan.ecritures, V.OUTIL_VOCABULAIRE);
+  return { erreurs: {} };
+}
+/** Change l'article d'un mot : `{ erreurs }`. */
+export async function changerArticleMot(id, articleId) {
+  const plan = V.planChangerArticle(id, articleId, { regles: etat.vocabulaire, articles: etat.articles });
+  if (Object.keys(plan.erreurs).length) return { erreurs: plan.erreurs };
+  await CRM.executer(plan.ecritures, V.OUTIL_VOCABULAIRE);
+  return { erreurs: {} };
+}
+/** Écrit la note d'un mot : `{ erreurs }`. */
+export async function noterMot(id, note) {
+  const plan = V.planNote(id, note, { regles: etat.vocabulaire });
+  if (Object.keys(plan.erreurs).length) return { erreurs: plan.erreurs };
+  await CRM.executer(plan.ecritures, V.OUTIL_VOCABULAIRE);
+  return { erreurs: {} };
+}
+
 // ---------------------------------------------------------------- familles (liste complète réécrite à chaque changement, sans journal : comme les réglages)
 async function ecrireFamilles(plan) {
   if (plan.erreur) return { erreur: plan.erreur, famille: null };
@@ -158,13 +231,12 @@ export const creerFamille = (nom, parentId) => ecrireFamilles(F.planCreationFami
 export const renommerFamille = (id, nom) => ecrireFamilles(F.planRenommerFamille(id, nom, etat.familles));
 export const activerFamille = (id, actif) => ecrireFamilles(F.planDesactiverFamille(id, etat.familles, actif));
 
-/** Les données du module pour l'export : { devis_articles, devis_parametres, devis_devis } (toutes versions, tous statuts, archivés compris). Jamais le compteur de numéros (réservé au serveur). */
-export const lireToutPourExport = () => CRM.collectionsParNoms(['devis_articles', 'devis_parametres', 'devis_devis']);
+/** Les données du module pour l'export : { devis_articles, devis_parametres, devis_devis, devis_vocabulaire } (toutes versions, tous statuts, archivés compris). Jamais le compteur de numéros (réservé au serveur). */
+export const lireToutPourExport = () => CRM.collectionsParNoms(['devis_articles', 'devis_parametres', 'devis_devis', 'devis_vocabulaire']);
 
 /** Enregistre les réglages du module (document complet). `saisie` : les champs saisis ; renvoie `{ erreurs, reglages }`. */
 export async function enregistrerReglages(saisie) {
-  const etapesIds = CRM.etat.config.etapes.filter((e) => e.actif).map((e) => e.id);
-  const r = A.validerReglagesDevis(saisie, { actuels: etat.reglages, etapesIds });
+  const r = A.validerReglagesDevis(saisie, { actuels: etat.reglages });
   if (Object.keys(r.erreurs).length) return { erreurs: r.erreurs, reglages: null };
   await setDoc(doc(db, chemin(A.COLLECTION_PARAMETRES), A.ID_REGLAGES), r.reglages);
   return { erreurs: {}, reglages: r.reglages };

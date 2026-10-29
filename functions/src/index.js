@@ -4,7 +4,7 @@ import { onRequest, onCall, HttpsError } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { defineSecret } from 'firebase-functions/params';
 import { getApps, initializeApp } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { creerGestionnaire } from './mcp/gestionnaire.js';
 import { creerAccesFirestore } from './coeur/donnees.js';
 import { creerMagasin } from './securite/jetons.js';
@@ -16,6 +16,7 @@ import { creerGestionnairePorteCrm } from './porte.js';
 import { creerGestionnaireTableauCrm } from './tableaudebord.js';
 import { creerAppelSaisie, ligneDeJournalSaisie } from './tableaudebord-saisie.js';
 import { creerAppelDecider, ligneDeJournalDecision } from './automatisations/decider-appel.js';
+import { creerAppelRenommer, ligneDeJournalRenommer } from './automatisations/renommer-appel.js';
 import { creerAdaptateur } from '../partage/porte/adaptateur.js';
 import { creerServiceVeille } from './veille/service.js';
 import { creerAppelVeille } from './veille/appel.js';
@@ -101,6 +102,16 @@ export const automatisationsDecider = onCall(
   (requete) => {
     if (!getApps().length) initializeApp();
     return creerAppelDecider({ donnees: creerAccesFirestore(), journal: (e) => process.stdout.write(`${ligneDeJournalDecision(e)}\n`) })(requete);
+  },
+);
+
+// `automatisationsRenommer` : icône « Renommer » du module Automatisations chez Jérôme (même nom que la fonction de la plateforme, même code de contrôle du nom : partage/automatisations/libelle.js).
+// Écrit le seul champ « libelle » d'un document de la collection racine `workflows` ; contrôle de l'appelant comme `automatisationsDecider` ; mêmes région, limites et compte de service ; aucun secret, n8n n'est pas appelé.
+export const automatisationsRenommer = onCall(
+  { region: 'europe-west9', maxInstances: 3, memory: '256MiB', timeoutSeconds: 60, serviceAccount: 'porte-serveur@chevalier-ia-os.iam.gserviceaccount.com' },
+  (requete) => {
+    if (!getApps().length) initializeApp();
+    return creerAppelRenommer({ db: () => getFirestore(), effacer: FieldValue.delete(), journal: (e) => process.stdout.write(`${ligneDeJournalRenommer(e)}\n`) })(requete);
   },
 );
 

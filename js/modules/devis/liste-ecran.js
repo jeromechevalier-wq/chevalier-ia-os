@@ -4,12 +4,12 @@
 import { h, icone, remplir, ouvrirMenu, lirePreference, ecrirePreference } from '../../os/ui.js';
 import { boutonFiltres as boutonFiltresCommun, fenetreFiltres } from '../crm/filtres.js';
 import { etatVide, planifier } from '../crm/composants.js';
-import { naviguer } from '../../os/router.js';
+import { naviguer, lien } from '../../os/router.js';
 import * as CRM from '../crm/donnees.js';
 import * as D from './donnees.js';
 import * as Li from './liste.js';
 import { formaterMontant } from './document.js';
-import { nomsDe, entreesMenuDevis } from './actions-devis.js';
+import { nomsDe, entreesMenuDevis, creerDevisSansAffaire } from './actions-devis.js';
 import { indicateurPdf } from './pdf-indicateur.js';
 import { pastilleStatutDevis } from './pastille-statut.js';
 
@@ -61,7 +61,7 @@ const ouvrirDevis = (d) => naviguer(d.statut === 'brouillon' ? `devis/editeur/${
 const intitule = (d) => d.numero ?? (String(d.nom ?? '').trim() || 'Brouillon'); // un brouillon nommé porte son nom (interne) ; un devis numéroté garde son numéro
 function celluleClient(d) {
   const n = nomsDe(d);
-  return h('div', { class: 'devis-client' }, h('span', { class: 'devis-client-nom' }, n.client || '—'), n.affaire ? h('span', { class: 'devis-affaire' }, n.affaire) : null);
+  return h('div', { class: 'devis-client' }, h('span', { class: 'devis-client-nom' }, n.client || '—'), n.affaire ? h('span', { class: 'devis-affaire' }, n.affaire) : !d.affaireId ? h('span', { class: 'devis-affaire devis-sans-affaire', dataset: { valeur: 'sans-affaire' } }, 'Sans affaire') : null);
 }
 function celluleModifie(d, maintenant) {
   const qui = Li.initialesDe(d.modifiePar ?? d.creePar);
@@ -101,7 +101,7 @@ export function rendreListeDevis(conteneur) {
   } });
   const boutonNouveau = h('button', {
     type: 'button', class: `bouton ${Li.EDITEUR_DISPONIBLE ? 'bouton-principal' : 'bouton-secondaire'}`, disabled: !Li.EDITEUR_DISPONIBLE, title: Li.EDITEUR_DISPONIBLE ? null : Li.MESSAGE_BIENTOT,
-    dataset: { action: 'nouveau-devis' }, onclick: () => naviguer('devis/editeur'),
+    dataset: { action: 'nouveau-devis' }, onclick: () => creerDevisSansAffaire(),
   }, icone('plus', { taille: 16 }), 'Nouveau devis', Li.EDITEUR_DISPONIBLE ? null : h('span', { class: 'bientot' }, ' (bientôt disponible)'));
   const bascule = h('div', { class: 'bascule-vues', role: 'group', 'aria-label': 'Vue' });
 
@@ -135,7 +135,7 @@ export function rendreListeDevis(conteneur) {
       const vraimentVide = total === 0;
       if (vraimentVide && archives) { remplir(zone, etatVide('Aucun devis archivé. Un devis signé ou refusé se range ici avec « Archiver », dans le menu « … » du devis ; les devis remplacés et expirés y sont aussi.')); return; }
       remplir(zone, etatVide(vraimentVide ? 'Aucun devis pour l’instant.' : 'Aucun devis ne correspond.', {
-        action: vraimentVide ? h('button', { type: 'button', class: 'bouton bouton-secondaire', disabled: !Li.EDITEUR_DISPONIBLE, title: Li.EDITEUR_DISPONIBLE ? null : Li.MESSAGE_BIENTOT, dataset: { action: 'nouveau-devis-vide' }, onclick: () => naviguer('devis/editeur') },
+        action: vraimentVide ? h('button', { type: 'button', class: 'bouton bouton-secondaire', disabled: !Li.EDITEUR_DISPONIBLE, title: Li.EDITEUR_DISPONIBLE ? null : Li.MESSAGE_BIENTOT, dataset: { action: 'nouveau-devis-vide' }, onclick: () => creerDevisSansAffaire() },
           icone('plus', { taille: 16 }), 'Nouveau devis', Li.EDITEUR_DISPONIBLE ? null : ' (bientôt disponible)') : null,
       }));
       return;
@@ -208,7 +208,7 @@ export function rendreListeDevis(conteneur) {
   if (memorisee === 'liste' || memorisee === 'tableau') vue = memorisee;
 
   conteneur.append(h('div', { class: 'page page-liste page-devis page-liste-devis' },
-    h('header', { class: 'page-tete' }, h('div', {}, titre, compteur), h('div', { class: 'page-actions' }, h('a', { class: 'bouton bouton-secondaire', href: '#/devis/bordereau', dataset: { action: 'ouvrir-bordereau' } }, icone('list', { taille: 16 }), 'Catalogue'), boutonNouveau)),
+    h('header', { class: 'page-tete' }, h('div', {}, titre, compteur), h('div', { class: 'page-actions' }, h('a', { class: 'bouton bouton-secondaire', href: '#/devis/bordereau', dataset: { action: 'ouvrir-bordereau' } }, icone('list', { taille: 16 }), 'Catalogue'), h('a', { class: 'bouton bouton-secondaire', href: lien('devis/vocabulaire'), dataset: { action: 'ouvrir-vocabulaire' } }, icone('book-open', { taille: 16 }), 'Vocabulaire'), boutonNouveau)),
     h('div', { class: 'barre-affaires' }, champRecherche, filtres.element, bascule),
     avis, zone, pied));
 

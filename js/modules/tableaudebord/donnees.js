@@ -3,7 +3,7 @@
 // appelable `tableaudebordSaisir` du serveur, qui contrôle, écrit et journalise (les règles interdisent toute écriture depuis l'écran).
 // Le chemin de base vient de la coque ('' à la racine, clients/<client> côté plateforme) ; le champ `proprietaire` ne sert jamais de filtre : le chemin fait foi.
 // Les dates (Timestamp) sont converties en millisecondes ici, pour que logique.js reste pur.
-import { collection, onSnapshot, query, where } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
+import { collection, getDocs, onSnapshot, query, where } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-functions.js';
 import { db, app } from '../../os/firebase.js';
 import { cheminCollection } from '../../os/chemins.js';
@@ -25,6 +25,19 @@ export function surChangement(rappel) {
 const notifier = () => abonnes.forEach((f) => { try { f(); } catch (e) { console.warn(e); } });
 
 export const cheminReleves = () => cheminCollection(base, 'tableaudebord_releves');
+
+/**
+ * Les données du module pour l'export : { tableaudebord_indicateurs, tableaudebord_releves, tableaudebord_demandes }, lues au chemin du module (racine ou
+ * clients/<client> selon l'espace). Lecture seule : aucune de ces collections n'est inscriptible par le navigateur.
+ */
+export async function lireToutPourExport() {
+  const sortie = {};
+  for (const nom of ['tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes']) {
+    const snap = await getDocs(collection(db, cheminCollection(base, nom)));
+    sortie[nom] = snap.docs.map((d) => ({ ...d.data({ serverTimestamps: 'estimate' }), id: d.id }));
+  }
+  return sortie;
+}
 
 const enMs = (v) => {
   if (v && typeof v.toMillis === 'function') return v.toMillis();

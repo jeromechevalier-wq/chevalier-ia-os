@@ -4,6 +4,7 @@ import { vider } from '../../os/ui.js';
 import { naviguer } from '../../os/router.js';
 import * as D from './donnees.js';
 import { rendreContenus, rendreSources } from './ecran.js';
+import { reglagesExportVeille } from './export.js';
 
 // Feuille de style propre au module, ajoutée au premier affichage (index.html reste inchangé).
 function ajouterFeuille() {
@@ -16,6 +17,11 @@ function ajouterFeuille() {
 }
 
 export const actionsRapides = []; // rien à créer depuis l'écran : la veille se lit
+
+/** Réglages du module : une seule section, « Sauvegarde » (export des données). */
+export function reglages(page) {
+  reglagesExportVeille(page);
+}
 
 let montee = null;
 let ecranMonte = '';

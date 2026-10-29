@@ -396,3 +396,13 @@ describe('3 nom interne du devis (distinct de l’objet imprimé)', () => {
     assert.equal(v2.nom, 'Variante A');
   });
 });
+
+describe('SA devis sans affaire (28/10/2026) : le brouillon se crée sans affaire, la finalisation l’exige', () => {
+  test('SA3 nouveauDevis accepte l’absence d’affaire ; erreursFinalisation nomme l’affaire manquante (même phrase pour l’écran, la fonction et l’assistant)', () => {
+    const d = devisType({ affaireId: null, destinataires: [{ email: 'a@b.fr' }] });
+    assert.equal(D.nouveauDevis({}, { id: 'x' }).affaireId, null);
+    assert.ok(D.erreursFinalisation(d).includes(D.MESSAGE_AFFAIRE_MANQUANTE));
+    assert.equal(D.MESSAGE_AFFAIRE_MANQUANTE, 'Choisis l\'affaire de ce devis.');
+    assert.ok(!D.erreursFinalisation({ ...d, affaireId: 'a1' }).includes(D.MESSAGE_AFFAIRE_MANQUANTE));
+  });
+});

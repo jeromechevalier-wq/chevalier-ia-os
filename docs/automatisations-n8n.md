@@ -97,6 +97,7 @@ Par défaut, l'écran affiche le **nom du workflow dans n8n**. Un **éditeur** d
 
 - Le nom choisi est gardé dans `clients/<client>/workflows/<id>`, champ `libelle`. La copie horaire **ne l'écrase jamais** (le champ `nom`, lui, suit n8n). **n8n n'est jamais modifié.**
 - C'est la fonction `automatisationsRenommer` qui l'écrit, après avoir vérifié que l'appelant est **éditeur de ce client** et que le workflow existe déjà chez lui. Elle ne modifie **que** ce champ, 80 caractères au plus, texte simple.
+- **Chez Jérôme**, la même icône et le même contrôle du nom (80 caractères au plus) existent : la fonction `automatisationsRenommer` de `functions/` (comptes autorisés de Jérôme) écrit le champ `libelle` dans la collection racine `workflows`. Le code du contrôle du nom (`libelle.js`) est commun aux deux.
 - C'est la **seule écriture** possible depuis un écran. Les règles Firestore interdisent toute écriture dans `workflows`, `executions` et `sync` depuis un navigateur, même à un éditeur.
 
 ---

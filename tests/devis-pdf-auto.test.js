@@ -20,10 +20,11 @@ async function monde({ finaliser = false, affaire = true, urlDossier = 'https://
     [C.audit]: [], [C.auditAvant]: [], [C.evenements]: [], [C.organisations]: [{ id: 'org1', nom: 'Société Cliente Essai' }], [C.personnes]: [],
     [C.affaires]: affaire ? [{ id: 'aff1', titre: 'Rénovation Essai', ...(urlDossier === null ? {} : { urlDossier }), documents: [{ libelle: 'Plan', url: 'https://exemple.test/plan' }] }] : [],
   };
-  const d = nouveauDevis({ destinataires: [{ email: 'client@exemple.test' }], affaireId: affaire ? 'aff1' : null, organisationId: 'org1', objet: 'Cuisine' }, { id: 'd1', maintenant: MAINTENANT, auteur: ACTEUR }, { marge: 20, margeDevis: 20 });
+  const d = nouveauDevis({ destinataires: [{ email: 'client@exemple.test' }], affaireId: 'aff1', organisationId: 'org1', objet: 'Cuisine' }, { id: 'd1', maintenant: MAINTENANT, auteur: ACTEUR }, { marge: 20, margeDevis: 20 });
   collections[C.devis].push({ ...d, objet: 'Cuisine', sections: [{ id: 's1', titre: 'Travaux', lignes: [{ id: 'l1', libelle: 'Pose', unite: 'u', quantite: 2, prixAchat: 100 }] }] });
   const donnees = creerAccesMemoire(collections);
-  if (finaliser) await finaliserDevis(donnees);
+  if (finaliser) await finaliserDevis(donnees); // finaliser exige l'affaire : « sans affaire » = un devis finalisé avant cette règle, l'affaire lui est retirée après
+  if (!affaire) collections[C.devis][0].affaireId = null;
   return { collections, donnees };
 }
 const finaliserDevis = (donnees) => S.finaliser({ donnees, ctx: { acteur: ACTEUR, via: 'ecran', maintenant: MAINTENANT }, devisId: 'd1' });

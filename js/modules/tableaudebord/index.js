@@ -5,6 +5,7 @@ import { vider } from '../../os/ui.js';
 import { naviguer } from '../../os/router.js';
 import * as D from './donnees.js';
 import { rendreTableau } from './ecran.js';
+import { reglagesExportMaintenance } from './export.js';
 
 const ECRANS = ['general', 'technique', 'finance', 'stocks', 'historique'];
 
@@ -19,6 +20,11 @@ function ajouterFeuille() {
 }
 
 export const actionsRapides = []; // rien à créer depuis l'écran : le tableau de bord se lit
+
+/** Réglages du module : seulement « Sauvegarde » (aucun autre réglage pour l'instant). */
+export function reglages(page) {
+  reglagesExportMaintenance(page);
+}
 
 let montee = null;
 let ecranMonte = '';

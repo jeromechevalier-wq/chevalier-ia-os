@@ -5,7 +5,7 @@ import * as Ed from '../js/modules/devis/editeur-logique.js';
 import { totauxDevis, prixVenteDeLigne, erreursFinalisation } from '../js/modules/devis/logique.js';
 
 const L = (id, extra = {}) => ({ id, libelle: `Ligne ${id}`, quantite: 1, unite: 'u', prixAchat: 10, ...extra });
-const devisDe = (sections, extra = {}) => ({ id: 'd1', statut: 'brouillon', modeMarge: 'majoration', marge: 20, tauxTvaDefaut: 20, regimeTva: 'assujetti', sections, ...extra });
+const devisDe = (sections, extra = {}) => ({ id: 'd1', statut: 'brouillon', affaireId: 'a1', modeMarge: 'majoration', marge: 20, tauxTvaDefaut: 20, regimeTva: 'assujetti', sections, ...extra });
 const ids = (sections) => Ed.aplatir(sections).map((e) => e.id);
 // Deux sections : « s1 » (a, b) et « s2 » (c), et une ligne « z » avant toute section.
 const exemple = () => [

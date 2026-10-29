@@ -269,3 +269,13 @@ export const ajouterTacheModele = (id, valeurs) => appliquerTache(P.planAjouterT
 export const majTacheModele = (id, tacheId, patch) => appliquerTache(P.planMajTacheModele({ modele: modeleOuErreur(id), tacheId, patch, config: CRM.etat.config }), 'majTacheModele');
 export const supprimerTacheModele = (id, tacheId) => appliquer(P.planSupprimerTacheModele({ modele: modeleOuErreur(id), tacheId }), 'supprimerTacheModele');
 export const deplacerTacheModele = (id, tacheId, sens) => appliquer(P.planDeplacerTacheModele({ modele: modeleOuErreur(id), tacheId, sens, config: CRM.etat.config }), 'deplacerTacheModele');
+
+/** Les données du module pour l'export : { projets_projets, projets_taches, projets_modeles } (archivés compris), lues au chemin du module (racine chez Jérôme, clients/<client> chez un client). */
+export async function lireToutPourExport() {
+  const sortie = {};
+  for (const nom of ['projets_projets', 'projets_taches', 'projets_modeles']) {
+    const snap = await getDocs(collection(db, chemin(nom)));
+    sortie[nom] = snap.docs.map((d) => ({ ...d.data({ serverTimestamps: 'estimate' }), id: d.id }));
+  }
+  return sortie;
+}

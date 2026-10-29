@@ -149,6 +149,7 @@ describe('registre : le menu de Jérôme (modules, routes, écrans ; Archives et
     { id: 'devis', libelle: 'Devis', icone: 'file-text', prefixe: 'devis', entrees: [
       { chemin: 'devis/liste', libelle: 'Devis', icone: 'file-text' },
       { chemin: 'devis/bordereau', libelle: 'Catalogue', icone: 'list' },
+      { chemin: 'devis/vocabulaire', libelle: 'Vocabulaire', icone: 'book-open' }, // 3e écran du module Devis (29/10/2026, hors menu : on y arrive par la liste des devis)
     ] },
     // Ajout voulu (veille vendable en module, étape 1, 2026-10-14) : le menu du CRM gagne « Veille » après Projets.
     { id: 'veille', libelle: 'Veille', icone: 'globe', prefixe: 'veille', entrees: [
@@ -412,12 +413,13 @@ describe('Réglages à menu latéral (2.6.0) : ce que chaque module déclare', (
     assert.equal(crm.ouvrir, 'crm/accueil');
     assert.ok(!reglagesDesModules(['affaires'])[0].sections.some((s) => s.id === 'reglages-modeles-projets'), 'projets éteint : pas de modèles de projets');
   });
-  test('un élément par module actif, dans l\'ordre du menu ; un module sans réglage a un résumé', () => {
+  test('un élément par module actif, dans l\'ordre du menu ; Veille et Automatisations ont leur Sauvegarde', () => {
     const items = reglagesDesModules(['affaires', 'projets', 'veille', 'automatisations', 'mcp']);
     assert.deepEqual(items.map((i) => i.id), ['crm', 'veille', 'automatisations', 'mcp']);
     assert.deepEqual(items.map((i) => i.libelle), ['Affaires et projets', 'Veille', 'Automatisations', 'Connecter mon assistant']);
-    assert.match(items[1].resume, /Aucun réglage/);
-    assert.deepEqual(items[1].sections, []);
+    assert.deepEqual(items[2].sections.map((s) => s.id), ['reglages-export-automatisations'], 'Automatisations : la section Sauvegarde (export des données)');
+    assert.deepEqual(items[1].sections.map((s) => s.id), ['reglages-export-veille'], 'Veille : la section Sauvegarde (export des données)');
+    assert.deepEqual(reglagesDesModules(['tableaudebord'])[0].sections.map((s) => s.id), ['reglages-export-maintenance'], 'Maintenance : la section Sauvegarde (export des données)');
     assert.deepEqual(reglagesDesModules([]), []);
   });
   test('réglages de l\'espace : « Mon espace » pour tous, membres et modules réservés aux éditeurs, membres seulement chez un client', () => {

@@ -1,4 +1,4 @@
-// Réglages du module Devis : nom du bordereau, marge, TVA, durée de validité, étapes liées, mention d'émetteur, et « Mon entreprise » (le bloc en haut à gauche du devis).
+// Réglages du module Devis : nom du bordereau, marge, TVA, durée de validité, mention d'émetteur, et « Mon entreprise » (le bloc en haut à gauche du devis).
 // Aucune règle ici : le contrôle (validerReglagesDevis) est dans articles.js, l'écriture dans donnees.js. On modifie un brouillon ; « Enregistrer » contrôle tout, puis écrit.
 import { h, icone, remplir, toast, iconeInfo } from '../../os/ui.js';
 import { ajouterGardeSortie } from '../../os/router.js';
@@ -14,7 +14,7 @@ const ERREUR_ECRITURE = 'Enregistrement impossible : réessaie dans un instant, 
 /** Le brouillon part des réglages enregistrés ; les nombres restent du texte tant qu'on tape. */
 const brouillonDe = (r) => ({
   nomBordereau: r.nomBordereau, modeMarge: r.modeMarge, marge: String(r.marge).replace('.', ','), margeDevis: String(r.margeDevis).replace('.', ','), regimeTva: r.regimeTva, tauxProposes: [...r.tauxProposes],
-  tauxTvaDefaut: r.tauxTvaDefaut, dureeValiditeJours: String(r.dureeValiditeJours), etapeDevis: r.etapeDevis, mentionEmetteur: r.mentionEmetteur,
+  tauxTvaDefaut: r.tauxTvaDefaut, dureeValiditeJours: String(r.dureeValiditeJours), mentionEmetteur: r.mentionEmetteur,
   entreprise: entrepriseBrouillon(r.entreprise),
 });
 
@@ -36,7 +36,7 @@ const entrepriseBrouillon = (e = {}) => ({
 export function reglages(page) {
   const sec = h('section', { class: 'carte-section', id: 'reglages-devis' },
     h('h2', {}, icone('file-text', { taille: 18 }), 'Général'),
-    h('p', { class: 'aide' }, 'Le nom de ton catalogue de prix, la marge, la TVA, la durée de validité, les étapes de tes affaires liées aux devis et les informations de ton entreprise (pastille « Mon entreprise » en haut de la page). « Enregistrer » s’allume dès que tu changes quelque chose.'));
+    h('p', { class: 'aide' }, 'Le nom de ton catalogue de prix, la marge, la TVA, la durée de validité et les informations de ton entreprise (pastille « Mon entreprise » en haut de la page). « Enregistrer » s’allume dès que tu changes quelque chose.'));
   const zone = h('div', { class: 'pile reglages-devis' });
   const erreurGenerale = h('p', { class: 'erreur', role: 'alert', dataset: { erreur: 'general' } });
   let brouillon = brouillonDe(D.etat.reglages);
@@ -135,10 +135,6 @@ export function reglages(page) {
   }
 
   function rendre() {
-    const etapes = CRM.etat.config.etapes.filter((e) => e.actif);
-    const optionsEtapes = [{ valeur: '', libelle: 'Aucune' }, ...etapes.map((e) => ({ valeur: e.id, libelle: e.libelle }))];
-    // Une étape enregistrée mais disparue reste visible (et sera refusée à l'enregistrement avec un message).
-    if (brouillon.etapeDevis && !optionsEtapes.some((o) => o.valeur === brouillon.etapeDevis)) optionsEtapes.push({ valeur: brouillon.etapeDevis, libelle: `${brouillon.etapeDevis} (étape disparue)` });
     const taux = h('div', { class: 'cases', dataset: { champ: 'tauxProposes' } }, TAUX_TVA_DEFAUT.map((t) => h('label', { class: 'case' },
       h('input', { type: 'checkbox', checked: brouillon.tauxProposes.includes(t), dataset: { taux: String(t) }, 'aria-label': `Proposer le taux ${A.formaterTaux(t)}`,
         onchange: (e) => { changer({ tauxProposes: TAUX_TVA_DEFAUT.filter((x) => (x === t ? e.target.checked : brouillon.tauxProposes.includes(x))) }); } }), A.formaterTaux(t))));
@@ -158,8 +154,6 @@ export function reglages(page) {
         bloc('dureeValiditeJours', 'Durée de validité d’un devis (jours)', texte('dureeValiditeJours', brouillon.dureeValiditeJours, { inputmode: 'numeric' }))),
       bloc('tauxProposes', 'Taux de TVA proposés', taux),
       bloc('tauxTvaDefaut', 'Taux de TVA par défaut', liste('tauxTvaDefaut', TAUX_TVA_DEFAUT.map((t) => ({ valeur: t, libelle: A.formaterTaux(t) })), brouillon.tauxTvaDefaut, (v) => changer({ tauxTvaDefaut: Number(v) }))),
-      bloc('etapeDevis', 'Étape où vivent les devis', liste('etapeDevis', optionsEtapes, brouillon.etapeDevis, (v) => changer({ etapeDevis: v })),
-        'L’étape de tes affaires où se trouvent tes devis (une seule colonne « Devis » dans le pipeline). Rien ne change tout seul pour l’instant.'),
       bloc('mentionEmetteur', 'Mention d’émetteur (facultatif)', h('textarea', { class: 'champ', id: 'devis-mentionEmetteur', rows: 3, maxlength: '500', dataset: { champ: 'mentionEmetteur' }, value: brouillon.mentionEmetteur,
         oninput: (e) => changer({ mentionEmetteur: e.target.value }) }), 'Un texte libre qui accompagne tes devis (par exemple une mention légale). Il n’est pas encore envoyé nulle part.'),
       sectionEntreprise());

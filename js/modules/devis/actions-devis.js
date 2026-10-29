@@ -89,6 +89,28 @@ function attendreDevis(id, ms = 4000) {
   });
 }
 
+let creationSansAffaire = false; // un double clic ne crée pas deux brouillons
+/**
+ * « Nouveau devis » (liste, menu « + », ancienne adresse devis/editeur) : crée tout de suite un brouillon SANS affaire et ouvre l'éditeur, où l'on choisit l'affaire.
+ * Rend vrai si l'éditeur s'ouvre, faux sinon (un message dit l'échec, sauf `silencieux`).
+ */
+export async function creerDevisSansAffaire({ remplacer = false, silencieux = false } = {}) {
+  if (creationSansAffaire) return true;
+  creationSansAffaire = true;
+  try {
+    const r = await D.creerBrouillon(Ed.valeursDeCreation(null, null));
+    if (!r.id) throw new Error(Object.values(r.erreurs)[0] || ERREUR_ECRITURE);
+    naviguer(`devis/editeur/${r.id}`, remplacer ? { remplacer: true } : undefined);
+    return true;
+  } catch (e) {
+    console.warn(e?.code ?? '', e?.message ?? '');
+    if (!silencieux) toast(ERREUR_ECRITURE, { type: 'erreur', duree: 8000 });
+    return false;
+  } finally {
+    creationSansAffaire = false;
+  }
+}
+
 /** Crée un brouillon qui copie un devis (même affaire, mêmes lignes) et ouvre l'éditeur. */
 export async function dupliquerDevis(source) {
   try {

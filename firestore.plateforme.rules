@@ -63,7 +63,7 @@ service cloud.firestore {
     // Bordereau du module Devis (24/10/2026) : les membres lisent ; les éditeurs créent et modifient les articles, mais ne les SUPPRIMENT jamais
     // (un article se désactive : les devis déjà faits en gardent une copie). Un autre client n'y a aucun accès (chemin sous clients/<client>).
     function collectionSansSuppression(collection) {
-      return collection in ['devis_articles'];
+      return collection in ['devis_articles', 'devis_vocabulaire'];
     }
     match /clients/{client}/devis_articles/{id} {
       allow read: if roleDe(client) in ['editeur', 'lecteur'];
@@ -111,6 +111,26 @@ service cloud.firestore {
     match /clients/{client}/documents_stockes/{id} {
       allow read: if roleDe(client) in ['editeur', 'lecteur'];
       allow write: if false;
+    }
+
+    // Dictionnaire de vocabulaire du module Devis (28/10/2026) : une règle « expression du client -> article ». Le SERVEUR apprend (compteurs, origine « apprise_* », exemples,
+    // dates de confirmation) et contourne les règles ; le NAVIGATEUR ne peut que créer une règle MANUELLE (compteurs à zéro, sans conflit) puis la réviser (statut, article, note, conflit).
+    // Jamais de suppression : une règle se désactive. Passer « a_confirmer » à « active » est permis (c'est le but de la revue). Le serveur pose « via » à la création ; l'écran ne le modifie pas
+    // (gardé dans la liste des clés permises).
+    function vocabulaireManuelNeuf() {
+      let d = request.resource.data;
+      return d.get('statut', '') in ['active', 'desactivee'] && d.get('origine', '') == 'manuelle'
+        && d.get('confirmations', 0) == 0 && d.get('contradictions', 0) == 0 && d.get('conflit', false) == false
+        && d.get('exemples', []).size() == 0 && !d.keys().hasAny(['derniereConfirmationLe', 'derniereUtilisationLe']);
+    }
+    function vocabulaireRevise() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['statut', 'articleId', 'articleLibelle', 'note', 'conflit', 'modifieLe', 'modifiePar', 'via']);
+    }
+    match /clients/{client}/devis_vocabulaire/{id} {
+      allow read: if roleDe(client) in ['editeur', 'lecteur'];
+      allow create: if roleDe(client) == 'editeur' && vocabulaireManuelNeuf();
+      allow update: if roleDe(client) == 'editeur' && vocabulaireRevise();
+      allow delete: if false;
     }
 
     // Les données du client (tout sauf les fiches d'appartenance, traitées ci-dessus).

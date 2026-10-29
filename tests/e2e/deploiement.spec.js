@@ -49,11 +49,11 @@ test('1 Réglages > Déploiement chez Jérôme : une ligne par étape avec pasti
   await ouvrirRacine(page);
   await expect(page.locator('.reglages-menu-lien[data-reglage="deploiement"]')).toHaveText('Déploiement');
   await expect(page.locator('.deploiement-groupe h3')).toHaveText(['Avant la séance', 'Pendant la séance', 'Réglages Google du projet', 'Après la séance']);
-  // Toutes les lignes automatiques sont vertes, les manuelles grises « À vérifier à la main » : 7 sur 22 (1 du serveur, 1 des Affaires, 3 du Devis + 2 du PDF ; 15 manuelles,
+  // Toutes les lignes automatiques sont vertes, les manuelles grises « À vérifier à la main » : 6 sur 21 (1 du serveur, 1 des Affaires, 2 du Devis + 2 du PDF ; 15 manuelles,
   // dont « Personnes autorisées », case à cocher à la racine : les comptes y sont écrits dans le code)
-  await expect(page.locator('.deploiement-ligne')).toHaveCount(22);
-  await expect(page.locator('.deploiement-ligne[data-type="auto"][data-couleur="vert"]')).toHaveCount(7);
-  await expect(resume(page)).toHaveText('7 sur 22 vertes');
+  await expect(page.locator('.deploiement-ligne')).toHaveCount(21);
+  await expect(page.locator('.deploiement-ligne[data-type="auto"][data-couleur="vert"]')).toHaveCount(6);
+  await expect(resume(page)).toHaveText('6 sur 21 vertes');
   await expect(ligne(page, 'membres')).toHaveAttribute('data-type', 'manuel');
   await expect(page.locator('#reglages-deploiement')).not.toContainText('Jérôme');
   await expect(page.locator('#reglages-deploiement')).toContainText('Chaque case s’enregistre toute seule.');
@@ -97,7 +97,7 @@ test('J les lignes « Le stockage des PDF répond » et « Ce serveur connaît l
 test('3 une case rouge dit comment réparer, avec le lien exact (réglage de l’appli, mode d’emploi ou console Google)', async ({ page }, info) => {
   await simuler(page);
   await ouvrirRacine(page);
-  for (const id of ['dossier-drive', 'devis-entreprise', 'devis-etape', 'devis-catalogue']) {
+  for (const id of ['dossier-drive', 'devis-entreprise', 'devis-catalogue']) {
     await expect(ligne(page, id)).toHaveAttribute('data-couleur', 'rouge');
     await expect(ligne(page, id).locator('[data-role="etat"]')).toHaveText('À réparer');
     await expect(ligne(page, id).locator('[data-role="reparation"]')).toBeVisible();
@@ -116,16 +116,16 @@ test('3 une case rouge dit comment réparer, avec le lien exact (réglage de l�
   await expect(page).toHaveURL(/#\/reglages\/devis\/reglages-entreprise$/);
 });
 
-test('3 plus d’étape « CORS » : la page ne lit plus le stockage, le groupe « Réglages Google du projet » garde la ligne des Affaires, les trois lignes automatiques du Devis sont intactes', async ({ page }, info) => {
+test('3 plus d’étape « CORS » : la page ne lit plus le stockage, le groupe « Réglages Google du projet » garde la ligne des Affaires, les deux lignes automatiques du Devis sont intactes', async ({ page }, info) => {
   const lectures = [];
   page.on('request', (r) => { if (/storage\.googleapis\.com/.test(r.url())) lectures.push(r.url()); });
   await simuler(page);
   await toutRegler();
   await ouvrirRacine(page);
-  await expect(page.locator('.deploiement-ligne')).toHaveCount(22);
+  await expect(page.locator('.deploiement-ligne')).toHaveCount(21);
   await expect(ligne(page, 'devis-cors')).toHaveCount(0);
   await expect(page.locator('#reglages-deploiement')).not.toContainText('CORS');
-  for (const id of ['devis-entreprise', 'devis-etape', 'devis-catalogue']) await expect(ligne(page, id)).toHaveAttribute('data-couleur', 'vert');
+  for (const id of ['devis-entreprise', 'devis-catalogue']) await expect(ligne(page, id)).toHaveAttribute('data-couleur', 'vert');
   await expect(ligne(page, 'dossier-drive')).toHaveCount(1);
   await expect(ligne(page, 'devis-essai').locator('[data-role="etat"]')).toHaveText('À vérifier à la main');
   await expect(page.locator('#reglages-deploiement')).toContainText('Essai de bout en bout d’un devis (PDF, e-mail, Envoyé)');
@@ -143,7 +143,7 @@ test('4 « C’est fait » : la case manuelle devient verte avec la date, compte
   const date = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris' }).format(new Date());
   await expect(ligne(page, 'bienvenue')).toHaveAttribute('data-couleur', 'vert');
   await expect(ligne(page, 'bienvenue').locator('[data-role="etat"]')).toHaveText(`Fait le ${date}`);
-  await expect(resume(page)).toHaveText('8 sur 22 vertes');
+  await expect(resume(page)).toHaveText('7 sur 21 vertes');
   await expect.poll(async () => (await lireDocument('crm_parametres/deploiement'))?.bienvenue?.fait).toBe(true);
   expect(Object.keys((await lireDocument('crm_parametres/deploiement')).bienvenue).sort()).toEqual(['fait', 'le']);
   await page.reload();

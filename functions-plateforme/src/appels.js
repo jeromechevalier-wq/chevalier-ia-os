@@ -4,13 +4,14 @@
 //  - renommer        : un éditeur du client change le nom affiché d'un workflow (c'est la seule écriture venue d'un écran).
 import { FieldValue } from 'firebase-admin/firestore';
 import { logger } from 'firebase-functions';
-import { classer, etiquetteDuClient, moduleActif, MODULE_AUTOMATISATIONS, ANCIEN_MODULE_JOURNAL, MOTIF_ID_N8N, MOTIF_IDENTIFIANT_CLIENT } from './etiquettes.js';
-import { synchroniserClient, marquerInjoignable, raccourcir } from './synchro.js';
+import { classer, etiquetteDuClient, moduleActif, MODULE_AUTOMATISATIONS, ANCIEN_MODULE_JOURNAL, MOTIF_IDENTIFIANT_CLIENT } from './etiquettes.js';
+import { synchroniserClient, marquerInjoignable } from './synchro.js';
+import { LONGUEUR_MAX_LIBELLE, controlerRenommage, champLibelle } from './libelle.js';
 import { ErreurN8n } from './n8n.js';
 
 export { MODULE_AUTOMATISATIONS, ANCIEN_MODULE_JOURNAL, moduleActif };
 // Les messages des journaux Cloud gardent le préfixe « Journal : » : l'alerte e-mail de Google Cloud (créée à la main dans la console) le cherche.
-export const LONGUEUR_MAX_LIBELLE = 80;
+export { LONGUEUR_MAX_LIBELLE };
 
 /** Refus d'une fonction appelable ; `code` suit les codes de Firebase (unauthenticated, permission-denied, invalid-argument…). */
 export class Refus extends Error {
@@ -116,18 +117,17 @@ export async function rafraichir({ db, n8n, auth, maintenant = Date.now() }) {
  */
 export async function renommer({ db, auth, donnees }) {
   const email = emailDe(auth);
-  const { client, workflowId, libelle } = donnees ?? {};
+  const { client } = donnees ?? {};
   if (typeof client !== 'string' || !MOTIF_IDENTIFIANT_CLIENT.test(client)) throw new Refus('invalid-argument', 'Demande invalide.');
-  if (typeof workflowId !== 'string' || !MOTIF_ID_N8N.test(workflowId)) throw new Refus('invalid-argument', 'Demande invalide.');
-  if (typeof libelle !== 'string') throw new Refus('invalid-argument', 'Le nom doit être un texte.');
-  const propre = raccourcir(libelle, 10000);
-  if (propre.length > LONGUEUR_MAX_LIBELLE) throw new Refus('invalid-argument', `Le nom est trop long (${LONGUEUR_MAX_LIBELLE} caractères au plus).`);
+  const controle = controlerRenommage(donnees);
+  if (controle.erreur) throw new Refus(controle.erreur.code, controle.erreur.message);
+  const { workflowId, libelle: propre } = controle;
   // Mêmes refus, mêmes mots : on ne dit pas si le client existe, si on en est membre ou si le module est actif.
   if ((await roleDe(db, client, email)) !== 'editeur') throw REFUS_NEUTRE();
   const fiche = await db.doc(`clients/${client}`).get();
   if (!fiche.exists || !moduleActif(fiche.get('modules'))) throw REFUS_NEUTRE();
   const ref = db.doc(`clients/${client}/workflows/${workflowId}`);
   if (!(await ref.get()).exists) throw new Refus('not-found', 'Cette automatisation est introuvable.');
-  await ref.update({ libelle: propre === '' ? FieldValue.delete() : propre });
+  await ref.update(champLibelle(propre, FieldValue.delete()));
   return { ok: true, libelle: propre };
 }

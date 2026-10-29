@@ -407,8 +407,8 @@ export const REGLAGES_DEVIS_DEFAUT = Object.freeze({
   tauxProposes: [...TAUX_TVA_DEFAUT],
   tauxTvaDefaut: TAUX_TVA_DEFAUT_REGLAGE,
   dureeValiditeJours: DUREE_VALIDITE_DEFAUT,
-  etapeDevis: '',
-  etapeAFaire: '', // anciens réglages (25/10/2026) : gardés tels quels dans la base, plus modifiables
+  etapeDevis: '', // anciens réglages (étape des devis retirée le 28/10/2026, un devis vit à toutes les étapes) : gardés tels quels dans la base, plus modifiables
+  etapeAFaire: '', // idem (25/10/2026)
   etapeEnvoye: '',
   mentionEmetteur: '',
   entreprise: Object.freeze({}),
@@ -430,8 +430,7 @@ export function reglagesDevis(brut) {
     tauxProposes: proposes,
     tauxTvaDefaut: proposes.includes(b.tauxTvaDefaut) ? b.tauxTvaDefaut : proposes[0],
     dureeValiditeJours: Number.isInteger(b.dureeValiditeJours) && b.dureeValiditeJours > 0 ? b.dureeValiditeJours : d.dureeValiditeJours,
-    // Une seule étape pour tous les devis. Tant qu'elle n'est pas choisie, on reprend l'ancien réglage « à faire ».
-    etapeDevis: typeof b.etapeDevis === 'string' ? b.etapeDevis : (typeof b.etapeAFaire === 'string' ? b.etapeAFaire : ''),
+    etapeDevis: typeof b.etapeDevis === 'string' ? b.etapeDevis : '',
     etapeAFaire: typeof b.etapeAFaire === 'string' ? b.etapeAFaire : '',
     etapeEnvoye: typeof b.etapeEnvoye === 'string' ? b.etapeEnvoye : '',
     mentionEmetteur: typeof b.mentionEmetteur === 'string' ? b.mentionEmetteur : '',
@@ -447,9 +446,8 @@ export const titreBordereau = (reglages) => reglagesDevis(reglages).nomBordereau
 
 /**
  * Contrôle des réglages saisis (`saisie` complète ou partielle, complétée par `actuels`) : `{ reglages, erreurs }`.
- * `etapesIds` : identifiants des étapes de l'espace (celles du pipeline des affaires) ; une étape inconnue est refusée.
  */
-export function validerReglagesDevis(saisie, { actuels = REGLAGES_DEVIS_DEFAUT, etapesIds = [] } = {}) {
+export function validerReglagesDevis(saisie, { actuels = REGLAGES_DEVIS_DEFAUT } = {}) {
   const erreurs = {};
   const s = { ...reglagesDevis(actuels), ...(saisie ?? {}) };
   if (!NOMS_BORDEREAU.includes(s.nomBordereau)) erreurs.nomBordereau = `Choisis un nom parmi : ${NOMS_BORDEREAU.join(', ')}.`;
@@ -473,7 +471,6 @@ export function validerReglagesDevis(saisie, { actuels = REGLAGES_DEVIS_DEFAUT, 
   if (proposes.length && !proposes.includes(tauxDefaut)) erreurs.tauxTvaDefaut = 'Le taux par défaut doit être l’un des taux proposés.';
   const jours = lireNombre(s.dureeValiditeJours);
   if (jours === null || !Number.isInteger(jours) || jours < 1 || jours > LIMITES.jours) erreurs.dureeValiditeJours = `La durée de validité est un nombre entier de jours, entre 1 et ${LIMITES.jours} (exemple : 90).`;
-  if (s.etapeDevis && !etapesIds.includes(s.etapeDevis)) erreurs.etapeDevis = 'L’étape où vivent les devis n’existe plus dans tes étapes : choisis-en une autre, ou aucune.';
   const mention = typeof s.mentionEmetteur === 'string' ? s.mentionEmetteur.trim() : '';
   if (mention.length > LIMITES.mention) erreurs.mentionEmetteur = `La mention est trop longue (${LIMITES.mention} caractères au plus).`;
   const ent = validerEntreprise(s.entreprise);
@@ -489,8 +486,8 @@ export function validerReglagesDevis(saisie, { actuels = REGLAGES_DEVIS_DEFAUT, 
       tauxProposes: TAUX_TVA_DEFAUT.filter((t) => proposes.includes(t)),
       tauxTvaDefaut: tauxDefaut,
       dureeValiditeJours: jours,
-      etapeDevis: s.etapeDevis || '',
-      etapeAFaire: s.etapeAFaire || '', // anciens réglages : recopiés tels quels (rien n'est effacé de la base)
+      etapeDevis: s.etapeDevis || '', // anciens réglages : recopiés tels quels (rien n'est effacé de la base)
+      etapeAFaire: s.etapeAFaire || '',
       etapeEnvoye: s.etapeEnvoye || '',
       mentionEmetteur: mention,
       entreprise: ent.entreprise,

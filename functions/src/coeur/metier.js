@@ -5,6 +5,7 @@ import * as L from '../../partage/logique.js';
 import * as PL from '../../partage/projets.js';
 import * as DA from '../../partage/devis-articles.js';
 import * as DF from '../../partage/devis-familles.js';
+import * as DV from '../../partage/devis-vocabulaire.js';
 import * as D from '../../partage/devis.js';
 import * as E from '../../partage/devis-editeur.js';
 import * as B from '../../partage/devis-brouillon.js';
@@ -693,6 +694,86 @@ export async function desactiverArticle(c, args) {
   return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: args.id, actif });
 }
 
+// ---------------------------------------------------------------- Devis : dictionnaire de vocabulaire (PR 3, 28/10/2026)
+const MAX_REGLES_ACTIVES = 500;
+const MAX_REGLES_A_CONFIRMER = 300;
+const MAX_EXEMPLES = 5;
+const MAX_EXEMPLE = 200;
+const PLEIN = 'Dictionnaire plein : fais la revue (désactive ou active des règles) avant d’en apprendre de nouvelles.';
+
+/** Les 5 dernières phrases (≤ 200 caractères), sans doublon : la phrase déjà présente ne bouge pas, une nouvelle passe en dernier. */
+function avecExemple(exemples, phrase) {
+  const liste = Array.isArray(exemples) ? exemples.filter((e) => typeof e === 'string') : [];
+  const exemple = phrase.replace(/\s+/g, ' ').trim().slice(0, MAX_EXEMPLE);
+  return !exemple || liste.includes(exemple) ? liste : [...liste, exemple].slice(-MAX_EXEMPLES);
+}
+
+/**
+ * Enregistre la réponse de l'utilisateur à une question du dictionnaire (`rechercher_article_par_phrase`). Aucun code : la phrase est RECALCULÉE avec le moteur,
+ * et la réponse n'est acceptée que si elle a pu être une vraie réponse (un candidat proposé pour `confirme` ; une décision `proposer` ou `demander` pour `autre`).
+ * Le pire cas d'une réponse inventée est donc une règle `a_confirmer`, jamais appliquée seule. Statut et activation : seulement `decisionApprentissage` du moteur.
+ */
+export async function enregistrerReponseVocabulaire(c, args) {
+  const { reponse, articleId } = args;
+  const phrase = String(args.phrase ?? '');
+  const [articles, regles, reglages] = await Promise.all([c.donnees.liste(C.devisArticles), c.donnees.liste(C.devisVocabulaire), reglagesDuDevis(c)]);
+  const r = DV.interpreter(phrase, { regles, articles, reglages });
+  const regleId = DV.identifiantDeRegle(r.cle);
+  if (!regleId) refuser('saisie_invalide', 'Aucun mot à retenir dans cette phrase (elle ne contient que des mots vides ou des nombres).');
+  if (reponse === 'aucun') return { operationId: null, rien: true, message: 'Noté : aucune règle apprise (rien ne convenait). Rien n’a été écrit.' };
+  if (!articleId) refuser('saisie_invalide', `articleId est obligatoire pour la réponse « ${reponse} ».`);
+  const article = articles.find((a) => a.id === articleId);
+  if (!article) refuser('introuvable', `Article introuvable : ${articleId}`);
+  if (article.actif === false || article.type === DA.TYPE_TEXTE) refuser('saisie_invalide', `« ${article.libelle} » est désactivé ou n’est pas un article vendable : choisir un autre article.`);
+  const propose = r.candidats.some((x) => x.articleId === articleId);
+  if (reponse === 'confirme' && !propose) refuser('saisie_invalide', `« ${article.libelle} » n’aurait pas été proposé pour cette phrase : une confirmation n’est acceptée que pour un article proposé. Si l’utilisateur a choisi un autre article, utiliser la réponse « autre ».`);
+  if (reponse === 'autre' && r.decision === 'utiliser') refuser('saisie_invalide', 'Aucune question n’a dû être posée pour cette phrase (l’article était connu) : rien n’est enregistré. Une règle à corriger se corrige à la revue du vocabulaire.');
+  if (reponse === 'autre' && propose) refuser('saisie_invalide', `« ${article.libelle} » faisait partie des articles proposés : utiliser la réponse « confirme ».`);
+
+  const existante = regles.find((x) => x.id === regleId) ?? null;
+  if (existante?.statut === 'desactivee') return { operationId: null, rien: true, regleId, message: 'Cette règle est désactivée (à la revue) : elle n’est pas modifiée.' };
+  const jour = L.aujourdhuiParis(c.maintenant);
+  const actives = regles.filter((x) => x.statut === 'active').length;
+  const aConfirmer = regles.filter((x) => x.statut === 'a_confirmer').length;
+  // Une règle dont l'article n'existe plus ou est désactivé n'est plus un candidat : la réponse la réoriente vers le nouvel article.
+  const cible = articles.find((a) => a.id === existante?.articleId);
+  const morte = Boolean(existante) && !(cible && cible.actif !== false);
+  const autreArticle = Boolean(existante) && !morte && existante.articleId !== articleId;
+
+  let apres;
+  if (!existante || morte) {
+    if (!existante && aConfirmer >= MAX_REGLES_A_CONFIRMER) refuser('saisie_invalide', PLEIN);
+    const neuve = { cle: r.cle, expression: r.cle.slice(0, 120), articleId, articleLibelle: article.libelle, origine: reponse === 'autre' ? 'apprise_correction' : 'apprise_question', exemples: [] };
+    const depart = existante ? { ...existante, ...neuve, statut: 'a_confirmer', confirmations: 0, contradictions: 0, conflit: false, derniereConfirmationLe: null } : neuve;
+    apres = DV.decisionApprentissage(depart, { type: 'confirme' }, jour, { articles });
+  } else {
+    // Même article : une confirmation. Autre article (confirmé ou corrigé) : une contradiction, la règle garde son article et passe en conflit si elle était active.
+    apres = DV.decisionApprentissage(existante, { type: autreArticle ? 'autre' : 'confirme' }, jour, { articles });
+  }
+  if (apres.statut === 'active' && existante?.statut !== 'active' && actives >= MAX_REGLES_ACTIVES) refuser('saisie_invalide', PLEIN);
+  const complet = { ...apres, exemples: autreArticle ? (apres.exemples ?? []) : avecExemple(apres.exemples, phrase), derniereUtilisationLe: jour };
+
+  let operations;
+  if (!existante) {
+    operations = [L.ecritureCreer(C.devisVocabulaire, regleId, complet, L.MARQUES_CREATION)];
+  } else {
+    const patch = {};
+    for (const champ of ['articleId', 'articleLibelle', 'origine', 'statut', 'confirmations', 'contradictions', 'conflit', 'derniereConfirmationLe', 'exemples', 'derniereUtilisationLe']) {
+      if (complet[champ] !== undefined && JSON.stringify(complet[champ]) !== JSON.stringify(existante[champ])) patch[champ] = complet[champ];
+    }
+    // `exigerStatut` : si la règle a changé de statut entre la lecture et l'écriture, l'écriture est refusée (conflit), sans relance.
+    operations = L.modifierSiPatch(C.devisVocabulaire, regleId, patch, L.MARQUES_MODIFICATION).map((op) => ({ ...op, exigerStatut: existante.statut }));
+  }
+  if (!operations.length) return { operationId: null, rien: true, regleId, statut: complet.statut, confirmations: complet.confirmations, message: 'Rien à changer : cette confirmation est déjà comptée aujourd’hui.' };
+  const ecrit = await c.ecrire({ operations, parametres: args });
+  const message = autreArticle
+    ? `Noté : « ${r.cle} » pointait vers un autre article ; la règle est marquée ${complet.conflit ? 'en conflit' : 'contredite'} et sera à trancher à la revue du vocabulaire.`
+    : complet.statut === 'active'
+      ? `Noté : « ${r.cle} » → « ${article.libelle} » est maintenant une règle active (confirmée ${complet.confirmations} fois).`
+      : `Noté : « ${r.cle} » → « ${article.libelle} » (à confirmer : encore une confirmation un autre jour pour qu’elle serve sans question).`;
+  return sortie(ecrit, { regleId, statut: complet.statut, confirmations: complet.confirmations, contradictions: complet.contradictions, conflit: complet.conflit, message });
+}
+
 export async function restaurer(c, args) {
   return c.restaurer({ operationId: args.operationId, apercu: args.apercu !== false, forcer: args.forcer === true });
 }
@@ -725,7 +806,20 @@ function articleDeLigne(spec, articles) {
   return trouves[0];
 }
 
-/** Lignes de devis copiées des articles du Bordereau : `specs` = [{ articleId | reference, quantite }]. */
+/**
+ * Prix de vente HT dit par l'utilisateur (« la prise à 25 € ») : règle la marge de la ligne comme l'écran (avecPrixVente), jamais le prix d'achat.
+ * Refusé (jamais ignoré en silence) pour un texte, un article sans prix d'achat (la marge serait faussée) ou un prix impossible à obtenir avec une marge.
+ */
+function avecPrixVenteDit(ligne, article, prixVente, devis) {
+  const nom = `« ${article.libelle} »`;
+  if (article.type === DA.TYPE_TEXTE) refuser('saisie_invalide', `${nom} est une ligne de texte : elle n'a pas de prix de vente.`);
+  if (!(typeof ligne.prixAchat === 'number' && ligne.prixAchat > 0)) refuser('saisie_invalide', `${nom} n'a pas de prix d'achat : un prix de vente ne peut pas y être réglé sans fausser la marge. Compléter l'article (modifier_article) puis réessayer.`);
+  if (!E.prixVenteReglable(ligne, prixVente, devis.modeMarge)) refuser('saisie_invalide', `Le prix de vente ${prixVente} € est impossible pour ${nom} avec le mode de marge du devis.`);
+  const reglee = E.avecPrixVente(ligne, prixVente, devis.modeMarge);
+  return ligne.ouvrage ? { ...reglee, description: E.descriptionDeLigne(reglee) } : reglee;
+}
+
+/** Lignes de devis copiées des articles du Bordereau : `specs` = [{ articleId | reference, quantite, prixVente? }]. */
 function lignesDepuisArticles(c, specs, articles, devis) {
   return specs.map((spec) => {
     const article = articleDeLigne(spec, articles);
@@ -735,6 +829,7 @@ function lignesDepuisArticles(c, specs, articles, devis) {
       ligne.quantite = spec.quantite;
       if (ligne.ouvrage) ligne.description = E.descriptionDeLigne(ligne); // la composition d'un ouvrage dépend de la quantité
     }
+    if (spec.prixVente !== undefined) return avecPrixVenteDit(ligne, article, spec.prixVente, devis);
     return ligne;
   });
 }
@@ -796,9 +891,9 @@ const nombreDeLignes = (sections) => (sections ?? []).reduce((n, s) => n + (s.li
 export async function creerDevisBrouillon(c, args) {
   const { affaireId, objet, nom, personneId, organisationId, destinataires, copie, sections, lignes, remise, marge, modeMarge, tauxTvaDefaut, proprietaire } = args;
   if (organisationId && personneId) refuser('saisie_invalide', 'Un devis a un seul client : donner organisationId OU personneId, pas les deux.');
-  const affaire = await lire(c, C.affaires, affaireId, 'Affaire');
-  const organisation = await lireSiDonne(c, C.organisations, organisationId ?? (personneId ? null : affaire.organisationId), 'Organisation');
-  const personne = await lireSiDonne(c, C.personnes, personneId ?? (organisation ? null : affaire.personneId), 'Personne');
+  const affaire = await lireSiDonne(c, C.affaires, affaireId, 'Affaire'); // facultative : un brouillon vit sans affaire, mais finaliser_devis l'exige
+  const organisation = await lireSiDonne(c, C.organisations, organisationId ?? (personneId ? null : affaire?.organisationId), 'Organisation');
+  const personne = await lireSiDonne(c, C.personnes, personneId ?? (organisation ? null : affaire?.personneId), 'Personne');
   const client = organisation ? { type: 'organisation', fiche: organisation } : personne ? { type: 'personne', fiche: personne } : null;
   const adresse = client ? (L.adressesDe(client.fiche).find((a) => a.parDefaut) ?? L.adressesDe(client.fiche)[0])?.adresse ?? '' : '';
   const valeurs = { ...E.valeursDeCreation(affaire, client ? { ...client, adresse } : null) };
@@ -852,6 +947,13 @@ export async function modifierDevisBrouillon(c, args) {
   if (devis.statut !== 'brouillon') refuser('saisie_invalide', B.MESSAGE_PAS_BROUILLON);
   if ((sections !== undefined || lignes !== undefined) && ajouterLignes !== undefined) refuser('saisie_invalide', 'Donner soit sections/lignes (qui remplacent tout), soit ajouterLignes (qui ajoute), pas les deux.');
   const patch = {};
+  if (champs.affaireId !== undefined) { // choisir l'affaire d'un brouillon créé sans affaire (ou en changer) ; le client de l'affaire est repris seulement si le devis n'en a pas
+    const affaire = await lire(c, C.affaires, champs.affaireId, 'Affaire');
+    patch.affaireId = affaire.id;
+    if (!devis.organisationId && !devis.personneId && champs.organisationId === undefined && champs.personneId === undefined) {
+      if (affaire.organisationId) patch.organisationId = affaire.organisationId; else if (affaire.personneId) patch.personneId = affaire.personneId;
+    }
+  }
   for (const k of ['objet', 'nom', 'personneId', 'organisationId', 'destinataires', 'copie', 'marge', 'modeMarge', 'tauxTvaDefaut']) if (champs[k] !== undefined) patch[k] = champs[k];
   if (patch.objet !== undefined) patch.objet = texte(patch.objet);
   if (patch.nom !== undefined) patch.nom = D.nettoyerNomDevis(patch.nom); // nom interne, jamais imprimé ; chaîne vide pour l'effacer
@@ -885,7 +987,7 @@ export async function modifierDevisBrouillon(c, args) {
   const plan = B.planModifierBrouillon(devis, patch);
   verifierMessages(plan.erreurs);
   for (const e of plan.ecritures) e.exigerStatut = 'brouillon'; // refusé par le moteur si le devis a été finalisé entre-temps
-  if (!Object.keys(plan.patch).length) refuser('saisie_invalide', 'Aucun champ à modifier (objet, nom, personneId, organisationId, destinataires, copie, sections, lignes, ajouterLignes, remise, marge, modeMarge, tauxTvaDefaut).');
+  if (!Object.keys(plan.patch).length) refuser('saisie_invalide', 'Aucun champ à modifier (objet, nom, affaireId, personneId, organisationId, destinataires, copie, sections, lignes, ajouterLignes, remise, marge, modeMarge, tauxTvaDefaut).');
   const t = D.totauxDevis(travail);
   return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id, champsModifies: Object.keys(plan.patch), totalHT: t.totalHt, totalTTC: t.ttc });
 }

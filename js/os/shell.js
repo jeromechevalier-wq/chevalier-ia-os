@@ -7,7 +7,7 @@ import { naviguer, lien } from './router.js';
 
 // Routes sans entrée de menu -> entrée allumée à leur place (l'écran principal de leur module).
 /** Écrans qui gardent la barre de recherche et le bouton « + » du haut (les autres : Veille, Automatisations, Maintenance, réglages, journal, assistant…). */
-const PAGES_AVEC_OUTILS = ['crm/accueil', 'crm/personnes', 'crm/organisations', 'crm/affaires', 'projets/', 'devis/editeur', 'devis/voir', 'devis/liste', 'devis/bordereau'];
+const PAGES_AVEC_OUTILS = ['crm/accueil', 'crm/personnes', 'crm/organisations', 'crm/affaires', 'projets/', 'devis/editeur', 'devis/voir', 'devis/liste', 'devis/bordereau', 'devis/vocabulaire'];
 const ROUTES_SOUS_ENTREE = [['projets/archives', 'projets/projets'], ['projets/modeles', 'projets/projets']];
 
 // ---------------------------------------------------------------- thème

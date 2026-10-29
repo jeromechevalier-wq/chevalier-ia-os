@@ -214,7 +214,7 @@ Pour chaque lancement : attends le vert (la roue jaune devient une coche verte) 
 1. - [ ] **`regles`** (en premier : la base existe, les règles Firestore et Storage). Prérequis : étapes 3 et 4. Échec « storage » : Storage n'est pas activé.
 2. - [ ] **Étapes 15 et 16** (index ; le CORS n'est plus nécessaire depuis le 27/10/2026) : rien à publier ici, voir plus bas.
 3. - [ ] **Avant `fonctions`** : vérifie que les comptes de l'étape 6 existent (surtout `devis-pdf`, `mcp-clients`, `espace-reglages`), que les trois droits de l'étape 11 sont donnés, que `N8N_API_KEY` existe, que la PR de l'étape 0 est fusionnée, et **qu'il n'y a pas de fonction orpheline** (voir l'encadré ci-dessous).
-4. - [ ] **`fonctions`** : publie TOUTES les fonctions : automatisations (`automatisationsCopieHoraire`, `automatisationsRafraichir`, `automatisationsRenommer`), `mcpclients`, `espaceReglages`, les fonctions des devis, `deploiementVerifier`, les trois du PDF (`devisPdf`, `devisPdfLien`, `devisPdfAuto`). Peut durer plusieurs minutes. Réussi : les fonctions sont listées sur <https://console.cloud.google.com/functions/list?project=<ID-DU-NOUVEAU-PROJET>>, région `europe-west9`.
+4. - [ ] **`fonctions`** : publie TOUTES les fonctions : automatisations (`automatisationsCopieHoraire`, `automatisationsRafraichir`, `automatisationsRenommer`, `automatisationsDecider`), `mcpclients`, `espaceReglages`, les fonctions des devis, `deploiementVerifier`, les trois du PDF (`devisPdf`, `devisPdfLien`, `devisPdfAuto`). Peut durer plusieurs minutes. Réussi : les fonctions sont listées sur <https://console.cloud.google.com/functions/list?project=<ID-DU-NOUVEAU-PROJET>>, région `europe-west9`.
    - Variantes plus petites : `mcp` publie seulement `mcpclients` (aucun secret nécessaire), `espace` publie seulement `espaceReglages`. Utiles pour corriger une seule fonction.
 5. - [ ] **`hosting`** (en dernier : le site et ses réécritures vers `/mcp/…` et `/oauth/…`). **Si tu le lances avant les fonctions**, Hosting refuse une réécriture vers un service qui n'existe pas encore.
 6. - [ ] Ouvre `<SITE>/espace/<CLIENT>` : sans fiche de marque, tu dois voir la page neutre « Espace indisponible » (c'est normal).
@@ -287,7 +287,7 @@ Lignes de modules (seulement si le module est actif) :
 | Module | Lignes automatiques | Lignes à cocher |
 |---|---|---|
 | Affaires (`js/modules/crm/deploiement.js`) | Dossier Google Drive racine des projets choisi | API Drive et Picker activées, adresse du site autorisée |
-| Devis (`js/modules/devis/deploiement.js`) | « Mon entreprise » complète ; étape où vivent les devis ; catalogue rempli | Catalogue et anciens devis rassemblés, « Préparer l'e-mail » branché, essai de bout en bout, `liste mes devis` vérifié |
+| Devis (`js/modules/devis/deploiement.js`) | « Mon entreprise » complète ; catalogue rempli | Catalogue et anciens devis rassemblés, « Préparer l'e-mail » branché, essai de bout en bout, `liste mes devis` vérifié |
 
 Les deux contrôles du serveur (`CONTROLES_SERVEUR` = `fonctions`, `membres`, `pdf-stockage`, `pdf-fonctions`, dans `functions/src/coeur/deploiement.js`) sont les seuls qui passent par le serveur. La page ne vérifie **pas** : les comptes de service et leurs droits, les secrets, les déclencheurs Eventarc, les APIs. C'est pour cela que ce document existe : une page toute verte ne prouve pas que le PDF marche, l'étape 20 le prouve.
 

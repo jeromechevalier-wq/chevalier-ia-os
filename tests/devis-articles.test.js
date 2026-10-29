@@ -22,8 +22,8 @@ describe('B1 le module Devis est déclaré et ne dépend que des Affaires', () =
     assert.ok(devis);
     assert.deepEqual(devis.dependances, ['affaires']);
     assert.equal(devis.entreeMenu, 'devis/liste');
-    assert.deepEqual(devis.ecrans.map((e) => e.route), ['devis/liste', 'devis/bordereau']);
-    assert.deepEqual(devis.collections, ['devis_articles', 'devis_parametres', 'devis_devis']);
+    assert.deepEqual(devis.ecrans.map((e) => e.route), ['devis/liste', 'devis/bordereau', 'devis/vocabulaire']);
+    assert.deepEqual(devis.collections, ['devis_articles', 'devis_parametres', 'devis_devis', 'devis_vocabulaire']);
     assert.ok(!('reserveAuxClients' in devis));
     assert.ok(MODULES_DECLARES.findIndex((m) => m.id === 'affaires') < MODULES_DECLARES.findIndex((m) => m.id === 'devis'), 'les dépendances viennent avant');
   });
@@ -167,7 +167,6 @@ describe('B6 le titre de l’écran suit le nom de bordereau des réglages', () 
 });
 
 describe('B7 les réglages s’enregistrent et se relisent', () => {
-  const etapesIds = ['a', 'b', 'c'];
   test('B7 logique : valeurs par défaut', () => {
     assert.deepEqual(A.reglagesDevis(null), {
       nomBordereau: 'Catalogue', modeMarge: 'majoration', marge: 20, margeDevis: 20, regimeTva: 'assujetti', tauxProposes: [20, 10, 5.5], tauxTvaDefaut: 20,
@@ -176,7 +175,7 @@ describe('B7 les réglages s’enregistrent et se relisent', () => {
     assert.deepEqual(A.reglagesDevis({}), A.reglagesDevis(undefined));
   });
   test('B7 logique : une saisie valide se relit à l’identique (aller-retour par reglagesDevis), virgule française acceptée', () => {
-    const r = A.validerReglagesDevis({ nomBordereau: 'Catalogue', modeMarge: 'marge_vente', marge: '25,5', regimeTva: 'franchise', tauxProposes: [10, 20], tauxTvaDefaut: 10, dureeValiditeJours: '60', etapeDevis: 'c', etapeAFaire: 'a', etapeEnvoye: 'b', mentionEmetteur: '  Ma mention  ' }, { etapesIds });
+    const r = A.validerReglagesDevis({ nomBordereau: 'Catalogue', modeMarge: 'marge_vente', marge: '25,5', regimeTva: 'franchise', tauxProposes: [10, 20], tauxTvaDefaut: 10, dureeValiditeJours: '60', etapeDevis: 'c', etapeAFaire: 'a', etapeEnvoye: 'b', mentionEmetteur: '  Ma mention  ' });
     assert.deepEqual(r.erreurs, {});
     assert.deepEqual(r.reglages, { nomBordereau: 'Catalogue', modeMarge: 'marge_vente', marge: 25.5, margeDevis: 20, regimeTva: 'franchise', tauxProposes: [20, 10], tauxTvaDefaut: 10, dureeValiditeJours: 60, etapeDevis: 'c', etapeAFaire: 'a', etapeEnvoye: 'b', mentionEmetteur: 'Ma mention', entreprise: {} });
     assert.deepEqual(A.reglagesDevis(r.reglages), r.reglages);
@@ -185,32 +184,32 @@ describe('B7 les réglages s’enregistrent et se relisent', () => {
     assert.equal(A.reglagesDevis(null).margeDevis, 20);
     assert.equal(A.reglagesDevis({ marge: 35 }).margeDevis, 20, 'un ancien document sans margeDevis : 20, sans toucher à la marge des articles');
     assert.equal(A.reglagesDevis({ marge: 35 }).marge, 35);
-    const r = A.validerReglagesDevis({ margeDevis: '12,5', marge: '30' }, { etapesIds });
+    const r = A.validerReglagesDevis({ margeDevis: '12,5', marge: '30' });
     assert.deepEqual([r.erreurs, r.reglages.margeDevis, r.reglages.marge], [{}, 12.5, 30]);
-    assert.equal(A.validerReglagesDevis({ margeDevis: 0 }, { etapesIds }).reglages.margeDevis, 0, '0 = aucune marge');
-    assert.equal(A.validerReglagesDevis({ margeDevis: 1000 }, { etapesIds }).reglages.margeDevis, 1000);
+    assert.equal(A.validerReglagesDevis({ margeDevis: 0 }).reglages.margeDevis, 0, '0 = aucune marge');
+    assert.equal(A.validerReglagesDevis({ margeDevis: 1000 }).reglages.margeDevis, 1000);
   });
   test('13f logique : une marge globale négative, trop grande, illisible, ou de 100 % et plus en marge sur le prix de vente, est refusée avec un message', () => {
     for (const mauvaise of [-1, 1001, 'beaucoup', '', null]) {
-      const r = A.validerReglagesDevis({ margeDevis: mauvaise }, { etapesIds });
+      const r = A.validerReglagesDevis({ margeDevis: mauvaise });
       assert.equal(r.reglages, null, String(mauvaise));
       assert.match(r.erreurs.margeDevis, /entre 0 et 1000/);
     }
-    const vente = A.validerReglagesDevis({ modeMarge: 'marge_vente', marge: 20, margeDevis: 100 }, { etapesIds });
+    const vente = A.validerReglagesDevis({ modeMarge: 'marge_vente', marge: 20, margeDevis: 100 });
     assert.ok(vente.erreurs.margeDevis);
   });
   test('E1 logique : « Mon entreprise » vide par défaut ; un champ vide n’est pas enregistré ; les clés sont celles que le document lit', () => {
     assert.deepEqual(A.reglagesDevis(null).entreprise, {});
     const r = A.validerReglagesDevis({ entreprise: { nom: '  Mon   Entreprise ', forme: '', siret: '123 456 789 00012', adresse: { ligne1: '1 rue des Lilas', codePostal: '75001', ville: 'Paris' }, email: 'contact@exemple.fr', couleur: '#1F6FEB',
-      assurance: { garantie: 'Décennale', assureur: 'Assureur SA', adresse: '', zone: 'France' }, mediateur: { nom: 'Médiateur', email: '', site: 'https://exemple.fr' } } }, { etapesIds });
+      assurance: { garantie: 'Décennale', assureur: 'Assureur SA', adresse: '', zone: 'France' }, mediateur: { nom: 'Médiateur', email: '', site: 'https://exemple.fr' } } });
     assert.deepEqual(r.erreurs, {});
     assert.deepEqual(r.reglages.entreprise, { nom: 'Mon Entreprise', siret: '123 456 789 00012', adresse: { ligne1: '1 rue des Lilas', codePostal: '75001', ville: 'Paris' }, email: 'contact@exemple.fr', couleur: '#1f6feb',
       assurance: { garantie: 'Décennale', assureur: 'Assureur SA', zone: 'France' }, mediateur: { nom: 'Médiateur', site: 'https://exemple.fr' } });
     assert.deepEqual(A.reglagesDevis(r.reglages), r.reglages);
-    assert.deepEqual(A.validerReglagesDevis({ entreprise: {} }, { etapesIds }).reglages.entreprise, {});
+    assert.deepEqual(A.validerReglagesDevis({ entreprise: {} }).reglages.entreprise, {});
   });
   test('E2 logique : e-mail, couleur et longueurs sont refusés avec un message qui dit quoi faire ; une adresse en simple texte est acceptée', () => {
-    const r = A.validerReglagesDevis({ entreprise: { email: 'pas-un-email', couleur: 'rouge', nom: 'x'.repeat(121), mediateur: { email: 'a@b' } } }, { etapesIds });
+    const r = A.validerReglagesDevis({ entreprise: { email: 'pas-un-email', couleur: 'rouge', nom: 'x'.repeat(121), mediateur: { email: 'a@b' } } });
     assert.equal(r.reglages, null);
     assert.match(r.erreurs['entreprise.email'], /contact@exemple\.fr/);
     assert.match(r.erreurs['entreprise.couleur'], /#/);
@@ -234,7 +233,7 @@ describe('B7 les réglages s’enregistrent et se relisent', () => {
     assert.deepEqual(A.reglagesDevis({ entreprise: 'texte' }).entreprise, {});
   });
   test('B7 logique : une marge « marge sur prix de vente » de 100 % ou plus est refusée avec un message ; 99 % et les marges négatives sont acceptées ; la majoration n’a pas de limite', () => {
-    const essai = (modeMarge, marge) => A.validerReglagesDevis({ modeMarge, marge }, { etapesIds });
+    const essai = (modeMarge, marge) => A.validerReglagesDevis({ modeMarge, marge });
     for (const m of [100, '100', 150, '100,5']) {
       const r = essai('marge_vente', m);
       assert.ok(r.erreurs.marge.startsWith(ERREUR_MARGE_100), String(m));
@@ -248,25 +247,22 @@ describe('B7 les réglages s’enregistrent et se relisent', () => {
     assert.match(essai('majoration', 'beaucoup').erreurs.marge, /nombre en pourcentage/);
   });
   test('B7 logique : le mode « marge sur prix de vente » avec la marge actuelle de 100 % déjà enregistrée est refusé aussi quand on ne change que le mode', () => {
-    const r = A.validerReglagesDevis({ modeMarge: 'marge_vente' }, { actuels: { ...A.reglagesDevis(null), marge: 100 }, etapesIds });
+    const r = A.validerReglagesDevis({ modeMarge: 'marge_vente' }, { actuels: { ...A.reglagesDevis(null), marge: 100 } });
     assert.ok(r.erreurs.marge);
   });
   test('B7 logique : durée, taux et étapes sont contrôlés', () => {
-    const e = (saisie) => A.validerReglagesDevis(saisie, { etapesIds }).erreurs;
+    const e = (saisie) => A.validerReglagesDevis(saisie).erreurs;
     assert.match(e({ dureeValiditeJours: '0' }).dureeValiditeJours, /nombre entier de jours/);
     assert.match(e({ dureeValiditeJours: 'x' }).dureeValiditeJours, /nombre entier/);
     assert.match(e({ dureeValiditeJours: '1,5' }).dureeValiditeJours, /nombre entier/);
     assert.match(e({ tauxProposes: [] }).tauxProposes, /au moins un taux/);
     assert.match(e({ tauxProposes: [10], tauxTvaDefaut: 20 }).tauxTvaDefaut, /l’un des taux proposés/);
-    // 7 une seule étape pour tous les devis : « étape où vivent les devis »
-    assert.match(e({ etapeDevis: 'inconnue' }).etapeDevis, /n’existe plus/);
-    assert.deepEqual(e({ etapeDevis: 'a' }), {});
+    // 7 plus de réglage « étape des devis » (retiré le 28/10/2026) : jamais d'erreur, et l'ancienne valeur est recopiée telle quelle (setDoc sans merge : sinon elle serait effacée)
+    assert.deepEqual(e({ etapeDevis: 'inconnue' }), {});
     assert.deepEqual(e({ etapeDevis: '' }), {});
-    assert.equal(A.validerReglagesDevis({ etapeDevis: 'b' }, { etapesIds }).reglages.etapeDevis, 'b');
-    // les anciens réglages ne sont ni modifiés ni effacés ; sans nouvelle étape choisie, l'ancienne étape « à faire » est reprise
-    const anciens = A.validerReglagesDevis({ etapeDevis: 'c' }, { etapesIds, actuels: { etapeAFaire: 'a', etapeEnvoye: 'b' } }).reglages;
+    const anciens = A.validerReglagesDevis({ marge: 25 }, { actuels: { etapeDevis: 'c', etapeAFaire: 'a', etapeEnvoye: 'b' } }).reglages;
     assert.deepEqual([anciens.etapeDevis, anciens.etapeAFaire, anciens.etapeEnvoye], ['c', 'a', 'b']);
-    assert.equal(A.reglagesDevis({ etapeAFaire: 'a', etapeEnvoye: 'b' }).etapeDevis, 'a');
+    assert.equal(A.reglagesDevis({ etapeAFaire: 'a', etapeEnvoye: 'b' }).etapeDevis, '', 'plus de reprise de « à faire »');
     assert.equal(A.reglagesDevis({ etapeDevis: 'c', etapeAFaire: 'a' }).etapeDevis, 'c');
     assert.match(e({ nomBordereau: 'Liste' }).nomBordereau, /Choisis un nom/);
     assert.match(e({ mentionEmetteur: 'x'.repeat(501) }).mentionEmetteur, /trop longue/);
@@ -283,7 +279,7 @@ describe('B8 règles Firestore : déclaration (les parcours sont dans regles-pla
   test('B8 les règles de la plateforme clients nomment devis_articles, interdisent la suppression et sortent la collection de la règle générale d\'écriture', () => {
     const r2 = lire('firestore.plateforme.rules');
     assert.match(r2, /match \/clients\/\{client\}\/devis_articles\/\{id\} \{[^}]*allow delete: if false;/);
-    assert.match(r2, /function collectionSansSuppression\(collection\) \{\s+return collection in \['devis_articles'\];/);
+    assert.match(r2, /function collectionSansSuppression\(collection\) \{\s+return collection in \['devis_articles', 'devis_vocabulaire'\];/);
     assert.match(r2, /!collectionSansSuppression\(collection\) && (?:!collectionDesDevis\(collection\) && )?roleDe\(client\) == 'editeur'/);
     // Les règles des devis eux-mêmes (devis_devis, devis_compteurs) sont arrivées avec la couche de données : elles sont testées dans devis-regles.test.js (C1).
     assert.match(r2, /match \/clients\/\{client\}\/devis_devis\/\{id\}/);
@@ -302,7 +298,7 @@ describe('B8 règles Firestore : déclaration (les parcours sont dans regles-pla
 
 describe('B9 assistant : outils déclarés', () => {
   test('B9 le registre déclare les cinq outils du bordereau', () => {
-    assert.deepEqual(moduleDeclare('devis').outilsMcp, ['lister_articles', 'chercher_article', 'lire_reglages_devis', 'creer_article', 'modifier_article', 'desactiver_article', 'lister_devis', 'lire_devis', 'creer_devis_brouillon', 'modifier_devis_brouillon', 'finaliser_devis', 'nouvelle_version_devis', 'archiver_devis', 'enregistrer_envoi_devis', 'changer_statut_devis', 'supprimer_devis']);
+    assert.deepEqual(moduleDeclare('devis').outilsMcp, ['lister_articles', 'chercher_article', 'lire_reglages_devis', 'creer_article', 'modifier_article', 'desactiver_article', 'lister_devis', 'lire_devis', 'creer_devis_brouillon', 'modifier_devis_brouillon', 'finaliser_devis', 'nouvelle_version_devis', 'archiver_devis', 'enregistrer_envoi_devis', 'changer_statut_devis', 'supprimer_devis', 'rechercher_article_par_phrase', 'enregistrer_reponse_vocabulaire']);
   });
 });
 

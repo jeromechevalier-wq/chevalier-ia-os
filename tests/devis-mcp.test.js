@@ -862,3 +862,398 @@ describe('3f nom interne du devis par l’assistant (MCP)', () => {
     refuse(await s.appeler('biblio', 'modifier_devis_brouillon', { id: 'f1', nom: 'x' }), /brouillon/i); // un devis finalisé ne se renomme pas
   });
 });
+
+describe('SA devis sans affaire (28/10/2026) : un brouillon vit sans affaire, la finalisation l’exige', () => {
+  test('SA1 creer_devis_brouillon sans affaireId : brouillon créé sans affaire ni client ; lister_devis et lire_devis le montrent', async () => {
+    const s = await demarrer();
+    const ids = await articlesDeBase(s);
+    const r = ok(await s.appeler('biblio', 'creer_devis_brouillon', { objet: 'Sans affaire', lignes: [{ articleId: ids.a, quantite: 2 }] }));
+    const d = s.doc('devis_devis', r.id);
+    assert.equal(d.statut, 'brouillon');
+    assert.equal(d.affaireId, null);
+    assert.equal(d.organisationId, null);
+    assert.equal(r.totalHT, 120);
+    assert.equal(ok(await s.appeler('lecteur', 'lister_devis', {})).devis.find((x) => x.id === r.id).affaireId, null);
+    assert.ok(ok(await s.appeler('lecteur', 'lire_devis', { id: r.id })).erreursFinalisation.some((e) => /Choisis l'affaire de ce devis\./.test(e)));
+    refuse(await s.appeler('biblio', 'creer_devis_brouillon', { affaireId: 'inconnue' }), /Affaire/); // une affaire donnée mais inconnue reste refusée
+  });
+
+  test('SA2 finaliser_devis refuse un devis sans affaire (« Choisis l’affaire de ce devis. »), sans code ni écriture ; modifier_devis_brouillon avec affaireId lève le refus et reprend le client', async () => {
+    const s = await demarrer();
+    const ids = await articlesDeBase(s);
+    const r = ok(await s.appeler('biblio', 'creer_devis_brouillon', { destinataires: EMAIL, lignes: [{ articleId: ids.a, quantite: 1 }] }));
+    const avant = JSON.stringify(s.collections.devis_devis);
+    refuse(await s.appeler('code', 'finaliser_devis', { id: r.id }), /Choisis l'affaire de ce devis\./);
+    assert.equal(JSON.stringify(s.collections.devis_devis), avant, 'rien n’a été écrit');
+    assert.equal(s.collections.devis_compteurs.length, 0, 'aucun numéro consommé');
+    refuse(await s.appeler('biblio', 'modifier_devis_brouillon', { id: r.id, affaireId: 'inconnue' }), /Affaire/);
+    const m = ok(await s.appeler('biblio', 'modifier_devis_brouillon', { id: r.id, affaireId: 'a1' }));
+    assert.ok(m.champsModifies.includes('affaireId'));
+    assert.equal(s.doc('devis_devis', r.id).affaireId, 'a1');
+    assert.equal(s.doc('devis_devis', r.id).organisationId, 'org1', 'le client de l’affaire est repris puisque le devis n’en avait pas');
+    const apercu = ok(await s.appeler('code', 'finaliser_devis', { id: r.id }));
+    assert.equal(ok(await s.appeler('code', 'finaliser_devis', { id: r.id, codeConfirmation: apercu.code })).finalise, true);
+  });
+});
+
+// ---------------------------------------------------------------- Dictionnaire de vocabulaire, PR 2 (28/10/2026) : rechercher_article_par_phrase et prixVente des lignes
+/** Catalogue inventé (marge 20 % en majoration) : prise double 12 €, prise blanche 6 €, tableaux 2 et 4 rangées 180 € et 300 €, interrupteur 4,80 €. */
+async function catalogueVocabulaire(s) {
+  const creer = async (libelle, prixAchat, extra = {}) => ok(await s.appeler('biblio', 'creer_article', { libelle, prixAchat, unite: 'u', ...extra })).id;
+  return {
+    double: await creer('Prise double 16 A', 10), blanche: await creer('Prise 16 A blanche', 5), t2: await creer('Tableau électrique 2 rangées', 150),
+    t4: await creer('Tableau électrique 4 rangées', 250), inter: await creer('Interrupteur va-et-vient', 4),
+  };
+}
+const regleVocabulaire = (cle, articleId, extra = {}) => ({ id: cle.replaceAll(' ', '_'), expression: cle, cle, articleId, articleLibelle: '', statut: 'active', origine: 'manuelle', confirmations: 0, contradictions: 0, conflit: false, ...extra });
+const chercherPhrase = (s, phrase, extra = {}, profil = 'lecteur') => s.appeler(profil, 'rechercher_article_par_phrase', { phrase, ...extra });
+
+describe('V1 rechercher_article_par_phrase : décision, candidats, prix de vente sans prix d’achat', () => {
+  test('V1a collection de règles absente puis vide : décisions fondées sur le catalogue seul (utiliser, proposer, demander)', async () => {
+    const s = await demarrer();
+    const ids = await catalogueVocabulaire(s);
+    assert.equal(s.collections.devis_vocabulaire, undefined, 'départ : la collection n’existe pas');
+    for (const vide of [false, true]) {
+      if (vide) s.collections.devis_vocabulaire = [];
+      const exact = ok(await chercherPhrase(s, 'Interrupteur va-et-vient'));
+      assert.equal(exact.decision, 'utiliser');
+      assert.equal(exact.question, '');
+      assert.equal(exact.candidats[0].articleId, ids.inter);
+      assert.equal(exact.candidats[0].prixVenteHT, 4.8);
+      assert.equal(exact.candidats[0].pourquoi, 'libelle_exact');
+      assert.equal(exact.candidats[0].regleId, null);
+      const prop = ok(await chercherPhrase(s, 'le tableau'));
+      assert.equal(prop.decision, 'proposer');
+      assert.deepEqual(prop.candidats.map((c) => c.articleId).sort(), [ids.t2, ids.t4].sort());
+      assert.match(prop.question, /Tableau électrique 2 rangées/);
+      assert.match(prop.question, /Tableau électrique 4 rangées/);
+      const dem = ok(await chercherPhrase(s, 'gaine annelée'));
+      assert.equal(dem.decision, 'demander');
+      assert.equal(dem.cle, 'gaine annelee');
+      assert.deepEqual(dem.candidats, []);
+      assert.match(dem.question, /gaine annelee/);
+    }
+  });
+
+  test('V1b deux règles posées dans la base : la règle active donne « utiliser » (score 1), la règle à confirmer reste une question ; quantité et prix extraits', async () => {
+    const s = await demarrer();
+    const ids = await catalogueVocabulaire(s);
+    const sans = ok(await chercherPhrase(s, '3 prises doubles'));
+    assert.equal(sans.decision, 'proposer', 'sans règle : une question');
+    assert.equal(sans.quantite, 3);
+    s.collections.devis_vocabulaire = [regleVocabulaire('prise double', ids.double), regleVocabulaire('tableau', ids.t2, { statut: 'a_confirmer' })];
+    const r = ok(await chercherPhrase(s, '3 prises doubles'));
+    assert.equal(r.decision, 'utiliser');
+    assert.equal(r.quantite, 3);
+    assert.equal(r.cle, 'prise double');
+    assert.equal(r.candidats[0].articleId, ids.double);
+    assert.equal(r.candidats[0].score, 1);
+    assert.equal(r.candidats[0].pourquoi, 'regle_active');
+    assert.equal(r.candidats[0].regleId, 'prise_double');
+    const prix = ok(await chercherPhrase(s, '3 prises doubles à 25 €'));
+    assert.equal(prix.prixVente, 25);
+    assert.equal(prix.quantite, 3);
+    assert.equal(prix.prixIncertain, false);
+    assert.equal(prix.decision, 'utiliser');
+    const aConfirmer = ok(await chercherPhrase(s, 'le tableau'));
+    assert.equal(aConfirmer.decision, 'proposer', 'une règle à confirmer n’autorise pas à se passer de question');
+    assert.equal(aConfirmer.candidats[0].pourquoi, 'regle_a_confirmer');
+    const incertain = ok(await chercherPhrase(s, 'prise double 2'));
+    assert.ok(incertain.decision !== 'utiliser' || !incertain.quantiteIncertaine, 'un nombre de fin deviné ne donne jamais « utiliser »');
+  });
+
+  test('V1c un nombre de fin deviné est signalé et cité dans la question', async () => {
+    const s = await demarrer();
+    await catalogueVocabulaire(s);
+    const r = ok(await chercherPhrase(s, 'interrupteur va-et-vient 4'));
+    assert.equal(r.quantiteIncertaine, true);
+    assert.equal(r.quantite, 4);
+    assert.equal(r.decision, 'proposer');
+    assert.match(r.question, /4/);
+  });
+
+  test('V1d le prix de vente sort, jamais le prix d’achat ni la marge (même pour un ouvrage et avec une marge propre à l’article)', async () => {
+    const s = await demarrer();
+    const ids = await catalogueVocabulaire(s);
+    ok(await s.appeler('biblio', 'creer_article', { libelle: 'Forfait pose prise', prixAchat: 100, unite: 'forfait', marge: 0 }));
+    ok(await s.appeler('biblio', 'creer_article', { libelle: 'Ouvrage prise complète', unite: 'u', type: 'ouvrage', composants: [{ articleId: ids.double, quantite: 2 }] }));
+    for (const phrase of ['prise', 'forfait pose prise', 'ouvrage prise complète', 'tableau']) {
+      const r = ok(await chercherPhrase(s, phrase));
+      const brut = JSON.stringify(r);
+      assert.doesNotMatch(brut, /prixAchat|marge|deboursSec|debours/i, `${phrase} : aucun prix d’achat ni marge dans la sortie`);
+      for (const c of r.candidats) assert.deepEqual(Object.keys(c).sort(), ['articleId', 'libelle', 'pourquoi', 'prixVenteHT', 'regleId', 'score', 'unite']);
+    }
+    assert.equal(ok(await chercherPhrase(s, 'forfait pose prise')).candidats[0].prixVenteHT, 100, 'marge propre 0 : prix de vente = 100');
+    assert.equal(ok(await chercherPhrase(s, 'ouvrage prise complète')).candidats[0].prixVenteHT, 24, '2 × 12 € (composants à marge de l’espace)');
+  });
+
+  test('V1e limite : 3 candidats par défaut, 1 à 5, tronqués APRÈS la décision (elle ne change pas), jamais sous les articles cités par la question ; 0, 6 et une phrase de 301 caractères sont refusés', async () => {
+    const s = await demarrer();
+    for (let i = 1; i <= 5; i += 1) ok(await s.appeler('biblio', 'creer_article', { libelle: `Câble gris ${i}`, prixAchat: i, unite: 'm' }));
+    const defaut = ok(await chercherPhrase(s, 'câble'));
+    assert.equal(defaut.candidats.length, 3);
+    assert.equal(defaut.decision, 'proposer');
+    const un = ok(await chercherPhrase(s, 'câble', { limite: 1 }));
+    assert.equal(un.candidats.length, 3, 'la question cite 3 articles : ils sont tous rendus malgré limite 1');
+    for (const c of un.candidats) assert.ok(un.question.includes(c.libelle), `${c.libelle} cité par la question`);
+    assert.equal(un.decision, defaut.decision);
+    assert.equal(un.question, defaut.question);
+    assert.equal(ok(await chercherPhrase(s, 'câble', { limite: 3 })).candidats.length, 3);
+    assert.equal(ok(await chercherPhrase(s, 'câble', { limite: 5 })).candidats.length, 5, 'au-delà des articles cités, limite tronque');
+    refuse(await chercherPhrase(s, 'câble', { limite: 0 }));
+    refuse(await chercherPhrase(s, 'câble', { limite: 6 }));
+    refuse(await chercherPhrase(s, 'x'.repeat(301)));
+    refuse(await chercherPhrase(s, ''));
+    ok(await chercherPhrase(s, 'x'.repeat(300)));
+  });
+
+  test('V1f un article désactivé n’est jamais proposé, même visé par une règle ; la lecture n’écrit rien (ni base ni audit) ; les trois profils lisent', async () => {
+    const s = await demarrer();
+    const ids = await catalogueVocabulaire(s);
+    ok(await s.appeler('biblio', 'desactiver_article', { id: ids.double }));
+    s.collections.devis_vocabulaire = [regleVocabulaire('prise double', ids.double)];
+    const avant = JSON.stringify([s.collections.crm_audit, s.collections.devis_articles, s.collections.devis_vocabulaire]);
+    for (const profil of ['lecteur', 'biblio', 'code']) {
+      const r = ok(await chercherPhrase(s, 'prise double', {}, profil));
+      assert.ok(!r.candidats.some((c) => c.articleId === ids.double), `${profil} : article désactivé absent`);
+    }
+    assert.equal(JSON.stringify([s.collections.crm_audit, s.collections.devis_articles, s.collections.devis_vocabulaire]), avant, 'aucune écriture');
+  });
+});
+
+describe('V2 prixVente d’une ligne de brouillon : la marge s’ajuste, le prix d’achat ne bouge pas', () => {
+  test('V2a création : 10 € d’achat vendus 25 € (marge 150 %), le prix d’achat reste 10 ; sans prixVente rien ne change', async () => {
+    const s = await demarrer();
+    const ids = await catalogueVocabulaire(s);
+    const r = ok(await s.appeler('biblio', 'creer_devis_brouillon', { affaireId: 'a1', destinataires: EMAIL, lignes: [{ articleId: ids.double, quantite: 3, prixVente: 25 }, { articleId: ids.blanche, quantite: 2 }] }));
+    assert.equal(r.totalHT, 87, '3 × 25 + 2 × 6');
+    const d = ok(await s.appeler('lecteur', 'lire_devis', { id: r.id }));
+    const [l1, l2] = d.sections[0].lignes;
+    assert.equal(l1.prixAchat, 10, 'le prix d’achat d’un article qui en a un n’est pas modifié');
+    assert.equal(l1.prixVenteUnitaire, 25);
+    assert.equal(l1.marge, 150);
+    assert.equal(l2.prixVenteUnitaire, 6, 'sans prixVente : marge de l’espace, comme avant');
+    assert.equal(l2.prixAchat, 5);
+    assert.equal(s.doc('devis_articles', ids.double).prixAchat, 10, 'l’article du bordereau est intact');
+  });
+
+  test('V2b modification : remplacer, sections et ajouterLignes acceptent prixVente ; un ouvrage garde son débours', async () => {
+    const s = await demarrer();
+    const ids = await catalogueVocabulaire(s);
+    const ouvrage = ok(await s.appeler('biblio', 'creer_article', { libelle: 'Ouvrage prise complète', unite: 'u', type: 'ouvrage', composants: [{ articleId: ids.double, quantite: 2 }] }));
+    const r = ok(await s.appeler('biblio', 'creer_devis_brouillon', { affaireId: 'a1', destinataires: EMAIL, lignes: [{ articleId: ids.blanche, quantite: 1 }] }));
+    const m1 = ok(await s.appeler('biblio', 'modifier_devis_brouillon', { id: r.id, ajouterLignes: [{ articleId: ids.double, quantite: 2, prixVente: 20 }] }));
+    assert.equal(m1.totalHT, 46, '6 + 2 × 20');
+    const m2 = ok(await s.appeler('biblio', 'modifier_devis_brouillon', { id: r.id, sections: [{ titre: 'Prises', lignes: [{ articleId: ouvrage.id, quantite: 1, prixVente: 30 }] }] }));
+    assert.equal(m2.totalHT, 30);
+    const d = ok(await s.appeler('lecteur', 'lire_devis', { id: r.id }));
+    assert.equal(d.sections[0].lignes[0].prixAchat, 20, 'ouvrage : débours sec des composants, inchangé (2 × 10)');
+    assert.equal(d.sections[0].lignes[0].prixVenteUnitaire, 30);
+  });
+
+  test('V2c refus clairs, sans écriture : prix invalide, article texte, article sans prix d’achat, prix impossible en marge sur le prix de vente', async () => {
+    const s = await demarrer();
+    const ids = await catalogueVocabulaire(s);
+    const texte = ok(await s.appeler('biblio', 'creer_article', { libelle: 'Note de chantier', prixAchat: 0, unite: '', type: 'texte' }));
+    const gratuit = ok(await s.appeler('biblio', 'creer_article', { libelle: 'Article sans coût', prixAchat: 0, unite: 'u' }));
+    const avant = JSON.stringify(s.collections.devis_devis);
+    const essai = (ligne, extra = {}) => s.appeler('biblio', 'creer_devis_brouillon', { affaireId: 'a1', destinataires: EMAIL, lignes: [ligne], ...extra });
+    refuse(await essai({ articleId: ids.double, quantite: 1, prixVente: -1 }));
+    refuse(await essai({ articleId: ids.double, quantite: 1, prixVente: 12.345 }), /2 décimales/);
+    refuse(await essai({ articleId: texte.id, prixVente: 10 }), /texte/);
+    refuse(await essai({ articleId: gratuit.id, quantite: 1, prixVente: 10 }), /prix d'achat/);
+    refuse(await essai({ articleId: ids.double, quantite: 1, prixVente: 0 }, { modeMarge: 'marge_vente' }), /impossible/);
+    assert.equal(JSON.stringify(s.collections.devis_devis), avant, 'aucun brouillon créé');
+    const ok0 = ok(await essai({ articleId: ids.double, quantite: 1, prixVente: 0 }));
+    assert.equal(ok0.totalHT, 0, 'en majoration, 0 € est un prix possible (marge -100 %)');
+  });
+});
+
+// ---------------------------------------------------------------- Dictionnaire de vocabulaire, PR 3 (28/10/2026) : enregistrer_reponse_vocabulaire (apprentissage)
+const JOUR_MS = 86_400_000;
+const repondre = (s, phrase, reponse, articleId, profil = 'biblio') => s.appeler(profil, 'enregistrer_reponse_vocabulaire', { phrase, reponse, ...(articleId ? { articleId } : {}) });
+const lignesVocabulaire = (s) => (s.collections.crm_audit ?? []).filter((l) => l.outil === 'enregistrer_reponse_vocabulaire');
+
+describe('V3 enregistrer_reponse_vocabulaire : l’apprentissage, sans code (la phrase est recalculée)', () => {
+  test('V3a un « confirme » crée une règle à confirmer ; le même jour une 2e fois ne change rien ; un autre jour elle devient active et sert sans question', async () => {
+    const s = await demarrer();
+    const ids = await catalogueVocabulaire(s);
+    assert.equal(ok(await chercherPhrase(s, 'le tableau')).decision, 'proposer');
+    const a = ok(await repondre(s, 'le tableau', 'confirme', ids.t2));
+    assert.equal(a.regleId, 'tableau');
+    assert.equal(a.statut, 'a_confirmer');
+    assert.equal(a.confirmations, 1);
+    const regle = s.doc('devis_vocabulaire', 'tableau');
+    assert.equal(regle.articleId, ids.t2);
+    assert.equal(regle.origine, 'apprise_question');
+    assert.equal(regle.cle, 'tableau');
+    assert.deepEqual(regle.exemples, ['le tableau']);
+    assert.equal(regle.derniereConfirmationLe, '2026-10-05');
+    assert.equal(regle.via, 'mcp');
+    assert.ok(regle.creeLe && regle.creePar);
+    assert.equal(ok(await chercherPhrase(s, 'le tableau')).decision, 'proposer', 'une règle à confirmer ne sert pas seule');
+    // Le même jour : rien (règle inchangée, pas de nouvelle ligne de journal).
+    const lignesAvant = lignesVocabulaire(s).length;
+    const copie = JSON.stringify(regle);
+    const b = ok(await repondre(s, 'le tableau', 'confirme', ids.t2));
+    assert.equal(b.rien, true);
+    assert.equal(JSON.stringify(s.doc('devis_vocabulaire', 'tableau')), copie);
+    assert.equal(lignesVocabulaire(s).length, lignesAvant);
+    // Un autre jour : deuxième confirmation, la règle devient active.
+    s.horloge.t += JOUR_MS;
+    const c = ok(await repondre(s, 'un tableau', 'confirme', ids.t2));
+    assert.equal(c.statut, 'active');
+    assert.equal(c.confirmations, 2);
+    assert.deepEqual(s.doc('devis_vocabulaire', 'tableau').exemples, ['le tableau', 'un tableau']);
+    const suite = ok(await chercherPhrase(s, 'le tableau'));
+    assert.equal(suite.decision, 'utiliser');
+    assert.equal(suite.candidats[0].articleId, ids.t2);
+    assert.doesNotMatch(JSON.stringify([a, b, c]), /prixAchat|marge/i);
+  });
+
+  test('V3b « autre » : sans règle, crée une règle corrective à confirmer ; sur une règle active, la contredit et la passe en conflit ; refusé quand aucune question n’a dû être posée', async () => {
+    const s = await demarrer();
+    const ids = await catalogueVocabulaire(s);
+    assert.equal(ok(await chercherPhrase(s, 'gaine annelée')).decision, 'demander');
+    const a = ok(await repondre(s, 'gaine annelée', 'autre', ids.inter));
+    assert.equal(a.statut, 'a_confirmer');
+    assert.equal(s.doc('devis_vocabulaire', 'gaine_annelee').origine, 'apprise_correction');
+    // Règle active + nombre de fin deviné (« tableau 7 ») : la décision reste une question, l'utilisateur choisit un article hors liste.
+    s.collections.devis_vocabulaire.push(regleVocabulaire('tableau', ids.t2));
+    const q = ok(await chercherPhrase(s, 'tableau 7'));
+    assert.equal(q.decision, 'proposer');
+    assert.equal(q.quantiteIncertaine, true);
+    const b = ok(await repondre(s, 'tableau 7', 'autre', ids.inter));
+    assert.equal(b.conflit, true);
+    assert.equal(b.contradictions, 1);
+    const ancienne = s.doc('devis_vocabulaire', 'tableau');
+    assert.equal(ancienne.conflit, true);
+    assert.equal(ancienne.articleId, ids.t2, 'la règle garde son article : la revue tranche');
+    // « utiliser » : aucune question n'a été posée, « autre » est refusé.
+    refuse(await repondre(s, 'Interrupteur va-et-vient', 'autre', ids.t2), /Aucune question/);
+    // Un article qui faisait partie des propositions est un « confirme », pas un « autre ».
+    refuse(await repondre(s, 'une prise', 'autre', ids.blanche), /utiliser la réponse « confirme »/);
+  });
+
+  test('V3c « aucun » n’écrit rien (ni règle ni ligne de journal)', async () => {
+    const s = await demarrer();
+    await catalogueVocabulaire(s);
+    const avant = JSON.stringify([s.collections.devis_vocabulaire, s.collections.crm_audit, s.collections.crm_audit_avant]);
+    const r = ok(await repondre(s, 'gaine annelée', 'aucun'));
+    assert.equal(r.rien, true);
+    assert.equal(JSON.stringify([s.collections.devis_vocabulaire, s.collections.crm_audit, s.collections.crm_audit_avant]), avant);
+  });
+
+  test('V3d refus : article hors des candidats (anti-empoisonnement), articleId absent, article inconnu ou désactivé, phrase sans mot, lecteur', async () => {
+    const s = await demarrer();
+    const ids = await catalogueVocabulaire(s);
+    const avant = JSON.stringify(s.collections.devis_vocabulaire ?? []);
+    refuse(await repondre(s, 'gaine annelée', 'confirme', ids.t2), /n’aurait pas été proposé/);
+    refuse(await repondre(s, 'le tableau', 'confirme', ids.inter), /n’aurait pas été proposé/);
+    refuse(await repondre(s, 'le tableau', 'confirme'), /articleId est obligatoire/);
+    refuse(await repondre(s, 'gaine annelée', 'autre'), /articleId est obligatoire/);
+    refuse(await repondre(s, 'le tableau', 'confirme', 'inconnu'), /introuvable/i);
+    ok(await s.appeler('biblio', 'desactiver_article', { id: ids.inter }));
+    refuse(await repondre(s, 'gaine annelée', 'autre', ids.inter), /désactivé/);
+    refuse(await repondre(s, 'le', 'confirme', ids.t2), /Aucun mot à retenir/);
+    refuse(await repondre(s, 'le tableau', 'confirme', ids.t2, 'lecteur'));
+    assert.equal(JSON.stringify(s.collections.devis_vocabulaire ?? []), avant, 'aucune règle écrite par un refus');
+  });
+
+  test('V3e un mot trop général (3 lettres ou moins) ne devient jamais actif seul, même confirmé deux jours de suite', async () => {
+    const s = await demarrer();
+    const vis = ok(await s.appeler('biblio', 'creer_article', { libelle: 'Vis inox 4x40', prixAchat: 1, unite: 'u' })).id;
+    assert.equal(ok(await repondre(s, 'des vis', 'confirme', vis)).statut, 'a_confirmer');
+    s.horloge.t += JOUR_MS;
+    const r = ok(await repondre(s, 'les vis', 'confirme', vis));
+    assert.equal(r.confirmations, 2);
+    assert.equal(r.statut, 'a_confirmer', 'clé trop générale : la revue seule peut l’activer');
+  });
+
+  test('V3f une confirmation vers un autre article contredit la règle (conflit si elle était active), jamais deux règles pour un mot', async () => {
+    const s = await demarrer();
+    const ids = await catalogueVocabulaire(s);
+    ok(await repondre(s, 'le tableau', 'confirme', ids.t2));
+    s.horloge.t += JOUR_MS;
+    const r = ok(await repondre(s, 'le tableau', 'confirme', ids.t4));
+    assert.equal(r.contradictions, 1);
+    assert.equal(r.conflit, false, 'elle était à confirmer, pas active');
+    assert.equal(r.statut, 'a_confirmer');
+    assert.equal(s.collections.devis_vocabulaire.length, 1);
+    assert.equal(s.doc('devis_vocabulaire', 'tableau').articleId, ids.t2);
+    s.horloge.t += JOUR_MS;
+    s.doc('devis_vocabulaire', 'tableau').statut = 'active'; // la revue l'a activée
+    const c = ok(await repondre(s, 'le tableau', 'confirme', ids.t4));
+    assert.equal(c.conflit, true);
+  });
+
+  test('V3g exemples : 5 au plus, sans doublon, 200 caractères au plus', async () => {
+    const s = await demarrer();
+    const ids = await catalogueVocabulaire(s);
+    const phrases = ['le tableau', 'un tableau', 'mon tableau', 'ce tableau', 'les tableaux', 'tableau svp', 'tableau merci'];
+    for (const p of phrases) {
+      ok(await repondre(s, p, 'confirme', ids.t2));
+      s.horloge.t += JOUR_MS;
+    }
+    const exemples = s.doc('devis_vocabulaire', 'tableau').exemples;
+    assert.deepEqual(exemples, phrases.slice(-5));
+    // Une phrase de 300 caractères (« merci » est un mot vide : la clé reste « tableau ») est tronquée à 200.
+    const longue = `tableau ${'merci '.repeat(48)}`.trim();
+    ok(await repondre(s, longue, 'confirme', ids.t2));
+    const apres = s.doc('devis_vocabulaire', 'tableau').exemples;
+    assert.ok(apres.length <= 5 && apres.every((e) => e.length <= 200));
+    assert.equal(apres.at(-1).length, 200);
+  });
+
+  test('V3h plafonds : 300 règles à confirmer = création refusée ; 500 actives = activation refusée sans réécrire la règle', async () => {
+    const s = await demarrer();
+    const ids = await catalogueVocabulaire(s);
+    const remplir = (n, statut) => Array.from({ length: n }, (_, i) => regleVocabulaire(`mot ${statut} ${i}`, ids.inter, { statut }));
+    s.collections.devis_vocabulaire = remplir(300, 'a_confirmer');
+    refuse(await repondre(s, 'le tableau', 'confirme', ids.t2), /Dictionnaire plein/);
+    assert.equal(s.collections.devis_vocabulaire.length, 300);
+    s.collections.devis_vocabulaire = [...remplir(500, 'active'), regleVocabulaire('tableau', ids.t2, { statut: 'a_confirmer', confirmations: 1, derniereConfirmationLe: '2026-10-04' })];
+    const avant = JSON.stringify(s.doc('devis_vocabulaire', 'tableau'));
+    refuse(await repondre(s, 'le tableau', 'confirme', ids.t2), /Dictionnaire plein/);
+    assert.equal(JSON.stringify(s.doc('devis_vocabulaire', 'tableau')), avant, 'la règle n’est pas réécrite');
+  });
+
+  test('V3i le journal garde la trace (canal mcp, copie avant) et restaurer_depuis_audit défait la règle', async () => {
+    const s = await demarrer();
+    const ids = await catalogueVocabulaire(s);
+    const r = ok(await repondre(s, 'le tableau', 'confirme', ids.t2));
+    const ligne = lignesVocabulaire(s)[0];
+    assert.equal(ligne.operationId, r.operationId);
+    assert.equal(ligne.collection, 'devis_vocabulaire');
+    assert.equal(ligne.docId, 'tableau');
+    assert.equal(ligne.via, 'mcp');
+    assert.equal(ligne.acteur, 'hermes-bibliothecaire');
+    assert.ok(s.collections.crm_audit_avant.length > 0, 'copie avant/après gardée');
+    // Deuxième jour : la règle devient active ; restaurer cette opération la remet à confirmer.
+    s.horloge.t += JOUR_MS;
+    const b = ok(await repondre(s, 'un tableau', 'confirme', ids.t2));
+    ok(await s.appeler('code', 'restaurer_depuis_audit', { operationId: b.operationId, apercu: false }));
+    assert.equal(s.doc('devis_vocabulaire', 'tableau').statut, 'a_confirmer');
+    assert.equal(s.doc('devis_vocabulaire', 'tableau').confirmations, 1);
+    // Restaurer la création supprime la règle.
+    ok(await s.appeler('code', 'restaurer_depuis_audit', { operationId: r.operationId, apercu: false, forcer: true }));
+    assert.equal(s.doc('devis_vocabulaire', 'tableau'), undefined);
+  });
+
+  test('V3j règle active vers un article désactivé : une confirmation vers un autre article la réoriente, repart à confirmer (1 confirmation, 0 contradiction, pas de conflit)', async () => {
+    const s = await demarrer();
+    const ids = await catalogueVocabulaire(s);
+    s.collections.devis_vocabulaire = [regleVocabulaire('tableau', ids.t4, { confirmations: 3 })];
+    ok(await s.appeler('biblio', 'desactiver_article', { id: ids.t4 }));
+    const r = ok(await repondre(s, 'le tableau', 'confirme', ids.t2));
+    assert.equal(r.statut, 'a_confirmer');
+    assert.equal(r.confirmations, 1);
+    assert.equal(r.contradictions, 0);
+    assert.equal(r.conflit, false);
+    const regle = s.doc('devis_vocabulaire', 'tableau');
+    assert.equal(regle.articleId, ids.t2);
+    assert.equal(s.collections.devis_vocabulaire.length, 1);
+    const ligne = lignesVocabulaire(s)[0];
+    assert.equal(ligne.action, 'modifier');
+  });
+});
