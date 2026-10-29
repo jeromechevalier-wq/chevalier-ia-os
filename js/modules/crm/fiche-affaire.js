@@ -72,7 +72,18 @@ export function rendreFicheAffaire(conteneur, id) {
     majLiens = liens.maj;
     const vivante = L.estVivante(a);
     const titre = titreEditable({ valeur: a.titre, libelle: 'Titre', surEnregistrer: (v) => D.majAffaire(a.id, { titre: v }) });
-    const montant = champPropriete({ libelle: 'Montant', valeur: a.montant ?? '', type: 'nombre', pas: '0.01', formater: (v) => L.formatEuros(v), fantome: L.formatEuros(999), surEnregistrer: (v) => D.majAffaire(a.id, { montant: v }) });
+    // Le montant vient de l'affaire elle-même (pas des devis chargés à part) : rien ne clignote au chargement (docs/montant-affaire.md).
+    // Avec des devis finalisés, le chiffre est CALCULÉ par le serveur (devis acceptés, sinon devis proposé le plus récent) : il n'est pas modifiable, et son infobulle détaille les vrais devis et additions.
+    // Sans devis (module absent ou aucun devis finalisé), c'est le montant saisi à la main (un tiret gris s'il est vide, jamais un chiffre inventé) ; il n'est jamais effacé et revient si les devis disparaissent.
+    const champEstime = champPropriete({ libelle: 'Montant estimé', valeur: a.montant ?? '', type: 'nombre', pas: '0.01', formater: (v) => L.formatEuros(v), fantome: '—', surEnregistrer: (v) => D.majAffaire(a.id, { montant: v }) });
+    const nature = L.natureMontant(a);
+    const depuisDevis = nature !== 'estime';
+    const libelleMontant = L.LIBELLES_MONTANT[nature];
+    const blocMontant = depuisDevis
+      ? h('div', { class: 'fiche-montant-devis', role: 'group', 'aria-label': libelleMontant, dataset: { montant: 'devis', nature } },
+        h('span', { class: 'fiche-montant-valeur' }, L.formatEuros(a.montantDevisHt), h('small', { class: 'fiche-montant-suffixe' }, ' HT')),
+        iconeInfo(L.detailMontant(a), libelleMontant, { garderLignes: true }))
+      : champEstime.element;
     const menu = h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Plus d’actions', 'data-action': 'menu-fiche',
       onclick: (e) => ouvrirMenu(e.currentTarget, [
         ...(a.statut === 'perdue' ? [{ libelle: 'Rouvrir', icone: 'rotate-ccw', action: () => D.rouvrir(a.id) }] : []),
@@ -100,7 +111,7 @@ export function rendreFicheAffaire(conteneur, id) {
             liens.element)),
         // Le montant et les boutons forment une seule zone : même axe vertical, même espace entre voisins.
         h('div', { class: 'fiche-tete-droite' },
-          h('div', { class: 'fiche-montant' }, montant.element),
+          h('div', { class: 'fiche-montant' }, h('span', { class: 'fiche-montant-libelle', dataset: { role: 'libelle-montant' } }, libelleMontant), blocMontant),
           h('div', { class: 'fiche-actions' }, actionsStatut, menu))),
       (barreEtapes = barreDesEtapes(a)));
 

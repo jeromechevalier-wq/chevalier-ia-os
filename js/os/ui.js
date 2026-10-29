@@ -579,11 +579,13 @@ export function champIntelligent({
  * Petite icône « i » qui explique une étape ou une phase (le texte écrit dans les Réglages, ou l'explication d'un indicateur : `roleTexte` change le `data-role` de la bulle) : au survol sur ordinateur, au toucher sur téléphone
  * (un clic affiche le texte). Rien si l'explication est vide.
  */
-export function iconeInfo(texte, nom = '', { roleTexte = null } = {}) {
+export function iconeInfo(texte, nom = '', { roleTexte = null, garderLignes = false } = {}) {
   const t = String(texte ?? '').replace(/\s+/g, ' ').trim();
   if (!t) return null;
+  // `garderLignes` : un retour à la ligne du texte reste un retour à la ligne dans la bulle (une phrase par ligne, ex. le détail du montant de l'affaire) ; la bulle lue à voix haute reste sur une ligne.
+  const affiche = garderLignes ? String(texte).split('\n').map((l) => l.replace(/\s+/g, ' ').trim()).filter(Boolean).join('\n') : t;
   // Même comportement partout : la bulle s'affiche au survol (souris), au focus (clavier) et au toucher (téléphone) ; Échap ou un clic ailleurs la ferme.
-  const bulle = h('span', { class: 'bulle-info', role: 'tooltip', dataset: { role: roleTexte || 'bulle-info' } }, t);
+  const bulle = h('span', { class: 'bulle-info', role: 'tooltip', dataset: { role: roleTexte || 'bulle-info' }, ...(garderLignes ? { style: { whiteSpace: 'pre-line' } } : {}) }, affiche);
   const bouton = h('button', { type: 'button', class: 'bouton-info', 'aria-label': `Explication${nom ? ` : ${nom}` : ''} : ${t}`, 'data-role': 'info' }, icone('info', { taille: 14 }), bulle);
   const placer = () => { // la bulle reste dans l'écran (téléphone : l'icône peut être près d'un bord)
     const r = bouton.getBoundingClientRect();
