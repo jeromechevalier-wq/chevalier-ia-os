@@ -1,5 +1,41 @@
 # À faire au début de la prochaine session
 
+## Rapport du matin : 3e nuit du 28 au 29/10/2026 (version 2.34.0)
+
+| Sujet | PR | État |
+|---|---|---|
+| Contrôle « Personnes autorisées » de la page Déploiement | 379 | fusionnée seule |
+| Outils Devis de l'assistant chez les clients : les 16 outils étaient déjà branchés, verrouillés par 6 tests | 380 | fusionnée seule |
+| Proposition de conception du dictionnaire de vocabulaire (document seul) | 381 | fusionnée seule (docs) ; **questions Q1 à Q10 à confirmer par Jérôme** |
+| `automatisationsDecider` (écran « À valider ») chez les clients | 382 | fusionnée seule ; déploiement `fonctions` à lancer par Jérôme |
+| Renommer un workflow aussi chez Jérôme | 383 | fusionnée seule ; déploiement de `functions/` à faire |
+| Retrait du réglage « Étape où vivent les devis » | 384 | fusionnée seule |
+| Devis sans affaire : plus de page « Nouveau devis », la finalisation exige l'affaire | 385 | fusionnée seule |
+| Revue de conception Fable (parité, exports, documents stockés, étude affaire vers projet) | 386 | fusionnée seule (docs) |
+| Dictionnaire, PR 1 : le moteur (`vocabulaire.js`) | 387 | fusionnée seule |
+| Dictionnaire, PR 2 : outil `rechercher_article_par_phrase` et `prixVente` des lignes | 389 | fusionnée seule |
+| Dictionnaire, PR 3 : outil `enregistrer_reponse_vocabulaire` (apprentissage) | 390 | fusionnée seule |
+| Test C19 : l'export JSON complet contient `devis_vocabulaire` | 392 | fusionnée seule |
+| Tests de la barre globale et de l'essai du devis adaptés à « Devis sans affaire » | 393 | fusionnée seule |
+| Dictionnaire, PR 5 : écran « Vocabulaire » (mots appris, revue, essai, export CSV) | 394 | fusionnée seule |
+| Dictionnaire, PR 4 : règles Firestore de `devis_vocabulaire` (non publiées) | 391 | **à fusionner par Jérôme**, puis Claude publie les règles |
+| Montant de l'affaire (Montant estimé / Montant du devis / Total des devis) | 388 | **à valider par Jérôme** (libellés, règle HT/TTC/acceptés) |
+| Onglet « Documents » : fichiers stockés chez nous | 369 | **à fusionner par Jérôme** (règles Storage du projet de Jérôme, droits IAM, sauvegarde serveur de `crm_audit*` et `devis_compteurs`) |
+| Dictionnaire, PR 6 : confirmation à la finalisation | aucune | sautée : valeur modeste pour un risque sur le chemin de finalisation (brief corrigé par Fable conservé hors dépôt) |
+| `lienStablePdf` | aucune | abandonné : aucun consommateur côté navigateur, les anciens liens `#/devis/pdf/<id>` sont déjà redirigés |
+| Génération du PDF trop lente | aucune | pas traité |
+
+- **État de la nuit GitHub** : le dernier run « Tests de nuit » lu à l'écriture (28/10 au matin) est vert ; celui de la 3e nuit est à lire sur GitHub (Actions > « Tests de nuit »). La session principale relance le workflow à la main sur `main` ce matin (voir la leçon).
+- **Leçon** : la coche de PR ne lance pas les anciens parcours. Trois tests ont rougi sans que la coche le voie, découverts seulement par le palier complet de la PR 391 : C19 (corrigé par 392), `devis-barre-globale` et `devis-document` H8 (corrigés par 393). Après chaque série de PR de comportement, relancer à la main le workflow « Tests de nuit » sur `main` (Claude le fait ce matin).
+- **Pas pu être vérifié** : un vrai ChatGPT et claude.ai (l'assistant enchaîne-t-il vraiment `rechercher_article_par_phrase` puis la création du devis ?) ; les déploiements (`hosting`, `fonctions`, `mcp`, `regles`) ; `test:module devis` en entier (`apis.google.com` injoignable dans le bac à sable, deux tests de `devis-pdf-ecran` rouges aussi sur `main`) ; l'écran Vocabulaire et les outils chez un vrai client.
+- **Décisions prises seul** : valeurs par défaut de Q1 à Q10 (prix de vente seulement, 2 confirmations sur 2 jours, `prixVente` oui, HT, onglet du module Devis, plafonds 500/300, export CSV oui, nom `rechercher_article_par_phrase`, ordre 1 à 6) ; PR 6 sautée ; `lienStablePdf` abandonné.
+- **Actions pour Jérôme, dans l'ordre** :
+  1. Fusionner la PR 391 (règles du dictionnaire) : Claude publie ensuite les règles (workflows « Publier les règles (CRM de Jérôme) » puis « Déploiement plateforme clients » > regles, ce dernier lancé par toi).
+  2. Valider la PR 388 (montant de l'affaire) : libellés et règle HT/TTC/acceptés.
+  3. Traiter la PR 369 (Documents) : règles Storage du projet de Jérôme, droits IAM, sauvegarde serveur de `crm_audit*` et `devis_compteurs`, puis fusion.
+  4. Répondre à Q1 à Q10 du dictionnaire (surtout : prix d'achat visibles ou non par l'assistant) et décider si d'autres champs que l'affaire deviennent obligatoires à la finalisation (dates des travaux, durée).
+  5. Avec Claude : déploiements `hosting`, `fonctions`, `mcp`, `regles` chez les clients et `functions/` chez toi ; chez le client, module Devis actif, puis « Actualiser les outils » dans ChatGPT ; enfin l'essai de bout en bout avec un vrai ChatGPT.
+
 ## Rapport du matin : 2e nuit du 28/10/2026 (« GO NUIT », version 2.33.0)
 
 | Sujet | PR | État |
