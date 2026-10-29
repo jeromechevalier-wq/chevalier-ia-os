@@ -12,7 +12,7 @@ import { ErreurEcriture, executerEcritures } from './ecriture.js';
 /** Opérations de devis qui figent le devis (fonctions du serveur, voir coeur/devis.js) : jamais restaurées. */
 const OUTILS_DEVIS_FIGES = ['devisFinaliser', 'devisChangerStatut'];
 /** Opérations de devis qui touchent un devis déjà finalisé SANS le figer : archiver, historique des envois (statut inchangé). Elles se défont même si le devis n'est plus un brouillon. */
-const OUTILS_DEVIS_SUR_FINALISE = ['devisArchiver', 'devisEnregistrerEnvoi'];
+const OUTILS_DEVIS_SUR_FINALISE = ['devisArchiver', 'devisEnregistrerEnvoi', 'devisModifierDestinataires'];
 const VOIE_DE_SECOURS = 'Pour corriger un devis finalisé, créer la version suivante (nouvelle_version_devis, ou depuis l’écran).';
 
 /** Ce qu'il faudrait faire pour défaire une ligne : 'supprimer' | 'remplacer' | 'recreer' | 'rien' | 'conflit'. */

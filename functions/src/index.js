@@ -131,6 +131,7 @@ export const devisNouvelleVersion = appelDevis('nouvelleVersion');
 export const devisArchiver = appelDevis('archiver');
 export const devisSupprimer = appelDevis('supprimer');
 export const devisEnregistrerEnvoi = appelDevis('enregistrerEnvoi'); // historique des envois par e-mail (le brouillon Gmail est créé par le navigateur, avec le Google de l'utilisateur)
+export const devisModifierDestinataires = appelDevis('modifierDestinataires'); // destinataire et copie d'un devis finalisé ou envoyé (rien d'autre ne change)
 
 // « Préparer l'e-mail » (25/10/2026) : la fonction demande à un workflow n8n de créer un BROUILLON dans le Gmail du compte (PDF joint) ; ni l'appli ni n8n n'envoient jamais l'e-mail.
 // L'adresse du webhook et son secret sont lus dans Secret Manager au moment de l'appel (N8N_DEVIS_EMAIL_URL, N8N_DEVIS_EMAIL_SECRET), jamais liés au déploiement : s'ils manquent,

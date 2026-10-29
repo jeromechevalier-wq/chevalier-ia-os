@@ -23,8 +23,56 @@ export async function lancerPreparationEmail({ devisId, getDevis, finaliser = nu
   }
   const etat = etatPdfDevis(d);
   if (etat !== 'pret') { await pdfPasPret(devisId, getDevis, finaliser, etat, d, lancerPreparationEmail); return; }
-  if (!P.aUnDestinataire(d)) { await info(P.TITRE_PREPARER_EMAIL, P.MESSAGE_SANS_DESTINATAIRE, { nom: 'sans-destinataire' }); return; }
+  if (!P.aUnDestinataire(d) && !(await demanderDestinataire(devisId))) return;
   await confirmerEtDemander(devisId);
+}
+
+/**
+ * Un devis finalisé sans adresse ne se modifie plus : on demande l'adresse ici, le serveur n'écrit que le destinataire (jamais le contenu du devis). Rend true si l'adresse est enregistrée.
+ * Une erreur reste affichée dans la fenêtre, avec « Réessayer » ; rien n'est demandé à n8n avant l'enregistrement.
+ */
+function demanderDestinataire(devisId) {
+  let occupe = false;
+  const champ = h('input', { class: 'champ', type: 'email', inputmode: 'email', autocomplete: 'off', 'aria-label': 'Adresse e-mail du destinataire', dataset: { champ: 'destinataire-preparer-email' } });
+  const erreur = h('p', { class: 'erreur', role: 'alert', hidden: true, dataset: { zone: 'erreur-destinataire-preparer-email' } });
+  const contenu = h('div', { class: 'contenu-preparer-email' }, h('p', { dataset: { valeur: 'sans-destinataire' } }, P.MESSAGE_SANS_DESTINATAIRE_ICI), champ, erreur);
+  return dialogue({
+    titre: P.TITRE_PREPARER_EMAIL,
+    classe: 'dialogue-preparer-email',
+    peutFermer: () => !occupe,
+    contenu,
+    boutons: [
+      { libelle: 'Annuler', valeur: false },
+      {
+        libelle: 'Enregistrer l’adresse', valeur: true, style: 'principal',
+        avantFermeture: async () => {
+          if (occupe) return false;
+          const adresse = champ.value.trim();
+          const refus = P.refusDestinataire(adresse);
+          erreur.hidden = !refus;
+          if (refus) { erreur.textContent = refus; champ.setAttribute('aria-invalid', 'true'); champ.focus(); return false; }
+          champ.setAttribute('aria-invalid', 'false');
+          occupe = true;
+          try {
+            await D.modifierDestinataires(devisId, { destinataires: [adresse] });
+          } catch (e) {
+            console.warn(e);
+            occupe = false;
+            erreur.textContent = e?.message || P.MESSAGE_ERREUR_PAR_DEFAUT;
+            erreur.hidden = false;
+            return false;
+          }
+          occupe = false;
+          return true;
+        },
+      },
+    ],
+    auMontage: ({ boutons: b }) => {
+      b[0].dataset.action = 'annuler-destinataire-preparer-email';
+      b[1].dataset.action = 'enregistrer-destinataire-preparer-email';
+      champ.focus();
+    },
+  }).then((ok) => ok === true);
 }
 
 /** La confirmation : un clic sur « Préparer l'e-mail » appelle la fonction ; pendant l'appel les boutons sont grisés ; une erreur reste affichée avec « Réessayer ». */
