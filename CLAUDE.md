@@ -28,6 +28,10 @@ Ce fichier est lu au début de chaque session. Il garde les décisions de Jérô
 - **Bilan de l'utilité de Fable (26/10/2026, 25 lancements relus dans l'historique)** : petites retouches d'interface = un peu utile (surtout des détails) ; liens et navigation = utile (un vrai bug chez les clients vu par Fable seul) ; gros écrans = beaucoup utile (3 à 4 vrais défauts par PR que les tests ne voyaient pas) ; serveur, données, règles = **absolument indispensable** (numéros de devis en double, journal modifiable depuis le navigateur, test jamais lancé, plantage sur les accents) ; briefs d'agents = **absolument indispensable** (4 briefs sur 4 contenaient des erreurs qui auraient donné une PR rouge ou fausse). Fable n'a jamais été « de trop » sur le serveur ni sur un brief. À refaire si la règle semble mal placée.
 - Jamais de jeton, de secret ni de clé dans la conversation, le dépôt ou un commit.
 
+## Moins de PR de docs (décision de Jérôme, 29/10/2026)
+
+Chaque PR relance les tests (environ 6 minutes) et chaque fusion sur `main` redéploie le site : trop de PR de documentation fait attendre Jérôme pour rien. Règles : **une seule PR de docs par session** (en fin de session), ou la modification de docs **dans la PR de code du même sujet** ; jamais une PR de docs par petite étape ; ne pas pousser plusieurs fois de suite sur une PR ouverte (chaque push annule et relance les tests) ; ne pas ajouter d'étiquette à une PR dont les tests tournent. Le wiki se régénère une seule fois, au dernier commit de la PR.
+
 ## Tests (décision du 18/10/2026)
 
 - Pendant le travail : seulement les tests du module touché (`npm run test:module <nom>`).
