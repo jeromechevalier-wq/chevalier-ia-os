@@ -4,6 +4,7 @@ import * as L from '../../partage/logique.js';
 import * as PL from '../../partage/projets.js';
 import * as DA from '../../partage/devis-articles.js';
 import * as DF from '../../partage/devis-familles.js';
+import * as DV from '../../partage/devis-vocabulaire.js';
 import * as D from '../../partage/devis.js';
 import { COLLECTIONS as C } from './donnees.js';
 import { serialiser } from './serialisation.js';
@@ -288,6 +289,19 @@ export async function chercherArticle(donnees, { texte, limite }) {
   const lignes = DA.filtrerArticles(toutes, { recherche: texte, statut: 'actifs' });
   const { total, tronque, elements } = borne(lignes, Math.min(limite ?? 20, MAX_LIGNES));
   return serialiser({ total, tronque, articles: DA.avecCalculOuvrage(elements, toutes, await reglagesDevis(donnees)) });
+}
+
+/**
+ * Les mots de l'utilisateur -> l'article du bordereau (moteur partagé `interpreter`, le même chez Jérôme et chez les clients).
+ * Règles lues dans `devis_vocabulaire` de l'espace (absente ou vide = décisions fondées sur le catalogue seul). Jamais de prix d'achat ni de marge dans la sortie.
+ * `limite` tronque les candidats APRÈS la décision (sinon la décision changerait avec `limite`), sans descendre sous les articles cités par la question.
+ */
+export async function rechercherArticleParPhrase(donnees, { phrase, limite }) {
+  const [articles, regles, reglages] = await Promise.all([donnees.liste(C.devisArticles), donnees.liste('devis_vocabulaire'), reglagesDevis(donnees)]);
+  const r = DV.interpreter(phrase, { regles, articles, reglages });
+  // Jamais moins de candidats que d'articles cités par la question (sinon l'assistant lirait un article absent de la liste).
+  const cites = r.decision === 'proposer' ? Math.min(DV.SEUILS.maxChoixQuestion, r.candidats.filter((c) => c.score >= DV.SEUILS.proposer).length) : 0;
+  return serialiser({ ...r, candidats: r.candidats.slice(0, Math.max(limite ?? 3, cites)) });
 }
 
 /** Réglages du module Devis (marge, mode, TVA, durée de validité, étapes, « Mon entreprise ») et familles d'articles, comme les écrans « Réglages des devis » et « Familles d'articles ». Lecture seule. */

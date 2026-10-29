@@ -164,6 +164,17 @@ export const chercher_article = {
   executer: ({ args, donnees }) => lecture.chercherArticle(donnees, args),
 };
 
+export const rechercher_article_par_phrase = {
+  nom: 'rechercher_article_par_phrase',
+  profils: TOUS,
+  description: "Avant d'ajouter une ligne à un devis à partir des mots de l'utilisateur, appelle cet outil avec la phrase telle quelle (« 3 prises doubles à 25 € »). Il rend la clé comprise, la quantité et le prix de vente HT dits (quantiteIncertaine et prixIncertain : true quand ils sont devinés, à faire confirmer), la décision et les articles candidats du bordereau (prix de vente HT, jamais le prix d'achat ni la marge). `utiliser` : ajoute la ligne du premier candidat. `proposer` ou `demander` : pose exactement `question` à l'utilisateur et attends sa réponse. Ne choisis jamais un article à sa place. Pour ajouter la ligne, passe articleId, quantite et prixVente (s'il est dit) aux outils qui créent ou modifient un brouillon de devis (lignes de devis). Lecture seule.",
+  schema: {
+    phrase: z.string().min(1).max(300).describe("La phrase de l'utilisateur, telle quelle (1 à 300 caractères)."),
+    limite: z.number().int().min(1).max(5).optional().describe('Candidats au plus (défaut 3), jamais moins que les articles cités par `question`.'),
+  },
+  executer: ({ args, donnees }) => lecture.rechercherArticleParPhrase(donnees, args),
+};
+
 export const lire_reglages_devis = {
   nom: 'lire_reglages_devis',
   profils: TOUS,
@@ -211,4 +222,4 @@ export const diagnostiquer_fichiers = {
   },
 };
 
-export const OUTILS_LECTURE = [diagnostiquer_fichiers, chercher, lire_personne, lire_organisation, lire_affaire, lister_affaires, lister_projets, lire_projet, lister_modeles_projet, lister_activites, lister_documents, lire_reglages, lire_audit, lister_articles, chercher_article, lire_reglages_devis, lister_devis, lire_devis];
+export const OUTILS_LECTURE = [diagnostiquer_fichiers, chercher, lire_personne, lire_organisation, lire_affaire, lister_affaires, lister_projets, lire_projet, lister_modeles_projet, lister_activites, lister_documents, lire_reglages, lire_audit, lister_articles, chercher_article, rechercher_article_par_phrase, lire_reglages_devis, lister_devis, lire_devis];

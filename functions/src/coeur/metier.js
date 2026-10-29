@@ -687,7 +687,20 @@ function articleDeLigne(spec, articles) {
   return trouves[0];
 }
 
-/** Lignes de devis copiées des articles du Bordereau : `specs` = [{ articleId | reference, quantite }]. */
+/**
+ * Prix de vente HT dit par l'utilisateur (« la prise à 25 € ») : règle la marge de la ligne comme l'écran (avecPrixVente), jamais le prix d'achat.
+ * Refusé (jamais ignoré en silence) pour un texte, un article sans prix d'achat (la marge serait faussée) ou un prix impossible à obtenir avec une marge.
+ */
+function avecPrixVenteDit(ligne, article, prixVente, devis) {
+  const nom = `« ${article.libelle} »`;
+  if (article.type === DA.TYPE_TEXTE) refuser('saisie_invalide', `${nom} est une ligne de texte : elle n'a pas de prix de vente.`);
+  if (!(typeof ligne.prixAchat === 'number' && ligne.prixAchat > 0)) refuser('saisie_invalide', `${nom} n'a pas de prix d'achat : un prix de vente ne peut pas y être réglé sans fausser la marge. Compléter l'article (modifier_article) puis réessayer.`);
+  if (!E.prixVenteReglable(ligne, prixVente, devis.modeMarge)) refuser('saisie_invalide', `Le prix de vente ${prixVente} € est impossible pour ${nom} avec le mode de marge du devis.`);
+  const reglee = E.avecPrixVente(ligne, prixVente, devis.modeMarge);
+  return ligne.ouvrage ? { ...reglee, description: E.descriptionDeLigne(reglee) } : reglee;
+}
+
+/** Lignes de devis copiées des articles du Bordereau : `specs` = [{ articleId | reference, quantite, prixVente? }]. */
 function lignesDepuisArticles(c, specs, articles, devis) {
   return specs.map((spec) => {
     const article = articleDeLigne(spec, articles);
@@ -697,6 +710,7 @@ function lignesDepuisArticles(c, specs, articles, devis) {
       ligne.quantite = spec.quantite;
       if (ligne.ouvrage) ligne.description = E.descriptionDeLigne(ligne); // la composition d'un ouvrage dépend de la quantité
     }
+    if (spec.prixVente !== undefined) return avecPrixVenteDit(ligne, article, spec.prixVente, devis);
     return ligne;
   });
 }
