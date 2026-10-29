@@ -448,11 +448,12 @@ describe('V9 apprentissage : decisionApprentissage', () => {
     const r = apprendre(nouvelle(), { type: 'confirme' }, '2026-10-28');
     assert.deepEqual([r.statut, r.confirmations, r.contradictions, r.conflit, r.derniereConfirmationLe], ['a_confirmer', 1, 0, false, '2026-10-28']);
   });
-  test('V9 deux « oui » comptent chacun, même le même jour : la 2e confirmation rend la règle active (décision de Jérôme, 29/10/2026)', () => {
+  test('V9 deux « oui » le même jour comptent pour un seul ; le lendemain, la règle devient active', () => {
     const jour1 = apprendre(nouvelle(), { type: 'confirme' }, '2026-10-28');
-    assert.deepEqual([jour1.statut, jour1.confirmations], ['a_confirmer', 1]);
     const memeJour = apprendre(jour1, { type: 'confirme' }, '2026-10-28');
-    assert.deepEqual([memeJour.statut, memeJour.confirmations, memeJour.derniereConfirmationLe], ['active', 2, '2026-10-28']);
+    assert.deepEqual([memeJour.statut, memeJour.confirmations], ['a_confirmer', 1]);
+    const jour2 = apprendre(memeJour, { type: 'confirme' }, '2026-10-29');
+    assert.deepEqual([jour2.statut, jour2.confirmations, jour2.derniereConfirmationLe], ['active', 2, '2026-10-29']);
   });
   test('V9 une contradiction empêche l’activation ; une règle active contredite passe en conflit et sort de l’usage automatique', () => {
     let r = apprendre(nouvelle(), { type: 'confirme' }, '2026-10-28');
