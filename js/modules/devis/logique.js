@@ -549,7 +549,7 @@ export function peutArchiver(devis) {
  * Le serveur écrit le résultat dans `montantDevisHt` et `montantDevisNature` de l'affaire (functions/src/coeur/devis.js) ; les écrans le lisent avec `montantAffaire` (crm/logique.js).
  */
 export const STATUTS_PROPOSES = Object.freeze(['en_attente_envoi', 'envoye']);
-const htFige = (d) => (typeof d?.totaux?.ht === 'number' && Number.isFinite(d.totaux.ht) ? d.totaux.ht : null);
+const htFige = (d) => (typeof d?.totaux?.ht === 'number' && Number.isFinite(d.totaux.ht) && d.totaux.ht >= 0 ? d.totaux.ht : null); // négatif ou illisible : ignoré
 const enMillisecondes = (v) => (v instanceof Date ? v.getTime() : typeof v?.toMillis === 'function' ? v.toMillis() : Date.parse(v) || 0);
 export function montantAccepteHt(devisDeLAffaire) {
   let centimes = 0;

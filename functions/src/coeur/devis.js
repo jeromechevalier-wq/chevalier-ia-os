@@ -13,7 +13,7 @@
 // - Accepter une version passe aussi les autres versions vivantes (finalisée ou envoyée) de la même racine à « Remplacé » (cadrage §5).
 // - Le journal n'enregistre pas le compteur lui-même (bruit) ; le numéro attribué est dans la copie du devis.
 // - Montant de l'affaire (29/10/2026, règle D17, expliquée dans docs/montant-affaire.md) : le montant calculé d'après les devis (somme HT des acceptés, sinon le HT du devis proposé le plus récent)
-//   est écrit dans `montantDevisHt` et `montantDevisNature` de l'affaire, DANS la transaction de chaque transition (finaliser, changer de statut, nouvelle version, archiver, supprimer). Un brouillon ne compte
+//   est écrit dans `montantDevisHt` et `montantDevisNature` de l'affaire, DANS la transaction de chaque transition qui peut le changer (finaliser, changer de statut, archiver ; ni « nouvelle version » ni « supprimer » : un brouillon ne compte jamais). Un brouillon ne compte
 //   jamais : il est écrit par le navigateur, hors de ces transactions. Le montant saisi à la main (`montant`) n'est jamais touché. Aucune migration : une affaire n'est recalculée que lorsqu'un de ses devis change.
 import * as D from '../../partage/devis.js';
 import * as A from '../../partage/devis-articles.js';
@@ -96,6 +96,14 @@ export function modifier(devis, patch, collection = C.devis) {
  * `retouches` : { idDevis: champs | null } = ce que la transaction en cours change sur ses devis (null : le devis disparaît), appliqué en mémoire avant le calcul (les écritures ne partent qu'à la fin).
  * À appeler AVANT `tx.ecrire` (Firestore veut toutes les lectures d'abord). Ne crée jamais l'affaire. Règle : `montantDesDevis` (partage/devis.js).
  */
+/** Même détail ? Comparé ligne par ligne, champ par champ : Firestore range les champs d'une map par nom, un JSON.stringify verrait une différence à chaque fois. */
+const memeDetail = (a, b) => {
+  const x = Array.isArray(a) ? a : null;
+  const y = Array.isArray(b) ? b : null;
+  if (!x || !y) return x === y;
+  return x.length === y.length && x.every((l, i) => l?.numero === y[i].numero && l?.version === y[i].version && l?.ht === y[i].ht && l?.compte === y[i].compte);
+};
+
 async function montantDeLAffaire(tx, devis, retouches) {
   const affaireId = devis.affaireId;
   if (typeof affaireId !== 'string' || !affaireId || affaireId.includes('/')) return null;
@@ -106,7 +114,7 @@ async function montantDeLAffaire(tx, devis, retouches) {
   const calcule = D.montantDesDevis(liste.filter((d) => retouches[d.id] !== null).map((d) => ({ ...d, ...(retouches[d.id] ?? {}) })));
   const patch = { montantDevisHt: calcule?.montant ?? null, montantDevisNature: calcule?.nature ?? null, montantDevisDetail: calcule?.detail ?? null };
   const meme = (typeof affaire.montantDevisHt === 'number' ? affaire.montantDevisHt : null) === patch.montantDevisHt && (affaire.montantDevisNature ?? null) === patch.montantDevisNature
-    && JSON.stringify(affaire.montantDevisDetail ?? null) === JSON.stringify(patch.montantDevisDetail);
+    && memeDetail(affaire.montantDevisDetail, patch.montantDevisDetail);
   return meme ? null : modifier(affaire, patch, C.affaires);
 }
 /** Les retouches d'une transaction : le patch de chaque changement de devis (les lignes d'une autre collection n'en font pas partie). */
@@ -255,11 +263,9 @@ export async function supprimer({ donnees, ctx, devisId }) {
     const devis = await lireDevis(tx, devisId);
     if (devis.statut !== 'brouillon') throw new ErreurDevis('transition_interdite', 'Seul un brouillon peut être supprimé. Un devis finalisé se garde ; tu peux l’archiver s’il est signé ou refusé.');
     const changement = { id: devis.id, collection: C.devis, action: 'supprimer', avant: devis, apres: null, champs: [], ecriture: { type: 'delete', collection: C.devis, id: devis.id } };
-    // Un brouillon ne compte jamais dans le montant : normalement rien ne change ; recalculé par cohérence (règle D17).
-    const montant = await montantDeLAffaire(tx, devis, { [devis.id]: null });
-    const changements = montant ? [changement, montant] : [changement];
-    const j = journal({ donnees, ctx, outil: 'devisSupprimer', parametres: { devisId }, changements });
-    tx.ecrire([...changements.map((c) => c.ecriture), ...j.ecritures]);
+    // Un brouillon ne compte jamais dans le montant de l'affaire (règle D17) : supprimer ne touche pas à l'affaire, et l'opération reste restaurable par le journal.
+    const j = journal({ donnees, ctx, outil: 'devisSupprimer', parametres: { devisId }, changements: [changement] });
+    tx.ecrire([changement.ecriture, ...j.ecritures]);
     return { ok: true, devis, operationId: j.operationId };
   });
 }

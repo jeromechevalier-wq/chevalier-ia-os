@@ -151,6 +151,17 @@ describe('Transitions des devis sur Firestore (émulateur)', { skip: emulateur ?
     assert.equal(affaire.montant, 1500);
   });
 
+  test('C8 sur le vrai Firestore, un changement qui ne modifie pas le montant (marquer envoyé) n’écrit ni l’affaire ni une ligne de journal pour elle', async () => {
+    await db.collection(C.affaires).doc('aff1').set({ titre: 'Rénovation', montant: 1500 });
+    await poser('d1');
+    await S.finaliser({ donnees, ctx: ctx(), devisId: 'd1' });
+    const lignesAffaire = async () => (await db.collection(C.audit).get()).docs.filter((x) => x.data().collection === C.affaires).length;
+    const avant = await lignesAffaire();
+    assert.equal(avant, 1, 'la finalisation a écrit l’affaire une fois');
+    await S.changerStatut({ donnees, ctx: ctx(), devisId: 'd1', action: 'marquer_envoye' });
+    assert.equal(await lignesAffaire(), avant, 'Firestore range les champs d’une map par nom : la comparaison du détail doit quand même voir « identique »');
+  });
+
   test('C8 dans l’espace d’un client, seule l’affaire du client reçoit le montant ; celle de Jérôme n’est pas touchée', async () => {
     await db.collection(C.affaires).doc('aff1').set({ titre: 'Chez Jérôme', montant: 10 });
     await db.doc('clients/a/crm_affaires/aff1').set({ titre: 'Chez le client', montant: 20 });

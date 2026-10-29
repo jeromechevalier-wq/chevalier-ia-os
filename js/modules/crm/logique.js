@@ -617,8 +617,13 @@ export function detailMontant(a) {
   const ignore = lignes.filter((l) => !l.compte);
   const estimeSaisi = a.montant === null || a.montant === undefined || a.montant === '' ? null : Number(a.montant);
   const phrases = [];
-  if (natureMontant(a) === 'accepte') {
-    phrases.push(`Devis acceptés : ${compte.map((l) => `${nom(l)} : ${formatEuros(l.ht)} HT`).join(' + ')}${compte.length > 1 ? ` = ${formatEuros(a.montantDevisHt)} HT` : ''}.`);
+  const somme = compte.reduce((s, l) => s + Math.round(l.ht * 100), 0) / 100;
+  if (!compte.length) {
+    phrases.push(`Montant calculé d’après les devis : ${formatEuros(a.montantDevisHt)} HT (le détail n’est pas disponible).`);
+  } else if (natureMontant(a) === 'accepte') {
+    // Le total affiché est celui du serveur ; si le détail ne l'explique pas entièrement (plus de 20 devis, donnée modifiée à la main), on le dit au lieu d'afficher une addition fausse.
+    const complet = Math.abs(somme - a.montantDevisHt) < 0.005;
+    phrases.push(`Devis acceptés : ${compte.map((l) => `${nom(l)} : ${formatEuros(l.ht)} HT`).join(' + ')}${complet ? (compte.length > 1 ? ` = ${formatEuros(a.montantDevisHt)} HT` : '') : ` (détail incomplet) ; total : ${formatEuros(a.montantDevisHt)} HT`}.`);
   } else {
     phrases.push(`Devis proposé le plus récent : ${compte.map((l) => `${nom(l)} : ${formatEuros(l.ht)} HT`).join('')}.`);
     if (ignore.length) phrases.push(`Non compté (devis proposé plus ancien) : ${ignore.map((l) => `${nom(l)} : ${formatEuros(l.ht)} HT`).join(' ; ')}.`);

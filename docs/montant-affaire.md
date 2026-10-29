@@ -10,7 +10,7 @@
 
 | Situation de l'affaire | Libellé | Chiffre | Modifiable ? |
 |---|---|---|---|
-| Aucun devis finalisé (ou module Devis absent) | **Montant estimé** | ce qui a été tapé à la main ; un tiret gris « — » si rien n'a été tapé | **Oui** (crayon) |
+| Aucun devis qui compte (module Devis absent, aucun devis finalisé, ou tous refusés, remplacés ou archivés) | **Montant estimé** | ce qui a été tapé à la main ; un tiret gris « — » si rien n'a été tapé | **Oui** (crayon) |
 | Au moins un devis **accepté** (Signé), non archivé | **Montant accepté HT** | la **somme HT** des devis acceptés | Non (calculé) |
 | Pas de devis accepté, mais au moins un devis **proposé** (Finalisé ou Envoyé) | **Montant proposé HT** | le HT du devis proposé **le plus récent, seul** | Non (calculé) |
 
@@ -55,13 +55,13 @@ Les cartes du Kanban, la liste et les mini-cartes affichent le même chiffre, su
 | Champ | Contenu |
 |---|---|
 | `montant` | le montant **saisi à la main**. **Jamais touché** par les devis, jamais effacé. |
-| `montantDevisHt` | le montant calculé d'après les devis (nombre ≥ 0), ou `null` s'il n'y a rien à compter |
+| `montantDevisHt` | le montant calculé d'après les devis (nombre ≥ 0 ; un devis au total négatif est ignoré), ou `null` s'il n'y a rien à compter |
 | `montantDevisNature` | `'accepte'` ou `'propose'` (ou `null`) |
 | `montantDevisDetail` | la liste `{ numero, version, ht, compte }` des devis qui expliquent le chiffre (20 au plus) : c'est ce qui nourrit l'infobulle, sans recharger les devis |
 
 **Pourquoi un champ voisin et pas `montant` ?** Écraser `montant` effacerait ce que l'utilisateur a tapé (il doit revenir quand les devis disparaissent), obligerait à créer un champ « estimé » et à **migrer** toutes les affaires, et casserait les autres écrivains (écran, assistant, modèles d'affaire).
 
-**Quand le serveur recalcule.** Dans la **même transaction** que chaque transition d'un devis, `functions/src/coeur/devis.js` (fonction `montantDeLAffaire`) : finaliser, marquer envoyé / accepter / refuser, archiver / désarchiver, supprimer un brouillon. « Nouvelle version » ne recalcule rien (le nouveau brouillon ne compte pas et la source ne change pas de statut) ; finaliser la v2 remplace la v1 et recalcule. Si le résultat est identique à ce qui est déjà écrit, **rien n'est écrit** (ni la donnée, ni le journal). Une affaire supprimée ou un devis sans affaire : rien n'est écrit, rien n'est recréé. Le calcul lui-même est une fonction pure, `montantDesDevis` (`js/modules/devis/logique.js`), testée seule.
+**Quand le serveur recalcule.** Dans la **même transaction** que chaque transition d'un devis qui peut changer le montant, `functions/src/coeur/devis.js` (fonction `montantDeLAffaire`) : finaliser, marquer envoyé / accepter / refuser, archiver / désarchiver. « Nouvelle version » et « supprimer un brouillon » ne recalculent rien : un brouillon ne compte jamais (supprimer reste donc restaurable par le journal) ; finaliser la v2 remplace la v1 et recalcule. Si le résultat est identique à ce qui est déjà écrit, **rien n'est écrit** (ni la donnée, ni le journal). Une affaire supprimée ou un devis sans affaire : rien n'est écrit, rien n'est recréé. Le calcul lui-même est une fonction pure, `montantDesDevis` (`js/modules/devis/logique.js`), testée seule.
 
 **Même code chez Jérôme et chez les clients.** `functions/src/coeur/` est copié tel quel dans `functions-plateforme/serveur/` par `scripts/preparer-fonctions.js` : aucune version à maintenir en double.
 
@@ -74,6 +74,8 @@ Les cartes du Kanban, la liste et les mini-cartes affichent le même chiffre, su
 - Le **module Devis retiré** chez un client : les champs `montantDevis*` déjà écrits restent dans les affaires et continuent de s'afficher (le serveur n'écrit plus rien). Cas rare ; une remise à zéro serait une opération de données.
 - Un **devis expiré** (date de validité dépassée) reste « Envoyé » dans la base : il compte comme proposé.
 - Le passage de l'affaire à « Gagnée » à l'acceptation d'un devis (D17, 1re moitié) n'est **pas** branché.
+- **Un devis « Finalisé » jamais envoyé n'a pas de sortie propre** : on ne peut ni le refuser (il faut qu'il soit « Envoyé ») ni l'archiver (il faut qu'il soit signé ou refusé). Tant qu'il existe, il compte comme proposé. Aujourd'hui la seule issue est de le marquer envoyé puis refusé, ou de créer une version suivante. **À décider avec Jérôme** (`.github/A-FAIRE.md`) : autoriser « Refuser » ou « Archiver » depuis « Finalisé ».
+- Si le détail enregistré ne suffit pas à expliquer le total (plus de 20 devis acceptés, ou donnée modifiée à la main), l'infobulle écrit « détail incomplet » et donne le total, jamais une addition fausse.
 - Il n'y a pas de bouton pour forcer un chiffre à la main quand des devis comptent : le chiffre calculé est la vérité ; pour changer le montant, on change les devis.
 
 ## Tests

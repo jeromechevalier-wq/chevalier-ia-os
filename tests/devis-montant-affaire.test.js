@@ -36,7 +36,7 @@ describe('N1 montantDesDevis : la règle pure', () => {
   test('N1 aucun devis qui compte (rien, brouillons, refusés, remplacés, archivés) : null, jamais 0', () => {
     assert.equal(montantDesDevis([]), null);
     assert.equal(montantDesDevis(undefined), null);
-    assert.equal(montantDesDevis([d('a', 'brouillon', 400), d('b', 'refuse', 200), d('c', 'remplace', 300), d('e', 'accepte', 50, { archive: true })]), null);
+    assert.equal(montantDesDevis([d('a', 'brouillon', 400), d('b', 'refuse', 200), d('c', 'remplace', 300), d('e', 'accepte', 50, { archive: true }), d('n', 'envoye', -10)]), null); // un total négatif est ignoré
   });
   test('N1 devis acceptés : leur somme HT au centime (pas d’erreur de virgule), détail avec les numéros ; les archivés et les totaux illisibles sont écartés', () => {
     const r = montantDesDevis([d('a', 'accepte', 0.1), d('b', 'accepte', 0.2, { finaliseLe: new Date('2026-10-21T10:00:00Z') }), d('c', 'accepte', 100.05), d('x', 'accepte', 9, { archive: true }), { id: 'y', statut: 'accepte', totaux: {} }, d('z', 'accepte', Number.NaN)]);
@@ -177,7 +177,9 @@ describe('N4 ce qui ne doit pas changer l’affaire', () => {
     const ancien = { ...brouillon('vieux', 100), statut: 'accepte', accepteLe: new Date('2026-09-01T10:00:00Z'), finaliseLe: new Date('2026-08-30T10:00:00Z'), numero: 'DEV-2026-09-01-001', totaux: { ht: 1200, ttc: 1440 } };
     const m = monde({ devis: [ancien, brouillon('d2', 50)] });
     const avant = JSON.stringify(m.collections[C.affaires]);
+    await S.supprimer({ donnees: m.donnees, ctx: ctx(), devisId: 'd2' }); // un brouillon supprimé : l'ancien devis accepté n'est PAS recalculé (rien ne change pour l'affaire)
     assert.equal(JSON.stringify(m.collections[C.affaires]), avant);
+    m.collections[C.devis].push(brouillon('d2', 50));
     await envoye(m, 'd2');
     await statut(m, 'd2', 'accepter');
     assert.equal(affaireDe(m).montantDevisHt, 1800, 'à la première transition, l’ancien devis accepté compte aussi');
@@ -222,7 +224,8 @@ describe('N5 la lecture commune à tous les écrans', () => {
     const propose = { montantDevisHt: 1200, montantDevisNature: 'propose', montantDevisDetail: [{ numero: 'DEV-B', version: 2, ht: 1200, compte: true }, { numero: 'DEV-A', version: 1, ht: 900, compte: false }] };
     assert.equal(LEcran.detailMontant(propose), 'Devis proposé le plus récent : DEV-B v2 : 1 200 € HT.\nNon compté (devis proposé plus ancien) : DEV-A : 900 € HT.\nAucun devis n’est encore accepté.');
     assert.equal(LEcran.detailMontant({ montant: 5 }), '');
-    assert.match(LEcran.detailMontant({ montantDevisHt: 10 }), /^Devis acceptés : /); // détail absent (anciennes données) : pas de plantage
+    assert.equal(LEcran.detailMontant({ montantDevisHt: 10 }), 'Montant calculé d’après les devis : 10 € HT (le détail n’est pas disponible).'); // détail absent : on le dit, sans phrase vide
+    assert.match(LEcran.detailMontant({ montantDevisHt: 99, montantDevisNature: 'accepte', montantDevisDetail: [{ numero: 'DEV-A', version: 1, ht: 10, compte: true }] }), /\(détail incomplet\) ; total : 99 € HT/); // jamais une addition fausse
   });
   test('N5 le total de colonne et le chiffre d’affaires signé du mois comptent le même montant que la fiche', () => {
     const gagnee = { etape: 'etape_5', statut: 'gagnee', datesEtapes: { etape_5: new Date('2026-10-10T10:00:00Z') } };
