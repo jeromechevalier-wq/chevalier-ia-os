@@ -4,7 +4,7 @@
 import { h, icone, remplir, ouvrirMenu, lirePreference, ecrirePreference } from '../../os/ui.js';
 import { boutonFiltres as boutonFiltresCommun, fenetreFiltres } from '../crm/filtres.js';
 import { etatVide, planifier } from '../crm/composants.js';
-import { naviguer } from '../../os/router.js';
+import { naviguer, lien } from '../../os/router.js';
 import * as CRM from '../crm/donnees.js';
 import * as D from './donnees.js';
 import * as Li from './liste.js';
@@ -208,7 +208,7 @@ export function rendreListeDevis(conteneur) {
   if (memorisee === 'liste' || memorisee === 'tableau') vue = memorisee;
 
   conteneur.append(h('div', { class: 'page page-liste page-devis page-liste-devis' },
-    h('header', { class: 'page-tete' }, h('div', {}, titre, compteur), h('div', { class: 'page-actions' }, h('a', { class: 'bouton bouton-secondaire', href: '#/devis/bordereau', dataset: { action: 'ouvrir-bordereau' } }, icone('list', { taille: 16 }), 'Catalogue'), boutonNouveau)),
+    h('header', { class: 'page-tete' }, h('div', {}, titre, compteur), h('div', { class: 'page-actions' }, h('a', { class: 'bouton bouton-secondaire', href: '#/devis/bordereau', dataset: { action: 'ouvrir-bordereau' } }, icone('list', { taille: 16 }), 'Catalogue'), h('a', { class: 'bouton bouton-secondaire', href: lien('devis/vocabulaire'), dataset: { action: 'ouvrir-vocabulaire' } }, icone('book-open', { taille: 16 }), 'Vocabulaire'), boutonNouveau)),
     h('div', { class: 'barre-affaires' }, champRecherche, filtres.element, bascule),
     avis, zone, pied));
 
