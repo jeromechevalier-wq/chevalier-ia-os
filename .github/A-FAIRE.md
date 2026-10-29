@@ -40,6 +40,8 @@ La session principale est trop longue : elle garde les décisions et ce tableau.
 | 1 | Mise en service du dictionnaire : fusion de la PR 391, règles Firestore, déploiements `regles`, `hosting`, `fonctions`, `mcp`, essai avec un vrai ChatGPT | Jérôme + Claude | À lancer en premier |
 | 2 | Documents : accents des `.txt`/`.md`/`.csv`, sauvegarde ciblée de `crm_audit*` et `devis_compteurs`, `storage.rules` versionné | Claude, puis Jérôme pour la console | Droits Storage et règles faits le 29/10/2026 ; restent ces trois PR séparées (voir « Vue d'ensemble ») |
 | 3 | Génération du PDF trop lente : mesure puis progression | Claude seul | En attente |
+| 2 | PR 369 « Documents » : règles Storage, droits IAM, sauvegarde de `crm_audit*` et `devis_compteurs` | Claude, puis Jérôme pour la console | Guide écrit (`docs/preparer-fusion-369-documents.md`) ; reste : Jérôme lit les règles Storage et donne les droits IAM, puis deux PR séparées (`storage.rules`, sauvegarde ciblée, relues par Fable) |
+| 3 | Génération du PDF trop lente : mesure puis progression. **Priorité BASSE (Jérôme, 29/10/2026 : lent mais acceptable, rien d'urgent)** | Claude seul | Abandonnée pour l'instant, à reprendre plus tard |
 | Principale | Décisions : Q1 à Q10, prix d'achat, PR 388, dates des travaux, études n°11 et n°12 | Jérôme | En attente |
 
 Le détail de chaque ligne est plus bas. Légende : 🟢 fait, 🟠 attend Jérôme, 🔵 Claude travaille dessus, ⚪ plus tard, ✅ validé.
@@ -169,7 +171,7 @@ Déjà validés par Jérôme : 280, 282, et le 26/10/2026 : 309 (retour visuel p
 - Doublon destinataire / copie quand le client change : pas encore contrôlé.
 - Cible tactile des pastilles-liens inférieure à 44 px : **fait, PR 360**.
 - Écran du PDF : sans objet depuis la PR 359 (l'écran n'existe plus). Le « Retour » de l'éditeur est corrigé par la PR 363.
-- **Génération du PDF trop lente** : elle prend plusieurs secondes et on a l'impression que l'outil a planté. À étudier : mesurer où passe le temps, puis afficher une progression claire (message « fabrication en cours », indicateur) et/ou accélérer (demandé par Jérôme le 26/10/2026).
+- **Génération du PDF trop lente** (**priorité basse**, Jérôme le 29/10/2026 : lent mais acceptable) : elle prend plusieurs secondes et on a l'impression que l'outil a planté. À étudier : mesurer où passe le temps, puis afficher une progression claire (message « fabrication en cours », indicateur) et/ou accélérer (demandé par Jérôme le 26/10/2026).
 - Mode d'emploi d'un 2e serveur de plateforme : écrit le 26/10, à éprouver au premier vrai 2e serveur (`docs/deploiement-nouveau-serveur-plateforme.md`). Le projet `chevalier-ia-app` est écrit en dur dans le code : un 2e serveur demandera d'abord une PR de code, relue par Fable (ajouter une ligne dédiée).
 
 ## Décidé : rien à faire
