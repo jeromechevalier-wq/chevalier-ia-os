@@ -210,7 +210,7 @@ export const lire_devis = {
 export const obtenir_pdf_officiel_devis = {
   nom: 'obtenir_pdf_officiel_devis',
   profils: TOUS,
-  description: "Donne un lien de lecture COURT (5 minutes) vers le PDF OFFICIEL d'un devis finalisé, celui que le serveur a fabriqué à la finalisation (ni les prix d'achat ni la marge n'y figurent). C'est le SEUL PDF de devis à utiliser : ne fabrique JAMAIS un autre PDF toi-même, même « de démonstration ». Refusé pour un brouillon de devis, ou si le PDF n'est pas prêt ou introuvable : dans ce cas ARRÊTE-TOI et dis-le à l'utilisateur, n'envoie rien. Pour préparer l'e-mail avec ce PDF : preparer_brouillon_email_devis.",
+  description: "Donne un lien de lecture COURT (5 minutes) vers le PDF OFFICIEL d'un devis finalisé, celui que le serveur a fabriqué à la finalisation (ni les prix d'achat ni la marge n'y figurent). C'est le SEUL PDF de devis à utiliser : ne fabrique JAMAIS un autre PDF toi-même, même « de démonstration ». Refusé pour un brouillon de devis, ou si le PDF n'est pas prêt ou introuvable : dans ce cas ARRÊTE-TOI et dis-le à l'utilisateur, n'envoie rien. Pour préparer l'e-mail avec ce PDF : preparer_email.",
   schema: { id: id.describe('Identifiant du devis finalisé (voir lister_devis).') },
   executer: ({ args, ...c }) => metier.pdfOfficielDevis(c, args),
 };

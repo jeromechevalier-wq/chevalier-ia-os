@@ -2,7 +2,7 @@
 // Essai de départ (29/10/2026) : un assistant n'a pas trouvé d'outil pour le PDF officiel, a refait un PDF « de démonstration » et l'a ENVOYÉ avec son propre connecteur Gmail.
 // De bout en bout par le protocole MCP, sur des données fictives en mémoire (aucun service Google, aucun vrai n8n : le « n8n » est un faux qui note ce qu'on lui demande).
 // Le nom d'un test commence par le numéro du critère.
-//  1 obtenir_pdf_officiel_devis : lien court vers le PDF d'un devis finalisé, jamais d'un brouillon, jamais fabriqué ; 2 preparer_brouillon_email_devis : brouillon seulement ;
+//  1 obtenir_pdf_officiel_devis : lien court vers le PDF d'un devis finalisé, jamais d'un brouillon, jamais fabriqué ; 2 preparer_email : brouillon seulement ;
 //  3 la règle est dans la description de TOUS les outils des devis ; 4 enregistrer_envoi_devis distingue « depuis le brouillon du logiciel » et « hors logiciel » ;
 //  5 aucune portée ni appel d'envoi Gmail dans le code du serveur ni des outils ; 6 rejeu : finalisé -> PDF officiel -> brouillon, aucune voie d'envoi.
 import { test, describe, afterEach } from 'node:test';
@@ -92,7 +92,7 @@ describe('1 obtenir_pdf_officiel_devis : le seul PDF, un lien court, jamais fabr
     assert.equal(r.numero, 'DEV-2026-10-01-001');
     assert.equal(r.nom, PDF_OK.nom);
     assert.match(r.consigne, /seul PDF officiel/);
-    assert.match(r.consigne, /preparer_brouillon_email_devis/);
+    assert.match(r.consigne, /preparer_email/);
     assert.deepEqual(s.liens.map((l) => [l.chemin, l.minutes]), [[CHEMIN, 5]]);
     assert.doesNotMatch(JSON.stringify(r), /devis\/a1|prixAchat|marge|sha256/);
   });
@@ -126,10 +126,10 @@ describe('1 obtenir_pdf_officiel_devis : le seul PDF, un lien court, jamais fabr
   });
 });
 
-describe('2 preparer_brouillon_email_devis : un brouillon seulement, jamais d’envoi', () => {
+describe('2 preparer_email : un brouillon seulement, jamais d’envoi', () => {
   test('2 la demande part vers n8n une seule fois, la fiche du devis le note, le journal garde la trace ; la réponse dit « envoyé : non » et d’ouvrir son brouillon', async () => {
     const s = await demarrer({ devis: [finalise('f1')] });
-    const r = ok(await s.appeler('biblio', 'preparer_brouillon_email_devis', { id: 'f1' }));
+    const r = ok(await s.appeler('biblio', 'preparer_email', { type: 'devis', id: 'f1' }));
     assert.equal(r.envoye, false);
     assert.equal(r.statut, 'demandee');
     assert.match(r.aSavoir, /BROUILLON.*Rien n’a été envoyé.*LUI-MÊME/s);
@@ -147,26 +147,35 @@ describe('2 preparer_brouillon_email_devis : un brouillon seulement, jamais d’
     const s = await demarrer({ devis: [
       devisEnregistre('b1'), finalise('d0', 'en_attente_envoi', { destinataires: [] }), finalise('p0', 'en_attente_envoi', { pdf: { statut: 'en_cours', tentatives: 1 } }), finalise('f1'),
     ] });
-    refuse(await s.appeler('biblio', 'preparer_brouillon_email_devis', { id: 'b1' }));
-    refuse(await s.appeler('biblio', 'preparer_brouillon_email_devis', { id: 'd0' }), /destinataire/);
-    refuse(await s.appeler('biblio', 'preparer_brouillon_email_devis', { id: 'p0' }));
-    refuse(await s.appeler('lecteur', 'preparer_brouillon_email_devis', { id: 'f1' }));
-    refuse(await s.appeler('biblio', 'preparer_brouillon_email_devis', { id: 'zzz' }), /introuvable/);
+    refuse(await s.appeler('biblio', 'preparer_email', { type: 'devis', id: 'b1' }));
+    refuse(await s.appeler('biblio', 'preparer_email', { type: 'devis', id: 'd0' }), /destinataire/);
+    refuse(await s.appeler('biblio', 'preparer_email', { type: 'devis', id: 'p0' }));
+    refuse(await s.appeler('lecteur', 'preparer_email', { type: 'devis', id: 'f1' }));
+    refuse(await s.appeler('biblio', 'preparer_email', { type: 'devis', id: 'zzz' }), /introuvable/);
     assert.equal(s.demandes.length, 0);
-    ok(await s.appeler('biblio', 'preparer_brouillon_email_devis', { id: 'f1' }));
-    refuse(await s.appeler('biblio', 'preparer_brouillon_email_devis', { id: 'f1' }), /déjà en cours|vient d’être créé|déjà/);
+    ok(await s.appeler('biblio', 'preparer_email', { type: 'devis', id: 'f1' }));
+    refuse(await s.appeler('biblio', 'preparer_email', { type: 'devis', id: 'f1' }), /déjà en cours|vient d’être créé|déjà/);
     assert.equal(s.demandes.length, 1);
+  });
+
+  test('2 le type de l’objet d’origine est obligatoire et limité aux sources connues (devis) ; aucun champ de texte, de destinataire ou de pièce jointe n’existe', async () => {
+    const s = await demarrer({ devis: [finalise('f1')] });
+    refuse(await s.appeler('biblio', 'preparer_email', { type: 'facture', id: 'f1' }));
+    refuse(await s.appeler('biblio', 'preparer_email', { id: 'f1' }));
+    const o = OUTILS.find((x) => x.nom === 'preparer_email');
+    assert.deepEqual(Object.keys(o.schema).sort(), ['id', 'type']);
+    assert.equal(s.demandes.length, 0);
   });
 
   test('2 pas branché (aucune adresse ni secret pour cet espace) : refus clair, dit de ne rien envoyer par un autre moyen, rien n’est écrit', async () => {
     const s = await demarrer({ devis: [finalise('f1')], sortie: null });
-    refuse(await s.appeler('biblio', 'preparer_brouillon_email_devis', { id: 'f1' }), /pas encore branchée.*Ne l’envoie pas toi-même/s);
+    refuse(await s.appeler('biblio', 'preparer_email', { type: 'devis', id: 'f1' }), /pas encore branchée.*Ne l’envoie pas toi-même/s);
     assert.equal(s.doc('devis_devis', 'f1').emailPrepare, undefined);
     assert.equal(s.collections.crm_actions_lancements.length, 0);
   });
 
   test('2 la description dit « brouillon », « n’envoie rien » et renvoie vers l’utilisateur ; l’outil n’est ni lecture seule ni destructeur', () => {
-    const o = OUTILS.find((x) => x.nom === 'preparer_brouillon_email_devis');
+    const o = OUTILS.find((x) => x.nom === 'preparer_email');
     assert.match(o.description, /BROUILLON/);
     assert.match(o.description, /N'ENVOIE RIEN/);
     assert.match(o.description, /l'envoie LUI-MÊME/);
@@ -181,7 +190,7 @@ describe('3 la règle « aucun e-mail ne part tout seul » est dans la descripti
   test('3 tous les outils dont le nom contient « devis » portent la règle, y compris les deux nouveaux', () => {
     const noms = concernes.map((o) => o.nom);
     for (const attendu of ['lister_devis', 'lire_devis', 'obtenir_pdf_officiel_devis', 'creer_devis_brouillon', 'modifier_devis_brouillon', 'finaliser_devis', 'nouvelle_version_devis', 'archiver_devis',
-      'enregistrer_envoi_devis', 'preparer_brouillon_email_devis', 'changer_statut_devis', 'supprimer_devis', 'lire_reglages_devis']) assert.ok(noms.includes(attendu), attendu);
+      'enregistrer_envoi_devis', 'preparer_email', 'changer_statut_devis', 'supprimer_devis', 'lire_reglages_devis']) assert.ok(noms.includes(attendu), attendu);
     for (const o of concernes) assert.ok(o.description.includes(GARANTIE_PAS_D_ENVOI), `${o.nom} : la règle manque`);
   });
 
@@ -274,7 +283,7 @@ describe('6 rejeu : devis finalisé -> PDF officiel -> brouillon d’e-mail, auc
     const s = await demarrer({ devis: [finalise('f1')], fetchImpl });
     const pdf = ok(await s.appeler('lecteur', 'obtenir_pdf_officiel_devis', { id: 'f1' }));
     assert.match(pdf.lien, /^https:\/\/stockage\.exemple\.test\//);
-    const prep = ok(await s.appeler('biblio', 'preparer_brouillon_email_devis', { id: 'f1' }));
+    const prep = ok(await s.appeler('biblio', 'preparer_email', { type: 'devis', id: 'f1' }));
     assert.equal(prep.envoye, false);
     assert.equal(appelsSortants.length, 1, 'une seule demande sortante');
     const [{ url, options }] = appelsSortants;

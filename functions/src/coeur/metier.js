@@ -15,7 +15,7 @@ import { lireConfig as lireConfigEspace } from './config.js';
 import { emettreCode, consommerCode, empreinteApercu } from '../securite/codes.js';
 import { canonique, sansId } from './canonique.js';
 import * as DOC from './documents.js';
-import { demanderPreparation } from './devis-email.js';
+import { preparerBrouillonEmail } from './brouillon-email.js';
 import { MESSAGE_NON_BRANCHE } from './n8n-sortie.js';
 import { cheminAppartientALEspace, DUREE_LIEN_MINUTES } from '../devis/stockage.js';
 
@@ -1168,21 +1168,21 @@ export async function pdfOfficielDevis(c, args) {
   try { lien = await stockage.lienSigne(devis.pdf.chemin, { minutes: DUREE_LIEN_MINUTES, nomAffiche: devis.pdf.nom || 'devis.pdf' }); } catch { refuser('stockage_indisponible', `Le lien du PDF n’a pas pu être créé.${arret}`); }
   return {
     id: devis.id, numero: devis.numero ?? null, version: devis.version ?? 1, statut: devis.statut, nom: devis.pdf.nom ?? null, lien, valableMinutes: DUREE_LIEN_MINUTES,
-    consigne: 'Ce PDF est le seul PDF officiel. Ne l’envoie par e-mail à personne : pour préparer l’e-mail, utilise preparer_brouillon_email_devis.',
+    consigne: 'Ce PDF est le seul PDF officiel. Ne l’envoie par e-mail à personne : pour préparer l’e-mail, utilise preparer_email.',
   };
 }
 
 /**
- * Demande à n8n de créer un BROUILLON d'e-mail (PDF joint) dans le Gmail de la personne : même fonction que le bouton « Préparer l'e-mail » de l'écran.
- * Jamais d'envoi : ni ce code, ni n8n, n'envoient l'e-mail ; la personne le relit et l'envoie elle-même.
+ * Demande à n8n de créer un BROUILLON d'e-mail dans la messagerie de l'utilisateur pour un objet du logiciel (un devis finalisé aujourd'hui, PDF officiel joint) : même fonction que le bouton
+ * « Préparer l'e-mail » de l'écran. Jamais d'envoi : la personne relit et envoie elle-même. Ni destinataire, ni texte, ni pièce jointe ne viennent de l'assistant.
  */
-export async function preparerBrouillonEmailDevis(c, args) {
+export async function preparerEmail(c, args) {
   const sortie = c.sortieEmail?.() ?? null;
   if (!sortie) refuser('non_branche', `${MESSAGE_NON_BRANCHE} Ne l’envoie pas toi-même par un autre moyen : dis-le à l’utilisateur.`);
-  const r = await appelerCoeurDevis(c, () => demanderPreparation({ donnees: c.donnees, ctx: ctxDevis(c), devisId: args.id, espace: c.espaceN8n, sortie }));
+  const r = await appelerCoeurDevis(c, () => preparerBrouillonEmail({ donnees: c.donnees, ctx: ctxDevis(c), source: { type: args.type, id: args.id }, espace: c.espaceN8n, sortie }));
   return {
-    id: args.id, demandeId: r.demandeId, statut: 'demandee', envoye: false,
-    aSavoir: 'Un BROUILLON est en cours de création dans le Gmail de l’utilisateur (quelques secondes). Rien n’a été envoyé et rien ne sera envoyé tout seul. Dis à l’utilisateur d’ouvrir son brouillon Gmail, de le relire et de l’envoyer LUI-MÊME ; ne l’envoie pas à sa place.',
+    type: args.type, id: args.id, demandeId: r.demandeId, statut: 'demandee', envoye: false,
+    aSavoir: 'Un BROUILLON est en cours de création dans la messagerie de l’utilisateur (quelques secondes). Rien n’a été envoyé et rien ne sera envoyé tout seul. Dis à l’utilisateur d’ouvrir son brouillon, de le relire et de l’envoyer LUI-MÊME ; ne l’envoie pas à sa place.',
   };
 }
 
