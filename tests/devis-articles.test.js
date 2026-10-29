@@ -22,7 +22,7 @@ describe('B1 le module Devis est déclaré et ne dépend que des Affaires', () =
     assert.ok(devis);
     assert.deepEqual(devis.dependances, ['affaires']);
     assert.equal(devis.entreeMenu, 'devis/liste');
-    assert.deepEqual(devis.ecrans.map((e) => e.route), ['devis/liste', 'devis/bordereau']);
+    assert.deepEqual(devis.ecrans.map((e) => e.route), ['devis/liste', 'devis/bordereau', 'devis/vocabulaire']);
     assert.deepEqual(devis.collections, ['devis_articles', 'devis_parametres', 'devis_devis', 'devis_vocabulaire']);
     assert.ok(!('reserveAuxClients' in devis));
     assert.ok(MODULES_DECLARES.findIndex((m) => m.id === 'affaires') < MODULES_DECLARES.findIndex((m) => m.id === 'devis'), 'les dépendances viennent avant');
