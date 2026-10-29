@@ -1152,7 +1152,7 @@ describe('V3 enregistrer_reponse_vocabulaire : l’apprentissage, sans code (la 
     assert.equal(JSON.stringify(s.collections.devis_vocabulaire ?? []), avant, 'aucune règle écrite par un refus');
   });
 
-  test('V3e un mot trop général (3 lettres ou moins) ne devient jamais actif seul, même confirmé deux jours de suite', async () => {
+  test('V3e un mot trop général (3 lettres ou moins) ne devient jamais actif seul, même confirmé deux fois', async () => {
     const s = await demarrer();
     const vis = ok(await s.appeler('biblio', 'creer_article', { libelle: 'Vis inox 4x40', prixAchat: 1, unite: 'u' })).id;
     assert.equal(ok(await repondre(s, 'des vis', 'confirme', vis)).statut, 'a_confirmer');
