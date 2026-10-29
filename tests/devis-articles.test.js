@@ -23,7 +23,7 @@ describe('B1 le module Devis est déclaré et ne dépend que des Affaires', () =
     assert.deepEqual(devis.dependances, ['affaires']);
     assert.equal(devis.entreeMenu, 'devis/liste');
     assert.deepEqual(devis.ecrans.map((e) => e.route), ['devis/liste', 'devis/bordereau']);
-    assert.deepEqual(devis.collections, ['devis_articles', 'devis_parametres', 'devis_devis']);
+    assert.deepEqual(devis.collections, ['devis_articles', 'devis_parametres', 'devis_devis', 'devis_vocabulaire']);
     assert.ok(!('reserveAuxClients' in devis));
     assert.ok(MODULES_DECLARES.findIndex((m) => m.id === 'affaires') < MODULES_DECLARES.findIndex((m) => m.id === 'devis'), 'les dépendances viennent avant');
   });
@@ -298,7 +298,7 @@ describe('B8 règles Firestore : déclaration (les parcours sont dans regles-pla
 
 describe('B9 assistant : outils déclarés', () => {
   test('B9 le registre déclare les cinq outils du bordereau', () => {
-    assert.deepEqual(moduleDeclare('devis').outilsMcp, ['lister_articles', 'chercher_article', 'lire_reglages_devis', 'creer_article', 'modifier_article', 'desactiver_article', 'lister_devis', 'lire_devis', 'creer_devis_brouillon', 'modifier_devis_brouillon', 'finaliser_devis', 'nouvelle_version_devis', 'archiver_devis', 'enregistrer_envoi_devis', 'changer_statut_devis', 'supprimer_devis', 'rechercher_article_par_phrase']);
+    assert.deepEqual(moduleDeclare('devis').outilsMcp, ['lister_articles', 'chercher_article', 'lire_reglages_devis', 'creer_article', 'modifier_article', 'desactiver_article', 'lister_devis', 'lire_devis', 'creer_devis_brouillon', 'modifier_devis_brouillon', 'finaliser_devis', 'nouvelle_version_devis', 'archiver_devis', 'enregistrer_envoi_devis', 'changer_statut_devis', 'supprimer_devis', 'rechercher_article_par_phrase', 'enregistrer_reponse_vocabulaire']);
   });
 });
 
