@@ -1075,7 +1075,7 @@ const repondre = (s, phrase, reponse, articleId, profil = 'biblio') => s.appeler
 const lignesVocabulaire = (s) => (s.collections.crm_audit ?? []).filter((l) => l.outil === 'enregistrer_reponse_vocabulaire');
 
 describe('V3 enregistrer_reponse_vocabulaire : l’apprentissage, sans code (la phrase est recalculée)', () => {
-  test('V3a un « confirme » crée une règle à confirmer ; le même jour une 2e fois ne change rien ; un autre jour elle devient active et sert sans question', async () => {
+  test('V3a un « confirme » crée une règle à confirmer ; le même jour une 2e fois la rend active et sert sans question', async () => {
     const s = await demarrer();
     const ids = await catalogueVocabulaire(s);
     assert.equal(ok(await chercherPhrase(s, 'le tableau')).decision, 'proposer');
@@ -1092,15 +1092,7 @@ describe('V3 enregistrer_reponse_vocabulaire : l’apprentissage, sans code (la 
     assert.equal(regle.via, 'mcp');
     assert.ok(regle.creeLe && regle.creePar);
     assert.equal(ok(await chercherPhrase(s, 'le tableau')).decision, 'proposer', 'une règle à confirmer ne sert pas seule');
-    // Le même jour : rien (règle inchangée, pas de nouvelle ligne de journal).
-    const lignesAvant = lignesVocabulaire(s).length;
-    const copie = JSON.stringify(regle);
-    const b = ok(await repondre(s, 'le tableau', 'confirme', ids.t2));
-    assert.equal(b.rien, true);
-    assert.equal(JSON.stringify(s.doc('devis_vocabulaire', 'tableau')), copie);
-    assert.equal(lignesVocabulaire(s).length, lignesAvant);
-    // Un autre jour : deuxième confirmation, la règle devient active.
-    s.horloge.t += JOUR_MS;
+    // Une 2e confirmation, même jour : elle compte, la règle devient active.
     const c = ok(await repondre(s, 'un tableau', 'confirme', ids.t2));
     assert.equal(c.statut, 'active');
     assert.equal(c.confirmations, 2);
@@ -1108,7 +1100,7 @@ describe('V3 enregistrer_reponse_vocabulaire : l’apprentissage, sans code (la 
     const suite = ok(await chercherPhrase(s, 'le tableau'));
     assert.equal(suite.decision, 'utiliser');
     assert.equal(suite.candidats[0].articleId, ids.t2);
-    assert.doesNotMatch(JSON.stringify([a, b, c]), /prixAchat|marge/i);
+    assert.doesNotMatch(JSON.stringify([a, c]), /prixAchat|marge/i);
   });
 
   test('V3b « autre » : sans règle, crée une règle corrective à confirmer ; sur une règle active, la contredit et la passe en conflit ; refusé quand aucune question n’a dû être posée', async () => {

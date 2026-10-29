@@ -281,7 +281,7 @@ const JOUR = /^\d{4}-\d{2}-\d{2}$/;
 /**
  * Nouvelle version de la règle après une réponse du client. `evenement` : { type: 'confirme' } (le client confirme l'article de la règle) ou { type: 'autre' } (il en choisit un autre).
  * `maintenant` : le jour « AAAA-MM-JJ » (jamais lu ici). Renvoie la RÈGLE mise à jour { …règle, statut, confirmations, contradictions, conflit, derniereConfirmationLe } ; l'entrée n'est pas modifiée.
- * Une confirmation ne compte que si son jour diffère de `derniereConfirmationLe` (deux « oui » le même jour = un seul). Activation : `a_confirmer` -> `active` à 2 confirmations,
+ * Chaque confirmation compte, même le même jour (décision de Jérôme, 29/10/2026) ; `derniereConfirmationLe` garde le jour de la dernière. Activation : `a_confirmer` -> `active` à 2 confirmations,
  * 0 contradiction, sans conflit, et si la clé n'est pas trop générale (`articles` : le catalogue). Une règle désactivée ne change pas. Une règle active contredite passe en conflit.
  */
 export function decisionApprentissage(regle, evenement, maintenant, { articles = [] } = {}) {
@@ -301,10 +301,8 @@ export function decisionApprentissage(regle, evenement, maintenant, { articles =
     return r;
   }
   if (evenement?.type !== 'confirme') return r;
-  if (r.derniereConfirmationLe !== maintenant) {
-    r.confirmations += 1;
-    r.derniereConfirmationLe = maintenant;
-  }
+  r.confirmations += 1;
+  r.derniereConfirmationLe = maintenant;
   if (r.statut === 'a_confirmer' && r.confirmations >= SEUILS.confirmationsPourActiver && r.contradictions === 0 && !r.conflit && !cleTropGenerale(r.cle, articles)) r.statut = 'active';
   return r;
 }
