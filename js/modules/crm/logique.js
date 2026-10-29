@@ -589,12 +589,12 @@ export function formatDateHeure(v) {
  * Le montant estimé n'est jamais effacé : il revient dès qu'aucun devis accepté ne compte.
  */
 export function montantAffaire(a) {
-  if (typeof a?.montantDevisHt === 'number' && Number.isFinite(a.montantDevisHt)) return a.montantDevisHt;
+  if (montantVientDesDevis(a)) return a.montantDevisHt;
   return a?.montant === null || a?.montant === undefined || a.montant === '' ? null : Number(a.montant);
 }
 
 /** Vrai si le montant affiché vient des devis acceptés (et non du montant estimé). */
-export const montantVientDesDevis = (a) => typeof a?.montantDevisHt === 'number' && Number.isFinite(a.montantDevisHt);
+export const montantVientDesDevis = (a) => typeof a?.montantDevisHt === 'number' && Number.isFinite(a.montantDevisHt) && a.montantDevisHt >= 0;
 
 export function formatEuros(n) {
   const v = Number(n) || 0;

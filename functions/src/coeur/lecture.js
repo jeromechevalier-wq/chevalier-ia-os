@@ -137,7 +137,7 @@ export async function listerAffaires(donnees, { etape, statut, archive, personne
     sansAction: !!sansAction,
   };
   const gardees = L.filtrerAffaires(affaires, criteres, { activites, personnes, organisations, aujourdhui });
-  const lignes = gardees.map((a) => ({ ...sansDescription(a), statut: L.statutAffiche(a), personne: nomDe(personnes, a.personneId), organisation: nomDe(organisations, a.organisationId) }));
+  const lignes = gardees.map((a) => ({ ...sansDescription(a), statut: L.statutAffiche(a), montantAffiche: L.montantAffaire(a), personne: nomDe(personnes, a.personneId), organisation: nomDe(organisations, a.organisationId) }));
   const { total, tronque, elements } = borne(lignes, Math.min(limite ?? MAX_LIGNES, MAX_LIGNES));
   return serialiser({ total, tronque, affaires: elements });
 }

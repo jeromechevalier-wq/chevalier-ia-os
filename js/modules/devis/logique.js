@@ -1082,13 +1082,5 @@ export function texteVueInterne(devis) {
 }
 
 // ---------------------------------------------------------------- montant d'affaire
-/**
- * Montant de l'affaire : somme HT des devis acceptés (archivés compris) s'il y en a au moins un ;
- * sinon le montant saisi à la main, inchangé (on n'écrase jamais une saisie).
- */
-export function montantAffaireDepuisDevis(devisListe, montantSaisi) {
-  const acceptes = (devisListe ?? []).filter((d) => d?.statut === 'accepte');
-  if (acceptes.length === 0) return montantSaisi;
-  const sommeC = acceptes.reduce((s, d) => s + versCentimes(estNombre(d.totaux?.ht) ? d.totaux.ht : totauxDevis(d).ht), 0);
-  return versEuros(sommeC);
-}
+/** Montant de l'affaire : somme HT des devis acceptés non archivés (`montantAccepteHt`), sinon le montant saisi à la main, inchangé (on n'écrase jamais une saisie). */
+export const montantAffaireDepuisDevis = (devisListe, montantSaisi) => montantAccepteHt(devisListe) ?? montantSaisi;

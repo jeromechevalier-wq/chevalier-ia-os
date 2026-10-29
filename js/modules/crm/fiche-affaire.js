@@ -77,7 +77,7 @@ export function rendreFicheAffaire(conteneur, id) {
     const champEstime = champPropriete({ libelle: 'Montant estimé', valeur: a.montant ?? '', type: 'nombre', pas: '0.01', formater: (v) => L.formatEuros(v), fantome: '—', surEnregistrer: (v) => D.majAffaire(a.id, { montant: v }) });
     const depuisDevis = L.montantVientDesDevis(a);
     const blocMontant = depuisDevis
-      ? h('div', { class: 'fiche-montant-devis', dataset: { montant: 'devis' } },
+      ? h('div', { class: 'fiche-montant-devis', role: 'group', 'aria-label': 'Montant accepté HT', dataset: { montant: 'devis' } },
         h('span', { class: 'fiche-montant-valeur' }, L.formatEuros(a.montantDevisHt), h('small', { class: 'fiche-montant-suffixe' }, ' HT')),
         iconeInfo(`Somme HT des devis acceptés. Le montant estimé (${a.montant === null || a.montant === undefined || a.montant === '' ? 'non renseigné' : L.formatEuros(a.montant)}) se corrige dans le Résumé ; il revient ici si plus aucun devis accepté ne compte.`, 'Montant accepté HT'))
       : champEstime.element;

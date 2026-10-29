@@ -66,6 +66,20 @@ test('3 devis accepté : la fiche montre « Montant accepté HT » ; le montant 
   await expect(montant(page)).toContainText(/1\s?200\s€/);
 });
 
+test('3b cas vide : devis accepté et montant estimé jamais saisi : l’en-tête montre le montant accepté, le Résumé garde « Montant estimé » avec un tiret et son crayon', async ({ page }, info) => {
+  await creerAffaire('a1', { titre: 'Rénovation cuisine', montantDevisHt: 1200 });
+  await ouvrirAffaire(page);
+  await expect(libelle(page)).toHaveText('Montant accepté HT');
+  await expect(montant(page)).toContainText(/1\s?200\s€/);
+  await expect(ligneEstime(page).locator('.prop-fantome')).toHaveText('—');
+  await capturer(page, info, '3b-resume-estime-vide', page.locator('[data-section="affaire-resume"]'));
+  await ligneEstime(page).locator('.prop-fantome').click();
+  await page.getByLabel('Montant estimé', { exact: true }).fill('2000');
+  await page.getByLabel('Montant estimé', { exact: true }).press('Enter');
+  await expect.poll(async () => (await lireDocument('crm_affaires/a1')).montant).toBe(2000);
+  await expect(montant(page)).toContainText(/1\s?200\s€/);
+});
+
 test('4 le montant suit l’affaire en direct : devis acceptés retirés (archivés), le montant estimé revient sans recharger la page', async ({ page }, info) => {
   await creerAffaire('a1', { titre: 'Rénovation cuisine', montant: 900, montantDevisHt: 720 });
   await ouvrirAffaire(page);

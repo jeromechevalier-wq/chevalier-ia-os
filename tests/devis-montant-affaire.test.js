@@ -70,7 +70,7 @@ describe('N2 accepter un devis écrit le montant dans l’affaire', () => {
     assert.equal(affaireDe(m).montantDevisHt, 1800); // 1 200 + 600
     assert.equal(affaireDe(m).montant, undefined);
   });
-  test('N2 deux acceptations simultanées : le total final est la somme des deux', async () => {
+  test('N2 deux acceptations lancées ensemble (le vrai essai de concurrence est C8, sur l’émulateur) : le total final est la somme des deux', async () => {
     const m = monde({ devis: [brouillon('d1', 100), brouillon('d2', 50)] });
     await envoye(m, 'd1'); await envoye(m, 'd2');
     await Promise.all([statut(m, 'd1', 'accepter'), statut(m, 'd2', 'accepter')]);
@@ -160,6 +160,7 @@ describe('N5 montantAffaire : la lecture commune à tous les écrans', () => {
     assert.equal(LEcran.montantAffaire({ montant: null }), null);
     assert.equal(LEcran.montantAffaire({ montant: '' }), null);
     assert.equal(LEcran.montantAffaire(undefined), null);
+    assert.equal(LEcran.montantAffaire({ montant: 1500, montantDevisHt: -5000 }), 1500, 'une valeur négative écrite à la main est ignorée');
     assert.equal(LEcran.montantVientDesDevis({ montantDevisHt: 0 }), true);
     assert.equal(LEcran.montantVientDesDevis({ montantDevisHt: null, montant: 5 }), false);
   });
@@ -172,5 +173,19 @@ describe('N5 montantAffaire : la lecture commune à tous les écrans', () => {
   test('N5 la copie du serveur (functions/partage) lit pareil que l’écran', () => {
     assert.equal(L.montantAffaire({ montant: 1500, montantDevisHt: 1200 }), 1200);
     assert.equal(L.montantAffaire({ montant: 1500 }), 1500);
+  });
+});
+
+describe('N6 restaurer_depuis_audit ne défait pas un archivage de devis signé', () => {
+  test('N6 l’opération d’archivage (devis + affaire) est refusée, même avec forcer ; rien n’est écrit', async () => {
+    const { restaurerOperation } = await import('../functions/src/coeur/restaurer.js');
+    const m = monde({ devis: [brouillon('d1', 100)] });
+    await envoye(m, 'd1'); await statut(m, 'd1', 'accepter');
+    const r = await S.archiver({ donnees: m.donnees, ctx: ctx(), devisId: 'd1', archive: true });
+    const avant = JSON.stringify(m.collections[C.affaires]);
+    for (const forcer of [false, true]) {
+      await assert.rejects(() => restaurerOperation({ donnees: m.donnees, ctx: ctx(), operationId: r.operationId, apercu: false, forcer }), (e) => e.code === 'restauration_refusee');
+    }
+    assert.equal(JSON.stringify(m.collections[C.affaires]), avant);
   });
 });
