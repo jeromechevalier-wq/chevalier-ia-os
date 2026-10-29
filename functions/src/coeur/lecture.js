@@ -105,7 +105,8 @@ const sansDescription = ({ description: _ancienChamp, ...fiche }) => fiche;
 export async function lireAffaire(donnees, { id, avecFil }) {
   const brute = await donnees.document(C.affaires, id);
   if (!brute) introuvable('Affaire');
-  const affaire = { ...sansDescription(brute), statut: L.statutAffiche(brute) };
+  // `montant` = le montant estimé saisi ; `montantDevisHt` = le montant calculé d'après les devis, avec `montantDevisNature` (accepte | propose) et `montantDevisDetail` (écrits par le serveur) ; `montantAffiche` = celui que montre l'écran (le calcul d'abord).
+  const affaire = { ...sansDescription(brute), statut: L.statutAffiche(brute), montantAffiche: L.montantAffaire(brute) };
   const [personne, organisation, activites] = await Promise.all([
     affaire.personneId ? donnees.document(C.personnes, affaire.personneId) : null,
     affaire.organisationId ? donnees.document(C.organisations, affaire.organisationId) : null,
@@ -136,7 +137,7 @@ export async function listerAffaires(donnees, { etape, statut, archive, personne
     sansAction: !!sansAction,
   };
   const gardees = L.filtrerAffaires(affaires, criteres, { activites, personnes, organisations, aujourdhui });
-  const lignes = gardees.map((a) => ({ ...sansDescription(a), statut: L.statutAffiche(a), personne: nomDe(personnes, a.personneId), organisation: nomDe(organisations, a.organisationId) }));
+  const lignes = gardees.map((a) => ({ ...sansDescription(a), statut: L.statutAffiche(a), montantAffiche: L.montantAffaire(a), personne: nomDe(personnes, a.personneId), organisation: nomDe(organisations, a.organisationId) }));
   const { total, tronque, elements } = borne(lignes, Math.min(limite ?? MAX_LIGNES, MAX_LIGNES));
   return serialiser({ total, tronque, affaires: elements });
 }
