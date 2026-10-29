@@ -17,6 +17,7 @@ import { cheminBaseClient } from '../../partage/chemins.js';
 
 /** Nom de serveur neutre : le client ne voit pas le nom interne du CRM de Jérôme. */
 export const NOM_SERVEUR_CLIENT = 'espace-client';
+const BASE_LIEN_PLATEFORME = 'https://chevalier-ia-app.web.app';
 const MOTIF_LIEN = /^\/mcp\/([^/]+)$/;
 
 /** Outils proposés à un client : les outils communs et ceux des modules actifs (le profil du membre filtre ensuite). */
@@ -37,7 +38,7 @@ export function outilsSelonOptions(outils, options) {
 }
 
 /** `oauth` : creerRouteurOauthClients(). `limiteur` : plafonds par jeton (securite/limites.js, sur la base brute : clé « <client>__<acteur> »). */
-export function creerGestionnaireClients({ donnees, oauth, limiteur = null, stockage = null, outils = OUTILS, journal = journaliser, maintenant = () => Date.now() }) {
+export function creerGestionnaireClients({ donnees, oauth, limiteur = null, stockage = null, sortieEmail = null, outils = OUTILS, journal = journaliser, maintenant = () => Date.now() }) {
   return async function gestionnaire(req, res) {
     const debut = maintenant();
     const infos = {};
@@ -76,6 +77,6 @@ export function creerGestionnaireClients({ donnees, oauth, limiteur = null, stoc
     }
     const proposes = outilsSelonOptions(outilsDesModules(jeton.actifs ?? [], outils), options);
     Object.assign(infos, { jeton: jeton.jeton, acteur: jeton.acteur, profil: jeton.profil, role: jeton.role }, descriptionAppel(req.body, proposes));
-    return servirMcp({ req, res, infos, jeton, outils: proposes, donnees: donneesClient, limiteur, maintenant, nomServeur: NOM_SERVEUR_CLIENT, stockage });
+    return servirMcp({ req, res, infos, jeton, outils: proposes, donnees: donneesClient, limiteur, maintenant, nomServeur: NOM_SERVEUR_CLIENT, stockage, sortieEmail, baseLien: BASE_LIEN_PLATEFORME });
   };
 }

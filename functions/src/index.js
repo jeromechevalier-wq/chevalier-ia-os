@@ -40,6 +40,9 @@ const donnees = creerAccesFirestore();
 const limiteur = creerLimiteur({ donnees });
 const oauth = creerRouteurOauth({ donnees, verifierIdToken: creerVerificateurIdentite() });
 
+// Sortie vers n8n (adresse et secret lus dans Secret Manager à l'appel, jamais liés au déploiement) : l'écran ET l'assistant (MCP) ne font que demander un BROUILLON d'e-mail.
+const sortieN8nDevis = creerSortieN8n({ lireSecret: creerLecteurSecrets() });
+
 export const mcp = onRequest(
   {
     region: 'europe-west9',
@@ -48,10 +51,10 @@ export const mcp = onRequest(
     timeoutSeconds: 120,
     invoker: 'public',
     cors: false,
-    // Compte dédié : seulement « Utilisateur Cloud Datastore » (Firestore) et « Accesseur de secrets » sur MCP_JETONS.
+    // Compte dédié : « Utilisateur Cloud Datastore » (Firestore), « Accesseur de secrets » sur MCP_JETONS et sur les deux secrets du brouillon d'e-mail (N8N_DEVIS_EMAIL_*), « Créateur d'objets Storage » (dépôt de texte) ; « Lecteur des objets Storage » et « Créateur de jetons du compte de service » sur lui-même sont À DONNER pour le lien signé du PDF officiel (docs/securite-et-pannes.md, section 12), sans quoi l'outil rend seulement le lien du devis.
     serviceAccount: 'mcp-serveur@chevalier-ia-os.iam.gserviceaccount.com',
   },
-  creerGestionnaire({ magasin, donnees, limiteur, oauth, stockage: stockageDuProjet }),
+  creerGestionnaire({ magasin, donnees, limiteur, oauth, stockage: stockageDuProjet, sortieEmail: sortieN8nDevis }),
 );
 
 export const porte = onRequest(
@@ -133,7 +136,6 @@ export const devisEnregistrerEnvoi = appelDevis('enregistrerEnvoi'); // historiq
 // L'adresse du webhook et son secret sont lus dans Secret Manager au moment de l'appel (N8N_DEVIS_EMAIL_URL, N8N_DEVIS_EMAIL_SECRET), jamais liés au déploiement : s'ils manquent,
 // la fonction répond « pas encore branchée » et l'écran masque le bouton (devisPreparerEmailEtat). Le compte de service doit avoir « Accesseur de secrets » sur ces deux secrets (docs/ajouter-un-bouton-workflow.md).
 // Le seul fichier qui fait le POST vers n8n est coeur/n8n-sortie.js (un test le borne). Le résultat revient par la porte (devis.lireEmail, devis.noterEmailPrepare).
-const sortieN8nDevis = creerSortieN8n({ lireSecret: creerLecteurSecrets() });
 export const devisPreparerEmail = onCall(OPTIONS_DEVIS, (requete) => {
   if (!getApps().length) initializeApp();
   return creerAppelPreparerEmail({ donnees: () => creerAccesFirestore(), sortie: sortieN8nDevis, journal: (e) => process.stdout.write(`${ligneDeJournalDevis(e)}\n`) })(requete);
