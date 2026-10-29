@@ -9,6 +9,7 @@ const ligne = (id, libelle, prixAchat, quantite, extra = {}) => ({ id, libelle, 
 
 const base = {
   ...D.nouveauDevis({ destinataires: [{ email: 'client@exemple.test' }] }, { maintenant: new Date('2026-10-24T10:00:00Z'), auteur: 'a@exemple.test', nouvelId: (n) => `${n}_1` }, reglages),
+  affaireId: 'a1', // un devis ne se finalise plus sans affaire
   objet: 'Rénovation de la toiture et de la zinguerie',
   adresses: { commanditaire: { texte: '1 rue du Test\n75000 Ville' }, facturation: null, chantier: { texte: '2 rue du Chantier, 75000 Ville' } },
   conditionsPaiement: '30 % à la commande, le solde à la réception des travaux.',
