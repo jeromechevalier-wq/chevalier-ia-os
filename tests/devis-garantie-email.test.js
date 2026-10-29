@@ -16,7 +16,7 @@ import { OUTILS, annotationsDe } from '../functions/src/mcp/outils/index.js';
 import { GARANTIE_PAS_D_ENVOI, concerneParLaGarantie } from '../functions/src/mcp/outils/garantie.js';
 import { creerSortieN8n, HOTE_N8N } from '../functions/src/coeur/n8n-sortie.js';
 import { empreinte, creerMagasin } from '../functions/src/securite/jetons.js';
-import { creerAccesMemoire } from '../functions/src/coeur/donnees.js';
+import { creerAccesMemoire, avecBase } from '../functions/src/coeur/donnees.js';
 import { creerLimiteur } from '../functions/src/securite/limites.js';
 import { collections as base, MAINTENANT } from './_donnees-essai.js';
 
@@ -39,19 +39,22 @@ const PDF_OK = { statut: 'ok', chemin: CHEMIN, nom: 'Devis DEV-2026-10-01-001 v1
 const finalise = (id, statut = 'en_attente_envoi', extra = {}) => devisEnregistre(id, { statut, numero: 'DEV-2026-10-01-001', finaliseLe: new Date('2026-10-02T08:00:00Z'), totaux: TOTAUX, pdf: PDF_OK, ...extra });
 
 /** `stockage` : un faux stockage qui note chaque lien demandé. `sortie` : un faux n8n (objet) ou null (pas branché). */
-async function demarrer({ devis = [], stockage = 'normal', sortie = 'normale', fetchImpl = null } = {}) {
+async function demarrer({ devis = [], stockage = 'normal', sortie = 'normale', fetchImpl = null, client = null, secretsAbsents = false } = {}) {
   const collections = structuredClone(base);
   Object.assign(collections, { devis_articles: [], devis_devis: devis.map((d) => structuredClone(d)), devis_compteurs: [], devis_parametres: [{ id: 'reglages', regimeTva: 'assujetti', marge: 20, modeMarge: 'majoration' }], crm_actions_lancements: [] });
-  const donnees = creerAccesMemoire(collections);
+  // Chez un client : les collections vivent sous clients/<client>/ et les outils passent par avecBase (comme le MCP des clients).
+  const rangees = client ? Object.fromEntries(Object.entries(collections).map(([k, v]) => [`clients/${client}/${k}`, v])) : collections;
+  const acces = creerAccesMemoire(rangees);
+  const donnees = client ? avecBase(acces, `clients/${client}`) : acces;
   const horloge = { t: MAINTENANT.getTime() };
   const liens = [];
   const faux = stockage === 'normal' ? { existe: async () => true, lienSigne: async (chemin, options) => { liens.push({ chemin, ...options }); return `https://stockage.exemple.test/signe?exp=${options.minutes}`; } } : null;
   const demandes = [];
-  const sortieFaux = sortie === 'normale' ? { branche: async () => true, demander: async (espace, d) => { demandes.push({ espace, ...d }); } } : null;
+  const sortieFaux = secretsAbsents ? creerSortieN8n({ lireSecret: async () => { throw new Error('secret absent'); }, fetchImpl: async () => { throw new Error('ne doit jamais être appelé'); } }) : sortie === 'normale' ? { branche: async () => true, demander: async (espace, d) => { demandes.push({ espace, ...d }); } } : null;
   const secret = JSON.stringify([entree(JETONS.lecteur, 'lecteur-essai', 'lecteur'), entree(JETONS.biblio, 'hermes-bibliothecaire', 'bibliothecaire'), entree(JETONS.code, 'claude-code-jerome', 'claude-code')]);
   const magasin = creerMagasin({ lire: async () => secret, dureeCacheMs: 0 });
   const limiteur = creerLimiteur({ donnees, maintenant: () => horloge.t });
-  const gestionnaire = creerGestionnaire({ magasin, donnees, limiteur, maintenant: () => horloge.t, journal: () => {}, stockage: faux, sortieEmail: fetchImpl ? creerSortieN8n({ lireSecret: fetchImpl.secret, fetchImpl: fetchImpl.fetch }) : sortieFaux });
+  const gestionnaire = creerGestionnaire({ magasin, donnees, limiteur, maintenant: () => horloge.t, journal: () => {}, stockage: faux, baseLien: client ? 'https://chevalier-ia-app.web.app' : undefined, sortieEmail: fetchImpl ? creerSortieN8n({ lireSecret: fetchImpl.secret, fetchImpl: fetchImpl.fetch }) : sortieFaux });
   const serveur = createServer((req, res) => {
     const m = [];
     req.on('data', (x) => m.push(x));
@@ -78,23 +81,32 @@ async function demarrer({ devis = [], stockage = 'normal', sortie = 'normale', f
     try { data = JSON.parse(texte); } catch { data = undefined; }
     return { isError: !!corps.result.isError, texte, data };
   };
-  return { collections, appeler, horloge, liens, demandes, doc: (nom, id) => collections[nom]?.find((d) => d.id === id) };
+  return { collections, appeler, horloge, liens, demandes, doc: (nom, id) => collections[nom]?.find((d) => d.id === id), lignesLancements: () => rangees[client ? `clients/${client}/crm_actions_lancements` : 'crm_actions_lancements'] };
 }
 const ok = (r) => { assert.equal(r.isError, false, r.texte); return r.data; };
 const refuse = (r, motif) => { assert.equal(r.isError, true, `devait être refusé : ${r.texte}`); if (motif) assert.match(r.texte, motif); };
 
 describe('1 obtenir_pdf_officiel_devis : le seul PDF, un lien court, jamais fabriqué', () => {
-  test('1 un devis finalisé rend un lien de 5 minutes, le nom du PDF et la consigne ; jamais le chemin de stockage, ni prix d’achat, ni marge', async () => {
+  test('1 un devis finalisé rend le lien du devis dans l’application, le nom du PDF et la consigne ; aucun lien de stockage, ni chemin, ni prix d’achat, ni marge', async () => {
     const s = await demarrer({ devis: [finalise('f1')] });
     const r = ok(await s.appeler('lecteur', 'obtenir_pdf_officiel_devis', { id: 'f1' }));
-    assert.equal(r.lien, 'https://stockage.exemple.test/signe?exp=5');
-    assert.equal(r.valableMinutes, 5);
+    assert.equal(r.lienApplication, 'https://chevalier-ia-os.web.app/#/devis/voir/f1');
     assert.equal(r.numero, 'DEV-2026-10-01-001');
     assert.equal(r.nom, PDF_OK.nom);
-    assert.match(r.consigne, /seul PDF officiel/);
+    assert.equal(r.avertissement, undefined, 'un devis en attente d’envoi : aucun avertissement');
+    assert.match(r.consigne, /seul à utiliser/);
     assert.match(r.consigne, /preparer_email/);
-    assert.deepEqual(s.liens.map((l) => [l.chemin, l.minutes]), [[CHEMIN, 5]]);
-    assert.doesNotMatch(JSON.stringify(r), /devis\/a1|prixAchat|marge|sha256/);
+    assert.equal(s.liens.length, 0, 'aucun lien signé n’est créé : le compte du MCP ne lit pas le stockage');
+    assert.doesNotMatch(JSON.stringify(r), /devis\/a1\/|\.pdf\?|prixAchat|\bmarge\b|sha256|X-Goog|googleapis/i);
+  });
+
+  test('1 chez un client : le lien porte l’adresse de la plateforme et le préfixe de l’espace de CE client ; un devis remplacé, refusé, expiré ou archivé est signalé', async () => {
+    const chemin = 'clients/demo/devis/a1/f1/x.pdf';
+    const s = await demarrer({ client: 'demo', devis: [finalise('f1', 'en_attente_envoi', { pdf: { ...PDF_OK, chemin } }), finalise('r1', 'remplace', { pdf: { ...PDF_OK, chemin } }), finalise('a2', 'accepte', { archive: true, pdf: { ...PDF_OK, chemin } })] });
+    const r = ok(await s.appeler('lecteur', 'obtenir_pdf_officiel_devis', { id: 'f1' }));
+    assert.equal(r.lienApplication, 'https://chevalier-ia-app.web.app/#/espace/demo/devis/voir/f1');
+    assert.match(ok(await s.appeler('lecteur', 'obtenir_pdf_officiel_devis', { id: 'r1' })).avertissement, /« remplace »/);
+    assert.match(ok(await s.appeler('lecteur', 'obtenir_pdf_officiel_devis', { id: 'a2' })).avertissement, /archivé/);
   });
 
   test('1 refus, sans jamais demander de lien : brouillon, PDF en cours, absent, en échec, devis inconnu ; chaque refus dit à l’assistant de s’arrêter', async () => {
@@ -110,13 +122,11 @@ describe('1 obtenir_pdf_officiel_devis : le seul PDF, un lien court, jamais fabr
     assert.equal(s.liens.length, 0, 'aucun lien n’est créé pour un refus');
   });
 
-  test('1 un chemin hors du dossier des devis de l’espace, ou un stockage introuvable, est refusé sans lien', async () => {
+  test('1 un chemin hors du dossier des devis de l’espace est refusé', async () => {
     const autre = demarrer({ devis: [finalise('x1', 'envoye', { pdf: { ...PDF_OK, chemin: 'clients/autre/devis/a1/x1/x.pdf' } })] });
     const s = await autre;
     refuse(await s.appeler('lecteur', 'obtenir_pdf_officiel_devis', { id: 'x1' }), /pas été retrouvé.*ARRÊTE-TOI/s);
-    const sans = await demarrer({ devis: [finalise('f1')], stockage: null });
-    refuse(await sans.appeler('lecteur', 'obtenir_pdf_officiel_devis', { id: 'f1' }), /stockage.*ARRÊTE-TOI/is);
-    assert.equal(s.liens.length + sans.liens.length, 0);
+    assert.equal(s.liens.length, 0);
   });
 
   test('1 outil de lecture seule : ouvert au profil lecteur, indice « lecture seule »', () => {
@@ -167,11 +177,19 @@ describe('2 preparer_email : un brouillon seulement, jamais d’envoi', () => {
     assert.equal(s.demandes.length, 0);
   });
 
-  test('2 pas branché (aucune adresse ni secret pour cet espace) : refus clair, dit de ne rien envoyer par un autre moyen, rien n’est écrit', async () => {
-    const s = await demarrer({ devis: [finalise('f1')], sortie: null });
+  test('2 pas branché (secrets absents pour cet espace, cas réel) : refus clair, dit de ne rien envoyer par un autre moyen, aucune écriture ni ligne de journal, plafond d’écriture non consommé', async () => {
+    const s = await demarrer({ devis: [finalise('f1')], secretsAbsents: true });
     refuse(await s.appeler('biblio', 'preparer_email', { type: 'devis', id: 'f1' }), /pas encore branchée.*Ne l’envoie pas toi-même/s);
     assert.equal(s.doc('devis_devis', 'f1').emailPrepare, undefined);
     assert.equal(s.collections.crm_actions_lancements.length, 0);
+    assert.equal((s.collections.crm_audit ?? []).filter((l) => l.outil === 'devisPreparerEmail').length, 0);
+  });
+
+  test('2 chez un client : l’espace donné à n8n est l’identifiant du client (et « interne » chez Jérôme)', async () => {
+    const s = await demarrer({ client: 'demo', devis: [finalise('f1', 'en_attente_envoi', { pdf: { ...PDF_OK, chemin: 'clients/demo/devis/a1/f1/x.pdf' } })] });
+    ok(await s.appeler('biblio', 'preparer_email', { type: 'devis', id: 'f1' }));
+    assert.equal(s.demandes[0].espace, 'demo');
+    assert.equal(s.lignesLancements()[0].client, 'demo');
   });
 
   test('2 la description dit « brouillon », « n’envoie rien » et renvoie vers l’utilisateur ; l’outil n’est ni lecture seule ni destructeur', () => {
@@ -282,7 +300,7 @@ describe('6 rejeu : devis finalisé -> PDF officiel -> brouillon d’e-mail, auc
     };
     const s = await demarrer({ devis: [finalise('f1')], fetchImpl });
     const pdf = ok(await s.appeler('lecteur', 'obtenir_pdf_officiel_devis', { id: 'f1' }));
-    assert.match(pdf.lien, /^https:\/\/stockage\.exemple\.test\//);
+    assert.match(pdf.lienApplication, /^https:\/\/chevalier-ia-os\.web\.app\/#\/devis\/voir\/f1$/);
     const prep = ok(await s.appeler('biblio', 'preparer_email', { type: 'devis', id: 'f1' }));
     assert.equal(prep.envoye, false);
     assert.equal(appelsSortants.length, 1, 'une seule demande sortante');

@@ -23,7 +23,7 @@ export const outilsAutorises = (profil, outils = OUTILS) => outils.filter((o) =>
  *    sauf valider_proposition et refuser_proposition, les décisions de la file « À valider » : elles NE passent PAS par le journal d'audit
  *    (décision atomique dans coeur/propositions.js), donc restaurer_depuis_audit ne les annule pas (OUTILS_NON_ANNULABLES) ; rappelées, elles refusent
  *    (déjà décidée), d'où idempotentHint faux, et elles ne détruisent rien (la proposition reste lisible), d'où destructiveHint faux.
- *    Toutes les autres écritures sont annulables par restaurer_depuis_audit.
+ *    Toutes les autres écritures sont annulables par restaurer_depuis_audit, sauf preparer_email (opération devisPreparerEmail : refusée par restaurer.js pour un devis finalisé, et le brouillon d'e-mail créé resterait).
  * Aucun outil ne sort du CRM : openWorldHint toujours faux.
  */
 export function annotationsDe(outil) {

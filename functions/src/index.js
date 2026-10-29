@@ -51,7 +51,7 @@ export const mcp = onRequest(
     timeoutSeconds: 120,
     invoker: 'public',
     cors: false,
-    // Compte dédié : seulement « Utilisateur Cloud Datastore » (Firestore) et « Accesseur de secrets » sur MCP_JETONS.
+    // Compte dédié : « Utilisateur Cloud Datastore » (Firestore), « Accesseur de secrets » sur MCP_JETONS et sur les deux secrets du brouillon d'e-mail (N8N_DEVIS_EMAIL_*), « Créateur d'objets Storage » (dépôt de texte). Aucune lecture du stockage, aucun lien signé.
     serviceAccount: 'mcp-serveur@chevalier-ia-os.iam.gserviceaccount.com',
   },
   creerGestionnaire({ magasin, donnees, limiteur, oauth, stockage: stockageDuProjet, sortieEmail: sortieN8nDevis }),
