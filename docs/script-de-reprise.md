@@ -5,7 +5,7 @@
 ## Comment ça marche
 1. Ouvre une **nouvelle session** sur le dépôt `chevalier-ia-os`.
 2. Colle le **script de reprise commun** (juste en dessous), puis le **script du sujet** choisi.
-3. À la fin d'une session, elle met à jour sa ligne dans `.github/A-FAIRE.md` et te dit quoi rapporter à la session principale.
+3. À chaque étape, la session envoie un court message à la session principale (qui est ainsi réveillée) ; à la fin elle met à jour sa ligne dans `.github/A-FAIRE.md`. Tu peux aussi demander à la session principale « où en est la session 1 ? » : elle va lire.
 4. La session principale ne reçoit que le résultat en une phrase, pas le détail.
 
 ## Script de reprise commun (à coller au début de chaque session)
@@ -15,7 +15,7 @@ Reprise de travail sur Chevalier IA OS. Lis dans cet ordre, sans rien modifier :
 1. CLAUDE.md (décisions permanentes et façon de travailler : explique simplement, donne les liens exacts, jamais de secret).
 2. .github/A-FAIRE.md, la « Vue d'ensemble » en haut : état de tout le projet au 29/10/2026 (version 2.34.0).
 3. docs/reprise-prochaine-session.md, le rapport du matin de la 3e nuit.
-Puis fais UNIQUEMENT le sujet ci-dessous. Une PR par sujet, depuis la dernière version de main. Ne touche pas à la version ni au wiki sauf si le sujet le dit. Ne déploie jamais la plateforme clients sans que Jérôme lance le bouton. À la fin : mets à jour la ligne du sujet dans .github/A-FAIRE.md et résume en 5 lignes simples pour Jérôme.
+Puis fais UNIQUEMENT le sujet ci-dessous. Une PR par sujet, depuis la dernière version de main. Ne touche pas à la version ni au wiki sauf si le sujet le dit. Ne déploie jamais la plateforme clients sans que Jérôme lance le bouton. À chaque étape terminée (et à la fin), envoie un court message à la session principale avec l'outil send_message de claude-code-remote, session_id session_01MBW4b4ELa55fEs2cP41e2G : une ligne « étape faite / bloqué / décision attendue », sans secret ni donnée de client. À la fin : mets à jour la ligne du sujet dans .github/A-FAIRE.md et résume en 5 lignes simples pour Jérôme.
 ```
 
 ## Session 1 : Mise en service du dictionnaire (Jérôme + Claude, environ 1 heure)
