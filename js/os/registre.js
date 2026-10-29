@@ -126,6 +126,7 @@ export const MODULES_DECLARES = geler([
     ecrans: [
       { route: 'devis/liste', libelle: 'Devis', icone: 'file-text' },
       { route: 'devis/bordereau', libelle: 'Catalogue', icone: 'list' },
+      { route: 'devis/vocabulaire', libelle: 'Vocabulaire', icone: 'book-open' },
     ],
     collections: ['devis_articles', 'devis_parametres', 'devis_devis', 'devis_vocabulaire'],
     outilsMcp: ['lister_articles', 'chercher_article', 'lire_reglages_devis', 'creer_article', 'modifier_article', 'desactiver_article', 'lister_devis', 'lire_devis', 'creer_devis_brouillon', 'modifier_devis_brouillon', 'finaliser_devis', 'nouvelle_version_devis', 'archiver_devis', 'enregistrer_envoi_devis', 'changer_statut_devis', 'supprimer_devis', 'rechercher_article_par_phrase', 'enregistrer_reponse_vocabulaire'],

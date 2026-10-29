@@ -1,8 +1,9 @@
-// Module Devis (cadrage-devis.md) : montage et routes. Trois écrans : le Bordereau (articles), la liste des devis et l'éditeur d'un devis.
-// Routes : devis/bordereau, devis/liste, devis/voir/<id> (le même écran que l'éditeur, ouvert sur l'onglet Prévisualisation), devis/editeur (ancienne page « Nouveau devis » : crée un brouillon sans affaire et ouvre l'éditeur), devis/editeur/<id> (non déclarée dans le menu : on y arrive par la liste), et les anciennes adresses devis/pdf/<id> et devis/pdf/<id>/brouillon (la page du PDF n'existe plus : elles mènent à l'éditeur du devis ; elles sont écrites dans les Documents des affaires et dans des e-mails déjà envoyés). Le module lit le CRM (étapes des affaires) : le CRM démarre avant lui (le module Devis dépend de « affaires », pas de « projets »).
+// Module Devis (cadrage-devis.md) : montage et routes. Quatre écrans : le Bordereau (articles), le Vocabulaire (mots appris), la liste des devis et l'éditeur d'un devis.
+// Routes : devis/bordereau, devis/vocabulaire, devis/liste, devis/voir/<id> (le même écran que l'éditeur, ouvert sur l'onglet Prévisualisation), devis/editeur (ancienne page « Nouveau devis » : crée un brouillon sans affaire et ouvre l'éditeur), devis/editeur/<id> (non déclarée dans le menu : on y arrive par la liste), et les anciennes adresses devis/pdf/<id> et devis/pdf/<id>/brouillon (la page du PDF n'existe plus : elles mènent à l'éditeur du devis ; elles sont écrites dans les Documents des affaires et dans des e-mails déjà envoyés). Le module lit le CRM (étapes des affaires) : le CRM démarre avant lui (le module Devis dépend de « affaires », pas de « projets »).
 import { vider } from '../../os/ui.js';
 import * as D from './donnees.js';
 import { rendreBordereau } from './bordereau.js';
+import { rendreVocabulaire } from './vocabulaire-ecran.js';
 import { rendreListeDevis } from './liste-ecran.js';
 import { rendreEditeurDevis } from './editeur-ecran.js';
 import { routeApresPdfSupprime } from './pdf.js';
@@ -86,6 +87,7 @@ const VUES = {
   editeur: (conteneur, segs) => rendreEditeurDevis(conteneur, segs[1] || null),
   voir: (conteneur, segs) => rendreEditeurDevis(conteneur, segs[1], { voir: true }), // devis/voir/<id> : le MÊME écran que devis/editeur/<id>, ouvert sur l'onglet Prévisualisation (lecture seule si le devis n'est plus un brouillon)
   bordereau: (conteneur) => rendreBordereau(conteneur),
+  vocabulaire: (conteneur) => rendreVocabulaire(conteneur), // les mots appris par l'assistant (revue, ajout à la main, essai d'une phrase, export CSV)
 };
 
 export function afficher(conteneur, segs) {

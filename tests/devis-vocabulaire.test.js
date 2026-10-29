@@ -515,3 +515,178 @@ describe('V10 copie vers le serveur et chez les clients', () => {
     if (existsSync(plateforme)) assert.equal(readFileSync(plateforme, 'utf8'), attendu);
   });
 });
+
+// ---------------------------------------------------------------- PR 5 : l'écran « Vocabulaire » (logique pure de vocabulaire-plans.js ; les parcours à l'écran sont dans e2e/devis-vocabulaire.spec.js)
+// Mots et articles INVENTÉS. Un test par point de la section 8 : le nom commence par E1 à E11.
+describe('E écran Vocabulaire : plans, filtres, tri, CSV', async () => {
+  const P = await import('../js/modules/devis/vocabulaire-plans.js');
+  const CRM = await import('../js/modules/crm/logique.js');
+  const ctx = { nouvelId: () => 'x', auteur: 'jerome.chevalier@gmail.com' };
+  const mots = [
+    { id: 'prise_double', cle: 'prise double', expression: 'prise double', articleId: 'a02', articleLibelle: 'Prise double 16 A', statut: 'active', origine: 'apprise_question', confirmations: 3, contradictions: 0, conflit: false, exemples: ['mets 3 prises doubles'], derniereUtilisationLe: '2026-10-20' },
+    { id: 'tableau', cle: 'tableau', expression: 'tableau', articleId: 'a04', articleLibelle: 'Tableau électrique 2 rangées', statut: 'active', origine: 'apprise_correction', confirmations: 2, contradictions: 1, conflit: true, exemples: [], derniereUtilisationLe: '2026-10-25' },
+    { id: 'gaine', cle: 'gaine', expression: 'gaine', articleId: 'a08', articleLibelle: 'Gaine ICTA 20 mm', statut: 'a_confirmer', origine: 'apprise_question', confirmations: 1, contradictions: 0, conflit: false, exemples: ['de la gaine'] },
+    { id: 'rj', cle: 'rj', expression: 'RJ', articleId: 'a03', articleLibelle: 'Prise RJ45', statut: 'desactivee', origine: 'manuelle', confirmations: 0, contradictions: 0, conflit: false, exemples: [], derniereUtilisationLe: '2026-09-01' },
+  ];
+
+  test('E6 création manuelle : mot actif, origine manuelle, compteurs à zéro, identifiant = clé du moteur, marques de création', () => {
+    const plan = P.planCreerMot({ expression: '  Prises   Doubles ', articleId: 'a02' }, ctx, { regles: [], articles: CATALOGUE });
+    assert.deepEqual(plan.erreurs, {});
+    assert.equal(plan.id, 'prise_double');
+    assert.equal(plan.ecritures.length, 1);
+    const [e] = plan.ecritures;
+    assert.equal(e.type, 'creer');
+    assert.equal(e.collection, 'devis_vocabulaire');
+    assert.deepEqual(e.donnees, { cle: 'prise double', expression: 'Prises Doubles', articleId: 'a02', articleLibelle: 'Prise double 16 A', statut: 'active', origine: 'manuelle', confirmations: 0, contradictions: 0, conflit: false, exemples: [] });
+    assert.deepEqual(e.horodater, ['creeLe', 'modifieLe']);
+    assert.deepEqual(e.signer, ['creePar', 'modifiePar']);
+  });
+  test('E6 création manuelle : expression vide, clé impossible, article absent ou désactivé sont refusés sans écriture', () => {
+    const catalogue = [...CATALOGUE, { id: 'zz', libelle: 'Vieux', actif: false, prixAchat: 1, unite: 'u' }, { id: 'tx', libelle: 'Texte libre', type: 'texte', actif: true }];
+    for (const [saisie, champ] of [[{ expression: '', articleId: 'a02' }, 'expression'], [{ expression: '   ', articleId: 'a02' }, 'expression'], [{ expression: 'le la les', articleId: 'a02' }, 'expression'],
+      [{ expression: 'prise', articleId: undefined }, 'articleId'], [{ expression: 'prise', articleId: 'zz' }, 'articleId'], [{ expression: 'prise', articleId: 'tx' }, 'articleId'], [{ expression: 'prise', articleId: 'inconnu' }, 'articleId']]) {
+      const plan = P.planCreerMot(saisie, ctx, { regles: [], articles: catalogue });
+      assert.ok(plan.erreurs[champ], `${JSON.stringify(saisie)} : message sur « ${champ} »`);
+      assert.deepEqual(plan.ecritures, []);
+    }
+    assert.equal(P.planCreerMot({ expression: 'le la', articleId: 'a02' }, ctx, { articles: CATALOGUE }).erreurs.expression, P.MESSAGE_NON_ENREGISTRABLE);
+  });
+  test('E6 un mot qui existe déjà n’est JAMAIS écrasé (« creer » ferait un set) : refus et mot à modifier ; la clé tronquée à 100 caractères compte pareil', () => {
+    const plan = P.planCreerMot({ expression: 'Prises doubles', articleId: 'a05' }, ctx, { regles: mots, articles: CATALOGUE });
+    assert.deepEqual(plan.ecritures, []);
+    assert.match(plan.erreurs.expression, /existe déjà/);
+    assert.equal(plan.existante.id, 'prise_double');
+    const longue = `${'abcdefghij '.repeat(12)}fin`; // plus de 100 caractères une fois normalisée
+    const idLong = V.identifiantDeRegle(V.cleDeExpression(longue));
+    assert.equal(idLong.length, 100);
+    const autre = P.planCreerMot({ expression: `${longue} suite différente`, articleId: 'a02' }, ctx, { regles: [{ id: idLong, cle: 'x', statut: 'active' }], articles: CATALOGUE });
+    assert.deepEqual(autre.ecritures, []);
+    assert.equal(autre.existante.id, idLong);
+  });
+  test('E11 jamais de suppression, jamais de compteur : les plans n’écrivent que statut, articleId, articleLibelle, note, conflit (+ marques de modification)', () => {
+    assert.deepEqual([...P.CHAMPS_MODIFIABLES], ['statut', 'articleId', 'articleLibelle', 'note', 'conflit']);
+    const plans = [
+      P.planChangerStatut('tableau', 'active', { regles: mots, articles: CATALOGUE }), P.planChangerStatut('prise_double', 'desactivee', { regles: mots, articles: CATALOGUE }),
+      P.planChangerStatut('gaine', 'active', { regles: mots, articles: CATALOGUE }), P.planChangerArticle('tableau', 'a05', { regles: mots, articles: CATALOGUE }),
+      P.planChangerArticle('prise_double', 'a05', { regles: mots, articles: CATALOGUE }), P.planNote('gaine', 'Le client dit « gaine » pour la grosse.', { regles: mots }),
+    ];
+    for (const plan of plans) {
+      assert.deepEqual(plan.erreurs, {});
+      assert.equal(plan.ecritures.length, 1);
+      for (const e of plan.ecritures) {
+        assert.equal(e.type, 'modifier', 'jamais « supprimer »');
+        assert.ok(Object.keys(e.patch).every((k) => P.CHAMPS_MODIFIABLES.includes(k)), `champs écrits : ${Object.keys(e.patch)}`);
+        assert.deepEqual(e.horodater, ['modifieLe']);
+        assert.deepEqual(e.signer, ['modifiePar']);
+        for (const interdit of ['confirmations', 'contradictions', 'origine', 'expression', 'cle', 'exemples', 'creeLe', 'creePar', 'derniereUtilisationLe', 'derniereConfirmationLe']) assert.ok(!(interdit in e.patch), interdit);
+      }
+    }
+    // Le texte du code : aucun appel de suppression dans les fichiers de l'écran, et les écritures passent toutes par les plans.
+    for (const f of ['js/modules/devis/vocabulaire-plans.js', 'js/modules/devis/vocabulaire-ecran.js']) assert.ok(!/'supprimer'|deleteDoc|ecritureSupprimer/.test(lire(f)), f);
+    assert.ok(!/deleteDoc/.test(lire('js/modules/devis/donnees.js')));
+  });
+  test('E11 activer un mot en conflit lève le conflit ; changer son article le tranche aussi ; un article désactivé empêche d’activer', () => {
+    assert.deepEqual(P.planChangerStatut('tableau', 'active', { regles: mots, articles: CATALOGUE }).patch, { conflit: false });
+    assert.deepEqual(P.planChangerStatut('gaine', 'active', { regles: mots, articles: CATALOGUE }).patch, { statut: 'active' });
+    assert.deepEqual(P.planChangerArticle('tableau', 'a05', { regles: mots, articles: CATALOGUE }).patch, { articleId: 'a05', articleLibelle: 'Tableau électrique 4 rangées', conflit: false });
+    const sansA04 = CATALOGUE.map((a) => (a.id === 'a04' ? { ...a, actif: false } : a));
+    const refus = P.planChangerStatut('tableau', 'active', { regles: mots, articles: sansA04 });
+    assert.ok(refus.erreurs.general);
+    assert.deepEqual(refus.ecritures, []);
+    assert.equal(P.planChangerArticle('tableau', 'a04', { regles: mots, articles: sansA04 }).erreurs.articleId, P.MESSAGE_ARTICLE_INTROUVABLE);
+    assert.deepEqual(P.planChangerStatut('inconnu', 'active', { regles: mots, articles: CATALOGUE }).ecritures, []);
+  });
+  test('E4 désactiver puis « Annuler » : le statut d’avant revient (même « à confirmer »), sans revérifier l’article ; le même statut n’écrit rien', () => {
+    assert.deepEqual(P.planChangerStatut('gaine', 'desactivee', { regles: mots, articles: CATALOGUE }).patch, { statut: 'desactivee' });
+    assert.deepEqual(P.planChangerStatut('gaine', 'a_confirmer', { regles: mots.map((m) => (m.id === 'gaine' ? { ...m, statut: 'desactivee' } : m)), articles: CATALOGUE, restaurer: true }).patch, { statut: 'a_confirmer' });
+    assert.ok(P.planChangerStatut('gaine', 'a_confirmer', { regles: mots, articles: CATALOGUE }).erreurs.general, 'sans « restaurer », « à confirmer » n’est pas un choix');
+    assert.deepEqual(P.planChangerStatut('prise_double', 'active', { regles: mots, articles: CATALOGUE }).ecritures, []);
+    const sansA02 = CATALOGUE.map((a) => (a.id === 'a02' ? { ...a, actif: false } : a));
+    assert.deepEqual(P.planChangerStatut('prise_double', 'active', { regles: mots.map((m) => ({ ...m, statut: 'desactivee' })), articles: sansA02, restaurer: true }).patch, { statut: 'active' });
+  });
+  test('E11 la note : 300 caractères au plus, vide = effacée, inchangée = aucune écriture', () => {
+    assert.deepEqual(P.planNote('gaine', '  Une remarque  ', { regles: mots }).patch, { note: 'Une remarque' });
+    assert.ok(P.planNote('gaine', 'x'.repeat(301), { regles: mots }).erreurs.note);
+    assert.equal(P.planNote('gaine', 'x'.repeat(300), { regles: mots }).ecritures.length, 1);
+    const avecNote = mots.map((m) => (m.id === 'gaine' ? { ...m, note: 'Déjà là' } : m));
+    assert.deepEqual(P.planNote('gaine', 'Déjà là', { regles: avecNote }).ecritures, []);
+    assert.deepEqual(P.planNote('gaine', '', { regles: avecNote }).patch, { note: '' });
+  });
+
+  test('E2 la phrase d’état : actifs, à confirmer, à trancher (zéros omis, pluriel)', () => {
+    assert.equal(P.phraseEtat(mots), '1 mot appris actif · 1 à confirmer · 1 à trancher');
+    assert.equal(P.phraseEtat([]), '0 mot appris actif');
+    assert.equal(P.phraseEtat([mots[0], { ...mots[0], id: 'b' }]), '2 mots appris actifs');
+  });
+  test('E2 filtres : « ou » dans un groupe, « et » entre groupes, à trancher seulement, mot trop général, recherche sans accents', () => {
+    const f = (criteres, recherche = '', trop) => P.filtrerMots(mots, { ...P.CRITERES_VOCABULAIRE_VIDES, ...criteres }, recherche, trop).map((m) => m.id);
+    assert.deepEqual(f({}), ['prise_double', 'tableau', 'gaine', 'rj']);
+    assert.deepEqual(f({ statuts: ['active', 'a_confirmer'] }), ['prise_double', 'tableau', 'gaine']);
+    assert.deepEqual(f({ statuts: ['active'], origines: ['apprise_correction'] }), ['tableau']);
+    assert.deepEqual(f({ aTrancher: true }), ['tableau']);
+    assert.deepEqual(f({ tropGeneral: true }, '', (r) => r.cle.split(' ').length === 1 && r.cle.length <= 3), ['rj']);
+    assert.deepEqual(f({}, 'ELECTRIQUE rangees'), ['tableau'], 'sans accents ni casse, dans l’article');
+    assert.deepEqual(f({}, 'grosse'), []);
+    assert.deepEqual(f({}, 'de la gaine'), ['gaine'], 'dans les exemples');
+    assert.equal(P.nombreFiltres({ statuts: ['active', 'a_confirmer'], origines: [], aTrancher: true, tropGeneral: false }), 3);
+    const memo = P.tropGeneralMemoire(CATALOGUE);
+    assert.equal(memo({ cle: 'rj' }), true);
+    assert.equal(memo({ cle: 'prise double' }), false);
+  });
+  test('E2 tri : dernière utilisation (récent d’abord, « jamais utilisé » toujours en dernier), à trancher d’abord, expression', () => {
+    const ids = (t) => P.trierMots(mots, t).map((m) => m.id);
+    assert.deepEqual(ids(P.TRI_PAR_DEFAUT), ['tableau', 'prise_double', 'rj', 'gaine']);
+    assert.deepEqual(ids({ critere: 'utilisation', sens: 'asc' }), ['rj', 'prise_double', 'tableau', 'gaine'], 'le sens change, « jamais » reste en dernier');
+    assert.deepEqual(ids({ critere: 'a_trancher', sens: 'asc' }), ['tableau', 'gaine', 'prise_double', 'rj']);
+    assert.deepEqual(ids({ critere: 'expression', sens: 'asc' }), ['gaine', 'prise_double', 'rj', 'tableau']);
+    assert.deepEqual(mots.map((m) => m.id), ['prise_double', 'tableau', 'gaine', 'rj'], 'la liste donnée n’est pas modifiée');
+    assert.deepEqual(P.CRITERES_TRI.map((c) => c.libelle), ['Dernière utilisation', 'À trancher d’abord', 'Expression']);
+  });
+  test('E3 affichage : la date lit le texte AAAA-MM-JJ (jamais un horodatage), « Jamais » sans date, compteurs au pluriel', () => {
+    assert.equal(P.jourAffiche(mots[0]), '20/10/2026');
+    assert.equal(P.jourAffiche(mots[2]), 'Jamais');
+    assert.equal(P.jourAffiche({ derniereUtilisationLe: { seconds: 1, nanoseconds: 0 } }), 'Jamais');
+    assert.equal(P.compteursAffiches(mots[0]), '3 confirmations');
+    assert.equal(P.compteursAffiches(mots[1]), '2 confirmations · 1 contradiction');
+    assert.equal(P.compteursAffiches({}), '0 confirmation');
+    assert.deepEqual(P.STATUTS.map((s) => s.libelle), ['Actif', 'À confirmer', 'Désactivé']);
+  });
+
+  test('E8 CSV : séparateur virgule, guillemets doublés, champ entouré si virgule, guillemet ou retour à la ligne, \\r\\n, BOM UTF-8', () => {
+    assert.equal(P.cellule('simple'), 'simple');
+    assert.equal(P.cellule('a,b'), '"a,b"');
+    assert.equal(P.cellule('il a dit "oui"'), '"il a dit ""oui"""');
+    assert.equal(P.cellule('ligne 1\nligne 2'), '"ligne 1\nligne 2"');
+    assert.equal(P.cellule('ligne 1\r\nligne 2'), '"ligne 1\r\nligne 2"');
+    assert.equal(P.cellule(3), '3');
+    assert.equal(P.cellule(null), '');
+    assert.equal(P.cellule('=SOMME(A1:A2)'), "'=SOMME(A1:A2)", 'une expression de client ne devient jamais une formule de tableur');
+    assert.equal(P.cellule('+33 1'), "'+33 1");
+    const csv = P.construireCsv([{ id: 'x', cle: 'x', expression: 'prise, "double"', articleLibelle: 'Prise double 16 A', statut: 'a_confirmer', origine: 'apprise_question', confirmations: 1, derniereUtilisationLe: '2026-10-20' },
+      { id: 'y', cle: 'y', expression: 'accent é', articleLibelle: 'Gaine', statut: 'active', origine: 'manuelle', confirmations: 0 }]);
+    assert.equal(csv.charCodeAt(0), 0xFEFF);
+    assert.equal(csv, '﻿Expression,Article,Statut,Origine,Confirmations,Dernière utilisation\r\naccent é,Gaine,Actif,Ajouté ici,0,\r\n"prise, ""double""",Prise double 16 A,À confirmer,Appris (question),1,2026-10-20\r\n');
+    assert.equal(P.construireCsv([]), '﻿Expression,Article,Statut,Origine,Confirmations,Dernière utilisation\r\n');
+  });
+  test('E8 le nom du fichier CSV suit la règle des exports (date de Paris) ; le Journal nomme le mot appris', () => {
+    assert.equal(CRM.nomFichierExport(new Date('2026-10-29T10:00:00Z'), 'vocabulaire'), 'chevalier-ia-vocabulaire-2026-10-29.csv');
+    assert.equal(CRM.nomFichierExport(new Date('2026-10-29T23:30:00Z'), 'vocabulaire'), 'chevalier-ia-vocabulaire-2026-10-30.csv');
+    assert.equal(CRM.libelleDocumentJournal('devis_vocabulaire'), 'mot appris');
+    assert.equal(CRM.libelleDocumentJournal('devis_vocabulaire', true), 'mots appris');
+  });
+  test('E1 le branchement : écran déclaré au registre, vue du module, barre du haut gardée, bouton d’accès dans la liste des devis, « mot appris » et jamais « règle » à l’écran', () => {
+    assert.match(lire('js/os/registre.js'), /route: 'devis\/vocabulaire', libelle: 'Vocabulaire'/);
+    assert.match(lire('js/modules/devis/index.js'), /vocabulaire: \(conteneur\) => rendreVocabulaire\(conteneur\)/);
+    assert.match(lire('js/os/shell.js'), /'devis\/vocabulaire'\]/);
+    assert.match(lire('js/modules/devis/liste-ecran.js'), /ouvrir-vocabulaire/);
+    const visible = lire('js/modules/devis/vocabulaire-ecran.js').replace(/\/\/.*$/gm, '');
+    assert.ok(!/[«'’ ]règles?\b|Règle\b/.test(visible.replace(/\bregles?\b/g, '')), 'on dit « mot appris », pas « règle »');
+  });
+});
+
+describe('E6 création refusée quand la liste n’est pas lue', () => {
+  test('E6 donnees.js refuse de créer si la lecture est en erreur ou pas prête (un « creer » écraserait un mot invisible)', () => {
+    const d = lire('js/modules/devis/donnees.js');
+    assert.match(d, /if \(etat\.erreurLectureVocabulaire \|\| !etat\.vocabulairePret\) return \{ erreurs: \{ general: V\.MESSAGE_LISTE_INDISPONIBLE \}/);
+  });
+});

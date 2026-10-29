@@ -122,3 +122,6 @@ Indicateurs : une ligne basse par indicateur, l'explication « Comment c'est cal
 - **Croix « Retirer le dossier »** (onglet G-Drive) : une croix à la place du bouton « Retirer », nom accessible « Retirer le dossier », 44 px au moins, avec la fenêtre d'avertissement avant ; les pastilles-liens font aussi 44 px (PR 360).
 - **Nom du devis** (PR 365) : champ interne pour s'y retrouver dans les listes et la recherche ; il n'est **jamais imprimé** (l'« objet », lui, l'est).
 - **Croix de suppression d'un brouillon** dans l'onglet Devis, avec fenêtre de confirmation ; brouillons seulement (PR 354).
+
+## Devis : écran « Vocabulaire » (29/10/2026)
+- Un seul terme à l'écran : **« mot appris »** (jamais « règle »). Pastilles « Actif », « À confirmer », « Désactivé » et, pour un conflit, « À trancher ». On y accède par le bouton « Vocabulaire » de la liste des devis ; le module Devis n'a pas de barre d'onglets. Détail : `docs/proposition-dictionnaire-vocabulaire.md`, section 8.

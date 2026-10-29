@@ -204,3 +204,6 @@ Procédure de `CLAUDE.md` : chaque point = une phrase observable, **un test dont
 4. Porte du module chez Jérôme, appel sortant borné.
 5. Écrans, outils de l'assistant.
 6. **Plateforme clients** : règles, fonctions, porte de la base 2, workflow du client (déploiements manuels, jamais sans Jérôme).
+
+## Écran « Vocabulaire » (29/10/2026)
+Troisième écran du module Devis (`devis/vocabulaire`, bouton « Vocabulaire » dans l'en-tête de la liste) : les mots appris par l'assistant, leur revue, l'essai d'une phrase et l'export CSV. Voir `docs/proposition-dictionnaire-vocabulaire.md`, section 8.
