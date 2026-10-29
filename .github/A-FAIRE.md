@@ -15,7 +15,7 @@ Mise à jour : 29/10/2026, fin de la 3e nuit (PR 379 à 387, 389, 390 et 392 à 
 | 🟢 | Dictionnaire de vocabulaire : proposition de conception (381) et revue de conception Fable (386), PR 1 le moteur (387), PR 2 l'outil `rechercher_article_par_phrase` et le prix de vente sur les lignes de devis (389), PR 3 l'apprentissage (390), PR 5 l'écran « Vocabulaire » (394) ; tests corrigés par 392 (C19) et 393 (barre globale, essai du devis) | Fusionné | Jérôme teste l'écran |
 | 🟠 | PR 388 « Montant de l'affaire » (Montant estimé / Montant du devis / Total des devis) : libellés et règle HT/TTC/acceptés à valider | PR ouverte | **Jérôme** valide, puis fusion |
 | 🟠 | PR 391 règles Firestore du dictionnaire (`devis_vocabulaire`) : sans elles le navigateur ne peut pas lire ni écrire le dictionnaire | PR ouverte, règles non publiées | **Jérôme** fusionne, **Claude** publie les règles |
-| 🟠 | PR 369 « Documents » : 3 urgences de la revue (règles Storage du projet de Jérôme, droits IAM, sauvegarde serveur de `crm_audit*` et `devis_compteurs`) | PR ouverte | **Jérôme** |
+| 🟠 | PR 369 « Documents » : 3 urgences de la revue (règles Storage du projet de Jérôme, droits IAM, sauvegarde serveur de `crm_audit*` et `devis_compteurs`) | Guide pas à pas écrit : `docs/preparer-fusion-369-documents.md` ; PR 369 ouverte, à mettre à jour avec `main` (sans conflit) | **Jérôme** (consoles), puis fusion |
 | 🟠 | Questions Q1 à Q10 de la proposition du dictionnaire (`docs/proposition-dictionnaire-vocabulaire.md`) ; valeurs par défaut prises : prix de vente seulement, 2 confirmations sur 2 jours, `prixVente` oui, HT, onglet du module Devis, plafonds 500/300, export CSV oui, nom `rechercher_article_par_phrase`, ordre 1 à 6 ; et prix d'achat visibles ou non par l'assistant | Valeurs par défaut en place | **Jérôme** confirme |
 | 🟠 | Déploiements chez les clients (`hosting`, `fonctions`, `mcp`, `regles`) et déploiement de `functions/` chez Jérôme (renommer un workflow) | Pas lancés | **Jérôme avec Claude** |
 | ⚪ | Pas fait : PR 6 du dictionnaire (confirmation à la finalisation : sautée, valeur modeste pour un risque sur le chemin de finalisation ; son brief corrigé par Fable est conservé hors dépôt), génération du PDF trop lente, `lienStablePdf` (aucun consommateur côté navigateur, les anciens liens `#/devis/pdf/<id>` sont déjà redirigés : à ne pas faire), vérification que l'assistant enchaîne vraiment les deux outils (essai avec un vrai ChatGPT) | Plus tard | Claude |
@@ -31,7 +31,7 @@ La session principale est trop longue : elle garde les décisions et ce tableau.
 | Session | Sujet | Qui | État |
 |---|---|---|---|
 | 1 | Mise en service du dictionnaire : fusion de la PR 391, règles Firestore, déploiements `regles`, `hosting`, `fonctions`, `mcp`, essai avec un vrai ChatGPT | Jérôme + Claude | À lancer en premier |
-| 2 | PR 369 « Documents » : règles Storage, droits IAM, sauvegarde de `crm_audit*` et `devis_compteurs` | Claude, puis Jérôme pour la console | En attente |
+| 2 | PR 369 « Documents » : règles Storage, droits IAM, sauvegarde de `crm_audit*` et `devis_compteurs` | Claude, puis Jérôme pour la console | Guide écrit (`docs/preparer-fusion-369-documents.md`) ; reste : Jérôme lit les règles Storage et donne les droits IAM, puis deux PR séparées (`storage.rules`, sauvegarde ciblée, relues par Fable) |
 | 3 | Génération du PDF trop lente : mesure puis progression | Claude seul | En attente |
 | Principale | Décisions : Q1 à Q10, prix d'achat, PR 388, dates des travaux, études n°11 et n°12 | Jérôme | En attente |
 
