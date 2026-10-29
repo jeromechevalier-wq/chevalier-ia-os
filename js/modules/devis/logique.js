@@ -539,6 +539,23 @@ export function peutArchiver(devis) {
   return devis?.archive !== true && transitionPossible(devis?.statut, 'archiver');
 }
 
+/**
+ * Montant d'une affaire d'après ses devis (règle D17 du cadrage) : la somme des HT des devis ACCEPTÉS (Signé), hors archivés, au centime près.
+ * `null` s'il n'y en a aucun : l'affaire garde alors son montant estimé (saisi à la main), qui n'est jamais effacé.
+ * Un devis accepté dont le total HT figé n'est pas un nombre est ignoré (jamais un chiffre inventé).
+ * Le serveur écrit ce résultat dans `montantDevisHt` de l'affaire (functions/src/coeur/devis.js) ; les écrans le lisent avec `montantAffaire` (crm/logique.js).
+ */
+export function montantAccepteHt(devisDeLAffaire) {
+  let centimes = 0;
+  let nombre = 0;
+  for (const d of devisDeLAffaire ?? []) {
+    if (d?.statut !== 'accepte' || d.archive === true || typeof d.totaux?.ht !== 'number' || !Number.isFinite(d.totaux.ht)) continue;
+    centimes += versCentimes(d.totaux.ht);
+    nombre += 1;
+  }
+  return nombre ? versEuros(centimes) : null;
+}
+
 // ---------------------------------------------------------------- validation de finalisation
 const EMAIL = /^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]{2,}$/;
 const emailDe = (d) => (typeof d === 'string' ? d : d?.email ?? '').trim();

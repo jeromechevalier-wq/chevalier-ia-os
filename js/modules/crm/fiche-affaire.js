@@ -72,7 +72,16 @@ export function rendreFicheAffaire(conteneur, id) {
     majLiens = liens.maj;
     const vivante = L.estVivante(a);
     const titre = titreEditable({ valeur: a.titre, libelle: 'Titre', surEnregistrer: (v) => D.majAffaire(a.id, { titre: v }) });
-    const montant = champPropriete({ libelle: 'Montant', valeur: a.montant ?? '', type: 'nombre', pas: '0.01', formater: (v) => L.formatEuros(v), fantome: L.formatEuros(999), surEnregistrer: (v) => D.majAffaire(a.id, { montant: v }) });
+    // Le montant vient de l'affaire elle-même (pas des devis chargés à part) : rien ne clignote au chargement. Devis acceptés = leur total HT (écrit par le serveur, règle D17) ;
+    // sinon le montant estimé saisi à la main (un tiret gris s'il est vide, jamais un chiffre inventé). Le montant estimé n'est jamais effacé : il se corrige dans le Résumé quand des devis sont acceptés.
+    const champEstime = champPropriete({ libelle: 'Montant estimé', valeur: a.montant ?? '', type: 'nombre', pas: '0.01', formater: (v) => L.formatEuros(v), fantome: '—', surEnregistrer: (v) => D.majAffaire(a.id, { montant: v }) });
+    const depuisDevis = L.montantVientDesDevis(a);
+    const blocMontant = depuisDevis
+      ? h('div', { class: 'fiche-montant-devis', dataset: { montant: 'devis' } },
+        h('span', { class: 'fiche-montant-valeur' }, L.formatEuros(a.montantDevisHt), h('small', { class: 'fiche-montant-suffixe' }, ' HT')),
+        iconeInfo(`Somme HT des devis acceptés. Le montant estimé (${a.montant === null || a.montant === undefined || a.montant === '' ? 'non renseigné' : L.formatEuros(a.montant)}) se corrige dans le Résumé ; il revient ici si plus aucun devis accepté ne compte.`, 'Montant accepté HT'))
+      : champEstime.element;
+    const libelleMontant = depuisDevis ? 'Montant accepté HT' : 'Montant estimé';
     const menu = h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Plus d’actions', 'data-action': 'menu-fiche',
       onclick: (e) => ouvrirMenu(e.currentTarget, [
         ...(a.statut === 'perdue' ? [{ libelle: 'Rouvrir', icone: 'rotate-ccw', action: () => D.rouvrir(a.id) }] : []),
@@ -100,7 +109,7 @@ export function rendreFicheAffaire(conteneur, id) {
             liens.element)),
         // Le montant et les boutons forment une seule zone : même axe vertical, même espace entre voisins.
         h('div', { class: 'fiche-tete-droite' },
-          h('div', { class: 'fiche-montant' }, montant.element),
+          h('div', { class: 'fiche-montant' }, h('span', { class: 'fiche-montant-libelle', dataset: { role: 'libelle-montant' } }, libelleMontant), blocMontant),
           h('div', { class: 'fiche-actions' }, actionsStatut, menu))),
       (barreEtapes = barreDesEtapes(a)));
 
@@ -134,6 +143,7 @@ export function rendreFicheAffaire(conteneur, id) {
       contenu: h('div', { class: 'proprietes' },
         h('div', { class: 'prop' }, h('span', { class: 'prop-libelle' }, 'Personne'), h('div', { class: 'prop-valeur' }, selPersonne.element)),
         h('div', { class: 'prop' }, h('span', { class: 'prop-libelle' }, 'Organisation'), h('div', { class: 'prop-valeur' }, selOrg.element)),
+        ...(depuisDevis ? [champEstime.element] : []),
         champPropriete({ libelle: 'Offre', valeur: a.offreId || '', type: 'select', options: offres.map((x) => ({ valeur: x.id, libelle: x.nom })), surEnregistrer: (v) => D.majAffaire(a.id, { offreId: v || null }) }).element,
         champPropriete({ libelle: 'Priorité', valeur: a.priorite || 'tiede', type: 'select', options: L.PRIORITES.map((x) => ({ valeur: x.id, libelle: x.libelle })), surEnregistrer: (v) => D.majAffaire(a.id, { priorite: v || 'tiede' }) }).element,
         h('div', { class: 'prop', dataset: { prop: 'etape' } }, h('span', { class: 'prop-libelle' }, 'Étape'), h('div', { class: 'prop-valeur' }, selectEtape)),

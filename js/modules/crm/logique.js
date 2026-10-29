@@ -583,6 +583,19 @@ export function formatDateHeure(v) {
   return `${p.day}/${p.month}/${p.year} ${p.hour}:${p.minute}`;
 }
 
+/**
+ * LE montant d'une affaire, pour tous les écrans (fiche, Kanban, liste, cartes, total de colonne, chiffre d'affaires du mois) et pour l'assistant :
+ * la somme HT des devis acceptés (`montantDevisHt`, écrite par le serveur, règle D17) tant qu'il y en a ; sinon le montant estimé saisi à la main (`montant`) ; sinon null.
+ * Le montant estimé n'est jamais effacé : il revient dès qu'aucun devis accepté ne compte.
+ */
+export function montantAffaire(a) {
+  if (typeof a?.montantDevisHt === 'number' && Number.isFinite(a.montantDevisHt)) return a.montantDevisHt;
+  return a?.montant === null || a?.montant === undefined || a.montant === '' ? null : Number(a.montant);
+}
+
+/** Vrai si le montant affiché vient des devis acceptés (et non du montant estimé). */
+export const montantVientDesDevis = (a) => typeof a?.montantDevisHt === 'number' && Number.isFinite(a.montantDevisHt);
+
 export function formatEuros(n) {
   const v = Number(n) || 0;
   return new Intl.NumberFormat('fr-FR', {
@@ -1602,7 +1615,7 @@ export const CALCULS = {
     calculer: ({ affaires = [], config }, mois) => {
       if (avantDebut(mois, config)) return 0;
       const gagnee = configDe(config).roleGagnee;
-      return affaires.filter((a) => a.etape === gagnee && a.statut === 'gagnee' && dansLeMois(a.datesEtapes?.[gagnee], mois)).reduce((t, a) => t + euros(a.montant), 0);
+      return affaires.filter((a) => a.etape === gagnee && a.statut === 'gagnee' && dansLeMois(a.datesEtapes?.[gagnee], mois)).reduce((t, a) => t + euros(montantAffaire(a)), 0);
     },
   },
   ca_facture: {
@@ -1746,7 +1759,7 @@ export function caParMois(affaires, moisListe, projets = []) { // chiffre d'affa
 }
 
 export function totauxColonne(affaires) {
-  return { nombre: affaires.length, montant: affaires.reduce((s, a) => s + (Number(a.montant) || 0), 0) };
+  return { nombre: affaires.length, montant: affaires.reduce((s, a) => s + (montantAffaire(a) || 0), 0) };
 }
 
 // ---------------------------------------------------------------- filtres

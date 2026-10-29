@@ -19,7 +19,7 @@
 | Tests de la barre globale et de l'essai du devis adaptés à « Devis sans affaire » | 393 | fusionnée seule |
 | Dictionnaire, PR 5 : écran « Vocabulaire » (mots appris, revue, essai, export CSV) | 394 | fusionnée seule |
 | Dictionnaire, PR 4 : règles Firestore de `devis_vocabulaire` (non publiées) | 391 | **à fusionner par Jérôme**, puis Claude publie les règles |
-| Montant de l'affaire (Montant estimé / Montant du devis / Total des devis) | 388 | **à valider par Jérôme** (libellés, règle HT/TTC/acceptés) |
+| Montant de l'affaire (somme HT des devis acceptés dans `montantDevisHt`, montant estimé conservé ; remplace la PR 388) | PR « Montant de l'affaire » | **à valider par Jérôme** (libellés, « HT » sur les cartes, migration de ses affaires actuelles) |
 | Onglet « Documents » : fichiers stockés chez nous | 369 | **à fusionner par Jérôme** (règles Storage du projet de Jérôme, droits IAM, sauvegarde serveur de `crm_audit*` et `devis_compteurs`) |
 | Dictionnaire, PR 6 : confirmation à la finalisation | aucune | sautée : valeur modeste pour un risque sur le chemin de finalisation (brief corrigé par Fable conservé hors dépôt) |
 | `lienStablePdf` | aucune | abandonné : aucun consommateur côté navigateur, les anciens liens `#/devis/pdf/<id>` sont déjà redirigés |
@@ -31,7 +31,7 @@
 - **Décisions prises seul** : valeurs par défaut de Q1 à Q10 (prix de vente seulement, 2 confirmations sur 2 jours, `prixVente` oui, HT, onglet du module Devis, plafonds 500/300, export CSV oui, nom `rechercher_article_par_phrase`, ordre 1 à 6) ; PR 6 sautée ; `lienStablePdf` abandonné.
 - **Actions pour Jérôme, dans l'ordre** :
   1. Fusionner la PR 391 (règles du dictionnaire) : Claude publie ensuite les règles (workflows « Publier les règles (CRM de Jérôme) » puis « Déploiement plateforme clients » > regles, ce dernier lancé par toi).
-  2. Valider la PR 388 (montant de l'affaire) : libellés et règle HT/TTC/acceptés.
+  2. Valider la PR « Montant de l'affaire » (remplace la 388) : libellés, « HT » sur les cartes, migration éventuelle de ses affaires actuelles.
   3. Traiter la PR 369 (Documents) : règles Storage du projet de Jérôme, droits IAM, sauvegarde serveur de `crm_audit*` et `devis_compteurs`, puis fusion.
   4. Répondre à Q1 à Q10 du dictionnaire (surtout : prix d'achat visibles ou non par l'assistant) et décider si d'autres champs que l'affaire deviennent obligatoires à la finalisation (dates des travaux, durée).
   5. Avec Claude : déploiements `hosting`, `fonctions`, `mcp`, `regles` chez les clients et `functions/` chez toi ; chez le client, module Devis actif, puis « Actualiser les outils » dans ChatGPT ; enfin l'essai de bout en bout avec un vrai ChatGPT.

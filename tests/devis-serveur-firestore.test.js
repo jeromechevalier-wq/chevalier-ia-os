@@ -37,7 +37,7 @@ describe('Transitions des devis sur Firestore (émulateur)', { skip: emulateur ?
   });
   after(async () => { await deleteApp(app); });
   beforeEach(async () => {
-    for (const nom of [C.devis, C.devisCompteurs, C.devisParametres, C.audit, C.auditAvant, 'clients/a/devis_devis', 'clients/a/devis_compteurs', 'clients/a/crm_audit', 'clients/a/crm_audit_avant']) {
+    for (const nom of [C.devis, C.devisCompteurs, C.devisParametres, C.audit, C.auditAvant, C.affaires, 'clients/a/crm_affaires', 'clients/a/devis_devis', 'clients/a/devis_compteurs', 'clients/a/crm_audit', 'clients/a/crm_audit_avant']) {
       for (const d of (await db.collection(nom).get()).docs) await d.ref.delete();
     }
   });
@@ -121,5 +121,32 @@ describe('Transitions des devis sur Firestore (émulateur)', { skip: emulateur ?
     assert.equal(await brut(C.devisCompteurs, 'global'), null);
     assert.equal((await db.collection('clients/a/crm_audit').get()).size, 1);
     assert.equal((await db.collection(C.audit).get()).size, 0);
+  });
+
+  test('C8 le montant de l’affaire (somme HT des devis acceptés) est écrit dans la transaction : deux acceptations simultanées donnent la somme, le montant estimé reste intact', async () => {
+    await db.collection(C.affaires).doc('aff1').set({ titre: 'Rénovation', montant: 1500 });
+    const gros = [{ id: 's', titre: 'Travaux', lignes: [{ id: 'l', libelle: 'Article', unite: 'u', quantite: 100, prixAchat: 10 }] }]; // 100 x 12 = 1 200 € HT
+    await poser('d1', { statut: 'envoye', numero: 'DEV-2026-10-01-001', sections: gros, totaux: { ht: 1200, ttc: 1440 } });
+    await poser('d2', { statut: 'envoye', numero: 'DEV-2026-10-01-002', totaux: { ht: 600, ttc: 720 } });
+    await Promise.all([S.changerStatut({ donnees, ctx: ctx(), devisId: 'd1', action: 'accepter' }), S.changerStatut({ donnees, ctx: ctx(), devisId: 'd2', action: 'accepter' })]);
+    const affaire = await brut(C.affaires, 'aff1');
+    assert.equal(affaire.montantDevisHt, 1800);
+    assert.equal(affaire.montant, 1500);
+    await S.archiver({ donnees, ctx: ctx(), devisId: 'd1', archive: true });
+    assert.equal((await brut(C.affaires, 'aff1')).montantDevisHt, 600);
+    await S.archiver({ donnees, ctx: ctx(), devisId: 'd2', archive: true });
+    assert.equal((await brut(C.affaires, 'aff1')).montantDevisHt, null);
+    assert.equal((await brut(C.affaires, 'aff1')).montant, 1500);
+    assert.ok((await db.collection(C.audit).get()).docs.some((x) => x.data().collection === C.affaires), 'le journal garde les écritures de l’affaire');
+  });
+
+  test('C8 dans l’espace d’un client, seule l’affaire du client reçoit le montant ; celle de Jérôme n’est pas touchée', async () => {
+    await db.collection(C.affaires).doc('aff1').set({ titre: 'Chez Jérôme', montant: 10 });
+    await db.doc('clients/a/crm_affaires/aff1').set({ titre: 'Chez le client', montant: 20 });
+    const { id: _i, ...reste } = brouillon('da', { statut: 'envoye', numero: 'DEV-2026-10-01-001', totaux: { ht: 600, ttc: 720 } });
+    await db.doc('clients/a/devis_devis/da').set(reste);
+    await S.changerStatut({ donnees: avecBase(donnees, 'clients/a'), ctx: { acteur: 'alice@exemple.test', via: 'ecran', maintenant: MAINTENANT }, devisId: 'da', action: 'accepter' });
+    assert.equal((await db.doc('clients/a/crm_affaires/aff1').get()).data().montantDevisHt, 600);
+    assert.equal((await brut(C.affaires, 'aff1')).montantDevisHt, undefined);
   });
 });

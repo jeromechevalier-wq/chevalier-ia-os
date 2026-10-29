@@ -12,6 +12,9 @@
 //   simultanées ne reçoivent jamais le même numéro (Firestore relance la perdante). Un devis invalide ne consomme AUCUN numéro.
 // - Accepter une version passe aussi les autres versions vivantes (finalisée ou envoyée) de la même racine à « Remplacé » (cadrage §5).
 // - Le journal n'enregistre pas le compteur lui-même (bruit) ; le numéro attribué est dans la copie du devis.
+// - Montant de l'affaire (29/10/2026, règle D17) : le montant des devis ACCEPTÉS (somme HT, hors archivés) est écrit dans `montantDevisHt` de l'affaire, DANS la transaction qui accepte
+//   ou qui archive / désarchive un devis accepté (seuls moments où l'ensemble des devis acceptés change : un devis accepté ne peut être ni refusé, ni remplacé, ni supprimé). Le montant estimé
+//   (`montant`, saisi à la main) n'est jamais touché. Aucune migration : une affaire n'est recalculée que lorsqu'un de ses devis change.
 import * as D from '../../partage/devis.js';
 import * as A from '../../partage/devis-articles.js';
 import * as L from '../../partage/logique.js';
@@ -89,6 +92,23 @@ export function modifier(devis, patch, collection = C.devis) {
 }
 
 /**
+ * Écriture du montant des devis acceptés dans l'affaire du devis (`montantDevisHt`), ou null s'il n'y a rien à changer (pas d'affaire, affaire supprimée, même montant).
+ * `retouches` : { idDevis: champs } = ce que la transaction en cours change sur ses devis, appliqué en mémoire avant le calcul (les écritures ne partent qu'à la fin).
+ * À appeler AVANT `tx.ecrire` (Firestore veut toutes les lectures d'abord). Ne crée jamais l'affaire.
+ */
+async function montantDeLAffaire(tx, devis, retouches) {
+  const affaireId = devis.affaireId;
+  if (typeof affaireId !== 'string' || !affaireId || affaireId.includes('/')) return null;
+  const affaire = await tx.document(C.affaires, affaireId);
+  if (!affaire) return null;
+  const liste = (await tx.liste(C.devis, { champ: 'affaireId', valeur: affaireId })).map(enDates);
+  if (!liste.some((d) => d.id === devis.id)) liste.push(devis);
+  const montant = D.montantAccepteHt(liste.map((d) => ({ ...d, ...(retouches[d.id] ?? {}) })));
+  const actuel = typeof affaire.montantDevisHt === 'number' ? affaire.montantDevisHt : null;
+  return montant === actuel ? null : modifier(affaire, { montantDevisHt: montant }, C.affaires);
+}
+
+/**
  * Fige un brouillon : attribue le numéro, fige prix, TVA et totaux, passe à « Finalisé » (`en_attente_envoi`) et met la version précédente de la même
  * racine à « Remplacé ». Un devis invalide ne change RIEN : on rend `{ ok: false, erreurs }`.
  * Renvoie `{ ok: true, devis, numero, nouveauNumero, remplaces }`.
@@ -152,6 +172,9 @@ export async function changerStatut({ donnees, ctx, devisId, action }) {
       const versions = await lireVersions(tx, devis);
       remplaces = versions.filter((v) => v.id !== devis.id && D.transitionPossible(v.statut, 'remplacer'));
       for (const v of remplaces) changements.push(modifier(v, { statut: D.statutApres(v.statut, 'remplacer'), remplaceLe: ctx.maintenant }));
+      // Le montant de l'affaire devient la somme HT des devis acceptés (règle D17), dans la même transaction.
+      const montant = await montantDeLAffaire(tx, devis, Object.fromEntries(changements.map((c) => [c.id, c.ecriture.donnees])));
+      if (montant) changements.push(montant);
     }
     const j = journal({ donnees, ctx, outil: 'devisChangerStatut', parametres: { devisId, action }, changements });
     tx.ecrire([...changements.map((c) => c.ecriture), ...j.ecritures]);
@@ -205,8 +228,11 @@ export async function archiver({ donnees, ctx, devisId, archive }) {
     if (!archive && devis.archive !== true) throw new ErreurDevis('transition_interdite', 'Ce devis n\'est pas archivé.');
     const patch = { archive, archiveLe: archive ? ctx.maintenant : null };
     const changement = modifier(devis, patch);
-    const j = journal({ donnees, ctx, outil: 'devisArchiver', parametres: { devisId, archive }, changements: [changement] });
-    tx.ecrire([changement.ecriture, ...j.ecritures]);
+    // Un devis accepté archivé ne compte plus dans le montant de l'affaire ; désarchivé, il compte de nouveau. Un devis refusé ne change rien à ce montant : on ne touche pas à l'affaire.
+    const montant = devis.statut === 'accepte' ? await montantDeLAffaire(tx, devis, { [devis.id]: patch }) : null;
+    const changements = montant ? [changement, montant] : [changement];
+    const j = journal({ donnees, ctx, outil: 'devisArchiver', parametres: { devisId, archive }, changements });
+    tx.ecrire([...changements.map((c) => c.ecriture), ...j.ecritures]);
     return { ok: true, devis: { ...devis, ...patch }, operationId: j.operationId };
   });
 }
