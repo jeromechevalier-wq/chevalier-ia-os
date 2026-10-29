@@ -97,12 +97,13 @@ test('5 la fiche, le Kanban (carte et total de colonne), la Liste et la carte de
   await connecter(page, undefined, { route: 'crm/affaires' });
   await attendreCalme(page);
   const colonne = page.locator('.colonne[data-colonne="premier_contact"]');
-  await expect(colonne.locator('.carte-affaire', { hasText: 'Rénovation cuisine' }).locator('.carte-montant')).toHaveText(/1\s?200\s€/);
+  await expect(colonne.locator('.carte-affaire', { hasText: 'Rénovation cuisine' }).locator('.carte-montant')).toHaveText(/1\s?200\s€ HT/);
+  await expect(colonne.locator('.carte-affaire', { hasText: 'Autre affaire' }).locator('.carte-montant')).not.toContainText('HT'); // le montant estimé n'a pas de « HT »
   await expect(colonne.locator('.carte-affaire', { hasText: 'Autre affaire' }).locator('.carte-montant')).toHaveText(/300\s€/);
   await expect(colonne.locator('.colonne-totaux')).toContainText(/1\s?500\s€/); // 1 200 + 300, jamais 1 500 + 300
   await capturer(page, info, '5-kanban', colonne);
   await page.locator('.bascule-vue[data-vue="liste"]').click();
-  await expect(page.locator('tbody tr', { hasText: 'Rénovation cuisine' }).locator('td[data-libelle="Montant"]')).toHaveText(/1\s?200\s€/);
+  await expect(page.locator('tbody tr', { hasText: 'Rénovation cuisine' }).locator('td[data-libelle="Montant"]')).toHaveText(/1\s?200\s€ HT/);
 });
 
 test('6 le tri par montant utilise le montant affiché (devis acceptés d’abord)', async ({ page }) => {

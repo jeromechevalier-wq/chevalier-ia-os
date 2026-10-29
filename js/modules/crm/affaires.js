@@ -209,7 +209,7 @@ function carte(a) {
   p ? h('span', { class: 'carte-sous' }, icone('user', { taille: 12 }), p.nom) : null,
   ...(() => { const ext = pastillesExternes(a.id); return ext.length ? [h('div', { class: 'carte-pastilles-externes' }, ext)] : []; })(),
   h('div', { class: 'carte-pied' },
-    h('span', { class: 'carte-montant' }, L.montantAffaire(a) !== null ? L.formatEuros(L.montantAffaire(a)) : ''),
+    h('span', { class: 'carte-montant' }, L.montantAffaire(a) !== null ? `${L.formatEuros(L.montantAffaire(a))}${L.montantVientDesDevis(a) ? ' HT' : ''}` : ''),
     priorite,
     couleur === 'rouge' ? h('span', { class: 'badge-retard' }, 'En retard') : null,
     pastilleActivite(couleur)));
@@ -316,7 +316,7 @@ export function rendreAffaires(conteneur) {
         h('td', { dataset: { libelle: 'Personne' } }, lienPersonne(D.personne(a.personneId))),
         h('td', { dataset: { libelle: 'Organisation' } }, lienOrganisation(D.organisation(a.organisationId))),
         h('td', { dataset: { libelle: 'Étape' } }, L.estVivante(a) ? pastilleEtape(a.etape) : pastilleStatut(L.statutAffiche(a))),
-        h('td', { dataset: { libelle: 'Montant' } }, L.montantAffaire(a) !== null ? L.formatEuros(L.montantAffaire(a)) : null),
+        h('td', { dataset: { libelle: 'Montant' } }, L.montantAffaire(a) !== null ? `${L.formatEuros(L.montantAffaire(a))}${L.montantVientDesDevis(a) ? ' HT' : ''}` : null),
         h('td', { dataset: { libelle: 'Priorité' } }, L.libellePriorite(a.priorite)),
         h('td', { dataset: { libelle: 'Prochaine activité' } }, p ? h('span', { class: 'activite-liste' }, pastilleActivite(L.pastilleActivite([p], aujourdhui)), `${p.titre} · ${L.formatJourCourt(p.date, aujourdhui)}`) : null),
         h('td', { class: 'col-actions' }, h('button', { type: 'button', class: 'bouton-icone', 'aria-label': `Actions : ${a.titre}`, onclick: (e) => ouvrirMenu(e.currentTarget, menuAffaire(a)) }, icone('ellipsis', { taille: 18 }))));

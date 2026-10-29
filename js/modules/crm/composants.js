@@ -528,7 +528,7 @@ export function pastillesExternes(affaireId) {
 export function carteAffaireMini(a) {
   return h('a', { class: 'carte-affaire-mini', href: cheminAffaire(a.id), dataset: { affaire: a.id } },
     h('span', { class: 'carte-affaire-titre' }, a.titre),
-    h('span', { class: 'carte-affaire-meta' }, L.montantAffaire(a) !== null ? L.formatEuros(L.montantAffaire(a)) : '—', ' · ', L.estVivante(a) ? L.libelleEtape(a.etape, D.etat.config) : L.libelleStatut(a.statut)),
+    h('span', { class: 'carte-affaire-meta' }, L.montantAffaire(a) !== null ? `${L.formatEuros(L.montantAffaire(a))}${L.montantVientDesDevis(a) ? ' HT' : ''}` : '—', ' · ', L.estVivante(a) ? L.libelleEtape(a.etape, D.etat.config) : L.libelleStatut(a.statut)),
     barreEtapes(a));
 }
 
