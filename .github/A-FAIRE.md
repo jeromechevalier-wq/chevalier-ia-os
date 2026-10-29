@@ -24,6 +24,17 @@ Mise à jour : 29/10/2026, fin de la 3e nuit (PR 379 à 387, 389, 390 et 392 à 
 | ⚪ | Compte prorata, poste libre HT, barre d'étapes du devis, vue « tous mes clients », onglet Devis des projets | Plus tard, pas urgent | décision de Jérôme |
 | ✅ | Règles Firestore (workflow dédié), PDF chez les clients, liens chez les clients, réglages Mon entreprise, page Déploiement | Fait et testé par Jérôme | |
 
+## Sessions séparées (29/10/2026) : `docs/script-de-reprise.md`
+
+La session principale est trop longue : elle garde les décisions et ce tableau. Le travail passe en sessions courtes, avec un script à coller (`docs/script-de-reprise.md`).
+
+| Session | Sujet | Qui | État |
+|---|---|---|---|
+| 1 | Mise en service du dictionnaire : fusion de la PR 391, règles Firestore, déploiements `regles`, `hosting`, `fonctions`, `mcp`, essai avec un vrai ChatGPT | Jérôme + Claude | À lancer en premier |
+| 2 | PR 369 « Documents » : règles Storage, droits IAM, sauvegarde de `crm_audit*` et `devis_compteurs` | Claude, puis Jérôme pour la console | En attente |
+| 3 | Génération du PDF trop lente : mesure puis progression | Claude seul | En attente |
+| Principale | Décisions : Q1 à Q10, prix d'achat, PR 388, dates des travaux, études n°11 et n°12 | Jérôme | En attente |
+
 Le détail de chaque ligne est plus bas. Légende : 🟢 fait, 🟠 attend Jérôme, 🔵 Claude travaille dessus, ⚪ plus tard, ✅ validé.
 
 ## Programme des 7 prochaines nuits (plan du 28/10/2026, mis à jour le 29/10/2026)
