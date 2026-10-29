@@ -17,7 +17,7 @@ import { canonique, sansId } from './canonique.js';
 import * as DOC from './documents.js';
 import { preparerBrouillonEmail } from './brouillon-email.js';
 import { MESSAGE_NON_BRANCHE, ESPACE_JEROME } from './n8n-sortie.js';
-import { cheminAppartientALEspace } from '../devis/stockage.js';
+import { cheminAppartientALEspace, DUREE_LIEN_MINUTES } from '../devis/stockage.js';
 
 /** Propriétaire des fiches créées par un jeton « cia_… » (sans e-mail) sur le serveur de Jérôme, sauf si l'appel en donne un autre (plan-mcp.md, écart 11, réglé en 2.16.1 pour les connexions Google et les clients). */
 export const PROPRIETAIRE_PAR_DEFAUT = 'jerome.chevalier@gmail.com';
@@ -1150,10 +1150,10 @@ export async function enregistrerEnvoiDevis(c, args) {
 // le PDF officiel (jamais refait par l'assistant) et la demande de brouillon (créé par n8n dans le Gmail de la personne). Aucune portée d'envoi Gmail nulle part dans le code (test).
 
 /**
- * Où trouver le PDF OFFICIEL d'un devis finalisé, déjà fabriqué par le serveur. Ne fabrique rien : jamais de PDF d'un brouillon, jamais de PDF « de démonstration ».
- * Rend l'adresse STABLE du devis dans l'application (il faut y être connecté : le PDF s'ouvre ou se télécharge depuis le menu « … » du devis, par un lien signé de 5 minutes demandé par l'écran).
- * Décision prise seul (29/10/2026) : pas de lien signé rendu à l'assistant. Le signer exigerait que le compte du MCP puisse LIRE le stockage (sinon l'ouverture donne « accès refusé »), un droit
- * que Jérôme a volontairement refusé à ces comptes (docs/preparer-fusion-369-documents.md). Si le PDF n'est pas prêt, l'outil refuse et dit à l'assistant de s'arrêter.
+ * Le PDF OFFICIEL d'un devis finalisé, déjà fabriqué par le serveur : lien signé court (DUREE_LIEN_MINUTES) pour le télécharger, plus le lien du devis dans l'application.
+ * Ne fabrique rien : jamais de PDF d'un brouillon, jamais de PDF « de démonstration ». À n'appeler que si l'utilisateur DEMANDE le PDF (décision de Jérôme, 29/10/2026, option A).
+ * Le lien signé n'est donné que si le compte du serveur peut LIRE le fichier (sinon il s'ouvrirait en « accès refusé ») : sinon on rend seulement le lien de l'application, avec la raison.
+ * Si le PDF n'est pas prêt, l'outil refuse et dit à l'assistant de s'arrêter.
  */
 export async function pdfOfficielDevis(c, args) {
   const devis = await c.donnees.document(C.devis, args.id);
@@ -1165,13 +1165,20 @@ export async function pdfOfficielDevis(c, args) {
   if (!cheminAppartientALEspace(devis.pdf.chemin, c.espace ?? '')) refuser('stockage_indisponible', `Le PDF officiel n’a pas été retrouvé au bon endroit du stockage.${arret}`);
   const base = String(c.baseLien ?? '').replace(/\/+$/, '');
   const prefixe = c.espaceN8n && c.espaceN8n !== ESPACE_JEROME ? `espace/${c.espaceN8n}/` : '';
-  const avertissement = ['en_attente_envoi', 'envoye', 'accepte'].includes(devis.statut) && !devis.archive ? null
-    : `Ce devis est « ${devis.statut} »${devis.archive ? ' et archivé' : ''} : ce n’est peut-être plus la version en cours ; ne le présente pas comme le devis actuel sans l’avoir vérifié (lire_devis).`;
+  const stockage = c.stockage?.() ?? null;
+  let lien = null;
+  if (stockage && await stockage.existe(devis.pdf.chemin)) {
+    try { lien = await stockage.lienSigne(devis.pdf.chemin, { minutes: DUREE_LIEN_MINUTES, nomAffiche: devis.pdf.nom || 'devis.pdf' }); } catch (e) { lien = null; process.stderr.write(`${JSON.stringify({ severity: 'WARNING', message: 'obtenir_pdf_officiel_devis : lien non signé', cause: String(e?.cause?.message ?? e?.message ?? '').slice(0, 120) })}\n`); }
+  }
+  const avertissements = [];
+  if (!lien) avertissements.push('Le lien direct du PDF n’est pas disponible pour le moment : donne seulement lienApplication (le PDF s’ouvre depuis le menu « … » du devis). Ne refais pas de PDF.');
+  if (!(['en_attente_envoi', 'envoye', 'accepte'].includes(devis.statut) && !devis.archive)) avertissements.push(`Ce devis est « ${devis.statut} »${devis.archive ? ' et archivé' : ''} : ce n’est peut-être plus la version en cours ; ne le présente pas comme le devis actuel sans l’avoir vérifié (lire_devis).`);
   return {
     id: devis.id, numero: devis.numero ?? null, version: devis.version ?? 1, statut: devis.statut, nom: devis.pdf.nom ?? null,
+    ...(lien ? { lien, valableMinutes: DUREE_LIEN_MINUTES } : {}),
     lienApplication: `${base}/#/${prefixe}devis/voir/${encodeURIComponent(devis.id)}`,
-    ...(avertissement ? { avertissement } : {}),
-    consigne: 'Ce devis a un PDF officiel, le seul à utiliser. Donne ce lien à l’utilisateur (il doit être connecté) : le PDF s’ouvre ou se télécharge depuis le menu « … » du devis. Ne l’envoie par e-mail à personne : pour préparer l’e-mail avec ce PDF joint, utilise preparer_email.',
+    ...(avertissements.length ? { avertissement: avertissements.join(' ') } : {}),
+    consigne: 'Ce devis a un PDF officiel, le seul à utiliser. Donne le lien à l’utilisateur qui l’a demandé. Ne transmets ni le PDF ni le lien à quelqu’un d’autre (client, collègue…) sans lui avoir montré le destinataire et obtenu un « oui » clair, et n’envoie rien toi-même : pour préparer l’e-mail avec ce PDF joint, utilise preparer_email.',
   };
 }
 

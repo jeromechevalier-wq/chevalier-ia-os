@@ -51,7 +51,7 @@ export const mcp = onRequest(
     timeoutSeconds: 120,
     invoker: 'public',
     cors: false,
-    // Compte dédié : « Utilisateur Cloud Datastore » (Firestore), « Accesseur de secrets » sur MCP_JETONS et sur les deux secrets du brouillon d'e-mail (N8N_DEVIS_EMAIL_*), « Créateur d'objets Storage » (dépôt de texte). Aucune lecture du stockage, aucun lien signé.
+    // Compte dédié : « Utilisateur Cloud Datastore » (Firestore), « Accesseur de secrets » sur MCP_JETONS et sur les deux secrets du brouillon d'e-mail (N8N_DEVIS_EMAIL_*), « Créateur d'objets Storage » (dépôt de texte) ; « Lecteur des objets Storage » et « Créateur de jetons du compte de service » sur lui-même sont À DONNER pour le lien signé du PDF officiel (docs/securite-et-pannes.md, section 12), sans quoi l'outil rend seulement le lien du devis.
     serviceAccount: 'mcp-serveur@chevalier-ia-os.iam.gserviceaccount.com',
   },
   creerGestionnaire({ magasin, donnees, limiteur, oauth, stockage: stockageDuProjet, sortieEmail: sortieN8nDevis }),

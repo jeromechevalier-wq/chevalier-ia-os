@@ -48,7 +48,7 @@ async function demarrer({ devis = [], stockage = 'normal', sortie = 'normale', f
   const donnees = client ? avecBase(acces, `clients/${client}`) : acces;
   const horloge = { t: MAINTENANT.getTime() };
   const liens = [];
-  const faux = stockage === 'normal' ? { existe: async () => true, lienSigne: async (chemin, options) => { liens.push({ chemin, ...options }); return `https://stockage.exemple.test/signe?exp=${options.minutes}`; } } : null;
+  const faux = stockage === 'normal' || stockage === 'sans-lecture' ? { existe: async () => stockage === 'normal', lienSigne: async (chemin, options) => { liens.push({ chemin, ...options }); return `https://stockage.exemple.test/${chemin}?X-Goog-Expires=${options.minutes * 60}`; } } : null;
   const demandes = [];
   const sortieFaux = secretsAbsents ? creerSortieN8n({ lireSecret: async () => { throw new Error('secret absent'); }, fetchImpl: async () => { throw new Error('ne doit jamais être appelé'); } }) : sortie === 'normale' ? { branche: async () => true, demander: async (espace, d) => { demandes.push({ espace, ...d }); } } : null;
   const secret = JSON.stringify([entree(JETONS.lecteur, 'lecteur-essai', 'lecteur'), entree(JETONS.biblio, 'hermes-bibliothecaire', 'bibliothecaire'), entree(JETONS.code, 'claude-code-jerome', 'claude-code')]);
@@ -87,24 +87,39 @@ const ok = (r) => { assert.equal(r.isError, false, r.texte); return r.data; };
 const refuse = (r, motif) => { assert.equal(r.isError, true, `devait être refusé : ${r.texte}`); if (motif) assert.match(r.texte, motif); };
 
 describe('1 obtenir_pdf_officiel_devis : le seul PDF, un lien court, jamais fabriqué', () => {
-  test('1 un devis finalisé rend le lien du devis dans l’application, le nom du PDF et la consigne ; aucun lien de stockage, ni chemin, ni prix d’achat, ni marge', async () => {
+  test('1 un devis finalisé rend un lien signé de 5 minutes, le lien du devis, le nom du PDF et la consigne de consentement ; jamais le chemin en clair ailleurs que dans le lien, ni prix d’achat, ni marge', async () => {
     const s = await demarrer({ devis: [finalise('f1')] });
     const r = ok(await s.appeler('lecteur', 'obtenir_pdf_officiel_devis', { id: 'f1' }));
+    assert.equal(r.lien, `https://stockage.exemple.test/${CHEMIN}?X-Goog-Expires=300`);
+    assert.equal(r.valableMinutes, 5);
     assert.equal(r.lienApplication, 'https://chevalier-ia-os.web.app/#/devis/voir/f1');
     assert.equal(r.numero, 'DEV-2026-10-01-001');
     assert.equal(r.nom, PDF_OK.nom);
-    assert.equal(r.avertissement, undefined, 'un devis en attente d’envoi : aucun avertissement');
-    assert.match(r.consigne, /seul à utiliser/);
+    assert.equal(r.avertissement, undefined, 'un devis en attente d’envoi, lien direct disponible : aucun avertissement');
+    assert.match(r.consigne, /oui.{1,3}clair/);
     assert.match(r.consigne, /preparer_email/);
-    assert.equal(s.liens.length, 0, 'aucun lien signé n’est créé : le compte du MCP ne lit pas le stockage');
-    assert.doesNotMatch(JSON.stringify(r), /devis\/a1\/|\.pdf\?|prixAchat|\bmarge\b|sha256|X-Goog|googleapis/i);
+    assert.deepEqual(s.liens.map((l) => [l.chemin, l.minutes]), [[CHEMIN, 5]]);
+    const { lien, ...reste } = r;
+    assert.doesNotMatch(JSON.stringify(reste), /devis\/a1\/|prixAchat|\bmarge\b|sha256|X-Goog|googleapis/i);
   });
 
-  test('1 chez un client : le lien porte l’adresse de la plateforme et le préfixe de l’espace de CE client ; un devis remplacé, refusé, expiré ou archivé est signalé', async () => {
+  test('1 sans droit de lecture du stockage (cas avant que Jérôme donne le droit) : aucun lien signé n’est donné, seulement le lien du devis, avec la raison ; rien ne plante', async () => {
+    const s = await demarrer({ devis: [finalise('f1')], stockage: 'sans-lecture' });
+    const r = ok(await s.appeler('lecteur', 'obtenir_pdf_officiel_devis', { id: 'f1' }));
+    assert.equal(r.lien, undefined);
+    assert.match(r.lienApplication, /devis\/voir\/f1$/);
+    assert.match(r.avertissement, /lien direct.*pas disponible.*Ne refais pas de PDF/s);
+    assert.equal(s.liens.length, 0, 'aucun lien n’est signé quand le fichier ne se lit pas');
+    const sans = await demarrer({ devis: [finalise('f1')], stockage: null });
+    assert.equal(ok(await sans.appeler('lecteur', 'obtenir_pdf_officiel_devis', { id: 'f1' })).lien, undefined);
+  });
+
+  test('1 chez un client : le lien du devis porte l’adresse de la plateforme et le préfixe de l’espace de CE client ; un devis remplacé, refusé, expiré ou archivé est signalé', async () => {
     const chemin = 'clients/demo/devis/a1/f1/x.pdf';
     const s = await demarrer({ client: 'demo', devis: [finalise('f1', 'en_attente_envoi', { pdf: { ...PDF_OK, chemin } }), finalise('r1', 'remplace', { pdf: { ...PDF_OK, chemin } }), finalise('a2', 'accepte', { archive: true, pdf: { ...PDF_OK, chemin } })] });
     const r = ok(await s.appeler('lecteur', 'obtenir_pdf_officiel_devis', { id: 'f1' }));
     assert.equal(r.lienApplication, 'https://chevalier-ia-app.web.app/#/espace/demo/devis/voir/f1');
+    assert.match(r.lien, /clients\/demo\/devis\/a1\/f1\/x\.pdf/);
     assert.match(ok(await s.appeler('lecteur', 'obtenir_pdf_officiel_devis', { id: 'r1' })).avertissement, /« remplace »/);
     assert.match(ok(await s.appeler('lecteur', 'obtenir_pdf_officiel_devis', { id: 'a2' })).avertissement, /archivé/);
   });
@@ -213,10 +228,17 @@ describe('3 la règle « aucun e-mail ne part tout seul » est dans la descripti
   });
 
   test('3 la règle dit les quatre choses : jamais d’e-mail, jamais de PDF refait, s’arrêter si le PDF officiel manque, dire d’ouvrir son brouillon', () => {
-    assert.match(GARANTIE_PAS_D_ENVOI, /n'envoie JAMAIS d'e-mail/);
     assert.match(GARANTIE_PAS_D_ENVOI, /ne refais JAMAIS un PDF/);
+    assert.match(GARANTIE_PAS_D_ENVOI, /N'envoie ni ne transfère JAMAIS un e-mail, un PDF ou un lien.*sans avoir montré le destinataire/s);
     assert.match(GARANTIE_PAS_D_ENVOI, /ARRÊTE-TOI et dis-le/);
     assert.match(GARANTIE_PAS_D_ENVOI, /ouvrir son brouillon et de l'envoyer LUI-MÊME/);
+  });
+
+  test('3 la règle de consentement : jamais de transfert sans montrer le destinataire et un « oui » clair ; le PDF n’est donné que sur demande explicite', () => {
+    assert.match(GARANTIE_PAS_D_ENVOI, /montré le destinataire.*« oui » clair/s);
+    const o = OUTILS.find((x) => x.nom === 'obtenir_pdf_officiel_devis');
+    assert.match(o.description, /QUE si l'utilisateur demande explicitement le PDF/);
+    assert.match(o.description, /montrer le destinataire à l'utilisateur et obtenir son « oui » clair/);
   });
 
   test('3 la règle n’est ajoutée qu’une fois par outil et ne touche pas les outils qui ne parlent pas de devis', () => {
@@ -300,6 +322,7 @@ describe('6 rejeu : devis finalisé -> PDF officiel -> brouillon d’e-mail, auc
     };
     const s = await demarrer({ devis: [finalise('f1')], fetchImpl });
     const pdf = ok(await s.appeler('lecteur', 'obtenir_pdf_officiel_devis', { id: 'f1' }));
+    assert.match(pdf.lien, /^https:\/\/stockage\.exemple\.test\//);
     assert.match(pdf.lienApplication, /^https:\/\/chevalier-ia-os\.web\.app\/#\/devis\/voir\/f1$/);
     const prep = ok(await s.appeler('biblio', 'preparer_email', { type: 'devis', id: 'f1' }));
     assert.equal(prep.envoye, false);
