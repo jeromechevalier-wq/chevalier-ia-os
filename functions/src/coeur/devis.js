@@ -12,9 +12,9 @@
 //   simultanées ne reçoivent jamais le même numéro (Firestore relance la perdante). Un devis invalide ne consomme AUCUN numéro.
 // - Accepter une version passe aussi les autres versions vivantes (finalisée ou envoyée) de la même racine à « Remplacé » (cadrage §5).
 // - Le journal n'enregistre pas le compteur lui-même (bruit) ; le numéro attribué est dans la copie du devis.
-// - Montant de l'affaire (29/10/2026, règle D17) : le montant des devis ACCEPTÉS (somme HT, hors archivés) est écrit dans `montantDevisHt` de l'affaire, DANS la transaction qui accepte
-//   ou qui archive / désarchive un devis accepté (seuls moments où l'ensemble des devis acceptés change : un devis accepté ne peut être ni refusé, ni remplacé, ni supprimé). Le montant estimé
-//   (`montant`, saisi à la main) n'est jamais touché. Aucune migration : une affaire n'est recalculée que lorsqu'un de ses devis change.
+// - Montant de l'affaire (29/10/2026, règle D17, expliquée dans docs/montant-affaire.md) : le montant calculé d'après les devis (somme HT des acceptés, sinon le HT du devis proposé le plus récent)
+//   est écrit dans `montantDevisHt` et `montantDevisNature` de l'affaire, DANS la transaction de chaque transition (finaliser, changer de statut, nouvelle version, archiver, supprimer). Un brouillon ne compte
+//   jamais : il est écrit par le navigateur, hors de ces transactions. Le montant saisi à la main (`montant`) n'est jamais touché. Aucune migration : une affaire n'est recalculée que lorsqu'un de ses devis change.
 import * as D from '../../partage/devis.js';
 import * as A from '../../partage/devis-articles.js';
 import * as L from '../../partage/logique.js';
@@ -92,9 +92,9 @@ export function modifier(devis, patch, collection = C.devis) {
 }
 
 /**
- * Écriture du montant des devis acceptés dans l'affaire du devis (`montantDevisHt`), ou null s'il n'y a rien à changer (pas d'affaire, affaire supprimée, même montant).
- * `retouches` : { idDevis: champs } = ce que la transaction en cours change sur ses devis, appliqué en mémoire avant le calcul (les écritures ne partent qu'à la fin).
- * À appeler AVANT `tx.ecrire` (Firestore veut toutes les lectures d'abord). Ne crée jamais l'affaire.
+ * Écriture du montant calculé d'après les devis dans l'affaire du devis (`montantDevisHt` + `montantDevisNature` + `montantDevisDetail`), ou null s'il n'y a rien à changer (pas d'affaire, affaire supprimée, mêmes valeurs).
+ * `retouches` : { idDevis: champs | null } = ce que la transaction en cours change sur ses devis (null : le devis disparaît), appliqué en mémoire avant le calcul (les écritures ne partent qu'à la fin).
+ * À appeler AVANT `tx.ecrire` (Firestore veut toutes les lectures d'abord). Ne crée jamais l'affaire. Règle : `montantDesDevis` (partage/devis.js).
  */
 async function montantDeLAffaire(tx, devis, retouches) {
   const affaireId = devis.affaireId;
@@ -102,11 +102,15 @@ async function montantDeLAffaire(tx, devis, retouches) {
   const affaire = await tx.document(C.affaires, affaireId);
   if (!affaire) return null;
   const liste = (await tx.liste(C.devis, { champ: 'affaireId', valeur: affaireId })).map(enDates);
-  if (!liste.some((d) => d.id === devis.id)) liste.push(devis);
-  const montant = D.montantAccepteHt(liste.map((d) => ({ ...d, ...(retouches[d.id] ?? {}) })));
-  const actuel = typeof affaire.montantDevisHt === 'number' ? affaire.montantDevisHt : null;
-  return montant === actuel ? null : modifier(affaire, { montantDevisHt: montant }, C.affaires);
+  if (!liste.some((d) => d.id === devis.id) && retouches[devis.id] !== null) liste.push(devis);
+  const calcule = D.montantDesDevis(liste.filter((d) => retouches[d.id] !== null).map((d) => ({ ...d, ...(retouches[d.id] ?? {}) })));
+  const patch = { montantDevisHt: calcule?.montant ?? null, montantDevisNature: calcule?.nature ?? null, montantDevisDetail: calcule?.detail ?? null };
+  const meme = (typeof affaire.montantDevisHt === 'number' ? affaire.montantDevisHt : null) === patch.montantDevisHt && (affaire.montantDevisNature ?? null) === patch.montantDevisNature
+    && JSON.stringify(affaire.montantDevisDetail ?? null) === JSON.stringify(patch.montantDevisDetail);
+  return meme ? null : modifier(affaire, patch, C.affaires);
 }
+/** Les retouches d'une transaction : le patch de chaque changement de devis (les lignes d'une autre collection n'en font pas partie). */
+const retouchesDe = (changements) => Object.fromEntries(changements.filter((c) => c.collection === C.devis).map((c) => [c.id, c.ecriture.donnees]));
 
 /**
  * Fige un brouillon : attribue le numéro, fige prix, TVA et totaux, passe à « Finalisé » (`en_attente_envoi`) et met la version précédente de la même
@@ -148,6 +152,9 @@ export async function finaliser({ donnees, ctx, devisId }) {
     // Les versions plus anciennes encore vivantes (finalisée ou envoyée) sont remplacées par celle-ci, dans la même transaction.
     const remplaces = versions.filter((v) => v.id !== devis.id && (v.version ?? 1) < (devis.version ?? 1) && D.transitionPossible(v.statut, 'remplacer'));
     for (const v of remplaces) changements.push(modifier(v, { statut: D.statutApres(v.statut, 'remplacer'), remplaceLe: ctx.maintenant }));
+    // Le devis finalisé devient « proposé » : le montant de l'affaire le suit (règle D17), dans la même transaction.
+    const montant = await montantDeLAffaire(tx, devis, retouchesDe(changements));
+    if (montant) changements.push(montant);
 
     const j = journal({ donnees, ctx, outil: 'devisFinaliser', parametres: { devisId }, changements });
     tx.ecrire([...ecritures, ...changements.map((c) => c.ecriture), ...j.ecritures]);
@@ -172,10 +179,10 @@ export async function changerStatut({ donnees, ctx, devisId, action }) {
       const versions = await lireVersions(tx, devis);
       remplaces = versions.filter((v) => v.id !== devis.id && D.transitionPossible(v.statut, 'remplacer'));
       for (const v of remplaces) changements.push(modifier(v, { statut: D.statutApres(v.statut, 'remplacer'), remplaceLe: ctx.maintenant }));
-      // Le montant de l'affaire devient la somme HT des devis acceptés (règle D17), dans la même transaction.
-      const montant = await montantDeLAffaire(tx, devis, Object.fromEntries(changements.map((c) => [c.id, c.ecriture.donnees])));
-      if (montant) changements.push(montant);
     }
+    // Envoyé, signé ou refusé : le montant de l'affaire suit (règle D17), dans la même transaction.
+    const montant = await montantDeLAffaire(tx, devis, retouchesDe(changements));
+    if (montant) changements.push(montant);
     const j = journal({ donnees, ctx, outil: 'devisChangerStatut', parametres: { devisId, action }, changements });
     tx.ecrire([...changements.map((c) => c.ecriture), ...j.ecritures]);
     return { ok: true, devis: { ...devis, statut, [champDate]: ctx.maintenant }, remplaces: remplaces.map((v) => v.id), operationId: j.operationId };
@@ -191,6 +198,7 @@ export async function nouvelleVersion({ donnees, ctx, devisId }) {
         ? 'Ce devis est encore un brouillon : modifie-le directement.'
         : 'On ne crée pas de nouvelle version à partir de ce devis.');
     }
+    // Le nouveau brouillon ne compte jamais dans le montant de l'affaire (règle D17) et la source ne change pas de statut : rien à recalculer ici.
     const versions = await lireVersions(tx, source);
     if (versions.some((v) => v.statut === 'brouillon')) {
       throw new ErreurDevis('brouillon_existant', 'Une version en brouillon existe déjà pour ce devis : termine-la ou supprime-la d\'abord.');
@@ -228,8 +236,8 @@ export async function archiver({ donnees, ctx, devisId, archive }) {
     if (!archive && devis.archive !== true) throw new ErreurDevis('transition_interdite', 'Ce devis n\'est pas archivé.');
     const patch = { archive, archiveLe: archive ? ctx.maintenant : null };
     const changement = modifier(devis, patch);
-    // Un devis accepté archivé ne compte plus dans le montant de l'affaire ; désarchivé, il compte de nouveau. Un devis refusé ne change rien à ce montant : on ne touche pas à l'affaire.
-    const montant = devis.statut === 'accepte' ? await montantDeLAffaire(tx, devis, { [devis.id]: patch }) : null;
+    // Un devis accepté archivé ne compte plus dans le montant de l'affaire ; désarchivé, il compte de nouveau (règle D17).
+    const montant = await montantDeLAffaire(tx, devis, { [devis.id]: patch });
     const changements = montant ? [changement, montant] : [changement];
     const j = journal({ donnees, ctx, outil: 'devisArchiver', parametres: { devisId, archive }, changements });
     tx.ecrire([...changements.map((c) => c.ecriture), ...j.ecritures]);
@@ -247,8 +255,11 @@ export async function supprimer({ donnees, ctx, devisId }) {
     const devis = await lireDevis(tx, devisId);
     if (devis.statut !== 'brouillon') throw new ErreurDevis('transition_interdite', 'Seul un brouillon peut être supprimé. Un devis finalisé se garde ; tu peux l’archiver s’il est signé ou refusé.');
     const changement = { id: devis.id, collection: C.devis, action: 'supprimer', avant: devis, apres: null, champs: [], ecriture: { type: 'delete', collection: C.devis, id: devis.id } };
-    const j = journal({ donnees, ctx, outil: 'devisSupprimer', parametres: { devisId }, changements: [changement] });
-    tx.ecrire([changement.ecriture, ...j.ecritures]);
+    // Un brouillon ne compte jamais dans le montant : normalement rien ne change ; recalculé par cohérence (règle D17).
+    const montant = await montantDeLAffaire(tx, devis, { [devis.id]: null });
+    const changements = montant ? [changement, montant] : [changement];
+    const j = journal({ donnees, ctx, outil: 'devisSupprimer', parametres: { devisId }, changements });
+    tx.ecrire([...changements.map((c) => c.ecriture), ...j.ecritures]);
     return { ok: true, devis, operationId: j.operationId };
   });
 }

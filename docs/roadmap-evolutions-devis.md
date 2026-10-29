@@ -41,7 +41,7 @@ Pilotage (tableaux de bord de ventes), stocks, tarifs fournisseurs, sous-famille
 | Devis vers affaire | Lien « Voir l'affaire » dans l'éditeur et dans la liste des devis | à faire |
 | Indicateur « devis signé » | Le module Devis a sa propre table d'indicateurs (KPI), comme prévu pour chaque module ; le tableau de bord des affaires l'utilise : nombre et montant des devis signés | **retenu (Jérôme)** |
 | Signature d'un devis | Passe l'affaire à l'étape « Gagnée » (proposé, confirmé par l'artisan) | à discuter |
-| Montant de l'affaire | Se met à jour avec le devis signé (somme HT des devis acceptés, `montantDevisHt`, 29/10/2026) | fait, à valider par Jérôme |
+| Montant de l'affaire | Se met à jour avec le devis signé (devis acceptés, sinon devis proposé le plus récent : `docs/montant-affaire.md`, 29/10/2026) | fait, à valider par Jérôme |
 | Journal de l'affaire | Chaque événement du devis (finalisé, envoyé, signé, refusé…) laisse une ligne dans l'historique de l'affaire | **retenu (Jérôme)** |
 | Automatisations | Événements « devis envoyé / signé / refusé / expiré » utilisables comme déclencheurs (relances, message de félicitations). Le fonctionnement reste à définir, mais c'est à mettre en place | **retenu (Jérôme)**, méthode à trancher |
 | Facturation | Le devis signé alimente la facture d'acompte et la facture finale | plus tard |

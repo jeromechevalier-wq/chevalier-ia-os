@@ -35,9 +35,9 @@ export async function restaurerOperation({ donnees, ctx, operationId, apercu = t
   if (!lignesAudit.length) {
     throw new ErreurEcriture('introuvable', 'Aucune écriture réussie pour cette opération (identifiant inconnu, ou toutes ont échoué).');
   }
-  // Archiver / désarchiver un devis signé réécrit aussi `montantDevisHt` de l'affaire : défaire cette ligne avec une copie entière de l'affaire effacerait ce qui a changé depuis (titre, étape, documents).
-  if (lignesAudit.some((l) => l.outil === 'devisArchiver' && l.collection === C.affaires)) {
-    throw new ErreurEcriture('restauration_refusee', 'Cette opération a archivé ou désarchivé un devis signé : elle recalcule le montant de l’affaire et ne se défait pas avec le journal. Archive ou désarchive le devis depuis l’écran ou avec archiver_devis : le montant est recalculé.');
+  // Une transition de devis réécrit aussi le montant de l'affaire (`montantDevis*`) : défaire cette ligne avec une copie entière de l'affaire effacerait ce qui a changé depuis (titre, étape, documents).
+  if (lignesAudit.some((l) => /^devis/.test(l.outil ?? '') && l.collection === C.affaires)) {
+    throw new ErreurEcriture('restauration_refusee', 'Cette opération a changé un devis et recalculé le montant de l’affaire : elle ne se défait pas avec le journal. Refais le geste inverse sur le devis (archiver_devis avec archive: false par exemple) : le montant est recalculé.');
   }
   // Une finalisation (numéro consommé, prix figés) ou un changement de statut d'un devis ne se défait pas d'après le journal : créer la version suivante (nouvelle_version_devis).
   if (lignesAudit.some((l) => OUTILS_DEVIS_FIGES.includes(l.outil))) {

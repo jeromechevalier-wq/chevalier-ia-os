@@ -140,6 +140,17 @@ describe('Transitions des devis sur Firestore (émulateur)', { skip: emulateur ?
     assert.ok((await db.collection(C.audit).get()).docs.some((x) => x.data().collection === C.affaires), 'le journal garde les écritures de l’affaire');
   });
 
+  test('C8 finaliser un brouillon : l’affaire reçoit le montant « proposé » (HT, nature, détail) dans la même transaction, le montant saisi reste intact', async () => {
+    await db.collection(C.affaires).doc('aff1').set({ titre: 'Rénovation', montant: 1500 });
+    await poser('d1'); // 2 x (10 € + 20 %) = 24 € HT
+    const r = await S.finaliser({ donnees, ctx: ctx(), devisId: 'd1' });
+    const affaire = await brut(C.affaires, 'aff1');
+    assert.equal(affaire.montantDevisHt, 24);
+    assert.equal(affaire.montantDevisNature, 'propose');
+    assert.deepEqual(affaire.montantDevisDetail, [{ numero: r.numero, version: 1, ht: 24, compte: true }]);
+    assert.equal(affaire.montant, 1500);
+  });
+
   test('C8 dans l’espace d’un client, seule l’affaire du client reçoit le montant ; celle de Jérôme n’est pas touchée', async () => {
     await db.collection(C.affaires).doc('aff1').set({ titre: 'Chez Jérôme', montant: 10 });
     await db.doc('clients/a/crm_affaires/aff1').set({ titre: 'Chez le client', montant: 20 });

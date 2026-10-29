@@ -313,11 +313,12 @@ export function construirePlan({ config, articles, familles = null, reglages, au
     }
     docs.set(`devis_devis/${id}`, { collection: 'devis_devis', id, donnees: devis });
     devisListe.push({ id, affaireId: p.id });
-    // Montant de l'affaire : le HT du devis comme montant estimé ; un devis signé écrit en plus `montantDevisHt` (ce que fait le serveur à l'acceptation).
+    // Montant de l'affaire : le HT du devis comme montant estimé ; un devis finalisé, envoyé ou signé écrit en plus le montant calculé.
     const affaireDemo = docs.get(`crm_affaires/${p.id}`).donnees;
     const htDevis = (devis.totaux ?? D.totauxDevis(devis)).ht;
     affaireDemo.montant = htDevis;
-    if (devis.statut === 'accepte') affaireDemo.montantDevisHt = htDevis;
+    const calcule = D.montantDesDevis([{ ...devis, id }]); // ce que fait le serveur : devis proposé ou accepté (docs/montant-affaire.md)
+    if (calcule) Object.assign(affaireDemo, { montantDevisHt: calcule.montant, montantDevisNature: calcule.nature, montantDevisDetail: calcule.detail });
     iDevis += 1;
   });
 

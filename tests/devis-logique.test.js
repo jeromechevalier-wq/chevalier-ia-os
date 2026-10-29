@@ -310,10 +310,11 @@ describe('Nouvelle version et montant d\'affaire', () => {
     v2.sections[0].lignes[0].libelle = 'changé';
     assert.notEqual(fige.sections[0].lignes[0].libelle, 'changé'); // copie profonde
   });
-  test('D17 montant d\'affaire : somme HT des acceptés non archivés, sinon la saisie reste', () => {
+  test('D17 montant d\'affaire : devis acceptés non archivés, sinon devis proposé le plus récent, sinon la saisie reste (détail : devis-montant-affaire.test.js)', () => {
     const fige = D.figerPourFinalisation(devisType(), { numero: 'N', finaliseLe: '2026-10-24', reglages: { regimeTva: 'assujetti' } }).devis;
-    assert.equal(D.montantAffaireDepuisDevis([{ ...fige, statut: 'envoye' }, { ...fige, statut: 'refuse' }], 5000), 5000);
+    assert.equal(D.montantAffaireDepuisDevis([{ ...fige, statut: 'refuse' }, { ...fige, statut: 'brouillon' }], 5000), 5000);
     assert.equal(D.montantAffaireDepuisDevis([], 0), 0);
+    assert.equal(D.montantAffaireDepuisDevis([{ ...fige, statut: 'envoye' }], 5000), 1014.71);
     assert.equal(D.montantAffaireDepuisDevis([{ ...fige, statut: 'accepte' }], 5000), 1014.71);
     assert.equal(D.montantAffaireDepuisDevis([{ ...fige, statut: 'accepte' }, { ...fige, statut: 'accepte', archive: true }, { ...fige, statut: 'envoye' }], 5000), 1014.71);
   });

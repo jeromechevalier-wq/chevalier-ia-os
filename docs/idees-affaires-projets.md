@@ -62,7 +62,7 @@ Décisions que Jérôme doit encore trancher : bouton « Filtres » de l'Histori
 
 **I16 (grande).** Trois styles de boutons seulement (validés par Jérôme) : (1) ajouter à une liste ou un champ = ligne « Étiquette  + Ajouter » en texte jaune, sans cadre ; (2) action principale d'un écran = bouton jaune plein, un seul par écran ; (3) autres actions = bouton à contour. Commencer par l'inventaire de tous les boutons (notamment les pastilles Appel / Rendez-vous / Email / Tâche, et l'absence de « Tâche » dans les pastilles d'activité du projet, à trancher) puis inscrire la règle dans `docs/consignes-ui.md`.
 
-**I17.** Le Montant de l'affaire reste dans l'en-tête ; tant qu'il est vide, un tiret « — » s'affiche en gris (29/10/2026 : plus de « 999 € » inventé ; jamais compté dans les totaux ni dans l'objectif de chiffre d'affaires) ; avec des devis acceptés, « Montant accepté HT » (somme HT, écrite par le serveur) prend la place et le montant estimé passe dans le Résumé ; au clic, on saisit le montant ; rempli, il s'affiche en euros.
+**I17.** Le Montant de l'affaire reste dans l'en-tête ; tant qu'il est vide, un tiret « — » s'affiche en gris (29/10/2026 : plus de « 999 € » inventé ; jamais compté dans les totaux ni dans l'objectif de chiffre d'affaires) ; avec des devis finalisés, « Montant accepté HT » ou « Montant proposé HT » (calculé par le serveur, infobulle détaillée) prend la place : voir `docs/montant-affaire.md` ; au clic, on saisit le montant ; rempli, il s'affiche en euros.
 
 **I18.** Le bouton « + Personne » de l'écran Accueil est retiré (le bouton rond « + » du haut sert à créer). Vérifier avant que ce « + » permet bien de créer une personne.
 

@@ -105,7 +105,7 @@ const sansDescription = ({ description: _ancienChamp, ...fiche }) => fiche;
 export async function lireAffaire(donnees, { id, avecFil }) {
   const brute = await donnees.document(C.affaires, id);
   if (!brute) introuvable('Affaire');
-  // `montant` = le montant estimé saisi ; `montantDevisHt` = la somme HT des devis acceptés (écrite par le serveur) ; `montantAffiche` = celui que montre l'écran (les devis acceptés d'abord).
+  // `montant` = le montant estimé saisi ; `montantDevisHt` = le montant calculé d'après les devis, avec `montantDevisNature` (accepte | propose) et `montantDevisDetail` (écrits par le serveur) ; `montantAffiche` = celui que montre l'écran (le calcul d'abord).
   const affaire = { ...sansDescription(brute), statut: L.statutAffiche(brute), montantAffiche: L.montantAffaire(brute) };
   const [personne, organisation, activites] = await Promise.all([
     affaire.personneId ? donnees.document(C.personnes, affaire.personneId) : null,

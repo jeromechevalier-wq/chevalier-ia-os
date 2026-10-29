@@ -540,20 +540,39 @@ export function peutArchiver(devis) {
 }
 
 /**
- * Montant d'une affaire d'après ses devis (règle D17 du cadrage) : la somme des HT des devis ACCEPTÉS (Signé), hors archivés, au centime près.
- * `null` s'il n'y en a aucun : l'affaire garde alors son montant estimé (saisi à la main), qui n'est jamais effacé.
- * Un devis accepté dont le total HT figé n'est pas un nombre est ignoré (jamais un chiffre inventé).
- * Le serveur écrit ce résultat dans `montantDevisHt` de l'affaire (functions/src/coeur/devis.js) ; les écrans le lisent avec `montantAffaire` (crm/logique.js).
+ * Le montant qu'un module Devis donne à une affaire (règle D17, décisions de Jérôme des 29/10/2026). Tout est expliqué dans docs/montant-affaire.md.
+ *  1. S'il y a des devis ACCEPTÉS (non archivés) : leur somme HT, nature « accepte ».
+ *  2. Sinon, s'il y a des devis PROPOSÉS (finalisés ou envoyés, pas encore acceptés ni refusés ni remplacés) : le HT du plus récent seul, nature « propose »
+ *     (deux offres concurrentes ne s'additionnent jamais).
+ *  3. Sinon `null` : l'affaire garde son montant saisi à la main, qui n'est jamais effacé.
+ * Un brouillon ne compte jamais (il change à chaque frappe, hors du serveur). Un devis dont le total HT figé n'est pas un nombre est ignoré.
+ * Le serveur écrit le résultat dans `montantDevisHt` et `montantDevisNature` de l'affaire (functions/src/coeur/devis.js) ; les écrans le lisent avec `montantAffaire` (crm/logique.js).
  */
+export const STATUTS_PROPOSES = Object.freeze(['en_attente_envoi', 'envoye']);
+const htFige = (d) => (typeof d?.totaux?.ht === 'number' && Number.isFinite(d.totaux.ht) ? d.totaux.ht : null);
+const enMillisecondes = (v) => (v instanceof Date ? v.getTime() : typeof v?.toMillis === 'function' ? v.toMillis() : Date.parse(v) || 0);
 export function montantAccepteHt(devisDeLAffaire) {
   let centimes = 0;
   let nombre = 0;
   for (const d of devisDeLAffaire ?? []) {
-    if (d?.statut !== 'accepte' || d.archive === true || typeof d.totaux?.ht !== 'number' || !Number.isFinite(d.totaux.ht)) continue;
-    centimes += versCentimes(d.totaux.ht);
+    if (d?.statut !== 'accepte' || d.archive === true || htFige(d) === null) continue;
+    centimes += versCentimes(htFige(d));
     nombre += 1;
   }
   return nombre ? versEuros(centimes) : null;
+}
+/** Une ligne de détail (affichée dans l'infobulle de l'écran) : le devis, son HT, et s'il entre dans le montant. */
+const ligneDetail = (d, compte) => ({ numero: typeof d.numero === 'string' ? d.numero : '', version: d.version ?? 1, ht: versEuros(versCentimes(htFige(d))), compte });
+const PLUS_RECENT = (a, b) => enMillisecondes(b.finaliseLe) - enMillisecondes(a.finaliseLe) || (b.version ?? 1) - (a.version ?? 1) || String(b.id).localeCompare(String(a.id));
+export const MAX_LIGNES_DETAIL = 20;
+/** Rend `{ montant, nature: 'accepte' | 'propose', detail: [{ numero, version, ht, compte }] }` ou null. `detail` est écrit avec le montant : l'écran explique SES chiffres sans recharger les devis. */
+export function montantDesDevis(devisDeLAffaire) {
+  const valides = (devisDeLAffaire ?? []).filter((d) => d && d.archive !== true && htFige(d) !== null);
+  const acceptes = valides.filter((d) => d.statut === 'accepte').sort(PLUS_RECENT);
+  if (acceptes.length) return { montant: montantAccepteHt(acceptes), nature: 'accepte', detail: acceptes.slice(0, MAX_LIGNES_DETAIL).map((d) => ligneDetail(d, true)) };
+  const proposes = valides.filter((d) => STATUTS_PROPOSES.includes(d.statut)).sort(PLUS_RECENT);
+  if (!proposes.length) return null;
+  return { montant: versEuros(versCentimes(htFige(proposes[0]))), nature: 'propose', detail: proposes.slice(0, MAX_LIGNES_DETAIL).map((d, i) => ligneDetail(d, i === 0)) };
 }
 
 // ---------------------------------------------------------------- validation de finalisation
@@ -1082,5 +1101,5 @@ export function texteVueInterne(devis) {
 }
 
 // ---------------------------------------------------------------- montant d'affaire
-/** Montant de l'affaire : somme HT des devis acceptés non archivés (`montantAccepteHt`), sinon le montant saisi à la main, inchangé (on n'écrase jamais une saisie). */
-export const montantAffaireDepuisDevis = (devisListe, montantSaisi) => montantAccepteHt(devisListe) ?? montantSaisi;
+/** Montant de l'affaire d'après ses devis (`montantDesDevis`), sinon le montant saisi à la main, inchangé (on n'écrase jamais une saisie). */
+export const montantAffaireDepuisDevis = (devisListe, montantSaisi) => montantDesDevis(devisListe)?.montant ?? montantSaisi;
