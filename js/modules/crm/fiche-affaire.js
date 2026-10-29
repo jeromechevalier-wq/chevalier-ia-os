@@ -8,6 +8,7 @@ import {
 } from './composants.js';
 import { surChangementPastilles, ongletsDeAffaire, actionDeAffaire } from './pastilles-externes.js';
 import { panneauActivite } from './activites.js';
+import { creerOngletFichiers } from './fichiers-onglet.js';
 import { creerLanceurs } from './lanceurs.js';
 import { retirerAvecAnnulation } from '../../os/retrait.js';
 import { sectionLiensEtDocuments } from './liens-documents.js';
@@ -47,6 +48,8 @@ export function rendreFicheAffaire(conteneur, id) {
   let majLiens = null; // redessine seulement les liens personne / organisation de l'en-tête
   const racine = h('div', { class: 'fiche-conteneur' });
   conteneur.append(racine);
+  // Onglet « Documents » (fichiers rangés chez nous) : créé une fois pour la fiche, placé après les onglets des autres modules (Devis).
+  const fichiers = creerOngletFichiers({ cibleType: 'affaire', cibleId: id, surChangement: () => panneau?.majOngletsExternes() });
 
   function introuvable() {
     remplir(racine, h('div', { class: 'page' }, lienRetour('#/crm/affaires', 'Affaires'),
@@ -170,7 +173,7 @@ export function rendreFicheAffaire(conteneur, id) {
     const documents = sectionLiensEtDocuments({ id: 'affaire-documents', typeFiche: 'affaire', entite: a, courant: () => D.affaire(a.id) || a, enregistrer: (patch) => D.majAffaire(a.id, patch),
       avant: [h('div', { class: 'proprietes' }, lanceurs.dossier)] });
 
-    if (!panneau) panneau = panneauActivite({ lien: { affaireId: a.id }, liensCreation: () => L.liensAffaire(D.affaire(a.id) || a), avecDocuments: true, ongletsExternes: () => ongletsDeAffaire(a.id) });
+    if (!panneau) panneau = panneauActivite({ lien: { affaireId: a.id }, liensCreation: () => L.liensAffaire(D.affaire(a.id) || a), avecDocuments: true, ongletsExternes: () => [...ongletsDeAffaire(a.id), fichiers.onglet()] });
     panneau.majDocuments(documents);
     panneau.majOngletsExternes();
     remplir(racine, gabaritFiche({ entete, gauche: [resume.element, sectionProjet?.element, details.element].filter(Boolean), droite: panneau.element }));
@@ -197,6 +200,6 @@ export function rendreFicheAffaire(conteneur, id) {
   });
   reconstruire();
   const arrets = [D.surChangement(rafraichir), PD.surChangement(rafraichir), surChangementPastilles(rafraichir)];
-  return () => { arrets.forEach((f) => f()); panneau?.arreter(); };
+  return () => { arrets.forEach((f) => f()); panneau?.arreter(); fichiers.arreter(); };
 }
 

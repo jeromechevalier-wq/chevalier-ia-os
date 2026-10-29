@@ -14,6 +14,7 @@ import { COLLECTIONS as C } from './donnees.js';
 import { lireConfig as lireConfigEspace } from './config.js';
 import { emettreCode, consommerCode, empreinteApercu } from '../securite/codes.js';
 import { canonique, sansId } from './canonique.js';
+import * as DOC from './documents.js';
 
 /** Propriétaire des fiches créées par un jeton « cia_… » (sans e-mail) sur le serveur de Jérôme, sauf si l'appel en donne un autre (plan-mcp.md, écart 11, réglé en 2.16.1 pour les connexions Google et les clients). */
 export const PROPRIETAIRE_PAR_DEFAUT = 'jerome.chevalier@gmail.com';
@@ -520,8 +521,9 @@ async function decrireSuppression(c, plan, cible) {
 /**
  * Double confirmation des suppressions : sans `codeConfirmation`, rien n'est supprimé : on rend l'aperçu et un code à usage unique (5 minutes) ;
  * avec le code, la suppression a lieu (le code est consommé avant d'écrire). `cible` : { collection, id } de la fiche visée ; `parametres` : ce que l'audit garde.
+ * `operations` et `suppressions` (facultatifs) : ce qui est réellement écrit et compté au plafond du jour, quand ce n'est pas le plan montré dans l'aperçu (fichier mis en corbeille : une modification).
  */
-async function supprimerAvecCode(c, outil, args, cible, plan, parametres) {
+async function supprimerAvecCode(c, outil, args, cible, plan, parametres, { operations = null, suppressions } = {}) {
   const d = await decrireSuppression(c, plan, cible);
   const jeton = c.jeton ?? c.acteur;
   const { empreinte, ...apercu } = d;
@@ -550,7 +552,7 @@ async function supprimerAvecCode(c, outil, args, cible, plan, parametres) {
     }[verdict];
     refuser('confirmation', `Suppression non confirmée : ${raison}. Rien n'a été supprimé. Rappeler ${outil} SANS codeConfirmation pour obtenir un nouvel aperçu et un nouveau code.`);
   }
-  const r = await c.ecrire({ operations: plan.ecritures, parametres });
+  const r = await c.ecrire({ operations: operations ?? plan.ecritures, parametres, ...(suppressions !== undefined ? { suppressions } : {}) });
   return sortie(r, {
     supprime: true, ...apercu, restaurable: 'restaurer_depuis_audit',
     detail: `Détail complet de l'opération : lire_audit avec operationId ${r.operationId}.`,
@@ -618,6 +620,42 @@ export async function supprimerNote(c, args) {
 export async function supprimerActivite(c, args) {
   await lire(c, C.activites, args.id, 'Activité');
   return supprimerAvecCode(c, 'supprimer_activite', args, { collection: C.activites, id: args.id }, L.planSupprimerActivite(args.id), parametresDe(args));
+}
+
+// ---------------------------------------------------------------- fichiers de l'onglet « Documents » (28/10/2026)
+// Un assistant ne peut PAS envoyer un fichier du chat (aucun outil MCP n'accepte des octets, et il ne peut pas les écrire à la main) : il dépose du TEXTE (txt, md, csv, 64 Ko au plus).
+// Les PDF, images et autres fichiers se déposent à l'écran, dans l'onglet « Documents » de l'affaire ou du projet. Le code du dépôt, des contrôles et de la suppression est celui des fonctions de l'écran (documents.js).
+
+/** Erreur du service des fichiers -> refus métier lisible par l'assistant. */
+function refusDocument(e) {
+  if (!(e instanceof DOC.ErreurDocument)) throw e;
+  const code = { refuse: 'saisie_invalide', demande_invalide: 'saisie_invalide', introuvable: 'introuvable' }[e.code] ?? 'stockage_indisponible';
+  refuser(code, e.message);
+}
+
+export async function deposerDocumentTexte(c, args) {
+  try {
+    const { cibleType, cibleId } = DOC.lireCible(args);
+    const octets = DOC.octetsDeTexte(args.nom, args.contenuTexte);
+    const r = await DOC.deposerDocument({
+      donnees: c.donnees, stockage: c.stockage?.() ?? null, espace: c.espace ?? '', ctx: { acteur: c.acteur, maintenant: c.maintenant },
+      ecrire: (operations, parametres) => c.ecrire({ operations, parametres }), cibleType, cibleId, nom: args.nom, octets,
+    });
+    return { operationId: r.operationId, id: r.id, nom: r.nom, taille: r.taille, [cibleType === 'affaire' ? 'affaireId' : 'projetId']: cibleId, restaurable: 'restaurer_depuis_audit' };
+  } catch (e) { return refusDocument(e); }
+}
+
+export async function supprimerDocumentStocke(c, args) {
+  let fiche;
+  try {
+    fiche = await c.donnees.document(C.documentsStockes, args.id);
+    if (!fiche || fiche.supprimeLe) refuser('introuvable', `Fichier introuvable : ${args.id} (lister_documents donne les identifiants).`);
+  } catch (e) { return refusDocument(e); }
+  // Aperçu montré : la fiche. Écriture réelle : la fiche reçoit supprimeLe (corbeille logique : le fichier ne bouge pas), comptée comme une suppression.
+  const plan = { ecritures: [{ type: 'supprimer', collection: C.documentsStockes, id: fiche.id }] };
+  const reelles = [{ type: 'modifier', collection: C.documentsStockes, id: fiche.id, patch: { supprimeLe: c.maintenant, supprimePar: c.acteur } }];
+  const r = await supprimerAvecCode(c, 'supprimer_document_stocke', args, { collection: C.documentsStockes, id: fiche.id }, plan, parametresDe(args), { operations: reelles, suppressions: 1 });
+  return r.supprime ? { ...r, remarque: 'Le fichier est mis à la corbeille : il disparaît des listes mais reste conservé ; restaurer_depuis_audit le remet.' } : r;
 }
 
 // ---------------------------------------------------------------- Devis : bordereau (articles)

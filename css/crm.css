@@ -555,6 +555,30 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
 .onglet-documents-tete { display: flex; align-items: center; justify-content: space-between; gap: var(--esp-4); }
 .onglet-documents-tete .sous-titre { margin-bottom: 0; }
 .onglet .compteur { margin-left: var(--esp-1); }
+/* Onglet « Documents » (fichiers rangés chez nous) : liste, envoi en cours, dépôt par glisser-déposer. Cibles de 44 px au doigt. */
+.fichiers-onglet { border-radius: var(--rayon-petit); }
+.fichiers-onglet.depot-survol { outline: 2px dashed var(--accent-trait); outline-offset: 4px; }
+.liste-fichiers { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--esp-3); }
+.ligne-fichier { display: flex; align-items: center; gap: var(--esp-3); min-width: 0; }
+.ligne-fichier > svg { flex: none; color: var(--texte2); }
+.fichier-texte { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.fichier-nom { border: 0; background: none; padding: 0; text-align: left; color: var(--lien); font: inherit; font-weight: var(--poids-moyen); cursor: pointer; overflow-wrap: anywhere; }
+.fichier-nom:hover, .fichier-nom:focus-visible { text-decoration: underline; }
+.fichier-meta { color: var(--texte2); font-size: var(--fs-menu); overflow-wrap: anywhere; }
+.fichiers-envoi { display: flex; flex-direction: column; gap: var(--esp-1); }
+.fichiers-progression { width: 100%; }
+.vide-fichiers .vide-titre { margin: 0; font-weight: var(--poids-moyen); }
+/* Téléphone : avec « Documents », jusqu'à cinq onglets (avec G-Drive et Devis) doivent tenir sur une ligne : sans icônes, serrés, compteurs plus petits. */
+@media (max-width: 767px) {
+  .compositeur .onglets[role="tablist"]:has([data-onglet="fichiers"]) .onglet { padding-left: var(--esp-1); padding-right: var(--esp-1); gap: var(--esp-1); }
+  .compositeur .onglets:has([data-onglet="fichiers"]) .onglet > svg { display: none; }
+  .compositeur .onglets:has([data-onglet="fichiers"]) .onglet { font-size: var(--fs-menu); }
+  .compositeur .onglets:has([data-onglet="fichiers"]) .onglet .compteur { min-width: 18px; height: 18px; padding: 0 var(--esp-1); margin-left: 0; }
+}
+@media (max-width: 767px), (pointer: coarse) {
+  .fichiers-onglet .prop-vide, .ligne-fichier .fichier-nom { min-height: 44px; display: inline-flex; align-items: center; }
+  .ligne-fichier .bouton-icone { min-width: 44px; min-height: 44px; }
+}
 /* Liens personne / organisation de l'en-tête : le bloc se redessine seul, il ne change pas la mise en page. */
 .fiche-sous > .fiche-liens { display: contents; }
 .fiche-sous .fiche-liens > span { display: inline-flex; align-items: center; gap: var(--esp-2); }

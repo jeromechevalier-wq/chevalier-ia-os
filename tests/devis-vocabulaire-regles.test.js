@@ -146,7 +146,7 @@ describe('V4 Cohérence des deux jeux de règles', () => {
       assert.match(t, /hasOnly\(\['statut', 'articleId', 'articleLibelle', 'note', 'conflit', 'modifieLe', 'modifiePar', 'via'\]\)/);
       assert.match(t, /match \/(?:clients\/\{client\}\/)?devis_vocabulaire\/\{id\} \{[^}]*allow delete: if false;/s);
     }
-    assert.match(j, /'crm_actions_lancements', 'devis_vocabulaire'\]\)/);
+    assert.match(j, /'crm_actions_lancements', 'devis_vocabulaire'(, 'documents_stockes')?\]\)/);
     assert.match(p, /return collection in \['devis_articles', 'devis_vocabulaire'\];/);
   });
 });

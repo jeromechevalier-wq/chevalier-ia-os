@@ -237,7 +237,7 @@ describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
     assert.match(r, /email_verified == true/);
     assert.match(r, /jerome\.chevalier@gmail\.com/);
     assert.match(r, /jeromebot\.chevalierbot@gmail\.com/);
-    assert.match(r, /!\(collection in \['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions', 'devis_devis', 'devis_compteurs', 'devis_articles', 'crm_actions_lancements', 'devis_vocabulaire'\]\)/); // + les devis, leur compteur et le bordereau (24/10/2026), le journal des demandes d'e-mail (25/10/2026) : règles propres, voir devis-regles.test.js
+    assert.match(r, /!\(collection in \['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions', 'devis_devis', 'devis_compteurs', 'devis_articles', 'crm_actions_lancements', 'devis_vocabulaire', 'documents_stockes'\]\)/); // + les fiches des fichiers de l'onglet « Documents » (28/10/2026), les devis, leur compteur et le bordereau (24/10/2026), le journal des demandes d'e-mail (25/10/2026) : règles propres, voir devis-regles.test.js
     for (const t of ['tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions']) {
       assert.match(r, new RegExp(`match /${t}/\\{id\\} \\{\\s+allow read: if compteAutorise\\(\\);\\s+allow write: if false;`), `${t} : lecture seule pour l'écran`);
     }
@@ -270,11 +270,13 @@ describe('D4 Requêtes Firestore, ancienne collection, règles', () => {
     // Exceptions : le module Devis (quatre fonctions de transition), le module Automatisations (n8n) appelle trois fonctions du serveur (rafraîchir, renommer, décider d'une proposition), et la veille en appelle une seule,
     // `veille` (ajouter un lien collé, lancer un résumé : 2026-10-15), et le tableau de bord en appelle une seule, `tableaudebordSaisir`
     // (saisir une date ou une valeur : le serveur contrôle, écrit et journalise) ; aucun Cloud Storage.
-    const AVEC_FONCTIONS = ['js/modules/automatisations/donnees.js', 'js/modules/veille/donnees.js', 'js/modules/tableaudebord/donnees.js', 'js/os/mon-espace-donnees.js', 'js/modules/devis/donnees.js', 'js/os/deploiement-ecran.js'];
+    const AVEC_FONCTIONS = ['js/modules/automatisations/donnees.js', 'js/modules/veille/donnees.js', 'js/modules/tableaudebord/donnees.js', 'js/os/mon-espace-donnees.js', 'js/modules/devis/donnees.js', 'js/os/deploiement-ecran.js', 'js/modules/crm/fichiers-donnees.js'];
     for (const f of fichiersAppli().filter((x) => /\.js$/.test(x))) {
       const t = AVEC_FONCTIONS.includes(f) ? lire(f).replaceAll(/getFunctions|httpsCallable|firebase-functions\.js/g, '') : lire(f);
       assert.doesNotMatch(t, /firebase-functions|firebase-storage|getStorage|httpsCallable/, f);
     }
+    // Onglet « Documents » (28/10/2026) : trois fonctions seulement, jamais Cloud Storage (le navigateur n'y accède pas) ; leur nom est écrit en dur dans le fichier.
+    assert.deepEqual([...lire('js/modules/crm/fichiers-donnees.js').matchAll(/appeler\('([A-Za-z]+)'/g)].map((m) => m[1]).sort(), ['documentDeposer', 'documentLien', 'documentSupprimer']);
     const appels = [...lire('js/modules/automatisations/donnees.js').matchAll(/httpsCallable\(fonctions\(\), '([A-Za-z]+)'\)/g)].map((m) => m[1]);
     assert.deepEqual([...new Set(appels)].sort(), ['automatisationsAdmin', 'automatisationsDecider', 'automatisationsRafraichir', 'automatisationsRenommer']); // Admin : compte de Jérôme seulement (vue de tous les propriétaires) ; Decider : valider, refuser ou relancer une proposition de l'écran « À valider » (le serveur revérifie tout)
     // Module Devis (24/10/2026) : les transitions d'un devis (finaliser, changer de statut, nouvelle version, archiver, supprimer) et l'historique des envois passent par le serveur ; le seul httpsCallable du fichier lit son nom dans une table fixe.
@@ -498,7 +500,7 @@ describe('D5 Serveur MCP (étape 2) : déploiement, versions figées, sécurité
   test('D6 étape 4 : la fonction branche les plafonds de débit (sans eux, aucun frein) et passe par le moteur d’écriture avec audit', () => {
     const index = lire('functions/src/index.js');
     assert.match(index, /creerLimiteur\(\{ donnees \}\)/);
-    assert.match(index, /creerGestionnaire\(\{ magasin, donnees, limiteur, oauth \}\)/); // plus de `stockage` (26/10/2026) : supprimer un brouillon ne touche jamais aux fichiers
+    assert.match(index, /creerGestionnaire\(\{ magasin, donnees, limiteur, oauth, stockage: stockageDuProjet \}\)/); // stockage : dépôt de texte de l'onglet Documents (28/10/2026) ; supprimer un brouillon ne touche jamais aux fichiers
     assert.match(index, /creerRouteurOauth\(\{ donnees, verifierIdToken: creerVerificateurIdentite\(\) \}\)/);
     const g = lire('functions/src/mcp/gestionnaire.js');
     assert.match(g, /executerEcritures/);

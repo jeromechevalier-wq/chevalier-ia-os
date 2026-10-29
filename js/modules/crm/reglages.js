@@ -8,6 +8,7 @@ import { exporterToutesLesDonnees } from './export.js';
 import { googleDisponible } from '../../os/google-picker.js';
 import { retirerAvecAnnulation } from '../../os/retrait.js';
 import { nettoyerSousDossiers } from '../../os/google-drive.js';
+import { TAILLE_DEFAUT_MO, TAILLE_MAX_REGLAGE_MO, TAILLE_MIN_MO, PLAFOND_APPEL_MO, validerReglageTaille } from './fichiers-regles.js';
 
 function section(id, titre, nomIcone, aide) {
   return h('section', { class: 'carte-section', id },
@@ -91,6 +92,33 @@ export function rendreReglagesCrm(page, ctx = {}) {
     listeSousDossiers,
     formulaireAjout('Nouveau sous-dossier (ex. Contrat, Livrables)', 'Ajouter', async (v) => { await enregistrerSousDossiers([...(D.etat.reglages.sousDossiersDrive || []), v]); }));
 
+  // Taille maximale d'un fichier de l'onglet « Documents » : réglage de l'espace, lu avec son défaut sans rien écrire ; seul un éditeur le change (les règles Firestore refusent un lecteur).
+  const sFichiers = section('reglages-fichiers', 'Documents : taille des fichiers', 'file-text', `Taille maximale d’un fichier ajouté dans l’onglet Documents d’une affaire ou d’un projet (de ${TAILLE_MIN_MO} à ${TAILLE_MAX_REGLAGE_MO} Mo, ${TAILLE_DEFAUT_MO} par défaut).`);
+  const champTaille = h('input', { type: 'text', inputmode: 'decimal', class: 'champ champ-court', 'aria-label': 'Taille maximale d’un fichier (Mo)', 'data-role': 'taille-max-fichier' });
+  const aideTaille = h('p', { class: 'aide', 'data-role': 'aide-taille-fichier' });
+  const erreurTaille = h('p', { class: 'erreur', role: 'alert', hidden: true, 'data-role': 'erreur-taille-fichier' });
+  const valeurTaille = () => (typeof D.etat.reglages.tailleMaxFichierMo === 'number' ? D.etat.reglages.tailleMaxFichierMo : TAILLE_DEFAUT_MO);
+  const majAideTaille = () => {
+    aideTaille.textContent = valeurTaille() > PLAFOND_APPEL_MO ? `Pour l’instant, un fichier de plus de ${PLAFOND_APPEL_MO} Mo ne peut pas être envoyé : l’envoi direct n’est pas encore disponible. La limite appliquée est donc de ${PLAFOND_APPEL_MO} Mo.` : '';
+  };
+  const enregistrerTaille = async () => {
+    const r = validerReglageTaille(champTaille.value);
+    erreurTaille.hidden = r.ok;
+    if (!r.ok) { erreurTaille.textContent = r.erreur; champTaille.setAttribute('aria-invalid', 'true'); return; }
+    champTaille.removeAttribute('aria-invalid');
+    if (r.valeur === valeurTaille()) { champTaille.value = String(r.valeur).replace('.', ','); return; }
+    try {
+      await D.enregistrerReglages({ tailleMaxFichierMo: r.valeur });
+      toast('Taille maximale enregistrée');
+    } catch (e) {
+      console.warn(e);
+      toast('Enregistrement impossible', { type: 'erreur' });
+    }
+  };
+  champTaille.addEventListener('change', enregistrerTaille);
+  champTaille.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); enregistrerTaille(); } });
+  sFichiers.append(h('div', { class: 'ligne-ajout' }, champTaille, h('span', {}, 'Mo')), erreurTaille, aideTaille);
+
   const sExport = section('reglages-export', 'Sauvegarde', 'download', 'Télécharge toutes tes données (personnes, organisations, affaires, activités, notes, historique) dans un fichier.');
   const infoExport = h('p', { class: 'aide', 'data-role': 'dernier-export' });
   sExport.append(h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'exporter-tout', onclick: () => exporterToutesLesDonnees() }, icone('download', { taille: 16 }), 'Exporter mes données'), infoExport);
@@ -109,7 +137,7 @@ export function rendreReglagesCrm(page, ctx = {}) {
 
   const config = sectionsConfiguration({ avecProjets });
 
-  page.append(...config.elements, sOffres, sSecteurs, sSources, sEtiquettes, sFiltres, sDebut, sProjets, sExport);
+  page.append(...config.elements, sOffres, sSecteurs, sSources, sEtiquettes, sFiltres, sDebut, sProjets, sFichiers, sExport);
 
   function ligneOffre(o, i, liste) {
     const nom = h('input', { type: 'text', class: 'champ', value: o.nom, 'aria-label': `Nom de l'offre ${o.nom}`,
@@ -211,6 +239,7 @@ export function rendreReglagesCrm(page, ctx = {}) {
     remplir(listeEtiquettes, ...D.etat.etiquettes.map((e, i, l) => ligneEtiquette(e, i, l)));
     remplir(listeFiltres, ...D.etat.filtres.map(ligneFiltre));
     if (!D.etat.filtres.length) listeFiltres.append(h('p', { class: 'vide-discret' }, 'Aucun filtre enregistré.'));
+    if (document.activeElement !== champTaille) { champTaille.value = String(valeurTaille()).replace('.', ','); majAideTaille(); }
     if (document.activeElement !== debut) debut.value = D.etat.reglages.debutActivite || '';
     const dc = L.versDate(D.etat.reglages.dernierExportContacts);
     if (document.activeElement !== dateContacts) dateContacts.value = dc ? `${dc.getFullYear()}-${String(dc.getMonth() + 1).padStart(2, '0')}-${String(dc.getDate()).padStart(2, '0')}` : '';

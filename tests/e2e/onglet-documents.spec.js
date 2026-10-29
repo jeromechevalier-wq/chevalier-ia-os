@@ -14,10 +14,11 @@ for (const f of FICHES) {
     await connecter(page);
     await aller(page, f.hash);
     const onglets = page.locator('.compositeur [role="tab"]');
-    await expect(onglets).toHaveCount(f.nom === 'affaire' ? 4 : 3); // l'affaire a un onglet « Devis » de plus (module Devis), toujours en dernier
+    await expect(onglets).toHaveCount(f.nom === 'affaire' ? 5 : 4); // l'affaire a un onglet « Devis » de plus (module Devis) ; « Documents » (fichiers chez nous) est toujours le dernier
     const onglet = onglets.nth(2);
     await expect(onglet).toContainText('G-Drive');
-    if (f.nom === 'affaire') await expect(onglets.last()).toContainText('Devis');
+    if (f.nom === 'affaire') await expect(onglets.nth(3)).toContainText('Devis');
+    await expect(onglets.last()).toContainText('Documents');
     await expect(onglet.locator('[data-role="compteur-documents"]')).toHaveText('0');
     await expect(page.locator('.section', { hasText: 'Liens et documents' })).toHaveCount(0); // plus de section dans la colonne de gauche
     await expect(page.locator(`[data-section="${f.section}"]`)).toBeHidden(); // l'onglet n'est pas ouvert

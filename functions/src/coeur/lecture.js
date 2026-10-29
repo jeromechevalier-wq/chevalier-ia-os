@@ -163,7 +163,14 @@ export async function listerDocuments(donnees, { affaireId, projetId }) {
     ...affaires.flatMap((a) => (a.documents || []).map((d, index) => ({ affaireId: a.id, titreAffaire: a.titre, ...ligne(d, index) }))),
     ...projets.flatMap((p) => (p.documents || []).map((d, index) => ({ projetId: p.id, titreProjet: p.titre, ...ligne(d, index) }))),
   ];
-  return serialiser({ total: documents.length, documents });
+  // Fichiers déposés chez nous (onglet « Documents ») : id, nom, taille, date, qui. Le chemin du stockage n'est jamais donné. Le plus récent d'abord.
+  const cible = affaireId ? { champ: 'cibleId', valeur: affaireId } : projetId ? { champ: 'cibleId', valeur: projetId } : undefined;
+  const ms = (d) => (typeof d?.toMillis === 'function' ? d.toMillis() : d instanceof Date ? d.getTime() : typeof d?.seconds === 'number' ? d.seconds * 1000 : 0);
+  const fichiers = (await donnees.liste(C.documentsStockes, cible))
+    .filter((f) => ['affaire', 'projet'].includes(f.cibleType) && !f.supprimeLe && (affaireId ? f.cibleType === 'affaire' : projetId ? f.cibleType === 'projet' : true))
+    .sort((a, b) => ms(b.creeLe) - ms(a.creeLe))
+    .map((f) => ({ id: f.id, [f.cibleType === 'affaire' ? 'affaireId' : 'projetId']: f.cibleId, nom: f.nom, taille: f.taille ?? null, typeMime: f.typeMime ?? null, creeLe: f.creeLe ?? null, creePar: f.creePar ?? null }));
+  return serialiser({ total: documents.length, documents, totalFichiers: fichiers.length, fichiers });
 }
 
 // ---------------------------------------------------------------- projets (2.1) et factures (2.2)

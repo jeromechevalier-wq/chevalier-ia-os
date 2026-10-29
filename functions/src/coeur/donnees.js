@@ -40,6 +40,7 @@ export const COLLECTIONS = {
   codes: 'mcp_codes',
   propositions: 'automatisations_propositions',
   workflows: 'workflows',
+  documentsStockes: 'documents_stockes', // fiches des fichiers de l'onglet « Documents » (écrites par le serveur seulement ; le fichier est dans Cloud Storage)
   actionsLancements: 'crm_actions_lancements', // journal des demandes faites à n8n depuis un écran (une ligne par demande, jamais le contenu d'un e-mail)
 };
 

@@ -271,7 +271,7 @@ test('C29 notes d’un projet : onglets Activité et Notes ; la note est aussi d
   await connecter(page);
   await aller(page, '#/projets/projets/pr1');
   const panneau = page.locator('.panneau-activite');
-  await expect(panneau.getByRole('tab')).toHaveCount(3); // Activité, Notes, Documents
+  await expect(panneau.getByRole('tab')).toHaveText([/Activité/, /Notes/, /G-Drive/, /Documents/]); // Activité, Notes, G-Drive (Google Drive), Documents (fichiers chez nous)
   await expect(panneau.getByRole('tab', { name: 'Activité' })).toHaveAttribute('aria-selected', 'true');
   await panneau.getByRole('tab', { name: 'Notes' }).click();
   await expect(panneau.getByRole('tab', { name: 'Notes' })).toHaveAttribute('aria-selected', 'true');

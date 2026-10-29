@@ -16,6 +16,7 @@ import { reglerEspace } from './espace.js';
 import { deciderClient } from './propositions.js';
 import { transitionDevis, preparerEmailDevis, etatPreparerEmail } from './devis.js';
 import { fabriquerPdfClient, lienPdfClient, creerDeclencheurPdfClient } from './devis-pdf.js';
+import { appelDocument } from './documents.js';
 import { verifierDeploiementClient } from './deploiement.js';
 import { VERSION_SERVEUR } from '../serveur/src/version.js';
 import { creerSortieN8n } from '../serveur/src/coeur/n8n-sortie.js';
@@ -143,6 +144,22 @@ export const devisPdf = onCall(OPTIONS_PDF, async (requete) => {
 export const devisPdfLien = onCall({ region: REGION, memory: '256MiB', timeoutSeconds: 60, maxInstances: 5, serviceAccount: COMPTE_PDF }, async (requete) => {
   try { return await lienPdfClient({ db: db(), auth: requete.auth, donnees: requete.data, stockage: stockagePdf, journal: journalPdf }); } catch (e) { throw enHttps(e); }
 });
+// Onglet « Documents » (28/10/2026) : fichiers déposés dans une affaire ou un projet, rangés sous clients/<client>/documents/… (jamais publics) avec une fiche `documents_stockes` écrite par le serveur seulement.
+// Aucune règle Storage ne change. MÊME compte de service que les PDF (devis-pdf, « Administrateur des objets » sur clients/) : rien de nouveau à créer. Déposer et supprimer : éditeurs ; lire : éditeurs et lecteurs.
+// Le dépôt reçoit le fichier en base64 (corps d'appel ~32 Mo au plus : 20 Mo de fichier) : mémoire et délai augmentés. Déployées seulement par le workflow MANUEL de la plateforme, avec Jérôme.
+const OPTIONS_DOCUMENT_DEPOT = { region: REGION, memory: '1GiB', timeoutSeconds: 300, concurrency: 2, maxInstances: 2, serviceAccount: COMPTE_PDF };
+const OPTIONS_DOCUMENT = { region: REGION, memory: '256MiB', timeoutSeconds: 60, maxInstances: 5, serviceAccount: COMPTE_PDF };
+const journalDocuments = (e) => {
+  const ligne = { action: e.action, statut: e.statut, code: e.code, dureeMs: e.dureeMs };
+  if (e.statut === 'erreur') logger.error('documents', ligne); else logger.info('documents', ligne);
+};
+const appelDoc = (operation, options) => onCall(options, async (requete) => {
+  try { return await appelDocument({ operation, db: db(), auth: requete.auth, donnees: requete.data, stockage: stockagePdf, journal: journalDocuments }); } catch (e) { throw enHttps(e); }
+});
+export const documentDeposer = appelDoc('deposer', OPTIONS_DOCUMENT_DEPOT);
+export const documentLien = appelDoc('lien', OPTIONS_DOCUMENT);
+export const documentSupprimer = appelDoc('supprimer', OPTIONS_DOCUMENT);
+
 // Déclencheur : ne réagit qu'au passage brouillon -> finalisé (l'écriture de `pdf` ne le relance donc jamais), ne fabrique que si le module « devis » est actif chez ce client, ne lève jamais d'erreur.
 export const devisPdfAuto = onDocumentUpdated(
   { document: 'clients/{client}/devis_devis/{devisId}', region: REGION, memory: '2GiB', timeoutSeconds: 540, concurrency: 1, maxInstances: 2, retry: false, serviceAccount: COMPTE_PDF },
