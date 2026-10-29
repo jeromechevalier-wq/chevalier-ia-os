@@ -233,6 +233,8 @@ export async function supprimer({ donnees, ctx, devisId }) {
 // Un renvoi garde donc les deux dates. Le navigateur n'écrit jamais `envois` (les règles Firestore ne lui laissent que le brouillon) : tout passe ici, journal compris.
 export const MAX_ENVOIS = 100;
 export const MAX_ADRESSES_ENVOI = 10;
+/** D'où est parti l'e-mail enregistré (29/10/2026, sans migration : les anciennes lignes n'ont pas ce champ). Le logiciel ne fait que PRÉPARER un brouillon ; l'envoi est toujours fait par la personne. */
+export const ORIGINES_ENVOI = Object.freeze(['brouillon_logiciel', 'hors_logiciel']);
 
 /** Liste d'adresses nettoyée (espaces ôtés, doublons ignorés sans tenir compte de la casse). Une adresse invalide refuse toute la demande. */
 function adressesDeEnvoi(valeur, { nom, minimum }) {
@@ -255,7 +257,8 @@ function adressesDeEnvoi(valeur, { nom, minimum }) {
 }
 
 /** Ajoute un envoi à l'historique d'un devis « Envoyé ». Le statut ne change pas (c'est `changerStatut` qui le pose) et `envoyeLe` garde la date du premier envoi. */
-export async function enregistrerEnvoi({ donnees, ctx, devisId, destinataires, copie }) {
+export async function enregistrerEnvoi({ donnees, ctx, devisId, destinataires, copie, origine }) {
+  if (origine !== undefined && origine !== null && !ORIGINES_ENVOI.includes(origine)) throw new ErreurDevis('demande_invalide', `Origine de l'envoi : « ${ORIGINES_ENVOI.join(' » ou « ')} » attendu.`);
   const a = adressesDeEnvoi(destinataires, { nom: 'Destinataires', minimum: 1 });
   const cc = adressesDeEnvoi(copie, { nom: 'Copie', minimum: 0 }).filter((x) => !a.some((y) => y.toLowerCase() === x.toLowerCase()));
   return donnees.transaction(async (tx) => {
@@ -263,9 +266,9 @@ export async function enregistrerEnvoi({ donnees, ctx, devisId, destinataires, c
     if (devis.statut !== 'envoye') throw new ErreurDevis('transition_interdite', 'Marque d\'abord le devis comme envoyé : l\'historique des envois ne se tient que pour un devis envoyé.');
     const avant = Array.isArray(devis.envois) ? devis.envois : [];
     if (avant.length >= MAX_ENVOIS) throw new ErreurDevis('transition_interdite', `L'historique des envois est plein (${MAX_ENVOIS} envois).`);
-    const envois = [...avant, { date: ctx.maintenant, destinataires: a, copie: cc }];
+    const envois = [...avant, { date: ctx.maintenant, destinataires: a, copie: cc, ...(origine ? { origine } : {}) }];
     const changement = modifier(devis, { envois });
-    const j = journal({ donnees, ctx, outil: 'devisEnregistrerEnvoi', parametres: { devisId, destinataires: a, copie: cc }, changements: [changement] });
+    const j = journal({ donnees, ctx, outil: 'devisEnregistrerEnvoi', parametres: { devisId, destinataires: a, copie: cc, ...(origine ? { origine } : {}) }, changements: [changement] });
     tx.ecrire([changement.ecriture, ...j.ecritures]);
     return { ok: true, devis: { ...devis, envois }, operationId: j.operationId };
   });
@@ -347,7 +350,7 @@ export const OPERATIONS = Object.freeze({
   nouvelleVersion: (base, d) => nouvelleVersion({ ...base, devisId: d.devisId }),
   archiver: (base, d) => archiver({ ...base, devisId: d.devisId, archive: d.archive }),
   supprimer: (base, d) => supprimer({ ...base, devisId: d.devisId }),
-  enregistrerEnvoi: (base, d) => enregistrerEnvoi({ ...base, devisId: d.devisId, destinataires: d.destinataires, copie: d.copie }),
+  enregistrerEnvoi: (base, d) => enregistrerEnvoi({ ...base, devisId: d.devisId, destinataires: d.destinataires, copie: d.copie, origine: d.origine }),
 });
 
 /** Ce que l'appelant reçoit : jamais le devis entier (son navigateur le lit déjà). Un devis refusé rend les messages à corriger, rien n'a été écrit. */

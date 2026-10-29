@@ -15,6 +15,9 @@ import { lireConfig as lireConfigEspace } from './config.js';
 import { emettreCode, consommerCode, empreinteApercu } from '../securite/codes.js';
 import { canonique, sansId } from './canonique.js';
 import * as DOC from './documents.js';
+import { demanderPreparation } from './devis-email.js';
+import { MESSAGE_NON_BRANCHE } from './n8n-sortie.js';
+import { cheminAppartientALEspace, DUREE_LIEN_MINUTES } from '../devis/stockage.js';
 
 /** Propriétaire des fiches créées par un jeton « cia_… » (sans e-mail) sur le serveur de Jérôme, sauf si l'appel en donne un autre (plan-mcp.md, écart 11, réglé en 2.16.1 pour les connexions Google et les clients). */
 export const PROPRIETAIRE_PAR_DEFAUT = 'jerome.chevalier@gmail.com';
@@ -1137,9 +1140,50 @@ export async function archiverDevis(c, args) {
 
 /** Ajoute un envoi (destinataires, copie) à l'historique d'un devis « Envoyé » ; `envoyeLe` garde la date du premier envoi, un renvoi ajoute une ligne. Restaurable. */
 export async function enregistrerEnvoiDevis(c, args) {
-  const r = await appelerCoeurDevis(c, () => enregistrerEnvoiServeur({ donnees: c.donnees, ctx: ctxDevis(c), devisId: args.id, destinataires: args.destinataires, copie: args.copie }));
+  const r = await appelerCoeurDevis(c, () => enregistrerEnvoiServeur({ donnees: c.donnees, ctx: ctxDevis(c), devisId: args.id, destinataires: args.destinataires, copie: args.copie, origine: args.origine }));
   const dernier = r.devis.envois[r.devis.envois.length - 1];
-  return { id: args.id, nombreEnvois: r.devis.envois.length, dernierEnvoi: { destinataires: dernier.destinataires, copie: dernier.copie }, operationId: r.operationId };
+  return { id: args.id, nombreEnvois: r.devis.envois.length, dernierEnvoi: { destinataires: dernier.destinataires, copie: dernier.copie, ...(dernier.origine ? { origine: dernier.origine } : {}) }, operationId: r.operationId };
+}
+
+// ---------------------------------------------------------------- Garantie « aucun e-mail ne part tout seul » (29/10/2026)
+// Le logiciel NE FAIT QUE préparer un brouillon d'e-mail que la personne relit et envoie elle-même. Ces deux outils donnent à l'assistant les seules voies permises :
+// le PDF officiel (jamais refait par l'assistant) et la demande de brouillon (créé par n8n dans le Gmail de la personne). Aucune portée d'envoi Gmail nulle part dans le code (test).
+
+/**
+ * Lien de lecture signé et COURT (DUREE_LIEN_MINUTES) vers le PDF OFFICIEL d'un devis finalisé, déjà fabriqué par le serveur. Ne fabrique rien : jamais de PDF d'un brouillon,
+ * jamais de PDF « de démonstration ». Si le PDF n'est pas prêt, l'outil refuse et dit à l'assistant de s'arrêter.
+ */
+export async function pdfOfficielDevis(c, args) {
+  const devis = await c.donnees.document(C.devis, args.id);
+  if (!devis) refuser('introuvable', `Devis introuvable : ${args.id} (lister_devis donne les identifiants).`);
+  if (devis.statut === 'brouillon') refuser('saisie_invalide', 'Ce devis est un brouillon : il n’a pas de PDF officiel. ARRÊTE-TOI : ne fabrique aucun PDF toi-même ; dis à l’utilisateur qu’il faut d’abord finaliser le devis.');
+  const arret = ' ARRÊTE-TOI : ne refais pas de PDF toi-même et n’envoie rien ; dis-le à l’utilisateur (il peut réessayer depuis l’écran du devis).';
+  if (devis.pdf?.statut === 'en_cours') refuser('saisie_invalide', `Le PDF officiel est en cours de fabrication.${arret} Tu peux seulement rappeler cet outil dans quelques instants.`);
+  if (devis.pdf?.statut !== 'ok' || typeof devis.pdf?.chemin !== 'string') refuser('saisie_invalide', `Le PDF officiel de ce devis n’est pas disponible${devis.pdf?.statut === 'echec' ? ' (sa fabrication a échoué)' : ''}.${arret}`);
+  const stockage = c.stockage?.() ?? null;
+  if (!stockage) refuser('stockage_indisponible', `Le stockage des PDF est introuvable.${arret}`);
+  const espace = c.espace ?? '';
+  if (!cheminAppartientALEspace(devis.pdf.chemin, espace)) refuser('stockage_indisponible', `Le PDF officiel n’a pas été retrouvé au bon endroit du stockage.${arret}`);
+  let lien;
+  try { lien = await stockage.lienSigne(devis.pdf.chemin, { minutes: DUREE_LIEN_MINUTES, nomAffiche: devis.pdf.nom || 'devis.pdf' }); } catch { refuser('stockage_indisponible', `Le lien du PDF n’a pas pu être créé.${arret}`); }
+  return {
+    id: devis.id, numero: devis.numero ?? null, version: devis.version ?? 1, statut: devis.statut, nom: devis.pdf.nom ?? null, lien, valableMinutes: DUREE_LIEN_MINUTES,
+    consigne: 'Ce PDF est le seul PDF officiel. Ne l’envoie par e-mail à personne : pour préparer l’e-mail, utilise preparer_brouillon_email_devis.',
+  };
+}
+
+/**
+ * Demande à n8n de créer un BROUILLON d'e-mail (PDF joint) dans le Gmail de la personne : même fonction que le bouton « Préparer l'e-mail » de l'écran.
+ * Jamais d'envoi : ni ce code, ni n8n, n'envoient l'e-mail ; la personne le relit et l'envoie elle-même.
+ */
+export async function preparerBrouillonEmailDevis(c, args) {
+  const sortie = c.sortieEmail?.() ?? null;
+  if (!sortie) refuser('non_branche', `${MESSAGE_NON_BRANCHE} Ne l’envoie pas toi-même par un autre moyen : dis-le à l’utilisateur.`);
+  const r = await appelerCoeurDevis(c, () => demanderPreparation({ donnees: c.donnees, ctx: ctxDevis(c), devisId: args.id, espace: c.espaceN8n, sortie }));
+  return {
+    id: args.id, demandeId: r.demandeId, statut: 'demandee', envoye: false,
+    aSavoir: 'Un BROUILLON est en cours de création dans le Gmail de l’utilisateur (quelques secondes). Rien n’a été envoyé et rien ne sera envoyé tout seul. Dis à l’utilisateur d’ouvrir son brouillon Gmail, de le relire et de l’envoyer LUI-MÊME ; ne l’envoie pas à sa place.',
+  };
 }
 
 /**

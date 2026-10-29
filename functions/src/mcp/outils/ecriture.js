@@ -6,7 +6,7 @@ import * as PL from '../../../partage/projets.js';
 import * as DA from '../../../partage/devis-articles.js';
 import * as DEVIS from '../../../partage/devis.js';
 import * as metier from '../../coeur/metier.js';
-import { ACTIONS_STATUT, MAX_ADRESSES_ENVOI } from '../../coeur/devis.js';
+import { ACTIONS_STATUT, MAX_ADRESSES_ENVOI, ORIGINES_ENVOI } from '../../coeur/devis.js';
 
 const PROFILS = ['bibliothecaire', 'claude-code'];
 const id = z.string().min(1).max(200);
@@ -196,7 +196,13 @@ export const OUTILS_ECRITURE = [
     id: id.describe('Identifiant du devis (statut envoye).'),
     destinataires: z.array(z.string().max(254)).min(1).max(MAX_ADRESSES_ENVOI).describe('Adresses e-mail auxquelles le devis a été envoyé (1 au moins).'),
     copie: z.array(z.string().max(254)).max(DEVIS.MAX_COPIE).optional().describe('Adresses e-mail en copie de cet envoi.'),
+    origine: z.enum(ORIGINES_ENVOI).optional().describe("D'où est parti l'e-mail, à demander à l'utilisateur et à toujours renseigner : brouillon_logiciel = il a envoyé LUI-MÊME le brouillon préparé par le logiciel (preparer_brouillon_email_devis) ; hors_logiciel = envoi fait autrement (un autre outil, son propre connecteur Gmail, à la main)."),
   }, metier.enregistrerEnvoiDevis),
+
+  // Garantie « aucun e-mail ne part tout seul » (29/10/2026) : cet outil prépare un BROUILLON, il n'envoie jamais.
+  outil('preparer_brouillon_email_devis', "Prépare un BROUILLON d'e-mail pour un devis FINALISÉ (jamais un brouillon de devis) : le logiciel crée, dans le Gmail de l'utilisateur, un brouillon adressé au client avec le PDF officiel joint. Même fonction que le bouton « Préparer l'e-mail » de l'écran. N'ENVOIE RIEN et rien ne part tout seul : l'utilisateur ouvre son brouillon, le relit et l'envoie LUI-MÊME. Après l'appel, dis-lui d'ouvrir son brouillon Gmail ; ne l'envoie jamais à sa place. Refusé si le devis est un brouillon, s'il n'a pas de destinataire, si son PDF n'est pas prêt, si une préparation vient d'être faite (3 minutes) ou si la préparation n'est pas branchée pour cet espace : dans tous ces cas, arrête-toi et dis-le, n'envoie rien par un autre moyen. Quand l'utilisateur confirme avoir envoyé l'e-mail, enregistrer_envoi_devis (origine brouillon_logiciel) garde la trace.", {
+    id: id.describe('Identifiant du devis finalisé (voir lister_devis).'),
+  }, metier.preparerBrouillonEmailDevis),
 
   // Écriture sensible : le statut d'un devis ne se défait pas avec le journal (trace légale, et « Signé » remplace les autres versions). Claude Code seulement, aperçu puis code.
   outil('changer_statut_devis', "Change le statut d'un devis finalisé, comme les boutons de l'écran : action marquer_envoye (Finalisé -> Envoyé : à faire après l'envoi réel), accepter (Envoyé -> Signé ; les autres versions vivantes du même numéro passent à « Remplacé ») ou refuser (Envoyé -> Refusé). Mêmes règles de transition que l'écran, la date correspondante est posée. N'envoie rien au client. NE SE DÉFAIT PAS avec restaurer_depuis_audit (pour corriger un devis après coup : nouvelle_version_devis). marquer_envoye s'exécute DIRECTEMENT (journal écrit, mais non restaurable par le journal). accepter et refuser demandent une confirmation : le premier appel ne change RIEN et rend un APERÇU (statut avant et après, totaux, versions remplacées) et un code à usage unique ; après l'accord de l'utilisateur, le second appel (mêmes arguments + codeConfirmation) change le statut.", {

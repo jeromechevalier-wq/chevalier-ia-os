@@ -5,9 +5,10 @@ import { qui_suis_je } from './identite.js';
 import { OUTILS_LECTURE } from './lecture.js';
 import { OUTILS_ECRITURE } from './ecriture.js';
 import { OUTILS_SUPPRESSION } from './suppression.js';
+import { avecGarantie } from './garantie.js';
 import { OUTILS_PROPOSITIONS_LECTURE, OUTILS_PROPOSITIONS_ECRITURE } from './propositions.js';
 
-export const OUTILS = [qui_suis_je, ...OUTILS_LECTURE, ...OUTILS_PROPOSITIONS_LECTURE, ...OUTILS_ECRITURE, ...OUTILS_PROPOSITIONS_ECRITURE, ...OUTILS_SUPPRESSION];
+export const OUTILS = [qui_suis_je, ...OUTILS_LECTURE, ...OUTILS_PROPOSITIONS_LECTURE, ...OUTILS_ECRITURE, ...OUTILS_PROPOSITIONS_ECRITURE, ...OUTILS_SUPPRESSION].map(avecGarantie); // la règle « aucun e-mail ne part tout seul » est ajoutée aux outils des devis
 
 /** Écritures qui ne sont pas annulables par restaurer_depuis_audit. */
 export const OUTILS_NON_ANNULABLES = Object.freeze(['valider_proposition', 'refuser_proposition']);
