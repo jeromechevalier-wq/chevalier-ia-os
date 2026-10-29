@@ -1,12 +1,12 @@
 // Module Devis dans la barre du haut : le gros « + » propose « Devis » et la grande recherche trouve les devis (demande de Jérôme, 25/10/2026).
 // Un test par critère (le nom commence par son numéro). Captures impossibles : session cloud.
-// 1 le « + » propose « Devis » et ouvre « Nouveau devis » ; 2 la recherche trouve un devis par son numéro, son client ou son affaire, et un résultat ouvre l'éditeur ;
+// 1 le « + » propose « Devis », crée un brouillon et ouvre l'éditeur ; 2 la recherche trouve un devis par son numéro, son client ou son affaire, et un résultat ouvre l'éditeur ;
 // 3 cas vide : moins de 2 lettres, aucun devis, devis archivé ou remplacé -> aucun résultat « Devis », la recherche des autres fiches marche toujours ;
 // 4 cas d'erreur : un devis dont l'affaire ou le client a disparu reste trouvable par son numéro, sans casser la barre ;
 // 5 module Devis éteint chez un client : ni « Devis » dans le « + », ni résultat de devis.
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { test, expect, connecter, attendreCalme, ecrireDocument, creerOrganisation, creerAffaire, estTelephone, PROJET, FIRESTORE, URL_APP, JEROME } from './outils.js';
+import { test, expect, connecter, attendreCalme, ecrireDocument, listerDocuments, creerOrganisation, creerAffaire, estTelephone, PROJET, FIRESTORE, URL_APP, JEROME } from './outils.js';
 
 async function devis(id, valeurs = {}) {
   const maintenant = new Date();
@@ -28,14 +28,20 @@ async function champ(page) {
 }
 const liste = (page) => page.locator('ul.suggestions[aria-label="Suggestions : Rechercher"]');
 
-test('1 le gros « + » propose « Devis » et ouvre « Nouveau devis »', async ({ page }) => {
+test('1 le gros « + » propose « Devis », crée un brouillon et ouvre l’éditeur', async ({ page }) => {
   await semer();
   await connecter(page);
   await plus(page).click();
   await expect(page.getByRole('menuitem')).toHaveText(['Personne', 'Organisation', 'Affaire', 'Projet', 'Devis']);
   await page.getByRole('menuitem', { name: 'Devis' }).click();
-  await expect(page).toHaveURL(/#\/devis\/editeur$/);
-  await expect(page.getByRole('heading', { level: 1, name: 'Nouveau devis' })).toBeVisible();
+  await expect(page).toHaveURL(/#\/devis\/editeur\/[^/]+$/);
+  const id = page.url().split('/').pop();
+  await expect(page.locator(`.page-editeur-devis[data-devis="${id}"]`)).toBeVisible();
+  await expect(page.locator('.page-nouveau-devis')).toHaveCount(0); // plus de page intermédiaire « Nouveau devis »
+  await expect(page.locator('[data-action="creer-brouillon"]')).toHaveCount(0);
+  const docs = await listerDocuments('devis_devis'); // la graine d1 + le brouillon tout juste créé
+  expect(docs).toHaveLength(2);
+  expect(docs.find((d) => d.id === id)?.statut).toBe('brouillon');
 });
 
 test('2 la grande recherche trouve un devis par son numéro, son client ou son affaire ; un résultat ouvre le devis', async ({ page }) => {
