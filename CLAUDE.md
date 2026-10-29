@@ -28,6 +28,10 @@ Ce fichier est lu au début de chaque session. Il garde les décisions de Jérô
 - **Bilan de l'utilité de Fable (26/10/2026, 25 lancements relus dans l'historique)** : petites retouches d'interface = un peu utile (surtout des détails) ; liens et navigation = utile (un vrai bug chez les clients vu par Fable seul) ; gros écrans = beaucoup utile (3 à 4 vrais défauts par PR que les tests ne voyaient pas) ; serveur, données, règles = **absolument indispensable** (numéros de devis en double, journal modifiable depuis le navigateur, test jamais lancé, plantage sur les accents) ; briefs d'agents = **absolument indispensable** (4 briefs sur 4 contenaient des erreurs qui auraient donné une PR rouge ou fausse). Fable n'a jamais été « de trop » sur le serveur ni sur un brief. À refaire si la règle semble mal placée.
 - Jamais de jeton, de secret ni de clé dans la conversation, le dépôt ou un commit.
 
+## Moins de PR de docs (décision de Jérôme, 29/10/2026)
+
+Chaque PR relance les tests (environ 6 minutes) et chaque fusion sur `main` redéploie le site : trop de PR de documentation fait attendre Jérôme pour rien. Règles : **une seule PR de docs par session** (en fin de session), ou la modification de docs **dans la PR de code du même sujet** ; jamais une PR de docs par petite étape ; ne pas pousser plusieurs fois de suite sur une PR ouverte (chaque push annule et relance les tests) ; ne pas ajouter d'étiquette à une PR dont les tests tournent. Le wiki se régénère une seule fois, au dernier commit de la PR.
+
 ## Tests (décision du 18/10/2026)
 
 - Pendant le travail : seulement les tests du module touché (`npm run test:module <nom>`).
@@ -86,6 +90,18 @@ Jérôme ne veut pas être le goulot d'étranglement : GitHub permet de revenir 
 - La relecture Fable de chaque brief et de chaque PR de la liste « obligatoire » reste la règle (les petites retouches d'interface en sont dispensées) ; un sous-agent qui se réveille sans fin (tâche de fond) est arrêté (`TaskStop`) une fois son travail fusionné.
 - Mode d'emploi pour Jérôme : `docs/fonctionnement-du-travail.md` ; bouton qui lance un workflow : `docs/ajouter-un-bouton-workflow.md` ; déploiement chez un client : `docs/deploiement-client.md`.
 
+### Leçons de la 3e nuit et des sessions séparées (28 au 29/10/2026)
+- **Un brief se vérifie contre le code avant l'envoi** : sur cette nuit, la relecture Fable a trouvé des briefs faux (outils MCP « à brancher » alors que les 16 outils Devis l'étaient déjà ; `lienStablePdf` sans aucun consommateur ; `exigerStatut` inexistant dans la transaction). Avant de promettre un chantier, `grep` ce qui existe déjà : le bon résultat est parfois « tests de verrouillage + doc » ou « ne pas faire ».
+- **Faux rouges** : un push annule le lancement précédent de « Tests » (croix rouge « annulé »), et ajouter une étiquette relance les tests. Avant de chercher une erreur, ouvrir la liste des lancements et regarder si le rouge est un lancement annulé. `get_job_logs` : `failed_only` exige un `run_id` ; utiliser `return_content` + `tail_lines`.
+- **Changer un comportement ou une liste = chercher les tests qui la lisent** : la liste des collections exportées (C19) et « finaliser sans affaire » ont rendu rouges `parcours`, `devis-barre-globale` et `devis-document`, vus seulement par le palier complet que déclenche `firestore.rules`. Avant d'ouvrir la PR : `grep` dans `tests/e2e/` des sélecteurs, des listes et des essais qui finalisent un devis.
+- **Une PR laissée ouverte pour Jérôme dérive** : la PR 369 est passée de « sans conflit » à 12 fichiers en conflit en quelques heures (dictionnaire fusionné entre-temps). Avant de dire « prête », vérifier `mergeable` sur la dernière version de `main` ; si elle a dérivé, résoudre en gardant les deux côtés, compter à nouveau les outils et les listes en lançant les tests (jamais à l'estime), et ne la faire fusionner qu'après « résolue et verte ». La résolution de conflits touche au serveur : relecture Fable.
+- **Agents en parallèle** : jamais `kill` d'un processus qui n'est pas le sien (un agent a arrêté le serveur de test d'un autre) ; un `TESTS_DECALAGE` différent par agent ; un agent isolé (`isolation: worktree`) ne pousse pas, la session principale pousse.
+- **Une seule PR de docs par session**, ou la docs dans la PR de code ; jamais une PR de docs par petite étape (décision de Jérôme, 29/10/2026 : chaque PR relance les tests, chaque fusion sur `main` redéploie le site, et il attend). Pas de pushes répétés sur une PR ouverte, pas d'étiquette pendant que les tests tournent. Piste à traiter (workflow, Fable obligatoire) : ne pas redéployer Hosting pour une fusion qui ne touche que `docs/`, après avoir vérifié que `wiki/` n'est pas servi par le site.
+- **Sessions séparées** : la session principale est la colonne vertébrale (décisions, tableau `.github/A-FAIRE.md`) ; un travail long ou isolé se fait dans une session séparée avec le script de `docs/script-de-reprise.md`, un seul sujet, un message `send_message` à la session principale à chaque étape (sans secret). Jamais deux déploiements en même temps ; Jérôme lance les workflows de déploiement un par un ; les clics de console se donnent avec le lien exact.
+- **Retirer un réglage** (ex. « Étape où vivent les devis ») : `setDoc` sans fusion peut ressusciter l'ancienne valeur ; prévoir le motif de recopie et ne rien effacer en base.
+- **Bac à sable de Claude** : `apis.google.com` est injoignable, donc certains parcours de fiche d'affaire n'y finissent pas ; le dire dans la PR, la coche GitHub fait foi.
+- **Valeurs par défaut prises seul** : écrire « Décision prise seul : … » dans la PR et dans le tableau, avec la question restante pour Jérôme, pour qu'il corrige sans chercher.
+
 ## Au démarrage d'une session
 
 1. Lis `docs/roadmap.md` (état et décisions).
@@ -93,3 +109,4 @@ Jérôme ne veut pas être le goulot d'étranglement : GitHub permet de revenir 
 3. Les idées en cours sur les affaires, projets et fiches : `docs/idees-affaires-projets.md` (revue du 21/10/2026, critères d'acceptation).
 4. Pour tout ce qui touche au serveur MCP : `docs/plan-mcp.md`, `docs/securite-et-pannes.md`, `docs/playbook-mcp-firebase.md`.
 5. Données de démonstration : `docs/donnees-demo.md`.
+6. Reprise après une pause ou travail en session séparée : `docs/script-de-reprise.md` (script à coller, sessions 1 à 3 et décisions restantes).

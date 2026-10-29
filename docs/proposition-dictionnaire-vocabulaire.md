@@ -215,3 +215,12 @@ Chaque PR : `npm run test:module devis`, `test:rapide`, `test:smoke` ; la PR 4 d
 8. **Je n'ai pas pu vérifier** comment ChatGPT enchaîne deux appels d'outils avec une question entre les deux ; si l'enchaînement se perd, le dictionnaire s'apprend mal : à essayer avec un vrai connecteur avant la PR 3.
 9. **Le mot « règle »** est déjà employé pour les règles Firestore dans la documentation : à l'écran on dit « règle de vocabulaire » ou « mot appris » (un mot = une seule chose, `consignes-ui.md`) ; à trancher dans la PR 5.
 10. **La pluralisation naïve** (`s`/`x` retirés) peut rapprocher deux mots différents (`vis`/`vi`, `bus`/`bu`) : limite acceptée, visible dans la clé que l'écran affiche avant d'enregistrer.
+
+## Décisions de Jérôme (28 et 29/10/2026), à garder en tête pour toute évolution
+
+- Toute l'intelligence est côté application : moteur pur, sans IA ; l'assistant (ChatGPT, Claude) ne fait que parler au client.
+- Le dictionnaire est séparé par client ; les règles sont lisibles par un humain, relues chaque mois, avec création manuelle possible.
+- En cas d'ambiguïté, l'assistant **pose une question** au client ; la réponse enrichit le dictionnaire.
+- Ne jamais deviner une quantité ni un prix non cités.
+- Une règle apprise ne s'applique seule qu'après confirmations répétées sans contradiction (valeur par défaut : 2 confirmations ; voir la question Q2 ci-dessus pour le détail et la décision en cours).
+- Les prix de vente passent librement par l'assistant ; les prix d'achat restent cachés à `lister_devis` tant que Jérôme n'a pas décidé.
