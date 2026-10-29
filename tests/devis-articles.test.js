@@ -279,7 +279,7 @@ describe('B8 règles Firestore : déclaration (les parcours sont dans regles-pla
   test('B8 les règles de la plateforme clients nomment devis_articles, interdisent la suppression et sortent la collection de la règle générale d\'écriture', () => {
     const r2 = lire('firestore.plateforme.rules');
     assert.match(r2, /match \/clients\/\{client\}\/devis_articles\/\{id\} \{[^}]*allow delete: if false;/);
-    assert.match(r2, /function collectionSansSuppression\(collection\) \{\s+return collection in \['devis_articles'\];/);
+    assert.match(r2, /function collectionSansSuppression\(collection\) \{\s+return collection in \['devis_articles', 'devis_vocabulaire'\];/);
     assert.match(r2, /!collectionSansSuppression\(collection\) && (?:!collectionDesDevis\(collection\) && )?roleDe\(client\) == 'editeur'/);
     // Les règles des devis eux-mêmes (devis_devis, devis_compteurs) sont arrivées avec la couche de données : elles sont testées dans devis-regles.test.js (C1).
     assert.match(r2, /match \/clients\/\{client\}\/devis_devis\/\{id\}/);
