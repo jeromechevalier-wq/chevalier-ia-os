@@ -597,9 +597,9 @@ describe('Modules : les outils suivent les modules actifs du client', () => {
     const seuls = (actifs) => outilsDesModules(actifs, OUTILS).map((o) => o.nom);
     assert.deepEqual(seuls([]), ['qui_suis_je', 'diagnostiquer_fichiers']); // + outil d'essai temporaire
     assert.ok(seuls(['affaires']).includes('chercher') && !seuls(['affaires']).includes('lister_projets'));
-    assert.equal(seuls(['affaires', 'projets']).length, OUTILS.length - 22, 'sans les modules Automatisations (5 outils de la file À valider) et Devis (6 outils du bordereau et de la recherche par phrase, 11 outils des devis et de leurs réglages) : 22 outils manquent');
-    assert.equal(seuls(['affaires', 'projets', 'automatisations']).length, OUTILS.length - 17, 'sans le module Devis : ses 17 outils manquent');
-    assert.equal(seuls(['affaires', 'devis']).filter((n) => /article/.test(n)).length, 6, 'Devis exige les Affaires et apporte ses outils du bordereau et la recherche par phrase (rechercher_article_par_phrase), et 11 outils des devis, sans le mot « article »');
+    assert.equal(seuls(['affaires', 'projets']).length, OUTILS.length - 23, 'sans les modules Automatisations (5 outils de la file À valider) et Devis (6 outils du bordereau et de la recherche par phrase, 12 outils des devis et de leurs réglages) : 23 outils manquent');
+    assert.equal(seuls(['affaires', 'projets', 'automatisations']).length, OUTILS.length - 18, 'sans le module Devis : ses 18 outils manquent');
+    assert.equal(seuls(['affaires', 'devis']).filter((n) => /article/.test(n)).length, 6, 'Devis exige les Affaires et apporte ses outils du bordereau et la recherche par phrase (rechercher_article_par_phrase), et 12 outils des devis (dont enregistrer_reponse_vocabulaire), sans le mot « article »');
     assert.equal(seuls(['affaires', 'projets', 'automatisations', 'devis']).length, OUTILS.length);
   });
   test('M9 module « mcp » éteint, ou client désactivé : l\'accès déjà accordé est coupé tout de suite, et la connexion n\'est plus possible', async () => {
@@ -964,7 +964,7 @@ describe('Textes des outils : valables pour tout espace (Partie A)', () => {
       assert.match(ancien, TEXTE_DE_JEROME, ancien);
     }
     for (const permis of ['une affaire gagnée', 'nature livraison', 'lire_audit : le journal d\'audit', 'phase de clôture']) assert.doesNotMatch(permis, TEXTE_DE_JEROME, permis);
-    assert.equal(OUTILS.length, 70); // 70 : + rechercher_article_par_phrase (dictionnaire de vocabulaire, PR 2, 28/10/2026) ; 69 : + diagnostiquer_fichiers (outil d'essai temporaire, 26/10/2026) ; 68 avant : 50 avant la suppression de la pause (22/10/2026) : moins 3 outils de pause, plus 5 outils de la file « À valider » (module Automatisations), plus 5 outils du bordereau et 11 outils des devis (module Devis, 24/10/2026 puis 25/10/2026 : + lire_reglages_devis, nouvelle_version_devis, archiver_devis, enregistrer_envoi_devis, changer_statut_devis, supprimer_devis)
+    assert.equal(OUTILS.length, 71); // 71 : + enregistrer_reponse_vocabulaire (dictionnaire de vocabulaire, PR 3, 28/10/2026) ; 70 : + rechercher_article_par_phrase (dictionnaire de vocabulaire, PR 2, 28/10/2026) ; 69 : + diagnostiquer_fichiers (outil d'essai temporaire, 26/10/2026) ; 68 avant : 50 avant la suppression de la pause (22/10/2026) : moins 3 outils de pause, plus 5 outils de la file « À valider » (module Automatisations), plus 5 outils du bordereau et 11 outils des devis (module Devis, 24/10/2026 puis 25/10/2026 : + lire_reglages_devis, nouvelle_version_devis, archiver_devis, enregistrer_envoi_devis, changer_statut_devis, supprimer_devis)
     for (const o of OUTILS) assert.doesNotMatch(textesDe(o), TEXTE_DE_JEROME, `${o.nom} : ${textesDe(o).match(TEXTE_DE_JEROME)?.[0]}`);
   });
 
@@ -1089,7 +1089,7 @@ describe('Outils factures : listés selon les options de l\'espace (Partie B)', 
 
 // --- Devis chez les clients (nuit du 28/10/2026) : le client crée ses devis par son assistant -------------------------------------------
 // Aucun code d'outil n'est copié dans `mcpclients` : ce sont les mêmes OUTILS que chez Jérôme, filtrés par le registre des modules et par le rôle.
-describe('Devis : les 17 outils du module arrivent chez les clients, dans l\'espace de chacun', () => {
+describe('Devis : les 18 outils du module arrivent chez les clients, dans l\'espace de chacun', () => {
   const OUTILS_DEVIS = moduleDeclare('devis').outilsMcp;
   const reglagesDevis = { id: 'reglages', regimeTva: 'assujetti', marge: 20, modeMarge: 'majoration' };
   /** Allume le module Devis (et ses Affaires) pour un client, avec ses réglages et, au besoin, des devis déjà enregistrés. */
@@ -1114,8 +1114,8 @@ describe('Devis : les 17 outils du module arrivent chez les clients, dans l\'esp
   }
   const devisBravo = { id: 'dv-bravo', racineId: 'dv-bravo', version: 1, numero: null, statut: 'brouillon', affaireId: 'a1', organisationId: 'org1', objet: 'Devis seulement chez Bravo', destinataires: ['x@exemple.test'], modeMarge: 'majoration', marge: 20, tauxTvaDefaut: 20, regimeTva: 'assujetti', archive: false, creeLe: new Date('2026-10-01T08:00:00Z'), sections: [{ id: 's1', titre: '', lignes: [{ id: 'l1', libelle: 'Peinture', unite: 'm²', quantite: 1, prixAchat: 8 }] }] };
 
-  test('devis-1 registre : les 17 outils du module Devis sortent de outilsDesModules + outilsSelonOptions pour un espace qui a Affaires et Devis ; sans Devis, aucun', () => {
-    assert.equal(OUTILS_DEVIS.length, 17);
+  test('devis-1 registre : les 18 outils du module Devis sortent de outilsDesModules + outilsSelonOptions pour un espace qui a Affaires et Devis ; sans Devis, aucun', () => {
+    assert.equal(OUTILS_DEVIS.length, 18);
     const avec = outilsSelonOptions(outilsDesModules(['affaires', 'devis', 'mcp'], OUTILS), {}).map((o) => o.nom);
     for (const n of OUTILS_DEVIS) assert.ok(avec.includes(n), `${n} manque chez les clients`);
     const sans = outilsSelonOptions(outilsDesModules(['affaires', 'mcp'], OUTILS), {}).map((o) => o.nom);
@@ -1123,7 +1123,7 @@ describe('Devis : les 17 outils du module arrivent chez les clients, dans l\'esp
     for (const n of OUTILS_DEVIS) assert.ok(OUTILS.some((o) => o.nom === n), `${n} n'a pas de code d'outil`);
   });
 
-  test('devis-2 un éditeur voit les 17 outils du module Devis par son assistant ; un lecteur voit seulement ceux de lecture', async () => {
+  test('devis-2 un éditeur voit les 18 outils du module Devis par son assistant ; un lecteur voit seulement ceux de lecture', async () => {
     await remettre();
     try {
       await activerDevis('a');
@@ -1235,7 +1235,41 @@ describe('Devis : les 17 outils du module arrivent chez les clients, dans l\'esp
       const { c, liste } = await outilsDe('b', 'ID-BOB');
       assert.ok(!liste.includes('rechercher_article_par_phrase'));
       assert.ok(await refuse(c, 'rechercher_article_par_phrase', { phrase: 'prise' }));
+      assert.ok(!liste.includes('enregistrer_reponse_vocabulaire'), 'l\'outil d\'apprentissage est absent aussi');
+      assert.ok(await refuse(c, 'enregistrer_reponse_vocabulaire', { phrase: 'prise', reponse: 'aucun' }));
       await c.close();
+    } finally { await remettre(); }
+  });
+
+  test('devis-9 enregistrer_reponse_vocabulaire : une règle écrite dans l\'espace A reste invisible depuis B ; un lecteur est refusé ; aucun prix d\'achat dans la sortie', async () => {
+    await remettre();
+    try {
+      await activerDevis('a');
+      await activerDevis('b');
+      const alice = await outilsDe('a', 'ID-ALICE');
+      assert.ok(alice.liste.includes('enregistrer_reponse_vocabulaire'), 'éditeur');
+      const t2 = resultat(await alice.c.callTool({ name: 'creer_article', arguments: { libelle: 'Tableau électrique 2 rangées', prixAchat: 150, unite: 'u' } }));
+      resultat(await alice.c.callTool({ name: 'creer_article', arguments: { libelle: 'Tableau électrique 4 rangées', prixAchat: 250, unite: 'u' } }));
+      const rep = resultat(await alice.c.callTool({ name: 'enregistrer_reponse_vocabulaire', arguments: { phrase: 'le tableau', reponse: 'confirme', articleId: t2.id } }));
+      assert.equal(rep.regleId, 'tableau');
+      assert.equal(rep.statut, 'a_confirmer');
+      assert.doesNotMatch(JSON.stringify(rep), /prixAchat|marge/i);
+      assert.equal((await donnees.liste('clients/a/devis_vocabulaire')).length, 1);
+      assert.equal((await donnees.liste('clients/b/devis_vocabulaire')).length, 0, 'rien chez B');
+      assert.equal((await donnees.liste('devis_vocabulaire')).length, 0, 'rien à la racine (CRM de Jérôme)');
+      await alice.c.close();
+      // Bob (espace B) ne voit pas la règle de A.
+      const bob = await outilsDe('b', 'ID-BOB');
+      resultat(await bob.c.callTool({ name: 'creer_article', arguments: { libelle: 'Tableau électrique 2 rangées', prixAchat: 150, unite: 'u' } }));
+      const vu = resultat(await bob.c.callTool({ name: 'rechercher_article_par_phrase', arguments: { phrase: 'le tableau' } }));
+      assert.ok(vu.candidats.every((c) => c.regleId === null), 'la règle de A n\'est pas lue depuis B');
+      await bob.c.close();
+      // Un lecteur ne voit pas l'outil d'écriture et son appel est refusé.
+      const lea = await outilsDe('a', 'ID-LEA');
+      assert.ok(!lea.liste.includes('enregistrer_reponse_vocabulaire'));
+      assert.ok(await refuse(lea.c, 'enregistrer_reponse_vocabulaire', { phrase: 'le tableau', reponse: 'confirme', articleId: t2.id }));
+      assert.equal((await donnees.liste('clients/a/devis_vocabulaire')).length, 1, 'inchangé');
+      await lea.c.close();
     } finally { await remettre(); }
   });
 });

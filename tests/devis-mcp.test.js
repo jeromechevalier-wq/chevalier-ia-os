@@ -1068,3 +1068,192 @@ describe('V2 prixVente d’une ligne de brouillon : la marge s’ajuste, le prix
     assert.equal(ok0.totalHT, 0, 'en majoration, 0 € est un prix possible (marge -100 %)');
   });
 });
+
+// ---------------------------------------------------------------- Dictionnaire de vocabulaire, PR 3 (28/10/2026) : enregistrer_reponse_vocabulaire (apprentissage)
+const JOUR_MS = 86_400_000;
+const repondre = (s, phrase, reponse, articleId, profil = 'biblio') => s.appeler(profil, 'enregistrer_reponse_vocabulaire', { phrase, reponse, ...(articleId ? { articleId } : {}) });
+const lignesVocabulaire = (s) => (s.collections.crm_audit ?? []).filter((l) => l.outil === 'enregistrer_reponse_vocabulaire');
+
+describe('V3 enregistrer_reponse_vocabulaire : l’apprentissage, sans code (la phrase est recalculée)', () => {
+  test('V3a un « confirme » crée une règle à confirmer ; le même jour une 2e fois ne change rien ; un autre jour elle devient active et sert sans question', async () => {
+    const s = await demarrer();
+    const ids = await catalogueVocabulaire(s);
+    assert.equal(ok(await chercherPhrase(s, 'le tableau')).decision, 'proposer');
+    const a = ok(await repondre(s, 'le tableau', 'confirme', ids.t2));
+    assert.equal(a.regleId, 'tableau');
+    assert.equal(a.statut, 'a_confirmer');
+    assert.equal(a.confirmations, 1);
+    const regle = s.doc('devis_vocabulaire', 'tableau');
+    assert.equal(regle.articleId, ids.t2);
+    assert.equal(regle.origine, 'apprise_question');
+    assert.equal(regle.cle, 'tableau');
+    assert.deepEqual(regle.exemples, ['le tableau']);
+    assert.equal(regle.derniereConfirmationLe, '2026-10-05');
+    assert.equal(regle.via, 'mcp');
+    assert.ok(regle.creeLe && regle.creePar);
+    assert.equal(ok(await chercherPhrase(s, 'le tableau')).decision, 'proposer', 'une règle à confirmer ne sert pas seule');
+    // Le même jour : rien (règle inchangée, pas de nouvelle ligne de journal).
+    const lignesAvant = lignesVocabulaire(s).length;
+    const copie = JSON.stringify(regle);
+    const b = ok(await repondre(s, 'le tableau', 'confirme', ids.t2));
+    assert.equal(b.rien, true);
+    assert.equal(JSON.stringify(s.doc('devis_vocabulaire', 'tableau')), copie);
+    assert.equal(lignesVocabulaire(s).length, lignesAvant);
+    // Un autre jour : deuxième confirmation, la règle devient active.
+    s.horloge.t += JOUR_MS;
+    const c = ok(await repondre(s, 'un tableau', 'confirme', ids.t2));
+    assert.equal(c.statut, 'active');
+    assert.equal(c.confirmations, 2);
+    assert.deepEqual(s.doc('devis_vocabulaire', 'tableau').exemples, ['le tableau', 'un tableau']);
+    const suite = ok(await chercherPhrase(s, 'le tableau'));
+    assert.equal(suite.decision, 'utiliser');
+    assert.equal(suite.candidats[0].articleId, ids.t2);
+    assert.doesNotMatch(JSON.stringify([a, b, c]), /prixAchat|marge/i);
+  });
+
+  test('V3b « autre » : sans règle, crée une règle corrective à confirmer ; sur une règle active, la contredit et la passe en conflit ; refusé quand aucune question n’a dû être posée', async () => {
+    const s = await demarrer();
+    const ids = await catalogueVocabulaire(s);
+    assert.equal(ok(await chercherPhrase(s, 'gaine annelée')).decision, 'demander');
+    const a = ok(await repondre(s, 'gaine annelée', 'autre', ids.inter));
+    assert.equal(a.statut, 'a_confirmer');
+    assert.equal(s.doc('devis_vocabulaire', 'gaine_annelee').origine, 'apprise_correction');
+    // Règle active + nombre de fin deviné (« tableau 7 ») : la décision reste une question, l'utilisateur choisit un article hors liste.
+    s.collections.devis_vocabulaire.push(regleVocabulaire('tableau', ids.t2));
+    const q = ok(await chercherPhrase(s, 'tableau 7'));
+    assert.equal(q.decision, 'proposer');
+    assert.equal(q.quantiteIncertaine, true);
+    const b = ok(await repondre(s, 'tableau 7', 'autre', ids.inter));
+    assert.equal(b.conflit, true);
+    assert.equal(b.contradictions, 1);
+    const ancienne = s.doc('devis_vocabulaire', 'tableau');
+    assert.equal(ancienne.conflit, true);
+    assert.equal(ancienne.articleId, ids.t2, 'la règle garde son article : la revue tranche');
+    // « utiliser » : aucune question n'a été posée, « autre » est refusé.
+    refuse(await repondre(s, 'Interrupteur va-et-vient', 'autre', ids.t2), /Aucune question/);
+    // Un article qui faisait partie des propositions est un « confirme », pas un « autre ».
+    refuse(await repondre(s, 'une prise', 'autre', ids.blanche), /utiliser la réponse « confirme »/);
+  });
+
+  test('V3c « aucun » n’écrit rien (ni règle ni ligne de journal)', async () => {
+    const s = await demarrer();
+    await catalogueVocabulaire(s);
+    const avant = JSON.stringify([s.collections.devis_vocabulaire, s.collections.crm_audit, s.collections.crm_audit_avant]);
+    const r = ok(await repondre(s, 'gaine annelée', 'aucun'));
+    assert.equal(r.rien, true);
+    assert.equal(JSON.stringify([s.collections.devis_vocabulaire, s.collections.crm_audit, s.collections.crm_audit_avant]), avant);
+  });
+
+  test('V3d refus : article hors des candidats (anti-empoisonnement), articleId absent, article inconnu ou désactivé, phrase sans mot, lecteur', async () => {
+    const s = await demarrer();
+    const ids = await catalogueVocabulaire(s);
+    const avant = JSON.stringify(s.collections.devis_vocabulaire ?? []);
+    refuse(await repondre(s, 'gaine annelée', 'confirme', ids.t2), /n’aurait pas été proposé/);
+    refuse(await repondre(s, 'le tableau', 'confirme', ids.inter), /n’aurait pas été proposé/);
+    refuse(await repondre(s, 'le tableau', 'confirme'), /articleId est obligatoire/);
+    refuse(await repondre(s, 'gaine annelée', 'autre'), /articleId est obligatoire/);
+    refuse(await repondre(s, 'le tableau', 'confirme', 'inconnu'), /introuvable/i);
+    ok(await s.appeler('biblio', 'desactiver_article', { id: ids.inter }));
+    refuse(await repondre(s, 'gaine annelée', 'autre', ids.inter), /désactivé/);
+    refuse(await repondre(s, 'le', 'confirme', ids.t2), /Aucun mot à retenir/);
+    refuse(await repondre(s, 'le tableau', 'confirme', ids.t2, 'lecteur'));
+    assert.equal(JSON.stringify(s.collections.devis_vocabulaire ?? []), avant, 'aucune règle écrite par un refus');
+  });
+
+  test('V3e un mot trop général (3 lettres ou moins) ne devient jamais actif seul, même confirmé deux jours de suite', async () => {
+    const s = await demarrer();
+    const vis = ok(await s.appeler('biblio', 'creer_article', { libelle: 'Vis inox 4x40', prixAchat: 1, unite: 'u' })).id;
+    assert.equal(ok(await repondre(s, 'des vis', 'confirme', vis)).statut, 'a_confirmer');
+    s.horloge.t += JOUR_MS;
+    const r = ok(await repondre(s, 'les vis', 'confirme', vis));
+    assert.equal(r.confirmations, 2);
+    assert.equal(r.statut, 'a_confirmer', 'clé trop générale : la revue seule peut l’activer');
+  });
+
+  test('V3f une confirmation vers un autre article contredit la règle (conflit si elle était active), jamais deux règles pour un mot', async () => {
+    const s = await demarrer();
+    const ids = await catalogueVocabulaire(s);
+    ok(await repondre(s, 'le tableau', 'confirme', ids.t2));
+    s.horloge.t += JOUR_MS;
+    const r = ok(await repondre(s, 'le tableau', 'confirme', ids.t4));
+    assert.equal(r.contradictions, 1);
+    assert.equal(r.conflit, false, 'elle était à confirmer, pas active');
+    assert.equal(r.statut, 'a_confirmer');
+    assert.equal(s.collections.devis_vocabulaire.length, 1);
+    assert.equal(s.doc('devis_vocabulaire', 'tableau').articleId, ids.t2);
+    s.horloge.t += JOUR_MS;
+    s.doc('devis_vocabulaire', 'tableau').statut = 'active'; // la revue l'a activée
+    const c = ok(await repondre(s, 'le tableau', 'confirme', ids.t4));
+    assert.equal(c.conflit, true);
+  });
+
+  test('V3g exemples : 5 au plus, sans doublon, 200 caractères au plus', async () => {
+    const s = await demarrer();
+    const ids = await catalogueVocabulaire(s);
+    const phrases = ['le tableau', 'un tableau', 'mon tableau', 'ce tableau', 'les tableaux', 'tableau svp', 'tableau merci'];
+    for (const p of phrases) {
+      ok(await repondre(s, p, 'confirme', ids.t2));
+      s.horloge.t += JOUR_MS;
+    }
+    const exemples = s.doc('devis_vocabulaire', 'tableau').exemples;
+    assert.deepEqual(exemples, phrases.slice(-5));
+    // Une phrase de 300 caractères (« merci » est un mot vide : la clé reste « tableau ») est tronquée à 200.
+    const longue = `tableau ${'merci '.repeat(48)}`.trim();
+    ok(await repondre(s, longue, 'confirme', ids.t2));
+    const apres = s.doc('devis_vocabulaire', 'tableau').exemples;
+    assert.ok(apres.length <= 5 && apres.every((e) => e.length <= 200));
+    assert.equal(apres.at(-1).length, 200);
+  });
+
+  test('V3h plafonds : 300 règles à confirmer = création refusée ; 500 actives = activation refusée sans réécrire la règle', async () => {
+    const s = await demarrer();
+    const ids = await catalogueVocabulaire(s);
+    const remplir = (n, statut) => Array.from({ length: n }, (_, i) => regleVocabulaire(`mot ${statut} ${i}`, ids.inter, { statut }));
+    s.collections.devis_vocabulaire = remplir(300, 'a_confirmer');
+    refuse(await repondre(s, 'le tableau', 'confirme', ids.t2), /Dictionnaire plein/);
+    assert.equal(s.collections.devis_vocabulaire.length, 300);
+    s.collections.devis_vocabulaire = [...remplir(500, 'active'), regleVocabulaire('tableau', ids.t2, { statut: 'a_confirmer', confirmations: 1, derniereConfirmationLe: '2026-10-04' })];
+    const avant = JSON.stringify(s.doc('devis_vocabulaire', 'tableau'));
+    refuse(await repondre(s, 'le tableau', 'confirme', ids.t2), /Dictionnaire plein/);
+    assert.equal(JSON.stringify(s.doc('devis_vocabulaire', 'tableau')), avant, 'la règle n’est pas réécrite');
+  });
+
+  test('V3i le journal garde la trace (canal mcp, copie avant) et restaurer_depuis_audit défait la règle', async () => {
+    const s = await demarrer();
+    const ids = await catalogueVocabulaire(s);
+    const r = ok(await repondre(s, 'le tableau', 'confirme', ids.t2));
+    const ligne = lignesVocabulaire(s)[0];
+    assert.equal(ligne.operationId, r.operationId);
+    assert.equal(ligne.collection, 'devis_vocabulaire');
+    assert.equal(ligne.docId, 'tableau');
+    assert.equal(ligne.via, 'mcp');
+    assert.equal(ligne.acteur, 'hermes-bibliothecaire');
+    assert.ok(s.collections.crm_audit_avant.length > 0, 'copie avant/après gardée');
+    // Deuxième jour : la règle devient active ; restaurer cette opération la remet à confirmer.
+    s.horloge.t += JOUR_MS;
+    const b = ok(await repondre(s, 'un tableau', 'confirme', ids.t2));
+    ok(await s.appeler('code', 'restaurer_depuis_audit', { operationId: b.operationId, apercu: false }));
+    assert.equal(s.doc('devis_vocabulaire', 'tableau').statut, 'a_confirmer');
+    assert.equal(s.doc('devis_vocabulaire', 'tableau').confirmations, 1);
+    // Restaurer la création supprime la règle.
+    ok(await s.appeler('code', 'restaurer_depuis_audit', { operationId: r.operationId, apercu: false, forcer: true }));
+    assert.equal(s.doc('devis_vocabulaire', 'tableau'), undefined);
+  });
+
+  test('V3j règle active vers un article désactivé : une confirmation vers un autre article la réoriente, repart à confirmer (1 confirmation, 0 contradiction, pas de conflit)', async () => {
+    const s = await demarrer();
+    const ids = await catalogueVocabulaire(s);
+    s.collections.devis_vocabulaire = [regleVocabulaire('tableau', ids.t4, { confirmations: 3 })];
+    ok(await s.appeler('biblio', 'desactiver_article', { id: ids.t4 }));
+    const r = ok(await repondre(s, 'le tableau', 'confirme', ids.t2));
+    assert.equal(r.statut, 'a_confirmer');
+    assert.equal(r.confirmations, 1);
+    assert.equal(r.contradictions, 0);
+    assert.equal(r.conflit, false);
+    const regle = s.doc('devis_vocabulaire', 'tableau');
+    assert.equal(regle.articleId, ids.t2);
+    assert.equal(s.collections.devis_vocabulaire.length, 1);
+    const ligne = lignesVocabulaire(s)[0];
+    assert.equal(ligne.action, 'modifier');
+  });
+});

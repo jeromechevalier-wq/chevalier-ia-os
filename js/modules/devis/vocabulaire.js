@@ -127,7 +127,7 @@ export const cleDeExpression = (expression) => analyserPhrase(expression).cle;
 /** Identifiant du document d'une règle = la clé, espaces remplacés par « _ », tronquée à 100 caractères. Clé vide : null (refusé). */
 export function identifiantDeRegle(cle) {
   const id = String(cle ?? '').trim().replace(/\s+/g, '_').slice(0, SEUILS.longueurIdMax);
-  return id ? id : null;
+  return id && !/^__.*__$/.test(id) ? id : null; // « __x__ » est réservé par Firestore
 }
 
 // ---------------------------------------------------------------- mots proches (fautes de frappe)

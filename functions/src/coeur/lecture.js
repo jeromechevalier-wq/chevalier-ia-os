@@ -297,7 +297,7 @@ export async function chercherArticle(donnees, { texte, limite }) {
  * `limite` tronque les candidats APRÈS la décision (sinon la décision changerait avec `limite`), sans descendre sous les articles cités par la question.
  */
 export async function rechercherArticleParPhrase(donnees, { phrase, limite }) {
-  const [articles, regles, reglages] = await Promise.all([donnees.liste(C.devisArticles), donnees.liste('devis_vocabulaire'), reglagesDevis(donnees)]);
+  const [articles, regles, reglages] = await Promise.all([donnees.liste(C.devisArticles), donnees.liste(C.devisVocabulaire), reglagesDevis(donnees)]);
   const r = DV.interpreter(phrase, { regles, articles, reglages });
   // Jamais moins de candidats que d'articles cités par la question (sinon l'assistant lirait un article absent de la liste).
   const cites = r.decision === 'proposer' ? Math.min(DV.SEUILS.maxChoixQuestion, r.candidats.filter((c) => c.score >= DV.SEUILS.proposer).length) : 0;

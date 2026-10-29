@@ -274,6 +274,9 @@ describe('V5 normalisation, quantité et prix', () => {
     assert.equal(V.identifiantDeRegle(''), null);
     assert.equal(V.identifiantDeRegle('   '), null);
     assert.equal(V.identifiantDeRegle(undefined), null);
+    assert.equal(V.identifiantDeRegle('____'), null, 'un identifiant « __…__ » est refusé par Firestore');
+    assert.equal(V.identifiantDeRegle('__a__'), null);
+    assert.equal(V.identifiantDeRegle('a__b'), 'a__b');
   });
 });
 
