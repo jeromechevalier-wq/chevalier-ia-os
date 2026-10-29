@@ -193,7 +193,7 @@ Chaque PR : `npm run test:module devis`, `test:rapide`, `test:smoke` ; la PR 4 d
 ## 13. Questions pour Jérôme (valeur prise par défaut en gras)
 
 - **Q1. Prix dans le nouvel outil** : (a) **prix de vente seulement, jamais prix d'achat ni marge** (règle cohérente avec `lister_devis`) ; (b) comme `chercher_article` (prix d'achat visible). Les outils existants ne changent pas dans tous les cas.
-- **Q2. Activation automatique** : (a) **2 confirmations, 2 jours différents** ; (b) 3 confirmations ; (c) jamais seule, toujours par la revue.
+- **Q2. Activation automatique** : **décision de Jérôme du 29/10/2026 : (a) 2 confirmations, 2 jours séparés** (essayé « même jour » dans la PR 399 puis annulé le jour même) ; (b) 3 confirmations ; (c) jamais seule, toujours par la revue.
 - **Q3. `prixVente` facultatif sur les lignes des brouillons MCP** (« la prise à 25 € ») : (a) **oui, dans la PR 2** ; (b) non, le prix se change à l'écran.
 - **Q4. Un prix dit par le client est** : (a) **HT** ; (b) TTC (converti avec le taux de la ligne).
 - **Q5. Place de l'écran** : (a) **onglet « Vocabulaire » du module Devis** ; (b) section des Réglages > Devis.
