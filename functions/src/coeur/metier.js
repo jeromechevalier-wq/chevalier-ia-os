@@ -9,13 +9,15 @@ import * as DV from '../../partage/devis-vocabulaire.js';
 import * as D from '../../partage/devis.js';
 import * as E from '../../partage/devis-editeur.js';
 import * as B from '../../partage/devis-brouillon.js';
-import { finaliser as finaliserServeur, changerStatut as changerStatutServeur, nouvelleVersion as nouvelleVersionServeur, archiver as archiverServeur, supprimer as supprimerServeur, enregistrerEnvoi as enregistrerEnvoiServeur, modifierDestinataires as modifierDestinatairesServeur, recalculerMontantsAffaires as recalculerMontantsServeur, ErreurDevis } from './devis.js';
+import { finaliser as finaliserServeur, changerStatut as changerStatutServeur, nouvelleVersion as nouvelleVersionServeur, archiver as archiverServeur, supprimer as supprimerServeur, enregistrerEnvoi as enregistrerEnvoiServeur, modifierDestinataires as modifierDestinatairesServeur, recalculerMontantsAffaires as recalculerMontantsServeur, modifierEnTransaction as modifierEnTransactionServeur, ErreurDevis } from './devis.js';
 import { COLLECTIONS as C } from './donnees.js';
 import { lireConfig as lireConfigEspace } from './config.js';
 import { emettreCode, consommerCode, empreinteApercu } from '../securite/codes.js';
 import { canonique, sansId } from './canonique.js';
 import * as DOC from './documents.js';
-import { structureCourte } from './recapitulatif.js';
+import { structureCourte, phraseTotaux } from './recapitulatif.js';
+import * as DL from './devis-lignes.js';
+import { resoudreNumero, ErreurNumero } from '../../partage/devis-numeros.js';
 import { preparerBrouillonEmail } from './brouillon-email.js';
 import { MESSAGE_NON_BRANCHE, ESPACE_JEROME } from './n8n-sortie.js';
 import { ditHorsTaxes, ditPourAssistant, MARGE_IMPOSSIBLE } from './voix.js';
@@ -997,6 +999,205 @@ export async function modifierDevisBrouillon(c, args) {
   if (!Object.keys(plan.patch).length) refuser('saisie_invalide', 'Aucun champ à modifier (objet, nom, affaireId, personneId, organisationId, destinataires, copie, sections, lignes, ajouterLignes, remise, marge, tauxTvaDefaut).');
   const t = D.totauxDevis(travail);
   return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id, champsModifies: Object.keys(plan.patch), sections: structureCourte(travail.sections), totalHT: t.totalHt, totalTTC: t.ttc });
+}
+
+// ---------------------------------------------------------------- Devis : modifier_lignes_devis (30/10/2026)
+// Plusieurs opérations sur les lignes et sections d'un brouillon, TOUT OU RIEN, en UNE transaction : le devis est lu dans la transaction, les numéros sont résolus
+// sur ce devis (celui d'avant l'appel), les sections sont recalculées, puis le devis et UNE seule ligne de journal (un seul operationId) sont écrits ensemble.
+// Pas de fenêtre de course : si l'écran a touché au devis entre la lecture et l'écriture, Firestore relance la transaction sur le devis à jour.
+
+const CHAMPS_OPERATION = {
+  modifier: ['ligne', 'attendu', 'quantite', 'prixVente', 'remplacerPar'],
+  supprimer: ['ligne', 'attendu'],
+  ajouter: ['section', 'articleId', 'reference', 'quantite', 'prixVente', 'apres'],
+  ajouterSection: ['titre', 'apres'],
+  renommerSection: ['section', 'titre', 'attendu'],
+  supprimerSection: ['section', 'attendu'],
+};
+
+/** Un refus du résolveur de numéros (module pur) devient un refus d'outil ; rien n'a été écrit. */
+function resoudreOuRefuser(sections, reference, options, genre) {
+  let r;
+  try {
+    r = resoudreNumero(sections, reference, { ...options, attendu: undefined, attenduObligatoire: false }); // d'abord sans garde, pour savoir ce qu'il y a à ce numéro
+    // Une section ou une ligne SANS texte (la section de tête d'un devis fait de lignes à plat) n'a rien à recopier : la garde porte alors sur le numéro seul.
+    if (String(r.texte ?? '').trim()) r = resoudreNumero(sections, reference, options);
+  } catch (e) { if (e instanceof ErreurNumero) refuser('saisie_invalide', e.message); throw e; }
+  if (r.genre !== genre) {
+    refuser('saisie_invalide', `« ${reference} » désigne ${r.genre === 'section' ? 'une section' : 'une ligne'} (${r.numero}) : ici il faut ${genre === 'section' ? 'une section (1 pour la première)' : 'une ligne (1.2 pour la ligne 2 de la section 1)'}.`);
+  }
+  return r;
+}
+
+/** Résout toutes les opérations dans les sections d'AVANT l'appel (jamais l'une après l'autre) ; ne touche à rien. */
+function resoudreOperations(sections, operations) {
+  const sectionDe = (ligneId) => DL.placeDeLigne(sections, ligneId);
+  return operations.map((op, i) => {
+    const prefixe = `Opération ${i + 1} (${op.action}) : `;
+    try {
+      const permis = CHAMPS_OPERATION[op.action];
+      if (!permis) refuser('saisie_invalide', `action inconnue « ${op.action} » (${DL.ACTIONS.join(', ')}).`);
+      const en_trop = Object.keys(op).filter((k) => k !== 'action' && op[k] !== undefined && !permis.includes(k));
+      if (en_trop.length) refuser('saisie_invalide', `${en_trop.join(', ')} ne sert pas à cette action (champs possibles : ${permis.join(', ')}).`);
+      const r = { ...op };
+      if (op.action === 'modifier' || op.action === 'supprimer') {
+        r.cible = resoudreOuRefuser(sections, op.ligne, { attendu: op.attendu, attenduObligatoire: true }, 'ligne');
+        if (op.action === 'modifier' && op.quantite === undefined && op.prixVente === undefined && op.remplacerPar === undefined) refuser('saisie_invalide', 'rien à modifier (donner quantite, prixVente ou remplacerPar).');
+      } else if (op.action === 'ajouter') {
+        r.cible = resoudreOuRefuser(sections, op.section, {}, 'section');
+        if (op.apres !== undefined) {
+          r.apresCible = resoudreOuRefuser(sections, op.apres, {}, 'ligne');
+          if (sectionDe(r.apresCible.id)?.i !== sections.findIndex((s) => s.id === r.cible.id)) refuser('saisie_invalide', `la ligne ${r.apresCible.numero} n'est pas dans la section ${r.cible.numero} : apres doit être une ligne de cette section.`);
+        }
+      } else if (op.action === 'ajouterSection') {
+        if (op.apres !== undefined) r.apresCible = resoudreOuRefuser(sections, op.apres, {}, 'section');
+      } else {
+        r.cible = resoudreOuRefuser(sections, op.section, { attendu: op.attendu, attenduObligatoire: op.action === 'supprimerSection' }, 'section'); // renommerSection : attendu facultatif, mais vérifié s'il est donné
+      }
+      if ((op.action === 'ajouterSection' || op.action === 'renommerSection') && !texte(op.titre ?? '')) refuser('saisie_invalide', 'le titre de la section est vide.');
+      return r;
+    } catch (e) {
+      if (e instanceof ErreurMetier) refuser(e.code, `${prefixe}${e.message} Rien n'a été écrit.`);
+      throw e;
+    }
+  });
+}
+
+const etatDeLigne = (devis, ligne) => {
+  const pv = D.totauxDevis(devis).lignes.find((x) => x.id === ligne.id)?.prixVenteUnitaire ?? null;
+  return { libelle: ligne.libelle ?? '', quantite: ligne.type === DA.TYPE_TEXTE ? null : ligne.quantite ?? null, prixVente: ligne.type === DA.TYPE_TEXTE ? null : pv };
+};
+
+/** Applique une opération (déjà résolue) à `travail` (les sections, modifiées en place) et rend { genre, id, libelle, numeroAvant, avant, apres, lignesSupprimees? }. */
+function appliquerOperation(c, devis, travail, op, articles, ancres) {
+  const avecSections = () => ({ ...devis, sections: travail });
+  const sansCible = (quoi, numero) => refuser('saisie_invalide', `${quoi} ${numero} n'existe plus à ce stade de l'appel (une opération précédente l'a retirée).`);
+  const sectionEn = (cible) => {
+    const i = DL.indexDeSection(travail, cible.id);
+    if (i === -1) sansCible('La section', cible.numero);
+    return i;
+  };
+  if (op.action === 'modifier') {
+    const place = DL.placeDeLigne(travail, op.cible.id);
+    if (!place) sansCible('La ligne', op.cible.numero);
+    const ancienne = travail[place.i].lignes[place.j];
+    const avant = etatDeLigne(avecSections(), ancienne);
+    let ligne = ancienne;
+    if (op.remplacerPar !== undefined) {
+      const quantite = op.quantite ?? ancienne.quantite;
+      const [neuve] = lignesDepuisArticles(c, [{ ...op.remplacerPar, quantite, ...(op.prixVente !== undefined ? { prixVente: op.prixVente } : {}) }], articles, devis);
+      ligne = { ...neuve, id: ancienne.id }; // la ligne garde son identifiant
+    } else {
+      if (op.quantite !== undefined) {
+        if (!(typeof op.quantite === 'number' && Number.isFinite(op.quantite) && op.quantite > 0)) refuser('saisie_invalide', `La quantité de « ${ligne.libelle} » doit être un nombre supérieur à zéro.`);
+        if (ligne.type === DA.TYPE_TEXTE) refuser('saisie_invalide', `« ${ligne.libelle} » est une ligne de texte : elle n'a pas de quantité.`);
+        ligne = { ...ligne, quantite: op.quantite };
+        if (ligne.ouvrage) ligne.description = E.descriptionDeLigne(ligne);
+      }
+      if (op.prixVente !== undefined) ligne = avecPrixVenteDit(ligne, { libelle: ligne.libelle, type: ligne.type }, op.prixVente, devis);
+    }
+    travail[place.i].lignes[place.j] = ligne;
+    return { genre: 'ligne', id: ligne.id, libelle: ligne.libelle ?? '', numeroAvant: op.cible.numero, avant, apres: etatDeLigne(avecSections(), ligne) };
+  }
+  if (op.action === 'supprimer') {
+    const place = DL.placeDeLigne(travail, op.cible.id);
+    if (!place) sansCible('La ligne', op.cible.numero);
+    const avant = etatDeLigne(avecSections(), travail[place.i].lignes[place.j]);
+    const [retiree] = travail[place.i].lignes.splice(place.j, 1);
+    return { genre: 'ligne', id: retiree.id, libelle: retiree.libelle ?? '', numeroAvant: op.cible.numero, avant, apres: null };
+  }
+  if (op.action === 'ajouter') {
+    const i = sectionEn(op.cible);
+    const spec = { quantite: op.quantite, ...(op.articleId !== undefined ? { articleId: op.articleId } : {}), ...(op.reference !== undefined ? { reference: op.reference } : {}), ...(op.prixVente !== undefined ? { prixVente: op.prixVente } : {}) };
+    const [ligne] = lignesDepuisArticles(c, [spec], articles, devis);
+    const lignes = travail[i].lignes ?? (travail[i].lignes = []);
+    let rang = lignes.length; // à la fin des lignes PROPRES de la section : avant sa première sous-section (les sous-sections sont les sections qui suivent)
+    if (op.apresCible) {
+      const ancre = ancres.get(op.apresCible.id) ?? op.apresCible.id; // plusieurs ajouts « après 1.1 » dans un appel se suivent dans l'ordre donné
+      const j = lignes.findIndex((l) => l.id === ancre);
+      if (j === -1) sansCible('La ligne', op.apresCible.numero);
+      rang = j + 1;
+    }
+    lignes.splice(rang, 0, ligne);
+    if (op.apresCible) ancres.set(op.apresCible.id, ligne.id);
+    return { genre: 'ligne', id: ligne.id, libelle: ligne.libelle ?? '', numeroAvant: null, avant: null, apres: etatDeLigne(avecSections(), ligne) };
+  }
+  if (op.action === 'ajouterSection') {
+    let rang = travail.length;
+    if (op.apresCible) {
+      const i = sectionEn(op.apresCible);
+      if (DL.coupeLesSousSections(travail, i)) refuser('saisie_invalide', `La section ${op.apresCible.numero} est suivie de sous-sections : une nouvelle section entre les deux changerait leur rattachement. Fais-le à l'écran, ou ajoute la section à la fin.`);
+      rang = i + 1;
+    }
+    const section = { id: c.donnees.nouvelId(C.devis), titre: texte(op.titre), lignes: [] }; // niveau 1 : pas de champ `niveau`
+    travail.splice(rang, 0, section);
+    return { genre: 'section', id: section.id, libelle: section.titre, numeroAvant: null, avant: null, apres: { libelle: section.titre } };
+  }
+  const i = sectionEn(op.cible);
+  if (op.action === 'renommerSection') { // autorisé aussi pour une sous-section : seul le titre change
+    const avant = { libelle: travail[i].titre ?? '' };
+    travail[i] = { ...travail[i], titre: texte(op.titre) };
+    return { genre: 'section', id: travail[i].id, libelle: travail[i].titre, numeroAvant: op.cible.numero, avant, apres: { libelle: travail[i].titre } };
+  }
+  // supprimerSection
+  if (DL.aDesSousSections(travail, i)) refuser('saisie_invalide', `La section ${op.cible.numero} a des sous-sections : les retirer d'ici changerait leur rattachement. Fais-le à l'écran.`);
+  const [retiree] = travail.splice(i, 1);
+  const lignesSupprimees = (retiree.lignes ?? []).filter((l) => !D.estSaut(l)).length;
+  return { genre: 'section', id: retiree.id, libelle: retiree.titre ?? '', numeroAvant: op.cible.numero, avant: { libelle: retiree.titre ?? '' }, apres: null, lignesSupprimees };
+}
+
+/** Plusieurs opérations sur les lignes et sections d'un brouillon : tout ou rien, une seule ligne de journal (un seul operationId). */
+export async function modifierLignesDevis(c, args) {
+  const { id, operations } = args;
+  if (!operations.length) refuser('saisie_invalide', 'Aucune opération : rien à faire.');
+  if (operations.length > DL.MAX_OPERATIONS) refuser('saisie_invalide', `Trop d'opérations dans un appel (${operations.length}, ${DL.MAX_OPERATIONS} au plus). Rien n'a été écrit : fais-le en plusieurs appels.`);
+  const r = await appelerCoeurDevis(c, () => modifierEnTransactionServeur({ donnees: c.donnees, ctx: ctxDevis(c), devisId: id, outil: 'modifier_lignes_devis', parametres: { id, operations }, calculer: async (tx, devis) => {
+    if (devis.statut !== 'brouillon') refuser('saisie_invalide', B.MESSAGE_PAS_BROUILLON);
+    verifierMarge(devis);
+    const articles = await tx.liste(C.devisArticles);
+    const resolues = resoudreOperations(devis.sections ?? [], operations);
+    const travail = structuredClone(devis.sections ?? []);
+    const ancres = new Map();
+    const faites = resolues.map((op, i) => {
+      try {
+        const f = appliquerOperation(c, devis, travail, op, articles, ancres);
+        return { action: op.action, ...f, changementImportant: DL.importanceOperation(op.action, f.avant, f.apres) };
+      } catch (e) {
+        if (e instanceof ErreurMetier) refuser(e.code, `Opération ${i + 1} (${op.action}) : ${e.message} Rien n'a été écrit.`);
+        throw e;
+      }
+    });
+    const apresDevis = { ...devis, sections: travail };
+    if (devis.remise) verifierRemise(devis.remise, apresDevis); // un montant de remise ne doit pas dépasser le nouveau total
+    const avantTotaux = D.totauxDevis(devis);
+    const apresTotaux = D.totauxDevis(apresDevis);
+    const numeros = new Map(elementsNumeres(travail));
+    const totalChangementImportant = DL.totalImportant(avantTotaux.totalHt, apresTotaux.totalHt);
+    return {
+      patch: { sections: travail, modifieLe: c.maintenant, modifiePar: c.acteur },
+      reponse: {
+        id,
+        operations: faites.map(({ genre, id: cibleId, libelle, numeroAvant, ...reste }) => ({
+          action: reste.action, genre, ligne: { id: cibleId, numeroAvant, numeroApres: numeros.get(cibleId) ?? null, libelle },
+          avant: reste.avant, apres: reste.apres, ...(reste.lignesSupprimees !== undefined ? { lignesSupprimees: reste.lignesSupprimees } : {}), changementImportant: reste.changementImportant,
+        })),
+        changementImportant: totalChangementImportant || faites.some((f) => f.changementImportant), totalChangementImportant,
+        sections: structureCourte(travail), totalHT: apresTotaux.totalHt, totalTTC: apresTotaux.ttc, phraseTotaux: phraseTotaux(apresTotaux.totalHt, apresTotaux.ttc),
+      },
+    };
+  } }));
+  const { reponse } = r;
+  return {
+    ...reponse,
+    ...(reponse.changementImportant ? { consigne: "Changement important : redis à l'utilisateur, en une phrase, ce qui a été fait (lignes marquées changementImportant et total du devis)." } : {}),
+    detail: `Se défait avec restaurer_depuis_audit (operationId ${reponse.operationId}) tant que le devis est un brouillon.`,
+  };
+}
+
+/** [id, numéro] de chaque section et ligne (le numéro est calculé par numerosDevis, jamais stocké). */
+function elementsNumeres(sections) {
+  const numeros = D.numerosDevis(sections);
+  return sections.flatMap((s, i) => [[s.id, numeros[i].numero], ...(s.lignes ?? []).flatMap((l, j) => (numeros[i].lignes[j] ? [[l.id, numeros[i].lignes[j]]] : []))]);
 }
 
 const listeErreurs = (erreurs) => erreurs.map((e, i) => `(${i + 1}) ${e}`).join(' ');
