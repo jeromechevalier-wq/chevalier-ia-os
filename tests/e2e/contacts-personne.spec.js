@@ -129,3 +129,24 @@ test('9 téléphone : zones de clic de 44 px au moins et pas de défilement hori
   expect((await boite('[data-contacts="tel"] [data-action="ajouter-contact"]')).h).toBeGreaterThanOrEqual(44);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
+
+test('10 l\'export est visible dans l\'en-tête, à gauche de « + Affaire », et plus dans le menu « … »', async ({ page }, info) => {
+  await creerPersonne('p1', { nom: 'Alice Test' });
+  await connecter(page);
+  await aller(page, '#/crm/personnes/p1');
+  const exporter = page.locator('.fiche-actions [data-action="exporter-contact"]');
+  const affaire = page.locator('.fiche-actions [data-action="nouvelle-affaire"]');
+  await expect(exporter).toBeVisible();
+  await expect(exporter).toHaveAccessibleName('Exporter ce contact');
+  const [bE, bA] = [await exporter.boundingBox(), await affaire.boundingBox()];
+  expect(bE.x + bE.width).toBeLessThanOrEqual(bA.x + 1);
+  const vp = page.viewportSize();
+  expect(bA.x + bA.width).toBeLessThanOrEqual(vp.width);
+  const [dl] = await Promise.all([page.waitForEvent('download'), exporter.click()]);
+  expect(dl.suggestedFilename()).toMatch(/\.vcf$/);
+  await page.locator('[data-action="menu-fiche"]').click();
+  await expect(page.getByRole('menuitem', { name: /Archiver/ })).toBeVisible();
+  await expect(page.getByRole('menuitem', { name: 'Exporter ce contact' })).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await capturer(page, info, '10-export-entete');
+});
