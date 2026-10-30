@@ -343,11 +343,14 @@ describe('7 modifier_destinataires_devis : donner l’adresse d’un devis final
     assert.equal(annotationsDe(o).readOnlyHint, false);
   });
 
-  test('7 l’écran : sur un devis finalisé sans adresse, la fenêtre demande l’adresse, la vérifie, l’enregistre par le serveur puis prépare le brouillon', () => {
+  test('7 l’écran : sans adresse, UNE fenêtre enregistre l’adresse puis prépare le brouillon ; avec une adresse, la confirmation dit à qui, et « Changer l’adresse » passe par le serveur', () => {
     const ecran = readFileSync(join(racine, 'js/modules/devis/email-preparer-ecran.js'), 'utf8');
-    assert.match(ecran, /if \(!P\.aUnDestinataire\(d\) && !\(await demanderDestinataire\(devisId\)\)\) return;/);
+    assert.match(ecran, /if \(!P\.aUnDestinataire\(d\)\) \{ await saisirEtPreparer\(devisId\); return; \}/);
     assert.match(ecran, /D\.modifierDestinataires\(devisId, \{ destinataires: \[adresse\] \}\)/);
+    assert.match(ecran, /if \(preparer\) await D\.preparerEmailDevis\(devisId\)/);
     assert.match(ecran, /P\.refusDestinataire\(adresse\)/);
+    assert.match(ecran, /P\.texteAdresses\(adresses\)/);
+    assert.match(ecran, /valeur: 'changer'/);
   });
 });
 
