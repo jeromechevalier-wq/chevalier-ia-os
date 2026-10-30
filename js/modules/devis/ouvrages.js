@@ -16,6 +16,62 @@ const estNombre = (v) => typeof v === 'number' && Number.isFinite(v);
 const troisDecimales = (n) => Math.abs(Math.round(n * 1000) - n * 1000) < 1e-6;
 const nombreFr = (n) => String(Math.round(n * 1000) / 1000).replace('.', ',');
 
+// ---------------------------------------------------------------- le mot du métier (« ouvrage », « ensemble », « forfait »…)
+// Nom de catégorie affiché à l'utilisateur ; l'identifiant technique reste `ouvrage` partout. Liste FERMÉE avec sa grammaire (jamais « cette ensemble »), plus « Autre » validé.
+export const MOTS_OUVRAGE = Object.freeze([
+  Object.freeze({ id: 'ouvrage', singulier: 'ouvrage', pluriel: 'ouvrages', genre: 'masculin' }),
+  Object.freeze({ id: 'ensemble', singulier: 'ensemble', pluriel: 'ensembles', genre: 'masculin' }),
+  Object.freeze({ id: 'forfait', singulier: 'forfait', pluriel: 'forfaits', genre: 'masculin' }),
+  Object.freeze({ id: 'prestation', singulier: 'prestation', pluriel: 'prestations', genre: 'feminin' }),
+  Object.freeze({ id: 'lot', singulier: 'lot', pluriel: 'lots', genre: 'masculin' }),
+]);
+export const MOT_OUVRAGE_DEFAUT = 'ouvrage';
+export const MOT_OUVRAGE_AUTRE = 'autre';
+export const LETTRES_MOT_MIN = 2;
+export const LETTRES_MOT_MAX = 30;
+const GENRES_MOT = Object.freeze(['masculin', 'feminin']);
+
+const genreDe = (g) => {
+  const t = typeof g === 'string' ? g.trim().toLowerCase().replace('é', 'e') : '';
+  return GENRES_MOT.includes(t) ? t : null;
+};
+const motValide = (t) => {
+  const m = typeof t === 'string' ? t.trim().replace(/\s+/g, ' ') : '';
+  return m.length >= LETTRES_MOT_MIN && m.length <= LETTRES_MOT_MAX && /^\p{L}[\p{L} '’-]*\p{L}$/u.test(m) ? m.toLocaleLowerCase('fr') : null; // minuscules : le mot s'insère au milieu d'une phrase
+};
+
+/** Le mot « Autre » saisi : `{ autre, erreurs }` (`autre` : `{ singulier, pluriel, genre }` nettoyé, ou null si invalide ; `erreurs` : une phrase par champ fautif). */
+export function validerMotAutre(brut) {
+  const b = brut && typeof brut === 'object' ? brut : {};
+  const erreurs = {};
+  const singulier = motValide(b.singulier);
+  const pluriel = motValide(b.pluriel);
+  const genre = genreDe(b.genre);
+  const regle = `de ${LETTRES_MOT_MIN} à ${LETTRES_MOT_MAX} lettres`;
+  if (!singulier) erreurs.singulier = `Écris le mot au singulier (${regle}, exemple : chantier).`;
+  if (!pluriel) erreurs.pluriel = `Écris le mot au pluriel (${regle}, exemple : chantiers).`;
+  if (!genre) erreurs.genre = 'Choisis masculin ou féminin.';
+  return Object.keys(erreurs).length ? { autre: null, erreurs } : { autre: { singulier, pluriel, genre }, erreurs: {} };
+}
+
+/** Le choix lu dans les réglages (jamais d'erreur) : `{ motOuvrage, motOuvrageAutre }` ; un choix inconnu, ou « Autre » sans mot valide, retombe sur « ouvrage ». */
+export function lireMotOuvrage(brut) {
+  const b = brut && typeof brut === 'object' ? brut : {};
+  const autre = validerMotAutre(b.motOuvrageAutre).autre;
+  const id = b.motOuvrage === MOT_OUVRAGE_AUTRE ? (autre ? MOT_OUVRAGE_AUTRE : MOT_OUVRAGE_DEFAUT) : (MOTS_OUVRAGE.some((m) => m.id === b.motOuvrage) ? b.motOuvrage : MOT_OUVRAGE_DEFAUT);
+  return { motOuvrage: id, motOuvrageAutre: autre ?? {} };
+}
+
+const VOYELLE = /^[aeiouœæ]/iu; // pas d'élision devant « h » ni « y » (h aspiré : « le hangar ») : limite connue pour le mot « Autre »
+/** `{ singulier, pluriel, genre, un, le, cet, leMot }` du mot du métier : « ensemble » -> un / le / cet, « l’ensemble » ; « prestation » -> une / la / cette, « la prestation ». Fonction pure. */
+export function motOuvrage(reglages) {
+  const { motOuvrage: id, motOuvrageAutre: autre } = lireMotOuvrage(reglages);
+  const m = id === MOT_OUVRAGE_AUTRE ? autre : MOTS_OUVRAGE.find((x) => x.id === id);
+  const f = m.genre === 'feminin';
+  const elide = VOYELLE.test(m.singulier.normalize('NFD').replace(/[\u0300-\u036f]/g, ''));
+  return { singulier: m.singulier, pluriel: m.pluriel, genre: m.genre, un: f ? 'une' : 'un', le: f ? 'la' : 'le', cet: f ? 'cette' : (elide ? 'cet' : 'ce'), leMot: `${elide ? 'l’' : `${f ? 'la' : 'le'} `}${m.singulier}` };
+}
+
 /** Cherche un article dans un objet { id: article } ou une Map. */
 function trouver(articlesParId, id) {
   if (!articlesParId || typeof id !== 'string') return null;
