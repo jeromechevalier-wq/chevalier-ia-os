@@ -21,6 +21,7 @@ import * as L from '../../partage/logique.js';
 import { COLLECTIONS as C } from './donnees.js';
 import { sansId } from './canonique.js';
 import { JOURS_COPIES } from './ecriture.js';
+import { ecrituresUsage, usageDepuisLesDevis, idValable } from './usage-articles.js';
 
 export const ID_COMPTEUR = 'global';
 export const ID_REGLAGES = A.ID_REGLAGES;
@@ -178,6 +179,9 @@ export async function finaliser({ donnees, ctx, devisId }) {
     // Le devis finalisé devient « proposé » : le montant de l'affaire le suit (règle D17), dans la même transaction.
     const montant = await montantDeLAffaire(tx, devis, retouchesDe(changements));
     if (montant) changements.push(montant);
+
+    // Compteur d'usage des articles (cadrage vocabulaire-cibles, 2.9) : dans la MÊME transaction, sans ligne de journal (comme le compteur de numéros). Les lectures se font ici, avant l'écriture unique.
+    ecritures.push(...await ecrituresUsage(tx, { devis: apres, versions, maintenant: ctx.maintenant }));
 
     const j = journal({ donnees, ctx, outil: 'devisFinaliser', parametres: { devisId }, changements });
     tx.ecrire([...ecritures, ...changements.map((c) => c.ecriture), ...j.ecritures]);
@@ -466,6 +470,41 @@ export async function recalculerMontantsAffaires({ donnees, ctx, appliquer = fal
     }
   }
   return { total, lignes, operations };
+}
+
+/** Nombre maximum de documents d'usage écrits par transaction du recalcul (la limite de Firestore est de 500 écritures). */
+export const LOT_RECALCUL = 100;
+/** Nombre de lignes listées dans l'aperçu du recalcul du compteur d'usage. */
+export const MAX_APERCU = 50;
+
+/**
+ * Recalcul du compteur d'après les devis existants. `appliquer: false` (par défaut) : APERÇU, rien n'est écrit.
+ * `appliquer: true` : écrit les documents d'usage qui diffèrent (par lots, `set`), UNIQUEMENT la collection d'usage, jamais un devis. Un document d'usage dont l'article n'est plus compté passe à 0.
+ * Idempotent : un document déjà juste n'est pas réécrit. À lancer quand aucune finalisation n'est en cours (le recalcul remplace la valeur, il n'ajoute pas).
+ * Rend `{ total, lignes: [{ articleId, avant, apres }], ecrits }` (`lignes` : les MAX_APERCU premières, par identifiant).
+ */
+export async function recalculerUsageArticles({ donnees, ctx, appliquer = false }) {
+  const voulu = usageDepuisLesDevis(await donnees.liste(C.devis));
+  const existants = new Map((await donnees.liste(C.devisUsageArticles)).map((u) => [u.id, u]));
+  const diffs = [];
+  for (const id of [...new Set([...voulu.keys(), ...existants.keys()])].sort()) {
+    if (!idValable(id)) continue;
+    const apres = voulu.get(id)?.nombre ?? 0;
+    const avant = Number.isInteger(existants.get(id)?.nombre) ? existants.get(id).nombre : 0;
+    if (apres !== avant || (!existants.has(id) && apres > 0)) diffs.push({ articleId: id, avant, apres, derniereUtilisationLe: voulu.get(id)?.derniereUtilisationLe ?? null });
+  }
+  const lignes = diffs.slice(0, MAX_APERCU).map(({ articleId, avant, apres }) => ({ articleId, avant, apres }));
+  let ecrits = 0;
+  if (appliquer) {
+    for (let i = 0; i < diffs.length; i += LOT_RECALCUL) {
+      const lot = diffs.slice(i, i + LOT_RECALCUL);
+      await donnees.transaction(async (tx) => {
+        tx.ecrire(lot.map((d) => ({ type: 'set', collection: C.devisUsageArticles, id: d.articleId, donnees: { articleId: d.articleId, nombre: d.apres, derniereUtilisationLe: d.derniereUtilisationLe } })));
+      });
+      ecrits += lot.length;
+    }
+  }
+  return { total: diffs.length, lignes, ecrits };
 }
 
 // ---------------------------------------------------------------- pour les fonctions appelables (les deux projets)
