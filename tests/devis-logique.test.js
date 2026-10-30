@@ -179,7 +179,7 @@ describe('Numéro, expiration, statuts', () => {
   });
   test('D16 table des transitions : aucune transition libre', () => {
     const attendu = {
-      finaliser: ['brouillon'], marquer_envoye: ['en_attente_envoi'], accepter: ['envoye'], refuser: ['en_attente_envoi', 'envoye'],
+      finaliser: ['brouillon'], marquer_envoye: ['en_attente_envoi'], accepter: ['en_attente_envoi', 'envoye'], refuser: ['en_attente_envoi', 'envoye'],
       nouvelle_version: ['en_attente_envoi', 'envoye', 'refuse'], remplacer: ['en_attente_envoi', 'envoye'], archiver: ['en_attente_envoi', 'accepte', 'refuse'],
     };
     for (const [action, permis] of Object.entries(attendu)) {
@@ -189,6 +189,7 @@ describe('Numéro, expiration, statuts', () => {
     assert.equal(D.statutApres('brouillon', 'finaliser'), 'en_attente_envoi');
     assert.equal(D.statutApres('envoye', 'accepter'), 'accepte');
     assert.equal(D.statutApres('brouillon', 'accepter'), null);
+    assert.equal(D.statutApres('en_attente_envoi', 'accepter'), 'accepte', '5 signé aussi depuis Finalisé (30/10/2026)');
   });
   test('D21 archiver est un drapeau, permis pour finalisé, accepté ou refusé', () => {
     assert.equal(D.peutArchiver({ statut: 'accepte', archive: false }), true);

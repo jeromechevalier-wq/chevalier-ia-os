@@ -96,14 +96,21 @@ describe('Transitions des devis sur Firestore (émulateur)', { skip: emulateur ?
   });
 
   test('C5 une transition interdite est refusée sans écriture ; une permise écrit la date en Timestamp', async () => {
-    await poser('d1', { statut: 'en_attente_envoi', numero: 'DEV-2026-10-01-001' });
-    await assert.rejects(() => S.changerStatut({ donnees, ctx: ctx(), devisId: 'd1', action: 'accepter' }), (e) => e.code === 'transition_interdite');
-    assert.equal((await brut(C.devis, 'd1')).statut, 'en_attente_envoi');
+    await poser('b1', { statut: 'brouillon', numero: null });
+    await assert.rejects(() => S.changerStatut({ donnees, ctx: ctx(), devisId: 'b1', action: 'accepter' }), (e) => e.code === 'transition_interdite');
+    assert.equal((await brut(C.devis, 'b1')).statut, 'brouillon');
     assert.equal((await db.collection(C.audit).get()).size, 0);
+    await poser('d1', { statut: 'en_attente_envoi', numero: 'DEV-2026-10-01-001' });
     await S.changerStatut({ donnees, ctx: ctx(), devisId: 'd1', action: 'marquer_envoye' });
     const d = await brut(C.devis, 'd1');
     assert.equal(d.statut, 'envoye');
     assert.ok(d.envoyeLe instanceof Timestamp);
+    // 5 signé aussi depuis « Finalisé » (30/10/2026) : statut et date écrits, comme depuis « Envoyé »
+    await poser('d2', { statut: 'en_attente_envoi', numero: 'DEV-2026-10-01-002' });
+    await S.changerStatut({ donnees, ctx: ctx(), devisId: 'd2', action: 'accepter' });
+    const s = await brut(C.devis, 'd2');
+    assert.equal(s.statut, 'accepte');
+    assert.ok(s.accepteLe instanceof Timestamp);
   });
 
   test('C6 deux demandes simultanées de nouvelle version : une seule réussit', async () => {

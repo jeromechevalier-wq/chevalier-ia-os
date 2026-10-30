@@ -155,7 +155,7 @@ describe('C4 devisFinaliser d’un devis invalide', () => {
 
 describe('C5 devisChangerStatut', () => {
   const ETATS = ['brouillon', 'en_attente_envoi', 'envoye', 'accepte', 'refuse', 'remplace'];
-  const ATTENDU = { marquer_envoye: { de: 'en_attente_envoi', vers: 'envoye', date: 'envoyeLe' }, accepter: { de: 'envoye', vers: 'accepte', date: 'accepteLe' }, refuser: { de: ['en_attente_envoi', 'envoye'], vers: 'refuse', date: 'refuseLe' } };
+  const ATTENDU = { marquer_envoye: { de: 'en_attente_envoi', vers: 'envoye', date: 'envoyeLe' }, accepter: { de: ['en_attente_envoi', 'envoye'], vers: 'accepte', date: 'accepteLe' }, refuser: { de: ['en_attente_envoi', 'envoye'], vers: 'refuse', date: 'refuseLe' } };
   for (const [action, t] of Object.entries(ATTENDU)) {
     test(`C5 ${action} : permis depuis « ${[].concat(t.de).join(' ou ')} » (statut et ${t.date} écrits), refusé sans écriture depuis tous les autres statuts`, async () => {
       for (const statut of ETATS) {

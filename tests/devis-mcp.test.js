@@ -566,6 +566,7 @@ describe('N3 changer_statut_devis : aperçu puis code, mêmes transitions que l�
       finalise('v2', 'en_attente_envoi', { racineId: 'v1', version: 2 }),
       finalise('r1', 'envoye'),
       finalise('g1', 'en_attente_envoi', { racineId: 'g1' }),
+      finalise('b1', 'brouillon', { racineId: 'b1' }),
     ] });
     const a = ok(await s.appeler('code', 'changer_statut_devis', { id: 'v1', action: 'accepter' }));
     assert.deepEqual(a.remplaceraAussi.map((v) => v.id), ['v2']);
@@ -581,11 +582,31 @@ describe('N3 changer_statut_devis : aperçu puis code, mêmes transitions que l�
     assert.equal(s.doc('devis_devis', 'r1').statut, 'refuse');
     assert.ok(s.doc('devis_devis', 'r1').refuseLe);
     const codes = (s.collections.mcp_codes ?? []).length;
-    refuse(await s.appeler('code', 'changer_statut_devis', { id: 'g1', action: 'accepter' }), /pas possible pour un devis « Finalisé »/);
+    refuse(await s.appeler('code', 'changer_statut_devis', { id: 'b1', action: 'accepter' }), /pas possible pour un devis « Brouillon »/);
     refuse(await s.appeler('code', 'changer_statut_devis', { id: 'v1', action: 'refuser' }), /pas possible/);
     refuse(await s.appeler('code', 'changer_statut_devis', { id: 'inconnu', action: 'accepter' }), /introuvable/i);
     refuse(await s.appeler('code', 'changer_statut_devis', { id: 'g1', action: 'supprimer' }));
     assert.equal((s.collections.mcp_codes ?? []).length, codes, 'aucun code n’est émis pour une transition impossible');
+  });
+
+  test('N3 5 signé depuis Finalisé : même aperçu et même code ; les autres versions vivantes passent à « Remplacé » ; brouillon, signé et remplacé restent refusés', async () => {
+    const s = await demarrer({ devis: [
+      finalise('f1', 'en_attente_envoi', { racineId: 'f1' }),
+      finalise('f0', 'envoye', { racineId: 'f1', version: 0 }),
+      finalise('b1', 'brouillon', { racineId: 'b1' }),
+      finalise('s1', 'accepte', { racineId: 's1' }),
+      finalise('x1', 'remplace', { racineId: 'x1' }),
+    ] });
+    const a = ok(await s.appeler('code', 'changer_statut_devis', { id: 'f1', action: 'accepter' }));
+    assert.equal(a.apercu, true);
+    assert.equal(a.statutActuel, 'en_attente_envoi');
+    assert.equal(a.statutApres, 'accepte');
+    assert.deepEqual(a.remplaceraAussi.map((v) => v.id), ['f0']);
+    const r = ok(await s.appeler('code', 'changer_statut_devis', { id: 'f1', action: 'accepter', codeConfirmation: a.code }));
+    assert.equal(r.statut, 'accepte');
+    assert.equal(s.doc('devis_devis', 'f1').statut, 'accepte');
+    assert.equal(s.doc('devis_devis', 'f0').statut, 'remplace');
+    for (const id of ['b1', 's1', 'x1']) refuse(await s.appeler('code', 'changer_statut_devis', { id, action: 'accepter' }), /pas possible pour un devis/);
   });
 
   test('N3 le code d’une action ne vaut pas pour une autre ; le devis modifié entre-temps invalide le code ; droits : Claude Code seulement', async () => {

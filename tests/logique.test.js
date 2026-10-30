@@ -1390,3 +1390,38 @@ describe('Emails et téléphones d\'une organisation (contactsOrganisation, patc
   });
 });
 
+
+describe('Export des contacts : phrase et choix de la fenêtre', () => {
+  const maintenant = new Date('2026-10-30T10:00:00Z');
+  const a = { id: 'a', nom: 'Marie', creeLe: new Date('2026-09-01T08:00:00Z') };
+  const b = { id: 'b', nom: 'Paul', creeLe: new Date('2026-10-20T08:00:00Z') };
+  test('phrase : jamais exporté', () => {
+    assert.equal(L.phraseDernierExport(null, maintenant), "Tu n'as encore jamais exporté.");
+  });
+  test('phrase : date en toutes lettres, heure de Paris, ancienneté', () => {
+    assert.equal(L.phraseDernierExport(new Date('2026-10-13T16:19:00Z'), maintenant), 'Ton dernier export date du 13 octobre à 18 h 19 (il y a 17 jours).');
+    assert.equal(L.phraseDernierExport(new Date('2026-10-29T10:00:00Z'), maintenant), 'Ton dernier export date du 29 octobre à 11 h 00 (hier).');
+    assert.equal(L.phraseDernierExport(new Date('2026-10-30T08:00:00Z'), maintenant), "Ton dernier export date du 30 octobre à 9 h 00 (aujourd'hui).");
+    assert.match(L.phraseDernierExport(new Date('2025-10-01T10:00:00Z'), maintenant), /^Ton dernier export date du 1er octobre 2025 à 12 h 00 \(il y a 1 an\)\.$/);
+  });
+  test('phrase : une date dans le futur ne dit pas d\'ancienneté', () => {
+    assert.equal(L.phraseDernierExport(new Date('2026-11-30T10:00:00Z'), maintenant), 'Ton dernier export date du 30 novembre à 11 h 00.');
+  });
+  test('choix : jamais exporté → « modifications seulement » impossible, « tout » possible', () => {
+    const c = L.choixExportContacts([a, b], null, maintenant);
+    assert.deepEqual([c.peutTout, c.peutModifs, c.nombreTout], [true, false, 2]);
+  });
+  test('choix : des changements → les deux possibles, avec le détail', () => {
+    const c = L.choixExportContacts([a, b], new Date('2026-10-13T16:19:00Z'), maintenant);
+    assert.deepEqual([c.peutTout, c.peutModifs, c.nombreModifs, c.detailModifs], [true, true, 1, '1 nouveau']);
+  });
+  test('choix : rien depuis → « Rien n\'a changé depuis… » et modifications impossibles', () => {
+    const c = L.choixExportContacts([a], new Date('2026-10-28T10:00:00Z'), maintenant);
+    assert.equal(c.peutModifs, false);
+    assert.equal(c.phrase, "Rien n'a changé depuis ton dernier export du 28 octobre à 11 h 00 (il y a 2 jours).");
+  });
+  test('choix : aucun contact → rien d\'exportable', () => {
+    const c = L.choixExportContacts([], null, maintenant);
+    assert.deepEqual([c.peutTout, c.peutModifs], [false, false]);
+  });
+});

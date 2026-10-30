@@ -131,7 +131,9 @@ function celluleFamille(a, surFin = () => {}) {
       if (fini) return;
       if (id === familleEffective(a)) { retablir(); return; }
       if (a.type === 'ouvrage' && typeDeFamille(D.etat.familles, id) !== 'ouvrage') {
-        toast('Un ouvrage reste dans la famille « Ouvrages » (ou une de ses sous-familles). Pour en faire une fourniture, crée un nouvel article.', { type: 'erreur', duree: 7000 });
+        const mot = O.motOuvrage(D.etat.reglages);
+        const nomFamille = D.etat.familles.find((f) => f.id === 'famille-3')?.nom ?? 'Ouvrages'; // le nom de la famille est une donnée, pas le mot du métier
+        toast(`${O.majuscule(mot.un)} ${mot.singulier} reste dans la famille « ${nomFamille} » (ou une de ses sous-familles). Pour en faire une fourniture, crée un nouvel article.`, { type: 'erreur', duree: 7000 });
         retablir();
         return;
       }
@@ -200,14 +202,15 @@ async function ouvrirComposition(a, { devenirOuvrage = false, familleId = null }
     contenu: h('div', { class: 'pile' }, editeur.element, general),
     boutons: [{ libelle: 'Annuler', valeur: false }, { libelle: 'Enregistrer', valeur: true, style: 'principal', avantFermeture: tenter }],
   });
-  if (fait) toast(devenirOuvrage ? 'Ouvrage enregistré' : 'Composition enregistrée');
+  if (fait) toast('Composition enregistrée'); // même phrase dans les deux cas : aucun participe à accorder avec le mot du métier
 }
 
 /** Désactiver : fenêtre de confirmation (le texte du cadrage), puis « Article désactivé · Annuler » pendant 8 secondes. */
 async function desactiver(a) {
+  const mot = O.motOuvrage(D.etat.reglages);
   const ouvragesConcernes = D.etat.articles.filter((x) => x.type === 'ouvrage' && x.actif !== false && (x.composants ?? []).some((c) => c.articleId === a.id));
   const avertissement = ouvragesConcernes.length
-    ? ` Attention : il compose ${ouvragesConcernes.length > 1 ? 'les ouvrages' : 'l’ouvrage'} ${ouvragesConcernes.map((x) => `« ${x.libelle} »`).join(', ')} : ${ouvragesConcernes.length > 1 ? 'leurs prix seront incomplets' : 'son prix sera incomplet'} tant que tu ne le remplaces pas.`
+    ? ` Attention : il compose ${ouvragesConcernes.length > 1 ? `les ${mot.pluriel}` : mot.leMot} ${ouvragesConcernes.map((x) => `« ${x.libelle} »`).join(', ')} : ${ouvragesConcernes.length > 1 ? 'leurs prix seront incomplets' : 'son prix sera incomplet'} tant que tu ne le remplaces pas.`
     : '';
   await retirerAvecAnnulation({
     titre: 'Désactiver cet article ?',

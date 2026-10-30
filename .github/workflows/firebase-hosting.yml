@@ -7,6 +7,11 @@ on:
   push:
     branches:
       - main
+# Un seul déploiement à la fois : sans ça, un run plus ancien qui finit en dernier republie l'ancien arbre par-dessus un plus récent (30/10/2026).
+# GitHub ne garde qu'UN run en attente (le plus récent) ; false = on ne coupe jamais un déploiement en cours (fonctions).
+concurrency:
+  group: deploiement-hosting
+  cancel-in-progress: false
 jobs:
   deployer:
     runs-on: ubuntu-latest

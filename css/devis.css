@@ -565,7 +565,7 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
 .tableau-vocabulaire .ligne-liste { cursor: default; }
 .tableau-vocabulaire .ligne-liste:hover { background: transparent; }
 .tableau-vocabulaire .mot-desactive td { color: var(--texte2); }
-.tableau-vocabulaire .mot-note, .tableau-vocabulaire .mot-general { margin: var(--esp-1) 0 0; font-size: var(--fs-petit); }
+.tableau-vocabulaire .mot-note, .tableau-vocabulaire .mot-general, .tableau-vocabulaire .mot-validation, .tableau-vocabulaire .mot-suggestion { margin: var(--esp-1) 0 0; font-size: var(--fs-petit); }
 .tableau-vocabulaire .article-mort { display: flex; align-items: center; gap: var(--esp-3); flex-wrap: wrap; margin-top: var(--esp-1); }
 .tableau-vocabulaire td[data-colonne="statut"] { white-space: nowrap; }
 .tableau-vocabulaire td[data-colonne="statut"] .pastille-statut + .pastille-statut { margin-left: var(--esp-2); }
