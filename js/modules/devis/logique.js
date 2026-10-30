@@ -25,14 +25,14 @@ export const MODES_MARGE = [
   { id: 'majoration', libelle: 'Calcul artisan', explication: 'majoration sur le prix d’achat', exemple: 'achat 100 €, 25 % → vente 125 €' },
   { id: 'marge_vente', libelle: 'Calcul comptable', explication: 'marge sur le prix de vente', exemple: 'achat 100 €, 25 % → vente 133,33 €' },
 ];
-// Noms affichés (24/10/2026) : Finalisé = `en_attente_envoi`, Signé = `accepte`. Les identifiants stockés ne changent pas.
+// Noms affichés (24/10/2026, 30/10/2026) : Finalisé = `en_attente_envoi`, « Devis signé » = `accepte`, « Devis refusé » = `refuse` (Jérôme : « Signé » tout seul n'est pas clair). Les identifiants stockés ne changent pas.
 // « Expiré » n'est jamais stocké : il se calcule à l'affichage (estExpire), il est listé ici pour avoir un libellé.
 export const STATUTS_DEVIS = [
   { id: 'brouillon', libelle: 'Brouillon' },
   { id: 'en_attente_envoi', libelle: 'Finalisé' },
   { id: 'envoye', libelle: 'Envoyé' },
-  { id: 'accepte', libelle: 'Signé' },
-  { id: 'refuse', libelle: 'Refusé' },
+  { id: 'accepte', libelle: 'Devis signé' },
+  { id: 'refuse', libelle: 'Devis refusé' },
   { id: 'expire', libelle: 'Expiré' },
   { id: 'remplace', libelle: 'Remplacé' },
 ];

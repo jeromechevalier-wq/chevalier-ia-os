@@ -132,13 +132,13 @@ test('3 finalisé : le « … » ne propose ni « Passer à « Envoyé » » ni 
   await donnees();
   await ouvrir(page, 'devis/voir/dFinalise');
   const l = await entreesMenu(page);
-  expect(l.filter((t) => PASSAGES.test(t) || /^Envoyer/.test(t) || t === 'Devis envoyé')).toEqual(['Passer à « Refusé »']); // un devis finalisé jamais envoyé peut être refusé (décision de Jérôme, 29/10/2026)
+  expect(l.filter((t) => PASSAGES.test(t) || /^Envoyer/.test(t) || t === 'Devis envoyé')).toEqual(['Passer à « Devis refusé »']); // un devis finalisé jamais envoyé peut être refusé (décision de Jérôme, 29/10/2026)
   for (const nom of ['Télécharger le PDF', 'Imprimer', 'Créer une nouvelle version', 'Dupliquer', 'Archiver']) expect(l).toContain(nom);
   await capturer(page, info, '3-menu-finalise');
   await page.keyboard.press('Escape');
 });
 
-test('3 envoyé : le « … » ne propose ni « Passer à « Signé » » ni « Passer à « Refusé » » (les boutons sont visibles) ; « Préparer l’e-mail » reste (aucun bouton « Envoyer »)', async ({ page }, info) => {
+test('3 envoyé : le « … » ne propose ni « Passer à « Devis signé » » ni « Passer à « Devis refusé » » (les boutons sont visibles) ; « Préparer l’e-mail » reste (aucun bouton « Envoyer »)', async ({ page }, info) => {
   await donnees();
   await ouvrir(page, 'devis/voir/dEnvoye');
   await expect(tete(page).locator('[data-action="envoyer"]')).toHaveCount(0);

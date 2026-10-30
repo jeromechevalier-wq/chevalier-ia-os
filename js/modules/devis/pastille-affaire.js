@@ -28,5 +28,5 @@ export function pastilleDevisDeAffaire(devis, affaireId, { aujourdhui, maintenan
   if (!d) return null;
   const statut = statutAffiche(d, aujourdhui);
   const texte = statut === 'envoye' ? texteEnvoye(d.envoyeLe, maintenantMs) : libelleStatut(statut);
-  return { texte: `Devis : ${texte}`, couleur: COULEURS_STATUT[statut] ?? '#8d8993', statut, lien: d.statut === 'brouillon' ? `devis/editeur/${d.id}` : `devis/voir/${d.id}` }; // un devis finalisé s’ouvre sur l’écran unique du devis, sur la Prévisualisation (en lecture seule)
+  return { texte: texte.startsWith('Devis') ? texte : `Devis : ${texte}`, couleur: COULEURS_STATUT[statut] ?? '#8d8993', statut, lien: d.statut === 'brouillon' ? `devis/editeur/${d.id}` : `devis/voir/${d.id}` }; // un devis finalisé s’ouvre sur l’écran unique du devis, sur la Prévisualisation (en lecture seule)
 }
