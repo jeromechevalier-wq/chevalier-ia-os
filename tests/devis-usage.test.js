@@ -81,7 +81,7 @@ describe('K18 un même numéro de devis ne compte qu’une fois par article', ()
     assert.deepEqual(usage(m), { a1: 1, a2: 1 });
     await versionSuivante(m, 'd1', ['a1', 'a3']);
     assert.deepEqual(usage(m), { a1: 1, a2: 0, a3: 1 });
-    assert.deepEqual(usageDoc(m, 'a1').derniereUtilisationLe, T1, 'un article resté ne change pas la date');
+    assert.deepEqual(usageDoc(m, 'a1').derniereUtilisationLe, T2, 'un article resté garde son nombre mais prend la date de la nouvelle finalisation');
     assert.deepEqual(usageDoc(m, 'a3').derniereUtilisationLe, T2);
     assert.deepEqual(usageDoc(m, 'a2').derniereUtilisationLe, T1, 'un retrait ne change pas la date');
   });
@@ -159,6 +159,8 @@ describe('K20 recalcul du compteur', () => {
     const recalcule = monde(structuredClone(successif.collections[C.devis]));
     await S.recalculerUsageArticles({ donnees: recalcule.donnees, ctx: ctx(), appliquer: true });
     assert.deepEqual(usage(recalcule), usage(successif));
+    const dates = (x) => Object.fromEntries(x.collections[C.devisUsageArticles].map((u) => [u.id, u.derniereUtilisationLe?.toISOString() ?? null]));
+    assert.deepEqual(dates(recalcule), dates(successif), 'les dates aussi sont les mêmes');
   });
   test('K20 idempotent ; un compteur qui ne correspond plus à aucun devis repasse à 0 ; les composants ne comptent pas', async () => {
     const m = monde(devisExistants());
@@ -168,6 +170,25 @@ describe('K20 recalcul du compteur', () => {
     assert.deepEqual(usage(m), { a1: 2, a2: 1, a3: 1, fantome: 0 });
     const encore = await S.recalculerUsageArticles({ donnees: m.donnees, ctx: ctx(), appliquer: true });
     assert.deepEqual([encore.total, encore.ecrits], [0, 0]);
+  });
+  test('K20 le recalcul ne touche pas un compteur qui a bougé depuis l’aperçu (une finalisation est passée) et le dit', async () => {
+    const m = monde(devisExistants());
+    const vrai = m.donnees.transaction.bind(m.donnees);
+    let passe = false;
+    m.donnees.transaction = async (fn) => { // une finalisation concurrente s'insère juste avant l'écriture du premier lot
+      if (!passe) { passe = true; m.collections[C.devisUsageArticles].push({ id: 'a1', articleId: 'a1', nombre: 7, derniereUtilisationLe: T2 }); }
+      return vrai(fn);
+    };
+    const r = await S.recalculerUsageArticles({ donnees: m.donnees, ctx: ctx(), appliquer: true });
+    assert.deepEqual([r.ecrits, r.ignores], [2, 1]);
+    assert.equal(usage(m).a1, 7, 'la valeur concurrente est intacte');
+    assert.deepEqual([usage(m).a2, usage(m).a3], [1, 1]);
+  });
+  test('K20 un compteur passé à 0 garde sa dernière date', async () => {
+    const m = monde([]);
+    m.collections[C.devisUsageArticles].push({ id: 'vieux', articleId: 'vieux', nombre: 2, derniereUtilisationLe: T1 });
+    await S.recalculerUsageArticles({ donnees: m.donnees, ctx: ctx(), appliquer: true });
+    assert.deepEqual([usageDoc(m, 'vieux').nombre, usageDoc(m, 'vieux').derniereUtilisationLe], [0, T1]);
   });
   test('K20 cas vide : sans devis, rien à corriger et rien n’est écrit', async () => {
     const m = monde([]);

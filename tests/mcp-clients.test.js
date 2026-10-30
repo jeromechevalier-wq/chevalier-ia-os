@@ -1089,7 +1089,7 @@ describe('Outils factures : listés selon les options de l\'espace (Partie B)', 
 
 // --- Devis chez les clients (nuit du 28/10/2026) : le client crée ses devis par son assistant -------------------------------------------
 // Aucun code d'outil n'est copié dans `mcpclients` : ce sont les mêmes OUTILS que chez Jérôme, filtrés par le registre des modules et par le rôle.
-describe('Devis : les 25 outils du module arrivent chez les clients, dans l\'espace de chacun', () => {
+describe('Devis : les 26 outils du module arrivent chez les clients, dans l\'espace de chacun', () => {
   const OUTILS_DEVIS = moduleDeclare('devis').outilsMcp;
   const reglagesDevis = { id: 'reglages', regimeTva: 'assujetti', marge: 20, modeMarge: 'majoration' };
   /** Allume le module Devis (et ses Affaires) pour un client, avec ses réglages et, au besoin, des devis déjà enregistrés. */
@@ -1114,7 +1114,7 @@ describe('Devis : les 25 outils du module arrivent chez les clients, dans l\'esp
   }
   const devisBravo = { id: 'dv-bravo', racineId: 'dv-bravo', version: 1, numero: null, statut: 'brouillon', affaireId: 'a1', organisationId: 'org1', objet: 'Devis seulement chez Bravo', destinataires: ['x@exemple.test'], modeMarge: 'majoration', marge: 20, tauxTvaDefaut: 20, regimeTva: 'assujetti', archive: false, creeLe: new Date('2026-10-01T08:00:00Z'), sections: [{ id: 's1', titre: '', lignes: [{ id: 'l1', libelle: 'Peinture', unite: 'm²', quantite: 1, prixAchat: 8 }] }] };
 
-  test('devis-1 registre : les 25 outils du module Devis sortent de outilsDesModules + outilsSelonOptions pour un espace qui a Affaires et Devis ; sans Devis, aucun', () => {
+  test('devis-1 registre : les 26 outils du module Devis sortent de outilsDesModules + outilsSelonOptions pour un espace qui a Affaires et Devis ; sans Devis, aucun', () => {
     assert.equal(OUTILS_DEVIS.length, 26);
     const avec = outilsSelonOptions(outilsDesModules(['affaires', 'devis', 'mcp'], OUTILS), {}).map((o) => o.nom);
     for (const n of OUTILS_DEVIS) assert.ok(avec.includes(n), `${n} manque chez les clients`);
@@ -1123,7 +1123,7 @@ describe('Devis : les 25 outils du module arrivent chez les clients, dans l\'esp
     for (const n of OUTILS_DEVIS) assert.ok(OUTILS.some((o) => o.nom === n), `${n} n'a pas de code d'outil`);
   });
 
-  test('devis-2 un éditeur voit les 25 outils du module Devis par son assistant ; un lecteur voit seulement ceux de lecture', async () => {
+  test('devis-2 un éditeur voit les 26 outils du module Devis par son assistant ; un lecteur voit seulement ceux de lecture', async () => {
     await remettre();
     try {
       await activerDevis('a');

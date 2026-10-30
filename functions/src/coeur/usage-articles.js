@@ -6,7 +6,7 @@
 // - Jamais pour un brouillon. Un même numéro de devis ne compte qu'une fois : une version suivante ne compte que la DIFFÉRENCE avec la version non brouillon la plus récente de la même racine,
 //   quel que soit son statut (+1 article nouveau, -1 article retiré, 0 article resté). `remplaces` ne suffit pas (une nouvelle version peut partir d'un devis refusé).
 // - Un devis refusé ou archivé reste compté (décision de Jérôme, 30/10/2026).
-// - Jamais négatif. Pas de ligne de journal par article (le devis finalisé a la sienne, et le compteur se recalcule depuis les devis).
+// - Un article RESTÉ garde son nombre mais prend la date de la nouvelle finalisation. Jamais négatif. Pas de ligne de journal par article (le devis finalisé a la sienne, et le compteur se recalcule depuis les devis).
 import { COLLECTIONS as C } from './donnees.js';
 
 export const idValable = (id) => typeof id === 'string' && id.length > 0 && id.length <= 200 && !id.includes('/') && id !== '.' && id !== '..';
@@ -41,18 +41,24 @@ export function differenceUsage(devis, reference) {
  * Chaque document est lu puis écrit en entier avec `set` (jamais `update` : un document absent serait en erreur). Rend la liste d'écritures `{ type: 'set', … }`.
  */
 export async function ecrituresUsage(tx, { devis, versions, maintenant }) {
-  const { ajoutes, retires } = differenceUsage(devis, versionDeReference(devis, versions));
-  const ids = [...ajoutes, ...retires];
+  const reference = versionDeReference(devis, versions);
+  const { ajoutes, retires } = differenceUsage(devis, reference);
+  // Les articles RESTÉS gardent leur nombre mais prennent la date de cette finalisation (c'est la dernière finalisation qui les contient, comme le recalcul le calcule).
+  const avant = reference ? articlesDuDevis(reference) : new Set();
+  const restes = [...articlesDuDevis(devis)].filter((id) => avant.has(id)).sort();
+  const ids = [...ajoutes, ...retires, ...restes];
   if (!ids.length) return [];
   const courants = await Promise.all(ids.map((id) => tx.document(C.devisUsageArticles, id)));
   const nombreDe = (i) => (Number.isInteger(courants[i]?.nombre) && courants[i].nombre > 0 ? courants[i].nombre : 0);
-  return ids.map((id, i) => {
-    const ajoute = i < ajoutes.length;
-    const donnees = ajoute
-      ? { articleId: id, nombre: nombreDe(i) + 1, derniereUtilisationLe: maintenant }
-      : { articleId: id, nombre: Math.max(0, nombreDe(i) - 1), derniereUtilisationLe: courants[i]?.derniereUtilisationLe ?? null }; // un retrait ne change pas la date de dernière utilisation
-    return { type: 'set', collection: C.devisUsageArticles, id, donnees };
+  const ecritures = [];
+  ids.forEach((id, i) => {
+    let donnees;
+    if (i < ajoutes.length) donnees = { articleId: id, nombre: nombreDe(i) + 1, derniereUtilisationLe: maintenant };
+    else if (i < ajoutes.length + retires.length) donnees = { articleId: id, nombre: Math.max(0, nombreDe(i) - 1), derniereUtilisationLe: courants[i]?.derniereUtilisationLe ?? null }; // un retrait ne change pas la date
+    else if (courants[i]) donnees = { articleId: id, nombre: nombreDe(i), derniereUtilisationLe: maintenant }; // article resté : seulement la date (rien si le compteur n'existe pas encore : le recalcul le crée)
+    if (donnees) ecritures.push({ type: 'set', collection: C.devisUsageArticles, id, donnees });
   });
+  return ecritures;
 }
 
 const enDate = (v) => (v && typeof v.toDate === 'function' ? v.toDate() : v instanceof Date ? v : null);

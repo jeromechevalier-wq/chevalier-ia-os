@@ -447,8 +447,8 @@ test('7b-1 un mot validé à la main avec une suggestion du serveur est « À tr
   await menuDe(page, 'tableau_s').click();
   await entreeMenu(page, 'Garder cet article').click();
   await expect(ligne(page, 'tableau_s').locator('[data-role="a-trancher"]')).toHaveCount(0);
+  await expect.poll(async () => (await lireDocument('devis_vocabulaire/tableau_s')).suggestionTraiteeLe, { message: 'l’écriture arrive après le clic : on attend, on ne lit pas tout de suite' }).toMatch(JOUR);
   const doc = await lireDocument('devis_vocabulaire/tableau_s');
-  expect(doc.suggestionTraiteeLe).toMatch(JOUR);
   expect(doc.suggestionTraiteeLe >= '2026-10-28').toBe(true);
   expect([doc.validePar, doc.valideLe, doc.articleId, doc.suggestion.articleId]).toEqual(['humain', '2026-09-01', 'a04', 'a05']); // la suggestion reste (serveur seul), la validation aussi
   await capturerValidation(page, info, '7b-1-gardee');

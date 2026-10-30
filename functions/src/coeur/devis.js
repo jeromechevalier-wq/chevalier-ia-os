@@ -481,7 +481,7 @@ export const MAX_APERCU = 50;
  * Recalcul du compteur d'après les devis existants. `appliquer: false` (par défaut) : APERÇU, rien n'est écrit.
  * `appliquer: true` : écrit les documents d'usage qui diffèrent (par lots, `set`), UNIQUEMENT la collection d'usage, jamais un devis. Un document d'usage dont l'article n'est plus compté passe à 0.
  * Idempotent : un document déjà juste n'est pas réécrit. À lancer quand aucune finalisation n'est en cours (le recalcul remplace la valeur, il n'ajoute pas).
- * Rend `{ total, lignes: [{ articleId, avant, apres }], ecrits }` (`lignes` : les MAX_APERCU premières, par identifiant).
+ * Rend `{ total, lignes: [{ articleId, avant, apres }], ecrits, ignores }` (`ignores` : compteurs qui ont bougé depuis l'aperçu, sautés : relancer) (`lignes` : les MAX_APERCU premières, par identifiant).
  */
 export async function recalculerUsageArticles({ donnees, ctx, appliquer = false }) {
   const voulu = usageDepuisLesDevis(await donnees.liste(C.devis));
@@ -491,20 +491,26 @@ export async function recalculerUsageArticles({ donnees, ctx, appliquer = false 
     if (!idValable(id)) continue;
     const apres = voulu.get(id)?.nombre ?? 0;
     const avant = Number.isInteger(existants.get(id)?.nombre) ? existants.get(id).nombre : 0;
-    if (apres !== avant || (!existants.has(id) && apres > 0)) diffs.push({ articleId: id, avant, apres, derniereUtilisationLe: voulu.get(id)?.derniereUtilisationLe ?? null });
+    if (apres !== avant) diffs.push({ articleId: id, avant, apres, derniereUtilisationLe: voulu.get(id)?.derniereUtilisationLe ?? existants.get(id)?.derniereUtilisationLe ?? null });
   }
   const lignes = diffs.slice(0, MAX_APERCU).map(({ articleId, avant, apres }) => ({ articleId, avant, apres }));
   let ecrits = 0;
+  let ignores = 0;
   if (appliquer) {
     for (let i = 0; i < diffs.length; i += LOT_RECALCUL) {
       const lot = diffs.slice(i, i + LOT_RECALCUL);
-      await donnees.transaction(async (tx) => {
-        tx.ecrire(lot.map((d) => ({ type: 'set', collection: C.devisUsageArticles, id: d.articleId, donnees: { articleId: d.articleId, nombre: d.apres, derniereUtilisationLe: d.derniereUtilisationLe } })));
+      // Chaque document est RELU dans la transaction : si une finalisation est passée depuis l'aperçu (le nombre n'est plus celui de l'aperçu), on ne l'écrase pas, on le saute (Firestore relance si le document bouge pendant la transaction).
+      const ecritsLot = await donnees.transaction(async (tx) => {
+        const courants = await Promise.all(lot.map((x) => tx.document(C.devisUsageArticles, x.articleId)));
+        const aEcrire = lot.filter((x, k) => (Number.isInteger(courants[k]?.nombre) ? courants[k].nombre : 0) === x.avant);
+        tx.ecrire(aEcrire.map((x) => ({ type: 'set', collection: C.devisUsageArticles, id: x.articleId, donnees: { articleId: x.articleId, nombre: x.apres, derniereUtilisationLe: x.derniereUtilisationLe } })));
+        return aEcrire.length;
       });
-      ecrits += lot.length;
+      ecrits += ecritsLot;
+      ignores += lot.length - ecritsLot;
     }
   }
-  return { total: diffs.length, lignes, ecrits };
+  return { total: diffs.length, lignes, ecrits, ignores };
 }
 
 // ---------------------------------------------------------------- pour les fonctions appelables (les deux projets)

@@ -1505,7 +1505,7 @@ export async function recalculerUsageArticlesDevis(c, args) {
   });
   if (apercu) return apercu;
   const r = await recalculerUsageServeur({ donnees: c.donnees, ctx: ctxDevis(c), appliquer: true });
-  return { change: true, ecrits: r.ecrits, detail: r.ecrits ? `${r.ecrits} compteur(s) mis à jour.` : 'Tout est à jour.' };
+  return { change: true, ecrits: r.ecrits, ignores: r.ignores, detail: r.ignores ? `${r.ecrits} compteur(s) mis à jour ; ${r.ignores} ont changé pendant le calcul (une finalisation est passée) : relancer recalculer_usage_articles SANS codeConfirmation.` : r.ecrits ? `${r.ecrits} compteur(s) mis à jour.` : 'Tout est à jour.' };
 }
 
 // ---------------------------------------------------------------- Garantie « aucun e-mail ne part tout seul » (29/10/2026)
