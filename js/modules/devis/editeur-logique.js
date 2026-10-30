@@ -511,6 +511,39 @@ export function copieDeDevis(source, nouvelId) {
   return patch;
 }
 
+/**
+ * « Dupliquer aux prix du jour » : refait chaque ligne venue d'un article ACTIF depuis l'article d'aujourd'hui (prix d'achat, marge, TVA, libellé, composition d'un ouvrage),
+ * en gardant son identifiant et sa quantité. `devis` : { marge, modeMarge } du devis d'origine. Rend { sections, disparues }.
+ * Disparue (gardée telle quelle, avec son ancien prix) : article désactivé ou supprimé du catalogue, ou ligne libre sans article. Sauts de page et lignes de texte (même venues d'un article Texte, leur libellé du jour n'est pas repris) : gardés, jamais comptés.
+ */
+export function repriserSections(sections, articles, devis = {}) {
+  const parId = new Map((articles ?? []).map((a) => [a.id, a]));
+  const disparues = [];
+  const refaites = (sections ?? []).map((s) => ({
+    ...s,
+    lignes: (s.lignes ?? []).map((l) => {
+      if (estSaut(l) || l.type === TYPE_TEXTE) return l;
+      const article = l.articleId ? parId.get(l.articleId) : null;
+      if (!article || article.actif === false) { disparues.push({ sectionId: s.id, ligneId: l.id, libelle: l.libelle ?? '' }); return l; }
+      const { genre: _g, ...neuve } = ligneDepuisArticle(article, { id: l.id, articles, devis });
+      const quantite = estNombre(l.quantite) ? l.quantite : neuve.quantite;
+      const avecQuantite = { ...neuve, quantite };
+      return neuve.ouvrage ? { ...avecQuantite, description: descriptionDeLigne(avecQuantite) } : avecQuantite;
+    }),
+  }));
+  return { sections: refaites, disparues };
+}
+
+/** Phrase affichée après « Dupliquer aux prix du jour » : ce qui est repris du catalogue, et les lignes qui n'en viennent pas ou plus (avec leur numéro dans le nouveau brouillon). */
+export function messagePrixDuJour(sections, disparues) {
+  const n = numerotation(sections);
+  const liste = disparues.map((x) => `${n[x.ligneId] ?? ''} ${x.libelle}`.trim()).join(', ');
+  const base = 'Brouillon créé aux prix du jour : un prix de vente, un libellé, une unité, une TVA ou une description retouchés à la main sur la ligne d’origine ne sont pas repris.';
+  if (!disparues.length) return base;
+  const un = disparues.length === 1;
+  return `${base} ${un ? '1 ligne n’existe plus dans le catalogue' : `${disparues.length} lignes n’existent plus dans le catalogue`} : ${liste} ; ${un ? 'elle garde son' : 'elles gardent leur'} ancien prix, à vérifier.`;
+}
+
 /** Lecture seule : tout devis qui n'est pas un brouillon. */
 export const estLectureSeule = (devis) => devis?.statut !== 'brouillon';
 

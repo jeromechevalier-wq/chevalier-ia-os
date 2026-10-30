@@ -187,7 +187,9 @@ describe('L7 actions permises par statut', () => {
       const a = act(s);
       assert.equal(a.voir.actif, true, s);
       assert.equal(a.dupliquer.actif, true, s);
+      assert.equal(a.dupliquerPrixDuJour.actif, true, s);
       assert.equal(act(s, sansEditeur).dupliquer.raison, Li.MESSAGE_BIENTOT, s);
+      assert.equal(act(s, sansEditeur).dupliquerPrixDuJour.raison, Li.MESSAGE_BIENTOT, s);
       assert.equal(a.facturer.actif, false, s); assert.equal(a.facturer.raison, Li.MESSAGE_BIENTOT);
       assert.equal(a.envoyer.actif, ['brouillon', 'envoye'].includes(s), `${s} envoyer`);
     }

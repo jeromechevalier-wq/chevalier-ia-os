@@ -21,9 +21,9 @@ describe('1 menu d’un brouillon', () => {
     for (const interdit of ['Voir la fiche', 'Modifier : version actuelle', 'Modifier : nouvelle variante']) assert.ok(!tout.includes(interdit), interdit);
     assert.ok(!libelles(l).includes('Voir'));
   });
-  test('1 le reste du menu : Passer à, Dupliquer, Préparer l’e-mail, Archiver (grisé avec sa phrase), Supprimer (danger)', () => {
+  test('1 le reste du menu : Passer à, Dupliquer, Dupliquer aux prix du jour, Préparer l’e-mail, Archiver (grisé avec sa phrase), Supprimer (danger)', () => {
     const l = Li.entreesActionsDevis(d('brouillon'));
-    assert.deepEqual(cles(l), ['statut:finaliser', 'editer', 'voir', 'dupliquer', 'preparer_email', 'archiver', 'supprimer']);
+    assert.deepEqual(cles(l), ['statut:finaliser', 'editer', 'voir', 'dupliquer', 'dupliquer_prix_du_jour', 'preparer_email', 'archiver', 'supprimer']);
     assert.equal(entree(l, 'statut:finaliser').libelle, 'Passer à « Finalisé »');
     assert.equal(entree(l, 'archiver').actif, false);
     assert.ok(l.some((e) => e.texte === Li.MESSAGE_ARCHIVE_IMPOSSIBLE), 'la phrase d’explication suit « Archiver »');
