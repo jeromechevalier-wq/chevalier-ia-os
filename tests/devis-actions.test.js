@@ -120,13 +120,14 @@ describe('5 panneau « Historique »', () => {
 });
 
 describe('Archivage (menu « … »)', () => {
-  test('Archiver (signé ou refusé), Désarchiver (archivé), sinon grisé avec la raison du serveur', () => {
+  test('Archiver (finalisé, signé ou refusé), Désarchiver (archivé), sinon grisé avec la raison du serveur', () => {
     const a = Li.archivageDevis(d('accepte'));
     assert.deepEqual([a.libelle, a.action, a.actif], ['Archiver', 'archiver', true]);
     assert.equal(Li.archivageDevis(d('refuse')).action, 'archiver');
+    assert.equal(Li.archivageDevis(d('en_attente_envoi')).action, 'archiver');
     const r = Li.archivageDevis(d('accepte', { archive: true }));
     assert.deepEqual([r.libelle, r.action, r.icone, r.actif], ['Désarchiver', 'desarchiver', 'archive-restore', true]);
     const g = Li.archivageDevis(d('envoye'));
-    assert.deepEqual([g.actif, g.raison], [false, 'Seul un devis signé ou refusé peut être archivé.']);
+    assert.deepEqual([g.actif, g.raison], [false, 'Seul un devis finalisé, signé ou refusé peut être archivé.']);
   });
 });

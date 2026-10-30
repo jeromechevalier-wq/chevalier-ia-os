@@ -133,7 +133,7 @@ export function rendreListeDevis(conteneur) {
     remplir(compteur, `${total} devis`, lignes.length !== total ? ` · ${lignes.length} affiché${lignes.length > 1 ? 's' : ''}` : '');
     if (!lignes.length) {
       const vraimentVide = total === 0;
-      if (vraimentVide && archives) { remplir(zone, etatVide('Aucun devis archivé. Un devis signé ou refusé se range ici avec « Archiver », dans le menu « … » du devis ; les devis remplacés et expirés y sont aussi.')); return; }
+      if (vraimentVide && archives) { remplir(zone, etatVide('Aucun devis archivé. Un devis finalisé, signé ou refusé se range ici avec « Archiver », dans le menu « … » du devis ; les devis remplacés et expirés y sont aussi.')); return; }
       remplir(zone, etatVide(vraimentVide ? 'Aucun devis pour l’instant.' : 'Aucun devis ne correspond.', {
         action: vraimentVide ? h('button', { type: 'button', class: 'bouton bouton-secondaire', disabled: !Li.EDITEUR_DISPONIBLE, title: Li.EDITEUR_DISPONIBLE ? null : Li.MESSAGE_BIENTOT, dataset: { action: 'nouveau-devis-vide' }, onclick: () => creerDevisSansAffaire() },
           icone('plus', { taille: 16 }), 'Nouveau devis', Li.EDITEUR_DISPONIBLE ? null : ' (bientôt disponible)') : null,

@@ -236,9 +236,9 @@ export function actionsPermises(d, { editeur = EDITEUR_DISPONIBLE, suppression =
   };
 }
 
-export const MESSAGE_ARCHIVE_IMPOSSIBLE = 'Seul un devis signé ou refusé peut être archivé.';
+export const MESSAGE_ARCHIVE_IMPOSSIBLE = 'Seul un devis finalisé, signé ou refusé peut être archivé.';
 
-/** Entrée « Archiver » / « Désarchiver » du menu « … » (même schéma que les projets). Les règles sont celles du serveur : on n'archive qu'un devis signé ou refusé. */
+/** Entrée « Archiver » / « Désarchiver » du menu « … » (même schéma que les projets). Les règles sont celles du serveur : on n'archive qu'un devis finalisé, signé ou refusé. */
 export function archivageDevis(d) {
   if (d?.archive === true) return { actif: true, action: 'desarchiver', libelle: 'Désarchiver', icone: 'archive-restore' };
   if (peutArchiver(d)) return { actif: true, action: 'archiver', libelle: 'Archiver', icone: 'archive' };

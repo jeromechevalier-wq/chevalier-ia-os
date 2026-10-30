@@ -239,7 +239,7 @@ export async function archiver({ donnees, ctx, devisId, archive }) {
   return donnees.transaction(async (tx) => {
     const devis = await lireDevis(tx, devisId);
     if (archive && !D.peutArchiver(devis)) {
-      throw new ErreurDevis('transition_interdite', devis.archive === true ? 'Ce devis est déjà archivé.' : 'Seul un devis signé ou refusé peut être archivé.');
+      throw new ErreurDevis('transition_interdite', devis.archive === true ? 'Ce devis est déjà archivé.' : 'Seul un devis finalisé, signé ou refusé peut être archivé.');
     }
     if (!archive && devis.archive !== true) throw new ErreurDevis('transition_interdite', 'Ce devis n\'est pas archivé.');
     const patch = { archive, archiveLe: archive ? ctx.maintenant : null };
@@ -261,7 +261,7 @@ export async function archiver({ donnees, ctx, devisId, archive }) {
 export async function supprimer({ donnees, ctx, devisId }) {
   return donnees.transaction(async (tx) => {
     const devis = await lireDevis(tx, devisId);
-    if (devis.statut !== 'brouillon') throw new ErreurDevis('transition_interdite', 'Seul un brouillon peut être supprimé. Un devis finalisé se garde ; tu peux l’archiver s’il est signé ou refusé.');
+    if (devis.statut !== 'brouillon') throw new ErreurDevis('transition_interdite', 'Seul un brouillon peut être supprimé. Un devis finalisé se garde ; tu peux l’archiver s’il est finalisé, signé ou refusé.');
     const changement = { id: devis.id, collection: C.devis, action: 'supprimer', avant: devis, apres: null, champs: [], ecriture: { type: 'delete', collection: C.devis, id: devis.id } };
     // Un brouillon ne compte jamais dans le montant de l'affaire (règle D17) : supprimer ne touche pas à l'affaire, et l'opération reste restaurable par le journal.
     const j = journal({ donnees, ctx, outil: 'devisSupprimer', parametres: { devisId }, changements: [changement] });

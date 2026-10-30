@@ -518,12 +518,12 @@ export const TRANSITIONS = {
   finaliser: { de: ['brouillon'], vers: 'en_attente_envoi' },
   marquer_envoye: { de: ['en_attente_envoi'], vers: 'envoye' },
   accepter: { de: ['envoye'], vers: 'accepte' },
-  refuser: { de: ['envoye'], vers: 'refuse' },
+  refuser: { de: ['en_attente_envoi', 'envoye'], vers: 'refuse' }, // aussi depuis « Finalisé » : un devis finalisé jamais envoyé a une sortie (décision de Jérôme, 29/10/2026)
   remplacer: { de: ['en_attente_envoi', 'envoye'], vers: 'remplace' },
   // Crée un nouveau brouillon ; la version de départ ne change pas de statut ici.
   nouvelle_version: { de: ['en_attente_envoi', 'envoye', 'refuse'], vers: null },
   // L'archive n'est pas un statut : c'est le drapeau `archive`.
-  archiver: { de: ['accepte', 'refuse'], vers: null },
+  archiver: { de: ['en_attente_envoi', 'accepte', 'refuse'], vers: null },
 };
 
 export function transitionPossible(statut, action) {
@@ -534,7 +534,7 @@ export function transitionPossible(statut, action) {
 export function statutApres(statut, action) {
   return transitionPossible(statut, action) ? TRANSITIONS[action].vers : null;
 }
-/** Un devis accepté ou refusé, pas déjà archivé, peut être archivé. */
+/** Un devis finalisé, accepté ou refusé, pas déjà archivé, peut être archivé. */
 export function peutArchiver(devis) {
   return devis?.archive !== true && transitionPossible(devis?.statut, 'archiver');
 }
