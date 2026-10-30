@@ -1,5 +1,30 @@
 # À faire au début de la prochaine session
 
+## Rapport du matin : nuit du 30 au 31/10/2026 (« GO NUIT », suite du devis fluide)
+
+Après les libellés « Devis signé » et « Devis refusé » (PR 420, demande de Jérôme), la nuit a avancé quatre sujets du devis fluide, chacun dans sa session de code, brief relu par Fable contre le code avant l'envoi, PR relue par Fable avant fusion.
+
+| Sujet | PR | État |
+|---|---|---|
+| Libellés « Devis signé » / « Devis refusé » partout (pastilles comprises) | 420 | fusionnée, déployée (Jérôme, clients `hosting` et `mcp`) |
+| N3 : requête bornée par date (`donnees.liste`, prérequis des devis proches) | 421 | fusionnée, aucun appelant encore ; index composite écrit en texte dans la PR, rien de créé |
+| N2 : mot du métier, réglage et serveur (`motOuvrage`, `typeAffiche`, synonyme du dictionnaire), sans écran | 422 | fusionnée, déployée ; aucun écran ne change tant que la PR 9 n'existe pas |
+| N1 : outil `creer_devis_depuis_modele` (80 outils, 25 dans `OUTILS_DEVIS`) | 423 | fusionnée, déployée (Jérôme, clients `hosting` puis `mcp`) |
+| Correction d'un test cassé par la PR 420 (`donnees-demo-pdf`, « Devis signé » en deux mots) | 425 | fusionnée |
+| N4 : règles de la revue (champs de validation du dictionnaire, collection `devis_habitudes`), deux fichiers de règles | 424 | **à fusionner par Jérôme** (liste d'arrêt : règles Firestore), verte, étiquette `a-fusionner-par-jerome`, aucune règle publiée |
+| Écrans : mot du métier (PR 9), écran « Ce que l'IA a appris » (PR 11), ensembles de nuit (PR 10), devis proches (PR 14), revue historique (PR 12) | aucune | non lancés : dépendent des règles de la PR 424 ou de la mesure de lenteur |
+
+- **État de la nuit GitHub** : « Tests de nuit » lancé à la main sur `main` (9a10969) après la dernière fusion : vert. `main` avait un test rouge (`donnees-demo-pdf`) depuis la PR 420, vu seulement par le palier complet d'une PR de règles ; corrigé par la PR 425. Leçon : après une PR qui change des libellés, lancer « Tests de nuit » tout de suite.
+- **Déploiements chez les clients** (accord de Jérôme pour la nuit) : `hosting` puis `mcp`, deux fois (après la PR 420, après la PR 423) ; chaque run lu et vert avant le suivant.
+- **Décisions prises seul** : brief N1 : objet du devis laissé vide dans le nouveau devis, lignes de texte copiées et listées dans `aReviser`, sauts de page gardés, section vidée gardée ; N2 : fonction `motOuvrage` dans `ouvrages.js` (réexportée par `articles.js`), une règle « à confirmer » sur « ensemble X » peut être devancée par l'ouvrage « X » exact ; N3 : borne en 3e argument `{ champ, depuis: Date }`, un champ texte n'est jamais dans la borne ; N4 : `devis_habitudes` en `write: false` partout, `validePar` accepte « humain » ou « reponses » à la mise à jour.
+- **Pas pu être vérifié** : un vrai ChatGPT ou claude.ai qui enchaîne `creer_devis_depuis_modele` ; les numéros dits à la voix (annexe B du cadrage) ; les parcours navigateur dans le bac à sable des sessions de code (la coche GitHub et les tests de nuit font foi).
+- **Actions pour Jérôme, dans l'ordre** :
+  1. Relire et fusionner la PR 424 (règles) ; Claude publie ensuite les règles chez lui (« Publier les règles (CRM de Jérôme) ») et, sur son feu vert, chez les clients (« Déploiement plateforme clients » > regles).
+  2. Répondre : reprendre l'objet du modèle dans `creer_devis_depuis_modele` ? Nom et étape de départ de l'affaire créée à la finalisation (chantier « Nouveau devis sans blocage ») ? Brouillon sans client ?
+  3. L'essai à la voix (annexe B), puis dire quand lancer les écrans du devis fluide.
+  4. Vérifier à l'écran : Devis > Tableau (colonnes « Devis signé » et « Devis refusé »), carte d'affaire (« Devis signé » sans « Devis : » doublé).
+  5. Ce qui reste à toi depuis la garantie e-mail : workflow n8n, deux secrets par client, boucle `gcloud`, droit Storage.
+
 ## Rapport du matin : nuit du 30/10/2026 (« GO NUIT », orchestration des déploiements)
 
 Jérôme a confié à la session principale l'orchestration de trois travaux (Marge, Montant de l'affaire, devis fluide bloc A) et **les déploiements chez les clients** (accord pour cette nuit seulement : workflow « Déploiement plateforme clients », un seul à la fois).
