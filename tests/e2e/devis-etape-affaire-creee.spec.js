@@ -70,8 +70,9 @@ test('E3 une étape enregistrée mais disparue reste visible « (étape disparue
 
 test('E4 cas vide : aucune étape active, la liste ne montre que « Non réglée » et la phrase « Aucune étape dans le pipeline »', async ({ page }, info) => {
   await connecter(page);
-  await ecrireDocument('crm_parametres/etapes', { items: [{ id: 'seule', libelle: 'Seule', description: '', couleur: '#999999', actif: false, action: null }], roleGagnee: 'seule' });
-  await page.reload();
+  // les six emplacements de départ de Jérôme, tous éteints
+  const item = (id) => ({ id, libelle: id, description: '', couleur: '#999999', actif: false, action: null });
+  await ecrireDocument('crm_parametres/etapes', { items: ['premier_contact', 'rdv_fixe', 'proposition_envoyee', 'gagne', 'etape_5', 'etape_6'].map(item), roleGagnee: 'gagne' });
   await ouvrirReglagesDevis(page);
   await expect(champ(page).locator('option')).toHaveText(['Non réglée (je choisis à chaque fois)']);
   await expect(page.locator('[data-zone="etape-affaire-creee-vide"]')).toHaveText('Aucune étape dans le pipeline');
