@@ -128,6 +128,24 @@ describe('N2 chaque transition d’un devis met le montant de l’affaire à jou
     assert.deepEqual([affaireDe(m).montantDevisHt, affaireDe(m).montantDevisNature], [600, 'propose']);
     assert.equal(affaireDe(m).montantDevisDetail.length, 1);
   });
+  test('N2b un devis FINALISÉ jamais envoyé : le refuser ou l’archiver fait disparaître le montant calculé (retour au montant saisi)', async () => {
+    for (const sortie of ['refuser', 'archiver']) {
+      const m = monde({ devis: [brouillon('d1', 100)] });
+      await S.finaliser({ donnees: m.donnees, ctx: ctx(), devisId: 'd1' });
+      assert.deepEqual([affaireDe(m).montantDevisHt, affaireDe(m).montantDevisNature], [1200, 'propose'], 'finalisé : compté comme proposé');
+      if (sortie === 'refuser') await statut(m, 'd1', 'refuser');
+      else await S.archiver({ donnees: m.donnees, ctx: ctx(), devisId: 'd1', archive: true });
+      assert.deepEqual([affaireDe(m).montantDevisHt, affaireDe(m).montantDevisNature, affaireDe(m).montantDevisDetail], [null, null, null], sortie);
+      assert.equal(LEcran.montantAffaire(affaireDe(m)), 1500, sortie);
+    }
+  });
+  test('N2c un devis archivé ne change plus de statut (sinon un signé archivé serait ignoré du montant)', async () => {
+    const m = monde({ devis: [brouillon('d1', 100)] });
+    await S.finaliser({ donnees: m.donnees, ctx: ctx(), devisId: 'd1' });
+    await S.archiver({ donnees: m.donnees, ctx: ctx(), devisId: 'd1', archive: true });
+    await assert.rejects(() => S.changerStatut({ donnees: m.donnees, ctx: ctx(), devisId: 'd1', action: 'marquer_envoye' }), (e) => e.code === 'transition_interdite' && /archivé/.test(e.message));
+    assert.equal(leStatut(m, 'd1'), 'en_attente_envoi');
+  });
   test('N2 refuser le seul devis proposé : le montant calculé disparaît (null) et l’écran retombe sur le montant saisi', async () => {
     const m = monde({ devis: [brouillon('d1', 100)] });
     await envoye(m, 'd1');

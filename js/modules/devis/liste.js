@@ -225,7 +225,7 @@ export function actionsPermises(d, { editeur = EDITEUR_DISPONIBLE, suppression =
   const bientot = { actif: false, raison: MESSAGE_BIENTOT };
   const version = transitionPossible(statut, 'nouvelle_version');
   return {
-    statuts: CHANGEMENTS_STATUT.filter((c) => transitionPossible(statut, c.action)),
+    statuts: d?.archive === true ? [] : CHANGEMENTS_STATUT.filter((c) => transitionPossible(statut, c.action)), // un devis archivé ne change plus de statut (comme le serveur)
     voir: { actif: true },
     editer: editeur ? { actif: true } : bientot, // un devis finalisé s'ouvre aussi sur l'onglet Édition, en lecture seule (même écran pour toute la vie du devis)
     nouvelleVersion: version ? (editeur ? { actif: true } : bientot) : { actif: false, raison: brouillon ? 'Un brouillon se modifie directement.' : 'Pas de nouvelle version pour un devis signé ou remplacé.' },

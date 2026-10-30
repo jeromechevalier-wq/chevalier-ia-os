@@ -1210,7 +1210,7 @@ export async function preparerEmail(c, args) {
  */
 export async function supprimerDevis(c, args) {
   const devis = await lire(c, C.devis, args.id, 'Devis');
-  if (devis.statut !== 'brouillon') refuser('saisie_invalide', 'Seul un brouillon peut être supprimé. Un devis finalisé se garde ; il peut être archivé (archiver_devis) s’il est finalisé, signé ou refusé.');
+  if (devis.statut !== 'brouillon') refuser('saisie_invalide', 'Seul un brouillon peut être supprimé. Un devis finalisé se garde ; il peut être archivé (archiver_devis) s’il est finalisé (jamais envoyé), signé ou refusé.');
   const t = D.totauxDevis(devis);
   if (!args.codeConfirmation) {
     const restantes = c.suppressionsRestantes ? await c.suppressionsRestantes() : Infinity;

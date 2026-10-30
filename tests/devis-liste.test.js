@@ -162,6 +162,9 @@ describe('L7 actions permises par statut', () => {
     assert.deepEqual(actions('envoye'), ['accepter', 'refuser']);
     for (const s of ['accepte', 'refuse', 'remplace']) assert.deepEqual(actions(s), [], s);
   });
+  test('L7 un devis archivé ne propose aucun changement de statut', () => {
+    for (const s of ['en_attente_envoi', 'envoye']) assert.deepEqual(Li.actionsPermises(d('x', { statut: s, archive: true })).statuts, [], s);
+  });
   test('L7 Supprimer : seulement un brouillon (le serveur a la fonction devisSupprimer) ; grisé « bientôt » si la suppression est coupée', () => {
     assert.equal(act('brouillon').supprimer.actif, true);
     assert.equal(Li.actionsPermises(d('x'), { suppression: false }).supprimer.actif, false);

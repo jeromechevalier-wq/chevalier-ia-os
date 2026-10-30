@@ -176,6 +176,8 @@ export async function changerStatut({ donnees, ctx, devisId, action }) {
   if (!champDate) throw new ErreurDevis('demande_invalide', 'Action inconnue : marquer_envoye, accepter ou refuser.');
   return donnees.transaction(async (tx) => {
     const devis = await lireDevis(tx, devisId);
+    // Un devis archivé ne change plus de statut (un finalisé archivé, passé à Signé, serait ignoré par le montant de l'affaire) : on le sort des archives d'abord.
+    if (devis.archive === true) throw new ErreurDevis('transition_interdite', 'Ce devis est archivé : sors-le des archives avant de changer son statut.');
     if (!D.transitionPossible(devis.statut, action)) {
       throw new ErreurDevis('transition_interdite', `Cette action n'est pas possible pour un devis « ${D.STATUTS_DEVIS.find((s) => s.id === devis.statut)?.libelle ?? devis.statut} ».`);
     }
@@ -233,7 +235,7 @@ export async function nouvelleVersion({ donnees, ctx, devisId }) {
   });
 }
 
-/** Pose (`archive: true`) ou retire (`archive: false`) le drapeau d'archive. Poser : seulement sur un devis Signé ou Refusé. */
+/** Pose (`archive: true`) ou retire (`archive: false`) le drapeau d'archive. Poser : seulement sur un devis Finalisé (jamais envoyé), Signé ou Refusé. */
 export async function archiver({ donnees, ctx, devisId, archive }) {
   if (typeof archive !== 'boolean') throw new ErreurDevis('demande_invalide', 'Précise si le devis doit être archivé ou non.');
   return donnees.transaction(async (tx) => {
@@ -261,7 +263,7 @@ export async function archiver({ donnees, ctx, devisId, archive }) {
 export async function supprimer({ donnees, ctx, devisId }) {
   return donnees.transaction(async (tx) => {
     const devis = await lireDevis(tx, devisId);
-    if (devis.statut !== 'brouillon') throw new ErreurDevis('transition_interdite', 'Seul un brouillon peut être supprimé. Un devis finalisé se garde ; tu peux l’archiver s’il est finalisé, signé ou refusé.');
+    if (devis.statut !== 'brouillon') throw new ErreurDevis('transition_interdite', 'Seul un brouillon peut être supprimé. Un devis finalisé se garde ; tu peux l’archiver s’il est finalisé (jamais envoyé), signé ou refusé.');
     const changement = { id: devis.id, collection: C.devis, action: 'supprimer', avant: devis, apres: null, champs: [], ecriture: { type: 'delete', collection: C.devis, id: devis.id } };
     // Un brouillon ne compte jamais dans le montant de l'affaire (règle D17) : supprimer ne touche pas à l'affaire, et l'opération reste restaurable par le journal.
     const j = journal({ donnees, ctx, outil: 'devisSupprimer', parametres: { devisId }, changements: [changement] });
