@@ -221,7 +221,7 @@ function chercherCandidats(cle, mots, { regles, articles }) {
  */
 function chercherAvecSynonyme(cle, mots, { regles, articles, reglages }) {
   const classes = chercherCandidats(cle, mots, { regles, articles });
-  if (!reglages || !mots.length) return classes;
+  if (!mots.length) return classes; // `reglages` absent (document pas encore écrit) : le mot par défaut s'applique, comme à l'écran
   const m = motOuvrage(reglages);
   for (const forme of [m.singulier, m.pluriel]) {
     const motsForme = motsDe(forme);

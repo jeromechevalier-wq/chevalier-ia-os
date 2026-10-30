@@ -37,7 +37,7 @@ const genreDe = (g) => {
 };
 const motValide = (t) => {
   const m = typeof t === 'string' ? t.trim().replace(/\s+/g, ' ') : '';
-  return m.length >= LETTRES_MOT_MIN && m.length <= LETTRES_MOT_MAX && /^\p{L}[\p{L} '’-]*\p{L}$/u.test(m) ? m : null;
+  return m.length >= LETTRES_MOT_MIN && m.length <= LETTRES_MOT_MAX && /^\p{L}[\p{L} '’-]*\p{L}$/u.test(m) ? m.toLocaleLowerCase('fr') : null; // minuscules : le mot s'insère au milieu d'une phrase
 };
 
 /** Le mot « Autre » saisi : `{ autre, erreurs }` (`autre` : `{ singulier, pluriel, genre }` nettoyé, ou null si invalide ; `erreurs` : une phrase par champ fautif). */
@@ -62,7 +62,7 @@ export function lireMotOuvrage(brut) {
   return { motOuvrage: id, motOuvrageAutre: autre ?? {} };
 }
 
-const VOYELLE = /^[aeiouyhœæ]/iu;
+const VOYELLE = /^[aeiouœæ]/iu; // pas d'élision devant « h » ni « y » (h aspiré : « le hangar ») : limite connue pour le mot « Autre »
 /** `{ singulier, pluriel, genre, un, le, cet, leMot }` du mot du métier : « ensemble » -> un / le / cet, « l’ensemble » ; « prestation » -> une / la / cette, « la prestation ». Fonction pure. */
 export function motOuvrage(reglages) {
   const { motOuvrage: id, motOuvrageAutre: autre } = lireMotOuvrage(reglages);

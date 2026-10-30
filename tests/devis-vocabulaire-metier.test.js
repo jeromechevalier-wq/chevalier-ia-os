@@ -29,7 +29,7 @@ describe('V1 motOuvrage : liste fermée, grammaire, « Autre » validé', () => 
   test('V1 « Autre » valide : le mot saisi (féminin accepté avec ou sans accent)', () => {
     assert.deepEqual(motOuvrage({ motOuvrage: 'autre', motOuvrageAutre: AUTRE_OK }), { singulier: 'chantier', pluriel: 'chantiers', genre: 'masculin', un: 'un', le: 'le', cet: 'ce', leMot: 'le chantier' });
     const f = motOuvrage({ motOuvrage: 'autre', motOuvrageAutre: { singulier: ' Œuvre ', pluriel: 'œuvres', genre: 'féminin' } });
-    assert.deepEqual([f.singulier, f.genre, f.un, f.le, f.cet, f.leMot], ['Œuvre', 'feminin', 'une', 'la', 'cette', 'l’Œuvre']);
+    assert.deepEqual([f.singulier, f.genre, f.un, f.le, f.cet, f.leMot], ['œuvre', 'feminin', 'une', 'la', 'cette', 'l’œuvre']);
   });
   test('V1 « Autre » invalide : refusé à l’enregistrement avec une phrase par champ, jamais écrit', () => {
     const base = { motOuvrage: 'autre' };
@@ -83,6 +83,9 @@ describe('V4 le moteur reconnaît le mot choisi comme synonyme du type ouvrage',
     assert.equal(meilleur('chantier salle de bain', { motOuvrage: 'autre', motOuvrageAutre: AUTRE_OK }).articleId, 'o1');
     const r = interpreter('ensemble salle de bain', { regles: [], articles, reglages: { motOuvrage: 'ensemble' } });
     assert.ok(r.candidats.every((c) => c.regleId === null), 'aucune règle devis_vocabulaire');
+  });
+  test('V4 sans document de réglages (null), le mot par défaut « ouvrage » s’applique comme à l’écran', () => {
+    assert.equal(interpreter('ouvrage salle de bain', { regles: [], articles, reglages: null }).candidats[0].articleId, 'o1');
   });
   test('V4 la phrase qui se réduit au seul mot, ou sans le mot, est lue comme avant', () => {
     const avant = interpreter('salle de bain', { regles: [], articles });
