@@ -129,8 +129,8 @@ export const MODULES_DECLARES = geler([
       { route: 'devis/bordereau', libelle: 'Catalogue', icone: 'list' },
       { route: 'devis/vocabulaire', libelle: 'Vocabulaire', icone: 'book-open' },
     ],
-    collections: ['devis_articles', 'devis_parametres', 'devis_devis', 'devis_vocabulaire'],
-    outilsMcp: ['lister_articles', 'chercher_article', 'lire_reglages_devis', 'creer_article', 'modifier_article', 'desactiver_article', 'lister_devis', 'lire_devis', 'obtenir_pdf_officiel_devis', 'creer_devis_brouillon', 'modifier_devis_brouillon', 'modifier_lignes_devis', 'annuler_derniere_modification_devis', 'creer_devis_depuis_modele', 'finaliser_devis', 'nouvelle_version_devis', 'archiver_devis', 'enregistrer_envoi_devis', 'preparer_email', 'modifier_destinataires_devis', 'recalculer_montants_affaires', 'changer_statut_devis', 'supprimer_devis', 'rechercher_article_par_phrase', 'enregistrer_reponse_vocabulaire'],
+    collections: ['devis_articles', 'devis_parametres', 'devis_devis', 'devis_vocabulaire', 'devis_usage_articles'],
+    outilsMcp: ['lister_articles', 'chercher_article', 'lire_reglages_devis', 'creer_article', 'modifier_article', 'desactiver_article', 'lister_devis', 'lire_devis', 'obtenir_pdf_officiel_devis', 'creer_devis_brouillon', 'modifier_devis_brouillon', 'modifier_lignes_devis', 'annuler_derniere_modification_devis', 'creer_devis_depuis_modele', 'finaliser_devis', 'nouvelle_version_devis', 'archiver_devis', 'enregistrer_envoi_devis', 'preparer_email', 'modifier_destinataires_devis', 'recalculer_montants_affaires', 'recalculer_usage_articles', 'changer_statut_devis', 'supprimer_devis', 'rechercher_article_par_phrase', 'enregistrer_reponse_vocabulaire'],
     dependances: ['affaires'],
   },
   {

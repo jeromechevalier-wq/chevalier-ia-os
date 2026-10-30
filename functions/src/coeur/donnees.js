@@ -34,6 +34,7 @@ export const COLLECTIONS = {
   devis: 'devis_devis',
   devisCompteurs: 'devis_compteurs',
   devisParametres: 'devis_parametres',
+  devisUsageArticles: 'devis_usage_articles', // compteur d'usage des articles (écrit par le serveur dans la transaction de « finaliser » ; lu par le catalogue)
   devisVocabulaire: 'devis_vocabulaire', // règles du dictionnaire de vocabulaire (docs/proposition-dictionnaire-vocabulaire.md)
   parametres: 'crm_parametres',
   audit: 'crm_audit',

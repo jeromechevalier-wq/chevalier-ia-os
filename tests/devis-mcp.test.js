@@ -692,6 +692,30 @@ describe('N10 recalculer_montants_affaires', () => {
   });
 });
 
+describe('K20b recalculer_usage_articles (outil)', () => {
+  test('K20b réservé à Claude Code ; aperçu sans écriture, faux code refusé, bon code : seule la collection d’usage change ; relancé : plus rien à corriger', async () => {
+    const ligneA = { genre: 'ligne', id: 'l1', articleId: 'art-1', libelle: 'Article', unite: 'u', quantite: 1, prixAchat: 10 };
+    const s = await demarrer({ devis: [finalise('f1', 'en_attente_envoi', { sections: [{ id: 's1', titre: 'T', lignes: [ligneA] }] })] });
+    s.collections.devis_usage_articles = [];
+    refuse(await s.appeler('biblio', 'recalculer_usage_articles', {}));
+    refuse(await s.appeler('lecteur', 'recalculer_usage_articles', {}));
+    const devisAvant = JSON.stringify(s.collections.devis_devis);
+    const apercu = ok(await s.appeler('code', 'recalculer_usage_articles', {}));
+    assert.equal(apercu.apercu, true);
+    assert.equal(apercu.aCorriger, 1);
+    assert.deepEqual(apercu.articles, [{ articleId: 'art-1', avant: 0, apres: 1 }]);
+    assert.deepEqual(s.collections.devis_usage_articles, [], 'l’aperçu n’écrit rien');
+    refuse(await s.appeler('code', 'recalculer_usage_articles', { codeConfirmation: 'FAUX-CODE' }), /code incorrect/);
+    assert.deepEqual(s.collections.devis_usage_articles, []);
+    const second = ok(await s.appeler('code', 'recalculer_usage_articles', {}));
+    const r = ok(await s.appeler('code', 'recalculer_usage_articles', { codeConfirmation: second.code }));
+    assert.deepEqual([r.change, r.ecrits], [true, 1]);
+    assert.deepEqual(s.collections.devis_usage_articles.map((u) => [u.id, u.nombre]), [['art-1', 1]]);
+    assert.equal(JSON.stringify(s.collections.devis_devis), devisAvant, 'aucun devis n’est touché');
+    assert.equal(ok(await s.appeler('code', 'recalculer_usage_articles', {})).aCorriger, 0);
+  });
+});
+
 describe('N5 archiver_devis', () => {
   test('N5 archive un devis signé, le désarchive, refuse le reste ; la restauration défait l’archivage même sur un devis finalisé', async () => {
     const s = await demarrer({ devis: [finalise('s1', 'accepte'), finalise('e1', 'envoye'), finalise('f1', 'en_attente_envoi'), devisEnregistre('b1')] });

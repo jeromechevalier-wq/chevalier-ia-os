@@ -40,7 +40,7 @@ describe('Transitions des devis sur Firestore (émulateur)', { skip: emulateur ?
   });
   after(async () => { await deleteApp(app); });
   beforeEach(async () => {
-    for (const nom of [C.devis, C.devisCompteurs, C.devisParametres, C.audit, C.auditAvant, C.affaires, 'clients/a/crm_affaires', 'clients/a/devis_devis', 'clients/a/devis_compteurs', 'clients/a/crm_audit', 'clients/a/crm_audit_avant']) {
+    for (const nom of [C.devis, C.devisUsageArticles, C.devisCompteurs, C.devisParametres, C.audit, C.auditAvant, C.affaires, 'clients/a/crm_affaires', 'clients/a/devis_devis', 'clients/a/devis_compteurs', 'clients/a/crm_audit', 'clients/a/crm_audit_avant']) {
       for (const d of (await db.collection(nom).get()).docs) await d.ref.delete();
     }
   });
@@ -54,6 +54,17 @@ describe('Transitions des devis sur Firestore (émulateur)', { skip: emulateur ?
     assert.deepEqual(numeros, ids.map((_, i) => `DEV-2026-10-24-${String(i + 1).padStart(3, '0')}`));
     assert.equal((await brut(C.devisCompteurs, 'global')).valeur, 10);
     for (const id of ids) assert.equal((await brut(C.devis, id)).statut, 'en_attente_envoi');
+  });
+
+  test('K19 dix finalisations simultanées du même article : le compteur d\u2019usage vaut 10 (les transactions perdantes sont relancées), la date reste une vraie date', async () => {
+    const ids = Array.from({ length: 10 }, (_, i) => `u${i}`);
+    const lignes = (id) => [{ sections: [{ id: `s-${id}`, titre: 'T', lignes: [{ genre: 'ligne', id: `l-${id}`, articleId: 'art-commun', libelle: 'Article', unite: 'u', quantite: 1, prixAchat: 10 }] }] }][0];
+    await Promise.all(ids.map((id) => poser(id, lignes(id))));
+    await Promise.all(ids.map((id) => S.finaliser({ donnees, ctx: ctx(), devisId: id })));
+    const u = await brut(C.devisUsageArticles, 'art-commun');
+    assert.equal(u.nombre, 10);
+    assert.equal(u.articleId, 'art-commun');
+    assert.ok(u.derniereUtilisationLe instanceof Timestamp);
   });
 
   test('C2 les dates déjà dans le devis restent des Timestamp après la finalisation, et le journal est écrit dans la même transaction', async () => {

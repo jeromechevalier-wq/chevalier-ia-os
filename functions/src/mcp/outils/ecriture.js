@@ -255,6 +255,11 @@ export const OUTILS_ECRITURE = [
     codeConfirmation: z.string().max(40).optional().describe("Absent au premier appel : l'outil ne change rien, rend un APERÇU et un code. À donner au second appel, après accord de l'utilisateur."),
   }, metier.recalculerMontantsAffairesDevis, ['claude-code']),
 
+  // Écriture groupée mais bornée à la collection du compteur d'usage (jamais un devis). Claude Code seulement, aperçu puis code.
+  outil('recalculer_usage_articles', "Recalcule le compteur d'usage des articles (nombre de devis finalisés où chaque article apparaît ; le catalogue et le choix entre deux articles à égalité s'en serviront) d'après les devis existants : chaque numéro de devis compte une fois, d'après sa version finalisée la plus récente ; un brouillon ne compte jamais ; un devis refusé ou archivé reste compté. N'écrit QUE la collection du compteur, jamais un devis. Sans danger à relancer. Le premier appel ne change RIEN : il rend la liste (avant, après) et un code à usage unique ; après l'accord écrit de l'utilisateur, le second appel (codeConfirmation) écrit.", {
+    codeConfirmation: z.string().max(40).optional().describe("Absent au premier appel : l'outil ne change rien, rend un APERÇU et un code. À donner au second appel, après accord de l'utilisateur.")
+  }, metier.recalculerUsageArticlesDevis, ['claude-code']),
+
   outil('ajouter_note', "Ajoute une note rattachée à une affaire (qui porte aussi sa personne et son organisation), à une personne ou à une organisation. Les notes ne sont jamais modifiées automatiquement.", {
     texte: z.string().min(1).max(20000), affaireId: id.optional(), personneId: id.optional(), organisationId: id.optional(),
   }, metier.ajouterNote),

@@ -98,8 +98,8 @@ describe('C9 donnees.js : ce que le navigateur lit, écrit et appelle', () => {
 describe('C9 registre : devis_devis est déclarée, pas devis_compteurs', () => {
   const devis = MODULES_DECLARES.find((m) => m.id === 'devis');
   test('C9 le module devis déclare devis_devis (suivie par l’export complet), jamais devis_compteurs', () => {
-    assert.deepEqual(devis.collections, ['devis_articles', 'devis_parametres', 'devis_devis', 'devis_vocabulaire']);
-    assert.match(lire('js/modules/crm/donnees.js'), /'devis_articles', 'devis_parametres', 'devis_devis', 'devis_vocabulaire',/);
+    assert.deepEqual(devis.collections, ['devis_articles', 'devis_parametres', 'devis_devis', 'devis_vocabulaire', 'devis_usage_articles']);
+    assert.match(lire('js/modules/crm/donnees.js'), /'devis_articles', 'devis_parametres', 'devis_devis', 'devis_vocabulaire', 'devis_usage_articles',/);
     assert.doesNotMatch(sansCommentaires(lire('js/modules/crm/donnees.js')), /devis_compteurs/);
     assert.doesNotMatch(sansCommentaires(lire('js/os/registre.js')), /devis_compteurs/);
   });

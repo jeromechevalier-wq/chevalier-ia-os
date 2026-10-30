@@ -9,7 +9,7 @@ import * as DV from '../../partage/devis-vocabulaire.js';
 import * as D from '../../partage/devis.js';
 import * as E from '../../partage/devis-editeur.js';
 import * as B from '../../partage/devis-brouillon.js';
-import { finaliser as finaliserServeur, changerStatut as changerStatutServeur, nouvelleVersion as nouvelleVersionServeur, archiver as archiverServeur, supprimer as supprimerServeur, enregistrerEnvoi as enregistrerEnvoiServeur, modifierDestinataires as modifierDestinatairesServeur, recalculerMontantsAffaires as recalculerMontantsServeur, modifierEnTransaction as modifierEnTransactionServeur, ErreurDevis } from './devis.js';
+import { finaliser as finaliserServeur, changerStatut as changerStatutServeur, nouvelleVersion as nouvelleVersionServeur, archiver as archiverServeur, supprimer as supprimerServeur, enregistrerEnvoi as enregistrerEnvoiServeur, modifierDestinataires as modifierDestinatairesServeur, recalculerMontantsAffaires as recalculerMontantsServeur, recalculerUsageArticles as recalculerUsageServeur, modifierEnTransaction as modifierEnTransactionServeur, ErreurDevis } from './devis.js';
 import { COLLECTIONS as C } from './donnees.js';
 import { lireConfig as lireConfigEspace } from './config.js';
 import { emettreCode, consommerCode, empreinteApercu } from '../securite/codes.js';
@@ -1489,6 +1489,23 @@ export async function recalculerMontantsAffairesDevis(c, args) {
     change: true, corrigees: r.operations.length, restantes: Math.max(0, prevu.total - r.operations.length), operationIds: r.operations,
     detail: prevu.total > r.operations.length ? 'Il en reste : rappeler recalculer_montants_affaires SANS codeConfirmation pour un nouvel aperçu.' : 'Tout est à jour.',
   };
+}
+
+/**
+ * Recalcul du compteur d'usage des articles d'après les devis existants (cadrage vocabulaire-cibles, 2.9). Aperçu (la liste, avant et après) puis code ; n'écrit QUE la collection `devis_usage_articles`,
+ * jamais un devis. Sans danger à relancer. Pas de ligne de journal (le compteur se recalcule depuis les devis).
+ */
+export async function recalculerUsageArticlesDevis(c, args) {
+  const prevu = await recalculerUsageServeur({ donnees: c.donnees, ctx: ctxDevis(c), appliquer: false });
+  const apercu = await confirmerDevis(c, args, {
+    outil: 'recalculer_usage_articles', cibleId: 'toutes', verbe: 'recalculé',
+    empreinte: empreinteApercu([JSON.stringify({ total: prevu.total, lignes: prevu.lignes })]),
+    apercu: { change: false, aCorriger: prevu.total, articles: prevu.lignes, ...(prevu.total > prevu.lignes.length ? { reste: prevu.total - prevu.lignes.length } : {}) },
+    suite: "Seule la collection du compteur d'usage change (un devis n'est jamais touché) ; le calcul compte chaque numéro de devis une fois, d'après sa version finalisée la plus récente. Sans danger à relancer.",
+  });
+  if (apercu) return apercu;
+  const r = await recalculerUsageServeur({ donnees: c.donnees, ctx: ctxDevis(c), appliquer: true });
+  return { change: true, ecrits: r.ecrits, ignores: r.ignores, detail: r.ignores ? `${r.ecrits} compteur(s) mis à jour ; ${r.ignores} ont changé pendant le calcul (une finalisation est passée) : relancer recalculer_usage_articles SANS codeConfirmation.` : r.ecrits ? `${r.ecrits} compteur(s) mis à jour.` : 'Tout est à jour.' };
 }
 
 // ---------------------------------------------------------------- Garantie « aucun e-mail ne part tout seul » (29/10/2026)
