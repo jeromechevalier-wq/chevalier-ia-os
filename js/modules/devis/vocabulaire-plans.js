@@ -2,7 +2,7 @@
 // Plans d'écriture (créer un mot, changer son statut, son article, sa note), filtres, tri, phrase d'état et export CSV. L'écran dessine, donnees.js exécute les plans.
 // Le navigateur n'écrit JAMAIS les compteurs (confirmations, contradictions), l'origine, l'expression ni les exemples d'un mot existant, et ne supprime jamais : un mot se désactive.
 // Les règles Firestore imposent la même liste (bloc `devis_vocabulaire`, PR 4 puis PR 424) : la validation humaine (valideLe, validePar, revoirLe, suggestionTraiteeLe) s'y ajoute ;
-// `suggestion` n'y est JAMAIS : seul le serveur l'écrit, le navigateur la marque « traitée » avec `suggestionTraiteeLe` (test V-P4).
+// `suggestion` n'y est JAMAIS : seul le serveur l'écrit, le navigateur la marque « traitée » avec `suggestionTraiteeLe` (test E11).
 import { ecritureCreer, ecritureModifier, MARQUES_CREATION, MARQUES_MODIFICATION, normaliser, nettoyerEspaces, ajouterMois } from '../crm/logique.js';
 import { cleDeExpression, identifiantDeRegle, cleTropGenerale, suggestionEnAttente } from './vocabulaire.js';
 
@@ -51,7 +51,14 @@ export const VALIDATIONS = Object.freeze({
 export function validationDe(regle) {
   if (regle?.statut === 'a_confirmer') return VALIDATIONS.a_valider;
   if (regle?.statut !== 'active') return null;
+  if (regle.origine === 'manuelle' && !regle.validePar) return VALIDATIONS.humain; // ancien mot ajouté à la main, avant la validation humaine
   return regle.validePar === 'humain' && regle.valideLe ? VALIDATIONS.humain : VALIDATIONS.reponses;
+}
+
+/** Une décision de Jérôme à l'écran (activer un mot, choisir son article) le valide : valideLe, validePar 'humain', revoirLe +6 mois. Un mot déjà validé par lui garde sa date ; sans jour du contexte, rien. */
+function validerParHumain(courant, aujourdhui) {
+  if (!aujourdhui || (courant.validePar === 'humain' && courant.valideLe)) return {};
+  return { valideLe: aujourdhui, validePar: 'humain', revoirLe: ajouterMois(aujourdhui, 6) };
 }
 
 /** Le jour à écrire dans `suggestionTraiteeLe` quand une suggestion attend (jamais avant son jour `le`, sinon elle resterait en attente) ; {} sinon. */
@@ -111,7 +118,9 @@ export function planChangerStatut(id, statut, { regles = [], articles = [], rest
   if (courant.statut !== statut) patch.statut = statut;
   if (statut === 'active' && !restaurer) {
     if (courant.conflit === true) patch.conflit = false;
-    Object.assign(patch, traiterSuggestion(courant, aujourdhui)); // « Garder cet article » : la suggestion est traitée, le mot reste validé comme avant
+    // Activer, ou « Garder cet article » : Jérôme décide, le mot est validé par lui. Un mot désactivé qui se réactive n'a pas montré sa suggestion : elle reste en attente.
+    if (courant.statut !== statut || estATrancher(courant)) Object.assign(patch, validerParHumain(courant, aujourdhui)); // le même statut sans rien à trancher n'écrit rien
+    Object.assign(patch, courant.statut === 'desactivee' ? {} : traiterSuggestion(courant, aujourdhui));
   }
   return planPatch(id, patch);
 }
@@ -126,7 +135,7 @@ export function planChangerArticle(id, articleId, { regles = [], articles = [], 
   if (courant.articleId !== article.id) { patch.articleId = article.id; patch.articleLibelle = article.libelle ?? ''; }
   else if (courant.articleLibelle !== (article.libelle ?? '')) patch.articleLibelle = article.libelle ?? ''; // libellé de l'article renommé depuis : la copie suit
   if (courant.conflit === true) patch.conflit = false;
-  Object.assign(patch, traiterSuggestion(courant, aujourdhui));
+  Object.assign(patch, validerParHumain(courant, aujourdhui), courant.statut === 'desactivee' ? {} : traiterSuggestion(courant, aujourdhui));
   return planPatch(id, patch);
 }
 

@@ -442,6 +442,7 @@ test('7b-1 un mot validé à la main avec une suggestion du serveur est « À tr
   await ouvrir(page);
   await expect(ligne(page, 'tableau_s').locator('[data-role="a-trancher"]')).toBeVisible();
   await expect(ligne(page, 'tableau_s').locator('[data-role="validation"]')).toHaveText('Validé par toi');
+  await expect(ligne(page, 'tableau_s').locator('[data-role="suggestion"]')).toHaveText('L’assistant propose : Tableau électrique 4 rangées (3 contradictions)');
   await capturerValidation(page, info, '7b-1-a-trancher');
   await menuDe(page, 'tableau_s').click();
   await entreeMenu(page, 'Garder cet article').click();
@@ -468,6 +469,19 @@ test('7b-2 « Changer l’article » sur un mot à suggestion marque la suggesti
   expect([doc.articleId, doc.conflit]).toEqual(['a05', false]);
   expect(doc.suggestionTraiteeLe).toMatch(JOUR);
   await capturerValidation(page, info, '7b-2-article-change');
+});
+
+test('7b-4 « Activer » un mot à confirmer le valide à la main : « Validé par toi », à revoir dans 6 mois', async ({ page }, info) => {
+  await jeuDEssai();
+  await ouvrir(page);
+  await menuDe(page, 'gaine').click();
+  await entreeMenu(page, 'Activer').click();
+  await expect.poll(async () => (await lireDocument('devis_vocabulaire/gaine')).validePar).toBe('humain');
+  const doc = await lireDocument('devis_vocabulaire/gaine');
+  expect(doc.valideLe).toMatch(JOUR);
+  expect(doc.revoirLe > doc.valideLe).toBe(true);
+  await expect(ligne(page, 'gaine').locator('[data-role="validation"]')).toHaveText('Validé par toi');
+  await capturerValidation(page, info, '7b-4-active-valide');
 });
 
 test('7b-3 un mot ajouté à la main est validé tout de suite (validé par toi, à revoir dans 6 mois) ; cas vide : un ancien mot sans champ de validation se lit « Validé par tes réponses »', async ({ page }, info) => {

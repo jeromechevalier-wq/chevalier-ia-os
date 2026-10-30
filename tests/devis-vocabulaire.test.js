@@ -605,9 +605,12 @@ describe('E écran Vocabulaire : plans, filtres, tri, CSV', async () => {
     assert.equal(P.estATrancher({ ...avecSuggestion, suggestionTraiteeLe: '2026-10-27' }), true); // plus ancienne que la suggestion : en attente
     assert.equal(P.estATrancher({ ...avecSuggestion, statut: 'desactivee' }), false);
     const plan = P.planChangerStatut('cuisine', 'active', { regles: [avecSuggestion], articles: CATALOGUE, aujourdhui: '2026-10-30' });
-    assert.deepEqual(plan.patch, { suggestionTraiteeLe: '2026-10-30' });
+    assert.deepEqual(plan.patch, { suggestionTraiteeLe: '2026-10-30' }); // déjà validé par lui : sa date reste
     assert.equal(plan.ecritures.length, 1);
     assert.deepEqual(P.planChangerStatut('cuisine', 'active', { regles: [{ ...avecSuggestion, conflit: true }], articles: CATALOGUE, aujourdhui: '2026-10-30' }).patch, { conflit: false, suggestionTraiteeLe: '2026-10-30' });
+    // un mot activé à la main devient « validé par toi » ; un mot désactivé qui se réactive garde sa suggestion en attente (il ne l'a pas vue)
+    assert.deepEqual(P.planChangerStatut('gaine', 'active', { regles: mots, articles: CATALOGUE, aujourdhui: '2026-10-30' }).patch, { statut: 'active', valideLe: '2026-10-30', validePar: 'humain', revoirLe: '2027-04-30' });
+    assert.deepEqual(P.planChangerStatut('cuisine', 'active', { regles: [{ ...avecSuggestion, statut: 'desactivee' }], articles: CATALOGUE, aujourdhui: '2026-10-30' }).patch, { statut: 'active' });
     // jamais un jour avant la suggestion (horloge en retard) : sinon elle resterait en attente
     assert.equal(P.planChangerStatut('cuisine', 'active', { regles: [avecSuggestion], articles: CATALOGUE, aujourdhui: '2026-10-01' }).patch.suggestionTraiteeLe, '2026-10-28');
     // sans suggestion (cas vide) : comme avant
@@ -617,7 +620,8 @@ describe('E écran Vocabulaire : plans, filtres, tri, CSV', async () => {
   });
   test('7b-2 changer l’article d’un mot à suggestion marque la suggestion traitée, même pour le même article ; jamais d’écriture de `suggestion`', () => {
     const plan = P.planChangerArticle('cuisine', 'a05', { regles: [avecSuggestion], articles: CATALOGUE, aujourdhui: '2026-10-30' });
-    assert.deepEqual(plan.patch, { articleId: 'a05', articleLibelle: 'Tableau électrique 4 rangées', suggestionTraiteeLe: '2026-10-30' });
+    assert.deepEqual(plan.patch, { articleId: 'a05', articleLibelle: 'Tableau électrique 4 rangées', suggestionTraiteeLe: '2026-10-30' }); // déjà validé par lui : validation intacte
+    assert.deepEqual(P.planChangerArticle('prise_double', 'a05', { regles: mots, articles: CATALOGUE, aujourdhui: '2026-10-30' }).patch, { articleId: 'a05', articleLibelle: 'Tableau électrique 4 rangées', valideLe: '2026-10-30', validePar: 'humain', revoirLe: '2027-04-30' });
     assert.deepEqual(P.planChangerArticle('cuisine', 'a02', { regles: [avecSuggestion], articles: CATALOGUE, aujourdhui: '2026-10-30' }).patch, { suggestionTraiteeLe: '2026-10-30' });
     assert.ok(!('suggestion' in plan.patch));
   });
@@ -631,6 +635,7 @@ describe('E écran Vocabulaire : plans, filtres, tri, CSV', async () => {
     assert.equal(P.validationDe({ statut: 'active', validePar: 'humain', valideLe: '2026-10-30' }).libelle, 'Validé par toi');
     assert.equal(P.validationDe({ statut: 'active', validePar: 'reponses', valideLe: '2026-10-30' }).libelle, 'Validé par tes réponses');
     assert.equal(P.validationDe({ statut: 'active' }).libelle, 'Validé par tes réponses');
+    assert.equal(P.validationDe({ statut: 'active', origine: 'manuelle' }).libelle, 'Validé par toi'); // ancien mot ajouté à la main
     assert.equal(P.validationDe({ statut: 'active', validePar: 'humain' }).id, 'reponses'); // sans date : pas validé
     assert.equal(P.validationDe({ statut: 'a_confirmer', validePar: 'reponses' }).libelle, 'À valider'); // réorienté : l'ancien validePar est ignoré
     assert.equal(P.validationDe({ statut: 'desactivee', validePar: 'humain', valideLe: '2026-10-30' }), null);
