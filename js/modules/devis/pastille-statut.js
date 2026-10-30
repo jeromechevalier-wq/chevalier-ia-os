@@ -1,4 +1,4 @@
-// Pastille de statut d'un devis (Brouillon, Finalisé, Envoyé, Signé, Refusé, Remplacé, Expiré) : la MÊME dans la liste et dans l'en-tête de l'éditeur / de la visualisation.
+// Pastille de statut d'un devis (Brouillon, Finalisé, Envoyé, Devis signé, Devis refusé, Devis remplacé, Expiré) : la MÊME dans la liste et dans l'en-tête de l'éditeur / de la visualisation.
 import { h } from '../../os/ui.js';
 import * as Li from './liste.js';
 
