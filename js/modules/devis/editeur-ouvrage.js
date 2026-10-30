@@ -15,6 +15,7 @@ const quantiteAffichee = (q) => (typeof q === 'number' ? String(q).replace('.', 
  * Renvoie `{ element, valeurs(), montrerErreurs(erreurs) }` ; `valeurs()` donne `{ composants, prixVenteForce }` tels que saisis (à valider par les plans d'articles.js).
  */
 export function editeurOuvrage({ composants = [], prixVenteForce = null, id = null, prixModifiable = true } = {}) {
+  const mot = O.motOuvrage(D.etat.reglages);
   let liste = composants.map((c) => ({ articleId: c.articleId, saisie: quantiteAffichee(c.quantite) }));
   // Prix d'achat tapés ici, pas encore écrits : { articleId: saisie }. Rien ne part avant « Enregistrer » (l'appelant écrit par le chemin d'un article du catalogue).
   const prixSaisis = {};
@@ -87,7 +88,7 @@ export function editeurOuvrage({ composants = [], prixVenteForce = null, id = nu
     remplir(resultats, ...(trouves.length
       ? trouves.map((a) => h('li', { role: 'option' }, h('button', { type: 'button', class: 'resultat-composant', dataset: { articleId: a.id }, onclick: () => ajouter(a.id) },
         h('span', {}, a.libelle), h('span', { class: 'discret' }, `${a.unite} · ${eur(O.prixVenteArticle(a, D.etat.reglages))}`))))
-      : [h('li', { class: 'discret', role: 'option', 'aria-disabled': 'true' }, 'Aucun article actif ne correspond (un ouvrage ne peut pas en contenir un autre).')]));
+      : [h('li', { class: 'discret', role: 'option', 'aria-disabled': 'true' }, `Aucun article actif ne correspond (${mot.un} ${mot.singulier} ne peut pas en contenir ${mot.genre === 'feminin' ? 'une autre' : 'un autre'}).`)]));
   }
 
   function dessiner() {
@@ -118,7 +119,7 @@ export function editeurOuvrage({ composants = [], prixVenteForce = null, id = nu
         h('div', { class: 'composant-actions' },
           h('button', { type: 'button', class: 'bouton-icone', 'aria-label': `Monter : ${article?.libelle ?? ''}`, disabled: i === 0, onclick: () => deplacer(i, -1) }, icone('arrow-up', { taille: 16 })),
           h('button', { type: 'button', class: 'bouton-icone', 'aria-label': `Descendre : ${article?.libelle ?? ''}`, disabled: i === liste.length - 1, onclick: () => deplacer(i, 1) }, icone('arrow-down', { taille: 16 })),
-          h('button', { type: 'button', class: 'bouton-icone', 'aria-label': `Retirer de l’ouvrage : ${article?.libelle ?? ''}`, dataset: { action: 'retirer-composant' },
+          h('button', { type: 'button', class: 'bouton-icone', 'aria-label': `Retirer ${O.duMot(mot)} : ${article?.libelle ?? ''}`, dataset: { action: 'retirer-composant' },
             onclick: () => { liste = liste.filter((x) => x !== c); delete prixSaisis[c.articleId]; dessiner(); } }, icone('x', { taille: 16 }))),
         h('div', { class: 'composant-saisie' }, quantite, h('span', { class: 'discret' }, article?.unite ?? ''),
           prix ? h('span', { class: 'composant-prix' }, h('span', { class: 'discret' }, '×'), prix, h('span', { class: 'discret' }, '€ HT')) : null, total),
@@ -126,13 +127,13 @@ export function editeurOuvrage({ composants = [], prixVenteForce = null, id = nu
     });
     remplir(zoneListe, liste.length
       ? h('ul', { class: 'composants' }, lignes)
-      : h('p', { class: 'discret composants-vide', dataset: { vide: 'composants' } }, 'Aucun composant. Cherche un article ci-dessus : l’ouvrage se calcule avec ce que tu ajoutes.'));
+      : h('p', { class: 'discret composants-vide', dataset: { vide: 'composants' } }, `Aucun composant. Cherche un article ci-dessus : ${mot.leMot} se calcule avec ce que tu ajoutes.`));
     dessinerResume();
     dessinerResultats();
   }
 
   const element = h('div', { class: 'editeur-ouvrage pile' },
-    h('div', { class: 'bloc-champ' }, h('label', { class: 'etiquette' }, 'Composants de l’ouvrage'), champRecherche, resultats),
+    h('div', { class: 'bloc-champ' }, h('label', { class: 'etiquette' }, `Composants ${O.duMot(mot)}`), champRecherche, resultats),
     zoneListe, prixModifiable ? h('p', { class: 'discret note-prix-composant', dataset: { note: 'prix-composant' } },
       'Le prix d’un composant est celui de son article : le changer ici le change partout dans ton catalogue. Exemple : une plaque passe de 80 € à 100 €, toutes les compositions qui la contiennent sont recalculées. Les devis déjà finalisés gardent leurs prix.') : null,
     erreurResume, resume,

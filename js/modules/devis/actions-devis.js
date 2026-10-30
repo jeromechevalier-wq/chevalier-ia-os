@@ -53,6 +53,15 @@ export async function changerStatut(d, action, libelle) {
     } else if (action === 'refuser') {
       if (!await confirmer('Marquer ce devis refusé ?', 'Le devis passe à « Devis refusé ». Tu pourras encore créer une nouvelle version.', { libelleOk: 'Marquer refusé', danger: true })) return;
     }
+    // Signé ou refusé depuis « Finalisé » (remis hors de l'application) : on enregistre d'abord l'envoi, exactement comme le bouton « Devis envoyé » (pas d'étape sautée dans l'historique).
+    // Le statut est relu juste avant (un autre onglet ou l'assistant a pu déjà passer le devis à « Envoyé » depuis l'ouverture du menu).
+    if ((action === 'accepter' || action === 'refuser') && (D.devisParId(d.id)?.statut ?? d.statut) === 'en_attente_envoi') {
+      await D.changerStatut(d.id, 'marquer_envoye');
+      await noterEnvoi(d);
+      try { await D.changerStatut(d.id, action); } catch (e) { console.warn(e); toast(`${e?.message || D.MESSAGE_RESEAU_DEVIS} Le devis est resté à « Envoyé » : recommence depuis son menu.`, { type: 'erreur', duree: 8000 }); return; }
+      toast(`Devis passé à « ${libelle} »`);
+      return;
+    }
     await D.changerStatut(d.id, action);
     if (action === 'marquer_envoye') await noterEnvoi(d); // l'historique des envois garde À QUI (et en copie) : l'e-mail lui-même est parti de Gmail, la personne vient de le dire
     toast(`Devis passé à « ${libelle} »`);

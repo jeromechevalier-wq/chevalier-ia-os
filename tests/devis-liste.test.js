@@ -158,7 +158,7 @@ describe('L7 actions permises par statut', () => {
   const actions = (statut) => act(statut).statuts.map((s) => s.action);
   test('L7 changements de statut : exactement les transitions du serveur', () => {
     assert.deepEqual(actions('brouillon'), ['finaliser']);
-    assert.deepEqual(actions('en_attente_envoi'), ['marquer_envoye', 'refuser']);
+    assert.deepEqual(actions('en_attente_envoi'), ['marquer_envoye', 'accepter', 'refuser']);
     assert.deepEqual(actions('envoye'), ['accepter', 'refuser']);
     for (const s of ['accepte', 'refuse', 'remplace']) assert.deepEqual(actions(s), [], s);
   });

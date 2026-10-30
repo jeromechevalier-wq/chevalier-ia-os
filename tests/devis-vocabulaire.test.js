@@ -521,7 +521,7 @@ describe('V10 copie vers le serveur et chez les clients', () => {
 describe('E écran Vocabulaire : plans, filtres, tri, CSV', async () => {
   const P = await import('../js/modules/devis/vocabulaire-plans.js');
   const CRM = await import('../js/modules/crm/logique.js');
-  const ctx = { nouvelId: () => 'x', auteur: 'jerome.chevalier@gmail.com' };
+  const ctx = { nouvelId: () => 'x', auteur: 'jerome.chevalier@gmail.com', aujourdhui: '2026-10-30' };
   const mots = [
     { id: 'prise_double', cle: 'prise double', expression: 'prise double', articleId: 'a02', articleLibelle: 'Prise double 16 A', statut: 'active', origine: 'apprise_question', confirmations: 3, contradictions: 0, conflit: false, exemples: ['mets 3 prises doubles'], derniereUtilisationLe: '2026-10-20' },
     { id: 'tableau', cle: 'tableau', expression: 'tableau', articleId: 'a04', articleLibelle: 'Tableau électrique 2 rangées', statut: 'active', origine: 'apprise_correction', confirmations: 2, contradictions: 1, conflit: true, exemples: [], derniereUtilisationLe: '2026-10-25' },
@@ -537,7 +537,7 @@ describe('E écran Vocabulaire : plans, filtres, tri, CSV', async () => {
     const [e] = plan.ecritures;
     assert.equal(e.type, 'creer');
     assert.equal(e.collection, 'devis_vocabulaire');
-    assert.deepEqual(e.donnees, { cle: 'prise double', expression: 'Prises Doubles', articleId: 'a02', articleLibelle: 'Prise double 16 A', statut: 'active', origine: 'manuelle', confirmations: 0, contradictions: 0, conflit: false, exemples: [] });
+    assert.deepEqual(e.donnees, { cle: 'prise double', expression: 'Prises Doubles', articleId: 'a02', articleLibelle: 'Prise double 16 A', statut: 'active', origine: 'manuelle', confirmations: 0, contradictions: 0, conflit: false, exemples: [], valideLe: '2026-10-30', validePar: 'humain', revoirLe: '2027-04-30' });
     assert.deepEqual(e.horodater, ['creeLe', 'modifieLe']);
     assert.deepEqual(e.signer, ['creePar', 'modifiePar']);
   });
@@ -563,8 +563,9 @@ describe('E écran Vocabulaire : plans, filtres, tri, CSV', async () => {
     assert.deepEqual(autre.ecritures, []);
     assert.equal(autre.existante.id, idLong);
   });
-  test('E11 jamais de suppression, jamais de compteur : les plans n’écrivent que statut, articleId, articleLibelle, note, conflit (+ marques de modification)', () => {
-    assert.deepEqual([...P.CHAMPS_MODIFIABLES], ['statut', 'articleId', 'articleLibelle', 'note', 'conflit']);
+  test('E11 jamais de suppression, jamais de compteur : les plans n’écrivent que statut, articleId, articleLibelle, note, conflit et la validation humaine (+ marques de modification), jamais `suggestion`', () => {
+    assert.deepEqual([...P.CHAMPS_MODIFIABLES], ['statut', 'articleId', 'articleLibelle', 'note', 'conflit', 'valideLe', 'validePar', 'revoirLe', 'suggestionTraiteeLe']);
+    assert.ok(!P.CHAMPS_MODIFIABLES.includes('suggestion'));
     const plans = [
       P.planChangerStatut('tableau', 'active', { regles: mots, articles: CATALOGUE }), P.planChangerStatut('prise_double', 'desactivee', { regles: mots, articles: CATALOGUE }),
       P.planChangerStatut('gaine', 'active', { regles: mots, articles: CATALOGUE }), P.planChangerArticle('tableau', 'a05', { regles: mots, articles: CATALOGUE }),
@@ -595,6 +596,50 @@ describe('E écran Vocabulaire : plans, filtres, tri, CSV', async () => {
     assert.deepEqual(refus.ecritures, []);
     assert.equal(P.planChangerArticle('tableau', 'a04', { regles: mots, articles: sansA04 }).erreurs.articleId, P.MESSAGE_ARTICLE_INTROUVABLE);
     assert.deepEqual(P.planChangerStatut('inconnu', 'active', { regles: mots, articles: CATALOGUE }).ecritures, []);
+  });
+  const avecSuggestion = { id: 'cuisine', cle: 'cuisine', expression: 'cuisine', articleId: 'a02', articleLibelle: 'Prise double 16 A', statut: 'active', conflit: false, validePar: 'humain', valideLe: '2026-09-01',
+    suggestion: { articleId: 'a05', articleLibelle: 'Tableau électrique 4 rangées', contradictions: 3, le: '2026-10-28' } };
+  test('7b-1 un mot validé avec une suggestion en attente est « à trancher » ; « Garder cet article » écrit suggestionTraiteeLe (et rien d’autre : validation intacte)', () => {
+    assert.equal(P.estATrancher(avecSuggestion), true);
+    assert.equal(P.estATrancher({ ...avecSuggestion, suggestionTraiteeLe: '2026-10-28' }), false); // traitée le jour même : ignorée
+    assert.equal(P.estATrancher({ ...avecSuggestion, suggestionTraiteeLe: '2026-10-27' }), true); // plus ancienne que la suggestion : en attente
+    assert.equal(P.estATrancher({ ...avecSuggestion, statut: 'desactivee' }), false);
+    const plan = P.planChangerStatut('cuisine', 'active', { regles: [avecSuggestion], articles: CATALOGUE, aujourdhui: '2026-10-30' });
+    assert.deepEqual(plan.patch, { suggestionTraiteeLe: '2026-10-30' }); // déjà validé par lui : sa date reste
+    assert.equal(plan.ecritures.length, 1);
+    assert.deepEqual(P.planChangerStatut('cuisine', 'active', { regles: [{ ...avecSuggestion, conflit: true }], articles: CATALOGUE, aujourdhui: '2026-10-30' }).patch, { conflit: false, suggestionTraiteeLe: '2026-10-30' });
+    // un mot activé à la main devient « validé par toi » ; un mot désactivé qui se réactive garde sa suggestion en attente (il ne l'a pas vue)
+    assert.deepEqual(P.planChangerStatut('gaine', 'active', { regles: mots, articles: CATALOGUE, aujourdhui: '2026-10-30' }).patch, { statut: 'active', valideLe: '2026-10-30', validePar: 'humain', revoirLe: '2027-04-30' });
+    assert.deepEqual(P.planChangerStatut('cuisine', 'active', { regles: [{ ...avecSuggestion, statut: 'desactivee' }], articles: CATALOGUE, aujourdhui: '2026-10-30' }).patch, { statut: 'active' });
+    // jamais un jour avant la suggestion (horloge en retard) : sinon elle resterait en attente
+    assert.equal(P.planChangerStatut('cuisine', 'active', { regles: [avecSuggestion], articles: CATALOGUE, aujourdhui: '2026-10-01' }).patch.suggestionTraiteeLe, '2026-10-28');
+    // sans suggestion (cas vide) : comme avant
+    assert.deepEqual(P.planChangerStatut('prise_double', 'active', { regles: mots, articles: CATALOGUE, aujourdhui: '2026-10-30' }).ecritures, []);
+    // la restauration (« Annuler ») ne touche pas à la suggestion
+    assert.deepEqual(P.planChangerStatut('cuisine', 'active', { regles: [avecSuggestion], articles: CATALOGUE, aujourdhui: '2026-10-30', restaurer: true }).ecritures, []);
+  });
+  test('7b-2 changer l’article d’un mot à suggestion marque la suggestion traitée, même pour le même article ; jamais d’écriture de `suggestion`', () => {
+    const plan = P.planChangerArticle('cuisine', 'a05', { regles: [avecSuggestion], articles: CATALOGUE, aujourdhui: '2026-10-30' });
+    assert.deepEqual(plan.patch, { articleId: 'a05', articleLibelle: 'Tableau électrique 4 rangées', suggestionTraiteeLe: '2026-10-30' }); // déjà validé par lui : validation intacte
+    assert.deepEqual(P.planChangerArticle('prise_double', 'a05', { regles: mots, articles: CATALOGUE, aujourdhui: '2026-10-30' }).patch, { articleId: 'a05', articleLibelle: 'Tableau électrique 4 rangées', valideLe: '2026-10-30', validePar: 'humain', revoirLe: '2027-04-30' });
+    assert.deepEqual(P.planChangerArticle('cuisine', 'a02', { regles: [avecSuggestion], articles: CATALOGUE, aujourdhui: '2026-10-30' }).patch, { suggestionTraiteeLe: '2026-10-30' });
+    assert.ok(!('suggestion' in plan.patch));
+  });
+  test('7b-3 un mot créé à la main est validé par Jérôme, à revoir dans 6 mois (fin de mois comprise) ; sans jour du contexte, aucun champ de validation', () => {
+    const fin = P.planCreerMot({ expression: 'Cuisine', articleId: 'a02' }, { ...ctx, aujourdhui: '2026-08-31' }, { articles: CATALOGUE });
+    assert.deepEqual([fin.ecritures[0].donnees.valideLe, fin.ecritures[0].donnees.validePar, fin.ecritures[0].donnees.revoirLe], ['2026-08-31', 'humain', '2027-02-28']);
+    const sans = P.planCreerMot({ expression: 'Cuisine', articleId: 'a02' }, { nouvelId: () => 'x' }, { articles: CATALOGUE });
+    for (const k of ['valideLe', 'validePar', 'revoirLe', 'suggestion', 'suggestionTraiteeLe']) assert.ok(!(k in sans.ecritures[0].donnees), k);
+  });
+  test('7b-4 validationDe : validé par toi / par tes réponses / à valider ; lu seulement pour un mot actif ; un ancien mot sans champ se lit comme validé par les réponses', () => {
+    assert.equal(P.validationDe({ statut: 'active', validePar: 'humain', valideLe: '2026-10-30' }).libelle, 'Validé par toi');
+    assert.equal(P.validationDe({ statut: 'active', validePar: 'reponses', valideLe: '2026-10-30' }).libelle, 'Validé par tes réponses');
+    assert.equal(P.validationDe({ statut: 'active' }).libelle, 'Validé par tes réponses');
+    assert.equal(P.validationDe({ statut: 'active', origine: 'manuelle' }).libelle, 'Validé par toi'); // ancien mot ajouté à la main
+    assert.equal(P.validationDe({ statut: 'active', validePar: 'humain' }).id, 'reponses'); // sans date : pas validé
+    assert.equal(P.validationDe({ statut: 'a_confirmer', validePar: 'reponses' }).libelle, 'À valider'); // réorienté : l'ancien validePar est ignoré
+    assert.equal(P.validationDe({ statut: 'desactivee', validePar: 'humain', valideLe: '2026-10-30' }), null);
+    assert.equal(P.validationDe(null), null);
   });
   test('E4 désactiver puis « Annuler » : le statut d’avant revient (même « à confirmer »), sans revérifier l’article ; le même statut n’écrit rien', () => {
     assert.deepEqual(P.planChangerStatut('gaine', 'desactivee', { regles: mots, articles: CATALOGUE }).patch, { statut: 'desactivee' });
