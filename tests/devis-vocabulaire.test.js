@@ -801,4 +801,19 @@ describe('R1 R2 validation humaine du dictionnaire (moteur)', () => {
     const morte = V.interpreter('lumiere', { regles: [active({ articleId: 'a24', suggestion: suggestion() })], articles: CATALOGUE, reglages: REGLAGES });
     assert.deepEqual(morte.candidats.map((c) => c.articleId), ['a13']);
   });
+  test('R2 un article suggéré dont le libellé colle à la phrase reste plafonné à 0,50 : jamais « utiliser » seul', () => {
+    const catalogue = [...CATALOGUE, art('a30', 'Lumière')];
+    const r = V.interpreter('lumiere', { regles: [active({ suggestion: suggestion({ articleId: 'a30' }) })], articles: catalogue, reglages: REGLAGES });
+    assert.equal(r.decision, 'proposer');
+    assert.deepEqual(r.candidats.filter((c) => ['a12', 'a30'].includes(c.articleId)).map((c) => c.score), [0.5, 0.5]);
+  });
+  test('R1 une suggestion traitée ou retirée clôt le cycle : la contradiction suivante repart à 1 et ne recrée pas de suggestion', () => {
+    const deux = apprendre(apprendre(active(), AUTRE, '2026-10-30'), AUTRE, '2026-10-30');
+    const traitee = apprendre({ ...deux, suggestionTraiteeLe: '2026-11-01' }, AUTRE, '2026-11-02');
+    assert.deepEqual([traitee.contradictions, traitee.suggestion], [1, null]);
+    let r = deux;
+    for (const j of ['2026-11-01', '2026-11-02', '2026-11-03']) r = apprendre(r, { type: 'confirme' }, j);
+    assert.deepEqual([r.suggestion, r.contradictions], [null, 0]);
+    assert.equal(apprendre(r, AUTRE, '2026-11-04').suggestion, null);
+  });
 });

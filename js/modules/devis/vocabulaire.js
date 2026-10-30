@@ -206,8 +206,10 @@ const comparateur = (a, b) => (b.score - a.score)
 
 function chercherCandidats(cle, mots, { regles, articles }) {
   const parArticle = new Map();
+  const plafonnes = new Set(); // articles d'un mot validé avec suggestion en attente : jamais au-dessus de 0,50, même si leur libellé colle à la phrase
   const garder = (article, score, pourquoi, regleId = null) => {
     const ancien = parArticle.get(article.id);
+    if (plafonnes.has(article.id)) { parArticle.set(article.id, { articleId: article.id, article, libelle: article.libelle ?? '', score: SEUILS.regleEnConflit, pourquoi: 'suggestion_en_attente', regleId }); return; }
     if (!ancien || score > ancien.score) parArticle.set(article.id, { articleId: article.id, article, libelle: article.libelle ?? '', score, pourquoi, regleId });
   };
   const actifs = (articles ?? []).filter(actif);
@@ -221,7 +223,8 @@ function chercherCandidats(cle, mots, { regles, articles }) {
     if (suggestion && regle.cle === cle) {
       // L'article suggéré est proposé à côté de l'article validé : la question offre les deux (le mot validé reste intact, il n'est jamais appliqué seul).
       const suggere = parId.get(suggestion.articleId);
-      if (suggere) garder(suggere, SEUILS.regleEnConflit, 'suggestion_en_attente', regleId);
+      if (suggere) { plafonnes.add(suggere.id); garder(suggere, SEUILS.regleEnConflit, 'suggestion_en_attente', regleId); }
+      if (article) plafonnes.add(article.id);
     }
     if (!article) continue;
     if (regle.cle === cle) {
@@ -353,6 +356,8 @@ export function decisionApprentissage(regle, evenement, maintenant, { articles =
   };
   if (r.statut === 'desactivee') return r;
   if (evenement?.type === 'autre') {
+    // Une suggestion déjà traitée par l'humain (ou retirée) clôt le cycle : le compteur repart de zéro, sinon une seule contradiction suivante la recréerait.
+    if (r.suggestion && typeof r.suggestion === 'object' && suggestionEnAttente(r) === null) { r.contradictions = 0; r.suggestion = null; }
     r.contradictions += 1;
     if (r.statut === 'active' && (evenement.immediat === true || r.contradictions >= SEUILS.contradictionsPourSuggerer) && evenement.articleId) {
       const ancienne = r.suggestion;
@@ -372,9 +377,9 @@ export function decisionApprentissage(regle, evenement, maintenant, { articles =
   if (jourNouveau) {
     r.confirmations += 1;
     r.derniereConfirmationLe = maintenant;
-    if (r.statut === 'active' && r.suggestion && typeof r.suggestion === 'object') {
+    if (r.statut === 'active' && suggestionEnAttente(r)) {
       const depuis = (Number(r.suggestion.confirmationsDepuis) || 0) + 1;
-      r.suggestion = depuis >= SEUILS.confirmationsPourRetirerSuggestion ? null : { ...r.suggestion, confirmationsDepuis: depuis };
+      if (depuis >= SEUILS.confirmationsPourRetirerSuggestion) { r.suggestion = null; r.contradictions = 0; } else r.suggestion = { ...r.suggestion, confirmationsDepuis: depuis };
     }
   }
   if (r.statut === 'a_confirmer' && r.confirmations >= SEUILS.confirmationsPourActiver && r.contradictions === 0 && !r.conflit && !cleTropGenerale(r.cle, articles)) {

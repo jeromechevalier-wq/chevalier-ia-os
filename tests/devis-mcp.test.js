@@ -1392,6 +1392,15 @@ describe('R1 R2 validation humaine : un mot validé n’est jamais modifié par 
     ok(await repondre(s2, 'le tableau', 'confirme', ids2.t2));
     assert.deepEqual([s2.doc('devis_vocabulaire', 'tableau').articleId, s2.doc('devis_vocabulaire', 'tableau').statut], [ids2.t2, 'a_confirmer']);
   });
+  test('R1 « autre » sur un mot actif est accepté même quand l’article choisi figurait parmi les candidats (aucune question posée)', async () => {
+    const s = await demarrer();
+    const ids = await lieu(s);
+    s.collections.devis_vocabulaire = [regleVocabulaire('tableau', ids.t2)];
+    assert.equal(ok(await chercherPhrase(s, 'tableau')).decision, 'utiliser');
+    const r = ok(await repondre(s, 'tableau', 'autre', ids.t4));
+    assert.equal(r.contradictions, 1);
+    assert.equal(s.doc('devis_vocabulaire', 'tableau').articleId, ids.t2);
+  });
   test('R1 l’activation par 2 confirmations pose valideLe, validePar « reponses » et revoirLe dans le document écrit', async () => {
     const s = await demarrer();
     const ids = await lieu(s);

@@ -741,17 +741,19 @@ export async function enregistrerReponseVocabulaire(c, args) {
   // Une règle dont l'article n'existe plus ou est désactivé n'est plus un candidat : la réponse la réoriente vers le nouvel article.
   const cible = articles.find((a) => a.id === existante?.articleId);
   const morte = Boolean(existante) && !(cible && cible.actif !== false);
+  // Décision prise seul : un mot validé par un humain dont l'article est mort n'est PAS réorienté (garde-fou 1) : il reste intact et reçoit tout de suite une suggestion.
+  // Un mot sans `validePar` ou validé par les réponses est réorienté vers le nouvel article, comme avant.
+  const humainMort = morte && existante.statut === 'active' && existante.validePar === 'humain';
+  // Un mot actif (vivant, ou validé par un humain) peut être contredit même si aucune question n'a dû être posée : « autre » est alors accepté, même pour un article du classement.
+  const contredisable = existante?.statut === 'active' && (!morte || humainMort);
   // « autre » alors que l'article était connu : refusé, SAUF si une règle active existe pour la clé (l'utilisateur la contredit : compteur, puis suggestion, jamais de modification du mot).
-  if (reponse === 'autre' && r.decision === 'utiliser' && !(existante?.statut === 'active' && !morte)) refuser('saisie_invalide', 'Aucune question n’a dû être posée pour cette phrase (l’article était connu) : rien n’est enregistré. Une règle à corriger se corrige à la revue du vocabulaire.');
-  if (reponse === 'autre' && propose) refuser('saisie_invalide', `« ${article.libelle} » faisait partie des articles proposés : utiliser la réponse « confirme ».`);
+  if (reponse === 'autre' && r.decision === 'utiliser' && !contredisable) refuser('saisie_invalide', 'Aucune question n’a dû être posée pour cette phrase (l’article était connu) : rien n’est enregistré. Une règle à corriger se corrige à la revue du vocabulaire.');
+  if (reponse === 'autre' && propose && !(contredisable && existante.articleId !== articleId)) refuser('saisie_invalide', `« ${article.libelle} » faisait partie des articles proposés : utiliser la réponse « confirme ».`);
 
   if (existante?.statut === 'desactivee') return { operationId: null, rien: true, regleId, message: 'Cette règle est désactivée (à la revue) : elle n’est pas modifiée.' };
   const jour = L.aujourdhuiParis(c.maintenant);
   const actives = regles.filter((x) => x.statut === 'active').length;
   const aConfirmer = regles.filter((x) => x.statut === 'a_confirmer').length;
-  // Décision prise seul : un mot validé par un humain dont l'article est mort n'est PAS réorienté (garde-fou 1) : il reste intact et reçoit tout de suite une suggestion.
-  // Un mot sans `validePar` ou validé par les réponses est réorienté vers le nouvel article, comme avant.
-  const humainMort = morte && existante.statut === 'active' && existante.validePar === 'humain';
   const autreArticle = Boolean(existante) && (!morte || humainMort) && (humainMort || existante.articleId !== articleId);
 
   let apres;
@@ -760,7 +762,7 @@ export async function enregistrerReponseVocabulaire(c, args) {
   } else if (!existante || morte) {
     if (!existante && aConfirmer >= MAX_REGLES_A_CONFIRMER) refuser('saisie_invalide', PLEIN);
     const neuve = { cle: r.cle, expression: r.cle.slice(0, 120), articleId, articleLibelle: article.libelle, origine: reponse === 'autre' ? 'apprise_correction' : 'apprise_question', exemples: [] };
-    const depart = existante ? { ...existante, ...neuve, statut: 'a_confirmer', confirmations: 0, contradictions: 0, conflit: false, derniereConfirmationLe: null, suggestion: null } : neuve;
+    const depart = existante ? { ...existante, ...neuve, statut: 'a_confirmer', confirmations: 0, contradictions: 0, conflit: false, derniereConfirmationLe: null, suggestion: null, valideLe: null, revoirLe: null } : neuve;
     apres = DV.decisionApprentissage(depart, { type: 'confirme' }, jour, { articles });
   } else {
     // Même article : une confirmation. Autre article (confirmé ou corrigé) : une contradiction ; un mot actif reste intact (compteurs, puis suggestion à la 2e contradiction).
@@ -784,7 +786,7 @@ export async function enregistrerReponseVocabulaire(c, args) {
   const ecrit = await c.ecrire({ operations, parametres: args });
   const message = autreArticle
     ? (existante.statut === 'active'
-      ? `Noté : « ${r.cle} » pointait vers un autre article ; le mot validé reste inchangé${complet.suggestion ? ' et une suggestion attend ta décision à la revue du vocabulaire' : ' (la contradiction est comptée)'}.`
+      ? `Noté : « ${r.cle} » pointait vers un autre article ; le mot validé reste inchangé${DV.suggestionEnAttente(complet) ? ' et une suggestion attend ta décision à la revue du vocabulaire' : ' (la contradiction est comptée)'}.`
       : `Noté : « ${r.cle} » pointait vers un autre article ; la règle est contredite et sera à trancher à la revue du vocabulaire.`)
     : complet.statut === 'active'
       ? `Noté : « ${r.cle} » → « ${article.libelle} » est maintenant une règle active (confirmée ${complet.confirmations} fois).`
