@@ -9,7 +9,7 @@ import * as DV from '../../partage/devis-vocabulaire.js';
 import * as D from '../../partage/devis.js';
 import * as E from '../../partage/devis-editeur.js';
 import * as B from '../../partage/devis-brouillon.js';
-import { finaliser as finaliserServeur, changerStatut as changerStatutServeur, nouvelleVersion as nouvelleVersionServeur, archiver as archiverServeur, supprimer as supprimerServeur, enregistrerEnvoi as enregistrerEnvoiServeur, modifierDestinataires as modifierDestinatairesServeur, recalculerMontantsAffaires as recalculerMontantsServeur, lireDevis as lireDevisServeur, modifier as modifierServeur, journal as journalServeur, ErreurDevis } from './devis.js';
+import { finaliser as finaliserServeur, changerStatut as changerStatutServeur, nouvelleVersion as nouvelleVersionServeur, archiver as archiverServeur, supprimer as supprimerServeur, enregistrerEnvoi as enregistrerEnvoiServeur, modifierDestinataires as modifierDestinatairesServeur, recalculerMontantsAffaires as recalculerMontantsServeur, modifierEnTransaction as modifierEnTransactionServeur, ErreurDevis } from './devis.js';
 import { COLLECTIONS as C } from './donnees.js';
 import { lireConfig as lireConfigEspace } from './config.js';
 import { emettreCode, consommerCode, empreinteApercu } from '../securite/codes.js';
@@ -1151,8 +1151,7 @@ export async function modifierLignesDevis(c, args) {
   const { id, operations } = args;
   if (!operations.length) refuser('saisie_invalide', 'Aucune opération : rien à faire.');
   if (operations.length > DL.MAX_OPERATIONS) refuser('saisie_invalide', `Trop d'opérations dans un appel (${operations.length}, ${DL.MAX_OPERATIONS} au plus). Rien n'a été écrit : fais-le en plusieurs appels.`);
-  const r = await appelerCoeurDevis(c, () => c.donnees.transaction(async (tx) => {
-    const devis = await lireDevisServeur(tx, id);
+  const r = await appelerCoeurDevis(c, () => modifierEnTransactionServeur({ donnees: c.donnees, ctx: ctxDevis(c), devisId: id, outil: 'modifier_lignes_devis', parametres: { id, operations }, calculer: async (tx, devis) => {
     if (devis.statut !== 'brouillon') refuser('saisie_invalide', B.MESSAGE_PAS_BROUILLON);
     verifierMarge(devis);
     const articles = await tx.liste(C.devisArticles);
@@ -1173,14 +1172,11 @@ export async function modifierLignesDevis(c, args) {
     const avantTotaux = D.totauxDevis(devis);
     const apresTotaux = D.totauxDevis(apresDevis);
     const numeros = new Map(elementsNumeres(travail));
-    const changements = [modifierServeur(devis, { sections: travail, modifieLe: c.maintenant, modifiePar: c.acteur })];
-    const j = journalServeur({ donnees: c.donnees, ctx: ctxDevis(c), outil: 'modifier_lignes_devis', parametres: { id, operations }, changements });
-    tx.ecrire([...changements.map((x) => x.ecriture), ...j.ecritures]);
     const totalChangementImportant = DL.totalImportant(avantTotaux.totalHt, apresTotaux.totalHt);
     return {
-      operationId: j.operationId,
+      patch: { sections: travail, modifieLe: c.maintenant, modifiePar: c.acteur },
       reponse: {
-        id, operationId: j.operationId,
+        id,
         operations: faites.map(({ genre, id: cibleId, libelle, numeroAvant, ...reste }) => ({
           action: reste.action, genre, ligne: { id: cibleId, numeroAvant, numeroApres: numeros.get(cibleId) ?? null, libelle },
           avant: reste.avant, apres: reste.apres, ...(reste.lignesSupprimees !== undefined ? { lignesSupprimees: reste.lignesSupprimees } : {}), changementImportant: reste.changementImportant,
@@ -1189,7 +1185,7 @@ export async function modifierLignesDevis(c, args) {
         sections: structureCourte(travail), totalHT: apresTotaux.totalHt, totalTTC: apresTotaux.ttc, phraseTotaux: phraseTotaux(apresTotaux.totalHt, apresTotaux.ttc),
       },
     };
-  }));
+  } }));
   const { reponse } = r;
   return {
     ...reponse,
