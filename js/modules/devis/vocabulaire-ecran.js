@@ -11,6 +11,7 @@ import * as D from './donnees.js';
 import * as A from './articles.js';
 import * as V from './vocabulaire-plans.js';
 import { motOuvrage } from './ouvrages.js';
+import { selecteurCatalogue } from './selecteur-catalogue.js';
 import { cleDeExpression, identifiantDeRegle, interpreter, suggestionEnAttente } from './vocabulaire.js';
 
 const ERREUR_ECRITURE = 'Enregistrement impossible : ton compte n’a peut-être que le droit de lire cet espace, ou la connexion est coupée. Réessaie dans un instant, ou demande à un éditeur de l’espace.';
@@ -37,34 +38,13 @@ const articleDuMot = (r) => D.article(r.articleId);
 const articleMort = (r) => !V.articleChoisissable(articleDuMot(r));
 const libelleArticle = (r) => articleDuMot(r)?.libelle ?? r.articleLibelle ?? '';
 
-// ---------------------------------------------------------------- choisir un article du catalogue (champ de recherche + liste, comme la composition d'un ouvrage)
+// ---------------------------------------------------------------- choisir un article du catalogue (champ de recherche + arbre des familles : selecteur-catalogue.js)
 
 /** `valeur()` : l'article choisi ou null. `surChoix(article)` est appelé à chaque choix. */
-function selecteurArticle({ initial = null, surChoix = () => {} } = {}) {
-  let choisi = initial;
-  const champ = h('input', {
-    type: 'search', class: 'champ', autocomplete: 'off', 'aria-label': 'Chercher un article du catalogue', placeholder: 'Chercher un article du catalogue', dataset: { champ: 'recherche-article' },
-    oninput: () => dessinerResultats(),
-  });
-  const resultats = h('ul', { class: 'resultats-composants', role: 'listbox', 'aria-label': 'Articles trouvés', hidden: true });
-  const resume = h('p', { class: 'article-choisi', 'aria-live': 'polite', dataset: { role: 'article-choisi' } });
-  function dessinerChoix() {
-    remplir(resume, choisi ? h('span', {}, 'Article choisi : ', h('strong', {}, choisi.libelle)) : h('span', { class: 'discret' }, 'Aucun article choisi.'));
-  }
-  function dessinerResultats() {
-    const texte = champ.value.trim();
-    if (!texte) { remplir(resultats); resultats.hidden = true; return; }
-    const trouves = A.filtrerArticles(D.etat.articles, { recherche: texte, statut: 'actifs' }).filter(V.articleChoisissable).slice(0, 8);
-    resultats.hidden = false;
-    remplir(resultats, ...(trouves.length
-      ? trouves.map((a) => h('li', { role: 'option' }, h('button', { type: 'button', class: 'resultat-composant', dataset: { articleId: a.id }, onclick: () => {
-        choisi = a; champ.value = ''; dessinerResultats(); dessinerChoix(); surChoix(a);
-      } }, h('span', {}, a.libelle), h('span', { class: 'discret' }, a.unite ?? ''))))
-      : [h('li', { class: 'discret', role: 'option', 'aria-disabled': 'true' }, 'Aucun article ne correspond.')]));
-  }
-  dessinerChoix();
-  return { element: h('div', { class: 'pile selecteur-article' }, champ, resultats, resume), valeur: () => choisi, focus: () => champ.focus() };
-}
+const selecteurArticle = ({ initial = null, surChoix = () => {} } = {}) => selecteurCatalogue({
+  mode: 'article', initial, surChoix,
+  source: { articles: () => D.etat.articles, familles: () => D.etat.familles, estChoisissable: V.articleChoisissable, enErreur: () => D.etat.erreurLecture, surChangement: D.surChangement },
+});
 
 // ---------------------------------------------------------------- fenêtres
 
