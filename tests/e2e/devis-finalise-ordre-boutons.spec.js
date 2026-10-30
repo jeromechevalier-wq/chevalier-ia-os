@@ -128,11 +128,11 @@ test('3 brouillon : le « … » ne propose pas « Passer à « Finalisé » » 
   await page.keyboard.press('Escape');
 });
 
-test('3 finalisé : le « … » ne propose ni « Passer à « Envoyé » » ni « Préparer l’e-mail » (« Envoyer » et « Devis envoyé » sont visibles) ; « Créer une nouvelle version » reste', async ({ page }, info) => {
+test('3 finalisé : le « … » ne propose ni « Passer à « Envoyé » » ni « Préparer l’e-mail » (« Envoyer » et « Devis envoyé » sont visibles) ; « Passer à « Devis signé » », « Passer à « Devis refusé » » et « Créer une nouvelle version » restent', async ({ page }, info) => {
   await donnees();
   await ouvrir(page, 'devis/voir/dFinalise');
   const l = await entreesMenu(page);
-  expect(l.filter((t) => PASSAGES.test(t) || /^Envoyer/.test(t) || t === 'Devis envoyé')).toEqual(['Passer à « Devis refusé »']); // un devis finalisé jamais envoyé peut être refusé (décision de Jérôme, 29/10/2026)
+  expect(l.filter((t) => PASSAGES.test(t) || /^Envoyer/.test(t) || t === 'Devis envoyé')).toEqual(['Passer à « Devis signé »', 'Passer à « Devis refusé »']); // un devis finalisé jamais envoyé peut être signé ou refusé (décisions de Jérôme, 29/10 et 30/10/2026)
   for (const nom of ['Télécharger le PDF', 'Imprimer', 'Créer une nouvelle version', 'Dupliquer', 'Archiver']) expect(l).toContain(nom);
   await capturer(page, info, '3-menu-finalise');
   await page.keyboard.press('Escape');
