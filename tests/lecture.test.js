@@ -118,11 +118,12 @@ describe('Listes : borne de date', () => {
     { id: 'd3', statut: 'envoye', finaliseLe: new Date('2026-09-01T00:00:00Z') },
     { id: 'd4', statut: 'brouillon' },
     { id: 'd5', statut: 'signe', finaliseLe: null },
+    { id: 'd6', statut: 'signe', finaliseLe: '2026-09-01T00:00:00.000Z' },
   ] };
   const juin = { champ: 'finaliseLe', depuis: new Date('2026-06-01T00:00:00Z') };
   test('borne seule : incluse, anciens exclus, champ absent ou vide exclu', async () => {
     const m = creerAccesMemoire(base);
-    assert.deepEqual(crees(await m.liste('fenetre', null, juin)), ['d2', 'd3']);
+    assert.deepEqual(crees(await m.liste('fenetre', null, juin)), ['d2', 'd3']); // d6 (texte) exclu, comme sur Firestore
     assert.deepEqual(crees(await m.liste('fenetre', null, { ...juin, depuis: new Date('2026-06-01T00:00:00.001Z') })), ['d3']);
   });
   test('cas vide : aucun document dans la fenêtre', async () => {
@@ -140,8 +141,8 @@ describe('Listes : borne de date', () => {
   });
   test('sans borne : comportement inchangé ; borne invalide refusée', async () => {
     const m = creerAccesMemoire(base);
-    assert.equal((await m.liste('fenetre')).length, 5);
-    assert.equal((await m.liste('fenetre', { champ: 'statut', valeur: 'signe' }, null)).length, 3);
+    assert.equal((await m.liste('fenetre')).length, 6);
+    assert.equal((await m.liste('fenetre', { champ: 'statut', valeur: 'signe' }, null)).length, 4);
     await assert.rejects(() => m.liste('fenetre', null, { champ: 'finaliseLe', depuis: '2026-06-01' }), /Borne de date invalide/);
   });
 });

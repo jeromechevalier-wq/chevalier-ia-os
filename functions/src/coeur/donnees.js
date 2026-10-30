@@ -61,12 +61,10 @@ const verifierAttendus = (attendus, courants) => {
   });
 };
 
-/** `db` : instance Firestore déjà prête (tests) ; sinon la base du projet, avec l'identité de la fonction. */
-/** Millisecondes d'une valeur de date (Date, Timestamp Firestore ou texte ISO) ; null si ce n'est pas une date. */
+/** Millisecondes d'une date (Date ou Timestamp Firestore) ; null sinon. Un texte n'est PAS une date : Firestore ne le compare pas à un Date, la mémoire fait pareil. */
 function enMs(v) {
   if (v instanceof Date) return v.getTime();
   if (v && typeof v.toMillis === 'function') return v.toMillis();
-  if (typeof v === 'string') { const t = Date.parse(v); return Number.isNaN(t) ? null : t; }
   return null;
 }
 function verifierBorne(borne) {
@@ -89,6 +87,7 @@ function requete(r, filtre, borne) {
   return b ? q.where(b.champ, '>=', b.depuis) : q;
 }
 
+/** `db` : instance Firestore déjà prête (tests) ; sinon la base du projet, avec l'identité de la fonction. */
 export function creerAccesFirestore({ projectId, db: dbFournie = null } = {}) {
   let db = dbFournie;
   const base = () => {
