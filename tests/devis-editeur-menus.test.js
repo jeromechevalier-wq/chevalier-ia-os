@@ -199,10 +199,11 @@ describe('4 Options : affichage du devis et du document', () => {
     assert.ok(avecMail.includes('@media screen') && /max-width: 210mm/.test(avecMail));
     assert.ok(!/@media print[^}]*max-width: 210mm/.test(avecMail));
   });
-  test('4 un ancien devis (sans `affichage`) garde l’affichage d’avant : calcul des marges visible ; un devis neuf le cache', () => {
+  test('4 un ancien devis (sans `affichage`) garde l’affichage d’avant : calcul des marges visible ; un devis neuf le montre (30/10/2026) ; un devis déjà enregistré garde son choix', () => {
     assert.equal(L.affichageDe({}).afficherMarges, true);
     assert.equal(L.affichageDe(undefined).afficherMarges, true);
-    assert.equal(L.affichageDe(L.nouveauDevis({}, ctx, reglages)).afficherMarges, false);
+    assert.equal(L.affichageDe(L.nouveauDevis({}, ctx, reglages)).afficherMarges, true);
+    assert.equal(L.affichageDe({ affichage: { afficherMarges: false } }).afficherMarges, false, 'un devis qui avait choisi de cacher les marges ne change pas');
     assert.equal(L.affichageDe({ affichage: { cacherTva: true } }).afficherMarges, false);
     assert.equal(L.affichageDe({ affichage: { cacherTva: true } }).cacherTva, true);
     assert.equal(L.affichageDe({ affichage: { cacherTva: 'oui' } }).cacherTva, false);

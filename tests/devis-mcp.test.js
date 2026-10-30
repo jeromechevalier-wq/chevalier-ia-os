@@ -846,7 +846,8 @@ describe('N9 lire_reglages_devis et journal du bordereau', () => {
     const s = await demarrer();
     const r = ok(await s.appeler('lecteur', 'lire_reglages_devis', {}));
     assert.equal(r.reglages.marge, 20);
-    assert.equal(r.reglages.modeMarge, 'majoration');
+    assert.equal('modeMarge' in r.reglages, false, 'le mode de calcul de la marge n’est jamais montré à l’assistant (30/10/2026)');
+    assert.doesNotMatch(JSON.stringify(r), /modeMarge|majoration|marge_vente/);
     assert.equal(r.reglages.regimeTva, 'assujetti');
     assert.ok(r.reglages.dureeValiditeJours > 0);
     assert.ok(Array.isArray(r.familles) && r.familles.length >= 7, 'au moins les sept familles de départ');
@@ -1082,16 +1083,52 @@ describe('V2 prixVente d’une ligne de brouillon : la marge s’ajuste, le prix
     const ids = await catalogueVocabulaire(s);
     const texte = ok(await s.appeler('biblio', 'creer_article', { libelle: 'Note de chantier', prixAchat: 0, unite: '', type: 'texte' }));
     const gratuit = ok(await s.appeler('biblio', 'creer_article', { libelle: 'Article sans coût', prixAchat: 0, unite: 'u' }));
-    const avant = JSON.stringify(s.collections.devis_devis);
     const essai = (ligne, extra = {}) => s.appeler('biblio', 'creer_devis_brouillon', { affaireId: 'a1', destinataires: EMAIL, lignes: [ligne], ...extra });
     refuse(await essai({ articleId: ids.double, quantite: 1, prixVente: -1 }));
     refuse(await essai({ articleId: ids.double, quantite: 1, prixVente: 12.345 }), /2 décimales/);
     refuse(await essai({ articleId: texte.id, prixVente: 10 }), /texte/);
     refuse(await essai({ articleId: gratuit.id, quantite: 1, prixVente: 10 }), /prix d'achat/);
-    refuse(await essai({ articleId: ids.double, quantite: 1, prixVente: 0 }, { modeMarge: 'marge_vente' }), /impossible/);
-    assert.equal(JSON.stringify(s.collections.devis_devis), avant, 'aucun brouillon créé');
     const ok0 = ok(await essai({ articleId: ids.double, quantite: 1, prixVente: 0 }));
-    assert.equal(ok0.totalHT, 0, 'en majoration, 0 € est un prix possible (marge -100 %)');
+    assert.equal(ok0.totalHT, 0, 'en calcul artisan, 0 € est un prix possible (marge -100 %)');
+  });
+
+  test('V2e lire_devis et la création ne disent jamais le mode de calcul ; un brouillon créé suit le mode des réglages sans qu’on le donne', async () => {
+    const s = await demarrer();
+    const ids = await catalogueVocabulaire(s);
+    s.doc('devis_parametres', 'reglages').modeMarge = 'marge_vente';
+    const cree = ok(await s.appeler('biblio', 'creer_devis_brouillon', { affaireId: 'a1', destinataires: EMAIL, lignes: [{ articleId: ids.double, quantite: 1 }], modeMarge: 'majoration' }));
+    assert.equal(s.doc('devis_devis', cree.id).modeMarge, 'marge_vente', 'le mode des réglages s’applique ; un modeMarge donné par l’assistant est ignoré');
+    const lu = ok(await s.appeler('biblio', 'lire_devis', { id: cree.id }));
+    assert.doesNotMatch(JSON.stringify(lu), /modeMarge|majoration|marge_vente/);
+    assert.doesNotMatch(JSON.stringify(cree), /modeMarge|majoration|marge_vente/);
+  });
+
+  test('V2f lire_devis : ni le mode de calcul, ni « HT » seul dans les erreurs de finalisation et les mentions ; lire_audit ne montre pas modeMarge', async () => {
+    const d = devisEnregistre('dv-voix', { modeMarge: 'marge_vente', marge: 10, remise: { type: 'montant', valeur: 5000 },
+      sections: [{ id: 's1', titre: '', lignes: [{ id: 'l1', libelle: 'Peinture', unite: 'm²', quantite: 1, prixAchat: 8, marge: 100 }] }] });
+    const s = await demarrer({ devis: [d] });
+    const lu = ok(await s.appeler('lecteur', 'lire_devis', { id: 'dv-voix' }));
+    const texte = JSON.stringify(lu.erreursFinalisation);
+    assert.doesNotMatch(texte, /comptable|artisan|majoration|marge_vente/i);
+    assert.doesNotMatch(texte, /\bHT\b/, 'la remise dépasse le total : le message dit « hors taxes »');
+    assert.match(texte, /hors taxes/);
+    assert.match(texte, /Cette marge est impossible/);
+    assert.doesNotMatch(JSON.stringify(lu), /modeMarge/);
+    const modif = ok(await s.appeler('biblio', 'modifier_devis_brouillon', { id: 'dv-voix', objet: 'Autre objet' }));
+    assert.doesNotMatch(JSON.stringify(modif), /modeMarge|marge_vente/);
+    const audit = ok(await s.appeler('lecteur', 'lire_audit', { docId: 'dv-voix' }));
+    assert.doesNotMatch(JSON.stringify(audit), /modeMarge/);
+  });
+
+  test('V2d en calcul comptable (réglages), un prix de vente de 0 € est impossible : refus sans écriture, sans dire le mode à l’assistant', async () => {
+    const s = await demarrer();
+    const ids = await catalogueVocabulaire(s);
+    s.doc('devis_parametres', 'reglages').modeMarge = 'marge_vente';
+    const avant = JSON.stringify(s.collections.devis_devis);
+    const r = await s.appeler('biblio', 'creer_devis_brouillon', { affaireId: 'a1', destinataires: EMAIL, lignes: [{ articleId: ids.double, quantite: 1, prixVente: 0 }] });
+    refuse(r, /impossible/);
+    assert.doesNotMatch(JSON.stringify(r), /comptable|artisan|majoration|marge_vente|mode/i);
+    assert.equal(JSON.stringify(s.collections.devis_devis), avant, 'aucun brouillon créé');
   });
 });
 
