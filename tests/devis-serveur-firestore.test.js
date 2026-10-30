@@ -7,6 +7,7 @@ import { initializeApp, deleteApp } from '../functions/node_modules/firebase-adm
 import { getFirestore, Timestamp } from '../functions/node_modules/firebase-admin/lib/esm/firestore/index.js';
 import { creerAccesFirestore, avecBase, COLLECTIONS as C } from '../functions/src/coeur/donnees.js';
 import * as S from '../functions/src/coeur/devis.js';
+import { modifierLignesDevis } from '../functions/src/coeur/metier.js';
 import { nouveauDevis } from '../functions/partage/devis.js';
 
 const emulateur = process.env.FIRESTORE_EMULATOR_HOST;
@@ -183,5 +184,27 @@ describe('Transitions des devis sur Firestore (émulateur)', { skip: emulateur ?
     await S.changerStatut({ donnees: avecBase(donnees, 'clients/a'), ctx: { acteur: 'alice@exemple.test', via: 'ecran', maintenant: MAINTENANT }, devisId: 'da', action: 'accepter' });
     assert.equal((await db.doc('clients/a/crm_affaires/aff1').get()).data().montantDevisHt, 600);
     assert.equal((await brut(C.affaires, 'aff1')).montantDevisHt, undefined);
+  });
+  // modifier_lignes_devis (PR A2) : le devis est lu DANS la transaction, il n'y a plus de fenêtre entre la lecture et l'écriture.
+  test('C9 dix modifier_lignes_devis simultanés sur dix lignes différentes : aucune modification perdue, dix lignes de journal', async () => {
+    const lignes = Array.from({ length: 10 }, (_, i) => ({ id: `l${i}`, libelle: `Article ${i}`, unite: 'u', quantite: 1, prixAchat: 10 }));
+    await poser('dc', { sections: [{ id: 's1', titre: 'Travaux', lignes }] });
+    const c = { donnees, acteur: ACTEUR, maintenant: MAINTENANT, noterOperation: () => {} };
+    const rs = await Promise.all(lignes.map((l, i) => modifierLignesDevis(c, { id: 'dc', operations: [{ action: 'modifier', ligne: `1.${i + 1}`, attendu: l.libelle, quantite: i + 2 }] })));
+    assert.equal(new Set(rs.map((r) => r.operationId)).size, 10);
+    assert.deepEqual((await brut(C.devis, 'dc')).sections[0].lignes.map((l) => l.quantite), lignes.map((_, i) => i + 2));
+    assert.equal((await db.collection(C.audit).get()).docs.filter((d) => d.data().outil === 'modifier_lignes_devis').length, 10);
+  });
+
+  test('C9 deux suppressions de la même ligne : la seconde relit le devis à jour dans sa transaction et refuse (attendu), au lieu d’écraser', async () => {
+    await poser('dd', { sections: [{ id: 's1', titre: 'Travaux', lignes: [{ id: 'la', libelle: 'Prise double', unite: 'u', quantite: 1, prixAchat: 10 }, { id: 'lb', libelle: 'Plinthe', unite: 'u', quantite: 1, prixAchat: 10 }] }] });
+    const c = { donnees, acteur: ACTEUR, maintenant: MAINTENANT, noterOperation: () => {} };
+    const resultats = await Promise.allSettled([
+      modifierLignesDevis(c, { id: 'dd', operations: [{ action: 'supprimer', ligne: '1.1', attendu: 'Prise double' }] }),
+      modifierLignesDevis(c, { id: 'dd', operations: [{ action: 'supprimer', ligne: '1.1', attendu: 'Prise double' }] }),
+    ]);
+    assert.equal(resultats.filter((r) => r.status === 'fulfilled').length, 1);
+    assert.match(String(resultats.find((r) => r.status === 'rejected').reason.message), /(est maintenant|n'a pas de ligne)/);
+    assert.deepEqual((await brut(C.devis, 'dd')).sections[0].lignes.map((l) => l.id), ['lb'], 'la Plinthe n’est pas supprimée par le second appel');
   });
 });

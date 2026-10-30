@@ -13,12 +13,15 @@ export const OUTILS = [qui_suis_je, ...OUTILS_LECTURE, ...OUTILS_PROPOSITIONS_LE
 /** Écritures qui ne sont pas annulables par restaurer_depuis_audit. */
 export const OUTILS_NON_ANNULABLES = Object.freeze(['valider_proposition', 'refuser_proposition']);
 
+/** Outils destructifs qui ne s'appellent pas supprimer_* : la restauration, et modifier_lignes_devis (peut retirer des lignes et des sections). */
+const OUTILS_DESTRUCTIFS = Object.freeze(['restaurer_depuis_audit', 'modifier_lignes_devis']);
+
 export const outilsAutorises = (profil, outils = OUTILS) => outils.filter((o) => o.profils.includes(profil));
 
 /**
  * Annotations MCP (Claude et ChatGPT les lisent pour classer les outils sans les bloquer par défaut) :
  *  - lecture (ouverte au profil lecteur) : readOnlyHint ;
- *  - supprimer_* et restaurer_depuis_audit : destructiveHint ;
+ *  - supprimer_*, restaurer_depuis_audit et modifier_lignes_devis (il peut retirer des lignes) : destructiveHint ;
  *  - autres écritures : ni lecture seule ni destructrices, jamais idempotentes ;
  *    sauf valider_proposition et refuser_proposition, les décisions de la file « À valider » : elles NE passent PAS par le journal d'audit
  *    (décision atomique dans coeur/propositions.js), donc restaurer_depuis_audit ne les annule pas (OUTILS_NON_ANNULABLES) ; rappelées, elles refusent
@@ -28,6 +31,6 @@ export const outilsAutorises = (profil, outils = OUTILS) => outils.filter((o) =>
  */
 export function annotationsDe(outil) {
   const lecture = outil.profils.includes('lecteur');
-  const destructif = /^supprimer_/.test(outil.nom) || outil.nom === 'restaurer_depuis_audit';
+  const destructif = /^supprimer_/.test(outil.nom) || OUTILS_DESTRUCTIFS.includes(outil.nom);
   return { readOnlyHint: lecture, destructiveHint: !lecture && destructif, idempotentHint: lecture, openWorldHint: false };
 }
