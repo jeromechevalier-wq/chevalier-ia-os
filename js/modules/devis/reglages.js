@@ -53,8 +53,12 @@ export function reglages(page) {
   }
   const changer = (patch) => { Object.assign(brouillon, patch); majBoutons(); };
 
-  const bloc = (cle, libelle, controle, aide = null) => h('div', { class: 'bloc-champ', dataset: { reglage: cle } },
-    h('label', { class: 'etiquette', for: `devis-${cle}` }, libelle, aide ? iconeInfo(aide, libelle) : null), controle,
+  const AIDE_MODE_MARGE = [
+    'Calcul artisan (celui par défaut) : on ajoute 25 % au prix d’achat. 100 € + 25 % de 100 € = 125 €. C’est la façon de compter du terrain : « je prends 25 % par-dessus ce que j’ai payé ».',
+    'Calcul comptable : la marge est une part du prix de vente. Ici, 25 % du prix de vente doit être de la marge, donc le prix d’achat représente les 75 % restants du prix de vente. Prix de vente = 100 € ÷ 0,75 = 133,33 €. Vérification : 25 % de 133,33 € font 33,33 €, et 133,33 − 33,33 = 100 € d’achat.',
+  ].join('\n');
+  const bloc = (cle, libelle, controle, aide = null, optionsInfo = {}) => h('div', { class: 'bloc-champ', dataset: { reglage: cle } },
+    h('label', { class: 'etiquette', for: `devis-${cle}` }, libelle, aide ? iconeInfo(aide, libelle, optionsInfo) : null), controle,
     h('p', { class: 'erreur erreur-champ', role: 'alert', dataset: { erreur: cle } }));
   const liste = (cle, options, valeur, surChoix) => h('select', { class: 'champ', id: `devis-${cle}`, dataset: { champ: cle }, onchange: (e) => surChoix(e.target.value) },
     options.map((o) => h('option', { value: String(o.valeur), selected: String(o.valeur) === String(valeur) }, o.libelle)));
@@ -137,7 +141,7 @@ export function reglages(page) {
   function rendre() {
     // Étape de départ des affaires créées depuis un devis : les étapes actives, dans l'ordre du pipeline. Une valeur enregistrée mais disparue reste visible et n'est jamais effacée.
     const etapes = CRM.etat.config.etapes.filter((e) => e.actif);
-    const optionsEtapes = [{ valeur: '', libelle: 'Non réglée (je choisis à chaque fois)' }, ...etapes.map((e) => ({ valeur: e.id, libelle: e.libelle }))];
+    const optionsEtapes = [{ valeur: '', libelle: 'Je choisis à chaque fois' }, ...etapes.map((e) => ({ valeur: e.id, libelle: e.libelle }))];
     if (brouillon.etapeAffaireCreee && !optionsEtapes.some((o) => o.valeur === brouillon.etapeAffaireCreee)) {
       const eteinte = CRM.etat.config.etapes.find((e) => e.id === brouillon.etapeAffaireCreee); // l'étape existe encore mais elle est désactivée : on garde son nom
       optionsEtapes.push({ valeur: brouillon.etapeAffaireCreee, libelle: eteinte ? `${eteinte.libelle} (étape désactivée)` : `${brouillon.etapeAffaireCreee} (étape disparue)` });
@@ -150,7 +154,7 @@ export function reglages(page) {
         'C’est le titre de l’écran où tu ranges tes articles et leurs prix d’achat.'),
       h('div', { class: 'ligne-champs' },
         bloc('modeMarge', 'Mode de calcul de la marge', liste('modeMarge', MODES_MARGE.map((m) => ({ valeur: m.id, libelle: `${m.libelle} : ${m.explication} (${m.exemple})` })), brouillon.modeMarge, (v) => changer({ modeMarge: v })),
-          'Calcul artisan (par défaut) : le pourcentage s’ajoute au prix d’achat, 25 % sur 100 € donnent 125 €. Calcul comptable : le pourcentage est pris sur le prix de vente, 25 % sur 100 € donnent 133,33 €. L’assistant applique ce choix sans le demander.'),
+          AIDE_MODE_MARGE, { garderLignes: true }),
         bloc('marge', 'Marge de revente (%)', texte('marge', brouillon.marge, { inputmode: 'decimal' }),
           'Marge par défaut des articles du catalogue, sur le prix d’achat de chaque article. Ce n’est pas la marge d’un devis.')),
       bloc('margeDevis', 'Marge par défaut des nouveaux devis (%)', texte('margeDevis', brouillon.margeDevis, { inputmode: 'decimal' }),
@@ -163,7 +167,7 @@ export function reglages(page) {
       bloc('tauxTvaDefaut', 'Taux de TVA par défaut', liste('tauxTvaDefaut', TAUX_TVA_DEFAUT.map((t) => ({ valeur: t, libelle: A.formaterTaux(t) })), brouillon.tauxTvaDefaut, (v) => changer({ tauxTvaDefaut: Number(v) }))),
       h('div', { class: 'pile', dataset: { zone: 'etape-affaire-creee' } },
         bloc('etapeAffaireCreee', 'Étape des affaires créées depuis un devis', liste('etapeAffaireCreee', optionsEtapes, brouillon.etapeAffaireCreee, (v) => changer({ etapeAffaireCreee: v })),
-          'L’étape où est placée l’affaire que l’application crée quand tu finalises un devis sans affaire.'),
+          'Quand tu finalises un devis qui n’a pas d’affaire, l’application en crée une. Choisis ici dans quelle étape elle arrive.'),
         etapes.length ? null : h('p', { class: 'aide', dataset: { zone: 'etape-affaire-creee-vide' } }, 'Aucune étape dans le pipeline')),
       bloc('mentionEmetteur', 'Mention d’émetteur (facultatif)', h('textarea', { class: 'champ', id: 'devis-mentionEmetteur', rows: 3, maxlength: '500', dataset: { champ: 'mentionEmetteur' }, value: brouillon.mentionEmetteur,
         oninput: (e) => changer({ mentionEmetteur: e.target.value }) }), 'Un texte libre qui accompagne tes devis (par exemple une mention légale). Il n’est pas encore envoyé nulle part.'),
