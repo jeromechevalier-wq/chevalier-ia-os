@@ -1210,6 +1210,8 @@ export async function annulerDerniereModificationDevis(c, args) {
   const COUVERT = 'Le devis a changé depuis cette modification (par exemple à l’écran) : je ne l’annule pas, pour ne pas effacer ce qui a été fait depuis. Rien n’a été écrit.';
   // Premier appel : aperçu (rien n'est écrit), pour refuser avec une phrase claire plutôt qu'avec le message général qui propose forcer.
   const apercu = await c.restaurer({ operationId: derniere.operationId, apercu: true, forcer: false, outil: 'annuler_derniere_modification_devis' });
+  // L'opération doit ne toucher que ce devis : sinon la phrase ne dirait pas tout ce qui serait remis (filet pour un futur outil qui écrirait aussi un autre document).
+  if (apercu.lignes.some((l) => l.collection !== C.devis || l.docId !== id)) refuser('saisie_invalide', 'La dernière opération a aussi touché un autre document que ce devis : je ne l’annule pas d’ici. Utilise restaurer_depuis_audit (Claude Code) après avoir relu l’aperçu.');
   if (apercu.conflits) refuser('conflit', COUVERT);
   if (!apercu.aDefaire) refuser('saisie_invalide', 'Rien à annuler : le devis est déjà tel qu’il était avant la dernière modification.');
   const copie = await c.donnees.document(C.auditAvant, derniere.id);

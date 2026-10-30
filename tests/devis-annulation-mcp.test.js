@@ -137,6 +137,26 @@ describe('N2 annuler une modification d’en-tête', () => {
   });
 });
 
+describe('N2b réglages numériques', () => {
+  test('N2b un taux de TVA annulé est dit (les nombres sont comparés, pas seulement les textes)', async () => {
+    const s = await demarrer({ devis: [devisDeBase()] });
+    ok(await s.appeler('biblio', 'modifier_devis_brouillon', { id: 'd1', tauxTvaDefaut: 10 }));
+    const r = ok(await annuler(s));
+    assert.equal(s.doc('devis_devis', 'd1').tauxTvaDefaut, 20);
+    assert.match(r.phrase, /taux de TVA/);
+  });
+  test('N2b une opération qui touche aussi un autre document n’est pas annulée d’ici', async () => {
+    const s = await demarrer({ devis: [devisDeBase()] });
+    ok(await modifier(s, [op('modifier', { ligne: '1.1', attendu: 'Prise double', quantite: 5 })]));
+    const derniere = journalDe(s).at(-1);
+    s.collections.crm_audit.push({ ...derniere, id: 'autre-doc', ordre: 2, collection: 'crm_affaires', docId: 'a1', action: 'modifier' });
+    s.collections.crm_audit_avant.push({ id: 'autre-doc', operationId: derniere.operationId, collection: 'crm_affaires', docId: 'a1', avant: {}, apres: {} });
+    s.collections.crm_audit.at(-1).docId = 'd1'; // retrouvée par le devis, mais elle écrit l'affaire
+    refuse(await annuler(s), /autre document/);
+    assert.equal(quantites(s)[0], 5);
+  });
+});
+
 describe('N3 la dernière modification vient de l’écran', () => {
   test('N3 refus net, le devis n’est pas touché, rien n’est écrit', async () => {
     const s = await demarrer({ devis: [devisDeBase()] });

@@ -3,7 +3,10 @@
 // La phrase vient des copies « avant » / « après » du journal ; elle ne contient JAMAIS de prix d'achat ni de marge (seulement quantités et prix de vente hors taxes).
 import * as L from '../../partage/logique.js';
 import * as D from '../../partage/devis.js';
-import { egal } from './canonique.js';
+import { canonique } from './canonique.js';
+
+/** Égalité de valeurs d'en-tête (nombres compris : `egal` de canonique.js retire un « id » et vide les nombres). */
+const memeValeur = (a, b) => JSON.stringify(canonique(a ?? null)) === JSON.stringify(canonique(b ?? null));
 import { structureCourte, quantiteAvecUnite, phraseTotaux } from './recapitulatif.js';
 
 /** Dernière ligne du journal d'un devis, quelle que soit son origine (assistant ou écran), sans les écritures échouées. Même tri que lireAudit. */
@@ -73,7 +76,7 @@ export function phraseAnnulation(remis, defait) {
   }
   for (const [id, s] of avant.titres) if (!apres.titres.has(id)) retirees.push(`la section « ${s.titre} »`);
   for (const [champ, nom] of Object.entries(ENTETE)) {
-    if (!egal(remis?.[champ] ?? null, defait?.[champ] ?? null) && !remises.includes(nom)) remises.push(nom);
+    if (!memeValeur(remis?.[champ], defait?.[champ]) && !remises.includes(nom)) remises.push(nom);
   }
   const coupe = (morceaux) => (morceaux.length > MAX_MORCEAUX ? [...morceaux.slice(0, MAX_MORCEAUX), `${morceaux.length - MAX_MORCEAUX} autre(s) élément(s)`] : morceaux);
   const phrases = [];
