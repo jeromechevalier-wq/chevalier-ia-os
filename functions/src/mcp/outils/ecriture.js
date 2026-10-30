@@ -8,6 +8,7 @@ import * as DEVIS from '../../../partage/devis.js';
 import * as metier from '../../coeur/metier.js';
 import { TYPES_SOURCE_EMAIL } from '../../coeur/brouillon-email.js';
 import { ACTIONS_STATUT, MAX_ADRESSES_ENVOI, ORIGINES_ENVOI } from '../../coeur/devis.js';
+import { ACTIONS as ACTIONS_LIGNES, MAX_OPERATIONS as MAX_OPERATIONS_LIGNES } from '../../coeur/devis-lignes.js';
 
 const PROFILS = ['bibliothecaire', 'claude-code'];
 const id = z.string().min(1).max(200);
@@ -28,6 +29,21 @@ const ligneDevis = z.object({ articleId: id.optional(), reference: z.string().mi
   .describe("Une ligne : articleId OU reference (référence ou code de l'article), quantite (> 0 ; inutile pour un article de type texte) et, si l'utilisateur a donné un prix, prixVente (euros hors taxes par unité, 2 décimales au plus : la marge de la ligne est réglée pour l'obtenir, le prix d'achat ne change jamais ; refusé pour un texte ou un article sans prix d'achat).");
 const lignesDevis = z.array(ligneDevis).max(200).describe("Lignes à plat, copiées des articles du bordereau.");
 const sectionsDevis = z.array(z.object({ titre: z.string().max(200).optional(), lignes: z.array(ligneDevis).max(200) })).max(50).describe("Sections [{ titre, lignes }].");
+const quantiteLigne = z.number().positive().max(1_000_000).refine((n) => Math.abs(n * 1000 - Math.round(n * 1000)) < 1e-6, '3 décimales au plus');
+const prixVenteLigne = z.number().min(0).max(10_000_000).refine((n) => Math.abs(n * 100 - Math.round(n * 100)) < 1e-6, '2 décimales au plus');
+const operationLigne = z.object({
+  action: z.enum(ACTIONS_LIGNES).describe("modifier | supprimer | ajouter | ajouterSection | renommerSection | supprimerSection."),
+  ligne: z.string().min(1).max(200).optional().describe("modifier, supprimer : numéro de la ligne (« 1.2 »), écrit entre guillemets, ou son identifiant."),
+  section: z.string().min(1).max(200).optional().describe("ajouter, renommerSection, supprimerSection : numéro de la section (« 1 ») ou son identifiant (jamais son titre)."),
+  attendu: z.string().min(1).max(300).optional().describe("OBLIGATOIRE pour modifier, supprimer et supprimerSection : le libellé (ou le titre) tel que tu l'as lu dans le devis ; s'il ne correspond plus, rien n'est écrit."),
+  quantite: quantiteLigne.optional().describe("modifier : nouvelle quantité ; ajouter : quantité (> 0)."),
+  prixVente: prixVenteLigne.optional().describe("modifier, ajouter : prix de vente unitaire en euros hors taxes (2 décimales au plus)."),
+  remplacerPar: z.object({ articleId: id.optional(), reference: z.string().min(1).max(120).optional() }).optional().describe("modifier : remplace l'article de la ligne (articleId OU reference), en gardant la quantité."),
+  articleId: id.optional().describe("ajouter : article du bordereau (articleId OU reference)."),
+  reference: z.string().min(1).max(120).optional().describe("ajouter : référence ou code de l'article (articleId OU reference)."),
+  apres: z.string().min(1).max(200).optional().describe("ajouter : numéro d'une ligne de cette section, après laquelle poser la nouvelle (sinon à la fin de la section) ; ajouterSection : numéro de la section après laquelle poser la nouvelle (sinon à la fin)."),
+  titre: z.string().min(1).max(200).optional().describe("ajouterSection, renommerSection : le titre."),
+});
 const copieDevis = z.array(z.string().max(254)).max(DEVIS.MAX_COPIE).describe(`Adresses e-mail EN COPIE de l'envoi du devis (${DEVIS.MAX_COPIE} au plus, adresses valides, sans doublon, jamais une adresse déjà destinataire : mêmes règles que l'écran). Liste complète, qui REMPLACE l'actuelle ; [] la vide.`);
 const remiseDevis = z.object({ type: z.enum(DEVIS.TYPES_REMISE), valeur: z.number().min(0).max(10_000_000) }).describe("Remise du devis : { type: 'pourcentage' | 'montant', valeur } (pourcentage de 0 à moins de 100 ; montant en euros).");
 // Ancien paramètre « description » (texte libre supprimé par I5) : accepté sans être documenté, pour les clients MCP qui ont gardé l'ancienne liste d'outils.
@@ -178,6 +194,11 @@ export const OUTILS_ECRITURE = [
     lignes: lignesDevis.optional(), sections: sectionsDevis.optional(), ajouterLignes: lignesDevis.optional(), remise: remiseDevis.nullable().optional(),
     marge: z.number().min(0).max(1000).optional(), tauxTvaDefaut: z.number().min(0).max(100).optional(),
   }, metier.modifierDevisBrouillon),
+
+  outil('modifier_lignes_devis', `Modifie les LIGNES et SECTIONS d'un BROUILLON de devis, en désignant chaque ligne par son NUMÉRO (celui de lire_devis : « 1.2 » = ligne 2 de la section 1 ; écris-le entre guillemets). Un seul appel peut faire plusieurs opérations (${MAX_OPERATIONS_LIGNES} au plus), TOUT OU RIEN : si une seule est refusée, rien n'est écrit. Tous les numéros d'un appel se lisent dans le devis tel qu'il était AVANT l'appel (« supprime 1.2 et 1.3 » retire les deux lignes que l'utilisateur a vues). Le résultat est UNE seule opération dans le journal (un seul operationId). Opérations : modifier (ligne, attendu, puis quantite et/ou prixVente en euros hors taxes et/ou remplacerPar), supprimer (ligne, attendu), ajouter (section, articleId OU reference, quantite, prixVente?, apres? : la ligne est copiée de l'article du bordereau et posée à la fin de la section, avant ses sous-sections, ou après la ligne apres), ajouterSection (titre, apres?), renommerSection (section, titre), supprimerSection (section, attendu : retire la section ET ses lignes). OBLIGATOIRE : recopie dans attendu le libellé (ou le titre) lu dans lire_devis ; si le devis a changé depuis (par exemple à l'écran), rien n'est écrit et la réponse dit ce que la ligne est devenue. Refusé pour un devis finalisé (nouvelle_version_devis d'abord). Pas dans cet outil : ligne libre, sous-section, déplacement d'une ligne (à faire à l'écran) ; une section qui a des sous-sections ne se supprime pas ici. Renvoie l'operationId, pour chaque opération la ligne (identifiant, numéro avant et après, libellé), l'état avant et après (libellé, quantité, prix de vente) et changementImportant (vrai pour toute suppression, une quantité multipliée ou divisée par 2 ou plus, un prix de vente qui bouge de 20 % ou plus) ; changementImportant au niveau du devis, totalChangementImportant (le total bouge de 20 % ou plus), la structure courte du devis (sections), les totaux et phraseTotaux, la phrase des totaux à redire telle quelle. Si changementImportant est vrai, redis la ligne à l'utilisateur en une phrase. Se défait avec restaurer_depuis_audit tant que le devis est un brouillon.`, {
+    id: id.describe('Identifiant du brouillon de devis (voir lister_devis).'),
+    operations: z.array(operationLigne).max(MAX_OPERATIONS_LIGNES).describe(`Les opérations, dans l'ordre (${MAX_OPERATIONS_LIGNES} au plus).`),
+  }, metier.modifierLignesDevis),
 
   // Écriture sensible : elle FIGE le devis et consomme un numéro. Réservée à Claude Code (rôle éditeur chez un client), avec la double confirmation des suppressions.
   outil('finaliser_devis', "Finalise un BROUILLON de devis : attribue son numéro (DEV-AAAA-MM-JJ-NNN) et FIGE les prix, la TVA et les totaux (pour corriger ensuite, il faut créer la version suivante : nouvelle_version_devis). NE SE DÉFAIT PAS avec restaurer_depuis_audit (le numéro est consommé). Même logique serveur que le bouton « Finaliser » de l'écran. N'envoie rien au client. Refusé, en listant ce qu'il faut corriger, si le devis n'est pas prêt (affaire, destinataire, lignes, quantités, marge, remise, chantier…). Le premier appel ne finalise RIEN : il rend un APERÇU (totaux, destinataires) et un code à usage unique ; après l'accord de l'utilisateur, le second appel (mêmes arguments + codeConfirmation) finalise.", {

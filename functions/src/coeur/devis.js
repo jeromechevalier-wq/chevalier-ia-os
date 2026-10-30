@@ -92,6 +92,21 @@ export function modifier(devis, patch, collection = C.devis) {
 }
 
 /**
+ * Modification d'un brouillon décidée à partir du devis lu DANS la transaction (aucune fenêtre de course avec l'écran) : `calculer(tx, devis)` rend `{ patch, reponse }`
+ * (ou refuse en levant : rien n'est alors écrit) ; le devis et UNE ligne de journal (un seul operationId) sont écrits ensemble. Utilisée par modifier_lignes_devis.
+ */
+export async function modifierEnTransaction({ donnees, ctx, devisId, outil, parametres, calculer }) {
+  return donnees.transaction(async (tx) => {
+    const devis = await lireDevis(tx, devisId);
+    const { patch, reponse } = await calculer(tx, devis);
+    const changements = [modifier(devis, patch)];
+    const j = journal({ donnees, ctx, outil, parametres, changements });
+    tx.ecrire([...changements.map((x) => x.ecriture), ...j.ecritures]);
+    return { operationId: j.operationId, reponse: { ...reponse, operationId: j.operationId } };
+  });
+}
+
+/**
  * Écriture du montant calculé d'après les devis dans l'affaire du devis (`montantDevisHt` + `montantDevisNature` + `montantDevisDetail`), ou null s'il n'y a rien à changer (pas d'affaire, affaire supprimée, mêmes valeurs).
  * `retouches` : { idDevis: champs | null } = ce que la transaction en cours change sur ses devis (null : le devis disparaît), appliqué en mémoire avant le calcul (les écritures ne partent qu'à la fin).
  * À appeler AVANT `tx.ecrire` (Firestore veut toutes les lectures d'abord). Ne crée jamais l'affaire. Règle : `montantDesDevis` (partage/devis.js).
