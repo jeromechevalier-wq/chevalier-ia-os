@@ -85,13 +85,23 @@ describe('P3 le câblage : menu « Envoyer », confirmation, textes, serveur', (
     assert.equal(P.MESSAGE_DEMANDE_ENVOYEE, 'Demande envoyée : le brouillon apparaît dans ton Gmail dans quelques instants');
     assert.equal(P.LIBELLE_PREPARER_EMAIL, 'Préparer l’e-mail');
   });
+  test('P3 la confirmation dit à qui le brouillon sera adressé (destinataire, puis copie sans doublon) ; sans adresse la fenêtre propose d’enregistrer ET préparer', () => {
+    assert.deepEqual(P.adressesDuBrouillon({ destinataires: ['a@exemple.fr'], copie: ['A@exemple.fr', 'b@exemple.fr'] }), { destinataires: ['a@exemple.fr'], copie: ['b@exemple.fr'] });
+    assert.deepEqual(P.adressesDuBrouillon({ destinataires: [{ email: ' a@exemple.fr ' }], copie: undefined }), { destinataires: ['a@exemple.fr'], copie: [] });
+    assert.deepEqual(P.adressesDuBrouillon({ destinataires: ['a@exemple.fr', 'A@Exemple.fr'], copie: ['x,y@exemple.fr', 'c@exemple.fr', 'C@exemple.fr'] }), { destinataires: ['a@exemple.fr'], copie: ['c@exemple.fr'] }, 'comme le serveur : doublons de casse et adresses non sûres écartés');
+    assert.equal(P.texteAdresses({ destinataires: ['a@exemple.fr'], copie: [] }), 'Adressé à : a@exemple.fr');
+    assert.equal(P.texteAdresses({ destinataires: ['a@exemple.fr', 'c@exemple.fr'], copie: ['b@exemple.fr'] }), 'Adressé à : a@exemple.fr, c@exemple.fr · En copie : b@exemple.fr');
+    assert.equal(P.LIBELLE_CHANGER_ADRESSE, 'Changer l’adresse');
+    assert.equal(P.LIBELLE_ENREGISTRER_ET_PREPARER, 'Enregistrer et préparer l’e-mail');
+  });
   test('P3 l’écran de confirmation grise ses boutons pendant l’appel, garde la fenêtre ouverte sur une erreur avec « Réessayer », et n’appelle qu’une fois', () => {
     const t = lire('js/modules/devis/email-preparer-ecran.js');
     assert.match(t, /peutFermer: \(\) => !occupe/);
     assert.match(t, /if \(occupe\) return false;/);
     assert.match(t, /boutons\.forEach\(\(b\) => \{ b\.disabled = v; \}\)/);
-    assert.match(t, /boutons\[1\]\.textContent = 'Réessayer'/);
-    assert.equal((t.match(/D\.preparerEmailDevis\(/g) || []).length, 1);
+    assert.match(t, /boutons\[2\]\.textContent = 'Réessayer'/);
+    assert.match(t, /boutons\[1\]\.textContent = 'Réessayer'/, 'la fenêtre d’adresse aussi, quand seul le brouillon a échoué');
+    assert.equal((t.match(/D\.preparerEmailDevis\(/g) || []).length, 2, 'un seul appel par chemin : la confirmation, ou la fenêtre « Enregistrer et préparer » (jamais les deux : sans adresse, pas de seconde confirmation)');
     assert.match(t, /toast\(P\.MESSAGE_DEMANDE_ENVOYEE/);
   });
   test('P3 le navigateur ne parle jamais à n8n : il appelle seulement les deux fonctions du serveur, par la table fixe de donnees.js', () => {
