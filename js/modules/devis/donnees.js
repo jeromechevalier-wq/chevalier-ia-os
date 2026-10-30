@@ -178,6 +178,16 @@ export async function majArticle(id, patch) {
   return { erreurs: {}, patch: plan.patch };
 }
 
+/** Modifie plusieurs articles en UN lot (une seule opération dans le journal) : `lots` = [{ id, patch }] ; rien n'est écrit si un plan a une erreur. `{ erreurs }` (clé = identifiant de l'article). */
+export async function majArticles(lots) {
+  const plans = lots.map(({ id, patch }) => ({ id, plan: A.planMajArticle(id, patch, { articles: etat.articles, familles: etat.familles }) }));
+  const erreurs = {};
+  for (const { id, plan } of plans) { const m = Object.values(plan.erreurs)[0]; if (m) erreurs[id] = m; }
+  if (Object.keys(erreurs).length) return { erreurs };
+  await CRM.executer(plans.flatMap(({ plan }) => plan.ecritures), 'majArticle');
+  return { erreurs: {} };
+}
+
 /** Désactive (actif = false) ou réactive (actif = true) : `{ erreurs }`. */
 export async function activerArticle(id, actif) {
   const plan = A.planActiverArticle(id, actif, { articles: etat.articles, familles: etat.familles });

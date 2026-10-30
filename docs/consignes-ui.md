@@ -134,3 +134,9 @@ Indicateurs : une ligne basse par indicateur, l'explication « Comment c'est cal
 
 ## Devis : écran « Vocabulaire » (29/10/2026)
 - Un seul terme à l'écran : **« mot appris »** (jamais « règle »). Pastilles « Actif », « À confirmer », « Désactivé » et, pour un conflit, « À trancher ». On y accède par le bouton « Vocabulaire » de la liste des devis ; le module Devis n'a pas de barre d'onglets. Détail : `docs/proposition-dictionnaire-vocabulaire.md`, section 8.
+
+## Catalogue : fenêtre « Composition » (30/10/2026)
+- Sous le nom de chaque composant, sa **référence** (« Réf. … ») ; sans référence, son code article ; sans les deux, rien (jamais « undefined »).
+- Le **prix d'achat HT unitaire** d'un composant se change dans la fenêtre : c'est le prix de **l'article** du catalogue, donc le changer ici le change partout (toutes les compositions et le catalogue). Pas de prix « local » à une composition. Le montant à droite de la ligne est quantité × **prix de vente** unitaire (prix d'achat × marge), pas le coût d'achat.
+- Rien n'est écrit avant « Enregistrer » (« Annuler » n'écrit rien) ; le résumé du bas (prix de vente, déboursé sec, marge brute, taux de marge) bouge en direct. L'écriture passe par la modification d'un article du catalogue (même validation, même journal des modifications). Un prix vide ou invalide affiche un message sous le champ et n'écrit rien. Un article désactivé ou supprimé n'a pas de champ de prix.
+- Si l'article est aussi dans d'autres compositions, une confirmation légère le dit (« Changer le prix partout ? »). Les devis déjà faits gardent leurs prix : une ligne de devis copie les prix au moment de l'ajout (`figerOuvragePourLigne`).
