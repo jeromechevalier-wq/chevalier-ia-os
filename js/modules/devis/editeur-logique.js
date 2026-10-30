@@ -389,11 +389,12 @@ export function avertissements(devis) {
   return sortie;
 }
 
-/** Champs à remplir (sert au compteur, ne bloque pas l'enregistrement d'un brouillon) : clé `affaire`, obligatoire pour FINALISER (erreursFinalisation, logique.js). */
-export function champsManquants(devis) {
-  const m = [];
-  if (!devis?.affaireId) m.push('affaire');
-  return m;
+/**
+ * Champs à remplir pour COMMENCER un devis : aucun (30/10/2026, « rien ne doit empêcher un artisan de commencer »). Ni l'affaire ni le client ne sont obligatoires pour un brouillon ;
+ * l'affaire est exigée pour FINALISER (erreursFinalisation, logique.js) et l'écran la crée alors si elle manque (affaire-depuis-devis.js).
+ */
+export function champsManquants() {
+  return [];
 }
 
 /** Messages de saisie du bloc chantier (dates, durée, code postal) : ceux de logique.js. */
