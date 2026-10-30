@@ -359,6 +359,8 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
   .fiche-montant { margin-left: 0; margin-top: var(--esp-6); } /* place du libellé posé au-dessus du chiffre */
   .fiche-montant .prop-modifier { position: relative; right: auto; top: auto; transform: none; width: 28px; height: 28px; } /* relative (et non static) : la zone de clic de 44 px (::after, os.css) se centre sur le crayon, pas sur le montant */
   .fiche-actions { width: 100%; }
+  .fiche-actions [data-action="exporter-contact"] .libelle-bouton { display: none; } /* téléphone : icône seule (nom accessible « Exporter ce contact ») */
+  .fiche-actions [data-action="exporter-contact"] { min-width: 44px; min-height: 44px; justify-content: center; }
 }
 .barre-etapes-fiche { display: flex; gap: var(--esp-1); list-style: none; margin: 0; padding: 0; overflow-x: auto; }
 .barre-etapes-fiche li { flex: 1 0 auto; display: flex; align-items: center; gap: 2px; }

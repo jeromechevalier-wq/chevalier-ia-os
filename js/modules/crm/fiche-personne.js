@@ -64,12 +64,13 @@ export function rendreFichePersonne(conteneur, id) {
 
     // ---- en tête
     const nom = titreEditable({ valeur: p.nom, libelle: 'Nom', surEnregistrer: (v) => D.majPersonne(p.id, L.patchNomAffiche(v)) });
+    const exporter = h('button', { type: 'button', class: 'bouton bouton-secondaire', 'aria-label': 'Exporter ce contact', title: 'Exporter ce contact', 'data-action': 'exporter-contact',
+      onclick: () => {
+        telecharger(L.nomFichierExport(new Date(), 'contacts'), L.vcardPersonnes([p], { organisations: D.etat.organisations }), 'text/vcard;charset=utf-8');
+        toast('Contact exporté');
+      } }, icone('download', { taille: 16 }), h('span', { class: 'libelle-bouton' }, 'Exporter'));
     const menu = h('button', { type: 'button', class: 'bouton-icone', 'aria-label': 'Plus d’actions', 'data-action': 'menu-fiche',
       onclick: (e) => ouvrirMenu(e.currentTarget, [
-        { libelle: 'Exporter ce contact', icone: 'download', action: () => {
-          telecharger(L.nomFichierExport(new Date(), 'contacts'), L.vcardPersonnes([p], { organisations: D.etat.organisations }), 'text/vcard;charset=utf-8');
-          toast('Contact exporté');
-        } },
         { libelle: p.archive ? 'Désarchiver' : 'Archiver', icone: p.archive ? 'archive-restore' : 'archive', action: () => D.majPersonne(p.id, { archive: !p.archive }) },
         { libelle: 'Supprimer définitivement…', icone: 'trash-2', danger: true, action: () => demanderSuppressionPersonne(p) },
       ]) }, icone('ellipsis', { taille: 20 }));
@@ -80,6 +81,7 @@ export function rendreFichePersonne(conteneur, id) {
         h('div', { class: 'fiche-titre' }, nom,
           h('div', { class: 'fiche-sous' }, p.archive ? h('span', { class: 'badge-archive' }, 'Archivée') : null, p.oppositionProspection ? h('span', { class: 'badge-opposition' }, 'Opposition à la prospection') : null)),
         h('div', { class: 'fiche-actions' },
+          exporter,
           h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'nouvelle-affaire', onclick: () => ouvrirCreationAffaire({ personneId: p.id }) }, icone('plus', { taille: 16 }), 'Affaire'),
           menu)));
 
