@@ -2,7 +2,7 @@
 // Un test par point du brief (le nom commence par le numéro du point), une capture par point : tests/e2e/captures/devis-editeur-mise-en-page/ (ordinateur ET téléphone : la mise en page change).
 import { fileURLToPath } from 'node:url';
 import {
-  test, expect, connecter, attendreCalme, ecrireDocument, listerDocuments, creerOrganisation, creerAffaire, creerPersonne, estTelephone, JEROME,
+  test, expect, connecter, attendreCalme, ecrireDocument, listerDocuments, creerOrganisation, creerAffaire, creerPersonne, estTelephone, JEROME, choisirDansChampDevis,
 } from './outils.js';
 
 const DOSSIER = fileURLToPath(new URL('./captures/devis-editeur-mise-en-page/', import.meta.url));
@@ -62,7 +62,7 @@ async function nouveauBrouillon(page) {
   await ouvrirListe(page);
   await page.locator('[data-action="nouveau-devis-vide"]').click(); // le brouillon est créé tout de suite, sans affaire : on la choisit dans l'éditeur
   await expect(page.locator('.page-editeur-devis[data-devis]')).toBeVisible();
-  await page.locator('[data-champ="affaire"]').selectOption('a1');
+  await choisirDansChampDevis(page, 'affaire', 'Réno', 'Rénovation restaurant');
   await attendreCalme(page);
   await expect(page.locator('[data-valeur="enregistrement"]')).toHaveText('Enregistré');
 }
@@ -109,7 +109,7 @@ test('1 la barre d’actions reste en haut quand on défile : titre « Brouillon
   await expect(page.locator('[data-calcul-marge]').first()).toBeVisible();
 });
 
-test('2 l’en-tête a deux colonnes : dates et « définir » à gauche, affaire puis client à droite ; « Ajouter une description » montre le champ', async ({ page }, info) => {
+test('2 l’en-tête a deux colonnes : dates et « définir » à gauche, client puis affaire à droite ; « Ajouter une description » montre le champ', async ({ page }, info) => {
   await semer();
   await ouvrir(page, await devisLong());
   const gauche = page.locator('.entete-gauche');
@@ -134,13 +134,13 @@ test('2 l’en-tête a deux colonnes : dates et « définir » à gauche, affair
   await expect(page.locator('[data-action="description"]')).toContainText('Ajouter une description');
   await page.locator('[data-action="description"]').click();
   await expect(page.locator('[data-champ="objet"]')).toBeVisible();
-  // À droite : l'affaire, puis le client, l'un sous l'autre (côte à côte du texte sur grand écran, empilés sur téléphone).
+  // À droite : le client, puis l'affaire, l'un sous l'autre (côte à côte du texte sur grand écran, empilés sur téléphone).
   const client = await page.locator('[data-champ="client"]').boundingBox();
   const affaire = await page.locator('[data-champ="affaire"]').boundingBox();
-  expect(affaire.y).toBeLessThan(client.y); // on choisit d'abord l'affaire, puis le client
+  expect(client.y).toBeLessThan(affaire.y); // Décision prise seul (30/10/2026) : le client d'abord (il restreint les affaires proposées), puis l'affaire
   if (!estTelephone(page)) expect((await gauche.boundingBox()).x + 100).toBeLessThan(client.x);
-  await expect(page.locator('[data-champ="client"]')).toHaveValue('organisation:o1');
-  await expect(page.locator('[data-champ="affaire"]')).toHaveValue('a1');
+  await expect(page.locator('[data-champ="client"]')).toHaveValue('Société Exemple');
+  await expect(page.locator('[data-champ="affaire"]')).toHaveValue('Rénovation restaurant · Société Exemple');
   await capturer(page, info, '2-entete', { pleine: false });
 });
 
@@ -331,12 +331,12 @@ test('2 l’e-mail du destinataire suit le client choisi, sauf s’il a été é
   await ouvrir(page, await devisLong());
   const mail = page.locator('[data-champ="destinataire"]');
   await expect(mail).toHaveValue('contact@exemple.fr');
-  await page.locator('[data-champ="client"]').selectOption('personne:p1');
+  await choisirDansChampDevis(page, 'client', 'Julie', 'Julie Rubio');
   await expect(mail).toHaveValue('julie@exemple.test');
-  await page.locator('[data-champ="client"]').selectOption('organisation:o1');
+  await choisirDansChampDevis(page, 'client', 'Société', 'Société Exemple');
   await expect(mail).toHaveValue('contact@exemple.fr');
   await mail.fill('autre@exemple.test'); // écrit à la main : le choix du client ne l'écrase plus
-  await page.locator('[data-champ="client"]').selectOption('personne:p1');
+  await choisirDansChampDevis(page, 'client', 'Julie', 'Julie Rubio');
   await expect(mail).toHaveValue('autre@exemple.test');
 });
 
