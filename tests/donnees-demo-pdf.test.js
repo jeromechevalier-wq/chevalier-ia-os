@@ -185,7 +185,7 @@ test('6. Un échec est signalé sans bloquer les autres ; le tableau s\'affiche 
   const r = await lancer([CLIENT, '--pdf', '--ecrire'], { pdf: h.pdf });
   assert.equal(r.code, 1, r.texte);
   assert.match(r.texte, /DEV-2026-10-26-a\s+Envoyé\s+PDF ok/i);
-  assert.match(r.texte, /DEV-2026-10-26-b\s+\S+\s+PDF ÉCHEC/);
+  assert.match(r.texte, /DEV-2026-10-26-b\s+.+?\s+PDF ÉCHEC/);
   assert.match(r.texte, /Bilan : 2 PDF ok, 1 en échec/);
 });
 
