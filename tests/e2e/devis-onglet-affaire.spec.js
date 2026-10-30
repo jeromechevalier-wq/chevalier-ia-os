@@ -248,7 +248,7 @@ test('9 un devis d’une AUTRE affaire n’apparaît pas, un archivé non plus, 
   const panneau = await ouvrirOnglet(page);
   await expect(panneau.locator('[data-liste="devis-affaire"] > li')).toHaveCount(2);
   await expect(panneau.locator('[data-devis="dActuel"] [data-action="voir-devis"]')).toHaveText(/^DEV-2026-10-02-002 v2/);
-  await expect(panneau.locator('[data-devis="dRemplace"] [data-valeur="statut"]')).toHaveText('Remplacé');
+  await expect(panneau.locator('[data-devis="dRemplace"] [data-valeur="statut"]')).toHaveText('Devis remplacé');
   await expect(panneau.locator('[data-devis="dArchive"], [data-devis="dAutre"]')).toHaveCount(0);
   await expect(page.locator('.compositeur [data-onglet="devis"] .compteur')).toHaveText('2');
   await capturer(page, info, '9-remplace-montre');

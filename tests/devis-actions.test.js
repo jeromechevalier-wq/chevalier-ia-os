@@ -87,7 +87,7 @@ describe('5 panneau « Historique »', () => {
   test('5 les versions du devis sont rangées de la plus ancienne à la plus récente, la courante est marquée', () => {
     const v = H.versionsHistorique(v2, [v2, v1, d('brouillon', { id: 'autre', racineId: 'autre' })]);
     assert.deepEqual(v.map((x) => [x.id, x.version, x.courante]), [['v1', 1, false], ['v2', 2, true]]);
-    assert.equal(v[0].libelleStatut, 'Remplacé');
+    assert.equal(v[0].libelleStatut, 'Devis remplacé');
   });
   test('5 un devis seul a une seule version : lui-même', () => {
     assert.deepEqual(H.versionsHistorique(d('brouillon'), []).map((x) => [x.id, x.courante]), [['x', true]]);
