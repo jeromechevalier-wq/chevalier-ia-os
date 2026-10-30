@@ -455,17 +455,17 @@ describe('V9 apprentissage : decisionApprentissage', () => {
     const jour2 = apprendre(memeJour, { type: 'confirme' }, '2026-10-29');
     assert.deepEqual([jour2.statut, jour2.confirmations, jour2.derniereConfirmationLe], ['active', 2, '2026-10-29']);
   });
-  test('V9 une contradiction empêche l’activation ; une règle active contredite passe en conflit et sort de l’usage automatique', () => {
+  test('V9 une contradiction empêche l’activation ; une règle active contredite reste intacte (compteur seulement), la 2e contradiction crée une suggestion', () => {
     let r = apprendre(nouvelle(), { type: 'confirme' }, '2026-10-28');
-    r = apprendre(r, { type: 'autre' }, '2026-10-28');
+    r = apprendre(r, { type: 'autre', articleId: 'a99', articleLibelle: 'Autre' }, '2026-10-28');
     assert.equal(r.contradictions, 1);
     assert.equal(r.conflit, false);
     r = apprendre(r, { type: 'confirme' }, '2026-10-29');
     assert.deepEqual([r.statut, r.confirmations], ['a_confirmer', 2]);
-    const active = apprendre(nouvelle({ statut: 'active', confirmations: 2, derniereConfirmationLe: '2026-10-20' }), { type: 'autre' }, '2026-10-30');
-    assert.deepEqual([active.statut, active.conflit, active.contradictions], ['active', true, 1]);
+    const active = apprendre(nouvelle({ statut: 'active', confirmations: 2, derniereConfirmationLe: '2026-10-20' }), { type: 'autre', articleId: 'a99', articleLibelle: 'Autre' }, '2026-10-30');
+    assert.deepEqual([active.statut, active.conflit, active.contradictions, active.articleId, active.suggestion], ['active', false, 1, 'a12', undefined]);
     const apres = V.interpreter('spot', { regles: [{ ...active, id: 'spot' }], articles: CATALOGUE, reglages: REGLAGES });
-    assert.equal(apres.decision, 'proposer');
+    assert.equal(apres.decision, 'utiliser');
   });
   test('V9 un conflit déjà posé empêche l’activation ; une règle désactivée ne change pas', () => {
     const r = apprendre(nouvelle({ confirmations: 1, derniereConfirmationLe: '2026-10-20', conflit: true }), { type: 'confirme' }, '2026-10-28');
@@ -688,5 +688,138 @@ describe('E6 création refusée quand la liste n’est pas lue', () => {
   test('E6 donnees.js refuse de créer si la lecture est en erreur ou pas prête (un « creer » écraserait un mot invisible)', () => {
     const d = lire('js/modules/devis/donnees.js');
     assert.match(d, /if \(etat\.erreurLectureVocabulaire \|\| !etat\.vocabulairePret\) return \{ erreurs: \{ general: V\.MESSAGE_LISTE_INDISPONIBLE \}/);
+  });
+});
+
+// ---------------------------------------------------------------- PR 7a : validation humaine (cadrage devis fluide, garde-fou 1, R1 et R2)
+describe('R1 R2 validation humaine du dictionnaire (moteur)', () => {
+  const active = (extra = {}) => ({ id: 'lumiere', cle: 'lumiere', articleId: 'a12', articleLibelle: 'Spot encastré LED', statut: 'active', origine: 'manuelle', confirmations: 2, contradictions: 0, conflit: false, derniereConfirmationLe: '2026-10-20', ...extra });
+  const AUTRE = { type: 'autre', articleId: 'a13', articleLibelle: 'Détecteur de fumée' };
+  const apprendre = (r, evenement, jour) => V.decisionApprentissage(r, evenement, jour, { articles: CATALOGUE });
+
+  test('R1 un mot validé n’est jamais modifié par « autre » : article, statut et conflit intacts ; 1re contradiction = compteur ; 2e = suggestion', () => {
+    for (const validation of [{ validePar: 'humain', valideLe: '2026-09-01' }, { validePar: 'reponses', valideLe: '2026-09-01' }, {}]) {
+      const depart = active(validation);
+      const un = apprendre(depart, AUTRE, '2026-10-30');
+      assert.deepEqual([un.articleId, un.statut, un.conflit, un.contradictions, 'suggestion' in un], ['a12', 'active', false, 1, false]);
+      const deux = apprendre(un, AUTRE, '2026-10-30');
+      assert.deepEqual([deux.articleId, deux.articleLibelle, deux.statut, deux.conflit, deux.contradictions], ['a12', 'Spot encastré LED', 'active', false, 2]);
+      assert.deepEqual(deux.suggestion, { articleId: 'a13', articleLibelle: 'Détecteur de fumée', contradictions: 2, le: '2026-10-30' });
+      assert.equal(deux.validePar, validation.validePar);
+      assert.equal(depart.contradictions, 0, 'l’entrée n’est pas modifiée');
+    }
+  });
+  test('R1 une suggestion déjà posée pour le même article garde son jour `le` ; un autre article la remplace', () => {
+    const deux = apprendre(apprendre(active(), AUTRE, '2026-10-30'), AUTRE, '2026-10-30');
+    const trois = apprendre(deux, AUTRE, '2026-11-02');
+    assert.deepEqual([trois.suggestion.le, trois.suggestion.contradictions], ['2026-10-30', 3]);
+    const autre = apprendre(deux, { type: 'autre', articleId: 'a22', articleLibelle: 'Thermostat' }, '2026-11-02');
+    assert.deepEqual([autre.suggestion.articleId, autre.suggestion.le], ['a22', '2026-11-02']);
+  });
+  test('R1 `immediat` crée la suggestion dès la première contradiction ; un mot à confirmer n’en reçoit jamais', () => {
+    const r = apprendre(active({ validePar: 'humain' }), { ...AUTRE, immediat: true }, '2026-10-30');
+    assert.equal(r.suggestion.le, '2026-10-30');
+    const aConfirmer = apprendre(active({ statut: 'a_confirmer' }), { ...AUTRE, immediat: true }, '2026-10-30');
+    assert.deepEqual([aConfirmer.statut, aConfirmer.contradictions, 'suggestion' in aConfirmer], ['a_confirmer', 1, false]);
+  });
+  test('R1 un mot qui avait déjà conflit: true garde cette valeur (lue comme avant) mais le moteur n’en écrit jamais de nouveau', () => {
+    const r = apprendre(active({ conflit: true }), AUTRE, '2026-10-30');
+    assert.equal(r.conflit, true);
+    assert.equal(apprendre(active(), AUTRE, '2026-10-30').conflit, false);
+  });
+  test('R1 activation par 2 confirmations : valideLe, validePar « reponses » et revoirLe (+6 mois) sont posés, une seule fois', () => {
+    const un = apprendre({ cle: 'lumiere', articleId: 'a12', statut: 'a_confirmer' }, { type: 'confirme' }, '2026-08-31');
+    assert.equal('valideLe' in un, false);
+    const deux = apprendre(un, { type: 'confirme' }, '2026-09-01');
+    assert.deepEqual([deux.statut, deux.valideLe, deux.validePar, deux.revoirLe], ['active', '2026-09-01', 'reponses', '2027-03-01']);
+    const plusTard = apprendre(deux, { type: 'confirme' }, '2026-12-01');
+    assert.equal(plusTard.valideLe, '2026-09-01');
+    const fin = apprendre({ cle: 'lumiere', articleId: 'a12', statut: 'a_confirmer', confirmations: 1, derniereConfirmationLe: '2026-08-30' }, { type: 'confirme' }, '2026-08-31');
+    assert.equal(fin.revoirLe, '2027-02-28');
+  });
+  test('R1 ajouterMois : butée de fin de mois et changement d’année', async () => {
+    const { ajouterMois } = await import('../js/modules/crm/logique.js');
+    assert.equal(ajouterMois('2026-08-31', 6), '2027-02-28');
+    assert.equal(ajouterMois('2023-08-31', 6), '2024-02-29');
+    assert.equal(ajouterMois('2026-10-30', 6), '2027-04-30');
+    assert.equal(ajouterMois('2026-12-15', 6), '2027-06-15');
+    assert.equal(ajouterMois('2026-01-31', 1), '2026-02-28');
+    assert.equal(ajouterMois('2026-03-31', -1), '2026-02-28');
+  });
+  test('R1 validePar ne prend jamais une autre valeur que humain ou reponses (la règle publiée évalue le document entier)', () => {
+    const resultats = [];
+    for (const depart of [active(), active({ validePar: 'humain' }), { cle: 'lumiere', articleId: 'a12', statut: 'a_confirmer', confirmations: 1, derniereConfirmationLe: '2026-10-20' }]) {
+      for (const ev of [{ type: 'confirme' }, AUTRE, { ...AUTRE, immediat: true }]) resultats.push(apprendre(apprendre(depart, ev, '2026-10-30'), ev, '2026-10-31'));
+    }
+    for (const r of resultats) assert.ok(!('validePar' in r) || V.VALIDE_PAR.includes(r.validePar));
+    assert.deepEqual([...V.VALIDE_PAR], ['humain', 'reponses']);
+  });
+  test('R1 la suggestion disparaît (null) après 3 jours distincts de confirmation de l’article d’origine ; deux « oui » le même jour = un seul', () => {
+    let r = apprendre(apprendre(active(), AUTRE, '2026-10-30'), AUTRE, '2026-10-30');
+    r = apprendre(r, { type: 'confirme' }, '2026-11-01');
+    r = apprendre(r, { type: 'confirme' }, '2026-11-01');
+    assert.equal(r.suggestion.confirmationsDepuis, 1);
+    r = apprendre(r, { type: 'confirme' }, '2026-11-02');
+    assert.equal(r.suggestion.confirmationsDepuis, 2);
+    r = apprendre(r, { type: 'confirme' }, '2026-11-03');
+    assert.equal(r.suggestion, null);
+    assert.equal(V.suggestionEnAttente(r), null);
+  });
+  test('R1 cas vide : un mot sans aucun champ de validation est lu comme avant (actif, utilisé sans question, aucun champ ajouté par une confirmation)', () => {
+    const r = apprendre(active(), { type: 'confirme' }, '2026-10-30');
+    assert.deepEqual(Object.keys(r).filter((k) => ['valideLe', 'validePar', 'revoirLe', 'suggestion'].includes(k)), []);
+    assert.equal(V.interpreter('lumiere', { regles: [active()], articles: CATALOGUE, reglages: REGLAGES }).decision, 'utiliser');
+  });
+
+  const suggestion = (extra = {}) => ({ articleId: 'a13', articleLibelle: 'Détecteur de fumée', contradictions: 2, le: '2026-10-30', ...extra });
+  const question = (regle) => V.interpreter('lumiere', { regles: [regle], articles: CATALOGUE, reglages: REGLAGES });
+  test('R2 une suggestion en attente : le mot validé n’est plus utilisé seul → proposer, pourquoi suggestion_en_attente, les deux articles sont offerts à 0,50', () => {
+    const r = question(active({ suggestion: suggestion() }));
+    assert.equal(r.decision, 'proposer');
+    const [a, b] = r.candidats;
+    assert.deepEqual([a.score, b.score], [0.5, 0.5]);
+    assert.deepEqual(r.candidats.map((c) => c.articleId).sort(), ['a12', 'a13']);
+    assert.ok(r.candidats.every((c) => c.pourquoi === 'suggestion_en_attente'));
+    assert.ok(r.question.includes('Spot encastré LED') && r.question.includes('Détecteur de fumée'));
+  });
+  test('R2 suggestion traitée (suggestionTraiteeLe >= le) : ignorée, le mot redevient utilisé sans question ; traitée avant le : encore en attente', () => {
+    assert.equal(question(active({ suggestion: suggestion(), suggestionTraiteeLe: '2026-10-30' })).decision, 'utiliser');
+    assert.equal(question(active({ suggestion: suggestion(), suggestionTraiteeLe: '2026-11-15' })).decision, 'utiliser');
+    assert.equal(question(active({ suggestion: suggestion(), suggestionTraiteeLe: '2026-10-29' })).decision, 'proposer');
+  });
+  test('R2 suggestion nulle ou mal formée : lue comme absente, sans plantage', () => {
+    for (const mauvaise of [null, undefined, 'texte', 7, [], {}, { articleId: 'a13' }, { le: '2026-10-30' }, suggestion({ le: 'demain' }), suggestion({ le: 20261030 }), suggestion({ articleId: '' })]) {
+      const regle = active({ suggestion: mauvaise });
+      assert.equal(V.suggestionEnAttente(regle), null, JSON.stringify(mauvaise));
+      assert.equal(question(regle).decision, 'utiliser', JSON.stringify(mauvaise));
+    }
+    assert.equal(V.suggestionEnAttente(null), null);
+  });
+  test('R2 article suggéré désactivé ou supprimé : seul l’article du mot est proposé ; mot dont l’article est mort : la suggestion reste proposée', () => {
+    const sans = V.interpreter('lumiere', { regles: [active({ suggestion: suggestion({ articleId: 'a24' }) })], articles: CATALOGUE, reglages: REGLAGES });
+    assert.deepEqual(sans.candidats.map((c) => c.articleId), ['a12']);
+    const morte = V.interpreter('lumiere', { regles: [active({ articleId: 'a24', suggestion: suggestion() })], articles: CATALOGUE, reglages: REGLAGES });
+    assert.deepEqual(morte.candidats.map((c) => c.articleId), ['a13']);
+  });
+  test('R2 un article suggéré dont le libellé colle à la phrase reste plafonné à 0,50 : jamais « utiliser » seul', () => {
+    const catalogue = [...CATALOGUE, art('a30', 'Lumière')];
+    const r = V.interpreter('lumiere', { regles: [active({ suggestion: suggestion({ articleId: 'a30' }) })], articles: catalogue, reglages: REGLAGES });
+    assert.equal(r.decision, 'proposer');
+    assert.deepEqual(r.candidats.filter((c) => ['a12', 'a30'].includes(c.articleId)).map((c) => c.score), [0.5, 0.5]);
+  });
+  test('R1 une suggestion traitée ou retirée clôt le cycle : la contradiction suivante repart à 1 et ne recrée pas de suggestion', () => {
+    const deux = apprendre(apprendre(active(), AUTRE, '2026-10-30'), AUTRE, '2026-10-30');
+    const traitee = apprendre({ ...deux, suggestionTraiteeLe: '2026-11-01' }, AUTRE, '2026-11-02');
+    assert.deepEqual([traitee.contradictions, traitee.suggestion], [1, null]);
+    let r = deux;
+    for (const j of ['2026-11-01', '2026-11-02', '2026-11-03']) r = apprendre(r, { type: 'confirme' }, j);
+    assert.deepEqual([r.suggestion, r.contradictions], [null, 0]);
+    assert.equal(apprendre(r, AUTRE, '2026-11-04').suggestion, null);
+  });
+  test('R2 un troisième article au libellé exact ne rend pas « utiliser » quand le mot a une suggestion en attente ; le regleId du mot est gardé', () => {
+    const catalogue = [...CATALOGUE, art('a30', 'Lumière')];
+    const r = V.interpreter('lumiere', { regles: [active({ suggestion: suggestion() })], articles: catalogue, reglages: REGLAGES });
+    assert.equal(r.decision, 'proposer');
+    assert.equal(r.candidats.find((c) => c.articleId === 'a12').regleId, 'lumiere');
   });
 });
