@@ -1320,3 +1320,83 @@ describe('V3 enregistrer_reponse_vocabulaire : l’apprentissage, sans code (la 
     assert.equal(ligne.action, 'modifier');
   });
 });
+
+// ---------------------------------------------------------------- Devis fluide, PR A1 : numéros partout et récapitulatif court (libellés inventés)
+const devisAvecSections = () => devisEnregistre('n1', {
+  sections: [
+    { id: 'sA', titre: 'Cuisine', lignes: [{ id: 'lA1', libelle: 'Prise double', unite: 'u', quantite: 3, prixAchat: 8 }, { id: 'sautA', type: 'saut' }, { id: 'lA2', libelle: 'Plan de travail', unite: 'ml', quantite: 3.5, prixAchat: 40 }] },
+    { id: 'sB', titre: 'Salle de bain', lignes: [{ id: 'lB1', libelle: 'Carrelage mural', unite: 'm²', quantite: 10, prixAchat: 20 }] },
+  ],
+});
+
+describe('N1 lire_devis : numero et id de chaque section et ligne, calculés', () => {
+  test('N1 la vue complète donne numero + id partout ; le numéro du devis reste le numéro du devis', async () => {
+    const s = await demarrer({ devis: [devisAvecSections()] });
+    const d = ok(await s.appeler('lecteur', 'lire_devis', { id: 'n1' }));
+    assert.equal(d.numero, null, 'le numéro du devis (DEV-…) ne change pas de sens');
+    assert.deepEqual(d.sections.map((x) => [x.numero, x.id]), [['1', 'sA'], ['2', 'sB']]);
+    assert.deepEqual(d.sections[0].lignes.map((l) => [l.numero, l.id]), [['1.1', 'lA1'], [undefined, 'sautA'], ['1.2', 'lA2']], 'un saut de page n’a pas de numéro');
+    assert.equal(d.sections[1].lignes[0].numero, '2.1');
+    assert.equal(s.doc('devis_devis', 'n1').sections[0].numero, undefined, 'le numéro n’est jamais stocké');
+  });
+  test('N1 la réponse de creer_devis_brouillon, modifier_devis_brouillon et nouvelle_version_devis donne la structure courte dans une nouvelle clé `sections`', async () => {
+    const s = await demarrer({ devis: [finalise('f1', 'envoye')] });
+    const ids = await articlesDeBase(s);
+    const c = ok(await s.appeler('biblio', 'creer_devis_brouillon', { sections: [{ titre: 'Sol', lignes: [{ articleId: ids.a, quantite: 10 }, { reference: 'pli', quantite: 5 }] }, { titre: 'Pose', lignes: [{ reference: 'pose-1', quantite: 1 }] }] }));
+    assert.equal(c.numero, null);
+    assert.equal(c.lignes, 3, 'le compteur de lignes reste un nombre');
+    assert.deepEqual(c.sections.map((x) => [x.numero, x.titre]), [['1', 'Sol'], ['2', 'Pose']]);
+    assert.deepEqual(c.sections[0].lignes.map((l) => [l.numero, l.intitule, l.quantite]), [['1.1', 'Carrelage', '10 m²'], ['1.2', 'Plinthe', '5 ml']]);
+    assert.ok(c.sections[0].lignes.every((l) => l.id), 'chaque ligne porte son identifiant');
+    assert.doesNotMatch(JSON.stringify(c.sections), /prixAchat|marge/i);
+    const m = ok(await s.appeler('biblio', 'modifier_devis_brouillon', { id: c.id, ajouterLignes: [{ reference: 'pli', quantite: 2 }] }));
+    assert.ok(Array.isArray(m.champsModifies));
+    assert.deepEqual(m.sections.at(-1).lignes.map((l) => l.numero), ['2.1', '2.2']);
+    const v = ok(await s.appeler('biblio', 'nouvelle_version_devis', { id: 'f1' }));
+    assert.match(v.numero, /^DEV-/);
+    assert.deepEqual(v.sections.map((x) => x.numero), ['1']);
+  });
+});
+
+describe('N2 lire_devis format recapitulatif : numéro, intitulé, quantité, jamais de prix d’achat ni de marge', () => {
+  test('N2 la structure courte et la phrase des totaux avec « hors taxes » en toutes lettres ; clés techniques inchangées', async () => {
+    const s = await demarrer({ devis: [devisAvecSections()] });
+    const r = ok(await s.appeler('lecteur', 'lire_devis', { id: 'n1', format: 'recapitulatif' }));
+    assert.deepEqual(r.sections.map((x) => [x.numero, x.titre]), [['1', 'Cuisine'], ['2', 'Salle de bain']]);
+    assert.deepEqual(r.sections[0].lignes.map((l) => [l.numero, l.intitule, l.quantite]), [['1.1', 'Prise double', '3 u'], ['1.2', 'Plan de travail', '3,5 ml']]);
+    assert.doesNotMatch(JSON.stringify(r), /prixAchat|marge|coefficient|prixVenteUnitaire/i);
+    const complet = ok(await s.appeler('lecteur', 'lire_devis', { id: 'n1' }));
+    assert.equal(r.totalHT, complet.totaux.totalHT);
+    assert.equal(r.totalTTC, complet.totaux.totalTTC);
+    assert.match(r.phraseTotaux, /^Total hors taxes : [\d ]+,\d\d €\. Total TTC : [\d ]+,\d\d €\.$/);
+    assert.doesNotMatch(r.phraseTotaux, /\bHT\b/);
+  });
+  test('N2 avecPrix ajoute seulement le prix de vente unitaire et le total hors taxes de la ligne', async () => {
+    const s = await demarrer({ devis: [devisAvecSections()] });
+    const r = ok(await s.appeler('lecteur', 'lire_devis', { id: 'n1', format: 'recapitulatif', avecPrix: true }));
+    const l = r.sections[0].lignes[0];
+    assert.deepEqual(Object.keys(l).sort(), ['id', 'intitule', 'numero', 'prixVenteUnitaire', 'quantite', 'totalHT']);
+    assert.equal(l.prixVenteUnitaire, 9.6);
+    assert.equal(l.totalHT, 28.8);
+    assert.doesNotMatch(JSON.stringify(r), /prixAchat|marge|coefficient|modeMarge/i);
+  });
+  test('N2 cas vide : un devis sans ligne le dit, total à 0,00 € ; cas d’erreur : devis inconnu', async () => {
+    const s = await demarrer({ devis: [devisEnregistre('vide', { sections: [] })] });
+    const r = ok(await s.appeler('lecteur', 'lire_devis', { id: 'vide', format: 'recapitulatif' }));
+    assert.equal(r.message, "Ce devis n'a encore aucune ligne.");
+    assert.deepEqual(r.sections, []);
+    assert.match(r.phraseTotaux, /Total hors taxes : 0,00 €/);
+    refuse(await s.appeler('lecteur', 'lire_devis', { id: 'inconnu', format: 'recapitulatif' }), /introuvable/i);
+  });
+});
+
+describe('N3 descriptions : une phrase à la fin, rien de réécrit', () => {
+  test('N3 modifier_devis_brouillon dit qu’il aplatit les sous-sections ; lire_devis annonce le récapitulatif ; creer_devis_brouillon annonce `sections`', async () => {
+    const { OUTILS_ECRITURE } = await import('../functions/src/mcp/outils/ecriture.js');
+    const { lire_devis } = await import('../functions/src/mcp/outils/lecture.js');
+    const desc = (n) => OUTILS_ECRITURE.find((o) => o.nom === n).description;
+    assert.match(desc('modifier_devis_brouillon'), /sous-sections faites à l'écran sont perdues/);
+    assert.match(desc('creer_devis_brouillon'), /`sections` : la structure courte/);
+    assert.match(lire_devis.description, /format: 'recapitulatif'/);
+  });
+});
