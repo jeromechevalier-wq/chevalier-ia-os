@@ -162,6 +162,19 @@ describe('Transitions des devis sur Firestore (émulateur)', { skip: emulateur ?
     assert.equal(await lignesAffaire(), avant, 'Firestore range les champs d’une map par nom : la comparaison du détail doit quand même voir « identique »');
   });
 
+  test('C8 recalcul général sur le vrai Firestore : un ancien devis signé est compté, le montant saisi reste, un second passage ne trouve plus rien', async () => {
+    await db.collection(C.affaires).doc('aff1').set({ titre: 'Rénovation', montant: 1500 });
+    await poser('v1', { statut: 'accepte', numero: 'DEV-2026-09-01-001', finaliseLe: Timestamp.fromDate(new Date('2026-09-01T10:00:00Z')), totaux: { ht: 1200, ttc: 1440 } });
+    const apercu = await S.recalculerMontantsAffaires({ donnees, ctx: ctx(), appliquer: false });
+    assert.equal(apercu.total, 1);
+    assert.equal((await brut(C.affaires, 'aff1')).montantDevisHt, undefined, 'l’aperçu n’écrit rien');
+    const r = await S.recalculerMontantsAffaires({ donnees, ctx: ctx(), appliquer: true });
+    assert.equal(r.operations.length, 1);
+    const a = await brut(C.affaires, 'aff1');
+    assert.deepEqual([a.montant, a.montantDevisHt, a.montantDevisNature], [1500, 1200, 'accepte']);
+    assert.equal((await S.recalculerMontantsAffaires({ donnees, ctx: ctx(), appliquer: true })).total, 0);
+  });
+
   test('C8 dans l’espace d’un client, seule l’affaire du client reçoit le montant ; celle de Jérôme n’est pas touchée', async () => {
     await db.collection(C.affaires).doc('aff1').set({ titre: 'Chez Jérôme', montant: 10 });
     await db.doc('clients/a/crm_affaires/aff1').set({ titre: 'Chez le client', montant: 20 });

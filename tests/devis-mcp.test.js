@@ -646,6 +646,31 @@ describe('N4 nouvelle_version_devis', () => {
   });
 });
 
+describe('N10 recalculer_montants_affaires', () => {
+  test('N10 réservé à Claude Code ; aperçu sans écriture, faux code refusé, bon code : seuls les champs calculés changent ; relancé : plus rien à corriger', async () => {
+    const s = await demarrer({ devis: [finalise('f1', 'en_attente_envoi', { totaux: { ht: 96, ttc: 115.2 } })] });
+    refuse(await s.appeler('biblio', 'recalculer_montants_affaires', {}));
+    refuse(await s.appeler('lecteur', 'recalculer_montants_affaires', {}));
+    const avant = JSON.stringify(s.doc('crm_affaires', 'a1'));
+    const apercu = ok(await s.appeler('code', 'recalculer_montants_affaires', {}));
+    assert.equal(apercu.apercu, true);
+    assert.equal(apercu.aCorriger, 1);
+    assert.deepEqual([apercu.affaires[0].affaireId, apercu.affaires[0].apres.nature], ['a1', 'propose']);
+    assert.equal(JSON.stringify(s.doc('crm_affaires', 'a1')), avant, 'l’aperçu n’écrit rien');
+    refuse(await s.appeler('code', 'recalculer_montants_affaires', { codeConfirmation: 'FAUX-CODE' }), /code incorrect/);
+    assert.equal(JSON.stringify(s.doc('crm_affaires', 'a1')), avant);
+    const second = ok(await s.appeler('code', 'recalculer_montants_affaires', {})); // un faux code brûle l'aperçu : on en demande un autre
+    const r = ok(await s.appeler('code', 'recalculer_montants_affaires', { codeConfirmation: second.code }));
+    assert.deepEqual([r.change, r.corrigees, r.restantes], [true, 1, 0]);
+    const a = s.doc('crm_affaires', 'a1');
+    assert.equal(a.montantDevisNature, 'propose');
+    assert.equal(typeof a.montantDevisHt, 'number');
+    assert.deepEqual(Object.keys(a).filter((k) => !Object.keys(JSON.parse(avant)).includes(k)).sort(), ['montantDevisDetail', 'montantDevisHt', 'montantDevisNature']);
+    assert.equal(a.montant, JSON.parse(avant).montant, 'le montant saisi est intact');
+    assert.equal(ok(await s.appeler('code', 'recalculer_montants_affaires', {})).aCorriger, 0);
+  });
+});
+
 describe('N5 archiver_devis', () => {
   test('N5 archive un devis signé, le désarchive, refuse le reste ; la restauration défait l’archivage même sur un devis finalisé', async () => {
     const s = await demarrer({ devis: [finalise('s1', 'accepte'), finalise('e1', 'envoye'), finalise('f1', 'en_attente_envoi'), devisEnregistre('b1')] });

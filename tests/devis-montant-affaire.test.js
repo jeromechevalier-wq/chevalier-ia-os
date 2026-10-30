@@ -217,6 +217,61 @@ describe('N4 ce qui ne doit pas changer l’affaire', () => {
   });
 });
 
+describe('N7 recalcul général (outil recalculer_montants_affaires)', () => {
+  const ancien = (id, affaireId, extra = {}) => ({ ...brouillon(id, 100, { affaireId }), statut: 'accepte', accepteLe: new Date('2026-09-01T10:00:00Z'), finaliseLe: new Date('2026-08-30T10:00:00Z'), numero: `DEV-2026-09-01-${id}`, totaux: { ht: 1200, ttc: 1440 }, ...extra });
+  const monde3 = () => {
+    const m = monde({ devis: [ancien('001', 'aff1'), ancien('002', 'aff2', { statut: 'envoye', accepteLe: undefined })] });
+    m.collections[C.affaires].push({ id: 'aff2', titre: 'Deuxième', montant: 700 }); // devis proposé, jamais calculé
+    m.collections[C.affaires].push({ id: 'aff3', titre: 'Périmée', montant: 300, montantDevisHt: 999, montantDevisNature: 'accepte', montantDevisDetail: [{ numero: 'DEV-X', version: 1, ht: 999, compte: true }] }); // plus aucun devis
+    m.collections[C.affaires].push({ id: 'aff4', titre: 'Sans devis', montant: 50 });
+    return m;
+  };
+  test('N7 l’aperçu liste les affaires à corriger (avant, après) et n’écrit RIEN', async () => {
+    const m = monde3();
+    const avant = JSON.stringify(m.collections);
+    const r = await S.recalculerMontantsAffaires({ donnees: m.donnees, ctx: ctx(), appliquer: false });
+    assert.equal(JSON.stringify(m.collections), avant);
+    assert.equal(r.total, 3);
+    assert.deepEqual(r.lignes.map((l) => [l.affaireId, l.avant.ht, l.apres.ht, l.apres.nature]), [['aff1', null, 1200, 'accepte'], ['aff2', null, 1200, 'propose'], ['aff3', 999, null, null]]);
+  });
+  test('N7 appliqué : seuls montantDevisHt, montantDevisNature et montantDevisDetail changent (le montant saisi jamais), une ligne de journal par affaire corrigée', async () => {
+    const m = monde3();
+    const r = await S.recalculerMontantsAffaires({ donnees: m.donnees, ctx: ctx(), appliquer: true });
+    assert.equal(r.operations.length, 3);
+    assert.deepEqual(['aff1', 'aff2', 'aff3', 'aff4'].map((id) => affaireDe(m, id).montant), [1500, 700, 300, 50], 'le montant saisi est intact');
+    assert.deepEqual([affaireDe(m, 'aff1').montantDevisHt, affaireDe(m, 'aff1').montantDevisNature], [1200, 'accepte']);
+    assert.deepEqual([affaireDe(m, 'aff2').montantDevisHt, affaireDe(m, 'aff2').montantDevisNature], [1200, 'propose']);
+    assert.deepEqual([affaireDe(m, 'aff3').montantDevisHt, affaireDe(m, 'aff3').montantDevisNature, affaireDe(m, 'aff3').montantDevisDetail], [null, null, null], 'calcul périmé : remis à zéro');
+    assert.equal(Object.keys(affaireDe(m, 'aff4')).sort().join(), 'id,montant,titre', 'une affaire sans devis n’est pas touchée');
+    const lignes = m.collections[C.audit].filter((l) => l.outil === 'devisRecalculMontant');
+    assert.deepEqual(lignes.map((l) => l.docId).sort(), ['aff1', 'aff2', 'aff3']);
+    assert.ok(lignes.every((l) => l.collection === C.affaires && l.champsModifies.every((c) => c.startsWith('montantDevis'))));
+  });
+  test('N7 le journal du recalcul ne se restaure pas (restaurer_depuis_audit refuse, même avec forcer) et l’écriture d’après un aperçu ne reprend que les affaires données', async () => {
+    const m = monde3();
+    const { restaurerOperation } = await import('../functions/src/coeur/restaurer.js');
+    const r = await S.recalculerMontantsAffaires({ donnees: m.donnees, ctx: ctx(), appliquer: true, affaireIds: ['aff2'] });
+    assert.deepEqual([r.operations.length, affaireDe(m, 'aff1').montantDevisHt, affaireDe(m, 'aff2').montantDevisNature], [1, undefined, 'propose'], 'seule l’affaire donnée est écrite');
+    for (const forcer of [false, true]) {
+      await assert.rejects(() => restaurerOperation({ donnees: m.donnees, ctx: ctx(), operationId: r.operations[0], apercu: false, forcer }), (e) => e.code === 'restauration_refusee');
+    }
+  });
+  test('N7 idempotent : relancé, il ne trouve plus rien et n’écrit ni affaire ni journal', async () => {
+    const m = monde3();
+    await S.recalculerMontantsAffaires({ donnees: m.donnees, ctx: ctx(), appliquer: true });
+    const avant = JSON.stringify(m.collections);
+    const r = await S.recalculerMontantsAffaires({ donnees: m.donnees, ctx: ctx(), appliquer: true });
+    assert.deepEqual([r.total, r.operations.length], [0, 0]);
+    assert.equal(JSON.stringify(m.collections), avant);
+  });
+  test('N7 un devis dont l’affaire n’existe plus est ignoré : rien n’est créé', async () => {
+    const m = monde({ affaire: null, devis: [ancien('001', 'aff1')] });
+    const r = await S.recalculerMontantsAffaires({ donnees: m.donnees, ctx: ctx(), appliquer: true });
+    assert.equal(r.total, 0);
+    assert.equal(m.collections[C.affaires].length, 0);
+  });
+});
+
 describe('N5 la lecture commune à tous les écrans', () => {
   test('N5 montantAffaire : calculé d’abord, sinon saisi, sinon null ; une valeur négative ou illisible est ignorée', () => {
     assert.equal(LEcran.montantAffaire({ montant: 1500 }), 1500);
