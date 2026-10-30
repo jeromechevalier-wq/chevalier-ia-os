@@ -4,6 +4,8 @@
 import { getApps, initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getStorage } from 'firebase-admin/storage';
+import { creerSortieN8n } from '../serveur/src/coeur/n8n-sortie.js';
+import { creerLecteurSecrets } from '../serveur/src/securite/secrets.js';
 import { creerStockage } from '../serveur/src/devis/stockage.js';
 import { creerAccesFirestore } from '../serveur/src/coeur/donnees.js';
 import { creerLimiteur } from '../serveur/src/securite/limites.js';
@@ -23,5 +25,7 @@ export function creerMcpClients() {
   const oauth = creerRouteurOauthClients({ donnees, verifierIdToken, espaces: creerEspaces({ donnees }) });
   // Fichiers de l'onglet « Documents » déposés par un assistant (texte seulement) : le compte du MCP des clients doit avoir « Administrateur des objets » sur clients/ (docs/securite-et-pannes.md) ; sans lui, l'outil répond « droit manquant ».
   const stockage = () => { try { return creerStockage({ bucket: getStorage().bucket(BUCKET) }); } catch { return null; } };
-  return creerGestionnaireClients({ donnees, oauth, limiteur: creerLimiteur({ donnees }), stockage });
+  // Brouillon d'e-mail d'un devis (jamais d'envoi) : un workflow et des secrets PAR CLIENT, lus dans Secret Manager à l'appel (coeur/n8n-sortie.js). Le compte du MCP des clients doit avoir « Accesseur de secrets » sur ces secrets, sinon l'outil répond « pas branché ».
+  const sortieEmail = creerSortieN8n({ lireSecret: creerLecteurSecrets({ projet: 'chevalier-ia-app' }) });
+  return creerGestionnaireClients({ donnees, oauth, limiteur: creerLimiteur({ donnees }), stockage, sortieEmail });
 }

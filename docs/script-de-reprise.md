@@ -58,7 +58,7 @@ Relecture Fable obligatoire (serveur). Captures de recette en format ordinateur 
 ## Ce qui reste dans la session principale (décisions de Jérôme)
 - Réponses Q1 à Q10 de `docs/proposition-dictionnaire-vocabulaire.md` (valeurs par défaut déjà en place).
 - Prix d'achat visibles ou non par l'assistant (aujourd'hui seule `lister_devis` les cache).
-- PR 388 « Montant de l'affaire » : libellés, règle HT/TTC/acceptés, lien avec le Kanban.
+- PR « Montant de l'affaire » (remplace la 388) : libellés, infobulle, recalcul de ses affaires actuelles (voir `docs/montant-affaire.md`).
 - Dates des travaux obligatoires à la finalisation (avis de Claude : non).
 - Études n°11 (e-mail hors Google) et n°12 (affaire vers projet).
 - Choix de la prochaine « nuit » de code (programme dans `.github/A-FAIRE.md`).

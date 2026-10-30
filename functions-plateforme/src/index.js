@@ -64,7 +64,7 @@ export const automatisationsRenommer = onCall(
 // MCP des clients : un lien par client (https://chevalier-ia-app.web.app/mcp/<client>), comptes lus dans les membres, profil déduit du rôle.
 // Invocation publique côté Google (comme le MCP de Jérôme) : la vraie porte est la connexion Google + la fiche de membre, revérifiées à chaque appel.
 // Le nom « mcpclients » est celui du service Cloud Run visé par les réécritures de firebase.plateforme.json. Code : functions/src/clients/ (copié dans serveur/ au déploiement).
-// Compte dédié : seulement « Utilisateur Cloud Datastore » (Firestore). À créer AVANT le déploiement (docs/mcp-clients.md), sinon le déploiement échoue.
+// Compte dédié `mcp-clients@` : Firestore, « Créateur d'objets Storage » (dépôt de texte), secrets du brouillon d'e-mail, et (à donner, docs/securite-et-pannes.md section 12) la lecture du stockage + la signature de ses liens.
 export const mcpclients = onRequest(
   { region: REGION, maxInstances: 3, memory: '256MiB', timeoutSeconds: 120, invoker: 'public', cors: false, serviceAccount: 'mcp-clients@chevalier-ia-app.iam.gserviceaccount.com' },
   creerMcpClients(),
@@ -93,6 +93,7 @@ export const devisNouvelleVersion = appelDevis('nouvelleVersion');
 export const devisArchiver = appelDevis('archiver');
 export const devisSupprimer = appelDevis('supprimer');
 export const devisEnregistrerEnvoi = appelDevis('enregistrerEnvoi'); // historique des envois par e-mail
+export const devisModifierDestinataires = appelDevis('modifierDestinataires'); // destinataire et copie d'un devis finalisé ou envoyé (rien d'autre ne change)
 
 // `automatisationsDecider` chez les clients (28/10/2026) : écran « À valider » du module Automatisations (valider, refuser, relancer une proposition), même code métier que chez Jérôme
 // (serveur/src/coeur/propositions.js). Le client est une cible vérifiée (éditeur du client, module « automatisations » actif), jamais une confiance ; tout s'écrit sous clients/<client>/.

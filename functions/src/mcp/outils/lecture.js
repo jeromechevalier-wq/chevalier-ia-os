@@ -1,6 +1,7 @@
 // Outils de lecture (profils lecteur, bibliothécaire et Claude Code) : aucun n'écrit dans la base ni dans l'audit.
 import { z } from 'zod';
 import * as lecture from '../../coeur/lecture.js';
+import * as metier from '../../coeur/metier.js';
 import { resumerForme, phraseDe, ligneDeDiagnostic } from '../diagnostic-fichiers.js';
 
 const TOUS = ['lecteur', 'bibliothecaire', 'claude-code'];
@@ -205,6 +206,15 @@ export const lire_devis = {
   executer: ({ args, donnees, maintenant }) => lecture.lireDevis(donnees, args, maintenant),
 };
 
+// Garantie « aucun e-mail ne part tout seul » (29/10/2026) : le seul moyen d'obtenir le PDF d'un devis. Ne fabrique rien (le PDF est fait par le serveur à la finalisation).
+export const obtenir_pdf_officiel_devis = {
+  nom: 'obtenir_pdf_officiel_devis',
+  profils: TOUS,
+  description: "À n'appeler QUE si l'utilisateur demande explicitement le PDF d'un devis. Donne le PDF OFFICIEL d'un devis finalisé (celui que le serveur a fabriqué à la finalisation ; ni prix d'achat ni marge) : un lien de lecture COURT (5 minutes, `lien`) et le lien du devis dans l'application (`lienApplication`, connexion nécessaire). C'est le SEUL PDF de devis à utiliser : ne fabrique JAMAIS un autre PDF toi-même, même « de démonstration ». Ne transmets jamais ce PDF ni ce lien à quelqu'un d'autre sans montrer le destinataire à l'utilisateur et obtenir son « oui » clair. Refusé pour un brouillon de devis, ou si le PDF n'est pas prêt ou introuvable : dans ce cas ARRÊTE-TOI et dis-le à l'utilisateur, n'envoie rien. Un avertissement signale un devis qui n'est plus en cours (remplacé, refusé, expiré, archivé) ou l'absence de lien direct. Pour préparer l'e-mail avec ce PDF joint : preparer_email.",
+  schema: { id: id.describe('Identifiant du devis finalisé (voir lister_devis).') },
+  executer: ({ args, ...c }) => metier.pdfOfficielDevis(c, args),
+};
+
 // TEMPORAIRE : diagnostic de ce que l'assistant envoie quand on joint un fichier (à retirer après l'essai). Lecture seule : ni base, ni audit, ni téléchargement.
 export const diagnostiquer_fichiers = {
   nom: 'diagnostiquer_fichiers',
@@ -222,4 +232,4 @@ export const diagnostiquer_fichiers = {
   },
 };
 
-export const OUTILS_LECTURE = [diagnostiquer_fichiers, chercher, lire_personne, lire_organisation, lire_affaire, lister_affaires, lister_projets, lire_projet, lister_modeles_projet, lister_activites, lister_documents, lire_reglages, lire_audit, lister_articles, chercher_article, rechercher_article_par_phrase, lire_reglages_devis, lister_devis, lire_devis];
+export const OUTILS_LECTURE = [diagnostiquer_fichiers, chercher, lire_personne, lire_organisation, lire_affaire, lister_affaires, lister_projets, lire_projet, lister_modeles_projet, lister_activites, lister_documents, lire_reglages, lire_audit, lister_articles, chercher_article, rechercher_article_par_phrase, lire_reglages_devis, lister_devis, lire_devis, obtenir_pdf_officiel_devis];

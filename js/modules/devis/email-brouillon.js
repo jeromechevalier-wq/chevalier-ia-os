@@ -63,6 +63,8 @@ const enMillis = (t) => {
   const ms = t instanceof Date ? t.getTime() : new Date(t).getTime();
   return Number.isFinite(ms) ? ms : null;
 };
+/** D'où est parti l'e-mail (29/10/2026, champ facultatif de la ligne d'envoi : les anciennes lignes n'en ont pas). Le logiciel ne fait que préparer un brouillon ; l'envoi est toujours fait par la personne. */
+export const LIBELLES_ORIGINE_ENVOI = Object.freeze({ brouillon_logiciel: 'depuis le brouillon du logiciel', hors_logiciel: 'hors logiciel' });
 const FORMAT_JOUR = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', day: '2-digit', month: '2-digit', year: 'numeric' });
 const FORMAT_HEURE = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 /** Écart sous lequel `envoyeLe` et le premier envoi de la liste sont le même envoi (le statut est posé juste avant l'historique). */
@@ -74,15 +76,16 @@ const MEME_ENVOI_MS = 10 * 60_000;
  */
 export function historiqueEnvois(devis) {
   const lignes = (Array.isArray(devis?.envois) ? devis.envois : [])
-    .map((e) => ({ ms: enMillis(e?.date), destinataires: adressesDuDevis(e?.destinataires), copie: adressesDuDevis(e?.copie) }))
+    .map((e) => ({ ms: enMillis(e?.date), destinataires: adressesDuDevis(e?.destinataires), copie: adressesDuDevis(e?.copie), origine: Object.hasOwn(LIBELLES_ORIGINE_ENVOI, e?.origine) ? e.origine : null }))
     .filter((e) => e.ms !== null);
   const premier = enMillis(devis?.envoyeLe);
-  if (premier !== null && !lignes.some((e) => Math.abs(e.ms - premier) < MEME_ENVOI_MS)) lignes.push({ ms: premier, destinataires: [], copie: [] });
+  if (premier !== null && !lignes.some((e) => Math.abs(e.ms - premier) < MEME_ENVOI_MS)) lignes.push({ ms: premier, destinataires: [], copie: [], origine: null });
   return lignes.sort((x, y) => x.ms - y.ms).map((e) => {
     const jour = FORMAT_JOUR.format(new Date(e.ms));
     const heure = FORMAT_HEURE.format(new Date(e.ms)).replace(':', ' h ');
     const aQui = e.destinataires.length ? ` à ${e.destinataires.join(', ')}` : '';
     const copie = e.copie.length ? `, en copie : ${e.copie.join(', ')}` : '';
-    return { ...e, jour, heure, texte: `Envoyé le ${jour} (${heure})${aQui}${copie}` };
+    const origine = e.origine ? ` (${LIBELLES_ORIGINE_ENVOI[e.origine]})` : '';
+    return { ...e, jour, heure, texte: `Envoyé le ${jour} (${heure})${aQui}${copie}${origine}` };
   });
 }

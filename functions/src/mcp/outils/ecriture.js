@@ -6,7 +6,8 @@ import * as PL from '../../../partage/projets.js';
 import * as DA from '../../../partage/devis-articles.js';
 import * as DEVIS from '../../../partage/devis.js';
 import * as metier from '../../coeur/metier.js';
-import { ACTIONS_STATUT, MAX_ADRESSES_ENVOI } from '../../coeur/devis.js';
+import { TYPES_SOURCE_EMAIL } from '../../coeur/brouillon-email.js';
+import { ACTIONS_STATUT, MAX_ADRESSES_ENVOI, ORIGINES_ENVOI } from '../../coeur/devis.js';
 
 const PROFILS = ['bibliothecaire', 'claude-code'];
 const id = z.string().min(1).max(200);
@@ -64,12 +65,12 @@ export const OUTILS_ECRITURE = [
 
   outil('creer_affaire', `Crée une affaire avec son événement. Le titre par défaut est le nom de l'organisation, sinon de la personne ; l'organisation de la personne est reprise si aucune n'est donnée. Étape (défaut : la première étape active) parmi celles de lire_reglages (configuration.etapes, referentiels.etapes). Priorité : ${L.PRIORITES.map((p) => p.id).join(', ')}. L'affaire part avec une note épinglée vide (de quoi parle l'affaire) : son identifiant est rendu dans noteEpingleeId ; l'écrire avec modifier_note.`, {
     titre: z.string().max(300).optional(), personneId: id.optional(), organisationId: id.optional(), etape: z.string().max(60).optional(), priorite: z.string().max(40).optional(),
-    montant: z.number().min(0).max(1e9).nullable().optional().describe('Montant en euros.'), offreId: id.optional(), dureeJours: z.number().int().min(0).max(36500).nullable().optional(),
+    montant: z.number().min(0).max(1e9).nullable().optional().describe("Montant saisi à la main, en euros. Dès qu'un devis de l'affaire est finalisé, l'écran montre à la place le montant calculé par le serveur d'après les devis (montantDevisHt : somme HT des devis acceptés, sinon HT du devis proposé le plus récent) ; le montant saisi reste enregistré et revient s'il n'y a plus de devis."), offreId: id.optional(), dureeJours: z.number().int().min(0).max(36500).nullable().optional(),
     source: sourceListe, besoin: z.string().max(5000).optional(), urlGithub, urlDossier, proprietaire, description: descriptionAncienne,
   }, metier.creerAffaire),
 
   outil('modifier_affaire', "Modifie des champs d'une affaire : titre, personneId et organisationId (null pour détacher), montant, priorite, offreId, dureeJours, source, besoin, urlGithub, urlDossier, archive. Pour l'étape ou le statut, utiliser changer_etape, marquer_perdue, rouvrir_affaire.", {
-    id, titre: z.string().min(1).max(300).optional(), personneId: id.nullable().optional(), organisationId: id.nullable().optional(), montant: z.number().min(0).max(1e9).nullable().optional(),
+    id, titre: z.string().min(1).max(300).optional(), personneId: id.nullable().optional(), organisationId: id.nullable().optional(), montant: z.number().min(0).max(1e9).nullable().optional().describe("Montant saisi à la main, en euros (le montant calculé d'après les devis, montantDevisHt, est écrit par le serveur et l'emporte à l'écran)."),
     priorite: z.string().max(40).optional(), offreId: id.nullable().optional(), dureeJours: z.number().int().min(0).max(36500).nullable().optional(), source: sourceListe,
     besoin: z.string().max(5000).optional(), urlGithub, urlDossier, archive: z.boolean().optional(), description: descriptionAncienne,
   }, metier.modifierAffaire),
@@ -196,7 +197,20 @@ export const OUTILS_ECRITURE = [
     id: id.describe('Identifiant du devis (statut envoye).'),
     destinataires: z.array(z.string().max(254)).min(1).max(MAX_ADRESSES_ENVOI).describe('Adresses e-mail auxquelles le devis a été envoyé (1 au moins).'),
     copie: z.array(z.string().max(254)).max(DEVIS.MAX_COPIE).optional().describe('Adresses e-mail en copie de cet envoi.'),
+    origine: z.enum(ORIGINES_ENVOI).optional().describe("D'où est parti l'e-mail, à demander à l'utilisateur et à toujours renseigner : brouillon_logiciel = il a envoyé LUI-MÊME le brouillon préparé par le logiciel (preparer_email) ; hors_logiciel = envoi fait autrement (un autre outil, son propre connecteur Gmail, à la main)."),
   }, metier.enregistrerEnvoiDevis),
+
+  outil('modifier_destinataires_devis', "Change le DESTINATAIRE (1 à 10 adresses e-mail valides) et, si donnée, la COPIE d'un devis FINALISÉ ou ENVOYÉ : c'est le seul champ qui se change après la finalisation, il ne change ni le contenu ni le PDF du devis. À utiliser quand l'utilisateur donne l'adresse de son client (preparer_email répond que le devis n'a pas de destinataire). Demande l'adresse à l'utilisateur : n'en invente jamais. Refusé pour un brouillon de devis (modifier_devis_brouillon) ou un devis signé, refusé ou remplacé. La copie reste telle quelle si tu ne la donnes pas. Se défait avec restaurer_depuis_audit seulement dans les cas simples : sinon rappelle l'outil avec l'ancienne adresse. Rien n'est envoyé.", {
+    id: id.describe('Identifiant du devis (finalisé ou envoyé).'),
+    destinataires: z.array(z.string().max(254)).min(1).max(MAX_ADRESSES_ENVOI).describe("Adresse(s) e-mail du client, donnée(s) par l'utilisateur."),
+    copie: z.array(z.string().max(254)).max(DEVIS.MAX_COPIE).optional().describe('Adresses en copie ; absent = la copie actuelle reste.'),
+  }, metier.modifierDestinatairesDevis),
+
+  // Garantie « aucun e-mail ne part tout seul » (29/10/2026) : outil générique, il prépare un BROUILLON, il n'envoie jamais. Le serveur calcule destinataires, objet, texte et pièce jointe depuis l'objet d'origine.
+  outil('preparer_email', "Prépare un BROUILLON d'e-mail pour un objet du logiciel (type « devis » : un devis FINALISÉ, jamais un brouillon de devis) : le logiciel crée, dans la messagerie de l'utilisateur, un brouillon adressé au client avec le PDF officiel joint. Le destinataire, l'objet, le texte et la pièce jointe sont fixés par le logiciel : tu ne les écris pas. Même fonction que le bouton « Préparer l'e-mail » de l'écran. N'ENVOIE RIEN et rien ne part tout seul : l'utilisateur ouvre son brouillon, le relit et l'envoie LUI-MÊME. Après l'appel, dis-lui d'ouvrir son brouillon ; ne l'envoie jamais à sa place. Refusé si le devis est un brouillon, s'il n'a pas de destinataire, si son PDF n'est pas prêt, si une préparation vient d'être faite (3 minutes) ou si la préparation n'est pas branchée pour cet espace : dans tous ces cas, arrête-toi et dis-le, n'envoie rien par un autre moyen. Quand l'utilisateur confirme avoir envoyé l'e-mail, enregistrer_envoi_devis (origine brouillon_logiciel) garde la trace.", {
+    type: z.enum(TYPES_SOURCE_EMAIL).describe("Type de l'objet d'origine : « devis » (seul type pour l'instant)."),
+    id: id.describe("Identifiant de l'objet d'origine (pour un devis finalisé : voir lister_devis)."),
+  }, metier.preparerEmail),
 
   // Écriture sensible : le statut d'un devis ne se défait pas avec le journal (trace légale, et « Signé » remplace les autres versions). Claude Code seulement, aperçu puis code.
   outil('changer_statut_devis', "Change le statut d'un devis finalisé, comme les boutons de l'écran : action marquer_envoye (Finalisé -> Envoyé : à faire après l'envoi réel), accepter (Envoyé -> Signé ; les autres versions vivantes du même numéro passent à « Remplacé ») ou refuser (Envoyé -> Refusé). Mêmes règles de transition que l'écran, la date correspondante est posée. N'envoie rien au client. NE SE DÉFAIT PAS avec restaurer_depuis_audit (pour corriger un devis après coup : nouvelle_version_devis). marquer_envoye s'exécute DIRECTEMENT (journal écrit, mais non restaurable par le journal). accepter et refuser demandent une confirmation : le premier appel ne change RIEN et rend un APERÇU (statut avant et après, totaux, versions remplacées) et un code à usage unique ; après l'accord de l'utilisateur, le second appel (mêmes arguments + codeConfirmation) change le statut.", {

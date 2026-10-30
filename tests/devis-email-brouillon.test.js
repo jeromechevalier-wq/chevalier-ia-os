@@ -91,6 +91,18 @@ describe('5 historique des envois', () => {
     const h = E.historiqueEnvois({ envoyeLe: t('2026-10-20T08:00:00Z'), envois: [{ date: t('2026-10-25T13:05:00Z'), destinataires: ['b@x.fr'], copie: [] }] });
     assert.deepEqual(h.map((l) => l.texte), ['Envoyé le 20/10/2026 (10 h 00)', 'Envoyé le 25/10/2026 (14 h 05) à b@x.fr']);
   });
+  test('5 l’origine de l’envoi (brouillon du logiciel ou hors logiciel) est dite ; une valeur inconnue ou absente n’ajoute rien', () => {
+    const h = E.historiqueEnvois({ envois: [
+      { date: t('2026-10-25T13:05:00Z'), destinataires: ['b@x.fr'], copie: [], origine: 'brouillon_logiciel' },
+      { date: t('2026-10-26T13:05:00Z'), destinataires: ['b@x.fr'], copie: [], origine: 'hors_logiciel' },
+      { date: t('2026-10-27T13:05:00Z'), destinataires: ['b@x.fr'], copie: [], origine: 'toString' },
+      { date: t('2026-10-28T13:05:00Z'), destinataires: ['b@x.fr'], copie: [] },
+    ] });
+    assert.deepEqual(h.map((l) => l.texte), [
+      'Envoyé le 25/10/2026 (14 h 05) à b@x.fr (depuis le brouillon du logiciel)', 'Envoyé le 26/10/2026 (14 h 05) à b@x.fr (hors logiciel)',
+      'Envoyé le 27/10/2026 (14 h 05) à b@x.fr', 'Envoyé le 28/10/2026 (14 h 05) à b@x.fr',
+    ]);
+  });
   test('5 cas vide : ni envoi ni date -> liste vide ; des dates illisibles sont ignorées ; des Date et des textes ISO sont acceptés', () => {
     assert.deepEqual(E.historiqueEnvois({}), []);
     assert.deepEqual(E.historiqueEnvois({ envois: [{ date: 'n’importe quoi' }, null, {}] }), []);

@@ -298,7 +298,7 @@ describe('B8 règles Firestore : déclaration (les parcours sont dans regles-pla
 
 describe('B9 assistant : outils déclarés', () => {
   test('B9 le registre déclare les cinq outils du bordereau', () => {
-    assert.deepEqual(moduleDeclare('devis').outilsMcp, ['lister_articles', 'chercher_article', 'lire_reglages_devis', 'creer_article', 'modifier_article', 'desactiver_article', 'lister_devis', 'lire_devis', 'creer_devis_brouillon', 'modifier_devis_brouillon', 'finaliser_devis', 'nouvelle_version_devis', 'archiver_devis', 'enregistrer_envoi_devis', 'changer_statut_devis', 'supprimer_devis', 'rechercher_article_par_phrase', 'enregistrer_reponse_vocabulaire']);
+    assert.deepEqual(moduleDeclare('devis').outilsMcp, ['lister_articles', 'chercher_article', 'lire_reglages_devis', 'creer_article', 'modifier_article', 'desactiver_article', 'lister_devis', 'lire_devis', 'obtenir_pdf_officiel_devis', 'creer_devis_brouillon', 'modifier_devis_brouillon', 'finaliser_devis', 'nouvelle_version_devis', 'archiver_devis', 'enregistrer_envoi_devis', 'preparer_email', 'modifier_destinataires_devis', 'changer_statut_devis', 'supprimer_devis', 'rechercher_article_par_phrase', 'enregistrer_reponse_vocabulaire']);
   });
 });
 
