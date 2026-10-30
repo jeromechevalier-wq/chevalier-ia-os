@@ -70,12 +70,14 @@ export async function fabriquerPdfDevis({ donnees, espace = '', baseLien, prefix
     const reglages = await donnees.document(C.devisParametres, ID_REGLAGES);
     const fiche = devis.organisationId ? await donnees.document(C.organisations, devis.organisationId)
       : devis.personneId ? await donnees.document(C.personnes, devis.personneId) : null;
+    // « À l'attention de » : la personne n'est imprimée que si le devis a une organisation ET une personne (une fiche supprimée entre-temps : pas de ligne).
+    const personne = devis.organisationId && devis.personneId ? await donnees.document(C.personnes, devis.personneId).catch(() => null) : null; // ligne facultative : une lecture qui échoue ne bloque pas le PDF
     // « Mon entreprise » est enregistrée par l'écran sous `entreprise` (donnees.js) ; `emetteur` n'est lu qu'en repli (ancien nom).
     const brutEmetteur = [reglages?.entreprise, reglages?.emetteur].find((x) => x && typeof x === 'object' && !Array.isArray(x) && Object.keys(x).length);
     const emetteur = emetteurSansLogoExterne(brutEmetteur ? enDates(brutEmetteur) : {});
 
     // Vue client : jamais de prix d'achat, de marge ni de coefficient (garanti par vueClient, vérifié par les tests).
-    const vue = D.vueClient(devis, { clientNom: fiche?.nom ?? null });
+    const vue = D.vueClient(devis, { clientNom: fiche?.nom ?? null, attentionNom: personne?.nom ?? null });
     const html = devisHtml(vue, brouillon ? { emetteur, brouillon: true } : { emetteur });
     const { pdf, sha256 } = await convertir(html, { pied: brouillon ? piedParDefaut('Brouillon', { version: devis.version ?? 1, genereLe: ctx?.maintenant ?? new Date() }) : piedParDefaut(devis.numero ?? '') });
 

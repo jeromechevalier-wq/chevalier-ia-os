@@ -415,3 +415,48 @@ describe('R fichiers déposés : dépôt, lien, suppression (faux Cloud Storage,
     await assert.rejects(() => depot(m2, { nom: `${'a'.repeat(401)}.pdf` }), (e) => /trop long/.test(e.message));
   });
 });
+
+describe('Q10 devisPdf : « À l\'attention de » est imprimé quand le devis a une organisation ET une personne', () => {
+  const NBSP = / /g;
+  /** Devis brouillon d'essai (PDF « brouillon » à la demande) : l'organisation org1 est posée ; `personneId` et `nom` sont ceux de la personne. */
+  async function pdfDe({ organisationId = 'org1', personneId = null, personnes = [] } = {}) {
+    const m = await monde({ finaliser: false });
+    Object.assign(m.collections[C.devis][0], { organisationId, personneId });
+    m.collections[C.personnes].push(...personnes);
+    const f = faux();
+    await appel(m, f)(requete({ devisId: 'd1', brouillon: true }));
+    assert.equal(f.vus.html.length, 1);
+    return f.vus.html[0].replace(NBSP, ' ');
+  }
+  test('Q10.1 organisation + personne : le nom du client, puis « À l\'attention de » et le nom de la personne', async () => {
+    const html = await pdfDe({ personneId: 'p1', personnes: [{ id: 'p1', nom: 'Marie Dupont' }] });
+    assert.match(html, /<div class="nom">Société Cliente Essai<\/div><div>À l’attention de Marie Dupont<\/div>/);
+  });
+  test('Q10.2 organisation seule : pas de ligne « À l\'attention de »', async () => {
+    const html = await pdfDe({ personnes: [{ id: 'p1', nom: 'Marie Dupont' }] });
+    assert.match(html, /Société Cliente Essai/);
+    assert.doesNotMatch(html, /attention de/);
+  });
+  test('Q10.3 personne seule : elle reste le client, sans ligne « À l\'attention de »', async () => {
+    const html = await pdfDe({ organisationId: null, personneId: 'p1', personnes: [{ id: 'p1', nom: 'Marie Dupont' }] });
+    assert.match(html, /<div class="nom">Marie Dupont<\/div>/);
+    assert.doesNotMatch(html, /attention de/);
+  });
+  test('Q10.4 accents, apostrophe et signes HTML dans le nom sont échappés ; cas d\'erreur : fiche supprimée ou sans nom = pas de ligne, le PDF se fabrique quand même', async () => {
+    const html = await pdfDe({ personneId: 'p1', personnes: [{ id: 'p1', nom: 'Hélène d\'Estaing <b>&' }] });
+    assert.match(html, /À l’attention de Hélène d&#39;Estaing &lt;b&gt;&amp;/);
+    assert.doesNotMatch(html, /<b>/);
+    assert.doesNotMatch(await pdfDe({ personneId: 'disparue' }), /attention de/);
+    assert.doesNotMatch(await pdfDe({ personneId: 'p1', personnes: [{ id: 'p1', nom: '  ' }] }), /attention de/);
+  });
+  test('Q10.6 cas d\'erreur : si la lecture de la personne échoue, le PDF se fabrique sans la ligne', async () => {
+    const m = await monde({ finaliser: false });
+    Object.assign(m.collections[C.devis][0], { personneId: 'p1' });
+    const lire = m.donnees.document.bind(m.donnees);
+    m.donnees.document = async (col, id) => { if (col === C.personnes) throw new Error('Firestore indisponible'); return lire(col, id); };
+    const f = faux();
+    const r = await appel(m, f)(requete({ devisId: 'd1', brouillon: true }));
+    assert.equal(r.statut, 'ok');
+    assert.doesNotMatch(f.vus.html[0], /attention de/);
+  });
+});
