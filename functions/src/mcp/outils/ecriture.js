@@ -31,7 +31,7 @@ const lignesDevis = z.array(ligneDevis).max(200).describe("Lignes à plat, copi�
 const sectionsDevis = z.array(z.object({ titre: z.string().max(200).optional(), lignes: z.array(ligneDevis).max(200) })).max(50).describe("Sections [{ titre, lignes }].");
 const quantiteLigne = z.number().positive().max(1_000_000).refine((n) => Math.abs(n * 1000 - Math.round(n * 1000)) < 1e-6, '3 décimales au plus');
 const prixVenteLigne = z.number().min(0).max(10_000_000).refine((n) => Math.abs(n * 100 - Math.round(n * 100)) < 1e-6, '2 décimales au plus');
-const operationLigne = z.object({
+export const operationLigne = z.object({
   action: z.enum(ACTIONS_LIGNES).describe("modifier | supprimer | ajouter | ajouterSection | renommerSection | supprimerSection."),
   ligne: z.string().min(1).max(200).optional().describe("modifier, supprimer : numéro de la ligne (« 1.2 »), écrit entre guillemets, ou son identifiant."),
   section: z.string().min(1).max(200).optional().describe("ajouter, renommerSection, supprimerSection : numéro de la section (« 1 ») ou son identifiant (jamais son titre)."),
@@ -199,6 +199,13 @@ export const OUTILS_ECRITURE = [
     id: id.describe('Identifiant du brouillon de devis (voir lister_devis).'),
     operations: z.array(operationLigne).max(MAX_OPERATIONS_LIGNES).describe(`Les opérations, dans l'ordre (${MAX_OPERATIONS_LIGNES} au plus).`),
   }, metier.modifierLignesDevis),
+
+  outil('creer_devis_depuis_modele', `Crée un NOUVEAU brouillon de devis à partir d'un devis existant (modeleId : n'importe quel devis lisible, voir lister_devis ; le modèle n'est JAMAIS modifié), en un seul appel. Les lignes sont reprises aux prix du catalogue d'AUJOURD'HUI, avec leur ancienne quantité ; un prix de vente forcé à la main sur le modèle n'est pas repris. Ne sont PAS copiées : les lignes dont l'article est désactivé ou supprimé et les lignes libres (listées dans aReviser, avec leur numéro DANS LE MODÈLE : redis-les à l'utilisateur, elles sont à ajouter ou à refaire), ni les adresses, ni les destinataires, ni le chantier, ni les acomptes, ni la remise du modèle. Les lignes de texte sont copiées telles quelles mais listées aussi dans aReviser (elles peuvent citer l'ancien client ou chantier). La marge et la TVA sont celles des réglages d'aujourd'hui. Le client du nouveau devis se donne comme pour creer_devis_brouillon (organisationId OU personneId, sinon celui de l'affaire ; affaireId facultatif). ajustements (${MAX_OPERATIONS_LIGNES} au plus, tout ou rien) : les mêmes opérations que modifier_lignes_devis, appliquées tout de suite, avec les numéros DU MODÈLE (« 1.2 » = ligne 2 de la section 1 du modèle, attendu = son libellé lu dans lire_devis) ; une opération qui vise une ligne non copiée est refusée. Un refus n'écrit rien. Renvoie l'identifiant du nouveau brouillon, la structure courte (sections), les totaux hors taxes et TTC, phraseTotaux (la phrase des totaux à redire telle quelle), aReviser et l'operationId. Pour le retirer : supprimer_devis (Claude Code) ou l'écran ; annuler_derniere_modification_devis répond « rien à annuler » juste après la création.`, {
+    modeleId: id.describe('Identifiant du devis qui sert de modèle (voir lister_devis).'),
+    affaireId: id.optional(), organisationId: id.optional(), personneId: id.optional(),
+    ajustements: z.array(operationLigne).max(MAX_OPERATIONS_LIGNES).optional().describe(`Opérations de modifier_lignes_devis, numéros du MODÈLE (${MAX_OPERATIONS_LIGNES} au plus).`),
+    proprietaire,
+  }, metier.creerDevisDepuisModele),
 
   outil('annuler_derniere_modification_devis', "Annule la DERNIÈRE modification d'un BROUILLON de devis (celle qu'on vient de faire avec modifier_lignes_devis ou modifier_devis_brouillon) et répond en une phrase ce qui a été remis (« J'ai remis la ligne 1.2 à 3 prises »). UN SEUL niveau : l'appeler deux fois de suite répond « déjà annulé », et une annulation ne se défait pas toute seule (pour refaire, redemande la modification). Refusé si le devis est finalisé, si le journal n'a rien à annuler, si la dernière modification vient de l'écran (à défaire à l'écran), si le devis vient d'être créé (utilise supprimer_devis) ou s'il a changé depuis la modification (rien n'est écrit). L'annulation s'écrit au journal sous son propre nom ; rien n'est effacé.", {
     id: id.describe('Identifiant du brouillon de devis (voir lister_devis).'),

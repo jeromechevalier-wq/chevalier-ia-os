@@ -193,7 +193,7 @@ Une PR = un sujet, fusionnée dans la journée, jamais deux PR d'outils en paral
 | **12** | Revue : historique et retour en arrière | bouton « Revenir à cette version » (patch des champs de la liste blanche), historique par élément (filtre en mémoire, index si lent) | M | Oui | non |
 | **13** | *(prérequis)* Requête bornée par date | `donnees.liste` avec borne de date dans les quatre implémentations ; test dans le double mémoire | S | Oui | non |
 | **14** | Devis proches : trouver | `trouver_devis_proches` (lecture) et module pur `historique` ; 78 outils, 23 dans `OUTILS_DEVIS` | M à L | Oui | non |
-| **15** | Devis proches : partir d'un devis (outil MCP) | `creer_devis_depuis_modele` (réutilise `repriserSections` de la PR 5 et dépend de la PR 3 pour `ajustements`) ; 79 outils, 24 dans `OUTILS_DEVIS` | M | Oui | non |
+| **15** | Devis proches : partir d'un devis (outil MCP) | `creer_devis_depuis_modele` (réutilise `repriserSections` de la PR 5 et dépend de la PR 3 pour `ajustements`) ; 80 outils, 25 dans `OUTILS_DEVIS` | M | Oui | non |
 | **16** | Ensembles dans la conversation | `suggestions` + `phrasePourquoi` dans `rechercher_article_par_phrase` et `trouver_devis_proches`, **seulement après la PR 11** ; proposition « en faire un [mot] » | S à M | Oui | non |
 | **17** | Docs, version, wiki | la docs de chaque sujet va dans **sa PR de code** ; une seule PR finale pour la version et le wiki | S | non requise | non |
 
@@ -265,7 +265,7 @@ Procédure de `CLAUDE.md` : chaque point = une phrase observable, **un test dont
 | **U2** | refus si la dernière écriture vient de l'écran, si le devis a changé depuis, s'il est finalisé | idem |
 | **H1** | un devis des 12 derniers mois est trouvé, un devis de 13 mois non ; tout brouillon est exclu (vide ou non), un refusé est gardé, un devis exclu de l'apprentissage aussi ; les versions d'une racine comptent une fois | `tests/devis-historique.test.js` (module pur) |
 | **H2** | deux espaces : l'historique de l'un n'apparaît jamais chez l'autre | `tests/mcp-clients.test.js` |
-| **H3** | `creer_devis_depuis_modele` : prix du catalogue d'aujourd'hui (le prix du catalogue a changé depuis), article désactivé dans `aReviser`, aucune adresse ni destinataire du modèle | `tests/devis-mcp.test.js` |
+| **H3** | `creer_devis_depuis_modele` : prix du catalogue d'aujourd'hui (le prix du catalogue a changé depuis), article désactivé dans `aReviser`, aucune adresse ni destinataire du modèle | `tests/devis-depuis-modele-mcp.test.js` |
 | **H4** | historique mince : repli sans erreur | idem |
 | **E1** | l'ensemble de 3 devis ressort avec la quantité médiane ; deux devis ne suffisent pas ; les brouillons sont ignorés | `tests/devis-historique.test.js` |
 | **E2** | règles de `devis_habitudes` : un lecteur lit, un éditeur ne peut ni écrire ni supprimer, un autre client est refusé | `tests/regles.test.js`, `tests/regles-plateforme.test.js` |
