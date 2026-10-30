@@ -114,27 +114,43 @@ export function rendrePersonnes(conteneur) {
     remplir(zoneTableau, h('table', { class: 'tableau tableau-personnes' }, h('thead', {}, entete), h('tbody', {}, corps)));
   }
 
-  const infoContacts = h('span', { class: 'vide-discret', 'data-role': 'dernier-export-contacts' });
-  function majInfoContacts() {
-    const d = D.etat.reglages.dernierExportContacts;
-    infoContacts.textContent = d ? `Dernier export : ${L.formatDateHeure(d)}` : 'Aucun export pour le moment.';
-  }
   const entete = h('header', { class: 'page-tete' },
     h('div', {}, h('h1', {}, 'Personnes'), compteur),
     h('div', { class: 'page-actions' },
-      h('div', { class: 'export-contacts' },
-        h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'exporter-personnes', 'aria-label': 'Exporter les contacts', title: 'Exporter les contacts', onclick: exporterContactsTelephone }, icone('download', { taille: 16 })),
-        infoContacts),
+      h('button', { type: 'button', class: 'bouton bouton-secondaire', 'data-action': 'exporter-personnes', 'aria-label': 'Exporter les contacts', title: 'Exporter les contacts', onclick: ouvrirExportContacts }, icone('download', { taille: 16 })),
       h('button', { type: 'button', class: 'bouton bouton-principal', 'data-action': 'nouvelle-personne', onclick: () => ouvrirCreationPersonne() }, icone('plus', { taille: 16 }), 'Personne')));
   conteneur.append(h('div', { class: 'page page-liste' }, entete, h('div', { class: 'barre-affaires' }, filtres.element, choixTri.element), zoneTableau));
 
-  async function exporterContactsTelephone() {
+  /** Petite fenêtre : tout exporter, ou seulement ce qui a changé depuis le dernier export. */
+  async function ouvrirExportContacts() {
+    const c = L.choixExportContacts(D.etat.personnes, D.etat.reglages.dernierExportContacts);
+    const corps = h('div', { class: 'pile fenetre-export-contacts' },
+      h('p', { 'data-role': 'phrase-export' }, c.phrase),
+      h('p', { class: 'vide-discret', 'data-role': 'detail-export' },
+        ...(c.peutTout
+          ? [`Exporter tout : ${c.nombreTout} ${c.nombreTout > 1 ? 'contacts' : 'contact'}.`, h('br'), `Seulement les modifications : ${c.detailModifs.charAt(0).toLowerCase()}${c.detailModifs.slice(1)}${c.detailModifs.endsWith('.') ? '' : '.'}`]
+          : ["Tu n'as aucun contact à exporter pour le moment."])));
+    const choix = await dialogue({
+      titre: 'Exporter les contacts',
+      contenu: corps,
+      boutons: [
+        { libelle: 'Annuler', valeur: false },
+        { libelle: 'Exporter seulement les modifications', valeur: 'modifs', desactive: !c.peutModifs },
+        { libelle: 'Exporter tout', valeur: 'tout', style: 'principal', desactive: !c.peutTout },
+      ],
+    });
+    if (choix === 'tout' || choix === 'modifs') await exporterContactsTelephone(choix);
+  }
+
+  async function exporterContactsTelephone(choix) {
     const { nouvelles, modifiees } = L.personnesAExporterVcf(D.etat.personnes, D.etat.reglages.dernierExportContacts);
-    const aExporter = [...nouvelles, ...modifiees];
-    if (!aExporter.length) { toast('Rien de nouveau ni de modifié depuis le dernier export'); return; }
+    const tout = choix === 'tout';
+    const aExporter = tout ? L.personnesExportables(D.etat.personnes) : [...nouvelles, ...modifiees];
+    if (!aExporter.length) { toast(tout ? 'Aucun contact à exporter' : "Rien n'a changé depuis le dernier export"); return; }
     try {
       telecharger(L.nomFichierExport(new Date(), 'contacts'), L.vcardPersonnes(aExporter, { organisations: D.etat.organisations }), 'text/vcard;charset=utf-8');
       await D.noterExportContacts();
+      if (tout) { toast(`Contacts exportés : ${aExporter.length} ${aExporter.length > 1 ? 'contacts' : 'contact'}`); return; }
       const morceaux = [];
       if (nouvelles.length) morceaux.push(`${nouvelles.length} nouveau${nouvelles.length > 1 ? 'x' : ''}`);
       if (modifiees.length) morceaux.push(`${modifiees.length} modifié${modifiees.length > 1 ? 's' : ''}`);
@@ -145,8 +161,7 @@ export function rendrePersonnes(conteneur) {
     }
   }
 
-  const rafraichir = planifier(() => { rendre(); filtres.rafraichir(); majInfoContacts(); });
-  majInfoContacts();
+  const rafraichir = planifier(() => { rendre(); filtres.rafraichir(); });
   rendre();
   const arret = D.surChangement(rafraichir);
   return arret;
