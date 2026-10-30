@@ -85,7 +85,8 @@ test('1 scénario (a) : un client « personne » sans organisation se choisit sa
   expect(d.affaireId ?? null).toBeNull();
   await expect(page.locator('[data-champ="destinataire"]')).toHaveValue('julie@exemple.test'); // le client n'a pas besoin d'affaire pour fournir son e-mail
   await expect(champAffaire(page)).toHaveValue('');
-  await expect(champAffaire(page)).toHaveAttribute('placeholder', 'Choisis ou crée une affaire'); // le client a une affaire : la ligne Affaire propose, sans rien imposer
+  await expect(champAffaire(page)).toHaveAttribute('placeholder', 'Choisis ou crée une affaire');
+  await expect(page.locator('[data-erreur="affaire"]')).toBeHidden(); // le client a une affaire : rien à dire, la ligne Affaire propose sans rien imposer
   await capturer(page, info, '1-client-personne');
   // Cas d'erreur : une seule lettre ne propose rien (seuil de 2 lettres pour toute l'application) ; la croix « Effacer » retire le client.
   await champClient(page).fill('J');

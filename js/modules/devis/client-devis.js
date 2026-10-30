@@ -56,9 +56,9 @@ export function affaireDuClient(affaire, client, affaires, personnes) {
 }
 
 /** Les personnes proposées dans « à l'attention de » : celles de l'organisation, plus la personne déjà posée (celle d'une affaire peut venir d'ailleurs). */
-export function personnesAttention(organisationId, personnes, personneId = null) {
+export function personnesAttention(organisationId, personnes, personneId = null, toutes = personnes) {
   const liste = personnesDeLOrganisation(personnes || [], organisationId);
-  const posee = personneId ? (personnes || []).find((p) => p.id === personneId) : null;
+  const posee = personneId ? (toutes || []).find((p) => p.id === personneId) : null; // une personne archivée déjà posée reste affichée
   return posee && !liste.some((p) => p.id === posee.id) ? [...liste, posee] : liste;
 }
 

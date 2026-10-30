@@ -31,6 +31,7 @@ async function semer() {
   await creerAffaire('a3', { titre: 'Terrasse Alain', personneId: 'p3' });
   await creerAffaire('a4', { titre: 'Toiture voisins', organisationId: 'o2' });
   await creerAffaire('a5', { titre: 'Salle de bains Julie', personneId: 'p1' });
+  await creerAffaire('a6', { titre: 'Ancienne cuisine', organisationId: 'o1', personneId: 'p1', archive: true });
 }
 const LIGNES = [{ id: 'l1', libelle: 'Carrelage', familleId: 'famille-1', type: 'fourniture', quantite: 10, unite: 'm²', prixAchat: 40, prixVente: 60, tauxTva: 20 }];
 async function brouillon(page, valeurs = {}) {
@@ -108,6 +109,7 @@ test('3 personne d’une organisation : la question « Ce devis est pour » (org
   await capturer(page, info, '3-question-organisation');
   await question.locator('[data-choix="personne"]').check();
   await enregistre(page);
+  await expect(page.locator('[data-champ="destinataire"]')).toHaveValue('julie@dupont.test'); // « seule » : l'e-mail de la personne
   d = await lire();
   expect(d.organisationId ?? null).toBeNull();
   expect(d.personneId).toBe('p1');
@@ -183,6 +185,7 @@ test('6 client sans affaire : message permanent, jamais l’affaire d’un autre
   await expect(page.locator('[data-erreur="affaire"]')).toHaveText('Choisis ou crée une affaire pour finaliser ce devis.');
   await expect(champAffaire(page)).toHaveClass(/invalide/);
   await expect(champAffaire(page)).toBeFocused();
+  await expect(page.locator('[data-champ="destinataire"]')).toHaveValue('contact@exemple.fr'); // l'e-mail écrit à la main n'est pas écrasé par le choix du client
   await capturer(page, info, '6-champ-rouge');
   await champAffaire(page).click();
   await capturer(page, info, '6-ligne-creer');
@@ -209,9 +212,12 @@ test('6b second pas : sans réglage d’étape, « + Créer l’affaire » deman
   await expect(page.getByRole('dialog')).toHaveCount(0);
   expect((await listerDocuments('crm_affaires')).length).toBe(avant);
   await capturer(page, info, '6b-dans-quelle-etape');
+  await champAffaire(page).fill('Chantier Z'); // taper abandonne le second pas : la liste redevient celle des affaires et de la création, au nom tapé
+  await expect(suggestions(page)).toHaveText([/\+ Créer l’affaire « Chantier Z »/]);
+  await suggestions(page).first().click();
   await suggestions(page).filter({ hasText: 'Premier contact' }).click();
   await expect.poll(async () => (await listerDocuments('crm_affaires')).length).toBe(avant + 1);
-  expect((await listerDocuments('crm_affaires')).find((a) => a.titre === 'Nouveau Client')).toMatchObject({ etape: 'premier_contact', organisationId: 'o3' });
+  expect((await listerDocuments('crm_affaires')).find((a) => a.titre === 'Chantier Z')).toMatchObject({ etape: 'premier_contact', organisationId: 'o3' }); // au nom tapé, jamais sans nom
 });
 
 test('7 changement de client alors qu’une affaire d’un autre client est choisie : l’affaire se vide et un message le dit', async ({ page }, info) => {
@@ -233,6 +239,15 @@ test('7 changement de client alors qu’une affaire d’un autre client est choi
   await choisir(page, 'Julie', 'Julie Dupont'); // même organisation : l'affaire reste
   await enregistre(page);
   expect((await lire()).affaireId).toBe('a2');
+});
+
+test('7b une affaire archivée du même client reste sur le devis quand on rechoisit ce client (sans message d’affaire retirée)', async ({ page }) => {
+  await semer();
+  await brouillon(page, { organisationId: 'o1', personneId: 'p1', affaireId: 'a6' });
+  await choisir(page, 'Julie', 'Julie Dupont');
+  await enregistre(page);
+  expect((await lire()).affaireId).toBe('a6');
+  await expect(page.locator('[data-info="affaire-videe"]')).toBeHidden();
 });
 
 test('8 rien trouvé : deux lignes « Créer la personne » et « Créer l’organisation », rien n’est créé sans clic ; le clic ouvre la fenêtre habituelle et la fiche créée devient le client', async ({ page }, info) => {

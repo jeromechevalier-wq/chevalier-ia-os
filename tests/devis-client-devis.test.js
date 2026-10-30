@@ -1,7 +1,7 @@
 // Choix du client et de l'affaire d'un devis (js/modules/devis/client-devis.js). Fonctions pures.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { lireChoix, clientDePersonne, clientDOrganisation, clientDAffaire, memeClient, affairesDuClient, affaireDuClient, personnesAttention, emailDestinataire, aideAffaire, MESSAGE_SANS_AFFAIRE_CLIENT } from '../js/modules/devis/client-devis.js';
+import { lireChoix, clientDePersonne, clientDOrganisation, clientDAffaire, memeClient, affairesDuClient, affaireDuClient, personnesAttention, emailDestinataire, aideAffaire, nomAffaireCreee, MESSAGE_SANS_AFFAIRE_CLIENT, MESSAGE_FINALISER_SANS_AFFAIRE } from '../js/modules/devis/client-devis.js';
 
 const personnes = [
   { id: 'p1', nom: 'Julie', organisationId: 'o1' },
@@ -74,5 +74,24 @@ describe('CD choix du client et de l’affaire', () => {
     assert.equal(aideAffaire({ client: { organisationId: 'o1' }, affaireId: null, nbAffaires: 0 }), MESSAGE_SANS_AFFAIRE_CLIENT);
     assert.equal(aideAffaire({ client: { organisationId: 'o1' }, affaireId: null, nbAffaires: 2 }), '');
     assert.equal(aideAffaire({ client: { organisationId: 'o1' }, affaireId: 'a1', nbAffaires: 0 }), '');
+  });
+  test('CD11 personne archivée déjà posée : elle reste dans « à l’attention de »', () => {
+    const toutes = [...personnes, { id: 'p9', nom: 'Archivée', organisationId: 'o2', archive: true }];
+    assert.deepEqual(personnesAttention('o1', personnes, 'p9', toutes).map((p) => p.id), ['p1', 'p2', 'p9']);
+    assert.deepEqual(personnesAttention('o1', personnes, 'p9').map((p) => p.id), ['p1', 'p2']);
+  });
+  test('CD12 nom de l’affaire créée : le texte tapé, sinon le nom du devis, sinon le client ; vide sans rien', () => {
+    assert.equal(nomAffaireCreee('  Cuisine   neuve ', { nom: 'Variante' }), 'Cuisine neuve');
+    assert.equal(nomAffaireCreee('', { nom: 'Variante' }, { organisation: { nom: 'Société' } }), 'Variante');
+    assert.equal(nomAffaireCreee('', {}, { organisation: { nom: 'Société' }, personne: { nom: 'Ana' } }), 'Société');
+    assert.equal(nomAffaireCreee('', {}, { personne: { nom: 'Ana' } }), 'Ana');
+    assert.equal(nomAffaireCreee('  ', {}, {}), '');
+  });
+  test('CD13 une affaire archivée du même client reste « du client » quand on lui passe toutes les affaires', () => {
+    const toutes = [...affaires, { id: 'a7', titre: 'Archivée', organisationId: 'o1', archive: true }];
+    assert.equal(affaireDuClient(toutes.at(-1), { organisationId: 'o1', personneId: 'p1' }, toutes, personnes), true);
+  });
+  test('CD14 le message de finalisation de l’écran est la phrase de Jérôme (celle du serveur ne change pas)', () => {
+    assert.equal(MESSAGE_FINALISER_SANS_AFFAIRE, 'Choisis ou crée une affaire pour finaliser ce devis.');
   });
 });

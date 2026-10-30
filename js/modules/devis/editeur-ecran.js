@@ -1064,6 +1064,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     const ci = champIntelligent({
       id: 'devis-affaire', etiquette: 'Affaire', placeholder: CD.PLACEHOLDER_AFFAIRE, classe: 'champ-affaire-devis', ouvrirAuFocus: true, valeur: elementAffaire(),
       fournir: (saisie) => {
+        if (ref.pasEtape && saisie.trim()) ref.pasEtape = null; // taper un texte abandonne le second pas (la réouverture de la liste se fait champ vide)
         if (ref.pasEtape) { // second pas : les étapes actives, dans la même liste
           const { actives } = etapePourAffaireCreee(null, CRM.etat.config);
           return { groupes: [{ titre: 'Dans quelle étape ?', resultats: actives.map((e) => ({ id: `etape:${e.id}`, libelle: e.libelle })) }] };
@@ -1080,7 +1081,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       surChoix: (el, info) => { if (el || info?.effacement) changerAffaire(el); },
     });
     ci.entree.dataset.champ = 'affaire';
-    ci.entree.addEventListener('input', (e) => { effacerAffaireManquante(); if (e.isTrusted) ref.pasEtape = null; }); // taper (pas l'événement de réouverture de la liste) abandonne le second pas
+    ci.entree.addEventListener('input', () => effacerAffaireManquante());
     ci.entree.addEventListener('keydown', (e) => { if (e.key === 'Escape') ref.pasEtape = null; });
     ci.entree.addEventListener('blur', () => setTimeout(() => { if (document.activeElement !== ci.entree) ref.pasEtape = null; }, 250));
     reprendreValeurEnQuittant(ci, elementAffaire);
@@ -1109,7 +1110,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
   }
   /** « + Créer l'affaire » : crée tout de suite (même écriture que « + Affaire », même journal) et la lie au devis. L'étape vient du réglage ; sinon second pas dans la liste, jamais de repli automatique. */
   async function creerAffaireDeLaListe(titre, etapeChoisie = null) {
-    if (lecture || enCreationAffaire) return; // double clic : une seule création
+    if (lecture || enCreationAffaire || !String(titre).trim()) return; // double clic : une seule création ; jamais d'affaire sans nom
     const etape = etapeAPasser(D.etat.reglages.etapeAffaireCreee, etapeChoisie, CRM.etat.config);
     if (!etape) { // pas d'étape retenue : les étapes actives (ou le message « aucune étape ») s'affichent dans la même liste
       ref.pasEtape = { titre };
@@ -1120,13 +1121,17 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     }
     enCreationAffaire = true;
     ref.pasEtape = null;
+    const clientDepart = clientActuel();
     try {
       const idCree = await CRM.creerAffaire({ titre, personneId: travail.personneId || null, organisationId: travail.organisationId || null, etape });
       await attendreFiche('affaire', idCree);
-      afficherAffaireVidee(null);
-      effacerAffaireManquante();
-      changer({ affaireId: idCree });
-      toast('Affaire créée', { duree: 5000 });
+      if (!CD.memeClient(clientDepart, clientActuel())) toast('L’affaire est créée, mais le client du devis a changé entre-temps : choisis-la dans la liste Affaire si c’est bien celle-ci.', { duree: 8000 });
+      else {
+        afficherAffaireVidee(null);
+        effacerAffaireManquante();
+        changer({ affaireId: idCree });
+        toast('Affaire créée', { duree: 5000 });
+      }
     } catch (e) {
       console.warn(e);
       toast('L’affaire n’a pas pu être créée. Vérifie ta connexion puis réessaie : ton devis est intact.', { type: 'erreur', duree: 8000 });
@@ -1156,7 +1161,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
         radio('organisation', `l’organisation ${orgDeP.nom}, à l’attention de ${p.nom}`, travail.organisationId === orgDeP.id),
         radio('personne', `${p.nom} seule`, !travail.organisationId)));
     } else if (travail.organisationId) {
-      const gens = CD.personnesAttention(travail.organisationId, personnesActives(), travail.personneId);
+      const gens = CD.personnesAttention(travail.organisationId, personnesActives(), travail.personneId, CRM.etat.personnes);
       if (gens.length) {
         contenu.push(h('div', { class: 'attention-devis' },
           h('label', { class: 'texte-discret', for: 'devis-attention' }, 'À l’attention de'),
@@ -1195,7 +1200,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     Object.assign(travail, { organisationId: client.organisationId, personneId: client.personneId });
     if (travail.affaireId) {
       const a = CRM.affaire(travail.affaireId);
-      if (!a || !CD.affaireDuClient(a, client, affaires(), personnesActives())) { afficherAffaireVidee(a ?? { titre: 'Affaire du devis' }); travail.affaireId = null; }
+      if (!a || !CD.affaireDuClient(a, client, CRM.etat.affaires, CRM.etat.personnes)) { afficherAffaireVidee(a ?? { titre: 'Affaire du devis' }); travail.affaireId = null; }
     }
     appliquerClient(ficheClient(), false, emailAttention());
   }
@@ -1218,16 +1223,16 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     }
     const choix = CD.lireChoix(el.id);
     if (choix.type === 'creer') { await creerPuisChoisir(choix); return; }
-    if (choix.type === 'affaire') { changerAffaire(CRM.affaire(choix.id) ? { id: choix.id } : null); return; }
+    if (choix.type === 'affaire') { if (CRM.affaire(choix.id)) changerAffaire({ id: choix.id }); else afficherClient(true); return; }
     if (choix.type === 'personne') {
       const p = CRM.personne(choix.id);
-      if (!p) return;
+      if (!p) { afficherClient(true); return; } // fiche disparue entre-temps : le champ remontre le client enregistré
       ref.depart = 'personne';
       poserClient(CD.clientDePersonne(p, { organisationExiste: Boolean(CRM.organisation(p.organisationId)) }));
     } else if (choix.type === 'organisation' && CRM.organisation(choix.id)) {
       ref.depart = 'organisation';
       poserClient(CD.clientDOrganisation(choix.id));
-    } else return;
+    } else { afficherClient(true); return; }
     majChoix();
   }
   /** « + Créer la personne / l'organisation » : la fiche se crée avec la fenêtre habituelle (rien n'est créé sans ce clic), puis devient le client. */
@@ -1252,6 +1257,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
   }
   function changerAffaire(el) {
     if (lecture) return;
+    if (!el) ref.pasEtape = null;
     if (el && String(el.id).startsWith('creer-affaire:')) { creerAffaireDeLaListe(String(el.id).slice('creer-affaire:'.length)); return; }
     if (el && String(el.id).startsWith('etape:')) { creerAffaireDeLaListe(ref.pasEtape?.titre ?? '', String(el.id).slice('etape:'.length)); return; }
     const a = el ? CRM.affaire(el.id) : null;
@@ -2194,7 +2200,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     const sansAffaire = locales.includes(MESSAGE_AFFAIRE_MANQUANTE);
     if (sansAffaire) montrerAffaireManquante();
     if (locales.length === 1 && sansAffaire) return;
-    if (locales.length) { await listeErreurs('Ce devis ne peut pas encore être finalisé', locales); if (sansAffaire) ref.champAffaire?.focus?.(); return; }
+    if (locales.length) { await listeErreurs('Ce devis ne peut pas encore être finalisé', locales); if (sansAffaire) { ref.champAffaire?.focus?.(); ref.champAffaire?.fermer?.(); } return; }
     const avis = Ed.avertissements(travail);
     const ok = await dialogue({
       titre: 'Finaliser ce devis ?',
