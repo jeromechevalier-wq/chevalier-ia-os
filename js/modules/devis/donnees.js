@@ -198,14 +198,14 @@ export async function creerMotVocabulaire(valeurs) {
 }
 /** Active ou désactive un mot : `{ erreurs }`. */
 export async function changerStatutMot(id, statut, { restaurer = false } = {}) {
-  const plan = V.planChangerStatut(id, statut, { regles: etat.vocabulaire, articles: etat.articles, restaurer });
+  const plan = V.planChangerStatut(id, statut, { regles: etat.vocabulaire, articles: etat.articles, restaurer, aujourdhui: CRM.ctx().aujourdhui });
   if (Object.keys(plan.erreurs).length) return { erreurs: plan.erreurs };
   await CRM.executer(plan.ecritures, V.OUTIL_VOCABULAIRE);
   return { erreurs: {} };
 }
 /** Change l'article d'un mot : `{ erreurs }`. */
 export async function changerArticleMot(id, articleId) {
-  const plan = V.planChangerArticle(id, articleId, { regles: etat.vocabulaire, articles: etat.articles });
+  const plan = V.planChangerArticle(id, articleId, { regles: etat.vocabulaire, articles: etat.articles, aujourdhui: CRM.ctx().aujourdhui });
   if (Object.keys(plan.erreurs).length) return { erreurs: plan.erreurs };
   await CRM.executer(plan.ecritures, V.OUTIL_VOCABULAIRE);
   return { erreurs: {} };

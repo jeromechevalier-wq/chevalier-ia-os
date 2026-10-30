@@ -421,3 +421,86 @@ test('E11 Activer force un mot à confirmer, « Garder cet article » tranche un
   await capturer(page, info, 'E11-liste-apres-revue');
   await capturerTelephone(page, info, 'E11-liste-apres-revue');
 });
+
+// ---------------------------------------------------------------- PR 7b : validation humaine (captures dans devis-vocabulaire-validation/, ordinateur ET téléphone)
+const DOSSIER_VALIDATION = fileURLToPath(new URL('./captures/devis-vocabulaire-validation/', import.meta.url));
+async function capturerValidation(page, info, nom) {
+  await page.screenshot({ path: `${DOSSIER_VALIDATION}${nom}-${info.project.name === 'telephone' ? 'tel' : 'ordi'}.png`, fullPage: true, animations: 'disabled' });
+}
+const JOUR = /^\d{4}-\d{2}-\d{2}$/;
+/** Un mot actif validé à la main, avec une suggestion du serveur (article « Tableau 4 rangées ») pas encore traitée. */
+async function motAvecSuggestion(id = 'tableau_s', valeurs = {}) {
+  await mot(id, {
+    articleId: 'a04', articleLibelle: 'Tableau électrique 2 rangées', validePar: 'humain', valideLe: '2026-09-01', revoirLe: '2027-03-01',
+    suggestion: { articleId: 'a05', articleLibelle: 'Tableau électrique 4 rangées', contradictions: 3, le: '2026-10-28' }, ...valeurs,
+  });
+}
+
+test('7b-1 un mot validé à la main avec une suggestion du serveur est « À trancher » ; « Garder cet article » marque la suggestion traitée sans toucher à la validation', async ({ page }, info) => {
+  await jeuDEssai();
+  await motAvecSuggestion();
+  await ouvrir(page);
+  await expect(ligne(page, 'tableau_s').locator('[data-role="a-trancher"]')).toBeVisible();
+  await expect(ligne(page, 'tableau_s').locator('[data-role="validation"]')).toHaveText('Validé par toi');
+  await expect(ligne(page, 'tableau_s').locator('[data-role="suggestion"]')).toHaveText('L’assistant propose : Tableau électrique 4 rangées (3 contradictions)');
+  await capturerValidation(page, info, '7b-1-a-trancher');
+  await menuDe(page, 'tableau_s').click();
+  await entreeMenu(page, 'Garder cet article').click();
+  await expect(ligne(page, 'tableau_s').locator('[data-role="a-trancher"]')).toHaveCount(0);
+  const doc = await lireDocument('devis_vocabulaire/tableau_s');
+  expect(doc.suggestionTraiteeLe).toMatch(JOUR);
+  expect(doc.suggestionTraiteeLe >= '2026-10-28').toBe(true);
+  expect([doc.validePar, doc.valideLe, doc.articleId, doc.suggestion.articleId]).toEqual(['humain', '2026-09-01', 'a04', 'a05']); // la suggestion reste (serveur seul), la validation aussi
+  await capturerValidation(page, info, '7b-1-gardee');
+});
+
+test('7b-2 « Changer l’article » sur un mot à suggestion marque la suggestion traitée : la pastille « À trancher » disparaît', async ({ page }, info) => {
+  await jeuDEssai();
+  await motAvecSuggestion();
+  await ouvrir(page);
+  await menuDe(page, 'tableau_s').click();
+  await entreeMenu(page, 'Changer l’article').click();
+  await dialogue(page).getByRole('searchbox', { name: 'Chercher un article du catalogue' }).fill('4 rangees');
+  await dialogue(page).locator('[data-article-id="a05"]').click();
+  await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(dialogue(page)).toHaveCount(0);
+  await expect(ligne(page, 'tableau_s').locator('[data-role="a-trancher"]')).toHaveCount(0);
+  const doc = await lireDocument('devis_vocabulaire/tableau_s');
+  expect([doc.articleId, doc.conflit]).toEqual(['a05', false]);
+  expect(doc.suggestionTraiteeLe).toMatch(JOUR);
+  await capturerValidation(page, info, '7b-2-article-change');
+});
+
+test('7b-4 « Activer » un mot à confirmer le valide à la main : « Validé par toi », à revoir dans 6 mois', async ({ page }, info) => {
+  await jeuDEssai();
+  await ouvrir(page);
+  await menuDe(page, 'gaine').click();
+  await entreeMenu(page, 'Activer').click();
+  await expect.poll(async () => (await lireDocument('devis_vocabulaire/gaine')).validePar).toBe('humain');
+  const doc = await lireDocument('devis_vocabulaire/gaine');
+  expect(doc.valideLe).toMatch(JOUR);
+  expect(doc.revoirLe > doc.valideLe).toBe(true);
+  await expect(ligne(page, 'gaine').locator('[data-role="validation"]')).toHaveText('Validé par toi');
+  await capturerValidation(page, info, '7b-4-active-valide');
+});
+
+test('7b-3 un mot ajouté à la main est validé tout de suite (validé par toi, à revoir dans 6 mois) ; cas vide : un ancien mot sans champ de validation se lit « Validé par tes réponses »', async ({ page }, info) => {
+  await jeuDEssai();
+  await ouvrir(page);
+  await page.locator('[data-action="ajouter-mot"]').click();
+  await dialogue(page).getByRole('textbox', { name: 'Expression' }).fill('Gaines annelées');
+  await dialogue(page).getByRole('searchbox', { name: 'Chercher un article du catalogue' }).fill('gaine');
+  await dialogue(page).locator('[data-article-id="a08"]').click();
+  await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(dialogue(page)).toHaveCount(0);
+  const doc = await lireDocument('devis_vocabulaire/gaine_annelee');
+  expect(doc.validePar).toBe('humain');
+  expect(doc.valideLe).toMatch(JOUR);
+  expect(doc.revoirLe).toMatch(JOUR);
+  expect(doc.revoirLe > doc.valideLe).toBe(true);
+  expect('suggestion' in doc || 'suggestionTraiteeLe' in doc).toBe(false);
+  await expect(ligne(page, 'gaine_annelee').locator('[data-role="validation"]')).toHaveText('Validé par toi');
+  await expect(ligne(page, 'prise_double').locator('[data-role="validation"]')).toHaveText('Validé par tes réponses'); // mot sans champ de validation
+  await expect(ligne(page, 'gaine').locator('[data-role="validation"]')).toHaveCount(0); // « à confirmer » : la pastille de statut suffit
+  await capturerValidation(page, info, '7b-3-mot-valide');
+});

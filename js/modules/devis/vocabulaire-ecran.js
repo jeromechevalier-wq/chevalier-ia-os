@@ -11,7 +11,7 @@ import * as D from './donnees.js';
 import * as A from './articles.js';
 import * as V from './vocabulaire-plans.js';
 import { motOuvrage } from './ouvrages.js';
-import { cleDeExpression, identifiantDeRegle, interpreter } from './vocabulaire.js';
+import { cleDeExpression, identifiantDeRegle, interpreter, suggestionEnAttente } from './vocabulaire.js';
 
 const ERREUR_ECRITURE = 'Enregistrement impossible : ton compte n’a peut-être que le droit de lire cet espace, ou la connexion est coupée. Réessaie dans un instant, ou demande à un éditeur de l’espace.';
 const ERREUR_LECTURE = 'La liste des mots appris n’a pas pu être mise à jour. La dernière version reste affichée : vérifie ta connexion puis appuie sur « Réessayer ».';
@@ -311,7 +311,7 @@ export function rendreVocabulaire(conteneur) {
   const menuMot = (r) => {
     const mort = articleMort(r);
     return [
-      ...(r.statut !== 'active' || r.conflit ? [{ libelle: V.estATrancher(r) ? 'Garder cet article' : 'Activer', icone: 'check', desactive: mort, titreInfo: mort ? 'L’article de ce mot est désactivé : change d’abord l’article.' : null, action: () => activer(r) }] : []),
+      ...(V.estATrancher(r) || r.statut !== 'active' ? [{ libelle: V.estATrancher(r) ? 'Garder cet article' : 'Activer', icone: 'check', desactive: mort, titreInfo: mort ? 'L’article de ce mot est désactivé : change d’abord l’article.' : null, action: () => activer(r) }] : []),
       ...(r.statut !== 'desactivee' ? [{ libelle: 'Désactiver', icone: 'archive', action: () => desactiver(r) }] : []),
       ...(mort ? [] : [{ libelle: 'Changer l’article', icone: 'pencil', action: () => ouvrirChangerArticle(r).then(() => rendre()) }]),
       { libelle: r.note ? 'Modifier la note' : 'Ajouter une note', icone: 'sticky-note', action: () => ouvrirNote(r) },
@@ -320,9 +320,11 @@ export function rendreVocabulaire(conteneur) {
 
   function celluleMot(r, tropGeneral) {
     const message = erreursLigne.get(r.id);
+    const suggestion = r.statut === 'desactivee' ? null : suggestionEnAttente(r);
     return h('td', { dataset: { colonne: 'mot', libelle: 'Mot' } },
       h('strong', { class: 'mot-expression' }, r.expression ?? r.cle),
       r.note ? h('p', { class: 'mot-note discret', dataset: { role: 'note' } }, r.note) : null,
+      suggestion ? h('p', { class: 'mot-suggestion discret', dataset: { role: 'suggestion' } }, `L’assistant propose : ${suggestion.articleLibelle || 'un autre article'}${suggestion.contradictions ? ` (${suggestion.contradictions} ${suggestion.contradictions > 1 ? 'contradictions' : 'contradiction'})` : ''}`) : null,
       tropGeneral ? h('p', { class: 'mot-general' }, pastille('Mot trop général', '#8d8993', { dataset: { role: 'trop-general' } })) : null,
       message ? h('p', { class: 'erreur', role: 'alert', dataset: { erreur: 'ligne' } }, message) : null);
   }
@@ -352,6 +354,7 @@ export function rendreVocabulaire(conteneur) {
   }
   function ligneMot(r, tropGeneral) {
     const statut = V.STATUTS.find((s) => s.id === r.statut);
+    const validation = V.validationDe(r);
     return h('tr', { class: `ligne-liste ligne-mot${r.statut === 'desactivee' ? ' mot-desactive' : ''}`, dataset: { id: r.id, statut: r.statut } },
       celluleMot(r, tropGeneral),
       celluleArticle(r),
@@ -361,7 +364,8 @@ export function rendreVocabulaire(conteneur) {
       celluleExemples(r),
       h('td', { dataset: { colonne: 'statut', libelle: 'Statut' } },
         pastille(statut?.libelle ?? V.libelleStatut(r.statut), statut?.couleur ?? '#8d8993', { dataset: { role: 'statut' } }),
-        V.estATrancher(r) ? pastille('À trancher', '#e5484d', { dataset: { role: 'a-trancher' } }) : null),
+        V.estATrancher(r) ? pastille('À trancher', '#e5484d', { dataset: { role: 'a-trancher' } }) : null,
+        validation && validation.id !== 'a_valider' ? h('p', { class: 'mot-validation discret', dataset: { role: 'validation', validation: validation.id } }, validation.libelle) : null),
       h('td', { class: 'col-actions' }, h('button', { type: 'button', class: 'bouton-icone', 'aria-label': `Actions : ${r.expression ?? r.cle}`, 'aria-haspopup': 'menu', dataset: { action: 'menu-mot' }, onclick: (e) => ouvrirMenu(e.currentTarget, menuMot(r)) }, icone('ellipsis', { taille: 18 }))));
   }
 
