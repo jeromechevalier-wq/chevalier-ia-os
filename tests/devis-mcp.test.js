@@ -1008,7 +1008,7 @@ describe('V1 rechercher_article_par_phrase : décision, candidats, prix de vente
       const r = ok(await chercherPhrase(s, phrase));
       const brut = JSON.stringify(r);
       assert.doesNotMatch(brut, /prixAchat|marge|deboursSec|debours/i, `${phrase} : aucun prix d’achat ni marge dans la sortie`);
-      for (const c of r.candidats) assert.deepEqual(Object.keys(c).sort(), ['articleId', 'libelle', 'pourquoi', 'prixVenteHT', 'regleId', 'score', 'unite']);
+      for (const c of r.candidats) assert.deepEqual(Object.keys(c).filter((k) => k !== 'typeAffiche').sort(), ['articleId', 'libelle', 'pourquoi', 'prixVenteHT', 'regleId', 'score', 'unite']); // typeAffiche : le mot du métier d'un ouvrage (V3)
     }
     assert.equal(ok(await chercherPhrase(s, 'forfait pose prise')).candidats[0].prixVenteHT, 100, 'marge propre 0 : prix de vente = 100');
     assert.equal(ok(await chercherPhrase(s, 'ouvrage prise complète')).candidats[0].prixVenteHT, 24, '2 × 12 € (composants à marge de l’espace)');
@@ -1398,5 +1398,70 @@ describe('N3 descriptions : une phrase à la fin, rien de réécrit', () => {
     assert.match(desc('modifier_devis_brouillon'), /sous-sections faites à l'écran sont perdues/);
     assert.match(desc('creer_devis_brouillon'), /`sections` : la structure courte/);
     assert.match(lire_devis.description, /format: 'recapitulatif'/);
+  });
+});
+
+describe('V3 le mot du métier : les réponses de l’assistant portent typeAffiche, l’identifiant ouvrage ne change pas', () => {
+  const choisir = (s, mot) => Object.assign(s.collections.devis_parametres[0], mot);
+  const creerOuvrage = async (s) => {
+    const composant = ok(await s.appeler('biblio', 'creer_article', { libelle: 'Carreau', prixAchat: 10, unite: 'u' })).id;
+    return ok(await s.appeler('biblio', 'creer_article', { libelle: 'Salle de bain complète', unite: 'u', type: 'ouvrage', composants: [{ articleId: composant, quantite: 10 }] })).id;
+  };
+
+  test('V3 lister_articles et chercher_article : typeAffiche seulement sur un ouvrage, type reste « ouvrage »', async () => {
+    const s = await demarrer();
+    choisir(s, { motOuvrage: 'ensemble' });
+    const id = await creerOuvrage(s);
+    const liste = ok(await s.appeler('lecteur', 'lister_articles', {})).articles;
+    const ouvrage = liste.find((a) => a.id === id);
+    assert.equal(ouvrage.type, 'ouvrage');
+    assert.equal(ouvrage.typeAffiche, 'ensemble');
+    assert.equal('typeAffiche' in liste.find((a) => a.libelle === 'Carreau'), false);
+    const trouve = ok(await s.appeler('lecteur', 'chercher_article', { texte: 'salle bain' })).articles[0];
+    assert.deepEqual([trouve.type, trouve.typeAffiche], ['ouvrage', 'ensemble']);
+  });
+
+  test('V3 rechercher_article_par_phrase : le candidat ouvrage porte typeAffiche, et « ensemble salle de bain » le trouve', async () => {
+    const s = await demarrer();
+    choisir(s, { motOuvrage: 'prestation' });
+    const id = await creerOuvrage(s);
+    const r = ok(await s.appeler('lecteur', 'rechercher_article_par_phrase', { phrase: 'prestation salle de bain' }));
+    assert.equal(r.candidats[0].articleId, id);
+    assert.equal(r.candidats[0].typeAffiche, 'prestation');
+    assert.doesNotMatch(JSON.stringify(r), /prixAchat|marge/i);
+  });
+
+  test('V3 lire_devis (complet et récapitulatif) : une ligne issue d’un ouvrage porte typeAffiche, une ligne simple non', async () => {
+    const d = devisEnregistre('dv');
+    d.sections[0].lignes.push({ id: 'l-ouv', libelle: 'Salle de bain', unite: 'u', quantite: 1, prixAchat: 100, ouvrage: { articleId: 'x', composants: [] } });
+    const s = await demarrer({ devis: [d] });
+    choisir(s, { motOuvrage: 'lot' });
+    const plein = ok(await s.appeler('lecteur', 'lire_devis', { id: 'dv' })).sections[0].lignes;
+    assert.equal(plein.find((l) => l.id === 'l-ouv').typeAffiche, 'lot');
+    assert.equal('typeAffiche' in plein.find((l) => l.id === 'l-dv'), false);
+    const recap = ok(await s.appeler('lecteur', 'lire_devis', { id: 'dv', format: 'recapitulatif' })).sections[0].lignes;
+    assert.equal(recap.find((l) => l.id === 'l-ouv').typeAffiche, 'lot');
+    assert.equal('typeAffiche' in recap.find((l) => l.id === 'l-dv'), false);
+  });
+
+  test('V3 lire_reglages_devis : vocabulaire { ouvrage } et motOuvrage ; par défaut « ouvrage » ; document absent aussi', async () => {
+    const s = await demarrer();
+    assert.deepEqual(ok(await s.appeler('lecteur', 'lire_reglages_devis', {})).vocabulaire, { ouvrage: { singulier: 'ouvrage', pluriel: 'ouvrages', genre: 'masculin' } });
+    choisir(s, { motOuvrage: 'autre', motOuvrageAutre: { singulier: 'chantier', pluriel: 'chantiers', genre: 'masculin' } });
+    const r = ok(await s.appeler('lecteur', 'lire_reglages_devis', {}));
+    assert.deepEqual(r.vocabulaire, { ouvrage: { singulier: 'chantier', pluriel: 'chantiers', genre: 'masculin' } });
+    assert.equal(r.reglages.motOuvrage, 'autre');
+    s.collections.devis_parametres.length = 0;
+    assert.equal(ok(await s.appeler('lecteur', 'lire_reglages_devis', {})).vocabulaire.ouvrage.singulier, 'ouvrage');
+    assert.equal(s.collections.devis_parametres.length, 0, 'lecture seule : rien n’est écrit');
+  });
+
+  test('V3 les descriptions disent toujours « ouvrage » et renvoient à lire_reglages_devis', async () => {
+    const { OUTILS_LECTURE } = await import('../functions/src/mcp/outils/lecture.js');
+    for (const nom of ['lister_articles', 'chercher_article', 'rechercher_article_par_phrase', 'lire_devis']) {
+      const o = OUTILS_LECTURE.find((x) => x.nom === nom);
+      assert.match(o.description, /Le mot affiché à l'utilisateur est donné par lire_reglages_devis\.$/, nom);
+    }
+    assert.match(OUTILS_LECTURE.find((x) => x.nom === 'lister_articles').description, /ouvrage/);
   });
 });

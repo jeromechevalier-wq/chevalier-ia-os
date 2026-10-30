@@ -146,7 +146,7 @@ export const lire_audit = {
 export const lister_articles = {
   nom: 'lister_articles',
   profils: TOUS,
-  description: "Liste les articles du bordereau de prix du module Devis (code, libellé, unité, prix d'achat hors taxes en euros, taux de TVA propre s'il y en a un, type, marge propre, actif). Un article de type ouvrage porte ses composants, son prixVenteForce éventuel et son calcul (prixVenteHT, deboursSecHT, margeBruteHT, tauxMarge). Par défaut les articles actifs ; statut: 'desactives' ou 'tous' pour les autres. Triés par libellé.",
+  description: "Liste les articles du bordereau de prix du module Devis (code, libellé, unité, prix d'achat hors taxes en euros, taux de TVA propre s'il y en a un, type, marge propre, actif). Un article de type ouvrage porte ses composants, son prixVenteForce éventuel et son calcul (prixVenteHT, deboursSecHT, margeBruteHT, tauxMarge). Par défaut les articles actifs ; statut: 'desactives' ou 'tous' pour les autres. Triés par libellé. Le mot affiché à l'utilisateur est donné par lire_reglages_devis.",
   schema: {
     statut: z.enum(['actifs', 'desactives', 'tous']).optional().describe("Défaut : actifs."),
     limite,
@@ -157,7 +157,7 @@ export const lister_articles = {
 export const chercher_article = {
   nom: 'chercher_article',
   profils: TOUS,
-  description: "Cherche un article ACTIF du bordereau par son code ou son libellé (accents et casse ignorés, 2 lettres au moins ; tous les mots doivent y être). Renvoie l'identifiant, le code, le libellé, l'unité, le prix d'achat en euros, le type (et, pour un ouvrage, ses composants et son calcul). À utiliser avant d'ajouter un article pour ne pas créer de doublon.",
+  description: "Cherche un article ACTIF du bordereau par son code ou son libellé (accents et casse ignorés, 2 lettres au moins ; tous les mots doivent y être). Renvoie l'identifiant, le code, le libellé, l'unité, le prix d'achat en euros, le type (et, pour un ouvrage, ses composants et son calcul). À utiliser avant d'ajouter un article pour ne pas créer de doublon. Le mot affiché à l'utilisateur est donné par lire_reglages_devis.",
   schema: {
     texte: z.string().min(1).max(200).describe('Mots cherchés dans le code ou le libellé.'),
     limite: z.number().int().min(1).max(50).optional().describe('Résultats au plus (défaut 20).'),
@@ -168,7 +168,7 @@ export const chercher_article = {
 export const rechercher_article_par_phrase = {
   nom: 'rechercher_article_par_phrase',
   profils: TOUS,
-  description: "Avant d'ajouter une ligne à un devis à partir des mots de l'utilisateur, appelle cet outil avec la phrase telle quelle (« 3 prises doubles à 25 € »). Il rend la clé comprise, la quantité et le prix de vente hors taxes dits (quantiteIncertaine et prixIncertain : true quand ils sont devinés, à faire confirmer), la décision et les articles candidats du bordereau (prix de vente hors taxes, jamais le prix d'achat ni la marge). `utiliser` : ajoute la ligne du premier candidat. `proposer` ou `demander` : pose exactement `question` à l'utilisateur et attends sa réponse, puis appelle enregistrer_reponse_vocabulaire avec la même phrase et son choix (le dictionnaire apprend). Ne choisis jamais un article à sa place. Pour ajouter la ligne, passe articleId, quantite et prixVente (s'il est dit) aux outils qui créent ou modifient un brouillon de devis (lignes de devis). Lecture seule.",
+  description: "Avant d'ajouter une ligne à un devis à partir des mots de l'utilisateur, appelle cet outil avec la phrase telle quelle (« 3 prises doubles à 25 € »). Il rend la clé comprise, la quantité et le prix de vente hors taxes dits (quantiteIncertaine et prixIncertain : true quand ils sont devinés, à faire confirmer), la décision et les articles candidats du bordereau (prix de vente hors taxes, jamais le prix d'achat ni la marge). `utiliser` : ajoute la ligne du premier candidat. `proposer` ou `demander` : pose exactement `question` à l'utilisateur et attends sa réponse, puis appelle enregistrer_reponse_vocabulaire avec la même phrase et son choix (le dictionnaire apprend). Ne choisis jamais un article à sa place. Pour ajouter la ligne, passe articleId, quantite et prixVente (s'il est dit) aux outils qui créent ou modifient un brouillon de devis (lignes de devis). Lecture seule. Le mot affiché à l'utilisateur est donné par lire_reglages_devis.",
   schema: {
     phrase: z.string().min(1).max(300).describe("La phrase de l'utilisateur, telle quelle (1 à 300 caractères)."),
     limite: z.number().int().min(1).max(5).optional().describe('Candidats au plus (défaut 3), jamais moins que les articles cités par `question`.'),
@@ -179,7 +179,7 @@ export const rechercher_article_par_phrase = {
 export const lire_reglages_devis = {
   nom: 'lire_reglages_devis',
   profils: TOUS,
-  description: "Lit les réglages du module Devis (nom du bordereau, marge de revente des articles et marge par défaut des nouveaux devis, régime et taux de TVA proposés, durée de validité, mention de l'émetteur, « Mon entreprise ») et les familles d'articles du bordereau (id, nom, actif, parentId). Lecture seule : ces réglages se changent depuis l'écran.",
+  description: "Lit les réglages du module Devis (nom du bordereau, marge de revente des articles et marge par défaut des nouveaux devis, régime et taux de TVA proposés, durée de validité, mention de l'émetteur, « Mon entreprise ») et les familles d'articles du bordereau (id, nom, actif, parentId). Lecture seule : ces réglages se changent depuis l'écran. Donne aussi `vocabulaire` : le mot affiché à l'utilisateur pour le type ouvrage.",
   schema: {},
   executer: ({ donnees }) => lecture.lireReglagesDevis(donnees),
 };
@@ -201,7 +201,7 @@ export const lister_devis = {
 export const lire_devis = {
   nom: 'lire_devis',
   profils: TOUS,
-  description: "Lit un devis complet, côté artisan : client, affaire, destinataires, chantier, sections et lignes (quantité, unité, prix d'achat, marge, prix de vente unitaire et total hors taxes de chaque ligne, comme lister_articles montre les prix d'achat), remise, acomptes (liste : type pourcentage, montantHt ou montantTtc, valeur, moment ; un ancien devis à acompte unique donne une liste d'un élément) et totaux (brut, remise, hors taxes, TVA, TTC, acompteTTC = somme des acomptes, acomptesTTC = un montant TTC par acompte, resteAFacturerTTC), copie (e-mails en copie), envois (historique des envois par e-mail : date, destinataires, copie ; envoyeLe = premier envoi), archive/archiveLe et pdf (état seulement, jamais de chemin). Pour un brouillon, erreursFinalisation liste ce qui manque avant finaliser_devis (vide = prêt). Ne sert jamais à écrire au client : la vue client sans marge est celle du document. Chaque section et chaque ligne porte son `numero` (1, 1.1, 1.2… calculé, jamais stocké) et son `id` ; format: 'recapitulatif' rend seulement numéro, intitulé et quantité de chaque ligne (jamais de prix d'achat ni de marge ; avecPrix: true ajoute le prix de vente unitaire et le total hors taxes) et `phraseTotaux`, la phrase des totaux à redire telle quelle.",
+  description: "Lit un devis complet, côté artisan : client, affaire, destinataires, chantier, sections et lignes (quantité, unité, prix d'achat, marge, prix de vente unitaire et total hors taxes de chaque ligne, comme lister_articles montre les prix d'achat), remise, acomptes (liste : type pourcentage, montantHt ou montantTtc, valeur, moment ; un ancien devis à acompte unique donne une liste d'un élément) et totaux (brut, remise, hors taxes, TVA, TTC, acompteTTC = somme des acomptes, acomptesTTC = un montant TTC par acompte, resteAFacturerTTC), copie (e-mails en copie), envois (historique des envois par e-mail : date, destinataires, copie ; envoyeLe = premier envoi), archive/archiveLe et pdf (état seulement, jamais de chemin). Pour un brouillon, erreursFinalisation liste ce qui manque avant finaliser_devis (vide = prêt). Ne sert jamais à écrire au client : la vue client sans marge est celle du document. Chaque section et chaque ligne porte son `numero` (1, 1.1, 1.2… calculé, jamais stocké) et son `id` ; format: 'recapitulatif' rend seulement numéro, intitulé et quantité de chaque ligne (jamais de prix d'achat ni de marge ; avecPrix: true ajoute le prix de vente unitaire et le total hors taxes) et `phraseTotaux`, la phrase des totaux à redire telle quelle. Le mot affiché à l'utilisateur est donné par lire_reglages_devis.",
   schema: {
     id: id.describe('Identifiant du devis (voir lister_devis).'),
     format: z.enum(['complet', 'recapitulatif']).optional().describe("'recapitulatif' : structure courte pour redire le devis (défaut : 'complet')."),
