@@ -209,7 +209,7 @@ function chercherCandidats(cle, mots, { regles, articles }) {
   const plafonnes = new Set(); // articles d'un mot validé avec suggestion en attente : jamais au-dessus de 0,50, même si leur libellé colle à la phrase
   const garder = (article, score, pourquoi, regleId = null) => {
     const ancien = parArticle.get(article.id);
-    if (plafonnes.has(article.id)) { parArticle.set(article.id, { articleId: article.id, article, libelle: article.libelle ?? '', score: SEUILS.regleEnConflit, pourquoi: 'suggestion_en_attente', regleId }); return; }
+    if (plafonnes.has(article.id)) { parArticle.set(article.id, { articleId: article.id, article, libelle: article.libelle ?? '', score: SEUILS.regleEnConflit, pourquoi: 'suggestion_en_attente', regleId: ancien?.regleId ?? regleId }); return; }
     if (!ancien || score > ancien.score) parArticle.set(article.id, { articleId: article.id, article, libelle: article.libelle ?? '', score, pourquoi, regleId });
   };
   const actifs = (articles ?? []).filter(actif);
@@ -310,7 +310,9 @@ export function interpreter(phrase, { regles = [], articles = [], reglages } = {
   const [premier, second] = classes;
   let decision = 'demander';
   if (premier && premier.score >= SEUILS.proposer) {
-    const net = !quantiteIncertaine && !prixIncertain && premier.score >= SEUILS.utiliser && (!second || premier.score - second.score >= SEUILS.ecartUtiliser - 1e-9);
+    // Un mot validé avec une suggestion en attente sur cette clé n'est jamais appliqué sans question, même si un troisième article colle au libellé.
+    const suggestionSurCle = (regles ?? []).some((x) => x?.cle === cle && x.statut !== 'desactivee' && suggestionEnAttente(x) !== null);
+    const net = !suggestionSurCle && !quantiteIncertaine && !prixIncertain && premier.score >= SEUILS.utiliser && (!second || premier.score - second.score >= SEUILS.ecartUtiliser - 1e-9);
     decision = net ? 'utiliser' : 'proposer';
   }
   const parId = articlesParId(articles);

@@ -762,7 +762,7 @@ export async function enregistrerReponseVocabulaire(c, args) {
   } else if (!existante || morte) {
     if (!existante && aConfirmer >= MAX_REGLES_A_CONFIRMER) refuser('saisie_invalide', PLEIN);
     const neuve = { cle: r.cle, expression: r.cle.slice(0, 120), articleId, articleLibelle: article.libelle, origine: reponse === 'autre' ? 'apprise_correction' : 'apprise_question', exemples: [] };
-    const depart = existante ? { ...existante, ...neuve, statut: 'a_confirmer', confirmations: 0, contradictions: 0, conflit: false, derniereConfirmationLe: null, suggestion: null, valideLe: null, revoirLe: null } : neuve;
+    const depart = existante ? { ...existante, ...neuve, statut: 'a_confirmer', confirmations: 0, contradictions: 0, conflit: false, derniereConfirmationLe: null, ...Object.fromEntries(['suggestion', 'valideLe', 'revoirLe'].filter((k) => existante[k] != null).map((k) => [k, null])) } : neuve;
     apres = DV.decisionApprentissage(depart, { type: 'confirme' }, jour, { articles });
   } else {
     // Même article : une confirmation. Autre article (confirmé ou corrigé) : une contradiction ; un mot actif reste intact (compteurs, puis suggestion à la 2e contradiction).

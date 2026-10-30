@@ -816,4 +816,10 @@ describe('R1 R2 validation humaine du dictionnaire (moteur)', () => {
     assert.deepEqual([r.suggestion, r.contradictions], [null, 0]);
     assert.equal(apprendre(r, AUTRE, '2026-11-04').suggestion, null);
   });
+  test('R2 un troisième article au libellé exact ne rend pas « utiliser » quand le mot a une suggestion en attente ; le regleId du mot est gardé', () => {
+    const catalogue = [...CATALOGUE, art('a30', 'Lumière')];
+    const r = V.interpreter('lumiere', { regles: [active({ suggestion: suggestion() })], articles: catalogue, reglages: REGLAGES });
+    assert.equal(r.decision, 'proposer');
+    assert.equal(r.candidats.find((c) => c.articleId === 'a12').regleId, 'lumiere');
+  });
 });
