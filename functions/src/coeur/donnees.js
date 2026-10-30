@@ -1,7 +1,9 @@
 // Accès aux données du CRM pour le serveur MCP. Deux réalisations de la même petite interface :
 //  - Firestore (SDK d'administration : la fonction tourne avec l'identité du projet, sans clé) ;
 //  - mémoire (tests).
-// Lecture : liste(collection, { champ, valeur }?) -> [{ ...données, id }] ; document(collection, id) -> { ...données, id } | null.
+// Lecture : liste(collection, { champ, valeur }?, { champ, depuis }?) -> [{ ...données, id }] ; le 3e argument (facultatif) est une borne de date sur UN
+//    champ : `depuis` est un Date, on garde les documents dont le champ est >= depuis (borne incluse) ; champ absent ou sans date = exclu ;
+//    combinable avec le filtre d'égalité (côté Firestore, égalité + borne sur deux champs exige un index composite) ; document(collection, id) -> { ...données, id } | null.
 // Les valeurs sont rendues telles que Firestore les donne (Timestamp) : c'est serialiser() qui les met en texte pour les réponses.
 // Écriture (étape 4, uniquement utilisée par coeur/ecriture.js, coeur/restaurer.js et securite/limites.js) :
 //  - nouvelId(collection) -> identifiant frais ;
@@ -11,7 +13,7 @@
 //  - mettreAJour(collection, id, fn) : lecture-modification-écriture atomique ; fn(courant | null) -> { ecrire: bool, donnees, ...reste } ;
 //    renvoie ce que fn a renvoyé (compteurs de débit) ;
 //  - transaction(fn) : plusieurs lectures puis plusieurs écritures dans UNE transaction (module Devis : numéro, devis, version précédente).
-//    fn(tx) reçoit tx.document(collection, id), tx.liste(collection, { champ, valeur }?) et tx.ecrire([ecritures]) (même forme que `appliquer`) ;
+//    fn(tx) reçoit tx.document(collection, id), tx.liste(collection, { champ, valeur }?, { champ, depuis }?) et tx.ecrire([ecritures]) (même forme que `appliquer`) ;
 //    les écritures ne partent qu'à la fin de fn, toutes ensemble ; si fn lève une erreur, rien n'est écrit. Firestore relance fn en cas de concurrence :
 //    fn ne doit donc rien faire d'autre que lire et appeler tx.ecrire.
 import { initializeApp, getApps } from 'firebase-admin/app';
@@ -59,6 +61,32 @@ const verifierAttendus = (attendus, courants) => {
   });
 };
 
+/** Millisecondes d'une date (Date ou Timestamp Firestore) ; null sinon. Un texte n'est PAS une date : Firestore ne le compare pas à un Date, la mémoire fait pareil. */
+function enMs(v) {
+  if (v instanceof Date) return v.getTime();
+  if (v && typeof v.toMillis === 'function') return v.toMillis();
+  return null;
+}
+function verifierBorne(borne) {
+  if (borne == null) return null;
+  if (typeof borne.champ !== 'string' || !borne.champ || !(borne.depuis instanceof Date) || Number.isNaN(borne.depuis.getTime())) {
+    throw new Error('Borne de date invalide : { champ, depuis: Date } attendu');
+  }
+  return borne;
+}
+/** Garde les documents dont le champ de la borne est une date >= borne.depuis. */
+function dansLaBorne(docs, borne) {
+  const b = verifierBorne(borne);
+  if (!b) return docs;
+  const min = b.depuis.getTime();
+  return docs.filter((d) => { const ms = enMs(d[b.champ]); return ms !== null && ms >= min; });
+}
+function requete(r, filtre, borne) {
+  const b = verifierBorne(borne);
+  const q = filtre ? r.where(filtre.champ, '==', filtre.valeur) : r;
+  return b ? q.where(b.champ, '>=', b.depuis) : q;
+}
+
 /** `db` : instance Firestore déjà prête (tests) ; sinon la base du projet, avec l'identité de la fonction. */
 export function creerAccesFirestore({ projectId, db: dbFournie = null } = {}) {
   let db = dbFournie;
@@ -79,9 +107,8 @@ export function creerAccesFirestore({ projectId, db: dbFournie = null } = {}) {
     }
   };
   return {
-    async liste(nom, filtre) {
-      const r = base().collection(nom);
-      const snap = await (filtre ? r.where(filtre.champ, '==', filtre.valeur) : r).get();
+    async liste(nom, filtre, borne) {
+      const snap = await requete(base().collection(nom), filtre, borne).get();
       return snap.docs.map((d) => ({ ...d.data(), id: d.id }));
     },
     async document(nom, id) {
@@ -120,9 +147,8 @@ export function creerAccesFirestore({ projectId, db: dbFournie = null } = {}) {
             const s = await t.get(ref(nom, id));
             return s.exists ? { ...s.data(), id: s.id } : null;
           },
-          async liste(nom, filtre) {
-            const r = base().collection(nom);
-            const snap = await t.get(filtre ? r.where(filtre.champ, '==', filtre.valeur) : r);
+          async liste(nom, filtre, borne) {
+            const snap = await t.get(requete(base().collection(nom), filtre, borne));
             return snap.docs.map((d) => ({ ...d.data(), id: d.id }));
           },
           ecrire(ecritures) { aEcrire.push(...ecritures); },
@@ -152,7 +178,7 @@ export function avecBase(acces, base) {
   const exigerId = (id) => { if (!idSur(id)) throw new Error(`Identifiant de document invalide : « ${id} »`); return id; };
   return {
     base,
-    liste: (n, filtre) => acces.liste(nom(n), filtre),
+    liste: (n, filtre, borne) => acces.liste(nom(n), filtre, borne),
     document: (n, id) => (idSur(id) ? acces.document(nom(n), id) : Promise.resolve(null)),
     nouvelId: (n) => acces.nouvelId(nom(n)),
     appliquer: (ecritures, { attendus = [] } = {}) => acces.appliquer(
@@ -162,7 +188,7 @@ export function avecBase(acces, base) {
     mettreAJour: (n, id, fn) => acces.mettreAJour(nom(n), exigerId(id), fn),
     transaction: (fn) => acces.transaction((tx) => fn({
       document: (n, id) => (idSur(id) ? tx.document(nom(n), id) : Promise.resolve(null)),
-      liste: (n, filtre) => tx.liste(nom(n), filtre),
+      liste: (n, filtre, borne) => tx.liste(nom(n), filtre, borne),
       ecrire: (ecritures) => tx.ecrire(ecritures.map((e) => ({ ...e, collection: nom(e.collection), id: exigerId(e.id) }))),
     })),
   };
@@ -179,9 +205,9 @@ export function creerAccesMemoire(collections = {}) {
     return d ? copie(d) : null;
   };
   const acces = {
-    async liste(nom, filtre) {
+    async liste(nom, filtre, borne) {
       const docs = collections[nom] || [];
-      return copie(filtre ? docs.filter((d) => d[filtre.champ] === filtre.valeur) : docs);
+      return copie(dansLaBorne(filtre ? docs.filter((d) => d[filtre.champ] === filtre.valeur) : docs, borne));
     },
     async document(nom, id) {
       return contenu(nom, id);
@@ -225,7 +251,10 @@ export function creerAccesMemoire(collections = {}) {
         const aEcrire = [];
         const tx = {
           document: async (nom, id) => contenu(nom, id),
-          liste: async (nom, filtre) => copie(filtre ? (collections[nom] || []).filter((d) => d[filtre.champ] === filtre.valeur) : (collections[nom] || [])),
+          liste: async (nom, filtre, borne) => {
+            const docs = collections[nom] || [];
+            return copie(dansLaBorne(filtre ? docs.filter((d) => d[filtre.champ] === filtre.valeur) : docs, borne));
+          },
           ecrire: (ecritures) => { aEcrire.push(...ecritures); },
         };
         const resultat = await fn(tx);

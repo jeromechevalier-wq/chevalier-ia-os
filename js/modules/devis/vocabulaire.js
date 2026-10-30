@@ -4,7 +4,7 @@
 // `utiliser` (ligne ajoutée sans question), `proposer` (une question avec 1 à 3 choix) ou `demander` (question ouverte).
 // L'écran (prévisualisation d'une règle) et le serveur (outils de l'assistant) exécutent ce même code. Jamais de prix d'achat ni de marge dans la sortie.
 import { normaliser } from '../crm/logique.js';
-import { prixVenteArticle, calculerOuvrage, articlesParId, TYPE_OUVRAGE } from './ouvrages.js';
+import { prixVenteArticle, calculerOuvrage, articlesParId, TYPE_OUVRAGE, motOuvrage } from './ouvrages.js';
 
 // ---------------------------------------------------------------- constantes (TOUS les seuils sont ici, et seulement ici)
 export const SEUILS = Object.freeze({
@@ -214,6 +214,30 @@ function chercherCandidats(cle, mots, { regles, articles }) {
   return [...parArticle.values()].sort(comparateur);
 }
 
+/**
+ * Le mot du métier (réglage « motOuvrage ») est un synonyme du type « ouvrage » : « ensemble salle de bain » cherche d'abord parmi les OUVRAGES « salle de bain ».
+ * Les candidats de la phrase entière restent là (un article dont le libellé commence par « Ensemble » reste trouvé) ; ceux des ouvrages s'y ajoutent, au meilleur score.
+ * Aucune règle du dictionnaire n'est créée pour ce mot. Sans mot dans la phrase, ou sans reste après lui : rien ne change.
+ */
+function chercherAvecSynonyme(cle, mots, { regles, articles, reglages }) {
+  const classes = chercherCandidats(cle, mots, { regles, articles });
+  if (!mots.length) return classes; // `reglages` absent (document pas encore écrit) : le mot par défaut s'applique, comme à l'écran
+  const m = motOuvrage(reglages);
+  for (const forme of [m.singulier, m.pluriel]) {
+    const motsForme = motsDe(forme);
+    if (!motsForme.length || motsForme.length >= mots.length) continue;
+    for (let i = 0; i + motsForme.length <= mots.length; i += 1) {
+      if (!motsForme.every((x, k) => mots[i + k] === x)) continue;
+      const reste = [...mots.slice(0, i), ...mots.slice(i + motsForme.length)];
+      const ouvrages = chercherCandidats(reste.join(' '), reste, { regles: [], articles: (articles ?? []).filter((a) => a?.type === TYPE_OUVRAGE) });
+      const parId = new Map(classes.map((c) => [c.articleId, c]));
+      for (const c of ouvrages) if (!parId.has(c.articleId) || parId.get(c.articleId).score < c.score) parId.set(c.articleId, c);
+      return [...parId.values()].sort(comparateur);
+    }
+  }
+  return classes;
+}
+
 const guillemets = (candidats) => candidats.map((c) => `« ${c.libelle} »`);
 const nombreFr = (n) => String(n).replace('.', ',');
 /** `devine` : { quantite, prix } à citer dans la question quand ils sont incertains (jamais ajoutés au devis sans que l'utilisateur les ait vus). */
@@ -241,13 +265,13 @@ export function interpreter(phrase, { regles = [], articles = [], reglages } = {
   const { mots } = analyse;
   let { cle, quantite } = analyse;
   const { prixVente } = analyse;
-  let classes = chercherCandidats(cle, mots, { regles, articles });
+  let classes = chercherAvecSynonyme(cle, mots, { regles, articles, reglages });
   const prixIncertain = analyse.prixSansDevise;
   let quantiteIncertaine = false;
   if (analyse.quantiteEnFin) {
     // Le nombre de fin (« disjoncteur 32 », « prise double 16 ») est peut-être un mot du libellé : on le remet dans la clé si cela donne un candidat (quantité 1).
     const motsAvecNombre = [...mots, analyse.nombreFin];
-    const avecNombre = chercherCandidats(motsAvecNombre.join(' '), motsAvecNombre, { regles, articles });
+    const avecNombre = chercherAvecSynonyme(motsAvecNombre.join(' '), motsAvecNombre, { regles, articles, reglages });
     if (avecNombre[0]?.score >= SEUILS.proposer) { classes = avecNombre; cle = motsAvecNombre.join(' '); quantite = 1; } else quantiteIncertaine = true;
   }
   const [premier, second] = classes;
