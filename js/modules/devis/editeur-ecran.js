@@ -995,6 +995,14 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     if (toutesAffaires || (!travail.organisationId && !travail.personneId)) return null;
     return affaires().filter((a) => (travail.organisationId ? a.organisationId === travail.organisationId : a.personneId === travail.personneId));
   }
+  /** Taper pour chercher puis quitter le champ sans choisir : le champ remontre la valeur réellement enregistrée (rien n'a été retiré du devis). */
+  function reprendreValeurEnQuittant(ci, valeurReelle) {
+    ci.entree.addEventListener('blur', () => setTimeout(() => {
+      if (!racine.isConnected || document.activeElement === ci.entree) return;
+      const voulu = valeurReelle();
+      if ((ci.choix()?.id ?? '') !== (voulu?.id ?? '') || (!ci.choix() && ci.texte() !== '')) ci.afficher(voulu);
+    }, 250));
+  }
   function champClientIntelligent() {
     const personnes = () => CRM.etat.personnes.filter((p) => !p.archive).map((p) => {
       const org = CRM.organisation(p.organisationId);
@@ -1008,9 +1016,10 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
         { titre: 'Organisations', resultats: CL.rechercherSuggestions(saisie, organisations()).resultats },
       ].filter((g) => g.resultats.length) }),
       messageVide: (saisie) => (saisie.trim().length >= CL.MIN_LETTRES ? 'Aucun client ne correspond.' : null),
-      surChoix: (el) => changerClient(el),
+      surChoix: (el, info) => { if (el || info?.effacement) changerClient(el); }, // taper pour chercher n'efface rien : seule la croix retire le client
     });
     ci.entree.dataset.champ = 'client';
+    reprendreValeurEnQuittant(ci, elementClient);
     return ci;
   }
   function champAffaireIntelligent() {
@@ -1028,21 +1037,25 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
         if (affairesDuClient()) {
           return h('span', {}, 'Aucune affaire pour ce client · ', h('button', { type: 'button', class: 'bouton-lien', dataset: { action: 'toutes-les-affaires' }, onclick: () => {
             toutesAffaires = true;
+            ref.champAffaire.entree.value = ''; // sinon la recherche reprendrait le libellé de l'affaire déjà choisie
             ref.champAffaire.entree.dispatchEvent(new Event('input')); // rouvre la liste, sans le filtre
           } }, 'Voir toutes les affaires'));
         }
         return saisie.trim().length < CL.MIN_LETTRES ? `Tape au moins ${CL.MIN_LETTRES} lettres pour retrouver une affaire.` : 'Aucune affaire ne correspond.';
       },
-      surChoix: (el) => changerAffaire(el),
+      surChoix: (el, info) => { if (el || info?.effacement) changerAffaire(el); },
     });
     ci.entree.dataset.champ = 'affaire';
+    reprendreValeurEnQuittant(ci, () => (travail.affaireId ? { id: travail.affaireId, libelle: libelleAffaireDuDevis(travail.affaireId) } : null));
     return ci;
   }
   /** La fiche d'un client modifiée ailleurs, ou un client posé par l'affaire : le champ suit le devis (sans rappeler `surChoix`). */
   function majClients() {
     if (lecture || !ref.champClient?.choix) return;
-    const voulu = valeurClient();
-    if ((ref.champClient.choix()?.id ?? '') !== voulu) ref.champClient.afficher(elementClient());
+    const voulu = elementClient();
+    const actuel = ref.champClient.choix();
+    if (document.activeElement === ref.champClient.entree) return; // on ne touche pas à ce qu'on est en train de taper
+    if ((actuel?.id ?? '') !== (voulu?.id ?? '') || (actuel && actuel.libelle !== voulu?.libelle)) ref.champClient.afficher(voulu);
   }
 
   function changerAffaire(el) {
@@ -2001,10 +2014,12 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
         ? h('p', { class: 'texte-discret', dataset: { valeur: 'etape-retenue' } }, `L’affaire commencera à l’étape « ${CL.libelleEtape(retenue, CRM.etat.config)} ».`)
         : h('div', { class: 'bloc-champ' }, h('label', { class: 'etiquette', for: 'devis-affaire-etape' }, 'Étape de la nouvelle affaire'), listeEtapes,
           h('p', { class: 'texte-discret' }, 'Tu peux la fixer une fois pour toutes dans Réglages > Devis.'));
+    let enCreation = false; // création en cours : un second clic, Entrée ou la fermeture de la fenêtre n'y changent rien
     let creee = null; // l'affaire déjà créée si l'enregistrement du devis a échoué ensuite : un nouvel essai ne la recrée pas
     const r = await dialogue({
       titre: 'Ce devis n’a pas encore d’affaire',
       classe: 'dialogue-formulaire',
+      peutFermer: () => !enCreation,
       contenu: h('div', { class: 'pile', dataset: { zone: 'affaire-avant-finalisation' } },
         h('p', {}, 'Une affaire est nécessaire pour finaliser. Je peux la créer à partir de ce devis.'),
         h('div', { class: 'bloc-champ' }, h('label', { class: 'etiquette', for: 'devis-affaire-nom' }, 'Nom de l’affaire'), champNom),
@@ -2014,11 +2029,13 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
         { libelle: 'Choisir une affaire existante', valeur: 'choisir' },
         { libelle: 'Créer l’affaire', valeur: true, style: 'principal', desactive: aucune,
           avantFermeture: async () => {
+            if (enCreation) return false;
             erreur.textContent = '';
             const titre = CL.nettoyerEspaces(champNom.value);
             if (!titre) { erreur.textContent = 'Donne un nom à l’affaire.'; champNom.classList.add('invalide'); champNom.focus(); return false; }
             const etape = etapeAPasser(D.etat.reglages.etapeAffaireCreee, listeEtapes.value, CRM.etat.config);
             if (!etape) { erreur.textContent = 'Choisis l’étape de la nouvelle affaire.'; listeEtapes.focus(); return false; } // jamais de création sans étape active
+            enCreation = true;
             try {
               creee ??= await CRM.creerAffaire({ titre, personneId: travail.personneId || null, organisationId: travail.organisationId || null, etape });
               changer({ affaireId: creee });
@@ -2028,7 +2045,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
               console.warn(e);
               erreur.textContent = 'L’affaire n’a pas pu être créée. Vérifie ta connexion puis réessaie : ton devis est intact.';
               return false;
-            }
+            } finally { enCreation = false; }
           } },
       ],
       auMontage: ({ boite, boutons }) => {
@@ -2036,13 +2053,13 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
         boite.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.defaultPrevented && e.target === champNom) { e.preventDefault(); principal.click(); } });
       },
     });
+    if (travail.affaireId) ref.champAffaire?.afficher?.({ id: travail.affaireId, libelle: libelleAffaireDuDevis(travail.affaireId) }); // le champ montre toujours l'affaire du devis, même si la fenêtre s'est fermée autrement
     if (r === 'choisir') {
       if (onglet !== 'edition') choisirOnglet('edition');
       ref.champAffaire?.focus?.();
       return false;
     }
     if (r !== true) return false;
-    if (ref.champAffaire?.afficher) ref.champAffaire.afficher({ id: travail.affaireId, libelle: libelleAffaireDuDevis(travail.affaireId) });
     toast('Affaire créée', { duree: 5000 });
     return true;
   }
