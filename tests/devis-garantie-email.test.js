@@ -273,6 +273,84 @@ describe('4 enregistrer_envoi_devis : « depuis le brouillon du logiciel » ou �
   });
 });
 
+describe('7 modifier_destinataires_devis : donner l’adresse d’un devis finalisé qui n’en a pas (option A de Jérôme)', () => {
+  const sansAdresse = (id, statut = 'en_attente_envoi', extra = {}) => finalise(id, statut, { destinataires: [], ...extra });
+  const CONTENU = ['objet', 'sections', 'totaux', 'numero', 'pdf', 'statut', 'modeMarge', 'marge', 'tauxTvaDefaut', 'expireLe', 'affaireId'];
+
+  test('7 un devis finalisé sans adresse : seul le destinataire change (jamais le contenu), puis le brouillon se prépare ; le journal garde l’avant et l’après', async () => {
+    const s = await demarrer({ devis: [sansAdresse('g1')] });
+    refuse(await s.appeler('biblio', 'preparer_email', { type: 'devis', id: 'g1' }), /destinataire/i);
+    assert.equal(s.demandes.length, 0, 'rien n’est demandé à n8n sans adresse');
+    const avant = structuredClone(s.doc('devis_devis', 'g1'));
+    const r = ok(await s.appeler('biblio', 'modifier_destinataires_devis', { id: 'g1', destinataires: [' client@exemple.test '] }));
+    assert.deepEqual(r.destinataires, ['client@exemple.test']);
+    const apres = s.doc('devis_devis', 'g1');
+    for (const cle of CONTENU) assert.deepEqual(apres[cle], avant[cle], `${cle} ne doit pas changer`);
+    assert.deepEqual(apres.destinataires, ['client@exemple.test']);
+    const ligne = s.collections.crm_audit.find((l) => l.outil === 'devisModifierDestinataires');
+    assert.ok(ligne, 'le journal garde la trace');
+    ok(await s.appeler('biblio', 'preparer_email', { type: 'devis', id: 'g1' }));
+    assert.equal(s.demandes.length, 1, 'le brouillon est demandé une fois, après l’adresse');
+    assert.equal(s.doc('devis_devis', 'g1').statut, 'en_attente_envoi');
+    assert.equal(s.doc('devis_devis', 'g1').envois, undefined);
+  });
+
+  test('7 la copie reste si elle n’est pas donnée (sans l’adresse devenue destinataire) ; donnée, elle remplace l’ancienne ; un devis envoyé se change aussi', async () => {
+    const s = await demarrer({ devis: [sansAdresse('g2', 'en_attente_envoi', { copie: ['a@exemple.test', 'b@exemple.test'] }), sansAdresse('g3', 'envoye', { copie: ['a@exemple.test'], envoyeLe: new Date('2026-10-03T08:00:00Z') })] });
+    const r = ok(await s.appeler('biblio', 'modifier_destinataires_devis', { id: 'g2', destinataires: ['a@exemple.test'] }));
+    assert.deepEqual(r.copie, ['b@exemple.test']);
+    const r2 = ok(await s.appeler('biblio', 'modifier_destinataires_devis', { id: 'g2', destinataires: ['c@exemple.test'], copie: [] }));
+    assert.deepEqual(r2.copie, []);
+    // Le devis est finalisé : le journal ne le défait pas (on rappelle l'outil avec l'ancienne adresse).
+    refuse(await s.appeler('code', 'restaurer_depuis_audit', { operationId: r2.operationId, apercu: false }), /ne se défait pas|figé|finalis/i);
+    assert.deepEqual(s.doc('devis_devis', 'g2').destinataires, ['c@exemple.test']);
+    ok(await s.appeler('biblio', 'modifier_destinataires_devis', { id: 'g3', destinataires: ['z@exemple.test'] }));
+    assert.deepEqual(s.doc('devis_devis', 'g3').destinataires, ['z@exemple.test']);
+    assert.equal(s.doc('devis_devis', 'g3').statut, 'envoye');
+  });
+
+  test('7 une copie déjà enregistrée n’est pas revalidée quand on ne la change pas (accent, forme objet) ; un brouillon à copie douteuse reçoit le message du brouillon', async () => {
+    const s = await demarrer({ devis: [sansAdresse('h1', 'en_attente_envoi', { copie: ['josé@exemple.test', { email: 'o@exemple.test' }] }), devisEnregistre('h2', { destinataires: [], copie: ['pas une adresse'] })] });
+    const r = ok(await s.appeler('biblio', 'modifier_destinataires_devis', { id: 'h1', destinataires: ['client@exemple.test'] }));
+    assert.deepEqual(r.copie, ['josé@exemple.test', 'o@exemple.test']);
+    refuse(await s.appeler('biblio', 'modifier_destinataires_devis', { id: 'h2', destinataires: ['client@exemple.test'] }), /brouillon/);
+  });
+
+  test('7 refus, rien n’est écrit : brouillon de devis, signé, refusé, remplacé, adresse invalide, aucune adresse, devis inconnu, profil lecteur', async () => {
+    const s = await demarrer({ devis: [devisEnregistre('b1', { destinataires: [] }), sansAdresse('g4', 'accepte'), sansAdresse('g5', 'refuse'), sansAdresse('g6', 'remplace'), sansAdresse('g7')] });
+    for (const id of ['b1', 'g4', 'g5', 'g6']) {
+      refuse(await s.appeler('biblio', 'modifier_destinataires_devis', { id, destinataires: ['client@exemple.test'] }));
+      assert.deepEqual(s.doc('devis_devis', id).destinataires, [], id);
+    }
+    for (const destinataires of [['pas une adresse'], ['a@b'], ['x@exemple.test\nBcc: y@exemple.test'], []]) refuse(await s.appeler('biblio', 'modifier_destinataires_devis', { id: 'g7', destinataires }));
+    refuse(await s.appeler('biblio', 'modifier_destinataires_devis', { id: 'introuvable', destinataires: ['client@exemple.test'] }));
+    refuse(await s.appeler('lecteur', 'modifier_destinataires_devis', { id: 'g7', destinataires: ['client@exemple.test'] }));
+    assert.deepEqual(s.doc('devis_devis', 'g7').destinataires, []);
+    assert.equal(s.collections.crm_audit.filter((l) => l.outil === 'devisModifierDestinataires').length, 0);
+  });
+
+  test('7 chez un client : même outil, dans l’espace du client', async () => {
+    const s = await demarrer({ client: 'demo', devis: [sansAdresse('g8')] });
+    ok(await s.appeler('biblio', 'modifier_destinataires_devis', { id: 'g8', destinataires: ['client@exemple.test'] }));
+    const lu = ok(await s.appeler('lecteur', 'lire_devis', { id: 'g8' }));
+    assert.deepEqual(lu.destinataires ?? lu.devis?.destinataires, ['client@exemple.test']);
+  });
+
+  test('7 l’outil porte la règle, ne demande pas d’inventer l’adresse, n’est pas en lecture seule, et rien dans l’outil n’envoie', () => {
+    const o = OUTILS.find((x) => x.nom === 'modifier_destinataires_devis');
+    assert.ok(o.description.includes(GARANTIE_PAS_D_ENVOI));
+    assert.match(o.description, /n'en invente jamais/);
+    assert.equal(annotationsDe(o).readOnlyHint, false);
+  });
+
+  test('7 l’écran : sur un devis finalisé sans adresse, la fenêtre demande l’adresse, la vérifie, l’enregistre par le serveur puis prépare le brouillon', () => {
+    const ecran = readFileSync(join(racine, 'js/modules/devis/email-preparer-ecran.js'), 'utf8');
+    assert.match(ecran, /if \(!P\.aUnDestinataire\(d\) && !\(await demanderDestinataire\(devisId\)\)\) return;/);
+    assert.match(ecran, /D\.modifierDestinataires\(devisId, \{ destinataires: \[adresse\] \}\)/);
+    assert.match(ecran, /P\.refusDestinataire\(adresse\)/);
+  });
+});
+
 describe('5 aucune portée ni appel d’envoi Gmail dans le code du serveur ni des outils', () => {
   // Dossiers du code qui tourne (serveur de Jérôme, serveur des clients, navigateur, scripts). Les copies générées (partage/, serveur/) et node_modules sont ignorées.
   const DOSSIERS = ['functions/src', 'functions-plateforme/src', 'js', 'scripts', 'outils'];

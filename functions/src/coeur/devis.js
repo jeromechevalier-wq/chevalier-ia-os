@@ -317,6 +317,27 @@ export async function enregistrerEnvoi({ donnees, ctx, devisId, destinataires, c
   });
 }
 
+/**
+ * Change le destinataire et la copie d'un devis FINALISÉ ou ENVOYÉ (décision de Jérôme, 29/10/2026, option A) : ces deux champs ne sont pas imprimés sur le PDF et ne changent
+ * pas le contenu du devis, mais sans eux « Préparer l'e-mail » est impossible et un devis finalisé ne se modifie plus. N'écrit QUE `destinataires` et `copie` ; le journal garde l'avant et l'après.
+ */
+export async function modifierDestinataires({ donnees, ctx, devisId, destinataires, copie }) {
+  const a = adressesDeEnvoi(destinataires, { nom: 'Destinataires', minimum: 1 });
+  return donnees.transaction(async (tx) => {
+    const devis = await lireDevis(tx, devisId);
+    if (!['en_attente_envoi', 'envoye'].includes(devis.statut)) throw new ErreurDevis('transition_interdite', devis.statut === 'brouillon'
+      ? 'Ce devis est encore un brouillon : change son destinataire directement dans le devis.'
+      : 'Le destinataire ne se change que sur un devis finalisé ou envoyé.');
+    // Copie non donnée : celle du devis reste TELLE QUELLE (non revalidée : la finalisation l'a déjà acceptée), sans l'adresse devenue destinataire. Donnée : validée, elle remplace l'ancienne.
+    const existante = (Array.isArray(devis.copie) ? devis.copie : []).map((x) => String(typeof x === 'string' ? x : x?.email ?? '').trim()).filter(Boolean);
+    const cc = (copie === undefined ? existante : adressesDeEnvoi(copie, { nom: 'Copie', minimum: 0 })).filter((x) => !a.some((y) => y.toLowerCase() === x.toLowerCase()));
+    const changement = modifier(devis, { destinataires: a, copie: cc });
+    const j = journal({ donnees, ctx, outil: 'devisModifierDestinataires', parametres: { devisId, destinataires: a, copie: cc }, changements: [changement] });
+    tx.ecrire([changement.ecriture, ...j.ecritures]);
+    return { ok: true, devis: { ...devis, destinataires: a, copie: cc }, operationId: j.operationId };
+  });
+}
+
 // ---------------------------------------------------------------- PDF du devis (25/10/2026) : états, idempotence. Le PDF vit dans l'onglet « Devis » de l'affaire : le serveur n'ajoute plus rien aux Documents de l'affaire (décision de Jérôme, 27/10/2026)
 // Le PDF d'un devis finalisé est fabriqué par le serveur (déclencheur Firestore ou demande explicite), jamais par le navigateur. Le champ `pdf` du devis dit où on en est :
 //   pdf = { statut: 'en_cours' | 'ok' | 'echec', tentatives, demarreLe?, chemin?, sha256?, nom?, genereLe?, message?, echecLe? }
@@ -394,6 +415,7 @@ export const OPERATIONS = Object.freeze({
   archiver: (base, d) => archiver({ ...base, devisId: d.devisId, archive: d.archive }),
   supprimer: (base, d) => supprimer({ ...base, devisId: d.devisId }),
   enregistrerEnvoi: (base, d) => enregistrerEnvoi({ ...base, devisId: d.devisId, destinataires: d.destinataires, copie: d.copie, origine: d.origine }),
+  modifierDestinataires: (base, d) => modifierDestinataires({ ...base, devisId: d.devisId, destinataires: d.destinataires, copie: d.copie }),
 });
 
 /** Ce que l'appelant reçoit : jamais le devis entier (son navigateur le lit déjà). Un devis refusé rend les messages à corriger, rien n'a été écrit. */

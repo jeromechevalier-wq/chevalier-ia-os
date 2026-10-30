@@ -9,7 +9,7 @@ import * as DV from '../../partage/devis-vocabulaire.js';
 import * as D from '../../partage/devis.js';
 import * as E from '../../partage/devis-editeur.js';
 import * as B from '../../partage/devis-brouillon.js';
-import { finaliser as finaliserServeur, changerStatut as changerStatutServeur, nouvelleVersion as nouvelleVersionServeur, archiver as archiverServeur, supprimer as supprimerServeur, enregistrerEnvoi as enregistrerEnvoiServeur, ErreurDevis } from './devis.js';
+import { finaliser as finaliserServeur, changerStatut as changerStatutServeur, nouvelleVersion as nouvelleVersionServeur, archiver as archiverServeur, supprimer as supprimerServeur, enregistrerEnvoi as enregistrerEnvoiServeur, modifierDestinataires as modifierDestinatairesServeur, ErreurDevis } from './devis.js';
 import { COLLECTIONS as C } from './donnees.js';
 import { lireConfig as lireConfigEspace } from './config.js';
 import { emettreCode, consommerCode, empreinteApercu } from '../securite/codes.js';
@@ -1143,6 +1143,12 @@ export async function enregistrerEnvoiDevis(c, args) {
   const r = await appelerCoeurDevis(c, () => enregistrerEnvoiServeur({ donnees: c.donnees, ctx: ctxDevis(c), devisId: args.id, destinataires: args.destinataires, copie: args.copie, origine: args.origine }));
   const dernier = r.devis.envois[r.devis.envois.length - 1];
   return { id: args.id, nombreEnvois: r.devis.envois.length, dernierEnvoi: { destinataires: dernier.destinataires, copie: dernier.copie, ...(dernier.origine ? { origine: dernier.origine } : {}) }, operationId: r.operationId };
+}
+
+/** Destinataire (et copie) d'un devis FINALISÉ ou ENVOYÉ : seuls ces deux champs changent (option A de Jérôme, 29/10/2026). La copie reste si elle n'est pas donnée. */
+export async function modifierDestinatairesDevis(c, args) {
+  const r = await appelerCoeurDevis(c, () => modifierDestinatairesServeur({ donnees: c.donnees, ctx: ctxDevis(c), devisId: args.id, destinataires: args.destinataires, copie: args.copie }));
+  return { id: args.id, destinataires: r.devis.destinataires, copie: r.devis.copie, operationId: r.operationId };
 }
 
 // ---------------------------------------------------------------- Garantie « aucun e-mail ne part tout seul » (29/10/2026)
