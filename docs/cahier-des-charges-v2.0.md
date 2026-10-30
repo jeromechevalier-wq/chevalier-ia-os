@@ -501,9 +501,10 @@ service cloud.firestore {
         && (l.size() < 1 || cibleValide(l[0])) && (l.size() < 2 || cibleValide(l[1])) && (l.size() < 3 || cibleValide(l[2])) && (l.size() < 4 || cibleValide(l[3]))
         && (l.size() < 5 || cibleValide(l[4])) && (l.size() < 6 || cibleValide(l[5])) && (l.size() < 7 || cibleValide(l[6])) && (l.size() < 8 || cibleValide(l[7]));
     }
+    // ciblesSansArticle s'applique à TOUTE écriture : un mot en « double sens » (cibles + article) ne se modifie plus, même pour le désactiver, tant qu'on ne l'a pas réparé (vider l'article ou les cibles).
     function ciblesSansArticle() {
       let d = request.resource.data;
-      return !d.keys().hasAny(['cibles']) || (d.cibles is list && (d.cibles.size() == 0 || d.get('articleId', '') == ''));
+      return !d.keys().hasAny(['cibles']) || (d.cibles is list && (d.cibles.size() == 0 || (d.get('articleId', '') == '' && d.get('articleLibelle', '') == '')));
     }
     function vocabulaireManuelNeuf() {
       let d = request.resource.data;
@@ -520,7 +521,7 @@ service cloud.firestore {
       let touche = d.diff(resource.data).affectedKeys();
       return touche.hasOnly(['statut', 'articleId', 'articleLibelle', 'note', 'conflit', 'modifieLe', 'modifiePar', 'via', 'valideLe', 'validePar', 'revoirLe', 'suggestionTraiteeLe', 'cibles'])
         && d.get('validePar', 'humain') in ['humain', 'reponses']
-        && (!touche.hasAny(['cibles']) || ciblesValides()) && ciblesSansArticle()
+        && (!touche.hasAny(['cibles']) || !d.keys().hasAny(['cibles']) || ciblesValides()) && ciblesSansArticle()
         && (!touche.hasAny(['valideLe']) || (d.valideLe is string && d.valideLe.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')))
         && (!touche.hasAny(['revoirLe']) || (d.revoirLe is string && d.revoirLe.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')))
         && (!touche.hasAny(['suggestionTraiteeLe']) || (d.suggestionTraiteeLe is string && d.suggestionTraiteeLe.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')));

@@ -155,6 +155,15 @@ function lesCas({ nom, projet, fichier, preparer, ref, habitudes, usage, ecrivai
       await env.withSecurityRulesDisabled(async (ctx) => { await setDoc(ref(ctx.firestore(), 'multi'), manuelle({ cle: 'multi', expression: 'multi', ...vide, cibles: [cible(1), cible(2)] })); });
       await assertFails(updateDoc(ref(d, 'multi'), { articleId: 'art2', articleLibelle: 'Prise 16A' }));
       await assertSucceeds(updateDoc(ref(d, 'multi'), { note: 'ok' }));
+      // cas limites relus par Fable
+      await assertFails(setDoc(ref(d, 'l1'), manuelle({ ...vide, cibles: [cible(1, { id: 5 })] })));
+      await assertFails(setDoc(ref(d, 'l2'), manuelle({ ...vide, cibles: [cible(1, { libelle: 5 })] })));
+      await assertFails(setDoc(ref(d, 'l3'), manuelle({ ...vide, cibles: {} })));
+      await assertFails(setDoc(ref(d, 'l4'), manuelle({ ...vide, cibles: null })));
+      await assertFails(setDoc(ref(d, 'l5'), manuelle({ ...vide, articleLibelle: 'Fantôme', cibles: [cible(1)] })));
+      await assertSucceeds(setDoc(ref(d, 'l6'), manuelle({ ...vide, cibles: [cible(1, { id: 'x'.repeat(100), libelle: 'é'.repeat(120) })] })));
+      await assertSucceeds(updateDoc(ref(d, 'multi'), { cibles: deleteField(), articleId: 'art2', articleLibelle: 'Prise 16A' })); // retrait des cibles permis
+      if (lecteur) await assertFails(updateDoc(ref(db(lecteur), 'tableau'), { articleId: '', cibles: [cible(1)] }));
       // un mot d'aujourd'hui (sans cibles) se modifie comme avant
       await assertSucceeds(updateDoc(ref(d, 'tableau'), { statut: 'active', note: 'ok' }));
     });
@@ -220,7 +229,7 @@ lesCas({
 });
 
 describe('V4 Cohérence des deux jeux de règles', () => {
-  test('V4i les deux fichiers portent le même texte des fonctions vocabulaireManuelNeuf et vocabulaireRevise, la collection ne se supprime pas, et reste hors du joker', () => {
+  test('V4i les deux fichiers portent le même texte des fonctions de cibles, vocabulaireManuelNeuf et vocabulaireRevise, la collection ne se supprime pas, et reste hors du joker', () => {
     const extraire = (t, nom) => (t.match(new RegExp(`function ${nom}\\([a-z]*\\) \\{[\\s\\S]*?\\n    \\}`)) || [''])[0];
     const j = regles('firestore.rules');
     const p = regles('firestore.plateforme.rules');
