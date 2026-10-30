@@ -145,7 +145,7 @@ describe('M3 numéros lus avant l’appel', () => {
     assert.equal(lignesDe(s)[0][1][0], 'l11');
     assert.ok(!lignesDe(s)[0][1].includes('l12') && !lignesDe(s)[0][1].includes('l13'));
     assert.deepEqual(r.operations.map((o) => [o.action, o.ligne.numeroAvant, o.ligne.numeroApres]), [['supprimer', '1.2', null], ['supprimer', '1.3', null], ['modifier', '2.1', '2.1'], ['ajouter', null, '1.2']]);
-    assert.equal(ids.b.length > 0, true);
+    assert.ok(ids.b);
   });
 });
 
@@ -169,7 +169,7 @@ describe('M4 tout ou rien', () => {
     const s = await demarrer({ devis: [devisDeBase()] });
     const avant = structuredClone(s.doc('devis_devis', 'd1'));
     refuse(await modifier(s, [op('supprimer', { ligne: '1.1', attendu: 'Prise double' }), op('ajouter', { section: '1', reference: 'inconnue', quantite: 1 })]), /Opération 2.*Aucun article actif/);
-    refuse(await modifier(s, [op('supprimer', { ligne: '1.1', attendu: 'Prise double' }), op('modifier', { ligne: '1.2', attendu: 'Plan de travail', quantite: 0 })]), /./);
+    refuse(await modifier(s, [op('supprimer', { ligne: '1.1', attendu: 'Prise double' }), op('modifier', { ligne: '1.2', attendu: 'Plan de travail', quantite: 0 })]), /positive|supérieur|0/i);
     assert.deepEqual(s.doc('devis_devis', 'd1'), avant);
   });
   test('M4 deux opérations sur la même ligne se suivent ; toucher une ligne déjà supprimée par l’appel est refusé', async () => {
@@ -340,8 +340,25 @@ describe('V cas vide et cas d’erreur', () => {
     refuse(await modifier(s, []), /Aucune opération/);
     const trente = Array.from({ length: 30 }, () => op('renommerSection', { section: '1', titre: 'Cuisine' }));
     ok(await modifier(s, trente));
-    refuse(await modifier(s, [...trente, op('renommerSection', { section: '1', titre: 'X' })]), /30 au plus|too_big|at most 30|30/);
+    refuse(await modifier(s, [...trente, op('renommerSection', { section: '1', titre: 'X' })]), /Too big.*<=30 items|30 au plus/);
     refuse(await modifier(s, [op('supprimer', { ligne: '1.1', attendu: 'x' })], 'inconnu'), /Devis introuvable/);
     refuse(await modifier(s, [op('supprimer', { ligne: '1.2', attendu: 'x' })], 'vide'), /Le devis est vide|n'a pas de ligne 1\.2/);
+  });
+});
+
+describe('Cas limites relus par Fable', () => {
+  test('une section sans titre (tête d’un devis fait de lignes à plat) se supprime et se renomme par son numéro ; une section titrée garde sa garde', async () => {
+    const s = await demarrer({ devis: [devisEnregistre('d3', { sections: [{ id: 'sec-debut', titre: '', lignes: [lg('la', 'Prise', 1, 8)] }, { id: 's2', titre: 'Cuisine', lignes: [] }] })] });
+    refuse(await modifier(s, [op('supprimerSection', { section: '2', attendu: 'Salon' })], 'd3'), /maintenant « Cuisine »/);
+    ok(await modifier(s, [op('supprimerSection', { section: '1', attendu: '(sans titre)' })], 'd3'));
+    assert.deepEqual(s.doc('devis_devis', 'd3').sections.map((x) => x.id), ['s2']);
+  });
+  test('deux ajouts « après 1.1 » dans un même appel se suivent dans l’ordre donné ; renommerSection accepte attendu et le vérifie', async () => {
+    const s = await demarrer({ devis: [devisDeBase()] });
+    const ids = await articlesDeBase(s);
+    ok(await modifier(s, [op('ajouter', { section: '1', articleId: ids.a, quantite: 1, apres: '1.1' }), op('ajouter', { section: '1', articleId: ids.b, quantite: 2, apres: '1.1' })]));
+    assert.deepEqual(s.doc('devis_devis', 'd1').sections[0].lignes.map((l) => l.libelle), ['Prise double', 'Carrelage', 'Plinthe', 'Plan de travail', 'Évier']);
+    refuse(await modifier(s, [op('renommerSection', { section: '2', attendu: 'Cuisine', titre: 'X' })]), /maintenant « Salle de bain »/);
+    ok(await modifier(s, [op('renommerSection', { section: '2', attendu: 'Salle de bain', titre: 'Salle d’eau' })]));
   });
 });

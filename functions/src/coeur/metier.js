@@ -1011,14 +1011,18 @@ const CHAMPS_OPERATION = {
   supprimer: ['ligne', 'attendu'],
   ajouter: ['section', 'articleId', 'reference', 'quantite', 'prixVente', 'apres'],
   ajouterSection: ['titre', 'apres'],
-  renommerSection: ['section', 'titre'],
+  renommerSection: ['section', 'titre', 'attendu'],
   supprimerSection: ['section', 'attendu'],
 };
 
 /** Un refus du résolveur de numéros (module pur) devient un refus d'outil ; rien n'a été écrit. */
 function resoudreOuRefuser(sections, reference, options, genre) {
   let r;
-  try { r = resoudreNumero(sections, reference, options); } catch (e) { if (e instanceof ErreurNumero) refuser('saisie_invalide', e.message); throw e; }
+  try {
+    r = resoudreNumero(sections, reference, { ...options, attendu: undefined, attenduObligatoire: false }); // d'abord sans garde, pour savoir ce qu'il y a à ce numéro
+    // Une section ou une ligne SANS texte (la section de tête d'un devis fait de lignes à plat) n'a rien à recopier : la garde porte alors sur le numéro seul.
+    if (String(r.texte ?? '').trim()) r = resoudreNumero(sections, reference, options);
+  } catch (e) { if (e instanceof ErreurNumero) refuser('saisie_invalide', e.message); throw e; }
   if (r.genre !== genre) {
     refuser('saisie_invalide', `« ${reference} » désigne ${r.genre === 'section' ? 'une section' : 'une ligne'} (${r.numero}) : ici il faut ${genre === 'section' ? 'une section (1 pour la première)' : 'une ligne (1.2 pour la ligne 2 de la section 1)'}.`);
   }
@@ -1048,7 +1052,7 @@ function resoudreOperations(sections, operations) {
       } else if (op.action === 'ajouterSection') {
         if (op.apres !== undefined) r.apresCible = resoudreOuRefuser(sections, op.apres, {}, 'section');
       } else {
-        r.cible = resoudreOuRefuser(sections, op.section, { attendu: op.attendu, attenduObligatoire: op.action === 'supprimerSection' }, 'section');
+        r.cible = resoudreOuRefuser(sections, op.section, { attendu: op.attendu, attenduObligatoire: op.action === 'supprimerSection' }, 'section'); // renommerSection : attendu facultatif, mais vérifié s'il est donné
       }
       if ((op.action === 'ajouterSection' || op.action === 'renommerSection') && !texte(op.titre ?? '')) refuser('saisie_invalide', 'le titre de la section est vide.');
       return r;
@@ -1065,7 +1069,7 @@ const etatDeLigne = (devis, ligne) => {
 };
 
 /** Applique une opération (déjà résolue) à `travail` (les sections, modifiées en place) et rend { genre, id, libelle, numeroAvant, avant, apres, lignesSupprimees? }. */
-function appliquerOperation(c, devis, travail, op, articles) {
+function appliquerOperation(c, devis, travail, op, articles, ancres) {
   const avecSections = () => ({ ...devis, sections: travail });
   const sansCible = (quoi, numero) => refuser('saisie_invalide', `${quoi} ${numero} n'existe plus à ce stade de l'appel (une opération précédente l'a retirée).`);
   const sectionEn = (cible) => {
@@ -1109,11 +1113,13 @@ function appliquerOperation(c, devis, travail, op, articles) {
     const lignes = travail[i].lignes ?? (travail[i].lignes = []);
     let rang = lignes.length; // à la fin des lignes PROPRES de la section : avant sa première sous-section (les sous-sections sont les sections qui suivent)
     if (op.apresCible) {
-      const j = lignes.findIndex((l) => l.id === op.apresCible.id);
+      const ancre = ancres.get(op.apresCible.id) ?? op.apresCible.id; // plusieurs ajouts « après 1.1 » dans un appel se suivent dans l'ordre donné
+      const j = lignes.findIndex((l) => l.id === ancre);
       if (j === -1) sansCible('La ligne', op.apresCible.numero);
       rang = j + 1;
     }
     lignes.splice(rang, 0, ligne);
+    if (op.apresCible) ancres.set(op.apresCible.id, ligne.id);
     return { genre: 'ligne', id: ligne.id, libelle: ligne.libelle ?? '', numeroAvant: null, avant: null, apres: etatDeLigne(avecSections(), ligne) };
   }
   if (op.action === 'ajouterSection') {
@@ -1152,9 +1158,10 @@ export async function modifierLignesDevis(c, args) {
     const articles = await tx.liste(C.devisArticles);
     const resolues = resoudreOperations(devis.sections ?? [], operations);
     const travail = structuredClone(devis.sections ?? []);
+    const ancres = new Map();
     const faites = resolues.map((op, i) => {
       try {
-        const f = appliquerOperation(c, devis, travail, op, articles);
+        const f = appliquerOperation(c, devis, travail, op, articles, ancres);
         return { action: op.action, ...f, changementImportant: DL.importanceOperation(op.action, f.avant, f.apres) };
       } catch (e) {
         if (e instanceof ErreurMetier) refuser(e.code, `Opération ${i + 1} (${op.action}) : ${e.message} Rien n'a été écrit.`);
