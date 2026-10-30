@@ -130,14 +130,14 @@ test('3 envoyé : « Devis signé » (jaune) et « Devis refusé » (visible) fo
   await expect(menu.getByRole('menuitem', { name: 'Préparer l’e-mail' })).toBeDisabled(); // le faux serveur répond « pas branché » (outils.js) : grisée, avec la raison
   await expect(menu.getByRole('menuitem', { name: 'Préparer l’e-mail' })).toHaveAttribute('title', /pas encore branchée/);
   await expect(menu.getByRole('menuitem', { name: 'Imprimer' })).toBeEnabled();
-  await expect(menu.getByRole('menuitem', { name: /Passer à « (Signé|Refusé) »/ })).toHaveCount(0); // les deux boutons REMPLACENT ces entrées : pas de doublon
+  await expect(menu.getByRole('menuitem', { name: /Passer à « Devis (signé|refusé) »/ })).toHaveCount(0); // les deux boutons REMPLACENT ces entrées : pas de doublon
   await page.keyboard.press('Escape');
   await jaunes(page).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Marquer signé' }).click(); // fenêtre de confirmation (27/10/2026)
-  await expect(page.locator('.toast').filter({ hasText: 'Devis passé à « Signé »' })).toBeVisible();
+  await expect(page.locator('.toast').filter({ hasText: 'Devis passé à « Devis signé »' })).toBeVisible();
   await racine(page).locator('[data-action="marquer-refuse"]').click();
   await page.getByRole('dialog').getByRole('button', { name: 'Marquer refusé' }).click();
-  await expect(page.locator('.toast').filter({ hasText: 'Devis passé à « Refusé »' })).toBeVisible();
+  await expect(page.locator('.toast').filter({ hasText: 'Devis passé à « Devis refusé »' })).toBeVisible();
   expect(appels).toEqual([{ devisId: 'dEnvoye', action: 'accepter' }, { devisId: 'dEnvoye', action: 'refuser' }]);
 });
 

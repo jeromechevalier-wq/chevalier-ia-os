@@ -180,8 +180,8 @@ export function paginer(liste, page = 1, parPage = TAILLE_PAGE_DEFAUT) {
 export const COLONNES_TABLEAU = Object.freeze([
   { id: 'brouillon', libelle: 'Brouillon', statuts: ['brouillon'] },
   { id: 'envoye', libelle: 'Envoyé', statuts: ['envoye', 'en_attente_envoi'] },
-  { id: 'accepte', libelle: 'Signé', statuts: ['accepte'] },
-  { id: 'refuse', libelle: 'Refusé', statuts: ['refuse'] },
+  { id: 'accepte', libelle: 'Devis signé', statuts: ['accepte'] },
+  { id: 'refuse', libelle: 'Devis refusé', statuts: ['refuse'] },
 ]);
 
 /** Statuts qui ne sont plus dans le Tableau : ils se lisent dans la vue « Archives » (rien n'est modifié en base). */
@@ -211,8 +211,8 @@ export function regrouperParColonne(liste, aujourdhui) {
 export const CHANGEMENTS_STATUT = Object.freeze([
   { action: 'finaliser', libelle: 'Finalisé' },
   { action: 'marquer_envoye', libelle: 'Envoyé' },
-  { action: 'accepter', libelle: 'Signé' },
-  { action: 'refuser', libelle: 'Refusé' },
+  { action: 'accepter', libelle: 'Devis signé' },
+  { action: 'refuser', libelle: 'Devis refusé' },
 ]);
 
 /**
