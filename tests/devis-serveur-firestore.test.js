@@ -7,8 +7,9 @@ import { initializeApp, deleteApp } from '../functions/node_modules/firebase-adm
 import { getFirestore, Timestamp } from '../functions/node_modules/firebase-admin/lib/esm/firestore/index.js';
 import { creerAccesFirestore, avecBase, COLLECTIONS as C } from '../functions/src/coeur/donnees.js';
 import * as S from '../functions/src/coeur/devis.js';
-import { modifierLignesDevis, annulerDerniereModificationDevis } from '../functions/src/coeur/metier.js';
+import { modifierLignesDevis, annulerDerniereModificationDevis, creerDevisDepuisModele } from '../functions/src/coeur/metier.js';
 import { restaurerOperation } from '../functions/src/coeur/restaurer.js';
+import { executerEcritures } from '../functions/src/coeur/ecriture.js';
 import { nouveauDevis } from '../functions/partage/devis.js';
 
 const emulateur = process.env.FIRESTORE_EMULATOR_HOST;
@@ -226,5 +227,22 @@ describe('Transitions des devis sur Firestore (émulateur)', { skip: emulateur ?
     assert.deepEqual(lignes.sort((a, b) => a.date.toMillis() - b.date.toMillis()).map((l) => [l.outil, l.action]), [['modifier_lignes_devis', 'modifier'], ['annuler_derniere_modification_devis', 'restaurer']]);
     await assert.rejects(annulerDerniereModificationDevis(cDe(3000), { id: 'de' }), /déjà annulé/);
     assert.equal((await brut(C.devis, 'de')).sections[0].lignes[0].quantite, 3);
+  });
+
+  // creer_devis_depuis_modele : création sur le vrai émulateur ; le journal dit « creer » (Timestamps) et l'annulation de ce devis neuf est refusée avec le bon message.
+  test('C11 un devis créé depuis un modèle : le modèle ne bouge pas, le journal dit « creer », annuler_derniere_modification_devis répond « rien à annuler »', async () => {
+    await poser('dm', { sections: [{ id: 's1', titre: 'Travaux', lignes: [{ id: 'la', libelle: 'Prise double', unite: 'u', quantite: 3, prixAchat: 8, articleId: 'prise' }, { id: 'lb', libelle: 'Ligne libre', unite: 'u', quantite: 1, prixAchat: 5 }] }] });
+    await db.collection(C.devisArticles).doc('prise').set({ code: 'PRI', libelle: 'Prise double', unite: 'u', prixAchat: 10, tauxTva: 20, actif: true });
+    const avant = await brut(C.devis, 'dm');
+    const ctxMcp = { acteur: ACTEUR, jeton: 'essai', via: 'mcp', maintenant: new Date(MAINTENANT.getTime() + 1000) };
+    const c = { donnees, acteur: ACTEUR, maintenant: ctxMcp.maintenant, noterOperation: () => {}, ecrire: ({ operations, parametres }) => executerEcritures({ donnees, ctx: ctxMcp, outil: 'creer_devis_depuis_modele', parametres, operations }), restaurer: (a) => restaurerOperation({ donnees, ctx: ctxMcp, ...a }) };
+    const r = await creerDevisDepuisModele(c, { modeleId: 'dm' });
+    assert.deepEqual(r.aReviser.map((x) => x.motif), ['ligne_libre']);
+    assert.deepEqual(await brut(C.devis, 'dm'), avant, 'le modèle n’est pas modifié');
+    const nouveau = await brut(C.devis, r.id);
+    assert.deepEqual(nouveau.sections[0].lignes.map((l) => [l.libelle, l.quantite, l.prixAchat]), [['Prise double', 3, 10]]);
+    const lignes = (await db.collection(C.audit).get()).docs.map((d) => d.data()).filter((l) => l.docId === r.id);
+    assert.deepEqual(lignes.map((l) => [l.outil, l.action]), [['creer_devis_depuis_modele', 'creer']]);
+    await assert.rejects(annulerDerniereModificationDevis({ ...c, maintenant: new Date(MAINTENANT.getTime() + 2000) }, { id: r.id }), /vient d’être créé, rien à annuler : utilise supprimer_devis/);
   });
 });
