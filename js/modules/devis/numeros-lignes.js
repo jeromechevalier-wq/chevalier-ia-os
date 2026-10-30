@@ -13,7 +13,7 @@ const MAX_NUMEROS_DITS = 30;
 
 /** « 1,2 », « 1-2 », « 1 . 2 » ou le nombre 1.2 -> « 1.2 » ; null si ce n'est pas un numéro (un identifiant, par exemple). */
 export function normaliserNumero(saisie) {
-  const t = String(saisie ?? '').replace(/\s+/g, '');
+  const t = String(saisie ?? '').trim().replace(/\s*([.,-])\s*/g, '$1'); // « 1 . 2 » = 1.2, mais « 1 2 » n'est pas « 12 »
   return FORME_NUMERO.test(t) ? t.replace(/[,-]/g, '.') : null;
 }
 
@@ -56,6 +56,7 @@ export const memesMots = (a, b) => {
  */
 export function resoudreNumero(sections, reference, { attendu, id, attenduObligatoire = false } = {}) {
   const elements = elementsNumerotes(sections);
+  if (typeof reference === 'number' && !Number.isInteger(reference)) throw new ErreurNumero('Écris le numéro entre guillemets (« 1.10 »), pas comme un nombre : 1.10 et 1.1 se confondent.');
   const brut = String(reference ?? '').trim();
   if (!brut) throw new ErreurNumero('Il manque le numéro : dis-le avec un point (1.2 pour la ligne 2 de la section 1).');
   const numero = normaliserNumero(brut);

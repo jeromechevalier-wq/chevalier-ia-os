@@ -1333,7 +1333,7 @@ describe('N3 descriptions : une phrase à la fin, rien de réécrit', () => {
     const { OUTILS_ECRITURE } = await import('../functions/src/mcp/outils/ecriture.js');
     const { lire_devis } = await import('../functions/src/mcp/outils/lecture.js');
     const desc = (n) => OUTILS_ECRITURE.find((o) => o.nom === n).description;
-    assert.match(desc('modifier_devis_brouillon'), /sous-sections faites à l'écran sont aplaties/);
+    assert.match(desc('modifier_devis_brouillon'), /sous-sections faites à l'écran sont perdues/);
     assert.match(desc('creer_devis_brouillon'), /`sections` : la structure courte/);
     assert.match(lire_devis.description, /format: 'recapitulatif'/);
   });

@@ -8,7 +8,7 @@ const estSaut = (l) => l?.type === 'saut';
 export function quantiteAvecUnite(ligne) {
   const q = Number(ligne?.quantite);
   if (!Number.isFinite(q) || ligne?.type === 'texte') return '';
-  return `${String(q).replace('.', ',')}${ligne?.unite ? ` ${ligne.unite}` : ''}`;
+  return `${String(Math.round(q * 10000) / 10000).replace('.', ',')}${ligne?.unite ? ` ${ligne.unite}` : ''}`;
 }
 
 /**

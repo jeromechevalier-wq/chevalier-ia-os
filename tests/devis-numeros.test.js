@@ -14,12 +14,14 @@ const devis = () => [
 const refus = (f, motif) => assert.throws(f, (e) => e instanceof ErreurNumero && motif.test(e.message), `refus attendu : ${motif}`);
 
 describe('M1 résolveur : chaque forme de numéro', () => {
-  test('M1 « 1.2 », « 1,2 », « 1-2 », le nombre 1.2 et l’identifiant désignent la même ligne ; le saut de page ne compte pas', () => {
-    for (const saisie of ['1.2', '1,2', '1-2', ' 1 . 2 ', 1.2, 'l12']) {
+  test('M1 « 1.2 », « 1,2 », « 1-2 », l’identifiant désignent la même ligne ; le saut de page ne compte pas', () => {
+    for (const saisie of ['1.2', '1,2', '1-2', ' 1 . 2 ', 'l12']) {
       const r = resoudreNumero(devis(), saisie);
       assert.deepEqual([r.genre, r.id, r.numero], ['ligne', 'l12', '1.2'], String(saisie));
     }
     assert.equal(normaliserNumero('l12'), null);
+    assert.equal(normaliserNumero('1 2'), null, '« 1 2 » ne devient pas « 12 »');
+    refus(() => resoudreNumero(devis(), 1.1), /entre guillemets/);
   });
   test('M1 un nombre seul est la section de ce rang ; « 12 » sans section 12 est refusé en disant d’écrire 1.2', () => {
     assert.deepEqual(resoudreNumero(devis(), '2'), { genre: 'section', numero: '2', id: 's2', texte: 'Salle de bain' });
