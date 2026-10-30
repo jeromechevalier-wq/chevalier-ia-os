@@ -523,6 +523,15 @@ export function ajouterJours(jour, n) {
   return d.toISOString().slice(0, 10);
 }
 
+/** Ajoute n mois à un jour civil "AAAA-MM-JJ" ; le jour est ramené à la fin du mois si besoin (2026-08-31 + 6 mois = 2027-02-28). */
+export function ajouterMois(jour, n) {
+  const [a, m, j] = jour.split('-').map(Number);
+  const mois = decalerMois(`${a}-${String(m).padStart(2, '0')}`, n);
+  const [a2, m2] = mois.split('-').map(Number);
+  const dernier = new Date(Date.UTC(a2, m2, 0)).getUTCDate();
+  return `${mois}-${String(Math.min(j, dernier)).padStart(2, '0')}`;
+}
+
 /** Écart en jours entre deux jours civils (b - a). */
 export function ecartJours(a, b) {
   const t = (s) => { const [x, y, z] = s.split('-').map(Number); return Date.UTC(x, y - 1, z); };

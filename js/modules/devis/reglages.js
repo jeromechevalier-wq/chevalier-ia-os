@@ -14,7 +14,7 @@ const ERREUR_ECRITURE = 'Enregistrement impossible : réessaie dans un instant, 
 /** Le brouillon part des réglages enregistrés ; les nombres restent du texte tant qu'on tape. */
 const brouillonDe = (r) => ({
   nomBordereau: r.nomBordereau, modeMarge: r.modeMarge, marge: String(r.marge).replace('.', ','), margeDevis: String(r.margeDevis).replace('.', ','), regimeTva: r.regimeTva, tauxProposes: [...r.tauxProposes],
-  tauxTvaDefaut: r.tauxTvaDefaut, dureeValiditeJours: String(r.dureeValiditeJours), mentionEmetteur: r.mentionEmetteur,
+  tauxTvaDefaut: r.tauxTvaDefaut, dureeValiditeJours: String(r.dureeValiditeJours), mentionEmetteur: r.mentionEmetteur, etapeAffaireCreee: r.etapeAffaireCreee,
   entreprise: entrepriseBrouillon(r.entreprise),
 });
 
@@ -135,6 +135,13 @@ export function reglages(page) {
   }
 
   function rendre() {
+    // Étape de départ des affaires créées depuis un devis : les étapes actives, dans l'ordre du pipeline. Une valeur enregistrée mais disparue reste visible et n'est jamais effacée.
+    const etapes = CRM.etat.config.etapes.filter((e) => e.actif);
+    const optionsEtapes = [{ valeur: '', libelle: 'Non réglée (je choisis à chaque fois)' }, ...etapes.map((e) => ({ valeur: e.id, libelle: e.libelle }))];
+    if (brouillon.etapeAffaireCreee && !optionsEtapes.some((o) => o.valeur === brouillon.etapeAffaireCreee)) {
+      const eteinte = CRM.etat.config.etapes.find((e) => e.id === brouillon.etapeAffaireCreee); // l'étape existe encore mais elle est désactivée : on garde son nom
+      optionsEtapes.push({ valeur: brouillon.etapeAffaireCreee, libelle: eteinte ? `${eteinte.libelle} (étape désactivée)` : `${brouillon.etapeAffaireCreee} (étape disparue)` });
+    }
     const taux = h('div', { class: 'cases', dataset: { champ: 'tauxProposes' } }, TAUX_TVA_DEFAUT.map((t) => h('label', { class: 'case' },
       h('input', { type: 'checkbox', checked: brouillon.tauxProposes.includes(t), dataset: { taux: String(t) }, 'aria-label': `Proposer le taux ${A.formaterTaux(t)}`,
         onchange: (e) => { changer({ tauxProposes: TAUX_TVA_DEFAUT.filter((x) => (x === t ? e.target.checked : brouillon.tauxProposes.includes(x))) }); } }), A.formaterTaux(t))));
@@ -154,6 +161,10 @@ export function reglages(page) {
         bloc('dureeValiditeJours', 'Durée de validité d’un devis (jours)', texte('dureeValiditeJours', brouillon.dureeValiditeJours, { inputmode: 'numeric' }))),
       bloc('tauxProposes', 'Taux de TVA proposés', taux),
       bloc('tauxTvaDefaut', 'Taux de TVA par défaut', liste('tauxTvaDefaut', TAUX_TVA_DEFAUT.map((t) => ({ valeur: t, libelle: A.formaterTaux(t) })), brouillon.tauxTvaDefaut, (v) => changer({ tauxTvaDefaut: Number(v) }))),
+      h('div', { class: 'pile', dataset: { zone: 'etape-affaire-creee' } },
+        bloc('etapeAffaireCreee', 'Étape des affaires créées depuis un devis', liste('etapeAffaireCreee', optionsEtapes, brouillon.etapeAffaireCreee, (v) => changer({ etapeAffaireCreee: v })),
+          'L’étape où est placée l’affaire que l’application crée quand tu finalises un devis sans affaire.'),
+        etapes.length ? null : h('p', { class: 'aide', dataset: { zone: 'etape-affaire-creee-vide' } }, 'Aucune étape dans le pipeline')),
       bloc('mentionEmetteur', 'Mention d’émetteur (facultatif)', h('textarea', { class: 'champ', id: 'devis-mentionEmetteur', rows: 3, maxlength: '500', dataset: { champ: 'mentionEmetteur' }, value: brouillon.mentionEmetteur,
         oninput: (e) => changer({ mentionEmetteur: e.target.value }) }), 'Un texte libre qui accompagne tes devis (par exemple une mention légale). Il n’est pas encore envoyé nulle part.'),
       sectionEntreprise());
