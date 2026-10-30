@@ -16,13 +16,13 @@ async function ouvrirReglagesDevis(page) {
 const champ = (page) => page.locator('#devis-etapeAffaireCreee');
 const enregistrer = (page) => page.locator('[data-action="enregistrer-reglages-devis"]');
 
-test('E1 la liste propose « Non réglée » en premier puis les étapes actives ; par défaut rien n\'est choisi', async ({ page }, info) => {
+test('E1 la liste propose « Je choisis à chaque fois » en premier puis les étapes actives ; par défaut rien n\'est choisi', async ({ page }, info) => {
   await connecter(page);
   await ouvrirReglagesDevis(page);
   await expect(page.locator('#reglages-devis')).toContainText('Étape des affaires créées depuis un devis');
   await expect(champ(page)).toHaveValue('');
   const options = await champ(page).locator('option').allTextContents();
-  expect(options[0]).toBe('Non réglée (je choisis à chaque fois)');
+  expect(options[0]).toBe('Je choisis à chaque fois');
   expect(options.length).toBeGreaterThan(1);
   await expect(enregistrer(page)).toBeDisabled(); // rien n'est écrit tant qu'on n'enregistre pas
   await capturer(page, info, 'E1-liste');
@@ -68,13 +68,13 @@ test('E3 une étape enregistrée mais disparue reste visible « (étape disparue
   await capturer(page, info, 'E3-etape-disparue');
 });
 
-test('E4 cas vide : aucune étape active, la liste ne montre que « Non réglée » et la phrase « Aucune étape dans le pipeline »', async ({ page }, info) => {
+test('E4 cas vide : aucune étape active, la liste ne montre que « Je choisis à chaque fois » et la phrase « Aucune étape dans le pipeline »', async ({ page }, info) => {
   await connecter(page);
   // les six emplacements de départ de Jérôme, tous éteints
   const item = (id) => ({ id, libelle: id, description: '', couleur: '#999999', actif: false, action: null });
   await ecrireDocument('crm_parametres/etapes', { items: ['premier_contact', 'rdv_fixe', 'proposition_envoyee', 'gagne', 'etape_5', 'etape_6'].map(item), roleGagnee: 'gagne' });
   await ouvrirReglagesDevis(page);
-  await expect(champ(page).locator('option')).toHaveText(['Non réglée (je choisis à chaque fois)']);
+  await expect(champ(page).locator('option')).toHaveText(['Je choisis à chaque fois']);
   await expect(page.locator('[data-zone="etape-affaire-creee-vide"]')).toHaveText('Aucune étape dans le pipeline');
   await capturer(page, info, 'E4-aucune-etape');
 });
