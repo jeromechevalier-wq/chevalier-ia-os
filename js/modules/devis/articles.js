@@ -17,7 +17,8 @@ import {
 import {
   MODES_MARGE, REGIMES_TVA, TAUX_TVA_DEFAUT, DUREE_VALIDITE_DEFAUT, coefficientDeMarge, emailValide,
 } from './logique.js';
-import { TYPE_OUVRAGE, erreursOuvrage, articlesParId, calculerOuvrage } from './ouvrages.js';
+import { TYPE_OUVRAGE, erreursOuvrage, articlesParId, calculerOuvrage, lireMotOuvrage, validerMotAutre, MOTS_OUVRAGE, MOT_OUVRAGE_AUTRE } from './ouvrages.js';
+export { motOuvrage, MOTS_OUVRAGE } from './ouvrages.js';
 import {
   FAMILLES_PAR_DEFAUT, erreurFamilleArticle, typeDeFamille, cheminFamille, familleEffective, idsAvecSousFamilles,
 } from './familles.js';
@@ -400,6 +401,8 @@ export function filtrerArticles(articles, { recherche = '', statut = 'actifs', t
 // ---------------------------------------------------------------- réglages du module
 export const REGLAGES_DEVIS_DEFAUT = Object.freeze({
   nomBordereau: NOM_BORDEREAU_DEFAUT,
+  motOuvrage: 'ouvrage', // le mot affiché pour le type « ouvrage » (liste fermée + « autre ») ; l'identifiant technique ne change jamais
+  motOuvrageAutre: Object.freeze({}), // { singulier, pluriel, genre } quand le choix est « autre »
   modeMarge: 'majoration',
   marge: MARGE_DEFAUT,
   margeDevis: MARGE_DEVIS_DEFAUT, // marge par défaut des nouveaux devis (distincte de `marge`, la « marge de revente » des articles)
@@ -423,6 +426,7 @@ export function reglagesDevis(brut) {
   const proposes = taux.length ? TAUX_TVA_DEFAUT.filter((t) => taux.includes(t)) : [...d.tauxProposes];
   return {
     nomBordereau: NOMS_BORDEREAU.includes(b.nomBordereau) ? b.nomBordereau : d.nomBordereau,
+    ...lireMotOuvrage(b),
     modeMarge: MODES_MARGE.some((m) => m.id === b.modeMarge) ? b.modeMarge : d.modeMarge,
     marge: estNombre(b.marge) && !(b.modeMarge === 'marge_vente' && b.marge >= 100) ? b.marge : d.marge,
     margeDevis: estNombre(b.margeDevis) && b.margeDevis >= 0 && b.margeDevis <= MARGE_DEVIS_MAX && !(b.modeMarge === 'marge_vente' && b.margeDevis >= 100) ? b.margeDevis : d.margeDevis,
@@ -473,12 +477,18 @@ export function validerReglagesDevis(saisie, { actuels = REGLAGES_DEVIS_DEFAUT }
   if (jours === null || !Number.isInteger(jours) || jours < 1 || jours > LIMITES.jours) erreurs.dureeValiditeJours = `La durée de validité est un nombre entier de jours, entre 1 et ${LIMITES.jours} (exemple : 90).`;
   const mention = typeof s.mentionEmetteur === 'string' ? s.mentionEmetteur.trim() : '';
   if (mention.length > LIMITES.mention) erreurs.mentionEmetteur = `La mention est trop longue (${LIMITES.mention} caractères au plus).`;
+  const motChoisi = MOTS_OUVRAGE.some((m) => m.id === s.motOuvrage) || s.motOuvrage === MOT_OUVRAGE_AUTRE;
+  if (!motChoisi) erreurs.motOuvrage = `Choisis un mot parmi : ${[...MOTS_OUVRAGE.map((m) => m.singulier), 'autre'].join(', ')}.`;
+  const mot = validerMotAutre(s.motOuvrageAutre);
+  if (s.motOuvrage === MOT_OUVRAGE_AUTRE && !mot.autre) Object.assign(erreurs, Object.fromEntries(Object.entries(mot.erreurs).map(([k, v]) => [`motOuvrageAutre.${k}`, v])));
   const ent = validerEntreprise(s.entreprise);
   Object.assign(erreurs, ent.erreurs);
   if (Object.keys(erreurs).length) return { reglages: null, erreurs };
   return {
     reglages: {
       nomBordereau: s.nomBordereau,
+      motOuvrage: s.motOuvrage, // recopié : l'enregistrement est un setDoc sans fusion, il effacerait le mot choisi
+      motOuvrageAutre: mot.autre ?? {},
       modeMarge: s.modeMarge,
       marge,
       margeDevis,
