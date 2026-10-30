@@ -5,23 +5,29 @@ import { h, icone, remplir } from '../../os/ui.js';
 import * as A from './articles.js';
 import { arbreCatalogue, cheminDansArbre, MESSAGE_CATALOGUE_VIDE, MESSAGE_FAMILLE_SANS_ARTICLE, MESSAGE_AUCUN_RESULTAT } from './selecteur-catalogue-logique.js';
 
-export const MESSAGE_CATALOGUE_ILLISIBLE = 'La liste du catalogue n’a pas pu être mise à jour. Vérifie ta connexion puis rouvre cette fenêtre.';
+export const MESSAGE_CATALOGUE_CHARGEMENT = 'Chargement du catalogue…';
+export const MESSAGE_CATALOGUE_ILLISIBLE = 'La liste du catalogue n’a pas pu être mise à jour. Vérifie ta connexion puis recharge la page.';
 const MAX_RESULTATS = 8;
 
 /**
- * `source` : { articles(), familles(), estChoisissable(article), enErreur()?, reessayer()?, surChangement(rappel)? -> arrêt }. `initial` : l'article déjà choisi ou null. `surChoix(article)` est appelé à chaque choix.
- * Rend { element, valeur(), focus() }.
+ * `source` : { articles(), familles(), estChoisissable(article), enErreur()?, pret()?, surChangement(rappel)? -> arrêt }. `initial` : l'article déjà choisi ou null. `surChoix(article)` est appelé à chaque choix.
+ * Rend { element, valeur(), focus(), arreter() } : `arreter()` libère l'abonnement, à appeler quand la fenêtre est fermée.
  */
 export function selecteurCatalogue({ source, mode = 'article', initial = null, surChoix = () => {} } = {}) {
   let choisi = initial;
-  const ouverts = new Set(initial ? cheminDansArbre(arbreCatalogue(source.articles(), source.familles(), source.estChoisissable), initial.id) : []);
+  const ouverts = new Set();
+  const cheminChoisi = () => (choisi ? cheminDansArbre(arbreCatalogue(source.articles(), source.familles(), source.estChoisissable), choisi.id) : []);
+  const cheminOuvert = () => cheminChoisi().every((id) => ouverts.has(id));
+  const ouvrirChemin = () => cheminChoisi().forEach((id) => ouverts.add(id));
+  ouvrirChemin();
   const champ = h('input', {
     type: 'search', class: 'champ', autocomplete: 'off', 'aria-label': 'Chercher un article du catalogue', placeholder: 'Chercher un article du catalogue', dataset: { champ: 'recherche-article' },
     oninput: () => { dessinerResultats(); dessinerArbre(); },
   });
   const resultats = h('ul', { class: 'resultats-composants', role: 'listbox', 'aria-label': 'Articles trouvés', hidden: true });
   const resume = h('p', { class: 'article-choisi', 'aria-live': 'polite', dataset: { role: 'article-choisi' } });
-  const arbre = h('div', { class: 'arbre-catalogue', role: 'tree', 'aria-label': 'Catalogue par famille', dataset: { role: 'arbre-catalogue' } });
+  const arbre = h('div', { class: 'arbre-catalogue', 'aria-label': 'Catalogue par famille', dataset: { role: 'arbre-catalogue' } });
+  const erreur = h('p', { class: 'erreur', role: 'alert', hidden: true, dataset: { erreur: 'catalogue' } }, MESSAGE_CATALOGUE_ILLISIBLE);
 
   function choisir(a) {
     choisi = a; champ.value = ''; dessinerResultats(); dessinerChoix(); dessinerArbre(); surChoix(a);
@@ -42,25 +48,26 @@ export function selecteurCatalogue({ source, mode = 'article', initial = null, s
 
   function ligneArticle(a) {
     const coche = choisi?.id === a.id;
-    return h('li', { role: 'none' }, h('button', { type: 'button', role: 'treeitem', class: `arbre-article${coche ? ' choisi' : ''}`, 'aria-selected': String(coche), dataset: { arbreArticle: a.id }, onclick: () => choisir(a) },
+    return h('li', {}, h('button', { type: 'button', class: `arbre-article${coche ? ' choisi' : ''}`, 'aria-pressed': String(coche), dataset: { arbreArticle: a.id }, onclick: () => choisir(a) },
       h('span', {}, a.libelle), h('span', { class: 'discret' }, a.unite ?? '')));
   }
   function ligneFamille(f) {
     const ouvert = ouverts.has(f.id);
-    return h('li', { role: 'none', class: `arbre-famille niveau-${f.niveau}` },
-      h('button', { type: 'button', role: 'treeitem', class: 'arbre-entete', 'aria-expanded': String(ouvert), dataset: { arbreFamille: f.id },
+    return h('li', { class: `arbre-famille niveau-${f.niveau}` },
+      h('button', { type: 'button', class: 'arbre-entete', 'aria-expanded': String(ouvert), dataset: { arbreFamille: f.id },
         onclick: () => { if (ouverts.has(f.id)) ouverts.delete(f.id); else ouverts.add(f.id); dessinerArbre(); } },
       icone(ouvert ? 'chevron-down' : 'chevron-right', { taille: 16 }), h('span', { class: 'arbre-nom' }, f.nom), h('span', { class: 'discret arbre-nombre' }, String(f.nombre))),
-      ouvert ? h('ul', { role: 'group', class: 'arbre-contenu' },
+      ouvert ? h('ul', { class: 'arbre-contenu' },
         f.enfants.map(ligneFamille), f.articles.map(ligneArticle),
         f.nombre === 0 ? h('li', { class: 'discret arbre-vide', dataset: { vide: 'famille' } }, MESSAGE_FAMILLE_SANS_ARTICLE) : null) : null);
   }
   function dessinerArbre() {
+    erreur.hidden = !source.enErreur?.(); // la liste précédente reste affichée sous le message (comme l'écran Vocabulaire)
     arbre.hidden = champ.value.trim() !== ''; // pendant la recherche, la liste des résultats suffit
     if (arbre.hidden) return;
-    if (source.enErreur?.()) {
-      remplir(arbre, h('p', { class: 'erreur', role: 'alert', dataset: { erreur: 'catalogue' } }, MESSAGE_CATALOGUE_ILLISIBLE, ' ',
-        source.reessayer ? h('button', { type: 'button', class: 'bouton bouton-secondaire bouton-petit', dataset: { action: 'reessayer-catalogue' }, onclick: () => source.reessayer() }, 'Réessayer') : null));
+    const actif = arbre.contains(document.activeElement) ? { ...document.activeElement.dataset } : null; // un redessin ne fait pas perdre la place au clavier
+    if (source.pret && !source.pret() && !source.articles().length) {
+      remplir(arbre, h('p', { class: 'discret', dataset: { vide: 'chargement' } }, MESSAGE_CATALOGUE_CHARGEMENT));
       return;
     }
     const noeuds = arbreCatalogue(source.articles(), source.familles(), source.estChoisissable);
@@ -68,18 +75,22 @@ export function selecteurCatalogue({ source, mode = 'article', initial = null, s
       remplir(arbre, h('p', { class: 'discret', dataset: { vide: 'catalogue' } }, MESSAGE_CATALOGUE_VIDE, ' ', h('a', { href: '#/devis/bordereau' }, 'Ouvrir le catalogue')));
       return;
     }
-    remplir(arbre, h('ul', { role: 'group', class: 'arbre-racine' }, noeuds.map(ligneFamille)));
+    remplir(arbre, h('ul', { class: 'arbre-racine' }, noeuds.map(ligneFamille)));
+    if (actif?.arbreFamille) arbre.querySelector(`[data-arbre-famille="${actif.arbreFamille}"]`)?.focus();
+    else if (actif?.arbreArticle) arbre.querySelector(`[data-arbre-article="${actif.arbreArticle}"]`)?.focus();
   }
+  /** Montre l'article déjà choisi dans le cadre défilant de l'arbre. */
+  const montrerChoisi = () => arbre.querySelector('.arbre-article.choisi')?.scrollIntoView?.({ block: 'nearest' });
 
-  const element = h('div', { class: 'pile selecteur-article selecteur-catalogue', dataset: { mode } }, champ, resultats, resume, arbre);
+  const element = h('div', { class: 'pile selecteur-article selecteur-catalogue', dataset: { mode } }, champ, resultats, resume, erreur, arbre);
   dessinerChoix();
   dessinerArbre();
-  // Le catalogue peut arriver après l'ouverture de la fenêtre : l'arbre et les résultats se redessinent à chaque changement, jusqu'à la fermeture de la fenêtre.
-  let monte = false;
-  const arreter = source.surChangement?.(() => {
-    if (element.isConnected) monte = true;
-    else if (monte) { arreter?.(); return; }
+  // Le catalogue peut arriver après l'ouverture de la fenêtre : l'arbre et les résultats se redessinent à chaque changement, jusqu'à `arreter()`.
+  const arreterAbonnement = source.surChangement?.(() => {
+    if (choisi && !cheminOuvert()) ouvrirChemin();
     dessinerResultats(); dessinerArbre();
   });
-  return { element, valeur: () => choisi, focus: () => champ.focus() };
+  const arreter = () => arreterAbonnement?.();
+  requestAnimationFrame(montrerChoisi);
+  return { element, valeur: () => choisi, focus: () => champ.focus(), arreter };
 }

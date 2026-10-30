@@ -49,7 +49,7 @@ test('C1.1 l’arbre montre les familles ; déplier « Fournitures » puis « É
   await capturer(page, info, 'C1.1-arbre-deplie');
   await dialogue(page).locator('[data-arbre-article="a02"]').click();
   await expect(dialogue(page).locator('[data-role="article-choisi"]')).toContainText('Prise double 16 A');
-  await expect(dialogue(page).locator('[data-arbre-article="a02"]')).toHaveAttribute('aria-selected', 'true');
+  await expect(dialogue(page).locator('[data-arbre-article="a02"]')).toHaveAttribute('aria-pressed', 'true');
   await dialogue(page).getByRole('textbox', { name: 'Expression' }).fill('prises doubles');
   await dialogue(page).getByRole('button', { name: 'Enregistrer' }).click();
   await expect(dialogue(page)).toHaveCount(0);
@@ -82,7 +82,8 @@ test('C1.3 « Changer l’article » ouvre l’arbre déjà déplié sur l’art
   await page.locator('tr[data-id="prise_double"] [data-action="menu-mot"]').click();
   await page.getByRole('menuitem', { name: 'Changer l’article', exact: true }).click();
   await expect(dialogue(page)).toContainText('Changer l’article');
-  await expect(dialogue(page).locator('[data-arbre-article="a02"]')).toHaveAttribute('aria-selected', 'true'); // ouvert sur le chemin de l'article actuel
+  await expect(dialogue(page).locator('[data-arbre-article="a02"]')).toBeInViewport(); // ouvert sur le chemin de l'article actuel, et visible dans le cadre
+  await expect(dialogue(page).locator('[data-arbre-article="a02"]')).toHaveAttribute('aria-pressed', 'true');
   const enregistrer = dialogue(page).getByRole('button', { name: 'Enregistrer' });
   await expect(enregistrer).toHaveAttribute('aria-disabled', 'true');
   await capturer(page, info, 'C1.3-changer-article');
@@ -109,4 +110,25 @@ test('C1.5 cas vide : une famille sans article le dit ; une recherche sans résu
   await champ(page).fill('zzzz');
   await expect(dialogue(page)).toContainText('Aucun article ne correspond.');
   await capturer(page, info, 'C1.5-aucun-resultat');
+});
+
+test('C1.6 le catalogue arrive après l’ouverture : l’arbre se met à jour sans perdre la famille dépliée ni la saisie, et au clavier le focus reste sur la famille', async ({ page }, info) => {
+  await ouvrirCreation(page);
+  await expect(dialogue(page).locator('[data-vide="catalogue"]')).toBeVisible();
+  await dialogue(page).getByRole('textbox', { name: 'Expression' }).fill('prises');
+  await catalogue(); // les articles arrivent pendant que la fenêtre est ouverte
+  await expect(famille(page, 'famille-1')).toBeVisible();
+  await famille(page, 'famille-1').focus();
+  await page.keyboard.press('Enter'); // au clavier : Entrée déplie
+  await expect(famille(page, 'famille-1')).toHaveAttribute('aria-expanded', 'true');
+  await expect(famille(page, 'famille-1')).toBeFocused();
+  await famille(page, ELECTRICITE).focus();
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Enter'); // choisit le premier article (Interrupteur simple)
+  await expect(dialogue(page).locator('[data-role="article-choisi"]')).toContainText('Interrupteur simple');
+  await article('a09', { libelle: 'Prise étanche', type: 'fourniture', familleId: ELECTRICITE }); // un autre article arrive : l'arbre reste déplié, la saisie reste
+  await expect(dialogue(page).locator('[data-arbre-article="a09"]')).toBeVisible();
+  await expect(dialogue(page).getByRole('textbox', { name: 'Expression' })).toHaveValue('prises');
+  await capturer(page, info, 'C1.6-arrivee-tardive');
 });

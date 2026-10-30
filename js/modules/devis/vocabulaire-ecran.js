@@ -43,7 +43,7 @@ const libelleArticle = (r) => articleDuMot(r)?.libelle ?? r.articleLibelle ?? ''
 /** `valeur()` : l'article choisi ou null. `surChoix(article)` est appelé à chaque choix. */
 const selecteurArticle = ({ initial = null, surChoix = () => {} } = {}) => selecteurCatalogue({
   mode: 'article', initial, surChoix,
-  source: { articles: () => D.etat.articles, familles: () => D.etat.familles, estChoisissable: V.articleChoisissable, enErreur: () => D.etat.erreurLecture, surChangement: D.surChangement },
+  source: { articles: () => D.etat.articles, familles: () => D.etat.familles, estChoisissable: V.articleChoisissable, enErreur: () => D.etat.erreurLecture, pret: () => D.etat.pret, surChangement: D.surChangement },
 });
 
 // ---------------------------------------------------------------- fenêtres
@@ -133,6 +133,7 @@ async function ouvrirCreation() {
       });
     },
   });
+  choix.arreter();
   if (r === true) toast('Mot ajouté');
   return r === 'modifier' ? { modifier: existant } : null;
 }
@@ -161,6 +162,7 @@ async function ouvrirChangerArticle(regle) {
     boutons: [{ libelle: 'Annuler', valeur: false }, { libelle: 'Enregistrer', valeur: true, style: 'principal', avantFermeture: tenter }],
     auMontage: ({ boutons }) => { bouton = boutons.at(-1); griserSelon(bouton, pret); },
   });
+  choix.arreter();
   if (r === true) toast('Article changé');
   return r === true;
 }
