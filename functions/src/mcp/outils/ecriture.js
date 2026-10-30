@@ -218,6 +218,11 @@ export const OUTILS_ECRITURE = [
     codeConfirmation: z.string().max(40).optional().describe("Inutile pour marquer_envoye. Pour accepter et refuser, absent au premier appel : l'outil ne change rien, rend un APERÇU et un code. À donner au second appel, après accord de l'utilisateur."),
   }, metier.changerStatutDevis, ['claude-code']),
 
+  // Écriture groupée mais bornée : ne touche que les trois champs calculés du montant, jamais le montant saisi. Claude Code seulement, aperçu puis code.
+  outil('recalculer_montants_affaires', "Recalcule le montant affiché des affaires d'après leurs devis (somme HT des devis signés, sinon HT du devis proposé le plus récent : voir docs/montant-affaire.md), pour les affaires dont le calcul n'a pas encore été fait (devis envoyé avant la règle) ou est périmé. N'écrit QUE montantDevisHt, montantDevisNature et montantDevisDetail ; le montant saisi de l'affaire n'est jamais touché. Sans danger à relancer : une affaire déjà à jour n'est pas écrite. 50 affaires par appel. Le premier appel ne change RIEN : il rend la liste (avant, après) et un code à usage unique ; après l'accord de l'utilisateur, le second appel (codeConfirmation) écrit, une ligne de journal par affaire (non restaurable par restaurer_depuis_audit, mais le recalcul se relance).", {
+    codeConfirmation: z.string().max(40).optional().describe("Absent au premier appel : l'outil ne change rien, rend un APERÇU et un code. À donner au second appel, après accord de l'utilisateur."),
+  }, metier.recalculerMontantsAffairesDevis, ['claude-code']),
+
   outil('ajouter_note', "Ajoute une note rattachée à une affaire (qui porte aussi sa personne et son organisation), à une personne ou à une organisation. Les notes ne sont jamais modifiées automatiquement.", {
     texte: z.string().min(1).max(20000), affaireId: id.optional(), personneId: id.optional(), organisationId: id.optional(),
   }, metier.ajouterNote),
