@@ -316,7 +316,9 @@ export async function rechercherArticleParPhrase(donnees, { phrase, limite }) {
 export async function lireReglagesDevis(donnees) {
   const lire = async (id) => { try { return await donnees.document(C.devisParametres, id); } catch { return null; } };
   const [reglages, familles] = await Promise.all([lire(DA.ID_REGLAGES), lire(DF.ID_DOCUMENT_FAMILLES)]);
-  return serialiser({ reglages: DA.reglagesDevis(reglages), familles: DF.famillesDe(familles) });
+  // Le mode de calcul de la marge (artisan / comptable) n'est jamais montré à l'assistant : il s'applique sans être dit ni demandé (décision du 30/10/2026).
+  const { modeMarge: _mode, ...visibles } = DA.reglagesDevis(reglages);
+  return serialiser({ reglages: visibles, familles: DF.famillesDe(familles) });
 }
 
 // ---------------------------------------------------------------- Devis (24/10/2026)
@@ -392,7 +394,7 @@ export async function lireDevis(donnees, { id }, maintenant = new Date()) {
   const t = totauxDe(devis);
   const parLigne = new Map(t.lignes.map((l) => [l.id, l]));
   const affaire = devis.affaireId ? await donnees.document(C.affaires, devis.affaireId) : null;
-  const { sections, totaux: _figes, ...reste } = devis;
+  const { sections, totaux: _figes, modeMarge: _mode, ...reste } = devis; // le mode de calcul de la marge n'est jamais montré à l'assistant
   return serialiser({
     ...reste,
     ...resumeDevis(devis, { organisations, personnes, aujourdhui }),

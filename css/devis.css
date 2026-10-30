@@ -346,6 +346,7 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
 /* Ajustement global : trois champs liés. */
 .ajust-zone { display: flex; flex-direction: column; gap: var(--esp-4); padding: var(--esp-3) var(--esp-4) var(--esp-4); }
 .ajust-zone + .ajust-zone { border-top: 1px solid var(--bordure); }
+.ajust-zone > .bouton { align-self: flex-start; }
 .ajust-titre { margin: 0; font-size: var(--fs-section); font-weight: var(--poids-moyen); }
 .ajust-fenetre { display: flex; flex-direction: column; min-width: min(320px, 100%); }
 .ajust-champ-remise { grid-template-columns: 1fr auto; }

@@ -59,6 +59,13 @@ Ces règles viennent de Jérôme (non-développeur). Elles valent pour tous les 
 - La note épinglée du haut garde sa croix et un seul bouton « Modifier » (sous « date · heure · auteur », toujours visible), modification sur place ; elle reste coupée à 3 lignes (« Développer tout »). *(2026-10-22)*
 - Dans les notes (fil et note épinglée), une adresse `https://`, `http://` ou `www.` est un lien cliquable (nouvel onglet) ; seule l'adresse est cliquable. Une note du fil de plus de 20 lignes (12 sur téléphone) est coupée avec « … » et un bouton « Développer » / « Réduire ». *(2026-10-22)*
 
+## Vocabulaire de la marge (30/10/2026)
+- « marge » tout seul = la marge du **devis**. Sur un produit : « marge de ce produit ». Dans le catalogue : « Marge de revente ». Dans Réglages > Devis : « Marge par défaut des nouveaux devis » (le 20 %, distinct de la marge de revente).
+- « Ajustement » = un coefficient appliqué après coup : on ne l'appelle **jamais** marge. Bouton de l'éditeur : « Marge et ajustement ».
+- Les deux modes de calcul s'appellent « Calcul artisan » (majoration sur le prix d'achat, défaut) et « Calcul comptable » (marge sur le prix de vente), chacun avec un exemple chiffré à côté. L'assistant (MCP) ne connaît pas ce mode.
+- Le calcul des marges est affiché par défaut sur un devis neuf. Une ligne qui a sa propre marge n'est pas touchée par la marge du devis : l'écran compte ces lignes et propose « Appliquer à toutes les lignes » (avec confirmation).
+- Les textes que l'assistant lit ou dit : « hors taxes » en toutes lettres (jamais « HT »), « TTC » reste « TTC ». Les écrans gardent « HT ».
+
 ## Boutons (trois styles seulement, 2026-10-22)
 - **Ajouter à une liste ou à un champ** : une ligne « Étiquette  + Ajouter » en texte jaune, sans cadre (comme « Offre  + Ajouter » ; composants `boutonAjouter` et `ligneAjouter`). Le formulaire d'ajout n'apparaît qu'après le clic, à la place de la ligne (Factures, Livrables, Documents, Dossier de travail).
 - **L'action principale d'un écran** : bouton jaune plein, un seul par écran. Les boutons d'enregistrement des formulaires d'ajout sont une exception encadrée : ils ne deviennent jaunes qu'après le premier caractère (voir « Boutons Enregistrer »).

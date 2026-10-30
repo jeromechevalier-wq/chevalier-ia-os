@@ -550,7 +550,7 @@ test('7 la prévisualisation se met à jour toute seule quand on ajoute un artic
   await capturer(page, info, '7-apercu-mis-a-jour');
 });
 
-test('8 « Définir un ajustement » : trois blocs titrés visibles sans clic (Ajustement global, Marge du devis, Remise client), les champs agissent sur les totaux, plus de « Compte prorata » ni de « Poste libre HT »', async ({ page }, info) => {
+test('8 « Marge et ajustement » : trois blocs titrés visibles sans clic (Ajustement global, Marge du devis, Remise client), les champs agissent sur les totaux, plus de « Compte prorata » ni de « Poste libre HT »', async ({ page }, info) => {
   await semer();
   await ouvrir(page, await devis('d8', [{ id: 's1', titre: 'Travaux', lignes: [ligne('l1', 'Carrelage', 10, 60), ligne('l2', 'Pose', 5, 36), ligne('l3', 'Forfait', 1, 100)] }]));
   await page.locator('[data-action="definir-ajustement"]').click();
@@ -583,7 +583,7 @@ test('8 « Définir un ajustement » : trois blocs titrés visibles sans clic (A
   await expect(fenetre).toHaveCount(0);
 });
 
-test('8 (d) « Définir un ajustement » sur un devis finalisé : les trois blocs restent visibles mais en lecture seule', async ({ page }) => {
+test('8 (d) « Marge et ajustement » sur un devis finalisé : les trois blocs restent visibles mais en lecture seule', async ({ page }) => {
   await semer();
   await ouvrir(page, await devis('d8f', [{ id: 's1', titre: 'Travaux', lignes: [ligne('l1', 'Carrelage', 10, 60)] }], { statut: 'envoye', numero: 'DEV-2026-0008', marge: 5, remise: { type: 'pourcentage', valeur: 5 } }));
   const fenetre = page.locator('.menu-devis-ajustement');
