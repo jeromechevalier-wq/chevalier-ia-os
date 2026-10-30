@@ -1174,7 +1174,7 @@ describe('V3 enregistrer_reponse_vocabulaire : l’apprentissage, sans code (la 
     assert.doesNotMatch(JSON.stringify([a, b, c]), /prixAchat|marge/i);
   });
 
-  test('V3b « autre » : sans règle, crée une règle corrective à confirmer ; sur une règle active, la contredit et la passe en conflit ; refusé quand aucune question n’a dû être posée', async () => {
+  test('V3b « autre » : sans règle, crée une règle corrective à confirmer ; sur une règle active, la contredit sans la modifier (suggestion à la 2e) ; refusé quand aucune question n’a dû être posée', async () => {
     const s = await demarrer();
     const ids = await catalogueVocabulaire(s);
     assert.equal(ok(await chercherPhrase(s, 'gaine annelée')).decision, 'demander');
@@ -1187,10 +1187,11 @@ describe('V3 enregistrer_reponse_vocabulaire : l’apprentissage, sans code (la 
     assert.equal(q.decision, 'proposer');
     assert.equal(q.quantiteIncertaine, true);
     const b = ok(await repondre(s, 'tableau 7', 'autre', ids.inter));
-    assert.equal(b.conflit, true);
+    assert.equal(b.conflit, false, 'le serveur n’écrit plus jamais conflit: true');
     assert.equal(b.contradictions, 1);
     const ancienne = s.doc('devis_vocabulaire', 'tableau');
-    assert.equal(ancienne.conflit, true);
+    assert.equal(ancienne.conflit, false);
+    assert.equal('suggestion' in ancienne, false, '1re contradiction : seulement les compteurs');
     assert.equal(ancienne.articleId, ids.t2, 'la règle garde son article : la revue tranche');
     // « utiliser » : aucune question n'a été posée, « autre » est refusé.
     refuse(await repondre(s, 'Interrupteur va-et-vient', 'autre', ids.t2), /Aucune question/);
@@ -1247,7 +1248,9 @@ describe('V3 enregistrer_reponse_vocabulaire : l’apprentissage, sans code (la 
     s.horloge.t += JOUR_MS;
     s.doc('devis_vocabulaire', 'tableau').statut = 'active'; // la revue l'a activée
     const c = ok(await repondre(s, 'le tableau', 'confirme', ids.t4));
-    assert.equal(c.conflit, true);
+    assert.equal(c.conflit, false, 'un mot actif n’est plus mis en conflit : il reçoit une suggestion à la 2e contradiction');
+    assert.equal(c.contradictions, 2);
+    assert.equal(s.doc('devis_vocabulaire', 'tableau').suggestion.articleId, ids.t4);
   });
 
   test('V3g exemples : 5 au plus, sans doublon, 200 caractères au plus', async () => {
@@ -1318,6 +1321,89 @@ describe('V3 enregistrer_reponse_vocabulaire : l’apprentissage, sans code (la 
     assert.equal(s.collections.devis_vocabulaire.length, 1);
     const ligne = lignesVocabulaire(s)[0];
     assert.equal(ligne.action, 'modifier');
+  });
+});
+
+describe('R1 R2 validation humaine : un mot validé n’est jamais modifié par l’apprentissage', () => {
+  const lieu = async (s) => { const ids = await catalogueVocabulaire(s); return ids; };
+  test('R1 « autre » sur un mot actif (validé par un humain, par les réponses, ou sans champ) : 1re = compteurs seuls, 2e = suggestion écrite dans le document', async () => {
+    for (const validation of [{ validePar: 'humain', valideLe: '2026-09-01' }, { validePar: 'reponses', valideLe: '2026-09-01' }, {}]) {
+      const s = await demarrer();
+      const ids = await lieu(s);
+      s.collections.devis_vocabulaire = [regleVocabulaire('tableau', ids.t2, { articleLibelle: 'Tableau électrique 2 rangées', ...validation })];
+      assert.equal(ok(await chercherPhrase(s, 'tableau')).decision, 'utiliser');
+      const un = ok(await repondre(s, 'tableau', 'autre', ids.inter));
+      assert.deepEqual([un.statut, un.conflit, un.contradictions], ['active', false, 1]);
+      assert.equal(s.doc('devis_vocabulaire', 'tableau').suggestion, undefined);
+      ok(await repondre(s, 'tableau', 'autre', ids.inter));
+      const doc = s.doc('devis_vocabulaire', 'tableau');
+      assert.deepEqual([doc.articleId, doc.statut, doc.conflit, doc.contradictions], [ids.t2, 'active', false, 2]);
+      assert.equal(doc.suggestion.articleId, ids.inter);
+      assert.equal(doc.suggestion.articleLibelle, 'Interrupteur va-et-vient');
+      assert.equal(doc.suggestion.contradictions, 2);
+      assert.match(doc.suggestion.le, /^\d{4}-\d{2}-\d{2}$/);
+      assert.ok(['humain', 'reponses', undefined].includes(doc.validePar));
+      assert.equal(doc.valideLe, validation.valideLe);
+    }
+  });
+  test('R2 suggestion en attente : rechercher_article_par_phrase propose les deux articles (0,50) ; traitée ou malformée : le mot est utilisé comme avant', async () => {
+    const s = await demarrer();
+    const ids = await lieu(s);
+    const base = regleVocabulaire('tableau', ids.t2);
+    const suggestion = { articleId: ids.inter, articleLibelle: 'Interrupteur va-et-vient', contradictions: 2, le: '2026-10-30' };
+    s.collections.devis_vocabulaire = [{ ...base, suggestion }];
+    const q = ok(await chercherPhrase(s, 'tableau'));
+    assert.equal(q.decision, 'proposer');
+    const deux = q.candidats.filter((c) => [ids.inter, ids.t2].includes(c.articleId));
+    assert.equal(deux.length, 2);
+    const suggere = deux.find((c) => c.articleId === ids.inter);
+    assert.deepEqual([suggere.pourquoi, suggere.score], ['suggestion_en_attente', 0.5]);
+    s.collections.devis_vocabulaire = [{ ...base, suggestion, suggestionTraiteeLe: '2026-10-30' }];
+    assert.equal(ok(await chercherPhrase(s, 'tableau')).decision, 'utiliser');
+    for (const mauvaise of [null, 'x', { articleId: ids.inter }]) {
+      s.collections.devis_vocabulaire = [{ ...base, suggestion: mauvaise }];
+      assert.equal(ok(await chercherPhrase(s, 'tableau')).decision, 'utiliser');
+    }
+  });
+  test('R1 la suggestion s’efface (null) après 3 confirmations de l’article d’origine à 3 jours différents', async () => {
+    const s = await demarrer();
+    const ids = await lieu(s);
+    s.collections.devis_vocabulaire = [regleVocabulaire('tableau', ids.t2, { suggestion: { articleId: ids.inter, articleLibelle: 'Interrupteur va-et-vient', contradictions: 2, le: '2026-10-01' } })];
+    for (let i = 1; i <= 3; i += 1) {
+      s.horloge.t += JOUR_MS;
+      ok(await repondre(s, 'tableau', 'confirme', ids.t2));
+      const sg = s.doc('devis_vocabulaire', 'tableau').suggestion;
+      if (i < 3) assert.equal(sg.confirmationsDepuis, i); else assert.equal(sg, null);
+    }
+  });
+  test('R1 mot validé par un humain dont l’article est désactivé : il reste intact et reçoit tout de suite une suggestion ; sans validePar il est réorienté comme avant', async () => {
+    const s = await demarrer();
+    const ids = await lieu(s);
+    s.collections.devis_vocabulaire = [regleVocabulaire('tableau', ids.t4, { validePar: 'humain', valideLe: '2026-09-01' })];
+    ok(await s.appeler('biblio', 'desactiver_article', { id: ids.t4 }));
+    ok(await repondre(s, 'le tableau', 'confirme', ids.t2));
+    const doc = s.doc('devis_vocabulaire', 'tableau');
+    assert.deepEqual([doc.articleId, doc.statut, doc.confirmations, doc.validePar], [ids.t4, 'active', 0, 'humain']);
+    assert.equal(doc.suggestion.articleId, ids.t2);
+    const s2 = await demarrer();
+    const ids2 = await lieu(s2);
+    s2.collections.devis_vocabulaire = [regleVocabulaire('tableau', ids2.t4, { validePar: 'reponses' })];
+    ok(await s2.appeler('biblio', 'desactiver_article', { id: ids2.t4 }));
+    ok(await repondre(s2, 'le tableau', 'confirme', ids2.t2));
+    assert.deepEqual([s2.doc('devis_vocabulaire', 'tableau').articleId, s2.doc('devis_vocabulaire', 'tableau').statut], [ids2.t2, 'a_confirmer']);
+  });
+  test('R1 l’activation par 2 confirmations pose valideLe, validePar « reponses » et revoirLe dans le document écrit', async () => {
+    const s = await demarrer();
+    const ids = await lieu(s);
+    ok(await repondre(s, 'un tableau', 'confirme', ids.t2));
+    s.horloge.t += JOUR_MS;
+    ok(await repondre(s, 'un tableau', 'confirme', ids.t2));
+    const doc = s.doc('devis_vocabulaire', 'tableau');
+    assert.equal(doc.statut, 'active');
+    assert.equal(doc.validePar, 'reponses');
+    assert.match(doc.valideLe, /^\d{4}-\d{2}-\d{2}$/);
+    assert.match(doc.revoirLe, /^\d{4}-\d{2}-\d{2}$/);
+    assert.ok(doc.revoirLe > doc.valideLe);
   });
 });
 
