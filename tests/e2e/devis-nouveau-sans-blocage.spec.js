@@ -112,7 +112,7 @@ test('2 scénario (b) : un client avec organisation restreint les affaires propo
   await page.locator('.entete-droite .suggestion', { hasText: 'Atelier Vide' }).first().click();
   await champAffaire(page).click();
   await expect(page.locator('.entete-droite .suggestion-vide')).toContainText('Aucune affaire pour ce client');
-  await page.locator('[data-action="toutes-les-affaires"]').click();
+  await champAffaire(page).press('Enter'); // au clavier : Entrée = « Voir toutes les affaires » (le bouton n'est pas atteignable par Tab)
   await expect(suggestions(page)).toHaveCount(4);
   await suggestions(page).filter({ hasText: 'Toiture des voisins' }).click();
   await enregistre(page);

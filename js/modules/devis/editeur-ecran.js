@@ -1039,13 +1039,15 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
             toutesAffaires = true;
             ref.champAffaire.entree.value = ''; // sinon la recherche reprendrait le libellé de l'affaire déjà choisie
             ref.champAffaire.entree.dispatchEvent(new Event('input')); // rouvre la liste, sans le filtre
-          } }, 'Voir toutes les affaires'));
+          } }, 'Voir toutes les affaires (Entrée)'));
         }
         return saisie.trim().length < CL.MIN_LETTRES ? `Tape au moins ${CL.MIN_LETTRES} lettres pour retrouver une affaire.` : 'Aucune affaire ne correspond.';
       },
       surChoix: (el, info) => { if (el || info?.effacement) changerAffaire(el); },
     });
     ci.entree.dataset.champ = 'affaire';
+    // Au clavier : quand la liste dit « Aucune affaire pour ce client », Entrée = « Voir toutes les affaires » (le bouton disparaît dès que le champ perd le focus, il n'est pas atteignable par Tab).
+    ci.entree.addEventListener('keydown', (e) => { if (e.key === 'Enter') ci.element.querySelector('[data-action="toutes-les-affaires"]:not([hidden])')?.click(); });
     reprendreValeurEnQuittant(ci, () => (travail.affaireId ? { id: travail.affaireId, libelle: libelleAffaireDuDevis(travail.affaireId) } : null));
     return ci;
   }
