@@ -138,7 +138,10 @@ export function reglages(page) {
     // Étape de départ des affaires créées depuis un devis : les étapes actives, dans l'ordre du pipeline. Une valeur enregistrée mais disparue reste visible et n'est jamais effacée.
     const etapes = CRM.etat.config.etapes.filter((e) => e.actif);
     const optionsEtapes = [{ valeur: '', libelle: 'Non réglée (je choisis à chaque fois)' }, ...etapes.map((e) => ({ valeur: e.id, libelle: e.libelle }))];
-    if (brouillon.etapeAffaireCreee && !optionsEtapes.some((o) => o.valeur === brouillon.etapeAffaireCreee)) optionsEtapes.push({ valeur: brouillon.etapeAffaireCreee, libelle: `${brouillon.etapeAffaireCreee} (étape disparue)` });
+    if (brouillon.etapeAffaireCreee && !optionsEtapes.some((o) => o.valeur === brouillon.etapeAffaireCreee)) {
+      const eteinte = CRM.etat.config.etapes.find((e) => e.id === brouillon.etapeAffaireCreee); // l'étape existe encore mais elle est désactivée : on garde son nom
+      optionsEtapes.push({ valeur: brouillon.etapeAffaireCreee, libelle: eteinte ? `${eteinte.libelle} (étape désactivée)` : `${brouillon.etapeAffaireCreee} (étape disparue)` });
+    }
     const taux = h('div', { class: 'cases', dataset: { champ: 'tauxProposes' } }, TAUX_TVA_DEFAUT.map((t) => h('label', { class: 'case' },
       h('input', { type: 'checkbox', checked: brouillon.tauxProposes.includes(t), dataset: { taux: String(t) }, 'aria-label': `Proposer le taux ${A.formaterTaux(t)}`,
         onchange: (e) => { changer({ tauxProposes: TAUX_TVA_DEFAUT.filter((x) => (x === t ? e.target.checked : brouillon.tauxProposes.includes(x))) }); } }), A.formaterTaux(t))));
