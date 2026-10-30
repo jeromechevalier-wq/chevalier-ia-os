@@ -91,10 +91,13 @@ test('M1 « Autre » : les trois champs apparaissent, une phrase par champ fauti
 test('M2 Bordereau « prestation » : la fenêtre d’un article de la famille Ouvrages dit « Composants de la prestation » et le cas vide « la prestation se calcule »', async ({ page }, info) => {
   await poserMot('prestation');
   await ouvrirBordereau(page);
-  await page.locator('[data-action="nouvel-article"]').click();
-  await dialogue(page).locator('#article-familleId').fill('Ouvrages');
-  await dialogue(page).getByRole('option', { name: /^Ouvrages$/ }).click();
-  await expect(dialogue(page).locator('.editeur-ouvrage .etiquette').first()).toHaveText('Composants de la prestation');
+  // Le mot se lit à l'ouverture de la fenêtre : si le réglage arrive juste après l'écran (premier envoi en cache), on rouvre la fenêtre.
+  await expect(async () => {
+    if (!(await dialogue(page).count())) await page.locator('[data-action="nouvel-article"]').click();
+    await dialogue(page).locator('#article-familleId').fill('Ouvrages');
+    await dialogue(page).getByRole('option', { name: /^Ouvrages$/ }).click();
+    try { await expect(dialogue(page).locator('.editeur-ouvrage .etiquette').first()).toHaveText('Composants de la prestation', { timeout: 1500 }); } catch (e) { await dialogue(page).getByRole('button', { name: 'Annuler' }).click(); throw e; }
+  }).toPass({ timeout: 20000 });
   await expect(dialogue(page).locator('[data-vide="composants"]')).toContainText('la prestation se calcule');
   await dialogue(page).getByRole('searchbox', { name: 'Ajouter un composant' }).fill('zzz');
   await expect(dialogue(page).locator('.resultats-composants')).toContainText('une prestation ne peut pas en contenir une autre');
@@ -110,6 +113,7 @@ test('M2 Bordereau « prestation » : sortir un article composé de sa famille d
   await ligne.locator('[data-champ="familleId"]').click();
   const saisie = ligne.locator('.champ-intelligent input');
   await saisie.fill('plomb');
+  await expect(page.getByRole('option', { name: /Fournitures › Plomberie et sanitaire/ })).toBeVisible();
   await saisie.press('ArrowDown');
   await saisie.press('Enter');
   await expect(page.getByText(/Une prestation reste dans la famille « Ouvrages »/)).toBeVisible();
