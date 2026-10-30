@@ -1,5 +1,33 @@
 # À faire au début de la prochaine session
 
+## Rapport du soir : 30/10/2026 (journée de PR 418 à 437)
+
+Le tableau complet est dans `.github/A-FAIRE.md` (sections « État au 30/10/2026 soir » et « Priorité haute »).
+
+| Sujet | PR | État |
+|---|---|---|
+| Libellés « Devis signé » / « Devis refusé », « Devis remplacé », « Finalisé » → signé ou refusé | 420, 431, 437 | fusionnées, en ligne |
+| Mot du métier (serveur puis écrans) | 422, 432 | fusionnées ; **validé par Jérôme sur capture** |
+| Nouveau devis sans blocage ; réglage « Étape des affaires créées depuis un devis » | 428, 426 | fusionnées |
+| Dictionnaire : validation humaine (serveur, écran « Validé par toi ») ; règles Firestore | 427, 430, 424 | fusionnées ; règles publiées chez Jérôme et chez les clients |
+| Outil `creer_devis_depuis_modele` (80 outils, 25 devis) ; borne de date | 423, 421 | fusionnées |
+| Exports : fiche personne, liste Personnes (fenêtre) ; infobulles « i » des réglages | 435, 436, 433 | fusionnées |
+| Cadrage du vocabulaire à cibles multiples | 434 | fusionnée (`docs/cadrage-vocabulaire-cibles.md`) |
+| Corrections de tests | 425, 429 | fusionnées |
+| Un seul déploiement du site à la fois | 438 | **brouillon**, à fusionner une fois verte |
+| « Pour qui est ce devis ? », composition du Catalogue, mentions légales (audit) | aucune encore | **en cours** dans des sessions de code |
+
+- **Incident de déploiement** : trois déploiements du site en parallèle ; le plus ancien (PR 436) a fini en dernier (21:19 UTC) et a écrasé 426 et 427 : le site est resté sans « Mot du métier » ni « Passer à Devis signé » jusqu'au run suivant (PR 430). Correctif : PR 438. Un échec `npm 404 tslib` (run 421, PR 433) était passager, refait par le run 422.
+- **État de la nuit GitHub** : « Tests de nuit » verts sur `main` (runs 32 et 33). Recalcul des montants d'affaires fait avec l'accord de Jérôme (1 affaire corrigée). « Appliquer à toutes les lignes » est gardé (retire la marge propre).
+- **Pas pu être vérifié** : l'aspect graphique du champ « Pour qui ? » (Jérôme veut le tester) ; un vrai ChatGPT qui enchaîne `creer_devis_depuis_modele` ; les numéros dits à la voix ; les parcours navigateur dans le bac à sable des sessions de code.
+- **Décisions de Jérôme du 30/10** : voir « Priorité haute » (champ unique, mentions légales qui bloquent la finalisation, logiciel de facturation à cadrer plus tard) et la série C1 à C7 du vocabulaire (Q1 à Q5 tranchées, prête à lancer). « Se cacher dans la forêt » : nouveau dépôt neutre, historique vidé après nettoyage, à cadrer.
+- **Actions pour Jérôme, dans l'ordre** :
+  1. Tester l'aspect du champ « Pour qui est ce devis ? » quand la PR sera prête.
+  2. Dire si le message de la composition reste « Composition enregistrée » ou devient « Prestation enregistrée ».
+  3. Avec l'expert-comptable : valider la liste des mentions obligatoires (arrêté du 17/03/2015, article 7).
+  4. Répondre : l'objet du modèle est-il repris dans `creer_devis_depuis_modele` ? Les décisions de la PR 437 prises seul te vont-elles ?
+  5. Donner le « go » pour les déploiements chez les clients (`hosting` puis `mcp`, un à la fois) après la PR « Pour qui ? », et pour les règles Firestore chez les clients.
+
 ## Rapport du matin : nuit du 30 au 31/10/2026 (« GO NUIT », suite du devis fluide)
 
 Après les libellés « Devis signé » et « Devis refusé » (PR 420, demande de Jérôme), la nuit a avancé quatre sujets du devis fluide, chacun dans sa session de code, brief relu par Fable contre le code avant l'envoi, PR relue par Fable avant fusion.
