@@ -413,6 +413,7 @@ export const REGLAGES_DEVIS_DEFAUT = Object.freeze({
   etapeDevis: '', // anciens réglages (étape des devis retirée le 28/10/2026, un devis vit à toutes les étapes) : gardés tels quels dans la base, plus modifiables
   etapeAFaire: '', // idem (25/10/2026)
   etapeEnvoye: '',
+  etapeAffaireCreee: '', // étape de départ de l'affaire créée à la finalisation d'un devis sans affaire ('' = non réglée : on demande à chaque fois) ; jamais contrôlée ici (le pipeline n'est pas visible), la validité se résout à l'usage
   mentionEmetteur: '',
   entreprise: Object.freeze({}),
 });
@@ -437,6 +438,7 @@ export function reglagesDevis(brut) {
     etapeDevis: typeof b.etapeDevis === 'string' ? b.etapeDevis : '',
     etapeAFaire: typeof b.etapeAFaire === 'string' ? b.etapeAFaire : '',
     etapeEnvoye: typeof b.etapeEnvoye === 'string' ? b.etapeEnvoye : '',
+    etapeAffaireCreee: typeof b.etapeAffaireCreee === 'string' ? b.etapeAffaireCreee : '',
     mentionEmetteur: typeof b.mentionEmetteur === 'string' ? b.mentionEmetteur : '',
     entreprise: lireEntreprise(b.entreprise),
   };
@@ -499,6 +501,7 @@ export function validerReglagesDevis(saisie, { actuels = REGLAGES_DEVIS_DEFAUT }
       etapeDevis: s.etapeDevis || '', // anciens réglages : recopiés tels quels (rien n'est effacé de la base)
       etapeAFaire: s.etapeAFaire || '',
       etapeEnvoye: s.etapeEnvoye || '',
+      etapeAffaireCreee: typeof s.etapeAffaireCreee === 'string' ? s.etapeAffaireCreee : '', // recopiée telle quelle (setDoc sans fusion) ; l'étape n'est pas contrôlée ici
       mentionEmetteur: mention,
       entreprise: ent.entreprise,
     },
