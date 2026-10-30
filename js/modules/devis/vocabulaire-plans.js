@@ -1,15 +1,16 @@
 // Écran « Vocabulaire » du module Devis (docs/proposition-dictionnaire-vocabulaire.md, section 8) : la logique PURE (aucun accès à Firebase ni au navigateur).
 // Plans d'écriture (créer un mot, changer son statut, son article, sa note), filtres, tri, phrase d'état et export CSV. L'écran dessine, donnees.js exécute les plans.
 // Le navigateur n'écrit JAMAIS les compteurs (confirmations, contradictions), l'origine, l'expression ni les exemples d'un mot existant, et ne supprime jamais : un mot se désactive.
-// Les règles Firestore de la PR 4 imposent la même liste ; en attendant elles, cette liste est la seule garde (test V-P4).
-import { ecritureCreer, ecritureModifier, MARQUES_CREATION, MARQUES_MODIFICATION, normaliser, nettoyerEspaces } from '../crm/logique.js';
-import { cleDeExpression, identifiantDeRegle, cleTropGenerale } from './vocabulaire.js';
+// Les règles Firestore imposent la même liste (bloc `devis_vocabulaire`, PR 4 puis PR 424) : la validation humaine (valideLe, validePar, revoirLe, suggestionTraiteeLe) s'y ajoute ;
+// `suggestion` n'y est JAMAIS : seul le serveur l'écrit, le navigateur la marque « traitée » avec `suggestionTraiteeLe` (test V-P4).
+import { ecritureCreer, ecritureModifier, MARQUES_CREATION, MARQUES_MODIFICATION, normaliser, nettoyerEspaces, ajouterMois } from '../crm/logique.js';
+import { cleDeExpression, identifiantDeRegle, cleTropGenerale, suggestionEnAttente } from './vocabulaire.js';
 
 export const COLLECTION_VOCABULAIRE = 'devis_vocabulaire';
 /** Nom de l'action dans le Journal des modifications. */
 export const OUTIL_VOCABULAIRE = 'vocabulaire';
 /** Les seuls champs qu'un navigateur change sur un mot qui existe (avec les marques de modification). */
-export const CHAMPS_MODIFIABLES = Object.freeze(['statut', 'articleId', 'articleLibelle', 'note', 'conflit']);
+export const CHAMPS_MODIFIABLES = Object.freeze(['statut', 'articleId', 'articleLibelle', 'note', 'conflit', 'valideLe', 'validePar', 'revoirLe', 'suggestionTraiteeLe']);
 export const MAX_EXPRESSION = 120;
 export const MAX_NOTE = 300;
 
@@ -35,8 +36,30 @@ export const MESSAGE_MOT_INTROUVABLE = 'Ce mot est introuvable : recharge la pag
 export const articleChoisissable = (a) => Boolean(a) && a.actif !== false && a.type !== 'texte';
 
 const nombre = (n) => (Number.isFinite(n) ? n : 0);
-/** Un mot en attente d'une décision de Jérôme : deux articles pour la même expression (jamais pour un mot désactivé). */
-export const estATrancher = (regle) => regle?.conflit === true && regle?.statut !== 'desactivee';
+/** Un mot en attente d'une décision de Jérôme : deux articles pour la même expression, ou une suggestion du serveur pas encore traitée (jamais pour un mot désactivé). */
+export const estATrancher = (regle) => (regle?.conflit === true || suggestionEnAttente(regle) !== null) && regle?.statut !== 'desactivee';
+
+export const VALIDATIONS = Object.freeze({
+  humain: { id: 'humain', libelle: 'Validé par toi' },
+  reponses: { id: 'reponses', libelle: 'Validé par tes réponses' },
+  a_valider: { id: 'a_valider', libelle: 'À valider' },
+});
+/**
+ * Qui a validé ce mot : `{ id, libelle }`, ou null pour un mot désactivé. Un mot « à confirmer » est « à valider » (même s'il garde un `validePar` d'avant son réexamen).
+ * Un mot actif est « validé par toi » s'il a une date de validation et `validePar: 'humain'` ; sinon « validé par tes réponses » (mot appris, ou ancien mot sans champ de validation).
+ */
+export function validationDe(regle) {
+  if (regle?.statut === 'a_confirmer') return VALIDATIONS.a_valider;
+  if (regle?.statut !== 'active') return null;
+  return regle.validePar === 'humain' && regle.valideLe ? VALIDATIONS.humain : VALIDATIONS.reponses;
+}
+
+/** Le jour à écrire dans `suggestionTraiteeLe` quand une suggestion attend (jamais avant son jour `le`, sinon elle resterait en attente) ; {} sinon. */
+function traiterSuggestion(courant, aujourdhui) {
+  const s = suggestionEnAttente(courant);
+  if (!s || !aujourdhui) return {};
+  return { suggestionTraiteeLe: aujourdhui > s.le ? aujourdhui : s.le };
+}
 
 // ---------------------------------------------------------------- plans d'écriture
 
@@ -60,6 +83,8 @@ export function planCreerMot(saisie, ctx, { regles = [], articles = [] } = {}) {
     cle, expression, articleId: article.id, articleLibelle: article.libelle ?? '', statut: 'active', origine: 'manuelle',
     confirmations: 0, contradictions: 0, conflit: false, exemples: [],
   };
+  // Un mot ajouté à la main est validé tout de suite par Jérôme ; à revoir dans 6 mois. Sans jour du contexte, aucun champ de validation (jamais de `new Date` ici).
+  if (ctx?.aujourdhui) Object.assign(donnees, { valideLe: ctx.aujourdhui, validePar: 'humain', revoirLe: ajouterMois(ctx.aujourdhui, 6) });
   return { erreurs: {}, id, cle, existante: null, ecritures: [ecritureCreer(COLLECTION_VOCABULAIRE, id, donnees, MARQUES_CREATION)] };
 }
 
@@ -75,7 +100,7 @@ function planPatch(id, patch) {
  * activer un mot en conflit lève le conflit (Jérôme a tranché). Un mot dont l'article est désactivé ne s'active pas : il faut d'abord changer l'article.
  * `restaurer: true` (« Annuler » après une désactivation) remet l'état d'avant, `a_confirmer` compris, sans revérifier l'article.
  */
-export function planChangerStatut(id, statut, { regles = [], articles = [], restaurer = false } = {}) {
+export function planChangerStatut(id, statut, { regles = [], articles = [], restaurer = false, aujourdhui = '' } = {}) {
   const courant = mot(id, regles);
   if (!courant) return sansEcriture({ general: MESSAGE_MOT_INTROUVABLE });
   if (statut !== 'active' && statut !== 'desactivee' && !(restaurer && statut === 'a_confirmer')) return sansEcriture({ general: 'Statut inconnu.' });
@@ -84,12 +109,15 @@ export function planChangerStatut(id, statut, { regles = [], articles = [], rest
   }
   const patch = {};
   if (courant.statut !== statut) patch.statut = statut;
-  if (statut === 'active' && !restaurer && courant.conflit === true) patch.conflit = false;
+  if (statut === 'active' && !restaurer) {
+    if (courant.conflit === true) patch.conflit = false;
+    Object.assign(patch, traiterSuggestion(courant, aujourdhui)); // « Garder cet article » : la suggestion est traitée, le mot reste validé comme avant
+  }
   return planPatch(id, patch);
 }
 
 /** Changer l'article d'un mot : `{ erreurs, patch, ecritures }`. Choisir l'article d'un mot en conflit le tranche (le conflit est levé). Le même article ne change rien. */
-export function planChangerArticle(id, articleId, { regles = [], articles = [] } = {}) {
+export function planChangerArticle(id, articleId, { regles = [], articles = [], aujourdhui = '' } = {}) {
   const courant = mot(id, regles);
   if (!courant) return sansEcriture({ general: MESSAGE_MOT_INTROUVABLE });
   const article = (articles ?? []).find((a) => a.id === articleId);
@@ -98,6 +126,7 @@ export function planChangerArticle(id, articleId, { regles = [], articles = [] }
   if (courant.articleId !== article.id) { patch.articleId = article.id; patch.articleLibelle = article.libelle ?? ''; }
   else if (courant.articleLibelle !== (article.libelle ?? '')) patch.articleLibelle = article.libelle ?? ''; // libellé de l'article renommé depuis : la copie suit
   if (courant.conflit === true) patch.conflit = false;
+  Object.assign(patch, traiterSuggestion(courant, aujourdhui));
   return planPatch(id, patch);
 }
 

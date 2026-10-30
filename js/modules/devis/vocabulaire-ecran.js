@@ -306,7 +306,7 @@ export function rendreVocabulaire(conteneur) {
   const menuMot = (r) => {
     const mort = articleMort(r);
     return [
-      ...(r.statut !== 'active' || r.conflit ? [{ libelle: V.estATrancher(r) ? 'Garder cet article' : 'Activer', icone: 'check', desactive: mort, titreInfo: mort ? 'L’article de ce mot est désactivé : change d’abord l’article.' : null, action: () => activer(r) }] : []),
+      ...(V.estATrancher(r) || r.statut !== 'active' ? [{ libelle: V.estATrancher(r) ? 'Garder cet article' : 'Activer', icone: 'check', desactive: mort, titreInfo: mort ? 'L’article de ce mot est désactivé : change d’abord l’article.' : null, action: () => activer(r) }] : []),
       ...(r.statut !== 'desactivee' ? [{ libelle: 'Désactiver', icone: 'archive', action: () => desactiver(r) }] : []),
       ...(mort ? [] : [{ libelle: 'Changer l’article', icone: 'pencil', action: () => ouvrirChangerArticle(r).then(() => rendre()) }]),
       { libelle: r.note ? 'Modifier la note' : 'Ajouter une note', icone: 'sticky-note', action: () => ouvrirNote(r) },
@@ -347,6 +347,7 @@ export function rendreVocabulaire(conteneur) {
   }
   function ligneMot(r, tropGeneral) {
     const statut = V.STATUTS.find((s) => s.id === r.statut);
+    const validation = V.validationDe(r);
     return h('tr', { class: `ligne-liste ligne-mot${r.statut === 'desactivee' ? ' mot-desactive' : ''}`, dataset: { id: r.id, statut: r.statut } },
       celluleMot(r, tropGeneral),
       celluleArticle(r),
@@ -356,7 +357,8 @@ export function rendreVocabulaire(conteneur) {
       celluleExemples(r),
       h('td', { dataset: { colonne: 'statut', libelle: 'Statut' } },
         pastille(statut?.libelle ?? V.libelleStatut(r.statut), statut?.couleur ?? '#8d8993', { dataset: { role: 'statut' } }),
-        V.estATrancher(r) ? pastille('À trancher', '#e5484d', { dataset: { role: 'a-trancher' } }) : null),
+        V.estATrancher(r) ? pastille('À trancher', '#e5484d', { dataset: { role: 'a-trancher' } }) : null,
+        validation && validation.id !== 'a_valider' ? h('p', { class: 'mot-validation discret', dataset: { role: 'validation', validation: validation.id } }, validation.libelle) : null),
       h('td', { class: 'col-actions' }, h('button', { type: 'button', class: 'bouton-icone', 'aria-label': `Actions : ${r.expression ?? r.cle}`, 'aria-haspopup': 'menu', dataset: { action: 'menu-mot' }, onclick: (e) => ouvrirMenu(e.currentTarget, menuMot(r)) }, icone('ellipsis', { taille: 18 }))));
   }
 
