@@ -1,5 +1,32 @@
 # À faire au début de la prochaine session
 
+## Rapport du matin : nuit du 30/10/2026 (« GO NUIT », orchestration des déploiements)
+
+Jérôme a confié à la session principale l'orchestration de trois travaux (Marge, Montant de l'affaire, devis fluide bloc A) et **les déploiements chez les clients** (accord pour cette nuit seulement : workflow « Déploiement plateforme clients », un seul à la fois).
+
+| Sujet | PR | État |
+|---|---|---|
+| Cadrage « conversation fluide pour créer un devis » (15 questions tranchées) | 405 | fusionnée |
+| Devis : « Refuser » et « Archiver » depuis « Finalisé » | 410 | fusionnée, déployée (Jérôme et clients) |
+| Marge : un seul vocabulaire, Calcul artisan / comptable, mode caché à l'assistant, « hors taxes » à voix haute | 411 | fusionnée, déployée (Jérôme, clients `hosting` et `mcp`) |
+| Outil `recalculer_montants_affaires` (aperçu d'abord, Claude Code seulement) | 412 | fusionnée, déployée ; **aucune donnée écrite** |
+| Devis fluide A1 : numéros partout, récapitulatif court, résolveur de numéros | 413 | fusionnée, déployée |
+| Devis fluide A2 : outil `modifier_lignes_devis` (tout ou rien, un seul `operationId`) | 414 | fusionnée, déployée |
+| Devis fluide A5 : « Dupliquer aux prix du jour » (liste et éditeur) | 415 | fusionnée, déployée (Jérôme, clients `hosting`) |
+| Devis fluide A3 : outil `annuler_derniere_modification_devis` (un seul niveau) | 416 | fusionnée, déployée (Jérôme, clients `mcp`) |
+| Blocs B (revue visible, règles Firestore), C (mot du métier), D (devis proches) | aucune | non lancés : attendent l'essai des numéros à la voix par Jérôme |
+
+- **État de la nuit GitHub** : « Tests de nuit » lancé à la main sur `main` (00cf353) après la dernière fusion : les 15 jobs sont verts (6 parties ordinateur, 6 téléphone, sans navigateur). Les paliers complets sont sautés sur les PR ; ce lancement les a couverts.
+- **Déploiements clients** : `hosting` puis `mcp` après chaque fusion ; chaque run a été lu et était vert avant le suivant. `fonctions` (n8n) n'a pas été lancé : aucune de ces PR ne touche ce code.
+- **Décisions prises seul** : regroupement des PR 1 et 2 du cadrage (A1) ; A5 lancée en parallèle d'A2 (écran contre serveur, aucun fichier commun sauf `tests/package.json`) ; pas de ligne d'historique dédiée pour « Dupliquer aux prix du jour » (le journal de l'écran n'a pas de texte libre) ; « Appliquer à toutes les lignes » retire la marge propre des lignes au lieu de recopier le chiffre (Marge) ; `remplacerPar` n'est pas un « changement important » en soi (A2) ; annulation refusée pour un devis juste créé (renvoi vers `supprimer_devis`).
+- **Pas pu être vérifié** : un vrai ChatGPT ou claude.ai qui enchaîne ces outils, et surtout **les numéros dits à la voix** (annexe B du cadrage) ; les parcours navigateur dans le bac à sable des sessions de code (la coche GitHub et les tests de nuit font foi).
+- **Actions pour Jérôme, dans l'ordre** :
+  1. Dans ChatGPT : « Actualiser les outils » (chez toi et chez chaque client), puis l'essai à la voix : « modifie le un point deux », « supprime le deux point un », « annule la dernière modification ».
+  2. Répondre à : le bouton « Appliquer à toutes les lignes » doit-il recopier le chiffre au lieu de retirer la marge propre ? Veux-tu un fil d'événements par devis (rien n'est écrit dans l'historique pour « Dupliquer aux prix du jour ») ? `remplacerPar` doit-il compter comme changement important ?
+  3. Avec Claude : lancer l'aperçu de `recalculer_montants_affaires` (rien n'est écrit sans ton accord) pour tes autres affaires.
+  4. Ce qui reste à toi depuis la garantie e-mail : workflow n8n, deux secrets par client, boucle `gcloud`, droit Storage.
+  5. Dire quand lancer les blocs B, C, D du devis fluide, la session « Minutes GitHub » (en dernier), « Lenteur MCP » et le PDF lent.
+
 ## Rapport du matin : 3e nuit du 28 au 29/10/2026 (version 2.34.0)
 
 | Sujet | PR | État |
