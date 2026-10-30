@@ -34,12 +34,12 @@ test('1 l’infobulle de la marge détaille le calcul artisan puis le calcul com
   await expect(texte).toBeHidden();
 });
 
-test('2 l’aide de l’étape des affaires créées dit : devis sans affaire → affaire créée → choisis l’étape', async ({ page }, info) => {
+test('2 l’aide de l’étape des affaires créées dit : « + Créer l’affaire » depuis un devis → elle arrive dans cette étape, sans réglage la liste demande', async ({ page }, info) => {
   await connecter(page);
   await ouvrirReglagesDevis(page);
   await bulle(page, 'etapeAffaireCreee').click();
   const texte = bulle(page, 'etapeAffaireCreee').locator('.bulle-info');
-  await expect(texte).toHaveText('Quand tu finalises un devis qui n’a pas d’affaire, l’application en crée une. Choisis ici dans quelle étape elle arrive.');
+  await expect(texte).toHaveText('Quand tu crées une affaire depuis un devis (« + Créer l’affaire » dans la ligne Affaire), elle arrive dans cette étape. Sans réglage, la liste te demande l’étape.');
   await capturer(page, info, '2-infobulle-etape');
 });
 
