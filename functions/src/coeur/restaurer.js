@@ -28,7 +28,8 @@ const RAISONS = {
 };
 
 /** `reserver(operations)` : appelé juste avant d'écrire (plafonds du jeton) ; une restauration qui supprime compte comme suppression. */
-export async function restaurerOperation({ donnees, ctx, operationId, apercu = true, forcer = false, reserver = null }) {
+/** `outil` : le nom écrit dans le journal (restaurer_depuis_audit par défaut ; annuler_derniere_modification_devis pour l'annulation d'un brouillon). */
+export async function restaurerOperation({ donnees, ctx, operationId, apercu = true, forcer = false, reserver = null, outil = 'restaurer_depuis_audit' }) {
   const lignesAudit = (await donnees.liste(C.audit, { champ: 'operationId', valeur: operationId }))
     .filter((l) => l.statut !== 'echec')
     .sort((a, b) => (b.ordre ?? 0) - (a.ordre ?? 0));
@@ -84,6 +85,6 @@ export async function restaurerOperation({ donnees, ctx, operationId, apercu = t
     .map((l) => ({ type: 'remplacer', collection: l.collection, id: l.id, donnees: l.avant }));
   if (!operations.length) return { operationId, restauree: true, rienAFaire: true, ecritures: [] };
   await reserver?.(operations);
-  const resultat = await executerEcritures({ donnees, ctx, outil: 'restaurer_depuis_audit', parametres: { operationId, forcer }, operations });
+  const resultat = await executerEcritures({ donnees, ctx, outil, parametres: { operationId, forcer }, operations });
   return { operationId, restauree: true, operationRestauration: resultat.operationId, ecritures: resultat.ecritures, ...(resultat.auditIncomplet ? { auditIncomplet: true, avertissement: resultat.avertissement } : {}) };
 }

@@ -17,6 +17,7 @@ import { canonique, sansId } from './canonique.js';
 import * as DOC from './documents.js';
 import { structureCourte, phraseTotaux } from './recapitulatif.js';
 import * as DL from './devis-lignes.js';
+import { derniereLigneDuJournal, refusDeLaDerniereLigne, phraseAnnulation, resumeDuDevis } from './devis-annulation.js';
 import { resoudreNumero, ErreurNumero } from '../../partage/devis-numeros.js';
 import { preparerBrouillonEmail } from './brouillon-email.js';
 import { MESSAGE_NON_BRANCHE, ESPACE_JEROME } from './n8n-sortie.js';
@@ -1191,6 +1192,43 @@ export async function modifierLignesDevis(c, args) {
     ...reponse,
     ...(reponse.changementImportant ? { consigne: "Changement important : redis à l'utilisateur, en une phrase, ce qui a été fait (lignes marquées changementImportant et total du devis)." } : {}),
     detail: `Se défait avec restaurer_depuis_audit (operationId ${reponse.operationId}) tant que le devis est un brouillon.`,
+  };
+}
+
+/**
+ * Annule la DERNIÈRE modification d'un brouillon, un seul niveau : même logique que restaurer_depuis_audit (sans forcer), nom propre dans le journal.
+ * L'annulation s'écrit elle-même au journal (action « restaurer ») et ne se défait pas toute seule : l'appeler deux fois de suite répond « déjà annulé ».
+ */
+export async function annulerDerniereModificationDevis(c, args) {
+  const { id } = args;
+  const devis = await lire(c, C.devis, id, 'Devis');
+  if (devis.statut !== 'brouillon') refuser('saisie_invalide', B.MESSAGE_PAS_BROUILLON);
+  const derniere = derniereLigneDuJournal(await c.donnees.liste(C.audit, { champ: 'docId', valeur: id }));
+  if (!derniere) refuser('saisie_invalide', 'Rien à annuler : le journal n’a aucune modification de ce devis.');
+  const refus = refusDeLaDerniereLigne(derniere);
+  if (refus) refuser('saisie_invalide', refus);
+  const COUVERT = 'Le devis a changé depuis cette modification (par exemple à l’écran) : je ne l’annule pas, pour ne pas effacer ce qui a été fait depuis. Rien n’a été écrit.';
+  // Premier appel : aperçu (rien n'est écrit), pour refuser avec une phrase claire plutôt qu'avec le message général qui propose forcer.
+  const apercu = await c.restaurer({ operationId: derniere.operationId, apercu: true, forcer: false, outil: 'annuler_derniere_modification_devis' });
+  // L'opération doit ne toucher que ce devis : sinon la phrase ne dirait pas tout ce qui serait remis (filet pour un futur outil qui écrirait aussi un autre document).
+  if (apercu.lignes.some((l) => l.collection !== C.devis || l.docId !== id)) refuser('saisie_invalide', 'La dernière opération a aussi touché un autre document que ce devis : je ne l’annule pas d’ici. Utilise restaurer_depuis_audit (Claude Code) après avoir relu l’aperçu.');
+  if (apercu.conflits) refuser('conflit', COUVERT);
+  if (!apercu.aDefaire) refuser('saisie_invalide', 'Rien à annuler : le devis est déjà tel qu’il était avant la dernière modification.');
+  const copie = await c.donnees.document(C.auditAvant, derniere.id);
+  let r;
+  try {
+    r = await c.restaurer({ operationId: derniere.operationId, apercu: false, forcer: false, outil: 'annuler_derniere_modification_devis' });
+  } catch (e) {
+    if (/ont changé depuis/.test(e?.message ?? '')) refuser('conflit', COUVERT); // le devis a bougé entre l'aperçu et l'écriture
+    throw e;
+  }
+  const remis = { ...(copie?.avant ?? devis), id };
+  return {
+    annule: true, id, operationAnnulee: derniere.operationId, operationId: r.operationRestauration ?? null,
+    phrase: phraseAnnulation(remis, copie?.apres ?? devis),
+    ...resumeDuDevis(remis),
+    consigne: 'Redis à l’utilisateur, en une phrase, ce qui a été remis (champ phrase). Un seul niveau d’annulation : un deuxième appel répond « déjà annulé ».',
+    detail: `Annulation écrite au journal (operationId ${r.operationRestauration ?? 'aucun'}). Elle ne se défait pas toute seule : pour refaire la modification, la redemander.`,
   };
 }
 
