@@ -34,8 +34,9 @@ export const LIBELLE_ENREGISTRER_ADRESSE = 'Enregistrer l’adresse';
 export const MESSAGE_CHANGER_ADRESSE = 'Ce n’est pas la bonne adresse ? Clique sur « Changer l’adresse » avant de préparer le brouillon.';
 /** À qui le brouillon sera adressé, tel que le serveur le lira dans le devis : { destinataires, copie } (la copie sans l'adresse déjà destinataire). */
 export function adressesDuBrouillon(devis) {
-  const destinataires = adressesDuDevis(devis?.destinataires);
-  const copie = adressesDuDevis(devis?.copie).filter((c) => !destinataires.some((a) => a.toLowerCase() === c.toLowerCase()));
+  const utilisables = (liste) => { const vues = new Set(); return adressesDuDevis(liste).filter((a) => adresseSure(a) && !vues.has(a.toLowerCase()) && vues.add(a.toLowerCase())); }; // comme le serveur (adressesUtilisables)
+  const destinataires = utilisables(devis?.destinataires);
+  const copie = utilisables(devis?.copie).filter((c) => !destinataires.some((a) => a.toLowerCase() === c.toLowerCase()));
   return { destinataires, copie };
 }
 /** Texte montré dans la confirmation : l'adresse du client (et la copie) avant de créer le brouillon. */

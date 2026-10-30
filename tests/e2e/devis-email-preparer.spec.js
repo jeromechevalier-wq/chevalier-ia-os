@@ -187,6 +187,7 @@ test('5 cas particuliers : un brouillon propose « Finaliser d’abord » ; un d
   await ouvrirMenuEnvoyer(page);
   await entree(page).click();
   await expect(page.locator('.dialogue [data-valeur="sans-destinataire"]')).toContainText('n’a pas de destinataire');
+  await expect(page.locator('.dialogue [data-valeur="confirmation-preparer-email"]')).toHaveText(MESSAGE_CONFIRMATION); // la garantie « rien n’est envoyé » est dite aussi dans la fenêtre unique
   await capturer(page, info, '5-sans-destinataire');
   expect(serveur.appels).toEqual([]);
 });
