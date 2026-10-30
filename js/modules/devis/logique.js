@@ -34,7 +34,7 @@ export const STATUTS_DEVIS = [
   { id: 'accepte', libelle: 'Devis signé' },
   { id: 'refuse', libelle: 'Devis refusé' },
   { id: 'expire', libelle: 'Expiré' },
-  { id: 'remplace', libelle: 'Remplacé' },
+  { id: 'remplace', libelle: 'Devis remplacé' },
 ];
 export const TAUX_TVA_DEFAUT = [20, 10, 5.5];
 export const REGIMES_TVA = [

@@ -14,6 +14,7 @@ const quantiteAffichee = (q) => (typeof q === 'number' ? String(q).replace('.', 
  * Renvoie `{ element, valeurs(), montrerErreurs(erreurs) }` ; `valeurs()` donne `{ composants, prixVenteForce }` tels que saisis (à valider par les plans d'articles.js).
  */
 export function editeurOuvrage({ composants = [], prixVenteForce = null, id = null } = {}) {
+  const mot = O.motOuvrage(D.etat.reglages);
   let liste = composants.map((c) => ({ articleId: c.articleId, saisie: quantiteAffichee(c.quantite) }));
   const parId = () => O.articlesParId(D.etat.articles);
 
@@ -69,7 +70,7 @@ export function editeurOuvrage({ composants = [], prixVenteForce = null, id = nu
     remplir(resultats, ...(trouves.length
       ? trouves.map((a) => h('li', { role: 'option' }, h('button', { type: 'button', class: 'resultat-composant', dataset: { articleId: a.id }, onclick: () => ajouter(a.id) },
         h('span', {}, a.libelle), h('span', { class: 'discret' }, `${a.unite} · ${eur(O.prixVenteArticle(a, D.etat.reglages))}`))))
-      : [h('li', { class: 'discret', role: 'option', 'aria-disabled': 'true' }, 'Aucun article actif ne correspond (un ouvrage ne peut pas en contenir un autre).')]));
+      : [h('li', { class: 'discret', role: 'option', 'aria-disabled': 'true' }, `Aucun article actif ne correspond (${mot.un} ${mot.singulier} ne peut pas en contenir ${mot.genre === 'feminin' ? 'une autre' : 'un autre'}).`)]));
   }
 
   function dessiner() {
@@ -91,18 +92,18 @@ export function editeurOuvrage({ composants = [], prixVenteForce = null, id = nu
         h('div', { class: 'composant-actions' },
           h('button', { type: 'button', class: 'bouton-icone', 'aria-label': `Monter : ${article?.libelle ?? ''}`, disabled: i === 0, onclick: () => deplacer(i, -1) }, icone('arrow-up', { taille: 16 })),
           h('button', { type: 'button', class: 'bouton-icone', 'aria-label': `Descendre : ${article?.libelle ?? ''}`, disabled: i === liste.length - 1, onclick: () => deplacer(i, 1) }, icone('arrow-down', { taille: 16 })),
-          h('button', { type: 'button', class: 'bouton-icone', 'aria-label': `Retirer de l’ouvrage : ${article?.libelle ?? ''}`, dataset: { action: 'retirer-composant' },
+          h('button', { type: 'button', class: 'bouton-icone', 'aria-label': `Retirer ${O.duMot(mot)} : ${article?.libelle ?? ''}`, dataset: { action: 'retirer-composant' },
             onclick: () => { liste = liste.filter((x) => x !== c); dessiner(); } }, icone('x', { taille: 16 }))));
     });
     remplir(zoneListe, liste.length
       ? h('ul', { class: 'composants' }, lignes)
-      : h('p', { class: 'discret composants-vide', dataset: { vide: 'composants' } }, 'Aucun composant. Cherche un article ci-dessus : l’ouvrage se calcule avec ce que tu ajoutes.'));
+      : h('p', { class: 'discret composants-vide', dataset: { vide: 'composants' } }, `Aucun composant. Cherche un article ci-dessus : ${mot.leMot} se calcule avec ce que tu ajoutes.`));
     dessinerResume();
     dessinerResultats();
   }
 
   const element = h('div', { class: 'editeur-ouvrage pile' },
-    h('div', { class: 'bloc-champ' }, h('label', { class: 'etiquette' }, 'Composants de l’ouvrage'), champRecherche, resultats),
+    h('div', { class: 'bloc-champ' }, h('label', { class: 'etiquette' }, `Composants ${O.duMot(mot)}`), champRecherche, resultats),
     zoneListe, erreurResume, resume,
     h('div', { class: 'bloc-champ' }, h('label', { class: 'etiquette', for: 'article-prixVenteForce' }, 'Prix de vente forcé HT (facultatif)'), champForce, erreurForce));
   dessiner();

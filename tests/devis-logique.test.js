@@ -347,15 +347,15 @@ describe('Corrections de relecture', () => {
 });
 
 describe('C8 libellés des statuts', () => {
-  test('C8 les libellés affichés sont Brouillon, Finalisé, Envoyé, Devis signé, Devis refusé, Expiré, Remplacé (les identifiants stockés ne changent pas)', () => {
-    assert.deepEqual(D.STATUTS_DEVIS.map((s) => s.libelle), ['Brouillon', 'Finalisé', 'Envoyé', 'Devis signé', 'Devis refusé', 'Expiré', 'Remplacé']);
+  test('C8 les libellés affichés sont Brouillon, Finalisé, Envoyé, Devis signé, Devis refusé, Expiré, Devis remplacé (les identifiants stockés ne changent pas)', () => {
+    assert.deepEqual(D.STATUTS_DEVIS.map((s) => s.libelle), ['Brouillon', 'Finalisé', 'Envoyé', 'Devis signé', 'Devis refusé', 'Expiré', 'Devis remplacé']);
     const id = (libelle) => D.STATUTS_DEVIS.find((s) => s.libelle === libelle).id;
     assert.equal(id('Finalisé'), 'en_attente_envoi');
     assert.equal(id('Devis signé'), 'accepte');
     assert.equal(id('Brouillon'), 'brouillon');
     assert.equal(id('Envoyé'), 'envoye');
     assert.equal(id('Devis refusé'), 'refuse');
-    assert.equal(id('Remplacé'), 'remplace');
+    assert.equal(id('Devis remplacé'), 'remplace');
     // Expiré se calcule à l'affichage : aucune action ne mène à lui.
     assert.equal(Object.values(D.TRANSITIONS).some((t) => t.vers === 'expire'), false);
     assert.equal(D.STATUTS_DEVIS.some((s) => /attente|Accepté/i.test(s.libelle)), false);

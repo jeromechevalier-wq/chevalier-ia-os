@@ -72,6 +72,14 @@ export function motOuvrage(reglages) {
   return { singulier: m.singulier, pluriel: m.pluriel, genre: m.genre, un: f ? 'une' : 'un', le: f ? 'la' : 'le', cet: f ? 'cette' : (elide ? 'cet' : 'ce'), leMot: `${elide ? 'l’' : `${f ? 'la' : 'le'} `}${m.singulier}` };
 }
 
+/** Première lettre en majuscule (le mot du métier se rend en minuscules : « ensemble » -> « Ensemble »). Fonction pure. */
+export const majuscule = (mot) => { const t = String(mot ?? ''); return t ? t.charAt(0).toLocaleUpperCase('fr') + t.slice(1) : t; };
+/** « d’ » devant un mot qui commence par une voyelle (« d’ensemble »), sinon « de » (« de prestation »), sans l'espace final de « d’ ». Fonction pure : prend le résultat de `motOuvrage`. */
+export const deMot = (m) => (VOYELLE.test(String(m?.singulier ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')) ? 'd’' : 'de ');
+
+/** « du lot », « de la prestation », « de l’ensemble » : le mot précédé de « de » avec l'article défini (jamais « de le »). Fonction pure : prend le résultat de `motOuvrage`. */
+export const duMot = (m) => (m.leMot.startsWith('le ') ? `du ${m.singulier}` : `de ${m.leMot}`);
+
 /** Cherche un article dans un objet { id: article } ou une Map. */
 function trouver(articlesParId, id) {
   if (!articlesParId || typeof id !== 'string') return null;

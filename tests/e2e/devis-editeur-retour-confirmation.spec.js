@@ -81,7 +81,7 @@ test('5a « Devis signé » demande une confirmation : Annuler ne change rien, �
   await racine(page).locator('[data-action="marquer-signe"]').click();
   await expect(fenetre(page)).toBeVisible();
   await expect(fenetre(page)).toContainText('Marquer ce devis signé ?');
-  await expect(fenetre(page)).toContainText('Le devis passe à « Devis signé ». Il ne pourra plus être modifié ni versionné ; les autres versions du même numéro encore en attente ou envoyées passent à Remplacé.');
+  await expect(fenetre(page)).toContainText('Le devis passe à « Devis signé ». Tu ne pourras plus créer de nouvelle version. Les autres versions du même numéro, encore en attente ou envoyées, passent à « Devis remplacé ».');
   await capturer(page, info, '5a-confirmation-signe');
   await fenetre(page).getByRole('button', { name: 'Annuler' }).click();
   await expect(fenetre(page)).toHaveCount(0);

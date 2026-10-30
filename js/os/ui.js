@@ -593,10 +593,12 @@ export function iconeInfo(texte, nom = '', { roleTexte = null, garderLignes = fa
     bulle.style.width = `${largeur}px`;
     bulle.style.left = `${Math.max(12, Math.min(r.left + r.width / 2 - largeur / 2, window.innerWidth - largeur - 12))}px`;
     bulle.style.top = `${r.bottom + 8}px`;
+    const haut = bulle.offsetHeight; // mesurée une fois la bulle affichée : trop longue pour le dessous, elle s'ouvre au-dessus de l'icône quand il y a plus de place
+    if (r.bottom + 8 + haut > window.innerHeight - 12 && r.top > window.innerHeight - r.bottom) bulle.style.top = `${Math.max(12, r.top - 8 - haut)}px`;
   };
   // Au toucher, un appui ailleurs ferme la bulle (le « blur » n'arrive pas toujours sur un téléphone).
   const fermerSiAilleurs = (e) => { if (!bouton.contains(e.target)) fermer(); };
-  const ouvrir = () => { placer(); bouton.classList.add('ouvert'); document.addEventListener('pointerdown', fermerSiAilleurs, true); };
+  const ouvrir = () => { bouton.classList.add('ouvert'); placer(); document.addEventListener('pointerdown', fermerSiAilleurs, true); };
   function fermer() { bouton.classList.remove('ouvert'); document.removeEventListener('pointerdown', fermerSiAilleurs, true); }
   bouton.addEventListener('mouseenter', ouvrir);
   bouton.addEventListener('mouseleave', () => { if (document.activeElement !== bouton) fermer(); });

@@ -197,10 +197,11 @@ test('6 cas vide : un devis introuvable ne montre aucun bouton ; cas d’erreur 
   await ouvrir(page, 'devis/editeur/dSansAffaire');
   await jaunes(page).click();
   await page.getByRole('dialog').waitFor();
-  await expect(page.getByRole('dialog')).toContainText('Ce devis ne peut pas encore être finalisé');
-  await expect(page.getByRole('dialog').locator('li')).toContainText(['Choisis l\'affaire de ce devis.']);
+  // Seule l'affaire manque : l'écran propose de la créer ou d'en choisir une (au lieu de la liste d'erreurs) ; « Annuler » ne change rien.
+  await expect(page.getByRole('dialog')).toContainText('Ce devis n’a pas encore d’affaire');
+  await expect(page.getByRole('dialog').getByRole('button', { name: 'Choisir une affaire existante' })).toBeVisible();
   await capturer(page, info, '6-erreur-finalisation', true);
-  await page.getByRole('dialog').getByRole('button', { name: 'Compris' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Annuler' }).click();
   await expect(jaunes(page)).toHaveText('Finaliser');
   await expect(racine(page).locator('[data-action="envoyer"]')).toHaveAttribute('aria-disabled', 'true');
   // Devis introuvable : aucun bouton d'étape, le message habituel.

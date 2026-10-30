@@ -2,7 +2,7 @@
 // La finalisation, elle, exige l'affaire (même phrase à l'écran, dans la fonction du serveur et dans l'assistant : tests/devis-mcp.test.js SA1-SA2, devis-serveur.test.js SA4, devis-logique.test.js SA3).
 // Un test par critère (le nom commence par son numéro) ; UNE capture : tests/e2e/captures/devis-sans-affaire/ (ordinateur ET téléphone).
 import { fileURLToPath } from 'node:url';
-import { test, expect, connecter, attendreCalme, listerDocuments, lireDocument, creerOrganisation, creerAffaire } from './outils.js';
+import { test, expect, connecter, attendreCalme, listerDocuments, lireDocument, creerOrganisation, creerAffaire, choisirDansChampDevis } from './outils.js';
 
 const DOSSIER = fileURLToPath(new URL('./captures/devis-sans-affaire/', import.meta.url));
 const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS' };
@@ -24,9 +24,10 @@ test('1 « Nouveau devis » (liste vide, aucune affaire dans l’espace) crée l
   await expect(editeur(page)).toBeVisible();
   await expect(page.locator('.page-nouveau-devis')).toHaveCount(0); // plus de page intermédiaire « Nouveau devis » / « Créer le brouillon »
   await expect(page.locator('[data-action="creer-brouillon"]')).toHaveCount(0);
-  await expect(page.locator('[data-erreur="affaire"]')).toContainText('Choisis l’affaire de ce devis');
+  await expect(page.locator('[data-erreur="affaire"]')).toContainText('Facultatif tant que le devis est un brouillon');
   await expect(page.locator('[data-champ="affaire"]')).not.toHaveClass(/invalide/);
-  await expect(page.locator('[data-champ="affaire"] option')).toHaveCount(1); // cas vide : aucune affaire à proposer
+  await page.locator('[data-champ="affaire"]').fill('Ré'); // cas vide : aucune affaire à proposer, la liste le dit
+  await expect(page.locator('.entete-droite .suggestion-vide')).toContainText('Aucune affaire ne correspond');
   const docs = await listerDocuments('devis_devis');
   expect(docs).toHaveLength(1);
   expect(docs[0].affaireId ?? null).toBeNull();
@@ -47,7 +48,7 @@ test('2 depuis la liste (bouton « Nouveau devis » du haut) puis choix de l’a
   await expect(page.locator('[data-valeur="sans-affaire"]').first()).toHaveText('Sans affaire');
   await page.locator(`[data-id="${id}"]`).first().click();
   await expect(editeur(page)).toBeVisible();
-  await page.locator('[data-champ="affaire"]').selectOption('a1');
+  await choisirDansChampDevis(page, 'affaire', 'Réno', 'Rénovation cuisine');
   await expect(page.locator('[data-valeur="enregistrement"]')).toHaveText('Enregistré');
   await expect(page.locator('[data-erreur="affaire"]')).toBeHidden();
   const d = await lireDocument(`devis_devis/${id}`);

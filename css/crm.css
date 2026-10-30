@@ -137,7 +137,6 @@ button.badge-etat { border: 0; font-family: inherit; cursor: pointer; }
 
 .ligne-export-contacts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--esp-4); max-width: 100%; }
 .ligne-export-contacts .champ { width: auto; min-width: 0; }
-.export-contacts { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
 .page-actions { display: flex; gap: var(--esp-4); align-items: center; flex-wrap: wrap; }
 .compteur-liste { display: block; margin-top: var(--esp-1); color: var(--texte2); font-size: var(--fs-texte); font-family: var(--police-texte); letter-spacing: 0; }
 .barre-filtres { display: flex; flex-direction: column; gap: var(--esp-4); flex: 1; min-width: 0; }
@@ -359,6 +358,8 @@ th[aria-sort='ascending'] .tri, th[aria-sort='descending'] .tri { color: var(--t
   .fiche-montant { margin-left: 0; margin-top: var(--esp-6); } /* place du libellé posé au-dessus du chiffre */
   .fiche-montant .prop-modifier { position: relative; right: auto; top: auto; transform: none; width: 28px; height: 28px; } /* relative (et non static) : la zone de clic de 44 px (::after, os.css) se centre sur le crayon, pas sur le montant */
   .fiche-actions { width: 100%; }
+  .fiche-actions [data-action="exporter-contact"] .libelle-bouton { display: none; } /* téléphone : icône seule (nom accessible « Exporter ce contact ») */
+  .fiche-actions [data-action="exporter-contact"] { min-width: 44px; min-height: 44px; justify-content: center; }
 }
 .barre-etapes-fiche { display: flex; gap: var(--esp-1); list-style: none; margin: 0; padding: 0; overflow-x: auto; }
 .barre-etapes-fiche li { flex: 1 0 auto; display: flex; align-items: center; gap: 2px; }

@@ -116,7 +116,7 @@ test('3 un devis remplacé (ou expiré) n’est plus dans le Tableau mais il est
   await expect(page.locator('.carte-devis[data-id="d6"], .carte-devis[data-id="d4"]')).toHaveCount(0);
   await page.locator('[data-vue="archives"]').click();
   await expect(lignes(page)).toHaveCount(2);
-  await expect(page.locator('tr.ligne-devis[data-id="d6"] [data-colonne="statut"]')).toContainText('Remplacé');
+  await expect(page.locator('tr.ligne-devis[data-id="d6"] [data-colonne="statut"]')).toContainText('Devis remplacé');
   await expect(page.locator('tr.ligne-devis[data-id="d4"] [data-colonne="statut"]')).toContainText('Expiré');
   await capturer(page, info, '3-remplace-dans-archives');
 });
@@ -321,11 +321,11 @@ test('E6 le filtre Statut : « Expiré » et « Remplacé » absents en vue Tabl
   await ouvrir(page);
   await page.getByRole('button', { name: /Filtres/ }).click();
   await expect(page.getByRole('checkbox', { name: 'Expiré' })).toBeVisible();
-  await expect(page.getByRole('checkbox', { name: 'Remplacé' })).toBeVisible();
+  await expect(page.getByRole('checkbox', { name: 'Devis remplacé' })).toBeVisible();
   await page.keyboard.press('Escape');
   await page.locator('[data-vue="tableau"]').click();
   await page.getByRole('button', { name: /Filtres/ }).click();
   await expect(page.getByRole('checkbox', { name: 'Brouillon' })).toBeVisible();
   await expect(page.getByRole('checkbox', { name: 'Expiré' })).toHaveCount(0);
-  await expect(page.getByRole('checkbox', { name: 'Remplacé' })).toHaveCount(0);
+  await expect(page.getByRole('checkbox', { name: 'Devis remplacé' })).toHaveCount(0);
 });
