@@ -518,7 +518,7 @@ export function estExpire(devis, aujourdhui) {
 export const TRANSITIONS = {
   finaliser: { de: ['brouillon'], vers: 'en_attente_envoi' },
   marquer_envoye: { de: ['en_attente_envoi'], vers: 'envoye' },
-  accepter: { de: ['envoye'], vers: 'accepte' },
+  accepter: { de: ['en_attente_envoi', 'envoye'], vers: 'accepte' }, // aussi depuis « Finalisé » : un devis remis en main propre ou hors de l'application peut être signé sans « Devis envoyé » (décision de Jérôme, 30/10/2026)
   refuser: { de: ['en_attente_envoi', 'envoye'], vers: 'refuse' }, // aussi depuis « Finalisé » : un devis finalisé jamais envoyé a une sortie (décision de Jérôme, 29/10/2026)
   remplacer: { de: ['en_attente_envoi', 'envoye'], vers: 'remplace' },
   // Crée un nouveau brouillon ; la version de départ ne change pas de statut ici.
