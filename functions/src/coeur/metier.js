@@ -1232,7 +1232,7 @@ export async function creerDevisDepuisModele(c, args) {
   const retirees = new Map(reprise.disparues.map((x) => [x.ligneId, x]));
   const aReviser = [];
   const motifs = new Map();
-  const travail = reprise.sections.map((s) => ({ ...s, lignes: (s.lignes ?? []).filter((l) => !retirees.has(l.id)) }));
+  const travail = reprise.sections.map(({ marge: _margeDuModele, ...s }) => ({ ...s, lignes: (s.lignes ?? []).filter((l) => !retirees.has(l.id)) })); // la marge d'une section du modèle ne suit pas : marge des réglages du jour
   for (const s of reprise.sections) for (const l of s.lignes ?? []) {
     const motif = retirees.has(l.id) ? (l.articleId ? 'article_retire' : 'ligne_libre') : l.type === DA.TYPE_TEXTE ? 'texte' : null;
     if (!motif) continue;

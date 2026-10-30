@@ -212,4 +212,12 @@ describe('creer_devis_depuis_modele', () => {
     assert.ok(lignes.some((l) => l.type === 'texte'));
     assert.ok(lignes.some((l) => l.type === 'saut'));
   });
+
+  test('P15 la marge d’une section du modèle n’est pas reprise : la ligne est vendue avec la marge des réglages du jour', async () => {
+    const modele = modeleDeBase({ sections: [{ id: 's1', titre: 'Cuisine', marge: 50, lignes: [lg('l11', 'Prise double', 1, 8, { articleId: 'prise' })] }] });
+    const s = await demarrer({ devis: [modele], articles: ARTICLES });
+    const r = ok(await depuis(s));
+    assert.equal(s.doc('devis_devis', r.id).sections[0].marge, undefined);
+    assert.equal(r.totalHT, 12, '10 € d’achat + 20 % de marge du jour, pas 15 €');
+  });
 });
