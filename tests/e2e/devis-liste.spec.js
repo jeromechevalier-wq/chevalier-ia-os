@@ -187,7 +187,7 @@ test('E3 le menu « … » : changements de statut par le serveur, entrées « b
   await expect(menu.getByRole('menuitem', { name: /Facturer/ })).toHaveCount(0);
   await expect(menu.getByRole('menuitem', { name: /Préparer l’e-mail/ })).toBeDisabled(); // faux serveur « pas branché » : entrée grisée dès la première ouverture, avec sa phrase
   await expect(menu).toContainText('pas encore branchée');
-  for (const nom of [/Dupliquer/, /Créer une nouvelle version/, /Voir le devis/]) await expect(menu.getByRole('menuitem', { name: nom })).toBeEnabled();
+  for (const nom of [/^Dupliquer$/, /Créer une nouvelle version/, /Voir le devis/]) await expect(menu.getByRole('menuitem', { name: nom })).toBeEnabled();
   await expect(menu.getByRole('menuitem', { name: /Éditer le devis/ })).toBeEnabled(); // un devis finalisé s'ouvre sur l'Édition, en lecture seule
   await expect(menu.getByRole('menuitem', { name: /Supprimer/ })).toHaveCount(0); // seulement un brouillon
   await capturer(page, info, 'E3-menu-devis-envoye');
@@ -276,7 +276,7 @@ test('O4 un devis envoyé s’ouvre en visualisation (lecture seule) : les actio
   await expect(page.locator('[data-action="marquer-signe"]')).toBeVisible(); // devis envoyé : l'étape suivante est « Devis signé » (26/10/2026)
   await page.locator('[data-action="plus-actions"]').click();
   await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Créer une nouvelle version' })).toBeEnabled();
-  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Dupliquer' })).toBeEnabled();
+  await expect(page.locator('.menu-pop').getByRole('menuitem', { name: 'Dupliquer', exact: true })).toBeEnabled();
   await page.keyboard.press('Escape');
   await capturer(page, info, 'O4-lecture-seule');
 });

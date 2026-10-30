@@ -361,7 +361,7 @@ test('C6 la visualisation d’un devis finalisé n’a plus de boutons « Créer
   expect(boite.height).toBeGreaterThanOrEqual(44);
   await plus.click();
   await expect(page.getByRole('menuitem', { name: 'Créer une nouvelle version' })).toBeEnabled();
-  await expect(page.getByRole('menuitem', { name: 'Dupliquer' })).toBeEnabled();
+  await expect(page.getByRole('menuitem', { name: 'Dupliquer', exact: true })).toBeEnabled();
   await capturer(page, info, 'C6-menu-autres-actions');
   await page.keyboard.press('Escape');
 });
@@ -464,7 +464,7 @@ test('ED2 l’aperçu montre le devis comme le client le verra ; ordre des ligne
   await page.getByRole('menuitem', { name: 'Texte', exact: true }).click();
   await expect(lignes(page)).toHaveCount(4);
   await lignes(page).nth(3).locator('[data-action="menu-ligne"]').click();
-  await page.getByRole('menuitem', { name: 'Dupliquer' }).click();
+  await page.getByRole('menuitem', { name: 'Dupliquer', exact: true }).click();
   await expect(lignes(page)).toHaveCount(5);
   expect(await textes(page)).toEqual(['Pose du carrelage', '', 'Carrelage 60 x 60', 'Divers', 'Divers']);
   // Supprimer la ligne vide : confirmation, puis « Annuler » dans les 8 secondes la remet.
@@ -644,7 +644,7 @@ test('ED6 depuis la liste : Nouveau devis, Modifier ouvre l’éditeur, Duplique
   await page.goBack();
   await expect(page.locator('.page-liste-devis')).toBeVisible();
   await menu('b1');
-  await page.getByRole('menuitem', { name: 'Dupliquer' }).click();
+  await page.getByRole('menuitem', { name: 'Dupliquer', exact: true }).click();
   await expect(page.locator('.page-editeur-devis[data-devis]')).toBeVisible();
   const copie = page.url().split('/').pop();
   expect(copie).not.toBe('b1');

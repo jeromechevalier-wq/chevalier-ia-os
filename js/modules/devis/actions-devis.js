@@ -111,10 +111,32 @@ export async function creerDevisSansAffaire({ remplacer = false, silencieux = fa
   }
 }
 
-/** Crée un brouillon qui copie un devis (même affaire, mêmes lignes) et ouvre l'éditeur. */
-export async function dupliquerDevis(source) {
+/** Phrase affichée après « Dupliquer aux prix du jour » : ce qui a été refait, ce qui n'existe plus au catalogue (avec son numéro dans le nouveau brouillon). */
+export function messagePrixDuJour(sections, disparues) {
+  const n = Ed.numerotation(sections);
+  const liste = disparues.map((x) => `${n[x.ligneId] ?? ''} ${x.libelle}`.trim()).join(', ');
+  const base = 'Brouillon créé aux prix du jour : un prix de vente, un libellé ou une TVA retouchés à la main sur la ligne d’origine ne sont pas repris.';
+  if (!disparues.length) return base;
+  return `${base} ${disparues.length === 1 ? '1 ligne n’existe plus dans le catalogue' : `${disparues.length} lignes n’existent plus dans le catalogue`} : ${liste} ; ${disparues.length === 1 ? 'elle garde son' : 'elles gardent leur'} ancien prix, à vérifier.`;
+}
+
+/**
+ * Crée un brouillon qui copie un devis (même affaire, mêmes lignes) et ouvre l'éditeur.
+ * `prixDuJour` : les lignes venues d'un article actif sont refaites depuis le catalogue d'aujourd'hui (Ed.repriserSections) ; le devis d'origine n'est jamais touché.
+ */
+export async function dupliquerDevis(source, { prixDuJour = false } = {}) {
   try {
-    const contenu = Ed.copieDeDevis(source, nouvelId);
+    let contenu = Ed.copieDeDevis(source, nouvelId);
+    let message = null;
+    if (prixDuJour) {
+      const lignes = (contenu.sections ?? []).flatMap((s) => s.lignes ?? []);
+      if (!lignes.length) message = 'Rien à recalculer : ce devis n’a aucune ligne.';
+      else {
+        const r = Ed.repriserSections(contenu.sections, D.etat.articles, { marge: source.marge, modeMarge: source.modeMarge });
+        contenu = { ...contenu, sections: r.sections };
+        message = messagePrixDuJour(r.sections, r.disparues);
+      }
+    }
     const r = await D.creerBrouillon({
       affaireId: source.affaireId, organisationId: source.organisationId, personneId: source.personneId, adresses: source.adresses,
       destinataires: source.destinataires, copie: source.copie, modeMarge: source.modeMarge, marge: source.marge, tauxTvaDefaut: source.tauxTvaDefaut,
@@ -126,6 +148,7 @@ export async function dupliquerDevis(source) {
     } catch (e) { console.warn(e); }
     // Le brouillon existe même si la copie du contenu a échoué : on l'ouvre et on le dit.
     if (!copie) toast('Le brouillon est créé, mais son contenu n’a pas pu être copié : ajoute les lignes à la main, ou réessaie depuis la liste.', { type: 'erreur', duree: 10000 });
+    else if (message) toast(message, { duree: 12000 });
     naviguer(`devis/editeur/${r.id}`);
   } catch (e) { dire(e); }
 }
@@ -151,6 +174,7 @@ export function entreesMenuDevis(d, { exclure = [], apresSuppression = () => {},
     voir: () => naviguer(`devis/voir/${d.id}`),
     nouvelle_version: () => creerNouvelleVersion(d),
     dupliquer: () => dupliquerDevis(d),
+    dupliquer_prix_du_jour: () => dupliquerDevis(d, { prixDuJour: true }),
     preparer_email: () => lancerPreparationEmail({ devisId: d.id, getDevis: () => D.devisParId(d.id), finaliser: { libelle: 'Ouvrir le devis', action: () => naviguer(`devis/editeur/${d.id}`) } }),
     supprimer: () => supprimerBrouillon(d, apresSuppression),
   };
