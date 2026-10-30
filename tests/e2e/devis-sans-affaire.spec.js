@@ -26,8 +26,8 @@ test('1 « Nouveau devis » (liste vide, aucune affaire dans l’espace) crée l
   await expect(page.locator('[data-action="creer-brouillon"]')).toHaveCount(0);
   await expect(page.locator('[data-erreur="affaire"]')).toContainText('Facultatif tant que le devis est un brouillon');
   await expect(page.locator('[data-champ="affaire"]')).not.toHaveClass(/invalide/);
-  await page.locator('[data-champ="affaire"]').fill('Ré'); // cas vide : aucune affaire à proposer, la liste le dit
-  await expect(page.locator('.entete-droite .suggestion-vide')).toContainText('Aucune affaire ne correspond');
+  await page.locator('[data-champ="affaire"]').fill('Ré'); // cas vide : aucune affaire à proposer, la liste ne propose que de créer l'affaire au nom tapé
+  await expect(page.locator('.entete-droite .suggestions:not([hidden]) .suggestion')).toHaveText([/\+ Créer l’affaire « Ré »/]);
   const docs = await listerDocuments('devis_devis');
   expect(docs).toHaveLength(1);
   expect(docs[0].affaireId ?? null).toBeNull();
@@ -75,6 +75,9 @@ test('3 finaliser un devis sans affaire est refusé à l’écran avec la phrase
   await expect(page.getByRole('dialog')).toContainText('Ce devis ne peut pas encore être finalisé');
   await expect(page.getByRole('dialog').locator('li').first()).toHaveText('Choisis l\'affaire de ce devis.');
   await page.getByRole('dialog').getByRole('button', { name: 'Compris' }).click();
+  await expect(page.locator('[data-erreur="affaire"]')).toHaveText('Choisis ou crée une affaire pour finaliser ce devis.'); // le champ Affaire est aussi en rouge, avec le focus
+  await expect(page.locator('[data-champ="affaire"]')).toHaveClass(/invalide/);
+  await expect(page.locator('[data-champ="affaire"]')).toBeFocused();
   expect(appels).toHaveLength(0);
 });
 

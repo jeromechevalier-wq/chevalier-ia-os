@@ -21,7 +21,7 @@ const BOB = 'bob@exemple.test'; // éditeur chez b seulement
 const manuelle = (extra = {}) => ({ cle: 'prise double', expression: 'prises doubles', articleId: 'art1', articleLibelle: 'Prise 2P+T', statut: 'active', origine: 'manuelle', confirmations: 0, contradictions: 0, conflit: false, exemples: [], ...extra });
 const apprise = (extra = {}) => manuelle({ origine: 'apprise_question', statut: 'a_confirmer', confirmations: 1, derniereConfirmationLe: '2026-10-28', exemples: ['mets 3 prises doubles'], ...extra });
 
-function lesCas({ nom, projet, fichier, preparer, ref, habitudes, ecrivain, lecteur, autre }) {
+function lesCas({ nom, projet, fichier, preparer, ref, habitudes, usage, ecrivain, lecteur, autre }) {
   describe(`V4 Règles du vocabulaire : ${nom}`, () => {
     let env;
     before(async () => {
@@ -120,6 +120,65 @@ function lesCas({ nom, projet, fichier, preparer, ref, habitudes, ecrivain, lect
       if (lecteur) await assertFails(setDoc(h(db(lecteur), 'h3'), { cles: ['a'] }));
       await assertFails(getDoc(h(db(autre), 'h1')));
     });
+    test('K12 cibles : jusqu\u2019à 8, refusées à 9 ou mal formées ; un mot sans cibles se modifie toujours ; cibles + vrai articleId refusé ; suggestion toujours refusée', async () => {
+      const d = db(ecrivain);
+      const cible = (i, extra = {}) => ({ genre: 'article', id: `a${i}`, libelle: `Prise ${i}`, ...extra });
+      const liste = (n) => Array.from({ length: n }, (_, i) => cible(i));
+      const vide = { articleId: '', articleLibelle: '' };
+      // création
+      await assertSucceeds(setDoc(ref(d, 'k1'), manuelle({ cle: 'prise', expression: 'prise', ...vide, cibles: liste(8) })));
+      await assertSucceeds(setDoc(ref(d, 'k2'), manuelle({ cle: 'prises', expression: 'prises', ...vide, cibles: [cible(1), { genre: 'famille', id: 'fam1', libelle: 'Fournitures › Prises' }] })));
+      await assertSucceeds(setDoc(ref(d, 'k3'), manuelle({ cle: 'k3', expression: 'k3', ...vide, cibles: [] })));
+      await assertFails(setDoc(ref(d, 'k4'), manuelle({ ...vide, cibles: liste(9) })));
+      await assertFails(setDoc(ref(d, 'k5'), manuelle({ ...vide, cibles: [cible(1, { genre: 'autre' })] })));
+      await assertFails(setDoc(ref(d, 'k6'), manuelle({ ...vide, cibles: [cible(1, { id: '' })] })));
+      await assertFails(setDoc(ref(d, 'k7'), manuelle({ ...vide, cibles: [cible(1, { id: 'x'.repeat(101) })] })));
+      await assertFails(setDoc(ref(d, 'k8'), manuelle({ ...vide, cibles: [cible(1, { libelle: 'x'.repeat(121) })] })));
+      await assertFails(setDoc(ref(d, 'k9'), manuelle({ ...vide, cibles: [cible(1), 'texte'] })));
+      await assertFails(setDoc(ref(d, 'k10'), manuelle({ ...vide, cibles: [cible(1, { prixAchat: 3 })] })));
+      await assertFails(setDoc(ref(d, 'k11'), manuelle({ ...vide, cibles: 'prise' })));
+      await assertFails(setDoc(ref(d, 'k12'), manuelle({ cibles: [cible(1)] }))); // vrai articleId (art1) + cibles : jamais
+      // le huitième élément est contrôlé aussi
+      await assertFails(setDoc(ref(d, 'k13'), manuelle({ ...vide, cibles: [...liste(7), cible(7, { genre: 'x' })] })));
+      // modification
+      await assertSucceeds(updateDoc(ref(d, 'prise_double'), { articleId: '', articleLibelle: '', cibles: [cible(1), cible(2)] }));
+      await assertSucceeds(updateDoc(ref(d, 'prise_double'), { cibles: [cible(3)] })); // déjà sans article : seule la liste change
+      await assertSucceeds(updateDoc(ref(d, 'prise_double'), { statut: 'desactivee' })); // les cibles restent, rien d'autre ne les concerne
+      await assertSucceeds(updateDoc(ref(d, 'prise_double'), { articleId: 'art9', articleLibelle: 'Prise 9', cibles: [] })); // retour à un seul article : cibles vidée
+      await assertFails(updateDoc(ref(d, 'tableau'), { cibles: liste(9) }));
+      await assertFails(updateDoc(ref(d, 'tableau'), { cibles: [cible(1, { genre: 'autre' })] }));
+      await assertFails(updateDoc(ref(d, 'tableau'), { cibles: [cible(1)] })); // « tableau » garde son article : double sens refusé
+      await assertFails(updateDoc(ref(d, 'tableau'), { cibles: 'x', articleId: '' }));
+      await assertFails(updateDoc(ref(d, 'tableau'), { articleId: '', cibles: [cible(1)], suggestion: { raison: 'x' } }));
+      await assertFails(updateDoc(ref(d, 'tableau'), { articleId: '', cibles: [cible(1)], confirmations: 9 }));
+      // un mot qui a des cibles ne reprend pas un article sans vider ses cibles
+      await env.withSecurityRulesDisabled(async (ctx) => { await setDoc(ref(ctx.firestore(), 'multi'), manuelle({ cle: 'multi', expression: 'multi', ...vide, cibles: [cible(1), cible(2)] })); });
+      await assertFails(updateDoc(ref(d, 'multi'), { articleId: 'art2', articleLibelle: 'Prise 16A' }));
+      await assertSucceeds(updateDoc(ref(d, 'multi'), { note: 'ok' }));
+      // cas limites relus par Fable
+      await assertFails(setDoc(ref(d, 'l1'), manuelle({ ...vide, cibles: [cible(1, { id: 5 })] })));
+      await assertFails(setDoc(ref(d, 'l2'), manuelle({ ...vide, cibles: [cible(1, { libelle: 5 })] })));
+      await assertFails(setDoc(ref(d, 'l3'), manuelle({ ...vide, cibles: {} })));
+      await assertFails(setDoc(ref(d, 'l4'), manuelle({ ...vide, cibles: null })));
+      await assertFails(setDoc(ref(d, 'l5'), manuelle({ ...vide, articleLibelle: 'Fantôme', cibles: [cible(1)] })));
+      await assertSucceeds(setDoc(ref(d, 'l6'), manuelle({ ...vide, cibles: [cible(1, { id: 'x'.repeat(100), libelle: 'é'.repeat(120) })] })));
+      await assertSucceeds(updateDoc(ref(d, 'multi'), { cibles: deleteField(), articleId: 'art2', articleLibelle: 'Prise 16A' })); // retrait des cibles permis
+      if (lecteur) await assertFails(updateDoc(ref(db(lecteur), 'tableau'), { articleId: '', cibles: [cible(1)] }));
+      // un mot d'aujourd'hui (sans cibles) se modifie comme avant
+      await assertSucceeds(updateDoc(ref(d, 'tableau'), { statut: 'active', note: 'ok' }));
+    });
+    test('K23 devis_usage_articles : les membres lisent, personne n’écrit depuis un navigateur (ni éditeur, ni lecteur, ni par le joker), les autres espaces n’y lisent pas', async () => {
+      await env.withSecurityRulesDisabled(async (ctx) => { await setDoc(usage(ctx.firestore(), 'art1'), { articleId: 'art1', nombre: 3, derniereUtilisationLe: '2026-10-30' }); });
+      await assertSucceeds(getDoc(usage(db(ecrivain), 'art1')));
+      if (lecteur) await assertSucceeds(getDoc(usage(db(lecteur), 'art1')));
+      await assertFails(setDoc(usage(db(ecrivain), 'art2'), { articleId: 'art2', nombre: 1 }));
+      await assertFails(updateDoc(usage(db(ecrivain), 'art1'), { nombre: 99 }));
+      await assertFails(setDoc(usage(db(ecrivain), 'art1'), { articleId: 'art1', nombre: 0 }, { merge: true }));
+      await assertFails(deleteDoc(usage(db(ecrivain), 'art1')));
+      if (lecteur) await assertFails(setDoc(usage(db(lecteur), 'art3'), { articleId: 'art3', nombre: 1 }));
+      await assertFails(getDoc(usage(db(autre), 'art1')));
+      await assertFails(getDoc(usage(env.unauthenticatedContext().firestore(), 'art1')));
+    });
     test('V4g supprimer une règle est refusé', async () => {
       await assertFails(deleteDoc(ref(db(ecrivain), 'prise_double')));
       await assertFails(deleteDoc(ref(db(ecrivain), 'tableau')));
@@ -146,6 +205,7 @@ lesCas({
   preparer: async () => {},
   ref: (db, id) => doc(db, 'devis_vocabulaire', id),
   habitudes: (db, id) => doc(db, 'devis_habitudes', id),
+  usage: (db, id) => doc(db, 'devis_usage_articles', id),
   ecrivain: JEROME,
   lecteur: null,
   autre: 'inconnu@exemple.test',
@@ -162,27 +222,33 @@ lesCas({
   },
   ref: (db, id) => doc(db, 'clients', 'a', 'devis_vocabulaire', id),
   habitudes: (db, id) => doc(db, 'clients', 'a', 'devis_habitudes', id),
+  usage: (db, id) => doc(db, 'clients', 'a', 'devis_usage_articles', id),
   ecrivain: ALICE,
   lecteur: LEA,
   autre: BOB,
 });
 
 describe('V4 Cohérence des deux jeux de règles', () => {
-  test('V4i les deux fichiers portent le même texte des fonctions vocabulaireManuelNeuf et vocabulaireRevise, la collection ne se supprime pas, et reste hors du joker', () => {
-    const extraire = (t, nom) => (t.match(new RegExp(`function ${nom}\\(\\) \\{[\\s\\S]*?\\n    \\}`)) || [''])[0];
+  test('V4i les deux fichiers portent le même texte des fonctions de cibles, vocabulaireManuelNeuf et vocabulaireRevise, la collection ne se supprime pas, et reste hors du joker', () => {
+    const extraire = (t, nom) => (t.match(new RegExp(`function ${nom}\\([a-z]*\\) \\{[\\s\\S]*?\\n    \\}`)) || [''])[0];
     const j = regles('firestore.rules');
     const p = regles('firestore.plateforme.rules');
-    for (const nom of ['vocabulaireManuelNeuf', 'vocabulaireRevise']) {
+    for (const nom of ['cibleValide', 'ciblesValides', 'ciblesSansArticle', 'vocabulaireManuelNeuf', 'vocabulaireRevise']) {
       assert.ok(extraire(j, nom).length > 40, nom);
       assert.equal(extraire(j, nom), extraire(p, nom), `${nom} : même texte dans les deux fichiers`);
     }
     for (const t of [j, p]) {
-      assert.match(t, /hasOnly\(\['statut', 'articleId', 'articleLibelle', 'note', 'conflit', 'modifieLe', 'modifiePar', 'via', 'valideLe', 'validePar', 'revoirLe', 'suggestionTraiteeLe'\]\)/);
+      assert.match(t, /hasOnly\(\['statut', 'articleId', 'articleLibelle', 'note', 'conflit', 'modifieLe', 'modifiePar', 'via', 'valideLe', 'validePar', 'revoirLe', 'suggestionTraiteeLe', 'cibles'\]\)/);
       assert.match(t, /match \/(?:clients\/\{client\}\/)?devis_vocabulaire\/\{id\} \{[^}]*allow delete: if false;/s);
     }
-    assert.match(j, /'crm_actions_lancements', 'devis_vocabulaire'(, 'documents_stockes')?(, 'devis_habitudes')?\]\)/);
+    assert.match(j, /'crm_actions_lancements', 'devis_vocabulaire'(, 'documents_stockes')?(, 'devis_habitudes')?(, 'devis_usage_articles')?\]\)/);
+    assert.match(j, /'devis_habitudes', 'devis_usage_articles'\]\)/); // K23 : la collection d'usage est exclue du joker de Jérôme
+    assert.match(j, /match \/devis_usage_articles\/\{id\} \{\s+allow read: if compteAutorise\(\);\s+allow write: if false;/);
+    assert.match(p, /\['documents_stockes', 'devis_habitudes', 'devis_usage_articles'\];/); // K23 : exclue du joker d'écriture des clients
+    assert.match(p, /match \/clients\/\{client\}\/devis_usage_articles\/\{id\} \{[^}]*allow write: if false;/s);
+    for (const tt of [j, p]) assert.match(tt, /function ciblesValides\(\)[\s\S]*cibleValide\(l\[7\]\)/); // les 8 positions
     assert.match(j, /match \/devis_habitudes\/\{id\} \{\s+allow read: if compteAutorise\(\);\s+allow write: if false;/);
-    assert.match(p, /function collectionDesDocuments\(collection\) \{\s+return collection in \['documents_stockes', 'devis_habitudes'\];/);
+    assert.match(p, /function collectionDesDocuments\(collection\) \{\s+return collection in \['documents_stockes', 'devis_habitudes', 'devis_usage_articles'\];/);
     assert.match(p, /match \/clients\/\{client\}\/devis_habitudes\/\{id\} \{[^}]*allow write: if false;/s);
     assert.match(p, /return collection in \['devis_articles', 'devis_vocabulaire'\];/);
   });
