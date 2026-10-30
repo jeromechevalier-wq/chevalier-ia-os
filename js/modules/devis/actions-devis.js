@@ -111,15 +111,6 @@ export async function creerDevisSansAffaire({ remplacer = false, silencieux = fa
   }
 }
 
-/** Phrase affichée après « Dupliquer aux prix du jour » : ce qui a été refait, ce qui n'existe plus au catalogue (avec son numéro dans le nouveau brouillon). */
-export function messagePrixDuJour(sections, disparues) {
-  const n = Ed.numerotation(sections);
-  const liste = disparues.map((x) => `${n[x.ligneId] ?? ''} ${x.libelle}`.trim()).join(', ');
-  const base = 'Brouillon créé aux prix du jour : un prix de vente, un libellé ou une TVA retouchés à la main sur la ligne d’origine ne sont pas repris.';
-  if (!disparues.length) return base;
-  return `${base} ${disparues.length === 1 ? '1 ligne n’existe plus dans le catalogue' : `${disparues.length} lignes n’existent plus dans le catalogue`} : ${liste} ; ${disparues.length === 1 ? 'elle garde son' : 'elles gardent leur'} ancien prix, à vérifier.`;
-}
-
 /**
  * Crée un brouillon qui copie un devis (même affaire, mêmes lignes) et ouvre l'éditeur.
  * `prixDuJour` : les lignes venues d'un article actif sont refaites depuis le catalogue d'aujourd'hui (Ed.repriserSections) ; le devis d'origine n'est jamais touché.
@@ -129,12 +120,14 @@ export async function dupliquerDevis(source, { prixDuJour = false } = {}) {
     let contenu = Ed.copieDeDevis(source, nouvelId);
     let message = null;
     if (prixDuJour) {
+      // Catalogue pas encore lu (ou lecture refusée) : toutes les lignes passeraient pour « disparues » ; on n'écrit rien.
+      if (!D.estPret() || D.etat.erreurLecture) { toast('Le catalogue n’est pas chargé : réessaie dans un instant.', { type: 'erreur', duree: 8000 }); return; }
       const lignes = (contenu.sections ?? []).flatMap((s) => s.lignes ?? []);
       if (!lignes.length) message = 'Rien à recalculer : ce devis n’a aucune ligne.';
       else {
         const r = Ed.repriserSections(contenu.sections, D.etat.articles, { marge: source.marge, modeMarge: source.modeMarge });
         contenu = { ...contenu, sections: r.sections };
-        message = messagePrixDuJour(r.sections, r.disparues);
+        message = Ed.messagePrixDuJour(r.sections, r.disparues);
       }
     }
     const r = await D.creerBrouillon({

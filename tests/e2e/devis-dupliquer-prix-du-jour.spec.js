@@ -1,7 +1,7 @@
 // « Dupliquer aux prix du jour » (menu « … » de la liste et de l'éditeur des devis). Chez Jérôme (racine).
 // Un test par point du brief (le nom commence par son numéro) : 1 l'entrée est dans le menu à côté de « Dupliquer », 2 liste : les prix du jour, les lignes disparues signalées, l'original intact,
 // 3 éditeur : même entrée, copie de l'écran, 4 cas vide « Rien à recalculer », 5 devis finalisé (lecture seule).
-// Cas d'erreur (écriture du contenu refusée) : même code que « Dupliquer » (dupliquerDevis) ; l'émulateur ne sait pas refuser une seule écriture, il n'est pas rejoué ici.
+// Catalogue pas chargé : rien n'est créé, un message le dit. Cas d'erreur (écriture du contenu refusée) : même code que « Dupliquer » (dupliquerDevis) ; l'émulateur ne sait pas refuser une seule écriture, il n'est pas rejoué ici.
 // Captures dans tests/e2e/captures/devis-dupliquer-prix-du-jour/ (ordinateur ET téléphone).
 import { fileURLToPath } from 'node:url';
 import { test, expect, connecter, attendreCalme, ecrireDocument, creerOrganisation, creerAffaire, JEROME } from './outils.js';

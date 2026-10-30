@@ -1,4 +1,4 @@
-// « Dupliquer aux prix du jour » : fonction pure repriserSections (editeur-logique.js) et message des lignes disparues (actions-devis.js, numéros du nouveau brouillon).
+// « Dupliquer aux prix du jour » : fonction pure repriserSections (editeur-logique.js) et message des lignes disparues (messagePrixDuJour, numéros du nouveau brouillon).
 // Chaque test commence par le numéro du critère (1 à 8, brief PR A5).
 import assert from 'node:assert/strict';
 import { test, describe } from 'node:test';
@@ -70,5 +70,15 @@ describe('6 flux de duplication', () => {
     const r = Ed.repriserSections(sections(), articles, devis);
     const n = Ed.numerotation(r.sections);
     assert.deepEqual(r.disparues.map((x) => `${n[x.ligneId]} ${x.libelle}`), ['1.2 Plinthe chêne', '1.3 Transport', '2.1 ']);
+  });
+});
+
+describe('8 message', () => {
+  test('8 zéro, une et plusieurs disparues : singulier, pluriel, ligne libre sans libellé (numéro seul)', () => {
+    const r = Ed.repriserSections(sections(), articles, devis);
+    assert.match(Ed.messagePrixDuJour(r.sections, r.disparues), /3 lignes n’existent plus dans le catalogue : 1\.2 Plinthe chêne, 1\.3 Transport, 2\.1 ; elles gardent leur ancien prix, à vérifier\.$/);
+    const une = Ed.messagePrixDuJour(r.sections, r.disparues.slice(0, 1));
+    assert.match(une, /1 ligne n’existe plus dans le catalogue : 1\.2 Plinthe chêne ; elle garde son ancien prix, à vérifier\.$/);
+    assert.ok(!Ed.messagePrixDuJour(r.sections, []).includes('catalogue'));
   });
 });
