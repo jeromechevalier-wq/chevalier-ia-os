@@ -2548,12 +2548,13 @@ export function nomFichierExport(maintenant = new Date(), type = 'complet') {
  * nouvelles = créées après le dernier export des contacts (toutes s'il n'y en a pas eu) ;
  * modifiees = déjà exportées (créées avant) mais modifiées depuis.
  */
+export const personnesExportables = (personnes) => (personnes || []).filter((p) => !p.archive && String(p.nom || '').trim());
+
 export function personnesAExporterVcf(personnes, dernierExportContacts) {
   const depuis = versDate(dernierExportContacts);
   const nouvelles = [];
   const modifiees = [];
-  for (const p of personnes || []) {
-    if (p.archive || !String(p.nom || '').trim()) continue;
+  for (const p of personnesExportables(personnes)) {
     if (!depuis) { nouvelles.push(p); continue; }
     const cree = versDate(p.creeLe);
     const modifie = versDate(p.modifieLe);
@@ -2561,6 +2562,45 @@ export function personnesAExporterVcf(personnes, dernierExportContacts) {
     else if (modifie && modifie.getTime() > depuis.getTime()) modifiees.push(p);
   }
   return { nouvelles, modifiees };
+}
+
+/**
+ * Phrase claire sur le dernier export des contacts (fenêtre d'export de la liste Personnes).
+ * Jamais exporté : « Tu n'as encore jamais exporté. » ; sinon « Ton dernier export date du 13 octobre à 18 h 19 (il y a 17 jours). »
+ */
+export function phraseDernierExport(dernier, maintenant = new Date()) {
+  const d = versDate(dernier);
+  if (!d) return "Tu n'as encore jamais exporté.";
+  const p = partiesParis(d);
+  const jourExport = `${p.year}-${p.month}-${p.day}`;
+  const ecart = ecartJours(jourExport, jourParis(maintenant));
+  const annee = String(p.year) === String(partiesParis(maintenant).year) ? '' : ` ${p.year}`;
+  // Une date dans le futur (réglage saisi à la main, horloge déréglée) n'a pas d'ancienneté à dire.
+  const quand = ecart < 0 ? '' : ecart === 0 ? "aujourd'hui" : ecart === 1 ? 'hier' : ecart < 60 ? `il y a ${ecart} jours` : ecart < 365 ? `il y a ${Math.floor(ecart / 30)} mois` : `il y a ${Math.floor(ecart / 365)} an${ecart >= 730 ? 's' : ''}`;
+  const jour = Number(p.day) === 1 ? '1er' : String(Number(p.day));
+  return `Ton dernier export date du ${jour} ${NOMS_MOIS[Number(p.month) - 1]}${annee} à ${Number(p.hour)} h ${p.minute}${quand ? ` (${quand})` : ''}.`;
+}
+
+/**
+ * Ce que propose la fenêtre d'export des contacts : { phrase, nombreTout, nombreModifs, peutTout, peutModifs, detailModifs }.
+ * « Modifications seulement » n'est possible que s'il y a eu un export et que quelque chose a changé depuis.
+ */
+export function choixExportContacts(personnes, dernierExportContacts, maintenant = new Date()) {
+  const jamais = !versDate(dernierExportContacts);
+  const { nouvelles, modifiees } = personnesAExporterVcf(personnes, dernierExportContacts);
+  const nombreTout = personnesExportables(personnes).length;
+  const nombreModifs = nouvelles.length + modifiees.length;
+  let phrase = phraseDernierExport(dernierExportContacts, maintenant);
+  let detailModifs;
+  if (jamais) detailModifs = "Disponible après un premier export.";
+  else if (!nombreModifs) { phrase = `Rien n'a changé depuis ${phrase.replace(/^Ton dernier export date du\s/, 'ton dernier export du ').replace(/\.$/, '')}.`; detailModifs = 'Aucun contact nouveau ni modifié.'; }
+  else {
+    const morceaux = [];
+    if (nouvelles.length) morceaux.push(`${nouvelles.length} nouveau${nouvelles.length > 1 ? 'x' : ''}`);
+    if (modifiees.length) morceaux.push(`${modifiees.length} modifié${modifiees.length > 1 ? 's' : ''}`);
+    detailModifs = morceaux.join(', ');
+  }
+  return { phrase, nombreTout, nombreModifs, peutTout: nombreTout > 0, peutModifs: !jamais && nombreModifs > 0, detailModifs };
 }
 
 function echapperVcf(valeur) {

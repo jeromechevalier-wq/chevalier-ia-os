@@ -733,9 +733,10 @@ test('C19 export : JSON complet de toutes les collections, contacts .vcf ; le ra
   expect(json.collections.crm_affaires[0].id).toBe('a1');
   await expect(page.locator('.rappel-export')).toHaveCount(0);
   await expect.poll(async () => (await lireDocument('crm_parametres/reglages'))?.dernierExport ?? null).not.toBeNull();
-  // Contacts pour le téléphone (.vcf) : tout au premier export, puis plus rien tant que rien ne change
+  // Contacts pour le téléphone (.vcf) : tout au premier export (la fenêtre et ses cas : tests/e2e/personnes-export.spec.js)
   await allerA(page, 'Personnes');
-  const [vcf] = await Promise.all([page.waitForEvent('download'), page.locator('[data-action="exporter-personnes"]').click()]);
+  await page.locator('[data-action="exporter-personnes"]').click();
+  const [vcf] = await Promise.all([page.waitForEvent('download'), page.getByRole('dialog').getByRole('button', { name: 'Exporter tout', exact: true }).click()]);
   expect(vcf.suggestedFilename()).toMatch(/^chevalier-ia-contacts-\d{4}-\d{2}-\d{2}\.vcf$/);
   const texte = await readFile(await vcf.path(), 'utf8');
   expect((texte.match(/BEGIN:VCARD/g) || [])).toHaveLength(2);
