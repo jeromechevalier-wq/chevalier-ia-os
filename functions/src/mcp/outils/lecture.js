@@ -201,8 +201,12 @@ export const lister_devis = {
 export const lire_devis = {
   nom: 'lire_devis',
   profils: TOUS,
-  description: "Lit un devis complet, côté artisan : client, affaire, destinataires, chantier, sections et lignes (quantité, unité, prix d'achat, marge, prix de vente unitaire et total HT de chaque ligne, comme lister_articles montre les prix d'achat), remise, acomptes (liste : type pourcentage, montantHt ou montantTtc, valeur, moment ; un ancien devis à acompte unique donne une liste d'un élément) et totaux (brut, remise, HT, TVA, TTC, acompteTTC = somme des acomptes, acomptesTTC = un montant TTC par acompte, resteAFacturerTTC), copie (e-mails en copie), envois (historique des envois par e-mail : date, destinataires, copie ; envoyeLe = premier envoi), archive/archiveLe et pdf (état seulement, jamais de chemin). Pour un brouillon, erreursFinalisation liste ce qui manque avant finaliser_devis (vide = prêt). Ne sert jamais à écrire au client : la vue client sans marge est celle du document.",
-  schema: { id: id.describe('Identifiant du devis (voir lister_devis).') },
+  description: "Lit un devis complet, côté artisan : client, affaire, destinataires, chantier, sections et lignes (quantité, unité, prix d'achat, marge, prix de vente unitaire et total HT de chaque ligne, comme lister_articles montre les prix d'achat), remise, acomptes (liste : type pourcentage, montantHt ou montantTtc, valeur, moment ; un ancien devis à acompte unique donne une liste d'un élément) et totaux (brut, remise, HT, TVA, TTC, acompteTTC = somme des acomptes, acomptesTTC = un montant TTC par acompte, resteAFacturerTTC), copie (e-mails en copie), envois (historique des envois par e-mail : date, destinataires, copie ; envoyeLe = premier envoi), archive/archiveLe et pdf (état seulement, jamais de chemin). Pour un brouillon, erreursFinalisation liste ce qui manque avant finaliser_devis (vide = prêt). Ne sert jamais à écrire au client : la vue client sans marge est celle du document. Chaque section et chaque ligne porte son `numero` (1, 1.1, 1.2… calculé, jamais stocké) et son `id` ; format: 'recapitulatif' rend seulement numéro, intitulé et quantité de chaque ligne (jamais de prix d'achat ni de marge ; avecPrix: true ajoute le prix de vente unitaire et le total hors taxes) et `phraseTotaux`, la phrase des totaux à redire telle quelle.",
+  schema: {
+    id: id.describe('Identifiant du devis (voir lister_devis).'),
+    format: z.enum(['complet', 'recapitulatif']).optional().describe("'recapitulatif' : structure courte pour redire le devis (défaut : 'complet')."),
+    avecPrix: z.boolean().optional().describe("Avec format 'recapitulatif' : true ajoute le prix de vente unitaire et le total hors taxes de chaque ligne (jamais le prix d'achat ni la marge)."),
+  },
   executer: ({ args, donnees, maintenant }) => lecture.lireDevis(donnees, args, maintenant),
 };
 

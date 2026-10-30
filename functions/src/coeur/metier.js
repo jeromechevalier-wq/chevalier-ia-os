@@ -15,6 +15,7 @@ import { lireConfig as lireConfigEspace } from './config.js';
 import { emettreCode, consommerCode, empreinteApercu } from '../securite/codes.js';
 import { canonique, sansId } from './canonique.js';
 import * as DOC from './documents.js';
+import { structureCourte } from './recapitulatif.js';
 import { preparerBrouillonEmail } from './brouillon-email.js';
 import { MESSAGE_NON_BRANCHE, ESPACE_JEROME } from './n8n-sortie.js';
 import { cheminAppartientALEspace, DUREE_LIEN_MINUTES } from '../devis/stockage.js';
@@ -912,7 +913,7 @@ export async function creerDevisBrouillon(c, args) {
   if (remise !== undefined) { verifierRemise(remise, { ...plan.devis, ...extra }); extra.remise = remise; }
   plan.ecritures[0].donnees = { ...plan.ecritures[0].donnees, ...extra };
   const t = D.totauxDevis({ ...plan.devis, ...extra });
-  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: plan.id, statut: 'brouillon', numero: null, lignes: nombreDeLignes(extra.sections), totalHT: t.totalHt, totalTTC: t.ttc });
+  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id: plan.id, statut: 'brouillon', numero: null, lignes: nombreDeLignes(extra.sections), sections: structureCourte(extra.sections), totalHT: t.totalHt, totalTTC: t.ttc });
 }
 
 /** Adresse (texte) de la fiche du client : l'adresse par défaut, sinon la première. */
@@ -992,7 +993,7 @@ export async function modifierDevisBrouillon(c, args) {
   for (const e of plan.ecritures) e.exigerStatut = 'brouillon'; // refusé par le moteur si le devis a été finalisé entre-temps
   if (!Object.keys(plan.patch).length) refuser('saisie_invalide', 'Aucun champ à modifier (objet, nom, affaireId, personneId, organisationId, destinataires, copie, sections, lignes, ajouterLignes, remise, marge, modeMarge, tauxTvaDefaut).');
   const t = D.totauxDevis(travail);
-  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id, champsModifies: Object.keys(plan.patch), totalHT: t.totalHt, totalTTC: t.ttc });
+  return sortie(await c.ecrire({ operations: plan.ecritures, parametres: args }), { id, champsModifies: Object.keys(plan.patch), sections: structureCourte(travail.sections), totalHT: t.totalHt, totalTTC: t.ttc });
 }
 
 const listeErreurs = (erreurs) => erreurs.map((e, i) => `(${i + 1}) ${e}`).join(' ');
@@ -1127,7 +1128,7 @@ export async function changerStatutDevis(c, args) {
 export async function nouvelleVersionDevis(c, args) {
   const r = await appelerCoeurDevis(c, () => nouvelleVersionServeur({ donnees: c.donnees, ctx: ctxDevis(c), devisId: args.id }));
   return {
-    id: r.devis.id, sourceId: args.id, numero: r.devis.numero ?? null, version: r.devis.version, statut: r.devis.statut, operationId: r.operationId,
+    id: r.devis.id, sourceId: args.id, numero: r.devis.numero ?? null, version: r.devis.version, statut: r.devis.statut, operationId: r.operationId, sections: structureCourte(r.devis.sections),
     detail: 'Un brouillon est créé : le modifier avec modifier_devis_brouillon, puis le finaliser avec finaliser_devis. La version précédente ne change pas de statut avant la finalisation. Récupérable avec restaurer_depuis_audit (supprime ce brouillon).',
   };
 }
