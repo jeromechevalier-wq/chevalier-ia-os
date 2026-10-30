@@ -7,6 +7,8 @@ import { initializeApp, deleteApp } from '../functions/node_modules/firebase-adm
 import { getFirestore, Timestamp } from '../functions/node_modules/firebase-admin/lib/esm/firestore/index.js';
 import { creerAccesFirestore, avecBase, COLLECTIONS as C } from '../functions/src/coeur/donnees.js';
 import * as S from '../functions/src/coeur/devis.js';
+import { modifierLignesDevis, annulerDerniereModificationDevis } from '../functions/src/coeur/metier.js';
+import { restaurerOperation } from '../functions/src/coeur/restaurer.js';
 import { nouveauDevis } from '../functions/partage/devis.js';
 
 const emulateur = process.env.FIRESTORE_EMULATOR_HOST;
@@ -162,6 +164,19 @@ describe('Transitions des devis sur Firestore (émulateur)', { skip: emulateur ?
     assert.equal(await lignesAffaire(), avant, 'Firestore range les champs d’une map par nom : la comparaison du détail doit quand même voir « identique »');
   });
 
+  test('C8 recalcul général sur le vrai Firestore : un ancien devis signé est compté, le montant saisi reste, un second passage ne trouve plus rien', async () => {
+    await db.collection(C.affaires).doc('aff1').set({ titre: 'Rénovation', montant: 1500 });
+    await poser('v1', { statut: 'accepte', numero: 'DEV-2026-09-01-001', finaliseLe: Timestamp.fromDate(new Date('2026-09-01T10:00:00Z')), totaux: { ht: 1200, ttc: 1440 } });
+    const apercu = await S.recalculerMontantsAffaires({ donnees, ctx: ctx(), appliquer: false });
+    assert.equal(apercu.total, 1);
+    assert.equal((await brut(C.affaires, 'aff1')).montantDevisHt, undefined, 'l’aperçu n’écrit rien');
+    const r = await S.recalculerMontantsAffaires({ donnees, ctx: ctx(), appliquer: true });
+    assert.equal(r.operations.length, 1);
+    const a = await brut(C.affaires, 'aff1');
+    assert.deepEqual([a.montant, a.montantDevisHt, a.montantDevisNature], [1500, 1200, 'accepte']);
+    assert.equal((await S.recalculerMontantsAffaires({ donnees, ctx: ctx(), appliquer: true })).total, 0);
+  });
+
   test('C8 dans l’espace d’un client, seule l’affaire du client reçoit le montant ; celle de Jérôme n’est pas touchée', async () => {
     await db.collection(C.affaires).doc('aff1').set({ titre: 'Chez Jérôme', montant: 10 });
     await db.doc('clients/a/crm_affaires/aff1').set({ titre: 'Chez le client', montant: 20 });
@@ -170,5 +185,46 @@ describe('Transitions des devis sur Firestore (émulateur)', { skip: emulateur ?
     await S.changerStatut({ donnees: avecBase(donnees, 'clients/a'), ctx: { acteur: 'alice@exemple.test', via: 'ecran', maintenant: MAINTENANT }, devisId: 'da', action: 'accepter' });
     assert.equal((await db.doc('clients/a/crm_affaires/aff1').get()).data().montantDevisHt, 600);
     assert.equal((await brut(C.affaires, 'aff1')).montantDevisHt, undefined);
+  });
+  // modifier_lignes_devis (PR A2) : le devis est lu DANS la transaction, il n'y a plus de fenêtre entre la lecture et l'écriture.
+  test('C9 dix modifier_lignes_devis simultanés sur dix lignes différentes : aucune modification perdue, dix lignes de journal', async () => {
+    const lignes = Array.from({ length: 10 }, (_, i) => ({ id: `l${i}`, libelle: `Article ${i}`, unite: 'u', quantite: 1, prixAchat: 10 }));
+    await poser('dc', { sections: [{ id: 's1', titre: 'Travaux', lignes }] });
+    const c = { donnees, acteur: ACTEUR, maintenant: MAINTENANT, noterOperation: () => {} };
+    const rs = await Promise.all(lignes.map((l, i) => modifierLignesDevis(c, { id: 'dc', operations: [{ action: 'modifier', ligne: `1.${i + 1}`, attendu: l.libelle, quantite: i + 2 }] })));
+    assert.equal(new Set(rs.map((r) => r.operationId)).size, 10);
+    assert.deepEqual((await brut(C.devis, 'dc')).sections[0].lignes.map((l) => l.quantite), lignes.map((_, i) => i + 2));
+    assert.equal((await db.collection(C.audit).get()).docs.filter((d) => d.data().outil === 'modifier_lignes_devis').length, 10);
+  });
+
+  test('C9 deux suppressions de la même ligne : la seconde relit le devis à jour dans sa transaction et refuse (attendu), au lieu d’écraser', async () => {
+    await poser('dd', { sections: [{ id: 's1', titre: 'Travaux', lignes: [{ id: 'la', libelle: 'Prise double', unite: 'u', quantite: 1, prixAchat: 10 }, { id: 'lb', libelle: 'Plinthe', unite: 'u', quantite: 1, prixAchat: 10 }] }] });
+    const c = { donnees, acteur: ACTEUR, maintenant: MAINTENANT, noterOperation: () => {} };
+    const resultats = await Promise.allSettled([
+      modifierLignesDevis(c, { id: 'dd', operations: [{ action: 'supprimer', ligne: '1.1', attendu: 'Prise double' }] }),
+      modifierLignesDevis(c, { id: 'dd', operations: [{ action: 'supprimer', ligne: '1.1', attendu: 'Prise double' }] }),
+    ]);
+    assert.equal(resultats.filter((r) => r.status === 'fulfilled').length, 1);
+    assert.match(String(resultats.find((r) => r.status === 'rejected').reason.message), /(est maintenant|n'a pas de ligne)/);
+    assert.deepEqual((await brut(C.devis, 'dd')).sections[0].lignes.map((l) => l.id), ['lb'], 'la Plinthe n’est pas supprimée par le second appel');
+  });
+
+  // annuler_derniere_modification_devis (PR A3) : vraies transactions, Timestamps dans le journal et les copies « avant ».
+  test('C10 annuler la dernière modification : la quantité revient, l’annulation est au journal sous son nom, la deuxième annulation répond « déjà annulé »', async () => {
+    await poser('de', { sections: [{ id: 's1', titre: 'Travaux', lignes: [{ id: 'la', libelle: 'Prise double', unite: 'u', quantite: 3, prixAchat: 10 }] }] });
+    const contexte = (t) => ({ acteur: ACTEUR, jeton: 'essai', via: 'mcp', maintenant: new Date(MAINTENANT.getTime() + t) });
+    const cDe = (t) => {
+      const ctxMcp = contexte(t);
+      return { donnees, acteur: ACTEUR, maintenant: ctxMcp.maintenant, noterOperation: () => {}, restaurer: (a) => restaurerOperation({ donnees, ctx: ctxMcp, ...a }) };
+    };
+    await modifierLignesDevis(cDe(1000), { id: 'de', operations: [{ action: 'modifier', ligne: '1.1', attendu: 'Prise double', quantite: 5 }] });
+    assert.equal((await brut(C.devis, 'de')).sections[0].lignes[0].quantite, 5);
+    const r = await annulerDerniereModificationDevis(cDe(2000), { id: 'de' });
+    assert.match(r.phrase, /^J’ai remis la ligne 1\.1 à 3 u\.$/);
+    assert.equal((await brut(C.devis, 'de')).sections[0].lignes[0].quantite, 3);
+    const lignes = (await db.collection(C.audit).get()).docs.map((d) => d.data()).filter((l) => l.docId === 'de');
+    assert.deepEqual(lignes.sort((a, b) => a.date.toMillis() - b.date.toMillis()).map((l) => [l.outil, l.action]), [['modifier_lignes_devis', 'modifier'], ['annuler_derniere_modification_devis', 'restaurer']]);
+    await assert.rejects(annulerDerniereModificationDevis(cDe(3000), { id: 'de' }), /déjà annulé/);
+    assert.equal((await brut(C.devis, 'de')).sections[0].lignes[0].quantite, 3);
   });
 });

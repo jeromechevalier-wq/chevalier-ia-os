@@ -158,9 +158,12 @@ describe('L7 actions permises par statut', () => {
   const actions = (statut) => act(statut).statuts.map((s) => s.action);
   test('L7 changements de statut : exactement les transitions du serveur', () => {
     assert.deepEqual(actions('brouillon'), ['finaliser']);
-    assert.deepEqual(actions('en_attente_envoi'), ['marquer_envoye']);
+    assert.deepEqual(actions('en_attente_envoi'), ['marquer_envoye', 'refuser']);
     assert.deepEqual(actions('envoye'), ['accepter', 'refuser']);
     for (const s of ['accepte', 'refuse', 'remplace']) assert.deepEqual(actions(s), [], s);
+  });
+  test('L7 un devis archivé ne propose aucun changement de statut', () => {
+    for (const s of ['en_attente_envoi', 'envoye']) assert.deepEqual(Li.actionsPermises(d('x', { statut: s, archive: true })).statuts, [], s);
   });
   test('L7 Supprimer : seulement un brouillon (le serveur a la fonction devisSupprimer) ; grisé « bientôt » si la suppression est coupée', () => {
     assert.equal(act('brouillon').supprimer.actif, true);
@@ -184,7 +187,9 @@ describe('L7 actions permises par statut', () => {
       const a = act(s);
       assert.equal(a.voir.actif, true, s);
       assert.equal(a.dupliquer.actif, true, s);
+      assert.equal(a.dupliquerPrixDuJour.actif, true, s);
       assert.equal(act(s, sansEditeur).dupliquer.raison, Li.MESSAGE_BIENTOT, s);
+      assert.equal(act(s, sansEditeur).dupliquerPrixDuJour.raison, Li.MESSAGE_BIENTOT, s);
       assert.equal(a.facturer.actif, false, s); assert.equal(a.facturer.raison, Li.MESSAGE_BIENTOT);
       assert.equal(a.envoyer.actif, ['brouillon', 'envoye'].includes(s), `${s} envoyer`);
     }

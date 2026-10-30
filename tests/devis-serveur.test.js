@@ -155,13 +155,13 @@ describe('C4 devisFinaliser d’un devis invalide', () => {
 
 describe('C5 devisChangerStatut', () => {
   const ETATS = ['brouillon', 'en_attente_envoi', 'envoye', 'accepte', 'refuse', 'remplace'];
-  const ATTENDU = { marquer_envoye: { de: 'en_attente_envoi', vers: 'envoye', date: 'envoyeLe' }, accepter: { de: 'envoye', vers: 'accepte', date: 'accepteLe' }, refuser: { de: 'envoye', vers: 'refuse', date: 'refuseLe' } };
+  const ATTENDU = { marquer_envoye: { de: 'en_attente_envoi', vers: 'envoye', date: 'envoyeLe' }, accepter: { de: 'envoye', vers: 'accepte', date: 'accepteLe' }, refuser: { de: ['en_attente_envoi', 'envoye'], vers: 'refuse', date: 'refuseLe' } };
   for (const [action, t] of Object.entries(ATTENDU)) {
-    test(`C5 ${action} : permis depuis « ${t.de} » (statut et ${t.date} écrits), refusé sans écriture depuis tous les autres statuts`, async () => {
+    test(`C5 ${action} : permis depuis « ${[].concat(t.de).join(' ou ')} » (statut et ${t.date} écrits), refusé sans écriture depuis tous les autres statuts`, async () => {
       for (const statut of ETATS) {
         const m = monde([brouillon('d1', { statut, numero: statut === 'brouillon' ? null : 'DEV-2026-10-01-001' })]);
         const avant = photo(m);
-        if (statut === t.de) {
+        if ([].concat(t.de).includes(statut)) {
           const r = await S.changerStatut({ donnees: m.donnees, ctx: ctx(), devisId: 'd1', action });
           assert.equal(r.ok, true);
           assert.equal(leDevis(m, 'd1').statut, t.vers);

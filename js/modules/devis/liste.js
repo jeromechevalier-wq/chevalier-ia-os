@@ -225,20 +225,21 @@ export function actionsPermises(d, { editeur = EDITEUR_DISPONIBLE, suppression =
   const bientot = { actif: false, raison: MESSAGE_BIENTOT };
   const version = transitionPossible(statut, 'nouvelle_version');
   return {
-    statuts: CHANGEMENTS_STATUT.filter((c) => transitionPossible(statut, c.action)),
+    statuts: d?.archive === true ? [] : CHANGEMENTS_STATUT.filter((c) => transitionPossible(statut, c.action)), // un devis archivé ne change plus de statut (comme le serveur)
     voir: { actif: true },
     editer: editeur ? { actif: true } : bientot, // un devis finalisé s'ouvre aussi sur l'onglet Édition, en lecture seule (même écran pour toute la vie du devis)
     nouvelleVersion: version ? (editeur ? { actif: true } : bientot) : { actif: false, raison: brouillon ? 'Un brouillon se modifie directement.' : 'Pas de nouvelle version pour un devis signé ou remplacé.' },
     dupliquer: editeur ? { actif: true } : bientot,
+    dupliquerPrixDuJour: editeur ? { actif: true } : bientot,
     facturer: bientot,
     envoyer: emailPossible(statut),
     supprimer: brouillon ? (suppression ? { actif: true } : bientot) : { actif: false, raison: 'Seul un brouillon se supprime.' },
   };
 }
 
-export const MESSAGE_ARCHIVE_IMPOSSIBLE = 'Seul un devis signé ou refusé peut être archivé.';
+export const MESSAGE_ARCHIVE_IMPOSSIBLE = 'Seul un devis finalisé, signé ou refusé peut être archivé.';
 
-/** Entrée « Archiver » / « Désarchiver » du menu « … » (même schéma que les projets). Les règles sont celles du serveur : on n'archive qu'un devis signé ou refusé. */
+/** Entrée « Archiver » / « Désarchiver » du menu « … » (même schéma que les projets). Les règles sont celles du serveur : on n'archive qu'un devis finalisé, signé ou refusé. */
 export function archivageDevis(d) {
   if (d?.archive === true) return { actif: true, action: 'desarchiver', libelle: 'Désarchiver', icone: 'archive-restore' };
   if (peutArchiver(d)) return { actif: true, action: 'archiver', libelle: 'Archiver', icone: 'archive' };
@@ -248,7 +249,7 @@ export function archivageDevis(d) {
 /**
  * UNE SEULE SOURCE pour les actions d'un devis : le menu « … » de la liste, celui de l'éditeur et celui de la visualisation partent de cette liste.
  * Rend des descriptions sans code d'écran : { cle, libelle, icone, actif, danger? }, { separateur: true } ou { texte } (explication d'une entrée grisée).
- * Clés : statut:<action>, editer, voir, nouvelle_version, dupliquer, preparer_email, archiver, supprimer. `exclure` retire des clés (celles qui ont déjà un bouton direct dans l'écran).
+ * Clés : statut:<action>, editer, voir, nouvelle_version, dupliquer, dupliquer_prix_du_jour, preparer_email, archiver, supprimer. `exclure` retire des clés (celles qui ont déjà un bouton direct dans l'écran).
  */
 export function entreesActionsDevis(d, { exclure = [], editeur = EDITEUR_DISPONIBLE, suppression = SUPPRESSION_DISPONIBLE } = {}) {
   const a = actionsPermises(d, { editeur, suppression });
@@ -268,6 +269,7 @@ export function entreesActionsDevis(d, { exclure = [], editeur = EDITEUR_DISPONI
   ajouter('voir', 'Voir le devis', 'eye', a.voir);
   if (a.nouvelleVersion.actif || a.nouvelleVersion.raison === MESSAGE_BIENTOT) ajouter('nouvelle_version', 'Créer une nouvelle version', 'git-branch', a.nouvelleVersion);
   ajouter('dupliquer', 'Dupliquer', 'copy', a.dupliquer);
+  ajouter('dupliquer_prix_du_jour', 'Dupliquer aux prix du jour', 'refresh-cw', a.dupliquerPrixDuJour);
   ajouter('preparer_email', 'Préparer l’e-mail', 'mail-check', a.envoyer);
   if (!exclure.includes('archiver')) {
     sortie.push({ separateur: true });

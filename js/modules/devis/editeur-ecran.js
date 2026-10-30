@@ -50,7 +50,7 @@ const messageLectureSeule = (d) => (versionPossible(d)
   ? `Ce devis est ${motDuStatut(d)} : pour le corriger, crée une nouvelle version (menu « … »).`
   : `Ce devis est ${motDuStatut(d)} : il ne se modifie plus.`);
 const infobulleCatalogueLecture = (d) => `Ajouter un article, c’est modifier le devis : il est ${motDuStatut(d)}, ${versionPossible(d) ? 'crée une nouvelle version pour le corriger.' : 'il ne se modifie plus.'}`;
-const SANS_VERROU = '[data-action="replier"], [data-action="definir-ajustement"], [data-action="description"]'; // en lecture seule, replier une section, ouvrir « Définir un ajustement » et afficher / masquer la description restent possibles (ce n'est que regarder)
+const SANS_VERROU = '[data-action="replier"], [data-action="definir-ajustement"], [data-action="description"]'; // en lecture seule, replier une section, ouvrir « Marge et ajustement » et afficher / masquer la description restent possibles (ce n'est que regarder)
 const LARGEUR_TELEPHONE = 700; // même seuil que le CSS (max-width: 700px)
 const DELAI_INTROUVABLE_MS = 4000;
 const DELAI_ENREGISTREMENT_MS = 900;
@@ -507,6 +507,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       surcharges: {
         supprimer: async (x) => { if (!lecture && !(await sauver())) { toast(`${messageEnreg || ERREUR_ECRITURE} Le brouillon n’a pas été supprimé.`, { type: 'erreur', duree: 8000 }); return; } supprimerBrouillon(x, apresSuppression); }, // attend l'écriture en cours avant de supprimer
         dupliquer: async (x) => { if (!lecture && !(await sauver())) { toast(`${messageEnreg || ERREUR_ECRITURE} Le devis n’a pas été dupliqué.`, { type: 'erreur', duree: 8000 }); return; } dupliquerDevis(D.devisParId(x.id) ?? x); },
+        dupliquer_prix_du_jour: async (x) => { if (!lecture && !(await sauver())) { toast(`${messageEnreg || ERREUR_ECRITURE} Le devis n’a pas été dupliqué.`, { type: 'erreur', duree: 8000 }); return; } dupliquerDevis(D.devisParId(x.id) ?? x, { prixDuJour: true }); },
       },
     }));
     ouvrirMenu(ancre, entrees);
@@ -788,7 +789,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     if (ref.erreurAffaire) { ref.erreurAffaire.hidden = Boolean(d.affaireId); } // simple invitation : un brouillon s'enregistre sans affaire, c'est la finalisation qui l'exige
   }
 
-  // ------------------------------------------------ calcul des marges : visible sur les lignes seulement avec la case « Afficher le calcul des marges » du menu Options (la marge du devis se règle dans « Définir un ajustement »)
+  // ------------------------------------------------ calcul des marges : visible sur les lignes seulement avec la case « Afficher le calcul des marges » du menu Options (la marge du devis se règle dans « Marge et ajustement »)
   const majMarges = () => { racine.dataset.marges = affichage().afficherMarges ? 'oui' : 'non'; };
 
   // ------------------------------------------------ Catalogue (ancienne « Bibliothèque ») : le bouton dans la barre, à gauche d'Options ; le panneau à droite
@@ -1420,7 +1421,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       onchange: (ev) => {
         const v = Ed.lireSaisie(ev.target.value);
         const lig = Ed.trouverLigne(travail.sections, l.id).ligne;
-        if (v === null || !Ed.prixVenteReglable(lig, v, travail.modeMarge)) { ev.target.classList.add('invalide'); ev.target.title = 'Ce prix de vente est impossible avec le prix d’achat de cette ligne et ce mode de marge.'; return; }
+        if (v === null || !Ed.prixVenteReglable(lig, v, travail.modeMarge)) { ev.target.classList.add('invalide'); ev.target.title = 'Ce prix de vente est impossible avec le prix d’achat de cette ligne et le calcul de la marge.'; return; }
         ev.target.classList.remove('invalide');
         ev.target.removeAttribute('title');
         const nouvelle = Ed.avecPrixVente(lig, v, travail.modeMarge);
@@ -1767,7 +1768,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     const totaux = h('aside', { class: 'panneau-total', 'aria-label': 'Total du devis', dataset: { zone: 'total' } },
       h('dl', { class: 'liste-totaux' },
         h('div', { class: 'ligne-total ligne-ajustement', dataset: { ligne: 'ajustement' } }, h('dt', {}, 'Ajustement global'),
-          h('dd', {}, (ref.lienAjustement = h('button', { type: 'button', class: 'bouton-lien', dataset: { action: 'definir-ajustement' }, 'aria-haspopup': 'dialog', 'aria-expanded': 'false', onclick: (ev) => ouvrirAjustement(ev.currentTarget) }, 'Définir un ajustement')), h('span', { dataset: { total: 'ajustement' } }))),
+          h('dd', {}, (ref.lienAjustement = h('button', { type: 'button', class: 'bouton-lien', dataset: { action: 'definir-ajustement' }, 'aria-haspopup': 'dialog', 'aria-expanded': 'false', onclick: (ev) => ouvrirAjustement(ev.currentTarget) }, 'Marge et ajustement')), h('span', { dataset: { total: 'ajustement' } }))),
         ligneT('brut', 'Total brut HT'),
         h('div', { class: 'ligne-total ligne-remise' }, h('dt', {}, 'Remise client'), h('dd', {}, h('div', { class: 'ligne-champs' }, valeurRemise, typeRemise), h('span', { dataset: { total: 'remise' } }))),
         ligneT('ht', 'Total net HT'),
@@ -1782,9 +1783,25 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     return [totaux, net, taux];
   }
 
-  // La fenêtre « Définir un ajustement » : trois blocs titrés, toujours ouverts, l'un sous l'autre (Ajustement global, Marge du devis, Remise client). Rien ne s'ouvre ni ne se ferme.
+  let majPropresActuel = null;
+  /** « Appliquer à toutes les lignes » : après confirmation (qui dit combien de lignes changent), les lignes et sections à marge propre suivent la marge du devis. Rien n'est supprimé : prix d'achat, quantités et lignes restent. */
+  async function appliquerMargeATouteLesLignes() {
+    if (lecture) return;
+    const { sections, nombre } = Ed.appliquerMargeDuDevisAuxLignes(travail);
+    if (nombre === 0) return;
+    const ok = await dialogue({
+      titre: 'Appliquer la marge du devis ?',
+      contenu: h('p', {}, `${nombre} ${nombre > 1 ? 'lignes vont' : 'ligne va'} passer à la marge du devis (${saisieNombre(travail.marge ?? 0)} %). Leur marge propre ne sera plus utilisée ; les prix d’achat et les quantités ne changent pas.`),
+      boutons: [{ libelle: 'Annuler', valeur: false }, { libelle: 'Appliquer', valeur: true, style: 'principal' }],
+    });
+    // La confirmation ferme la fenêtre « Marge et ajustement » (un clic hors de la fenêtre) : on la rouvre, avec le compte à jour.
+    if (ok === true) { appliquer(sections); majPrixAffiches(); }
+    if (ref.lienAjustement?.isConnected) ouvrirAjustement(ref.lienAjustement);
+  }
+
+  // La fenêtre « Marge et ajustement » : trois blocs titrés, toujours ouverts, l'un sous l'autre (Ajustement global, Marge du devis, Remise client). Rien ne s'ouvre ni ne se ferme.
   function ouvrirAjustement(ancre) {
-    ouvrirFenetreMenu(ancre, () => {
+    ouvrirFenetreMenu(ancre, (fermer) => {
       const champs = {};
       const erreurs = {};
       const fabriquer = (cle, libelle, unite) => {
@@ -1817,11 +1834,22 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       remplirAutres(null);
       // La marge et la remise se règlent ici (comme dans un logiciel du marché) ; les champs de la remise reprennent ceux des totaux et les pilotent.
       const margeChamp = h('input', { class: 'champ champ-court', id: 'ajust-marge', type: 'text', inputmode: 'decimal', autocomplete: 'off', value: saisieNombre(travail.marge), 'aria-label': 'Marge du devis en pourcent', dataset: { champ: 'marge-menu' },
-        oninput: (e) => { const vide = e.target.value.trim() === ''; const v = vide ? 0 : Ed.lireSaisie(e.target.value); e.target.classList.toggle('invalide', v === null); if (v !== null) { changer({ marge: v }); majPrixAffiches(); const autre = racine.querySelector('[data-champ="marge"]'); if (autre) autre.value = e.target.value; } } });
+        oninput: (e) => { const vide = e.target.value.trim() === ''; const v = vide ? 0 : Ed.lireSaisie(e.target.value); e.target.classList.toggle('invalide', v === null); if (v !== null) { changer({ marge: v }); majPrixAffiches(); majPropresActuel?.(); const autre = racine.querySelector('[data-champ="marge"]'); if (autre) autre.value = e.target.value; } } });
+      // Lignes qui gardent leur propre marge (article du catalogue, prix de vente modifié, ouvrage) : la marge du devis ne les touche pas. Aucune ligne concernée : ni phrase, ni bouton.
+      const propres = h('p', { class: 'texte-discret', dataset: { zone: 'marges-propres' }, hidden: true });
+      const boutonPropres = h('button', { type: 'button', class: 'bouton bouton-secondaire', hidden: true, dataset: { action: 'appliquer-marge-lignes' }, onclick: () => { fermer(); appliquerMargeATouteLesLignes(); } } /* la fenêtre se ferme avant la confirmation : sur téléphone elle la cacherait */, 'Appliquer à toutes les lignes');
+      const majPropres = () => {
+        const n = Ed.nombreLignesAvecMargePropre(travail);
+        propres.hidden = n === 0; boutonPropres.hidden = n === 0;
+        propres.textContent = n === 0 ? '' : (n > 1 ? `${n} lignes ont leur propre marge : la marge du devis ne les touche pas.` : '1 ligne a sa propre marge : la marge du devis ne la touche pas.');
+      };
+      majPropresActuel = majPropres;
+      majPropres();
       const zoneMarge = h('section', { class: 'ajust-zone', dataset: { zone: 'marge-devis' }, 'aria-labelledby': 'ajust-titre-marge' },
         h('h3', { class: 'ajust-titre', id: 'ajust-titre-marge' }, 'Marge du devis'),
         h('div', { class: 'ajust-champ' }, h('label', { for: 'ajust-marge' }, 'Marge (%)'), margeChamp),
-        h('p', { class: 'texte-discret' }, 'Elle s’applique aux lignes qui n’ont pas leur propre marge. Le client ne la voit jamais.'));
+        h('p', { class: 'texte-discret' }, 'Elle s’applique aux lignes qui n’ont pas leur propre marge. Le client ne la voit jamais.'),
+        propres, boutonPropres);
       const remiseTotaux = { type: racine.querySelector('[data-champ="remise-type"]'), valeur: racine.querySelector('[data-champ="remise-valeur"]') };
       const remiseType = h('select', { class: 'champ', 'aria-label': 'Type de remise', dataset: { champ: 'remise-type-menu' }, onchange: (e) => { if (remiseTotaux.type) { remiseTotaux.type.value = e.target.value; remiseTotaux.type.dispatchEvent(new Event('change', { bubbles: true })); } } },
         h('option', { value: 'pourcentage', selected: remiseTotaux.type?.value !== 'montant' }, '%'), h('option', { value: 'montant', selected: remiseTotaux.type?.value === 'montant' }, '€'));
@@ -1842,7 +1870,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
     const mettre = (cle, texte) => { const el = racine.querySelector(`[data-total="${cle}"]`); if (el) el.textContent = texte; };
     const aj = valeursAjustement(travail);
     const signe = (n) => (n > 0 ? '+' : n < 0 ? '−' : '');
-    if (ref.lienAjustement) ref.lienAjustement.textContent = ajustementActif(travail) ? `Ajustement ${signe(aj.pourcentage)}${saisieNombre(Math.abs(aj.pourcentage))} %` : 'Définir un ajustement';
+    if (ref.lienAjustement) ref.lienAjustement.textContent = ajustementActif(travail) ? `Marge et ajustement ${signe(aj.pourcentage)}${saisieNombre(Math.abs(aj.pourcentage))} %` : 'Marge et ajustement';
     mettre('ajustement', ajustementActif(travail) ? `${signe(aj.montant)}${euros(Math.abs(aj.montant))}` : '');
     mettre('brut', euros(t.totalBrutHt));
     mettre('remise', t.remiseHt > 0 ? `− ${euros(t.remiseHt)}` : '');
@@ -1875,7 +1903,7 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       const ajuste = racine.querySelector(`[data-prix-ajuste="${CSS.escape(l.id)}"]`);
       if (ajuste) ajuste.textContent = typeof l.prixVenteUnitaire === 'number' ? `ajusté : ${euros(l.prixVenteUnitaire)}` : '';
       const marge = racine.querySelector(`[data-calcul-marge="${CSS.escape(l.id)}"]`);
-      if (marge && trouve) marge.textContent = `Achat ${euros(trouve.ligne.prixAchat)} · Marge ${saisieNombre(Math.round(margeEffective({ devis: travail, section: trouve.section, ligne: trouve.ligne })))} % · Vente ${euros(base)}`;
+      if (marge && trouve) marge.textContent = `Achat ${euros(trouve.ligne.prixAchat)} · Marge de ce produit ${saisieNombre(Math.round(margeEffective({ devis: travail, section: trouve.section, ligne: trouve.ligne })))} % · Vente ${euros(base)}`;
     }
     for (const s of t.sections) {
       const el = racine.querySelector(`[data-sous-total="${CSS.escape(s.id)}"]`);

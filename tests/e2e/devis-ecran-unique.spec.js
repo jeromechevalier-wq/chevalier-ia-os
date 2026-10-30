@@ -2,7 +2,7 @@
 // Critères (un test chacun, le nom commence par son numéro ; une capture par état dans tests/e2e/captures/devis-ecran-unique/, ordinateur ET téléphone) :
 //  1 les deux onglets sont présents quel que soit le statut ;
 //  2 « Voir le devis » (liste) ouvre l'onglet Prévisualisation, « Éditer le devis » l'onglet Édition ; un finalisé s'ouvre par défaut sur la Prévisualisation ; un brouillon reste modifiable même ouvert par « Voir » ;
-//  3 devis finalisé, onglet Édition : MÊME feuille qu'un brouillon, champs lisibles et copiables mais non modifiables, boutons grisés (jamais retirés), « Définir un ajustement » s'ouvre (réglages visibles, rien ne bouge),
+//  3 devis finalisé, onglet Édition : MÊME feuille qu'un brouillon, champs lisibles et copiables mais non modifiables, boutons grisés (jamais retirés), « Marge et ajustement » s'ouvre (réglages visibles, rien ne bouge),
 //    message « Ce devis est … : il ne se modifie plus » avec « Créer une nouvelle version » au moindre essai ; le bandeau « Tu regardes ce brouillon… » n'existe plus ;
 //  4 Catalogue grisé avec infobulle, Options consultable, Historique inchangé ;
 //  5 les anciens liens (devis/voir, devis/fiche) arrivent sur l'écran unique, onglet Prévisualisation ;
@@ -181,7 +181,7 @@ test('3 devis finalisé, onglet Édition : la MÊME feuille qu’un brouillon, c
   await capturer(page, info, '3-finalise-edition-lecture-seule');
 });
 
-test('3 « Définir un ajustement » s’ouvre en lecture seule : les réglages sont visibles, rien ne se modifie, un essai affiche le message ; le mot suit le statut (envoyé, signé…)', async ({ page }, info) => {
+test('3 « Marge et ajustement » s’ouvre en lecture seule : les réglages sont visibles, rien ne se modifie, un essai affiche le message ; le mot suit le statut (envoyé, signé…)', async ({ page }, info) => {
   await donnees();
   await ouvrir(page, 'devis/editeur/dEnvoye');
   const feuille = racine(page).locator('[data-panneau="edition"]');

@@ -646,9 +646,34 @@ describe('N4 nouvelle_version_devis', () => {
   });
 });
 
+describe('N10 recalculer_montants_affaires', () => {
+  test('N10 réservé à Claude Code ; aperçu sans écriture, faux code refusé, bon code : seuls les champs calculés changent ; relancé : plus rien à corriger', async () => {
+    const s = await demarrer({ devis: [finalise('f1', 'en_attente_envoi', { totaux: { ht: 96, ttc: 115.2 } })] });
+    refuse(await s.appeler('biblio', 'recalculer_montants_affaires', {}));
+    refuse(await s.appeler('lecteur', 'recalculer_montants_affaires', {}));
+    const avant = JSON.stringify(s.doc('crm_affaires', 'a1'));
+    const apercu = ok(await s.appeler('code', 'recalculer_montants_affaires', {}));
+    assert.equal(apercu.apercu, true);
+    assert.equal(apercu.aCorriger, 1);
+    assert.deepEqual([apercu.affaires[0].affaireId, apercu.affaires[0].apres.nature], ['a1', 'propose']);
+    assert.equal(JSON.stringify(s.doc('crm_affaires', 'a1')), avant, 'l’aperçu n’écrit rien');
+    refuse(await s.appeler('code', 'recalculer_montants_affaires', { codeConfirmation: 'FAUX-CODE' }), /code incorrect/);
+    assert.equal(JSON.stringify(s.doc('crm_affaires', 'a1')), avant);
+    const second = ok(await s.appeler('code', 'recalculer_montants_affaires', {})); // un faux code brûle l'aperçu : on en demande un autre
+    const r = ok(await s.appeler('code', 'recalculer_montants_affaires', { codeConfirmation: second.code }));
+    assert.deepEqual([r.change, r.corrigees, r.restantes], [true, 1, 0]);
+    const a = s.doc('crm_affaires', 'a1');
+    assert.equal(a.montantDevisNature, 'propose');
+    assert.equal(typeof a.montantDevisHt, 'number');
+    assert.deepEqual(Object.keys(a).filter((k) => !Object.keys(JSON.parse(avant)).includes(k)).sort(), ['montantDevisDetail', 'montantDevisHt', 'montantDevisNature']);
+    assert.equal(a.montant, JSON.parse(avant).montant, 'le montant saisi est intact');
+    assert.equal(ok(await s.appeler('code', 'recalculer_montants_affaires', {})).aCorriger, 0);
+  });
+});
+
 describe('N5 archiver_devis', () => {
   test('N5 archive un devis signé, le désarchive, refuse le reste ; la restauration défait l’archivage même sur un devis finalisé', async () => {
-    const s = await demarrer({ devis: [finalise('s1', 'accepte'), finalise('e1', 'envoye'), devisEnregistre('b1')] });
+    const s = await demarrer({ devis: [finalise('s1', 'accepte'), finalise('e1', 'envoye'), finalise('f1', 'en_attente_envoi'), devisEnregistre('b1')] });
     refuse(await s.appeler('biblio', 'archiver_devis', { id: 'e1', archive: true }), /signé ou refusé/);
     refuse(await s.appeler('biblio', 'archiver_devis', { id: 'b1', archive: true }), /signé ou refusé/);
     refuse(await s.appeler('biblio', 'archiver_devis', { id: 's1', archive: false }), /pas archivé/);
@@ -670,6 +695,7 @@ describe('N5 archiver_devis', () => {
     const des = ok(await s.appeler('biblio', 'archiver_devis', { id: 's1', archive: false }));
     assert.equal(s.doc('devis_devis', 's1').archive, false);
     assert.notEqual(d.operationId, des.operationId);
+    assert.equal(ok(await s.appeler('biblio', 'archiver_devis', { id: 'f1', archive: true })).archive, true, 'un devis finalisé jamais envoyé s’archive');
   });
 
   test('N5 une restauration de force ne remet pas un ancien statut si le devis a changé de statut depuis', async () => {
@@ -820,7 +846,8 @@ describe('N9 lire_reglages_devis et journal du bordereau', () => {
     const s = await demarrer();
     const r = ok(await s.appeler('lecteur', 'lire_reglages_devis', {}));
     assert.equal(r.reglages.marge, 20);
-    assert.equal(r.reglages.modeMarge, 'majoration');
+    assert.equal('modeMarge' in r.reglages, false, 'le mode de calcul de la marge n’est jamais montré à l’assistant (30/10/2026)');
+    assert.doesNotMatch(JSON.stringify(r), /modeMarge|majoration|marge_vente/);
     assert.equal(r.reglages.regimeTva, 'assujetti');
     assert.ok(r.reglages.dureeValiditeJours > 0);
     assert.ok(Array.isArray(r.familles) && r.familles.length >= 7, 'au moins les sept familles de départ');
@@ -1056,16 +1083,52 @@ describe('V2 prixVente d’une ligne de brouillon : la marge s’ajuste, le prix
     const ids = await catalogueVocabulaire(s);
     const texte = ok(await s.appeler('biblio', 'creer_article', { libelle: 'Note de chantier', prixAchat: 0, unite: '', type: 'texte' }));
     const gratuit = ok(await s.appeler('biblio', 'creer_article', { libelle: 'Article sans coût', prixAchat: 0, unite: 'u' }));
-    const avant = JSON.stringify(s.collections.devis_devis);
     const essai = (ligne, extra = {}) => s.appeler('biblio', 'creer_devis_brouillon', { affaireId: 'a1', destinataires: EMAIL, lignes: [ligne], ...extra });
     refuse(await essai({ articleId: ids.double, quantite: 1, prixVente: -1 }));
     refuse(await essai({ articleId: ids.double, quantite: 1, prixVente: 12.345 }), /2 décimales/);
     refuse(await essai({ articleId: texte.id, prixVente: 10 }), /texte/);
     refuse(await essai({ articleId: gratuit.id, quantite: 1, prixVente: 10 }), /prix d'achat/);
-    refuse(await essai({ articleId: ids.double, quantite: 1, prixVente: 0 }, { modeMarge: 'marge_vente' }), /impossible/);
-    assert.equal(JSON.stringify(s.collections.devis_devis), avant, 'aucun brouillon créé');
     const ok0 = ok(await essai({ articleId: ids.double, quantite: 1, prixVente: 0 }));
-    assert.equal(ok0.totalHT, 0, 'en majoration, 0 € est un prix possible (marge -100 %)');
+    assert.equal(ok0.totalHT, 0, 'en calcul artisan, 0 € est un prix possible (marge -100 %)');
+  });
+
+  test('V2e lire_devis et la création ne disent jamais le mode de calcul ; un brouillon créé suit le mode des réglages sans qu’on le donne', async () => {
+    const s = await demarrer();
+    const ids = await catalogueVocabulaire(s);
+    s.doc('devis_parametres', 'reglages').modeMarge = 'marge_vente';
+    const cree = ok(await s.appeler('biblio', 'creer_devis_brouillon', { affaireId: 'a1', destinataires: EMAIL, lignes: [{ articleId: ids.double, quantite: 1 }], modeMarge: 'majoration' }));
+    assert.equal(s.doc('devis_devis', cree.id).modeMarge, 'marge_vente', 'le mode des réglages s’applique ; un modeMarge donné par l’assistant est ignoré');
+    const lu = ok(await s.appeler('biblio', 'lire_devis', { id: cree.id }));
+    assert.doesNotMatch(JSON.stringify(lu), /modeMarge|majoration|marge_vente/);
+    assert.doesNotMatch(JSON.stringify(cree), /modeMarge|majoration|marge_vente/);
+  });
+
+  test('V2f lire_devis : ni le mode de calcul, ni « HT » seul dans les erreurs de finalisation et les mentions ; lire_audit ne montre pas modeMarge', async () => {
+    const d = devisEnregistre('dv-voix', { modeMarge: 'marge_vente', marge: 10, remise: { type: 'montant', valeur: 5000 },
+      sections: [{ id: 's1', titre: '', lignes: [{ id: 'l1', libelle: 'Peinture', unite: 'm²', quantite: 1, prixAchat: 8, marge: 100 }] }] });
+    const s = await demarrer({ devis: [d] });
+    const lu = ok(await s.appeler('lecteur', 'lire_devis', { id: 'dv-voix' }));
+    const texte = JSON.stringify(lu.erreursFinalisation);
+    assert.doesNotMatch(texte, /comptable|artisan|majoration|marge_vente/i);
+    assert.doesNotMatch(texte, /\bHT\b/, 'la remise dépasse le total : le message dit « hors taxes »');
+    assert.match(texte, /hors taxes/);
+    assert.match(texte, /Cette marge est impossible/);
+    assert.doesNotMatch(JSON.stringify(lu), /modeMarge/);
+    const modif = ok(await s.appeler('biblio', 'modifier_devis_brouillon', { id: 'dv-voix', objet: 'Autre objet' }));
+    assert.doesNotMatch(JSON.stringify(modif), /modeMarge|marge_vente/);
+    const audit = ok(await s.appeler('lecteur', 'lire_audit', { docId: 'dv-voix' }));
+    assert.doesNotMatch(JSON.stringify(audit), /modeMarge/);
+  });
+
+  test('V2d en calcul comptable (réglages), un prix de vente de 0 € est impossible : refus sans écriture, sans dire le mode à l’assistant', async () => {
+    const s = await demarrer();
+    const ids = await catalogueVocabulaire(s);
+    s.doc('devis_parametres', 'reglages').modeMarge = 'marge_vente';
+    const avant = JSON.stringify(s.collections.devis_devis);
+    const r = await s.appeler('biblio', 'creer_devis_brouillon', { affaireId: 'a1', destinataires: EMAIL, lignes: [{ articleId: ids.double, quantite: 1, prixVente: 0 }] });
+    refuse(r, /impossible/);
+    assert.doesNotMatch(JSON.stringify(r), /comptable|artisan|majoration|marge_vente|mode/i);
+    assert.equal(JSON.stringify(s.collections.devis_devis), avant, 'aucun brouillon créé');
   });
 });
 
@@ -1255,5 +1318,85 @@ describe('V3 enregistrer_reponse_vocabulaire : l’apprentissage, sans code (la 
     assert.equal(s.collections.devis_vocabulaire.length, 1);
     const ligne = lignesVocabulaire(s)[0];
     assert.equal(ligne.action, 'modifier');
+  });
+});
+
+// ---------------------------------------------------------------- Devis fluide, PR A1 : numéros partout et récapitulatif court (libellés inventés)
+const devisAvecSections = () => devisEnregistre('n1', {
+  sections: [
+    { id: 'sA', titre: 'Cuisine', lignes: [{ id: 'lA1', libelle: 'Prise double', unite: 'u', quantite: 3, prixAchat: 8 }, { id: 'sautA', type: 'saut' }, { id: 'lA2', libelle: 'Plan de travail', unite: 'ml', quantite: 3.5, prixAchat: 40 }] },
+    { id: 'sB', titre: 'Salle de bain', lignes: [{ id: 'lB1', libelle: 'Carrelage mural', unite: 'm²', quantite: 10, prixAchat: 20 }] },
+  ],
+});
+
+describe('N1 lire_devis : numero et id de chaque section et ligne, calculés', () => {
+  test('N1 la vue complète donne numero + id partout ; le numéro du devis reste le numéro du devis', async () => {
+    const s = await demarrer({ devis: [devisAvecSections()] });
+    const d = ok(await s.appeler('lecteur', 'lire_devis', { id: 'n1' }));
+    assert.equal(d.numero, null, 'le numéro du devis (DEV-…) ne change pas de sens');
+    assert.deepEqual(d.sections.map((x) => [x.numero, x.id]), [['1', 'sA'], ['2', 'sB']]);
+    assert.deepEqual(d.sections[0].lignes.map((l) => [l.numero, l.id]), [['1.1', 'lA1'], [undefined, 'sautA'], ['1.2', 'lA2']], 'un saut de page n’a pas de numéro');
+    assert.equal(d.sections[1].lignes[0].numero, '2.1');
+    assert.equal(s.doc('devis_devis', 'n1').sections[0].numero, undefined, 'le numéro n’est jamais stocké');
+  });
+  test('N1 la réponse de creer_devis_brouillon, modifier_devis_brouillon et nouvelle_version_devis donne la structure courte dans une nouvelle clé `sections`', async () => {
+    const s = await demarrer({ devis: [finalise('f1', 'envoye')] });
+    const ids = await articlesDeBase(s);
+    const c = ok(await s.appeler('biblio', 'creer_devis_brouillon', { sections: [{ titre: 'Sol', lignes: [{ articleId: ids.a, quantite: 10 }, { reference: 'pli', quantite: 5 }] }, { titre: 'Pose', lignes: [{ reference: 'pose-1', quantite: 1 }] }] }));
+    assert.equal(c.numero, null);
+    assert.equal(c.lignes, 3, 'le compteur de lignes reste un nombre');
+    assert.deepEqual(c.sections.map((x) => [x.numero, x.titre]), [['1', 'Sol'], ['2', 'Pose']]);
+    assert.deepEqual(c.sections[0].lignes.map((l) => [l.numero, l.intitule, l.quantite]), [['1.1', 'Carrelage', '10 m²'], ['1.2', 'Plinthe', '5 ml']]);
+    assert.ok(c.sections[0].lignes.every((l) => l.id), 'chaque ligne porte son identifiant');
+    assert.doesNotMatch(JSON.stringify(c.sections), /prixAchat|marge/i);
+    const m = ok(await s.appeler('biblio', 'modifier_devis_brouillon', { id: c.id, ajouterLignes: [{ reference: 'pli', quantite: 2 }] }));
+    assert.ok(Array.isArray(m.champsModifies));
+    assert.deepEqual(m.sections.at(-1).lignes.map((l) => l.numero), ['2.1', '2.2']);
+    const v = ok(await s.appeler('biblio', 'nouvelle_version_devis', { id: 'f1' }));
+    assert.match(v.numero, /^DEV-/);
+    assert.deepEqual(v.sections.map((x) => x.numero), ['1']);
+  });
+});
+
+describe('N2 lire_devis format recapitulatif : numéro, intitulé, quantité, jamais de prix d’achat ni de marge', () => {
+  test('N2 la structure courte et la phrase des totaux avec « hors taxes » en toutes lettres ; clés techniques inchangées', async () => {
+    const s = await demarrer({ devis: [devisAvecSections()] });
+    const r = ok(await s.appeler('lecteur', 'lire_devis', { id: 'n1', format: 'recapitulatif' }));
+    assert.deepEqual(r.sections.map((x) => [x.numero, x.titre]), [['1', 'Cuisine'], ['2', 'Salle de bain']]);
+    assert.deepEqual(r.sections[0].lignes.map((l) => [l.numero, l.intitule, l.quantite]), [['1.1', 'Prise double', '3 u'], ['1.2', 'Plan de travail', '3,5 ml']]);
+    assert.doesNotMatch(JSON.stringify(r), /prixAchat|marge|coefficient|prixVenteUnitaire/i);
+    const complet = ok(await s.appeler('lecteur', 'lire_devis', { id: 'n1' }));
+    assert.equal(r.totalHT, complet.totaux.totalHT);
+    assert.equal(r.totalTTC, complet.totaux.totalTTC);
+    assert.match(r.phraseTotaux, /^Total hors taxes : [\d ]+,\d\d €\. Total TTC : [\d ]+,\d\d €\.$/);
+    assert.doesNotMatch(r.phraseTotaux, /\bHT\b/);
+  });
+  test('N2 avecPrix ajoute seulement le prix de vente unitaire et le total hors taxes de la ligne', async () => {
+    const s = await demarrer({ devis: [devisAvecSections()] });
+    const r = ok(await s.appeler('lecteur', 'lire_devis', { id: 'n1', format: 'recapitulatif', avecPrix: true }));
+    const l = r.sections[0].lignes[0];
+    assert.deepEqual(Object.keys(l).sort(), ['id', 'intitule', 'numero', 'prixVenteUnitaire', 'quantite', 'totalHT']);
+    assert.equal(l.prixVenteUnitaire, 9.6);
+    assert.equal(l.totalHT, 28.8);
+    assert.doesNotMatch(JSON.stringify(r), /prixAchat|marge|coefficient|modeMarge/i);
+  });
+  test('N2 cas vide : un devis sans ligne le dit, total à 0,00 € ; cas d’erreur : devis inconnu', async () => {
+    const s = await demarrer({ devis: [devisEnregistre('vide', { sections: [] })] });
+    const r = ok(await s.appeler('lecteur', 'lire_devis', { id: 'vide', format: 'recapitulatif' }));
+    assert.equal(r.message, "Ce devis n'a encore aucune ligne.");
+    assert.deepEqual(r.sections, []);
+    assert.match(r.phraseTotaux, /Total hors taxes : 0,00 €/);
+    refuse(await s.appeler('lecteur', 'lire_devis', { id: 'inconnu', format: 'recapitulatif' }), /introuvable/i);
+  });
+});
+
+describe('N3 descriptions : une phrase à la fin, rien de réécrit', () => {
+  test('N3 modifier_devis_brouillon dit qu’il aplatit les sous-sections ; lire_devis annonce le récapitulatif ; creer_devis_brouillon annonce `sections`', async () => {
+    const { OUTILS_ECRITURE } = await import('../functions/src/mcp/outils/ecriture.js');
+    const { lire_devis } = await import('../functions/src/mcp/outils/lecture.js');
+    const desc = (n) => OUTILS_ECRITURE.find((o) => o.nom === n).description;
+    assert.match(desc('modifier_devis_brouillon'), /sous-sections faites à l'écran sont perdues/);
+    assert.match(desc('creer_devis_brouillon'), /`sections` : la structure courte/);
+    assert.match(lire_devis.description, /format: 'recapitulatif'/);
   });
 });

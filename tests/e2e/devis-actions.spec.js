@@ -78,9 +78,10 @@ test('1 le menu « … » d’un brouillon propose « Éditer le devis » et « 
   await expect(menu(page).getByRole('menuitem', { name: 'Voir la fiche' })).toHaveCount(0);
   await expect(menu(page).getByRole('menuitem', { name: 'Modifier : version actuelle' })).toHaveCount(0);
   await expect(menu(page).getByRole('menuitem', { name: 'Voir', exact: true })).toHaveCount(0);
-  for (const nom of ['Dupliquer', 'Préparer l’e-mail', 'Archiver', 'Supprimer']) await expect(menu(page).getByRole('menuitem', { name: nom })).toBeVisible();
+  for (const nom of ['Préparer l’e-mail', 'Archiver', 'Supprimer']) await expect(menu(page).getByRole('menuitem', { name: nom })).toBeVisible();
+  await expect(menu(page).getByRole('menuitem', { name: 'Dupliquer', exact: true })).toBeVisible();
   await expect(entree(page, 'Archiver')).toBeDisabled();
-  await expect(menu(page)).toContainText('Seul un devis signé ou refusé peut être archivé.');
+  await expect(menu(page)).toContainText('Seul un devis finalisé, signé ou refusé peut être archivé.');
   await capturer(page, info, '1-menu-brouillon');
   // « Voir le devis » ouvre l'écran unique sur la Prévisualisation (un brouillon reste modifiable : ni lecture seule ni bandeau), « Éditer le devis » sur l'Édition.
   await entree(page, 'Voir le devis').click();

@@ -92,6 +92,21 @@ export function modifier(devis, patch, collection = C.devis) {
 }
 
 /**
+ * Modification d'un brouillon décidée à partir du devis lu DANS la transaction (aucune fenêtre de course avec l'écran) : `calculer(tx, devis)` rend `{ patch, reponse }`
+ * (ou refuse en levant : rien n'est alors écrit) ; le devis et UNE ligne de journal (un seul operationId) sont écrits ensemble. Utilisée par modifier_lignes_devis.
+ */
+export async function modifierEnTransaction({ donnees, ctx, devisId, outil, parametres, calculer }) {
+  return donnees.transaction(async (tx) => {
+    const devis = await lireDevis(tx, devisId);
+    const { patch, reponse } = await calculer(tx, devis);
+    const changements = [modifier(devis, patch)];
+    const j = journal({ donnees, ctx, outil, parametres, changements });
+    tx.ecrire([...changements.map((x) => x.ecriture), ...j.ecritures]);
+    return { operationId: j.operationId, reponse: { ...reponse, operationId: j.operationId } };
+  });
+}
+
+/**
  * Écriture du montant calculé d'après les devis dans l'affaire du devis (`montantDevisHt` + `montantDevisNature` + `montantDevisDetail`), ou null s'il n'y a rien à changer (pas d'affaire, affaire supprimée, mêmes valeurs).
  * `retouches` : { idDevis: champs | null } = ce que la transaction en cours change sur ses devis (null : le devis disparaît), appliqué en mémoire avant le calcul (les écritures ne partent qu'à la fin).
  * À appeler AVANT `tx.ecrire` (Firestore veut toutes les lectures d'abord). Ne crée jamais l'affaire. Règle : `montantDesDevis` (partage/devis.js).
@@ -110,7 +125,7 @@ async function montantDeLAffaire(tx, devis, retouches) {
   const affaire = await tx.document(C.affaires, affaireId);
   if (!affaire) return null;
   const liste = (await tx.liste(C.devis, { champ: 'affaireId', valeur: affaireId })).map(enDates);
-  if (!liste.some((d) => d.id === devis.id) && retouches[devis.id] !== null) liste.push(devis);
+  if (devis.id && !liste.some((d) => d.id === devis.id) && retouches[devis.id] !== null) liste.push(devis);
   const calcule = D.montantDesDevis(liste.filter((d) => retouches[d.id] !== null).map((d) => ({ ...d, ...(retouches[d.id] ?? {}) })));
   const patch = { montantDevisHt: calcule?.montant ?? null, montantDevisNature: calcule?.nature ?? null, montantDevisDetail: calcule?.detail ?? null };
   const meme = (typeof affaire.montantDevisHt === 'number' ? affaire.montantDevisHt : null) === patch.montantDevisHt && (affaire.montantDevisNature ?? null) === patch.montantDevisNature
@@ -176,6 +191,8 @@ export async function changerStatut({ donnees, ctx, devisId, action }) {
   if (!champDate) throw new ErreurDevis('demande_invalide', 'Action inconnue : marquer_envoye, accepter ou refuser.');
   return donnees.transaction(async (tx) => {
     const devis = await lireDevis(tx, devisId);
+    // Un devis archivé ne change plus de statut (un finalisé archivé, passé à Signé, serait ignoré par le montant de l'affaire) : on le sort des archives d'abord.
+    if (devis.archive === true) throw new ErreurDevis('transition_interdite', 'Ce devis est archivé : sors-le des archives avant de changer son statut.');
     if (!D.transitionPossible(devis.statut, action)) {
       throw new ErreurDevis('transition_interdite', `Cette action n'est pas possible pour un devis « ${D.STATUTS_DEVIS.find((s) => s.id === devis.statut)?.libelle ?? devis.statut} ».`);
     }
@@ -233,13 +250,13 @@ export async function nouvelleVersion({ donnees, ctx, devisId }) {
   });
 }
 
-/** Pose (`archive: true`) ou retire (`archive: false`) le drapeau d'archive. Poser : seulement sur un devis Signé ou Refusé. */
+/** Pose (`archive: true`) ou retire (`archive: false`) le drapeau d'archive. Poser : seulement sur un devis Finalisé (jamais envoyé), Signé ou Refusé. */
 export async function archiver({ donnees, ctx, devisId, archive }) {
   if (typeof archive !== 'boolean') throw new ErreurDevis('demande_invalide', 'Précise si le devis doit être archivé ou non.');
   return donnees.transaction(async (tx) => {
     const devis = await lireDevis(tx, devisId);
     if (archive && !D.peutArchiver(devis)) {
-      throw new ErreurDevis('transition_interdite', devis.archive === true ? 'Ce devis est déjà archivé.' : 'Seul un devis signé ou refusé peut être archivé.');
+      throw new ErreurDevis('transition_interdite', devis.archive === true ? 'Ce devis est déjà archivé.' : 'Seul un devis finalisé, signé ou refusé peut être archivé.');
     }
     if (!archive && devis.archive !== true) throw new ErreurDevis('transition_interdite', 'Ce devis n\'est pas archivé.');
     const patch = { archive, archiveLe: archive ? ctx.maintenant : null };
@@ -261,7 +278,7 @@ export async function archiver({ donnees, ctx, devisId, archive }) {
 export async function supprimer({ donnees, ctx, devisId }) {
   return donnees.transaction(async (tx) => {
     const devis = await lireDevis(tx, devisId);
-    if (devis.statut !== 'brouillon') throw new ErreurDevis('transition_interdite', 'Seul un brouillon peut être supprimé. Un devis finalisé se garde ; tu peux l’archiver s’il est signé ou refusé.');
+    if (devis.statut !== 'brouillon') throw new ErreurDevis('transition_interdite', 'Seul un brouillon peut être supprimé. Un devis finalisé se garde ; tu peux l’archiver s’il est finalisé (jamais envoyé), signé ou refusé.');
     const changement = { id: devis.id, collection: C.devis, action: 'supprimer', avant: devis, apres: null, champs: [], ecriture: { type: 'delete', collection: C.devis, id: devis.id } };
     // Un brouillon ne compte jamais dans le montant de l'affaire (règle D17) : supprimer ne touche pas à l'affaire, et l'opération reste restaurable par le journal.
     const j = journal({ donnees, ctx, outil: 'devisSupprimer', parametres: { devisId }, changements: [changement] });
@@ -404,6 +421,51 @@ export async function echouerPdf({ donnees, ctx, devisId, message }) {
     tx.ecrire([changement.ecriture, ...j.ecritures]);
     return { ok: true, deja: false, devis: { ...devis, pdf }, operationId: j.operationId };
   });
+}
+
+/** Nombre maximum d'affaires corrigées par appel (au-delà : un nouvel aperçu, un nouveau code). */
+export const MAX_RECALCUL = 50;
+const montantLu = (a) => ({ ht: typeof a.montantDevisHt === 'number' ? a.montantDevisHt : null, nature: a.montantDevisNature ?? null });
+
+/**
+ * Recalcul général du montant des affaires d'après leurs devis (règle D17, docs/montant-affaire.md) pour celles que le serveur n'a pas encore calculées
+ * (devis envoyé avant la règle) ou dont le calcul est périmé. N'écrit QUE `montantDevisHt`, `montantDevisNature` et `montantDevisDetail` ; le montant saisi n'est jamais touché.
+ * Idempotent : une affaire déjà à jour n'est ni écrite ni journalisée. `appliquer: false` : aperçu, rien n'est écrit. Une transaction et une ligne de journal par affaire.
+ * Rend `{ total, lignes: [{ affaireId, avant, apres, nature }], operations }` (`lignes` : les MAX_RECALCUL premières, par identifiant).
+ */
+export async function recalculerMontantsAffaires({ donnees, ctx, appliquer = false, affaireIds = null }) {
+  const aCorriger = new Map();
+  if (Array.isArray(affaireIds)) {
+    // Écriture d'après un aperçu fait dans le même appel : on ne reprend que ces affaires (chacune est relue dans sa transaction, et rien n'est écrit si elle est déjà à jour).
+    for (const affaireId of affaireIds) aCorriger.set(affaireId, { affaireId });
+  } else {
+    const ids = new Set();
+    for (const d of await donnees.liste(C.devis)) if (typeof d.affaireId === 'string' && d.affaireId && !d.affaireId.includes('/')) ids.add(d.affaireId);
+    for (const a of await donnees.liste(C.affaires)) if (a.montantDevisNature != null || a.montantDevisHt != null) ids.add(a.id); // un calcul périmé (plus aucun devis) se remet à zéro aussi
+    for (const affaireId of [...ids].sort()) {
+      await donnees.transaction(async (tx) => {
+        const changement = await montantDeLAffaire(tx, { id: null, affaireId }, {});
+        if (changement) aCorriger.set(affaireId, { affaireId, avant: montantLu(changement.avant), apres: { ht: changement.apres.montantDevisHt, nature: changement.apres.montantDevisNature } });
+      });
+    }
+  }
+  const total = aCorriger.size;
+  const lignes = [...aCorriger.values()].slice(0, MAX_RECALCUL);
+  const operations = [];
+  if (appliquer) {
+    for (const { affaireId } of lignes) {
+      // L'identifiant d'opération est RENDU par la transaction (Firestore la rejoue en cas de contention : un effet de bord dans la fonction compterait des opérations jamais écrites).
+      const operationId = await donnees.transaction(async (tx) => {
+        const changement = await montantDeLAffaire(tx, { id: null, affaireId }, {});
+        if (!changement) return null;
+        const j = journal({ donnees, ctx, outil: 'devisRecalculMontant', parametres: { affaireId }, changements: [changement] });
+        tx.ecrire([changement.ecriture, ...j.ecritures]);
+        return j.operationId;
+      });
+      if (operationId) operations.push(operationId);
+    }
+  }
+  return { total, lignes, operations };
 }
 
 // ---------------------------------------------------------------- pour les fonctions appelables (les deux projets)

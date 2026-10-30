@@ -51,7 +51,7 @@ describe('Marge', () => {
     for (const m of [100, 150]) {
       const r = D.coefficientDeMarge(m, 'marge_vente');
       assert.equal(r.coefficient, null);
-      assert.equal(r.erreur, 'La marge sur le prix de vente doit être inférieure à 100 %.');
+      assert.equal(r.erreur, 'En calcul comptable, la marge doit rester inférieure à 100 %.');
     }
     assert.equal(D.prixVenteUnitaire(100, 100, 'marge_vente'), null);
   });
@@ -179,8 +179,8 @@ describe('Numéro, expiration, statuts', () => {
   });
   test('D16 table des transitions : aucune transition libre', () => {
     const attendu = {
-      finaliser: ['brouillon'], marquer_envoye: ['en_attente_envoi'], accepter: ['envoye'], refuser: ['envoye'],
-      nouvelle_version: ['en_attente_envoi', 'envoye', 'refuse'], remplacer: ['en_attente_envoi', 'envoye'], archiver: ['accepte', 'refuse'],
+      finaliser: ['brouillon'], marquer_envoye: ['en_attente_envoi'], accepter: ['envoye'], refuser: ['en_attente_envoi', 'envoye'],
+      nouvelle_version: ['en_attente_envoi', 'envoye', 'refuse'], remplacer: ['en_attente_envoi', 'envoye'], archiver: ['en_attente_envoi', 'accepte', 'refuse'],
     };
     for (const [action, permis] of Object.entries(attendu)) {
       for (const { id } of D.STATUTS_DEVIS) assert.equal(D.transitionPossible(id, action), permis.includes(id), `${action} depuis ${id}`);
@@ -190,9 +190,10 @@ describe('Numéro, expiration, statuts', () => {
     assert.equal(D.statutApres('envoye', 'accepter'), 'accepte');
     assert.equal(D.statutApres('brouillon', 'accepter'), null);
   });
-  test('D21 archiver est un drapeau, permis seulement pour accepté ou refusé', () => {
+  test('D21 archiver est un drapeau, permis pour finalisé, accepté ou refusé', () => {
     assert.equal(D.peutArchiver({ statut: 'accepte', archive: false }), true);
     assert.equal(D.peutArchiver({ statut: 'refuse' }), true);
+    assert.equal(D.peutArchiver({ statut: 'en_attente_envoi' }), true, 'un devis finalisé jamais envoyé a une sortie');
     assert.equal(D.peutArchiver({ statut: 'accepte', archive: true }), false);
     assert.equal(D.peutArchiver({ statut: 'envoye' }), false);
     assert.equal(D.peutArchiver({ statut: 'brouillon' }), false);

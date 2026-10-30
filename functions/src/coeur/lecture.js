@@ -8,7 +8,9 @@ import * as DV from '../../partage/devis-vocabulaire.js';
 import * as D from '../../partage/devis.js';
 import { COLLECTIONS as C } from './donnees.js';
 import { serialiser } from './serialisation.js';
+import { ditHorsTaxes, ditPourAssistant, sansModeMarge } from './voix.js';
 import { lireConfig } from './config.js';
+import { structureCourte, phraseTotaux } from './recapitulatif.js';
 
 export const MAX_LIGNES = 200;
 const borne = (liste, limite = MAX_LIGNES) => ({ total: liste.length, tronque: liste.length > limite, elements: liste.slice(0, limite) });
@@ -272,7 +274,7 @@ export async function lireAudit(donnees, { acteur, docId, operationId, depuis, i
   if (incompletes) lignes = lignes.filter((l) => l.statut === 'en_cours');
   lignes.sort((a, b) => (L.versDate(b.date)?.getTime() ?? 0) - (L.versDate(a.date)?.getTime() ?? 0) || (a.ordre ?? 0) - (b.ordre ?? 0));
   const { total, tronque, elements } = borne(lignes, Math.min(limite ?? MAX_LIGNES, MAX_LIGNES));
-  return serialiser({ total, tronque, lignes: elements, aVerifier: lignes.filter((l) => l.statut === 'en_cours').length });
+  return serialiser({ total, tronque, lignes: sansModeMarge(elements), aVerifier: lignes.filter((l) => l.statut === 'en_cours').length });
 }
 
 // ---------------------------------------------------------------- Devis : bordereau
@@ -316,7 +318,9 @@ export async function rechercherArticleParPhrase(donnees, { phrase, limite }) {
 export async function lireReglagesDevis(donnees) {
   const lire = async (id) => { try { return await donnees.document(C.devisParametres, id); } catch { return null; } };
   const [reglages, familles] = await Promise.all([lire(DA.ID_REGLAGES), lire(DF.ID_DOCUMENT_FAMILLES)]);
-  return serialiser({ reglages: DA.reglagesDevis(reglages), familles: DF.famillesDe(familles) });
+  // Le mode de calcul de la marge (artisan / comptable) n'est jamais montré à l'assistant : il s'applique sans être dit ni demandé (décision du 30/10/2026).
+  const { modeMarge: _mode, ...visibles } = DA.reglagesDevis(reglages);
+  return serialiser({ reglages: visibles, familles: DF.famillesDe(familles) });
 }
 
 // ---------------------------------------------------------------- Devis (24/10/2026)
@@ -384,7 +388,7 @@ export async function listerDevis(donnees, { statut, affaireId, texte, archives,
  * Acomptes : `acomptes` est la liste normalisée ({ type: pourcentage | montantHt | montantTtc, valeur, moment, texteMoment? }), même pour un ancien devis à acompte unique (`acompte`, gardé tel quel) ;
  * `totaux.acomptesTTC` donne le montant TTC de chaque acompte retenu, `totaux.acompteTTC` leur somme.
  */
-export async function lireDevis(donnees, { id }, maintenant = new Date()) {
+export async function lireDevis(donnees, { id, format, avecPrix }, maintenant = new Date()) {
   const devis = await donnees.document(C.devis, id);
   if (!devis) introuvable('Devis');
   const [organisations, personnes] = await Promise.all([C.organisations, C.personnes].map((nom) => donnees.liste(nom)));
@@ -392,7 +396,18 @@ export async function lireDevis(donnees, { id }, maintenant = new Date()) {
   const t = totauxDe(devis);
   const parLigne = new Map(t.lignes.map((l) => [l.id, l]));
   const affaire = devis.affaireId ? await donnees.document(C.affaires, devis.affaireId) : null;
-  const { sections, totaux: _figes, ...reste } = devis;
+  const { sections, totaux: _figes, modeMarge: _mode, ...reste } = devis; // le mode de calcul de la marge n'est jamais montré à l'assistant
+  // Récapitulatif court (pour redire le devis à voix haute) : numéro, intitulé et quantité, jamais de prix d'achat ni de marge ; les prix de vente seulement si avecPrix.
+  if (format === 'recapitulatif') {
+    const resume = resumeDevis(devis, { organisations, personnes, aujourdhui });
+    const structure = structureCourte(sections, { prixParLigne: avecPrix === true ? parLigne : undefined });
+    return serialiser({
+      id: devis.id, numero: resume.numero ?? null, version: devis.version ?? 1, statut: resume.statut, objet: devis.objet ?? '', client: resume.client,
+      sections: structure, totalHT: t.totalHt, totalTTC: t.ttc, phraseTotaux: phraseTotaux(t.totalHt, t.ttc),
+      ...(structure.some((s) => s.lignes.length) ? {} : { message: "Ce devis n'a encore aucune ligne." }),
+    });
+  }
+  const numeros = D.numerosDevis(sections ?? []);
   return serialiser({
     ...reste,
     ...resumeDevis(devis, { organisations, personnes, aujourdhui }),
@@ -400,13 +415,14 @@ export async function lireDevis(donnees, { id }, maintenant = new Date()) {
     // E-mails en copie et historique des envois par e-mail ({ date, destinataires, copie }, du plus ancien au plus récent) : envoyeLe est la date du PREMIER envoi.
     copie: Array.isArray(devis.copie) ? devis.copie : [],
     envois: (Array.isArray(devis.envois) ? devis.envois : []).map((e) => ({ date: e?.date ?? null, destinataires: e?.destinataires ?? [], copie: e?.copie ?? [] })),
-    sections: (sections ?? []).map((s) => ({
+    sections: (sections ?? []).map((s, i) => ({
       ...s,
+      numero: numeros[i].numero,
       sousTotalHT: t.sections.find((x) => x.id === s.id)?.sousTotalHT ?? 0,
-      lignes: (s.lignes ?? []).map((l) => ({ ...l, prixVenteUnitaire: parLigne.get(l.id)?.prixVenteUnitaire ?? null, totalHT: parLigne.get(l.id)?.totalHT ?? 0, venduAPerte: parLigne.get(l.id)?.venduAPerte ?? false })),
+      lignes: (s.lignes ?? []).map((l, j) => ({ ...l, ...(numeros[i].lignes[j] ? { numero: numeros[i].lignes[j] } : {}), prixVenteUnitaire: parLigne.get(l.id)?.prixVenteUnitaire ?? null, totalHT: parLigne.get(l.id)?.totalHT ?? 0, venduAPerte: parLigne.get(l.id)?.venduAPerte ?? false })),
     })),
     acomptes: D.listeAcomptes(devis),
-    totaux: { totalBrutHT: t.totalBrutHt, remiseHT: t.remiseHt, totalHT: t.totalHt, tvaParTaux: t.tvaParTaux, tva: t.tva, totalTTC: t.ttc, acompteTTC: t.acompteTtc, acomptesTTC: t.acomptesTtc ?? (t.acompteTtc == null ? [] : [t.acompteTtc]), resteAFacturerTTC: t.resteAFacturerTtc, netAPayer: t.netAPayer, mentions: t.mentions },
-    ...(devis.statut === 'brouillon' ? { erreursFinalisation: D.erreursFinalisation(devis) } : {}),
+    totaux: { totalBrutHT: t.totalBrutHt, remiseHT: t.remiseHt, totalHT: t.totalHt, tvaParTaux: t.tvaParTaux, tva: t.tva, totalTTC: t.ttc, acompteTTC: t.acompteTtc, acomptesTTC: t.acomptesTtc ?? (t.acompteTtc == null ? [] : [t.acompteTtc]), resteAFacturerTTC: t.resteAFacturerTtc, netAPayer: t.netAPayer, mentions: (t.mentions ?? []).map(ditHorsTaxes) },
+    ...(devis.statut === 'brouillon' ? { erreursFinalisation: D.erreursFinalisation(devis).map(ditPourAssistant) } : {}),
   });
 }
