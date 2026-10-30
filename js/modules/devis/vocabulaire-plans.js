@@ -10,7 +10,7 @@ export const COLLECTION_VOCABULAIRE = 'devis_vocabulaire';
 /** Nom de l'action dans le Journal des modifications. */
 export const OUTIL_VOCABULAIRE = 'vocabulaire';
 /** Les seuls champs qu'un navigateur change sur un mot qui existe (avec les marques de modification). */
-export const CHAMPS_MODIFIABLES = Object.freeze(['statut', 'articleId', 'articleLibelle', 'note', 'conflit', 'valideLe', 'validePar', 'revoirLe', 'suggestionTraiteeLe']);
+export const CHAMPS_MODIFIABLES = Object.freeze(['statut', 'articleId', 'articleLibelle', 'note', 'conflit', 'valideLe', 'validePar', 'revoirLe', 'suggestionTraiteeLe', 'cibles']);
 export const MAX_EXPRESSION = 120;
 export const MAX_NOTE = 300;
 

@@ -171,6 +171,15 @@ button[data-lecture="verrou"][aria-disabled="true"], select[data-lecture="verrou
 .champ-grand { min-height: calc(var(--h-ctrl) + var(--esp-3)); }
 .champ-intelligent.champ-grand { min-height: 0; }
 .champ-intelligent.champ-grand .champ-intelligent-saisie { min-height: calc(var(--h-ctrl) + var(--esp-3)); }
+/* « Pour qui est ce devis ? » : la question « l'organisation / elle seule » et la liste « à l'attention de » sous le champ ; la ligne Affaire est plus petite que le champ unique. */
+.zone-client-devis:empty { display: none; }
+.zone-client-devis { display: flex; flex-direction: column; gap: var(--esp-2); margin-top: var(--esp-2); }
+.question-client { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--esp-1); min-width: 0; }
+.choix-pour-qui { display: flex; align-items: flex-start; gap: var(--esp-2); cursor: pointer; }
+@media (max-width: 700px) { .choix-pour-qui { min-height: 44px; align-items: center; } }
+/* Finaliser sans affaire : le champ Affaire est bien rouge, même avec le focus. */
+.champ-intelligent .champ.invalide, .champ-intelligent .champ.invalide:focus { border-color: var(--retard); box-shadow: 0 0 0 1px var(--retard); outline: none; }
+.attention-devis { display: flex; flex-direction: column; gap: var(--esp-1); }
 
 /* Recherche dans le Bordereau (ouverte par « + Fourniture », « + Main d'œuvre », « + Ouvrage »…). */
 .recherche-bordereau { display: flex; flex-direction: column; gap: var(--esp-3); padding: var(--esp-5); border: 1px solid var(--bordure); border-radius: var(--rayon-petit); background: var(--panneau2); }
@@ -589,3 +598,17 @@ textarea.champ-surplace { resize: none; overflow: hidden; min-height: var(--h-ct
 /* Les liens de la liste (phrases d'exemple, « Changer l'article ») ne sont pas des actions principales : texte normal souligné, jamais jaune. */
 .tableau-vocabulaire .bouton-lien { padding: 0; color: var(--texte); text-decoration: underline; text-decoration-color: var(--bordure-forte, var(--texte2)); }
 .tableau-vocabulaire .bouton-lien:hover, .tableau-vocabulaire .bouton-lien:focus-visible { text-decoration-color: var(--texte); }
+
+/* Sélecteur du catalogue (écran Vocabulaire) : l'arbre famille › sous-famille › articles sous le champ de recherche. */
+.arbre-catalogue { max-height: 260px; overflow-y: auto; border: 1px solid var(--bordure); border-radius: var(--rayon-petit); }
+.arbre-catalogue ul { list-style: none; margin: 0; padding: 0; }
+.arbre-catalogue .arbre-contenu { padding-left: var(--esp-6); }
+.arbre-catalogue p { margin: 0; padding: var(--esp-3) var(--esp-6); }
+.arbre-catalogue .arbre-vide { padding: var(--esp-3) var(--esp-6); }
+.arbre-entete, .arbre-article { display: flex; align-items: center; gap: var(--esp-3); width: 100%; min-height: var(--h-ctrl-petit); padding: 0 var(--esp-6); border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.arbre-article { justify-content: space-between; }
+.arbre-entete:hover, .arbre-entete:focus-visible, .arbre-article:hover, .arbre-article:focus-visible { background: var(--survol); }
+.arbre-article.choisi { font-weight: var(--poids-moyen); box-shadow: inset 3px 0 0 var(--accent-trait); }
+.arbre-nom { flex: 1; }
+.selecteur-catalogue .discret { color: var(--texte2); }
+@media (max-width: 767px), (pointer: coarse) { .arbre-entete, .arbre-article { min-height: 44px; } }

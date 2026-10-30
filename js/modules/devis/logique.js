@@ -986,7 +986,7 @@ export function vueClient(devis, contexte = {}) {
     },
     objet: devis.objet ?? null,
     ...(chantierDeVue(devis.chantier) ? { chantier: chantierDeVue(devis.chantier) } : {}),
-    client: { nom: contexte.clientNom ?? null, ...coordonneesClient(contexte.client) },
+    client: { nom: contexte.clientNom ?? null, ...(texteNonVide(contexte.attentionNom) ? { attention: String(contexte.attentionNom).trim() } : {}), ...coordonneesClient(contexte.client) },
     sections: (devis.sections ?? []).map((s, i) => ({
       id: s.id,
       ...(s.sautDePageAvant === true ? { sautDePageAvant: true } : {}),

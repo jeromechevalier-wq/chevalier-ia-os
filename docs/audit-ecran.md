@@ -137,20 +137,41 @@ service cloud.firestore {
     // dates de confirmation) et contourne les règles ; le NAVIGATEUR ne peut que créer une règle MANUELLE (compteurs à zéro, sans conflit) puis la réviser (statut, article, note, conflit, validation humaine : valideLe, validePar, revoirLe, suggestionTraiteeLe).
     // Jamais de suppression : une règle se désactive. Passer « a_confirmer » à « active » est permis (c'est le but de la revue). Le serveur pose « via » à la création ; l'écran ne le modifie pas
     // (gardé dans la liste des clés permises).
+    // Cibles d'un mot (cadrage vocabulaire-cibles, 30/10/2026) : une liste de 8 éléments au plus { genre: article|famille, id, libelle }. Un mot qui a des cibles n'a PAS d'article
+    // (articleId vide) : un ancien moteur le saute au lieu d'appliquer « le premier » d'un « au choix ». Les règles n'ont pas de boucle : on contrôle les 8 positions une à une.
+    function cibleValide(c) {
+      return c is map && c.keys().hasOnly(['genre', 'id', 'libelle'])
+        && c.get('genre', '') in ['article', 'famille']
+        && c.get('id', '') is string && c.get('id', '').size() >= 1 && c.get('id', '').size() <= 100
+        && c.get('libelle', '') is string && c.get('libelle', '').size() <= 120;
+    }
+    function ciblesValides() {
+      let l = request.resource.data.cibles;
+      return l is list && l.size() <= 8
+        && (l.size() < 1 || cibleValide(l[0])) && (l.size() < 2 || cibleValide(l[1])) && (l.size() < 3 || cibleValide(l[2])) && (l.size() < 4 || cibleValide(l[3]))
+        && (l.size() < 5 || cibleValide(l[4])) && (l.size() < 6 || cibleValide(l[5])) && (l.size() < 7 || cibleValide(l[6])) && (l.size() < 8 || cibleValide(l[7]));
+    }
+    // ciblesSansArticle s'applique à TOUTE écriture : un mot en « double sens » (cibles + article) ne se modifie plus, même pour le désactiver, tant qu'on ne l'a pas réparé (vider l'article ou les cibles).
+    function ciblesSansArticle() {
+      let d = request.resource.data;
+      return !d.keys().hasAny(['cibles']) || (d.cibles is list && (d.cibles.size() == 0 || (d.get('articleId', '') == '' && d.get('articleLibelle', '') == '')));
+    }
     function vocabulaireManuelNeuf() {
       let d = request.resource.data;
       return d.get('statut', '') in ['active', 'desactivee'] && d.get('origine', '') == 'manuelle'
         && d.get('confirmations', 0) == 0 && d.get('contradictions', 0) == 0 && d.get('conflit', false) == false
         && d.get('exemples', []).size() == 0 && !d.keys().hasAny(['derniereConfirmationLe', 'derniereUtilisationLe', 'suggestion', 'suggestionTraiteeLe'])
         && d.get('validePar', 'humain') == 'humain'
+        && (!d.keys().hasAny(['cibles']) || ciblesValides()) && ciblesSansArticle()
         && (!d.keys().hasAny(['valideLe']) || (d.valideLe is string && d.valideLe.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')))
         && (!d.keys().hasAny(['revoirLe']) || (d.revoirLe is string && d.revoirLe.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')));
     }
     function vocabulaireRevise() {
       let d = request.resource.data;
       let touche = d.diff(resource.data).affectedKeys();
-      return touche.hasOnly(['statut', 'articleId', 'articleLibelle', 'note', 'conflit', 'modifieLe', 'modifiePar', 'via', 'valideLe', 'validePar', 'revoirLe', 'suggestionTraiteeLe'])
+      return touche.hasOnly(['statut', 'articleId', 'articleLibelle', 'note', 'conflit', 'modifieLe', 'modifiePar', 'via', 'valideLe', 'validePar', 'revoirLe', 'suggestionTraiteeLe', 'cibles'])
         && d.get('validePar', 'humain') in ['humain', 'reponses']
+        && (!touche.hasAny(['cibles']) || !d.keys().hasAny(['cibles']) || ciblesValides()) && ciblesSansArticle()
         && (!touche.hasAny(['valideLe']) || (d.valideLe is string && d.valideLe.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')))
         && (!touche.hasAny(['revoirLe']) || (d.revoirLe is string && d.revoirLe.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')))
         && (!touche.hasAny(['suggestionTraiteeLe']) || (d.suggestionTraiteeLe is string && d.suggestionTraiteeLe.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')));
@@ -162,10 +183,17 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Compteur d'usage des articles du module Devis (cadrage vocabulaire-cibles, 2.9 ; 30/10/2026) : un document par article { articleId, nombre, derniereUtilisationLe }, tenu par le SERVEUR
+    // dans la transaction de « finaliser ». Les comptes autorisés LISENT (colonne « Utilisé N fois » du catalogue) ; aucune écriture depuis un navigateur. Exclue du joker ci-dessous.
+    match /devis_usage_articles/{id} {
+      allow read: if compteAutorise();
+      allow write: if false;
+    }
+
     // Tout le reste : comme avant (les deux comptes autorisés), sauf les collections ci-dessus.
     match /{collection}/{document=**} {
       allow read, write: if compteAutorise()
-        && !(collection in ['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions', 'devis_devis', 'devis_compteurs', 'devis_articles', 'crm_actions_lancements', 'devis_vocabulaire', 'documents_stockes', 'devis_habitudes']);
+        && !(collection in ['crm_audit', 'crm_audit_avant', 'mcp_limites', 'mcp_oauth', 'plateforme_cles', 'tableaudebord_indicateurs', 'tableaudebord_releves', 'tableaudebord_demandes', 'automatisations_propositions', 'devis_devis', 'devis_compteurs', 'devis_articles', 'crm_actions_lancements', 'devis_vocabulaire', 'documents_stockes', 'devis_habitudes', 'devis_usage_articles']);
     }
   }
 }
