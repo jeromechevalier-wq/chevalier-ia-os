@@ -1,5 +1,5 @@
 // Module Devis, haut de page (brief de Jérôme du 26/10/2026, suite de la PR 306).
-//   1 : en état Envoyé, les boutons s'appellent « Devis signé » et « Devis refusé » (même comportement ; les statuts et pastilles gardent « Signé » / « Refusé »).
+//   1 : en état Envoyé, les boutons s'appellent « Devis signé » et « Devis refusé » (même comportement ; les statuts et pastilles gardent « Devis signé » / « Devis refusé »).
 //   2 : le bouton « Envoyer » grisé d'un brouillon a une infobulle au survol ET au focus clavier (« Finalise le devis pour pouvoir l’envoyer »), reliée au bouton par aria-describedby.
 // Captures dans tests/e2e/captures/devis-boutons-libelles-infobulle/ (ordinateur ; téléphone aussi : la mise en page de l'état Envoyé n'avait pas de capture).
 // Les fonctions du serveur sont SIMULÉES par page.route (comme dans devis-entete-bouton-jaune.spec.js).
@@ -48,7 +48,7 @@ const menuPlus = async (page) => { await page.locator('[data-action="plus-action
 const MESSAGE = 'Finalise le devis pour pouvoir l’envoyer';
 
 
-test('1 envoyé : les boutons s’appellent « Devis signé » (jaune) et « Devis refusé » (contour) et appellent le même serveur qu’avant ; les toasts gardent les statuts « Signé » et « Refusé »', async ({ page }, info) => {
+test('1 envoyé : les boutons s’appellent « Devis signé » (jaune) et « Devis refusé » (contour) et appellent le même serveur qu’avant ; les toasts gardent les statuts « Devis signé » et « Devis refusé »', async ({ page }, info) => {
   await donnees();
   const appels = [];
   await page.route('**/devisChangerStatut', async (route) => {
@@ -69,10 +69,10 @@ test('1 envoyé : les boutons s’appellent « Devis signé » (jaune) et « Dev
   await capturer(page, info, '1-envoye-devis-signe-refuse', true);
   await jaunes(page).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Marquer signé' }).click(); // fenêtre de confirmation (27/10/2026)
-  await expect(page.locator('.toast').filter({ hasText: 'Devis passé à « Signé »' })).toBeVisible();
+  await expect(page.locator('.toast').filter({ hasText: 'Devis passé à « Devis signé »' })).toBeVisible();
   await refuse.click();
   await page.getByRole('dialog').getByRole('button', { name: 'Marquer refusé' }).click();
-  await expect(page.locator('.toast').filter({ hasText: 'Devis passé à « Refusé »' })).toBeVisible();
+  await expect(page.locator('.toast').filter({ hasText: 'Devis passé à « Devis refusé »' })).toBeVisible();
   expect(appels).toEqual([{ devisId: 'dEnvoye', action: 'accepter' }, { devisId: 'dEnvoye', action: 'refuser' }]);
 });
 

@@ -148,7 +148,7 @@ test('3 le « … » de l’éditeur et celui de la visualisation proposent les 
   await ouvrir(page);
   // 26/10/2026 : le « … » ne répète jamais un bouton visible de l'en-tête (Finaliser, Envoyer, Devis envoyé, Devis signé, Devis refusé) ;
   // il commence par PDF et impression, puis « Préparer l’e-mail » seulement quand aucun bouton « Envoyer » n'est visible (envoyé, signé) ; au brouillon, « Envoyer » grisé n'ouvre aucun menu : « Préparer l’e-mail » reste dans « … ».
-  const BOUTON_PAR_ETAT = { dBrouillon: /^Passer à « Finalisé »/, dFinalise: /^Passer à « Envoyé »/, dEnvoye: /^Passer à « (Signé|Refusé) »/, dSigne: null }; // signé : aucun bouton d'étape, rien à retirer du « … »
+  const BOUTON_PAR_ETAT = { dBrouillon: /^Passer à « Finalisé »/, dFinalise: /^Passer à « Envoyé »/, dEnvoye: /^Passer à « Devis (signé|refusé) »/, dSigne: null }; // signé : aucun bouton d'étape, rien à retirer du « … »
   let idCourant = null;
   const dansEntete = (t) => t === 'Préparer l’e-mail' || BOUTON_PAR_ETAT[idCourant]?.test(t) === true;
   const sansEnvoyer = (l) => l.filter((t) => !dansEntete(t));

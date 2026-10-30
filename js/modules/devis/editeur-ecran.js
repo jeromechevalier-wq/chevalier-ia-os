@@ -466,8 +466,8 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       if (b.cle === 'finaliser') return h('button', { type: 'button', class: 'bouton bouton-principal', dataset: { action: 'finaliser' }, onclick: () => finaliser() }, icone('check', { taille: 16 }), 'Finaliser');
       if (b.cle === 'envoyer') return boutonEnvoyer({ principal, grise: b.grise === true });
       const style = principal ? 'bouton-principal' : 'bouton-secondaire';
-      if (b.cle === 'signer') return boutonStatut({ action: 'accepter', libelle: b.libelle, pictogramme: b.icone, style, statutLibelle: 'Signé', nomAction: 'marquer-signe' });
-      if (b.cle === 'refuser') return boutonStatut({ action: 'refuser', libelle: b.libelle, pictogramme: b.icone, style, statutLibelle: 'Refusé', nomAction: 'marquer-refuse' });
+      if (b.cle === 'signer') return boutonStatut({ action: 'accepter', libelle: b.libelle, pictogramme: b.icone, style, statutLibelle: 'Devis signé', nomAction: 'marquer-signe' });
+      if (b.cle === 'refuser') return boutonStatut({ action: 'refuser', libelle: b.libelle, pictogramme: b.icone, style, statutLibelle: 'Devis refusé', nomAction: 'marquer-refuse' });
       return boutonStatut({ action: 'marquer_envoye', libelle: b.libelle, pictogramme: b.icone, style, statutLibelle: 'Envoyé', nomAction: 'passer-envoye' });
     };
     // Brouillon et Finalisé : le jaune d'abord, puis à sa droite le bouton qui annonce l'étape d'après (« Envoyer » grisé, « Devis envoyé »). Envoyé : « Devis signé » (jaune) tout à droite.

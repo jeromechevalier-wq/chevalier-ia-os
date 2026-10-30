@@ -118,7 +118,7 @@ describe('L5 regroupement par colonne', () => {
   test('L5 un devis par colonne de son statut ; l’ordre reçu est gardé', () => {
     const liste = [d('b1'), d('b2'), d('f1', { statut: 'en_attente_envoi' }), d('e1', { statut: 'envoye' }), d('s1', { statut: 'accepte' }), d('r1', { statut: 'refuse' }), d('x1', { statut: 'remplace' })];
     const cols = Li.regrouperParColonne(liste, AUJOURDHUI);
-    assert.deepEqual(cols.map((c) => c.libelle), ['Brouillon', 'Envoyé', 'Signé', 'Refusé']);
+    assert.deepEqual(cols.map((c) => c.libelle), ['Brouillon', 'Envoyé', 'Devis signé', 'Devis refusé']);
     assert.deepEqual(cols.map((c) => ids(c.devis)), [['b1', 'b2'], ['f1', 'e1'], ['s1'], ['r1']], 'finalisé dans Envoyé ; remplacé hors tableau');
   });
   test('L5 colonnes toujours présentes, même vides ; statut inconnu = Brouillon', () => {
