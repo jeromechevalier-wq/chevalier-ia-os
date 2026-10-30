@@ -164,7 +164,7 @@
 **Comportement.**
   - Crée un nouveau brouillon (même affaire, même client, mêmes adresses et destinataires que « Dupliquer » : c'est le même client) avec **les mêmes sections et les mêmes quantités**.
   - Chaque ligne qui vient d'un article actif est recréée depuis l'article d'aujourd'hui (`ligneDepuisArticle`) : prix d'achat, marge, taux de TVA, libellé du jour ; un ouvrage est re-figé avec sa composition du jour. Un prix de vente tapé à la main sur la ligne d'origine n'est **pas** repris (le prix du jour l'emporte ; c'est dit dans le message).
-  - **Lignes disparues du catalogue** (article désactivé, supprimé, ou ligne libre faite à l'écran, sans article) : **gardées avec leur ancien prix** et **signalées** dans un message qui les liste avec leur numéro (« 2 lignes n'existent plus dans le catalogue : 1.3 Plinthe chêne, 2.1 Transport ; elles gardent leur ancien prix, à vérifier ») et dans la ligne d'historique. *(Décision prise seule : les garder plutôt que les perdre en silence ; question Q15.)*
+  - **Lignes disparues du catalogue** (article désactivé, supprimé, ou ligne libre faite à l'écran, sans article) : **gardées avec leur ancien prix** et **signalées** dans un message qui les liste avec leur numéro (« 2 lignes n'existent plus dans le catalogue : 1.3 Plinthe chêne, 2.1 Transport ; elles gardent leur ancien prix, à vérifier ») et dans la ligne d'historique. *(Décidé par Jérôme le 30/10, Q15 : les garder plutôt que les perdre en silence.)*
   - **Marge du devis** : « Dupliquer aux prix du jour » garde la marge et le mode de marge du devis d'origine (comme « Dupliquer », même client, même accord), mais les lignes (prix d'achat, marge d'article, TVA) viennent du catalogue du jour ; l'outil MCP (autre client) prend, lui, les réglages du jour. Un libellé, une TVA ou une description retouchés à la main sur la ligne d'origine ne sont pas repris (le message le dit en une phrase).
   - **Menu et tests** : l'entrée s'ajoute à `entreesActionsDevis` (`liste.js`, source unique de la liste, de l'éditeur et de la visualisation) et à `entreesMenuDevis` (`actions-devis.js`) ; **trois tests verrouillent la liste exacte des clés et changent exprès** : `tests/devis-actions.test.js` (liste et test 3), `tests/devis-liste.test.js` (L7).
   - Ne touche jamais au devis d'origine ; journalisé ; récupérable (suppression du brouillon).
@@ -311,7 +311,7 @@ Si du CSS est touché (PR 9 et 11) : `npm run test:module look-compact`. Avant d
 13. **Profil.** Un outil d'annulation pour le profil bibliothécaire élargit ses droits (la restauration générale lui est interdite) : question Q5, Fable regarde.
 14. **Rien qui contredise `CLAUDE.md`** : aucun secret ni donnée de client dans le dépôt ; aucune mesure RGPD ajoutée ; aucun journal effacé ; même code chez Jérôme et chez les clients (le module est le même, aucune fonction réservée à l'un).
 
-## 10. Décisions de Jérôme (réponses du 30/10/2026 aux questions Q1 à Q14)
+## 10. Décisions de Jérôme (réponses du 30/10/2026 aux questions Q1 à Q15)
 
 | Question | Décision | Effet sur le plan |
 |---|---|---|
@@ -330,11 +330,12 @@ Si du CSS est touché (PR 9 et 11) : `npm run test:module look-compact`. Avant d
 | **Q13** Validation d'un mot | **Proposé → Validé après 2 confirmations sur 2 jours différents** | 4.4 |
 | **Q13 bis** Contradictions | **2 contradictions** avant la suggestion (rien ne change tout seul), retrait après **3 confirmations** du contraire | 4.4 |
 | **Q14** Revue mensuelle | Pas de rappel automatique (garantie « aucun e-mail ne part tout seul »), **date de revue de 6 mois par règle**, bouton « Revue terminée » | 4.4 |
+| **Q15** Ligne disparue du catalogue (Dupliquer aux prix du jour) | **Gardée avec son ancien prix et signalée** (valeur par défaut du cadrage, confirmée le 30/10) | 4.5 |
 
 **Vocabulaire décidé** : « hors taxes » en toutes lettres à l'oral et dans les récapitulatifs (jamais « HT »), TTC reste TTC. Toute l'intelligence apprise est visible et modifiable à la revue mensuelle ; pas de « figer ».
 
-**Reste à décider (une question, valeur prise par défaut)**
-- **Q15. Dupliquer aux prix du jour : que faire d'une ligne qui n'existe plus au catalogue ?** (a) la garder avec son ancien prix et la signaler (ma valeur par défaut) ; (b) la retirer et la signaler. *Recommandation : (a), on ne perd rien en silence.*
+
+**Plus aucune question ouverte** : le plan est prêt à être lancé dans l'ordre de la section 5.
 
 ## 11. Fonctions intelligentes de la conversation devis
 
