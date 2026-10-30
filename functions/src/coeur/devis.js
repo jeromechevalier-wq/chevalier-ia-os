@@ -418,29 +418,36 @@ const montantLu = (a) => ({ ht: typeof a.montantDevisHt === 'number' ? a.montant
  * Idempotent : une affaire déjà à jour n'est ni écrite ni journalisée. `appliquer: false` : aperçu, rien n'est écrit. Une transaction et une ligne de journal par affaire.
  * Rend `{ total, lignes: [{ affaireId, avant, apres, nature }], operations }` (`lignes` : les MAX_RECALCUL premières, par identifiant).
  */
-export async function recalculerMontantsAffaires({ donnees, ctx, appliquer = false }) {
-  const ids = new Set();
-  for (const d of await donnees.liste(C.devis)) if (typeof d.affaireId === 'string' && d.affaireId && !d.affaireId.includes('/')) ids.add(d.affaireId);
-  for (const a of await donnees.liste(C.affaires)) if (a.montantDevisNature != null || a.montantDevisHt != null) ids.add(a.id); // un calcul périmé (plus aucun devis) se remet à zéro aussi
+export async function recalculerMontantsAffaires({ donnees, ctx, appliquer = false, affaireIds = null }) {
   const aCorriger = new Map();
-  for (const affaireId of [...ids].sort()) {
-    await donnees.transaction(async (tx) => {
-      const changement = await montantDeLAffaire(tx, { id: null, affaireId }, {});
-      if (changement) aCorriger.set(affaireId, { affaireId, avant: montantLu(changement.avant), apres: { ht: changement.apres.montantDevisHt, nature: changement.apres.montantDevisNature } });
-    });
+  if (Array.isArray(affaireIds)) {
+    // Écriture d'après un aperçu fait dans le même appel : on ne reprend que ces affaires (chacune est relue dans sa transaction, et rien n'est écrit si elle est déjà à jour).
+    for (const affaireId of affaireIds) aCorriger.set(affaireId, { affaireId });
+  } else {
+    const ids = new Set();
+    for (const d of await donnees.liste(C.devis)) if (typeof d.affaireId === 'string' && d.affaireId && !d.affaireId.includes('/')) ids.add(d.affaireId);
+    for (const a of await donnees.liste(C.affaires)) if (a.montantDevisNature != null || a.montantDevisHt != null) ids.add(a.id); // un calcul périmé (plus aucun devis) se remet à zéro aussi
+    for (const affaireId of [...ids].sort()) {
+      await donnees.transaction(async (tx) => {
+        const changement = await montantDeLAffaire(tx, { id: null, affaireId }, {});
+        if (changement) aCorriger.set(affaireId, { affaireId, avant: montantLu(changement.avant), apres: { ht: changement.apres.montantDevisHt, nature: changement.apres.montantDevisNature } });
+      });
+    }
   }
   const total = aCorriger.size;
   const lignes = [...aCorriger.values()].slice(0, MAX_RECALCUL);
   const operations = [];
   if (appliquer) {
     for (const { affaireId } of lignes) {
-      await donnees.transaction(async (tx) => {
+      // L'identifiant d'opération est RENDU par la transaction (Firestore la rejoue en cas de contention : un effet de bord dans la fonction compterait des opérations jamais écrites).
+      const operationId = await donnees.transaction(async (tx) => {
         const changement = await montantDeLAffaire(tx, { id: null, affaireId }, {});
-        if (!changement) return;
+        if (!changement) return null;
         const j = journal({ donnees, ctx, outil: 'devisRecalculMontant', parametres: { affaireId }, changements: [changement] });
         tx.ecrire([changement.ecriture, ...j.ecritures]);
-        operations.push(j.operationId);
+        return j.operationId;
       });
+      if (operationId) operations.push(operationId);
     }
   }
   return { total, lignes, operations };

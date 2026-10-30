@@ -247,6 +247,15 @@ describe('N7 recalcul général (outil recalculer_montants_affaires)', () => {
     assert.deepEqual(lignes.map((l) => l.docId).sort(), ['aff1', 'aff2', 'aff3']);
     assert.ok(lignes.every((l) => l.collection === C.affaires && l.champsModifies.every((c) => c.startsWith('montantDevis'))));
   });
+  test('N7 le journal du recalcul ne se restaure pas (restaurer_depuis_audit refuse, même avec forcer) et l’écriture d’après un aperçu ne reprend que les affaires données', async () => {
+    const m = monde3();
+    const { restaurerOperation } = await import('../functions/src/coeur/restaurer.js');
+    const r = await S.recalculerMontantsAffaires({ donnees: m.donnees, ctx: ctx(), appliquer: true, affaireIds: ['aff2'] });
+    assert.deepEqual([r.operations.length, affaireDe(m, 'aff1').montantDevisHt, affaireDe(m, 'aff2').montantDevisNature], [1, undefined, 'propose'], 'seule l’affaire donnée est écrite');
+    for (const forcer of [false, true]) {
+      await assert.rejects(() => restaurerOperation({ donnees: m.donnees, ctx: ctx(), operationId: r.operations[0], apercu: false, forcer }), (e) => e.code === 'restauration_refusee');
+    }
+  });
   test('N7 idempotent : relancé, il ne trouve plus rien et n’écrit ni affaire ni journal', async () => {
     const m = monde3();
     await S.recalculerMontantsAffaires({ donnees: m.donnees, ctx: ctx(), appliquer: true });

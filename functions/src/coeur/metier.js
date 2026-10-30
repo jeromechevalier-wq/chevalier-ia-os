@@ -1154,6 +1154,7 @@ export async function modifierDestinatairesDevis(c, args) {
 /**
  * Recalcul général du montant des affaires d'après leurs devis (docs/montant-affaire.md). Aperçu (la liste, avant et après) puis code ; n'écrit que les champs calculés `montantDevisHt`, `montantDevisNature`
  * et `montantDevisDetail`, jamais le montant saisi. Idempotent. Se relance tant qu'il en reste (50 affaires par appel).
+ * Décision : une opération groupée compte pour UNE écriture dans le plafond du jeton (elle est bornée à 50 affaires et confirmée par un code).
  */
 export async function recalculerMontantsAffairesDevis(c, args) {
   const prevu = await recalculerMontantsServeur({ donnees: c.donnees, ctx: ctxDevis(c), appliquer: false });
@@ -1165,11 +1166,11 @@ export async function recalculerMontantsAffairesDevis(c, args) {
     suite: "Seuls les champs calculés (montantDevisHt, montantDevisNature, montantDevisDetail) changent ; le montant saisi de chaque affaire reste intact. Chaque affaire a sa ligne de journal ; l'outil est sans danger à relancer.",
   });
   if (apercu) return apercu;
-  const r = await recalculerMontantsServeur({ donnees: c.donnees, ctx: ctxDevis(c), appliquer: true });
+  const r = await recalculerMontantsServeur({ donnees: c.donnees, ctx: ctxDevis(c), appliquer: true, affaireIds: lignes.map((l) => l.affaireId) }); // seulement les affaires de l'aperçu confirmé (pas un second balayage de toute la base)
   for (const operationId of r.operations) c.noterOperation?.(operationId);
   return {
-    change: true, corrigees: r.operations.length, restantes: Math.max(0, r.total - r.operations.length), operationIds: r.operations,
-    detail: r.total > r.operations.length ? 'Il en reste : rappeler recalculer_montants_affaires SANS codeConfirmation pour un nouvel aperçu.' : 'Tout est à jour.',
+    change: true, corrigees: r.operations.length, restantes: Math.max(0, prevu.total - r.operations.length), operationIds: r.operations,
+    detail: prevu.total > r.operations.length ? 'Il en reste : rappeler recalculer_montants_affaires SANS codeConfirmation pour un nouvel aperçu.' : 'Tout est à jour.',
   };
 }
 

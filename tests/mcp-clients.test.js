@@ -597,7 +597,7 @@ describe('Modules : les outils suivent les modules actifs du client', () => {
     const seuls = (actifs) => outilsDesModules(actifs, OUTILS).map((o) => o.nom);
     assert.deepEqual(seuls([]), ['qui_suis_je', 'diagnostiquer_fichiers']); // + outil d'essai temporaire
     assert.ok(seuls(['affaires']).includes('chercher') && !seuls(['affaires']).includes('lister_projets'));
-    assert.equal(seuls(['affaires', 'projets']).length, OUTILS.length - 27, 'sans les modules Automatisations (5 outils de la file À valider) et Devis (6 outils du bordereau et de la recherche par phrase, 16 outils des devis et de leurs réglages, dont le PDF officiel et le brouillon d\'e-mail) : 26 outils manquent');
+    assert.equal(seuls(['affaires', 'projets']).length, OUTILS.length - 27, 'sans les modules Automatisations (5 outils de la file À valider) et Devis (6 outils du bordereau et de la recherche par phrase, 16 outils des devis et de leurs réglages, dont le PDF officiel et le brouillon d\'e-mail) : 27 outils manquent');
     assert.equal(seuls(['affaires', 'projets', 'automatisations']).length, OUTILS.length - 22, 'sans le module Devis : ses 22 outils manquent');
     assert.equal(seuls(['affaires', 'devis']).filter((n) => /article/.test(n)).length, 6, 'Devis exige les Affaires et apporte ses outils du bordereau et la recherche par phrase (rechercher_article_par_phrase), et 12 outils des devis (dont enregistrer_reponse_vocabulaire), sans le mot « article »');
     assert.equal(seuls(['affaires', 'projets', 'automatisations', 'devis']).length, OUTILS.length);
