@@ -59,10 +59,10 @@ test('2 Réglages > Devis : « Calcul artisan » et « Calcul comptable » avec 
     'Calcul comptable : marge sur le prix de vente (achat 100 €, 25 % → vente 133,33 €)',
   ]);
   await expect(mode).toHaveValue('majoration'); // le calcul artisan est le défaut
-  await expect(page.getByText('Marge de revente (%)')).toBeVisible();
-  await expect(page.getByText('Marge par défaut des nouveaux devis (%)')).toBeVisible();
-  await expect(page.getByText('Mode de marge par défaut')).toHaveCount(0);
-  await expect(page.getByText('Marge globale')).toHaveCount(0);
+  await expect(page.locator('label[for="devis-marge"]')).toContainText('Marge de revente (%)');
+  await expect(page.locator('label[for="devis-margeDevis"]')).toContainText('Marge par défaut des nouveaux devis (%)');
+  await expect(page.locator('#reglages-devis')).not.toContainText('Mode de marge par défaut');
+  await expect(page.locator('#reglages-devis')).not.toContainText('Marge globale');
   await capturer(page, info, '2-reglages-calcul-artisan-comptable');
 });
 
@@ -79,7 +79,7 @@ test('5 les lignes qui ont leur propre marge sont comptées, « Appliquer à tou
   await ouvrir(page, await devis('d5', [{ id: 's1', titre: 'Travaux', lignes: [ligne('l1', 'Carrelage', 100), ligne('l2', 'Plinthe', 100, { marge: 40 }), ligne('l3', 'Joint', 100, { marge: 25 })] }], { affichage: { afficherMarges: true } }));
   await page.locator('[data-action="definir-ajustement"]').click();
   const fenetre = page.locator('.menu-devis-ajustement');
-  await expect(fenetre.locator('[data-zone="marges-propres"]')).toHaveText('1 ligne a leur propre marge : la marge du devis ne la touche pas.');
+  await expect(fenetre.locator('[data-zone="marges-propres"]')).toHaveText('1 ligne a sa propre marge : la marge du devis ne la touche pas.');
   await capturer(page, info, '5-lignes-a-marge-propre');
   await fenetre.locator('[data-action="appliquer-marge-lignes"]').click();
   const confirmation = page.getByRole('dialog', { name: 'Appliquer la marge du devis ?' });
@@ -87,10 +87,14 @@ test('5 les lignes qui ont leur propre marge sont comptées, « Appliquer à tou
   await confirmation.getByRole('button', { name: 'Annuler' }).click();
   await expect(confirmation).toHaveCount(0);
   expect((await lireDevis('d5')).sections[0].lignes[1].marge).toBe(40); // annuler ne change rien
-  await fenetre.locator('[data-action="appliquer-marge-lignes"]').click();
+  // La fenêtre « Marge et ajustement » se rouvre toute seule après la confirmation, avec le compte à jour.
+  const rouverte = page.locator('.menu-devis-ajustement');
+  await expect(rouverte.locator('[data-zone="marges-propres"]')).toBeVisible();
+  await rouverte.locator('[data-action="appliquer-marge-lignes"]').click();
   await page.getByRole('dialog', { name: 'Appliquer la marge du devis ?' }).getByRole('button', { name: 'Appliquer' }).click();
-  await expect(fenetre.locator('[data-zone="marges-propres"]')).toBeHidden(); // cas vide : plus de ligne concernée, plus de bouton
-  await expect(fenetre.locator('[data-action="appliquer-marge-lignes"]')).toBeHidden();
+  await expect(rouverte.locator('[data-zone="marge-devis"]')).toBeVisible();
+  await expect(rouverte.locator('[data-zone="marges-propres"]')).toBeHidden(); // cas vide : plus de ligne concernée, plus de bouton
+  await expect(rouverte.locator('[data-action="appliquer-marge-lignes"]')).toBeHidden();
   await expect.poll(async () => (await lireDevis('d5')).sections[0].lignes[1].marge ?? null).toBe(null);
   const apres = await lireDevis('d5');
   expect(apres.sections[0].lignes.map((l) => l.libelle)).toEqual(['Carrelage', 'Plinthe', 'Joint']); // aucune ligne supprimée

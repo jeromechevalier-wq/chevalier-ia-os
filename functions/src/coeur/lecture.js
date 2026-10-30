@@ -8,6 +8,7 @@ import * as DV from '../../partage/devis-vocabulaire.js';
 import * as D from '../../partage/devis.js';
 import { COLLECTIONS as C } from './donnees.js';
 import { serialiser } from './serialisation.js';
+import { ditHorsTaxes, ditPourAssistant, sansModeMarge } from './voix.js';
 import { lireConfig } from './config.js';
 
 export const MAX_LIGNES = 200;
@@ -272,7 +273,7 @@ export async function lireAudit(donnees, { acteur, docId, operationId, depuis, i
   if (incompletes) lignes = lignes.filter((l) => l.statut === 'en_cours');
   lignes.sort((a, b) => (L.versDate(b.date)?.getTime() ?? 0) - (L.versDate(a.date)?.getTime() ?? 0) || (a.ordre ?? 0) - (b.ordre ?? 0));
   const { total, tronque, elements } = borne(lignes, Math.min(limite ?? MAX_LIGNES, MAX_LIGNES));
-  return serialiser({ total, tronque, lignes: elements, aVerifier: lignes.filter((l) => l.statut === 'en_cours').length });
+  return serialiser({ total, tronque, lignes: sansModeMarge(elements), aVerifier: lignes.filter((l) => l.statut === 'en_cours').length });
 }
 
 // ---------------------------------------------------------------- Devis : bordereau
@@ -408,7 +409,7 @@ export async function lireDevis(donnees, { id }, maintenant = new Date()) {
       lignes: (s.lignes ?? []).map((l) => ({ ...l, prixVenteUnitaire: parLigne.get(l.id)?.prixVenteUnitaire ?? null, totalHT: parLigne.get(l.id)?.totalHT ?? 0, venduAPerte: parLigne.get(l.id)?.venduAPerte ?? false })),
     })),
     acomptes: D.listeAcomptes(devis),
-    totaux: { totalBrutHT: t.totalBrutHt, remiseHT: t.remiseHt, totalHT: t.totalHt, tvaParTaux: t.tvaParTaux, tva: t.tva, totalTTC: t.ttc, acompteTTC: t.acompteTtc, acomptesTTC: t.acomptesTtc ?? (t.acompteTtc == null ? [] : [t.acompteTtc]), resteAFacturerTTC: t.resteAFacturerTtc, netAPayer: t.netAPayer, mentions: t.mentions },
-    ...(devis.statut === 'brouillon' ? { erreursFinalisation: D.erreursFinalisation(devis) } : {}),
+    totaux: { totalBrutHT: t.totalBrutHt, remiseHT: t.remiseHt, totalHT: t.totalHt, tvaParTaux: t.tvaParTaux, tva: t.tva, totalTTC: t.ttc, acompteTTC: t.acompteTtc, acomptesTTC: t.acomptesTtc ?? (t.acompteTtc == null ? [] : [t.acompteTtc]), resteAFacturerTTC: t.resteAFacturerTtc, netAPayer: t.netAPayer, mentions: (t.mentions ?? []).map(ditHorsTaxes) },
+    ...(devis.statut === 'brouillon' ? { erreursFinalisation: D.erreursFinalisation(devis).map(ditPourAssistant) } : {}),
   });
 }

@@ -23,15 +23,15 @@ Aucun nom de client, aucune donnée : texte public.
 
 Ne pas poser de question de mode. Répondre en appliquant le calcul des réglages, **avec un exemple chiffré pour que le client corrige d'un mot** :
 
-> « Je mets 50 % de marge sur le prix d'achat : un article acheté 25 € sera vendu 37,50 €. Si tu voulais dire autre chose, dis-le-moi. »
+> « Je mets 50 % de marge : d'après tes réglages, un article acheté 25 € sera vendu 37,50 €. Si tu voulais dire autre chose, dis-le-moi. »
 
-(Cet exemple vaut pour le calcul artisan, qui est le défaut. L'assistant calcule l'exemple avec le prix de vente réellement obtenu, sans nommer le mode. Si le client corrige (« non, 50 % du prix de vente »), l'assistant ne change pas le mode : il propose le pourcentage équivalent et l'applique avec `marge`, ou renvoie le client vers Réglages > Devis.)
+(Le chiffre 37,50 € est celui du calcul artisan, le défaut ; en calcul comptable le même article serait vendu 50 €. L'assistant ne devine jamais : il lit le prix de vente réellement obtenu dans `lire_devis` (`prixVenteUnitaire`) et ne nomme jamais le mode. Si le client corrige (« non, 50 % du prix de vente »), l'assistant ne change pas le mode : il propose le pourcentage équivalent et l'applique avec `marge`, ou renvoie le client vers Réglages > Devis.)
 
 ## « Hors taxes » à voix haute
 
 - Un montant hors taxes se dit « hors taxes », en toutes lettres, **jamais « HT »** (mal lu à voix haute).
 - Un montant toutes taxes comprises reste « TTC ».
-- Les textes renvoyés par les outils disent déjà « hors taxes » ; les noms de champs techniques (`totalHT`, `sousTotalHT`…) ne se lisent pas au client.
+- Les textes renvoyés par les outils (descriptions, erreurs, `erreursFinalisation`, mentions) disent déjà « hors taxes » ; les noms de champs techniques (`totalHT`, `sousTotalHT`…) ne se lisent pas au client.
 
 ## Lignes qui ont leur propre marge
 

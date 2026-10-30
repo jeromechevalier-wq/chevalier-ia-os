@@ -22,7 +22,7 @@ import { aujourdhuiParis, ajouterJours } from '../crm/logique.js';
 // ---------------------------------------------------------------- constantes
 export const MODES_MARGE = [
   // Noms de Jérôme (30/10/2026) : « Calcul artisan » (défaut) et « Calcul comptable ». Les identifiants stockés ne changent pas.
-  { id: 'majoration', libelle: 'Calcul artisan', explication: 'majoration sur le prix d\'achat', exemple: 'achat 100 €, 25 % → vente 125 €' },
+  { id: 'majoration', libelle: 'Calcul artisan', explication: 'majoration sur le prix d’achat', exemple: 'achat 100 €, 25 % → vente 125 €' },
   { id: 'marge_vente', libelle: 'Calcul comptable', explication: 'marge sur le prix de vente', exemple: 'achat 100 €, 25 % → vente 133,33 €' },
 ];
 // Noms affichés (24/10/2026) : Finalisé = `en_attente_envoi`, Signé = `accepte`. Les identifiants stockés ne changent pas.

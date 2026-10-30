@@ -3,6 +3,7 @@ import test, { describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { OUTILS } from '../functions/src/mcp/outils/index.js';
 import { ditHorsTaxes, ErreurMetier } from '../functions/src/coeur/metier.js';
+import { ditPourAssistant, sansModeMarge, MARGE_IMPOSSIBLE } from '../functions/src/coeur/voix.js';
 import * as D from '../js/modules/devis/logique.js';
 import * as Ed from '../js/modules/devis/editeur-logique.js';
 
@@ -41,6 +42,20 @@ describe('M3 « hors taxes » en toutes lettres pour l’assistant', () => {
   });
   test('M3b les erreurs renvoyées à l’assistant disent « hors taxes »', () => {
     assert.equal(new ErreurMetier('saisie_invalide', 'dépasser le total HT du devis').message, 'dépasser le total hors taxes du devis');
+  });
+});
+
+describe('M4 ce qui part vers l’assistant passe par voix.js', () => {
+  test('M4a le message « marge de 100 % » (qui nomme le calcul comptable) devient neutre ; « HT » devient « hors taxes »', () => {
+    assert.equal(ditPourAssistant(`Ligne 1 : ${D.ERREUR_MARGE_100}`), `Ligne 1 : ${MARGE_IMPOSSIBLE}`);
+    assert.equal(ditPourAssistant('total HT et TTC'), 'total hors taxes et TTC');
+    assert.equal(new ErreurMetier('saisie_invalide', D.ERREUR_MARGE_100).message, MARGE_IMPOSSIBLE);
+  });
+  test('M4b sansModeMarge retire la clé à tout niveau sans modifier l’entrée', () => {
+    const entree = { id: 'x', avant: { modeMarge: 'marge_vente', marge: 5 }, apres: [{ modeMarge: 'majoration', n: 1 }] };
+    assert.deepEqual(sansModeMarge(entree), { id: 'x', avant: { marge: 5 }, apres: [{ n: 1 }] });
+    assert.equal(entree.avant.modeMarge, 'marge_vente');
+    assert.equal(sansModeMarge(null), null);
   });
 });
 

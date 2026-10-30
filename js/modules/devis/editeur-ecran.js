@@ -1793,15 +1793,14 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
       contenu: h('p', {}, `${nombre} ${nombre > 1 ? 'lignes vont' : 'ligne va'} passer à la marge du devis (${saisieNombre(travail.marge ?? 0)} %). Leur marge propre ne sera plus utilisée ; les prix d’achat et les quantités ne changent pas.`),
       boutons: [{ libelle: 'Annuler', valeur: false }, { libelle: 'Appliquer', valeur: true, style: 'principal' }],
     });
-    if (ok !== true) return;
-    appliquer(sections);
-    majPrixAffiches();
-    majPropresActuel?.();
+    // La confirmation ferme la fenêtre « Marge et ajustement » (un clic hors de la fenêtre) : on la rouvre, avec le compte à jour.
+    if (ok === true) { appliquer(sections); majPrixAffiches(); }
+    if (ref.lienAjustement?.isConnected) ouvrirAjustement(ref.lienAjustement);
   }
 
   // La fenêtre « Marge et ajustement » : trois blocs titrés, toujours ouverts, l'un sous l'autre (Ajustement global, Marge du devis, Remise client). Rien ne s'ouvre ni ne se ferme.
   function ouvrirAjustement(ancre) {
-    ouvrirFenetreMenu(ancre, () => {
+    ouvrirFenetreMenu(ancre, (fermer) => {
       const champs = {};
       const erreurs = {};
       const fabriquer = (cle, libelle, unite) => {
@@ -1837,11 +1836,11 @@ export function rendreEditeurDevis(conteneur, id, { voir = false } = {}) {
         oninput: (e) => { const vide = e.target.value.trim() === ''; const v = vide ? 0 : Ed.lireSaisie(e.target.value); e.target.classList.toggle('invalide', v === null); if (v !== null) { changer({ marge: v }); majPrixAffiches(); majPropresActuel?.(); const autre = racine.querySelector('[data-champ="marge"]'); if (autre) autre.value = e.target.value; } } });
       // Lignes qui gardent leur propre marge (article du catalogue, prix de vente modifié, ouvrage) : la marge du devis ne les touche pas. Aucune ligne concernée : ni phrase, ni bouton.
       const propres = h('p', { class: 'texte-discret', dataset: { zone: 'marges-propres' }, hidden: true });
-      const boutonPropres = h('button', { type: 'button', class: 'bouton bouton-secondaire', hidden: true, dataset: { action: 'appliquer-marge-lignes' }, onclick: () => appliquerMargeATouteLesLignes() }, 'Appliquer à toutes les lignes');
+      const boutonPropres = h('button', { type: 'button', class: 'bouton bouton-secondaire', hidden: true, dataset: { action: 'appliquer-marge-lignes' }, onclick: () => { fermer(); appliquerMargeATouteLesLignes(); } } /* la fenêtre se ferme avant la confirmation : sur téléphone elle la cacherait */, 'Appliquer à toutes les lignes');
       const majPropres = () => {
         const n = Ed.nombreLignesAvecMargePropre(travail);
         propres.hidden = n === 0; boutonPropres.hidden = n === 0;
-        propres.textContent = n === 0 ? '' : `${n} ${n > 1 ? 'lignes ont' : 'ligne a'} leur propre marge : la marge du devis ne ${n > 1 ? 'les' : 'la'} touche pas.`;
+        propres.textContent = n === 0 ? '' : (n > 1 ? `${n} lignes ont leur propre marge : la marge du devis ne les touche pas.` : '1 ligne a sa propre marge : la marge du devis ne la touche pas.');
       };
       majPropresActuel = majPropres;
       majPropres();

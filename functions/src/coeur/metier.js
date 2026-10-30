@@ -17,18 +17,18 @@ import { canonique, sansId } from './canonique.js';
 import * as DOC from './documents.js';
 import { preparerBrouillonEmail } from './brouillon-email.js';
 import { MESSAGE_NON_BRANCHE, ESPACE_JEROME } from './n8n-sortie.js';
+import { ditHorsTaxes, ditPourAssistant, MARGE_IMPOSSIBLE } from './voix.js';
 import { cheminAppartientALEspace, DUREE_LIEN_MINUTES } from '../devis/stockage.js';
 
 /** Propriétaire des fiches créées par un jeton « cia_… » (sans e-mail) sur le serveur de Jérôme, sauf si l'appel en donne un autre (plan-mcp.md, écart 11, réglé en 2.16.1 pour les connexions Google et les clients). */
 export const PROPRIETAIRE_PAR_DEFAUT = 'jerome.chevalier@gmail.com';
 
-/** « HT » est mal lu à voix haute : les textes renvoyés à l'assistant disent « hors taxes » (« TTC » reste « TTC »). */
-export const ditHorsTaxes = (texte) => String(texte ?? '').replace(/\bHT\b/g, 'hors taxes');
+export { ditHorsTaxes };
 
 /** Saisie refusée : l'appelant doit corriger et recommencer (code : saisie_invalide | introuvable | doublon | confirmation | integrite). */
 export class ErreurMetier extends Error {
   constructor(code, message, details = {}) {
-    super(ditHorsTaxes(message)); // l'assistant parle à voix haute : « hors taxes » en toutes lettres (les écrans gardent « HT »)
+    super(ditPourAssistant(message)); // l'assistant parle à voix haute : « hors taxes » en toutes lettres (les écrans gardent « HT »)
     this.name = 'ErreurMetier';
     this.code = code;
     this.details = details;
@@ -862,7 +862,7 @@ function verifierRemise(remise, devis) {
 function verifierMarge(devis) {
   const { erreur } = D.coefficientDeMarge(devis.marge, devis.modeMarge);
   // Le mode de calcul n'est jamais dit à l'assistant : message neutre.
-  if (erreur) refuser('saisie_invalide', 'Cette marge est impossible : choisis un pourcentage plus petit.');
+  if (erreur) refuser('saisie_invalide', MARGE_IMPOSSIBLE);
 }
 
 function verifierDestinataires(liste) {
